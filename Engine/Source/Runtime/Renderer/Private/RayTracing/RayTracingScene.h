@@ -180,7 +180,7 @@ private:
 
 	struct FLayer
 	{
-		FRayTracingSceneWithGeometryInstances InitializationData;
+		FRayTracingSceneInitializationData InitializationData;
 
 		FRayTracingSceneRHIRef RayTracingSceneRHI;
 
@@ -218,6 +218,7 @@ private:
 
 	bool bInstanceDebugDataEnabled = false;
 
+	bool bInitializationDataBuilt = false;
 	bool bUsedThisFrame = false;
 
 #if STATS

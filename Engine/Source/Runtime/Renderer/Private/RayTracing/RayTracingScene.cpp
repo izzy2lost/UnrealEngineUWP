@@ -33,6 +33,10 @@ END_SHADER_PARAMETER_STRUCT()
 
 const FRayTracingScene::FInstanceHandle FRayTracingScene::INVALID_INSTANCE_HANDLE = FInstanceHandle();
 
+// Round up buffer sizes to some multiple to avoid pathological growth reallocations.
+static constexpr uint32 AllocationGranularity = 8 * 1024;
+static constexpr uint64 BufferAllocationGranularity = 16 * 1024 * 1024;
+
 FRayTracingScene::FRayTracingScene()
 {
 	const uint8 NumLayers = uint8(ERayTracingSceneLayer::NUM);
@@ -46,18 +50,16 @@ FRayTracingScene::~FRayTracingScene()
 
 void FRayTracingScene::BuildInitializationData()
 {
-	const ERayTracingAccelerationStructureFlags BuildFlags = CVarRayTracingSceneBuildMode.GetValueOnRenderThread()
-		? ERayTracingAccelerationStructureFlags::FastTrace
-		: ERayTracingAccelerationStructureFlags::FastBuild;
-
 	const uint8 NumLayers = uint8(ERayTracingSceneLayer::NUM);
 
 	for (uint32 LayerIndex = 0; LayerIndex < NumLayers; ++LayerIndex)
 	{
 		FLayer& Layer = Layers[LayerIndex];
 
-		Layer.InitializationData = CreateRayTracingSceneWithGeometryInstances(Layer.Instances, BuildFlags);
+		Layer.InitializationData = BuildRayTracingSceneInitializationData(Layer.Instances);
 	}
+
+	bInitializationDataBuilt = true;
 }
 
 void FRayTracingScene::InitPreViewTranslation(const FViewMatrices& ViewMatrices)
@@ -70,9 +72,14 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRayTracingScene::Create);
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_RayTracingScene_Create);
 
-	// Round up buffer sizes to some multiple to avoid pathological growth reallocations.
-	static constexpr uint32 AllocationGranularity = 8 * 1024;
-	static constexpr uint64 BufferAllocationGranularity = 16 * 1024 * 1024;
+	const ERayTracingAccelerationStructureFlags BuildFlags = CVarRayTracingSceneBuildMode.GetValueOnRenderThread()
+		? ERayTracingAccelerationStructureFlags::FastTrace
+		: ERayTracingAccelerationStructureFlags::FastBuild;
+
+	if (!bInitializationDataBuilt)
+	{
+		BuildInitializationData();
+	}
 
 	bUsedThisFrame = true;
 
@@ -84,15 +91,18 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 	{
 		FLayer& Layer = Layers[LayerIndex];
 
-		if (!Layer.InitializationData.Scene.IsValid())
 		{
-			BuildInitializationData();
+			TArray<TRefCountPtr<FRHIRayTracingGeometry>> ReferencedGeometries;
+			TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
+
+			FRayTracingSceneInitializer2 Initializer;
+			Initializer.DebugName = FName(TEXT("FRayTracingScene"));
+			Initializer.NumNativeInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
+			Initializer.NumTotalSegments = Layer.InitializationData.TotalNumSegments;
+			Initializer.BuildFlags = BuildFlags;
+
+			Layer.RayTracingSceneRHI = RHICreateRayTracingScene(MoveTemp(Initializer));
 		}
-
-		checkf(Layer.InitializationData.Scene.IsValid(),
-			TEXT("Ray tracing scene RHI object is expected to have been created by BuildInitializationData()"));
-
-		Layer.RayTracingSceneRHI = Layer.InitializationData.Scene;
 
 		const uint32 NumNativeInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
 		const uint32 NumNativeInstancesAligned = FMath::DivideAndRoundUp(FMath::Max(NumNativeInstances, 1U), AllocationGranularity) * AllocationGranularity;
@@ -111,7 +121,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 			Layer.RayTracingScenePooledBuffer = AllocatePooledBuffer(Desc, TEXT("FRayTracingScene::SceneBuffer"));
 		}
-		
+
 		Layer.RayTracingSceneBufferRDG = GraphBuilder.RegisterExternalBuffer(Layer.RayTracingScenePooledBuffer);
 		Layer.RayTracingSceneBufferSRV = GraphBuilder.CreateSRV(FRDGBufferSRVDesc(Layer.RayTracingSceneBufferRDG, Layer.RayTracingSceneRHI, 0));
 
@@ -494,7 +504,7 @@ FRDGBufferSRVRef FRayTracingScene::GetLayerView(ERayTracingSceneLayer Layer) con
 uint32 FRayTracingScene::GetNumNativeInstances(ERayTracingSceneLayer InLayer) const
 {
 	const FLayer& Layer = Layers[uint8(InLayer)];
-	checkf(Layer.InitializationData.Scene.IsValid(), TEXT("Must call BuildInitializationData() or Create() before using GetNumNativeInstances()."));
+	checkf(bInitializationDataBuilt, TEXT("Must call BuildInitializationData() or Create() before using GetNumNativeInstances()."));
 	return Layer.InitializationData.NumNativeCPUInstances + Layer.InitializationData.NumNativeGPUSceneInstances;
 }
 
@@ -634,6 +644,7 @@ void FRayTracingScene::EndFrame()
 	}
 
 	bUsedThisFrame = false;
+	bInitializationDataBuilt = false;
 }
 
 void FRayTracingScene::ReleaseReadbackBuffers()

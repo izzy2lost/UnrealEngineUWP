@@ -43,6 +43,28 @@ struct FRayTracingGPUInstance
 	uint32 DescBufferOffset;
 };
 
+struct FRayTracingSceneInitializationData
+{
+	uint32 NumNativeGPUSceneInstances;
+	uint32 NumNativeCPUInstances;
+	uint32 TotalNumSegments;
+
+	// index of each instance geometry in FRayTracingSceneRHIRef ReferencedGeometries
+	TArray<uint32> InstanceGeometryIndices;
+	// base offset of each instance entries in the instance upload buffer
+	TArray<uint32> BaseUploadBufferOffsets;
+	// prefix sum of `Instance.NumTransforms` for all instances in this scene
+	TArray<uint32> BaseInstancePrefixSum;
+
+	// Unique list of geometries referenced by all instances in this scene.
+	// Any referenced geometry is kept alive while the scene is alive.
+	TArray<FRHIRayTracingGeometry*> PerInstanceGeometries;
+	// One entry per instance
+	TArray<FRHIRayTracingGeometry*> ReferencedGeometries;
+};
+
+RENDERER_API FRayTracingSceneInitializationData BuildRayTracingSceneInitializationData(TConstArrayView<FRayTracingGeometryInstance> Instances);
+
 struct FRayTracingSceneWithGeometryInstances
 {
 	FRayTracingSceneRHIRef Scene;
@@ -83,10 +105,6 @@ RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeom
 	uint32 NumShaderSlotsPerGeometrySegment,
 	uint32 NumMissShaderSlots,
 	uint32 NumCallableShaderSlots = 0,
-	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
-
-RENDERER_API FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances(
-	TConstArrayView<FRayTracingGeometryInstance> Instances,
 	ERayTracingAccelerationStructureFlags BuildFlags = ERayTracingAccelerationStructureFlags::FastTrace);
 
 // Helper function to fill upload buffers required by BuildRayTracingInstanceBuffer with instance descriptors

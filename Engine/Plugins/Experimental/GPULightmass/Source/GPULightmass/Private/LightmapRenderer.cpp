@@ -1134,15 +1134,22 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 		{
 			SCOPED_GPU_MASK(RHICmdList, FRHIGPUMask::All());
 
-			FRayTracingSceneWithGeometryInstances SceneWithGeometryInstances = CreateRayTracingSceneWithGeometryInstances(
-				RayTracingGeometryInstances,
-				ERayTracingAccelerationStructureFlags::FastTrace);
+			const FRayTracingSceneInitializationData RayTracingSceneInitializationData = BuildRayTracingSceneInitializationData(RayTracingGeometryInstances);
+			const ERayTracingAccelerationStructureFlags SceneBuildFlags = ERayTracingAccelerationStructureFlags::FastTrace;
 
-			RayTracingScene = SceneWithGeometryInstances.Scene;
+			{
+				FRayTracingSceneInitializer2 Initializer;
+				Initializer.DebugName = FName(TEXT("LightmapRendererRayTracingScene"));
+				Initializer.NumNativeInstances = RayTracingSceneInitializationData.NumNativeGPUSceneInstances + RayTracingSceneInitializationData.NumNativeCPUInstances;
+				Initializer.NumTotalSegments = RayTracingSceneInitializationData.TotalNumSegments;
+				Initializer.BuildFlags = SceneBuildFlags;
+
+				RayTracingScene = RHICreateRayTracingScene(MoveTemp(Initializer));
+			}
 
 			const FRayTracingSceneInitializer2& SceneInitializer = RayTracingScene->GetInitializer();
 
-			FRayTracingAccelerationStructureSize SizeInfo = RHICalcRayTracingSceneSize(SceneInitializer.NumNativeInstances, ERayTracingAccelerationStructureFlags::FastTrace);
+			FRayTracingAccelerationStructureSize SizeInfo = RHICalcRayTracingSceneSize(SceneInitializer.NumNativeInstances, SceneBuildFlags);
 			FRHIResourceCreateInfo BufferCreateInfo(TEXT("LightmassRayTracingSceneBuffer"));
 			RayTracingSceneBuffer = RHICmdList.CreateBuffer(uint32(SizeInfo.ResultSize), BUF_AccelerationStructure, 0, ERHIAccess::BVHWrite, BufferCreateInfo);
 			RayTracingSceneSRV = RHICmdList.CreateShaderResourceView(FShaderResourceViewInitializer(RayTracingSceneBuffer, RayTracingScene, 0));
@@ -1161,7 +1168,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 			AccelerationStructureAddressesBuffer.Initialize(
 				RHICmdList,
 				TEXT("LightmassRayTracingAccelerationStructureAddressesBuffer"),
-				SceneWithGeometryInstances.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress),
+				RayTracingSceneInitializationData.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress),
 				BUF_Volatile | BUF_MultiGPUAllocate);
 
 			const uint32 InstanceUploadBufferSize = SceneInitializer.NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
@@ -1173,7 +1180,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				InstanceUploadSRV = RHICmdList.CreateShaderResourceView(InstanceUploadBuffer);
 			}
 
-			const uint32 TransformUploadBufferSize = SceneWithGeometryInstances.NumNativeCPUInstances * 3 * sizeof(FVector4f);
+			const uint32 TransformUploadBufferSize = RayTracingSceneInitializationData.NumNativeCPUInstances * 3 * sizeof(FVector4f);
 			FBufferRHIRef TransformUploadBuffer;
 			FShaderResourceViewRHIRef TransformUploadSRV;
 			{
@@ -1189,13 +1196,13 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 					RayTracingScene,
 					View.ViewMatrices.GetPreViewTranslation(),
 					RayTracingGeometryInstances,
-					SceneWithGeometryInstances.InstanceGeometryIndices,
-					SceneWithGeometryInstances.BaseUploadBufferOffsets,
-					SceneWithGeometryInstances.BaseInstancePrefixSum,
-					SceneWithGeometryInstances.NumNativeGPUSceneInstances,
-					SceneWithGeometryInstances.NumNativeCPUInstances,
+					RayTracingSceneInitializationData.InstanceGeometryIndices,
+					RayTracingSceneInitializationData.BaseUploadBufferOffsets,
+					RayTracingSceneInitializationData.BaseInstancePrefixSum,
+					RayTracingSceneInitializationData.NumNativeGPUSceneInstances,
+					RayTracingSceneInitializationData.NumNativeCPUInstances,
 					MakeArrayView(InstanceUploadData, SceneInitializer.NumNativeInstances),
-					MakeArrayView(TransformUploadData, SceneWithGeometryInstances.NumNativeCPUInstances * 3));
+					MakeArrayView(TransformUploadData, RayTracingSceneInitializationData.NumNativeCPUInstances * 3));
 				RHICmdList.UnlockBuffer(TransformUploadBuffer);
 				RHICmdList.UnlockBuffer(InstanceUploadBuffer);
 			}
@@ -1206,9 +1213,9 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 					AccelerationStructureAddressesBuffer.Buffer,
 					GPUIndex,
 					0,
-					SceneWithGeometryInstances.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
+					RayTracingSceneInitializationData.ReferencedGeometries.Num() * sizeof(FRayTracingAccelerationStructureAddress), RLM_WriteOnly);
 
-				const TArrayView<FRHIRayTracingGeometry*> ReferencedGeometries = RHICmdList.AllocArray(MakeConstArrayView(SceneWithGeometryInstances.ReferencedGeometries));
+				const TArrayView<FRHIRayTracingGeometry*> ReferencedGeometries = RHICmdList.AllocArray(MakeConstArrayView(RayTracingSceneInitializationData.ReferencedGeometries));
 
 				RHICmdList.EnqueueLambda([AddressesPtr, ReferencedGeometries, GPUIndex](FRHICommandListBase&)
 				{
@@ -1231,8 +1238,8 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				InstanceUploadSRV,
 				AccelerationStructureAddressesBuffer.SRV,
 				TransformUploadSRV,
-				SceneWithGeometryInstances.NumNativeGPUSceneInstances,
-				SceneWithGeometryInstances.NumNativeCPUInstances,
+				RayTracingSceneInitializationData.NumNativeGPUSceneInstances,
+				RayTracingSceneInitializationData.NumNativeCPUInstances,
 				nullptr,
 				nullptr,
 				nullptr);
@@ -1246,8 +1253,8 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 				BuildParams.ScratchBufferOffset = 0;
 				BuildParams.InstanceBuffer = InstanceBuffer.Buffer;
 				BuildParams.InstanceBufferOffset = 0;
-				BuildParams.ReferencedGeometries = SceneWithGeometryInstances.ReferencedGeometries;
-				BuildParams.PerInstanceGeometries = SceneWithGeometryInstances.PerInstanceGeometries;
+				BuildParams.ReferencedGeometries = RayTracingSceneInitializationData.ReferencedGeometries;
+				BuildParams.PerInstanceGeometries = RayTracingSceneInitializationData.PerInstanceGeometries;
 
 				RHICmdList.BuildAccelerationStructure(BuildParams);
 			}
@@ -1303,7 +1310,7 @@ bool FSceneRenderState::SetupRayTracingScene(FRDGBuilder& GraphBuilder, FSceneUn
 
 			FRayTracingShaderBindingTableInitializer SBTInitializer;
 			SBTInitializer.bAllowHitGroupIndexing = true;
-			SBTInitializer.NumGeometrySegments = SceneWithGeometryInstances.TotalNumSegments;
+			SBTInitializer.NumGeometrySegments = RayTracingSceneInitializationData.TotalNumSegments;
 			SBTInitializer.NumShaderSlotsPerGeometrySegment = RAY_TRACING_NUM_SHADER_SLOTS;
 			SBTInitializer.NumMissShaderSlots = 1;
 			SBTInitializer.NumCallableShaderSlots = 0;
