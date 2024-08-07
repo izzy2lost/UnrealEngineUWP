@@ -2,9 +2,12 @@
 
 #pragma once
 
+#include "USDInfoCache.h"
+#include "USDInfoCacheObject.h"
 #include "USDLevelSequenceHelper.h"
 #include "USDListener.h"
 #include "USDMetadataImportOptions.h"
+#include "USDPrimLinkCacheObject.h"
 #include "USDSkeletalDataConversion.h"
 #include "UsdWrappers/SdfPath.h"
 #include "UsdWrappers/UsdStage.h"
@@ -54,6 +57,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "USD")
 	TObjectPtr<UUsdAssetCache3> AssetCache;
+
+	UPROPERTY()
+	TObjectPtr<UUsdInfoCache> UsdInfoCache;
+
+	UPROPERTY()
+	TObjectPtr<UUsdPrimLinkCache> PrimLinkCache;
 
 	UPROPERTY()
 	TObjectPtr<UUsdAssetCache2> UsdAssetCache;
@@ -317,7 +326,10 @@ public:
 	 */
 	USDSTAGE_API void RepopulateLevelSequence();
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	UE_DEPRECATED(5.5, "The FUsdInfoCache struct is deprecated in favor of the UUsdInfoCache and UUsdPrimLinkCache, referenced via UPROPERTYs")
 	USDSTAGE_API TSharedPtr<FUsdInfoCache> GetInfoCache();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	USDSTAGE_API TSharedPtr<UE::FUsdGeomBBoxCache> GetBBoxCache();
 	USDSTAGE_API TMap<FString, TMap<FString, int32>> GetMaterialToPrimvarToUVIndex();
 	USDSTAGE_API const UsdUtils::FBlendShapeMap& GetBlendShapeMap();
@@ -453,8 +465,10 @@ protected:
 	UsdUtils::FObjectChangesByPath AccumulatedInfoChanges;
 	UsdUtils::FObjectChangesByPath AccumulatedResyncChanges;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Caches various information about prims that are expensive to query */
 	TSharedPtr<FUsdInfoCache> InfoCache;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** USD bounding box cache for the stage. Constructed on-demand */
 	TSharedPtr<UE::FUsdGeomBBoxCache> BBoxCache;

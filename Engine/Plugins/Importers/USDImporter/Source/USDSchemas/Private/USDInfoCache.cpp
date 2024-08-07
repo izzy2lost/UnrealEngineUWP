@@ -139,7 +139,7 @@ FArchive& operator<<(FArchive& Ar, UE::UsdInfoCache::Private::FUsdPrimInfo& Info
 	return Ar;
 }
 
-struct FUsdInfoCache::FUsdInfoCacheImpl
+struct FUsdInfoCacheImpl
 {
 	FUsdInfoCacheImpl()
 		: AllowedExtensionsForGeometryCacheSource(UnrealUSDWrapper::GetNativeFileFormats())
@@ -153,14 +153,25 @@ struct FUsdInfoCache::FUsdInfoCacheImpl
 	FUsdInfoCacheImpl(const FUsdInfoCacheImpl& Other)
 		: FUsdInfoCacheImpl()
 	{
-		// Probably not necessary
 		FReadScopeLock ScopedInfoMapLock(Other.InfoMapLock);
-		FReadScopeLock ScopedPrimPathToAssetsLock(Other.PrimPathToAssetsLock);
+
+		FWriteScopeLock ThisScopedInfoMapLock(InfoMapLock);
 
 		InfoMap = Other.InfoMap;
-		PrimPathToAssets = Other.PrimPathToAssets;
-		AssetToPrimPaths = Other.AssetToPrimPaths;
+
 		AllowedExtensionsForGeometryCacheSource = Other.AllowedExtensionsForGeometryCacheSource;
+	}
+
+	FUsdInfoCacheImpl& operator=(const FUsdInfoCacheImpl& Other)
+	{
+		FReadScopeLock OtherScopedInfoMapLock(Other.InfoMapLock);
+
+		FWriteScopeLock ThisScopedInfoMapLock(InfoMapLock);
+
+		InfoMap = Other.InfoMap;
+		AllowedExtensionsForGeometryCacheSource = Other.AllowedExtensionsForGeometryCacheSource;
+		TempStage = Other.TempStage;
+		return *this;
 	}
 
 	~FUsdInfoCacheImpl()
@@ -172,14 +183,9 @@ struct FUsdInfoCache::FUsdInfoCacheImpl
 	TMap<UE::FSdfPath, UE::UsdInfoCache::Private::FUsdPrimInfo> InfoMap;
 	mutable FRWLock InfoMapLock;
 
-	// Information we may have about a subset of prims
-	TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> PrimPathToAssets;
-	TMap<TWeakObjectPtr<UObject>, TArray<UE::FSdfPath>> AssetToPrimPaths;
-	mutable FRWLock PrimPathToAssetsLock;
-
 	// Temporarily used during the info cache build, as we need to do another pass on point instancers afterwards
-	TArray<FString> TempPointInstancerPaths;
-	mutable FRWLock TempPointInstancerPathsLock;
+	TArray<FString> PointInstancerPaths;
+	mutable FRWLock PointInstancerPathsLock;
 
 	// This is used to keep track of which prototypes are already being translated within this "translation session",
 	// so that the schema translators can early out if they're trying to translate multiple instances of the same
@@ -229,16 +235,16 @@ public:
 
 FUsdInfoCache::FUsdInfoCache()
 {
-	Impl = MakeUnique<FUsdInfoCache::FUsdInfoCacheImpl>();
-}
-
-FUsdInfoCache::FUsdInfoCache(const FUsdInfoCache& Other)
-{
-	Impl = MakeUnique<FUsdInfoCache::FUsdInfoCacheImpl>(*Other.Impl);
+	Impl = MakeUnique<FUsdInfoCacheImpl>();
 }
 
 FUsdInfoCache::~FUsdInfoCache()
 {
+}
+
+void FUsdInfoCache::CopyImpl(const FUsdInfoCache& Other)
+{
+	*Impl = *Other.Impl;
 }
 
 bool FUsdInfoCache::Serialize(FArchive& Ar)
@@ -248,11 +254,6 @@ bool FUsdInfoCache::Serialize(FArchive& Ar)
 		{
 			FWriteScopeLock ScopeLock(ImplPtr->InfoMapLock);
 			Ar << ImplPtr->InfoMap;
-		}
-		{
-			FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-			Ar << ImplPtr->PrimPathToAssets;
-			Ar << ImplPtr->AssetToPrimPaths;
 		}
 		{
 			FWriteScopeLock ScopeLock(ImplPtr->TranslatedPrototypesLock);
@@ -338,7 +339,7 @@ namespace UE::USDInfoCache::Private
 	bool RecursiveQueryCanBeCollapsed(
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		FUsdSchemaTranslatorRegistry& Registry
 	)
 	{
@@ -602,7 +603,7 @@ namespace UE::USDInfoCache::Private
 	void GetPrimVertexCountAndSlots(
 		const pxr::UsdPrim& UsdPrim,
 		const FUsdSchemaTranslationContext& Context,
-		const FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		const FUsdInfoCacheImpl& Impl,
 		uint64& OutVertexCount,
 		TArray<UsdUtils::FUsdPrimMaterialSlot>& OutMaterialSlots
 	)
@@ -699,7 +700,7 @@ namespace UE::USDInfoCache::Private
 		}
 	}
 
-	void RepopulateInfoMap(const pxr::UsdPrim& UsdPrim, FUsdInfoCache::FUsdInfoCacheImpl& Impl)
+	void RepopulateInfoMap(const pxr::UsdPrim& UsdPrim, FUsdInfoCacheImpl& Impl)
 	{
 		using namespace UE::UsdInfoCache::Private;
 
@@ -720,7 +721,7 @@ namespace UE::USDInfoCache::Private
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
 		const pxr::TfToken& MaterialPurposeToken,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		FUsdSchemaTranslatorRegistry& Registry,
 		uint64& OutSubtreeVertexCount,
 		TArray<UsdUtils::FUsdPrimMaterialSlot>& OutSubtreeSlots,
@@ -984,8 +985,8 @@ namespace UE::USDInfoCache::Private
 				// could technically be anywhere, so store them here for a later pass
 				if (bIsPointInstancer)
 				{
-					FWriteScopeLock PointInstancerLock(Impl.TempPointInstancerPathsLock);
-					Impl.TempPointInstancerPaths.Emplace(UE::FSdfPath{UsdPrimPath}.GetString());
+					FWriteScopeLock PointInstancerLock(Impl.PointInstancerPathsLock);
+					Impl.PointInstancerPaths.Emplace(UE::FSdfPath{UsdPrimPath}.GetString());
 				}
 				// While we will compute the totals for any and all children normally, don't just append the regular
 				// traversal vertex count to the point instancer prim itself just yet, as that doesn't really represent
@@ -1010,7 +1011,7 @@ namespace UE::USDInfoCache::Private
 	 * of prim subtrees all over to build the final counts of point instancers that use them as prototypes, and
 	 * then update their parents.
 	 */
-	void UpdateInfoForPointInstancers(const FUsdSchemaTranslationContext& Context, FUsdInfoCache::FUsdInfoCacheImpl& Impl)
+	void UpdateInfoForPointInstancers(const FUsdSchemaTranslationContext& Context, FUsdInfoCacheImpl& Impl)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UpdateInfoForPointInstancers);
 
@@ -1061,12 +1062,12 @@ namespace UE::USDInfoCache::Private
 			return LHS < RHS;
 		};
 		{
-			FWriteScopeLock PointInstancerLock{Impl.TempPointInstancerPathsLock};
-			Impl.TempPointInstancerPaths.Sort(SortFunction);
+			FWriteScopeLock PointInstancerLock{Impl.PointInstancerPathsLock};
+			Impl.PointInstancerPaths.Sort(SortFunction);
 		}
 
-		FReadScopeLock PointInstancerLock{Impl.TempPointInstancerPathsLock};
-		for (const FString& PointInstancerPath : Impl.TempPointInstancerPaths)
+		FReadScopeLock PointInstancerLock{Impl.PointInstancerPathsLock};
+		for (const FString& PointInstancerPath : Impl.PointInstancerPaths)
 		{
 			UE::FSdfPath UsdPointInstancerPath{*PointInstancerPath};
 
@@ -1130,7 +1131,7 @@ namespace UE::USDInfoCache::Private
 	 * the main recursive pass just adds them to arrays, and we're allowed to handle bMergeIdenticalSlots
 	 * only here.
 	 */
-	void CollectMaterialSlotCounts(FUsdInfoCache::FUsdInfoCacheImpl& Impl, bool bContextMergeIdenticalSlots)
+	void CollectMaterialSlotCounts(FUsdInfoCacheImpl& Impl, bool bContextMergeIdenticalSlots)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CollectMaterialSlotCounts);
 
@@ -1173,7 +1174,7 @@ namespace UE::USDInfoCache::Private
 	bool CanMeshSubtreeBeCollapsed(
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		const TSharedPtr<FUsdSchemaTranslator>& Translator
 	)
 	{
@@ -1209,7 +1210,7 @@ namespace UE::USDInfoCache::Private
 	void RecursiveQueryCollapsesChildren(
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		FUsdSchemaTranslatorRegistry& Registry
 	)
 	{
@@ -1330,7 +1331,7 @@ namespace UE::USDInfoCache::Private
 		return Result;
 	}
 
-	void RegisterInstanceableAuxPrims(FUsdSchemaTranslationContext& Context, FUsdInfoCache::FUsdInfoCacheImpl& Impl)
+	void RegisterInstanceableAuxPrims(FUsdSchemaTranslationContext& Context, FUsdInfoCacheImpl& Impl)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(UE::USDInfoCache::Private::RegisterInstanceableAuxPrims);
 		FScopedUsdAllocs Allocs;
@@ -1442,7 +1443,7 @@ namespace UE::USDInfoCache::Private
 	void FindValidGeometryCacheRoot(
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		UE::UsdInfoCache::Private::EGeometryCachePrimState& OutState
 	)
 	{
@@ -1505,7 +1506,7 @@ namespace UE::USDInfoCache::Private
 	void RecursiveCheckForGeometryCache(
 		const pxr::UsdPrim& UsdPrim,
 		FUsdSchemaTranslationContext& Context,
-		FUsdInfoCache::FUsdInfoCacheImpl& Impl,
+		FUsdInfoCacheImpl& Impl,
 		bool bIsInsideSkelRoot,
 		int32& OutDepth,
 		UE::UsdInfoCache::Private::EGeometryCachePrimState& OutState
@@ -1725,7 +1726,7 @@ namespace UE::USDInfoCache::Private
 		OutState = PrimState;
 	}
 
-	void CheckForGeometryCache(const pxr::UsdPrim& UsdPrim, FUsdSchemaTranslationContext& Context, FUsdInfoCache::FUsdInfoCacheImpl& Impl)
+	void CheckForGeometryCache(const pxr::UsdPrim& UsdPrim, FUsdSchemaTranslationContext& Context, FUsdInfoCacheImpl& Impl)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CheckForGeometryCache);
 
@@ -1902,156 +1903,44 @@ TOptional<TArray<UsdUtils::FUsdPrimMaterialSlot>> FUsdInfoCache::GetSubtreeMater
 	return {};
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void FUsdInfoCache::LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset)
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return;
-	}
-	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	UE_LOG(LogUsd, Verbose, TEXT("Linking asset '%s' to prim '%s'"), *Asset->GetPathName(), *Path.GetString());
-
-	ImplPtr->PrimPathToAssets.FindOrAdd(Path).AddUnique(Asset);
-	ImplPtr->AssetToPrimPaths.FindOrAdd(Asset).AddUnique(Path);
 }
 
 void FUsdInfoCache::UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset)
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return;
-	}
-	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	UE_LOG(LogUsd, Verbose, TEXT("Unlinking asset '%s' to prim '%s'"), *Asset->GetPathName(), *Path.GetString());
-
-	if (TArray<TWeakObjectPtr<UObject>>* FoundAssetsForPrim = ImplPtr->PrimPathToAssets.Find(Path))
-	{
-		FoundAssetsForPrim->Remove(Asset);
-	}
-	if (TArray<UE::FSdfPath>* FoundPrimPathsForAsset = ImplPtr->AssetToPrimPaths.Find(Asset))
-	{
-		FoundPrimPathsForAsset->Remove(Path);
-	}
 }
 
 TArray<TWeakObjectPtr<UObject>> FUsdInfoCache::RemoveAllAssetPrimLinks(const UE::FSdfPath& Path)
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return {};
-	}
-	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	UE_LOG(LogUsd, Verbose, TEXT("Removing asset prim links for path '%s'"), *Path.GetString());
-
-	TArray<TWeakObjectPtr<UObject>> Assets;
-	ImplPtr->PrimPathToAssets.RemoveAndCopyValue(Path, Assets);
-
-	for (const TWeakObjectPtr<UObject>& Asset : Assets)
-	{
-		if (TArray<UE::FSdfPath>* PrimPaths = ImplPtr->AssetToPrimPaths.Find(Asset))
-		{
-			PrimPaths->Remove(Path);
-		}
-	}
-
-	return Assets;
+	return {};
 }
 
 TArray<UE::FSdfPath> FUsdInfoCache::RemoveAllAssetPrimLinks(const UObject* Asset)
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return {};
-	}
-	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	UE_LOG(LogUsd, Verbose, TEXT("Removing asset prim links for asset '%s'"), *Asset->GetPathName());
-
-	TArray<UE::FSdfPath> PrimPaths;
-	ImplPtr->AssetToPrimPaths.RemoveAndCopyValue(const_cast<UObject*>(Asset), PrimPaths);
-
-	for (const UE::FSdfPath& Path : PrimPaths)
-	{
-		if (TArray<TWeakObjectPtr<UObject>>* Assets = ImplPtr->PrimPathToAssets.Find(Path))
-		{
-			Assets->Remove(const_cast<UObject*>(Asset));
-		}
-	}
-
-	return PrimPaths;
+	return {};
 }
 
 void FUsdInfoCache::RemoveAllAssetPrimLinks()
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return;
-	}
-	FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	UE_LOG(LogUsd, Verbose, TEXT("Removing all asset prim links"));
-
-	ImplPtr->PrimPathToAssets.Empty();
-	ImplPtr->AssetToPrimPaths.Empty();
 }
 
 TArray<TWeakObjectPtr<UObject>> FUsdInfoCache::GetAllAssetsForPrim(const UE::FSdfPath& Path) const
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return {};
-	}
-	FReadScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	if (const TArray<TWeakObjectPtr<UObject>>* FoundAssets = ImplPtr->PrimPathToAssets.Find(Path))
-	{
-		return *FoundAssets;
-	}
-
 	return {};
 }
 
 TArray<UE::FSdfPath> FUsdInfoCache::GetPrimsForAsset(const UObject* Asset) const
 {
-	if (!Asset)
-	{
-		return {};
-	}
-
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return {};
-	}
-	FReadScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-
-	if (const TArray<UE::FSdfPath>* FoundPrims = ImplPtr->AssetToPrimPaths.Find(Asset))
-	{
-		return *FoundPrims;
-	}
-
 	return {};
 }
 
 TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> FUsdInfoCache::GetAllAssetPrimLinks() const
 {
-	FUsdInfoCacheImpl* ImplPtr = Impl.Get();
-	if (!ImplPtr)
-	{
-		return {};
-	}
-
-	return ImplPtr->PrimPathToAssets;
+	return {};
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FUsdInfoCache::RebuildCacheForSubtree(const UE::FUsdPrim& Prim, FUsdSchemaTranslationContext& Context)
 {
@@ -2095,8 +1984,8 @@ void FUsdInfoCache::RebuildCacheForSubtree(const UE::FUsdPrim& Prim, FUsdSchemaT
 			ImplPtr->InfoMap.Reset();
 		}
 		{
-			FWriteScopeLock PointInstancerLock(ImplPtr->TempPointInstancerPathsLock);
-			ImplPtr->TempPointInstancerPaths.Reset();
+			FWriteScopeLock PointInstancerLock(ImplPtr->PointInstancerPathsLock);
+			ImplPtr->PointInstancerPaths.Reset();
 		}
 
 		// This should be the first step as all future functions will expect to find one entry per prim in the cache
@@ -2143,14 +2032,8 @@ void FUsdInfoCache::Clear()
 			ImplPtr->InfoMap.Empty();
 		}
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(PrimPathToAssetsEmpty);
-			FWriteScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-			ImplPtr->PrimPathToAssets.Empty();
-			ImplPtr->AssetToPrimPaths.Empty();
-		}
-		{
-			FWriteScopeLock PointInstancerLock(ImplPtr->TempPointInstancerPathsLock);
-			ImplPtr->TempPointInstancerPaths.Empty();
+			FWriteScopeLock PointInstancerLock(ImplPtr->PointInstancerPathsLock);
+			ImplPtr->PointInstancerPaths.Empty();
 		}
 
 		ResetTranslatedPrototypes();

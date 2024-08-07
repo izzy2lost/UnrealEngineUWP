@@ -11,6 +11,7 @@
 #include "USDLog.h"
 #include "USDMemory.h"
 #include "USDObjectUtils.h"
+#include "USDPrimLinkCache.h"
 #include "USDProjectSettings.h"
 #include "USDShadeConversion.h"
 #include "USDTypesConversion.h"
@@ -170,7 +171,7 @@ namespace UE::MeshTranslationImplInternal::Private
 		UMaterialInterface& Material,
 		const TMap<FString, int32>& MeshPrimvarToUVIndex,
 		UUsdAssetCache3* AssetCache,
-		FUsdInfoCache* InfoCache,
+		FUsdPrimLinkCache* PrimLinkCache,
 		const FString& MaterialHashPrefix,
 		bool bShareAssetsForIdenticalPrims
 	)
@@ -424,11 +425,11 @@ namespace UE::MeshTranslationImplInternal::Private
 #endif	  // WITH_EDITOR
 		}
 
-		if (CompatibleMaterial && CompatibleMaterial != &Material && InfoCache)
+		if (CompatibleMaterial && CompatibleMaterial != &Material && PrimLinkCache)
 		{
-			for (const UE::FSdfPath& Prim : InfoCache->GetPrimsForAsset(&Material))
+			for (const UE::FSdfPath& Prim : PrimLinkCache->GetPrimsForAsset(&Material))
 			{
-				InfoCache->LinkAssetToPrim(Prim, CompatibleMaterial);
+				PrimLinkCache->LinkAssetToPrim(Prim, CompatibleMaterial);
 			}
 		}
 
@@ -440,7 +441,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 	const pxr::UsdPrim& UsdPrim,
 	const TArray<UsdUtils::FUsdPrimMaterialAssignmentInfo>& AssignmentInfo,
 	UUsdAssetCache3& AssetCache,
-	FUsdInfoCache& InfoCache,
+	FUsdPrimLinkCache& PrimLinkCache,
 	EObjectFlags Flags,
 	bool bShareAssetsForIdenticalPrims
 )
@@ -566,10 +567,10 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 					bool bMaterialIsDirectReference = false;
 
 					// Here we have to pick the "best" material to use as reference, in case we need compatible/TwoSided versions.
-					// They are returned from InfoCache.GetAssetsForPrim in the most recent to least recent order, so
+					// They are returned from PrimLinkCache.GetAssetsForPrim in the most recent to least recent order, so
 					// in general we want to pick the first ones we find that match our criteria (as the older assets may be leftover from
 					// before we resynced something)
-					TArray<UMaterialInterface*> ExistingMaterials = InfoCache.GetAssetsForPrim<UMaterialInterface>(MaterialPrimPath);
+					TArray<UMaterialInterface*> ExistingMaterials = PrimLinkCache.GetAssetsForPrim<UMaterialInterface>(MaterialPrimPath);
 					for (UMaterialInterface* ExistingMaterial : ExistingMaterials)
 					{
 						const bool bExistingIsTwoSided = ExistingMaterial->IsTwoSided();
@@ -613,7 +614,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 								bMaterialIsDirectReference = bExistingIsDirectReference;
 							}
 						}
-						else // if (!Slot.bMeshIsDoubleSided && bExistingIsTwoSided)
+						else	// if (!Slot.bMeshIsDoubleSided && bExistingIsTwoSided)
 						{
 							// We can ignore this case: If we're searching for a one sided material and just ran into
 							// an existing two-sided one we should just keep iterating: If a two-sided material is within
@@ -690,7 +691,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 						// TouchAsset/ActiveAssets stuff)
 						AssetCache.TouchAssetPath(Material);
 
-						InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
+						PrimLinkCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
 
 						// Finally, try to make our generated material primvar-compatible. We do this last because this will
 						// create another instance with the non-compatible material as reference material, which means we also
@@ -701,7 +702,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 							Material = AlreadyHandledMaterial;
 
 							AssetCache.TouchAssetPath(Material);
-							InfoCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
+							PrimLinkCache.LinkAssetToPrim(UE::FSdfPath{*Slot.MaterialSource}, Material);
 						}
 						else
 						{
@@ -710,7 +711,7 @@ TMap<const UsdUtils::FUsdPrimMaterialSlot*, UMaterialInterface*> MeshTranslation
 									*Material,
 									MeshPrimvarToUVIndex,
 									&AssetCache,
-									&InfoCache,
+									&PrimLinkCache,
 									HashPrefix,
 									bShareAssetsForIdenticalPrims
 								);
@@ -784,7 +785,8 @@ void MeshTranslationImpl::SetMaterialOverrides(
 	const TArray<UMaterialInterface*>& ExistingAssignments,
 	UMeshComponent& MeshComponent,
 	UUsdAssetCache3& AssetCache,
-	FUsdInfoCache& InfoCache,
+	FUsdInfoCache& UsdInfoCache,
+	FUsdPrimLinkCache& PrimLinkCache,
 	float Time,
 	EObjectFlags Flags,
 	bool bInterpretLODs,
@@ -860,7 +862,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 		// likely just some root Xform prim.
 		// Note: This only works because we'll rebuild the cache when our material purpose/render context changes,
 		// and because in USD relationships (and so material bindings) can't vary with time
-		TOptional<TArray<UsdUtils::FUsdPrimMaterialSlot>> SubtreeSlots = InfoCache.GetSubtreeMaterialSlots(UE::FSdfPath{PrimPath});
+		TOptional<TArray<UsdUtils::FUsdPrimMaterialSlot>> SubtreeSlots = UsdInfoCache.GetSubtreeMaterialSlots(UE::FSdfPath{PrimPath});
 		if (SubtreeSlots.IsSet())
 		{
 			UsdUtils::FUsdPrimMaterialAssignmentInfo& NewInfo = LODIndexToAssignments.Emplace_GetRef();
@@ -928,7 +930,7 @@ void MeshTranslationImpl::SetMaterialOverrides(
 			ValidPrim,
 			LODIndexToAssignments,
 			AssetCache,
-			InfoCache,
+			PrimLinkCache,
 			Flags,
 			bShareAssetsForIdenticalPrims
 		);

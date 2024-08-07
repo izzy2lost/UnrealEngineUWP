@@ -269,11 +269,8 @@ namespace UE::USDMaterialXTranslator::Private
 
 							// Rename the UMaterialInterface into the target UPackage the asset cache created for us.
 							// SanitizedName will already match it.
-							const bool bRenamed = ImportedObject->Rename(
-								*SanitizedName.ToString(),
-								Outer,
-								REN_NonTransactional | REN_DontCreateRedirectors
-							);
+							const bool bRenamed = ImportedObject
+													  ->Rename(*SanitizedName.ToString(), Outer, REN_NonTransactional | REN_DontCreateRedirectors);
 							ensure(bRenamed);
 
 							ImportedObject->ClearFlags(ImportedObject->GetFlags());
@@ -372,12 +369,12 @@ void FMaterialXUsdShadeMaterialTranslator::CreateAssets()
 		return;
 	}
 
-	if (!Context->UsdAssetCache || !Context->InfoCache)
+	if (!Context->UsdAssetCache || !Context->UsdInfoCache)
 	{
 		return;
 	}
 
-	if (Context->bTranslateOnlyUsedMaterials && !Context->InfoCache->IsMaterialUsed(PrimPath))
+	if (Context->bTranslateOnlyUsedMaterials && !Context->UsdInfoCache->IsMaterialUsed(PrimPath))
 	{
 		UE_LOG(
 			LogUsd,

@@ -26,17 +26,18 @@ namespace UsdUtils
 	struct FUsdPrimMaterialSlot;
 }
 
+struct FUsdInfoCacheImpl;
+
 /**
  * Caches information about a specific USD Stage
  */
 class USDSCHEMAS_API FUsdInfoCache
 {
 public:
-	struct FUsdInfoCacheImpl;
-
 	FUsdInfoCache();
-	FUsdInfoCache(const FUsdInfoCache& Other);
 	virtual ~FUsdInfoCache();
+
+	void CopyImpl(const FUsdInfoCache& Other);
 
 	bool Serialize(FArchive& Ar);
 
@@ -96,53 +97,42 @@ public:
 	void MarkPrototypeAsTranslated(const UE::FSdfPath& PrototypePath);
 
 public:
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void UnlinkAssetFromPrim(const UE::FSdfPath& Path, UObject* Asset);
 
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<TWeakObjectPtr<UObject>> RemoveAllAssetPrimLinks(const UE::FSdfPath& Path);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<UE::FSdfPath> RemoveAllAssetPrimLinks(const UObject* Asset);
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	void RemoveAllAssetPrimLinks();
 
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<TWeakObjectPtr<UObject>> GetAllAssetsForPrim(const UE::FSdfPath& Path) const;
 
 	template<typename T = UObject>
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	T* GetSingleAssetForPrim(const UE::FSdfPath& Path) const
 	{
-		TArray<TWeakObjectPtr<UObject>> Assets = GetAllAssetsForPrim(Path);
-
-		// Search back to front so that if we generate a new version of an asset type we prefer
-		// returning that
-		for (int32 Index = Assets.Num() - 1; Index >= 0; --Index)
-		{
-			if (T* CastAsset = Cast<T>(Assets[Index].Get()))
-			{
-				return CastAsset;
-			}
-		}
-
 		return nullptr;
 	}
 
 	template<typename T>
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<T*> GetAssetsForPrim(const UE::FSdfPath& Path) const
 	{
-		TArray<TWeakObjectPtr<UObject>> Assets = GetAllAssetsForPrim(Path);
-
-		TArray<T*> CastAssets;
-		CastAssets.Reserve(Assets.Num());
-
-		for (const TWeakObjectPtr<UObject>& Asset : Assets)
-		{
-			if (T* CastAsset = Cast<T>(Asset.Get()))
-			{
-				CastAssets.Add(CastAsset);
-			}
-		}
-
-		return CastAssets;
+		return {};
 	}
 
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TArray<UE::FSdfPath> GetPrimsForAsset(const UObject* Asset) const;
+
+	UE_DEPRECATED(5.5, "Use the UUsdPrimLinkCache object and its analogous function instead")
 	TMap<UE::FSdfPath, TArray<TWeakObjectPtr<UObject>>> GetAllAssetPrimLinks() const;
 
 private:

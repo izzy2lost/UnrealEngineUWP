@@ -933,7 +933,7 @@ void FUsdVolVolumeTranslator::CreateAssets()
 
 	using namespace UE::UsdVolVolumeTranslator::Private;
 
-	if (!Context->UsdAssetCache || !Context->InfoCache)
+	if (!Context->UsdAssetCache || !Context->PrimLinkCache)
 	{
 		return;
 	}
@@ -1070,7 +1070,7 @@ void FUsdVolVolumeTranslator::CreateAssets()
 
 		if (SparseVolumeTexture)
 		{
-			Context->InfoCache->LinkAssetToPrim(PrimPath, SparseVolumeTexture);
+			Context->PrimLinkCache->LinkAssetToPrim(PrimPath, SparseVolumeTexture);
 
 			if (UUsdSparseVolumeTextureAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<
 					UUsdSparseVolumeTextureAssetUserData>(SparseVolumeTexture))
@@ -1259,7 +1259,7 @@ void FUsdVolVolumeTranslator::CreateAssets()
 
 	if (MaterialInstance)
 	{
-		Context->InfoCache->LinkAssetToPrim(PrimPath, MaterialInstance);
+		Context->PrimLinkCache->LinkAssetToPrim(PrimPath, MaterialInstance);
 
 		if (UUsdAssetUserData* UserData = UsdUnreal::ObjectUtils::GetOrCreateAssetUserData<UUsdAssetUserData>(MaterialInstance))
 		{
@@ -1320,7 +1320,7 @@ void FUsdVolVolumeTranslator::UpdateComponents(USceneComponent* SceneComponent)
 		const int32 ElementIndex = 0;
 		UMaterialInterface* CurrentMaterial = VolumeComponent->GetMaterial(ElementIndex);
 
-		if (UMaterialInstance* MaterialForPrim = Context->InfoCache->GetSingleAssetForPrim<UMaterialInstance>(PrimPath))
+		if (UMaterialInstance* MaterialForPrim = Context->PrimLinkCache->GetSingleAssetForPrim<UMaterialInstance>(PrimPath))
 		{
 			if (MaterialForPrim != CurrentMaterial)
 			{
@@ -1431,7 +1431,7 @@ TSet<UE::FSdfPath> FUsdVolVolumeTranslator::CollectAuxiliaryPrims() const
 {
 	if (!Context->bIsBuildingInfoCache)
 	{
-		return Context->InfoCache->GetAuxiliaryPrims(PrimPath);
+		return Context->UsdInfoCache->GetAuxiliaryPrims(PrimPath);
 	}
 
 	TSet<UE::FSdfPath> Result;

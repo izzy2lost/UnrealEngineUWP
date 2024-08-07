@@ -32,7 +32,7 @@ void FUsdLuxLightTranslator::CreateAssets()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FUsdLuxLightTranslator::CreateAssets);
 
-	if (!Context->UsdAssetCache || !Context->InfoCache)
+	if (!Context->UsdAssetCache || !Context->PrimLinkCache)
 	{
 		return;
 	}
@@ -102,7 +102,7 @@ void FUsdLuxLightTranslator::CreateAssets()
 
 	if (Texture)
 	{
-		Context->InfoCache->LinkAssetToPrim(PrimPath, Texture);
+		Context->PrimLinkCache->LinkAssetToPrim(PrimPath, Texture);
 	}
 }
 
@@ -131,7 +131,7 @@ void FUsdLuxLightTranslator::UpdateComponents(USceneComponent* SceneComponent)
 
 	ULightComponentBase* LightComponent = Cast<ULightComponentBase>(SceneComponent);
 
-	if (!LightComponent)
+	if (!LightComponent || !Context->PrimLinkCache)
 	{
 		return;
 	}
@@ -179,7 +179,7 @@ void FUsdLuxLightTranslator::UpdateComponents(USceneComponent* SceneComponent)
 	{
 		SkyLightComponent->Modify();
 
-		if (UTextureCube* TextuxeCube = Context->InfoCache->GetSingleAssetForPrim<UTextureCube>(PrimPath))
+		if (UTextureCube* TextuxeCube = Context->PrimLinkCache->GetSingleAssetForPrim<UTextureCube>(PrimPath))
 		{
 			SkyLightComponent->Cubemap = TextuxeCube;
 			SkyLightComponent->SourceType = ESkyLightSourceType::SLS_SpecifiedCubemap;

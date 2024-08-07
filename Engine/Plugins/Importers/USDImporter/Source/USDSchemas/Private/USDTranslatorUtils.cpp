@@ -3,11 +3,11 @@
 #include "USDTranslatorUtils.h"
 
 #include "USDAssetCache3.h"
-#include "USDInfoCache.h"
+#include "USDPrimLinkCache.h"
 
 #include "AssetRegistry/AssetRegistryModule.h"
 
-void UsdUnreal::TranslatorUtils::AbandonFailedAsset(UObject* Asset, UUsdAssetCache3* AssetCache, FUsdInfoCache* InfoCache)
+void UsdUnreal::TranslatorUtils::AbandonFailedAsset(UObject* Asset, UUsdAssetCache3* AssetCache, FUsdPrimLinkCache* PrimLinkCache)
 {
 	if (!Asset)
 	{
@@ -32,8 +32,8 @@ void UsdUnreal::TranslatorUtils::AbandonFailedAsset(UObject* Asset, UUsdAssetCac
 		}
 	}
 
-	if (InfoCache)
+	if (PrimLinkCache)
 	{
-		InfoCache->RemoveAllAssetPrimLinks(Asset);
+		PrimLinkCache->RemoveAllAssetPrimLinks(Asset);
 	}
 }
