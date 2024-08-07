@@ -295,7 +295,13 @@ void UK2Node_MacroInstance::NotifyPinConnectionListChanged(UEdGraphPin* ChangedP
 			{
 				// we found one, infer from it and then propagate the inference:
 				FWildcardNodeUtils::InferType(ChangedPin, InferrablePin->PinType);
-				InferWildcards();
+
+				const UEdGraph* Graph = GetGraph();
+				const bool bIsMacroGraph = (Graph->GetSchema()->GetGraphType(Graph) == GT_Macro);
+				if (!bIsMacroGraph)
+				{
+					InferWildcards();
+				}
 			}
 		}
 	}
@@ -396,8 +402,16 @@ void UK2Node_MacroInstance::PostReconstructNode()
 			}
 		}
 
-		// rerun inference
-		InferWildcards();
+		
+		const UEdGraph* Graph = GetGraph();
+		const bool bIsMacroGraph = (Graph->GetSchema()->GetGraphType(Graph) == GT_Macro);
+		UBlueprint* Blueprint  = GetBlueprint();
+		const bool bIsCompiling = Blueprint ? Blueprint->bBeingCompiled : false;
+		if(!bIsMacroGraph || !bIsCompiling)
+		{
+			// rerun inference
+			InferWildcards();
+		}
 	}
 	else
 	{
@@ -651,7 +665,7 @@ void UK2Node_MacroInstance::InferWildcards()
 		// perform macro expansion in a dummy graph, inferring whatever types we can from the provided wildcards:
 		FCompilerResultsLog MessageLog;
 		UBlueprint* BP = GetBlueprint();
-		UEdGraph* ClonedGraph = FEdGraphUtilities::CloneGraph(MacroGraph, GetBlueprint(), &MessageLog, true);
+		UEdGraph* ClonedGraph = FEdGraphUtilities::CloneGraph(MacroGraph, BP, &MessageLog, true);
 		if (ClonedGraph)
 		{
 			InferWildcards(ClonedGraph->Nodes);
