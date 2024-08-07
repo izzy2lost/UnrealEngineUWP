@@ -934,6 +934,12 @@ void FObjectMixerOutlinerMode::OnObjectsReplaced(const TMap<UObject*, UObject*>&
 				SceneOutliner->OnItemLabelChanged(Item);
 			}
 		}
+
+		const int32 SelectionIndex = SelectedIDs.IndexOfByKey(Pair.Key);
+		if (SelectionIndex != INDEX_NONE)
+		{
+			SelectedIDs[SelectionIndex] = Pair.Value;
+		}
 	}
 }
 
@@ -1967,6 +1973,15 @@ void FObjectMixerOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr 
 	{
 		SynchronizeAllSelectionsToEditor();
 	}
+
+	SelectedIDs.Empty();
+
+	Algo::TransformIf(
+		SceneOutliner->GetSelection().SelectedItems,
+		SelectedIDs,
+		[](const TWeakPtr<ISceneOutlinerTreeItem>& Item) -> bool { return Item.IsValid(); },
+		[](const TWeakPtr<ISceneOutlinerTreeItem>& Item) -> FSceneOutlinerTreeItemID { return Item.Pin()->GetID(); }
+	);
 	
 	bShouldTemporarilyForceSelectionSyncToEditor = false;
 }
@@ -3306,9 +3321,22 @@ void FObjectMixerOutlinerMode::SynchronizeSelection()
 	{
 		SynchronizeComponentAndActorSelection();
 		SynchronizeSelectedActorDescs();
-
-		StaticCast<SObjectMixerEditorList*>(SceneOutliner)->GetOnSelectionSynchronized().Broadcast();
 	}
+	else
+	{
+		SceneOutliner->ClearSelection();
+
+		for (const FSceneOutlinerTreeItemID& TreeItemID : SelectedIDs)
+		{
+			const FSceneOutlinerTreeItemPtr Item = SceneOutliner->GetTreeItem(TreeItemID);
+			if (Item.IsValid())
+			{
+				SceneOutliner->SetItemSelection(Item, true);
+			}
+		}
+	}
+
+	StaticCast<SObjectMixerEditorList*>(SceneOutliner)->GetOnSelectionSynchronized().Broadcast();
 	
 	bShouldTemporarilyForceSelectionSyncFromEditor = false;
 }

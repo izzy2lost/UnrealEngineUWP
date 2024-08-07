@@ -5,6 +5,7 @@
 #include "ActorMode.h"
 #include "Containers/Map.h"
 #include "EditorConfigBase.h"
+#include "ISceneOutlinerTreeItem.h"
 #include "ObjectFilter/ObjectMixerEditorObjectFilter.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/UObjectGlobals.h"
@@ -387,4 +388,7 @@ protected:
 	
 	bool bShouldTemporarilyForceSelectionSyncFromEditor = false;
 	bool bShouldTemporarilyForceSelectionSyncToEditor = false;
+
+	/** The last selected tree item IDs, stored here so we can maintain the selection across refreshes when not synced with the editor. */
+	TArray<FSceneOutlinerTreeItemID> SelectedIDs;
 };

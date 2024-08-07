@@ -136,6 +136,11 @@ TSharedPtr<IPropertyHandle> MakePropertyTransactional(const TSharedPtr<IProperty
 			PropertyHandle->GetOuterObjects(OuterObjects);
 			for (UObject* Object : OuterObjects)
 			{
+				if (!Object)
+				{
+					continue;
+				}
+
 				if (!Object->HasAnyFlags(RF_Transactional))
 				{
 					Object->SetFlags(RF_Transactional);
