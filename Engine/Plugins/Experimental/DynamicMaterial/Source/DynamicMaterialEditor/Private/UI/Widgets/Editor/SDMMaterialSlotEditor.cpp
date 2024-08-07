@@ -810,7 +810,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::CreateSlot_LayerSettings()
 			SNew(SButton)
 			.ContentPadding(4.0f)
 			.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly.Bordered.Dark")
-			.ToolTipText(LOCTEXT("DuplicateLayer", "Duplicate Selected Layer"))
+			.ToolTipText(LOCTEXT("DuplicateSelectedLayer", "Duplicate Selected Layer"))
 			.IsEnabled(this, &SDMMaterialSlotEditor::GetLayerRowsButtonsCanDuplicate)
 			.OnClicked(this, &SDMMaterialSlotEditor::OnLayerRowButtonsDuplicateClicked)
 			[
