@@ -31,10 +31,6 @@ class UMaterialExpressionPathTracingQualitySwitch : public UMaterialExpression
 	virtual uint32 GetOutputType(int32 OutputIndex) override { return MCT_Unknown; }
 
 	virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
-
-	virtual bool IsResultSubstrateMaterial(int32 OutputIndex) override;
-	virtual void GatherSubstrateMaterialInfo(FSubstrateMaterialInfo& SubstrateMaterialInfo, int32 OutputIndex) override;
-	virtual FSubstrateOperator* SubstrateGenerateMaterialTopologyTree(class FMaterialCompiler* Compiler, class UMaterialExpression* Parent, int32 OutputIndex) override;
 #endif
 	//~ End UMaterialExpression Interface
 };
