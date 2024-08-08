@@ -47,6 +47,16 @@ struct FChaosVDTraceSessionData
 	TMap<int32, TSharedPtr<FChaosVDBinaryDataContainer>> UnprocessedDataByID;
 };
 
+enum class EChaosVDSolverStageAccessorFlags : uint8
+{
+	None = 0,
+	/* If the solver frame has valid stage data but the last stage is closed, create a new stage which will be labeled as non-staged data */
+	CreateNewIfClosed = 1 << 0,
+	/* If the solver frame does not have any solver stage data, create a new stage which will be labeled as non-staged data */
+	CreateNewIfEmpty = 1 << 1 
+};
+ENUM_CLASS_FLAGS(EChaosVDSolverStageAccessorFlags);
+
 /** Provider class for Chaos VD trace recordings.
  * It stores and handles rebuilt recorded frame data from Trace events
  * dispatched by the Chaos VD Trace analyzer
@@ -79,7 +89,10 @@ public:
 
 	void HandleAnalysisComplete();
 
-	TMap<int32,int32>& GetCurrentTickOffsetsBySolverID() {return CurrentNetworkTickOffsets; };
+	TMap<int32,int32>& GetCurrentTickOffsetsBySolverID() { return CurrentNetworkTickOffsets; };
+
+
+	FChaosVDStepData* GetCurrentSolverStageDataForCurrentFrame(int32 SolverID, EChaosVDSolverStageAccessorFlags Flags);
 
 private:
 

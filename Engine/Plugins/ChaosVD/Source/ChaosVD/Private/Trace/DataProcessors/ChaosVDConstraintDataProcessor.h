@@ -4,6 +4,7 @@
 #include "ChaosVDDataProcessorBase.h"
 
 struct FChaosVDSolverFrameData;
+struct FChaosVDStepData;
 struct FChaosVDConstraint;
 
 /**
@@ -16,5 +17,5 @@ public:
 	
 	virtual bool ProcessRawData(const TArray<uint8>& InData) override;
 
-	void AddConstraintToParticleIDMap(const FChaosVDConstraint& InConstraintData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData);
+	void AddConstraintToParticleIDMap(const FChaosVDConstraint& InConstraintData, int32 ParticleID, FChaosVDStepData& InSolverStageData);
 };

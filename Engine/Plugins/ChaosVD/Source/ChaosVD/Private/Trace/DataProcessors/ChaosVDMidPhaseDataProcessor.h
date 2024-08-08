@@ -5,6 +5,7 @@
 #include "Templates/SharedPointer.h"
 
 struct FChaosVDSolverFrameData;
+struct FChaosVDStepData;
 struct FChaosVDParticlePairMidPhase;
 
 /**
@@ -17,5 +18,5 @@ public:
 
 	virtual bool ProcessRawData(const TArray<uint8>& InData) override;
 
-	void AddMidPhaseToParticleIDMap(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhaseData, int32 ParticleID, FChaosVDSolverFrameData& InFrameData);
+	void AddMidPhaseToParticleIDMap(const TSharedPtr<FChaosVDParticlePairMidPhase>& MidPhaseData, int32 ParticleID, FChaosVDStepData& InSolverStageData);
 };

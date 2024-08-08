@@ -177,6 +177,7 @@ public:
 	 * @param InTrackID ID of the track to evaluate
 	 * @return Number of the last step
 	 */
+	int32 GetTrackLastStageAtFrame(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const;
 	int32 GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const;
 
 	/** Converts the current frame number of a track, to a frame number in other tracks space time

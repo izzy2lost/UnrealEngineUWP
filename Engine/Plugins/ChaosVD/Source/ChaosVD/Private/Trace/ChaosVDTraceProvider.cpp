@@ -232,6 +232,43 @@ void FChaosVDTraceProvider::HandleAnalysisComplete()
 	UE_LOG(LogChaosVDEditor, Log, TEXT("Total size of loaded data => [%s]"), *FText::AsMemory(TotalBytes, &SizeFormattingOptions,nullptr, EMemoryUnitStandard::IEC).ToString());
 }
 
+FChaosVDStepData* FChaosVDTraceProvider::GetCurrentSolverStageDataForCurrentFrame(int32 SolverID, EChaosVDSolverStageAccessorFlags Flags)
+{
+	auto CreateInBetweenSolverStage = [](FChaosVDSolverFrameData& InFrameData)
+	{
+		// Add an empty step. It will be filled out by the particle (and later on other objects/elements) events
+		FChaosVDStepData& SolverStageData = InFrameData.SolverSteps.AddDefaulted_GetRef();
+		SolverStageData.StepName = TEXT("Between Stage Data");
+		EnumAddFlags(SolverStageData.StageFlags, EChaosVDSolverStageFlags::Open);
+
+		return &SolverStageData;
+	};
+
+	if (FChaosVDSolverFrameData* FrameData = GetCurrentSolverFrame(SolverID))
+	{
+		if (FrameData->SolverSteps.Num() == 0)
+		{
+			if (EnumHasAnyFlags(Flags, EChaosVDSolverStageAccessorFlags::CreateNewIfEmpty))
+			{
+				return CreateInBetweenSolverStage(*FrameData);
+			}
+		}
+
+		FChaosVDStepData& CurrentSolverStage = FrameData->SolverSteps.Last();
+		if (EnumHasAnyFlags(CurrentSolverStage.StageFlags, EChaosVDSolverStageFlags::Open))
+		{
+			return &CurrentSolverStage;
+		}
+
+		if (EnumHasAnyFlags(Flags, EChaosVDSolverStageAccessorFlags::CreateNewIfClosed))
+		{
+			return CreateInBetweenSolverStage(*FrameData);
+		}
+	}
+
+	return nullptr;
+}
+
 void FChaosVDTraceProvider::RegisterDefaultDataProcessorsIfNeeded()
 {
 	if (bDefaultDataProcessorsRegistered)

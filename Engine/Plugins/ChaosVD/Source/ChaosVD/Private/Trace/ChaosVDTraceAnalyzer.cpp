@@ -122,18 +122,38 @@ bool FChaosVDTraceAnalyzer::OnEvent(uint16 RouteId, EStyle Style, const FOnEvent
 			// This can be null if the recording started Mid-Frame. In this case we just discard the data for now
 			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
 			{
+				if (FrameData->SolverSteps.Num() > 0)
+				{
+					FChaosVDStepData& LastSolverStage = FrameData->SolverSteps.Last();
+					if (EnumHasAnyFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::Open) && ensure(!EnumHasAnyFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::ExplicitStage)))
+					{
+						// If the current Solver stage was implicitly generated, we need to close it before starting a new one.
+						// This should not happen with an explicitly recorded stage
+						EnumRemoveFlags(LastSolverStage.StageFlags, EChaosVDSolverStageFlags::Open);
+					}
+				}
+
 				// Add an empty step. It will be filled out by the particle (and later on other objects/elements) events
-				FChaosVDStepData& StepData = FrameData->SolverSteps.AddDefaulted_GetRef();
+				FChaosVDStepData& NewSolverStageData = FrameData->SolverSteps.AddDefaulted_GetRef();
 
 				FWideStringView DebugNameView;
 				EventData.GetString("StepName", DebugNameView);
-				StepData.StepName = DebugNameView;
+				NewSolverStageData.StepName = DebugNameView;
+				EnumAddFlags(NewSolverStageData.StageFlags, EChaosVDSolverStageFlags::Open);
 			}
 	
 			break;
 		}
 	case RouteId_ChaosVDSolverStepEnd:
 		{
+			const int32 SolverID = EventData.GetValue<int32>("SolverID");
+			if (FChaosVDSolverFrameData* FrameData = ChaosVDTraceProvider->GetCurrentSolverFrame(SolverID))
+			{
+				if (FrameData->SolverSteps.Num() > 0)
+				{
+					EnumRemoveFlags(FrameData->SolverSteps.Last().StageFlags, EChaosVDSolverStageFlags::Open);
+				}
+			}
 			break;
 		}
 	case RouteId_ChaosVDParticleDestroyed:

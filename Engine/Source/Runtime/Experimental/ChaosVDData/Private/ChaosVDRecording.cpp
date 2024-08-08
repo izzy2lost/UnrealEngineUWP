@@ -373,9 +373,7 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 		{
 			OutCollapsedFrameData.ParticlesDestroyedIDs.Append(SolverFrameData->ParticlesDestroyedIDs);
 
-			// Only evaluate the last step as it contains all the particles that changed
-			const int32 LastStepNumber = SolverFrameData->SolverSteps.Num() - 1;
-			if (SolverFrameData->SolverSteps.IsValidIndex(LastStepNumber))
+			if (SolverFrameData->SolverSteps.Num() > 0)
 			{
 				for (const FChaosVDStepData& StepData : SolverFrameData->SolverSteps)
 				{
@@ -410,7 +408,7 @@ void FChaosVDRecording::CollapseSolverFramesRange_AssumesLocked(int32 SolverID, 
 				OutCollapsedFrameData.DebugFName = SolverFrameData->DebugFName;
 
 				FChaosVDStepData CollapsedStepData;
-				CollapsedStepData.StepName = TEXT("GeneratedStep");
+				CollapsedStepData.StepName = TEXT("Auto Generated Stage");
 
 				ParticlesOnCurrentGeneratedKeyframe.GenerateValueArray(CollapsedStepData.RecordedParticlesData);
 

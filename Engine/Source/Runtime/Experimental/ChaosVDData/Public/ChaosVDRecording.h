@@ -26,6 +26,18 @@ namespace Chaos::VisualDebugger
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDGeometryDataLoaded, const Chaos::FConstImplicitObjectPtr&, const uint32 GeometryID)
 
+/** Set of flags used to define characteristics of a loaded solver stage */
+enum class EChaosVDSolverStageFlags : uint8
+{
+	None = 0,
+	/** Set if the solver stage is open and can take new data */
+	Open = 1 << 0,
+	/** Set if the solver stage was explicitly recorded - If not set, this stage was created on the fly during load */
+	ExplicitStage = 1 << 1,
+};
+
+ENUM_CLASS_FLAGS(EChaosVDSolverStageFlags)
+
 struct FChaosVDStepData
 {
 	FString StepName;
@@ -36,6 +48,8 @@ struct FChaosVDStepData
 	TMap<int32, TArray<FChaosVDConstraint>> RecordedConstraintsByParticleID;
 	TMap<int32, TArray<TSharedPtr<FChaosVDParticlePairMidPhase>>> RecordedMidPhasesByParticleID;
 	TSet<int32> ParticlesDestroyedIDs;
+
+	EChaosVDSolverStageFlags StageFlags = EChaosVDSolverStageFlags::None;
 };
 
 struct FChaosVDTrackedLocation

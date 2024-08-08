@@ -558,6 +558,12 @@ int32 FChaosVDPlaybackController::GetTrackCurrentStep(EChaosVDTrackType TrackTyp
 	return INDEX_NONE;
 }
 
+int32 FChaosVDPlaybackController::GetTrackLastStageAtFrame(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const
+{
+	FReadScopeLock ReadLock(LoadedRecording->GetRecordingDataLock());
+	return GetTrackLastStageAtFrame_AssumesLocked(TrackType, InTrackID, InFrameNumber);
+}
+
 int32 FChaosVDPlaybackController::GetTrackLastStageAtFrame_AssumesLocked(EChaosVDTrackType TrackType, int32 InTrackID, int32 InFrameNumber) const
 {
 	switch (TrackType)
@@ -570,7 +576,6 @@ int32 FChaosVDPlaybackController::GetTrackLastStageAtFrame_AssumesLocked(EChaosV
 		}
 		case EChaosVDTrackType::Game:
 		default:
-			ensureMsgf(false, TEXT("Unsuported Track Type"));
 			return INDEX_NONE;
 			break;
 	}
@@ -935,15 +940,15 @@ void FChaosVDPlaybackController::HandleFramePlaybackControlInput(EChaosVDPlaybac
 		}
 	case EChaosVDPlaybackButtonsID::Next:
 		{
-			const int32 LastSolverStage = InTrackInfoRef->CurrentStageNames.Num() - 1;
 			const int32 NextFrame = InTrackInfoRef->CurrentFrame +1;
+			const int32 LastSolverStage = GetTrackLastStageAtFrame(InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, NextFrame);
 			GoToTrackFrameAndSync(Instigator, InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, NextFrame, LastSolverStage);
 		}
 		break;
 	case EChaosVDPlaybackButtonsID::Prev:
 		{
-			const int32 LastSolverStage = InTrackInfoRef->CurrentStageNames.Num() - 1;
 			const int32 PrevFrame = InTrackInfoRef->CurrentFrame -1;
+			const int32 LastSolverStage = GetTrackLastStageAtFrame(InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, PrevFrame);
 			GoToTrackFrameAndSync(Instigator, InTrackInfoRef->TrackType, InTrackInfoRef->TrackID, PrevFrame, LastSolverStage);
 		}
 		break;
