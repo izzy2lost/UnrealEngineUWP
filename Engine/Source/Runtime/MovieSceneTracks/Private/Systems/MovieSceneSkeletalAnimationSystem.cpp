@@ -35,6 +35,7 @@
 #include "Systems/MovieSceneQuaternionInterpolationRotationSystem.h"
 #include "Systems/WeightAndEasingEvaluatorSystem.h"
 #include "Systems/MovieSceneObjectPropertySystem.h"
+#include "EntitySystem/MovieScenePreAnimatedStateSystem.h"
 
 #include "Components/SkeletalMeshComponent.h"
 #include "Animation/AnimationPoseData.h"
@@ -480,7 +481,6 @@ private:
 	UMovieSceneEntitySystemLinker* Linker;
 	FSkeletalAnimationSystemData* SystemData;
 
-	TSharedPtr<FPreAnimatedSkeletalAnimationStorage> PreAnimatedStorage;
 	TSharedPtr<FPreAnimatedSkeletalAnimationMontageStorage> PreAnimatedMontageStorage;
 	TSharedPtr<FPreAnimatedSkeletalAnimationAnimInstanceStorage> PreAnimatedAnimInstanceStorage;
 
@@ -490,7 +490,6 @@ public:
 		: Linker(InLinker)
 		, SystemData(InSystemData)
 	{
-		PreAnimatedStorage = InLinker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedSkeletalAnimationStorage>();
 		PreAnimatedMontageStorage = InLinker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedSkeletalAnimationMontageStorage>();
 		PreAnimatedAnimInstanceStorage = InLinker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedSkeletalAnimationAnimInstanceStorage>();
 	}
@@ -517,17 +516,6 @@ private:
 		{
 			return;
 		}
-
-		// Cache pre-animated state for this bound object before doing anything.
-		// We don't yet track what entities have already started animated vs. entities that just started this frame,
-		// so we just process all the currently active ones. If they are already tracked and have already had their
-		// pre-animated state saved, it these calls will just early return.
-		for (const FActiveSkeletalAnimation& SkeletalAnimation : InSkeletalAnimations.Animations)
-		{
-			PreAnimatedStorage->BeginTrackingEntity(SkeletalAnimation.EntityID, SkeletalAnimation.bWantsRestoreState, SkeletalAnimation.RootInstanceHandle, SkeletalMeshComponent);
-		}
-		FCachePreAnimatedValueParams CacheParams;
-		PreAnimatedStorage->CachePreAnimatedValue(CacheParams, SkeletalMeshComponent);
 
 		// Setup any needed animation nodes for sequencer playback.
 		UAnimInstance* ExistingAnimInstance = GetSourceAnimInstance(SkeletalMeshComponent);
@@ -990,6 +978,8 @@ UMovieSceneSkeletalAnimationSystem::UMovieSceneSkeletalAnimationSystem(const FOb
 		DefineImplicitPrerequisite(UMovieSceneComponentTransformSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieSceneQuaternionInterpolationRotationSystem::StaticClass(), GetClass());
 		DefineImplicitPrerequisite(UMovieSceneObjectPropertySystem::StaticClass(), GetClass());
+
+		DefineImplicitPrerequisite(GetClass(), UMovieSceneRestorePreAnimatedStateSystem::StaticClass());
 	}
 }
 
@@ -1079,15 +1069,25 @@ void UMovieSceneSkeletalAnimationSystem::OnRun(FSystemTaskPrerequisites& InPrere
 
 	const TStatId GatherStatId = GET_STATID(MovieSceneEval_GatherSkeletalAnimations);
 
+	FBuiltInComponentTypes*          BuiltInComponents = FBuiltInComponentTypes::Get();
+	FMovieSceneTracksComponentTypes* TrackComponents   = FMovieSceneTracksComponentTypes::Get();
+
 	TSharedRef<FMovieSceneEntitySystemRunner> Runner = Linker->GetRunner();
 	if (Runner->GetCurrentPhase() == ESystemPhase::Instantiation)
 	{
+		// Begin tracking pre-animated state for all bound skel animation components
+		TSharedPtr<FPreAnimatedSkeletalAnimationStorage> PreAnimatedStorage = Linker->PreAnimatedState.GetOrCreateStorage<FPreAnimatedSkeletalAnimationStorage>();
+
+		struct FTask
+		{
+			FEntityComponentFilter AdditionalFilter;
+		} Task;
+		Task.AdditionalFilter.All({ TrackComponents->SkeletalAnimation, BuiltInComponents->Tags.NeedsLink });
+		PreAnimatedStorage->BeginTrackingAndCachePreAnimatedValuesTask(Linker, Task, BuiltInComponents->BoundObject);
+
 		CleanSystemData();
 		return;
 	}
-
-	FBuiltInComponentTypes* BuiltInComponents = FBuiltInComponentTypes::Get();
-	FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
 	FGraphEventRef GatherTask = FEntityTaskBuilder()
 	.ReadEntityIDs()
