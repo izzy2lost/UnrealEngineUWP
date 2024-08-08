@@ -25,16 +25,13 @@ FOnlineIdentityGoogle::~FOnlineIdentityGoogle()
 
 bool FOnlineIdentityGoogle::Init()
 {
-	NSString* ServerClientId = nil;
-	
 	if (ShouldRequestOfflineAccess())
 	{
-		FString ClientId = GoogleSubsystem->GetServerClientId();
-		ServerClientId = ClientId.IsEmpty() ? nil : ClientId.GetNSString();
-		UE_CLOG_ONLINE_IDENTITY(ServerClientId == nil, Warning, TEXT("ServerClientId not found in config. Server Auth Code won't be requested"));
+		NSString *ServerClientId = [[NSBundle mainBundle] objectForInfoDictionaryKey:@"GIDServerClientID"];
+		UE_CLOG_ONLINE_IDENTITY([ServerClientId length] == 0, Warning, TEXT("ServerClientId not found in config. Server Auth Code won't be requested"));
 	}
 
-	GoogleHelper = [[FGoogleHelper alloc] initWithServerClientID: ServerClientId];
+	GoogleHelper = [[FGoogleHelper alloc] init];
 
 	FOnGoogleSignInCompleteDelegate OnSignInDelegate;
 	OnSignInDelegate.BindRaw(this, &FOnlineIdentityGoogle::OnSignInComplete);

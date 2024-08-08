@@ -49,18 +49,12 @@ bool GetAuthTokenFromSignInResult(GIDGoogleUser* User, NSString* ServerAuthCode,
 
 @implementation FGoogleHelper
 
-- (id)initWithServerClientID: (nullable NSString *)ServerClientId
+- (id)init
 {
 	self = [super init];
 
 	dispatch_async(dispatch_get_main_queue(), ^
 	{
-		if (ServerClientId != nil)
-		{
-			NSString* ClientId = GIDSignIn.sharedInstance.configuration.clientID;
-			GIDSignIn.sharedInstance.configuration = [[GIDConfiguration alloc] initWithClientID: ClientId serverClientID: ServerClientId];
-		}
-
 		[GIDSignIn.sharedInstance restorePreviousSignInWithCompletion:^(GIDGoogleUser* User, NSError* Error)
 		 {
 			UE_CLOG_ONLINE_IDENTITY(User != nil, Display, TEXT("Restored previous sign in"));
