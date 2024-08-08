@@ -18,6 +18,7 @@
 #include "Nodes/InterchangeBaseNodeContainer.h"
 #include "Texture/TextureTranslatorUtilities.h"
 #include "TextureImportUtils.h"
+#include "TextureImportUserSettings.h"
 #include "TgaImageSupport.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeImageWrapperTranslator)
@@ -72,8 +73,7 @@ UInterchangeImageWrapperTranslator::UInterchangeImageWrapperTranslator()
 	//  so ensure it is done on game thread before using it from threads
 	// that is guaranteed because the module loader inits all CDOs
 
-	PNGInfill = GetDefault<UTextureImportSettings>()->GetPNGInfillMapDefault();
-	check( PNGInfill != ETextureImportPNGInfill::Default );
+	PNGInfill = UE::TextureUtilitiesCommon::GetPNGInfillSetting();
 }
 
 TArray<FString> UInterchangeImageWrapperTranslator::GetSupportedFormats() const

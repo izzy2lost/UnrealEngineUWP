@@ -32,12 +32,12 @@ enum class ETextureImportFloatingPointFormat : uint8
    By default, this is done OnlyOnBinaryTransparency, not on PNG's with non-binary-transparency alpha channels.
    The PNG format has two different ways of storing alpha, either as 1-bit binary transparency, or as full 8/16 bit alpha channels.
 
-   Used to be set from the TextureImporter/FillPNGZeroAlpha config value.  Setting this option will supercede that.
+   Used to be set from the TextureImporter/FillPNGZeroAlpha config value.  Setting this option will supersede that.
  */
 UENUM()
 enum class ETextureImportPNGInfill : uint8
 {
-	/* Use the legacy default behavior, set from the TextureImporter/FillPNGZeroAlpha config value; default was OnlyOnBinaryTransparency. */
+	/* Use the default behavior. For user settings, this means use project settings. For project settings, it's set from the TextureImporter/FillPNGZeroAlpha config value; default was OnlyOnBinaryTransparency. */
 	Default = 0,
 	/* Never infill RGB, import the PNG exactly as it is stored in the file. */
 	Never,
@@ -81,7 +81,7 @@ public:
 	
 	UPROPERTY(config, EditAnywhere, Category=ImportSettings, meta = (
 		DisplayName = "When to infill RGB in transparent white PNG",
-		ToolTip = "Default behavior is to infill only for binary transparency; this setting may change that to always or never.  Will check TextureImporter/FillPNGZeroAlpha if this is not changed from Default.  This setting is applied to newly imported textures, it does not affect existing textures in the project."))
+		ToolTip = "Default behavior is to infill only for binary transparency; this setting may change that to always or never.  Will check TextureImporter/FillPNGZeroAlpha if this is not changed from Default.  This setting is applied to newly imported textures, it does not affect existing textures in the project. This setting is project-global, prefer the per-user variant in Editor Preferences."))
 	ETextureImportPNGInfill PNGInfill = ETextureImportPNGInfill::Default;
 
 	//~ Begin UObject Interface

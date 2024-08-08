@@ -274,6 +274,7 @@
 #include "DesktopPlatformModule.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "TextureImportSettings.h"
+#include "TextureImportUserSettings.h"
 #include "AssetImportTask.h"
 #include "ObjectTools.h"
 
@@ -2973,7 +2974,7 @@ bool UTextureFactory::ImportImage(const uint8* Buffer, int64 Length, FFeedbackCo
 
 			if ( ImageFormat == EImageFormat::PNG )
 			{
-				ETextureImportPNGInfill PNGInfill = GetDefault<UTextureImportSettings>()->GetPNGInfillMapDefault();
+				ETextureImportPNGInfill PNGInfill = UE::TextureUtilitiesCommon::GetPNGInfillSetting();
 
 				if (PNGInfill != ETextureImportPNGInfill::Never)
 				{
