@@ -75,7 +75,7 @@ FVector4f UTG_Expression_Dot::EvaluateVector_WithValue(FTG_EvaluationContext* In
 {
 	check(Value && Count == 2);
 	float Result = FVector3f::DotProduct(Value[0], Value[1]);
-	return FVector4f{ Result, Result, Result, Result };
+	return FVector4f{ Result, Result, Result, 1 };
 }
 
 FTG_Texture	UTG_Expression_Dot::EvaluateTexture(FTG_EvaluationContext* InContext)
