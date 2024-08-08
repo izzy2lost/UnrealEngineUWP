@@ -272,34 +272,34 @@ FText UKismetTextLibrary::AsPercent_Float(float Value, TEnumAsByte<ERoundingMode
 	return FText::AsPercent(Value, &NumberFormatOptions);
 }
 
-FText UKismetTextLibrary::AsDate_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsDate_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle)
 {
-	return FText::AsDate(InDateTime, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsDate(InDateTime, InDateStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InDateStyle)
 {
-	return FText::AsDate(InDateTime, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsDate(InDateTime, InDateStyle, InTimeZone);
 }
 
-FText UKismetTextLibrary::AsDateTime_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsDateTime_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsDateTime(InDateTime, EDateTimeStyle::Default, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsDateTime(InDateTime, InDateStyle, InTimeStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InDateStyle, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsDateTime(InDateTime, EDateTimeStyle::Default, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsDateTime(InDateTime, InDateStyle, InTimeStyle, InTimeZone);
 }
 
-FText UKismetTextLibrary::AsTime_DateTime(const FDateTime& InDateTime)
+FText UKismetTextLibrary::AsTime_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsTime(InDateTime, EDateTimeStyle::Default, FText::GetInvariantTimeZone());
+	return FText::AsTime(InDateTime, InTimeStyle, FText::GetInvariantTimeZone());
 }
 
-FText UKismetTextLibrary::AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone)
+FText UKismetTextLibrary::AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle)
 {
-	return FText::AsTime(InDateTime, EDateTimeStyle::Default, InTimeZone);
+	return FText::AsTime(InDateTime, InTimeStyle, InTimeZone);
 }
 
 FText UKismetTextLibrary::AsTimespan_Timespan(const FTimespan& InTimespan)

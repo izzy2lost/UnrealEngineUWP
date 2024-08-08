@@ -120,9 +120,10 @@ CORE_API bool LexTryParseString(ETextGender& OutValue, const TCHAR* Buffer);
 CORE_API void LexFromString(ETextGender& OutValue, const TCHAR* Buffer);
 CORE_API const TCHAR* LexToString(ETextGender InValue);
 
+/** Redeclared in KismetTextLibrary for meta-data extraction purposes, be sure to update there as well */
 namespace EDateTimeStyle
 {
-	enum Type
+	enum Type : int
 	{
 		Default,
 		Short,

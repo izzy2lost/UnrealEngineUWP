@@ -41,6 +41,20 @@ enum class ETextGender : uint8
 };
 
 UENUM(BlueprintType)
+namespace EDateTimeStyle
+{
+	enum Type : int
+	{
+		Default,
+		Short,
+		Medium,
+		Long,
+		Full,
+		Custom UMETA(Hidden), // Internal use only
+	};
+}
+
+UENUM(BlueprintType)
 namespace EFormatArgumentType
 {
 	enum Type : int
@@ -248,27 +262,27 @@ class UKismetTextLibrary : public UBlueprintFunctionLibrary
 
 	/** Converts a passed in date & time to a text, formatted as a date using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Date", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsDate_DateTime(const FDateTime& InDateTime);
+	static ENGINE_API FText AsDate_DateTime(const FDateTime& InDateTime, TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Date (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneDate_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date & time using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As DateTime", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsDateTime_DateTime(const FDateTime& In);
+	static ENGINE_API FText AsDateTime_DateTime(const FDateTime& In, TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a date & time using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As DateTime (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneDateTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InDateStyle = EDateTimeStyle::Default, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a time using an invariant timezone. This will use the given date & time as-is, so it's assumed to already be in the correct timezone. */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Time", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTime_DateTime(const FDateTime& In);
+	static ENGINE_API FText AsTime_DateTime(const FDateTime& In, TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in date & time to a text, formatted as a time using the given timezone (default is the local timezone). This will convert the given date & time from UTC to the given timezone (taking into account DST). */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Time (from UTC)", AdvancedDisplay = "1"), Category="Utilities|Text")
-	static ENGINE_API FText AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""));
+	static ENGINE_API FText AsTimeZoneTime_DateTime(const FDateTime& InDateTime, const FString& InTimeZone = TEXT(""), TEnumAsByte<EDateTimeStyle::Type> InTimeStyle = EDateTimeStyle::Default);
 
 	/** Converts a passed in time span to a text, formatted as a time span */
 	UFUNCTION(BlueprintPure, meta=(DisplayName = "As Timespan", AdvancedDisplay = "1"), Category="Utilities|Text")
