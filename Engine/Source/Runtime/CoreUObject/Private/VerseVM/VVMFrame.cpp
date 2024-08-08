@@ -40,7 +40,12 @@ TGlobalHeapPtr<VFrame> VFrame::GlobalEmptyFrame;
 
 void VFrame::InitializeGlobalEmpty(FAllocationContext Context)
 {
-	VProcedure& Procedure = VProcedure::NewUninitialized(Context, VUniqueString::New(Context, "Empty"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	VUniqueString& EmptyString = VUniqueString::New(Context, "Empty");
+	VProcedure& Procedure = VProcedure::NewUninitialized(
+		Context,
+		EmptyString,
+		EmptyString,
+		0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
 	GlobalEmptyFrame.Set(Context, &VFrame::New(Context, nullptr, nullptr, VValue(), Procedure));
 }
 

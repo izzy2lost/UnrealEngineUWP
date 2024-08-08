@@ -30,6 +30,11 @@ struct FLocation
 		return Left.Line != Right.Line;
 	}
 
+	friend uint32 GetTypeHash(const FLocation& Location)
+	{
+		return ::GetTypeHash(Location.Line);
+	}
+
 	uint32 Line;
 
 private:

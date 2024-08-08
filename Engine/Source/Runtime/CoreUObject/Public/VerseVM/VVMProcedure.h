@@ -52,7 +52,10 @@ struct VProcedure : VCell
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VCell);
 	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
 
+	// Used by the debugger when checking breakpoints
 	TWriteBarrier<VUniqueString> FilePath;
+	// Used by the debugger when showing stack frames
+	TWriteBarrier<VUniqueString> Name;
 
 	uint32 NumRegisters;
 	uint32 NumPositionalParameters;
@@ -132,6 +135,7 @@ struct VProcedure : VCell
 	static VProcedure& NewUninitialized(
 		FAllocationContext Context,
 		VUniqueString& FilePath,
+		VUniqueString& Name,
 		uint32 NumRegisters,
 		uint32 NumPositionalParameters,
 		uint32 NumNamedParameters,
@@ -155,6 +159,7 @@ struct VProcedure : VCell
 		return *new (Context.AllocateFastCell(NumBytes)) VProcedure(
 			Context,
 			FilePath,
+			Name,
 			NumRegisters,
 			NumPositionalParameters,
 			NumNamedParameters,
@@ -173,6 +178,7 @@ private:
 	VProcedure(
 		FAllocationContext Context,
 		VUniqueString& FilePath,
+		VUniqueString& Name,
 		uint32 InNumRegisters,
 		uint32 InNumPositionalParameters,
 		uint32 InNumNamedParameters,
@@ -185,6 +191,7 @@ private:
 		uint32 InNumRegisterNames)
 		: VCell(Context, &GlobalTrivialEmergentType.Get(Context))
 		, FilePath(Context, FilePath)
+		, Name(Context, Name)
 		, NumRegisters(InNumRegisters)
 		, NumPositionalParameters(InNumPositionalParameters)
 		, NumNamedParameters(InNumNamedParameters)

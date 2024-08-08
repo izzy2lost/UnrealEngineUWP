@@ -17,6 +17,7 @@ struct FDebugger
 {
 	virtual ~FDebugger() = default;
 	virtual void Notify(FRunningContext, VFrame&, const FOp&) = 0;
+	virtual void AddLocation(FAllocationContext, VUniqueString& FilePath, const FLocation&) = 0;
 };
 
 FDebugger* GetDebugger();

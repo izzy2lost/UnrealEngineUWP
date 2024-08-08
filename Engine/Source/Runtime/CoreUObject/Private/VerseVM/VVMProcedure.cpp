@@ -138,7 +138,7 @@ void VProcedure::SaveOpCodes(FAbstractVisitor& Visitor)
 	// If one is found, we blank out that value in the sanitized op codes to make the output
 	// more deterministic.
 	ForEachOpCode([this, &SanitizedOpCodes, &ValueCount](auto& Op) {
-		Op.ForEachOperand([this, &SanitizedOpCodes, &ValueCount](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+		Op.ForEachOperand([this, &SanitizedOpCodes, &ValueCount](EOperandRole, auto& Operand, const TCHAR*) {
 			using DecayedType = std::decay_t<decltype(Operand)>;
 			if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 			{
@@ -158,7 +158,7 @@ void VProcedure::SaveOpCodes(FAbstractVisitor& Visitor)
 	if (ValueCount > 0)
 	{
 		ForEachOpCode([this, &Visitor](auto& Op) {
-			Op.ForEachOperand([this, &Visitor](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+			Op.ForEachOperand([this, &Visitor](EOperandRole, auto& Operand, const TCHAR*) {
 				using DecayedType = std::decay_t<decltype(Operand)>;
 				if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 				{
@@ -180,7 +180,7 @@ void VProcedure::LoadOpCodes(FAbstractVisitor& Visitor)
 	{
 		int32 ValueCount = 0;
 		ForEachOpCode([this, &Visitor, &ValueCount](auto& Op) {
-			Op.ForEachOperand([this, &Visitor, &ValueCount](EOperandRole Role, auto& Operand, const TCHAR* Name) {
+			Op.ForEachOperand([this, &Visitor, &ValueCount](EOperandRole, auto& Operand, const TCHAR*) {
 				using DecayedType = std::decay_t<decltype(Operand)>;
 				if constexpr (Private::OperandNeedsSerialization<DecayedType>::value)
 				{
@@ -198,6 +198,7 @@ template <typename TVisitor>
 void VProcedure::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visit(Visitor, FilePath, TEXT("FilePath"));
+	Visit(Visitor, Name, TEXT("Name"));
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
 		uint64 ScratchNumNamedParams = NumNamedParameters;
@@ -265,7 +266,8 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 {
 	if (Visitor.IsLoading())
 	{
-		FString ScratchPath;
+		FString ScratchFilePath;
+		FString ScratchName;
 		uint32 ScratchNumRegisters = 0;
 		uint32 ScratchNumPositionalParameters = 0;
 		uint32 ScratchNumNamedParameters = 0;
@@ -276,7 +278,8 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint32 ScratchNumUnwindEdges = 0;
 		uint32 ScratchNumOpLocations = 0;
 		uint32 ScratchNumRegisterNames = 0;
-		Visitor.Visit(ScratchPath, TEXT("FilePath"));
+		Visitor.Visit(ScratchFilePath, TEXT("FilePath"));
+		Visitor.Visit(ScratchName, TEXT("Name"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
@@ -290,7 +293,8 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 
 		This = &VProcedure::NewUninitialized(
 			Context,
-			VUniqueString::New(Context, StringCast<UTF8CHAR>(*ScratchPath)),
+			VUniqueString::New(Context, StringCast<UTF8CHAR>(*ScratchFilePath)),
+			VUniqueString::New(Context, StringCast<UTF8CHAR>(*ScratchName)),
 			ScratchNumRegisters,
 			ScratchNumPositionalParameters,
 			ScratchNumNamedParameters,
@@ -341,7 +345,8 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 	}
 	else
 	{
-		FString ScratchPath(This->FilePath->AsStringView());
+		FString ScratchFilePath{This->FilePath->AsStringView()};
+		FString ScratchName{This->Name->AsStringView()};
 		uint32 ScratchNumRegisters = This->NumRegisters;
 		uint32 ScratchNumPositionalParameters = This->NumPositionalParameters;
 		uint32 ScratchNumNamedParameters = This->NumNamedParameters;
@@ -352,7 +357,8 @@ void VProcedure::SerializeImpl(VProcedure*& This, FAllocationContext Context, FA
 		uint32 ScratchNumUnwindEdges = This->NumUnwindEdges;
 		uint32 ScratchNumOpLocations = This->NumOpLocations;
 		uint32 ScratchNumRegisterNames = This->NumRegisterNames;
-		Visitor.Visit(ScratchPath, TEXT("FilePath"));
+		Visitor.Visit(ScratchFilePath, TEXT("FilePath"));
+		Visitor.Visit(ScratchName, TEXT("Name"));
 		Visitor.Visit(ScratchNumRegisters, TEXT("NumRegisters"));
 		Visitor.Visit(ScratchNumPositionalParameters, TEXT("NumPositionalParameters"));
 		Visitor.Visit(ScratchNumNamedParameters, TEXT("NumNamedParameters"));
