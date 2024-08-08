@@ -6,7 +6,7 @@
 
 #include "VVMCell.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
-#include "VVMUTF8String.h"
+#include "VVMUniqueString.h"
 
 namespace Verse
 {

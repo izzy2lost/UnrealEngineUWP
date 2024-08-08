@@ -6,7 +6,7 @@
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMShape.h"
-#include "VerseVM/VVMUTF8String.h"
+#include "VerseVM/VVMUniqueString.h"
 #include "VerseVM/VVMUnreachable.h"
 #include "VerseVM/VVMWriteBarrier.h"
 

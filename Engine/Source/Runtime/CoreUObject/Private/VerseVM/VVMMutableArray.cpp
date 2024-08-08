@@ -51,10 +51,10 @@ void VMutableArray::Append(FAllocationContext Context, VArrayBase& Array)
 			Append<int32>(Context, Array);
 			break;
 		case EArrayType::Char8:
-			Append<uint8>(Context, Array);
+			Append<UTF8CHAR>(Context, Array);
 			break;
 		case EArrayType::Char32:
-			Append<uint32>(Context, Array);
+			Append<UTF32CHAR>(Context, Array);
 			break;
 		default:
 			V_DIE("Unhandled EArrayType encountered!");

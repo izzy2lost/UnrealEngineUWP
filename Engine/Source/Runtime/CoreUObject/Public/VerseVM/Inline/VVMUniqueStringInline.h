@@ -6,7 +6,7 @@
 
 #include "Misc/AssertionMacros.h"
 #include "Templates/TypeHash.h"
-#include "VerseVM/VVMUTF8String.h"
+#include "VerseVM/VVMUniqueString.h"
 
 namespace Verse
 {

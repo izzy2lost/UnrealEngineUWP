@@ -1,14 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-#include "VerseVM/VVMUTF8String.h"
+#include "VerseVM/VVMUniqueString.h"
 #include "Async/UniqueLock.h"
 #include "Containers/StringConv.h"
 #include "Containers/StringView.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
-#include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/Inline/VVMUniqueStringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMValuePrinting.h"
 

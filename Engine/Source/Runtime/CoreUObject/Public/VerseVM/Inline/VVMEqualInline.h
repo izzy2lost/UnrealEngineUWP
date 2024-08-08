@@ -8,7 +8,6 @@
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMFloat.h"
 #include "VerseVM/VVMOption.h"
-#include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMValue.h"
 
 namespace Verse

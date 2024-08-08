@@ -45,9 +45,9 @@ inline VValue VArrayBase::GetValue(uint32 Index)
 		case EArrayType::Int32:
 			return VValue::FromInt32(GetData<int32>()[Index]);
 		case EArrayType::Char8:
-			return VValue::Char(GetData<uint8>()[Index]);
+			return VValue::Char(GetData<UTF8CHAR>()[Index]);
 		case EArrayType::Char32:
-			return VValue::Char32(GetData<uint32>()[Index]);
+			return VValue::Char32(GetData<UTF32CHAR>()[Index]);
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}
@@ -63,9 +63,9 @@ inline const VValue VArrayBase::GetValue(uint32 Index) const
 		case EArrayType::Int32:
 			return VValue::FromInt32(GetData<int32>()[Index]);
 		case EArrayType::Char8:
-			return VValue::Char(GetData<uint8>()[Index]);
+			return VValue::Char(GetData<UTF8CHAR>()[Index]);
 		case EArrayType::Char32:
-			return VValue::Char32(GetData<uint32>()[Index]);
+			return VValue::Char32(GetData<UTF32CHAR>()[Index]);
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}

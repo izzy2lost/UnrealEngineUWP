@@ -10,7 +10,6 @@
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMNativeStructInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
-#include "VerseVM/Inline/VVMUTF8StringInline.h"
 #include "VerseVM/VVMCppClassInfo.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 

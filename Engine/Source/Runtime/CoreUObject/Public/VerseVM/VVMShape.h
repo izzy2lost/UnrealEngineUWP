@@ -5,7 +5,7 @@
 
 #include "Containers/Map.h"
 #include "VVMCell.h"
-#include "VVMUTF8String.h"
+#include "VVMUniqueString.h"
 #include "VVMWriteBarrier.h"
 
 class FVerseVMEngineEnvironment;

@@ -225,15 +225,15 @@ struct VValue
 	bool IsChar() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::CharTag; }
 	bool IsChar32() const { return (EncodedBits & VValue::NonCellTagMask) == VValue::Char32Tag; }
 
-	uint8 AsChar() const
+	UTF8CHAR AsChar() const
 	{
 		checkSlow(IsChar());
-		return static_cast<uint8>(EncodedBits >> NumLowerEncodingBits);
+		return static_cast<UTF8CHAR>(EncodedBits >> NumLowerEncodingBits);
 	}
-	uint32 AsChar32() const
+	UTF32CHAR AsChar32() const
 	{
 		checkSlow(IsChar32());
-		return static_cast<uint32>(EncodedBits >> NumLowerEncodingBits);
+		return static_cast<UTF32CHAR>(EncodedBits >> NumLowerEncodingBits);
 	}
 
 private:

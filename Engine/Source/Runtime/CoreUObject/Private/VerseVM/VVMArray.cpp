@@ -30,10 +30,10 @@ VArray& VArray::Concat(FRunningContext Context, VArrayBase& Lhs, VArrayBase& Rhs
 				FMemory::Memcpy(NewArray.GetData<int32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
 				break;
 			case EArrayType::Char8:
-				FMemory::Memcpy(NewArray.GetData<uint8>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				FMemory::Memcpy(NewArray.GetData<UTF8CHAR>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
 				break;
 			case EArrayType::Char32:
-				FMemory::Memcpy(NewArray.GetData<uint32>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
+				FMemory::Memcpy(NewArray.GetData<UTF32CHAR>() + Lhs.Num(), Rhs.GetData(), Rhs.ByteLength());
 				break;
 		}
 		return NewArray;

@@ -7,7 +7,6 @@
 #include "Containers/StringView.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
-#include "VerseVM/VVMUTF8String.h"
 
 namespace Verse
 {

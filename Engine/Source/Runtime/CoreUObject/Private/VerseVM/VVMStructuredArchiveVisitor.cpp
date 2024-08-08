@@ -12,7 +12,6 @@
 #include "VerseVM/VVMMutableArray.h"
 #include "VerseVM/VVMPlaceholder.h"
 #include "VerseVM/VVMRestValue.h"
-#include "VerseVM/VVMUTF8String.h"
 #include "VerseVM/VVMValue.h"
 
 namespace Verse

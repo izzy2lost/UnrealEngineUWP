@@ -5,7 +5,7 @@
 #include "Containers/UnrealString.h"
 #include "VerseVM/Inline/VVMCellInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
-#include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/Inline/VVMUniqueStringInline.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMFunction.h"

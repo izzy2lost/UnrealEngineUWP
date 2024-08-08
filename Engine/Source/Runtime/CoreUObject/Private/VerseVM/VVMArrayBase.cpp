@@ -80,9 +80,9 @@ uint32 VArrayBase::GetTypeHashImpl()
 		case EArrayType::Int32:
 			return ::GetArrayHash(GetData<int32>(), Num());
 		case EArrayType::Char8:
-			return ::GetArrayHash(GetData<uint8>(), Num());
+			return ::GetArrayHash(GetData<UTF8CHAR>(), Num());
 		case EArrayType::Char32:
-			return ::GetArrayHash(GetData<uint32>(), Num());
+			return ::GetArrayHash(GetData<UTF32CHAR>(), Num());
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}
@@ -118,9 +118,9 @@ VArrayBase::FConstIterator VArrayBase::begin() const
 		case EArrayType::Int32:
 			return GetData<int32>();
 		case EArrayType::Char8:
-			return GetData<uint8>();
+			return GetData<UTF8CHAR>();
 		case EArrayType::Char32:
-			return GetData<uint32>();
+			return GetData<UTF32CHAR>();
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}
@@ -137,9 +137,9 @@ VArrayBase::FConstIterator VArrayBase::end() const
 		case EArrayType::Int32:
 			return GetData<int32>() + Num();
 		case EArrayType::Char8:
-			return GetData<uint8>() + Num();
+			return GetData<UTF8CHAR>() + Num();
 		case EArrayType::Char32:
-			return GetData<uint32>() + Num();
+			return GetData<UTF32CHAR>() + Num();
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}

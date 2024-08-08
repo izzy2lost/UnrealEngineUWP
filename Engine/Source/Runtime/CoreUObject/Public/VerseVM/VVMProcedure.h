@@ -8,7 +8,7 @@
 #include "VVMBytecode.h"
 #include "VVMGlobalTrivialEmergentTypePtr.h"
 #include "VVMType.h"
-#include "VVMUTF8String.h"
+#include "VVMUniqueString.h"
 
 namespace Verse
 {

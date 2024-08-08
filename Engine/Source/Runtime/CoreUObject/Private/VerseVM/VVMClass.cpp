@@ -14,7 +14,7 @@
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMScopeInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
-#include "VerseVM/Inline/VVMUTF8StringInline.h"
+#include "VerseVM/Inline/VVMUniqueStringInline.h"
 #include "VerseVM/Inline/VVMValueObjectInline.h"
 #include "VerseVM/VVMEngineEnvironment.h"
 #include "VerseVM/VVMFunction.h"

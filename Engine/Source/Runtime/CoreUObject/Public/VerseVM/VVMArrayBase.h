@@ -5,7 +5,6 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Containers/StringView.h"
-#include "Containers/Utf8String.h"
 #include "VVMAtomics.h"
 #include "VVMAux.h"
 #include "VVMEmergentTypeCreator.h"
@@ -44,9 +43,9 @@ inline size_t ByteLength(EArrayType ArrayType)
 		case EArrayType::Int32:
 			return sizeof(int32);
 		case EArrayType::Char8:
-			return sizeof(uint8);
+			return sizeof(UTF8CHAR);
 		case EArrayType::Char32:
-			return sizeof(uint32);
+			return sizeof(UTF32CHAR);
 		default:
 			V_DIE("Unhandled EArrayType encountered!");
 	}
@@ -54,7 +53,7 @@ inline size_t ByteLength(EArrayType ArrayType)
 
 struct VBuffer : TAux<void>
 {
-	// Note: We don't need to align uint8/uint32 arrays this way. However, that will
+	// Note: We don't need to align char/char32 arrays this way. However, that will
 	// make accessing the data branch on Type. So it might never be worth doing.
 	struct alignas(sizeof(VValue)) Header
 	{
@@ -156,15 +155,15 @@ struct VBuffer : TAux<void>
 		checkSlow(GetArrayType() == EArrayType::Int32);
 		GetData<int32>()[Index] = Value;
 	}
-	void SetChar(uint32 Index, uint8 Value)
+	void SetChar(uint32 Index, UTF8CHAR Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::Char8);
-		GetData<uint8>()[Index] = Value;
+		GetData<UTF8CHAR>()[Index] = Value;
 	}
-	void SetChar32(uint32 Index, uint32 Value)
+	void SetChar32(uint32 Index, UTF32CHAR Value)
 	{
 		checkSlow(GetArrayType() == EArrayType::Char32);
-		GetData<uint32>()[Index] = Value;
+		GetData<UTF32CHAR>()[Index] = Value;
 	}
 
 	template <typename T = void>
@@ -321,11 +320,11 @@ public:
 	{
 		Buffer.Get().SetInt32(Index, Value);
 	}
-	void SetChar(uint32 Index, uint8 Value)
+	void SetChar(uint32 Index, UTF8CHAR Value)
 	{
 		Buffer.Get().SetChar(Index, Value);
 	}
-	void SetChar32(uint32 Index, uint32 Value)
+	void SetChar32(uint32 Index, UTF32CHAR Value)
 	{
 		Buffer.Get().SetChar32(Index, Value);
 	}
@@ -369,7 +368,7 @@ public:
 			{
 				if (!GetValue(Index).IsChar())
 				{
-					V_DIE("Couldn't convert index %d to Char8! Partially parsed: %s", Index, *String);
+					V_DIE("Couldn't convert index %d to char! Partially parsed: %s", Index, *String);
 				}
 				String[Index] = GetValue(Index).AsChar();
 			}
@@ -387,7 +386,7 @@ public:
 	{
 		if (::Verse::IsString(GetArrayType()))
 		{
-			return FUtf8StringView(GetData<UTF8CHAR>());
+			return FUtf8StringView(GetData<UTF8CHAR>(), Num());
 		}
 		V_DIE("Couldn't convert Array to String!");
 		return FUtf8StringView();
@@ -429,8 +428,8 @@ public:
 		{
 			const TWriteBarrier<VValue>* Barrier;
 			const int32* Int32;
-			const uint8* Char8;
-			const uint32* Char32;
+			const UTF8CHAR* Char;
+			const UTF32CHAR* Char32;
 			const void* None;
 		};
 		EArrayType ArrayType;
@@ -445,7 +444,7 @@ public:
 				case EArrayType::Int32:
 					return VValue::FromInt32(*Int32);
 				case EArrayType::Char8:
-					return VValue::Char(*Char8);
+					return VValue::Char(*Char);
 				case EArrayType::Char32:
 					return VValue::Char32(*Char32);
 				default:
@@ -468,7 +467,7 @@ public:
 					++Int32;
 					break;
 				case EArrayType::Char8:
-					++Char8;
+					++Char;
 					break;
 				case EArrayType::Char32:
 					++Char32;
@@ -487,10 +486,10 @@ public:
 		FORCEINLINE FConstIterator(const int32* InCurrentValue)
 			: Int32(InCurrentValue)
 			, ArrayType(EArrayType::Int32) {}
-		FORCEINLINE FConstIterator(const uint8* InCurrentValue)
-			: Char8(InCurrentValue)
+		FORCEINLINE FConstIterator(const UTF8CHAR* InCurrentValue)
+			: Char(InCurrentValue)
 			, ArrayType(EArrayType::Char8) {}
-		FORCEINLINE FConstIterator(const uint32* InCurrentValue)
+		FORCEINLINE FConstIterator(const UTF32CHAR* InCurrentValue)
 			: Char32(InCurrentValue)
 			, ArrayType(EArrayType::Char32) {}
 		FORCEINLINE FConstIterator(const void* InCurrentValue)
