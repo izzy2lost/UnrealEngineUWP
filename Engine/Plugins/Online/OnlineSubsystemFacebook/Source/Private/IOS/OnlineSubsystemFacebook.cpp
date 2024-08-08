@@ -7,14 +7,16 @@
 #include "IOS/IOSAppDelegate.h"
 #include "Misc/ConfigCacheIni.h"
 
+#include "OnlineExternalUIInterfaceFacebook.h"
 #include "OnlineFriendsFacebook.h"
 #include "OnlineIdentityFacebook.h"
 #include "OnlineSharingFacebook.h"
 #include "OnlineUserFacebook.h"
 
 THIRD_PARTY_INCLUDES_START
+#import <AuthenticationServices/AuthenticationServices.h>
+#import <SafariServices/SafariServices.h>
 #import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
-#import <FBSDKCoreKit/FBSDKSettings.h>
 THIRD_PARTY_INCLUDES_END
 
 #define FACEBOOK_DEBUG_ENABLED 0
@@ -50,7 +52,7 @@ static void OnFacebookAppDidBecomeActive()
 void SetFBLoggingBehavior()
 {
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorAppEvents];
-#if 1//FACEBOOK_DEBUG_ENABLED
+#if FACEBOOK_DEBUG_ENABLED
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorAccessTokens];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorPerformanceCharacteristics];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorAppEvents];
@@ -58,7 +60,8 @@ void SetFBLoggingBehavior()
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorCacheErrors];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorUIControlErrors];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugWarning];
-	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugInfo];
+	// Commented because it hangs on FacebookSDK-17.0.2
+	//[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugInfo];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorNetworkRequests];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorDeveloperErrors];
 #endif
@@ -104,6 +107,7 @@ bool FOnlineSubsystemFacebook::Init()
     FacebookSharing = MakeShared<FOnlineSharingFacebook>(this);
     FacebookFriends = MakeShared<FOnlineFriendsFacebook>(this);
     FacebookUser = MakeShared<FOnlineUserFacebook>(this);
+	FacebookExternalUI = MakeShared<FOnlineExternalUIFacebook>(this);
 
     FString AnalyticsId;
     GConfig->GetString(TEXT("OnlineSubsystemFacebook"), TEXT("AnalyticsId"), AnalyticsId, GEngineIni);

@@ -30,6 +30,8 @@ public:
 	 */
 	virtual ~FOnlineFriendsFacebook();
 
+	// IOnlineFriends
+	virtual bool ReadFriendsList(int32 LocalUserNum, const FString& ListName, const FOnReadFriendsListComplete& Delegate = FOnReadFriendsListComplete()) override;
 
 private:
 

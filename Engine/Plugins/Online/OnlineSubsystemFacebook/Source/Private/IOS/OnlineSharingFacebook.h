@@ -33,6 +33,9 @@ public:
 	 */
 	virtual ~FOnlineSharingFacebook();
 
+	// IOnlineSharing
+	virtual void RequestCurrentPermissions(int32 LocalUserNum, FOnRequestCurrentPermissionsComplete& CompletionDelegate) override;
+
 private:
 
 	/**

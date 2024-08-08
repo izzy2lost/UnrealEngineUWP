@@ -5,6 +5,9 @@
 #include "Interfaces/OnlineIdentityInterface.h"
 
 THIRD_PARTY_INCLUDES_START
+#import <AuthenticationServices/AuthenticationServices.h>
+#import <SafariServices/SafariServices.h>
+#import <FBSDKCoreKit/FBSDKCoreKit-Swift.h>
 #import <FBSDKLoginKit/FBSDKLoginKit.h>
 THIRD_PARTY_INCLUDES_END
 
@@ -18,7 +21,7 @@ THIRD_PARTY_INCLUDES_END
 
     NSLog(@"Facebook SDK Version: %@", [[FBSDKSettings sharedSettings] sdkVersion]);
 
-    [FBSDKProfile enableUpdatesOnAccessTokenChange:YES];
+    [FBSDKProfile setIsUpdatedWithAccessTokenChange:YES];
 
     NSNotificationCenter* center = [NSNotificationCenter defaultCenter];
     [center addObserver:self selector:@selector(tokenChangeCallback:) name: FBSDKAccessTokenDidChangeNotification object:nil];

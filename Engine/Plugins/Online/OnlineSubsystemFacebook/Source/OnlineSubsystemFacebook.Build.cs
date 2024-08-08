@@ -1,10 +1,15 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.IO;
+using EpicGames.Core;
 using UnrealBuildTool;
+using Microsoft.Extensions.Logging;
 
 public class OnlineSubsystemFacebook : ModuleRules
 {
+	[ConfigFile(ConfigHierarchyType.Engine, "OnlineSubsystemFacebook")]
+	bool bUseClassicLogin = true;
+
 	protected virtual bool bUsesRestfulImpl
 	{
 		get =>
@@ -40,6 +45,20 @@ public class OnlineSubsystemFacebook : ModuleRules
 
 			PublicDefinitions.Add("WITH_FACEBOOK=1");
 			PrivateIncludePaths.Add("Private/IOS");
+			
+			ConfigCache.ReadSettings(DirectoryReference.FromFile(Target.ProjectFile), Target.Platform, this);
+
+			if (bUseClassicLogin)
+			{
+				// Do not use or include AppTrackingTransparency framework if not needed
+				PublicDefinitions.Add("UE_WITH_CLASSIC_FACEBOOK_LOGIN=1");
+				PublicFrameworks.Add("AppTrackingTransparency");
+			}
+			else
+			{
+				PublicDefinitions.Add("UE_WITH_CLASSIC_FACEBOOK_LOGIN=0");
+			}
+
 			string PluginPath = Utils.MakePathRelativeTo(ModuleDirectory, Target.RelativeEnginePath);
 			AdditionalPropertiesForReceipt.Add("IOSPlugin", Path.Combine(PluginPath, "OnlineSubsystemFacebookIOS_UPL.xml"));
 		}

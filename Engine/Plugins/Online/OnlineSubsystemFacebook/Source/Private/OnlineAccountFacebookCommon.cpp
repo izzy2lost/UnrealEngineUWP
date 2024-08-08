@@ -81,6 +81,12 @@ bool FUserOnlineAccountFacebookCommon::GetAuthAttribute(const FString& AttrName,
 		OutAttrValue = AuthTicket;
 		return true;
 	}
+	
+	if (AttrName == AUTH_ATTR_ID_TOKEN)
+	{
+		OutAttrValue = AuthToken;
+		return true;
+	}
 
 	return false;
 }

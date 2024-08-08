@@ -152,6 +152,17 @@ public:
 	 */
 	virtual ~FOnlineFriendsFacebookCommon();
 
+PACKAGE_SCOPE:
+	/** For accessing identity/token info of user logged in */
+	FOnlineSubsystemFacebook* FacebookSubsystem;
+	/** List of online friends */
+	struct FOnlineFriendsList
+	{
+		TArray< TSharedRef<FOnlineFriendFacebook> > Friends;
+	};
+	/** Cached friends list from last call to ReadFriendsList for each local user */
+	TMap<int, FOnlineFriendsList> FriendsMap;
+
 private:
 
 	/**
@@ -164,20 +175,11 @@ private:
 	 */
 	void QueryFriendsList_HttpRequestComplete(FHttpRequestPtr HttpRequest, FHttpResponsePtr HttpResponse, bool bSucceeded, FOnReadFriendsListComplete Delegate);
 
-	/** For accessing identity/token info of user logged in */
-	FOnlineSubsystemFacebook* FacebookSubsystem;
 	/** Config based url for querying friends list */
 	FString FriendsUrl;
+
 	/** Config based list of fields to use when querying friends list */
 	TArray<FString> FriendsFields;
-
-	/** List of online friends */
-	struct FOnlineFriendsList
-	{
-		TArray< TSharedRef<FOnlineFriendFacebook> > Friends;
-	};
-	/** Cached friends list from last call to ReadFriendsList for each local user */
-	TMap<int, FOnlineFriendsList> FriendsMap;
 
 	/** Info used to send request to register a user */
 	struct FPendingFriendsQuery

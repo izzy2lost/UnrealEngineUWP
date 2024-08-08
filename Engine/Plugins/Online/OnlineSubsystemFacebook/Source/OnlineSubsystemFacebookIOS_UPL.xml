@@ -15,6 +15,11 @@
 		<dumpvars/>
 	</init>
 
+	<registerBuildSettings>
+	<insertValue value="OnlineSubsystemFacebook[bEnabled,ClientId,ClientToken,bEnableAutomaticLogging,bEnableAdvertisingId]"/>
+	<insertNewline/>
+	</registerBuildSettings>
+
 	<iosPListUpdates>
 		<if condition="bEnabled">
 			<true>
@@ -133,8 +138,10 @@
 				<addElements tag="dict" once="true">
 					<key>LSApplicationQueriesSchemes</key>
 					<array>
-					<string>fbapi</string>
-					<string>fb-messenger-share-api</string>
+						<string>fbapi</string>
+						<string>fb-messenger-api</string>
+						<string>fbauth2</string>
+						<string>fbshareextension</string>
 					</array>
 				</addElements>
 			</true>
