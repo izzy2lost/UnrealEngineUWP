@@ -160,7 +160,7 @@ public:
 	FStreamingGenerationActorDescViewMap& operator=(const FStreamingGenerationActorDescViewMap&) = delete;
 	FStreamingGenerationActorDescViewMap& operator=(FStreamingGenerationActorDescViewMap&&) = default;
 
-	ENGINE_API FStreamingGenerationActorDescView* Emplace(const FGuid& InActorGuid, const FStreamingGenerationActorDescView& InActorDescView);
+	ENGINE_API FStreamingGenerationActorDescView* Emplace(const FGuid& InActorGuid, FStreamingGenerationActorDescView&& InActorDescView);
 	ENGINE_API FStreamingGenerationActorDescView* Emplace(const FWorldPartitionActorDescInstance* InActorDescInstance);
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
