@@ -413,10 +413,27 @@ void UMovieSceneCompiledData::Reset()
 	AccumulatedFlags = EMovieSceneSequenceFlags::None;
 }
 
+#if WITH_EDITORONLY_DATA
+void UMovieSceneCompiledData::AppendToClassSchema(FAppendToClassSchemaContext& Context)
+{
+	Super::AppendToClassSchema(Context);
+
+	// Specify the compiler version to the iterative cooker. Any changes to the schema of
+	//    compiled data should update the version to ensure that compiled data is invalidated
+	//    for the purposes of iterative cooking.
+
+	FGuid ParsedCompilerVersion;
+	if (FGuid::Parse(GMovieSceneCompilerVersion, ParsedCompilerVersion))
+	{
+		Context.Update(&ParsedCompilerVersion, sizeof(ParsedCompilerVersion));
+	}
+}
+#endif
+
 UMovieSceneCompiledDataManager::UMovieSceneCompiledDataManager()
 {
 	const bool bParsed = FGuid::Parse(GMovieSceneCompilerVersion, CompilerVersion);
-	ensureMsgf(bParsed, TEXT("Invalid compiler version specific - this will break any persistent compiled data"));
+	ensureMsgf(bParsed, TEXT("Invalid compiler version specified - this will break any persistent compiled data"));
 
 	IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateUObject(this, &UMovieSceneCompiledDataManager::ConsoleVariableSink));
 

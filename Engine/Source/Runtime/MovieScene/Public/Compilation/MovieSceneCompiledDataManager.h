@@ -92,6 +92,10 @@ public:
 
 	void Reset();
 
+#if WITH_EDITORONLY_DATA
+	static void AppendToClassSchema(FAppendToClassSchemaContext& Context);
+#endif
+
 private:
 	friend class UMovieSceneCompiledDataManager;
 
