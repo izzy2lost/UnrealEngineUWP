@@ -10,7 +10,7 @@ struct FMetaHumanAssetImportDescription;
 /**
  * 
  */
-class METAHUMANPROJECTUTILITIES_API FMetaHumanImport
+class METAHUMANSDKEDITOR_API FMetaHumanImport
 {
 public:
 	void ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);

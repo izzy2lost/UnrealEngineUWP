@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class MetaHumanProjectUtilities : ModuleRules
+public class MetaHumanSDKEditor : ModuleRules
 {
-	public MetaHumanProjectUtilities(ReadOnlyTargetRules Target) : base(Target)
+	public MetaHumanSDKEditor(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		

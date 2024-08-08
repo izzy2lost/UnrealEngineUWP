@@ -7,7 +7,7 @@
 #include "MetaHumanTypes.h"
 #include "Modules/ModuleManager.h"
 
-IMPLEMENT_MODULE(FDefaultModuleImpl, MetaHumanProjectUtilities)
+IMPLEMENT_MODULE(FDefaultModuleImpl, MetaHumanSDKEditor)
 
 FMetaHumanVersion::FMetaHumanVersion(const FString& VersionString)
 {
@@ -29,27 +29,27 @@ FMetaHumanVersion FInstalledMetaHuman::GetVersion() const
 }
 
 // External APIs
-void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::EnableAutomation(IMetaHumanProjectUtilitiesAutomationHandler* Handler)
+void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::EnableAutomation(IMetaHumanProjectUtilitiesAutomationHandler* Handler)
 {
 	FMetaHumanImport::Get()->SetAutomationHandler(Handler);
 }
 
-void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler)
+void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler)
 {
 	FMetaHumanImport::Get()->SetBulkImportHandler(Handler);
 }
 
-void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription)
+void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription)
 {
 	FMetaHumanImport::Get()->ImportAsset(AssetImportDescription);
 }
 
-void METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::OverrideVersionServiceUrl(const FString& BaseUrl)
+void METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::OverrideVersionServiceUrl(const FString& BaseUrl)
 {
 	UE::MetaHumanVersionService::SetServiceUrl(BaseUrl);
 }
 
-TArray<FInstalledMetaHuman> METAHUMANPROJECTUTILITIES_API FMetaHumanProjectUtilities::GetInstalledMetaHumans()
+TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API FMetaHumanProjectUtilities::GetInstalledMetaHumans()
 {
 	return FInstalledMetaHuman::GetInstalledMetaHumans(FImportPaths{ FMetaHumanAssetImportDescription{} });
 }

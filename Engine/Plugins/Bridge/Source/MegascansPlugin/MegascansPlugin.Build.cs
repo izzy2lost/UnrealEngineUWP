@@ -37,7 +37,7 @@ namespace UnrealBuildTool.Rules
 					"EditorScriptingUtilities",
 					"Projects",
 					"ApplicationCore",
-					"MetaHumanProjectUtilities"
+					"MetaHumanSDKEditor"
 				}
 			);
 		}

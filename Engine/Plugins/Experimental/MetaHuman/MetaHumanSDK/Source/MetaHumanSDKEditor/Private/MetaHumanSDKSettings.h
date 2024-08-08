@@ -2,13 +2,13 @@
 
 #pragma once
 #include "CoreMinimal.h"
-#include "MetaHumanProjectUtilitiesSettings.generated.h"
+#include "MetaHumanSDKSettings.generated.h"
 
 /**
  *
  */
 UCLASS(Config = MetaHumanProjectUtilities)
-class METAHUMANPROJECTUTILITIES_API UMetaHumanProjectUtilitiesSettings : public UObject
+class METAHUMANSDKEDITOR_API UMetaHumanSDKSettings : public UObject
 {
 	GENERATED_BODY()
 

@@ -7,7 +7,7 @@
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
-#include "MetaHumanProjectUtilitiesSettings.h"
+#include "MetaHumanSDKSettings.h"
 #include "Serialization/JsonSerializer.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogMetaHumanVersionService, Log, All)
@@ -70,7 +70,7 @@ namespace UE::MetaHumanVersionService
 		private:
 			FMetaHumanVersionServiceClient()
 			{
-				const UMetaHumanProjectUtilitiesSettings* Settings = GetDefault<UMetaHumanProjectUtilitiesSettings>();
+				const UMetaHumanSDKSettings* Settings = GetDefault<UMetaHumanSDKSettings>();
 				FetchDataFromVersionService(Settings->VersionServiceBaseUrl);
 			}
 

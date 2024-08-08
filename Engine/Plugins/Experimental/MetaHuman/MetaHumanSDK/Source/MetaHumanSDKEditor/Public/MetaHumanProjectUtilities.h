@@ -118,7 +118,7 @@ struct FMetaHumanVersion
 };
 
 // Class that handles the layout and filenames of a MetaHuman that has been added to a project.
-class METAHUMANPROJECTUTILITIES_API FInstalledMetaHuman
+class METAHUMANSDKEDITOR_API FInstalledMetaHuman
 {
 public:
 	// For now, it is assumed that a MetaHuman has files in {MetaHumansFilePath}/{Name} and {MetaHumansFilePath}/Common.
@@ -146,13 +146,13 @@ class FMetaHumanProjectUtilities
 {
 public:
 	// Disable UI and enable automation of user input for headless testing
-	static void METAHUMANPROJECTUTILITIES_API EnableAutomation(IMetaHumanProjectUtilitiesAutomationHandler* Handler);
+	static void METAHUMANSDKEDITOR_API EnableAutomation(IMetaHumanProjectUtilitiesAutomationHandler* Handler);
 	// Disable UI and enable automation of user input for headless testing
-	static void METAHUMANPROJECTUTILITIES_API SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler);
+	static void METAHUMANSDKEDITOR_API SetBulkImportHandler(IMetaHumanBulkImportHandler* Handler);
 	// Main entry-point used by Quixel Bridge
-	static void METAHUMANPROJECTUTILITIES_API ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);
+	static void METAHUMANSDKEDITOR_API ImportAsset(const FMetaHumanAssetImportDescription& AssetImportDescription);
 	// Provide the Url for the versioning service to use
-	static void METAHUMANPROJECTUTILITIES_API OverrideVersionServiceUrl(const FString& BaseUrl);
+	static void METAHUMANSDKEDITOR_API OverrideVersionServiceUrl(const FString& BaseUrl);
 	// Returns a list of all MetaHumans in the project
-	static TArray<FInstalledMetaHuman> METAHUMANPROJECTUTILITIES_API GetInstalledMetaHumans();
+	static TArray<FInstalledMetaHuman> METAHUMANSDKEDITOR_API GetInstalledMetaHumans();
 };

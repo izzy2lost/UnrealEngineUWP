@@ -40,7 +40,7 @@
 			"Enabled": true
 		},
 		{
-			"Name": "MetaHumanProjectUtilities",
+			"Name": "MetaHumanSDK",
 			"Enabled": true
 		}
 	]
