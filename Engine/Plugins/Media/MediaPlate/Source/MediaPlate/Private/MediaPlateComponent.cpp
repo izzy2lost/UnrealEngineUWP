@@ -915,7 +915,7 @@ float UMediaPlateComponent::GetReverseRate(UMediaPlayer* MediaPlayer)
 	return 2.0f * Rate;
 }
 
-void UMediaPlateComponent::RestartPlayer()
+bool UMediaPlateComponent::RestartPlayer()
 {
 	if (MediaPlayer != nullptr)
 	{
@@ -923,8 +923,10 @@ void UMediaPlateComponent::RestartPlayer()
 		{
 			MediaPlayer->Close();
 			Open();
+			return true;
 		}
 	}
+	return false;
 }
 
 void UMediaPlateComponent::StopClockSink()
@@ -1355,6 +1357,11 @@ void UMediaPlateComponent::InitializeMediaPlateResource()
 void UMediaPlateComponent::RefreshMediaPlateResource()
 {
 	MediaPlateResource.RefreshActivePlaylist(this);
+
+	if (RestartPlayer())
+	{
+		return;
+	}
 
 	constexpr EMediaPlateEventState State = EMediaPlateEventState::Close;
 	SwitchStates(State);

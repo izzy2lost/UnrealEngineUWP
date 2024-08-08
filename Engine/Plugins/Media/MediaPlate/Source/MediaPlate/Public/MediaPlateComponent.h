@@ -340,7 +340,7 @@ private:
 	 */
 	void PlayOnlyWhenVisibleChanged();
 
-	void RestartPlayer();
+	bool RestartPlayer();
 
 	/**
 	 * If true, then we want the media plate to play.
