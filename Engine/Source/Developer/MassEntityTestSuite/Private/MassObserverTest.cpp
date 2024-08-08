@@ -452,6 +452,50 @@ struct FFragmentObserverTest_MultipleArchetypeDestroy : FFragmentTestBase
 };
 IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_MultipleArchetypeDestroy, "System.Mass.Observer.Fragment.MultipleArchetypesDestroy");
 
+struct FFragmentObserverTest_EntityCreation_Individual : FFragmentTestBase
+{
+	FFragmentObserverTest_EntityCreation_Individual() { OperationObserved = EMassObservedOperation::Add; }
+
+	virtual bool InstantTest() override
+	{
+		constexpr float TestValue = 123.456f;
+		float ValueOnNotification = 0.f;
+
+		ObserverProcessor->ForEachEntityChunkExecutionFunction = [&ValueOnNotification](FMassExecutionContext& Context)
+			{
+				const TConstArrayView<FFragmentStruct> Fragments = Context.GetFragmentView<FFragmentStruct>();
+				for (int32 EntityIndex = 0; EntityIndex < Context.GetNumEntities(); EntityIndex++)
+				{
+					ValueOnNotification = Fragments[EntityIndex].Value;
+				};
+			};
+
+		FMassObserverManager& ObserverManager = EntityManager->GetObserverManager();
+		ObserverManager.AddObserverInstance(*FFragmentStruct::StaticStruct(), OperationObserved, *ObserverProcessor);
+
+		TArray<FInstancedStruct> FragmentInstanceList = { FInstancedStruct::Make(FFragmentStruct(TestValue)) };
+
+		// BuildEntity
+		{
+			const FMassEntityHandle Entity= EntityManager->ReserveEntity();
+			EntityManager->BuildEntity(Entity, FragmentInstanceList);	
+			AITEST_EQUAL(TEXT("The fragment observer notified by BuildEntity is expected to be able to fetch the initial value"), ValueOnNotification, TestValue);
+			EntityManager->DestroyEntity(Entity);
+		}
+
+		// CreateEntity
+		{
+			ValueOnNotification = 0.f;
+			const FMassEntityHandle Entity = EntityManager->CreateEntity(FragmentInstanceList);
+			AITEST_EQUAL(TEXT("The fragment observer notified by CreateEntity is expected to be able to fetch the initial value"), ValueOnNotification, TestValue);
+			EntityManager->DestroyEntity(Entity);
+		}
+
+		return true;
+	}
+};
+IMPLEMENT_AI_INSTANT_TEST(FFragmentObserverTest_EntityCreation_Individual, "System.Mass.Observer.Create.FragmentSingleEntity");
+
 struct FFragmentObserverTest_EntityCreation_Individuals : FFragmentTestBase
 {
 	FFragmentObserverTest_EntityCreation_Individuals() { OperationObserved = EMassObservedOperation::Add; }

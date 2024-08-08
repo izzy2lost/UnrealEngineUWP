@@ -109,8 +109,8 @@ void FMassEntityManager::FEntityCreationContext::AppendEntities(const TConstArra
 			CollectionCreationDuplicatesHandling = FMassArchetypeEntityCollection::FoldDuplicates;
 			MarkDirty();
 		}
-		// else, if there are no entities the resulting state will bE "dirty" by design 
-		ensureMsgf(EntityCollections.IsEmpty(), TEXT("Having a non-empty array of entity collecitons is unexpected at this point!"));
+		// else, if there are no entities the resulting state will be "dirty" by design
+		ensureMsgf(EntityCollections.IsEmpty(), TEXT("Having a non-empty array of entity collections is unexpected at this point!"));
 
 		CreatedEntities.Append(EntitiesToAppend);
 		ensure(IsDirty());
@@ -712,6 +712,11 @@ FMassEntityHandle FMassEntityManager::CreateEntity(TConstArrayView<FInstancedStr
 	check(ArchetypeHandle.IsValid());
 
 	const FMassEntityHandle Entity = ReserveEntity();
+
+	// Using a creation context to prevent InternalBuildEntity from notifying observers before we set fragments data
+	const TSharedRef<FEntityCreationContext> CreationContext = GetOrMakeCreationContext();
+	CreationContext->AppendEntities({Entity});
+
 	InternalBuildEntity(Entity, ArchetypeHandle, SharedFragmentValues);
 
 	FMassArchetypeData* CurrentArchetype = GetEntityStorageInterface().GetArchetype(Entity.Index);
@@ -763,6 +768,10 @@ void FMassEntityManager::BuildEntity(FMassEntityHandle Entity, TConstArrayView<F
 
 	const FMassArchetypeHandle& ArchetypeHandle = CreateArchetype(Composition);
 	check(ArchetypeHandle.IsValid());
+
+	// Using a creation context to prevent InternalBuildEntity from notifying observers before we set fragments data
+	const TSharedRef<FEntityCreationContext> CreationContext = GetOrMakeCreationContext();
+	CreationContext->AppendEntities({Entity});
 
 	InternalBuildEntity(Entity, ArchetypeHandle, SharedFragmentValues);
 
@@ -825,7 +834,7 @@ TSharedRef<FMassEntityManager::FEntityCreationContext> FMassEntityManager::Batch
 	UE::Mass::Private::ConvertArchetypelessSubchunksIntoEntityHandles(EncodedEntitiesWithPayload.GetEntityCollection().GetRanges(), EntityHandles);
 
 	// since the handles encoded via FMassArchetypeEntityCollectionWithPayload miss the SerialNumber we need to update it
-	// before passing over the the new archetype. Thankfully we need to iterate over all the entity handles anyway
+	// before passing over the new archetype. Thankfully we need to iterate over all the entity handles anyway
 	// to update the manager's information on these entities (stored in FMassEntityManager::Entities)
 	for (FMassEntityHandle& Entity : EntityHandles)
 	{
