@@ -342,7 +342,15 @@ namespace Dataflow
 								Ar << bIsHidden;
 							}
 
-							if (FDataflowOutput* Output = Node->FindOutput(ArName))
+							FDataflowOutput* Output = Node->FindOutput(ArName);
+							if (!Output)
+							{
+								// Find out if the output has recently been redirected
+								Output = Node->RedirectSerializedOutput(ArName);
+								UE_CLOG(Output, LogChaos, Display, TEXT("Output (%s) has been redirected to output (%s) in Dataflow node (%s).")
+									, *ArName.ToString(), *Output->GetName().ToString(), *ArNodeName.ToString());
+							}
+							if (Output)
 							{
 								if (bIsAnyType)
 								{
@@ -384,7 +392,15 @@ namespace Dataflow
 								Ar << bIsHidden;
 							}
 
-							if (FDataflowInput* Input = Node->FindInput(ArName))
+							FDataflowInput* Input = Node->FindInput(ArName);
+							if (!Input)
+							{
+								// Find out if the input has recently been redirected
+								Input = Node->RedirectSerializedInput(ArName);
+								UE_CLOG(Input, LogChaos, Display, TEXT("Input (%s) has been redirected to input (%s) in Dataflow node (%s).")
+									, *ArName.ToString(), *Input->GetName().ToString(), *ArNodeName.ToString());
+							}
+							if (Input)
 							{
 								if (bIsAnyType)
 								{

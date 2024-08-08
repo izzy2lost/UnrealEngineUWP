@@ -167,6 +167,7 @@ namespace Dataflow
 
 		DATAFLOWCORE_API void RemoveNode(TSharedPtr<FDataflowNode> Node);
 
+		const TArray<FLink>& GetConnections() const { return Connections; }
 		DATAFLOWCORE_API void ClearConnections(FDataflowConnection* ConnectionBase);
 		DATAFLOWCORE_API void ClearConnections(FDataflowInput* Input);
 		DATAFLOWCORE_API void ClearConnections(FDataflowOutput* Output);

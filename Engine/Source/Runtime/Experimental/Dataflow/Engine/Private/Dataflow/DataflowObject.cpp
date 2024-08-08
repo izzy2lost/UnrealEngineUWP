@@ -5,7 +5,9 @@
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowNodeParameters.h"
 #include "Dataflow/DataflowObjectInterface.h"
-
+#if WITH_EDITOR
+#include "EdGraph/EdGraphPin.h"
+#endif
 #include UE_INLINE_GENERATED_CPP_BY_NAME(DataflowObject)
 
 #define LOCTEXT_NAMESPACE "UDataflow"
@@ -97,6 +99,37 @@ void UDataflow::PostLoad()
 		if (DisabledNodes.Contains(FName(EdNode->GetName())))
 		{
 			EdNode->SetEnabledState(ENodeEnabledState::Disabled);
+		}
+	}
+
+	// Resync connections (nodes might have redirected connections
+	for (const Dataflow::FLink& Link : Dataflow->GetConnections())
+	{
+		TSharedPtr<const FDataflowNode> OutputNode = Dataflow->FindBaseNode(Link.OutputNode);
+		TSharedPtr<const FDataflowNode> InputNode = Dataflow->FindBaseNode(Link.InputNode);
+		if (ensure(OutputNode && InputNode))
+		{
+			const FDataflowOutput* const Output = OutputNode->FindOutput(Link.Output);
+			const FDataflowInput* const Input = InputNode->FindInput(Link.Input);
+			if (ensure(Output && Input))
+			{
+				TObjectPtr<UDataflowEdNode> OutputEdNode = FindEdNodeByDataflowNodeGuid(Link.OutputNode);
+				TObjectPtr<UDataflowEdNode> InputEdNode = FindEdNodeByDataflowNodeGuid(Link.InputNode);
+
+				if (ensure(OutputEdNode && InputEdNode))
+				{
+					UEdGraphPin* const OutputPin = OutputEdNode->FindPin(Output->GetName(), EEdGraphPinDirection::EGPD_Output);
+					UEdGraphPin* const InputPin = InputEdNode->FindPin(Input->GetName(), EEdGraphPinDirection::EGPD_Input);
+
+					if (ensure(OutputPin && InputPin))
+					{
+						if (OutputPin->LinkedTo.Find(InputPin) == INDEX_NONE)
+						{
+							OutputPin->MakeLinkTo(InputPin);
+						}
+					}
+				}
+			}
 		}
 	}
 #endif

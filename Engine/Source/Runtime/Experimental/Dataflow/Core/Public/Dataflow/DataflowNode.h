@@ -203,6 +203,11 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	/** Override this method to provide custom serialization for this node. */
 	virtual void Serialize(FArchive& Ar) {}
 
+	/** Override this method to provide custom reconnections when a node inputs has been deprecated and removed. */
+	virtual FDataflowInput* RedirectSerializedInput(const FName& MissingInputName) { return nullptr; }
+	/** Override this method to provide custom reconnections when a node outputs has been deprecated and removed. */
+	virtual FDataflowOutput* RedirectSerializedOutput(const FName& MissingOutputName) { return nullptr; }
+
 	/** Called by editor toolkits when the node is selected, or already selected and invalidated. */
 	virtual void OnSelected(Dataflow::FContext& Context) {}
 	/** Called by editor toolkits when the node is deselected. */
