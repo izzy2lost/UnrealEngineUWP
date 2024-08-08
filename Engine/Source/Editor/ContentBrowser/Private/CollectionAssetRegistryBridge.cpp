@@ -20,6 +20,7 @@
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"
 #include "UObject/ConstructorHelpers.h"
+#include "UObject/CoreRedirects.h"
 #include "UObject/LinkerLoad.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UObjectGlobals.h"
@@ -102,6 +103,17 @@ public:
 						}
 					}
 				}
+			}
+			else
+			{
+				// Check whether there is a GeneralizedObject redirector entry in FCoreRedirects
+				// This would come from the process of converting on-disk UObjectRedirectors into 
+				// core redirectors
+				const FCoreRedirectObjectName OldObjectName(InObjectPathString);
+				
+				FCoreRedirectObjectName NewObjectName = 
+					FCoreRedirects::GetRedirectedName(ECoreRedirectFlags::Type_Asset, OldObjectName);
+				OutNewObjectPath.SetPath(NewObjectName.ToString());
 			}
 		}
 

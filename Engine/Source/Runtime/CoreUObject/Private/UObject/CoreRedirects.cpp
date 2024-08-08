@@ -2045,6 +2045,8 @@ void FCoreRedirects::AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPa
 	{
 		FCoreRedirectorScopeLockForWrite ScopeLock(RWLock);
 		FRedirectNameMap* ExistingMap = &RedirectTypeMap.FindOrAdd(ECoreRedirectFlags::Type_Asset);
+		int32 NumAdded = 0;
+		int32 NumSkipped = 0;
 		for (const TPair<FSoftObjectPath, FSoftObjectPath>& Pair : InRedirects)
 		{
 			// Asset redirects are, by definition, not package redirects
@@ -2052,6 +2054,7 @@ void FCoreRedirects::AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPa
 			{
 				UE_LOG(LogCoreRedirects, Warning, TEXT("Attempted to register asset redirector that was missing a package or object name. Redirector was from %s to %s"),
 					*Pair.Key.ToString(), *Pair.Value.ToString());
+				NumSkipped++;
 				continue;
 			}
 
@@ -2084,6 +2087,7 @@ void FCoreRedirects::AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPa
 						Pair.Value.ToString(), Pair.Key.ToString(), ExistingTargetName.ToString());
 
 					bShouldAddRedirect = false;
+					NumSkipped++;
 					break;
 				}
 			}
@@ -2091,8 +2095,13 @@ void FCoreRedirects::AddAssetRedirects(const TMap<FSoftObjectPath, FSoftObjectPa
 			if (bShouldAddRedirect)
 			{
 				ExistingRedirects.Add(ObjectRedirector);
+				NumAdded++;
 			}
 		}
+
+		UE_LOG(LogCoreRedirects, Display, 
+			TEXT("Object redirects provided to FCoreRedirects: %d. Redirects add: %d. Redirects skipped: %d"),
+			InRedirects.Num(), NumAdded, NumSkipped);
 
 		if (IsInDebugMode())
 		{

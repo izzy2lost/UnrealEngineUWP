@@ -16,6 +16,18 @@
 #include "String/Find.h"
 #include "AutoRTFM/AutoRTFM.h"
 
+namespace SoftObjectPath
+{
+static bool bResolveCoreRedirects = true;
+
+#if !WITH_EDITOR
+static FAutoConsoleVariableRef CVarEnablePathFixupOutsideEditor(TEXT("SoftObjectPath.EnablePathFixupOutsideEditor"),
+	bResolveCoreRedirects,
+	TEXT("When true (by default) we will call FixupCoreRedirects when resolving, loading, or saving soft object paths outside the editor. When false, we will revert to the legacy behavior and not do the extra fixup.")
+);
+#endif
+}
+
 // Deprecated constructor
 FSoftObjectPath::FSoftObjectPath(FName InAssetPathName, FString InSubPathString)
 {
@@ -280,12 +292,15 @@ bool FSoftObjectPath::PreSavePath(bool* bReportSoftObjectPathRedirects)
 		*this = FoundRedirection;
 		return true;
 	}
+#endif
 
-	if (FixupCoreRedirects())
+	if (SoftObjectPath::bResolveCoreRedirects)
 	{
-		return true;
+		if (FixupCoreRedirects())
+		{
+			return true;
+		}
 	}
-#endif // WITH_EDITOR
 	return false;
 }
 
@@ -614,17 +629,18 @@ UObject* FSoftObjectPath::TryLoad(FUObjectSerializeContext* InLoadContext) const
 				LoadedObject = StaticLoadObject(UObject::StaticClass(), nullptr, *PathString, nullptr, LOAD_None, nullptr, true);
 			};
 
-#if WITH_EDITOR
 			// Look at core redirects if we didn't find the object
-			if (!LoadedObject)
+			if (!LoadedObject && SoftObjectPath::bResolveCoreRedirects)
 			{
 				FSoftObjectPath FixupObjectPath = *this;
 				if (FixupObjectPath.FixupCoreRedirects())
 				{
-					LoadedObject = LoadObject<UObject>(nullptr, *FixupObjectPath.ToString());
+					UE_AUTORTFM_OPEN2
+					{
+						LoadedObject = LoadObject<UObject>(nullptr, *FixupObjectPath.ToString());
+					};
 				}
 			}
-#endif
 
 			while (UObjectRedirector* Redirector = Cast<UObjectRedirector>(LoadedObject))
 			{
@@ -647,6 +663,11 @@ int32 FSoftObjectPath::LoadAsync(FLoadSoftObjectPathAsyncDelegate InCompletionDe
 		PathToLoad.FixupForPIE();
 	}
 #endif
+
+	if (SoftObjectPath::bResolveCoreRedirects)
+	{
+		PathToLoad.FixupCoreRedirects();
+	}
 
 	FLoadAssetAsyncDelegate WrapperDelegate = FLoadAssetAsyncDelegate::CreateLambda(
 		[RequestedPath, PathToLoad, CompletionDelegate = MoveTemp(InCompletionDelegate)](const FTopLevelAssetPath& InAssetPath, UObject* InLoadedObject, EAsyncLoadingResult::Type InResult) mutable
@@ -714,9 +735,8 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 		}
 	}
 
-#if WITH_EDITOR
 	// Look at core redirects if we didn't find the object
-	if (!FoundObject)
+	if (!FoundObject && SoftObjectPath::bResolveCoreRedirects)
 	{
 		FSoftObjectPath FixupObjectPath = *this;
 		if (FixupObjectPath.FixupCoreRedirects())
@@ -724,7 +744,6 @@ UObject* FSoftObjectPath::ResolveObjectInternal(const TCHAR* PathString) const
 			FoundObject = FindObject<UObject>(nullptr, *FixupObjectPath.ToString());
 		}
 	}
-#endif
 
 	while (UObjectRedirector* Redirector = Cast<UObjectRedirector>(FoundObject))
 	{
