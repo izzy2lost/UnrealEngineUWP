@@ -349,8 +349,12 @@ void UTG_Graph::KillPin(FTG_Id InPinId)
 		}
 	}
 
-	// Remove the pin form the param just in case
-	Params.Remove(Pin->GetAliasName());
+	// Only update for Param Pin's. 
+	if(Pin->IsParam())
+	{
+		// Remove the pin form the param just in case
+		Params.Remove(Pin->GetAliasName());
+	}
 }
 
 void UTG_Graph::RemoveNode(UTG_Node* InNode)

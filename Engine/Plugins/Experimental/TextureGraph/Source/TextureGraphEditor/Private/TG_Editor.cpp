@@ -1851,7 +1851,7 @@ void FTG_Editor::OnNodeRemoved(UTG_Node* InNode, FName Title)
 				const FName FirstOutputName;
 				EditedTextureGraph->Graph()->ForEachParams([&](const UTG_Pin* Pin, uint32 index)
 					{
-						if(Pin->IsOutput() && (Pin->IsArgTexture() || Pin->IsArgColor()))
+						if(Pin->IsOutput())
 						{
 							if (FirstOutputName.IsNone())
 							{
