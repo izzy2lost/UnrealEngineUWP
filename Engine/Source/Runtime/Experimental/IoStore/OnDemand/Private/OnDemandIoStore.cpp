@@ -595,12 +595,17 @@ void FOnDemandIoStore::Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&
 	TryEnterTickLoop();
 }
 
-void FOnDemandIoStore::Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress /*= nullptr*/)
+void FOnDemandIoStore::Install(
+	FOnDemandInstallArgs&& Args,
+	FOnDemandInstallCompleted&& OnCompleted,
+	FOnDemandInstallProgressed&& OnProgress /*= nullptr*/,
+	const FOnDemandCancellationToken* CancellationToken)
 {
 	FSharedInstallRequest InstallRequest = MakeShared<FInstallRequest>();
 	InstallRequest->Args		= MoveTemp(Args);
 	InstallRequest->OnCompleted = MoveTemp(OnCompleted);
 	InstallRequest->OnProgressed = MoveTemp(OnProgress);
+	InstallRequest->CancellationToken = CancellationToken;
 
 	{
 		UE::TUniqueLock Lock(MountRequestMutex);
@@ -1173,6 +1178,19 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 		OutResult.DurationInSeconds = FPlatformTime::Seconds() - StartTime;
 	};
 
+	auto CheckAndSetCancelled = [&InstallRequest, &Status]() -> bool
+	{
+		if (InstallRequest.CancellationToken && InstallRequest.CancellationToken->IsCanceled())
+		{
+			UE_LOG(LogIoStoreOnDemand, Log, TEXT("Cancelling install request, ContentHandle='%s'"),
+				*LexToString(InstallRequest.Args.ContentHandle));
+			Status = FIoStatus(EIoErrorCode::Cancelled);
+			return true;
+		}
+
+		return false;
+	};
+
 	if (InstallRequest.Args.ContentHandle.IsValid() == false)
 	{
 		Status = FIoStatusBuilder(EIoErrorCode::InvalidParameter) << TEXT("Invalid content handle");
@@ -1190,8 +1208,6 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 		Status = FIoStatusBuilder(EIoErrorCode::InvalidCode) << TEXT("Install cache not configured");
 		return OutResult;
 	}
-
-	//TODO: Implement cancellation
 
 	TAnsiStringBuilder<512> ChunkUrl;
 	FStringView Host, TocRelUrl;
@@ -1235,6 +1251,11 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 		}
 	}
 
+	if (CheckAndSetCancelled())
+	{
+		return OutResult;
+	}
+
 	// Purge
 	{
 		TMap<FIoHash, uint64> ChunksToInstall;
@@ -1256,6 +1277,11 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 		{
 			return OutResult;
 		}
+	}
+
+	if (CheckAndSetCancelled())
+	{
+		return OutResult;
 	}
 
 	// Download all chunks
@@ -1377,7 +1403,7 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 				HttpClient->Tick();
 			}
 
-			if (Status.IsOk() == false)
+			if ((Status.IsOk() == false) || CheckAndSetCancelled())
 			{
 				return OutResult;
 			}
@@ -1393,6 +1419,11 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 	}
 	
 	if (Status = InstallCache->Flush(); Status.IsOk() == false)
+	{
+		return OutResult;
+	}
+
+	if (CheckAndSetCancelled())
 	{
 		return OutResult;
 	}

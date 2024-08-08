@@ -16,6 +16,8 @@
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 
+#include <atomic>
+
 #if (IS_PROGRAM || WITH_EDITOR)
 #include "Containers/Map.h"
 #include "Misc/AES.h"
@@ -377,6 +379,29 @@ struct FOnDemandGetInstallSizeArgs
 	TArray<FPackageId> PackageIds;
 };
 
+/** Token used for signalling an operation to be cancelled. */
+class FOnDemandCancellationToken
+{
+public:
+	UE_NONCOPYABLE(FOnDemandCancellationToken);
+	FOnDemandCancellationToken() = default;
+
+	/** Signal the operation to be cancelled. */
+	void Cancel()
+	{
+		bCanceled = true;
+	}
+
+	/** Returns whether an operation should be cancelled. */
+	bool IsCanceled() const
+	{
+		return bCanceled;
+	}
+
+private:
+	std::atomic<bool> bCanceled{ false };
+};
+
 class FIoStoreOnDemandModule
 	: public IModuleInterface
 {
@@ -402,8 +427,13 @@ public:
 	UE_API void ReportAnalytics(TArray<FAnalyticsEventAttribute>& OutAnalyticsArray) const;
 
 	UE_API void Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
-	UE_API void Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress = nullptr);
 	UE_API FIoStatus Unmount(FStringView MountId);
+
+	UE_API void Install(
+		FOnDemandInstallArgs&& Args,
+		FOnDemandInstallCompleted&& OnCompleted,
+		FOnDemandInstallProgressed&& OnProgress = nullptr,
+		const FOnDemandCancellationToken* CancellationToken = nullptr);
 
 	UE_API TIoStatusOr<uint64> GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 

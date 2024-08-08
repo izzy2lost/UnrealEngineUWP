@@ -252,18 +252,19 @@ class FOnDemandIoStore
 {
 	struct FMountRequest
 	{
-		FOnDemandMountArgs			Args;
-		FOnDemandMountCompleted		OnCompleted;
-		double						DurationInSeconds = 0.0;
+		FOnDemandMountArgs		Args;
+		FOnDemandMountCompleted	OnCompleted;
+		double					DurationInSeconds = 0.0;
 	};
 
 	using FSharedMountRequest	= TSharedPtr<FMountRequest>;
 
 	struct FInstallRequest
 	{
-		FOnDemandInstallArgs		Args;
-		FOnDemandInstallCompleted	OnCompleted;
-		FOnDemandInstallProgressed	OnProgressed;
+		FOnDemandInstallArgs				Args;
+		FOnDemandInstallCompleted			OnCompleted;
+		FOnDemandInstallProgressed			OnProgressed;
+		const FOnDemandCancellationToken*	CancellationToken = nullptr;
 	};
 
 	using FSharedInstallRequest	= TSharedPtr<FInstallRequest>;
@@ -278,7 +279,11 @@ public:
 
 	FIoStatus				Initialize();
 	void					Mount(FOnDemandMountArgs&& Args, FOnDemandMountCompleted&& OnCompleted);
-	void					Install(FOnDemandInstallArgs&& Args, FOnDemandInstallCompleted&& OnCompleted, FOnDemandInstallProgressed&& OnProgress = nullptr);
+	void					Install(
+								FOnDemandInstallArgs&& Args,
+								FOnDemandInstallCompleted&& OnCompleted,
+								FOnDemandInstallProgressed&& OnProgress = nullptr,
+								const FOnDemandCancellationToken* CancellationToken = nullptr);
 	FIoStatus				Unmount(FStringView MountId);
 	TIoStatusOr<uint64>		GetInstallSize(const FOnDemandGetInstallSizeArgs& Args) const;
 	FIoStatus				GetInstallSizesByMountId(const FOnDemandGetInstallSizeArgs& Args, TMap<FString, uint64>& OutSizesByMountId) const;
