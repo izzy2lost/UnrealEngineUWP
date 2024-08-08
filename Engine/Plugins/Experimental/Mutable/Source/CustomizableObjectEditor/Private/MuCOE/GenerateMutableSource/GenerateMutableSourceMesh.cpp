@@ -3293,8 +3293,8 @@ mu::Ptr<mu::NodeLayout> CreateDefaultLayout()
 	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout();
 	LayoutNode->Size = { GridSize, GridSize };
 	LayoutNode->MaxSize = { GridSize, GridSize };
-	LayoutNode->Strategy = mu::EPackStrategy::RESIZABLE_LAYOUT;
-	LayoutNode->ReductionMethod = mu::EReductionMethod::HALVE_REDUCTION;
+	LayoutNode->Strategy = mu::EPackStrategy::Resizeable;
+	LayoutNode->ReductionMethod = mu::EReductionMethod::Halve;
 	LayoutNode->Blocks.SetNum(1);
 	LayoutNode->Blocks[0].Min = { 0, 0 };
 	LayoutNode->Blocks[0].Size = { GridSize, GridSize };

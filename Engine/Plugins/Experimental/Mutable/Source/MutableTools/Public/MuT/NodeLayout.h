@@ -51,8 +51,8 @@ namespace mu
 		TArray<FSourceLayoutBlock> Blocks;
 
 		//! Packing strategy
-		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
-		EReductionMethod ReductionMethod = EReductionMethod::HALVE_REDUCTION;
+		EPackStrategy Strategy = EPackStrategy::Resizeable;
+		EReductionMethod ReductionMethod = EReductionMethod::Halve;
 
 		/** When compiling, ignore generated warnings from this LOD on.
 		* -1 means all warnings are generated.

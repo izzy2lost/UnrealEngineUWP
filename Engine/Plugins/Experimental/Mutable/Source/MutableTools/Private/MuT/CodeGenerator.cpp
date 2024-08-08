@@ -1233,7 +1233,7 @@ namespace mu
 						}
 					}
 
-					bool bIsOverlayLayout = pLayout->GetLayoutPackingStrategy() == mu::EPackStrategy::OVERLAY_LAYOUT;
+					bool bIsOverlayLayout = pLayout->GetLayoutPackingStrategy() == mu::EPackStrategy::Overlay;
 
                     if (!bIsOverlayLayout && layoutOp)
                     {

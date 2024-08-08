@@ -71,7 +71,7 @@ namespace mu
 			LayoutNode = new NodeLayout;
 			LayoutNode->Size = { uint16(gridSizeX), uint16(gridSizeY) };
 			LayoutNode->MaxSize = { uint16(gridSizeX), uint16(gridSizeY) };
-			LayoutNode->Strategy = EPackStrategy::RESIZABLE_LAYOUT;
+			LayoutNode->Strategy = EPackStrategy::Resizeable;
 			
 			TArray<box<FIntVector2>> blocks;
 			

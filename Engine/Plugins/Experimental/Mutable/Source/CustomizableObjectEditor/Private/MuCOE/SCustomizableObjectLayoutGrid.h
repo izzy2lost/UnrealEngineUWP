@@ -5,6 +5,8 @@
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "Widgets/SCompoundWidget.h"
 
+#define UE_MUTABLE_UI_DRAWBUFFERS 2
+
 class FPaintArgs;
 class FSlateRect;
 class FSlateWindowElementList;
@@ -106,6 +108,9 @@ public:
 	/** Calls the delegate to delete the selected blocks */
 	void DeleteSelectedBlocks();
 
+	/** Reset the view zoom and pan to show the unit UV space. */
+	void ResetView();
+
 	/** Generates a new block at mouse position */
 	void GenerateNewBlock(FVector2D MousePosition);
 
@@ -188,22 +193,22 @@ private:
 
 	/** Booleans needed for the Block Management */
 	/** Indicates when we have dragged the mouse after click */
-	bool HasDragged = false;
+	bool bHasDragged = false;
 
 	/** Indicates when we are dragging the mouse */
-	bool Dragging = false;
+	bool bIsDragging = false;
 	
 	/** Indicates when we are resizing a block */
-	bool Resizing = false;
+	bool bIsResizing = false;
 	
 	/** Indicates when we have to change the mouse cursor */
-	bool ResizeCursor = false;
+	bool bIsResizeCursor = false;
 	
 	/** Indicates when we are making a selection */
-	bool Selecting = false;
+	bool bIsSelecting = false;
 	
 	/** Indicates when we are padding */
-	bool Padding = false;
+	bool bIsPadding = false;
 
 	/** Position where the drag started */
 	FVector2D DragStart;
@@ -217,9 +222,6 @@ private:
 	/** Position where the padding started */
 	FVector2D PaddingStart;
 
-	/** Distance from the origin in the padding movement */
-	FVector2D DistanceFromOrigin = FVector2D::Zero();
-
 	/** Level of zoom */
 	int32 Zoom = 1;
 
@@ -232,6 +234,9 @@ private:
 	/** Current mouse position */
 	FVector2D CurrentMousePosition;
 
-	/** Custom Slate drawing element. Used to improve the UVs drawing performance. */
-	TSharedPtr<class FUVCanvasDrawer> UVCanvasDrawer;
+	/** Custom Slate drawing element. Used to improve the UVs drawing performance. 
+	* * This is multi-buffered because it is read and written simultaneously from the render and the game threads.
+	*/
+	int32 CurrentDrawBuffer = 0;
+	TSharedPtr<class FUVCanvasDrawer> UVCanvasDrawers[UE_MUTABLE_UI_DRAWBUFFERS];
 };

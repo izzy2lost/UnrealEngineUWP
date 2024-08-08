@@ -15,8 +15,8 @@
 namespace mu
 {
 
-    //! This node makes a new Surface from several meshes and images.
-    class MUTABLETOOLS_API NodeSurfaceNew : public NodeSurface
+	/** This node makes a new Surface (Mesh Material Section) from a mesh and several material parameters like images, vectors and scalars. */
+	class MUTABLETOOLS_API NodeSurfaceNew : public NodeSurface
 	{
 	public:
 
@@ -37,9 +37,9 @@ namespace mu
 			FString Name;
 			FString MaterialName;
 			FString MaterialParameterName;
-			NodeImagePtr Image;
+			Ptr<NodeImage> Image;
 
-			// It could be negative, to indicate no layout.
+			/** Index of the layout transform to apply to this image. It could be negative, to indicate no layout transform. */
 			int8 LayoutIndex = 0;
 		};
 

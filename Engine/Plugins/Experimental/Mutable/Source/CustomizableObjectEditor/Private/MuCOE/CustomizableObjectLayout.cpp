@@ -44,20 +44,20 @@ void UCustomizableObjectLayout::SetPackingStrategy(ECustomizableObjectTextureLay
 
 mu::EPackStrategy ConvertLayoutStrategy(const ECustomizableObjectTextureLayoutPackingStrategy LayoutPackStrategy)
 {
-	mu::EPackStrategy PackStrategy = mu::EPackStrategy::FIXED_LAYOUT;
+	mu::EPackStrategy PackStrategy = mu::EPackStrategy::Fixed;
 
 	switch (LayoutPackStrategy)
 	{
 	case ECustomizableObjectTextureLayoutPackingStrategy::Fixed:
-		PackStrategy = mu::EPackStrategy::FIXED_LAYOUT;
+		PackStrategy = mu::EPackStrategy::Fixed;
 		break;
 
 	case ECustomizableObjectTextureLayoutPackingStrategy::Resizable:
-		PackStrategy = mu::EPackStrategy::RESIZABLE_LAYOUT;
+		PackStrategy = mu::EPackStrategy::Resizeable;
 		break;
 
 	case ECustomizableObjectTextureLayoutPackingStrategy::Overlay:
-		PackStrategy = mu::EPackStrategy::OVERLAY_LAYOUT;
+		PackStrategy = mu::EPackStrategy::Overlay;
 		break;
 
 	default:

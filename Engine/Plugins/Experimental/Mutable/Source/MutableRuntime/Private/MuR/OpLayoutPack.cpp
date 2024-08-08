@@ -109,7 +109,7 @@ namespace mu
 
 	inline void ReductionOperation(uint16& BlockSize, EReductionMethod ReductionMethod, int32 bReduceByTwo)
 	{
-		if (ReductionMethod == EReductionMethod::UNITARY_REDUCTION)
+		if (ReductionMethod == EReductionMethod::Unitary)
 		{
 			int32 Reduction = (bReduceByTwo && BlockSize > 2) ? 2 : 1;
 			BlockSize -= Reduction;
@@ -351,7 +351,7 @@ namespace mu
 			scratch.positions[scratch.sorted[best].Index] = FIntVector2(bestX, bestLevel);
 			*maxY = FMath::Max(*maxY, uint16(bestLevel + scratch.sorted[best].size[1]) );
 
-			if (packStrategy == EPackStrategy::FIXED_LAYOUT && *maxY > layoutSizeY)
+			if (packStrategy == EPackStrategy::Fixed && *maxY > layoutSizeY)
 			{
 				fits = false;
 				break;
@@ -451,7 +451,7 @@ namespace mu
 
         // Grow until the area is big enough to fit all blocks. We always grow X first, because
         // in case we cannot pack everything, we will grow Y with the current horizon algorithm.
-		if (LayoutStrategy == EPackStrategy::RESIZABLE_LAYOUT)
+		if (LayoutStrategy == EPackStrategy::Resizeable)
 		{
 			maxX = FGenericPlatformMath::RoundUpToPowerOfTwo(maxX);
 			maxY = FGenericPlatformMath::RoundUpToPowerOfTwo(maxY);
@@ -592,7 +592,7 @@ namespace mu
 		// Sort blocks by height, area
 		scratch.sorted.Sort(CompareBlocks);
 
-		if(LayoutStrategy == EPackStrategy::FIXED_LAYOUT)
+		if(LayoutStrategy == EPackStrategy::Fixed)
 		{
 			if (usePriority)
 			{
@@ -620,7 +620,7 @@ namespace mu
 			// Try to pack everything
 			fits = SetPositions(bestY, layoutSizeY, &maxX, &maxY, scratch, LayoutStrategy);
 
-			if (!fits && LayoutStrategy == EPackStrategy::FIXED_LAYOUT)
+			if (!fits && LayoutStrategy == EPackStrategy::Fixed)
 			{
 				// Sort by priority before shrink
 				if (usePriority)

@@ -2319,12 +2319,13 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 				}
 			}
 			
-			if (!OperationData->MeshChanged[ObjectComponentIndex])
+			if ( (!OperationData->MeshChanged.IsValidIndex(ObjectComponentIndex)) 
+				|| !OperationData->MeshChanged[ObjectComponentIndex] )
 			{
 				continue;
 			}
 
-			USkeletalMesh* SkeletalMesh = SkeletalMeshes[ObjectComponentIndex];
+			USkeletalMesh* SkeletalMesh = SkeletalMeshes.IsValidIndex(ObjectComponentIndex) ? SkeletalMeshes[ObjectComponentIndex] : nullptr;
 
 			if (!SkeletalMesh)
 			{

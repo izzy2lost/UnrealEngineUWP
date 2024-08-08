@@ -301,22 +301,26 @@ namespace mu
 		TArray<int32> OverlappingBlocks;
 		for (int32 BlockIndex = 0; BlockIndex < NumBlocks; ++BlockIndex)
 		{
-			// Get the block rect
-			FImageSize Min = Layout->Blocks[BlockIndex].Min;
-			FImageSize Size = Layout->Blocks[BlockIndex].Size;
-
-			box<FVector2f>& BlockRect = BlockRects[BlockIndex];
-			BlockRect.min[0] = ((float)Min.X) / (float)Grid.X;
-			BlockRect.min[1] = ((float)Min.Y) / (float)Grid.Y;
-			BlockRect.size[0] = ((float)Size.X) / (float)Grid.X;
-			BlockRect.size[1] = ((float)Size.Y) / (float)Grid.Y;
-
 			bool bBlockHasMask = GeneratedLayout.Source->Blocks[BlockIndex].Mask.get() != nullptr;
 
 			// Fill the block index per cell array
 			// Ignore the block in this stage if it has a mask, because blocks with masks will very likely overlap other blocks
 			if (!bBlockHasMask)
 			{
+				// Get the block rect
+				FImageSize Min = Layout->Blocks[BlockIndex].Min;
+				FImageSize Size = Layout->Blocks[BlockIndex].Size;
+
+				// Clamp block to layout grid
+				Size.X = FMath::Min(Min.X + Size.X, Grid.X);
+				Size.Y = FMath::Min(Min.Y + Size.Y, Grid.Y);
+
+				box<FVector2f>& BlockRect = BlockRects[BlockIndex];
+				BlockRect.min[0] = ((float)Min.X) / (float)Grid.X;
+				BlockRect.min[1] = ((float)Min.Y) / (float)Grid.Y;
+				BlockRect.size[0] = ((float)Size.X) / (float)Grid.X;
+				BlockRect.size[1] = ((float)Size.Y) / (float)Grid.Y;
+
 				for (uint16 Y = Min.Y; Y < Min.Y + Size.Y; ++Y)
 				{
 					const uint16 PositionY = Y * Grid.X;
@@ -367,7 +371,7 @@ namespace mu
 			TexCoords.SetNumUninitialized(NumVertices);
 
 			bool bNonNormalizedUVs = false;
-			const bool bIsOverlayLayout = GeneratedLayout.Layout->GetLayoutPackingStrategy() == mu::EPackStrategy::OVERLAY_LAYOUT;
+			const bool bIsOverlayLayout = GeneratedLayout.Layout->GetLayoutPackingStrategy() == mu::EPackStrategy::Overlay;
 
 			const uint8* pVertices = TexCoordData;
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)

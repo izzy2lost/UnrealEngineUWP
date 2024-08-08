@@ -16,16 +16,16 @@ namespace mu
 	//! Types of layout packing strategies 
 	enum class EPackStrategy : uint32
 	{
-		RESIZABLE_LAYOUT,
-		FIXED_LAYOUT,
-		OVERLAY_LAYOUT
+		Resizeable,
+		Fixed,
+		Overlay
 	};
 
 	//! Types of layout reduction methods 
 	enum class EReductionMethod : uint32
 	{
-		HALVE_REDUCTION,	// Divide axis by 2
-		UNITARY_REDUCTION	// Reduces 1 block the axis 
+		Halve,	// Divide axis by 2
+		Unitary	// Reduces 1 block the axis 
 	};
 
 	/** */
@@ -103,9 +103,9 @@ namespace mu
 		TArray<FLayoutBlock> Blocks;
 
 		//! Packing strategy
-		EPackStrategy Strategy = EPackStrategy::RESIZABLE_LAYOUT;
+		EPackStrategy Strategy = EPackStrategy::Resizeable;
 
-		EReductionMethod ReductionMethod = EReductionMethod::HALVE_REDUCTION;
+		EReductionMethod ReductionMethod = EReductionMethod::Halve;
 
 	public:
 
