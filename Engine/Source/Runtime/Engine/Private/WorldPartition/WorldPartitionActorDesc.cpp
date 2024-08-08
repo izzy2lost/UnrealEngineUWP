@@ -209,14 +209,19 @@ void FWorldPartitionActorDesc::Init(const AActor* InActor)
 	Container = nullptr;
 }
 
-void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& DescData)
+void FWorldPartitionActorDesc::InitTransientProperties(const FWorldPartitionActorDescInitData& DescData)
 {
 	ActorPackage = DescData.PackageName;
 	ActorPath = DescData.ActorPath;
-	ActorNativeClass = DescData.NativeClass;
-	NativeClass = *DescData.NativeClass->GetPathName();
+	ActorNativeClass = DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass();
+	NativeClass = *ActorNativeClass->GetPathName();
 	ActorName = *FPaths::GetExtension(ActorPath.ToString());
 	ActorNameString = ActorName.ToString();
+}
+
+void FWorldPartitionActorDesc::Init(const FWorldPartitionActorDescInitData& DescData)
+{
+	InitTransientProperties(DescData);
 
 	auto DeprecateClass = [this](FArchive& Archive)
 	{
@@ -303,9 +308,11 @@ void FWorldPartitionActorDesc::Patch(const FWorldPartitionActorDescInitData& Des
 	TArray<uint8> PatchedPayloadData;
 	FMemoryWriter PatchedPayloadAr(PatchedPayloadData, true);
 
-	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(AActor::StaticCreateClassActorDesc(DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass()));
-	FActorDescArchivePatcher ActorDescAr(MetadataAr, ActorDesc.Get(), PatchedPayloadAr, InAssetDataPatcher);	
-	FTopLevelAssetPath ActorClassPath(TEXT("/Script/Engine.Actor"));
+	UClass* NativeClass = DescData.NativeClass ? DescData.NativeClass : AActor::StaticClass();
+	TUniquePtr<FWorldPartitionActorDesc> ActorDesc(AActor::StaticCreateClassActorDesc(NativeClass));
+	ActorDesc->InitTransientProperties(DescData);
+	FActorDescArchivePatcher ActorDescAr(MetadataAr, ActorDesc.Get(), PatchedPayloadAr, InAssetDataPatcher);
+	FTopLevelAssetPath ActorClassPath(NativeClass->GetPathName());
 	ActorDescAr.Init(ActorClassPath);
 
 	ActorDesc->Serialize(ActorDescAr);
