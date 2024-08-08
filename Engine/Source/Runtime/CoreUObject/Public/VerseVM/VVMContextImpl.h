@@ -84,8 +84,8 @@ struct FNativeContext
 		return FailureContext != nullptr;
 	}
 
-	void Start(FRunningContext Context) const;
-	void Commit(FRunningContext Context) const;
+	COREUOBJECT_API void Start(FRunningContext Context) const;
+	COREUOBJECT_API void Commit(FRunningContext Context) const;
 };
 
 // One must have a FContext to talk to Verse VM objects on some thread. Each thread should only have one
