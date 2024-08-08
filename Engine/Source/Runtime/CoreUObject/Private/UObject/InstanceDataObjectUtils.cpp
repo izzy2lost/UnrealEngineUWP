@@ -133,6 +133,7 @@ namespace UE
 	static const FName NAME_IsLooseMetadata(ANSITEXTVIEW("IsLoose"));
 	static const FName NAME_ContainsLoosePropertiesMetadata(ANSITEXTVIEW("ContainsLooseProperties"));
 	static const FName NAME_VerseClass(ANSITEXTVIEW("VerseClass"));
+	static const FName NAME_VerseDevice(ANSITEXTVIEW("VerseDevice_C"));
 	static const FName NAME_IDOMapKey(ANSITEXTVIEW("Key"));
 	static const FName NAME_IDOMapValue(ANSITEXTVIEW("Value"));
 
@@ -168,7 +169,7 @@ namespace UE
 		{
 			return false;
 		}
-		
+
 		// Property bag placeholder objects are always enabled for IDO support
 		if (UE::FPropertyBagRepository::IsPropertyBagPlaceholderObject(InObject))
 		{
@@ -180,6 +181,28 @@ namespace UE
 		while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
 		{
 			ObjClass = ObjClass->GetSuperClass();
+		}
+		
+		if (ObjClass)
+		{
+			// TODO: Temp! Don't generate IDOs for anything within a creative device
+			for (UObject* Outer = InObject->GetOuter(); Outer; Outer = Outer->GetOuter())
+			{
+				if (Outer->GetClass()->GetFName() == NAME_VerseDevice)
+				{
+					return false;
+				}
+			}
+
+			// TODO: Temp! Don't generate IDOs for anything transient that isn't a CDO.
+			if (!InObject->HasAnyFlags(RF_ClassDefaultObject))
+			{
+				const UPackage* Package = InObject->GetPackage();
+				if (!Package || Package->HasAnyFlags(RF_Transient) || Package == GetTransientPackage())
+				{
+					return false;
+				}
+			}
 		}
 
 		return !!ObjClass;
