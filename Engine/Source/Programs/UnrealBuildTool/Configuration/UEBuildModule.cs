@@ -197,7 +197,10 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool bDependsOnVerse = false;
 
-		public List<FileItem> NatvisFiles = new();
+		/// <summary>
+		/// Set of debug visualizer paths
+		/// </summary>
+		public HashSet<FileItem> NatvisFiles = new();
 
 		/// <summary>
 		/// Constructor
@@ -299,9 +302,28 @@ namespace UnrealBuildTool
 			// get the module directories from the module
 			ModuleDirectories = Rules.GetAllModuleDirectories();
 
-			foreach (DirectoryItem Directory in ModuleDirectories.Select(x => DirectoryItem.GetItemByDirectoryReference(x)))
+			// Add any additional debug visualizers 
+			foreach (string natVisPath in HashSetFromOptionalEnumerableStringParameter(Rules.PublicDebugVisualizerPaths))
 			{
-				NatvisFiles.AddRange(Directory.EnumerateFiles().Where(x => x.HasExtension(".natvis") || x.HasExtension(".natstepfilter")));
+				FileItem natVisItem = FileItem.GetItemByPath(natVisPath);
+				if (!natVisItem.HasExtension(".natvis") && !natVisItem.HasExtension(".natstepfilter"))
+				{
+					Log.TraceWarningTask(RulesFile, $"Referenced Debug Visualizer '{natVisItem}' is not a .natvis or .natstepfilter file");
+				}
+				else if (!natVisItem.Exists)
+				{
+					Log.TraceWarningTask(RulesFile, $"Referenced Debug Visualizer '{natVisItem}' does not exist");
+				}
+				else
+				{
+					NatvisFiles.Add(natVisItem);
+				}
+			}
+
+			// Add any debug visualizers found in the module directories
+			foreach (DirectoryItem directory in ModuleDirectories.Select(x => DirectoryItem.GetItemByDirectoryReference(x)))
+			{
+				NatvisFiles.UnionWith(directory.EnumerateFiles().Where(x => x.HasExtension(".natvis") || x.HasExtension(".natstepfilter")));
 			}
 		}
 

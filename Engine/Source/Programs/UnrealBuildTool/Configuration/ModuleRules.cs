@@ -1269,6 +1269,11 @@ namespace UnrealBuildTool
 		public List<string> PublicAdditionalLibraries = new();
 
 		/// <summary>
+		/// List of additional debug visualizers (.natvis and .natstepfilter) exposed to other modules - typically used for External (third party) modules
+		/// </summary>
+		public List<string> PublicDebugVisualizerPaths = new();
+
+		/// <summary>
 		/// Per-architecture lists of dependencies for linking to ignore (useful when building for multiple architectures, and a lib only is needed for one architecture), it's up to the Toolchain to use this
 		/// </summary>
 		public Dictionary<string, List<UnrealArch>> DependenciesToSkipPerArchitecture = new();
