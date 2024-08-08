@@ -182,8 +182,10 @@ void UMovieSceneSpawnableBindingBase::SetupDefaults(UObject* SpawnedObject, FGui
 		SpawnTrack = Cast<UMovieSceneSpawnTrack>(OwnerMovieScene.AddTrack(UMovieSceneSpawnTrack::StaticClass(), ObjectBindingId));
 	}
 
-	if (SpawnTrack)
+	if (SpawnTrack && SpawnTrack->GetAllSections().Num() == 0)
 	{
+		SpawnTrack->Modify();
+
 		UMovieSceneBoolSection* SpawnSection = Cast<UMovieSceneBoolSection>(SpawnTrack->CreateNewSection());
 		SpawnSection->GetChannel().SetDefault(true);
 		SpawnSection->SetRange(TRange<FFrameNumber>::All());
