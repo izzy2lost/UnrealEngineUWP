@@ -83,18 +83,14 @@ struct FOutputLuminance
 namespace TonemapperPermutation
 {
 // Shared permutation dimensions between deferred and mobile renderer.
-class FTonemapperBloomDim          : SHADER_PERMUTATION_BOOL("USE_BLOOM");
 class FTonemapperGammaOnlyDim      : SHADER_PERMUTATION_BOOL("USE_GAMMA_ONLY");
 class FTonemapperLocalExposureDim  : SHADER_PERMUTATION_BOOL("USE_LOCAL_EXPOSURE");
-class FTonemapperVignetteDim       : SHADER_PERMUTATION_BOOL("USE_VIGNETTE");
 class FTonemapperSharpenDim        : SHADER_PERMUTATION_BOOL("USE_SHARPEN");
 class FTonemapperFilmGrainDim      : SHADER_PERMUTATION_BOOL("USE_FILM_GRAIN");
 class FTonemapperMsaaDim           : SHADER_PERMUTATION_BOOL("METAL_MSAA_HDR_DECODE");
 using FCommonDomain = TShaderPermutationDomain<
-	FTonemapperBloomDim,
 	FTonemapperGammaOnlyDim,
 	FTonemapperLocalExposureDim,
-	FTonemapperVignetteDim,
 	FTonemapperSharpenDim,
 	FTonemapperFilmGrainDim,
 	FTonemapperMsaaDim>;
@@ -110,9 +106,7 @@ bool ShouldCompileCommonPermutation(const FGlobalShaderPermutationParameters& Pa
 	// If GammaOnly, don't compile any other dimmension == true.
 	if (PermutationVector.Get<FTonemapperGammaOnlyDim>())
 	{
-		return !PermutationVector.Get<FTonemapperBloomDim>() &&
-			!PermutationVector.Get<FTonemapperLocalExposureDim>() &&
-			!PermutationVector.Get<FTonemapperVignetteDim>() &&
+		return !PermutationVector.Get<FTonemapperLocalExposureDim>() &&
 			!PermutationVector.Get<FTonemapperSharpenDim>() &&
 			!PermutationVector.Get<FTonemapperFilmGrainDim>() &&
 			!PermutationVector.Get<FTonemapperMsaaDim>();
@@ -144,8 +138,6 @@ FCommonDomain BuildCommonPermutationDomain(const FViewInfo& View, bool bGammaOnl
 	}
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
-	PermutationVector.Set<FTonemapperVignetteDim>(Settings.VignetteIntensity > 0.0f);
-	PermutationVector.Set<FTonemapperBloomDim>(Settings.BloomIntensity > 0.0);
 	PermutationVector.Set<FTonemapperLocalExposureDim>(bLocalExposure);
 	PermutationVector.Set<FTonemapperFilmGrainDim>(View.FilmGrainTexture != nullptr);
 	PermutationVector.Set<FTonemapperSharpenDim>(GetSharpenSetting(Settings) > 0.0f);
@@ -155,14 +147,14 @@ FCommonDomain BuildCommonPermutationDomain(const FViewInfo& View, bool bGammaOnl
 
 // Desktop renderer permutation dimensions.
 class FTonemapperColorFringeDim       : SHADER_PERMUTATION_BOOL("USE_COLOR_FRINGE");
-class FTonemapperOutputDeviceDim      : SHADER_PERMUTATION_ENUM_CLASS("DIM_OUTPUT_DEVICE", EDisplayOutputFormat);
+class FTonemapperOutputDeviceSRGB     : SHADER_PERMUTATION_BOOL("OUTPUT_DEVICE_SRGB");
 class FTonemapperOutputLuminance	  : SHADER_PERMUTATION_BOOL("OUTPUT_LUMINANCE");
 
 using FDesktopDomain = TShaderPermutationDomain<
 	FCommonDomain,
 	FTonemapperColorFringeDim,
 	FTonemapperOutputLuminance,
-	FTonemapperOutputDeviceDim>;
+	FTonemapperOutputDeviceSRGB>;
 
 FDesktopDomain RemapPermutation(FDesktopDomain PermutationVector, ERHIFeatureLevel::Type FeatureLevel)
 {
@@ -174,10 +166,7 @@ FDesktopDomain RemapPermutation(FDesktopDomain PermutationVector, ERHIFeatureLev
 		return PermutationVector;
 	}
 
-	// Grain jitter or intensity looks bad anyway.
-	bool bFallbackToSlowest = false;
-	bFallbackToSlowest = bFallbackToSlowest || CommonPermutationVector.Get<FTonemapperFilmGrainDim>();
-
+	bool bFallbackToSlowest = CommonPermutationVector.Get<FTonemapperFilmGrainDim>();
 	if (bFallbackToSlowest)
 	{
 		CommonPermutationVector.Set<FTonemapperFilmGrainDim>(true);
@@ -186,29 +175,8 @@ FDesktopDomain RemapPermutation(FDesktopDomain PermutationVector, ERHIFeatureLev
 		PermutationVector.Set<FTonemapperColorFringeDim>(true);
 	}
 
-	// Luminance output is only used for Contrast Adaptive Shading.
-	// Even if HW VRS support is disabled, we may still need CAS for Nanite SW VRS.
-	if (!FVariableRateShadingImageManager::IsVRSCompatibleWithOutputType(PermutationVector.Get<FTonemapperOutputDeviceDim>()))
+	if (FeatureLevel < ERHIFeatureLevel::SM5)
 	{
-		PermutationVector.Set<FTonemapperOutputLuminance>(false);
-	}
-
-	// You most likely need Bloom anyway.
-	CommonPermutationVector.Set<FTonemapperBloomDim>(true);
-
-	if (FeatureLevel >= ERHIFeatureLevel::SM5)
-	{
-		// Disabling bloom on desktop renderer is very rare, not worth compiling shader permutation without.
-		CommonPermutationVector.Set<FTonemapperBloomDim>(true);
-	}
-	else
-	{
-		// Mobile supports only sRGB and LinearNoToneCurve output
-		if (PermutationVector.Get<FTonemapperOutputDeviceDim>() != EDisplayOutputFormat::HDR_LinearNoToneCurve)
-		{
-			PermutationVector.Set<FTonemapperOutputDeviceDim>(EDisplayOutputFormat::SDR_sRGB);
-		}
-
 		// Mobile doesn't support film grain.
 		CommonPermutationVector.Set<FTonemapperFilmGrainDim>(false);
 	}
@@ -929,9 +897,10 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 			DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperColorFringeDim>(PostProcessSettings.SceneFringeIntensity > 0.01f);
 		}
 
-		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputDeviceDim>(EDisplayOutputFormat(CommonParameters.OutputDevice.OutputDevice));
-
 		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputLuminance>(!View.bIsMobileMultiViewEnabled && GVRSImageManager.IsVRSEnabledForFrame() && FVariableRateShadingImageManager::IsVRSCompatibleWithView(View));
+
+		const bool bOutputDeviceSRGB = (CommonParameters.OutputDevice.OutputDevice == (uint32)EDisplayOutputFormat::SDR_sRGB);
+		DesktopPermutationVector.Set<TonemapperPermutation::FTonemapperOutputDeviceSRGB>(bOutputDeviceSRGB);
 
 		DesktopPermutationVector = TonemapperPermutation::RemapPermutation(DesktopPermutationVector, View.GetFeatureLevel());
 	}
@@ -1074,6 +1043,7 @@ class FMobileCustomResolvePS : public FGlobalShader
 	{
 		const int UseVolumeLut = PipelineVolumeTextureLUTSupportGuaranteedAtRuntime(Parameters.Platform) ? 1 : 0;
 		OutEnvironment.SetDefine(TEXT("USE_VOLUME_LUT"), UseVolumeLut);
+		OutEnvironment.SetDefine(TEXT("OUTPUT_DEVICE_SRGB"), 1);
 	}
 };
 

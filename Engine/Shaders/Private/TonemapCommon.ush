@@ -7,7 +7,7 @@
 #include "ACES.ush"
 #include "GammaCorrectionCommon.ush"
 
-/** Values of DIM_OUTPUT_DEVICE (matching C++'s EDisplayOutputFormat) */
+/** Values of output device (matching C++'s EDisplayOutputFormat) */
 #define TONEMAPPER_OUTPUT_sRGB 0
 #define TONEMAPPER_OUTPUT_Rec709 1
 #define TONEMAPPER_OUTPUT_ExplicitGammaMapping 2
@@ -19,7 +19,7 @@
 #define TONEMAPPER_OUTPUT_NoToneCurve 8
 #define TONEMAPPER_OUTPUT_WithToneCurve 9
 
-/** Values of DIM_OUTPUT_DEVICE (matching C++'s EDisplayColorGamut) */
+/** Values of output device (matching C++'s EDisplayColorGamut) */
 #define TONEMAPPER_GAMUT_sRGB_D65 0
 #define TONEMAPPER_GAMUT_DCIP3_D65 1
 #define TONEMAPPER_GAMUT_Rec2020_D65 2

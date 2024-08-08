@@ -19,10 +19,6 @@
 #include "PixelQuadMessagePassing.ush"
 #include "ScreenPass.ush"
 
-#ifndef DIM_OUTPUT_DEVICE
-	#define DIM_OUTPUT_DEVICE (TONEMAPPER_OUTPUT_sRGB)
-#endif
-
 #define DEBUG_GRAIN_QUANTIZATION 0
 
 SCREEN_PASS_TEXTURE_VIEWPORT(Color)
@@ -87,6 +83,8 @@ float4 ScreenPosToFilmGrainTextureUV;
 float BackbufferQuantizationDithering;
 float EditorNITLevel;
 
+uint OutputDevice;
+uint OutputGamut;
 float OutputMaxLuminance;
 
 float4 BloomDirtMaskTint;
@@ -95,6 +93,15 @@ SamplerState BloomDirtMaskSampler;
 
 float4 LensPrincipalPointOffsetScale;
 float4 LensPrincipalPointOffsetScaleInverse;
+
+uint GetOutputDevice()
+{
+#if OUTPUT_DEVICE_SRGB
+	return TONEMAPPER_OUTPUT_sRGB;
+#else
+	return OutputDevice;
+#endif
+}
 
 half GrainFromUV(float2 GrainUV) 
 {
@@ -170,14 +177,17 @@ half3 ColorLookupTable( half3 LinearColor )
 {
 	float3 LUTEncodedColor;
 	// Encode as ST-2084 (Dolby PQ) values
-	#if (DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES1000nitST2084 || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES2000nitST2084 || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES1000nitScRGB || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES2000nitScRGB || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_LinearEXR || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_NoToneCurve || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_WithToneCurve)
+	BRANCH
+	if(GetOutputDevice() >= TONEMAPPER_OUTPUT_ACES1000nitST2084)
+	{
 		// ST2084 expects to receive linear values 0-10000 in nits.
 		// So the linear value must be multiplied by a scale factor to convert to nits.
 		LUTEncodedColor = LinearToST2084(LinearColor * LinearToNitsScale);
-	#else
+	}
+	else
+	{
 		LUTEncodedColor = LinToLog( LinearColor + LogToLin( 0 ) );
-
-	#endif
+	}
 
 	float3 UVW = LUTEncodedColor * LUTScale + LUTOffset;
 
@@ -341,12 +351,12 @@ float4 TonemapCommonPS(
 	}
 
 	// Sample bloom & mobile's vignette.
-	#if USE_BLOOM && FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
+	#if FEATURE_LEVEL == FEATURE_LEVEL_ES3_1
 		float MobileVignette;
 	#else
 		const float MobileVignette = 1.0;
 	#endif
-	#if USE_BLOOM
+	
 	half3 Bloom;
 	{
 		float2 BloomUV;
@@ -384,14 +394,6 @@ float4 TonemapCommonPS(
 		}
 		#endif
 	}
-	#endif // !USE_BLOOM
-	
-	// Compute vignette.
-	#if USE_VIGNETTE
-		const float VignetteMask = MobileVignette * ComputeVignetteMask(Vignette, TonemapperParams.x);
-	#else
-		const float VignetteMask = MobileVignette;
-	#endif
 	
 	// Compute scene color tint.
 	#if USE_GAMMA_ONLY
@@ -474,13 +476,10 @@ float4 TonemapCommonPS(
 #if USE_GAMMA_ONLY
 	{
 		#if USE_LOCAL_EXPOSURE
-			#error Local exposure is not supporte with gamma only
+			#error Local exposure is not supported with gamma only
 		#endif
 		#if USE_SHARPEN
 			#error Sharpen is not supported with gamma only
-		#endif
-		#if USE_VIGNETTE
-			#error Vignette is not supported with gamma only
 		#endif
 
 		OutColor.rgb = pow(SceneColor.rgb * (OneOverPreExposure * GlobalExposure), InverseGamma.x);
@@ -489,15 +488,20 @@ float4 TonemapCommonPS(
 	}
 #else // !USE_GAMMA_ONLY
 	{
+		// Compute vignette.
+		float VignetteMask = MobileVignette;
+		
+		BRANCH
+		if (TonemapperParams.x > 0.0f)
+		{
+			VignetteMask *= ComputeVignetteMask(Vignette, TonemapperParams.x);
+		}
+		
 		// Compute the final linear color space with explicitly all the terms that should affect the pre exposure.
 		half3 FinalLinearColor = SceneColor.rgb * SceneColorTint * (OneOverPreExposure * GlobalExposure * VignetteMask * LocalExposure);
 		
 		// Apply bloom.
-		#if USE_BLOOM
-		{
-			FinalLinearColor += Bloom * (OneOverPreExposure * GlobalExposure * VignetteMask);
-		}
-		#endif
+		FinalLinearColor += Bloom * (OneOverPreExposure * GlobalExposure * VignetteMask);
 		
 		// Film grain is energy conservative so doesn't need to be taken into PreExposure
 		#if USE_FILM_GRAIN
@@ -527,23 +531,22 @@ float4 TonemapCommonPS(
 			OutColor.rgb = sRGBToLinear( OutColor.rgb );
 		#endif
 
-		#if DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES1000nitScRGB || DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_ACES2000nitScRGB
-			OutColor.xyz = ST2084ToScRGB(OutColor.xyz, DIM_OUTPUT_DEVICE, OutputMaxLuminance);
-
-		#elif DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_LinearEXR
+		BRANCH
+		if(GetOutputDevice() == TONEMAPPER_OUTPUT_ACES1000nitScRGB || GetOutputDevice() == TONEMAPPER_OUTPUT_ACES2000nitScRGB)
+		{
+			OutColor.xyz = ST2084ToScRGB(OutColor.xyz, GetOutputDevice(), OutputMaxLuminance);
+		}
+		if(GetOutputDevice() == TONEMAPPER_OUTPUT_LinearEXR)
+		{
 			OutColor.xyz = ST2084ToLinear(OutColor.xyz);
-		#elif DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_NoToneCurve
+		}
+		else
+		{
 			OutColor.xyz = OutDeviceColor;
-		#elif DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_WithToneCurve
-			OutColor.xyz = OutDeviceColor;
-		#endif
+		}
 	}
 #endif // !USE_GAMMA_ONLY
 	
-	#if POST_PROCESS_ALPHA == 2 || (POST_PROCESS_ALPHA == 1 && DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_NoToneCurve)  || (POST_PROCESS_ALPHA == 1 && DIM_OUTPUT_DEVICE == TONEMAPPER_OUTPUT_WithToneCurve)
-		OutColor.a = SceneColor.a;
-	#endif
-
 	#if !USE_GAMMA_ONLY
 	{
 		// Compute uniform grain on [0;1]
@@ -582,6 +585,16 @@ float4 TonemapCommonPS(
 			OutColor.rgb += FinalGrain * BackbufferQuantizationDithering;
 		#endif
 	}
+	#endif
+
+	#if POST_PROCESS_ALPHA
+	#if POST_PROCESS_ALPHA == 1
+		BRANCH
+		if(GetOutputDevice() == TONEMAPPER_OUTPUT_NoToneCurve || GetOutputDevice() == TONEMAPPER_OUTPUT_WithToneCurve)
+	#endif
+		{
+			OutColor.a = SceneColor.a;
+		}
 	#endif
 
 	return OutColor;
