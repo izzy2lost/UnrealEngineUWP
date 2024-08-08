@@ -475,6 +475,8 @@ struct FMaterialPixelParameters
 	/** Derivatives */
 	float3 WorldPosition_DDX;
 	float3 WorldPosition_DDY;
+	float3 WorldGeoNormal_DDX;
+	float3 WorldGeoNormal_DDY;
 	float4 VertexColor_DDX;
 	float4 VertexColor_DDY;
 	float4 ScreenPosition_DDX;

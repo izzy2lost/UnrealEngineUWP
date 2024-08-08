@@ -620,6 +620,16 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 	Result.WorldPosition_DDX			= PointWorld.Value_dx;
 	Result.WorldPosition_DDY			= PointWorld.Value_dy;
 
+	// Should be Pow2(InvScale) but that requires renormalization
+	float3x3 LocalToWorldNoScale = DFToFloat3x3(InstanceData.LocalToWorld);
+	float3 InvScale = InstanceData.InvNonUniformScale;
+	LocalToWorldNoScale[0] *= InvScale.x;
+	LocalToWorldNoScale[1] *= InvScale.y;
+	LocalToWorldNoScale[2] *= InvScale.z;
+	const TDual< float3 > WorldGeoNormal = Lerp(mul(Tri.Verts[0].TangentBasis.TangentZ, LocalToWorldNoScale), mul(Tri.Verts[1].TangentBasis.TangentZ, LocalToWorldNoScale),  mul(Tri.Verts[2].TangentBasis.TangentZ, LocalToWorldNoScale), Barycentrics );
+	Result.WorldGeoNormal_DDX	= WorldGeoNormal.Value_dx;
+	Result.WorldGeoNormal_DDY	= WorldGeoNormal.Value_dy;
+
 	Result.WorldPosition_NoOffsets_CamRelative = Lerp( Tri.Verts[0].PointWorld_NoOffset, Tri.Verts[1].PointWorld_NoOffset, Tri.Verts[2].PointWorld_NoOffset, Barycentrics ).Value;
 
 	const float3 PrevPointPostDeform = Lerp( Tri.Verts[0].PrevPointPostDeform, Tri.Verts[1].PrevPointPostDeform, Tri.Verts[2].PrevPointPostDeform, Barycentrics ).Value;
@@ -948,6 +958,11 @@ half3x3 VertexFactoryGetTangentToLocal(FVertexFactoryInput Input, FVertexFactory
 }
 
 float4 VertexFactoryGetWorldPosition(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
+{
+	return 0.0f;
+}
+
+float3 VertexFactoryGetWorldNormal(FVertexFactoryInput Input, FVertexFactoryIntermediates Intermediates)
 {
 	return 0.0f;
 }

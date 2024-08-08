@@ -11265,7 +11265,18 @@ int32 FHLSLMaterialTranslator::VertexNormal()
 	{
 		bUsesTransformVector = true;
 	}
-	return AddInlinedCodeChunk(MCT_Float3,TEXT("Parameters.TangentToWorld[2]"));	
+
+	FString FiniteCode = FString(TEXT("Parameters.TangentToWorld[2]"));
+
+	if (IsAnalyticDerivEnabled() && ShaderFrequency != SF_Vertex)
+	{
+		FString AnalyticCode = DerivativeAutogen.ConstructDeriv(FiniteCode, TEXT("Parameters.WorldGeoNormal_DDX"), TEXT("Parameters.WorldGeoNormal_DDY"), EDerivativeType::Float3);
+		return AddCodeChunkInnerDeriv(*FiniteCode, *AnalyticCode, MCT_Float3, false, EDerivativeStatus::Valid);
+	}
+	else
+	{
+		return AddInlinedCodeChunk(MCT_Float4, *FiniteCode);
+	}
 }
 
 int32 FHLSLMaterialTranslator::VertexTangent()
