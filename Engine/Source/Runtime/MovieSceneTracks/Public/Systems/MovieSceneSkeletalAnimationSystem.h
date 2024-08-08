@@ -95,6 +95,8 @@ public:
 
 	UMovieSceneSkeletalAnimationSystem(const FObjectInitializer& ObjInit);
 
+	static UObject* ResolveSkeletalMeshComponentBinding(UObject* InObject);
+
 private:
 
 	virtual void OnSchedulePersistentTasks(UE::MovieScene::IEntitySystemScheduler* TaskScheduler) override;

@@ -19,6 +19,7 @@
 #include "MovieSceneTracksComponentTypes.h"
 #include "Sections/MovieSceneSectionTimingParameters.h"
 #include "Variants/MovieSceneTimeWarpGetter.h"
+#include "Systems/MovieSceneSkeletalAnimationSystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSkeletalAnimationSection)
 
@@ -488,12 +489,19 @@ void UMovieSceneSkeletalAnimationSection::ImportEntityImpl(UMovieSceneEntitySyst
 	const FMovieSceneTracksComponentTypes* TrackComponents = FMovieSceneTracksComponentTypes::Get();
 
 	const FGuid ObjectBindingID = InParams.GetObjectBindingID();
+
+	if (!ObjectBindingID.IsValid())
+	{
+		return;
+	}
+
 	FMovieSceneSkeletalAnimationComponentData ComponentData { this };
 
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
 		.Add(TrackComponents->SkeletalAnimation, ComponentData)
-		.AddConditional(BuiltInComponents->GenericObjectBinding, ObjectBindingID, ObjectBindingID.IsValid())
+		.Add(BuiltInComponents->GenericObjectBinding, ObjectBindingID)
+		.Add(BuiltInComponents->BoundObjectResolver, UMovieSceneSkeletalAnimationSystem::ResolveSkeletalMeshComponentBinding)
 		.AddConditional(BuiltInComponents->WeightChannel, &Params.Weight, Params.Weight.HasAnyData())
 	);
 }

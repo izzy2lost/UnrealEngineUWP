@@ -369,7 +369,7 @@ struct FGatherSkeletalAnimations
 			const FMovieSceneSkeletalAnimationParams& AnimParams = AnimSection->Params;
 
 			// Get the bound skeletal mesh component.
-			USkeletalMeshComponent* SkeletalMeshComponent = SkeletalMeshComponentFromObject(BoundObject);
+			USkeletalMeshComponent* SkeletalMeshComponent = CastChecked<USkeletalMeshComponent>(BoundObject);
 			if (!SkeletalMeshComponent || AnimParams.Animation == nullptr)
 			{
 				continue;
@@ -445,31 +445,6 @@ private:
 		// We also use PreviewSetAnimPosition in PIE when not playing, as we can preview in PIE.
 		bool bIsNotInPIEOrNotPlaying = (RuntimeObject.GetWorld() && !RuntimeObject.GetWorld()->HasBegunPlay()) || PlayerStatus != EMovieScenePlayerStatus::Playing;
 		return GIsEditor && bIsNotInPIEOrNotPlaying;
-	}
-
-	static USkeletalMeshComponent* SkeletalMeshComponentFromObject(UObject* InObject)
-	{
-		// Check if we are bound directly to a skeletal mesh component.
-		USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InObject);
-		if (SkeletalMeshComponent)
-		{
-			return SkeletalMeshComponent;
-		}
-
-		// Then check to see if we are controlling an actor. If so use its first skeletal mesh component.
-		AActor* Actor = Cast<AActor>(InObject);
-		if (!Actor)
-		{
-			if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(InObject))
-			{
-				Actor = ChildActorComponent->GetChildActor();
-			}
-		}
-		if (Actor)
-		{
-			return Actor->FindComponentByClass<USkeletalMeshComponent>();
-		}
-		return nullptr;
 	}
 };
 
@@ -981,6 +956,31 @@ UMovieSceneSkeletalAnimationSystem::UMovieSceneSkeletalAnimationSystem(const FOb
 
 		DefineImplicitPrerequisite(GetClass(), UMovieSceneRestorePreAnimatedStateSystem::StaticClass());
 	}
+}
+
+UObject* UMovieSceneSkeletalAnimationSystem::ResolveSkeletalMeshComponentBinding(UObject* InObject)
+{
+	// Check if we are bound directly to a skeletal mesh component.
+	USkeletalMeshComponent* SkeletalMeshComponent = Cast<USkeletalMeshComponent>(InObject);
+	if (SkeletalMeshComponent)
+	{
+		return SkeletalMeshComponent;
+	}
+
+	// Then check to see if we are controlling an actor. If so use its first skeletal mesh component.
+	AActor* Actor = Cast<AActor>(InObject);
+	if (!Actor)
+	{
+		if (UChildActorComponent* ChildActorComponent = Cast<UChildActorComponent>(InObject))
+		{
+			Actor = ChildActorComponent->GetChildActor();
+		}
+	}
+	if (Actor)
+	{
+		return Actor->FindComponentByClass<USkeletalMeshComponent>();
+	}
+	return nullptr;
 }
 
 void UMovieSceneSkeletalAnimationSystem::OnSchedulePersistentTasks(UE::MovieScene::IEntitySystemScheduler* TaskScheduler)
