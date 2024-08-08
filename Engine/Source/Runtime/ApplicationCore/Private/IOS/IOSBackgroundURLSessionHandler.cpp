@@ -1305,6 +1305,8 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 		FBackgroundURLSessionHandler::OnDownloadsCompletedWhileAppWasNotRunning.Broadcast(!_bAnyTaskDidCompleteWithError);
 		_bAnyTaskDidCompleteWithError = false;
 
+		[self SaveFileHashHelperState];
+
 		CompletionHandler();
 		[CompletionHandler release];
 	}];
@@ -1417,6 +1419,8 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 	[self EnsureTaskIsTracked:Task];
 
 	NSString* DestinationPath = [self GetTempPathForURL:Task.originalRequest.URL];
+
+	[self SaveFileHashHelperState];
 
 	// Try to remove existing file in case if we have a stale file.
 	if ([[NSFileManager defaultManager] fileExistsAtPath:DestinationPath])
