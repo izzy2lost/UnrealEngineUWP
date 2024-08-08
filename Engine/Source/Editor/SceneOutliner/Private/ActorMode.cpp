@@ -947,24 +947,26 @@ void FActorMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneOutliner
 			}
 			else
 			{
-				auto PerformAttachment = [](FName SocketName, TWeakObjectPtr<AActor> Parent, const TArray<TWeakObjectPtr<AActor>> NewAttachments)
+				auto PerformAttachment = [this](FName SocketName, TWeakObjectPtr<AActor> Parent, const TArray<TWeakObjectPtr<AActor>> NewAttachments)
 				{
 					AActor* ParentActor = Parent.Get();
 					if (ParentActor)
 					{
+						TArray<TWeakObjectPtr<AActor>> AttachedActors;
 						// modify parent and child
 						const FScopedTransaction Transaction(LOCTEXT("UndoAction_PerformAttachment", "Attach actors"));
 
 						// Attach each child
-						bool bAttached = false;
 						for (auto& Child : NewAttachments)
 						{
 							AActor* ChildActor = Child.Get();
 							if (GEditor->CanParentActors(ParentActor, ChildActor))
 							{
 								GEditor->ParentActors(ParentActor, ChildActor, SocketName);
+								AttachedActors.Add(ChildActor);
 							}
 						}
+						OnActorsAttached(ParentActor, AttachedActors);
 					}
 				};
 

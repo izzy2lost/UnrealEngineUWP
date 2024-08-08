@@ -114,6 +114,9 @@ protected:
 	void SetAsMostRecentOutliner() const;
 
 	virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;
+
+	// Called when actors are attached to a parent actor via drag and drop
+	virtual void OnActorsAttached(AActor* ParentActor, TArray<TWeakObjectPtr<AActor>> ChildActors) const {}
 	
 	FFolder GetWorldDefaultRootFolder() const;
 protected:
