@@ -232,6 +232,7 @@ public:
 		}
 		return false;
 	}
+#endif
 
 	/** Sets the underlying InterpolationMappingPropertyData to the given source, using the input property for type information */
 	bool SetRawMappingData(URemoteControlPreset* InOwningPreset, const FProperty* InProperty, const void* InSource)
@@ -245,7 +246,6 @@ public:
 		}
 		return false;
 	}
-#endif
 
 	/** Get Mapping value as a Struct on Scope, only in case BoundProperty is FStructProperty */
 	TSharedPtr<FStructOnScope> GetMappingPropertyAsStructOnScope();

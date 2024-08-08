@@ -41,6 +41,9 @@ private:
 	/** Sets the selected protocol in the list and user setting. */
 	void SetActiveProtocolName(const FName InProtocolName);
 
+	void RegisterPropertyEditorCustomizations();
+	void UnregisterPropertyEditorCustomizations();
+
 private:
 	/** Binding list public interface instance */
 	TSharedPtr<IRCProtocolBindingList> RCProtocolBindingList;

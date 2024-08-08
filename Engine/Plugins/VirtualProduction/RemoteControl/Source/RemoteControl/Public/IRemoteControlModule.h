@@ -331,6 +331,11 @@ public:
 	/**
 	 * Returns true if the given property can be masked, false otherwise.
 	 */
+	virtual bool SupportsMasking(const UScriptStruct* InStruct) const = 0;
+
+	/**
+	 * Returns true if the given property can be masked, false otherwise.
+	 */
 	virtual bool SupportsMasking(const FProperty* InProperty) const = 0;
 
 	/**

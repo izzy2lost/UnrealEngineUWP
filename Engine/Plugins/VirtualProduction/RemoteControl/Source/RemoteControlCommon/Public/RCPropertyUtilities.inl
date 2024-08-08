@@ -581,6 +581,7 @@ namespace RemoteControlPropertyUtilities
 
 		return true;
 	}
+#endif
 
 	template <>
 	inline bool Serialize<FProperty>(const FRCPropertyVariant& InSrc, FRCPropertyVariant& OutDst)
@@ -590,5 +591,4 @@ namespace RemoteControlPropertyUtilities
 
 		return true;
 	}
-#endif
 }

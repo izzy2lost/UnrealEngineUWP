@@ -1077,13 +1077,17 @@ void FRemoteControlModule::UnregisterMaskingFactoryForType(UScriptStruct* Remote
 	MaskingFactories.Remove(RemoteControlPropertyType);
 }
 
+bool FRemoteControlModule::SupportsMasking(const UScriptStruct* InStruct) const
+{
+	return MaskingFactories.Contains(InStruct);
+}
+
 bool FRemoteControlModule::SupportsMasking(const FProperty* InProperty) const
 {
 	if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 	{
-		return MaskingFactories.Contains(StructProperty->Struct);
+		return SupportsMasking(StructProperty->Struct);
 	}
-
 	return false;
 }
 

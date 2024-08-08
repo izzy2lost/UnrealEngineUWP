@@ -1,13 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RemoteControlProtocolWidgetsModule.h"
-
+#include "Customizations/RCSignatureProtocolActionCustomization.h"
 #include "IRemoteControlModule.h"
 #include "IRemoteControlProtocol.h"
 #include "IRemoteControlProtocolModule.h"
-#include "RemoteControlProtocolWidgetsSettings.h"
-#include "IRemoteControlModule.h"
 #include "RemoteControlPreset.h"
+#include "RemoteControlProtocolWidgetsSettings.h"
+#include "Signature/RCSignatureProtocolAction.h"
 #include "Styling/ProtocolPanelStyle.h"
 #include "ViewModels/ProtocolEntityViewModel.h"
 #include "Widgets/SNullWidget.h"
@@ -19,12 +19,16 @@ void FRemoteControlProtocolWidgetsModule::StartupModule()
 {
 	FProtocolPanelStyle::Initialize();
 
+	RegisterPropertyEditorCustomizations();
+
 	OnActiveProtocolChanged().AddRaw(this, &FRemoteControlProtocolWidgetsModule::SetActiveProtocolName);
 }
 
 void FRemoteControlProtocolWidgetsModule::ShutdownModule()
 {
 	FProtocolPanelStyle::Shutdown();
+
+	UnregisterPropertyEditorCustomizations();
 
 	OnActiveProtocolChanged().RemoveAll(this);
 }
@@ -123,6 +127,27 @@ void FRemoteControlProtocolWidgetsModule::SetActiveProtocolName(const FName InPr
 	if (RCProtocolBindingList.IsValid())
 	{
 		RCProtocolBindingList->Refresh();
+	}
+}
+
+void FRemoteControlProtocolWidgetsModule::RegisterPropertyEditorCustomizations()
+{
+	FPropertyEditorModule& PropertyEditorModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
+
+	PropertyEditorModule.RegisterCustomClassLayout(FRCSignatureProtocolAction::StaticStruct()->GetFName()
+		, FOnGetDetailCustomizationInstance::CreateStatic(&FRCSignatureProtocolActionCustomization::MakeInstance));
+}
+
+void FRemoteControlProtocolWidgetsModule::UnregisterPropertyEditorCustomizations()
+{
+	if (!UObjectInitialized())
+	{
+		return;
+	}
+
+	if (FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor"))
+	{
+		PropertyEditorModule->UnregisterCustomClassLayout(FRCSignatureProtocolAction::StaticStruct()->GetFName());
 	}
 }
 
