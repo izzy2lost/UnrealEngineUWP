@@ -74,7 +74,7 @@ struct FMaterialInstanceBasePropertyOverrides
 	uint8 TwoSided : 1;
 
 	/** Indicates that the material should be rendered as. */
-	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bThinSurface"))
+	UPROPERTY(EditAnywhere, Category = Material, meta = (editcondition = "bOverride_bIsThinSurface"))
 	uint8 bIsThinSurface : 1;
 
 	/** Whether the material should support a dithered LOD transition when used with the foliage system. */
