@@ -3,7 +3,7 @@
 #include "Replication/ObjectNameUtils.h"
 
 #include "Internationalization/Text.h"
-#include "Replication/Utils/ObjectUtils.h"
+#include "Misc/ObjectUtils.h"
 
 #include "GameFramework/Actor.h"
 #include "SubobjectDataSubsystem.h"
@@ -54,6 +54,6 @@ namespace UE::ConcertClientSharedSlate
 			return FText::FromString(ResolvedObject->GetName());
 		}
 		
-		return FText::FromString(ConcertSharedSlate::ObjectUtils::ExtractObjectDisplayStringFromPath(ObjectPath.GetUniqueID()));
+		return FText::FromString(ConcertSyncCore::ExtractObjectNameFromPath(ObjectPath.GetUniqueID()));
 	}
 }

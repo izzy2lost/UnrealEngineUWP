@@ -1,11 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Replication/Utils/ObjectUtils.h"
+#include "Misc/ObjectUtils.h"
 
 #include "Containers/UnrealString.h"
 #include "UObject/SoftObjectPath.h"
 
-namespace UE::ConcertSharedSlate::ObjectUtils
+namespace UE::ConcertSyncCore
 {
 	bool IsActor(const FSoftObjectPath& SoftObjectPath)
 	{
@@ -56,7 +56,7 @@ namespace UE::ConcertSharedSlate::ObjectUtils
 		return PathToOwningActor;
 	}
 	
-	FString ExtractObjectDisplayStringFromPath(const FSoftObjectPath& Object)
+	FString ExtractObjectNameFromPath(const FSoftObjectPath& Object)
 	{
 		// Subpath looks like this PersistentLevel.Actor.Component
 		const FString& Subpath = Object.GetSubPathString();

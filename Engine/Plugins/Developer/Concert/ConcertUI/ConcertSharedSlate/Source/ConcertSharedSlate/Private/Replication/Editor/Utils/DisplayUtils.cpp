@@ -4,7 +4,7 @@
 
 #include "ConcertLogGlobal.h"
 #include "Replication/PropertyResolutionCache.h"
-#include "Replication/Utils/ObjectUtils.h"
+#include "Misc/ObjectUtils.h"
 #include "Replication/Editor/Model/IReplicationStreamModel.h"
 #include "Replication/Editor/Model/Object/IObjectNameModel.h"
 
@@ -42,7 +42,7 @@ namespace UE::ConcertSharedSlate::DisplayUtils
 	
 	FText ExtractObjectDisplayTextFromPath(const FSoftObjectPath& Object)
 	{
-		return FText::FromString(ObjectUtils::ExtractObjectDisplayStringFromPath(Object));
+		return FText::FromString(ConcertSyncCore::ExtractObjectNameFromPath(Object));
 	}
 
 	FString GetObjectDisplayString(const UObject& Object)

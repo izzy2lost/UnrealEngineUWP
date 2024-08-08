@@ -12,7 +12,7 @@
 #include "Replication/Editor/View/ObjectViewer/SReplicationStreamViewer.h"
 
 #include "Algo/AnyOf.h"
-#include "Replication/Utils/ObjectUtils.h"
+#include "Misc/ObjectUtils.h"
 #include "Styling/AppStyle.h"
 #include "UObject/Class.h"
 #include "Widgets/Images/SImage.h"
@@ -105,7 +105,7 @@ namespace UE::ConcertSharedSlate
 	{
 		const FSoftObjectPath Object = Data->GetObjectPath();
 		
-		if (ObjectUtils::IsActor(Object))
+		if (ConcertSyncCore::IsActor(Object))
 		{
 			const TSharedRef<SWidget> Content =
 				SNew(SButton)

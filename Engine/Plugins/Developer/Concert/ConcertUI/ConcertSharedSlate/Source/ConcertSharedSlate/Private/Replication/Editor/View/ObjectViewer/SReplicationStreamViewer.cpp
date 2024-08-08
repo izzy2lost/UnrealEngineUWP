@@ -9,7 +9,7 @@
 #include "Replication/Editor/View/Column/ObjectColumnAdapter.h"
 #include "Replication/Editor/View/Column/SelectionViewerColumns.h"
 #include "Replication/Editor/View/Property/SPropertyTreeView.h"
-#include "Replication/Utils/ObjectUtils.h"
+#include "Misc/ObjectUtils.h"
 #include "SReplicatedPropertyView.h"
 #include "Trace/ConcertTrace.h"
 
@@ -167,7 +167,7 @@ namespace UE::ConcertSharedSlate
 			const FSoftObjectPath& ObjectPath = ObjectData->GetObjectPath();
 			const bool bIsInModel = PropertiesModel->ContainsObjects({ ObjectPath });
 			
-			const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(ObjectPath);
+			const TOptional<FSoftObjectPath> OwningActor = ConcertSyncCore::GetActorOf(ObjectPath);
 			// When displaying object from local machine...
 			// ... the "Add Actor" button has added an actor without properties to the model; however objects without assigned properties are not transmitted to server.
 			const bool bContainsOwningActor = OwningActor.IsSet() && PropertiesModel->ContainsObjects({ *OwningActor });
@@ -384,7 +384,7 @@ namespace UE::ConcertSharedSlate
 
 		PropertiesModel->ForEachReplicatedObject([this, &Delegate, &AddedActors, &PendingActors](const FSoftObjectPath& Object)
 		{
-			if (const TOptional<FSoftObjectPath> OwningActor = ObjectUtils::GetActorOf(Object)
+			if (const TOptional<FSoftObjectPath> OwningActor = ConcertSyncCore::GetActorOf(Object)
 				; OwningActor && CanDisplayObject(*OwningActor))
 			{
 				PendingActors.Add(*OwningActor);
@@ -395,7 +395,7 @@ namespace UE::ConcertSharedSlate
 			}
 			
 			Delegate(Object);
-			if (ObjectUtils::IsActor(Object))
+			if (ConcertSyncCore::IsActor(Object))
 			{
 				AddedActors.Add(Object);
 			}
@@ -421,7 +421,7 @@ namespace UE::ConcertSharedSlate
 		TSet<TSharedPtr<FReplicatedObjectData>> NonRootNodes;
 		for (const TSharedPtr<FReplicatedObjectData>& Node : AllObjectRowData)
 		{
-			if (ObjectUtils::IsActor(Node->GetObjectPath()))
+			if (ConcertSyncCore::IsActor(Node->GetObjectPath()))
 			{
 				RootObjectRowData.Add(Node);
 			}
@@ -443,8 +443,8 @@ namespace UE::ConcertSharedSlate
 		}
 
 		// Find top level object of ReplicatedObjectData
-		const FSoftObjectPath OwningActor = ObjectUtils::GetActorOf(ObjectPath).Get(ObjectPath);
-		if (!ObjectUtils::IsActor(OwningActor))
+		const FSoftObjectPath OwningActor = ConcertSyncCore::GetActorOf(ObjectPath).Get(ObjectPath);
+		if (!ConcertSyncCore::IsActor(OwningActor))
 		{
 			return;
 		}
@@ -498,7 +498,7 @@ namespace UE::ConcertSharedSlate
 		const TOptional<IObjectHierarchyModel::FParentInfo> ParentInfo = ObjectHierarchy ? ObjectHierarchy->GetParentInfo(Object) : TOptional<IObjectHierarchyModel::FParentInfo>{};
 		// If no hierarchy was provided during construction, only show actors. If hierarchy provided, check whether this type of subobject is allowed.
 		const bool bCanShowWithinHierarchy = (ParentInfo && ShouldDisplayObjectRelation(ParentInfo->Relationship))
-			|| ObjectUtils::IsActor(Object.GetUniqueID());
+			|| ConcertSyncCore::IsActor(Object.GetUniqueID());
 		const bool bDidDelegateAllow = !ShouldDisplayObjectDelegate.IsBound() || ShouldDisplayObjectDelegate.Execute(Object.GetUniqueID());
 		return bCanShowWithinHierarchy && bDidDelegateAllow;
 	}
