@@ -161,7 +161,7 @@ namespace TypedElementQueryBuilder
 		const FName ValueName = Enum.GetNameByValue(Value);
 		if (ValueName == NAME_None)
 		{
-			UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Invalid value '%lld' for enum '%s'"), Value, *Enum.GetName());
+			UE_LOG(LogEditorDataStorage, Warning, TEXT("Invalid value '%lld' for enum '%s'"), Value, *Enum.GetName());
 			return *this;
 		}
 		using namespace UE::Editor::DataStorage;

@@ -76,7 +76,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 		{
 			if (!bInitialized)
 			{
-				UE_LOG(LogTypedElementDataStorage, Log, TEXT("Initializing"));
+				UE_LOG(LogEditorDataStorage, Log, TEXT("Initializing"));
 				
 				Database = NewObject<UTypedElementDatabase>();
 				Database->Initialize();
@@ -128,7 +128,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 					Factory->RegisterWidgetConstructors(*Database, *DatabaseUi);
 				}
 				
-				UE_LOG(LogTypedElementDataStorage, Log, TEXT("Initialized"));
+				UE_LOG(LogEditorDataStorage, Log, TEXT("Initialized"));
 
 				bInitialized = true;
 			}
@@ -140,7 +140,7 @@ void FTypedElementsDataStorageModule::ShutdownModule()
 {
 	if (bInitialized)
 	{
-		UE_LOG(LogTypedElementDataStorage, Log, TEXT("Deinitializing"));
+		UE_LOG(LogEditorDataStorage, Log, TEXT("Deinitializing"));
 
 		Database->ResetFactories();
 

@@ -79,7 +79,7 @@ namespace UE::EditorDataStorage::TableViewerUtils
 			}
 			else
 			{
-				UE_LOG(LogTypedElementDataStorage, Verbose, TEXT("Invalid column provided to the table viewer"));
+				UE_LOG(LogEditorDataStorage, Verbose, TEXT("Invalid column provided to the table viewer"));
 			}
 		}
 		return VerifiedColumnTypes;

@@ -94,7 +94,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 			EErrorCode ErrorCode = Model->SetOperatorType(NewSelection->Handle, ConditionType);
 			if (ErrorCode != EErrorCode::Success)
 			{
-				UE_LOG(LogTypedElementDataStorage, Error, TEXT("Could not set model condition: [%d]"), static_cast<int>(ErrorCode));
+				UE_LOG(LogEditorDataStorage, Error, TEXT("Could not set model condition: [%d]"), static_cast<int>(ErrorCode));
 			}
 			ComboBox->ClearSelection();
 		}

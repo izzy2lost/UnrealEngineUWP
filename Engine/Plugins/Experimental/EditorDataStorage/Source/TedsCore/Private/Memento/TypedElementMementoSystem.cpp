@@ -82,7 +82,7 @@ void UTypedElementMementoSystem::CreateMementoInternal(TypedElementDataStorage::
 					ColumnType.CopyScriptStruct(Destination, Source);
 				});
 
-			UE_LOG(LogTypedElementDataStorage, VeryVerbose,
+			UE_LOG(LogEditorDataStorage, VeryVerbose,
 				TEXT("Column->Memento: %llu -> %llu"), SourceRow, MementoRow);
 		}
 	}
@@ -111,7 +111,7 @@ void UTypedElementMementoSystem::RestoreMemento(TypedElementDataStorage::RowHand
 					ColumnType.CopyScriptStruct(Destination, Source);
 				});
 
-			UE_LOG(LogTypedElementDataStorage, VeryVerbose, 
+			UE_LOG(LogEditorDataStorage, VeryVerbose, 
 				TEXT("Memento->Column: %llu -> %llu"), MementoRow, TargetRow);
 		}
 	}

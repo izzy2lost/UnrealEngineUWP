@@ -221,7 +221,7 @@ static FAutoConsoleCommand CVarCreateRow(
 
 		const TypedElementDataStorage::RowHandle RowHandle = DataStorage->AddRow(Table);
 
-		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Added Row %llu"), static_cast<uint64>(RowHandle));
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("Added Row %llu"), static_cast<uint64>(RowHandle));
 	}));
 
 static FAutoConsoleCommand CVarAddDynamicTag(
@@ -341,7 +341,7 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 			}));
 		DataStorage->UnregisterQuery(Query);
 
-		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
 	}),
 	ECVF_Default);
 
@@ -415,7 +415,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 
 		if (Args.Num() > 1)
 		{
-			UE_LOG(LogTypedElementDataStorage, Error, TEXT("Invalid number of arguments"));
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments"));
 			return;
 		}
 
@@ -464,7 +464,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 		}();
 		if (Query == TypedElementDataStorage::InvalidQueryHandle)
 		{
-			UE_LOG(LogTypedElementDataStorage, Error, TEXT("Invalid number of arguments"));
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments"));
 			return;
 		}
 		
@@ -477,7 +477,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 			}));
 		DataStorage->UnregisterQuery(Query);
 
-		UE_LOG(LogTypedElementDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("Processed %llu rows"), static_cast<uint64>(Count));
 		
 	}),
 	ECVF_Default);
