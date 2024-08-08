@@ -1869,6 +1869,11 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 	if (IsMobilePlatform(Platform))
 	{
 		{
+			KeyGen.AppendSeparator();
+			KeyGen.Append(IsMobileHDR() ? TEXT("HDR") : TEXT("LDR"));
+		}
+		
+		{
 			static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Mobile.DisableVertexFog"));
 			if (CVar && CVar->GetInt() != 0)
 			{

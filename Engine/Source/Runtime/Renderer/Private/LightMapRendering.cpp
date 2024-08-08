@@ -155,13 +155,18 @@ void FCachedPointIndirectLightingPolicy::ModifyCompilationEnvironment(const FMat
 void FMobileDirectionalLightAndCSMPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
 	OutEnvironment.SetDefine(TEXT("DIRECTIONAL_LIGHT_CSM"), TEXT("1"));
-	OutEnvironment.SetDefine(TEXT("MOBILE_USE_CSM_BRANCH"), MobileUseCSMShaderBranch());
 }
 
 bool FMobileDirectionalLightAndCSMPolicy::ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
 	if (IsMobileDeferredShadingEnabled(Parameters.Platform))
 	{
+		return false;
+	}
+
+	if (!IsStaticLightingAllowed() && MobileUseCSMShaderBranch())
+	{
+		// CSM will be handled by FNoLightMapPolicy with a branch inside shader
 		return false;
 	}
 	
@@ -792,13 +797,14 @@ TGlobalResource< FEmptyIndirectLightingCacheUniformBuffer > GEmptyIndirectLighti
 
 bool FNoLightMapPolicy::ShouldCompilePermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
 {
-	if (IsMobilePlatform(Parameters.Platform))
-	{
-		return MobileUsesNoLightMapPermutation(Parameters);
-	}
 	return true;
 }
 
 void FNoLightMapPolicy::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
+	if (IsMobilePlatform(Parameters.Platform) && !IsStaticLightingAllowed() && MobileUseCSMShaderBranch())
+	{
+		OutEnvironment.SetDefine(TEXT("DIRECTIONAL_LIGHT_CSM"), TEXT("1"));
+		OutEnvironment.SetDefine(TEXT("MOBILE_USE_CSM_BRANCH"), TEXT("1"));
+	}
 }

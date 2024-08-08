@@ -300,26 +300,8 @@ FSlateColor FMaterialStatsUtils::QualitySettingColor(const EMaterialQualityLevel
 	}
 }
 
-static void MobileBasePassShaderName(bool bVertexShader, const TCHAR* PolicyName, const TCHAR* LocalLightSetting, bool bHDR, bool bSkyLight, FString& OutName)
-{
-	OutName.Reset();
-	OutName.Append(bVertexShader ? TEXT("TMobileBasePassVS") : TEXT("TMobileBasePassPS"));
-	OutName.Append(PolicyName);
-	OutName.Append(bHDR ? TEXT("HDRLinear64") : TEXT("LDRGamma32"));
-	if (!bVertexShader && bSkyLight)
-	{
-		OutName.Append(TEXT("SkyLight"));
-	}
-	if (!bVertexShader)
-	{
-		OutName.Append(LocalLightSetting);
-	}
-}
-
 void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName, TArray<FRepresentativeShaderInfo>>& ShaderTypeNamesAndDescriptions, const FMaterial* TargetMaterial)
 {
-	bool bMobileHDR = IsMobileHDR();
-
 	static const FName FLocalVertexFactoryName = FLocalVertexFactory::StaticType.GetFName();
 	static const FName FGPUFactoryName = TEXT("TGPUSkinVertexFactoryDefault");
 	static const FName FClothVertexFactoryName = TEXT("TGPUSkinAPEXClothVertexFactoryDefault");
@@ -412,162 +394,73 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	}
 	else
 	{
-		const TCHAR* DescSuffix = bMobileHDR ? TEXT(" (HDR)") : TEXT(" (LDR)");
-		FString ShaderNameStr;
-
+		static const FName TMobileBasePassVSFNoLightMapPolicyName = TEXT("TMobileBasePassVSFNoLightMapPolicy");
+		static const FName TMobileBasePassPSFNoLightMapPolicyName[2] = {
+			TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED"),
+			TEXT("TMobileBasePassPSFNoLightMapPolicySkyLightLOCAL_LIGHTS_DISABLED")
+		};
+		
 		if (TargetMaterial->GetShadingModels().IsUnlit())
 		{
-			//unlit materials are never lightmapped
-			MobileBasePassShaderName(false, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, false, ShaderNameStr);
-			const FString Description = FString::Printf(TEXT("Mobile base pass shader without light map%s"), DescSuffix);
 			ShaderTypeNamesAndDescriptions.Add(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr), Description));
-
-			MobileBasePassShaderName(true, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, false, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-					FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFNoLightMapPolicyName[0],
+					TEXT("Mobile base pass shader without light map")));
 		}
 		else
 		{			
+			// Use SkyLight permutation of projects settings force it
 			static auto* CVarMobileSkyLightPermutation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SkyLightPermutation"));
-			const bool bOnlySkyPermutation = CVarMobileSkyLightPermutation->GetValueOnAnyThread() == 2;
+			const bool SkyLightId = (CVarMobileSkyLightPermutation->GetValueOnAnyThread() == 2) ? 1 : 0;
 						
 			if (IsStaticLightingAllowed() && TargetMaterial->IsUsedWithStaticLighting())
 			{
 				static auto* CVarAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
 				const bool bAllowDistanceFieldShadows = CVarAllowDistanceFieldShadows->GetValueOnAnyThread() != 0;
-
-				if (bAllowDistanceFieldShadows)// distance field shadows
+				if (bAllowDistanceFieldShadows)
 				{
 					// distance field shadows only shaders
-					{
-						MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows%s"), DescSuffix);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr), Description));
-					}
-
-					static auto* CVarAllowDistanceFieldShadowsAndCSM = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.EnableStaticAndCSMShadowReceivers"));
-					const bool bAllowDistanceFieldShadowsAndCSM = CVarAllowDistanceFieldShadowsAndCSM->GetValueOnAnyThread() != 0;
-					if (bAllowDistanceFieldShadowsAndCSM)
-					{
-						// distance field shadows & CSM shaders
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows and CSM%s"), DescSuffix);
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-								.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceCSM, FName(ShaderNameStr), Description));
-						}
-
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_ENABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows, CSM and local light(s) %s"), DescSuffix);
-
-							FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-								
-						}
-
-						{
-							MobileBasePassShaderName(false, TEXT("FMobileDistanceFieldShadowsAndLQLightMapPolicy"), TEXT("LOCAL_LIGHTS_BUFFER"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-							const FString Description = FString::Printf(TEXT("Mobile base pass shader with distance field shadows, CSM and local light(s) %s"), DescSuffix);
-
-							FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-
-							ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-
-						}
-					}
+					static const FName TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName[2] = {
+						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED"),
+						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicySkyLightLOCAL_LIGHTS_DISABLED"),
+					};
+					
+					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName[SkyLightId],
+								TEXT("Mobile base pass shader with distance field shadows")));
 				}
 				else //no shadows & lightmapped
 				{
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, FName(ShaderNameStr),
-								FString::Printf(TEXT("Mobile base pass shader with static lighting%s"), DescSuffix)));
-					}
-
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_ENABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with static lighting and local light(s) %s"), DescSuffix);
-						FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-					}
-
-					{
-						MobileBasePassShaderName(false, TEXT("TLightMapPolicyLQ"), TEXT("LOCAL_LIGHTS_BUFFER"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-						const FString Description = FString::Printf(TEXT("Mobile base pass shader with static lighting and local light(s) %s"), DescSuffix);
-						FRepresentativeShaderInfo ShaderInfo = FRepresentativeShaderInfo(ERepresentativeShader::StationarySurfaceNPointLights, FName(ShaderNameStr), Description);
-						ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName).Add(ShaderInfo);
-					}
+					static const FName TMobileBasePassPSTLightMapPolicyLQName[2] = {
+						TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED"),
+						TEXT("TMobileBasePassPSTLightMapPolicyLQSkyLightLOCAL_LIGHTS_DISABLED"),
+					};
+										
+					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+						.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSTLightMapPolicyLQName[SkyLightId],
+							TEXT("Mobile base pass shader with static lighting")));
 				}
 			}
-
-			// only one of these 2 shader types will be displayed
-			
 			// dynamically lit shader NoLightmapPolicy
-			MobileBasePassShaderName(false, TEXT("FNoLightmapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
 			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass shader with only dynamic lighting%s"), DescSuffix)));
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, TMobileBasePassPSFNoLightMapPolicyName[SkyLightId],
+					TEXT("Mobile base pass shader with only dynamic lighting")));
+		}
 
-			MobileBasePassShaderName(true, TEXT("FNoLightMapPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
+		ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
+			.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, TMobileBasePassVSFNoLightMapPolicyName,
+				TEXT("Mobile base pass vertex shader")));
 
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-
-			// dynamically lit shader FMobileDirectionalLightAndCSMPolicy
-			MobileBasePassShaderName(false, TEXT("FMobileDirectionalLightAndCSMPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass shader with only dynamic lighting%s"), DescSuffix)));
-
-			MobileBasePassShaderName(true, TEXT("FMobileDirectionalLightAndCSMPolicy"), TEXT("LOCAL_LIGHTS_DISABLED"), bMobileHDR, bOnlySkyPermutation, ShaderNameStr);
-			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StaticMesh, FName(ShaderNameStr),
-				FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-
-			if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
-			if (TargetMaterial->IsUsedWithAPEXCloth())
-			{
-				ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
-					.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, FName(ShaderNameStr),
-						FString::Printf(TEXT("Mobile base pass vertex shader%s"), DescSuffix)));
-			}
+		if (TargetMaterial->IsUsedWithSkeletalMesh() || TargetMaterial->IsUsedWithMorphTargets())
+		{
+			ShaderTypeNamesAndDescriptions.FindOrAdd(FGPUFactoryName)
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkeletalMesh, TMobileBasePassVSFNoLightMapPolicyName,
+					TEXT("Mobile base pass vertex shader")));
+		}
+		if (TargetMaterial->IsUsedWithAPEXCloth())
+		{
+			ShaderTypeNamesAndDescriptions.FindOrAdd(FClothVertexFactoryName)
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::SkinnedCloth, TMobileBasePassVSFNoLightMapPolicyName,
+					TEXT("Mobile base pass vertex shader")));
 		}
 	}
 }

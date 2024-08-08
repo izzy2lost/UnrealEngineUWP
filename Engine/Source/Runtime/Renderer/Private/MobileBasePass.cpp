@@ -114,47 +114,16 @@ void SetMobileBasePassDepthState(FMeshPassProcessorRenderState& DrawRenderState,
 	DrawRenderState.SetStencilRef(StencilValue); 
 }
 
-bool MobileUsesNoLightMapPermutation(const FMeshMaterialShaderPermutationParameters& Parameters)
-{
-	const bool bAllowStaticLighting = IsStaticLightingAllowed();
-	const bool bIsLitMaterial = Parameters.MaterialParameters.ShadingModels.IsLit();
-	const bool bDeferredShading = IsMobileDeferredShadingEnabled(Parameters.Platform);
-
-	if (!bDeferredShading && !bAllowStaticLighting && bIsLitMaterial && 
-		!IsTranslucentBlendMode(Parameters.MaterialParameters) &&
-		!Parameters.MaterialParameters.ShadingModels.HasShadingModel(MSM_SingleLayerWater))
-	{
-		// We don't need NoLightMap permutation if CSM shader can handle no-CSM case with a branch inside shader
-		return !MobileUseCSMShaderBranch();
-	}
-		
-	return true;
-}
-
 template <ELightMapPolicyType Policy, EMobileLocalLightSetting LocalLightSetting, EMobileTranslucentColorTransmittanceMode ThinTranslucencyFallback>
-static void AddMobileBasePassPixelShaderTypes(FMaterialShaderTypes& ShaderTypes, const bool bIsMobileHDR, const bool bEnableSkyLight)
+static void AddMobileBasePassPixelShaderTypes(FMaterialShaderTypes& ShaderTypes, const bool bEnableSkyLight)
 {
-	if (bIsMobileHDR)
+	if (bEnableSkyLight)
 	{
-		if (bEnableSkyLight)
-		{
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, HDR_LINEAR_64, true, LocalLightSetting, ThinTranslucencyFallback>>();
-		}
-		else
-		{
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, HDR_LINEAR_64, false, LocalLightSetting, ThinTranslucencyFallback>>();
-		}
+		ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, true, LocalLightSetting, ThinTranslucencyFallback>>();
 	}
 	else
 	{
-		if (bEnableSkyLight)
-		{
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, LDR_GAMMA_32, true, LocalLightSetting, ThinTranslucencyFallback>>();
-		}
-		else
-		{
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, LDR_GAMMA_32, false, LocalLightSetting, ThinTranslucencyFallback>>();
-		}
+		ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<Policy>, false, LocalLightSetting, ThinTranslucencyFallback>>();
 	}
 }
 
@@ -171,24 +140,16 @@ bool GetUniformMobileBasePassShaders(
 	using FVertexShaderType = TMobileBasePassVSPolicyParamType<FUniformLightMapPolicy>;
 	using FPixelShaderType = TMobileBasePassPSPolicyParamType<FUniformLightMapPolicy>;
 
-	const bool bIsMobileHDR = IsMobileHDR();
 	FMaterialShaderTypes ShaderTypes;
-	if (bIsMobileHDR)
-	{
-		ShaderTypes.AddShaderType<TMobileBasePassVS<TUniformLightMapPolicy<Policy>, HDR_LINEAR_64>>();	
-	}
-	else
-	{
-		ShaderTypes.AddShaderType<TMobileBasePassVS<TUniformLightMapPolicy<Policy>, LDR_GAMMA_32>>();			
-	}
+	ShaderTypes.AddShaderType<TMobileBasePassVS<TUniformLightMapPolicy<Policy>>>();	
 
 	switch (ColoredTransmittanceFallback)
 	{
 	default:
 	case EMobileTranslucentColorTransmittanceMode::DEFAULT:
-		AddMobileBasePassPixelShaderTypes<Policy, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::DEFAULT>(ShaderTypes, bIsMobileHDR, bEnableSkyLight); break;
+		AddMobileBasePassPixelShaderTypes<Policy, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::DEFAULT>(ShaderTypes, bEnableSkyLight); break;
 	case EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING:
-		AddMobileBasePassPixelShaderTypes<Policy, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING>(ShaderTypes, bIsMobileHDR, bEnableSkyLight); break;
+		AddMobileBasePassPixelShaderTypes<Policy, LocalLightSetting, EMobileTranslucentColorTransmittanceMode::SINGLE_SRC_BLENDING>(ShaderTypes, bEnableSkyLight); break;
 	}
 
 	FMaterialShaders Shaders;
@@ -357,20 +318,21 @@ ELightMapPolicyType MobileBasePass::SelectMeshLightmapPolicy(
 		
 		if (!IsStaticLightingAllowed())
 		{
- 			if (!bIsTranslucent)
-			{
-				// Whether to use a single CSM permutation with a branch in the shader
-				bPrimReceivesCSM |= MobileUseCSMShaderBranch();
-			}
-			
 			// no precomputed lighting
-			if (!bPrimReceivesCSM || bUsesDeferredShading)
+			if (bUsesDeferredShading)
 			{
 				SelectedLightmapPolicy = LMP_NO_LIGHTMAP;
 			}
 			else
 			{
-				SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM;				
+				if (!bPrimReceivesCSM || MobileUseCSMShaderBranch())
+				{
+					SelectedLightmapPolicy = LMP_NO_LIGHTMAP;
+				}
+				else
+				{
+					SelectedLightmapPolicy = LMP_MOBILE_DIRECTIONAL_LIGHT_CSM;
+				}
 			}
 		}
 		else
@@ -448,12 +410,9 @@ static FMobileLightMapPolicyTypeList GetUniformLightMapPolicyTypeForPSOCollectio
 	{
 		if (!IsStaticLightingAllowed())
 		{
-			if (bUsesDeferredShading || !MobileUseCSMShaderBranch())
-			{
-				Result.Add(LMP_NO_LIGHTMAP);
-			}
+			Result.Add(LMP_NO_LIGHTMAP);
 						
-			if (!bUsesDeferredShading)
+			if (!bUsesDeferredShading && !MobileUseCSMShaderBranch())
 			{
 				// permutation that can receive CSM
 				Result.Add(LMP_MOBILE_DIRECTIONAL_LIGHT_CSM);
