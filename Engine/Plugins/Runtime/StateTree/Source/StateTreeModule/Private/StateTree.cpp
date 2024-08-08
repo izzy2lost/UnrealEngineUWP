@@ -253,21 +253,17 @@ void UStateTree::PostInitProperties()
 	
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		FStateTreeModule& StateTreeModule = FModuleManager::GetModuleChecked<FStateTreeModule>("StateTreeModule");
-		OnObjectsReinstancedHandle = StateTreeModule.OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
-		OnUserDefinedStructReinstancedHandle = StateTreeModule.OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
-		OnPreBeginPIEHandle = StateTreeModule.OnPreBeginPIE.AddUObject(this, &UStateTree::OnPreBeginPIE);
+		OnObjectsReinstancedHandle = FStateTreeModule::OnObjectsReinstanced.AddUObject(this, &UStateTree::OnObjectsReinstanced);
+		OnUserDefinedStructReinstancedHandle = FStateTreeModule::OnUserDefinedStructReinstanced.AddUObject(this, &UStateTree::OnUserDefinedStructReinstanced);
+		OnPreBeginPIEHandle = FStateTreeModule::OnPreBeginPIE.AddUObject(this, &UStateTree::OnPreBeginPIE);
 	}
 }
 
 void UStateTree::BeginDestroy()
 {
-	if (FStateTreeModule* StateTreeModule = FModuleManager::GetModulePtr<FStateTreeModule>("StateTreeModule"))
-	{
-		StateTreeModule->OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
-		StateTreeModule->OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
-		StateTreeModule->OnPreBeginPIE.Remove(OnPreBeginPIEHandle);
-	}
+	FStateTreeModule::OnObjectsReinstanced.Remove(OnObjectsReinstancedHandle);
+	FStateTreeModule::OnUserDefinedStructReinstanced.Remove(OnUserDefinedStructReinstancedHandle);
+	FStateTreeModule::OnPreBeginPIE.Remove(OnPreBeginPIEHandle);
 
 	Super::BeginDestroy();
 }

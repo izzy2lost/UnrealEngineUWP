@@ -34,6 +34,12 @@
 
 #define LOCTEXT_NAMESPACE "StateTree"
 
+#if WITH_EDITOR
+FStateTreeModule::FOnObjectsReinstanced FStateTreeModule::OnObjectsReinstanced;
+FStateTreeModule::FOnPIEEvent FStateTreeModule::OnPreBeginPIE;
+FStateTreeModule::FOnUserDefinedStructReinstanced FStateTreeModule::OnUserDefinedStructReinstanced;
+#endif
+
 #if WITH_STATETREE_TRACE_DEBUGGER
 UE::Trace::FStoreClient* FStateTreeModule::GetStoreClient()
 {

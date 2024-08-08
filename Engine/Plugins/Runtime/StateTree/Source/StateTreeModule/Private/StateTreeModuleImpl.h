@@ -33,13 +33,13 @@ public:
 #if WITH_EDITOR
 	using FReplacementObjectMap = FCoreUObjectDelegates::FReplacementObjectMap;
 	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnObjectsReinstanced, const FReplacementObjectMap&);
-	FOnObjectsReinstanced OnObjectsReinstanced;
+	static FOnObjectsReinstanced OnObjectsReinstanced;
 
 	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnPIEEvent, bool);
-	FOnPIEEvent OnPreBeginPIE;
+	static FOnPIEEvent OnPreBeginPIE;
 
 	DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnUserDefinedStructReinstanced, const UUserDefinedStruct& /*UserDefinedStruct*/);
-	FOnUserDefinedStructReinstanced OnUserDefinedStructReinstanced;
+	static FOnUserDefinedStructReinstanced OnUserDefinedStructReinstanced;
 #endif
 
 private:
