@@ -96,7 +96,7 @@ struct FTraceChannelPreset
 	FString ChannelList;
 
 	UPROPERTY(EditAnywhere, Category = "Message")
-	bool bIsReadOnly;
+	bool bIsReadOnly = false;
 };
 
 /**
