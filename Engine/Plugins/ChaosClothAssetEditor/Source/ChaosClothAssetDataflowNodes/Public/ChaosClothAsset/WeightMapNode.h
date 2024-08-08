@@ -17,9 +17,11 @@ enum class EChaosClothAssetWeightMapMeshTarget : uint8
 };
 
 /** Painted weight map attributes node. */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For Name implicit operators.
 USTRUCT(Meta = (DataflowCloth))
 struct FChaosClothAssetWeightMapNode : public FDataflowNode
 {
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	GENERATED_USTRUCT_BODY()
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetWeightMapNode, "WeightMap", "Cloth", "Cloth Weight Map")
 	DATAFLOW_NODE_RENDER_TYPE("SurfaceRender", FName("FClothCollection"), "Collection")
