@@ -27,7 +27,6 @@ namespace PCGWorldRaycastElementConstants
 }
 
 UPCGWorldRaycastElementSettings::UPCGWorldRaycastElementSettings()
-	: WorldQueryParams()
 {
 	OriginInputAttribute.SetPointProperty(EPCGPointProperties::Position);
 	EndPointAttribute.SetPointProperty(EPCGPointProperties::Position);
@@ -298,7 +297,9 @@ bool FPCGWorldRaycastElement::ExecuteInternal(FPCGContext* InContext) const
 			OutputPoints.Reserve(IterState.CachedRayOrigins.Num());
 		}
 
-		const FPCGWorldRaycastQueryParams& WorldQueryParams = Settings->WorldQueryParams;
+		FPCGWorldRaycastQueryParams WorldQueryParams = Settings->WorldQueryParams;
+		WorldQueryParams.Initialize();
+
 
 		if (!PCGWorldQueryHelpers::CreateRayHitAttributes(WorldQueryParams, OutMetadata))
 		{

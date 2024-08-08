@@ -134,7 +134,7 @@ struct FPCGWorldRaycastQueryParams : public FPCGWorldCommonQueryParams
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable, EditCondition = "bTraceComplex"))
 	uint8 bGetFaceIndex : 1 = false;
 
-	/** Create an attribute for UV Coordinates of the surface hit. Note: Will only work in complex traces. */
+	/** Create an attribute for UV Coordinates of the surface hit. Note: Will only work in complex traces and must have 'Project Settings->Physics->Support UV From Hit Results' set to true. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Data|Attributes", meta = (PCG_Overridable, EditCondition = "bTraceComplex"))
 	uint8 bGetUVCoords : 1 = false;
 
