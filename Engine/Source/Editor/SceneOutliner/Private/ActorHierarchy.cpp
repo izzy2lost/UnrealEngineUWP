@@ -29,6 +29,7 @@
 #include "WorldPartition/WorldPartitionSubsystem.h"
 #include "ActorFolder.h"
 #include "ActorMode.h"
+#include "SSceneOutliner.h"
 
 TUniquePtr<FActorHierarchy> FActorHierarchy::Create(ISceneOutlinerMode* Mode, const TWeakObjectPtr<UWorld>& World)
 {
@@ -951,6 +952,8 @@ void FActorHierarchy::OnLevelActorFolderChanged(const AActor* InActor, FName Old
 {
 	if (Mode->ShouldShowFolders() && RepresentingWorld.Get() == InActor->GetWorld())
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnLevelActorFolderChanged refresh requested by Actor: %s"), *InActor->GetActorLabel());
+
 		FSceneOutlinerHierarchyChangedData EventData;
 		EventData.Type = FSceneOutlinerHierarchyChangedData::Moved;
 		EventData.ItemIDs.Add(FSceneOutlinerTreeItemID(InActor));

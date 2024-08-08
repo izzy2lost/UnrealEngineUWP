@@ -42,6 +42,8 @@ template<typename FilterType> class SFilterBar;
 template<typename ItemType> class STreeView;
 class SFilterSearchBox;
 
+SCENEOUTLINER_API DECLARE_LOG_CATEGORY_EXTERN(LogSceneOutliner, Log, All);
+
 /**
  * Scene Outliner definition
  * Note the Scene Outliner is also called the World Outliner
