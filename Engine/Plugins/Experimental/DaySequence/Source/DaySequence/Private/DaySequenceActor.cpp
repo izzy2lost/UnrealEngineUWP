@@ -727,6 +727,13 @@ UMovieSceneSubSection* ADaySequenceActor::InitializeDaySequence(const FDaySequen
 	UDaySequenceTrack* SubTrack = RootMovieScene->AddTrack<UDaySequenceTrack>();
 	UMovieSceneSubSection* SubSection = nullptr;
 
+#if WITH_EDITORONLY_DATA
+	if (UMovieScene* SequenceMovieScene = SequenceAsset.Sequence->GetMovieScene())
+	{
+		SequenceMovieScene->SetReadOnly(SequenceAsset.Sequence->GetPackage()->bIsCookedForEditor);
+	}
+#endif
+	
 	if (SubTrack)
 	{
 		SubTrack->ClearFlags(RF_Transactional);
