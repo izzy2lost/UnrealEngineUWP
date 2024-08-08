@@ -244,8 +244,12 @@ UObject* FDaySequenceActorSpawner::SpawnObject(FMovieSceneSpawnable& Spawnable, 
 	SpawnedActor->FinishSpawning(SpawnTransform, bIsDefaultTransform);
 
 #if WITH_EDITOR
-	// Don't set the actor label in PIE as this requires flushing async loading.
-	if (WorldContext->WorldType == EWorldType::Editor)
+	const IConsoleVariable* AllowSetActorLabelCvar = IConsoleManager::Get().FindConsoleVariable(TEXT("LevelSequence.EnableReadableActorLabelsForSpawnables"));
+	const bool bAllowSetActorLabel = AllowSetActorLabelCvar && AllowSetActorLabelCvar->GetBool();
+	
+	// Historically, setting the actor label has caused performance issues in some scenarios (by causing async loading flushes); however, there's no
+	// evidence for this anymore, so the cvar is here to turn off this behavior if needed.
+	if ((WorldContext->WorldType == EWorldType::Editor) || bAllowSetActorLabel)
 	{
 		SpawnedActor->SetActorLabel(Spawnable.GetName());
 	}
