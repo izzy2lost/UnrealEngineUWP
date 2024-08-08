@@ -7,7 +7,7 @@
 // The intention is that the generated IrNodes should be easier to use, both for analysis
 // and code generation, than the AstNodes.
 // However, the initial implementation only copies the AstNodes, with some care since the Ast<->Vst
-// must not be broken.  
+// must not be broken.
 
 #include "uLang/SemanticAnalyzer/IRGenerator.h"
 
@@ -713,6 +713,31 @@ private:
         });
     }
 
+    // Fix the case when ResultNormalType is a CNamedType but SourceNormalType isn't, and Value is a definition.
+    // This happens in definitions like:
+    // F1(X:int, ?Y:int = 1):int = ... 
+    // F2(X:int, ?Y:tuple(int, int) = (1, 2)):int = ... 
+    const CNormalType& GetResultNormalType(TSRef<CExpressionBase> Value, const CTypeBase* ResultType, const CNormalType& SourceNormalType)
+    {
+        const CNormalType& ResultNormalType = SemanticTypeUtils::Canonicalize(*ResultType).GetNormalType();
+        if (ResultNormalType.IsA<CNamedType>() && !SourceNormalType.IsA<CNamedType>())
+        {
+            if (Value->GetNodeType() == EAstNodeType::Definition)
+            {   // Processing a definition, check if symbols are the same
+                CExprDefinition& Definition = static_cast<CExprDefinition&>(*Value);
+                if (Definition.Element()->GetNodeType() == EAstNodeType::Identifier_Unresolved)
+                {
+                    CExprIdentifierUnresolved& Unresolved = static_cast<CExprIdentifierUnresolved&>(*Definition.Element());
+                    if (Unresolved._Symbol == ResultNormalType.AsChecked<CNamedType>().GetName())
+                    {   // Symbols are the same, use the value type instead of the named type.
+                        return SemanticTypeUtils::Canonicalize(*ResultNormalType.AsChecked<CNamedType>().GetValueType()).GetNormalType();
+                    }
+                }
+            }
+        }
+        return ResultNormalType;
+    }
+
     // Given a result type and an expression yielding a value in the result type's domain, return an expression that
     // yields the value of the provided expression in the representation of the result type.
     TSPtr<CExpressionBase> MaybeCoerceToType(TSRef<CExpressionBase> Value, const CTypeBase* ResultType)
@@ -738,8 +763,8 @@ private:
             // END HACK
         }
 
-        const CNormalType& ResultNormalType = SemanticTypeUtils::Canonicalize(*ResultType).GetNormalType();
         const CNormalType& SourceNormalType = SemanticTypeUtils::Canonicalize(*SourceType).GetNormalType();
+        const CNormalType& ResultNormalType = GetResultNormalType(Value, ResultType, SourceNormalType);
         if (_TargetVM == SBuildParams::EWhichVM::BPVM && NeedsCoercion(*Value, ResultNormalType, SourceNormalType))
         {
             if (ResultNormalType.GetKind() == Cases<ETypeKind::Void, ETypeKind::True>
@@ -807,7 +832,13 @@ private:
             {
                 const CNamedType& ResultNamedType = ResultNormalType.AsChecked<CNamedType>();
                 ULANG_ASSERTF(ResultNamedType.HasValue(), "Semantic analyzer should have errored");
-                ULANG_ASSERTF(SourceNormalType.AsChecked<CTupleType>().Num() == 0, "Semantic analyzer should have errored");
+                if (SourceNormalType.AsChecked<CTupleType>().Num() != 0)
+                {   // Should never happen, but have happend before so might again.
+                    AppendGlitch(
+                        *Value,
+                        EDiagnostic::ErrSemantic_Unimplemented,
+                        CUTF8String("Unsupported usage of named type"));
+                }
                 TSRef<CExpressionBase> CoercedValue = NewIrNode<CExprMakeNamed>(ResultNamedType.GetName());
                 CoercedValue->IrSetResultType(ResultType);
                 return Move(CoercedValue);
