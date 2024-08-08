@@ -673,6 +673,9 @@ struct FRHIGlobals
 
 	/** Whether Depth Stencil MSAA Resolve Targets are supported. */
 	bool SupportsDepthStencilResolve = false;
+
+	/** True if RHI supports Linear texture format in 3D/Cube/Array texture */
+	bool SupportLinearTextureVolumeFormat = true;
 };
 
 extern RHI_API FRHIGlobals GRHIGlobals;
