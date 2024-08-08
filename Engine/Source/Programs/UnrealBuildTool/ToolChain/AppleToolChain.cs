@@ -241,14 +241,43 @@ namespace UnrealBuildTool
 	{
 		protected class AppleToolChainInfo : ClangToolChainInfo
 		{
-			public AppleToolChainInfo(DirectoryReference DeveloperDir, FileReference Clang, FileReference Archiver, ILogger Logger)
+			Tuple<Version, Version>[] AppleVersionToLLVMVersion;
+
+			public AppleToolChainInfo(UnrealTargetPlatform Platform, DirectoryReference DeveloperDir, FileReference Clang, FileReference Archiver, ILogger Logger)
 				: base(DeveloperDir, Clang, Archiver, Logger)
 			{
+				// get the mapping from Apple_SDK.json (turning "version ranges" into a mapping list)
+				UEBuildPlatformSDK SDK = UEBuildPlatformSDK.GetSDKForPlatform(Platform.ToString())!;
+				
+				AppleVersionToLLVMVersion = SDK.GetVersionNumberRangeArrayFromConfig("AppleVersionToLLVMVersions").
+					Select(x => new Tuple<Version, Version>(new Version(x.Min.ToString()), new Version(x.Max.ToString()))).ToArray();
 			}
 
 			// libtool doesn't provide version, just use clang's version string
 			/// <inheritdoc/>
 			protected override string QueryArchiverVersionString() => ClangVersionString;
+
+			protected override Version QueryClangVersion()
+			{
+				// get the clang version from the clang -v
+				Version AppleVersion = base.QueryClangVersion();
+
+					// now look up this version in mappings
+				for (int MappingIndex = AppleVersionToLLVMVersion.Length - 1; MappingIndex >= 0; MappingIndex--)
+				{
+					if (AppleVersion >= AppleVersionToLLVMVersion[MappingIndex].Item1)
+					{
+						Version LLVMVersion = AppleVersionToLLVMVersion[MappingIndex].Item2;
+						Logger.LogDebug("Converted Apple version {AppleVersion} to LLVM version {LLVMVersion}", AppleVersion, LLVMVersion);
+						return LLVMVersion;
+					}
+				}
+
+				throw new BuildException($"Failed to find mapping of Apple clang version {AppleVersion} in Apple_SDK.json");
+			}
+
+			// get the actual Apple version, not the LLVM version (only Apple platform code should use this)
+			public VersionNumber AppleClangVersion => VersionNumber.Parse(base.QueryClangVersion().ToString());
 		}
 
 		public Lazy<AppleToolChainSettings> ToolChainSettings;
@@ -488,14 +517,6 @@ namespace UnrealBuildTool
 			Arguments.Add("-Wno-unknown-warning-option");
 			Arguments.Add("-Wno-range-loop-analysis");
 			Arguments.Add("-Wno-single-bit-bitfield-constant-conversion");
-
-			// Disable warnings for Xcode 16 for now
-			if (Info.ClangVersion.CompareTo(new Version(16, 0, 0)) >= 0)
-			{
-            	Arguments.Add("-Wno-shadow");
-				Arguments.Add("-Wno-invalid-unevaluated-string");
-				Arguments.Add("-Wno-deprecated-this-capture");
-			}
 		}
 
 		/// <inheritdoc/>
@@ -813,12 +834,12 @@ namespace UnrealBuildTool
 
 		protected virtual void GetLinkArguments_Global(LinkEnvironment LinkEnvironment, List<string> Arguments)
 		{
-			// The Apple's new linker in Xcode 15 beta 5 (clang version 1500.0.38.1) has issues with some templated classes and dynamic linking.
-			// Fall back to using the classic.
-			if (Info.ClangVersion.CompareTo(new Version(15, 0, 38)) >= 0 && Info.ClangVersion.CompareTo(new Version(16, 0, 0)) < 0)
-            {
-                Arguments.Add(" -ld_classic");
-            }
+			// Temp solution for UE-191350
+			VersionNumber AppleClangVersion = ((AppleToolChainInfo)GetToolChainInfo()).AppleClangVersion;
+			if (AppleClangVersion >= new VersionNumber(15) && AppleClangVersion < new VersionNumber(16))
+			{
+				Arguments.Add(" -ld_classic");
+			}
 		}
 
 		#region Stub Xcode Projects

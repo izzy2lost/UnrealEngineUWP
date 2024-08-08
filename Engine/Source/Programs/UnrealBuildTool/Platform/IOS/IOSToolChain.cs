@@ -76,7 +76,7 @@ namespace UnrealBuildTool
 		{
 			FileReference CompilerPath = FileReference.Combine(Settings.ToolchainDir, IOSCompiler);
 			FileReference ArchiverPath = FileReference.Combine(Settings.ToolchainDir, IOSArchiver);
-			return new AppleToolChainInfo(IOSToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
+			return new AppleToolChainInfo(UnrealTargetPlatform.IOS, IOSToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
 		}
 
 		public override string GetSDKVersion()

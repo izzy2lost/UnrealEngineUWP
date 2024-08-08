@@ -71,7 +71,7 @@ namespace UnrealBuildTool
 		{
 			FileReference CompilerPath = FileReference.Combine(Settings.ToolchainDir, MacCompiler);
 			FileReference ArchiverPath = FileReference.Combine(Settings.ToolchainDir, MacArchiver);
-			return new AppleToolChainInfo(MacToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
+			return new AppleToolChainInfo(UnrealTargetPlatform.Mac, MacToolChainSettings.XcodeDeveloperDir, CompilerPath, ArchiverPath, Logger);
 		}
 
 		public static DirectoryReference FindProductDirectory(FileReference? ProjectFile, DirectoryReference BinaryDir, string? NameIfProgram)
