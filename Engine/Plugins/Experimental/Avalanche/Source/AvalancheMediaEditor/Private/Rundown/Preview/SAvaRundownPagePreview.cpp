@@ -6,6 +6,7 @@
 #include "AvaMediaSettings.h"
 #include "Broadcast/OutputDevices/Slate/SAvaBroadcastCaptureImage.h"
 #include "Brushes/SlateImageBrush.h"
+#include "Engine/RendererSettings.h"
 #include "Engine/TextureRenderTarget2D.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -303,7 +304,7 @@ void SAvaRundownPagePreview::HandleCheckerboardActionExecute() const
 	if (bShowCheckerBoard)
 	{
 		const IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		if (PropagateAlphaCVar && PropagateAlphaCVar->GetInt() != 2)
+		if (PropagateAlphaCVar && PropagateAlphaCVar->GetInt() != static_cast<int32>(EAlphaChannelMode::AllowThroughTonemapper))
 		{
 			const FText NotificationText = LOCTEXT("AlphaSupport",
 				"An output requested Alpha Support but the required project setting is not enabled!\n"

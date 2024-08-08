@@ -4,6 +4,8 @@
 #include "HoldoutCompositeModule.h"
 #include "HoldoutCompositeSceneViewExtension.h"
 
+#include "Engine/RendererSettings.h"
+
 UHoldoutCompositeSubsystem::UHoldoutCompositeSubsystem()
 {
 }
@@ -36,11 +38,11 @@ void UHoldoutCompositeSubsystem::RegisterPrimitives(TArrayView<TSoftObjectPtr<UP
 {
 	// The compositing relies on alpha preserved through the "tonemapper" post-processing step.
 	static IConsoleVariable* CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-	if (CVarPropagateAlpha && CVarPropagateAlpha->GetInt() != 2 /*EAlphaChannelMode::AllowThroughTonemapper*/)
+	if (CVarPropagateAlpha && CVarPropagateAlpha->GetInt() != static_cast<int32>(EAlphaChannelMode::AllowThroughTonemapper))
 	{
 		UE_CALL_ONCE([]()
 			{
-				UE_LOG(LogHoldoutComposite, Warning, TEXT("Holdout composite is disabled until r.PostProcessing.PropagateAlpha=2 is set."));
+				UE_LOG(LogHoldoutComposite, Warning, TEXT("Holdout composite is disabled until alpha is enabled through post-processing."));
 			}
 		);
 		return;
