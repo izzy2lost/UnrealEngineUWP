@@ -110,6 +110,9 @@ protected:
 	/** Post-loading callback to be used to connect AnimBP variables. */
 	virtual void PostInitAnimBP(USkeletalMeshComponent* SkeletalMeshComponent, UAnimInstance* AnimInstance) const;
 
+	// Re-creates the pointers to the body part skeletal mesh components.
+	void UpdateComponentLinks();
+
 	void PostConnectAnimBPVariables(const FMetaHumanCustomizableBodyPart& BodyPart, USkeletalMeshComponent* SkeletalMeshComponent, UAnimInstance* AnimInstance) const;
 
 	//////////////////////////////////////////////////////////////////////////////

@@ -20,8 +20,13 @@ UMetaHumanComponentBase::UMetaHumanComponentBase()
 void UMetaHumanComponentBase::OnRegister()
 {
 	Super::OnRegister();
-	AActor* Owner = GetOwner();
 
+	UpdateComponentLinks();
+}
+
+void UMetaHumanComponentBase::UpdateComponentLinks()
+{
+	AActor* Owner = GetOwner();
 	const TInlineComponentArray<USkeletalMeshComponent*, 5> SkelMeshComponents(Owner);
 	const TMap<FName, int32, TInlineSetAllocator<16>> ComponentNameToIndexMap = CreateComponentNameToIndexMap(SkelMeshComponents);
 

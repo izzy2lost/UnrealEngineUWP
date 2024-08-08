@@ -18,6 +18,8 @@ void UMetaHumanComponentUE::BeginPlay()
 {
 	Super::BeginPlay();
 
+	UpdateComponentLinks();
+
 	SetupCustomizableBodyPart(Torso);
 	SetupCustomizableBodyPart(Legs);
 	SetupCustomizableBodyPart(Feet);
