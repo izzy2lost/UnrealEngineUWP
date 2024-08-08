@@ -701,6 +701,7 @@ void FActorHierarchy::OnWorldPartitionCreated(UWorld* InWorld)
 {
 	if (RepresentingWorld.Get() == InWorld)
 	{
+		UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionCreated Full Refresh Event"));
 		FullRefreshEvent();
 	}
 }
@@ -821,26 +822,32 @@ void FActorHierarchy::OnActorDescInstanceRemoved(FWorldPartitionActorDescInstanc
 
 void FActorHierarchy::OnWorldPartitionInitialized(UWorldPartition* InWorldPartition)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionInitialized Full Refresh Event"));
+
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnWorldPartitionUninitialized(UWorldPartition* InWorldPartition)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnWorldPartitionUninitialized Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnComponentsUpdated()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnComponentsUpdated Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnLevelActorListChanged()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnLevelActorListChanged Full Refresh Event"));
 	FullRefreshEvent();
 }
 
 void FActorHierarchy::OnActorFoldersUpdatedEvent(ULevel* InLevel)
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("OnActorFoldersUpdatedEvent Full Refresh Event"));
 	FullRefreshEvent();
 }
 

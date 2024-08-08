@@ -993,6 +993,8 @@ void FActorBrowsingMode::OnItemRemoved(FSceneOutlinerTreeItemPtr Item)
 
 void FActorBrowsingMode::OnComponentsUpdated()
 {
+	UE_LOG(LogSceneOutliner, VeryVerbose, TEXT("FullRefresh requested by FActorBrowsingMode::OnComponentsUpdated"));
+
 	SceneOutliner->FullRefresh();
 }
 
