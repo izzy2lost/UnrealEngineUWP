@@ -68,3 +68,5 @@ float4 ReadColor_{DataInterfaceName}(uint VertexIndex)
 	return {DataInterfaceName}_ColorStaticBuffer[BufferIndex] FMANUALFETCH_COLOR_COMPONENT_SWIZZLE;
 #endif	
 }
+
+
