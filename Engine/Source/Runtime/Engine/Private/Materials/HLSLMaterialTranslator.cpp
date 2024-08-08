@@ -11275,7 +11275,7 @@ int32 FHLSLMaterialTranslator::VertexNormal()
 	}
 	else
 	{
-		return AddInlinedCodeChunk(MCT_Float4, *FiniteCode);
+		return AddInlinedCodeChunk(MCT_Float3, *FiniteCode);
 	}
 }
 
