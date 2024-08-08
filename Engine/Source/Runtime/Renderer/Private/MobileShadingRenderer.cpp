@@ -1037,8 +1037,8 @@ void FMobileSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 		if (bDeferredShading)
 		{
 			RectLightAtlas::UpdateAtlasTexture(GraphBuilder, FeatureLevel);
-			IESAtlas::UpdateAtlasTexture(GraphBuilder, ShaderPlatform);
 		}
+		IESAtlas::UpdateAtlasTexture(GraphBuilder, ShaderPlatform);
 
 		// Important that this uses consistent logic throughout the frame, so evaluate once and pass in the flag from here
 		// NOTE: Must be done after  system texture initialization

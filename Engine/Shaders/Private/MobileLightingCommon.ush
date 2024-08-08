@@ -624,6 +624,12 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 
 		FDeferredLightData LightData = ConvertToDeferredLight_Mobile(LocalLight);
 
+		if (LightType == LIGHT_TYPE_SPOT || LightType == LIGHT_TYPE_POINT)
+		{
+			half Attenuation = ComputeLightProfileMultiplier(TranslatedWorldPosition, LightData.TranslatedWorldPosition, -LightData.Direction, LightData.Tangent, LightData.IESAtlasIndex);
+			LightData.Color *= Attenuation;
+		}
+
 		half4 LightAttenuation = half4(1, 1, DynamicShadowing, DynamicShadowing);
 
 		float SurfaceShadow = 0;

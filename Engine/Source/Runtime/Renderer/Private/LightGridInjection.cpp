@@ -316,7 +316,7 @@ static uint32 PackRGB10(float In0, float In1, float In2)
 	return 
 		(uint32(FMath::Clamp(In0 * 1023u, 0u, 1023u))      )|
 		(uint32(FMath::Clamp(In1 * 1023u, 0u, 1023u)) << 10)|
-		(uint32(FMath::Clamp(In2 * 1023u, 0u, 1023u)) << 10);
+		(uint32(FMath::Clamp(In2 * 1023u, 0u, 1023u)) << 20);
 }
 
 static FVector2f PackLightColor(const FVector3f& LightColor)
@@ -387,7 +387,7 @@ static void PackLocalLightData(
 	const float IESAtlasIndex = INDEX_NONE;
 
 	// Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
-	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(SpecularScale, DiffuseScale, IESAtlasIndex + 1);
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(SpecularScale, DiffuseScale, (IESAtlasIndex + 1) * (1.f / 1023.f));
 
 	const FVector3f LightColor = (FVector3f)SimpleLight.Color * FLightRenderParameters::GetLightExposureScale(View.GetLastEyeAdaptationExposure(), SimpleLight.InverseExposureBlend);
 	const FVector2f LightColorPacked = PackLightColor(LightColor);
@@ -429,8 +429,9 @@ static void PackLocalLightData(
 	RectPackedZ |= uint32(FMath::Clamp(LightParameters.RectLightAtlasMaxLevel, 0.f, 63.f)) << 26;			//  6 bits
 
 	// Pack specular scale and IES profile index
-	 // Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
-	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(LightParameters.SpecularScale, LightParameters.DiffuseScale, LightParameters.IESAtlasIndex + 1); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
+	// Offset IESAtlasIndex here in order to preserve INDEX_NONE = -1 after encoding
+	// IESAtlasIndex requires scaling because PackRGB10 expects inputs to be [0:1]
+	const uint32 SpecularScale_DiffuseScale_IESData = PackRGB10(LightParameters.SpecularScale, LightParameters.DiffuseScale, (LightParameters.IESAtlasIndex + 1) * (1.f / 1023.f)); // pack atlas id here? 16bit specular 8bit IES and 8 bit LightFunction
 
 	const FVector2f LightColorPacked = PackLightColor(FVector3f(LightParameters.Color));
 

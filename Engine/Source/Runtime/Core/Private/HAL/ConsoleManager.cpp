@@ -3765,6 +3765,13 @@ static TAutoConsoleVariable<int32> CVarMobileRenderRectLightsAsSpotLights(
 		"1: Rect Lights are rendered as Spot Lights (default)\n"),
 	ECVF_ReadOnly | ECVF_MobileShaderChange);
 
+static TAutoConsoleVariable<int32> CVarMobileForwardEnableIESProfiles(
+	TEXT("r.Mobile.Forward.EnableIESProfiles"),
+	0,
+	TEXT("0: IES profiles disabled in mobile forward (default)\n"
+		"1: IES profiles enabled in mobile forward \n"),
+	ECVF_ReadOnly | ECVF_MobileShaderChange);
+
 static TAutoConsoleVariable<int32> CVarMobileForwardEnableParticleLights(
 	TEXT("r.Mobile.Forward.EnableParticleLights"),
 	0,
