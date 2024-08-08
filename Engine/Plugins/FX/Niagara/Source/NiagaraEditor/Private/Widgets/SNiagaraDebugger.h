@@ -45,6 +45,7 @@ private:
 	TSharedRef<SWidget> MakeToolbar();
 	TSharedRef<SWidget> MakePlaybackOptionsMenu();
 	TSharedRef<SWidget> MakeModeOptionsMenu();
+	TSharedRef<SWidget> MakeBoundsOptionsMenu();
 
 protected:
 	TSharedPtr<FTabManager>		TabManager;

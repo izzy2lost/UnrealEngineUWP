@@ -247,7 +247,6 @@ void FNiagaraDebugHUDSettingsDetailsCustomization::CustomizeDetails(IDetailLayou
 		IDetailCategoryBuilder& OverviewCategory = DetailBuilder.EditCategory("Debug Overview");
 		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bValidationEnabled), FNiagaraDebugHUDSettingsData::StaticStruct()));
 		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bOverviewEnabled), FNiagaraDebugHUDSettingsData::StaticStruct()));
-		DetailBuilder.HideProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(FNiagaraDebugHUDSettingsData, bSystemShowBounds), FNiagaraDebugHUDSettingsData::StaticStruct()));
 	}
 	
 	// Customize Filters

@@ -24,6 +24,7 @@
 #include "Widgets/Input/SComboButton.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SBoxPanel.h"
@@ -1177,15 +1178,24 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeToolbar()
 	{
 		ToolbarBuilder.AddToolBarButton(
 			FUIAction(
-				FExecuteAction::CreateLambda([=]() {Settings->Data.bSystemShowBounds = !Settings->Data.bSystemShowBounds; Settings->NotifyPropertyChanged(); }),
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bDrawBoundsEnabled = !Settings->Data.bDrawBoundsEnabled; Settings->NotifyPropertyChanged(); }),
 				HudEnabledAction,
-				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bSystemShowBounds; })
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bDrawBoundsEnabled; })
 			),
 			NAME_None,
 			LOCTEXT("BoundsLabel", "Bounds"),
 			LOCTEXT("BoundsTooltip", "Show system bounding boxes"),
 			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.ToggleShowBounds"),
 			EUserInterfaceActionType::ToggleButton
+		);
+
+		ToolbarBuilder.AddComboButton(
+			FUIAction(),
+			FOnGetContent::CreateSP(this, &SNiagaraDebugger::MakeBoundsOptionsMenu),
+			FText(),
+			LOCTEXT("BoundsModeOptionsTooltip", "Additional options for how we display bounds."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "MaterialEditor.ToggleMaterialStats"),
+			true
 		);
 	}
 
@@ -1449,6 +1459,49 @@ TSharedRef<SWidget> SNiagaraDebugger::MakeModeOptionsMenu()
 			),
 			NAME_None, EUserInterfaceActionType::ToggleButton);
 	}
+
+	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SWidget> SNiagaraDebugger::MakeBoundsOptionsMenu()
+{
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/true, nullptr);
+	UNiagaraDebugHUDSettings* Settings = GetMutableDefault<UNiagaraDebugHUDSettings>();
+
+	MenuBuilder.BeginSection(NAME_None);
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("DrawBoundsWireframe", "Wireframe"),
+			LOCTEXT("DrawBoundsWireframeTooltip", "When enabled the bounds are draw as a wireframe box, when disabled they are a solid box."),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([=]() {Settings->Data.bDrawBoundsWireframe = !Settings->Data.bDrawBoundsWireframe; Settings->NotifyPropertyChanged(); }),
+				FCanExecuteAction::CreateLambda([=]() { return Settings->Data.bDrawBoundsEnabled; }),
+				FIsActionChecked::CreateLambda([=]() { return Settings->Data.bDrawBoundsWireframe; })
+			),
+			NAME_None, EUserInterfaceActionType::ToggleButton
+		);
+
+		MenuBuilder.AddWidget(
+			SNew(SBox)
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				[
+					SNew(SSpinBox<float>)
+					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+					.MinValue(0.0f)
+					.MaxValue(1.0f)
+					.MinSliderValue(0.0f)
+					.MaxSliderValue(1.0f)
+					.Value(TAttribute<float>::CreateLambda([=]() { return Settings->Data.DrawBoundsAlpha; }))
+					.OnValueChanged(SSpinBox<float>::FOnValueChanged::CreateLambda([=](float NewValue) {Settings->Data.DrawBoundsAlpha = NewValue; Settings->NotifyPropertyChanged(); }))
+				],
+			LOCTEXT("DrawBoundsAlpha", "Alpha"),
+			false,
+			true,
+			LOCTEXT("DrawBoundsAlphaTooltip", "Controls the alpha channel for the bounds rendering.")
+		);
+	}
+	MenuBuilder.EndSection();
 
 	return MenuBuilder.MakeWidget();
 }

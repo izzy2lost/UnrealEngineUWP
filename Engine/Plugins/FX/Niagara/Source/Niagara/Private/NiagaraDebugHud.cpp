@@ -140,8 +140,12 @@ namespace NiagaraDebugLocal
 		MakeTuple(TEXT("PerfGraphMode="), TEXT("Change the mode of the perf graph"), [](FString Arg) {Settings.PerfGraphMode = (ENiagaraDebugHUDPerfGraphMode)FCString::Atoi(*Arg); }),
 		MakeTuple(TEXT("PerfGraphTimeRange="), TEXT("Time range for the Y axis of the perf graph"), [](FString Arg) {Settings.PerfGraphTimeRange = FCString::Atof(*Arg); }),
 
+		// Bounds commands
+		MakeTuple(TEXT("DrawBoundsEnabled="), TEXT("Draw the component bounds"), [](FString Arg) {Settings.bDrawBoundsEnabled = FCString::Atoi(*Arg) != 0; }),
+		MakeTuple(TEXT("DrawBoundsWireframe="), TEXT("Draw the component bounds"), [](FString Arg) {Settings.bDrawBoundsWireframe = FCString::Atoi(*Arg) != 0; }),
+		MakeTuple(TEXT("DrawBoundsAlpha="), TEXT("Draw the component bounds"), [](FString Arg) {Settings.DrawBoundsAlpha = FCString::Atof(*Arg); }),
+
 		// System commands
-		MakeTuple(TEXT("SystemShowBounds="), TEXT("Show system bounds"), [](FString Arg) {Settings.bSystemShowBounds = FCString::Atoi(*Arg) != 0; }),
 		MakeTuple(TEXT("SystemShowActiveOnlyInWorld="), TEXT("When enabled only active systems are shown in world"), [](FString Arg) {Settings.bSystemShowActiveOnlyInWorld = FCString::Atoi(*Arg) != 0; }),
 		MakeTuple(TEXT("SystemDebugVerbosity="), TEXT("Set the in world system debug verbosity"), [](FString Arg) {Settings.SystemDebugVerbosity = FMath::Clamp(ENiagaraDebugHudVerbosity(FCString::Atoi(*Arg)), ENiagaraDebugHudVerbosity::None, ENiagaraDebugHudVerbosity::Verbose); }),
 		MakeTuple(TEXT("SystemEmitterVerbosity="), TEXT("Set the in world system emitter debug verbosity"), [](FString Arg) {Settings.SystemEmitterVerbosity = FMath::Clamp(ENiagaraDebugHudVerbosity(FCString::Atoi(*Arg)), ENiagaraDebugHudVerbosity::None, ENiagaraDebugHudVerbosity::Verbose); }),
@@ -600,34 +604,34 @@ namespace NiagaraDebugLocal
 		return TPair<FVector2f, FVector2f>(StringSize, OutLocation);
 	}
 
-	void DrawBox(UWorld* World, const FVector& Location, const FVector& Extents, const FLinearColor& Color, float SolidAlpha = 0.0f, float Thickness = 3.0f)
+	void DrawWireframeBox(UWorld* World, const FVector& Location, const FVector& Extents, const FLinearColor& Color, float Thickness = 3.0f)
 	{
 		if (ULineBatchComponent* LineBatcher = World->LineBatcher)
 		{
-			if (SolidAlpha > 0.0f)
-			{
-				const FBox BoundsBox(-Extents, Extents);
-				FColor BoxColor = Color.ToFColor(false);
-				BoxColor.A = uint8(FMath::Clamp(int32(SolidAlpha * 255.0f), 0, 255));
-				LineBatcher->DrawSolidBox(BoundsBox, FTransform(FQuat::Identity, Location), BoxColor, 0, 0.0f);
-			}
-			else
-			{
-				LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, -Extents.Y, Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, Extents.Y, Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, Extents.Y, Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, -Extents.Y, Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, Extents.Y, Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, Extents.Y, Extents.Z), Color, 0, Thickness);
 
-				LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, -Extents.Z), Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Location + FVector(Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, -Extents.Z), Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Location + FVector(Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
 
-				LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, Extents.Z), Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
-				LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, Extents.Z), Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
-			}
+			LineBatcher->DrawLine(Location + FVector(Extents.X, Extents.Y, Extents.Z), Location + FVector(Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(Extents.X, -Extents.Y, Extents.Z), Location + FVector(Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, -Extents.Y, Extents.Z), Location + FVector(-Extents.X, -Extents.Y, -Extents.Z), Color, 0, Thickness);
+			LineBatcher->DrawLine(Location + FVector(-Extents.X, Extents.Y, Extents.Z), Location + FVector(-Extents.X, Extents.Y, -Extents.Z), Color, 0, Thickness);
+		}
+	}
+
+	void DrawBox(UWorld* World, const FVector& Location, const FVector& Extents, const FLinearColor& Color)
+	{
+		if (ULineBatchComponent* LineBatcher = World->LineBatcher)
+		{
+			const FBox BoundsBox(-Extents, Extents);
+			FColor BoxColor = Color.ToFColor(false);
+			LineBatcher->DrawSolidBox(BoundsBox, FTransform(FQuat::Identity, Location), BoxColor, 0, 0.0f);
 		}
 	}
 
@@ -2808,12 +2812,22 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 		const bool bIsActive = FXComponent->IsActive();
 
 		// Show system bounds (only active components)
-		if (Settings.bSystemShowBounds && bIsActive)
+		if (Settings.bDrawBoundsEnabled)
 		{
-			const FBox Bounds = FXComponent->CalcBounds(FXComponent->GetComponentTransform()).GetBox();
-			if (Bounds.IsValid)
+			const FBox BoundsToDraw = FXComponent->CalcBounds(FXComponent->GetComponentTransform()).GetBox();
+			if (BoundsToDraw.IsValid)
 			{
-				DrawBox(World, Bounds.GetCenter(), Bounds.GetExtent(), FColor::Red, Settings.SystemBoundsSolidBoxAlpha);
+				FLinearColor BoundsColor = bIsActive ? FLinearColor::Red : FLinearColor::Black;
+				BoundsColor.A = Settings.DrawBoundsAlpha;
+
+				if (Settings.bDrawBoundsWireframe)
+				{
+					DrawWireframeBox(World, BoundsToDraw.GetCenter(), BoundsToDraw.GetExtent(), BoundsColor);
+				}
+				else
+				{
+					DrawBox(World, BoundsToDraw.GetCenter(), BoundsToDraw.GetExtent(), BoundsColor);
+				}
 			}
 		}
 

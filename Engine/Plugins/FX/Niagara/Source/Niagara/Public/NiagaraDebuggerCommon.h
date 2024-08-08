@@ -471,10 +471,6 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(VisibleAnywhere, Category = "Debug Overview")
 	bool bOverviewEnabled = false;
 
-	/** When enabled will show the system bounds for all filtered systems. */
-	UPROPERTY(VisibleAnywhere, Category = "Debug Overview")
-	bool bSystemShowBounds = false;
-
 	UPROPERTY(EditAnywhere, Category = "Debug Overview", meta = (DisplayName = "Debug Overview Mode", EditCondition = "bOverviewEnabled"))
 	ENiagaraDebugHUDOverviewMode OverviewMode = ENiagaraDebugHUDOverviewMode::Overview;
 
@@ -719,9 +715,14 @@ struct FNiagaraDebugHUDSettingsData
 	UPROPERTY(EditAnywhere, Category = "Style", meta = (EditCondition = "bShowParticleVariables"))
 	FNiagaraDebugHudTextOptions ParticleTextOptions;
 
-	/** When bounds display is enabled allows you to draw a solid box if alpha is > 0. */
-	UPROPERTY(EditAnywhere, Category = "Style", meta = (EditCondition = "bSystemShowBounds"))
-	float SystemBoundsSolidBoxAlpha = 0.0f;
+	UPROPERTY()
+	bool bDrawBoundsEnabled = false;
+
+	UPROPERTY()
+	bool bDrawBoundsWireframe = true;
+
+	UPROPERTY()
+	float DrawBoundsAlpha = 1.0f;
 
 	// Default background color used generally for panels
 	UPROPERTY(EditAnywhere, Category = "Style")
