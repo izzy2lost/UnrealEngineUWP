@@ -121,17 +121,12 @@ void FInstallBundleCombinedProgressTracker::SetBundlesToTrackFromContentState(co
 	for (const TPair<FName, FInstallBundleContentState>& IndividualBundlePair : BundleContentState.IndividualBundleStates)
 	{
 		const FInstallBundleContentState& BundleState = IndividualBundlePair.Value;
-		if (BundleState.Weight <= SMALL_NUMBER)
-		{
-			continue;
-		}
-		else
+		if (BundleState.Weight > SMALL_NUMBER)
 		{
 			bAreAllBundlesZeroWeight = false;
 			break;
 		}
 	}
-		
 
 	bool bBundleNeedsUpdate = false;
 	float TotalWeight = 0.0f;
