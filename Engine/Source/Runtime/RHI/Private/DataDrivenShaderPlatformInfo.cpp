@@ -492,6 +492,7 @@ void FGenericDataDrivenShaderPlatformInfo::UpdatePreviewPlatforms()
 				else
 				{
 					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsInstancedStereo);
+					PREVIEW_DISABLE_IF_RUNTIME_UNSUPPORTED(bSupportsVertexShaderLayer);
 				}
 
 				// Settings that should be kept true if the runtime also supports it.
