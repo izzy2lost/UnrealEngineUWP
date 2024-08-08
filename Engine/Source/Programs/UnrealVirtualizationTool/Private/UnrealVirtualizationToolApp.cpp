@@ -855,7 +855,7 @@ bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, c
 		TRACE_CPUPROFILER_EVENT_SCOPE(RunChildProcess);
 
 		const FString CurrentExePath = FPlatformProcess::ExecutablePath();
-		FString Args = FString::Printf(TEXT("%s -ChildProcess=%s"), *Project.GetProjectFilePath(), InputFilePath.ToString());
+		FString Args = FString::Printf(TEXT("\"%s\" -ChildProcess=\"%s\""), *Project.GetProjectFilePath(), InputFilePath.ToString());
 
 		if (!GlobalOptions.IsEmpty())
 		{
