@@ -3,14 +3,12 @@
 #include "Common/StringStore.h"
 #include "Misc/ScopeLock.h"
 
-
 namespace TraceServices
 {
 
 FStringStore::FStringStore(FSlabAllocator& InAllocator)
 	: Allocator(InAllocator)
 {
-
 }
 
 const TCHAR* FStringStore::Store(const TCHAR* String)
@@ -21,13 +19,19 @@ const TCHAR* FStringStore::Store(const TCHAR* String)
 const TCHAR* FStringStore::Store(const FStringView& String)
 {
 	FScopeLock _(&Cs);
+
 	uint32 Hash = GetTypeHash(String);
-	const TCHAR** AlreadyStored = StoredStrings.Find(Hash);
-	if (AlreadyStored && !String.Compare(FStringView(*AlreadyStored)))
+
+	FindStoredStrings.Reset();
+	StoredStrings.MultiFind(Hash, FindStoredStrings);
+	for (const TCHAR* FoundStoredString : FindStoredStrings)
 	{
-		return *AlreadyStored;
+		if (!String.Compare(FStringView(FoundStoredString)))
+		{
+			return FoundStoredString;
+		}
 	}
-	
+
 	int32 StringLength = String.Len() + 1;
 	if (BufferLeft < StringLength)
 	{
@@ -40,12 +44,10 @@ const TCHAR* FStringStore::Store(const FStringView& String)
 	BufferPtr[StringLength - 1] = TEXT('\0');
 	BufferLeft -= StringLength;
 	BufferPtr += StringLength;
-	if (!AlreadyStored)
-	{
-		StoredStrings.Add(Hash, Stored);
-	}
+
+	StoredStrings.Add(Hash, Stored);
+
 	return Stored;
 }
-
 
 } // namespace TraceServices
