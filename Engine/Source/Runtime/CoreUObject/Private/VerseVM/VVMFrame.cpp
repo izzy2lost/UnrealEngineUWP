@@ -36,5 +36,13 @@ void VFrame::VisitReferencesImpl(TVisitor& Visitor)
 	}
 }
 
+TGlobalHeapPtr<VFrame> VFrame::GlobalEmptyFrame;
+
+void VFrame::InitializeGlobalEmpty(FAllocationContext Context)
+{
+	VProcedure& Procedure = VProcedure::NewUninitialized(Context, VUniqueString::New(Context, "Empty"), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+	GlobalEmptyFrame.Set(Context, &VFrame::New(Context, nullptr, nullptr, VValue(), Procedure));
+}
+
 } // namespace Verse
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

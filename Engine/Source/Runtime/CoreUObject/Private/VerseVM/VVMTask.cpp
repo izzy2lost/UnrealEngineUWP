@@ -66,7 +66,7 @@ void VTask::BindStructTrivial(FAllocationContext Context)
 	VTask::EmergentType.Set(Context, NewEmergentType);
 }
 
-FOpResult VTask::ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::ActiveImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -75,7 +75,7 @@ FOpResult VTask::ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, 
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::CompletedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::CompletedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -84,7 +84,7 @@ FOpResult VTask::CompletedImpl(FRunningContext Context, VTask* Task, VValue Scop
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::CancelingImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::CancelingImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -93,7 +93,7 @@ FOpResult VTask::CancelingImpl(FRunningContext Context, VTask* Task, VValue Scop
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::CanceledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::CanceledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -102,7 +102,7 @@ FOpResult VTask::CanceledImpl(FRunningContext Context, VTask* Task, VValue Scope
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::UnsettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::UnsettledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -111,7 +111,7 @@ FOpResult VTask::UnsettledImpl(FRunningContext Context, VTask* Task, VValue Scop
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::SettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::SettledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -120,7 +120,7 @@ FOpResult VTask::SettledImpl(FRunningContext Context, VTask* Task, VValue Scope,
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::UninterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::UninterruptedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -129,7 +129,7 @@ FOpResult VTask::UninterruptedImpl(FRunningContext Context, VTask* Task, VValue 
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::InterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::InterruptedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -138,13 +138,15 @@ FOpResult VTask::InterruptedImpl(FRunningContext Context, VTask* Task, VValue Sc
 	V_RETURN(GlobalFalse());
 }
 
-FOpResult VTask::AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::AwaitImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
 
 	if (!Self->Result)
 	{
+		VTask* Task = Context.NativeContext().Task;
+
 		Task->Park(Context, Self->LastAwait);
 
 		V_DIE_IF(Task->NativeDefer);
@@ -176,7 +178,7 @@ FOpResult VTask::AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, V
 //    cancelled synchronously by the `EndTask` instruction at the end of unwinding.
 // 4) Resume any cancelers, followed by the parent if it is in phase 2 and this is its last child.
 //    The parent task's phase 2 guarantees that its last child does not change while it is waiting.
-FOpResult VTask::CancelImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments)
+FOpResult VTask::CancelImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments)
 {
 	V_DIE_UNLESS(Scope.IsCellOfType<VTask>());
 	VTask* Self = &Scope.StaticCast<VTask>();
@@ -185,6 +187,8 @@ FOpResult VTask::CancelImpl(FRunningContext Context, VTask* Task, VValue Scope, 
 	{
 		if (!Self->RequestCancel(Context))
 		{
+			VTask* Task = Context.NativeContext().Task;
+
 			Task->Park(Context, Self->LastCancel);
 
 			V_DIE_IF(Task->NativeDefer);

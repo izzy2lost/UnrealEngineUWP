@@ -104,7 +104,7 @@ namespace Verse
 // used, we can elide the allocation of the VPlaceholder altogether.
 
 // This is used as a special PC to get the interpreter to break out of its loop.
-static FOpErr StopInterpreterSentry;
+FOpErr StopInterpreterSentry;
 
 namespace
 {
@@ -233,7 +233,7 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 }
 
 template <typename ArgFunction, typename ReturnSlotType>
-static VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, TArrayView<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg)
+static VFrame& MakeFrameForCallee(FAllocationContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, TArrayView<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, CallerPC, CallerFrame, ReturnSlot, Procedure);
@@ -1425,7 +1425,7 @@ class FInterpreter
 	}
 
 	template <typename OpType>
-	FOpResult CallImpl(OpType& Op, VValue Callee, VTask* TaskContext)
+	FOpResult CallImpl(OpType& Op, VValue Callee, VTask* TaskContext, VValue IncomingEffectToken)
 	{
 		// Handles FOpCall for all cases except VFunction calls which
 		// are handled differently for lenient and non-lenient calls.
@@ -1434,6 +1434,17 @@ class FInterpreter
 		auto Arguments = GetOperands(Op.Arguments);
 		if (VNativeFunction* NativeFunction = Callee.DynamicCast<VNativeFunction>())
 		{
+			// With leniency, the active failure contexts aren't 1:1 with the active transactions.
+			// The active failure contexts form a tree. The active transactions form a path in that tree.
+			// Right now, an active VM transaction is 1:1 with an RTFM transaction.
+			// So, this begs the question: when calling a native function that has effects <= <computes>,
+			// what do we do if that native call is inside a failure context that isn't part of the active transaction path.
+			// What transaction do we run it in?
+			// If we make it so that native functions suspend on the effect token, we never find ourselves in the
+			// "what do we do if that native call is inside a failure context that isn't part of the active transaction path" problem.
+			// But also, long term, this will make more programs stuck than we want.
+			REQUIRE_CONCRETE(IncomingEffectToken);
+
 			VFunction::Args Args;
 			Args.AddUninitialized(NativeFunction->NumParameters);
 			UnboxArguments(
@@ -1444,7 +1455,10 @@ class FInterpreter
 				[&](uint32 Param, VValue Value) {
 					Args[Param] = Value;
 				});
-			FNativeCallResult Result = (*NativeFunction->Thunk)(Context, TaskContext, NativeFunction->Self.Get(), Args);
+			FNativeCallResult Result{FNativeCallResult::Error};
+			Context.RunInNativeContext(Failure, TaskContext, [&] {
+				Result = (*NativeFunction->Thunk)(Context, NativeFunction->Self.Get(), Args);
+			});
 			OP_RESULT_HELPER(Result);
 			DEF(Op.Dest, Result.Value);
 		}
@@ -2481,7 +2495,7 @@ class FInterpreter
 					}
 					else
 					{
-						OP_IMPL_HELPER(Call, Callee, Task);
+						OP_IMPL_HELPER(Call, Callee, Task, EffectToken.Get(Context));
 					}
 				}
 				END_OP_CASE()
@@ -2504,7 +2518,7 @@ class FInterpreter
 					}
 					else
 					{
-						OP_IMPL_HELPER(Call, Callee, Task);
+						OP_IMPL_HELPER(Call, Callee, Task, EffectToken.Get(Context));
 					}
 				}
 				END_OP_CASE();
@@ -2729,8 +2743,20 @@ class FInterpreter
 							}
 							else
 							{
-								OP_IMPL_HELPER(Call, Callee, CurrentSuspension->Task.Get());
-								DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
+								FOpResult Result = CallImpl(Op, Callee, CurrentSuspension->Task.Get(), GetOperand(Op.EffectToken));
+								switch (Result.Kind)
+								{
+									case FOpResult::Return:
+									case FOpResult::Yield:
+										DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
+										break;
+
+									case FOpResult::Block:
+									case FOpResult::Fail:
+									case FOpResult::Error:
+										break;
+								}
+								OP_RESULT_HELPER(Result);
 							}
 						}
 						END_OP_CASE()
@@ -2764,7 +2790,7 @@ class FInterpreter
 							}
 							else
 							{
-								OP_IMPL_HELPER(Call, Callee, CurrentSuspension->Task.Get());
+								OP_IMPL_HELPER(Call, Callee, CurrentSuspension->Task.Get(), GetOperand(Op.EffectToken));
 								DEF(Op.ReturnEffectToken, GetOperand(Op.EffectToken));
 							}
 						}
@@ -2849,8 +2875,11 @@ public:
 	}
 
 	// Upon failure, returns an uninitialized VValue
-	static VValue InvokeInTransaction(FRunningContext Context, VFunction::Args&& IncomingArguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, VFunction& Function)
+	static FOpResult Invoke(FRunningContext Context, VFunction::Args&& IncomingArguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, VFunction& Function)
 	{
+		// This function expects to be run in the open
+		check(!AutoRTFM::IsClosed());
+
 		VRestValue ReturnSlot(0);
 
 		VFunction::Args Arguments = MoveTemp(IncomingArguments);
@@ -2868,38 +2897,26 @@ public:
 			[&](uint32 Arg) {
 				return Arguments[Arg];
 			});
-		VTask& Task = VTask::New(Context, CallerPC, &Frame, /*YieldTask*/ nullptr, /*Parent*/ nullptr);
-		VFailureContext& FailureContext = VFailureContext::New(
-			Context,
-			&Task,
-			/*Parent*/ nullptr,
-			Frame,
-			VValue(), // IncomingEffectToken doesn't matter here, since we bail out if we fail at the top level.
-			&StopInterpreterSentry);
+
+		// Check if we're inside native C++ code that was invoked by Verse
+		const FNativeContext& NativeContext = Context.NativeContext();
+		V_DIE_UNLESS(NativeContext.IsValid());
 
 		FInterpreter Interpreter(
 			Context,
 			FExecutionState(Function.GetProcedure().GetOpsBegin(), &Frame),
-			&FailureContext,
-			&Task,
+			NativeContext.FailureContext,
+			NativeContext.Task,
 			VValue::EffectDoneMarker());
 
-		AutoRTFM::TransactThenOpen([&] {
-			FailureContext.Transaction.Start(Context);
-			Interpreter.Execute();
-			if (!FailureContext.Transaction.bHasAborted)
-			{
-				FailureContext.Transaction.Commit(Context);
-			}
-		});
+		Interpreter.Execute();
 
 		if (CVarTraceExecution.GetValueOnAnyThread())
 		{
 			UE_LOG(LogVerseVM, Display, TEXT("\n"));
 		}
 
-		VValue Result = FailureContext.bFailed ? VValue() : ReturnSlot.Get(Context);
-		return Result;
+		return NativeContext.FailureContext->bFailed ? FOpResult(FOpResult::Fail) : FOpResult(FOpResult::Return, ReturnSlot.Get(Context));
 	}
 
 	static void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument, VTask& Task)
@@ -2995,22 +3012,22 @@ public:
 	}
 };
 
-VValue VFunction::InvokeInTransaction(FRunningContext Context, VFunction::Args&& Args, TArray<TWriteBarrier<VUniqueString>>* NamedArgs)
+FOpResult VFunction::Invoke(FRunningContext Context, VFunction::Args&& Args, TArray<TWriteBarrier<VUniqueString>>* NamedArgs)
 {
-	VValue Result = FInterpreter::InvokeInTransaction(Context, MoveTemp(Args), NamedArgs, *this);
-	check(!Result.IsPlaceholder());
+	FOpResult Result = FInterpreter::Invoke(Context, MoveTemp(Args), NamedArgs, *this);
+	check(Result.Kind != FOpResult::Return || !Result.Value.IsPlaceholder());
 	return Result;
 }
 
-VValue VFunction::InvokeInTransaction(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* ArgName)
+FOpResult VFunction::Invoke(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* ArgName)
 {
 	TArray<TWriteBarrier<VUniqueString>> NamedArgs;
 	if (ArgName)
 	{
 		NamedArgs.Add(*ArgName);
 	}
-	VValue Result = FInterpreter::InvokeInTransaction(Context, VFunction::Args{Argument}, ArgName ? &NamedArgs : nullptr, *this);
-	check(!Result.IsPlaceholder());
+	FOpResult Result = FInterpreter::Invoke(Context, VFunction::Args{Argument}, ArgName ? &NamedArgs : nullptr, *this);
+	check(Result.Kind != FOpResult::Return || !Result.Value.IsPlaceholder());
 	return Result;
 }
 

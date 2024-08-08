@@ -5,6 +5,7 @@
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
 #include "VerseVM/VVMFalse.h"
+#include "VerseVM/VVMFrame.h"
 #include "VerseVM/VVMGlobalProgram.h"
 #include "VerseVM/VVMHeap.h"
 #include "VerseVM/VVMTask.h"
@@ -26,6 +27,7 @@ void VerseVM::Startup()
 	Verse::VEmergentTypeCreator::Initialize(Context);
 	Verse::VFalse::InitializeGlobals(Context);
 	Verse::VTask::BindStructTrivial(Context);
+	Verse::VFrame::InitializeGlobalEmpty(Context);
 
 	// VerseVM requires RTFM enabled
 #if UE_AUTORTFM || defined(__INTELLISENSE__)

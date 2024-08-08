@@ -27,7 +27,7 @@ struct VNativeFunction : VHeapValue
 
 	// Interface between VerseVM and C++
 	using Args = TArrayView<VValue>;
-	using FThunkFn = FNativeCallResult (*)(FRunningContext, VTask*, VValue Scope, Args Arguments);
+	using FThunkFn = FNativeCallResult (*)(FRunningContext, VValue Scope, Args Arguments);
 
 	// The C++ function to call
 	FThunkFn Thunk;

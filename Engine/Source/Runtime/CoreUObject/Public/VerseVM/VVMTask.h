@@ -78,17 +78,17 @@ struct VTask : VValueObject
 	COREUOBJECT_API void ResumeInTransaction(FRunningContext Context, VValue ResumeArgument);
 	COREUOBJECT_API void UnwindInTransaction(FRunningContext Context);
 
-	COREUOBJECT_API static FOpResult ActiveImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult CompletedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult CancelingImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult CanceledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult UnsettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult SettledImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult UninterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult InterruptedImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult ActiveImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CompletedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CancelingImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CanceledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult UnsettledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult SettledImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult UninterruptedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult InterruptedImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 
-	COREUOBJECT_API static FOpResult AwaitImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
-	COREUOBJECT_API static FOpResult CancelImpl(FRunningContext Context, VTask* Task, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult AwaitImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
+	COREUOBJECT_API static FOpResult CancelImpl(FRunningContext Context, VValue Scope, VNativeFunction::Args Arguments);
 
 	bool RequestCancel(FRunningContext Context);
 	bool CancelChildren(FRunningContext Context);

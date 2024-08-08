@@ -420,6 +420,27 @@ struct FAccessContext : FContext
 		GetImpl()->SetCurrentTransaction(Transaction);
 	}
 
+	const FNativeContext& NativeContext() const
+	{
+		return GetImpl()->NativeContext();
+	}
+
+	// Run the functor in the same transaction with the given native context stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void RunInNativeContext(VFailureContext* FailureContext, VTask* Task, const TFunctor& F)
+	{
+		GetImpl()->RunInNativeContext(FailureContext, Task, F);
+	}
+
+	// Run the functor in a new transaction with a fresh native context (i.e. new failure context) stashed in this context
+	// TFunctor is ()->void
+	template <typename TFunctor>
+	void TransactInNewNativeContext(const TFunctor& F)
+	{
+		GetImpl()->TransactInNewNativeContext(F);
+	}
+
 protected:
 	friend struct FContextImpl;
 
@@ -629,6 +650,14 @@ struct FAllocationContext : FAccessContext
 	}
 
 protected:
+	friend struct FContextImpl;
+
+	FAllocationContext(FContextImpl* Impl, EIsInHandshake IsInHandshake)
+		: FAccessContext(Impl, IsInHandshake)
+	{
+		CheckAllocationInvariants();
+	}
+
 	void CheckAllocationInvariants() const
 	{
 		checkSlow(IsInHandshake() == EIsInHandshake::No);
@@ -703,6 +732,27 @@ inline FRunningContext FIOContext::AcquireAccessForManualStackScanning()
 	checkSlow(UsesManualStackScanning());
 	GetImpl()->AcquireAccess();
 	return FRunningContext(*this);
+}
+
+template <typename TFunctor>
+void FContextImpl::RunInNativeContext(VFailureContext* FailureContext, VTask* Task, const TFunctor& F)
+{
+	check(!AutoRTFM::IsClosed()); // This is meant to be run in the open
+
+	TGuardValue<FNativeContext> NativeContextGuard(_NativeContext, {FailureContext, Task});
+	F();
+}
+
+template <typename TFunctor>
+void FContextImpl::TransactInNewNativeContext(const TFunctor& F)
+{
+	AutoRTFM::TransactThenOpen([&] {
+		TGuardValue<FNativeContext> NativeContextGuard(_NativeContext, MakeNewNativeContext());
+		FRunningContext Context(this, EIsInHandshake::No);
+		_NativeContext.Start(Context);
+		F();
+		_NativeContext.Commit(Context);
+	});
 }
 
 } // namespace Verse

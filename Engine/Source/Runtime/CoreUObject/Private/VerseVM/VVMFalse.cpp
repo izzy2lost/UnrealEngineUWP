@@ -20,10 +20,10 @@ TGlobalHeapPtr<VOption> GlobalTruePtr;
 
 void VFalse::InitializeGlobals(Verse::FAllocationContext Context)
 {
-	Verse::GlobalFalsePtr.Set(Context, &VFalse::New(Context));
+	GlobalFalsePtr.Set(Context, &VFalse::New(Context));
 
 	VValue True(*GlobalFalsePtr.Get());
-	Verse::GlobalTruePtr.Set(Context, &VOption::New(Context, True));
+	GlobalTruePtr.Set(Context, &VOption::New(Context, True));
 }
 
 void VFalse::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)

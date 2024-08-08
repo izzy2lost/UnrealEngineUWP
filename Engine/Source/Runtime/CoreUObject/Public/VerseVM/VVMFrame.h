@@ -29,6 +29,8 @@ struct VFrame : VCell
 	const uint32 NumRegisters;
 	VRestValue Registers[];
 
+	static TGlobalHeapPtr<VFrame> GlobalEmptyFrame;
+
 	template <typename ReturnSlotType>
 	static VFrame& New(FAllocationContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VProcedure& Procedure)
 	{
@@ -40,6 +42,8 @@ struct VFrame : VCell
 	{
 		return VFrame::New(Context, *this);
 	}
+
+	static void InitializeGlobalEmpty(FAllocationContext Context);
 
 private:
 	static VFrame& New(FAllocationContext Context, VFrame& Other)
