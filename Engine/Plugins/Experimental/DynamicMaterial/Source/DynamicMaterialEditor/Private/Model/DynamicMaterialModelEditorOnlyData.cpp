@@ -495,9 +495,14 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	ForEachMaterialPropertyType(
 		[this, &BuildState](EDMMaterialPropertyType InType)
 		{
+			if (FExpressionInput* Input = BuildState->GetMaterialProperty(InType))
+			{
+				Input->Expression = nullptr;
+			}
+
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				if (Property->IsMaterialPin())
+				if (Property->IsEnabled() && Property->IsMaterialPin())
 				{
 					Property->GenerateExpressions(BuildState);
 
@@ -520,16 +525,18 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		 */
 		EDMMaterialPropertyType GenerateOpacityInput = EDMMaterialPropertyType::None;
 
+		// Masked materials use the mask property.
 		if (BlendMode == EBlendMode::BLEND_Masked)
 		{
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask) == nullptr)
+			if (GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::OpacityMask) == nullptr)
 			{
 				GenerateOpacityInput = EDMMaterialPropertyType::OpacityMask;
 			}
 		}
+		// Any other translucent material will use the opacity property.
 		else if (BlendMode != EBlendMode::BLEND_Opaque)
 		{
-			if (GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
+			if (GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::Opacity) == nullptr)
 			{
 				GenerateOpacityInput = EDMMaterialPropertyType::Opacity;
 			}
@@ -540,12 +547,12 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			UDMMaterialSlot* OpacitySlot = nullptr;
 			EDMMaterialPropertyType OpacityProperty = EDMMaterialPropertyType::None;
 
-			if (UDMMaterialSlot* BaseColorSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::BaseColor))
+			if (UDMMaterialSlot* BaseColorSlot = GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::BaseColor))
 			{
 				OpacitySlot = BaseColorSlot;
 				OpacityProperty = EDMMaterialPropertyType::BaseColor;
 			}
-			else if (UDMMaterialSlot* EmissiveSlot = GetSlotForMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+			else if (UDMMaterialSlot* EmissiveSlot = GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
 			{
 				OpacitySlot = EmissiveSlot;
 				OpacityProperty = EDMMaterialPropertyType::EmissiveColor;
@@ -593,7 +600,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 			OpacityProperty = GetMaterialProperty(EDMMaterialPropertyType::Opacity);
 		}
 
-		if (OpacityProperty != nullptr)
+		if (OpacityProperty != nullptr && OpacityProperty->IsEnabled())
 		{
 			OpacityProperty->AddAlphaMultiplier(BuildState);
 		}
@@ -607,7 +614,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 		{
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				if (Property->IsMaterialPin())
+				if (Property->IsMaterialPin() && Property->IsEnabled())
 				{
 					Property->AddOutputProcessor(BuildState);
 				}
@@ -1251,6 +1258,18 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForMaterialProperty
 	}
 
 	return nullptr;
+}
+
+UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType InType) const
+{
+	UDMMaterialProperty* Property = GetMaterialProperty(InType);
+
+	if (!Property || !Property->IsEnabled())
+	{
+		return nullptr;
+	}
+
+	return GetSlotForMaterialProperty(InType);
 }
 
 UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()

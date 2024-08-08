@@ -176,6 +176,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* GetSlotForMaterialProperty(EDMMaterialPropertyType InType) const;
 
+	/** Same as the above method, but will only return the slot if the material property is enabled. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* GetSlotForEnabledMaterialProperty(EDMMaterialPropertyType InType) const;
+
 	/** Adds the next available slot. Highly recommended to use AddSlotForMaterialProperty(PropertyType). */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API UDMMaterialSlot* AddSlot();
