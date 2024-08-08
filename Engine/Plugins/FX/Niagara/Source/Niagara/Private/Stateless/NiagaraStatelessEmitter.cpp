@@ -399,8 +399,8 @@ void UNiagaraStatelessEmitter::CacheFromCompiledData()
 			else //if (SpawnInfo.Type == ENiagaraStatelessSpawnInfoType::Burst)
 			{
 				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.Amount, 0);
-				EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.SpawnProbability, 0.0f);
 			}
+			EmitterBuildContext.ConvertDistributionToRange(SpawnInfo.SpawnProbability, 0.0f);
 		}
 
 		// Prepare renderer bindings this avoids having to do this per instance spawned
