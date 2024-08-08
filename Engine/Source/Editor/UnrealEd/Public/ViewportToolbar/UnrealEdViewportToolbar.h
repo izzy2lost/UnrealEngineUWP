@@ -37,7 +37,7 @@ UNREALED_API bool ShowNewViewportToolbars();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarTransformsSection();
 
-UNREALED_API FToolMenuEntry CreateViewportToolbarSelectionSection();
+UNREALED_API FToolMenuEntry CreateViewportToolbarSelectSection();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarSnappingSubmenu();
 

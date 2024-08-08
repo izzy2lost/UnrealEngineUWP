@@ -472,7 +472,7 @@ TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
 
 			// Add the "Selection" sub menu.
 			{
-				FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectionSection();
+				FToolMenuEntry SelectionSubmenu = UE::UnrealEd::CreateViewportToolbarSelectSection();
 				SelectionSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 				LeftSection.AddEntry(SelectionSubmenu);
 			}

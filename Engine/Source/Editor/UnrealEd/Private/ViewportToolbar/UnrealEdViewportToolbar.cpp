@@ -684,9 +684,9 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 	return Entry;
 }
 
-FToolMenuEntry CreateViewportToolbarSelectionSection()
+FToolMenuEntry CreateViewportToolbarSelectSection()
 {
-	return FToolMenuEntry::InitSubMenu(
+	FToolMenuEntry Entry = FToolMenuEntry::InitSubMenu(
 		"Select",
 		LOCTEXT("SelectonSubmenuLabel", "Select"),
 		LOCTEXT("SelectionSubmenuTooltip", "Viewport-related selection tools"),
@@ -991,6 +991,9 @@ FToolMenuEntry CreateViewportToolbarSelectionSection()
 			}
 		)
 	);
+
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.SelectMode");
+	return Entry;
 }
 
 FToolMenuEntry CreateViewportToolbarSnappingSubmenu()
