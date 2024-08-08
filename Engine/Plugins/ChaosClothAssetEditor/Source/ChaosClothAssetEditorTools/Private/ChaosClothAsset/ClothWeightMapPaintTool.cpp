@@ -195,10 +195,10 @@ void UClothEditorWeightMapPaintTool::Setup()
 	PolygonSelectionMechanic->Initialize(DynamicMeshComponent, GradientSelectionTopology.Get(), [this]() { return MeshSpatial.Get(); });
 
 	UpdateWeightMapProperties = NewObject<UClothEditorUpdateWeightMapProperties>(this);
-	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->Name;
+	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->OutputName.StringValue;
 	UpdateWeightMapProperties->MapOverrideType = WeightMapNodeToUpdate->MapOverrideType;
 
-	UpdateWeightMapProperties->WatchProperty(WeightMapNodeToUpdate->Name, [this](const FString& NewName)
+	UpdateWeightMapProperties->WatchProperty(WeightMapNodeToUpdate->OutputName.StringValue, [this](const FString& NewName)
 	{
 		UpdateWeightMapProperties->Name = NewName;
 	});
@@ -490,7 +490,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 		}
 	}
 
-	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->Name;
+	UpdateWeightMapProperties->Name = WeightMapNodeToUpdate->OutputName.StringValue;
 	UpdateWeightMapProperties->MapOverrideType = WeightMapNodeToUpdate->MapOverrideType;
 	SetToolPropertySourceEnabled(UpdateWeightMapProperties, true);
 
@@ -1777,7 +1777,7 @@ void UClothEditorWeightMapPaintTool::OnTick(float DeltaTime)
 bool UClothEditorWeightMapPaintTool::CanAccept() const
 {
 	return bAnyChangeMade || 
-		UpdateWeightMapProperties->Name != WeightMapNodeToUpdate->Name || 
+		UpdateWeightMapProperties->Name != WeightMapNodeToUpdate->OutputName.StringValue ||
 		UpdateWeightMapProperties->MapOverrideType != WeightMapNodeToUpdate->MapOverrideType;
 }
 
@@ -1985,7 +1985,7 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 
 
 	WeightMapNodeToUpdate->MapOverrideType = UpdateWeightMapProperties->MapOverrideType;
-	WeightMapNodeToUpdate->Name = UpdateWeightMapProperties->Name;
+	WeightMapNodeToUpdate->OutputName.StringValue = UpdateWeightMapProperties->Name;
 
 	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 
