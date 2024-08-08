@@ -71,22 +71,22 @@ public:
 		
 	void SetEnableDebugTesting(bool bValue)
 	{
-		GetContextOwner()->bEnableDebugTesting = bValue;
+		GetRootChooser()->bEnableDebugTesting = bValue;
 	}
 	
 	bool GetEnableDebugTesting() const
 	{
-		return GetContextOwner()->bEnableDebugTesting;
+		return GetRootChooser()->bEnableDebugTesting;
 	}
 	
 	void SetDebugTestValuesValid(bool bValue) const
    	{
-   		GetContextOwner()->bDebugTestValuesValid = bValue;
+   		GetRootChooser()->bDebugTestValuesValid = bValue;
    	}
 	
 	bool GetDebugTestValuesValid() const
 	{
-		return GetContextOwner()->bDebugTestValuesValid;
+		return GetRootChooser()->bDebugTestValuesValid;
 	}
 
 private:
@@ -125,12 +125,16 @@ public:
 	UPROPERTY()
 	TArray<TScriptInterface<IChooserColumn>> Columns_DEPRECATED;
 #endif
+	
+	
+	UChooserTable* GetRootChooser() { return RootChooser ? RootChooser.Get() : this; }
+	const UChooserTable* GetRootChooser() const { return RootChooser ? RootChooser.Get() : this; }
 
-	UChooserTable* GetContextOwner() { return ParentTable ? ParentTable.Get() : this; }
-	const UChooserTable* GetContextOwner() const { return ParentTable ? ParentTable.Get() : this; }
+	UChooserTable* GetContextOwner() { return RootChooser ? RootChooser.Get() : this; }
+	const UChooserTable* GetContextOwner() const { return RootChooser ? RootChooser.Get() : this; }
 
 	UPROPERTY()
-	TObjectPtr<UChooserTable> ParentTable;
+	TObjectPtr<UChooserTable> RootChooser;
 	
 	// FallbackResult will be used as the Result if there are no rows in the chooser which pass all filters.  If FallbackResult is not assigned, then the Chooser will return null in that case.
 	UPROPERTY(EditAnywhere, Meta = (ExcludeBaseStruct, BaseStruct = "/Script/Chooser.ObjectChooserBase"), Category = "Fallback")
@@ -143,6 +147,20 @@ public:
 
 	UPROPERTY()
 	TArray<bool> DisabledRows;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UChooserTable>> NestedChoosers;
+
+	void AddNestedChooser(UChooserTable* Chooser);
+	void RemoveNestedChooser(UChooserTable* Chooser);
+	FSimpleMulticastDelegate NestedChoosersChanged;
+
+	// deprecated in favor of RootChooser
+	UPROPERTY()
+	TObjectPtr<UChooserTable> ParentTable;
+
+	UPROPERTY()
+	uint32 Version = 0;
 #endif
 	
 	UPROPERTY()
@@ -160,7 +178,7 @@ public:
 	UPROPERTY(EditAnywhere, Category="Output")
 	EObjectChooserResultType ResultType = EObjectChooserResultType::ObjectResult;
 
-	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return GetContextOwner()->ContextData; }
+	virtual TConstArrayView<FInstancedStruct> GetContextData() const override { return GetRootChooser()->ContextData; }
 
 	bool IsCookedData() const { return !CookedResults.IsEmpty(); }
 	static FObjectChooserBase::EIteratorStatus EvaluateChooser(FChooserEvaluationContext& Context, const UChooserTable* Chooser, FObjectChooserBase::FObjectChooserIteratorCallback Callback);

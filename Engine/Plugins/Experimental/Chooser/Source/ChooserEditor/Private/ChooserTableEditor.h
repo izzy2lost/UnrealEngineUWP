@@ -6,6 +6,7 @@
 #include "Chooser.h"
 #include "EditorUndoClient.h"
 #include "PropertyEditorDelegates.h"
+#include "SNestedChooserTree.h"
 #include "Containers/RingBuffer.h"
 #include "Misc/NotifyHook.h"
 #include "Toolkits/AssetEditorToolkit.h"
@@ -34,6 +35,7 @@ public:
 
 namespace UE::ChooserEditor
 {
+	class SNestedChooserTree;
 	struct FChooserTableRow;
 	
 	class FChooserTableEditor : public FAssetEditorToolkit, public FSelfRegisteringEditorUndoClient, public FNotifyHook
@@ -82,6 +84,7 @@ namespace UE::ChooserEditor
 		virtual void NotifyPreChange( FProperty* PropertyAboutToChange ) override;
 		virtual void NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 
+		const UChooserTable* GetRootChooser() const { return Cast<UChooserTable>(EditingObjects[0]); }
 		UChooserTable* GetRootChooser() { return Cast<UChooserTable>(EditingObjects[0]); }
 		UChooserTable* GetChooser() { return BreadcrumbTrail->PeekCrumb(); }
 		const UChooserTable* GetChooser() const { return BreadcrumbTrail->PeekCrumb(); }
@@ -89,6 +92,7 @@ namespace UE::ChooserEditor
 		void PushChooserTableToEdit(UChooserTable* Chooser);
 		void PopChooserTableToEdit();
 		void RefreshAll();
+		void RefreshNestedChoosers();
 	
 		/** Used to show or hide certain properties */
 		void SetPropertyVisibilityDelegate(FIsPropertyVisible InVisibilityDelegate);
@@ -118,6 +122,8 @@ namespace UE::ChooserEditor
 		void SelectRow(int32 RowIndex, bool bClear = true);
 		void ClearSelectedRows(); 
 		bool IsRowSelected(int32 RowIndex);
+		
+		void SetChooserTableToEdit(UChooserTable* Chooser, bool bApplyToHistory = true);
 
 		enum class ESelectionType
 		{
@@ -142,6 +148,8 @@ namespace UE::ChooserEditor
 		TSharedRef<SDockTab> SpawnTableTab( const FSpawnTabArgs& Args );
 		/** Create the find/replace tab and its content */
 		TSharedRef<SDockTab> SpawnFindReplaceTab( const FSpawnTabArgs& Args );
+		/** Create the nested tables list tab and its content */
+		TSharedRef<SDockTab> SpawnNestedTablesTreeTab( const FSpawnTabArgs& Args );
 	
 		TSharedRef<ITableRow> GenerateTableRow(TSharedPtr<FChooserTableRow> InItem, const TSharedRef<STableViewBase>& OwnerTable);
 
@@ -158,18 +166,16 @@ namespace UE::ChooserEditor
 		static const FName PropertiesTabId;
 		static const FName FindReplaceTabId;
 		static const FName TableTabId;
+		static const FName NestedTablesTreeTabId;
 		
 		void AddHistory();
 		bool CanNavigateBack() const;
 		void NavigateBack();
 		bool CanNavigateForward() const;
 		void NavigateForward();
-		void SetChooserTableToEdit(UChooserTable* Chooser, bool bApplyToHistory = true);
 
 		/** The objects open within this editor */
 		TArray<UObject*> EditingObjects;
-
-		mutable UChooserTable* UndoChooser = nullptr;
 
 		UChooserColumnDetails* SelectedColumn = nullptr;
 		TArray<TObjectPtr<UChooserRowDetails>> SelectedRows;
@@ -192,6 +198,7 @@ namespace UE::ChooserEditor
 	public:
 
 		TSharedPtr<SComboButton>& GetCreateRowComboButton() { return CreateRowComboButton; };
+		TSharedPtr<SNestedChooserTree> NestedChooserTree;
 
 		/** The name given to all instances of this type of editor */
 		static const FName ToolkitFName;

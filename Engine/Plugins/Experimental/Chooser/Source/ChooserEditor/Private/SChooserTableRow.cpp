@@ -112,11 +112,11 @@ namespace UE::ChooserEditor
 			}
 			else if (ColumnName == Result) 
 			{
-				UChooserTable* ContextOwner = Chooser->GetContextOwner();
+				UChooserTable* ContextOwner = Chooser->GetRootChooser();
 				TSharedPtr<SWidget> ResultWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, FObjectChooserBase::StaticStruct(), Chooser->ResultsStructs[RowIndex->RowIndex].GetMutableMemory(), Chooser->ResultsStructs[RowIndex->RowIndex].GetScriptStruct(), ContextOwner->OutputObjectType,
 				FOnStructPicked::CreateLambda([this, InRowIndex=RowIndex->RowIndex](const UScriptStruct* ChosenStruct)
 				{
-					UChooserTable* ContextOwner = Chooser->GetContextOwner();
+					UChooserTable* ContextOwner = Chooser->GetRootChooser();
 					const FScopedTransaction Transaction(LOCTEXT("Change Row Result Type", "Change Row Result Type"));
 					Chooser->Modify(true);
 					Chooser->ResultsStructs[InRowIndex].InitializeAs(ChosenStruct);
@@ -237,11 +237,11 @@ namespace UE::ChooserEditor
 			}
 			else if (ColumnName == Result) 
 			{
-				UChooserTable* ContextOwner = Chooser->GetContextOwner();
+				UChooserTable* ContextOwner = Chooser->GetRootChooser();
 				TSharedPtr<SWidget> ResultWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, FObjectChooserBase::StaticStruct(), Chooser->FallbackResult.GetMutableMemory(), Chooser->FallbackResult.GetScriptStruct(), ContextOwner->OutputObjectType,
 				FOnStructPicked::CreateLambda([this](const UScriptStruct* ChosenStruct)
 				{
-					UChooserTable* ContextOwner = Chooser->GetContextOwner();
+					UChooserTable* ContextOwner = Chooser->GetRootChooser();
 					const FScopedTransaction Transaction(LOCTEXT("Change Row Result Type", "Change Row Result Type"));
 					Chooser->Modify(true);
 					Chooser->FallbackResult.InitializeAs(ChosenStruct);
@@ -262,7 +262,7 @@ namespace UE::ChooserEditor
 					FChooserColumnBase* Column = &Chooser->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
 					const UStruct * ColumnStruct = Chooser->ColumnsStructs[ColumnIndex].GetScriptStruct();
 
-					TSharedPtr<SWidget> ColumnWidget = FObjectChooserWidgetFactories::CreateColumnWidget(Column, ColumnStruct, Chooser->GetContextOwner(), -2);
+					TSharedPtr<SWidget> ColumnWidget = FObjectChooserWidgetFactories::CreateColumnWidget(Column, ColumnStruct, Chooser->GetRootChooser(), -2);
 				
 					if (ColumnWidget.IsValid())
 					{
@@ -296,7 +296,7 @@ namespace UE::ChooserEditor
 			{
 				bDropSupported = true;
 			
-				UChooserTable* ContextOwner = Chooser->GetContextOwner();
+				UChooserTable* ContextOwner = Chooser->GetRootChooser();
 				if (ContextOwner->OutputObjectType) // if OutputObjectType is null, then any kind of object is supported, don't need to check all of them
 				{
 					for (const FAssetData& Asset : ContentDragDropOp->GetAssets())
@@ -419,7 +419,7 @@ namespace UE::ChooserEditor
 						}
 						else
 						{
-							UChooserTable* ContextOwner = Chooser->GetContextOwner();
+							UChooserTable* ContextOwner = Chooser->GetRootChooser();
 							if (ContextOwner->OutputObjectType == nullptr || ensure(AssetClass->IsChildOf(ContextOwner->OutputObjectType)))
 							{
 								NewResult.InitializeAs(FAssetChooser::StaticStruct());

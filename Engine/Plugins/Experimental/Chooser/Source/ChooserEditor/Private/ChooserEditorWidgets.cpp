@@ -100,7 +100,7 @@ TSharedRef<SWidget> CreateEvaluateChooserWidget(bool bReadOnly, UObject* Transac
 		 	{
 		 		if (UChooserTable* Chooser = Cast<UChooserTable>(InAssetData.GetAsset()))
 		 		{
-		 			UChooserTable* ContextOwner = Chooser->GetContextOwner();
+		 			UChooserTable* ContextOwner = Chooser->GetRootChooser();
 		 			return !(ContextOwner->OutputObjectType && ContextOwner->OutputObjectType->IsChildOf(ResultBaseClass));
 		 		}
 		 	}
@@ -178,12 +178,51 @@ TSharedRef<SWidget> CreateNestedChooserWidget(bool bReadOnly, UObject* Transacti
 											.Label(LOCTEXT("NewNestedChooserLabel", "New Chooser Name"))
 											.OnTextCommitted_Lambda([NestedChooser, TransactionObject](FText InText, ETextCommit::Type InCommitType)
 											{
-												const FScopedTransaction Transaction(LOCTEXT("Assign New Nested Chooser", "Assign New Nested Chooser"));
-												TransactionObject->Modify(true);
-											
-												FSlateApplication::Get().DismissAllMenus();
-												NestedChooser->Chooser = NewObject<UChooserTable>(TransactionObject, UChooserTable::StaticClass(), FName(InText.ToString()), RF_Transactional);
-												NestedChooser->Chooser->ParentTable = Cast<UChooserTable>(TransactionObject);
+												if (InCommitType == ETextCommit::OnEnter)
+												{
+													FSlateApplication::Get().DismissAllMenus();
+													FName NewChooserName = FName(InText.ToString());
+													if (NewChooserName.IsNone())
+													{
+														NewChooserName = "NestedChooser";
+													}
+													FString NewChooserPlainName = NewChooserName.GetPlainNameString();
+													UChooserTable* ParentChooser = Cast<UChooserTable>(TransactionObject);
+													UChooserTable* RootChooser = ParentChooser->GetRootChooser();
+
+													bool bNameConflict = false;
+													int MaxNumber = NewChooserName.GetNumber();
+													for(UChooserTable* NestedChooserIterator : RootChooser->NestedChoosers)
+													{
+														FName NestedChooserName = NestedChooserIterator->GetFName();
+														if (NestedChooserName.GetPlainNameString() == NewChooserPlainName)
+														{
+															MaxNumber = FMath::Max(MaxNumber, NestedChooserName.GetNumber());
+															if(NestedChooserName.GetNumber() == NewChooserName.GetNumber())
+															{
+																bNameConflict = true;
+															}
+														}
+													}
+													if (bNameConflict)
+													{
+														NewChooserName.SetNumber(MaxNumber + 1);
+													}
+													
+													UChooserTable* NewChooser = NewObject<UChooserTable>(TransactionObject, UChooserTable::StaticClass(), NewChooserName, RF_Transactional);
+												
+													const FScopedTransaction Transaction(LOCTEXT("Assign New Nested Chooser", "Assign New Nested Chooser"));
+												
+													ParentChooser->Modify();
+													NestedChooser->Chooser = NewChooser;
+													
+													if (ParentChooser)
+													{
+														NestedChooser->Chooser->RootChooser = RootChooser;
+														RootChooser->Modify();
+														RootChooser->AddNestedChooser(NestedChooser->Chooser);
+													}
+												}
 											});
 							
 										FSlateApplication& SlateApp = FSlateApplication::Get();
@@ -202,27 +241,22 @@ TSharedRef<SWidget> CreateNestedChooserWidget(bool bReadOnly, UObject* Transacti
 									{
 										SubMenuBuilder.BeginSection("Existing", LOCTEXT("Existing Choosers", "Existing Choosers"));
 
-										TArray<UObject*> ObjectsInPackage;
-										GetObjectsWithOuter(TransactionObject->GetPackage(), ObjectsInPackage);
+										UChooserTable* OuterChooser = Cast<UChooserTable>(TransactionObject);
+										UChooserTable* RootTable = OuterChooser->GetRootChooser();
 
-										UObject* RootChooser = TransactionObject->GetPackage()->FindAssetInPackage();
-
-										for (UObject* Object : ObjectsInPackage)
+										for (UChooserTable* Chooser : RootTable->NestedChoosers)
 										{
 											 // exclude the main chooser 
-											if (Object != RootChooser)
+											if (Chooser != RootTable)
 											{
-												if (UChooserTable* Chooser = Cast<UChooserTable>(Object))
-												{
-													SubMenuBuilder.AddMenuEntry( FText::FromString(Chooser->GetName()), LOCTEXT("AddExistingObjectTooltip", "Add a reference to this existing Chooser Table."), FSlateIcon(),
-														FUIAction(FExecuteAction::CreateLambda([Chooser, Button, NestedChooser, TransactionObject]()
-														{
-															const FScopedTransaction Transaction(LOCTEXT("Set Nested Chooser", "Set Nested Chooser"));
-															TransactionObject->Modify(true);
-															Button->SetIsOpen(false);
-															NestedChooser->Chooser = Chooser;
-														})));
-												}
+												SubMenuBuilder.AddMenuEntry( FText::FromString(Chooser->GetName()), LOCTEXT("AddExistingObjectTooltip", "Add a reference to this existing Chooser Table."), FSlateIcon(),
+													FUIAction(FExecuteAction::CreateLambda([Chooser, Button, NestedChooser, TransactionObject]()
+													{
+														const FScopedTransaction Transaction(LOCTEXT("Set Nested Chooser", "Set Nested Chooser"));
+														TransactionObject->Modify(true);
+														Button->SetIsOpen(false);
+														NestedChooser->Chooser = Chooser;
+													})));
 											}
 										}
 										

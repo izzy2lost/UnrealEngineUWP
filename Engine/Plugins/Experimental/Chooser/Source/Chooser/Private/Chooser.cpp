@@ -34,18 +34,40 @@ void UChooserTable::PostLoad()
 {
 	Super::PostLoad();
 
-#if WITH_EDITOR
+#if WITH_EDITORONLY_DATA
 	CachedPreviousOutputObjectType = OutputObjectType;
 	CachedPreviousResultType = ResultType;
 
-	// fix for broken outer object on nested chooser tables
-	if (ParentTable)
+	if (Version != 1)
 	{
-		SetFlags(RF_Transactional); // also fix nested chooser objects not created with Transactional flag
-		if (GetOuter() != ParentTable)
+		if (ParentTable)
 		{
-			Rename(nullptr, ParentTable);
+			RootChooser = ParentTable;
+			ParentTable = nullptr;
+		
+			SetFlags(RF_Transactional); // fix nested chooser objects not created with Transactional flag
+		
+			// fix for broken outer object on nested chooser tables
+			if (GetOuter() == GetPackage())
+			{
+				Rename(nullptr, RootChooser);
+			}
 		}
+
+		if(RootChooser == nullptr && NestedChoosers.IsEmpty())
+		{
+			// data upgrade for root tables: add elements to NestedTables list
+			TArray<UObject*> ChildObjects;
+			GetObjectsWithOuter(GetPackage(), ChildObjects, true);
+			for(UObject* ChildObject : ChildObjects)
+			{
+				if(UChooserTable* Chooser = Cast<UChooserTable>(ChildObject))
+				{
+					NestedChoosers.Add(Chooser);
+				}
+			}
+		}
+		Version = 1;
 	}
 #endif
 
@@ -118,7 +140,7 @@ void UChooserTable::AddCompileDependency(const UStruct* InStructType)
 
 void UChooserTable::Compile(bool bForce)
 {
-	IHasContextClass* ContextOwner = GetContextOwner();
+	IHasContextClass* ContextOwner = GetRootChooser();
 	
 	for (FInstancedStruct& ColumnData : ColumnsStructs)
 	{
@@ -315,7 +337,7 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 {
 	FScopeLock Lock(&DebugLock);
 
-	const UChooserTable* ContextOwner = GetContextOwner();
+	const UChooserTable* RootTable = GetRootChooser();
 
 	for (const FStructView& Param : Context.Params)
 	{
@@ -331,7 +353,7 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 				
 				RecentContextObjects.Add(DebugName);
 
-				if (DebugName == ContextOwner->GetDebugTargetName())
+				if (DebugName == RootTable->GetDebugTargetName())
 				{
 					bDebugTestValuesValid = true;
 					Context.DebuggingInfo.bCurrentDebugTarget = true;
@@ -439,6 +461,14 @@ FObjectChooserBase::EIteratorStatus UChooserTable::EvaluateChooser(FChooserEvalu
 				for (const FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
 				{
 					const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
+
+					#if WITH_EDITORONLY_DATA
+					if (Column.bDisabled)
+					{
+						continue;
+					}
+					#endif
+					
 					Column.SetOutputs(Context, SelectedIndexData.Index);
 				}
 				#if WITH_EDITOR
@@ -559,5 +589,18 @@ static FAutoConsoleCommand CCmdTestCookChoosers(
 	TEXT("Chooser.TestCook"),
 	TEXT(""),
 	FConsoleCommandDelegate::CreateStatic(TestCook));
+
+
+void UChooserTable::AddNestedChooser(UChooserTable* Chooser)
+{
+	NestedChoosers.Add(Chooser);
+	NestedChoosersChanged.Broadcast();
+}
+
+void UChooserTable::RemoveNestedChooser(UChooserTable* Chooser)
+{
+	NestedChoosers.Remove(Chooser);
+	NestedChoosersChanged.Broadcast();
+}
 
 #endif

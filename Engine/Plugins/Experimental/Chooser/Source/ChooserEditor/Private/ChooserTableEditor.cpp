@@ -24,6 +24,7 @@
 #include "SAssetDropTarget.h"
 #include "SClassViewer.h"
 #include "ScopedTransaction.h"
+#include "SNestedChooserTree.h"
 #include "SourceCodeNavigation.h"
 #include "StructViewerModule.h"
 #include "DragAndDrop/DecoratedDragDropOp.h"
@@ -52,6 +53,7 @@ const FName FChooserTableEditor::ToolkitFName( TEXT( "ChooserTableEditor" ) );
 const FName FChooserTableEditor::PropertiesTabId( TEXT( "ChooserEditor_Properties" ) );
 const FName FChooserTableEditor::FindReplaceTabId( TEXT( "ChooserEditor_FindReplace" ) );
 const FName FChooserTableEditor::TableTabId( TEXT( "ChooserEditor_Table" ) );
+const FName FChooserTableEditor::NestedTablesTreeTabId( TEXT( "ChooserEditor_NestedTables" ) );
 
 constexpr int HistorySize = 16;	
 
@@ -113,7 +115,7 @@ void FChooserTableEditor::SetChooserTableToEdit(UChooserTable* Chooser, bool bAp
 	
 	while(OuterList.Last() != GetRootChooser())
 	{
-		OuterList.Push(OuterList.Last()->ParentTable);
+		OuterList.Push(Cast<UChooserTable>(OuterList.Last()->GetOuter()));
 	}
 
 	while(!OuterList.IsEmpty())
@@ -161,6 +163,12 @@ void FChooserTableEditor::RegisterTabSpawners(const TSharedRef<class FTabManager
 		.SetDisplayName( LOCTEXT("TableTab", "Chooser Table") )
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon("ChooserEditorStyle", "ChooserEditor.ChooserTableIconSmall"));
+		
+	InTabManager->RegisterTabSpawner( NestedTablesTreeTabId, FOnSpawnTab::CreateSP(this, &FChooserTableEditor::SpawnNestedTablesTreeTab) )
+		.SetDisplayName( LOCTEXT("NestedTablesTab", "Nested Choosers") )
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon("ChooserEditorStyle", "ChooserEditor.ChooserTableIconSmall"));
+
 
 	InTabManager->RegisterTabSpawner( FindReplaceTabId, FOnSpawnTab::CreateSP(this, &FChooserTableEditor::SpawnFindReplaceTab) )
 		.SetDisplayName( LOCTEXT("FindReplaceTab", "Find/Replace") )
@@ -528,7 +536,7 @@ void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TShar
 	DetailsViewArgs.NotifyHook = this;
 	DetailsViewArgs.NameAreaSettings = FDetailsViewArgs::HideNameArea;
 	DetailsView = PropertyEditorModule.CreateDetailView( DetailsViewArgs );
-	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_ChooserTableEditor_Layout_v1" )
+	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_ChooserTableEditor_Layout_v1.6" )
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea() ->SetOrientation(Orient_Vertical)
@@ -543,9 +551,20 @@ void FChooserTableEditor::InitEditor( const EToolkitMode::Type Mode, const TShar
 			)
 			->Split
 			(
-				FTabManager::NewStack()
+			FTabManager::NewSplitter()->SetOrientation(Orient_Vertical)
 				->SetSizeCoefficient(0.3)
-				->AddTab( PropertiesTabId, ETabState::OpenedTab )
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5)
+					->AddTab( PropertiesTabId, ETabState::OpenedTab)
+				)
+				->Split
+				(
+					FTabManager::NewStack()
+					->SetSizeCoefficient(0.5)
+					->AddTab( NestedTablesTreeTabId, ETabState::OpenedTab )
+				)
 			)
 		)
 	);
@@ -636,7 +655,16 @@ void FChooserTableEditor::RefreshAll()
 				SelectRow(Row, false);
 			}
 		}
-		
+	}
+	
+	RefreshNestedChoosers();
+}
+
+void FChooserTableEditor::RefreshNestedChoosers()
+{
+	if (NestedChooserTree.IsValid())
+	{
+		NestedChooserTree->RefreshAll();
 	}
 }
 
@@ -644,14 +672,12 @@ bool FChooserTableEditor::MatchesContext(const FTransactionContext& InContext, c
 {
 	TArray<UObject*> ContainedObjects;
 	GetObjectsWithOuter(EditingObjects[0]->GetPackage(), ContainedObjects, true);
+	
+	const UChooserTable* RootChooser = GetRootChooser();
 	for(const TPair<UObject*, FTransactionObjectEvent>&  Entry : TransactionObjectContexts)
 	{
 		if (ContainedObjects.Contains(Entry.Key))
 		{
-			if (UChooserTable* Chooser = Cast<UChooserTable>(Entry.Key))
-			{
-				UndoChooser = Chooser;
-			}
 			return true;
 		}
 	}
@@ -660,23 +686,11 @@ bool FChooserTableEditor::MatchesContext(const FTransactionContext& InContext, c
 
 void FChooserTableEditor::PostUndo(bool bSuccess)
 {
-	if (UndoChooser)
-	{
-		// browse to the chooser the undo is going to modify
-		SetChooserTableToEdit(UndoChooser);
-		UndoChooser = nullptr;
-	}
 	RefreshAll();
 }
 
 void FChooserTableEditor::PostRedo(bool bSuccess)
 {
-	if (UndoChooser)
- 	{
-		// browse to the chooser the undo is going to modify
- 		SetChooserTableToEdit(UndoChooser);
- 		UndoChooser = nullptr;
- 	}
 	RefreshAll();
 }
 
@@ -970,7 +984,7 @@ void FChooserTableEditor::UpdateTableColumns()
 	{
 		FChooserColumnBase& Column = Chooser->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
 
-		TSharedPtr<SWidget> HeaderWidget = FObjectChooserWidgetFactories::CreateColumnWidget(&Column, Chooser->ColumnsStructs[ColumnIndex].GetScriptStruct(), Chooser->GetContextOwner(), -1);
+		TSharedPtr<SWidget> HeaderWidget = FObjectChooserWidgetFactories::CreateColumnWidget(&Column, Chooser->ColumnsStructs[ColumnIndex].GetScriptStruct(), Chooser->GetRootChooser(), -1);
 		if (!HeaderWidget.IsValid())
 		{
 			HeaderWidget = SNullWidget::NullWidget;
@@ -1244,14 +1258,17 @@ void FChooserTableEditor::MakeChoosersMenuRecursive(UObject* Outer, FMenuBuilder
 	{
 		if (UChooserTable* Chooser = Cast<UChooserTable>(Object))
 		{
-			MenuBuilder.AddMenuEntry( FText::FromString(Indent + Chooser->GetName()), LOCTEXT("Edit Chooser ToolTip", "Browse to this Nested Chooser Table"), FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([this, Chooser]()
-				{
-					SetChooserTableToEdit(Chooser);
+			UChooserTable* RootChooser = Chooser->GetRootChooser();
+			if (Chooser == RootChooser || Chooser->GetRootChooser()->NestedChoosers.Contains(Chooser))
+			{
+				MenuBuilder.AddMenuEntry( FText::FromString(Indent + Chooser->GetName()), LOCTEXT("Edit Chooser ToolTip", "Browse to this Nested Chooser Table"), FSlateIcon(),
+					FUIAction(FExecuteAction::CreateLambda([this, Chooser]()
+					{
+						SetChooserTableToEdit(Chooser);
+					})));
 
-				})));
-
-			MakeChoosersMenuRecursive(Chooser, MenuBuilder, SubIndent);
+				MakeChoosersMenuRecursive(Chooser, MenuBuilder, SubIndent);
+			}
 		}
 	}
 }
@@ -1263,6 +1280,17 @@ TSharedRef<SWidget> FChooserTableEditor::MakeChoosersMenu(UObject* RootObject)
 	MakeChoosersMenuRecursive(RootObject, MenuBuilder);
 
 	return MenuBuilder.MakeWidget();
+}
+
+TSharedRef<SDockTab> FChooserTableEditor::SpawnNestedTablesTreeTab( const FSpawnTabArgs& Args )
+{
+	check( Args.GetTabId() == NestedTablesTreeTabId );
+
+	return SNew(SDockTab)
+		.Label( LOCTEXT("NestedChooserTreeTitle", "Nested Choosers") )
+		[
+			SAssignNew(NestedChooserTree, SNestedChooserTree).ChooserEditor(this)
+		];
 }
 
 TSharedRef<SDockTab> FChooserTableEditor::SpawnTableTab( const FSpawnTabArgs& Args )

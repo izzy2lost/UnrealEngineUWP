@@ -45,10 +45,10 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 					// add to recent context objects list, so that this object is selectable as a target in the chooser editor
                  	Chooser->AddRecentContextObject(DebugName);
 					
-					UChooserTable* ContextOwner = Chooser->GetContextOwner();
-					if (ContextOwner->HasDebugTarget())
+					UChooserTable* RootChooser = Chooser->GetRootChooser();
+					if (RootChooser->HasDebugTarget())
 					{
-						if (ContextOwner->GetDebugTargetName() == DebugName)
+						if (RootChooser->GetDebugTargetName() == DebugName)
 						{
 							Chooser->SetDebugSelectedRow(ChooserEvaluationData.SelectedIndex);
 							Chooser->SetDebugTestValuesValid(true);

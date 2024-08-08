@@ -55,7 +55,7 @@ namespace UE::ChooserEditor
     		if (Column)
     		{
 				int Row = RowIndex.Get();
-				UChooserTable* ContextOwner = Chooser->GetContextOwner();
+				UChooserTable* ContextOwner = Chooser->GetRootChooser();
 
 				if (Row == ColumnWidget_SpecialIndex_Fallback)
 				{
