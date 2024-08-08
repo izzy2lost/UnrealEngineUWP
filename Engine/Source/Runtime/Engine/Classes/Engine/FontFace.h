@@ -144,20 +144,32 @@ public:
 	UPROPERTY(EditAnywhere, Category=DistanceFieldMode)
 	bool bEnableDistanceFieldRendering = false;
 	
-	/** Distance field px/em resolution "low" quality value */
-	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Low SDF resolution (px/em)"))
+	/** Single-channel distance field px/em resolution "low" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Low Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
 	int32 MinDistanceFieldPpem = 32;
 
-	/** Distance field px/em resolution "medium" quality value */
-	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Medium SDF resolution (px/em)"))
+	/** Single-channel distance field px/em resolution "medium" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Medium Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
 	int32 MidDistanceFieldPpem = 48;
 
-	/** Distance field px/em resolution "high" quality value */
-	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="High SDF resolution (px/em)"))
+	/** Single-channel distance field px/em resolution "high" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="High Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
 	int32 MaxDistanceFieldPpem = 64;
+	
+	/** Multi-channel distance field px/em resolution "low" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Low Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
+	int32 MinMultiDistanceFieldPpem = 32;
+
+	/** Multi-channel distance field px/em resolution "medium" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Medium Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
+	int32 MidMultiDistanceFieldPpem = 40;
+
+	/** Multi-channel distance field px/em resolution "high" quality value */
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="High Quality", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
+	int32 MaxMultiDistanceFieldPpem = 56;
 
 	/** If set, allows to override distance field modes set in device profiles */
-	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Override platform rasterization mode"))
+	UPROPERTY(EditAnywhere, Category=DistanceFieldMode, meta=(ClampMin=8, ClampMax=256, DisplayName="Override Platform Rasterization Mode", EditCondition="bEnableDistanceFieldRendering", EditConditionHides))
 	TOptional<FFontFacePlatformRasterizationOverrides> PlatformRasterizationModeOverrides;
 
 private:

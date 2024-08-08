@@ -326,18 +326,19 @@ void UFontFace::UpdateDeviceRasterizationSettings()
 			}
 		}
 
+		const bool bMultiChannel = DeviceRasterizationSettings.Mode == EFontRasterizationMode::Msdf;
 		const int32 DeviceResolutionLevel = CVarFontFaceDistanceFieldResolutionLevel.GetValueOnAnyThread();
 		if (DeviceResolutionLevel <= 1) // Low
 		{
-			DeviceRasterizationSettings.DistanceFieldPpem = MinDistanceFieldPpem;
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MinMultiDistanceFieldPpem : MinDistanceFieldPpem;
 		}
 		else if (DeviceResolutionLevel >= 3) // High
 		{
-			DeviceRasterizationSettings.DistanceFieldPpem = MaxDistanceFieldPpem;
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MaxMultiDistanceFieldPpem : MaxDistanceFieldPpem;
 		}
 		else // 2 = Medium
 		{
-			DeviceRasterizationSettings.DistanceFieldPpem = MidDistanceFieldPpem;
+			DeviceRasterizationSettings.DistanceFieldPpem = bMultiChannel ? MidMultiDistanceFieldPpem : MidDistanceFieldPpem;
 		}
 	}
 }

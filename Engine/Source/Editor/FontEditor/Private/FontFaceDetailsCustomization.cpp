@@ -15,6 +15,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/Platform.h"
 #include "IDesktopPlatform.h"
+#include "IDetailGroup.h"
 #include "Internationalization/Internationalization.h"
 #include "Layout/Margin.h"
 #include "Misc/AssertionMacros.h"
@@ -94,13 +95,45 @@ void FFontFaceDetailsCustomization::CustomizeDetails(IDetailLayoutBuilder& Detai
 			];
 	}
 
-	// Hide distance field settings if disabled by CVar
-	if (!IsSlateSdfTextFeatureEnabled())
+	// Distance field properties
+	if (IsSlateSdfTextFeatureEnabled())
 	{
+		bool bShowDistanceFieldGroups = true;
+		if (ObjectsBeingEdited.Num() == 1)
+		{
+			const UFontFace* FontFace = Cast<UFontFace>(ObjectsBeingEdited[0].Get());
+			if (FontFace && !FontFace->bEnableDistanceFieldRendering)
+			{
+				bShowDistanceFieldGroups = false;
+			}
+		}
+		if (bShowDistanceFieldGroups)
+		{
+			IDetailCategoryBuilder& DistanceFieldModeCategory = DetailBuilder.EditCategory("DistanceFieldMode");
+			// Make sure that bEnableDistanceFieldRendering is listed first
+			DistanceFieldModeCategory.AddProperty(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, bEnableDistanceFieldRendering)));
+			// Single-channel distance field resolution group
+			IDetailGroup& SingleChannelResolutionGroup = DistanceFieldModeCategory.AddGroup(FName(TEXT("SingleChannelDistanceFieldResolution")), LOCTEXT("FontFaceSingleChannelDistanceFieldResolutionGroup", "Single-Channel Distance Field Resolution (px/em)"), false, true);
+			SingleChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MinDistanceFieldPpem)));
+			SingleChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MidDistanceFieldPpem)));
+			SingleChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MaxDistanceFieldPpem)));
+			// Multi-channel distance field resolution group
+			IDetailGroup& MultiChannelResolutionGroup = DistanceFieldModeCategory.AddGroup(FName(TEXT("MultiChannelDistanceFieldResolution")), LOCTEXT("FontFaceMultiChannelDistanceFieldResolutionGroup", "Multi-Channel Distance Field Resolution (px/em)"), false, true);
+			MultiChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MinMultiDistanceFieldPpem)));
+			MultiChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MidMultiDistanceFieldPpem)));
+			MultiChannelResolutionGroup.AddPropertyRow(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MaxMultiDistanceFieldPpem)));
+		}
+	}
+	else
+	{
+		// Hide distance field settings if disabled by CVar
 		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, bEnableDistanceFieldRendering))->MarkHiddenByCustomization();
 		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MinDistanceFieldPpem))->MarkHiddenByCustomization();
 		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MidDistanceFieldPpem))->MarkHiddenByCustomization();
 		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MaxDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MinMultiDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MidMultiDistanceFieldPpem))->MarkHiddenByCustomization();
+		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, MaxMultiDistanceFieldPpem))->MarkHiddenByCustomization();
 		DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UFontFace, PlatformRasterizationModeOverrides))->MarkHiddenByCustomization();
 	}
 }
