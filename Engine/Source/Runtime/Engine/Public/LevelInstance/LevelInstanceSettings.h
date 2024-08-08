@@ -20,7 +20,9 @@ public:
 #if WITH_EDITOR
 	bool IsPropertyOverrideEnabled() const;
 
+	UE_DEPRECATED(5.5, "Use SetIsLevelInstanceDisabled instead.")
 	void DisableLevelInstanceSupport() { bIsLevelInstanceDisabled = true; }
+	void SetIsLevelInstanceDisabled(bool bValue) { bIsLevelInstanceDisabled = bValue; }
 	bool IsLevelInstanceDisabled() const { return bIsLevelInstanceDisabled; }
 private:
 	friend class ULevelInstanceSubsystem;
