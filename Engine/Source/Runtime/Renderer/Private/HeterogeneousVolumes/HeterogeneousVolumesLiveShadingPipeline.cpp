@@ -1665,7 +1665,8 @@ class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterial
 	DECLARE_SHADER_TYPE(FRenderVolumetricShadowMapForLightWithLiveShadingCS, MeshMaterial);
 
 	class FUseAVSMCompression : SHADER_PERMUTATION_BOOL("USE_AVSM_COMPRESSION");
-	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression>;
+	class FUseCameraSceneDepth : SHADER_PERMUTATION_BOOL("USE_CAMERA_SCENE_DEPTH");
+	using FPermutationDomain = TShaderPermutationDomain<FUseAVSMCompression, FUseCameraSceneDepth>;
 
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
@@ -1705,6 +1706,7 @@ class FRenderVolumetricShadowMapForLightWithLiveShadingCS : public FMeshMaterial
 		// Dispatch data
 		SHADER_PARAMETER(FIntVector, GroupCount)
 		SHADER_PARAMETER(int, ShadowDebugTweak)
+		SHADER_PARAMETER(int, CameraDownsampleFactor)
 
 		// Output
 		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<int>, RWVolumetricShadowLinkedListAllocatorBuffer)
@@ -1873,6 +1875,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 	FMatrix44f* ShadowToTranslatedWorld,
 	FIntPoint ShadowMapResolution,
 	uint32 MaxSampleCount,
+	bool bUseCameraSceneDepth,
 	// Volume
 	const FVolumetricMeshBatch& VolumetricMeshBatch,
 	// Dispatch
@@ -1954,6 +1957,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		PassParameters->GroupCount = GroupCount;
 		//PassParameters->ShadowDebugTweak = CVarHeterogeneousVolumesShadowDebugTweak.GetValueOnRenderThread();
 		PassParameters->ShadowDebugTweak = 0;
+		PassParameters->CameraDownsampleFactor = HeterogeneousVolumes::GetCameraDownsampleFactor();
 
 		// Output
 		PassParameters->RWVolumetricShadowLinkedListAllocatorBuffer = GraphBuilder.CreateUAV(VolumetricShadowLinkedListAllocatorBuffer, PF_R32_UINT);
@@ -1977,6 +1981,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 
 	FRenderVolumetricShadowMapForLightWithLiveShadingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithLiveShadingCS::FUseAVSMCompression>(HeterogeneousVolumes::UseAVSMCompression());
+	PermutationVector.Set<FRenderVolumetricShadowMapForLightWithLiveShadingCS::FUseCameraSceneDepth>(bUseCameraSceneDepth);
 	TShaderRef<FRenderVolumetricShadowMapForLightWithLiveShadingCS> ComputeShader = Material.GetShader<FRenderVolumetricShadowMapForLightWithLiveShadingCS>(&FLocalVertexFactory::StaticType, PermutationVector, false);
 	if (!ComputeShader.IsNull())
 	{
@@ -2180,6 +2185,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			TEXT("HeterogeneousVolume.VolumetricShadowLinkedListBuffer")
 		);
 
+		bool bUseCameraSceneDepth = false;
 		RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
@@ -2197,6 +2203,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			ShadowToTranslatedWorld,
 			ShadowMapResolution,
 			MaxSampleCount,
+			bUseCameraSceneDepth,
 			// Volume
 			*VolumeMeshBatchItr,
 			// Dispatch
@@ -2231,6 +2238,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 				ShadowToTranslatedWorld,
 				ShadowMapResolution,
 				MaxSampleCount,
+				bUseCameraSceneDepth,
 				// Volume
 				*VolumeMeshBatchItr,
 				// Dispatch
@@ -2497,6 +2505,7 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 		int32 LightType = 0;
 		FLightSceneInfo* LightSceneInfo = nullptr;
 		FVisibleLightInfo* VisibleLightInfo = nullptr;
+		bool bUseCameraSceneDepth = true;
 		RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 			GraphBuilder,
 			SceneTextures,
@@ -2514,6 +2523,7 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 			ShadowToTranslatedWorld,
 			ShadowMapResolution,
 			MaxSampleCount,
+			bUseCameraSceneDepth,
 			// Volume
 			*VolumeMeshBatchItr,
 			// Dispatch
@@ -2549,6 +2559,7 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 				ShadowToTranslatedWorld,
 				ShadowMapResolution,
 				MaxSampleCount,
+				bUseCameraSceneDepth,
 				// Volume
 				*VolumeMeshBatchItr,
 				// Dispatch

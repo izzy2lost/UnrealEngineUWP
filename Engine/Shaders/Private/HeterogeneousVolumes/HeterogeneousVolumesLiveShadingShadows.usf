@@ -293,6 +293,8 @@ void AddOrReplaceSample(FAVSMSampleData Data, int PixelIndex, inout int PrevSamp
 	}
 }
 
+int CameraDownsampleFactor;
+
 [numthreads(THREADGROUP_SIZE_2D, THREADGROUP_SIZE_2D, 1)]
 void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	uint2 GroupThreadId : SV_GroupThreadID,
@@ -313,6 +315,24 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 
 	// Generate a light ray
 	float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+
+	float WorldRayLength = GetMaxTraceDistance();
+#if USE_CAMERA_SCENE_DEPTH
+	float DeviceZ = SampleDeviceZFromSceneTextures(ShadowUV);
+	#if HAS_INVERTED_Z_BUFFER
+		DeviceZ = max(0.000000000001, DeviceZ);
+	#endif // HAS_INVERTED_Z_BUFFER
+
+	// Project ray through view transform to trim ray-length by opaque depth
+	uint2 ViewPixelCoord = PixelCoord * CameraDownsampleFactor + View.ViewRectMin.xy;
+	FDFVector3 WorldViewRayOrigin = DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation);
+	FDFVector3 WorldViewRayEnd = SvPositionToWorld(float4(ViewPixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1));
+	float3 WorldViewRayDirection = DFFastSubtractDemote(WorldViewRayEnd, WorldViewRayOrigin);
+	float WorldViewRayLength = length(WorldViewRayDirection);
+
+	WorldRayLength = min(WorldRayLength, WorldViewRayLength);
+#endif
+
 	const float NearScreenZ = 1.0;
 	const float FarScreenZ = 0.0;
 
@@ -321,14 +341,10 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	float3 LightRayStart = LightRayStartAsFloat4.xyz * rcp(LightRayStartAsFloat4.w);
 	float3 LightRayEnd = LightRayEndAsFloat4.xyz * rcp(LightRayEndAsFloat4.w);
 
-	// Intersect ray with bounding volume
-	// TODO: LWC integration..
 	float3 WorldRayOrigin = DFFastSubtractDemote(LightRayStart, PrimaryView.PreViewTranslation);
 	float3 WorldRayEnd = DFFastSubtractDemote(LightRayEnd, PrimaryView.PreViewTranslation);
-
-	float3 WorldRayDirection = WorldRayEnd - WorldRayOrigin;
-	float WorldRayLength = length(WorldRayDirection);
-	WorldRayDirection /= WorldRayLength;
+	float3 WorldRayDirection = normalize(WorldRayEnd - WorldRayOrigin);
+	WorldRayEnd = WorldRayOrigin + WorldRayDirection * WorldRayLength;
 
 	float3 LocalRayOrigin = mul(float4(WorldRayOrigin, 1.0), WorldToLocal).xyz;
 	float3 LocalRayEnd = mul(float4(WorldRayEnd, 1.0), WorldToLocal).xyz;
