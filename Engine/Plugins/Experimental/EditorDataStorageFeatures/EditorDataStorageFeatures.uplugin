@@ -36,6 +36,10 @@
 			"Type": "Editor"
 		},
 		{
+			"Name": "TedsSettings",
+			"Type": "Editor"
+		},
+		{
 			"Name": "TedsTableViewer",
 			"Type": "Editor"
 		}
