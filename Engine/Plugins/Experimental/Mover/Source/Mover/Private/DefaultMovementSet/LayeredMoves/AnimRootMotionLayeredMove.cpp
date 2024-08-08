@@ -30,6 +30,26 @@ FLayeredMove_AnimRootMotion::FLayeredMove_AnimRootMotion()
 
 bool FLayeredMove_AnimRootMotion::GenerateMove(const FMoverTickStartData& SimState, const FMoverTimeStep& TimeStep, const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, FProposedMove& OutProposedMove)
 {
+	// Stop this move if the montage is no longer playing on the mesh
+	if (!TimeStep.bIsResimulating)
+	{
+		bool bIsMontageStillPlaying = false;
+
+		if (const USkeletalMeshComponent* MeshComp = Cast<USkeletalMeshComponent>(MoverComp->GetPrimaryVisualComponent()))
+		{
+			if (const UAnimInstance* MeshAnimInstance = MeshComp->GetAnimInstance())
+			{
+				bIsMontageStillPlaying = MeshAnimInstance->Montage_IsPlaying(Montage);
+			}
+		}
+
+		if (!bIsMontageStillPlaying)
+		{
+			DurationMs = 0.f;
+			return false;
+		}
+	}
+
 	const float DeltaSeconds = TimeStep.StepMs / 1000.f;
 
 	const AActor* MoverActor = MoverComp->GetOwner();
