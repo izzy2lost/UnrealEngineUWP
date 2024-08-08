@@ -3204,6 +3204,19 @@ int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
 	return 0;
 }
 
+bool UStaticMeshComponent::CanMeshPaintTextureColors() const 
+{
+	if (!bSupportMeshPainting || !bEnableTextureColorMeshPainting)
+	{
+		return false;
+	}
+	if (StaticMesh == nullptr || !StaticMesh->CanMeshPaintTextureColors())
+	{
+		return false;
+	}
+	return true;
+}
+
 bool UStaticMeshComponent::IsNavigationRelevant() const
 {
 	if (const UStaticMesh* Mesh = GetStaticMesh())

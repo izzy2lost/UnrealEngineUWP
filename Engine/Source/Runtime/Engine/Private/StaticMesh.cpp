@@ -164,6 +164,12 @@ static TAutoConsoleVariable<int32> CVarForceEnableNaniteMeshes(
 	TEXT("Force enables all meshes to also build Nanite data, regardless of the enabled flag on the asset."),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<bool> CVarStaticMeshDefaultMeshPaintTextureSupport(
+	TEXT("r.StaticMesh.DefaultMeshPaintTextureSupport"),
+	true,
+	TEXT("Default setting for whether static mesh assets support mesh paint textures."),
+	ECVF_Default);
+
 #if ENABLE_COOK_STATS
 namespace StaticMeshCookStats
 {
@@ -9200,6 +9206,15 @@ bool UStaticMesh::IsNaniteForceEnabled() const
 }
 
 #endif
+
+bool UStaticMesh::CanMeshPaintTextureColors() const
+{
+	if (StaticMeshPaintSupport == EStaticMeshPaintSupport::Default)
+	{
+		return CVarStaticMeshDefaultMeshPaintTextureSupport.GetValueOnGameThread();
+	}
+	return StaticMeshPaintSupport != EStaticMeshPaintSupport::Disabled;
+}
 
 /*-----------------------------------------------------------------------------
 UStaticMeshSocket

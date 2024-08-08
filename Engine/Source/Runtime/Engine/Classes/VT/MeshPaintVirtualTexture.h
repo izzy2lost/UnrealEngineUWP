@@ -18,7 +18,7 @@ class UMeshPaintVirtualTexture : public UTexture2D
 {
 	GENERATED_UCLASS_BODY()
 
-	/** Weak referernce to the owning primitive component. */
+	/** Weak refererence to the owning primitive component. */
 	UPROPERTY()
 	TWeakObjectPtr<UPrimitiveComponent> OwningComponent;
 

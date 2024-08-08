@@ -548,6 +548,17 @@ struct FMaterialRemapIndex
 	TArray<int32> MaterialRemap;
 };
 
+UENUM(BlueprintType)
+enum class EStaticMeshPaintSupport : uint8
+{
+	/** Use the default project setting for whether texture color mesh painting is supported. */
+	Default,
+	/** Enable texture color mesh painting support. */
+	Enabled,
+	/** Disable texture color mesh painting support. */
+	Disabled,
+};
+
 
 /**
  * A StaticMesh is a piece of geometry that consists of a static set of polygons.
@@ -1003,7 +1014,14 @@ public:
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
-	/** The default coordinate index to use when painting the MeshPaintTexture on this mesh. */
+	/** Whether to support per instance texture color mesh painting on components using this mesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = StaticMesh, meta = (DisplayName = "Support Texture Color Mesh Painting"))
+	EStaticMeshPaintSupport StaticMeshPaintSupport;
+
+	/** Whether to support per instance texture color mesh painting on components using this mesh. */
+	ENGINE_API bool CanMeshPaintTextureColors() const;
+
+	/** The default coordinate index to use when texture color painting on this mesh. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta=(UIMin = "0", UIMax = "3"))
 	int32 MeshPaintTextureCoordinateIndex;
 

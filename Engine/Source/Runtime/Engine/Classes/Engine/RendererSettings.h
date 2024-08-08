@@ -459,6 +459,12 @@ class URendererSettings : public UDeveloperSettings
 
 	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
 		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.StaticMesh.DefaultMeshPaintTextureSupport", DisplayName = "Mesh paint default static mesh support",
+		ToolTip = "Default setting for whether static mesh assets support mesh paint textures."))
+	bool MeshPaintDefaultOnStaticMesh;
+
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.MeshPaintVirtualTexture.DefaultTexelsPerVertex", DisplayName = "Mesh paint texels per vertex",
 		ToolTip = "Default ratio of texels to vertices when creating a mesh paint texture for a mesh."))
 	uint32 MeshPaintDefaultTexelsPerVertex;
