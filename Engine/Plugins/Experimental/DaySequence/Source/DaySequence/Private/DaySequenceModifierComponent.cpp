@@ -838,7 +838,8 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 		SubSection->SetSequence(Sequence);
 		SubSection->SetRange(MovieScene->GetPlaybackRange());
 		SubSection->SetIsActive(bActivate);
-
+		SubSection->SetIsLocked(true);
+		
 		TargetActor->UpdateSubSectionTimeScale(SubSection);
 
 		RootTrack->AddSection(*SubSection);
