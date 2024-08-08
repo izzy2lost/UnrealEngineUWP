@@ -186,6 +186,9 @@ protected:
 	/** Whether mip callbacks have been registered and need to be removed on destroy */
 	uint8 bMipLevelCallbackRegistered : 1;
 
+	/** Whether mesh painting is supported. This is can be set by derived component types that don't support mesh painting. */
+	uint8 bSupportMeshPainting : 1;
+
 public:
 
 #if WITH_EDITORONLY_DATA
@@ -232,9 +235,9 @@ public:
 	UPROPERTY(transient)
 	uint8 bForceNavigationObstacle : 1;
 
-	/** If true, vertex mesh painting is disallowed on this instance. Set if vertex colors are overridden in a construction script. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
-	uint8 bDisallowMeshPaintPerInstance : 1;
+	/** Deprecated. Use bEnableVertexColorMeshPainting instead. */
+	UPROPERTY()
+	uint8 bDisallowMeshPaintPerInstance_DEPRECATED : 1;
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 	/** Draw mesh collision if used for complex collision */
@@ -308,13 +311,32 @@ public:
 	 */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Lighting)
 	uint8 bReverseCulling : 1;
-	
+
+	/** 
+	 * If false, vertex color mesh painting is disabled on this instance. 
+	 * This may be set to false by blueprint functions that override vertex colors in construction script.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Mesh Painting")
+	uint8 bEnableVertexColorMeshPainting : 1;
+
+	/** If false, texture color mesh painting is disabled on this instance. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Mesh Painting")
+	uint8 bEnableTextureColorMeshPainting : 1;
+
 	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
 	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
 	uint8 bOverrideMeshPaintTextureCoordinateIndex : 1;
 
+	/** The overriden coordinate index to use when texture color painting on this mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
+	int32 OverridenMeshPaintTextureCoordinateIndex;
+
+	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )
+	int32 OverriddenLightMapRes;
+
 #if WITH_EDITORONLY_DATA
-	/** Texture containing mesh painting for this mesh component. */
+	/** Texture containing texture color mesh painting for this mesh component. */
 	UPROPERTY(VisibleAnywhere, Category = "Mesh Painting")
 	TObjectPtr<UTexture> MeshPaintTexture;
 #endif
@@ -326,14 +348,6 @@ public:
 	/** Set this to override the locally stored mesh paint texture. */
 	UPROPERTY(Transient)
 	TObjectPtr<UTexture> MeshPaintTextureOverride;
-
-	/** The overriden coordinate index to use when painting the MeshPaintTexture on this mesh. */
-	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
-	int32 OverridenMeshPaintTextureCoordinateIndex;
-
-	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )
-	int32 OverriddenLightMapRes;
 
 	/** 
 	 * Controls how dark the dynamic indirect shadow can be.
@@ -738,6 +752,11 @@ public:
 	ENGINE_API virtual bool SupportsDitheredLODTransitions(ERHIFeatureLevel::Type FeatureLevel);
 
 	ENGINE_API UMaterialInterface* GetNaniteAuditMaterial(int32 MaterialIndex) const;
+
+	/* Returns true if mesh vertex color painting is supported on this component. */
+	ENGINE_API int32 CanMeshPaintVertexColors() const { return bSupportMeshPainting && bEnableVertexColorMeshPainting; }
+	/* Returns true if mesh texture color painting is supported on this component. */
+	ENGINE_API int32 CanMeshPaintTextureColors() const { return bSupportMeshPainting && bEnableTextureColorMeshPainting; }
 
 private:
 	/** Initializes the resources used by the static mesh component. */

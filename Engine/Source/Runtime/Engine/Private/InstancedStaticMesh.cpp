@@ -2038,7 +2038,11 @@ UInstancedStaticMeshComponent::UInstancedStaticMeshComponent(const FObjectInitia
 	Mobility = EComponentMobility::Movable;
 	BodyInstance.bSimulatePhysics = false;
 
-	bDisallowMeshPaintPerInstance = true;
+	// Can't mesh paint on instanced mesh.
+	bSupportMeshPainting = false;
+	bEnableVertexColorMeshPainting = false;
+	bEnableTextureColorMeshPainting = false;
+
 	bMultiBodyOverlap = true;
 
 	bUseGpuLodSelection = true;

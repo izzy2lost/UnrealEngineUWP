@@ -206,7 +206,9 @@ UStaticMeshComponent::UStaticMeshComponent(const FObjectInitializer& ObjectIniti
 	bHasCustomNavigableGeometry = EHasCustomNavigableGeometry::Yes;
 	bOverrideNavigationExport = false;
 	bForceNavigationObstacle = true;
-	bDisallowMeshPaintPerInstance = false;
+	bSupportMeshPainting = true;
+	bEnableVertexColorMeshPainting = true;
+	bEnableTextureColorMeshPainting = true;
 	bForceNaniteForMasked = false;
 	bDisallowNanite = false;
 	bForceDisableNanite = false;
@@ -2079,6 +2081,16 @@ bool UStaticMeshComponent::CanEditChange(const FProperty* InProperty) const
 		{
 			return bOverrideDistanceFieldSelfShadowBias && bAffectDistanceFieldLighting;
 		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEnableVertexColorMeshPainting))
+		{
+			return bSupportMeshPainting;
+		}
+
+		if (PropertyName == GET_MEMBER_NAME_STRING_CHECKED(UStaticMeshComponent, bEnableTextureColorMeshPainting))
+		{
+			return bSupportMeshPainting;
+		}
 	}
 
 	return Super::CanEditChange(InProperty);
@@ -2196,6 +2208,12 @@ void UStaticMeshComponent::PostLoad()
 		{
 			LOD.PaintedVertices.Empty();
 		}
+	}
+
+	// Handle deprecation of bDisallowMeshPaintPerInstance -> bEnableVertexColorMeshPainting.
+	if (bDisallowMeshPaintPerInstance_DEPRECATED)
+	{
+		bEnableVertexColorMeshPainting = false;
 	}
 
 	// Legacy content may contain a lightmap resolution of 0, which was valid when vertex lightmaps were supported, but not anymore with only texture lightmaps
@@ -2981,7 +2999,7 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 		}
 	}
 
-	if (!bDisallowMeshPaintPerInstance)
+	if (CanMeshPaintVertexColors())
 	{
 		FComponentReregisterContext ReregisterStaticMesh(this);
 		StaticMeshInstanceData->ApplyVertexColorData(this);
