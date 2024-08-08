@@ -39,7 +39,12 @@ bool FComponentElementLevelEditorSelectionCustomization::DeselectElement(const T
 
 FTypedElementHandle FComponentElementLevelEditorSelectionCustomization::GetSelectionElement(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListConstRef InCurrentSelection, const ETypedElementSelectionMethod InSelectionMethod)
 {
-	if (const UActorComponent* Component = ComponentElementDataUtil::GetComponentFromHandle(InElementSelectionHandle))
+	return GetSelectionElementStatic(InElementSelectionHandle, InCurrentSelection, InSelectionMethod);
+}
+
+FTypedElementHandle FComponentElementLevelEditorSelectionCustomization::GetSelectionElementStatic(const FTypedElementHandle& InComponentHandle, FTypedElementListConstRef InCurrentSelection, const ETypedElementSelectionMethod InSelectionMethod)
+{
+	if (const UActorComponent* Component = ComponentElementDataUtil::GetComponentFromHandle(InComponentHandle))
 	{
 		const AActor* ConsideredActor = Component->GetOwner();
 		const USceneComponent* ConsideredComponent = Cast<USceneComponent>(Component);
@@ -68,8 +73,9 @@ FTypedElementHandle FComponentElementLevelEditorSelectionCustomization::GetSelec
 			const bool bActorIsBlueprintable = FKismetEditorUtilities::CanCreateBlueprintOfClass(ConsideredActor->GetClass());
 			const bool bComponentAlreadySelected = InCurrentSelection->HasElementsOfType(NAME_Components);
 			const bool bWasDoubleClick = InSelectionMethod == ETypedElementSelectionMethod::Secondary;
+			const bool bWasFromSecondary = InSelectionMethod == ETypedElementSelectionMethod::FromSecondary;
 
-			const bool bSelectComponent = bActorAlreadySelectedExclusively && bActorIsBlueprintable && (bComponentAlreadySelected != bWasDoubleClick);
+			const bool bSelectComponent = bActorIsBlueprintable && (bWasFromSecondary || (bActorAlreadySelectedExclusively && (bComponentAlreadySelected != bWasDoubleClick)));
 
 			if (bSelectComponent && ConsideredComponent)
 			{
@@ -81,7 +87,7 @@ FTypedElementHandle FComponentElementLevelEditorSelectionCustomization::GetSelec
 			}
 		}
 	}
-	return InElementSelectionHandle;
+	return InComponentHandle;
 }
 
 void FComponentElementLevelEditorSelectionCustomization::GetNormalizedElements(const TTypedElement<ITypedElementSelectionInterface>& InElementSelectionHandle, FTypedElementListConstRef InSelectionSet, const FTypedElementSelectionNormalizationOptions& InNormalizationOptions, FTypedElementListRef OutNormalizedElements)

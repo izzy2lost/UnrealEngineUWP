@@ -27,6 +27,8 @@ enum class ETypedElementSelectionMethod : uint8
 	Primary,
 	/** Select the "secondary" element (eg, a component would favor selecting itself) */
 	Secondary,
+	/** The "secondary" element is choosing to pass back up the chain (eg. an ISM was selected, but we want to traverse back to the parent element) */
+	FromSecondary,
 };
 
 UENUM()
