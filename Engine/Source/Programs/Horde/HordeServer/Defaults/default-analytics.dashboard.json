@@ -82,7 +82,7 @@
 			],
 			"categories": [
 				{
-					"name": "Editor Iteration",
+					"name": "Editor",
 					"charts": [
 						{
 							"name": "User Load Time (75th Percentile)",
@@ -215,47 +215,6 @@
 							"metrics": [
 								{
 									"id": "core-loading-user-timetopie"
-								}
-							]
-						}
-					]
-				},
-				{
-					"name": "Editor Performance",
-					"charts": [
-						{
-							"name": "Count",
-							"display": "Value",
-							"metrics": [
-								{
-									"id": "editor-performance-warning-count"
-								}
-							]
-						},
-						{
-							"name": "Editor",
-							"display": "Value",
-							"metrics": [
-								{
-									"id": "editor-performance-editor-warning"
-								}
-							]
-						},
-						{
-							"name": "PIE",
-							"display": "Value",
-							"metrics": [
-								{
-									"id": "editor-performance-pie-warning"
-								}
-							]
-						},
-						{
-							"name": "Cache",
-							"display": "Value",
-							"metrics": [
-								{
-									"id": "editor-performance-cache-warning"
 								}
 							]
 						}
