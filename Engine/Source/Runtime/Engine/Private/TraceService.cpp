@@ -110,6 +110,8 @@ void FTraceServiceImpl::FillTraceStatusMessage(FTraceControlStatus* Message)
 	Message->CacheWaste = Stats.CacheWaste;
 	Message->bAreStatNamedEventsEnabled = GCycleStatsShouldEmitNamedEvents > 0;
 	Message->bIsPaused = FTraceAuxiliary::IsPaused();
+	Message->StatusTimestamp = FDateTime::Now();
+	Message->TraceSystemStatus = static_cast<uint8>(FTraceAuxiliary::GetTraceSystemStatus());
 }
 
 void FTraceServiceImpl::OnChannelSet(const FTraceControlChannelsSet& Message, const TSharedRef<IMessageContext>& Context)
@@ -253,10 +255,27 @@ void FTraceServiceImpl::OnSettingsPing(const FTraceControlSettingsPing& Message,
 	FTraceControlSettings* Response = FMessageEndpoint::MakeMessage<FTraceControlSettings>();
 	UE::Trace::FInitializeDesc const* InitDesc = FTraceAuxiliary::GetInitializeDesc();
 
-	Response->bUseImportantCache = InitDesc->bUseImportantCache;
-	Response->bUseWorkerThread = InitDesc->bUseWorkerThread;
-	Response->TailSizeBytes = InitDesc->TailSizeBytes;
-	
+	if (InitDesc)
+	{
+		Response->bUseImportantCache = InitDesc->bUseImportantCache;
+		Response->bUseWorkerThread = InitDesc->bUseWorkerThread;
+		Response->TailSizeBytes = InitDesc->TailSizeBytes;
+	}
+
+	auto AddPreset = [&Response](const FTraceAuxiliary::FChannelPreset& Preset)
+	{
+		FTraceChannelPreset TracePreset;
+		TracePreset.Name = Preset.Name;
+		TracePreset.ChannelList = Preset.ChannelList;
+		TracePreset.bIsReadOnly = Preset.bIsReadOnly;
+
+		Response->ChannelPresets.Add(TracePreset);
+		return FTraceAuxiliary::EEnumerateResult::Continue;
+	};
+
+	FTraceAuxiliary::EnumerateFixedChannelPresets(AddPreset);
+	FTraceAuxiliary::EnumerateChannelPresetsFromSettings(AddPreset);
+
 	MessageEndpoint->Send(Response, Context->GetSender());
 }
 

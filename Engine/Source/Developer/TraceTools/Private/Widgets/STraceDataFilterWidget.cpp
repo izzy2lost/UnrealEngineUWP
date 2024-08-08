@@ -492,7 +492,7 @@ void STraceDataFilterWidget::RefreshTileViewData()
 {
 	if (SessionFilterService.IsValid())
 	{
-		SyncTimeStamp = SessionFilterService->GetTimestamp();
+		SyncTimeStamp = SessionFilterService->GetChannelsUpdateTimestamp();
 
 		/** Save expansion and selection */
 		SaveItemSelection();
@@ -521,7 +521,13 @@ void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const doubl
 
 	if (SessionFilterService.IsValid() )
 	{
-		if (SessionFilterService->GetTimestamp() != SyncTimeStamp)
+		if (bHasSettings == false && SessionFilterService->HasSettings())
+		{
+			FilterPresetsListWidget->RefreshFilterPresets();
+			bHasSettings = true;
+		}
+
+		if (SessionFilterService->GetChannelsUpdateTimestamp() != SyncTimeStamp)
 		{
 			RefreshTileViewData();
 			bNeedsListRefresh = true;
@@ -565,6 +571,7 @@ void STraceDataFilterWidget::Tick(const FGeometry& AllottedGeometry, const doubl
 void STraceDataFilterWidget::OnSessionSelectionChanged()
 {
 	bHasChannelData = false;
+	bHasSettings = false;
 }
 
 } // namespace UE::TraceTools

@@ -51,9 +51,9 @@ const FTraceObjectInfo* FSessionTraceControllerFilterService::GetObject(const FS
 	return Objects.Find(HashName(Name));
 }
 
-const FDateTime& FSessionTraceControllerFilterService::GetTimestamp() const
+const FDateTime& FSessionTraceControllerFilterService::GetChannelsUpdateTimestamp() const
 {
-	return TimeStamp;
+	return ChannelsTimestamp;
 }
 
 void FSessionTraceControllerFilterService::SetObjectFilterState(const FString& InObjectName, const bool bFilterState)
@@ -104,10 +104,8 @@ void FSessionTraceControllerFilterService::DisableAllChannels()
 
 void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStatus& InStatus, FTraceStatus::EUpdateType InUpdateType, ITraceControllerCommands& Commands)
 {
-	double DeltaTimeSeconds = (FDateTime::Now() - TimeStamp).GetTotalSeconds();
 	if (!TraceController->HasAvailableSelectedInstance())
 	{
-		TimeStamp = FDateTime::Now();
 		Objects.Empty();
 		return;
 	}
@@ -126,9 +124,12 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 	if (EnumHasAnyFlags(InUpdateType, FTraceStatus::EUpdateType::Status))
 	{
 		TraceEndpoint = InStatus.Endpoint;
+		TraceSystemStatus = InStatus.TraceSystemStatus;
 
 		Stats.BytesSentPerSecond = 0;
 		Stats.BytesTracedPerSecond = 0;
+
+		double DeltaTimeSeconds = (InStatus.StatusTimestamp - StatusTimestamp).GetTotalSeconds();
 
 		if (DeltaTimeSeconds > 0.0f)
 		{
@@ -140,13 +141,14 @@ void FSessionTraceControllerFilterService::OnTraceStatusUpdated(const FTraceStat
 		}
 
 		Stats.StandardStats = InStatus.Stats;
+		StatusTimestamp = InStatus.StatusTimestamp;
 		bHasStats = true;
 	}
 }
 
 void FSessionTraceControllerFilterService::UpdateChannels(const FTraceStatus& InStatus)
 {
-	TimeStamp = FDateTime::Now();
+	ChannelsTimestamp = FDateTime::Now();
 
 	const TMap<uint32, FTraceStatus::FChannel> Channels = InStatus.Channels;
 	Objects.Empty(Channels.Num());

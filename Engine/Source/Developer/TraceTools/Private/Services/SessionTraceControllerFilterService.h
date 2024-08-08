@@ -27,7 +27,7 @@ public:
 	virtual void GetRootObjects(TArray<FTraceObjectInfo>& OutObjects) const override;
 	virtual const FTraceObjectInfo* GetObject(const FString& Name) const override;
 	
-	virtual const FDateTime& GetTimestamp() const override;
+	virtual const FDateTime& GetChannelsUpdateTimestamp() const override;
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) override;
 	virtual void UpdateFilterPreset(const TSharedPtr<ITraceFilterPreset> InPreset, bool IsEnabled) override;
 
@@ -38,6 +38,7 @@ public:
 	virtual const FTraceStats& GetStats() const override;
 
 	virtual const FString& GetTraceEndpoint() const override { return TraceEndpoint; }
+	virtual FTraceStatus::ETraceSystemStatus GetTraceSystemStatus() const { return TraceSystemStatus; }
 	/** End ISessionTraceFilterService overrides */
 
 protected:
@@ -63,8 +64,11 @@ protected:
 	TSet<FString> FrameEnabledChannels;
 	TSet<FString> FrameDisabledChannels;
 
-	/** Timestamp at which contained data (including provider) was last updated */
-	FDateTime TimeStamp;
+	/** Timestamp at which the trace status was last updated */
+	FDateTime StatusTimestamp;
+
+	/** Timestamp at which the trace channels were last updated */
+	FDateTime ChannelsTimestamp;
 
 	bool bChannelsReceived = false;
 
@@ -75,6 +79,7 @@ protected:
 	bool bHasStats = false;
 
 	FString TraceEndpoint;
+	FTraceStatus::ETraceSystemStatus TraceSystemStatus;
 };
 
 } // namespace UE::TraceTools

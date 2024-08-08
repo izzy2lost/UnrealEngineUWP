@@ -52,8 +52,8 @@ public:
 	/** Set the filtered state for an individual object by its hash. */
 	virtual void SetObjectFilterState(const FString& InObjectName, const bool bFilterState) = 0;
 	
-	/** Set timestamp for last processed update (data change). */
-	virtual const FDateTime& GetTimestamp() const = 0;
+	/** Get the timestamp for the last channel data update. */
+	virtual const FDateTime& GetChannelsUpdateTimestamp() const = 0;
 
 	/** Update filter preset */
 	virtual void UpdateFilterPreset(const TSharedPtr<ITraceFilterPreset> InPreset, bool IsEnabled) = 0;
@@ -72,6 +72,9 @@ public:
 
 	/** Get the endpoint of the current running trace. */
 	virtual const FString& GetTraceEndpoint() const = 0;
+
+	/** Get the current status of the trace system. */
+	virtual FTraceStatus::ETraceSystemStatus GetTraceSystemStatus() const = 0;
 };
 
 } // namespace UE::TraceTools

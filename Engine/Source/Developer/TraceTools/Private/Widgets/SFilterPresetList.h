@@ -52,10 +52,10 @@ public:
 	/** Sets channels as enabled/disabled based on the current object list */
 	void RefreshPresetEnabledState();
 
-private:
 	/** Refreshes the filter preset objects and child widgets */
 	void RefreshFilterPresets();
 
+private:
 	/** Returns true if any Presets are applied */
 	bool HasAnyPresets() const;
 
@@ -130,8 +130,8 @@ private:
 	/** Delegate for when a Preset is to be highlighted */
 	FOnHighlightPreset OnHighlightPreset;
 
-	/** Cached arrays of currently active and enabled filter names, used for saving/restoring state during refreshes */
-	TArray<FString> ActiveFilterNames;
+	/** Cached array of currently active filter names, used for saving/restoring state during refreshes */
+	TArray<FString> CurrentActiveFilterNames;
 
 	/** A pointer to the SessionFilterService to autodetect enabled presets. */
 	TSharedPtr<ISessionTraceFilterService> SessionFilterService;

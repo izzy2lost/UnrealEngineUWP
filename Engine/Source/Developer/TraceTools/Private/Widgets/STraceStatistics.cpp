@@ -6,6 +6,7 @@
 #include "Internationalization/Text.h"
 #include "SlateOptMacros.h"
 #include "Styling/StyleColors.h"
+#include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBorder.h"
@@ -47,6 +48,34 @@ void STraceStatistics::Construct(const FArguments& InArgs, TSharedPtr<ISessionTr
 			[
 				SNew(SVerticalBox)
 				
+				+ SVerticalBox::Slot()
+				.HAlign(EHorizontalAlignment::HAlign_Left)
+				.Padding(0.0f, 3.0f, 0.0f, 0.0f)
+				.AutoHeight()
+				[
+					SNew(SHorizontalBox)
+							
+					+ SHorizontalBox::Slot()
+					.Padding(0.0f, 2.0f, 0.0f, 0.0f)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.ColorAndOpacity(FSlateColor(EStyleColor::Foreground))
+						.ToolTipText(LOCTEXT("TraceStatusTooltip", "The status of the tracing system."))
+						.Text(LOCTEXT("TraceStatus", "Trace Status:"))
+					]
+
+					+ SHorizontalBox::Slot()
+					.Padding(2.0f, 2.0f, 0.0f, 0.0f)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.ColorAndOpacity(FSlateColor(EStyleColor::AccentGray))
+						.Text(this, &STraceStatistics::GetTraceSystemStateText)
+						.ToolTipText(this, &STraceStatistics::GetTraceSystemStateTooltipText)
+					]
+				]
+
 				+ SVerticalBox::Slot()
 				.HAlign(EHorizontalAlignment::HAlign_Left)
 				.Padding(0.0f, 3.0f, 0.0f, 0.0f)
@@ -422,6 +451,73 @@ FText STraceStatistics::GetTraceEndpointText() const
 	}
 
 	return FText::FromString(SessionFilterService->GetTraceEndpoint());
+}
+
+FText STraceStatistics::GetTraceSystemStateText() const
+{
+	// If you update these values also check GetTraceSystemStateTooltipText.
+	static_assert((uint8)FTraceStatus::ETraceSystemStatus::NotAvailable == (uint8) FTraceAuxiliary::ETraceSystemStatus::NotAvailable);
+	static_assert((uint8)FTraceStatus::ETraceSystemStatus::Available == (uint8) FTraceAuxiliary::ETraceSystemStatus::Available);
+	static_assert((uint8)FTraceStatus::ETraceSystemStatus::TracingToFile == (uint8) FTraceAuxiliary::ETraceSystemStatus::TracingToFile);
+	static_assert((uint8)FTraceStatus::ETraceSystemStatus::TracingToServer == (uint8) FTraceAuxiliary::ETraceSystemStatus::TracingToServer);
+	static_assert((uint8)FTraceStatus::ETraceSystemStatus::NumValues == (uint8) FTraceAuxiliary::ETraceSystemStatus::NumValues, "ETraceSystemStatus enum values are of out sync.");
+
+	if (!SessionFilterService->HasStats())
+	{
+		return LOCTEXT("N/A", "N/A");
+	}
+
+	switch (SessionFilterService->GetTraceSystemStatus())
+	{
+	case FTraceStatus::ETraceSystemStatus::NotAvailable:
+	{
+		return LOCTEXT("TraceSystemNotAvailableText", "Not Available");
+	}
+	case FTraceStatus::ETraceSystemStatus::Available:
+	{
+		return LOCTEXT("TraceSystemAvailableText", "Available");
+	}
+	case FTraceStatus::ETraceSystemStatus::TracingToServer:
+	{
+		return LOCTEXT("TracingToServerText", "Tracing to Server");
+	}
+	case FTraceStatus::ETraceSystemStatus::TracingToFile:
+	{
+		return LOCTEXT("TracingToFileText", "Tracing to File");
+	}
+	default:
+		return LOCTEXT("Unkown", "Unkown");
+	}
+}
+
+FText STraceStatistics::GetTraceSystemStateTooltipText() const
+{
+	if (!SessionFilterService->HasStats())
+	{
+		return FText::GetEmpty();
+	}
+
+	switch (SessionFilterService->GetTraceSystemStatus())
+	{
+	case FTraceStatus::ETraceSystemStatus::NotAvailable:
+	{
+		return LOCTEXT("TraceSystemNotAvailableTooltipText", "Trace system is disabled at compile time. Check the UE_TRACE_ENABLED define.");
+	}
+	case FTraceStatus::ETraceSystemStatus::Available:
+	{
+		return LOCTEXT("TraceSystemAvailableTooltipText", "Trace system is available and can be started. Data might be stored in the Important Events and Tail buffers.");
+	}
+	case FTraceStatus::ETraceSystemStatus::TracingToServer:
+	{
+		return LOCTEXT("TracingToServerTooltipText", "Tracing to the trace server.");
+	}
+	case FTraceStatus::ETraceSystemStatus::TracingToFile:
+	{
+		return LOCTEXT("TracingToFileTooltipText", "Tracing directly to a file.");
+	}
+	default:
+		return FText::GetEmpty();
+	}
 }
 
 FReply STraceStatistics::CopyEndpoint_OnClicked() const

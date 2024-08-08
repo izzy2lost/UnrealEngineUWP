@@ -126,6 +126,7 @@ protected:
 	double AccumulatedTime = 0.0f;
 
 	bool bHasChannelData = false;
+	bool bHasSettings = false;
 };
 
 } // namespace UE::TraceTools

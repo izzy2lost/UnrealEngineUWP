@@ -281,15 +281,15 @@ void FTraceAuxiliaryImpl::ForEachChannel(const TCHAR* ChannelList, bool bResolve
 			// Check against hard coded presets
 			if (FCString::Stricmp(Name, GDefaultChannels.Name) == 0)
 			{
-				ForEachChannel(GDefaultChannels.Channels, false, LogCategory, Callable);
+				ForEachChannel(GDefaultChannels.ChannelList, false, LogCategory, Callable);
 			}
 			else if (FCString::Stricmp(Name,GMemoryChannels.Name) == 0)
 			{
-				ForEachChannel(GMemoryChannels.Channels, false, LogCategory, Callable);
+				ForEachChannel(GMemoryChannels.ChannelList, false, LogCategory, Callable);
 			}
 			else if (FCString::Stricmp(Name, GMemoryLightChannels.Name) == 0)
 			{
-				ForEachChannel(GMemoryLightChannels.Channels, false, LogCategory, Callable);
+				ForEachChannel(GMemoryLightChannels.ChannelList, false, LogCategory, Callable);
 			}
 			// Check against data driven presets (if available)
 			else if (GConfig && GConfig->GetString(TEXT("Trace.ChannelPresets"), Name, Value, GEngineIni))
@@ -1330,12 +1330,12 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 	}
 	else if (FParse::Param(CommandLine, TEXT("trace")))
 	{
-		Channels = GDefaultChannels.Channels;
+		Channels = GDefaultChannels.ChannelList;
 	}
 #if WITH_EDITOR
 	else
 	{
-		Channels = GDefaultChannels.Channels;
+		Channels = GDefaultChannels.ChannelList;
 	}
 #endif
 
@@ -1388,7 +1388,7 @@ static bool StartFromCommandlineArguments(const TCHAR* CommandLine, bool& bOutSt
 	// If user has defined a connection type but not specified channels, use the default channel set.
 	if (Type != FTraceAuxiliary::EConnectionType::None && Channels.IsEmpty())
 	{
-		Channels = GDefaultChannels.Channels;
+		Channels = GDefaultChannels.ChannelList;
 	}
 
 	if (Channels.IsEmpty())
@@ -1851,11 +1851,61 @@ UE::Trace::FInitializeDesc const* FTraceAuxiliary::GetInitializeDesc()
 #endif
 }
 
-void FTraceAuxiliary::GetFixedChannelPresets(TArray<FChannelPreset>& OutPresets)
+void FTraceAuxiliary::EnumerateFixedChannelPresets(PresetCallback Callback)
 {
-	OutPresets.Emplace(GDefaultChannels);
-	OutPresets.Emplace(GMemoryChannels);
-	OutPresets.Emplace(GMemoryLightChannels);
+	if (Callback(GDefaultChannels) == EEnumerateResult::Stop)
+	{
+		return;
+	}
+
+	if (Callback(GMemoryChannels) == EEnumerateResult::Stop)
+	{
+		return;
+	}
+
+	if (Callback(GMemoryLightChannels) == EEnumerateResult::Stop)
+	{
+		return;
+	}
+}
+
+void FTraceAuxiliary::EnumerateChannelPresetsFromSettings(PresetCallback Callback)
+{
+	TArray<FString> PresetStrings;
+	GConfig->GetSection(TEXT("Trace.ChannelPresets"), PresetStrings, GEngineIni);
+
+	for (const FString& Item : PresetStrings)
+	{
+		FString Key, Value;
+		Item.Split(TEXT("="), &Key, &Value);
+
+		FChannelPreset Preset(*Key, *Value, false);
+		if (Callback(Preset) == EEnumerateResult::Stop)
+		{
+			return;
+		}
+	}
+}
+
+FTraceAuxiliary::ETraceSystemStatus FTraceAuxiliary::GetTraceSystemStatus()
+{
+#if UE_TRACE_ENABLED
+	EConnectionType ConnectionType = GetConnectionType();
+	if (ConnectionType == EConnectionType::Network)
+	{
+		return ETraceSystemStatus::TracingToServer;
+	}
+	else if (ConnectionType == EConnectionType::File)
+	{
+		return ETraceSystemStatus::TracingToFile;
+	}
+	else
+	{
+		return ETraceSystemStatus::Available;
+	}
+#else
+	return  ETraceSystemStatus::NotAvailable;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

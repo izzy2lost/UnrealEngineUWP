@@ -6,8 +6,8 @@
 #include "Containers/UnrealString.h"
 #include "Delegates/Delegate.h"
 #include "ITraceControllerCommands.h"
+#include "Misc/DateTime.h"
 #include "Misc/Guid.h"
-
 
 /**
  * Describes the state of a single remote instance with Trace.
@@ -25,6 +25,30 @@ struct FTraceStatus
 		ChannelsStatus	= 1 << 3,
 		All				= Status|Settings|ChannelsDesc|ChannelsStatus
 	};
+
+	enum class ETraceSystemStatus : uint8
+	{
+		NotAvailable,
+		Available,
+		TracingToServer,
+		TracingToFile,
+
+		NumValues,
+	};
+
+	struct FChannelPreset
+	{
+		FChannelPreset(const FString& InName, const FString& InChannels, bool bInIsReadOnly)
+			: Name(InName)
+			, ChannelList(InChannels)
+			, bIsReadOnly(bInIsReadOnly)
+		{
+		}
+
+		FString Name;
+		FString ChannelList;
+		bool bIsReadOnly;
+	};
 	
 	struct FSettings
 	{
@@ -34,6 +58,8 @@ struct FTraceStatus
 		bool bUseImportantCache;
 		/** Size of tail buffer */
 		uint32 TailSizeBytes;
+		/** The channel presets defined by the process. */
+		TArray<FChannelPreset> ChannelPresets;
 	};
 
 	struct FChannel
@@ -89,6 +115,10 @@ struct FTraceStatus
 	TMap<uint32, FChannel> Channels;
 	/** Stats */
 	FStats Stats;
+	/** Timestamp when the state of the trace was captured */
+	FDateTime StatusTimestamp;
+	/** The status of the trace system. */
+	ETraceSystemStatus TraceSystemStatus;
 };
 
 ENUM_CLASS_FLAGS(FTraceStatus::EUpdateType);

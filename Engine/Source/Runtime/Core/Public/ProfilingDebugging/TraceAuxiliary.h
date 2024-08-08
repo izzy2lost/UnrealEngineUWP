@@ -19,24 +19,50 @@
 class FTraceAuxiliary
 {
 public:
+	/** 
+	* This enum is serialized and sent via the trace service.
+	* Do not change the values or modify the order. Only add new values to the end.
+	* Should be kept in sync with FTraceStatus::ETraceSystemStatus from ITraceController.h
+	*/
+	enum class ETraceSystemStatus : uint8
+	{
+		NotAvailable, // Disabled at compile time.
+		Available,
+		TracingToServer,
+		TracingToFile,
+
+		NumValues, // This must be the last value.
+	};
+
+	enum class EEnumerateResult : uint8
+	{
+		Continue,
+		Stop,
+	};
+
 	struct FChannelPreset
 	{
-		FChannelPreset(const TCHAR* InName, const TCHAR* InChannels, bool bInIsReadOnly)
+		FChannelPreset(const TCHAR* InName,const TCHAR* InChannels, bool bInIsReadOnly)
 			: Name(InName)
-			, Channels(InChannels)
+			, ChannelList(InChannels)
 			, bIsReadOnly(bInIsReadOnly)
 		{
 		}
 
+		/**
+		 * Do not store these pointers.
+		 */
 		const TCHAR* Name;
-		const TCHAR* Channels;
+		const TCHAR* ChannelList;
 
 		/**
-		* A preset should be read-only if it contains any read-only channels. 
+		* A preset should be read-only if it contains any read-only channels.
 		* A read-only preset can only be enabled using the command line when starting the application.
 		*/
 		bool bIsReadOnly = false;
 	};
+
+	typedef TFunctionRef<EEnumerateResult(const FChannelPreset& Preset)> PresetCallback;
 
 	// In no logging configurations all log categories are of type FNoLoggingCategory, which has no relation with
 	// FLogCategoryBase. In order to not need to conditionally set the argument alias the type here.
@@ -236,9 +262,14 @@ public:
 	static CORE_API struct UE::Trace::FInitializeDesc const* GetInitializeDesc();
 
 	/**
-	* Get the channel presets that are defined in code.
+	* Enumerate the channel presets that are defined in code.
 	*/
-	static CORE_API void GetFixedChannelPresets(TArray<FChannelPreset>& OutPresets);
+	static CORE_API void EnumerateFixedChannelPresets(PresetCallback Callback);
+
+	/**
+	* Enumerate the channel presets that are defined in BaseEngine.ini, under the [Trace.ChannelPresets] section.
+	*/
+	static CORE_API void EnumerateChannelPresetsFromSettings(PresetCallback Callback);
 
 	/**
 	 * Delegate that triggers when a connection is established. Gives subscribers a chance to trace events that appear
@@ -270,6 +301,11 @@ public:
 	 * The path to the snapshot file is passed to the delegate.
 	 */
 	static CORE_API FOnSnapshotSaved OnSnapshotSaved;
+
+	/**
+	 * Returns the current status of the trace system.
+	 */
+	static CORE_API ETraceSystemStatus GetTraceSystemStatus();
 };
 
 #if UE_TRACE_SERVER_CONTROLS_ENABLED

@@ -64,6 +64,12 @@ struct FTraceControlStatus
 
 	UPROPERTY(EditAnywhere, Category = "Message")
 	bool bIsTracing = false;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FDateTime StatusTimestamp;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	uint8 TraceSystemStatus = 0;
 };
 
 /**
@@ -73,6 +79,24 @@ USTRUCT()
 struct FTraceControlSettingsPing
 {
 	GENERATED_USTRUCT_BODY()
+};
+
+/**
+ *	Contains data about a trace channel preset
+ */
+USTRUCT()
+struct FTraceChannelPreset
+{
+	GENERATED_USTRUCT_BODY()
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString Name;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	FString ChannelList;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	bool bIsReadOnly;
 };
 
 /**
@@ -92,6 +116,9 @@ struct FTraceControlSettings
 
 	UPROPERTY(EditAnywhere, Category="Message")
 	uint32 TailSizeBytes = 0;
+
+	UPROPERTY(EditAnywhere, Category = "Message")
+	TArray<FTraceChannelPreset> ChannelPresets;
 };
 
 /**

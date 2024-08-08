@@ -25,6 +25,8 @@ public:
 	virtual bool CanDelete() const = 0;
 	/** Whether or not this preset only exists locally */
 	virtual bool IsLocal() const = 0;
+	/** Whether or not this preset is a runtime preset */
+	virtual bool IsEnginePreset() const = 0;
 
 	/** Update this preset according to the provided set of trace objects */
 	virtual void Save(const TArray<TSharedPtr<ITraceObject>>& InObjects) = 0;

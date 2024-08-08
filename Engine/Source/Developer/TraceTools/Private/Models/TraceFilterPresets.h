@@ -101,6 +101,7 @@ public:
 	virtual bool MakeShared() override;
 	virtual bool MakeLocal() override;
 	virtual bool IsLocal() const override;
+	virtual bool IsEnginePreset() const override { return false; }
 	virtual void Save(const TArray<TSharedPtr<TraceTools::ITraceObject>>& InObjects) override {}
 	virtual void Save() override {}
 	/** End ITraceFilterPreset overrides */
@@ -124,6 +125,7 @@ public:
 	virtual bool MakeShared() override { return false; }
 	virtual bool MakeLocal() override { return false; }
 	virtual bool IsLocal() const override { return false; }
+	virtual bool IsEnginePreset() const override { return true; }
 	virtual void Save(const TArray<TSharedPtr<TraceTools::ITraceObject>>& InObjects) override {}
 	virtual void Save() override {}
 	/** End ITraceFilterPreset overrides */

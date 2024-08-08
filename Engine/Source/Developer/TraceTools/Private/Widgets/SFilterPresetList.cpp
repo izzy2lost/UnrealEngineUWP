@@ -85,7 +85,7 @@ void SFilterPresetList::RefreshFilterPresets()
 		for (auto FilterIt = Presets.CreateConstIterator(); FilterIt; ++FilterIt)
 		{
 			const TSharedRef<SFilterPreset>& FilterToRemove = *FilterIt;
-			ActiveFilterNames.Add(FilterToRemove->GetFilterPreset()->GetName());
+			CurrentActiveFilterNames.Add(FilterToRemove->GetFilterPreset()->GetName());
 		}
 
 		FilterBox->ClearChildren();
@@ -109,15 +109,14 @@ void SFilterPresetList::RefreshFilterPresets()
 
 	for (const TSharedPtr<ITraceFilterPreset>& Preset : AllFilterPresets)
 	{
-		if (ActiveFilterNames.Contains(Preset->GetName()))
+		if (CurrentActiveFilterNames.Contains(Preset->GetName()))
 		{
 			TSharedRef<SFilterPreset> Filter = AddFilterPreset(Preset);
+			CurrentActiveFilterNames.Remove(Preset->GetName());
 		}
 	}
 
 	RefreshPresetEnabledState();
-
-	ActiveFilterNames.Empty();
 }
 
 FReply SFilterPresetList::OnMouseButtonUp( const FGeometry& MyGeometry, const FPointerEvent& MouseEvent )
@@ -146,7 +145,6 @@ void SFilterPresetList::SaveSettings(const FString& IniFilename) const
 {
 	FStringView IniSectionName = TEXTVIEW("Trace.FilterPresetList");
 	FStringView IniActivePresetsKey = TEXTVIEW("ActivePresets");
-	FStringView IniEnabledPresetsKey = TEXTVIEW("EnabledPresets");
 
 	FStringView Separator = TEXTVIEW(";");
 	
@@ -169,15 +167,13 @@ void SFilterPresetList::LoadSettings(const FString& IniFilename)
 {
 	FStringView IniSectionName = TEXTVIEW("Trace.FilterPresetList");
 	FStringView IniActivePresetsKey = TEXT("ActivePresets");
-	FStringView IniEnabledPresetsKey = TEXT("EnabledPresets");
 
 	FString ActivePresetsString;
 	FString EnabledPresetsString;
 	GConfig->GetString(IniSectionName.GetData(), IniActivePresetsKey.GetData(), ActivePresetsString, IniFilename);
-	GConfig->GetString(IniSectionName.GetData(), IniEnabledPresetsKey.GetData(), EnabledPresetsString, IniFilename);
 
 	FStringView Separator = TEXT(";");
-	ActivePresetsString.ParseIntoArray(ActiveFilterNames, Separator.GetData());
+	ActivePresetsString.ParseIntoArray(CurrentActiveFilterNames, Separator.GetData());
 }
 
 bool SFilterPresetList::HasAnyPresets() const
@@ -544,30 +540,18 @@ TSharedRef<SWidget> SFilterPresetList::ExternalMakeFilterPresetsMenu()
 
 void SFilterPresetList::LoadEnginePresets()
 {
-	TArray<FString> PresetStrings;
-	GConfig->GetSection(TEXT("Trace.ChannelPresets"), PresetStrings, GEngineIni);
-
-	for (const FString& Item : PresetStrings)
+	if (SessionFilterService->HasSettings())
 	{
-		FString Key, Value;
-		Item.Split(TEXT("="), &Key, &Value);
-
-		TArray<FString> AllowListedNames;
-		Value.ParseIntoArray(AllowListedNames, TEXT(","));
-		EngineFilterPresets.Add(MakeShared<FEngineFilterPreset>(Key, AllowListedNames));
-	}
-
-	TArray<FTraceAuxiliary::FChannelPreset> EnginePresets;
-	FTraceAuxiliary::GetFixedChannelPresets(EnginePresets);
-
-	for (auto& Item : EnginePresets)
-	{
-		if (!Item.bIsReadOnly)
+		const TArray<FTraceStatus::FChannelPreset>& RuntimePresets = SessionFilterService->GetSettings().ChannelPresets;
+		
+		for (const FTraceStatus::FChannelPreset& Preset : RuntimePresets)
 		{
-			TArray<FString> AllowListedNames;
-			FString Channels = Item.Channels;
-			Channels.ParseIntoArray(AllowListedNames, TEXT(","));
-			EngineFilterPresets.Add(MakeShared<FEngineFilterPreset>(Item.Name, AllowListedNames));
+			if (!Preset.bIsReadOnly)
+			{
+				TArray<FString> AllowListedNames;
+				Preset.ChannelList.ParseIntoArray(AllowListedNames, TEXT(","));
+				EngineFilterPresets.Add(MakeShared<FEngineFilterPreset>(Preset.Name, AllowListedNames));
+			}
 		}
 	}
 }

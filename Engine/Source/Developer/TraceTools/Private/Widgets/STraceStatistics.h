@@ -38,6 +38,8 @@ private:
 	FText GetStatsBandwidthText(uint64 InValue) const;
 	FText GetStatsCacheText() const;
 	FText GetTraceEndpointText() const;
+	FText GetTraceSystemStateText() const;
+	FText GetTraceSystemStateTooltipText() const;
 
 	FReply CopyEndpoint_OnClicked() const;
 	EVisibility GetCopyEndpointVisibility() const;

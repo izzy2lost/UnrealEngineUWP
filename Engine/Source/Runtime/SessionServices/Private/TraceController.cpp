@@ -219,6 +219,12 @@ void FTraceController::OnSettings(const FTraceControlSettings& Message, const TS
 		Settings.bUseImportantCache = Message.bUseImportantCache;
 		Settings.bUseWorkerThread = Message.bUseWorkerThread;
 		Settings.TailSizeBytes = Message.TailSizeBytes;
+
+		Settings.ChannelPresets.Empty();
+		for (const FTraceChannelPreset& Preset : Message.ChannelPresets)
+		{
+			Settings.ChannelPresets.Add(FTraceStatus::FChannelPreset(Preset.Name, Preset.ChannelList, Preset.bIsReadOnly));
+		}
 		
 		StatusReceivedEvent.Broadcast(Status, FTraceStatus::EUpdateType::Settings, Instance->Commands);
 		if (SelectedInstanceIds.Contains(Status.InstanceId))
@@ -273,6 +279,8 @@ void FTraceController::OnInstanceSelectionChanged(const TSharedPtr<ISessionInsta
 
 void FTraceController::UpdateStatus(const FTraceControlStatus& Message, FTraceStatus& Status)
 {
+	Status.TraceSystemStatus = static_cast<FTraceStatus::ETraceSystemStatus>(Message.TraceSystemStatus);
+	Status.StatusTimestamp = Message.StatusTimestamp;
 	Status.bIsTracing = Message.bIsTracing;
 	Status.Endpoint = Message.Endpoint;
 	Status.SessionGuid = Message.SessionGuid;
