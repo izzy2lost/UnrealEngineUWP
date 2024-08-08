@@ -7,7 +7,7 @@
 #include "ClothMeshSelectionTool.generated.h"
 
 class UPolygonSelectionMechanic;
-class UClothEditorContextObject;
+class UDataflowContextObject;
 class UPreviewMesh;
 struct FChaosClothAssetSelectionNode;
 enum class EChaosClothAssetSelectionOverrideType : uint8;
@@ -150,7 +150,8 @@ private:
 	// IInteractiveToolCameraFocusAPI implementation
 	virtual FBox GetWorldSpaceFocusBox() override;
 
-	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
+	void SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
+
 	bool GetSelectedNodeInfo(FString& OutMapName, UE::Geometry::FGroupTopologySelection& OutSelection, EChaosClothAssetSelectionOverrideType& OutOverrideType);
 	void UpdateSelectedNode();
 
@@ -164,7 +165,7 @@ private:
 	TObjectPtr<UPolygonSelectionMechanic> SelectionMechanic = nullptr;
 
 	UPROPERTY()
-	TObjectPtr<UClothEditorContextObject> ClothEditorContextObject = nullptr;
+	TObjectPtr<UDataflowContextObject> DataflowContextObject = nullptr;
 
 	TUniquePtr<UE::Geometry::FGroupTopology> Topology;
 

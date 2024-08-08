@@ -148,9 +148,9 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 
 						if (DynamicMesh.VertexCount())
 						{
-							if (Target == EditorContent->GetPrimarySelectedNode())
+							if (Target == EditorContent->GetSelectedNode())
 							{
-								EditorContent->SetPrimaryRenderCollection(RenderCollection);
+								EditorContent->SetRenderCollection(RenderCollection);
 							}
 							const FString MeshName = Facade.GetGeometryName()[MeshIndex];
 							AddDynamicMeshComponent({Target, MeshIndex}, MeshName, MoveTemp(DynamicMesh), {});
@@ -195,9 +195,9 @@ void FDataflowConstructionScene::UpdateDynamicMeshComponents()
 
 							if (DynamicMesh.VertexCount())
 							{
-								if (Target == EditorContent->GetPrimarySelectedNode())
+								if (Target == EditorContent->GetSelectedNode())
 								{
-									EditorContent->SetPrimaryRenderCollection(RenderCollection);
+									EditorContent->SetRenderCollection(RenderCollection);
 								}
 								const FString MeshName = Facade.GetGeometryName()[MeshIndex];
 								const FString UniqueObjectName = MakeUniqueObjectName(RootSceneActor, UDataflowEditorCollectionComponent::StaticClass(), FName(MeshName)).ToString();

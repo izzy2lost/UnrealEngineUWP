@@ -253,14 +253,6 @@ namespace DataflowContextHelpers
 	template DATAFLOWENGINE_API TObjectPtr<UDataflowSkeletalContent> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
 }
 
-
-void UDataflowContextObject::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
-{
-	UDataflowContextObject* This = CastChecked<UDataflowContextObject>(InThis);
-	Collector.AddReferencedObject(This->PrimarySelectedNode);
-	Super::AddReferencedObjects(InThis, Collector);
-}
-
 TObjectPtr<UDataflowBaseContent> IDataflowContentOwner::BuildDataflowContent()
 {
 	if(TObjectPtr<UDataflowBaseContent> DataflowContent = CreateDataflowContent())
@@ -337,11 +329,6 @@ void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& Dataflo
 	DataflowGraph = DataflowAsset;  
 	SetConstructionDirty(true);
 	SetSimulationDirty(true);
-}
-
-TObjectPtr<UDataflow> UDataflowBaseContent::GetDataflowAsset() const 
-{
-	return DataflowGraph;
 }
 
 #if WITH_EDITOR

@@ -114,7 +114,6 @@ private:
 	void RegisterDataflowTool(TSharedPtr<FUICommandInfo> UICommand,
 							  FString ToolIdentifier,
 							  UInteractiveToolBuilder* Builder,
-							  const IDataflowEditorToolBuilder* DataflowToolBuilder,
 							  UEditorInteractiveToolsContext* const ToolsContext,
 							  EToolsContextScope ToolScope = EToolsContextScope::Default);
 

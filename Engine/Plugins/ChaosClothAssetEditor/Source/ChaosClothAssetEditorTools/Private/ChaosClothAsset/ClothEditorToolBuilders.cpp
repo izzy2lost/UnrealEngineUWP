@@ -4,12 +4,13 @@
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "TargetInterfaces/PrimitiveComponentBackedTarget.h"
-#include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/SelectionNode.h"
 #include "ChaosClothAsset/WeightMapNode.h"
 #include "ToolContextInterfaces.h"
 #include "ToolTargetManager.h"
 #include "ContextObjectStore.h"
+#include "Dataflow/DataflowContextObject.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 
 // Tools
 #include "ClothMeshSelectionTool.h"
@@ -19,10 +20,10 @@
 
 // ------------------- Weight Map Paint Tool -------------------
 
-void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
 	using namespace UE::Chaos::ClothAsset;
-	const FChaosClothAssetWeightMapNode* const WeightMapNode = ContextObject.GetSingleSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
+	const FChaosClothAssetWeightMapNode* const WeightMapNode = ContextObject.GetSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
 	if (WeightMapNode)
 	{
 		if (WeightMapNode->MeshTarget == EChaosClothAssetWeightMapMeshTarget::Simulation)
@@ -41,8 +42,11 @@ void UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes(const UClothEd
 		// No node selected. This happens if we start the tool due to pushing the button in the toolbar -- the tool starts before the node selection can change.
 		// In this case lock to either sim or render mode, whatever is current.
 		// TODO: See if we can have the button action select the node before attempting to start the tool.
-		const EClothPatternVertexType CurrentViewMode = ContextObject.GetConstructionViewMode();
-		if (CurrentViewMode == EClothPatternVertexType::Render)
+		
+		const EClothPatternVertexType ViewMode = DataflowViewModeToClothViewMode(ContextObject.GetConstructionViewMode());
+		const bool bViewModeIsRender = (ViewMode == EClothPatternVertexType::Render);
+		
+		if (bViewModeIsRender)
 		{
 			Modes.Add(EClothPatternVertexType::Render);
 		}
@@ -59,9 +63,9 @@ UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(cons
 	UClothEditorWeightMapPaintTool* PaintTool = NewObject<UClothEditorWeightMapPaintTool>(SceneState.ToolManager);
 	PaintTool->SetWorld(SceneState.World);
 
-	if (UClothEditorContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* const DataflowContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
 	{
-		PaintTool->SetClothEditorContextObject(ContextObject);
+		PaintTool->SetDataflowContextObject(DataflowContextObject);
 	}
 
 	return PaintTool;
@@ -69,7 +73,7 @@ UMeshSurfacePointTool* UClothEditorWeightMapPaintToolBuilder::CreateNewTool(cons
 
 // ------------------- Selection Tool -------------------
 
-void UClothMeshSelectionToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothMeshSelectionToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
 	// TODO: When the Secondary Selection set is removed, update this function to be similar to UClothEditorWeightMapPaintToolBuilder::GetSupportedViewModes above
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
@@ -85,9 +89,9 @@ const FToolTargetTypeRequirements& UClothMeshSelectionToolBuilder::GetTargetRequ
 
 bool UClothMeshSelectionToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	if (UClothEditorContextObject* const ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* const DataflowContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
 	{
-		return ContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>() != nullptr && (SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1);
+		return DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetSelectionNode>() != nullptr && (SceneState.TargetManager->CountSelectedAndTargetable(SceneState, GetTargetRequirements()) == 1);
 	}
 
 	return false;
@@ -101,9 +105,9 @@ UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderSt
 	NewTool->SetTarget(Target);
 	NewTool->SetWorld(SceneState.World);
 
-	if (UClothEditorContextObject* const ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* const DataflowContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
 	{
-		NewTool->SetClothEditorContextObject(ContextObject);
+		NewTool->SetDataflowContextObject(DataflowContextObject);
 	}
 
 	return NewTool;
@@ -112,7 +116,7 @@ UInteractiveTool* UClothMeshSelectionToolBuilder::BuildTool(const FToolBuilderSt
 
 // ------------------- Skin Weight Transfer Tool -------------------
 
-void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(const UClothEditorContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
+void UClothTransferSkinWeightsToolBuilder::GetSupportedViewModes(const UDataflowContextObject& ContextObject, TArray<UE::Chaos::ClothAsset::EClothPatternVertexType>& Modes) const
 {
 	Modes.Add(UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D);
 }
@@ -121,9 +125,9 @@ USingleSelectionMeshEditingTool* UClothTransferSkinWeightsToolBuilder::CreateNew
 {
 	UClothTransferSkinWeightsTool* NewTool = NewObject<UClothTransferSkinWeightsTool>(SceneState.ToolManager);
 
-	if (UClothEditorContextObject* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* const DataflowContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowContextObject>())
 	{
-		NewTool->SetClothEditorContextObject(ContextObject);
+		NewTool->SetDataflowEditorContextObject(DataflowContextObject);
 	}
 
 	return NewTool;
@@ -138,5 +142,42 @@ namespace UE::Chaos::ClothAsset
 		ToolCDOs.Add(GetMutableDefault<UClothEditorWeightMapPaintTool>());
 		ToolCDOs.Add(GetMutableDefault<UClothTransferSkinWeightsTool>());
 		ToolCDOs.Add(GetMutableDefault<UClothMeshSelectionTool>());
+	}
+
+	EClothPatternVertexType DataflowViewModeToClothViewMode(const Dataflow::IDataflowConstructionViewMode* DataflowViewMode)
+	{
+		const FName ViewModeName = DataflowViewMode->GetName();
+		if (ViewModeName == FName("Cloth2DSimView"))
+		{
+			return EClothPatternVertexType::Sim2D;
+		}
+		else if (ViewModeName == FName("Cloth3DSimView"))
+		{
+			return EClothPatternVertexType::Sim3D;
+		}
+		else
+		{
+			check(ViewModeName == FName("ClothRenderView"));
+			return EClothPatternVertexType::Render;
+		}
+	}
+
+	FName ClothViewModeToDataflowViewModeName(EClothPatternVertexType ClothViewMode)
+	{
+		switch (ClothViewMode)
+		{
+		case EClothPatternVertexType::Sim2D:
+			return FName("Cloth2DSimView");
+			break;
+		case EClothPatternVertexType::Sim3D:
+			return FName("Cloth3DSimView");
+			break;
+		case EClothPatternVertexType::Render:
+			return FName("ClothRenderView");
+			break;
+		default:
+			checkNoEntry();
+			return NAME_None;
+		};
 	}
 }

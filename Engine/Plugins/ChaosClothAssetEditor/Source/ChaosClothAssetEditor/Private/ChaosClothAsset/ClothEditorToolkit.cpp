@@ -43,6 +43,7 @@
 #include "Toolkits/AssetEditorToolkitMenuContext.h"
 #include "FileHelpers.h"
 #include "UObject/PackageReload.h"
+#include "ContextObjectStore.h"
 
 #define LOCTEXT_NAMESPACE "ChaosClothAssetEditorToolkit"
 
@@ -1347,6 +1348,29 @@ void FChaosClothAssetEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>&
 			//   to be built from the InputCollection rather than the (Output)Collection.
 			const bool bDeferDynamicMeshInitForTool = NewSelection.Num() == 1;
 			ClothMode->SetSelectedClothCollection(Collection, InputCollection, bDeferDynamicMeshInitForTool);
+
+			// Update selected node in Context Object
+			if (UDataflowContextObject* DataflowContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
+			{
+				DataflowContextObject->SetSelectedNode(nullptr);
+
+				if (TSharedPtr<FDataflowNode> SelectedDataflowNode = GetSelectedDataflowNode())
+				{
+					for (UObject* const Selected : NewSelection)
+					{
+						if (UDataflowEdNode* const Node = Cast<UDataflowEdNode>(Selected))
+						{
+							if (const TSharedPtr<const FDataflowNode> DataflowNode = Node->GetDataflowNode())
+							{
+								if (DataflowNode->GetGuid() == SelectedDataflowNode->GetGuid())
+								{
+									DataflowContextObject->SetSelectedNode(Node);
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 
 		if (Outliner)

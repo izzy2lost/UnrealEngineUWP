@@ -100,11 +100,11 @@ bool UDataflowEditorWeightMapPaintToolBuilder::CanBuildTool(const FToolBuilderSt
 			{
 				if (UDataflowBaseContent* ContextObject = SceneState.ToolManager->GetContextObjectStore()->FindContext<UDataflowBaseContent>())
 				{
-					if (ContextObject->GetPrimarySelectedNode() == Component->Node)
+					if (ContextObject->GetSelectedNode() == Component->Node)
 					{
 						if (const TSharedPtr<Dataflow::FEngineContext> EvaluationContext = ContextObject->GetDataflowContext())
 						{
-							if (const FDataflowNode* PrimarySelection = ContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
+							if (const FDataflowNode* PrimarySelection = ContextObject->GetSelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>())
 							{
 								return HasManagedArrayCollection(PrimarySelection, EvaluationContext);
 							}
@@ -167,7 +167,7 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	UMeshSculptToolBase::Setup();
 
 	// Get the selected weight map node
-	WeightMapNodeToUpdate = DataflowEditorContextObject->GetPrimarySelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();
+	WeightMapNodeToUpdate = DataflowEditorContextObject->GetSelectedNodeOfType<FDataflowCollectionAddScalarVertexPropertyNode>();
 	checkf(WeightMapNodeToUpdate, TEXT("No Weight Map Node is currently selected, or more than one node is selected"));
 
 	SetToolDisplayName(LOCTEXT("ToolName", "Paint Weight Maps"));
@@ -349,7 +349,7 @@ void UDataflowEditorWeightMapPaintTool::Setup()
 	// Setup DynamicMeshToWeight conversion
 	if (DataflowEditorContextObject)
 	{
-		if (const TSharedPtr<const FManagedArrayCollection> Collection = DataflowEditorContextObject->GetPrimaryRenderCollection())
+		if (const TSharedPtr<const FManagedArrayCollection> Collection = DataflowEditorContextObject->GetRenderCollection())
 		{
 			using namespace Dataflow;
 			const FNonManifoldMappingSupport NonManifoldMapping(*Mesh);

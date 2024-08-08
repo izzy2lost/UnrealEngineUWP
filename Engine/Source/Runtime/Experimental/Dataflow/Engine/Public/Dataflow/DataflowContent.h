@@ -2,13 +2,12 @@
 
 #pragma once
 
+#include "DataflowContextObject.h"
 #include "UObject/Interface.h"
-#include "Dataflow/DataflowEdNode.h"
 #include "Templates/SharedPointer.h"
 #include "DataflowContent.generated.h"
 
 class FDataflowEditorToolkit;
-class UDataflow;
 class USkeletalMesh;
 class USkeleton;
 class USkeletalMeshComponent;
@@ -17,15 +16,6 @@ class UDataflowBaseContent;
 class FPreviewScene;
 class UAnimSingleNodeInstance;
 class AActor;
-class UDataflowEdNode;
-struct FManagedArrayCollection;
-
-namespace Dataflow
-{
-	class IDataflowConstructionViewMode;
-	template<class Base> class TEngineContext;
-	typedef TEngineContext<FContextSingle> FEngineContext;
-}
 
 namespace DataflowContextHelpers
 {
@@ -33,55 +23,6 @@ namespace DataflowContextHelpers
 	template<class T>
 	DATAFLOWENGINE_API TObjectPtr<T> CreateNewDataflowContent(const TObjectPtr<UObject>& ContentOwner);
 }
-
-
-/** 
- * Context object used for selection/rendering 
- */
-
-UCLASS()
-class DATAFLOWENGINE_API UDataflowContextObject : public UObject
-{
-	GENERATED_BODY()
-public:
-
-	/** Selection Collection Access */
-	void SetPrimarySelectedNode(TObjectPtr<UDataflowEdNode> InSelectedNode) { PrimarySelectedNode = InSelectedNode; }
-	TObjectPtr<UDataflowEdNode> GetPrimarySelectedNode() const { return PrimarySelectedNode; }
-
-	/** Render Collection used to generate the DynamicMesh3D on the PrimarySelection */
-	void SetPrimaryRenderCollection(const TSharedPtr<FManagedArrayCollection>& InCollection) { PrimaryRenderCollection = InCollection; }
-	TSharedPtr<const FManagedArrayCollection> GetPrimaryRenderCollection() const { return PrimaryRenderCollection; }
-
-	/** ViewMode Access */
-	void SetConstructionViewMode(const Dataflow::IDataflowConstructionViewMode* InMode) { ConstructionViewMode = InMode; }
-	const Dataflow::IDataflowConstructionViewMode* GetConstructionViewMode() const { return ConstructionViewMode; }
-
-	/** Get a single selected node of the specified type. Return nullptr if the specified node is not selected, or if multiple nodes are selected*/
-	template<typename NodeType>
-	NodeType* GetPrimarySelectedNodeOfType() const 
-	{
-		if (PrimarySelectedNode && PrimarySelectedNode->GetDataflowNode()) 
-		{
-			return PrimarySelectedNode->GetDataflowNode()->AsType<NodeType>();
-		}
-		return nullptr;
-	}
-
-	//~ UObject interface
-	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
-
-protected:
-
-	/** Render collection to be used */
-	TSharedPtr<FManagedArrayCollection> PrimaryRenderCollection = nullptr;
-
-	/** Primary node that is selected in the graph */
-	TObjectPtr<UDataflowEdNode> PrimarySelectedNode = nullptr;
-
-	/** Construction view mode for the context object @todo(michael) : is it only for construction or for simulation as well*/
-	const Dataflow::IDataflowConstructionViewMode* ConstructionViewMode = nullptr;
-};
 
 UINTERFACE(MinimalAPI)
 class UDataflowContentOwner : public UInterface
@@ -158,10 +99,8 @@ public:
 	*	Context - Dataflow Evaluation State
 	*   Dataflow context stores the evaluated state of the graph. 
 	*/
-	void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext);
-	const TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() const { return DataflowContext; }
-	TSharedPtr<Dataflow::FEngineContext>& GetDataflowContext() { return DataflowContext; }
-
+	virtual void SetDataflowContext(const TSharedPtr<Dataflow::FEngineContext>& InContext) override;
+ 
 	/** Rebuild the owner dependent datas  */
 	void UpdateContentDatas();
 
@@ -176,8 +115,7 @@ public:
 	TObjectPtr<UObject> GetDataflowOwner() const;
 	
 	/** Data flow asset accessors (through the context) */
-	void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset);
-	TObjectPtr<UDataflow> GetDataflowAsset() const;
+	virtual void SetDataflowAsset(const TObjectPtr<UDataflow>& InAsset) override;
 
 	/** Data flow terminal accessors */
 	void SetDataflowTerminal(const FString& InPath) { DataflowTerminal = InPath;  SetConstructionDirty(true); SetSimulationDirty(true);}
@@ -210,17 +148,10 @@ protected:
 	/** Data flow terminal path for evaluation */
 	UPROPERTY(Transient, SkipSerialization)
 	FString DataflowTerminal = "";
-
-	/** Dataflow graph for evaluation */
-	UPROPERTY(Transient, SkipSerialization)
-	TObjectPtr<UDataflow> DataflowGraph;
 	
 	/** Data flow terminal path for evaluation */
 	UPROPERTY(Transient, SkipSerialization)
 	TObjectPtr<UObject> TerminalAsset = nullptr;
-
-	/**  Engine context (data flow owner/asset) to be used for dataflow evaluation */
-    TSharedPtr<Dataflow::FEngineContext> DataflowContext = nullptr;
 
     /** Last data flow evaluated node time stamp */
 	Dataflow::FTimestamp LastModifiedTimestamp = Dataflow::FTimestamp::Invalid;

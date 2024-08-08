@@ -64,6 +64,7 @@
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "DynamicMesh/MeshNormals.h"
+#include "Dataflow/DataflowRenderingFactory.h"	// For Dataflow View Modes
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(ClothEditorMode)
 
@@ -234,13 +235,13 @@ void UChaosClothAssetEditorMode::RegisterClothTool(TSharedPtr<FUICommandInfo> UI
 			// Check if we need to switch view modes before starting the tool
 			TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedModes;
 
-			const UClothEditorContextObject* EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
+			const UDataflowContextObject* EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 			if (!EditorContextObject)
 			{
 				InitializeContextObject();
-				EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
+				EditorContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
 			}
-			checkf(EditorContextObject, TEXT("Failed to find or create UClothEditorContextObject"));
+			checkf(EditorContextObject, TEXT("Failed to find or create ContextObject"));
 			ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedModes);
 
 			bDynamicMeshUseInputCollection = true;
@@ -1026,12 +1027,7 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 
 	// Update the context object with the ConstructionViewMode and Collection used to build the DynamicMeshComponents, so 
 	// tools know how to use the components.
-	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
-	if (ensure(EditorContextObject))
-	{
-		EditorContextObject->SetClothCollection(ConstructionViewMode, Collection, bDynamicMeshUseInputCollection);
-	}
+	UpdateContextObject(Collection);
 }
 
 void UChaosClothAssetEditorMode::RefocusRestSpaceViewportClient()
@@ -1437,8 +1433,8 @@ bool UChaosClothAssetEditorMode::CanChangeConstructionViewModeTo(UE::Chaos::Clot
 	const UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
 	checkf(RestSpaceToolsContext, TEXT("Cloth Editor Mode doesn't have a valid InteractiveToolsContext"));
 
-	const UClothEditorContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
-	checkf(EditorContextObject, TEXT("UClothEditorContextObject not found in ContextObjectStore despite having an active tool. This should have been created by the time a tool is activated"));
+	const UDataflowContextObject* const EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+	checkf(EditorContextObject, TEXT("ContextObject not found in ContextObjectStore despite having an active tool. This should have been created by the time a tool is activated"));
 
 	TArray<UE::Chaos::ClothAsset::EClothPatternVertexType> SupportedViewModes;
 	ClothToolBuilder->GetSupportedViewModes(*EditorContextObject, SupportedViewModes);
@@ -1588,25 +1584,48 @@ void UChaosClothAssetEditorMode::InitializeContextObject()
 {
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
 
-	UClothEditorContextObject* EditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>();
-	if (!EditorContextObject)
+	// Dataflow context object
+	UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+	if (!DataflowContextObject)
 	{
-		EditorContextObject = NewObject<UClothEditorContextObject>();
-		RestSpaceToolsContext->ContextObjectStore->AddContextObject(EditorContextObject);
+		DataflowContextObject = NewObject<UDataflowContextObject>();
+		RestSpaceToolsContext->ContextObjectStore->AddContextObject(DataflowContextObject);
 	}
-	constexpr bool bUsingInputCollection = false;
-	EditorContextObject->Init(DataflowGraphEditor, DataflowContext, ConstructionViewMode, SelectedClothCollection, bUsingInputCollection);
 
-	check(EditorContextObject);
+	DataflowContextObject->SetConstructionViewMode(Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
 
+	if (const TSharedPtr<SDataflowGraphEditor> GraphEditor = DataflowGraphEditor.Pin())
+	{
+		if (UEdGraphNode* const SingleSelectedNode = GraphEditor->GetSingleSelectedNode())
+		{
+			if (UDataflowEdNode* const SelectedDataflowEdNode = Cast<UDataflowEdNode>(SingleSelectedNode))
+			{
+				DataflowContextObject->SetSelectedNode(SelectedDataflowEdNode);
+			}
+		}
+	}
+	DataflowContextObject->SetDataflowContext(DataflowContext.Pin());
+	DataflowContextObject->SetDataflowAsset(DataflowGraph.Get());
+}
+
+void UChaosClothAssetEditorMode::UpdateContextObject(const TSharedPtr<FManagedArrayCollection>& Collection)
+{
+	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
+	
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
+	{
+		DataflowContextObject->SetConstructionViewMode(Dataflow::FRenderingViewModeFactory::GetInstance().GetViewMode(ClothViewModeToDataflowViewModeName(ConstructionViewMode)));
+
+		DataflowContextObject->SetSelectedCollection(Collection, bDynamicMeshUseInputCollection);
+	}
 }
 
 void UChaosClothAssetEditorMode::DeleteContextObject()
 {
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	if (UClothEditorContextObject* ClothEditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(ClothEditorContextObject);
+		RestSpaceToolsContext->ContextObjectStore->RemoveContextObject(DataflowContextObject);
 	}
 }
 
@@ -1614,10 +1633,10 @@ void UChaosClothAssetEditorMode::SetDataflowContext(TWeakPtr<Dataflow::FEngineCo
 {
 	DataflowContext = InDataflowContext;
 	UEditorInteractiveToolsContext* const RestSpaceToolsContext = GetInteractiveToolsContext();
-	if (UClothEditorContextObject* ClothEditorContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UClothEditorContextObject>())
+	if (UDataflowContextObject* DataflowContextObject = RestSpaceToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>())
 	{
-		ClothEditorContextObject->SetDataflowContext(DataflowContext);
-	}	
+		DataflowContextObject->SetDataflowContext(DataflowContext.Pin());
+	}
 }
 
 void UChaosClothAssetEditorMode::SetDataflowGraphEditor(TSharedPtr<SDataflowGraphEditor> InGraphEditor)

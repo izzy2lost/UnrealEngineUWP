@@ -22,13 +22,14 @@
 #include "TransformTypes.h"
 #include "ToolDataVisualizer.h"
 #include "GroupTopology.h"
+#include "Dataflow/DataflowObjectInterface.h"
 #include "ClothWeightMapPaintTool.generated.h"
 
 class UMeshElementsVisualizer;
 class UWeightMapEraseBrushOpProps;
 class UWeightMapPaintBrushOpProps;
 class UWeightMapSmoothBrushOpProps;
-class UClothEditorContextObject;
+class UDataflowContextObject;
 class UPolygonSelectionMechanic;
 struct FChaosClothAssetWeightMapNode;
 enum class EChaosClothAssetWeightMapOverrideType : uint8;
@@ -322,7 +323,7 @@ public:
 
 	virtual void CommitResult(UBaseDynamicMeshComponent* Component, bool bModifiedTopology) override;
 
-	void SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject);
+	void SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject);
 
 public:
 
@@ -478,7 +479,7 @@ protected:
 	TObjectPtr<UMeshElementsVisualizer> MeshElementsDisplay;
 
 	UPROPERTY()
-	TObjectPtr<UClothEditorContextObject> ClothEditorContextObject = nullptr;
+	TObjectPtr<UDataflowContextObject> DataflowContextObject = nullptr;
 
 	// realtime visualization
 	void OnDynamicMeshComponentChanged(UDynamicMeshComponent* Component, const FMeshVertexChange* Change, bool bRevert);

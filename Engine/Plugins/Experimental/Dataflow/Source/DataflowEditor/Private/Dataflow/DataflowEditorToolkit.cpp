@@ -608,6 +608,11 @@ void FDataflowEditorToolkit::CreateWidgets()
 				AssetDetailsEditor = CreateAssetDetailsEditorWidget({EditorContent->GetDataflowAsset()});
 			}
 			GraphEditor = CreateGraphEditorWidget(DataflowAsset, NodeDetailsEditor);
+
+			// Synchronize the EditorContent's selected node with the GraphEditor
+			UDataflowEdNode* const InitialSelectedNode = Cast<UDataflowEdNode>(GraphEditor->GetSingleSelectedNode());
+			EditorContent->SetSelectedNode(InitialSelectedNode);
+
 			CreateSimulationViewportClient();
 
 			FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
@@ -915,7 +920,7 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 				}
 			}
 
-			EditorContent->SetPrimarySelectedNode(nullptr);
+			EditorContent->SetSelectedNode(nullptr);
 
 			if( UDataflowEditorMode* const DataflowMode = Cast<UDataflowEditorMode>(EditorModeManager->GetActiveScriptableMode(UDataflowEditorMode::EM_DataflowEditorModeId)) )
 			{
@@ -927,13 +932,26 @@ void FDataflowEditorToolkit::OnNodeSelectionChanged(const TSet<UObject*>& InNewS
 					ToolsContext->EndTool(EToolShutdownType::Completed);
 				}
 
-				EditorContent->SetPrimarySelectedNode(PrimarySelection);
+				EditorContent->SetSelectedNode(PrimarySelection);
 
 				// Call the node's OnSelected function. Some nodes use this to cache information from the inputs (e.g. FDataflowCollectionAddScalarVertexPropertyNode::CachedCollectionGroupNames)
 				TSharedPtr<Dataflow::FEngineContext> DataflowContext = EditorContent->GetDataflowContext();
 				if (PrimarySelection && DataflowContext.IsValid())
 				{
 					PrimarySelection->GetDataflowNode()->OnSelected(*DataflowContext);
+
+					// Update selected Collection in the ContextObject
+					const TSharedPtr<FDataflowNode> DataflowNode = PrimarySelection->GetDataflowNode();
+					for (const FDataflowOutput* const Output : DataflowNode->GetOutputs())
+					{
+						if (Output->GetType() == FName(TEXT("FManagedArrayCollection")))
+						{
+							const FManagedArrayCollection DefaultValue;
+							TSharedRef<FManagedArrayCollection> Collection = MakeShared<FManagedArrayCollection>(Output->GetValue<FManagedArrayCollection>(*DataflowContext, DefaultValue));
+							constexpr bool bCollectionIsInput = false;
+							EditorContent->SetSelectedCollection(Collection, bCollectionIsInput);
+						}
+					}
 				}
 			}
 
@@ -1067,6 +1085,16 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 					nullptr, nullptr, EditorContent->GetTerminalAsset(), EditorContent->GetDataflowTerminal());
 			}
 			EditorContent->SetLastModifiedTimestamp(TimeStamp);
+
+			// Ensure the context object's selected node matches the selected node in the graph editor
+			// TODO: Create an Editor Context Object that can just hold a reference to the graph editor, rather than keeping these in sync
+			if (GraphEditor->GetNumberOfSelectedNodes() == 1)
+			{
+				const UDataflowEdNode* const ContextObjectSelectedNode = EditorContent->GetSelectedNode();
+				const UDataflowEdNode* const EditorSelectedNode = Cast<UDataflowEdNode>(GraphEditor->GetSingleSelectedNode());
+				ensure(EditorSelectedNode == ContextObjectSelectedNode);
+			}
+
 		}
 	}
 }

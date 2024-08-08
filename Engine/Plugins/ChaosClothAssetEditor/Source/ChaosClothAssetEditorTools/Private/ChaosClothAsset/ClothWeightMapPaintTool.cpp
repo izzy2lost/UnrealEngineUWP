@@ -33,16 +33,19 @@
 #include "CanvasItem.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
 #include "ChaosClothAsset/ClothEditorContextObject.h"
+#include "ChaosClothAsset/ClothEditorToolBuilders.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/CollectionClothFacade.h"
 #include "ChaosClothAsset/WeightedValue.h"
 #include "ContextObjectStore.h"
+#include "Dataflow/DataflowContextObject.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "Dataflow/DataflowObject.h"
 #include "ChaosClothAsset/WeightMapNode.h"
 #include "GraphEditor.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowGraphEditor.h"
+#include "Dataflow/DataflowRenderingViewMode.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Selection/PolygonSelectionMechanic.h"
@@ -109,7 +112,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 	UMeshSculptToolBase::Setup();
 
 	// Get the selected weight map node
-	WeightMapNodeToUpdate = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
+	WeightMapNodeToUpdate = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetWeightMapNode>();
 	checkf(WeightMapNodeToUpdate, TEXT("No Weight Map Node is currently selected, or more than one node is selected"));
 
 	SetToolDisplayName(LOCTEXT("ToolName", "Paint Weight Maps"));
@@ -364,19 +367,19 @@ void UClothEditorWeightMapPaintTool::Setup()
 	// configure panels
 	UpdateSubToolType(FilterProperties->SubToolType);
 
-	const bool bIsRenderMode = ClothEditorContextObject && (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 	// Setup DynamicMeshToWeight conversion and get Input weight map (if it exists)
 	InputWeightMap = TConstArrayView<float>();
-	if (ClothEditorContextObject)
+
+	if (DataflowContextObject)
 	{
-		ensure(ClothEditorContextObject->IsUsingInputCollection());
-		if (TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
+		ensure(DataflowContextObject->IsUsingInputCollection());
+		if (TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
 		{
 			using namespace UE::Chaos::ClothAsset;
 			const FNonManifoldMappingSupport NonManifoldMapping(*Mesh);
 
 			const bool bHasNonManifoldMapping = NonManifoldMapping.IsNonManifoldVertexInSource();
-			const bool bHas2D3DConversion = ClothEditorContextObject->GetConstructionViewMode() == EClothPatternVertexType::Sim2D;
+			const bool bHas2D3DConversion = DataflowViewModeToClothViewMode(DataflowContextObject->GetConstructionViewMode()) == EClothPatternVertexType::Sim2D;
 
 			bHaveDynamicMeshToWeightConversion = bHasNonManifoldMapping || bHas2D3DConversion;
 
@@ -405,8 +408,11 @@ void UClothEditorWeightMapPaintTool::Setup()
 				WeightToDynamicMesh = Cloth.GetSimVertex2DLookup();
 			}
 
-			const int32 NumPatterns = bIsRenderMode ? Cloth.GetNumRenderPatterns() : Cloth.GetNumSimPatterns();		
-			
+			const EClothPatternVertexType ViewMode = UE::Chaos::ClothAsset::DataflowViewModeToClothViewMode(DataflowContextObject->GetConstructionViewMode());
+			const bool bIsRenderMode = ViewMode == EClothPatternVertexType::Render;
+
+			const int32 NumPatterns = bIsRenderMode ? Cloth.GetNumRenderPatterns() : Cloth.GetNumSimPatterns();
+
 			PatternTriangleOffsetAndNum.SetNum(NumPatterns);
 
 			TSet<int32> NonEmptyPatternIDs;
@@ -441,7 +447,7 @@ void UClothEditorWeightMapPaintTool::Setup()
 			}
 
 			// Find the map if it exists.
-			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ClothEditorContextObject->GetDataflowContext().Pin())
+			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
 			{
 				const FName InputName = WeightMapNodeToUpdate->GetInputName(*DataflowContext);
 				if (bIsRenderMode)
@@ -544,10 +550,9 @@ void UClothEditorWeightMapPaintTool::DecreaseBrushSpeedAction()		// Actually dec
 	NotifyOfPropertyChangeByTool(FilterProperties);
 }
 
-
-void UClothEditorWeightMapPaintTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
+void UClothEditorWeightMapPaintTool::SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject)
 {
-	ClothEditorContextObject = InClothEditorContextObject;
+	DataflowContextObject = InDataflowContextObject;
 }
 
 void UClothEditorWeightMapPaintTool::Shutdown(EToolShutdownType ShutdownType)
@@ -1976,7 +1981,7 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 	checkf(WeightMapNodeToUpdate, TEXT("Expected non-null pointer to Add Weight Map Node"));
 
 	// Save previous state for undo
-	if (UDataflow* const Dataflow = ClothEditorContextObject->GetDataflowAsset())
+	if (UDataflow* const Dataflow = DataflowContextObject->GetDataflowAsset())
 	{
 		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, 
 			FChaosClothAssetWeightMapNode::MakeWeightMapNodeChange(*WeightMapNodeToUpdate),
@@ -1986,8 +1991,6 @@ void UClothEditorWeightMapPaintTool::UpdateSelectedNode()
 
 	WeightMapNodeToUpdate->MapOverrideType = UpdateWeightMapProperties->MapOverrideType;
 	WeightMapNodeToUpdate->OutputName.StringValue = UpdateWeightMapProperties->Name;
-
-	const bool bIsRenderMode = (ClothEditorContextObject->GetConstructionViewMode() == UE::Chaos::ClothAsset::EClothPatternVertexType::Render);
 
 	if (bHaveDynamicMeshToWeightConversion)
 	{

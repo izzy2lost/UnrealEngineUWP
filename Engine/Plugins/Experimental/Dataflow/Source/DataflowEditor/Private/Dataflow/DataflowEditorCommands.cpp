@@ -14,6 +14,7 @@
 #include "Dataflow/DataflowRenderingViewMode.h"
 #include "Dataflow/DataflowSCommentNode.h"
 #include "Dataflow/DataflowSNode.h"
+#include "Dataflow/DataflowToolRegistry.h"
 #include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
 #include "EdGraphNode_Comment.h"
 #include "EdGraph/EdGraphNode.h"
@@ -33,7 +34,6 @@
 
 #define LOCTEXT_NAMESPACE "DataflowEditorCommands"
 
-const FString FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier = TEXT("BeginWeightMapPaintTool");
 const FString FDataflowEditorCommandsImpl::AddWeightMapNodeIdentifier = TEXT("AddWeightMapNode");
 const FString FDataflowEditorCommandsImpl::RebuildSimulationSceneIdentifier = TEXT("RebuildSimulationScene");
 const FString FDataflowEditorCommandsImpl::PauseSimulationSceneIdentifier = TEXT("PauseSimulationScene");
@@ -66,7 +66,6 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 	UI_COMMAND(RemoveOptionPin, "RemoveOptionPin", "Remove the last option pin from the selected nodes.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(ZoomToFitGraph, "ZoomToFitGraph", "Fit the graph in the graph editor viewport.", EUserInterfaceActionType::None, FInputChord(EKeys::F));
 
-	UI_COMMAND(BeginWeightMapPaintTool, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::None, FInputChord());
 	UI_COMMAND(AddWeightMapNode, "Add Weight Map", "Paint weight maps on the mesh", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(RebuildSimulationScene, "RebuildSimulationScene", "Rebuild the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(PauseSimulationScene, "PauseSimulationScene", "Pause the simulation scene", EUserInterfaceActionType::ToggleButton, FInputChord());
@@ -110,7 +109,25 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 			);
 			CreateNodesMap.Add(Parameters.TypeName, AddNode);
 		}
-	}		
+	}
+
+
+	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
+	for (const FName& NodeName : NodeNames)
+	{
+		FUICommandInfo::MakeCommandInfo(
+			this->AsShared(),
+			ToolRegistry.GetToolCommandForNode(NodeName),
+			FName(NodeName.ToString() + "_Tool"),
+			LOCTEXT("DataflowTool", "Dataflow Tool"),					// TODO: Replace placeholder names
+			LOCTEXT("DataflowToolTooltip", "Dataflow Tool Tooltip"),	// TODO: Replace placeholder names
+			FSlateIcon(),
+			EUserInterfaceActionType::Button,
+			FInputChord()
+		);
+	}
+
 }
 
 void FDataflowEditorCommandsImpl::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)

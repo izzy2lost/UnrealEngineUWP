@@ -1,8 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ChaosClothAsset/ClothMeshSelectionTool.h"
+#include "ChaosClothAsset/ClothEditorToolBuilders.h"
 #include "ChaosClothAsset/ClothCollectionGroup.h"
-#include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ChaosClothAsset/ClothGeometryTools.h"
 #include "ChaosClothAsset/ClothPatternVertexType.h"
 #include "ChaosClothAsset/SelectionNode.h"
@@ -17,8 +17,10 @@
 #include "ToolSetupUtil.h"
 #include "Selections/GeometrySelection.h"
 #include "ContextObjectStore.h"
+#include "Dataflow/DataflowContextObject.h"
 #include "Dataflow/DataflowGraphEditor.h"
 #include "Dataflow/DataflowEdNode.h"
+#include "Dataflow/DataflowObject.h"
 #include "DynamicMesh/NonManifoldMappingSupport.h"
 #include "Selections/GeometrySelectionUtil.h"
 #include "Materials/Material.h"
@@ -254,10 +256,10 @@ void UClothMeshSelectionTool::Setup()
 	UE::ToolTarget::HideSourceObject(Target);
 
 	// Setup non-manifold mapping if necessary
-	if (ClothEditorContextObject)
+	if (DataflowContextObject)
 	{
-		ensure(ClothEditorContextObject->IsUsingInputCollection());
-		if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
+		ensure(DataflowContextObject->IsUsingInputCollection());
+		if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
 		{
 			PreviewMesh->ProcessMesh([this, ClothCollection](const FDynamicMesh3& Mesh)
 			{
@@ -421,17 +423,16 @@ FBox UClothMeshSelectionTool::GetWorldSpaceFocusBox()
 	return FBox(SelectionMechanic->GetSelectionBounds(bWorld));
 }
 
-
-void UClothMeshSelectionTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
+void UClothMeshSelectionTool::SetDataflowContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject)
 {
-	ClothEditorContextObject = InClothEditorContextObject;
+	DataflowContextObject = InDataflowContextObject;
 }
 
 bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE::Geometry::FGroupTopologySelection& OutSelection, EChaosClothAssetSelectionOverrideType& OutOverrideType)
 {
 	using namespace UE::Chaos::ClothAsset;
 
-	SelectionNodeToUpdate = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetSelectionNode>();
+	SelectionNodeToUpdate = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetSelectionNode>();
 	check(SelectionNodeToUpdate);
 
 	// We need to sanitize the incoming indices, as the user can manually set them to anything on the node
@@ -496,12 +497,12 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 
 	// Get the input set.
 	InputSelectionSet.Reset();
-	if (ClothEditorContextObject)
+	if (DataflowContextObject)
 	{
-		ensure(ClothEditorContextObject->IsUsingInputCollection());
-		if (TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
+		ensure(DataflowContextObject->IsUsingInputCollection());
+		if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
 		{
-			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ClothEditorContextObject->GetDataflowContext().Pin())
+			if (const TSharedPtr<Dataflow::FEngineContext> DataflowContext = DataflowContextObject->GetDataflowContext())
 			{
 				using namespace UE::Chaos::ClothAsset;
 				const FName InputName = SelectionNodeToUpdate->GetInputName(*DataflowContext);
@@ -539,7 +540,7 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	checkf(SelectionNodeToUpdate, TEXT("Expected non-null pointer to Selection Node"));
 
 	// Save previous state for undo
-	if (UDataflow* const Dataflow = ClothEditorContextObject->GetDataflowAsset())
+	if (UDataflow* const Dataflow = DataflowContextObject->GetDataflowAsset())
 	{
 		GetToolManager()->GetContextTransactionsAPI()->AppendChange(Dataflow, 
 			FChaosClothAssetSelectionNode::MakeWeightMapNodeChange(*SelectionNodeToUpdate),
@@ -547,7 +548,8 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 	}
 
 	const UE::Geometry::FGroupTopologySelection& Selection = SelectionMechanic->GetActiveSelection();
-	const EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
+
+	const EClothPatternVertexType ViewMode = DataflowViewModeToClothViewMode(DataflowContextObject->GetConstructionViewMode());
 
 	TSet<int32> Indices;
 	FName GroupName = ClothCollectionGroup::SimVertices2D;
@@ -561,13 +563,13 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 
 		switch(ViewMode)
 		{
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
+		case EClothPatternVertexType::Sim2D:
 			GroupName = ClothCollectionGroup::SimVertices2D;
 			break;
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+		case EClothPatternVertexType::Sim3D:
 			GroupName = ClothCollectionGroup::SimVertices3D;
 			break;
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+		case EClothPatternVertexType::Render:
 			GroupName = ClothCollectionGroup::RenderVertices;
 			break;
 		}
@@ -578,11 +580,11 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 
 		switch (ViewMode)
 		{
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+		case EClothPatternVertexType::Sim2D:
+		case EClothPatternVertexType::Sim3D:
 			GroupName = ClothCollectionGroup::SimFaces;
 			break;
-		case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+		case EClothPatternVertexType::Render:
 			GroupName = ClothCollectionGroup::RenderFaces;
 			break;
 		}
@@ -663,15 +665,16 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 
 void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 {
-	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = ClothEditorContextObject->GetSelectedClothCollection().Pin())
+	if (const TSharedPtr<const FManagedArrayCollection> ClothCollection = DataflowContextObject->GetSelectedCollection())
 	{
-		ensure(ClothEditorContextObject->IsUsingInputCollection());
+		ensure(DataflowContextObject->IsUsingInputCollection());
 
 		using namespace UE::Chaos::ClothAsset;
 		const FCollectionClothSelectionConstFacade SelectionFacade(ClothCollection.ToSharedRef());
 		if (SelectionFacade.IsValid())
 		{
-			const EClothPatternVertexType ViewMode = ClothEditorContextObject->GetConstructionViewMode();
+			const EClothPatternVertexType ViewMode = DataflowViewModeToClothViewMode(DataflowContextObject->GetConstructionViewMode());
+
 			FName GroupName = ClothCollectionGroup::SimVertices2D;
 			if (SelectionMechanic->Properties->bSelectVertices)
 			{
@@ -680,13 +683,13 @@ void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 
 				switch (ViewMode)
 				{
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
+				case EClothPatternVertexType::Sim2D:
 					GroupName = ClothCollectionGroup::SimVertices2D;
 					break;
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+				case EClothPatternVertexType::Sim3D:
 					GroupName = ClothCollectionGroup::SimVertices3D;
 					break;
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+				case EClothPatternVertexType::Render:
 					GroupName = ClothCollectionGroup::RenderVertices;
 					break;
 				}
@@ -695,11 +698,11 @@ void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 			{
 				switch (ViewMode)
 				{
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim2D:
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Sim3D:
+				case EClothPatternVertexType::Sim2D:
+				case EClothPatternVertexType::Sim3D:
 					GroupName = ClothCollectionGroup::SimFaces;
 					break;
-				case UE::Chaos::ClothAsset::EClothPatternVertexType::Render:
+				case EClothPatternVertexType::Render:
 					GroupName = ClothCollectionGroup::RenderFaces;
 					break;
 				}

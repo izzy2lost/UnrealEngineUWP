@@ -228,6 +228,7 @@ private:
 
 
 	void InitializeContextObject();
+	void UpdateContextObject(const TSharedPtr<FManagedArrayCollection>& Collection);
 	void DeleteContextObject();
 
 	bool IsComponentSelected(const UPrimitiveComponent* InComponent);

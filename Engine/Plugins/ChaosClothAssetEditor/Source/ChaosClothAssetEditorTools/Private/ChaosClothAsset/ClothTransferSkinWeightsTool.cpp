@@ -7,8 +7,8 @@
 #include "ToolSetupUtil.h"
 #include "ModelingToolTargetUtil.h"
 #include "Engine/SkeletalMesh.h"
-#include "ChaosClothAsset/ClothEditorContextObject.h"
 #include "ContextObjectStore.h"
+#include "Dataflow/DataflowContextObject.h"
 #include "Dataflow/DataflowEdNode.h"
 #include "ChaosClothAsset/TransferSkinWeightsNode.h"
 #include "BaseGizmos/TransformGizmoUtil.h"
@@ -50,7 +50,7 @@ void UClothTransferSkinWeightsTool::Setup()
 {
 	USingleSelectionMeshEditingTool::Setup();
 
-	TransferSkinWeightsNode = ClothEditorContextObject->GetSingleSelectedNodeOfType<FChaosClothAssetTransferSkinWeightsNode>();
+	TransferSkinWeightsNode = DataflowContextObject->GetSelectedNodeOfType<FChaosClothAssetTransferSkinWeightsNode>();
 	checkf(TransferSkinWeightsNode, TEXT("No Transfer Skin Weights Node is currently selected, or more than one node is selected"));
 
 	ToolProperties = NewObject<UClothTransferSkinWeightsToolProperties>(this);
@@ -250,9 +250,9 @@ TUniquePtr<UE::Geometry::FDynamicMeshOperator> UClothTransferSkinWeightsTool::Ma
 	return TransferOp;
 }
 
-void UClothTransferSkinWeightsTool::SetClothEditorContextObject(TObjectPtr<UClothEditorContextObject> InClothEditorContextObject)
+void UClothTransferSkinWeightsTool::SetDataflowEditorContextObject(TObjectPtr<UDataflowContextObject> InDataflowContextObject)
 {
-	ClothEditorContextObject = InClothEditorContextObject;
+	DataflowContextObject = InDataflowContextObject;
 }
 
 FTransform UClothTransferSkinWeightsTool::TransformFromProperties() const

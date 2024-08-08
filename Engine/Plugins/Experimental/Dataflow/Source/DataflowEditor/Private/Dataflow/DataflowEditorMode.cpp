@@ -24,6 +24,7 @@
 #include "Dataflow/DataflowSimulationViewportClient.h"
 #include "Dataflow/DataflowSNode.h"
 #include "Dataflow/DataflowToolTarget.h"
+#include "Dataflow/DataflowToolRegistry.h"
 #include "EditorModeManager.h"
 #include "EdModeInteractiveToolsContext.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
@@ -108,7 +109,6 @@ void UDataflowEditorMode::AddToolTargetFactories()
 void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UICommand,
 	FString ToolIdentifier,
 	UInteractiveToolBuilder* Builder,
-	const IDataflowEditorToolBuilder* DataflowToolBuilder,
 	UEditorInteractiveToolsContext* const ToolsContext,
 	EToolsContextScope ToolScope)
 {
@@ -133,8 +133,37 @@ void UDataflowEditorMode::RegisterDataflowTool(TSharedPtr<FUICommandInfo> UIComm
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
 
 	CommandList->MapAction(UICommand, 
-		FExecuteAction::CreateWeakLambda(ToolsContext, [this, ToolsContext, ToolIdentifier, DataflowToolBuilder]()
+		FExecuteAction::CreateWeakLambda(ToolsContext, [this, ToolsContext, ToolIdentifier]()
 		{
+			UDataflowContextObject* ContextObject = ToolsContext->ContextObjectStore->FindContext<UDataflowContextObject>();
+			check(ContextObject);
+
+			// Make sure the ContextObject's selected Collection is the from the Input side of the selected node (so that the tool gets the Collection as it appears before node execution)
+
+			if (TSharedPtr<Dataflow::FEngineContext> DataflowContext = ContextObject->GetDataflowContext())
+			{
+				if (UDataflowEdNode* const SelectedNode = ContextObject->GetSelectedNode())
+				{
+					if (const TSharedPtr<FDataflowNode> DataflowNode = SelectedNode->GetDataflowNode())
+					{
+						for (const FDataflowInput* const Input : DataflowNode->GetInputs())
+						{
+							if (Input->GetType() == FName("FManagedArrayCollection"))
+							{
+								const FManagedArrayCollection DefaultValue;
+								TSharedRef<FManagedArrayCollection> Collection = MakeShared<FManagedArrayCollection>(Input->GetValue<FManagedArrayCollection>(*DataflowContext, DefaultValue));
+
+								constexpr bool bCollectionIsInput = true;
+								ContextObject->SetSelectedCollection(Collection, bCollectionIsInput);
+
+								// If we have multiple input Collections, this will just take the first one. This is what the Cloth Editor does as well (but there it also checks to see if it's a ClothCollection)
+								break;
+							}
+						}
+					}
+				}
+			}
+
 			ActiveToolsContext = ToolsContext;
 			ToolsContext->StartTool(ToolIdentifier);
 		}),
@@ -186,10 +215,24 @@ void UDataflowEditorMode::RegisterTools()
 
 	UEditorInteractiveToolsContext* const ConstructionViewportToolsContext = GetInteractiveToolsContext();
 
-	UDataflowEditorWeightMapPaintToolBuilder* WeightMapPaintToolBuilder = NewObject<UDataflowEditorWeightMapPaintToolBuilder>(this);
-	WeightMapPaintToolBuilder->SetEditorMode(this);
-	RegisterDataflowTool(CommandInfos.BeginWeightMapPaintTool, FDataflowEditorCommandsImpl::BeginWeightMapPaintToolIdentifier, WeightMapPaintToolBuilder, WeightMapPaintToolBuilder, ConstructionViewportToolsContext);
-	RegisterAddNodeCommand(CommandInfos.AddWeightMapNode, FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), CommandInfos.BeginWeightMapPaintTool);
+	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
+	for (const FName& RegisteredNodeName : NodeNames)
+	{
+		const TSharedPtr<FUICommandInfo> CommandInfo = ToolRegistry.GetToolCommandForNode(RegisteredNodeName);
+		UInteractiveToolBuilder* const Builder = ToolRegistry.GetToolBuilderForNode(RegisteredNodeName);
+
+		// TODO: This is here only so the Tool can hide the all meshes in the DataflowConstructionScene. That should probably be handed in this class instead.
+		if (UDataflowEditorWeightMapPaintToolBuilder* WeightMapPaintToolBuilder = Cast<UDataflowEditorWeightMapPaintToolBuilder>(Builder))
+		{
+			WeightMapPaintToolBuilder->SetEditorMode(this);
+		}
+
+		RegisterDataflowTool(CommandInfo, RegisteredNodeName.ToString() + FString(TEXT("Tool")), Builder, ConstructionViewportToolsContext);
+
+		NodeTypeToToolCommandMap.Add(RegisteredNodeName, CommandInfo);
+	}
+
 }
 
 bool UDataflowEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const

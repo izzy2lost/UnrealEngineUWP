@@ -11,6 +11,8 @@
 #include "Dataflow/DataflowFunctionPropertyCustomization.h"
 #include "Dataflow/DataflowSNodeFactories.h"
 #include "Dataflow/ScalarVertexPropertyGroupCustomization.h"
+#include "Dataflow/DataflowToolRegistry.h"
+#include "DataflowEditorTools/DataflowEditorWeightMapPaintTool.h"
 #include "Dataflow/DataflowCollectionAddScalarVertexPropertyNode.h"
 
 #include "PropertyEditorModule.h"
@@ -34,6 +36,11 @@ void FDataflowEditorModule::StartupModule()
 	}
 
 	Dataflow::RenderingCallbacks();
+
+	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+
+	UDataflowEditorWeightMapPaintToolBuilder* const ToolBuilder = NewObject<UDataflowEditorWeightMapPaintToolBuilder>();
+	ToolRegistry.AddNodeToToolMapping(FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), ToolBuilder);
 }
 
 void FDataflowEditorModule::ShutdownModule()
@@ -46,6 +53,9 @@ void FDataflowEditorModule::ShutdownModule()
 		PropertyModule->UnregisterCustomPropertyTypeLayout(ScalarVertexPropertyGroupName);
 		PropertyModule->UnregisterCustomPropertyTypeLayout(DataflowFunctionPropertyName);
 	}
+
+	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	ToolRegistry.RemoveNodeToToolMapping(FDataflowCollectionAddScalarVertexPropertyNode::StaticType());
 }
 
 IMPLEMENT_MODULE(FDataflowEditorModule, DataflowEditor)

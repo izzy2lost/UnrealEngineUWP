@@ -57,7 +57,9 @@ public:
 
 	TMap< FName, TSharedPtr<FUICommandInfo> > CreateNodesMap;
 
+	UE_DEPRECATED(5.5, "Dataflow Tool commands are now stored in FDataflowToolRegistry")
 	const static FString BeginWeightMapPaintToolIdentifier;
+	UE_DEPRECATED(5.5, "Dataflow Tool commands are now stored in FDataflowToolRegistry")
 	TSharedPtr<FUICommandInfo> BeginWeightMapPaintTool;
 	
 	const static FString AddWeightMapNodeIdentifier;
