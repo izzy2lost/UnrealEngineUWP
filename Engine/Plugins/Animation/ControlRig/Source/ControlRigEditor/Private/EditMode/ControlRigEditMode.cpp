@@ -477,7 +477,7 @@ void FControlRigEditMode::Enter()
 		}
 	}
 
-	UE::ControlRig::PopulateControlRigViewportToolbarTransformsSubmenu("LevelEditor.ViewportToolbar.Transforms");
+	UE::ControlRig::PopulateControlRigViewportToolbarTransformsSubmenu("LevelEditor.ViewportToolbar.Transform");
 	UE::ControlRig::PopulateControlRigViewportToolbarSelectionSubmenu("LevelEditor.ViewportToolbar.Select");
 	UE::ControlRig::PopulateControlRigViewportToolbarShowSubmenu(
 		"LevelEditor.ViewportToolbar.Show", GetToolkit()->GetToolkitCommands()

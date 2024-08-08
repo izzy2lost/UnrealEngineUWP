@@ -554,9 +554,9 @@ bool ShowNewViewportToolbars()
 
 FToolMenuEntry CreateViewportToolbarTransformsSection()
 {
-	return FToolMenuEntry::InitSubMenu(
-		"Transforms",
-		LOCTEXT("TransformsSubmenuLabel", "Transforms"),
+	FToolMenuEntry Entry = FToolMenuEntry::InitSubMenu(
+		"Transform",
+		LOCTEXT("TransformsSubmenuLabel", "Transform"),
 		LOCTEXT("TransformsSubmenuTooltip", "Viewport-related transforms tools"),
 		FNewToolMenuDelegate::CreateLambda(
 			[](UToolMenu* Submenu) -> void
@@ -654,6 +654,9 @@ FToolMenuEntry CreateViewportToolbarTransformsSection()
 			}
 		)
 	);
+
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.RelativeCoordinateSystem_Local");
+	return Entry;
 }
 
 FToolMenuEntry CreateViewportToolbarSelectionSection()
