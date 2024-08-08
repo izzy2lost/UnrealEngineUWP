@@ -632,7 +632,8 @@ void UMovieScene3DTransformSection::ImportConstraintEntity(UMovieSceneEntitySyst
 			ComponentData.Section = this;
 			OutImportedEntity->AddBuilder(
 				FEntityBuilder()
-				.Add(BuiltInComponentTypes->SceneComponentBinding, ObjectBindingID)
+				.Add(BuiltInComponentTypes->BoundObjectResolver, MovieSceneHelpers::ResolveSceneComponentBoundObject)
+				.Add(BuiltInComponentTypes->GenericObjectBinding, ObjectBindingID)
 				.Add(TrackComponents->ConstraintChannel, ComponentData)
 			);
 		}
@@ -654,16 +655,13 @@ void UMovieScene3DTransformSection::ImportEntityImpl(UMovieSceneEntitySystemLink
 
 	check(Track);
 
-	// 3D Transform tracks use a scene component binding by default. Every other transform property track must be bound directly to the object.
-	const TComponentTypeID<FGuid>& ObjectBinding = Track->IsA<UMovieScene3DTransformTrack>()
-		? BuiltInComponentTypes->SceneComponentBinding
-		: BuiltInComponentTypes->GenericObjectBinding;
-
 	FGuid ObjectBindingID = Params.GetObjectBindingID();
 
 	auto BaseBuilder = FEntityBuilder()
 		.Add(BuiltInComponentTypes->PropertyBinding, Track->GetPropertyBinding())
-		.AddConditional(ObjectBinding,               ObjectBindingID, ObjectBindingID.IsValid());
+		// 3D Transform tracks use a scene component binding by default. Every other transform property track must be bound directly to the object.
+		.AddConditional(BuiltInComponentTypes->BoundObjectResolver, MovieSceneHelpers::ResolveSceneComponentBoundObject, Track->IsA<UMovieScene3DTransformTrack>())
+		.AddConditional(BuiltInComponentTypes->GenericObjectBinding, ObjectBindingID, ObjectBindingID.IsValid());
 
 	BuildEntity(BaseBuilder, EntityLinker, Params, OutImportedEntity);
 }

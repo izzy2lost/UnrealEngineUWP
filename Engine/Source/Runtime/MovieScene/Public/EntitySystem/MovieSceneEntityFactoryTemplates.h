@@ -26,6 +26,7 @@ namespace MovieScene
 {
 
 struct FInstanceRegistry;
+using FBoundObjectResolver = UObject* (*)(UObject*);
 
 template<typename ParentComponentType, typename ChildComponentType>
 struct TChildEntityInitializer : FChildEntityInitializer
@@ -108,12 +109,6 @@ struct TDuplicateChildEntityInitializer : FChildEntityInitializer
 
 struct FObjectFactoryBatch : FChildEntityFactory
 {
-	enum class EResolveError
-	{
-		None              = 0x0,
-		UnresolvedBinding = 0x1,
-	};
-
 	void Add(int32 EntityIndex, UObject* BoundObject);
 
 	virtual void GenerateDerivedType(FComponentMask& OutNewEntityType) override;
@@ -122,25 +117,20 @@ struct FObjectFactoryBatch : FChildEntityFactory
 
 	virtual void PostInitialize(UMovieSceneEntitySystemLinker* InLinker) override;
 
-	virtual EResolveError ResolveObjects(FInstanceRegistry* InstanceRegistry, FInstanceHandle InstanceHandle, int32 InEntityIndex, const FGuid& ObjectBinding) = 0;
-
 	TMap<TTuple<UObject*, FMovieSceneEntityID>, FMovieSceneEntityID>* StaleEntitiesToPreserve;
 
 private:
 	TSortedMap<FMovieSceneEntityID, FMovieSceneEntityID> PreservedEntities;
 	TArray<UObject*> ObjectsToAssign;
 };
-ENUM_CLASS_FLAGS(FObjectFactoryBatch::EResolveError)
 
 struct FBoundObjectTask
 {
 	FBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker);
-	virtual ~FBoundObjectTask(){}
 
-	virtual FObjectFactoryBatch& AddBatch(FEntityAllocationProxy ParentProxy) = 0;
-	virtual void Apply() = 0;
+	void Apply();
 
-	void ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings);
+	void ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings, TReadOptional<FBoundObjectResolver> Resolvers);
 
 	void PostTask();
 
@@ -154,6 +144,7 @@ private:
 	};
 
 	TMap<TTuple<UObject*, FMovieSceneEntityID>, FMovieSceneEntityID> StaleEntitiesToPreserve;
+	TMap<FEntityAllocationProxy, FObjectFactoryBatch> Batches;
 	TArray<FMovieSceneEntityID> EntitiesToDiscard;
 	TArray<FEntityMutationData> EntityMutations;
 
@@ -161,36 +152,6 @@ protected:
 
 	UMovieSceneEntitySystemLinker* Linker;
 };
-
-template<typename BatchType>
-struct TBoundObjectTask : FBoundObjectTask
-{
-	TBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker)
-		: FBoundObjectTask(InLinker)
-	{}
-
-private:
-
-	virtual FObjectFactoryBatch& AddBatch(FEntityAllocationProxy ParentProxy) override
-	{
-		return Batches.Add(ParentProxy);
-	}
-
-	virtual void Apply() override
-	{
-		for (TTuple<FEntityAllocationProxy, BatchType>& Pair : Batches)
-		{
-			// Determine the type for the new entities
-			if (Pair.Value.Num() != 0)
-			{
-				Pair.Value.Apply(Linker, Pair.Key);
-			}
-		}
-	}
-
-	TMap<FEntityAllocationProxy, BatchType> Batches;
-};
-
 
 
 template<typename ComponentType>

@@ -289,7 +289,10 @@ FBuiltInComponentTypes::FBuiltInComponentTypes()
 
 	ComponentRegistry->NewComponentType(&PropertyBinding,         TEXT("Property Binding"), EComponentTypeFlags::CopyToOutput);
 	ComponentRegistry->NewComponentType(&GenericObjectBinding,    TEXT("Generic Object Binding ID"));
-	ComponentRegistry->NewComponentType(&SceneComponentBinding,   TEXT("USceneComponent Binding ID"));
+	ComponentRegistry->NewComponentType(&BoundObjectResolver,     TEXT("Bound Object Resolver"));
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ComponentRegistry->NewComponentType(&SceneComponentBinding,   TEXT("[DEPRECATED] USceneComponent Binding ID"));
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	ComponentRegistry->NewComponentType(&SpawnableBinding,        TEXT("Spawnable Binding"));
 	ComponentRegistry->NewComponentType(&TrackInstance,           TEXT("Track Instance"));
 	ComponentRegistry->NewComponentType(&BoolChannel,             TEXT("Bool Channel"));

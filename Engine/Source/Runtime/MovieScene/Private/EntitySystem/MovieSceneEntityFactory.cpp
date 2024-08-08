@@ -153,7 +153,19 @@ FBoundObjectTask::FBoundObjectTask(UMovieSceneEntitySystemLinker* InLinker)
 	: Linker(InLinker)
 {}
 
-void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings)
+void FBoundObjectTask::Apply()
+{
+	for (TTuple<FEntityAllocationProxy, FObjectFactoryBatch>& Pair : Batches)
+	{
+		// Determine the type for the new entities
+		if (Pair.Value.Num() != 0)
+		{
+			Pair.Value.Apply(Linker, Pair.Key);
+		}
+	}
+}
+
+void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy, FReadEntityIDs EntityIDs, TRead<FInstanceHandle> Instances, TRead<FGuid> ObjectBindings, TReadOptional<FBoundObjectResolver> Resolvers)
 {
 	const FEntityAllocation* Allocation = AllocationProxy.GetAllocation();
 	const FComponentTypeID TagHasUnresolvedBinding = FBuiltInComponentTypes::Get()->Tags.HasUnresolvedBinding;
@@ -161,7 +173,7 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 	// Check whether every binding in this allocation is currently unresolved
 	const bool bWasUnresolvedBinding = Allocation->FindComponentHeader(TagHasUnresolvedBinding) != nullptr;
 
-	FObjectFactoryBatch& Batch = AddBatch(AllocationProxy);
+	FObjectFactoryBatch& Batch = Batches.Emplace(AllocationProxy);
 	Batch.StaleEntitiesToPreserve = &StaleEntitiesToPreserve;
 
 	const int32 Num = Allocation->Num();
@@ -170,6 +182,8 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 
 	// Keep track of existing bindings so we can preserve any components on them
 	TComponentTypeID<UObject*> BoundObjectComponent = FBuiltInComponentTypes::Get()->BoundObject;
+
+	const FBoundObjectResolver* ResolverPtr = Resolvers.AsPtr();
 
 	for (int32 Index = 0; Index < Num; ++Index)
 	{
@@ -190,24 +204,46 @@ void FBoundObjectTask::ForEachAllocation(FEntityAllocationProxy AllocationProxy,
 			}
 		}
 
-		const FObjectFactoryBatch::EResolveError Error = Batch.ResolveObjects(InstanceRegistry, Instances[Index], Index, ObjectBindings[Index]);
-		if (Error == FObjectFactoryBatch::EResolveError::None)
+		bool bIsResolvedBinding = false;
+
+		const FSequenceInstance&     SequenceInstance = InstanceRegistry->GetInstance(Instances[Index]);
+		TArrayView<TWeakObjectPtr<>> BoundObjects     = SequenceInstance.GetSharedPlaybackState()->FindBoundObjects(ObjectBindings[Index], SequenceInstance.GetSequenceID());
+
+		for (TWeakObjectPtr<> WeakObject : BoundObjects)
 		{
-			// We have successfully resolved a binding, so remove the HasUnresolvedBinding tag
-			if (bWasUnresolvedBinding)
+			UObject* Object = WeakObject.Get();
+
+			// Pass the object through the resolver component if necessary
+			if (ResolverPtr && Object)
 			{
-				constexpr bool bAddComponent = false;
-				EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
+				Object = (ResolverPtr[Index])(Object);
+			}
+
+			if (Object)
+			{
+				if (!ensureMsgf(!FBuiltInComponentTypes::IsBoundObjectGarbage(Object), TEXT("Attempting to bind an object that is garbage or unreachable")))
+				{
+					continue;
+				}
+
+				// Make a child entity for this resolved binding
+				Batch.Add(Index, Object);
+				bIsResolvedBinding = true;
 			}
 		}
-		else if (Error == FObjectFactoryBatch::EResolveError::UnresolvedBinding)
+
+
+		if (bIsResolvedBinding && bWasUnresolvedBinding)
 		{
-			if (!bWasUnresolvedBinding)
-			{
-				// Only bother attempting to add the HasUnresolvedBindingTag if it is not already tagged in such a way
-				constexpr bool bAddComponent = true;
-				EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
-			}
+			// We have successfully resolved a binding, so remove the HasUnresolvedBinding tag
+			constexpr bool bAddComponent = false;
+			EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
+		}
+		else if (!bIsResolvedBinding && !bWasUnresolvedBinding)
+		{
+			// Only bother attempting to add the HasUnresolvedBindingTag if it is not already tagged in such a way
+			constexpr bool bAddComponent = true;
+			EntityMutations.Add(FEntityMutationData{ ParentID, TagHasUnresolvedBinding, bAddComponent });
 		}
 	}
 

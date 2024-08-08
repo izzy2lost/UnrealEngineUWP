@@ -182,9 +182,11 @@ FKeyHandle AddOrUpdateKeyImpl(ChannelType* Channel, UMovieSceneSection* SectionT
 					const FPropertyDefinition& BoundPropertyDefinition = PropertyDefinitions[BoundPropertyDefinitionIndex];
 
 					check(FirstBoundObject != nullptr);
-					if (Interrogator.GetLinker()->EntityManager.HasComponent(EntityID, BuiltInComponents->SceneComponentBinding))
+					TComponentLock<TReadOptional<FBoundObjectResolver>> Resolver =
+							Interrogator.GetLinker()->EntityManager.ReadComponent(EntityID, BuiltInComponents->BoundObjectResolver);
+					if (Resolver)
 					{
-						FirstBoundObject = MovieSceneHelpers::SceneComponentFromRuntimeObject(FirstBoundObject);
+						FirstBoundObject = (*Resolver)(FirstBoundObject);
 						check(FirstBoundObject != nullptr);
 					}
 

@@ -51,17 +51,12 @@ struct FCameraAnimationInstantiationMutation : IMovieSceneEntityMutation
 			{
 				BindObjectImpl(InstanceHandles[Index], ObjectBindings[Index], OutBoundObjects[Index]);
 			}
-		}
-		else if (AllocationType.Contains(BuiltInComponents->SceneComponentBinding))
-		{
-			// Initialize bound scene components.
-			TComponentReader<FGuid> SceneComponentBindings = Allocation->ReadComponents(BuiltInComponents->SceneComponentBinding);
-			for (int32 Index = 0; Index < Num; ++Index)
-			{
-				BindObjectImpl(InstanceHandles[Index], SceneComponentBindings[Index], OutBoundObjects[Index]);
-			}
+
+			// @NOTE: Camera animations intentionally do not use bound object resolvers because they explicitly
+			//        always use a camera stand in object.
 		}
 	}
+
 	void BindObjectImpl(const FInstanceHandle& InstanceHandle, const FGuid& ObjectBinding, UObject*& OutBoundObject) const
 	{
 		const FSequenceInstance& Instance = InstanceRegistry.GetInstance(InstanceHandle);
@@ -150,8 +145,7 @@ void UCameraAnimationBoundObjectInstantiator::OnRun(FSystemTaskPrerequisites& In
 	// Initialize all new allocations with bound objects and output components.
 	FCameraAnimationInstantiationMutation Mutation(*Linker->GetInstanceRegistry());
 	FEntityComponentFilter Filter = FEntityComponentFilter()
-		.Any({ BuiltInComponents->GenericObjectBinding, 
-				BuiltInComponents->SceneComponentBinding })
+		.Any({ BuiltInComponents->GenericObjectBinding })
 		.All({ BuiltInComponents->InstanceHandle, BuiltInComponents->Tags.NeedsLink })
 		.None({ BuiltInComponents->Tags.NeedsUnlink });
 	Linker->EntityManager.MutateAll(Filter, Mutation, EMutuallyInclusiveComponentType::All);

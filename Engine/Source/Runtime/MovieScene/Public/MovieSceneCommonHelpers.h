@@ -124,6 +124,7 @@ public:
 	 * @return The found scene component
 	 */	
 	static MOVIESCENE_API USceneComponent* SceneComponentFromRuntimeObject(UObject* Object);
+	static MOVIESCENE_API UObject* ResolveSceneComponentBoundObject(UObject* Object);
 
 	/**
 	 * Get the active camera component from the actor 

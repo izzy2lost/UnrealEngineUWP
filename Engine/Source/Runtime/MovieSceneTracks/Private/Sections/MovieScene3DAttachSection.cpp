@@ -56,7 +56,8 @@ void UMovieScene3DAttachSection::ImportEntityImpl(UMovieSceneEntitySystemLinker*
 
 	OutImportedEntity->AddBuilder(
 		FEntityBuilder()
-		.Add(BuiltInComponentTypes->SceneComponentBinding, Params.GetObjectBindingID())
+		.Add(BuiltInComponentTypes->GenericObjectBinding, Params.GetObjectBindingID())
+		.Add(BuiltInComponentTypes->BoundObjectResolver, MovieSceneHelpers::ResolveSceneComponentBoundObject)
 		.Add(TrackComponents->AttachParentBinding, ConstraintBindingID)
 		.Add(TrackComponents->AttachComponent, AttachComponent)
 	);

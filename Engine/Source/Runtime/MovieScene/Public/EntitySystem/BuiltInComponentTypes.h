@@ -342,6 +342,8 @@ struct FMovieSceneBindingLifetimeComponentData
 	EMovieSceneBindingLifetimeState BindingLifetimeState = EMovieSceneBindingLifetimeState::Active;
 };
 
+using FBoundObjectResolver = UObject* (*)(UObject*);
+
 /**
  * Specifies a unique, sorted path of hbiases that contribute to a blended output
  * Supports up to 8 unique HBiases in its path
@@ -610,7 +612,11 @@ public:
 	// An FGuid relating to a direct object binding in a sequence
 	TComponentTypeID<FGuid> GenericObjectBinding;
 
+	// A custom bound object resolver that defines a function to resolve a bound object (ie, from AActor -> RootComponent where a track must operate on a component)
+	TComponentTypeID<FBoundObjectResolver> BoundObjectResolver;
+
 	// An FGuid that is always resolved as a USceneComponent either directly or through the AActor that the GUID relates to
+	UE_DEPRECATED(5.5, "Please use GenericObjectBinding and BoundObjectResolver")
 	TComponentTypeID<FGuid> SceneComponentBinding;
 
 	// An FGuid relating to a spawnable binding in a sequence
@@ -743,7 +749,7 @@ public:
 		FComponentTypeID NeedsLink;
 		FComponentTypeID NeedsUnlink;
 
-		/** Tag that is added to imported entities with a GenericObjectBinding or SceneComponentBinding whose binding did not resolve */
+		/** Tag that is added to imported entities with a GenericObjectBinding whose binding did not resolve */
 		FComponentTypeID HasUnresolvedBinding;
 
 		FComponentTypeID HasAssignedInitialValue;

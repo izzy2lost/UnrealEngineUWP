@@ -469,6 +469,11 @@ void MovieSceneHelpers::GetDescendantSubSections(const UMovieScene* InMovieScene
 	}
 }
 
+UObject* MovieSceneHelpers::ResolveSceneComponentBoundObject(UObject* Object)
+{
+	return SceneComponentFromRuntimeObject(Object);
+}
+
 USceneComponent* MovieSceneHelpers::SceneComponentFromRuntimeObject(UObject* Object)
 {
 	AActor* Actor = Cast<AActor>(Object);
