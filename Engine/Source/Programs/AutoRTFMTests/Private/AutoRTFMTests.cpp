@@ -41,7 +41,8 @@ int main(int ArgC, const char* ArgV[]) {
 		AutoRTFM::ForTheRuntime::SetRetryTransaction(AutoRTFM::ForTheRuntime::EAutoRTFMRetryTransactionState::RetryNonNested);
 	}
 
-	GEngineLoop.PreInit(0, nullptr);
+	const TCHAR* CommandLine = TEXT("-Multiprocess");
+	GEngineLoop.PreInit(CommandLine);
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
 	// Enable AutoRTFM.
