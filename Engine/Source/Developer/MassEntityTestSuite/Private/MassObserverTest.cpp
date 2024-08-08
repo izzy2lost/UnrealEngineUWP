@@ -491,6 +491,8 @@ struct FFragmentObserverTest_EntityCreation_Individual : FFragmentTestBase
 			EntityManager->DestroyEntity(Entity);
 		}
 
+		ObserverProcessor->ForEachEntityChunkExecutionFunction = nullptr;
+
 		return true;
 	}
 };
