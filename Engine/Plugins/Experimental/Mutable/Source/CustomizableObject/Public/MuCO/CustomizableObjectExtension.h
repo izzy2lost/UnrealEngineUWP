@@ -9,6 +9,7 @@
 #include "CustomizableObjectExtension.generated.h"
 
 class UCustomizableObjectInstance;
+class UCustomizableObjectInstanceUsage;
 class USkeletalMesh;
 class ACustomizableSkeletalMeshActor;
 
@@ -98,10 +99,25 @@ public:
 	 * @param InputPinData - The data for only the input pins *registered by this extension*. This
 	 * helps to enforce separation between the extensions, so that they don't depend on each other.
 	 * 
-	 * @param ComponentIndex - The component index of the Skeletal Mesh, for the case where the pin
+	 * @param ObjectComponentIndex - The component index of the Skeletal Mesh, for the case where the pin
 	 * data is associated with a particular component.
 	 * 
 	 * @param SkeletalMesh - The Skeletal Mesh that was created.
 	 */
 	virtual void OnSkeletalMeshCreated(const TArray<FInputPinDataContainer>& InputPinData, int32 ObjectComponentIndex, USkeletalMesh* SkeletalMesh) const {}
+	
+	/**
+	 * Note that the data registered here is completely independent of any Extension Data used in
+	 * the Customizable Object graph. Even though Extension Data and this Extension Instance Data
+	 * both use FInstancedStruct to box an extension-defined struct, there's no requirement that
+	 * they use the same struct type, so they may be completely unrelated.
+	 * 
+	 * Note that GetExtensionInstanceData returns the struct by value to ensure memory safety, so
+	 * the struct should ideally be small and cheap to copy. If you need to reference large data
+	 * from this struct, consider wrapping it in a UObject or referencing it via a TSharedPtr so
+	 * that the large data itself isn't being copied.
+	 */
+	virtual FInstancedStruct GenerateExtensionInstanceData(const TArray<FInputPinDataContainer>& InputPinData) const { return FInstancedStruct(); }
+	
+	virtual void OnCustomizableObjectInstanceUsageUpdated(const UCustomizableObjectInstanceUsage* Usage) const {}
 };

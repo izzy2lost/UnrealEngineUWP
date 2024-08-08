@@ -23,6 +23,7 @@ class UCustomizableObject;
 class UTexture2D;
 class FUpdateContextPrivate;
 class UCustomizableObjectInstanceUsage;
+class UCustomizableObjectExtension;
 class UMaterialInterface;
 struct FFrame;
 struct FGameplayTagContainer;
@@ -609,6 +610,9 @@ public:
 	/** Fix the given UAnimInstance instance. */
 	void AnimInstanceFixup(UAnimInstance* AnimInstance) const;
 
+	UFUNCTION(BlueprintCallable, Category = CustomizableObjectInstance)
+	FInstancedStruct GetExtensionInstanceData(const UCustomizableObjectExtension* Extension) const;
+	
 	/** See FCustomizableObjectInstanceDescriptor::SaveDescriptor. */
 	void SaveDescriptor(FArchive &CustomizableObjectDescriptor, bool bUseCompactDescriptor);
 

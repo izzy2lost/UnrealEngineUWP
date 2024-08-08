@@ -33,6 +33,7 @@ struct FGeneratedMaterial;
 struct FGeneratedTexture;
 class UPhysicsAsset;
 class USkeleton;
+class UCustomizableObjectExtension;
 
 
 /** \param OnlyLOD: If not 0, extract and convert only one single LOD from the source image.
@@ -160,6 +161,19 @@ struct FAnimBpGeneratedPhysicsAssets
 
 	UPROPERTY(Transient)
 	TArray<FAnimInstanceOverridePhysicsAsset> AnimInstancePropertyIndexAndPhysicsAssets;
+};
+
+
+USTRUCT()
+struct FExtensionInstanceData
+{
+	GENERATED_BODY()
+ 
+	UPROPERTY()
+	TWeakObjectPtr<const UCustomizableObjectExtension> Extension;
+ 
+	UPROPERTY()
+	FInstancedStruct Data;
 };
 
 
@@ -354,6 +368,9 @@ public:
 	UPROPERTY(Transient, Category = Animation, editfixedsize, VisibleAnywhere)
 	TMap<TSubclassOf<UAnimInstance>, FAnimBpGeneratedPhysicsAssets> AnimBpPhysicsAssets;
 
+	UPROPERTY(Transient)
+	TArray<FExtensionInstanceData> ExtensionInstanceData;
+	
 	// The pass-through assets that will be loaded during an update
 	TArray<TSoftObjectPtr<const UTexture>> PassThroughTexturesToLoad;
 	TArray<TSoftObjectPtr<const UStreamableRenderAsset>> PassThroughMeshesToLoad;

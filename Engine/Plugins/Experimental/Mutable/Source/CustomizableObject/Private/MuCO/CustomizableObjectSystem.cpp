@@ -2084,6 +2084,21 @@ namespace impl
 			OperationData->RelevantParametersInProgress.Reset();
 		}
 
+		// Copy ExtensionData Object node input from the Instance to the InstanceUpdateData
+		for (int32 ExtensionDataIndex = 0; ExtensionDataIndex < OperationData->MutableInstance->GetExtensionDataCount(); ExtensionDataIndex++)
+		{
+			mu::Ptr<const mu::ExtensionData> ExtensionData;
+			FName Name;
+			OperationData->MutableInstance->GetExtensionData(ExtensionDataIndex, ExtensionData, Name);
+
+			check(ExtensionData);
+
+			FInstanceUpdateData::FNamedExtensionData& NewEntry = OperationData->InstanceUpdateData.ExtendedInputPins.AddDefaulted_GetRef();
+			NewEntry.Data = ExtensionData;
+			NewEntry.Name = Name;
+			check(NewEntry.Name != NAME_None);
+		}
+		
 #if WITH_EDITOR
 		const uint32 EndCycles = FPlatformTime::Cycles();
 		OperationData->MutableRuntimeCycles = EndCycles - StartCycles;

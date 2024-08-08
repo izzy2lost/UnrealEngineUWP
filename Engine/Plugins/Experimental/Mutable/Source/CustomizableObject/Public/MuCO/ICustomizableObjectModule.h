@@ -64,9 +64,9 @@ public:
 	 * These may only be called from the game thread
 	 */
 
-	virtual void RegisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension) = 0;
-	virtual void UnregisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension) = 0;
-	virtual TArrayView<const TObjectPtr<const UCustomizableObjectExtension>> GetRegisteredExtensions() const = 0;
+	virtual void RegisterExtension(const UCustomizableObjectExtension* Extension) = 0;
+	virtual void UnregisterExtension(const UCustomizableObjectExtension* Extension) = 0;
+	virtual TArrayView<const UCustomizableObjectExtension* const> GetRegisteredExtensions() const = 0;
 
 	/**
 	 * The results from these functions should only reference extensions that are still valid.

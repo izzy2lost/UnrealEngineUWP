@@ -426,7 +426,7 @@ struct CUSTOMIZABLEOBJECT_API FMutableRefSkeletalMeshData
 	// Asset user data
 	UPROPERTY()
 	TArray<FMutableRefAssetUserData> AssetUserData;
-
+	
 #if WITH_EDITORONLY_DATA
 	friend FArchive& operator<<(FArchive& Ar, FMutableRefSkeletalMeshData& Data);
 

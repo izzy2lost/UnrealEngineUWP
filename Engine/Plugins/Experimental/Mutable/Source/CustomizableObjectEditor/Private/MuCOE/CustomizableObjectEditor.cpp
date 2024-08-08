@@ -2194,8 +2194,10 @@ void FCustomizableObjectEditor::LogSearchResult(const UObject& Context, const FS
 
 void FCustomizableObjectEditor::OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance)
 {
-	const bool bVisible = PreviewInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;
-	Actor->GetRootComponent()->SetVisibility(bVisible, true);
+	if (PreviewInstance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
+	{
+		Actor->GetRootComponent()->SetVisibility(false, true);
+	}
 	Actor->GetRootComponent()->UpdateBounds();
 	
 	if (TextureAnalyzer.IsValid())

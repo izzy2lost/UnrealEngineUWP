@@ -14,6 +14,7 @@
 #include "GameFramework/Pawn.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "MuCO/CustomizableObject.h"
+#include "MuCO/ICustomizableObjectModule.h"
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Stats/Stats.h"
@@ -29,6 +30,11 @@ ETickableTickType UCustomizableObjectInstanceUsage::GetTickableTickType() const
 
 void UCustomizableObjectInstanceUsage::Callbacks() const
 {
+	for (const UCustomizableObjectExtension* Extension : ICustomizableObjectModule::Get().GetRegisteredExtensions())
+	{
+		Extension->OnCustomizableObjectInstanceUsageUpdated(this);
+	}
+	
 	if (CustomizableSkeletalComponent)
 	{
 		CustomizableSkeletalComponent->UpdatedDelegate.ExecuteIfBound();

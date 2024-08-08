@@ -31,9 +31,9 @@ public:
 	// ICustomizableObjectModule interface
 	FString GetPluginVersion() const override;
 	ECustomizableObjectNumBoneInfluences GetNumBoneInfluences() const override;
-	void RegisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension) override;
-	void UnregisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension) override;
-	TArrayView<const TObjectPtr<const UCustomizableObjectExtension>> GetRegisteredExtensions() const override;
+	void RegisterExtension(const UCustomizableObjectExtension* Extension) override;
+	void UnregisterExtension(const UCustomizableObjectExtension* Extension) override;
+	TArrayView<const UCustomizableObjectExtension* const> GetRegisteredExtensions() const override;
 	TArrayView<const FRegisteredCustomizableObjectPinType> GetExtendedPinTypes() const override;
 	TArrayView<const FRegisteredObjectNodeInputPin> GetAdditionalObjectNodePins() const override;
 
@@ -49,7 +49,7 @@ private:
 	// Ensure extensions aren't garbage collected
 	TArray<TStrongObjectPtr<const UCustomizableObjectExtension>> StrongExtensions;
 	// For returning from GetRegisteredExtensions
-	TArray<TObjectPtr<const UCustomizableObjectExtension>> Extensions;
+	TArray<const UCustomizableObjectExtension*> Extensions;
 
 	TArray<FRegisteredCustomizableObjectPinType> ExtendedPinTypes;
 	TArray<FRegisteredObjectNodeInputPin> AdditionalObjectNodePins;
@@ -135,8 +135,7 @@ ECustomizableObjectNumBoneInfluences FCustomizableObjectModule::GetNumBoneInflue
 	return ECustomizableObjectNumBoneInfluences::Four;
 }
 
-
-void FCustomizableObjectModule::RegisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension)
+void FCustomizableObjectModule::RegisterExtension(const UCustomizableObjectExtension* Extension)
 {
 	check(IsInGameThread());
 	
@@ -146,7 +145,7 @@ void FCustomizableObjectModule::RegisterExtension(TObjectPtr<const UCustomizable
 	RefreshExtensionData();
 }
 
-void FCustomizableObjectModule::UnregisterExtension(TObjectPtr<const UCustomizableObjectExtension> Extension)
+void FCustomizableObjectModule::UnregisterExtension(const UCustomizableObjectExtension* Extension)
 {
 	check(IsInGameThread());
 	
@@ -156,7 +155,7 @@ void FCustomizableObjectModule::UnregisterExtension(TObjectPtr<const UCustomizab
 	RefreshExtensionData();
 }
 
-TArrayView<const TObjectPtr<const UCustomizableObjectExtension>> FCustomizableObjectModule::GetRegisteredExtensions() const
+TArrayView<const UCustomizableObjectExtension* const> FCustomizableObjectModule::GetRegisteredExtensions() const
 {
 	check(IsInGameThread());
 	return MakeArrayView(Extensions);
@@ -179,7 +178,7 @@ void FCustomizableObjectModule::RefreshExtensionData()
 	ExtendedPinTypes.Reset();
 	AdditionalObjectNodePins.Reset();
 
-	for (const TObjectPtr<const UCustomizableObjectExtension>& Extension : Extensions)
+	for (const UCustomizableObjectExtension* Extension : Extensions)
 	{
 		for (const FCustomizableObjectPinType& PinType : Extension->GetPinTypes())
 		{

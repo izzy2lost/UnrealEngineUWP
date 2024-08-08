@@ -18,6 +18,7 @@
 #include "MaterialDomain.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/Optional.h"
 #include "Modules/ModuleManager.h"
 #include "Tasks/Task.h"
 
@@ -234,6 +235,8 @@ void UCustomizableInstancePrivate::InitCustomizableObjectData(const UCustomizabl
 	FCustomizableInstanceComponentData TemplateComponentData;
 	TemplateComponentData.LastMeshIdPerLOD.Init(MAX_uint64, MAX_MESH_LOD_COUNT);
 	ComponentsData.Init(TemplateComponentData, InCustomizableObject->GetComponentCount());
+
+	ExtensionInstanceData.Empty();
 }
 
 
@@ -2018,13 +2021,7 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 		return false;
 	}
-
-	// None of the current meshes requires a mesh update. Continue to BuildMaterials
-	if (!bUpdateMeshes)
-	{
-		return true;
-	}
-
+	
 	TextureReuseCache.Empty(); // Sections may have changed, so invalidate the texture reuse cache because it's indexed by section
 
 	TArray<TObjectPtr<USkeletalMesh>> OldSkeletalMeshes = SkeletalMeshes;
@@ -2033,6 +2030,126 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
+	// Collate the Extension Data on the instance into groups based on the extension that produced
+	// it, so that we only need to call extension functions such as OnSkeletalMeshCreated once for
+	// each extension.
+	TMap<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>> ExtensionToExtensionData;
+	{
+		const TArrayView<const UCustomizableObjectExtension* const> AllExtensions = ICustomizableObjectModule::Get().GetRegisteredExtensions();
+
+		// Pre-populate ExtensionToExtensionData with empty entries for all extensions.
+		//
+		// This ensures that extension functions such as OnSkeletalMeshCreated are called for each
+		// extension, even if they didn't produce any extension data.
+		Public->GetPrivate()->ExtensionInstanceData.Empty(AllExtensions.Num());
+		for (const UCustomizableObjectExtension* Extension : AllExtensions)
+		{
+			ExtensionToExtensionData.Add(Extension);
+		}
+
+		const TArrayView<const FRegisteredObjectNodeInputPin> ExtensionPins = ICustomizableObjectModule::Get().GetAdditionalObjectNodePins();
+
+		for (FInstanceUpdateData::FNamedExtensionData& ExtensionOutput : OperationData->InstanceUpdateData.ExtendedInputPins)
+		{
+			const FRegisteredObjectNodeInputPin* FoundPin =
+				Algo::FindBy(ExtensionPins, ExtensionOutput.Name, &FRegisteredObjectNodeInputPin::GlobalPinName);
+
+			if (!FoundPin)
+			{
+				// Failed to find the corresponding pin for this output
+				// 
+				// This may indicate that a plugin has been removed or renamed since the CO was compiled
+				UE_LOG(LogMutable, Error, TEXT("Failed to find Object node input pin with name %s"), *ExtensionOutput.Name.ToString());
+				continue;
+			}
+
+			const UCustomizableObjectExtension* Extension = FoundPin->Extension.Get();
+			if (!Extension)
+			{
+				// Extension is not loaded or not found
+				UE_LOG(LogMutable, Error, TEXT("Extension for Object node input pin %s is no longer valid"), *ExtensionOutput.Name.ToString());
+				continue;
+			}
+
+			if (ExtensionOutput.Data->Origin == mu::ExtensionData::EOrigin::Invalid)
+			{
+				// Null data was produced
+				//
+				// This can happen if a node produces an ExtensionData but doesn't initialize it
+				UE_LOG(LogMutable, Error, TEXT("Invalid data sent to Object node input pin %s"), *ExtensionOutput.Name.ToString());
+				continue;
+			}
+
+			// All registered extensions were added to the map above, so if the extension is still
+			// registered it should be found.
+			TArray<FInputPinDataContainer>* ContainerArray = ExtensionToExtensionData.Find(Extension);
+			if (!ContainerArray)
+			{
+				UE_LOG(LogMutable, Error, TEXT("Object node input pin %s received data for unregistered extension %s"),
+					*ExtensionOutput.Name.ToString(), *Extension->GetPathName());
+				continue;
+			}
+
+			const FCustomizableObjectResourceData* ReferencedExtensionData = nullptr;
+			switch (ExtensionOutput.Data->Origin)
+			{
+				case mu::ExtensionData::EOrigin::ConstantAlwaysLoaded:
+				{
+					check(CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
+					ReferencedExtensionData = &CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData()[ExtensionOutput.Data->Index];
+				}
+				break;
+
+				case mu::ExtensionData::EOrigin::ConstantStreamed:
+				{
+					check(CustomizableObject->GetPrivate()->GetStreamedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
+
+					const FCustomizableObjectStreamedResourceData& StreamedData =
+						CustomizableObject->GetPrivate()->GetStreamedExtensionData()[ExtensionOutput.Data->Index];
+
+					if (!StreamedData.IsLoaded())
+					{
+						// The data should have been loaded as part of executing the CO program.
+						//
+						// This could indicate a bug in the streaming logic.
+						UE_LOG(LogMutable, Error, TEXT("Customizable Object produced a streamed extension data that is not loaded: %s"),
+							*StreamedData.GetPath().ToString());
+
+						continue;
+					}
+
+					ReferencedExtensionData = &StreamedData.GetLoadedData();
+				}
+				break;
+
+				default:
+					unimplemented();
+			}
+
+			check(ReferencedExtensionData);
+
+			ContainerArray->Emplace(FoundPin->InputPin, ReferencedExtensionData->Data);
+		}
+	}
+
+	// Give each extension the chance to generate Extension Instance Data
+	for (const TPair<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>>& Pair : ExtensionToExtensionData)
+	{
+		FInstancedStruct NewExtensionInstanceData = Pair.Key->GenerateExtensionInstanceData(Pair.Value);
+		if (NewExtensionInstanceData.IsValid())
+		{
+			FExtensionInstanceData& NewData = Public->GetPrivate()->ExtensionInstanceData.AddDefaulted_GetRef();
+			NewData.Extension = Pair.Key;
+			NewData.Data = MoveTemp(NewExtensionInstanceData);
+		}
+	}
+
+	// None of the current meshes requires a mesh update. Continue to BuildMaterials
+	if (!bUpdateMeshes)
+	{
+		return true;
+	}
+	
 	// Initialize the maximum number of SkeletalMeshes we could possibly have. 
 	SkeletalMeshes.Init(nullptr, CustomizableObject->GetComponentCount());
 
@@ -2209,93 +2326,9 @@ bool UCustomizableInstancePrivate::UpdateSkeletalMesh_PostBeginUpdate0(UCustomiz
 			break;
 		}
 
-		// Collate the extension data on the instance into groups based on the extension that
-		// produced it, so that we only need to call OnSkeletalMeshCreated once for each extension.
+		for (const TPair<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>>& Pair : ExtensionToExtensionData)
 		{
-			TMap<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>> ExtensionToExtensionData;
-
-			const TArrayView<const FRegisteredObjectNodeInputPin> ExtensionPins = ICustomizableObjectModule::Get().GetAdditionalObjectNodePins();
-
-			for (FInstanceUpdateData::FNamedExtensionData& ExtensionOutput : OperationData->InstanceUpdateData.ExtendedInputPins)
-			{
-				const FRegisteredObjectNodeInputPin* FoundPin =
-					Algo::FindBy(ExtensionPins, ExtensionOutput.Name, &FRegisteredObjectNodeInputPin::GlobalPinName);
-
-				if (!FoundPin)
-				{
-					// Failed to find the corresponding pin for this output
-					// 
-					// This may indicate that a plugin has been removed or renamed since the CO was compiled
-					UE_LOG(LogMutable, Error, TEXT("Failed to find Object node input pin with name %s"), *ExtensionOutput.Name.ToString());
-					continue;
-				}
-
-				const UCustomizableObjectExtension* Extension = FoundPin->Extension.Get();
-				if (!Extension)
-				{
-					// Extension is not loaded or not found
-					UE_LOG(LogMutable, Error, TEXT("Extension for Object node input pin %s is no longer valid"), *ExtensionOutput.Name.ToString());
-					continue;
-				}
-
-				if (ExtensionOutput.Data->Origin == mu::ExtensionData::EOrigin::Invalid)
-				{
-					// Null data was produced
-					//
-					// This can happen if a node produces an ExtensionData but doesn't initialize it
-					UE_LOG(LogMutable, Error, TEXT("Invalid data sent to Object node input pin %s"), *ExtensionOutput.Name.ToString());
-					continue;
-				}
-
-				TArray<FInputPinDataContainer>& ContainerArray = ExtensionToExtensionData.FindOrAdd(Extension);
-
-				const FCustomizableObjectResourceData* ReferencedExtensionData = nullptr;
-				switch (ExtensionOutput.Data->Origin)
-				{
-					case mu::ExtensionData::EOrigin::ConstantAlwaysLoaded:
-					{
-						check(CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
-						ReferencedExtensionData = &CustomizableObject->GetPrivate()->GetAlwaysLoadedExtensionData()[ExtensionOutput.Data->Index];
-					}
-					break;
-
-					case mu::ExtensionData::EOrigin::ConstantStreamed:
-					{
-						check(CustomizableObject->GetPrivate()->GetStreamedExtensionData().IsValidIndex(ExtensionOutput.Data->Index));
-						
-						const FCustomizableObjectStreamedResourceData& StreamedData =
-							CustomizableObject->GetPrivate()->GetStreamedExtensionData()[ExtensionOutput.Data->Index];
-
-						if (!StreamedData.IsLoaded())
-						{
-							// The data should have been loaded as part of executing the CO program.
-							//
-							// This could indicate a bug in the streaming logic.
-							UE_LOG(LogMutable, Error, TEXT("Customizable Object produced a streamed extension data that is not loaded: %s"),
-								*StreamedData.GetPath().ToString());
-
-							continue;
-						}
-
-						ReferencedExtensionData = &StreamedData.GetLoadedData();
-					}
-					break;
-
-					default:
-						unimplemented();
-				}
-
-				check(ReferencedExtensionData);
-		
-				ContainerArray.Emplace(FoundPin->InputPin, ReferencedExtensionData->Data);
-			}
-
-			// Now that we have an array of extension data for each extension, go through the extensions and
-			// give each one its data.
-			for (const TPair<const UCustomizableObjectExtension*, TArray<FInputPinDataContainer>>& Pair : ExtensionToExtensionData)
-			{
-				Pair.Key->OnSkeletalMeshCreated(Pair.Value, ObjectComponentIndex, SkeletalMesh);
-			}
+			Pair.Key->OnSkeletalMeshCreated(Pair.Value, ObjectComponentIndex, SkeletalMesh);
 		}
 	}
 
@@ -3503,7 +3536,7 @@ void UCustomizableInstancePrivate::InitSkeletalMeshData(const TSharedRef<FUpdate
 	SkeletalMesh->SetImportedBounds(RefSkeletalMeshData.Bounds);
 	SkeletalMesh->SetPostProcessAnimBlueprint(RefSkeletalMeshData.PostProcessAnimInst.Get());
 	SkeletalMesh->SetShadowPhysicsAsset(RefSkeletalMeshData.ShadowPhysicsAsset.Get());
-
+	
 	// Set Min LOD
 	SkeletalMesh->SetMinLod(FMath::Max(CustomizableObject.LODSettings.MinLOD.GetDefault(), (int32)FirstLODAvailable));
 	SkeletalMesh->SetQualityLevelMinLod(CustomizableObject.LODSettings.MinQualityLevelLOD);
@@ -7252,6 +7285,19 @@ void UCustomizableObjectInstance::ForEachAnimInstance(int32 ComponentIndex, FEac
 			}
 		}
 	}
+}
+
+
+FInstancedStruct UCustomizableObjectInstance::GetExtensionInstanceData(const UCustomizableObjectExtension* Extension) const
+{
+	const FExtensionInstanceData* FoundData = Algo::FindBy(PrivateData->ExtensionInstanceData, Extension, &FExtensionInstanceData::Extension);
+	if (FoundData)
+	{
+		return FoundData->Data;
+	}
+
+	// Data not found. Return an empty instance.
+	return FInstancedStruct();
 }
 
 
