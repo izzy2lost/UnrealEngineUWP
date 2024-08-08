@@ -116,10 +116,11 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 										}
 									}
 
-									if (EditingObjects.Num() == 1)
+									if (EditingObjects.Num() > 0)
 									{
 										if (UWorkspace* Workspace = Cast<UWorkspace>(EditingObjects[0]))
 										{
+											FScopedTransaction Transaction(LOCTEXT("RemoveAssets", "Remove assets from workspace"));
 											for (const FSoftObjectPath& AssetPath : AssetPaths)
 											{
 												Workspace->RemoveAsset(AssetPath.TryLoad());
@@ -128,6 +129,31 @@ TSharedPtr<SWidget> FWorkspaceOutlinerMode::CreateContextMenu()
 									}
 								}
 							}))
+						);
+
+						AssetsSection.AddMenuEntry(TEXT("BrowseToAsset"),
+							LOCTEXT("BrowseToAssetLabel", "Browse to Asset"),
+							LOCTEXT("BrowseToAssetTooltip", "Browse to the selected assets in the content browser"),
+							FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SystemWideCommands.FindInContentBrowser.Small"),
+							FUIAction(FExecuteAction::CreateLambda([SelectedExports=MenuContext->SelectedExports]()
+								{
+									const IAssetRegistry& AssetRegistry = FAssetRegistryModule::GetRegistry();
+									FARFilter Filter;	
+									for (const FWorkspaceOutlinerItemExport& ItemExport : SelectedExports)
+									{
+										if (ItemExport.GetParentIdentifier() == NAME_None)
+										{
+											Filter.SoftObjectPaths.AddUnique(ItemExport.GetAssetPath());
+										}
+									}
+
+									TArray<FAssetData> AssetDataList;
+									AssetRegistry.GetAssets(Filter, AssetDataList);
+									if (AssetDataList.IsEmpty() == false)
+									{
+										GEditor->SyncBrowserToObjects(AssetDataList);
+									}
+								}))
 						);
 					}
 

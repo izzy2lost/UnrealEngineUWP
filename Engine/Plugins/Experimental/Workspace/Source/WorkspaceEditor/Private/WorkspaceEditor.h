@@ -76,7 +76,9 @@ private:
 	virtual FText GetTabSuffix() const override;
 	virtual FText GetToolkitName() const override;
 	virtual FText GetToolkitToolTipText() const override;	
-	virtual bool IsFindInContentBrowserButtonVisible() const { return false; }
+	virtual bool IsFindInContentBrowserButtonVisible() const override { return true; }
+	virtual void FindInContentBrowser_Execute() override;
+
 
 	// FGCObject interface
 	virtual void AddReferencedObjects(FReferenceCollector& Collector) override

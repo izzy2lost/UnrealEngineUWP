@@ -567,6 +567,14 @@ bool FWorkspaceEditor::AreAssetEntriesModified() const
 	return false;
 }
 
+void FWorkspaceEditor::FindInContentBrowser_Execute()
+{
+	if (IsValid(Workspace))
+	{
+		GEditor->SyncBrowserToObject(Workspace);
+	}
+}
+
 bool FWorkspaceEditor::OnRequestClose(EAssetEditorCloseReason InCloseReason)
 {
 	TGuardValue<bool> ClosingDown(bClosingDown, true);

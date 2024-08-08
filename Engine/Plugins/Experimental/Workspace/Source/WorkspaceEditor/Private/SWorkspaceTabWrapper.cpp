@@ -49,6 +49,21 @@ void SWorkspaceTabWrapper::Construct( const FArguments& InArgs, TSharedPtr<class
 		FToolMenuSection& Section = ToolBarMenu->AddSection("AssetActions");
 		Section.AddMenuEntry("Save", TAttribute<FText>(), LOCTEXT("SaveButtonTooltip", "Save Asset"), FSlateIcon(FAppStyle::Get().GetStyleSetName(), "AssetEditor.SaveAsset"),
 			FUIAction(FExecuteAction::CreateSP(this, &SWorkspaceTabWrapper::ExecuteSave), FCanExecuteAction::CreateSP(this, &SWorkspaceTabWrapper::CanExecuteSave), FIsActionChecked(), FIsActionButtonVisible::CreateSP(this, &SWorkspaceTabWrapper::IsSaveButtonVisible)));
+	
+		const FToolMenuEntry FindInContentBrowserEntry = FToolMenuEntry::InitToolBarButton(
+			"FindInContentBrowser",
+			FUIAction(FExecuteAction::CreateSPLambda(this, [this]() 
+				{
+					if (UObject* Asset = WeakDocumentObject.Get())
+					{
+						GEditor->SyncBrowserToObject(Asset);
+					}
+				})),
+			FText::GetEmpty(),
+			LOCTEXT("FindInContentBrowserTooltip", "Finds this asset in the content browser"),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "SystemWideCommands.FindInContentBrowser")
+		);
+		Section.AddEntry(FindInContentBrowserEntry);
 	}
 	
 	ChildSlot
