@@ -81,21 +81,7 @@ void FChaosVDComponentVisualizerBase::CreateGenericVisualizerMenu(FName MenuToEx
 
 	if (UToolMenu* Menu = ToolMenus->ExtendMenu(MenuToExtend))
 	{
-		FToolMenuSection& Section = Menu->AddSection(SectionName, InSectionLabel);
-		
-		Section.AddSubMenu(FName(InSectionLabel.ToString()), InFlagsMenuLabel, InFlagsMenuTooltip, FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
-						   {
-							   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<VisualizationFlagsType>)
-								   .CurrentValue_Static(&ObjectSettingsType::GetDataVisualizationFlags)
-								   .OnEnumSelectionChanged_Static(&ObjectSettingsType::SetDataVisualizationFlags);
-			
-							   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("VisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
-							   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
-						   }),
-						   false, FlagsMenuIcon);
-
 		using namespace Chaos::VisualDebugger::Utils;
-		Section.AddSubMenu(FName(InSettingsMenuLabel.ToString()), InSettingsMenuLabel, InSettingsMenuTooltip, FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForSettingsObject<ObjectSettingsType>, EChaosVDSaveSettingsOptions::ShowResetButton),
-						   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
+		CreateVisualizationOptionsMenuSections<ObjectSettingsType, VisualizationFlagsType>(Menu, SectionName, InSectionLabel, InFlagsMenuLabel, InFlagsMenuTooltip, FlagsMenuIcon, InSettingsMenuLabel, InSettingsMenuTooltip);
 	}
 }

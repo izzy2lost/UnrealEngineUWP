@@ -186,7 +186,7 @@ void FChaosVDWorldOutlinerMode::OnItemDoubleClick(FSceneOutlinerTreeItemPtr Item
 	{
 		if (AActor* Actor = ActorItem->Actor.Get())
 		{
-			ScenePtr->OnObjectFocused().Broadcast(Actor);
+			ScenePtr->OnFocusRequest().Broadcast(Actor->GetComponentsBoundingBox(false));
 		}
 	}
 }

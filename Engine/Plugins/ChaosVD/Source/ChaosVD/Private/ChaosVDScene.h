@@ -41,6 +41,7 @@ typedef TMap<int32, AChaosVDSolverInfoActor*> FChaosVDSolverInfoByIDMap;
 DECLARE_MULTICAST_DELEGATE(FChaosVDSceneUpdatedDelegate)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDActorUpdatedDelegate, AChaosVDParticleActor*)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDOnObjectSelectedDelegate, UObject*)
+DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDFocusRequestDelegate, FBox)
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSolverInfoActorCreatedDelegate, AChaosVDSolverInfoActor*)
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FChaosVDSolverVisibilityChangedDelegate, int32 SolverID, bool bNewVisibility)
@@ -115,7 +116,7 @@ public:
 	USelection* GetObjectsSelectionObject() const { return ObjectSelection; }
 	
 	/** Event triggered when an object is focused in the scene (double click in the scene outliner)*/
-	FChaosVDOnObjectSelectedDelegate& OnObjectFocused() { return ObjectFocusedDelegate; }
+	FChaosVDFocusRequestDelegate& OnFocusRequest() { return FocusRequestDelegate; }
 
 	/** Returns a ptr to the particle actor representing the provided Particle ID
 	 * @param SolverID ID of the solver owning the Particle
@@ -197,7 +198,7 @@ private:
 
 	FChaosVDGeometryDataLoaded NewGeometryAvailableDelegate;
 
-	FChaosVDOnObjectSelectedDelegate ObjectFocusedDelegate;
+	FChaosVDFocusRequestDelegate FocusRequestDelegate;
 
 	/** Selection set object holding the current selection state */
 	TObjectPtr<UTypedElementSelectionSet> SelectionSet;

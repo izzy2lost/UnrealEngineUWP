@@ -3,8 +3,8 @@
 #include "Components/ChaosVDSceneQueryDataComponent.h"
 
 #include "ChaosVDRecording.h"
+#include "ChaosVDScene.h"
 #include "Actors/ChaosVDSolverInfoActor.h"
-
 
 UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent()
 {
@@ -12,6 +12,21 @@ UChaosVDSceneQueryDataComponent::UChaosVDSceneQueryDataComponent()
 	
 	SetCanEverAffectNavigation(false);
 	bNavigationRelevant = false;
+}
+
+void UChaosVDSceneQueryDataComponent::ClearSceneQuerySelection()
+{
+	const AChaosVDSolverInfoActor* SolverInfo = Cast<AChaosVDSolverInfoActor>(GetOwner());
+	const TSharedPtr<FChaosVDScene> CVDScene = SolverInfo ? SolverInfo->GetScene().Pin() : nullptr;
+
+	if (TSharedPtr<FChaosVDSolverDataSelection> SolverDataSelectionObject = CVDScene ? CVDScene->GetSolverDataSelectionObject().Pin() : nullptr)
+	{
+		TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle = SolverDataSelectionObject->GetCurrentSelectionHandle();
+		if (SelectionHandle && SelectionHandle->IsA<FChaosVDQueryDataWrapper>())
+		{
+			SolverDataSelectionObject->SelectData(nullptr);
+		}
+	}
 }
 
 void UChaosVDSceneQueryDataComponent::UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData)
@@ -41,6 +56,8 @@ void UChaosVDSceneQueryDataComponent::UpdateFromNewGameFrameData(const FChaosVDG
 			RecordedQueries.Add(QueryData);
 		}
 	}
+	
+	ClearSceneQuerySelection();
 }
 
 TConstArrayView<TSharedPtr<FChaosVDQueryDataWrapper>> UChaosVDSceneQueryDataComponent::GetQueriesByType(EChaosVDSceneQueryType Type) const

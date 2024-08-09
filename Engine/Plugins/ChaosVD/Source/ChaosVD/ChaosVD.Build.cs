@@ -15,6 +15,7 @@ public class ChaosVD : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"ApplicationCore",
 				"CoreUObject",
 				"Engine",
 				"RenderCore",

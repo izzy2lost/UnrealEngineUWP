@@ -93,14 +93,19 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 		return;
 	}
 
+	UChaosVDSceneQueriesVisualizationSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDSceneQueriesVisualizationSettings>();
+	if (!Settings)
+	{
+		return;
+	}
+
 	FChaosVDSceneQueryVisualizationDataContext VisualizationContext;
 	VisualizationContext.CVDScene = SolverInfoActor->GetScene();
 	VisualizationContext.SpaceTransform = FTransform::Identity;
 	VisualizationContext.GeometryGenerator = GeometryGenerator;
 	VisualizationContext.SolverDataSelectionObject = SolverDataSelectionObject;
-
 	VisualizationContext.VisualizationFlags = static_cast<uint32>(UChaosVDSceneQueriesVisualizationSettings::GetDataVisualizationFlags());
-	VisualizationContext.DebugDrawSettings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDSceneQueriesVisualizationSettings>();
+	VisualizationContext.DebugDrawSettings = Settings;
 
 	if (EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::EnableDraw, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags)))
 	{
@@ -108,8 +113,10 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawVisualization(const UActorCo
 
 		TSharedPtr<FChaosVDSolverDataSelectionHandle> SelectionHandle = SolverDataSelectionObject->GetCurrentSelectionHandle();
 		const bool bHasSelectedQuery = SelectionHandle && SelectionHandle->IsA<FChaosVDQueryDataWrapper>();
+		const bool bOnlyDrawSelected = Settings->CurrentVisualizationMode == EChaosVDSQFrameVisualizationMode::RecordingOrder ||
+										EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::OnlyDrawSelectedQuery, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags));
 
-		if (bHasSelectedQuery && EnumHasAnyFlags(EChaosVDSceneQueryVisualizationFlags::OnlyDrawSelectedQuery, static_cast<EChaosVDSceneQueryVisualizationFlags>(VisualizationContext.VisualizationFlags)))
+		if (bHasSelectedQuery && bOnlyDrawSelected)
 		{
 			DrawSceneQuery(Component, View, PDI, CVDScene, CVDRecording, VisualizationContext, SelectionHandle->GetDataAsShared<FChaosVDQueryDataWrapper>());
 		}
@@ -332,11 +339,8 @@ void FChaosVDSceneQueryDataComponentVisualizer::DrawSceneQuery(const UActorCompo
 		return;
 	}
 
-	//TODO: Should we try to calculate actual bounds?
-	constexpr float MinVisibleRadius = 100.0f;
-	const float QueryHalfDistance = (Query->EndLocation - Query->StartLocation).Size() * 0.5;
-	const float VisibleRadius = FMath::Max(QueryHalfDistance, MinVisibleRadius);
-	if (!View->ViewFrustum.IntersectSphere(Query->StartLocation, VisibleRadius))
+	FBox QueryBounds = Chaos::VisualDebugger::Utils::CalculateSceneQueryShapeBounds(Query.ToSharedRef(), CVDRecording.ToSharedRef());
+	if (!View->ViewFrustum.IntersectBox(QueryBounds.GetCenter(), QueryBounds.GetExtent()))
 	{
 		// If this query location is not even visible, just ignore it.
 		return;

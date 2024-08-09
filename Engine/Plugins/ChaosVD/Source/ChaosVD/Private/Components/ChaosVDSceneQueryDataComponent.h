@@ -18,6 +18,7 @@ class UChaosVDSceneQueryDataComponent : public UChaosVDSolverDataComponent
 
 public:
 	UChaosVDSceneQueryDataComponent();
+	void ClearSceneQuerySelection();
 
 	virtual void UpdateFromNewGameFrameData(const FChaosVDGameFrameData& InGameFrameData) override;
 

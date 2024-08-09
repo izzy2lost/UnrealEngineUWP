@@ -21,6 +21,17 @@ enum class EChaosVDSceneQueryVisualizationFlags: uint32
 };
 ENUM_CLASS_FLAGS(EChaosVDSceneQueryVisualizationFlags);
 
+/** Available scene query Visualization Modes */
+UENUM()
+enum class EChaosVDSQFrameVisualizationMode : uint8
+{
+	/** All the recorded scene queries for the current frame, that passes the visualization flag filter
+	 * will be shown */
+	AllEnabledQueries,
+	/** Scene queries will be shown one at the time, in the order they were recorded, controlled by the Scene Query browser timeline */
+	RecordingOrder
+};
+
 UCLASS(config=ChaosVD, PerObjectConfig)
 class UChaosVDSceneQueriesVisualizationSettings : public UChaosVDVisualizationSettingsObjectBase
 {
@@ -34,6 +45,9 @@ public:
 	/** If true, any debug draw text available will be drawn */
 	UPROPERTY(EditAnywhere, Category=DebugDraw)
 	bool bShowText = false;
+
+	UPROPERTY()
+	EChaosVDSQFrameVisualizationMode CurrentVisualizationMode = EChaosVDSQFrameVisualizationMode::AllEnabledQueries;
 
 private:
 	/** Set of flags to enable/disable visualization of specific scene queries data as debug draw */

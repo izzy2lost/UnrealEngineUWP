@@ -18,4 +18,5 @@ public:
 	static const FName CollisionDataDetails;
 	static const FName SceneQueryDataDetails;
 	static const FName ConstraintsInspector;
+	static const FName SceneQueryBrowser;
 };

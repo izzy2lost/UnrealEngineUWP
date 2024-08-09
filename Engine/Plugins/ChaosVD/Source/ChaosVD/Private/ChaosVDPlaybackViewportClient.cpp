@@ -36,11 +36,11 @@ FChaosVDPlaybackViewportClient::FChaosVDPlaybackViewportClient(const TSharedPtr<
 
 FChaosVDPlaybackViewportClient::~FChaosVDPlaybackViewportClient()
 {
-	if (ObjectFocusedDelegateHandle.IsValid())
+	if (FocusRequestDelegateHandle.IsValid())
 	{
 		if (TSharedPtr<FChaosVDScene> ScenePtr = CVDScene.Pin())
 		{
-			ScenePtr->OnObjectFocused().Remove(ObjectFocusedDelegateHandle);
+			ScenePtr->OnFocusRequest().Remove(FocusRequestDelegateHandle);
 		}
 	}
 
@@ -141,16 +141,13 @@ void FChaosVDPlaybackViewportClient::SetScene(TWeakPtr<FChaosVDScene> InScene)
 		CVDWorld = ScenePtr->GetUnderlyingWorld();
 		CVDScene = InScene;
 
-		ObjectFocusedDelegateHandle = ScenePtr->OnObjectFocused().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleObjectFocused);
+		FocusRequestDelegateHandle = ScenePtr->OnFocusRequest().AddRaw(this, &FChaosVDPlaybackViewportClient::HandleFocusRequest);
 	}
 }
 
-void FChaosVDPlaybackViewportClient::HandleObjectFocused(UObject* FocusedObject)
+void FChaosVDPlaybackViewportClient::HandleFocusRequest(FBox BoxToFocusOn)
 {
-	if (AActor* FocusedActor = Cast<AActor>(FocusedObject))
-	{
-		FocusViewportOnBox(FocusedActor->GetComponentsBoundingBox(false));
-	}
+	FocusViewportOnBox(BoxToFocusOn);
 }
 
 void FChaosVDPlaybackViewportClient::HandleActorMoving(AActor* MovedActor) const

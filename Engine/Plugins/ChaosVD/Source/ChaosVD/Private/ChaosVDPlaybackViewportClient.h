@@ -42,10 +42,10 @@ public:
 
 private:
 
-	void HandleObjectFocused(UObject* FocusedObject);
+	void HandleFocusRequest(FBox BoxToFocusOn);
 	void HandleActorMoving(AActor* MovedActor) const;
 
-	FDelegateHandle ObjectFocusedDelegateHandle;
+	FDelegateHandle FocusRequestDelegateHandle;
 	UWorld* CVDWorld;
 	TWeakPtr<FChaosVDScene> CVDScene;
 

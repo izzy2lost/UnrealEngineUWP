@@ -126,7 +126,7 @@ void FChaosVDObjectDetailsTab::HandlePostSelectionChange(const UTypedElementSele
 
 void FChaosVDObjectDetailsTab::HandleSolverDataSelectionChange(const TSharedPtr<FChaosVDSolverDataSelectionHandle>& SelectionHandle)
 {
-	TSharedPtr<FStructOnScope> StructOnScope = SelectionHandle->GetDataAsStructScope();
+	TSharedPtr<FStructOnScope> StructOnScope = SelectionHandle ? SelectionHandle->GetDataAsStructScope() : nullptr;
 	if (!StructOnScope || !IsSupportedStruct(StructOnScope->GetStructPtr()))
 	{
 		DetailsPanelView->SetSelectedStruct(nullptr);

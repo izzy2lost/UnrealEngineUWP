@@ -6,8 +6,11 @@
 #include "Containers/Queue.h"
 #include "SceneManagement.h"
 
-class FChaosVDPlaybackViewportClient;
 class FChaosVDGeometryBuilder;
+class FChaosVDPlaybackViewportClient;
+
+struct FChaosVDQueryDataWrapper;
+struct FChaosVDRecording;
 
 enum class EChaosVDDebugDrawTextLocationMode
 {
@@ -63,4 +66,6 @@ private:
 namespace Chaos::VisualDebugger::Utils
 {
 	FString GenerateDebugTextForVector(const FVector& InVector, const FString& VectorName, const FString& InVectorUnits);
+
+	FBox CalculateSceneQueryShapeBounds(const TSharedRef<FChaosVDQueryDataWrapper>& InSceneQueryData, const TSharedRef<FChaosVDRecording> InRecordedData);
 }

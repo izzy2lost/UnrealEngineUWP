@@ -24,6 +24,7 @@
 #include "Framework/Application/SWindowTitleBar.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "HAL/PlatformApplicationMisc.h"
 #include "IDesktopPlatform.h"
 #include "Misc/MessageDialog.h"
 #include "StatusBarSubsystem.h"
@@ -37,6 +38,7 @@
 #include "Components/ChaosVDSolverJointConstraintDataComponent.h"
 #include "Styling/StyleColors.h"
 #include "Styling/ToolBarStyle.h"
+#include "TabSpawers/ChaosVDSceneQueryBrowserTab.h"
 #include "Trace/ChaosVDTraceManager.h"
 #include "Visualizers/ChaosVDCharacterGroundConstraintsDataComponentVisualizer.h"
 #include "Visualizers/ChaosVDGenericDebugDrawDataComponentVisualizer.h"
@@ -81,6 +83,7 @@ void SChaosVDMainTab::Construct(const FArguments& InArgs, TSharedPtr<FChaosVDEng
 	RegisterTabSpawner<FChaosVDCollisionDataDetailsTab>(FChaosVDTabID::CollisionDataDetails);
 	RegisterTabSpawner<FChaosVDSceneQueryDataInspectorTab>(FChaosVDTabID::SceneQueryDataDetails);
 	RegisterTabSpawner<FChaosVDConstraintDataInspectorTab>(FChaosVDTabID::ConstraintsInspector);
+	RegisterTabSpawner<FChaosVDSceneQueryBrowserTab>(FChaosVDTabID::SceneQueryBrowser);
 
 	StatusBarID = FName(FChaosVDTabID::StatusBar.ToString() + InChaosVDEngine->GetInstanceGuid().ToString());
 	
@@ -244,6 +247,8 @@ void SChaosVDMainTab::HandleTabDestroyed(TSharedRef<SDockTab> Tab, FName TabID)
 
 TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 {
+	const float DPIScaleFactor = FPlatformApplicationMisc::GetDPIScaleFactorAtPoint(10.0f, 10.0f);
+
 	return FTabManager::NewLayout("ChaosVisualDebugger_Layout")
 		->AddArea
 		(
@@ -291,7 +296,16 @@ TSharedRef<FTabManager::FLayout> SChaosVDMainTab::GenerateMainLayout()
 					->AddTab(FChaosVDTabID::ConstraintsInspector, ETabState::ClosedTab)
 				)
 			)
-		);
+		)
+	->AddArea(
+	FTabManager::NewArea(800.0f * DPIScaleFactor, 600.0f * DPIScaleFactor)
+	->SetOrientation(Orient_Vertical)
+	->Split
+	(
+		FTabManager::NewStack()
+		->SetSizeCoefficient(1.0f)
+		->AddTab(FChaosVDTabID::SceneQueryBrowser, ETabState::ClosedTab)
+	));
 }
 
 void SChaosVDMainTab::GenerateMainWindowMenu()
@@ -581,6 +595,47 @@ void SChaosVDMainTab::RegisterMainTabMenu()
 	}));
 	
 	Section.AddSeparator(NAME_None);
+
+	//TODO : This button should not be added to the toolbar here. Ideally it should be added from the SceneQueryComponent Visualizer, but we have two issues :
+	// 1- The recording control buttons are still implemented as a widget we instantiate alongside the tool bar, that needs to be moved to be a properly
+	// registered menu entry that is part of the toolbar.
+	// 2- We need to ensure the main toolbar is created and ready to use before we allow other system to register into it.
+	// Jira for tracking UE-221454
+
+	Section.AddDynamicEntry("DataBrowsers", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+	{
+		const UChaosVDMainToolbarMenuContext* Context = InSection.FindContext<UChaosVDMainToolbarMenuContext>();
+		TSharedPtr<SChaosVDMainTab> MainTabPtr = Context->MainTab.Pin();
+		if (!MainTabPtr)
+		{
+			return;
+		}
+
+		FOnClicked OnClickedDelegate = FOnClicked::CreateLambda([WeakTab = StaticCastWeakPtr<SChaosVDMainTab>(MainTabPtr->AsWeak())]()
+		{
+			if (TSharedPtr<SChaosVDMainTab> TabPtr = WeakTab.Pin())
+			{
+				TabPtr->TabManager->TryInvokeTab(FChaosVDTabID::SceneQueryBrowser);
+			}
+
+			return FReply::Handled();
+		});
+
+		TSharedRef<SButton> ConnectToSessionButton = MainTabPtr->CreateSimpleButton(
+														[](){ return LOCTEXT("SceneQueryBrowserButton", "Scene Query Browser"); },
+														[](){ return LOCTEXT("SceneQueryBrowserButtonTooltip", "Opens the Scene Query Browser window, which shows all the available scene queries in the current frame."); },
+														FChaosVDStyle::Get().GetBrush("SceneQueriesInspectorIcon"),
+														Context, MoveTemp(OnClickedDelegate));
+
+		InSection.AddEntry(
+			FToolMenuEntry::InitWidget(
+				"SceneQueryBrowser",
+				ConnectToSessionButton,
+				FText::GetEmpty(),
+				true,
+				false
+			));
+	}));
 }
 
 void SChaosVDMainTab::BrowseLiveSessionsFromTraceStore() const

@@ -4,6 +4,9 @@
 #include "ChaosVDSettingsManager.h"
 #include "IStructureDetailsView.h"
 #include "SEnumCombo.h"
+#include "ToolMenu.h"
+#include "ToolMenuSection.h"
+#include "Widgets/SChaosVDEnumFlagsMenu.h"
 
 class UToolMenu;
 
@@ -64,5 +67,26 @@ namespace Chaos::VisualDebugger::Utils
 		}
 
 		InDetailsView->SetStructureData(StructDataView);
+	}
+
+	template <typename ObjectSettingsType, typename VisualizationFlagsType>
+	void CreateVisualizationOptionsMenuSections(UToolMenu* Menu, FName SectionName, const FText& InSectionLabel, const FText& InFlagsMenuLabel,  const FText& InFlagsMenuTooltip, FSlateIcon FlagsMenuIcon,  const FText& InSettingsMenuLabel, const FText& InSettingsMenuTooltip)
+	{
+		FToolMenuSection& Section = Menu->AddSection(SectionName, InSectionLabel);
+		
+		Section.AddSubMenu(FName(InSectionLabel.ToString()), InFlagsMenuLabel, InFlagsMenuTooltip, FNewToolMenuDelegate::CreateLambda([](UToolMenu* Menu)
+						   {
+							   TSharedRef<SWidget> VisualizationFlagsWidget = SNew(SChaosVDEnumFlagsMenu<VisualizationFlagsType>)
+								   .CurrentValue_Static(&ObjectSettingsType::GetDataVisualizationFlags)
+								   .OnEnumSelectionChanged_Static(&ObjectSettingsType::SetDataVisualizationFlags);
+			
+							   FToolMenuEntry FlagsMenuEntry = FToolMenuEntry::InitWidget("VisualizationFlags", VisualizationFlagsWidget,FText::GetEmpty());
+							   Menu->AddMenuEntry(NAME_None, FlagsMenuEntry);
+						   }),
+						   false, FlagsMenuIcon);
+
+		using namespace Chaos::VisualDebugger::Utils;
+		Section.AddSubMenu(FName(InSettingsMenuLabel.ToString()), InSettingsMenuLabel, InSettingsMenuTooltip, FNewToolMenuDelegate::CreateStatic(&CreateMenuEntryForSettingsObject<ObjectSettingsType>, EChaosVDSaveSettingsOptions::ShowResetButton),
+						   false, FSlateIcon(FAppStyle::Get().GetStyleSetName(), TEXT("Icons.Toolbar.Settings")));
 	}
 }

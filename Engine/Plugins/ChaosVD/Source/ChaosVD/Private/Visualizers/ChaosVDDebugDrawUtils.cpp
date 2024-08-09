@@ -427,4 +427,27 @@ FString Chaos::VisualDebugger::Utils::GenerateDebugTextForVector(const FVector& 
 	return FString::Format(TEXT("{5} : {0} {4} \n	|-- X : {1} {4} \n	|-- Y : {2} {4} \n	|-- Z : {3} {4}"), {InVector.Size(), InVector.X, InVector.Y, InVector.Z, InVectorUnits, VectorName });
 }
 
+FBox Chaos::VisualDebugger::Utils::CalculateSceneQueryShapeBounds(const TSharedRef<FChaosVDQueryDataWrapper>& InSceneQueryData, const TSharedRef<FChaosVDRecording> InRecordedData)
+{
+	FBoxSphereBounds::Builder BoundsBuilder;
+	const FConstImplicitObjectPtr* InputShapePtrPtr = InRecordedData->GetGeometryMap().Find(InSceneQueryData->InputGeometryKey);
+	const FConstImplicitObjectPtr InputShapePtr = InputShapePtrPtr ? *InputShapePtrPtr : nullptr;
+	
+	if (InputShapePtr && InputShapePtr->HasBoundingBox())
+	{
+		FAABB3 StartBounds = InputShapePtr->CalculateTransformedBounds(FRigidTransform3(InSceneQueryData->StartLocation, InSceneQueryData->GeometryOrientation));
+		FAABB3 EndBounds = InputShapePtr->CalculateTransformedBounds(FRigidTransform3(InSceneQueryData->EndLocation, InSceneQueryData->GeometryOrientation));
+
+		BoundsBuilder += FBox(StartBounds.Min(), StartBounds.Max());
+		BoundsBuilder += FBox(EndBounds.Min(), EndBounds.Max());
+	}
+	else
+	{
+		BoundsBuilder+= InSceneQueryData->EndLocation;
+		BoundsBuilder+= InSceneQueryData->StartLocation;
+	}
+	
+	return FBoxSphereBounds(BoundsBuilder).GetBox();
+}
+
 #undef LOCTEXT_NAMESPACE
