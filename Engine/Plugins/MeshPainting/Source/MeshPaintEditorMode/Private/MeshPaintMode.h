@@ -47,7 +47,8 @@ public:
 	static FName MeshPaintMode_TextureColor;
 	static FName MeshPaintMode_TextureAsset;
 	static FString VertexSelectToolName;
-	static FString TextureSelectToolName;
+	static FString TextureColorSelectToolName;
+	static FString TextureAssetSelectToolName;
 	static FString VertexColorPaintToolName;
 	static FString VertexWeightPaintToolName;
 	static FString TextureColorPaintToolName;

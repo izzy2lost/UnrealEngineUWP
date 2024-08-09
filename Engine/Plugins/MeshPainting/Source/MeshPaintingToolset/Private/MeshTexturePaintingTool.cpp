@@ -244,8 +244,7 @@ void UMeshTexturePaintingTool::Render(IToolsContextRenderAPI* RenderAPI)
 		for (UMeshComponent* CurrentComponent : MeshPaintingSubsystem->GetPaintableMeshComponents())
 		{
 			TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = MeshPaintingSubsystem->GetAdapterForComponent(Cast<UMeshComponent>(CurrentComponent));
-
-			if (MeshAdapter->IsValid() && MeshAdapter->SupportsVertexPaint())
+			if (IsMeshAdapterSupported(MeshAdapter))
 			{
 				const FMatrix ComponentToWorldMatrix = MeshAdapter->GetComponentToWorldMatrix();
 				FViewCameraState CameraState;
@@ -299,57 +298,54 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 				
 				const int32 UVChannel = GetSelectedUVChannel(SelectedComponent);
 
-				IMeshPaintComponentAdapter* MeshAdapter = MeshPaintingSubsystem->GetAdapterForComponent(SelectedComponent).Get();
-				if (MeshAdapter)
+				TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = MeshPaintingSubsystem->GetAdapterForComponent(SelectedComponent);
+				if (IsMeshAdapterSupported(MeshAdapter))
 				{
-					if (MeshAdapter->SupportsTexturePaint())
+					Textures.Empty();
+					const UTexture2D* TargetTexture2D = GetSelectedPaintTexture(SelectedComponent);
+					if (TargetTexture2D)
 					{
-						Textures.Empty();
-						const UTexture2D* TargetTexture2D = GetSelectedPaintTexture(SelectedComponent);
-						if (TargetTexture2D)
+						Textures.Add(TargetTexture2D);
+
+						FPaintTexture2DData* TextureData = GetPaintTargetData(TargetTexture2D);
+						if (TextureData)
 						{
-							Textures.Add(TargetTexture2D);
-
-							FPaintTexture2DData* TextureData = GetPaintTargetData(TargetTexture2D);
-							if (TextureData)
-							{
-								Textures.Add(TextureData->PaintRenderTargetTexture);
-							}
-
-							TArray<FTexturePaintMeshSectionInfo> MaterialSections;
-							UTexturePaintToolset::RetrieveMeshSectionsForTextures(SelectedComponent, 0 /*CachedLODIndex*/, Textures, MaterialSections);
-
-							TArray<FTexturePaintTriangleInfo> TrianglePaintInfoArray;
-							FPerTrianglePaintAction TempAction = FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel);
-
-							// We are flooding the texture, so all triangles are influenced
-
-							const TArray<uint32>& MeshIndices = MeshAdapter->GetMeshIndices();
-							int32 TriangleIndices[3];
-
-							for (int32 i = 0; i < MeshIndices.Num(); i += 3)
-							{
-								TriangleIndices[0] = MeshIndices[i + 0];
-								TriangleIndices[1] = MeshIndices[i + 1];
-								TriangleIndices[2] = MeshIndices[i + 2];
-								TempAction.Execute(MeshAdapter, i / 3, TriangleIndices);
-							}
-
-							// Painting textures
-							if ((TexturePaintingCurrentMeshComponent != nullptr) && (TexturePaintingCurrentMeshComponent != SelectedComponent))
-							{
-								// Mesh has changed, so finish up with our previous texture
-								FinishPaintingTexture();
-							}
-
-							if (TexturePaintingCurrentMeshComponent == nullptr)
-							{
-								StartPaintingTexture(SelectedComponent, *MeshAdapter);
-							}
-
-							FMeshPaintParameters* LastParams = nullptr;
-							PaintTexture(BucketFillParams, UVChannel, TrianglePaintInfoArray, *MeshAdapter, LastParams);
+							Textures.Add(TextureData->PaintRenderTargetTexture);
 						}
+
+						TArray<FTexturePaintMeshSectionInfo> MaterialSections;
+						UTexturePaintToolset::RetrieveMeshSectionsForTextures(SelectedComponent, 0 /*CachedLODIndex*/, Textures, MaterialSections);
+
+						TArray<FTexturePaintTriangleInfo> TrianglePaintInfoArray;
+						FPerTrianglePaintAction TempAction = FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel);
+
+						// We are flooding the texture, so all triangles are influenced
+
+						const TArray<uint32>& MeshIndices = MeshAdapter->GetMeshIndices();
+						int32 TriangleIndices[3];
+
+						for (int32 i = 0; i < MeshIndices.Num(); i += 3)
+						{
+							TriangleIndices[0] = MeshIndices[i + 0];
+							TriangleIndices[1] = MeshIndices[i + 1];
+							TriangleIndices[2] = MeshIndices[i + 2];
+							TempAction.Execute(MeshAdapter.Get(), i / 3, TriangleIndices);
+						}
+
+						// Painting textures
+						if ((TexturePaintingCurrentMeshComponent != nullptr) && (TexturePaintingCurrentMeshComponent != SelectedComponent))
+						{
+							// Mesh has changed, so finish up with our previous texture
+							FinishPaintingTexture();
+						}
+
+						if (TexturePaintingCurrentMeshComponent == nullptr)
+						{
+							StartPaintingTexture(SelectedComponent, *MeshAdapter);
+						}
+
+						FMeshPaintParameters* LastParams = nullptr;
+						PaintTexture(BucketFillParams, UVChannel, TrianglePaintInfoArray, *MeshAdapter, LastParams);
 					}
 				}
 			}
@@ -593,16 +589,12 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 		{
 			UMeshComponent* HoveredComponent = Entry.Key;
 			TArray<int32>& PaintRayResultIds = Entry.Value;
-			IMeshPaintComponentAdapter* MeshAdapter = MeshPaintingSubsystem ? MeshPaintingSubsystem->GetAdapterForComponent(HoveredComponent).Get() : nullptr;
-			if (!ensure(MeshAdapter))
+			
+			TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = MeshPaintingSubsystem->GetAdapterForComponent(HoveredComponent);
+			if (IsMeshAdapterSupported(MeshAdapter))
 			{
-				continue;
-			}
+				const int32 UVChannel = GetSelectedUVChannel(HoveredComponent);
 
-			const int32 UVChannel = GetSelectedUVChannel(HoveredComponent);
-
-			if (MeshAdapter->SupportsTexturePaint())
-			{
 				Textures.Empty();
 				const UTexture2D* TargetTexture2D = GetSelectedPaintTexture(HoveredComponent);
 				if (TargetTexture2D)
@@ -624,7 +616,7 @@ bool UMeshTexturePaintingTool::PaintInternal(const TArrayView<TPair<FVector, FVe
 						const FVector& BestTraceResultLocation = PaintRayResults[PaintRayResultId].BestTraceResult.Location;
 						FViewCameraState CameraState;
 						GetToolManager()->GetContextQueriesAPI()->GetCurrentViewState(CameraState);
-						bPaintApplied |= MeshPaintingSubsystem->ApplyPerTrianglePaintAction(MeshAdapter, CameraState.Position, BestTraceResultLocation, BrushProperties, FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel), TextureProperties->bOnlyFrontFacingTriangles);
+						bPaintApplied |= MeshPaintingSubsystem->ApplyPerTrianglePaintAction(MeshAdapter.Get(), CameraState.Position, BestTraceResultLocation, BrushProperties, FPerTrianglePaintAction::CreateUObject(this, &UMeshTexturePaintingTool::GatherTextureTriangles, &TrianglePaintInfoArray, &MaterialSections, UVChannel), TextureProperties->bOnlyFrontFacingTriangles);
 						break;
 					}
 
@@ -1481,9 +1473,9 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 
 								for (UMeshComponent* Component : TextureData->PaintedComponents)
 								{
-									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(Component))
+									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterResource = MeshPaintingSubsystem->GetAdapterForComponent(Component))
 									{
-										PaintAdapterRessource->ApplyOrRemoveTextureOverride(TextureData->PaintingTexture2D, GetTextureForMaterialOverride(*TextureData));
+										PaintAdapterResource->ApplyOrRemoveTextureOverride(TextureData->PaintingTexture2D, GetTextureForMaterialOverride(*TextureData));
 										PaintComponentOverride.PaintedComponents.Add(Component);
 									}
 								}
@@ -1497,9 +1489,9 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 
 							for (UMeshComponent* Component : ComponentOverride.PaintedComponents)
 							{
-								if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(Component))
+								if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterResource = MeshPaintingSubsystem->GetAdapterForComponent(Component))
 								{
-									PaintAdapterRessource->ApplyOrRemoveTextureOverride(Texture,  nullptr);
+									PaintAdapterResource->ApplyOrRemoveTextureOverride(Texture,  nullptr);
 								}
 							}
 						};
@@ -1521,9 +1513,9 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 
 								auto ComponentOverrideNotNeeded = [this, MeshPaintingSubsystem, &ComponentOverride, Texture, &MeshComponentsToRemove](TObjectPtr<UMeshComponent>& MeshComponent)
 								{
-									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(MeshComponent))
+									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterResource = MeshPaintingSubsystem->GetAdapterForComponent(MeshComponent))
 									{
-										PaintAdapterRessource->ApplyOrRemoveTextureOverride(Texture, nullptr);
+										PaintAdapterResource->ApplyOrRemoveTextureOverride(Texture, nullptr);
 									}
 
 									MeshComponentsToRemove.Add(MeshComponent);
@@ -1532,9 +1524,9 @@ void UMeshTexturePaintingTool::OnTransactionStateChanged(const FTransactionConte
 								UTexture* OverrideTexture = GetTextureForMaterialOverride(*TextureData);
 								auto ComponentOverrideMissing = [this, MeshPaintingSubsystem, &ComponentOverride, Texture, &MeshComponentsToAdd, OverrideTexture](TObjectPtr<UMeshComponent>& MeshComponent)
 								{
-									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterRessource = MeshPaintingSubsystem->GetAdapterForComponent(MeshComponent))
+									if (TSharedPtr<IMeshPaintComponentAdapter> PaintAdapterResource = MeshPaintingSubsystem->GetAdapterForComponent(MeshComponent))
 									{
-										PaintAdapterRessource->ApplyOrRemoveTextureOverride(Texture, OverrideTexture);
+										PaintAdapterResource->ApplyOrRemoveTextureOverride(Texture, OverrideTexture);
 									}
 
 									MeshComponentsToAdd.Add(MeshComponent);
@@ -1711,11 +1703,6 @@ int32 UMeshTexturePaintingTool::GetNumberOfPendingPaintChanges() const
 	return Result;
 }
 
-bool UMeshTexturePaintingTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
-{
-	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
-}
-
 void UMeshTexturePaintingTool::FloodCurrentPaintTexture()
 {
 	bRequestPaintBucketFill = true;
@@ -1735,6 +1722,11 @@ void UMeshTextureColorPaintingTool::Setup()
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartTextureColorPaintTool", "Paint colors to the Mesh Paint Texture object stored on mesh components."),
 		EToolMessageLevel::UserNotification);
+}
+
+bool UMeshTextureColorPaintingTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+{
+	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTextureColorPaint() : false;
 }
 
 UTexture2D* UMeshTextureColorPaintingTool::GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const
@@ -1791,6 +1783,11 @@ void UMeshTextureAssetPaintingTool::Setup()
 	GetToolManager()->DisplayMessage(
 		LOCTEXT("OnStartTexturePaintTool", "The Texture Weight Painting mode enables you to paint on textures and access available properties while doing so ."),
 		EToolMessageLevel::UserNotification);
+}
+
+bool UMeshTextureAssetPaintingTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+{
+	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
 }
 
 UTexture2D* UMeshTextureAssetPaintingTool::GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const

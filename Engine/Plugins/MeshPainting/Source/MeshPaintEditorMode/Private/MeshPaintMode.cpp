@@ -36,7 +36,8 @@ FName UMeshPaintMode::MeshPaintMode_TextureColor = FName(TEXT("TextureColor"));
 FName UMeshPaintMode::MeshPaintMode_TextureAsset = FName(TEXT("Texture"));
 
 FString UMeshPaintMode::VertexSelectToolName = TEXT("VertexAdapterClickTool");
-FString UMeshPaintMode::TextureSelectToolName = TEXT("TextureAdapterClickTool");
+FString UMeshPaintMode::TextureColorSelectToolName = TEXT("TextureColorAdapterClickTool");
+FString UMeshPaintMode::TextureAssetSelectToolName = TEXT("TextureAssetAdapterClickTool");
 
 FString UMeshPaintMode::VertexColorPaintToolName = TEXT("VertexColorBrushTool");
 FString UMeshPaintMode::VertexWeightPaintToolName = TEXT("VertexWeightBrushTool");
@@ -130,8 +131,11 @@ void UMeshPaintMode::Enter()
 	UVertexAdapterClickToolBuilder* VertexClickToolBuilder = NewObject<UVertexAdapterClickToolBuilder>(this);
 	RegisterTool(ToolManagerCommands.SelectVertex, VertexSelectToolName, VertexClickToolBuilder);
 
-	UTextureAdapterClickToolBuilder* TextureClickToolBuilder = NewObject<UTextureAdapterClickToolBuilder>(this);
-	RegisterTool(ToolManagerCommands.SelectTexture, TextureSelectToolName, TextureClickToolBuilder);
+	UTextureColorAdapterClickToolBuilder* TextureColorClickToolBuilder = NewObject<UTextureColorAdapterClickToolBuilder>(this);
+	RegisterTool(ToolManagerCommands.SelectTextureColor, TextureColorSelectToolName, TextureColorClickToolBuilder);
+
+	UTextureAssetAdapterClickToolBuilder* TextureAssetClickToolBuilder = NewObject<UTextureAssetAdapterClickToolBuilder>(this);
+	RegisterTool(ToolManagerCommands.SelectTextureAsset, TextureAssetSelectToolName, TextureAssetClickToolBuilder);
 
 	UMeshColorPaintingToolBuilder* MeshColorPaintingToolBuilder = NewObject<UMeshColorPaintingToolBuilder>(this);
 	RegisterTool(ToolManagerCommands.PaintVertexColor, VertexColorPaintToolName, MeshColorPaintingToolBuilder);
@@ -437,13 +441,27 @@ void UMeshPaintMode::UpdateToolForSelection(const TArray<UMeshComponent*>& Curre
 	}
 
 	GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SetSelectionHasMaterialValidForTexturePaint(bCurrentSelectionSupportsTexturePaint);
-	if (!bCurrentSelectionSupportsTexturePaint 
-		&& GetToolManager() 
-		&& GetToolManager()->GetActiveTool(EToolSide::Mouse)
-		&& GetToolManager()->GetActiveTool(EToolSide::Mouse)->IsA<UMeshTexturePaintingTool>())
+
+	if (!bCurrentSelectionSupportsTexturePaint)
 	{
-		GetInteractiveToolsContext()->EndTool(EToolShutdownType::Accept);
-		GetInteractiveToolsContext()->StartTool(TextureSelectToolName);
+		UInteractiveToolManager* ToolManager = GetToolManager();
+		UInteractiveTool const* Tool = (ToolManager == nullptr) ? nullptr : ToolManager->GetActiveTool(EToolSide::Mouse);
+		if (Tool != nullptr)
+		{
+			if (Tool->IsA<UMeshTexturePaintingTool>())
+			{
+				GetInteractiveToolsContext()->EndTool(EToolShutdownType::Accept);
+
+				if (Tool->IsA<UMeshTextureColorPaintingTool>())
+				{
+					GetInteractiveToolsContext()->StartTool(TextureColorSelectToolName);
+				}
+				else if (Tool->IsA<UMeshTextureAssetPaintingTool>())
+				{
+					GetInteractiveToolsContext()->StartTool(TextureAssetSelectToolName);
+				}
+			}
+		}
 	}
 }
 
@@ -914,9 +932,13 @@ void UMeshPaintMode::ActivateDefaultTool()
 	{
 		GetInteractiveToolsContext()->StartTool(VertexSelectToolName);
 	}
-	if (PaletteName == UMeshPaintMode::MeshPaintMode_TextureColor || PaletteName == UMeshPaintMode::MeshPaintMode_TextureAsset)
+	if (PaletteName == UMeshPaintMode::MeshPaintMode_TextureColor)
 	{
-		GetInteractiveToolsContext()->StartTool(TextureSelectToolName);
+		GetInteractiveToolsContext()->StartTool(TextureColorSelectToolName);
+	}
+	if (PaletteName == UMeshPaintMode::MeshPaintMode_TextureAsset)
+	{
+		GetInteractiveToolsContext()->StartTool(TextureAssetSelectToolName);
 	}
 }
 
@@ -939,12 +961,12 @@ void UMeshPaintMode::UpdateOnPaletteChange(FName NewPaletteName)
 	else if (NewPaletteName == UMeshPaintMode::MeshPaintMode_TextureColor)
 	{
 		SwitchToToolPaint = TextureColorPaintToolName;
-		SwitchToToolSelect = TextureSelectToolName;
+		SwitchToToolSelect = TextureColorSelectToolName;
 	}
 	else if (NewPaletteName == UMeshPaintMode::MeshPaintMode_TextureAsset)
 	{
 		SwitchToToolPaint = TextureAssetPaintToolName;
-		SwitchToToolSelect = TextureSelectToolName;
+		SwitchToToolSelect = TextureAssetSelectToolName;
 	}
 
 	if (!SwitchToToolPaint.IsEmpty())
@@ -988,7 +1010,7 @@ void UMeshPaintMode::OnResetViewMode()
 bool UMeshPaintMode::IsInSelectTool() const
 {
 	FString ActiveTool = GetToolManager()->GetActiveToolName(EToolSide::Mouse);
-	return ActiveTool == VertexSelectToolName || ActiveTool == TextureSelectToolName;
+	return ActiveTool == VertexSelectToolName || ActiveTool == TextureColorSelectToolName || ActiveTool == TextureAssetSelectToolName;
 }
 
 bool UMeshPaintMode::IsInPaintTool() const
@@ -1061,7 +1083,7 @@ bool UMeshPaintMode::CanAddMeshPaintTextures() const
 		const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
 		for (UStaticMeshComponent* Component : StaticMeshComponents)
 		{
-			if (Component->GetMeshPaintTexture() == nullptr)
+			if (Component->GetMeshPaintTexture() == nullptr && Component->CanMeshPaintTextureColors())
 			{
 				return true;
 			}

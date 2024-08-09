@@ -23,14 +23,25 @@ UInteractiveTool* UVertexAdapterClickToolBuilder::BuildTool(const FToolBuilderSt
 	return NewTool;
 }
 
-bool UTextureAdapterClickToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+bool UTextureColorAdapterClickToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
 	return true;
 }
 
-UInteractiveTool* UTextureAdapterClickToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+UInteractiveTool* UTextureColorAdapterClickToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
 {
-	UTextureAdapterClickTool* NewTool = NewObject<UTextureAdapterClickTool>(SceneState.ToolManager);
+	UTextureColorAdapterClickTool* NewTool = NewObject<UTextureColorAdapterClickTool>(SceneState.ToolManager);
+	return NewTool;
+}
+
+bool UTextureAssetAdapterClickToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
+{
+	return true;
+}
+
+UInteractiveTool* UTextureAssetAdapterClickToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
+{
+	UTextureAssetAdapterClickTool* NewTool = NewObject<UTextureAssetAdapterClickTool>(SceneState.ToolManager);
 	return NewTool;
 }
 
@@ -77,24 +88,17 @@ void UMeshClickTool::OnClicked(const FInputDeviceRay& ClickPos)
 }
 
 
-UVertexAdapterClickTool::UVertexAdapterClickTool()
-	: UMeshClickTool()
-{
-
-}
-
 bool UVertexAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
 {
 	return MeshAdapter.IsValid() ? MeshAdapter->SupportsVertexPaint() : false;
 }
 
-UTextureAdapterClickTool::UTextureAdapterClickTool()
-	: UMeshClickTool()
+bool UTextureColorAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
 {
-
+	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTextureColorPaint() : false;
 }
 
-bool UTextureAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+bool UTextureAssetAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
 {
 	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
 }

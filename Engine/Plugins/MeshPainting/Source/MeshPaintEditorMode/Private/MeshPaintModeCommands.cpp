@@ -32,7 +32,8 @@ void FMeshPaintingToolActionCommands::UpdateToolCommandBinding(UInteractiveTool*
 void FMeshPaintEditorModeCommands::RegisterCommands()
 {
 	UI_COMMAND(SelectVertex, "Select", "Select the mesh for vertex painting", EUserInterfaceActionType::ToggleButton, FInputChord());
-	UI_COMMAND(SelectTexture, "Select", "Select the mesh for texture painting", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(SelectTextureColor, "Select", "Select the mesh for texture color painting", EUserInterfaceActionType::ToggleButton, FInputChord());
+	UI_COMMAND(SelectTextureAsset, "Select", "Select the mesh for texture asset painting", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(PaintVertexColor, "Paint", "Paint the mesh vertex colors", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(PaintVertexWeight, "Paint", "Paint the mesh vertex weights", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(PaintTextureColor, "Paint", "Paint the mesh texture colors", EUserInterfaceActionType::ToggleButton, FInputChord());
@@ -70,12 +71,12 @@ void FMeshPaintEditorModeCommands::RegisterCommands()
 	Commands.Add(UMeshPaintMode::MeshPaintMode_VertexWeights, VertexWeightCommands);
 
 	TArray<TSharedPtr<FUICommandInfo>> TextureColorCommands = {
-		SelectTexture, PaintTextureColor, SwapColor, FillTexture, Commit, SaveTexture, Add, RemoveTexture, Copy, Paste, GetVertexColors
+		SelectTextureColor, PaintTextureColor, SwapColor, FillTexture, Commit, SaveTexture, Add, RemoveTexture, Copy, Paste, GetVertexColors
 	};
 	Commands.Add(UMeshPaintMode::MeshPaintMode_TextureColor, TextureColorCommands);
 
 	TArray<TSharedPtr<FUICommandInfo>> TextureAssetCommands = {
-		SelectTexture, PaintTextureAsset, SwapColor, FillTexture, Commit, SaveTexture
+		SelectTextureAsset, PaintTextureAsset, SwapColor, FillTexture, Commit, SaveTexture
 	};
 	Commands.Add(UMeshPaintMode::MeshPaintMode_TextureAsset, TextureAssetCommands);
 }

@@ -26,10 +26,10 @@ public:
 
 
 /**
- * Builder for UTextureAdapterClickTool
+ * Builder for UTextureColorAdapterClickTool
  */
 UCLASS()
-class MESHPAINTINGTOOLSET_API UTextureAdapterClickToolBuilder : public USingleClickToolBuilder
+class MESHPAINTINGTOOLSET_API UTextureColorAdapterClickToolBuilder : public USingleClickToolBuilder
 {
 	GENERATED_BODY()
 
@@ -38,6 +38,19 @@ public:
 	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
 };
 
+
+/**
+ * Builder for UTextureAssetAdapterClickTool
+ */
+UCLASS()
+class MESHPAINTINGTOOLSET_API UTextureAssetAdapterClickToolBuilder : public USingleClickToolBuilder
+{
+	GENERATED_BODY()
+
+public:
+	virtual bool CanBuildTool(const FToolBuilderState& SceneState) const override;
+	virtual UInteractiveTool* BuildTool(const FToolBuilderState& SceneState) const override;
+};
 
 
 /**
@@ -81,7 +94,6 @@ protected:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshPaintSelectionMechanic> SelectionMechanic;
-
 };
 
 UCLASS()
@@ -90,28 +102,29 @@ class MESHPAINTINGTOOLSET_API UVertexAdapterClickTool : public UMeshClickTool
 	GENERATED_BODY()
 
 public:
-	UVertexAdapterClickTool();
-
 	// USingleClickTool overrides
 	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-
 };
 
 UCLASS()
-class MESHPAINTINGTOOLSET_API UTextureAdapterClickTool : public UMeshClickTool
+class MESHPAINTINGTOOLSET_API UTextureColorAdapterClickTool : public UMeshClickTool
 {
 	GENERATED_BODY()
 
 public:
-	UTextureAdapterClickTool();
-
 	// USingleClickTool overrides
 	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-	virtual bool AllowsMultiselect() const override
-	{
-		return true;
-	}
+};
 
+UCLASS()
+class MESHPAINTINGTOOLSET_API UTextureAssetAdapterClickTool : public UMeshClickTool
+{
+	GENERATED_BODY()
+
+public:
+	// USingleClickTool overrides
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual bool AllowsMultiselect() const override { return false; }
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

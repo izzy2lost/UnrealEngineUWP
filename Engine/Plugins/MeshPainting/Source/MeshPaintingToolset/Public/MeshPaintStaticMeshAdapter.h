@@ -28,6 +28,7 @@ public:
 	virtual void OnRemoved() override {}
 	virtual bool IsValid() const override { return StaticMeshComponent.IsValid() && ReferencedStaticMesh && StaticMeshComponent->GetStaticMesh() == ReferencedStaticMesh; }
 	virtual bool SupportsTexturePaint() const override { return true; }
+	virtual bool SupportsTextureColorPaint() const override { return StaticMeshComponent.IsValid() && StaticMeshComponent->CanMeshPaintTextureColors(); }
 	virtual bool SupportsVertexPaint() const override { return StaticMeshComponent.IsValid() && StaticMeshComponent->CanMeshPaintVertexColors(); }
 	virtual bool LineTraceComponent(struct FHitResult& OutHit, const FVector Start, const FVector End, const struct FCollisionQueryParams& Params) const override;	
 	virtual void QueryPaintableTextures(int32 MaterialIndex, int32& OutDefaultIndex, TArray<struct FPaintableTexture>& InOutTextureList) override;

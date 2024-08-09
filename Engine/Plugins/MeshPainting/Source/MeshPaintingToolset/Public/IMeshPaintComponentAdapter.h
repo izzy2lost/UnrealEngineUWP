@@ -43,8 +43,11 @@ public:
 	/** Returns whether or not this adapter is in a valid state */
 	virtual bool IsValid() const = 0;	
 	
-	/** Whether or not this adapter supports texture painting */
+	/** Whether or not this adapter supports texture asset painting */
 	virtual bool SupportsTexturePaint() const = 0;
+
+	/** Whether or not this adapter supports texture color painting */
+	virtual bool SupportsTextureColorPaint() const = 0;
 
 	/** Whether or not this adapter supports vertex painting */
 	virtual bool SupportsVertexPaint() const = 0;

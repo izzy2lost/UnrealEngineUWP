@@ -169,8 +169,6 @@ public:
 
 	void FloodCurrentPaintTexture();
 	
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-	
 	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const {}
 
 protected:
@@ -281,6 +279,7 @@ public:
 
 	// Begin UMeshTexturePaintingTool Interface.
 	virtual bool AllowsMultiselect() const override { return true; }
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
 	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const override;
 	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
 	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;
@@ -311,6 +310,7 @@ public:
 
 	// Begin UMeshTexturePaintingTool Interface.
 	virtual bool AllowsMultiselect() const override { return false; }
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
 	virtual UTexture2D* GetSelectedPaintTexture(UMeshComponent const* InMeshComponent) const override;
 	virtual int32 GetSelectedUVChannel(UMeshComponent const* InMeshComponent) const override;
 	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;

@@ -77,7 +77,7 @@ void UMeshPaintingSubsystem::RemoveComponentInstanceVertexColors(UStaticMeshComp
 
 void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponent* StaticMeshComponent)
 {
-	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() == nullptr)
+	if (StaticMeshComponent != nullptr && StaticMeshComponent->GetMeshPaintTexture() == nullptr && StaticMeshComponent->CanMeshPaintTextureColors())
 	{
 		StaticMeshComponent->Modify();
 

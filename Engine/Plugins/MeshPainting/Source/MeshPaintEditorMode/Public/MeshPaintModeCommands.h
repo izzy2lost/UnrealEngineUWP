@@ -31,7 +31,8 @@ public:
 
 public:
 	TSharedPtr<FUICommandInfo> SelectVertex;
-	TSharedPtr<FUICommandInfo> SelectTexture;
+	TSharedPtr<FUICommandInfo> SelectTextureColor;
+	TSharedPtr<FUICommandInfo> SelectTextureAsset;
 
 	TSharedPtr<FUICommandInfo> PaintVertexColor;
 	TSharedPtr<FUICommandInfo> PaintVertexWeight;
