@@ -742,6 +742,7 @@ TSharedRef<SDockTab> FAssetManagerEditorModule::SpawnAssetDiskSizeTab(const FSpa
 TSharedRef<SDockTab> FAssetManagerEditorModule::SpawnReferenceViewerTab(const FSpawnTabArgs& Args)
 {
 	TSharedRef<SDockTab> NewTab = SNew(SDockTab)
+		.TabRole(NomadTab)
 		.OnTabClosed_Raw(this, &FAssetManagerEditorModule::OnReferenceViewerTabClosed)
 		[
 			SAssignNew(ReferenceViewerUI, SReferenceViewer)
