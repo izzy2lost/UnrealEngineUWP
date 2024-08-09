@@ -24,6 +24,19 @@ void UMoviePipelineGameOverrideSetting::TeardownForPipelineImpl(UMoviePipeline* 
 }
 
 
+void UMoviePipelineGameOverrideSetting::PostLoad()
+{
+	Super::PostLoad();
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (const UClass* GameModeOverrideClass = GameModeOverride.Get())
+	{
+		SoftGameModeOverride = GameModeOverrideClass;
+		GameModeOverride = nullptr;
+	}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
 void UMoviePipelineGameOverrideSetting::ApplyCVarSettings(const bool bOverrideValues)
 {
 	if (bCinematicQualitySettings)

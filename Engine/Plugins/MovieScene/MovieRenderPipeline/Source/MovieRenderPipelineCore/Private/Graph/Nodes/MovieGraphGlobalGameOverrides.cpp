@@ -7,7 +7,10 @@
 #include "Styling/AppStyle.h"
 
 UMovieGraphGlobalGameOverridesNode::UMovieGraphGlobalGameOverridesNode()
-	: GameModeOverride(AMoviePipelineGameMode::StaticClass())
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	: GameModeOverride(nullptr)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, SoftGameModeOverride(AMoviePipelineGameMode::StaticClass())
 	, ScalabilityQualityLevel(EMovieGraphScalabilityQualityLevel::Cinematic)
 	, bDisableTextureStreaming(false)
 	, bDisableLODs(false)
@@ -85,6 +88,22 @@ void UMovieGraphGlobalGameOverridesNode::BuildNewProcessCommandLineArgsImpl(TArr
 	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.Chaos.ImmPhys.MinStepTime=%d"), 0));
 	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("r.SkipRedundantTransformUpdate=%d"), 0));
 	InOutDeviceProfileCvars.Add(FString::Printf(TEXT("p.ChaosCloth.UseTimeStepSmoothing=%d"), 0));
+}
+
+void UMovieGraphGlobalGameOverridesNode::PostLoad()
+{
+	Super::PostLoad();
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	if (const UClass* GameModeOverrideClass = GameModeOverride.Get())
+	{
+		SoftGameModeOverride = GameModeOverrideClass;
+		bOverride_SoftGameModeOverride = bOverride_GameModeOverride;
+		
+		GameModeOverride = nullptr;
+		bOverride_GameModeOverride = false;
+	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UMovieGraphGlobalGameOverridesNode::ApplySettings(const bool bOverrideValues, UWorld* InWorld)
@@ -203,7 +222,7 @@ TSubclassOf<AGameModeBase> UMovieGraphGlobalGameOverridesNode::GetGameModeOverri
 			UMovieGraphGlobalGameOverridesNode* GameOverridesNode =
 				EvaluatedGraph->GetSettingForBranch<UMovieGraphGlobalGameOverridesNode>(GlobalsPinName, bIncludeCDOs, bExactMatch);
 
-			return GameOverridesNode ? GameOverridesNode->GameModeOverride : nullptr;
+			return GameOverridesNode ? GameOverridesNode->SoftGameModeOverride.LoadSynchronous() : nullptr;
 		}
 	}
 	else
@@ -218,7 +237,7 @@ TSubclassOf<AGameModeBase> UMovieGraphGlobalGameOverridesNode::GetGameModeOverri
 		{
 			if (UMoviePipelineSetting* Setting = *GameOverridesPtr)
 			{
-				return CastChecked<UMoviePipelineGameOverrideSetting>(Setting)->GameModeOverride;
+				return CastChecked<UMoviePipelineGameOverrideSetting>(Setting)->SoftGameModeOverride.LoadSynchronous();
 			}
 		}
 	}
