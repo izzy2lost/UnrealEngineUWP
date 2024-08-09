@@ -7,10 +7,11 @@
 class UWebAPIDefinition;
 class UWebAPISchema;
 
-class FWebAPIModelViewModel;
 class FWebAPIDefinitionViewModel;
+class FWebAPIModelViewModel;
 class FWebAPISchemaViewModel;
 class FWebAPIServiceViewModel;
+class IWebAPISchemaObjectInterface;
 class IWebAPIViewModel;
 
 namespace UE
@@ -19,8 +20,8 @@ namespace UE
 	{
 		namespace Details
 		{
-			template <typename ModelType, class ParentViewModelType = IWebAPIViewModel, class ViewModelType = IWebAPIViewModel> 
-			TSharedPtr<ViewModelType> CreateViewModel(const TSharedRef<ParentViewModelType>& InParentViewModel, ModelType* InModel);
+			template <class ParentViewModelType = IWebAPIViewModel, class ViewModelType = IWebAPIViewModel>
+			TSharedPtr<ViewModelType> CreateViewModel(const TSharedRef<ParentViewModelType>& InParentViewModel, UObject* InModel);
 		}
 	}
 }

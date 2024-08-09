@@ -62,9 +62,9 @@ void UWebAPIEnum::BindToTypeInfo()
 
 	check(Name.HasTypeInfo());
 
-	if(!Name.TypeInfo->bIsBuiltinType && Name.TypeInfo->Model.IsNull())
+	if(!Name.TypeInfo->bIsBuiltinType && Name.TypeInfo->GetModel() == nullptr)
 	{
-		Name.TypeInfo->Model = this;
+		Name.TypeInfo->SetModel(this);
 		if(Name.TypeInfo->DefaultValue.IsEmpty())
 		{
 			Name.TypeInfo->DefaultValue = GetDefaultValue();

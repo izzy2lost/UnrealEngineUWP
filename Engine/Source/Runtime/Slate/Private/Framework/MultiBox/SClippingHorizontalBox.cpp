@@ -1,13 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/MultiBox/SClippingHorizontalBox.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Layout/ArrangedChildren.h"
-#include "Rendering/DrawElements.h"
+#include "Styling/ToolBarStyle.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SComboButton.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Styling/ToolBarStyle.h"
-
 
 void SClippingHorizontalBox::OnArrangeChildren( const FGeometry& AllottedGeometry, FArrangedChildren& ArrangedChildren ) const
 {
@@ -129,7 +127,7 @@ void SClippingHorizontalBox::AddWrapButton()
 	// Add the wrap button
 	AddSlot()
 	.FillWidth(0.0f) // Effectively makes this widget 0 width, so it exists as a slot/child, but isn't considered for layout
-	.Padding( 0.f )
+	.Padding(0.f)
 	[
 		WrapButton.ToSharedRef()
 	];

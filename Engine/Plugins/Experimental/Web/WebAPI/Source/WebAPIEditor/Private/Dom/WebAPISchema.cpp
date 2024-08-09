@@ -242,7 +242,7 @@ UWebAPISchema::UWebAPISchema()
 	TypeRegistry = CreateDefaultSubobject<UWebAPITypeRegistry>(TEXT("TypeRegistry"));
 }
 
-TObjectPtr<UWebAPIEnum> UWebAPISchema::AddEnum(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
+UWebAPIEnum* UWebAPISchema::AddEnum(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
 {
 	check(InTypeInfo);
 
@@ -280,7 +280,7 @@ TObjectPtr<UWebAPIEnum> UWebAPISchema::AddEnum(const TObjectPtr<UWebAPITypeInfo>
 	return Cast<UWebAPIEnum>(AddedModel);
 }
 
-TObjectPtr<UWebAPIParameter> UWebAPISchema::AddParameter(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
+UWebAPIParameter* UWebAPISchema::AddParameter(const TObjectPtr<UWebAPITypeInfo>& InTypeInfo)
 {
 	check(InTypeInfo);
 

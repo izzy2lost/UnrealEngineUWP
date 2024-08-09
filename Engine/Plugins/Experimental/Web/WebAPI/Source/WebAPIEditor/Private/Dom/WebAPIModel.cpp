@@ -41,11 +41,14 @@ FString UWebAPIProperty::GetDefaultValue(bool bQualified) const
 	UWebAPIDefinition* OwningDefinition = GetTypedOuter<UWebAPIDefinition>();
 	check(OwningDefinition);
 	
-	if(Type.HasTypeInfo() && !Type.TypeInfo->Model.IsNull())
+	if(Type.HasTypeInfo())
 	{
-		if(const TObjectPtr<UWebAPIEnum> Enum = Cast<UWebAPIEnum>(Type.TypeInfo->Model.Get()))
+		if(const UObject* Model = Type.TypeInfo->GetModel())
 		{
-			return Enum->GetDefaultValue(bQualified);
+			if(const UWebAPIEnum* Enum = Cast<UWebAPIEnum>(Model))
+			{
+				return Enum->GetDefaultValue(bQualified);
+			}
 		}
 	}
 
@@ -116,9 +119,9 @@ void UWebAPIModel::BindToTypeInfo()
 
 	check(Name.HasTypeInfo());
 
-	if(!Name.TypeInfo->bIsBuiltinType && Name.TypeInfo->Model.IsNull())
+	if(!Name.TypeInfo->bIsBuiltinType && Name.TypeInfo->GetModel() == nullptr)
 	{
-		Name.TypeInfo->Model = this;
+		Name.TypeInfo->SetModel(this);
 	}
 }
 

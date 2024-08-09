@@ -87,9 +87,9 @@ void FWebAPIParameterViewModel::Initialize()
 
 	if(Type.HasTypeInfo() && Type.TypeInfo->bIsNested)
 	{
-		NestedModel = UE::WebAPI::Details::CreateViewModel(AsShared(), Type.TypeInfo->Model.Get());
+		NestedModel = UE::WebAPI::Details::CreateViewModel<FWebAPIParameterViewModel, IWebAPIViewModel>(SharedThis(this), Type.TypeInfo->GetModel());
 	}
-	
+
 	CachedLabel = FText::FromString(Parameter->Name.GetDisplayName());
 
 	TArray<FText> TooltipArgs;

@@ -416,7 +416,7 @@ namespace UE::WebAPI::Swagger
 
 	template <typename SchemaType, typename ModelType>
 	bool FWebAPISwaggerSchemaConverter::ConvertModelBase(const TSharedPtr<SchemaType>& InSchema,
-														const TObjectPtr<ModelType>& OutModel)
+														ModelType* OutModel)
 	{
 		static_assert(TIsDerivedFrom<SchemaType, OpenAPI::V2::FSchemaBase>::Value, "Type is not derived from OpenAPI::V2::FSchemaBase.");
 
@@ -469,7 +469,7 @@ namespace UE::WebAPI::Swagger
 		DstEnum->Name = EnumTypeName;
 		DstEnum->Description = InSrcSchema->Description.Get(TEXT(""));
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = Cast<UWebAPIModelBase>(DstEnum);
+		UWebAPIModelBase* ModelBase = Cast<UWebAPIModelBase>(DstEnum);
 		if (!ConvertModelBase(InSrcSchema, ModelBase))
 		{
 			return nullptr;
@@ -493,7 +493,7 @@ namespace UE::WebAPI::Swagger
 		const FWebAPINameVariant& InPropertyName,
 		const TSharedPtr<OpenAPI::V2::FParameter>& InSchema,
 		const FString& InDefinitionName,
-		const TObjectPtr<UWebAPIProperty>& OutProperty)
+		UWebAPIProperty* OutProperty)
 	{
 		const FString DefinitionName = !InDefinitionName.IsEmpty()
 										? InDefinitionName
@@ -501,7 +501,7 @@ namespace UE::WebAPI::Swagger
 
 		OutProperty->Type = ResolveType(InSchema, DefinitionName);
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = OutProperty;
+		UWebAPIModelBase* ModelBase = OutProperty;
 		if (!ConvertModelBase(InSchema, ModelBase))
 		{
 			return false;
@@ -528,7 +528,7 @@ namespace UE::WebAPI::Swagger
 			}
 			EnumTypeName.TypeInfo->SetName(EnumName);
 
-			const TObjectPtr<UWebAPIEnum>& Enum = ConvertEnum(InSchema, EnumTypeName);
+			const UWebAPIEnum* Enum = ConvertEnum(InSchema, EnumTypeName);
 
 			const FText LogMessage = FText::FormatNamed(
 				LOCTEXT("AddedImplicitEnumForPropertyOfModel", "Implicit enum created for property \"{PropertyName}\" of model \"{ModelName}\"."),
@@ -540,7 +540,7 @@ namespace UE::WebAPI::Swagger
 			Enum->Name.TypeInfo->JsonName = InPropertyName.GetJsonName();
 
 			OutProperty->Type = Enum->Name;
-			OutProperty->Type.TypeInfo->Model = Enum;
+			OutProperty->Type.TypeInfo->SetModel(Enum);
 		}
 		// Add struct as it's own model, and reference it as this properties type
 		else if (OutProperty->Type.ToString(true).IsEmpty())
@@ -551,7 +551,7 @@ namespace UE::WebAPI::Swagger
 		return true;
 	}
 
-	bool FWebAPISwaggerSchemaConverter::PatchProperty(const FWebAPITypeNameVariant& InModelName, const FWebAPINameVariant& InPropertyName, const FWebAPITypeNameVariant& InPropertyTypeName, const TObjectPtr<UWebAPIProperty>& OutProperty)
+	bool FWebAPISwaggerSchemaConverter::PatchProperty(const FWebAPITypeNameVariant& InModelName, const FWebAPINameVariant& InPropertyName, const FWebAPITypeNameVariant& InPropertyTypeName, UWebAPIProperty* OutProperty)
 	{
 		OutProperty->Type = InPropertyTypeName;
 
@@ -567,7 +567,7 @@ namespace UE::WebAPI::Swagger
 		const FWebAPINameVariant& InParameterName,
 		const TSharedPtr<OpenAPI::V2::FParameter>& InParameter,
 		const FString& InDefinitionName,
-		const TObjectPtr<UWebAPIOperationParameter>& OutParameter)
+		UWebAPIOperationParameter* OutParameter)
 	{
 		// Will get schema or create if it doesn't exist (but will be empty)
 		Json::TJsonReference<OpenAPI::V2::FSchema> ParameterSchema = InParameter->Schema.Get({});
@@ -600,7 +600,7 @@ namespace UE::WebAPI::Swagger
 				ParameterSchema.GetShared());
 		}
 
-		const TObjectPtr<UWebAPIModelBase> ModelBase = Cast<UWebAPIModelBase>(OutParameter);
+		UWebAPIModelBase* ModelBase = Cast<UWebAPIModelBase>(OutParameter);
 		if (!ConvertModelBase(InParameter, ModelBase))
 		{
 			return false;
@@ -615,7 +615,7 @@ namespace UE::WebAPI::Swagger
 			ModelTypeName.TypeInfo->SetName(InDefinitionName);
 			ModelTypeName.TypeInfo->Prefix = TEXT("F");
 
-			const TObjectPtr<UWebAPIModel>& Model = OutputSchema->AddModel<UWebAPIModel>(
+			UWebAPIModel* Model = OutputSchema->AddModel<UWebAPIModel>(
 				ModelTypeName.HasTypeInfo() ? ModelTypeName.TypeInfo.Get() : nullptr);
 			PatchModel(InParameter->Schema.GetValue().GetShared(), {}, Model);
 
@@ -631,7 +631,7 @@ namespace UE::WebAPI::Swagger
 			Model->Name.TypeInfo->JsonType = UWebAPIStaticTypeRegistry::ToFromJsonType;
 
 			OutParameter->Type = Model->Name;
-			OutParameter->Type.TypeInfo->Model = Model;
+			OutParameter->Type.TypeInfo->SetModel(Model);
 		}
 
 		// Special case for "body" parameters
@@ -679,7 +679,7 @@ namespace UE::WebAPI::Swagger
 		// Will get schema or create if it doesn't exist (but will be empty)
 		const TSharedPtr<OpenAPI::V2::FSchema> SrcParameterSchema = ResolveReference(InSrcParameter->Schema.Get({}), SrcParameterDefinitionName, false);
 
-		const TObjectPtr<UWebAPIParameter> DstParameter = OutputSchema->AddParameter(ParameterTypeName.TypeInfo.Get());
+		UWebAPIParameter* DstParameter = OutputSchema->AddParameter(ParameterTypeName.TypeInfo.Get());
 
 		static TMap<FString, EWebAPIParameterStorage> InToStorage = {
 			{TEXT("query"), EWebAPIParameterStorage::Query},
@@ -700,7 +700,7 @@ namespace UE::WebAPI::Swagger
 				SrcParameterSchema);
 		}
 
-		const TObjectPtr<UWebAPIModel> Model = Cast<UWebAPIModel>(DstParameter);
+		UWebAPIModel* Model = Cast<UWebAPIModel>(DstParameter);
 		if (!PatchModel(InSrcParameter, ParameterTypeName, Model))
 		{
 			return nullptr;
@@ -725,7 +725,7 @@ namespace UE::WebAPI::Swagger
 				EnumTypeName.TypeInfo->SetName(ProviderSettings.MakeParameterTypeName(*ParameterName));
 				EnumTypeName.TypeInfo->SetNested(ParameterTypeName);
 
-				const TObjectPtr<UWebAPIEnum>& Enum = ConvertEnum(SrcParameterSchema, EnumTypeName);
+				const UWebAPIEnum* Enum = ConvertEnum(SrcParameterSchema, EnumTypeName);
 
 				const FText LogMessage = FText::FormatNamed(
 					LOCTEXT("AddedImplicitEnumForParameter", "Implicit enum created for parameter \"{Name}\"."),
@@ -735,7 +735,7 @@ namespace UE::WebAPI::Swagger
 				Enum->Name.TypeInfo->DebugString += LogMessage.ToString();
 
 				DstParameter->Type = Enum->Name;
-				DstParameter->Type.TypeInfo->Model = Enum;
+				DstParameter->Type.TypeInfo->SetModel(Enum);
 			}
 			// Add struct as it's own model, and reference it as this properties type
 			else if (DstParameter->Type.ToString(true).IsEmpty())
@@ -778,7 +778,7 @@ namespace UE::WebAPI::Swagger
 		return DstParameter;
 	}
 
-	bool FWebAPISwaggerSchemaConverter::ConvertRequest(const FWebAPITypeNameVariant& InOperationName, const TSharedPtr<OpenAPI::V2::FOperation>& InOperation, const TObjectPtr<UWebAPIOperationRequest>& OutRequest)
+	bool FWebAPISwaggerSchemaConverter::ConvertRequest(const FWebAPITypeNameVariant& InOperationName, const TSharedPtr<OpenAPI::V2::FOperation>& InOperation, UWebAPIOperationRequest* OutRequest)
 	{
 		const FWebAPITypeNameVariant RequestTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
 			EWebAPISchemaType::Model,
@@ -818,8 +818,8 @@ namespace UE::WebAPI::Swagger
 					SrcParameterDefinitionName = SrcParameterSchema->Items->GetLastPathSegment();
 				}
 
-				const TObjectPtr<UWebAPIOperationParameter> DstParameter = OutRequest->Parameters.Add_GetRef(NewObject<UWebAPIOperationParameter>(OutRequest));
-				ConvertOperationParameter(ParameterName, SrcParameter.GetShared(), SrcParameterDefinitionName,	DstParameter);
+				UWebAPIOperationParameter* DstParameter = OutRequest->Parameters.Add_GetRef(NewObject<UWebAPIOperationParameter>(OutRequest));
+				ConvertOperationParameter(ParameterName, SrcParameter.GetShared(), SrcParameterDefinitionName, DstParameter);
 				DstParameter->BindToTypeInfo();
 			
 				// Special case - if the name is "body", set as Body property and not Parameter
@@ -828,7 +828,7 @@ namespace UE::WebAPI::Swagger
 					// Check for existing definition
 					if (const TObjectPtr<UWebAPITypeInfo>* FoundGeneratedType = OutputSchema->TypeRegistry->FindGeneratedType(EWebAPISchemaType::Model, SrcParameterDefinitionName))
 					{
-						DstParameter->Model = Cast<UWebAPIModel>((*FoundGeneratedType)->Model.LoadSynchronous());
+						DstParameter->Model = Cast<UWebAPIModel>((*FoundGeneratedType)->GetModel());
 						return true;
 					}
 				}
@@ -852,7 +852,7 @@ namespace UE::WebAPI::Swagger
 		return true;
 	}
 
-	bool FWebAPISwaggerSchemaConverter::ConvertResponse(const FWebAPITypeNameVariant& InOperationName, uint32 InResponseCode, const TSharedPtr<OpenAPI::V2::FResponse>& InResponse, const TObjectPtr<UWebAPIOperationResponse>& OutResponse)
+	bool FWebAPISwaggerSchemaConverter::ConvertResponse(const FWebAPITypeNameVariant& InOperationName, uint32 InResponseCode, const TSharedPtr<OpenAPI::V2::FResponse>& InResponse, UWebAPIOperationResponse* OutResponse)
 	{
 		const FWebAPITypeNameVariant ResponseTypeName = OutputSchema->TypeRegistry->GetOrMakeGeneratedType(
 			EWebAPISchemaType::Model,
@@ -880,7 +880,7 @@ namespace UE::WebAPI::Swagger
 			SrcResponseSchema.Set(ResolveReference(SrcResponseSchema, SrcPropertyDefinitionName));
 
 			const FString PropertyName = SrcResponseSchema->Type.Get(GetDefaultJsonTypeForStorage(OutResponse->Storage)) == TEXT("array") ? ProviderSettings.GetDefaultArrayPropertyName() : ProviderSettings.GetDefaultPropertyName();
-			const TObjectPtr<UWebAPIProperty>& DstProperty = OutResponse->Properties.Add_GetRef(NewObject<UWebAPIProperty>(OutResponse));
+			UWebAPIProperty* DstProperty = OutResponse->Properties.Add_GetRef(NewObject<UWebAPIProperty>(OutResponse));
 			DstProperty->bIsMixin = true;
 			PatchProperty(OutResponse->Name,
 				PropertyName,
@@ -1022,24 +1022,24 @@ namespace UE::WebAPI::Swagger
 				Name,
 				TEXT("F"));
 
-			const TObjectPtr<UWebAPIModel>& Model = OutSchema->AddModel<UWebAPIModel>(ModelName.TypeInfo.Get());
+			UWebAPIModel* Model = OutSchema->AddModel<UWebAPIModel>(ModelName.TypeInfo.Get());
 			PatchModel(Schema, {}, Model);
 		}
 
 		// Set Model property of TypeInfos where applicable
 		for (const TObjectPtr<UWebAPIModelBase>& ModelBase : OutputSchema->Models)
 		{
-			if (const TObjectPtr<UWebAPIModel>& Model = Cast<UWebAPIModel>(ModelBase))
+			if (const UWebAPIModel* Model = Cast<UWebAPIModel>(ModelBase))
 			{
-				Model->Name.TypeInfo->Model = Model;
+				Model->Name.TypeInfo->SetModel(Model);
 			}
-			else if (const TObjectPtr<UWebAPIEnum>& Enum = Cast<UWebAPIEnum>(ModelBase))
+			else if (const UWebAPIEnum* Enum = Cast<UWebAPIEnum>(ModelBase))
 			{
-				Enum->Name.TypeInfo->Model = Enum;
+				Enum->Name.TypeInfo->SetModel(Enum);
 			}
-			else if (const TObjectPtr<UWebAPIParameter>& ParameterModel = Cast<UWebAPIParameter>(ModelBase))
+			else if (const UWebAPIParameter* ParameterModel = Cast<UWebAPIParameter>(ModelBase))
 			{
-				ParameterModel->Type.TypeInfo->Model = ParameterModel;
+				ParameterModel->Type.TypeInfo->SetModel(ParameterModel);
 			}
 		}
 

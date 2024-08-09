@@ -23,8 +23,9 @@ void FWebAPIEditorUtilitiesSpec::Define()
 			const FStringView TestString = TEXT("$teststring");
 			const FString ExpectedString = TEXT("teststring");
 
-			const FString ResultString = UE::WebAPI::FWebAPIStringUtilities::Get()->ToPascalCase(TestString);
-			
+			const FString ResultString = UE::WebAPI::FWebAPIStringUtilities::Get()->MakeValidMemberName(TestString);
+
+			// String equality is case-sensitive by default
 			TestEqual("String doesn't contain illegal characters", ResultString, ExpectedString);
 		});
 	});
