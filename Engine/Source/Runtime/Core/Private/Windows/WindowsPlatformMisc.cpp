@@ -35,6 +35,7 @@
 #include "GenericPlatform/GenericPlatformCrashContext.h"
 #include "Windows/WindowsPlatformCrashContext.h"
 #include "HAL/PlatformOutputDevices.h"
+#include "AutoRTFM/AutoRTFM.h"
 
 #include "GenericPlatform/GenericPlatformChunkInstall.h"
 #include "GenericPlatform/GenericPlatformDriver.h"
@@ -1401,7 +1402,7 @@ const TCHAR* FWindowsPlatformMisc::GetSystemErrorMessage(TCHAR* OutBuffer, int32
 	return OutBuffer;
 }
 
-void FWindowsPlatformMisc::CreateGuid(FGuid& Result)
+UE_AUTORTFM_ALWAYS_OPEN void FWindowsPlatformMisc::CreateGuid(FGuid& Result)
 {
 	verify( CoCreateGuid( (GUID*)&Result )==S_OK );
 }
