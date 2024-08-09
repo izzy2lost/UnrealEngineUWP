@@ -1361,7 +1361,7 @@ FToolMenuEntry CreateMaterialQualityLevelSubmenu()
 
 FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 {
-	return FToolMenuEntry::InitSubMenu(
+	FToolMenuEntry Entry = FToolMenuEntry::InitSubMenu(
 		"PerformanceAndScalability",
 		LOCTEXT("PerformanceAndScalabilityLabel", "Performance & Scalability"),
 		LOCTEXT("PerformanceAndScalabilityTooltip", "Performance and scalability tools tied to this viewport."),
@@ -1442,6 +1442,9 @@ FToolMenuEntry CreateViewportToolbarPerformanceAndScalabilitySubmenu()
 			}
 		)
 	);
+	Entry.Icon = FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Scalability");
+	Entry.ToolbarLabelOverride = FText();
+	return Entry;
 }
 
 void GenerateViewportLayoutsMenu(UToolMenu* InMenu)
