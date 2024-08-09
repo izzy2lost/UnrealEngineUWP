@@ -73,6 +73,11 @@ public:
 namespace UE::GC
 {
 
+#if !WITH_VERSE_BPVM || defined(__INTELLISENSE__)
+// Avoid name lookup into UE::Verse, sometimes pulled into the TU before this header.
+namespace Verse = ::Verse;
+#endif
+
 struct FStructArrayBlock;
 
 static constexpr uint32 ObjectLookahead = 16;

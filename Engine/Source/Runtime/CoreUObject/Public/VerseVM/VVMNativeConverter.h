@@ -6,6 +6,7 @@
 
 #include "HAL/Platform.h"
 #include "Templates/EnableIf.h"
+#include "VerseVM/Inline/VVMClassInline.h"
 #include "VerseVM/Inline/VVMIntInline.h"
 #include "VerseVM/Inline/VVMMapInline.h"
 #include "VerseVM/Inline/VVMMutableArrayInline.h"
@@ -133,11 +134,16 @@ struct FNativeConverter
 		check(Obj->IsValidLowLevel());
 		return VValue(Obj);
 	}
+	template <class ObjectType>
+	static VValue ToVValue(FAllocationContext Context, TNonNullPtr<ObjectType> Object)
+	{
+		return ToVValue(Context, static_cast<typename TToVValue<TNonNullPtr<ObjectType>>::Type>(Object));
+	}
 
-	template <class StructType, typename = typename TEnableIf<TIsNativeStruct<StructType>::Value>::Type>
+	template <class StructType, typename = typename TEnableIf<TIsNativeStruct<typename TDecay<StructType>::Type>::Value>::Type>
 	static VValue ToVValue(FAllocationContext Context, StructType&& Struct)
 	{
-		return StaticVClass<StructType>().NewNativeStruct(Context, MoveTemp(Struct));
+		return StaticVClass<typename TDecay<StructType>::Type>().NewNativeStruct(Context, Forward<StructType>(Struct));
 	}
 
 	template <class ElementType>
@@ -180,7 +186,12 @@ struct FNativeConverter
 
 	// 2) Conversions from VValue to C++/native representation
 
-	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<EVerseTrue>& OutNative);
+	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<EVerseTrue>& OutNative)
+	{
+		V_REQUIRE_CONCRETE(Value);
+		V_DIE_UNLESS(Value == GlobalFalse());
+		return {FOpResult::Return};
+	}
 
 	static FOpResult FromVValue(FAllocationContext Context, const VValue Value, TFromVValue<bool>& OutNative)
 	{

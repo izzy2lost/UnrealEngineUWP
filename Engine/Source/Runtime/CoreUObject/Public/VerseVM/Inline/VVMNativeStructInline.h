@@ -27,7 +27,7 @@ FORCEINLINE CppStructType& VNativeStruct::GetStruct()
 template <class CppStructType>
 inline VNativeStruct& VNativeStruct::New(FAllocationContext Context, VEmergentType& InEmergentType, CppStructType&& InStruct)
 {
-	return *new (AllocateCell(Context, InEmergentType)) VNativeStruct(Context, InEmergentType, MoveTemp(InStruct));
+	return *new (AllocateCell(Context, InEmergentType)) VNativeStruct(Context, InEmergentType, Forward<CppStructType>(InStruct));
 }
 
 inline VNativeStruct& VNativeStruct::NewUninitialized(FAllocationContext Context, VEmergentType& InEmergentType, bool bRunCppConstructor)
@@ -47,11 +47,12 @@ template <class CppStructType>
 inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& InEmergentType, CppStructType&& InStruct)
 	: VObject(Context, InEmergentType)
 {
-	checkSlow(sizeof(CppStructType) == InEmergentType.GetCppStructOps().GetSize());
+	using StructType = typename TDecay<CppStructType>::Type;
+	checkSlow(sizeof(StructType) == InEmergentType.GetCppStructOps().GetSize());
 
 	SetIsStruct();
 	void* Data = GetData(*InEmergentType.CppClassInfo);
-	new (Data) CppStructType(MoveTemp(InStruct));
+	new (Data) StructType(Forward<CppStructType>(InStruct));
 }
 
 inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& InEmergentType, bool bRunCppConstructor)

@@ -111,7 +111,7 @@ inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStr
 
 	// Get or create the singleton emergent type for this native struct
 	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
-	return VNativeStruct::New(Context, NewEmergentType, MoveTemp(Struct));
+	return VNativeStruct::New(Context, NewEmergentType, Forward<CppStructType>(Struct));
 }
 
 inline VConstructor& VClass::GetConstructor() const
