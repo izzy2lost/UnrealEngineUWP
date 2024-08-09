@@ -434,7 +434,7 @@ void MakeObjectUniqueToAvoidCollision(UObject* InObject)
  */
 FRenameObjectResult RenameObjectsToAvoidCollision(const FConcertObjectId& InObjectIdToRename)
 {
-	UObject* ObjectToRename = ConcertSyncClientUtil::GetObject(InObjectIdToRename, FName(), FName(), FName(), false).Obj;
+	UObject* ObjectToRename = ConcertSyncClientUtil::GetObject(InObjectIdToRename, FName(), FName(), FName(), FSoftObjectPath(), false).Obj;
 	// The object does not exist or is marked for GC.
 	if (!IsValid(ObjectToRename))
 	{

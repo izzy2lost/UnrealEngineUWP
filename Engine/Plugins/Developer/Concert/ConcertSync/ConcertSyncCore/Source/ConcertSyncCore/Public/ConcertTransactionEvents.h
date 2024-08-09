@@ -129,6 +129,9 @@ struct FConcertSerializedObjectData
 	FName NewExternalPackageName;
 
 	UPROPERTY()
+	FSoftObjectPath SourceObject;
+
+	UPROPERTY()
 	TArray<uint8> SerializedData;
 };
 
