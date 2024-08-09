@@ -71,6 +71,9 @@ namespace UE::EditorDataStorage
 
 		void Refresh();
 
+		// Check whether a row is allowed to be displayed in the table viewer
+		bool IsRowDisplayable(TypedElementDataStorage::RowHandle InRowHandle) const;
+
 	private:
 
 		// The row query stack used to supply the rows to display

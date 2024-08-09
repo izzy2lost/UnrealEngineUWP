@@ -6,6 +6,8 @@
 #include "QueryStack/IQueryStackNode_Row.h"
 #include "TedsTableViewerColumn.h"
 #include "TedsTableViewerUtils.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 
 namespace UE::EditorDataStorage
 {
@@ -42,16 +44,37 @@ namespace UE::EditorDataStorage
 	{
 		Items.Empty();
 		
-		for(TypedElementDataStorage::RowHandle RowHandle : RowQueryStack->GetOrderedRowList())
+		for(const TypedElementDataStorage::RowHandle RowHandle : RowQueryStack->GetOrderedRowList())
 		{
-			Items.Add(RowHandle);
+			if(IsRowDisplayable(RowHandle))
+			{
+				Items.Add(RowHandle);
+			}
 		}
 
 		CachedRowQueryStackRevision = RowQueryStack->GetRevisionId();
 
 		OnModelChanged.Broadcast();
 	}
-	
+
+	bool FTedsTableViewerModel::IsRowDisplayable(TypedElementDataStorage::RowHandle InRowHandle) const
+	{
+		// We don't want to display any second level widgets (widgets for widgets and so on...) because they will keep cause the table viewer to
+		// infinitely grow as you keep scrolling (which creates new widgets)
+		if(Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(InRowHandle))
+		{
+			if(const FTypedElementRowReferenceColumn* RowReferenceColumn = Storage->GetColumn<FTypedElementRowReferenceColumn>(InRowHandle))
+			{
+				if(Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(RowReferenceColumn->Row))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
 	bool FTedsTableViewerModel::Tick(float DeltaTime)
 	{
 		// If the revision ID has changed, refresh to update our rows

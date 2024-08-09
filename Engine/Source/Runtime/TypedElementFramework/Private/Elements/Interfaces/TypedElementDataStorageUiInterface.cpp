@@ -149,6 +149,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Widget))
 			{
+				AddDefaultWidgetColumns(Row, DataStorage);
 				return Widget;
 			}
 		}
@@ -164,12 +165,6 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const TypedElem
 bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
 {
 	return true;
-}
-
-FString FTypedElementWidgetConstructor::GetWidgetLabel(const TSharedPtr<SWidget>& Widget)
-{
-	// The default widget label is simply the type of the widget
-	return Widget->GetType().ToString();
 }
 
 FString FTypedElementWidgetConstructor::DescribeColumnType(const UScriptStruct* ColumnType) const
@@ -196,4 +191,10 @@ bool FTypedElementWidgetConstructor::FinalizeWidget(
 	const TSharedPtr<SWidget>& Widget)
 {
 	return true;
+}
+
+void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage) const
+{
+	const FString WidgetLabel(CreateWidgetDisplayName(DataStorage, Row));
+	DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );
 }

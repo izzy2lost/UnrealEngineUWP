@@ -216,6 +216,7 @@ TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
 		{
 			if (FinalizeWidget(DataStorage, DataStorageUi, Row, Result))
 			{
+				AddDefaultWidgetColumns(Row, DataStorage);
 				return Result;
 			}
 		}

@@ -87,9 +87,6 @@ protected:
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row);
 	
-	/** Get a user facing label for the widget used in table views. */
-	TYPEDELEMENTFRAMEWORK_API virtual FString GetWidgetLabel(const TSharedPtr<SWidget>& Widget);
-
 	/** Creates a (friendly) name for the provided column type. */
 	TYPEDELEMENTFRAMEWORK_API virtual FString DescribeColumnType(const UScriptStruct* ColumnType) const;
 
@@ -102,7 +99,9 @@ protected:
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		TypedElementRowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
-	
+
+	/** Add the default misc columns we want a widget row to have. */
+	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage) const;
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
