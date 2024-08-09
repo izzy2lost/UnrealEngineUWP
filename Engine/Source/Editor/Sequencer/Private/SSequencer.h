@@ -538,33 +538,36 @@ private:
 		return ColumnFillCoefficients[ColumnIndex];
 	}
 
+	void AddFromContentBrowser();
+	bool CanAddFromContentBrowser() const;
+
 	/**
 	 * Called when one or more assets are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the asset(s) that were dropped
 	 */
-	void OnAssetsDropped(const FAssetDragDropOp& DragDropOp);
+	void OnAssetsDropped(TSharedPtr<FAssetDragDropOp> DragDropOp);
 	
 	/**
 	 * Called when one or more classes are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the class(es) that were dropped
 	 */
-	void OnClassesDropped(const FClassDragDropOp& DragDropOp);
+	void OnClassesDropped(TSharedPtr<FClassDragDropOp> DragDropOp);
 		
 	/**
 	 * Called when one or more actors are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the actor(s) that was dropped
 	 */
-	void OnActorsDropped(FActorDragDropOp& DragDropOp); 
+	void OnActorsDropped(TSharedPtr<FActorDragDropOp> DragDropOp);
 
 	/**
 	 * Called when one or more folders are dropped into the widget
 	 *
 	 * @param	DragDropOp	Information about the objects(s) that was dropped
 	 */
-	void OnFolderDropped(FFolderDragDropOp& DragDropOp); 
+	void OnFolderDropped(TSharedPtr<FFolderDragDropOp> DragDropOp);
 
 	/** Called when a breadcrumb is clicked on in the sequencer */
 	void OnCrumbClicked(const FSequencerBreadcrumb& Item);

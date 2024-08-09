@@ -5846,6 +5846,11 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 
 		Sequence->Modify();
 
+		TArray<UMovieSceneFolder*> SelectedParentFolders;
+		FString NewNodePath;
+		CalculateSelectedFolderAndPath(SelectedParentFolders, NewNodePath);
+		UMovieSceneFolder* ParentFolder = SelectedParentFolders.Num() > 0 ? SelectedParentFolders[0] : nullptr;
+
 		for ( AActor* Actor : DroppedActors )
 		{
 			if (AActor* NewActor = Actor)
@@ -5897,6 +5902,11 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 				{
 					ACineCameraActor* OutActor;
 					FSequencerUtilities::CreateCameraWithRig(AsShared(), NewActor, bAddSpawnable, OutActor);
+				}
+
+				if (ParentFolder)
+				{
+					ParentFolder->AddChildObjectBinding(NewGuid);
 				}
 			}
 		}
