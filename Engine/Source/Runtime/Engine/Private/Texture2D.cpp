@@ -795,7 +795,8 @@ void UTexture2D::PostLinkerChange()
 	// Changing the linker requires re-creating the resource to make sure streaming behavior is right.
 	if( !HasAnyFlags( RF_BeginDestroyed | RF_NeedLoad | RF_NeedPostLoad ) && !IsUnreachable() )
 	{
-		// Update the resource.
+		// Update the resource. We have to complete any builds beforehand.
+		BlockOnAnyAsyncBuild();
 		UpdateResource();
 	}
 }
