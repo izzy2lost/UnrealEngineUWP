@@ -6,6 +6,7 @@
 #include "RigVMModel/RigVMGraph.h"
 #include "RigVMModel/Nodes/RigVMLibraryNode.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
+#include "RigVMModel/RigVMTraitDefaultValueStruct.h"
 #include "RigVMCore/RigVMExecuteContext.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMUserWorkflowRegistry.h"
@@ -33,6 +34,25 @@ URigVMNode::URigVMNode()
 
 URigVMNode::~URigVMNode()
 {
+}
+
+void URigVMNode::PostLoad()
+{
+	Super::PostLoad();
+
+	for (const FString& TraitRootPinName : TraitRootPinNames)
+	{
+		if (!TraitDefaultValues.Contains(TraitRootPinName))
+		{
+			if (URigVMPin* TraitPin = FindPin(TraitRootPinName))
+			{
+				UScriptStruct* TraitScriptStruct = TraitPin->GetScriptStruct();
+				FRigVMTraitDefaultValueStruct& TraitDefaultValueStruct = TraitDefaultValues.Add(TraitRootPinName);
+				TraitDefaultValueStruct.Init(TraitScriptStruct);
+				TraitDefaultValueStruct.SetValue(TraitPin->DefaultValue);
+			}
+		}
+	}
 }
 
 FString URigVMNode::GetNodePath(bool bRecursive) const

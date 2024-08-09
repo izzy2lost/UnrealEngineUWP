@@ -9641,6 +9641,18 @@ bool URigVMController::SetPinDefaultValue(URigVMPin* InPin, const FString& InDef
 		if(InPin->DefaultValue != ClampedDefaultValue)
 		{
 			InPin->DefaultValue = ClampedDefaultValue;
+			
+			// root trait pin store their default value in a separate property bag so that
+			// things like soft object ptr can be used and tracked in a uproperty
+			if (InPin->IsTraitPin() && InPin->IsRootPin())
+			{
+				FRigVMTraitDefaultValueStruct* DefaultValueStructPtr = InPin->GetNode()->TraitDefaultValues.Find(InPin->GetName());
+				if (ensure(DefaultValueStructPtr))
+				{
+					DefaultValueStructPtr->SetValue(InPin->DefaultValue);
+				}
+			}
+			
 			Notify(ERigVMGraphNotifType::PinDefaultValueChanged, InPin);
 			if (!bSuspendNotifications)
 			{
@@ -16077,6 +16089,12 @@ FName URigVMController::AddTrait(URigVMNode* InNode, UScriptStruct* InTraitScrip
 	}
 
 	InNode->TraitRootPinNames.Add(ValidTraitName.ToString());
+	
+	// root trait pin store their default value in a separate property bag so that
+	// things like soft object ptr can be used and tracked in a uproperty
+	FRigVMTraitDefaultValueStruct& TraitDefaultValueStruct = InNode->TraitDefaultValues.Add(ValidTraitName.ToString());
+	TraitDefaultValueStruct.Init(InTraitScriptStruct);
+	TraitDefaultValueStruct.SetValue(DefaultValue);
 
 	URigVMPin* TraitPin = NewObject<URigVMPin>(InNode, ValidTraitName);
 	const FString DisplayName = Trait->GetDisplayName();
@@ -16201,6 +16219,8 @@ bool URigVMController::RemoveTrait(URigVMNode* InNode, const FName& InTraitName,
 	{
 		return TraitNameString.Equals(TraitRootPinName, ESearchCase::CaseSensitive);
 	});
+
+	(void)InNode->TraitDefaultValues.Remove(TraitNameString);
 
 	RemovePin(TraitPin, bSetupUndoRedo, true);
 
@@ -18085,14 +18105,6 @@ void URigVMController::RepopulatePinsOnNode(const FRigVMRegistry& Registry, cons
 		ApplyPinStates(InNode, PinStates, RedirectedPinPaths);
 	}
 
-	InNode->TraitRootPinNames.Reset();
-	for (int32 Index = 0; Index < NodeData.NewPinInfos.Num(); Index++)
-	{
-		if (NodeData.NewPinInfos[Index].bIsTrait)
-		{
-			InNode->TraitRootPinNames.Add(NodeData.NewPinInfos[Index].Name.ToString());
-		}
-	}
 	InNode->UpdateTraitRootPinNames();
 
 	if (!LinkedPaths.IsEmpty())

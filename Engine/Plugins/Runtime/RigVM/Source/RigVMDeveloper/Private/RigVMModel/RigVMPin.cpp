@@ -857,6 +857,17 @@ FString URigVMPin::GetDefaultValue(const URigVMPin::FPinOverride& InOverride, bo
 		if (SubPins.Num() > 0 || IsTraitPin())
 		{
 			FString FinalDefaultValue = DefaultValue;
+			
+			// root trait pin store their default value in a separate property bag so that
+			// things like soft object ptr can be used and tracked in a uproperty
+			if (IsTraitPin() && IsRootPin())
+			{
+				FRigVMTraitDefaultValueStruct* DefaultValueStructPtr = GetNode()->TraitDefaultValues.Find(GetName());
+				if (ensure(DefaultValueStructPtr))
+				{
+					FinalDefaultValue = DefaultValueStructPtr->GetValue();
+				}
+			}
 
 			for (const URigVMPin* SubPin : SubPins)
 			{

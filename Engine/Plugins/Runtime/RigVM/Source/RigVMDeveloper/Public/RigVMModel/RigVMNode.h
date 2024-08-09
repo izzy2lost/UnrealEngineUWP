@@ -3,6 +3,7 @@
 #pragma once
 
 #include "RigVMPin.h"
+#include "RigVMTraitDefaultValueStruct.h"
 #include "RigVMCore/RigVM.h"
 #include "RigVMCore/RigVMStruct.h"
 #include "RigVMCore/RigVMUserWorkflow.h"
@@ -33,6 +34,8 @@ public:
 
 	// Default destructor
 	virtual ~URigVMNode();
+
+	void PostLoad() override;
 
 	// Returns the a . separated string containing all of the
 	// names used to reach this Node within the Graph.
@@ -429,6 +432,11 @@ protected:
 	UPROPERTY()
 	TArray<FString> TraitRootPinNames;
 
+	// root trait pin store their default value in a separate property bag so that
+	// things like soft object ptr can be used and tracked in a uproperty 
+	UPROPERTY()
+	TMap<FString, FRigVMTraitDefaultValueStruct> TraitDefaultValues;
+	
 private:
 
 	UPROPERTY()
