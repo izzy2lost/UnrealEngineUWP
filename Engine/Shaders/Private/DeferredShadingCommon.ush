@@ -932,14 +932,14 @@ void AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 // The translucent pass is called after the main post process subsurface scattering pass, it will not affect previous logic.
 #if MATERIALBLENDING_TRANSLUCENT || !ALLOW_SSS_MATERIAL_OVERRIDE
 	return;
-#endif
-
+#else
 	const bool bCheckerboardRequired = AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(BaseColor, Specular, bChecker);
 	if (bCheckerboardRequired)
 	{
 		// in SubsurfaceRecombinePS() does not multiply with Specular so we do it here
 		SpecularColor *= !bChecker;
 	}
+#endif
 }
 
 /** Populates FGBufferData */
