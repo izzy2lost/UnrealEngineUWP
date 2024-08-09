@@ -350,8 +350,20 @@ void UChooserTable::UpdateDebugging(FChooserEvaluationContext& Context) const
 				{
 					DebugName += " in " + Outer->GetName();					
 				}
-				
-				RecentContextObjects.Add(DebugName);
+
+				if (UWorld* World = ContextObject->GetWorld())
+				{
+					if (World->GetNetMode() == ENetMode::NM_DedicatedServer)
+					{
+						DebugName += " (Server)";
+					}
+					else if (World->GetNetMode() == ENetMode::NM_Client)
+					{
+						DebugName += FString(" (Client ") + FString::FromInt(World->GetOutermost()->GetPIEInstanceID()) + ")";
+					}
+				}
+
+				AddRecentContextObject(DebugName);
 
 				if (DebugName == RootTable->GetDebugTargetName())
 				{

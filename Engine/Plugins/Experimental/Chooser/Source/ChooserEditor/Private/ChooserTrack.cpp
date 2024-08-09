@@ -117,6 +117,20 @@ bool FChooserTrack::HandleDoubleClickInternal()
 				DebugName += " in " + FString(ActorInfo->Name);
 			}
 			
+			if (const FWorldInfo* WorldInfo = GameplayProvider->FindWorldInfoFromObject(ObjectId))
+			{
+				const FObjectInfo& WorldObjectInfo = GameplayProvider->GetObjectInfo(WorldInfo->Id);
+
+				if (WorldInfo->NetMode == FWorldInfo::ENetMode::DedicatedServer)
+				{
+					DebugName += " (Server)";
+				}
+				else if (WorldInfo->NetMode == FWorldInfo::ENetMode::Client)
+				{
+					DebugName += FString(" (Client ") + FString::FromInt(WorldInfo->PIEInstanceId) + ")";
+				}
+			}
+			
 			ChooserTable->SetDebugTarget(DebugName);
 			ChooserTable->SetEnableDebugTesting(true);
 		}

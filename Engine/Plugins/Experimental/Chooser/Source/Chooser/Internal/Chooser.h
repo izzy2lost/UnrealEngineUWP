@@ -61,7 +61,11 @@ public:
 	const FString& GetDebugTargetName() const { return DebugTargetName; }
 	
 
-	void AddRecentContextObject(const FString& ObjectName) const { RecentContextObjects.Add(ObjectName); }
+	void AddRecentContextObject(const FString& ObjectName) const
+	{
+		RecentContextObjects.AddUnique(ObjectName);
+		RecentContextObjects.StableSort();
+	}
 	void IterateRecentContextObjects(TFunction<void(const FString&)> Callback) const;
 	void UpdateDebugging(FChooserEvaluationContext& Context) const;
 	
@@ -99,7 +103,7 @@ private:
 	EObjectChooserResultType CachedPreviousResultType = EObjectChooserResultType::ObjectResult;
 	
 	// objects this chooser has been recently evaluated on
-	mutable TSet<FString> RecentContextObjects;
+	mutable TArray<FString> RecentContextObjects;
 	mutable FCriticalSection DebugLock;
 	// reference to the UObject in PIE  which we want to get debug info for
 	mutable TWeakObjectPtr<const UObject> DebugTarget;

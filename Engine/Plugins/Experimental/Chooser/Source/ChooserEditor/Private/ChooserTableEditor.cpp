@@ -216,6 +216,7 @@ FName FChooserTableEditor::GetEditorName() const
 void FChooserTableEditor::MakeDebugTargetMenu(UToolMenu* InToolMenu) 
 {
 	static FName SectionName = "Select Debug Target";
+	InToolMenu->bSearchable = true;
 		
 	InToolMenu->AddMenuEntry(
 			SectionName,

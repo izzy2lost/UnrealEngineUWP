@@ -41,6 +41,20 @@ void FRewindDebuggerChooser::Update(float DeltaTime, IRewindDebugger* RewindDebu
 					{
 						DebugName += " in " + FString(ActorInfo->Name);
 					}
+
+					if (const FWorldInfo* WorldInfo = GameplayProvider->FindWorldInfoFromObject(OwnerId))
+					{
+						const FObjectInfo& WorldObjectInfo = GameplayProvider->GetObjectInfo(WorldInfo->Id);
+
+						if (WorldInfo->NetMode == FWorldInfo::ENetMode::DedicatedServer)
+						{
+							DebugName += " (Server)";
+						}
+						else if (WorldInfo->NetMode == FWorldInfo::ENetMode::Client)
+						{
+							DebugName += FString(" (Client ") + FString::FromInt(WorldInfo->PIEInstanceId) + ")";
+						}
+					}
 					
 					// add to recent context objects list, so that this object is selectable as a target in the chooser editor
                  	Chooser->AddRecentContextObject(DebugName);
