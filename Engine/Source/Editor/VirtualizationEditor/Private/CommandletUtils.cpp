@@ -140,6 +140,8 @@ TArray<FString> FindPackages(EFindPackageFlags Flags)
 
 TArray<FString> FindPackagesInDirectory(const FString& DirectoryToSearch)
 {
+	UE_LOG(LogVirtualization, Display, TEXT("Searching for packages under '%s'..."), *DirectoryToSearch);
+
 	TArray<FString> FilesInPackageFolder;
 	FPackageName::FindPackagesInDirectory(FilesInPackageFolder, DirectoryToSearch);
 
@@ -150,8 +152,6 @@ TArray<FString> FindPackagesInDirectory(const FString& DirectoryToSearch)
 	{
 		PackageNames.Add(FPaths::CreateStandardFilename(BasePath));
 	}
-
-	UE_LOG(LogVirtualization, Display, TEXT("Searching for packages under '%s'"), *DirectoryToSearch);
 
 	return PackageNames;
 }
