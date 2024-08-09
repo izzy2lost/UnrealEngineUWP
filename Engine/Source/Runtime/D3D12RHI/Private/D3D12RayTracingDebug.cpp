@@ -155,7 +155,7 @@ static void DebugSerializeScene(const FD3D12RayTracingScene& Scene, FD3D12Buffer
 	}
 
 	{
-		SceneHeader.NumInstances = Scene.BuildInputs.NumDescs;
+		SceneHeader.NumInstances = Scene.NumInstances;
 
 		// Instance buffer
 

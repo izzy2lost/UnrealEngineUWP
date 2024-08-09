@@ -204,11 +204,6 @@ public:
 	const FRayTracingSceneInitializer2& GetInitializer() const override final { return Initializer; }
 
 	void BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOffset);
-	void BuildAccelerationStructure(
-		FVulkanCommandListContext& CommandContext, 
-		FVulkanResourceMultiBuffer* ScratchBuffer, uint32 ScratchOffset, 
-		FVulkanResourceMultiBuffer* InstanceBuffer, uint32 InstanceOffset,
-		EAccelerationStructureBuildMode BuildMode);
 
 	void CommitShaderTables(FVulkanCommandListContext& Context)
 	{
@@ -235,7 +230,10 @@ public:
 		return bBuilt;
 	}
 
-private:
+	void BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList);
+
+	using FRHIRayTracingAccelerationStructure::SizeInfo;
+
 	const FRayTracingSceneInitializer2 Initializer;
 
 	// Unique list of geometries referenced by all instances in this scene.
@@ -253,6 +251,8 @@ private:
 	// Many VkAccelerationStructureKHR-s may be created, pointing at the same buffer.
 
 	TUniquePtr<FVulkanView> View;
+
+	uint32 NumInstances = 0;
 	
 	TRefCountPtr<FVulkanResourceMultiBuffer> AccelerationStructureBuffer;
 
@@ -262,10 +262,10 @@ private:
 	
 	TMap<const FVulkanRayTracingPipelineState*, TRefCountPtr<FVulkanRayTracingShaderTable>> ShaderTables;
 
-	void BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList);
-
-	UE::FMutex Mutex;
 	bool bBuilt = false;
+
+private:
+	UE::FMutex Mutex;
 };
 
 

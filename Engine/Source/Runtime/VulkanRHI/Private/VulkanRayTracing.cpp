@@ -676,7 +676,7 @@ FVulkanRayTracingScene::FVulkanRayTracingScene(FRayTracingSceneInitializer2 InIn
 {
 	INC_DWORD_STAT(STAT_VulkanRayTracingAllocatedTLAS);
 
-	SizeInfo = RHICalcRayTracingSceneSize(Initializer.NumNativeInstances, Initializer.BuildFlags);
+	SizeInfo = RHICalcRayTracingSceneSize(Initializer.MaxNumInstances, Initializer.BuildFlags);
 
 	const uint32 ParameterBufferSize = FMath::Max<uint32>(1, Initializer.NumTotalSegments) * sizeof(FVulkanRayTracingGeometryParameters);
 	FRHIResourceCreateInfo ParameterBufferCreateInfo(TEXT("RayTracingSceneMetadata"));
@@ -736,13 +736,30 @@ void FVulkanRayTracingScene::BindBuffer(FRHIBuffer* InBuffer, uint32 InBufferOff
 	}
 }
 
-void FVulkanRayTracingScene::BuildAccelerationStructure(
+void BuildAccelerationStructure(
 	FVulkanCommandListContext& CommandContext,
+	FVulkanRayTracingScene& Scene,
 	FVulkanResourceMultiBuffer* InScratchBuffer, uint32 InScratchOffset,
 	FVulkanResourceMultiBuffer* InInstanceBuffer, uint32 InInstanceOffset,
+	uint32 NumInstances,
 	EAccelerationStructureBuildMode BuildMode)
 {
+	check(InInstanceBuffer != nullptr);
+	checkf(NumInstances <= Scene.Initializer.MaxNumInstances, TEXT("NumInstances must be less or equal to MaxNumInstances"));
+
+	checkf(Scene.AccelerationStructureBuffer.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
+	checkf(Scene.View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
+
 	const bool bIsUpdate = BuildMode == EAccelerationStructureBuildMode::Update;
+
+	if (bIsUpdate)
+	{
+		checkf(NumInstances == Scene.NumInstances, TEXT("Number of instances used to update TLAS must match the number used to build."));
+	}
+	else
+	{
+		Scene.NumInstances = NumInstances;
+	}
 
 	FBufferRHIRef ScratchBuffer;
 	{
@@ -750,21 +767,26 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 
 		// Build a metadata buffer	that contains VulkanRHI-specific per-geometry parameters that allow us to access
 		// vertex and index buffers from shaders that use inline ray tracing.
-		BuildPerInstanceGeometryParameterBuffer(RHICmdList);
-
-		check(AccelerationStructureBuffer.IsValid());
-		check(InInstanceBuffer != nullptr);
-
+		Scene.BuildPerInstanceGeometryParameterBuffer(RHICmdList);
 
 		if (InScratchBuffer == nullptr)
 		{
-			const uint64 ScratchBufferSize = bIsUpdate ? SizeInfo.UpdateScratchSize : SizeInfo.BuildScratchSize;
+			const uint64 ScratchBufferSize = bIsUpdate ? Scene.SizeInfo.UpdateScratchSize : Scene.SizeInfo.BuildScratchSize;
 
 			FRHIResourceCreateInfo ScratchBufferCreateInfo(TEXT("BuildScratchTLAS"));
 			ScratchBuffer = RHICmdList.CreateBuffer(ScratchBufferSize, BUF_StructuredBuffer | BUF_RayTracingScratch, 0, ERHIAccess::UAVCompute, ScratchBufferCreateInfo);
 			InScratchBuffer = ResourceCast(ScratchBuffer.GetReference());
 			InScratchOffset = 0;
 		}
+	}
+
+	if (bIsUpdate)
+	{
+		checkf(InScratchBuffer, TEXT("TLAS update requires scratch buffer of at least %lld bytes."), Scene.SizeInfo.UpdateScratchSize);
+	}
+	else
+	{
+		checkf(InScratchBuffer, TEXT("TLAS build requires scratch buffer of at least %lld bytes."), Scene.SizeInfo.BuildScratchSize);
 	}
 
 	FVkRtTLASBuildData BuildData;
@@ -775,14 +797,13 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 	const VkDeviceAddress InstanceBufferAddress = InInstanceBuffer->GetDeviceAddress() + InInstanceOffset;
 
 	{
-		GetTLASBuildData(Device->GetInstanceHandle(), Initializer.NumNativeInstances, InstanceBufferAddress, Initializer.BuildFlags, BuildMode, BuildData);
+		GetTLASBuildData(Scene.GetParent()->GetInstanceHandle(), NumInstances, InstanceBufferAddress, Scene.Initializer.BuildFlags, BuildMode, BuildData);
 
-		checkf(View.IsValid(), TEXT("A buffer must be bound to the ray tracing scene before it can be built."));
-		BuildData.GeometryInfo.dstAccelerationStructure = View->GetAccelerationStructureView().Handle;
-		BuildData.GeometryInfo.srcAccelerationStructure = bIsUpdate ? View->GetAccelerationStructureView().Handle : nullptr;
+		BuildData.GeometryInfo.dstAccelerationStructure = Scene.View->GetAccelerationStructureView().Handle;
+		BuildData.GeometryInfo.srcAccelerationStructure = bIsUpdate ? Scene.View->GetAccelerationStructureView().Handle : nullptr;
 		BuildData.GeometryInfo.scratchData.deviceAddress = InScratchBuffer->GetDeviceAddress() + InScratchOffset;
 
-		BuildRangeInfo.primitiveCount = Initializer.NumNativeInstances;
+		BuildRangeInfo.primitiveCount = NumInstances;
 		BuildRangeInfo.primitiveOffset = 0;
 		BuildRangeInfo.transformOffset = 0;
 		BuildRangeInfo.firstVertex = 0;
@@ -813,7 +834,7 @@ void FVulkanRayTracingScene::BuildAccelerationStructure(
 	CommandBufferManager.SubmitActiveCmdBuffer();
 	CommandBufferManager.PrepareForNewActiveCommandBuffer();
 
-	bBuilt = true;
+	Scene.bBuilt = true;
 }
 
 void FVulkanRayTracingScene::BuildPerInstanceGeometryParameterBuffer(FRHICommandListBase& RHICmdList)
@@ -1323,10 +1344,12 @@ void FVulkanCommandListContext::RHIBuildAccelerationStructure(const FRayTracingS
 
 	Scene->PerInstanceGeometries = SceneBuildParams.PerInstanceGeometries;
 
-	Scene->BuildAccelerationStructure(
+	BuildAccelerationStructure(
 		*this,
+		*Scene,
 		ScratchBuffer, SceneBuildParams.ScratchBufferOffset, 
 		InstanceBuffer, SceneBuildParams.InstanceBufferOffset,
+		SceneBuildParams.NumInstances,
 		SceneBuildParams.BuildMode);
 }
 

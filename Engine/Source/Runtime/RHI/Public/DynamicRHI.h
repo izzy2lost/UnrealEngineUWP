@@ -1458,7 +1458,7 @@ FORCEINLINE FRayTracingSceneRHIRef RHICreateRayTracingScene(FRayTracingSceneInit
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (Initializer.NumNativeInstancesPerLayer.Num() >= 1)
 	{
-		Initializer.NumNativeInstances = Initializer.NumNativeInstancesPerLayer[0];
+		Initializer.MaxNumInstances = Initializer.NumNativeInstancesPerLayer[0];
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return GDynamicRHI->RHICreateRayTracingScene(MoveTemp(Initializer));

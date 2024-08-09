@@ -103,13 +103,9 @@ public:
 	void BindBuffer(FRHIBuffer* Buffer, uint32 BufferOffset);
 	void ReleaseBuffer();
 
-	void BuildAccelerationStructure(FD3D12CommandContext& CommandContext,
-		FD3D12Buffer* ScratchBuffer, uint32 ScratchBufferOffset,
-		FD3D12Buffer* InstanceBuffer, uint32 InstanceBufferOffset,
-		EAccelerationStructureBuildMode BuildMode
-	);
+	using FRHIRayTracingAccelerationStructure::SizeInfo;
 
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS BuildInputs = {};
+	uint32 NumInstances = 0;
 
 	TRefCountPtr<FD3D12Buffer> AccelerationStructureBuffers[MAX_NUM_GPUS];
 	uint32 BufferOffset = 0;

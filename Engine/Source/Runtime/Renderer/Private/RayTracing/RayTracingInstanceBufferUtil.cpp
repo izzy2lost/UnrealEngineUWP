@@ -198,7 +198,7 @@ FRayTracingSceneWithGeometryInstances CreateRayTracingSceneWithGeometryInstances
 
 	if(NumLayers == 1)
 	{
-		Initializer.NumNativeInstances = Initializer.NumNativeInstancesPerLayer[0];
+		Initializer.MaxNumInstances = Initializer.NumNativeInstancesPerLayer[0];
 		Initializer.NumNativeInstancesPerLayer.Empty();
 	}
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS

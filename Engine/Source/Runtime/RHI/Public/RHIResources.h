@@ -3306,10 +3306,11 @@ struct FRayTracingSceneInitializer2
 	TArray<uint32> SegmentPrefixSum;
 
 	// Total flattened number of ray tracing geometry instances (a single FRayTracingGeometryInstance may represent many) per layer.
-	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Use NumNativeInstances and create one FRHIRayTracingScene per layer instead.")
+	UE_DEPRECATED(5.5, "FRHIRayTracingScene layers are deprecated. Use MaxNumInstances and create one FRHIRayTracingScene per layer instead.")
 	TArray<uint32> NumNativeInstancesPerLayer;
 
-	uint32 NumNativeInstances = 0;
+	// Maximum number of instances in this scene. Actual number of instances is specified in FRayTracingSceneBuildParams.
+	uint32 MaxNumInstances = 0;
 
 	uint32 NumTotalSegments = 0;
 

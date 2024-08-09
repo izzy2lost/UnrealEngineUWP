@@ -97,7 +97,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 
 			FRayTracingSceneInitializer2 Initializer;
 			Initializer.DebugName = FName(TEXT("FRayTracingScene"));
-			Initializer.NumNativeInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
+			Initializer.MaxNumInstances = Layer.InitializationData.NumNativeGPUSceneInstances + Layer.InitializationData.NumNativeCPUInstances;
 			Initializer.NumTotalSegments = Layer.InitializationData.TotalNumSegments;
 			Initializer.BuildFlags = BuildFlags;
 
@@ -462,6 +462,7 @@ void FRayTracingScene::Build(FRDGBuilder& GraphBuilder, ERDGPassFlags ComputePas
 				BuildParams.ScratchBufferOffset = 0;
 				BuildParams.InstanceBuffer = PassParams->InstanceBuffer->GetRHI();
 				BuildParams.InstanceBufferOffset = 0;
+				BuildParams.NumInstances = Layer.InitializationData.NumNativeCPUInstances + Layer.InitializationData.NumNativeGPUSceneInstances;
 				BuildParams.ReferencedGeometries = Layer.InitializationData.ReferencedGeometries;
 				BuildParams.PerInstanceGeometries = Layer.InitializationData.PerInstanceGeometries;
 
