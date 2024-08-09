@@ -156,7 +156,10 @@ void UGameFeatureAction_AddChunkOverride::AddChunkIdOverride()
 			}))
 		{
 			// If we found this chunk it might have been auto generated. Update this instead of adding ours.
-			ExistingDep->ParentChunkID = ParentChunk;
+			if (ExistingDep->ParentChunkID == 0)
+			{
+				ExistingDep->ParentChunkID = ParentChunk;
+			}
 		}
 		else
 		{

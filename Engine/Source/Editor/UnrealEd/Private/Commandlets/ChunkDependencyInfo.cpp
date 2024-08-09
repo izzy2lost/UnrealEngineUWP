@@ -209,3 +209,11 @@ int32 UChunkDependencyInfo::FindHighestSharedChunk(const TArray<int32>& ChunkIDs
 	}
 	return TopologicallySortedChunks[HighestIndex];
 }
+
+void UChunkDependencyInfo::GetChunkDependencies(const int32 InChunk, TSet<int32>& OutChunkDependencies) const
+{
+	if (const TSet<int32>* Parents = ChildToParentMap.Find(InChunk))
+	{
+		OutChunkDependencies.Append(*Parents);
+	}
+}

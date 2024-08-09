@@ -74,6 +74,11 @@ class UChunkDependencyInfo : public UObject
 	Potentially will return a chunk that is not in the given input array */
 	UNREALED_API int32 FindHighestSharedChunk(const TArray<int32>& ChunkIDs) const;
 
+	/**
+	 * Returns the chunks that the in chunk depends upon through the parent rules.
+	 */
+	UNREALED_API void GetChunkDependencies(const int32 InChunk, TSet<int32>& OutChunkDependencies) const;
+
 	/** List of dependencies used to remove redundant chunks */
 	UPROPERTY(config)
 	TArray<FChunkDependency> DependencyArray;
