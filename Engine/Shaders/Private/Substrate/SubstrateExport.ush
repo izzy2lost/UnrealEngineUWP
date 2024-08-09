@@ -629,8 +629,15 @@ void PackSubstrateOut(
 							const uint PackedDiffuse20Bits		= PackR7G7B6Gamma2(	SLAB_DIFFUSEALBEDO(BSDF)	, Dither);
 							const uint PackedF020Bits			= PackR7G7B6Gamma2(	SLAB_F0(BSDF)				, Dither);
 
+							// When creating a slab with GetSubstrateSlabBSDF(), the SSS profile's dual roughness is expanded into haziness. 
+							// But when storing data with SINGLE_OPTLEGACYMODE_SSSPROFILE we need to store the original roughness. 
+							// The dual roughnesses will be recomputed based on the SSS profile data at load time. To retrieve the 
+							// original roughness, we need to invert the computation done into GetSubstrateSlabBSDF()
+							const uint SubsurfaceProfileUInt = SubstrateSubsurfaceProfileIdTo8bits(SLAB_SSSPROFILEID(BSDF));
+							const float OriginalRoughness = GetSubsurfaceProfileOriginalRoughness(SubsurfaceProfileUInt, SLAB_ROUGHNESS(BSDF), SLAB_SSSPROFILERADIUSSCALE(BSDF));
+
 							// MRT0 
-							SUBSTRATE_STORE_UINT1(Out					| (PackR8(SLAB_ROUGHNESS(BSDF)) << 24));
+							SUBSTRATE_STORE_UINT1(Out					| (PackR8(OriginalRoughness) << 24));
 							// MRT1 20 PackedDiffuse and Profile radius scale
 							SUBSTRATE_STORE_UINT1(PackedDiffuse20Bits  | (PackR8(SLAB_SSSPROFILERADIUSSCALE(BSDF)) << 24));
 							// MRT2 24 PackedF0      and Profile ID

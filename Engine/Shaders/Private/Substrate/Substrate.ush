@@ -4175,15 +4175,23 @@ FSubstrateBSDF UnpackSubstrateBSDFIn(FSubstrateMaterialContainer SubstrateBuffer
 				const uint PackedDiffuse20Bits	= Data1 & 0x000FFFFF;
 				const uint PackedF020Bits		= Data2 & 0x000FFFFF;
 				
-				const float Roughness				= UnpackR8(Data0 >> 24);
+				float Roughness						= UnpackR8(Data0 >> 24);
 				const float SSSProfileRadiusScale	= UnpackR8(Data1 >> 24);
 				const float SSSProfileId			= UnpackR8(Data2 >> 24);
+				FHaziness Haziness 					= InitialiseHaziness();
+
+				// Average roughness for dual specular.
+				// When storing data as SINGLE_OPTLEGACYMODE_SSSPROFILE, the dual roughness is not translated/stored as haziness in order to save storage space. 
+				// Thus we need to (re)compute them directly from the SSS profile data.
+				const uint SubsurfaceProfileUInt = SubstrateSubsurfaceProfileIdTo8bits(SSSProfileId);
+				GetSubsurfaceProfileDualSpecular(SubsurfaceProfileUInt, Roughness, SSSProfileRadiusScale, Roughness, Haziness.Roughness, Haziness.Weight);
 
 				SLAB_DIFFUSEALBEDO(OutBSDF)			= UnpackR7G7B6Gamma2(PackedDiffuse20Bits);
 				SLAB_F0(OutBSDF)					= UnpackR7G7B6Gamma2(PackedF020Bits);
 				SLAB_ROUGHNESS(OutBSDF)				= Roughness;
 				SLAB_SSSPROFILEID(OutBSDF)			= SSSProfileId;
 				SLAB_SSSPROFILERADIUSSCALE(OutBSDF)	= SSSProfileRadiusScale;
+				SLAB_HAZINESS(OutBSDF)				= PackHaziness(Haziness);
 
 				// When loading Substrate BSDF which have SSS enable, BaseColor and (optionally) Specular value can be overriden 
 				// based on the SSS method used (screen space SSS / checherboarded screen space SSS / ...)
@@ -4209,7 +4217,7 @@ FSubstrateBSDF UnpackSubstrateBSDFIn(FSubstrateMaterialContainer SubstrateBuffer
 				BSDF_SETISTOPLAYER(OutBSDF, 1);
 				BSDF_SETSSSTYPE(OutBSDF, SSS_TYPE_DIFFUSION_PROFILE);
 				BSDF_SETHASMFP(OutBSDF, 1);
-				BSDF_SETHASHAZINESS(OutBSDF, 0);
+				BSDF_SETHASHAZINESS(OutBSDF, 1);
 				BSDF_SETISTHIN(OutBSDF, 0);
 				BSDF_SETHASFUZZ(OutBSDF, 0);
 				BSDF_SETHASTRANSABOVE(OutBSDF, 0);
