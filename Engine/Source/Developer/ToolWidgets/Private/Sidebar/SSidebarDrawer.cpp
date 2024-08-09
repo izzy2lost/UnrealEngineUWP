@@ -543,6 +543,15 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 	{
 		return;
 	}
+	TGuardValue<bool> ReEntrancyGuard(bIsReEntrant, true);
+
+	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
+
+	// Only open drawers that are not docked or pinned need to close the drawer when focus is lost
+	if (!Drawer || Drawer->bIsDocked || Drawer->bIsPinned || !Drawer->bIsOpen)
+	{
+		return;
+	}
 
 	// Do not close due to slow tasks as those opening send window activation events
 	if (GIsSlowTask || FSlateApplication::Get().GetActiveModalWindow().IsValid())
@@ -550,17 +559,12 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 		return;
 	}
 
-	TGuardValue<bool> ReEntrancyGuard(bIsReEntrant, true);
-
 	const TSharedRef<SSidebarDrawer> ThisWidget = SharedThis(this);
 
 	TArray<TSharedRef<SWidget>, TInlineAllocator<4>> LegalFocusWidgets;
 	LegalFocusWidgets.Add(ThisWidget);
 	LegalFocusWidgets.Add(ChildSlot.GetWidget());
-	if (const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin())
-	{
-		LegalFocusWidgets.Add(Drawer->ButtonWidget.ToSharedRef());
-	}
+	LegalFocusWidgets.Add(Drawer->ButtonWidget.ToSharedRef());
 
 	bool bShouldLoseFocus = false;
 
