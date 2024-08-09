@@ -65,10 +65,13 @@ bool TransferSelectionSet(const TSharedRef<const FManagedArrayCollection>& Trans
 	TSet<int32> TransferSet;
 	const FName DesiredTransferGroup = bIsValidRenderSelection ? ClothCollectionGroup::RenderVertices :
 		(SimTransferType == EChaosClothAssetWeightMapTransferType::Use2DSimMesh ? ClothCollectionGroup::SimVertices2D : ClothCollectionGroup::SimVertices3D);
+	
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (!FClothGeometryTools::ConvertSelectionToNewGroupType(TransferClothCollection, InInputName, DesiredTransferGroup, bIsSecondarySelection, TransferSet))
 	{
 		return false;
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// Convert to weights that are 0 on unselected vertices and 1 on selected vertices
 	TArray<float> TransferWeights;
@@ -303,7 +306,7 @@ void FChaosClothAssetSelectionNode::SetAssetValue(TObjectPtr<UObject> Asset, Dat
 							if (Private::TransferSelectionSet<false>(TransferClothCollection, ClothCollection, InInputName, SelectionGroupName, SimTransferType, TransferSelectionThreshold, PrimaryFinalSelection))
 							{
 								TSet<int32> InputSelection;
-								FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection, InInputName, SelectionGroupName, false, InputSelection);
+								FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection, InInputName, SelectionGroupName, InputSelection);
 
 								MutableThis->SetIndices(InputSelection, PrimaryFinalSelection);
 							}
@@ -312,7 +315,10 @@ void FChaosClothAssetSelectionNode::SetAssetValue(TObjectPtr<UObject> Asset, Dat
 							if (Private::TransferSelectionSet<true>(TransferClothCollection, ClothCollection, InInputName, SelectionSecondaryGroupName, SimTransferType, TransferSelectionThreshold, SecondaryFinalSelection))
 							{
 								TSet<int32> InputSelection;
+
+								PRAGMA_DISABLE_DEPRECATION_WARNINGS
 								FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection, InInputName, SelectionGroupName, true, InputSelection);
+								PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 								MutableThis->SetSecondaryIndices(InputSelection, SecondaryFinalSelection);
 							}
@@ -389,7 +395,7 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 		check(SelectionFacade.IsValid());
 
 		TSet<int32> InputSelectionSet;
-		FClothGeometryTools::ConvertSelectionToNewGroupType(SelectionCollection, InInputName, SelectionGroupName, false, InputSelectionSet);
+		FClothGeometryTools::ConvertSelectionToNewGroupType(SelectionCollection, InInputName, SelectionGroupName, InputSelectionSet);
 		TSet<int32> FinalSet;
 		CalculateFinalSet(InputSelectionSet, FinalSet);
 
@@ -402,7 +408,9 @@ void FChaosClothAssetSelectionNode::Evaluate(Dataflow::FContext& Context, const 
 			const FName SecondarySelectionGroupName = (*SecondaryGroup.Name);
 
 			InputSelectionSet.Reset();
+			PRAGMA_DISABLE_DEPRECATION_WARNINGS
 			FClothGeometryTools::ConvertSelectionToNewGroupType(SelectionCollection, InInputName, SelectionGroupName, true, InputSelectionSet);
+			PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			FinalSet.Reset();
 			CalculateFinalSecondarySet(InputSelectionSet, FinalSet);
 			TSet<int32>& SecondarySelectionSet = SelectionFacade.FindOrAddSelectionSecondarySet(SecondarySelectionName, SecondarySelectionGroupName);

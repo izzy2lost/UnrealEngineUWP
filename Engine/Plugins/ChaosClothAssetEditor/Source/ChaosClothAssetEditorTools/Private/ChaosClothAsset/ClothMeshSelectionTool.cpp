@@ -305,7 +305,6 @@ void UClothMeshSelectionTool::Setup()
 	});
 
 	// Order of operations is important here:
-	// ToolProperties->RestoreProperties should happen before GetSelectedNodeInfo so that we can know whether we need to get Primary or Secondary set
 	// ToolProperties->WatchProperty(ToolProperties->Name) should happen after GetSelectedNodeInfo so that we can set the OriginalName
 
 	ToolProperties->RestoreProperties(this);
@@ -355,8 +354,6 @@ void UClothMeshSelectionTool::Setup()
 	AddToolPropertySource(ToolProperties);
 
 	AddToolPropertySource(SelectionMechanic->Properties);
-
-	UpdatePrimarySecondaryMessage();
 }
 
 void UClothMeshSelectionTool::OnShutdown(EToolShutdownType ShutdownType)
@@ -366,12 +363,7 @@ void UClothMeshSelectionTool::OnShutdown(EToolShutdownType ShutdownType)
 		GetToolManager()->BeginUndoTransaction(LOCTEXT("SelectionToolTransactionName", "Mesh Selection"));
 		UpdateSelectedNode();
 		GetToolManager()->EndUndoTransaction();
-	}
 
-	// Invalidate the node even if we are hitting cancel. We could have saved new selection information to the node by switching primary/secondary modes and we'd expect 
-	// that information to make its way into the ClothCollection
-	if (SelectionNodeToUpdate)
-	{
 		SelectionNodeToUpdate->Invalidate();
 	}
 
@@ -493,8 +485,6 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 		}
 	};
 
-	const bool bSecondarySelection = ToolProperties && ToolProperties->bSecondarySelection;
-
 	// Get the input set.
 	InputSelectionSet.Reset();
 	if (DataflowContextObject)
@@ -506,25 +496,16 @@ bool UClothMeshSelectionTool::GetSelectedNodeInfo(FString& OutSelectionName, UE:
 			{
 				using namespace UE::Chaos::ClothAsset;
 				const FName InputName = SelectionNodeToUpdate->GetInputName(*DataflowContext);
-				const FName GroupName = bSecondarySelection ? FName(*SelectionNodeToUpdate->SecondaryGroup.Name) : FName(*SelectionNodeToUpdate->Group.Name);
+				const FName GroupName = FName(*SelectionNodeToUpdate->Group.Name);
 
-				FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection.ToSharedRef(), InputName, GroupName, bSecondarySelection, InputSelectionSet);
+				FClothGeometryTools::ConvertSelectionToNewGroupType(ClothCollection.ToSharedRef(), InputName, GroupName, InputSelectionSet);
 			}
 		}
 	}
 
-	if (bSecondarySelection)
-	{
-		TSet<int32> FinalSet;
-		SelectionNodeToUpdate->CalculateFinalSecondarySet(InputSelectionSet, FinalSet);
-		AppendSet(SelectionNodeToUpdate->SecondaryGroup, FinalSet);
-	}
-	else
-	{
-		TSet<int32> FinalSet;
-		SelectionNodeToUpdate->CalculateFinalSet(InputSelectionSet, FinalSet);
-		AppendSet(SelectionNodeToUpdate->Group, FinalSet);
-	}
+	TSet<int32> FinalSet;
+	SelectionNodeToUpdate->CalculateFinalSet(InputSelectionSet, FinalSet);
+	AppendSet(SelectionNodeToUpdate->Group, FinalSet);
 
 	OutSelectionName = SelectionNodeToUpdate->Name;
 	OutOverrideType = SelectionNodeToUpdate->SelectionOverrideType;
@@ -613,18 +594,10 @@ void UClothMeshSelectionTool::UpdateSelectedNode()
 
 	SelectionNodeToUpdate->Name = ToolProperties->Name;
 	SelectionNodeToUpdate->SelectionOverrideType = ToolProperties->SelectionOverrideType;
-	if (!ToolProperties->bSecondarySelection)
-	{
-		TSet<int32> FinalSet;
-		GetFinalSet(SelectionNodeToUpdate->Group, FinalSet);
-		SelectionNodeToUpdate->SetIndices(InputSelectionSet, FinalSet);
-	}
-	else
-	{
-		TSet<int32> FinalSet;
-		GetFinalSet(SelectionNodeToUpdate->SecondaryGroup, FinalSet);
-		SelectionNodeToUpdate->SetSecondaryIndices(InputSelectionSet, FinalSet);
-	}
+
+	TSet<int32> FinalSet;
+	GetFinalSet(SelectionNodeToUpdate->Group, FinalSet);
+	SelectionNodeToUpdate->SetIndices(InputSelectionSet, FinalSet);
 	
 }
 
@@ -647,9 +620,6 @@ void UClothMeshSelectionTool::ApplyAction(EClothMeshSelectionToolActions ActionT
 		break;
 	case EClothMeshSelectionToolActions::ImportSecondaryFromCollection:
 		ImportFromCollection(/*bImportFromSecondarySet = */ true);
-		break;
-	case EClothMeshSelectionToolActions::TogglePrimarySecondary:
-		TogglePrimarySecondaryAction();
 		break;
 	case EClothMeshSelectionToolActions::GrowSelection:
 		GrowSelection();
@@ -774,54 +744,6 @@ void UClothMeshSelectionTool::ImportFromCollection(bool bImportFromSecondarySet)
 			}
 		}
 	}
-}
-
-void UClothMeshSelectionTool::TogglePrimarySecondaryAction()
-{
-	// Save any changes made in the current mode to the node
-	if (bAnyChangeMade)
-	{
-		UpdateSelectedNode();
-		bAnyChangeMade = false;
-	}
-
-	// Toggle
-	ToolProperties->bSecondarySelection = !ToolProperties->bSecondarySelection;
-
-	// Re-initialize the Selection from the selected Dataflow node
-	FString ExistingSelectionName;
-	FGroupTopologySelection ExistingNodeSelection;
-	EChaosClothAssetSelectionOverrideType ExistingOverrideType;
-	GetSelectedNodeInfo(ExistingSelectionName, ExistingNodeSelection, ExistingOverrideType);
-
-	constexpr bool bBroadcastChange = false;
-	SelectionMechanic->SetSelection(ExistingNodeSelection, bBroadcastChange);
-
-	if (ExistingNodeSelection.SelectedCornerIDs.Num() > 0)
-	{
-		check(ExistingNodeSelection.SelectedEdgeIDs.Num() == 0);
-		check(ExistingNodeSelection.SelectedGroupIDs.Num() == 0);
-		SelectionMechanic->Properties->bSelectVertices = true;
-		SelectionMechanic->Properties->bSelectFaces = false;
-	}
-	else
-	{
-		SelectionMechanic->Properties->bSelectVertices = false;
-		SelectionMechanic->Properties->bSelectFaces = true;
-	}
-
-	ToolProperties->Name = ExistingSelectionName;
-	ToolProperties->SelectionOverrideType = ExistingOverrideType;
-
-	PreviewMesh->FastNotifySecondaryTrianglesChanged();
-
-	UpdatePrimarySecondaryMessage();
-}
-
-void UClothMeshSelectionTool::UpdatePrimarySecondaryMessage()
-{
-	const FText Message = ToolProperties->bSecondarySelection ? LOCTEXT("SecondarySelectionMode", "Secondary Selection") : LOCTEXT("PrimarySelectionMode", "Primary Selection");
-	GetToolManager()->DisplayMessage(Message, EToolMessageLevel::UserWarning);
 }
 
 void UClothMeshSelectionTool::GrowSelection()

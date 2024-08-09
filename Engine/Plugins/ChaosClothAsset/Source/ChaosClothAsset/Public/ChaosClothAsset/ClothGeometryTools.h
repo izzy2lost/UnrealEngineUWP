@@ -128,7 +128,19 @@ namespace UE::Chaos::ClothAsset
 		 * @param OutSelectionSet copy of the selection. Unchanged when function returns false.
 		 * @return success (will return false if the selection is not found or conversion is not possible)
 		 */
+		UE_DEPRECATED(5.5, "Please use the version with no bSecondarySelection parameter")
 		static bool ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, bool bSecondarySelection, TSet<int32>& OutSelectionSet);
+
+		/**
+		 * Get a copy of the selection, converting to the desired group if possible.
+		 * Currently only conversions between vertex and face components on the same mesh type are supported.
+		 * @param ClothCollection to query
+		 * @param SelectionName the selection name
+		 * @param GroupName the group name
+		 * @param OutSelectionSet copy of the selection. Unchanged when function returns false.
+		 * @return success (will return false if the selection is not found or conversion is not possible)
+		 */
+		static bool ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, TSet<int32>& OutSelectionSet);
 
 		/**
 		 * Transfer a vertex weight map from a source to target mesh

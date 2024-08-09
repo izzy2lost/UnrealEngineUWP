@@ -25,7 +25,6 @@ enum class EClothMeshSelectionToolActions
 
 	ImportFromCollection,
 	ImportSecondaryFromCollection,
-	TogglePrimarySecondary,
 
 	GrowSelection,
 	ShrinkSelection,
@@ -57,22 +56,16 @@ public:
 
 	void PostAction(EClothMeshSelectionToolActions Action);
 
-	UFUNCTION(CallInEditor, Category = Operations)
+	UFUNCTION(CallInEditor, Category = Import)
 	void ImportFromCollection()
 	{
 		PostAction(EClothMeshSelectionToolActions::ImportFromCollection);
 	}
 
-	UFUNCTION(CallInEditor, Category = Operations)
+	UFUNCTION(CallInEditor, Category = Migrate)
 	void ImportSecondaryFromCollection()
 	{
 		PostAction(EClothMeshSelectionToolActions::ImportSecondaryFromCollection);
-	}
-
-	UFUNCTION(CallInEditor, Category = Operations)
-	void TogglePrimarySecondary()
-	{
-		PostAction(EClothMeshSelectionToolActions::TogglePrimarySecondary);
 	}
 
 	UFUNCTION(CallInEditor, Category = Selection)
@@ -107,13 +100,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Transient, Category = Selection, meta = (TransientToolProperty))
 	EChaosClothAssetSelectionOverrideType SelectionOverrideType;
-
-	/**
-	* Whether the user is editing the primary or secondary selection set. Stored as a property here so that the tool will remember what the
-	* user was doing the last time the tool shut down.
-	*/
-	UPROPERTY()
-	bool bSecondarySelection = false;
 
 	UPROPERTY(EditAnywhere, Category = Visualization, meta = (DisplayName = "Show Vertices"))
 	bool bShowVertices = false;
@@ -193,8 +179,6 @@ private:
 	virtual void ApplyAction(EClothMeshSelectionToolActions ActionType);
 
 	void ImportFromCollection(bool bImportFromSecondarySet);
-	void TogglePrimarySecondaryAction();
-	void UpdatePrimarySecondaryMessage();
 
 	void GrowSelection();
 	void ShrinkSelection();

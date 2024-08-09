@@ -1425,6 +1425,15 @@ namespace UE::Chaos::ClothAsset
 		return false;
 	}
 
+	bool FClothGeometryTools::ConvertSelectionToNewGroupType(const TSharedRef<const FManagedArrayCollection>& ClothCollection, const FName& SelectionName, const FName& GroupName, TSet<int32>& OutSelectionSet)
+	{
+		constexpr bool bSecondarySelection = false;
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return ConvertSelectionToNewGroupType(ClothCollection, SelectionName, GroupName, bSecondarySelection, OutSelectionSet);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+
+
 	void FClothGeometryTools::TransferWeightMap(
 		const TConstArrayView<FVector3f>& SourcePositions,
 		const TConstArrayView<FIntVector3>& InSourceIndices,
