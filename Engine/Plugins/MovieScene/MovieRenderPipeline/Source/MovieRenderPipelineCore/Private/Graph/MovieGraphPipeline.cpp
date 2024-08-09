@@ -920,8 +920,10 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 	}
 
 	// Apply cvars for the shot
+	CVarManager->SetWorld(GetWorld());
 	CVarManager->AddEvaluatedGraph(EvaluatedConfig);
 	CVarManager->ApplyAllCVars();
+	CVarManager->RunStartConsoleCommands();
 
 	// Setup required rendering architecture for all passes in this shot.
 	GraphRendererInstance->SetupRenderingPipelineForShot(InShot);
@@ -1000,6 +1002,7 @@ void UMovieGraphPipeline::TeardownShot(const TObjectPtr<UMoviePipelineExecutorSh
 
 	// Revert the cvar values that were initially applied for the shot
 	CVarManager->RevertAllCVars();
+	CVarManager->RunEndConsoleCommands();
 
 	// Revert cvars set by the global game overrides. Needs to be done after the CVarManager reverts (since the global
 	// game overrides are applied first in SetupShot).

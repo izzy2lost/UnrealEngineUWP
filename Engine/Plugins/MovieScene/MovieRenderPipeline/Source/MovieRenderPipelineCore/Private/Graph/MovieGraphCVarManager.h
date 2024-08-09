@@ -13,8 +13,8 @@ class UMovieScene;
 namespace UE::MovieGraph::Private
 {
 	/**
-	 * Responsible for applying individual cvars and cvar presets. CVars can be added to the manager with the Add*() methods,
-	 * then applied via ApplyAllCVars().
+	 * Responsible for applying individual cvars, cvar presets, and console commands. CVars can be added to the manager with the Add*() methods,
+	 * then applied via ApplyAllCVars(). Console commands can be added with their associated Add*() methods, and executed via the Run*() methods.
 	 */
 	class FMovieGraphCVarManager final
 	{
@@ -33,7 +33,13 @@ namespace UE::MovieGraph::Private
 		 */
 		void AddPreset(const TScriptInterface<IMovieSceneConsoleVariableTrackInterface>& InPreset);
 
-		/** For all cvar and cvar preset nodes in InEvaluatedGraph, calls either AddCVar() or AddPreset(). */
+		/** Adds console commands that should be run before a shot starts rendering. */
+		void AddStartConsoleCommands(const TArray<FString>& InStartConsoleCommands);
+
+		/** Adds console commands that should be run after a shot finishes rendering. */
+		void AddEndConsoleCommands(const TArray<FString>& InEndConsoleCommands);
+
+		/** For all cvar, cvar preset, and console command nodes in InEvaluatedGraph, calls either AddCVar(), AddPreset(), or Add*ConsoleCommands(). */
 		void AddEvaluatedGraph(const UMovieGraphEvaluatedConfig* InEvaluatedGraph);
 
 		/** Applies all cvars that have been gathered via the Add*() methods. */
@@ -44,6 +50,15 @@ namespace UE::MovieGraph::Private
 		 * being applied. After calling this, ApplyAllCVars() is a no-op, and the Add*() methods need to be called again.
 		 */
 		void RevertAllCVars();
+
+		/** Runs all start console commands that have been added. */
+		void RunStartConsoleCommands();
+
+		/** Runs all end console commands that have been added. */
+		void RunEndConsoleCommands();
+
+		/** Sets the world context that the console commands should use when executing. */
+		void SetWorld(UWorld* InWorld);
 
 	private:
 		/** Sets the given cvar, InCVar, to InValue. */
@@ -71,5 +86,14 @@ namespace UE::MovieGraph::Private
 
 		/** The values of the gathered cvars before the the manager sets their values. */
 		TArray<float> PreviousConsoleVariableValues;
+
+		/** The start console commands that were added. */
+		TArray<FString> StartConsoleCommands;
+
+		/** The end console commands that were added. */
+		TArray<FString> EndConsoleCommands;
+
+		/** The world that should be used as the context when executing console commands. */
+		UWorld* WorldContext;
 	};
 } // namespace UE::MovieGraph::Private

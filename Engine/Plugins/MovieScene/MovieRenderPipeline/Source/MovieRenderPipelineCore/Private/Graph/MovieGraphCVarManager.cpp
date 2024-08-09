@@ -2,10 +2,13 @@
 
 #include "Graph/MovieGraphCVarManager.h"
 
+#include "Engine/World.h"
 #include "Graph/MovieGraphConfig.h"
 #include "Graph/Nodes/MovieGraphApplyCVarPresetNode.h"
 #include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
+#include "Graph/Nodes/MovieGraphSetStartEndConsoleCommandsNode.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet/KismetSystemLibrary.h"
 #include "Misc/DefaultValueHelper.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Sections/MovieSceneConsoleVariableTrackInterface.h"
@@ -57,6 +60,16 @@ void FMovieGraphCVarManager::AddPreset(const TScriptInterface<IMovieSceneConsole
 	}
 }
 
+void FMovieGraphCVarManager::AddStartConsoleCommands(const TArray<FString>& InStartConsoleCommands)
+{
+	StartConsoleCommands = InStartConsoleCommands;
+}
+
+void FMovieGraphCVarManager::AddEndConsoleCommands(const TArray<FString>& InEndConsoleCommands)
+{
+	EndConsoleCommands = InEndConsoleCommands;
+}
+
 void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig* InEvaluatedGraph)
 {
 	const FMovieGraphEvaluatedBranchConfig* GlobalsBranchConfig = InEvaluatedGraph->BranchConfigMapping.Find(UMovieGraphNode::GlobalsPinName);
@@ -87,6 +100,11 @@ void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig*
 			{
 				AddCVar(CvarOverride.Key, CvarOverride.Value);
 			}
+		}
+		else if (const UMovieGraphSetStartEndConsoleCommandsNode* ConsoleCommandsNode = Cast<UMovieGraphSetStartEndConsoleCommandsNode>(Node))
+		{
+			AddStartConsoleCommands(ConsoleCommandsNode->ConsoleCommands->AddStartCommands);
+			AddEndConsoleCommands(ConsoleCommandsNode->ConsoleCommands->AddEndCommands);
 		}
 	}
 }
@@ -134,6 +152,29 @@ void FMovieGraphCVarManager::RevertAllCVars()
 
 	CVars.Reset();
 	PreviousConsoleVariableValues.Reset();
+}
+
+void FMovieGraphCVarManager::RunStartConsoleCommands()
+{
+	for (const FString& StartCommand : StartConsoleCommands)
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Executing Console Command \"%s\" before shot starts."), *StartCommand);
+		UKismetSystemLibrary::ExecuteConsoleCommand(WorldContext, StartCommand, nullptr);
+	}
+}
+
+void FMovieGraphCVarManager::RunEndConsoleCommands()
+{
+	for (const FString& EndCommand : EndConsoleCommands)
+	{
+		UE_LOG(LogMovieRenderPipeline, Log, TEXT("Executing Console Command \"%s\" after shot ends."), *EndCommand);
+		UKismetSystemLibrary::ExecuteConsoleCommand(WorldContext, EndCommand, nullptr);
+	}
+}
+
+void FMovieGraphCVarManager::SetWorld(UWorld* InWorld)
+{
+	WorldContext = InWorld;
 }
 
 void FMovieGraphCVarManager::ApplyCVar(IConsoleVariable* InCVar, float InValue)
