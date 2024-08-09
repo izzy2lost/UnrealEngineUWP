@@ -1605,7 +1605,7 @@ TSharedRef<SWidget> SStateTreeViewRow::MakeTransitionWidgets(const EStateTreeTra
 		else
 		{
 			DescItems.Emplace(
-				LOCTEXT("TransitionActionRoot", "<i>Root</>"),
+				LOCTEXT("TransitionActionRootRich", "<i>Root</>"),
 				LOCTEXT("TransitionActionRoot", "Transition to Root State.")
 				);
 		}
