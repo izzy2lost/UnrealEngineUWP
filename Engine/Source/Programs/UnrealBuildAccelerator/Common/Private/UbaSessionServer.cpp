@@ -510,7 +510,7 @@ namespace uba
 			it = m_activeRemoteProcesses.erase(it);
 			remoteProcess->m_executingHost.clear();
 
-			m_trace.ProcessReturned(remoteProcess->m_processId);
+			m_trace.ProcessReturned(remoteProcess->m_processId, ToView(TC("Disconnected")));
 
 			ProcessHandle h = ProcessRemoved(remoteProcess->m_processId);
 			if (!h.m_process)
@@ -1269,7 +1269,7 @@ namespace uba
 		process->m_clientId = ~0u;
 		process->m_sessionId = 0;
 
-		m_trace.ProcessReturned(process->m_processId);
+		m_trace.ProcessReturned(process->m_processId, reason);
 		m_queuedRemoteProcesses.push_front(h);
 
 		if (m_remoteProcessReturnedEvent)

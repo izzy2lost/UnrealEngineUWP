@@ -683,6 +683,12 @@ namespace uba
 					return true;
 				}
 			}
+			TString reason;
+			if (out.version >= 33)
+				reason = reader.ReadString();
+			if (reason.empty())
+				reason = TC("Unknown");
+
 			auto findIt = m_activeProcesses.find(id);
 			if (findIt == m_activeProcesses.end())
 				return false;
@@ -696,7 +702,7 @@ namespace uba
 			TraceView::Process& process = session.processors[active.processorIndex].processes[active.processIndex];
 			process.exitCode = 0;
 			process.stop = time;
-			process.returned = true;
+			process.returnedReason = reason;
 			process.bitmapDirty = true;
 			break;
 		}
@@ -1011,7 +1017,8 @@ namespace uba
 			u32 sessionIndex;
 			TraceView::Process& process = *ProcessEnd(out, sessionIndex, id, time);
 			process.exitCode = 0;//success ? 0 : -1;
-			process.returned = !success;
+			if (!success)
+				process.returnedReason = TC("M");
 
 			CacheStats cacheStats;
 			KernelStats kernelStats;

@@ -17,7 +17,7 @@ namespace uba
 		inline void WriteU64(u64 value);
 		inline void WriteString(const tchar* str);
 		inline void WriteString(const tchar* str, u64 len);
-		inline void WriteString(const StringBufferBase& str);
+		inline void WriteString(const StringView& str);
 		inline void WriteStringf(const tchar* format, ...);
 		inline void WriteString(const TString& str);
 		inline void WriteStringKey(const StringKey& g);
@@ -199,7 +199,7 @@ namespace uba
 		#endif
 	}
 
-	void BinaryWriter::WriteString(const StringBufferBase& str)
+	void BinaryWriter::WriteString(const StringView& str)
 	{
 		WriteString(str.data, str.count);
 	}

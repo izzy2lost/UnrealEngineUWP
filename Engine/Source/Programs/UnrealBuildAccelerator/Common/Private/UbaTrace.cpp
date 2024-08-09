@@ -281,10 +281,11 @@ namespace uba
 		writer.WriteByte(255);
 	}
 
-	void Trace::ProcessReturned(u32 processId)
+	void Trace::ProcessReturned(u32 processId, const StringView& reason)
 	{
 		BEGIN_TRACE_ENTRY(ProcessReturned);
 		writer.WriteU32(processId);
+		writer.WriteString(reason);
 	}
 
 	void Trace::ProxyCreated(u32 clientId, const tchar* proxyName)

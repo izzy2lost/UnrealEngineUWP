@@ -1755,6 +1755,8 @@ namespace uba
 			logger.Info(L"  ProcessId: %6u", process.id);
 			logger.Info(L"  Start:    %7ls", TimeToText(process.start, true).str);
 			logger.Info(L"  Duration: %7ls", TimeToText(duration, true).str);
+			if (!process.returnedReason.empty())
+				logger.Info(L"  Returned: %7s", process.returnedReason.data());
 			if (hasExited && process.exitCode != 0)
 				logger.Info(L"  ExitCode: %7u", process.exitCode);
 
@@ -1769,7 +1771,7 @@ namespace uba
 
 				if (process.cacheFetch)
 				{
-					if (process.returned)
+					if (!process.returnedReason.empty())
 						logger.Info(L"  Cache:       Miss");
 					else
 						logger.Info(L"  Cache:        Hit");
@@ -2086,7 +2088,7 @@ namespace uba
 		bool done = process.stop != ~u64(0);
 
 		HBRUSH brush = m_processBrushes[selected].success;
-		if (process.returned)
+		if (!process.returnedReason.empty())
 			brush = m_processBrushes[selected].returned;
 		else if (!done)
 			brush = m_processBrushes[selected].inProgress;

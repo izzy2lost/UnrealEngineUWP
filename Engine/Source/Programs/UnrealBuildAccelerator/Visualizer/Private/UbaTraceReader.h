@@ -20,10 +20,10 @@ namespace uba
 			u64 start = 0;
 			u64 stop = 0;
 			TString description;
+			TString returnedReason;
 			HBITMAP bitmap = 0;
 			u32 bitmapOffset = 0;
 			bool bitmapDirty = true;
-			bool returned = false;
 			bool cacheFetch = false;
 			bool isRemote = false;
 			u64 createFilesTime = 0;
