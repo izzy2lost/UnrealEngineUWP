@@ -51,6 +51,7 @@ public class Kismet : ModuleRules
 				"JsonUtilities",
 				"DesktopPlatform",
 				"HotReload",
+				"JsonObjectGraph",
 				"UMGEditor",
 				"UMG", // for SBlueprintDiff
 				"WorkspaceMenuStructure",
