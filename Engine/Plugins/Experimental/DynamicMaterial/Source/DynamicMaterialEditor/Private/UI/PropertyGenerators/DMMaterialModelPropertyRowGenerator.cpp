@@ -38,18 +38,34 @@ void FDMMaterialModelPropertyRowGenerator::AddMaterialModelProperties(const TSha
 	{
 		if (EditorOnlyData->GetBlendMode() != BLEND_Opaque)
 		{
-			AddGlobalValue(InGlobalSettingEditorWidget, InMaterialModelBase, InOutPropertyRows,  
-				MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName), 
-				LOCTEXT("GlobalOpacity", "Global Opacity"));
+			UDMMaterialProperty* OpacityProperty = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::Opacity);
+			UDMMaterialProperty* OpacityMaskProperty = EditorOnlyData->GetMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+
+			const bool bOpacityValid = OpacityProperty && OpacityProperty->IsEnabled() && OpacityProperty->IsValidForModel(*EditorOnlyData)
+				&& EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::Opacity);
+
+			const bool bOpacityMaskValid = OpacityMaskProperty && OpacityMaskProperty->IsEnabled() && OpacityMaskProperty->IsValidForModel(*EditorOnlyData)
+				&& EditorOnlyData->GetSlotForMaterialProperty(EDMMaterialPropertyType::OpacityMask);
+
+			if (bOpacityValid || bOpacityMaskValid)
+			{
+				AddGlobalValue(InGlobalSettingEditorWidget, InMaterialModelBase, InOutPropertyRows,
+					MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName),
+					LOCTEXT("GlobalOpacity", "Global Opacity"));
+			}
 		}
 
-		EditorOnlyData->ForEachMaterialPropertyType(
+		UE::DynamicMaterial::ForEachMaterialPropertyType(
 			[&InGlobalSettingEditorWidget, InMaterialModelBase, &InOutPropertyRows, EditorOnlyData]
 			(EDMMaterialPropertyType InProperty)
 			{
-				return ForEachProperty(InProperty, InGlobalSettingEditorWidget, InMaterialModelBase, InOutPropertyRows, EditorOnlyData);
-			},
-			/* Start from */ EDMMaterialPropertyType::Roughness
+				if (InProperty != EDMMaterialPropertyType::Opacity && InProperty != EDMMaterialPropertyType::OpacityMask)
+				{
+					AddGlobalMaterialParameterValue(InProperty, InGlobalSettingEditorWidget, InMaterialModelBase, InOutPropertyRows, EditorOnlyData);
+				}
+
+				return EDMIterationResult::Continue;
+			}
 		);
 	}
 
@@ -84,7 +100,7 @@ void FDMMaterialModelPropertyRowGenerator::AddMaterialModelProperties(const TSha
 	}
 }
 
-EDMIterationResult FDMMaterialModelPropertyRowGenerator::ForEachProperty(EDMMaterialPropertyType InProperty, 
+void FDMMaterialModelPropertyRowGenerator::AddGlobalMaterialParameterValue(EDMMaterialPropertyType InProperty, 
 	const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget, UDynamicMaterialModelBase* InMaterialModelBase, 
 	TArray<FDMPropertyHandle>& InOutPropertyRows, UDynamicMaterialModelEditorOnlyData* InEditorOnlyData)
 {
@@ -112,8 +128,6 @@ EDMIterationResult FDMMaterialModelPropertyRowGenerator::ForEachProperty(EDMMate
 			}
 		}
 	}
-
-	return EDMIterationResult::Continue;
 }
 
 void FDMMaterialModelPropertyRowGenerator::AddGlobalValue(const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget,

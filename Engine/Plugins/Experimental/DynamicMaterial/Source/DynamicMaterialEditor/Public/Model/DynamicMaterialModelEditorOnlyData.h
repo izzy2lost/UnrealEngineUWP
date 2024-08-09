@@ -222,14 +222,6 @@ public:
 
 	DYNAMICMATERIALEDITOR_API void OnWizardComplete();
 
-	DYNAMICMATERIALEDITOR_API void ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
-		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
-		EDMMaterialPropertyType InEnd = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::Any) - 1));
-
-	DYNAMICMATERIALEDITOR_API void ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
-		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
-		EDMMaterialPropertyType InEnd = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::Any) - 1)) const;
-
 	void SaveEditor();
 
 	//~ Begin FNotifyHook
@@ -329,67 +321,67 @@ protected:
 	FDMOnValueListUpdated OnValueListUpdateDelegate;
 	FDMOnSlotListUpdated OnSlotListUpdateDelegate;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> BaseColor;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> EmissiveColor;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Opacity;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> OpacityMask;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Roughness;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Specular;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Metallic;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Normal;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> PixelDepthOffset;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> WorldPositionOffset;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> AmbientOcclusion;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Anisotropy;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Refraction;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Tangent;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Displacement;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> SubsurfaceColor;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> SurfaceThickness;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Custom1;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Custom2;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Custom3;
 
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> Custom4;
 
 	void CreateMaterial();

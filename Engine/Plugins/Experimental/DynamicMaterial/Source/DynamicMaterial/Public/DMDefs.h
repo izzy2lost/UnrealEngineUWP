@@ -5,16 +5,11 @@
 #include "Containers/Array.h"
 #include "Internationalization/Text.h"
 #include "Engine/EngineTypes.h"
+
 #include "DMDefs.generated.h"
 
 class UDMMaterialStage;
 class UTexture;
-
-namespace UE::DynamicMaterial
-{
-	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
-	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
-}
 
 /** Some short names provided so they fit nicely on buttons! */
 UENUM(BlueprintType)
@@ -44,6 +39,22 @@ enum class EDMMaterialPropertyType : uint8
 	SurfaceThickness,
 	Any
 };
+
+enum class EDMIterationResult : uint8
+{
+	Continue,
+	Break
+};
+
+namespace UE::DynamicMaterial
+{
+	constexpr int32 RenameFlags = REN_DontCreateRedirectors | REN_DoNotDirty | REN_ForceNoResetLoaders | REN_NonTransactional;
+	constexpr EClassFlags InvalidClassFlags = CLASS_Abstract | CLASS_Hidden | CLASS_Deprecated | CLASS_NewerVersionExists;
+
+	DYNAMICMATERIAL_API void ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
+		EDMMaterialPropertyType InStart = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::None) + 1),
+		EDMMaterialPropertyType InEnd = static_cast<EDMMaterialPropertyType>(static_cast<uint8>(EDMMaterialPropertyType::Any) - 1));
+}
 
 UENUM(BlueprintType)
 enum class EDMValueType : uint8

@@ -206,16 +206,20 @@ void UDynamicMaterialModelDynamic::InitComponents()
 		return;
 	}
 
-	const TMap<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterValues = ParentModelLocal->GetGlobalParameterValues();
+	int32 GlobalParamCount = 0;
+	ParentModelLocal->ForEachGlobalParameter([&GlobalParamCount](UDMMaterialValue*) { ++GlobalParamCount; });
+
 	const TArray<UDMMaterialValue*>& ParentValues = ParentModelLocal->GetValues();
 	const TSet<TObjectPtr<UDMMaterialComponent>>& RuntimeComponents = ParentModelLocal->GetRuntimeComponents();
 
-	DynamicComponents.Empty(GlobalParameterValues.Num() + ParentValues.Num() + RuntimeComponents.Num());
+	DynamicComponents.Empty(GlobalParamCount + ParentValues.Num() + RuntimeComponents.Num()); // Rough estimate on the number of global params
 
-	for (const TPair<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterPair : GlobalParameterValues)
-	{
-		DynamicComponents.Add(GlobalParameterPair.Value->GetFName(), GlobalParameterPair.Value->ToDynamic(this));
-	}
+	ParentModelLocal->ForEachGlobalParameter(
+		[this](UDMMaterialValue* InValue)
+		{
+			DynamicComponents.Add(InValue->GetFName(), InValue->ToDynamic(this));
+		}
+	);
 
 	for (UDMMaterialValue* ParentValue : ParentValues)
 	{
@@ -244,21 +248,27 @@ void UDynamicMaterialModelDynamic::EnsureComponents()
 		return;
 	}
 
-	const TMap<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterValues = ParentModelLocal->GetGlobalParameterValues();
+	int32 GlobalParamCount = 0;
+	ParentModelLocal->ForEachGlobalParameter([&GlobalParamCount](UDMMaterialValue*) { ++GlobalParamCount; });
+
 	const TArray<UDMMaterialValue*>& ParentValues = ParentModelLocal->GetValues();
 	const TSet<TObjectPtr<UDMMaterialComponent>>& RuntimeComponents = ParentModelLocal->GetRuntimeComponents();
 
-	const int32 RequiredComponentCount = GlobalParameterValues.Num() + ParentValues.Num() + RuntimeComponents.Num();
+	const int32 RequiredComponentCount = GlobalParamCount + ParentValues.Num() + RuntimeComponents.Num();
 
 	DynamicComponents.Reserve(RequiredComponentCount);
 
-	for (const TPair<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterPair : GlobalParameterValues)
-	{
-		if (!DynamicComponents.Contains(GlobalParameterPair.Key))
+	ParentModelLocal->ForEachGlobalParameter(
+		[this](UDMMaterialValue* InValue)
 		{
-			DynamicComponents.Add(GlobalParameterPair.Value->GetFName(), GlobalParameterPair.Value->ToDynamic(this));
+			const FName ValueName = InValue->GetFName();
+
+			if (!DynamicComponents.Contains(ValueName))
+			{
+				DynamicComponents.Add(ValueName, InValue->ToDynamic(this));
+			}
 		}
-	}
+	);
 
 	for (UDMMaterialValue* ParentValue : ParentValues)
 	{

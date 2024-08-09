@@ -26,12 +26,6 @@ class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 class UPrimitiveComponent;
 
-enum class EDMIterationResult : uint8
-{
-	Continue,
-	Break
-};
-
 UINTERFACE(MinimalAPI, Blueprintable, BlueprintType)
 class UDMBuildable : public UInterface
 {

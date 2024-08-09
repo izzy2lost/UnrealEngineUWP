@@ -19,6 +19,10 @@
 
 const FString UDynamicMaterialModel::ValuesPathToken = FString(TEXT("Values"));
 const FString UDynamicMaterialModel::ParametersPathToken = FString(TEXT("Parameters"));
+const FLazyName UDynamicMaterialModel::GlobalBaseColorValueName = FLazyName(TEXT("GlobalBaseColorValue"));
+const FLazyName UDynamicMaterialModel::GlobalBaseColorParameterName = FLazyName(TEXT("GlobalBaseColor"));
+const FLazyName UDynamicMaterialModel::GlobalEmissiveColorValueName = FLazyName(TEXT("GlobalEmissiveColorValue"));
+const FLazyName UDynamicMaterialModel::GlobalEmissiveColorParameterName = FLazyName(TEXT("GlobalEmissiveColor"));
 const FLazyName UDynamicMaterialModel::GlobalOpacityValueName = FLazyName(TEXT("GlobalOpacityValue"));
 const FLazyName UDynamicMaterialModel::GlobalOpacityParameterName = FLazyName(TEXT("GlobalOpacity"));
 const FLazyName UDynamicMaterialModel::GlobalMetallicValueName = FLazyName(TEXT("GlobalMetallicValue"));
@@ -37,6 +41,8 @@ const FLazyName UDynamicMaterialModel::GlobalAmbientOcclusionValueName = FLazyNa
 const FLazyName UDynamicMaterialModel::GlobalAmbientOcclusionParameterName = FLazyName(TEXT("GlobalAmbientOcclusion"));
 const FLazyName UDynamicMaterialModel::GlobalRefractionValueName = FLazyName(TEXT("GlobalRefractionValue"));
 const FLazyName UDynamicMaterialModel::GlobalRefractionParameterName = FLazyName(TEXT("GlobalRefraction"));
+const FLazyName UDynamicMaterialModel::GlobalTangentValueName = FLazyName(TEXT("GlobalTangentValue"));
+const FLazyName UDynamicMaterialModel::GlobalTangentParameterName = FLazyName(TEXT("GlobalTangent"));
 const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetValueName = FLazyName(TEXT("GlobalPixelDepthOffsetValue"));
 const FLazyName UDynamicMaterialModel::GlobalPixelDepthOffsetParameterName = FLazyName(TEXT("GlobalPixelDepthOffset"));
 const FLazyName UDynamicMaterialModel::GlobalDisplacementValueName = FLazyName(TEXT("GlobalDisplacementValue"));
@@ -45,12 +51,35 @@ const FLazyName UDynamicMaterialModel::GlobalSubsurfaceColorValueName = FLazyNam
 const FLazyName UDynamicMaterialModel::GlobalSubsurfaceColorParameterName = FLazyName(TEXT("GlobalSubsurfaceColor"));
 const FLazyName UDynamicMaterialModel::GlobalSurfaceThicknessValueName = FLazyName(TEXT("GlobalSurfaceThicknessValue"));
 const FLazyName UDynamicMaterialModel::GlobalSurfaceThicknessParameterName = FLazyName(TEXT("GlobalSurfaceThickness"));
+
 const FLazyName UDynamicMaterialModel::GlobalOffsetValueName = FLazyName(TEXT("GlobalOffsetValue"));
 const FLazyName UDynamicMaterialModel::GlobalOffsetParameterName = FLazyName(TEXT("GlobalOffset"));
 const FLazyName UDynamicMaterialModel::GlobalTilingValueName = FLazyName(TEXT("GlobalTilingValue"));
 const FLazyName UDynamicMaterialModel::GlobalTilingParameterName = FLazyName(TEXT("GlobalTiling"));
 const FLazyName UDynamicMaterialModel::GlobalRotationValueName = FLazyName(TEXT("GlobalRotationValue"));
 const FLazyName UDynamicMaterialModel::GlobalRotationParameterName = FLazyName(TEXT("GlobalRotation"));
+
+namespace UE::DynamicMaterial::Private
+{
+	const TMap<FName, EDMMaterialPropertyType> ValueNameToMaterialProperty = {
+		{UDynamicMaterialModel::GlobalBaseColorValueName,           EDMMaterialPropertyType::BaseColor},
+		{UDynamicMaterialModel::GlobalEmissiveColorValueName,       EDMMaterialPropertyType::EmissiveColor},
+		{UDynamicMaterialModel::GlobalOpacityValueName,             EDMMaterialPropertyType::Opacity},
+		{UDynamicMaterialModel::GlobalMetallicValueName,            EDMMaterialPropertyType::Metallic},
+		{UDynamicMaterialModel::GlobalSpecularValueName,            EDMMaterialPropertyType::Specular},
+		{UDynamicMaterialModel::GlobalRoughnessValueName,           EDMMaterialPropertyType::Roughness},
+		{UDynamicMaterialModel::GlobalAnisotropyValueName,          EDMMaterialPropertyType::Anisotropy},
+		{UDynamicMaterialModel::GlobalNormalValueName,              EDMMaterialPropertyType::Normal},
+		{UDynamicMaterialModel::GlobalWorldPositionOffsetValueName, EDMMaterialPropertyType::WorldPositionOffset},
+		{UDynamicMaterialModel::GlobalAmbientOcclusionValueName,    EDMMaterialPropertyType::AmbientOcclusion},
+		{UDynamicMaterialModel::GlobalRefractionValueName,          EDMMaterialPropertyType::Refraction},
+		{UDynamicMaterialModel::GlobalTangentValueName,             EDMMaterialPropertyType::Tangent},
+		{UDynamicMaterialModel::GlobalPixelDepthOffsetValueName,    EDMMaterialPropertyType::PixelDepthOffset},
+		{UDynamicMaterialModel::GlobalDisplacementValueName,        EDMMaterialPropertyType::Displacement},
+		{UDynamicMaterialModel::GlobalSubsurfaceColorValueName,     EDMMaterialPropertyType::SubsurfaceColor},
+		{UDynamicMaterialModel::GlobalSurfaceThicknessValueName,    EDMMaterialPropertyType::SurfaceThickness}
+	};
+}
 
 UDynamicMaterialModel::UDynamicMaterialModel()
 {
@@ -60,15 +89,20 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 	EditorOnlyDataSI.SetObject(nullptr);
 #endif
 
-	auto AddFloatParameter = [this](FName InPropertyName, FName InParameterName, float InDefaultValue = 1.f)
+	auto AddFloatParameter = [this](TObjectPtr<UDMMaterialValue>& InValuePtr, FName InPropertyName, FName InParameterName, float InDefaultValue = 1.f, bool bInSetRange = false)
 		{
 			UDMMaterialValueFloat1* Property = CreateDefaultSubobject<UDMMaterialValueFloat1>(InPropertyName);
 			Property->CachedParameterName = InParameterName;
-			GlobalParameterValues.Add(InPropertyName, Property);
+			InValuePtr = Property;
 
 #if WITH_EDITOR
 			Property->SetDefaultValue(InDefaultValue);
 			Property->ApplyDefaultValue();
+
+			if (bInSetRange)
+			{
+				Property->SetValueRange({0.f, 1.f});
+			}
 #endif
 
 			UDMMaterialParameter* Parameter = CreateDefaultSubobject<UDMMaterialParameter>(FName(*(InParameterName.GetPlainNameString() + TEXT("Parameter"))));
@@ -78,11 +112,11 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 			ParameterMap.Add(InParameterName, Parameter);
 		};
 
-	auto AddVector2Parameter = [this](FName InPropertyName, FName InParameterName, const FVector2D& InDefaultValue)
+	auto AddVector2Parameter = [this](TObjectPtr<UDMMaterialValue>& InValuePtr, FName InPropertyName, FName InParameterName, const FVector2D& InDefaultValue)
 		{
 			UDMMaterialValueFloat2* Property = CreateDefaultSubobject<UDMMaterialValueFloat2>(InPropertyName);
 			Property->CachedParameterName = InParameterName;
-			GlobalParameterValues.Add(InPropertyName, Property);
+			InValuePtr = Property;
 
 #if WITH_EDITOR
 			Property->SetDefaultValue(InDefaultValue);
@@ -97,21 +131,27 @@ UDynamicMaterialModel::UDynamicMaterialModel()
 		};
 
 	FDMUpdateGuard Guard;
-	AddFloatParameter(GlobalOpacityValueName, GlobalOpacityParameterName);
-	AddFloatParameter(GlobalMetallicValueName, GlobalMetallicParameterName);
-	AddFloatParameter(GlobalSpecularValueName, GlobalSpecularParameterName);
-	AddFloatParameter(GlobalRoughnessValueName, GlobalRoughnessParameterName);
-	AddFloatParameter(GlobalNormalValueName, GlobalNormalParameterName);
-	AddFloatParameter(GlobalAnisotropyValueName, GlobalAnisotropyParameterName);
-	AddFloatParameter(GlobalWorldPositionOffsetValueName, GlobalWorldPositionOffsetParameterName);
-	AddFloatParameter(GlobalAmbientOcclusionValueName, GlobalAmbientOcclusionParameterName);
-	AddFloatParameter(GlobalRefractionValueName, GlobalRefractionParameterName);
-	AddFloatParameter(GlobalPixelDepthOffsetValueName, GlobalPixelDepthOffsetParameterName);
-	AddFloatParameter(GlobalDisplacementValueName, GlobalDisplacementParameterName);
 
-	AddVector2Parameter(GlobalOffsetValueName, GlobalOffsetParameterName, FVector2D::ZeroVector);
-	AddVector2Parameter(GlobalTilingValueName, GlobalTilingParameterName, FVector2D::UnitVector);
-	AddFloatParameter(GlobalRotationValueName, GlobalRotationParameterName, /* Default Value */ 0.f);
+	AddFloatParameter(GlobalBaseColorParameterValue, GlobalBaseColorValueName, GlobalBaseColorParameterName);
+	AddFloatParameter(GlobalEmissiveColorParameterValue, GlobalEmissiveColorValueName, GlobalEmissiveColorParameterName);
+	AddFloatParameter(GlobalOpacityParameterValue, GlobalOpacityValueName, GlobalOpacityParameterName, /* Set Range */ true);
+	AddFloatParameter(GlobalMetallicParameterValue, GlobalMetallicValueName, GlobalMetallicParameterName);
+	AddFloatParameter(GlobalSpecularParameterValue, GlobalSpecularValueName, GlobalSpecularParameterName);
+	AddFloatParameter(GlobalRoughnessParameterValue, GlobalRoughnessValueName, GlobalRoughnessParameterName);
+	AddFloatParameter(GlobalNormalParameterValue, GlobalNormalValueName, GlobalNormalParameterName);
+	AddFloatParameter(GlobalAnisotropyParameterValue, GlobalAnisotropyValueName, GlobalAnisotropyParameterName);
+	AddFloatParameter(GlobalWorldPositionOffsetParameterValue, GlobalWorldPositionOffsetValueName, GlobalWorldPositionOffsetParameterName);
+	AddFloatParameter(GlobalAmbientOcclusionParameterValue, GlobalAmbientOcclusionValueName, GlobalAmbientOcclusionParameterName);
+	AddFloatParameter(GlobalTangentParameterValue, GlobalTangentValueName, GlobalTangentParameterName);
+	AddFloatParameter(GlobalRefractionParameterValue, GlobalRefractionValueName, GlobalRefractionParameterName);
+	AddFloatParameter(GlobalPixelDepthOffsetParameterValue, GlobalPixelDepthOffsetValueName, GlobalPixelDepthOffsetParameterName);
+	AddFloatParameter(GlobalDisplacementParameterValue, GlobalDisplacementValueName, GlobalDisplacementParameterName);
+	AddFloatParameter(GlobalSubsurfaceColorParameterValue, GlobalSubsurfaceColorValueName, GlobalSubsurfaceColorParameterName);
+	AddFloatParameter(GlobalSurfaceThicknessParameterValue, GlobalSurfaceThicknessValueName, GlobalSurfaceThicknessParameterName);
+
+	AddVector2Parameter(GlobalOffsetParameterValue, GlobalOffsetValueName, GlobalOffsetParameterName, FVector2D::ZeroVector);
+	AddVector2Parameter(GlobalTilingParameterValue, GlobalTilingValueName, GlobalTilingParameterName, FVector2D::UnitVector);
+	AddFloatParameter(GlobalRotationParameterValue, GlobalRotationValueName, GlobalRotationParameterName, /* Default Value */ 0.f);
 }
 
 void UDynamicMaterialModel::SetDynamicMaterialInstance(UDynamicMaterialInstance* InDynamicMaterialInstance)
@@ -141,24 +181,116 @@ UDMMaterialValueFloat1* UDynamicMaterialModel::GetGlobalOpacityValue() const
 	return GetTypedGlobalParameterValue<UDMMaterialValueFloat1>(GlobalOpacityValueName);
 }
 
-const TMap<FName, TObjectPtr<UDMMaterialValue>>& UDynamicMaterialModel::GetGlobalParameterValues() const
-{
-	return GlobalParameterValues;
-}
-
 UDMMaterialValue* UDynamicMaterialModel::GetGlobalParameterValue(FName InName) const
 {
-	if (const TObjectPtr<UDMMaterialValue>* ValuePtr = GlobalParameterValues.Find(InName))
+	using namespace UE::DynamicMaterial::Private;
+
+	if (const EDMMaterialPropertyType* MaterialPropertyPtr = ValueNameToMaterialProperty.Find(InName))
 	{
-		return Cast<UDMMaterialValue>(*ValuePtr);
+		return GetGlobalParameterValueForMaterialProperty(*MaterialPropertyPtr);
 	}
-	
+
+	if (InName == GlobalOffsetValueName)
+	{
+		return GlobalOffsetParameterValue;
+	}
+
+	if (InName == GlobalTilingValueName)
+	{
+		return GlobalTilingParameterValue;
+	}
+
+	if (InName == GlobalRotationValueName)
+	{
+		return GlobalRotationParameterValue;
+	}
+
 	return nullptr;
 }
 
 bool UDynamicMaterialModel::IsModelValid() const
 {
 	return (!HasAnyFlags(RF_BeginDestroyed | RF_FinishDestroyed) && IsValid(this));
+}
+
+UDMMaterialValue* UDynamicMaterialModel::GetGlobalParameterValueForMaterialProperty(EDMMaterialPropertyType InProperty) const
+{
+	switch (InProperty)
+	{
+		case EDMMaterialPropertyType::BaseColor:
+			return GlobalBaseColorParameterValue;
+
+		case EDMMaterialPropertyType::EmissiveColor:
+			return GlobalEmissiveColorParameterValue;
+
+		case EDMMaterialPropertyType::Opacity:
+			return GlobalOpacityParameterValue;
+
+		case EDMMaterialPropertyType::Metallic:
+			return GlobalMetallicParameterValue;
+
+		case EDMMaterialPropertyType::Specular:
+			return GlobalSpecularParameterValue;
+
+		case EDMMaterialPropertyType::Roughness:
+			return GlobalRoughnessParameterValue;
+
+		case EDMMaterialPropertyType::Anisotropy:
+			return GlobalAnisotropyParameterValue;
+
+		case EDMMaterialPropertyType::Normal:
+			return GlobalNormalParameterValue;
+
+		case EDMMaterialPropertyType::WorldPositionOffset:
+			return GlobalWorldPositionOffsetParameterValue;
+
+		case EDMMaterialPropertyType::AmbientOcclusion:
+			return GlobalAmbientOcclusionParameterValue;
+
+		case EDMMaterialPropertyType::Refraction:
+			return GlobalRefractionParameterValue;
+
+		case EDMMaterialPropertyType::Tangent:
+			return GlobalTangentParameterValue;
+
+		case EDMMaterialPropertyType::PixelDepthOffset:
+			return GlobalPixelDepthOffsetParameterValue;
+
+		case EDMMaterialPropertyType::Displacement:
+			return GlobalDisplacementParameterValue;
+
+		case EDMMaterialPropertyType::SubsurfaceColor:
+			return GlobalSubsurfaceColorParameterValue;
+
+		case EDMMaterialPropertyType::SurfaceThickness:
+			return GlobalSurfaceThicknessParameterValue;
+
+		default:
+			return nullptr;
+	}
+}
+
+void UDynamicMaterialModel::ForEachGlobalParameter(TFunctionRef<void(UDMMaterialValue* InGlobalParameterValue)> InCallable)
+{
+	InCallable(GlobalBaseColorParameterValue);
+	InCallable(GlobalEmissiveColorParameterValue);
+	InCallable(GlobalOpacityParameterValue);
+	InCallable(GlobalMetallicParameterValue);
+	InCallable(GlobalSpecularParameterValue);
+	InCallable(GlobalRoughnessParameterValue);
+	InCallable(GlobalAnisotropyParameterValue);
+	InCallable(GlobalNormalParameterValue);
+	InCallable(GlobalWorldPositionOffsetParameterValue);
+	InCallable(GlobalAmbientOcclusionParameterValue);
+	InCallable(GlobalRefractionParameterValue);
+	InCallable(GlobalTangentParameterValue);
+	InCallable(GlobalPixelDepthOffsetParameterValue);
+	InCallable(GlobalDisplacementParameterValue);
+	InCallable(GlobalSubsurfaceColorParameterValue);
+	InCallable(GlobalSurfaceThicknessParameterValue);
+	InCallable(GlobalOffsetParameterValue);
+	InCallable(GlobalTilingParameterValue);
+	InCallable(GlobalRotationParameterValue);
 }
 
 UDMMaterialComponent* UDynamicMaterialModel::GetComponentByPath(const FString& InPath) const
@@ -455,17 +587,24 @@ void UDynamicMaterialModel::OnTextureUVUpdated(UDMTextureUV* InTextureUV)
 
 void UDynamicMaterialModel::ApplyComponents(UMaterialInstanceDynamic* InMID)
 {
-	for (const TPair<FName, TObjectPtr<UDMMaterialValue>>& GlobalParameterPair : GlobalParameterValues)
-	{
-#if WITH_EDITOR
-		if (GlobalParameterPair.Value->IsComponentCreated())
+	ForEachGlobalParameter(
+		[this, InMID](UDMMaterialValue* InValue)
 		{
-			GlobalParameterPair.Value->SetComponentState(EDMComponentLifetimeState::Added);
-		}
+			if (!InValue)
+			{
+				return;
+			}
+
+#if WITH_EDITOR
+			if (InValue->IsComponentCreated())
+			{
+				InValue->SetComponentState(EDMComponentLifetimeState::Added);
+			}
 #endif
 
-		GlobalParameterPair.Value->SetMIDParameter(InMID);
-	}
+			InValue->SetMIDParameter(InMID);
+		}
+	);
 
 	for (UDMMaterialValue* Value : Values)
 	{
@@ -505,7 +644,7 @@ void UDynamicMaterialModel::PostLoad()
 	// Open assets in the editor first to fix version upgrades!
 	if (GlobalOpacityValue)
 	{
-		GlobalParameterValues.FindOrAdd(GlobalOpacityValueName) = GlobalOpacityValue;
+		GlobalOpacityParameterValue = GlobalOpacityValue;
 
 		if (IDynamicMaterialModelEditorOnlyDataInterface* EditorOnlyDataInterface = GetEditorOnlyData())
 		{
@@ -580,25 +719,22 @@ void UDynamicMaterialModel::PostDuplicate(bool bInDuplicateForPIE)
 
 void UDynamicMaterialModel::PostEditorDuplicate()
 {
-	for (const TObjectPtr<UDMMaterialValue>& Value : Values)
-	{
-		if (GUndo)
+	ForEachGlobalParameter(
+		[this](UDMMaterialValue* InValue)
 		{
-			Value->Modify();
+			if (!InValue)
+			{
+				return;
+			}
+
+			if (GUndo)
+			{
+				InValue->Modify();
+			}
+
+			InValue->PostEditorDuplicate(this, nullptr);
 		}
-
-		Value->PostEditorDuplicate(this, nullptr);
-	}
-
-	for (const TPair<FName, TObjectPtr<UDMMaterialValue>>& ValuePair : GlobalParameterValues)
-	{
-		if (GUndo)
-		{
-			ValuePair.Value->Modify();
-		}
-
-		ValuePair.Value->PostEditorDuplicate(this, nullptr);
-	}
+	);
 
 	for (const TPair<FName, TWeakObjectPtr<UDMMaterialParameter>>& ParameterPair : ParameterMap)
 	{
@@ -622,24 +758,9 @@ void UDynamicMaterialModel::PostEditorDuplicate()
 
 void UDynamicMaterialModel::FixGlobalParameterValues()
 {
-	for (TPair<FName, TObjectPtr<UDMMaterialValue>>& ParameterPair : GlobalParameterValues)
+	if (UDMMaterialValueFloat1* FloatValue = Cast<UDMMaterialValueFloat1>(GlobalOpacityParameterValue))
 	{
-		if (!ParameterPair.Value || !ParameterPair.Value->HasAnyFlags(RF_ArchetypeObject))
-		{
-			continue;
-		}
-
-		const FName Name = ParameterPair.Value->GetFName();
-
-		UDMMaterialValue* Local = FindObjectFast<UDMMaterialValue>(this, Name);
-
-		if (!Local)
-		{
-			UE_LOG(LogDynamicMaterial, Error, TEXT("Archtype global parameter found and could not find local one. [%s]"), *Name.ToString());
-			continue;
-		}
-
-		ParameterPair.Value = Local;
+		FloatValue->SetValueRange({0.f, 1.f});
 	}
 }
 

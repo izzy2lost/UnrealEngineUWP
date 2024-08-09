@@ -11,7 +11,6 @@ class SDMMaterialGlobalSettingsEditor;
 class UDMMaterialComponent;
 class UDynamicMaterialModelBase;
 class UDynamicMaterialModelEditorOnlyData;
-enum class EDMIterationResult : uint8;
 enum class EDMMaterialPropertyType : uint8;
 struct FDMPropertyHandle;
 
@@ -28,7 +27,7 @@ public:
 	static void AddMaterialModelProperties(const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget, 
 		UDynamicMaterialModelBase* InMaterialModelBase, TArray<FDMPropertyHandle>& InOutPropertyRows);
 
-	static EDMIterationResult ForEachProperty(EDMMaterialPropertyType InProperty, const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget,
+	static void AddGlobalMaterialParameterValue(EDMMaterialPropertyType InProperty, const TSharedRef<SDMMaterialGlobalSettingsEditor>& InGlobalSettingEditorWidget,
 		UDynamicMaterialModelBase* InMaterialModelBase, TArray<FDMPropertyHandle>& InOutPropertyRows,
 		UDynamicMaterialModelEditorOnlyData* InEditorOnlyData);
 

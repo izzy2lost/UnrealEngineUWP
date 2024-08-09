@@ -20,6 +20,7 @@ class UDMMaterialValueFloat1;
 class UDMTextureUV;
 class UMaterialExpression;
 class UMaterialInstanceDynamic;
+enum class EDMIterationResult : uint8;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMMaterialShadingModel : uint8;
 enum class EDMUpdateType : uint8;
@@ -45,6 +46,10 @@ public:
 	DYNAMICMATERIAL_API static const FString ParametersPathToken;
 
 	/** FNames for global parameters values. */
+	DYNAMICMATERIAL_API static const FLazyName GlobalBaseColorValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalBaseColorParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalEmissiveColorValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalEmissiveColorParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalOpacityValueName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalOpacityParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalMetallicValueName;
@@ -63,6 +68,8 @@ public:
 	DYNAMICMATERIAL_API static const FLazyName GlobalAmbientOcclusionParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalRefractionValueName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalRefractionParameterName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalTangentValueName;
+	DYNAMICMATERIAL_API static const FLazyName GlobalTangentParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetValueName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalPixelDepthOffsetParameterName;
 	DYNAMICMATERIAL_API static const FLazyName GlobalDisplacementValueName;
@@ -84,8 +91,16 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
 	DYNAMICMATERIAL_API bool IsModelValid() const;
 
-	/** Returns the map of global parameter values (such as global opacity). */
-	DYNAMICMATERIAL_API const TMap<FName, TObjectPtr<UDMMaterialValue>>& GetGlobalParameterValues() const;
+	/** Returns a specific global parameter value (such as global opacity) for the given material property or nullptr. */
+	UFUNCTION(BlueprintPure, Category = "Material Designer")
+	DYNAMICMATERIAL_API UDMMaterialValue* GetGlobalParameterValueForMaterialProperty(EDMMaterialPropertyType InProperty) const;
+
+	/** Returns a Cast version of a specific global value (such as global opacity) or nullptr. */
+	template<typename InValueClass>
+	InValueClass* GetGlobalParameterValueForMaterialProperty(EDMMaterialPropertyType InProperty) const
+	{
+		return Cast<InValueClass>(GetGlobalParameterValueForMaterialProperty(InProperty));
+	}
 
 	/** Returns a specific global parameter value (such as global opacity) of the given object name (see global parameter FNames) or nullptr. */
 	UFUNCTION(BlueprintPure, Category = "Material Designer")
@@ -97,6 +112,8 @@ public:
 	{
 		return Cast<InValueClass>(GetGlobalParameterValue(InName));
 	}
+
+	void ForEachGlobalParameter(TFunctionRef<void(UDMMaterialValue* InGlobalParameterValue)> InCallable);
 
 	/** Searches the model for a specific component based on a path. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
@@ -215,10 +232,6 @@ protected:
 	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TSet<TObjectPtr<UDMMaterialComponent>> RuntimeComponents;
 
-	/** Map of the global parameter values, such as global opacity. */
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Material Designer")
-	TMap<FName, TObjectPtr<UDMMaterialValue>> GlobalParameterValues;
-
 	/** Map of parameter names to the objects representing that parameter. */
 	UPROPERTY(VisibleInstanceOnly, TextExportTransient, Category = "Material Designer")
 	TMap<FName, TWeakObjectPtr<UDMMaterialParameter>> ParameterMap;
@@ -237,6 +250,63 @@ protected:
 	TScriptInterface<IDynamicMaterialModelEditorOnlyDataInterface> EditorOnlyDataSI;
 #endif
 
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalBaseColorParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalEmissiveColorParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalOpacityParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalRoughnessParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalSpecularParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalMetallicParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalNormalParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalPixelDepthOffsetParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalWorldPositionOffsetParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalAmbientOcclusionParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalAnisotropyParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalRefractionParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalTangentParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalDisplacementParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalSubsurfaceColorParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalSurfaceThicknessParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalOffsetParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalTilingParameterValue;
+
+	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
+	TObjectPtr<UDMMaterialValue> GlobalRotationParameterValue;
+
 	/** Delegate called when a value is updated. @See GetOnValueUpdateDelegate. */
 	FDMOnValueUpdated OnValueUpdateDelegate;
 
@@ -244,8 +314,7 @@ protected:
 	FDMOnTextureUVUpdated OnTextureUVUpdateDelegate;
 
 	/**
-	 * Because they are not assigned to individual properties, the global parameter values end up being their archetype versions
-	 * for versions of the object from before the change. This needs to be fixed on post load.
+	 * Attempts to fix global opacity to give it a range of 0-1.
 	 */
 	void FixGlobalParameterValues();
 

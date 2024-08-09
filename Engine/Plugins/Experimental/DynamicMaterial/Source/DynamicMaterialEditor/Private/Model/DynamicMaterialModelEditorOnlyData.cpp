@@ -207,7 +207,7 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 	Custom3 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom3, "MaterialProperty_Custom3");
 	Custom4 = UDMMaterialProperty::CreateCustomMaterialPropertyDefaultSubobject(this, EDMMaterialPropertyType::Custom4, "MaterialProperty_Custom4");
 
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this](EDMMaterialPropertyType InType)
 		{
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
@@ -222,6 +222,8 @@ UDynamicMaterialModelEditorOnlyData::UDynamicMaterialModelEditorOnlyData()
 
 void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
 {
+	BaseColor          ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalBaseColorValueName));
+	EmissiveColor      ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalEmissiveColorValueName));
 	Opacity            ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
 	OpacityMask        ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalOpacityValueName));
 	Metallic           ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalMetallicValueName));
@@ -232,8 +234,11 @@ void UDynamicMaterialModelEditorOnlyData::AssignPropertyAlphaValues()
 	WorldPositionOffset->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalWorldPositionOffsetValueName));
 	AmbientOcclusion   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalAmbientOcclusionValueName));
 	Refraction         ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalRefractionValueName));
+	Tangent            ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalTangentValueName));
 	PixelDepthOffset   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalPixelDepthOffsetValueName));
 	Displacement       ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalDisplacementValueName));
+	SubsurfaceColor    ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSubsurfaceColorValueName));
+	SurfaceThickness   ->AddComponent(AlphaValueName, MaterialModel->GetGlobalParameterValue(UDynamicMaterialModel::GlobalSurfaceThicknessValueName));
 }
 
 TArray<FName> UDynamicMaterialModelEditorOnlyData::GetPresetOptions() const
@@ -282,7 +287,7 @@ void UDynamicMaterialModelEditorOnlyData::EnsurePresetSlots()
 		return;
 	}
 
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this, Preset](EDMMaterialPropertyType InProperty)
 		{
 			if (InProperty == EDMMaterialPropertyType::OpacityMask)
@@ -492,7 +497,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	/**
 	 * Process slots to build base material inputs.
 	 */
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this, &BuildState](EDMMaterialPropertyType InType)
 		{
 			if (FExpressionInput* Input = BuildState->GetMaterialProperty(InType))
@@ -502,7 +507,7 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				if (Property->IsEnabled() && Property->IsMaterialPin())
+				if (Property->IsEnabled() && Property->IsMaterialPin() && GetSlotForMaterialProperty(InType))
 				{
 					Property->GenerateExpressions(BuildState);
 
@@ -609,12 +614,12 @@ void UDynamicMaterialModelEditorOnlyData::BuildMaterial(bool bInDirtyAssets)
 	/**
 	 * Apply output processors.
 	 */
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this, &BuildState](EDMMaterialPropertyType InType)
 		{
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
 			{
-				if (Property->IsMaterialPin() && Property->IsEnabled())
+				if (Property->IsMaterialPin() && Property->IsEnabled() && GetSlotForMaterialProperty(InType))
 				{
 					Property->AddOutputProcessor(BuildState);
 				}
@@ -835,34 +840,6 @@ void UDynamicMaterialModelEditorOnlyData::OnWizardComplete()
 	if (UDynamicMaterialModel* MaterialModelLocal = MaterialModel.Get())
 	{
 		FDynamicMaterialEditorModule::Get().OnWizardComplete(MaterialModelLocal);
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable,
-	EDMMaterialPropertyType InStart, EDMMaterialPropertyType InEnd)
-{
-	for (uint8 PropertyIndex = static_cast<uint8>(InStart); PropertyIndex <= static_cast<uint8>(InEnd); ++PropertyIndex)
-	{
-		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-		if (InCallable(Property) == EDMIterationResult::Break)
-		{
-			break;
-		}
-	}
-}
-
-void UDynamicMaterialModelEditorOnlyData::ForEachMaterialPropertyType(TFunctionRef<EDMIterationResult(EDMMaterialPropertyType InType)> InCallable, 
-	EDMMaterialPropertyType InStart, EDMMaterialPropertyType InEnd) const
-{
-	for (uint8 PropertyIndex = static_cast<uint8>(InStart); PropertyIndex <= static_cast<uint8>(InEnd); ++PropertyIndex)
-	{
-		const EDMMaterialPropertyType Property = static_cast<EDMMaterialPropertyType>(PropertyIndex);
-
-		if (InCallable(Property) == EDMIterationResult::Break)
-		{
-			break;
-		}
 	}
 }
 
@@ -1153,7 +1130,7 @@ TMap<EDMMaterialPropertyType, UDMMaterialProperty*> UDynamicMaterialModelEditorO
 {
 	TMap<EDMMaterialPropertyType, UDMMaterialProperty*> LocalProperties;
 
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this, &LocalProperties](EDMMaterialPropertyType InType)
 		{
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
@@ -1276,7 +1253,7 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlot()
 {
 	UDMMaterialSlot* NewSlot = nullptr;
 
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this, &NewSlot](EDMMaterialPropertyType InProperty)
 		{
 			if (GetSlotForMaterialProperty(InProperty))
@@ -1708,7 +1685,7 @@ void UDynamicMaterialModelEditorOnlyData::PostEditorDuplicate()
 		Modify();
 	}
 
-	ForEachMaterialPropertyType(
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
 		[this](EDMMaterialPropertyType InType)
 		{
 			if (UDMMaterialProperty* Property = GetMaterialProperty(InType))
