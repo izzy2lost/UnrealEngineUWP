@@ -14,6 +14,7 @@ class TEDSUI_API UGeneralWidgetRegistrationFactory : public UTypedElementDataSto
 
 public:
 	static const FName CellPurpose;
+	static const FName LargeCellPurpose;
 	static const FName HeaderPurpose;
 	static const FName CellDefaultPurpose;
 	static const FName HeaderDefaultPurpose;

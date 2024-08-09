@@ -18,6 +18,14 @@ void URowHandleWidgetFactory::RegisterWidgetPurposes(ITypedElementDataStorageUiI
 {
 	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("General.Cell.RowHandle")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByName,
 	LOCTEXT("RowHandlePurpose", "Specific purpose to request a widget to display row handles."));
+
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
+	LOCTEXT("RowHandlePurpose", "Specific purpose to request a widget to display the details on a row (e.g SRowDetails)."));
+
+	DataStorageUi.RegisterWidgetPurpose(FName(TEXT("RowDetails.Cell.Large")), ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn,
+	LOCTEXT("RowHandlePurpose", "Specific purpose to request a widget that is larger than a single cell to display the details on a row (e.g SRowDetails)"));
+
+
 }
 
 FRowHandleWidgetConstructor::FRowHandleWidgetConstructor()
