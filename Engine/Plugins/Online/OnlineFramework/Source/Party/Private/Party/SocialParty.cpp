@@ -353,7 +353,8 @@ bool USocialParty::TryInviteUser(const USocialUser& UserToInvite, const ESocialP
 			const IOnlineSessionPtr PlatformSessionInterface = Online::GetSessionInterface(GetWorld(), SocialOssName);
 			if (PlatformSessionInterface && PerformingPlayer)
 			{
-				FUniqueNetIdRepl LocalUserPlatformId = PerformingPlayer->GetUniqueNetIdForPlatformUser();
+				const UPartyMember* PerformingMember = GetPartyMember(PerformingPlayer->GetPreferredUniqueNetId());
+				FUniqueNetIdRepl LocalUserPlatformId = PerformingMember ? PerformingMember->GetRepData().GetPlatformDataUniqueId() : FUniqueNetIdRepl();
 
 				//@todo FORT-244991 Temporarily fall back on grabbing the LocalUserPlatformId from the Platform identity interface
 				if (!LocalUserPlatformId.IsValid())
