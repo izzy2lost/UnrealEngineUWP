@@ -14,20 +14,8 @@ namespace AutomatedPerfTest
 		/// <summary>
 		/// Name of the project (TODO: parse from the build metadata? What about github builds?)
 		/// </summary>
-		[AutoParamWithNames("AutomatedPerfTest.ProjectName")]
-		public string ProjectName = "";
-
-		/// <summary>
-		/// Name of the project (TODO: parse from the build metadata? What about github builds?)
-		/// </summary>
 		[AutoParamWithNames("AutomatedPerfTest.DataSourceName")]
 		public string DataSourceName = "";
-
-		/// <summary>
-		/// If we're running on the build machine
-		/// </summary>
-		[AutoParamWithNames(false, "AutomatedPerfTest.IsBuildMachine")]
-		public bool IsBuildMachine;
 
 		/// <summary>
 		/// Name of the test, useful for identifying it later
@@ -51,7 +39,7 @@ namespace AutomatedPerfTest
 		/// Which trace channels to test with
 		/// </summary>
 		[AutoParamWithNames("AutomatedPerfTest.TraceChannels")]
-		public string TraceChannels = "default,screenshot";
+		public string TraceChannels = "default,screenshot,stats";
 		
 		/// <summary>
 		/// If we're running on the build machine
@@ -76,18 +64,19 @@ namespace AutomatedPerfTest
 		/// </summary>
 		[AutoParamWithNames("", "AutomatedPerfTest.IgnoredIssuesConfigAbsPath")]
 		public string IgnoredIssuesConfigAbsPath;
-
-		/// <summary>
-		/// Which platform we're testing on 
-		/// </summary>
-		[AutoParamWithNames("", "AutomatedPerfTest.TestPlatform")]
-		public string TestPlatform;
 		
 		/// <summary>
-		/// Let BuildGraph tell us where we should output the Insights trace after running a test so that we know where to grab it from when we're done
+		/// If we should trigger a video capture
 		/// </summary>
 		[AutoParamWithNames(false, "AutomatedPerfTest.DoVideoCapture")]
 		public bool DoVideoCapture;
+		
+		/// <summary>
+		/// If true, will look for the shipping configuration of Unreal Insights in order to parse Insights trace files
+		/// This should be True unless you need to test an issue in parsing the Insights file itself.
+		/// </summary>
+		[AutoParamWithNames(true, "AutomatedPerfTest.UseShippingInsights")]
+		public bool UseShippingInsights;
 	}
 
 	public class AutomatedSequencePerfTestConfig : AutomatedPerfTestConfigBase
@@ -95,13 +84,7 @@ namespace AutomatedPerfTest
 		/// <summary>
 		/// Which map to run the test on
 		/// </summary>
-		[AutoParamWithNames("", "AutomatedPerfTest.TestMap")]
-		public string TestMap;
-		
-		/// <summary>
-		/// Which sequence to run the test with
-		/// </summary>
-		[AutoParamWithNames("", "AutomatedPerfTest.SequencePath")]
-		public string SequencePath;
+		[AutoParamWithNames("", "AutomatedPerfTest.SequencePerfTest.MapSequenceName")]
+		public string MapSequenceComboName;
 	}
 }

@@ -37,7 +37,7 @@ public class AutomatedPerfTesting : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"Slate",
-				"SlateCore", "LevelSequence", "MovieScene"
+				"SlateCore", "LevelSequence", "MovieScene", "DeveloperSettings"
 				// ... add private dependencies that you statically link with here ...	
 			}
 			);

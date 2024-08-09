@@ -5,11 +5,39 @@
 #include "CoreMinimal.h"
 #include "GauntletTestController.h"
 #include "Engine/World.h"
+#include "Engine/Engine.h"
 
 #include "AutomatedPerfTestControllerBase.generated.h"
 
 class AGameModeBase;
 
+
+namespace AutomatedPerfTest
+{
+	static UWorld* FindCurrentWorld()
+	{
+		UWorld* World = nullptr;
+		for (const FWorldContext& WorldContext : GEngine->GetWorldContexts())
+		{
+			if (WorldContext.WorldType == EWorldType::Game)
+			{
+				World = WorldContext.World();
+			}
+#if WITH_EDITOR
+			else if (GIsEditor && WorldContext.WorldType == EWorldType::PIE)
+			{
+				World = WorldContext.World();
+				if (World)
+				{
+					return World;
+				}
+			}
+#endif
+		}
+
+		return World;
+	}
+}
 /**
  * 
  */
@@ -34,11 +62,11 @@ public:
 public:
 	UAutomatedPerfTestControllerBase(const FObjectInitializer& ObjectInitializer);
 
-	static FString GetTestName();
-	static FString GetDeviceProfile();
-	static FString GetExplicitTestID();
-	FString GetTestID();
+	FString GetTestName();
+	FString GetDeviceProfile();
+	virtual FString GetTestID();
 	FString GetOverallRegionName();
+	FString GetTraceChannels();
 	
 	bool RequestsInsightsTrace() const;
 	bool RequestsCSVProfiler() const;
@@ -59,8 +87,11 @@ public:
 
 	virtual void SetupTest();
 	virtual void RunTest();
-	virtual void TeardownTest();
+	virtual void TeardownTest(bool bExitAfterTeardown = true);
+	virtual void TriggerExitAfterDelay();
 	virtual void Exit();
+
+	AGameModeBase* GetGameMode() const;
 	
 protected:
 	// ~Begin UGauntletTestController Interface
@@ -80,11 +111,9 @@ protected:
 	virtual void UnbindAllDelegates();
 
 private:
-	FString ExplicitTestID;
-
 	FString TraceChannels;
 	FString TestDatetime;
-	FString TestID;
+	FString TestName;
 	FString DeviceProfileOverride;
 	bool bRequestsFPSChart;
 	bool bRequestsInsightsTrace;

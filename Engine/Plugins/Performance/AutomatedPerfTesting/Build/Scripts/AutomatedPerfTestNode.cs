@@ -30,7 +30,7 @@ namespace AutomatedPerfTest
 			// after GetConfiguration is called. This will cause a mismatch in CreateReport.
 			OriginalBuildName = Globals.Params.ParseValue("BuildName", InContext.BuildInfo.BuildName);
 			Log.Info("Setting OriginalBuildName to {OriginalBuildName}", OriginalBuildName);
-
+			
 			TestGuid = Guid.NewGuid();
 			Log.Info("Your Test GUID is :\n" + TestGuid.ToString() + '\n');
 
@@ -122,8 +122,10 @@ namespace AutomatedPerfTest
 			if (App != null)
 			{
 				UnrealLogParser Parser = new UnrealLogParser(App.StdOut);
-
-				string LogChannelName = GetCachedConfiguration().ProjectName + "Test";
+				
+				
+				
+				string LogChannelName = Context.BuildInfo.ProjectName + "Test";
 				List<string> TestLines = Parser.GetLogChannel(LogChannelName).ToList();
 
 				string LogCategory = "Log" + LogChannelName;
@@ -228,7 +230,12 @@ namespace AutomatedPerfTest
 		{
 			if (Result == TestResult.Passed)
 			{
-				if (GetConfiguration().DoCSVProfiler)
+				if (GetCachedConfiguration().DoInsightsTrace)
+				{
+					CopyInsightsTraceToPerfCache(ArtifactPath);
+				}
+				
+				if (GetCurrentPass() <= GetNumPasses() && GetCachedConfiguration().DoCSVProfiler)
 				{
 					// Our artifacts from each iteration such as the client log will be overwritten by subsequent iterations so we need to copy them out to a temp dir
 					// to preserve them until we're ready to make our report on the final iteration.
@@ -249,7 +256,7 @@ namespace AutomatedPerfTest
 						{
 							{"HordeJobUrl", Globals.Params.ParseValue("JobDetails", null)}
 						};
-
+						
 						Log.Info("Creating perf server importer with build name {BuildName}", OriginalBuildName);
 						string DataSourceName = GetConfiguration().DataSourceName;
 						string ImportDirOverride = Globals.Params.ParseValue("PerfReportServerImportDir", null);
@@ -274,15 +281,22 @@ namespace AutomatedPerfTest
 							{
 								string InsightsFilename = Path.GetFileNameWithoutExtension(CsvImportEntries.First().CsvFilename)
 									.Replace(".csv", ".utrace");
-								string InsightsFilePath = Path.Combine(ArtifactPath, "Profiling", InsightsFilename);
-								if (File.Exists(InsightsFilePath))
+
+								// recursively look for trace files that match the CSV's filename in the artifact path
+								string[] MatchingTraces = FindFiles($"*{InsightsFilename}", true, ArtifactPath);
+								if(MatchingTraces.Length > 0)
 								{
-									CsvImportEntries.First().AddAdditionalFile("Insights", InsightsFilePath);
+									if (MatchingTraces.Length > 1)
+									{
+										Log.Warning("Multiple Insights traces were found in {ArtifactPath} matching pattern *{InsightsFilename}. Only the first will be attached to the CSV import for this test.",
+											ArtifactPath, InsightsFilename);										
+									}
+									CsvImportEntries.First().AddAdditionalFile("Insights", MatchingTraces.First());
 								}
 								else
 								{
-									Log.Warning("Insights was requested, but no match insights trace file was found {InsightsFilename}",
-										InsightsFilePath);
+									Log.Warning("Insights was requested, but no matching insights traces were found  matching pattern *{InsightsFilename} in {ArtifactPath}",
+										InsightsFilename, ArtifactPath);
 								}
 							}
 
@@ -334,9 +348,9 @@ namespace AutomatedPerfTest
 				Logger.LogError("Failed to find perf report utility at this path: \"{ToolPath}\".", ToolPath);
 				return;
 			}
-
-			var ReportConfigDir = Path.Combine(Unreal.RootDirectory.FullName, "Samples", "Showcases", GetCachedConfiguration().ProjectName, "Build", "Scripts", "PerfReport");
-			var ReportPath = Path.Combine(ArtifactPath, "Reports", "Performance");
+			
+			var ReportConfigDir = Path.Combine(Context.Options.ProjectPath.Directory.FullName, "Build", "Scripts", "PerfReport");
+			var ReportPath = Path.Combine(ReportCacheDir, "Reports", "Performance");
 
 			// Csv files may have been output in one of two places.
 			// Check both...
@@ -398,8 +412,10 @@ namespace AutomatedPerfTest
 			// Win64 is actually called "Windows" in csv profiles
 			var PlatformNameFilter = Platform == UnrealTargetPlatform.Win64 ? "Windows" : $"{Platform}";
 
+			string SearchPattern = $"{Context.BuildInfo.ProjectName}*";
+			
 			// Produce the detailed report, and update the perf cache
-			CommandUtils.RunAndLog(ToolPath.FullName, $"-csvdir \"{NewestDir}\" -o \"{ReportPath}\" -reportxmlbasedir \"{ReportConfigDir}\" -summaryTableCache \"{ReportCacheDir}\" -searchpattern csvprofile* -metadatafilter platform=\"{PlatformNameFilter}\"", out int ErrorCode);
+			CommandUtils.RunAndLog(ToolPath.FullName, $"-csvdir \"{NewestDir}\" -o \"{ReportPath}\" -reportxmlbasedir \"{ReportConfigDir}\" -summaryTableCache \"{ReportCacheDir}\" -searchpattern {SearchPattern} -metadatafilter platform=\"{PlatformNameFilter}\"", out int ErrorCode);
 			if (ErrorCode != 0)
 			{
 				Logger.LogError("PerfReportTool returned error code \"{ErrorCode}\" while generating detailed report.", ErrorCode);
@@ -503,7 +519,7 @@ namespace AutomatedPerfTest
 				Log.Warning("No valid csv files found in {CSVPath}", CSVPath);
 			}
 		}
-
+		
 		protected virtual string GetSubtestName()
 		{
 			return "Performance";
@@ -517,13 +533,31 @@ namespace AutomatedPerfTest
 			UnrealTestRole ClientRole = Config.RequireRole(UnrealTargetRole.Client);
 			// the controller will be added by the subclasses
 
+			ClientRole.CommandLineParams.AddOrAppendParamValue("logcmds", "LogHttp Verbose, LogAutomatedPerfTest Verbose");
+			
 			ClientRole.CommandLineParams.Add("-deterministic");
 
-			Log.Info("AutomatedPerfTestNode<>.GetConfiguration(): Config.DoFPSChart={0}, Config.DoCSVProfiler={1}, Config.DoVideoCapture={2}", Config.DoFPSChart, Config.DoCSVProfiler, Config.DoVideoCapture);
+			Log.Info("AutomatedPerfTestNode<>.GetConfiguration(): Config.DoFPSChart={0}, Config.DoCSVProfiler={1}, Config.DoVideoCapture={2}, Config.DoInsightsTrace={3}", Config.DoFPSChart, Config.DoCSVProfiler, Config.DoVideoCapture, Config.DoInsightsTrace);
+			
+			ClientRole.CommandLineParams.AddOrAppendParamValue("AutomatedPerfTest.TestName", Config.TestName);
 
+			if (Config.DeviceProfileOverride != String.Empty)
+			{
+				ClientRole.CommandLineParams.AddOrAppendParamValue("AutomatedPerfTest.DeviceProfileOverride", Config.DeviceProfileOverride);
+			}
+
+			if (Config.DoInsightsTrace)
+			{
+				ClientRole.CommandLineParams.Add("AutomatedPerfTest.DoInsightsTrace");
+				if (Config.TraceChannels != String.Empty)
+				{
+					ClientRole.CommandLineParams.AddOrAppendParamValue("AutomatedPerfTest.TraceChannels", Config.TraceChannels);
+				}
+			}
+			
 			if (string.IsNullOrEmpty(Config.DataSourceName))
 			{
-				Config.DataSourceName = string.Format("Automation.{0}.Performance", Config.ProjectName);
+				Config.DataSourceName = string.Format("Automation.{0}.Performance", Context.BuildInfo.ProjectName);
 			}
 
 			if (Config.DoFPSChart)
@@ -539,7 +573,7 @@ namespace AutomatedPerfTest
 				// Add CSV metadata
 				List<string> CsvMetadata = new List<string>
 				{
-					string.Format("testname={0}", Config.ProjectName),
+					string.Format("testname={0}", Context.BuildInfo.ProjectName),
 					"gauntletTestType=AutomatedPerfTest",
 					string.Format("gauntletSubTest={0}", GetSubtestName()),
 					"testBuildIsPreflight=" + (ReportGenUtils.IsTestingPreflightBuild(OriginalBuildName) ? "1" : "0"),
@@ -562,6 +596,57 @@ namespace AutomatedPerfTest
 
 			return Config;
 		}
+		
+		public void CopyInsightsTraceToPerfCache(string ArtifactPath)
+		{
+			Logger.LogInformation("Copying test insights trace from artifact path to report cache");
+			
+			// find all the available trace paths
+			var DiscoveredTraces = new List<string>();
+			if (Directory.Exists(ArtifactPath))
+			{
+				DiscoveredTraces.AddRange(
+					from TraceFile in Directory.GetFiles(ArtifactPath, "*.utrace", SearchOption.AllDirectories)
+					select TraceFile);
+			}
+			
+			// if we couldn't find any traces, report that and bail out
+			if (DiscoveredTraces.Count == 0)
+			{
+				Logger.LogError("Test completed successfully but no trace results were found. Searched path was {ArtifactPath}", ArtifactPath);
+				return;
+			}
+			
+			// iterate over each of the discovered traces (there should be one for each test case that was run)
+			// first, sort the cases by timestamp
+			string[] SortedTraces =
+				(from TraceFile in DiscoveredTraces
+					let Timestamp = File.GetCreationTimeUtc(TraceFile)
+					orderby Timestamp descending
+					select TraceFile).ToArray();
+			
+			var ReportPath = GetCachedConfiguration().PerfCacheRoot;
+			
+			if (SortedTraces.Length > 0)
+			{
+				string Filename = Path.GetFileNameWithoutExtension(SortedTraces[0]);
+				string PerfCachePath = Path.Combine(ReportPath, Filename + ".utrace");
+				
+				Logger.LogInformation("Copying latest utrace file from {ArtifactPath} to perf cache: {PerfCachePath}", ArtifactPath,
+					PerfCachePath);
+				
+				// just try the copy over, and log a failure, but don't bail out of the test.
+				try
+				{
+					InternalUtils.SafeCreateDirectory(PerfCachePath, true);
+					File.Copy(SortedTraces[0], PerfCachePath);
+				}
+				catch (Exception e)
+				{
+					Logger.LogWarning("Failed to copy local trace file: {Text}", e);
+				}
+			}
+		}
 
 		/// <summary>
 		/// Returns the cached version of our config. Avoids repeatedly calling GetConfiguration() on derived nodes
@@ -583,7 +668,7 @@ namespace AutomatedPerfTest
 	/// </summary>
 	/// <typeparam name="TConfigClass"></typeparam>
 	public abstract class AutomatedSequencePerfTestNode<TConfigClass> : AutomatedPerfTestNode<TConfigClass>
-		where TConfigClass : AutomatedPerfTestConfigBase, new()
+		where TConfigClass : AutomatedSequencePerfTestConfig, new()
 	{
 		public AutomatedSequencePerfTestNode(UnrealTestContext InContext) : base(InContext)
 		{
@@ -592,9 +677,23 @@ namespace AutomatedPerfTest
 		public override TConfigClass GetConfiguration()
 		{
 			TConfigClass Config = base.GetConfiguration();
-
-			UnrealTestRole ClientRole = Config.RequireRole(UnrealTargetRole.Client);	// should get an existing role
-			ClientRole.Controllers.Add("AutomatedSequencePerfTest");
+			
+			// extend the role(s) that we initialized in the base class
+			if (Config.GetRequiredRoles(UnrealTargetRole.Client).Any())
+			{
+				foreach(UnrealTestRole ClientRole in Config.GetRequiredRoles(UnrealTargetRole.Client))
+				{
+					ClientRole.Controllers.Add("AutomatedSequencePerfTest");
+					
+					// if a specific MapSequenceComboName was defined in the commandline to UAT, then add that to the commandline for the role
+					if (!string.IsNullOrEmpty(Config.MapSequenceComboName))
+					{
+						// use add Unique, since there should only ever be one of these specified
+						ClientRole.CommandLineParams.AddUnique($"AutomatedPerfTest.SequencePerfTest.MapSequenceName",
+							Config.MapSequenceComboName);
+					}
+				}
+			}
 
 			return Config;
 		}

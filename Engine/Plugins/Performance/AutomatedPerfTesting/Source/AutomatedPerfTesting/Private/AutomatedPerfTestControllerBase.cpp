@@ -8,6 +8,7 @@
 #include "DeviceProfiles/DeviceProfileManager.h"
 #include "GameFramework/GameModeBase.h"
 #include "AutomatedPerfTestInterface.h"
+#include "AutomatedPerfTestProjectSettings.h"
 #include "Misc/App.h"
 #include "Misc/CommandLine.h"
 #include "ProfilingDebugging/TraceAuxiliary.h"
@@ -20,35 +21,10 @@
 #include "Engine/Engine.h"
 #include "Misc/Paths.h"
 
+
 DEFINE_LOG_CATEGORY(LogAutomatedPerfTest)
 CSV_DEFINE_CATEGORY(AutomatedPerfTest, true);
 
-namespace AutomatedPerfTesting
-{
-	static TAutoConsoleVariable<FString> CVarExplicitTestID(
-		TEXT("AutomatedPerfTest.ExplicitTestID"),
-		"",
-		TEXT("Overrides the automatically generated test ID with the one provided"),
-		ECVF_Default);
-
-	static TAutoConsoleVariable<FString> CVarTraceChannels(
-		TEXT("AutomatedPerfTest.TraceChannels"),
-		"default,screenshot,stats",
-		TEXT("Sets the channels that will be traced when the AutomatedPerfTest is run. Defaults to default,screenshot,stats"),
-		ECVF_Default);
-
-	static TAutoConsoleVariable<FString> CVarDeviceProfileOverride(
-		TEXT("AutomatedPerfTest.DeviceProfileOverride"),
-		"",
-		TEXT("Overrides device profile used when running automated performance tests if set"),
-		ECVF_Default);
-
-	static TAutoConsoleVariable<FString> CVarTestName(
-		TEXT("AutomatedPerfTest.TestName"),
-		"Automated",
-		TEXT("User-defined ID of the test being run. Helpful for identifying test specifics eg Automated, TestingSomeVariable, MyCoolTest"),
-		ECVF_Default);
-}
 
 void UAutomatedPerfTestControllerBase::OnPreWorldInitializeInternal(UWorld* World, const UWorld::InitializationValues IVS)
 {
@@ -126,45 +102,24 @@ UAutomatedPerfTestControllerBase::UAutomatedPerfTestControllerBase(const FObject
 
 FString UAutomatedPerfTestControllerBase::GetTestName()
 {
-	return AutomatedPerfTesting::CVarTestName->GetString();
+	return TestName;
 }
 
 FString UAutomatedPerfTestControllerBase::GetDeviceProfile()
 {
-	if(!AutomatedPerfTesting::CVarDeviceProfileOverride->GetString().IsEmpty())
-	{
-		return AutomatedPerfTesting::CVarDeviceProfileOverride->GetString();
-	}
-	
-	return UDeviceProfileManager::Get().GetActiveDeviceProfileName(); 
-}
-
-FString UAutomatedPerfTestControllerBase::GetExplicitTestID()
-{
-	// if the user has explicitly set a test ID, then return that
-	if(!AutomatedPerfTesting::CVarExplicitTestID->GetString().IsEmpty())
-	{
-		return AutomatedPerfTesting::CVarExplicitTestID->GetString();
-	}
-	
-	return TEXT("");
+	return DeviceProfileOverride.IsEmpty() ? UDeviceProfileManager::Get().GetActiveDeviceProfileName() : DeviceProfileOverride;  
 }
 
 FString UAutomatedPerfTestControllerBase::GetTestID()
 {
-	// if the user has explicitly set a test ID, then return that
-	if(!AutomatedPerfTesting::CVarExplicitTestID->GetString().IsEmpty())
-	{
-		return AutomatedPerfTesting::CVarExplicitTestID->GetString();
-	}
-
 	const TArray<FString> TestCaseIDElements = {FApp::GetBuildVersion(),
 										  FPlatformProperties::PlatformName(),
 										  TestDatetime,
 								          *GetDeviceProfile(),
 								          *GetTestName()};
-	
-	// otherwise construct a unique ID of the form BuildVersion_PlatformName_YYYYMMDD-HHMMSS_DeviceProfile_TestName
+
+	// TODO make this format definable in project settings, similar to how MovieRenderQueue does it for renders
+	// construct a unique ID of the form BuildVersion_PlatformName_YYYYMMDD-HHMMSS_DeviceProfile_TestName
 	FString TestCaseID = FString::Join(TestCaseIDElements, TEXT("_"));
 
 	return TestCaseID;
@@ -173,6 +128,11 @@ FString UAutomatedPerfTestControllerBase::GetTestID()
 FString UAutomatedPerfTestControllerBase::GetOverallRegionName()
 {
 	return GetTestID() + "_" + "Overall";
+}
+
+FString UAutomatedPerfTestControllerBase::GetTraceChannels()
+{
+	return TraceChannels;
 }
 
 bool UAutomatedPerfTestControllerBase::RequestsInsightsTrace() const
@@ -198,8 +158,8 @@ bool UAutomatedPerfTestControllerBase::RequestsVideoCapture() const
 bool UAutomatedPerfTestControllerBase::TryStartInsightsTrace()
 {
 	const FString TraceFileName = GetTestID() + ".utrace";
-	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start insights trace to file %s with channels %s"), *TraceFileName, *AutomatedPerfTesting::CVarTraceChannels->GetString());
-	return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *TraceFileName, *AutomatedPerfTesting::CVarTraceChannels->GetString());
+	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Attempting to start insights trace to file %s with channels %s"), *TraceFileName, *GetTraceChannels());
+	return FTraceAuxiliary::Start(FTraceAuxiliary::EConnectionType::File, *TraceFileName, *GetTraceChannels());
 }
 
 bool UAutomatedPerfTestControllerBase::TryStopInsightsTrace()
@@ -384,7 +344,7 @@ void UAutomatedPerfTestControllerBase::RunTest()
 	}
 }
 
-void UAutomatedPerfTestControllerBase::TeardownTest()
+void UAutomatedPerfTestControllerBase::TeardownTest(bool bExitAfterTeardown)
 {
 	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: TeardownTest"));
 	
@@ -417,10 +377,17 @@ void UAutomatedPerfTestControllerBase::TeardownTest()
 		IAutomatedPerfTestInterface::Execute_TeardownTest(GameMode);
 	}
 
+	if(bExitAfterTeardown)
+	{
+		TriggerExitAfterDelay();
+	}
+}
 
+void UAutomatedPerfTestControllerBase::TriggerExitAfterDelay()
+{
 	FTimerHandle UnusedHandle;
-	// TODO parameterize the teardown to Exit delay
-	GetWorld()->GetTimerManager().SetTimer(UnusedHandle, this, &UAutomatedPerfTestControllerBase::Exit, 1.0, false, 5.0);
+	
+	GetWorld()->GetTimerManager().SetTimer(UnusedHandle, this, &UAutomatedPerfTestControllerBase::Exit, 1.0, false, GetDefault<UAutomatedPerfTestProjectSettings>()->TeardownToExitDelay);	
 }
 
 void UAutomatedPerfTestControllerBase::Exit()
@@ -443,8 +410,8 @@ void UAutomatedPerfTestControllerBase::Exit()
 			UE_LOG(LogAutomatedPerfTest, Log, TEXT("CSVProfile requested, and test is exiting, but CSV Profiler isn't done writing."))
 			// if we requested a CSV Profile, and the CSV Profiler is still writing the file, add a lambda to call the EndAutomatedPerfTest function
 			// so that we don't exit out of the application before the CSV Profiler is done
-			// TODO there's probably a nicer way to do this
-			// TODO might not need to do this if we set csv.BlockOnCaptureEnd
+			
+			// TODO investigate if this is necessary if we set csv.BlockOnCaptureEnd
 			FCsvProfiler::Get()->OnCSVProfileFinished().AddLambda([this](const FString& Filename)
 			{
 				EndAutomatedPerfTest();
@@ -457,33 +424,22 @@ void UAutomatedPerfTestControllerBase::Exit()
 	EndAutomatedPerfTest();
 }
 
+AGameModeBase* UAutomatedPerfTestControllerBase::GetGameMode() const
+{
+	return GameMode;
+}
+
 void UAutomatedPerfTestControllerBase::OnInit()
 {
 	Super::OnInit();
 
 	UE_LOG(LogAutomatedPerfTest, Log, TEXT("Base:: OnInit"));
 
-	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.ExplicitTestID="), ExplicitTestID))
-	{
-		AutomatedPerfTesting::CVarExplicitTestID->Set(*ExplicitTestID);
-	}
-
 	// don't stop on separator because this will come in comma-separated
-	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TraceChannels="), TraceChannels, false))
-	{
-		AutomatedPerfTesting::CVarTraceChannels->Set(*TraceChannels);
-	}
-
-	if (FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.DeviceProfileOverride="), DeviceProfileOverride))
-	{
-		AutomatedPerfTesting::CVarDeviceProfileOverride->Set(*DeviceProfileOverride);
-	}
-
-	if (FString TestName; FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TestName="), TestID))
-	{
+	FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TraceChannels="), TraceChannels, false);
 	
-		AutomatedPerfTesting::CVarTestName->Set(*TestID);
-	}
+	FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.DeviceProfileOverride="), DeviceProfileOverride);
+	FParse::Value(FCommandLine::Get(), TEXT("AutomatedPerfTest.TestName="), TestName);
 	
 	if(FParse::Param(FCommandLine::Get(), TEXT("AutomatedPerfTest.DoInsightsTrace")))
 	{
