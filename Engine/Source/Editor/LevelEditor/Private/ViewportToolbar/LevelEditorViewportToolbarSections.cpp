@@ -2080,7 +2080,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 
 					// Camera Speed Submenu
 					{
-						PositioningSection.AddSubMenu(
+						FToolMenuEntry& Entry = PositioningSection.AddSubMenu(
 							"CameraSpeed",
 							LOCTEXT("CameraSpeedSubMenu", "Camera Speed"),
 							LOCTEXT("CameraSpeedSubMenu_ToolTip", "Camera Speed related actions"),
@@ -2091,8 +2091,16 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 								}
 							),
 							false,
-							FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelViewport.ToggleActorPilotCameraView"))
+							FSlateIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewport.Speed"))
 						);
+
+						Entry.ToolbarLabelOverride = TAttribute<FText>::CreateLambda(
+							[LevelViewportWeak]()
+							{
+								return UE::UnrealEd::GetCameraSpeedLabel(LevelViewportWeak);
+							}
+						);
+						Entry.SetShowInToolbarTopLevel(true);
 					}
 
 					PositioningSection.AddSeparator("PositioningSeparator_1");

@@ -1951,6 +1951,22 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 	// clang-format on
 }
 
+FText GetCameraSpeedLabel(const TWeakPtr<SEditorViewport>& WeakViewport)
+{
+	if (const TSharedPtr<SEditorViewport> Viewport = WeakViewport.Pin())
+	{
+		if (Viewport->GetViewportClient())
+		{
+			const float CameraSpeed = Viewport->GetViewportClient()->GetCameraSpeed();
+			FNumberFormattingOptions FormattingOptions = FNumberFormattingOptions::DefaultNoGrouping();
+			FormattingOptions.MaximumFractionalDigits = CameraSpeed > 1 ? 1 : 3;
+			return FText::AsNumber(CameraSpeed, &FormattingOptions);
+		}
+	}
+
+	return FText();
+}
+
 FText GetCameraSubmenuLabelFromViewportType(const ELevelViewportType ViewportType)
 {
 	FText Label = LOCTEXT("CameraMenuTitle_Default", "Camera");
