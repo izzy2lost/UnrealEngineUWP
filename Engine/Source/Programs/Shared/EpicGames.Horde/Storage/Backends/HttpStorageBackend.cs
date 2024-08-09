@@ -151,7 +151,7 @@ namespace EpicGames.Horde.Storage.Backends
 					if (!uploadResponse.IsSuccessStatusCode)
 					{
 						string body = await uploadResponse.Content.ReadAsStringAsync(cancellationToken);
-						throw new StorageException($"Unable to upload data to redirected URL: {body}");
+						throw new StorageException($"Unable to upload data to redirected URL {redirectResponse.UploadUrl}. Status:{uploadResponse.StatusCode} Reason:{uploadResponse.ReasonPhrase} Response:{body}");
 					}
 
 					_logger.LogDebug("Written {Locator} (using redirect)", redirectResponse.Blob);
