@@ -47,6 +47,7 @@ elif [ -f ../Intermediate/Build/AutomationToolLastBuildTime ]; then
     Programs/Shared/EpicGames.UBA \
     Programs/Shared/EpicGames.UHT \
     Programs/UnrealBuildTool \
+    Programs/AutomationTool \
     ../Restricted/**/Source/Programs/Shared \
     ../Platforms/*/Source/Programs/Shared \
     ../Restricted/**/Source/Programs/UnrealBuildTool \
@@ -65,7 +66,6 @@ elif [ -f ../Intermediate/Build/AutomationToolLastBuildTime ]; then
 
   UPDATED_AUTOMATIONTOOL_FILES="$(find \
     Programs/Shared \
-    Programs/AutomationTool \
     -maxdepth 1 \
     -type f \
     \( -iname \*.cs -or -iname \*.csproj \) \
