@@ -4,10 +4,6 @@
 
 #include "Containers/Utf8String.h"
 
-#if WITH_VERSE_BPVM
-class USolarisMathLibrary_String;
-#endif
-
 namespace Verse
 {
 class FNativeString;
