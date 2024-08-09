@@ -8,15 +8,16 @@
 #include "ToolMenuDelegates.h"
 #include "UnrealEdViewportToolbarContext.h"
 
-class IPreviewProfileController;
 class FEditorViewportClient;
 class FText;
 class IPreviewProfileController;
+class IPreviewProfileController;
 class SEditorViewport;
 class UToolMenu;
+enum ELevelViewportType : int;
+enum ERotationGridMode : int;
 struct FNewToolMenuChoice;
 struct FToolMenuEntry;
-enum ERotationGridMode : int;
 
 namespace UE::UnrealEd
 {
@@ -124,6 +125,7 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 	int32 InMaxFractionalDigits = 2
 );
 
+UNREALED_API FText GetCameraSubenuLabelFromViewportType(const ELevelViewportType ViewportType);
 UNREALED_API FToolMenuEntry CreateViewportToolbarCameraSubmenu();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<IPreviewProfileController>& InPreviewProfileController);

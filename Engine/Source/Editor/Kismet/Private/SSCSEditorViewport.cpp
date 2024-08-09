@@ -270,7 +270,9 @@ public:
 	{
 		if(EditorViewport.IsValid())
 		{
-			return GetCameraMenuLabelFromViewportType(EditorViewport.Pin()->GetViewportClient()->GetViewportType());
+			return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(
+				EditorViewport.Pin()->GetViewportClient()->GetViewportType()
+			);
 		}
 
 		return NSLOCTEXT("BlueprintEditor", "CameraMenuTitle_Default", "Camera");

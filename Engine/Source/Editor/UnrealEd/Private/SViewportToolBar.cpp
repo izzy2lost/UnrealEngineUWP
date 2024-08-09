@@ -7,6 +7,7 @@
 #include "Styling/AppStyle.h"
 #include "UObject/NameTypes.h"
 #include "UObject/UnrealNames.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SMenuAnchor.h"
 
 struct FSlateBrush;
@@ -32,46 +33,9 @@ void SViewportToolBar::SetOpenMenu( TSharedPtr< SMenuAnchor >& NewMenu )
 	OpenedMenu = NewMenu;
 }
 
-
-
-
 FText SViewportToolBar::GetCameraMenuLabelFromViewportType(const ELevelViewportType ViewportType) const
 {
-	FText Label = LOCTEXT("CameraMenuTitle_Default", "Camera");
-	switch (ViewportType)
-	{
-	case LVT_Perspective:
-		Label = LOCTEXT("CameraMenuTitle_Perspective", "Perspective");
-		break;
-
-	case LVT_OrthoXY:
-		Label = LOCTEXT("CameraMenuTitle_Top", "Top");
-		break;
-
-	case LVT_OrthoNegativeXZ:
-		Label = LOCTEXT("CameraMenuTitle_Left", "Left");
-		break;
-
-	case LVT_OrthoNegativeYZ:
-		Label = LOCTEXT("CameraMenuTitle_Front", "Front");
-		break;
-
-	case LVT_OrthoNegativeXY:
-		Label = LOCTEXT("CameraMenuTitle_Bottom", "Bottom");
-		break;
-
-	case LVT_OrthoXZ:
-		Label = LOCTEXT("CameraMenuTitle_Right", "Right");
-		break;
-
-	case LVT_OrthoYZ:
-		Label = LOCTEXT("CameraMenuTitle_Back", "Back");
-		break;
-	case LVT_OrthoFreelook:
-		break;
-	}
-
-	return Label;
+	return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(ViewportType);
 }
 
 const FSlateBrush* SViewportToolBar::GetCameraMenuLabelIconFromViewportType(const ELevelViewportType ViewportType) const

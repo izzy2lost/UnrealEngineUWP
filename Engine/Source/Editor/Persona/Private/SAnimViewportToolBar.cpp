@@ -55,6 +55,7 @@
 #include "Animation/MirrorDataTable.h"
 #include "ScopedTransaction.h"
 #include "SNameComboBox.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 
 #define LOCTEXT_NAMESPACE "AnimViewportToolBar"
 
@@ -1321,7 +1322,7 @@ FText SAnimViewportToolBar::GetCameraMenuLabel() const
 	TSharedPtr< SAnimationEditorViewportTabBody > PinnedViewport(Viewport.Pin());
 	if( PinnedViewport.IsValid() )
 	{
-		return GetCameraMenuLabelFromViewportType( PinnedViewport->GetLevelViewportClient().ViewportType );
+		return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
 	}
 
 	return LOCTEXT("Viewport_Default", "Camera");

@@ -1951,6 +1951,45 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 	// clang-format on
 }
 
+FText GetCameraSubenuLabelFromViewportType(const ELevelViewportType ViewportType)
+{
+	FText Label = LOCTEXT("CameraMenuTitle_Default", "Camera");
+	switch (ViewportType)
+	{
+	case LVT_Perspective:
+		Label = LOCTEXT("CameraMenuTitle_Perspective", "Perspective");
+		break;
+
+	case LVT_OrthoXY:
+		Label = LOCTEXT("CameraMenuTitle_Top", "Top");
+		break;
+
+	case LVT_OrthoNegativeXZ:
+		Label = LOCTEXT("CameraMenuTitle_Left", "Left");
+		break;
+
+	case LVT_OrthoNegativeYZ:
+		Label = LOCTEXT("CameraMenuTitle_Front", "Front");
+		break;
+
+	case LVT_OrthoNegativeXY:
+		Label = LOCTEXT("CameraMenuTitle_Bottom", "Bottom");
+		break;
+
+	case LVT_OrthoXZ:
+		Label = LOCTEXT("CameraMenuTitle_Right", "Right");
+		break;
+
+	case LVT_OrthoYZ:
+		Label = LOCTEXT("CameraMenuTitle_Back", "Back");
+		break;
+	case LVT_OrthoFreelook:
+		break;
+	}
+
+	return Label;
+}
+
 FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 {
 	return FToolMenuEntry::InitDynamicEntry(
@@ -1958,9 +1997,28 @@ FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 		FNewToolMenuSectionDelegate::CreateLambda(
 			[](FToolMenuSection& InDynamicSection) -> void
 			{
+				TWeakPtr<SEditorViewport> WeakViewport;
+				if (UUnrealEdViewportToolbarContext* const EditorViewportContext =
+						InDynamicSection.FindContext<UUnrealEdViewportToolbarContext>())
+				{
+					WeakViewport = EditorViewportContext->Viewport;
+				}
+
+				const TAttribute<FText> Label = TAttribute<FText>::CreateLambda(
+					[WeakViewport]()
+					{
+						if (TSharedPtr<SEditorViewport> Viewport = WeakViewport.Pin())
+						{
+							return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(Viewport->GetViewportClient()->ViewportType
+							);
+						}
+						return LOCTEXT("CameraSubmenuLabel", "Camera");
+					}
+				);
+
 				InDynamicSection.AddSubMenu(
 					"CameraOptions",
-					LOCTEXT("CameraSubmenuLabel", "Camera"),
+					Label,
 					LOCTEXT("CameraSubmenuTooltip", "Camera options"),
 					FNewToolMenuDelegate::CreateLambda(
 						[](UToolMenu* Submenu) -> void

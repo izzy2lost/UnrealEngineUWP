@@ -27,6 +27,7 @@
 #include "ViewportTabContent.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Slate/SceneViewport.h"
+#include "ViewportToolbar/UnrealEdViewportToolbar.h"
 #include "Widgets/Input/SNumericEntryBox.h"
 
 #define LOCTEXT_NAMESPACE "DisplayClusterSCSEditorViewport"
@@ -144,7 +145,9 @@ public:
 	{
 		if(EditorViewport.IsValid())
 		{
-			return GetCameraMenuLabelFromViewportType(EditorViewport.Pin()->GetViewportClient()->GetViewportType());
+			return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(
+				EditorViewport.Pin()->GetViewportClient()->GetViewportType()
+			);
 		}
 
 		return NSLOCTEXT("BlueprintEditor", "CameraMenuTitle_Default", "Camera");
