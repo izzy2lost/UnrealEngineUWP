@@ -28,7 +28,6 @@ class UK2Node_Message : public UK2Node_CallFunction
 	//~ Begin UEdGraphNode Interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
 	virtual FText GetTooltipText() const override;
-	virtual void AllocateDefaultPins() override;
 	//~ End UEdGraphNode Interface
 
 	//~ Begin K2Node Interface

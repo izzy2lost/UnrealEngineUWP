@@ -83,25 +83,6 @@ FText UK2Node_Message::GetTooltipText() const
 	return CachedTooltip;
 }
 
-void UK2Node_Message::AllocateDefaultPins()
-{
-	UFunction* MessageNodeFunction = GetTargetFunction();
-	// since we have branching logic in ExpandNode(), this has to be an impure
-	// node with exec pins
-	//
-	// @TODO: make it so we can have impure message nodes using a custom 
-	//        FNodeHandlingFunctor, instead of ExpandNode()
-	if (MessageNodeFunction && MessageNodeFunction->HasAnyFunctionFlags(FUNC_BlueprintPure))
-	{
-		// Input - Execution Pin
-		CreatePin(EGPD_Input,  UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
-		// Output - Execution Pin
-		CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
-	}
-
-	Super::AllocateDefaultPins();
-}
-
 UEdGraphPin* UK2Node_Message::CreateSelfPin(const UFunction* Function)
 {
 	UEdGraphPin* SelfPin = CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Object, UObject::StaticClass(), UEdGraphSchema_K2::PN_Self);
