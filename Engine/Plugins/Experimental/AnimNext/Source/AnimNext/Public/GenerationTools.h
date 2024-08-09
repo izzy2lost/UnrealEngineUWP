@@ -59,9 +59,16 @@ public:
 	// Calculate the bone indexes difference from LOD0 for LODIndex
 	static void CalculateDifferenceFromParentLOD(int32 LODIndex, TArray<FGenerationLODData>& GenerationLODData);
 
+	// Check the required bones in LOD(N) are required in LOD(N-1) 
+	// and add missing bones at LOD(N-1), to enable fast path on malformed LODs
+	static void FixLODRequiredBones(const int32 NumLODs
+		, const USkeletalMesh* SkeletalMesh
+		, TArray<FGenerationLODData>& GenerationLODData
+		, TArray<FGenerationLODData>& GenerationComponentSpaceLODData);
+
 	// For each LOD :
-	// Check the excluded and required bones in LOD(N) contain all the bones excluded in LOD(N-1)
-	static bool CheckExcludedAndRequiredBones(const int32 NumLODs
+	// Check the excluded bones in LOD(N) contain all the bones excluded in LOD(N-1)
+	static bool CheckExcludedBones(const int32 NumLODs
 		, const TArray<FGenerationLODData>& GenerationLODData
 		, const USkeletalMesh* SkeletalMesh);
 
