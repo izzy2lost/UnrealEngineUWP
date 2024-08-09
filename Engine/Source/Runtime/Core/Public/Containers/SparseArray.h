@@ -16,7 +16,6 @@
 #include "Serialization/StructuredArchive.h"
 #include "Serialization/MemoryImageWriter.h"
 #include "Containers/UnrealString.h"
-#include "Misc/IntrusiveUnsetOptionalState.h"
 
 
 #if UE_BUILD_SHIPPING || UE_BUILD_TEST
@@ -84,24 +83,6 @@ public:
 		// Destruct the elements in the array.
 		Empty();
 	}
-
-	/////////////////////////////////////////////////////
-	// Start - intrusive TOptional<TSparseArray> state //
-	/////////////////////////////////////////////////////
-	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
-	using IntrusiveUnsetOptionalStateType = TSparseArray;
-
-	explicit TSparseArray(FIntrusiveUnsetOptionalState)
-		: NumFreeIndices(-1)
-	{
-	}
-	bool operator==(FIntrusiveUnsetOptionalState) const
-	{
-		return NumFreeIndices == -1;
-	}
-	///////////////////////////////////////////////////
-	// End - intrusive TOptional<TSparseArray> state //
-	///////////////////////////////////////////////////
 
 	/** Marks an index as allocated, and returns information about the allocation. */
 	FSparseArrayAllocationInfo AllocateIndex(int32 Index)
