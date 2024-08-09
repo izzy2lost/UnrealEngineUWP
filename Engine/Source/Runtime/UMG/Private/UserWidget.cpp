@@ -76,6 +76,7 @@ FPaintContext::FPaintContext()
 // UUserWidget
 UUserWidget::UUserWidget(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
+	, bAutomaticallyRegisterInputOnConstruction(false)
 	, bHasScriptImplementedTick(true)
 	, bHasScriptImplementedPaint(true)
 	, bInitialized(false)
@@ -1712,9 +1713,19 @@ void UUserWidget::BindToAnimationEvent(UWidgetAnimation* InAnimation, FWidgetAni
 void UUserWidget::NativeOnInitialized()
 {
 	// Bind any input delegates that may be on this widget to its owning player controller
-	if(APlayerController* PC = GetOwningPlayer())
+	if (bAutomaticallyRegisterInputOnConstruction)
 	{
-		UInputDelegateBinding::BindInputDelegates(GetClass(), PC->InputComponent, this);		
+		// Only widgets with a valid player controller can bind to input delegates
+		if (GetOwningPlayer() != nullptr)
+		{
+			InitializeInputComponent();
+			check(InputComponent);
+			UInputDelegateBinding::BindInputDelegates(GetClass(), InputComponent, this);
+		}
+		else if (!IsEditorUtility())
+		{
+			UE_LOG(LogUMG, Error, TEXT("[%hs] Widget '%s' has bAutomaticallyRegisterInputOnConstruction set to true, but no valid player controller. Input delegates will not work!"), __func__, *GetNameSafe(this));
+		}
 	}
 	
 	if (UWidgetBlueprintGeneratedClass* BPClass = Cast<UWidgetBlueprintGeneratedClass>(GetClass()))

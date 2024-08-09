@@ -997,6 +997,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "IsInputActionBlocking", Setter = "SetInputActionBlocking", BlueprintSetter = "SetInputActionBlocking", Category = "Input")
 	uint8 bStopAction : 1;
 
+	/**
+	 * If true, this widget will automatically register its own input component upon construction.
+	 * This will allow the use of binding input delegates in the event graph.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	uint8 bAutomaticallyRegisterInputOnConstruction : 1;
+
 public:
 
 	/**
