@@ -166,7 +166,7 @@ namespace uba
 
 		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
 		{
-			return fileName.EndsWith(TC(".manifest"));
+			return fileName.EndsWith(TC(".manifest")) && fileName.Contains(systemTemp);
 		}
 
 		virtual bool IsOutputFile(const StringView& fileName) const override
