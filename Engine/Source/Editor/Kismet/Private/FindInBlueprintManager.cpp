@@ -931,7 +931,7 @@ namespace BlueprintSearchMetaDataHelpers
 							TArray< TSharedPtr<FJsonValue> > Array;
 							for (int Index = 0; Index != Property->ArrayDim; ++Index)
 							{
-								GatherSearchablesFromProperty(InWriter, Property, (char*)Value + Index * Property->ElementSize, InStruct);
+								GatherSearchablesFromProperty(InWriter, Property, (char*)Value + Index * Property->GetElementSize(), InStruct);
 							}
 						}
 					}
@@ -1055,7 +1055,7 @@ namespace BlueprintSearchMetaDataHelpers
 						TArray< TSharedPtr<FJsonValue> > Array;
 						for (int Index = 0; Index != Property->ArrayDim; ++Index)
 						{
-							CacheSubPropertySearchables(InOutCachePropertyMapping, Property, (char*)Value + Index * Property->ElementSize, InStruct);
+							CacheSubPropertySearchables(InOutCachePropertyMapping, Property, (char*)Value + Index * Property->GetElementSize(), InStruct);
 						}
 					}
 					SearchableProperties.Add(MoveTemp(SearchableProperty));

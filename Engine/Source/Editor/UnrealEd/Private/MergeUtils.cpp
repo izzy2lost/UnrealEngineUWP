@@ -326,7 +326,7 @@ struct FPropertyInstance
 		{
 			const void* DataA = ValProperty->ContainerPtrToValuePtr<void*>(Object);
 			const void* DataB = Other.ValProperty->ContainerPtrToValuePtr<void*>(Other.Object);
-			check(ValProperty->ElementSize == Other.ValProperty->ElementSize);
+			check(ValProperty->GetElementSize() == Other.ValProperty->GetElementSize());
 			check(ValProperty->GetClass() == Other.ValProperty->GetClass());
 			
 			return ValProperty->Identical(DataA, DataB, PPF_DeepComparison);

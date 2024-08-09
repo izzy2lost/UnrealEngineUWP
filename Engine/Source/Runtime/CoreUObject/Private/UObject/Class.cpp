@@ -2837,7 +2837,7 @@ bool FindConstructorUninitialized(UStruct* BaseClass,uint8* Data,uint8* Defaults
 		}
 		else if(PB)
 		{
-			check(Size == PB->ElementSize);
+			check(Size == PB->GetElementSize());
 			if( PB->GetPropertyValue_InContainer(Data) && !PB->GetPropertyValue_InContainer(Defaults) )
 			{
 				bProblem = true;

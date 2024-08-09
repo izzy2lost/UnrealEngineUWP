@@ -753,7 +753,7 @@ void UPropertyValue::ApplyDataToResolvedObject()
 	else if (FEnumProperty* PropAsEnum = CastField<FEnumProperty>(LeafProperty))
 	{
 		FNumericProperty* UnderlyingProp = PropAsEnum->GetUnderlyingProperty();
-		int32 PropertySizeBytes = UnderlyingProp->ElementSize;
+		int32 PropertySizeBytes = UnderlyingProp->GetElementSize();
 
 		ValueBytes.SetNum(PropertySizeBytes);
 		FMemory::Memcpy(PropertyValuePtr, ValueBytes.GetData(), PropertySizeBytes);
@@ -1110,11 +1110,11 @@ int32 UPropertyValue::GetValueSizeInBytes() const
 	FProperty* Prop = GetProperty();
 	if (FEnumProperty* PropAsEnumProp = CastField<FEnumProperty>(Prop))
 	{
-		return PropAsEnumProp->GetUnderlyingProperty()->ElementSize;
+		return PropAsEnumProp->GetUnderlyingProperty()->GetElementSize();
 	}
 	else if (Prop)
 	{
-		return Prop->ElementSize;
+		return Prop->GetElementSize();
 	}
 
 	UE_LOG(LogVariantContent, Warning, TEXT("Returning size zero for PropertyValue '%s'"), *GetFullDisplayString());
@@ -1274,7 +1274,7 @@ const TArray<uint8>& UPropertyValue::GetDefaultValue()
 						if (FEnumProperty* PropAsEnum = CastField<FEnumProperty>(LeafProperty))
 						{
 							FNumericProperty* UnderlyingProp = PropAsEnum->GetUnderlyingProperty();
-							NumBytes = UnderlyingProp->ElementSize;
+							NumBytes = UnderlyingProp->GetElementSize();
 						}
 
 						// If we're a material property value we won't have PropertyValuePtr

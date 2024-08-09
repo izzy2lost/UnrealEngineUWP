@@ -419,35 +419,35 @@ FNiagaraLwcStructConverter BuildSWCStructure(UScriptStruct* NewStruct, UScriptSt
 			if ((StructName == NAME_Vector2d) || (StructName == NAME_Vector2D))
 			{
 				NewStructProperty->Struct = Vector2fStruct;
-				NewStructProperty->ElementSize = Vector2fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector2fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector2fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector2);
 			}
 			else if ((StructName == NAME_Vector3d) || (StructName == NAME_Vector))
 			{
 				NewStructProperty->Struct = Vector3fStruct;
-				NewStructProperty->ElementSize = Vector3fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector3fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector3fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector3);
 			}
 			else if ((StructName == NAME_Vector4d) || (StructName == NAME_Vector4))
 			{
 				NewStructProperty->Struct = Vector4fStruct;
-				NewStructProperty->ElementSize = Vector4fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Vector4fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Vector4fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Vector4);
 			}
 			else if ((StructName == NAME_Quat4d) || (StructName == NAME_Quat))
 			{
 				NewStructProperty->Struct = Quat4fStruct;
-				NewStructProperty->ElementSize = Quat4fStruct->GetStructureSize();
+				NewStructProperty->SetElementSize(Quat4fStruct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, Quat4fStruct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::Quat);
 			}
 			else
 			{
 				NewStructProperty->Struct = ChildAsStruct->Struct;
-				NewStructProperty->ElementSize = ChildAsStruct->Struct->GetStructureSize();
+				NewStructProperty->SetElementSize(ChildAsStruct->Struct->GetStructureSize());
 				AlignedOffset = Align(AlignedOffset, ChildAsStruct->Struct->GetMinAlignment());
 				StructConverter.AddConversionStep(OldPropertySize, OldPropertyOffset, NewStructProperty->GetSize(), AlignedOffset, ENiagaraStructConversionType::CopyOnly);
 			}

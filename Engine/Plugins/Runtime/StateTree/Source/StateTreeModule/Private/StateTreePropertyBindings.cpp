@@ -566,7 +566,7 @@ bool FStateTreePropertyBindings::ResolveCopyType(const FStateTreePropertyPathInd
 		else if (TargetProperty->PropertyFlags & CPF_IsPlainOldData)
 		{
 			OutCopy.Type = EStateTreePropertyCopyType::CopyPlain;
-			OutCopy.CopySize = SourceProperty->ElementSize * SourceProperty->ArrayDim;
+			OutCopy.CopySize = SourceProperty->GetElementSize() * SourceProperty->ArrayDim;
 			return true;
 		}
 		else
@@ -1660,7 +1660,7 @@ bool FStateTreePropertyPath::ResolveIndirectionsWithValue(const FStateTreeDataVi
 				return false;
 			}
 			ArrayIndex = FMath::Max(0, Segment->GetArrayIndex());
-			Offset = Property->GetOffset_ForInternal() + Property->ElementSize * ArrayIndex;
+			Offset = Property->GetOffset_ForInternal() + Property->GetElementSize() * ArrayIndex;
 		}
 
 		FStateTreePropertyPathIndirection& Indirection = OutIndirections.AddDefaulted_GetRef();

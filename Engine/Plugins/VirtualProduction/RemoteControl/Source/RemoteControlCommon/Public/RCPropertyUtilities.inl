@@ -228,7 +228,7 @@ namespace RemoteControlPropertyUtilities
 		const int32 SrcSize = InSrc.Size();
 
 		// The stored data size doesn't match, so cast
-		if(OutDst.GetProperty()->ElementSize != SrcSize)
+		if(OutDst.GetProperty()->GetElementSize() != SrcSize)
 		{
 			if(const FNumericProperty* DstProperty = OutDst.GetProperty<FNumericProperty>())
 			{

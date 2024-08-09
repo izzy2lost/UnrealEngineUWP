@@ -124,7 +124,7 @@ FPropertyAccess::Result FPropertyValueImpl::GetValueData( void*& OutAddress ) co
 			if (ValueAddress && Property)
 			{
 				const int32 Index = 0;
-				OutAddress = ValueAddress + Index * Property->ElementSize;
+				OutAddress = ValueAddress + Index * Property->GetElementSize();
 				Res = FPropertyAccess::Success;
 			}
 		}

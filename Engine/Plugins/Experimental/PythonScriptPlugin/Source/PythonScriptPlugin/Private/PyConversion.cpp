@@ -674,9 +674,9 @@ FPyConversionResult NativizeProperty(PyObject* PyObj, const FProperty* Prop, voi
 				{
 					for (void* ArchInstValueAddr : InArchetypeInstValueAddrs)
 					{
-						Prop->CopySingleValue(static_cast<uint8*>(ArchInstValueAddr) + (Prop->ElementSize * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
+						Prop->CopySingleValue(static_cast<uint8*>(ArchInstValueAddr) + (Prop->GetElementSize() * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
 					}
-					Prop->CopySingleValue(static_cast<uint8*>(ValueAddr) + (Prop->ElementSize * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
+					Prop->CopySingleValue(static_cast<uint8*>(ValueAddr) + (Prop->GetElementSize() * ArrIndex), FPyWrapperFixedArray::GetItemPtr(PyFixedArray, ArrIndex));
 				}
 			});
 			return FPyConversionResult::Success();

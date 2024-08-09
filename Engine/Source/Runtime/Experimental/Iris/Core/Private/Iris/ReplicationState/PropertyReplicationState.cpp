@@ -284,7 +284,7 @@ bool FPropertyReplicationState::PollPropertyReplicationState(const void* RESTRIC
 			const FProperty* Property = MemberProperties[MemberIt];
 
 			//$TODO: make special version to avoid unnecessary overhead.
-			PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+			PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize()*MemberPropertyDescriptor.ArrayIndex);
 		}
 	}
 
@@ -317,9 +317,9 @@ bool FPropertyReplicationState::StoreCurrentPropertyReplicationStateForRepNotifi
 				const FProperty* Property = MemberProperties[MemberIt];
 
 				void* DstValue = StateBuffer + Descriptor->MemberDescriptors[MemberIt].ExternalMemberOffset;
-				const void* SrcValue = SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex;
+				const void* SrcValue = SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize()*MemberPropertyDescriptor.ArrayIndex;
 
-				Private::InternalCopyPropertyValue(Descriptor, MemberIt, DstValue, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				Private::InternalCopyPropertyValue(Descriptor, MemberIt, DstValue, SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize()*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}
@@ -359,7 +359,7 @@ void FPropertyReplicationState::PushPropertyReplicationState(const UObject* Owne
 				const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 				const FProperty* Property = MemberProperties[MemberIt];
 
-				PushPropertyValue(MemberIt, DstBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				PushPropertyValue(MemberIt, DstBuffer + Property->GetOffset_ForGC() + Property->GetElementSize()*MemberPropertyDescriptor.ArrayIndex);
 
 #if WITH_PUSH_MODEL
 				if (MemberPropertyDescriptor.ArrayIndex == 0)
@@ -418,7 +418,7 @@ bool FPropertyReplicationState::PollObjectReferences(const void* RESTRICT SrcSta
 				const FReplicationStateMemberPropertyDescriptor& MemberPropertyDescriptor = MemberPropertyDescriptors[MemberIt];
 				const FProperty* Property = MemberProperties[MemberIt];
 
-				PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize*MemberPropertyDescriptor.ArrayIndex);
+				PollPropertyValue(MemberIt, SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize()*MemberPropertyDescriptor.ArrayIndex);
 			}
 		}
 	}

@@ -180,7 +180,7 @@ namespace PropertyPathHelpersInternal
 					{
 						// Create and init a buffer for the function to write to
 						TArray<uint8> TempBuffer;
-						TempBuffer.AddUninitialized(ReturnProperty->ElementSize);
+						TempBuffer.AddUninitialized(ReturnProperty->GetElementSize());
 						ReturnProperty->InitializeValue(TempBuffer.GetData());
 
 						InContainer->ProcessEvent(InFunction, TempBuffer.GetData());
@@ -276,7 +276,7 @@ namespace PropertyPathHelpersInternal
 					{
 						// Create and init a buffer for the function to read from
 						TArray<uint8> TempBuffer;
-						TempBuffer.AddUninitialized(ParamProperty->ElementSize);
+						TempBuffer.AddUninitialized(ParamProperty->GetElementSize());
 						ParamProperty->InitializeValue(TempBuffer.GetData());
 
 						ParamProperty->ImportText_Direct(*InValue, TempBuffer.GetData(), nullptr, 0);

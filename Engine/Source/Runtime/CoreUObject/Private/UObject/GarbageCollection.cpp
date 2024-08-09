@@ -6384,7 +6384,7 @@ void FArrayProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Bas
 	{
 		bool bUsesFreezableAllocator = EnumHasAnyFlags(ArrayFlags, EArrayPropertyFlags::UsesMemoryImageAllocator);
 		EMemberType Type = bUsesFreezableAllocator ?  EMemberType::FreezableStructArray : EMemberType::StructArray;
-		FSchemaBuilder InnerSchema(Inner->ElementSize);
+		FSchemaBuilder InnerSchema(Inner->GetElementSize());
 
 		// Structs and nested arrays share the same implementation on the Garbage Collector side
 		// as arrays of structs already push the array memory into the GC stack and process its tokens
@@ -6453,7 +6453,7 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 		StructAROFn StructARO = Struct->GetCppStructOps()->AddStructReferencedObjects();	
 		for (int32 Idx = 0, Num = ArrayDim; Idx < Num; ++Idx)
 		{	
-			Schema.Add(UE::GC::DeclareMember(DebugPath, Offset + Idx * ElementSize, EMemberType::MemberARO, StructARO) );
+			Schema.Add(UE::GC::DeclareMember(DebugPath, Offset + Idx * GetElementSize(), EMemberType::MemberARO, StructARO) );
 		}
 	}
 
@@ -6477,7 +6477,7 @@ void FStructProperty::EmitReferenceInfo(UE::GC::FSchemaBuilder& Schema, int32 Ba
 		{
 			for (FProperty* Property = Struct->PropertyLink; Property; Property = Property->PropertyLinkNext)
 			{
-				Property->EmitReferenceInfo(Schema, Offset + Idx * ElementSize, EncounteredStructProps, DebugPath);
+				Property->EmitReferenceInfo(Schema, Offset + Idx * GetElementSize(), EncounteredStructProps, DebugPath);
 			}
 		}
 	}

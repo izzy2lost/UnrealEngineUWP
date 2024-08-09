@@ -2,6 +2,7 @@
 
 #include "UObject/UnrealType.h"
 
+#include "HAL/IConsoleManager.h"
 #include "Hash/Blake3.h"
 #include "Math/Box2D.h"
 #include "Math/InterpCurvePoint.h"
@@ -28,8 +29,15 @@
 #include "UObject/SoftObjectPath.h"
 #include "UObject/UnrealTypePrivate.h"
 #include "UObject/UObjectGlobals.h"
+#include "UObject/UObjectIterator.h"
 
 DEFINE_LOG_CATEGORY(LogProperty);
+
+namespace UE::CoreUObject::Private
+{
+	static int32 EnsureAgainstLargeProperties = 1;
+	static FAutoConsoleVariableRef CVarEnsureAgainstLargeProperties(TEXT("CoreUObject.EnsureAgainstLargeProperties"), EnsureAgainstLargeProperties, TEXT("Ensure (warn) against properties that could possibly break in future versions of the Engine due a reduction in the max size of FProperty::ElementSize."));
+}
 
 // List the core ones here as they have already been included (and can be used without CoreUObject!)
 template<typename T>
@@ -775,6 +783,13 @@ const TCHAR* FPropertyHelpers::ReadToken( const TCHAR* Buffer, FStringBuilderBas
 
 IMPLEMENT_FIELD(FProperty)
 
+void FProperty::SetElementSize(int32 NewSize)
+{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	ElementSize = NewSize;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
 //
 // Constructors.
 //
@@ -837,7 +852,7 @@ FProperty::FProperty(UField* InField)
 {
 	UProperty* SourceProperty = CastChecked<UProperty>(InField);
 	ArrayDim = SourceProperty->ArrayDim;
-	ElementSize = SourceProperty->ElementSize;
+	SetElementSize(SourceProperty->ElementSize);
 	PropertyFlags = SourceProperty->PropertyFlags;
 	RepIndex = SourceProperty->RepIndex;
 	Offset_Internal = SourceProperty->Offset_Internal;
@@ -879,7 +894,14 @@ void FProperty::Serialize( FArchive& Ar )
 	Super::Serialize(Ar);
 
 	Ar << ArrayDim;
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Ar << ElementSize;
+
+	const bool EnsureAgainstLargeProperties = UE::CoreUObject::Private::EnsureAgainstLargeProperties > 0;
+	constexpr int32 ExpectedMaxSize = (1 << 24);
+	ensureMsgf(!EnsureAgainstLargeProperties || GetElementSize() < ExpectedMaxSize, TEXT("%s has ElementSize %d which will violate an upcoming change to lower the max ElementSize.  Consider breaking up the property. Disable this warning with CoreUObject.EnsureAgainstLargeProperties 0"), *GetName(), GetElementSize());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	EPropertyFlags SaveFlags = PropertyFlags & ~CPF_ComputedFlags;
 	// Archive the basic info.
@@ -887,6 +909,7 @@ void FProperty::Serialize( FArchive& Ar )
 	if (Ar.IsLoading())
 	{
 		PropertyFlags = (SaveFlags & ~CPF_ComputedFlags) | (PropertyFlags & CPF_ComputedFlags);
+
 	}
 
 	if (FPlatformProperties::HasEditorOnlyData() == false)
@@ -911,7 +934,7 @@ void FProperty::PostDuplicate(const FField& InField)
 {
 	const FProperty& Source = static_cast<const FProperty&>(InField);
 	ArrayDim = Source.ArrayDim;
-	ElementSize = Source.ElementSize;
+	SetElementSize(Source.GetElementSize());
 	PropertyFlags = Source.PropertyFlags;
 	RepIndex = Source.RepIndex;
 	Offset_Internal = Source.Offset_Internal;
@@ -1468,7 +1491,7 @@ void* FProperty::GetValueAddressAtIndex_Direct(const FProperty* Inner, void* InV
 {
 	checkf(Inner == nullptr, TEXT("%s should not have an inner property or it's missing specialized GetValueAddressAtIndex_Direct override"), *GetFullName());
 	checkf(Index < ArrayDim && Index >= 0, TEXT("Array index (%d) out of range"), Index);
-	return (uint8*)InValueAddress + ElementSize * Index;
+	return (uint8*)InValueAddress + GetElementSize() * Index;
 }
 
 void FProperty::SetSingleValue_InContainer(void* OutContainer, const void* InValue, int32 ArrayIndex) const
@@ -1492,7 +1515,7 @@ void FProperty::SetSingleValue_InContainer(void* OutContainer, const void* InVal
 			uint8* ValueArray = (uint8*)AllocateAndInitializeValue();
 			GetValue_InContainer(OutContainer, ValueArray);
 			// Replace the value at the specified index in the temp array with the InValue
-			CopySingleValue(ValueArray + ArrayIndex * ElementSize, InValue);
+			CopySingleValue(ValueArray + ArrayIndex * GetElementSize(), InValue);
 			// Now call a setter to replace the entire array and then destroy the temp value
 			CallSetter(OutContainer, ValueArray);
 			DestroyAndFreeValue(ValueArray);
@@ -1521,7 +1544,7 @@ void FProperty::GetSingleValue_InContainer(const void* InContainer, void* OutVal
 			uint8* ValueArray = (uint8*)AllocateAndInitializeValue();
 			GetValue_InContainer(InContainer, ValueArray);
 			// Copy the item we care about and free the temp array
-			CopySingleValue(OutValue, ValueArray + ArrayIndex * ElementSize);
+			CopySingleValue(OutValue, ValueArray + ArrayIndex * GetElementSize());
 			DestroyAndFreeValue(ValueArray);
 		}
 	}
@@ -1905,7 +1928,7 @@ const TCHAR* FProperty::ImportSingleProperty( const TCHAR* Str, void* DestData, 
 				}
 				else
 				{
-					int32 Size = ArrayProperty->Inner->ElementSize;
+					int32 Size = ArrayProperty->Inner->GetElementSize();
 
 					uint8* Temp = (uint8*)FMemory_Alloca(Size);
 					ArrayProperty->Inner->InitializeValue(Temp);

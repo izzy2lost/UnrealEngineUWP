@@ -660,7 +660,7 @@ FInstanceDataObjectFixupPanel::FTypeConverter::EWarning FInstanceDataObjectFixup
 {
 	// convert from source to destination in a temp buffer to see if it's possible
 	TArray<uint8, TInlineAllocator<64>> SourceToDest;
-	SourceToDest.SetNumUninitialized(DestinationProperty->ElementSize);
+	SourceToDest.SetNumUninitialized(DestinationProperty->GetElementSize());
 	DestinationProperty->InitializeValue(SourceToDest.GetData());
 	if (!TryConvert(SourceProperty, SourceData, DestinationProperty, SourceToDest.GetData()))
 	{
@@ -669,7 +669,7 @@ FInstanceDataObjectFixupPanel::FTypeConverter::EWarning FInstanceDataObjectFixup
 
 	// convert from destination to source in a temp buffer to see if it's possible
 	TArray<uint8, TInlineAllocator<64>> DestToSource;
-	DestToSource.SetNumUninitialized(SourceProperty->ElementSize);
+	DestToSource.SetNumUninitialized(SourceProperty->GetElementSize());
 	SourceProperty->InitializeValue(DestToSource.GetData());
 	if (!TryConvert(DestinationProperty, SourceToDest.GetData(), SourceProperty, DestToSource.GetData()))
 	{
@@ -824,7 +824,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		if (ToRevertInfo)
 		{
 			// cache the destination value so it can be reverted later
-			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 			ToRevertInfo->OriginalValue.AddZeroed(Size);
 			uint8* Buffer = ToRevertInfo->OriginalValue.GetData() + (ToRevertInfo->OriginalValue.Num() - Size);
 			DestinationProperty->CopyCompleteValue(Buffer, Destination);
@@ -846,7 +846,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		{
 			// apply FromRevertInfo to From
 			SourceProperty->CopyCompleteValue(Source, FromRevertInfoItr);
-			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 		}
 		Instance->PostEditChangeChainProperty(ChangedChainEvent);
 	}
@@ -889,7 +889,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		if (ToRevertInfo)
 		{
 			// cache the destination value so it can be reverted later
-			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			const int32 Size = DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 			ToRevertInfo->OriginalValue.AddZeroed(Size);
 			uint8* Buffer = ToRevertInfo->OriginalValue.GetData() + (ToRevertInfo->OriginalValue.Num() - Size);
 			DestinationProperty->CopyCompleteValue(Buffer, Destination);
@@ -908,7 +908,7 @@ void FInstanceDataObjectFixupPanel::RedirectProperty(const FPropertyPath& From, 
 		{
 			// apply FromRevertInfo to From
 			SourceProperty->CopyCompleteValue(Source, FromRevertInfoItr);
-			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->ElementSize;
+			FromRevertInfoItr += DestinationProperty->ArrayDim * DestinationProperty->GetElementSize();
 		}
 		FPropertyChangedChainEvent ChangedChainEvent(Chains[I], ChangeEvents[I]);
 		Instance->PostEditChangeChainProperty(ChangedChainEvent);

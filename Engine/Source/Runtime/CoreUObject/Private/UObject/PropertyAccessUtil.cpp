@@ -36,8 +36,8 @@ void ConvertRealNumber(const FProperty* InSrcProp, const void* InSrcValue, const
 		const FFloatProperty* DestFloatProp = CastFieldChecked<FFloatProperty>(InDestProp);
 		for (int32 Idx = 0; Idx < InCount; ++Idx)
 		{
-			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
+			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->GetElementSize() * Idx);
+			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->GetElementSize() * Idx);
 
 			const double Value = SrcDoubleProp->GetFloatingPointPropertyValue(SrcElemValue);
 			DestFloatProp->SetFloatingPointPropertyValue(DestElemValue, Value);
@@ -48,8 +48,8 @@ void ConvertRealNumber(const FProperty* InSrcProp, const void* InSrcValue, const
 		const FDoubleProperty* DestDoubleProp = CastFieldChecked<FDoubleProperty>(InDestProp);
 		for (int32 Idx = 0; Idx < InCount; ++Idx)
 		{
-			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
+			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->GetElementSize() * Idx);
+			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->GetElementSize() * Idx);
 
 			const double Value = SrcFloatProp->GetFloatingPointPropertyValue(SrcElemValue);
 			DestDoubleProp->SetFloatingPointPropertyValue(DestElemValue, Value);
@@ -230,8 +230,8 @@ bool IsCompletePropertyIdentical(const FProperty* InSrcProp, const void* InSrcVa
 	bool bIsIdentical = InSrcProp->ArrayDim == InDestProp->ArrayDim;
 	for (int32 Idx = 0; Idx < InSrcProp->ArrayDim && bIsIdentical; ++Idx)
 	{
-		const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-		const void* DestElemValue = static_cast<const uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
+		const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->GetElementSize() * Idx);
+		const void* DestElemValue = static_cast<const uint8*>(InDestValue) + (InDestProp->GetElementSize() * Idx);
 		bIsIdentical &= IsSinglePropertyIdentical(InSrcProp, SrcElemValue, InDestProp, DestElemValue);
 	}
 	return bIsIdentical;
@@ -292,7 +292,7 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 					{
 						for (int32 I = 0; I < InDestProp->ArrayDim; ++I)
 						{
-							void* DestValue = static_cast<uint8*>(InDestValue) + InDestProp->ElementSize * I;
+							void* DestValue = static_cast<uint8*>(InDestValue) + InDestProp->GetElementSize() * I;
 							CopySinglePropertyValue(SrcArray->Inner, SrcArrayHelper.GetElementPtr(I), InDestProp, DestValue);
 						}
 						return true;
@@ -311,7 +311,7 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 					DstArrayHelper.Resize(InSrcProp->ArrayDim);
 					for (int32 I = 0; I < InSrcProp->ArrayDim; ++I)
 					{
-						const void* SrcValue = static_cast<const uint8*>(InSrcValue) + InSrcProp->ElementSize * I;
+						const void* SrcValue = static_cast<const uint8*>(InSrcValue) + InSrcProp->GetElementSize() * I;
 						CopySinglePropertyValue(InSrcProp, SrcValue, DstArray->Inner, DstArrayHelper.GetElementPtr(I));
 					}
 					return true;
@@ -328,8 +328,8 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 		bool bSuccess = true;
 		for (int32 Idx = 0; Idx < InSrcProp->ArrayDim; ++Idx)
 		{
-			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
+			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->GetElementSize() * Idx);
+			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->GetElementSize() * Idx);
 
 			const int64 SrcEnumValue = GetPropertyEnumValue(InSrcProp, SrcElemValue);
 			bSuccess &= SetPropertyEnumValue(InDestProp, DestElemValue, SrcEnumValue);
@@ -342,8 +342,8 @@ bool CopyCompletePropertyValue(const FProperty* InSrcProp, const void* InSrcValu
 		const FBoolProperty* DestBoolProp = CastFieldChecked<FBoolProperty>(InDestProp);
 		for (int32 Idx = 0; Idx < InSrcProp->ArrayDim; ++Idx)
 		{
-			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->ElementSize * Idx);
-			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->ElementSize * Idx);
+			const void* SrcElemValue = static_cast<const uint8*>(InSrcValue) + (InSrcProp->GetElementSize() * Idx);
+			void* DestElemValue = static_cast<uint8*>(InDestValue) + (InDestProp->GetElementSize() * Idx);
 
 			// Bools can be represented as bitfields, we we have to handle the copy a little differently to only extract the bool we want
 			const bool bBoolValue = SrcBoolProp->GetPropertyValue(SrcElemValue);

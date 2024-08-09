@@ -981,7 +981,7 @@ FPropertyAccess::Result FPropertyNodeEditStack::InitializeInternal(const FProper
 		if (Property == ParentProperty) // Static array items
 		{
 			// Static array property node creates subnodes that point to individual array items
-			MemoryStack.Add(FMemoryFrame(Property, MemoryStack.Last().Memory + InNode->GetArrayIndex() * Property->ElementSize));
+			MemoryStack.Add(FMemoryFrame(Property, MemoryStack.Last().Memory + InNode->GetArrayIndex() * Property->GetElementSize()));
 		}
 		else if (const FStructProperty* StructProp = CastField<FStructProperty>(ParentProperty)) // structs
 		{
@@ -2140,7 +2140,7 @@ struct FPropertyItemComponentCollector
 			// either the associated property is not an array property, or it's the header for the property (meaning the entire array)
 			for ( int32 ArrayIndex = 0; ArrayIndex < Prop->ArrayDim; ArrayIndex++ )
 			{
-				ProcessProperty(Prop, ValueTracker.GetPropertyValueAddress() + ArrayIndex * Prop->ElementSize);
+				ProcessProperty(Prop, ValueTracker.GetPropertyValueAddress() + ArrayIndex * Prop->GetElementSize());
 			}
 		}
 		else
@@ -2218,7 +2218,7 @@ private:
 			int32 ArraySize = ArrayHelper.Num();
 			for ( int32 ArrayIndex = 0; ArrayIndex < ArraySize; ArrayIndex++ )
 			{
-				ProcessProperty(ArrayProp->Inner, ArrayValue + ArrayIndex * ArrayProp->Inner->ElementSize);
+				ProcessProperty(ArrayProp->Inner, ArrayValue + ArrayIndex * ArrayProp->Inner->GetElementSize());
 			}
 
 			bResult = true;
@@ -2243,7 +2243,7 @@ private:
 		{
 			FScriptSet* SetValuePtr = SetProp->GetPropertyValuePtr(PropertyValueAddress);
 
-			FScriptSetLayout SetLayout = SetValuePtr->GetScriptLayout(SetProp->ElementProp->ElementSize, SetProp->ElementProp->GetMinAlignment());
+			FScriptSetLayout SetLayout = SetValuePtr->GetScriptLayout(SetProp->ElementProp->GetElementSize(), SetProp->ElementProp->GetMinAlignment());
 			int32 ItemsLeft = SetValuePtr->Num();
 
 			for (int32 Index = 0; ItemsLeft > 0; ++Index)

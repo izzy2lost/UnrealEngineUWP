@@ -165,7 +165,7 @@ const FProperty* FPropValueOnScope::GetProp() const
 void* FPropValueOnScope::GetValue(const int32 InArrayIndex) const
 {
 	check(InArrayIndex >= 0 && InArrayIndex < Prop->ArrayDim);
-	return ((uint8*)Value) + (Prop->ElementSize * InArrayIndex);
+	return ((uint8*)Value) + (Prop->GetElementSize() * InArrayIndex);
 }
 
 FFixedArrayElementOnScope::FFixedArrayElementOnScope(const FProperty* InProp)

@@ -2209,7 +2209,7 @@ void PythonizeValueImpl(const FProperty* InProp, const void* InPropValue, const 
 	}
 	for (int32 ArrIndex = 0; ArrIndex < InProp->ArrayDim; ++ArrIndex)
 	{
-		const void* PropArrValue = ((uint8*)InPropValue) + (InProp->ElementSize * ArrIndex);
+		const void* PropArrValue = ((uint8*)InPropValue) + (InProp->GetElementSize() * ArrIndex);
 		if (ArrIndex > 0)
 		{
 			OutPythonDefaultValue += TEXT(", ");

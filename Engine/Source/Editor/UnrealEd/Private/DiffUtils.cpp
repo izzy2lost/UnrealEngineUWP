@@ -818,7 +818,7 @@ static void IdenticalHelper(const FProperty* AProperty, const FProperty* BProper
 		// our container (e.g. the struct or class or dynamic array) has already done the initial offset calculation:
 		for (int32 I = 0; I < AProperty->ArrayDim; ++I)
 		{
-			int32 Offset = AProperty->ElementSize * I;
+			int32 Offset = AProperty->GetElementSize() * I;
 
 			DiffParameters.RootPath = FPropertySoftPath(DiffParameters.RootPath, I);
 			DiffParameters.bShouldDiffArrayElements = false;

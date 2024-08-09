@@ -161,7 +161,7 @@ void FOptionalProperty::LinkInternal(FArchive& Ar)
 	ValueProperty->Link(Ar);
 	
 	// After ValueProperty's size has been computed, compute the size of this property.
-	ElementSize = CalcSize();
+	SetElementSize(CalcSize());
 
 	// Standard non-intrusive optional properties can always be initialized by zeroing memory.
 	if (!ValueProperty->HasIntrusiveUnsetOptionalState())

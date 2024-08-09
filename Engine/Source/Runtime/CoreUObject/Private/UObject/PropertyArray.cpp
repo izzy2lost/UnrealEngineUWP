@@ -19,7 +19,7 @@ FArrayProperty::FArrayProperty(FFieldVariant InOwner, const FName& InName, EObje
 	, Inner(nullptr)
 {
 	ArrayFlags = InArrayPropertyFlags;
-	SetElementSize();
+	SetElementSize(TTypeFundamentals::CPPSize);
 }
 
 FArrayProperty::FArrayProperty(FFieldVariant InOwner, const UECodeGen_Private::FArrayPropertyParams& Prop)
@@ -27,7 +27,7 @@ FArrayProperty::FArrayProperty(FFieldVariant InOwner, const UECodeGen_Private::F
 	, Inner(nullptr)
 {
 	ArrayFlags = Prop.ArrayFlags;
-	SetElementSize();
+	SetElementSize(TTypeFundamentals::CPPSize);
 }
 
 #if WITH_EDITORONLY_DATA
@@ -77,7 +77,7 @@ void FArrayProperty::LinkInternal(FArchive& Ar)
 	//Ar.Preload(Inner);
 	Inner->Link(Ar);
 
-	SetElementSize();
+	SetElementSize(TTypeFundamentals::CPPSize);
 }
 bool FArrayProperty::Identical(const void* A, const void* B, uint32 PortFlags) const
 {
@@ -157,7 +157,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				ArrayHelper.EmptyAndAddUninitializedValues(ElementCount);
 			}
 
-			Stream.EnterElement().Serialize(ArrayHelper.GetRawPtr(), ElementCount * Inner->ElementSize);
+			Stream.EnterElement().Serialize(ArrayHelper.GetRawPtr(), ElementCount * Inner->GetElementSize());
 		}
 		else
 		{
@@ -321,7 +321,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				if (NumRemoved != 0)
 				{
 					TArray<int32> IndicesToRemove;
-					TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+					TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->GetElementSize());
 					InnerObjectProperty->InitializeValue(TempValueStorage);
 
 					for (int32 i = 0; i < NumRemoved; ++i)
@@ -367,7 +367,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				{
 					if (!TempValueStorage)
 					{
-						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->GetElementSize());
 						InnerObjectProperty->InitializeValue(TempValueStorage);
 					}
 
@@ -395,7 +395,7 @@ void FArrayProperty::SerializeItem(FStructuredArchive::FSlot Slot, void* Value, 
 				{
 					if (!TempValueStorage)
 					{
-						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->ElementSize);
+						TempValueStorage = (uint8*)FMemory::Malloc(InnerObjectProperty->GetElementSize());
 						InnerObjectProperty->InitializeValue(TempValueStorage);
 					}
 
@@ -935,7 +935,7 @@ void FArrayProperty::ExportTextInnerItem(FString& ValueStr, const FProperty* Inn
 			ValueStr += FString::Printf(TEXT("[%i] "), i);
 		}
 
-		uint8* PropData = (uint8*)PropertyValue + i * Inner->ElementSize;
+		uint8* PropData = (uint8*)PropertyValue + i * Inner->GetElementSize();
 
 		// Always use struct defaults if the inner is a struct, for symmetry with the import of array inner struct defaults
 		uint8* PropDefault = nullptr;
@@ -951,7 +951,7 @@ void FArrayProperty::ExportTextInnerItem(FString& ValueStr, const FProperty* Inn
 		{
 			if (DefaultValue && DefaultSize > i)
 			{
-				PropDefault = (uint8*)DefaultValue + i * Inner->ElementSize;
+				PropDefault = (uint8*)DefaultValue + i * Inner->GetElementSize();
 			}
 		}
 
@@ -1046,7 +1046,7 @@ const TCHAR* FArrayProperty::ImportTextInnerItem(const TCHAR* Buffer, const FPro
 
 		if (*Buffer != TCHAR(','))
 		{
-			uint8* Address = ArrayHelper ? ArrayHelper->GetRawPtr(Index) : ((uint8*)Data + Inner->ElementSize * Index);
+			uint8* Address = ArrayHelper ? ArrayHelper->GetRawPtr(Index) : ((uint8*)Data + Inner->GetElementSize() * Index);
 			// Parse the item
 			checkf(ArrayHelper == nullptr || Inner->GetOffset_ForInternal() == 0, TEXT("Expected the Inner property of the FArrayProperty."));
 			Buffer = Inner->ImportText_Direct(Buffer, Address, Parent, PortFlags | PPF_Delimited, ErrorText);
@@ -1125,7 +1125,7 @@ void FArrayProperty::CopyValuesInternal(void* Dest, void const* Src, int32 Count
 	}
 	if (Num)
 	{
-		size_t Size = Inner->ElementSize;
+		size_t Size = Inner->GetElementSize();
 		uint8* SrcData = (uint8*)SrcArrayHelper.GetRawPtr();
 		uint8* DestData = (uint8*)DestArrayHelper.GetRawPtr();
 		if (!(Inner->PropertyFlags & CPF_IsPlainOldData))
@@ -1197,7 +1197,7 @@ void FArrayProperty::InstanceSubobjects(void* Data, void const* DefaultData, UOb
 		FScriptArrayHelper ArrayHelper(this, Data);
 		FScriptArrayHelper DefaultArrayHelper(this, DefaultData);
 
-		int32 InnerElementSize = Inner->ElementSize;
+		int32 InnerElementSize = Inner->GetElementSize();
 		void* TempElement = FMemory_Alloca(InnerElementSize);
 
 		for (int32 ElementIndex = 0; ElementIndex < ArrayHelper.Num(); ElementIndex++)

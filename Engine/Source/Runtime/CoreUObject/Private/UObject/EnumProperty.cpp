@@ -468,7 +468,7 @@ void FEnumProperty::LinkInternal(FArchive& Ar)
 
 	UnderlyingProp->Link(Ar);
 
-	this->ElementSize = UnderlyingProp->ElementSize;
+	this->SetElementSize(UnderlyingProp->GetElementSize());
 	this->PropertyFlags |= CPF_IsPlainOldData | CPF_NoDestructor | CPF_ZeroConstructor;
 
 	PropertyFlags |= (UnderlyingProp->PropertyFlags & CPF_HasGetValueTypeHash);
@@ -630,7 +630,7 @@ void FEnumProperty::GetInnerFields(TArray<FField*>& OutFields)
 
 uint64 FEnumProperty::GetMaxNetSerializeBits() const
 {
-	const uint64 MaxBits = ElementSize * 8;
+	const uint64 MaxBits = GetElementSize() * 8;
 	const uint64 DesiredBits = FMath::CeilLogTwo64(Enum->GetMaxEnumValue() + 1);
 	
 	return FMath::Min(DesiredBits, MaxBits);

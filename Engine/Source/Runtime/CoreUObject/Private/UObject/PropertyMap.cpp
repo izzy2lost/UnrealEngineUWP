@@ -1103,7 +1103,7 @@ const TCHAR* FMapProperty::ImportText_Internal(const TCHAR* Buffer, void* Contai
 		return Buffer + 1;
 	}
 
-	uint8* TempPairStorage   = (uint8*)FMemory::Malloc(MapLayout.ValueOffset + ValueProp->ElementSize);
+	uint8* TempPairStorage   = (uint8*)FMemory::Malloc(MapLayout.ValueOffset + ValueProp->GetElementSize());
 
 	bool bSuccess = false;
 	ON_SCOPE_EXIT

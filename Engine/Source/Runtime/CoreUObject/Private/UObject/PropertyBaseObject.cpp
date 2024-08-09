@@ -63,11 +63,11 @@ void FObjectPropertyBase::InstanceSubobjects(void* Data, void const* DefaultData
 {
 	for ( int32 ArrayIndex = 0; ArrayIndex < ArrayDim; ArrayIndex++ )
 	{
-		TObjectPtr<UObject> CurrentObjectPtr = GetObjectPtrPropertyValue((uint8*)Data + ArrayIndex * ElementSize);
+		TObjectPtr<UObject> CurrentObjectPtr = GetObjectPtrPropertyValue((uint8*)Data + ArrayIndex * GetElementSize());
 		UObject* CurrentValue = CurrentObjectPtr.Get();
 		if (CurrentObjectPtr.IsResolved() && CurrentValue)
 		{
-			TObjectPtr<UObject> SubobjectTemplate = DefaultData ? GetObjectPtrPropertyValue((uint8*)DefaultData + ArrayIndex * ElementSize): nullptr;
+			TObjectPtr<UObject> SubobjectTemplate = DefaultData ? GetObjectPtrPropertyValue((uint8*)DefaultData + ArrayIndex * GetElementSize()): nullptr;
 			EInstancePropertyValueFlags Flags = EInstancePropertyValueFlags::None;
 			if (HasAnyPropertyFlags(CPF_InstancedReference))
 			{
@@ -78,7 +78,7 @@ void FObjectPropertyBase::InstanceSubobjects(void* Data, void const* DefaultData
 				Flags |= EInstancePropertyValueFlags::AllowSelfReference;
 			}
 			UObject* NewValue = InstanceGraph->InstancePropertyValue(SubobjectTemplate, CurrentValue, InOwner, Flags);
-			SetObjectPropertyValue((uint8*)Data + ArrayIndex * ElementSize, NewValue);
+			SetObjectPropertyValue((uint8*)Data + ArrayIndex * GetElementSize(), NewValue);
 		}
 	}
 }

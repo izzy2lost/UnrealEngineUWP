@@ -597,7 +597,7 @@ void UKismetArrayLibrary::GenericArray_HandleBool(const FProperty* Property, voi
 	const FBoolProperty* BoolProperty = CastField<const FBoolProperty>(Property);
 	if (BoolProperty)
 	{
-		ensure((BoolProperty->ElementSize * BoolProperty->ArrayDim) == sizeof(uint8));
+		ensure((BoolProperty->GetElementSize() * BoolProperty->ArrayDim) == sizeof(uint8));
 		BoolProperty->SetPropertyValue(ItemPtr, 0 != *(reinterpret_cast<uint8*>(ItemPtr)));
 	}
 }

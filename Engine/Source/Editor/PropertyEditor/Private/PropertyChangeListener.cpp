@@ -77,13 +77,13 @@ public:
 			if( PropertyNodeRef.GetArrayIndex() == INDEX_NONE && Property->ArrayDim > 1 )
 			{
 				// Check static arrays
-				Data.AddZeroed( Property->ArrayDim * Property->ElementSize );
+				Data.AddZeroed( Property->ArrayDim * Property->GetElementSize() );
 				Property->CopyCompleteValue( Data.GetData(), PropertyValueAddresses.Address);
 			}
 			else
 			{
 				// Regular properties
-				Data.AddZeroed( Property->ElementSize );
+				Data.AddZeroed( Property->GetElementSize() );
 				Property->CopySingleValue( Data.GetData(), PropertyValueAddresses.Address );
 			}
 		}

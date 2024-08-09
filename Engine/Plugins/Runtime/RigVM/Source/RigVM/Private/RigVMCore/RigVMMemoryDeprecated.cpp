@@ -248,7 +248,7 @@ FRigVMRegisterOffset::FRigVMRegisterOffset(UScriptStruct* InScriptStruct, const 
 			else
 			{
 				Offset.CPPType = *Property->GetCPPType();
-				Offset.ElementSize = Property->ElementSize;
+				Offset.ElementSize = Property->GetElementSize();
 
 				if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(Property))
 				{
@@ -256,7 +256,7 @@ FRigVMRegisterOffset::FRigVMRegisterOffset(UScriptStruct* InScriptStruct, const 
 					Property = ArrayProperty->Inner;
 
 					Offset.CPPType = *ArrayProperty->Inner->GetCPPType();
-					Offset.ElementSize = ArrayProperty->Inner->ElementSize;
+					Offset.ElementSize = ArrayProperty->Inner->GetElementSize();
 				}
 
 				if (FStructProperty* StructProperty = CastField<FStructProperty>(Property))
@@ -282,7 +282,7 @@ FRigVMRegisterOffset::FRigVMRegisterOffset(UScriptStruct* InScriptStruct, const 
 			}
 
 			int32 ArrayIndex = FCString::Atoi(*Left);
-			int32 SegmentIndex = -1 - InArrayProperty->Inner->ElementSize * ArrayIndex;
+			int32 SegmentIndex = -1 - InArrayProperty->Inner->GetElementSize() * ArrayIndex;
 
 			if (Offset.Segments.Num() > 0)
 			{
@@ -314,7 +314,7 @@ FRigVMRegisterOffset::FRigVMRegisterOffset(UScriptStruct* InScriptStruct, const 
 			else
 			{
 				Offset.CPPType = *InArrayProperty->Inner->GetCPPType();
-				Offset.ElementSize = InArrayProperty->Inner->ElementSize;
+				Offset.ElementSize = InArrayProperty->Inner->GetElementSize();
 
 				if (FArrayProperty* ArrayProperty = CastField<FArrayProperty>(InArrayProperty->Inner))
 				{

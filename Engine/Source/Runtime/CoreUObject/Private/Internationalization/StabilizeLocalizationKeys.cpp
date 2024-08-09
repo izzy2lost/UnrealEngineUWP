@@ -34,7 +34,7 @@ void StabilizeLocalizationKeys::StabilizeLocalizationKeysForProperty(FProperty* 
 	{
 		for (int32 ArrIndex = 0; ArrIndex < TextProp->ArrayDim; ++ArrIndex)
 		{
-			void* PropValueData = ((uint8*)InPropData) + (TextProp->ElementSize * ArrIndex);
+			void* PropValueData = ((uint8*)InPropData) + (TextProp->GetElementSize() * ArrIndex);
 
 			FText* TextValuePtr = TextProp->GetPropertyValuePtr(PropValueData);
 			check(TextValuePtr);
@@ -58,7 +58,7 @@ void StabilizeLocalizationKeys::StabilizeLocalizationKeysForProperty(FProperty* 
 	{
 		for (int32 ArrIndex = 0; ArrIndex < StructProp->ArrayDim; ++ArrIndex)
 		{
-			void* PropValueData = ((uint8*)InPropData) + (StructProp->ElementSize * ArrIndex);
+			void* PropValueData = ((uint8*)InPropData) + (StructProp->GetElementSize() * ArrIndex);
 
 			if (StructProp->ArrayDim > 1)
 			{

@@ -132,7 +132,7 @@ public:
 
 		// Since Key and Value aren't really an int, step the stack manually
 		const FProperty* CurrKeyProp = MapProperty->KeyProp;
-		const int32 KeyPropertySize = CurrKeyProp->ElementSize * CurrKeyProp->ArrayDim;
+		const int32 KeyPropertySize = CurrKeyProp->GetElementSize() * CurrKeyProp->ArrayDim;
 		void* KeyStorageSpace = FMemory_Alloca(KeyPropertySize);
 		CurrKeyProp->InitializeValue(KeyStorageSpace);
 
@@ -141,7 +141,7 @@ public:
 		Stack.StepCompiledIn<FProperty>(KeyStorageSpace);
 		
 		const FProperty* CurrValueProp = MapProperty->ValueProp;
-		const int32 ValuePropertySize = CurrValueProp->ElementSize * CurrValueProp->ArrayDim;
+		const int32 ValuePropertySize = CurrValueProp->GetElementSize() * CurrValueProp->ArrayDim;
 		void* ValueStorageSpace = FMemory_Alloca(ValuePropertySize);
 		CurrValueProp->InitializeValue(ValueStorageSpace);
 		
@@ -173,7 +173,7 @@ public:
 
 		// Since Key and Value aren't really an int, step the stack manually
 		const FProperty* CurrKeyProp = MapProperty->KeyProp;
-		const int32 KeyPropertySize = CurrKeyProp->ElementSize * CurrKeyProp->ArrayDim;
+		const int32 KeyPropertySize = CurrKeyProp->GetElementSize() * CurrKeyProp->ArrayDim;
 		void* KeyStorageSpace = FMemory_Alloca(KeyPropertySize);
 		CurrKeyProp->InitializeValue(KeyStorageSpace);
 
@@ -203,7 +203,7 @@ public:
 
 		// Since Key and Value aren't really an int, step the stack manually
 		const FProperty* CurrKeyProp = MapProperty->KeyProp;
-		const int32 KeyPropertySize = CurrKeyProp->ElementSize * CurrKeyProp->ArrayDim;
+		const int32 KeyPropertySize = CurrKeyProp->GetElementSize() * CurrKeyProp->ArrayDim;
 		void* KeyStorageSpace = FMemory_Alloca(KeyPropertySize);
 		CurrKeyProp->InitializeValue(KeyStorageSpace);
 
@@ -212,7 +212,7 @@ public:
 		Stack.StepCompiledIn<FProperty>(KeyStorageSpace);
 		
 		const FProperty* CurrValueProp = MapProperty->ValueProp;
-		const int32 ValuePropertySize = CurrValueProp->ElementSize * CurrValueProp->ArrayDim;
+		const int32 ValuePropertySize = CurrValueProp->GetElementSize() * CurrValueProp->ArrayDim;
 		void* ValueStorageSpace = FMemory_Alloca(ValuePropertySize);
 		CurrValueProp->InitializeValue(ValueStorageSpace);
 		
@@ -223,7 +223,7 @@ public:
 		const FFieldClass* MostRecentPropClass = Stack.MostRecentProperty->GetClass();
 		void* ItemPtr;
 		// If the destination and the inner type are identical in size and their field classes derive from one another, then permit the writing out of the array element to the destination memory
-		if (Stack.MostRecentPropertyAddress != NULL && (ValuePropertySize == Stack.MostRecentProperty->ElementSize*Stack.MostRecentProperty->ArrayDim) &&
+		if (Stack.MostRecentPropertyAddress != NULL && (ValuePropertySize == Stack.MostRecentProperty->GetElementSize()*Stack.MostRecentProperty->ArrayDim) &&
 			(MostRecentPropClass->IsChildOf(CurrValuePropClass) || CurrValuePropClass->IsChildOf(MostRecentPropClass)))
 		{
 			ItemPtr = Stack.MostRecentPropertyAddress;
@@ -313,7 +313,7 @@ public:
 
 		// Since Key and Value aren't really an int, step the stack manually
 		const FProperty* CurrKeyProp = MapProperty->KeyProp;
-		const int32 KeyPropertySize = CurrKeyProp->ElementSize * CurrKeyProp->ArrayDim;
+		const int32 KeyPropertySize = CurrKeyProp->GetElementSize() * CurrKeyProp->ArrayDim;
 		void* KeyStorageSpace = FMemory_Alloca(KeyPropertySize);
 		CurrKeyProp->InitializeValue(KeyStorageSpace);
 

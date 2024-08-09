@@ -434,7 +434,7 @@ FRemoteControlProtocolMapping::FRemoteControlProtocolMapping(FProperty* InProper
 	}
 	else if (FNumericProperty* NumericProperty = CastField<FNumericProperty>(InProperty))
 	{
-		InterpolationMappingPropertyData.AddZeroed(NumericProperty->ElementSize);
+		InterpolationMappingPropertyData.AddZeroed(NumericProperty->GetElementSize());
 	}
 	else if (FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))
 	{

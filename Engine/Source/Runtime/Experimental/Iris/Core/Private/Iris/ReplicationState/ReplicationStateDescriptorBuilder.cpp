@@ -574,7 +574,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 			  * Use ElementSize instead of GetSize() since GetSize() will multiply by array size and currently we treat
 			  * each element individually. 
 			  */
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Descriptor->InternalSize, Descriptor->InternalAlignment };
 
 			CurrentCacheEntry->bIsStruct = 1;
@@ -607,7 +607,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 				Context.BuildParams.bAllMembersAreReplicated = false;
 			}
 
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Serializer->QuantizedTypeSize, Serializer->QuantizedTypeAlignment };
 
 			CurrentCacheEntry->bIsDynamicArray = 1;
@@ -616,7 +616,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberCache(FBuilderContex
 		{
 			bSomeMembersAreProperties = true;
 
-			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->ElementSize, (SIZE_T)Member.Property->GetMinAlignment() };
+			CurrentCacheEntry->ExternalSizeAndAlignment = { (SIZE_T)Member.Property->GetElementSize(), (SIZE_T)Member.Property->GetMinAlignment() };
 			CurrentCacheEntry->InternalSizeAndAlignment = { Serializer->QuantizedTypeSize, Serializer->QuantizedTypeAlignment };
 		}
 		else
@@ -785,7 +785,7 @@ void FPropertyReplicationStateDescriptorBuilder::AllocateAndInitializeDefaultInt
 		FNetQuantizeArgs Args;
 		Args.Version = 0;
 		Args.NetSerializerConfig = MemberSerializerDescriptor.SerializerConfig;
-		Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcBuffer + Property->GetOffset_ForGC() + Property->ElementSize * MemberPropertyDescriptor.ArrayIndex);
+		Args.Source = reinterpret_cast<NetSerializerValuePointer>(SrcBuffer + Property->GetOffset_ForGC() + Property->GetElementSize() * MemberPropertyDescriptor.ArrayIndex);
 		Args.Target = reinterpret_cast<NetSerializerValuePointer>(DstStateBuffer + MemberDescriptor.InternalMemberOffset);
 
 		MemberSerializerDescriptor.Serializer->Quantize(Context, Args);
@@ -928,7 +928,7 @@ void FPropertyReplicationStateDescriptorBuilder::BuildMemberDescriptorsForStruct
 		LastProperty = Property;
 
 		ExternalBufferAlignment = FMath::Max(ExternalBufferAlignment, MemberCacheEntry->ExternalSizeAndAlignment.Alignment);
-		CurrentMemberDescriptor->ExternalMemberOffset = Property ? (Property->GetOffset_ForGC() + (ArrayIndex * (uint32)Property->ElementSize)) : 0U;
+		CurrentMemberDescriptor->ExternalMemberOffset = Property ? (Property->GetOffset_ForGC() + (ArrayIndex * (uint32)Property->GetElementSize())) : 0U;
 
 		// Internal
 		const FNetSerializer* MemberSerializer = MemberCacheEntry->Serializer;

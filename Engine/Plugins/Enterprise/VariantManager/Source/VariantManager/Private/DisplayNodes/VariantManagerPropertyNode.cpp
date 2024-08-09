@@ -517,7 +517,7 @@ void FVariantManagerPropertyNode::UpdateRecordedDataFromSinglePropView(TSharedPt
 		}
 		else
 		{
-			PropertyValue->SetRecordedData((uint8*)SinglePropWidgetDataPtr, PropHandle->GetProperty()->ElementSize);
+			PropertyValue->SetRecordedData((uint8*)SinglePropWidgetDataPtr, PropHandle->GetProperty()->GetElementSize());
 		}
 	}
 

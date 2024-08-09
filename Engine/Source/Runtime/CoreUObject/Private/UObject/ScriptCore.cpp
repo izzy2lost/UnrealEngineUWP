@@ -905,7 +905,7 @@ void UObject::SkipFunction(FFrame& Stack, RESULT_DECL, UFunction* Function)
 		// destroy old value if necessary
 		ReturnProp->DestroyValue(RESULT_PARAM);
 		// copy zero value for return property into Result
-		FMemory::Memzero(RESULT_PARAM, ReturnProp->ArrayDim * ReturnProp->ElementSize);
+		FMemory::Memzero(RESULT_PARAM, ReturnProp->ArrayDim * ReturnProp->GetElementSize());
 	}
 }
 
@@ -1156,7 +1156,7 @@ void ClearReturnValue(FProperty* ReturnProp, RESULT_DECL)
 	if (ReturnProp != NULL)
 	{
 		uint8* Data = (uint8*)RESULT_PARAM;
-		for (int32 ArrayIdx = 0; ArrayIdx < ReturnProp->ArrayDim; ArrayIdx++, Data += ReturnProp->ElementSize)
+		for (int32 ArrayIdx = 0; ArrayIdx < ReturnProp->ArrayDim; ArrayIdx++, Data += ReturnProp->GetElementSize())
 		{
 			// Clear the property. This assumes that it has already been initialized, and that the caller will destroy it.
 			ReturnProp->ClearValue(Data);
@@ -2153,7 +2153,7 @@ void UObject::ProcessEvent( UFunction* Function, void* Parms )
 				}
 				else if (!(P->PropertyFlags & CPF_OutParm))
 				{
-					FMemory::Memcpy(P->ContainerPtrToValuePtr<uint8>(Parms), P->ContainerPtrToValuePtr<uint8>(NewStack.Locals), P->ArrayDim * P->ElementSize);
+					FMemory::Memcpy(P->ContainerPtrToValuePtr<uint8>(Parms), P->ContainerPtrToValuePtr<uint8>(NewStack.Locals), P->ArrayDim * P->GetElementSize());
 				}
 			}
 		}

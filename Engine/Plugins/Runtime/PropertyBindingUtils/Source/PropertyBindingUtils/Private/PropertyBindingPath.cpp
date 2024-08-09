@@ -354,7 +354,7 @@ bool FPropertyBindingPath::ResolveIndirectionsWithValue(const FPropertyBindingDa
 				return false;
 			}
 			ArrayIndex = FMath::Max(0, Segment->GetArrayIndex());
-			Offset = Property->GetOffset_ForInternal() + Property->ElementSize * ArrayIndex;
+			Offset = Property->GetOffset_ForInternal() + Property->GetElementSize() * ArrayIndex;
 		}
 
 		FPropertyBindingPathIndirection& Indirection = OutIndirections.AddDefaulted_GetRef();

@@ -424,7 +424,7 @@ FStructProperty* FPropertyEditorModule::RegisterStructProperty(const UStruct* St
 		UScriptStruct* InnerStruct = CastChecked<UScriptStruct>(const_cast<UStruct*>(StructClass));
 		StructProperty = new FStructProperty(StructOnScopePropertyOwner, *MakeUniqueObjectName(StructOnScopePropertyOwner, UField::StaticClass(), InnerStruct->GetFName()).ToString(), RF_Transient);
 		StructProperty->Struct = InnerStruct;
-		StructProperty->ElementSize = StructClass->GetStructureSize();
+		StructProperty->SetElementSize(StructClass->GetStructureSize());
 		StructOnScopePropertyOwner->AddCppProperty(StructProperty);
 
 		RegisteredStructToProxyMap.Add(StructName, StructProperty);

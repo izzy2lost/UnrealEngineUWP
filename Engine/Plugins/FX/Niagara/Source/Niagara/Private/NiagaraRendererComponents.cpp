@@ -176,7 +176,7 @@ void InvokeSetterFunction(UObject* InRuntimeObject, UFunction* Setter, const uin
 				{
 					// LWC backwards compatibility for old bindings
 					UScriptStruct* ScriptStruct = ((FStructProperty*)Property)->Struct;
-					if (DataSize == sizeof(FVector3f) && Property->ElementSize == sizeof(FVector3d) && ScriptStruct && (ScriptStruct->GetFName() == NAME_Vector || ScriptStruct->GetFName() == NAME_Vector3d))
+					if (DataSize == sizeof(FVector3f) && Property->GetElementSize() == sizeof(FVector3d) && ScriptStruct && (ScriptStruct->GetFName() == NAME_Vector || ScriptStruct->GetFName() == NAME_Vector3d))
 					{
 						FVector3f* Vec3f = (FVector3f*)InData;
 						FVector Vec3d(*Vec3f);
@@ -184,7 +184,7 @@ void InvokeSetterFunction(UObject* InRuntimeObject, UFunction* Setter, const uin
 					}
 					else
 					{
-						const bool bIsValid = ensureMsgf(DataSize == Property->ElementSize, TEXT("Property type does not match for setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), DataSize, Property->ElementSize);
+						const bool bIsValid = ensureMsgf(DataSize == Property->GetElementSize(), TEXT("Property type does not match for setter function %s::%s (%ibytes != %ibytes"), *InRuntimeObject->GetName(), *Setter->GetName(), DataSize, Property->GetElementSize());
 						if (bIsValid)
 						{
 							Property->CopyCompleteValue(Property->ContainerPtrToValuePtr<void>(Params), InData);

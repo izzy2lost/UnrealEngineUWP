@@ -635,7 +635,7 @@ void FConcertSyncObjectRewriter::RewriteProperty(const FProperty* InProp)
 
 	for (int32 Idx = 0; Idx < InProp->ArrayDim; ++Idx)
 	{
-		InProp->SerializeItem(FStructuredArchiveFromArchive(*this).GetSlot(), (uint8*)TmpPropData + (InProp->ElementSize * Idx));
+		InProp->SerializeItem(FStructuredArchiveFromArchive(*this).GetSlot(), (uint8*)TmpPropData + (InProp->GetElementSize() * Idx));
 	}
 
 	InProp->DestroyValue(TmpPropData);

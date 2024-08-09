@@ -339,13 +339,13 @@ inline void FRemoteControlProtocolMapping::SetMappingValueAsPrimitive<FText>(FTe
 template <>
 inline bool FRemoteControlProtocolMapping::PropertySizeMatchesData<FBoolProperty>(const TArray<uint8>& InSource, const FBoolProperty* InProperty)
 {
-	return ensure(InProperty->ElementSize == InSource.Num());
+	return ensure(InProperty->GetElementSize() == InSource.Num());
 }
 
 template <>
 inline bool FRemoteControlProtocolMapping::PropertySizeMatchesData<FNumericProperty>(const TArray<uint8>& InSource, const FNumericProperty* InProperty)
 {
-	return ensure(InProperty->ElementSize >= InSource.Num());
+	return ensure(InProperty->GetElementSize() >= InSource.Num());
 }
 
 template <>

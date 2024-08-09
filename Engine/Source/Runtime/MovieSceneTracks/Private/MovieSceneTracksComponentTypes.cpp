@@ -492,7 +492,7 @@ struct FBoolHandler : TPropertyComponentHandler<FBoolPropertyTraits, bool>
 					auto FieldMask = BoundProperty->GetFieldMask();
 					static_assert(std::is_same_v<decltype(FieldMask), uint8>, "Unexpected size of field mask returned from FBoolProperty::FieldMask");
 
-					OutMetaData.BitFieldSize = static_cast<uint8>(BoundProperty->ElementSize);
+					OutMetaData.BitFieldSize = static_cast<uint8>(BoundProperty->GetElementSize());
 					OutMetaData.BitIndex     = static_cast<uint8>(FMath::CountTrailingZeros(FieldMask));
 				}
 			}

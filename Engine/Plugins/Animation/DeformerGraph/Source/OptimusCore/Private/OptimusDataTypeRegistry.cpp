@@ -591,7 +591,7 @@ bool FOptimusDataTypeRegistry::RegisterStructType(UScriptStruct* InStructType)
 	{
 		auto Property = new FStructProperty(InScope, InName, RF_Public);
 		Property->Struct = InStructType;
-		Property->ElementSize = InStructType->GetStructureSize();
+		Property->SetElementSize(InStructType->GetStructureSize());
 		if (bIsHashable)
 		{
 			Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
@@ -1081,7 +1081,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			{
 				auto Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
-				Property->ElementSize = InStructType->GetStructureSize();
+				Property->SetElementSize(InStructType->GetStructureSize());
 				if (bIsHashable)
 				{
 					Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
@@ -1241,7 +1241,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			{
 				FStructProperty* Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
-				Property->ElementSize = InStructType->GetStructureSize();
+				Property->SetElementSize(InStructType->GetStructureSize());
 				if (bIsHashable)
 				{
 					Property->SetPropertyFlags(CPF_HasGetValueTypeHash);
@@ -1296,7 +1296,7 @@ bool FOptimusDataTypeRegistry::RegisterType(
 			PropertyCreateFunc = [bIsHashable, InStructType](FFieldVariant InScope, FName InName) -> FProperty* {
 				FStructProperty* Property = new FStructProperty(InScope, InName, RF_Public);
 				Property->Struct = InStructType;
-				Property->ElementSize = InStructType->GetStructureSize();
+				Property->SetElementSize(InStructType->GetStructureSize());
 				if (bIsHashable)
 				{
 					Property->SetPropertyFlags(CPF_HasGetValueTypeHash);

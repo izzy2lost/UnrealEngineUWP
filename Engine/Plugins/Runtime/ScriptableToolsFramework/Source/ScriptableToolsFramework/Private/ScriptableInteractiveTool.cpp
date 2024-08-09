@@ -874,7 +874,7 @@ UScriptableInteractiveToolPropertySet* UScriptableInteractiveTool::WatchProperty
 			[this, ArrayIndex, ArrayProperty, PropertySet]()->uint32 { 
 				const void* ArrayValuePtr = ArrayProperty->ContainerPtrToValuePtr<void>(PropertySet);
 				FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayValuePtr);
-				int32 ElementSize = ArrayProperty->Inner->ElementSize;
+				int32 ElementSize = ArrayProperty->Inner->GetElementSize();
 				int32 NumElements = ArrayHelper.Num();
  				uint32 CRCValue = NumElements;
 				for ( int32 k = 0; k < NumElements; ++k )

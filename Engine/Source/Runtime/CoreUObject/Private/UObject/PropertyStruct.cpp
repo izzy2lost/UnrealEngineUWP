@@ -47,7 +47,7 @@ FStructProperty::FStructProperty(FFieldVariant InOwner, const FName& InName, EOb
 	: Super(InOwner, InName, InObjectFlags)
 	, Struct(nullptr)
 {
-	ElementSize = 0;
+	SetElementSize(0);
 }
 
 static EPropertyFlags GetStructComputedPropertyFlags(const UECodeGen_Private::FStructPropertyParams& Prop)
@@ -73,7 +73,7 @@ FStructProperty::FStructProperty(UField* InField)
 {
 	UStructProperty* SourceProperty = CastChecked<UStructProperty>(InField);
 	Struct = SourceProperty->Struct;
-	check(ElementSize == SourceProperty->ElementSize); // this should've been set by FProperty
+	check(GetElementSize() == SourceProperty->ElementSize); // this should've been set by FProperty
 }
 #endif // WITH_EDITORONLY_DATA
 
@@ -109,7 +109,7 @@ void FStructProperty::LinkInternal(FArchive& Ar)
 	}
 	PreloadInnerStructMembers(this);
 	
-	ElementSize = Align(Struct->PropertiesSize, Struct->GetMinAlignment());
+	SetElementSize(Align(Struct->PropertiesSize, Struct->GetMinAlignment()));
 	if(UScriptStruct::ICppStructOps* Ops = Struct->GetCppStructOps())
 	{
 		PropertyFlags |= Ops->GetComputedPropertyFlags();
@@ -478,7 +478,7 @@ void FStructProperty::InstanceSubobjects( void* Data, void const* DefaultData, U
 {
 	for (int32 Index = 0; Index < ArrayDim; Index++)
 	{
-		Struct->InstanceSubobjectTemplates( (uint8*)Data + ElementSize * Index, DefaultData ? (uint8*)DefaultData + ElementSize * Index : NULL, Struct, InOwner, InstanceGraph );
+		Struct->InstanceSubobjectTemplates( (uint8*)Data + GetElementSize() * Index, DefaultData ? (uint8*)DefaultData + GetElementSize() * Index : NULL, Struct, InOwner, InstanceGraph );
 	}
 }
 

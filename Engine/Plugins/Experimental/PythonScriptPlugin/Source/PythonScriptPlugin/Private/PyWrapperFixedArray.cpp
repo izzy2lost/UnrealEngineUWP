@@ -366,7 +366,7 @@ void* FPyWrapperFixedArray::GetItemPtr(FPyWrapperFixedArray* InSelf, Py_ssize_t 
 
 	// This doesn't use ContainerPtrToValuePtr as the ArrayInstance has already been adjusted to 
 	// point to the first element in the array and we just need to adjust it for the element size
-	return static_cast<uint8*>(InSelf->ArrayInstance) + (InSelf->ArrayProp->ElementSize * InIndex);
+	return static_cast<uint8*>(InSelf->ArrayInstance) + (InSelf->ArrayProp->GetElementSize() * InIndex);
 }
 
 Py_ssize_t FPyWrapperFixedArray::Len(FPyWrapperFixedArray* InSelf)

@@ -674,7 +674,7 @@ const TCHAR* FSetProperty::ImportText_Internal(const TCHAR* Buffer, void* Contai
 		return Buffer + 1;
 	}
 
-	TempElementStorage = (uint8*)FMemory::Malloc(ElementProp->ElementSize);
+	TempElementStorage = (uint8*)FMemory::Malloc(ElementProp->GetElementSize());
 	// From this point failure should empty the set
 	bSuccess = false;
 

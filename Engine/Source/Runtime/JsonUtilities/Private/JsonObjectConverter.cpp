@@ -226,7 +226,7 @@ TSharedPtr<FJsonValue> FJsonObjectConverter::UPropertyToJsonValue(FProperty* Pro
 	TArray< TSharedPtr<FJsonValue> > Array;
 	for (int Index = 0; Index != Property->ArrayDim; ++Index)
 	{
-		Array.Add(ConvertScalarFPropertyToJsonValue(Property, (char*)Value + Index * Property->ElementSize, CheckFlags, SkipFlags, ExportCb, OuterProperty, ConversionFlags));
+		Array.Add(ConvertScalarFPropertyToJsonValue(Property, (char*)Value + Index * Property->GetElementSize(), CheckFlags, SkipFlags, ExportCb, OuterProperty, ConversionFlags));
 	}
 	return MakeShared<FJsonValueArray>(Array);
 }
@@ -915,7 +915,7 @@ namespace
 		const int32 ItemsToRead = FMath::Clamp(ArrayValue.Num(), 0, Property->ArrayDim);
 		for (int Index = 0; Index != ItemsToRead; ++Index)
 		{
-			if (!ConvertScalarJsonValueToFPropertyWithContainer(ArrayValue[Index], Property, static_cast<char*>(OutValue) + Index * Property->ElementSize, ContainerStruct, Container, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
+			if (!ConvertScalarJsonValueToFPropertyWithContainer(ArrayValue[Index], Property, static_cast<char*>(OutValue) + Index * Property->GetElementSize(), ContainerStruct, Container, CheckFlags, SkipFlags, bStrictMode, OutFailReason, ImportCb))
 			{
 				return false;
 			}

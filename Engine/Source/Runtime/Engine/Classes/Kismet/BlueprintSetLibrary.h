@@ -165,7 +165,7 @@ public:
 
 		// Since ItemPtr isn't really an int, step the stack manually
 		const FProperty* ElementProp = SetProperty->ElementProp;
-		const int32 PropertySize = ElementProp->ElementSize * ElementProp->ArrayDim;
+		const int32 PropertySize = ElementProp->GetElementSize() * ElementProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		ElementProp->InitializeValue(StorageSpace);
 
@@ -226,7 +226,7 @@ public:
 
 		// Since ItemPtr isn't really an int, step the stack manually
 		const FProperty* ElementProp = SetProperty->ElementProp;
-		const int32 PropertySize = ElementProp->ElementSize * ElementProp->ArrayDim;
+		const int32 PropertySize = ElementProp->GetElementSize() * ElementProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		ElementProp->InitializeValue(StorageSpace);
 
@@ -357,7 +357,7 @@ public:
 
 		// Since ItemToFind isn't really an int, step the stack manually
 		const FProperty* ElementProp = SetProperty->ElementProp;
-		const int32 PropertySize = ElementProp->ElementSize * ElementProp->ArrayDim;
+		const int32 PropertySize = ElementProp->GetElementSize() * ElementProp->ArrayDim;
 		void* StorageSpace = FMemory_Alloca(PropertySize);
 		ElementProp->InitializeValue(StorageSpace);
 

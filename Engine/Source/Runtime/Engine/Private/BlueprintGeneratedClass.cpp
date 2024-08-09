@@ -1339,7 +1339,7 @@ void UBlueprintGeneratedClass::InitArrayPropertyFromCustomList(const FArrayPrope
 			uint8* DstArrayItemValue = DstArrayValueHelper.GetRawPtr(ArrayIndex);
 			const uint8* SrcArrayItemValue = SrcArrayValueHelper.GetRawPtr(ArrayIndex);
 
-			FMemory::Memcpy(DstArrayItemValue, SrcArrayItemValue, (SrcNum - ArrayIndex) * ArrayProperty->Inner->ElementSize);
+			FMemory::Memcpy(DstArrayItemValue, SrcArrayItemValue, (SrcNum - ArrayIndex) * ArrayProperty->Inner->GetElementSize());
 		}
 		else
 		{

@@ -937,7 +937,7 @@ namespace PropertyPathHelpersInternal
 						const FPropertyStructView& InStuctView = static_cast<const FPropertyStructView&>(InValue);
 
 						// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
-						if (ParamProperty->ElementSize == InStuctView.ScriptStruct->GetStructureSize() && !InContainer->IsUnreachable())
+						if (ParamProperty->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize() && !InContainer->IsUnreachable())
 						{
 							InContainer->ProcessEvent(InFunction, const_cast<uint8*>(InStuctView.Memory));
 							return true;
@@ -980,7 +980,7 @@ namespace PropertyPathHelpersInternal
 
 				// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
 				ArrayIndex = ArrayIndex == INDEX_NONE ? 0 : ArrayIndex;
-				if ( Property->ElementSize == InStuctView.ScriptStruct->GetStructureSize() && ArrayIndex < Property->ArrayDim)
+				if ( Property->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize() && ArrayIndex < Property->ArrayDim)
 				{
 					if (Property->HasSetter())
 					{
@@ -1120,7 +1120,7 @@ namespace PropertyPathHelpersInternal
 						const FPropertyStructView& InStuctView = static_cast<const FPropertyStructView&>(InValue);
 
 						// Ensure that the element sizes are the same, prevents the user from doing something terribly wrong.
-						if (ArrayProp->Inner->ElementSize == InStuctView.ScriptStruct->GetStructureSize())
+						if (ArrayProp->Inner->GetElementSize() == InStuctView.ScriptStruct->GetStructureSize())
 						{
 							if (void* Address = static_cast<void*>(ArrayHelper.GetRawPtr(ArrayIndex)))
 							{

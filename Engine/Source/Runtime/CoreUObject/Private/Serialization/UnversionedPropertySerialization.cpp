@@ -52,7 +52,7 @@ public:
 	FUnversionedPropertySerializer(FProperty* InProperty, int32 InArrayIndex)
 		: Property(InProperty)
 #if CACHE_UNVERSIONED_PROPERTY_SCHEMA
-		, Offset(Property->GetOffset_ForInternal() + Property->ElementSize * InArrayIndex)
+		, Offset(Property->GetOffset_ForInternal() + Property->GetElementSize() * InArrayIndex)
 		, bSerializeAsInteger(CanSerializeAsInteger(Property))
 		, bIsOptional(IsOptional(Property->GetClass()->GetCastFlags()))
 		, IntType(GetIntType(Property->GetMinAlignment()))
@@ -126,8 +126,8 @@ public:
 		// Cached FastZeroIntNum is only uint8 and not sufficient for large unset optionals
 		if (FastZeroIntNum == 0)
 		{
-			checkf(bIsOptional && Property->ElementSize >= 256, TEXT("Only large unset optionals should hit this loading path"));
-			FMemory::Memzero(ValueData, Property->ElementSize);
+			checkf(bIsOptional && Property->GetElementSize() >= 256, TEXT("Only large unset optionals should hit this loading path"));
+			FMemory::Memzero(ValueData, Property->GetElementSize());
 			return;
 		}
 #else
@@ -182,7 +182,7 @@ private:
 
 	static uint32 GetIntNum(const FProperty* Property, EIntegerType IntType)
 	{
-		return Property->ElementSize / GetSizeOf(IntType);
+		return Property->GetElementSize() / GetSizeOf(IntType);
 	}
 
 	static bool CanSerializeAsZero(const FProperty* Property, EIntegerType IntType)

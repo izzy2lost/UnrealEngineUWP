@@ -232,7 +232,7 @@ namespace UE::Net::Private
 
 				void* Dest = It->ContainerPtrToValuePtr<void>(LocalParms);
 
-				const int32 CopySize = It->ElementSize * It->ArrayDim;
+				const int32 CopySize = It->GetElementSize() * It->ArrayDim;
 
 				check(((uint8*)Dest - (uint8*)LocalParms) + CopySize <= Function->ParmsSize);
 

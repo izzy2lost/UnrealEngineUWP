@@ -218,7 +218,7 @@ void FItemPropertyNode::InitChildNodes()
 				FPropertyNodeInitParams InitParams;
 				InitParams.ParentNode = SharedThis(this);
 				InitParams.Property = MyProperty;
-				InitParams.ArrayOffset = Index*MyProperty->ElementSize;
+				InitParams.ArrayOffset = Index*MyProperty->GetElementSize();
 				InitParams.ArrayIndex = Index;
 				InitParams.bAllowChildren = true;
 				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;
@@ -248,7 +248,7 @@ void FItemPropertyNode::InitChildNodes()
 				FPropertyNodeInitParams InitParams;
 				InitParams.ParentNode = SharedThis(this);
 				InitParams.Property = ArrayProperty->Inner;
-				InitParams.ArrayOffset = Index * ArrayProperty->Inner->ElementSize;
+				InitParams.ArrayOffset = Index * ArrayProperty->Inner->GetElementSize();
 				InitParams.ArrayIndex = Index;
 				InitParams.bAllowChildren = true;
 				InitParams.bForceHiddenPropertyVisibility = bShouldShowHiddenProperties;

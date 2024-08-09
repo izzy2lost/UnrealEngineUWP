@@ -368,7 +368,7 @@ void FEditorConfig::ReadValue(const TSharedPtr<FJsonValue>& JsonValue, const FPr
 
 			// temporary buffer to read elements into
 			TArray<uint8> TempBuffer;
-			TempBuffer.AddUninitialized(InnerProperty->ElementSize);
+			TempBuffer.AddUninitialized(InnerProperty->GetElementSize());
 
 			for (int32 Idx = 0; Idx < SetJsonValue->Num(); ++Idx)
 			{
@@ -400,10 +400,10 @@ void FEditorConfig::ReadValue(const TSharedPtr<FJsonValue>& JsonValue, const FPr
 
 			// temporary buffers to read elements into
 			TArray<uint8> TempKey;
-			TempKey.AddZeroed(KeyProperty->ElementSize);
+			TempKey.AddZeroed(KeyProperty->GetElementSize());
 
 			TArray<uint8> TempValue;
-			TempValue.AddZeroed(ValueProperty->ElementSize);
+			TempValue.AddZeroed(ValueProperty->GetElementSize());
 
 			for (const TPair<FString, TSharedPtr<FJsonValue>>& JsonPair : (*JsonObjectValue)->Values)
 			{
@@ -430,10 +430,10 @@ void FEditorConfig::ReadValue(const TSharedPtr<FJsonValue>& JsonValue, const FPr
 
 			// temporary buffers to read elements into
 			TArray<uint8> TempKey;
-			TempKey.AddUninitialized(KeyProperty->ElementSize);
+			TempKey.AddUninitialized(KeyProperty->GetElementSize());
 
 			TArray<uint8> TempValue;
-			TempValue.AddUninitialized(ValueProperty->ElementSize);
+			TempValue.AddUninitialized(ValueProperty->GetElementSize());
 
 			for (const TSharedPtr<FJsonValue>& JsonElement : *JsonArrayPtr)
 			{

@@ -68,9 +68,9 @@ public:
 	{
 		return GetValueProperty()->ContainerPtrToValuePtr<void>(this);
 	}
-	const int32& GetValueSize() const
+	int32 GetValueSize() const
 	{
-		return GetValueProperty()->ElementSize;
+		return GetValueProperty()->GetElementSize();
 	}
 	bool SetValueData(const void* InData, int32 InSize)
 	{

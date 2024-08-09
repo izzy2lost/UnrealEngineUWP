@@ -3137,7 +3137,7 @@ void UObject::LoadConfig(UClass* ConfigClass/*=nullptr*/, const TCHAR* InFilenam
 					const FName KeyName(*Key, FNAME_Find);
 					Sec->MultiFind(KeyName, List);
 
-					const int32 Size = Array->Inner->ElementSize;
+					const int32 Size = Array->Inner->GetElementSize();
 
 					// Only override default properties if there is something to override them with.
 					if (!List.IsEmpty())
@@ -4353,7 +4353,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 			{
 				FProperty* Property = *It;
 
-				Ar.Logf(TEXT("    Prop %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->ElementSize, *Property->GetClass()->GetName()));
+				Ar.Logf(TEXT("    Prop %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->GetElementSize(), *Property->GetClass()->GetName()));
 
 				for (const TCHAR* Flag : ParsePropertyFlags(Property->PropertyFlags))
 				{
@@ -4523,7 +4523,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 										ExportProperty = ArrayProp->Inner;
 									}
 
-									int32 ElementSize = ExportProperty->ElementSize;
+									int32 ElementSize = ExportProperty->GetElementSize();
 									for ( int32 ArrayIndex = 0; ArrayIndex < ElementCount; ArrayIndex++ )
 									{
 										FString ResultStr;
@@ -4648,7 +4648,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 						{
 							FProperty* Property = *It;
 							
-							Ar.Logf(TEXT("    Parameter %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->ElementSize, *Property->GetClass()->GetName()));
+							Ar.Logf(TEXT("    Parameter %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->GetElementSize(), *Property->GetClass()->GetName()));
 
 							for (const TCHAR* Flag : ParsePropertyFlags(Property->PropertyFlags))
 							{
@@ -4666,7 +4666,7 @@ bool StaticExec( UWorld* InWorld, const TCHAR* Cmd, FOutputDevice& Ar )
 						{							
 							FProperty* Property = *It;
 
-							Ar.Logf(TEXT("    Local %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->ElementSize, *Property->GetClass()->GetName()));
+							Ar.Logf(TEXT("    Local %s"), *FString::Printf(TEXT("%s at offset %d; %dx %d bytes of type %s"), *Property->GetName(), Property->GetOffset_ForDebug(), Property->ArrayDim, Property->GetElementSize(), *Property->GetClass()->GetName()));
 
 							for (const TCHAR* Flag : ParsePropertyFlags(Property->PropertyFlags))
 							{

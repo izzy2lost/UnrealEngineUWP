@@ -887,7 +887,7 @@ static void SerializeReadWritePropertyChecksum(
 		Cmd.Property->ArrayDim = 1;
 
 		TArray<uint8> TempPropMemory;
-		TempPropMemory.AddZeroed(Cmd.Property->ElementSize + 4);
+		TempPropMemory.AddZeroed(Cmd.Property->GetElementSize() + 4);
 		uint32* Guard = (uint32*)&TempPropMemory[TempPropMemory.Num() - 4];
 		const uint32 TAG_VALUE = 0xABADF00D;
 		*Guard = TAG_VALUE;
@@ -5386,7 +5386,7 @@ static uint32 AddPropertyCmd(
 	Cmd.Property = StackParams.Property;
 	Cmd.Type = ERepLayoutCmdType::Property;		// Initially set to generic type
 	Cmd.Offset = StackParams.Offset;
-	Cmd.ElementSize = Cmd.Property->ElementSize;
+	Cmd.ElementSize = Cmd.Property->GetElementSize();
 	Cmd.RelativeHandle = StackParams.RelativeHandle;
 	Cmd.ParentIndex = SharedParams.ParentIndex;
 	Cmd.CompatibleChecksum = GetRepLayoutCmdCompatibleChecksum(SharedParams, StackParams);
@@ -5527,7 +5527,7 @@ static FORCEINLINE uint32 AddArrayCmd(
 	Cmd.Type = ERepLayoutCmdType::DynamicArray;
 	Cmd.Property = StackParams.Property;
 	Cmd.Offset = StackParams.Offset;
-	Cmd.ElementSize = static_cast<FArrayProperty*>(StackParams.Property)->Inner->ElementSize;
+	Cmd.ElementSize = static_cast<FArrayProperty*>(StackParams.Property)->Inner->GetElementSize();
 	Cmd.RelativeHandle = StackParams.RelativeHandle;
 	Cmd.ParentIndex = SharedParams.ParentIndex;
 	Cmd.CompatibleChecksum = GetRepLayoutCmdCompatibleChecksum(SharedParams, StackParams);
@@ -5611,7 +5611,7 @@ static int32 InitFromStructProperty(
 	{
 		for (int32 j = 0; j < NetProperties[i]->ArrayDim; j++)
 		{
-			const int32 ArrayElementOffset = j * NetProperties[i]->ElementSize;
+			const int32 ArrayElementOffset = j * NetProperties[i]->GetElementSize();
 
 			FInitFromPropertyStackParams NewStackParams{
 				/*Property=*/NetProperties[i],
@@ -6089,7 +6089,7 @@ void FRepLayout::InitFromClass(
 		check(ParentHandle == i);
 		check(Parents[i].Property->RepIndex + Parents[i].ArrayIndex == i);
 
-		const int32 ParentOffset = Property->ElementSize * ArrayIdx;
+		const int32 ParentOffset = Property->GetElementSize() * ArrayIdx;
 
 		FInitFromPropertySharedParams SharedParams
 		{
@@ -6423,7 +6423,7 @@ void FRepLayout::InitFromFunction(
 			FInitFromPropertyStackParams StackParams
 			{
 				/*Property=*/*It,
-				/*Offset=*/It->ElementSize* ArrayIdx,
+				/*Offset=*/It->GetElementSize()* ArrayIdx,
 				/*RelativeHandle=*/RelativeHandle,
 				/*ParentChecksum=*/0,
 				/*StaticArrayIndex=*/ArrayIdx
@@ -6489,7 +6489,7 @@ void FRepLayout::InitFromStruct(
 			FInitFromPropertyStackParams StackParams
 			{
 				/*Property=*/*It,
-				/*Offset=*/It->ElementSize * ArrayIdx,
+				/*Offset=*/It->GetElementSize() * ArrayIdx,
 				/*RelativeHandle=*/RelativeHandle,
 				/*ParentChecksum=*/0,
 				/*StaticArrayIndex=*/ArrayIdx

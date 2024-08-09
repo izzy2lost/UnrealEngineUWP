@@ -179,7 +179,9 @@ class FProperty : public FField
 
 	// Persistent variables.
 	int32			ArrayDim;
+	UE_DEPRECATED(5.5, "Use GetElementSize/SetElementSize instead.")
 	int32			ElementSize;
+public:
 	EPropertyFlags	PropertyFlags;
 	uint16			RepIndex;
 
@@ -227,6 +229,15 @@ public:
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API explicit FProperty(UField* InField);
 #endif // WITH_EDITORONLY_DATA
+
+	// ElementSize accessors to facilitate underlying type change
+	COREUOBJECT_API void SetElementSize(int32 NewSize);
+	int32 	GetElementSize() const
+	{
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		return ElementSize;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
 
 	// UObject interface
 	COREUOBJECT_API virtual void Serialize( FArchive& Ar ) override;
@@ -669,7 +680,7 @@ private:
 			check(!GetOwner<UClass>()); // Check we are _not_ calling this on a direct child property of a UClass, you should pass in a UObject* in that case
 		}
 
-		return (uint8*)ContainerPtr + Offset_Internal + static_cast<size_t>(ElementSize) * ArrayIndex;
+		return (uint8*)ContainerPtr + Offset_Internal + static_cast<size_t>(GetElementSize()) * ArrayIndex;
 	}
 
 	FORCEINLINE void* ContainerUObjectPtrToValuePtrInternal(UObject* ContainerPtr, int32 ArrayIndex) const
@@ -696,7 +707,7 @@ private:
 			check(!GetOwner<UClass>()); // Check we are _not_ calling this on a direct child property of a UClass, you should pass in a UObject* in that case
 		}
 
-		return (uint8*)ContainerPtr + Offset_Internal + static_cast<size_t>(ElementSize) * ArrayIndex;
+		return (uint8*)ContainerPtr + Offset_Internal + static_cast<size_t>(GetElementSize()) * ArrayIndex;
 	}
 
 protected:
@@ -708,7 +719,7 @@ protected:
 	{
 		if (PropertyPointerType == EPropertyPointerType::Container)
 		{
-			return (uint8*)ContainerOrPropertyPtr + Offset_Internal + static_cast<size_t>(ElementSize) * ArrayIndex;
+			return (uint8*)ContainerOrPropertyPtr + Offset_Internal + static_cast<size_t>(GetElementSize()) * ArrayIndex;
 		}
 		else
 		{
@@ -812,7 +823,7 @@ public:
 		{
 			if (PropertyFlags & CPF_IsPlainOldData)
 			{
-				FMemory::Memcpy( Dest, Src, ElementSize );
+				FMemory::Memcpy( Dest, Src, GetElementSize() );
 			}
 			else
 			{
@@ -846,7 +857,7 @@ public:
 		{
 			if (PropertyFlags & CPF_IsPlainOldData)
 			{
-				FMemory::Memcpy( Dest, Src, static_cast<size_t>(ElementSize) * ArrayDim );
+				FMemory::Memcpy( Dest, Src, static_cast<size_t>(GetElementSize()) * ArrayDim );
 			}
 			else
 			{
@@ -919,7 +930,7 @@ public:
 	{
 		if (HasAllPropertyFlags(CPF_NoDestructor | CPF_ZeroConstructor))
 		{
-			FMemory::Memzero( Data, ElementSize );
+			FMemory::Memzero( Data, GetElementSize() );
 		}
 		else
 		{
@@ -936,7 +947,7 @@ public:
 	{
 		if (HasAllPropertyFlags(CPF_NoDestructor | CPF_ZeroConstructor))
 		{
-			FMemory::Memzero( ContainerPtrToValuePtr<void>(Data, ArrayIndex), ElementSize );
+			FMemory::Memzero( ContainerPtrToValuePtr<void>(Data, ArrayIndex), GetElementSize() );
 		}
 		else
 		{
@@ -1039,7 +1050,7 @@ public:
 	{
 		if (PropertyFlags & CPF_ZeroConstructor)
 		{
-			FMemory::Memzero(Dest, static_cast<size_t>(ElementSize) * ArrayDim);
+			FMemory::Memzero(Dest, static_cast<size_t>(GetElementSize()) * ArrayDim);
 		}
 		else
 		{
@@ -1057,7 +1068,7 @@ public:
 	{
 		if (PropertyFlags & CPF_ZeroConstructor)
 		{
-			FMemory::Memzero(ContainerPtrToValuePtr<void>(Dest), static_cast<size_t>(ElementSize) * ArrayDim);
+			FMemory::Memzero(ContainerPtrToValuePtr<void>(Dest), static_cast<size_t>(GetElementSize()) * ArrayDim);
 		}
 		else
 		{
@@ -1135,7 +1146,7 @@ public:
     // need to audit all callers to make such a change.
 	FORCEINLINE int32 GetSize() const
 	{
-		return ArrayDim * ElementSize;
+		return ArrayDim * GetElementSize();
 	}
 	COREUOBJECT_API bool ShouldSerializeValue( FArchive& Ar ) const;
 
@@ -1486,7 +1497,7 @@ public:
 	TProperty(FFieldVariant InOwner, const FName& InName, EObjectFlags InObjectFlags)
 		: Super(InOwner, InName, InObjectFlags)
 	{
-		SetElementSize();
+		this->SetElementSize(TTypeFundamentals::CPPSize);
 	}
 
 	/**
@@ -1498,7 +1509,7 @@ public:
 	TProperty(FFieldVariant InOwner, PropertyParamsType& Prop)
 		: Super(InOwner, Prop, TTypeFundamentals::GetComputedFlagsPropertyFlags())
 	{
-		SetElementSize();
+		this->SetElementSize(TTypeFundamentals::CPPSize);
 	}
 
 public:
@@ -1507,7 +1518,7 @@ public:
 	explicit TProperty(UField* InField)
 		: Super(InField)
 	{
-		SetElementSize();
+		this->SetElementSize(TTypeFundamentals::CPPSize);
 	}
 #endif // WITH_EDITORONLY_DATA
 
@@ -1531,7 +1542,7 @@ public:
 	}
 	virtual void LinkInternal(FArchive& Ar) override
 	{
-		SetElementSize();
+		this->SetElementSize(TTypeFundamentals::CPPSize);
 		this->PropertyFlags |= TTypeFundamentals::GetComputedFlagsPropertyFlags();
 
 	}
@@ -1550,14 +1561,14 @@ public:
 	{
 		for (int32 i = 0; i < this->ArrayDim; ++i)
 		{
-			TTypeFundamentals::InitializePropertyValue((uint8*)Dest + i * static_cast<size_t>(this->ElementSize));
+			TTypeFundamentals::InitializePropertyValue((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize()));
 		}
 	}
 	virtual void DestroyValueInternal( void* Dest ) const override
 	{
 		for (int32 i = 0; i < this->ArrayDim; ++i)
 		{
-			TTypeFundamentals::DestroyPropertyValue((uint8*)Dest + i * static_cast<size_t>(this->ElementSize));
+			TTypeFundamentals::DestroyPropertyValue((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize()));
 		}
 	}
 
@@ -1615,12 +1626,6 @@ public:
 	virtual void ClearIntrusiveOptionalValue(void* Data) const override
 	{
 		TTypeFundamentals::ClearIntrusiveOptionalValue(Data);
-	}
-
-protected:
-	FORCEINLINE void SetElementSize()
-	{
-		this->ElementSize = TTypeFundamentals::CPPSize;
 	}
 	// End of FProperty interface
 };
@@ -2689,7 +2694,7 @@ protected:
 					FProperty::GetValue_InContainer(SrcAddress, ValueArray);
 
 					// Grab the items we care about and free the temp array
-					int32 LocalElementSize = ElementSize;
+					int32 LocalElementSize = GetElementSize();
 					for (int32 OutIndex = 0; OutIndex != ArrayCount; ++OutIndex)
 					{
 						OutObjects[OutIndex] = ValueArray[ArrayIndex + OutIndex].Get();
@@ -2710,7 +2715,7 @@ protected:
 		}
 		else
 		{
-			int32 LocalElementSize = ElementSize;
+			int32 LocalElementSize = GetElementSize();
 			for (int32 OutIndex = 0; OutIndex != ArrayCount; ++OutIndex)
 			{
 				OutObjects[OutIndex] = GetObjectPropertyValue((const uint8*)SrcAddress + OutIndex * LocalElementSize);
@@ -2743,7 +2748,7 @@ protected:
 					FProperty::GetValue_InContainer(DestAddress, ValueArray);
 
 					// Replace the items we care about
-					int32 LocalElementSize = ElementSize;
+					int32 LocalElementSize = GetElementSize();
 					for (int32 OutIndex = 0; OutIndex != ArrayCount; ++OutIndex)
 					{
 						ValueArray[ArrayIndex + OutIndex] = InValues[OutIndex];
@@ -2767,7 +2772,7 @@ protected:
 		}
 		else
 		{
-			int32 LocalElementSize = ElementSize;
+			int32 LocalElementSize = GetElementSize();
 			for (int32 OutIndex = 0; OutIndex != ArrayCount; ++OutIndex)
 			{
 				SetObjectPropertyValue((uint8*)DestAddress + OutIndex * LocalElementSize, InValues[OutIndex]);
@@ -3477,14 +3482,14 @@ public:
 
 			for (int32 i = 0; i < this->ArrayDim; ++i)
 			{
-				new ((uint8*)Dest + i * static_cast<size_t>(this->ElementSize)) FFreezableScriptArray;
+				new ((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize())) FFreezableScriptArray;
 			}
 		}
 		else
 		{
 			for (int32 i = 0; i < this->ArrayDim; ++i)
 			{
-				new ((uint8*)Dest + i * static_cast<size_t>(this->ElementSize)) FScriptArray;
+				new ((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize())) FScriptArray;
 			}
 		}
 	}
@@ -3524,12 +3529,6 @@ public:
 #if WITH_EDITORONLY_DATA
 	virtual void AppendSchemaHash(FBlake3& Builder, bool bSkipEditorOnly) const override;
 #endif
-
-private:
-	FORCEINLINE void SetElementSize()
-	{
-		this->ElementSize = CPPSize;
-	}
 };
 
 using FFreezableScriptMap = TScriptMap<FMemoryImageSetAllocator>;
@@ -3617,14 +3616,14 @@ public:
 
 			for (int32 i = 0; i < this->ArrayDim; ++i)
 			{
-				new ((uint8*)Dest + i * static_cast<size_t>(this->ElementSize)) FFreezableScriptMap;
+				new ((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize())) FFreezableScriptMap;
 			}
 		}
 		else
 		{
 			for (int32 i = 0; i < this->ArrayDim; ++i)
 			{
-				new ((uint8*)Dest + i * static_cast<size_t>(this->ElementSize)) FScriptMap;
+				new ((uint8*)Dest + i * static_cast<size_t>(this->GetElementSize())) FScriptMap;
 			}
 		}
 	}
@@ -3853,7 +3852,7 @@ public:
 	 *	@param	InArray: pointer to raw memory that corresponds to this array. This can be NULL, and sometimes is, but in that case almost all operations will crash.
 	**/
 	FORCEINLINE FScriptArrayHelper(const FArrayProperty* InProperty, const void* InArray)
-		: FScriptArrayHelper(Internal, InProperty->Inner, InArray, InProperty->Inner->ElementSize, InProperty->Inner->GetMinAlignment(), InProperty->ArrayFlags)
+		: FScriptArrayHelper(Internal, InProperty->Inner, InArray, InProperty->Inner->GetElementSize(), InProperty->Inner->GetMinAlignment(), InProperty->ArrayFlags)
 	{
 	}
 
@@ -4096,7 +4095,7 @@ public:
 
 	static FScriptArrayHelper CreateHelperFormInnerProperty(const FProperty* InInnerProperty, const void *InArray, EArrayPropertyFlags InArrayFlags = EArrayPropertyFlags::None)
 	{
-		return FScriptArrayHelper(Internal, InInnerProperty, InArray, InInnerProperty->ElementSize, InInnerProperty->GetMinAlignment(), InArrayFlags);
+		return FScriptArrayHelper(Internal, InInnerProperty, InArray, InInnerProperty->GetElementSize(), InInnerProperty->GetMinAlignment(), InArrayFlags);
 	}
 
 private:

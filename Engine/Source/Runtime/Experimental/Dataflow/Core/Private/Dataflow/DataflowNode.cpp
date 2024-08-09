@@ -30,7 +30,7 @@ static uint32 GetArrayElementOffsetFromReference(const FArrayProperty* const Arr
 	if (const void* const AddressAtIndex = ArrayProperty->GetValueAddressAtIndex_Direct(ArrayProperty->Inner, const_cast<void*>(Reference.ContainerReference), Reference.Index))
 	{
 		check((size_t)Reference.Reference >= (size_t)AddressAtIndex);
-		check((int32)((size_t)Reference.Reference - (size_t)AddressAtIndex) < ArrayProperty->Inner->ElementSize);
+		check((int32)((size_t)Reference.Reference - (size_t)AddressAtIndex) < ArrayProperty->Inner->GetElementSize());
 		return (uint32)((size_t)Reference.Reference - (size_t)AddressAtIndex);
 	}
 	return INDEX_NONE;

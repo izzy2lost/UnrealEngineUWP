@@ -56,7 +56,7 @@ namespace UE::AnimNext::Private
 			break;
 		case EPropertyAccessCopyType::Plain:
 			checkSlow(InDestProperty->PropertyFlags & CPF_IsPlainOldData);
-			FMemory::Memcpy(InDestAddr, InSrcAddr, InDestProperty->ElementSize);
+			FMemory::Memcpy(InDestAddr, InSrcAddr, InDestProperty->GetElementSize());
 			break;
 		case EPropertyAccessCopyType::Complex:
 			InDestProperty->CopyCompleteValue(InDestAddr, InSrcAddr);

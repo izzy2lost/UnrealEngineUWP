@@ -1826,7 +1826,7 @@ void FKismetCompilerContext::PrintVerboseInfoStruct(UStruct* Struct) const
 				FText::FromString(Prop->GetClass()->GetDescription()),
 				FText::FromString(Prop->GetName()),
 				Prop->GetOffset_ForDebug(),
-				Prop->ElementSize,
+				Prop->GetElementSize(),
 				Prop->ArrayDim,
 				FText::FromString(FString::Printf(TEXT("%" UINT64_x_FMT), (uint64)Prop->PropertyFlags))
 			).ToString()
