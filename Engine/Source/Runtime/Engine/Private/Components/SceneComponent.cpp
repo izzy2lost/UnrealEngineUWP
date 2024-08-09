@@ -2338,7 +2338,10 @@ bool USceneComponent::AttachToComponent(USceneComponent* Parent, const FAttachme
 			UpdateOverlaps();
 
 			// Update our owner actor in the navigation system since its associated bounds have changed
-			FNavigationSystem::UpdateActorAndComponentData(*GetOwner());
+			if (AActor* Owner = GetOwner())
+			{
+				FNavigationSystem::UpdateActorAndComponentData(*Owner);
+			}
 		}
 
 		return true;
