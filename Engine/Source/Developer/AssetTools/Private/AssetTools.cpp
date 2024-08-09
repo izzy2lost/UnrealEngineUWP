@@ -2273,6 +2273,13 @@ TMap<FString, FString> AllSourceAndDestPackages(const TMap<FString, FString>& So
 		FStringView SrcPath = SrcPackagePath.IsEmpty() ? SrcPackageName : SrcPackagePath;
 		FStringView DstPath = DstPackagePath.IsEmpty() ? DstPackageName : DstPackagePath;
 		ExternalMappings.Add(FString(SrcPath), FString(DstPath));
+
+		// if there is a path
+		if (!SrcPackagePath.IsEmpty())
+		{
+			// add the local path/asset for the case of maps (which we cannot tell at this point)
+			ExternalMappings.Add(FString(SrcPath.GetData()), FString(DstPath.GetData()));
+		}
 	}
 
 	TMap<FString, FString> Result;
