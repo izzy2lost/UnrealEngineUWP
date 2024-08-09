@@ -8,6 +8,9 @@
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_HAIR_LIGHTING 0
 
+// Do not override the SSS material, so that hit lighting surface get proper diffuse color
+#define SUBSTRATE_SSS_MATERIAL_OVERRIDE 0
+
 // Additional rewiring to make DeferredShadingCommon happy
 #define PreIntegratedGF				ReflectionStruct.PreIntegratedGF
 #define PreIntegratedGFSampler		GlobalBilinearClampedSampler
