@@ -16,6 +16,7 @@
 #include "ShaderParameterStruct.h"
 #include "Templates/Function.h"
 #include "RayTracingPayloadType.h"
+#include "DataDrivenShaderPlatformInfo.h"
 
 static int GNiagaraAsyncGpuTraceHwrtEnabled = 1;
 static FAutoConsoleVariableRef CVarNiagaraAsyncGpuTraceHwrtEnabled(
@@ -24,6 +25,18 @@ static FAutoConsoleVariableRef CVarNiagaraAsyncGpuTraceHwrtEnabled(
 	TEXT("If disabled AsyncGpuTrace will not be supported against the HW ray tracing scene."),
 	ECVF_Default
 );
+
+static int GNiagaraAsyncGpuTraceHwrtInline = 1;
+static FAutoConsoleVariableRef CVarNiagaraAsyncGpuTraceHwrtInline(
+	TEXT("fx.Niagara.AsyncGpuTrace.HWRayTrace.Inline"),
+	GNiagaraAsyncGpuTraceHwrtInline,
+	TEXT("If disabled AsyncGpuTrace will not be supported against the HW ray tracing scene."),
+	ECVF_Default);
+
+bool SupportsNiagaraAsyncGpuTraceHwrtInline()
+{
+	return GRHISupportsInlineRayTracing && GNiagaraAsyncGpuTraceHwrtInline;
+}
 
 /// TODO
 ///  -get geometry masking working when an environmental mask is implemented
@@ -40,13 +53,15 @@ struct FVFXTracePayload
 
 IMPLEMENT_RT_PAYLOAD_TYPE(ERayTracingPayloadType::VFX, sizeof(FVFXTracePayload));
 
-
-class FNiagaraCollisionRayTraceRG : public FGlobalShader
+class FNiagaraCollisionRayTrace : public FGlobalShader
 {
-	DECLARE_GLOBAL_SHADER(FNiagaraCollisionRayTraceRG)
-	SHADER_USE_ROOT_PARAMETER_STRUCT(FNiagaraCollisionRayTraceRG, FGlobalShader)
+public:
+	FNiagaraCollisionRayTrace() = default;
+	FNiagaraCollisionRayTrace(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
+	{}\
 
-	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
 		SHADER_PARAMETER_STRUCT_REF(FSceneUniformParameters, Scene)
 
@@ -61,9 +76,15 @@ class FNiagaraCollisionRayTraceRG : public FGlobalShader
 		SHADER_PARAMETER(uint32, CollisionOutputOffset)
 		SHADER_PARAMETER_SRV(Buffer<UINT>, RayTraceCounts)
 		SHADER_PARAMETER(uint32, MaxRetraces)
-	END_SHADER_PARAMETER_STRUCT()
+		END_SHADER_PARAMETER_STRUCT()
+};
 
-	class FFakeIndirectDispatch : SHADER_PERMUTATION_BOOL("NIAGARA_RAYTRACE_FAKE_INDIRECT");
+class FNiagaraCollisionRayTraceRG : public FNiagaraCollisionRayTrace
+{
+	DECLARE_GLOBAL_SHADER(FNiagaraCollisionRayTraceRG)
+	SHADER_USE_ROOT_PARAMETER_STRUCT(FNiagaraCollisionRayTraceRG, FNiagaraCollisionRayTrace)
+
+		class FFakeIndirectDispatch : SHADER_PERMUTATION_BOOL("NIAGARA_RAYTRACE_FAKE_INDIRECT");
 	class FSupportsCollisionGroups : SHADER_PERMUTATION_BOOL("NIAGARA_SUPPORTS_COLLISION_GROUPS");
 	using FPermutationDomain = TShaderPermutationDomain<FFakeIndirectDispatch, FSupportsCollisionGroups>;
 
@@ -77,6 +98,20 @@ class FNiagaraCollisionRayTraceRG : public FGlobalShader
 	static TShaderRef< FNiagaraCollisionRayTraceRG> GetShader(FGlobalShaderMap* ShaderMap, bool SupportsCollisionGroups);
 	static FRHIRayTracingShader* GetRayTracingShader(FGlobalShaderMap* ShaderMap, bool SupportCollisionGroups);
 	static bool SupportsIndirectDispatch();
+};
+
+class FNiagaraCollisionRayTraceCS : public FNiagaraCollisionRayTrace
+{
+	DECLARE_GLOBAL_SHADER(FNiagaraCollisionRayTraceCS)
+	SHADER_USE_PARAMETER_STRUCT(FNiagaraCollisionRayTraceCS, FNiagaraCollisionRayTrace);
+
+	class FSupportsCollisionGroups : SHADER_PERMUTATION_BOOL("NIAGARA_SUPPORTS_COLLISION_GROUPS");
+	using FPermutationDomain = TShaderPermutationDomain<FSupportsCollisionGroups>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment);
+
+	static const uint32 DispatchSize = 32;
 };
 
 class FNiagaraCollisionRayTraceCH : public FGlobalShader
@@ -119,6 +154,23 @@ void FNiagaraCollisionRayTraceRG::ModifyCompilationEnvironment(const FGlobalShad
 	FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 	OutEnvironment.SetDefine(TEXT("NIAGARA_SUPPORTS_RAY_TRACING"), 1);
 	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
+}
+
+bool FNiagaraCollisionRayTraceCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+{
+	return IsRayTracingEnabledForProject(Parameters.Platform) && RHISupportsRayTracing(Parameters.Platform) && RHISupportsInlineRayTracing(Parameters.Platform);
+}
+
+void FNiagaraCollisionRayTraceCS::ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+{
+	FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+	OutEnvironment.CompilerFlags.Add(CFLAG_InlineRayTracing);
+	OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+
+	OutEnvironment.SetDefine(TEXT("RAY_TRACING_THREAD_GROUP_SIZE_X"), FNiagaraCollisionRayTraceCS::DispatchSize); \
+	OutEnvironment.SetDefine(TEXT("NIAGARA_SUPPORTS_RAY_TRACING"), 1);
+	OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
+	OutEnvironment.SetDefine(TEXT("NIAGARA_RAYTRACE_FAKE_INDIRECT"), 0);
 }
 
 TShaderRef<FNiagaraCollisionRayTraceRG> FNiagaraCollisionRayTraceRG::GetShader(FGlobalShaderMap* ShaderMap, bool SupportsCollisionGroups)
@@ -170,6 +222,7 @@ FNiagaraCollisionRayTraceMiss::FNiagaraCollisionRayTraceMiss(const ShaderMetaTyp
 	: FGlobalShader(Initializer)
 {}
 
+IMPLEMENT_GLOBAL_SHADER(FNiagaraCollisionRayTraceCS, "/Plugin/FX/Niagara/Private/NiagaraRayTracingShaders.usf", "NiagaraCollisionRayTraceCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FNiagaraCollisionRayTraceRG, "/Plugin/FX/Niagara/Private/NiagaraRayTracingShaders.usf", "NiagaraCollisionRayTraceRG", SF_RayGen);
 IMPLEMENT_GLOBAL_SHADER(FNiagaraCollisionRayTraceCH, "/Plugin/FX/Niagara/Private/NiagaraRayTracingShaders.usf", "NiagaraCollisionRayTraceCH", SF_RayHitGroup);
 IMPLEMENT_GLOBAL_SHADER(FNiagaraCollisionRayTraceMiss, "/Plugin/FX/Niagara/Private/NiagaraRayTracingShaders.usf", "NiagaraCollisionRayTraceMiss", SF_RayMiss);
@@ -320,34 +373,37 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 		RayTracingSceneView = UE::FXRenderingUtils::RayTracing::GetRayTracingSceneView(RHICmdList, Scene);
 		ViewUniformBuffer = ReferenceView.ViewUniformBuffer;
 
-		FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(ShaderPlatform);
-		auto RayGenShader = FNiagaraCollisionRayTraceRG::GetRayTracingShader(ShaderMap, CollisionGroupHash != nullptr);
-		auto ClosestHitShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceCH>().GetRayTracingShader();
-		auto MissShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceMiss>().GetRayTracingShader();
+		if (!SupportsNiagaraAsyncGpuTraceHwrtInline() && GRHISupportsRayTracingShaders)
+		{
+			FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(ShaderPlatform);
+			auto RayGenShader = FNiagaraCollisionRayTraceRG::GetRayTracingShader(ShaderMap, CollisionGroupHash != nullptr);
+			auto ClosestHitShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceCH>().GetRayTracingShader();
+			auto MissShader = ShaderMap->GetShader<FNiagaraCollisionRayTraceMiss>().GetRayTracingShader();
 
-		uint32 MaxLocalBindingDataSize = 0;
-		RayTracingPipelineState = CreateNiagaraRayTracingPipelineState(
-			ShaderPlatform,
-			RHICmdList,
-			RayGenShader,
-			ClosestHitShader,
-			MissShader,
-			MaxLocalBindingDataSize);
+			uint32 MaxLocalBindingDataSize = 0;
+			RayTracingPipelineState = CreateNiagaraRayTracingPipelineState(
+				ShaderPlatform,
+				RHICmdList,
+				RayGenShader,
+				ClosestHitShader,
+				MissShader,
+				MaxLocalBindingDataSize);
 
-		RayTracingSBT = UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(RHICmdList, Scene, MaxLocalBindingDataSize);
+			RayTracingSBT = UE::FXRenderingUtils::RayTracing::CreateShaderBindingTable(RHICmdList, Scene, MaxLocalBindingDataSize);
 
-		// some options for what we want with our per MeshCommand user data.  For now we'll ignore it, but possibly
-		// something we'd want to incorporate.  Some examples could be if the material is translucent, or possibly the physical material?
-		auto BakeTranslucent = [&](const FRayTracingMeshCommand& MeshCommand) {	return (MeshCommand.bIsTranslucent != 0) & 0x1;	};
-		auto BakeDefault = [&](const FRayTracingMeshCommand& MeshCommand) { return 0; };
+			// some options for what we want with our per MeshCommand user data.  For now we'll ignore it, but possibly
+			// something we'd want to incorporate.  Some examples could be if the material is translucent, or possibly the physical material?
+			auto BakeTranslucent = [&](const FRayTracingMeshCommand& MeshCommand) {	return (MeshCommand.bIsTranslucent != 0) & 0x1;	};
+			auto BakeDefault = [&](const FRayTracingMeshCommand& MeshCommand) { return 0; };
 
-		BindNiagaraRayTracingMeshCommands(
-			RHICmdList,
-			RayTracingSBT,
-			ViewUniformBuffer,
-			UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(ReferenceView),
-			RayTracingPipelineState,
-			BakeDefault);
+			BindNiagaraRayTracingMeshCommands(
+				RHICmdList,
+				RayTracingSBT,
+				ViewUniformBuffer,
+				UE::FXRenderingUtils::RayTracing::GetVisibleRayTracingMeshCommands(ReferenceView),
+				RayTracingPipelineState,
+				BakeDefault);
+		}
 	}
 	else
 	{
@@ -358,7 +414,6 @@ void FNiagaraAsyncGpuTraceProviderHwrt::PostRenderOpaque(FRHICommandList& RHICmd
 void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList, const FDispatchRequest& Request, TUniformBufferRef<FSceneUniformParameters> SceneUniformBufferRHI, FCollisionGroupHashMap* CollisionGroupHash)
 {
 	check(IsAvailable());
-	check(RayTracingPipelineState);
 	check(RayTracingSceneView);
 
 	if (Request.MaxTraceCount == 0)
@@ -370,9 +425,7 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 
 	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(ShaderPlatform);
 
-	TShaderRef<FNiagaraCollisionRayTraceRG> RGShader = FNiagaraCollisionRayTraceRG::GetShader(ShaderMap, CollisionGroupHash != nullptr);
-
-	FNiagaraCollisionRayTraceRG::FParameters Params;
+	FNiagaraCollisionRayTrace::FParameters Params;
 
 	Params.View = GetShaderBinding(ViewUniformBuffer);
 	Params.Scene = SceneUniformBufferRHI;
@@ -391,36 +444,59 @@ void FNiagaraAsyncGpuTraceProviderHwrt::IssueTraces(FRHICommandList& RHICmdList,
 	Params.CollisionOutputOffset = Request.ResultsOffset;
 	Params.MaxRetraces = Request.MaxRetraceCount;
 
-	if (FNiagaraCollisionRayTraceRG::SupportsIndirectDispatch())
+	if (SupportsNiagaraAsyncGpuTraceHwrtInline())
 	{
-		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
-		SetShaderParameters(GlobalResources, RGShader, Params);
+		FNiagaraCollisionRayTraceCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FNiagaraCollisionRayTraceCS::FSupportsCollisionGroups>(CollisionGroupHash != nullptr);
+		TShaderRef<FNiagaraCollisionRayTraceCS> Shader = ShaderMap->GetShader<FNiagaraCollisionRayTraceCS>(PermutationVector);
+		FRHIComputeShader* ShaderRHI = Shader.GetComputeShader();
 
-		//Can we wrangle things so we can have one indirect dispatch with each internal dispatch pointing to potentially different Ray and Results buffers?
-		//For now have a each as a unique dispatch.
-		RHICmdList.RayTraceDispatchIndirect(
-			RayTracingPipelineState,
-			RGShader.GetRayTracingShader(),
-			RayTracingSBT,
-			GlobalResources,
-			Request.TraceCountsBuffer->Buffer,
-			Request.TraceCountsOffset * sizeof(uint32));
-	}
-	else
-	{
 		Params.RayTraceCounts = Request.TraceCountsBuffer->SRV;
 
-		FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
-		SetShaderParameters(GlobalResources, RGShader, Params);
+		SetComputePipelineState(RHICmdList, ShaderRHI);
+		SetShaderParameters(RHICmdList, Shader, ShaderRHI, Params);
 
-		RHICmdList.RayTraceDispatch(
-			RayTracingPipelineState,
-			RGShader.GetRayTracingShader(),
-			RayTracingSBT,
-			GlobalResources,
-			Request.MaxTraceCount,
-			1
-		);
+
+		RHICmdList.DispatchComputeShader(FMath::DivideAndRoundUp(Request.MaxTraceCount, FNiagaraCollisionRayTraceCS::DispatchSize), 1, 1);
+
+		UnsetShaderUAVs(RHICmdList, Shader, ShaderRHI);
+	}
+	else if (GRHISupportsRayTracingShaders)
+	{
+		check(RayTracingPipelineState);
+
+		TShaderRef<FNiagaraCollisionRayTraceRG> RGShader = FNiagaraCollisionRayTraceRG::GetShader(ShaderMap, CollisionGroupHash != nullptr);
+		if (FNiagaraCollisionRayTraceRG::SupportsIndirectDispatch())
+		{
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
+			SetShaderParameters(GlobalResources, RGShader, Params);
+
+			// Can we wrangle things so we can have one indirect dispatch with each internal dispatch pointing to potentially different Ray and Results buffers?
+			// For now have a each as a unique dispatch.
+			RHICmdList.RayTraceDispatchIndirect(
+				RayTracingPipelineState,
+				RGShader.GetRayTracingShader(),
+				RayTracingSBT,
+				GlobalResources,
+				Request.TraceCountsBuffer->Buffer,
+				Request.TraceCountsOffset * sizeof(uint32));
+		}
+		else
+		{
+			Params.RayTraceCounts = Request.TraceCountsBuffer->SRV;
+
+			FRHIBatchedShaderParameters& GlobalResources = RHICmdList.GetScratchShaderParameters();
+			SetShaderParameters(GlobalResources, RGShader, Params);
+
+			RHICmdList.RayTraceDispatch(
+				RayTracingPipelineState,
+				RGShader.GetRayTracingShader(),
+				RayTracingSBT,
+				GlobalResources,
+				Request.MaxTraceCount,
+				1
+			);
+		}
 	}
 }
 
