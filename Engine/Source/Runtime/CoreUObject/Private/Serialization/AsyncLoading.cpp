@@ -7963,7 +7963,7 @@ int64 FAsyncArchive::TotalSize()
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_FArchiveAsync2_TotalSize);
 		SizeRequestPtr->WaitCompletion();
-		if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor) && HeaderSizeWhenReadingExportsFromSplitFile)
+		if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader) && HeaderSizeWhenReadingExportsFromSplitFile)
 		{
 			FileSize = SizeRequestPtr->GetSizeResults();
 		}
@@ -7996,12 +7996,15 @@ FORCEINLINE void FAsyncArchive::SetPosAndUpdatePrecacheBuffer(int64 Pos)
 
 void FAsyncArchive::Seek(int64 InPos)
 {
-	if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor) && LoadPhase < ELoadPhase::ProcessingExports)
+	if ((GEventDrivenLoaderEnabled || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader) && LoadPhase < ELoadPhase::ProcessingExports)
 	{
-		check(!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize);
-		if (InPos >= HeaderSize)
+		// Auto-detect when exports are in a separate file so we only activate that mode when needed.
+		if (!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize)
 		{
-			FirstExportStarting();
+			if (InPos >= HeaderSize)
+			{
+				FirstExportStarting();
+			}
 		}
 	}
 	checkf(InPos >= 0 && InPos <= TotalSizeOrMaxInt64IfNotReady(), TEXT("Bad position in FAsyncArchive::Seek. Filename:%s InPos:%lu, Size:%lu"),
@@ -8287,26 +8290,30 @@ void FAsyncArchive::FirstExportStarting()
 	LogItem(TEXT("Exports"));
 	LoadPhase = ELoadPhase::ProcessingExports;
 
-	if ((GEventDrivenLoaderEnabled && !EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME) || bCookedForEDLInEditor)
+	if ((GEventDrivenLoaderEnabled && !EVENT_DRIVEN_ASYNC_LOAD_ACTIVE_AT_RUNTIME) || bCookedForEDLInEditor || GetLoaderType() == ELoaderType::ZenLoader)
 	{
-		FlushCache();
-		if (Handle)
+		// Detect when exports are in a separate file before trying to activate that mode.
+		if (!HeaderSizeWhenReadingExportsFromSplitFile && HeaderSize && TotalSize() == HeaderSize)
 		{
-			delete Handle;
-			Handle = nullptr;
-		}
+			FlushCache();
+			if (Handle)
+			{
+				delete Handle;
+				Handle = nullptr;
+			}
 
-		HeaderSizeWhenReadingExportsFromSplitFile = HeaderSize;
+			HeaderSizeWhenReadingExportsFromSplitFile = HeaderSize;
 
-		FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Exports);
-		Handle = OpenResult.Handle.Release();
-		check(Handle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
+			FOpenAsyncPackageResult OpenResult = IPackageResourceManager::Get().OpenAsyncReadPackage(PackagePath, EPackageSegment::Exports);
+			Handle = OpenResult.Handle.Release();
+			check(Handle); // OpenAsyncReadPackage guarantees a non-null return value; the handle will fail to read later if the path does not exist
 
-		check(!SizeRequestPtr);
-		SizeRequestPtr = Handle->SizeRequest();
-		if (SizeRequestPtr->PollCompletion())
-		{
-			TotalSize(); // complete the request
+			check(!SizeRequestPtr);
+			SizeRequestPtr = Handle->SizeRequest();
+			if (SizeRequestPtr->PollCompletion())
+			{
+				TotalSize(); // complete the request
+			}
 		}
 	}
 }

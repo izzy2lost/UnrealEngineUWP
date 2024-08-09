@@ -54,16 +54,24 @@ bool TestBulkDataFlags(FBulkData& BulkData, uint32 Flags, T&& IsSet)
 
 class FIoDispatcherTestScope
 {
+	bool bIoDispatcherInitialized = false;
 public:
 	FIoDispatcherTestScope()
 	{
-		FIoDispatcher::Initialize();
+		if (!FIoDispatcher::IsInitialized())
+		{
+			FIoDispatcher::Initialize();
+			bIoDispatcherInitialized = true;
+		}
 		FIoDispatcher::InitializePostSettings();
 	}
 	
 	~FIoDispatcherTestScope()
 	{
-		FIoDispatcher::Shutdown();
+		if (bIoDispatcherInitialized)
+		{
+			FIoDispatcher::Shutdown();
+		}
 	}
 };
 

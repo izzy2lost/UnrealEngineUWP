@@ -264,7 +264,7 @@ void FindAllRuntimeScriptPackages(TArray<UPackage*>& OutPackages)
 #endif
 
 #ifndef ALT2_ENABLE_LINKERLOAD_SUPPORT
-#define ALT2_ENABLE_LINKERLOAD_SUPPORT WITH_EDITOR
+#define ALT2_ENABLE_LINKERLOAD_SUPPORT 1
 #endif
 
 #ifndef ALT2_ENABLE_NEW_ARCHIVE_FOR_LINKERLOAD
@@ -467,53 +467,6 @@ FString FormatPackageId(FPackageId PackageId)
 
 struct FAsyncPackage2;
 class FAsyncLoadingThread2;
-
-class FSimpleArchive final
-	: public FArchive
-{
-public:
-	FSimpleArchive(const uint8* BufferPtr, uint64 BufferSize)
-	{
-#if (!DEVIRTUALIZE_FLinkerLoad_Serialize)
-		ActiveFPLB = &InlineFPLB;
-#endif
-		ActiveFPLB->OriginalFastPathLoadBuffer = BufferPtr;
-		ActiveFPLB->StartFastPathLoadBuffer = BufferPtr;
-		ActiveFPLB->EndFastPathLoadBuffer = BufferPtr + BufferSize;
-	}
-
-	int64 TotalSize() override
-	{
-		return ActiveFPLB->EndFastPathLoadBuffer - ActiveFPLB->OriginalFastPathLoadBuffer;
-	}
-
-	int64 Tell() override
-	{
-		return ActiveFPLB->StartFastPathLoadBuffer - ActiveFPLB->OriginalFastPathLoadBuffer;
-	}
-
-	void Seek(int64 Position) override
-	{
-		ActiveFPLB->StartFastPathLoadBuffer = ActiveFPLB->OriginalFastPathLoadBuffer + Position;
-		check(ActiveFPLB->StartFastPathLoadBuffer <= ActiveFPLB->EndFastPathLoadBuffer);
-	}
-
-	void Serialize(void* Data, int64 Length) override
-	{
-		if (!Length || IsError())
-		{
-			return;
-		}
-		check(ActiveFPLB->StartFastPathLoadBuffer + Length <= ActiveFPLB->EndFastPathLoadBuffer);
-		FMemory::Memcpy(Data, ActiveFPLB->StartFastPathLoadBuffer, Length);
-		ActiveFPLB->StartFastPathLoadBuffer += Length;
-	}
-private:
-#if (!DEVIRTUALIZE_FLinkerLoad_Serialize)
-	FArchive::FFastPathLoadBuffer InlineFPLB;
-	FArchive::FFastPathLoadBuffer* ActiveFPLB;
-#endif
-};
 
 struct FExportObject
 {
@@ -5654,8 +5607,9 @@ void FAsyncPackage2::InitializeLinkerLoadState(const FLinkerInstancingContext* I
 
 void FAsyncPackage2::CreateLinker(const FLinkerInstancingContext* InstancingContext)
 {
-	uint32 LinkerFlags = (LOAD_Async | LOAD_NoVerify | LOAD_SkipLoadImportedPackages | Desc.LoadFlags);
+	uint32 LinkerFlags = (LOAD_Async | LOAD_NoVerify | LOAD_SkipLoadImportedPackages);
 #if WITH_EDITOR
+	LinkerFlags |= Desc.LoadFlags;
 	if ((Desc.PackageFlags & PKG_PlayInEditor) != 0 && (GIsEditor || !FApp::IsGame()))
 	{
 		LinkerFlags |= LOAD_PackageForPIE;
