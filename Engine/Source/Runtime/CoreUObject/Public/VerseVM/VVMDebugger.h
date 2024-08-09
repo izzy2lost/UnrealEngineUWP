@@ -20,9 +20,9 @@ struct FDebugger
 	virtual void AddLocation(FAllocationContext, VUniqueString& FilePath, const FLocation&) = 0;
 };
 
-FDebugger* GetDebugger();
+COREUOBJECT_API FDebugger* GetDebugger();
 
-void SetDebugger(FDebugger*);
+COREUOBJECT_API void SetDebugger(FDebugger*);
 } // namespace Verse
 
 #endif
