@@ -1001,7 +1001,8 @@ namespace uba
 		u32 sessionId = reader.ReadU32();
 		u32 sessionIndex = sessionId - 1;
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got ListDirectory message from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		ClientSession& session = *m_clientSessions[sessionIndex];
 		lock.Leave();
 
@@ -1020,7 +1021,8 @@ namespace uba
 		u32 sessionId = reader.ReadU32();
 		u32 sessionIndex = sessionId - 1;
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got GetDirectories message from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		ClientSession& session = *m_clientSessions[sessionIndex];
 		lock.Leave();
 		WriteDirectoryTable(session, reader, writer);
@@ -1050,7 +1052,8 @@ namespace uba
 		u32 sessionIndex = sessionId - 1;
 
 		ScopedCriticalSection sessionsLock(m_remoteProcessAndSessionLock);
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got ProcessAvailable message from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		ClientSession& session = *m_clientSessions[sessionIndex];
 		sessionsLock.Leave();
 
@@ -1183,7 +1186,8 @@ namespace uba
 			return true;
 		}
 		u32 sessionIndex = process.m_sessionId - 1;
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got ProcessFinished message from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		auto& session = *m_clientSessions[sessionIndex];
 		++m_finishedRemoteProcessCount;
 		--session.usedSlotCount;
@@ -1251,7 +1255,8 @@ namespace uba
 			return true;
 		}
 		u32 sessionIndex = process->m_sessionId - 1;
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got ProcessReturned message from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		auto& session = *m_clientSessions[sessionIndex];
 		--session.usedSlotCount;
 		if (session.enabled)
@@ -1305,7 +1310,8 @@ namespace uba
 		u64 pingTime = GetTime();
 		u32 sessionIndex = sessionId - 1;
 		ScopedCriticalSection lock(m_remoteProcessAndSessionLock);
-		UBA_ASSERT(sessionIndex < m_clientSessions.size());
+		if (sessionIndex >= m_clientSessions.size())
+			return m_logger.Error(TC("Got Pingmessage from connection using bad sessionid (%u/%llu)"), sessionIndex, m_clientSessions.size());
 		auto& session = *m_clientSessions[sessionIndex];
 		session.pingTime = pingTime;
 		session.lastPing = lastPing;

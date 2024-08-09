@@ -142,6 +142,7 @@ namespace uba
 
 		ReaderWriterLock m_directoryTableLock;
 		u32 m_directoryTableMemPos = 0;
+		bool m_directoryTableError = false;
 		struct ActiveUpdateDirectoryEntry;
 		ActiveUpdateDirectoryEntry* m_firstEmptyWait = nullptr;
 		ActiveUpdateDirectoryEntry* m_firstReadWait = nullptr;
