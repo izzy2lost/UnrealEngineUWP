@@ -23,6 +23,11 @@ namespace UnrealBuildTool.Rules
 				{
                 }
 			);
-        }
-    }
+
+			if (Target.bIsBuildingConsoleApplication)
+			{
+				PublicDefinitions.Add("DO_ENSURE=0");
+			}
+		}
+	}
 }

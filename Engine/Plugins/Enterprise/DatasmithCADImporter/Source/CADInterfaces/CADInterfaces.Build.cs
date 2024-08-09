@@ -11,6 +11,11 @@ namespace UnrealBuildTool.Rules
 			bLegalToDistributeObjectCode = true;
 			bUseUnity = false;
 
+			if(Target.bIsBuildingConsoleApplication)
+			{
+				PublicDefinitions.Add("DO_ENSURE=0");
+			}
+
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
