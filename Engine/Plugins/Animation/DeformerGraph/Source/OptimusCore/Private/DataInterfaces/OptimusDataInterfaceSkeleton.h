@@ -11,7 +11,7 @@ class FSkeletalMeshObject;
 class FSkeletonDataInterfaceParameters;
 class USkinnedMeshComponent;
 
-/** Compute Framework Data Interface for skeletal data. */
+/** Compute Framework Data Interface for skeletal data. (Outdated)*/
 UCLASS(Category = ComputeFramework)
 class OPTIMUSCORE_API UOptimusSkeletonDataInterface : public UOptimusComputeDataInterface
 {
@@ -21,6 +21,8 @@ public:
 	//~ Begin UOptimusComputeDataInterface Interface
 	FString GetDisplayName() const override;
 	TArray<FOptimusCDIPinDefinition> GetPinDefinitions() const override;
+	// UOptimusAdvancedSkeletonDataInterface is now a better version of this data interface
+	bool IsVisible() const override {return false;};
 	TSubclassOf<UActorComponent> GetRequiredComponentClass() const override;
 	//~ End UOptimusComputeDataInterface Interface
 	

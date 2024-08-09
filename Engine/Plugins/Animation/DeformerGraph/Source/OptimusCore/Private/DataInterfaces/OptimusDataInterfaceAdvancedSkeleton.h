@@ -140,10 +140,15 @@ public:
 	
 	UPROPERTY(EditAnywhere, Category = "Data Interface")
 	FName SkinWeightProfile = NAME_None;
-	
+
+	// If turned on, another set of bone matrices are computed per-frame to allow for layered skinning.
+	// It is typically used with a secondary skin weight profile storing the weights of a subset of bones like tweaker bones.
+	// The bind matrices for these bones are dynamic and computed based on their parent's current transform instead of initial transform
 	UPROPERTY(EditAnywhere, Category = "Data Interface")
-	bool bEnableLayeredSkinning = true;
-	
+	bool bEnableLayeredSkinning = false;
+
+	// Per-bone animation attributes, allows for custom bone data to be used in kernels, one of the places you can create
+	// animation attributes is Control Rig
 	UPROPERTY(EditAnywhere, Category = "Data Interface", meta = (ShowOnlyInnerProperties))
 	FOptimusAnimAttributeBufferArray AttributeBufferArray;
 

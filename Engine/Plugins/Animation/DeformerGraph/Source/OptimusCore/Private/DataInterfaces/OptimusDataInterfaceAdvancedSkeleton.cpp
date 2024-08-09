@@ -253,12 +253,14 @@ void UOptimusAdvancedSkeletonDataInterface::PostEditChangeChainProperty(FPropert
 
 FString UOptimusAdvancedSkeletonDataInterface::GetDisplayName() const
 {
+	FString WeightProfileName = TEXT("Default Skin Weights");
+	
 	if (SkinWeightProfile != NAME_None)
 	{
-		return TEXT("Advanced Skeleton (") + SkinWeightProfile.ToString() + TEXT(")");
+		WeightProfileName = SkinWeightProfile.ToString();
 	}
-	
-	return TEXT("Advanced Skeleton");
+
+	return FString::Printf(TEXT("Skeleton - %s"), *WeightProfileName);
 }
 
 TArray<FOptimusCDIPinDefinition> UOptimusAdvancedSkeletonDataInterface::GetPinDefinitions() const

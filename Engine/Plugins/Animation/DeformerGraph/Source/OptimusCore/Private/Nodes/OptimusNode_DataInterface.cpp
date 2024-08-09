@@ -111,6 +111,9 @@ void UOptimusNode_DataInterface::PostLoadNodeSpecificData()
 	{
 		CreateComponentPin();
 	}
+
+	// Make sure to use the latest display name
+	UpdateDisplayNameFromDataInterface();
 }
 
 void UOptimusNode_DataInterface::OnDataTypeChanged(FName InTypeName)
