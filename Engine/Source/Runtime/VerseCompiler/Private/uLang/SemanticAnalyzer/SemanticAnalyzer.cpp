@@ -11068,7 +11068,22 @@ private:
         // it is analyzed.
         EnqueueDeferredTask(Deferred_ValidateAttributes, [this, KeyType, ErrorNodeVst, bIsInferred]
         {
-            switch (KeyType->GetNormalType().GetComparability())
+            const CNormalType& KeyNormalType = KeyType->GetNormalType();
+            EComparability Comparability = KeyNormalType.GetComparability();
+
+            // Prior to 31.00, there was a bug that option types said that if their value type was comparable, the option type was hashable.
+            // Instead of threading the UploadedAtFNVersion through CNormalType::GetComparability, simply do the backwards compatibility check here.
+            if (!VerseFN::UploadedAtFNVersion::OptionTypeDoesntIgnoreValueHashability(_Context._Package->_UploadedAtFNVersion))
+            {
+                if (const COptionType* OptionType = KeyNormalType.AsNullable<COptionType>())
+                {
+                    Comparability = OptionType->GetValueType()->GetNormalType().GetComparability() == EComparability::Incomparable
+                        ? EComparability::Incomparable
+                        : EComparability::ComparableAndHashable;
+                }
+            }
+
+            switch (Comparability)
             {
             case EComparability::Incomparable:
                 AppendGlitch(
