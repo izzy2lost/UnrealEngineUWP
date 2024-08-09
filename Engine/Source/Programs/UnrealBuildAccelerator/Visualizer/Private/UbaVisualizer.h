@@ -191,7 +191,7 @@ namespace uba
 		HPEN m_memPen = 0;
 		HPEN m_processUpdatePen = 0;
 		HPEN m_checkboxPen = 0;
-		int m_boxHeight = 0;
+		int m_boxHeight = 12;
 		int m_sessionStepY = 0;
 
 		Font m_defaultFont;
