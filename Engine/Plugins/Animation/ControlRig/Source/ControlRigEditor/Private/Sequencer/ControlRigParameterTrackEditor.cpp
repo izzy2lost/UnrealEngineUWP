@@ -5108,268 +5108,302 @@ void FControlRigParameterSection::KeyWeightValue(float Val)
 
 void FControlRigParameterSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& InObjectBinding)
 {
-	UMovieSceneControlRigParameterSection* ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
-	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-
-	UControlRig* ControlRig = ParameterSection->GetControlRig();
-
-	if (ControlRig)
+	UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
+	if (!IsValid(ParameterSection))
 	{
+		return;
+	}
 
-		UFKControlRig* AutoRig = Cast<UFKControlRig>(ControlRig);
-		if (AutoRig || ControlRig->SupportsEvent(FRigUnit_InverseExecution::EventName))
+	UControlRig* const ControlRig = ParameterSection->GetControlRig();
+	if (!IsValid(ControlRig))
+	{
+		return;
+	}
+
+	UFKControlRig* AutoRig = Cast<UFKControlRig>(ControlRig);
+	if (AutoRig || ControlRig->SupportsEvent(FRigUnit_InverseExecution::EventName))
+	{
+		UObject* BoundObject = nullptr;
+		USkeleton* Skeleton = AcquireSkeletonFromObjectGuid(InObjectBinding, &BoundObject, WeakSequencer.Pin());
+
+		if (Skeleton)
 		{
-			UObject* BoundObject = nullptr;
-			USkeleton* Skeleton = AcquireSkeletonFromObjectGuid(InObjectBinding, &BoundObject, WeakSequencer.Pin());
+			// Load the asset registry module
+			FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
-			if (Skeleton)
+			// Collect a full list of assets with the specified class
+			TArray<FAssetData> AssetDataList;
+			AssetRegistryModule.Get().GetAssetsByClass(UAnimSequenceBase::StaticClass()->GetClassPathName(), AssetDataList, true);
+
+			if (AssetDataList.Num())
 			{
-				// Load the asset registry module
-				FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
-
-				// Collect a full list of assets with the specified class
-				TArray<FAssetData> AssetDataList;
-				AssetRegistryModule.Get().GetAssetsByClass(UAnimSequenceBase::StaticClass()->GetClassPathName(), AssetDataList, true);
-
-				if (AssetDataList.Num())
-				{
-					MenuBuilder.AddSubMenu(
-						LOCTEXT("ImportAnimSequenceIntoThisSection", "Import Anim Sequence Into This Section"), NSLOCTEXT("Sequencer", "ImportAnimSequenceIntoThisSectionTP", "Import Anim Sequence Into This Section"),
-						FNewMenuDelegate::CreateRaw(this, &FControlRigParameterSection::AddAnimationSubMenuForFK, InObjectBinding, Skeleton, ParameterSection)
-					);
-				}
+				MenuBuilder.AddSubMenu(
+					LOCTEXT("ImportAnimSequenceIntoThisSection", "Import Anim Sequence Into This Section"), NSLOCTEXT("Sequencer", "ImportAnimSequenceIntoThisSectionTP", "Import Anim Sequence Into This Section"),
+					FNewMenuDelegate::CreateRaw(this, &FControlRigParameterSection::AddAnimationSubMenuForFK, InObjectBinding, Skeleton, ParameterSection)
+				);
 			}
 		}
-		TArray<FRigControlElement*> Controls;
-		ControlRig->GetControlsInOrder(Controls);
+	}
+	TArray<FRigControlElement*> Controls;
+	ControlRig->GetControlsInOrder(Controls);
 
-		auto MakeUIAction = [=](EMovieSceneTransformChannel ChannelsToToggle)
-		{
-			return FUIAction(
-				FExecuteAction::CreateLambda([=]
+	auto MakeUIAction = [this, InObjectBinding](EMovieSceneTransformChannel ChannelsToToggle)
+	{
+		return FUIAction(
+			FExecuteAction::CreateLambda([this, InObjectBinding, ChannelsToToggle]
+				{
+					const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+					if (!SequencerPtr)
 					{
-						FScopedTransaction Transaction(LOCTEXT("SetActiveChannelsTransaction", "Set Active Channels"));
-						ParameterSection->Modify();
-						EMovieSceneTransformChannel Channels = ParameterSection->GetTransformMask().GetChannels();
+						return;
+					}
 
-						if (EnumHasAllFlags(Channels, ChannelsToToggle) || (Channels & ChannelsToToggle) == EMovieSceneTransformChannel::None)
+					UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
+					if (!IsValid(ParameterSection))
+					{
+						return;
+					}
+
+					FScopedTransaction Transaction(LOCTEXT("SetActiveChannelsTransaction", "Set Active Channels"));
+					ParameterSection->Modify();
+					EMovieSceneTransformChannel Channels = ParameterSection->GetTransformMask().GetChannels();
+
+					if (EnumHasAllFlags(Channels, ChannelsToToggle) || (Channels & ChannelsToToggle) == EMovieSceneTransformChannel::None)
+					{
+						ParameterSection->SetTransformMask(ParameterSection->GetTransformMask().GetChannels() ^ ChannelsToToggle);
+					}
+					else
+					{
+						ParameterSection->SetTransformMask(ParameterSection->GetTransformMask().GetChannels() | ChannelsToToggle);
+					}
+
+					// Restore pre-animated state for the bound objects so that inactive channels will return to their default values.
+					for (TWeakObjectPtr<> WeakObject : SequencerPtr->FindBoundObjects(InObjectBinding, SequencerPtr->GetFocusedTemplateID()))
+					{
+						if (UObject* Object = WeakObject.Get())
 						{
-							ParameterSection->SetTransformMask(ParameterSection->GetTransformMask().GetChannels() ^ ChannelsToToggle);
+							SequencerPtr->RestorePreAnimatedState();
+						}
+					}
+
+					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				}
+			),
+			FCanExecuteAction(),
+			FGetActionCheckState::CreateLambda([this, ChannelsToToggle]
+				{
+					const UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
+					if (!IsValid(ParameterSection))
+					{
+						return ECheckBoxState::Unchecked;
+					}
+
+					const EMovieSceneTransformChannel Channels = ParameterSection->GetTransformMask().GetChannels();
+					if (EnumHasAllFlags(Channels, ChannelsToToggle))
+					{
+						return ECheckBoxState::Checked;
+					}
+					else if (EnumHasAnyFlags(Channels, ChannelsToToggle))
+					{
+						return ECheckBoxState::Undetermined;
+					}
+					return ECheckBoxState::Unchecked;
+				})
+			);
+	};
+	auto ToggleControls = [this](int32 Index)
+	{
+		return FUIAction(
+			FExecuteAction::CreateLambda([this, Index]
+				{
+					const TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+					if (!SequencerPtr)
+					{
+						return;
+					}
+
+					UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
+					if (!IsValid(ParameterSection))
+					{
+						return;
+					}
+
+					FScopedTransaction Transaction(LOCTEXT("ToggleRigControlFiltersTransaction", "Toggle Rig Control Filters"));
+					ParameterSection->Modify();
+					if (Index >= 0)
+					{
+						ParameterSection->SetControlsMask(Index, !ParameterSection->GetControlsMask(Index));
+					}
+					else
+					{
+						ParameterSection->FillControlsMask(!ParameterSection->GetControlsMask(0));
+					}
+					SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+				}
+			),
+			FCanExecuteAction(),
+			FGetActionCheckState::CreateLambda([this, Index]
+				{
+					UMovieSceneControlRigParameterSection* const ParameterSection = CastChecked<UMovieSceneControlRigParameterSection>(WeakSection.Get());
+					if (!IsValid(ParameterSection))
+					{
+						return ECheckBoxState::Unchecked;
+					}
+
+					TArray<bool> ControlBool = ParameterSection->GetControlsMask();
+					if (Index >= 0)
+					{
+						if (ControlBool[Index])
+						{
+							return ECheckBoxState::Checked;
 						}
 						else
 						{
-							ParameterSection->SetTransformMask(ParameterSection->GetTransformMask().GetChannels() | ChannelsToToggle);
+							return ECheckBoxState::Unchecked;
 						}
-
-						// Restore pre-animated state for the bound objects so that inactive channels will return to their default values.
-						for (TWeakObjectPtr<> WeakObject : SequencerPtr->FindBoundObjects(InObjectBinding, SequencerPtr->GetFocusedTemplateID()))
-						{
-							if (UObject* Object = WeakObject.Get())
-							{
-								SequencerPtr->RestorePreAnimatedState();
-							}
-						}
-
-						SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
 					}
-				),
-				FCanExecuteAction(),
-						FGetActionCheckState::CreateLambda([=]
+					else
+					{
+						TOptional<bool> FirstVal;
+						for (bool Val : ControlBool)
+						{
+							if (FirstVal.IsSet())
 							{
-								EMovieSceneTransformChannel Channels = ParameterSection->GetTransformMask().GetChannels();
-								if (EnumHasAllFlags(Channels, ChannelsToToggle))
-								{
-									return ECheckBoxState::Checked;
-								}
-								else if (EnumHasAnyFlags(Channels, ChannelsToToggle))
+								if (Val != FirstVal)
 								{
 									return ECheckBoxState::Undetermined;
 								}
-								return ECheckBoxState::Unchecked;
-							})
-						);
-		};
-		auto ToggleControls = [=](int32 Index)
-		{
-			return FUIAction(
-				FExecuteAction::CreateLambda([=]
-					{
-						FScopedTransaction Transaction(LOCTEXT("ToggleRigControlFiltersTransaction", "Toggle Rig Control Filters"));
-						ParameterSection->Modify();
-						if (Index >= 0)
-						{
-							ParameterSection->SetControlsMask(Index, !ParameterSection->GetControlsMask(Index));
-						}
-						else
-						{
-							ParameterSection->FillControlsMask(!ParameterSection->GetControlsMask(0));
-						}
-						SequencerPtr->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-
-					}
-				),
-				FCanExecuteAction(),
-						FGetActionCheckState::CreateLambda([=]
+							}
+							else
 							{
-								TArray<bool> ControlBool = ParameterSection->GetControlsMask();
-								if (Index >= 0)
-								{
-									if (ControlBool[Index])
-									{
-										return ECheckBoxState::Checked;
-
-									}
-									else
-									{
-										return ECheckBoxState::Unchecked;
-									}
-								}
-								else
-								{
-									TOptional<bool> FirstVal;
-									for (bool Val : ControlBool)
-									{
-										if (FirstVal.IsSet())
-										{
-											if (Val != FirstVal)
-											{
-												return ECheckBoxState::Undetermined;
-											}
-										}
-										else
-										{
-											FirstVal = Val;
-										}
-
-									}
-									return (FirstVal.IsSet() && FirstVal.GetValue()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-								}
-							})
-						);
-		};
-		UMovieSceneControlRigParameterTrack* Track = ParameterSection->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
-		if (Track)
+								FirstVal = Val;
+							}
+						}
+						return (FirstVal.IsSet() && FirstVal.GetValue()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+					}
+				})
+			);
+	};
+	UMovieSceneControlRigParameterTrack* Track = ParameterSection->GetTypedOuter<UMovieSceneControlRigParameterTrack>();
+	if (Track)
+	{
+		TArray<UMovieSceneSection*> Sections = Track->GetAllSections();
+		//If Base Absolute section 
+		if (ParameterSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute && Sections[0] == ParameterSection)
 		{
-			TArray<UMovieSceneSection*> Sections = Track->GetAllSections();
-			//If Base Absolute section 
-			if (ParameterSection->GetBlendType().Get() == EMovieSceneBlendType::Absolute && Sections[0] == ParameterSection)
+			MenuBuilder.BeginSection(NAME_None, LOCTEXT("AnimationLayers", "Animation Layers"));
 			{
-				MenuBuilder.BeginSection(NAME_None, LOCTEXT("AnimationLayers", "Animation Layers"));
-				{
-					MenuBuilder.AddMenuEntry(
-						LOCTEXT("CollapseAllSections", "Collapse All Sections"),
-						LOCTEXT("CollapseAllSections_ToolTip", "Collapse all sections onto this section"),
-						FSlateIcon(),
-						FUIAction(FExecuteAction::CreateLambda([this] { CollapseAllLayers(); }))
-					);
-				}
-			}
-			if (ParameterSection->GetBlendType().Get() == EMovieSceneBlendType::Additive)
-			{
-
-				MenuBuilder.BeginSection(NAME_None, LOCTEXT("AnimationLayers", "Animation Layers"));
-				{
-					MenuBuilder.AddMenuEntry(
-						LOCTEXT("KeyZeroValue", "Key Zero Value"),
-						LOCTEXT("KeyZeroValue_Tooltip", "Set zero key on all controls in this section"),
-						FSlateIcon(),
-						FUIAction(FExecuteAction::CreateLambda([this] { KeyZeroValue(); }))
-					);
-				}
-				
 				MenuBuilder.AddMenuEntry(
-					LOCTEXT("KeyWeightZero", "Key Weight Zero"),
-					LOCTEXT("KeyWeightZero_Tooltip", "Key a zero value on the Weight channel"),
+					LOCTEXT("CollapseAllSections", "Collapse All Sections"),
+					LOCTEXT("CollapseAllSections_ToolTip", "Collapse all sections onto this section"),
 					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([this] { KeyWeightValue(0.0f); }))
+					FUIAction(FExecuteAction::CreateLambda([this] { CollapseAllLayers(); }))
 				);
-				
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("KeyWeightOne", "Key Weight One"),
-					LOCTEXT("KeyWeightOne_Tooltip", "Key a one value on the Weight channel"),
-					FSlateIcon(),
-					FUIAction(FExecuteAction::CreateLambda([this] { KeyWeightValue(1.0f); }))
-				);
-				
 			}
 		}
-		MenuBuilder.BeginSection(NAME_None, LOCTEXT("RigSectionActiveChannels", "Active Channels"));
+		if (ParameterSection->GetBlendType().Get() == EMovieSceneBlendType::Additive)
 		{
+			MenuBuilder.BeginSection(NAME_None, LOCTEXT("AnimationLayers", "Animation Layers"));
+			{
+				MenuBuilder.AddMenuEntry(
+					LOCTEXT("KeyZeroValue", "Key Zero Value"),
+					LOCTEXT("KeyZeroValue_Tooltip", "Set zero key on all controls in this section"),
+					FSlateIcon(),
+					FUIAction(FExecuteAction::CreateLambda([this] { KeyZeroValue(); }))
+				);
+			}
+
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("SetFromSelectedControls", "Set From Selected Controls"),
-				LOCTEXT("SetFromSelectedControls_ToolTip", "Set active channels from the current control selection"),
+				LOCTEXT("KeyWeightZero", "Key Weight Zero"),
+				LOCTEXT("KeyWeightZero_Tooltip", "Key a zero value on the Weight channel"),
 				FSlateIcon(),
-				FUIAction(
-					FExecuteAction::CreateLambda([this] { ShowSelectedControlsChannels(); }),
-					FCanExecuteAction::CreateLambda([ControlRig] { return ControlRig->CurrentControlSelection().Num() > 0; } )
-				)
+				FUIAction(FExecuteAction::CreateLambda([this] { KeyWeightValue(0.0f); }))
 			);
 
 			MenuBuilder.AddMenuEntry(
-				LOCTEXT("ShowAllControls", "Show All Controls"),
-				LOCTEXT("ShowAllControls_ToolTip", "Set active channels from all controls"),
+				LOCTEXT("KeyWeightOne", "Key Weight One"),
+				LOCTEXT("KeyWeightOne_Tooltip", "Key a one value on the Weight channel"),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([this] { return ShowAllControlsChannels(); }))
+				FUIAction(FExecuteAction::CreateLambda([this] { KeyWeightValue(1.0f); }))
 			);
-
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("AllTranslation", "Translation"), LOCTEXT("AllTranslation_ToolTip", "Causes this section to affect the translation of rig control transforms"),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("TranslationX", "X"), LOCTEXT("TranslationX_ToolTip", "Causes this section to affect the X channel of the transform's translation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationX), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("TranslationY", "Y"), LOCTEXT("TranslationY_ToolTip", "Causes this section to affect the Y channel of the transform's translation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationY), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("TranslationZ", "Z"), LOCTEXT("TranslationZ_ToolTip", "Causes this section to affect the Z channel of the transform's translation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationZ), NAME_None, EUserInterfaceActionType::ToggleButton);
-					}),
-				MakeUIAction(EMovieSceneTransformChannel::Translation),
-						NAME_None,
-						EUserInterfaceActionType::ToggleButton);
-
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("AllRotation", "Rotation"), LOCTEXT("AllRotation_ToolTip", "Causes this section to affect the rotation of the rig control transform"),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("RotationX", "Roll (X)"), LOCTEXT("RotationX_ToolTip", "Causes this section to affect the roll (X) channel the transform's rotation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationX), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("RotationY", "Pitch (Y)"), LOCTEXT("RotationY_ToolTip", "Causes this section to affect the pitch (Y) channel the transform's rotation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationY), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("RotationZ", "Yaw (Z)"), LOCTEXT("RotationZ_ToolTip", "Causes this section to affect the yaw (Z) channel the transform's rotation"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationZ), NAME_None, EUserInterfaceActionType::ToggleButton);
-					}),
-				MakeUIAction(EMovieSceneTransformChannel::Rotation),
-						NAME_None,
-						EUserInterfaceActionType::ToggleButton);
-
-			MenuBuilder.AddSubMenu(
-				LOCTEXT("AllScale", "Scale"), LOCTEXT("AllScale_ToolTip", "Causes this section to affect the scale of the rig control transform"),
-				FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("ScaleX", "X"), LOCTEXT("ScaleX_ToolTip", "Causes this section to affect the X channel of the transform's scale"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleX), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("ScaleY", "Y"), LOCTEXT("ScaleY_ToolTip", "Causes this section to affect the Y channel of the transform's scale"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleY), NAME_None, EUserInterfaceActionType::ToggleButton);
-					SubMenuBuilder.AddMenuEntry(
-						LOCTEXT("ScaleZ", "Z"), LOCTEXT("ScaleZ_ToolTip", "Causes this section to affect the Z channel of the transform's scale"),
-						FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleZ), NAME_None, EUserInterfaceActionType::ToggleButton);
-					}),
-				MakeUIAction(EMovieSceneTransformChannel::Scale),
-						NAME_None,
-						EUserInterfaceActionType::ToggleButton);
-
-			//mz todo h
-			MenuBuilder.AddMenuEntry(
-				LOCTEXT("Weight", "Weight"), LOCTEXT("Weight_ToolTip", "Causes this section to be applied with a user-specified weight curve"),
-				FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::Weight), NAME_None, EUserInterfaceActionType::ToggleButton);
 		}
-		MenuBuilder.EndSection();
 	}
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("RigSectionActiveChannels", "Active Channels"));
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("SetFromSelectedControls", "Set From Selected Controls"),
+			LOCTEXT("SetFromSelectedControls_ToolTip", "Set active channels from the current control selection"),
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateLambda([this] { ShowSelectedControlsChannels(); }),
+				FCanExecuteAction::CreateLambda([ControlRig] { return ControlRig->CurrentControlSelection().Num() > 0; } )
+			)
+		);
+
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("ShowAllControls", "Show All Controls"),
+			LOCTEXT("ShowAllControls_ToolTip", "Set active channels from all controls"),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateLambda([this] { return ShowAllControlsChannels(); }))
+		);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("AllTranslation", "Translation"), LOCTEXT("AllTranslation_ToolTip", "Causes this section to affect the translation of rig control transforms"),
+			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationX", "X"), LOCTEXT("TranslationX_ToolTip", "Causes this section to affect the X channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationX), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationY", "Y"), LOCTEXT("TranslationY_ToolTip", "Causes this section to affect the Y channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationY), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("TranslationZ", "Z"), LOCTEXT("TranslationZ_ToolTip", "Causes this section to affect the Z channel of the transform's translation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::TranslationZ), NAME_None, EUserInterfaceActionType::ToggleButton);
+				}),
+			MakeUIAction(EMovieSceneTransformChannel::Translation),
+					NAME_None,
+					EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("AllRotation", "Rotation"), LOCTEXT("AllRotation_ToolTip", "Causes this section to affect the rotation of the rig control transform"),
+			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationX", "Roll (X)"), LOCTEXT("RotationX_ToolTip", "Causes this section to affect the roll (X) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationX), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationY", "Pitch (Y)"), LOCTEXT("RotationY_ToolTip", "Causes this section to affect the pitch (Y) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationY), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("RotationZ", "Yaw (Z)"), LOCTEXT("RotationZ_ToolTip", "Causes this section to affect the yaw (Z) channel the transform's rotation"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::RotationZ), NAME_None, EUserInterfaceActionType::ToggleButton);
+				}),
+			MakeUIAction(EMovieSceneTransformChannel::Rotation),
+					NAME_None,
+					EUserInterfaceActionType::ToggleButton);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("AllScale", "Scale"), LOCTEXT("AllScale_ToolTip", "Causes this section to affect the scale of the rig control transform"),
+			FNewMenuDelegate::CreateLambda([=](FMenuBuilder& SubMenuBuilder) {
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("ScaleX", "X"), LOCTEXT("ScaleX_ToolTip", "Causes this section to affect the X channel of the transform's scale"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleX), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("ScaleY", "Y"), LOCTEXT("ScaleY_ToolTip", "Causes this section to affect the Y channel of the transform's scale"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleY), NAME_None, EUserInterfaceActionType::ToggleButton);
+				SubMenuBuilder.AddMenuEntry(
+					LOCTEXT("ScaleZ", "Z"), LOCTEXT("ScaleZ_ToolTip", "Causes this section to affect the Z channel of the transform's scale"),
+					FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::ScaleZ), NAME_None, EUserInterfaceActionType::ToggleButton);
+				}),
+			MakeUIAction(EMovieSceneTransformChannel::Scale),
+					NAME_None,
+					EUserInterfaceActionType::ToggleButton);
+
+		//mz todo h
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("Weight", "Weight"), LOCTEXT("Weight_ToolTip", "Causes this section to be applied with a user-specified weight curve"),
+			FSlateIcon(), MakeUIAction(EMovieSceneTransformChannel::Weight), NAME_None, EUserInterfaceActionType::ToggleButton);
+	}
+	MenuBuilder.EndSection();
 }
 
 void FControlRigParameterSection::ShowSelectedControlsChannels()

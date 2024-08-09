@@ -174,39 +174,56 @@ void F3DTransformTrackEditor::BuildTrackContextMenu( FMenuBuilder& MenuBuilder, 
 {
 	UMovieScene3DTransformTrack* TransformTrack = Cast<UMovieScene3DTransformTrack>( Track );
 
-	auto AnimSubMenuDelegate = [](FMenuBuilder& InMenuBuilder, TSharedRef<ISequencer> InSequencer, UMovieScene3DTransformTrack* InTransformTrack)
-	{
-		UMovieSceneSequence* Sequence = InSequencer->GetFocusedMovieSceneSequence();
-
-		FAssetPickerConfig AssetPickerConfig;
-		AssetPickerConfig.bAddFilterUI = true;
-		AssetPickerConfig.SelectionMode = ESelectionMode::Single;
-		AssetPickerConfig.Filter.ClassPaths.Add(UAnimSequence::StaticClass()->GetClassPathName());
-		AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateStatic(&F3DTransformTrackEditor::ImportAnimSequenceTransforms, InSequencer, InTransformTrack);
-		AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateStatic(&F3DTransformTrackEditor::ImportAnimSequenceTransformsEnterPressed, InSequencer, InTransformTrack);
-		AssetPickerConfig.SaveSettingsName = TEXT("SequencerAssetPicker");
-		AssetPickerConfig.AdditionalReferencingAssets.Add(FAssetData(Sequence));
-
-		FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
-
-		InMenuBuilder.AddWidget(
-			SNew(SBox)
-			.WidthOverride(200.0f)
-			.HeightOverride(400.0f)
-			[
-				ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
-			], 
-			FText(), true, false);
-	};
-
 	MenuBuilder.AddSubMenu(
 		NSLOCTEXT( "Sequencer", "ImportTransforms", "Import From Animation Root" ),
 		NSLOCTEXT( "Sequencer", "ImportTransformsTooltip", "Import transform keys from an animation sequence's root motion." ),
-		FNewMenuDelegate::CreateLambda(AnimSubMenuDelegate, GetSequencer().ToSharedRef(), TransformTrack)
+		FNewMenuDelegate::CreateSP(this, &F3DTransformTrackEditor::BuildAssetPickerSubMenu, TransformTrack)
 	);
 
 	MenuBuilder.AddMenuSeparator();
+
 	FKeyframeTrackEditor::BuildTrackContextMenu(MenuBuilder, Track);
+}
+
+void F3DTransformTrackEditor::BuildAssetPickerSubMenu(FMenuBuilder& InMenuBuilder, UMovieScene3DTransformTrack* InTransformTrack)
+{
+	const TSharedPtr<ISequencer> TrackSequencer = GetSequencer();
+	if (!TrackSequencer.IsValid())
+	{
+		return;
+	}
+
+	TWeakObjectPtr<UMovieScene3DTransformTrack> TransformTrackWeak = InTransformTrack;
+
+	UMovieSceneSequence* Sequence = TrackSequencer->GetFocusedMovieSceneSequence();
+
+	FAssetPickerConfig AssetPickerConfig;
+	AssetPickerConfig.bAddFilterUI = true;
+	AssetPickerConfig.SelectionMode = ESelectionMode::Single;
+	AssetPickerConfig.Filter.ClassPaths.Add(UAnimSequence::StaticClass()->GetClassPathName());
+	AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateLambda(
+		[this, TransformTrackWeak](const FAssetData& InAssetData)
+		{
+			ImportAnimSequenceTransforms(InAssetData, TransformTrackWeak.Get());
+		});
+	AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateLambda(
+		[this, TransformTrackWeak](const TArray<FAssetData>& InSelectedAssets)
+		{
+			ImportAnimSequenceTransformsEnterPressed(InSelectedAssets, TransformTrackWeak.Get());
+		});
+	AssetPickerConfig.SaveSettingsName = TEXT("SequencerAssetPicker");
+	AssetPickerConfig.AdditionalReferencingAssets.Add(FAssetData(Sequence));
+
+	FContentBrowserModule& ContentBrowserModule = FModuleManager::LoadModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+
+	InMenuBuilder.AddWidget(
+		SNew(SBox)
+		.WidthOverride(200.0f)
+		.HeightOverride(400.0f)
+		[
+			ContentBrowserModule.Get().CreateAssetPicker(AssetPickerConfig)
+		], 
+		FText(), true, false);
 }
 
 
@@ -1533,17 +1550,28 @@ void AddUnwoundKey(FMovieSceneDoubleChannel& Channel, FFrameNumber Time, double 
 }
 
 
-void F3DTransformTrackEditor::ImportAnimSequenceTransforms(const FAssetData& Asset, TSharedRef<ISequencer> Sequencer, UMovieScene3DTransformTrack* TransformTrack)
+void F3DTransformTrackEditor::ImportAnimSequenceTransforms(const FAssetData& Asset, UMovieScene3DTransformTrack* TransformTrack)
 {
+	if (!IsValid(TransformTrack))
+	{
+		return;
+	}
+
+	const TSharedPtr<ISequencer> SequencerPtr = GetSequencer();
+	if (!SequencerPtr.IsValid())
+	{
+		return;
+	}
+
 	FSlateApplication::Get().DismissAllMenus();
 
-	FQualifiedFrameTime CurrentTime = Sequencer->GetLocalTime();
+	FQualifiedFrameTime CurrentTime = SequencerPtr->GetLocalTime();
 
 	UAnimSequence* AnimSequence = Cast<UAnimSequence>(Asset.GetAsset());
 
 	// find object binding to recover any component transforms we need to incorporate (for characters)
 	FTransform InvComponentTransform;
-	UMovieSceneSequence* MovieSceneSequence = Sequencer->GetFocusedMovieSceneSequence();
+	UMovieSceneSequence* MovieSceneSequence = SequencerPtr->GetFocusedMovieSceneSequence();
 	if(MovieSceneSequence)
 	{
 		UMovieScene* MovieScene = MovieSceneSequence->GetMovieScene();
@@ -1685,16 +1713,16 @@ void F3DTransformTrackEditor::ImportAnimSequenceTransforms(const FAssetData& Ass
 			Section->SetRange(Range);
 			Section->SetRowIndex(MovieSceneToolHelpers::FindAvailableRowIndex(TransformTrack, Section));
 
-			Sequencer->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
+			SequencerPtr->NotifyMovieSceneDataChanged( EMovieSceneDataChangeType::MovieSceneStructureItemAdded );
 		}
 	}
 }
 
-void F3DTransformTrackEditor::ImportAnimSequenceTransformsEnterPressed(const TArray<FAssetData>& Asset, TSharedRef<ISequencer> Sequencer, UMovieScene3DTransformTrack* TransformTrack)
+void F3DTransformTrackEditor::ImportAnimSequenceTransformsEnterPressed(const TArray<FAssetData>& Asset, UMovieScene3DTransformTrack* TransformTrack)
 {
 	if (Asset.Num() > 0)
 	{
-		ImportAnimSequenceTransforms(Asset[0].GetAsset(), Sequencer, TransformTrack);
+		ImportAnimSequenceTransforms(Asset[0].GetAsset(), TransformTrack);
 	}
 }
 

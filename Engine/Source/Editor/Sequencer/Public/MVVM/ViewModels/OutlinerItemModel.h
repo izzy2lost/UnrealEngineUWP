@@ -70,16 +70,13 @@ public:
 	/*~ IDimmableExtension */
 	bool IsDimmed() const override;
 
-	virtual void BuildSidebarMenu(FMenuBuilder& MenuBuilder);
-
-//protected:
-
 	/** Get context menu contents. */
 	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder);
-	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
-	virtual void BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
-	virtual void BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder);
+
+	virtual void BuildSidebarMenu(FMenuBuilder& MenuBuilder);
+
 protected:
+
 	/** Set identifier for computing node paths */
 	void SetIdentifier(FName InNewIdentifier);
 
@@ -89,7 +86,10 @@ protected:
 	/** Set expansion state without saving it in the movie-scene data */
 	void SetExpansionWithoutSaving(bool bInIsExpanded);
 
-	void BuildSectionColorTintsContextMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildSectionColorTintsMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
+	virtual void BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder, const TArray<UMovieSceneTrack*>& InTracks);
 
 private:
 

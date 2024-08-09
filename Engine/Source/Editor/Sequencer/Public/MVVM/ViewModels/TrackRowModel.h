@@ -47,8 +47,8 @@ public:
 
 	/*~ FOutlinerItemModel */
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
-	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels) override;
 	void BuildSidebarMenu(FMenuBuilder& MenuBuilder) override;
+	void CreateCurveModels(TArray<TUniquePtr<FCurveModel>>& OutCurveModels) override;
 
 	/*~ IOutlinerExtension */
 	FOutlinerSizing GetOutlinerSizing() const override;
@@ -91,8 +91,6 @@ public:
 
 private:
 
-	TArray<TWeakObjectPtr<UObject>> GetSelectedTrackSections() const;
-	
 	FViewModelListHead SectionList;
 	FViewModelListHead TopLevelChannelList;
 	TWeakObjectPtr<UMovieSceneTrack> WeakTrack;

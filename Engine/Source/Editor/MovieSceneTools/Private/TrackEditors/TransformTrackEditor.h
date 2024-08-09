@@ -178,10 +178,10 @@ private:
 private:
 
 	/** Import an animation sequence's root transforms into a transform section */
-	static void ImportAnimSequenceTransforms(const FAssetData& Asset, TSharedRef<class ISequencer> Sequencer, UMovieScene3DTransformTrack* TransformTrack);
+	void ImportAnimSequenceTransforms(const FAssetData& Asset, UMovieScene3DTransformTrack* TransformTrack);
 
 	/** Import an animation sequence's root transforms into a transform section */
-	static void ImportAnimSequenceTransformsEnterPressed(const TArray<FAssetData>& Asset, TSharedRef<class ISequencer> Sequencer, UMovieScene3DTransformTrack* TransformTrack);
+	void ImportAnimSequenceTransformsEnterPressed(const TArray<FAssetData>& Asset, UMovieScene3DTransformTrack* TransformTrack);
 
 	/** ConstraintChannel Delegates*/
 	FDelegateHandle OnSceneComponentConstrainedHandle;
@@ -194,6 +194,9 @@ private:
 	void HandleConstraintPropertyChanged(UTickableTransformConstraint* InConstraint, const FPropertyChangedEvent& InPropertyChangedEvent) const;
 	
 	void ClearOutConstraintDelegates();
+
+	void BuildAssetPickerSubMenu(FMenuBuilder& InMenuBuilder, UMovieScene3DTransformTrack* InTransformTrack);
+
 private:
 
 	static FName TransformPropertyName;

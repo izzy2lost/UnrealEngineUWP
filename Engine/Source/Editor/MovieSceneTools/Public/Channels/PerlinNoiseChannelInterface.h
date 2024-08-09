@@ -128,13 +128,22 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 	{
 		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(Channels, Sections);
 
-		MenuExtender->AddMenuExtension("SequencerChannels", EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder) { Extension->ExtendMenu(MenuBuilder); }));
+		MenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
+			, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder)
+				{
+					Extension->ExtendMenu(MenuBuilder);
+				}));
 	}
 
 	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const override
 	{
 		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(Channels, Sections);
-		Extension->ExtendMenu(MenuBuilder, false);
+
+		MenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
+			, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder)
+				{
+					Extension->ExtendMenu(MenuBuilder);
+				}));
 	}
 
 	virtual void DrawKeys_Raw(FMovieSceneChannel* Channel, TArrayView<const FKeyHandle> InKeyHandles, const UMovieSceneSection* InOwner, TArrayView<FKeyDrawParams> OutKeyDrawParams) const override

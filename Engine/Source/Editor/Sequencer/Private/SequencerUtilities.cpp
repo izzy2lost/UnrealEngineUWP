@@ -4269,85 +4269,31 @@ void FSequencerUtilities::AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TShar
 		return;
 	}
 
-	auto ConvertBindings = [Sequencer, MovieScene, BindingsToConvert, OnBindingChanged](TFunction<FMovieScenePossessable*(FGuid,int32)> DoConvert) {
-		using namespace UE::Sequencer;
-
-		if (MovieScene->IsReadOnly())
-		{
-			FSequencerUtilities::ShowReadOnlyError();
-			return;
-		}
-
-		if (BindingsToConvert.Num() > 0)
-		{
-			const FScopedTransaction Transaction(LOCTEXT("ConvertSelectedNodesPossessable", "Convert Selected Nodes to Possessables"));
-			MovieScene->Modify();
-
-			FScopedSlowTask SlowTask(BindingsToConvert.Num(), LOCTEXT("ConvertPossessablesProgress", "Converting Selected Spawnable Nodes to Possessables"));
-			SlowTask.MakeDialog(true);
-
-			TArray<AActor*> PossessedActors;
-			for (const FSequencerChangeBindingInfo& BindingInfo : BindingsToConvert)
-			{
-				SlowTask.EnterProgressFrame();
-
-				if (FMovieScenePossessable* Possessable = DoConvert(BindingInfo.BindingID, BindingInfo.BindingIndex))
-				{
-					Sequencer->ForceEvaluate();
-
-					for (TWeakObjectPtr<> WeakObject : Sequencer->FindBoundObjects(Possessable->GetGuid(), Sequencer->GetFocusedTemplateID()))
-					{
-						if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
-						{
-							PossessedActors.Add(PossessedActor);
-						}
-					}
-
-					if (GWarn->ReceivedUserCancel())
-					{
-						break;
-					}
-				}
-			}
-
-			if (PossessedActors.Num())
-			{
-				const bool bNotifySelectionChanged = true;
-				const bool bDeselectBSP = true;
-				const bool bWarnAboutTooManyActors = false;
-				const bool bSelectEvenIfHidden = false;
-
-				GEditor->GetSelectedActors()->Modify();
-				GEditor->GetSelectedActors()->BeginBatchSelectOperation();
-				GEditor->SelectNone(bNotifySelectionChanged, bDeselectBSP, bWarnAboutTooManyActors);
-				for (auto PossessedActor : PossessedActors)
-				{
-					GEditor->SelectActor(PossessedActor, true, bNotifySelectionChanged, bSelectEvenIfHidden);
-				}
-				GEditor->GetSelectedActors()->EndBatchSelectOperation();
-				GEditor->NoteSelectionChange();
-
-				Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
-			}
-		}
-		if (OnBindingChanged != nullptr)
-		{
-			OnBindingChanged();
-		}
-	};
-
 	// Can convert to possessable
 	if (Algo::AllOf(BindingsToConvert, [Sequencer, &Sequence, &MovieScene](const FSequencerChangeBindingInfo& BindingInfo) {
 		return CanConvertToPossessable(Sequencer, BindingInfo.BindingID, BindingInfo.BindingIndex );
 	}))
 	{
+		const TWeakPtr<ISequencer> WeakSequencer = Sequencer;
+
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("ConvertToPossessable", "Possessable"),
 			LOCTEXT("ConvertToPossessableTooltip", "Convert selected binding(s) to a possessable"),
 			FSlateIcon(),
-			FUIAction(FExecuteAction::CreateLambda([Sequencer, MovieScene, BindingsToConvert, ConvertBindings, OnBindingChanged]()
+			FUIAction(FExecuteAction::CreateLambda([WeakSequencer, BindingsToConvert, OnBindingChanged]()
 			{
-				ConvertBindings([Sequencer](FGuid BindingID, int32 BindingIndex){return FSequencerUtilities::ConvertToPossessable(Sequencer, BindingID, BindingIndex);});
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer)
+				{
+					return;
+				}
+
+				const TSharedRef<ISequencer> SequencerRef = Sequencer.ToSharedRef();
+				ConvertBindings(SequencerRef, BindingsToConvert, [&SequencerRef](FGuid BindingID, int32 BindingIndex)
+					{
+						return FSequencerUtilities::ConvertToPossessable(SequencerRef, BindingID, BindingIndex);
+					},
+					OnBindingChanged);
 			})));
 	}
 	
@@ -4361,15 +4307,115 @@ void FSequencerUtilities::AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TShar
 			return CanConvertToCustomBinding(Sequencer, BindingInfo.BindingID, CustomBindingType, BindingInfo.BindingIndex);
 		}))
 		{
+			const TWeakPtr<ISequencer> WeakSequencer = Sequencer;
+
 			MenuBuilder.AddMenuEntry(
 				CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName(),
 				FText::Format(LOCTEXT("ConvertToCustomBindingTooltip", "Convert selected binding to {0}"), CustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->GetBindingTypePrettyName()),
 				FSlateIcon(),
-				FUIAction(FExecuteAction::CreateLambda([Sequencer, MovieScene, BindingsToConvert, ConvertBindings, CustomBindingType, OnBindingChanged]()
+				FUIAction(FExecuteAction::CreateLambda([WeakSequencer, CustomBindingType, BindingsToConvert, OnBindingChanged]()
 				{
-					ConvertBindings([Sequencer, CustomBindingType](FGuid BindingID, int32 BindingIndex){return FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, CustomBindingType, BindingIndex);});
+					const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+					if (!Sequencer)
+					{
+						return;
+					}
+
+					const TSharedRef<ISequencer> SequencerRef = Sequencer.ToSharedRef();
+					ConvertBindings(SequencerRef, BindingsToConvert, [&SequencerRef, CustomBindingType](FGuid BindingID, int32 BindingIndex)
+						{
+							return FSequencerUtilities::ConvertToCustomBinding(SequencerRef, BindingID, CustomBindingType, BindingIndex);
+						},
+						OnBindingChanged);
 				})));
 		}
 	}
 }
+
+void FSequencerUtilities::ConvertBindings(const TSharedRef<ISequencer>& InSequencer
+	, const TArray<FSequencerChangeBindingInfo>& InBindingsToConvert
+	, TFunction<FMovieScenePossessable*(FGuid, int32)> InDoConvert
+	, TFunction<void()> InOnBindingChanged)
+{
+	using namespace UE::Sequencer;
+
+	UMovieSceneSequence* const Sequence = InSequencer->GetFocusedMovieSceneSequence();
+	if (!IsValid(Sequence))
+	{
+		return;
+	}
+
+	UMovieScene* const MovieScene = Sequence->GetMovieScene();
+	if (!IsValid(MovieScene))
+	{
+		return;
+	}
+
+	if (InBindingsToConvert.Num() == 0)
+	{
+		return;
+	}
+
+	if (MovieScene->IsReadOnly())
+	{
+		FSequencerUtilities::ShowReadOnlyError();
+		return;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("ConvertSelectedNodesPossessable", "Convert Selected Nodes to Possessables"));
+	MovieScene->Modify();
+
+	FScopedSlowTask SlowTask(InBindingsToConvert.Num(), LOCTEXT("ConvertPossessablesProgress", "Converting Selected Spawnable Nodes to Possessables"));
+	SlowTask.MakeDialog(true);
+
+	TArray<AActor*> PossessedActors;
+	for (const FSequencerChangeBindingInfo& BindingInfo : InBindingsToConvert)
+	{
+		SlowTask.EnterProgressFrame();
+
+		if (FMovieScenePossessable* Possessable = InDoConvert(BindingInfo.BindingID, BindingInfo.BindingIndex))
+		{
+			InSequencer->ForceEvaluate();
+
+			for (TWeakObjectPtr<> WeakObject : InSequencer->FindBoundObjects(Possessable->GetGuid(), InSequencer->GetFocusedTemplateID()))
+			{
+				if (AActor* PossessedActor = Cast<AActor>(WeakObject.Get()))
+				{
+					PossessedActors.Add(PossessedActor);
+				}
+			}
+
+			if (GWarn->ReceivedUserCancel())
+			{
+				break;
+			}
+		}
+	}
+
+	if (PossessedActors.Num())
+	{
+		const bool bNotifySelectionChanged = true;
+		const bool bDeselectBSP = true;
+		const bool bWarnAboutTooManyActors = false;
+		const bool bSelectEvenIfHidden = false;
+
+		GEditor->GetSelectedActors()->Modify();
+		GEditor->GetSelectedActors()->BeginBatchSelectOperation();
+		GEditor->SelectNone(bNotifySelectionChanged, bDeselectBSP, bWarnAboutTooManyActors);
+		for (auto PossessedActor : PossessedActors)
+		{
+			GEditor->SelectActor(PossessedActor, true, bNotifySelectionChanged, bSelectEvenIfHidden);
+		}
+		GEditor->GetSelectedActors()->EndBatchSelectOperation();
+		GEditor->NoteSelectionChange();
+
+		InSequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+	}
+
+	if (InOnBindingChanged != nullptr)
+	{
+		InOnBindingChanged();
+	}
+}
+
 #undef LOCTEXT_NAMESPACE

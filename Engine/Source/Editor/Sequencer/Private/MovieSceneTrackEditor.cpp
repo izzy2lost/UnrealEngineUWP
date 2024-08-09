@@ -328,15 +328,16 @@ TSharedPtr<SWidget> FMovieSceneTrackEditor::BuildOutlinerEditWidget(const FGuid&
 }
 
 void FMovieSceneTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) 
-{ 
+{
 }
 
 void FMovieSceneTrackEditor::BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) 
-{ 
+{
+	BuildTrackContextMenu(MenuBuilder, Track);
 }
 
 bool FMovieSceneTrackEditor::HandleAssetAdded(UObject* Asset, const FGuid& TargetObjectGuid) 
-{ 
+{
 	return false; 
 }
 

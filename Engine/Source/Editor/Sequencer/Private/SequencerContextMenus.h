@@ -25,14 +25,15 @@ class UMovieSceneSection;
  */
 struct FSectionContextMenu : TSharedFromThis<FSectionContextMenu>
 {
-	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FSequencer& Sequencer, FFrameTime InMouseDownTime);
+	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TWeakPtr<FSequencer> InWeakSequencer, FFrameTime InMouseDownTime);
+	static void BuildKeyEditMenu(FMenuBuilder& MenuBuilder, TWeakPtr<FSequencer> InWeakSequencer, FFrameTime InMouseDownTime);
 
 private:
 
 	/** Hidden AsShared() methods to discourage CreateSP delegate use. */
 	using TSharedFromThis::AsShared;
 
-	FSectionContextMenu(FSequencer& InSeqeuncer, FFrameTime InMouseDownTime);
+	FSectionContextMenu(TWeakPtr<FSequencer> InWeakSequencer, FFrameTime InMouseDownTime);
 
 	void PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender);
 
@@ -42,6 +43,8 @@ private:
 	/** Add the Order sub-menu. */
 	void AddOrderMenu(FMenuBuilder& MenuBuilder);
 
+	void AddKeyInterpolationMenu(FMenuBuilder& MenuBuilder);
+	void AddKeyEditMenu(FMenuBuilder& MenuBuilder);
 	void AddBlendTypeMenu(FMenuBuilder& MenuBuilder);
 
 	void SelectAllKeys();
@@ -89,7 +92,7 @@ private:
 	FMovieSceneBlendTypeField GetSupportedBlendTypes() const;
 
 	/** The sequencer */
-	TSharedRef<FSequencer> Sequencer;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	/** The time that we clicked on to summon this menu */
 	FFrameTime MouseDownTime;
@@ -132,9 +135,9 @@ struct FPasteContextMenuArgs
 
 struct FPasteContextMenu : TSharedFromThis<FPasteContextMenu>
 {
-	static bool BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FSequencer& Sequencer, const FPasteContextMenuArgs& Args);
+	static bool BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& Args);
 
-	static TSharedRef<FPasteContextMenu> CreateMenu(FSequencer& Sequencer, const FPasteContextMenuArgs& Args);
+	static TSharedRef<FPasteContextMenu> CreateMenu(TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& Args);
 
 	void PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender);
 
@@ -146,8 +149,8 @@ private:
 
 	using TSharedFromThis::AsShared;
 
-	FPasteContextMenu(FSequencer& InSequencer, const FPasteContextMenuArgs& InArgs)
-		: Sequencer(StaticCastSharedRef<FSequencer>(InSequencer.AsShared()))
+	FPasteContextMenu(TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& InArgs)
+		: WeakSequencer(InWeakSequencer)
 		, bPasteFirstOnly(true)
 		, Args(InArgs)
 	{}
@@ -163,7 +166,7 @@ private:
 	void GatherPasteDestinationsForNode(const UE::Sequencer::TViewModelPtr<UE::Sequencer::IOutlinerExtension>& InNode, UMovieSceneSection* InSection, const FName& CurrentScope, TMap<FName, FSequencerClipboardReconciler>& Map);
 
 	/** The sequencer */
-	TSharedRef<FSequencer> Sequencer;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	/** Paste destinations are organized by track type primarily, then by key area name  */
 	struct FPasteDestination
@@ -181,9 +184,9 @@ private:
 
 struct FPasteFromHistoryContextMenu : TSharedFromThis<FPasteFromHistoryContextMenu>
 {
-	static bool BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FSequencer& Sequencer, const FPasteContextMenuArgs& Args);
+	static bool BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& Args);
 
-	static TSharedPtr<FPasteFromHistoryContextMenu> CreateMenu(FSequencer& Sequencer, const FPasteContextMenuArgs& Args);
+	static TSharedPtr<FPasteFromHistoryContextMenu> CreateMenu(TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& Args);
 
 	void PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender);
 
@@ -191,13 +194,13 @@ private:
 
 	using TSharedFromThis::AsShared;
 
-	FPasteFromHistoryContextMenu(FSequencer& InSequencer, const FPasteContextMenuArgs& InArgs)
-		: Sequencer(StaticCastSharedRef<FSequencer>(InSequencer.AsShared()))
+	FPasteFromHistoryContextMenu(TWeakPtr<FSequencer> InWeakSequencer, const FPasteContextMenuArgs& InArgs)
+		: WeakSequencer(InWeakSequencer)
 		, Args(InArgs)
 	{}
 
 	/** The sequencer */
-	TSharedRef<FSequencer> Sequencer;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	/** Paste arguments */
 	FPasteContextMenuArgs Args;
@@ -211,12 +214,12 @@ private:
  */
 struct FKeyContextMenu : TSharedFromThis<FKeyContextMenu>
 {
-	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, FSequencer& Sequencer);
+	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TWeakPtr<FSequencer> InWeakSequencer);
 
 private:
 
-	FKeyContextMenu(FSequencer& InSequencer)
-		: Sequencer(StaticCastSharedRef<FSequencer>(InSequencer.AsShared()))
+	FKeyContextMenu(TWeakPtr<FSequencer> InWeakSequencer)
+		: WeakSequencer(InWeakSequencer)
 	{}
 
 	/** Hidden AsShared() methods to discourage CreateSP delegate use. */
@@ -228,7 +231,7 @@ private:
 	void PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender);
 
 	/** The sequencer */
-	TSharedRef<FSequencer> Sequencer;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	TSharedPtr<FStructOnScope> KeyStruct;
 	TWeakObjectPtr<UMovieSceneSection> KeyStructSection;
@@ -243,14 +246,13 @@ private:
  */
 struct FEasingContextMenu : TSharedFromThis<FEasingContextMenu>
 {
-	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, const TArray<UE::Sequencer::FEasingAreaHandle>& InEasings, FSequencer& Sequencer, FFrameTime InMouseDownTime);
+	static void BuildMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, const TArray<UE::Sequencer::FEasingAreaHandle>& InEasings, TWeakPtr<FSequencer> InWeakSequencer, FFrameTime InMouseDownTime);
 
 private:
 
-	FEasingContextMenu(const TArray<UE::Sequencer::FEasingAreaHandle>& InEasings, FSequencer& InSequencer)
+	FEasingContextMenu(const TArray<UE::Sequencer::FEasingAreaHandle>& InEasings, TWeakPtr<FSequencer> InWeakSequencer)
 		: Easings(InEasings)
-		, Sequencer(StaticCastSharedRef<FSequencer>(InSequencer.AsShared()))
-
+		, WeakSequencer(InWeakSequencer)
 	{}
 
 	/** Hidden AsShared() methods to discourage CreateSP delegate use. */
@@ -277,7 +279,7 @@ private:
 	TArray<UE::Sequencer::FEasingAreaHandle> Easings;
 
 	/** The sequencer */
-	TSharedRef<FSequencer> Sequencer;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	/** A scoped transaction for a current operation */
 	TUniquePtr<FScopedTransaction> ScopedTransaction;

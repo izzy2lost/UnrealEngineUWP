@@ -28,14 +28,14 @@ class UObject;
 
 void FTransformSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const FGuid& InObjectBinding)
 {
-	UMovieScene3DTransformSection* TransformSection = CastChecked<UMovieScene3DTransformSection>(WeakSection.Get());
-	TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
-
-	auto MakeUIAction = [=](EMovieSceneTransformChannel ChannelsToToggle)
+	auto MakeUIAction = [this, InObjectBinding](EMovieSceneTransformChannel ChannelsToToggle)
 	{
 		return FUIAction(
-			FExecuteAction::CreateLambda([=]
+			FExecuteAction::CreateLambda([this, InObjectBinding, ChannelsToToggle]
 				{
+					UMovieScene3DTransformSection* TransformSection = CastChecked<UMovieScene3DTransformSection>(WeakSection.Get());
+					TSharedPtr<ISequencer> SequencerPtr = WeakSequencer.Pin();
+
 					FScopedTransaction Transaction(LOCTEXT("SetActiveChannelsTransaction", "Set Active Channels"));
 					TransformSection->Modify();
 					EMovieSceneTransformChannel Channels = TransformSection->GetMask().GetChannels();
@@ -62,9 +62,15 @@ void FTransformSection::BuildSectionContextMenu(FMenuBuilder& MenuBuilder, const
 				}
 			),
 			FCanExecuteAction(),
-			FGetActionCheckState::CreateLambda([=]
+			FGetActionCheckState::CreateLambda([this, ChannelsToToggle]
 			{
-				EMovieSceneTransformChannel Channels = TransformSection->GetMask().GetChannels();
+				const UMovieScene3DTransformSection* const TransformSection = CastChecked<UMovieScene3DTransformSection>(WeakSection.Get());
+				if (!IsValid(TransformSection))
+				{
+					return ECheckBoxState::Unchecked;
+				}
+
+				const EMovieSceneTransformChannel Channels = TransformSection->GetMask().GetChannels();
 				if (EnumHasAllFlags(Channels, ChannelsToToggle))
 				{
 					return ECheckBoxState::Checked;

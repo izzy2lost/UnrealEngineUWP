@@ -241,7 +241,10 @@ public:
 	 * @param MenuBuilder	The menu builder to change
 	 * @param ObjectBinding The object guid bound to this section
 	 */
-	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding) {}
+	virtual void BuildSectionSidebarMenu(FMenuBuilder& MenuBuilder, const FGuid& ObjectBinding)
+	{
+		BuildSectionContextMenu(MenuBuilder, ObjectBinding);
+	}
 
 	/**
 	 * Called when the user requests that a category from this section be deleted. 

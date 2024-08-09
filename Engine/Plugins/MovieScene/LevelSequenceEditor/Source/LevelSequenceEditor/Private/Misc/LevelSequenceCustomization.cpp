@@ -58,7 +58,7 @@ void FLevelSequenceCustomization::RegisterSequencerCustomization(FSequencerCusto
 	// Add a customization callback for the object binding context menu.
 	FSequencerCustomizationInfo Customization;
 	Customization.OnBuildObjectBindingContextMenu = FOnGetSequencerMenuExtender::CreateRaw(this, &FLevelSequenceCustomization::CreateObjectBindingContextMenuExtender);
-	Customization.OnBuildSidebarMenu = FOnGetSequencerMenuExtender::CreateRaw(this, &FLevelSequenceCustomization::CreateSidebarMenuExtender);
+	Customization.OnBuildSidebarMenu = FOnGetSequencerMenuExtender::CreateRaw(this, &FLevelSequenceCustomization::CreateObjectBindingSidebarMenuExtender);
 	Builder.AddCustomization(Customization);
 }
 
@@ -142,17 +142,17 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		bool bMultipleBindings = false;
 		UObject* ResolutionContext = MovieSceneHelpers::GetResolutionContext(Sequence, ObjectBindingID, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState());
 
-		if (const FMovieSceneBindingReferences* BindingReferences = Sequencer->GetFocusedMovieSceneSequence()->GetBindingReferences())
+		if (const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 		{
 			bCustomBinding = Algo::AnyOf(BindingReferences->GetReferences(ObjectBindingID), [](const FMovieSceneBindingReference& Reference) { return Reference.CustomBinding; });
 			bMultipleBindings = BindingReferences->GetReferences(ObjectBindingID).Num() > 1;
 			UE::UniversalObjectLocator::FResolveParams LocatorResolveParams(ResolutionContext);
-			FMovieSceneBindingResolveParams BindingResolveParams{ Sequencer->GetFocusedMovieSceneSequence(), ObjectBindingID, Sequencer->GetFocusedTemplateID(), ResolutionContext };
+			FMovieSceneBindingResolveParams BindingResolveParams{ Sequence, ObjectBindingID, Sequencer->GetFocusedTemplateID(), ResolutionContext };
 
 			// Can convert to possessable
 			int32 BindingIndex = 0;
 			bool bAnyValidConversions = false;
-			if (Algo::AnyOf(BindingReferences->GetReferences(ObjectBindingID), [&BindingIndex, Sequencer, &Sequence, &MovieScene](const FMovieSceneBindingReference& BindingReference) {
+			if (Algo::AnyOf(BindingReferences->GetReferences(ObjectBindingID), [&BindingIndex, Sequencer](const FMovieSceneBindingReference& BindingReference) {
 				return FSequencerUtilities::CanConvertToPossessable(Sequencer.ToSharedRef(), BindingReference.ID, BindingIndex++);
 				}))
 			{
@@ -164,7 +164,7 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 				for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : PrioritySortedCustomBindingTypes)
 				{
 					BindingIndex = 0;
-					if (Algo::AllOf(BindingReferences->GetReferences(ObjectBindingID), [&BindingIndex, &Sequence, &MovieScene, &CustomBindingType, Sequencer](const FMovieSceneBindingReference& BindingReference)
+					if (Algo::AllOf(BindingReferences->GetReferences(ObjectBindingID), [&BindingIndex, &CustomBindingType, Sequencer](const FMovieSceneBindingReference& BindingReference)
 						{
 							return FSequencerUtilities::CanConvertToCustomBinding(Sequencer.ToSharedRef(), BindingReference.ID, CustomBindingType, BindingIndex++);
 						}))
@@ -191,7 +191,7 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		else
 		{
 			MenuBuilder.BeginSection("CustomBinding");
-			bool bCustomSpawnable = MovieSceneHelpers::SupportsObjectTemplate(Sequencer->GetFocusedMovieSceneSequence(), ObjectBindingID, Sequencer->GetSharedPlaybackState());
+			bool bCustomSpawnable = MovieSceneHelpers::SupportsObjectTemplate(Sequence, ObjectBindingID, Sequencer->GetSharedPlaybackState());
 			// Check for custom binding types
 
 			if (bCustomSpawnable)
@@ -200,21 +200,32 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 
 				if (!bMultipleBindings)
 				{
-					TArray<FSequencerChangeBindingInfo> Bindings;
-					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
-					for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
-					{
-						int32 BindingIndex = 0;
-						for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
-						{
-							Bindings.Add({ Reference.ID, BindingIndex++ });
-						}
-					}
-
 					MenuBuilder.AddSubMenu(
 						LOCTEXT("ChangeClassLabel", "Change Class"),
 						LOCTEXT("ChangeClassTooltip", "Change the class (object template) that this spawns from"),
-						FNewMenuDelegate::CreateLambda([=](FMenuBuilder& MenuBuilder) { FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>()); }));
+						FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+						{
+							const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+							if (!Sequencer.IsValid())
+							{
+								return;
+							}
+
+							UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+
+							TArray<FSequencerChangeBindingInfo> Bindings;
+							const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+							for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
+							{
+								int32 BindingIndex = 0;
+								for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
+								{
+									Bindings.Add({ Reference.ID, BindingIndex++ });
+								}
+							}
+
+							FSequencerUtilities::AddChangeClassMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>());
+						}));
 				}
 			}
 
@@ -228,18 +239,30 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("ConvertBindingLabel", "Convert Selected Binding(s) To..."),
 			LOCTEXT("ConvertBindingLabelTooltip", "Convert selected bindings into another binding type"),
-			FNewMenuDelegate::CreateLambda([Sequencer, Sequence](FMenuBuilder& MenuBuilder) 
-			{ 
-					TArray<FSequencerChangeBindingInfo> Bindings;
-					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
-					for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
+			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) 
+			{
+				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
+				if (!Sequencer.IsValid())
+				{
+					return;
+				}
+
+				UMovieSceneSequence* const Sequence = Sequencer->GetFocusedMovieSceneSequence();
+				if (!IsValid(Sequence))
+				{
+					return;
+				}
+
+				TArray<FSequencerChangeBindingInfo> Bindings;
+				const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+				for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
+				{
+					int32 BindingIndex = 0;
+					for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
 					{
-						int32 BindingIndex = 0;
-						for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
-						{
-							Bindings.Add({ Reference.ID, BindingIndex++ });
-						}
+						Bindings.Add({ Reference.ID, BindingIndex++ });
 					}
+				}
 
 				FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>()); 
 			}));
@@ -272,24 +295,21 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 	MenuBuilder.EndSection();
 }
 
-TSharedPtr<FExtender> FLevelSequenceCustomization::CreateSidebarMenuExtender(FViewModelPtr InViewModel)
+TSharedPtr<FExtender> FLevelSequenceCustomization::CreateObjectBindingSidebarMenuExtender(FViewModelPtr InViewModel)
 {
 	TSharedRef<FExtender> Extender = MakeShared<FExtender>();
 	
 	TSharedPtr<FObjectBindingModel> ObjectBindingModel = InViewModel->CastThisShared<FObjectBindingModel>();
 	
 	Extender->AddMenuExtension(TEXT("ObjectBindingActions"), EExtensionHook::Before, nullptr,
-		FMenuExtensionDelegate::CreateRaw(this, &FLevelSequenceCustomization::ExtendSidebarMenu, ObjectBindingModel));
+		FMenuExtensionDelegate::CreateRaw(this, &FLevelSequenceCustomization::ExtendObjectBindingSidebarMenu, ObjectBindingModel));
 	
 	return Extender.ToSharedPtr();
 }
 
-void FLevelSequenceCustomization::ExtendSidebarMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
+void FLevelSequenceCustomization::ExtendObjectBindingSidebarMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FObjectBindingModel> ObjectBindingModel)
 {
-	if (ObjectBindingModel.IsValid())
-	{
-		ObjectBindingModel->BuildContextMenu(MenuBuilder);
-	}
+	ExtendObjectBindingContextMenu(MenuBuilder, ObjectBindingModel);
 }
 
 } // namespace UE::Sequencer

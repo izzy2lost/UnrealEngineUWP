@@ -214,11 +214,6 @@ void FCinematicShotTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder,
 	MenuBuilder.EndSection();
 }
 
-void FCinematicShotTrackEditor::BuildTrackSidebarMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track)
-{
-	BuildTrackContextMenu(MenuBuilder, Track);
-}
-
 void FCinematicShotTrackEditor::InsertShot()
 {
 	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();

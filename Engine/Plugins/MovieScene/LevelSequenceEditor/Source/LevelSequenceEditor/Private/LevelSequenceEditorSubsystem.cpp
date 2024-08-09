@@ -568,17 +568,18 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
 			{
 				// Only add menu entries where the focused sequence is a ULevelSequence
-				if (GetActiveSequencer())
+				if (!GetActiveSequencer())
 				{
-					AddBindingPropertiesSidebar(MenuBuilder);
+					return;
 				}
 
-				TArray<FName> ComponentNames;
-				GetRebindComponentNames(ComponentNames);
-				if (ComponentNames.Num() > 0)
-				{
-					RebindComponentMenu(MenuBuilder);
-				}
+				AddBindingPropertiesSidebar(MenuBuilder);
+
+				FFormatNamedArguments Args;
+				MenuBuilder.AddSubMenu(
+					FText::Format(LOCTEXT("RebindComponent", "Rebind Component"), Args),
+					FText::Format(LOCTEXT("RebindComponentTooltip", "Rebind component by moving the tracks from one component to another component."), Args),
+					FNewMenuDelegate::CreateUObject(this, &ULevelSequenceEditorSubsystem::RebindComponentMenu));
 			}));
 
 	SidebarMenuExtender->AddMenuExtension(TEXT("CustomBinding"), EExtensionHook::First, CommandList,

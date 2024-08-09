@@ -6,7 +6,6 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "IKeyArea.h"
 #include "ISequencerSection.h"
-#include "ISequencerTrackEditor.h"
 #include "IStructureDetailsView.h"
 #include "Menus/CurveChannelSectionSidebarExtension.h"
 #include "Modules/ModuleManager.h"
@@ -18,13 +17,12 @@
 #include "MVVM/ViewModelPtr.h"
 #include "MVVM/ViewModels/CategoryModel.h"
 #include "MVVM/ViewModels/LayerBarModel.h"
-#include "MVVM/ViewModels/PossessableModel.h"
 #include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
-#include "MVVM/ViewModels/TrackModel.h"
 #include "PropertyEditorModule.h"
 #include "Sequencer.h"
 #include "SequencerCommonHelpers.h"
+#include "SequencerContextMenus.h"
 #include "SKeyEditInterface.h"
 #include "Styling/AppStyle.h"
 #include "Templates/SharedPointer.h"
@@ -34,13 +32,13 @@
 
 namespace UE::Sequencer::Private
 {
-	FKeyEditData GetKeyEditData(const UE::Sequencer::FKeySelection& InKeySelection)
+	FKeyEditData GetKeyEditData(const FKeySelection& InKeySelection)
 	{
 		if (InKeySelection.Num() == 1)
 		{
 			for (const FKeyHandle Key : InKeySelection)
 			{
-				if (const TSharedPtr<UE::Sequencer::FChannelModel> Channel = InKeySelection.GetModelForKey(Key))
+				if (const TSharedPtr<FChannelModel> Channel = InKeySelection.GetModelForKey(Key))
 				{
 					FKeyEditData KeyEditData;
 					KeyEditData.KeyStruct     = Channel->GetKeyArea()->GetKeyStruct(Key);
@@ -55,7 +53,7 @@ namespace UE::Sequencer::Private
 			UMovieSceneSection* CommonSection = nullptr;
 			for (FKeyHandle Key : InKeySelection)
 			{
-				TSharedPtr<UE::Sequencer::FChannelModel> Channel = InKeySelection.GetModelForKey(Key);
+				TSharedPtr<FChannelModel> Channel = InKeySelection.GetModelForKey(Key);
 				if (Channel.IsValid())
 				{
 					KeyHandles.Add(Key);
@@ -83,9 +81,9 @@ namespace UE::Sequencer::Private
 		return FKeyEditData();
 	}
 
-	TSharedPtr<UE::Sequencer::FSequencerSelection> GetSelection(const ISequencer& InSequencer)
+	TSharedPtr<FSequencerSelection> GetSelection(const ISequencer& InSequencer)
 	{
-		const TSharedPtr<UE::Sequencer::FSequencerEditorViewModel> ViewModel = InSequencer.GetViewModel();
+		const TSharedPtr<FSequencerEditorViewModel> ViewModel = InSequencer.GetViewModel();
 		if (!ViewModel.IsValid())
 		{
 			return nullptr;
@@ -99,8 +97,8 @@ using namespace UE::Sequencer;
 
 const FName FSequencerSelectionDrawer::UniqueId = TEXT("SequencerSelectionDrawer");
 
-FSequencerSelectionDrawer::FSequencerSelectionDrawer(const TWeakPtr<FSequencer>& InSequencerWeak)
-	: SequencerWeak(InSequencerWeak)
+FSequencerSelectionDrawer::FSequencerSelectionDrawer(const TWeakPtr<FSequencer>& InWeakSequencer)
+	: WeakSequencer(InWeakSequencer)
 {
 }
 
@@ -121,14 +119,14 @@ FText FSequencerSelectionDrawer::GetSectionDisplayText() const
 
 TSharedRef<SWidget> FSequencerSelectionDrawer::CreateContentWidget()
 {
-	if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+	if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 	{
 		Sequencer->OnActorAddedToSequencer().AddLambda([this](AActor* InActor, const FGuid InGuid)
 			{
 				OnSequencerSelectionChanged();
 			});
 
-		if (const TSharedPtr<UE::Sequencer::FSequencerSelection> SequencerSelection = UE::Sequencer::Private::GetSelection(*Sequencer.Get()))
+		if (const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get()))
 		{
 			SequencerSelection->OnChanged.AddSP(this, &FSequencerSelectionDrawer::OnSequencerSelectionChanged);
 			
@@ -137,11 +135,12 @@ TSharedRef<SWidget> FSequencerSelectionDrawer::CreateContentWidget()
 	}
 
 	return SNew(SBorder)
-		.HAlign(HAlign_Fill)
 		.BorderImage(FAppStyle::GetBrush(TEXT("NoBorder")))
+		.Padding(0.f)
 		[
 			SAssignNew(ContentBox, SVerticalBox)
 			+ SVerticalBox::Slot()
+			.FillHeight(1.f)
 			[
 				CreateNoSelectionHintText()
 			]
@@ -159,8 +158,8 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 
 	CurveChannelExtension.Reset();
 
-	const TSharedPtr<FSequencer> Sequencer = SequencerWeak.Pin();
-	if (!SequencerWeak.IsValid())
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+	if (!WeakSequencer.IsValid())
 	{
 		return;
 	}
@@ -184,26 +183,22 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 
 	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
 	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
-	const TSharedPtr<FExtender> Extender = SidebarExtensibilityManager->GetAllExtenders();
 
 	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/false
-		, Sequencer->GetCommandBindings(), Extender
+		, Sequencer->GetCommandBindings()
+		, SidebarExtensibilityManager->GetAllExtenders()
 		, /*bInCloseSelfOnly=*/true, &FCoreStyle::Get(), /*bInSearchable=*/true, TEXT("Sequencer.Sidebar"));
 
 	/**
 	 * Selection details display order preference:
 	 *  1) Key items
-	 *  2) Binding properties
 	 *  2) Track area items (if no key selected)
 	 *  3) Outliner items (if no key or track area selected)
-	 *  5) Marked frames
+	 *  4) Marked frames
 	 */
 
 	// 1) Key items
 	BuildKeySelectionDetails(SelectionRef, MenuBuilder);
-
-	// 2) Binding properties
-	BuildBindingPropertiesDetails(*Sequencer, SelectionRef, MenuBuilder);
 
 	// Early out for key selections
 	const bool bIsKeySelected = SequencerSelection->KeySelection.Num() > 0;
@@ -213,33 +208,42 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 		return;
 	}
 
-	// 3) Track area items
+	// 2) Track area items
 	BuildTrackAreaDetails(*Sequencer, SelectionRef, MenuBuilder);
 
-	// 4) Outliner items
+	// 3) Outliner items
 	const bool bIsTrackAreaSelected = SequencerSelection->TrackArea.Num() > 0;
 	if (!bIsTrackAreaSelected)
 	{
 		BuildOutlinerDetails(*Sequencer, SelectionRef, MenuBuilder);
 	}
 
-	// 5) Marked frames
+	// 4) Marked frames
 	BuildMarkedFrameDetails(SelectionRef, MenuBuilder);
 
 	AddToContent(MenuBuilder.MakeWidget());
 }
 
-void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
 	if (InSelection->KeySelection.Num() == 0)
 	{
 		return;
 	}
 
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
+
 	MenuBuilder.BeginSection(TEXT("KeyEdit"), LOCTEXT("KeyEditMenuSection", "Key Edit"));
-
-	MenuBuilder.AddWidget(CreateKeyFrameDetails(InSelection).ToSharedRef(), FText::GetEmpty(), /*bInNoIndent=*/true);
-
+	{
+		MenuBuilder.AddWidget(CreateKeyFrameDetails(InSelection).ToSharedRef(), FText::GetEmpty(), /*bInNoIndent=*/true);
+	}
 	MenuBuilder.EndSection();
 
 	// Show the section for the keys if they are all part of the same section
@@ -247,115 +251,53 @@ void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<UE::Se
 	for (const FKeyHandle KeyHandle : InSelection->KeySelection)
 	{
 		const TViewModelPtr<FChannelModel> Channel = InSelection->KeySelection.GetModelForKey(KeyHandle);
-		Channels.Add(Channel);
+		Channels.AddUnique(Channel);
 	}
 	if (Channels.Num() == 1)
 	{
-		// NOTE: Can't wrap with a section because the BuildSidebarMenu functions below add sections.
-			
-		if (const TSharedPtr<IKeyArea> KeyArea = Channels[0]->GetKeyArea())
-		{
-			if (const TViewModelPtr<IOutlinerExtension> LinkedOutlinerItem = Channels[0]->GetLinkedOutlinerItem())
-			{
-				if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = LinkedOutlinerItem.ImplicitCast())
-				{
-					OutlinerItemModel->BuildTrackOptionsMenu(MenuBuilder);
-					OutlinerItemModel->BuildDisplayOptionsMenu(MenuBuilder);
-				}
-			}
-		}
-			
-		if (const TViewModelPtr<FTrackModel>& TrackModel = Channels[0].AsModel()->FindAncestorOfType<FTrackModel>())
-		{
-			TrackModel->BuildSidebarMenu(MenuBuilder);
-		}
+		FSectionContextMenu::BuildKeyEditMenu(MenuBuilder, WeakSequencer, Sequencer->GetLastEvaluatedLocalTime());
 	}
 }
 
-void FSequencerSelectionDrawer::BuildBindingPropertiesDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildTrackAreaDetails(FSequencer& InSequencer, const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
-	TArray<FGuid> ObjectBindings;
-	InSequencer.GetSelectedObjects(ObjectBindings);
-	if (ObjectBindings.Num() == 0)
-	{
-		return;
-	}
-
-	UMovieSceneSequence* const FocusedMovieSceneSequence = InSequencer.GetFocusedMovieSceneSequence();
-	if (!IsValid(FocusedMovieSceneSequence) || !FocusedMovieSceneSequence->AllowsSpawnableObjects())
-	{
-		return;
-	}
-
-	if (InSelection->Outliner.Num() == 1)
-	{
-		for (const FViewModelPtr Possessable : InSelection->Outliner.Filter<FPossessableModel>())
-		{
-			MenuBuilder.BeginSection(TEXT("Possessable"));
-			MenuBuilder.EndSection();
-
-			// Adding this causes two sets of details for the property bindings to show since
-			// ULevelSequenceEditorSubsystem::Initialize adds extension hooks "Possessable" and "CustomBinding"
-			// that call the exact same function. Will add this if there is a reason for this or remove this
-			// if not needed.
-			//MenuBuilder.BeginSection(TEXT("CustomBinding"));
-			//MenuBuilder.EndSection();
-		}
-	}
-}
-
-void FSequencerSelectionDrawer::BuildTrackAreaDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
-{
-	if (InSelection->TrackArea.Num() == 0)
-	{
-		return;
-	}
-
 	TArray<TWeakObjectPtr<>> AllSectionObjects;
-	TArray<TViewModelPtr<FSectionModel>> AllSectionModels;
-	
+
 	for (const FViewModelPtr TrackAreaItem : InSelection->TrackArea)
 	{
 		if (const TViewModelPtr<FLayerBarModel> LayerBarModel = TrackAreaItem.ImplicitCast())
 		{
 			const TViewModelPtr<IOutlinerExtension> LinkedOutlinerItem = LayerBarModel->GetLinkedOutlinerItem();
 
-			if (InSelection->TrackArea.Num() == 1)
+			if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = LinkedOutlinerItem.ImplicitCast())
 			{
-				if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = LinkedOutlinerItem.ImplicitCast())
-				{
-					OutlinerItemModel->BuildTrackOptionsMenu(MenuBuilder);
-					OutlinerItemModel->BuildDisplayOptionsMenu(MenuBuilder);
-				}
+				OutlinerItemModel->BuildSidebarMenu(MenuBuilder);
 			}
 		}
 		else if (const TViewModelPtr<FSectionModel> SectionModel = TrackAreaItem.ImplicitCast())
 		{
-			// ISequencerSection Details (Shot Takes, Etc.)
-			if (const TSharedPtr<ISequencerSection> SectionInterface = SectionModel->GetSectionInterface())
+			if (InSelection->TrackArea.Num() == 1)
 			{
-				AllSectionModels.Add(SectionModel);
+				const TViewModelPtr<IOutlinerExtension> LinkedOutlinerItem = SectionModel->GetLinkedOutlinerItem();
+
+				if (const TSharedPtr<ISequencerSection> SectionInterface = SectionModel->GetSectionInterface())
+				{
+					const TSharedPtr<IObjectBindingExtension> ObjectBinding = SectionModel->FindAncestorOfType<IObjectBindingExtension>();
+					SectionInterface->BuildSectionSidebarMenu(MenuBuilder, ObjectBinding.IsValid() ? ObjectBinding->GetObjectGuid() : FGuid());
+				}
 			}
-			
-			// Gather track section to use to build a single details for all selected sections
+
 			AllSectionObjects.Add(SectionModel->GetSection());
 		}
 	}
 
-	if (AllSectionModels.Num() == 1)
+	if (!AllSectionObjects.IsEmpty())
 	{
-		if (const TSharedPtr<ISequencerSection> SectionInterface = AllSectionModels[0]->GetSectionInterface())
-		{
-			const TViewModelPtr<IObjectBindingExtension> ObjectBindingModel = AllSectionModels[0]->FindAncestorOfType<IObjectBindingExtension>();
-			const FGuid ObjectGuid = ObjectBindingModel ? ObjectBindingModel->GetObjectGuid() : FGuid();
-			SectionInterface->BuildSectionSidebarMenu(MenuBuilder, ObjectGuid);
-		}
+		SequencerHelpers::BuildEditSectionMenu(InSequencer, AllSectionObjects, MenuBuilder, false);
 	}
-	
-	SequencerHelpers::AddPropertiesMenu(InSequencer, MenuBuilder, AllSectionObjects);
 }
 
-void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
 	if (InSelection->Outliner.Num() == 0)
 	{
@@ -366,28 +308,16 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 
 	for (const FViewModelPtr OutlinerItem : InSelection->Outliner)
 	{
-		if (const TViewModelPtr<FTrackModel> TrackModel = OutlinerItem.ImplicitCast())
+		if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = OutlinerItem.ImplicitCast())
 		{
-			if (const TSharedPtr<ISequencerTrackEditor> TrackEditor = TrackModel->GetTrackEditor())
-			{
-				TrackEditor->BuildTrackSidebarMenu(MenuBuilder, TrackModel->GetTrack());
-			}
+			OutlinerItemModel->BuildSidebarMenu(MenuBuilder);
 		}
-
-		if (InSelection->Outliner.Num() == 1)
-		{
-			if (const TViewModelPtr<FOutlinerItemModel> OutlinerItemModel = OutlinerItem.ImplicitCast())
-			{
-				OutlinerItemModel->BuildTrackOptionsMenu(MenuBuilder);
-				OutlinerItemModel->BuildDisplayOptionsMenu(MenuBuilder);
-			}
-		}
-
-		// Ex. "Location.X"
-		if (const TViewModelPtr<FChannelGroupOutlinerModel> ChannelGroupOutlinerModel = OutlinerItem.ImplicitCast())
-		{
-			ChannelGroups.Add(ChannelGroupOutlinerModel);
-		}
+		// Ex. "Location.X", "Rotation.Roll", "Color.R", etc.
+        else if (const TViewModelPtr<FChannelGroupOutlinerModel> ChannelGroupOutlinerModel = OutlinerItem.ImplicitCast())
+        {
+        	ChannelGroupOutlinerModel->BuildSidebarMenu(MenuBuilder);
+        	ChannelGroups.Add(ChannelGroupOutlinerModel);
+        }
 	}
 
 	if (!ChannelGroups.IsEmpty())
@@ -396,6 +326,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 		const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
 		const TSharedPtr<FExtender> Extender = SidebarExtensibilityManager->GetAllExtenders();
 
+		TArray<FName> ChannelTypeNames;
 		TArray<ISequencerChannelInterface*> ChannelInterfaces;
 		TArray<FMovieSceneChannelHandle> ChannelHandles;
 		TArray<UMovieSceneSection*> SceneSections;
@@ -406,6 +337,9 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 			{
 				if (ISequencerChannelInterface* const SequencerChannelIterface = KeyArea->FindChannelEditorInterface())
 				{
+					const FMovieSceneChannelHandle& Channel = KeyArea->GetChannel();
+
+					ChannelTypeNames.Add(Channel.GetChannelTypeName());
 					ChannelInterfaces.Add(SequencerChannelIterface);
 					ChannelHandles.Add(KeyArea->GetChannel());
 					SceneSections.Add(KeyArea->GetOwningSection());
@@ -413,23 +347,45 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 			}
 		}
 
-		// Channel Interface Extensions (Perlin Noise, Easing, Wave)
-		// Disabling this completely for now until a proper fix can be submitted
-		// Crashes when selecting the control rig ankle shape control (maybe some others, but tends to only happen for the ankle)
-		// for the default mannequinn full body control rig.
-		/*for (const ISequencerChannelInterface* const ChannelInterface : ChannelInterfaces)
+		// Need to make sure all channels are the same type to allow editing of multiple channels as one
+		bool bAllChannelNamesEqual = true;
+		if (!ChannelTypeNames.IsEmpty())
 		{
-			ChannelInterface->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, SceneSections, SequencerWeak);
-		}*/
+			for (int32 Index = 0; Index < ChannelTypeNames.Num(); ++Index)
+			{
+				if (Index > 0 && ChannelTypeNames[Index] != ChannelTypeNames[0])
+				{
+					bAllChannelNamesEqual = false;
+					break;
+				}
+			}
+		}
+
+		// Channel Interface Extensions (Perlin Noise, Easing, Wave)
+		if (ChannelInterfaces.Num() > 0)
+		{
+			if (bAllChannelNamesEqual)
+			{
+				ChannelInterfaces[0]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, SceneSections, WeakSequencer);
+			}
+			else
+			{
+				// Display different channels separately and don't allow to edit "all-in-one"
+				for (int32 Index = 0; Index < ChannelInterfaces.Num(); ++Index)
+				{
+					ChannelInterfaces[Index]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, { ChannelHandles[Index] }, { SceneSections[Index] }, WeakSequencer);
+				}
+			}
+		}
 
 		// Curve Channel Options (Pre-Finity, Post-Finity, etc.)
-		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(SequencerWeak);
+		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(WeakSequencer);
 		CurveChannelExtension->AddSections(SceneSections);
 		CurveChannelExtension->ExtendMenu(MenuBuilder);
 	}
 }
 
-void FSequencerSelectionDrawer::BuildMarkedFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildMarkedFrameDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
 	if (InSelection->MarkedFrames.Num() == 0)
 	{
@@ -465,30 +421,30 @@ TSharedRef<SWidget> FSequencerSelectionDrawer::CreateNoSelectionHintText()
 
 FKeyEditData FSequencerSelectionDrawer::GetKeyEditData() const
 {
-	const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin();
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return FKeyEditData();
 	}
 
-	const TSharedPtr<UE::Sequencer::FSequencerSelection> SequencerSelection = UE::Sequencer::Private::GetSelection(*Sequencer.Get());
+	const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get());
 	if (!SequencerSelection.IsValid())
 	{
 		return FKeyEditData();
 	}
 
-	return UE::Sequencer::Private::GetKeyEditData(SequencerSelection->KeySelection);
+	return Private::GetKeyEditData(SequencerSelection->KeySelection);
 }
 
-TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateKeyFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSequencerSelection)
+TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateKeyFrameDetails(const TSharedRef<FSequencerSelection>& InSequencerSelection)
 {
-	const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin();
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return nullptr;
 	}
 
-	const FKeyEditData KeyEditData = UE::Sequencer::Private::GetKeyEditData(InSequencerSelection->KeySelection);
+	const FKeyEditData KeyEditData = Private::GetKeyEditData(InSequencerSelection->KeySelection);
 	if (KeyEditData.KeyStruct.IsValid())
 	{
 		return SNew(SKeyEditInterface, Sequencer.ToSharedRef())
@@ -500,7 +456,7 @@ TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateKeyFrameDetails(const TShar
 
 TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateMarkedFrameDetails(const int32 InMarkedFrameIndex)
 {
-	const TSharedPtr<FSequencer> Sequencer = SequencerWeak.Pin();
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer.IsValid())
 	{
 		return nullptr;
@@ -598,7 +554,7 @@ TSharedPtr<SWidget> FSequencerSelectionDrawer::CreateMarkedFrameDetails(const in
 		return false;
 	};
 
-	const TSharedRef<SMarkedFramePropertyWidget> Widget = SNew(SMarkedFramePropertyWidget, FocusedMovieScene, InMarkedFrameIndex, SequencerWeak);
+	const TSharedRef<SMarkedFramePropertyWidget> Widget = SNew(SMarkedFramePropertyWidget, FocusedMovieScene, InMarkedFrameIndex, WeakSequencer);
 	Widget->SetEnabled(!AreMarkedFramesLocked());
 
 	return Widget;

@@ -4040,7 +4040,7 @@ bool SSequencer::OpenPasteMenu()
 	if (Sequencer->GetClipboardStack().Num() != 0)
 	{
 		FPasteContextMenuArgs Args = GeneratePasteArgs(Sequencer->GetLocalTime().Time.FrameNumber, Sequencer->GetClipboardStack().Last());
-		ContextMenu = FPasteContextMenu::CreateMenu(*Sequencer, Args);
+		ContextMenu = FPasteContextMenu::CreateMenu(SequencerPtr, Args);
 	}
 
 	if (!ContextMenu.IsValid() || !ContextMenu->IsValidPaste())
@@ -4081,7 +4081,7 @@ void SSequencer::PasteFromHistory()
 	}
 
 	FPasteContextMenuArgs Args = GeneratePasteArgs(Sequencer->GetLocalTime().Time.FrameNumber);
-	TSharedPtr<FPasteFromHistoryContextMenu> ContextMenu = FPasteFromHistoryContextMenu::CreateMenu(*Sequencer, Args);
+	TSharedPtr<FPasteFromHistoryContextMenu> ContextMenu = FPasteFromHistoryContextMenu::CreateMenu(SequencerPtr, Args);
 
 	if (ContextMenu.IsValid())
 	{

@@ -144,15 +144,11 @@ public:
 	/*~ FViewModel interface */
 	virtual void OnConstruct() override;
 
-	virtual void BuildBlendingMenu(FMenuBuilder& MenuBuilder);
-
 private:
 
 	void ForceUpdate();
 
 	bool FindBoundObjects(TArray<UObject*>& OutBoundObjects) const;
-
-	TArray<TWeakObjectPtr<UObject>> GetSelectedTrackSections() const;
 
 	/** A second children list for the sections inside this track */
 	FViewModelListHead SectionList;

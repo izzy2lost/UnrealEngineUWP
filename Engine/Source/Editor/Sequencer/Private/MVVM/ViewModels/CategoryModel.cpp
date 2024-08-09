@@ -30,6 +30,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "MVVM/Views/STrackLane.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
+#include "MVVM/ViewModels/TrackModel.h"
 
 class SWidget;
 
@@ -294,6 +295,33 @@ void FCategoryGroupModel::OnRecycle()
 	Categories.Empty();
 }
 
+void FCategoryGroupModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
+{
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencer> Sequencer = EditorViewModel->GetSequencerImpl();
+	if (!Sequencer.IsValid())
+	{
+		return;
+	}
+
+	if (const TViewModelPtr<FTrackModel> ParentTrack = FindAncestorOfType<FTrackModel>())
+	{
+		TArray<TWeakObjectPtr<>> WeakSectionObjects;
+		Algo::Transform(ParentTrack->GetSections(), WeakSectionObjects, [](UMovieSceneSection* const InSection)
+			{
+				return InSection;
+			});
+		SequencerHelpers::BuildEditSectionMenu(*Sequencer.Get(), WeakSectionObjects, MenuBuilder, false);
+	}
+
+	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
+}
+	
 } // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE

@@ -1034,19 +1034,40 @@ void FObjectBindingModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 		return;
 	}
 
-	UObject* const BoundObject = EditorViewModel->GetSequencerImpl()->FindSpawnedObjectOrTemplate(ObjectBindingID);
-	
+	FSequencer* const Sequencer = EditorViewModel->GetSequencerImpl().Get();
+	if (!Sequencer)
+	{
+		return;
+	} 
+
 	ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-	
+
+	UObject* const BoundObject = Sequencer->FindSpawnedObjectOrTemplate(ObjectBindingID);
+
 	const TSharedPtr<FExtender> Extender = EditorViewModel->GetSequencerMenuExtender(SequencerModule.GetSidebarExtensibilityManager()
 		, TArrayBuilder<UObject*>().Add(BoundObject), &FSequencerCustomizationInfo::OnBuildSidebarMenu, SharedThis(this));
 	if (Extender.IsValid())
 	{
 		MenuBuilder.PushExtender(Extender.ToSharedRef());
 	}
-	
+
 	MenuBuilder.BeginSection(TEXT("ObjectBindingActions"), LOCTEXT("ObjectBindingsMenuSection", "Object Bindings"));
 	MenuBuilder.EndSection();
+
+	// External extension.
+	Sequencer->BuildCustomContextMenuForGuid(MenuBuilder, ObjectBindingID);
+
+	// Track editor extension.
+	TArray<FGuid> ObjectBindings;
+	ObjectBindings.Add(ObjectBindingID);
+
+	const UClass* const ObjectClass = FindObjectClass();
+	for (const TSharedPtr<ISequencerTrackEditor>& TrackEditor : Sequencer->GetTrackEditors())
+	{
+		TrackEditor->BuildObjectBindingContextMenu(MenuBuilder, ObjectBindings, ObjectClass);
+	}
+
+	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
 }
 
 void FObjectBindingModel::AddTagMenu(FMenuBuilder& MenuBuilder)

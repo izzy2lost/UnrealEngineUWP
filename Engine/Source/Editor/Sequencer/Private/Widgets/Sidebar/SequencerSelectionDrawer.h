@@ -28,7 +28,7 @@ class FSequencerSelectionDrawer : public ISidebarDrawerContent
 public:
 	static const FName UniqueId;
 
-	FSequencerSelectionDrawer(const TWeakPtr<FSequencer>& InSequencerWeak);
+	FSequencerSelectionDrawer(const TWeakPtr<FSequencer>& InWeakSequencer);
 
 	//~ Begin ISidebarDrawerContent
 	virtual FName GetUniqueId() const override;
@@ -41,7 +41,6 @@ protected:
 	void OnSequencerSelectionChanged();
 
 	void BuildKeySelectionDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
-	void BuildBindingPropertiesDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildTrackAreaDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildOutlinerDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildMarkedFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
@@ -54,9 +53,11 @@ protected:
 	TSharedPtr<SWidget> CreateKeyFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSequencerSelection);
 	TSharedPtr<SWidget> CreateMarkedFrameDetails(const int32 InMarkedFrameIndex);
 
-	TWeakPtr<FSequencer> SequencerWeak;
+	TWeakPtr<FSequencer> WeakSequencer;
 
 	TSharedPtr<SVerticalBox> ContentBox;
 
 	TSharedPtr<FCurveChannelSectionSidebarExtension> CurveChannelExtension;
+
+	TSharedPtr<class FCurveChannelSectionMenuExtension> CurveChannelSectionExtension;
 };
