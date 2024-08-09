@@ -5,6 +5,8 @@
 #include "RigVMModel/RigVMClient.h"
 #include "RigVMModel/RigVMController.h"
 
+TAutoConsoleVariable<bool> CVarRigVMEnableNodeLayouts(TEXT("RigVM.EnableNodeLayouts"), false, TEXT("Set to true to turn on support for node layouts"));
+
 URigVMSchema::URigVMSchema()
 	: ExecuteContextStruct(nullptr)
 	, Registry(&FRigVMRegistry::Get())
@@ -216,6 +218,11 @@ bool URigVMSchema::SupportsExternalVariable(URigVMController* InController, cons
 	}
 
 	return false;
+}
+
+bool URigVMSchema::SupportsNodeLayouts(const URigVMGraph* InGraph) const
+{
+	return CVarRigVMEnableNodeLayouts.GetValueOnAnyThread();
 }
 
 bool URigVMSchema::ShouldUnfoldStruct(URigVMController* InController, const UStruct* InStruct) const

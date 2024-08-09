@@ -1024,39 +1024,48 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		];
 	}
 
-	SettingsCategory.AddCustomRow(FText::GetEmpty())
-	.OverrideResetToDefault(FResetToDefaultOverride::Hide())
-	.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+	if(Model)
 	{
-		return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
-	}))
-	.NameContent()
-	[
-		SNew(STextBlock)
-		.Text(FText::FromString(TEXT("Layout")))
-		.Font(IDetailLayoutBuilder::GetDetailFont())
-	]
-	.ValueContent()
-	.HAlign(HAlign_Fill)
-	[
-		SNew(SRigVMNodeLayoutWidget)
-		.OnGetUncategorizedPins(this, &FRigVMGraphDetailCustomization::GetUncategorizedPins)
-		.OnGetCategories(this, &FRigVMGraphDetailCustomization::GetPinCategories)
-		.OnGetElementCategory(this, &FRigVMGraphDetailCustomization::GetPinCategory)
-		.OnGetElementIndexInCategory(this, &FRigVMGraphDetailCustomization::GetPinIndexInCategory)
-		.OnGetElementLabel(this, &FRigVMGraphDetailCustomization::GetPinLabel)
-		.OnGetElementColor(this, &FRigVMGraphDetailCustomization::GetPinColor)
-		.OnGetElementIcon(this, &FRigVMGraphDetailCustomization::GetPinIcon)
-		.OnCategoryAdded(this, &FRigVMGraphDetailCustomization::HandleCategoryAdded)
-		.OnCategoryRemoved(this, &FRigVMGraphDetailCustomization::HandleCategoryRemoved)
-		.OnCategoryRenamed(this, &FRigVMGraphDetailCustomization::HandleCategoryRenamed)
-		.OnElementCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinCategoryChanged)
-		.OnElementLabelChanged(this, &FRigVMGraphDetailCustomization::HandlePinLabelChanged)
-		.OnElementIndexInCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged)
-		.OnValidateCategoryName(this, &FRigVMGraphDetailCustomization::HandleValidateCategoryName)
-		.OnValidateElementName(this, &FRigVMGraphDetailCustomization::HandleValidatePinDisplayName)
-		.OnGetStructuralHash(this, &FRigVMGraphDetailCustomization::GetNodeLayoutHash)
-	];
+		if(const URigVMSchema* Schema = Model->GetSchema())
+		{
+			if(Schema->SupportsNodeLayouts(Model))
+			{
+				SettingsCategory.AddCustomRow(FText::GetEmpty())
+				.OverrideResetToDefault(FResetToDefaultOverride::Hide())
+				.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+				{
+					return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
+				}))
+				.NameContent()
+				[
+					SNew(STextBlock)
+					.Text(FText::FromString(TEXT("Layout")))
+					.Font(IDetailLayoutBuilder::GetDetailFont())
+				]
+				.ValueContent()
+				.HAlign(HAlign_Fill)
+				[
+					SNew(SRigVMNodeLayoutWidget)
+					.OnGetUncategorizedPins(this, &FRigVMGraphDetailCustomization::GetUncategorizedPins)
+					.OnGetCategories(this, &FRigVMGraphDetailCustomization::GetPinCategories)
+					.OnGetElementCategory(this, &FRigVMGraphDetailCustomization::GetPinCategory)
+					.OnGetElementIndexInCategory(this, &FRigVMGraphDetailCustomization::GetPinIndexInCategory)
+					.OnGetElementLabel(this, &FRigVMGraphDetailCustomization::GetPinLabel)
+					.OnGetElementColor(this, &FRigVMGraphDetailCustomization::GetPinColor)
+					.OnGetElementIcon(this, &FRigVMGraphDetailCustomization::GetPinIcon)
+					.OnCategoryAdded(this, &FRigVMGraphDetailCustomization::HandleCategoryAdded)
+					.OnCategoryRemoved(this, &FRigVMGraphDetailCustomization::HandleCategoryRemoved)
+					.OnCategoryRenamed(this, &FRigVMGraphDetailCustomization::HandleCategoryRenamed)
+					.OnElementCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinCategoryChanged)
+					.OnElementLabelChanged(this, &FRigVMGraphDetailCustomization::HandlePinLabelChanged)
+					.OnElementIndexInCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged)
+					.OnValidateCategoryName(this, &FRigVMGraphDetailCustomization::HandleValidateCategoryName)
+					.OnValidateElementName(this, &FRigVMGraphDetailCustomization::HandleValidatePinDisplayName)
+					.OnGetStructuralHash(this, &FRigVMGraphDetailCustomization::GetNodeLayoutHash)
+				];
+			}
+		}
+	}
 
 	IDetailCategoryBuilder& DefaultsCategory = DetailLayout.EditCategory("NodeDefaults", LOCTEXT("FunctionDetailsNodeDefaults", "Node Defaults"));
 	TSharedRef<FRigVMFunctionArgumentDefaultNode> DefaultsArgumentNode = MakeShareable(new FRigVMFunctionArgumentDefaultNode(

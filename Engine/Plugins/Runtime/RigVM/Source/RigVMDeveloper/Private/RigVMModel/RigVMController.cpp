@@ -8114,6 +8114,11 @@ bool URigVMController::AddEmptyPinCategory(const URigVMNode* InNode, const FStri
 		return false;
 	}
 
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	{
+		return false;
+	}
+
 	FRigVMControllerCompileBracketScope CompileScope(this);
 	FRigVMChangeNodePinCategoriesAction Action;
 	if (bSetupUndoRedo)
@@ -8232,6 +8237,11 @@ bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategor
 		}
 	}
 	else if(InPin->GetNode()->IsA<URigVMFunctionReferenceNode>())
+	{
+		return false;
+	}
+
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
 	{
 		return false;
 	}
@@ -8486,6 +8496,11 @@ bool URigVMController::RemovePinCategory(const URigVMNode* InNode, const FString
 		return false;
 	}
 
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	{
+		return false;
+	}
+
 	const TArray<FString> AllCategories = InNode->GetPinCategories();
 	TArray<FString> CategoriesToRemove = { InPinCategory };
 	CategoriesToRemove.Append(InNode->GetSubPinCategories(InPinCategory, false, true));
@@ -8609,6 +8624,11 @@ bool URigVMController::RenamePinCategory(const FName& InNodeName, const FString&
 bool URigVMController::RenamePinCategory(const URigVMNode* InNode, const FString& InOldPinCategory, const FString& InNewPinCategory, bool bSetupUndoRedo)
 {
 	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
 	{
 		return false;
 	}
@@ -8772,6 +8792,11 @@ bool URigVMController::SetPinCategoryIndex(const URigVMNode* InNode, const FStri
 		return false;
 	}
 
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	{
+		return false;
+	}
+
 	// for entry or return nodes we relay to the outer pins
 	if(InNode->IsA<URigVMFunctionInterfaceNode>())
 	{
@@ -8854,6 +8879,11 @@ bool URigVMController::SetPinCategoryExpansion(const FName& InNodeName, const FS
 bool URigVMController::SetPinCategoryExpansion(const URigVMNode* InNode, const FString& InPinCategory, bool bIsExpanded, bool bSetupUndoRedo)
 {
 	if(!IsValidNodeForGraph(InNode))
+	{
+		return false;
+	}
+
+	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
 	{
 		return false;
 	}
@@ -9076,6 +9106,11 @@ bool URigVMController::SetNodeLayout(const FName& InNodeName, FRigVMNodeLayout I
 
 	const URigVMGraph* Graph = GetGraph();
 	check(Graph);
+
+	if(!Graph->GetSchema()->SupportsNodeLayouts(Graph))
+	{
+		return false;
+	}
 
 	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
 	if (Node == nullptr)

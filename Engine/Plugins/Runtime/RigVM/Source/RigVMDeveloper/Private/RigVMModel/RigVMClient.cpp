@@ -627,6 +627,7 @@ void FRigVMClient::AddModel(URigVMGraph* InModel, bool bCreateController)
 		}
 	}
 
+	InModel->SetSchemaClass(GetDefaultSchemaClass());
 	InModel->SetExecuteContextStruct(InModel->GetSchema()->GetExecuteContextStruct());
 
 	if(bCreateController)
@@ -1192,6 +1193,7 @@ FRigVMClientPatchResult FRigVMClient::PatchModelsOnLoad()
 	for(URigVMGraph* Model : AllModels)
 	{
 		Model->PostLoad();
+		Model->SetSchemaClass(GetDefaultSchemaClass());
 		
 		URigVMController* Controller = GetOrCreateController(Model);
 		TGuardValue<bool> GuardSuspendTemplateComputation(Controller->bSuspendTemplateComputation, true);

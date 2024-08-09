@@ -11,6 +11,11 @@ class UAnimNextRigVMAssetSchema : public URigVMSchema
 {
 	GENERATED_BODY()
 
+	virtual bool SupportsNodeLayouts(const URigVMGraph* InGraph) const override
+	{
+		return true;
+	}
+
 protected:
 	UAnimNextRigVMAssetSchema();
 };
