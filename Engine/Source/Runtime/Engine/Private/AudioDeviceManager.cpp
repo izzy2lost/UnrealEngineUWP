@@ -189,6 +189,7 @@ FAudioDeviceManager::FAudioDeviceManager()
 #endif //ENABLE_AUDIO_DEBUG
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FAudioDeviceManager::~FAudioDeviceManager()
 {
 	UE_LOG(LogAudio, Display, TEXT("Beginning Audio Device Manager Shutdown (Module: %s)..."), *AudioMixerModuleName);
@@ -227,13 +228,8 @@ FAudioDeviceManager::~FAudioDeviceManager()
 	MainAudioDeviceHandle.Reset();
 
 	FCoreDelegates::ApplicationWillEnterBackgroundDelegate.RemoveAll(this);
-
-	// Release any loaded buffers - this calls stop on any sources that need it
-	for (int32 Index = Buffers.Num() - 1; Index >= 0; Index--)
-	{
-		FreeBufferResource(Buffers[Index]);
-	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 FAudioDevice* FAudioDeviceManager::GetAudioDeviceFromWorldContext(const UObject* WorldContextObject)
 {
@@ -1023,23 +1019,18 @@ uint32 FAudioDeviceManager::GetNewDeviceID()
 	return ++DeviceIDCounter;
 }
 
-void FAudioDeviceManager::StopSourcesUsingBuffer(FSoundBuffer* SoundBuffer)
+// deprecated
+void FAudioDeviceManager::StopSourcesUsingBuffer(FSoundBuffer*)
 {
-	IterateOverAllDevices([SoundBuffer](Audio::FDeviceId Id, FAudioDevice* Device)
-	{
-		Device->StopSourcesUsingBuffer(SoundBuffer);
-	});
 }
 
+// deprecated
 void FAudioDeviceManager::TrackResource(USoundWave* SoundWave, FSoundBuffer* Buffer)
 {
 	// Allocate new resource ID and assign to USoundWave. A value of 0 (default) means not yet registered.
 	int32 ResourceID = NextResourceID++;
 	Buffer->ResourceID = ResourceID;
 	SoundWave->ResourceID = ResourceID;
-
-	Buffers.Add(Buffer);
-	WaveBufferMap.Add(ResourceID, Buffer);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	// Keep track of associated resource name.
@@ -1051,9 +1042,6 @@ void FAudioDeviceManager::FreeResource(USoundWave* SoundWave)
 {
 	if (SoundWave->ResourceID)
 	{
-		FSoundBuffer* SoundBuffer = WaveBufferMap.FindRef(SoundWave->ResourceID);
-		FreeBufferResource(SoundBuffer);
-
 		// Flag that the sound wave needs to do a full decompress again
 		SoundWave->DecompressionType = DTYPE_Setup;
 		SoundWave->SetPrecacheState(ESoundWavePrecacheState::NotStarted);
@@ -1062,6 +1050,7 @@ void FAudioDeviceManager::FreeResource(USoundWave* SoundWave)
 	}
 }
 
+// deprecated
 void FAudioDeviceManager::FreeBufferResource(FSoundBuffer* SoundBuffer)
 {
 	if (SoundBuffer)
@@ -1069,24 +1058,20 @@ void FAudioDeviceManager::FreeBufferResource(FSoundBuffer* SoundBuffer)
 		// Make sure any realtime tasks are finished that are using this buffer
 		SoundBuffer->EnsureRealtimeTaskCompletion();
 
-		Buffers.Remove(SoundBuffer);
-
-		// Stop any sound sources on any audio device currently using this buffer before deleting
-		StopSourcesUsingBuffer(SoundBuffer);
-
 		delete SoundBuffer;
 		SoundBuffer = nullptr;
 	}
 }
 
+// deprecated
 FSoundBuffer* FAudioDeviceManager::GetSoundBufferForResourceID(uint32 ResourceID)
 {
-	return WaveBufferMap.FindRef(ResourceID);
+	return {};
 }
 
-void FAudioDeviceManager::RemoveSoundBufferForResourceID(uint32 ResourceID)
+// deprecated
+void FAudioDeviceManager::RemoveSoundBufferForResourceID(uint32)
 {
-	WaveBufferMap.Remove(ResourceID);
 }
 
 void FAudioDeviceManager::RemoveSoundMix(USoundMix* SoundMix)

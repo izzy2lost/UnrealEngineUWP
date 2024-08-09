@@ -524,11 +524,12 @@ namespace Audio
 
 		// We've already been passed the wave instance in PrepareForInitialization, make sure we have the same one
 		AUDIO_MIXER_CHECK(WaveInstance && WaveInstance == InWaveInstance);
-
+		AUDIO_MIXER_CHECK(WaveInstance->WaveData);
 		LLM_SCOPE(ELLMTag::AudioMixer);
-
+		
 		FSoundSource::InitCommon();
 
+		NumChannels = WaveInstance->WaveData->NumChannels;
 		if (!ensure(InWaveInstance))
 		{
 			return false;
@@ -550,7 +551,7 @@ namespace Audio
 		{
 			check(!WaveData->RawPCMData || WaveData->RawPCMDataSize);
 			const int32 NumBytes = WaveData->RawPCMDataSize;
-			if (WaveInstance->WaveData->NumChannels > 0)
+			if (NumChannels > 0)
 			{
 				NumFrames = NumBytes / (WaveData->NumChannels * sizeof(int16));
 			}
@@ -1115,7 +1116,6 @@ namespace Audio
 		check(InWaveInstance->WaveData);
 		USoundWave& SoundWave = *InWaveInstance->WaveData;
 
-		Buffer = MixerBuffer;
 		WaveInstance = InWaveInstance;
 
 		LPFFrequency = MAX_FILTER_FREQUENCY;
@@ -1576,7 +1576,6 @@ namespace Audio
 		}
 
 		MixerSourceBuffer.Reset();
-		Buffer = nullptr;
 		bLoopCallback = false;
 		NumTotalFrames = 0;
 
@@ -2028,11 +2027,10 @@ namespace Audio
 		const FAudioPlatformDeviceInfo& DeviceInfo = MixerDevice->GetPlatformDeviceInfo();
 
 		// Compute a new speaker map for each possible output channel mapping for the source
-		const uint32 NumChannels = Buffer->NumChannels;
 		bool bShouldSetMap = false;
 		{
 			FRWScopeLock Lock(ChannelMapLock, SLT_Write);
-			bShouldSetMap = ComputeChannelMap(Buffer->NumChannels, ChannelMap);
+			bShouldSetMap = ComputeChannelMap(GetNumChannels(), ChannelMap);
 		}
 		if(bShouldSetMap)
 		{			
@@ -2115,7 +2113,7 @@ namespace Audio
 		if (WaveInstance->GetUseSpatialization() && (!FMath::IsNearlyEqual(WaveInstance->AbsoluteAzimuth, PreviousAzimuth, 0.01f) || MixerSourceVoice->NeedsSpeakerMap()))
 		{
 			// Make sure our stereo emitter positions are updated relative to the sound emitter position
-			if (Buffer->NumChannels == 2)
+			if (GetNumChannels() == 2)
 			{
 				UpdateStereoEmitterPositions();
 			}
@@ -2276,7 +2274,7 @@ namespace Audio
 
 	bool FMixerSource::UseObjectBasedSpatialization() const
 	{
-		return (Buffer->NumChannels <= MixerDevice->GetCurrentSpatializationPluginInterfaceInfo().MaxChannelsSupportedBySpatializationPlugin &&
+		return (GetNumChannels() <= MixerDevice->GetCurrentSpatializationPluginInterfaceInfo().MaxChannelsSupportedBySpatializationPlugin &&
 				AudioDevice->IsSpatializationPluginEnabled() &&
 				WaveInstance->SpatializationMethod == ESoundSpatializationAlgorithm::SPATIALIZATION_HRTF);
 	}
@@ -2299,28 +2297,28 @@ namespace Audio
 
 	bool FMixerSource::UseSpatializationPlugin() const
 	{
-		return (Buffer->NumChannels <= MixerDevice->GetCurrentSpatializationPluginInterfaceInfo().MaxChannelsSupportedBySpatializationPlugin) &&
+		return (GetNumChannels() <= MixerDevice->GetCurrentSpatializationPluginInterfaceInfo().MaxChannelsSupportedBySpatializationPlugin) &&  
 			AudioDevice->IsSpatializationPluginEnabled() &&
 			WaveInstance->SpatializationPluginSettings != nullptr;
 	}
 
 	bool FMixerSource::UseOcclusionPlugin() const
 	{
-		return (Buffer->NumChannels == 1 || Buffer->NumChannels == 2) &&
+		return (GetNumChannels() == 1 || GetNumChannels() == 2) && 
 			AudioDevice->IsOcclusionPluginEnabled() &&
 			WaveInstance->OcclusionPluginSettings != nullptr;
 	}
 
 	bool FMixerSource::UseReverbPlugin() const
 	{
-		return (Buffer->NumChannels == 1 || Buffer->NumChannels == 2) &&
+		return (GetNumChannels() == 1 || GetNumChannels() == 2) && 
 			AudioDevice->IsReverbPluginEnabled() &&
 			WaveInstance->ReverbPluginSettings != nullptr;
 	}
 
 	bool FMixerSource::UseSourceDataOverridePlugin() const
 	{
-		return (Buffer->NumChannels == 1 || Buffer->NumChannels == 2) &&
+		return (GetNumChannels() == 1 || GetNumChannels() == 2) && 
 			AudioDevice->IsSourceDataOverridePluginEnabled() &&
 			WaveInstance->SourceDataOverridePluginSettings != nullptr;
 	}

@@ -1040,7 +1040,6 @@ void FAudioDevice::CountBytes(FArchive& Ar)
 	Sources.CountBytes(Ar);
 	// The buffers are stored on the audio device since they are shared amongst all audio devices
 	// Though we are going to count them when querying an individual audio device object about its bytes
-	GEngine->GetAudioDeviceManager()->Buffers.CountBytes(Ar);
 	FreeSources.CountBytes(Ar);
 	WaveInstanceSourceMap.CountBytes(Ar);
 	Ar.CountBytes(sizeof(FWaveInstance) * WaveInstanceSourceMap.Num(), sizeof(FWaveInstance) * WaveInstanceSourceMap.Num());
@@ -1285,12 +1284,6 @@ void FAudioDevice::GetSoundClassInfo(TMap<FName, FAudioClassInfo>& AudioClassInf
 #else
 		switch(SoundWave->DecompressionType)
 		{
-		case DTYPE_Native:
-		case DTYPE_Preview:
-			AudioClassInfo->SizeResident += SoundWave->RawPCMDataSize;
-			AudioClassInfo->NumResident++;
-			break;
-
 		case DTYPE_RealTime:
 			AudioClassInfo->SizeRealTime += SoundWave->GetCompressedDataSize(SoundWave->GetRuntimeFormat());
 			AudioClassInfo->NumRealTime++;
@@ -4557,9 +4550,6 @@ void FAudioDevice::StartSources(TArray<FWaveInstance*>& WaveInstances, int32 Fir
 					}
 					else
 					{
-						// Make sure init cleaned up the buffer when it failed
-						check(Source->Buffer == nullptr);
-
 						// If were ready to call init but failed, then we need to add the source and stop with notification
 						WaveInstance->StopWithoutNotification();
 						FreeSources.Add(Source);
@@ -6684,8 +6674,8 @@ void FAudioDevice::Precache(USoundWave* SoundWave, bool bSynchronous, bool bTrac
 	}
 	else if (SoundWave->RawPCMData)
 	{
-		// Run time created audio; e.g. editor preview data
-		SoundWave->DecompressionType = DTYPE_Preview;
+		// DTYPE_Preview has been removed based on the assumption that this path is unreachable
+		checkNoEntry();
 	}
 	else if (SoundWave->bProcedural)
 	{
@@ -6697,8 +6687,9 @@ void FAudioDevice::Precache(USoundWave* SoundWave, bool bSynchronous, bool bTrac
 		// Buses will initialize as procedural, but not actually become a procedural sound wave
 		SoundWave->DecompressionType = DTYPE_Procedural;
 	}
-	else if (HasCompressedAudioInfoClass(SoundWave))
+	else
 	{
+		check(HasCompressedAudioInfoClass(SoundWave));
 		const FSoundGroup& SoundGroup = GetDefault<USoundGroups>()->GetSoundGroup(SoundWave->SoundGroup);
 
 		if (SoundWave->Duration <= 0.0f)
@@ -6718,30 +6709,21 @@ void FAudioDevice::Precache(USoundWave* SoundWave, bool bSynchronous, bool bTrac
 			SoundWave->DecompressionType = DTYPE_Streaming;
 			SoundWave->bCanProcessAsync = false;
 		}
-		else if (ShouldUseRealtimeDecompression(bForceFullDecompression, SoundGroup, SoundWave, CompressedDurationThreshold))
+		else
 		{
+			check(ShouldUseRealtimeDecompression(bForceFullDecompression, SoundGroup, SoundWave, CompressedDurationThreshold));
+			
 			// Store as compressed data and decompress in realtime
 			SoundWave->DecompressionType = DTYPE_RealTime;
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 			++PrecachedRealtime;
 #endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		}
-		else
-		{
-			// Fully expand loaded audio data into PCM
-			SoundWave->DecompressionType = DTYPE_Native;
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			++AudioDeviceUtils::PrecachedNative;
-			AverageNativeLength = (AverageNativeLength * (PrecachedNative - 1) + SoundWave->Duration) / PrecachedNative;
-			NativeSampleRateCount.FindOrAdd(SoundWave->GetSampleRateForCurrentPlatform())++;
-			NativeChannelCount.FindOrAdd(SoundWave->NumChannels)++;
-#endif // !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		}
 
 		// Grab the compressed audio data
 		SoundWave->InitAudioResource(SoundWave->GetRuntimeFormat());
 
-		if (SoundWave->AudioDecompressor == nullptr && (SoundWave->DecompressionType == DTYPE_Native || SoundWave->DecompressionType == DTYPE_RealTime))
+		if (SoundWave->AudioDecompressor == nullptr && SoundWave->DecompressionType == DTYPE_RealTime)
 		{
 			// Create a worker to decompress the audio data
 			if (bSynchronous)
@@ -6758,18 +6740,7 @@ void FAudioDevice::Precache(USoundWave* SoundWave, bool bSynchronous, bool bTrac
 				SoundWave->AudioDecompressor->StartBackgroundTask();
 				PrecachingSoundWaves.Add(SoundWave);
 			}
-
-			// the audio decompressor will track memory
-			if (SoundWave->DecompressionType == DTYPE_Native)
-			{
-				bTrackMemory = false;
-			}
 		}
-	}
-	else
-	{
-		// Preserve old behavior if there is no compressed audio info class for this audio format
-		SoundWave->DecompressionType = DTYPE_Native;
 	}
 
 	// If we don't have an audio decompressor task, then we're fully precached
@@ -6817,25 +6788,26 @@ bool FAudioDevice::ShouldUseRealtimeDecompression(bool bForceFullDecompression, 
 			(ForceRealtimeDecompressionCvar || SoundWave->Duration > CompressedDurationThreshold || (RealtimeDecompressZeroDurationSoundsCvar && SoundWave->Duration <= 0.0f))));
 }
 
+// deprecated
 void FAudioDevice::StopSourcesUsingBuffer(FSoundBuffer* SoundBuffer)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FAudioDevice_StopSourcesUsingBuffer);
 
 	check(IsInAudioThread());
 
-	if (SoundBuffer)
-	{
-		for (int32 SrcIndex = 0; SrcIndex < Sources.Num(); SrcIndex++)
-		{
-			FSoundSource* Src = Sources[SrcIndex];
-			if (Src && Src->Buffer == SoundBuffer)
-			{
-				// Make sure the buffer is no longer referenced by anything
-				Src->StopNow();
-				break;
-			}
-		}
-	}
+	// if (SoundBuffer)
+	// {
+	// 	for (int32 SrcIndex = 0; SrcIndex < Sources.Num(); SrcIndex++)
+	// 	{
+	// 		FSoundSource* Src = Sources[SrcIndex];
+	// 		if (Src && Src->Buffer == SoundBuffer) // deprecated: Src->Buffer no longer exists
+	// 		{
+	// 			// Make sure the buffer is no longer referenced by anything
+	// 			Src->StopNow();
+	// 			break;
+	// 		}
+	// 	}
+	// }
 }
 
 void FAudioDevice::RegisterSoundClass(USoundClass* InSoundClass)

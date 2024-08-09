@@ -46,8 +46,6 @@ enum EDecompressionType : int
 {
 	DTYPE_Setup,
 	DTYPE_Invalid,
-	DTYPE_Preview,
-	DTYPE_Native,
 	DTYPE_RealTime,
 	DTYPE_Procedural,
 	DTYPE_Xenon,

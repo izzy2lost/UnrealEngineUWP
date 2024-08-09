@@ -771,7 +771,7 @@ void FAsyncAudioDecompressWorker::DoWork()
 			else
 			{
 				LLM_SCOPE(ELLMTag::AudioFullDecompress);
-				check(Wave->DecompressionType == DTYPE_Native || Wave->DecompressionType == DTYPE_Procedural);
+				check(Wave->DecompressionType == DTYPE_Procedural);
 
 				Wave->RawPCMDataSize = QualityInfo.SampleDataSize;
 				check(Wave->RawPCMData == nullptr);
@@ -792,18 +792,6 @@ void FAsyncAudioDecompressWorker::DoWork()
 			Wave->DecompressionType = DTYPE_Invalid;
 			Wave->NumChannels = 0;
 
-			Wave->RemoveAudioResource();
-		}
-
-		if (Wave->DecompressionType == DTYPE_Native)
-		{
-			// todo: this code is stale and needs to be gutted since going all-in on stream caching,
-			// but for now, GetOwnedBulkData() is being removed as a function.
-			// FOwnedBulkDataPtr* BulkDataPtr = Wave->GetOwnedBulkData();
-			FOwnedBulkDataPtr* BulkDataPtr = nullptr;
-			UE_CLOG(BulkDataPtr && BulkDataPtr->GetMappedRegion(), LogAudio, Warning, TEXT("Mapped audio (%s) was discarded after decompression. This is not ideal as it takes more load time and doesn't save memory."), *Wave->GetName());
-
-			// Delete the compressed data
 			Wave->RemoveAudioResource();
 		}
 

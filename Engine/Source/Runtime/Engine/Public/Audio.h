@@ -610,7 +610,6 @@ public:
 	FSoundSource(FAudioDevice* InAudioDevice)
 		: AudioDevice(InAudioDevice)
 		, WaveInstance(nullptr)
-		, Buffer(nullptr)
 		, LFEBleed(0.5f)
 		, LPFFrequency(MAX_FILTER_FREQUENCY)
 		, HPFFrequency(MIN_FILTER_FREQUENCY)
@@ -715,7 +714,10 @@ public:
 	ENGINE_API FSpatializationParams GetSpatializationParams();
 
 	/** Returns the contained sound buffer object. */
-	virtual const FSoundBuffer* GetBuffer() const { return Buffer; }
+	UE_DEPRECATED(5.5, "The Buffer member no longer exists.  Use GetNumChannels() to qeury channel count.")
+	virtual const FSoundBuffer* GetBuffer() const { return nullptr; }
+
+	int32 GetNumChannels() const { return NumChannels; }
 
 	/** Initializes any source effects for this sound source. */
 	virtual void InitializeSourceEffects(uint32 InEffectVoiceId)
@@ -777,6 +779,7 @@ protected:
 	FWaveInstance* WaveInstance;
 
 	/** Cached sound buffer associated with currently bound wave instance. */
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	FSoundBuffer* Buffer;
 
 	/** The amount of a sound to bleed to the LFE speaker */
@@ -823,6 +826,9 @@ protected:
 
 	/** The frame we started on. */
 	int32 StartFrame;
+
+	/** the number of channels */
+	int32 NumChannels = 0;
 
 	/** Effect ID of this sound source in the audio device sound source array. */
 	uint32 VoiceId;

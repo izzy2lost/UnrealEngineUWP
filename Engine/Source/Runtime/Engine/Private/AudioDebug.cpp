@@ -1038,9 +1038,8 @@ namespace Audio
 		if (DeviceManager && DeviceManager->IsVisualizeDebug3dEnabled())
 		{
 			DECLARE_CYCLE_STAT(TEXT("FAudioThreadTask.DrawSourceDebugInfo"), STAT_AudioDrawSourceDebugInfo, STATGROUP_TaskGraphTasks);
-
-			const FSoundBuffer* Buffer = SoundSource.GetBuffer();
-			const bool bSpatialized = Buffer && Buffer->NumChannels == 2 && WaveInstance->GetUseSpatialization();
+			
+			const bool bSpatialized = SoundSource.GetNumChannels() == 2 && WaveInstance->GetUseSpatialization();
 			if (bSpatialized)
 			{
 				const FRotator Rotator = ActiveSound->Transform.GetRotation().Rotator();

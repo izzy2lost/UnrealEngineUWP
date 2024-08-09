@@ -221,21 +221,26 @@ public:
 	ENGINE_API void SetSoloDevice(Audio::FDeviceId InAudioDeviceHandle);
 
 	/** Links up the resource data indices for looking up and cleaning up. */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void TrackResource(USoundWave* SoundWave, FSoundBuffer* Buffer);
 
 	/** Frees the given sound wave resource from the device manager */
 	ENGINE_API void FreeResource(USoundWave* SoundWave);
 
 	/** Frees the sound buffer from the device manager. */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void FreeBufferResource(FSoundBuffer* SoundBuffer);
 
 	/** Stops using the given sound buffer. Called before freeing the buffer */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void StopSourcesUsingBuffer(FSoundBuffer* Buffer);
 
 	/** Retrieves the sound buffer for the given resource id */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API FSoundBuffer* GetSoundBufferForResourceID(uint32 ResourceID);
 
 	/** Removes the sound buffer for the given resource id */
+	UE_DEPRECATED(5.5, "This is no longer used.  Existing calls may be deleted")
 	ENGINE_API void RemoveSoundBufferForResourceID(uint32 ResourceID);
 
 	/** Removes sound mix from all audio devices */
@@ -273,9 +278,11 @@ public:
 public:
 
 	/** Array of all created buffers */
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	TArray<FSoundBuffer*>			Buffers;
-
+	
 	/** Look up associating a USoundWave's resource ID with sound buffers	*/
+	UE_DEPRECATED(5.5, "This is no longer used and should not be accessed directly.")
 	TMap<int32, FSoundBuffer*>	WaveBufferMap;
 
 	/** Returns all the audio devices managed by device manager. */

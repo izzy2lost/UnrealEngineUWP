@@ -681,6 +681,7 @@ public:
 	*
 	* @param	FSoundBuffer	Buffer to check against
 	*/
+	UE_DEPRECATED(5.5, "No longer needed for resource managment, existing calls may be deleted")
 	ENGINE_API void StopSourcesUsingBuffer(FSoundBuffer * SoundBuffer);
 
 	/**

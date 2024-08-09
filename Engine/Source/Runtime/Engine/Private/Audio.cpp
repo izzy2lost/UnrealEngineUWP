@@ -185,11 +185,6 @@ bool IsSpatializationCVarEnabled()
 
 FSoundBuffer::~FSoundBuffer()
 {
-	// remove ourselves from the set of waves that are tracked by the audio device
-	if (ResourceID && GEngine && GEngine->GetAudioDeviceManager())
-	{
-		GEngine->GetAudioDeviceManager()->RemoveSoundBufferForResourceID(ResourceID);
-	}
 }
 
 /**
@@ -433,7 +428,7 @@ void FSoundSource::UpdateStereoEmitterPositions()
 {
 	// Only call this function if we're told to use spatialization
 	check(WaveInstance->GetUseSpatialization());
-	check(Buffer->NumChannels == 2);
+	check(GetNumChannels() == 2);
 
 	if (!DisableStereoSpreadCvar && WaveInstance->StereoSpread > 0.0f)
 	{
@@ -587,7 +582,7 @@ FSpatializationParams FSoundSource::GetSpatializationParams()
 
 		Params.EmitterPosition = EmitterPosition;
 
-		if (Buffer->NumChannels == 2)
+		if (GetNumChannels() == 2)
 		{
 			Params.LeftChannelPosition = AudioDevice->GetListenerTransformedDirection(LeftChannelSourceLocation, nullptr);
 			Params.RightChannelPosition = AudioDevice->GetListenerTransformedDirection(RightChannelSourceLocation, nullptr);			

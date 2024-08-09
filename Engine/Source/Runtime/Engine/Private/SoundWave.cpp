@@ -1000,22 +1000,14 @@ void USoundWave::GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize)
 	// Finally, report the actual audio memory being used, if this asset isn't using the stream cache.
 	if (FAudioDevice* LocalAudioDevice = GEngine->GetMainAudioDeviceRaw())
 	{
-		if (LocalAudioDevice->HasCompressedAudioInfoClass(this) && DecompressionType == DTYPE_Native)
+		if (DecompressionType == DTYPE_RealTime && CachedRealtimeFirstBuffer)
 		{
-			check(!RawPCMData || RawPCMDataSize);
-			CumulativeResourceSize.AddDedicatedSystemMemoryBytes(RawPCMDataSize);
+			CumulativeResourceSize.AddDedicatedSystemMemoryBytes(MONO_PCM_BUFFER_SIZE * NumChannels);
 		}
-		else
-		{
-			if (DecompressionType == DTYPE_RealTime && CachedRealtimeFirstBuffer)
-			{
-				CumulativeResourceSize.AddDedicatedSystemMemoryBytes(MONO_PCM_BUFFER_SIZE * NumChannels);
-			}
 
-			if (!FPlatformProperties::SupportsAudioStreaming() || !IsStreaming(nullptr))
-			{
-				CumulativeResourceSize.AddDedicatedSystemMemoryBytes(GetCompressedDataSize(GetRuntimeFormat()));
-			}
+		if (!FPlatformProperties::SupportsAudioStreaming() || !IsStreaming(nullptr))
+		{
+			CumulativeResourceSize.AddDedicatedSystemMemoryBytes(GetCompressedDataSize(GetRuntimeFormat()));
 		}
 	}
 }
