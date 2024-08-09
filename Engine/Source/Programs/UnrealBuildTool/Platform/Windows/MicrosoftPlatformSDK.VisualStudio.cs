@@ -18,10 +18,16 @@ namespace UnrealBuildTool
 		/// to support the Linux platform.
 		/// </summary>
 		static readonly string[] s_visualStudioSuggestedLinuxComponents = SDK.GetStringArrayFromConfig("VisualStudioSuggestedLinuxComponents");
+
 		/// <summary>
 		/// Additional set of components that should be suggested to be installed for Visual Studio 2022.
 		/// </summary>
 		static readonly string[] s_visualStudio2022SuggestedComponents = SDK.GetStringArrayFromConfig("VisualStudio2022SuggestedComponents");
+
+		/// <summary>
+		/// The minimum supported Visual Studio IDE version
+		/// </summary>
+		static VersionNumber MinimumVisualStudio2022Version => SDK.GetRequiredVersionNumberFromConfig("MinimumVisualStudio2022Version");
 
 		/// <summary>
 		/// Returns the list of suggested of components that should be suggested to be installed for Visual Studio.

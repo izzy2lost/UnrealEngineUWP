@@ -882,7 +882,7 @@ namespace UnrealBuildTool
 						int MajorVersion = Version.GetComponent(0);
 
 						WindowsCompiler Compiler;
-						if (MajorVersion >= 17) // Treat any newer versions as 2022, until we have an explicit enum for them
+						if (Version >= MicrosoftPlatformSDK.MinimumVisualStudio2022Version) // Treat any newer versions as 2022, until we have an explicit enum for them
 						{
 							Compiler = WindowsCompiler.VisualStudio2022;
 						}

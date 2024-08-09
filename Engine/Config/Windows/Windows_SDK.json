@@ -57,5 +57,7 @@
 	],
 
 	"VisualStudio2022SuggestedComponents": [
-	]
+	],
+
+	"MinimumVisualStudio2022Version": "17.4"
 }
