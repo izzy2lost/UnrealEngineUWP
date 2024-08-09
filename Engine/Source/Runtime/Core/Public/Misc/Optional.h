@@ -133,31 +133,41 @@ public:
 	/** Copy/Move construction */
 	TOptional(const TOptional& Other)
 	{
+		bool bLocalIsSet = Other.IsSet();
 		if constexpr (!bUsingIntrusiveUnsetState)
 		{
-			bool bLocalIsSet = Other.Value.bIsSet;
 			Value.bIsSet = bLocalIsSet;
-			if (!bLocalIsSet)
+		}
+		if (bLocalIsSet)
+		{
+			::new((void*)&Value) OptionalType(*(const OptionalType*)&Other.Value);
+		}
+		else
+		{
+			if constexpr (bUsingIntrusiveUnsetState)
 			{
-				return;
+				::new ((void*)&Value) OptionalType(FIntrusiveUnsetOptionalState{});
 			}
 		}
-
-		::new((void*)&Value) OptionalType(*(const OptionalType*)&Other.Value);
 	}
 	TOptional(TOptional&& Other)
 	{
+		bool bLocalIsSet = Other.IsSet();
 		if constexpr (!bUsingIntrusiveUnsetState)
 		{
-			bool bLocalIsSet = Other.Value.bIsSet;
 			Value.bIsSet = bLocalIsSet;
-			if (!bLocalIsSet)
+		}
+		if (bLocalIsSet)
+		{
+			::new((void*)&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
+		}
+		else
+		{
+			if constexpr (bUsingIntrusiveUnsetState)
 			{
-				return;
+				::new ((void*)&Value) OptionalType(FIntrusiveUnsetOptionalState{});
 			}
 		}
-
-		::new((void*)&Value) OptionalType(MoveTempIfPossible(*(OptionalType*)&Other.Value));
 	}
 
 	TOptional& operator=(const TOptional& Other)

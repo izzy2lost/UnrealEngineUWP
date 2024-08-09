@@ -306,24 +306,21 @@ private:
 public:
 	/** Initialization constructor. */
 	FORCEINLINE TSet()
-	:	HashSize(0)
-	{}
+	{
+	}
 
 	/** Copy constructor. */
 	FORCEINLINE TSet(const TSet& Copy)
-	:	HashSize(0)
 	{
 		*this = Copy;
 	}
 
 	FORCEINLINE explicit TSet(TArrayView<const ElementType> InArrayView)
-		: HashSize(0)
 	{
 		Append(InArrayView);
 	}
 
 	FORCEINLINE explicit TSet(TArray<ElementType>&& InArray)
-		: HashSize(0)
 	{
 		Append(MoveTemp(InArray));
 	}
@@ -333,6 +330,24 @@ public:
 	{
 		HashSize = 0;
 	}
+
+	/////////////////////////////////////////////
+	// Start - intrusive TOptional<TSet> state //
+	/////////////////////////////////////////////
+	constexpr static bool bHasIntrusiveUnsetOptionalState = true;
+	using IntrusiveUnsetOptionalStateType = TSet;
+
+	explicit TSet(FIntrusiveUnsetOptionalState Tag)
+		: Elements(Tag)
+	{
+	}
+	bool operator==(FIntrusiveUnsetOptionalState Tag) const
+	{
+		return Elements == Tag;
+	}
+	///////////////////////////////////////////
+	// End - intrusive TOptional<TSet> state //
+	///////////////////////////////////////////
 
 	/** Assignment operator. */
 	TSet& operator=(const TSet& Copy)
@@ -1390,7 +1405,7 @@ private:
 	ElementArrayType Elements;
 
 	HashType Hash;
-	int32	 HashSize;
+	int32	 HashSize = 0;
 
 public:
 	void WriteMemoryImage(FMemoryImageWriter& Writer) const
