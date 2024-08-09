@@ -1953,8 +1953,8 @@ namespace UnrealBuildTool
 					CompileAction.bShowIncludes = Target.bShowIncludes;
 				}
 
-				// Write cl errors and warnings to a file
-				if (Target.WindowsPlatform.Compiler.IsMSVC())
+				// Write cl errors and warnings to a file if supported
+				if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bWriteSarif)
 				{
 					if (Target.StaticAnalyzer == StaticAnalyzer.Default && !CompileEnvironment.bDisableStaticAnalysis)
 					{
@@ -2685,7 +2685,6 @@ namespace UnrealBuildTool
 			}
 
 			Arguments.AddRange(InputFileNames);
-
 
 			// Add the output file to the command-line.
 			Arguments.Add($"/OUT:\"{NormalizeCommandLinePath(OutputFile)}\"");
