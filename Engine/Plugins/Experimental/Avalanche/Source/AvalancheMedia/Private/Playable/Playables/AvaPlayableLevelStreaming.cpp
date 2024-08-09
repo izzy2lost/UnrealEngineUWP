@@ -928,7 +928,7 @@ UAvaPlayableLevelStreaming* UAvaPlayableLevelStreaming::CreateSubPlayable(UAvaPl
 	const FPlayableCreationInfo PlayableCreationInfo =
 		{
 			InPlayableGroup->GetPlayableGroupManager(),
-			{ UWorld::StaticClass(), TSoftObjectPtr(InSourceAssetPath) },
+			{ UWorld::StaticClass(), TSoftObjectPtr<UObject>(InSourceAssetPath) },
 			FName(),
 			InPlayableGroup
 		};
