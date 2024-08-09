@@ -9,11 +9,11 @@
 #include "Widgets/Views/SHeaderRow.h"
 #include "Widgets/Views/STileView.h"
 
-template <typename ItemType> class SListView;
 
+// Forward declarations
+template <typename ItemType> class SMutableMultiPageListView;
 class ITableRow;
 class SExpandableArea;
-// Forward declarations
 class SMutableCodeViewer;
 class STableViewBase;
 class SWidget;
@@ -158,8 +158,12 @@ private:
 	* Data backend for the lists of constants
 	*/
 
-	TArray<TSharedPtr<FMutableConstantImageElement>> ConstantImageElements;
-	TArray<TSharedPtr<FMutableConstantMeshElement>> ConstantMeshElements;
+	TSharedPtr<SMutableMultiPageListView<TSharedPtr<FMutableConstantImageElement>>> ImageListViewHandler;
+	TSharedPtr<TArray<TSharedPtr<FMutableConstantImageElement>>> ConstantImageElements;
+
+	TSharedPtr<SMutableMultiPageListView<TSharedPtr<FMutableConstantMeshElement>>> MeshListViewHandler;
+	TSharedPtr<TArray<TSharedPtr<FMutableConstantMeshElement>>> ConstantMeshElements;
+	
 	TArray<TSharedPtr<FMutableConstantStringElement>> ConstantStringElements;
 	TArray<TSharedPtr<FMutableConstantLayoutElement>> ConstantLayoutElements;
 	TArray<TSharedPtr<FMutableConstantProjectorElement>> ConstantProjectorElements;
@@ -211,68 +215,31 @@ private:
 	TSharedRef<ITableRow> OnGenerateCurveRow(TSharedPtr<FMutableConstantCurveElement> MutableConstantCurveElement, const TSharedRef<STableViewBase>& OwnerTable) const;
 	TSharedRef<ITableRow> OnGenerateSkeletonRow(TSharedPtr<FMutableConstantSkeletonElement> MutableConstantSkeletonElement, const TSharedRef<STableViewBase>& OwnerTable) const;
 	
-	/*
-	 * Image segment operation 
-	 */
-
-	// Part of the original array used do display only a part of the data
-	TArray<TSharedPtr<FMutableConstantImageElement>> ConstantImageElementsSegment;
-
-	/** Amount of elements an array segment can hold. The lowest the more stable the UI drawing gets
-	*(avoid crash due to oversize slate Y size) */
-	const uint32 ElementsPerSegment = 24;
-
-	// Amount of elements a segment can hold. The lowest the more stable the UI drawing gets (avoid crash due to oversize slate Y coordinate)
-	uint32 CurrentArraySegment = 0;
-	uint32 TotalAmountOfSegments = 0;
-
-	/** Provided the array on ConstantImageElements a new sub array gets generated for the currently selected segment */
-	void RegenerateProxyImageArray();
-	
-	/** Method designed to generate the UI controls to let the user change the image array segment being previewed */
-	TSharedRef<SWidget> GenerateImagesSegmentSelectionWidget();
-
-	/** Returns the text containing the page (segment) being drawn at the moment. Designed for the UI to show data to
-	 * the user
-	 */
-	FText OnDrawCurrentImageSegmentText() const;
-
-	/** Determines if the button that loads the previous image array segment should be interactable by the user
-	 * It only relates to UI, there are other internal checks to avoid the processing of an existent segment
-	 */
-	bool ShouldBackButtonBeEnabled() const;
-	/** Determines if the button that loads the next image array segment should be interactable by the user
-	 * It only relates to UI, there are other internal checks to avoid the processing of an existent segment
-	 */
-	bool ShouldNextButtonBeEnabled() const;
-
-	/** Action performed when the back button is pressed on the UI. Sets the current segment to the previous one*/
-	FReply OnImageBackButtonClicked();
-	/** Action performed when the forward button is pressed on the UI. Sets the current segment to the next one*/
-	FReply OnImageForwardButtonClicked();
-
-	/** Action performed when the full back button is pressed on the UI. Sets the current segment to the first one*/
-	FReply OnImageFullBackButtonClicked();
-	/** Action performed when the full forward button is pressed on the UI. Sets the current segment to the last one*/
-	FReply OnImageFullForwardButtonClicked();
-
 	
 	/*
-	 * Image Table sorting methods
+	 * Image List sorting methods
 	 */
-
-	/** List view showing the constant images data*/
-	TSharedPtr<SListView<TSharedPtr<FMutableConstantImageElement>>> ConstantImagesListView;
-
+	
 	/** Id of the last column the user decided to Sort. Usefully in order to interpolate ascending and descending sorting
 	 * order 
 	 */
-	FName LastSortedColumnID = "";
+	FName ImageConstantsLastSortedColumnID = "";
 	/** Variable holding what kind of sorting has been used on the last sorting operation*/
-	bool bSortAscending = false;
-
+	EColumnSortMode::Type ImageListSortMode = EColumnSortMode::Type::None;
+	
 	/** Callback method designed to sort the list of images. It sorts ConstantImageElements */
 	void OnImageTableSortRequested(EColumnSortPriority::Type ColumnSortPriority, const FName& ColumnID, EColumnSortMode::Type ColumnSortMode);
+	EColumnSortMode::Type GetImageListColumnSortMode(FName ColumnName) const;
+
+	/*
+	 * Mesh List sorting methods
+	 */
+	
+	FName MeshConstantsLastSortedColumnID = "";
+	EColumnSortMode::Type MeshListSortMode = EColumnSortMode::Type::None;
+	
+	void OnMeshTableSortRequested(EColumnSortPriority::Type ColumnSortPriority, const FName& ColumnID, EColumnSortMode::Type ColumnSortMode);
+	EColumnSortMode::Type GetMeshListColumnSortMode(FName ColumnName) const;
 
 	/*
 	 * Expandable areas objects and behaviours
