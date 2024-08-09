@@ -613,9 +613,12 @@ struct FNavigationRaycastWork : FRayStartEnd
 	/** depending on bDidHit HitLocation contains either actual hit location or RayEnd*/
 	FNavLocation HitLocation;
 	bool bDidHit;
+	/** when bDidHit is false, bIsRayEndInCorridor indicates if the projection of RayEnd is located in the corridor explored from the ray. 
+    *  When bIsRayEndInCorridor is false, it means that RayEnd failed to project to the NavigationData or on a navigation node that is not part of the explored corridor (e.g. different height) */
+	bool bIsRayEndInCorridor;
 
 	FNavigationRaycastWork(const FVector& InRayStart, const FVector& InRayEnd)
-		: FRayStartEnd(InRayStart, InRayEnd), HitLocation(InRayEnd), bDidHit(false)
+		: FRayStartEnd(InRayStart, InRayEnd), HitLocation(InRayEnd), bDidHit(false), bIsRayEndInCorridor(false)
 	{}
 };
 

@@ -124,7 +124,8 @@ public:
 	UPROPERTY(EditAnywhere, Category=Query)
 	uint32 bDrawIfNavDataIsReadyToQueryTargetActor : 1;
 
-	/** If set, a line is drawn to indicate to result of a raycast on the navigation data between the current actor and the QueryTargetActor location. */
+	/** If set, a line is drawn to indicate to result of a ray cast on the navigation data between the current actor and the QueryTargetActor location
+	 * (red when there is a hit, green when there is no hit and the ray end is on the explored corridor, orange otherwise). */
 	UPROPERTY(EditAnywhere, Category=Query)
 	uint32 bDrawRaycastToQueryTargetActor : 1;
 
@@ -198,6 +199,7 @@ public:
 	bool bNavDataIsReadyInRadius;
 	bool bNavDataIsReadyToQueryTargetActor;
 	bool bRaycastToQueryTargetActorResult;
+	bool bRaycastToQueryTargetEndsInCorridor;
 
 #if WITH_RECAST && WITH_EDITORONLY_DATA
 	/** detail data gathered from each step of regular A* algorithm */
@@ -263,6 +265,6 @@ protected:
 	NAVIGATIONSYSTEM_API FVector FindClosestWallLocation() const;
 	bool CheckIfNavDataIsReadyInRadius();
 	bool CheckIfNavDataIsReadyToActor(const AActor* TargetActor);
-	bool CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation);
+	bool CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation, bool& bOutIsRaycastEndInCorridor);
 	void OnQueryTargetActorTransformUpdated(USceneComponent* InRootComponent, EUpdateTransformFlags UpdateTransformFlags, ETeleportType Teleport);
 };

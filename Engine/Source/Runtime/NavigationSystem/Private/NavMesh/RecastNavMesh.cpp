@@ -512,7 +512,7 @@ ARecastNavMesh::ARecastNavMesh(const FObjectInitializer& ObjectInitializer)
 		TestPathImplementation = TestPath;
 		TestHierarchicalPathImplementation = TestHierarchicalPath;
 
-		RaycastImplementation = NavMeshRaycast;
+		RaycastImplementationWithAdditionalResults = NavMeshRaycast;
 
 		RecastNavMeshImpl = new FPImplRecastNavMesh(this);
 	
@@ -3305,7 +3305,12 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, const FVector& 
 	return Result.HasHit();
 }
 
-bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* QueryOwner)
+bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
+{
+	return NavMeshRaycast(Self, RayStartNode, RayStart, RayEnd, HitLocation, nullptr, QueryFilter, Querier);
+}
+
+bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayStartNode, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* QueryOwner)
 {
 	check(Cast<const ARecastNavMesh>(Self));
 
@@ -3313,6 +3318,10 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayS
 	if (Self == NULL || RecastNavMesh->RecastNavMeshImpl == NULL)
 	{
 		HitLocation = RayStart;
+		if (AdditionalResults)
+		{
+			AdditionalResults->bIsRayEndInCorridor = false;
+		}
 		return true;
 	}
 
@@ -3320,6 +3329,10 @@ bool ARecastNavMesh::NavMeshRaycast(const ANavigationData* Self, NavNodeRef RayS
 	RecastNavMesh->RecastNavMeshImpl->Raycast(RayStart, RayEnd, RecastNavMesh->GetRightFilterRef(QueryFilter), QueryOwner, Result, RayStartNode);
 
 	HitLocation = Result.HasHit() ? (RayStart + (RayEnd - RayStart) * Result.HitTime) : RayEnd;
+	if (AdditionalResults)
+	{
+		AdditionalResults->bIsRayEndInCorridor = Result.bIsRaycastEndInCorridor;
+	}
 	return Result.HasHit();
 }
 
@@ -3363,10 +3376,17 @@ void ARecastNavMesh::BatchRaycast(TArray<FNavigationRaycastWork>& Workload, FSha
 				, QueryFilter, &RaycastResult.HitTime, RecastHitNormal
 				, RaycastResult.CorridorPolys, &RaycastResult.CorridorPolysCount, RaycastResult.GetMaxCorridorSize());
 
-			if (dtStatusSucceed(RaycastStatus) && RaycastResult.HasHit())
+			if (dtStatusSucceed(RaycastStatus))
 			{
-				WorkItem.bDidHit = true;
-				WorkItem.HitLocation = FNavLocation(WorkItem.RayStart + (WorkItem.RayEnd - WorkItem.RayStart) * RaycastResult.HitTime, RaycastResult.GetLastNodeRef());
+				if (RaycastResult.HasHit())
+				{
+					WorkItem.bDidHit = true;
+					WorkItem.HitLocation = FNavLocation(WorkItem.RayStart + (WorkItem.RayEnd - WorkItem.RayStart) * RaycastResult.HitTime, RaycastResult.GetLastNodeRef());
+				}
+				else
+				{
+					WorkItem.bIsRayEndInCorridor = RaycastResult.bIsRaycastEndInCorridor;
+				}
 			}
 		}
 	}
@@ -3374,15 +3394,10 @@ void ARecastNavMesh::BatchRaycast(TArray<FNavigationRaycastWork>& Workload, FSha
 
 bool ARecastNavMesh::IsSegmentOnNavmesh(const FVector& SegmentStart, const FVector& SegmentEnd, FSharedConstNavQueryFilter Filter, const UObject* QueryOwner) const
 {
-	if (RecastNavMeshImpl == NULL)
-	{
-		return false;
-	}
-	
+	FVector HitLocation;
 	FRaycastResult Result;
-	RecastNavMeshImpl->Raycast(SegmentStart, SegmentEnd, GetRightFilterRef(Filter), QueryOwner, Result);
-
-	return Result.bIsRaycastEndInCorridor && !Result.HasHit();
+	const bool bDidHit = NavMeshRaycast(this, SegmentStart, SegmentEnd, HitLocation, Filter, QueryOwner, Result);
+	return Result.bIsRaycastEndInCorridor && !bDidHit;
 }
 
 bool ARecastNavMesh::FindStraightPath(const FVector& StartLoc, const FVector& EndLoc, const TArray<NavNodeRef>& PathCorridor, TArray<FNavPathPoint>& PathPoints, TArray<FNavLinkId>* CustomLinks) const

@@ -126,7 +126,7 @@ void FNavTestSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>&
 				if (NavTestActor->bDrawRaycastToQueryTargetActor && NavTestActor->QueryTargetActor)
 				{
 					const FVector QueryTargetLocation = NavTestActor->QueryTargetActor->GetActorLocation();
-					PDI->DrawLine(ActorLocation, QueryTargetLocation, NavTestActor->bRaycastToQueryTargetActorResult ? FColor::Red : FColor::Green, SDPG_World, 2.5);
+					PDI->DrawLine(ActorLocation, QueryTargetLocation, NavTestActor->bRaycastToQueryTargetActorResult ? FColor::Red : NavTestActor->bRaycastToQueryTargetEndsInCorridor ? FColor::Green : FColor::Orange, SDPG_World, 2.5);
 
 					if (FNavigationSystem::IsValidLocation(NavTestActor->RaycastHitLocation))
 					{

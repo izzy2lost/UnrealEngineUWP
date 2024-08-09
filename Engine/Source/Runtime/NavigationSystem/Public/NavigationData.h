@@ -74,6 +74,14 @@ struct FPathFindingResult
 	FORCEINLINE bool IsPartial() const;
 };
 
+struct FNavigationRaycastAdditionalResults
+{
+	/** When the ray is not obstructed, indicates if the projection of RayEnd is located at the end of the explored corridor.
+	 *  When bIsRaytEndInCorridor is false, it means that RayEnd failed to project to the NavigationData or on a navigation node that is not part of the explored corridor (e.g. different height)
+	 */
+	bool bIsRayEndInCorridor = false;
+};
+
 struct FNavigationPath : public TSharedFromThis<FNavigationPath, ESPMode::ThreadSafe>
 {
 	//DECLARE_DELEGATE_OneParam(FPathObserverDelegate, FNavigationPath*);
@@ -836,9 +844,22 @@ public:
 	 */
 	FORCEINLINE bool Raycast(const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL) const
 	{
-		check(RaycastImplementation);
+		return Raycast(RayStart, RayEnd, HitLocation, nullptr/*AdditionalResults*/, QueryFilter, Querier);
+	}
+
+	/** 
+	 *	Synchronously makes a raycast on navigation data using QueryFilter
+	 *	@param HitLocation if line was obstructed this will be set to hit location. Otherwise it contains SegmentEnd
+	 *	@param AdditionalResults contains more information about the result of the raycast query. See FNavigationRaycastAdditionalResults description for details
+	 *	@return true if line from RayStart to RayEnd is obstructed
+	 *
+	 *	@note don't make this function virtual! Look at implementation details and its comments for more info.
+	 */
+	FORCEINLINE bool Raycast(const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier = NULL) const
+	{
+		check(RaycastImplementationWithAdditionalResults);
 		// this awkward implementation avoids virtual call overhead - it's possible this function will be called a lot
-		return (*RaycastImplementation)(this, RayStart, RayEnd, HitLocation, QueryFilter, Querier);
+		return (*RaycastImplementationWithAdditionalResults)(this, RayStart, RayEnd, HitLocation, AdditionalResults, QueryFilter, Querier);
 	}
 
 	/** Raycasts batched for efficiency */
@@ -998,7 +1019,11 @@ protected:
 	FTestPathPtr TestHierarchicalPathImplementation; 
 
 	typedef bool(*FNavRaycastPtr)(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier);
-	FNavRaycastPtr RaycastImplementation; 
+	UE_DEPRECATED(5.6, "Please use RaycastImplementationWithAdditionalResults instead") 
+	FNavRaycastPtr RaycastImplementation;
+
+	typedef bool(*FNavRaycastWithAdditionalResultsPtr)(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier);
+	FNavRaycastWithAdditionalResultsPtr RaycastImplementationWithAdditionalResults;
 
 protected:
 	TSharedPtr<FNavDataGenerator, ESPMode::ThreadSafe> NavDataGenerator;

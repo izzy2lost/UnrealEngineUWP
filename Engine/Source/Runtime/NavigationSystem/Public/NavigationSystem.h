@@ -528,6 +528,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category="AI|Navigation", meta=(WorldContext="WorldContextObject" ))
 	static NAVIGATIONSYSTEM_API bool NavigationRaycast(UObject* WorldContextObject, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, TSubclassOf<UNavigationQueryFilter> FilterClass = NULL, AController* Querier = NULL);
 
+	/** Performs navigation raycast on NavigationData appropriate for given Querier.
+	 *	@param Querier if not passed default navigation data will be used
+	 *	@param HitLocation if line was obstructed this will be set to hit location. Otherwise it contains SegmentEnd
+	 *	@param AdditionalResults contains more information about the result of the raycast query. See FNavigationRaycastAdditionalResults description for details
+	 *	@return true if line from RayStart to RayEnd was obstructed. Also, true when no navigation data present */
+	static NAVIGATIONSYSTEM_API bool NavigationRaycastWithAdditionalResults(UObject* WorldContextObject, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, TSubclassOf<UNavigationQueryFilter> FilterClass = NULL, AController* Querier = NULL);
+
 	/** will limit the number of simultaneously running navmesh tile generation jobs to specified number.
 	 *	@param MaxNumberOfJobs gets trimmed to be at least 1. You cannot use this function to pause navmesh generation */
 	UFUNCTION(BlueprintCallable, Category = "AI|Navigation")

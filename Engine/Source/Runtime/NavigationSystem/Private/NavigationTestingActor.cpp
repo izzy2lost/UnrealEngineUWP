@@ -59,6 +59,7 @@ ANavigationTestingActor::ANavigationTestingActor(const FObjectInitializer& Objec
 	bNavDataIsReadyInRadius = false;
 	bNavDataIsReadyToQueryTargetActor = false;
 	bRaycastToQueryTargetActorResult = false;
+	bRaycastToQueryTargetEndsInCorridor = false;
 	OffsetFromCornersDistance = 0.f;
 
 	QueryingExtent = FVector(DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_HORIZONTAL, DEFAULT_NAV_QUERY_EXTENT_VERTICAL);
@@ -428,7 +429,7 @@ void ANavigationTestingActor::UpdateTargetActorQueries()
 	}
 	if (bDrawRaycastToQueryTargetActor)
 	{
-		bRaycastToQueryTargetActorResult = CheckRaycastToActor(QueryTargetActor, RaycastHitLocation);
+		bRaycastToQueryTargetActorResult = CheckRaycastToActor(QueryTargetActor, RaycastHitLocation, bRaycastToQueryTargetEndsInCorridor);
 	}
 }
 
@@ -496,7 +497,7 @@ bool ANavigationTestingActor::CheckIfNavDataIsReadyToActor(const AActor* TargetA
 	return false;
 }
 
-bool ANavigationTestingActor::CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation)
+bool ANavigationTestingActor::CheckRaycastToActor(const AActor* TargetActor, FVector& OutHitLocation, bool& bOutIsRaycastEndInCorridor)
 {
 	OutHitLocation = FNavigationSystem::InvalidLocation;
 #if WITH_EDITORONLY_DATA
@@ -510,7 +511,10 @@ bool ANavigationTestingActor::CheckRaycastToActor(const AActor* TargetActor, FVe
 	if (MyNavData && TargetActor)
 	{
 		FSharedConstNavQueryFilter Filter = UNavigationQueryFilter::GetQueryFilter(*MyNavData, this, FilterClass);
-		return MyNavData->Raycast(GetActorLocation(), TargetActor->GetActorLocation(), OutHitLocation, Filter, this);
+		FNavigationRaycastAdditionalResults AdditionalResults;
+		const bool bDidHit = MyNavData->Raycast(GetActorLocation(), TargetActor->GetActorLocation(), OutHitLocation, &AdditionalResults, Filter, this);
+		bOutIsRaycastEndInCorridor = AdditionalResults.bIsRayEndInCorridor;
+		return bDidHit;
 	}
 
 	return false;

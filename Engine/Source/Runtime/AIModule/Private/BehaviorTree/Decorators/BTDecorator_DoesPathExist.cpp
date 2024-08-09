@@ -5,7 +5,6 @@
 #include "GameFramework/Actor.h"
 #include "NavigationSystem.h"
 #include "NavFilters/NavigationQueryFilter.h"
-#include "NavMesh/RecastNavMesh.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "AIController.h"
 
@@ -75,10 +74,10 @@ bool UBTDecorator_DoesPathExist::CalculateRawConditionValue(UBehaviorTreeCompone
 			const EPathExistanceQueryType::Type QueryType = PathQueryType.GetValue<EPathExistanceQueryType::Type>(OwnerComp);
 			if (QueryType == EPathExistanceQueryType::NavmeshRaycast2D)
 			{
-#if WITH_RECAST
-				const ARecastNavMesh* RecastNavMesh = Cast<const ARecastNavMesh>(NavData);
-				bHasPath = RecastNavMesh && RecastNavMesh->IsSegmentOnNavmesh(PointA, PointB, QueryFilter);
-#endif
+				FVector HitLocation;
+				FNavigationRaycastAdditionalResults AdditionalResults;
+				const bool bDidHit = NavData->Raycast(PointA, PointB, HitLocation, &AdditionalResults, QueryFilter);
+				bHasPath = !bDidHit && AdditionalResults.bIsRayEndInCorridor;
 			}
 			else
 			{

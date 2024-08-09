@@ -35,7 +35,7 @@ AAbstractNavData::AAbstractNavData(const FObjectInitializer& ObjectInitializer)
 		TestPathImplementation = TestPathAbstract;
 		TestHierarchicalPathImplementation = TestPathAbstract;
 
-		RaycastImplementation = RaycastAbstract;
+		RaycastImplementationWithAdditionalResults = RaycastAbstract;
 
 		DefaultQueryFilter->SetFilterType<FAbstractQueryFilter>();
 	}
@@ -85,6 +85,11 @@ bool AAbstractNavData::TestPathAbstract(const FNavAgentProperties& AgentProperti
 }
 
 bool AAbstractNavData::RaycastAbstract(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
+{
+	return RaycastAbstract(NavDataInstance, RayStart, RayEnd, HitLocation, nullptr, QueryFilter, Querier);
+}
+
+bool AAbstractNavData::RaycastAbstract(const ANavigationData* NavDataInstance, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, FSharedConstNavQueryFilter QueryFilter, const UObject* Querier)
 {
 	return false;
 }

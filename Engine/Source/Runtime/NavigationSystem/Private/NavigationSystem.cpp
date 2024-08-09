@@ -2067,6 +2067,11 @@ UNavigationPath* UNavigationSystemV1::FindPathToLocationSynchronously(UObject* W
 
 bool UNavigationSystemV1::NavigationRaycast(UObject* WorldContextObject, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, TSubclassOf<UNavigationQueryFilter> FilterClass, AController* Querier)
 {
+	return NavigationRaycastWithAdditionalResults(WorldContextObject, RayStart, RayEnd, HitLocation, nullptr, FilterClass, Querier);
+}
+
+bool UNavigationSystemV1::NavigationRaycastWithAdditionalResults(UObject* WorldContextObject, const FVector& RayStart, const FVector& RayEnd, FVector& HitLocation, FNavigationRaycastAdditionalResults* AdditionalResults, TSubclassOf<UNavigationQueryFilter> FilterClass, AController* Querier)
+{
 	UWorld* World = nullptr;
 
 	if (WorldContextObject != nullptr)
@@ -2081,6 +2086,10 @@ bool UNavigationSystemV1::NavigationRaycast(UObject* WorldContextObject, const F
 	// blocked, i.e. not traversable, by default
 	bool bRaycastBlocked = true;
 	HitLocation = RayStart;
+	if (AdditionalResults)
+	{
+		AdditionalResults->bIsRayEndInCorridor = false;
+	}
 
 	const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(World);
 
@@ -2101,7 +2110,7 @@ bool UNavigationSystemV1::NavigationRaycast(UObject* WorldContextObject, const F
 
 		if (NavData != nullptr)
 		{
-			bRaycastBlocked = NavData->Raycast(RayStart, RayEnd, HitLocation, UNavigationQueryFilter::GetQueryFilter(*NavData, Querier, FilterClass));
+			bRaycastBlocked = NavData->Raycast(RayStart, RayEnd, HitLocation, AdditionalResults, UNavigationQueryFilter::GetQueryFilter(*NavData, Querier, FilterClass));
 		}
 	}
 
