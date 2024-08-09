@@ -405,7 +405,7 @@ void UK2Node_FunctionEntry::AllocateDefaultPins()
 
 	if (FFunctionEntryHelper::RequireWorldContextParameter(this) 
 		&& ensureMsgf(!FindPin(FFunctionEntryHelper::GetWorldContextPinName()), 
-		TEXT("%s: World context parameter pin already exiss on function entry node %s"), 
+		TEXT("%s: World context parameter pin already exists on function entry node %s"), 
 			*GetOutermost()->GetName(),
 			*(CustomGeneratedFunctionName.IsNone() ? FunctionReference.GetMemberName() : CustomGeneratedFunctionName).ToString()
 		))
@@ -1076,6 +1076,33 @@ void UK2Node_FunctionEntry::FixupPinStringDataReferences(FArchive* SavingArchive
 	{
 		UpdateUserDefinedPinDefaultValues();
 	}
+}
+
+ERenamePinResult UK2Node_FunctionEntry::RenameUserDefinedPinImpl(FName OldName, FName NewName, bool bTest)
+{
+	ERenamePinResult Result = Super::RenameUserDefinedPinImpl(OldName, NewName, bTest);
+
+	// We don't actually rename our local variables via this method,
+	// but we do need to verify that no name collisions will occur when testing a pin rename.
+
+	const bool bCheckLocalVariablesNameCollision =
+		(Result == ERenamePinResult::ERenamePinResult_Success) &&
+		bTest
+	;
+
+	if (bCheckLocalVariablesNameCollision)
+	{
+		for (const FBPVariableDescription& Entry : LocalVariables)
+		{
+			if (NewName == Entry.VarName)
+			{
+				Result = ERenamePinResult_NameCollision;
+				break;
+			}
+		}
+	}
+
+	return Result;
 }
 
 bool UK2Node_FunctionEntry::ModifyUserDefinedPinDefaultValue(TSharedPtr<FUserPinInfo> PinInfo, const FString& NewDefaultValue)

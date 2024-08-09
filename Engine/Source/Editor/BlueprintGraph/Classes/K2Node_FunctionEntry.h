@@ -87,6 +87,7 @@ class UK2Node_FunctionEntry : public UK2Node_FunctionTerminator
 	virtual void PostReconstructNode() override;
 	virtual void ClearCachedBlueprintData(UBlueprint* Blueprint) override;
 	virtual void FixupPinStringDataReferences(FArchive* SavingArchive) override;
+	virtual ERenamePinResult RenameUserDefinedPinImpl(FName OldName, FName NewName, bool bTest) override;
 	//~ End UK2Node Interface
 
 	//~ Begin UK2Node_EditablePinBase Interface
