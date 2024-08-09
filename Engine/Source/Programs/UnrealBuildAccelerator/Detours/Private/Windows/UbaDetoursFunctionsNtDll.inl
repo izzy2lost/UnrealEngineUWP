@@ -931,7 +931,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 		{
 			bool lastWasWrite = IsContentWrite(info.lastDesiredAccess, 0);
 			UBA_ASSERT(!info.isFileMap);
-			bool shouldReport = !lastWasWrite || info.deleted;
+			bool shouldReport = !lastWasWrite || info.deleted || isDeleteOnClose;
 			shouldReport = shouldReport && !keepInMemory;
 			if (shouldReport)
 			{
@@ -1219,7 +1219,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 	dh->fileObject->fileInfo = &info;
 	dh->fileObject->deleteOnClose = isDeleteOnClose;
 	*hFileHandle = makeDetouredHandle(dh);
-	DEBUG_LOG_TRUE(funcName, L"%ls %llu (%ls) -> %ls", isWriteStr, uintptr_t(*hFileHandle), tempFileName, ToString(res));
+	DEBUG_LOG_TRUE(funcName, L"%ls %llu (%ls)%s -> %ls", isWriteStr, uintptr_t(*hFileHandle), tempFileName, isDeleteOnClose ? TC(" DeleteOnClose") : TC(""), ToString(res));
 	return res;
 }
 
