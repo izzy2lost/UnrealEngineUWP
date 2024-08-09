@@ -29,6 +29,8 @@ private:
 	void RegisterSettings();
 	void UnregisterSettings();
 
+	void RegisterSettingsContainer(const FName& ContainerName);
+
 	void UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, const FName& ContainerName, const bool bQueryExistingRows = true);
 
 	bool bIsInitialized;

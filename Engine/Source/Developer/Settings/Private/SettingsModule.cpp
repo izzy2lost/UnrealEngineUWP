@@ -72,6 +72,11 @@ public:
 		}
 	}
 
+	virtual FOnContainerAdded& OnContainerAdded() override
+	{
+		return ContainerAddedDelegate;
+	}
+
 public:
 
 	// IModuleInterface interface
@@ -125,6 +130,8 @@ protected:
 		if (!Container.IsValid())
 		{
 			Container = MakeShareable(new FSettingsContainer(ContainerName));
+
+			ContainerAddedDelegate.Broadcast(ContainerName);
 		}
 
 		return Container.ToSharedRef();
@@ -154,6 +161,9 @@ private:
 
 	/** Holds the collection of registered settings viewers. */
 	TMap<FName, ISettingsViewer*> ContainerNamesToViewers;
+
+	/** Holds a delegate that is executed when a settings container has been added. */
+	FOnContainerAdded ContainerAddedDelegate;
 
 #if WITH_RELOAD
 	/** Delegate handle for the re-instancing complete notification */

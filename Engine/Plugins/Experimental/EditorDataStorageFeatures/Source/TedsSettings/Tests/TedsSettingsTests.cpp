@@ -114,8 +114,7 @@ void FTedsSettingsTestFixture::Define()
 	{
 		LatentIt("Should add a row to editor data storage", [this](const FDoneDelegate& Done)
 		{
-			// TODO: Use an existing container for now because the ISettingsModule does not yet have a delegate for container addition/removal
-			const FName& ContainerName = FName(TEXT(/*"TestContainer"*/"Editor"));
+			const FName& ContainerName = FName(TEXT("TestContainer"));
 			const FName& CategoryName = FName(TEXT("TestCategory"));
 			const FName& SectionName = FName(TEXT("TestSection"));
 				
@@ -151,8 +150,7 @@ void FTedsSettingsTestFixture::Define()
 	{
 		LatentIt("Should remove a row from editor data storage", [this](const FDoneDelegate& Done)
 		{
-			// TODO: Use an existing container for now because the ISettingsModule does not yet have a delegate for container addition/removal
-			const FName& ContainerName = FName(TEXT(/*"TestContainer"*/"Editor"));
+			const FName& ContainerName = FName(TEXT("TestContainer"));
 			const FName& CategoryName = FName(TEXT("TestCategory"));
 			const FName& SectionName = FName(TEXT("TestSection"));
 

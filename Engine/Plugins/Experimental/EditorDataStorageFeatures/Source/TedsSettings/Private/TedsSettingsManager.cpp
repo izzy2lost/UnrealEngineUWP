@@ -101,36 +101,46 @@ void FTedsSettingsManager::RegisterSettings()
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 	check(SettingsModule);
 
-	// TODO: add a delegate to the ISettingsModule to keep data storage in sync when a container is added or removed
-
 	TArray<FName> ContainerNames;
 	SettingsModule->GetContainerNames(ContainerNames);
 
 	for (FName ContainerName : ContainerNames)
 	{
-		UE_LOG(LogTedsSettings, Log, TEXT("Register Settings Container : '%s'"), *ContainerName.ToString());
-
-		ISettingsContainerPtr ContainerPtr = SettingsModule->GetContainer(ContainerName);
-
-		TArray<ISettingsCategoryPtr> Categories;
-		ContainerPtr->GetCategories(Categories);
-
-		for (ISettingsCategoryPtr CategoryPtr : Categories)
-		{
-			const bool bQueryExistingRows = false;
-			UpdateSettingsCategory(CategoryPtr, ContainerName, bQueryExistingRows);
-		}
-
-		// OnCategoryModified is called at the same time as OnSectionRemoved so we only bind to OnCategoryModified for add / update / remove
-		ContainerPtr->OnCategoryModified().AddSPLambda(this, [this, ContainerPtr](const FName& ModifiedCategoryName)
-			{
-				UE_LOG(LogTedsSettings, Log, TEXT("Settings Category modified : '%s->%s'"), *ContainerPtr->GetName().ToString(), *ModifiedCategoryName.ToString());
-
-				ISettingsCategoryPtr CategoryPtr = ContainerPtr->GetCategory(ModifiedCategoryName);
-
-				UpdateSettingsCategory(CategoryPtr, ContainerPtr->GetName());
-			});
+		RegisterSettingsContainer(ContainerName);
 	}
+
+	SettingsModule->OnContainerAdded().AddSP(this, &FTedsSettingsManager::RegisterSettingsContainer);
+}
+
+void FTedsSettingsManager::RegisterSettingsContainer(const FName& ContainerName)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.RegisterSettingsContainer);
+
+	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
+	check(SettingsModule);
+
+	UE_LOG(LogTedsSettings, Log, TEXT("Register Settings Container : '%s'"), *ContainerName.ToString());
+
+	ISettingsContainerPtr ContainerPtr = SettingsModule->GetContainer(ContainerName);
+
+	TArray<ISettingsCategoryPtr> Categories;
+	ContainerPtr->GetCategories(Categories);
+
+	for (ISettingsCategoryPtr CategoryPtr : Categories)
+	{
+		const bool bQueryExistingRows = false;
+		UpdateSettingsCategory(CategoryPtr, ContainerName, bQueryExistingRows);
+	}
+
+	// OnCategoryModified is called at the same time as OnSectionRemoved so we only bind to OnCategoryModified for add / update / remove
+	ContainerPtr->OnCategoryModified().AddSPLambda(this, [this, ContainerPtr](const FName& ModifiedCategoryName)
+		{
+			UE_LOG(LogTedsSettings, Log, TEXT("Settings Category modified : '%s->%s'"), *ContainerPtr->GetName().ToString(), *ModifiedCategoryName.ToString());
+
+			ISettingsCategoryPtr CategoryPtr = ContainerPtr->GetCategory(ModifiedCategoryName);
+
+			UpdateSettingsCategory(CategoryPtr, ContainerPtr->GetName());
+		});
 }
 
 void FTedsSettingsManager::UnregisterSettings()
@@ -145,6 +155,8 @@ void FTedsSettingsManager::UnregisterSettings()
 
 	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
+
+	SettingsModule->OnContainerAdded().RemoveAll(this);
 
 	TArray<FName> ContainerNames;
 	SettingsModule->GetContainerNames(ContainerNames);
