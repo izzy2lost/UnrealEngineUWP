@@ -1220,10 +1220,9 @@ void FDisplayClusterLightCardEditorHelper::InternalMoveActorTo(
 #if WITH_EDITOR
 	if (!Actor->IsProxy())
 	{
-		Actor->UpdateEditorGizmos();
-		
 		if (bIsFinalChange)
 		{
+			Actor->UpdateEditorGizmos();
 			PostEditChangePropertiesForMovedActor(Actor);
 		}
 	}
