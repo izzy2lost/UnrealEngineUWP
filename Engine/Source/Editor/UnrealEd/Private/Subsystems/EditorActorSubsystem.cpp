@@ -682,15 +682,25 @@ TArray<class AActor*> UEditorActorSubsystem::ConvertActors(const TArray<class AA
 
 AActor* UEditorActorSubsystem::DuplicateActor(AActor* ActorToDuplicate, UWorld* ToWorld/*= nullptr*/, FVector Offset/* = FVector::ZeroVector*/)
 {
-	TArray<AActor*> Duplicate = DuplicateActors({ ActorToDuplicate }, ToWorld, Offset);
+	return DuplicateActor(ActorToDuplicate, ToWorld, Offset, FActorDuplicateParameters());
+}
+
+AActor* UEditorActorSubsystem::DuplicateActor(AActor* ActorToDuplicate, UWorld* ToWorld, FVector Offset, const FActorDuplicateParameters& DuplicateParams)
+{
+	TArray<AActor*> Duplicate = DuplicateActors({ ActorToDuplicate }, ToWorld, Offset, DuplicateParams);
 	return (Duplicate.Num() > 0) ? Duplicate[0] : nullptr;
 }
 
-TArray<AActor*> UEditorActorSubsystem::DuplicateActors(const TArray<AActor*>& ActorsToDuplicate, UWorld* InToWorld/*= nullptr*/, FVector Offset/* = FVector::ZeroVector*/)
+TArray<AActor*> UEditorActorSubsystem::DuplicateActors(const TArray<AActor*>& ActorsToDuplicate, UWorld* ToWorld/*= nullptr*/, FVector Offset/* = FVector::ZeroVector*/)
+{
+	return DuplicateActors(ActorsToDuplicate, ToWorld, Offset, FActorDuplicateParameters());
+}
+
+TArray<AActor*> UEditorActorSubsystem::DuplicateActors(const TArray<AActor*>& ActorsToDuplicate, UWorld* InToWorld, FVector Offset, const FActorDuplicateParameters& DuplicateParams)
 {
 	TGuardValue<bool> UnattendedScriptGuard(GIsRunningUnattendedScript, true);
 
-	FScopedTransaction Transaction(LOCTEXT("DuplicateActors", "Duplicate Actors"));
+	FScopedTransaction Transaction(LOCTEXT("DuplicateActors", "Duplicate Actors"), DuplicateParams.bTransact);
 
 	UUnrealEditorSubsystem* UnrealEditorSubsystem = GEditor->GetEditorSubsystem<UUnrealEditorSubsystem>();
 
@@ -700,17 +710,22 @@ TArray<AActor*> UEditorActorSubsystem::DuplicateActors(const TArray<AActor*>& Ac
 	}
 
 	UWorld* ToWorld = InToWorld ? InToWorld : UnrealEditorSubsystem->GetEditorWorld();
-
 	if (!ToWorld)
 	{
 		return TArray<AActor*>();
+	}
+
+	ULevel* ToLevel = DuplicateParams.LevelOverride;
+	if (!ToLevel || ToLevel->GetWorld() != ToWorld)
+	{
+		ToLevel = ToWorld->GetCurrentLevel();
 	}
 
 	FEditorDelegates::OnDuplicateActorsBegin.Broadcast();
 
 	TArray<AActor*> NewActors;
 	ABrush::SetSuppressBSPRegeneration(true);
-	GUnrealEd->DuplicateActors(ActorsToDuplicate, NewActors, ToWorld->GetCurrentLevel(), Offset);
+	GUnrealEd->DuplicateActors(ActorsToDuplicate, NewActors, ToLevel, Offset);
 	ABrush::SetSuppressBSPRegeneration(false);
 
 	// Find out if any of the actors will change the BSP.

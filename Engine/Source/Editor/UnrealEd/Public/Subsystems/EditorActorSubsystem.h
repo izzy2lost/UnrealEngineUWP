@@ -86,6 +86,12 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Editor Scripting | Level Utility")
 	FOnDeleteActorsEnd OnDeleteActorsEnd;
 
+	struct FActorDuplicateParameters
+	{
+		ULevel* LevelOverride = nullptr;
+		bool bTransact = true;
+	};
+
 	/**
 	 * Duplicate an actor from the world editor.
 	 * @param	ActorToDuplicate	Actor to duplicate.
@@ -95,6 +101,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Level Utility", meta = (AdvancedDisplay = 1))
 	UNREALED_API AActor* DuplicateActor(AActor* ActorToDuplicate, UWorld* ToWorld = nullptr, FVector Offset = FVector::ZeroVector);
+	UNREALED_API AActor* DuplicateActor(AActor* ActorToDuplicate, UWorld* ToWorld, FVector Offset, const FActorDuplicateParameters& DuplicateParams);
 
 	/**
 	 * Duplicate actors from the world editor.
@@ -105,6 +112,7 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Level Utility", meta = (AdvancedDisplay = 1))
 	UNREALED_API TArray<AActor*> DuplicateActors(const TArray<AActor*>& ActorsToDuplicate, UWorld* ToWorld = nullptr, FVector Offset = FVector::ZeroVector);
+	UNREALED_API TArray<AActor*> DuplicateActors(const TArray<AActor*>& ActorsToDuplicate, UWorld* ToWorld, FVector Offset, const FActorDuplicateParameters& DuplicateParams);
 
 	/**
 	 * Duplicate all the selected actors in the given world
