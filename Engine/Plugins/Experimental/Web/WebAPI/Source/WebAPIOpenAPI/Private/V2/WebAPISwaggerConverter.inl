@@ -136,7 +136,7 @@ namespace UE::WebAPI::Swagger
 			{
 				ModelTypeName = InModelTypeName;
 			}
-			else if(OutModel->Name.HasTypeInfo())
+			else if(OutModel && OutModel->Name.HasTypeInfo())
 			{
 				ModelTypeName = OutModel->Name;
 			}
@@ -207,7 +207,7 @@ namespace UE::WebAPI::Swagger
 			{
 				ModelTypeName = InModelTypeName;
 			}
-			else if(OutModel->Name.HasTypeInfo())
+			else if(OutModel && OutModel->Name.HasTypeInfo())
 			{
 				ModelTypeName = OutModel->Name;
 			}

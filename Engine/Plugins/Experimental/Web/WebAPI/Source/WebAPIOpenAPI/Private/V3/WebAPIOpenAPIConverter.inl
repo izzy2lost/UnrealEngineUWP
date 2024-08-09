@@ -518,7 +518,7 @@ namespace UE::WebAPI::OpenAPI
 		{
 			ModelTypeName = InModelTypeName;
 		}
-		else if(OutModel->Name.HasTypeInfo())
+		else if(OutModel && OutModel->Name.HasTypeInfo())
 		{
 			ModelTypeName = OutModel->Name;
 		}
