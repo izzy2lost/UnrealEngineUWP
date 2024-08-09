@@ -328,7 +328,7 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 		}
 	}
 
-	Header.Layout = GetPinLayout();
+	Header.Layout = GetNodeLayout();
 	
 	return Header;
 }

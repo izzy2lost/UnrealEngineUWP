@@ -102,7 +102,7 @@ public:
 
 	// Returns the pin UI layout for this node
 	UFUNCTION(BlueprintCallable, Category = RigVMNode)
-	FRigVMNodeLayout GetPinLayout() const;
+	virtual FRigVMNodeLayout GetNodeLayout(bool bIncludeEmptyCategories = false) const;
 
 	// Returns the default value for a given pin
 	FString GetOriginalPinDefaultValue(const URigVMPin* InPin) const;

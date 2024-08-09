@@ -741,6 +741,16 @@ bool URigVMEdGraphNode::CreateGraphPinFromModelPin(const URigVMPin* InModelPin, 
 		return false;
 	}
 
+	const FString Category = InModelPin->GetCategory();
+	if(!Category.IsEmpty())
+	{
+		(void)CreateGraphPinFromCategory(Category, EGPD_Input);
+		if(UEdGraphPin* CategoryPin = FindGraphPinFromCategory(Category, true))
+		{
+			InParentPin = CategoryPin;
+		}
+	}
+
 	const FPinPair PairConst = CachedPins.FindOrAdd((URigVMPin*)InModelPin);
 
 	auto CreatePinLambda = [this](const URigVMPin* InModelPin, EEdGraphPinDirection InDirection, UEdGraphPin* InParentPin) -> UEdGraphPin*
@@ -1077,9 +1087,11 @@ bool URigVMEdGraphNode::ModelPinsChanged(bool bForce)
 
 		if(const URigVMNode* ModelNode = GetModelNode())
 		{
-			for(const auto& Pair : CachedCategoryPins)
+			TArray<FString> Categories;
+			CachedCategoryPins.GetKeys(Categories);
+			
+			for(const FString& Category : Categories)
 			{
-				const FString Category = Pair.Key;
 				if(!ModelNode->GetPinCategories().Contains(Category))
 				{
 					PinsRemoved += CategoryPinRemoved_Internal(Category);
@@ -1147,14 +1159,83 @@ bool URigVMEdGraphNode::ModelPinsChanged(bool bForce)
 
 	auto ReparentPins = [this](const TArray<URigVMPin*>& InModelPins) -> int32
 	{
-		// todo
-		return 0;
+		int32 PinsReparented = 0;
+		for(const URigVMPin* ModelPin : InModelPins)
+		{
+			for(int32 Phase = 0; Phase < 2; Phase++)
+			{
+				if(UEdGraphPin* EdGraphPin = FindGraphPinFromModelPin(ModelPin, Phase == 0))
+				{
+					UEdGraphPin* ParentEdGraphPin = nullptr;
+
+					const FString Category = ModelPin->GetCategory();
+					if(Category.IsEmpty())
+					{
+						if(const URigVMPin* ParentModelPin = ModelPin->GetParentPin())
+						{
+							ParentEdGraphPin = FindGraphPinFromModelPin(ParentModelPin, Phase == 0);
+						}
+					}
+					else
+					{
+						ParentEdGraphPin = FindGraphPinFromCategory(Category, Phase == 0);
+					}
+
+					if(EdGraphPin->ParentPin != ParentEdGraphPin)
+					{
+						if(EdGraphPin->ParentPin)
+						{
+							EdGraphPin->ParentPin->SubPins.Remove(EdGraphPin);
+							EdGraphPin->ParentPin = nullptr;
+						}
+						if(ParentEdGraphPin)
+						{
+							ParentEdGraphPin->SubPins.Add(EdGraphPin);
+							EdGraphPin->ParentPin = ParentEdGraphPin;
+						}
+						PinsReparented++;
+					}
+				}
+			}
+		}
+		return PinsReparented;
 	};
 
 	auto ReparentCategoryPins = [this](const TArray<FString>& InCategories) -> int32
 	{
-		// todo
-		return 0;
+		int32 PinsReparented = 0;
+		for(const FString& Category : InCategories)
+		{
+			for(int32 Phase = 0; Phase < 2; Phase++)
+			{
+				if(UEdGraphPin* EdGraphPin = FindGraphPinFromCategory(Category, Phase == 0))
+				{
+					UEdGraphPin* ParentEdGraphPin = nullptr;
+					
+					FString ParentCategory, CategoryName;
+					if(RigVMStringUtils::SplitNodePathAtEnd(Category, ParentCategory, CategoryName))
+					{
+						ParentEdGraphPin = FindGraphPinFromCategory(ParentCategory, Phase == 0);
+					}
+
+					if(EdGraphPin->ParentPin != ParentEdGraphPin)
+					{
+						if(EdGraphPin->ParentPin)
+						{
+							EdGraphPin->ParentPin->SubPins.Remove(EdGraphPin);
+							EdGraphPin->ParentPin = nullptr;
+						}
+						if(ParentEdGraphPin)
+						{
+							ParentEdGraphPin->SubPins.Add(EdGraphPin);
+							EdGraphPin->ParentPin = ParentEdGraphPin;
+						}
+						PinsReparented++;
+					}
+				}
+			}
+		}
+		return PinsReparented;
 	};
 
 	int32 PinsAdded = 0;
@@ -1163,6 +1244,16 @@ bool URigVMEdGraphNode::ModelPinsChanged(bool bForce)
 	PinsAdded += AddMissingPins(OutputPins);
 	PinsAdded += AddMissingPins(InputOutputPins);
 	PinsAdded += AddMissingPins(InputPins);
+
+	int32 PinsReparented = 0;
+	if(const URigVMNode* ModelNode = GetModelNode())
+	{
+		PinsReparented += ReparentCategoryPins(ModelNode->GetPinCategories());
+	}
+	PinsReparented += ReparentPins(InputPins);
+	PinsReparented += ReparentPins(InputOutputPins);
+	PinsReparented += ReparentPins(OutputPins);
+	PinsReparented += ReparentPins(ExecutePins);
 
 	const int32 PinsRemoved = RemoveObsoletePins();
 
@@ -1174,17 +1265,45 @@ bool URigVMEdGraphNode::ModelPinsChanged(bool bForce)
 	PinsReordered += OrderPins(OutputPins);
 	PinsReordered += OrderPins(ExecutePins);
 
-	int32 PinsReparented = 0;
-	if(const URigVMNode* ModelNode = GetModelNode())
+	int32 PinLabelsChanged = 0;
+	auto SyncPinLabel = [](const URigVMPin* InModelPin, const FPinPair& OutPinPair)
 	{
-		PinsReparented += ReparentCategoryPins(ModelNode->GetPinCategories());
-		PinsReparented += ReparentPins(InputPins);
-		PinsReparented += ReparentPins(InputOutputPins);
-		PinsReparented += ReparentPins(OutputPins);
-		PinsReparented += ReparentPins(ExecutePins);
+		int32 PinLabelsChanged = 0;
+		if(InModelPin)
+		{
+			const FName DesiredFriendlyName = InModelPin->GetDisplayName();
+			if(!DesiredFriendlyName.IsNone())
+			{
+				const FText DesiredFriendlyNameText = FText::FromName(DesiredFriendlyName);
+				for(int32 Phase = 0; Phase < 2; Phase++)
+				{
+					UEdGraphPin* Pin = Phase == 0 ? OutPinPair.InputPin : OutPinPair.OutputPin;
+					if(Pin)
+					{
+						if(!Pin->PinFriendlyName.EqualTo(DesiredFriendlyNameText))
+						{
+							Pin->PinFriendlyName = DesiredFriendlyNameText;
+							PinLabelsChanged++;
+						}
+					}
+				}
+			}
+		}
+		return PinLabelsChanged;
+	};
+	for(const TPair<FString,FPinPair>& Pair : CachedCategoryPins)
+	{
+		if(const URigVMPin* ModelPin = FindModelPinFromGraphPin(Pair.Value.InputPin != nullptr ? Pair.Value.InputPin : Pair.Value.OutputPin))
+		{
+			PinLabelsChanged += SyncPinLabel(ModelPin, Pair.Value);
+		}
+	}
+	for(const TPair<URigVMPin*,FPinPair>& Pair : CachedPins)
+	{
+		PinLabelsChanged += SyncPinLabel(Pair.Key, Pair.Value);
 	}
 
-	const bool bResult = (PinsAdded > 0) || (PinsRemoved > 0) || (PinsReordered > 0) || (PinsReparented > 0); 
+	const bool bResult = (PinsAdded > 0) || (PinLabelsChanged > 0) || (PinsRemoved > 0) || (PinsReordered > 0) || (PinsReparented > 0); 
 	if(bResult || bForce)
 	{
 		OnNodePinsChanged().Broadcast();
@@ -1225,21 +1344,10 @@ bool URigVMEdGraphNode::ModelPinAdded_Internal(const URigVMPin* InModelPin)
 	UEdGraphPin* InputParentPin = FindGraphPinFromModelPin(InModelPin->GetParentPin(), true);
 	UEdGraphPin* OutputParentPin = FindGraphPinFromModelPin(InModelPin->GetParentPin(), false);
 
-	const FString Category = InModelPin->GetCategory();
-		
 	if(InModelPin->GetDirection() == ERigVMPinDirection::Input ||
 		InModelPin->GetDirection() == ERigVMPinDirection::Visible ||
 		InModelPin->GetDirection() == ERigVMPinDirection::IO)
 	{
-		if(!Category.IsEmpty())
-		{
-			(void)CreateGraphPinFromCategory(Category, EGPD_Input);
-			if(UEdGraphPin* CategoryPin = FindGraphPinFromCategory(Category, true))
-			{
-				InputParentPin = CategoryPin;
-			}
-		}
-
 		if(CreateGraphPinFromModelPin(InModelPin, EGPD_Input, InputParentPin))
 		{
 			bResult = true;
@@ -1249,15 +1357,6 @@ bool URigVMEdGraphNode::ModelPinAdded_Internal(const URigVMPin* InModelPin)
 	if(InModelPin->GetDirection() == ERigVMPinDirection::Output ||
 		InModelPin->GetDirection() == ERigVMPinDirection::IO)
 	{
-		if(!Category.IsEmpty())
-		{
-			(void)CreateGraphPinFromCategory(Category, EGPD_Output);
-			if(UEdGraphPin* CategoryPin = FindGraphPinFromCategory(Category, false))
-			{
-				OutputParentPin = CategoryPin;
-			}
-		}
-
 		if(CreateGraphPinFromModelPin(InModelPin, EGPD_Output, OutputParentPin))
 		{
 			bResult = true;
@@ -1381,7 +1480,7 @@ bool URigVMEdGraphNode::CategoryPinRemoved_Internal(const FString& InCategory)
 	{
 		if(UEdGraphPin* GraphPin = FindGraphPinFromCategory(InCategory, bAsInput))
 		{
-			RemoveGraphSubPins(GraphPin);
+			check(GraphPin->SubPins.IsEmpty());
 			Pins.Remove(GraphPin);
 			GraphPin->MarkAsGarbage();
 		}

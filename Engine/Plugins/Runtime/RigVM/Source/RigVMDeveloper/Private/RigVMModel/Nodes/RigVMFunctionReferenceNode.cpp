@@ -311,12 +311,28 @@ FText URigVMFunctionReferenceNode::GetToolTipTextForPin(const URigVMPin* InPin) 
 
 TArray<FString> URigVMFunctionReferenceNode::GetPinCategories() const
 {
+	FRigVMNodeLayout ReferenceLayout;
+	const FRigVMNodeLayout* Layout = &ReferencedFunctionHeader.Layout;
+	if(IsReferencedNodeLoaded())
+	{
+		ReferenceLayout = LoadReferencedNode()->GetNodeLayout();
+		Layout = &ReferenceLayout;
+	}
 	TArray<FString> TransientPinCategories;
-	for(const FRigVMPinCategory& Category : ReferencedFunctionHeader.Layout.Categories)
+	for(const FRigVMPinCategory& Category : Layout->Categories)
 	{
 		TransientPinCategories.Add(Category.Path);
 	}
 	return TransientPinCategories;
+}
+
+FRigVMNodeLayout URigVMFunctionReferenceNode::GetNodeLayout(bool bIncludeEmptyCategories) const
+{
+	if(IsReferencedNodeLoaded())
+	{
+		return LoadReferencedNode()->GetNodeLayout(bIncludeEmptyCategories);
+	}
+	return ReferencedFunctionHeader.Layout;
 }
 
 FRigVMGraphFunctionIdentifier URigVMFunctionReferenceNode::GetFunctionIdentifier() const

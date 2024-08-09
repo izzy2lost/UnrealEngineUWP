@@ -15,6 +15,29 @@ FString FRigVMPinCategory::GetName() const
 	return Right;
 }
 
+bool FRigVMPinCategory::IsDefaultCategory() const
+{
+	return Path.Equals(GetDefaultCategoryName(), ESearchCase::IgnoreCase);
+}
+
+const FString& FRigVMPinCategory::GetDefaultCategoryName()
+{
+	static const FString DefaultCategoryName = TEXT("Default");
+	return DefaultCategoryName;
+}
+
+bool FRigVMNodeLayout::IsValid() const
+{
+	for(const FRigVMPinCategory& Category : Categories)
+	{
+		if(!Category.Elements.IsEmpty())
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 const FString* FRigVMNodeLayout::FindCategory(const FString& InElement) const
 {
 	for(const FRigVMPinCategory& Category : Categories)

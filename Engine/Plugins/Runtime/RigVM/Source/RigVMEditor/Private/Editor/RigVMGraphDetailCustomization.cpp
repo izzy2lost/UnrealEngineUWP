@@ -29,10 +29,12 @@
 #include "RigVMStringUtils.h"
 #include "Widgets/SRigVMGraphPinEnumPicker.h"
 #include "Widgets/SRigVMVariantWidget.h"
+#include "Widgets/SRigVMNodeLayoutWidget.h"
 #include "ScopedTransaction.h"
 #include "Editor/RigVMEditorTools.h"
 #include "ContentBrowserModule.h"
 #include "IContentBrowserSingleton.h"
+#include "UObject/GarbageCollectionSchema.h"
 
 #define LOCTEXT_NAMESPACE "RigVMGraphDetailCustomization"
 
@@ -1022,6 +1024,40 @@ void FRigVMGraphDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& Deta
 		];
 	}
 
+	SettingsCategory.AddCustomRow(FText::GetEmpty())
+	.OverrideResetToDefault(FResetToDefaultOverride::Hide())
+	.Visibility(TAttribute<EVisibility>::CreateLambda([this]()
+	{
+		return IsValidFunction() ? EVisibility::Visible : EVisibility::Collapsed;
+	}))
+	.NameContent()
+	[
+		SNew(STextBlock)
+		.Text(FText::FromString(TEXT("Layout")))
+		.Font(IDetailLayoutBuilder::GetDetailFont())
+	]
+	.ValueContent()
+	.HAlign(HAlign_Fill)
+	[
+		SNew(SRigVMNodeLayoutWidget)
+		.OnGetUncategorizedPins(this, &FRigVMGraphDetailCustomization::GetUncategorizedPins)
+		.OnGetCategories(this, &FRigVMGraphDetailCustomization::GetPinCategories)
+		.OnGetElementCategory(this, &FRigVMGraphDetailCustomization::GetPinCategory)
+		.OnGetElementIndexInCategory(this, &FRigVMGraphDetailCustomization::GetPinIndexInCategory)
+		.OnGetElementLabel(this, &FRigVMGraphDetailCustomization::GetPinLabel)
+		.OnGetElementColor(this, &FRigVMGraphDetailCustomization::GetPinColor)
+		.OnGetElementIcon(this, &FRigVMGraphDetailCustomization::GetPinIcon)
+		.OnCategoryAdded(this, &FRigVMGraphDetailCustomization::HandleCategoryAdded)
+		.OnCategoryRemoved(this, &FRigVMGraphDetailCustomization::HandleCategoryRemoved)
+		.OnCategoryRenamed(this, &FRigVMGraphDetailCustomization::HandleCategoryRenamed)
+		.OnElementCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinCategoryChanged)
+		.OnElementLabelChanged(this, &FRigVMGraphDetailCustomization::HandlePinLabelChanged)
+		.OnElementIndexInCategoryChanged(this, &FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged)
+		.OnValidateCategoryName(this, &FRigVMGraphDetailCustomization::HandleValidateCategoryName)
+		.OnValidateElementName(this, &FRigVMGraphDetailCustomization::HandleValidatePinDisplayName)
+		.OnGetStructuralHash(this, &FRigVMGraphDetailCustomization::GetNodeLayoutHash)
+	];
+
 	IDetailCategoryBuilder& DefaultsCategory = DetailLayout.EditCategory("NodeDefaults", LOCTEXT("FunctionDetailsNodeDefaults", "Node Defaults"));
 	TSharedRef<FRigVMFunctionArgumentDefaultNode> DefaultsArgumentNode = MakeShareable(new FRigVMFunctionArgumentDefaultNode(
 		Model,
@@ -1483,6 +1519,378 @@ void FRigVMGraphDetailCustomization::OnRemoveAssignedTag(const FName& InTagName)
 	}
 }
 
+URigVMLibraryNode* FRigVMGraphDetailCustomization::GetLibraryNode() const
+{
+	if (GraphPtr.IsValid() && RigVMBlueprintPtr.IsValid())
+	{
+		const URigVMBlueprint* Blueprint = RigVMBlueprintPtr.Get();
+		if (const URigVMGraph* Model = Blueprint->GetModel(GraphPtr.Get()))
+		{
+			if (const URigVMGraph* FunctionLibrary = Blueprint->GetLocalFunctionLibrary())
+			{
+				if (URigVMLibraryNode* LibraryNode = Cast<URigVMLibraryNode>(Model->GetOuter()))
+				{
+					if(LibraryNode->GetGraph() == FunctionLibrary)
+					{
+						return LibraryNode;
+					}
+				}
+			}
+		}
+	}
+	return nullptr;
+}
+
+URigVMNode* FRigVMGraphDetailCustomization::GetNodeForLayout() const
+{
+	return GetLibraryNode();
+}
+
+const FRigVMNodeLayout* FRigVMGraphDetailCustomization::GetNodeLayout() const
+{
+	if(const URigVMNode* Node = GetNodeForLayout())
+	{
+		CachedNodeLayout = Node->GetNodeLayout(true);
+		return &CachedNodeLayout.GetValue();
+	}
+	return nullptr;
+}
+
+TArray<FString> FRigVMGraphDetailCustomization::GetUncategorizedPins() const
+{
+	if(const URigVMNode* Node = GetNodeForLayout())
+	{
+		TArray<FString> PinPaths;
+		const TArray<URigVMPin*> AllPins = Node->GetAllPinsRecursively();
+		PinPaths.Reserve(AllPins.Num());
+		for(const URigVMPin* Pin : AllPins)
+		{
+			if(Pin->IsExecuteContext())
+			{
+				continue;
+			}
+			if(Pin->GetDirection() != ERigVMPinDirection::Input &&
+				Pin->GetDirection() != ERigVMPinDirection::Visible)
+			{
+				continue;
+			}
+			if(!Pin->GetCategory().IsEmpty())
+			{
+				continue;
+			}
+			PinPaths.Add(Pin->GetSegmentPath(true));
+		}
+		return PinPaths;
+	}
+	return TArray<FString>();
+}
+
+TArray<FRigVMPinCategory> FRigVMGraphDetailCustomization::GetPinCategories() const
+{
+	if (const FRigVMNodeLayout* NodeLayout = GetNodeLayout())
+	{
+		return NodeLayout->Categories;
+	}
+	return TArray<FRigVMPinCategory>();
+}
+
+FString FRigVMGraphDetailCustomization::GetPinCategory(FString InPinPath) const
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(const URigVMPin* Pin = Node->FindPin(InPinPath))
+			{
+				return Pin->GetCategory();
+			}
+		}
+	}
+	return FString();
+}
+
+int32 FRigVMGraphDetailCustomization::GetPinIndexInCategory(FString InPinPath) const
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(const URigVMPin* Pin = Node->FindPin(InPinPath))
+			{
+				return Pin->GetIndexInCategory();
+			}
+		}
+	}
+	return INDEX_NONE;
+}
+
+FString FRigVMGraphDetailCustomization::GetPinLabel(FString InPinPath) const
+{
+	if (const FRigVMNodeLayout* NodeLayout = GetNodeLayout())
+	{
+		if(const FString* DisplayName = NodeLayout->FindDisplayName(InPinPath))
+		{
+			return *DisplayName;
+		}
+	}
+	return FString();
+}
+
+FLinearColor FRigVMGraphDetailCustomization::GetPinColor(FString InPinPath) const
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(const URigVMPin* Pin = Node->FindPin(InPinPath))
+			{
+				if(const URigVMEdGraphSchema* Schema = Cast<URigVMEdGraphSchema>(RigVMBlueprintPtr->GetRigVMEdGraphSchemaClass()->GetDefaultObject()))
+				{
+					const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(*Pin->GetCPPType(), Pin->GetCPPTypeObject());
+					return Schema->GetPinTypeColor(PinType);
+				}
+			}
+		}
+	}
+	return FLinearColor::White;
+}
+
+const FSlateBrush* FRigVMGraphDetailCustomization::GetPinIcon(FString InPinPath) const
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(const URigVMPin* Pin = Node->FindPin(InPinPath))
+			{
+				const FEdGraphPinType PinType = RigVMTypeUtils::PinTypeFromCPPType(*Pin->GetCPPType(), Pin->GetCPPTypeObject());
+				return FBlueprintEditorUtils::GetIconFromPin(PinType, /* bIsLarge = */ false);
+			}
+		}
+	}
+	return nullptr;
+}
+
+void FRigVMGraphDetailCustomization::HandleCategoryAdded(FString InCategory)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			{
+				Controller->AddEmptyPinCategory(Node->GetFName(), InCategory);
+				CachedNodeLayout.Reset();
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::HandleCategoryRemoved(FString InCategory)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			{
+				Controller->RemovePinCategory(Node->GetFName(), InCategory);
+				CachedNodeLayout.Reset();
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::HandleCategoryRenamed(FString InOldCategory, FString InNewCategory)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if(const URigVMNode* Node = GetNodeForLayout())
+		{
+			if(URigVMController* Controller = RigVMBlueprintPtr->GetController(Node->GetGraph()))
+			{
+				Controller->RenamePinCategory(Node->GetFName(), InOldCategory, InNewCategory);
+				CachedNodeLayout.Reset();
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::HandlePinCategoryChanged(FString InPinPath, FString InCategory)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
+		{
+			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
+			{
+				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				{
+					Controller->SetPinCategory(Pin->GetPinPath(), InCategory);
+					CachedNodeLayout.Reset();
+				}
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::HandlePinLabelChanged(FString InPinPath, FString InNewLabel)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
+		{
+			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
+			{
+				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				{
+					Controller->SetPinDisplayName(Pin->GetPinPath(), InNewLabel);
+					CachedNodeLayout.Reset();
+				}
+			}
+		}
+	}
+}
+
+void FRigVMGraphDetailCustomization::HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory)
+{
+	if(RigVMBlueprintPtr.IsValid())
+	{
+		if (const URigVMLibraryNode* LibraryNode = GetLibraryNode())
+		{
+			if(const URigVMPin* Pin = LibraryNode->FindPin(InPinPath))
+			{
+				if(URigVMController* Controller = RigVMBlueprintPtr->GetController(LibraryNode->GetGraph()))
+				{
+					Controller->SetPinIndexInCategory(Pin->GetPinPath(), InIndexInCategory);
+					CachedNodeLayout.Reset();
+				}
+			}
+		}
+	}
+}
+
+bool FRigVMGraphDetailCustomization::ValidateName(FString InNewName, FText& OutErrorMessage)
+{
+	if(InNewName.IsEmpty())
+	{
+		OutErrorMessage = LOCTEXT("EmptyNamesAreNotAllowed", "Empty names are not allowed.");
+		return false;
+	}
+
+	if(FChar::IsDigit(InNewName[0]))
+	{
+		OutErrorMessage = LOCTEXT("NamesCannotStartWithADigit", "Names cannot start with a digit.");
+		return false;
+	}
+
+	for (int32 i = 0; i < InNewName.Len(); ++i)
+	{
+		TCHAR& C = InNewName[i];
+
+		const bool bGoodChar = FChar::IsAlpha(C) ||					 // Any letter
+			(C == '_') || (C == '-') || (C == ' ') ||				 // _  - space anytime
+			FChar::IsDigit(C);										 // 0-9 anytime
+
+		if (!bGoodChar)
+		{
+			const FText Character = FText::FromString(InNewName.Mid(i, 1));
+			OutErrorMessage = FText::Format(LOCTEXT("CharacterNotAllowedFormat", "'{0}' not allowed."), Character);
+			return false;
+		}
+	}
+
+	if (InNewName.Len() > 100)
+	{
+		OutErrorMessage = LOCTEXT("NameIsTooLong", "Name is too long.");
+		return false;
+	}
+
+	return true;
+}
+
+bool FRigVMGraphDetailCustomization::HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage)
+{
+	if(!ValidateName(InNewName, OutErrorMessage))
+	{
+		return false;
+	}
+	if(const URigVMNode* Node = GetNodeForLayout())
+	{
+		const FString ParentCategory = Node->GetParentPinCategory(InCategoryPath);
+		if(!ParentCategory.IsEmpty())
+		{
+			const TArray<FString> SiblingCategories = Node->GetSubPinCategories(ParentCategory);
+			const FString NewNameSuffix = TEXT("|") + InNewName;
+			if(SiblingCategories.ContainsByPredicate([InNewName, NewNameSuffix](const FString& Category)
+			{
+				return Category.Equals(InNewName, ESearchCase::IgnoreCase) || Category.EndsWith(NewNameSuffix, ESearchCase::IgnoreCase); 
+			}))
+			{
+				OutErrorMessage = LOCTEXT("NameIsAlreadyUsed", "Duplicate name.");
+				return false;
+			}
+		} 
+	}
+	return true;
+}
+
+bool FRigVMGraphDetailCustomization::HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage)
+{
+	if(!ValidateName(InNewName, OutErrorMessage))
+	{
+		return false;
+	}
+	if(const URigVMNode* Node = GetNodeForLayout())
+	{
+		if(const URigVMPin* Pin = Node->FindPin(InPinPath))
+		{
+			const FString Category = Pin->GetCategory();
+			if(!Category.IsEmpty())
+			{
+				const TArray<URigVMPin*> PinsInCategory = Node->GetPinsForCategory(Category);
+				if(PinsInCategory.ContainsByPredicate([InNewName](const URigVMPin* PinInCategory)
+				{
+					return PinInCategory->GetDisplayName().ToString().Equals(InNewName, ESearchCase::IgnoreCase);
+				}))
+				{
+					OutErrorMessage = LOCTEXT("NameIsAlreadyUsedInCategory", "Duplicate name (category).");
+					return false;
+				}
+			}
+
+			if(const URigVMPin* ParentPin = Pin->GetParentPin())
+			{
+				const TArray<URigVMPin*> SubPins = ParentPin->GetSubPins();
+				if(SubPins.ContainsByPredicate([InNewName](const URigVMPin* SubPin)
+				{
+					return SubPin->GetDisplayName().ToString().Equals(InNewName, ESearchCase::IgnoreCase);
+				}))
+				{
+					OutErrorMessage = LOCTEXT("NameIsAlreadyUsedWithinPin", "Duplicate name (parent pin).");
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+uint32 FRigVMGraphDetailCustomization::GetNodeLayoutHash() const
+{
+	uint32 Hash = 0;
+	if(const FRigVMNodeLayout* Layout = GetNodeLayout())
+	{
+		Hash = HashCombine(Hash, GetTypeHash(*Layout));
+	}
+	const TArray<FString> UncategorizedPins = GetUncategorizedPins();
+	for(const FString& UncategorizedPin : UncategorizedPins)
+	{
+		Hash = HashCombine(Hash, GetTypeHash(UncategorizedPin));
+	}
+	return Hash;
+}
+
 FRigVMWrappedNodeDetailCustomization::FRigVMWrappedNodeDetailCustomization()
 : BlueprintBeingCustomized(nullptr)
 {
@@ -1614,7 +2022,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 					TemplateNotation = TemplateNode->GetNotation();
 				}
 
-				NodeLayout = Node->GetPinLayout();
+				NodeLayout = Node->GetNodeLayout();
 
 				for(const FString& TraitName : Node->GetTraitNames())
 				{
@@ -1638,7 +2046,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 					}
 				}
 
-				if(NodeLayout != Node->GetPinLayout())
+				if(NodeLayout != Node->GetNodeLayout())
 				{
 					bInspectingOnlyOneNodeType = false;
 					break;
@@ -1692,7 +2100,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 
 	if(NodeWithCategories)
 	{
-		const FRigVMNodeLayout NodeLayout = NodeWithCategories->GetPinLayout();
+		const FRigVMNodeLayout NodeLayout = NodeWithCategories->GetNodeLayout();
 		for(const FRigVMPinCategory& Category : NodeLayout.Categories)
 		{
 			for(const FString& PinPath : Category.Elements)
@@ -1735,7 +2143,7 @@ void FRigVMWrappedNodeDetailCustomization::CustomizeDetails(IDetailLayoutBuilder
 	FRigVMNodeLayout NodeLayout;
 	if(NodeWithCategories)
 	{
-		NodeLayout = NodeWithCategories->GetPinLayout();
+		NodeLayout = NodeWithCategories->GetNodeLayout();
 	}
 	for (const TTuple<const FProperty*, FRigVMPropertyPath, FString>& Tuple : PropertiesToShow)
 	{

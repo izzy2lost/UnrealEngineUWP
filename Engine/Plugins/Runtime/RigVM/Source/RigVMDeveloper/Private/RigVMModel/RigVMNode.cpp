@@ -269,11 +269,21 @@ TArray<URigVMPin*> URigVMNode::GetPinsForCategory(FString InCategory) const
 			PinsInCategory.Add(Pin);
 		}
 	}
+
+	Algo::SortBy(PinsInCategory, [](const URigVMPin* Pin) -> int32
+	{
+		return Pin->GetIndexInCategory();
+	});
+	
 	return PinsInCategory;
 }
 
 bool URigVMNode::IsPinCategoryExpanded(FString InCategory) const
 {
+	if(InCategory.Equals(FRigVMPinCategory::GetDefaultCategoryName(), ESearchCase::IgnoreCase))
+	{
+		return true;
+	}
 	if(const bool* ExpansionState = PinCategoryExpansion.Find(InCategory))
 	{
 		return *ExpansionState;
@@ -281,7 +291,7 @@ bool URigVMNode::IsPinCategoryExpanded(FString InCategory) const
 	return false;
 }
 
-FRigVMNodeLayout URigVMNode::GetPinLayout() const
+FRigVMNodeLayout URigVMNode::GetNodeLayout(bool bIncludeEmptyCategories) const
 {
 	FRigVMNodeLayout Layout;
 	
@@ -327,13 +337,24 @@ FRigVMNodeLayout URigVMNode::GetPinLayout() const
 				}
 			}
 
-			Algo::SortBy(Category->Elements, [PinPathToIndex](const FString& PinPath) -> int32
+			Algo::SortBy(CategoryCopy.Elements, [PinPathToIndex](const FString& PinPath) -> int32
 			{
  				return PinPathToIndex.FindChecked(PinPath);
 			});
 			
 			Layout.Categories.Add(CategoryCopy);
 		}
+		else if(bIncludeEmptyCategories)
+		{
+			FRigVMPinCategory EmptyCategory;
+			EmptyCategory.Path = PinCategory;
+			Layout.Categories.Add(EmptyCategory);
+		}
+	}
+
+	for(FRigVMPinCategory& Category : Layout.Categories)
+	{
+		Category.bExpandedByDefault = IsPinCategoryExpanded(Category.Path);
 	}
 
 	// fill in all user provided display names and pin category indices

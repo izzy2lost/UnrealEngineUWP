@@ -1565,21 +1565,24 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		case ERigVMGraphNotifType::PinWatchedChanged: // A pin's watch state has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinDisplayNameChanged: // A pin's display name / UI label has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinCategoryChanged: // A pin's category has changed (Subject == URigVMPin)
+		case ERigVMGraphNotifType::PinCategoryExpansionChanged: // A pin category has been collapsed / expanded on the function node (Subject == URigVMNode)
 		{
-			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
+			URigVMNode* Node = Cast<URigVMNode>(InSubject);
+			if (const URigVMPin* Pin = Cast<URigVMPin>(InSubject))
 			{
-				if (URigVMNode* Node = Cast<URigVMNode>(Pin->GetNode()))
+				Node = Cast<URigVMNode>(Pin->GetNode());
+			}
+			if(Node)
+			{
+				if (URigVMLibraryNode* LibraryNode = Node->FindFunctionForNode())
 				{
-					if (URigVMLibraryNode* LibraryNode = Node->FindFunctionForNode())
+					DirtyGraphFunctionCompilationData(LibraryNode);
+				}
+				if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
+				{
+					if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
 					{
-						DirtyGraphFunctionCompilationData(LibraryNode);
-					}
-					if(Node->GetOuter()->IsA<URigVMFunctionLibrary>())
-					{
-						if (const URigVMCollapseNode* CollapseNode = Cast<URigVMCollapseNode>(Node))
-						{
-							UpdateGraphFunctionData(CollapseNode);
-						}
+						UpdateGraphFunctionData(CollapseNode);
 					}
 				}
 			}

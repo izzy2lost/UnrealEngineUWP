@@ -13,6 +13,7 @@ struct RIGVM_API FRigVMPinCategory
 	FRigVMPinCategory()
 	: Path()
 	, Elements()
+	, bExpandedByDefault(true)
 	{}
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
@@ -20,6 +21,9 @@ struct RIGVM_API FRigVMPinCategory
 
 	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
 	TArray<FString> Elements;
+
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category=FunctionArgument)
+	bool bExpandedByDefault;
 
 	FString GetName() const;
 
@@ -30,6 +34,7 @@ struct RIGVM_API FRigVMPinCategory
 		{
 			Hash = HashCombine(Hash, GetTypeHash(Element));
 		}
+		Hash = HashCombine(Hash, GetTypeHash(Category.bExpandedByDefault));
 		return Hash;
 	}
 
@@ -42,8 +47,27 @@ struct RIGVM_API FRigVMPinCategory
 	{
 		Ar << Category.Path;
 		Ar << Category.Elements;
+		if(Ar.IsLoading())
+		{
+			if(Ar.CustomVer(FRigVMObjectVersion::GUID) < FRigVMObjectVersion::FunctionHeaderLayoutStoresCategoryExpansion)
+			{
+				Category.bExpandedByDefault = true;
+			}
+			else
+			{
+				Ar << Category.bExpandedByDefault;
+			}
+		}
+		else
+		{
+			Ar << Category.bExpandedByDefault;
+		}
 		return Ar;
 	}
+
+	bool IsDefaultCategory() const;
+
+	static const FString& GetDefaultCategoryName();
 };
 
 USTRUCT(BlueprintType)
@@ -71,6 +95,8 @@ struct RIGVM_API FRigVMNodeLayout
 		PinIndexInCategory.Reset();
 		DisplayNames.Reset();
 	}
+
+	bool IsValid() const;
 
 	friend uint32 GetTypeHash(const FRigVMNodeLayout& Layout)
 	{

@@ -1605,7 +1605,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	// orphaned pins are appended to the end of pin list on each side of the node
 	RootModelPins.Append(ModelNode->GetOrphanedPins());
 
-	TArray<TTuple<URigVMPin*, FString>> ModelPinsOrCategories;
+	TArray<TTuple<const URigVMPin*, FString>> ModelPinsOrCategories;
 
 	const bool bSupportSubPins = !RigGraphNode->DrawAsCompactNode();
 
@@ -1613,41 +1613,16 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	// a) execute IOs, b) IO pins, c) input / visible pins, d) output pins
 	struct Local
 	{
-		static void VisitPinRecursively(URigVMPin* InPin, TArray<TTuple<URigVMPin*, FString>>& OutPinsOrCategories, bool bSupportSubPins, const TArray<ERigVMPinDirection>& DirectionsWithCategories)
+		static void VisitPinRecursively(const URigVMPin* InPin, TArray<TTuple<const URigVMPin*, FString>>& OutPinsOrCategories, bool bSupportSubPins)
 		{
-			const TTuple<URigVMPin*, FString> PinKey(InPin, FString());
+			const TTuple<const URigVMPin*, FString> PinKey(InPin, FString());
 			if(OutPinsOrCategories.Contains(PinKey))
 			{
 				return;
 			}
 			
-			bool bIncludePin = true;
-			const FString PinCategory = InPin->GetCategory();
-			if(!PinCategory.IsEmpty())
-			{
-				// add all categories from root to leaf
-				TArray<FString> ParentCategories = InPin->GetNode()->GetParentPinCategories(PinCategory, false, true);
-				Algo::Reverse(ParentCategories);
-				for(const FString& ParentCategory : ParentCategories)
-				{
-					OutPinsOrCategories.AddUnique({nullptr, ParentCategory});
-				}
-			}
-			// if the pin has no category - but there are pins with the same direction in a category - we need to skip it
-			else if(DirectionsWithCategories.Contains(InPin->GetDirection()))
-			{
-				// only add the pin if our parent is here - either the parent pin or the category
-				const TTuple<URigVMPin*, FString> ParentPinPair = {InPin->GetParentPin(), FString()}; 
-				const TTuple<URigVMPin*, FString> CategoryPair = {nullptr, PinCategory}; 
-				bIncludePin =
-					OutPinsOrCategories.Contains(ParentPinPair) ||
-					OutPinsOrCategories.Contains(CategoryPair);
-			}
+			OutPinsOrCategories.AddUnique(PinKey);
 			
-			if(bIncludePin)
-			{
-				OutPinsOrCategories.Add(PinKey);
-			}
 			if(!bSupportSubPins)
 			{
 				return;
@@ -1658,55 +1633,27 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				return;
 			}
 
-			// visit all pins within this category
-			if(!PinCategory.IsEmpty())
-			{
-				const TArray<URigVMPin*> PinsInCategory = InPin->GetNode()->GetPinsForCategory(PinCategory);
-				for (URigVMPin* PinInCategory : PinsInCategory)
-				{
-					VisitPinRecursively(PinInCategory, OutPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
-				}
-			}
-
 			if (InPin->GetCPPType() == TEXT("FRotator"))
 			{
 				const TArray<URigVMPin*>& SubPins = InPin->GetSubPins();
 				if (SubPins.Num() == 3)
 				{
-					VisitPinRecursively(SubPins[2], OutPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
-					VisitPinRecursively(SubPins[0], OutPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
-					VisitPinRecursively(SubPins[1], OutPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+					VisitPinRecursively(SubPins[2], OutPinsOrCategories, bSupportSubPins);
+					VisitPinRecursively(SubPins[0], OutPinsOrCategories, bSupportSubPins);
+					VisitPinRecursively(SubPins[1], OutPinsOrCategories, bSupportSubPins);
 				}	
 			}
 			else
 			{				
 				for (URigVMPin* SubPin : InPin->GetSubPins())
 				{
-					VisitPinRecursively(SubPin, OutPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+					VisitPinRecursively(SubPin, OutPinsOrCategories, bSupportSubPins);
 				}
 			}
 		}
 	};
 
-	// determine which directions use a category
-	TArray<ERigVMPinDirection> DirectionsWithCategories;
-	const TArray<URigVMPin*> AllPins = ModelNode->GetAllPinsRecursively();
-	for(const URigVMPin* Pin : AllPins)
-	{
-		if(!Pin->GetCategory().IsEmpty())
-		{
-			const ERigVMPinDirection Direction = Pin->GetDirection();
-			DirectionsWithCategories.AddUnique(Direction);
-			if(Direction == ERigVMPinDirection::Input)
-			{
-				DirectionsWithCategories.AddUnique(ERigVMPinDirection::Visible);
-			}
-			else if(Direction == ERigVMPinDirection::Visible)
-			{
-				DirectionsWithCategories.AddUnique(ERigVMPinDirection::Input);
-			}
-		}
-	}
+	const FRigVMNodeLayout NodeLayout = ModelNode->GetNodeLayout();
 	
 	for(int32 SortPhase = 0; SortPhase < 4; SortPhase++)
 	{
@@ -1718,7 +1665,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(RootPin->IsExecuteContext() && RootPin->GetDirection() == ERigVMPinDirection::IO)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
@@ -1726,7 +1673,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(RootPin->GetDirection() == ERigVMPinDirection::Output)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
@@ -1734,20 +1681,63 @@ void SRigVMGraphNode::UpdatePinTreeView()
 				{
 					if(!RootPin->IsExecuteContext() && RootPin->GetDirection() == ERigVMPinDirection::IO)
 					{
-						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
 					}
 					break;
 				}
 				case 3: // input / visible pins
 				default:
 				{
-					if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
+					// for now we only allow node layouts for input pins
+					if(!NodeLayout.IsValid())
 					{
-						Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins, DirectionsWithCategories);
+						if(RootPin->GetDirection() == ERigVMPinDirection::Input || RootPin->GetDirection() == ERigVMPinDirection::Visible)
+						{
+							Local::VisitPinRecursively(RootPin, ModelPinsOrCategories, bSupportSubPins);
+						}
 					}
 					break;
 				}
 			}
+		}
+	}
+
+	// visit the categories / input / visible pins in the right order
+	if(NodeLayout.IsValid())
+	{
+		for(const FRigVMPinCategory& Category : NodeLayout.Categories)
+		{
+			if(!Category.IsDefaultCategory())
+			{
+				ModelPinsOrCategories.AddUnique({nullptr, Category.Path});
+			}
+			for(const FString& PinPath : Category.Elements)
+			{
+				if(const URigVMPin* Pin = ModelNode->FindPin(PinPath))
+				{
+					Local::VisitPinRecursively(Pin, ModelPinsOrCategories, bSupportSubPins);
+				}
+			}
+		}
+
+		// when adding pins based on the node layout
+		// we may be skipping over pins which have a connection but are not part of the layout
+		const TArray<URigVMLink*> Links = ModelNode->GetLinks();
+		for(const URigVMLink* Link : Links)
+		{
+			const URigVMPin* SourcePin = Link->GetSourcePin();
+			const URigVMPin* TargetPin = Link->GetTargetPin();
+			if(SourcePin == nullptr || TargetPin == nullptr)
+			{
+				continue;
+			}
+			const URigVMPin* PinToShow = SourcePin->GetNode() == ModelNode.Get() ? SourcePin : TargetPin;
+			const TTuple<const URigVMPin*, FString> Key = {PinToShow, FString()};
+			if(ModelPinsOrCategories.Contains(Key))
+			{
+				continue;
+			}
+			Local::VisitPinRecursively(PinToShow, ModelPinsOrCategories, bSupportSubPins);
 		}
 	}
 
@@ -1758,10 +1748,6 @@ void SRigVMGraphNode::UpdatePinTreeView()
 	{
 		DispatchContext = DispatchNode->GetDispatchContext();
 	}
-
-	// todo: we should implement traversers here which visit the pins in the right order.
-	// either by visiting the pins as we used to or using the categories. we need to figure out if for each group there's a category
-	// available and then use that instead. so in other words show all IO pins except if there's a category for an IO pin. etc.
 
 	TMap<FString, int32> IdentifierToInfoIndex;
 
@@ -1837,27 +1823,41 @@ void SRigVMGraphNode::UpdatePinTreeView()
 
 		if(bIsModelPin)
 		{
+			bool bNeedsParentPin = true;
 			const FString PinCategory = InModelPin->GetCategory();
 			if(!PinCategory.IsEmpty())
 			{
-				if(const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(PinCategory))
+				if(PinCategory.Equals(FRigVMPinCategory::GetDefaultCategoryName(), ESearchCase::IgnoreCase))
+				{
+					bNeedsParentPin = false;
+				}
+				else if(const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(PinCategory))
 				{
 					PinInfo.ParentIndex = *ParentIndexPtr;
+					bNeedsParentPin = false;
 				}
 			}
 
 			// if the pin is not part of a category, add it under its default parent
-			if(PinInfo.ParentIndex == INDEX_NONE)
+			if(bNeedsParentPin)
 			{
 				if(URigVMPin* ParentPin = InModelPin->GetParentPin())
 				{
 					const int32* ParentIndexPtr = IdentifierToInfoIndex.Find(ParentPin->GetPinPath());
 					if(ParentIndexPtr == nullptr)
 					{
-						// parent pins have to exist for the node to display correctly
-						return;
+						if(InModelPin->GetLinks().IsEmpty())
+						{
+							// parent pins have to exist for the node to display correctly
+							// but allow pins with links to show up
+							return;
+						}
 					}
-					PinInfo.ParentIndex = *ParentIndexPtr;
+					else
+					{
+						PinInfo.ParentIndex = *ParentIndexPtr;
+						bNeedsParentPin = false;
+					}
 				}
 			}
 		}
@@ -2070,7 +2070,7 @@ void SRigVMGraphNode::UpdatePinTreeView()
 		}
 	};
 	
-	for(const TTuple<URigVMPin*,FString>& ModelPinOrCategory : ModelPinsOrCategories)
+	for(const TTuple<const URigVMPin*,FString>& ModelPinOrCategory : ModelPinsOrCategories)
 	{
 		AddModelPinOrCategoryPinInfo(ModelPinOrCategory.Get<0>(), ModelPinOrCategory.Get<1>());
 	}

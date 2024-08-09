@@ -43,42 +43,6 @@ FText URigVMFunctionInterfaceNode::GetToolTipTextForPin(const URigVMPin* InPin) 
 	return Super::GetToolTipTextForPin(InPin);
 }
 
-FName URigVMFunctionInterfaceNode::GetDisplayNameForPin(const FString& InPinPath) const
-{
-	if(const URigVMPin* OuterPin = FindReferencedPin(InPinPath))
-	{
-		return OuterPin->GetDisplayName();
-	}
-	return Super::GetDisplayNameForPin(InPinPath);
-}
-
-FString URigVMFunctionInterfaceNode::GetCategoryForPin(const FString& InPinPath) const
-{
-	if(const URigVMPin* OuterPin = FindReferencedPin(InPinPath))
-	{
-		return OuterPin->GetCategory();
-	}
-	return Super::GetCategoryForPin(InPinPath);
-}
-
-int32 URigVMFunctionInterfaceNode::GetIndexInCategoryForPin(const FString& InPinPath) const
-{
-	if(const URigVMPin* OuterPin = FindReferencedPin(InPinPath))
-	{
-		return OuterPin->GetIndexInCategory();
-	}
-	return Super::GetIndexInCategoryForPin(InPinPath);
-}
-
-TArray<FString> URigVMFunctionInterfaceNode::GetPinCategories() const
-{
-	if(const URigVMCollapseNode* OuterNode = Cast<URigVMCollapseNode>(GetGraph()->GetOuter()))
-	{
-		return OuterNode->GetPinCategories();
-	}
-	return PinCategories;
-}
-
 const URigVMPin* URigVMFunctionInterfaceNode::FindReferencedPin(const URigVMPin* InPin) const
 {
 	return FindReferencedPin(InPin->GetSegmentPath(true));

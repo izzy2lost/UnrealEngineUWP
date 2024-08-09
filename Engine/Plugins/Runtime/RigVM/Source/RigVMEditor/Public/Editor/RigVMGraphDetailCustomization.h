@@ -205,6 +205,28 @@ private:
 	void OnAddAssignedTag(const FName& InTagName);
 	void OnRemoveAssignedTag(const FName& InTagName);
 
+	URigVMLibraryNode* GetLibraryNode() const;
+	URigVMNode* GetNodeForLayout() const;
+	const FRigVMNodeLayout* GetNodeLayout() const;
+	TArray<FString> GetUncategorizedPins() const;
+	TArray<FRigVMPinCategory> GetPinCategories() const;
+	FString GetPinCategory(FString InPinPath) const;
+	int32 GetPinIndexInCategory(FString InPinPath) const;
+	FString GetPinLabel(FString InPinPath) const;
+	FLinearColor GetPinColor(FString InPinPath) const;
+	const FSlateBrush* GetPinIcon(FString InPinPath) const;
+	void HandleCategoryAdded(FString InCategory);
+	void HandleCategoryRemoved(FString InCategory);
+	void HandleCategoryRenamed(FString InOldCategory, FString InNewCategory);
+	void HandlePinCategoryChanged(FString InPinPath, FString InCategory);
+	void HandlePinLabelChanged(FString InPinPath, FString InNewLabel);
+	void HandlePinIndexInCategoryChanged(FString InPinPath, int32 InIndexInCategory);
+	static bool ValidateName(FString InNewName, FText& OutErrorMessage); 
+	bool HandleValidateCategoryName(FString InCategoryPath, FString InNewName, FText& OutErrorMessage);
+	bool HandleValidatePinDisplayName(FString InPinPath, FString InNewName, FText& OutErrorMessage);
+
+	uint32 GetNodeLayoutHash() const;
+
 	/** The Blueprint editor we are embedded in */
 	TWeakPtr<FRigVMEditor> RigVMEditorPtr;
 
@@ -221,6 +243,7 @@ private:
 	bool bIsPickingColor;
 
 	static TArray<TSharedPtr<FRigVMStringWithTag>> AccessSpecifierStrings;
+	mutable TOptional<FRigVMNodeLayout> CachedNodeLayout;
 };
 
 /** Customization for editing a rig vm node */
