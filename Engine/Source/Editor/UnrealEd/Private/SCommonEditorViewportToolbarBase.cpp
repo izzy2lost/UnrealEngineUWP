@@ -334,7 +334,7 @@ void SCommonEditorViewportToolbarBase::ConstructScreenPercentageMenu(FMenuBuilde
 
 FText SCommonEditorViewportToolbarBase::GetCameraMenuLabel() const
 {
-	return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(GetViewportClient().GetViewportType());
+	return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(GetViewportClient().GetViewportType());
 }
 
 

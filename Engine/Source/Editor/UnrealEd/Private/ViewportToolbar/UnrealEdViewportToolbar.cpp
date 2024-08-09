@@ -1951,7 +1951,7 @@ TSharedRef<SWidget> CreateFarViewPlaneMenuWidget(const TSharedRef<SEditorViewpor
 	// clang-format on
 }
 
-FText GetCameraSubenuLabelFromViewportType(const ELevelViewportType ViewportType)
+FText GetCameraSubmenuLabelFromViewportType(const ELevelViewportType ViewportType)
 {
 	FText Label = LOCTEXT("CameraMenuTitle_Default", "Camera");
 	switch (ViewportType)
@@ -1990,6 +1990,54 @@ FText GetCameraSubenuLabelFromViewportType(const ELevelViewportType ViewportType
 	return Label;
 }
 
+FName GetCameraSubmenuIconFNameFromViewportType(const ELevelViewportType ViewportType)
+{
+	static FName PerspectiveIcon("EditorViewport.Perspective");
+	static FName TopIcon("EditorViewport.Top");
+	static FName LeftIcon("EditorViewport.Left");
+	static FName FrontIcon("EditorViewport.Front");
+	static FName BottomIcon("EditorViewport.Bottom");
+	static FName RightIcon("EditorViewport.Right");
+	static FName BackIcon("EditorViewport.Back");
+
+	FName Icon = NAME_None;
+
+	switch (ViewportType)
+	{
+	case LVT_Perspective:
+		Icon = PerspectiveIcon;
+		break;
+
+	case LVT_OrthoXY:
+		Icon = TopIcon;
+		break;
+
+	case LVT_OrthoNegativeXZ:
+		Icon = LeftIcon;
+		break;
+
+	case LVT_OrthoNegativeYZ:
+		Icon = FrontIcon;
+		break;
+
+	case LVT_OrthoNegativeXY:
+		Icon = BottomIcon;
+		break;
+
+	case LVT_OrthoXZ:
+		Icon = RightIcon;
+		break;
+
+	case LVT_OrthoYZ:
+		Icon = BackIcon;
+		break;
+	case LVT_OrthoFreelook:
+		break;
+	}
+
+	return Icon;
+}
+
 FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 {
 	return FToolMenuEntry::InitDynamicEntry(
@@ -2009,10 +2057,24 @@ FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 					{
 						if (TSharedPtr<SEditorViewport> Viewport = WeakViewport.Pin())
 						{
-							return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(Viewport->GetViewportClient()->ViewportType
+							return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(Viewport->GetViewportClient()->ViewportType
 							);
 						}
 						return LOCTEXT("CameraSubmenuLabel", "Camera");
+					}
+				);
+
+				const TAttribute<FSlateIcon> Icon = TAttribute<FSlateIcon>::CreateLambda(
+					[WeakViewport]()
+					{
+						if (TSharedPtr<SEditorViewport> Viewport = WeakViewport.Pin())
+						{
+							const FName IconFName = UE::UnrealEd::GetCameraSubmenuIconFNameFromViewportType(
+								Viewport->GetViewportClient()->ViewportType
+							);
+							return FSlateIcon(FAppStyle::GetAppStyleSetName(), IconFName);
+						}
+						return FSlateIcon();
 					}
 				);
 
@@ -2025,7 +2087,9 @@ FToolMenuEntry CreateViewportToolbarCameraSubmenu()
 						{
 							PopulateCameraMenu(Submenu);
 						}
-					)
+					),
+					false,
+					Icon
 				);
 			}
 		)

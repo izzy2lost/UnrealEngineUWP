@@ -35,54 +35,12 @@ void SViewportToolBar::SetOpenMenu( TSharedPtr< SMenuAnchor >& NewMenu )
 
 FText SViewportToolBar::GetCameraMenuLabelFromViewportType(const ELevelViewportType ViewportType) const
 {
-	return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(ViewportType);
+	return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(ViewportType);
 }
 
 const FSlateBrush* SViewportToolBar::GetCameraMenuLabelIconFromViewportType(const ELevelViewportType ViewportType) const
 {
-	static FName PerspectiveIcon("EditorViewport.Perspective");
-	static FName TopIcon("EditorViewport.Top");
-	static FName LeftIcon("EditorViewport.Left");
-	static FName FrontIcon("EditorViewport.Front");
-	static FName BottomIcon("EditorViewport.Bottom");
-	static FName RightIcon("EditorViewport.Right");
-	static FName BackIcon("EditorViewport.Back");
-
-	FName Icon = NAME_None;
-
-	switch (ViewportType)
-	{
-	case LVT_Perspective:
-		Icon = PerspectiveIcon;
-		break;
-
-	case LVT_OrthoXY:
-		Icon = TopIcon;
-		break;
-
-	case LVT_OrthoNegativeXZ:
-		Icon = LeftIcon;
-		break;
-
-	case LVT_OrthoNegativeYZ:
-		Icon = FrontIcon;
-		break;
-
-	case LVT_OrthoNegativeXY:
-		Icon = BottomIcon;
-		break;
-
-	case LVT_OrthoXZ:
-		Icon = RightIcon;
-		break;
-
-	case LVT_OrthoYZ:
-		Icon = BackIcon;
-		break;
-	case LVT_OrthoFreelook:
-		break;
-	}
-
+	const FName Icon = UE::UnrealEd::GetCameraSubmenuIconFNameFromViewportType(ViewportType);
 	return FAppStyle::GetBrush(Icon);
 }
 

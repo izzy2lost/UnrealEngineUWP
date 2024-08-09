@@ -1322,7 +1322,7 @@ FText SAnimViewportToolBar::GetCameraMenuLabel() const
 	TSharedPtr< SAnimationEditorViewportTabBody > PinnedViewport(Viewport.Pin());
 	if( PinnedViewport.IsValid() )
 	{
-		return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
+		return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
 	}
 
 	return LOCTEXT("Viewport_Default", "Camera");

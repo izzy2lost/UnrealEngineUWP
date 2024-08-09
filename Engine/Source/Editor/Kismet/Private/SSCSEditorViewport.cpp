@@ -270,7 +270,7 @@ public:
 	{
 		if(EditorViewport.IsValid())
 		{
-			return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(
+			return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(
 				EditorViewport.Pin()->GetViewportClient()->GetViewportType()
 			);
 		}

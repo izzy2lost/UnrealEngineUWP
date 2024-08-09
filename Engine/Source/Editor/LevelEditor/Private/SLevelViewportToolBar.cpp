@@ -347,7 +347,7 @@ FText SLevelViewportToolBar::GetCameraMenuLabel() const
 	TSharedPtr< SLevelViewport > PinnedViewport( Viewport.Pin() );
 	if( PinnedViewport.IsValid() )
 	{
-		return UE::UnrealEd::GetCameraSubenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
+		return UE::UnrealEd::GetCameraSubmenuLabelFromViewportType(PinnedViewport->GetLevelViewportClient().ViewportType);
 	}
 
 	return LOCTEXT("CameraMenuTitle_Default", "Camera");

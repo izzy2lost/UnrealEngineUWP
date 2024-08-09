@@ -125,7 +125,8 @@ UNREALED_API FToolMenuEntry CreateNumericEntry(
 	int32 InMaxFractionalDigits = 2
 );
 
-UNREALED_API FText GetCameraSubenuLabelFromViewportType(const ELevelViewportType ViewportType);
+UNREALED_API FText GetCameraSubmenuLabelFromViewportType(const ELevelViewportType ViewportType);
+UNREALED_API FName GetCameraSubmenuIconFNameFromViewportType(const ELevelViewportType ViewportType);
 UNREALED_API FToolMenuEntry CreateViewportToolbarCameraSubmenu();
 
 UNREALED_API FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<IPreviewProfileController>& InPreviewProfileController);
