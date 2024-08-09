@@ -4,6 +4,7 @@
 
 #include "ProfilingDebugging/TraceAuxiliary.h"
 #include "Modules/ModuleManager.h"
+#include "ProfilingDebugging/TraceScreenshot.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(TraceUtilLibrary)
 
@@ -86,4 +87,9 @@ void UTraceUtilLibrary::TraceMarkRegionStart(const FString& Name)
 void UTraceUtilLibrary::TraceMarkRegionEnd(const FString& Name)
 {
 	TRACE_END_REGION(*Name);
+}
+
+void UTraceUtilLibrary::TraceScreenshot(const FString& Name, bool bShowUI)
+{
+	FTraceScreenshot::RequestScreenshot(Name, bShowUI);
 }

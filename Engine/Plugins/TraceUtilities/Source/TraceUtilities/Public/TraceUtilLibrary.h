@@ -58,4 +58,10 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Perf | Insights Trace")
 	static void TraceMarkRegionEnd(const FString& Name);
+
+	/**
+	 * Triggers an Unreal Insights screenshot
+	 */
+	UFUNCTION(BlueprintCallable, Category = "Perf | Insights Trace")
+	static void TraceScreenshot(const FString& Name, bool bShowUI);
 };
