@@ -154,7 +154,6 @@ namespace UE::ChooserEditor
 
 							FString NewName = InText.ToString();
 							
-							UChooserTable* RootChooser = ChooserToRename->GetRootChooser();
 							for(UChooserTable* NestedChooser : RootChooser->NestedChoosers)
 							{
 								if (NestedChooser->GetName() == NewName)
