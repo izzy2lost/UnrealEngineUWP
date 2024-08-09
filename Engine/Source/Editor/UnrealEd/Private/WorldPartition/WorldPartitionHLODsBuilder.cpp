@@ -486,9 +486,6 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			FWorldPartitionHelpers::DoCollectGarbage();
 		}
 
-		// Wait for pending async file writes before copying to working dir
-		UPackage::WaitForAsyncFileWrites();
-
 		TArray<FString> BuildProducts;
 
 		if (!CopyFilesToWorkingDir("ToSubmit", ModifiedFiles, BuildProducts))
@@ -889,6 +886,9 @@ bool UWorldPartitionHLODsBuilder::CopyFilesToWorkingDir(const FString& TargetDir
 			}
 		}
 	};
+
+	// Wait for pending async file writes before copying to working dir
+	UPackage::WaitForAsyncFileWrites();
 
 	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileAdded), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Add); });
 	Algo::ForEach(Files.Get(FBuilderModifiedFiles::EFileOperation::FileEdited), [&](const FString& SourceFilename) { CopyFileToWorkingDir(SourceFilename, FileAction_Edit); });
