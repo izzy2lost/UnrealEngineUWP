@@ -4124,6 +4124,12 @@ bool UnrealToUsd::CreateComponentPropertyBaker(
 					return;
 				}
 
+				// Some setup (like CameraRig_Rail) require that the parent actor on which the component is attached be Tick'ed to update their positions
+				if (AActor* AttachParentActor = Component->GetAttachParentActor())
+				{
+					AttachParentActor->Tick(0.0f);
+				}
+
 				USceneComponent* OriginalAttachParent = OriginalAttachParentGetter();
 
 				// If we're attached to a socket our RelativeTransform will be relative to the socket, instead of the parent
