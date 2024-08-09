@@ -60,6 +60,7 @@ public:
 	SERIALIZATION_API virtual void EndStructure(const FStructSerializerState& State) override;
 	SERIALIZATION_API virtual void WriteComment(const FString& Comment) override;
 	SERIALIZATION_API virtual void WriteProperty(const FStructSerializerState& State, int32 ArrayIndex = 0) override;
+	SERIALIZATION_API virtual bool WritePODArray(const FStructSerializerState& State) override;
 
 protected:
 

@@ -203,3 +203,40 @@ void FJsonStructSerializerBackend::WriteProperty(const FStructSerializerState& S
 		UE_LOG(LogSerialization, Verbose, TEXT("FJsonStructSerializerBackend: Property %s cannot be serialized, because its type (%s) is not supported"), *State.ValueProperty->GetFName().ToString(), *State.ValueType->GetFName().ToString());
 	}
 }
+
+bool FJsonStructSerializerBackend::WritePODArray(const FStructSerializerState& State)
+{
+	if (State.ElementIndex != INDEX_NONE)
+	{
+		return false;
+	}
+
+	// This code serializes TArray<uint8> in the same way FStructSerializer would do. However, we iterate over
+	// elements directly while FStructSerializer allocates one FStructSerializerState (64 bytes) for each
+	// byte item. As a result, one 1 MB of binary data would require more than 64 MB of temporary state data.
+	FArrayProperty* ArrayProperty = CastField<FArrayProperty>(State.ValueProperty);
+	if (ArrayProperty && (CastField<FByteProperty>(ArrayProperty->Inner) || CastField<FInt8Property>(ArrayProperty->Inner)))
+	{
+		FScriptArrayHelper ArrayHelper(ArrayProperty, ArrayProperty->ContainerPtrToValuePtr<void>(State.ValueData));
+
+		FStructSerializerState InnerState(nullptr, ArrayProperty->Inner, EStructSerializerStateFlags::None);
+
+		for (int32 Index = 0; Index < ArrayHelper.Num(); ++Index)
+		{
+			if (ArrayHelper.IsValidIndex(Index))
+			{
+				InnerState.ValueData = ArrayHelper.GetRawPtr(Index);
+
+				WriteProperty(InnerState);
+			}
+		}
+
+		// We need to close the array ourselves because FStructSerializer doesn't do this after we've declared we've completed
+		// serialization by returning true.
+		EndArray(State);
+
+		return true;
+	}
+
+	return false;
+}
