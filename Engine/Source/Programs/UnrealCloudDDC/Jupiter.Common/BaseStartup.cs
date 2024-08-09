@@ -650,6 +650,11 @@ namespace Jupiter
 		[Required]
 		public string JwtAudience { get; set; } = "";
 
+		/// <summary>
+		/// The namespaces which these scheme is allowed to grant access to, all if this is omitted or empty
+		/// </summary>
+		public string[] AllowedNamespaces { get; set; } = Array.Empty<string>();
+
 		public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
 		{
 			List<ValidationResult> validationResults = new List<ValidationResult>();

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using EpicGames.Horde.Storage;
@@ -19,13 +20,15 @@ public class RequestHelper : IRequestHelper
 	private readonly IAuthorizationService _authorizationService;
 	private readonly INamespacePolicyResolver _namespacePolicyResolver;
 	private readonly IOptionsMonitor<JupiterSettings> _settings;
+	private readonly IOptionsMonitor<AuthSettings> _authSettings;
 	private readonly Tracer _tracer;
 
-	public RequestHelper(IAuthorizationService authorizationService, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<JupiterSettings> settings, Tracer tracer)
+	public RequestHelper(IAuthorizationService authorizationService, INamespacePolicyResolver namespacePolicyResolver, IOptionsMonitor<JupiterSettings> settings, IOptionsMonitor<AuthSettings> authSettings, Tracer tracer)
 	{
 		_authorizationService = authorizationService;
 		_namespacePolicyResolver = namespacePolicyResolver;
 		_settings = settings;
+		_authSettings = authSettings;
 		_tracer = tracer;
 	}
 
@@ -41,6 +44,19 @@ public class RequestHelper : IRequestHelper
 		if (!authorizationResult.Succeeded)
 		{
 			return new ForbidResult();
+		}
+
+		// fetch the value of the issuer claim
+		string? issuer = user.FindFirstValue("iss");
+		AuthSchemeEntry? authScheme = _authSettings.CurrentValue.Schemes.Values.FirstOrDefault(entry => entry.JwtAuthority == issuer);
+		if (authScheme?.AllowedNamespaces.Length != 0)
+		{
+			// check if the auth scheme is allowed to grant access to this namespace
+			if (!authScheme!.AllowedNamespaces.Contains(ns.ToString(), StringComparer.InvariantCultureIgnoreCase))
+			{
+				// not allowed to grant access to the namespace
+				return new ForbidResult();
+			}
 		}
 
 		bool isPublicNamespace = _namespacePolicyResolver.GetPoliciesForNs(ns).IsPublicNamespace;
