@@ -380,21 +380,15 @@ private:
 public:
 	
 	/**
-	 * Enable or disable the benchmarking mode for the MutableSystem.
-	 * @param bIsEnabled True to enable it and false to disable it
+	 * Enables the collection of internal Mutable performance data. It has a performance cost.
 	 */
-	static void SetBenchmarkState(bool bIsEnabled);
-	
-	/**
-	 * Get if the system is in benchmarking mode or not.
-	 * @return True if it is in benchmarking mode and false otherwise
-	 */
-	static bool IsBenchmarking();
-	
-private:
+	void EnableBenchmark();
 
-	/** Flag that controls some of the settings used for the generation of instances. */
-	inline static bool bIsBenchmarking = false;
+	/**
+	 * Disables the reporting of mutable instance benchmarking data.
+	 */
+	void EndBenchmark();
+	
 };
 
 

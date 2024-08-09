@@ -16,6 +16,7 @@
 #include "MuR/Model.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Interfaces/ITargetPlatform.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 #include "Serialization/MemoryWriter.h"
 
@@ -27,8 +28,9 @@ int32 UCustomizableObjectValidationCommandlet::Main(const FString& Params)
 	// Execution arguments for commandlet from IDE
 	// -run=CustomizableObjectValidation -CustomizableObject=(PathToCO)
 
-	// Ensure we have the cvars used for our testing set
-	UCustomizableObjectSystem::SetBenchmarkState(true);
+	// Ensure we have set the mutable system to the benchmarking mode and that we are reporting benchmarking data
+	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(true);
+	UCustomizableObjectSystemPrivate::SetUsageOfBenchmarkingSettings(true);
 	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;

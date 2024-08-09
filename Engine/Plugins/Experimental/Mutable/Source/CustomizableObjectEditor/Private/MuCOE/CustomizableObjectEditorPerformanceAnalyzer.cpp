@@ -620,7 +620,7 @@ void SCustomizableObjectEditorPerformanceAnalyzer::SetMutableBenchmarkingSystemS
 	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(bNewState);
 
 	// Setting this to false will allow for the system to retrieve the values set by CVars and other non code ways
-	UCustomizableObjectSystem::SetBenchmarkState(bNewState);
+	UCustomizableObjectSystemPrivate::SetUsageOfBenchmarkingSettings(bNewState);
 }
 
 

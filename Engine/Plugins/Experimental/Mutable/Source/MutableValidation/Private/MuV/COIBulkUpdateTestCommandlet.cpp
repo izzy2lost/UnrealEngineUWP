@@ -12,13 +12,15 @@
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCO/CustomizableObjectSystem.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 
 
 int32 UCOIBulkUpdateTestCommandlet::Main(const FString& Params)
 {
-	// Ensure we have the cvars used for our testing set
-	UCustomizableObjectSystem::SetBenchmarkState(true);
+	// Ensure we have set the mutable system to the benchmarking mode and that we are reporting benchmarking data
+	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(true);
+	UCustomizableObjectSystemPrivate::SetUsageOfBenchmarkingSettings(true);
 	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;

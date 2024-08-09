@@ -3968,6 +3968,19 @@ void UCustomizableObjectSystemPrivate::UnCacheTextureParameters(const TArray<FCu
 }
 
 
+bool UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings()
+{
+	return bUseBenchmarkingSettings;
+}
+
+
+void UCustomizableObjectSystemPrivate::SetUsageOfBenchmarkingSettings(bool bUseBenchmarkingOptimizedSettings)
+{
+	bUseBenchmarkingSettings = bUseBenchmarkingOptimizedSettings;
+}
+
+
+
 int32 UCustomizableObjectSystem::GetNumInstances() const
 {
 	int32 NumInstances;
@@ -4114,33 +4127,35 @@ void UCustomizableObjectSystem::SetReleaseMutableTexturesImmediately(bool bRelea
 }
 
 
-void UCustomizableObjectSystem::SetBenchmarkState(bool bIsEnabled)
+void UCustomizableObjectSystem::EnableBenchmark()
 {
-	bIsBenchmarking = bIsEnabled;
+	// Start reporting benchmarking data (log and .csv file)
+	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(true);
 }
 
 
-bool UCustomizableObjectSystem::IsBenchmarking()
+void UCustomizableObjectSystem::EndBenchmark()
 {
-	return bIsBenchmarking;
+	// Stop the reporting of benchmarking data
+	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(false);
 }
 
 
 bool UCustomizableObjectSystem::IsMeshCacheEnabled(bool bCheckCVarOnGameThread /** = false */)
 {
-	return bIsBenchmarking ? false : CVarEnableMeshCache.GetValueOnAnyThread(bCheckCVarOnGameThread);
+	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? false : CVarEnableMeshCache.GetValueOnAnyThread(bCheckCVarOnGameThread);
 }
 
 
 bool UCustomizableObjectSystem::ShouldClearWorkingMemoryOnUpdateEnd()
 {
-	return bIsBenchmarking ? true : CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread();
+	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? true : CVarClearWorkingMemoryOnUpdateEnd.GetValueOnAnyThread();
 }
 
 
 bool UCustomizableObjectSystem::ShouldReuseTexturesBetweenInstances()
 {
-	return bIsBenchmarking ? false : CVarReuseImagesBetweenInstances.GetValueOnAnyThread();
+	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? false : CVarReuseImagesBetweenInstances.GetValueOnAnyThread();
 }
 
 
@@ -4155,7 +4170,7 @@ void UCustomizableObjectSystem::SetWorkingMemory(int32 Bytes)
 
 int32 UCustomizableObjectSystem::GetWorkingMemory() const
 {
-	return bIsBenchmarking ? 16384 : WorkingMemory;
+	return UCustomizableObjectSystemPrivate::IsUsingBenchmarkingSettings() ? 16384 : WorkingMemory;
 }
 
 

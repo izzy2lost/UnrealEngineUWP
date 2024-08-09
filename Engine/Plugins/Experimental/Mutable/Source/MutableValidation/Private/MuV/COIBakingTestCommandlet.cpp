@@ -13,6 +13,7 @@
 #include "HAL/FileManager.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "MuCO/CustomizableObjectPrivate.h"
+#include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "MuCOE/CustomizableObjectBenchmarkingUtils.h"
 
 
@@ -37,7 +38,9 @@ void OnInstanceUpdate(const FUpdateContext& Result)
 
 int32 UCOIBakingTestCommandlet::Main(const FString& Params)
 {
-	UCustomizableObjectSystem::SetBenchmarkState(true);
+	// Ensure we have set the mutable system to the benchmarking mode and that we are reporting benchmarking data
+	FLogBenchmarkUtil::SetBenchmarkReportingStateOverride(true);
+	UCustomizableObjectSystemPrivate::SetUsageOfBenchmarkingSettings(true);
 	
 	// Ensure we do not show any OK dialog since we are not an user that can interact with them
 	GIsRunningUnattendedScript = true;

@@ -820,6 +820,25 @@ public:
 #endif
 
 	int32 NumLODUpdatesLastTick = 0;
+
+
+public:
+	/**
+	 * Get to know if the settings used by the mutable syustem are optimzed for benchmarking operations or not
+	 * @return true if using benchmarking optimized settings, false otherwise.
+	 */
+	static bool IsUsingBenchmarkingSettings();
+
+	/**
+	 * Enable or disable the usage of benchmarking optimized settings
+	 * @param bUseBenchmarkingOptimizedSettings True to enable the usage of benchmarking settings, false to disable it.
+	 */
+	CUSTOMIZABLEOBJECT_API static void SetUsageOfBenchmarkingSettings(bool bUseBenchmarkingOptimizedSettings);
+
+private:
+
+	/** Flag that controls some of the settings used for the generation of instances. */
+	inline static bool bUseBenchmarkingSettings = false;
 };
 
 
