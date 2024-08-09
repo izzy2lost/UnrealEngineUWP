@@ -2,8 +2,10 @@
 
 #pragma once
 
+#include "AutoRTFM/AutoRTFMConstants.h"
 #include "Context.h"
 #include "FunctionMap.h"
+#include "Utils.h"
 
 #include "Containers/StringConv.h"
 
@@ -14,24 +16,15 @@ inline void* FunctionMapLookup(void* OldFunction, const char* Where)
 {
 	// We use prefix data in our custom LLVM pass to stuff some data just
 	// before the address of all open function pointers (that we have
-	// definitions for!). We have two 32-bit values, the Offset from our
-	// open function -> closed function, and the Magic Mike constant which
-	// is just the bottom 32-bits of OldFunction. We use this Magic Mike
-	// constant to ensure that we are *actually* reading a legit address
-	// from the 8-bytes before a functions address, and not some random
-	// memory location (imagine you were trying to lookup a function
-	// address from a third-party library or in the c stdlib, it won't
-	// have been compiled with our compiler so *won't* have this prefix
-	// data). Only if Magic Mike constant we compute from OldFunction
-	// matches what the compiler injected, can we calculate the closed
-	// function address using the Offset.
-	const int32 Offset = *(reinterpret_cast<int32*>(OldFunction) - 1);
-	const uint32 MagicMike = *(reinterpret_cast<uint32*>(OldFunction) - 2);
+	// definitions for!). We use the special Magic Mike constant in the top
+	// 16-bits of the function pointer address as a magic constant check
+	// to give us a much higher confidence that there is actually a closed
+	// variant pointer residing 8-bytes before our function address.
+	const uint64 PrefixData = *(reinterpret_cast<uint64*>(OldFunction) - 1);
 
-	if (LIKELY(MagicMike == (reinterpret_cast<uint64>(OldFunction) & 0xffffffff)))
+	if (LIKELY(Constants::MagicMike == (PrefixData & 0xffff000000000000)))
 	{
-		const int64 Relocated = reinterpret_cast<int64>(OldFunction) + Offset;
-		return reinterpret_cast<void*>(Relocated);
+		return reinterpret_cast<void*>(PrefixData & 0x0000ffffffffffff);
 	}
 
 	// Instead fall back to the slower function map lookup.

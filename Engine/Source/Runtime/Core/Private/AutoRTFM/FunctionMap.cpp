@@ -12,6 +12,8 @@
 
 #include "Containers/Array.h"
 
+#include "AutoRTFM/AutoRTFMConstants.h"
+
 namespace AutoRTFM
 {
 
@@ -90,6 +92,13 @@ void FunctionMapAdd(void* OldFunction, void* NewFunction)
         // Silently ignore null OldFunction to make weak linking easy.
         return;
     }
+
+	// We first assert that we don't accidentally have the Magic Mike
+	// constant in the special location before the old function. This
+	// is to ensure that any functions added to the map are not jointly
+	// using the prefix data mechanism and the hashmap lookup.
+	const uint64 PrefixData = *(reinterpret_cast<uint64*>(OldFunction) - 1);
+	ASSERT(Constants::MagicMike != (PrefixData & 0xffff000000000000));
 
     InitializeGlobalDataIfNecessary();
     

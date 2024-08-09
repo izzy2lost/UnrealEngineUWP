@@ -364,7 +364,6 @@ UE_AUTORTFM_ALWAYS_OPEN void RTFM_autortfm_did_free(void* Ptr)
 UE_AUTORTFM_ALWAYS_OPEN void RTFM_autortfm_check_consistency_assuming_no_races()
 {
 }
-UE_AUTORTFM_REGISTER_OPEN_FUNCTION(autortfm_check_consistency_assuming_no_races);
 
 }  // anonymous namespace
 
