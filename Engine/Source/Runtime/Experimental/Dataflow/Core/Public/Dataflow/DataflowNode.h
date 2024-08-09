@@ -550,6 +550,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// returns true if the type was changed successfully
 	// only unset datatype connection will be set a new type 
 	DATAFLOWCORE_API bool TrySetConnectionType(FDataflowConnection* Connection, FName NewType);
+
+	// Only used when forcing types on connection in order to make sure the node properly refreshes the rest of its connection accordingly if there's any dependencies between their types
+	DATAFLOWCORE_API void NotifyConnectionTypeChanged(FDataflowConnection* Connection);
+
 protected:
 	virtual bool OnInputTypeChanged(const FDataflowInput* Input) { return false; };
 	virtual bool OnOutputTypeChanged(const FDataflowOutput* Output) { return false; }

@@ -160,6 +160,12 @@ protected:
 	DATAFLOWCORE_API virtual void FixAndPropagateType(FName InType) { ensure(false); }
 
 	/** 
+	* returns true is the parameter type is an extension of the current type 
+	* TArray<int> from TArray for example 
+	*/
+	DATAFLOWCORE_API bool IsExtendedType(FName InType) const;
+
+	/** 
 	* Set the concrete type of an anytype connection 
 	* @return true if the typewas effectivelly changed
 	*/

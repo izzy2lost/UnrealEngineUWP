@@ -89,23 +89,33 @@ void FDataflowInput::PullValue(Dataflow::FContext& Context) const
 void FDataflowInput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	// first try to fix as a legal change to give a chance for the node to proapagte the type changes if necessary
-	const bool bNeedToPropagate = OwningNode->TrySetConnectionType(this, InType);
-	if (bNeedToPropagate)
+	check(!FDataflowConnection::IsAnyType(InType));
+	
+	if (GetType() != InType)
 	{
-		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
+		Type = InType;
+		bHasConcreteType = true;
+
+		// if we have a reroute node propagate through to make sure each reroute segment is properly handled
+		// IMPORTANT : this needs to be done before we propagate through the input connections
+		if (const FDataflowReRouteNode* const ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
 		{
-			if (FDataflowOutput* Output = GetConnection())
+			for (FDataflowOutput* const ReRouteOutput : ReRouteNode->GetOutputs())
 			{
-				Output->FixAndPropagateType(InType);
+				if (ReRouteOutput)
+				{
+					ReRouteOutput->FixAndPropagateType(InType);
+				}
 			}
 		}
-	}
-	else
-	{
-		// Simply fix the type  ( at this point we should not be a anytype )
-		check(!bIsAnyType);
-		Type = InType;
+
+		OwningNode->NotifyConnectionTypeChanged(this);
+
+		// Now propagate to the connected output
+		if (FDataflowOutput* const Output = GetConnection())
+		{
+			Output->FixAndPropagateType(InType);
+		}
 	}
 }
 
@@ -299,25 +309,35 @@ void FDataflowOutput::ForwardInput(const FDataflowInput* Input, Dataflow::FConte
 void FDataflowOutput::FixAndPropagateType(FName InType)
 {
 	check(InType.ToString().StartsWith(Type.ToString()));
-	// first try to fix as a legal change to give a chance for the node to proapagte the type changes if necessary
-	const bool bNeedToPropagate = OwningNode->TrySetConnectionType(this, InType);
-	if (bNeedToPropagate)
+	check(!FDataflowConnection::IsAnyType(InType));
+
+	if (Type != InType)
 	{
-		if (FDataflowReRouteNode* ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
+		Type = InType;
+		bHasConcreteType = true;
+
+		// if we have a reroute node propagate through to make sure each reroute segment is properly handled
+		// IMPORTANT : this needs to be done before we propagate through the output connections
+		if (const FDataflowReRouteNode* const ReRouteNode = OwningNode->AsType<FDataflowReRouteNode>())
 		{
-			for (FDataflowInput* Input : Connections)
+			for (FDataflowInput* const RerouteInput : ReRouteNode->GetInputs())
 			{
-				if (Input)
+				if (RerouteInput)
 				{
-					Input->FixAndPropagateType(InType);
+					RerouteInput->FixAndPropagateType(InType);
 				}
 			}
 		}
-	}
-	else
-	{
-		// Simply fix the type  ( at this point we should not be a anytype )
-		check(!bIsAnyType);
-		Type = InType;
+
+		OwningNode->NotifyConnectionTypeChanged(this);
+
+		// Now propagate through the connected inputs
+		for (FDataflowInput* const Input : Connections)
+		{
+			if (Input)
+			{
+				Input->FixAndPropagateType(InType);
+			}
+		}
 	}
 }

@@ -97,16 +97,25 @@ bool FDataflowConnection::SupportsType(FName InType) const
 	return (InType == GetType());
 }
 
+bool FDataflowConnection::IsExtendedType(FName InType) const
+{
+	return (InType.ToString().StartsWith(Type.ToString() + "<"));
+}
+
 bool FDataflowConnection::SetConcreteType(FName InType)
 {
 	// Can only change from AnyType to a concrete type
-	if (Type != InType && ensure(!bHasConcreteType))
+	if (Type != InType)
 	{
-		if (ensure(SupportsType(InType)))
+		const bool bExtendedType = IsExtendedType(InType);
+		if (ensure(!bHasConcreteType || bExtendedType))
 		{
-			Type = InType;
-			bHasConcreteType = true;
-			return true;
+			if (ensure(bExtendedType || SupportsType(InType)))
+			{
+				Type = InType;
+				bHasConcreteType = true;
+				return true;
+			}
 		}
 	}
 	return false;

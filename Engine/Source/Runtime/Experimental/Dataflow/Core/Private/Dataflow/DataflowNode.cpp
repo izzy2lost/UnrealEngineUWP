@@ -1165,18 +1165,26 @@ bool FDataflowNode::TrySetConnectionType(FDataflowConnection* Connection, FName 
 		if (Connection->IsAnyType() && Connection->GetType() != NewType && !FDataflowConnection::IsAnyType(NewType))
 		{
 			Connection->SetConcreteType(NewType);
-			if (Connection->GetDirection() == Dataflow::FPin::EDirection::INPUT)
-			{
-				OnInputTypeChanged((FDataflowInput*)Connection);
-			}
-			if (Connection->GetDirection() == Dataflow::FPin::EDirection::OUTPUT)
-			{
-				OnOutputTypeChanged((FDataflowOutput*)Connection);
-			}
+			NotifyConnectionTypeChanged(Connection);
 			return true;
 		}
 	}
 	return false;
+}
+
+void FDataflowNode::NotifyConnectionTypeChanged(FDataflowConnection* Connection)
+{
+	if (Connection->IsAnyType())
+	{
+		if (Connection->GetDirection() == Dataflow::FPin::EDirection::INPUT)
+		{
+			OnInputTypeChanged((FDataflowInput*)Connection);
+		}
+		if (Connection->GetDirection() == Dataflow::FPin::EDirection::OUTPUT)
+		{
+			OnOutputTypeChanged((FDataflowOutput*)Connection);
+		}
+	}
 }
 
 bool FDataflowNode::SetInputConcreteType(const Dataflow::FConnectionReference& InputReference, FName NewType)
