@@ -2653,15 +2653,18 @@ FGuid CreateGenericBinding(TSharedPtr<ISequencer> Sequencer, UMovieSceneSequence
 
 
 	// If no custom bindings support this object type, but InParams.bSpawnable is true, attempt to make an old-style spawnable.
-	if (InObject && bSpawnable && Sequencer)
+	if (!BindingReferences)
 	{
-		NewBindingID = FSequencerUtilities::MakeNewSpawnable(Sequencer.ToSharedRef(), *InObject, InParams.ActorFactory);
-		if (NewBindingID.IsValid())
+		if (InObject && bSpawnable && Sequencer)
 		{
-			return NewBindingID;
+			NewBindingID = FSequencerUtilities::MakeNewSpawnable(Sequencer.ToSharedRef(), *InObject, InParams.ActorFactory);
+			if (NewBindingID.IsValid())
+			{
+				return NewBindingID;
+			}
 		}
 	}
-
+	
 	// Otherwise, create a possessable.
 
 	TArray<TPair<UObject*, FString>> ObjectsToPossess;

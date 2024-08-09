@@ -5825,7 +5825,10 @@ void FSequencer::PostUndo(bool bSuccess)
 
 void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, const TArray<AActor*>& DroppedActors)
 {
-	bool bAddSpawnable = FSlateApplication::Get().GetModifierKeys().IsShiftDown();
+	UMovieSceneSequence* Sequence = GetFocusedMovieSceneSequence();
+	UMovieScene* OwnerMovieScene = Sequence->GetMovieScene();
+
+	bool bAddSpawnable = FSlateApplication::Get().GetModifierKeys().IsShiftDown() && Sequence->AllowsSpawnableObjects();
 	bool bAddPossessable = FSlateApplication::Get().GetModifierKeys().IsControlDown();
 	bool bAddReplaceable = FSlateApplication::Get().GetModifierKeys().IsAltDown();
 
@@ -5834,9 +5837,6 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 		TArray<AActor*> SpawnedActors;
 
 		const FScopedTransaction Transaction(LOCTEXT("UndoAddActors", "Add Actors to Sequencer"));
-		
-		UMovieSceneSequence* Sequence = GetFocusedMovieSceneSequence();
-		UMovieScene* OwnerMovieScene = Sequence->GetMovieScene();
 
 		if (OwnerMovieScene->IsReadOnly())
 		{
@@ -5859,21 +5859,35 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 				{
 					TSubclassOf<UMovieSceneCustomBinding> CustomBindingClass = bAddSpawnable ? UMovieSceneSpawnableActorBinding::StaticClass() : UMovieSceneReplaceableActorBinding::StaticClass();
 
-					FMovieScenePossessable* NewPossessable = FSequencerUtilities::ConvertToCustomBinding(AsShared(), NewGuid, CustomBindingClass);
+					const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
+					TArrayView<const FMovieSceneBindingReference> References = BindingReferences ? BindingReferences->GetReferences(PossessableGuid) : TArray<const FMovieSceneBindingReference>();
 
-					if (NewPossessable)
+					for (const FMovieSceneBindingReference& Reference : References)
 					{
-						for (TWeakObjectPtr<> WeakObject : FindBoundObjects(NewPossessable->GetGuid(), ActiveTemplateIDs.Top()))
+						for (const TSubclassOf<UMovieSceneCustomBinding>& SupportedCustomBindingType : SupportedCustomBindingTypes)
 						{
-							AActor* SpawnedActor = Cast<AActor>(WeakObject.Get());
-							if (SpawnedActor)
+							if (SupportedCustomBindingType && SupportedCustomBindingType->IsChildOf(CustomBindingClass) && 
+								SupportedCustomBindingType->GetDefaultObject<UMovieSceneCustomBinding>()->SupportsConversionFromBinding(Reference, Actor))
 							{
-								SpawnedActors.Add(SpawnedActor);
-								NewActor = SpawnedActor;
+								FMovieScenePossessable* NewPossessable = FSequencerUtilities::ConvertToCustomBinding(AsShared(), NewGuid, CustomBindingClass);
+
+								if (NewPossessable)
+								{
+									for (TWeakObjectPtr<> WeakObject : FindBoundObjects(NewPossessable->GetGuid(), ActiveTemplateIDs.Top()))
+									{
+										AActor* SpawnedActor = Cast<AActor>(WeakObject.Get());
+										if (SpawnedActor)
+										{
+											SpawnedActors.Add(SpawnedActor);
+											NewActor = SpawnedActor;
+										}
+									}
+
+									NewGuid = NewPossessable->GetGuid();
+								}
+								break;
 							}
 						}
-
-						NewGuid = NewPossessable->GetGuid();
 					}
 				}
 

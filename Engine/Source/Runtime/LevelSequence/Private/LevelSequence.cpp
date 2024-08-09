@@ -707,13 +707,18 @@ UObject* ULevelSequence::GetParentObject(UObject* Object) const
 
 bool ULevelSequence::AllowsSpawnableObjects() const
 {
-#if WITH_EDITOR
-	if (!UMovieScene::IsTrackClassAllowed(UMovieSceneSpawnTrack::StaticClass()))
+	TArray<const TSubclassOf<UMovieSceneCustomBinding>> CustomBindingTypes;
+
+	MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(CustomBindingTypes);
+	for (const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType : CustomBindingTypes)
 	{
-		return false;
+		const bool bIsCustomSpawnableBinding = CustomBindingType->IsChildOf<UMovieSceneSpawnableBindingBase>();
+		if (bIsCustomSpawnableBinding)
+		{
+			return true;
+		}
 	}
-#endif
-	return true;
+	return false;
 }
 
 bool ULevelSequence::AllowsCustomBindings() const
