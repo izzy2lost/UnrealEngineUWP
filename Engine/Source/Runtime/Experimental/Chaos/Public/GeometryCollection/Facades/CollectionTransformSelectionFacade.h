@@ -222,8 +222,8 @@ namespace GeometryCollection::Facades
 		TManagedArrayAccessor<TSet<int32>>	ChildrenAttribute;
 		TManagedArrayAccessor<int32>		LevelAttribute;
 		TManagedArrayAccessor<int32>		SimulationTypeAttribute;
-		TManagedArrayAccessor<int32>		TransformIndexAttribute;
 		TManagedArrayAccessor<int32>		TransformToGeometryIndexAttribute;
+		TManagedArrayAccessor<int32>		TransformIndexAttribute;
 		TManagedArrayAccessor<int32>		VertexStartAttribute;
 		TManagedArrayAccessor<int32>		VertexCountAttribute;
 		TManagedArrayAccessor<int32>		FaceStartAttribute;

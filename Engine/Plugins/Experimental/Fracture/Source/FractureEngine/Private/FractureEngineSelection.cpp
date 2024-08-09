@@ -209,7 +209,7 @@ void FFractureEngineSelection::SelectLevel(const FManagedArrayCollection& Collec
 void FFractureEngineSelection::SelectContact(FGeometryCollection& GeometryCollection, TArray<int32>& SelectedBones)
 {
 	if (GeometryCollection.HasGroup(FGeometryCollection::TransformGroup) &&
-		GeometryCollection.HasAttribute("TransformIndex", FGeometryCollection::TransformGroup) &&
+		GeometryCollection.HasAttribute("TransformIndex", FGeometryCollection::GeometryGroup) &&
 		GeometryCollection.HasAttribute("TransformToGeometryIndex", FGeometryCollection::TransformGroup) &&
 		GeometryCollection.HasGroup(FGeometryCollection::GeometryGroup) &&
 		GeometryCollection.HasAttribute("Proximity", FGeometryCollection::GeometryGroup))
@@ -217,7 +217,7 @@ void FFractureEngineSelection::SelectContact(FGeometryCollection& GeometryCollec
 		FGeometryCollectionProximityUtility ProximityUtility(&GeometryCollection);
 		ProximityUtility.RequireProximity();
 
-		const TManagedArray<int32>& TransformIndex = GeometryCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::TransformGroup);
+		const TManagedArray<int32>& TransformIndex = GeometryCollection.GetAttribute<int32>("TransformIndex", FGeometryCollection::GeometryGroup);
 		const TManagedArray<int32>& TransformToGeometryIndex = GeometryCollection.GetAttribute<int32>("TransformToGeometryIndex", FGeometryCollection::TransformGroup);
 		const TManagedArray<TSet<int32>>& Proximity = GeometryCollection.GetAttribute<TSet<int32>>("Proximity", FGeometryCollection::GeometryGroup);
 
