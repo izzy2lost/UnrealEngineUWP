@@ -94,11 +94,17 @@ private:
 	/** Holds the mask that should be affected by this button as an uint8. */
 	ERCMask MaskBit;
 
+	/** The color of the mask to set */
+	FLinearColor MaskColor = FLinearColor::White;
+
 	/** Holds a shared reference to the underlying mask button. */
 	TSharedPtr<SCheckBox> Mask;
 	
 	/** Holds a shared reference to the underlying mask label. */
 	TSharedPtr<STextBlock> MaskLabel;
+
+	/** Holds a shared reference to the underlying mask border. */
+	TSharedPtr<SBorder> MaskBorder;
 
 	/** Holds the "Mask" string as text. */
 	static FText MaskText;
