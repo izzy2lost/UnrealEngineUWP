@@ -16,13 +16,14 @@ FImportExportCollector::FImportExportCollector(UPackage* InRootPackage)
 
 void FImportExportCollector::Reset()
 {
-	Exports.Reset();
+	Visited.Reset();
 	Imports.Reset();
+	EditorOnlyObjectCache.Reset();
 }
 
 void FImportExportCollector::AddExportToIgnore(UObject* Export)
 {
-	Exports.Add(Export);
+	Visited.Add(Export, EVisitResult::Excluded);
 }
 
 void FImportExportCollector::SerializeObjectAndReferencedExports(UObject* RootObject)
@@ -41,24 +42,61 @@ FArchive& FImportExportCollector::operator<<(UObject*& Obj)
 	{
 		return *this;
 	}
-	UPackage* Package = Obj->GetPackage();
-	if (!Package)
+
+	bool bFirstVisit = false;
+	EVisitResult& VisitResult = Visited.FindOrAdd(Obj);
+	switch (VisitResult)
 	{
+	case EVisitResult::Excluded: [[fallthrough]];
+	case EVisitResult::Export:
 		return *this;
-	}
-	if (Package != RootPackage)
+	case EVisitResult::Import:
+		// We have to call AddImport every time instead of early exiting because the SoftObjectPathCollectType might
+		// need to be updated
+		break;
+	case EVisitResult::Uninitialized:
 	{
-		AddImport(FSoftObjectPath(Obj), ESoftObjectPathCollectType::AlwaysCollect);
+		bFirstVisit = true;
+		if (IsFilterEditorOnly() && CachedIsEditorOnlyObject(Obj))
+		{
+			bool bAllowedObject = ((bool)CallbackIsEditorOnlyObjectAllowed) &&
+				CallbackIsEditorOnlyObjectAllowed(Obj);
+			if (!bAllowedObject)
+			{
+				VisitResult = EVisitResult::Excluded;
+				return *this;
+			}
+		}
+
+		UPackage* Package = Obj->GetPackage();
+		if (!Package)
+		{
+			VisitResult = EVisitResult::Excluded;
+			return *this;
+		}
+
+		VisitResult = Package != RootPackage ? EVisitResult::Import : EVisitResult::Export;
+		break;
+	}
+	default:
+		checkNoEntry();
 		return *this;
 	}
 
-	bool bAlreadyExists;
-	Exports.Add(Obj, &bAlreadyExists);
-	if (bAlreadyExists)
+	switch (VisitResult)
 	{
+	case EVisitResult::Import:
+		AddImport(FSoftObjectPath(Obj), ESoftObjectPathCollectType::AlwaysCollect);
+		break;
+	case EVisitResult::Export:
+		check(bFirstVisit); // We should have early exited above if revisiting an export
+		ExportsExploreQueue.Add(Obj);
+		break;
+	default:
+		checkNoEntry();
 		return *this;
 	}
-	ExportsExploreQueue.Add(Obj);
+
 	return *this;
 }
 
@@ -96,6 +134,26 @@ void FImportExportCollector::AddImport(const FSoftObjectPath& Path, ESoftObjectP
 ESoftObjectPathCollectType FImportExportCollector::Union(ESoftObjectPathCollectType A, ESoftObjectPathCollectType B)
 {
 	return static_cast<ESoftObjectPathCollectType>(FMath::Max(static_cast<int>(A), static_cast<int>(B)));
+}
+
+bool FImportExportCollector::CachedIsEditorOnlyObject(const UObject* Object)
+{
+	using namespace UE::SavePackageUtilities;
+
+#if WITH_EDITOR
+	return IsEditorOnlyObject(Object, true /* bCheckRecursive */,
+		[this](const UObject* InObject)
+		{
+			return EditorOnlyObjectCache.FindOrAdd(InObject, EEditorOnlyObjectResult::Uninitialized);
+		},
+		[this](const UObject* InObject, bool bEditorOnly)
+		{
+			EditorOnlyObjectCache.FindOrAdd(InObject) =
+				bEditorOnly ? EEditorOnlyObjectResult::EditorOnly : EEditorOnlyObjectResult::NonEditorOnly;
+		});
+#else
+	return false;
+#endif
 }
 
 #endif // WITH_EDITORONLY_DATA

@@ -3385,6 +3385,18 @@ struct FAssetMsg
 	}
 #endif // NO_LOGGING
 
+#if WITH_EDITORONLY_DATA
+namespace UE::SavePackageUtilities
+{
+enum class EEditorOnlyObjectResult
+{
+	Uninitialized,
+	EditorOnly,
+	NonEditorOnly,
+};
+}// namespace UE::SavePackageUtilities
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 /** 
  * Returns if true if the object is editor-only:
@@ -3399,6 +3411,10 @@ struct FAssetMsg
 COREUOBJECT_API bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive = true);
 UE_DEPRECATED(5.3, "bCheckMarks argument is no longer supported because we are transitioning away from using ObjectMarks during saving");
 COREUOBJECT_API bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive, bool bCheckMarks);
+COREUOBJECT_API bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive,
+	TFunctionRef<UE::SavePackageUtilities::EEditorOnlyObjectResult(const UObject* Object)> LookupInCache,
+	TFunctionRef<void(const UObject* Object, bool bEditorOnly)> AddToCache);
+
 #endif //WITH_EDITOR
 
 class FFieldClass;

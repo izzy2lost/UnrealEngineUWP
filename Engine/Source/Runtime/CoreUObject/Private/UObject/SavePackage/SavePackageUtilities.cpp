@@ -847,6 +847,7 @@ void FObjectSaveContextData::Set(UPackage* Package, const ITargetPlatform* InTar
 	bUpdatingLoadedPath = UE::SavePackageUtilities::IsUpdatingLoadedPath(InTargetPlatform != nullptr, TargetPath, InSaveFlags);
 }
 
+#if WITH_EDITORONLY_DATA
 bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive)
 {
 	using namespace UE::SavePackageUtilities;
@@ -864,6 +865,16 @@ bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive, bool bChe
 	Flags |= bCheckMarks ? EEditorOnlyObjectFlags::CheckMarks : EEditorOnlyObjectFlags::None;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 	return IsEditorOnlyObjectInternal(InObject, Flags);
+}
+
+bool IsEditorOnlyObject(const UObject* InObject, bool bCheckRecursive,
+	TFunctionRef<UE::SavePackageUtilities::EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<void(const UObject*, bool)> AddToCache)
+{
+	using namespace UE::SavePackageUtilities;
+	EEditorOnlyObjectFlags Flags = EEditorOnlyObjectFlags::None;
+	Flags |= bCheckRecursive ? EEditorOnlyObjectFlags::CheckRecursive : EEditorOnlyObjectFlags::None;
+	return IsEditorOnlyObjectInternal(InObject, Flags, LookupInCache, AddToCache);
 }
 
 namespace UE::SavePackageUtilities
@@ -991,6 +1002,8 @@ bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags 
 }
 
 } // namespace UE::SavePackageUtilities
+
+#endif // WITH_EDITORONLY_DATA
 
 void FObjectImportSortHelper::SortImports(FLinkerSave* Linker)
 {

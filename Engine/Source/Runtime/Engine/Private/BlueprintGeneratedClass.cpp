@@ -2564,7 +2564,13 @@ void UBlueprintGeneratedClass::Serialize(FArchive& Ar)
 		Collector.SetCookData(Ar.GetCookData());
 		Collector.AddExportToIgnore(this);
 		Collector.SetFilterEditorOnly(Ar.IsFilterEditorOnly());
-		Collector.SerializeObjectAndReferencedExports(ClassGeneratedBy);
+		UObject* ClassGeneratedByPtr = ClassGeneratedBy;
+		Collector.SetCallbackIsEditorOnlyObjectAllowed(
+			[ClassGeneratedByPtr](const UObject* Object)
+			{
+				return Object == ClassGeneratedByPtr || Object->IsIn(ClassGeneratedByPtr);
+			});
+		Collector.SerializeObjectAndReferencedExports(ClassGeneratedByPtr);
 		for (const TPair<FName, ESoftObjectPathCollectType>& Pair : Collector.GetImportedPackages())
 		{
 			if (Pair.Value != ESoftObjectPathCollectType::AlwaysCollect)

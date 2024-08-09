@@ -16,6 +16,7 @@
 #include "UObject/UObjectMarks.h"
 #include "UObject/ObjectPtr.h"
 #include "UObject/SavePackage.h"
+#include "UObject/UObjectGlobals.h"
 
 // This file contains private utilities shared by UPackage::Save and UPackage::Save2 
 
@@ -376,21 +377,15 @@ enum class EEditorOnlyObjectFlags
 };
 ENUM_CLASS_FLAGS(EEditorOnlyObjectFlags);
 
-enum class EEditorOnlyObjectResult
-{
-	Uninitialized,
-	EditorOnly,
-	NonEditorOnly,
-};
 #if WITH_EDITORONLY_DATA
 bool CanStripEditorOnlyImportsAndExports();
-#endif
 
 /** Returns result of IsEditorOnlyObjectInternal if Engine:[Core.System]:CanStripEditorOnlyExportsAndImports (ini) is set to true */
 bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags,
-	TFunctionRef<EEditorOnlyObjectResult(const UObject*)> LookupInCache,
+	TFunctionRef<UE::SavePackageUtilities::EEditorOnlyObjectResult(const UObject*)> LookupInCache,
 	TFunctionRef<void(const UObject*, bool)> AddToCache);
 bool IsEditorOnlyObjectInternal(const UObject* InObject, EEditorOnlyObjectFlags Flags);
+#endif
 
 }
 

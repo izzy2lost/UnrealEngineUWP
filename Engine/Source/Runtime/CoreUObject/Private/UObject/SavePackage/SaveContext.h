@@ -1139,6 +1139,7 @@ public:
 		}
 	}
 
+#if WITH_EDITORONLY_DATA
 	auto GetFunctorReadCachedEditorOnlyObject()
 	{
 		using namespace UE::SavePackageUtilities;
@@ -1160,6 +1161,7 @@ public:
 				Status.bEditorOnly = bEditorOnly;
 			};
 	}
+#endif
 	UE::SavePackageUtilities::EEditorOnlyObjectFlags GetEditorOnlyObjectFlags() const;
 
 public:
