@@ -1202,14 +1202,14 @@ public:
             return TOptional<SAccessLevel>{SAccessLevel::EKind::Public};
         }
 
-        if (NumAccessLevelAttributes == 1 && !PublicCount && _Context._Scope->GetKind() == CScope::EKind::Class && static_cast<const CClass*>(_Context._Scope)->IsStruct())
+        if (NumAccessLevelAttributes <= 1 && !PublicCount && _Context._Scope->GetKind() == CScope::EKind::Class && static_cast<const CClass*>(_Context._Scope)->IsStruct())
         {
             if (_Context._Package->_EffectiveVerseVersion < Verse::Version::StructFieldsMustBePublic)
             {
                 // For old versions, warn about the non-public accessibility and keep going.
                 AppendGlitch(&ErrorNode, EDiagnostic::WarnSemantic_DeprecatedNonPublicStructField);
             }
-            else
+            else if (NumAccessLevelAttributes == 1)
             {
                 AppendGlitch(
                     &ErrorNode,
@@ -3728,40 +3728,35 @@ private:
         }
 
         // Queue up jobs that process the attributes
-        if (bHasAttributes)
+        TArray<SAttribute> NameAttributes = Move(ExprArgs.MacroCallDefinitionContext->_NameAttributes);
+        TArray<SAttribute> DefAttributes = Move(ExprArgs.MacroCallDefinitionContext->_DefAttributes);
+
+        if (!bOtherExplicitDefinitionExists)
         {
-            ULANG_ENSURE(!bTreatAsImplicit); // Attributes make the definition explicit, we handled that above
-
-            TArray<SAttribute> NameAttributes = Move(ExprArgs.MacroCallDefinitionContext->_NameAttributes);
-            TArray<SAttribute> DefAttributes = Move(ExprArgs.MacroCallDefinitionContext->_DefAttributes);
-
-            if (!bOtherExplicitDefinitionExists)
-            {
-                // Gather attributes
-                EnqueueDeferredTask(Deferred_Attributes, [this, Module, Part, NameAttributes, DefAttributes, DefinitionAst]()
+            // Gather attributes
+            EnqueueDeferredTask(Deferred_Attributes, [this, Module, Part, NameAttributes, DefAttributes, DefinitionAst]()
+                {
+                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Part->GetParentScope());
+                    Module->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module);
+                    Module->SetAccessLevel(GetAccessLevelFromAttributes(*DefinitionAst->GetMappedVstNode(), *Module));
+                    ValidateExperimentalAttribute(*Module);
+                });
+        }
+        else
+        {
+            // Validate attributes (access level only)
+            EnqueueDeferredTask(Deferred_ValidateAttributes, [this, Module, Part, NameAttributes, DefAttributes, DefinitionAst]()
+                {
+                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Part->GetParentScope());
+                    CAttributable Attributes{ AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module) };
+                    TOptional<SAccessLevel> AccessLevel = GetAccessLevelFromAttributes(*DefinitionAst->GetMappedVstNode(), Attributes);
+                    if (Module->SelfAccessLevel() != AccessLevel)
                     {
-                        TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Part->GetParentScope());
-                        Module->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module);
-                        Module->SetAccessLevel(GetAccessLevelFromAttributes(*DefinitionAst->GetMappedVstNode(), *Module));
-                        ValidateExperimentalAttribute(*Module);
-                    });
-            }
-            else
-            {
-                // Validate attributes (access level only)
-                EnqueueDeferredTask(Deferred_ValidateAttributes, [this, Module, Part, NameAttributes, DefAttributes, DefinitionAst]()
-                    {
-                        TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Part->GetParentScope());
-                        CAttributable Attributes{ AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module) };
-                        TOptional<SAccessLevel> AccessLevel = GetAccessLevelFromAttributes(*DefinitionAst->GetMappedVstNode(), Attributes);
-                        if (Module->SelfAccessLevel() != AccessLevel)
-                        {
-                            // Generate a glitch per conflicting definition
-                            AppendGlitch(*Module->GetAstNode(), EDiagnostic::ErrSemantic_MismatchedPartialAttributes);
-                            AppendGlitch(*Part->GetAstNode(), EDiagnostic::ErrSemantic_MismatchedPartialAttributes);
-                        }
-                    });
-            }
+                        // Generate a glitch per conflicting definition
+                        AppendGlitch(*Module->GetAstNode(), EDiagnostic::ErrSemantic_MismatchedPartialAttributes);
+                        AppendGlitch(*Part->GetAstNode(), EDiagnostic::ErrSemantic_MismatchedPartialAttributes);
+                    }
+                });
         }
 
         // Analyze the members of this module.
@@ -3829,86 +3824,83 @@ private:
         // Queue up jobs that process any class attributes
         Class->_Definition->_EffectAttributable._Attributes = Move(MacroCallAst.Name()->_Attributes);
         const bool bIsParametric = ExprArgs.MacroCallDefinitionContext->_bIsParametric;
-        if (NameAttributes.Num() || DefAttributes.Num() || Class->_Definition->_EffectAttributable._Attributes.Num() || bIsParametric)
+        EnqueueDeferredTask(Deferred_AttributeClassAttributes, [this, Class, StructOrClass, NameAttributes, DefAttributes, &MacroCallAst, bIsParametric]
         {
-            EnqueueDeferredTask(Deferred_AttributeClassAttributes, [this, Class, StructOrClass, NameAttributes, DefAttributes, &MacroCallAst, bIsParametric]
+            // Not inside the function yet
+            const bool bIsAttributeClass = Class->IsClass(*_Program->_attributeClass);
+
+            const CAttributable::EAttributableScope AttributedExprScope =
+                bIsAttributeClass
+                ? CAttributable::EAttributableScope::AttributeClass
+                : StructOrClass == EStructOrClass::Class
+                ? CAttributable::EAttributableScope::Class
+                : CAttributable::EAttributableScope::Struct;
+
+            auto ProcessAttributes = [this, Class, StructOrClass, AttributedExprScope, NameAttributes, DefAttributes, bIsParametric]()
             {
-                // Not inside the function yet
-                const bool bIsAttributeClass = Class->IsClass(*_Program->_attributeClass);
-
-                const CAttributable::EAttributableScope AttributedExprScope =
-                    bIsAttributeClass
-                    ? CAttributable::EAttributableScope::AttributeClass
-                    : StructOrClass == EStructOrClass::Class
-                    ? CAttributable::EAttributableScope::Class
-                    : CAttributable::EAttributableScope::Struct;
-
-                auto ProcessAttributes = [this, Class, StructOrClass, AttributedExprScope, NameAttributes, DefAttributes, bIsParametric]()
+                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Class->GetParentScope());
+                Class->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, AttributedExprScope);
+                AnalyzeAttributes(
+                    Class->_Definition->_EffectAttributable._Attributes,
+                    AttributedExprScope,
+                    StructOrClass == EStructOrClass::Class ? EAttributeSource::ClassEffect : EAttributeSource::StructEffect);
+                if (bIsParametric)
                 {
-                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Class->GetParentScope());
-                    Class->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, AttributedExprScope);
-                    AnalyzeAttributes(
-                        Class->_Definition->_EffectAttributable._Attributes,
-                        AttributedExprScope,
-                        StructOrClass == EStructOrClass::Class ? EAttributeSource::ClassEffect : EAttributeSource::StructEffect);
-                    if (bIsParametric)
-                    {
-                        // Set parametric classes as public, which will be combined with the access
-                        // level of the outer function.
-                        ULANG_ASSERTF(!Class->_Attributes.Num(), "Expected parametric classes to be missing attributes");
-                        Class->SetAccessLevel(TOptional<SAccessLevel>{SAccessLevel::EKind::Public}); // This could possibly be done through a different default accessibility on the scope?
-                    }
-                    else
-                    {
-                        Class->SetAccessLevel(GetAccessLevelFromAttributes(*Class->GetAstNode()->GetMappedVstNode(), *Class));
-                    }
-                    ValidateExperimentalAttribute(*Class);
-                    Class->_ConstructorAccessLevel = GetAccessLevelFromAttributes(*Class->GetAstNode()->GetMappedVstNode(), Class->_EffectAttributable);
-                    if (Class->DerivedConstructorAccessLevel()._Kind == SAccessLevel::EKind::Private)
-                    {
-                        AppendGlitch(
-                            *Class->GetAstNode(),
-                            EDiagnostic::ErrSemantic_InvalidAccessLevel,
-                            CUTF8String("`private` access level not allowed on `class` or `struct` (would make it impossible to create)."));
-                    } 
-                    if (Class->DerivedConstructorAccessLevel()._Kind == SAccessLevel::EKind::Protected)
-                    {
-                        AppendGlitch(
-                            *Class->GetAstNode(),
-                            EDiagnostic::ErrSemantic_InvalidAccessLevel,
-                            CUTF8String(
-                                AttributedExprScope == CAttributable::EAttributableScope::Struct
-                                ? "`protected` access level not allowed on `struct`."
-                                : "`protected` access level not allowed on `class` (use `abstract` instead)."));
-                    }
-                };
-        
-                if (bIsAttributeClass)
-                {
-                    // Process attributes on attribute classes right away, before processing other attributes.
-                    ProcessAttributes();
-                        
-                    if (Class->HasAttributeClass(_Program->_attributeScopeName, *_Program)
-                        && Class->HasAttributeClass(_Program->_attributeScopeEffect, *_Program))
-                    {
-                        AppendGlitch(
-                            MacroCallAst,
-                            EDiagnostic::ErrSemantic_ConflictingAttributeScope,
-                            CUTF8String("`attribscope_name` can't be mixed with `attribscope_effect`."));
-                    }
+                    // Set parametric classes as public, which will be combined with the access
+                    // level of the outer function.
+                    ULANG_ASSERTF(!Class->_Attributes.Num(), "Expected parametric classes to be missing attributes");
+                    Class->SetAccessLevel(TOptional<SAccessLevel>{SAccessLevel::EKind::Public}); // This could possibly be done through a different default accessibility on the scope?
                 }
                 else
                 {
-                    // Defer processing of attributes on non-attribute classes
-                    EnqueueDeferredTask(Deferred_Attributes, ProcessAttributes);
+                    Class->SetAccessLevel(GetAccessLevelFromAttributes(*Class->GetAstNode()->GetMappedVstNode(), *Class));
                 }
+                ValidateExperimentalAttribute(*Class);
+                Class->_ConstructorAccessLevel = GetAccessLevelFromAttributes(*Class->GetAstNode()->GetMappedVstNode(), Class->_EffectAttributable);
+                if (Class->DerivedConstructorAccessLevel()._Kind == SAccessLevel::EKind::Private)
+                {
+                    AppendGlitch(
+                        *Class->GetAstNode(),
+                        EDiagnostic::ErrSemantic_InvalidAccessLevel,
+                        CUTF8String("`private` access level not allowed on `class` or `struct` (would make it impossible to create)."));
+                } 
+                if (Class->DerivedConstructorAccessLevel()._Kind == SAccessLevel::EKind::Protected)
+                {
+                    AppendGlitch(
+                        *Class->GetAstNode(),
+                        EDiagnostic::ErrSemantic_InvalidAccessLevel,
+                        CUTF8String(
+                            AttributedExprScope == CAttributable::EAttributableScope::Struct
+                            ? "`protected` access level not allowed on `struct`."
+                            : "`protected` access level not allowed on `class` (use `abstract` instead)."));
+                }
+            };
+        
+            if (bIsAttributeClass)
+            {
+                // Process attributes on attribute classes right away, before processing other attributes.
+                ProcessAttributes();
+                        
+                if (Class->HasAttributeClass(_Program->_attributeScopeName, *_Program)
+                    && Class->HasAttributeClass(_Program->_attributeScopeEffect, *_Program))
+                {
+                    AppendGlitch(
+                        MacroCallAst,
+                        EDiagnostic::ErrSemantic_ConflictingAttributeScope,
+                        CUTF8String("`attribscope_name` can't be mixed with `attribscope_effect`."));
+                }
+            }
+            else
+            {
+                // Defer processing of attributes on non-attribute classes
+                EnqueueDeferredTask(Deferred_Attributes, ProcessAttributes);
+            }
         
         
-                // The class attributes are further validated based on any superclass - see Deferred_ValidateAttributes below.
-                // If further class attribute validation is needed regardless of whether a class has a superclass then move
-                // the Deferred_ValidateAttributes task above to this location.
-            });
-        }
+            // The class attributes are further validated based on any superclass - see Deferred_ValidateAttributes below.
+            // If further class attribute validation is needed regardless of whether a class has a superclass then move
+            // the Deferred_ValidateAttributes task above to this location.
+        });
 
         // Analyze the class definition.
         AnalyzeClass(Class, DefinitionAst, ExprCtx, StructOrClass);
@@ -4803,28 +4795,25 @@ private:
             Enumeration._EffectAttributable._Attributes = Move(MacroCallAst.Name()->_Attributes);
 
             // Queue up job that processes any enumerator attributes
-            if (NameAttributes.Num() || DefAttributes.Num() || Enumeration._EffectAttributable._Attributes.Num())
+            EnqueueDeferredTask(Deferred_Attributes, [this, &Enumeration, NameAttributes, DefAttributes]()
             {
-                EnqueueDeferredTask(Deferred_Attributes, [this, &Enumeration, NameAttributes, DefAttributes]()
+                // Not inside the function yet
+                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &Enumeration._EnclosingScope);
+                Enumeration._Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Enum);
+                AnalyzeAttributes(Enumeration._EffectAttributable._Attributes, CAttributable::EAttributableScope::Enum, EAttributeSource::EnumEffect);
+                Enumeration.SetAccessLevel(GetAccessLevelFromAttributes(*Enumeration.GetAstNode()->GetMappedVstNode(), Enumeration));
+                ValidateExperimentalAttribute(Enumeration);
+            });
+            EnqueueDeferredTask(Deferred_ValidateAttributes, [&Enumeration]
+            {
+                if (Enumeration.IsPersistable())
                 {
-                    // Not inside the function yet
-                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &Enumeration._EnclosingScope);
-                    Enumeration._Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Enum);
-                    AnalyzeAttributes(Enumeration._EffectAttributable._Attributes, CAttributable::EAttributableScope::Enum, EAttributeSource::EnumEffect);
-                    Enumeration.SetAccessLevel(GetAccessLevelFromAttributes(*Enumeration.GetAstNode()->GetMappedVstNode(), Enumeration));
-                    ValidateExperimentalAttribute(Enumeration);
-                });
-                EnqueueDeferredTask(Deferred_ValidateAttributes, [&Enumeration]
-                {
-                    if (Enumeration.IsPersistable())
+                    if (const CModule* ParentModule = Enumeration.GetModule())
                     {
-                        if (const CModule* ParentModule = Enumeration.GetModule())
-                        {
-                            ParentModule->MarkPersistenceCompatConstraint();
-                        }
+                        ParentModule->MarkPersistenceCompatConstraint();
                     }
-                });
-            }
+                }
+            });
 
             TSRef<CExprEnumDefinition> EnumDefinitionAst = TSRef<CExprEnumDefinition>::New(Enumeration, Move(Members));
 
@@ -5578,19 +5567,16 @@ private:
 
         TArray<SAttribute> NameAttributes = Move(ExprArgs.MacroCallDefinitionContext->_NameAttributes);
 
-        if (NameAttributes.Num())
-        {
-            EnqueueDeferredTask(Deferred_Attributes, [this, AccessLevelDefinition, NameAttributes]()
-                {
-                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &AccessLevelDefinition->_EnclosingScope);
+        EnqueueDeferredTask(Deferred_Attributes, [this, AccessLevelDefinition, NameAttributes]()
+            {
+                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &AccessLevelDefinition->_EnclosingScope);
 
-                    TArray<SAttribute> Result = NameAttributes;
-                    AnalyzeAttributes(Result, CAttributable::EAttributableScope::ScopedAccessLevel, EAttributeSource::Name);
-                    AccessLevelDefinition->_Attributes.Append(Result);
-                    AccessLevelDefinition->SetAccessLevel(GetAccessLevelFromAttributes(*AccessLevelDefinition->GetAstNode()->GetMappedVstNode(), *AccessLevelDefinition));
-                    ValidateExperimentalAttribute(*AccessLevelDefinition);
-                });
-        }
+                TArray<SAttribute> Result = NameAttributes;
+                AnalyzeAttributes(Result, CAttributable::EAttributableScope::ScopedAccessLevel, EAttributeSource::Name);
+                AccessLevelDefinition->_Attributes.Append(Result);
+                AccessLevelDefinition->SetAccessLevel(GetAccessLevelFromAttributes(*AccessLevelDefinition->GetAstNode()->GetMappedVstNode(), *AccessLevelDefinition));
+                ValidateExperimentalAttribute(*AccessLevelDefinition);
+            });
 
         TSRef<CExprScopedAccessLevelDefinition> NewAccessLevel = TSRef<CExprScopedAccessLevelDefinition>::New(AccessLevelDefinition);
 
@@ -5750,30 +5736,27 @@ private:
 
             // Queue up jobs that processes any attributes on the interface
             const bool bIsParametric = ExprArgs.MacroCallDefinitionContext->_bIsParametric;
-            if (NameAttributes.Num() || DefAttributes.Num() || Interface->_EffectAttributable._Attributes.Num() || bIsParametric)
+            EnqueueDeferredTask(Deferred_Attributes, [this, Interface, NameAttributes, DefAttributes, bIsParametric]()
             {
-                EnqueueDeferredTask(Deferred_Attributes, [this, Interface, NameAttributes, DefAttributes, bIsParametric]()
+                // Not inside the function yet
+                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Interface->GetParentScope());
+                Interface->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Interface);
+                AnalyzeAttributes(Interface->_EffectAttributable._Attributes, CAttributable::EAttributableScope::Interface, EAttributeSource::InterfaceEffect);
+                if (bIsParametric)
                 {
-                    // Not inside the function yet
-                    TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, Interface->GetParentScope());
-                    Interface->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Interface);
-                    AnalyzeAttributes(Interface->_EffectAttributable._Attributes, CAttributable::EAttributableScope::Interface, EAttributeSource::InterfaceEffect);
-                    if (bIsParametric)
-                    {
-                        // Set parametric interfaces as public, which will be combined with the access level of the outer function.
-                        ULANG_ASSERTF(!Interface->_Attributes.Num(), "Expected parametric interfaces to be missing attributes");
-                        Interface->SetAccessLevel(TOptional<SAccessLevel>{SAccessLevel::EKind::Public});
-                    }
-                    else
-                    {
-                        Interface->SetAccessLevel(GetAccessLevelFromAttributes(*Interface->GetAstNode()->GetMappedVstNode(), *Interface));
-                        ValidateExperimentalAttribute(*Interface);
-                    }
-                    Interface->_ConstructorAccessLevel = GetAccessLevelFromAttributes(*Interface->GetAstNode()->GetMappedVstNode(), Interface->_EffectAttributable);
-                    ULANG_ASSERTF((Interface->DerivedConstructorAccessLevel()._Kind != Cases<SAccessLevel::EKind::Private, SAccessLevel::EKind::Protected>), "GetAccessLevelFromAttributes should have already handled this glitch.");
-                });
-            }
-            
+                    // Set parametric interfaces as public, which will be combined with the access level of the outer function.
+                    ULANG_ASSERTF(!Interface->_Attributes.Num(), "Expected parametric interfaces to be missing attributes");
+                    Interface->SetAccessLevel(TOptional<SAccessLevel>{SAccessLevel::EKind::Public});
+                }
+                else
+                {
+                    Interface->SetAccessLevel(GetAccessLevelFromAttributes(*Interface->GetAstNode()->GetMappedVstNode(), *Interface));
+                    ValidateExperimentalAttribute(*Interface);
+                }
+                Interface->_ConstructorAccessLevel = GetAccessLevelFromAttributes(*Interface->GetAstNode()->GetMappedVstNode(), Interface->_EffectAttributable);
+                ULANG_ASSERTF((Interface->DerivedConstructorAccessLevel()._Kind != Cases<SAccessLevel::EKind::Private, SAccessLevel::EKind::Protected>), "GetAccessLevelFromAttributes should have already handled this glitch.");
+            });
+
             // Create the interface definition AST node.
             TSRef<CExprInterfaceDefinition> DefinitionAst = TSRef<CExprInterfaceDefinition>::New(
                 *Interface,
@@ -15329,19 +15312,19 @@ private:
 
         //
         // Analyze the data member's attributes in a deferred task.
-        if (NameAttributes.Num() || DefAttributes.Num() || (ElementAnalysis.VarAst && ElementAnalysis.VarAst->HasAttributes()))
+        CExprVar* Var = ElementAnalysis.VarAst;
+        EnqueueDeferredTask(Deferred_Attributes, [this, DataDefAst, NameAttributes, DefAttributes, Var, DataDefinition, ExprCtx, VarName]
         {
-            CExprVar* Var = ElementAnalysis.VarAst;
-            EnqueueDeferredTask(Deferred_Attributes, [this, DataDefAst, NameAttributes, DefAttributes, Var, DataDefinition, ExprCtx, VarName]
+            TGuardValue<CScope*> ScopeGuard(_Context._Scope, &DataDefAst->_DataMember->_EnclosingScope);
+
+            DataDefAst->_DataMember->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Data);
+            DataDefAst->_DataMember->SetAccessLevel(GetAccessLevelFromAttributes(*DataDefAst->GetMappedVstNode(), *DataDefAst->_DataMember));
+            ValidateExperimentalAttribute(*DataDefAst->_DataMember);
+            AnalyzeFinalAttribute(*DataDefAst, *DataDefAst->_DataMember);
+
+            if (Var)
             {
-                TGuardValue<CScope*> ScopeGuard(_Context._Scope, &DataDefAst->_DataMember->_EnclosingScope);
-
-                DataDefAst->_DataMember->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Data);
-                DataDefAst->_DataMember->SetAccessLevel(GetAccessLevelFromAttributes(*DataDefAst->GetMappedVstNode(), *DataDefAst->_DataMember));
-                ValidateExperimentalAttribute(*DataDefAst->_DataMember);
-                AnalyzeFinalAttribute(*DataDefAst, *DataDefAst->_DataMember);
-
-                if (Var)
+                if (Var->_Attributes.Num())
                 {
                     CAttributable::EAttributableScope AttributableScope;
                     switch (DataDefAst->_DataMember->_EnclosingScope.GetKind())
@@ -15371,117 +15354,117 @@ private:
                     }
 
                     AnalyzeAttributes(Var->_Attributes, AttributableScope, EAttributeSource::Var);
-                    DataDefAst->_DataMember->SetVarAccessLevel(GetAccessLevelFromAttributes(*Var->GetMappedVstNode(), *Var));
+                }
+                DataDefAst->_DataMember->SetVarAccessLevel(GetAccessLevelFromAttributes(*Var->GetMappedVstNode(), *Var));
+            }
+
+            if (SClassVarAccessorFunctions Accessors; FindAccessorFunctions(DataDefAst, NameAttributes, Accessors))
+            {
+                if (!AnalyzeAccessorFunctions(DataDefAst, Var, VarName, Accessors, ExprCtx))
+                {
+                    return;
+                }
+                DataDefAst->_DataMember->_OptionalAccessors = Move(Accessors);
+            }
+
+            // Fetch @editable class, if it's available
+            const CClass* EditableAttrClass = _Program->_editable.Get();
+
+            // This class is not available in all packages as it is <epic_internal>, so make sure not to block the normal @editable checks on it
+            const CClass* EditableNonConcreteAttrClass = _Program->_editable_non_concrete.Get();
+
+            // If we are processing editable and the data member has the editable attribute, check that it's an approved type
+            // Must defer until after all attributes have been processed
+            if (EditableAttrClass)
+            {
+                const bool bHasEditableAttrClass = DataDefAst->_DataMember->HasAttributeClass(EditableAttrClass, *_Program);
+                const bool bHasEditableNonConcreteAttrClass = EditableNonConcreteAttrClass && DataDefAst->_DataMember->HasAttributeClass(EditableNonConcreteAttrClass, *_Program);
+                if (bHasEditableAttrClass && bHasEditableNonConcreteAttrClass)
+                {
+                    AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, CUTF8String("@editable and @editable_non_concrete are mutually exclusive and not both allowed on the same data definition."));
                 }
 
-                if (SClassVarAccessorFunctions Accessors; FindAccessorFunctions(DataDefAst, NameAttributes, Accessors))
+                if (bHasEditableAttrClass || bHasEditableNonConcreteAttrClass)
                 {
-                    if (!AnalyzeAccessorFunctions(DataDefAst, Var, VarName, Accessors, ExprCtx))
-                    {
-                        return;
-                    }
-                    DataDefAst->_DataMember->_OptionalAccessors = Move(Accessors);
-                }
-
-                // Fetch @editable class, if it's available
-                const CClass* EditableAttrClass = _Program->_editable.Get();
-
-                // This class is not available in all packages as it is <epic_internal>, so make sure not to block the normal @editable checks on it
-                const CClass* EditableNonConcreteAttrClass = _Program->_editable_non_concrete.Get();
-
-                // If we are processing editable and the data member has the editable attribute, check that it's an approved type
-                // Must defer until after all attributes have been processed
-                if (EditableAttrClass)
-                {
-                    const bool bHasEditableAttrClass = DataDefAst->_DataMember->HasAttributeClass(EditableAttrClass, *_Program);
-                    const bool bHasEditableNonConcreteAttrClass = EditableNonConcreteAttrClass && DataDefAst->_DataMember->HasAttributeClass(EditableNonConcreteAttrClass, *_Program);
-                    if (bHasEditableAttrClass && bHasEditableNonConcreteAttrClass)
-                    {
-                        AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, CUTF8String("@editable and @editable_non_concrete are mutually exclusive and not both allowed on the same data definition."));
-                    }
-
-                    if (bHasEditableAttrClass || bHasEditableNonConcreteAttrClass)
-                    {
-                        EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst, bHasEditableNonConcreteAttrClass]()
-                            {
-                                SemanticTypeUtils::EIsEditable IsEditable = SemanticTypeUtils::IsEditableType(DataDefAst->_DataMember->GetType(), bHasEditableNonConcreteAttrClass);
-                                if (IsEditable != SemanticTypeUtils::EIsEditable::Yes)
-                                {
-                                    AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, SemanticTypeUtils::IsEditableToCMessage(IsEditable));
-                                }
-                            });
-                    }
-
-                    if (VerseFN::UploadedAtFNVersion::StricterEditableOverrideCheck(_Context._Package->_UploadedAtFNVersion))
-                    {
-                        // Check that overrides of @editable types are of the same type...
-                        // Otherwise throw an error as UEFN does not yet support this functionality.
-                        EnqueueDeferredTask(Deferred_FinalValidation, [this, DataDefAst, EditableAttrClass, EditableNonConcreteAttrClass]()
-                            {
-                                if (EditableAttrClass)
-                                {
-                                    const uLang::CDataDefinition* OverriddenMember = DataDefAst->_DataMember->GetOverriddenDefinition();
-                                    while (OverriddenMember != nullptr)
-                                    {
-                                        if ((OverriddenMember->HasAttributeClass(EditableAttrClass, *_Program)
-                                            || (EditableNonConcreteAttrClass && OverriddenMember->HasAttributeClass(EditableNonConcreteAttrClass, *_Program)))
-                                            && !uLang::SemanticTypeUtils::Matches(OverriddenMember->GetType(), DataDefAst->_DataMember->GetType()))
-                                        {
-                                            AppendGlitch(
-                                                *DataDefAst,
-                                                EDiagnostic::ErrSemantic_AttributeNotAllowed,
-                                                CUTF8String("Overriding an @editable member with a different type is not supported (editable-type: %s, overriding-type: %s).",
-                                                    OverriddenMember->GetType()->AsCode(ETypeSyntaxPrecedence::Definition).AsCString(),
-                                                    DataDefAst->_DataMember->GetType()->AsCode(ETypeSyntaxPrecedence::Definition).AsCString()));
-                                            break;
-                                        }
-                                        OverriddenMember = OverriddenMember->GetOverriddenDefinition();
-                                    }
-                                }
-                            });
-                    }
-                }
-
-                // If the data member has the native attribute, defer a task until after all attributes have been processed to
-                // verify that the parent class also has the native attribute.
-                if (DataDefAst->_DataMember->IsNative())
-                {
-                    if (_Context._Scope->GetKind() == CScope::EKind::Class)
-                    {
-                        EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst]()
-                            {
-                                const CClass* ScopeAsClass = &static_cast<const CClass&>(DataDefAst->_DataMember->_EnclosingScope);
-                                if (!ScopeAsClass->IsNative())
-                                {
-                                    AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_NativeMemberOfNonNativeClass);
-                                }
-                            });
-                    }
-                    else if (_Context._Scope->IsModuleOrSnippet())
-                    {
-                        AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_Unimplemented, "Module data definitions cannot be marked as `<native>`.");
-                    }
-                    else
-                    {
-                        AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, "Data definitions at this scope cannot be marked as `<native>`.");
-                    }
-                }
-
-                // Disallow access level attributes on function local variables.
-                if (DataDefAst->_DataMember->HasAttributes() && _Context._Scope->GetKind() == CScope::EKind::ControlScope)
-                {
-                    EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst]()
+                    EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst, bHasEditableNonConcreteAttrClass]()
                         {
-                            if (DataDefAst->_DataMember.IsValid() && HasAccessLevelAttribute(*(DataDefAst->_DataMember)))
+                            SemanticTypeUtils::EIsEditable IsEditable = SemanticTypeUtils::IsEditableType(DataDefAst->_DataMember->GetType(), bHasEditableNonConcreteAttrClass);
+                            if (IsEditable != SemanticTypeUtils::EIsEditable::Yes)
                             {
-                                AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AccessSpecifierNotAllowedOnLocal, 
-                                    CUTF8String("Function local data definition '%s' is not allowed to use access level attributes(e.g. <public>, <internal>)",
-                                        DataDefAst->_DataMember->AsNameCString()));
+                                AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, SemanticTypeUtils::IsEditableToCMessage(IsEditable));
                             }
                         });
                 }
-            });
-        }
+
+                if (VerseFN::UploadedAtFNVersion::StricterEditableOverrideCheck(_Context._Package->_UploadedAtFNVersion))
+                {
+                    // Check that overrides of @editable types are of the same type...
+                    // Otherwise throw an error as UEFN does not yet support this functionality.
+                    EnqueueDeferredTask(Deferred_FinalValidation, [this, DataDefAst, EditableAttrClass, EditableNonConcreteAttrClass]()
+                        {
+                            if (EditableAttrClass)
+                            {
+                                const uLang::CDataDefinition* OverriddenMember = DataDefAst->_DataMember->GetOverriddenDefinition();
+                                while (OverriddenMember != nullptr)
+                                {
+                                    if ((OverriddenMember->HasAttributeClass(EditableAttrClass, *_Program)
+                                        || (EditableNonConcreteAttrClass && OverriddenMember->HasAttributeClass(EditableNonConcreteAttrClass, *_Program)))
+                                        && !uLang::SemanticTypeUtils::Matches(OverriddenMember->GetType(), DataDefAst->_DataMember->GetType()))
+                                    {
+                                        AppendGlitch(
+                                            *DataDefAst,
+                                            EDiagnostic::ErrSemantic_AttributeNotAllowed,
+                                            CUTF8String("Overriding an @editable member with a different type is not supported (editable-type: %s, overriding-type: %s).",
+                                                OverriddenMember->GetType()->AsCode(ETypeSyntaxPrecedence::Definition).AsCString(),
+                                                DataDefAst->_DataMember->GetType()->AsCode(ETypeSyntaxPrecedence::Definition).AsCString()));
+                                        break;
+                                    }
+                                    OverriddenMember = OverriddenMember->GetOverriddenDefinition();
+                                }
+                            }
+                        });
+                }
+            }
+
+            // If the data member has the native attribute, defer a task until after all attributes have been processed to
+            // verify that the parent class also has the native attribute.
+            if (DataDefAst->_DataMember->IsNative())
+            {
+                if (_Context._Scope->GetKind() == CScope::EKind::Class)
+                {
+                    EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst]()
+                        {
+                            const CClass* ScopeAsClass = &static_cast<const CClass&>(DataDefAst->_DataMember->_EnclosingScope);
+                            if (!ScopeAsClass->IsNative())
+                            {
+                                AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_NativeMemberOfNonNativeClass);
+                            }
+                        });
+                }
+                else if (_Context._Scope->IsModuleOrSnippet())
+                {
+                    AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_Unimplemented, "Module data definitions cannot be marked as `<native>`.");
+                }
+                else
+                {
+                    AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AttributeNotAllowed, "Data definitions at this scope cannot be marked as `<native>`.");
+                }
+            }
+
+            // Disallow access level attributes on function local variables.
+            if (DataDefAst->_DataMember->HasAttributes() && _Context._Scope->GetKind() == CScope::EKind::ControlScope)
+            {
+                EnqueueDeferredTask(Deferred_ValidateAttributes, [this, DataDefAst]()
+                    {
+                        if (DataDefAst->_DataMember.IsValid() && HasAccessLevelAttribute(*(DataDefAst->_DataMember)))
+                        {
+                            AppendGlitch(*DataDefAst, EDiagnostic::ErrSemantic_AccessSpecifierNotAllowedOnLocal, 
+                                CUTF8String("Function local data definition '%s' is not allowed to use access level attributes(e.g. <public>, <internal>)",
+                                    DataDefAst->_DataMember->AsNameCString()));
+                        }
+                    });
+            }
+        });
 
         if (_Context._Scope->GetKind() == CScope::EKind::Class)
         {
@@ -15803,27 +15786,24 @@ private:
         TArray<SAttribute> NameAttributes = Move(Identifier._Attributes);
         TArray<SAttribute> DefAttributes = Move(DefinitionAst._Attributes);
 
-        if (NameAttributes.Num() || DefAttributes.Num())
+        const Vst::Node* DefinitionVst = DefinitionAst.GetMappedVstNode();
+
+        EnqueueDeferredTask(Deferred_Attributes, [this, TypeAlias, DefinitionVst, NameAttributes, DefAttributes]()
         {
-            const Vst::Node* DefinitionVst = DefinitionAst.GetMappedVstNode();
+            // Not inside the function yet
+            TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &TypeAlias->_EnclosingScope);
+            TypeAlias->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::TypeDefinition);
+            TypeAlias->SetAccessLevel(GetAccessLevelFromAttributes(*DefinitionVst, *TypeAlias));
+            ValidateExperimentalAttribute(*TypeAlias);
+        });
 
-            EnqueueDeferredTask(Deferred_Attributes, [this, TypeAlias, DefinitionVst, NameAttributes, DefAttributes]()
-            {
-                // Not inside the function yet
-                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &TypeAlias->_EnclosingScope);
-                TypeAlias->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::TypeDefinition);
-                TypeAlias->SetAccessLevel(GetAccessLevelFromAttributes(*DefinitionVst, *TypeAlias));
-                ValidateExperimentalAttribute(*TypeAlias);
-            });
+        EnqueueDeferredTask(Deferred_ValidateAttributes, [this, TypeAlias, DefinitionVst]()
+        {
+            TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &TypeAlias->_EnclosingScope);
 
-            EnqueueDeferredTask(Deferred_ValidateAttributes, [this, TypeAlias, DefinitionVst]()
-            {
-                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &TypeAlias->_EnclosingScope);
-
-                // Check accessibility of the type
-                DetectInaccessibleTypeDependencies(*TypeAlias, TypeAlias->GetTypeType(), DefinitionVst);
-            });
-        }
+            // Check accessibility of the type
+            DetectInaccessibleTypeDependencies(*TypeAlias, TypeAlias->GetTypeType(), DefinitionVst);
+        });
 
         // Create a CExprTypeAliasDefinition expression.
         TSRef<CExprTypeAliasDefinition> TypeAliasDefinitionAst = TSRef<CExprTypeAliasDefinition>::New(TypeAlias, DefinitionAst.TakeElement(), DefinitionAst.TakeValueDomain(), DefinitionAst.TakeValue());
@@ -15932,16 +15912,13 @@ private:
         // Analyze the module alias's attributes.
         TArray<SAttribute> NameAttributes = Move(LhsIdentifier->_Attributes);
         TArray<SAttribute> DefAttributes = Move(DefinitionAst._Attributes);
-        if (NameAttributes.Num() || DefAttributes.Num())
+        EnqueueDeferredTask(Deferred_Attributes, [this, ModuleAlias, NameAttributes, DefAttributes]()
         {
-            EnqueueDeferredTask(Deferred_Attributes, [this, ModuleAlias, NameAttributes, DefAttributes]()
-            {
-                TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &ModuleAlias->_EnclosingScope);
-                ModuleAlias->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module);
-                ModuleAlias->SetAccessLevel(GetAccessLevelFromAttributes(*ModuleAlias->GetAstNode()->GetMappedVstNode(), *ModuleAlias));
-                ValidateExperimentalAttribute(*ModuleAlias);
-            });
-        }
+            TGuardValue<CScope*> CurrentScopeGuard(_Context._Scope, &ModuleAlias->_EnclosingScope);
+            ModuleAlias->_Attributes = AnalyzeNameAndDefAttributes(NameAttributes, DefAttributes, CAttributable::EAttributableScope::Module);
+            ModuleAlias->SetAccessLevel(GetAccessLevelFromAttributes(*ModuleAlias->GetAstNode()->GetMappedVstNode(), *ModuleAlias));
+            ValidateExperimentalAttribute(*ModuleAlias);
+        });
 
         // Replace the CExprDefinition with a CExprImport.
         return ReplaceMapping(DefinitionAst, TSRef<CExprImport>::New(Move(ModuleAlias), Move(Argument)));
