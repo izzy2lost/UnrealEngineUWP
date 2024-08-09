@@ -1248,48 +1248,65 @@ FToolMenuEntry CreateViewportToolbarShowSubmenu()
 #endif
 				}
 
-				{
-					FToolMenuSection& CommonShowFlagsSection =
-						InMenu->FindOrAddSection("CommonShowFlags", LOCTEXT("CommonShowFlagsLabel", "Common Show Flags"));
+				// Starting from commonly used flags
+				UE::UnrealEd::AddDefaultShowFlags(InMenu);
 
-					FShowFlagMenuCommands::Get().PopulateCommonShowFlagsSection(CommonShowFlagsSection);
-				}
-
+				// Add Level Editor specific entries to the All Show Flags Section
 				{
 					FToolMenuSection& AllShowFlagsSection =
 						InMenu->FindOrAddSection("AllShowFlags", LOCTEXT("AllShowFlagsLabel", "All Show Flags"));
 
+					// Show Foliage
 					{
 						FToolMenuEntry ShowFoliageSubmenu = CreateShowFoliageSubmenu();
 						ShowFoliageSubmenu.Label = LOCTEXT("ShowFoliageLabel", "Foliage");
+						ShowFoliageSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 						AllShowFlagsSection.AddEntry(ShowFoliageSubmenu);
 					}
 
-					AllShowFlagsSection.AddEntry(CreateShowHLODsSubmenu());
-					AllShowFlagsSection.AddEntry(CreateShowLayersSubmenu());
-					AllShowFlagsSection.AddEntry(CreateShowSpritesSubmenu());
-					AllShowFlagsSection.AddEntry(CreateShowVolumesSubmenu());
+					// Show HLODs
+					{
+						FToolMenuEntry ShowHLODSubmenu = CreateShowHLODsSubmenu();
+						ShowHLODSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+						AllShowFlagsSection.AddEntry(ShowHLODSubmenu);
+					}
 
-					FShowFlagMenuCommands::Get().PopulateAllShowFlagsSection(AllShowFlagsSection);
+					// Show Layers
+					{
+						FToolMenuEntry ShowLayersSubmenu = CreateShowLayersSubmenu();
+						ShowLayersSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+						AllShowFlagsSection.AddEntry(ShowLayersSubmenu);
+					}
+
+					// Show Sprites
+					{
+						FToolMenuEntry ShowSpriteSubmenu = CreateShowSpritesSubmenu();
+						ShowSpriteSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+						AllShowFlagsSection.AddEntry(ShowSpriteSubmenu);
+					}
+
+					// Show Volumes
+					{
+						FToolMenuEntry ShowVolumesSubmenu = CreateShowVolumesSubmenu();
+						ShowVolumesSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
+						AllShowFlagsSection.AddEntry(ShowVolumesSubmenu);
+					}
 				}
 
-				// Create these sections for backward compatibility with the old viewport toolbar.
-				{
-					// If your entries end up in this section, you should move it to the new "CommonShowFlags" section instead.
-					InMenu->FindOrAddSection(
-						"ShowFlagsMenuSectionCommon",
-						LOCTEXT("ShowFlagsMenuSectionCommonLabel", "Common Show Flags (Deprecated section)")
-					);
+				// Adds show flags sections for backward compatibility with the old viewport toolbar.
+				//  If your entries end up in this section, you should move it to the new "CommonShowFlags" section instead.
+				InMenu->FindOrAddSection(
+					"ShowFlagsMenuSectionCommon",
+					LOCTEXT("ShowFlagsMenuSectionCommonLabel", "Common Show Flags (Deprecated section)")
+				);
 
-					// If your entries end up in these sections, you should move them to the above "AllShowFlags" section instead.
-					InMenu->FindOrAddSection(
-						"LevelViewportShowFlags",
-						LOCTEXT("LevelViewportShowFlagsLabel", "All Show Flags (Deprecated section)")
-					);
-					InMenu->FindOrAddSection(
-						"LevelViewportEditorShow", LOCTEXT("LevelViewportEditorShowLabel", "Editor (Deprecated section)")
-					);
-				}
+				// If your entries end up in these sections, you should move them to the above "AllShowFlags" section instead.
+				InMenu->FindOrAddSection(
+					"LevelViewportShowFlags", LOCTEXT("LevelViewportShowFlagsLabel", "All Show Flags (Deprecated section)")
+				);
+				InMenu->FindOrAddSection(
+					"LevelViewportEditorShow", LOCTEXT("LevelViewportEditorShowLabel", "Editor (Deprecated section)")
+				);
 			}
 		)
 	);

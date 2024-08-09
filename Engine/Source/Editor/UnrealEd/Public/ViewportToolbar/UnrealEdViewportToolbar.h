@@ -141,6 +141,16 @@ UNREALED_API void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName);
 
 UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu();
 
+/**
+ * Creates a Show submenu with commonly used show flags
+ */
+UNREALED_API FToolMenuEntry CreateDefaultShowSubmenu();
+
+/**
+ * Adds common flags sections to the specified menu
+ */
+UNREALED_API void AddDefaultShowFlags(UToolMenu* InMenu);
+
 UNREALED_API FToolMenuEntry CreateToggleRealtimeEntry();
 
 // Camera Menu Widgets

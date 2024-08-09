@@ -12,11 +12,9 @@
 #include "GPUSkinCacheVisualizationMenuCommands.h"
 #include "IPreviewProfileController.h"
 #include "LevelEditorActions.h"
-#include "PreviewProfileController.h"
 #include "RayTracingDebugVisualizationMenuCommands.h"
-#include "SAssetEditorViewport.h"
-#include "SCommonEditorViewportToolbarBase.h"
 #include "SEditorViewport.h"
+#include "ShowFlagMenuCommands.h"
 #include "Settings/EditorProjectSettings.h"
 #include "Settings/LevelEditorViewportSettings.h"
 #include "Styling/SlateIconFinder.h"
@@ -30,7 +28,6 @@
 #include "Widgets/Input/SSpinBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/SToolTip.h"
-#include "Widgets/Input/STextComboBox.h"
 
 #define LOCTEXT_NAMESPACE "UnrealEdViewportToolbar"
 
@@ -2647,6 +2644,38 @@ UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
 			}
 		)
 	);
+}
+
+FToolMenuEntry CreateDefaultShowSubmenu()
+{
+	return FToolMenuEntry::InitSubMenu(
+		"Show",
+		LOCTEXT("ShowSubmenuLabel", "Show"),
+		LOCTEXT("ShowSubmenuTooltip", "Show flags related to the current viewport"),
+		FNewToolMenuDelegate::CreateLambda(
+			[](UToolMenu* InMenu) -> void
+			{
+				AddDefaultShowFlags(InMenu);
+			}
+		)
+	);
+}
+
+void AddDefaultShowFlags(UToolMenu* InMenu)
+{
+	{
+		FToolMenuSection& CommonShowFlagsSection =
+			InMenu->FindOrAddSection("CommonShowFlags", LOCTEXT("CommonShowFlagsLabel", "Common Show Flags"));
+
+		FShowFlagMenuCommands::Get().PopulateCommonShowFlagsSection(CommonShowFlagsSection);
+	}
+
+	{
+		FToolMenuSection& AllShowFlagsSection =
+			InMenu->FindOrAddSection("AllShowFlags", LOCTEXT("AllShowFlagsLabel", "All Show Flags"));
+
+		FShowFlagMenuCommands::Get().PopulateAllShowFlagsSection(AllShowFlagsSection);
+	}
 }
 
 FToolMenuEntry CreateToggleRealtimeEntry()
