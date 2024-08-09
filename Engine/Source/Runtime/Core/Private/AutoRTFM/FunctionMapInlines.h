@@ -37,23 +37,15 @@ inline void* FunctionMapLookup(void* OldFunction, const char* Where)
 	// Instead fall back to the slower function map lookup.
     void* const Result = FunctionMapTryLookup(OldFunction);
 
-	if (Result)
+	if (UNLIKELY(!Result))
 	{
-		return Result;
+#ifdef __clang__
+		[[clang::musttail]]
+#endif
+		return FunctionMapReportError(OldFunction, Where);
 	}
 
-	if (Where)
-	{
-		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s' where '%s'."), OldFunction, *GetFunctionDescription(OldFunction), ANSI_TO_TCHAR(Where));
-	}
-	else
-	{
-		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s'."), OldFunction, *GetFunctionDescription(OldFunction));
-	}
-
-	FContext* Context = FContext::Get();
-	Context->AbortByLanguageAndThrow();
-	return nullptr;
+	return Result;
 }
 
 template<typename TReturnType, typename... TParameterTypes>

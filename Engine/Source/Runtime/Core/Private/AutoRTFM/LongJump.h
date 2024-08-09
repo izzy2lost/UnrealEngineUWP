@@ -24,7 +24,7 @@ public:
     template<typename TTryFunctor, typename TCatchFunctor>
     void TryCatch(const TTryFunctor& TryFunctor, const TCatchFunctor& CatchFunctor);
     
-    void Throw();
+    [[noreturn]] void Throw();
     
 private:
     jmp_buf JmpBuf;

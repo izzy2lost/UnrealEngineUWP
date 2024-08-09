@@ -66,7 +66,7 @@ public:
     void PushDeferUntilAbortHandler(const void* Key, TFunction<void()>&&);
     bool PopDeferUntilAbortHandler(const void* Key);
 
-    void AbortAndThrow();
+    [[noreturn]] void AbortAndThrow();
     void AbortWithoutThrowing();
     bool AttemptToCommit();
 

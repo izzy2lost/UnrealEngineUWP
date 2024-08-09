@@ -2,6 +2,7 @@
 
 #if (defined(__AUTORTFM) && __AUTORTFM)
 #include "FunctionMap.h"
+#include "ContextInlines.h"
 #include "Atomic.h"
 #include "FastLock.h"
 #include "LockGuard.h"
@@ -101,6 +102,21 @@ void FunctionMapAdd(void* OldFunction, void* NewFunction)
         Functions.Pop();
         FunctionMapAddImpl(Function, NewFunction);
     }
+}
+
+void* FunctionMapReportError(void* OldFunction, const char* Where)
+{
+	if (Where)
+	{
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s' where '%s'."), OldFunction, *GetFunctionDescription(OldFunction), ANSI_TO_TCHAR(Where));
+	}
+	else
+	{
+		ensureMsgf(!ForTheRuntime::IsEnsureOnAbortByLanguageEnabled(), TEXT("Could not find function %p '%s'."), OldFunction, *GetFunctionDescription(OldFunction));
+	}
+
+	FContext* Context = FContext::Get();
+	Context->AbortByLanguageAndThrow();
 }
 
 } // namespace AutoRTFM
