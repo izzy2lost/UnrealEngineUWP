@@ -58,11 +58,8 @@ void FPoseSearchTrajectoryData::UpdateData(
 		}
 	}
 
-	// @todo: Simulated proxies don't have controllers, so they'll need some other mechanism to account for controller rotation rate.
-	const AController* Controller = Character->Controller;
-	if (Controller)
 	{
-		const float DesiredControllerYaw = Controller->GetDesiredRotation().Yaw;
+		const float DesiredControllerYaw = Character->GetViewRotation().Yaw;
 		
 		const float DesiredYawDelta = DesiredControllerYaw - TrajectoryDataState.DesiredControllerYawLastUpdate;
 		TrajectoryDataState.DesiredControllerYawLastUpdate = DesiredControllerYaw;
