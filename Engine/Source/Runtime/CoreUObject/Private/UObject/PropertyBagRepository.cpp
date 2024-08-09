@@ -959,6 +959,20 @@ FScopedIDOSerializationContext::FScopedIDOSerializationContext(UObject* InObject
 	}
 }
 
+FScopedIDOSerializationContext::FScopedIDOSerializationContext(bool bImpersonate)
+	: bCreateIDO(false)
+	, Archive(nullptr)
+	, Object(nullptr)
+	, PreSerializeOffset(0)
+{
+	FUObjectSerializeContext* SerializeContext = FUObjectThreadContext::Get().GetSerializeContext();
+	bool bHasIDOSupport = IsInstanceDataObjectSupportEnabled();
+	if (bHasIDOSupport)
+	{
+		ScopedImpersonateProperties.Emplace(SerializeContext->bImpersonateProperties, bImpersonate);
+	}
+}
+
 FScopedIDOSerializationContext::~FScopedIDOSerializationContext()
 {
 	if (bCreateIDO)

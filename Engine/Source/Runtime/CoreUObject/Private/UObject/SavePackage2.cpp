@@ -2997,7 +2997,7 @@ ESavePackageResult InnerSave(FSaveContext& SaveContext)
 {
 	SaveContext.SetEDLCookChecker(&FEDLCookCheckerThreadState::Get());
 
-	UE::FScopedIDOSerializationContext IDOSaveContext(nullptr, !SaveContext.IsCooking());
+	UE::FScopedIDOSerializationContext IDOSaveContext(!SaveContext.IsCooking());
 
 	// Create slow task dialog if needed
 	const int32 TotalSaveSteps = 3;

@@ -229,6 +229,7 @@ struct FScopedIDOSerializationContext
 #if WITH_EDITORONLY_DATA
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive);
 	COREUOBJECT_API FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate); // assumes save
+	COREUOBJECT_API FScopedIDOSerializationContext(bool bImpersonate); // assumes save
 	COREUOBJECT_API ~FScopedIDOSerializationContext();
 
 	bool bCreateIDO = false;
@@ -249,6 +250,7 @@ private:
 #else
 	inline FScopedIDOSerializationContext(UObject* InObject, FArchive& Archive) {}
 	inline explicit FScopedIDOSerializationContext(UObject* InObject, bool bImpersonate) {}
+	inline explicit FScopedIDOSerializationContext(bool bImpersonate) {}
 #endif
 
 	FScopedIDOSerializationContext(const FScopedIDOSerializationContext&) = delete;
