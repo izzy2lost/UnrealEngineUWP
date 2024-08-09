@@ -865,13 +865,7 @@ TRDGUniformBufferRef<FAdaptiveVolumetricShadowMaps> CreateAdaptiveVolumetricShad
 	FAdaptiveVolumetricShadowMaps* UniformBufferParameters = GraphBuilder.AllocParameters<FAdaptiveVolumetricShadowMaps>();
 	{
 		UniformBufferParameters->AVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(HeterogeneousVolumes::GetAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder, ViewState, LightSceneInfo));
-
-		TRDGUniformBufferRef<FAdaptiveVolumetricShadowMapUniformBufferParameters> CameraAVSM = ViewState->AdaptiveVolumetricCameraMapUniformBuffer;
-		if (!HeterogeneousVolumes::SupportsOverlappingVolumes())
-		{
-			CameraAVSM = HeterogeneousVolumes::CreateEmptyAdaptiveVolumetricShadowMapUniformBuffer(GraphBuilder);
-		}
-		UniformBufferParameters->CameraAVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(CameraAVSM);
+		UniformBufferParameters->CameraAVSM = GetAdaptiveVolumetricShadowMapParametersFromUniformBuffer(HeterogeneousVolumes::GetAdaptiveVolumetricCameraMapUniformBuffer(GraphBuilder, ViewState));
 	}
 
 	return GraphBuilder.CreateUniformBuffer(UniformBufferParameters);
