@@ -374,20 +374,41 @@ namespace EpicGames.Core
 	public static class IoHashExtensions
 	{
 		/// <summary>
+		/// Read an <see cref="IoHash"/> from a binary archive
+		/// </summary>
+		/// <param name="reader">Reader to serialize data from</param>
+		/// <returns>New IoHash instance</returns>
+		public static IoHash? ReadIoHash(this BinaryArchiveReader reader)
+		{
+			byte[]? data = reader.ReadByteArray();
+			return data == null ? null : new IoHash(data);
+		}
+
+		/// <summary>
 		/// Read an <see cref="IoHash"/> from a memory reader
 		/// </summary>
-		/// <param name="reader"></param>
-		/// <returns></returns>
+		/// <param name="reader">Reader to serialize data from</param>
+		/// <returns>New IoHash instance</returns>
 		public static IoHash ReadIoHash(this IMemoryReader reader)
 		{
 			return new IoHash(reader.ReadFixedLengthBytes(IoHash.NumBytes).Span);
 		}
 
 		/// <summary>
+		/// Write an <see cref="IoHash"/> to a binary archive
+		/// </summary>
+		/// <param name="writer">The writer to output data to</param>
+		/// <param name="hash">The IoHash to write</param>
+		public static void WriteIoHash(this BinaryArchiveWriter writer, IoHash? hash)
+		{
+			writer.WriteByteArray(hash?.ToByteArray());
+		}
+
+		/// <summary>
 		/// Write an <see cref="IoHash"/> to a memory writer
 		/// </summary>
-		/// <param name="writer"></param>
-		/// <param name="hash"></param>
+		/// <param name="writer">The writer to output data to</param>
+		/// <param name="hash">The IoHash to write</param>
 		public static void WriteIoHash(this IMemoryWriter writer, IoHash hash)
 		{
 			hash.CopyTo(writer.GetSpan(IoHash.NumBytes));
