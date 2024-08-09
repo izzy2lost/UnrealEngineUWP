@@ -2034,7 +2034,7 @@ FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(co
 	return InternalDoesPackageExistEx(PackagePath, Filter, bMatchCaseOnDisk, OutPackagePath);
 }
 
-FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FPackagePath & PackagePath, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath * OutPackagePath)
+FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(const FPackagePath& PackagePath, EPackageLocationFilter Filter, bool bMatchCaseOnDisk, FPackagePath* OutPackagePath)
 {
 	TStringBuilder<256> PackageName;
 	PackagePath.AppendPackageName(PackageName);
@@ -2051,39 +2051,21 @@ FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(co
 	}
 
 	FText Reason;
-	if ( !FPackageName::IsValidTextForLongPackageName( PackageName, &Reason ) )
+	if (!FPackageName::IsValidTextForLongPackageName(PackageName, &Reason))
 	{
-		UE_LOG(LogPackageName, Error, TEXT( "DoesPackageExist: DoesPackageExist FAILED: '%s' is not a long packagename name. Reason: %s"), PackageName.ToString(), *Reason.ToString() );
+		UE_LOG(LogPackageName, Error, TEXT("DoesPackageExist: DoesPackageExist FAILED: '%s' is not a long packagename name. Reason: %s"), PackageName.ToString(), *Reason.ToString());
 		return EPackageLocationFilter::None;
 	}
 
 	EPackageLocationFilter Result = EPackageLocationFilter::None;
 
-	if ((uint8)Filter & (uint8)EPackageLocationFilter::FileSystem)
-	{
-		bool bFoundInFileSystem = false;
-		if (bMatchCaseOnDisk)
-		{
-			bFoundInFileSystem = IPackageResourceManager::Get().TryMatchCaseOnDisk(PackagePath, OutPackagePath);
-		}
-		else
-		{
-			bFoundInFileSystem = IPackageResourceManager::Get().DoesPackageExist(PackagePath, OutPackagePath);
-		}
+	bool bCheckIoDispatcher = (uint8)Filter & (uint8)EPackageLocationFilter::IoDispatcher;
+	bool bCheckFilesystem = (uint8)Filter & (uint8)EPackageLocationFilter::FileSystem;
+	bool bAttemptSkipTryMatchCase = bCheckFilesystem && bMatchCaseOnDisk;
 
-		if (bFoundInFileSystem)
-		{
-			Result = EPackageLocationFilter((uint8)Result | (uint8)EPackageLocationFilter::FileSystem);
-
-			// if we just want to find any existence, then we are done
-			if (Filter == EPackageLocationFilter::Any)
-			{
-				return Result;
-			}
-		}
-	}
-
-	if (((uint8)Filter & (uint8)EPackageLocationFilter::IoDispatcher))
+	// Matching path case on disk is expensive. Even if the package filter doesn't include IoDispatcher, check 
+	// to see if the IoDispatcher contains this path since if it's there we can skip matching the case on disk.
+	if (bCheckIoDispatcher || bAttemptSkipTryMatchCase)
 	{
 		bool bFoundInIoDispatcher = false;
 		if (DoesPackageExistOverrideDelegate.IsBound())
@@ -2109,7 +2091,36 @@ FPackageName::EPackageLocationFilter FPackageName::InternalDoesPackageExistEx(co
 				}
 			}
 
-			Result = EPackageLocationFilter((uint8)Result | (uint8)EPackageLocationFilter::IoDispatcher);
+			static_assert(uint8(EPackageLocationFilter::None) == 0);
+			const uint8 CheckIoDispatcherBitMask = ~uint8(bCheckIoDispatcher) + 1;
+			Result = EPackageLocationFilter(uint8(Result) | (uint8(EPackageLocationFilter::IoDispatcher) & CheckIoDispatcherBitMask));
+
+			// if we just want to find any existence, then we are done
+			if (Filter == EPackageLocationFilter::Any)
+			{
+				return Result;
+			}
+
+			// We do not support assets in both the filesystem and IoDispatcher simultaneously, so skip checking the filesystem if requested
+			bCheckFilesystem = false;
+		}
+	}
+
+	if (bCheckFilesystem)
+	{
+		bool bFoundInFileSystem = false;
+		if (bMatchCaseOnDisk)
+		{
+			bFoundInFileSystem = IPackageResourceManager::Get().TryMatchCaseOnDisk(PackagePath, OutPackagePath);
+		}
+		else
+		{
+			bFoundInFileSystem = IPackageResourceManager::Get().DoesPackageExist(PackagePath, OutPackagePath);
+		}
+
+		if (bFoundInFileSystem)
+		{
+			Result = EPackageLocationFilter((uint8)Result | (uint8)EPackageLocationFilter::FileSystem);
 
 			// if we just want to find any existence, then we are done
 			if (Filter == EPackageLocationFilter::Any)
