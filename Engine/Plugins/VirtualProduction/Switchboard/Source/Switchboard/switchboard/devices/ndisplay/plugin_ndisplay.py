@@ -7,7 +7,9 @@ from pathlib import Path, PurePosixPath
 import socket
 import struct
 import traceback
+import uuid
 from typing import Optional
+from enum import Enum
 
 from PySide6 import QtCore
 from PySide6 import QtWidgets
@@ -24,12 +26,21 @@ from switchboard.devices.unreal.plugin_unreal import DeviceUnreal, \
     DeviceWidgetUnreal, LiveLinkPresetSetting, MediaProfileSetting
 from switchboard.devices.unreal.uassetparser import UassetParser
 from switchboard.devices.device_base import DeviceStatus
-from switchboard.message_protocol import SyncStatusRequestFlags
 from switchboard.switchboard_logging import LOGGER
 from switchboard.sbcache import SBCache, Asset
+from switchboard.devices.unreal.plugin_unreal import ProgramStartQueueItem
 
 from .ndisplay_monitor_ui import nDisplayMonitorUI
 from .ndisplay_monitor import nDisplayMonitor
+
+
+class PackagingClientConfig(Enum):
+    ''' Used to specify the type of client packaging'''
+
+    Default = "Default"
+    NoClient = "None"
+    Shipping = "Shipping"
+    Development = "Development"
 
 
 class AddnDisplayDialog(AddDeviceDialog):
@@ -89,8 +100,7 @@ class AddnDisplayDialog(AddDeviceDialog):
         grid_layout.addLayout(packaged_game_layout, 1, 1)
 
         # Path row (initially hidden)
-
-        self.lblPath = QtWidgets.QLabel(self, text="Packaged Executable")
+        self.lblPath = QtWidgets.QLabel(self, text=DevicenDisplay.csettings['packaged_game_path'].nice_name)
         self.lblPath.setVisible(False)
         self.pathField = QtWidgets.QLineEdit(self)
         self.pathField.setVisible(False)
@@ -1299,6 +1309,76 @@ class DevicenDisplay(DeviceUnreal):
     def select_as_primary(self):
         ''' Selects this node as the primary node in the nDisplay cluster '''
         self.__class__.select_device_as_primary(self)
+
+    def package_game(self, clientconfig: PackagingClientConfig = PackagingClientConfig.Default) -> uuid.UUID:
+        ''' Packages the game using default settings '''
+
+        program_name = "unreal_packagegame"
+        outdir = Path(self.get_packaged_game_path())
+
+        if outdir.is_file():
+            outdir = outdir.parent
+
+        # @todo using the remote platform would be more correct.
+
+        if sys.platform.startswith('linux'):
+            platform = 'Linux'
+        elif sys.platform.startswith('darwin'):
+            platform = 'Mac'
+        else:
+            platform = 'Win64'
+
+        if clientconfig == PackagingClientConfig.Default:
+            clientconfigarg = ''
+        else:
+            clientconfigarg = f'-clientconfig={clientconfig.value}'
+
+        args = [
+            'BuildCookRun',
+            f'-project="{CONFIG.UPROJECT_PATH.get_value(self.name)}"',
+            '-noP4',
+            f'-platform={platform}',
+            clientconfigarg,
+            '-cook',
+            '-allmaps',
+            '-build',
+            '-stage',
+            '-pack',
+            '-archive',
+            f'-archivedirectory="{str(outdir)}"'
+        ]
+
+        prog_exe = "RunUAT"
+
+        if sys.platform.startswith('win'):
+            prog_exe += ".bat"
+        else:
+            prog_exe += ".sh"
+
+        prog_path = str(Path(CONFIG.ENGINE_DIR.get_value(self.name)).parent / prog_exe)
+        prog_args = ' '.join(args)
+
+        LOGGER.info(f'Packaging "{self.name}" with command: {prog_path} {prog_args}')
+
+        puuid, msg = message_protocol.create_start_process_message(
+            prog_path=prog_path,
+            prog_args=prog_args,
+            prog_name=program_name,
+            caller=self.name,
+            update_clients_with_stdout=True,
+        )
+
+        self.program_start_queue.add(
+            ProgramStartQueueItem(
+                name=program_name,
+                puuid_dependency=None,
+                puuid=puuid,
+                msg_to_unreal_client=msg,
+            ),
+            unreal_client=self.unreal_client,
+        )
+
+        return puuid
 
     @classmethod
     def extract_configexport_from_uasset(cls, cfg_file) -> str:

@@ -43,6 +43,7 @@ from switchboard.tools.insights_launcher import InsightsLauncher
 from switchboard.tools.listener_launcher import ListenerLauncher
 from switchboard.tools.sblhelper_launcher import SBLHelperLauncher
 from switchboard.devices.unreal.plugin_unreal import DeviceUnreal
+from switchboard.devices.ndisplay.plugin_ndisplay import DevicenDisplay, PackagingClientConfig
 from switchboard.devices.unreal.redeploy_dialog import RedeployListenerDialog
 from switchboard.util import collect_logs
 
@@ -219,6 +220,7 @@ class ProcessMonitor(QtCore.QObject):
             self._dialog.update_locallistener_menuitem()
             self._dialog.update_localsblhelper_menuitem()
             self._dialog.update_insights_menuitem()
+            self._dialog.update_package_game_menuitem()
 
             time.sleep(1.0)
 
@@ -332,6 +334,9 @@ class SwitchboardDialog(QtCore.QObject):
 
         # Fill DDC submenu
         self.register_fill_ddc_menuitem()
+
+        # Package game
+        self.register_package_game_menuitem()
 
         # Transport Manager
         #self.transport_queue = recording.TransportQueue(CONFIG.SWITCHBOARD_DIR)
@@ -611,6 +616,24 @@ class SwitchboardDialog(QtCore.QObject):
         '''
         self.insights_launcher_menuitem.setEnabled(not self.insights_launcher.is_running())
 
+    def update_package_game_menuitem(self):
+        ''' Enables/disables the package game menu depending on whether
+        there are any nDisplay devices connected or not.
+        '''
+        ndisplay_devices = [device for device in self.device_manager.devices()
+                            if isinstance(device, DevicenDisplay) and not device.is_disconnected]
+
+        do_enable = len(ndisplay_devices) > 0
+
+        self.action_package_development.setEnabled(do_enable)
+        self.action_package_shipping.setEnabled(do_enable)
+
+        parent = self.action_package_development.parent()
+        while parent is not None and not isinstance(parent, QMenu):
+            parent = parent.parent()
+
+        parent.setEnabled(do_enable)
+
     def on_muserver_start_stop_click(self):
         '''
         Handle the multi-user server button click. If we are running we stop the process. If we are not
@@ -717,12 +740,45 @@ class SwitchboardDialog(QtCore.QObject):
         all_levels_action = self.register_tools_menu_action("All Levels", ["Fill DDC (Prepare Shaders)"])
         all_levels_action.triggered.connect(fill_ddc_all_levels_action)
 
+    def register_package_game_menuitem(self):
+        ''' Registers a menu item to package the nDisplay cluster game'''
+
+        def package_nDisplay_game(clientconfig: PackagingClientConfig):
+            ''' Callback to kick off the packaging process '''
+            ndisplay_devices = [device for device in self.device_manager.devices() 
+                                if isinstance(device, DevicenDisplay) and not device.is_disconnected]
+
+            for device in ndisplay_devices:
+                device.package_game(clientconfig)
+
+        actionname = "Package nDisplay Game"
+
+        actiontooltip = '\n'.join([
+            "Packages the project in all the nDisplay nodes currently connected to.",
+            f"The archive will reside in the location specified by '{DevicenDisplay.csettings['packaged_game_path'].nice_name}'",
+            "The Engine and Project source must be available on the remote machine."
+            ])
+
+        self.action_package_development = self.register_tools_menu_action(
+            "Development", menunames=[actionname], actiontooltip=actiontooltip
+        )
+        self.action_package_development.triggered.connect(lambda: package_nDisplay_game(PackagingClientConfig.Development))
+
+        self.action_package_shipping = self.register_tools_menu_action(
+            "Shipping", menunames=[actionname], actiontooltip=actiontooltip
+        )
+        self.action_package_shipping.triggered.connect(lambda: package_nDisplay_game(PackagingClientConfig.Shipping))
+
     def add_tools_menu(self):
         ''' Adds tools menu to menu bar and populates built-in items '''
 
         self.tools_menu = self.window.menu_bar.addMenu("&Tools")
 
-    def register_tools_menu_action(self, actionname: str, menunames: List[str] = []) -> QWidgetAction:
+    def register_tools_menu_action(
+            self,
+            actionname: str,
+            menunames: List[str] = [],
+            actiontooltip: str = '') -> QWidgetAction:
         ''' Registers a QWidgetAction with the tools menu
 
         Args:
@@ -762,6 +818,8 @@ class SwitchboardDialog(QtCore.QObject):
         # add the given action
         action = QWidgetAction(current_menu)
         action.setText(actionname)
+        action.setToolTip(actiontooltip)
+        current_menu.setToolTipsVisible(True)
         current_menu.addAction(action)
 
         return action
