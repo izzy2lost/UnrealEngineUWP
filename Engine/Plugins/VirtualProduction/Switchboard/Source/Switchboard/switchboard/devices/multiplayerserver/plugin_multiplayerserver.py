@@ -24,24 +24,25 @@ class DeviceMultiplayerServer(DeviceUnreal):
             tool_tip="Port to use for multiplayer connections"
         )
     }
+
     def __init__(self, name, address, **kwargs):
 
         super().__init__(name, address, **kwargs)
-    
+
     def generate_unreal_exe_path(self):
         exe_path = self.settings['executable_path'].get_value()
         if exe_path == '':
             return super().generate_unreal_exe_path()
-        
+
         return exe_path
 
     def generate_unreal_command_line_args(self, map_name):
         command_line_args = ''
         uproject_path = CONFIG.UPROJECT_PATH.get_value()
-        
+
         custom_level_path = self.settings['level_path'].get_value().strip()
         level_path = custom_level_path if custom_level_path != '' else get_game_launch_level_path()
-            
+
         if self.settings['executable_path'].get_value() == '':
             command_line_args = f'{uproject_path} {level_path} -server'
         else:
@@ -66,7 +67,7 @@ class DeviceWidgetMultiplayerServer(DeviceWidgetUnreal):
     def __init__(self, name, device_type, device_hash, address, parent=None):
 
         super().__init__(name, device_type, device_hash, address, parent=parent)
-        
+
         self.autojoin_mu._button.setVisible(False)
         self.build_button.setDisabled(True)
         self.build_button.setVisible(False)

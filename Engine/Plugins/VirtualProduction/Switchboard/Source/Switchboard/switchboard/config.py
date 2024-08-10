@@ -691,6 +691,16 @@ class FileSystemPathSetting(StringSetting):
             'class directly. A derived class (e.g. DirectoryPathSetting or '
             'FilePathSetting) must be used instead.')
 
+    def _getStartPath(self) -> str:
+        ''' Returns a reasonable start path for the file dialog'''
+
+        start_path = str(pathlib.Path.home())
+
+        if (SETTINGS.LAST_BROWSED_PATH and os.path.exists(SETTINGS.LAST_BROWSED_PATH)):
+            start_path = SETTINGS.LAST_BROWSED_PATH
+
+        return start_path
+
     def _create_widgets(
             self, override_device_name: Optional[str] = None) \
             -> QtWidgets.QHBoxLayout:
@@ -705,10 +715,7 @@ class FileSystemPathSetting(StringSetting):
         edit_layout.addWidget(browse_btn)
 
         def on_browse_clicked():
-            start_path = str(pathlib.Path.home())
-            if (SETTINGS.LAST_BROWSED_PATH and
-                    os.path.exists(SETTINGS.LAST_BROWSED_PATH)):
-                start_path = SETTINGS.LAST_BROWSED_PATH
+            start_path = self._getStartPath()
 
             fs_path = self._getFileSystemPath(
                 parent=browse_btn, start_path=start_path)
@@ -774,12 +781,30 @@ class FilePathSetting(FileSystemPathSetting):
 
         self.file_path_filter = file_path_filter
 
+    #~ Begin FileSystemPathSetting Interface
+
+    def _getStartPath(self) -> str:
+        ''' Tries to use the current value to initialize the starting path,
+        otherwise returns the base class implementation'''
+
+        current_path = self.get_value()
+
+        if os.path.exists(current_path):
+            return current_path
+
+        return super()._getStartPath()
+
     def _getFileSystemPath(
             self, parent: Optional[QtWidgets.QWidget] = None,
-            start_path: str = '') -> str:
+            start_path: str = ''
+            ) -> str:
+
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             parent=parent, dir=start_path, filter=self.file_path_filter)
+
         return file_path
+
+    #~ End FileSystemPathSetting Interface
 
 
 class PerforcePathSetting(StringSetting):
@@ -2132,22 +2157,33 @@ class Config(object):
         self.SWITCHBOARD_DIR = os.path.abspath(
             os.path.join(os.path.dirname(os.path.abspath(__file__)), '../'))
 
-        # MISC SETTINGS
         self.CURRENT_LEVEL = data.get('current_level', DEFAULT_MAP_TEXT)
 
-        # UE plugin tracking
-        self.ue_plugin_mgr = UnrealPluginManager()
-        self.ue_plugin_mgr.set_engine_dir(Path(self.ENGINE_DIR.get_value()))
-        self.ue_plugin_mgr.set_uproject_path(
-            Path(self.UPROJECT_PATH.get_value()))
+        self.init_plugin_tracking()
+        self.init_devices(data)
 
-        self.ENGINE_DIR.signal_setting_changed.connect(
-            lambda _, new: self.ue_plugin_mgr.set_engine_dir(Path(new)))
+    def _backup_corrupted_config(self, original_file_path: str):
+        directory_name = os.path.dirname(original_file_path)
+        original_file_name = os.path.basename(original_file_path)
+        new_file_name = original_file_name.replace(".", "_corrupted_backup.")
 
-        self.UPROJECT_PATH.signal_setting_changed.connect(
-            lambda _, new: self.ue_plugin_mgr.set_uproject_path(Path(new)))
+        LOGGER.error(f'{original_file_name} has invalid JSON format. Creating default...')
+        answer = QtWidgets.QMessageBox.question(
+            None,
+            'Invalid project settings',
+            f'Config file { original_file_name } is invalid JSON and will be replaced by a new default JSON config.'
+            f'\n\nDo you want to save a backup named { new_file_name }?',
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
+        )
+        if answer == QtWidgets.QMessageBox.Yes:
+            new_file_path = os.path.join(directory_name, new_file_name)
+            if os.path.exists(new_file_path):
+                os.remove(new_file_path)
+            shutil.copy(original_file_path, new_file_path)
 
-        # Devices
+    def init_devices(self, data={}):
+        ''' '''
+
         self._device_data_from_config = {}
         self._plugin_data_from_config = {}
         self._device_settings = {}
@@ -2176,48 +2212,39 @@ class Config(object):
                     self._device_data_from_config.setdefault(
                         device_type, []).append(device_data)
 
-    def _backup_corrupted_config(self, original_file_path: str):
-        directory_name = os.path.dirname(original_file_path)
-        original_file_name = os.path.basename(original_file_path)
-        new_file_name = original_file_name.replace(".", "_corrupted_backup.")
+    def init_plugin_tracking(self):
+        ''' Initializes the plugin manager '''
 
-        LOGGER.error(f'{original_file_name} has invalid JSON format. Creating default...')
-        answer = QtWidgets.QMessageBox.question(
-            None,
-            'Invalid project settings',
-            f'Config file { original_file_name } is invalid JSON and will be replaced by a new default JSON config.'
-            f'\n\nDo you want to save a backup named { new_file_name }?',
-            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
-        )
-        if answer == QtWidgets.QMessageBox.Yes:
-            new_file_path = os.path.join(directory_name, new_file_name)
-            if os.path.exists(new_file_path):
-                os.remove(new_file_path)
-            shutil.copy(original_file_path, new_file_path)
+        self.ue_plugin_mgr = UnrealPluginManager()
+        self.ue_plugin_mgr.set_engine_dir(Path(self.ENGINE_DIR.get_value()))
+        self.ue_plugin_mgr.set_uproject_path(Path(self.UPROJECT_PATH.get_value()))
+
+        self.ENGINE_DIR.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_engine_dir(Path(new)))
+
+        self.UPROJECT_PATH.signal_setting_changed.connect(
+            lambda _, new: self.ue_plugin_mgr.set_uproject_path(Path(new)))
 
     def init_new_config(self, file_path: Union[str, pathlib.Path], uproject, engine_dir, p4_settings):
-        ''' 
-        Initialize new configuration
-        '''
+        ''' Initialize new configuration '''
+
+        basic_project_settings = {
+                "project_name": self.file_path.stem,
+                "uproject": uproject,
+                "engine_dir": engine_dir,
+            }
 
         self.file_path = get_absolute_config_path(file_path)
         self.init_switchboard_settings()
         self.init_sblhelper_settings()
-        self.init_project_settings(
-            { 
-                "project_name": self.file_path.stem, 
-                "uproject": uproject, 
-                "engine_dir": engine_dir,
-            } | p4_settings)
+        self.init_project_settings(basic_project_settings | p4_settings)
         self.init_unreal_insights()
         self.init_muserver()
 
         self.CURRENT_LEVEL = DEFAULT_MAP_TEXT
 
-        self._device_data_from_config = {}
-        self._plugin_data_from_config = {}
-        self._plugin_settings = {}
-        self._device_settings = {}
+        self.init_plugin_tracking()
+        self.init_devices()
 
         LOGGER.info(f"Creating new config saved in {self.file_path}")
         self.save()
@@ -2228,9 +2255,9 @@ class Config(object):
     def init_switchboard_settings(self, data={}):
         self.switchboard_settings = {
             "listener_exe": StringSetting(
-                attr_name = "listener_exe",
-                nice_name = "Listener Executable Name",
-                value = data.get('listener_exe', 'SwitchboardListener')
+                attr_name="listener_exe",
+                nice_name="Listener Executable Name",
+                value=data.get('listener_exe', 'SwitchboardListener')
             )
         }
 
@@ -2239,14 +2266,14 @@ class Config(object):
     def init_sblhelper_settings(self, data={}):
         self.sblhelper_settings = {
             "sblhelper_exe": StringSetting(
-                attr_name = "sblhelper_exe",
-                nice_name = "Gpu Clocker Executable Name",
-                value = data.get('sblhelper_exe', 'SwitchboardListenerHelper'),
-                tool_tip = "Name of the executable that SwitchboardListener can communicate with to lock Gpu clocks.",
-                show_ui = True if sys.platform in ('win32','linux') else False, # # Gpu Clocker is available in select platforms
+                attr_name="sblhelper_exe",
+                nice_name="Gpu Clocker Executable Name",
+                value=data.get('sblhelper_exe', 'SwitchboardListenerHelper'),
+                tool_tip="Name of the executable that SwitchboardListener can communicate with to lock Gpu clocks.",
+                show_ui=True if sys.platform in ('win32', 'linux') else False  # Gpu Clocker is available in select platforms
             )
         }
-        
+
         self.SBLHELPER_EXE = self.sblhelper_settings["sblhelper_exe"]
 
     def init_project_settings(self, data={}):

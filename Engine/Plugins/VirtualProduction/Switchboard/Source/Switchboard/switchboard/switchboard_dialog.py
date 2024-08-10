@@ -419,6 +419,7 @@ class SwitchboardDialog(QtCore.QObject):
             lambda: self._set_engine_changelist(self.window.engine_cl_combo_box.currentText()))
         self.window.logger_level_comboBox.currentTextChanged.connect(self.logger_level_comboBox_currentTextChanged)
         self.window.logger_autoscroll_checkbox.stateChanged.connect(self.logger_autoscroll_stateChanged)
+        self.window.clear_log_button.clicked.connect(self.clear_log_button_clicked)
         self.window.logger_wrap_checkbox.stateChanged.connect(self.logger_wrap_stateChanged)
         self.window.record_button.released.connect(self.record_button_released)
         self.window.sync_all_button.clicked.connect(self.sync_all_button_clicked)
@@ -700,7 +701,8 @@ class SwitchboardDialog(QtCore.QObject):
 
     def register_fill_ddc_menuitem(self):
         def fill_ddc(current_level_only):
-            for device in self.device_manager.devices():
+            unrealdevices = [device for device in self.device_manager.devices() if isinstance(device, DeviceUnreal)]
+            for device in unrealdevices:
                 if not device.is_disconnected:
                     device.fill_derived_data_cache(current_level_only)
 
@@ -1187,6 +1189,10 @@ class SwitchboardDialog(QtCore.QObject):
             return self.osc_server.launch(SETTINGS.ADDRESS.get_value(), CONFIG.OSC_SERVER_PORT.get_value())
         else:
             return True
+
+    def clear_log_button_clicked(self):
+        ''' Called when the "Clear" button of the log window is clicked'''
+        self.window.base_console.clear()
 
     def sync_all_button_clicked(self):
         if not CONFIG.P4_ENABLED.get_value():
@@ -1918,14 +1924,14 @@ class SwitchboardDialog(QtCore.QObject):
             LOGGER.setLevel(logging.INFO)
 
     def logger_autoscroll_stateChanged(self, value):
-        if value == QtCore.Qt.Checked:
+        if QtCore.Qt.CheckState(value) == QtCore.Qt.Checked:
             self.logger_autoscroll = True
             self.logger_scroll_to_end()
         else:
             self.logger_autoscroll = False
 
     def logger_wrap_stateChanged(self, value):
-        if value == QtCore.Qt.Checked:
+        if QtCore.Qt.CheckState(value) == QtCore.Qt.Checked:
             self.window.base_console.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.WidgetWidth)
         else:
             self.window.base_console.setLineWrapMode(QtWidgets.QPlainTextEdit.LineWrapMode.NoWrap)
