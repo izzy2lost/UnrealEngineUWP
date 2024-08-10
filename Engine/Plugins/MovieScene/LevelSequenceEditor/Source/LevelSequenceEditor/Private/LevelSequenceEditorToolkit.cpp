@@ -175,6 +175,7 @@ void FLevelSequenceEditorToolkit::Initialize(const EToolkitMode::Type Mode, cons
 		SequencerInitParams.HostCapabilities.bSupportsSaveMovieSceneAsset = true;
 		SequencerInitParams.HostCapabilities.bSupportsRecording = true;
 		SequencerInitParams.HostCapabilities.bSupportsRenderMovie = true;
+		SequencerInitParams.HostCapabilities.bSupportsAddFromContentBrowser = true;
 	}
 
 	ExtendSequencerToolbar("Sequencer.MainToolBar");
@@ -588,9 +589,10 @@ void FLevelSequenceEditorToolkit::AddDefaultTracksForActor(AActor& Actor, const 
 				break;
 			}
 
+			FGuid ComponentBinding = Sequencer->GetHandleToObject(PropertyOwner);
+
 			if (bReplaceWithTransformTrack)
 			{
-				FGuid ComponentBinding = Sequencer->GetHandleToObject(PropertyOwner);
 				UClass* TrackClass = UMovieScene3DTransformTrack::StaticClass();
 				UMovieSceneTrack* NewTrack = MovieScene->FindTrack(TrackClass, ComponentBinding);
 				if (!NewTrack)
@@ -598,6 +600,29 @@ void FLevelSequenceEditorToolkit::AddDefaultTracksForActor(AActor& Actor, const 
 					NewTrack = MovieScene->AddTrack(TrackClass, ComponentBinding);
 					CreateDefaultTrackSection(NewTrack, PropertyOwner);
 				}
+				continue;
+			}
+
+			bool bFoundPropertyTrack = false;
+			if (ComponentBinding.IsValid())
+			{
+				TArray<UMovieSceneTrack*> Tracks = MovieScene->FindTracks(UMovieScenePropertyTrack::StaticClass(), ComponentBinding, NAME_None);
+				for (UMovieSceneTrack* Track : Tracks)
+				{
+					UMovieScenePropertyTrack* PropertyTrack = Cast<UMovieScenePropertyTrack>(Track);
+					if (PropertyTrack)
+					{
+						if (PropertyTrack->GetPropertyPath() == PropertyTrackSettings.PropertyPath)
+						{
+							bFoundPropertyTrack = true;
+							break;
+						}
+					}
+				}
+			}
+
+			if (bFoundPropertyTrack)
+			{
 				continue;
 			}
 

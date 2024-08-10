@@ -1687,13 +1687,16 @@ TSharedRef<SWidget> SSequencer::MakeAddMenu()
 	TSharedPtr<FExtender> Extender = FExtender::Combine(AddMenuExtenders);
 	FMenuBuilder MenuBuilder(true, nullptr, Extender);
 
-	MenuBuilder.AddMenuEntry(
-		LOCTEXT("SelectedFromContentBrowser", "Selected from Content Browser"),
-		LOCTEXT("SelectedFromContentBrowserToolTip", "Add selected content from the content browser"),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Use"),
-		FUIAction(
-			FExecuteAction::CreateRaw(this, &SSequencer::AddFromContentBrowser),
-			FCanExecuteAction::CreateRaw(this, &SSequencer::CanAddFromContentBrowser)));
+	if (SequencerPtr.Pin()->GetHostCapabilities().bSupportsAddFromContentBrowser)
+	{
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("SelectedFromContentBrowser", "Selected from Content Browser"),
+			LOCTEXT("SelectedFromContentBrowserToolTip", "Add selected content from the content browser"),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Icons.Use"),
+			FUIAction(
+				FExecuteAction::CreateRaw(this, &SSequencer::AddFromContentBrowser),
+				FCanExecuteAction::CreateRaw(this, &SSequencer::CanAddFromContentBrowser)));
+	}
 
 	{
 		TSharedPtr<FSequencer> Sequencer = SequencerPtr.Pin();

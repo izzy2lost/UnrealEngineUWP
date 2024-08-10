@@ -147,11 +147,15 @@ struct FSequencerHostCapabilities
 	/** Do we support rendering to a movie */
 	bool bSupportsRenderMovie;
 
+	/** Do we support adding content from the content browser */
+	bool bSupportsAddFromContentBrowser;
+
 	FSequencerHostCapabilities()
 		: bSupportsSaveMovieSceneAsset(false)
 		, bSupportsCurveEditor(false)
 		, bSupportsRecording(false)
 		, bSupportsRenderMovie(false)
+		, bSupportsAddFromContentBrowser(false)
 	{}
 };
 

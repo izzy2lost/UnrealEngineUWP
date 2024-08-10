@@ -1454,6 +1454,7 @@ TSharedPtr<ISequencer> FWidgetBlueprintEditor::CreateSequencerWidgetInternal()
 		SequencerInitParams.EventContexts = TAttribute<TArray<UObject*>>(this, &FWidgetBlueprintEditor::GetAnimationEventContexts);
 
 		SequencerInitParams.HostCapabilities.bSupportsCurveEditor = true;
+		SequencerInitParams.HostCapabilities.bSupportsAddFromContentBrowser = true;
 	};
 
 	TSharedPtr<ISequencer> Sequencer = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer").CreateSequencer(SequencerInitParams);
