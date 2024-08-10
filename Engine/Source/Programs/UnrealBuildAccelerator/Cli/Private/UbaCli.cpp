@@ -51,9 +51,15 @@ namespace uba
 			logger.Info(TC(""));
 			logger.Error(TC("%s"), message);
 		}
+
+		const tchar* dbgStr = TC("");
+		#if UBA_DEBUG
+		dbgStr = TC(" (DEBUG)");
+		#endif
+
 		logger.Info(TC(""));
 		logger.Info(TC("-------------------------------------------"));
-		logger.Info(TC("   UbaCli v%s"), Version);
+		logger.Info(TC("   UbaCli v%s%s"), Version, dbgStr);
 		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
 		logger.Info(TC("  UbaCli.exe [options...] <commandtype> <executable> [arguments...]"));
