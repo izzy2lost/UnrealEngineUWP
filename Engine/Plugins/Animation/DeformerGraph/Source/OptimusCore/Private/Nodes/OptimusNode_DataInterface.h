@@ -58,6 +58,7 @@ public:
 protected:
 	// -- UOptimusNode overrides
 	void ConstructNode() override;
+	FText GetDisplayName() const override;
 	bool ValidateConnection(const UOptimusNodePin& InThisNodesPin, const UOptimusNodePin& InOtherNodesPin, FString* OutReason) const override;
 	TOptional<FText> ValidateForCompile(const FOptimusPinTraversalContext& InContext) const override;
 	void PostLoadNodeSpecificData() override;

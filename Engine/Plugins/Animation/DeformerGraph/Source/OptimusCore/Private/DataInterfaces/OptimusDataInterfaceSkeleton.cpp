@@ -16,7 +16,7 @@
 
 FString UOptimusSkeletonDataInterface::GetDisplayName() const
 {
-	return TEXT("Skeleton (Outdated)");
+	return TEXT("Skeleton");
 }
 
 TArray<FOptimusCDIPinDefinition> UOptimusSkeletonDataInterface::GetPinDefinitions() const

@@ -111,9 +111,6 @@ void UOptimusNode_DataInterface::PostLoadNodeSpecificData()
 	{
 		CreateComponentPin();
 	}
-
-	// Make sure to use the latest display name
-	UpdateDisplayNameFromDataInterface();
 }
 
 void UOptimusNode_DataInterface::OnDataTypeChanged(FName InTypeName)
@@ -359,6 +356,20 @@ void UOptimusNode_DataInterface::ConstructNode()
 		CreateComponentPin();
 		CreatePinsFromDataInterface(DataInterfaceData, false);
 	}
+}
+
+FText UOptimusNode_DataInterface::GetDisplayName() const
+{
+	FText SerializedDisplayName = Super::GetDisplayName();
+
+	if (DataInterfaceData && !DataInterfaceData->IsVisible())
+	{
+		FText OutdatedSuffix = LOCTEXT("OutdatedSuffix", "(Outdated)");
+
+		return FText::Join(FText::GetEmpty(), SerializedDisplayName, OutdatedSuffix);
+	}
+
+	return SerializedDisplayName;
 }
 
 
