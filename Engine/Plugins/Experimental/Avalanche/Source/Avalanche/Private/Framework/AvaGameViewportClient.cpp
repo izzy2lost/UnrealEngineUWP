@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Framework/AvaGameViewportClient.h"
-#include "Camera/CameraActor.h"
+
 #include "Camera/CameraComponent.h"
 #include "Camera/CameraPhotography.h"
 #include "Components/LineBatchComponent.h"
@@ -20,6 +20,7 @@
 #include "IXRTrackingSystem.h"
 #include "LegacyScreenPercentageDriver.h"
 #include "Misc/EngineVersionComparison.h"
+#include "SceneManagement.h"
 #include "SceneViewExtension.h"
 #include "TextureResource.h"
 #include "UObject/Package.h"
@@ -288,6 +289,19 @@ bool UAvaGameViewportClient::IsStatEnabled(const FString& InName) const
 {
 	// The IAvaModule holds the runtime stats. We want them persistent across all viewports.
 	return IAvaModule::Get().IsRuntimeStatEnabled(InName);
+}
+
+void UAvaGameViewportClient::AddReferencedObjects(UObject* InThis, FReferenceCollector& InCollector)
+{
+	UAvaGameViewportClient* This = CastChecked<UAvaGameViewportClient>(InThis);
+	for (FSceneViewStateReference& ViewState : This->ViewStates)
+	{
+		if (ViewState.GetReference())
+		{
+			ViewState.GetReference()->AddReferencedObjects(InCollector);
+		}
+	}
+	Super::AddReferencedObjects(InThis, InCollector);
 }
 
 void UAvaGameViewportClient::SetCameraCutThisFrame()

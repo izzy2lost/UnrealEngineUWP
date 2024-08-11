@@ -28,6 +28,8 @@ public:
 	virtual bool IsStatEnabled(const FString& InName) const override;
 	//~ End FViewportClient
 
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& InCollector);
+	
 	void SetCameraCutThisFrame();
 
 	void SetRenderTarget(UTextureRenderTarget2D* InRenderTarget);
