@@ -8,7 +8,7 @@ import socket
 import struct
 import traceback
 import uuid
-from typing import Optional
+from typing import Optional, Dict, OrderedDict
 from enum import Enum
 
 from PySide6 import QtCore
@@ -378,13 +378,15 @@ class DevicenDisplay(DeviceUnreal):
             value="",
             tool_tip="Path to nDisplay config file",
             allow_reset=False,
-            is_read_only=True
+            is_read_only=True,
+            category="General Settings",
         ),
         'is_packaged_game': BoolSetting(
             attr_name="is_packaged_game",
             nice_name="Packaged Game",
             value=False,
-            tool_tip="Check if launching a packaged game."
+            tool_tip="Check if launching a packaged game.",
+            category="General Settings",
         ),
         'packaged_game_path': FilePathSetting(
             attr_name="packaged_game_path",
@@ -392,28 +394,33 @@ class DevicenDisplay(DeviceUnreal):
             value="",
             tool_tip="Path to the nDisplay packaged game executable. Only used when 'Packaged Game' is checked.",
             show_ui=True,
-            file_path_filter="Programs and Scripts (*.exe;*.bat;*.sh);;All Files (*)"
+            file_path_filter="Programs and Scripts (*.exe;*.bat;*.sh);;All Files (*)",
+            category="General Settings",
         ),
         'use_all_available_cores': BoolSetting(
             attr_name="use_all_available_cores",
             nice_name="Use All Available Cores",
             value=False,
+            category="UE Settings",
         ),
         'texture_streaming': BoolSetting(
             attr_name="texture_streaming",
             nice_name="Texture Streaming",
             value=True,
+            category="Render Settings",
         ),
         'sound': BoolSetting(
             attr_name="sound",
             nice_name="Sound",
             value=False,
+            category="UE Settings",
         ),
         'loading_screen': BoolSetting(
             attr_name="loading_screen",
             nice_name="Loading Screen",
             value=False,
-            tool_tip='When unchecked, will add -NoLoadingScreen to the command line'
+            tool_tip='When unchecked, will add -NoLoadingScreen to the command line',
+            category="UE Settings",
         ),
         'render_api': OptionSetting(
             attr_name="render_api",
@@ -430,32 +437,37 @@ class DevicenDisplay(DeviceUnreal):
                 "vulkan -sm5",
                 "vulkan -sm6"
             ],
+            category="Render Settings",
         ),
         'multiplayer_mode': OptionSetting(
             attr_name="multiplayer_mode",
             nice_name="Multiplayer Server Mode",
             value='None',
-            possible_values=['None', 'Listen server', 'Dedicated server']
+            possible_values=['None', 'Listen server', 'Dedicated server'],
+            category="Multiplayer Settings",
         ),
         'dedicated_server_address': AddressSetting(
             attr_name="dedicated_server_address",
             nice_name="Dedicated Server Address",
             value='127.0.0.1',
             tool_tip='Server address to connect to. Not used if Multiplayer Server Mode '
-                     'is set to "Listen Server" or auto start of dedicated server is enabled'
+                     'is set to "Listen Server" or auto start of dedicated server is enabled',
+            category="Multiplayer Settings",
         ),
         'dedicated_server_port': IntSetting(
             attr_name="dedicated_server_port",
             nice_name="Dedicated Server Port",
             value='7777',
-            tool_tip='Server port to connect to. Not used if Multiplayer Server Mode is not Dedicated Server'
+            tool_tip='Server port to connect to. Not used if Multiplayer Server Mode is not Dedicated Server',
+            category="Multiplayer Settings",
         ),
         'render_mode': OptionSetting(
             attr_name="render_mode",
             nice_name="Render Mode",
             value="Mono",
             possible_values=[
-                "Mono", "Frame sequential", "Side-by-Side", "Top-bottom"]
+                "Mono", "Frame sequential", "Side-by-Side", "Top-bottom"],
+            category="Render Settings",
         ),
         'render_sync_policy': OptionSetting(
             attr_name="render_sync_policy",
@@ -469,17 +481,20 @@ class DevicenDisplay(DeviceUnreal):
                 "- 'Ethernet': Ethernet-based sync. Formerly known as 'sync policy 1'\n"
                 "- 'Nvidia': Nvidia's Quadro Sync Framelock. Formerly known as 'sync policy 2'\n"
             ),
+            category="Render Settings",
         ),
         'executable_filename': FilePathSetting(
             attr_name="executable_filename",
             nice_name="Unreal Editor Filename",
             value="UnrealEditor.exe",
-            file_path_filter="Programs (*.exe;*.bat);;All Files (*)"
+            file_path_filter="Programs (*.exe;*.bat);;All Files (*)",
+            category="UE Settings",
         ),
         'ndisplay_cmd_args': StringSetting(
             attr_name="ndisplay_cmd_args",
             nice_name="Extra Cmd Line Args",
             value="",
+            category="Command Line Args",
         ),
         'ndisplay_exec_cmds': StringListSetting(
             attr_name="ndisplay_exec_cmds",
@@ -487,14 +502,16 @@ class DevicenDisplay(DeviceUnreal):
             value=[],
             tool_tip='ExecCmds to be passed. No need for outer double quotes.',
             allow_reset=False,
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'ndisplay_dp_cvars': StringListSetting(
             attr_name='ndisplay_dp_cvars',
             nice_name="DPCVars",
             value=[],
             tool_tip="Device profile console variables.",
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'ndisplay_unattended': BoolSetting(
             attr_name='ndisplay_unattended',
@@ -504,6 +521,7 @@ class DevicenDisplay(DeviceUnreal):
                 'Include the "-unattended" command line argument, which is '
                 'documented to "Disable anything requiring feedback from the '
                 'user."'),
+            category="UE Settings",
         ),
         'max_gpu_count': OptionSetting(
             attr_name="max_gpu_count",
@@ -513,13 +531,15 @@ class DevicenDisplay(DeviceUnreal):
             tool_tip=(
                 "If you have multiple GPUs in the PC, you can specify how "
                 "many to use."),
-        ),
+            category="GPU/CPU Settings",
+       ),
         'priority_modifier': OptionSetting(
             attr_name='priority_modifier',
             nice_name="Process Priority",
             value=sb_utils.PriorityModifier.Normal.name,
             possible_values=[p.name for p in sb_utils.PriorityModifier],
             tool_tip="Used to override the priority of the process.",
+            category="GPU/CPU Settings",
         ),
         'populated_config_itemDatas': Setting(
             attr_name='populated_config_itemDatas',
@@ -532,7 +552,8 @@ class DevicenDisplay(DeviceUnreal):
             attr_name='minimize_before_launch',
             nice_name="Minimize Before Launch",
             value=True,
-            tool_tip="Minimizes windows before launch"
+            tool_tip="Minimizes windows before launch",
+            category="General Settings",
         ),
         'primary_device_name': StringSetting(
             attr_name='primary_device_name',
@@ -564,7 +585,8 @@ class DevicenDisplay(DeviceUnreal):
                 'LogLiveLink',
                 'LogRemoteControl',
             ],
-            tool_tip='Logging categories and verbosity levels'
+            tool_tip='Logging categories and verbosity levels',
+            category="UE Settings",
         ),
         'udpmessaging_unicast_endpoint': StringSetting(
             attr_name='udpmessaging_unicast_endpoint',
@@ -574,6 +596,7 @@ class DevicenDisplay(DeviceUnreal):
                 'Local interface binding (-UDPMESSAGING_TRANSPORT_UNICAST) of '
                 'the form {address}:{port}. If {address} is omitted, the device '
                 'address is used.'),
+            category="Network Settings",
         ),
         'udpmessaging_extra_static_endpoints': StringSetting(
             attr_name='udpmessaging_extra_static_endpoints',
@@ -583,25 +606,29 @@ class DevicenDisplay(DeviceUnreal):
                 'Comma separated. Used to add static endpoints '
                 '(-UDPMESSAGING_TRANSPORT_STATIC) in addition to those '
                 'managed by Switchboard.'),
+            category="Network Settings",
         ),
         'disable_ensures': BoolSetting(
             attr_name='disable_ensures',
             nice_name="Disable Ensures",
             value=True,
-            tool_tip="When checked, disables the handling of ensure errors - which are non-fatal and may cause hitches."
+            tool_tip="When checked, disables the handling of ensure errors - which are non-fatal and may cause hitches.",
+            category="UE Settings",
         ),
         'disable_all_screen_messages': BoolSetting(
             attr_name='disable_all_screen_messages',
             nice_name="Disable All Screen Messages",
             value=True,
-            tool_tip="When checked, adds DisableAllScreenMessages to ExecCmds"
+            tool_tip="When checked, adds DisableAllScreenMessages to ExecCmds",
+            category="UE Settings",
         ),
         'livelink_preset': LiveLinkPresetSetting(
             attr_name='livelink_preset',
             nice_name='LiveLink Preset',
             value='',
             tool_tip=(
-                'Adds the selected LiveLink preset to the command line \n')
+                'Adds the selected LiveLink preset to the command line \n'),
+            category="Tools Settings",
         ),
         'graphics_adapter': OptionSetting(
             attr_name="graphics_adapter",
@@ -613,12 +640,14 @@ class DevicenDisplay(DeviceUnreal):
                 "- 'Config' : Use the setting in the nDisplay config file \n"
                 "- 0, 1, .. : The specified gpu index \n"
             ),
+            category="GPU/CPU Settings",
         ),
         'mediaprofile': MediaProfileSetting(
             attr_name='mediaprofile',
             nice_name='Media Profile',
             value='',
-            tool_tip=('Adds the selected Media Profile to the command line')
+            tool_tip=('Adds the selected Media Profile to the command line'),
+            category="Tools Settings",
         ),
         'lock_gpu_clock': BoolSetting(
             attr_name="lock_gpu_clock",
@@ -629,6 +658,7 @@ class DevicenDisplay(DeviceUnreal):
                 "to be running on the client machine as administrator, otherwise this option will be ignored."
             ),
             show_ui=True if sys.platform in ('win32', 'linux') else False,  # Gpu Clocker is available in select platforms
+            category="GPU/CPU Settings",
         ),
     }
 
@@ -644,7 +674,8 @@ class DevicenDisplay(DeviceUnreal):
                 nice_name="UE Command Line",
                 value=kwargs.get("ue_command_line", ''),
                 allow_reset=False,
-                is_read_only=True
+                is_read_only=True,
+                category="Command Line Args",
             ),
             'window_position': Setting(
                 attr_name="window_position",

@@ -121,21 +121,26 @@ class Setting(QtCore.QObject):
         show_ui: bool = True,
         allow_reset: bool = True,
         migrate_data: Optional[Callable[[Any], None]] = None,
+        category: str = 'Misc'
     ):
         '''
         Create a new Setting object.
 
         Args:
-            attr_name: Internal name.
-            nice_name: Display name.
-            value    : The initial value of this Setting.
-            tool_tip : Tooltip to show in the UI for this Setting.
-            show_ui  : Whether to show this Setting in the Settings UI.
+            attr_name   : Internal name.
+            nice_name   : Display name.
+            value       : The initial value of this Setting.
+            tool_tip    : Tooltip to show in the UI for this Setting.
+            show_ui     : Whether to show this Setting in the Settings UI.
+            allow_reset : Allows showing a reset button when the value differs from the default.
+            migrate_data: Optional function to migrate data already stored when value structure changes.
+            category    : Used for UI grouping with other properties.
         '''
         super().__init__()
 
         self.attr_name = attr_name
         self.nice_name = nice_name
+        self.category = category
 
         value = self._filter_value(value)
         self._original_value = self._value = value
@@ -365,16 +370,18 @@ class Setting(QtCore.QObject):
         return top_level_widget
 
     def _register_on_setting_changed(self, top_level_widget: QtWidgets.QWidget, override_device_name: str):
-        on_setting_changed_lambda = lambda old_value, new_value, override_device_name=override_device_name: \
+
+        def on_setting_changed(old_value, new_value, override_device_name=override_device_name):
             self._on_setting_changed(new_value, override_device_name=override_device_name)
-        self.signal_setting_changed.connect(
-            on_setting_changed_lambda
-        )
+
+        self.signal_setting_changed.connect(on_setting_changed)
 
         # Clear the widget when it is destroyed to avoid dangling references
-        top_level_widget.destroyed.connect(lambda destroyed_object=None:
-            self._on_widget_destroyed(on_setting_changed_lambda, override_device_name)
-        )
+
+        def handle_widget_destroyed(destroyed_object=None):
+            self._on_widget_destroyed(on_setting_changed, override_device_name)
+
+        top_level_widget.destroyed.connect(handle_widget_destroyed)
 
     def _on_widget_destroyed(self, on_setting_changed_lambda, override_device_name: str):
         try:
@@ -532,29 +539,17 @@ class IntSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
-        is_read_only: bool = False
+        *args,
+        is_read_only: bool = False,
+        **kwargs
     ):
         '''
         Create a new IntSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
             is_read_only    : Whether to make entry field editable or not.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.is_read_only = is_read_only
 
@@ -603,31 +598,19 @@ class StringSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
+        *args,
         placeholder_text: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
-        is_read_only: bool = False
+        is_read_only: bool = False,
+        **kwargs
     ):
         '''
         Create a new StringSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
             placeholder_text: Placeholder for this Setting's value in the UI.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
             is_read_only    : Whether to make entry field editable or not.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.placeholder_text = placeholder_text
         self.is_read_only = is_read_only
@@ -755,37 +738,22 @@ class FilePathSetting(FileSystemPathSetting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
-        placeholder_text: str = '',
+        *args,
         file_path_filter: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True
+        **kwargs
     ):
         '''
         Create a new FilePathSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
-            placeholder_text: Placeholder for this Setting's value in the UI.
             file_path_filter: Filter to use in the file browser.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
         '''
-        super().__init__(
-            attr_name, nice_name, value, placeholder_text=placeholder_text,
-            tool_tip=tool_tip, show_ui=show_ui)
+        super().__init__(*args, **kwargs)
 
         self.file_path_filter = file_path_filter
 
-    #~ Begin FileSystemPathSetting Interface
-
     def _getStartPath(self) -> str:
-        ''' Tries to use the current value to initialize the starting path,
-        otherwise returns the base class implementation'''
+        ''' Override from base class'''
 
         current_path = self.get_value()
 
@@ -798,13 +766,12 @@ class FilePathSetting(FileSystemPathSetting):
             self, parent: Optional[QtWidgets.QWidget] = None,
             start_path: str = ''
             ) -> str:
+        ''' Override from base class'''
 
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
             parent=parent, dir=start_path, filter=self.file_path_filter)
 
         return file_path
-
-    #~ End FileSystemPathSetting Interface
 
 
 class PerforcePathSetting(StringSetting):
@@ -815,23 +782,15 @@ class PerforcePathSetting(StringSetting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: str,
+        *args,
         placeholder_text: str = '',
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
         is_read_only: bool = False,
+        **kwargs
     ):
         # Trim matching file paths to the parent directory (e.g. ['.uproject'])
         self.truncate_files_with_extensions: list[str] = []
 
-        super().__init__(
-            attr_name, nice_name, value, placeholder_text=placeholder_text,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset,
-            migrate_data=migrate_data, is_read_only=is_read_only)
+        super().__init__(*args, **kwargs)
 
     def _filter_value(self, value: Optional[str]) -> str:
         '''
@@ -860,30 +819,17 @@ class OptionSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value,
+        *args,
         possible_values: Optional[list] = None,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None,
+        **kwargs
     ):
         '''
         Create a new OptionSetting object.
 
         Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
             possible_values: Possible values for this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset,
-            migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.possible_values = possible_values or []
 
@@ -1051,27 +997,16 @@ class ListSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: list = [],
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
+        *args,
+        **kwargs
     ):
         '''
         Create a new ListSetting object.
 
         Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
+            value : list
         '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self.array_count_labels = {}
         self.element_layouts = {}
@@ -1260,30 +1195,6 @@ class StringListSetting(ListSetting):
     '''
     An array setting where the elements are strings
     '''
-    def __init__(
-        self,
-        attr_name: str,
-        nice_name: str,
-        value: list[str] = [],
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
-    ):
-        '''
-        Create a new ArraySetting object.
-
-        Args:
-            attr_name      : Internal name.
-            nice_name      : Display name.
-            value          : The initial value of this Setting.
-            tool_tip       : Tooltip to show in the UI for this Setting.
-            show_ui        : Whether to show this Setting in the Settings UI.
-        '''
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
-        pass
 
     def create_element(self, override_device_name: str, index: int) -> Tuple[QtWidgets.QWidget, object]:
         line_edit = QtWidgets.QLineEdit()
@@ -1635,7 +1546,7 @@ class LoggingSetting(Setting):
     def _filter_value(
             self,
             value: Optional[dict[str, Optional[str]]]
-    )-> collections.OrderedDict:
+    ) -> collections.OrderedDict:
         '''
         Filter function to modify the incoming value before updating or
         overriding the setting.
@@ -1666,37 +1577,26 @@ class LoggingSetting(Setting):
 
     def __init__(
         self,
-        attr_name: str,
-        nice_name: str,
-        value: dict[str, Optional[str]],
+        *args,
         categories: Optional[list[str]] = None,
         verbosity_levels: Optional[list[str]] = None,
-        tool_tip: Optional[str] = None,
-        show_ui: bool = True,
-        allow_reset: bool = True,
-        migrate_data: Optional[Callable[[Any], None]] = None
+        **kwargs
     ):
         '''
         Create a new LoggingSetting object.
 
         Args:
-            attr_name       : Internal name.
-            nice_name       : Display name.
-            value           : The initial value of this Setting.
+            value           : dict[str, Optional[str]]
             categories      : The initial list of logging categories.
             verbosity_levels: The possible settings for verbosity level of
                               each category.
-            tool_tip        : Tooltip to show in the UI for this Setting.
-            show_ui         : Whether to show this Setting in the Settings UI.
         '''
 
         # Set the categories before calling the base class init since they
         # will be used when filtering the value.
         self._categories = categories or []
 
-        super().__init__(
-            attr_name, nice_name, value,
-            tool_tip=tool_tip, show_ui=show_ui, allow_reset=allow_reset, migrate_data=migrate_data)
+        super().__init__(*args, **kwargs)
 
         self._verbosity_levels = (
             verbosity_levels or self.DEFAULT_VERBOSITY_LEVELS)
@@ -1859,25 +1759,14 @@ class LoggingSetting(Setting):
 
 
 class AddressSetting(OptionSetting):
-    def __init__(
-        self,
-        attr_name,
-        nice_name,
-        value,
-        tool_tip=None,
-        show_ui=True,
-        allow_reset=True,
-        migrate_data=None
-    ):
+
+    def __init__(self, *args, **kwargs):
+
         super().__init__(
-            attr_name=attr_name,
-            nice_name=nice_name,
-            value=value,
+            *args,
             possible_values=list(self.generate_possible_addresses()),
-            tool_tip=tool_tip,
-            show_ui=show_ui,
-            allow_reset=allow_reset,
-            migrate_data=migrate_data)
+            **kwargs
+        )
 
     def _create_widgets(
         self, override_device_name: Optional[str] = None
@@ -2281,38 +2170,44 @@ class Config(object):
             "project_name": StringSetting(
                 "project_name",
                 "Project Name",
-                data.get('project_name', 'Default')
+                data.get('project_name', 'Default'),
+                category="General Settings",
             ),
             "uproject": FilePathSetting(
                 "uproject", "uProject Path",
                 data.get('uproject', ''),
-                tool_tip="Path to uProject"
+                tool_tip="Path to uProject",
+                category="General Settings",
             ),
             "engine_dir": DirectoryPathSetting(
                 "engine_dir",
                 "Engine Directory",
                 data.get('engine_dir', ''),
-                tool_tip="Path to UE 'Engine' directory"
+                tool_tip="Path to UE 'Engine' directory",
+                category="General Settings",
             ),
             'engine_sync_method': OptionSetting(
                 "engine_sync_method",
                 "Engine Sync Method",
                 EngineSyncMethod.Use_Existing.value,
                 possible_values=[p.value for p in EngineSyncMethod],
+                category="Source Control Settings",
             ),
             "maps_path": StringSetting(
                 "maps_path",
                 "Map Path",
                 data.get('maps_path', ''),
                 placeholder_text="Maps",
-                tool_tip="Relative path from Content folder that contains maps to launch into."
+                tool_tip="Relative path from Content folder that contains maps to launch into.",
+                category="General Settings",
             ),
             "maps_filter": StringSetting(
                 "maps_filter",
                 "Map Filter",
                 data.get('maps_filter', '*.umap'),
                 placeholder_text="*.umap",
-                tool_tip="Walk every file in the Map Path and run a fnmatch to filter the file names"
+                tool_tip="Walk every file in the Map Path and run a fnmatch to filter the file names",
+                category="General Settings",
             ),
             'maps_plugin_filters': StringListSetting(
                 "maps_plugin_filters",
@@ -2323,7 +2218,8 @@ class Config(object):
                     "Plugins whose name matches any of these filters will "
                     "also be searched for maps."),
                 show_ui=False,
-                migrate_data=migrate_comma_separated_string_to_list
+                migrate_data=migrate_comma_separated_string_to_list,
+                category="General Settings",
             ),
             'content_plugin_filters': StringListSetting(
                 "content_plugin_filters",
@@ -2341,7 +2237,8 @@ class Config(object):
                     "absolute path to a plugin directory. Relative paths "
                     "should be relative to the directory containing the "
                     ".uproject file."),
-                migrate_data=migrate_comma_separated_string_to_list
+                migrate_data=migrate_comma_separated_string_to_list,
+                category="General Settings",
             ),
         }
 
@@ -2386,24 +2283,28 @@ class Config(object):
                 "p4_enabled",
                 "Perforce Enabled",
                 data.get("p4_enabled", False),
-                tool_tip="Toggle Perforce support for the entire application"
+                tool_tip="Toggle Perforce support for the entire application",
+                category="Source Control Settings",
             ),
             "source_control_workspace": StringSetting(
                 "source_control_workspace", "Workspace Name",
                 data.get("source_control_workspace"),
-                tool_tip="SourceControl Workspace/Branch"
+                tool_tip="SourceControl Workspace/Branch",
+                category="Source Control Settings",
             ),
             "p4_sync_path": PerforcePathSetting(
                 "p4_sync_path",
                 "Perforce Project Path",
                 data.get("p4_sync_path", ''),
-                placeholder_text="//UE/Project"
+                placeholder_text="//UE/Project",
+                category="Source Control Settings",
             ),
             "p4_engine_path": PerforcePathSetting(
                 "p4_engine_path",
                 "Perforce Engine Path",
                 data.get("p4_engine_path", ''),
-                placeholder_text="//UE/Project/Engine"
+                placeholder_text="//UE/Project/Engine",
+                category="Source Control Settings",
             )
         }
 

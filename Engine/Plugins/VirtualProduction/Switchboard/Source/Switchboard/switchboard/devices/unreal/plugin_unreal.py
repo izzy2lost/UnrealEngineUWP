@@ -18,7 +18,7 @@ import re
 import socket
 import sys
 import threading
-from typing import Callable, Generator, Optional, Union
+from typing import Callable, Dict, Generator, Optional, Union
 import uuid
 import time
 
@@ -330,25 +330,6 @@ class LiveLinkPresetSetting(Setting):
     the options.
     '''
 
-    def __init__(
-        self,
-        attr_name,
-        nice_name,
-        value,
-        tool_tip=None,
-        show_ui=True,
-        allow_reset=True,
-        migrate_data=None
-    ):
-        super().__init__(
-            attr_name=attr_name,
-            nice_name=nice_name,
-            value=value,
-            tool_tip=tool_tip,
-            show_ui=show_ui,
-            allow_reset=allow_reset,
-            migrate_data=migrate_data)
-
     def _create_widgets(self, override_device_name=None):
 
         # create combo with livelink preset options
@@ -521,32 +502,37 @@ class DeviceUnreal(Device):
             value=1024,
             tool_tip=(
                 "Buffer size used for communication with SwitchboardListener"),
+            category="UE Settings",
         ),
         'command_line_arguments': StringSetting(
             attr_name="command_line_arguments",
             nice_name='Command Line Arguments',
             value="",
             tool_tip='Additional command line arguments for the engine',
+            category="Command Line Args",
         ),
         'exec_cmds': StringListSetting(
             attr_name="exec_cmds",
             nice_name='ExecCmds',
             value=[],
             tool_tip='ExecCmds to be passed. No need for outer double quotes.',
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'dp_cvars': StringListSetting(
             attr_name='dp_cvars',
             nice_name="DPCVars",
             value=[],
             tool_tip="Device profile console variables.",
-            migrate_data=migrate_comma_separated_string_to_list
+            migrate_data=migrate_comma_separated_string_to_list,
+            category="Command Line Args",
         ),
         'port': IntSetting(
             attr_name="port",
             nice_name="Listener Port",
             value=2980,
-            tool_tip="Port of SwitchboardListener"
+            tool_tip="Port of SwitchboardListener",
+            category="Network Settings",
         ),
         'osc_port': IntSetting(
             attr_name='osc_port',
@@ -555,6 +541,7 @@ class DeviceUnreal(Device):
             tool_tip=(
                 'Must match the port on which the Unreal Editor OSC server '
                 'is configured to listen for OSC connections.'),
+            category="Network Settings",
         ),
         'roles_filename': StringSetting(
             attr_name="roles_filename",
@@ -563,6 +550,7 @@ class DeviceUnreal(Device):
             tool_tip=(
                 "File that stores VirtualProduction roles. "
                 "Default: Config/Tags/VPRoles.ini"),
+            category="UE Settings",
         ),
         'stage_session_id': IntSetting(
             attr_name="stage_session_id",
@@ -572,11 +560,13 @@ class DeviceUnreal(Device):
                 "An ID that groups Stage Monitor providers and monitors. "
                 "Instances with different Session IDs are invisible to each "
                 "other in Stage Monitor."),
+            category="Tools Settings",
         ),
         'ue_exe': StringSetting(
             attr_name="editor_exe",
             nice_name="Unreal Editor filename",
             value="UnrealEditor.exe",
+            category="General Settings",
         ),
         'max_gpu_count': OptionSetting(
             attr_name="max_gpu_count",
@@ -586,6 +576,7 @@ class DeviceUnreal(Device):
             tool_tip=(
                 "If you have multiple GPUs in the PC, you can specify how "
                 "many to use."),
+            category="GPU/CPU Settings",
         ),
         'priority_modifier': OptionSetting(
             attr_name='priority_modifier',
@@ -593,6 +584,7 @@ class DeviceUnreal(Device):
             value=sb_utils.PriorityModifier.Normal.name,
             possible_values=[p.name for p in sb_utils.PriorityModifier],
             tool_tip="Used to override the priority of the process.",
+            category="GPU/CPU Settings",
         ),
         'auto_decline_package_recovery': BoolSetting(
             attr_name='auto_decline_package_recovery',
@@ -603,6 +595,7 @@ class DeviceUnreal(Device):
                 'skipping the restore prompt. Useful in multi-user '
                 'scenarios, where restoring from auto-save may be '
                 'undesirable.'),
+            category="UE Settings",
         ),
         'udpmessaging_unicast_endpoint': StringSetting(
             attr_name='udpmessaging_unicast_endpoint',
@@ -612,6 +605,7 @@ class DeviceUnreal(Device):
                 'Local interface binding (-UDPMESSAGING_TRANSPORT_UNICAST) of '
                 'the form {address}:{port}. If {address} is omitted, the '
                 'device address is used.'),
+            category="Network Settings",
         ),
         'udpmessaging_extra_static_endpoints': StringSetting(
             attr_name='udpmessaging_extra_static_endpoints',
@@ -621,6 +615,7 @@ class DeviceUnreal(Device):
                 'Comma separated. Used to add static endpoints '
                 '(-UDPMESSAGING_TRANSPORT_STATIC) in addition to those '
                 'managed by Switchboard.'),
+            category="Network Settings",
         ),
         'udpmessaging_multicast_endpoint': StringSetting(
             attr_name='udpmessaging_multicast_endpoint',
@@ -630,6 +625,7 @@ class DeviceUnreal(Device):
                 'Multicast group and port (-UDPMESSAGING_TRANSPORT_MULTICAST) '
                 'in the {address}:{port} endpoint format. The multicast group address '
                 'must be in the range 224.0.0.0 to 239.255.255.255.'),
+            category="Network Settings",
         ),
         'log_download_dir': DirectoryPathSetting(
             attr_name='log_download_dir',
@@ -638,6 +634,7 @@ class DeviceUnreal(Device):
             tool_tip=(
                 'Directory in which to store logs transferred from devices. '
                 'If unset, defaults to $(ProjectDir)/Saved/Logs/Switchboard/'),
+            category="General Settings",
         ),
         'reflect_visibility_to_game': BoolSetting(
             attr_name='reflect_visibility_to_game',
@@ -647,13 +644,15 @@ class DeviceUnreal(Device):
                 'Sets the value for `Reflect Level Visibilty to Game` for Multi-user editing. \n'
                 'Editor visibilty state will be applied to the game equivalent visibility properties. \n'
                 'This is useful for ICVFX workflows where the editor visibilty state directly \n'
-                'corresponds to the state on the render nodes.')
+                'corresponds to the state on the render nodes.'),
+            category="Multi-User Settings",
         ),
         'rsync_port': IntSetting(
             attr_name='rsync_port',
             nice_name='Rsync Server Port',
             value=switchboard_application.RsyncServer.DEFAULT_PORT,
-            tool_tip='Port number on which the rsync server should listen.'
+            tool_tip='Port number on which the rsync server should listen.',
+            category="Network Settings",
         ),
         'listener_inactive_timeout': IntSetting(
             attr_name='listener_inactive_timeout',
@@ -662,7 +661,8 @@ class DeviceUnreal(Device):
             tool_tip=(
                 'Tells the connected Listener to wait at least N seconds '
                 'between network messages before considering the connection '
-                'to Switchboard lost and closing it with a timeout error.')
+                'to Switchboard lost and closing it with a timeout error.'),
+            category="Network Settings",
         ),
         'slate_allow_throttling': BoolSetting(
             attr_name='slate_allow_throttling',
@@ -671,27 +671,31 @@ class DeviceUnreal(Device):
             tool_tip=(
                 'Sets the Slate.bAllowThrottling cvar. When unchecked, the Editor viewports do not freeze/throttle \n'
                 'during certain operations. Not thottling is typically desired when using the Editor in \n'
-                'a virtual production stage.\n')
+                'a virtual production stage.\n'),
+            category="UE Settings",
         ),
         'retrieve_logs': BoolSetting(
             attr_name='retrieve_logs',
             nice_name='Retrieve Logs',
             value=True,
             tool_tip=(
-                'When checked, retrieves the logs and traces after Unreal Engine terminates. \n')
+                'When checked, retrieves the logs and traces after Unreal Engine terminates. \n'),
+            category="UE Settings",
         ),
         'livelink_preset': LiveLinkPresetSetting(
             attr_name='livelink_preset',
             nice_name='LiveLink Preset',
             value='',
             tool_tip=(
-                'Adds the selected LiveLink preset to the command line \n')
+                'Adds the selected LiveLink preset to the command line \n'),
+            category="Tools Settings",
         ),
         'mediaprofile': MediaProfileSetting(
             attr_name='mediaprofile',
             nice_name='Media Profile',
             value='',
-            tool_tip=('Adds the selected Media Profile to the command line')
+            tool_tip=('Adds the selected Media Profile to the command line'),
+            category="Tools Settings",
         ),
         'lock_gpu_clock': BoolSetting(
             attr_name="lock_gpu_clock",
@@ -701,7 +705,8 @@ class DeviceUnreal(Device):
                 "Hint to lock the GPU clock to its allowed maximum. Requires SwitchboardListenerHelper \n"
                 "to be running on the client machine, otherwise this option will be ignored."
             ),
-            show_ui = True if sys.platform in ('win32','linux') else False, # Gpu Clocker is available in select platforms
+            show_ui=True if sys.platform in ('win32', 'linux') else False,  # Only available in select platforms
+            category="GPU/CPU Settings",
         ),
         'use_sync_filters': BoolSetting(
             attr_name='use_sync_filters',
@@ -709,7 +714,8 @@ class DeviceUnreal(Device):
             value=False,
             tool_tip=(
                 'Controls whether UnrealGameSync filter categories or custom '
-                'views specified below are used during Perforce sync')
+                'views specified below are used during Perforce sync'),
+            category="Source Control Settings",
         ),
         'included_sync_categories': MultiOptionSetting(
             attr_name='included_sync_categories',
@@ -725,6 +731,7 @@ class DeviceUnreal(Device):
                                    'Source Code'),
             ],
             tool_tip='UnrealGameSync filter categories to include during sync',
+            category="Source Control Settings",
         ).with_get_json_override_fn(
             lambda val_list: [(str(x.id), x.name) for x in val_list]
         ).with_config_set_override_fn(
@@ -740,6 +747,7 @@ class DeviceUnreal(Device):
             tool_tip=(
                 'Comma separated. Used to specify freeform Perforce-style '
                 'wildcards to be applied during sync.'),
+            category="Source Control Settings",
         ),
     }
 
@@ -751,7 +759,8 @@ class DeviceUnreal(Device):
             tool_tip=(
                 "Expects an absolute path to the device directory containing the ugs.dll library file. \n"
                 "If left blank, switchboard will attempt to find UGS by searching the system PATH and default install locations. \n"
-                "On Windows, the default install location is '${LOCALAPPDATA}/UnrealGameSync/Latest/'.")
+                "On Windows, the default install location is '${LOCALAPPDATA}/UnrealGameSync/Latest/'."),
+            category="UGS Settings",
         )
 
     # A stand-in QObject to emit signals from classmethods.
@@ -942,14 +951,16 @@ class DeviceUnreal(Device):
             attr_name="roles",
             nice_name="Roles",
             value=roles,
-            tool_tip="List of roles for this device"
+            tool_tip="List of roles for this device",
+            category="UE Settings",
         )
 
         self.setting_ddc_build_platforms = MultiOptionSetting(
             attr_name="ddc_build_platforms",
             nice_name="DDC Build Platforms",
             value=["Windows", "WindowsEditor", "Linux", "LinuxEditor"],
-            tool_tip="List of platforms for which to build the DDC cache for this device"
+            tool_tip="List of platforms for which to build the DDC cache for this device",
+            category="General Settings",
         )
 
         autojoin_mu_server = kwargs.get("autojoin_mu_server", True)
@@ -957,49 +968,51 @@ class DeviceUnreal(Device):
             attr_name="autojoin_mu_server",
             nice_name="Auto join Multi-user Server",
             value=autojoin_mu_server,
-            show_ui=False
+            show_ui=False,
         )
 
         self.last_launch_command = StringSetting(
             attr_name="last_launch_command",
             nice_name="Last Launch Command",
             value=kwargs.get("last_launch_command", ''),
-            show_ui=False
+            show_ui=False,
         )
 
         self.last_log_path = FilePathSetting(
             attr_name="last_log_path",
             nice_name="Last Log Path",
             value=kwargs.get("last_log_path", ''),
-            show_ui=False
+            show_ui=False,
         )
 
         self.last_trace_path = FilePathSetting(
             attr_name="last_trace_path",
             nice_name="Last Insights Trace Path",
             value=kwargs.get("last_trace_path", ''),
-            show_ui=False
+            show_ui=False,
         )
 
         self.last_sync_filter_hash = StringSetting(
             attr_name="last_sync_filter_hash",
             nice_name="Last UGS Sync Filter Hash",
             value=kwargs.get('last_sync_filter_hash', ''),
-            show_ui=False
+            show_ui=False,
         )
 
         self.exclude_from_build = BoolSetting(
             attr_name="exclude_from_build",
             nice_name="Exclude from build",
             value=kwargs.get("exclude_from_build", False),
-            tool_tip="Whether to exclude this device from builds"
+            tool_tip="Whether to exclude this device from builds",
+            category="General Settings",
         )
 
         self.exclude_from_insights = BoolSetting(
             attr_name="exclude_from_insights",
             nice_name="Exclude from Insights trace",
             value=kwargs.get("exclude_from_insights", False),
-            tool_tip="Whether to exclude device from Unreal Insights traces"
+            tool_tip="Whether to exclude device from Unreal Insights traces",
+            category="General Settings",
         )
 
         self.setting_address.signal_setting_changed.connect(
@@ -1233,6 +1246,48 @@ class DeviceUnreal(Device):
             overrides.append(DeviceUnreal.csettings['unrealgamesync_lib_dir'])
 
         return overrides
+
+    @classmethod
+    def sort_setting_categories_from_preferred_list(cls, categories: Dict, preferred_order: list[str]) -> OrderedDict:
+        ''' Sorts using the order in the given list of preferred categories '''
+
+        # Create a dictionary to hold the preferred categories in their given order
+        # Key will be the string, value will be the index  in the preferred_order list.
+        preferred_dict = {key: idx for (idx, key) in enumerate(preferred_order)}
+
+        # Custom sort function
+        def custom_sort_key(item):
+            key = item[0]
+            # Sort by the preferred order if it exists. If it is not in the preferred list,
+            # they will go at the end and sorted alphabetically
+            return (preferred_dict.get(key, len(preferred_order)), key)
+
+        # Sort the categories using the custom sort key. The sort keys returned for a given
+        # element will be compared against others by sorted.
+        return OrderedDict(sorted(categories.items(), key=custom_sort_key))
+
+    @classmethod
+    def sort_setting_categories(cls, categories: Dict) -> OrderedDict:
+        ''' Overrides base implementation '''
+
+        preferred_order = [
+            'General Settings',
+            'Source Control Settings',
+            'Command Line Args',
+            'Tools Settings',
+            'GPU/CPU Settings',
+            'UE Settings',
+            'Render Settings',
+            'Network Settings',
+            'Multi-User Settings',
+            'Multiplayer Settings',
+            'Device Settings',
+            'Misc',
+        ]
+
+        return DeviceUnreal.sort_setting_categories_from_preferred_list(
+            categories=categories,
+            preferred_order=preferred_order)
 
     def device_settings(self):
         return super().device_settings() + [

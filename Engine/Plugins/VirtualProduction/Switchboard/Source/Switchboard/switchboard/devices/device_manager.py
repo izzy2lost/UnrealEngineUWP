@@ -161,7 +161,7 @@ class DeviceManager(QtCore.QObject):
             config.load_plugin_settings(name, plugin_settings)
 
     def available_device_plugins(self):
-        return self._plugins.keys()
+        return self._plugins
 
     def plugin_settings(self, device_type):
         return self._plugins[device_type].plugin_settings()

@@ -7,7 +7,7 @@ import os
 import random
 import socket
 import threading
-from typing import Optional, Type, TYPE_CHECKING
+from typing import Optional, Type, Dict, OrderedDict, TYPE_CHECKING
 
 from PySide6 import QtCore
 from PySide6 import QtGui
@@ -74,6 +74,7 @@ class Device(QtCore.QObject):
             nice_name='Is Recording Device',
             value=True,
             tool_tip='Is this device used to record',
+            category='Device Settings',
         )
     }
 
@@ -83,7 +84,7 @@ class Device(QtCore.QObject):
         self._name = name  # Assigned name
         self.device_qt_handler = DeviceQtHandler()
         self.autojoin_mu_server = False
-        self.setting_address = AddressSetting('address', 'Address', address)
+        self.setting_address = AddressSetting('address', 'Address', address, category="Network Settings")
         self.setting_address.signal_setting_changed.connect(
             lambda: self._check_recreate_osc_client())
 
@@ -437,3 +438,8 @@ class Device(QtCore.QObject):
         ''' Called after the device manager adds all the devices of this type
         '''
         pass
+
+    @classmethod
+    def sort_setting_categories(cls, categories: Dict) -> OrderedDict:
+        ''' Sort the settings categories so that they are shown in the desired order '''
+        return OrderedDict(categories)

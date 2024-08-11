@@ -856,7 +856,7 @@ class SwitchboardDialog(QtCore.QObject):
 
     def show_device_add_menu(self):
         self.device_add_menu.clear()
-        plugins = sorted(self.device_manager.available_device_plugins(), key=str.lower)
+        plugins = sorted(self.device_manager.available_device_plugins().keys(), key=str.lower)
         for plugin in plugins:
             icons = self.device_manager.plugin_icons(plugin)
             icon = icons["enabled"] if "enabled" in icons.keys() else QtGui.QIcon()
@@ -1211,10 +1211,21 @@ class SwitchboardDialog(QtCore.QObject):
         # TODO: VALIDATE RECORD PATH
         settings_dialog = SettingsDialog(SETTINGS, CONFIG)
 
-        for plugin_name in sorted(self.device_manager.available_device_plugins(), key=str.lower):
+        for plugin_name in sorted(self.device_manager.available_device_plugins().keys(), key=str.lower):
+
             device_instances = self.device_manager.devices_of_type(plugin_name)
-            device_settings = [(device.name, device.device_settings(), device.setting_overrides()) for device in device_instances]
-            settings_dialog.add_section_for_plugin(plugin_name, self.device_manager.plugin_settings(plugin_name), device_settings)
+
+            device_settings = [(device.name, device.device_settings(), device.setting_overrides())
+                               for device in device_instances]
+
+            plugin_cls = self.device_manager.available_device_plugins()[plugin_name]
+
+            settings_dialog.add_section_for_plugin(
+                plugin_name=plugin_name,
+                plugin_cls=plugin_cls,
+                plugin_settings=self.device_manager.plugin_settings(plugin_name),
+                device_settings=device_settings
+            )
 
         settings_dialog.select_all_tab()
 
