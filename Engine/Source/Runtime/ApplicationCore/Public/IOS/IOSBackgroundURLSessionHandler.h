@@ -94,6 +94,12 @@ public:
 	// To be used by app delegate, call it from handleEventsForBackgroundURLSession.
 	static void HandleEventsForBackgroundURLSession(const FString& SessionIdentifier);
 
+	// To be used by app delegate, call it from applicationDidEnterBackground
+	static void HandleDidEnterBackground();
+
+	// To be used by app delegate, call it from applicationWillEnterForeground
+	static void HandleWillEnterForeground();
+
 	// To be used by ApplePlatformBackgroundHttpManager
 	static void SaveBackgroundHttpFileHashHelperState();
 

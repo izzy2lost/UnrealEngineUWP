@@ -1511,6 +1511,7 @@ FCriticalSection RenderSuspend;
 
     self.bAudioActive = false;
     FAppEntry::Suspend(true);
+	FBackgroundURLSessionHandler::HandleDidEnterBackground();
 
 	FEmbeddedCommunication::KeepAwake(TEXT("Background"), false);
 
@@ -1528,6 +1529,7 @@ FCriticalSection RenderSuspend;
 
 - (void)applicationWillEnterForeground:(UIApplication *)application
 {
+	FBackgroundURLSessionHandler::HandleWillEnterForeground();
 	FEmbeddedCommunication::KeepAwake(TEXT("Background"), false);
 	/*
 	 Called as part of the transition from the background to the inactive state; here you can undo many of the changes made on entering the background.

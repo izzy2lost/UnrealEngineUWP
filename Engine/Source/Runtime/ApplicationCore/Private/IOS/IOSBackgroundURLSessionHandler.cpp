@@ -265,6 +265,9 @@ NSString* const SerializationKeyRetryCountPerURL = @"r";
 - (void)StopCheckingForStaleDownloads;
 - (void)CheckForStaleDownloads:(NSTimer*)Timer;
 
+- (void)HandleDidEnterBackground;
+- (void)HandleWillEnterForeground;
+
 - (NSURLSessionDownloadTask*)FindDownloadTaskFor:(NSUInteger)DownloadId;
 - (NSUInteger)FindDownloadIdForTask:(NSURLSessionDownloadTask*)Task;
 - (NSUInteger)EnsureTaskIsTracked:(NSURLSessionDownloadTask*)Task;
@@ -1118,6 +1121,12 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 
 - (void)CheckForStaleDownloads:(NSTimer*)Timer
 {
+	// Only check for stale downloads in foreground
+	if ([UIApplication sharedApplication].applicationState != UIApplicationStateActive)
+	{
+		return;
+	}
+
 	// Copy keys to avoid deadlocking in case if cancel/resume/etc will call delegates in-place
 	NSArray<__kindof NSNumber*>* AllKeys = nil;
 	@synchronized(_AllDownloads)
@@ -1163,6 +1172,36 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 
 			[self RecreateDownload:DownloadId ShouldResetRetryCount:false];
 		}
+	}
+}
+
+- (void)HandleDidEnterBackground
+{
+}
+
+- (void)HandleWillEnterForeground
+{
+	@synchronized(_AllDownloads)
+	{
+		[_AllDownloads enumerateKeysAndObjectsUsingBlock:^(NSNumber* Key, NSURLSessionDownloadTask* Task, BOOL* IterStop)
+		{
+			NSNumber* ResultStatusCode = [Task.progress.userInfo objectForKey:NSProgressDownloadResultStatusCode];
+
+			// If task was not complete
+			if (ResultStatusCode == nil)
+			{
+				NSNumber* LastUpdateTimeNumber = [Task.progress.userInfo objectForKey:NSProgressDownloadLastUpdateTime];
+
+				// But has last update time
+				if (LastUpdateTimeNumber != nil)
+				{
+					// Refresh task update time so stale timer doesn't retry task for first N seconds after app goes to foreground
+					[Task.progress setUserInfoObject:[NSNumber numberWithDouble:[[NSDate date] timeIntervalSince1970]] forKey:NSProgressDownloadLastUpdateTime];
+
+					UE_DNLD_LOG(@"Refreshing last update time for task '%@' taskIdentifier %lu", Task.taskDescription, Task.taskIdentifier);
+				}
+			}
+		}];
 	}
 }
 
@@ -1580,6 +1619,22 @@ void FBackgroundURLSessionHandler::HandleEventsForBackgroundURLSession(const FSt
 		UE_DNLD_LOG(@"HandleEventsForBackgroundURLSession will initializes session with identifier '%@'", Identifier);
 		[FBackgroundNSURLSession Shared];
 		// will invoke URLSessionDidFinishEventsForBackgroundURLSession internally.
+	}
+}
+
+void FBackgroundURLSessionHandler::HandleDidEnterBackground()
+{
+	@autoreleasepool
+	{
+		[[FBackgroundNSURLSession Shared] HandleDidEnterBackground];
+	}
+}
+
+void FBackgroundURLSessionHandler::HandleWillEnterForeground()
+{
+	@autoreleasepool
+	{
+		[[FBackgroundNSURLSession Shared] HandleWillEnterForeground];
 	}
 }
 
