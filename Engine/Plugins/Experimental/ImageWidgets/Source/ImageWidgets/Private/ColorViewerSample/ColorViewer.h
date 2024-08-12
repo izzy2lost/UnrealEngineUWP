@@ -49,7 +49,7 @@ namespace UE::ImageWidgets::Sample
 			/** Unique identifier for each item */
 			FGuid Guid;
 
-			/** the actual color value */
+			/** The actual color value */
 			FColor Color;
 
 			/** Timestamp for when the item was created */
@@ -61,6 +61,9 @@ namespace UE::ImageWidgets::Sample
 		virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) override;
 		virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const override;
 		virtual void OnImageSelected(const FGuid& Guid) override;
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		virtual bool IsValidImage(const FGuid& Guid) const override;
+#endif
 		// IImageViewer overrides - end
 
 		/** Adds a color item. */
@@ -73,6 +76,9 @@ namespace UE::ImageWidgets::Sample
 		FToneMapping::EMode GetToneMapping() const;
 		void SetToneMapping(FToneMapping::EMode Mode);
 
+		/** Apply default tone mapping to a given color. This is used to generate the catalog thumbnail. */
+		FLinearColor GetDefaultToneMappedColor(const FColor& Color) const;
+
 		/** Hardcoded values for the image size for all color.
 		 *  In a more realistic application, this value would depend on the actual current image. */
 		inline static const FIntPoint ImageSize = 512;
@@ -81,6 +87,9 @@ namespace UE::ImageWidgets::Sample
 		/** Checks if a given index is a valid image. */
 		bool ColorIsValid(int32 Index) const;
 
+		/** Draws the color image with the given index. The UVs determine if all or only a part of the image is drawn, i.e. for AB comparisons. */
+		void DrawImage(int32 Index, FCanvas* Canvas, const FDrawProperties::FPlacement& Placement, const FVector2d& UV0, const FVector2d& UV1) const;
+		
 		/** The tone mapping data. */
 		FToneMapping ToneMapping = FToneMapping::EMode::RGB;
 

@@ -36,7 +36,7 @@ namespace UE::ImageWidgets
 
 	/**
 	 * Generic catalog widget for listing and selecting 2D image-like content.
-	 * Each catalog item is represented by its own widget based on its @ref FImageCatalogItemData.
+	 * Each catalog item is represented by its own widget based on its @see FImageCatalogItemData.
 	 * Entries in the catalog can be split into regular and pinned items, with pinned items being displayed at the top.
 	 */
 	class SImageCatalog : public SCompoundWidget
@@ -44,7 +44,7 @@ namespace UE::ImageWidgets
 	public:
 		/**
 		 * Delegate that gets called when an item is selected in the catalog.
-		 * The given @ref FGuid identifies the item that was selected.
+		 * The given @see FGuid identifies the item that was selected.
 		 */
 		DECLARE_DELEGATE_OneParam(FOnItemSelected, const FGuid&)
 

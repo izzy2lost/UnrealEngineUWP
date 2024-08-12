@@ -2,6 +2,9 @@
 
 #include "SImageViewportToolbar.h"
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+#include "ImageABComparison.h"
+#endif
 #include "ImageViewportClient.h"
 #include "ImageWidgetsCommands.h"
 #include "SEditorViewportToolBarMenu.h"
@@ -35,6 +38,10 @@ namespace UE::ImageWidgets
 		check(NumMips.IsBound());
 		check(ImageGuid.IsBound());
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		ABComparison = Parameters.ABComparison;
+#endif
+
 		ChildSlot
 		[
 			SNew(SBorder)
@@ -51,7 +58,11 @@ namespace UE::ImageWidgets
 				  .FillWidth(1.0f)
 				  .HAlign(HAlign_Center)
 				[
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
+#else
 					MakeCenterToolbar(Parameters.ToolbarExtender)
+#endif
 				]
 				+ SHorizontalBox::Slot()
 				  .AutoWidth()
@@ -110,6 +121,65 @@ namespace UE::ImageWidgets
 		return ToolbarBuilder.MakeWidget();
 	}
 
+	#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	TSharedRef<SWidget> SImageViewportToolbar::MakeCenterToolbar(const TSharedPtr<FExtender>& Extender, bool bEnableABComparison)
+	{
+		FSlimHorizontalToolBarBuilder ToolbarBuilder = GetToolbarBuilder(CommandList, Extender);
+
+		ToolbarBuilder.BeginSection("ToolbarCenter");
+		{
+			ToolbarBuilder.AddSeparator();
+
+			if (bEnableABComparison && ABComparison)
+			{
+				auto GetTextButton = [this](const FString& Label, const FCheckBoxStyle* ButtonStyle, FImageABComparison::EAorB AorB)
+				{
+					return SNew(SCheckBox)
+					.Style(ButtonStyle)
+					.IsEnabled_Lambda([this, AorB]
+					                      {
+						                      return ABComparison->CanSetABComparison(AorB);
+					                      })
+					.IsChecked(ABComparison->ABComparisonIsSet(AorB))
+					.OnCheckStateChanged_Lambda([this, AorB](const ECheckBoxState State)
+					                      {
+						                      ABComparison->SetABComparison(AorB, State != ECheckBoxState::Checked ? FGuid() : ImageGuid.Execute());
+					                      })
+					[
+						SNew(STextBlock)
+							.Font(FAppStyle::GetFontStyle("EditorViewportToolBar.Font"))
+							.Text(FText::FromString(Label))
+							.Margin(FMargin(2.0f, 0.0f))
+					];
+				};
+
+				const FCheckBoxStyle* ButtonStyleStart = &FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("EditorViewportToolBar.ToggleButton.Start");
+				const FCheckBoxStyle* ButtonStyleEnd = &FAppStyle::Get().GetWidgetStyle<FCheckBoxStyle>("EditorViewportToolBar.ToggleButton.End");
+
+				const TSharedRef<SHorizontalBox> RGBA = SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						GetTextButton("A", ButtonStyleStart, FImageABComparison::A)
+					]
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						GetTextButton("B", ButtonStyleEnd, FImageABComparison::B)
+					];
+
+				ToolbarBuilder.AddToolBarWidget(RGBA);
+			}
+
+			ToolbarBuilder.AddSeparator();
+		}
+		ToolbarBuilder.EndSection();
+
+		ToolbarBuilder.AddSeparator();
+
+		return ToolbarBuilder.MakeWidget();
+	}
+#else
 	TSharedRef<SWidget> SImageViewportToolbar::MakeCenterToolbar(const TSharedPtr<FExtender>& Extender)
 	{
 		FSlimHorizontalToolBarBuilder ToolbarBuilder = GetToolbarBuilder(CommandList, Extender);
@@ -125,6 +195,7 @@ namespace UE::ImageWidgets
 
 		return ToolbarBuilder.MakeWidget();
 	}
+#endif
 
 	TSharedRef<SWidget> SImageViewportToolbar::MakeRightToolbar(const TSharedPtr<FExtender>& Extender)
 	{

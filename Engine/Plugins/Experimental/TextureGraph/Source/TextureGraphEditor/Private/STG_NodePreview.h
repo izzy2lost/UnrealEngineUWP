@@ -29,9 +29,7 @@ public:
 	virtual FImageInfo GetCurrentImageInfo() const override;
 	virtual void DrawCurrentImage(FViewport* Viewport, FCanvas* Canvas, const FDrawProperties& Properties) override;
 	virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipIndex) const override;
-#if IMAGE_WIDGETS_WITH_CATALOG
 	virtual void OnImageSelected(const FGuid& ImageGuid) override {};
-#endif
 #if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	virtual bool IsValidImage(const FGuid& Guid) const override { return true; }
 #endif

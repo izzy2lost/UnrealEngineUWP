@@ -3,6 +3,9 @@
 #include "SImageViewport.h"
 
 #include "CanvasTypes.h"
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+#include "ImageABComparison.h"
+#endif
 #include "ImageViewportClient.h"
 #include "ImageViewportController.h"
 #include "ImageWidgetsCommands.h"
@@ -49,6 +52,11 @@ namespace UE::ImageWidgets
 	}
 
 	SImageViewport::SImageViewport()
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		: ABComparison(MakePimpl<FImageABComparison>(
+			FImageABComparison::FImageIsValid::CreateLambda([this](const FGuid& Guid) { return ImageViewer->IsValidImage(Guid); }),
+			FImageABComparison::FGetCurrentImageGuid::CreateLambda([this] { return ImageViewer->GetCurrentImageInfo().Guid; })))
+#endif
 	{
 	}
 
@@ -148,6 +156,9 @@ namespace UE::ImageWidgets
 		StatusBarExtender = InArgs._StatusBarExtender;
 
 		DrawSettings = InArgs._DrawSettings;
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		bABComparisonEnabled = InArgs._bABComparisonEnabled;
+#endif
 		OnLeftMouseButtonPressed = InArgs._OnLeftMouseButtonPressed;
 		OnLeftMouseButtonReleased = InArgs._OnLeftMouseButtonReleased;
 
@@ -189,7 +200,7 @@ namespace UE::ImageWidgets
 		{
 			OnLeftMouseButtonReleased.ExecuteIfBound();
 		};
-		
+
 		ImageViewportClient = MakeShareable(new FImageViewportClient(
 			StaticCastWeakPtr<SEditorViewport>(AsWeak()),
 			FGetImageSize::CreateLambda(GetImageSize),
@@ -198,6 +209,9 @@ namespace UE::ImageWidgets
 			FGetDPIScaleFactor::CreateLambda(GetDPIScaleFactor),
 			FOnLeftMouseButtonPressed::CreateLambda(HandleOnLeftMouseButtonPressed),
 			FOnLeftMouseButtonReleased::CreateLambda(HandleOnLeftMouseButtonReleased),
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+			ABComparison.Get(),
+#endif
 			InArgs._ControllerSettings.DefaultZoomMode,
 			InArgs._MouseCaptureMode)
 			);
@@ -286,6 +300,17 @@ namespace UE::ImageWidgets
 			return ImageViewer->GetCurrentImageInfo().Guid;
 		};
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		SAssignNew(ImageViewportToolbar, SImageViewportToolbar, StaticCastSharedPtr<FImageViewportClient>(Client), CommandList,
+						  SImageViewportToolbar::FConstructParameters
+						  {
+							  SImageViewportToolbar::FHasImage::CreateLambda(HasImage),
+							  SImageViewportToolbar::FNumMips::CreateLambda(GetNumMips),
+							  SImageViewportToolbar::FImageGuid::CreateLambda(GetImageGuid),
+							  bABComparisonEnabled ? ABComparison.Get() : nullptr,
+							  ToolbarExtender
+						  });
+#else
 		SAssignNew(ImageViewportToolbar, SImageViewportToolbar, StaticCastSharedPtr<FImageViewportClient>(Client), CommandList,
 						  SImageViewportToolbar::FConstructParameters
 						  {
@@ -294,6 +319,8 @@ namespace UE::ImageWidgets
 							  SImageViewportToolbar::FImageGuid::CreateLambda(GetImageGuid),
 							  ToolbarExtender
 						  });
+#endif
+						  
 
 		ToolbarExtender.Reset();
 

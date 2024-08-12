@@ -51,6 +51,9 @@ namespace UE::ImageWidgets::Sample
 									.bBackgroundColorEnabled = false,
 									.bBackgroundCheckerEnabled = false
 								})
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+								.bABComparisonEnabled(true)
+#endif
 						]
 			];
 	}
@@ -114,8 +117,9 @@ namespace UE::ImageWidgets::Sample
 		if (const FColorViewer::FColorItem* ColorItem = ColorViewer->AddColor())
 		{
 			auto [Name, Info, ToolTip] = GetColorItemMetaData(ColorItem->Color, ColorItem->DateTime);
+			const FLinearColor ToneMappedColor = ColorViewer->GetDefaultToneMappedColor(ColorItem->Color);
 
-			Catalog->AddItem(MakeShared<FImageCatalogItemData>(ColorItem->Guid, FSlateColorBrush(ColorItem->Color), Name, Info, ToolTip));
+			Catalog->AddItem(MakeShared<FImageCatalogItemData>(ColorItem->Guid, FSlateColorBrush(ToneMappedColor), Name, Info, ToolTip));
 			Catalog->SelectItem(ColorItem->Guid);
 
 			if (bCatalogCollapsedOnInit && Catalog->NumTotalItems() > 1 && Splitter->SlotAt(0).GetSizeValue() <= 0.0f)

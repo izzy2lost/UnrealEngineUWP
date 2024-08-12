@@ -8,10 +8,7 @@ public class ImageWidgets : ModuleRules
 	private const bool ForceBuildColorViewerSample = false;
 
 	// Todo Remove build flags as soon as all the respective prototype code is migrated to this module.
-	// These flags are currently used to migrate already existing prototype functionality into this module without having to remove/change the functionality of
-	// the prototype applications.
-	private const bool EnableCatalog = true;
-	private const bool EnableAbComparison = false;
+	private const bool EnableAbComparison = true;
 
 	public ImageWidgets(ReadOnlyTargetRules Target) : base(Target)
 	{
@@ -50,7 +47,6 @@ public class ImageWidgets : ModuleRules
 		}
 		PublicDefinitions.Add(bBuildColorViewerSample ? "IMAGE_WIDGETS_BUILD_COLOR_VIEWER_SAMPLE=1" : "IMAGE_WIDGETS_BUILD_COLOR_VIEWER_SAMPLE=0");
 
-		PublicDefinitions.Add(EnableCatalog ? "IMAGE_WIDGETS_WITH_CATALOG=1" : "IMAGE_WIDGETS_WITH_CATALOG=0");
 		PublicDefinitions.Add(EnableAbComparison ? "IMAGE_WIDGETS_WITH_AB_COMPARISON=1" : "IMAGE_WIDGETS_WITH_AB_COMPARISON=0");
 	}
 }

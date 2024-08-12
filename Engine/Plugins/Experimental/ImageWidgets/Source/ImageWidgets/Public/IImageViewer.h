@@ -68,14 +68,42 @@ namespace UE::ImageWidgets
 				float MipLevel;
 			};
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+			/**
+			 * Information necessary for rendering AB comparisons.
+			 */
+			struct FABComparison
+			{
+				/** @return true if an AB comparison should be drawn instead of a single image. */
+				bool IsActive() const { return GuidA.IsValid() && GuidB.IsValid(); };
+
+				/** Unique identifier for image A. */
+				FGuid GuidA;
+				
+				/** Unique identifier for image B. */
+				FGuid GuidB;
+
+				/**
+				 * Value between 0..1 to indicate where the threshold between images A and B is.
+				 * A value of 0 means that only B should be drawn.
+				 * A value of 0.5 means that the left half of A and the right half of B should be drawn.
+				 * A value of 1 means that only A should be drawn. 
+				 */
+				double Threshold;
+			};
+#endif
+
 			FPlacement Placement;
 			FMip Mip;
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+			FABComparison ABComparison;
+#endif
 		};
 
 		/**
 		 * Provides any necessary metadata for the image widgets about the image that is currently supposed to be displayed. This data is generic in the sense
 		 * that the image widgets don't need to know any of the image structure, its content or how to draw it. Instead, the image drawing is done directly
-		 * via @ref DrawCurrentImage.
+		 * via @see DrawCurrentImage.
 		 * @return information about the image to be displayed
 		 */
 		virtual FImageInfo GetCurrentImageInfo() const = 0;
@@ -96,13 +124,20 @@ namespace UE::ImageWidgets
 		 */
 		virtual TOptional<TVariant<FColor, FLinearColor>> GetCurrentImagePixelColor(FIntPoint PixelCoords, int32 MipLevel) const = 0;
 
-#if IMAGE_WIDGETS_WITH_CATALOG
 		/**
 		 * Notifies about the image with the given GUID being selected.
 		 * This can be implemented as an empty function if the image viewer implementation does not support switching between different images.
 		 * @param Guid Unique identifier of the selected image
 		 */
 		virtual void OnImageSelected(const FGuid& Guid) = 0;
+
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		/**
+		 * Returns if a given GUID represents a currently available image.
+		 * @param Guid Unique identifier of the potentially available image
+		 * @return true if the GUID represents a currently available image
+		 */
+		virtual bool IsValidImage(const FGuid& Guid) const = 0;
 #endif
 
 	protected:

@@ -10,6 +10,9 @@ class SViewportToolBar;
 
 namespace UE::ImageWidgets
 {
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	class FImageABComparison;
+#endif
 	class FImageViewportClient;
 	class FStatusBarExtension;
 	class IImageViewer;
@@ -17,7 +20,7 @@ namespace UE::ImageWidgets
 
 	/**
 	 * Generic viewport for displaying and interacting with 2D image-like content.
-	 * The drawing of the images is deferred to an @ref IImageViewer implementation that needs to be provided upon construction. This viewport only uses the 
+	 * The drawing of the images is deferred to an @see IImageViewer implementation that needs to be provided upon construction. This viewport only uses the 
 	 * metadata provided by the image viewer to have sufficient information about the image without being aware of its actual format or contents.
 	 */
 	class SImageViewport : public SEditorViewport
@@ -33,8 +36,8 @@ namespace UE::ImageWidgets
 		public:
 			/**
 			 * Delegate that gets called for each extension when the status bar is constructed.
-			 * The given @ref SHorizontalBox is the layout container that the widget for the extension needs to be added to by calling
-			 * @ref SHorizontalBox::AddSlot().
+			 * The given @see SHorizontalBox is the layout container that the widget for the extension needs to be added to by calling
+			 * @see SHorizontalBox::AddSlot().
 			 */
 			DECLARE_DELEGATE_OneParam(FDelegate, SHorizontalBox&);
 
@@ -107,15 +110,20 @@ namespace UE::ImageWidgets
 				Fill // Make the image fit within the viewport, and if it is smaller than the viewport, zoom in to fill the viewport.
 			};
 
-			/** Zoom mode that gets set on viewport construction and whenever the viewport controller is reset via @ref ResetController(). */
+			/** Zoom mode that gets set on viewport construction and whenever the viewport controller is reset via @see ResetController(). */
 			EDefaultZoomMode DefaultZoomMode = EDefaultZoomMode::Fit;
 		};
 
 		DECLARE_DELEGATE(FOnLeftMouseButtonPressed);
 		DECLARE_DELEGATE(FOnLeftMouseButtonReleased);
 
-		SLATE_BEGIN_ARGS(SImageViewport) :
-			_MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
+		SLATE_BEGIN_ARGS(SImageViewport)
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+			: _bABComparisonEnabled(false)
+			, _MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
+#else
+			: _MouseCaptureMode(EMouseCaptureMode::CapturePermanently)
+#endif
 			{
 			}
 
@@ -127,6 +135,11 @@ namespace UE::ImageWidgets
 
 			/** Settings for drawing viewport contents other than the actual image */
 			SLATE_ATTRIBUTE(FDrawSettings, DrawSettings)
+
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+			/** Enables AB comparison controls in the toolbar */
+			SLATE_ARGUMENT(bool, bABComparisonEnabled)
+#endif
 
 			/** Settings for controlling the viewport */
 			SLATE_ARGUMENT(FControllerSettings, ControllerSettings)
@@ -148,19 +161,19 @@ namespace UE::ImageWidgets
 		/**
 		 * Function used by Slate to construct the image viewport widget with the given arguments.
 		 * @param InArgs Slate arguments defined above
-		 * @param InImageViewer @ref IImageViewer implementation that holds and draws the actual image contents.
+		 * @param InImageViewer @see IImageViewer implementation that holds and draws the actual image contents.
 		 */
 		IMAGEWIDGETS_API void Construct(const FArguments& InArgs, const TSharedRef<IImageViewer>& InImageViewer);
 
 		/**
-		 * Provides access to the viewport toolbar, which is needed to dynamically generate certain toolbar widgets, e.g. an @ref SEditorViewportToolbarMenu,
+		 * Provides access to the viewport toolbar, which is needed to dynamically generate certain toolbar widgets, e.g. an @see SEditorViewportToolbarMenu,
 		 * as part of a toolbar extension. 
 		 * @return Pointer to the viewport toolbar 
 		 */
 		IMAGEWIDGETS_API TSharedPtr<SViewportToolBar> GetParentToolbar() const;
 
 		/**
-		 * Result for calls to @ref GetPixelCoordinatesUnderCursor.
+		 * Result for calls to @see GetPixelCoordinatesUnderCursor.
 		 */
 		struct FPixelCoordinatesUnderCursorResult
 		{
@@ -174,7 +187,7 @@ namespace UE::ImageWidgets
 
 		/**
 		 * Provides the pixel coordinates under the cursor.
-		 * @return Pixel coordinates result under the cursor; see @ref FPixelCoordinatesUnderCursorResult for more details
+		 * @return Pixel coordinates result under the cursor; see @see FPixelCoordinatesUnderCursorResult for more details
 		 */
 		IMAGEWIDGETS_API FPixelCoordinatesUnderCursorResult GetPixelCoordinatesUnderCursor() const;
 
@@ -218,6 +231,14 @@ namespace UE::ImageWidgets
 		/** Makes the draw setting available either as fixed values or via a callback to the outside of the viewport. */
 		TAttribute<FDrawSettings> DrawSettings;
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		/** Flag that determines is AB comparison widgets are enabled or not. The value does not change after the call to @see Construct(). */
+		bool bABComparisonEnabled = false;
+
+		/** Data and logic related to AB comparisons. This is effectively unused when @see bABComparisonEnabled is set to false. */
+		TPimplPtr<FImageABComparison> ABComparison;
+#endif
+
 		/** The image viewer that holds and draws the actual images. */
 		TSharedPtr<IImageViewer> ImageViewer;
 
@@ -227,10 +248,10 @@ namespace UE::ImageWidgets
 		/** The toolbar that controls some of the behavior of the viewport and optionally also the image viewer via toolbar extensions. */
 		TSharedPtr<SImageViewportToolbar> ImageViewportToolbar;
 
-		/** Toolbar extensions provided by the call to @ref Construct(). This pointer is reset after the extensions were applied during construction. */
+		/** Toolbar extensions provided by the call to @see Construct(). This pointer is reset after the extensions were applied during construction. */
 		TSharedPtr<FExtender> ToolbarExtender;
 
-		/** Status bar extensions provided by the call to @ref Construct(). This pointer is reset after the extensions were applied during construction. */
+		/** Status bar extensions provided by the call to @see Construct(). This pointer is reset after the extensions were applied during construction. */
 		TSharedPtr<FStatusBarExtender> StatusBarExtender;
 
 		/** Left Mouse buttons pressed and released events triggered to tell the widget containing the viewport. These are initialized from the constructor.*/

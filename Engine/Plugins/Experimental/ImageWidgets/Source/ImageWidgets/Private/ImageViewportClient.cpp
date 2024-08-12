@@ -4,6 +4,9 @@
 
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+#include "ImageABComparison.h"
+#endif
 #include "ImageWidgetsLogCategory.h"
 #include "SImageViewport.h"
 #include "Texture2DPreview.h"
@@ -100,6 +103,9 @@ void DestroyCheckerTexture(TStrongObjectPtr<UTexture2D>& CheckerTexture)
 FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEditorViewport, FGetImageSize&& InGetImageSize, FDrawImage&& InDrawImage,
                                            FGetDrawSettings&& InGetDrawSettings, FGetDPIScaleFactor&& InGetDPIScaleFactor,
                                            FOnLeftMouseButtonPressed&& InOnLeftMouseButtonPressed, FOnLeftMouseButtonReleased&& InOnLeftMouseButtonReleased,
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON       
+                                           const FImageABComparison* ABComparison,
+#endif
                                            SImageViewport::FControllerSettings::EDefaultZoomMode DefaultZoomMode,
                                            EMouseCaptureMode InMouseCaptureMode /*= EMouseCaptureMode::CapturePermanently*/)
 	: FEditorViewportClient(nullptr, nullptr, InEditorViewport)
@@ -109,6 +115,9 @@ FImageViewportClient::FImageViewportClient(const TWeakPtr<SEditorViewport>& InEd
 	, GetDPIScaleFactor(MoveTemp(InGetDPIScaleFactor))
 	, OnLeftMouseButtonPressed(MoveTemp(InOnLeftMouseButtonPressed))
 	, OnLeftMouseButtonReleased(MoveTemp(InOnLeftMouseButtonReleased))
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	, ABComparison(ABComparison)
+#endif
 	, Controller(static_cast<FImageViewportController::EZoomMode>(DefaultZoomMode))
 	, MouseCaptureMode(InMouseCaptureMode)
 {
@@ -182,8 +191,44 @@ void FImageViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 		Canvas->DrawItem(Background);
 	}
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	const double ABComparisonDividerX = [this]
+	{
+		if (bDraggingABComparisonDivider)
+		{
+			FIntPoint MousePos;
+			Viewport->GetMousePos(MousePos);
+
+			FVector2d DividerPos = FVector2d(MousePos) - CachedPlacement.Offset;
+			DividerPos /= CachedPlacement.ZoomFactor;
+
+			const FIntPoint ImageSize = GetImageSize.Execute();
+			return DividerPos.X / ImageSize.X;
+		}
+		return ABComparisonDivider;
+	}();
+
+	const IImageViewer::FDrawProperties::FABComparison ABComparisonProperties = [this, &ABComparisonDividerX]() -> IImageViewer::FDrawProperties::FABComparison
+	{
+		return {ABComparison->GuidA(), ABComparison->GuidB(), FMath::Clamp(ABComparisonDividerX, 0.0, 1.0)};
+	}();
+
+	// Draw image
+	DrawImage.Execute(InViewport, Canvas, {CachedPlacement, MipProperties, ABComparisonProperties});
+
+	if (ABComparison->IsActive())
+	{
+		const FVector2D LineStart(CachedPlacement.Offset.X + CachedPlacement.Size.X * ABComparisonDividerX, 0);
+		const FVector2D LineEnd(CachedPlacement.Offset.X + CachedPlacement.Size.X * ABComparisonDividerX, InViewport->GetSizeXY().Y);
+		FCanvasLineItem Line(LineStart, LineEnd);
+		Line.LineThickness = 2.0f;
+		Line.SetColor({0.5f, 0.5f, 0.5f, 1.0f});
+		Canvas->DrawItem(Line);
+	}
+#else
 	// Draw image
 	DrawImage.Execute(InViewport, Canvas, {CachedPlacement, MipProperties});
+#endif
 }
 
 EMouseCursor::Type FImageViewportClient::GetCursor(FViewport* InViewport, int32 X, int32 Y)	
@@ -194,6 +239,13 @@ EMouseCursor::Type FImageViewportClient::GetCursor(FViewport* InViewport, int32 
 		CachedMouseY = Y;
 		return EMouseCursor::GrabHandClosed;
 	}
+
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	if (bDraggingABComparisonDivider || MouseIsOverABComparisonDivider({X, Y}))
+	{
+		return EMouseCursor::ResizeLeftRight;
+	}
+#endif
 
 	const auto [PixelCoordsValid, PixelCoords] = GetPixelCoordinatesUnderCursor();
 	const FIntPoint ImageSize = GetImageSize.Execute();
@@ -259,6 +311,14 @@ void FImageViewportClient::TrackingStarted(const FInputEventState& InputState, b
 		FIntPoint MousePos;
 		InputState.GetViewport()->GetMousePos(MousePos);
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		if (InputState.IsLeftMouseButtonPressed() && MouseIsOverABComparisonDivider(MousePos))
+		{
+			bDraggingABComparisonDivider = true;
+			return;
+		}
+#endif
+
 		if (InputState.IsRightMouseButtonPressed())
 		{
 			bDragging = true;
@@ -272,6 +332,23 @@ void FImageViewportClient::TrackingStarted(const FInputEventState& InputState, b
 
 void FImageViewportClient::TrackingStopped()
 {
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+	if (bDraggingABComparisonDivider)
+	{
+		bDraggingABComparisonDivider = false;
+
+		FIntPoint DraggingEnd;
+		Viewport->GetMousePos(DraggingEnd);
+
+		FVector2d DraggingEndPos = FVector2d(DraggingEnd) - CachedPlacement.Offset;
+		DraggingEndPos /= CachedPlacement.ZoomFactor;
+
+		const FIntPoint ImageSize = GetImageSize.Execute();
+		
+		ABComparisonDivider = DraggingEndPos.X / ImageSize.X;
+	}
+#endif
+
 	if (bDragging)
 	{
 		bDragging = false;
@@ -411,6 +488,14 @@ EMouseCaptureMode FImageViewportClient::GetMouseCaptureMode() const
 {
 	return MouseCaptureMode;
 }
+
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+bool FImageViewportClient::MouseIsOverABComparisonDivider(const FIntPoint MousePos) const
+{
+	const double ABComparisonDividerPosition = CachedPlacement.Offset.X + CachedPlacement.Size.X * ABComparisonDivider;
+	return ABComparisonDividerPosition - 1.0 <= MousePos.X && MousePos.X <= ABComparisonDividerPosition + 1.0;
+}
+#endif
 }
 
 #undef LOCTEXT_NAMESPACE
