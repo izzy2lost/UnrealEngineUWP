@@ -73,6 +73,12 @@ namespace Metasound
 			/** Promotes pin to deferred graph variable */
 			TSharedPtr<FUICommandInfo> PromoteToDeferredVariable;
 
+			/** Promotes all unconnected node inputs to graph inputs. */
+			TSharedPtr<FUICommandInfo> PromoteAllToInput;
+
+			/** Promotes all unconnected node inputs to shared graph inputs. */
+			TSharedPtr<FUICommandInfo> PromoteAllToCommonInputs;
+
 			/** Initialize commands */
 			virtual void RegisterCommands() override;
 		};

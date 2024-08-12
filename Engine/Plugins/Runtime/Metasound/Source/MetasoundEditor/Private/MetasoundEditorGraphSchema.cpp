@@ -1387,6 +1387,8 @@ void UMetasoundEditorGraphSchema::GetContextMenuActions(class UToolMenu* Menu, c
 		Section.AddMenuEntry(FGraphEditorCommands::Get().FindReferences, LOCTEXT("FindReferencesInGraph", "Find References In Graph"),
 			LOCTEXT("FindReferencesInGraph_Tooltip", "Find References to the selected Node in the current Graph"),
 			FSlateIcon());
+		Section.AddMenuEntry(FEditorCommands::Get().PromoteAllToInput);
+		Section.AddMenuEntry(FEditorCommands::Get().PromoteAllToCommonInputs);
 
 		FToolMenuSection& OrganizationSection = Menu->FindOrAddSection("MetasoundGraphNodeActionsOrganization", LOCTEXT("NodeActionsOrganizationMenuHeader", "Organization"));
 

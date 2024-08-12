@@ -393,7 +393,21 @@ namespace Metasound
 			/** Promotes pin to graph deferred variable */
 			void PromoteToDeferredVariable();
 
+			/** Checks if node's inputs can be promoted */
+			bool CanPromoteAllToInputs();
+
+			/** Promotes node's inputs to unique graph inputs */
+			void PromoteAllToInputs();
+
+			/** Checks if node's inputs can be promoted */
+			bool CanPromoteAllToCommonInputs();
+
+			/** Promotes node's inputs to shared graph inputs */
+			void PromoteAllToCommonInputs();
+
 		private:
+			int32 PromotableSelectedNodes();
+
 			/** Forces refresh of pages view. */
 			void RefreshPagesView();
 
