@@ -28,11 +28,13 @@
 #include "Graph/Nodes/MovieGraphSetCVarValueNode.h"
 #include "MovieEdGraphNode.h"
 #include "MovieGraphSchema.h"
+#include "MoviePipelineCommands.h"
 #include "MovieRenderPipelineSettings.h"
 #include "SMovieGraphActiveRenderSettingsTabContent.h"
 #include "SMovieGraphMembersTabContent.h"
 
 #include "Framework/Commands/GenericCommands.h"
+#include "GraphEditor.h"
 #include "IDetailRootObjectCustomization.h"
 #include "PropertyEditorModule.h"
 #include "Selection.h"
@@ -268,6 +270,7 @@ void FMovieGraphAssetToolkit::InitMovieGraphAssetToolkit(const EToolkitMode::Typ
 	InitAssetEditor(Mode, InitToolkitHost, AppIdentifier, Layout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, InitGraph);
 
 	BindGraphCommands();
+	ExtendToolkitMenu();
 }
 
 TSharedRef<SDockTab> FMovieGraphAssetToolkit::SpawnTab_RenderGraphEditor(const FSpawnTabArgs& Args)
@@ -475,6 +478,37 @@ void FMovieGraphAssetToolkit::BindGraphCommands()
 	ToolkitCommands->MapAction(FGenericCommands::Get().Delete,
 		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::DeleteSelectedMembers),
 		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanDeleteSelectedMembers));
+
+	ToolkitCommands->MapAction(FMoviePipelineCommands::Get().ZoomToWindow,
+			FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::OnZoomToWindow),
+			FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanZoomToWindow));
+		
+	ToolkitCommands->MapAction(FMoviePipelineCommands::Get().ZoomToSelection,
+		FExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::OnZoomToSelection),
+		FCanExecuteAction::CreateSP(this, &FMovieGraphAssetToolkit::CanZoomToSelection));
+}
+
+void FMovieGraphAssetToolkit::ExtendToolkitMenu() const
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();	
+	if (UToolMenu* MainMenu = ToolMenus->ExtendMenu(GetToolMenuName()))
+	{
+		FToolMenuSection& Section = MainMenu->FindOrAddSection(NAME_None);
+		if (!Section.FindEntry("View"))
+		{
+			Section.AddSubMenu(
+				"View",
+				LOCTEXT("ViewMenu", "View"),
+				LOCTEXT("ViewMenu_ToolTip", "Open the View menu"),
+				FNewToolMenuDelegate::CreateLambda([this](UToolMenu* InMenu)
+				{
+					FToolMenuSection& ZoomSection = InMenu->AddSection("ViewZoom", LOCTEXT("ViewMenuZoomHeading", "Zoom"));
+					ZoomSection.AddMenuEntryWithCommandList(FMoviePipelineCommands::Get().ZoomToWindow, ToolkitCommands);
+					ZoomSection.AddMenuEntryWithCommandList(FMoviePipelineCommands::Get().ZoomToSelection, ToolkitCommands);
+				})
+			).InsertPosition = FToolMenuInsert("Asset", EToolMenuInsertType::After);
+		}
+	}
 }
 
 void FMovieGraphAssetToolkit::DeleteSelectedMembers()
@@ -493,6 +527,40 @@ bool FMovieGraphAssetToolkit::CanDeleteSelectedMembers()
 	}
 
 	return false;
+}
+
+void FMovieGraphAssetToolkit::OnZoomToWindow() const
+{
+	if (MovieGraphWidget.IsValid())
+	{
+		if (const TSharedPtr<SGraphEditor> GraphEditor = MovieGraphWidget->GetGraphEditor().Pin())
+		{
+			constexpr bool bOnlySelection = false;
+			GraphEditor->ZoomToFit(bOnlySelection);
+		}
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanZoomToWindow() const
+{
+	return MovieGraphWidget.IsValid() && MovieGraphWidget->GetGraphEditor().IsValid();
+}
+
+void FMovieGraphAssetToolkit::OnZoomToSelection() const
+{
+	if (MovieGraphWidget.IsValid())
+	{
+		if (const TSharedPtr<SGraphEditor> GraphEditor = MovieGraphWidget->GetGraphEditor().Pin())
+		{
+			constexpr bool bOnlySelection = true;
+			GraphEditor->ZoomToFit(bOnlySelection);
+		}
+	}
+}
+
+bool FMovieGraphAssetToolkit::CanZoomToSelection() const
+{
+	return MovieGraphWidget.IsValid() && MovieGraphWidget->GetGraphEditor().IsValid();
 }
 
 void FMovieGraphAssetToolkit::PersistEditorOnlyNodes() const

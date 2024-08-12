@@ -646,6 +646,11 @@ void SMoviePipelineGraphPanel::ClearGraphSelection() const
 	GraphEditorWidget->ClearSelectionSet();
 }
 
+TWeakPtr<SGraphEditor> SMoviePipelineGraphPanel::GetGraphEditor() const
+{
+	return GraphEditorWidget.ToWeakPtr();
+}
+
 bool SMoviePipelineGraphPanel::MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const
 {
 	// ToDo: If we wanted to rebuild the graph less often, we could make all of our transactions have a context

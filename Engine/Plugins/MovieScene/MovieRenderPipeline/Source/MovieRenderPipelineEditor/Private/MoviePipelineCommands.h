@@ -12,6 +12,10 @@ public:
 
 	TSharedPtr<FUICommandInfo> ResetStatus;
 
+	// Graph commands
+	TSharedPtr<FUICommandInfo> ZoomToWindow;
+	TSharedPtr<FUICommandInfo> ZoomToSelection;
+
 	/** Initialize commands */
 	virtual void RegisterCommands() override;
 };

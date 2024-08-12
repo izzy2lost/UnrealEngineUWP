@@ -44,6 +44,9 @@ public:
 	/** Clears the selection in the graph widget being displayed. */
 	void ClearGraphSelection() const;
 
+	/** Gets the graph editor that's contained within this widget. */
+	TWeakPtr<SGraphEditor> GetGraphEditor() const;
+
 	// FEditorUndoClient interface
 	virtual bool MatchesContext(const FTransactionContext& InContext, const TArray<TPair<UObject*, FTransactionObjectEvent>>& TransactionObjectContexts) const override;
 	virtual void PostUndo(bool bSuccess) override;
