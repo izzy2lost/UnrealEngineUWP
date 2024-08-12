@@ -2,7 +2,6 @@
 
 #include "Video/Encoders/Configs/VideoEncoderConfigVT.h"
 
-
 #include "Video/Encoders/Configs/VideoEncoderConfigH264.h"
 #include "Video/Encoders/Configs/VideoEncoderConfigH265.h"
 
@@ -11,23 +10,23 @@ REGISTER_TYPEID(FVideoEncoderConfigVT);
 static uint32 DEFAULT_BITRATE_TARGET = 1000000;
 static uint32 DEFAULT_BITRATE_MAX = 10000000;
 
-TAVResult<OSType> FVideoEncoderConfigVT::ConvertFormat(EVideoFormat const& Format)
+TAVResult<OSType> FVideoEncoderConfigVT::ConvertFormat(EVideoFormat const &Format)
 {
 	switch (Format)
 	{
-		case EVideoFormat::BGRA:
-			return kCVPixelFormatType_32RGBA;
-		case EVideoFormat::ABGR10:
-			return kCVPixelFormatType_ARGB2101010LEPacked;
-		case EVideoFormat::NV12:
-			return kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Pixel format %d is not supported"), Format), TEXT("VT"));
+	case EVideoFormat::BGRA:
+		return kCVPixelFormatType_32RGBA;
+	case EVideoFormat::ABGR10:
+		return kCVPixelFormatType_ARGB2101010LEPacked;
+	case EVideoFormat::NV12:
+		return kCVPixelFormatType_420YpCbCr8BiPlanarFullRange;
+	default:
+		return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("Pixel format %d is not supported"), Format), TEXT("VT"));
 	}
 }
 
-template<>
-DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConfig, FVideoEncoderConfig const& InConfig)
+template <>
+DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT &OutConfig, FVideoEncoderConfig const &InConfig)
 {
 	OutConfig.Width = InConfig.Width;
 	OutConfig.Height = InConfig.Height;
@@ -36,15 +35,15 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConf
 	OutConfig.TargetBitrate = InConfig.TargetBitrate > -1 ? InConfig.TargetBitrate : DEFAULT_BITRATE_TARGET;
 	OutConfig.MaxBitrate = InConfig.MaxBitrate > -1 ? InConfig.MaxBitrate : DEFAULT_BITRATE_MAX;
 	OutConfig.RateControlMode = InConfig.RateControlMode;
-    OutConfig.MinQP = InConfig.MinQP;
-    OutConfig.MaxQP = InConfig.MaxQP;
+	OutConfig.MinQuality = InConfig.MinQuality;
+	OutConfig.MaxQuality = InConfig.MaxQuality;
 	OutConfig.KeyframeInterval = InConfig.KeyframeInterval > 0 ? InConfig.KeyframeInterval : 0;
 
 	return EAVResult::Success;
 }
 
 template <>
-DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig, FVideoEncoderConfigVT const& InConfig)
+DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig &OutConfig, FVideoEncoderConfigVT const &InConfig)
 {
 	OutConfig.Width = InConfig.Width;
 	OutConfig.Height = InConfig.Height;
@@ -53,39 +52,40 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig
 	OutConfig.TargetBitrate = InConfig.TargetBitrate > -1 ? InConfig.TargetBitrate : DEFAULT_BITRATE_TARGET;
 	OutConfig.MaxBitrate = InConfig.MaxBitrate > -1 ? InConfig.MaxBitrate : DEFAULT_BITRATE_MAX;
 	OutConfig.RateControlMode = InConfig.RateControlMode;
-    OutConfig.MinQP = InConfig.MinQP;
-    OutConfig.MaxQP = InConfig.MaxQP;
+	OutConfig.MinQuality = InConfig.MinQuality;
+	OutConfig.MaxQuality = InConfig.MaxQuality;
 	OutConfig.KeyframeInterval = InConfig.KeyframeInterval > 0 ? InConfig.KeyframeInterval : 0;
 
 	return EAVResult::Success;
 }
 
 template <>
-DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConfig, FVideoEncoderConfigH264 const& InConfig)
+DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT &OutConfig, FVideoEncoderConfigH264 const &InConfig)
 {
-    OutConfig.Codec = kCMVideoCodecType_H264;
+	OutConfig.Codec = kCMVideoCodecType_H264;
 
-    static auto const ConvertEntropyCodingMode = [](EH264EntropyCodingMode EntropyCodingMode) -> TAVResult<CFStringRef> {
+	static auto const ConvertEntropyCodingMode = [](EH264EntropyCodingMode EntropyCodingMode) -> TAVResult<CFStringRef>
+	{
 		switch (EntropyCodingMode)
 		{
-			case EH264EntropyCodingMode::Auto:
-				return nullptr;
-			case EH264EntropyCodingMode::CABAC:
-				return kVTH264EntropyMode_CABAC;
-			case EH264EntropyCodingMode::CAVLC:
-				return kVTH264EntropyMode_CAVLC;
-			default:
-				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 entropy coding mode %d is not supported"), EntropyCodingMode), TEXT("VT"));
+		case EH264EntropyCodingMode::Auto:
+			return nullptr;
+		case EH264EntropyCodingMode::CABAC:
+			return kVTH264EntropyMode_CABAC;
+		case EH264EntropyCodingMode::CAVLC:
+			return kVTH264EntropyMode_CAVLC;
+		default:
+			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 entropy coding mode %d is not supported"), EntropyCodingMode), TEXT("VT"));
 		}
 	};
 
-    TAVResult<CFStringRef> const ConvertedEntropyCodingMode = ConvertEntropyCodingMode(InConfig.EntropyCodingMode);
+	TAVResult<CFStringRef> const ConvertedEntropyCodingMode = ConvertEntropyCodingMode(InConfig.EntropyCodingMode);
 	if (ConvertedEntropyCodingMode.IsNotSuccess())
 	{
 		return ConvertedEntropyCodingMode;
 	}
 
-    OutConfig.EntropyCodingMode = ConvertedEntropyCodingMode;
+	OutConfig.EntropyCodingMode = ConvertedEntropyCodingMode;
 
 	static auto const ConvertProfile = [](EH264Profile Profile) -> TAVResult<CFStringRef>
 	{
@@ -108,7 +108,7 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConf
 	if (ConvertedProfile.IsNotSuccess())
 	{
 		return ConvertedProfile;
-    }
+	}
 
 	OutConfig.Profile = ConvertedProfile.ReturnValue;
 
@@ -116,18 +116,18 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConf
 }
 
 template <>
-DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConfig, FVideoEncoderConfigH265 const& InConfig)
+DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT &OutConfig, FVideoEncoderConfigH265 const &InConfig)
 {
 	static auto const ConvertProfile = [](EH265Profile Profile) -> TAVResult<CFStringRef>
 	{
 		switch (Profile)
 		{
 		case EH265Profile::Main:
-            return kVTProfileLevel_HEVC_Main_AutoLevel;
-        case EH265Profile::Main10:
-            return kVTProfileLevel_HEVC_Main10_AutoLevel;
-        case EH265Profile::Main422_10:
-            return kVTProfileLevel_HEVC_Main42210_AutoLevel;
+			return kVTProfileLevel_HEVC_Main_AutoLevel;
+		case EH265Profile::Main10:
+			return kVTProfileLevel_HEVC_Main10_AutoLevel;
+		case EH265Profile::Main422_10:
+			return kVTProfileLevel_HEVC_Main42210_AutoLevel;
 		default:
 			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H265 profile %d is not supported"), Profile), TEXT("VT"));
 		}
@@ -141,7 +141,7 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigVT& OutConf
 		return ConvertedProfile;
 	}
 
-    OutConfig.Profile = ConvertedProfile.ReturnValue;
+	OutConfig.Profile = ConvertedProfile.ReturnValue;
 
 	return FAVExtension::TransformConfig<FVideoEncoderConfigVT, FVideoEncoderConfig>(OutConfig, InConfig);
 }
