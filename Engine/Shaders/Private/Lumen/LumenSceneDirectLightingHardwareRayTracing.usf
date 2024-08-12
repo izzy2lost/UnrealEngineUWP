@@ -369,8 +369,41 @@ LUMEN_HARDWARE_RAY_TRACING_ENTRY(LumenSceneDirectLightingHardwareRayTracing)
 				}
 
 				ShadowMaskRay.bShadowFactorComplete = true;
+				ShadowTrace = UnpackShadowTrace(ShadowTraces[ShadowTraceIndex]);
 
 				WriteShadowMaskRay(ShadowMaskRay, ShadowTrace.LightTileIndex, CoordInCardTile, true);
+
+				if (ShadowTrace.DownSampleLevel > 0)
+				{
+					const uint2 QuadBaseCoord = CoordInCardTile & ~0x1;
+					const uint2 SubQuadCoord = CoordInCardTile - QuadBaseCoord;
+					const uint SubQuadIndex = SubQuadCoord.y * 2 + SubQuadCoord.x;
+					const bool bRayOccluded = all(ShadowMaskRay.ShadowFactor == 0.0f);
+					FShadowMaskRay NeighborShadowMaskRays[3];
+
+					for (uint Index = 0, NeighborIndex = 0; Index < 4; ++Index)
+					{
+						if (Index != SubQuadIndex)
+						{
+							const uint2 Offset = uint2(Index % 2, Index / 2);
+							ReadShadowMaskRayRW(ShadowTrace.LightTileIndex, QuadBaseCoord + Offset, NeighborShadowMaskRays[NeighborIndex]);
+							++NeighborIndex;
+						}
+					}
+					
+					for (uint Index = 0, NeighborIndex = 0; Index < 4; ++Index)
+					{
+						if (Index != SubQuadIndex)
+						{
+							const uint2 Offset = uint2(Index % 2, Index / 2);
+							FShadowMaskRay NeighborShadowMaskRay = NeighborShadowMaskRays[NeighborIndex];
+							NeighborShadowMaskRay.ShadowFactor *= bRayOccluded ? 0.0f : 1.0f;
+							NeighborShadowMaskRay.bShadowFactorComplete = true;
+							WriteShadowMaskRay(NeighborShadowMaskRay, ShadowTrace.LightTileIndex, QuadBaseCoord + Offset, true);
+							++NeighborIndex;
+						}
+					}
+				}
 			}
 		}
 	}

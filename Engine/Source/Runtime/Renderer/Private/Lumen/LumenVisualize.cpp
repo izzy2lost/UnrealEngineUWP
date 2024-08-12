@@ -47,7 +47,8 @@ FAutoConsoleVariableRef CVarLumenVisualize(
 	TEXT("17 - Direct lighting updates\n")
 	TEXT("18 - Indirect lighting updates\n")
 	TEXT("19 - Last used pages\n")
-	TEXT("20 - Last used high res pages"),
+	TEXT("20 - Last used high res pages\n")
+	TEXT("21 - Card tile shadow downsample factor"),
 	ECVF_RenderThreadSafe
 );
 

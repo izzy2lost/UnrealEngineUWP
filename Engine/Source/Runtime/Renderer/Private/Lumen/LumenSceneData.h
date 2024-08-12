@@ -655,6 +655,7 @@ struct FLumenSceneFrameTemporaries
 	FRDGTextureRef IndirectLightingAtlas = nullptr;
 	FRDGTextureRef RadiosityNumFramesAccumulatedAtlas = nullptr;
 	FRDGTextureRef FinalLightingAtlas = nullptr;
+	FRDGBufferRef TileShadowDownsampleFactorAtlas = nullptr;
 	FRDGTextureRef DiffuseLightingAndSecondMomentHistoryAtlas = nullptr;
 	FRDGTextureRef NumFramesAccumulatedHistoryAtlas = nullptr;
 
@@ -796,6 +797,7 @@ public:
 	TRefCountPtr<IPooledRenderTarget> IndirectLightingAtlas;
 	TRefCountPtr<IPooledRenderTarget> RadiosityNumFramesAccumulatedAtlas;
 	TRefCountPtr<IPooledRenderTarget> FinalLightingAtlas;
+	TRefCountPtr<FRDGPooledBuffer> TileShadowDownsampleFactorAtlas;
 
 	// Radiosity probes
 	TRefCountPtr<IPooledRenderTarget> RadiosityTraceRadianceAtlas;

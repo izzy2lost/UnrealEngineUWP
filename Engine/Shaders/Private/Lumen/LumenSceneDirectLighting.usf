@@ -3,6 +3,7 @@
 #include "../Common.ush"
 #include "LumenCardCommon.ush"
 #include "LumenCardTile.ush"
+#include "LumenCardTileShadowDownsampleFactor.ush"
 #include "SurfaceCache/LumenSurfaceCache.ush"
 #define SUPPORT_CONTACT_SHADOWS 0
 #define USE_IES_PROFILE 1
@@ -79,6 +80,8 @@ void LumenCardBatchDirectLightingCS(
 	}
 
 	float3 Irradiance = 0.0f;
+	uint4 TileShadowDownsampleFactorLow = 0;
+	uint4 TileShadowDownsampleFactorHigh = 0;
 
 	for (uint CulledLightIndex = 0; CulledLightIndex < NumLightTiles; ++CulledLightIndex)
 	{
@@ -101,6 +104,17 @@ void LumenCardBatchDirectLightingCS(
 
 			//Irradiance += bShadowFactorValid ? float3(0, 1, 0) : float3(0.2f, 0.0f, 0.0f);
 		}
+
+		if (WaveActiveAllTrue(!IsVisibleToLight(ShadowMaskRay.ShadowFactor)) || WaveActiveAllTrue(IsVisibleToLight(ShadowMaskRay.ShadowFactor)))
+		{
+			FLumenLight LumenLight = LoadLumenLight(LightTile.LightIndex, float3(0, 0, 0), 0);
+			SetLumenCardTileShadowDownsampleFactorForLight(TileShadowDownsampleFactorLow, TileShadowDownsampleFactorHigh, LumenLight.PersistentId);
+		}
+	}
+
+	if (all(AtlasCoord % CARD_TILE_SIZE == 0))
+	{
+		WriteLumenCardTileShadowDownsampleFactor(TileShadowDownsampleFactorLow, TileShadowDownsampleFactorHigh, AtlasCoord / CARD_TILE_SIZE, LumenCardScene.PhysicalAtlasSize.x / CARD_TILE_SIZE);
 	}
 
 	RWDirectLightingAtlas[AtlasCoord] = QuantizeForFloatRenderTarget(Irradiance, int3(AtlasCoord, View.StateFrameIndexMod8 + 1));

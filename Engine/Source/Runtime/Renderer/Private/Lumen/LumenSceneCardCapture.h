@@ -28,6 +28,7 @@ struct FResampledCardCaptureAtlas
 	FRDGTextureRef DirectLighting = nullptr;
 	FRDGTextureRef IndirectLighting = nullptr;
 	FRDGTextureRef NumFramesAccumulated = nullptr;
+	FRDGBufferRef TileShadowDownsampleFactor = nullptr;
 };
 
 class FCardPageRenderData

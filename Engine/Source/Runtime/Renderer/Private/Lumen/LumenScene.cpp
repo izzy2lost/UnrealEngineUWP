@@ -209,7 +209,9 @@ public:
 		OutData[4].X = *(float*)&LastUpdateFrame;
 		OutData[4].Y = *(float*)&LastUpdateFrame;
 		OutData[4].Z = *(float*)&LastUpdateFrame;
-		OutData[4].W = 0.0f;
+		// This is only used to rotate through the texels in a quad when using adaptive direct lighting shadow rays.
+		// So we can store a TemporalIndexMod4 and use only 2 bits if needed.
+		OutData[4].W = *(float*)&LastUpdateFrame;
 
 		static_assert(DataStrideInFloat4s == 5, "Data stride doesn't match");
 	}
@@ -1118,6 +1120,7 @@ void FLumenSceneData::ReleaseAtlas()
 	IndirectLightingAtlas.SafeRelease();
 	RadiosityNumFramesAccumulatedAtlas.SafeRelease();
 	FinalLightingAtlas.SafeRelease();
+	TileShadowDownsampleFactorAtlas.SafeRelease();
 	DiffuseLightingAndSecondMomentHistoryAtlas.SafeRelease();
 	NumFramesAccumulatedHistoryAtlas.SafeRelease();
 
@@ -1585,6 +1588,7 @@ void FLumenSceneData::UpdateGPUMask(FRDGBuilder& GraphBuilder, const FLumenScene
 						TRANSFER_LUMEN_RESOURCE(IndirectLightingAtlas);
 						TRANSFER_LUMEN_RESOURCE(RadiosityNumFramesAccumulatedAtlas);
 						TRANSFER_LUMEN_RESOURCE(FinalLightingAtlas);
+						TRANSFER_LUMEN_RESOURCE(TileShadowDownsampleFactorAtlas);
 
 						TRANSFER_LUMEN_RESOURCE(DiffuseLightingAndSecondMomentHistoryAtlas);
 						TRANSFER_LUMEN_RESOURCE(NumFramesAccumulatedHistoryAtlas);

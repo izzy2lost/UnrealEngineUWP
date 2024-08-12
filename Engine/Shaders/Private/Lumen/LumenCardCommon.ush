@@ -121,6 +121,8 @@ struct FLumenCardPageData
 
 	// Increments each time the page has Radiosity updated, needs to be consecutive for the sample pattern
 	uint IndirectLightingTemporalIndex;
+	// Increments each time the page has direct lighting updated. Only used to rotate through the texels in a quad when using adaptive shadow rays currently
+	uint DirectLightingTemporalIndex;
 };
 
 RWStructuredBuffer<float4> RWLumenCardPageDataBuffer;
@@ -153,6 +155,7 @@ FLumenCardPageData GetLumenCardPageData(uint CardPageId)
 	CardPageData.LastDirectLightingUpdateFrameIndex = asuint(Vector4.x);
 	CardPageData.LastIndirectLightingUpdateFrameIndex = asuint(Vector4.y);
 	CardPageData.IndirectLightingTemporalIndex = asuint(Vector4.z);
+	CardPageData.DirectLightingTemporalIndex = asuint(Vector4.w);
 
 	// Derived properties
 	CardPageData.bMapped = CardPageData.SizeInTexels.x > 0;
@@ -171,7 +174,7 @@ void SetCardPageUpdateData(uint CardPageId, FLumenCardPageData CardPageData)
 	Vector4.x = CardPageData.LastDirectLightingUpdateFrameIndex;
 	Vector4.y = CardPageData.LastIndirectLightingUpdateFrameIndex;
 	Vector4.z = CardPageData.IndirectLightingTemporalIndex;
-	Vector4.w = 0;
+	Vector4.w = CardPageData.DirectLightingTemporalIndex;
 
 	uint BaseOffset = CardPageId * LUMEN_CARD_PAGE_DATA_STRIDE;
 	RWLumenCardPageDataBuffer[BaseOffset + 4] = asfloat(Vector4);

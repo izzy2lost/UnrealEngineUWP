@@ -3151,6 +3151,10 @@ public:
 	using FLightSceneInfoCompactSparseArray = TSparseArray<FLightSceneInfoCompact, TAlignedSparseArrayAllocator<alignof(FLightSceneInfoCompact)>>;
 	FLightSceneInfoCompactSparseArray Lights;
 
+	/** Used for compacting light IDs for Lumen lights. */
+	TArray<int32> LumenLightIdRemap;
+	int32 LumenLightIdRemapAllocator = 0;
+
 	/** 
 	 * Lights in the scene which are invisible, but still needed by the editor for previewing. 
 	 * Lights in this array cannot be in the Lights array.  They also are not fully set up, as AddLightSceneInfo_RenderThread is not called for them.

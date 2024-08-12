@@ -192,6 +192,13 @@ void FLumenSceneData::AllocateCardAtlases(FRDGBuilder& GraphBuilder, FLumenScene
 			TexCreate_ShaderResource | TexCreate_RenderTargetable | TexCreate_UAV
 		), TEXT("Lumen.SceneFinalLighting"));
 
+	const FIntPoint PageAtlasSizeInTiles = PageAtlasSize / Lumen::CardTileSize;
+	FrameTemporaries.TileShadowDownsampleFactorAtlas = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateBufferDesc(
+			sizeof(uint32),
+			PageAtlasSizeInTiles.X * PageAtlasSizeInTiles.Y * Lumen::CardTileShadowDownsampleFactorDwords
+		), TEXT("Lumen.TileShadowDownsampleFactorAtlas"));
+
 	if (LumenSceneDirectLighting::UseStochasticLighting(*ViewFamily))
 	{
 		FrameTemporaries.DiffuseLightingAndSecondMomentHistoryAtlas = GraphBuilder.CreateTexture(
@@ -455,11 +462,16 @@ void FDeferredShadingSceneRenderer::UpdateLumenSurfaceCacheAtlas(
 
 		PassParameters->PS.View = View.ViewUniformBuffer;
 		PassParameters->PS.DiffuseColorBoost = 1.0f / FMath::Max(View.FinalPostProcessSettings.LumenDiffuseColorBoost, 1.0f);
+		const FIntPoint CardCaptureAtlasSizeInTiles = CardCaptureAtlasSize / Lumen::CardTileSize;
+		PassParameters->PS.CardCaptureAtlasSizeInTiles = FUintVector2(CardCaptureAtlasSizeInTiles.X, CardCaptureAtlasSizeInTiles.Y);
+		PassParameters->PS.OutputAtlasWidthInTiles = PhysicalAtlasSize.X / Lumen::CardTileSize;
 		PassParameters->PS.AlbedoCardCaptureAtlas = CardCaptureAtlas.Albedo;
 		PassParameters->PS.EmissiveCardCaptureAtlas = CardCaptureAtlas.Emissive;
 		PassParameters->PS.DirectLightingCardCaptureAtlas = ResampledCardCaptureAtlas.DirectLighting;
 		PassParameters->PS.RadiosityCardCaptureAtlas = ResampledCardCaptureAtlas.IndirectLighting;
 		PassParameters->PS.RadiosityNumFramesAccumulatedCardCaptureAtlas = ResampledCardCaptureAtlas.NumFramesAccumulated;
+		PassParameters->PS.TileShadowDownsampleFactorAtlasForResampling = bResample ? GraphBuilder.CreateSRV(ResampledCardCaptureAtlas.TileShadowDownsampleFactor, PF_R32G32B32A32_UINT) : nullptr;
+		PassParameters->PS.RWTileShadowDownsampleFactorAtlas = GraphBuilder.CreateUAV(FrameTemporaries.TileShadowDownsampleFactorAtlas, PF_R32G32B32A32_UINT);
 
 		FCopyCardCaptureLightingToAtlasPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCopyCardCaptureLightingToAtlasPS::FIndirectLighting>(bRadiosityEnabled);
@@ -663,4 +675,5 @@ void FDeferredShadingSceneRenderer::ClearLumenSurfaceCacheAtlas(
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.IndirectLightingAtlas);
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.RadiosityNumFramesAccumulatedAtlas);
 	AddClearRenderTargetPass(GraphBuilder, FrameTemporaries.FinalLightingAtlas);
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(FrameTemporaries.TileShadowDownsampleFactorAtlas, PF_R32_UINT), 0);
 }

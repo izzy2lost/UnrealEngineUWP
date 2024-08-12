@@ -13,14 +13,16 @@ struct FShadowTrace
 {
 	uint LightTileIndex;
 	uint2 LightTileCoord;
+	uint DownSampleLevel;
 };
 
 FShadowTrace UnpackShadowTrace(uint PackedValue)
 {
 	FShadowTrace ShadowTrace;
 	ShadowTrace.LightTileIndex = PackedValue & 0xFFFFFF;
-	ShadowTrace.LightTileCoord.x = (PackedValue >> 24) & 0xF;
-	ShadowTrace.LightTileCoord.y = (PackedValue >> 28) & 0xF;
+	ShadowTrace.LightTileCoord.x = BitFieldExtractU32(PackedValue, 3, 24);
+	ShadowTrace.LightTileCoord.y = BitFieldExtractU32(PackedValue, 3, 27);
+	ShadowTrace.DownSampleLevel = BitFieldExtractU32(PackedValue, 2, 30);
 	return ShadowTrace;
 }
 
@@ -28,8 +30,9 @@ uint PackShadowTrace(FShadowTrace ShadowTrace)
 {
 	uint PackedValue = 0;
 	PackedValue = ShadowTrace.LightTileIndex & 0xFFFFFF;
-	PackedValue |= (ShadowTrace.LightTileCoord.x & 0xF) << 24;
-	PackedValue |= (ShadowTrace.LightTileCoord.y & 0xF) << 28;
+	PackedValue |= (ShadowTrace.LightTileCoord.x & 0x7) << 24;
+	PackedValue |= (ShadowTrace.LightTileCoord.y & 0x7) << 27;
+	PackedValue |= (ShadowTrace.DownSampleLevel & 0x3) << 30;
 	return PackedValue;
 }
 
@@ -80,6 +83,16 @@ float3 GetColoredShadowFactorFromMask(uint Mask)
 {
 	float3 RGB = float3(BitFieldExtractU32(Mask, 5, 0), BitFieldExtractU32(Mask, 5, 5), BitFieldExtractU32(Mask, 5, 10));
 	return RGB * (1.0f / 31.0f);
+}
+
+bool IsVisibleToLight(float3 ShadowFactor)
+{
+	return any(ShadowFactor > 0.01f);
+}
+#else
+bool IsVisibleToLight(float ShadowFactor)
+{
+	return ShadowFactor > 0.01f;
 }
 #endif
 
@@ -180,7 +193,7 @@ struct FLumenPackedLight
 	uint LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone;
 	float IESAtlasIndex;
 	float InverseExposureBlend;
-	float Padding0;
+	uint PersistentId;
 };
 
 struct FLumenLight
@@ -199,6 +212,7 @@ struct FLumenLight
 	uint bHasShadowMask;
 	uint bIsStandaloneLight;
 	uint Type;
+	uint PersistentId;
 };
 
 StructuredBuffer<FLumenPackedLight> LumenPackedLights;
@@ -253,6 +267,7 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 	LumenLight.bIsStandaloneLight  = (PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone >> 30) & 0x1;
 	LumenLight.LightingChannelMask = PackedLight.LightingChannelMask;
 	LumenLight.Type = PackedLight.LightType;
+	LumenLight.PersistentId = PackedLight.PersistentId;
 	return LumenLight;
 }
 

@@ -245,22 +245,20 @@ void AddLightSample(inout FLightSampleAccumulator LightSampleAccumulator, FLight
 {
 	uint PackedLightSample = PackLightSample(LightSample);
 
-	uint MinPackedLightSample = 0xFFFFFFFF;
+	// Try inserting the new light and keep things in descending order
 	for (uint PackedSampleIndex = 0; PackedSampleIndex < MAX_LIGHT_SAMPLES; ++PackedSampleIndex)
 	{
-		MinPackedLightSample = min(MinPackedLightSample, LightSampleAccumulator.PackedSamples[PackedSampleIndex]);
-	}
-
-	// Replace the least important sample
-	if (PackedLightSample > MinPackedLightSample)
-	{
-		for (uint PackedSampleIndex = 0; PackedSampleIndex < MAX_LIGHT_SAMPLES; ++PackedSampleIndex)
+		uint Temp = LightSampleAccumulator.PackedSamples[PackedSampleIndex];
+		if (PackedLightSample > Temp)
 		{
-			if (LightSampleAccumulator.PackedSamples[PackedSampleIndex] == MinPackedLightSample)
+			LightSampleAccumulator.PackedSamples[PackedSampleIndex] = PackedLightSample;
+			PackedLightSample = Temp;
+		#if MAX_LIGHT_SAMPLES <= 16 // workaround for a shader compiler bug
+			if (PackedLightSample == 0)
 			{
-				LightSampleAccumulator.PackedSamples[PackedSampleIndex] = PackedLightSample;
 				break;
 			}
+		#endif
 		}
 	}
 }
