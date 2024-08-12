@@ -1,7 +1,7 @@
 {
-"MainVersion" : "v22_clang-16.0.6-centos7",
-"MinVersion" : "v22_clang-16.0.6-centos7",
-"MaxVersion" : "v22_clang-16.0.6-centos7",
+"MainVersion" : "v23_clang-18.1.0-rockylinux8",
+"MinVersion" : "v23_clang-18.1.0-rockylinux8",
+"MaxVersion" : "v23_clang-18.1.0-rockylinux8",
 
 "AutoSDKPlatform" : "Linux_x64",
 }
