@@ -184,3 +184,45 @@ TEST_CASE("SharedPointer.AbortNestedTransactionWithPlacementNewlyAllocated")
 
 	REQUIRE(42 == Result);
 }
+
+TEST_CASE("SharedPointer.OnCommitCapturesSharedPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		AutoRTFM::OnCommit([Shared] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnCommitCapturesWeakPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		TWeakPtr<int> Weak{Shared};
+		AutoRTFM::OnCommit([Weak] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnAbortCapturesSharedPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		AutoRTFM::OnAbort([Shared] {});
+		AutoRTFM::AbortTransaction();
+	});
+}
+
+TEST_CASE("SharedPointer.OnAbortCapturesWeakPtr")
+{
+	AutoRTFM::Transact([&]
+	{
+		TSharedPtr<int> Shared{new int};
+		TWeakPtr<int> Weak{Shared};
+		AutoRTFM::OnAbort([Weak] {});
+		AutoRTFM::AbortTransaction();
+	});
+}

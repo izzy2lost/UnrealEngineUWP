@@ -181,6 +181,31 @@ public:
         return true;
     }
 
+	template<typename TFunc>
+	bool ForEachBackward(const TFunc& Func)
+	{
+		for (SKeyValuePair& EntryKVP : TBackwards(Latest))
+		{
+			if (!Func(EntryKVP.Val))
+			{
+				return false;
+			}
+		}
+
+		for (FInternalArray& StashedVectorBox : TBackwards(Stash))
+		{
+			for (SKeyValuePair& EntryKVP : TBackwards(StashedVectorBox))
+			{
+				if (!Func(EntryKVP.Val))
+				{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
     void Reset()
     {
         Latest.Empty();

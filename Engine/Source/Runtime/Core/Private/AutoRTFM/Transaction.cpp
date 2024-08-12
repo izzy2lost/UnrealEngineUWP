@@ -34,8 +34,21 @@ void FTransaction::AbortWithoutThrowing()
     Stats.Collect<EStatsKind::Abort>();
     CollectStats();
 
+    // Call the destructors of all the OnCommit functors before undoing the transactional memory and
+    // calling the OnAbort callbacks. This is important as the callback functions may have captured
+    // variables that are depending on the allocated memory. 
+    CommitTasks.Reset();
+
     Undo();
-	AbortTasks.ForEachBackward([&](const TFunction<void()>& Task) -> bool { Task(); return true; });
+	AbortTasks.ForEachBackward([&](TFunction<void()>& Task) -> bool 
+    { 
+        // Call and then reset each of the tasks in reverse order.
+        // This ensures that the task and its destructor are called in reverse chronological order,
+        // which is important if the function has captures with non-trivial destructors.
+        Task();
+        Task.Reset();
+        return true; 
+    });
 
     if (IsNested())
     {
