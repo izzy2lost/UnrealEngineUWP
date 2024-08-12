@@ -395,23 +395,16 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 	else
 	{
 		static const FName TMobileBasePassVSFNoLightMapPolicyName = TEXT("TMobileBasePassVSFNoLightMapPolicy");
-		static const FName TMobileBasePassPSFNoLightMapPolicyName[2] = {
-			TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED"),
-			TEXT("TMobileBasePassPSFNoLightMapPolicySkyLightLOCAL_LIGHTS_DISABLED")
-		};
+		static const FName TMobileBasePassPSFNoLightMapPolicyName = TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED");
 		
 		if (TargetMaterial->GetShadingModels().IsUnlit())
 		{
 			ShaderTypeNamesAndDescriptions.Add(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFNoLightMapPolicyName[0],
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFNoLightMapPolicyName,
 					TEXT("Mobile base pass shader without light map")));
 		}
 		else
 		{			
-			// Use SkyLight permutation of projects settings force it
-			static auto* CVarMobileSkyLightPermutation = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.SkyLightPermutation"));
-			const bool SkyLightId = (CVarMobileSkyLightPermutation->GetValueOnAnyThread() == 2) ? 1 : 0;
-						
 			if (IsStaticLightingAllowed() && TargetMaterial->IsUsedWithStaticLighting())
 			{
 				static auto* CVarAllowDistanceFieldShadows = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Mobile.AllowDistanceFieldShadows"));
@@ -419,30 +412,26 @@ void FMaterialStatsUtils::GetRepresentativeShaderTypesAndDescriptions(TMap<FName
 				if (bAllowDistanceFieldShadows)
 				{
 					// distance field shadows only shaders
-					static const FName TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName[2] = {
-						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED"),
-						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicySkyLightLOCAL_LIGHTS_DISABLED"),
-					};
+					static const FName TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName =
+						TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED");
 					
 					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName[SkyLightId],
+							.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyName,
 								TEXT("Mobile base pass shader with distance field shadows")));
 				}
 				else //no shadows & lightmapped
 				{
-					static const FName TMobileBasePassPSTLightMapPolicyLQName[2] = {
-						TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED"),
-						TEXT("TMobileBasePassPSTLightMapPolicyLQSkyLightLOCAL_LIGHTS_DISABLED"),
-					};
+					static const FName TMobileBasePassPSTLightMapPolicyLQName =
+						TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED");
 										
 					ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-						.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSTLightMapPolicyLQName[SkyLightId],
+						.Add(FRepresentativeShaderInfo(ERepresentativeShader::StationarySurface, TMobileBasePassPSTLightMapPolicyLQName,
 							TEXT("Mobile base pass shader with static lighting")));
 				}
 			}
 			// dynamically lit shader NoLightmapPolicy
 			ShaderTypeNamesAndDescriptions.FindOrAdd(FLocalVertexFactoryName)
-				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, TMobileBasePassPSFNoLightMapPolicyName[SkyLightId],
+				.Add(FRepresentativeShaderInfo(ERepresentativeShader::DynamicallyLitObject, TMobileBasePassPSFNoLightMapPolicyName,
 					TEXT("Mobile base pass shader with only dynamic lighting")));
 		}
 

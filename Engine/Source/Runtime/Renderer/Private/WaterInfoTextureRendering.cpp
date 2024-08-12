@@ -235,7 +235,7 @@ void FWaterInfoTexturePassMeshProcessor::CollectPSOInitializers(const FSceneText
 
 			FMaterialShaderTypes ShaderTypes;
 			ShaderTypes.AddShaderType<TMobileBasePassVS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>>>();
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>, false, LOCAL_LIGHTS_DISABLED>>();
+			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>, LOCAL_LIGHTS_DISABLED>>();
 			FMaterialShaders Shaders;
 			if (!Material.TryGetShaders(ShaderTypes, VertexFactoryData.VertexFactoryType, Shaders))
 			{
@@ -323,7 +323,7 @@ bool FWaterInfoTexturePassMeshProcessor::TryAddMeshBatch(const FMeshBatch& RESTR
 
 			FMaterialShaderTypes ShaderTypes;
 			ShaderTypes.AddShaderType<TMobileBasePassVS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>>>();
-			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>, false, LOCAL_LIGHTS_DISABLED>>();
+			ShaderTypes.AddShaderType<TMobileBasePassPS<TUniformLightMapPolicy<LMP_NO_LIGHTMAP>, LOCAL_LIGHTS_DISABLED>>();
 			FMaterialShaders Shaders;
 			if (!Material.TryGetShaders(ShaderTypes, VertexFactory->GetType(), Shaders))
 			{

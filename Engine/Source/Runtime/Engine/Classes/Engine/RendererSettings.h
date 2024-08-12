@@ -1114,6 +1114,7 @@ class URendererSettings : public UDeveloperSettings
 
 	/**
 	"Stationary skylight requires permutations of the basepass shaders.  Disabling will reduce the number of shader permutations required per material. Changing this setting requires restarting the editor."
+	"For a mobile renderer disabling this option does not reduce shader permutations, but may increse GPU performance. It's recommended to disable it if your project does not requiure Stationary or Movable skylights."
 	*/
 	UPROPERTY(config, EditAnywhere, Category = ShaderPermutationReduction, meta = (
 		ConsoleVariable = "r.SupportStationarySkylight", DisplayName = "Support Stationary Skylight",

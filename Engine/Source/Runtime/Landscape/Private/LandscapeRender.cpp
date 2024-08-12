@@ -3966,13 +3966,8 @@ public:
 			FName(TEXT("TLightMapDensityPSFNoLightMapPolicy")),
 
 			// Mobile
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndSHIndirectPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndSHIndirectPolicy")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicySkylightLOCAL_LIGHTS_DISABLED")),
-			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicyLOCAL_LIGHTS_DISABLED")),
-			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndCSMPolicy")),
-			FName(TEXT("TMobileBasePassPSFNoLightMapPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFNoLightMapPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFNoLightMapPolicy")),
 
@@ -4028,21 +4023,18 @@ public:
 			FName(TEXT("FDebugViewModePS")),
 
 			// Mobile
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightCSMWithLightmapPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightCSMWithLightmapPolicy")),
-			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFMobileMovableDirectionalLightWithLightmapPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFMobileMovableDirectionalLightWithLightmapPolicy")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsLightMapAndCSMLightingPolicy")),
-			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicySkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSFMobileDistanceFieldShadowsAndLQLightMapPolicyLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSFMobileDistanceFieldShadowsAndLQLightMapPolicy")),
-			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQSkylightLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassPSTLightMapPolicyLQLOCAL_LIGHTS_DISABLED")),
 			FName(TEXT("TMobileBasePassVSTLightMapPolicyLQ")),
+			FName(TEXT("TMobileBasePassPSFMobileDirectionalLightAndCSMPolicyLOCAL_LIGHTS_DISABLED")),
+			FName(TEXT("TMobileBasePassVSFMobileDirectionalLightAndCSMPolicy")),
 
 			FName(TEXT("TBasePassVSFCachedVolumeIndirectLightingPolicy")),
 			FName(TEXT("TBasePassPSFCachedVolumeIndirectLightingPolicy")),

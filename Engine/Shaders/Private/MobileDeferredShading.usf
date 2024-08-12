@@ -108,7 +108,7 @@ void ReflectionEnvironmentSkyLighting(
 {
 	half IndirectIrradiance = GBuffer.IndirectIrradiance;
 
-#if ENABLE_DYNAMIC_SKY_LIGHT
+#if ENABLE_SKY_LIGHT
 
 	half3 N = GBuffer.WorldNormal;
 	half3 V = -CameraVector;
@@ -122,7 +122,7 @@ void ReflectionEnvironmentSkyLighting(
 
 	const bool bNeedsSeparateSubsurfaceLightAccumulation = UseSubsurfaceProfile(GBuffer.ShadingModelID);
 	LightAccumulator_Add(DirectLighting, SkyLighting, SkyLighting, 1.0f, bNeedsSeparateSubsurfaceLightAccumulation);
-#endif // ENABLE_DYNAMIC_SKY_LIGHT 
+#endif // ENABLE_SKY_LIGHT 
 
 	// IBL
 	AccumulateReflection(GBuffer

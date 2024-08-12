@@ -77,11 +77,6 @@ struct FReadOnlyCVARCache
 		return bMobileEnableMovableLightCSMShaderCulling;
 	}
 	
-	static inline int32 MobileSkyLightPermutation()
-	{
-		return MobileSkyLightPermutationValue;
-	}
-
 	static inline int32 MobileForwardDecalLighting()
 	{
 		return MobileForwardDecalLightingValue;
@@ -153,7 +148,6 @@ private:
 	RENDERCORE_API static bool bMobileEnableStaticAndCSMShadowReceivers;
 	RENDERCORE_API static bool bMobileEnableMovableLightCSMShaderCulling;
 	RENDERCORE_API static bool bMobileSupportsGPUScene;
-	RENDERCORE_API static int32 MobileSkyLightPermutationValue;
 	RENDERCORE_API static int32 MobileEarlyZPassValue;
 	RENDERCORE_API static int32 MobileForwardLocalLightsValue;
 	RENDERCORE_API static bool bMobileForwardParticleLights;

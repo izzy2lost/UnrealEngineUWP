@@ -1914,7 +1914,7 @@ void FViewInfo::SetupUniformBufferParameters(
 		const bool bSetupSkyIrradiance = Scene
 			&& Scene->SkyLight
 			// Skylights with static lighting already had their diffuse contribution baked into lightmaps
-			&& !Scene->SkyLight->bHasStaticLighting
+			&& (!Scene->SkyLight->bHasStaticLighting || !IsStaticLightingAllowed())
 			&& Family->EngineShowFlags.SkyLighting;
 
 		if (bSetupSkyIrradiance)
@@ -3988,8 +3988,15 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 
 		const bool bShowNoSkyAtmosphereComponentWarning = !Scene->HasSkyAtmosphere() && ViewFamily.EngineShowFlags.VisualizeSkyAtmosphere;
 
+		const bool bMobile = (FeatureLevel <= ERHIFeatureLevel::ES3_1);
 		const bool bStationarySkylight = Scene->SkyLight && Scene->SkyLight->bWantsStaticShadowing;
-		const bool bShowSkylightWarning = bStationarySkylight && !FReadOnlyCVARCache::EnableStationarySkylight();
+		bool bShowSkylightWarning = bStationarySkylight && !FReadOnlyCVARCache::EnableStationarySkylight();
+		if (bMobile)
+		{
+			// For mobile EnableStationarySkylight has to be enabled in a projects with StaticLighting to support Stationary or Movable skylights
+			bShowSkylightWarning = IsStaticLightingAllowed() && !FReadOnlyCVARCache::EnableStationarySkylight() && (bStationarySkylight || (Scene->SkyLight && Scene->SkyLight->IsMovable()));
+		}
+
 		const bool bRealTimeSkyCaptureButNothingToCapture = Scene->SkyLight && Scene->SkyLight->bRealTimeCaptureEnabled && (!Scene->HasSkyAtmosphere() && !Scene->HasVolumetricCloud() && (Views.Num() > 0 && !Views[0].bSceneHasSkyMaterial));
 
 		const bool bShowPointLightWarning = UsedWholeScenePointLightNames.Num() > 0 && !FReadOnlyCVARCache::EnablePointLightShadows();
@@ -4057,7 +4064,6 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 		const bool bContactShadowIntensityCvarUsed = ContactShadowNonCastingIntensityCVar && ContactShadowNonCastingIntensityCVar->GetFloat() != 0.0f;
 
 		// Mobile-specific warnings
-		const bool bMobile = (FeatureLevel <= ERHIFeatureLevel::ES3_1);
 		const bool bShowMobileLowQualityLightmapWarning = bMobile && !FReadOnlyCVARCache::EnableLowQualityLightmaps() && IsStaticLightingAllowed();
 		const bool bShowMobileDynamicCSMWarning = bMobile && Scene->NumMobileStaticAndCSMLights_RenderThread > 0 && !(FReadOnlyCVARCache::MobileEnableStaticAndCSMShadowReceivers() && FReadOnlyCVARCache::MobileAllowDistanceFieldShadows());
 		const bool bMobileMissingSkyMaterial = (bMobile && Scene->HasSkyAtmosphere() && (Views.Num() > 0 && !Views[0].bSceneHasSkyMaterial));

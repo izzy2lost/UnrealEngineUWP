@@ -3706,14 +3706,6 @@ static TAutoConsoleVariable<int32> CVarMobileAllowDistanceFieldShadows(
 		 "1: Generate shader permutations to render distance field shadows from stationary directional lights. (default)"),
 	ECVF_RenderThreadSafe | ECVF_ReadOnly);
 
-static TAutoConsoleVariable<int32> CVarMobileSkyLightPermutation(
-	TEXT("r.Mobile.SkyLightPermutation"),
-	0,
-	TEXT("0: Generate both sky-light and non-skylight permutations. (default)\n"
-		 "1: Generate only non-skylight permutations.\n"
-		 "2: Generate only skylight permutations"),
-	ECVF_RenderThreadSafe | ECVF_ReadOnly);
-
 static TAutoConsoleVariable<int32> CVarMobileFloatPrecisionMode(
 	TEXT("r.Mobile.FloatPrecisionMode"),
 	0,
