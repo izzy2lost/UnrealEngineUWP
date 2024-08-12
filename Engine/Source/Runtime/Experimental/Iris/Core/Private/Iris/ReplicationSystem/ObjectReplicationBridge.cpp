@@ -108,18 +108,6 @@ static FAutoConsoleVariableRef CVarUseVerboseCsvStats(
 	TEXT("Whether to use verbose per-class csv stats. Default is false in Shipping, otherwise True.")
 );
 
-UObjectReplicationBridge::FCreateNetRefHandleParams UObjectReplicationBridge::DefaultCreateNetRefHandleParams =
-{
-	.bCanReceive=false, 
-	.bNeedsPreUpdate=false,
-	.bNeedsWorldLocationUpdate=false,
-	.bIsDormant=false,
-	.bUseClassConfigDynamicFilter=true,
-	.bUseExplicitDynamicFilter=false,
-	.StaticPriority=0.0f, 
-	.PollFrequency=0.0f,
-};
-
 namespace UE::Net::Private
 {
 	void CallRegisterReplicationFragments(UObject* Object, FFragmentRegistrationContext& Context, EFragmentRegistrationFlags RegistrationFlags)
@@ -287,7 +275,6 @@ UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UObject* Insta
 	
 	// Register fragments
 	EReplicationFragmentTraits Traits = EReplicationFragmentTraits::CanReplicate;
-	Traits |= Params.bCanReceive ? EReplicationFragmentTraits::CanReceive : EReplicationFragmentTraits::None;
 	Traits |= Params.bNeedsPreUpdate ? EReplicationFragmentTraits::NeedsPreSendUpdate : EReplicationFragmentTraits::None;
 	Traits |= Params.bNeedsWorldLocationUpdate ? EReplicationFragmentTraits::NeedsWorldLocationUpdate : EReplicationFragmentTraits::None;
 	
@@ -470,7 +457,7 @@ void UObjectReplicationBridge::AssignDynamicFilter(UObject* Instance, const FCre
 	
 }
 
-UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle OwnerRefHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectRefHandle, ESubObjectInsertionOrder InsertionOrder, const FCreateNetRefHandleParams& Params)
+UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(FNetRefHandle OwnerRefHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectRefHandle, const FCreateNetRefHandleParams& Params, ESubObjectInsertionOrder InsertionOrder)
 {
 	LLM_SCOPE_BYTAG(IrisState);
 
@@ -775,7 +762,7 @@ FReplicationBridgeCreateNetRefHandleResult UObjectReplicationBridge::CreateNetRe
 		{
 			if (RootObjectOfSubObject.IsValid())
 			{
-				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate SubObject NetHandle: %s of RootObject: %s (%s)"), *WantedNetHandle.ToString(), *RootObjectOfSubObject.ToString(), *GetNameSafe(GetReplicatedObject(RootObjectOfSubObject)));
+				UE_LOG(LogIrisBridge, Warning, TEXT("CreateNetRefHandleFromRemote: Failed to instantiate SubObject NetHandle: %s of %s"), *WantedNetHandle.ToString(), *PrintObjectFromNetRefHandle(RootObjectOfSubObject));
 			}
 			else
 			{

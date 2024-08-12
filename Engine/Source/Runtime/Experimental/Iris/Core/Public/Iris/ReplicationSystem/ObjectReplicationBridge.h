@@ -51,22 +51,23 @@ public:
 
 	struct FCreateNetRefHandleParams
 	{
-		//$IRIS TODO: These need documentation
-		bool bCanReceive = false;
+		/** When true it means the object wants to receive a PreUpdate callback just before it gets polled. */
 		bool bNeedsPreUpdate = false;
+
+		/** When true the object has a dynamic world location and we should ask the bridge to update its current location everytime it is polled. */
 		bool bNeedsWorldLocationUpdate = false;
 
 		/** Whether the object is dormant or not */
 		bool bIsDormant = false;
 
-		/** When true we ask the class config if a dynamic filter was assigned to this class or one of it's parent inherited class. */
-		bool bUseClassConfigDynamicFilter = false;
+		/** Ask the class config for a dynamic filter assigned to this class or one of it's parent class. Default is true. */
+		bool bUseClassConfigDynamicFilter = true;
 
-		/** When enabled we ignore the class config for this object and instead use the one specified in ExplicitDynamicFilter */
+		/** When enabled we ignore the class config for this object and instead use the one specified by ExplicitDynamicFilter */
 		bool bUseExplicitDynamicFilter = false;
 
 		/** 
-		 * The name of the dynamic filter to use for this object (instead of asking the class config). 
+		 * The name of the dynamic filter to use for this object (instead of asking the class config).
 		 * Can be none so that no dynamic filter is assigned to the object.
 		 * Only used when bUseExplicitDynamicFilter is true.
 		 */
@@ -84,8 +85,6 @@ public:
 		 */
 		float PollFrequency = 0.0f;
 	};
-
-	IRISCORE_API static FCreateNetRefHandleParams DefaultCreateNetRefHandleParams;
 
 	IRISCORE_API UObjectReplicationBridge();
 
@@ -111,18 +110,18 @@ public:
 	IRISCORE_API UE::Net::FNetObjectReference GetOrCreateObjectReference(const FString& Path, const UObject* Outer) const;
 
 	/** Begin replicating the Instance and return a valid NetRefHandle for the Instance if successful. */
-	IRISCORE_API FNetRefHandle BeginReplication(UObject* Instance, const FCreateNetRefHandleParams& Params = DefaultCreateNetRefHandleParams);
+	IRISCORE_API FNetRefHandle BeginReplication(UObject* Instance, const FCreateNetRefHandleParams& Params);
 
 	/**
 	 * Begin replicating the Instance as a subobject of the OwnerHandle. If InsertRelativeSubObjectHandle is valid
 	 * the new subobject will be inserted in the subobject replication list next to the specified handle and the wanted insertion order.
 	 * Default behavior is to always add new subobjects at the end of the list. Returns a valid NetRefHandle for the Instance if successful.
 	 */
-	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle, ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None, const FCreateNetRefHandleParams& Params = DefaultCreateNetRefHandleParams);
+	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, FNetRefHandle InsertRelativeToSubObjectHandle, const FCreateNetRefHandleParams& Params, ESubObjectInsertionOrder InsertionOrder = UReplicationBridge::ESubObjectInsertionOrder::None);
 
 	/** Create handle and start replicating the Instance as a SubObject of the OwnerHandle. */
 	/** Begin replicating the Instance as a subobject of the OwnerHandle and return a valid NetRefHandle for the Instance if successful. */
-	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, const FCreateNetRefHandleParams& Params = DefaultCreateNetRefHandleParams);
+	IRISCORE_API FNetRefHandle BeginReplication(FNetRefHandle OwnerHandle, UObject* Instance, const FCreateNetRefHandleParams& Params);
 
 	/** 
 	 * Set NetCondition for a subobject, the condition is used to determine if the SubObject should replicate or not.
@@ -494,5 +493,5 @@ protected:
 
 inline UE::Net::FNetRefHandle UObjectReplicationBridge::BeginReplication(UE::Net::FNetRefHandle OwnerHandle, UObject* Instance, const FCreateNetRefHandleParams& Params)
 {
-	return BeginReplication(OwnerHandle, Instance, FNetRefHandle::GetInvalid(), ESubObjectInsertionOrder::None, Params);
+	return BeginReplication(OwnerHandle, Instance, FNetRefHandle::GetInvalid(), Params, ESubObjectInsertionOrder::None);
 }

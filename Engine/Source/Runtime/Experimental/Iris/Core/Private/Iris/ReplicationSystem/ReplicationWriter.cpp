@@ -364,7 +364,7 @@ void FReplicationWriter::Init(const FReplicationParameters& InParameters)
 	// Store copy of parameters
 	Parameters = InParameters;
 
-	UE_LOG(LogIris, Log, TEXT("ReplicationWriter: Configured with MaxInternalNetRefIndex=%d and MaxReplicationWriterObjectCount=%d."), 
+	UE_LOG(LogIris, Verbose, TEXT("ReplicationWriter: Configured with MaxInternalNetRefIndex=%d and MaxReplicationWriterObjectCount=%d."), 
 		Parameters.MaxInternalNetRefIndex, Parameters.MaxReplicationWriterObjectCount);
 
 	// Cache internal systems

@@ -86,7 +86,6 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestWorldLocGridFilter)
 {
 	// Spawn object with WorldLocation's on server
 	UObjectReplicationBridge::FCreateNetRefHandleParams Params;
-	Params.bCanReceive = true;
 	Params.bNeedsWorldLocationUpdate = true;
 	Params.bUseClassConfigDynamicFilter = true;
 
@@ -267,7 +266,6 @@ UE_NET_TEST_FIXTURE(FTestGridFilterFixture, TestFilterPerformance)
 	for (int32 i = 0; i < NUM_OBJECTS; i++)
 	{
 		UObjectReplicationBridge::FCreateNetRefHandleParams Params;
-		Params.bCanReceive = true;
 		Params.bNeedsWorldLocationUpdate = true;
 		Params.bUseClassConfigDynamicFilter = true;
 

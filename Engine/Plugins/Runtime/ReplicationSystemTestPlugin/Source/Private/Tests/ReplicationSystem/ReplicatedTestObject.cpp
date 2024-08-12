@@ -50,9 +50,7 @@ const UE::Net::FReplicationInstanceProtocol* UReplicatedTestObjectBridge::GetRep
 UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(UReplicatedTestObject* Instance)
 {
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params = Super::DefaultCreateNetRefHandleParams;
-	Params.bCanReceive = true;
-
+	Super::FCreateNetRefHandleParams Params;
 	FNetRefHandle Handle = Super::BeginReplication(Instance, Params);
 
 	// This is optional but typically we want to cache at least the NetRefHandle in the game instance to avoid doing map lookups to find it
@@ -83,11 +81,8 @@ UE::Net::FNetRefHandle UReplicatedTestObjectBridge::BeginReplication(FNetRefHand
 	check(OwnerHandle.IsValid());
 
 	// Create NetRefHandle for the registered fragments
-	Super::FCreateNetRefHandleParams Params = Super::DefaultCreateNetRefHandleParams;
-	Params.bCanReceive = true;
-
-	// Create NetRefHandle for the registered fragments
-	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, InsertionOrder, Params);
+	Super::FCreateNetRefHandleParams Params;
+	FNetRefHandle Handle = Super::BeginReplication(OwnerHandle, SubObjectInstance, InsertRelativeToSubObjectHandle, Params, InsertionOrder);
 
 	if (Handle.IsValid())
 	{

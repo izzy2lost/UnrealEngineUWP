@@ -113,10 +113,6 @@ void UReplicationBridge::PruneStaleObjects()
 {
 }
 
-void UReplicationBridge::SetNetDriver(UNetDriver* NetDriver)
-{
-}
-
 void UReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetDependencyInfoArray& OutDependencies) const
 {
 	return;
@@ -613,7 +609,7 @@ void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFla
 			AddPendingEndReplication(Handle, EndReplicationFlags);
 
 			// We do however copy the final state data and mark object to stop propagating state changes
-			InternalTearOff(Handle, ECacheCreationInfo::Yes);
+			InternalTearOff(Handle);
 
 			// Detach instance as we must assume that we should not access the object after this call.
 			ObjectData.bPendingEndReplication = 1U;
@@ -643,7 +639,7 @@ void UReplicationBridge::EndReplication(FNetRefHandle Handle, EEndReplicationFla
 				AddPendingEndReplication(Handle, EndReplicationFlags);
 			
 				// Capture final state
-				InternalFlushStateData(Handle, ECacheCreationInfo::Yes);
+				InternalFlushStateData(Handle);
 
 				// Detach instance as we must assume that we should not access the object after this call.
 				ObjectData.bPendingEndReplication = 1U;
@@ -731,7 +727,7 @@ void UReplicationBridge::TearOffHandlesPendingTearOff()
 	{
 		if (EnumHasAnyFlags(Info.DestroyFlags, EEndReplicationFlags::TearOff))
 		{
-			InternalTearOff(Info.Handle, ECacheCreationInfo::Yes);
+			InternalTearOff(Info.Handle);
 		}
 	}
 }
@@ -789,7 +785,7 @@ void UReplicationBridge::AddPendingEndReplication(FNetRefHandle Handle, EEndRepl
 	}
 }
 
-void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex, ECacheCreationInfo CacheCreationInfo)
+void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -817,10 +813,7 @@ void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContex
 		}
 
 		// Cache creation info
-		if (CacheCreationInfo == ECacheCreationInfo::Yes)
-		{
-			ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(ObjectData.RefHandle) ? 1U : 0U;
-		}
+		ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(ObjectData.RefHandle) ? 1U : 0U;
 
 		FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
 
@@ -830,13 +823,13 @@ void UReplicationBridge::InternalFlushStateData(UE::Net::FNetSerializationContex
 
 	for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
 	{
-		InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, SubObjectInternalIndex, CacheCreationInfo);
+		InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, SubObjectInternalIndex);
 	}
 
 	// $IRIS TODO:  Should we also clear the DirtyTracker flags for this flushed object ?
 }
 
-void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo)
+void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -860,7 +853,7 @@ void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle, ECacheCrea
 	SerializationContext.SetInternalContext(&InternalContext);
 	SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
 
-	InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, InternalObjectIndex, CacheCreationInfo);
+	InternalFlushStateData(SerializationContext, ChangeMaskCache, ChangeMaskWriter, InternalObjectIndex);
 
 	// Iterate over connections and propagate dirty changemasks to all connections already scoping this object
 	if (ChangeMaskCache.Indices.Num() > 0)
@@ -879,7 +872,7 @@ void UReplicationBridge::InternalFlushStateData(FNetRefHandle Handle, ECacheCrea
 	}
 }
 
-void UReplicationBridge::InternalTearOff(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo)
+void UReplicationBridge::InternalTearOff(FNetRefHandle Handle)
 {
 	using namespace UE::Net;
 	using namespace UE::Net::Private;
@@ -887,7 +880,6 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle, ECacheCreationInf
 	IRIS_PROFILER_SCOPE(InternalTearOff);
 
 	const uint32 InternalObjectIndex = NetRefHandleManager->GetInternalIndex(Handle);
-
 	if (InternalObjectIndex == FNetRefHandleManager::InvalidInternalIndex)
 	{
 		return;
@@ -895,77 +887,77 @@ void UReplicationBridge::InternalTearOff(FNetRefHandle Handle, ECacheCreationInf
 
 	FNetRefHandleManager::FReplicatedObjectData& ObjectData = NetRefHandleManager->GetReplicatedObjectDataNoCheck(InternalObjectIndex);
 
-	// Copy state data and tear off now
-	if (!ObjectData.bTearOff)
+	if (ObjectData.bTearOff)
 	{
-		UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("TearOff %s ( InteralIndex: %u )"), *Handle.ToString(), InternalObjectIndex);
-
-		// Force copy of final state data as we will detach the object after scope update
-		FChangeMaskCache ChangeMaskCache;
-		FNetBitStreamWriter ChangeMaskWriter;
-
-		// Setup context
-		FNetSerializationContext SerializationContext;
-		FInternalNetSerializationContext InternalContext(ReplicationSystem);
-		SerializationContext.SetInternalContext(&InternalContext);
-		SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
-
-		if (ObjectData.InstanceProtocol)
-		{
-			if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
-			{
-				CallPreSendUpdateSingleHandle(Handle);
-			} 
-
-			// Cache creation info
-			if (CacheCreationInfo == ECacheCreationInfo::Yes)
-			{
-				ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(Handle) ? 1U : 0U;
-			}
-		}
-
-		if (ObjectData.InstanceProtocol && ObjectData.Protocol->InternalTotalSize > 0U)
-		{
-			FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
-
-			// Clear the quantize flag since it was done directly here.
-			NetRefHandleManager->GetDirtyObjectsToQuantize().ClearBit(InternalObjectIndex);
-		}
-		else
-		{
-			// Nothing to copy, but we must still propagate the tear-off state.
-			FChangeMaskCache::FCachedInfo& Info = ChangeMaskCache.AddEmptyChangeMaskForObject(InternalObjectIndex);
-			// If we are a subobject we must also mark owner as dirty.
-			const uint32 SubObjectOwnerIndex = ObjectData.SubObjectRootIndex;
-			if (SubObjectOwnerIndex != FNetRefHandleManager::InvalidInternalIndex) 
-			{
-				ChangeMaskCache.AddSubObjectOwnerDirty(SubObjectOwnerIndex);
-			}			
-		}
-
-		// Propagate changes to all connections that we currently have in scope
-		FReplicationConnections& Connections = ReplicationSystem->GetReplicationSystemInternal()->GetConnections();
-
-		// Iterate over connections and propagate dirty changemasks to all connections already scoping this object
-		auto UpdateDirtyChangeMasks = [&Connections, &ChangeMaskCache](uint32 ConnectionId)
-		{
-			FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
-			const bool bMarkForTearOff = true;
-			Conn->ReplicationWriter->ForceUpdateDirtyChangeMasks(ChangeMaskCache, FReplicationWriter::FlushFlags_None, bMarkForTearOff);
-		};
-		const FNetBitArray& ValidConnections = Connections.GetValidConnections();
-		ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);		
-
-		// TearOff subobjects as well.
-		for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
-		{
-			InternalTearOff(NetRefHandleManager->GetNetRefHandleFromInternalIndex(SubObjectInternalIndex), CacheCreationInfo);
-		}	
-
-		// Mark object as being torn-off and that we should no longer propagate state changes
-		ObjectData.bTearOff = 1U;
-		ObjectData.bShouldPropagateChangedStates = 0U;
+		// Already torn off
+		return;
 	}
+
+	// Copy state data and tear off now
+	UE_LOG_REPLICATIONBRIDGE(Verbose, TEXT("TearOff: %s"), *PrintObjectFromNetRefHandle(Handle));
+
+	// Force copy of final state data as we will detach the object after scope update
+	FChangeMaskCache ChangeMaskCache;
+	FNetBitStreamWriter ChangeMaskWriter;
+
+	// Setup context
+	FNetSerializationContext SerializationContext;
+	FInternalNetSerializationContext InternalContext(ReplicationSystem);
+	SerializationContext.SetInternalContext(&InternalContext);
+	SerializationContext.SetNetStatsContext(ReplicationSystem->GetReplicationSystemInternal()->GetNetTypeStats().GetNetStatsContext());
+
+	if (ObjectData.InstanceProtocol)
+	{
+		if (EnumHasAnyFlags(ObjectData.InstanceProtocol->InstanceTraits, EReplicationInstanceProtocolTraits::NeedsPoll | EReplicationInstanceProtocolTraits::NeedsPreSendUpdate))
+		{
+			CallPreSendUpdateSingleHandle(Handle);
+		} 
+
+		// Cache creation info
+		ObjectData.bHasCachedCreationInfo =  CallCacheNetRefHandleCreationInfo(Handle) ? 1U : 0U;
+	}
+
+	if (ObjectData.InstanceProtocol && ObjectData.Protocol->InternalTotalSize > 0U)
+	{
+		FReplicationInstanceOperationsInternal::QuantizeObjectStateData(ChangeMaskWriter, ChangeMaskCache, *NetRefHandleManager, SerializationContext, InternalObjectIndex);
+
+		// Clear the quantize flag since it was done directly here.
+		NetRefHandleManager->GetDirtyObjectsToQuantize().ClearBit(InternalObjectIndex);
+	}
+	else
+	{
+		// Nothing to copy, but we must still propagate the tear-off state.
+		FChangeMaskCache::FCachedInfo& Info = ChangeMaskCache.AddEmptyChangeMaskForObject(InternalObjectIndex);
+		// If we are a subobject we must also mark owner as dirty.
+		const uint32 SubObjectOwnerIndex = ObjectData.SubObjectRootIndex;
+		if (SubObjectOwnerIndex != FNetRefHandleManager::InvalidInternalIndex) 
+		{
+			ChangeMaskCache.AddSubObjectOwnerDirty(SubObjectOwnerIndex);
+		}			
+	}
+
+	// Propagate changes to all connections that we currently have in scope
+	FReplicationConnections& Connections = ReplicationSystem->GetReplicationSystemInternal()->GetConnections();
+
+	// Iterate over connections and propagate dirty changemasks to all connections already scoping this object
+	auto UpdateDirtyChangeMasks = [&Connections, &ChangeMaskCache](uint32 ConnectionId)
+	{
+		FReplicationConnection* Conn = Connections.GetConnection(ConnectionId);
+		const bool bMarkForTearOff = true;
+		Conn->ReplicationWriter->ForceUpdateDirtyChangeMasks(ChangeMaskCache, FReplicationWriter::FlushFlags_None, bMarkForTearOff);
+	};
+	const FNetBitArray& ValidConnections = Connections.GetValidConnections();
+	ValidConnections.ForAllSetBits(UpdateDirtyChangeMasks);		
+
+	// TearOff subobjects as well.
+	for (FInternalNetRefIndex SubObjectInternalIndex : NetRefHandleManager->GetChildSubObjects(InternalObjectIndex))
+	{
+		InternalTearOff(NetRefHandleManager->GetNetRefHandleFromInternalIndex(SubObjectInternalIndex));
+	}	
+
+	// Mark object as being torn-off and that we should no longer propagate state changes
+	ObjectData.bTearOff = 1U;
+	ObjectData.bShouldPropagateChangedStates = 0U;
 }
 
 UE::Net::FNetRefHandle UReplicationBridge::InternalAddDestructionInfo(FNetRefHandle Handle, const FEndReplicationParameters& Parameters)

@@ -160,13 +160,13 @@ void FReplicationSystemUtil::BeginReplicationForActorComponent(FNetHandle ActorH
 		return;
 	}
 
-	if (!ensureAlways(ActorComp != nullptr))
+	if (!ensure(ActorComp != nullptr))
 	{
 		return;
 	}
 
 	AActor* Actor = Cast<AActor>(ActorComp->GetOwner());
-	ensureAlways(FNetHandleManager::GetNetHandle(Actor) == ActorHandle);
+	ensureMsgf(FNetHandleManager::GetNetHandle(Actor) == ActorHandle, TEXT("BeginReplicationForActorComponent received invalid owner handle %s for actual owner %s"), *ActorHandle.ToString(), *GetNameSafe(Actor));
 	if (Actor)
 	{
 		if (const UWorld* World = Actor->GetWorld())
@@ -242,7 +242,8 @@ void FReplicationSystemUtil::BeginReplicationForActorSubObject(const AActor* Act
 					const FNetRefHandle ActorRefHandle = Bridge->GetReplicatedRefHandle(ActorHandle);
 					if (ActorRefHandle.IsValid())
 					{
-						const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, ActorSubObject);
+						const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
+						const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, ActorSubObject, CreateNetRefParams);
 						if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 						{
 							Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);
@@ -277,7 +278,9 @@ void FReplicationSystemUtil::BeginReplicationForActorComponentSubObject(UActorCo
 						const FNetRefHandle ActorComponentRefHandle = Bridge->GetReplicatedRefHandle(ActorComponent);
 						if (ActorRefHandle.IsValid() && ActorComponentRefHandle.IsValid())
 						{
-							const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, SubObject, ActorComponentRefHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
+							const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
+
+							const FNetRefHandle SubObjectRefHandle = Bridge->BeginReplication(ActorRefHandle, SubObject, ActorComponentRefHandle, CreateNetRefParams, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
 							if (SubObjectRefHandle.IsValid() && NetCondition != ELifetimeCondition::COND_None)
 							{
 								Bridge->SetSubObjectNetCondition(SubObjectRefHandle, NetCondition);

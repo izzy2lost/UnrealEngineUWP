@@ -1852,7 +1852,7 @@ void FReplicationReader::DispatchStateData(FNetSerializationContext& Context)
 		PostDispatchObjectInfo.DequantizeAndApplyContext = nullptr;
 		PostDispatchObjectInfo.AttachmentDispatchedFlags = ENetObjectAttachmentDispatchFlags::None;
 
-		// For SubObjects we call must call this method after applying state data for the owner, in order to remain backwards compatible.
+		// For SubObjects we call this method after applying state data for the owner, in order to remain backwards compatible.
 		if (Info.bShouldCallSubObjectCreatedFromReplication)
 		{
 			if (ObjectData.SubObjectRootIndex != FNetRefHandleManager::InvalidInternalIndex)

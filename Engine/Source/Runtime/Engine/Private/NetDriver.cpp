@@ -7096,7 +7096,7 @@ void UNetDriver::CreateReplicationSystem(bool bInitAsClient)
 		return;
 	}
 
-	UReplicationBridge* ReplicationBridge = NewObject<UActorReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
+	UActorReplicationBridge* ReplicationBridge = NewObject<UActorReplicationBridge>(GetTransientPackage(), ReplicationBridgeClass);
 	if (ReplicationBridge)
 	{
 		ReplicationBridge->SetNetDriver(this);

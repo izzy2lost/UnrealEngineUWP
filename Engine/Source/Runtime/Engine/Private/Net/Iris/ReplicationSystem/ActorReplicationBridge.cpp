@@ -267,12 +267,13 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 	}
 
 	// Create handles for the registered fragments
-	Super::FCreateNetRefHandleParams CreateNetRefHandleParams = UObjectReplicationBridge::DefaultCreateNetRefHandleParams;
-	CreateNetRefHandleParams.bNeedsPreUpdate = 1U;
-	CreateNetRefHandleParams.bNeedsWorldLocationUpdate = 1U;
-	CreateNetRefHandleParams.bIsDormant = Actor->NetDormancy > DORM_Awake;
-	CreateNetRefHandleParams.StaticPriority = (Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) ? Actor->NetPriority : 0.0f;
-	CreateNetRefHandleParams.PollFrequency = Actor->GetNetUpdateFrequency();
+	Super::FCreateNetRefHandleParams CreateNetRefHandleParams = {
+		.bNeedsPreUpdate = 1U,
+		.bNeedsWorldLocationUpdate = 1U,
+		.bIsDormant = Actor->NetDormancy > DORM_Awake,
+		.StaticPriority = (Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) ? Actor->NetPriority : 0.0f,
+		.PollFrequency = Actor->GetNetUpdateFrequency()
+	};
 
 #if !UE_BUILD_SHIPPING
 	ensureMsgf(!(Actor->bAlwaysRelevant || Actor->bOnlyRelevantToOwner) || CreateNetRefHandleParams.StaticPriority >= 1.0f, TEXT("Very low NetPriority %.02f for always relevant or owner relevant Actor %s. Set it to 1.0f or higher."), Actor->NetPriority, ToCStr(Actor->GetName()));
@@ -335,7 +336,8 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(AActor* Actor, 
 			UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
 			if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 			{
-				FNetRefHandle SubObjectRefHandle = UObjectReplicationBridge::BeginReplication(ActorRefHandle, SubObjectToReplicate);
+				const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
+				FNetRefHandle SubObjectRefHandle = UObjectReplicationBridge::BeginReplication(ActorRefHandle, SubObjectToReplicate, CreateNetRefParams);
 				if (SubObjectRefHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
 				{
 					UObjectReplicationBridge::SetSubObjectNetCondition(SubObjectRefHandle, SubObjectInfo.NetCondition);
@@ -394,7 +396,7 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 		}
 
 		// Start replicating the subobject with its owner.
-		ReplicatedComponentHandle = Super::BeginReplication(OwnerHandle, SubObject);
+		ReplicatedComponentHandle = Super::BeginReplication(OwnerHandle, SubObject, UObjectReplicationBridge::FCreateNetRefHandleParams());
 	}
 
 	if (!ReplicatedComponentHandle.IsValid())
@@ -410,12 +412,13 @@ UE::Net::FNetRefHandle UActorReplicationBridge::BeginReplication(FNetRefHandle O
 	}
 
 	// Begin replication for any SubObjects registered by the component
+	const UObjectReplicationBridge::FCreateNetRefHandleParams CreateNetRefParams;
 	for (const FSubObjectRegistry::FEntry& SubObjectInfo : RepComponentInfo->SubObjects.GetRegistryList())
 	{
 		UObject* SubObjectToReplicate = SubObjectInfo.GetSubObject();
 		if (IsValid(SubObjectToReplicate) && SubObjectInfo.NetCondition != ELifetimeCondition::COND_Never)
 		{
-			FNetRefHandle SubObjectHandle = UObjectReplicationBridge::BeginReplication(OwnerHandle, SubObjectToReplicate, ReplicatedComponentHandle, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
+			FNetRefHandle SubObjectHandle = UObjectReplicationBridge::BeginReplication(OwnerHandle, SubObjectToReplicate, ReplicatedComponentHandle, CreateNetRefParams, UReplicationBridge::ESubObjectInsertionOrder::ReplicateWith);
 			if (SubObjectHandle.IsValid() && SubObjectInfo.NetCondition != ELifetimeCondition::COND_None)
 			{
 				SetSubObjectNetCondition(SubObjectHandle, SubObjectInfo.NetCondition);
@@ -995,8 +998,6 @@ void UActorReplicationBridge::GetInitialDependencies(FNetRefHandle Handle, FNetD
 
 void UActorReplicationBridge::SetNetDriver(UNetDriver* const InNetDriver)
 {
-	Super::SetNetDriver(InNetDriver);
-
 	if (NetDriver)
 	{
 		NetDriver->OnNetServerMaxTickRateChanged.RemoveAll(this);

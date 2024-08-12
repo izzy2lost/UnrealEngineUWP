@@ -62,7 +62,7 @@ public:
 	ENGINE_API static UActorReplicationBridge* Create(UNetDriver* NetDriver);
 
 	/** Sets the net driver for the bridge. */
-	ENGINE_API virtual void SetNetDriver(UNetDriver* const InNetDriver) override;
+	ENGINE_API void SetNetDriver(UNetDriver* const InNetDriver);
 	
 	/** Get net driver used by the bridge .*/
 	inline UNetDriver* GetNetDriver() const { return NetDriver; }

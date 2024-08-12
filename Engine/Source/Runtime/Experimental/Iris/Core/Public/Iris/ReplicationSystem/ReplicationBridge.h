@@ -160,9 +160,6 @@ public:
 	/** Returns true if the handle is replicated. */
 	IRISCORE_API bool IsReplicatedHandle(FNetRefHandle Handle) const;
 
-	/** Set the NetDriver used by the bridge. Called during creation if the NetDriver is recreated. */
-	IRISCORE_API virtual void SetNetDriver(UNetDriver* NetDriver);
-
 	/** Get the group associated with the level in order to control connection filtering for it. */
 	IRISCORE_API UE::Net::FNetObjectGroupHandle GetLevelGroup(const UObject* Level) const;
 
@@ -315,19 +312,13 @@ private:
 	void CallDetachInstanceFromRemote(FNetRefHandle Handle, EReplicationBridgeDestroyInstanceReason DestroyReason, EReplicationBridgeDestroyInstanceFlags DestroyFlags);
 
 private:
-	// Specifies if we should capture and cache CreationHeader or not for flush and tearoff.
-	enum class ECacheCreationInfo : uint8
-	{
-		No,
-		Yes
-	};
 
-	void InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex, ECacheCreationInfo CacheCreationInfo);
+	void InternalFlushStateData(UE::Net::FNetSerializationContext& SerializationContext, UE::Net::Private::FChangeMaskCache& ChangeMaskCache, UE::Net::FNetBitStreamWriter& ChangeMaskWriter, uint32 InternalObjectIndex);
 	// Internal method to copy state data for Handle
-	void InternalFlushStateData(FNetRefHandle Handle, ECacheCreationInfo CacheCreationInfo);
+	void InternalFlushStateData(FNetRefHandle Handle);
 
 	// Internal method to copy state data for Handle and any SubObjects and mark them as being torn-off
-	void InternalTearOff(FNetRefHandle OwnerHandle, ECacheCreationInfo CacheCreationInfo);
+	void InternalTearOff(FNetRefHandle OwnerHandle);
 
 	// Destroy all SubObjects owned by provided handle
 	void InternalDestroySubObjects(FNetRefHandle OwnerHandle, EEndReplicationFlags Flags);
