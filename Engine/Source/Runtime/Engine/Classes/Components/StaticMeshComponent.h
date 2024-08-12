@@ -754,7 +754,7 @@ public:
 	ENGINE_API UMaterialInterface* GetNaniteAuditMaterial(int32 MaterialIndex) const;
 
 	/* Returns true if mesh vertex color painting is supported on this component. */
-	ENGINE_API bool CanMeshPaintVertexColors() const { return bSupportMeshPainting && bEnableVertexColorMeshPainting; }
+	ENGINE_API bool CanMeshPaintVertexColors() const;
 	/* Returns true if mesh texture color painting is supported on this component. */
 	ENGINE_API bool CanMeshPaintTextureColors() const;
 

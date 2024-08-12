@@ -2999,7 +2999,7 @@ void UStaticMeshComponent::ApplyComponentInstanceData(FStaticMeshComponentInstan
 		}
 	}
 
-	if (CanMeshPaintVertexColors())
+	if (bSupportMeshPainting && bEnableVertexColorMeshPainting)
 	{
 		FComponentReregisterContext ReregisterStaticMesh(this);
 		StaticMeshInstanceData->ApplyVertexColorData(this);
@@ -3202,6 +3202,20 @@ int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
 		return StaticMesh->MeshPaintTextureCoordinateIndex;
 	}
 	return 0;
+}
+
+bool UStaticMeshComponent::CanMeshPaintVertexColors() const
+{
+	if (!bSupportMeshPainting || !bEnableVertexColorMeshPainting)
+	{
+		return false;
+	}
+	if (ShouldCreateNaniteProxy())
+	{
+		// Don't vertex paint on nanite.
+		return false;
+	}
+	return true;
 }
 
 bool UStaticMeshComponent::CanMeshPaintTextureColors() const 
