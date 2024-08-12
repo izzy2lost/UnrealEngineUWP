@@ -18,15 +18,15 @@ void UTypedElementActorTransformFactory::RegisterQueries(ITypedElementDataStorag
 void UTypedElementActorTransformFactory::RegisterActorAddTransformColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add transform column to actor"),
-			FProcessor(DSI::EQueryTickPhase::PrePhysics,
-				DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-			.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor)
+			FProcessor(EQueryTickPhase::PrePhysics,
+				DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
+				.SetExecutionMode(EExecutionMode::GameThread),
+			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr && ActorInstance->GetRootComponent())
 				{
@@ -44,14 +44,14 @@ void UTypedElementActorTransformFactory::RegisterActorAddTransformColumn(ITypedE
 void UTypedElementActorTransformFactory::RegisterActorLocalTransformToColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync actor transform to column"),
-			FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-				.ForceToGameThread(true),
-			[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTypedElementLocalTransformColumn& Transform)
+			FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
+				.SetExecutionMode(EExecutionMode::GameThread),
+			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTypedElementLocalTransformColumn& Transform)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr && ActorInstance->GetRootComponent() != nullptr)
 				{
@@ -73,13 +73,13 @@ void UTypedElementActorTransformFactory::RegisterActorLocalTransformToColumn(ITy
 void UTypedElementActorTransformFactory::RegisterLocalTransformColumnToActor(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync transform column to actor"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](FTypedElementUObjectColumn& Actor, const FTypedElementLocalTransformColumn& Transform)
 			{
 				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)

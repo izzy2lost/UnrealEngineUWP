@@ -91,12 +91,16 @@ namespace TypedElementQueryBuilder
 
 	FDependency& FDependency::SubQuery(TypedElementQueryHandle Handle)
 	{
+		checkf(Query->Callback.ExecutionMode != TypedElementDataStorage::EExecutionMode::ThreadedChunks,
+			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));
 		Query->Subqueries.Add(Handle);
 		return *this;
 	}
 	
 	FDependency& FDependency::SubQuery(TConstArrayView<TypedElementQueryHandle> Handles)
 	{
+		checkf(Query->Callback.ExecutionMode != TypedElementDataStorage::EExecutionMode::ThreadedChunks,
+			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));
 		Query->Subqueries.Insert(Handles.GetData(), Handles.Num(), Query->Subqueries.Num());
 		return *this;
 	}
@@ -290,9 +294,9 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FProcessor& FProcessor::ForceToGameThread(bool bForce)
+	FProcessor& FProcessor::SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
 		return *this;
 	}
 
@@ -324,9 +328,9 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FObserver& FObserver::ForceToGameThread(bool bForce)
+	FObserver& FObserver::SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
 		return *this;
 	}
 
@@ -358,9 +362,9 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FPhaseAmble& FPhaseAmble::ForceToGameThread(bool bForce)
+	FPhaseAmble& FPhaseAmble::SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode)
 	{
-		bForceToGameThread = bForce;
+		ExecutionMode = Mode;
 		return *this;
 	}
 

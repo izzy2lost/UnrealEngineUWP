@@ -46,20 +46,20 @@ UCounterWidgetFactory::UCounterWidgetFactory()
 void UCounterWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	DataStorage.RegisterQuery(Select(TEXT("Sync counter widgets"), 
-		FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-			.ForceToGameThread(true),
+		FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+			.SetExecutionMode(EExecutionMode::GameThread),
 		[](
-			DSI::IQueryContext& Context,
+			IQueryContext& Context,
 			FTypedElementSlateWidgetReferenceColumn& Widget,
 			FTypedElementU32IntValueCacheColumn& Comparison, 
 			const FCounterWidgetColumn& Counter
 		)
 		{
-			DSI::FQueryResult Result = Context.RunQuery(Counter.Query);
-			if (Result.Completed == DSI::FQueryResult::ECompletion::Fully && Result.Count != Comparison.Value)
+			FQueryResult Result = Context.RunQuery(Counter.Query);
+			if (Result.Completed == FQueryResult::ECompletion::Fully && Result.Count != Comparison.Value)
 			{
 				TSharedPtr<SWidget> WidgetPointer = Widget.Widget.Pin();
 				checkf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "

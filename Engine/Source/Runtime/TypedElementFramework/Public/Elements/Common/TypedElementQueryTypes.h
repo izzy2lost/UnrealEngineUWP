@@ -75,6 +75,14 @@ namespace TypedElementDataStorage
 		Max //< Value indicating the maximum value in this enum. Not to be used as an enum value.
 	};
 
+	enum class EExecutionMode : uint8
+	{
+		Default, //< Use the default for the query callback type or the group default.
+		GameThread, //< The query callback will be executed sequentially on the game thread.
+		Threaded, //< The entire query callback is called on a separate thread, while respecting dependencies.
+		ThreadedChunks //< The query callback is called on a separate thread for each chunk. This can not be set if there are sub-queries.
+	};
+
 	enum class EQueryAccessType : uint8
 	{
 		/** Provide read-only access. */

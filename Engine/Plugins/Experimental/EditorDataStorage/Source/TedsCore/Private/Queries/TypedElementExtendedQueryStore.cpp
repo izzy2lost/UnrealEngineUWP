@@ -66,7 +66,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	void FExtendedQueryStore::RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
-		FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread)
+		FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode)
 	{
 		FTickGroupDescription& Group = TickGroupDescriptions.FindOrAdd({ GroupName, Phase });
 
@@ -80,10 +80,7 @@ namespace UE::Editor::DataStorage
 			Group.AfterGroups.Add(AfterGroup);
 		}
 
-		if (bRequiresMainThread)
-		{
-			Group.bRequiresMainThread = true;
-		}
+		Group.ExecutionMode = ExecutionMode;
 	}
 
 	void FExtendedQueryStore::UnregisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase)
@@ -219,27 +216,26 @@ namespace UE::Editor::DataStorage
 		FEnvironment& Environment,
 		FMassExecutionContext* ParentContext,
 		Handle Query,
+		TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
 		CallbackReference Callback)
 	{
-		using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
-		using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
+		using namespace TypedElementDataStorage;
 
-		ITypedElementDataStorageInterface::FQueryResult Result;
-
+		FQueryResult Result;
 		if (FExtendedQuery* QueryData = Get(Query))
 		{
 			switch (QueryData->Description.Action)
 			{
-			case ActionType::None:
-				Result.Completed = CompletionType::Fully;
+			case FQueryDescription::EActionType::None:
+				Result.Completed = FQueryResult::ECompletion::Fully;
 				break;
-			case ActionType::Select:
+			case FQueryDescription::EActionType::Select:
 				if (!QueryData->Processor.IsValid())
 				{
-					if constexpr (std::is_same_v<CallbackReference, TypedElementDataStorage::DirectQueryCallbackRef>)
+					if constexpr (std::is_same_v<CallbackReference, DirectQueryCallbackRef>)
 					{
 						Result = FTypedElementQueryProcessorData::Execute(
-							Callback, QueryData->Description, QueryData->NativeQuery, EntityManager, Environment);
+							Callback, QueryData->Description, QueryData->NativeQuery, EntityManager, Environment, DirectExecutionFlags);
 					}
 					else
 					{
@@ -249,38 +245,40 @@ namespace UE::Editor::DataStorage
 				}
 				else
 				{
-					Result.Completed = CompletionType::Unsupported;
+					Result.Completed = FQueryResult::ECompletion::Unsupported;
 				}
 				break;
-			case ActionType::Count:
+			case FQueryDescription::EActionType::Count:
 				// Only the count is requested so no need to trigger the callback.
 				Result.Count = QueryData->NativeQuery.GetNumMatchingEntities(EntityManager);
-				Result.Completed = CompletionType::Fully;
+				Result.Completed = FQueryResult::ECompletion::Fully;
 				break;
 			default:
-				Result.Completed = CompletionType::Unsupported;
+				Result.Completed = FQueryResult::ECompletion::Unsupported;
 				break;
 			}
 		}
 		else
 		{
-			Result.Completed = CompletionType::Unavailable;
+			Result.Completed = FQueryResult::ECompletion::Unavailable;
 		}
 
 		return Result;
 	}
 
 	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, Handle Query, TypedElementDataStorage::DirectQueryCallbackRef Callback)
+		FEnvironment& Environment, Handle Query, TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
+		TypedElementDataStorage::DirectQueryCallbackRef Callback)
 	{
-		return RunQueryCallbackCommon(EntityManager, Environment, nullptr, Query, Callback);
+		return RunQueryCallbackCommon(EntityManager, Environment, nullptr, Query, DirectExecutionFlags, Callback);
 	}
-
+	
 	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
 		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query,
 		TypedElementDataStorage::SubqueryCallbackRef Callback)
 	{
-		return RunQueryCallbackCommon(EntityManager, Environment, &ParentContext, Query, Callback);
+		return RunQueryCallbackCommon(EntityManager, Environment, &ParentContext, Query, 
+			TypedElementDataStorage::EDirectQueryExecutionFlags::Default, Callback);
 	}
 
 	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
@@ -704,6 +702,8 @@ namespace UE::Editor::DataStorage
 
 	bool FExtendedQueryStore::SetupTickGroupDefaults(ITypedElementDataStorageInterface::FQueryDescription& Query)
 	{
+	using namespace TypedElementDataStorage;
+
 		const FTickGroupDescription* TickGroup = TickGroupDescriptions.Find({ Query.Callback.Group, Query.Callback.Phase });
 		if (TickGroup)
 		{
@@ -725,7 +725,10 @@ namespace UE::Editor::DataStorage
 			}
 			Query.Callback.AfterGroups.Append(TickGroup->AfterGroups);
 
-			Query.Callback.bForceToGameThread |= TickGroup->bRequiresMainThread;
+			if (Query.Callback.ExecutionMode == EExecutionMode::Default)
+			{
+				Query.Callback.ExecutionMode = TickGroup->ExecutionMode;
+			}
 		}
 		return true;
 	}

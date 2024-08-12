@@ -833,7 +833,24 @@ void FTypedElementQueryProcessorData::DebugOutputDescription(FOutputDevice& Ar, 
 			Ar.Logf(TEXT("\n%*sMonitored type: %s"), Indent, TEXT(""), *Callback.MonitoredType->GetName());
 		}
 
-		Ar.Logf(TEXT("\n%*sIs forced to GameThread: %s"), Indent, TEXT(""), Callback.bForceToGameThread ? TEXT("True") : TEXT("False"));
+		switch (Callback.ExecutionMode)
+		{
+		case TypedElementDataStorage::EExecutionMode::Default:
+			Ar.Logf(TEXT("\n%*sExecution mode: Default"), Indent, TEXT(""));
+			break;
+		case TypedElementDataStorage::EExecutionMode::GameThread:
+			Ar.Logf(TEXT("\n%*sExecution mode: Game Thread"), Indent, TEXT(""));
+			break;
+		case TypedElementDataStorage::EExecutionMode::Threaded:
+			Ar.Logf(TEXT("\n%*sExecution mode: Threaded"), Indent, TEXT(""));
+			break;
+		case TypedElementDataStorage::EExecutionMode::ThreadedChunks:
+			Ar.Logf(TEXT("\n%*sExecution mode: Threaded Chunks"), Indent, TEXT(""));
+			break;
+		default:
+			Ar.Logf(TEXT("\n%*sExecution mode: <Unknown option>"), Indent, TEXT(""));
+			break;
+		}
 	}
 #endif // WITH_MASSENTITY_DEBUG
 }
@@ -876,24 +893,39 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	TypedElementDataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery, 
 	FMassEntityManager& EntityManager,
-	FEnvironment& Environment)
+	FEnvironment& Environment,
+	TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags)
 {
-	ITypedElementDataStorageInterface::FQueryResult Result;
-	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
+	using namespace TypedElementDataStorage;
+
+	FQueryResult Result;
+	Result.Completed = FQueryResult::ECompletion::Fully;
 	
-	if (Description.Callback.ActivationCount > 0)
+	if (EnumHasAnyFlags(ExecutionFlags, EDirectQueryExecutionFlags::AllowBoundQueries) || !Description.Callback.Function)
 	{
-		FMassExecutionContext Context(EntityManager);
-		
-		NativeQuery.ForEachEntityChunk(EntityManager, Context,
-			[&Result, &Callback, &Description](FMassExecutionContext& Context)
+		if (EnumHasAnyFlags(ExecutionFlags, EDirectQueryExecutionFlags::IgnoreActivationCount) || Description.Callback.ActivationCount > 0)
+		{
+			FMassExecutionContext Context(EntityManager);
+			auto ExecuteFunction = [&Result, &Callback, &Description](FMassExecutionContext& Context)
+				{
+					// No need to cache any subsystem dependencies as these are not accessible from a direct query.
+					UE::Editor::DataStorage::Processors::Private::FMassDirectContextForwarder QueryContext(Context);
+					Callback(Description, QueryContext);
+					Result.Count += Context.GetNumEntities();
+				};
+			if (EnumHasAnyFlags(ExecutionFlags, EDirectQueryExecutionFlags::ParallelizeChunks))
 			{
-				// No need to cache any subsystem dependencies as these are not accessible from a direct query.
-				UE::Editor::DataStorage::Processors::Private::FMassDirectContextForwarder QueryContext(Context);
-				Callback(Description, QueryContext);
-				Result.Count += Context.GetNumEntities();
+				NativeQuery.ParallelForEachEntityChunk(EntityManager, Context, ExecuteFunction);
 			}
-		);
+			else
+			{
+				NativeQuery.ForEachEntityChunk(EntityManager, Context, ExecuteFunction);
+			}
+		}
+	}
+	else
+	{
+		Result.Completed = FQueryResult::ECompletion::Unsupported;
 	}
 	return Result;
 }
@@ -906,11 +938,16 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	FEnvironment& Environment,
 	FMassExecutionContext& ParentContext)
 {
+	using namespace TypedElementDataStorage;
+
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 
 	if (Description.Callback.ActivationCount > 0)
 	{
+		checkf(Description.Callback.ExecutionMode != EExecutionMode::ThreadedChunks,
+			TEXT("TEDS Sub-queries do not support parallel chunk processing."));
+		
 		FMassExecutionContext Context(EntityManager);
 		Context.SetDeferredCommandBuffer(ParentContext.GetSharedDeferredCommandBuffer());
 		Context.SetFlushDeferredCommands(false);
@@ -937,12 +974,17 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	FEnvironment& Environment,
 	FMassExecutionContext& ParentContext)
 {
+	using namespace TypedElementDataStorage;
+
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
 
 	FMassEntityHandle NativeEntity = FMassEntityHandle::FromNumber(RowHandle);
 	if (Description.Callback.ActivationCount > 0 && EntityManager.IsEntityActive(NativeEntity))
 	{
+		checkf(Description.Callback.ExecutionMode != EExecutionMode::ThreadedChunks,
+			TEXT("TEDS Sub-queries do not support parallel chunk processing."));
+		
 		FMassArchetypeHandle NativeArchetype = EntityManager.GetArchetypeForEntityUnsafe(NativeEntity);
 		FMassExecutionContext Context(EntityManager);
 		Context.SetEntityCollection(FMassArchetypeEntityCollection(NativeArchetype, { NativeEntity }, FMassArchetypeEntityCollection::NoDuplicates));
@@ -965,22 +1007,32 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 
 void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
+	using namespace TypedElementDataStorage;
+	
 	FExtendedQuery* StoredQuery = QueryStore->GetMutable(ParentQuery);
+
 	checkf(StoredQuery, TEXT("A query callback was registered for execution without an associated query."));
 	
 	ITypedElementDataStorageInterface::FQueryDescription& Description = StoredQuery->Description;
 	if (Description.Callback.ActivationCount > 0)
 	{
-		NativeQuery.ForEachEntityChunk(EntityManager, Context,
-			[this, &Description](FMassExecutionContext& Context)
+		auto ExceteFunction = [this, &Description](FMassExecutionContext& Context)
 			{
 				if (PrepareCachedDependenciesOnQuery(Description, Context))
 				{
 					UE::Editor::DataStorage::Processors::Private::FMassContextForwarder QueryContext(Description, Context, *QueryStore, *Environment);
 					Description.Callback.Function(Description, QueryContext);
 				}
-			}
-		);
+			};
+		
+		if (StoredQuery->Description.Callback.ExecutionMode != EExecutionMode::ThreadedChunks)
+		{
+			NativeQuery.ForEachEntityChunk(EntityManager, Context, ExceteFunction);
+		}
+		else
+		{
+			NativeQuery.ParallelForEachEntityChunk(EntityManager, Context, ExceteFunction);
+		}
 	}
 }
 
@@ -1029,7 +1081,7 @@ bool UTypedElementQueryProcessorCallbackAdapterProcessorBase::ConfigureQueryCall
 {
 	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryHandle, QueryStore, Environment, Subqueries);
 
-	bRequiresGameThreadExecution = Query.Description.Callback.bForceToGameThread;
+	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == TypedElementDataStorage::EExecutionMode::GameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor); 
 	ExecutionOrder.ExecuteInGroup = Query.Description.Callback.Group;
 	ExecutionOrder.ExecuteBefore = Query.Description.Callback.BeforeGroups;
@@ -1158,7 +1210,7 @@ bool UTypedElementQueryObserverCallbackAdapterProcessorBase::ConfigureQueryCallb
 {
 	bool Result = Data.CommonQueryConfiguration(*this, Query, QueryHandle, QueryStore, Environment, Subqueries);
 
-	bRequiresGameThreadExecution = Query.Description.Callback.bForceToGameThread;
+	bRequiresGameThreadExecution = Query.Description.Callback.ExecutionMode == TypedElementDataStorage::EExecutionMode::GameThread;
 	ExecutionFlags = static_cast<int32>(EProcessorExecutionFlags::Editor);
 	
 	ObservedType = const_cast<UScriptStruct*>(Query.Description.Callback.MonitoredType);

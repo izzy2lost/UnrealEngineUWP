@@ -75,8 +75,8 @@ static void SyncColumnsToWidget(
 void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	TypedElementQueryHandle UpdateLabelWidget = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementLabelColumn>()
@@ -95,10 +95,10 @@ void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& Dat
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync label to widget"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](
-				DSI::IQueryContext& Context, 
+				IQueryContext& Context, 
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				FTypedElementU64IntValueCacheColumn& TextHash,
 				const FLabelWidgetColumn& Config,

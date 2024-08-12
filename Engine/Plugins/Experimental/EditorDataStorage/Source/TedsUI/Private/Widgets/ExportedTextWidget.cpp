@@ -51,8 +51,7 @@ static void UpdateExportedTextWidget(ITypedElementDataStorageInterface& DataStor
 static TypedElementQueryHandle RegisterUpdateCallback(ITypedElementDataStorageInterface& DataStorage, const UScriptStruct* Target)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-	namespace DS = TypedElementDataStorage;
+	using namespace TypedElementDataStorage;
 	
 	TypedElementQueryHandle TypeDataQuery = DataStorage.RegisterQuery(
 		Select()
@@ -69,10 +68,10 @@ static TypedElementQueryHandle RegisterUpdateCallback(ITypedElementDataStorageIn
 
 	return DataStorage.RegisterQuery(
 		Select(ProcessorName,
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[Target, ProcessorName](
-				DS::IQueryContext& Context, 
+				IQueryContext& Context, 
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementScriptStructTypeInfoColumn& TypeInfo,
 				const FTypedElementRowReferenceColumn& ReferencedRow)
@@ -96,7 +95,7 @@ static TypedElementQueryHandle RegisterUpdateCallback(ITypedElementDataStorageIn
 				if(StructType == Target)
 				{
 					Context.RunSubquery(0, ReferencedRow.Row, 
-					[&Widget, StructType](const DS::FQueryDescription&, DS::ISubqueryContext& SubqueryContext)
+					[&Widget, StructType](const FQueryDescription&, ISubqueryContext& SubqueryContext)
 					{
 						const void* ColumnData = SubqueryContext.GetColumn(StructType);
 						UpdateExportedTextWidget(ColumnData, Widget, StructType);

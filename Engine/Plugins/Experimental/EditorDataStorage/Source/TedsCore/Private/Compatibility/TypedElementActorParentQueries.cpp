@@ -38,7 +38,7 @@ void UTypedElementActorParentFactory::RegisterAddParentColumn(ITypedElementDataS
 		Select(
 			TEXT("Add parent column to actor"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
-			.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object))
@@ -75,7 +75,7 @@ void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedE
 		Select(
 			TEXT("Sync actor's parent to column"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
-				.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTableRowParentColumn& Parent)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object))

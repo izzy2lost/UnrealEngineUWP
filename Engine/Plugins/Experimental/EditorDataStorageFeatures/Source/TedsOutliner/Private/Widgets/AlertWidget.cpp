@@ -170,7 +170,6 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
-	using DSI = ITypedElementDataStorageInterface;
 	
 	TypedElementQueryHandle UpdateWidget_OnlyAlert = DataStorage.RegisterQuery(
 		Select()
@@ -197,8 +196,8 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 	
 	DataStorage.RegisterQuery(
 		Select(TEXT("Sync Transform column to heads up display"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-			.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context,
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& ReferenceColumn)
@@ -253,7 +252,6 @@ void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInt
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
-	using DSI = ITypedElementDataStorageInterface;
 	
 	TypedElementQueryHandle AlertCount = DataStorage.RegisterQuery(
 		Count()
@@ -263,8 +261,8 @@ void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInt
 	
 	DataStorage.RegisterQuery(
 		Select(TEXT("Update alert header"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-			.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, RowHandle Row, FTypedElementSlateWidgetReferenceColumn& Widget)
 			{
 				FQueryResult Result = Context.RunSubquery(0);
@@ -287,8 +285,8 @@ void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInt
 
 	DataStorage.RegisterQuery(
 		Select(TEXT("Update active alert header"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-			.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, RowHandle Row, FTypedElementSlateWidgetReferenceColumn& Widget)
 			{
 				FQueryResult Result = Context.RunSubquery(0);

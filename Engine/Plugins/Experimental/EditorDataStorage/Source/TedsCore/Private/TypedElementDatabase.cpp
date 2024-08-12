@@ -104,6 +104,8 @@ namespace TypedElementDatabasePrivate
 
 void UTypedElementDatabase::Initialize()
 {
+	using namespace TypedElementDataStorage;
+
 	check(GEditor);
 	UMassEntityEditorSubsystem* Mass = GEditor->GetEditorSubsystem<UMassEntityEditorSubsystem>();
 	check(Mass);
@@ -136,27 +138,27 @@ void UTypedElementDatabase::Initialize()
 
 			// Update external source to TEDS at the start of the phase.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage),
-				Phase, {}, {}, false);
+				Phase, {}, {}, EExecutionMode::Threaded);
 			
 			// Default group.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::Default),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage), EExecutionMode::Threaded);
 
 			// Order the update groups.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::PreUpdate),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Default), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Default), EExecutionMode::Threaded);
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::Update),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PreUpdate), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PreUpdate), EExecutionMode::Threaded);
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::PostUpdate),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Update), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::Update), EExecutionMode::Threaded);
 
 			// After everything has processed sync the data in TEDS to external sources.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), false);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), EExecutionMode::Threaded);
 
 			// Update any widgets with data from TEDS.
 			RegisterTickGroup(GetQueryTickGroupName(EQueryTickGroups::SyncWidgets),
-				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), true /* Needs main thread*/);
+				Phase, {}, GetQueryTickGroupName(EQueryTickGroups::PostUpdate), EExecutionMode::GameThread /* Needs main thread*/);
 		}
 	}
 }
@@ -955,9 +957,9 @@ bool UTypedElementDatabase::MatchesColumns(TypedElementDataStorage::RowHandle Ro
 }
 
 void UTypedElementDatabase::RegisterTickGroup(
-	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread)
+	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode)
 {
-	Environment->GetQueryStore().RegisterTickGroup(GroupName, Phase, BeforeGroup, AfterGroup, bRequiresMainThread);
+	Environment->GetQueryStore().RegisterTickGroup(GroupName, Phase, BeforeGroup, AfterGroup, ExecutionMode);
 }
 
 void UTypedElementDatabase::UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase)
@@ -1034,7 +1036,25 @@ ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
 	if (ActiveEditorEntityManager)
 	{
 		const UE::Editor::DataStorage::FExtendedQueryStore::Handle StorageHandle(Query);
-		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, Callback);
+		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, 
+			TypedElementDataStorage::EDirectQueryExecutionFlags::Default, Callback);
+	}
+	else
+	{
+		return FQueryResult();
+	}
+}
+
+ITypedElementDataStorageInterface::FQueryResult UTypedElementDatabase::RunQuery(
+	TypedElementQueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags,
+	ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
+
+	if (ActiveEditorEntityManager)
+	{
+		const UE::Editor::DataStorage::FExtendedQueryStore::Handle StorageHandle(Query);
+		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, Flags, Callback);
 	}
 	else
 	{

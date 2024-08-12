@@ -22,7 +22,7 @@ void UTypedElementUObjectWorldFactory::RegisterAddWorldColumn(ITypedElementDataS
 		Select(
 			TEXT("Add world column to UObject"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
-			.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				// Not all objects, in particular actors, are always correctly cleaned up, resulting in dangling
@@ -52,7 +52,7 @@ void UTypedElementUObjectWorldFactory::RegisterUpdateOrRemoveWorldColumn(ITypedE
 		Select(
 			TEXT("Sync UObject's world to column"),
 			FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
-			.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, FTypedElementWorldColumn& World)
 			{
 				// Not all objects, in particular actors, are always correctly cleaned up, resulting in dangling

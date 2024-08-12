@@ -79,16 +79,13 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
 
-	using DSI = ITypedElementDataStorageInterface;
-	namespace DS = TypedElementDataStorage;
-	
 	Super::RegisterQueries(DataStorage);
 
 	DataStorage.RegisterQuery(
 		Select(TEXT("PingPong PrePhysics->DurPhysics"),
-			FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default))
-			.ForceToGameThread(true),
-			[](DS::IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPrePhys* PingPongAPtr)
+			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
+				.SetExecutionMode(EExecutionMode::GameThread),
+			[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPrePhys* PingPongAPtr)
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(PingPong_Pre_During);
 				TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());
@@ -108,9 +105,9 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 
 	DataStorage.RegisterQuery(
 	Select(TEXT("PingPong DurPhysics->PostPhysics"),
-		FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default))
-		.ForceToGameThread(true),
-		[](DS::IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongDurPhys* PingPongBPtr)
+		FProcessor(EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
+			.SetExecutionMode(EExecutionMode::GameThread),
+		[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongDurPhys* PingPongBPtr)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(PingPong_During_Post);
 			TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());
@@ -130,9 +127,9 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 
 	DataStorage.RegisterQuery(
 	Select(TEXT("PingPong PostPhysics->PrePhysics"),
-	FProcessor(DSI::EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Default))
-	.ForceToGameThread(true),
-	[](DS::IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPostPhys* PingPongBPtr)
+	FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
+		.SetExecutionMode(EExecutionMode::GameThread),
+	[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPostPhys* PingPongBPtr)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(PingPong_Post_Pre);
 		TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());

@@ -216,7 +216,7 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetBeforeGroup(FName GroupName);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& SetAfterGroup(FName GroupName);
-		TYPEDELEMENTFRAMEWORK_API FProcessor& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FProcessor& SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode);
 		TYPEDELEMENTFRAMEWORK_API FProcessor& MakeActivatable(FName Name);
 		
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
@@ -224,7 +224,7 @@ namespace TypedElementQueryBuilder
 		FName BeforeGroup;
 		FName AfterGroup;
 		FName ActivationName;
-		bool bForceToGameThread{ false };
+		TypedElementDataStorage::EExecutionMode ExecutionMode = TypedElementDataStorage::EExecutionMode::Default;
 	};
 
 	struct FObserver final : public FQueryCallbackType
@@ -246,13 +246,13 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetMonitoredColumn(const UScriptStruct* MonitoredColumn);
 		template<TypedElementDataStorage::TColumnType ColumnType>
 		FObserver& SetMonitoredColumn();
-		TYPEDELEMENTFRAMEWORK_API FObserver& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FObserver& SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode);
 		TYPEDELEMENTFRAMEWORK_API FObserver& MakeActivatable(FName Name);
 
 		const UScriptStruct* Monitor;
 		EEvent Event;
 		FName ActivationName;
-		bool bForceToGameThread{ false };
+		TypedElementDataStorage::EExecutionMode ExecutionMode = TypedElementDataStorage::EExecutionMode::Default;
 	};
 
 	struct FPhaseAmble final : public FQueryCallbackType
@@ -266,13 +266,13 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble(ELocation InLocation, ITypedElementDataStorageInterface::EQueryTickPhase InPhase);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetLocation(ELocation NewLocation);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetPhase(ITypedElementDataStorageInterface::EQueryTickPhase NewPhase);
-		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& ForceToGameThread(bool bForce);
+		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode);
 		TYPEDELEMENTFRAMEWORK_API FPhaseAmble& MakeActivatable(FName Name);
 
 		ITypedElementDataStorageInterface::EQueryTickPhase Phase;
 		ELocation Location;
 		FName ActivationName;
-		bool bForceToGameThread{ false };
+		TypedElementDataStorage::EExecutionMode ExecutionMode = TypedElementDataStorage::EExecutionMode::Default;
 	};
 
 	// Because this is a thin wrapper called from within a query callback, it's better to inline fully so all

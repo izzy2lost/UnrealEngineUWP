@@ -82,8 +82,8 @@ namespace TypedElementDataStorage
 			 * The number of remaining iterations for a activatable query callback. If this is higher than 0, the query callback will be 
 			 * called. If ActivationName is set, this value will be decremented by one at the end of the update cycle.
 			 */
-			uint8 ActivationCount{ 255 };
-			bool bForceToGameThread{ false };
+			uint8 ActivationCount = 255;
+			EExecutionMode ExecutionMode = EExecutionMode::Default;
 		};
 		FCallbackData Callback;
 

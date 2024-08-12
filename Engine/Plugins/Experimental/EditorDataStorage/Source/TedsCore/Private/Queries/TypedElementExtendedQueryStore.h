@@ -54,7 +54,7 @@ namespace UE::Editor::DataStorage
 
 		/** Register the defaults for a tick group. These will be applied on top of any settings provided with a query registration. */
 		void RegisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase,
-			FName BeforeGroup, FName AfterGroup, bool bRequiresMainThread);
+			FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode);
 		/** Removes a previously registered set of tick group defaults. */
 		void UnregisterTickGroup(FName GroupName, ITypedElementDataStorageInterface::EQueryTickPhase Phase);
 
@@ -106,6 +106,7 @@ namespace UE::Editor::DataStorage
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
 			Handle Query,
+			TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
 			TypedElementDataStorage::DirectQueryCallbackRef Callback);
 		TypedElementDataStorage::FQueryResult RunQuery(
 			FMassEntityManager& EntityManager,
@@ -151,7 +152,7 @@ namespace UE::Editor::DataStorage
 		{
 			TArray<FName> BeforeGroups;
 			TArray<FName> AfterGroups;
-			bool bRequiresMainThread{ false };
+			TypedElementDataStorage::EExecutionMode ExecutionMode = TypedElementDataStorage::EExecutionMode::Default;
 		};
 
 		template<typename CallbackReference>
@@ -160,6 +161,7 @@ namespace UE::Editor::DataStorage
 			FEnvironment& Environment,
 			FMassExecutionContext* ParentContext,
 			Handle Query,
+		TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags,
 			CallbackReference Callback);
 
 		FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery);

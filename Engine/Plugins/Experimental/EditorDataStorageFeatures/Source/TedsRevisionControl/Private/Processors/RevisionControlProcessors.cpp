@@ -231,7 +231,7 @@ void URevisionControlDataStorageFactory::RegisterQueries(ITypedElementDataStorag
 void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace TypedElementDataStorage;
 	
 	FSourceControlFileStatusMonitor& FileStatusMonitor = ISourceControlModule::Get().GetSourceControlFileStatusMonitor();
 
@@ -241,8 +241,8 @@ void URevisionControlDataStorageFactory::RegisterFetchUpdates(ITypedElementDataS
 			Select(
 				TEXT("Gather source control statuses for objects with unresolved package paths"),
 				FObserver::OnAdd<FTypedElementPackageUnresolvedReference>()
-				.ForceToGameThread(true),
-				[this, &FileStatusMonitor](DSI::IQueryContext& Context, const FTypedElementPackageUnresolvedReference& UnresolvedReference)
+					.SetExecutionMode(EExecutionMode::GameThread),
+				[this, &FileStatusMonitor](IQueryContext& Context, const FTypedElementPackageUnresolvedReference& UnresolvedReference)
 				{
 					static FSourceControlFileStatusMonitor::FOnSourceControlFileStatus EmptyDelegate{};
 				
@@ -263,8 +263,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	
 	if (ApplyOverlaysObjectToSCC == InvalidQueryHandle)
 	{
 		ApplyOverlaysObjectToSCC = DataStorage.RegisterQuery(
@@ -317,9 +316,9 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 		FlushPackageUpdates = DataStorage.RegisterQuery(
 			Select(
 				TEXT("Consume collected package updates"),
-				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::Update))
-				.ForceToGameThread(true),
-				[](DSI::IQueryContext& Context, RowHandle Row, const FTypedElementPackageUpdateColumn& Update)
+				FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Update))
+					.SetExecutionMode(EExecutionMode::GameThread),
+				[](IQueryContext& Context, RowHandle Row, const FTypedElementPackageUpdateColumn& Update)
 				{
 					// Query:
 					// For all actors without an overlay color column AND having a package reference:
@@ -329,7 +328,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 						[&Context](RowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference)
 						{
 							Context.RunSubquery(EApplyOverlaysObjectToSCC, PackageReference.Row, CreateSubqueryCallbackBinding(
-								[&Context, &ObjectRow, &Actor](DSI::ISubqueryContext& SubQueryContext)
+								[&Context, &ObjectRow, &Actor](ISubqueryContext& SubQueryContext)
 								{
 									FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
 									if (Color.Bits != 0)
@@ -351,7 +350,7 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 						[&Context](TypedElementRowHandle ObjectRow, const FTypedElementUObjectColumn& Actor, const FTypedElementPackageReference& PackageReference, const FTypedElementViewportOverlayColorColumn& OverlayColorColumn)
 						{
 							Context.RunSubquery(EApplyOverlaysObjectToSCC, PackageReference.Row, CreateSubqueryCallbackBinding(
-								[&Context, &ObjectRow, &Actor, &OverlayColorColumn](DSI::ISubqueryContext& SubQueryContext)
+								[&Context, &ObjectRow, &Actor, &OverlayColorColumn](ISubqueryContext& SubQueryContext)
 								{
 									FColor Color = DetermineOverlayColor(Context, SubQueryContext, Actor);
 									if (Color.Bits == 0)
@@ -381,8 +380,8 @@ void URevisionControlDataStorageFactory::RegisterApplyOverlays(ITypedElementData
 void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	if (RemoveOverlays == TypedElementInvalidQueryHandle)
 	{
 		// Query:
@@ -394,9 +393,9 @@ void URevisionControlDataStorageFactory::RegisterRemoveOverlays(ITypedElementDat
 			Select(
 				TEXT("Remove selection overlay colors"),
 				// This is in PrePhysics because the overlay->actor query is in DuringPhysics and contexts don't flush changes between tick groups
-				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncExternalToDataStorage))
-				.ForceToGameThread(true),
-				[](DSI::IQueryContext& Context, TypedElementRowHandle ObjectRow, FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
+				FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
+					.SetExecutionMode(EExecutionMode::GameThread),
+				[](IQueryContext& Context, TypedElementRowHandle ObjectRow, FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
 				{
 					Context.RemoveColumns<FTypedElementViewportOverlayColorColumn>(ObjectRow);
 				}

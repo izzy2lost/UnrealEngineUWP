@@ -1038,7 +1038,7 @@ namespace TypedElementQueryBuilder
 			{
 				Query.Callback.AfterGroups.Add(Processor.AfterGroup);
 			}
-			Query.Callback.bForceToGameThread = Processor.bForceToGameThread;
+			Query.Callback.ExecutionMode = Processor.ExecutionMode;
 		}
 
 		inline void PrepareForQueryBinding(TypedElementDataStorage::FQueryDescription& Query, const FObserver& Observer)
@@ -1055,7 +1055,7 @@ namespace TypedElementQueryBuilder
 			Query.Callback.ActivationName = Observer.ActivationName;
 			Query.Callback.ActivationCount = Observer.ActivationName.IsNone() ? 255 : 0;
 			Query.Callback.MonitoredType = Observer.Monitor;
-			Query.Callback.bForceToGameThread = Observer.bForceToGameThread;
+			Query.Callback.ExecutionMode = Observer.ExecutionMode;
 		}
 
 		inline void PrepareForQueryBinding(TypedElementDataStorage::FQueryDescription& Query, const FPhaseAmble& PhaseAmble)
@@ -1072,7 +1072,7 @@ namespace TypedElementQueryBuilder
 			Query.Callback.ActivationName = PhaseAmble.ActivationName;
 			Query.Callback.ActivationCount = PhaseAmble.ActivationName.IsNone() ? 255 : 0;
 			Query.Callback.Phase = PhaseAmble.Phase;
-			Query.Callback.bForceToGameThread = PhaseAmble.bForceToGameThread;
+			Query.Callback.ExecutionMode = PhaseAmble.ExecutionMode;
 		}
 		
 		template<typename CallbackType, typename Function>

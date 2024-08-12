@@ -154,8 +154,7 @@ static void UpdateTransformHeadsUpDisplay(FTypedElementSlateWidgetReferenceColum
 void UTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-	namespace DS = TypedElementDataStorage;
+	using namespace TypedElementDataStorage;
 		
 	TypedElementQueryHandle UpdateTransformWidget = DataStorage.RegisterQuery(
 		Select()
@@ -166,9 +165,9 @@ void UTransformHeadsUpWidgetFactory::RegisterQueries(ITypedElementDataStorageInt
 
 	DataStorage.RegisterQuery(
 		Select(TEXT("Sync Transform column to heads up display"),
-		FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-			.ForceToGameThread(true),
-			[](DS::IQueryContext& Context,
+		FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+			.SetExecutionMode(EExecutionMode::GameThread),
+			[](IQueryContext& Context,
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& ReferenceColumn)
 			{

@@ -575,7 +575,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 	FQueryDescription RowAdditionQueryDescription =
 		Select(
 				TEXT("Add Row to Outliner"),
-				FObserver::OnAdd<FTypedElementLabelColumn>().ForceToGameThread(true),
+				FObserver::OnAdd<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
 				[this](IQueryContext& Context, TypedElementRowHandle Row)
 				{
 					OnItemAdded(Row);
@@ -589,7 +589,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 	FQueryDescription RowRemovalQueryDescription =
 		Select(
 				TEXT("Remove Row from Outliner"),
-				FObserver::OnRemove<FTypedElementLabelColumn>().ForceToGameThread(true),
+				FObserver::OnRemove<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
 				[this](IQueryContext& Context, TypedElementRowHandle Row)
 				{
 					OnItemRemoved(Row);
@@ -618,7 +618,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 			Select(
 			TEXT("Update item parent"),
 			FProcessor(EQueryTickPhase::DuringPhysics, Storage->GetQueryTickGroupName(EQueryTickGroups::Update))
-				.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[this](IQueryContext& Context, TypedElementDataStorage::RowHandle Row)
 			{
 				TypedElementDataStorage::RowHandle ParentRowHandle = InvalidRowHandle;
@@ -658,7 +658,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		FQueryDescription SelectionAddedQueryDescription =
 							Select(
 							TEXT("Row selected"),
-							FObserver::OnAdd<FTypedElementSelectionColumn>().ForceToGameThread(true),
+							FObserver::OnAdd<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
 							[this](IQueryContext& Context, TypedElementRowHandle Row)
 							{
 								bSelectionDirty = true;
@@ -672,7 +672,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		FQueryDescription SelectionRemovedQueryDescription =
 							Select(
 							TEXT("Row deselected"),
-							FObserver::OnRemove<FTypedElementSelectionColumn>().ForceToGameThread(true),
+							FObserver::OnRemove<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
 							[this](IQueryContext& Context, TypedElementRowHandle Row)
 							{
 								bSelectionDirty = true;

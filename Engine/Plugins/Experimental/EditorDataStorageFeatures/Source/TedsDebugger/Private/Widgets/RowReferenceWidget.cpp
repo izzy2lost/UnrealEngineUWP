@@ -109,8 +109,8 @@ void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataSto
 void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	const TypedElementQueryHandle UpdateRowReferenceWidget = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementRowReferenceColumn>()
@@ -121,10 +121,10 @@ void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterfa
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync row reference to widget"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](
-				DSI::IQueryContext& Context,
+				IQueryContext& Context,
 				TypedElementDataStorage::RowHandle UiRowHandle,
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& Target)

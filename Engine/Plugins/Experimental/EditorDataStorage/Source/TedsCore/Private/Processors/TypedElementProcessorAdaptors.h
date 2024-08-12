@@ -62,7 +62,8 @@ struct FTypedElementQueryProcessorData
 		TypedElementDataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery, 
 		FMassEntityManager& EntityManager,
-		FEnvironment& Environment);
+		FEnvironment& Environment,
+		TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags);
 	static TypedElementDataStorage::FQueryResult Execute(
 		TypedElementDataStorage::SubqueryCallbackRef& Callback,
 		TypedElementDataStorage::FQueryDescription& Description,

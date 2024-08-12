@@ -173,13 +173,13 @@ void UTypedElementActorViewportFactory::RegisterQueries(ITypedElementDataStorage
 void UTypedElementActorViewportFactory::RegisterOutlineColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace TypedElementDataStorage;
 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync viewport outline color column to actor"),
-			FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncDataStorageToExternal))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncDataStorageToExternal))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](FTypedElementUObjectColumn& Actor, const FTypedElementViewportOutlineColorColumn& ViewportColor)
 			{
 				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)
@@ -201,13 +201,13 @@ void UTypedElementActorViewportFactory::RegisterOutlineColorColumnToActor(ITyped
 void UTypedElementActorViewportFactory::RegisterOverlayColorColumnToActor(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync viewport overlay color column to actor"),
 			FObserver::OnAdd<FTypedElementViewportOverlayColorColumn>()
-				.ForceToGameThread(true),
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](FTypedElementUObjectColumn& Actor, const FTypedElementViewportOverlayColorColumn& ViewportColor)
 			{
 				if (AActor* ActorInstance = Cast<AActor>(Actor.Object); ActorInstance != nullptr)

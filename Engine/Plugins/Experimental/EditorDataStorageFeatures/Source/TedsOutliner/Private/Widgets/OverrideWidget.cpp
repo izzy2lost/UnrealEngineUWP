@@ -31,8 +31,8 @@ void UOverrideWidgetFactory::RegisterWidgetConstructors(
 void UOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
-	using DSI = ITypedElementDataStorageInterface;
-
+	using namespace TypedElementDataStorage;
+	
 	const TypedElementQueryHandle UpdateWidget = DataStorage.RegisterQuery(
 		Select()
 		.Where()
@@ -43,10 +43,10 @@ void UOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& 
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync override status to widget"),
-			FProcessor(DSI::EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(DSI::EQueryTickGroups::SyncWidgets))
-				.ForceToGameThread(true),
+			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncWidgets))
+				.SetExecutionMode(EExecutionMode::GameThread),
 			[](
-				DSI::IQueryContext& Context, 
+				IQueryContext& Context, 
 				const FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& Target)
 				{

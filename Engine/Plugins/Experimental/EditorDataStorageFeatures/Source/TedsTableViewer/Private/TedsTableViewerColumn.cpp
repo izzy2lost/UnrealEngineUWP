@@ -166,7 +166,7 @@ namespace UE::EditorDataStorage
 		{
 			const FName ColumnAddObserverName = *(FString::Printf(TEXT("Column Add Monitor for %s Table Viewer Column Column, %s TEDS Column"), *ColumnName.ToString(), *ColumnType->GetName()));
 			FObserver AddObserver(FObserver::EEvent::Add, ColumnType.Get());
-			AddObserver.ForceToGameThread(true);
+			AddObserver.SetExecutionMode(EExecutionMode::GameThread);
 
 			// TEDS-Outliner TODO: Long term if we move this into TypedElementOutlinerMode or similar we can get access to the exact
 			// types the Outliner is looking at and specify them on .Where() to cut down on the things we are observing
@@ -187,7 +187,7 @@ namespace UE::EditorDataStorage
 
 			const FName ColumnRemoveObserverName = *(FString::Printf(TEXT("Column Remove Monitor for %s Table Viewer Column Column, %s TEDS Column"), *ColumnName.ToString(), *ColumnType->GetName()));
 			FObserver RemoveObserver(FObserver::EEvent::Remove, ColumnType.Get());
-			RemoveObserver.ForceToGameThread(true);
+			RemoveObserver.SetExecutionMode(EExecutionMode::GameThread);
 
 			// Table Viewer TODO: We might be able to cut down on the rows we are querying for in the future by getting the rows from the query stack
 			// but we currently have to use a generic query so we can support the TEDS-Outliner as well

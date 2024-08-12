@@ -202,6 +202,15 @@ namespace TypedElementDataStorage
 		virtual void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
 	};
 
+	enum class EDirectQueryExecutionFlags : uint32
+	{
+		Default = 0, //< No settings, use the default behavior.
+		ParallelizeChunks = 1 << 0, //< If set, each chunk is processed on a separate thread.
+		IgnoreActivationCount = 1 << 1, //< If set, a direct call will not check activatable queries if they're set.
+		AllowBoundQueries = 1 << 2, //< Stops checking if queries are bound when set, otherwise bound queries will assert.
+	};
+	ENUM_CLASS_FLAGS(EDirectQueryExecutionFlags);
+
 	/**
 	 * Interface to be provided to query callbacks that are directly called through RunQuery from outside a query callback.
 	 */
