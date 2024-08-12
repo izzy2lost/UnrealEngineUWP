@@ -154,6 +154,7 @@ public:
 	static bool IsOverriddenExpression(TObjectPtr<UDEditorParameterValue> Parameter) { return IsOverriddenExpression(Parameter.Get()); }
 	static bool IsOverriddenExpression(TWeakObjectPtr<UDEditorParameterValue> Parameter) { return IsOverriddenExpression(Parameter.Get()); }
 	static ECheckBoxState IsOverriddenExpressionCheckbox(UDEditorParameterValue* Parameter);
+	static bool UsesCustomPrimitiveData(UDEditorParameterValue* Parameter);
 
 	/** Gets the expression description of this parameter from the base material */
 	static	FText GetParameterExpressionDescription(UDEditorParameterValue* Parameter, UObject* MaterialEditorInstance);

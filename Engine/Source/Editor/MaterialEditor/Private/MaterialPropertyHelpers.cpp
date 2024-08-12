@@ -548,6 +548,20 @@ ECheckBoxState FMaterialPropertyHelpers::IsOverriddenExpressionCheckbox(UDEditor
 	return IsOverriddenExpression(Parameter) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
 }
 
+bool FMaterialPropertyHelpers::UsesCustomPrimitiveData(UDEditorParameterValue* Parameter)
+{
+	if (UDEditorScalarParameterValue* ScalarParameter = Cast<UDEditorScalarParameterValue>(Parameter))
+	{
+		return ScalarParameter->bUseCustomPrimitiveData;
+	}
+	else if (UDEditorVectorParameterValue* VectorParameter = Cast<UDEditorVectorParameterValue>(Parameter))
+	{
+		return VectorParameter->bUseCustomPrimitiveData;
+	}
+
+	return false;
+}
+
 void FMaterialPropertyHelpers::OnOverrideParameter(bool NewValue, class UDEditorParameterValue* Parameter, UMaterialEditorInstanceConstant* MaterialEditorInstance)
 {
 	// If the material instance disallows the creation of new shader permutations, prevent overriding the static parameter.

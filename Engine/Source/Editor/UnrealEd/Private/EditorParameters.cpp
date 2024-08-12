@@ -94,6 +94,7 @@ static UDEditorParameterValue* CreateParameter_Scalar(UObject* Owner, const FMat
 		Parameter->AtlasData.bIsUsedAsAtlasPosition = Meta.bUsedAsAtlasPosition;
 		Parameter->AtlasData.Atlas = Meta.ScalarAtlas;
 		Parameter->AtlasData.Curve = Meta.ScalarCurve;
+		Parameter->bUseCustomPrimitiveData = Meta.PrimitiveDataIndex != INDEX_NONE;
 	}
 	return Parameter;
 }
@@ -105,6 +106,7 @@ static UDEditorParameterValue* CreateParameter_Vector(UObject* Owner, const FMat
 	{
 		Parameter->ParameterValue = Meta.Value.AsLinearColor();
 		Parameter->bIsUsedAsChannelMask = Meta.bUsedAsChannelMask;
+		Parameter->bUseCustomPrimitiveData = Meta.PrimitiveDataIndex != INDEX_NONE;
 		Parameter->ChannelNames = Meta.ChannelNames;
 	}
 	return Parameter;

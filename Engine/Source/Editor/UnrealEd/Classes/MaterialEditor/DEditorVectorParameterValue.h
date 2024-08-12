@@ -20,6 +20,9 @@ class UDEditorVectorParameterValue : public UDEditorParameterValue
 	bool bIsUsedAsChannelMask;
 
 	UPROPERTY(Transient)
+	bool bUseCustomPrimitiveData;
+
+	UPROPERTY(Transient)
 	FParameterChannelNames ChannelNames;
 
 	virtual FName GetDefaultGroupName() const override { return TEXT("Vector Parameter Values"); }

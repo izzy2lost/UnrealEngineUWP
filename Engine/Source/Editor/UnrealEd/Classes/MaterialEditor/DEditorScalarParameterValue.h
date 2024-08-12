@@ -38,6 +38,9 @@ public:
 	UPROPERTY(Transient)
 	FScalarParameterAtlasData AtlasData;
 
+	UPROPERTY(Transient)
+	bool bUseCustomPrimitiveData;
+
 	virtual FName GetDefaultGroupName() const override { return TEXT("Scalar Parameter Values"); }
 
 	virtual bool GetValue(FMaterialParameterMetadata& OutResult) const override
