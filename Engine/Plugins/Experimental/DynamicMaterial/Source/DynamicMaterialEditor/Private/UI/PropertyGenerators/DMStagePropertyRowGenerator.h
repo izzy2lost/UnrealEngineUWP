@@ -4,6 +4,10 @@
 
 #include "UI/PropertyGenerators/DMComponentPropertyRowGenerator.h"
 
+class FText;
+class SWidget;
+class UDMMaterialStage;
+
 class FDMStagePropertyRowGenerator : public FDMComponentPropertyRowGenerator
 {
 public:
@@ -15,4 +19,13 @@ public:
 	virtual void AddComponentProperties(const TSharedRef<SDMMaterialComponentEditor>& InComponentEditorWidget, UDMMaterialComponent* InComponent,
 		TArray<FDMPropertyHandle>& InOutPropertyRows, TSet<UDMMaterialComponent*>& InOutProcessedObjects) override;
 	//~ End FDMComponentPropertyRowGenerator
+
+private:
+	static TSharedRef<SWidget> CreateSourceTypeEditWidget(const TSharedRef<SDMMaterialComponentEditor>& InComponentEditorWidget, 
+		UDMMaterialStage* InStage);
+
+	static TSharedRef<SWidget> MakeSourceTypeEditWidgetMenuContent(TWeakPtr<SDMMaterialComponentEditor> InComponentEditorWidgetWeak, 
+		UDMMaterialStage* InStage);
+
+	static FText GetSourceTypeEditWidgetText(UDMMaterialStage* InStage);
 };

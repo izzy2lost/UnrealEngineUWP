@@ -23,12 +23,6 @@ public:
 	UDMMaterialComponent* GetComponent() const;
 
 protected:
-	TSharedRef<SWidget> CreateSourceTypeEditWidget();
-
-	TSharedRef<SWidget> MakeSourceTypeEditWidgetMenuContent();
-
-	FText GetSourceTypeEditWidgetText() const;
-
 	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
 
 	//~ Begin SDMObjectEditorWidgetBase
