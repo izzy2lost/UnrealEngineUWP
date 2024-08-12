@@ -54,6 +54,9 @@ private:
 	/** Rebuild the tree view */
 	void RefreshTreeView(bool bRebuildContent = true);
 
+	/** Returns all selected items */
+	TArray<TSharedPtr<FModularRigTreeElement>> GetSelectedItems() const;
+
 	/** Return all selected keys */
 	TArray<FString> GetSelectedKeys() const;
 
