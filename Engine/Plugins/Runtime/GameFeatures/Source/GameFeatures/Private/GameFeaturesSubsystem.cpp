@@ -2265,6 +2265,8 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 	FDateTime FileTimeStamp;
 	if (UE::GameFeatures::GCachePluginDetails)
 	{
+		FScopeLock Lock(&CachedGameFeaturePluginDetailsLock);
+
 		// Note: On file systems that don't support timestamps (current time is returned instead), 
 		// the pak file layer will end up caching the mount time, so this stamp will still be valid as long as the uplugin
 		// is in a pak and the pak is mounted.
@@ -2386,6 +2388,7 @@ bool UGameFeaturesSubsystem::GetGameFeaturePluginDetailsInternal(const FString& 
 
 	if (UE::GameFeatures::GCachePluginDetails)
 	{
+		FScopeLock Lock(&CachedGameFeaturePluginDetailsLock);
 		CachedPluginDetailsByFilename.Add(PluginDescriptorFilename, FCachedGameFeaturePluginDetails(OutPluginDetails, FileTimeStamp));
 	}
 

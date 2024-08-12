@@ -801,6 +801,7 @@ private:
 		FCachedGameFeaturePluginDetails(const FGameFeaturePluginDetails& InDetails, const FDateTime& InTimeStamp) : Details(InDetails), TimeStamp(InTimeStamp) {}
 	};
 	mutable TMap<FString, FCachedGameFeaturePluginDetails> CachedPluginDetailsByFilename;
+	mutable FCriticalSection CachedGameFeaturePluginDetailsLock;
 
 	UPROPERTY()
 	TArray<TObjectPtr<UObject>> Observers;
