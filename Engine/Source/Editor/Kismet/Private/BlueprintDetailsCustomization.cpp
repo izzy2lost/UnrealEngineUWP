@@ -5598,7 +5598,6 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 	}
 
 	UEdGraph* Graph = GetGraph();
-	check(Graph);
 
 	if (TargetNode)
 	{
@@ -5667,6 +5666,8 @@ bool FBaseBlueprintGraphActionDetails::OnPinRenamed(UK2Node_EditablePinBase* Tar
 		// However, if we changed the function inputs at all, then we need to update any getter nodes that referenced the old name.
 		if (bHasFunctionEntryNode)
 		{
+			check(Graph);
+
 			TArray<UK2Node_VariableGet*> GetterNodes;
 			Graph->GetNodesOfClass<UK2Node_VariableGet>(GetterNodes);
 
