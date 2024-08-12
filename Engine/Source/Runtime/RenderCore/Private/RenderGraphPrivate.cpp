@@ -634,6 +634,11 @@ void InitRenderGraph()
 #endif
 }
 
+void ShutdownRenderGraph()
+{
+	FRDGBuilder::WaitForAsyncDeleteTask();
+}
+
 bool IsParallelExecuteEnabled()
 {
 	return GRDGParallelExecute > 0

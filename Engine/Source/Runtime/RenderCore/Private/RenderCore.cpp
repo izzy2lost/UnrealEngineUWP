@@ -19,6 +19,8 @@
 void UpdateShaderDevelopmentMode();
 
 void InitRenderGraph();
+void ShutdownRenderGraph();
+
 static void InitPixelRenderCounters();
 
 class FRenderCoreModule : public FDefaultModuleImpl
@@ -32,6 +34,11 @@ public:
 
 		InitRenderGraph();
 		InitPixelRenderCounters();
+	}
+
+	virtual void ShutdownModule() override
+	{
+		ShutdownRenderGraph();
 	}
 };
 
