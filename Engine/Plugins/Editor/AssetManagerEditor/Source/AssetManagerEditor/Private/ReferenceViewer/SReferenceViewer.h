@@ -6,6 +6,7 @@
 #include "AssetRegistry/AssetData.h"
 #include "HistoryManager.h"
 #include "CollectionManagerTypes.h"
+#include "ReferenceViewer/ReferenceViewerSettings.h"
 
 class FUICommandList;
 class SComboButton;
@@ -144,8 +145,8 @@ private:
 	bool IsShowSoftReferencesChecked() const;
 	void OnShowHardReferencesChanged();
 	bool IsShowHardReferencesChecked() const;
-	void OnShowEditorOnlyReferencesChanged();
-	bool IsShowEditorOnlyReferencesChecked() const;
+	void OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType Value);
+	EEditorOnlyReferenceFilterType GetEditorOnlyReferenceFilterType() const;
 
 	void OnShowFilteredPackagesOnlyChanged();
 	bool IsShowFilteredPackagesOnlyChecked() const;

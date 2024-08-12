@@ -48,7 +48,7 @@ namespace AssetDataGathererConstants
 	constexpr int32 MinSecondsToElapseBeforeCacheWrite = 30;
 	constexpr int32 MinAssetReadsBeforeCacheWrite = 100000;
 	constexpr int32 CacheShardAssetCount = 250000;
-	static constexpr uint32 CacheSerializationMagic = 0xC3A9D89B; // Versioning and integrity checking
+	static constexpr uint32 CacheSerializationMagic = 0x2779E7E0; // Versioning and integrity checking
 	static constexpr uint64 CurrentVersion = FAssetRegistryVersion::LatestVersion | (uint64(CacheSerializationMagic) << 32);
 	static const FTimespan CachePruneAge = FTimespan(7, 0, 0, 0);
 	/**

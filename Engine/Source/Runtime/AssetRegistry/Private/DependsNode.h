@@ -89,10 +89,29 @@ public:
 	/** Returns amount of memory used by the arrays */
 	SIZE_T GetAllocatedSize(void) const;
 
-	typedef TUniqueFunction<void(FDependsNode * Dependency,
+	typedef TUniqueFunction<void(
+		/** The other node the source node has a link to. */
+		FDependsNode* Dependency,
+		/**
+		 * The category of the dependency; dependencies are divided into high level categories,
+		 * @see EDependencyCategory.
+		 */
 		UE::AssetRegistry::EDependencyCategory Category,
+		/**
+		 * The properties of the dependency within its category. Each category has properties for dependencies in that category.
+		 * @see EDependencyProperty.
+		 */
 		UE::AssetRegistry::EDependencyProperty Properties,
-		bool bDuplicate)> FIterateDependenciesCallback;
+		/**
+		 * The source node may have multiple links to the targetnode, in different categories or with different
+		 * property combinations within the category. e.g. A package might have a Soft Game reference to another
+		 * package, but also a hard EditorOnly reference to that same package. When this occurs, and multiple links to
+		 * to the same Dependency are reported to an FIterateDependenciesCallback, all of the links to the same 
+		 * node are iterated consecutively, and bDuplicate=true for each of the reports after the first.
+		 * For the first or only occurrence of a Dependency in the iteration, bDuplicate=false.
+		 */
+		bool bDuplicate
+		)> FIterateDependenciesCallback;
 	/**
 	 * Iterate over all the dependencies of this node, optionally filtered by the target node, category and query,
 	 * and call the supplied lambda parameter on the record.

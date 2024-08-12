@@ -189,7 +189,13 @@ FAssetManagerDependencyQuery UEdGraph_ReferenceViewer::GetReferenceSearchFlags(b
 		Query.Categories |= EDependencyCategory::Package;
 		Query.Flags |= bLocalIsShowSoftReferences ? EDependencyQuery::NoRequirements : EDependencyQuery::Hard;
 		Query.Flags |= Settings->IsShowHardReferences() ? EDependencyQuery::NoRequirements : EDependencyQuery::Soft;
-		Query.Flags |= Settings->IsShowEditorOnlyReferences() ? EDependencyQuery::NoRequirements : EDependencyQuery::Game;
+		switch (Settings->GetEditorOnlyReferenceFilterType())
+		{
+		case EEditorOnlyReferenceFilterType::Game: Query.Flags |= EDependencyQuery::Game; break;
+		case EEditorOnlyReferenceFilterType::Propagation: Query.Flags |= EDependencyQuery::Propagation; break;
+		case EEditorOnlyReferenceFilterType::EditorOnly: [[fallthrough]];
+		default: /* No requirements */ ; break;
+		}
 	}
 	if (Settings->IsShowSearchableNames() && !bHardOnly)
 	{

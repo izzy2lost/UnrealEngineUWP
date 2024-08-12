@@ -904,6 +904,22 @@ public:
 		return GetHarvestedRealm(ESaveRealm::Game).GetSoftPackageReferenceList();
 	}
 
+	const TArray<FName>& GetPackageBuildDependencies(ESaveRealm SaveRealm = ESaveRealm::None)
+	{
+		SaveRealm = (SaveRealm == ESaveRealm::None) ? GetCurrentHarvestingRealm() : SaveRealm;
+		if (SaveRealm == ESaveRealm::Editor)
+		{
+			return PackageBuildDependencies;
+		}
+		return EmptyList;
+	}
+
+	/**
+	 * PackageBuildDependencies are copied from CookBuildDependencies, and they are only needed
+	 * for the Editor realm.
+	*/
+	void UpdateEditorRealmPackageBuildDependencies();
+
 	const TMap<TObjectPtr<UObject>, TArray<FName>>& GetSearchableNamesObjectMap() const
 	{
 		return GetHarvestedRealm().GetSearchableNamesObjectMap();
@@ -920,6 +936,11 @@ public:
 	}
 
 	const TSet<FNameEntryId>& GetNamesReferencedFromPackageHeader() const
+	{
+		return GetHarvestedRealm().GetNamesReferencedFromPackageHeader();
+	}
+
+	TSet<FNameEntryId>& GetNamesReferencedFromPackageHeader()
 	{
 		return GetHarvestedRealm().GetNamesReferencedFromPackageHeader();
 	}
@@ -1186,7 +1207,7 @@ private:
 	ESaveableStatus GetSaveableStatusNoOuter(TObjectPtr<UObject> Obj,
 		UE::SavePackageUtilities::FObjectStatus& ObjectStatus) const;
 	static EObjectMark GetExcludedObjectMarksForGameRealm(const ITargetPlatform* TargetPlatform);
-		
+
 	friend class FPackageHarvester;
 
 	// Args
@@ -1244,6 +1265,11 @@ private:
 
 	// Cache of FObjectStatus for every object encountered during the save
 	TMap<TObjectPtr<UObject>, UE::SavePackageUtilities::FObjectStatus> ObjectStatusCache;
+
+	// List of package build dependencies reported from PreSave or Serialize functions
+	TArray<FName> PackageBuildDependencies;
+	// Empty list of FNames, used for functions that need to return a reference to an empty array.
+	TArray<FName> EmptyList;
 };
 
 const TCHAR* LexToString(ESaveableStatus Status);

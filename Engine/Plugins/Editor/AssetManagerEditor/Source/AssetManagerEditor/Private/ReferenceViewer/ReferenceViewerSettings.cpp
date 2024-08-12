@@ -39,9 +39,9 @@ bool UReferenceViewerSettings::IsShowDuplicates() const
 	return bIsShowDuplicates;
 }
 
-bool UReferenceViewerSettings::IsShowEditorOnlyReferences() const
+EEditorOnlyReferenceFilterType UReferenceViewerSettings::GetEditorOnlyReferenceFilterType() const
 {
-	return bIsShowEditorOnlyReferences;
+	return EditorOnlyReferenceFilterType;
 }
 
 bool UReferenceViewerSettings::IsShowManagementReferences() const
@@ -111,9 +111,9 @@ void UReferenceViewerSettings::SetShowDuplicatesEnabled(bool bNewEnabled)
 	SaveConfig();
 }
 
-void UReferenceViewerSettings::SetShowEditorOnlyReferencesEnabled(bool bNewEnabled)
+void UReferenceViewerSettings::SetEditorOnlyReferenceFilterType(EEditorOnlyReferenceFilterType Value)
 {
-	bIsShowEditorOnlyReferences = bNewEnabled;
+	EditorOnlyReferenceFilterType = Value;
 	SaveConfig();
 }
 

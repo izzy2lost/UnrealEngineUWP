@@ -85,6 +85,7 @@ public:
 	ENGINE_API virtual void PostEditUndo() override;
 	ENGINE_API virtual void PostEditUndo(TSharedPtr<ITransactionObjectAnnotation> TransactionAnnotation) override;
 	ENGINE_API virtual void PostLoad() override;
+	ENGINE_API virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	ENGINE_API virtual bool CanEditChange(const FProperty* InProperty) const override;
 	ENGINE_API virtual void PreEditChange(FProperty* PropertyThatWillChange) override;
 	ENGINE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;

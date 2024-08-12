@@ -84,6 +84,9 @@ enum class EUnrealEngineObjectUE5Version : uint32
 	// Added property tag complete type name and serialization type
 	PROPERTY_TAG_COMPLETE_TYPE_NAME,
 
+	// Changed UE::AssetRegistry::WritePackageData to include PackageBuildDependencies
+	ASSETREGISTRY_PACKAGEBUILDDEPENDENCIES,
+
 	// -----<new versions can be added before this line>-------------------------------------------------
 	// - this needs to be the last line (see note below)
 	AUTOMATIC_VERSION_PLUS_ONE,

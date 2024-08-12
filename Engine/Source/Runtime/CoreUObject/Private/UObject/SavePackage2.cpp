@@ -461,6 +461,11 @@ ESavePackageResult HarvestPackage(FSaveContext& SaveContext)
 	SaveContext.SetCustomVersions(Harvester.GetCustomVersions());
 	SaveContext.SetTransientPropertyOverrides(Harvester.ReleaseTransientPropertyOverrides());
 
+	// Contractually all CookBuildDependencies (which come from PreSave or from Serialize) must be declared by this point.
+	// Copy PackageBuildDependencies from CookBuildDependencies and implement our contract that PackageBuildDependencies
+	// are in the name map.
+	SaveContext.UpdateEditorRealmPackageBuildDependencies();
+
 	return ReturnSuccessOrCancel();
 }
 
@@ -1215,7 +1220,8 @@ ESavePackageResult BuildLinker(FSaveContext& SaveContext)
 	{
 		SCOPED_SAVETIMER(UPackage_Save_BuildNameMap);
 		const TSet<FNameEntryId>& NamesReferencedFromExportData = SaveContext.GetNamesReferencedFromExportData();
-		const TSet<FNameEntryId>& NamesReferencedFromPackageHeader = SaveContext.GetNamesReferencedFromPackageHeader();
+		TSet<FNameEntryId>& NamesReferencedFromPackageHeader = SaveContext.GetNamesReferencedFromPackageHeader();
+
 		Linker->NameMap.Reserve(NamesReferencedFromExportData.Num() + NamesReferencedFromPackageHeader.Num());
 		for (FNameEntryId NameEntryId : NamesReferencedFromExportData)
 		{
@@ -1975,10 +1981,17 @@ ESavePackageResult WritePackageHeader(FStructuredArchive::FRecord& StructuredArc
 		// Save asset registry data so the editor can search for information about assets in this package
 		SCOPED_SAVETIMER(UPackage_Save_SaveAssetRegistryData);
 		FArchiveCookData* CookData = SaveContext.GetCookData();
-		FArchiveCookContext* CookContext = CookData ? &CookData->CookContext : nullptr;
-		UE::AssetRegistry::WritePackageData(StructuredArchiveRoot, CookContext, SaveContext.GetPackage(),
-			Linker, SaveContext.GetImportsUsedInGame(), SaveContext.GetSoftPackagesUsedInGame(),
-			&SaveContext.GetSavedAssets(), SaveContext.IsProceduralSave());
+		UE::AssetRegistry::FWritePackageDataArgs WriteARArgs;
+		WriteARArgs.ParentRecord = &StructuredArchiveRoot;
+		WriteARArgs.Package = SaveContext.GetPackage();
+		WriteARArgs.Linker = Linker;
+		WriteARArgs.ImportsUsedInGame = &SaveContext.GetImportsUsedInGame();
+		WriteARArgs.SoftPackagesUsedInGame = &SaveContext.GetSoftPackagesUsedInGame();
+		WriteARArgs.PackageBuildDependencies = &SaveContext.GetPackageBuildDependencies();
+		WriteARArgs.bProceduralSave = SaveContext.IsProceduralSave();
+		WriteARArgs.CookContext = CookData ? &CookData->CookContext : nullptr;;
+		WriteARArgs.OutAssetDatas = &SaveContext.GetSavedAssets();
+		UE::AssetRegistry::WritePackageData(WriteARArgs);
 	}
 	// Save level information used by World browser
 	{

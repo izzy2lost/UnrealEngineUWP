@@ -131,6 +131,12 @@ namespace UE::AssetRegistry
 		Build = 0x010,			// Return only dependencies with EDependencyProperty::Build
 		NotBuild = 0x020,		// Return only dependencies without EDependencyProperty::Build
 
+		Propagation = 0x040,    // Return only dependencies that cause propagation of manage dependencies, which means
+		// either Game or Build. Presence of the Propagation flag in a query causes the Game, NotGame, EditorOnly,
+		// Build, and NotBuild flags to be ignored in the query if present. Either Game or Build is sufficient to pass
+		// the query no matter which of those other flags are present. Hard vs Soft is still respected, and Soft Build
+		// or Soft Game dependencies will be skipped query if Hard is required.
+
 		// Manage Dependencies Only
 		Direct = 0x0400,		// Return only dependencies with EDependencyProperty::Direct
 		NotDirect = 0x0800,		// Return only dependencies without EDependencyProperty::Direct
@@ -166,8 +172,25 @@ namespace UE::AssetRegistry
 	 */
 	struct FDependencyQuery
 	{
-		UE::AssetRegistry::EDependencyProperty Required; // Only Dependencies that possess all of these properties will be returned. Note that flags specific to another EDependencyCategory are ignored when querying dependencies in a given category.
-		UE::AssetRegistry::EDependencyProperty Excluded; // Only Dependencies that possess none of these properties will be returned. Note that flags specific to another EDependencyCategory are ignored when querying dependencies in a given category.
+		/**
+		 * Only Dependencies that possess all of these properties will be returned.
+		 * Note that flags specific to another EDependencyCategory are ignored when querying dependencies in a given category.
+		 */
+		UE::AssetRegistry::EDependencyProperty Required;
+		/**
+		 * Only Dependencies that possess none of these properties will be returned.
+		 * Note that flags specific to another EDependencyCategory are ignored when querying dependencies in a given category.
+		 */
+		UE::AssetRegistry::EDependencyProperty Excluded;
+
+		/**
+		 * RequiredUnions is an intersection of unions. Each element of RequiredUnions is a set of bit flags that are
+		 * unioned: having any one of the bit flags causes that element of RequiredUnions to pass.
+		 * After pass/fail is decided for each element, they are intersected: all must pass for the total to pass.
+		 * This allows RequiredUnions to be a conjunction of disjunctions, whereas the Required field is just a conjunction
+		 * of atoms.
+		 */
+		TArray<UE::AssetRegistry::EDependencyProperty, TInlineAllocator<1>> RequiredUnions;
 
 		FDependencyQuery()
 		{
@@ -177,29 +200,71 @@ namespace UE::AssetRegistry
 
 		inline FDependencyQuery(EDependencyQuery QueryFlags)
 		{
-			Required = (!!(QueryFlags & EDependencyQuery::Hard) ? UE::AssetRegistry::EDependencyProperty::Hard : UE::AssetRegistry::EDependencyProperty::None)
-				| (!!(QueryFlags & EDependencyQuery::Game) ? UE::AssetRegistry::EDependencyProperty::Game : UE::AssetRegistry::EDependencyProperty::None)
-				| (!!(QueryFlags & EDependencyQuery::Build) ? UE::AssetRegistry::EDependencyProperty::Build : UE::AssetRegistry::EDependencyProperty::None)
+			if (!EnumHasAnyFlags(QueryFlags, EDependencyQuery::Propagation))
+			{
+				Required = (!!(QueryFlags & EDependencyQuery::Game) ? UE::AssetRegistry::EDependencyProperty::Game : UE::AssetRegistry::EDependencyProperty::None)
+					| (!!(QueryFlags & EDependencyQuery::Build) ? UE::AssetRegistry::EDependencyProperty::Build : UE::AssetRegistry::EDependencyProperty::None);
+			}
+			else
+			{
+				EnumRemoveFlags(QueryFlags, EDependencyQuery::Game | EDependencyQuery::NotGame | EDependencyQuery::Build | EDependencyQuery::NotBuild);
+				RequiredUnions.Add(UE::AssetRegistry::EDependencyProperty::Game | UE::AssetRegistry::EDependencyProperty::Build);
+			}
+			Required |= (!!(QueryFlags & EDependencyQuery::Hard) ? UE::AssetRegistry::EDependencyProperty::Hard : UE::AssetRegistry::EDependencyProperty::None)
 				| (!!(QueryFlags & EDependencyQuery::Direct) ? UE::AssetRegistry::EDependencyProperty::Direct : UE::AssetRegistry::EDependencyProperty::None);
 			Excluded = (!!(QueryFlags & EDependencyQuery::NotHard) ? UE::AssetRegistry::EDependencyProperty::Hard : UE::AssetRegistry::EDependencyProperty::None)
 				| (!!(QueryFlags & EDependencyQuery::NotGame) ? UE::AssetRegistry::EDependencyProperty::Game : UE::AssetRegistry::EDependencyProperty::None)
 				| (!!(QueryFlags & EDependencyQuery::NotBuild) ? UE::AssetRegistry::EDependencyProperty::Build : UE::AssetRegistry::EDependencyProperty::None)
 				| (!!(QueryFlags & EDependencyQuery::NotDirect) ? UE::AssetRegistry::EDependencyProperty::Direct : UE::AssetRegistry::EDependencyProperty::None);
 		}
-
-		FDependencyQuery(const FDependencyQuery& Other) = default;
-		FDependencyQuery& operator=(const FDependencyQuery& Other) = default;
 	};
 
-	// Functions to read and write the data used by the AssetRegistry in each package; the format of this data is separate from the format of the data in the asset registry
+	struct FWritePackageDataArgs
+	{
+		// Required inputs, must be initialized and non-null
+		FStructuredArchiveRecord* ParentRecord = nullptr;
+		const UPackage* Package = nullptr;
+		FLinkerSave* Linker = nullptr;
+		const TSet<TObjectPtr<UObject>>* ImportsUsedInGame = nullptr;
+		const TSet<FName>* SoftPackagesUsedInGame = nullptr;
+		const TArray<FName>* PackageBuildDependencies = nullptr;
+		bool bProceduralSave = false;
+
+		// Optional inputs that may be null
+		FArchiveCookContext* CookContext = nullptr;
+
+		// Optional outputs that may be null
+		TArray<FAssetData>* OutAssetDatas = nullptr;
+	};
+	/**
+	 * Bitfield of flags written into a package's AssetRegistry DependencyData section to represent what kind of
+	 * dependency is stored for each PackageName in ExtraPackageDependencies. Values are serialized as integers;
+	 * new bits can be added as necessary, but the integer values for existing enum values may not be changed.
+	 */
+	enum class EExtraDependencyFlags : uint32
+	{
+		None					= 0,
+		Build					= 0x1,
+		PropagateManage			= 0x2,
+	};
+	ENUM_CLASS_FLAGS(EExtraDependencyFlags);
+
+	/**
+	 * Writes the data used by the AssetRegistry in each package; the format of this data is separate from the
+	 * format of the data in the asset registry.
+	 * The corresponding read functions are ReadPackageDataMain and ReadPackageDataDependencies; they are are declared
+	 * in IAssetRegistry.h, in the AssetRegistry module, because they depend upon some structures defined in the
+	 * AssetRegistry module
+	 */
+	COREUOBJECT_API void WritePackageData(FWritePackageDataArgs& Args);
+	UE_DEPRECATED(5.5, "Use version that takes FWritePackageDataArgs");
 	COREUOBJECT_API void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContext* CookContext,
 		const UPackage* Package, FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame,
 		const TSet<FName>& SoftPackagesUsedInGame, TArray<FAssetData>* OutAssetDatas, bool bProceduralSave);
-	UE_DEPRECATED(5.4, "Use version that takes FArchiveCookContext");
+	UE_DEPRECATED(5.4, "Use version that takes FWritePackageDataArgs");
 	COREUOBJECT_API void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, const UPackage* Package,
 		FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
 		const ITargetPlatform* TargetPlatform, TArray<FAssetData>* OutAssetDatas);
-	// ReadPackageDataMain and ReadPackageDataDependencies are declared in IAssetRegistry.h, in the AssetRegistry module, because they depend upon some structures defined in the AssetRegistry module
 
 	namespace Private
 	{

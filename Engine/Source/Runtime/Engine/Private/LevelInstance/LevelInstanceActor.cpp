@@ -10,6 +10,7 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelInstanceActor)
 
 #if WITH_EDITOR
+#include "Cooker/CookDependency.h"
 #include "UObject/ObjectSaveContext.h"
 #include "WorldPartition/LevelInstance/LevelInstanceActorDesc.h"
 #include "LevelInstance/LevelInstanceEditorPivotActor.h"
@@ -184,14 +185,23 @@ void ALevelInstance::PostLoad()
 #endif
 }
 
-#if WITH_EDITOR
+void ALevelInstance::PreSave(FObjectPreSaveContext SaveContext)
+{
+	Super::PreSave(SaveContext);
+
+	FName WorldPackageName = FName(GetWorldAsset().GetLongPackageName());
+	if (!WorldPackageName.IsNone())
+	{
+		SaveContext.AddCookBuildDependency(UE::Cook::FCookDependency::Package(WorldPackageName));
+	}
+}
+
 bool ALevelInstance::ShouldCookWorldAsset() const
 {
 	// If ALevelInstance actor gets loaded it means it needs to Cook its WorldAsset (World Partition Embedded Level Instances don't get loaded as they aren't runtime relevant)
 	// If ALevelInstnace is a template then we only need to Cook its WorldAsset if it's desired runtime behavior is to be Level Streamed
 	return !IsTemplate() || GetDesiredRuntimeBehavior() == ELevelInstanceRuntimeBehavior::LevelStreaming;
 }
-#endif
 
 void ALevelInstance::PreEditUndo()
 {
@@ -383,7 +393,7 @@ void ALevelInstance::PushLevelInstanceEditingStateToProxies(bool bInEditingState
 	LevelInstanceActorImpl.PushLevelInstanceEditingStateToProxies(bInEditingState);
 }
 
-#endif
+#endif // WITH_EDITOR
 
 #undef LOCTEXT_NAMESPACE
 

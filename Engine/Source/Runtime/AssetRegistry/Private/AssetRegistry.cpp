@@ -8600,8 +8600,8 @@ void FAssetRegistryImpl::SetManageReferences(const TMultiMap<FAssetIdentifier, F
 
 					SourceNode->IterateOverDependencies([&IterateFunction, SourceNode](FDependsNode* TargetNode, EDependencyCategory DependencyCategory, EDependencyProperty DependencyProperties, bool bDuplicate)
 						{
-							// Skip editor-only properties
-							if (!!(DependencyProperties & EDependencyProperty::Game))
+							// Skip editor-only, non-build dependencies. Propagate only through used-in-game or build dependencies.
+							if (EnumHasAnyFlags(DependencyProperties, EDependencyProperty::Game | EDependencyProperty::Build))
 							{
 								IterateFunction(SourceNode, TargetNode, DependencyCategory, DependencyProperties);
 							}

@@ -45,7 +45,8 @@ struct FSortPackageDependency
 
 void FPackageDependencyData::LoadDependenciesFromPackageHeader(FName SourcePackageName, TConstArrayView<FObjectImport> ImportMap,
 	TArray<FName>& SoftPackageReferenceList, TMap<FPackageIndex, TArray<FName>>& SearchableNames,
-	TBitArray<>& ImportUsedInGame, TBitArray<>& SoftPackageUsedInGame)
+	TBitArray<>& ImportUsedInGame, TBitArray<>& SoftPackageUsedInGame,
+	TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& ExtraPackageDependencies)
 {
 	using namespace UE::AssetRegistry;
 
@@ -54,7 +55,7 @@ void FPackageDependencyData::LoadDependenciesFromPackageHeader(FName SourcePacka
 	for (int32 ImportIdx = 0; ImportIdx < ImportMap.Num(); ++ImportIdx)
 	{
 		FName DependencyPackageName = GetImportPackageName(ImportMap, ImportIdx);
-		EDependencyProperty DependencyProperty = EDependencyProperty::Build | EDependencyProperty::Hard;
+		EDependencyProperty DependencyProperty = EDependencyProperty::Hard;
 		DependencyProperty |= ImportUsedInGame[ImportIdx] ? EDependencyProperty::Game : EDependencyProperty::None;
 		PackageDependencies.Add({ DependencyPackageName, DependencyProperty });
 	}
@@ -70,11 +71,20 @@ void FPackageDependencyData::LoadDependenciesFromPackageHeader(FName SourcePacka
 	{
 		FName DependencyPackageName = SoftPackageReferenceList[SoftPackageIdx];
 		FAssetIdentifier AssetId(DependencyPackageName);
-		EDependencyProperty DependencyProperty = UE::AssetRegistry::EDependencyProperty::Build; // !EDependencyProperty::Hard
+		EDependencyProperty DependencyProperty = EDependencyProperty::None;
 		DependencyProperty |= (SoftPackageUsedInGame[SoftPackageIdx] ? EDependencyProperty::Game : EDependencyProperty::None);
 
 		// Don't need to remove duplicates here because SavePackage only writes unique elements into SoftPackageReferenceList
 		PackageDependencies.Add({ DependencyPackageName, DependencyProperty });
+	}
+
+	for (const TPair<FName, EExtraDependencyFlags>& Pair : ExtraPackageDependencies)
+	{
+		EDependencyProperty DependencyProperty = EDependencyProperty::None;
+		DependencyProperty |= EnumHasAnyFlags(Pair.Value, EExtraDependencyFlags::Build)
+			? EDependencyProperty::Build : EDependencyProperty::None;
+		// Don't need to remove duplicates here because SavePackage only writes unique elements into PackageBuildDependencies
+		PackageDependencies.Add({ Pair.Key, DependencyProperty });
 	}
 
 	SearchableNameDependencies.Reset(SearchableNames.Num());

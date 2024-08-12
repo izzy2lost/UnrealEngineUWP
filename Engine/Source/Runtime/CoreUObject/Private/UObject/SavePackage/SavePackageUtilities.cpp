@@ -2299,12 +2299,29 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, bool bIsCooking, c
 	}
 }
 
-// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
 void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContext* CookContext, const UPackage* Package,
 	FLinkerSave* Linker, const TSet<TObjectPtr<UObject>>& ImportsUsedInGame, const TSet<FName>& SoftPackagesUsedInGame,
 	TArray<FAssetData>* OutAssetDatas, bool bProceduralSave)
 {
-	bProceduralSave = bProceduralSave || (CookContext != nullptr);
+	FWritePackageDataArgs Args;
+	Args.ParentRecord = &ParentRecord;
+	Args.Package = Package;
+	Args.Linker = Linker;
+	Args.ImportsUsedInGame = &ImportsUsedInGame;
+	Args.SoftPackagesUsedInGame = &SoftPackagesUsedInGame;
+	Args.bProceduralSave = bProceduralSave;
+	Args.CookContext = CookContext;
+	Args.OutAssetDatas = OutAssetDatas;
+	TArray<FName> PackageBuildDependencies;
+	Args.PackageBuildDependencies = &PackageBuildDependencies;
+	WritePackageData(Args);
+}
+
+// See the corresponding ReadPackageDataMain and ReadPackageDataDependencies defined in PackageReader.cpp in AssetRegistry module
+void WritePackageData(FWritePackageDataArgs& Args)
+{
+	Args.bProceduralSave = Args.bProceduralSave || (Args.CookContext != nullptr);
+	FLinkerSave* Linker = Args.Linker;
 	IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
 
 	// To avoid large patch sizes, we have frozen cooked package format at the format before VER_UE4_ASSETREGISTRY_DEPENDENCYFLAGS
@@ -2313,22 +2330,22 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 	bool bPreDependencyFormat = false;
 	bool bWriteAssetsToPackage = true;
 	// Editor saves do a full update, but procedural saves (including cook) do not
-	bool bFullUpdate = !bProceduralSave;
+	bool bFullUpdate = !Args.bProceduralSave;
 	FCookTagList* CookTagList = nullptr;
-	if (CookContext)
+	if (Args.CookContext)
 	{
 		bPreDependencyFormat = true;
 		bWriteAssetsToPackage = false;
-		CookTagList = CookContext->GetCookTagList();
+		CookTagList = Args.CookContext->GetCookTagList();
 	}	
 
 	// WritePackageData is currently only called if not bTextFormat; we rely on that to save offsets
-	FArchive& BinaryArchive = ParentRecord.GetUnderlyingArchive();
+	FArchive& BinaryArchive = Args.ParentRecord->GetUnderlyingArchive();
 	check(!BinaryArchive.IsTextFormat());
 
 	// Store the asset registry offset in the file and enter a record for the asset registry data
 	Linker->Summary.AssetRegistryDataOffset = (int32)BinaryArchive.Tell();
-	FStructuredArchiveRecord AssetRegistryRecord = ParentRecord.EnterField(TEXT("AssetRegistry")).EnterRecord();
+	FStructuredArchiveRecord AssetRegistryRecord = Args.ParentRecord->EnterField(TEXT("AssetRegistry")).EnterRecord();
 
 	// Offset to Dependencies
 	int64 OffsetToAssetRegistryDependencyDataOffset = INDEX_NONE;
@@ -2348,10 +2365,10 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 		if (Export.Object && Export.Object->IsAsset())
 		{
 #if WITH_EDITOR
-			if (CookContext)
+			if (Args.CookContext)
 			{
 				TArray<UObject*> AdditionalObjects;
-				Export.Object->GetAdditionalAssetDataObjectsForCook(*CookContext, AdditionalObjects);
+				Export.Object->GetAdditionalAssetDataObjectsForCook(*Args.CookContext, AdditionalObjects);
 				for (UObject* Object : AdditionalObjects)
 				{
 					if (Object->IsAsset())
@@ -2367,24 +2384,24 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 
 	int32 ObjectCountInPackage = bWriteAssetsToPackage ? AssetObjects.Num() : 0;
 	FStructuredArchive::FArray AssetArray = AssetRegistryRecord.EnterArray(TEXT("TagMap"), ObjectCountInPackage);
-	FString PackageName = Package->GetName();
+	FString PackageName = Args.Package->GetName();
 
 	for (int32 ObjectIdx = 0; ObjectIdx < AssetObjects.Num(); ++ObjectIdx)
 	{
 		const UObject* Object = AssetObjects[ObjectIdx];
 
 		// Exclude the package name in the object path, we just need to know the path relative to the package we are saving
-		FString ObjectPath = Object->GetPathName(Package);
+		FString ObjectPath = Object->GetPathName(Args.Package);
 		FString ObjectClassName = Object->GetClass()->GetPathName();
 
 		FAssetRegistryTagsContextData TagsContextData(Object, EAssetRegistryTagsCaller::SavePackage);
-		TagsContextData.bProceduralSave = bProceduralSave;
+		TagsContextData.bProceduralSave = Args.bProceduralSave;
 		TagsContextData.TargetPlatform = nullptr;
-		if (CookContext)
+		if (Args.CookContext)
 		{
-			TagsContextData.TargetPlatform = CookContext->GetTargetPlatform();
-			TagsContextData.CookType = CookContext->GetCookType();
-			TagsContextData.CookingDLC = CookContext->GetCookingDLC();
+			TagsContextData.TargetPlatform = Args.CookContext->GetTargetPlatform();
+			TagsContextData.CookType = Args.CookContext->GetCookType();
+			TagsContextData.CookingDLC = Args.CookContext->GetCookingDLC();
 			TagsContextData.bWantsCookTags = TagsContextData.CookType == UE::Cook::ECookType::ByTheBook;
 		}
 		TagsContextData.bFullUpdateRequested = bFullUpdate;
@@ -2440,7 +2457,7 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 			}
 		}
 
-		if (OutAssetDatas)
+		if (Args.OutAssetDatas)
 		{
 			FAssetDataTagMap TagsAndValues;
 			for (TPair<FName, UObject::FAssetRegistryTag>& TagPair : TagsContextData.Tags)
@@ -2464,8 +2481,8 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 				ObjectPath = PackageName + TEXT(".") + ObjectPath;
 			}
 
-			OutAssetDatas->Emplace(PackageName, ObjectPath, FTopLevelAssetPath(ObjectClassName),
-				MoveTemp(TagsAndValues), Package->GetChunkIDs(), Package->GetPackageFlags());
+			Args.OutAssetDatas->Emplace(PackageName, ObjectPath, FTopLevelAssetPath(ObjectClassName),
+				MoveTemp(TagsAndValues), Args.Package->GetChunkIDs(), Args.Package->GetPackageFlags());
 		}
 	}
 	if (bPreDependencyFormat)
@@ -2481,7 +2498,7 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 		BinaryArchive << AssetRegistryDependencyDataOffset;
 		BinaryArchive.Seek(AssetRegistryDependencyDataOffset);
 	}
-	FStructuredArchiveRecord DependencyDataRecord = ParentRecord.EnterField(TEXT("AssetRegistryDependencyData")).EnterRecord();
+	FStructuredArchiveRecord DependencyDataRecord = Args.ParentRecord->EnterField(TEXT("AssetRegistryDependencyData")).EnterRecord();
 
 	// Convert the IsUsedInGame sets into a bitarray with a value per import/softpackagereference
 	TBitArray<> ImportUsedInGameBits;
@@ -2489,17 +2506,32 @@ void WritePackageData(FStructuredArchiveRecord& ParentRecord, FArchiveCookContex
 	ImportUsedInGameBits.Reserve(Linker->ImportMap.Num());
 	for (int32 ImportIndex = 0; ImportIndex < Linker->ImportMap.Num(); ++ImportIndex)
 	{
-		ImportUsedInGameBits.Add(ImportsUsedInGame.Contains(Linker->ImportMap[ImportIndex].XObject));
+		ImportUsedInGameBits.Add(Args.ImportsUsedInGame->Contains(Linker->ImportMap[ImportIndex].XObject));
 	}
 	SoftPackageUsedInGameBits.Reserve(Linker->SoftPackageReferenceList.Num());
 	for (int32 SoftPackageIndex = 0; SoftPackageIndex < Linker->SoftPackageReferenceList.Num(); ++SoftPackageIndex)
 	{
-		SoftPackageUsedInGameBits.Add(SoftPackagesUsedInGame.Contains(Linker->SoftPackageReferenceList[SoftPackageIndex]));
+		SoftPackageUsedInGameBits.Add(Args.SoftPackagesUsedInGame->Contains(
+			Linker->SoftPackageReferenceList[SoftPackageIndex]));
 	}
 
 	// Serialize the Dependency section
 	DependencyDataRecord << SA_VALUE(TEXT("ImportUsedInGame"), ImportUsedInGameBits);
 	DependencyDataRecord << SA_VALUE(TEXT("SoftPackageUsedInGame"), SoftPackageUsedInGameBits);
+
+	// Currently the only type of ExtraPackageDependencies we have are the collected build dependencies,
+	// which have both the Build and PropagateManage flags. Store them as pairs of { PackageName, EExtraDepencyFlags }
+	// even though we only have one possible value for EExtraDepencyFlags, so that we can extend the types of dependencies
+	// later without needing to change EUnrealEngineObjectUE5Version.
+	TArray<TPair<FName, uint32>> ExtraPackageDependencies;
+	ExtraPackageDependencies.Reserve(Args.PackageBuildDependencies->Num());
+	constexpr EExtraDependencyFlags BuildAndPropagate =
+		EExtraDependencyFlags::Build | EExtraDependencyFlags::PropagateManage;
+	for (FName ExtraPackageName : *Args.PackageBuildDependencies)
+	{
+		ExtraPackageDependencies.Add({ ExtraPackageName, static_cast<uint32>(BuildAndPropagate) });
+	}
+	DependencyDataRecord << SA_VALUE(TEXT("ExtraPackageDependencies"), ExtraPackageDependencies);
 }
 
 }

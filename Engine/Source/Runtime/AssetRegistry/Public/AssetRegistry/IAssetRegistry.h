@@ -1009,9 +1009,7 @@ protected:
 	virtual bool SetPrimaryAssetIdForObjectPath(const FSoftObjectPath& ObjectPath, FPrimaryAssetId PrimaryAssetId) = 0;
 };
 
-namespace UE
-{
-namespace AssetRegistry
+namespace UE::AssetRegistry
 {
 	enum EReadPackageDataMainErrorCode
 	{
@@ -1051,6 +1049,22 @@ namespace AssetRegistry
 	ASSETREGISTRY_API bool ReadPackageDataMain(FArchive& BinaryArchive, const FString& PackageName, const FPackageFileSummary& PackageFileSummary,
 		int64& OutDependencyDataOffset, TArray<FAssetData*>& OutAssetDataList, EReadPackageDataMainErrorCode& OutError,
 		const TArray<FObjectImport>* InImports = nullptr, const TArray<FObjectExport>* InExports = nullptr);
+	struct FReadPackageDataDependenciesArgs
+	{
+		// Required inputs, must be initialized and non-null
+		FArchive* BinaryNameAwareArchive = nullptr;
+		int64 AssetRegistryDependencyDataOffset = -1;
+		int32 NumImports = -1;
+		int32 NumSoftPackageReferences = -1;
+		FPackageFileVersion PackageVersion;
+
+		// Outputs
+		TBitArray<> ImportUsedInGame;
+		TBitArray<> SoftPackageUsedInGame;
+		TArray<TPair<FName, EExtraDependencyFlags>> ExtraPackageDependencies;
+	};
+	ASSETREGISTRY_API bool ReadPackageDataDependencies(FReadPackageDataDependenciesArgs& Args);
+	UE_DEPRECATED(5.5, "Use version that takes FReadPackageDataArgs")
 	ASSETREGISTRY_API bool ReadPackageDataDependencies(FArchive& BinaryArchive, TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame);
 
 	/**
@@ -1124,8 +1138,7 @@ namespace AssetRegistry
 	extern ASSETREGISTRY_API const FName Stage_ChunkInstalledSizeFName;
 	extern ASSETREGISTRY_API const FName Stage_ChunkStreamingSizeFName;
 	extern ASSETREGISTRY_API const FName Stage_ChunkOptionalSizeFName;
-} // namespace AssetRegistry
-} // namespace UE
+} // namespace UE::AssetRegistry
 
 /** Returns the filename without filepath for the DevelopmentAssetRegistry written by the cooker. */
 ASSETREGISTRY_API const TCHAR* GetDevelopmentAssetRegistryFilename();

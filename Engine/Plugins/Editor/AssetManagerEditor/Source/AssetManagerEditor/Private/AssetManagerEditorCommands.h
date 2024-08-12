@@ -63,7 +63,7 @@ public:
 	TSharedPtr<FUICommandInfo> DecreaseBreadth;
 
 	// Set the Breadth LImit
-	TSharedPtr<FUICommandInfo> SetBreadth;;
+	TSharedPtr<FUICommandInfo> SetBreadth;
 
 	// Toggles visiblity of Soft References
 	TSharedPtr<FUICommandInfo> ShowSoftReferences;
@@ -71,8 +71,10 @@ public:
 	// Toggles visiblity of Hard References
 	TSharedPtr<FUICommandInfo> ShowHardReferences;
 
-	// Toggles visiblity of EditorOnly References
-	TSharedPtr<FUICommandInfo> ShowEditorOnlyReferences;
+	// Sets which level of filter type between Game and EditorOnly is visible
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypeGame;
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypePropagation;
+	TSharedPtr<FUICommandInfo> EditorOnlyReferenceFilterTypeEditorOnly;
 
 	// Toggles visiblity of Management References (i.e. PrimaryAssetIDs)
 	TSharedPtr<FUICommandInfo> ShowManagementReferences;

@@ -66,11 +66,31 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 			for (uint32 DependencyFlagBits : DependsNodeFlagsSet)
 			{
 				EDependencyProperty DependencyProperties = ByteToProperties(static_cast<uint8>(DependencyFlagBits));
-				if (EnumHasAllFlags(DependencyProperties, RequiredProperties)
-					&& !EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				if (!EnumHasAllFlags(DependencyProperties, RequiredProperties))
 				{
-					InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
+					continue;
 				}
+				if (EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				{
+					continue;
+				}
+				bool bPassesRequiredUnions = true;
+				for (EDependencyProperty RequiredUnion : SearchFlags.RequiredUnions)
+				{
+					EDependencyProperty RequiredUnionProperty = RequiredUnion & CategoryMask;
+					if (RequiredUnionProperty != EDependencyProperty::None &&
+						!EnumHasAnyFlags(DependencyProperties, RequiredUnionProperty))
+					{
+						bPassesRequiredUnions = false;
+						break;
+					}
+				}
+				if (!bPassesRequiredUnions)
+				{
+					continue;
+				}
+
+				InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
 				bDuplicate = true;
 			}
 		}
@@ -113,11 +133,30 @@ void IterateDependencyList(const FDependsNode::FIterateDependenciesCallback& InC
 			for (uint32 DependencyFlagBits : DependsNodeFlagsSet)
 			{
 				EDependencyProperty DependencyProperties = ByteToProperties(static_cast<uint8>(DependencyFlagBits));
-				if (EnumHasAllFlags(DependencyProperties, RequiredProperties)
-					&& !EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				if (!EnumHasAllFlags(DependencyProperties, RequiredProperties))
 				{
-					InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
+					continue;
 				}
+				if (EnumHasAnyFlags(DependencyProperties, ExcludedProperties))
+				{
+					continue;
+				}
+				bool bPassesRequiredUnions = true;
+				for (EDependencyProperty RequiredUnion : SearchFlags.RequiredUnions)
+				{
+					EDependencyProperty RequiredUnionProperty = RequiredUnion & CategoryMask;
+					if (RequiredUnionProperty != EDependencyProperty::None &&
+						!EnumHasAnyFlags(DependencyProperties, RequiredUnionProperty))
+					{
+						bPassesRequiredUnions = false;
+						break;
+					}
+				}
+				if (!bPassesRequiredUnions)
+				{
+					continue;
+				}
+				InCallback(DependsNode, ListCategory, DependencyProperties, bDuplicate);
 				bDuplicate = true;
 			}
 		}
@@ -232,7 +271,8 @@ void FDependsNode::GetReferencers(TArray<FDependsNode*>& OutReferencers,
 		// If type specified, filter
 		if (Category != UE::AssetRegistry::EDependencyCategory::All
 			|| Flags.Required != UE::AssetRegistry::EDependencyProperty::None
-			|| Flags.Excluded != UE::AssetRegistry::EDependencyProperty::None)
+			|| Flags.Excluded != UE::AssetRegistry::EDependencyProperty::None
+			|| !Flags.RequiredUnions.IsEmpty())
 		{
 			Referencer->IterateOverDependencies([&bShouldAdd](const FDependsNode* InDependency,
 				UE::AssetRegistry::EDependencyCategory InCategory,

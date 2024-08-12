@@ -215,6 +215,9 @@ public:
 	/**
 	 * Add the given FCookDependency to the build dependencies for the package being cook-saved. Iterative cooks will
 	 * invalidate the package and recook it if the CookDependency changes.
+	 * CookBuildDependencies of type FCookDependency::CreatePackage are also used when saving an editor package rather
+	 * than a cooked package. They are saved into the AssetRegistry dependency data for the package, as
+	 * EDependencyProperty::Build properties.
 	 */
 	COREUOBJECT_API void AddCookBuildDependency(UE::Cook::FCookDependency BuildDependency);
 	/**

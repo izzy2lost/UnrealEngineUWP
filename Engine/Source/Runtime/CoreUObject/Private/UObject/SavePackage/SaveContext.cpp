@@ -3,12 +3,11 @@
 #include "SaveContext.h"
 
 #include "Algo/Find.h"
+#include "Algo/Unique.h"
 #include "Cooker/CookDependency.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Serialization/PackageWriter.h"
 #include "UObject/UObjectGlobals.h"
-
-
 
 TArray<ESaveRealm> FSaveContext::GetHarvestedRealmsToSave()
 {
@@ -292,6 +291,50 @@ EObjectMark FSaveContext::GetExcludedObjectMarksForGameRealm(const ITargetPlatfo
 	{
 		return static_cast<EObjectMark>(OBJECTMARK_NotForTargetPlatform | OBJECTMARK_EditorOnly);
 	}
+}
+
+void FSaveContext::UpdateEditorRealmPackageBuildDependencies()
+{
+	using namespace UE::Cook;
+
+	PackageBuildDependencies.Empty();
+
+	// PackageBuildDependencies are only recorded for non-cooked packages
+	if (IsCooking())
+	{
+		return;
+	}
+
+#if WITH_EDITOR
+	PackageBuildDependencies.Reserve(ObjectSaveContext.CookBuildDependencies.Num());
+	for (UE::Cook::FCookDependency& CookDependency : ObjectSaveContext.CookBuildDependencies)
+	{
+		FName PackageName = NAME_None;
+		switch (CookDependency.GetType())
+		{
+		case ECookDependency::Package: [[fallthrough]];
+		case ECookDependency::TransitiveBuild:
+			PackageName = CookDependency.GetPackageName();
+			break;
+		default:
+			break;
+		}
+		if (PackageName.IsNone())
+		{
+			continue;
+		}
+		PackageBuildDependencies.Add(PackageName);
+	}
+	PackageBuildDependencies.Sort(FNameLexicalLess());
+	PackageBuildDependencies.SetNum(Algo::Unique(PackageBuildDependencies));
+
+	FHarvestedRealm& HarvestedRealm = GetHarvestedRealm(ESaveRealm::Editor);
+	TSet<FNameEntryId>& NamesReferencedFromPackageHeader = HarvestedRealm.GetNamesReferencedFromPackageHeader();
+	for (FName PackageBuildDependency : PackageBuildDependencies)
+	{
+		NamesReferencedFromPackageHeader.Add(PackageBuildDependency.GetDisplayIndex());
+	}
+#endif
 }
 
 const TCHAR* LexToString(ESaveableStatus Status)

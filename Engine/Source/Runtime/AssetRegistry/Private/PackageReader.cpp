@@ -85,10 +85,6 @@ static void ApplyRelocationToTagsAndValues(FAssetDataTagMap& TagsAndValues, UE::
 }
 
 FPackageReader::FPackageReader()
-	: Loader(nullptr)
-	, PackageFileSize(0)
-	, AssetRegistryDependencyDataOffset(INDEX_NONE)
-	, bLoaderOwner(false)
 {
 	this->SetIsLoading(true);
 	this->SetIsPersistent(true);
@@ -566,29 +562,28 @@ bool FPackageReader::ReadLinkerObjects(TMap<FSoftObjectPath, FObjectData>& OutEx
 	return true;
 }
 
-bool FPackageReader::SerializeAssetRegistryDependencyData(TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame,
-	const TArray<FObjectImport>& InImportMap, const TArray<FName>& InSoftPackageReferenceList)
+bool FPackageReader::SerializeAssetRegistryDependencyData(TBitArray<>& OutImportUsedInGame,
+	TBitArray<>& OutSoftPackageUsedInGame,
+	TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& OutExtraPackageDependencies)
 {
-	if (AssetRegistryDependencyDataOffset == INDEX_NONE)
-	{
-		// For old package versions that did not write out the dependency flags, set default values of the flags
-		OutImportUsedInGame.Init(true, InImportMap.Num());
-		OutSoftPackageUsedInGame.Init(true, InSoftPackageReferenceList.Num());
-		return true;
-	}
+	UE::AssetRegistry::FReadPackageDataDependenciesArgs Args;
+	Args.BinaryNameAwareArchive = this;
+	Args.AssetRegistryDependencyDataOffset = AssetRegistryDependencyDataOffset;
+	Args.NumImports = ImportMap.Num();
+	Args.NumSoftPackageReferences = SoftPackageReferenceList.Num();
+	Args.PackageVersion = PackageFileSummary.GetFileVersionUE();
 
-	if (!StartSerializeSection(AssetRegistryDependencyDataOffset))
-	{
-		return false;
-	}
+	ClearError();
+	Loader->ClearError();
 
-	if (!UE::AssetRegistry::ReadPackageDataDependencies(*this, OutImportUsedInGame, OutSoftPackageUsedInGame) ||
-		OutImportUsedInGame.Num() != InImportMap.Num() ||
-		OutSoftPackageUsedInGame.Num() != InSoftPackageReferenceList.Num())
+	if (!UE::AssetRegistry::ReadPackageDataDependencies(Args))
 	{
 		UE_PACKAGEREADER_CORRUPTPACKAGE_WARNING("SerializeAssetRegistryDependencyData", PackageFilename);
 		return false;
 	}
+	OutImportUsedInGame = MoveTemp(Args.ImportUsedInGame);
+	OutSoftPackageUsedInGame = MoveTemp(Args.SoftPackageUsedInGame);
+	OutExtraPackageDependencies = MoveTemp(Args.ExtraPackageDependencies);
 	return true;
 }
 
@@ -612,15 +607,28 @@ bool FPackageReader::SerializePackageTrailer(FAssetPackageData& PackageData)
 	return true;
 }
 
-void FPackageReader::ApplyRelocationToImportMapAndSoftPackageReferenceList(FStringView LoadedPackageName, TArray<FName>& OutSoftPackageReferenceList)
+void FPackageReader::ApplyRelocationToImportMapAndSoftPackageReferenceList(FStringView LoadedPackageName, 
+	TArray<FName>& InOutSoftPackageReferenceList,
+	TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>>& InOutExtraPackageDependencies)
 {
 #if WITH_EDITOR
 	UE::Package::Relocation::Private::FPackageRelocationContext RelocationArgs;
 	if (UE::Package::Relocation::Private::ShouldApplyRelocation(PackageFileSummary, LoadedPackageName, RelocationArgs))
 	{
-		UE_LOG(LogPackageRelocation, Verbose, TEXT("Detected relocated package (%.*s). The package was saved as (%s)."), LoadedPackageName.Len(), LoadedPackageName.GetData(), *PackageFileSummary.PackageName);
+		UE_LOG(LogPackageRelocation, Verbose, TEXT("Detected relocated package (%.*s). The package was saved as (%s)."),
+			LoadedPackageName.Len(), LoadedPackageName.GetData(), *PackageFileSummary.PackageName);
 		UE::Package::Relocation::Private::ApplyRelocationToObjectImportMap(RelocationArgs, ImportMap);
-		UE::Package::Relocation::Private::ApplyRelocationToNameArray(RelocationArgs, OutSoftPackageReferenceList);
+		UE::Package::Relocation::Private::ApplyRelocationToNameArray(RelocationArgs, InOutSoftPackageReferenceList);
+		for (TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>& Pair : InOutExtraPackageDependencies)
+		{
+			FNameBuilder Package(Pair.Key);
+			FNameBuilder RelocatedPackageName;
+			if (UE::Package::Relocation::Private::TryRelocateReference(
+				RelocationArgs, Package.ToView(), RelocatedPackageName))
+			{
+				Pair.Key = *RelocatedPackageName;
+			}
+		}
 	}
 #endif
 }
@@ -773,16 +781,18 @@ bool FPackageReader::ReadDependencyData(FPackageDependencyData& OutDependencyDat
 
 		TBitArray<> ImportUsedInGame;
 		TBitArray<> SoftPackageUsedInGame;
-		if (!SerializeAssetRegistryDependencyData(ImportUsedInGame, SoftPackageUsedInGame, ImportMap,
-			SoftPackageReferenceList))
+		TArray<TPair<FName, UE::AssetRegistry::EExtraDependencyFlags>> ExtraPackageDependencies;
+		if (!SerializeAssetRegistryDependencyData(ImportUsedInGame, SoftPackageUsedInGame, ExtraPackageDependencies))
 		{
 			return false;
 		}
 
-		ApplyRelocationToImportMapAndSoftPackageReferenceList(PackageNameString, SoftPackageReferenceList);
+		ApplyRelocationToImportMapAndSoftPackageReferenceList(PackageNameString, SoftPackageReferenceList,
+			ExtraPackageDependencies);
 
-		OutDependencyData.LoadDependenciesFromPackageHeader(OutDependencyData.PackageName, ImportMap, SoftPackageReferenceList,
-			SearchableNames.SearchableNamesMap, ImportUsedInGame, SoftPackageUsedInGame);
+		OutDependencyData.LoadDependenciesFromPackageHeader(OutDependencyData.PackageName, ImportMap,
+			SoftPackageReferenceList, SearchableNames.SearchableNamesMap, ImportUsedInGame, SoftPackageUsedInGame,
+			ExtraPackageDependencies);
 	}
 
 	return true;
@@ -1312,18 +1322,23 @@ bool FPackageReader::SerializeEditorOnlyFlags(TBitArray<>& OutImportUsedInGame, 
 		return true;
 	}
 
-	if (!StartSerializeSection(AssetRegistryDependencyDataOffset))
-	{
-		return false;
-	}
+	ClearError();
+	Loader->ClearError();
 
-	if (!UE::AssetRegistry::ReadPackageDataDependencies(*this, OutImportUsedInGame, OutSoftPackageUsedInGame) ||
-		OutImportUsedInGame.Num() != ImportMap.Num() ||
-		OutSoftPackageUsedInGame.Num() != SoftPackageReferenceList.Num())
+	UE::AssetRegistry::FReadPackageDataDependenciesArgs Args;
+	Args.BinaryNameAwareArchive = this;
+	Args.AssetRegistryDependencyDataOffset = AssetRegistryDependencyDataOffset;
+	Args.NumImports = ImportMap.Num();
+	Args.NumSoftPackageReferences = SoftPackageReferenceList.Num();
+	Args.PackageVersion = PackageFileSummary.GetFileVersionUE();
+
+	if (!UE::AssetRegistry::ReadPackageDataDependencies(Args))
 	{
 		UE_PACKAGEREADER_CORRUPTPACKAGE_WARNING("SerializeAssetRegistryDependencyData", PackageFilename);
 		return false;
 	}
+	OutImportUsedInGame = MoveTemp(Args.ImportUsedInGame);
+	OutSoftPackageUsedInGame = MoveTemp(Args.SoftPackageUsedInGame);
 
 	return true;
 }
@@ -1826,12 +1841,54 @@ namespace UE::AssetRegistry
 		return true;
 	}
 
-	// See the corresponding WriteAssetRegistryPackageData defined in SavePackageUtilities.cpp in CoreUObject module
 	bool ReadPackageDataDependencies(FArchive& BinaryArchive, TBitArray<>& OutImportUsedInGame, TBitArray<>& OutSoftPackageUsedInGame)
 	{
-		BinaryArchive << OutImportUsedInGame;
-		BinaryArchive << OutSoftPackageUsedInGame;
-		return !BinaryArchive.IsError();
+		UE_LOG(LogAssetRegistry, Error,
+			TEXT("This version of ReadPackageDataDependencies is no longer supported since it does not include enough information to know the package's AssetRegistryVersion. Read will be marked as failed."));
+		return false;
+	}
+
+	// See the corresponding WriteAssetRegistryPackageData defined in SavePackageUtilities.cpp in CoreUObject module
+	bool ReadPackageDataDependencies(FReadPackageDataDependenciesArgs& Args)
+	{
+		// Always set the output AssetRegistryVersion; in an error case it indicates to the caller whether the error
+		// was caused by a too-high version.
+		if (Args.AssetRegistryDependencyDataOffset == INDEX_NONE)
+		{
+			// For old package versions that did not write out the dependency flags, set default values of the flags
+			Args.ImportUsedInGame.Init(true, Args.NumImports);
+			Args.SoftPackageUsedInGame.Init(true, Args.NumSoftPackageReferences);
+			Args.ExtraPackageDependencies.Empty();
+			return true;
+		}
+
+		FArchive& Ar = *Args.BinaryNameAwareArchive;
+		Ar.Seek(Args.AssetRegistryDependencyDataOffset);
+		if (Ar.IsError())
+		{
+			return false;
+		}
+
+		Ar << Args.ImportUsedInGame;
+		Ar << Args.SoftPackageUsedInGame;
+		if (Args.PackageVersion >= EUnrealEngineObjectUE5Version::ASSETREGISTRY_PACKAGEBUILDDEPENDENCIES)
+		{
+			// Reinterpret ExtraPackageDependencies as an Array with integer values so we can serialize the 
+			// EExtraDependencyFlags as integers.
+			TArray<TPair<FName, uint32>>& ExtraPackageDependenciesAsIntegers = 
+				reinterpret_cast<TArray<TPair<FName, uint32>>&>(Args.ExtraPackageDependencies);
+			Ar << ExtraPackageDependenciesAsIntegers;
+		}
+		else
+		{
+			Args.ExtraPackageDependencies.Empty();
+		}
+		if (Args.ImportUsedInGame.Num() != Args.NumImports ||
+			Args.SoftPackageUsedInGame.Num() != Args.NumSoftPackageReferences)
+		{
+			return false;
+		}
+		return !Ar.IsError();
 	}
 }
 

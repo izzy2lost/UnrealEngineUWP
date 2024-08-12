@@ -1444,20 +1444,19 @@ bool SReferenceViewer::IsShowDuplicatesChecked() const
 	return Settings->GetFindPathEnabled() || Settings->IsShowDuplicates();
 }
 
-void SReferenceViewer::OnShowEditorOnlyReferencesChanged()
+void SReferenceViewer::OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType Value)
 {
-	Settings->SetShowEditorOnlyReferencesEnabled(!Settings->IsShowEditorOnlyReferences());
+	Settings->SetEditorOnlyReferenceFilterType(Value);
 	if (GraphObj)
 	{
 		GraphObj->RebuildGraph();
 	}
 }
 
-bool SReferenceViewer::IsShowEditorOnlyReferencesChecked() const
+EEditorOnlyReferenceFilterType SReferenceViewer::GetEditorOnlyReferenceFilterType() const
 {
-	return Settings->IsShowEditorOnlyReferences();
+	return Settings->GetEditorOnlyReferenceFilterType();
 }
-
 
 bool SReferenceViewer::GetManagementReferencesVisibility() const
 {
@@ -1633,10 +1632,24 @@ void SReferenceViewer::RegisterActions()
 		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
 
 	ReferenceViewerActions->MapAction(
-		FAssetManagerEditorCommands::Get().ShowEditorOnlyReferences,
-		FExecuteAction::CreateSP(this, &SReferenceViewer::OnShowEditorOnlyReferencesChanged),
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeGame,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::Game); }),
 		FCanExecuteAction(),	
-		FIsActionChecked::CreateSP(this, &SReferenceViewer::IsShowEditorOnlyReferencesChecked),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::Game; }),
+		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypePropagation,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::Propagation); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::Propagation; }),
+		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
+
+	ReferenceViewerActions->MapAction(
+		FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeEditorOnly,
+		FExecuteAction::CreateSPLambda(this, [this]() { OnEditorOnlyReferenceFilterTypeChanged(EEditorOnlyReferenceFilterType::EditorOnly); }),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSPLambda(this, [this]() { return GetEditorOnlyReferenceFilterType() == EEditorOnlyReferenceFilterType::EditorOnly; }),
 		FIsActionButtonVisible::CreateLambda([this] { return bShowShowReferencesOptions; }));
 
 	ReferenceViewerActions->MapAction(
@@ -2468,7 +2481,12 @@ TSharedRef<SWidget> SReferenceViewer::GetShowMenuContent()
 	MenuBuilder.BeginSection("ReferenceTypes", LOCTEXT("ReferenceTypes", "Reference Types"));
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowSoftReferences);
 	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowHardReferences);
-	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().ShowEditorOnlyReferences);
+	MenuBuilder.EndSection();
+
+	MenuBuilder.BeginSection("EditorOnlyReferenceTypes", LOCTEXT("EditorOnlyReferenceTypes", "Editor Only Reference Types"));
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeGame);
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypePropagation);
+	MenuBuilder.AddMenuEntry(FAssetManagerEditorCommands::Get().EditorOnlyReferenceFilterTypeEditorOnly);
 	MenuBuilder.EndSection();
 
 	MenuBuilder.BeginSection("Assets", LOCTEXT("Assets", "Assets"));

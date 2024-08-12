@@ -44,8 +44,20 @@ void FAssetManagerEditorCommands::RegisterCommands()
 
 	UI_COMMAND(ShowSoftReferences, "Show Soft References", "Toggles visibility of Soft References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::S));
 	UI_COMMAND(ShowHardReferences, "Show Hard References", "Toggles visibility of Hard References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::H));
-	UI_COMMAND(ShowEditorOnlyReferences, "Show EditorOnly References","Toggles visibility of EditorOnly References", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::E));
-
+	UI_COMMAND(EditorOnlyReferenceFilterTypeGame, "Show Game References",
+		"Only UsedInGame references are displayed. UsedInGame references cause the dependencies to be cooked and"
+		" cause management assignments from the referencer to be propagated to the dependencies.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::G));
+	UI_COMMAND(EditorOnlyReferenceFilterTypePropagation, "Show Propagation References",
+		"UsedInGame and Build references are displayed. Build references are displayed even if they are EditorOnly."
+		" All of these references cause management assignments from the referencer to be propagated to the"
+		" dependencies, but the EditorOnly Build dependencies do not cause the dependencies to be cooked.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::B));
+	UI_COMMAND(EditorOnlyReferenceFilterTypeEditorOnly, "Show EditorOnly References",
+		"UsedInGame, Build, and EditorOnly references are displayed. EditorOnly references do not cause the"
+		" dependencies to be cooked and do not propagate management assignments. Use this mode to see how assets"
+		" interact in the editor.",
+		EUserInterfaceActionType::RadioButton, FInputChord(EKeys::E));
 	UI_COMMAND(ShowManagementReferences, "Show Management References","Toggles visibility of Management References (i.e. PrimaryAssetIDs)", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::M));
 	UI_COMMAND(ShowNameReferences, "Show Name References","Toggles visibility of Name References (i.e. Gameplay Tags and Data Table Row Handles)", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::N));
 	UI_COMMAND(ShowCodePackages, "Show C++ Packages","Toggles visibility of C++ Packages", EUserInterfaceActionType::ToggleButton, FInputChord(EKeys::C));
