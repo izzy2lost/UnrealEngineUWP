@@ -4311,7 +4311,8 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 
 						if (RandomScore < AccumulatedScore || (Index == (NextLevelChildStates.Num() - 1)))
 						{
-							if (SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(StateIndex) }, OutSelectionResult))
+							// States with zero possibility won't be selected
+							if (StateScore != 0.f && SelectStateInternal(CurrentParentFrame, CurrentFrame, CurrentFrameInActiveFrames, { FStateTreeStateHandle(StateIndex) }, OutSelectionResult))
 							{
 								// Selection succeeded
 								bSucceededToSelectState = true;
