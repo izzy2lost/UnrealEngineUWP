@@ -211,9 +211,6 @@ void FSlateD3D11RenderingPolicy::ReleaseResources()
 
 void FSlateD3D11RenderingPolicy::BuildRenderingBuffers( FSlateBatchData& InBatchData )
 {	
-	// Merge render batches together to form final rendering calls
-	InBatchData.MergeRenderBatches();
-
 	if (!VertexBuffer.GetResource().IsValid() ||
 		!IndexBuffer.GetResource().IsValid())
 	{

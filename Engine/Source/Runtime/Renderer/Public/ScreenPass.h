@@ -98,6 +98,16 @@ struct FScreenPassRenderTarget : public FScreenPassTexture
 
 	FScreenPassRenderTarget() = default;
 
+	explicit FScreenPassRenderTarget(FScreenPassTexture InTexture)
+		: FScreenPassTexture(InTexture)
+	{
+		// Derive the load action based on whether we are rendering to the entire texture or not.
+		if (ViewRect.Min != FIntPoint::ZeroValue || Texture && Texture->Desc.Extent != ViewRect.Max)
+		{
+			LoadAction = ERenderTargetLoadAction::ELoad;
+		}
+	}
+
 	FScreenPassRenderTarget(FScreenPassTexture InTexture, ERenderTargetLoadAction InLoadAction)
 		: FScreenPassTexture(InTexture)
 		, LoadAction(InLoadAction)

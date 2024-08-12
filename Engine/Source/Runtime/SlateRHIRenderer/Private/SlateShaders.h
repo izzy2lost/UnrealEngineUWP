@@ -13,6 +13,7 @@
 #include "RHIStaticStates.h"
 #include "TextureResource.h"
 #include "RenderUtils.h"
+#include "ShaderParameterStruct.h"
 
 extern EColorVisionDeficiency GSlateColorDeficiencyType;
 extern int32 GSlateColorDeficiencySeverity;
@@ -314,276 +315,22 @@ private:
 	LAYOUT_FIELD(FShaderParameter, BatchColor);
 };
 
-const int32 MAX_BLUR_SAMPLES = 127;
-
-class FSlatePostProcessBlurPS : public FSlateElementPS
-{
-	DECLARE_SHADER_TYPE(FSlatePostProcessBlurPS, Global);
-public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	FSlatePostProcessBlurPS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlatePostProcessBlurPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FSlateElementPS(Initializer)
-	{
-		BufferSizeAndDirection.Bind(Initializer.ParameterMap, TEXT("BufferSizeAndDirection"));
-		WeightAndOffsets.Bind(Initializer.ParameterMap, TEXT("WeightAndOffsets"));
-		SampleCount.Bind(Initializer.ParameterMap, TEXT("SampleCount"));
-		UVBounds.Bind(Initializer.ParameterMap, TEXT("UVBounds"));
-	}
-
-	void SetBufferSizeAndDirection(FRHIBatchedShaderParameters& BatchedParameters, const FVector2f InBufferSize, const FVector2f InDir)
-	{
-		SetShaderValue(BatchedParameters, BufferSizeAndDirection, FVector4f(InBufferSize, InDir));
-	}
-
-	void SetWeightsAndOffsets(FRHIBatchedShaderParameters& BatchedParameters, const TArray<FVector4f>& InWeightsAndOffsets, int32 NumSamples )
-	{
-		check(InWeightsAndOffsets.Num() <= MAX_BLUR_SAMPLES);
-		SetShaderValueArray<FVector4f>(BatchedParameters, WeightAndOffsets, InWeightsAndOffsets.GetData(), InWeightsAndOffsets.Num() );
-		SetShaderValue(BatchedParameters, SampleCount, NumSamples);
-	}
-
-	void SetUVBounds(FRHIBatchedShaderParameters& BatchedParameters, const FVector4f& InUVBounds)
-	{
-		SetShaderValue(BatchedParameters, UVBounds, InUVBounds);
-	}
-
-private:
-	LAYOUT_FIELD(FShaderParameter, BufferSizeAndDirection);
-	LAYOUT_FIELD(FShaderParameter, WeightAndOffsets);
-	LAYOUT_FIELD(FShaderParameter, SampleCount);
-	LAYOUT_FIELD(FShaderParameter, UVBounds);
-};
-
-
-class FSlatePostProcessDownsamplePS : public FSlateElementPS
-{
-	DECLARE_SHADER_TYPE(FSlatePostProcessDownsamplePS, Global);
-public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	FSlatePostProcessDownsamplePS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlatePostProcessDownsamplePS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FSlateElementPS(Initializer)
-	{
-		UVBounds.Bind(Initializer.ParameterMap, TEXT("UVBounds"));
-	}
-
-	void SetUVBounds(FRHIBatchedShaderParameters& BatchedParameters, const FVector4f& InUVBounds)
-	{
-		SetShaderValue(BatchedParameters, UVBounds, InUVBounds);
-	}
-
-private:
-	LAYOUT_FIELD(FShaderParameter, UVBounds);
-};
-
-enum class ESlatePostProcessUpsamplePSPermutation
-{
-	SDR = 0,
-	HDR_SCRGB,
-	HDR_PQ10,
-};
-
-template<ESlatePostProcessUpsamplePSPermutation SlatePostProcessUpsamplePSPermutation>
-class FSlatePostProcessUpsamplePS : public FSlateElementPS
-{
-	DECLARE_SHADER_TYPE(FSlatePostProcessUpsamplePS, Global);
-public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	FSlatePostProcessUpsamplePS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlatePostProcessUpsamplePS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FSlateElementPS(Initializer)
-	{
-	}
-
-	/**
-	 * Modifies the compilation of this shader
-	 */
-	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
-	{
-		// Set defines based on what this shader will be used for
-		OutEnvironment.SetDefine(TEXT("OUTPUT_TO_UI_TARGET"), (uint32)(SlatePostProcessUpsamplePSPermutation != ESlatePostProcessUpsamplePSPermutation::SDR ? 1 : 0));
-		OutEnvironment.SetDefine(TEXT("SCRGB_ENCODING"), SlatePostProcessUpsamplePSPermutation == ESlatePostProcessUpsamplePSPermutation::HDR_SCRGB);
-		FSlateElementPS::ModifyCompilationEnvironment(Parameters, OutEnvironment);
-	}
-
-private:
-};
-
-
-class FSlatePostProcessColorDeficiencyPS : public FSlateElementPS
-{
-	DECLARE_SHADER_TYPE(FSlatePostProcessColorDeficiencyPS, Global);
-public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	FSlatePostProcessColorDeficiencyPS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlatePostProcessColorDeficiencyPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FSlateElementPS(Initializer)
-	{
-		ColorVisionDeficiencyType.Bind(Initializer.ParameterMap, TEXT("ColorVisionDeficiencyType"));
-		ColorVisionDeficiencySeverity.Bind(Initializer.ParameterMap, TEXT("ColorVisionDeficiencySeverity"));
-		bCorrectDeficiency.Bind(Initializer.ParameterMap, TEXT("bCorrectDeficiency"));
-		bSimulateCorrectionWithDeficiency.Bind(Initializer.ParameterMap, TEXT("bSimulateCorrectionWithDeficiency"));
-	}
-
-	void SetColorRules(FRHIBatchedShaderParameters& BatchedParameters, bool bCorrect, EColorVisionDeficiency DeficiencyType, int32 Severity)
-	{
-		SetShaderValue(BatchedParameters, ColorVisionDeficiencyType, (float)DeficiencyType);
-		SetShaderValue(BatchedParameters, ColorVisionDeficiencySeverity, (float)Severity);
-		SetShaderValue(BatchedParameters, bCorrectDeficiency, bCorrect ? 1.0f : 0.0f);
-	}
-
-	void SetShowCorrectionWithDeficiency(FRHIBatchedShaderParameters& BatchedParameters, bool bShowCorrectionWithDeficiency)
-	{
-		SetShaderValue(BatchedParameters, bSimulateCorrectionWithDeficiency, bShowCorrectionWithDeficiency ? 1.0f : 0.0f);
-	}
-
-private:
-	LAYOUT_FIELD(FShaderParameter, ColorVisionDeficiencyType);
-	LAYOUT_FIELD(FShaderParameter, ColorVisionDeficiencySeverity);
-	LAYOUT_FIELD(FShaderParameter, bCorrectDeficiency);
-	LAYOUT_FIELD(FShaderParameter, bSimulateCorrectionWithDeficiency);
-};
-
-
 class FSlateMaskingVS : public FGlobalShader
 {
-	DECLARE_SHADER_TYPE(FSlateMaskingVS, Global);
 public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
+	DECLARE_GLOBAL_SHADER(FSlateMaskingVS);
+	SHADER_USE_PARAMETER_STRUCT(FSlateMaskingVS, FGlobalShader);
 
-	FSlateMaskingVS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlateMaskingVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer);
-
-	/**
-	* Sets the view projection parameter
-	*
-	* @param InViewProjection	The ViewProjection matrix to use when this shader is bound
-	*/
-	void SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection);
-
-	/**
-	 * Sets the mask rect positions
-	 */
-	void SetMaskRect(FRHIBatchedShaderParameters& BatchedParameters, const FVector2f TopLeft, const FVector2f TopRight, const FVector2f BotLeft, const FVector2f BotRight);
-
-	//virtual bool Serialize(FArchive& Ar) override;
-
-private:
-	/** Mask rect parameter */
-	LAYOUT_FIELD(FShaderParameter, MaskRect)
-	/** ViewProjection parameter used by the shader */
-	LAYOUT_FIELD(FShaderParameter, ViewProjection)
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_ARRAY(FVector4f, MaskRectPacked, [2])
+	END_SHADER_PARAMETER_STRUCT()
 };
 
 class FSlateMaskingPS : public FGlobalShader
 {
-	DECLARE_SHADER_TYPE(FSlateMaskingPS, Global);
 public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
-	{
-		return true;
-	}
-
-	FSlateMaskingPS()
-	{
-	}
-
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlateMaskingPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
-		: FGlobalShader(Initializer)
-	{
-	}
+	DECLARE_GLOBAL_SHADER(FSlateMaskingPS);
 };
-
-
-#if WITH_EDITOR
-// Pixel shader to convert UI from linear rec709 to PQ 2020 for HDR monitors
-class FHDREditorConvertPS : public FGlobalShader
-{
-	DECLARE_SHADER_TYPE(FHDREditorConvertPS, Global);
-public:
-
-	FHDREditorConvertPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer) :
-		FGlobalShader(Initializer)
-	{
-		SceneTexture.Bind(Initializer.ParameterMap, TEXT("SceneTexture"));
-		SceneSampler.Bind(Initializer.ParameterMap, TEXT("SceneSampler"));
-		UILevel.Bind(Initializer.ParameterMap, TEXT("UILevel"));
-	}
-	FHDREditorConvertPS() {}
-
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, FRHITexture* SceneTextureRHI)
-	{
-		SetTextureParameter(BatchedParameters, SceneTexture, SceneSampler, TStaticSamplerState<SF_Point>::GetRHI(), SceneTextureRHI);
-		
-		static auto CVarHDRNITLevel = IConsoleManager::Get().FindConsoleVariable(TEXT("Editor.HDRNITLevel"));
-		SetShaderValue(BatchedParameters, UILevel, CVarHDRNITLevel->GetFloat());
-	}
-
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters);
-
-	static const TCHAR* GetSourceFilename()
-	{
-		return TEXT("/Engine/Private/CompositeUIPixelShader.usf");
-	}
-
-	static const TCHAR* GetFunctionName()
-	{
-		return TEXT("HDREditorConvert");
-	}
-
-private:
-	LAYOUT_FIELD(FShaderResourceParameter, SceneTexture);
-	LAYOUT_FIELD(FShaderResourceParameter, SceneSampler);
-	LAYOUT_FIELD(FShaderParameter, UILevel);
-};
-#endif
 
 /** The simple element vertex declaration. */
 extern TGlobalResource<FSlateVertexDeclaration> GSlateVertexDeclaration;

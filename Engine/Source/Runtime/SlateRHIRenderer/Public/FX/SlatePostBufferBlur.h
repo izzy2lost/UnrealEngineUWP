@@ -2,11 +2,8 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "FX/SlateRHIPostBufferProcessor.h"
-
 #include "SlatePostBufferBlur.generated.h"
-
 
 /**
  * Proxy for post buffer processor that the renderthread uses to perform processing
@@ -19,7 +16,7 @@ class SLATERHIRENDERER_API FSlatePostBufferBlurProxy : public FSlateRHIPostBuffe
 public:
 
 	//~ Begin FSlateRHIPostBufferProcessorProxy Interface
-	virtual void PostProcess_Renderthread(FRHICommandListImmediate& RHICmdList, FRHITexture* Src, FRHITexture* Dst, FIntRect SrcRect, FIntRect DstRect, FSlateRHIRenderingPolicyInterface InRenderingPolicy) override;
+	virtual void PostProcess_Renderthread(FRDGBuilder& GraphBuilder, const FScreenPassTexture& InputTexture, const FScreenPassTexture& OutputTexture) override;
 	virtual void OnUpdateValuesRenderThread() override;
 	//~ End FSlateRHIPostBufferProcessorProxy Interface
 
@@ -59,10 +56,7 @@ public:
 	USlatePostBufferBlur();
 	virtual ~USlatePostBufferBlur() override;
 
-	//~ Begin USlateRHIPostBufferProcessor Interface
-	virtual void PostProcess(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FSlateRHIRenderingPolicyInterface InRenderingPolicy, UTextureRenderTarget2D* InSlatePostBuffer) override;
 	virtual TSharedPtr<FSlateRHIPostBufferProcessorProxy> GetRenderThreadProxy();
-	//~ End USlateRHIPostBufferProcessor Interface
 
 private:
 

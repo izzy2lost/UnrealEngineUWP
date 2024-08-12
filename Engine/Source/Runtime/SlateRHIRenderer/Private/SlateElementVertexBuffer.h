@@ -191,3 +191,5 @@ public:
 	/** Returns a friendly name for this buffer. */
 	virtual FString GetFriendlyName() const { return TEXT("SlateElementVertices"); }
 };
+
+extern TGlobalResource<FSlateStencilClipVertexBuffer> GSlateStencilClipVertexBuffer;

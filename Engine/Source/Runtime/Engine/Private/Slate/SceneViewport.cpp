@@ -1992,33 +1992,12 @@ void FSceneViewport::SwapStatCommands( const FSceneViewport& OtherViewport )
 
 /** Queue an update to the Window's RT on the Renderthread */
 void FSceneViewport::WindowRenderTargetUpdate(FSlateRenderer* Renderer, SWindow* Window)
-{	
+{
 	check(IsInGameThread());
-	if (Renderer)
+	if (Renderer && Window)
 	{
-		if (UseSeparateRenderTarget())
-		{
-			if (Window)
-			{
-				// We need to pass a texture to the renderer only for stereo rendering. Otherwise, Editor will be rendered incorrectly.
-				if (GEngine->IsStereoscopic3D(this))
-				{
-					//todo: mw Make this function take an FSlateTexture* rather than a void*
-					Renderer->SetWindowRenderTarget(*Window, static_cast<IViewportRenderTargetProvider*>(this));
-				}
-				else
-				{
-					Renderer->SetWindowRenderTarget(*Window, nullptr);
-				}
-			}
-		}
-		else
-		{
-			if (Window)
-			{
-				Renderer->SetWindowRenderTarget(*Window, nullptr);
-			}
-		}
+		// The viewport provider interface is ONLY used for stereo VR compositing to blit the intermediate viewport target over to the VR swap chain.
+		Renderer->SetWindowRenderTarget(*Window, UseSeparateRenderTarget() && GEngine->IsStereoscopic3D(this) ? this : nullptr);
 	}
 }
 

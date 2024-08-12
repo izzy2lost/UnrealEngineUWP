@@ -19,6 +19,10 @@
 
 #include "RenderingCommon.generated.h"
 
+class FRHICommandListImmediate;
+class FRDGBuilder;
+class FRDGTexture;
+class FSlateElementBatcher;
 class FSlateInstanceBufferUpdate;
 class FWidgetStyle;
 class SWidget;
@@ -876,75 +880,57 @@ public:
 };
 
 /**
- * An interface for a custom slate drawing element
- * Implementers of this interface are expected to handle destroying this interface properly when a separate 
- * rendering thread may have access to it. (I.E this cannot be destroyed from a different thread if the rendering thread is using it)
+ * An interface for a custom slate elements. Lifetime must support pipelining to the render thread.
  */
 class ICustomSlateElement
 {
 public:
+	virtual ~ICustomSlateElement() {}
 
-	/** Struct describing current draw state for the custom drawer */
-	struct FSlateCustomDrawParams
+	/** Called from the game thread during element batching. */
+	virtual void PostCustomElementAdded(FSlateElementBatcher& ElementBatcher) const {}
+
+	struct FDrawPassInputs
+	{
+		FRDGTexture* OutputTexture = nullptr;
+		FIntRect SceneViewRect;
+		FMatrix44f ElementsMatrix;
+		FVector2f ElementsOffset;
+		EDisplayColorGamut HDRDisplayColorGamut = EDisplayColorGamut::sRGB_D65;
+		ESlatePostRT UsedSlatePostBuffers = ESlatePostRT::None;
+		bool bOutputIsHDRDisplay = false;
+		bool bWireFrame = false;
+	};
+
+	/** Called from the render thread during element drawing. */
+	virtual void Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs) {};
+
+	//////////////////////////////////////////////////////////////////////////
+	// Deprecated API
+
+	struct UE_DEPRECATED(5.5, "Use ICustomSlateElement::Draw instead") FSlateCustomDrawParams
 	{
 		FMatrix44f ViewProjectionMatrix;
 		FVector2f ViewOffset;
 		FIntRect ViewRect;
-		EDisplayColorGamut HDRDisplayColorGamut;
-		ESlatePostRT UsedSlatePostBuffers;
-		bool bWireFrame;
-		bool bIsHDR;
-
-		FSlateCustomDrawParams()
-			: ViewProjectionMatrix(FMatrix44f())
-			, ViewOffset(0.f, 0.f)
-			, ViewRect(FIntRect())
-			, HDRDisplayColorGamut(EDisplayColorGamut::sRGB_D65)
-			, UsedSlatePostBuffers(ESlatePostRT::None)
-			, bWireFrame(false)
-			, bIsHDR(false)
-		{
-		}
+		EDisplayColorGamut HDRDisplayColorGamut = EDisplayColorGamut::sRGB_D65;
+		ESlatePostRT UsedSlatePostBuffers = ESlatePostRT::None;
+		bool bWireFrame = false;
+		bool bIsHDR = false;
 	};
 
-public:
-	virtual ~ICustomSlateElement() {}
+	UE_DEPRECATED(5.4, "Use ICustomSlateElement::Draw instead.")
+	virtual void DrawRenderThread(FRHICommandListImmediate& RHICmdList, const void* RenderTarget) {}
 
-	UE_DEPRECATED(5.4, "Please override Draw_RenderThread instead and modify your function signature to accept 'FSlateCustomParams& Params'")
-	virtual void DrawRenderThread(class FRHICommandListImmediate& RHICmdList, const void* RenderTarget) 
-	{
-	}
-
-	/** 
-	 * Called from the rendering thread when it is time to render the element
-	 *
-	 * @param RenderTarget				handle to the platform specific render target implementation.  Note this is already bound by Slate initially 
-	 * @param Params					Params about current draw state 
-	 * @param RenderingPolicyInterface	Interface to current rendering policy
-	 */
-	virtual void Draw_RenderThread(class FRHICommandListImmediate& RHICmdList, const void* RenderTarget, const FSlateCustomDrawParams& Params)
-	{
+	UE_DEPRECATED(5.5, "Use ICustomSlateElement::Draw instead.")
 PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		DrawRenderThread(RHICmdList, RenderTarget);
+	virtual void Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* RenderTarget, const FSlateCustomDrawParams& Params) {}
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	}
 
-	/**
-	 * Called from the game thread during element batching
-	 *
-	 * @param ElementBatcher	Elementbatcher that added the custom element
-	 */
-	virtual void PostCustomElementAdded(class FSlateElementBatcher& ElementBatcher) const {}
+	UE_DEPRECATED(5.5, "Use ICustomSlateElement::Draw instead.")
+	virtual bool UsesAdditionalRHIParams() const { return false; }
 
-	/**
-	 * If true will cast to an ICustomSlateElementRHI & call Draw_RenderThread with additional RHI params on that instead.
-	 * 
-	 * Note: While a bool to determine cast is not desirable, it is needed due to RHI module reference constraints
-	 */
-	virtual bool UsesAdditionalRHIParams() const 
-	{
-		return false;
-	}
+	//////////////////////////////////////////////////////////////////////////
 };
 
 /*

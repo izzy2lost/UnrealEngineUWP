@@ -2,6 +2,20 @@
 
 #pragma once
 
+#include "ScreenPass.h"
+
+struct FSlatePostProcessSimpleBlurPassInputs
+{
+	FScreenPassTexture InputTexture;
+	FScreenPassTexture OutputTexture;
+	float Strength = 0.0f;
+};
+
+SLATERHIRENDERER_API void AddSlatePostProcessBlurPass(FRDGBuilder& GraphBuilder, const FSlatePostProcessSimpleBlurPassInputs& Inputs);
+
+//////////////////////////////////////////////////////////////////////////
+// Deprecated API
+
 #include "CoreMinimal.h"
 #include "RendererInterface.h"
 #include "Rendering/RenderingCommon.h"
@@ -9,53 +23,26 @@
 #include "Rendering/DrawElements.h"
 #include "Rendering/RenderingPolicy.h"
 
-class FSlateRHIRenderingPolicy;
-
-/**
- * Class used to expose only limited parts of the FSlateRenderingPolicy. 
- * Not an interface to be implemented.
- */
-class SLATERHIRENDERER_API FSlateRHIRenderingPolicyInterface
+class UE_DEPRECATED(5.5, "FSlateRHIRenderingPolicyInterface is no longer used.") FSlateRHIRenderingPolicyInterface
 {
 public:
-	FSlateRHIRenderingPolicyInterface(FSlateRHIRenderingPolicy* InRenderingPolicy);
+	FSlateRHIRenderingPolicyInterface(const class FSlateRHIRenderingPolicy* InRenderingPolicy) {}
 
-	static int32 GetProcessSlatePostBuffers();
+	static int32 GetProcessSlatePostBuffers() { return 0; }
 
-	bool IsValid() const;
-	bool IsVertexColorInLinearSpace() const;
-	bool GetApplyColorDeficiencyCorrection() const;
-
-	void BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const;
-
-private:
-
-	/** Rendering policy we are an interface to */
-	FSlateRHIRenderingPolicy* RenderingPolicy;
+	bool IsValid() const { return false; }
+	bool IsVertexColorInLinearSpace() const { return false; }
+	bool GetApplyColorDeficiencyCorrection() const { return false; }
+	void BlurRectExternal(FRHICommandListImmediate& RHICmdList, FRHITexture* BlurSrc, FRHITexture* BlurDst, FIntRect SrcRect, FIntRect DstRect, float BlurStrength) const {}
 };
 
-/**
- * RHI version of custom slate element that can accept additional RHI params when performing draw
- */
-class ICustomSlateElementRHI : public ICustomSlateElement
+class UE_DEPRECATED(5.5, "Use ICustomSlateElement instead.") ICustomSlateElementRHI : public ICustomSlateElement
 {
 public:
-
-	/**
-	 * Called from the rendering thread when it is time to render the element
-	 *
-	 * @param RenderTarget				handle to the platform specific render target implementation.  Note this is already bound by Slate initially
-	 * @param Params					Params about current draw state
-	 * @param RenderingPolicyInterface	Interface to current rendering policy
-	 */
-	virtual void Draw_RHIRenderThread(class FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& RenderTarget, const FSlateCustomDrawParams& Params, FSlateRHIRenderingPolicyInterface RenderingPolicyInterface)
-	{
-	}
-
-	//~ Begin ICustomSlateElement interface
-	virtual bool UsesAdditionalRHIParams() const override
-	{
-		return true;
-	}
-	//~ End ICustomSlateElement interface
+	UE_DEPRECATED(5.5, "Use Draw_RenderThread with an RDG builder instead")
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	virtual void Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& RenderTarget, const FSlateCustomDrawParams& Params, FSlateRHIRenderingPolicyInterface RenderingPolicyInterface) {}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
+
+//////////////////////////////////////////////////////////////////////////

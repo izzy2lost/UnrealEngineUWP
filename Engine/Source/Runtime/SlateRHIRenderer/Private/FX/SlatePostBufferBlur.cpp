@@ -11,23 +11,22 @@
 /////////////////////////////////////////////////////
 // FSlatePostBufferBlurProxy
 
-void FSlatePostBufferBlurProxy::PostProcess_Renderthread(FRHICommandListImmediate& RHICmdList, FRHITexture* Src, FRHITexture* Dst, FIntRect SrcRect, FIntRect DstRect, FSlateRHIRenderingPolicyInterface InRenderingPolicy)
+void FSlatePostBufferBlurProxy::PostProcess_Renderthread(FRDGBuilder& GraphBuilder, const FScreenPassTexture& InputTexture, const FScreenPassTexture& OutputTexture)
 {
-	if (InRenderingPolicy.IsValid())
+	RDG_EVENT_SCOPE(GraphBuilder, "SlatePostBufferBlur");
+
+	if (GaussianBlurStrength_RenderThread < UE_SMALL_NUMBER)
 	{
-		if (GaussianBlurStrength_RenderThread < UE_SMALL_NUMBER)
-		{
-			// No real blur, just copy
-			FRHICopyTextureInfo CopyInfo;
-			CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
-			CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
-			TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
-		}
-		else
-		{
-			// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
-			InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrength_RenderThread);
-		}
+		AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), InputTexture, FScreenPassRenderTarget(OutputTexture));
+	}
+	else
+	{
+		FSlatePostProcessSimpleBlurPassInputs BlurInputs;
+		BlurInputs.InputTexture = InputTexture;
+		BlurInputs.OutputTexture = OutputTexture;
+		BlurInputs.Strength = GaussianBlurStrength_RenderThread;
+
+		AddSlatePostProcessBlurPass(GraphBuilder, BlurInputs);
 	}
 }
 
@@ -88,49 +87,6 @@ USlatePostBufferBlur::USlatePostBufferBlur()
 USlatePostBufferBlur::~USlatePostBufferBlur()
 {
 	RenderThreadProxy = nullptr;
-}
-
-void USlatePostBufferBlur::PostProcess(FRenderResource* InViewInfo, FRenderResource* InViewportTexture, FVector2D InElementWindowSize, FSlateRHIRenderingPolicyInterface InRenderingPolicy, UTextureRenderTarget2D* InSlatePostBuffer)
-{
-	if (!InRenderingPolicy.IsValid())
-	{
-		return;
-	};
-
-	// Explicit param copy to avoid renderthread from reading value during gamethread write
-	float GaussianBlurStrengthCopy = GaussianBlurStrength;
-
-	// Enqueue default post process command, will trigger on scene before any other slate element draws
-	ENQUEUE_RENDER_COMMAND(FUpdateSlatePostBuffersWithFX_Blur)([InViewInfo, InViewportTexture, InElementWindowSize, InRenderingPolicy, InSlatePostBuffer, GaussianBlurStrengthCopy](FRHICommandListImmediate& RHICmdList)
-	{
-		// Get Backbuffer, which can vary between PIE or standalone
-		FTextureRHIRef BackBuffer = USlateRHIPostBufferProcessor::GetBackbuffer_RenderThread(InViewInfo, InViewportTexture, InElementWindowSize, RHICmdList);
-
-		if (BackBuffer)
-		{
-			// Get Src / Dst textures & their rects, again may vary between PIE or standalone
-			// Here we can simply use Src Rect since the Src texture in PIE is the 'BufferedRT' scene backbuffer without the editor
-			FTextureRHIRef Src = USlateRHIPostBufferProcessor::GetSrcTexture_RenderThread(BackBuffer, InViewportTexture);
-			FTextureReferenceRHIRef& Dst = USlateRHIPostBufferProcessor::GetDstTexture_RenderThread(InSlatePostBuffer);
-			FIntPoint DstExtent = USlateRHIPostBufferProcessor::GetDstExtent_RenderThread(BackBuffer, InViewportTexture);
-			FIntRect SrcRect = FIntRect(0, 0, Src->GetSizeX(), Src->GetSizeY());
-			FIntRect DstRect = FIntRect(0, 0, DstExtent.X, DstExtent.Y);
-
-			if (GaussianBlurStrengthCopy < UE_SMALL_NUMBER)
-			{
-				// No real blur, just copy
-				FRHICopyTextureInfo CopyInfo;
-				CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
-				CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
-				TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
-			}
-			else
-			{
-				// Use rendering policy to perform blur post process with desired Src / Dst & respective extents
-				InRenderingPolicy.BlurRectExternal(RHICmdList, Src, Dst, SrcRect, DstRect, GaussianBlurStrengthCopy);
-			}
-		}
-	});
 }
 
 TSharedPtr<FSlateRHIPostBufferProcessorProxy> USlatePostBufferBlur::GetRenderThreadProxy()

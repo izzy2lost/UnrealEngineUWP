@@ -46,8 +46,6 @@ public:
 	FSlateElementBatch(const FSlateShaderResource* InShaderResource, const FShaderParams& InShaderParams, ESlateShader ShaderType, ESlateDrawPrimitive PrimitiveType, ESlateDrawEffect InDrawEffects, ESlateBatchDrawFlag InBatchFlags, const FSlateDrawElement& InDrawElement, int32 InstanceCount = 0, uint32 InstanceOffset = 0, ISlateUpdatableInstanceBuffer* InstanceData = nullptr);
 	FSlateElementBatch(TWeakPtr<ICustomSlateElement, ESPMode::ThreadSafe> InCustomDrawer, const FSlateDrawElement& InDrawElement);
 
-	void SaveClippingState(const TArray<FSlateClippingState>& PrecachedClipStates);
-
 	bool operator==(const FSlateElementBatch& Other) const
 	{
 		return BatchKey == Other.BatchKey && ShaderResource == Other.ShaderResource;
@@ -172,6 +170,9 @@ public:
 
 	int32 GetNumFinalBatches() const { return NumBatches; }
 
+	int32 GetMaxNumFinalVertices() const { return MaxNumFinalVertices; }
+	int32 GetMaxNumFinalIndices() const { return MaxNumFinalIndices; }
+
 	const FSlateVertexArray& GetFinalVertexData() const { return FinalVertexData; }
 	const FSlateIndexArray& GetFinalIndexData() const { return FinalIndexData; }
 
@@ -198,12 +199,6 @@ public:
 		ESlateBatchDrawFlag InDrawFlags,
 		int8 SceneIndex);
 
-	/** Adds a cached batch, used in retained rendering */
-	void AddCachedBatches(const TSparseArray<FSlateRenderBatch>& InCachedBatches);
-
-	UE_DEPRECATED(5.5, "AddCachedBatchesToBatchData is no longer needed since this class is a friend FSlateElementBatcher. See: FSlateElementBatcher::AddCachedElements.")
-	static void AddCachedBatchesToBatchData(FSlateBatchData* BatchDataSDR, FSlateBatchData* BatchDataHDR, const TSparseArray<FSlateRenderBatch>& InCachedBatches);
-
 public:
 	friend FSlateElementBatcher;
 
@@ -222,6 +217,9 @@ private:
 
 	FSlateVertexArray FinalVertexData;
 	FSlateIndexArray  FinalIndexData;
+
+	int32 MaxNumFinalVertices = 0;
+	int32 MaxNumFinalIndices = 0;
 
 	int32 FirstRenderBatchIndex;
 

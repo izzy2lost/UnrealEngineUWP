@@ -36,10 +36,17 @@ void FSlateMaterialShaderVS::SetViewProjection(FRHIBatchedShaderParameters& Batc
 	SetShaderValue(BatchedParameters, ViewProjection, InViewProjection );
 }
 
-void FSlateMaterialShaderVS::SetMaterialShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material)
+void FSlateMaterialShaderVS::SetMaterialShaderParameters(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FSceneInterface* Scene,
+	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+	const FMaterialRenderProxy* MaterialRenderProxy,
+	const FMaterial* Material)
 {
-	SetViewParameters(BatchedParameters, View, View.ViewUniformBuffer);
-	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, View);
+	const auto& ViewUniformBufferParameter = GetUniformBufferParameter<FViewUniformShaderParameters>();
+	SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
+
+	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, Scene);
 }
 
 bool FSlateMaterialShaderPS::ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
@@ -104,13 +111,21 @@ void FSlateMaterialShaderPS::SetBlendState(FGraphicsPipelineStateInitializer& Gr
 	};
 }
 
-void FSlateMaterialShaderPS::SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material, const FShaderParams& InShaderParams)
+void FSlateMaterialShaderPS::SetParameters(
+	FRHIBatchedShaderParameters& BatchedParameters,
+	const FSceneInterface* Scene,
+	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+	const FMaterialRenderProxy* MaterialRenderProxy,
+	const FMaterial* Material,
+	const FShaderParams& InShaderParams)
 {
 	SetShaderValue(BatchedParameters, ShaderParams, (FVector4f)InShaderParams.PixelParams);
 	SetShaderValue(BatchedParameters, ShaderParams2, (FVector4f)InShaderParams.PixelParams2);
 
-	SetViewParameters(BatchedParameters, View, View.ViewUniformBuffer);
-	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, View);
+	const auto& ViewUniformBufferParameter = GetUniformBufferParameter<FViewUniformShaderParameters>();
+	SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
+
+	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, Scene);
 }
 
 void FSlateMaterialShaderPS::SetAdditionalTexture(FRHIBatchedShaderParameters& BatchedParameters, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState )

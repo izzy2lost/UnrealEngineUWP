@@ -25,16 +25,18 @@ public:
 	 *
 	 * @param InViewProjection	The ViewProjection matrix to use when this shader is bound 
 	 */
-	void SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection );
+	void SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection);
 
-	void SetMaterialShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material);
+	void SetMaterialShaderParameters(
+		FRHIBatchedShaderParameters& BatchedParameters,
+		const FSceneInterface* Scene,
+		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+		const FMaterialRenderProxy* MaterialRenderProxy,
+		const FMaterial* Material);
 
-	/** Serializes the shader data */
-	//virtual bool Serialize( FArchive& Ar ) override;
 private:
-	
-		/** ViewProjection parameter used by the shader */
-		LAYOUT_FIELD(FShaderParameter, ViewProjection)
+	/** ViewProjection parameter used by the shader */
+	LAYOUT_FIELD(FShaderParameter, ViewProjection)
 };
 
 class FSlateMaterialShaderPS : public FMaterialShader
@@ -53,7 +55,13 @@ public:
 
 	void SetBlendState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FMaterial* Material);
 
-	void SetParameters(FRHIBatchedShaderParameters& BatchedParameters, const FSceneView& View, const FMaterialRenderProxy* MaterialRenderProxy, const FMaterial* Material, const FShaderParams& InShaderParams);
+	void SetParameters(
+		FRHIBatchedShaderParameters& BatchedParameters,
+		const FSceneInterface* Scene,
+		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
+		const FMaterialRenderProxy* MaterialRenderProxy,
+		const FMaterial* Material,
+		const FShaderParams& InShaderParams);
 
 	void SetDisplayGammaAndContrast(FRHIBatchedShaderParameters& BatchedParameters, float InDisplayGamma, float InContrast);
 

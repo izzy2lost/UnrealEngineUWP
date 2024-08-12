@@ -19,6 +19,7 @@ enum class ESlatePostRT : uint8
 	ESlatePostRT_2 = 1 << 2,
 	ESlatePostRT_3 = 1 << 3,
 	ESlatePostRT_4 = 1 << 4,
+	All = ESlatePostRT_0 | ESlatePostRT_1 | ESlatePostRT_2 | ESlatePostRT_3 | ESlatePostRT_4,
 	Num = 5
 };
 

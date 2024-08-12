@@ -24,14 +24,14 @@
 /**
  * Custom Slate drawer to update slate post buffer
  */
-class FPostBufferUpdater : public ICustomSlateElementRHI
+class FPostBufferUpdater : public ICustomSlateElement
 {
 public:
 
-	//~ Begin ICustomSlateElementRHI interface
-	virtual void Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InWindowBackBuffer, const FSlateCustomDrawParams& Params, class FSlateRHIRenderingPolicyInterface RenderingPolicyInterface) override;
+	//~ Begin ICustomSlateElement interface
+	virtual void Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs) override;
 	virtual void PostCustomElementAdded(class FSlateElementBatcher& ElementBatcher) const override;
-	//~ End ICustomSlateElementRHI interface
+	//~ End ICustomSlateElement interface
 
 public:
 
@@ -57,75 +57,42 @@ public:
 /////////////////////////////////////////////////////
 // FPostBufferUpdater
 
-void FPostBufferUpdater::Draw_RHIRenderThread(FRHICommandListImmediate& RHICmdList, const FTextureRHIRef& InWindowBackBuffer, const FSlateCustomDrawParams& Params, FSlateRHIRenderingPolicyInterface RenderingPolicyInterface)
+void FPostBufferUpdater::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
-	if (FSlateRHIRenderingPolicyInterface::GetProcessSlatePostBuffers())
+	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(Inputs.UsedSlatePostBuffers & BuffersToUpdate_Renderthread))
 	{
-		for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+		UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
+		if (!SlatePostBuffer)
 		{
-			bool bPostBufferBitUsed = (Params.UsedSlatePostBuffers & SlatePostBufferBit & BuffersToUpdate_Renderthread) != ESlatePostRT::None;
+			continue;
+		}
 
-			if (bPostBufferBitUsed)
+		// Provided output texture is actually the input into our custom post process texture.
+		const FScreenPassTexture InputTexture(Inputs.OutputTexture, Inputs.SceneViewRect);
+
+		// Write to our custom post process texture.
+		const FScreenPassTexture OutputTexture(RegisterExternalTexture(GraphBuilder, SlatePostBuffer->TextureReference.TextureReferenceRHI, TEXT("SlatePostProcessTexture")));
+
+		if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
+		{
+			if (TSharedPtr<FSlatePostProcessorUpdaterProxy>* ProcessorUpdaterItr = ProcessorUpdaters.Find(SlatePostBufferBit))
 			{
-				UTextureRenderTarget2D* SlatePostBuffer = Cast<UTextureRenderTarget2D>(USlateRHIRendererSettings::Get()->TryGetPostBufferRT(SlatePostBufferBit));
-				if (!SlatePostBuffer)
+				if (TSharedPtr<FSlatePostProcessorUpdaterProxy> ProcessorUpdater = *ProcessorUpdaterItr)
 				{
-					continue;
-				}
+					ProcessorUpdater->UpdateProcessor_RenderThread(PostProcessorProxy);
 
-				FRHITexture* Src = InWindowBackBuffer.IsValid() ? InWindowBackBuffer.GetReference() : nullptr;
-				FRHITexture* Dst = SlatePostBuffer->TextureReference.TextureReferenceRHI;
-
-				if (!Src || !Dst)
-				{
-					continue;
-				}
-
-				FIntRect SrcRect = FIntRect(0, 0, Src->GetDesc().Extent.X, Src->GetDesc().Extent.Y);
-				FIntRect DstRect = FIntRect(0, 0, Dst->GetDesc().Extent.X, Dst->GetDesc().Extent.Y);
-
-				if (GIsEditor)
-				{
-					// In PIE, the backbuffer for slate will be the entire editor window, So instead use the ViewRect as our extent
-					SrcRect = Params.ViewRect;
-				}
-				
-				// Note: In PIE we draw the scene even during resizes, the ViewRect can change even after a previous draw
-				// leading to crashes if we do not ensure size, we skip below if sizes do not match. This can result in a PostRT 
-				// with no update in PIE (May appear white during active drag-resizing). However this is not an issue in 
-				// Standalone since we don't draw during active resizes.
-				if (SrcRect.Width() != DstRect.Width() || SrcRect.Height() != DstRect.Height())
-				{
-					continue;
-				}
-
-				if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
-				{
-					if (TSharedPtr<FSlatePostProcessorUpdaterProxy>* ProcessorUpdaterItr = ProcessorUpdaters.Find(SlatePostBufferBit))
+					if (ProcessorUpdater->bSkipBufferUpdate)
 					{
-						if (TSharedPtr<FSlatePostProcessorUpdaterProxy> ProcessorUpdater = *ProcessorUpdaterItr)
-						{
-							ProcessorUpdater->UpdateProcessor_RenderThread(PostProcessorProxy);
-
-							if (ProcessorUpdater->bSkipBufferUpdate)
-							{
-								return;
-							}
-						}
+						return;
 					}
-
-					PostProcessorProxy->PostProcess_Renderthread(RHICmdList, Src, Dst, SrcRect, DstRect, RenderingPolicyInterface);
-				}
-				else
-				{
-					FRHICopyTextureInfo CopyInfo;
-
-					// Copy just the viewport RT if in PIE, else do entire backbuffer
-					CopyInfo.SourcePosition = FIntVector(SrcRect.Min.X, SrcRect.Min.Y, 0);
-					CopyInfo.Size = FIntVector(DstRect.Width(), DstRect.Height(), 1);
-					TransitionAndCopyTexture(RHICmdList, Src, Dst, CopyInfo);
 				}
 			}
+
+			PostProcessorProxy->PostProcess_Renderthread(GraphBuilder, InputTexture, OutputTexture);
+		}
+		else
+		{
+			AddDrawTexturePass(GraphBuilder, FScreenPassViewInfo(), InputTexture, OutputTexture);
 		}
 	}
 }
@@ -142,24 +109,16 @@ void FPostBufferUpdater::PostCustomElementAdded(FSlateElementBatcher& ElementBat
 	}
 
 	// Give proxies a chance to update their renderthread values.
-	if (FSlateRHIRenderingPolicyInterface::GetProcessSlatePostBuffers())
+	for (ESlatePostRT SlatePostBufferBit : MakeFlagsRange(BuffersToUpdate_Renderthread))
 	{
-		for (ESlatePostRT SlatePostBufferBit : TEnumRange<ESlatePostRT>())
+		if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
 		{
-			if (!USlateRHIRendererSettings::Get()->GetSlatePostSetting(SlatePostBufferBit).bEnabled)
-			{
-				continue;
-			}
+			continue;
+		}
 
-			bool bPostBufferBitUsed = (SlatePostBufferBit & BuffersToUpdate_Renderthread) != ESlatePostRT::None;
-
-			if (bPostBufferBitUsed)
-			{
-				if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
-				{
-					PostProcessorProxy->OnUpdateValuesRenderThread();
-				}
-			}
+		if (TSharedPtr<FSlateRHIPostBufferProcessorProxy> PostProcessorProxy = USlateFXSubsystem::GetPostProcessorProxy(SlatePostBufferBit))
+		{
+			PostProcessorProxy->OnUpdateValuesRenderThread();
 		}
 	}
 }

@@ -16,7 +16,7 @@
 #include "ThumbnailRendering/ThumbnailManager.h"
 #include "Engine/Texture2D.h"
 #include "TextureResource.h"
-
+#include "RenderGraphBuilder.h"
 
 class FExtender;
 class FPaintArgs;
@@ -37,15 +37,20 @@ public:
 	}
 
 	/** Sets the texture that this target renders to */
-	void SetRenderTargetTexture(FTextureRHIRef& InRHIRef)
+	void SetRenderTargetTexture(FRDGTexture* InTexture)
 	{
-		RenderTargetTextureRHI = InRHIRef;
+		RDGTexture = InTexture;
+	}
+
+	FRDGTexture* GetRenderTargetTexture(FRDGBuilder&) const override
+	{
+		return RDGTexture;
 	}
 
 	/** Clears the render target texture */
 	void ClearRenderTargetTexture()
 	{
-		RenderTargetTextureRHI.SafeRelease();
+		RDGTexture = nullptr;
 	}
 
 	/** Sets the viewport rect for the render target */
@@ -73,7 +78,7 @@ public:
 	}
 
 private:
-
+	FRDGTexture* RDGTexture = nullptr;
 	FIntRect ViewRect;
 	FIntRect ClippingRect;
 };
@@ -98,7 +103,7 @@ public:
 
 private:
 
-	virtual void Draw_RenderThread(FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params) override;
+	virtual void Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs) override;
 
 	/** Basic function to draw a block in the canvas */
 	void DrawBlock(FBatchedElements* BatchedElements, const FHitProxyId HitProxyId, const FRect2D& BlockRect, FColor Color, UTexture2D* Mask = nullptr);
@@ -1352,17 +1357,17 @@ void FUVCanvasDrawer::SetLayoutMode(ELayoutGridMode Mode)
 }
 
 
-void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdList, const void* InWindowBackBuffer, const FSlateCustomDrawParams& Params)
+void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPassInputs& Inputs)
 {
 	if (!Initialized)
 	{
 		return;
 	}
 
-	RenderTarget->SetRenderTargetTexture(*(FTextureRHIRef*)InWindowBackBuffer);
+	RenderTarget->SetRenderTargetTexture(Inputs.OutputTexture);
 
-	FCanvas Canvas(RenderTarget, nullptr, FGameTime(), GMaxRHIFeatureLevel);
-		
+	FCanvas& Canvas = *GraphBuilder.AllocObject<FCanvas>(RenderTarget, nullptr, FGameTime(), GMaxRHIFeatureLevel);
+
 	Canvas.SetRenderTargetRect(RenderTarget->GetViewRect());
 	Canvas.SetRenderTargetScissorRect(RenderTarget->GetClippingRect());
 
@@ -1545,10 +1550,9 @@ void FUVCanvasDrawer::Draw_RenderThread(class FRHICommandListImmediate& RHICmdLi
 		}
 	}
 
-	Canvas.Flush_RenderThread(RHICmdList, true);
+	Canvas.Flush_RenderThread(GraphBuilder, true);
 
 	RenderTarget->ClearRenderTargetTexture();
-	RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 }
 
 

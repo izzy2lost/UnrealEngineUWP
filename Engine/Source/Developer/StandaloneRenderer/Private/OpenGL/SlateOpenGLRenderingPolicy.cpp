@@ -86,8 +86,6 @@ void FSlateOpenGLRenderingPolicy::ReleaseResources()
  */
 void FSlateOpenGLRenderingPolicy::BuildRenderingBuffers(FSlateBatchData& InBatchData)
 {
-	InBatchData.MergeRenderBatches();
-
 	if( InBatchData.GetRenderBatches().Num() > 0 )
 	{
 		const FSlateVertexArray& FinalVertexData = InBatchData.GetFinalVertexData();
