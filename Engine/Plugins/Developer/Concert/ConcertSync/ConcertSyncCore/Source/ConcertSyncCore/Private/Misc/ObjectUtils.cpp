@@ -67,5 +67,37 @@ namespace UE::ConcertSyncCore
 		}
 		return Subpath.RightChop(LastDotIndex + 1);
 	}
+
+	TOptional<FSoftObjectPath> ReplaceActorInPath(const FSoftObjectPath& OldPath, const FSoftObjectPath& NewActor)
+	{
+		if (!IsActor(NewActor))
+		{
+			return {};
+		}
+		
+		// Example of an actor called floor
+		// SoftObjectPath = { AssetPath = {PackageName = "/Game/Maps/SyncBoxLevel", AssetName = "SyncBoxLevel"}, SubPathString = "PersistentLevel.Floor" } }
+		const FString& OldSubPathString = OldPath.GetSubPathString();
+		if (!OldSubPathString.Contains(TEXT("PersistentLevel."), ESearchCase::CaseSensitive))
+		{
+			return {};
+		}
+		const FString& NewSubPathString = NewActor.GetSubPathString();
+		
+		constexpr int32 PersistentLevelStringLength = 16; // "PersistentLevel." has 16 characters
+		constexpr int32 FirstActorCharIndex = PersistentLevelStringLength + 1;
+		const int32 IndexOfDotAfterActorName_OldSubPath = OldSubPathString.Find(TEXT("."), ESearchCase::CaseSensitive, ESearchDir::FromStart, FirstActorCharIndex);
+		
+		const bool bOldIsOnlyActor = !OldSubPathString.IsValidIndex(IndexOfDotAfterActorName_OldSubPath);
+		if (bOldIsOnlyActor)
+		{
+			return NewActor;
+		}
+
+		const FString ReplacedSubPathString = NewSubPathString
+			+ TEXT(".")
+			+ OldSubPathString.RightChop(IndexOfDotAfterActorName_OldSubPath + 1);
+		return FSoftObjectPath(NewActor.GetAssetPath(), ReplacedSubPathString);
+	}
 };
 

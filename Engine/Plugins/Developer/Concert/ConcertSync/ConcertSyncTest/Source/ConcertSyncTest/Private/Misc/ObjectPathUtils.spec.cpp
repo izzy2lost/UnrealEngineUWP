@@ -7,6 +7,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/ObjectPathOuterIterator.h"
 #include "Misc/ObjectPathUtils.h"
+#include "Misc/ObjectUtils.h"
 
 namespace UE::ConcertSyncTests
 {
@@ -72,6 +73,71 @@ namespace UE::ConcertSyncTests
 			TestFalse(TEXT("/Game/Map.Map"), NoPath.IsSet());
 			const TOptional<FSoftObjectPath> NullPath = ConcertSyncCore::GetOuterPath(nullptr);
 			TestFalse(TEXT("Null"), NullPath.IsSet());
+		});
+
+		Describe("ReplaceActorOf", [this]
+		{
+			Describe("Positive (valid args)", [this]
+			{
+				It("With subobject in OldPath", [this]
+				{
+					const FSoftObjectPath OldPath(TEXT("/Game/Map.Map:PersistentLevel.OldActor.Subobject"));
+					const FSoftObjectPath NewPath(TEXT("/Game/Map.Map:PersistentLevel.NewActor"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldPath, NewPath);
+					TestTrue(TEXT("Equals"), Replacement && *Replacement == FSoftObjectPath(TEXT("/Game/Map.Map:PersistentLevel.NewActor.Subobject")));
+				});
+
+				It("Only replace actor", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/Map.Map:PersistentLevel.Actor"));
+					const FSoftObjectPath NewPath(TEXT("/Game/Map.Map:PersistentLevel.NewActor"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewPath);
+					TestTrue(TEXT("Equals"), Replacement && *Replacement == FSoftObjectPath(TEXT("/Game/Map.Map:PersistentLevel.NewActor")));
+				});
+
+				It("Only replace path", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/OldMap.OldMap:PersistentLevel.Actor"));
+					const FSoftObjectPath NewPath(TEXT("/Game/NewMap.NewMap:PersistentLevel.Actor"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewPath);
+					TestTrue(TEXT("Equals"), Replacement && *Replacement == FSoftObjectPath(TEXT("/Game/NewMap.NewMap:PersistentLevel.Actor")));
+				});
+
+				It("Actor called \"PersistentLevel\"", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/OldMap.OldMap:PersistentLevel.PersistentLevel.Subobject"));
+					const FSoftObjectPath NewPath(TEXT("/Game/NewMap.NewMap:PersistentLevel.PersistentLevel"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewPath);
+					TestTrue(TEXT("Equals"), Replacement && *Replacement == FSoftObjectPath(TEXT("/Game/NewMap.NewMap:PersistentLevel.PersistentLevel.Subobject")));
+				});
+			});
+			
+			Describe("Negative (invalid args)", [this]
+			{
+				It("OldPath has no actor", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/Map.Map"));
+					const FSoftObjectPath NewActor(TEXT("/Game/Map.Map:PersistentLevel.Actor.Subobject"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewActor);
+					TestFalse(TEXT("Invalid"), Replacement.IsSet());
+				});
+
+				It("NewPath has no actor", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/Map.Map:PersistentLevel.Actor.Subobject"));
+					const FSoftObjectPath NewActor(TEXT("/Game/Map.Map"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewActor);
+					TestFalse(TEXT("Invalid"), Replacement.IsSet());
+				});
+
+				It("NewPath cannot contain subobjects", [this]
+				{
+					const FSoftObjectPath OldSubobject(TEXT("/Game/Map.Map:PersistentLevel.OldActor.Subobject"));
+					const FSoftObjectPath NewPath(TEXT("/Game/Map.Map:PersistentLevel.NewActor.Subobject"));
+					const TOptional<FSoftObjectPath> Replacement = ConcertSyncCore::ReplaceActorInPath(OldSubobject, NewPath);
+					TestFalse(TEXT("Invalid"), Replacement.IsSet());
+				});
+			});
 		});
 	}
 }
