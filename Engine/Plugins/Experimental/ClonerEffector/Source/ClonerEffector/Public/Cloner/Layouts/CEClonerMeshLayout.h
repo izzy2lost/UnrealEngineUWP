@@ -89,10 +89,13 @@ protected:
 
 	void OnSampleMeshTransformed(USceneComponent* InComponent, EUpdateTransformFlags InFlags, ETeleportType InType);
 
+	UFUNCTION()
+	void OnSampleActorDestroyed(AActor* InDestroyedActor);
+
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")
 	ECEClonerMeshAsset Asset = ECEClonerMeshAsset::StaticMesh;
 
-	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Sample Actor", Category="Layout")
+	UPROPERTY(EditInstanceOnly, Setter, Getter, DisplayName="Sample Actor", Category="Layout", meta=(DisplayAfter="Asset"))
 	TWeakObjectPtr<AActor> SampleActorWeak;
 
 	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Layout")

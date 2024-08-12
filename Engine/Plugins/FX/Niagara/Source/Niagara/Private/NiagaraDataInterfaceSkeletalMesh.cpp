@@ -3480,7 +3480,7 @@ void UNiagaraDataInterfaceSkeletalMesh::SetSourceComponentFromBlueprints(USkelet
 	++ChangeId;
 	UnbindSourceDelegates();
 	SourceComponent = ComponentToUse;
-	SoftSourceActor = ComponentToUse->GetOwner();
+	SoftSourceActor = ComponentToUse ? ComponentToUse->GetOwner() : nullptr;
 	BindSourceDelegates();
 }
 
