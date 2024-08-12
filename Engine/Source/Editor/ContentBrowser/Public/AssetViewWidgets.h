@@ -229,6 +229,9 @@ protected:
 	/** Gets the text for the source control text block in the tooltip */
 	FText GetSourceControlText() const;
 
+	/** Gets the text detailing all the modified external packages (and their contained objects) */
+	FText GetExternalPackagesText() const;
+
 	/** Helper function for CreateToolTipWidget. Gets the user description for the asset, if it exists. */
 	FText GetAssetUserDescription() const;
 
@@ -258,6 +261,9 @@ protected:
 
 	/** Returns the width at which the name label will wrap the name */
 	virtual float GetNameTextWrapWidth() const { return 0.0f; }
+
+	/** Caches the ExternalPackagesText */
+	void CacheDirtyExternalPackageInfo();
 
 protected:
 	/** Data for a cached display tag for this item (used in the tooltip, and also as the display string in column views) */
@@ -345,6 +351,9 @@ protected:
 
 	/** Whether the item has a valid scc state brush (not empty) */
 	bool bHasCCStateBrush = false;
+
+	bool bShouldSaveExternalPackages = false;
+	FString CachedDirtyPackagesList;
 
 	/** Delegate handle for the HandleSourceControlStateChanged function callback */
 	FDelegateHandle SourceControlStateChangedDelegateHandle;

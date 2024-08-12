@@ -3,6 +3,9 @@
 
 #include "AssetViewWidgets.h"
 
+#include "ActorFolder.h"
+#include "ActorFolderDesc.h"
+#include "AssetDefinitionRegistry.h"
 #include "AssetRegistry/AssetData.h"
 #include "AssetTagItemTypes.h"
 #include "AssetThumbnail.h"
@@ -53,6 +56,7 @@
 #include "SlateOptMacros.h"
 #include "SlotBase.h"
 #include "SourceControlHelpers.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Styling/ISlateStyle.h"
 #include "Styling/SlateBrush.h"
 #include "Styling/SlateTypes.h"
@@ -412,6 +416,16 @@ void SAssetViewItem::Construct( const FArguments& InArgs )
 	// control state has been cached; for instance when the widget is killed via FWidgetGenerator::OnEndGenerationPass 
 	// or a view is refreshed due to user filtering/navigating):
 	HandleSourceControlStateChanged();
+
+	FAssetData AssetData;
+	AssetItem->GetItem().Legacy_TryGetAssetData(AssetData);
+	if (AssetData.IsValid())
+	{
+		if (const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForAsset(AssetData))
+		{
+			bShouldSaveExternalPackages = AssetDefinition->ShouldSaveExternalPackages();
+		}
+	}
 }
 
 void SAssetViewItem::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
@@ -591,6 +605,83 @@ void SAssetViewItem::HandleSourceControlStateChanged()
 					FSlateIcon SCCIcon = SourceControlState->GetIcon();
 					bHasCCStateBrush = SCCIcon.GetIcon() != FStyleDefaults::GetNoBrush();
 					SCCStateWidget->SetFromSlateIcon(SCCIcon);
+				}
+			}
+		}
+	}
+}
+
+void SAssetViewItem::CacheDirtyExternalPackageInfo()
+{
+	if(bShouldSaveExternalPackages)
+	{
+		CachedDirtyPackagesList.Empty();
+		
+		FAssetData AssetData;		
+		AssetItem->GetItem().Legacy_TryGetAssetData(AssetData);
+		if (AssetData.IsAssetLoaded())
+		{
+			if(const UObject* Asset = AssetData.GetAsset())
+			{
+				if (const UPackage* Package = Asset->GetPackage())
+				{
+					TArray<UPackage*> ExternalPackages = Package->GetExternalPackages();
+					IAssetRegistry& AssetRegistry = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry")).Get();
+
+					// Mirrored/copied from SSourceControlCommon.cpp
+					auto RetrieveAssetName = [](const FAssetData& InAssetData) -> FString
+					{
+						static const FName NAME_ActorLabel(TEXT("ActorLabel"));
+						if (InAssetData.FindTag(NAME_ActorLabel))
+						{
+							FString ResultAssetName;
+							InAssetData.GetTagValue(NAME_ActorLabel, ResultAssetName);
+							return ResultAssetName;
+						}
+
+						if (InAssetData.FindTag(FPrimaryAssetId::PrimaryAssetDisplayNameTag))
+						{
+							FString ResultAssetName;
+							InAssetData.GetTagValue(FPrimaryAssetId::PrimaryAssetDisplayNameTag, ResultAssetName);
+							return ResultAssetName;
+						}
+
+						if (InAssetData.AssetClassPath == UActorFolder::StaticClass()->GetClassPathName())
+						{
+							FString ActorFolderPath = UActorFolder::GetAssetRegistryInfoFromPackage(InAssetData.PackageName).GetDisplayName();
+							if (!ActorFolderPath.IsEmpty())
+							{
+								return ActorFolderPath;
+							}
+						}
+
+						return InAssetData.AssetName.ToString();
+					};
+					
+					for (const UPackage* ExternalPackage : ExternalPackages)
+					{
+						if (ExternalPackage->IsDirty())
+						{
+							TArray<FAssetData> DirtyAssetDataEntries;
+							AssetRegistry.GetAssetsByPackageName(*ExternalPackage->GetName(), DirtyAssetDataEntries);
+
+							if (CachedDirtyPackagesList.Len())
+							{								
+								CachedDirtyPackagesList.Append("\n");
+							}
+							
+							CachedDirtyPackagesList.Append(ExternalPackage->GetPathName());
+							
+							for (const FAssetData& DirtyAssetData : DirtyAssetDataEntries)
+							{
+								const FString AssetName = RetrieveAssetName(DirtyAssetData);
+								const FString AssetClass = DirtyAssetData.AssetClassPath.GetAssetName().ToString();
+						
+								CachedDirtyPackagesList.Append("\n\t");
+								CachedDirtyPackagesList.Append(FString::Printf(TEXT("%s (%s)"), *AssetName, *AssetClass)); 
+							}
+						}
+					}
 				}
 			}
 		}
@@ -905,6 +996,22 @@ TSharedRef<SWidget> SAssetViewItem::CreateToolTipWidget() const
 						+ SVerticalBox::Slot()
 						.AutoHeight()
 						[
+							SNew(STextBlock)
+							.Visibility_Lambda([this]()-> EVisibility { return bShouldSaveExternalPackages && !GetExternalPackagesText().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+							.Text(LOCTEXT("DirtyExternalPackages", "Modified external packages:"))
+							.ColorAndOpacity(FStyleColors::Warning)
+						]
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
+							SNew(STextBlock)
+							.Visibility_Lambda([this]()-> EVisibility { return bShouldSaveExternalPackages && !GetExternalPackagesText().IsEmpty() ? EVisibility::Visible : EVisibility::Collapsed; })
+							.Text(this, &SAssetViewItem::GetExternalPackagesText)
+						]
+
+						+ SVerticalBox::Slot()
+						.AutoHeight()
+						[
 							GenerateExtraStateTooltipWidget()
 						]
 					]
@@ -1108,6 +1215,16 @@ FText SAssetViewItem::GetSourceControlText() const
 	return FText::GetEmpty();
 }
 
+FText SAssetViewItem::GetExternalPackagesText() const
+{
+	if (CachedDirtyPackagesList.Len())
+	{
+		return FText::FromString(CachedDirtyPackagesList);
+	}
+
+	return FText::GetEmpty();
+}
+
 FText SAssetViewItem::GetAssetUserDescription() const
 {
 	if (AssetItem && AssetItem->IsFile())
@@ -1167,6 +1284,8 @@ void SAssetViewItem::UpdateDirtyState()
 		bItemDirty = bNewIsDirty;
 		DirtyStateChanged();
 	}
+		
+	CacheDirtyExternalPackageInfo();
 }
 
 bool SAssetViewItem::IsDirty() const
