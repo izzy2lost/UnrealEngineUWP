@@ -51,7 +51,7 @@ namespace MeshPaintVirtualTexture
 	 * Get the 2 dword texture descriptor from texture resource. 
 	 * Will return a null descriptor if the texture resource is not from a UMeshPaintVirtualTexture.
 	 */
-	FUintVector2 GetTextureDescriptor(FTextureResource* InTextureResource);
+	FUintVector2 GetTextureDescriptor(FTextureResource* InTextureResource, uint32 InOptionalCoordinateIndex = 0);
 
 	/** Scene view parameters that describe the virtual texture space shared by all UMeshPaintVirtualTexture objects. */
 	struct FUniformParams

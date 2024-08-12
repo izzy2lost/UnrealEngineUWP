@@ -125,6 +125,7 @@
 #include "Materials/MaterialExpressionInverseLinearInterpolate.h"
 #include "Materials/MaterialExpressionLightmapUVs.h"
 #include "Materials/MaterialExpressionMeshPaintTextureObject.h"
+#include "Materials/MaterialExpressionMeshPaintTextureReplace.h"
 #include "Materials/MaterialExpressionPrecomputedAOMask.h"
 #include "Materials/MaterialExpressionLightmassReplace.h"
 #include "Materials/MaterialExpressionLightVector.h"
@@ -3954,6 +3955,16 @@ UMaterialExpressionMeshPaintTextureObject::UMaterialExpressionMeshPaintTextureOb
 
 #if WITH_EDITOR
 
+void UMaterialExpressionMeshPaintTextureObject::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("MeshPaintTextureObject"));
+}
+
+void UMaterialExpressionMeshPaintTextureObject::GetExpressionToolTip(TArray<FString>& OutToolTip)
+{
+	ConvertToMultilineToolTip(TEXT("Get the Mesh Paint Texture object for feeding to a Texture Sample node."), 40, OutToolTip);
+}
+
 uint32 UMaterialExpressionMeshPaintTextureObject::GetOutputType(int32 OutputIndex)
 {
 	return MCT_TextureVirtual | MCT_TextureMeshPaint;
@@ -3966,10 +3977,59 @@ int32 UMaterialExpressionMeshPaintTextureObject::Compile(class FMaterialCompiler
 
 #endif // WITH_EDITOR
 
-void UMaterialExpressionMeshPaintTextureObject::GetCaption(TArray<FString>& OutCaptions) const
+UMaterialExpressionMeshPaintTextureReplace::UMaterialExpressionMeshPaintTextureReplace(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
 {
-	OutCaptions.Add(TEXT("MeshPaintTextureObject"));
+	// Structure to hold one-time initialization
+	struct FConstructorStatics
+	{
+		FText NAME_MeshPaintTexture;
+		FConstructorStatics()
+			: NAME_MeshPaintTexture(LOCTEXT("MeshPaintTexture", "MeshPaintTexture"))
+		{
+		}
+	};
+	static FConstructorStatics ConstructorStatics;
+
+#if WITH_EDITORONLY_DATA
+	MenuCategories.Add(ConstructorStatics.NAME_MeshPaintTexture);
+#endif
+
+	Outputs.Reset();
+	Outputs.Add(FExpressionOutput(TEXT("")));
 }
+
+#if WITH_EDITOR
+
+void UMaterialExpressionMeshPaintTextureReplace::GetCaption(TArray<FString>& OutCaptions) const
+{
+	OutCaptions.Add(TEXT("MeshPaintTextureReplace"));
+}
+
+void UMaterialExpressionMeshPaintTextureReplace::GetExpressionToolTip(TArray<FString>& OutToolTip)
+{
+	ConvertToMultilineToolTip(TEXT("Switch between inputs according to whether there is a valid Mesh Paint Texture available to sample."), 40, OutToolTip);
+}
+
+int32 UMaterialExpressionMeshPaintTextureReplace::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
+{
+	if (!Default.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing input Default"));
+	}
+	else if (!MeshPaintTexture.GetTracedInput().Expression)
+	{
+		return Compiler->Errorf(TEXT("Missing input MeshPaintTexture"));
+	}
+	else
+	{
+		const int32 Arg1 = Default.Compile(Compiler);
+		const int32 Arg2 = MeshPaintTexture.Compile(Compiler);
+		return Compiler->MeshPaintTextureReplace(Arg1, Arg2);
+	}
+}
+
+#endif // WITH_EDITOR
 
 UMaterialExpressionAdd::UMaterialExpressionAdd(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)

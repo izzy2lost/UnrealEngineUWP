@@ -30,6 +30,7 @@
 #include "/Engine/Private/DeferredShadingCommon.ush"
 #include "/Engine/Private/SparseVolumeTexture/SparseVolumeTextureCommon.ush"
 #include "/Engine/Shared/EnvironmentComponentsFlags.h"
+#include "/Engine/Private/MeshPaintTextureCommon.ush"
 
 // Reduce latency of Nanite material base pass pixel shaders caused by register pressure due to the calculation of WPO
 #if PIXELSHADER && IS_NANITE_SHADING_PASS && IS_BASE_PASS

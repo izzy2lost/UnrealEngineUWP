@@ -2679,7 +2679,7 @@ void FHLSLMaterialTranslator::GetMaterialEnvironment(EShaderPlatform InPlatform,
 
 			OutEnvironment.SetDefine(
 				*FString::Printf(TEXT("VIRTUALTEXTURE_PAGETABLE_UNIFORM_%d"), i), 
-				TEXT("GetPrimitiveData(Parameters).MeshPaintTextureDescriptor"));
+				TEXT("GetMeshPaintTextureDescriptor(GetPrimitiveData(Parameters))"));
 		}
 		else
 		{
@@ -8793,7 +8793,12 @@ int32 FHLSLMaterialTranslator::VertexColor()
 
 int32 FHLSLMaterialTranslator::MeshPaintTextureDescriptor()
 {
-	return GetPrimitiveProperty(EMaterialValueType(MCT_TextureVirtual | MCT_TextureMeshPaint), TEXT("MeshPaintTextureDescriptor"), TEXT("MeshPaintTextureDescriptor"));
+	return AddInlinedCodeChunkZeroDeriv(EMaterialValueType(MCT_TextureVirtual | MCT_TextureMeshPaint), TEXT("GetMeshPaintTextureDescriptor(GetPrimitiveData(Parameters))"));
+}
+
+int32 FHLSLMaterialTranslator::MeshPaintTextureReplace(int32 Invalid, int32 Valid)
+{
+	return GenericSwitch(TEXT("GetMeshPaintTextureDescriptorIsValid(GetPrimitiveData(Parameters))"), Valid, Invalid);
 }
 
 int32 FHLSLMaterialTranslator::PreSkinnedPosition()

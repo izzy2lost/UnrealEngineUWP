@@ -193,7 +193,7 @@ namespace MeshPaintVirtualTexture
 		return {};
 	}
 
-	FUintVector2 GetTextureDescriptor(FTextureResource* InTextureResource)
+	FUintVector2 GetTextureDescriptor(FTextureResource* InTextureResource, uint32 InOptionalCoordinateIndex)
 	{
 		FUintVector2 Descriptor(0, 0);
 
@@ -228,8 +228,9 @@ namespace MeshPaintVirtualTexture
 		const uint32 MaxLevel = AllocatedVT->GetMaxLevel();
 
 		// Descriptor layout should match shader unpacking in VTPageTableUniform_Unpack().
+		// We optionally pack a coordinate index which is used for debug views.
 		Descriptor.X = vPageX | (vPageY << 12) | (vPageTableMipBias << 24) | (SpaceID << 28);
-		Descriptor.Y = WidthInPages | (HeightInPages << 12) | (MaxLevel << 24);
+		Descriptor.Y = WidthInPages | (HeightInPages << 12) | (MaxLevel << 24) | (InOptionalCoordinateIndex << 30);
 		
 		return Descriptor;
 	}

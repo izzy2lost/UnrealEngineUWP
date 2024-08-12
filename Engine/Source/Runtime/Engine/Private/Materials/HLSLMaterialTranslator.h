@@ -1119,6 +1119,7 @@ protected:
 
 	virtual int32 VertexColor() override;
 	virtual int32 MeshPaintTextureDescriptor() override;
+	virtual int32 MeshPaintTextureReplace(int32 Invalid, int32 Valid) override;
 
 	virtual int32 PreSkinnedPosition() override;
 	virtual int32 PreSkinnedNormal() override;
