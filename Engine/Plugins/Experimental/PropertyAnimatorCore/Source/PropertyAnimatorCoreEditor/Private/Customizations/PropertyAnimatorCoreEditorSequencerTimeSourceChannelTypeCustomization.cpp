@@ -37,13 +37,15 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 	[
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot()
-		.FillWidth(1.f)
+		.AutoWidth()
+		.HAlign(HAlign_Fill)
 		[
 			ChannelPropertyHandle->CreatePropertyValueWidget()
 		]
 		+ SHorizontalBox::Slot()
 		.Padding(5.f, 0.f)
 		.AutoWidth()
+		.HAlign(HAlign_Fill)
 		[
 			SNew(SButton)
 			.HAlign(HAlign_Fill)
@@ -53,7 +55,8 @@ void FPropertyAnimatorCoreEditorSequencerTimeSourceChannelTypeCustomization::Cus
 			[
 				SNew(STextBlock)
 				.Font(IPropertyTypeCustomizationUtils::GetRegularFont())
-				.Text(LOCTEXT("AddSequencerTrack", "Add Sequencer track"))
+				.Text(LOCTEXT("AddSequencerTrack", "Create track"))
+				.ToolTipText(LOCTEXT("AddSequencerTrackTooltip", "Create a sequencer track for this channel"))
 			]
 		]
 	];

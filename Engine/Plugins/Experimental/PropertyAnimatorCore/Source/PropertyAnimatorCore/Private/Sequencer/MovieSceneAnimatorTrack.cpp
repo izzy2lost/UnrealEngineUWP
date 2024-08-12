@@ -90,12 +90,20 @@ void UMovieSceneAnimatorTrack::RemoveSectionAt(int32 InSectionIndex)
 #if WITH_EDITORONLY_DATA
 FText UMovieSceneAnimatorTrack::GetDefaultDisplayName() const
 {
+	if (!Sections.IsEmpty() && Sections[0])
+	{
+		if (const UMovieSceneAnimatorSection* AnimatorSection = Cast<UMovieSceneAnimatorSection>(Sections[0]))
+		{
+			return FText::Format(LOCTEXT("MovieSceneAnimatorTrackChannelName", "Animator Channel {0}"), FText::AsNumber(AnimatorSection->GetChannel()));
+		}
+	}
+
 	return LOCTEXT("MovieSceneAnimatorTrackName", "Animator Channel");
 }
 
 bool UMovieSceneAnimatorTrack::CanRename() const
 {
-	return true;
+	return false;
 }
 #endif
 
