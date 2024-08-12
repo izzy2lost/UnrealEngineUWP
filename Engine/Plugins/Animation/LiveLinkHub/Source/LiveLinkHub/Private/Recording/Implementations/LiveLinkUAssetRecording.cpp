@@ -55,7 +55,8 @@ void ULiveLinkUAssetRecording::SaveRecordingData()
 {
 	bIsSavingRecordingData = true;
 	
-	FBufferArchive Archive;
+	TArray64<uint8> Memory;
+	FMemoryWriter64 Archive(Memory);
 	
 	int32 RecordingVersionToSave = RecordingVersion;
 	Archive << RecordingVersionToSave;
@@ -78,10 +79,7 @@ void ULiveLinkUAssetRecording::SaveRecordingData()
 		SaveFrameData(&Archive, FrameData.Key, FrameData.Value);
 	}
 
-	AnimationData.WriteBulkData(Archive);
-	
-	Archive.FlushCache();
-	Archive.Close();
+	AnimationData.WriteBulkData(Memory);
 
 	bIsSavingRecordingData = false;
 }
@@ -506,7 +504,7 @@ void ULiveLinkUAssetRecording::LoadRecordingAsync(int32 InStartFrame, int32 InCu
 		}
 		else
 		{
-			UE_LOG(LogLiveLinkHub, Error, TEXT("FrameDataSubjectKey is missing for file %s."), *GetRecordingDataFilePath());
+			UE_LOG(LogLiveLinkHub, Error, TEXT("FrameDataSubjectKey is missing for recording %s."), *GetName());
 		}
 	}
 }
@@ -756,17 +754,6 @@ void ULiveLinkUAssetRecording::LoadFrameData(FFrameFileData& InFrameData, FLiveL
 			// of locking the container each iteration.
 		}
 	}
-}
-
-FString ULiveLinkUAssetRecording::GetRecordingDataFilePath() const
-{
-	const FString AssetPath = GetPathName();
-	FString ObjectDirectory = FPaths::GetPath(AssetPath);
-	ObjectDirectory.RemoveFromStart(TEXT("/Game"));
-	const FString AbsoluteFolderPath = FPaths::ConvertRelativePathToFull(FPaths::Combine(FPaths::ProjectContentDir(), ObjectDirectory));
-	const FString AbsoluteFilePath = FString::Printf(TEXT("%s/%s.rec"), *AbsoluteFolderPath, *FPaths::GetBaseFilename(AssetPath));
-
-	return AbsoluteFilePath;
 }
 
 void ULiveLinkUAssetRecording::EjectAndUnload()

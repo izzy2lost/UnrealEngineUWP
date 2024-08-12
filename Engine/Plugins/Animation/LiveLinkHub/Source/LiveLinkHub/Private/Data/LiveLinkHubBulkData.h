@@ -70,7 +70,7 @@ public:
 	void Serialize(FArchive& Ar, UObject* Owner);
 
 	/** Write to the bulk data file. */
-	void WriteBulkData(FBufferArchive& BufferArchive);
+	void WriteBulkData(TArray64<uint8>& Data);
 	
 private:
 	/**

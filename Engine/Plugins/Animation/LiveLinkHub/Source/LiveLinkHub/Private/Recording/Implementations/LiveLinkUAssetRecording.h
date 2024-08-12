@@ -209,9 +209,6 @@ private:
 	/** Load frame data to a data container. */
 	void LoadFrameData(FFrameFileData& InFrameData, FLiveLinkRecordingBaseDataContainer& InDataContainer,
 		int32 RequestedStartFrame, int32 RequestedInitialFrame, int32 RequestedFramesToLoad);
-	
-	/** Retrieve the recording data file path for this asset. */
-	FString GetRecordingDataFilePath() const;
 
 	/** Eject this recording and make sure it is unloaded. */
 	void EjectAndUnload();

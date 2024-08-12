@@ -58,12 +58,12 @@ void FLiveLinkHubBulkData::Serialize(FArchive& Ar, UObject* Owner)
 	BulkData.Serialize(Ar, Owner);
 }
 
-void FLiveLinkHubBulkData::WriteBulkData(FBufferArchive& BufferArchive)
+void FLiveLinkHubBulkData::WriteBulkData(TArray64<uint8>& Data)
 {
 	BulkData.Lock(LOCK_READ_WRITE);
-	BulkData.Realloc(BufferArchive.Num());
-	unsigned char* BulkDataPtr = BulkData.Realloc(BufferArchive.Num());
-	FMemory::Memcpy(BulkDataPtr, BufferArchive.GetData(), BufferArchive.Num());
+	BulkData.Realloc(Data.Num());
+	unsigned char* BulkDataPtr = BulkData.Realloc(Data.Num());
+	FMemory::Memmove(BulkDataPtr, Data.GetData(), Data.Num());
 	BulkData.Unlock();
 }
 
