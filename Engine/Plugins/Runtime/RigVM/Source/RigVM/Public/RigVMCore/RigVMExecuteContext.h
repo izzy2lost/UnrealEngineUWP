@@ -514,6 +514,9 @@ protected:
 	/** The traits accessible to the current instruction */
 	TArray<FRigVMTraitScope> Traits;
 
+	/** Additional memory handles for each trait */
+	TArray<FRigVMMemoryHandle> AdditionalTraitMemoryHandles;
+
 #if UE_RIGVM_DEBUG_EXECUTION
 public:
 	bool bDebugExecution = false;

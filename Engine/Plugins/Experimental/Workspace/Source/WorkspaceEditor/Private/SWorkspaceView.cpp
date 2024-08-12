@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SWorkspaceView.h"
 #include "Workspace.h"
@@ -10,6 +10,7 @@
 #include "ScopedTransaction.h"
 #include "SPositiveActionButton.h"
 #include "SSceneOutliner.h"
+#include "WorkspaceAssetRegistryInfo.h"
 #include "WorkspaceSchema.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Outliner/WorkspaceOutlinerColumns.h"
@@ -104,7 +105,7 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 		InitOptions.ModeFactory = FCreateSceneOutlinerMode::CreateLambda([this, WeakWorkspaceEditor=InWorkspaceEditor.ToWeakPtr()](SSceneOutliner* InOutliner) { return new UE::Workspace::FWorkspaceOutlinerMode(UE::Workspace::FWorkspaceOutlinerMode(InOutliner, Workspace, WeakWorkspaceEditor)); });
 	}
 	SceneWorkspaceOutliner = SNew(SWorkspaceOutliner, InitOptions, Workspace);
-	
+
 	TWeakObjectPtr<UWorkspace> WeakWorkspace = Workspace;
 	ChildSlot
 	[
@@ -165,6 +166,17 @@ void SWorkspaceView::Construct(const FArguments& InArgs, UWorkspace* InWorkspace
 			]
 		]
 	];
+}
+
+void SWorkspaceView::SelectObject(UObject* InObject)
+{
+	FWorkspaceOutlinerItemExport Export(InObject->GetFName(), InObject);
+
+	FSceneOutlinerTreeItemPtr FoundItem = SceneWorkspaceOutliner->GetTreeItem(FSceneOutlinerTreeItemID(GetTypeHash(Export)));
+	if(FoundItem.IsValid())
+	{
+		SceneWorkspaceOutliner->SetItemSelection(FoundItem, true, ESelectInfo::OnMouseClick);	// Not direct, so we get callbacks
+	}
 }
 
 }

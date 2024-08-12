@@ -88,7 +88,7 @@ namespace UE::AnimNext
 		}
 	};
 
-	FEvaluationProgram EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance)
+	FEvaluationProgram EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance)
 	{
 		return EvaluateGraph(GraphInstance.GetGraphRootPtr());
 	}

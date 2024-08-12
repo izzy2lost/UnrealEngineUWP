@@ -10,7 +10,7 @@
 namespace UE::AnimNext::Editor
 {
 
-const FName CompilerResultsTabName("CompilerResultsTab");
+const FLazyName CompilerResultsTabName("CompilerResultsTab");
 
 // ***************************************************************************
 

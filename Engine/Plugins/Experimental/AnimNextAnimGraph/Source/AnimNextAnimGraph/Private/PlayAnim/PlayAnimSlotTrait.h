@@ -11,10 +11,9 @@
 #include "TraitInterfaces/IInertializerBlend.h"
 #include "TraitInterfaces/ISmoothBlend.h"
 #include "TraitInterfaces/IUpdate.h"
-#include "Module/AnimNextModule.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 #include "PlayAnim/PlayAnimEvents.h"
-#include "Param/PropertyBagProxy.h"
 #include "Chooser.h"
 
 #include "PlayAnimSlotTrait.generated.h"
@@ -109,7 +108,7 @@ namespace UE::AnimNext
 			FPlayAnimBlendSettings BlendSettings;
 
 			// The module used by the graph instance, as selected by the chooser
-			TObjectPtr<const UAnimNextModule> Module;
+			TObjectPtr<const UAnimNextAnimationGraph> AnimationGraph;
 
 			// The graph instance
 			FAnimNextGraphInstancePtr GraphInstance;
@@ -125,7 +124,7 @@ namespace UE::AnimNext
 			bool bWasRelevant = false;
 
 			// Initializes a request to begin playing
-			void Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextModule* InModule);
+			void Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextAnimationGraph* InAnimationGraph);
 		};
 
 		using FSharedData = FAnimNextPlayAnimSlotTraitSharedData;
@@ -142,12 +141,6 @@ namespace UE::AnimNext
 			// All other requests are blending out
 			int32 CurrentlyActiveRequestIndex = INDEX_NONE;
 
-			// The parameters that control our sub-graphs
-			TUniquePtr<FPropertyBagProxy> SubGraphParameters;
-
-			// The param stack layer handle for our sub-graph parameters
-			FParamStack::FPushedLayerHandle SubGraphParametersLayerHandle;
-
 			void Construct(const FExecutionContext& Context, const FTraitBinding& Binding);
 			void Destruct(const FExecutionContext& Context, const FTraitBinding& Binding);
 		};
@@ -161,7 +154,6 @@ namespace UE::AnimNext
 
 		// IUpdate impl
 		virtual void PreUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override;
-		virtual void PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const override;
 
 		// IUpdateTraversal impl
 		virtual void QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const override;

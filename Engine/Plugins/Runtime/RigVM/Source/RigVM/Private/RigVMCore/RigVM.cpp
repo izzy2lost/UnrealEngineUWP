@@ -2142,21 +2142,45 @@ ERigVMExecuteResult URigVM::ExecuteInstructions(FRigVMExtendedExecuteContext& Co
 			case ERigVMOpCode::SetupTraits:
 			{
 				ContextPublicData.Traits.Reset();
-				
+				ContextPublicData.AdditionalTraitMemoryHandles.Reset();
+
 				const TArray<int32>& TraitList = *(TArray<int32>*)Context.CachedMemoryHandles[FirstHandleForInstruction[ContextPublicData.InstructionIndex]].GetData();
+				ContextPublicData.Traits.Reserve(TraitList.Num());
+				ContextPublicData.AdditionalTraitMemoryHandles.Reserve(TraitList.Num());
+				int32 AdditionalStartIndex = INDEX_NONE;
+				int32 AdditionalNum = 0;
 				for(const int32 TraitPropertyIndex : TraitList)
 				{
+					// Properties from programmatic pins that are added to the trait index list are added before their respective trait.
+					// AdditionalMemoryHandles is accumulated prior to building the FRigVMTraitScope, and each FRigVMTraitScope has a view into
+					// the overall ContextPublicData.AdditionalTraitMemoryHandles buffer.
 					if(Context.WorkMemoryStorage.GetProperties().IsValidIndex(TraitPropertyIndex))
 					{
 						const FProperty* Property = Context.WorkMemoryStorage.GetProperties()[TraitPropertyIndex];
-						if(const FStructProperty* StructProperty = CastField<FStructProperty>(Property))
+						const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+						if(StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct()))
 						{
-							if(StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct()))
+							TConstArrayView<FRigVMMemoryHandle> AdditionalMemoryHandles;
+							if(AdditionalStartIndex != INDEX_NONE)
 							{
-								ContextPublicData.Traits.Emplace(
-									Context.WorkMemoryStorage.GetData<FRigVMTrait>(StructProperty),
-									Cast<UScriptStruct>(StructProperty->Struct));
+								AdditionalMemoryHandles = TConstArrayView<FRigVMMemoryHandle>(&ContextPublicData.AdditionalTraitMemoryHandles[AdditionalStartIndex], AdditionalNum);
+								AdditionalStartIndex = INDEX_NONE;
 							}
+
+							ContextPublicData.Traits.Emplace(
+								Context.WorkMemoryStorage.GetData<FRigVMTrait>(TraitPropertyIndex),
+								Cast<UScriptStruct>(StructProperty->Struct),
+								AdditionalMemoryHandles);
+						}
+						else
+						{
+							if(AdditionalStartIndex == INDEX_NONE)
+							{
+								AdditionalStartIndex = ContextPublicData.AdditionalTraitMemoryHandles.Num();
+								AdditionalNum = 0;
+							}
+							ContextPublicData.AdditionalTraitMemoryHandles.Emplace(Context.WorkMemoryStorage.GetHandle(TraitPropertyIndex));
+							AdditionalNum++;
 						}
 					}
 				}

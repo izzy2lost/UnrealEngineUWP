@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ChooserParameters.h"
-#include "Param/ParamStack.h"
+//#include "Param/ParamStack.h"
 
 #if WITH_EDITOR
 #include "StructUtils/PropertyBag.h"
@@ -8,10 +8,11 @@
 
 bool FBoolAnimProperty::GetValue(FChooserEvaluationContext& Context, bool& OutResult) const
 {
-	UE::AnimNext::FParamResult Result;
-	UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
-	OutResult = ParamStack.GetParamValue<bool>(UE::AnimNext::FParamId(PropertyName), &Result);
-	return Result.IsSuccessful();
+//	UE::AnimNext::FParamResult Result;
+//	UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
+//	OutResult = ParamStack.GetParamValue<bool>(UE::AnimNext::FParamId(PropertyName), &Result);
+//	return Result.IsSuccessful();
+	return false;
 }
 
 bool FBoolAnimProperty::SetValue(FChooserEvaluationContext& Context, bool InValue) const
@@ -35,10 +36,11 @@ void FBoolAnimProperty::GetDisplayName(FText& OutName) const
 
 bool FFloatAnimProperty::GetValue(FChooserEvaluationContext& Context, double& OutResult) const
 {
-	UE::AnimNext::FParamResult Result;
-	UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
-	OutResult = ParamStack.GetParamValue<double>(UE::AnimNext::FParamId(PropertyName), &Result);
-	return Result.IsSuccessful();
+//	UE::AnimNext::FParamResult Result;
+//	UE::AnimNext::FParamStack& ParamStack = UE::AnimNext::FParamStack::Get();
+//	OutResult = ParamStack.GetParamValue<double>(UE::AnimNext::FParamId(PropertyName), &Result);
+//	return Result.IsSuccessful();
+	return false;
 }
 
 bool FFloatAnimProperty::SetValue(FChooserEvaluationContext& Context, double InValue) const

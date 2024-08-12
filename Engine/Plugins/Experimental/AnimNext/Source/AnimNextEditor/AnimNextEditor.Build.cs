@@ -47,7 +47,8 @@ namespace UnrealBuildTool.Rules
 					"UniversalObjectLocator",
 					"UniversalObjectLocatorEditor",
 					"Kismet",
-					"AdvancedWidgets",
+					"AdvancedWidgets", 
+					"SceneOutliner",
 				}
 			);
 		}

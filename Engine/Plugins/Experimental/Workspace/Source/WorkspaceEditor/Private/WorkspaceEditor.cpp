@@ -169,6 +169,9 @@ void FWorkspaceEditor::CreateWidgets()
 	StandaloneDefaultLayout->ProcessExtensions(*LayoutExtender.Get());
 
 	WorkspaceView = SNew(SWorkspaceView, Workspace, StaticCastSharedRef<UE::Workspace::IWorkspaceEditor>(AsShared()));
+
+	OnOutlinerSelectionChangedDelegate.AddSP(this, &FWorkspaceEditor::HandleOutlinerSelectionChanged);
+	
 	BindCommands();
 }
 
@@ -193,7 +196,7 @@ void FWorkspaceEditor::RestoreEditedObjectState()
 			{
 				const TSharedRef<SWorkspaceTabWrapper> TabWrapper = StaticCastSharedRef<SWorkspaceTabWrapper>(DockTab->GetContent());	
 				FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
-				const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(Object->GetClass()->GetClassPathName());
+				const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(Object);
 				if(DocumentArgs != nullptr && DocumentArgs->OnSetDocumentState.IsBound())
 				{
 					DocumentArgs->OnSetDocumentState.Execute(FWorkspaceEditorContext(SharedThis(this), Object), TabWrapper->GetContent(), DocumentState);
@@ -230,7 +233,7 @@ TSharedPtr<SDockTab> FWorkspaceEditor::OpenDocument(const UObject* InForObject, 
 	if(InCause != FDocumentTracker::RestorePreviousDocument)
 	{
 		const FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
-		const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(InForObject->GetClass()->GetClassPathName());
+		const FObjectDocumentArgs* DocumentArgs = WorkspaceEditorModule.FindObjectDocumentType(InForObject);
 		if(DocumentArgs != nullptr && DocumentArgs->OnGetDocumentState.IsBound())
 		{
 			const TSharedRef<SWorkspaceTabWrapper> TabWrapper = StaticCastSharedRef<SWorkspaceTabWrapper>(NewTab->GetContent());
@@ -252,6 +255,14 @@ void FWorkspaceEditor::OpenAssets(TConstArrayView<FAssetData> InAssets)
 		if(const UObject* LoadedAsset = Asset.GetAsset())
 		{
 			OpenDocument(LoadedAsset, FDocumentTracker::EOpenDocumentCause::NavigatingCurrentDocument);
+		}
+	}
+
+	if(InAssets.Num() > 0)
+	{
+		if(UObject* LoadedAsset = InAssets.Last().GetAsset())
+		{
+			WorkspaceView->SelectObject(LoadedAsset);
 		}
 	}
 }
@@ -296,6 +307,17 @@ UWorkspaceSchema* FWorkspaceEditor::GetSchema() const
 	return Workspace.Get() != nullptr ? Workspace->GetSchema() : nullptr;
 }
 
+bool FWorkspaceEditor::GetOutlinerSelection(TArray<FWorkspaceOutlinerItemExport>& OutExports) const
+{
+	OutExports = LastSelectedExports;
+	return LastSelectedExports.Num() > 0;
+}
+
+IWorkspaceEditor::FOnOutlinerSelectionChanged& FWorkspaceEditor::OnOutlinerSelectionChanged()
+{
+	return OnOutlinerSelectionChangedDelegate;
+}
+
 void FWorkspaceEditor::SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate)
 {
 	// Only execute if widget is still valid, and it is not the same as the previous call 
@@ -330,9 +352,13 @@ const TObjectPtr<UObject> FWorkspaceEditor::GetFocussedAssetOfClass(const TObjec
 	return nullptr;
 }
 
+void FWorkspaceEditor::HandleOutlinerSelectionChanged(TConstArrayView<FWorkspaceOutlinerItemExport> InExports)
+{
+	LastSelectedExports = InExports;
+}
+
 void FWorkspaceEditor::BindCommands()
-{	
-	FWorkspaceAssetEditorCommands::Register();
+{
 	const FWorkspaceAssetEditorCommands& Commands = FWorkspaceAssetEditorCommands::Get();
 
 	ToolkitCommands->MapAction

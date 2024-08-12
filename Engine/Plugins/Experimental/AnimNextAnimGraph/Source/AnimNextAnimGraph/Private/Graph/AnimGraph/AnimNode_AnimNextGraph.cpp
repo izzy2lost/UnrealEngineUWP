@@ -10,8 +10,6 @@
 #include "GenerationTools.h"
 #include "Graph/AnimNext_LODPose.h"
 #include "Engine/SkeletalMesh.h"
-#include "Param/ParamStack.h"
-#include "Graph/AnimGraphParamStackScope.h"
 #include "TraitInterfaces/IEvaluate.h"
 #include "TraitInterfaces/IUpdate.h"
 #include "EvaluationVM/EvaluationVM.h"
@@ -26,7 +24,7 @@ TAutoConsoleVariable<int32> CVarAnimNextForceAnimBP(TEXT("a.AnimNextForceAnimBP"
 
 FAnimNode_AnimNextGraph::FAnimNode_AnimNextGraph()
 	: FAnimNode_CustomProperty()
-	, Module(nullptr)
+	, AnimationGraph(nullptr)
 	, LODThreshold(INDEX_NONE)
 {
 }
@@ -79,9 +77,9 @@ void FAnimNode_AnimNextGraph::Initialize_AnyThread(const FAnimationInitializeCon
 
 	SourceLink.Initialize(Context);
 
-	if (!GraphInstance.IsValid() && Module)
+	if (!GraphInstance.IsValid() && AnimationGraph)
 	{
-		Module->AllocateInstance(GraphInstance);
+		AnimationGraph->AllocateInstance(GraphInstance);
 	}
 
 	FAnimNode_CustomProperty::Initialize_AnyThread(Context);
@@ -163,7 +161,7 @@ void FAnimNode_AnimNextGraph::PostSerialize(const FArchive& Ar)
 	// since memory has changed
 	if (Ar.IsObjectReferenceCollector())
 	{
-		if (Module)
+		if (AnimationGraph)
 		{
 			//AnimNextGraph->Initialize();
 		}

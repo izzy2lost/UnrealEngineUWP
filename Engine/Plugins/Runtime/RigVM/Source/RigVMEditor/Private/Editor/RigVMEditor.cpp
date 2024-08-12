@@ -1063,7 +1063,7 @@ void FRigVMEditor::Compile()
 		}
 
 		// force to disable the supended notif brackets
-		RigVMBlueprint->bSuspendModelNotificationsForOthers = false;
+		RigVMBlueprint->GetRigVMClient()->bSuspendModelNotificationsForOthers = false;
 		RigVMBlueprint->bSuspendModelNotificationsForSelf = false;
 
 		RigVMBlueprint->GetCompileLog().Messages.Reset();

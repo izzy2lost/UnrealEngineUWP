@@ -2,13 +2,10 @@
 
 #include "Graph/AnimNextGraphInstancePtr.h"
 
-#include "Module/AnimNextModule.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextGraphInstance.h"
-#include "Param/IParameterSource.h"
 
 FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr() = default;
-FAnimNextGraphInstancePtr::FAnimNextGraphInstancePtr(FAnimNextGraphInstancePtr&&) = default;
-FAnimNextGraphInstancePtr& FAnimNextGraphInstancePtr::operator=(FAnimNextGraphInstancePtr&&) = default;
 
 FAnimNextGraphInstancePtr::~FAnimNextGraphInstancePtr()
 {
@@ -17,22 +14,7 @@ FAnimNextGraphInstancePtr::~FAnimNextGraphInstancePtr()
 
 void FAnimNextGraphInstancePtr::Release()
 {
-	if (Impl)
-	{
-#if WITH_EDITORONLY_DATA
-		{
-			const UAnimNextModule* Module = Impl->GetModule();
-			FScopeLock Lock(&Module->GraphInstancesLock);
-			Module->GraphInstances.Remove(Impl.Get());
-		}
-#endif
-
-		// Destroy the graph instance
-		Impl->Release();
-
-		// Reset our unique ptr
-		Impl.Reset();
-	}
+	Impl.Reset();
 }
 
 bool FAnimNextGraphInstancePtr::IsValid() const
@@ -40,9 +22,9 @@ bool FAnimNextGraphInstancePtr::IsValid() const
 	return Impl && Impl->IsValid();
 }
 
-const UAnimNextModule* FAnimNextGraphInstancePtr::GetModule() const
+const UAnimNextAnimationGraph* FAnimNextGraphInstancePtr::GetAnimationGraph() const
 {
-	return Impl ? Impl->GetModule() : nullptr;
+	return Impl->GetAnimationGraph();
 }
 
 UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstancePtr::GetGraphRootPtr() const
@@ -55,9 +37,9 @@ FAnimNextGraphInstance* FAnimNextGraphInstancePtr::GetImpl() const
 	return Impl.Get();
 }
 
-bool FAnimNextGraphInstancePtr::UsesModule(const UAnimNextModule* InModule) const
+bool FAnimNextGraphInstancePtr::UsesAnimationGraph(const UAnimNextAnimationGraph* InAnimationGraph) const
 {
-	return Impl ? Impl->UsesModule(InModule) : false;
+	return Impl ? Impl->UsesAnimationGraph(InAnimationGraph) : false;
 }
 
 bool FAnimNextGraphInstancePtr::IsRoot() const
@@ -95,20 +77,26 @@ GraphInstanceComponentMapType::TConstIterator FAnimNextGraphInstancePtr::GetComp
 	return Impl->GetComponentIterator();
 }
 
-void FAnimNextGraphInstancePtr::Update()
+void FAnimNextGraphInstancePtr::Update() const
 {
 	check(Impl);
 	Impl->Update();
 }
 
-UE::AnimNext::FParamStack::FPushedLayerHandle FAnimNextGraphInstancePtr::UpdateAndPushGraphState(float InDeltaTime) const
+FRigVMExtendedExecuteContext& FAnimNextGraphInstancePtr::GetExtendedExecuteContext() const
 {
 	check(Impl);
-	return Impl->UpdateAndPushGraphState(InDeltaTime);
+	return Impl->GetExtendedExecuteContext();
 }
 
-void FAnimNextGraphInstancePtr::PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const
+bool FAnimNextGraphInstancePtr::RequiresPublicVariableBinding() const
 {
 	check(Impl);
-	Impl->PopGraphState(InHandle);
+	return Impl->PublicVariablesState == FAnimNextGraphInstance::EPublicVariablesState::Unbound;
+}
+
+void FAnimNextGraphInstancePtr::BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes) const
+{
+	check(Impl);
+	return Impl->BindPublicVariables(InTraitScopes);
 }

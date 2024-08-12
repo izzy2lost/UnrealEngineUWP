@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "EdGraph/EdGraphSchema.h"
 #include "Editor/RigVMEditorStyle.h"
+#include "RigVMCore/RigVMExternalVariable.h"
 #include "Styling/AppStyle.h"
 #include "GraphEditorSchemaActions.generated.h"
 
@@ -79,4 +80,51 @@ struct FAnimNextSchemaAction_DispatchFactory : public FAnimNextSchemaAction
 private:
 	// Notation for dispatch factory
 	FName Notation;
+};
+
+
+USTRUCT()
+struct FAnimNextSchemaAction_Variable : public FAnimNextSchemaAction
+{
+	GENERATED_BODY()
+
+	FAnimNextSchemaAction_Variable() = default;
+
+	FAnimNextSchemaAction_Variable(const FRigVMExternalVariable& InExternalVariable, bool bInIsGetter = true);
+
+	// FEdGraphSchemaAction Interface
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode = true) override;
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) { return nullptr; }
+
+	virtual const FSlateBrush* GetIconBrush() const override
+	{
+		return  FAppStyle::GetBrush(TEXT("Kismet.VariableList.TypeIcon"));
+	}
+
+	virtual const FLinearColor& GetIconColor() const override
+	{
+		return VariableColor;
+	}
+
+private:
+	FRigVMExternalVariable ExternalVariable;
+	bool bIsGetter = false;
+	FLinearColor VariableColor;
+};
+
+USTRUCT()
+struct FAnimNextSchemaAction_AddComment : public FAnimNextSchemaAction
+{
+	GENERATED_BODY()
+
+	FAnimNextSchemaAction_AddComment();
+
+	// FEdGraphSchemaAction Interface
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, TArray<UEdGraphPin*>& FromPins, const FVector2D Location, bool bSelectNewNode = true) override;
+	virtual UEdGraphNode* PerformAction(UEdGraph* ParentGraph, UEdGraphPin* FromPin, const FVector2D Location, bool bSelectNewNode = true) { return nullptr; }
+
+	virtual const FSlateBrush* GetIconBrush() const
+	{
+		return FAppStyle::Get().GetBrush("Icons.Comment");
+	}
 };

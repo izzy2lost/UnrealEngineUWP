@@ -6,7 +6,7 @@
 
 #include "PlayAnim/PlayAnimRequest.h"
 #include "PlayAnim/PlayAnimStatus.h"
-#include "Scheduler/ScheduleEvents.h"
+#include "Module/ModuleEvents.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitInterfaces/ITimeline.h"
 
@@ -49,9 +49,9 @@ namespace UE::AnimNext
 	 *
 	 * Event raised when the status of a request changes.
 	 */
-	struct FPlayAnim_StatusUpdateEvent : public FAnimNextSchedule_ActionEvent
+	struct FPlayAnim_StatusUpdateEvent : public FAnimNextModule_ActionEvent
 	{
-		DECLARE_ANIM_TRAIT_EVENT(FPlayAnim_StatusUpdateEvent, FAnimNextSchedule_ActionEvent)
+		DECLARE_ANIM_TRAIT_EVENT(FPlayAnim_StatusUpdateEvent, FAnimNextModule_ActionEvent)
 
 		// FAnimNextSchedule_ActionEvent impl
 		virtual void Execute() const override;
@@ -68,9 +68,9 @@ namespace UE::AnimNext
 	 *
 	 * Event raised when a request is playing with its updated timeline progress.
 	 */
-	struct FPlayAnim_TimelineUpdateEvent : public FAnimNextSchedule_ActionEvent
+	struct FPlayAnim_TimelineUpdateEvent : public FAnimNextModule_ActionEvent
 	{
-		DECLARE_ANIM_TRAIT_EVENT(FPlayAnim_TimelineUpdateEvent, FAnimNextSchedule_ActionEvent)
+		DECLARE_ANIM_TRAIT_EVENT(FPlayAnim_TimelineUpdateEvent, FAnimNextModule_ActionEvent)
 
 		// FAnimNextSchedule_ActionEvent impl
 		virtual void Execute() const override;

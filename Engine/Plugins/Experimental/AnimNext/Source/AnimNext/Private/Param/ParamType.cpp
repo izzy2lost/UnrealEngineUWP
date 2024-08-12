@@ -3,7 +3,6 @@
 #include "Param/ParamType.h"
 
 #include "Graph/AnimNext_LODPose.h"
-#include "Param/ParamTypeHandle.h"
 #include "Misc/StringBuilder.h"
 #include "UObject/Class.h"
 #include "Templates/SubclassOf.h"
@@ -170,6 +169,112 @@ FAnimNextParamType FAnimNextParamType::FromRigVMTemplateArgument(const FRigVMTem
 	return Type;
 }
 
+FAnimNextParamType FAnimNextParamType::FromProperty(const FProperty* InProperty)
+{
+	FAnimNextParamType Type;
+
+	if(InProperty == nullptr)
+	{
+		return Type;
+	}
+
+	if (InProperty->IsA<FArrayProperty>())
+	{
+		Type.ContainerType = EPropertyBagContainerType::Array;
+		InProperty = CastField<FArrayProperty>(InProperty)->Inner;
+	}
+
+	if (InProperty->IsA<FBoolProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Bool;
+	}
+	else if (InProperty->IsA<FByteProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Byte;
+	}
+	else if (InProperty->IsA<FIntProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Int32;
+	}
+	else if (InProperty->IsA<FInt64Property>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Int64;
+	}
+	else if (InProperty->IsA<FUInt32Property>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::UInt32;
+	}
+	else if (InProperty->IsA<FUInt64Property>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::UInt64;
+	}
+	else if (InProperty->IsA<FFloatProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Float;
+	}
+	else if (InProperty->IsA<FDoubleProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Double;
+	}
+	else if (InProperty->IsA<FNameProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Name;
+	}
+	else if (InProperty->IsA<FStrProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::String;
+	}
+	else if (InProperty->IsA<FTextProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Text;
+	}
+	else if (InProperty->IsA<FStructProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Struct;
+		Type.ValueTypeObject = CastField<FStructProperty>(InProperty)->Struct;
+	}
+	else if(InProperty->IsA<FObjectPropertyBase>())
+	{
+		UClass* Class = CastField<FObjectPropertyBase>(InProperty)->PropertyClass;
+		if (InProperty->IsA<FClassProperty>())
+		{
+			Type.ValueType = EPropertyBagPropertyType::Class;
+			Type.ValueTypeObject = CastField<FClassProperty>(InProperty)->MetaClass;
+		}
+		else if (InProperty->IsA<FObjectProperty>())
+		{
+			if(Class == UClass::StaticClass())
+			{
+				Type.ValueType = EPropertyBagPropertyType::Class;
+				Type.ValueTypeObject = Class;
+			}
+			else
+			{
+				Type.ValueType = EPropertyBagPropertyType::Object;
+				Type.ValueTypeObject = Class;
+			}
+		}
+		else if (InProperty->IsA<FSoftClassProperty>())
+		{
+			Type.ValueType = EPropertyBagPropertyType::SoftClass;
+			Type.ValueTypeObject = CastField<FSoftClassProperty>(InProperty)->MetaClass;
+		}
+		else if (InProperty->IsA<FSoftObjectProperty>())
+		{
+			Type.ValueType = EPropertyBagPropertyType::SoftObject;
+			Type.ValueTypeObject = Class;
+		}
+	}
+	else if(InProperty->IsA<FEnumProperty>())
+	{
+		Type.ValueType = EPropertyBagPropertyType::Enum;
+		Type.ValueTypeObject = CastField<FEnumProperty>(InProperty)->GetEnum();
+	}
+
+	return Type;
+}
+
+
 bool FAnimNextParamType::IsValidObject() const
 {
 	switch(ValueType)
@@ -205,201 +310,6 @@ bool FAnimNextParamType::IsValidObject() const
 			return ResolvedObject && ResolvedObject->IsA(UClass::StaticClass());
 		}
 	}
-}
-
-UE::AnimNext::FParamTypeHandle FAnimNextParamType::GetHandle() const
-{
-	using namespace UE::AnimNext;
-
-	FParamTypeHandle Handle;
-	
-	switch(ContainerType)
-	{
-	case EPropertyBagContainerType::None:
-		switch(ValueType)
-		{
-		default:
-		case EValueType::None:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			break;
-		case EValueType::Bool:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Bool);
-			break;
-		case EValueType::Byte:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Byte);
-			break;
-		case EValueType::Int32:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Int32);
-			break;
-		case EValueType::Int64:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Int64);
-			break;
-		case EValueType::Float:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Float);
-			break;
-		case EValueType::Double:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Double);
-			break;
-		case EValueType::Name:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Name);
-			break;
-		case EValueType::String:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::String);
-			break;
-		case EValueType::Text:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Text);
-			break;
-		case EValueType::Struct:
-			if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ValueTypeObject.Get()))
-			{
-				if(ScriptStruct == TBaseStructure<FVector>::Get())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Vector);
-				}
-				else if(ScriptStruct == TBaseStructure<FVector4>::Get())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Vector4);
-				}
-				else if(ScriptStruct == TBaseStructure<FQuat>::Get())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Quat);
-				}
-				else if(ScriptStruct == TBaseStructure<FTransform>::Get())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Transform);
-				}
-				else if(ScriptStruct == FAnimNextGraphLODPose::StaticStruct())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextGraphLODPose);
-				}
-				else if(ScriptStruct == FAnimNextGraphReferencePose::StaticStruct())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimNextGraphReferencePose);
-				}
-				else
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-					Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(EValueType::Struct, EContainerType::None, ScriptStruct));
-				}
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		case EValueType::Enum:
-			if(const UEnum* Enum = Cast<UEnum>(ValueTypeObject.Get()))
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-				Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, EContainerType::None, Enum));
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		case EValueType::Object:
-			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
-			{
-				if (Class == UObject::StaticClass())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::Object);
-					break;
-				}
-				else if (Class == UCharacterMovementComponent::StaticClass())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::CharacterMovementComponent);
-					break;
-				}
-				else if (Class == USkeletalMeshComponent::StaticClass())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::SkeletalMeshComponent);
-					break;
-				}
-				else if (Class == UAnimSequence::StaticClass())
-				{
-					Handle.SetParameterType(FParamTypeHandle::EParamType::AnimSequence);
-					break;
-				}
-			}
-			// fall through
-		case EValueType::SoftObject:
-		case EValueType::Class:
-		case EValueType::SoftClass:
-			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-				Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, EContainerType::None, Class));
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		}
-		break;
-	case EPropertyBagContainerType::Array:
-		switch(ValueType)
-		{
-		default:
-		case EValueType::None:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			break;
-		case EValueType::Bool:
-		case EValueType::Byte:
-		case EValueType::Int32:
-		case EValueType::Int64:
-		case EValueType::Float:
-		case EValueType::Double:
-		case EValueType::Name:
-		case EValueType::String:
-		case EValueType::Text:
-			Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-			Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, ContainerType, nullptr));
-			break;
-		case EValueType::Struct:
-			if(const UScriptStruct* ScriptStruct = Cast<UScriptStruct>(ValueTypeObject.Get()))
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-				Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, ContainerType, ScriptStruct));
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		case EValueType::Enum:
-			if(const UEnum* Enum = Cast<UEnum>(ValueTypeObject.Get()))
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-				Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, ContainerType, Enum));
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		case EValueType::Object:
-		case EValueType::SoftObject:
-		case EValueType::Class:
-		case EValueType::SoftClass:
-			if(const UClass* Class = Cast<UClass>(ValueTypeObject.Get()))
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::Custom);
-				Handle.SetCustomTypeIndex(FParamTypeHandle::GetOrAllocateCustomTypeIndex(ValueType, ContainerType, Class));
-			}
-			else
-			{
-				Handle.SetParameterType(FParamTypeHandle::EParamType::None);
-			}
-			break;
-		}
-		break;
-	default:
-		break;
-	}
-
-	return Handle;
 }
 
 size_t FAnimNextParamType::GetSize() const

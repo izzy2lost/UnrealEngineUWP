@@ -17,7 +17,7 @@ class UAnimNextEdGraphNode : public URigVMEdGraphNode
 public:
 	//////////////////////////////////////////////////////////////////////////
 	// UEdGraphNode implementation
-	virtual void GetNodeContextMenuActions(class UToolMenu* Menu, class UGraphNodeContextMenuContext* Context) const override;
+	virtual void GetNodeContextMenuActions(UToolMenu* Menu, UGraphNodeContextMenuContext* Context) const override;
 
 	//////////////////////////////////////////////////////////////////////////
 	// URigVMEdGraphNode implementation
@@ -31,5 +31,11 @@ public:
 
 private:
 	// Populates the SubMenu with entries for each trait that can be added through the context menu
-	void BuildAddTraitContextMenu(class UToolMenu* SubMenu);
+	void BuildAddTraitContextMenu(UToolMenu* SubMenu);
+
+	// Returns whether this node is an animation graph host node
+	bool IsRunGraphNode() const;
+
+	// Builds a menu to expose the public variables of a specific animation graph asset
+	void BuildExposeVariablesContextMenu(UToolMenu* SubMenu);
 };

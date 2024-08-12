@@ -14,7 +14,6 @@
 
 namespace UE::AnimNext
 {
-	struct FParamTypeHandle;
 	struct FParamHelpers;
 }
 
@@ -62,7 +61,6 @@ public:
 	using EValueType = ::EPropertyBagPropertyType;
 	using EContainerType = ::EPropertyBagContainerType;
 
-	friend struct UE::AnimNext::FParamTypeHandle;
 	friend struct UE::AnimNext::FParamHelpers;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 
@@ -160,7 +158,7 @@ private:
 			if constexpr (std::is_same_v<ParamType, TObjectPtr<UClass>>)
 			{
 				ParameterType.ValueType = EValueType::Class;
-				ParameterType.ValueTypeObject = ParamType::ElementType::StaticClass();
+				ParameterType.ValueTypeObject = UObject::StaticClass();
 			}
 			else
 			{
@@ -221,9 +219,6 @@ public:
 
 		return ParameterType;
 	}
-
-	/** Get a parameter type handle that represents this type */
-	UE::AnimNext::FParamTypeHandle GetHandle() const;
 
 	/** Get the pointer to the object that defines the Enum, Struct, or Class. */
 	const UObject* GetValueTypeObject() const
@@ -287,7 +282,10 @@ public:
 	
 	/** Construct a parameter type from the passed in FRigVMTemplateArgumentType. */
 	static FAnimNextParamType FromRigVMTemplateArgument(const FRigVMTemplateArgumentType& RigVMType);
-	
+
+	/** Construct a parameter type from the passed in FProperty. */
+	static FAnimNextParamType FromProperty(const FProperty* InProperty);
+
 	/** Equality operator */
 	friend bool operator==(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
 	{

@@ -13,7 +13,7 @@
 #include "TraitCore/NodeTemplate.h"
 #include "TraitCore/NodeTemplateRegistry.h"
 
-class UAnimNextModule;
+class UAnimNextAnimationGraph;
 
 namespace UE::AnimNext
 {
@@ -84,7 +84,7 @@ namespace UE::AnimNext
 	{
 		// Loads the module data from the provided archive buffer and returns true on success, false otherwise
 		// On success, we resolve every node handle provided as argument
-		static bool LoadFromArchiveBuffer(UAnimNextModule& Module, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer);
+		static bool LoadFromArchiveBuffer(UAnimNextAnimationGraph& AnimationGraph, TArray<FNodeHandle>& NodeHandles, const TArray<uint8>& SharedDataArchiveBuffer);
 	};
 }
 

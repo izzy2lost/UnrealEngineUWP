@@ -18,6 +18,7 @@ class SGraphActionMenu;
 class UEdGraph;
 class IRigVMClientHost;
 class URigVMController;
+class URigVMHost;
 
 namespace UE::AnimNext::Editor
 {
@@ -60,6 +61,7 @@ protected:
 private:
 	UEdGraph* Graph = nullptr;
 	const URigVMSchema* RigVMSchema = nullptr;
+	URigVMHost* RigVMHost = nullptr;
 	IRigVMClientHost* RigVMClientHost = nullptr;
 	URigVMController* RigVMController = nullptr;
 	bool bAutoExpandActionMenu = false;

@@ -511,6 +511,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = RigVMPin)
 	bool IsTraitPin() const;
 
+	// Returns true if this pin represents a trait's programmatic pin
+	bool IsProgrammaticPin() const;
+
+	// Get all the sub-pins that are programmatic
+	TArray<URigVMPin*> GetProgrammaticSubPins() const;
+
 	// Returns the trait backing up this pin
 	TSharedPtr<FStructOnScope> GetTraitInstance(bool bUseDefaultValueFromPin = true) const;
 

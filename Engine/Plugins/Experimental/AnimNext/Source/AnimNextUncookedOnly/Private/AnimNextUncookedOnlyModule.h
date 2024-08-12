@@ -21,12 +21,11 @@ private:
 	virtual void ShutdownModule() override;
 
 	// IAnimNextUncookedOnlyModule interface
-	virtual void RegisterParameterSourceType(const UScriptStruct* InInstanceIdStruct, TSharedPtr<IParameterSourceType> InType) override;
-	virtual void UnregisterParameterSourceType(const UScriptStruct* InInstanceIdStruct) override;
-	virtual TSharedPtr<IParameterSourceType> FindParameterSourceType(const UScriptStruct* InInstanceIdStruct) const override;
+	virtual void RegisterVariableBindingType(FName InStructName, TSharedPtr<IVariableBindingType> InType) override;
+	virtual void UnregisterVariableBindingType(FName InStructName) override;
+	virtual TSharedPtr<IVariableBindingType> FindVariableBindingType(const UScriptStruct* InInstanceIdStruct) const override;
 
-	TMap<const UScriptStruct*, TSharedPtr<IParameterSourceType>> ParameterSourceTypes;
-	FDelegateHandle OnGetExtraObjectTagsHandle;
+	TMap<FName, TSharedPtr<IVariableBindingType>> VariableBindingTypes;
 
 	friend struct FUtils;
 };

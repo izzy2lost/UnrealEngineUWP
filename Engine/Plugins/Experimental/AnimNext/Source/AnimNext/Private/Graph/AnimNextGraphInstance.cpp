@@ -3,17 +3,23 @@
 #include "Graph/AnimNextGraphInstance.h"
 
 #include "AnimNextStats.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "TraitCore/ExecutionContext.h"
-#include "Module/AnimNextModule.h"
 #include "Graph/GC_GraphInstanceComponent.h"
 #include "Graph/RigUnit_AnimNextShimRoot.h"
-#include "Misc/ScopeRWLock.h"
-#include "Param/IParameterSource.h"
-#include "Param/ParametersProxy.h"
+#include "Graph/RigVMTrait_AnimNextPublicVariables.h"
+#include "Logging/StructuredLog.h"
+#include "Module/AnimNextModule.h"
+#include "Module/AnimNextModuleInstance.h"
 
 DEFINE_STAT(STAT_AnimNext_Graph_RigVM);
 
-FAnimNextGraphInstance::FAnimNextGraphInstance() = default;
+FAnimNextGraphInstance::FAnimNextGraphInstance()
+{
+#if WITH_EDITORONLY_DATA
+	UAnimNextModule::OnModuleCompiled().AddRaw(this, &FAnimNextGraphInstance::OnModuleCompiled);
+#endif
+}
 
 FAnimNextGraphInstance::~FAnimNextGraphInstance()
 {
@@ -22,18 +28,28 @@ FAnimNextGraphInstance::~FAnimNextGraphInstance()
 
 void FAnimNextGraphInstance::Release()
 {
+#if WITH_EDITORONLY_DATA
+	UAnimNextModule::OnModuleCompiled().RemoveAll(this);
+
+	if(const UAnimNextAnimationGraph* Graph = GetAnimationGraph())
+	{
+		FScopeLock Lock(&Graph->GraphInstancesLock);
+		Graph->GraphInstances.Remove(this);
+	}
+#endif
+
 	if (!GraphInstancePtr.IsValid())
 	{
 		return;
 	}
 
 	GraphInstancePtr.Reset();
+	ModuleInstance = nullptr;
 	ParentGraphInstance = nullptr;
 	RootGraphInstance = nullptr;
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
-	Module = nullptr;
-	GraphState = nullptr;
+	AnimationGraph = nullptr;
 }
 
 bool FAnimNextGraphInstance::IsValid() const
@@ -41,9 +57,9 @@ bool FAnimNextGraphInstance::IsValid() const
 	return GraphInstancePtr.IsValid();
 }
 
-const UAnimNextModule* FAnimNextGraphInstance::GetModule() const
+const UAnimNextAnimationGraph* FAnimNextGraphInstance::GetAnimationGraph() const
 {
-	return Module;
+	return AnimationGraph;
 }
 
 FName FAnimNextGraphInstance::GetEntryPoint() const
@@ -56,6 +72,11 @@ UE::AnimNext::FWeakTraitPtr FAnimNextGraphInstance::GetGraphRootPtr() const
 	return GraphInstancePtr;
 }
 
+FAnimNextModuleInstance* FAnimNextGraphInstance::GetModuleInstance() const
+{
+	return ModuleInstance;
+}
+
 FAnimNextGraphInstance* FAnimNextGraphInstance::GetParentGraphInstance() const
 {
 	return ParentGraphInstance;
@@ -66,18 +87,18 @@ FAnimNextGraphInstance* FAnimNextGraphInstance::GetRootGraphInstance() const
 	return RootGraphInstance;
 }
 
-bool FAnimNextGraphInstance::UsesModule(const UAnimNextModule* InModule) const
+bool FAnimNextGraphInstance::UsesAnimationGraph(const UAnimNextAnimationGraph* InAnimationGraph) const
 {
-	return Module == InModule;
+	return AnimationGraph == InAnimationGraph;
 }
 
 bool FAnimNextGraphInstance::UsesEntryPoint(FName InEntryPoint) const
 {
-	if(Module != nullptr)
+	if(AnimationGraph != nullptr)
 	{
 		if(InEntryPoint == NAME_None)
 		{
-			return EntryPoint == Module->DefaultEntryPoint;
+			return EntryPoint == AnimationGraph->DefaultEntryPoint;
 		}
 
 		return InEntryPoint == EntryPoint;
@@ -106,11 +127,6 @@ void FAnimNextGraphInstance::AddStructReferencedObjects(FReferenceCollector& Col
 	{
 		Component->AddReferencedObjects(Collector);
 	}
-
-	if(GraphState.IsValid())
-	{
-		GraphState->AddReferencedObjects(Collector);
-	}
 }
 
 UE::AnimNext::FGraphInstanceComponent* FAnimNextGraphInstance::TryGetComponent(int32 ComponentNameHash, FName ComponentName) const
@@ -138,6 +154,11 @@ void FAnimNextGraphInstance::Update()
 	bHasUpdatedOnce = true;
 }
 
+FRigVMExtendedExecuteContext& FAnimNextGraphInstance::GetExtendedExecuteContext()
+{
+	return ExtendedExecuteContext;
+}
+
 void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles, void* DestinationBasePtr, bool bIsFrozen)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AnimNext_Graph_RigVM);
@@ -147,10 +168,10 @@ void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNex
 		return;
 	}
 
-	if (URigVM* VM = Module->VM)
+	if (URigVM* VM = AnimationGraph->VM)
 	{
 		FAnimNextExecuteContext& AnimNextContext = ExtendedExecuteContext.GetPublicDataSafe<FAnimNextExecuteContext>();
-		AnimNextContext.SetContextData<FAnimNextGraphContextData>(this, LatentHandles, DestinationBasePtr, bIsFrozen);
+		AnimNextContext.SetContextData<FAnimNextGraphContextData>(ModuleInstance, this, LatentHandles, DestinationBasePtr, bIsFrozen);
 
 		VM->ExecuteVM(ExtendedExecuteContext, FRigUnit_AnimNextShimRoot::EventName);
 
@@ -159,6 +180,7 @@ void FAnimNextGraphInstance::ExecuteLatentPins(const TConstArrayView<UE::AnimNex
 	}
 }
 
+#if WITH_EDITORONLY_DATA
 void FAnimNextGraphInstance::Freeze()
 {
 	if (!IsValid())
@@ -167,7 +189,6 @@ void FAnimNextGraphInstance::Freeze()
 	}
 
 	GraphInstancePtr.Reset();
-	GraphState.Reset();
 	ExtendedExecuteContext.Reset();
 	Components.Empty();
 	bHasUpdatedOnce = false;
@@ -175,16 +196,17 @@ void FAnimNextGraphInstance::Freeze()
 
 void FAnimNextGraphInstance::Thaw()
 {
-	if (const UAnimNextModule* ModulePtr = Module)
+	if (const UAnimNextAnimationGraph* AnimationGraphPtr = AnimationGraph)
 	{
-		GraphState = MakeUnique<UE::AnimNext::FParametersProxy>(Module);
+		Variables.MigrateToNewBagInstance(AnimationGraphPtr->VariableDefaults);
 
-		ExtendedExecuteContext.CopyMemoryStorage(ModulePtr->ExtendedExecuteContext);
-		ModulePtr->VM->InitializeInstance(ExtendedExecuteContext);
+		ExtendedExecuteContext = AnimationGraphPtr->ExtendedExecuteContext;
+
+		RebindPublicVariables();
 
 		{
 			UE::AnimNext::FExecutionContext Context(*this);
-			if(const FAnimNextTraitHandle* FoundHandle = ModulePtr->ResolvedRootTraitHandles.Find(EntryPoint))
+			if(const FAnimNextTraitHandle* FoundHandle = AnimationGraphPtr->ResolvedRootTraitHandles.Find(EntryPoint))
 			{
 				GraphInstancePtr = Context.AllocateNodeInstance(*this, *FoundHandle);
 			}
@@ -198,17 +220,142 @@ void FAnimNextGraphInstance::Thaw()
 	}
 }
 
-UE::AnimNext::FParamStack::FPushedLayerHandle FAnimNextGraphInstance::UpdateAndPushGraphState(float InDeltaTime) const
+void FAnimNextGraphInstance::RebindPublicVariables()
 {
-	if(GraphState.IsValid())
+	if(PublicVariablesState != EPublicVariablesState::Bound)
 	{
-		GraphState->Update(InDeltaTime);
-		return UE::AnimNext::FParamStack::Get().PushLayer(GraphState->GetLayerHandle());
+		return;
 	}
-	return UE::AnimNext::FParamStack::FPushedLayerHandle();
+
+	// Setup external variables memory ptrs manually as we dont follow the pattern of owning multiple URigVMHosts like control rig.
+	// InitializeVM() is called, but only sets up handles for the defaults in the module, not for an instance
+	const int32 NumVariables = Variables.GetNumPropertiesInBag();
+	TArray<FRigVMExternalVariableRuntimeData> ExternalVariableRuntimeData;
+	ExternalVariableRuntimeData.Reserve(NumVariables);
+	TConstArrayView<FPropertyBagPropertyDesc> Descs = Variables.GetPropertyBagStruct()->GetPropertyDescs();
+	uint8* BasePtr = Variables.GetMutableValue().GetMemory();
+	for(int32 VariableIndex = 0; VariableIndex < NumVariables; ++VariableIndex)
+	{
+		ExternalVariableRuntimeData.Emplace(Descs[VariableIndex].CachedProperty->ContainerPtrToValuePtr<uint8>(BasePtr));
+	}
+	ExtendedExecuteContext.ExternalVariableRuntimeData = MoveTemp(ExternalVariableRuntimeData);
+
+	// Re-apply any bindings from our host
+	for(const FCachedVariableBinding& CachedBinding : CachedVariableBindings)
+	{
+		// TODO: remove this linear search in FindPropertyDescByName with a hash table?
+		if(const FPropertyBagPropertyDesc* Desc = Variables.FindPropertyDescByName(CachedBinding.VariableName))
+		{
+			int32 VariableIndex = Desc - Variables.GetPropertyBagStruct()->GetPropertyDescs().GetData();
+			ExtendedExecuteContext.ExternalVariableRuntimeData[VariableIndex].Memory = CachedBinding.Memory;
+		}
+	}
+
+	// Now reinitialize the 'instance', cache memory handles etc. in the context
+	AnimationGraph->VM->InitializeInstance(ExtendedExecuteContext);
 }
 
-void FAnimNextGraphInstance::PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const
+void FAnimNextGraphInstance::OnModuleCompiled(UAnimNextModule* InModule)
 {
-	UE::AnimNext::FParamStack::Get().PopLayer(InHandle);
+	// If we are hosted directly by a module, invalidate and mark our bindings as needing update 
+	if(ModuleInstance && InModule == ModuleInstance->Module && ParentGraphInstance == nullptr)
+	{
+		UnbindPublicVariables();
+	}
 }
+
+#endif
+
+void FAnimNextGraphInstance::BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes)
+{
+	if(AnimationGraph == nullptr)
+	{
+		return;
+	}
+
+	if(PublicVariablesState == EPublicVariablesState::Bound)
+	{
+		return;
+	}
+
+#if WITH_EDITORONLY_DATA
+	CachedVariableBindings.Reset();
+#endif
+
+	bool bPublicVariablesBound = false;
+	for(const FRigVMTraitScope& TraitScope : InTraitScopes)
+	{
+		const FRigVMTrait_AnimNextPublicVariables* VariablesTrait = TraitScope.GetTrait<FRigVMTrait_AnimNextPublicVariables>();
+		if(VariablesTrait == nullptr)
+		{
+			continue;
+		}
+
+		for(int32 TraitVariableIndex = 0; TraitVariableIndex < VariablesTrait->VariableNames.Num(); ++TraitVariableIndex)
+		{
+			FName VariableName = VariablesTrait->VariableNames[TraitVariableIndex];
+			// TODO: remove this linear search in FindPropertyDescByName with a hash table?
+			// TODO: multiple traits with the same name can collide at the moment, we should validate against this is at the compiler level to avoid issues
+			const FPropertyBagPropertyDesc* Desc = Variables.FindPropertyDescByName(VariableName);
+			if(Desc == nullptr)
+			{
+				continue;
+			}
+
+			if(!TraitScope.GetAdditionalMemoryHandles().IsValidIndex(TraitVariableIndex))
+			{
+				continue;
+			}
+
+			const FRigVMMemoryHandle& MemoryHandle = TraitScope.GetAdditionalMemoryHandles()[TraitVariableIndex];
+			int32 VariableIndex = Desc - Variables.GetPropertyBagStruct()->GetPropertyDescs().GetData();
+			if(Desc->CachedProperty->GetClass() != MemoryHandle.GetProperty()->GetClass())
+			{
+				UE_LOGFMT(LogAnimation, Warning, "Mismatched variable types when binding AnimNext graph: {Name}:{Type} vs {OtherType}", Desc->Name, Desc->CachedProperty->GetFName(), MemoryHandle.GetProperty()->GetFName());
+				continue;
+			}
+
+			uint8* Memory = const_cast<uint8*>(MemoryHandle.GetData());
+			ExtendedExecuteContext.ExternalVariableRuntimeData[VariableIndex].Memory = Memory;
+#if WITH_EDITORONLY_DATA
+			CachedVariableBindings.Add({ VariableName, Memory });
+#endif
+			bPublicVariablesBound = true;
+		}
+	}
+
+	if(bPublicVariablesBound)
+	{
+		// Re-initialize memory handles
+		AnimationGraph->VM->InitializeInstance(ExtendedExecuteContext, /* bCopyMemory = */false);
+	}
+
+	PublicVariablesState = EPublicVariablesState::Bound;
+}
+
+void FAnimNextGraphInstance::UnbindPublicVariables()
+{
+	if(PublicVariablesState != EPublicVariablesState::Bound)
+	{
+		return;
+	}
+
+#if WITH_EDITORONLY_DATA
+	CachedVariableBindings.Reset();
+#endif
+
+	// Reset external variable ptrs to point to internal public vars
+	const int32 NumVariables = Variables.GetNumPropertiesInBag();
+	TConstArrayView<FPropertyBagPropertyDesc> Descs = Variables.GetPropertyBagStruct()->GetPropertyDescs();
+	uint8* BasePtr = Variables.GetMutableValue().GetMemory();
+	for(int32 VariableIndex = 0; VariableIndex < NumVariables; ++VariableIndex)
+	{
+		ExtendedExecuteContext.ExternalVariableRuntimeData[VariableIndex].Memory = Descs[VariableIndex].CachedProperty->ContainerPtrToValuePtr<uint8>(BasePtr);
+	}
+
+	// Re-initialize memory handles
+	AnimationGraph->VM->InitializeInstance(ExtendedExecuteContext, /* bCopyMemory = */false);
+
+	PublicVariablesState = EPublicVariablesState::Unbound;
+}
+

@@ -19,7 +19,7 @@ namespace UE::AnimNext::UncookedOnly
 /*
  * Gets a parameter's value
  */
-USTRUCT(meta = (DisplayName = "Get Parameter", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
+USTRUCT(meta = (Deprecated, DisplayName = "Get Parameter", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
 struct ANIMNEXT_API FRigVMDispatch_GetScopedParameter : public FRigVMDispatchFactory
 {
 	GENERATED_BODY()

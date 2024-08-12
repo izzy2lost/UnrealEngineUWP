@@ -1420,6 +1420,23 @@ FRigVMExprAST* FRigVMParserAST::TraversePin(const FRigVMASTProxy& InPinProxy, FR
 	if(Pin->IsTraitPin())
 	{
 		PinExpr = MakeExpr<FRigVMVarExprAST>(FRigVMExprAST::EType::Var, InPinProxy);
+
+		if(Settings.bSetupTraits)
+		{
+			// Traits can generate their own programmatic pins via FRigVMTrait::GetProgrammaticPins. We account for these as additional expressions if the
+			// pin is not part of the set of sub-pins exposed on the struct
+			for(URigVMPin* SubPin : Pin->SubPins)
+			{
+				if(SubPin->IsProgrammaticPin())
+				{
+					// Not a pin from the struct - add a synthetic var for this parent too
+					FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
+					FRigVMExprAST* SubPinExpr = TraversePin(SubPinProxy, InParentExpr);
+					const int32 ChildIndex = InParentExpr->Children.Find(SubPinExpr);
+					InParentExpr->PinNameToChildIndex.FindOrAdd(SubPinExpr->GetName()) = ChildIndex;
+				}
+			}
+		}
 	}
 	else if ((Pin->GetDirection() == ERigVMPinDirection::Input ||
 		Pin->GetDirection() == ERigVMPinDirection::Visible) &&
@@ -1612,6 +1629,15 @@ FRigVMExprAST* FRigVMParserAST::TraverseLink(int32 InLinkIndex, FRigVMExprAST* I
 		// Due to the unpredictability of lazy branches, we need to make sure that non-lazy pins are not
 		// affected by the execution of lazy evaluation.
 		if (!TargetRootPin->IsLazy() && TargetRootPin->GetNode()->HasLazyPin(true))
+		{
+			bRequiresCopy = true;
+		}
+	}
+
+	if (!bRequiresCopy)
+	{
+		// Programmatic pins always require a copy
+		if(TargetPin->IsProgrammaticPin())
 		{
 			bRequiresCopy = true;
 		}
@@ -1922,6 +1948,12 @@ void FRigVMParserAST::FoldAssignments()
 			}
 		}
 
+		// Skip folding for programmatic pins as we expect them to always exist in work memory
+		if(TargetPin->IsProgrammaticPin())
+		{
+			continue;
+		}
+		
 		FRigVMExprAST* Parent = AssignExpr->Parents[0];
 		if (!Parent->IsA(FRigVMExprAST::EType::Var))
 		{
@@ -2812,8 +2844,13 @@ TArray<int32> FRigVMParserAST::GetLinkIndices(const FRigVMASTProxy& InPinProxy, 
 		URigVMPin* Pin = InPinProxy.GetSubjectChecked<URigVMPin>();
 		for (URigVMPin* SubPin : Pin->GetSubPins())
 		{
-			FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
-			LinkIndices.Append(GetLinkIndices(SubPinProxy, bGetSource, true));
+			// We dont get links to programmatic pins as links are traversed manually in TraversePin rather than
+			// using links from parent traits. This ensures we dont double-up on programmatic pin traversal.
+			if(!SubPin->IsProgrammaticPin())
+			{
+				FRigVMASTProxy SubPinProxy = InPinProxy.GetSibling(SubPin);
+				LinkIndices.Append(GetLinkIndices(SubPinProxy, bGetSource, true));
+			}
 		}
 	}
 

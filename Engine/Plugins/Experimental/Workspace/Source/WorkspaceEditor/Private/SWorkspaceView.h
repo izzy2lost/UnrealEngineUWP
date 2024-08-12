@@ -19,6 +19,9 @@ class SWorkspaceView : public SCompoundWidget
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs, UWorkspace* InWorkspace, TSharedRef<UE::Workspace::IWorkspaceEditor> InWorkspaceEditor);
+
+	void SelectObject(UObject* InObject);
+	
 private:
 	UWorkspace* Workspace = nullptr;
 	TSharedPtr<SWorkspaceOutliner> SceneWorkspaceOutliner;

@@ -22,9 +22,9 @@ void UAnimNextEdGraph::Initialize(UAnimNextRigVMAssetEditorData* InEditorData)
 
 FRigVMClient* UAnimNextEdGraph::GetRigVMClient() const
 {
-	if (const UAnimNextModule_EditorData* EditorData = GetTypedOuter<UAnimNextModule_EditorData>())
+	if (const UAnimNextRigVMAssetEditorData* EditorData = GetTypedOuter<UAnimNextRigVMAssetEditorData>())
 	{
-		return (FRigVMClient*)EditorData->GetRigVMClient();
+		return const_cast<FRigVMClient*>(EditorData->GetRigVMClient());
 	}
 	return nullptr;
 }

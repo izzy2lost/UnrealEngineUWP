@@ -23,19 +23,22 @@ namespace UE::Workspace
 class FWorkspaceEditorModule : public IWorkspaceEditorModule
 {
 private:
+	// IModuleInterface interface
+	virtual void StartupModule() override;
+	
 	// IWorkspaceModule interface
 	virtual void RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InParams) override;
 	virtual void UnregisterObjectDocumentType(const FTopLevelAssetPath& InClassPath) override;
 	virtual FObjectDocumentArgs CreateGraphDocumentArgs(const FGraphDocumentWidgetArgs& InArgs) override;
-	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass) override;	
+	virtual IWorkspaceEditor* OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass) override;	
 	virtual FOnRegisterDetailCustomizations& OnRegisterWorkspaceDetailsCustomization() override;
 	virtual void RegisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails> InItemDetails) override;	
 	virtual void UnregisterWorkspaceItemDetails(const FOutlinerItemDetailsId& InItemDetails) override;
 	virtual FOnRegisterTabs& OnRegisterTabsForEditor() override { return RegisterTabsForEditor; }
 	virtual FOnExtendTabs& OnExtendTabs() override { return ExtendTabsForEditor; }
 
-	// Find an existing registered object document type
-	const FObjectDocumentArgs* FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const;
+	// Find an existing registered object document type. Note this redirects based on FObjectDocumentArgs::OnRedirectWorkspaceContext
+	const FObjectDocumentArgs* FindObjectDocumentType(const UObject* InObject) const;
 
 	// Find the set of allowed object types for the specified spawn location
 	TArray<FTopLevelAssetPath> GetAllowedObjectTypesForArea(FName InSpawnLocation) const;
@@ -70,6 +73,7 @@ private:
 	friend class FWorkspaceOutlinerSourceControlColumn;
 	friend class FWorkspaceOutlinerFileStateColumn;
 	friend SWorkspaceTabWrapper;
+	friend FWorkspaceEditorContext;
 };
 
 }

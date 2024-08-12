@@ -13,7 +13,7 @@ namespace UE::Workspace
 namespace UE::AnimNext::Editor
 {
 
-extern const FName CompilerResultsTabName;
+extern const FLazyName CompilerResultsTabName;
 
 class SAnimNextCompilerResultsWidget : public SCompoundWidget
 {

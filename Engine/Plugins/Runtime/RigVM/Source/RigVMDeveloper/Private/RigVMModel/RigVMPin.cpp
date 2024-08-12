@@ -726,6 +726,16 @@ bool URigVMPin::ShouldOnlyShowSubPins() const
 	{
 		if(const URigVMNode* Node = GetNode())
 		{
+			if(IsStruct())
+			{
+				// Never show sub-pins for custom import/export text as we cant do memberwise manipulations in the graph via text
+				// This change is to allow things like FUniversalObjectLocator (with its native text serialization) to be used on RigVM pins.
+				if((GetScriptStruct()->StructFlags & (STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative)) != 0)
+				{
+					return false;
+				}
+			}
+
 			if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
 			{
 				if(const UScriptStruct* Struct = UnitNode->GetScriptStruct())
@@ -762,6 +772,15 @@ bool URigVMPin::ShouldHideSubPins() const
 	{
 		if(const URigVMNode* Node = GetNode())
 		{
+			if(IsStruct())
+			{
+				// Hide sub-pins for custom import/export text as we cant do memberwise manipulations in the graph via text
+				if((GetScriptStruct()->StructFlags & (STRUCT_ExportTextItemNative | STRUCT_ImportTextItemNative)) != 0)
+				{
+					return true;
+				}
+			}
+
 			if(const URigVMUnitNode* UnitNode = Cast<URigVMUnitNode>(Node))
 			{
 				if(const UScriptStruct* Struct = UnitNode->GetScriptStruct())
@@ -1586,6 +1605,39 @@ bool URigVMPin::IsTraitPin() const
 		return Node->IsTraitPin(GetRootPin());
 	}
 	return false;
+}
+
+bool URigVMPin::IsProgrammaticPin() const
+{
+	// Traits can generate their own programmatic pins via FRigVMTrait::GetProgrammaticPins. We account for these as additional expressions if the
+	// pin is not part of the set of sub-pins exposed on the struct
+	if(const URigVMPin* ParentPin = GetParentPin())
+	{
+		UScriptStruct* ScriptStruct = ParentPin->GetScriptStruct();
+		if(ScriptStruct && ScriptStruct->IsChildOf(FRigVMTrait::StaticStruct()))
+		{
+			if(ScriptStruct->FindPropertyByName(GetFName()) == nullptr)
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+TArray<URigVMPin*> URigVMPin::GetProgrammaticSubPins() const
+{
+	TArray<URigVMPin*> ProgrammaticPins;
+	for(URigVMPin* SubPin : SubPins)
+	{
+		if(SubPin->IsProgrammaticPin())
+		{
+			ProgrammaticPins.Add(SubPin);
+		}
+	}
+
+	return ProgrammaticPins;
 }
 
 TSharedPtr<FStructOnScope> URigVMPin::GetTraitInstance(bool bUseDefaultValueFromPin) const

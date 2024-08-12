@@ -176,7 +176,7 @@ void FDataRegistry::FreeAllocatedBlock(Private::FAllocatedBlock* AllocatedBlock)
 
 			{
 				FRWScopeLock ScopedDataTypeDefsLock(DataTypeDefsLock, SLT_ReadOnly);
-				FDataTypeDef* TypeDef = DataTypeDefs.Find(AllocatedBlock->TypeHandle);
+				FDataTypeDef* TypeDef = DataTypeDefs.Find(AllocatedBlock->Type);
 				if (ensure(TypeDef != nullptr))
 				{
 					TypeDef->DestroyTypeFn((uint8*)AllocatedBlock->Memory, AllocatedBlock->NumElem);

@@ -14,7 +14,7 @@ struct FUtils;
 /*
  * Sets a parameter's value
  */
-USTRUCT(meta=(DisplayName = "Set Graph Parameter", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
+USTRUCT(meta=(Deprecated, DisplayName = "Set Graph Parameter", Category="Parameters", NodeColor = "0.8, 0, 0.2, 1"))
 struct ANIMNEXT_API FRigVMDispatch_SetLayerParameter : public FRigVMDispatchFactory
 {
 	GENERATED_BODY()

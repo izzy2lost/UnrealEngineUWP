@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "HAL/CriticalSection.h"
-#include "Param/ParamStack.h"
 #include "TraitCore/TraitEvent.h"
 #include "TraitCore/TraitEventList.h"
 #include "TraitCore/TraitPtr.h"
@@ -16,7 +15,11 @@ class FReferenceCollector;
 
 struct FAnimNextGraphInstancePtr;
 struct FRigUnit_AnimNextGraphEvaluator;
+class UAnimNextAnimationGraph;
 class UAnimNextModule;
+struct FAnimNextModuleInstance;
+class FRigVMTraitScope;
+struct FRigVMExtendedExecuteContext;
 
 namespace UE::AnimNext
 {
@@ -53,8 +56,8 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns true if we have a live graph instance, false otherwise
 	bool IsValid() const;
 
-	// Returns the module used by this instance or nullptr if the instance is invalid
-	const UAnimNextModule* GetModule() const;
+	// Returns the animation graph used by this instance or nullptr if the instance is invalid
+	const UAnimNextAnimationGraph* GetAnimationGraph() const;
 
 	// Returns the entry point in Graph that this instance corresponds to 
 	FName GetEntryPoint() const;
@@ -62,14 +65,17 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Returns a weak handle to the root trait instance
 	UE::AnimNext::FWeakTraitPtr GetGraphRootPtr() const;
 
+	// Returns the module instance that owns us or nullptr if we are invalid
+	FAnimNextModuleInstance* GetModuleInstance() const;
+
 	// Returns the parent graph instance that owns us or nullptr for the root graph instance or if we are invalid
 	FAnimNextGraphInstance* GetParentGraphInstance() const;
 
 	// Returns the root graph instance that owns us and the components or nullptr if we are invalid
 	FAnimNextGraphInstance* GetRootGraphInstance() const;
 
-	// Check to see if this instance data matches the provided module
-	bool UsesModule(const UAnimNextModule* InModule) const;
+	// Check to see if this instance data matches the provided animation graph
+	bool UsesAnimationGraph(const UAnimNextAnimationGraph* InAnimationGraph) const;
 
 	// Check to see if this instance data matches the provided graph entry point
 	bool UsesEntryPoint(FName InEntryPoint) const;
@@ -101,6 +107,9 @@ struct ANIMNEXT_API FAnimNextGraphInstance
 	// Called each time the graph updates
 	void Update();
 
+	// Get the extended execute context that we own
+	FRigVMExtendedExecuteContext& GetExtendedExecuteContext();
+
 private:
 	// Returns a pointer to the specified component, or nullptr if not found
 	UE::AnimNext::FGraphInstanceComponent* TryGetComponent(int32 ComponentNameHash, FName ComponentName) const;
@@ -112,6 +121,7 @@ private:
 	// When frozen, latent handles that can freeze are skipped, all others will execute
 	void ExecuteLatentPins(const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& LatentHandles, void* DestinationBasePtr, bool bIsFrozen);
 
+#if WITH_EDITORONLY_DATA
 	// During graph compilation, if we have existing graph instances, we freeze them by releasing their memory before thawing them
 	// Freezing is a partial release of resources that retains the necessary information to re-create things safely
 	void Freeze();
@@ -119,15 +129,22 @@ private:
 	// During graph compilation, once compilation is done we thaw existing graph instances to reallocate their memory
 	void Thaw();
 
-	// Update and push any graph state that this graph has onto the parameter stack
-	UE::AnimNext::FParamStack::FPushedLayerHandle UpdateAndPushGraphState(float InDeltaTime) const;
+	// Hook into module compilation
+	void OnModuleCompiled(UAnimNextModule* InModule);
 
-	// Pop any graph state that this graph has off the parameter stack
-	void PopGraphState(UE::AnimNext::FParamStack::FPushedLayerHandle InHandle) const;
+	// Rebind any public variables when this instance is recompiled
+	void RebindPublicVariables();
+#endif
+
+	// Bind the variables in the supplied traits in scope to their respective public variables, so they point at host memory
+	void BindPublicVariables(TConstArrayView<FRigVMTraitScope> InTraitScopes);
+
+	// Unbind any public variables that were pointing at host memory and re-point them at the internal defaults
+	void UnbindPublicVariables();
 
 	// Hard reference to the graph used to create this instance to ensure we can release it safely
 	UPROPERTY()
-	TObjectPtr<const UAnimNextModule> Module;
+	TObjectPtr<const UAnimNextAnimationGraph> AnimationGraph;
 
 	// The entry point in Graph that this instance corresponds to 
 	FName EntryPoint;
@@ -135,14 +152,28 @@ private:
 	// Hard reference to the graph instance data, we own it
 	UE::AnimNext::FTraitPtr GraphInstancePtr;
 
+	// The module instance that owns the root, us and the components
+	FAnimNextModuleInstance* ModuleInstance = nullptr;
+
 	// The graph instance that owns us
 	FAnimNextGraphInstance* ParentGraphInstance = nullptr;
 
 	// The root graph instance that owns us and the components
 	FAnimNextGraphInstance* RootGraphInstance = nullptr;
 
-	// Graph state parameter source
-	TUniquePtr<UE::AnimNext::IParameterSource> GraphState;
+	// User variables used to operate the graph
+	FInstancedPropertyBag Variables;
+
+#if WITH_EDITORONLY_DATA
+	struct FCachedVariableBinding
+	{
+		FName VariableName;
+		uint8* Memory = nullptr;
+	};
+
+	// Cached public variable bindings used to correctly thaw instances with input pin bindings
+	TArray<FCachedVariableBinding> CachedVariableBindings;
+#endif
 
 	// Extended execute context instance for this graph instance, we own it
 	UPROPERTY()
@@ -151,10 +182,20 @@ private:
 	// Graph instance components that persist from update to update
 	GraphInstanceComponentMapType Components;
 
-	// Whether or not this graph has updated once
-	bool bHasUpdatedOnce = false;
+	// The current state of public variable bindings to the host
+	enum class EPublicVariablesState : uint8
+	{
+		None,		// No public variables present
+		Unbound,	// Present, but currently unbound
+		Bound		// Present and bound
+	};
 
-	friend UAnimNextModule;					// The module is the one that allocates instances
+	EPublicVariablesState PublicVariablesState;
+
+	// Whether or not this graph has updated once
+	bool bHasUpdatedOnce : 1 = false;
+
+	friend UAnimNextAnimationGraph;			// The graph is the one that allocates instances
 	friend FRigUnit_AnimNextGraphEvaluator;	// We evaluate the instance
 	friend UE::AnimNext::FExecutionContext;
 	friend FAnimNextGraphInstancePtr;

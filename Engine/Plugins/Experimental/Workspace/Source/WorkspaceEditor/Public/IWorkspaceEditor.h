@@ -6,6 +6,7 @@
 
 class UWorkspaceAssetEditor;
 class UWorkspaceSchema;
+struct FWorkspaceOutlinerItemExport;
 
 namespace UE::Workspace
 {
@@ -45,6 +46,14 @@ public:
 	template<typename AssetClass>
 	TObjectPtr<AssetClass> GetFocussedAsset() const { return GetFocussedAssetOfClass(AssetClass::StaticClass()); }
 	TObjectPtr<UObject> GetFocussedAsset() const { return GetFocussedAssetOfClass(UObject::StaticClass()); }
+
+	// Get the current single selection of the outliner.
+	// @return true if a single selection is active
+	virtual bool GetOutlinerSelection(TArray<FWorkspaceOutlinerItemExport>& OutExports) const = 0;
+
+	// Delegate fired when selection changes in the workspace outliner
+	using FOnOutlinerSelectionChanged = TMulticastDelegate<void(TConstArrayView<FWorkspaceOutlinerItemExport> InExports)>;
+	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() = 0;
 };
 
 }

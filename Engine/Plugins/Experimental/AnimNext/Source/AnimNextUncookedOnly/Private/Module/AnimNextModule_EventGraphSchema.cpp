@@ -3,7 +3,8 @@
 #include "AnimNextEventGraphSchema.h"
 
 #include "AnimNextExecuteContext.h"
-#include "Param/RigUnit_AnimNextParameterBase.h"
+#include "Graph/RigUnit_AnimNextBase.h"
+#include "Graph/RigUnit_AnimNextTraitStack.h"
 
 bool UAnimNextEventGraphSchema::SupportsUnitFunction(URigVMController* InController, const FRigVMFunction* InUnitFunction) const
 {
@@ -11,10 +12,13 @@ bool UAnimNextEventGraphSchema::SupportsUnitFunction(URigVMController* InControl
 	{
 		if(FunctionExecuteContextStruct == FAnimNextExecuteContext::StaticStruct())
 		{
-			// Only allow nodes that are children of FRigUnit_AnimNextParameterBase
 			if(InUnitFunction->Struct)
 			{
-				return InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextParameterBase::StaticStruct());
+				if(InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextTraitStack::StaticStruct()))
+				{
+					return false;
+				}
+				return InUnitFunction->Struct->IsChildOf(FRigUnit_AnimNextBase::StaticStruct());
 			}
 		}
 	}

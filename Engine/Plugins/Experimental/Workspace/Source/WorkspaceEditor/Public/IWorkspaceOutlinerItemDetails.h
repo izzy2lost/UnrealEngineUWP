@@ -21,8 +21,13 @@ class IWorkspaceOutlinerItemDetails : public TSharedFromThis<IWorkspaceOutlinerI
 {
 public:
     virtual ~IWorkspaceOutlinerItemDetails() = default;
-    virtual const FSlateBrush* GetItemIcon() const { return nullptr; }
+    virtual const FSlateBrush* GetItemIcon(const FWorkspaceOutlinerItemExport& Export) const { return nullptr; }
     virtual void HandleDoubleClick(const FToolMenuContext& ToolMenuContext) const {}
+	virtual bool CanDelete(const FWorkspaceOutlinerItemExport& Export) const { return true; }
+	virtual void Delete(TConstArrayView<FWorkspaceOutlinerItemExport> Exports) const {}
+    virtual bool CanRename(const FWorkspaceOutlinerItemExport& Export) const { return false; }
+    virtual void Rename(const FWorkspaceOutlinerItemExport& Export, const FText& InName) const {}
+    virtual bool ValidateName(const FWorkspaceOutlinerItemExport& Export, const FText& InName, FText& OutErrorMessage) const { return false; }
     virtual UPackage* GetPackage(const FWorkspaceOutlinerItemExport& Export) const { return nullptr; }
 };
 

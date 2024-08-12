@@ -6,6 +6,7 @@ namespace UnrealBuildTool.Rules
 	{
 		public AnimNextTestSuite(ReadOnlyTargetRules Target) : base(Target)
 		{
+			
 			PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 
 			PublicDependencyModuleNames.AddRange(

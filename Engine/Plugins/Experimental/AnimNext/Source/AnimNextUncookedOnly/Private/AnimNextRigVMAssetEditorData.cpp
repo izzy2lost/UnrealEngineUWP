@@ -2,35 +2,52 @@
 
 #include "AnimNextRigVMAssetEditorData.h"
 
+#include "AnimNextController.h"
+#include "AnimNextEdGraph.h"
+#include "AnimNextEdGraphSchema.h"
 #include "AnimNextRigVMAsset.h"
-#include "AnimNextRigVMAssetEntry.h"
+#include "Entries/AnimNextRigVMAssetEntry.h"
 #include "AnimNextRigVMAssetSchema.h"
-#include "Module/AnimNextModuleWorkspaceAssetUserData.h"
+#include "AnimNextAssetWorkspaceAssetUserData.h"
 #include "ControlRigDefines.h"
 #include "ExternalPackageHelper.h"
 #include "IAnimNextRigVMGraphInterface.h"
-#include "IAnimNextRigVMParameterInterface.h"
+#include "IWorkspaceEditor.h"
+#include "IWorkspaceEditorModule.h"
+#include "Variables/IAnimNextRigVMVariableInterface.h"
 #include "UncookedOnlyUtils.h"
-#include "AnimNextEdGraph.h"
-#include "AnimNextEdGraphSchema.h"
+#include "Entries/AnimNextAnimationGraphEntry.h"
+#include "Entries/AnimNextEventGraphEntry.h"
+#include "Entries/AnimNextVariableEntry.h"
+#include "Graph/AnimNextAnimationGraphSchema.h"
+#include "Graph/RigUnit_AnimNextBeginExecution.h"
 #include "Misc/TransactionObjectEvent.h"
+#include "Module/AnimNextEventGraphSchema.h"
+#include "Module/AnimNextModule_EditorData.h"
+#include "Module/RigUnit_AnimNextModuleEvents.h"
 #include "Param/AnimNextTag.h"
 #include "RigVMModel/RigVMFunctionLibrary.h"
 #include "RigVMModel/RigVMNotifications.h"
+#include "RigVMModel/Nodes/RigVMAggregateNode.h"
 #include "RigVMModel/Nodes/RigVMCollapseNode.h"
 #include "UObject/AssetRegistryTagsContext.h"
 
-void UAnimNextRigVMAssetEditorData::BroadcastModified()
+TAutoConsoleVariable<bool> CVarDumpProgrammaticGraphs(
+	TEXT("AnimNext.DumpProgrammaticGraphs"),
+	false,
+	TEXT("When true the transient programmatic graphs will be automatically opened for any that are generated."));
+
+void UAnimNextRigVMAssetEditorData::BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject)
 {
 	RecompileVM();
 
 	if(!bSuspendEditorDataNotifications)
 	{
-		ModifiedDelegate.Broadcast(this);
+		ModifiedDelegate.Broadcast(this, InType, InSubject);
 	}
 }
 
-void UAnimNextRigVMAssetEditorData::ReportError(const TCHAR* InMessage) const
+void UAnimNextRigVMAssetEditorData::ReportError(const TCHAR* InMessage)
 {
 	FScriptExceptionHandler::Get().HandleException(ELogVerbosity::Error, InMessage, TEXT(""));
 }
@@ -139,9 +156,9 @@ void UAnimNextRigVMAssetEditorData::Initialize(bool bRecompileVM)
 
 	if (IInterface_AssetUserData* OuterUserData = Cast<IInterface_AssetUserData>(GetOuter()))
 	{
-		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextModuleWorkspaceAssetUserData::StaticClass()))
+		if(!OuterUserData->HasAssetUserDataOfClass(UAnimNextAssetWorkspaceAssetUserData::StaticClass()))
 		{
-			OuterUserData->AddAssetUserDataOfClass(UAnimNextModuleWorkspaceAssetUserData::StaticClass());
+			OuterUserData->AddAssetUserDataOfClass(UAnimNextAssetWorkspaceAssetUserData::StaticClass());
 		}
 	}
 }
@@ -183,7 +200,7 @@ void UAnimNextRigVMAssetEditorData::PostTransacted(const FTransactionObjectEvent
 
 	if (TransactionEvent.GetEventType() == ETransactionObjectEventType::UndoRedo)
 	{
-		BroadcastModified();
+		BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged, this);
 	}
 }
 
@@ -199,12 +216,12 @@ void UAnimNextRigVMAssetEditorData::GetAssetRegistryTags(FAssetRegistryTagsConte
 	// We may not have compiled yet, so cache exports if we havent already
 	if(!CachedExports.IsSet())
 	{
-		CachedExports = FAnimNextParameterProviderAssetRegistryExports();
-		UE::AnimNext::UncookedOnly::FUtils::GetAssetParameters(this, CachedExports.GetValue());
+		CachedExports = FAnimNextAssetRegistryExports();
+		UE::AnimNext::UncookedOnly::FUtils::GetAssetVariables(this, CachedExports.GetValue());
 	}
 
 	FString TagValue;
-	FAnimNextParameterProviderAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports.GetValue(), nullptr, nullptr, PPF_None, nullptr);
+	FAnimNextAssetRegistryExports::StaticStruct()->ExportText(TagValue, &CachedExports.GetValue(), nullptr, nullptr, PPF_None, nullptr);
 	Context.AddTag(FAssetRegistryTag(UE::AnimNext::ExportsAnimNextAssetRegistryTag, TagValue, FAssetRegistryTag::TT_Hidden));
 }
 
@@ -414,7 +431,19 @@ void UAnimNextRigVMAssetEditorData::HandleConfigureRigVMController(const FRigVMC
 
 	TWeakObjectPtr<UAnimNextRigVMAssetEditorData> WeakThis(this);
 
-	// this delegate is used by the controller to retrieve the current bytecode of the VM
+	InControllerToConfigure->GetExternalVariablesDelegate.BindLambda([](URigVMGraph* InGraph) -> TArray<FRigVMExternalVariable> {
+		if (InGraph)
+		{
+			if(URigVMHost* RigVMHost = InGraph->GetTypedOuter<URigVMHost>())
+			{
+				return RigVMHost->GetExternalVariables();
+			}
+		}
+		return TArray<FRigVMExternalVariable>();
+	});
+	
+	// this delegate is used by the controller
+	// to retrieve the current bytecode of the VM
 	InControllerToConfigure->GetCurrentByteCodeDelegate.BindLambda([WeakThis]() -> const FRigVMByteCode*
 	{
 		if (WeakThis.IsValid())
@@ -554,6 +583,138 @@ TObjectPtr<URigVMGraph> UAnimNextRigVMAssetEditorData::CreateContainedGraphModel
 	return Model;
 }
 
+void UAnimNextRigVMAssetEditorData::RecompileVM()
+{
+	using namespace UE::AnimNext::UncookedOnly;
+
+	if (bIsCompiling)
+	{
+		return;
+	}
+
+	TGuardValue<bool> CompilingGuard(bIsCompiling, true);
+
+	UAnimNextRigVMAsset* Asset = FUtils::GetAsset<UAnimNextRigVMAsset>(this);
+
+	CachedExports = FAnimNextAssetRegistryExports();
+	FUtils::GetAssetVariables(this, CachedExports.GetValue());
+
+	bErrorsDuringCompilation = false;
+
+	RigGraphDisplaySettings.MinMicroSeconds = RigGraphDisplaySettings.LastMinMicroSeconds = DBL_MAX;
+	RigGraphDisplaySettings.MaxMicroSeconds = RigGraphDisplaySettings.LastMaxMicroSeconds = (double)INDEX_NONE;
+
+	TArray<URigVMGraph*> ProgrammaticGraphs;
+	{
+		TGuardValue<bool> ReentrantGuardSelf(bSuspendModelNotificationsForSelf, true);
+		TGuardValue<bool> ReentrantGuardOthers(RigVMClient.bSuspendModelNotificationsForOthers, true);
+
+		VMCompileSettings.SetExecuteContextStruct(FAnimNextExecuteContext::StaticStruct());
+		FRigVMCompileSettings Settings = (bCompileInDebugMode) ? FRigVMCompileSettings::Fast(VMCompileSettings.GetExecuteContextStruct()) : VMCompileSettings;
+
+		FMessageLog("AnimNextCompilerResults").NewPage(FText::FromName(Asset->GetFName()));
+		Settings.ASTSettings.ReportDelegate.BindLambda([](EMessageSeverity::Type InType, UObject* InObject, const FString& InString)
+		{
+			FMessageLog("AnimNextCompilerResults").Message(InType, FText::FromString(InString));
+		});
+
+		FUtils::RecreateVM(Asset);
+
+		FUtils::CompileVariables(Asset);
+
+		GetProgrammaticGraphs(Settings, ProgrammaticGraphs);
+		for(URigVMGraph* ProgrammaticGraph : ProgrammaticGraphs)
+		{
+			check(ProgrammaticGraph != nullptr);
+		}
+
+		Asset->VMRuntimeSettings = VMRuntimeSettings;
+
+		FRigVMClient* VMClient = GetRigVMClient();
+
+		TArray<URigVMGraph*> AllGraphs = VMClient->GetAllModels(false, false);
+		AllGraphs.Append(ProgrammaticGraphs);
+
+		if(AllGraphs.Num() == 0)
+		{
+			return;
+		}
+
+		UAnimNextController* Controller = CastChecked<UAnimNextController>(VMClient->GetOrCreateController(AllGraphs[0]));
+
+		URigVMCompiler* Compiler = URigVMCompiler::StaticClass()->GetDefaultObject<URigVMCompiler>();
+		Compiler->Compile(Settings, AllGraphs, Controller, Asset->VM, Asset->ExtendedExecuteContext, Asset->GetExternalVariables(), &PinToOperandMap);
+
+		// Initialize right away, in packaged builds we initialize during PostLoad
+		Asset->VM->Initialize(Asset->ExtendedExecuteContext);
+		Asset->GenerateUserDefinedDependenciesData(Asset->ExtendedExecuteContext);
+
+		// Notable difference with vanilla RigVM host behavior - we init the VM here at the moment as we only have one 'instance'
+		Asset->InitializeVM(FRigUnit_AnimNextBeginExecution::EventName);
+
+		if (bErrorsDuringCompilation)
+		{
+			if(Settings.SurpressErrors)
+			{
+				Settings.Reportf(EMessageSeverity::Info, Asset, TEXT("Compilation Errors may be suppressed for AnimNext asset: %s. See VM Compile Settings for more Details"), *Asset->GetName());
+			}
+		}
+
+		bVMRecompilationRequired = false;
+		if(Asset->VM)
+		{
+			RigVMCompiledEvent.Broadcast(Asset, Asset->VM, Asset->ExtendedExecuteContext);
+		}
+
+		FAnimNextAssetRegistryExports Exports;
+		FUtils::GetAssetVariables(this, Exports);
+	}
+
+#if WITH_EDITOR
+	// Display programmatic graphs
+	if(CVarDumpProgrammaticGraphs.GetValueOnGameThread())
+	{
+		UE::Workspace::IWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::LoadModuleChecked<UE::Workspace::IWorkspaceEditorModule>("WorkspaceEditor");
+		if(UE::Workspace::IWorkspaceEditor* WorkspaceEditor = WorkspaceEditorModule.OpenWorkspaceForObject(Asset, UE::Workspace::EOpenWorkspaceMethod::Default))
+		{
+			TArray<UObject*> Graphs;
+			for(URigVMGraph* ProgrammaticGraph : ProgrammaticGraphs)
+			{
+				// Some explanation needed here!
+				// URigVMEdGraph caches its underlying model internally in GetModel depending on its outer if it is no attached to a RigVMClient
+				// So here we rename the graph into the transient package so we dont get any notifications
+				ProgrammaticGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+
+				// then create the graph (transient so it outers to the RigVMGraph)
+				URigVMEdGraph* EdGraph = CastChecked<URigVMEdGraph>(CreateEdGraph(ProgrammaticGraph, true));
+
+				// Then cache the model
+				EdGraph->GetModel();
+				Graphs.Add(EdGraph);
+
+				// Now rename into this asset again to be able to correctly create a controller (needed to view the graph and interact with it)
+				ProgrammaticGraph->Rename(nullptr, this, REN_ForceNoResetLoaders | REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
+				URigVMController* TempController = GetOrCreateController(ProgrammaticGraph);
+
+				// Resend notifications to rebuild the EdGraph
+				TempController->ResendAllNotifications();
+			}
+
+			WorkspaceEditor->OpenObjects(Graphs);
+		}
+	}
+#endif
+
+#if WITH_EDITOR
+//	RefreshBreakpoints(EditorData);
+#endif
+
+	if (IAssetRegistry* AssetRegistry = IAssetRegistry::Get())
+	{
+		AssetRegistry->AssetUpdateTags(Asset, EAssetRegistryTagsCaller::Fast);
+	}
+}
+
 void UAnimNextRigVMAssetEditorData::RecompileVMIfRequired()
 {
 	if (bVMRecompilationRequired)
@@ -673,10 +834,21 @@ void UAnimNextRigVMAssetEditorData::HandleModifiedEvent(ERigVMGraphNotifType InN
 			RequestAutoVMRecompilation();	// We need to rebuild our metadata when a default value changes
 			break;
 		}
+	case ERigVMGraphNotifType::PinAdded:
+		{
+			if (URigVMPin* Pin = Cast<URigVMPin>(InSubject))
+			{
+				if (Pin->IsTraitPin())
+				{
+					RequestAutoVMRecompilation();
+				}
+			}
+			break;
+		}
 	}
 	
 	// if the notification still has to be sent...
-	if (bNotifForOthersPending && !bSuspendModelNotificationsForOthers)
+	if (bNotifForOthersPending && !RigVMClient.bSuspendModelNotificationsForOthers)
 	{
 		if (RigVMGraphModifiedEvent.IsBound())
 		{
@@ -774,7 +946,7 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntry(UAnimNextRigVMAssetEntry* InEntr
 	// This will cause any external package to be removed when saved
 	EntryToRemove->MarkAsGarbage();
 
-	BroadcastModified();
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryRemoved, this);
 
 	return bResult;
 }
@@ -784,7 +956,7 @@ bool UAnimNextRigVMAssetLibrary::RemoveEntries(UAnimNextRigVMAsset* InAsset, con
 	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InAsset)->RemoveEntries(InEntries, bSetupUndoRedo, bPrintPythonCommand);
 }
 
-bool UAnimNextRigVMAssetEditorData::RemoveEntries(const TArray<UAnimNextRigVMAssetEntry*>& InEntries, bool bSetupUndoRedo, bool bPrintPythonCommand)
+bool UAnimNextRigVMAssetEditorData::RemoveEntries(TConstArrayView<UAnimNextRigVMAssetEntry*> InEntries, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	bool bResult = false;
 	{
@@ -796,7 +968,7 @@ bool UAnimNextRigVMAssetEditorData::RemoveEntries(const TArray<UAnimNextRigVMAss
 		}
 	}
 
-	BroadcastModified();
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryRemoved, this);
 
 	return bResult;
 }
@@ -849,6 +1021,477 @@ UAnimNextRigVMAssetEntry* UAnimNextRigVMAssetEditorData::FindEntryForRigVMEdGrap
 	return nullptr;
 }
 
+void UAnimNextRigVMAssetEditorData::CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce)
+{
+	check(InNode);
+	URigVMGraph* CollapseNodeGraph = InNode->GetGraph();
+	check(CollapseNodeGraph);
+
+	if (bForce)
+	{
+		RemoveEdGraphForCollapseNode(InNode, false);
+	}
+
+	// For Function node
+	if (InNode->GetGraph()->IsA<URigVMFunctionLibrary>())
+	{
+		if (URigVMGraph* ContainedGraph = InNode->GetContainedGraph())
+		{
+			bool bFunctionGraphExists = false;
+			for (UEdGraph* FunctionGraph : FunctionEdGraphs)
+			{
+				if (URigVMEdGraph* RigFunctionGraph = Cast<URigVMEdGraph>(FunctionGraph))
+				{
+					if (RigFunctionGraph->ModelNodePath == ContainedGraph->GetNodePath())
+					{
+						bFunctionGraphExists = true;
+						break;
+					}
+				}
+			}
+
+			if (!bFunctionGraphExists)
+			{
+				const FName SubGraphName = RigVMClient.GetUniqueName(this, *InNode->GetName());
+				// create a sub graph
+				UAnimNextEdGraph* RigFunctionGraph = NewObject<UAnimNextEdGraph>(this, SubGraphName, RF_Transactional);
+				RigFunctionGraph->Schema = UAnimNextEdGraphSchema::StaticClass();
+				RigFunctionGraph->bAllowRenaming = true;
+				RigFunctionGraph->bEditable = true;
+				RigFunctionGraph->bAllowDeletion = true;
+				RigFunctionGraph->ModelNodePath = ContainedGraph->GetNodePath();
+				RigFunctionGraph->bIsFunctionDefinition = true;
+
+				RigFunctionGraph->Initialize(this);
+
+				FunctionEdGraphs.Add(RigFunctionGraph);
+
+				RigVMClient.GetOrCreateController(ContainedGraph)->ResendAllNotifications();
+			}
+		}
+	}
+	// --- For Collapse nodes ---
+	else if (URigVMEdGraph* RigEdGraph = Cast<URigVMEdGraph>(GetEditorObjectForRigVMGraph(InNode->GetGraph())))
+	{
+		if (URigVMGraph* ContainedGraph = InNode->GetContainedGraph())
+		{
+			bool bSubGraphExists = false;
+
+			const FString ContainedGraphNodePath = ContainedGraph->GetNodePath();
+			for (UEdGraph* SubGraph : RigEdGraph->SubGraphs)
+			{
+				if (UAnimNextEdGraph* SubRigGraph = Cast<UAnimNextEdGraph>(SubGraph))
+				{
+					if (SubRigGraph->ModelNodePath == ContainedGraphNodePath)
+					{
+						bSubGraphExists = true;
+						break;
+					}
+				}
+			}
+
+			if (!bSubGraphExists)
+			{
+				bool bEditable = true;
+				if (InNode->IsA<URigVMAggregateNode>())
+				{
+					bEditable = false;
+				}
+
+				UObject* Outer = FindEntryForRigVMGraph(CollapseNodeGraph->GetRootGraph());
+				if (Outer == nullptr)
+				{
+					Outer = this; // function library graph has no entry
+				}
+
+				const FName SubGraphName = RigVMClient.GetUniqueName(Outer, *InNode->GetEditorSubGraphName());
+				// create a sub graph, no need to set external package if outer is an Entry
+				UAnimNextEdGraph* SubRigGraph = NewObject<UAnimNextEdGraph>(Outer, SubGraphName, RF_Transactional);
+				SubRigGraph->Schema = UAnimNextEdGraphSchema::StaticClass();
+				SubRigGraph->bAllowRenaming = 1;
+				SubRigGraph->bEditable = bEditable;
+				SubRigGraph->bAllowDeletion = 1;
+				SubRigGraph->ModelNodePath = ContainedGraphNodePath;
+				SubRigGraph->bIsFunctionDefinition = false;
+
+				RigEdGraph->SubGraphs.Add(SubRigGraph);
+
+				SubRigGraph->Initialize(this);
+
+				GetOrCreateController(ContainedGraph)->ResendAllNotifications();
+			}
+		}
+	}
+}
+
+void UAnimNextRigVMAssetEditorData::RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify)
+{
+	check(InNode);
+
+	if (InNode->GetGraph()->IsA<URigVMFunctionLibrary>())
+	{
+		if (URigVMGraph* ContainedGraph = InNode->GetContainedGraph())
+		{
+			for (UEdGraph* FunctionGraph : FunctionEdGraphs)
+			{
+				if (URigVMEdGraph* RigFunctionGraph = Cast<URigVMEdGraph>(FunctionGraph))
+				{
+					if (RigFunctionGraph->ModelNodePath == ContainedGraph->GetNodePath())
+					{
+						if (URigVMController* SubController = GetController(ContainedGraph))
+						{
+							SubController->OnModified().RemoveAll(RigFunctionGraph);
+						}
+
+						if (RigVMGraphModifiedEvent.IsBound() && bNotify)
+						{
+							RigVMGraphModifiedEvent.Broadcast(ERigVMGraphNotifType::NodeRemoved, InNode->GetGraph(), InNode);
+						}
+
+						FunctionEdGraphs.Remove(RigFunctionGraph);
+						RigFunctionGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+						RigFunctionGraph->MarkAsGarbage();
+						break;
+					}
+				}
+			}
+		}
+	}
+	else if (URigVMEdGraph* RigGraph = Cast<URigVMEdGraph>(GetEditorObjectForRigVMGraph(InNode->GetGraph())))
+	{
+		if (URigVMGraph* ContainedGraph = InNode->GetContainedGraph())
+		{
+			for (UEdGraph* SubGraph : RigGraph->SubGraphs)
+			{
+				if (URigVMEdGraph* SubRigGraph = Cast<URigVMEdGraph>(SubGraph))
+				{
+					if (SubRigGraph->ModelNodePath == ContainedGraph->GetNodePath())
+					{
+						if (URigVMController* SubController = GetController(ContainedGraph))
+						{
+							SubController->OnModified().RemoveAll(SubRigGraph);
+						}
+
+						if (RigVMGraphModifiedEvent.IsBound() && bNotify)
+						{
+							RigVMGraphModifiedEvent.Broadcast(ERigVMGraphNotifType::NodeRemoved, InNode->GetGraph(), InNode);
+						}
+
+						RigGraph->SubGraphs.Remove(SubRigGraph);
+						SubRigGraph->Rename(nullptr, GetTransientPackage(), REN_ForceNoResetLoaders | REN_DontCreateRedirectors);
+						SubRigGraph->MarkAsGarbage();
+						break;
+					}
+				}
+			}
+		}
+	}
+}
+
+UEdGraph* UAnimNextRigVMAssetEditorData::CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce)
+{
+	check(InRigVMGraph);
+
+	if(InRigVMGraph->IsA<URigVMFunctionLibrary>())
+	{
+		return nullptr;
+	}
+
+	const bool bIsTransient = InRigVMGraph->HasAnyFlags(RF_Transient);
+	IAnimNextRigVMGraphInterface* Entry = Cast<IAnimNextRigVMGraphInterface>(FindEntryForRigVMGraph(InRigVMGraph));
+	if(Entry == nullptr && !bIsTransient)
+	{
+		// Not found, we could be adding a new entry, in which case the graph wont be assigned yet
+		check(Entries.Num() > 0);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last()) != nullptr);
+		check(Cast<IAnimNextRigVMGraphInterface>(Entries.Last())->GetRigVMGraph() == nullptr);
+		Entry = Cast<IAnimNextRigVMGraphInterface>(FindEntryForRigVMGraph(nullptr));
+	}
+
+	if(Entry == nullptr && !bIsTransient)
+	{
+		return nullptr;
+	}
+	
+	if(bForce)
+	{
+		RemoveEdGraph(InRigVMGraph);
+	}
+
+	UObject* Outer = nullptr;
+	EObjectFlags Flags = RF_NoFlags;
+	if(!bIsTransient)
+	{
+		Outer = CastChecked<UObject>(Entry);
+		Flags = RF_Transactional;
+	}
+	else
+	{
+		// This outer is to allow URigVMEdGraph::GetModel to retrieve the graph in 'preview' scenarios 
+		Outer = InRigVMGraph;
+		Flags = RF_Transient;
+	}
+
+	const FName GraphName = Entry != nullptr ? RigVMClient.GetUniqueName(Outer, Entry->GetGraphName()) : NAME_None;
+	UAnimNextEdGraph* RigFunctionGraph = NewObject<UAnimNextEdGraph>(Outer, GraphName, Flags);
+	RigFunctionGraph->Schema = UAnimNextEdGraphSchema::StaticClass();
+	RigFunctionGraph->bAllowDeletion = true;
+	RigFunctionGraph->bIsFunctionDefinition = false;
+	RigFunctionGraph->ModelNodePath = InRigVMGraph->GetNodePath();
+	RigFunctionGraph->Initialize(this);
+
+	if(!bIsTransient)
+	{
+		Entry->SetEdGraph(RigFunctionGraph);
+		if(Entry->GetRigVMGraph() == nullptr)
+		{
+			Entry->SetRigVMGraph(InRigVMGraph);
+		}
+		else
+		{
+			check(Entry->GetRigVMGraph() == InRigVMGraph);
+		}
+	}
+
+	return RigFunctionGraph;
+}
+
+bool UAnimNextRigVMAssetEditorData::RemoveEdGraph(URigVMGraph* InModel)
+{
+	if(IAnimNextRigVMGraphInterface* Entry = Cast<IAnimNextRigVMGraphInterface>(FindEntryForRigVMGraph(InModel)))
+	{
+		RigVMClient.DestroyObject(Entry->GetEdGraph());
+		Entry->SetEdGraph(nullptr);
+		return true;
+	}
+	return false;
+}
+
+UAnimNextVariableEntry* UAnimNextRigVMAssetLibrary::AddVariable(UAnimNextModule* InModule, FName InName, EPropertyBagPropertyType InValueType,
+	EPropertyBagContainerType InContainerType, const UObject* InValueTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddVariable(InName, FAnimNextParamType(InValueType, InContainerType, InValueTypeObject), InDefaultValue, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextVariableEntry* UAnimNextRigVMAssetEditorData::AddVariable(FName InName, FAnimNextParamType InType, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddVariable: Invalid variable name supplied."));
+		return nullptr;
+	}
+
+	if(!GetEntryClasses().Contains(UAnimNextVariableEntry::StaticClass()) || !CanAddNewEntry(UAnimNextVariableEntry::StaticClass()))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddVariable: Cannot add a variable to this asset - entry is not allowed."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewParameterName = InName;
+	auto DuplicateNamePredicate = [&NewParameterName](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		return InEntry->GetEntryName() == NewParameterName;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewParameterName = FName(InName, NameNumber++);
+		bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextVariableEntry* NewEntry = CreateNewSubEntry<UAnimNextVariableEntry>(this);
+	{
+		TGuardValue<bool> DisableEditorDataNotifications(bSuspendEditorDataNotifications, true);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+
+		NewEntry->SetVariableName(NewParameterName, false);
+		NewEntry->SetType(InType, false);
+		if(InDefaultValue.Len() > 0)
+		{
+			NewEntry->SetDefaultValue(InDefaultValue, false);
+		}
+	}
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+
+	Entries.Add(NewEntry);
+
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
+
+	return NewEntry;
+}
+
+UAnimNextEventGraphEntry* UAnimNextRigVMAssetLibrary::AddEventGraph(UAnimNextModule* InModule, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddEventGraph(InName, InEventStruct, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextEventGraphEntry* UAnimNextRigVMAssetEditorData::AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddEventGraph: Invalid graph name supplied."));
+		return nullptr;
+	}
+
+	if(InEventStruct == nullptr || !InEventStruct->IsChildOf(FRigVMStruct::StaticStruct()))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddEventGraph: Invalid event struct name supplied."));
+		return nullptr;
+	}
+
+	if(!GetEntryClasses().Contains(UAnimNextEventGraphEntry::StaticClass()) || !CanAddNewEntry(UAnimNextEventGraphEntry::StaticClass()))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddEventGraph: Cannot add an event graph to this asset - entry is not allowed."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewGraphName = InName;
+	auto DuplicateNamePredicate = [&NewGraphName](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		return InEntry->GetEntryName() == NewGraphName;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewGraphName = FName(InName, NameNumber++);
+		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextEventGraphEntry* NewEntry = CreateNewSubEntry<UAnimNextEventGraphEntry>(this);
+	NewEntry->GraphName = NewGraphName;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+
+	Entries.Add(NewEntry);
+
+	// Add new graph
+	{
+		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		// Editor data has to be the graph outer, or RigVM unique name generator will not work
+		URigVMGraph* NewRigVMGraphModel = RigVMClient.CreateModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextEventGraphSchema::StaticClass(), bSetupUndoRedo, this);
+		if (ensure(NewRigVMGraphModel))
+		{
+			// Then, to avoid the graph losing ref due to external package, set the same package as the Entry
+			if (!NewRigVMGraphModel->HasAnyFlags(RF_Transient))
+			{
+				NewRigVMGraphModel->SetExternalPackage(CastChecked<UObject>(NewEntry)->GetExternalPackage());
+			}
+			ensure(NewRigVMGraphModel);
+			NewEntry->Graph = NewRigVMGraphModel;
+
+			RefreshExternalModels();
+			RigVMClient.AddModel(NewRigVMGraphModel, true);
+			URigVMController* Controller = RigVMClient.GetController(NewRigVMGraphModel);
+			UE::AnimNext::UncookedOnly::FUtils::SetupEventGraph(Controller, InEventStruct);
+		}
+	}
+
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
+
+	return NewEntry;
+}
+
+UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetLibrary::AddAnimationGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	return UE::AnimNext::UncookedOnly::FUtils::GetEditorData(InModule)->AddAnimationGraph(InName, bSetupUndoRedo, bPrintPythonCommand);
+}
+
+UAnimNextAnimationGraphEntry* UAnimNextRigVMAssetEditorData::AddAnimationGraph(FName InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(InName == NAME_None)
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddAnimationGraph: Invalid graph name supplied."));
+		return nullptr;
+	}
+
+	if(!GetEntryClasses().Contains(UAnimNextAnimationGraphEntry::StaticClass()) || !CanAddNewEntry(UAnimNextAnimationGraphEntry::StaticClass()))
+	{
+		ReportError(TEXT("UAnimNextRigVMAssetEditorData::AddAnimationGraph: Cannot add an animation graph to this asset - entry is not allowed."));
+		return nullptr;
+	}
+
+	// Check for duplicate name
+	FName NewGraphName = InName;
+	auto DuplicateNamePredicate = [&NewGraphName](const UAnimNextRigVMAssetEntry* InEntry)
+	{
+		return InEntry->GetEntryName() == NewGraphName;
+	};
+
+	bool bAlreadyExists = Entries.ContainsByPredicate(DuplicateNamePredicate);
+	int32 NameNumber = InName.GetNumber() + 1;
+	while(bAlreadyExists)
+	{
+		NewGraphName = FName(InName, NameNumber++);
+		bAlreadyExists =  Entries.ContainsByPredicate(DuplicateNamePredicate);
+	}
+
+	UAnimNextAnimationGraphEntry* NewEntry = CreateNewSubEntry<UAnimNextAnimationGraphEntry>(this);
+	NewEntry->GraphName = NewGraphName;
+
+	if(bSetupUndoRedo)
+	{
+		NewEntry->Modify();
+		Modify();
+	}
+
+	Entries.Add(NewEntry);
+
+	// Add new graph
+	{
+		TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
+		TGuardValue<bool> DisableAutoCompile(bAutoRecompileVM, false);
+		// Editor data has to be the graph outer, or RigVM unique name generator will not work
+		URigVMGraph* NewRigVMGraphModel = RigVMClient.CreateModel(URigVMGraph::StaticClass()->GetFName(), UAnimNextAnimationGraphSchema::StaticClass(), bSetupUndoRedo, this);
+		if (ensure(NewRigVMGraphModel))
+		{
+			// Then, to avoid the graph losing ref due to external package, set the same package as the Entry
+			if (!NewRigVMGraphModel->HasAnyFlags(RF_Transient))
+			{
+				NewRigVMGraphModel->SetExternalPackage(CastChecked<UObject>(NewEntry)->GetExternalPackage());
+			}
+			ensure(NewRigVMGraphModel);
+			NewEntry->Graph = NewRigVMGraphModel;
+
+			RefreshExternalModels();
+			RigVMClient.AddModel(NewRigVMGraphModel, true);
+			URigVMController* Controller = RigVMClient.GetController(NewRigVMGraphModel);
+			UE::AnimNext::UncookedOnly::FUtils::SetupAnimGraph(NewEntry, Controller);
+		}
+	}
+
+	BroadcastModified(EAnimNextEditorDataNotifType::EntryAdded, NewEntry);
+
+	return NewEntry;
+}
+
+bool UAnimNextRigVMAssetEditorData::HasPublicVariables() const
+{
+	for(UAnimNextRigVMAssetEntry* Entry : Entries)
+	{
+		if(UAnimNextVariableEntry* Variable = Cast<UAnimNextVariableEntry>(Entry))
+		{
+			return Variable->GetExportAccessSpecifier() == EAnimNextExportAccessSpecifier::Public;
+		}
+	}
+	return false;
+}
+
 void UAnimNextRigVMAssetEditorData::RefreshExternalModels()
 {
 	GraphModels.Reset();
@@ -863,5 +1506,4 @@ void UAnimNextRigVMAssetEditorData::RefreshExternalModels()
 			}
 		}
 	}
-
 }

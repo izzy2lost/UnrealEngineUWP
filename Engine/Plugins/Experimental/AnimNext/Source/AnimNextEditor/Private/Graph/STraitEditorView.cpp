@@ -16,7 +16,7 @@
 #include "MessageLogModule.h"
 #include "IWorkspaceEditor.h"
 #include "IMessageLogListing.h"
-#include "Module/AnimNextModule_Controller.h"
+#include "AnimNextController.h"
 #include "Graph/AnimNextCompilerResultsTabSummoner.h"
 #include "Logging/MessageLog.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -102,7 +102,7 @@ FReply STraitEditorView::OnTraitClicked(const FTraitUID InClickedTraitUID)
 	{
 		if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
 		{
-			if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
+			if (UAnimNextController* Controller = Cast<UAnimNextController>(EdGraphNode->GetController()))
 			{
 				int32 TraitIndex = INDEX_NONE;
 				TSharedPtr<FTraitDataEditorDef> SwapTraitData = FTraitEditorUtils::FindTraitInCurrentStackData(SelectedTraitUID, TraitEditorSharedData->CurrentTraitsDataShared, &TraitIndex);
@@ -147,7 +147,7 @@ FReply STraitEditorView::OnTraitDeleteRequest(const FTraitUID InTraitUIDToDelete
 				{
 					if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak.Get()))
 					{
-						if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
+						if (UAnimNextController* Controller = Cast<UAnimNextController>(EdGraphNode->GetController()))
 						{
 							Controller->RemoveTraitByName(EdGraphNode->GetFName(), TraitDataEditorDef->TraitName);
 						}
@@ -182,7 +182,7 @@ void STraitEditorView::ExecuteTraitDrag(const FTraitUID DraggedTraitUID, const F
 	{
 		if (UAnimNextEdGraphNode* EdGraphNode = Cast<UAnimNextEdGraphNode>(TraitEditorSharedData->EdGraphNodeWeak))
 		{
-			if (UAnimNextModule_Controller* Controller = Cast<UAnimNextModule_Controller>(EdGraphNode->GetController()))
+			if (UAnimNextController* Controller = Cast<UAnimNextController>(EdGraphNode->GetController()))
 			{
 				int32 TargetTraitIndex = INDEX_NONE;
 				TSharedPtr<FTraitDataEditorDef> SwapTraitData = FTraitEditorUtils::FindTraitInCurrentStackData(TargetTraitUID, TraitEditorSharedData->CurrentTraitsDataShared, &TargetTraitIndex);
@@ -298,7 +298,7 @@ void STraitEditorView::RefreshTraitStackTraitsStatus()
 					// Open tab to display errors
 					if (TSharedPtr<UE::Workspace::IWorkspaceEditor> WorkspaceEditor = WorkspaceEditorWeak.Pin())
 					{
-						WorkspaceEditor->GetTabManager()->TryInvokeTab(CompilerResultsTabName);
+						WorkspaceEditor->GetTabManager()->TryInvokeTab(FTabId(CompilerResultsTabName));
 					}
 				}
 			}

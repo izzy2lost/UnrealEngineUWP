@@ -97,7 +97,7 @@ namespace UE::AnimNext
 	 *
 	 * @see IEvaluate::PreEvaluate, IEvaluate::PostEvaluate, IHierarchy::GetChildren
 	 */
-	[[nodiscard]] ANIMNEXTANIMGRAPH_API FEvaluationProgram EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance);
+	[[nodiscard]] ANIMNEXTANIMGRAPH_API FEvaluationProgram EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance);
 
 	/**
 	 * Evaluates a sub-graph starting at its root and produces an evaluation program.

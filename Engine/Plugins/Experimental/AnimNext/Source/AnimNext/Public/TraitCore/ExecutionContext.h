@@ -62,7 +62,7 @@ namespace UE::AnimNext
 		// In order to be used, the execution context must be bound to a valid root graph instance
 
 		// Binds the execution context to the specified graph instance if it differs from the currently bound instance
-		void BindTo(FAnimNextGraphInstancePtr& InGraphInstance);
+		void BindTo(const FAnimNextGraphInstancePtr& InGraphInstance);
 
 		// Binds the execution context to the specified graph instance if it differs from the currently bound instance
 		void BindTo(FAnimNextGraphInstance& InGraphInstance);

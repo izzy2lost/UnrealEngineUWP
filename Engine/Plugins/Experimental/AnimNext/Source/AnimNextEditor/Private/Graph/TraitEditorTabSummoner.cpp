@@ -8,8 +8,7 @@
 namespace UE::AnimNext::Editor
 {
 
-const FName TraitEditorTabName("TraitEditorTab");
-
+const FLazyName TraitEditorTabName("TraitEditorTab");
 
 FTraitEditorTabSummoner::FTraitEditorTabSummoner(const TSharedPtr<UE::Workspace::IWorkspaceEditor>& InHostingApp)
 	: FWorkflowTabFactory(TraitEditorTabName, StaticCastSharedPtr<FAssetEditorToolkit>(InHostingApp))

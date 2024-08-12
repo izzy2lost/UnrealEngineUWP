@@ -44,10 +44,7 @@ namespace WorkspaceTabs
 // Context passed to workspace editor delegates
 struct FWorkspaceEditorContext
 {
-	FWorkspaceEditorContext(const TSharedRef<IWorkspaceEditor>& InWorkspaceEditor, UObject* InObject)
-		: WorkspaceEditor(InWorkspaceEditor)
-		, Object(InObject)
-	{}
+	FWorkspaceEditorContext(const TSharedRef<IWorkspaceEditor>& InWorkspaceEditor, UObject* InObject);
 
 	// The current workspace editor
 	TSharedRef<IWorkspaceEditor> WorkspaceEditor;
@@ -68,6 +65,8 @@ struct FWorkspaceBreadcrumb : TSharedFromThis<FWorkspaceBreadcrumb>
 	FCanSaveBreadcrumb CanSave;
 	FOnSaveBreadcrumb OnSave;
 };
+
+using FOnRedirectWorkspaceContext = TDelegate<UObject*(UObject*)>;
 
 using FOnMakeDocumentWidget = TDelegate<TSharedRef<SWidget>(const FWorkspaceEditorContext&)>;
 
@@ -90,6 +89,13 @@ struct FObjectDocumentArgs
 		: OnMakeDocumentWidget(InOnMakeDocumentWidget)
 		, SpawnLocation(InSpawnLocation)
 	{}
+
+	FObjectDocumentArgs(FOnRedirectWorkspaceContext InOnRedirectWorkspaceContext)
+		: OnRedirectWorkspaceContext(InOnRedirectWorkspaceContext)
+	{}
+	
+	// Delegate called to redirect the context to another document object (e.g. a subobject)
+	FOnRedirectWorkspaceContext OnRedirectWorkspaceContext;
 
 	// Delegate called to generate a widget for the supplied object
 	FOnMakeDocumentWidget OnMakeDocumentWidget;
@@ -181,7 +187,7 @@ class IWorkspaceEditorModule : public IModuleInterface
 {
 public:
 	// Open an object inside a workspace editor.
-	virtual void OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass = UWorkspaceFactory::StaticClass()) = 0;
+	virtual IWorkspaceEditor* OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass = UWorkspaceFactory::StaticClass()) = 0;
 
 	// Register a widget factory method to spawn for a particular class
 	virtual void RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InArgs) = 0;

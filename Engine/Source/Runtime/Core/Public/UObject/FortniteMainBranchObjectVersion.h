@@ -510,12 +510,16 @@ struct FFortniteMainBranchObjectVersion
 		// Deprecation of the bPlaying flag on FTimeline struct types in favor of a better
 		// PlayingStateTracker type to improve replication reliability 
 		TimelinePlayingStateTrackerDeprecation,
+		
 
 		// Enable SkipOnlyEditorOnly style cooking of UStaticMeshComponent::MeshPaintTexture
 		MeshPaintTextureUsesEditorOnly,
 
 		// Fixup and synchronize some landscape properties that have moved to the property sharing/overriding system :
 		LandscapeBodyInstanceAsSharedProperty,
+		
+		// Multiple changes to AnimNext modules, variables etc.
+		AnimNextModuleRefactor,
 
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,

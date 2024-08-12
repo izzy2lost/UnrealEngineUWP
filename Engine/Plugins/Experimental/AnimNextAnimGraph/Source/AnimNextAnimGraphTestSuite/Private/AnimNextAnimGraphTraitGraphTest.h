@@ -16,6 +16,12 @@ struct FTestTraitSharedData : public FAnimNextTraitSharedData
 	GENERATED_BODY()
 
 	UPROPERTY(meta = (Input, Inline))
+	int32 UpdateCount = 0;
+
+	UPROPERTY(meta = (Input, Inline))
+	int32 EvaluateCount = 0;
+
+	UPROPERTY(meta = (Input, Inline))
 	int32 SomeInt32 = 3;
 
 	UPROPERTY(meta = (Input, Inline))

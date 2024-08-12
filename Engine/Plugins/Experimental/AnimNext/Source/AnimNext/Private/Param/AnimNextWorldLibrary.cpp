@@ -2,7 +2,6 @@
 
 #include "AnimNextWorldLibrary.h"
 #include "Engine/World.h"
-#include "Scheduler/AnimNextTickFunctionBinding.h"
 
 double UAnimNextWorldLibrary::GetTimeSeconds(UWorld* InWorld)
 {
@@ -22,12 +21,4 @@ double UAnimNextWorldLibrary::GetRealTimeSeconds(UWorld* InWorld)
 float UAnimNextWorldLibrary::GetDeltaSeconds(UWorld* InWorld)
 {
 	return InWorld->GetDeltaSeconds();
-}
-
-FAnimNextTickFunctionBinding UAnimNextWorldLibrary::GetPhysicsTick(UWorld* InWorld)
-{
-	FAnimNextTickFunctionBinding Binding;
-	Binding.Object = InWorld;
-	Binding.TickFunction = &InWorld->EndPhysicsTickFunction;
-	return Binding;
 }

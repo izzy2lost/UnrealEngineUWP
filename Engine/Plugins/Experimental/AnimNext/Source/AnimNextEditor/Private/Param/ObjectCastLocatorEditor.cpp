@@ -12,9 +12,9 @@
 #include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/Input/SComboButton.h"
-#include "SParameterPicker.h"
 #include "Modules/ModuleManager.h"
 #include "Param/AnimNextObjectCastLocatorFragment.h"
+#include "Widgets/Layout/SBox.h"
 
 #define LOCTEXT_NAMESPACE "ObjectCastLocatorEditor"
 

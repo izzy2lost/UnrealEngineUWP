@@ -26,6 +26,26 @@ namespace UE::Workspace
 
 TMap<FOutlinerItemDetailsId, TSharedPtr<IWorkspaceOutlinerItemDetails>> FWorkspaceEditorModule::OutlinerItemDetails;
 
+FWorkspaceEditorContext::FWorkspaceEditorContext(const TSharedRef<IWorkspaceEditor>& InWorkspaceEditor, UObject* InObject)
+	: WorkspaceEditor(InWorkspaceEditor)
+	, Object(InObject)
+{
+	FWorkspaceEditorModule& WorkspaceEditorModule = FModuleManager::Get().LoadModuleChecked<FWorkspaceEditorModule>("WorkspaceEditor");
+	const FObjectDocumentArgs* FoundArgs = WorkspaceEditorModule.ObjectDocumentArgs.Find(InObject->GetClass()->GetClassPathName());
+	while(FoundArgs && FoundArgs->OnRedirectWorkspaceContext.IsBound())
+	{
+		InObject = FoundArgs->OnRedirectWorkspaceContext.Execute(InObject);
+		FoundArgs = WorkspaceEditorModule.ObjectDocumentArgs.Find(InObject->GetClass()->GetClassPathName());
+	}
+
+	Object = InObject;
+}
+
+void FWorkspaceEditorModule::StartupModule()
+{
+	FWorkspaceAssetEditorCommands::Register();
+}
+
 void FWorkspaceEditorModule::RegisterObjectDocumentType(const FTopLevelAssetPath& InClassPath, const FObjectDocumentArgs& InParams)
 {
 	ensure(InParams.SpawnLocation != NAME_None);
@@ -36,7 +56,7 @@ void FWorkspaceEditorModule::RegisterObjectDocumentType(const FTopLevelAssetPath
 
 void FWorkspaceEditorModule::UnregisterObjectDocumentType(const FTopLevelAssetPath& InClassPath)
 {
-	if(const FObjectDocumentArgs* ExistingType = FindObjectDocumentType(InClassPath))
+	if(const FObjectDocumentArgs* ExistingType = ObjectDocumentArgs.Find(InClassPath))
 	{
 		DocumentAreaMap.FindChecked(ExistingType->SpawnLocation).Remove(InClassPath);
 	}
@@ -148,7 +168,7 @@ bool FWorkspaceEditorModule::GetExportedAssetsForWorkspace(const FAssetData& InW
 	return OutExports.Assets.Num() > 0;
 }
 
-void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass/*= UWorkspaceFactory::StaticClass()*/)
+ IWorkspaceEditor* FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWorkspaceMethod InOpenMethod, const TSubclassOf<UWorkspaceFactory> WorkSpaceFactoryClass/*= UWorkspaceFactory::StaticClass()*/)
 {
 	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
 
@@ -238,11 +258,20 @@ void FWorkspaceEditorModule::OpenWorkspaceForObject(UObject* InObject, EOpenWork
 	{
 		WorkspaceEditor->OpenAssets({InObject});
 	}
+
+	return WorkspaceEditor;
 }
 
-const FObjectDocumentArgs* FWorkspaceEditorModule::FindObjectDocumentType(const FTopLevelAssetPath& InClassPath) const
+const FObjectDocumentArgs* FWorkspaceEditorModule::FindObjectDocumentType(const UObject* InObject) const
 {
-	return ObjectDocumentArgs.Find(InClassPath);
+	const FObjectDocumentArgs* FoundArgs = ObjectDocumentArgs.Find(InObject->GetClass()->GetClassPathName());
+	while(FoundArgs && FoundArgs->OnRedirectWorkspaceContext.IsBound())
+	{
+		InObject = FoundArgs->OnRedirectWorkspaceContext.Execute(const_cast<UObject*>(InObject));
+		FoundArgs = ObjectDocumentArgs.Find(InObject->GetClass()->GetClassPathName());
+	}
+
+	return FoundArgs;
 }
 
 TArray<FTopLevelAssetPath> FWorkspaceEditorModule::GetAllowedObjectTypesForArea(FName InSpawnLocation) const

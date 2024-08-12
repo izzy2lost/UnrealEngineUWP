@@ -7,405 +7,191 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Animation/AnimSequence.h"
 #include "Param/ParamType.h"
-#include "Param/ParamTypeHandle.h"
 #include "Param/ParamCompatibility.h"
 
 namespace UE::AnimNext
 {
 
-FParamCompatibility FParamUtils::GetCompatibility(const FParamTypeHandle& InLHS, const FParamTypeHandle& InRHS)
+FParamCompatibility FParamUtils::GetCompatibility(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
 {
-	auto CheckClassCastToCustom = [](const FParamTypeHandle& InLHS, const UClass* InRHSClass)
+	switch (InRHS.GetValueType())
 	{
-		FAnimNextParamType::EValueType ValueTypeLHS;
-		FAnimNextParamType::EContainerType ContainerTypeLHS;
-		const UObject* ValueTypeObjectLHS;
-
-		InLHS.GetCustomTypeInfo(ValueTypeLHS, ContainerTypeLHS, ValueTypeObjectLHS);
-		if(ContainerTypeLHS == FAnimNextParamType::EContainerType::None && ValueTypeLHS == FAnimNextParamType::EValueType::Object)
+	case EPropertyBagPropertyType::Bool:
+		switch (InLHS.GetValueType())
 		{
-			if(const UClass* Class = Cast<UClass>(ValueTypeObjectLHS))
-			{
-				if(InRHSClass->IsChildOf(Class))
-				{
-					return true;
-				}
-			}
-		}
-		return false;
-	};
-
-	auto CheckClassCastFromCustom = [](const UClass* InLHSClass, const FParamTypeHandle& InRHS)
-	{
-		FAnimNextParamType::EValueType ValueTypeRHS;
-		FAnimNextParamType::EContainerType ContainerTypeRHS;
-		const UObject* ValueTypeObjectRHS;
-
-		InRHS.GetCustomTypeInfo(ValueTypeRHS, ContainerTypeRHS, ValueTypeObjectRHS);
-		if(ContainerTypeRHS == FAnimNextParamType::EContainerType::None && ValueTypeRHS == FAnimNextParamType::EValueType::Object)
-		{
-			if(const UClass* Class = Cast<UClass>(ValueTypeObjectRHS))
-			{
-				if(Class->IsChildOf(InLHSClass))
-				{
-					return true;
-				}
-			}
-		}
-		return false;
-	};
-	
-	switch (InRHS.GetParameterType())
-	{
-	case FParamTypeHandle::EParamType::Bool:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Bool:
+		case EPropertyBagPropertyType::Bool:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Byte:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Byte:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Byte:
+		case EPropertyBagPropertyType::Byte:
 			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Int32:
+		case EPropertyBagPropertyType::Int32:
 			return EParamCompatibility::Compatible_Promotion;
-		case FParamTypeHandle::EParamType::Int64:
+		case EPropertyBagPropertyType::Int64:
 			return EParamCompatibility::Compatible_Promotion;
-		case FParamTypeHandle::EParamType::Float:
+		case EPropertyBagPropertyType::Float:
 			return EParamCompatibility::Compatible_Promotion;
-		case FParamTypeHandle::EParamType::Double:
+		case EPropertyBagPropertyType::Double:
 			return EParamCompatibility::Compatible_Promotion;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Int32:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Int32:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Byte:
+		case EPropertyBagPropertyType::Byte:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int32:
+		case EPropertyBagPropertyType::Int32:
 			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Int64:
+		case EPropertyBagPropertyType::Int64:
 			return EParamCompatibility::Compatible_Promotion;
-		case FParamTypeHandle::EParamType::Float:
+		case EPropertyBagPropertyType::Float:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Double:
-			return EParamCompatibility::Compatible_Promotion;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Int64:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Byte:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int32:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int64:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Float:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Double:
-			return EParamCompatibility::Incompatible_DataLoss;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Float:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Byte:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int32:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int64:
-			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Float:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Double:
+		case EPropertyBagPropertyType::Double:
 			return EParamCompatibility::Compatible_Promotion;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Double:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Int64:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Byte:
+		case EPropertyBagPropertyType::Byte:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int32:
+		case EPropertyBagPropertyType::Int32:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Int64:
+		case EPropertyBagPropertyType::Int64:
+			return EParamCompatibility::Compatible_Equal;
+		case EPropertyBagPropertyType::Float:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Float:
+		case EPropertyBagPropertyType::Double:
 			return EParamCompatibility::Incompatible_DataLoss;
-		case FParamTypeHandle::EParamType::Double:
+		}
+		break;
+	case EPropertyBagPropertyType::Float:
+		switch (InLHS.GetValueType())
+		{
+		case EPropertyBagPropertyType::Byte:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Int32:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Int64:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Float:
+			return EParamCompatibility::Compatible_Equal;
+		case EPropertyBagPropertyType::Double:
+			return EParamCompatibility::Compatible_Promotion;
+		}
+		break;
+	case EPropertyBagPropertyType::Double:
+		switch (InLHS.GetValueType())
+		{
+		case EPropertyBagPropertyType::Byte:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Int32:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Int64:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Float:
+			return EParamCompatibility::Incompatible_DataLoss;
+		case EPropertyBagPropertyType::Double:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Name:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Name:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Name:
+		case EPropertyBagPropertyType::Name:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;
-	case FParamTypeHandle::EParamType::String:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::String:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::String:
+		case EPropertyBagPropertyType::String:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Text:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Text:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Text:
+		case EPropertyBagPropertyType::Text:
 			return EParamCompatibility::Compatible_Equal;
 		}
 		break;
-	case FParamTypeHandle::EParamType::Vector:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Struct:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Vector:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Vector4:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Vector4:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Quat:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Quat:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Transform:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Transform:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Object:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Object:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCastToCustom(InLHS, UObject::StaticClass()))
+		case EPropertyBagPropertyType::Struct:
+			if(InLHS.GetValueTypeObject() == InRHS.GetValueTypeObject())
+			{
+				return EParamCompatibility::Compatible_Equal;
+			}
+			else if(InLHS.GetValueTypeObject() && InRHS.GetValueTypeObject() && CastChecked<UScriptStruct>(InRHS.GetValueTypeObject())->IsChildOf(CastChecked<UScriptStruct>(InLHS.GetValueTypeObject())))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
 		}
 		break;
-	case FParamTypeHandle::EParamType::CharacterMovementComponent:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Object:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Object:
-			return EParamCompatibility::Compatible_Cast;
-		case FParamTypeHandle::EParamType::CharacterMovementComponent:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCastToCustom(InLHS, UCharacterMovementComponent::StaticClass()))
+		case EPropertyBagPropertyType::Object:
+			if(InLHS.GetValueTypeObject() == InRHS.GetValueTypeObject())
+			{
+				return EParamCompatibility::Compatible_Equal;
+			}
+			if(InLHS.GetValueTypeObject() && InRHS.GetValueTypeObject() && InRHS.GetValueTypeObject()->GetClass()->IsChildOf(InLHS.GetValueTypeObject()->GetClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
 		}
 		break;
-	case FParamTypeHandle::EParamType::SkeletalMeshComponent:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::SoftObject:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Object:
-			return EParamCompatibility::Compatible_Cast;
-		case FParamTypeHandle::EParamType::SkeletalMeshComponent:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCastToCustom(InLHS, USkeletalMeshComponent::StaticClass()))
+		case EPropertyBagPropertyType::SoftObject:
+			if(InLHS.GetValueTypeObject() == InRHS.GetValueTypeObject())
+			{
+				return EParamCompatibility::Compatible_Equal;
+			}
+			if(InLHS.GetValueTypeObject() && InRHS.GetValueTypeObject() && InRHS.GetValueTypeObject()->GetClass()->IsChildOf(InLHS.GetValueTypeObject()->GetClass()))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
 		}
 		break;
-	case FParamTypeHandle::EParamType::AnimSequence:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::Class:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::Object:
-			return EParamCompatibility::Compatible_Cast;
-		case FParamTypeHandle::EParamType::AnimSequence:
-			return EParamCompatibility::Compatible_Equal;
-		case FParamTypeHandle::EParamType::Custom:
-			if(CheckClassCastToCustom(InLHS, UAnimSequence::StaticClass()))
+		case EPropertyBagPropertyType::Class:
+			if(InLHS.GetValueTypeObject() == InRHS.GetValueTypeObject())
+			{
+				return EParamCompatibility::Compatible_Equal;
+			}
+			if(InLHS.GetValueTypeObject() && InRHS.GetValueTypeObject() && CastChecked<UClass>(InRHS.GetValueTypeObject())->IsChildOf(CastChecked<UClass>(InLHS.GetValueTypeObject())))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
 		}
 		break;
-	case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
-		switch (InLHS.GetParameterType())
+	case EPropertyBagPropertyType::SoftClass:
+		switch (InLHS.GetValueType())
 		{
-		case FParamTypeHandle::EParamType::AnimNextGraphLODPose:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::AnimNextGraphReferencePose:
-			return EParamCompatibility::Compatible_Equal;
-		}
-		break;
-	case FParamTypeHandle::EParamType::Custom:
-		switch (InLHS.GetParameterType())
-		{
-		case FParamTypeHandle::EParamType::Object:
-			if(CheckClassCastFromCustom(UObject::StaticClass(), InRHS))
+		case EPropertyBagPropertyType::SoftClass:
+			if(InLHS.GetValueTypeObject() == InRHS.GetValueTypeObject())
+			{
+				return EParamCompatibility::Compatible_Equal;
+			}
+			if(InLHS.GetValueTypeObject() && InRHS.GetValueTypeObject() && CastChecked<UClass>(InRHS.GetValueTypeObject())->IsChildOf(CastChecked<UClass>(InLHS.GetValueTypeObject())))
 			{
 				return EParamCompatibility::Compatible_Cast;
 			}
-			break;
-		case FParamTypeHandle::EParamType::CharacterMovementComponent:
-			if(CheckClassCastFromCustom(UCharacterMovementComponent::StaticClass(), InRHS))
-			{
-				return EParamCompatibility::Compatible_Cast;
-			}
-			break;
-		case FParamTypeHandle::EParamType::SkeletalMeshComponent:
-			if(CheckClassCastFromCustom(USkeletalMeshComponent::StaticClass(), InRHS))
-			{
-				return EParamCompatibility::Compatible_Cast;
-			}
-			break;
-		case FParamTypeHandle::EParamType::AnimSequence:
-			if(CheckClassCastFromCustom(UAnimSequence::StaticClass(), InRHS))
-			{
-				return EParamCompatibility::Compatible_Cast;
-			}
-			break;
-		case FParamTypeHandle::EParamType::Custom:
-			{
-				FAnimNextParamType::EValueType ValueTypeLHS, ValueTypeRHS;
-				FAnimNextParamType::EContainerType ContainerTypeLHS, ContainerTypeRHS;
-				const UObject* ValueTypeObjectLHS, *ValueTypeObjectRHS;
-
-				InLHS.GetCustomTypeInfo(ValueTypeLHS, ContainerTypeLHS, ValueTypeObjectLHS);
-				InRHS.GetCustomTypeInfo(ValueTypeRHS, ContainerTypeRHS, ValueTypeObjectRHS);
-
-				if (ContainerTypeLHS == ContainerTypeRHS)
-				{
-					if (ContainerTypeLHS == FAnimNextParamType::EContainerType::Array)
-					{
-						if (ValueTypeLHS != ValueTypeRHS)
-						{
-							switch (ValueTypeLHS)
-							{
-							case FAnimNextParamType::EValueType::Float:
-								if(ValueTypeRHS == FAnimNextParamType::EValueType::Double)
-								{
-									return EParamCompatibility::Incompatible_DataLoss;
-								}
-								break;
-							case FAnimNextParamType::EValueType::Double:
-								if (ValueTypeRHS == FAnimNextParamType::EValueType::Float)
-								{
-									return EParamCompatibility::Compatible_Promotion;
-								}
-								break;
-							case FAnimNextParamType::EValueType::Struct:
-							case FAnimNextParamType::EValueType::Object:
-							case FAnimNextParamType::EValueType::SoftObject:
-							case FAnimNextParamType::EValueType::Class:
-							case FAnimNextParamType::EValueType::SoftClass:
-								if (ValueTypeObjectLHS == ValueTypeObjectRHS)
-								{
-									return EParamCompatibility::Compatible_Equal;
-								}
-								break;
-							}
-						}
-						else
-						{
-							switch (ValueTypeLHS)
-							{
-							case FAnimNextParamType::EValueType::Bool:
-							case FAnimNextParamType::EValueType::Byte:
-							case FAnimNextParamType::EValueType::Int32:
-							case FAnimNextParamType::EValueType::Int64:
-							case FAnimNextParamType::EValueType::Float:
-							case FAnimNextParamType::EValueType::Double:
-							case FAnimNextParamType::EValueType::Name:
-							case FAnimNextParamType::EValueType::String:
-							case FAnimNextParamType::EValueType::Text:
-								return EParamCompatibility::Compatible_Equal;
-							case FAnimNextParamType::EValueType::Enum:
-							case FAnimNextParamType::EValueType::Struct:
-							case FAnimNextParamType::EValueType::Object:
-							case FAnimNextParamType::EValueType::SoftObject:
-							case FAnimNextParamType::EValueType::Class:
-							case FAnimNextParamType::EValueType::SoftClass:
-								if (ValueTypeObjectLHS == ValueTypeObjectRHS)
-								{
-									return EParamCompatibility::Compatible_Equal;
-								}
-								break;
-							}
-						}
-					}
-					else
-					{
-						if (ValueTypeLHS == ValueTypeRHS)
-						{
-							switch (ValueTypeLHS)
-							{
-							default:
-							case FAnimNextParamType::EValueType::None:
-								return EParamCompatibility::Incompatible;
-							case FAnimNextParamType::EValueType::Enum:
-								if (ValueTypeObjectLHS == ValueTypeObjectRHS)
-								{
-									return EParamCompatibility::Compatible_Equal;
-								}
-								break;
-							case FAnimNextParamType::EValueType::Struct:
-								if (ValueTypeObjectLHS == ValueTypeObjectRHS)
-								{
-									return EParamCompatibility::Compatible_Equal;
-								}
-								else if (CastChecked<UScriptStruct>(ValueTypeObjectRHS)->IsChildOf(CastChecked<UScriptStruct>(ValueTypeObjectLHS)))
-								{
-									return EParamCompatibility::Compatible_Cast;
-								}
-								break;
-							case FAnimNextParamType::EValueType::Object:
-							case FAnimNextParamType::EValueType::SoftObject:
-							case FAnimNextParamType::EValueType::Class:
-							case FAnimNextParamType::EValueType::SoftClass:
-								if (ValueTypeObjectLHS == ValueTypeObjectRHS)
-								{
-									return EParamCompatibility::Compatible_Equal;
-								}
-								else if (CastChecked<UClass>(ValueTypeObjectRHS)->IsChildOf(CastChecked<UClass>(ValueTypeObjectLHS)))
-								{
-									return EParamCompatibility::Compatible_Cast;
-								}
-								break;
-							}
-						}
-					}
-				}
-			}
-			break;
 		}
 		break;
 	}
 
 	return EParamCompatibility::Incompatible;
-}
-
-FParamCompatibility FParamUtils::GetCompatibility(const FAnimNextParamType& InLHS, const FAnimNextParamType& InRHS)
-{
-	return GetCompatibility(InLHS.GetHandle(), InRHS.GetHandle());
 }
 
 static bool CanUseFunctionInternal(const UFunction* InFunction, const UClass* InExpectedClass, FProperty*& OutReturnProperty)
@@ -492,7 +278,7 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InEx
 	return CanUseFunctionInternal(InFunction, InExpectedClass, ReturnProperty);
 }
 
-bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass, FParamTypeHandle& OutTypeHandle)
+bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InExpectedClass, FAnimNextParamType& OutType)
 {
 	FProperty* ReturnProperty = nullptr;
 	if(!CanUseFunctionInternal(InFunction, InExpectedClass, ReturnProperty))
@@ -501,8 +287,8 @@ bool FParamUtils::CanUseFunction(const UFunction* InFunction, const UClass* InEx
 	}
 
 	check(ReturnProperty);
-	OutTypeHandle = FParamTypeHandle::FromProperty(ReturnProperty);
-	if(!OutTypeHandle.IsValid())
+	OutType = FAnimNextParamType::FromProperty(ReturnProperty);
+	if(!OutType.IsValid())
 	{
 		return false;
 	}
@@ -519,15 +305,15 @@ bool FParamUtils::CanUseProperty(const FProperty* InProperty)
 	return true;
 }
 
-bool FParamUtils::CanUseProperty(const FProperty* InProperty, FParamTypeHandle& OutTypeHandle)
+bool FParamUtils::CanUseProperty(const FProperty* InProperty, FAnimNextParamType& OutType)
 {
 	if(!CanUseProperty(InProperty))
 	{
 		return false;
 	}
 
-	OutTypeHandle = FParamTypeHandle::FromProperty(InProperty);
-	if(!OutTypeHandle.IsValid())
+	OutType = FAnimNextParamType::FromProperty(InProperty);
+	if(!OutType.IsValid())
 	{
 		return false;
 	}

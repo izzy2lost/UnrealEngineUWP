@@ -2,15 +2,19 @@
 
 #include "EditorUtils.h"
 
-#include "AnimNextRigVMAssetEntry.h"
+#include "IAnimNextUncookedOnlyModule.h"
+#include "Entries/AnimNextRigVMAssetEntry.h"
 #include "Module/AnimNextModule_EditorData.h"
 #include "Param/ParamType.h"
 #include "Kismet2/Kismet2NameValidators.h"
 #include "Module/AnimNextModule.h"
 #include "PropertyBagDetails.h"
 #include "UncookedOnlyUtils.h"
+#include "Modules/ModuleManager.h"
 #include "Param/RigVMDispatch_GetParameter.h"
 #include "String/ParseTokens.h"
+#include "Variables/IVariableBindingType.h"
+#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextEditorUtils"
 
@@ -402,10 +406,11 @@ bool FUtils::IsValidParameterName(const FName InName, FText& OutErrorText)
 
 bool FUtils::DoesParameterNameExistInAsset(const FName InName, const FAssetData& InAsset)
 {
-	FAnimNextParameterProviderAssetRegistryExports Exports;
-	UncookedOnly::FUtils::GetExportedParametersForAsset(InAsset, Exports);
-	return Exports.Parameters.ContainsByPredicate([InName](const FAnimNextParameterAssetRegistryExportEntry& Entry) { return Entry.Name == InName; });
+	FAnimNextAssetRegistryExports Exports;
+	UncookedOnly::FUtils::GetExportedVariablesForAsset(InAsset, Exports);
+	return Exports.Variables.ContainsByPredicate([InName](const FAnimNextAssetRegistryExportedVariable& Entry) { return Entry.Name == InName; });
 }
+
 
 }
 

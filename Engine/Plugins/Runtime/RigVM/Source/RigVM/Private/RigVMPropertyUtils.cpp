@@ -20,6 +20,11 @@ void RigVMPropertyUtils::GetTypeFromProperty(const FProperty* InProperty, FName&
 		OutTypeName = TEXT("int32");
 		OutTypeObject = nullptr;
 	}
+	else if (CastField<FInt64Property>(InProperty))
+	{
+		OutTypeName = TEXT("int64");
+		OutTypeObject = nullptr;
+	}
 	else if (CastField<FFloatProperty>(InProperty))
 	{
 		OutTypeName = TEXT("float");
@@ -56,6 +61,11 @@ void RigVMPropertyUtils::GetTypeFromProperty(const FProperty* InProperty, FName&
 		{
 			OutTypeName = BytePropertyEnum->GetFName();
 			OutTypeObject = BytePropertyEnum;
+		}
+		else
+		{
+			OutTypeName = TEXT("uint8");
+			OutTypeObject = nullptr;
 		}
 	}
 	else if (const FStructProperty* StructProperty = CastField<FStructProperty>(InProperty))

@@ -1,9 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Param/RigVMDispatch_GetScopedParameter.h"
-#include "Param/ParamStack.h"
 #include "RigVMCore/RigVMStruct.h"
-#include "Param/AnimNextParam.h"
 
 const FName FRigVMDispatch_GetScopedParameter::ParameterName = TEXT("Parameter");
 const FName FRigVMDispatch_GetScopedParameter::ValueName = TEXT("Value");
@@ -56,7 +54,7 @@ const TArray<FRigVMTemplateArgumentInfo>& FRigVMDispatch_GetScopedParameter::Get
 		};
 
 		const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
-		Infos.Emplace(ParameterName, ERigVMPinDirection::Input, Registry.GetTypeIndex_NoLock<FAnimNextParam>());
+		Infos.Emplace(ParameterName, ERigVMPinDirection::Input, RigVMTypeUtils::TypeIndex::FString);
 		Infos.Emplace(ValueName, ERigVMPinDirection::Output, ValueCategories);
 		Infos.Emplace(ParameterIdName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32);
 		Infos.Emplace(TypeHandleName, ERigVMPinDirection::Hidden, RigVMTypeUtils::TypeIndex::UInt32);
@@ -69,7 +67,7 @@ FRigVMTemplateTypeMap FRigVMDispatch_GetScopedParameter::OnNewArgumentType(const
 {
 	FRigVMTemplateTypeMap Types;
 	const FRigVMRegistry_NoLock& Registry = FRigVMRegistry_NoLock::GetForRead();
-	Types.Add(ParameterName, Registry.GetTypeIndex_NoLock<FAnimNextParam>());
+	Types.Add(ParameterName, RigVMTypeUtils::TypeIndex::FString);
 	Types.Add(ValueName, InTypeIndex);
 	Types.Add(ParameterIdName, RigVMTypeUtils::TypeIndex::UInt32);
 	Types.Add(TypeHandleName, RigVMTypeUtils::TypeIndex::UInt32);
@@ -78,28 +76,5 @@ FRigVMTemplateTypeMap FRigVMDispatch_GetScopedParameter::OnNewArgumentType(const
 
 void FRigVMDispatch_GetScopedParameter::Execute(FRigVMExtendedExecuteContext& InContext, FRigVMMemoryHandleArray Handles, FRigVMPredicateBranchArray RigVMBranches)
 {
-	using namespace UE::AnimNext;
-
-	const FAnimNextParam& Parameter = *(FAnimNextParam*)Handles[0].GetData();
-	const FProperty* ValueProperty = Handles[1].GetResolvedProperty();
-	check(ValueProperty);
-	uint8* TargetDataPtr = Handles[1].GetData();
-
-	uint32& ParameterHash = *(uint32*)Handles[2].GetData();
-	if (ParameterHash == 0 && Parameter.Name != NAME_None)
-	{
-		ParameterHash = FParamId::CalculateHash(Parameter.Name, Parameter.InstanceId);
-	}
-
-	uint32& TypeHandle = *(uint32*)Handles[3].GetData();
-	if (TypeHandle == 0)
-	{
-		TypeHandle = FParamTypeHandle::FromProperty(ValueProperty).ToRaw();
-	}
-
-	TConstArrayView<uint8> SourceData;
-	if (FParamStack::Get().GetParamData(FParamId(Parameter.Name, Parameter.InstanceId, ParameterHash), FParamTypeHandle::FromRaw(TypeHandle), SourceData).IsSuccessful())
-	{
-		ValueProperty->CopyCompleteValue(TargetDataPtr, SourceData.GetData());
-	}
+	// Deprecated stub
 }

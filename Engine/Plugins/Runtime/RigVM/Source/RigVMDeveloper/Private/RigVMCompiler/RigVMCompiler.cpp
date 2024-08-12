@@ -2108,12 +2108,27 @@ bool URigVMCompiler::TraverseCallExtern(const FRigVMCallExternExprAST* InExpr, F
 					TArray<FString> DefaultValues;
 					for(const URigVMPin* TraitPin : TraitPins)
 					{
-						if(const FRigVMExprAST* TraitExpr = InExpr->FindVarWithPinName(TraitPin->GetFName()))
+						auto AddPinRegister = [this, &DefaultValues, &WorkData](const FRigVMVarExprAST* InPinExpr)
 						{
-							check(TraitExpr->IsVar());
-							const FRigVMOperand TraitOperand = FindOrAddRegister(TraitExpr->To<FRigVMVarExprAST>(), WorkData);
+							const FRigVMOperand TraitOperand = FindOrAddRegister(InPinExpr, WorkData);
 							check(TraitOperand.GetMemoryType() == ERigVMMemoryType::Work);
 							DefaultValues.Add(FString::FromInt(TraitOperand.GetRegisterIndex()));
+						};
+
+						if(const FRigVMVarExprAST* TraitPinExpr = InExpr->FindVarWithPinName(TraitPin->GetFName()))
+						{
+							// Add programmatic pin expressions first. This is done to allow memory handles to be built at runtime and passed to their
+							// respective 'owning' traits
+							const TArray<URigVMPin*> ProgrammaticPins = TraitPin->GetProgrammaticSubPins(); 
+							for(URigVMPin* ProgrammaticPin : ProgrammaticPins)
+							{
+								if(const FRigVMVarExprAST* ProgrammaticPinExpr = InExpr->FindVarWithPinName(*ProgrammaticPin->GetPinPath()))
+								{
+									AddPinRegister(ProgrammaticPinExpr);
+								}
+							}
+
+							AddPinRegister(TraitPinExpr);
 						}
 					}
 
@@ -3114,6 +3129,11 @@ bool URigVMCompiler::TraverseAssign(const FRigVMAssignExprAST* InExpr, FRigVMCom
 					
 					URigVMPin* RootPin = Pin->GetRootPin();
 					if (Pin == RootPin && !bHasTargetSegmentPath)
+					{
+						return;
+					}
+
+					if(Pin->IsProgrammaticPin())
 					{
 						return;
 					}
@@ -4166,6 +4186,11 @@ const FRigVMCompilerWorkData::FRigVMASTProxyArray& URigVMCompiler::FindProxiesWi
 
 				// Non-lazy pins in node with lazy pins cannot share operands
 				if (Pin->GetDirection() == ERigVMPinDirection::Input && !Pin->IsLazy() && Pin->GetNode()->HasLazyPin())
+				{
+					continue;
+				}
+
+				if(Pin->IsProgrammaticPin())
 				{
 					continue;
 				}

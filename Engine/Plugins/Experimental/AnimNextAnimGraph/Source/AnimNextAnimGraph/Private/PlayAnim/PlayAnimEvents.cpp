@@ -8,7 +8,7 @@ namespace UE::AnimNext
 {
 	void FPlayAnim_PlayEvent::OnExpired(FTraitEventList& OutputEventList)
 	{
-		auto ActionEvent = MakeTraitEvent<FAnimNextSchedule_ActionEvent>();
+		auto ActionEvent = MakeTraitEvent<FAnimNextModule_ActionEvent>();
 		ActionEvent->ActionFunction = [Request = Request]()
 			{
 				Request->OnStatusUpdate(EPlayAnimStatus::Expired);

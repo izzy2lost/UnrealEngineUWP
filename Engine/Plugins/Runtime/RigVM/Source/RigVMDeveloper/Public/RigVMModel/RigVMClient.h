@@ -187,6 +187,7 @@ public:
 		, bSuspendNotifications(false)
 		, bIgnoreModelNotifications(false)
 		, bDefaultModelCanBeRemoved(false)
+		, bSuspendModelNotificationsForOthers(false)
 		, OuterClientHost(nullptr)
 		, OuterClientPropertyName(NAME_None)	
 		, ExternalModelHost(nullptr)
@@ -350,6 +351,7 @@ public:
 	bool bSuspendNotifications;
 	bool bIgnoreModelNotifications;
 	bool bDefaultModelCanBeRemoved;
+	bool bSuspendModelNotificationsForOthers;
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
 	FName OuterClientPropertyName;

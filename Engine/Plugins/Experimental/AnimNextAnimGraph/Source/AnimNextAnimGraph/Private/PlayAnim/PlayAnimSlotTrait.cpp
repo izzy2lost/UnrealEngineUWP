@@ -7,7 +7,7 @@
 #include "TraitCore/NodeInstance.h"
 #include "TraitInterfaces/ITimeline.h"
 #include "Graph/AnimNextGraphInstance.h"
-#include "Scheduler/ScheduleEvents.h"
+#include "Module/ModuleEvents.h"
 
 namespace UE::AnimNext
 {
@@ -31,14 +31,14 @@ namespace UE::AnimNext
 	#undef TRAIT_INTERFACE_ENUMERATOR
 	#undef TRAIT_EVENT_ENUMERATOR
 
-	void FPlayAnimSlotTrait::FPlayAnimSlotRequest::Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextModule* InModule)
+	void FPlayAnimSlotTrait::FPlayAnimSlotRequest::Initialize(FPlayAnimRequestPtr InRequest, const FPlayAnimBlendSettings& InBlendSettings, const UAnimNextAnimationGraph* InAnimationGraph)
 	{
 		Request = InRequest;
 		BlendSettings = InBlendSettings;
-		Module = InModule;
+		AnimationGraph = InAnimationGraph;
 
 		// If no input is provided, we'll use the source
-		State = InModule != nullptr ? EPlayAnimRequestState::Active : EPlayAnimRequestState::ActiveSource;
+		State = InAnimationGraph != nullptr ? EPlayAnimRequestState::Active : EPlayAnimRequestState::ActiveSource;
 		bWasRelevant = false;
 	}
 
@@ -155,7 +155,7 @@ namespace UE::AnimNext
 			InstanceData->PendingRequest.Reset();
 
 			FPlayAnimBlendSettings BlendSettings;
-			const UAnimNextModule* Module = nullptr;
+			const UAnimNextAnimationGraph* AnimationGraph = nullptr;
 			if (Request)
 			{
 				// This is a new pending request, lookup the sub-graph to use with our chooser and the desired animation object
@@ -170,21 +170,21 @@ namespace UE::AnimNext
 						FChooserEvaluationContext ChooserContext;
 						ChooserContext.AddStructParam(ChooserParameters);
 
-						UChooserTable::EvaluateChooser(ChooserContext, Chooser, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&Module](UObject* InResult)
+						UChooserTable::EvaluateChooser(ChooserContext, Chooser, FObjectChooserBase::FObjectChooserIteratorCallback::CreateLambda([&AnimationGraph](UObject* InResult)
 							{
-								Module = Cast<UAnimNextModule>(InResult);
+								AnimationGraph = Cast<UAnimNextAnimationGraph>(InResult);
 								return FObjectChooserBase::EIteratorStatus::Stop;
 							}));
 					}
 
-					if (Module != nullptr)
+					if (AnimationGraph != nullptr)
 					{
 						// Check for re-entrancy and early-out if we are linking back to the current instance or one of its parents
-						const FName EntryPoint = Module->GetDefaultEntryPoint();
+						const FName EntryPoint = AnimationGraph->DefaultEntryPoint;
 						const FAnimNextGraphInstance* OwnerGraphInstance = &Binding.GetTraitPtr().GetNodeInstance()->GetOwner();
 						while (OwnerGraphInstance != nullptr)
 						{
-							if (OwnerGraphInstance->UsesModule(Module) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
+							if (OwnerGraphInstance->UsesAnimationGraph(AnimationGraph) && OwnerGraphInstance->UsesEntryPoint(EntryPoint))
 							{
 								return;
 							}
@@ -215,7 +215,7 @@ namespace UE::AnimNext
 			const int32 FreeRequestIndex = FindFreeRequestIndexOrAdd(*InstanceData);
 
 			FPlayAnimSlotRequest& SlotRequest = InstanceData->SlotRequests[FreeRequestIndex];
-			SlotRequest.Initialize(Request, BlendSettings, Module);
+			SlotRequest.Initialize(Request, BlendSettings, AnimationGraph);
 
 			const int32 OldChildIndex = InstanceData->CurrentlyActiveRequestIndex;
 			const int32 NewChildIndex = FreeRequestIndex;
@@ -297,31 +297,6 @@ namespace UE::AnimNext
 				}
 			}
 		}
-
-		if (InstanceData->CurrentlyActiveRequestIndex != INDEX_NONE)
-		{
-			const FPlayAnimSlotRequest& ActiveSlotRequest = InstanceData->SlotRequests[InstanceData->CurrentlyActiveRequestIndex];
-			if (ActiveSlotRequest.State == EPlayAnimRequestState::Active)
-			{
-				InstanceData->SubGraphParameters->Update(TraitState.GetDeltaTime());
-
-				FParamStack& ParamStack = FParamStack::Get();
-				InstanceData->SubGraphParametersLayerHandle = ParamStack.PushLayer(InstanceData->SubGraphParameters->GetLayerHandle());
-			}
-		}
-	}
-
-	void FPlayAnimSlotTrait::PostUpdate(FUpdateTraversalContext& Context, const TTraitBinding<IUpdate>& Binding, const FTraitUpdateState& TraitState) const
-	{
-		FInstanceData* InstanceData = Binding.GetInstanceData<FInstanceData>();
-
-		if (InstanceData->SubGraphParametersLayerHandle.IsValid())
-		{
-			FParamStack& ParamStack = FParamStack::Get();
-			ParamStack.PopLayer(InstanceData->SubGraphParametersLayerHandle);
-
-			InstanceData->SubGraphParametersLayerHandle.Invalidate();
-		}
 	}
 
 	void FPlayAnimSlotTrait::QueueChildrenForTraversal(FUpdateTraversalContext& Context, const TTraitBinding<IUpdateTraversal>& Binding, const FTraitUpdateState& TraitState, FUpdateTraversalQueue& TraversalQueue) const
@@ -397,14 +372,14 @@ namespace UE::AnimNext
 
 			if (SlotRequest.State == EPlayAnimRequestState::Active)
 			{
-				const FName EntryPoint = SlotRequest.Module->GetDefaultEntryPoint();
-				SlotRequest.Module->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SlotRequest.GraphInstance, EntryPoint);
+				const FName EntryPoint = SlotRequest.AnimationGraph->DefaultEntryPoint;
+				SlotRequest.AnimationGraph->AllocateInstance(Binding.GetTraitPtr().GetNodeInstance()->GetOwner(), SlotRequest.GraphInstance, EntryPoint);
 				SlotRequest.ChildPtr = SlotRequest.GraphInstance.GetGraphRootPtr();
 
 				// Setup our graph parameters
 				const FAnimNextPlayAnimRequestArgs& RequestArgs = SlotRequest.Request->GetArgs();
 
-				const FString SubGraphPath = SlotRequest.Module->GetPathName();
+				const FString SubGraphPath = SlotRequest.AnimationGraph->GetPathName();
 
 				const FName AnimationObjectName(FString::Printf(TEXT("%s:AnimationObject"), *SubGraphPath));
 				const FName StartPositionName(FString::Printf(TEXT("%s:StartPosition"), *SubGraphPath));
@@ -421,7 +396,7 @@ namespace UE::AnimNext
 				SubGraphParameters.AddProperty(IsLoopingName, EPropertyBagPropertyType::Bool);
 				SubGraphParameters.SetValueBool(IsLoopingName, false);
 
-				InstanceData->SubGraphParameters = MakeUnique<FPropertyBagProxy>(NAME_None, MoveTemp(SubGraphParameters));
+				// TODO: forwarding variables to playanim 
 
 				// TODO: Validate that our child implements the ITimeline interface
 
@@ -559,7 +534,7 @@ namespace UE::AnimNext
 				SlotRequest.Request->AddReferencedObjects(Collector);
 			}
 
-			Collector.AddReferencedObject(SlotRequest.Module);
+			Collector.AddReferencedObject(SlotRequest.AnimationGraph);
 		}
 	}
 }

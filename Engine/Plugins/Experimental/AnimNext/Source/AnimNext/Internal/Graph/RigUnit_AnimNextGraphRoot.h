@@ -14,7 +14,7 @@
  * to evaluate.
  * This node isn't used at runtime.
  */
-USTRUCT(meta=(DisplayName="Animation Output", Category="Events", NodeColor="1, 0, 0", Keywords="Root,Output"))
+USTRUCT(meta=(Hidden, DisplayName="Animation Output", Category="Events", NodeColor="1, 0, 0", Keywords="Root,Output"))
 struct ANIMNEXT_API FRigUnit_AnimNextGraphRoot : public FRigUnit_AnimNextBase
 {
 	GENERATED_BODY()

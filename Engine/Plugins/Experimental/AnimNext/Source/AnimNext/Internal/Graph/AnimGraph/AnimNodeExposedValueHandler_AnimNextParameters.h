@@ -4,9 +4,7 @@
 
 #include "Animation/ExposedValueHandler.h"
 #include "PropertyAccess.h"
-#include "Param/ParamId.h"
 #include "Param/ParamType.h"
-#include "Param/ParamTypeHandle.h"
 #include "AnimNodeExposedValueHandler_AnimNextParameters.generated.h"
 
 USTRUCT()
@@ -18,15 +16,9 @@ struct FAnimNodeExposedValueHandler_AnimNextParameters_Entry
 	UPROPERTY()
 	FName ParameterName;
 
-	// Cached ID for the parameter
-	UE::AnimNext::FParamId ParamId;
-
 	// ParamType of the property that this entry will write to
 	UPROPERTY()
 	FAnimNextParamType PropertyParamType;
-
-	// Cached type handle created from ParamType
-	UE::AnimNext::FParamTypeHandle PropertyParamTypeHandle;
 
 	// Property access index
 	UPROPERTY()

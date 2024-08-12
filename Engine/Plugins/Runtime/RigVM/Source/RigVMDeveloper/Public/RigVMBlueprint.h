@@ -527,7 +527,6 @@ public:
 	TMap<FString, FRigVMOperand> PinToOperandMap;
 
 	bool bSuspendModelNotificationsForSelf;
-	bool bSuspendModelNotificationsForOthers;
 	bool bSuspendAllNotifications;
 
 	void RebuildGraphFromModel();

@@ -4,14 +4,12 @@
 
 #include "CoreMinimal.h"
 #include "Modules/ModuleInterface.h"
-#include "Param/AnimNextParamInstanceIdentifier.h"
 
 template<typename T> struct TInstancedStruct;
 
 namespace UE::AnimNext::UncookedOnly
 {
-	struct FParameterSourceInfo;
-	class IParameterSourceType;
+	class IVariableBindingType;
 }
 
 namespace UE::AnimNext::UncookedOnly
@@ -20,18 +18,18 @@ namespace UE::AnimNext::UncookedOnly
 class IAnimNextUncookedOnlyModule : public IModuleInterface
 {
 public:
-	// Register a parameter source type that can be used to query information about parameter sources
-	// @param   InInstanceIdStruct     The name of struct type for this parameter source's instance ID (must be a child struct of FAnimNextParamInstanceIdentifier)
-	// @param   InFactory              The type to register
-	virtual void RegisterParameterSourceType(const UScriptStruct* InInstanceIdStruct, TSharedPtr<IParameterSourceType> InType) = 0;
+	// Register a variable binding type, used to query information and process variable bindings
+	// @param   InStructName     The full path name of the struct type for this variable binding's data (must be a child struct of FAnimNextVariableBindingData)
+	// @param   InType           The type to register
+	virtual void RegisterVariableBindingType(FName InStructName, TSharedPtr<IVariableBindingType> InType) = 0;
 	
-	// Unregister a parameter source type previously passed to RegisterParameterSourceType
-	// @param   InInstanceIdStruct     The name of struct type for this parameter source's instance ID
-	virtual void UnregisterParameterSourceType(const UScriptStruct* InInstanceIdStruct) = 0;
+	// Unregister a variable binding type previously passed to RegisterVariableBindingType
+	// @param   InStructName     The full path name of the struct type for this variable binding's data
+	virtual void UnregisterVariableBindingType(FName InStructName) = 0;
 
-	// Find a parameter source type previously passed to RegisterParameterSourceType
-	// @param   InInstanceIdStruct     The name of struct type for this parameter source's instance ID
-	virtual TSharedPtr<IParameterSourceType> FindParameterSourceType(const UScriptStruct* InInstanceIdStruct) const = 0;
+	// Find a variable binding type previously passed to RegisterVariableBindingType
+	// @param   InStruct         The struct type for this variable binding's data (must be a child struct of FAnimNextVariableBindingData)
+	virtual TSharedPtr<IVariableBindingType> FindVariableBindingType(const UScriptStruct* InInstanceIdStruct) const = 0;
 };
 
 }

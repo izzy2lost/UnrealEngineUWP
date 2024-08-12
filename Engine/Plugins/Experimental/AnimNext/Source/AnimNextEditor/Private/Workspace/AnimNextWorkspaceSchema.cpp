@@ -3,8 +3,8 @@
 #include "AnimNextWorkspaceSchema.h"
 
 #include "AnimNextEditorModule.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Module/AnimNextModule.h"
-#include "Scheduler/AnimNextSchedule.h"
 
 #define LOCTEXT_NAMESPACE "AnimNextWorkspaceSchema"
 

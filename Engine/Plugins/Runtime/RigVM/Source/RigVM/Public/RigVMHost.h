@@ -365,7 +365,7 @@ protected:
 	
 	void HandleExecutionReachedExit(const FName& InEventName);
 	
-	TArray<FRigVMExternalVariable> GetExternalVariablesImpl(bool bFallbackToBlueprint) const;
+	virtual TArray<FRigVMExternalVariable> GetExternalVariablesImpl(bool bFallbackToBlueprint) const;
 
 	FProperty* GetPublicVariableProperty(const FName& InVariableName) const
 	{

@@ -6,9 +6,7 @@
 #include "AnimNextExecuteContext.h"
 #include "RigUnit_AnimNextParameterBeginExecution.generated.h"
 
-/**
- * Event for driving the skeleton hierarchy with variables and rig elements
- */
+/** Deprecated stub - remove once content is updated */
 USTRUCT(meta=(DisplayName="Execute", Category="Events", NodeColor="1, 0, 0", Keywords="Begin,Update,Tick,Forward,Event"))
 struct ANIMNEXT_API FRigUnit_AnimNextParameterBeginExecution : public FRigUnit_AnimNextParameterBase
 {

@@ -30,7 +30,6 @@ public:
 	virtual URigVMEdGraph* GetEdGraph() const = 0;
 
 private:
-	friend class UAnimNextModule_EditorData;
 	friend class UAnimNextRigVMAssetEditorData;
 
 	// Set the RigVM graph

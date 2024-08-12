@@ -161,7 +161,6 @@ URigVMBlueprint::URigVMBlueprint()
 URigVMBlueprint::URigVMBlueprint(const FObjectInitializer& ObjectInitializer)
 {
 	bSuspendModelNotificationsForSelf = false;
-	bSuspendModelNotificationsForOthers = false;
 	bSuspendAllNotifications = false;
 	bSuspendPythonMessagesForRigVMClient = true;
 	bMarkBlueprintAsStructurallyModifiedPending = false;
@@ -1300,7 +1299,7 @@ void URigVMBlueprint::RecompileVM()
 	if (CDO && CDO->VM != nullptr)
 	{
 		TGuardValue<bool> ReentrantGuardSelf(bSuspendModelNotificationsForSelf, true);
-		TGuardValue<bool> ReentrantGuardOthers(bSuspendModelNotificationsForOthers, true);
+		TGuardValue<bool> ReentrantGuardOthers(RigVMClient.bSuspendModelNotificationsForOthers, true);
 
 		SetupDefaultObjectDuringCompilation(CDO);
 
@@ -3234,7 +3233,7 @@ void URigVMBlueprint::HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URig
 	}
 
 	// if the notification still has to be sent...
-	if (bNotifForOthersPending && !bSuspendModelNotificationsForOthers)
+	if (bNotifForOthersPending && !RigVMClient.bSuspendModelNotificationsForOthers)
 	{
 		if (ModifiedEvent.IsBound())
 		{

@@ -10,7 +10,6 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "RigVMBlueprintGeneratedClass.h"
 #include "ControlRigBlueprint.h"
-#include "Graph/AnimGraph/AnimBlueprintExtension_AnimNextParameters.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(AnimGraphNode_AnimNextGraph)
 
@@ -23,14 +22,12 @@ UAnimGraphNode_AnimNextGraph::UAnimGraphNode_AnimNextGraph(const FObjectInitiali
 
 FText UAnimGraphNode_AnimNextGraph::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
-	// display control rig here
-	return LOCTEXT("AnimGraphNode_AnimNextModule_Title", "AnimNext Module");
+	return LOCTEXT("AnimGraphNode_AnimNextModule_Title", "AnimNext Animation Graph");
 }
 
 FText UAnimGraphNode_AnimNextGraph::GetTooltipText() const
 {
-	// display control rig here
-	return LOCTEXT("AnimGraphNode_AnimNextModule_Tooltip", "Evaluates a AnimNext Module");
+	return LOCTEXT("AnimGraphNode_AnimNextAnimationGraph_Tooltip", "Evaluates a AnimNext Animation Graph");
 }
 
 FText UAnimGraphNode_AnimNextGraph::GetMenuCategory() const
@@ -42,16 +39,15 @@ void UAnimGraphNode_AnimNextGraph::PreloadRequiredAssets()
 {
 	Super::PreloadRequiredAssets();
 
-	if (Node.Module)
+	if (Node.AnimationGraph)
 	{
-		PreloadObject(Node.Module);
-		PreloadObject(Node.Module->EditorData);
+		PreloadObject(Node.AnimationGraph);
+		PreloadObject(Node.AnimationGraph->EditorData);
 	}
 }
 
 void UAnimGraphNode_AnimNextGraph::GetRequiredExtensions(TArray<TSubclassOf<UAnimBlueprintExtension>>& OutExtensions) const
 {
-	OutExtensions.Add(UAnimBlueprintExtension_AnimNextParameters::StaticClass());
 }
 
 void UAnimGraphNode_AnimNextGraph::CreateCustomPins(TArray<UEdGraphPin*>* OldPins)
@@ -152,25 +148,6 @@ void UAnimGraphNode_AnimNextGraph::GetVariables(bool bInput, TMap<FName, FRigVME
 
 	OutVariables.Reset();
 
-	if (URigVMBlueprintGeneratedClass* TargetClass = Cast<URigVMBlueprintGeneratedClass>(GetTargetClass()))
-	{
-		if (UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(TargetClass->ClassGeneratedBy))
-		{
-			//RigBlueprint->CleanupVariables();
-			UControlRig* ControlRig = TargetClass->GetDefaultObject<UControlRig>();
-			if (ControlRig)
-			{
-				const TArray<FRigVMExternalVariable>& PublicVariables = ControlRig->GetPublicVariables();
-				for (const FRigVMExternalVariable& PublicVariable : PublicVariables)
-				{
-					if (!bInput || !PublicVariable.bIsReadOnly)
-					{
-						OutVariables.Add(PublicVariable.Name, PublicVariable);
-					}
-				}
-			}
-		}
-	}
 }
 
 void UAnimGraphNode_AnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
@@ -184,7 +161,7 @@ void UAnimGraphNode_AnimNextGraph::PostEditChangeProperty(FPropertyChangedEvent&
 
 	if (ChangedProperty)
 	{
-		if (ChangedProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_AnimNextGraph, Module))
+		if (ChangedProperty->GetFName() == GET_MEMBER_NAME_CHECKED(FAnimNode_AnimNextGraph, AnimationGraph))
 		{
 			bRequiresNodeReconstruct = true;
 			RebuildExposedProperties();
@@ -210,7 +187,7 @@ void UAnimGraphNode_AnimNextGraph::CustomizePinData(UEdGraphPin* Pin, FName Sour
 
 UObject* UAnimGraphNode_AnimNextGraph::GetJumpTargetForDoubleClick() const
 {
-	return Node.Module;
+	return Node.AnimationGraph;
 }
 
 #undef LOCTEXT_NAMESPACE

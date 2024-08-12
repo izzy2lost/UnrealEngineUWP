@@ -11,6 +11,7 @@
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Images/SImage.h"
+#include "Widgets/Text/SInlineEditableTextBlock.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Views/SListView.h"
@@ -49,7 +50,7 @@ namespace UE::Workspace
 							{
 								if (SharedTreeItem->ItemDetails.IsValid())
 								{
-									return SharedTreeItem->ItemDetails->GetItemIcon();
+									return SharedTreeItem->ItemDetails->GetItemIcon(SharedTreeItem->Export);
 								}
 							}
 							
@@ -59,14 +60,16 @@ namespace UE::Workspace
 					]
 				]
 				+ SHorizontalBox::Slot()
-				.FillWidth(1.0f)
+				.AutoWidth()
 				.VAlign(VAlign_Center)
 				.Padding(0.0f, 2.0f)
 				[
-					SNew(STextBlock)
+					SAssignNew(TextBlock, SInlineEditableTextBlock)
 					.Text(this, &SWorkspaceOutlinerTreelabel::GetDisplayText)
 					.HighlightText(SceneOutliner.GetFilterHighlightText())
 					.ColorAndOpacity(this, &SWorkspaceOutlinerTreelabel::GetForegroundColor)
+					.OnTextCommitted(this, &SWorkspaceOutlinerTreelabel::OnTextCommited)
+					.OnVerifyTextChanged(this, &SWorkspaceOutlinerTreelabel::OnVerifyTextChanged)
 				]
 			];
 		}
@@ -74,22 +77,48 @@ namespace UE::Workspace
 		FText GetDisplayText() const
 		{
 			if (const TSharedPtr<FWorkspaceOutlinerTreeItem> Item = TreeItem.Pin())
-			{				
+			{
 				return FText::FromString(Item->GetDisplayString());
 			}
 			return FText();
 		}
-		
+
+		void OnTextCommited(const FText& InLabel, ETextCommit::Type InCommitInfo)
+		{
+			if(InCommitInfo == ETextCommit::OnEnter)
+			{
+				if (const TSharedPtr<FWorkspaceOutlinerTreeItem> Item = TreeItem.Pin())
+				{
+					if(Item->ItemDetails.IsValid())
+					{
+						Item->ItemDetails->Rename(Item->Export, InLabel); 
+					}
+				}
+			}
+		}
+
+		bool OnVerifyTextChanged(const FText& InLabel, FText& OutErrorMessage)
+		{
+			if (const TSharedPtr<FWorkspaceOutlinerTreeItem> Item = TreeItem.Pin())
+			{
+				if(Item->ItemDetails.IsValid())
+				{
+					return Item->ItemDetails->ValidateName(Item->Export, InLabel, OutErrorMessage); 
+				}
+			}
+			return false;
+		}
+
 		virtual FSlateColor GetForegroundColor() const override
 		{
 			const TOptional<FLinearColor> BaseColor = FSceneOutlinerCommonLabelData::GetForegroundColor(*TreeItem.Pin());
 			return BaseColor.IsSet() ? BaseColor.GetValue() : FSlateColor::UseForeground();
 		}
 
-	private:
 		TWeakPtr<FWorkspaceOutlinerTreeItem> TreeItem;
-	};	
-	
+		TSharedPtr<SInlineEditableTextBlock> TextBlock;
+	};
+
 	FWorkspaceOutlinerTreeItem::FWorkspaceOutlinerTreeItem(const FItemData& InItemData) : ISceneOutlinerTreeItem(FWorkspaceOutlinerTreeItem::Type), Export(InItemData.Export)
 	{
 		ItemDetails = FWorkspaceEditorModule::GetOutlinerItemDetails(MakeOutlinerDetailsId(Export));
@@ -112,7 +141,9 @@ namespace UE::Workspace
 
 	TSharedRef<SWidget> FWorkspaceOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner, const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
 	{
-		return SNew(SWorkspaceOutlinerTreelabel, *this, Outliner, InRow);
+		TSharedRef<SWorkspaceOutlinerTreelabel> LabelWidget = SNew(SWorkspaceOutlinerTreelabel, *this, Outliner, InRow);
+		RenameRequestEvent.BindSP(LabelWidget->TextBlock.Get(), &SInlineEditableTextBlock::EnterEditingMode);
+		return LabelWidget;
 	}
 
 	FString FWorkspaceOutlinerTreeItem::GetPackageName() const
@@ -125,7 +156,7 @@ namespace UE::Workspace
 		else if (Export.GetParentIdentifier() == NAME_None && Export.GetAssetPath().IsValid())
 		{
 			return Export.GetAssetPath().GetLongPackageName();
-		}		
+		}	
 		
 		return ISceneOutlinerTreeItem::GetPackageName();
 	}

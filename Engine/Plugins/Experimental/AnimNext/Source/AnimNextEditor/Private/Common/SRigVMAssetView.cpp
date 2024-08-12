@@ -4,7 +4,7 @@
 
 #include "AnimNextRigVMAsset.h"
 #include "AnimNextRigVMAssetEditorData.h"
-#include "AnimNextRigVMAssetEntry.h"
+#include "Entries/AnimNextRigVMAssetEntry.h"
 #include "Common/SCategoryTableRow.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -13,7 +13,7 @@
 #include "ISourceControlProvider.h"
 #include "EditorUtils.h"
 #include "IAnimNextRigVMExportInterface.h"
-#include "IAnimNextRigVMParameterInterface.h"
+#include "Variables/IAnimNextRigVMVariableInterface.h"
 #include "InstancedPropertyBagStructureDataProvider.h"
 #include "UncookedOnlyUtils.h"
 #include "RigVMAssetViewMenuContext.h"
@@ -150,7 +150,7 @@ void SRigVMAssetView::Construct(const FArguments& InArgs, UAnimNextRigVMAssetEdi
 	{
 		Categories.Add(MakeShared<FRigVMAssetViewEntry>(CategoryPair.Key, CategoryPair.Value));
 	}
-
+	
 	// Cache asset data for comparisons/filtering
 	AssetData = FAssetData(UncookedOnly::FUtils::GetAsset(EditorData));
 
@@ -436,11 +436,17 @@ void SRigVMAssetView::BindCommands()
 		FCanExecuteAction::CreateSP(this, &SRigVMAssetView::HasValidSingleSelection));
 }
 
-void SRigVMAssetView::HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData)
+void SRigVMAssetView::HandleAssetModified(UAnimNextRigVMAssetEditorData* InEditorData, EAnimNextEditorDataNotifType InType, UObject* InSubject)
 {
 	check(InEditorData == EditorData);
 
-	RequestRefresh();
+	switch (InType)
+	{
+	case EAnimNextEditorDataNotifType::EntryAdded:
+	case EAnimNextEditorDataNotifType::EntryRemoved:
+		RequestRefresh();
+		break;
+	}
 }
 
 TSharedRef<SWidget> SRigVMAssetView::HandleGetContextContent()
@@ -563,7 +569,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 		{
 			if (UAnimNextRigVMAssetEditorData* EditorData = View->EditorData)
 			{
-				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(PropertyAboutToChange->GetFName())))
+				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(PropertyAboutToChange->GetFName()))
 				{
 					UAnimNextRigVMAsset* Asset = UE::AnimNext::UncookedOnly::FUtils::GetAsset(EditorData);
 
@@ -581,14 +587,14 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 		{
 			if (UAnimNextRigVMAssetEditorData* EditorData = View->EditorData)
 			{
-				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(UncookedOnly::FUtils::GetParameterNameFromQualifiedName(PropertyChangedEvent.GetMemberPropertyName())))
+				if (UAnimNextRigVMAssetEntry* AssetEntry = EditorData->FindEntry(PropertyChangedEvent.GetMemberPropertyName()))
 				{
 					// Needed to show the changed sign a the table when we modify the PropertyBag
 					// TODO: remove this by moving defaults into entries
 					AssetEntry->MarkPackageDirty();
 
 					// Ensure that default values get picked up and forwarded to compiler
-					EditorData->BroadcastModified();
+					EditorData->BroadcastModified(EAnimNextEditorDataNotifType::PropertyChanged, AssetEntry);
 				}
 			}
 		}
@@ -692,7 +698,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 		}
 		else if(InColumnName == Column_Type)
 		{
-			if(Entry->WeakEntry.Get()->Implements<UAnimNextRigVMParameterInterface>())
+			if(Entry->WeakEntry.Get()->Implements<UAnimNextRigVMVariableInterface>())
 			{
 				return
 					SNew(SBox)
@@ -702,21 +708,21 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 						SNew(SPinTypeSelector, FGetPinTypeTree::CreateStatic(&Editor::FUtils::GetFilteredVariableTypeTree))
 							.TargetPinType_Lambda([this]()
 							{
-								if(const IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()))
+								if(const IAnimNextRigVMVariableInterface* Binding = Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()))
 								{
-									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetParamType());
+									return UncookedOnly::FUtils::GetPinTypeFromParamType(Binding->GetType());
 								}
 
 								return FEdGraphPinType();
 							})
 							.OnPinTypeChanged_Lambda([this](const FEdGraphPinType& PinType)
 							{
-								if(IAnimNextRigVMParameterInterface* Binding = Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()))
+								if(IAnimNextRigVMVariableInterface* Binding = Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()))
 								{
 									const FAnimNextParamType ParamType = UncookedOnly::FUtils::GetParamTypeFromPinType(PinType);
 									if(ParamType.IsValid())
 									{
-										Binding->SetParamType(ParamType);
+										Binding->SetType(ParamType);
 									}
 								}
 							})
@@ -724,6 +730,17 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 							.bAllowArrays(true)
 							.TypeTreeFilter(ETypeTreeFilter::None)
 							.Font(IDetailLayoutBuilder::GetDetailFont())
+					];
+			}
+			else
+			{
+				return
+					SNew(SBox)
+					.HAlign(HAlign_Left)
+					.VAlign(VAlign_Center)
+					[
+						SNew(STextBlock)
+						.Text(Entry->WeakEntry.Get()->GetClass()->GetDisplayNameText())
 					];
 			}
 		}
@@ -754,7 +771,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 						.IsSelected(this, &SRigVMAssetViewRow::IsSelectedExclusively)
 						.IsReadOnly_Lambda([this]()
 						{
-							if (Cast<IAnimNextRigVMParameterInterface>(Entry->WeakEntry.Get()) 
+							if (Cast<IAnimNextRigVMVariableInterface>(Entry->WeakEntry.Get()) 
 								|| Cast<IAnimNextRigVMGraphInterface>(Entry->WeakEntry.Get()))
 							{
 								return false;
@@ -858,11 +875,11 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 			{
 				if(UAnimNextRigVMAssetEntry* AssetEntry = Cast<UAnimNextRigVMAssetEntry>(Entry->WeakEntry.Get()))
 				{
-					if (const IAnimNextRigVMParameterInterface* ParameterInterface = Cast<IAnimNextRigVMParameterInterface>(AssetEntry))
+					if (IAnimNextRigVMVariableInterface* ParameterInterface = Cast<IAnimNextRigVMVariableInterface>(AssetEntry))
 					{
-						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetPropertyBag();
-						const FName ParameterName = ParameterInterface->GetParamName();
-						if (const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(ParameterName))
+						FInstancedPropertyBag& PropertyBag = ParameterInterface->GetMutablePropertyBag();
+						const FName EntryName = AssetEntry->GetEntryName();
+						if (const FPropertyBagPropertyDesc* PropertyDesc = PropertyBag.FindPropertyDescByName(EntryName))
 						{
 							if (PropertyDesc->ContainerTypes.IsEmpty()) // avoid trying to inline containers
 							{
@@ -871,7 +888,7 @@ class SRigVMAssetViewRow : public SMultiColumnTableRow<TSharedRef<FRigVMAssetVie
 								SinglePropertyArgs.NotifyHook = this;
 
 								FPropertyEditorModule& PropertyEditorModule = FModuleManager::Get().LoadModuleChecked<FPropertyEditorModule>("PropertyEditor");
-								const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), ParameterName, SinglePropertyArgs);
+								const TSharedPtr<ISinglePropertyView> SingleStructPropertyView = PropertyEditorModule.CreateSingleProperty(MakeShared<FInstancePropertyBagStructureDataProvider>(PropertyBag), EntryName, SinglePropertyArgs);
 								if (SingleStructPropertyView.IsValid())
 								{
 									ColumnWidget = SingleStructPropertyView.ToSharedRef();

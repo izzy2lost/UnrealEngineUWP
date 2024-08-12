@@ -4,8 +4,8 @@
 
 #include "CoreMinimal.h"
 #include "RigVMCore/RigVMExecuteContext.h"
+#include "Module/AnimNextModuleContextData.h"
 #include "Graph/AnimNextGraphContextData.h"
-#include "Param/AnimNextParamContextData.h"
 #include "Misc/TVariant.h"
 #include "AnimNextExecuteContext.generated.h"
 
@@ -14,6 +14,7 @@ struct FAnimNextGraphInstance;
 namespace UE::AnimNext
 {
 	struct FLatentPropertyHandle;
+	struct FModuleEventTickFunction;
 }
 
 USTRUCT(BlueprintType)
@@ -54,9 +55,10 @@ protected:
 	}
 
 	// All possible known variants of our context data. IF we ever want this to be extensible, this can be converted into an FInstancedStruct
-	TVariant<FAnimNextGraphContextData, FAnimNextParamContextData> ContextData;
-
+	TVariant<FAnimNextModuleContextData, FAnimNextGraphContextData> ContextData;
+	
+	friend struct UE::AnimNext::FModuleEventTickFunction;
 	friend struct FAnimNextGraphInstance;
-	friend class UAnimNextModule;
+	friend class UAnimNextAnimationGraph;
 };
 

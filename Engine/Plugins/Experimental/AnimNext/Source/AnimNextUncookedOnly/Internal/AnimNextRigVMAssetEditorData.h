@@ -27,21 +27,39 @@ namespace UE::AnimNext::Editor
 	class SRigVMAssetView;
 	class SParameterPicker;
 	class SRigVMAssetViewRow;
-	class FParameterCustomization;
+	class FVariableCustomization;
 	class FAnimNextEditorModule;
 	class FWorkspaceEditor;
+	class FAnimNextAssetItemDetails;
+	class FAnimNextGraphItemDetails;
+	struct FVariablesOutlinerEntryItem;
+	class FVariablesOutlinerMode;
+	class FVariablesOutlinerHierarchy;
+	class SVariablesOutlinerValue;
+	class SVariablesOutliner;
 }
 
 namespace UE::AnimNext::Tests
 {
-	class FEditor_Graph;
-	class FEditor_Parameters;
+	class FEditor_Graphs;
+	class FEditor_Variables;
+	class FVariables;
 }
+
+enum class EAnimNextEditorDataNotifType : uint8
+{
+	PropertyChanged,	// An property was changed (Subject == UObject)
+	EntryAdded,		// An entry has been added (Subject == UAnimNextRigVMAssetEntry)
+	EntryRemoved,	// An entry has been removed (Subject == UAnimNextRigVMAssetEditorData)
+	EntryRenamed,	// An entry has been renamed (Subject == UAnimNextRigVMAssetEntry)
+	EntryAccessSpecifierChanged,	// An entry access specifier has been changed (Subject == UAnimNextRigVMAssetEntry)
+	VariableTypeChanged,	// A variable entry type changed (Subject == UAnimNextVariableEntry)
+};
 
 namespace UE::AnimNext::UncookedOnly
 {
 	// A delegate for subscribing / reacting to editor data modifications.
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnEditorDataModified, UAnimNextRigVMAssetEditorData* /* InEditorData */);
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnEditorDataModified, UAnimNextRigVMAssetEditorData* /* InEditorData */, EAnimNextEditorDataNotifType /* InType */, UObject* /* InSubject */);
 
 	// An interaction bracket count reached 0
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnInteractionBracketFinished, UAnimNextRigVMAssetEditorData* /* InEditorData */);
@@ -53,14 +71,29 @@ class UAnimNextRigVMAssetLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|RigVM Asset", meta=(ScriptMethod))
+	/** Finds an entry in an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
 	static UAnimNextRigVMAssetEntry* FindEntry(UAnimNextRigVMAsset* InAsset, FName InName);
 
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|RigVM Asset", meta=(ScriptMethod))
+	/** Removes an entry from an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
 	static bool RemoveEntry(UAnimNextRigVMAsset* InAsset, UAnimNextRigVMAssetEntry* InEntry, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|RigVM Asset", meta=(ScriptMethod))
+	/** Removes multiple entries from an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
 	static bool RemoveEntries(UAnimNextRigVMAsset* InAsset, const TArray<UAnimNextRigVMAssetEntry*>& InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds an animation graph to an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
+	static UAnimNextAnimationGraphEntry* AddAnimationGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds a parameter to an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
+	static UAnimNextVariableEntry* AddVariable(UAnimNextModule* InModule, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType = EPropertyBagContainerType::None, const UObject* InValueTypeObject = nullptr, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds an event graph to an AnimNext asset */
+	UFUNCTION(BlueprintCallable, Category = "AnimNext|Entries", meta=(ScriptMethod))
+	static UAnimNextEventGraphEntry* AddEventGraph(UAnimNextModule* InModule, FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 };
 
 /* Base class for all AnimNext editor data objects that use RigVM */
@@ -68,6 +101,19 @@ UCLASS(MinimalAPI, Abstract)
 class UAnimNextRigVMAssetEditorData : public UObject, public IRigVMClientHost, public IRigVMGraphFunctionHost, public IRigVMClientExternalModelHost
 {
 	GENERATED_BODY()
+
+public:
+	/** Adds an animation graph to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextAnimationGraphEntry* AddAnimationGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds a parameter to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextVariableEntry* AddVariable(FName InName, FAnimNextParamType InType, const FString& InDefaultValue = TEXT(""), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+
+	/** Adds an event graph to this asset */
+	ANIMNEXTUNCOOKEDONLY_API UAnimNextEventGraphEntry* AddEventGraph(FName InName, UScriptStruct* InEventStruct, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	
+	// Report an error to the user, typically used for scripting APIs
+	ANIMNEXTUNCOOKEDONLY_API static void ReportError(const TCHAR* InMessage);
 
 protected:
 	friend class UE::AnimNext::Editor::SRigVMAssetView;
@@ -79,9 +125,17 @@ protected:
 	friend class UAnimNextRigVMAssetEntry;
 	friend class UAnimNextRigVMAssetLibrary;
 	friend class UAnimNextEdGraph;
-	friend class UE::AnimNext::Tests::FEditor_Graph;
-	friend class UE::AnimNext::Tests::FEditor_Parameters;
-	friend class UE::AnimNext::Editor::FParameterCustomization;
+	friend class UE::AnimNext::Tests::FEditor_Graphs;
+	friend class UE::AnimNext::Tests::FEditor_Variables;
+	friend class UE::AnimNext::Tests::FVariables;
+	friend class UE::AnimNext::Editor::FVariableCustomization;
+	friend class UE::AnimNext::Editor::FAnimNextAssetItemDetails;
+	friend class UE::AnimNext::Editor::FAnimNextGraphItemDetails;
+	friend struct UE::AnimNext::Editor::FVariablesOutlinerEntryItem;
+	friend class UE::AnimNext::Editor::FVariablesOutlinerMode;
+	friend class UE::AnimNext::Editor::FVariablesOutlinerHierarchy;
+	friend class UE::AnimNext::Editor::SVariablesOutlinerValue;
+	friend class UE::AnimNext::Editor::SVariablesOutliner;
 	friend class UAnimNextModuleWorkspaceAssetUserData;
 
 	// UObject interface
@@ -108,7 +162,7 @@ protected:
 	virtual void HandleConfigureRigVMController(const FRigVMClient* InClient, URigVMController* InControllerToConfigure) override;
 	virtual UObject* GetEditorObjectForRigVMGraph(URigVMGraph* InVMGraph) const override;
 	virtual URigVMGraph* GetRigVMGraphForEditorObject(UObject* InObject) const override;
-	virtual void RecompileVM() override PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::RecompileVM, )
+	virtual void RecompileVM() override;
 	virtual void RecompileVMIfRequired() override;
 	virtual void RequestAutoVMRecompilation() override;
 	virtual void SetAutoVMRecompile(bool bAutoRecompile) override;
@@ -151,16 +205,16 @@ protected:
 	virtual UScriptStruct* GetExecuteContextStruct() const PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::GetExecuteContextStruct, return nullptr;)
 
 	// Create and store a UEdGraph that corresponds to a URigVMGraph
-	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::CreateEdGraph, return nullptr;)
+	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce);
 
 	// Create and store a UEdGraph that corresponds to a URigVMCollapseNode
-	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::CreateEdGraphForCollapseNode, )
+	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce);
 
 	// Destroy a UEdGraph that corresponds to a URigVMCollapseNode
-	virtual void RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::RemoveEdGraphForCollapseNode, )
+	virtual void RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify);
 
 	// Remove the UEdGraph that corresponds to a URigVMGraph
-	virtual bool RemoveEdGraph(URigVMGraph* InModel) PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::RemoveEdGraph, return false;)
+	virtual bool RemoveEdGraph(URigVMGraph* InModel);
 
 	// Initialize the asset for use
 	virtual void Initialize(bool bRecompileVM);
@@ -170,6 +224,12 @@ protected:
 
 	// Get all the kinds of entry for this asset
 	virtual TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> GetEntryClasses() const PURE_VIRTUAL(UAnimNextRigVMAssetEditorData::GetEntryClasses, return {};)
+
+	// Override to allow assets to prevent certain entries being created
+	virtual bool CanAddNewEntry(TSubclassOf<UAnimNextRigVMAssetEntry> InClass) const { return true; }
+
+	// Allows this asset to generate graphs to be injected at compilation time
+	virtual void GetProgrammaticGraphs(const FRigVMCompileSettings& InSettings, TArray<URigVMGraph*>& OutGraphs) {}
 
 	// Helper for creating new sub-entries. Sets package flags and outers appropriately 
 	static UObject* CreateNewSubEntry(UAnimNextRigVMAssetEditorData* InEditorData, TSubclassOf<UObject> InClass);
@@ -259,11 +319,9 @@ protected:
 
 	// Remove a number of entries from the asset
 	// @return true if any items were removed
-	ANIMNEXTUNCOOKEDONLY_API bool RemoveEntries(const TArray<UAnimNextRigVMAssetEntry*>& InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
+	ANIMNEXTUNCOOKEDONLY_API bool RemoveEntries(TConstArrayView<UAnimNextRigVMAssetEntry*> InEntries, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
-	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified();
-
-	void ReportError(const TCHAR* InMessage) const;
+	ANIMNEXTUNCOOKEDONLY_API void BroadcastModified(EAnimNextEditorDataNotifType InType, UObject* InSubject);
 
 	void ReconstructAllNodes();
 
@@ -276,9 +334,15 @@ protected:
 	// Find an entry that corresponds to the specified RigVMGraph. This uses the name of the graph to match the entry 
 	UAnimNextRigVMAssetEntry* FindEntryForRigVMEdGraph(const URigVMEdGraph* InRigVMEdGraph) const;
 
+	// Checks all entries to see if any are public variables
+	bool HasPublicVariables() const;
+
 	// Refresh the 'external' models for the RigVM client to reference
 	void RefreshExternalModels();
-	
+
+	// Handle compiler reporting
+	void HandleReportFromCompiler(EMessageSeverity::Type InSeverity, UObject* InSubject, const FString& InMessage);
+
 	/** All entries in this asset - not saved, either serialized or discovered at load time */
 	UPROPERTY(transient)
 	TArray<TObjectPtr<UAnimNextRigVMAssetEntry>> Entries;
@@ -324,7 +388,7 @@ protected:
 	UE::AnimNext::UncookedOnly::FOnInteractionBracketFinished InteractionBracketFinished;
 
 	// Cached exports, generated lazily or on compilation
-	mutable TOptional<FAnimNextParameterProviderAssetRegistryExports> CachedExports;
+	mutable TOptional<FAnimNextAssetRegistryExports> CachedExports;
 	
 	// Collection of models gleaned from graphs
 	TArray<TObjectPtr<URigVMGraph>> GraphModels;
@@ -342,9 +406,9 @@ protected:
 	bool bAutoRecompileVM = true;
 	bool bErrorsDuringCompilation = false;
 	bool bSuspendModelNotificationsForSelf = false;
-	bool bSuspendModelNotificationsForOthers = false;
 	bool bSuspendAllNotifications = false;
 	bool bCompileInDebugMode = false;
 	bool bSuspendPythonMessagesForRigVMClient = true;
 	bool bSuspendEditorDataNotifications = false;
+	
 };

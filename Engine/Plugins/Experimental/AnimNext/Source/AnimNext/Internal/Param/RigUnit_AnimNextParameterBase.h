@@ -6,6 +6,7 @@
 #include "Units/RigUnit.h"
 #include "RigUnit_AnimNextParameterBase.generated.h"
 
+/** Deprecated stub - remove once content is updated */
 USTRUCT(meta = (ExecuteContext = "FAnimNextExecuteContext"))
 struct FRigUnit_AnimNextParameterBase : public FRigUnit
 {

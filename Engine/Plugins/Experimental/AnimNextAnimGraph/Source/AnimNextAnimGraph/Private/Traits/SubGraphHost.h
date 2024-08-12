@@ -9,7 +9,7 @@
 #include "TraitInterfaces/IGarbageCollection.h"
 #include "TraitInterfaces/IHierarchy.h"
 #include "TraitInterfaces/IUpdate.h"
-#include "Module/AnimNextModule.h"
+#include "Graph/AnimNextAnimationGraph.h"
 #include "Graph/AnimNextGraphInstancePtr.h"
 
 #include "SubGraphHost.generated.h"
@@ -19,9 +19,9 @@ struct FAnimNextSubGraphHostTraitSharedData : public FAnimNextTraitSharedData
 {
 	GENERATED_BODY()
 
-	/** Module of the sub-graph that we host and manage. */
+	/** Asset to use as a sub-graph */
 	UPROPERTY(EditAnywhere, Category = "Default")
-	TObjectPtr<const UAnimNextModule> Module;
+	TObjectPtr<const UAnimNextAnimationGraph> AnimationGraph;
 
 	/** A dummy child that we can use to output the bind pose. This property is hidden and automatically populated during compilation. */
 	UPROPERTY(meta = (Hidden))
@@ -33,7 +33,7 @@ struct FAnimNextSubGraphHostTraitSharedData : public FAnimNextTraitSharedData
 
 	// Latent pin support boilerplate
 	#define TRAIT_LATENT_PROPERTIES_ENUMERATOR(GeneratorMacro) \
-		GeneratorMacro(Module) \
+		GeneratorMacro(AnimationGraph) \
 		GeneratorMacro(EntryPoint) \
 
 	GENERATE_TRAIT_LATENT_PROPERTIES(FAnimNextSubGraphHostTraitSharedData, TRAIT_LATENT_PROPERTIES_ENUMERATOR)
@@ -60,8 +60,8 @@ namespace UE::AnimNext
 
 		struct FSubGraphSlot
 		{
-			// The module to use
-			TObjectPtr<const UAnimNextModule> Module;
+			// The animation graph to use
+			TObjectPtr<const UAnimNextAnimationGraph> AnimationGraph;
 
 			// The graph instance
 			FAnimNextGraphInstancePtr GraphInstance;

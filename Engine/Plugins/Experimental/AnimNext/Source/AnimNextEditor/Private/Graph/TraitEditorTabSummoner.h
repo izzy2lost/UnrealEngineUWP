@@ -13,7 +13,7 @@ namespace UE::Workspace
 namespace UE::AnimNext::Editor
 {
 
-extern const FName TraitEditorTabName;
+extern const FLazyName TraitEditorTabName;
 
 DECLARE_DELEGATE_OneParam(FOnTraitEditorCreated, TSharedRef<STraitEditorView>);
 

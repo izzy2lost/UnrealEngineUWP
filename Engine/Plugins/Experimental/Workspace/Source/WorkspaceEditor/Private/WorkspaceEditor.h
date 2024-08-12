@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "StructUtils/InstancedStruct.h"
 #include "IWorkspaceEditor.h"
+#include "WorkspaceAssetRegistryInfo.h"
 #include "WorkflowOrientedApp/WorkflowTabManager.h"
 
 struct FWorkspaceDocumentState;
@@ -97,9 +98,12 @@ private:
 	virtual void SetDetailsObjects(const TArray<UObject*>& InObjects) override;
 	virtual void RefreshDetails() override;
 	virtual UWorkspaceSchema* GetSchema() const override;
+	virtual bool GetOutlinerSelection(TArray<FWorkspaceOutlinerItemExport>& OutExports) const override;
+	virtual FOnOutlinerSelectionChanged& OnOutlinerSelectionChanged() override;
 	virtual void SetGlobalSelection(FGlobalSelectionId SelectionId, FOnClearGlobalSelection OnClearSelectionDelegate) override;
 	virtual void SetFocussedAsset(const TObjectPtr<UObject> InAsset) override;	
 	virtual const TObjectPtr<UObject> GetFocussedAssetOfClass(const TObjectPtr<UClass> AssetClass) const override;	
+	void HandleOutlinerSelectionChanged(TConstArrayView<FWorkspaceOutlinerItemExport> InExports);
 
 	void BindCommands();
 
@@ -143,6 +147,8 @@ private:
 
 	FGlobalSelectionId LastGlobalSelectionId = nullptr;
 	FOnClearGlobalSelection LastOnClearSelectionDelegate = nullptr;
+	FOnOutlinerSelectionChanged OnOutlinerSelectionChangedDelegate;
+	TArray<FWorkspaceOutlinerItemExport> LastSelectedExports;
 };
 
 }

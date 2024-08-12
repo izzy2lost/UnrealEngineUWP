@@ -26,12 +26,21 @@ namespace UE::Workspace
 		virtual void OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, ESelectInfo::Type SelectionType, const FSceneOutlinerItemSelection& Selection) override;
 		virtual bool CanCustomizeToolbar() const { return true; }
 		virtual ESelectionMode::Type GetSelectionMode() const { return ESelectionMode::Multi; }
+		virtual bool CanDelete() const override;
+		virtual bool CanRename() const override;
+		virtual bool CanRenameItem(const ISceneOutlinerTreeItem& Item) const override;
+		virtual void BindCommands(const TSharedRef<FUICommandList>& OutCommandList) override;
 	protected:
 		virtual TUniquePtr<ISceneOutlinerHierarchy> CreateHierarchy() override;		
 		// End ISceneOutlinerMode overrides
 
 		void OnWorkspaceModified(UWorkspace* InWorkspace);
 		void ResetOutlinerSelection();
+
+		void Open();
+		void Delete();
+		bool CanDeleteItem(const ISceneOutlinerTreeItem& Item) const;
+		void Rename();
 
 		void OpenItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;
 		void DeleteItems(TArrayView<const FSceneOutlinerTreeItemPtr> Items) const;
@@ -40,5 +49,6 @@ namespace UE::Workspace
 	private:
 		TWeakObjectPtr<UWorkspace> WeakWorkspace;
 		TWeakPtr<IWorkspaceEditor> WeakWorkspaceEditor;
+		TSharedPtr<FUICommandList> CommandList;
 	};
 }

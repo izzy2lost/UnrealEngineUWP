@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "Module/AnimNextModuleContextData.h"
 #include "AnimNextGraphContextData.generated.h"
 
 struct FAnimNextGraphInstance;
@@ -13,14 +14,15 @@ namespace UE::AnimNext
 }
 
 USTRUCT()
-struct FAnimNextGraphContextData
+struct FAnimNextGraphContextData : public FAnimNextModuleContextData
 {
 	GENERATED_BODY()
 
 	FAnimNextGraphContextData() = default;
 
-	FAnimNextGraphContextData(const FAnimNextGraphInstance* InInstance, const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& InLatentHandles, void* InDestinationBasePtr, bool bInIsFrozen)
-		: Instance(InInstance)
+	FAnimNextGraphContextData(FAnimNextModuleInstance* InModuleInstance, const FAnimNextGraphInstance* InInstance, const TConstArrayView<UE::AnimNext::FLatentPropertyHandle>& InLatentHandles, void* InDestinationBasePtr, bool bInIsFrozen)
+		: FAnimNextModuleContextData(InModuleInstance)
+		, Instance(InInstance)
 		, LatentHandles(InLatentHandles)
 		, DestinationBasePtr(InDestinationBasePtr)
 		, bIsFrozen(bInIsFrozen)

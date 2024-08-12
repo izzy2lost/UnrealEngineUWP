@@ -9,7 +9,7 @@
 #include "Graph/TraitEditorDefs.h"
 
 
-class UAnimNextModule_Controller;
+class UAnimNextController;
 class UAnimNextEdGraphNode;
 class IMessageLogListing;
 

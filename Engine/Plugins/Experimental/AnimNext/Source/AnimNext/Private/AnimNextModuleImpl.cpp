@@ -5,28 +5,28 @@
 #include "DataRegistry.h"
 #include "IUniversalObjectLocatorModule.h"
 #include "RigVMRuntimeDataRegistry.h"
+#include "UniversalObjectLocator.h"
 #include "Animation/AnimSequence.h"
 #include "Animation/BlendProfile.h"
 #include "Component/AnimNextComponent.h"
 #include "Curves/CurveFloat.h"
-#include "Module/AnimNextModule.h"
+#include "Graph/AnimNextAnimationGraph.h"
+#include "Graph/AnimNext_LODPose.h"
+#include "Graph/RigVMTrait_AnimNextPublicVariables.h"
+#include "Module/AnimNextModuleInstance.h"
 #include "Modules/ModuleManager.h"
 #include "Param/AnimNextActorLocatorFragment.h"
 #include "Param/AnimNextComponentLocatorFragment.h"
-#include "Param/AnimNextEditorParam.h"
 #include "Param/AnimNextObjectCastLocatorFragment.h"
 #include "Param/AnimNextObjectFunctionLocatorFragment.h"
 #include "Param/AnimNextObjectPropertyLocatorFragment.h"
-#include "Param/AnimNextParam.h"
 #include "Param/AnimNextTag.h"
-#include "Param/ObjectProxyFactory.h"
-#include "Param/PropertyBagProxy.h"
 #include "RigVMCore/RigVMRegistry.h"
-#include "Scheduler/AnimNextTickFunctionBinding.h"
-#include "Scheduler/Scheduler.h"
 #include "TraitCore/NodeTemplateRegistry.h"
 #include "TraitCore/TraitRegistry.h"
 #include "TraitCore/TraitInterfaceRegistry.h"
+#include "Variables/AnimNextFieldPath.h"
+#include "Variables/AnimNextSoftFunctionPtr.h"
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 #include "HAL/IConsoleManager.h"
@@ -41,7 +41,6 @@
 
 namespace UE::AnimNext
 {
-
 	void FAnimNextModuleImpl::StartupModule()
 	{
 		GetMutableDefault<UAnimNextConfig>()->LoadConfig();
@@ -53,7 +52,7 @@ namespace UE::AnimNext
 			{ UScriptStruct::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UBlendProfile::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UCurveFloat::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
-			{ UAnimNextModule::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
+			{ UAnimNextAnimationGraph::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 			{ UAnimNextComponent::StaticClass(), FRigVMRegistry::ERegisterObjectOperation::Class },
 		};
 
@@ -61,23 +60,22 @@ namespace UE::AnimNext
 
 		static UScriptStruct* const AllowedStructTypes[] =
 		{
-			FAnimNextEditorParam::StaticStruct(),
-			FAnimNextParam::StaticStruct(),
 			FAnimNextScope::StaticStruct(),
 			FAnimNextEntryPoint::StaticStruct(),
 			FUniversalObjectLocator::StaticStruct(),
-			FAnimNextTickFunctionBinding::StaticStruct(),
-			FAnimNextGraphReferencePose::StaticStruct()
+			FAnimNextGraphReferencePose::StaticStruct(),
+			FAnimNextFieldPath::StaticStruct(),
+			FAnimNextSoftFunctionPtr::StaticStruct(),
+			FRigVMTrait_AnimNextPublicVariables::StaticStruct()
 		};
 
 		RigVMRegistry.RegisterStructTypes(AllowedStructTypes);
 
-		RegisterParameterSourceFactory("ObjectProxy", MakeShared<FObjectProxyFactory>());
+		Private::CacheAllModuleEvents();
 		FDataRegistry::Init();
 		FTraitRegistry::Init();
 		FTraitInterfaceRegistry::Init();
 		FNodeTemplateRegistry::Init();
-		FScheduler::Init();
 		FRigVMRuntimeDataRegistry::Init();
 
 		UE::UniversalObjectLocator::IUniversalObjectLocatorModule& UolModule = FModuleManager::Get().LoadModuleChecked<UE::UniversalObjectLocator::IUniversalObjectLocatorModule>("UniversalObjectLocator");
@@ -122,7 +120,7 @@ namespace UE::AnimNext
 			ConsoleCommands.Add(IConsoleManager::Get().RegisterConsoleCommand(
 				TEXT("AnimNext.Module"),
 				TEXT("Dumps statistics about modules to the log."),
-				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAnimNextModuleImpl::ListModules),
+				FConsoleCommandWithArgsDelegate::CreateRaw(this, &FAnimNextModuleImpl::ListAnimationGraphs),
 				ECVF_Default
 			));
 		}
@@ -132,12 +130,10 @@ namespace UE::AnimNext
 	void FAnimNextModuleImpl::ShutdownModule()
 	{
 		FRigVMRuntimeDataRegistry::Destroy();
-		FScheduler::Destroy();
 		FNodeTemplateRegistry::Destroy();
 		FTraitInterfaceRegistry::Destroy();
 		FTraitRegistry::Destroy();
 		FDataRegistry::Destroy();
-		UnregisterParameterSourceFactory("ObjectProxy");
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
 		for (IConsoleObject* Cmd : ConsoleCommands)
@@ -160,7 +156,7 @@ namespace UE::AnimNext
 		AnimGraphImpl = nullptr;
 	}
 
-	void FAnimNextModuleImpl::UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
+	void FAnimNextModuleImpl::UpdateGraph(const FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
 	{
 		if (AnimGraphImpl != nullptr)
 		{
@@ -168,48 +164,12 @@ namespace UE::AnimNext
 		}
 	}
 
-	void FAnimNextModuleImpl::EvaluateGraph(FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const
+	void FAnimNextModuleImpl::EvaluateGraph(const FAnimNextGraphInstancePtr& GraphInstance, const UE::AnimNext::FReferencePose& RefPose, int32 GraphLODLevel, FLODPoseHeap& OutputPose) const
 	{
 		if (AnimGraphImpl != nullptr)
 		{
 			AnimGraphImpl->EvaluateGraph(GraphInstance, RefPose, GraphLODLevel, OutputPose);
 		}
-	}
-
-	TUniquePtr<IParameterSource> FAnimNextModuleImpl::CreateParameterSource(const FParameterSourceContext& InContext, const TInstancedStruct<FAnimNextParamInstanceIdentifier>& InInstanceId, TConstArrayView<FName> InRequiredParameters) const
-	{
-		for(const TPair<FName, TSharedRef<IParameterSourceFactory>>& FactoryPair : ParameterSourceFactories)
-		{
-			// TODO: in future we could introduce a priority system or more complex logic here. For now it is earliest wins as are sources are
-			// all mutually exclusive at the moment.
-			TUniquePtr<IParameterSource> ParameterSource = FactoryPair.Value->CreateParameterSource(InContext, InInstanceId, InRequiredParameters);
-			if(ParameterSource.IsValid())
-			{
-				return ParameterSource;
-			}
-		}
-
-		return nullptr;
-	}
-
-	void FAnimNextModuleImpl::RegisterParameterSourceFactory(FName InName, TSharedRef<IParameterSourceFactory> InFactory)
-	{
-		ParameterSourceFactories.Add(InName, InFactory);
-	}
-
-	void FAnimNextModuleImpl::UnregisterParameterSourceFactory(FName InName)
-	{
-		ParameterSourceFactories.Remove(InName);
-	}
-
-	TSharedPtr<IParameterSourceFactory> FAnimNextModuleImpl::FindParameterSourceFactory(FName InName)
-	{
-		if(TSharedRef<IParameterSourceFactory>* FoundFactory = ParameterSourceFactories.Find(InName))
-		{
-			return *FoundFactory;
-		}
-
-		return nullptr;
 	}
 
 #if WITH_ANIMNEXT_CONSOLE_COMMANDS
@@ -268,7 +228,7 @@ namespace UE::AnimNext
 		LogAnimation.SetVerbosity(OldVerbosity);
 	}
 
-	void FAnimNextModuleImpl::ListModules(const TArray<FString>& Args)
+	void FAnimNextModuleImpl::ListAnimationGraphs(const TArray<FString>& Args)
 	{
 		// Turn off log times to make diff-ing easier
 		TGuardValue<ELogTimes::Type> DisableLogTimes(GPrintLogTimes, ELogTimes::None);
@@ -277,30 +237,30 @@ namespace UE::AnimNext
 		const ELogVerbosity::Type OldVerbosity = LogAnimation.GetVerbosity();
 		LogAnimation.SetVerbosity(ELogVerbosity::All);
 
-		TArray<const UAnimNextModule*> Modules;
+		TArray<const UAnimNextAnimationGraph*> AnimationGraphs;
 
-		for (TObjectIterator<UAnimNextModule> It; It; ++It)
+		for (TObjectIterator<UAnimNextAnimationGraph> It; It; ++It)
 		{
-			Modules.Add(*It);
+			AnimationGraphs.Add(*It);
 		}
 
 		struct FCompareObjectNames
 		{
-			FORCEINLINE bool operator()(const UAnimNextModule& Lhs, const UAnimNextModule& Rhs) const
+			FORCEINLINE bool operator()(const UAnimNextAnimationGraph& Lhs, const UAnimNextAnimationGraph& Rhs) const
 			{
 				return Lhs.GetPathName().Compare(Rhs.GetPathName()) < 0;
 			}
 		};
-		Modules.Sort(FCompareObjectNames());
+		AnimationGraphs.Sort(FCompareObjectNames());
 
 		const FNodeTemplateRegistry& NodeTemplateRegistry = FNodeTemplateRegistry::Get();
 		const FTraitRegistry& TraitRegistry = FTraitRegistry::Get();
 		const bool bDetailedOutput = true;
 
 		UE_LOG(LogAnimation, Log, TEXT("===== AnimNext Modules ====="));
-		UE_LOG(LogAnimation, Log, TEXT("Num Graphs: %u"), Modules.Num());
+		UE_LOG(LogAnimation, Log, TEXT("Num Graphs: %u"), AnimationGraphs.Num());
 
-		for (const UAnimNextModule* Module : Modules)
+		for (const UAnimNextAnimationGraph* AnimationGraph : AnimationGraphs)
 		{
 			uint32 TotalInstanceSize = 0;
 			uint32 NumNodes = 0;
@@ -308,9 +268,9 @@ namespace UE::AnimNext
 				// We always have a node at offset 0
 				int32 NodeOffset = 0;
 
-				while (NodeOffset < Module->SharedDataBuffer.Num())
+				while (NodeOffset < AnimationGraph->SharedDataBuffer.Num())
 				{
-					const FNodeDescription* NodeDesc = reinterpret_cast<const FNodeDescription*>(&Module->SharedDataBuffer[NodeOffset]);
+					const FNodeDescription* NodeDesc = reinterpret_cast<const FNodeDescription*>(&AnimationGraph->SharedDataBuffer[NodeOffset]);
 
 					TotalInstanceSize += NodeDesc->GetNodeInstanceDataSize();
 					NumNodes++;
@@ -320,8 +280,8 @@ namespace UE::AnimNext
 				}
 			}
 
-			UE_LOG(LogAnimation, Log, TEXT("    %s ..."), *Module->GetPathName());
-			UE_LOG(LogAnimation, Log, TEXT("        Shared Data Size: %.2f KB"), double(Module->SharedDataBuffer.Num()) / 1024.0);
+			UE_LOG(LogAnimation, Log, TEXT("    %s ..."), *AnimationGraph->GetPathName());
+			UE_LOG(LogAnimation, Log, TEXT("        Shared Data Size: %.2f KB"), double(AnimationGraph->SharedDataBuffer.Num()) / 1024.0);
 			UE_LOG(LogAnimation, Log, TEXT("        Max Instance Data Size: %.2f KB"), double(TotalInstanceSize) / 1024.0);
 			UE_LOG(LogAnimation, Log, TEXT("        Num Nodes: %u"), NumNodes);
 
@@ -330,9 +290,9 @@ namespace UE::AnimNext
 				// We always have a node at offset 0
 				int32 NodeOffset = 0;
 
-				while (NodeOffset < Module->SharedDataBuffer.Num())
+				while (NodeOffset < AnimationGraph->SharedDataBuffer.Num())
 				{
-					const FNodeDescription* NodeDesc = reinterpret_cast<const FNodeDescription*>(&Module->SharedDataBuffer[NodeOffset]);
+					const FNodeDescription* NodeDesc = reinterpret_cast<const FNodeDescription*>(&AnimationGraph->SharedDataBuffer[NodeOffset]);
 					const FNodeTemplate* NodeTemplate = NodeTemplateRegistry.Find(NodeDesc->GetTemplateHandle());
 
 					const uint32 NumTraits = NodeTemplate->GetNumTraits();

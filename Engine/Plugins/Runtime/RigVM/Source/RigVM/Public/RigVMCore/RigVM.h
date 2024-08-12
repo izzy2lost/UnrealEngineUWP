@@ -441,6 +441,19 @@ public:
 		return GetByteCode().GetTraits<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage);
 	}
 
+	// returns the traits for this VM's bytecode and Context, as well as any additional memory handles
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles, const UScriptStruct* InScriptStruct = nullptr)
+	{
+		return GetByteCode().GetTraits(*GetLiteralMemory(), InContext.WorkMemoryStorage, OutAdditionalMemoryHandles, InScriptStruct);
+	}
+
+	// returns the traits of a given type for this VM's bytecode and Context, as well as any additional memory handles
+	template<typename T>
+	TMap<int32, TArray<FRigVMTraitScope>> GetTraits(FRigVMExtendedExecuteContext& InContext, TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles)
+	{
+		return GetByteCode().GetTraits<T>(*GetLiteralMemory(), InContext.WorkMemoryStorage, OutAdditionalMemoryHandles);
+	}
+	
 	// returns the traits for the provided memory for a single instruction
 	TArray<FRigVMTraitScope> GetTraitsForInstruction(const FRigVMInstruction& InInstruction, FRigVMExtendedExecuteContext& InContext, const UScriptStruct* InScriptStruct = nullptr)
 	{

@@ -74,13 +74,13 @@ public:
 	template<typename DataType>
 	FDataHandle PreAllocateMemory(const int32 NumElements)
 	{
-		FParamTypeHandle ParamTypeHandle = FParamTypeHandle::GetHandle<DataType>();
+		FAnimNextParamType ParamType = FAnimNextParamType::GetType<DataType>();
 
 		bool bIsTypeDefValid = false;
 		FDataTypeDef TypeDef;
 		{
 			FRWScopeLock Lock(DataTypeDefsLock, SLT_ReadOnly);
-			if (const FDataTypeDef* TypeDefPtr = DataTypeDefs.Find(ParamTypeHandle))
+			if (const FDataTypeDef* TypeDefPtr = DataTypeDefs.Find(ParamType))
 			{
 				bIsTypeDefValid = true;
 				TypeDef = *TypeDefPtr;
@@ -93,7 +93,7 @@ public:
 			// TODO : Log if we allocate more than DEFAULT_BLOCK_SIZE elements of that type
 		}
 
-		if (ensure(TypeDef.ParamTypeHandle.IsValid()))
+		if (ensure(TypeDef.ParamType.IsValid()))
 		{
 			const int32 ElementSize = TypeDef.ElementSize;
 			const int32 ElementAlign = TypeDef.ElementAlign;
@@ -103,7 +103,7 @@ public:
 
 			uint8* Memory = (uint8*)FMemory::Malloc(BufferSize, TypeDef.ElementAlign);    // TODO : This should come from preallocated chunks, use malloc / free for now
 
-			Private::FAllocatedBlock* AllocatedBlock = new Private::FAllocatedBlock(Memory, NumElements, ParamTypeHandle); // TODO : avoid memory fragmentation
+			Private::FAllocatedBlock* AllocatedBlock = new Private::FAllocatedBlock(Memory, NumElements, ParamType); // TODO : avoid memory fragmentation
 			AllocatedBlock->AddRef();
 
 			FRWScopeLock Lock(AllocatedBlocksLock, SLT_Write);
@@ -140,7 +140,7 @@ private:
 	// structure holding each registered type information
 	struct FDataTypeDef
 	{
-		FParamTypeHandle ParamTypeHandle;
+		FAnimNextParamType ParamType;
 		DestroyFnSignature DestroyTypeFn = nullptr;
 		int32 ElementSize = 0;
 		int32 ElementAlign = 0;
@@ -168,7 +168,7 @@ private:
 	};
 
 	// Map holding registered types
-	TMap<FParamTypeHandle, FDataTypeDef> DataTypeDefs;
+	TMap<FAnimNextParamType, FDataTypeDef> DataTypeDefs;
 	// Lock for registered types map
 	FRWLock DataTypeDefsLock;
 
@@ -188,11 +188,11 @@ private:
 	template<typename DataType>
 	FDataTypeDef RegisterDataType_Impl(int32 AllocationBlockSize)
 	{
-		FParamTypeHandle ParamTypeHandle = FParamTypeHandle::GetHandle<DataType>();
-		check(ParamTypeHandle.IsValid());
+		FAnimNextParamType ParamType = FAnimNextParamType::GetType<DataType>();
+		check(ParamType.IsValid());
 
-		const int32 ElementSize = ParamTypeHandle.GetSize();
-		const int32 ElementAlign = ParamTypeHandle.GetAlignment();
+		const int32 ElementSize = ParamType.GetSize();
+		const int32 ElementAlign = ParamType.GetAlignment();
 
 		// If we use raw types, I need a per element destructor
 		DestroyFnSignature DestroyFn = [](uint8* TargetBuffer, int32 NumElem)->void
@@ -207,8 +207,8 @@ private:
 		{
 			FRWScopeLock WriteLock(DataTypeDefsLock, SLT_Write);
 
-			FDataTypeDef* AddedDef = &DataTypeDefs.FindOrAdd(ParamTypeHandle, { ParamTypeHandle, DestroyFn, ElementSize, ElementAlign, AllocationBlockSize });
-			check(AddedDef->ParamTypeHandle == ParamTypeHandle); // check we have not added two different types with the same ID
+			FDataTypeDef* AddedDef = &DataTypeDefs.FindOrAdd(ParamType, { ParamType, DestroyFn, ElementSize, ElementAlign, AllocationBlockSize });
+			check(AddedDef->ParamType == ParamType); // check we have not added two different types with the same ID
 
 			return *AddedDef;
 		}

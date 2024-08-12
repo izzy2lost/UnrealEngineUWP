@@ -7,6 +7,7 @@
 #include "IDocumentation.h"
 #include "SSubobjectEditor.h"
 #include "AnimNextEdGraphSchema.h"
+#include "RigVMHost.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
@@ -45,9 +46,19 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 			continue;
 		}
 
+		// skip hidden units
+		if(Function.Struct->HasMetaData(FRigVMStruct::HiddenMetaName))
+		{
+			continue;
+		}
+
 		FString CategoryMetadata, DisplayNameMetadata, MenuDescSuffixMetadata;
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::CategoryMetaName, &CategoryMetadata);
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::DisplayNameMetaName, &DisplayNameMetadata);
+		if(DisplayNameMetadata.IsEmpty())
+		{
+			DisplayNameMetadata = Function.GetMethodName().ToString();
+		}
 		Struct->GetStringMetaDataHierarchical(FRigVMStruct::MenuDescSuffixMetaName, &MenuDescSuffixMetadata);
 		if (!MenuDescSuffixMetadata.IsEmpty())
 		{
@@ -84,12 +95,27 @@ void SActionMenu::CollectAllAnimNextGraphActions(FGraphContextMenuBuilder& MenuB
 			continue;
 		}
 
+		// skip hidden factories
+		if(Factory->GetScriptStruct()->HasMetaData(FRigVMStruct::HiddenMetaName))
+		{
+			continue;
+		}
+
 		FText NodeCategory = FText::FromString(Factory->GetCategory());
 		FText MenuDesc = FText::FromString(Factory->GetNodeTitle(FRigVMTemplateTypeMap()));
 		FText ToolTip = Factory->GetNodeTooltip(FRigVMTemplateTypeMap());
 
 		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_DispatchFactory>(Template->GetNotation(), NodeCategory, MenuDesc, ToolTip));
 	};
+
+	TArray<FRigVMExternalVariable> ExternalVariables = RigVMHost->GetVM()->GetExternalVariables(RigVMHost->GetRigVMExtendedExecuteContext());
+	for (const FRigVMExternalVariable& ExternalVariable : ExternalVariables)
+	{
+		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Variable>(ExternalVariable, true));
+		MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_Variable>(ExternalVariable, false));
+	}
+
+	MenuBuilder.AddAction(MakeShared<FAnimNextSchemaAction_AddComment>());
 
 	RigVMController->EnableReporting(true);
 }
@@ -113,6 +139,8 @@ void SActionMenu::Construct(const FArguments& InArgs, UEdGraph* InGraph)
 
 	RigVMClientHost = Graph->GetImplementingOuter<IRigVMClientHost>();
 	check(RigVMClientHost);
+	RigVMHost = Graph->GetTypedOuter<URigVMHost>();
+	check(RigVMHost);
 	RigVMController = RigVMClientHost->GetRigVMClient()->GetController(Graph);
 	check(RigVMController);
 	RigVMSchema = RigVMController->GetGraph()->GetSchema();

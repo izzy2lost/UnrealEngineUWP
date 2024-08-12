@@ -17,7 +17,7 @@ namespace UE::Workspace
 		};
 				
 		FWorkspaceOutlinerTreeItem(const FItemData& InItemData);
-		virtual ~FWorkspaceOutlinerTreeItem() override {}
+		virtual ~FWorkspaceOutlinerTreeItem() override = default;
 
 		// Begin ISceneOutlinerTreeItem overrides
 		virtual bool IsValid() const override;

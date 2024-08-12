@@ -11,15 +11,11 @@ struct FTopLevelAssetPath;
 namespace UE::AnimNext::Editor
 {
 
-struct FParameterPickerArgs;
+struct FVariablePickerArgs;
 
 class IAnimNextEditorModule : public IModuleInterface
 {
 public:
-	// Create a parameter picker
-	// @param  InArgs          Arguments used for configuring the picker
-	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) = 0;
-
 	// Register a valid fragment type name to be used with parameter UOLs
 	// @param InLocatorFragmentEditorName The name of the locator fragment editor
 	virtual void RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) = 0;

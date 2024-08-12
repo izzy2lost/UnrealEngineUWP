@@ -14,7 +14,6 @@ class UAnimNextEdGraphSchema : public URigVMEdGraphSchema
 
 	// URigVMEdGraphSchema interface
 	virtual TSubclassOf<URigVMEdGraphNode> GetGraphNodeClass(const URigVMEdGraph* InGraph) const override { return UAnimNextEdGraphNode::StaticClass(); }
-	virtual bool IsStructEditable(UStruct* InStruct) const override;
 
 	// UEdGraphSchema interface
 	virtual void GetGraphDisplayInformation(const UEdGraph& Graph, /*out*/ FGraphDisplayInfo& DisplayInfo) const override;

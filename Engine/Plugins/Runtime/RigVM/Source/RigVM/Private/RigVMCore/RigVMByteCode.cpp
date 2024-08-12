@@ -2149,6 +2149,48 @@ TMap<int32, TArray<FRigVMTraitScope>> FRigVMByteCode::GetTraits(
 	return Result;
 }
 
+TMap<int32, TArray<FRigVMTraitScope>> FRigVMByteCode::GetTraits(
+	FRigVMMemoryStorageStruct& InLiteralMemory,
+	FRigVMMemoryStorageStruct& InWorkMemory,
+	TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles,
+	const UScriptStruct* InScriptStruct) const
+{
+	// Count memory handles we will add and reserve to ensure we don't reallocate and invalidate
+	// handle views in returned FRigVMTraitScopes
+	int32 NumAdditionalMemoryHandles = 0;
+	const FRigVMInstructionArray Instructions = GetInstructions();
+	for(int32 InstructionIndex = 0; InstructionIndex < Instructions.Num(); InstructionIndex++)
+	{
+		const FRigVMInstruction& Instruction = Instructions[InstructionIndex];
+		if(Instruction.OpCode == ERigVMOpCode::SetupTraits)
+		{
+			TArray<FRigVMMemoryHandle> AdditionalMemoryHandles;
+			const TArray<FRigVMTraitScope> Traits = GetTraitsForInstruction(Instruction, InLiteralMemory, InWorkMemory, AdditionalMemoryHandles, InScriptStruct);
+			for(const FRigVMTraitScope& Trait : Traits)
+			{
+				NumAdditionalMemoryHandles += Trait.GetAdditionalMemoryHandles().Num();
+			}
+		}
+	}
+
+	OutAdditionalMemoryHandles.Reserve(NumAdditionalMemoryHandles);
+
+	TMap<int32, TArray<FRigVMTraitScope>> Result;
+	for(int32 InstructionIndex = 0; InstructionIndex < Instructions.Num(); InstructionIndex++)
+	{
+		const FRigVMInstruction& Instruction = Instructions[InstructionIndex];
+		if(Instruction.OpCode == ERigVMOpCode::SetupTraits)
+		{
+			const TArray<FRigVMTraitScope> Traits = GetTraitsForInstruction(Instruction, InLiteralMemory, InWorkMemory, OutAdditionalMemoryHandles, InScriptStruct);
+			if(!Traits.IsEmpty())
+			{
+				Result.Add(InstructionIndex, Traits);
+			}
+		}
+	}
+	return Result;
+}
+
 TArray<FRigVMTraitScope> FRigVMByteCode::GetTraitsForInstruction(
 	const FRigVMInstruction& InInstruction,
 	FRigVMMemoryStorageStruct& InLiteralMemory,
@@ -2185,6 +2227,88 @@ TArray<FRigVMTraitScope> FRigVMByteCode::GetTraitsForInstruction(
 									InWorkMemory.GetData<FRigVMTrait>(StructProperty),
 									Cast<UScriptStruct>(StructProperty->Struct));
 							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return Traits;
+}
+
+TArray<FRigVMTraitScope> FRigVMByteCode::GetTraitsForInstruction(
+	const FRigVMInstruction& InInstruction,
+	FRigVMMemoryStorageStruct& InLiteralMemory,
+	FRigVMMemoryStorageStruct& InWorkMemory,
+	TArray<FRigVMMemoryHandle>& OutAdditionalMemoryHandles,
+	const UScriptStruct* InScriptStruct) const
+{
+	TArray<FRigVMTraitScope> Traits;
+
+	if(InInstruction.OpCode == ERigVMOpCode::SetupTraits)
+	{
+		if(InScriptStruct == nullptr)
+		{
+			InScriptStruct = FRigVMTrait::StaticStruct();
+		}
+
+		const FRigVMSetupTraitsOp& Op = GetOpAt<FRigVMSetupTraitsOp>(InInstruction);
+		check(Op.Arg.GetMemoryType() == ERigVMMemoryType::Literal);
+
+		if(InLiteralMemory.GetProperties().IsValidIndex(Op.Arg.GetRegisterIndex()))
+		{
+			if(const FArrayProperty* TraitIndicesProperty = CastField<FArrayProperty>(InLiteralMemory.GetProperty(Op.Arg.GetRegisterIndex())))
+			{
+				if(TraitIndicesProperty->Inner->IsA<FIntProperty>())
+				{
+					const TArray<int32>& TraitIndices = *InLiteralMemory.GetData<TArray<int32>>(TraitIndicesProperty);
+
+					// Count memory handles we will add and reserve to ensure we don't reallocate and invalidate
+					// handle views in returned FRigVMTraitScopes
+					int32 NumAdditionalMemoryHandles = 0;
+					for(const int32 TraitIndex : TraitIndices)
+					{
+						const FProperty* Property = InWorkMemory.GetProperties()[TraitIndex];
+						const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+						if(Property && !(StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct())))
+						{
+							NumAdditionalMemoryHandles++;
+						}
+					}
+
+					OutAdditionalMemoryHandles.Reserve(NumAdditionalMemoryHandles);
+
+					int32 AdditionalStartIndex = OutAdditionalMemoryHandles.Num();
+					int32 AdditionalNum = 0;
+
+					for(const int32 TraitIndex : TraitIndices)
+					{
+						const FProperty* Property = InWorkMemory.GetProperties()[TraitIndex];
+						const FStructProperty* StructProperty = CastField<FStructProperty>(Property);
+						if(StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(InScriptStruct))
+						{
+							TConstArrayView<FRigVMMemoryHandle> AdditionalMemoryHandles;
+							if(AdditionalStartIndex != INDEX_NONE)
+							{
+								AdditionalMemoryHandles = TConstArrayView<FRigVMMemoryHandle>(&OutAdditionalMemoryHandles[AdditionalStartIndex], AdditionalNum);
+								AdditionalStartIndex = INDEX_NONE;
+							}
+
+							Traits.Emplace(
+								InWorkMemory.GetData<FRigVMTrait>(StructProperty),
+								Cast<UScriptStruct>(StructProperty->Struct),
+								AdditionalMemoryHandles);
+						}
+						else if(Property && !(StructProperty && StructProperty->Struct && StructProperty->Struct->IsChildOf(FRigVMTrait::StaticStruct())))
+						{
+							if(AdditionalStartIndex == INDEX_NONE)
+							{
+								AdditionalStartIndex = OutAdditionalMemoryHandles.Num();
+								AdditionalNum = 0;
+							}
+							OutAdditionalMemoryHandles.Emplace(InWorkMemory.GetHandle(TraitIndex));
+							AdditionalNum++;
 						}
 					}
 				}

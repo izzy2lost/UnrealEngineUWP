@@ -31,8 +31,4 @@ public:
 	// Returns the frame delta time in seconds adjusted by e.g. time dilation.
 	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
 	static float GetDeltaSeconds(UWorld* InWorld);
-
-	// Returns the physics tick function
-	UFUNCTION(BlueprintCallable, BlueprintInternalUseOnly)
-	static FAnimNextTickFunctionBinding GetPhysicsTick(UWorld* InWorld);
 };

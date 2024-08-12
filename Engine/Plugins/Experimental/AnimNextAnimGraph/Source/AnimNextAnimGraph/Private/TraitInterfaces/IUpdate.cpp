@@ -5,7 +5,6 @@
 #include "TraitInterfaces/IHierarchy.h"
 #include "Graph/GraphInstanceComponent.h"
 #include "AnimNextAnimGraphStats.h"
-#include "Param/ParamStack.h"
 
 DEFINE_STAT(STAT_AnimNext_UpdateGraph);
 
@@ -473,7 +472,7 @@ namespace UE::AnimNext
 	// perform as much useful work as possible while waiting for memory, hiding its slow latency by fully
 	// leveraging out-of-order CPU execution.
 
-	void UpdateGraph(FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
+	void UpdateGraph(const FAnimNextGraphInstancePtr& GraphInstance, float DeltaTime, FTraitEventList& InputEventList, FTraitEventList& OutputEventList)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_AnimNext_UpdateGraph);
 		
@@ -519,10 +518,7 @@ namespace UE::AnimNext
 
 			It.Value()->PreUpdate(TraversalContext);
 		}
-
-		// Push any parameters this graph owns
-		FParamStack::FPushedLayerHandle PushedLayerHandle = GraphInstance.UpdateAndPushGraphState(DeltaTime);
-
+		
 		// Add the graph root to start the update process
 		Private::FUpdateEntry RootEntry(GraphInstance.GetGraphRootPtr(), RootState);
 		TraversalContext.PushUpdateEntry(&RootEntry);
@@ -637,9 +633,6 @@ namespace UE::AnimNext
 				TraversalContext.PushFreeEntry(Entry);
 			}
 		}
-
-		// Pop any parameters we pushed above
-		GraphInstance.PopGraphState(PushedLayerHandle);
 
 		// Clear our executing entry
 		TraversalContext.ExecutingEntry = nullptr;

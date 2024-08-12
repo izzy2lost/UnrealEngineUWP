@@ -12,11 +12,12 @@ namespace UE::Workspace
 	{
 	public:
 		FWorkspaceAssetEditorCommands();
-		virtual void RegisterCommands() override;	
+		virtual void RegisterCommands() override;
 
-		TSharedPtr<FUICommandInfo> NavigateBackward;		
+		TSharedPtr<FUICommandInfo> NavigateBackward;
 		TSharedPtr<FUICommandInfo> NavigateForward;
 		TSharedPtr<FUICommandInfo> SaveAssetEntries;
+		TSharedPtr<FUICommandInfo> Open;
 	};
 
 }  // namespace UE::Workspace

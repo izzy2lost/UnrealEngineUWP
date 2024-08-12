@@ -5,14 +5,17 @@
 #include "CoreMinimal.h"
 #include "Param/ParamType.h"
 #include "EdGraphSchema_K2.h"
+#include "StructView.h"
 
+struct FAnimNextVariableBindingData;
 class UAnimNextModule;
 class UAnimNextRigVMAssetEditorData;
 struct FAnimNextParamType;
 class URigVMController;
 struct FAnimNextWorkspaceAssetRegistryExports;
+class SWidget;
 
-struct FAnimNextParameterProviderAssetRegistryExports;
+struct FAnimNextAssetRegistryExports;
 
 namespace UE::AnimNext::Editor
 {

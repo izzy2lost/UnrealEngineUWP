@@ -1027,7 +1027,7 @@ void URigVMEdGraph::AddNode(UEdGraphNode* NodeToAdd, bool bUserAction, bool bSel
 	// Comments are added outside of the ControlRigEditor, so we add here the node to the model
 	if (const UEdGraphNode_Comment* CommentNode = Cast<const UEdGraphNode_Comment>(NodeToAdd))
 	{
-		if (URigVMController* Controller = GetBlueprint()->GetOrCreateController(GetModel()))
+		if (URigVMController* Controller = GetController())
 		{
 			if (GetModel()->FindNodeByName(NodeToAdd->GetFName()) == nullptr) // When recreating nodes at RebuildGraphFromModel, the model node already exists
 			{
@@ -1045,7 +1045,7 @@ void URigVMEdGraph::AddNode(UEdGraphNode* NodeToAdd, bool bUserAction, bool bSel
 					GEditor->CancelTransaction(0);
 				}
 #endif // WITH_EDITOR
-				TGuardValue<bool> BlueprintNotifGuard(GetBlueprint()->bSuspendModelNotificationsForOthers, true);
+				TGuardValue<bool> BlueprintNotifGuard(GetRigVMClient()->bSuspendModelNotificationsForOthers, true);
 				FVector2D NodePos(CommentNode->NodePosX, CommentNode->NodePosY);
 				FVector2D NodeSize(CommentNode->NodeWidth, CommentNode->NodeHeight);
 				FLinearColor NodeColor = CommentNode->CommentColor;

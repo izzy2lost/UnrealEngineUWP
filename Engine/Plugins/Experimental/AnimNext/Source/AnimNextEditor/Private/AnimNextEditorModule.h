@@ -31,7 +31,6 @@ private:
 	virtual void ShutdownModule() override;
 
 	// IAnimNextEditorModule interface
-	virtual TSharedRef<SWidget> CreateParameterPicker(const FParameterPickerArgs& InArgs) override;
 	virtual void RegisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
 	virtual void UnregisterLocatorFragmentEditorType(FName InLocatorFragmentEditorName) override;
 	virtual void AddWorkspaceSupportedAssetClass(const FTopLevelAssetPath& InClassAssetPath) override;
@@ -43,9 +42,6 @@ private:
 private:
 	/** Node factory for the AnimNext graph */
 	TSharedPtr<FAnimNextGraphPanelNodeFactory> AnimNextGraphPanelNodeFactory;
-	
-	/** Pin factory for parameters */
-	TSharedPtr<FParametersGraphPanelPinFactory> ParametersGraphPanelPinFactory;
 
 	/** Type identifier for parameter names */
 	TSharedPtr<FParamNamePropertyTypeIdentifier> Identifier;

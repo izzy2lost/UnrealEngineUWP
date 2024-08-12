@@ -7,6 +7,7 @@
 
 struct FRigVMTrait;
 class UScriptStruct;
+struct FRigVMMemoryHandle;
 
 class RIGVM_API FRigVMTraitScope
 {
@@ -16,10 +17,17 @@ public:
 		, ScriptStruct(nullptr)
 	{
 	}
-	
+
 	FRigVMTraitScope(FRigVMTrait* InTrait, const UScriptStruct* InScriptStruct)
 		: Trait(InTrait)
 		, ScriptStruct(InScriptStruct)
+	{
+	}
+	
+	FRigVMTraitScope(FRigVMTrait* InTrait, const UScriptStruct* InScriptStruct, TConstArrayView<FRigVMMemoryHandle> InAdditionalMemoryHandles)
+		: Trait(InTrait)
+		, ScriptStruct(InScriptStruct)
+		, AdditionalMemoryHandles(InAdditionalMemoryHandles)
 	{
 	}
 
@@ -73,8 +81,14 @@ public:
 		return ScriptStruct;
 	}
 
+	TConstArrayView<FRigVMMemoryHandle> GetAdditionalMemoryHandles() const
+	{
+		return AdditionalMemoryHandles;
+	}
+
 private:
 
 	FRigVMTrait* Trait;
 	const UScriptStruct* ScriptStruct;
+	TConstArrayView<FRigVMMemoryHandle> AdditionalMemoryHandles;
 };

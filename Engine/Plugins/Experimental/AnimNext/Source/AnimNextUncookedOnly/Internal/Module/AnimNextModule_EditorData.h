@@ -3,7 +3,7 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Module/AnimNextModule_Controller.h"
+#include "AnimNextController.h"
 #include "RigVMModel/RigVMGraph.h"
 #include "AnimNextEdGraph.h"
 #include "AnimNextRigVMAssetEditorData.h"
@@ -30,25 +30,6 @@ namespace UE::AnimNext::Editor
 	struct FUtils;
 }
 
-// Script-callable editor API hoisted onto UAnimNextModule
-UCLASS()
-class ANIMNEXTUNCOOKEDONLY_API UAnimNextModuleLibrary : public UBlueprintFunctionLibrary
-{
-	GENERATED_BODY()
-
-	/** Adds an animation graph to an AnimNext Module asset */
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Module", meta=(ScriptMethod))
-	static UAnimNextModule_AnimationGraph* AddAnimationGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	/** Adds a parameter to an AnimNext Module asset */
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Module", meta=(ScriptMethod))
-	static UAnimNextModule_Parameter* AddParameter(UAnimNextModule* InModule, FName InName, EPropertyBagPropertyType InValueType, EPropertyBagContainerType InContainerType = EPropertyBagContainerType::None, const UObject* InValueTypeObject = nullptr, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	/** Adds an event graph to an AnimNext Module asset */
-	UFUNCTION(BlueprintCallable, Category = "AnimNext|Module", meta=(ScriptMethod))
-	static UAnimNextModule_EventGraph* AddEventGraph(UAnimNextModule* InModule, FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-};
-
 /** Editor data for AnimNext modules */
 UCLASS(MinimalAPI)
 class UAnimNextModule_EditorData : public UAnimNextRigVMAssetEditorData
@@ -57,7 +38,6 @@ class UAnimNextModule_EditorData : public UAnimNextRigVMAssetEditorData
 
 	friend class UAnimNextModuleFactory;
 	friend class UAnimNextEdGraph;
-	friend class UAnimNextGraphEntry;
 	friend struct UE::AnimNext::UncookedOnly::FUtils;
 	friend struct UE::AnimNext::Editor::FUtils;
 	friend class UE::AnimNext::Editor::FModuleEditor;
@@ -68,33 +48,17 @@ class UAnimNextModule_EditorData : public UAnimNextRigVMAssetEditorData
 	friend class FAnimationAnimNextEditorTest_GraphTraitOperations;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecute;
 	friend class FAnimationAnimNextRuntimeTest_GraphExecuteLatent;
-	
-public:
-	/** Adds an animation graph to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextModule_AnimationGraph* AddAnimationGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	/** Adds a parameter to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextModule_Parameter* AddParameter(FName InName, FAnimNextParamType InType, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
-
-	/** Adds an event graph to this asset */
-	ANIMNEXTUNCOOKEDONLY_API UAnimNextModule_EventGraph* AddEventGraph(FName InName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = true);
 
 private:
 	// UObject interface
 	virtual void PostLoad() override;
 
-	// IRigVMClientHost interface
-	virtual void RecompileVM() override;
-
 	// UAnimNextRigVMAssetEditorData interface
-	virtual TSubclassOf<URigVMController> GetControllerClass() const override { return UAnimNextModule_Controller::StaticClass(); }
+	virtual TSubclassOf<URigVMController> GetControllerClass() const override { return UAnimNextController::StaticClass(); }
 	virtual UScriptStruct* GetExecuteContextStruct() const override { return FAnimNextExecuteContext::StaticStruct(); }
-	virtual UEdGraph* CreateEdGraph(URigVMGraph* InRigVMGraph, bool bForce) override;
-	virtual bool RemoveEdGraph(URigVMGraph* InModel) override;
-	virtual void CreateEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bForce) override;
-	virtual void RemoveEdGraphForCollapseNode(URigVMCollapseNode* InNode, bool bNotify) override;
-	virtual void HandleModifiedEvent(ERigVMGraphNotifType InNotifType, URigVMGraph* InGraph, UObject* InSubject) override;
 	virtual TConstArrayView<TSubclassOf<UAnimNextRigVMAssetEntry>> GetEntryClasses() const override;
+	virtual void RecompileVM() override;
+	virtual void GetProgrammaticGraphs(const FRigVMCompileSettings& InSettings, TArray<URigVMGraph*>& OutGraphs) override;
 
 private:
 	UPROPERTY()
