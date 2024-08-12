@@ -14,9 +14,7 @@ class SDMMaterialWizard;
 class UDynamicMaterialInstance;
 class UDynamicMaterialModel;
 class UDynamicMaterialModelBase;
-enum class EDMMaterialEditorLayout : uint8;
 struct FDMObjectMaterialProperty;
-struct FPropertyChangedEvent;
 
 class SDMMaterialDesigner : public SCompoundWidget
 {
@@ -28,7 +26,7 @@ class SDMMaterialDesigner : public SCompoundWidget
 public:
 	static bool IsFollowingSelection();
 
-	virtual ~SDMMaterialDesigner() override;
+	virtual ~SDMMaterialDesigner() override = default;
 
 	void Construct(const FArguments& InArgs);
 
@@ -98,13 +96,4 @@ protected:
 	bool OnAssetDraggedOver(TArrayView<FAssetData> InAssets);
 
 	void OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets);
-
-	/** Events */
-	void OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
-
-	void OnLayoutChanged();
-
-	bool SetEditorLayout(EDMMaterialEditorLayout InLayout, UDynamicMaterialModelBase* InMaterialModelBase);
-
-	bool SetEditorLayout(EDMMaterialEditorLayout InLayout, const FDMObjectMaterialProperty& InObjectMaterialProperty);
 };

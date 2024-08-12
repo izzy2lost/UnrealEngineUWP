@@ -23,7 +23,6 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
-#include "Utils/DMPrivate.h"
 #include "Utils/DMUtils.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStage"
@@ -1383,13 +1382,16 @@ FString UDMMaterialSlot::GetComponentPathComponent() const
 
 		if (SlotProperties.Num() == 1)
 		{
-			const FText Token = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(SlotProperties[0]);
+			UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+			constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+			const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(SlotProperties[0])));
+			const FString Token = !ShortName.IsEmpty() ? ShortName : MaterialPropertyEnum->GetNameStringByValue(static_cast<int64>(SlotProperties[0]));
 
 			return FString::Printf(
 				TEXT("%s%hc%s%hc"),
 				*UDynamicMaterialModelEditorOnlyData::SlotsPathToken,
 				FDMComponentPath::ParameterOpen,
-				*Token.ToString(),
+				*Token,
 				FDMComponentPath::ParameterClose
 			);
 		}

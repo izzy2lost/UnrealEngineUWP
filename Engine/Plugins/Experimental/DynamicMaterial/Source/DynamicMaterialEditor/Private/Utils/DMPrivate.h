@@ -5,7 +5,6 @@
 #include "Containers/Array.h"
 #include "HAL/Platform.h"
 #include "ScopedTransaction.h"
-#include "UI/Menus/DMMaterialSlotLayerMenus.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "UObject/WeakObjectPtr.h"
 
@@ -33,8 +32,6 @@ namespace UE::DynamicMaterialEditor::Private
 	bool IsCustomMaterialProperty(EDMMaterialPropertyType InMaterialProperty);
 
 	void LogError(const FString& InMessage, bool bInToast = true, const UObject* InSource = nullptr);
-
-	FText GetMaterialPropertyShortDisplayName(EDMMaterialPropertyType InMaterialProperty);
 }
 
 struct FDMMaterialLayerReference

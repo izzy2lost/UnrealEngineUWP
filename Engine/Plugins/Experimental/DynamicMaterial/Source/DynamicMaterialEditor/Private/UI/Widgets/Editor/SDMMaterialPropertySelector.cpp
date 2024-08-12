@@ -4,7 +4,6 @@
 
 #include "Components/DMMaterialProperty.h"
 #include "DetailLayoutBuilder.h"
-#include "DynamicMaterialEditorSettings.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -15,12 +14,22 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialPropertySelector"
+
+namespace UE::DynamicMaterialEditor::Private
+{
+	namespace PropertySelectorColumns
+	{
+		constexpr int32 Enable = 0;
+		constexpr int32 Select = 1;
+	}
+}
 
 void SDMMaterialPropertySelector::PrivateRegisterAttributes(FSlateAttributeDescriptor::FInitializer&)
 {
@@ -111,6 +120,52 @@ TSharedPtr<SDMMaterialSlotEditor> SDMMaterialPropertySelector::GetSlotEditorWidg
 	return EditorWidget->GetSlotEditorWidget();
 }
 
+TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_PropertyList()
+{
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	TSharedRef<SGridPanel> NewSlotList = SNew(SGridPanel)
+		.FillColumn(PropertySelectorColumns::Select, 1.f);
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = GetEditorOnlyData();
+
+	if (!EditorOnlyData)
+	{
+		return NewSlotList;
+	}
+
+	int32 Row = 0;
+
+	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+		[
+			CreateSlot_SelectButton(EDMMaterialPropertyType::None)
+		];
+
+	++Row;
+
+	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
+	{
+		if (IsCustomMaterialProperty(PropertyPair.Key))
+		{
+			continue;
+		}
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Enable, Row)
+			[
+				CreateSlot_EnabledButton(PropertyPair.Key)
+			];
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+			[
+				CreateSlot_SelectButton(PropertyPair.Key)
+			];
+
+		++Row;
+	}
+
+	return NewSlotList;
+}
+
 TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
 {
 	const FText Format = LOCTEXT("PropertyEnableFormat", "Toggle the {0} property.\n\nProperty must be valid for the Material Type.");
@@ -127,34 +182,9 @@ TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMat
 
 TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty)
 {
-	EDMMaterialEditorLayout Layout = EDMMaterialEditorLayout::First;
-
-	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
-	{
-		Layout = Settings->Layout;
-	}
-
-	UEnum* PropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
-	auto UseShortName = [Layout]()
-		{
-			switch (Layout)
-			{
-				case EDMMaterialEditorLayout::LeftSlim:
-					return true;
-
-				default:
-					return false;
-			}
-		};
-
-	const bool bUseShortName = UseShortName();
-
 	const FText ButtonText = InMaterialProperty == EDMMaterialPropertyType::None
 		? LOCTEXT("GlobalSettings", "Global Settings")
-		: (bUseShortName 
-			? UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InMaterialProperty)
-			: PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
+		: StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty));
 
 	const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
 	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
@@ -174,8 +204,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_SelectButton(EDMMate
 		.Content()
 		[
 			SNew(SBox)
-			.WidthOverride(bUseShortName ? 42.f : 135.f)
-			.Clipping(EWidgetClipping::ClipToBounds)
+			.WidthOverride(135.f)
 			[
 				SNew(SHorizontalBox)
 				+SHorizontalBox::Slot()
@@ -187,7 +216,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_SelectButton(EDMMate
 					.ColorAndOpacity(this, &SDMMaterialPropertySelector::GetPropertySelectButtonChipColor, InMaterialProperty)
 				]
 				+SHorizontalBox::Slot()
-				.Padding(bUseShortName ? 2.f : 10.f, 6.f)
+				.Padding(10.f, 6.f)
 				.VAlign(VAlign_Center)
 				.FillWidth(1.f)
 				[

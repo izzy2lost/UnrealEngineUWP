@@ -4,9 +4,6 @@
 
 #include "Containers/Set.h"
 #include "DynamicMaterialEditorSettings.h"
-#include "DynamicMaterialModule.h"
-#include "Editor/SDMMaterialComponentEditor.h"
-#include "Editor/SDMMaterialSlotEditor.h"
 #include "GameFramework/Actor.h"
 #include "Material/DynamicMaterialInstance.h"
 #include "Model/DynamicMaterialModel.h"
@@ -14,11 +11,6 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "SAssetDropTarget.h"
 #include "UI/Utils/DMDropTargetPrivateSetter.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_Left.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_LeftSlim.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopHorizontal.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopSlim.h"
-#include "UI/Widgets/Editor/EditorLayouts/SDMMaterialEditor_TopVertical.h"
 #include "UI/Widgets/SDMActorMaterialSelector.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "UI/Widgets/SDMMaterialSelectPrompt.h"
@@ -30,19 +22,6 @@ void SDMMaterialDesigner::PrivateRegisterAttributes(FSlateAttributeDescriptor::F
 {
 }
 
-SDMMaterialDesigner::~SDMMaterialDesigner()
-{
-	if (!FDynamicMaterialModule::AreUObjectsSafe())
-	{
-		return;
-	}
-
-	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
-	{
-		Settings->GetOnSettingsChanged().RemoveAll(this);
-	}
-}
-
 void SDMMaterialDesigner::Construct(const FArguments& InArgs)
 {
 	SetCanTick(true);
@@ -50,11 +29,6 @@ void SDMMaterialDesigner::Construct(const FArguments& InArgs)
 	ContentSlot = TDMWidgetSlot<SWidget>(SharedThis(this), 0, SNullWidget::NullWidget);
 
 	SetSelectPromptView();
-
-	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
-	{
-		Settings->GetOnSettingsChanged().AddSP(this, &SDMMaterialDesigner::OnSettingsChanged);
-	}
 }
 
 bool SDMMaterialDesigner::OpenMaterialModelBase(UDynamicMaterialModelBase* InMaterialModelBase)
@@ -277,26 +251,18 @@ void SDMMaterialDesigner::SetWizardView(const FDMObjectMaterialProperty& InObjec
 
 void SDMMaterialDesigner::SetEditorView(UDynamicMaterialModelBase* InMaterialModelBase)
 {
-	EDMMaterialEditorLayout Layout = EDMMaterialEditorLayout::Left;
+	TSharedRef<SDMMaterialEditor> Editor = SNew(SDMMaterialEditor, SharedThis(this))
+		.MaterialModelBase(InMaterialModelBase);
 
-	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
-	{
-		Layout = Settings->Layout;
-	}
-
-	SetEditorLayout(Layout, InMaterialModelBase);
+	SetWidget(Editor, /* Include Drop Target */ true);
 }
 
 void SDMMaterialDesigner::SetEditorView(const FDMObjectMaterialProperty& InObjectMaterialProperty)
 {
-	EDMMaterialEditorLayout Layout = EDMMaterialEditorLayout::Left;
+	TSharedRef<SDMMaterialEditor> Editor = SNew(SDMMaterialEditor, SharedThis(this))
+		.MaterialProperty(InObjectMaterialProperty);
 
-	if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
-	{
-		Layout = Settings->Layout;
-	}
-
-	SetEditorLayout(Layout, InObjectMaterialProperty);
+	SetWidget(Editor, /* Include Drop Target */ true);
 }
 
 void SDMMaterialDesigner::SetWidget(const TSharedRef<SWidget>& InWidget, bool bInIncludeAssetDropTarget)
@@ -411,182 +377,4 @@ void SDMMaterialDesigner::OnAssetsDropped(const FDragDropEvent& InDragDropEvent,
 			}
 		}
 	}
-}
-
-void SDMMaterialDesigner::OnSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent)
-{
-	if (!Content.IsValid() || Content->GetWidgetClass().GetWidgetType() != SDMMaterialEditor::StaticWidgetClass().GetWidgetType())
-	{
-		return;
-	}
-
-	const FName MemberName = InPropertyChangedEvent.GetMemberPropertyName();
-
-	if (MemberName == GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, Layout))
-	{
-		OnLayoutChanged();
-	}
-}
-
-void SDMMaterialDesigner::OnLayoutChanged()
-{
-	UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>();
-
-	if (!Settings)
-	{
-		return;
-	}
-
-	// Already assured
-	TSharedPtr<SDMMaterialEditor> CurrentEditor = StaticCastSharedRef<SDMMaterialEditor>(Content.ToSharedRef());
-
-	UDynamicMaterialModelBase* MaterialModelBase = CurrentEditor->GetMaterialModelBase();
-	const FDMObjectMaterialProperty* MaterialObjectProperty = CurrentEditor->GetMaterialObjectProperty();
-	UDMMaterialSlot* EditedSlot = nullptr;
-	UDMMaterialComponent* EditedComponent = nullptr;
-
-	if (TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = CurrentEditor->GetSlotEditorWidget())
-	{
-		EditedSlot = SlotEditorWidget->GetSlot();
-	}
-
-	if (TSharedPtr<SDMMaterialComponentEditor> ComponentEditorWidget = CurrentEditor->GetComponentEditorWidget())
-	{
-		EditedComponent = ComponentEditorWidget->GetComponent();
-	}
-
-	if (MaterialObjectProperty)
-	{
-		if (!SetEditorLayout(Settings->Layout, *MaterialObjectProperty))
-		{
-			return;
-		}
-	}
-	else
-	{
-		if (!SetEditorLayout(Settings->Layout, MaterialModelBase))
-		{
-			return;
-		}
-	}
-
-	TSharedRef<SDMMaterialEditor> NewEditor = StaticCastSharedRef<SDMMaterialEditor>(Content.ToSharedRef());
-
-	if (EditedSlot)
-	{
-		NewEditor->EditSlot(EditedSlot);
-	}
-
-	if (EditedComponent)
-	{
-		NewEditor->EditComponent(EditedComponent);
-	}
-}
-
-bool SDMMaterialDesigner::SetEditorLayout(EDMMaterialEditorLayout InLayout, UDynamicMaterialModelBase* InMaterialModelBase)
-{
-	TSharedPtr<SDMMaterialEditor> NewEditor;
-
-	switch (InLayout)
-	{
-		case EDMMaterialEditorLayout::Left:
-			NewEditor = SNew(SDMMaterialEditor_Left, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::LeftAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::LeftSlim:
-			NewEditor = SNew(SDMMaterialEditor_LeftSlim, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontal:
-			NewEditor = SNew(SDMMaterialEditor_TopHorizontal, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopVertical:
-			NewEditor = SNew(SDMMaterialEditor_TopVertical, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		case EDMMaterialEditorLayout::TopVerticalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopSlim:
-			NewEditor = SNew(SDMMaterialEditor_TopSlim, SharedThis(this))
-				.MaterialModelBase(InMaterialModelBase);
-			break;
-
-		default:
-			break;
-	}
-
-	if (!NewEditor.IsValid())
-	{
-		return false;
-	}
-
-	SetWidget(NewEditor.ToSharedRef(), /* Include Drop Target */ true);
-
-	return true;
-}
-
-bool SDMMaterialDesigner::SetEditorLayout(EDMMaterialEditorLayout InLayout, const FDMObjectMaterialProperty& InObjectMaterialProperty)
-{
-	TSharedPtr<SDMMaterialEditor> NewEditor;
-
-	switch (InLayout)
-	{
-		case EDMMaterialEditorLayout::Left:
-			NewEditor = SNew(SDMMaterialEditor_Left, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::LeftAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::LeftSlim:
-			NewEditor = SNew(SDMMaterialEditor_LeftSlim, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontal:
-			NewEditor = SNew(SDMMaterialEditor_TopHorizontal, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopVertical:
-			NewEditor = SNew(SDMMaterialEditor_TopVertical, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		case EDMMaterialEditorLayout::TopVerticalAutoHide:
-			break;
-
-		case EDMMaterialEditorLayout::TopSlim:
-			NewEditor = SNew(SDMMaterialEditor_TopSlim, SharedThis(this))
-				.MaterialProperty(InObjectMaterialProperty);
-			break;
-
-		default:
-			break;
-	}
-
-	if (!NewEditor.IsValid())
-	{
-		return false;
-	}
-
-	SetWidget(NewEditor.ToSharedRef(), /* Include Drop Target */ true);
-
-	return true;
 }

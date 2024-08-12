@@ -12,7 +12,6 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleColors.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
-#include "Utils/DMPrivate.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBox.h"
@@ -234,12 +233,15 @@ TSharedRef<SWidget> SDMMaterialWizard::CreateChannelList()
 
 			if (Preset->IsPropertyEnabled(Property.Key))
 			{
+				constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+				const FString ShortName = MaterialPropertyEnum->GetMetaData(ShortNameName, MaterialPropertyEnum->GetIndexByValue(static_cast<int64>(Property.Key)));
+
 				ChannelPresets->AddSlot()
 					.Padding(TextPadding)
 					[
 						SNew(STextBlock)
 						.TextStyle(FDynamicMaterialEditorStyle::Get(), "RegularFont")
-						.Text(UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(Property.Key))
+						.Text(!ShortName.IsEmpty() ? FText::FromString(ShortName) : MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(Property.Key)))
 					];
 			}
 		}

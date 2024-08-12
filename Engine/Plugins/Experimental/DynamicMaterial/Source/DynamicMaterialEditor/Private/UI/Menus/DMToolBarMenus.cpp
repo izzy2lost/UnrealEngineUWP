@@ -55,7 +55,7 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMMa
 
 		NewToolMenu->AddDynamicSection(
 			TEXT("MaterialDesignerSettings"),
-			FNewToolMenuDelegate::CreateStatic(&AddMenu)
+			FNewToolMenuDelegate::CreateStatic(&AddToolBarEditorLayoutMenu)
 		);
 	}
 
@@ -68,13 +68,7 @@ TSharedRef<SWidget> FDMToolBarMenus::MakeEditorLayoutMenu(const TSharedPtr<SDMMa
 	return ToolMenus->GenerateWidget(ToolBarEditorLayoutMenuName, MenuContext);
 }
 
-void FDMToolBarMenus::AddMenu(UToolMenu* InMenu)
-{
-	AddExportMenu(InMenu);
-	AddSettingsMenu(InMenu);
-}
-
-void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
+void FDMToolBarMenus::AddToolBarExportMenu(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -163,7 +157,23 @@ void FDMToolBarMenus::AddExportMenu(UToolMenu* InMenu)
 	);
 }
 
-void FDMToolBarMenus::AddSettingsMenu(UToolMenu* InMenu)
+void FDMToolBarMenus::AddToolBarAdvancedSection(UToolMenu* InMenu)
+{
+	FToolMenuSection& NewSection = InMenu->AddSection(TEXT("AdvancedSettings"), LOCTEXT("AdvancedSettingsSection", "Advanced Settings"));
+
+	NewSection.AddMenuEntry(
+		NAME_None,
+		LOCTEXT("ResetAllSettingsToDefaults", "Reset All To Defaults"),
+		LOCTEXT("ResetAllSettingsToDefaultsTooltip", "Resets all the Material Designer settings to their default values."),
+		FSlateIcon(),
+		FUIAction(FExecuteAction::CreateUObject(
+			UDynamicMaterialEditorSettings::Get(), 
+			&UDynamicMaterialEditorSettings::ResetAllLayoutSettings)
+		)
+	);
+}
+
+void FDMToolBarMenus::AddToolBarSettingsMenu(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -178,14 +188,7 @@ void FDMToolBarMenus::AddSettingsMenu(UToolMenu* InMenu)
 		"AdvancedSettings",
 		LOCTEXT("AdvancedSettingsSubMenu", "Advanced Settings"),
 		LOCTEXT("AdvancedSettingsSubMenu_ToolTip", "Display advanced Material Designer settings"),
-		FNewToolMenuDelegate::CreateStatic(&AddAdvancedSection)
-	);
-
-	NewSection.AddSubMenu(
-		"EditorLayout",
-		LOCTEXT("EditorLayoutSubMenu", "Editor Layout"),
-		LOCTEXT("EditorLayoutSubMenu_ToolTip", "Change the layout of the Material Designer Editor"),
-		FNewToolMenuDelegate::CreateStatic(&AddEditorLayoutSection)
+		FNewToolMenuDelegate::CreateStatic(&AddToolBarAdvancedSection)
 	);
 
 	NewSection.AddMenuEntry(
@@ -200,93 +203,10 @@ void FDMToolBarMenus::AddSettingsMenu(UToolMenu* InMenu)
 	);
 }
 
-void FDMToolBarMenus::AddEditorLayoutSection(UToolMenu* InMenu)
+void FDMToolBarMenus::AddToolBarEditorLayoutMenu(UToolMenu* InMenu)
 {
-	FToolMenuSection& NewSection = InMenu->AddSection(TEXT("EditorLayout"), LOCTEXT("EditorLayoutSection", "EditorLayout"));
-
-	UEnum* LayoutEnum = StaticEnum<EDMMaterialEditorLayout>();
-
-	for (EDMMaterialEditorLayout Layout = EDMMaterialEditorLayout::First;
-		Layout <= EDMMaterialEditorLayout::Last;
-		Layout = static_cast<EDMMaterialEditorLayout>(static_cast<uint8>(Layout)+1))
-	{
-		FUIAction Action;
-
-		switch (Layout)
-		{
-			case EDMMaterialEditorLayout::LeftAutoHide:
-			case EDMMaterialEditorLayout::TopHorizontalAutoHide:
-			case EDMMaterialEditorLayout::TopVerticalAutoHide:
-				Action.CanExecuteAction = FCanExecuteAction::CreateLambda([]() { return false; });
-				break;
-
-			default:
-				break;
-		}
-
-		Action.GetActionCheckState = FGetActionCheckState::CreateLambda(
-			[Layout]()
-			{
-				if (UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>())
-				{
-					if (Settings->Layout == Layout)
-					{
-						return ECheckBoxState::Checked;
-					}
-				}
-
-				return ECheckBoxState::Unchecked;
-			}
-		);
-
-		Action.ExecuteAction = FExecuteAction::CreateLambda(
-			[Layout]()
-			{
-				UDynamicMaterialEditorSettings* Settings = GetMutableDefault<UDynamicMaterialEditorSettings>();
-
-				if (!Settings || Settings->Layout == Layout)
-				{
-					return;
-				}
-
-				Settings->Layout = Layout;
-				TArray<UObject*> TopLeftObjects = {Settings};
-
-				FPropertyChangedEvent PropertyChangedEvent(
-					UDynamicMaterialEditorSettings::StaticClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(UDynamicMaterialEditorSettings, Layout)),
-					EPropertyChangeType::Interactive,
-					TopLeftObjects
-				);
-
-				Settings->PostEditChangeProperty(PropertyChangedEvent);
-			}
-		);
-
-		NewSection.AddMenuEntry(
-			NAME_None,
-			LayoutEnum->GetDisplayNameTextByValue(static_cast<int64>(Layout)),
-			FText::GetEmpty(),
-			FSlateIcon(),
-			Action,
-			EUserInterfaceActionType::RadioButton
-		);
-	}
-}
-
-void FDMToolBarMenus::AddAdvancedSection(UToolMenu* InMenu)
-{
-	FToolMenuSection& NewSection = InMenu->AddSection(TEXT("AdvancedSettings"), LOCTEXT("AdvancedSettingsSection", "Advanced Settings"));
-
-	NewSection.AddMenuEntry(
-		NAME_None,
-		LOCTEXT("ResetAllSettingsToDefaults", "Reset All To Defaults"),
-		LOCTEXT("ResetAllSettingsToDefaultsTooltip", "Resets all the Material Designer settings to their default values."),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateUObject(
-			UDynamicMaterialEditorSettings::Get(), 
-			&UDynamicMaterialEditorSettings::ResetAllLayoutSettings)
-		)
-	);
+	AddToolBarExportMenu(InMenu);
+	AddToolBarSettingsMenu(InMenu);
 }
 
 void FDMToolBarMenus::OpenMaterialEditorFromContext(UDMMenuContext* InMenuContext)
@@ -437,7 +357,7 @@ void FDMToolBarMenus::SnapshotMaterial(TWeakObjectPtr<UDynamicMaterialModelBase>
 	}
 }
 
-void FDMToolBarMenus::AddBoolOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName, const FUIAction InAction)
+void FDMToolBarMenus::AddToolBarBoolOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName, const FUIAction InAction)
 {
 	const FProperty* const OptionProperty = UDynamicMaterialEditorSettings::StaticClass()->FindPropertyByName(InPropertyName);
 
@@ -453,7 +373,7 @@ void FDMToolBarMenus::AddBoolOptionMenuEntry(FToolMenuSection& InSection, const 
 	}
 }
 
-void FDMToolBarMenus::AddIntOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName,
+void FDMToolBarMenus::AddToolBarIntOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName,
 	TAttribute<bool> InIsEnabledAttribute, TAttribute<EVisibility> InVisibilityAttribute)
 {
 	InSection.AddDynamicEntry(NAME_None,
