@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Reflection;
 using System.Threading.Tasks;
 using StackExchange.Redis;
 
@@ -226,6 +227,35 @@ namespace EpicGames.Redis
 
 		#region HashGetAsync
 
+		/// <inheritdoc cref="IDatabaseAsync.HashGetAsync(RedisKey, RedisValue[], CommandFlags)"/>
+		public static async Task<TRecord> HashGetAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, object>>[] selectors, CommandFlags flags = CommandFlags.None) where TRecord : new()
+		{
+			RedisValue[] names = new RedisValue[selectors.Length];
+			for (int idx = 0; idx < selectors.Length; idx++)
+			{
+				Expression expr = selectors[idx].Body;
+				if (expr is UnaryExpression unaryExpr && unaryExpr.NodeType == ExpressionType.Convert)
+				{
+					expr = unaryExpr.Operand;
+				}
+
+				MemberExpression memberExpression = (expr as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
+				names[idx] = memberExpression.Member.Name;
+			}
+
+			RedisValue[] values = await target.HashGetAsync(key.Inner, RedisSerializer.Serialize(names), flags);
+
+			HashRecordInfo<TRecord> recordInfo = HashRecordInfo<TRecord>.Instance;
+
+			TRecord record = new TRecord();
+			for (int idx = 0; idx < selectors.Length; idx++)
+			{
+				recordInfo.SetProperty(record, names[idx], values[idx]);
+			}
+
+			return record;
+		}
+
 		/// <inheritdoc cref="IDatabaseAsync.HashGetAsync(RedisKey, RedisValue, CommandFlags)"/>
 		public static Task<TValue> HashGetAsync<TRecord, TValue>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, CommandFlags flags = CommandFlags.None)
 		{
@@ -254,6 +284,22 @@ namespace EpicGames.Redis
 		{
 			HashEntry[] entries = await target.HashGetAllAsync(key.Inner, flags);
 			return Array.ConvertAll(entries, x => new HashEntry<TName, TValue>(RedisSerializer.Deserialize<TName>(x.Name)!, RedisSerializer.Deserialize<TValue>(x.Value)!));
+		}
+
+		/// <inheritdoc cref="IDatabaseAsync.HashGetAllAsync(RedisKey, CommandFlags)"/>
+		public static async Task<TRecord> HashGetAllAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, CommandFlags flags = CommandFlags.None) where TRecord : new()
+		{
+			HashRecordInfo<TRecord> recordInfo = HashRecordInfo<TRecord>.Instance;
+
+			TRecord value = new TRecord();
+
+			HashEntry[] entries = await target.HashGetAllAsync(key.Inner, flags);
+			foreach (HashEntry entry in entries)
+			{
+				recordInfo.SetProperty(value, entry.Name, entry.Value);
+			}
+
+			return value;
 		}
 
 		#endregion
@@ -323,11 +369,72 @@ namespace EpicGames.Redis
 
 		#region HashSetAsync
 
+		class HashRecordInfo<T>
+		{
+			public static HashRecordInfo<T> Instance { get; } = new HashRecordInfo<T>();
+
+			public IReadOnlyList<HashPropertyInfo<T>> Properties { get; }
+
+			public IReadOnlyDictionary<string, HashPropertyInfo<T>> PropertiesByName { get; }
+
+			public HashRecordInfo()
+			{
+				List<HashPropertyInfo<T>> properties = new List<HashPropertyInfo<T>>();
+				foreach (PropertyInfo propertyInfo in typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance))
+				{
+					properties.Add(new HashPropertyInfo<T>(propertyInfo));
+				}
+				Properties = properties;
+				PropertiesByName = properties.ToDictionary(x => x.Name, x => x);
+			}
+
+			public bool SetProperty(T record, RedisValue name, RedisValue value)
+			{
+				string? nameStr = (string?)name;
+				if (nameStr != null)
+				{
+					HashPropertyInfo<T>? propertyInfo;
+					if (PropertiesByName.TryGetValue(nameStr, out propertyInfo))
+					{
+						propertyInfo.SetValue(record, value);
+						return true;
+					}
+				}
+				return false;
+			}
+		}
+
+		record class HashPropertyInfo<T>(string Name, Func<T, RedisValue> GetValue, Action<T, RedisValue> SetValue)
+		{
+			public HashPropertyInfo(PropertyInfo propertyInfo)
+				: this(
+					propertyInfo.Name,
+					record => RedisSerializer.Serialize(propertyInfo.GetValue(record), propertyInfo.PropertyType),
+					(record, value) => propertyInfo.SetValue(record, RedisSerializer.Deserialize(value, propertyInfo.PropertyType))
+				)
+			{ }
+		}
+
 		/// <inheritdoc cref="IDatabaseAsync.HashSetAsync(RedisKey, RedisValue, RedisValue, When, CommandFlags)"/>
 		public static Task<bool> HashSetAsync<TRecord, TValue>(this IDatabaseAsync target, RedisHashKey<TRecord> key, Expression<Func<TRecord, TValue>> selector, TValue value, When when = When.Always, CommandFlags flags = CommandFlags.None)
 		{
 			MemberExpression memberExpression = (selector.Body as MemberExpression) ?? throw new InvalidOperationException("Expression must be a property accessor");
 			return target.HashSetAsync(key.Inner, memberExpression.Member.Name, RedisSerializer.Serialize(value), when, flags);
+		}
+
+		/// <inheritdoc cref="IDatabaseAsync.HashSetAsync(RedisKey, HashEntry[], CommandFlags)"/>
+		public static Task HashSetAsync<TRecord>(this IDatabaseAsync target, RedisHashKey<TRecord> key, TRecord value, CommandFlags flags = CommandFlags.None)
+		{
+			HashRecordInfo<TRecord> recordInfo = HashRecordInfo<TRecord>.Instance;
+
+			HashEntry[] entries = new HashEntry[recordInfo.Properties.Count];
+			for (int idx = 0; idx < recordInfo.Properties.Count; idx++)
+			{
+				HashPropertyInfo<TRecord> property = recordInfo.Properties[idx];
+				entries[idx] = new HashEntry(property.Name, property.GetValue(value));
+			}
+
+			return target.HashSetAsync(key.Inner, entries, flags);
 		}
 
 		/// <inheritdoc cref="IDatabaseAsync.HashSetAsync(RedisKey, RedisValue, RedisValue, When, CommandFlags)"/>
