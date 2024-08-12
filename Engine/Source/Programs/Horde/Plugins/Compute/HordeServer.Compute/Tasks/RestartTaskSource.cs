@@ -3,8 +3,6 @@
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Logs;
@@ -27,7 +25,7 @@ namespace HordeServer.Tasks
 			OnLeaseStartedProperties.Add(nameof(RestartTask.LogId), x => LogId.Parse(x.LogId));
 		}
 
-		public override async Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
+		public override async Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			if (!agent.RequestForceRestart)
 			{
@@ -47,9 +45,7 @@ namespace HordeServer.Tasks
 			RestartTask task = new RestartTask();
 			task.LogId = log.Id.ToString();
 
-			byte[] payload = Any.Pack(task).ToByteArray();
-
-			return LeaseAsync(new AgentLease(leaseId, null, "Restart", null, null, log.Id, LeaseState.Pending, null, true, payload));
+			return LeaseAsync(new CreateLeaseOptions(leaseId, null, "Restart", null, null, log.Id, null, true, task));
 		}
 	}
 }

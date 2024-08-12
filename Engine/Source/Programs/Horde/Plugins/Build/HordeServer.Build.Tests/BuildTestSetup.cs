@@ -292,7 +292,7 @@ namespace HordeServer.Tests
 			List<AgentWorkspaceInfo>? workspaces = null,
 			TimeSpan? adjustClockBy = null,
 			string? awsInstanceId = null,
-			AgentLease? lease = null,
+			CreateLeaseOptions? lease = null,
 			bool ephemeral = false)
 		{
 			DateTime now = Clock.UtcNow;
@@ -328,7 +328,7 @@ namespace HordeServer.Tests
 
 			if (lease != null)
 			{
-				await agent.TryAddLeaseAsync(lease);
+				await agent.TryCreateLeaseAsync(lease);
 			}
 
 			Clock.UtcNow = now;

@@ -9,8 +9,8 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
+using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Auditing;
 using HordeServer.Server;
@@ -73,9 +73,9 @@ namespace HordeServer.Agents
 				_document = document;
 			}
 
-			public async Task<IAgent?> TryAddLeaseAsync(AgentLease newLease, CancellationToken cancellationToken = default)
+			public async Task<IAgent?> TryCreateLeaseAsync(CreateLeaseOptions options, CancellationToken cancellationToken = default)
 			{
-				AgentDocument? newDocument = await _collection.TryAddLeaseAsync(_document, newLease, cancellationToken);
+				AgentDocument? newDocument = await _collection.TryCreateLeaseAsync(_document, options, cancellationToken);
 				return _collection.CreateAgentObject(newDocument);
 			}
 
@@ -761,8 +761,11 @@ namespace HordeServer.Agents
 		private static string RedisKeyLeaseChildren(LeaseId parentId) => $"agent/lease-children/{parentId.ToString()}";
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryAddLeaseAsync(AgentDocument agent, AgentLease newLease, CancellationToken cancellationToken)
+		async Task<AgentDocument?> TryCreateLeaseAsync(AgentDocument agent, CreateLeaseOptions options, CancellationToken cancellationToken)
 		{
+			byte[] payloadData = Any.Pack(options.Payload).ToByteArray();
+			AgentLease newLease = new AgentLease(options.Id, options.ParentId, options.Name, options.StreamId, options.PoolId, options.LogId, LeaseState.Pending, options.Resources, options.Exclusive, payloadData);
+
 			List<AgentLease> leases = new List<AgentLease>();
 			if (agent.Leases != null)
 			{

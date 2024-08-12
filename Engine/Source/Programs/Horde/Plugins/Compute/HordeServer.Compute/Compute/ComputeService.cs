@@ -16,7 +16,6 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Users;
 using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using Horde.Common.Rpc;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
@@ -423,8 +422,7 @@ namespace HordeServer.Compute
 
 						ComputeTask computeTask = CreateComputeTask(assignedResources, log?.Id, arp.Encryption, certificate, arp.ParentLeaseId, protocol);
 
-						byte[] payload = Any.Pack(computeTask).ToByteArray();
-						AgentLease lease = new AgentLease(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, LeaseState.Pending, assignedResources, arp.Requirements.Exclusive, payload);
+						CreateLeaseOptions createLeaseOptions = new CreateLeaseOptions(leaseId, arp.ParentLeaseId, "Compute task", null, null, log?.Id, assignedResources, arp.Requirements.Exclusive, computeTask);
 
 						using TelemetrySpan assignSpan = _tracer.StartActiveSpan("TryAssignAsync");
 
@@ -433,11 +431,11 @@ namespace HordeServer.Compute
 						{
 							using TelemetrySpan addLeaseSpan = _tracer.StartActiveSpan("Adding lease");
 
-							IAgent? newAgent = await agent.TryAddLeaseAsync(lease, cancellationToken);
+							IAgent? newAgent = await agent.TryCreateLeaseAsync(createLeaseOptions, cancellationToken);
 							if (newAgent != null)
 							{
 								await _agentCollection.PublishUpdateEventAsync(agent.Id);
-								await _agentService.CreateLeaseAsync(newAgent, lease, cancellationToken);
+								await _agentService.CreateLeaseAsync(newAgent, createLeaseOptions, cancellationToken);
 								span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 								span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 								span.SetAttribute("allocatedConnectionAddress", resource.ConnectionAddress);

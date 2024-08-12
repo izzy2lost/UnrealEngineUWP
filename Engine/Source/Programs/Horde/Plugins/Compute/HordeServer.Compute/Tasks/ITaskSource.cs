@@ -77,7 +77,7 @@ namespace HordeServer.Tasks
 		/// <param name="agent">The agent to assign a lease to</param>
 		/// <param name="cancellationToken">Cancellation token for the wait</param>
 		/// <returns>Task returning a new lease object.</returns>
-		Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken);
+		Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken);
 
 		/// <summary>
 		/// Cancel a lease that was previously assigned to an agent, allowing it to be assigned out again
@@ -174,7 +174,7 @@ namespace HordeServer.Tasks
 		public MessageDescriptor Descriptor => s_message.Descriptor;
 
 		/// <inheritdoc/>
-		public abstract Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken);
+		public abstract Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken);
 
 		/// <inheritdoc/>
 		public Task CancelLeaseAsync(IAgent agent, LeaseId leaseId, Any payload, CancellationToken cancellationToken) => CancelLeaseAsync(agent, leaseId, payload.Unpack<TMessage>(), cancellationToken);
@@ -233,10 +233,10 @@ namespace HordeServer.Tasks
 		/// </summary>
 		/// <param name="token">The cancellation token</param>
 		/// <returns>Lease task</returns>
-		protected static Task<AgentLease?> SkipAsync(CancellationToken token)
+		protected static Task<CreateLeaseOptions?> SkipAsync(CancellationToken token)
 		{
 			_ = token;
-			return Task.FromResult<AgentLease?>(null);
+			return Task.FromResult<CreateLeaseOptions?>(null);
 		}
 
 		/// <summary>
@@ -244,10 +244,10 @@ namespace HordeServer.Tasks
 		/// </summary>
 		/// <param name="token">The cancellation token</param>
 		/// <returns>Lease task</returns>
-		protected static async Task<Task<AgentLease?>> DrainAsync(CancellationToken token)
+		protected static async Task<Task<CreateLeaseOptions?>> DrainAsync(CancellationToken token)
 		{
 			await token.AsTask();
-			return Task.FromResult<AgentLease?>(null);
+			return Task.FromResult<CreateLeaseOptions?>(null);
 		}
 
 		/// <summary>
@@ -255,9 +255,9 @@ namespace HordeServer.Tasks
 		/// </summary>
 		/// <param name="lease">Lease to create the task from</param>
 		/// <returns></returns>
-		protected static Task<AgentLease?> LeaseAsync(AgentLease lease)
+		protected static Task<CreateLeaseOptions?> LeaseAsync(CreateLeaseOptions lease)
 		{
-			return Task.FromResult<AgentLease?>(lease);
+			return Task.FromResult<CreateLeaseOptions?>(lease);
 		}
 	}
 }

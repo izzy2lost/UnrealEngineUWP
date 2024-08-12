@@ -6,8 +6,6 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Tools;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
 using HordeServer.Logs;
@@ -40,7 +38,7 @@ namespace HordeServer.Tasks
 			OnLeaseStartedProperties.Add(nameof(UpgradeTask.LogId), x => LogId.Parse(x.LogId));
 		}
 
-		public override async Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
+		public override async Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			if (!_staticComputeConfig.Value.EnableUpgradeTasks)
 			{
@@ -71,8 +69,7 @@ namespace HordeServer.Tasks
 			task.SoftwareId = $"{tool.Id}:{deployment.Version}";
 			task.LogId = log.Id.ToString();
 
-			byte[] payload = Any.Pack(task).ToByteArray();
-			return LeaseAsync(new AgentLease(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, log.Id, LeaseState.Pending, null, true, payload));
+			return LeaseAsync(new CreateLeaseOptions(leaseId, null, $"Upgrade to {tool.Id} {deployment.Version}", null, null, log.Id, null, true, task));
 		}
 
 		/// <summary>

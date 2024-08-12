@@ -10,6 +10,7 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
 using EpicGames.Serialization;
+using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -511,7 +512,7 @@ namespace HordeServer.Agents
 				cancellationSource.CancelAfter(maxWaitTime);
 
 				// Assign a new lease
-				(ITaskSource, AgentLease)? result = null;
+				(ITaskSource, CreateLeaseOptions)? result = null;
 				try
 				{
 					// Add the cancellation source to the set of waiting agents
@@ -521,12 +522,12 @@ namespace HordeServer.Agents
 					}
 
 					// Create all the tasks to wait for
-					List<Task<(ITaskSource, AgentLease)?>> tasks = new List<Task<(ITaskSource, AgentLease)?>>();
+					List<Task<(ITaskSource, CreateLeaseOptions)?>> tasks = new List<Task<(ITaskSource, CreateLeaseOptions)?>>();
 					foreach (ITaskSource taskSource in _taskSources)
 					{
 						if (CanUseTaskSource(agent, taskSource) && !cancellationSource.IsCancellationRequested)
 						{
-							Task<(ITaskSource, AgentLease)?> task = await GuardedAssignLeaseAsync(taskSource, agent, cancellationSource);
+							Task<(ITaskSource, CreateLeaseOptions)?> task = await GuardedAssignLeaseAsync(taskSource, agent, cancellationSource);
 							tasks.Add(task);
 						}
 					}
@@ -544,19 +545,19 @@ namespace HordeServer.Agents
 					await Task.WhenAll(tasks);
 
 					// Find the first result
-					foreach (Task<(ITaskSource, AgentLease)?> task in tasks)
+					foreach (Task<(ITaskSource, CreateLeaseOptions)?> task in tasks)
 					{
-						(ITaskSource, AgentLease)? taskResult;
+						(ITaskSource, CreateLeaseOptions)? taskResult;
 						if (task.TryGetResult(out taskResult) && taskResult != null)
 						{
-							(ITaskSource taskSource, AgentLease taskLease) = taskResult.Value;
+							(ITaskSource taskSource, CreateLeaseOptions taskLease) = taskResult.Value;
 							if (result == null)
 							{
 								result = (taskSource, taskLease);
 							}
 							else
 							{
-								await taskSource.CancelLeaseAsync(agent, taskLease.Id, Any.Parser.ParseFrom(taskLease.Payload), CancellationToken.None);
+								await taskSource.CancelLeaseAsync(agent, taskLease.Id, Any.Pack(taskLease.Payload), CancellationToken.None);
 							}
 						}
 					}
@@ -580,20 +581,20 @@ namespace HordeServer.Agents
 				}
 
 				// Get the resulting lease
-				(ITaskSource source, AgentLease lease) = result.Value;
+				(ITaskSource source, CreateLeaseOptions lease) = result.Value;
 
 				// Add the new lease to the agent
-				IAgent? newAgent = await agent.TryAddLeaseAsync(lease, cancellationToken);
+				IAgent? newAgent = await agent.TryCreateLeaseAsync(lease, cancellationToken);
 				if (newAgent != null)
 				{
-					await source.OnLeaseStartedAsync(newAgent, lease.Id, Any.Parser.ParseFrom(lease.Payload), Agents.GetLogger(agent.Id), CancellationToken.None);
+					await source.OnLeaseStartedAsync(newAgent, lease.Id, Any.Pack(lease.Payload), Agents.GetLogger(agent.Id), CancellationToken.None);
 					await CreateLeaseAsync(agent, lease, CancellationToken.None);
 					return newAgent;
 				}
 				else
 				{
 					_logger.LogInformation("Failed adding lease {LeaseId} for agent {AgentId}", lease.Id.ToString(), agent.Id.ToString());
-					await source.CancelLeaseAsync(agent, lease.Id, Any.Parser.ParseFrom(lease.Payload), CancellationToken.None);
+					await source.CancelLeaseAsync(agent, lease.Id, Any.Pack(lease.Payload), CancellationToken.None);
 				}
 
 				// Update the agent
@@ -602,32 +603,32 @@ namespace HordeServer.Agents
 			return agent;
 		}
 
-		async Task<Task<(ITaskSource, AgentLease)?>> GuardedAssignLeaseAsync(ITaskSource source, IAgent agent, CancellationTokenSource cancellationSource)
+		async Task<Task<(ITaskSource, CreateLeaseOptions)?>> GuardedAssignLeaseAsync(ITaskSource source, IAgent agent, CancellationTokenSource cancellationSource)
 		{
 			CancellationToken cancellationToken = cancellationSource.Token;
 			try
 			{
-				Task<AgentLease?> task = await source.AssignLeaseAsync(agent, cancellationToken);
+				Task<CreateLeaseOptions?> task = await source.AssignLeaseAsync(agent, cancellationToken);
 				return task.ContinueWith(x => WrapAssignedLease(source, x, cancellationSource), TaskScheduler.Default);
 			}
 			catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
 			{
-				return Task.FromResult<(ITaskSource, AgentLease)?>(null);
+				return Task.FromResult<(ITaskSource, CreateLeaseOptions)?>(null);
 			}
 			catch (Exception ex)
 			{
 				_logger.LogError(ex, "Exception while trying to assign lease");
-				return Task.FromResult<(ITaskSource, AgentLease)?>(null);
+				return Task.FromResult<(ITaskSource, CreateLeaseOptions)?>(null);
 			}
 		}
 
-		(ITaskSource, AgentLease)? WrapAssignedLease(ITaskSource source, Task<AgentLease?> task, CancellationTokenSource cancellationSource)
+		(ITaskSource, CreateLeaseOptions)? WrapAssignedLease(ITaskSource source, Task<CreateLeaseOptions?> task, CancellationTokenSource cancellationSource)
 		{
 			if (task.IsCanceled)
 			{
 				return null;
 			}
-			else if (task.TryGetResult(out AgentLease? lease))
+			else if (task.TryGetResult(out CreateLeaseOptions? lease))
 			{
 				if (lease == null)
 				{
@@ -880,18 +881,19 @@ namespace HordeServer.Agents
 		/// Creates a new lease document
 		/// </summary>
 		/// <param name="agent">Agent that will be executing the lease</param>
-		/// <param name="agentLease">The new agent lease</param>
+		/// <param name="options">The new agent lease</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New lease document</returns>
-		internal Task<ILease> CreateLeaseAsync(IAgent agent, AgentLease agentLease, CancellationToken cancellationToken = default)
+		internal Task<ILease> CreateLeaseAsync(IAgent agent, CreateLeaseOptions options, CancellationToken cancellationToken = default)
 		{
 			try
 			{
-				return _leases.AddAsync(agentLease.Id, agentLease.ParentId, agentLease.Name, agent.Id, agent.SessionId!.Value, agentLease.StreamId, agentLease.PoolId, agentLease.LogId, agentLease.StartTime, agentLease.Payload!, cancellationToken);
+				DateTime startTime = _clock.UtcNow;
+				return _leases.AddAsync(options.Id, options.ParentId, options.Name, agent.Id, agent.SessionId!.Value, options.StreamId, options.PoolId, options.LogId, startTime, Any.Pack(options.Payload).ToByteArray(), cancellationToken);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Unable to create lease {LeaseId} for agent {AgentId}; lease already exists?", agentLease.Id, agent.Id);
+				_logger.LogError(ex, "Unable to create lease {LeaseId} for agent {AgentId}; lease already exists?", options.Id, agent.Id);
 				throw;
 			}
 		}

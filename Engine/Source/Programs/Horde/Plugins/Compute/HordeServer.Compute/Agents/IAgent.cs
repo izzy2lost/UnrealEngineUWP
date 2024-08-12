@@ -12,6 +12,8 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
+using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using MongoDB.Bson;
@@ -239,10 +241,10 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Attempts to add a lease to an agent
 		/// </summary>
-		/// <param name="newLease">The new lease document</param>
+		/// <param name="options">The new lease document</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New agent state if it succeeded, otherwise null</returns>
-		Task<IAgent?> TryAddLeaseAsync(AgentLease newLease, CancellationToken cancellationToken = default);
+		Task<IAgent?> TryCreateLeaseAsync(CreateLeaseOptions options, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Attempts to cancel a lease
@@ -252,6 +254,11 @@ namespace HordeServer.Agents
 		/// <returns>New agent state if it succeeded, otherwise null</returns>
 		Task<IAgent?> TryCancelLeaseAsync(int leaseIdx, CancellationToken cancellationToken = default);
 	}
+
+	/// <summary>
+	/// Information for a new lease
+	/// </summary>
+	public record class CreateLeaseOptions(LeaseId Id, LeaseId? ParentId, string Name, StreamId? StreamId, PoolId? PoolId, LogId? LogId, IReadOnlyDictionary<string, int>? Resources, bool Exclusive, IMessage Payload);
 
 	/// <summary>
 	/// Options for updating an agent
@@ -903,6 +910,16 @@ namespace HordeServer.Agents
 			Exclusive = exclusive;
 			Payload = payload;
 			StartTime = DateTime.UtcNow;
+		}
+
+		/// <summary>
+		/// Create a lease from 
+		/// </summary>
+		/// <param name="options"></param>
+		/// <returns></returns>
+		public AgentLease(CreateLeaseOptions options)
+			: this(options.Id, options.ParentId, options.Name, options.StreamId, options.PoolId, options.LogId, LeaseState.Pending, options.Resources, options.Exclusive, Any.Pack(options.Payload).ToByteArray())
+		{
 		}
 
 		/// <summary>

@@ -7,6 +7,7 @@ using Amazon.AutoScaling.Model;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
+using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Agents.Fleet;
@@ -172,7 +173,7 @@ public class AwsAutoScalingLifecycleServiceTest : BuildTestSetup
 	public async Task GetInstancesAvailableForTermination_AgentRunningJob_ReturnsNoInstanceIdAsync()
 	{
 		// Arrange
-		AgentLease lease = new(new LeaseId(BinaryIdUtils.CreateNew()), null, "test-lease", null, null, null, LeaseState.Active, null, false, null);
+		CreateLeaseOptions lease = new(new LeaseId(BinaryIdUtils.CreateNew()), null, "test-lease", null, null, null, null, false, new Empty());
 		_ = await CreateAgentAsync(new PoolId("pool1"), awsInstanceId: "i-1000", lease: lease);
 		TerminationPolicyEvent e = CreateTerminationPolicyEvent("i-1000");
 

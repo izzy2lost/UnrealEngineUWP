@@ -5,8 +5,6 @@ using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Agents;
@@ -150,7 +148,7 @@ namespace HordeServer.Tasks
 		}
 
 		/// <inheritdoc/>
-		public override async Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
+		public override async Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			if (!_settings.CurrentValue.EnableConformTasks || !_buildConfig.CurrentValue.EnableConformTasks)
 			{
@@ -177,9 +175,7 @@ namespace HordeServer.Tasks
 							task.LogId = log.Id.ToString();
 							task.RemoveUntrackedFiles = agent.RequestFullConform;
 
-							byte[] payload = Any.Pack(task).ToByteArray();
-
-							return LeaseAsync(new AgentLease(leaseId, null, "Updating workspaces", null, null, log.Id, LeaseState.Pending, null, true, payload));
+							return LeaseAsync(new CreateLeaseOptions(leaseId, null, "Updating workspaces", null, null, log.Id, null, true, task));
 						}
 						catch
 						{

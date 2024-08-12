@@ -142,7 +142,7 @@ namespace HordeServer.Compute
 			public IAgent Agent { get; }
 			public IPAddress Ip { get; }
 			public int Port { get; }
-			public TaskCompletionSource<AgentLease?> Lease { get; } = new TaskCompletionSource<AgentLease?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			public TaskCompletionSource<CreateLeaseOptions?> Lease { get; } = new TaskCompletionSource<CreateLeaseOptions?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			public Waiter(IAgent agent, IPAddress ip, int port)
 			{
@@ -178,7 +178,7 @@ namespace HordeServer.Compute
 		}
 
 		/// <inheritdoc/>
-		public override Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
+		public override Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			return Task.FromResult(WaitInternalAsync(agent, cancellationToken));
 		}
@@ -192,7 +192,7 @@ namespace HordeServer.Compute
 			await _agentRelay.RemovePortMappingAsync(leaseId);
 		}
 
-		async Task<AgentLease?> WaitInternalAsync(IAgent agent, CancellationToken cancellationToken)
+		async Task<CreateLeaseOptions?> WaitInternalAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			string? ipStr = agent.GetPropertyValues("ComputeIp").FirstOrDefault();
 			if (ipStr == null || !IPAddress.TryParse(ipStr, out IPAddress? ip))
@@ -233,7 +233,7 @@ namespace HordeServer.Compute
 				if (waiter != null)
 				{
 					using IDisposable disposable = cancellationToken.Register(() => waiter.Lease.TrySetResult(null));
-					AgentLease? lease = await waiter.Lease.Task;
+					CreateLeaseOptions? lease = await waiter.Lease.Task;
 					if (lease != null)
 					{
 						_logger.LogInformation("Created compute lease for agent {AgentId}", agent.Id);

@@ -13,8 +13,6 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
-using Google.Protobuf;
-using Google.Protobuf.WellKnownTypes;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
@@ -165,12 +163,12 @@ namespace HordeServer.Jobs
 			/// <summary>
 			/// Task to wait for a lease to be assigned
 			/// </summary>
-			public Task<AgentLease?> Task => LeaseSource.Task;
+			public Task<CreateLeaseOptions?> Task => LeaseSource.Task;
 
 			/// <summary>
 			/// Completion source for the waiting agent. If a new queue item becomes available, the result will be passed through 
 			/// </summary>
-			public TaskCompletionSource<AgentLease?> LeaseSource { get; } = new TaskCompletionSource<AgentLease?>(TaskCreationOptions.RunContinuationsAsynchronously);
+			public TaskCompletionSource<CreateLeaseOptions?> LeaseSource { get; } = new TaskCompletionSource<CreateLeaseOptions?>(TaskCreationOptions.RunContinuationsAsynchronously);
 
 			/// <summary>
 			/// Constructor
@@ -715,13 +713,13 @@ namespace HordeServer.Jobs
 		}
 
 		/// <inheritdoc/>
-		public override Task<Task<AgentLease?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
+		public override Task<Task<CreateLeaseOptions?>> AssignLeaseAsync(IAgent agent, CancellationToken cancellationToken)
 		{
 			QueueWaiter waiter = new QueueWaiter(agent);
 			lock (_lockObject)
 			{
 				AssignAnyQueueItemToWaiter(waiter);
-				if (waiter.LeaseSource.Task.TryGetResult(out AgentLease? result))
+				if (waiter.LeaseSource.Task.TryGetResult(out CreateLeaseOptions? result))
 				{
 					if (result == null)
 					{
@@ -734,7 +732,7 @@ namespace HordeServer.Jobs
 			return Task.FromResult(WaitForLeaseAsync(waiter, cancellationToken));
 		}
 
-		private async Task<AgentLease?> WaitForLeaseAsync(QueueWaiter waiter, CancellationToken cancellationToken)
+		private async Task<CreateLeaseOptions?> WaitForLeaseAsync(QueueWaiter waiter, CancellationToken cancellationToken)
 		{
 			try
 			{
@@ -765,7 +763,7 @@ namespace HordeServer.Jobs
 		/// <param name="waiter">The agent waiting for work</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New work to execute</returns>
-		private async Task<AgentLease?> TryCreateLeaseAsync(QueueItem item, QueueWaiter waiter, CancellationToken cancellationToken)
+		private async Task<CreateLeaseOptions?> TryCreateLeaseAsync(QueueItem item, QueueWaiter waiter, CancellationToken cancellationToken)
 		{
 			IJob job = item._job;
 			IJobStepBatch batch = item.Batch;
@@ -820,10 +818,8 @@ namespace HordeServer.Jobs
 				ExecuteJobTask? task = await CreateExecuteJobTaskAsync(leaseId, streamConfig, job, batch, agent, item._workspace, autoSdkWorkspace, logId, cancellationToken);
 				if (task != null)
 				{
-					byte[] payload = Any.Pack(task).ToByteArray();
-
 					// Create the lease and try to set it on the waiter. If this fails, the waiter has already moved on, and the lease can be cancelled.
-					AgentLease lease = new AgentLease(leaseId, null, leaseName.ToString(), job.StreamId, item._poolId, logId, LeaseState.Pending, null, true, payload);
+					CreateLeaseOptions lease = new CreateLeaseOptions(leaseId, null, leaseName.ToString(), job.StreamId, item._poolId, logId, null, true, task);
 					if (waiter.LeaseSource.TrySetResult(lease))
 					{
 						_logger.LogInformation("Assigned lease to agent");

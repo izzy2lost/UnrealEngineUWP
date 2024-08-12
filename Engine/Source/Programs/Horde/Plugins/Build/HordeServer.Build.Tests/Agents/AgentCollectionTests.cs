@@ -3,6 +3,7 @@
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
+using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Agents.Sessions;
@@ -13,30 +14,30 @@ namespace HordeServer.Tests.Agents;
 public class AgentCollectionTests : BuildTestSetup
 {
 	private IAgent _agent;
-	private readonly AgentLease _lease1;
-	private readonly AgentLease _lease2;
-	private readonly AgentLease _leaseWithParent3;
-	private readonly AgentLease _leaseWithParent4;
+	private readonly CreateLeaseOptions _lease1;
+	private readonly CreateLeaseOptions _lease2;
+	private readonly CreateLeaseOptions _leaseWithParent3;
+	private readonly CreateLeaseOptions _leaseWithParent4;
 
 	public AgentCollectionTests()
 	{
 		_agent = CreateAgentAsync(new PoolId("pool1"), ephemeral: true).Result;
-		_lease1 = new AgentLease(LeaseId.Parse("aaaaaaaaaaaaaaaaaaaaaaaa"), null, "lease", null, null, null, LeaseState.Pending, null, false, null);
-		_lease2 = new AgentLease(LeaseId.Parse("bbbbbbbbbbbbbbbbbbbbbbbb"), null, "lease", null, null, null, LeaseState.Pending, null, false, null);
-		_leaseWithParent3 = new AgentLease(LeaseId.Parse("cccccccccccccccccccccccc"), _lease1.Id, "leaseWithParent3", null, null, null, LeaseState.Pending, null, false, null);
-		_leaseWithParent4 = new AgentLease(LeaseId.Parse("dddddddddddddddddddddddd"), _lease1.Id, "leaseWithParent4", null, null, null, LeaseState.Pending, null, false, null);
+		_lease1 = new CreateLeaseOptions(LeaseId.Parse("aaaaaaaaaaaaaaaaaaaaaaaa"), null, "lease", null, null, null, null, false, new Empty());
+		_lease2 = new CreateLeaseOptions(LeaseId.Parse("bbbbbbbbbbbbbbbbbbbbbbbb"), null, "lease", null, null, null, null, false, new Empty());
+		_leaseWithParent3 = new CreateLeaseOptions(LeaseId.Parse("cccccccccccccccccccccccc"), _lease1.Id, "leaseWithParent3", null, null, null, null, false, new Empty());
+		_leaseWithParent4 = new CreateLeaseOptions(LeaseId.Parse("dddddddddddddddddddddddd"), _lease1.Id, "leaseWithParent4", null, null, null, null, false, new Empty());
 	}
 
 	[TestMethod]
 	public async Task AddLeaseAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_leaseWithParent3);
+		await _agent.TryCreateLeaseAsync(_leaseWithParent3);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_leaseWithParent4);
+		await _agent.TryCreateLeaseAsync(_leaseWithParent4);
 		await UpdateAgentAsync();
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
@@ -50,10 +51,10 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task StartSessionAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_lease2);
+		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
 		await _agent.TryCreateSessionAsync(new CreateSessionOptions(SessionIdUtils.GenerateNewId(), DateTime.UtcNow, AgentStatus.Ok,
@@ -67,10 +68,10 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task UpdateSession_WithEmptyLeasesAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_lease2);
+		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
 		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease>() });
@@ -83,10 +84,10 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task UpdateSession_WithNewLeasesAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { _lease1, _lease2 } });
+		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { new AgentLease(_lease1), new AgentLease(_lease2) } });
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 
@@ -98,13 +99,13 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task UpdateSession_WithOneLeaseRemovedAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_lease2);
+		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { _lease1 } });
+		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { new AgentLease(_lease1) } });
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 
@@ -115,10 +116,10 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task CancelLeaseAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_lease2);
+		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
 		await _agent.TryCancelLeaseAsync(0);
@@ -132,10 +133,10 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task TerminateSessionAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_lease2);
+		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
 		await _agent.TryTerminateSessionAsync();
@@ -148,13 +149,13 @@ public class AgentCollectionTests : BuildTestSetup
 	[TestMethod]
 	public async Task GetChildLeaseIdsAsync()
 	{
-		await _agent.TryAddLeaseAsync(_lease1);
+		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_leaseWithParent3);
+		await _agent.TryCreateLeaseAsync(_leaseWithParent3);
 		await UpdateAgentAsync();
 
-		await _agent.TryAddLeaseAsync(_leaseWithParent4);
+		await _agent.TryCreateLeaseAsync(_leaseWithParent4);
 		await UpdateAgentAsync();
 
 		List<LeaseId> leases = await AgentCollection.GetChildLeaseIdsAsync(_leaseWithParent3.ParentId!.Value);
