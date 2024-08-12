@@ -477,7 +477,7 @@ namespace HordeServer.Jobs
 					break;
 				}
 
-				AgentLease lease = agent.Leases[index];
+				IAgentLease lease = agent.Leases[index];
 				if (lease.State != LeaseState.Active)
 				{
 					break;

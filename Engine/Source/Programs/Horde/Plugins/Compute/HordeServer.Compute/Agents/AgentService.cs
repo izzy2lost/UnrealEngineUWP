@@ -751,7 +751,7 @@ namespace HordeServer.Agents
 
 				// Flag for whether the leases array should be updated
 				bool updateLeases = false;
-				List<AgentLease> leases = new List<AgentLease>(agent.Leases);
+				List<AgentLease> leases = agent.Leases.ConvertAll(x => new AgentLease(x));
 
 				// Remove any completed leases from the agent
 				Dictionary<LeaseId, RpcLease> leaseIdToNewState = newLeases.ToDictionary(x => x.Id, x => x);
@@ -854,7 +854,7 @@ namespace HordeServer.Agents
 
 			// Save off the session id and current leases
 			SessionId sessionId = agent.SessionId.Value;
-			List<AgentLease> leases = new List<AgentLease>(agent.Leases);
+			IReadOnlyList<IAgentLease> leases = agent.Leases;
 
 			// Clear the current session
 			IAgent? newAgent = await agent.TryTerminateSessionAsync(cancellationToken);
@@ -863,7 +863,7 @@ namespace HordeServer.Agents
 				agent = newAgent;
 
 				// Remove any outstanding leases
-				foreach (AgentLease lease in leases)
+				foreach (IAgentLease lease in leases)
 				{
 					Agents.GetLogger(agent.Id).LogInformation("Removing lease {LeaseId} during session terminate...", lease.Id);
 					await RemoveLeaseAsync(agent, lease, finishTime, LeaseOutcome.Failed, null, cancellationToken);
@@ -949,7 +949,7 @@ namespace HordeServer.Agents
 		/// <param name="output">Output from executing the task</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		private async Task RemoveLeaseAsync(IAgent agent, AgentLease lease, DateTime utcNow, LeaseOutcome outcome, byte[]? output, CancellationToken cancellationToken = default)
+		private async Task RemoveLeaseAsync(IAgent agent, IAgentLease lease, DateTime utcNow, LeaseOutcome outcome, byte[]? output, CancellationToken cancellationToken = default)
 		{
 			// Make sure the lease is terminated correctly
 			if (lease.Payload == null)
@@ -958,7 +958,7 @@ namespace HordeServer.Agents
 			}
 			else
 			{
-				Any any = Any.Parser.ParseFrom(lease.Payload);
+				Any any = lease.Payload;
 				_logger.LogInformation("Removing lease {LeaseId} ({LeaseType})", lease.Id, any.TypeUrl);
 
 				foreach (ITaskSource taskSource in _taskSources)

@@ -238,7 +238,7 @@ namespace HordeServer.Agents.Leases
 				return NotFound(lease.AgentId);
 			}
 
-			AgentLease? agentLease = agent.Leases.FirstOrDefault(x => x.Id == leaseId);
+			IAgentLease? agentLease = agent.Leases.FirstOrDefault(x => x.Id == leaseId);
 			if (agentLease == null)
 			{
 				return NotFound(agent.Id, leaseId);

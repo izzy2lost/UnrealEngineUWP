@@ -61,7 +61,7 @@ namespace HordeServer.Agents
 			DateTime IAgent.LastConformTime => _document.LastConformTime;
 			int? IAgent.ConformAttemptCount => _document.ConformAttemptCount;
 			static readonly IReadOnlyList<AgentLease> s_emptyLeases = new List<AgentLease>();
-			IReadOnlyList<AgentLease> IAgent.Leases => _document.Leases ?? s_emptyLeases;
+			IReadOnlyList<IAgentLease> IAgent.Leases => _document.Leases ?? s_emptyLeases;
 			string IAgent.EnrollmentKey => _document.EnrollmentKey;
 			DateTime IAgent.UpdateTime => _document.UpdateTime;
 			uint IAgent.UpdateIndex => _document.UpdateIndex;

@@ -166,7 +166,7 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Array of active leases.
 		/// </summary>
-		public IReadOnlyList<AgentLease> Leases { get; }
+		public IReadOnlyList<IAgentLease> Leases { get; }
 
 		/// <summary>
 		/// Key used to validate that a particular enrollment is still valid for this agent
@@ -802,48 +802,81 @@ namespace HordeServer.Agents
 			return Enumerable.SequenceEqual(lhs.View, rhs.View);
 		}
 	}
-
 	/// <summary>
 	/// Document describing an active lease
 	/// </summary>
-	public class AgentLease
+	public interface IAgentLease
 	{
 		/// <summary>
 		/// Name of this lease
 		/// </summary>
-		[BsonRequired]
-		public LeaseId Id { get; set; }
+		LeaseId Id { get; }
 
 		/// <summary>
 		/// The parent lease id
 		/// </summary>
-		public LeaseId? ParentId { get; set; }
+		LeaseId? ParentId { get; }
 
 		/// <summary>
 		/// The current state of the lease
 		/// </summary>
-		public LeaseState State { get; set; }
+		LeaseState State { get; }
 
 		/// <summary>
 		/// Resources used by this lease
 		/// </summary>
-		public IReadOnlyDictionary<string, int>? Resources { get; set; }
+		IReadOnlyDictionary<string, int>? Resources { get; }
 
 		/// <summary>
 		/// Whether the lease requires exclusive access to the agent
 		/// </summary>
-		public bool Exclusive { get; set; }
+		bool Exclusive { get; }
 
 		/// <summary>
 		/// For leases in the pending state, encodes an "any" protobuf containing the payload for the agent to execute the lease.
 		/// </summary>
+		Any? Payload { get; }
+	}
+
+	/// <summary>
+	/// Document describing an active lease
+	/// </summary>
+	public class AgentLease : IAgentLease
+	{
+		/// <inheritdoc/>
+		[BsonRequired]
+		public LeaseId Id { get; set; }
+
+		/// <inheritdoc/>
+		public LeaseId? ParentId { get; set; }
+
+		/// <inheritdoc/>
+		public LeaseState State { get; set; }
+
+		/// <inheritdoc/>
+		public IReadOnlyDictionary<string, int>? Resources { get; set; }
+
+		/// <inheritdoc/>
+		public bool Exclusive { get; set; }
+
+		/// <inheritdoc/>
 		public byte[]? Payload { get; set; }
+
+		Any? IAgentLease.Payload => (Payload != null) ? Any.Parser.ParseFrom(Payload) : null;
 
 		/// <summary>
 		/// Private constructor
 		/// </summary>
 		[BsonConstructor]
 		private AgentLease()
+		{
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public AgentLease(IAgentLease other)
+			: this(other.Id, other.ParentId, other.State, other.Resources, other.Exclusive, other.Payload?.ToByteArray())
 		{
 		}
 
@@ -875,17 +908,20 @@ namespace HordeServer.Agents
 			: this(options.Id, options.ParentId, LeaseState.Pending, options.Resources, options.Exclusive, Any.Pack(options.Payload).ToByteArray())
 		{
 		}
+	}
 
+	static class AgentLeaseExtensions
+	{
 		/// <summary>
 		/// Converts this lease to an RPC message
 		/// </summary>
 		/// <returns>RPC message</returns>
-		public RpcLease ToRpcMessage()
+		public static RpcLease ToRpcMessage(this IAgentLease agentLease)
 		{
 			RpcLease lease = new RpcLease();
-			lease.Id = Id;
-			lease.Payload = Google.Protobuf.WellKnownTypes.Any.Parser.ParseFrom(Payload);
-			lease.State = (RpcLeaseState)State;
+			lease.Id = agentLease.Id;
+			lease.Payload = agentLease.Payload;
+			lease.State = (RpcLeaseState)agentLease.State;
 			return lease;
 		}
 	}
