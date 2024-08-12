@@ -38,13 +38,6 @@ APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	bShouldUpdateReplicatedPing = true; // Preserved behavior before bShouldUpdateReplicatedPing was added
 	bUseCustomPlayerNames = false;
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-APlayerState::~APlayerState()
-{
-}
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void APlayerState::UpdatePing(float InPing)
 {
@@ -400,12 +393,6 @@ void APlayerState::SeamlessTravelTo(APlayerState* NewPlayerState)
 	NewPlayerState->SetIsOnlyASpectator(IsOnlyASpectator());
 }
 
-
-bool APlayerState::IsPrimaryPlayer() const
-{
-	return true;
-}
-
 void APlayerState::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
@@ -431,7 +418,6 @@ void APlayerState::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutL
 }
 
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 void APlayerState::SetScore(const float NewScore)
 {
 	MARK_PROPERTY_DIRTY_FROM_NAME(APlayerState, Score, this);
@@ -548,4 +534,3 @@ void APlayerState::OnPawnPrivateDestroyed(AActor* InActor)
 	}
 }
 
-PRAGMA_ENABLE_DEPRECATION_WARNINGS

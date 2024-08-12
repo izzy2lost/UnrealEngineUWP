@@ -438,9 +438,10 @@ public:
 	int32			PacketOverhead;			// Bytes overhead per packet sent.
 	FString			Challenge;				// Server-generated challenge.
 	FString			ClientResponse;			// Client-generated response.
-
-	int32			ResponseId;				// Id assigned by the server for linking responses to connections upon authentication
 	FString			RequestURL;				// URL requested by client
+
+	UE_DEPRECATED(5.5, "Variable is deprecated and unassigned")
+	int32			ResponseId;				// Id assigned by the server for linking responses to connections upon authentication
 
 	// Login state tracking
 	EClientLoginState::Type	ClientLoginState;
@@ -609,24 +610,12 @@ public:
 	UPROPERTY(config)
 	int32 DefaultMaxChannelSize;
 
-	UE_DEPRECATED(5.1, "Deprecated in favor of DefaultMaxChannelSize config property.")
-	static const int32 DEFAULT_MAX_CHANNEL_SIZE;
-
-	UE_DEPRECATED(5.1, "No longer used")
-	int32 MaxChannelSize;
-
 	TArray<TObjectPtr<UChannel>>	Channels;
 	TArray<int32>		OutReliable;
 	TArray<int32>		InReliable;
 	TArray<int32>		PendingOutRec;	// Outgoing reliable unacked data from previous (now destroyed) channel in this slot.  This contains the first chsequence not acked
 	int32				InitOutReliable;
 	int32				InitInReliable;
-
-	// Network version
-	UE_DEPRECATED(5.2, "Deprecated in favor of NetworkCustomVersions, please use GetNetworkCustomVersion instead")
-	uint32				EngineNetworkProtocolVersion;
-	UE_DEPRECATED(5.2, "Deprecated in favor of NetworkCustomVersions, please use GetNetworkCustomVersion instead")
-	uint32				GameNetworkProtocolVersion;
 
 	uint32 GetNetworkCustomVersion(const FGuid& VersionGuid) const;
 	void SetNetworkCustomVersions(const FCustomVersionContainer& CustomVersions);
@@ -824,10 +813,6 @@ public:
 
 	/** This holds a list of actor channels that want to fully shutdown, but need to continue processing bunches before doing so */
 	TMap<FNetworkGUID, TArray<TObjectPtr<class UActorChannel>>> KeepProcessingActorChannelBunchesMap;
-
-	/** A list of replicators that belong to recently dormant actors/objects */
-	UE_DEPRECATED(5.2, "The DormantReplicatorMap is deprecated in favor of the private DormantReplicatorSet.")
-	TMap<FObjectKey, TSharedRef<FObjectReplicator>> DormantReplicatorMap;
 
 private:
 
@@ -1292,10 +1277,6 @@ public:
 	/** Forces properties on this actor to do a compare for one frame (rather than share shadow state) */
 	ENGINE_API void ForcePropertyCompare( AActor* Actor );
 
-	/** Wrapper for validating an objects dormancy state, and to prepare the object for replication again */
-	UE_DEPRECATED(5.2, "FlushDormancyForObject has been replaced with a version that needs to receive the dormant actor.")
-	void FlushDormancyForObject( UObject* Object ) {}
-
 	/**
 	* Validate an objects dormancy state and prepare the object for replication again
 	* 
@@ -1393,17 +1374,9 @@ public:
 	/** Returns the OutgoingBunches array, only to be used by UChannel::SendBunch */
 	TArray<FOutBunch *>& GetOutgoingBunches() { return OutgoingBunches; }
 
-	/** Add a replicator to the dormancy map and release its strong pointer to its object */
-	UE_DEPRECATED(5.2, "AddDormantReplicator has been replaced by StoreDormantReplicator and will be removed soon.")
-	void AddDormantReplicator(UObject* Object, const TSharedRef<FObjectReplicator>& Replicator) {}
-
 	/** Store a replicator to the dormancy map and release its strong pointer to its object */
 	void StoreDormantReplicator(AActor* OwnerActor, UObject* Object, const TSharedRef<FObjectReplicator>& ObjectReplicator);
 	
-	/** Find a dormant replicator for the channel actor or one of its subobjects. Removes it from the map if found. */
-	UE_DEPRECATED(5.2, "FindAndRemoveDormantReplicator is deprecated. Use the new version that needs to receive the owning actor.")
-	TSharedPtr<FObjectReplicator> FindAndRemoveDormantReplicator(UObject* Object) { return {}; }
-
 	/** Find a dormant replicator for the channel actor or one of its subobjects. Removes it from the map if found. */
 	TSharedPtr<FObjectReplicator> FindAndRemoveDormantReplicator(AActor* OwnerActor, UObject* Object);
 

@@ -2357,7 +2357,6 @@ void UActorChannel::CleanupReplicators(const bool bKeepReplicators)
 			//		While the channel is on this list, we also re-open a new channel using the same actor
 			//		KeepProcessingActorChannelBunchesMap will get in here, then when the channel closes a second time, we'll hit this assert
 			//		It should be okay to just set the most recent replicator
-			//check( Connection->DormantReplicatorMap.Find( CompIt.Value()->GetObject() ) == NULL );
 			Connection->StoreDormantReplicator(Actor, ObjectReplicatorRef->GetObject(), ObjectReplicatorRef);
 			ObjectReplicatorRef->StopReplicating(this);		// Stop replicating on this channel
 		}
@@ -5304,7 +5303,7 @@ TSharedRef<FObjectReplicator>& UActorChannel::FindOrCreateReplicator(UObject* Ob
 	TSharedRef<FObjectReplicator>* ReplicatorRefPtr = FindReplicator(Obj);
 
 	// This should only be false if we found the replicator in the ReplicationMap
-	// If we pickup the replicator from the DormantReplicatorMap we treat it as it has been created.
+	// If we pickup the replicator from the DormantReplicatorSet we treat it as it has been created.
 	if (bOutCreated != nullptr)
 	{
 		*bOutCreated = (ReplicatorRefPtr == nullptr);

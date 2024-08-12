@@ -289,10 +289,6 @@ namespace UE::Net::Private
 	extern bool bTrackDormantObjectsByLevel;
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-const int32 UNetConnection::DEFAULT_MAX_CHANNEL_SIZE = 32767;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 /*-----------------------------------------------------------------------------
 	UNetConnection implementation.
 -----------------------------------------------------------------------------*/
@@ -317,7 +313,9 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,	Handler()
 ,	StatelessConnectComponent()
 ,	PacketOverhead		( 0 )
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 ,	ResponseId			( 0 ) // variable is unused and will be deleted
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 ,	QueuedBits			( 0 )
 ,	TickCount			( 0 )
 ,	LastProcessedFrame	( 0 )
@@ -385,11 +383,6 @@ UNetConnection::UNetConnection(const FObjectInitializer& ObjectInitializer)
 ,	bFlushingPacketOrderCache(false)
 ,	ConnectionId(0)
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	EngineNetworkProtocolVersion = FNetworkVersion::GetEngineNetworkProtocolVersion();
-	GameNetworkProtocolVersion = FNetworkVersion::GetGameNetworkProtocolVersion();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-
 	NetworkCustomVersions = FNetworkVersion::GetNetworkCustomVersions();
 }
 
@@ -429,10 +422,6 @@ void UNetConnection::InitChannelData()
 	}
 
 	UE_LOG(LogNet, Log, TEXT("%s setting maximum channels to: %d"), *GetNameSafe(this), ChannelSize);
-
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	MaxChannelSize = ChannelSize;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	Channels.AddDefaulted(ChannelSize);
 	OutReliable.AddDefaulted(ChannelSize);
