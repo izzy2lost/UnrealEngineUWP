@@ -49,6 +49,7 @@ protected:
 
 private:
 	void MigrateDeprecatedProperties();
+	void RegisterToChannel() const;
 
 	UPROPERTY(VisibleInstanceOnly, Category="Effector")
 	TObjectPtr<UCEEffectorComponent> EffectorComponent;

@@ -229,3 +229,11 @@ void ACEEffectorActor::MigrateDeprecatedProperties()
 
 	MigrateToVersion = INDEX_NONE;
 }
+
+void ACEEffectorActor::RegisterToChannel() const
+{
+	if (EffectorComponent)
+	{
+		EffectorComponent->RegisterToChannel();
+	}
+}

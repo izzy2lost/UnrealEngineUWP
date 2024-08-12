@@ -214,6 +214,8 @@ void ACEClonerActor::MigrateDeprecatedProperties()
 			{
 				if (ACEEffectorActor* Effector = EffectorWeak.Get())
 				{
+					// Register to channel before linking
+					Effector->RegisterToChannel();
 					EffectorExtension->LinkEffector(Effector);
 				}
 			}
