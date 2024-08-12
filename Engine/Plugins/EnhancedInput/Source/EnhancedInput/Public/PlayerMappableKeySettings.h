@@ -10,9 +10,8 @@ struct FEnhancedActionKeyMapping;
 
 /**
 * Hold setting information of an Action Input or a Action Key Mapping for setting screen and save purposes.
-* Experimental: Do not count on long term support for this structure.
 */
-UCLASS(DefaultToInstanced, EditInlineNew, DisplayName="Player Mappable Key Settings (Experimental)")
+UCLASS(DefaultToInstanced, EditInlineNew, DisplayName="Player Mappable Key Settings")
 class ENHANCEDINPUT_API UPlayerMappableKeySettings : public UObject
 {
 	GENERATED_BODY()
@@ -23,7 +22,7 @@ public:
 	virtual FName GetMappingName() const { return Name; }
 
 #if WITH_EDITOR
-	EDataValidationResult IsDataValid(class FDataValidationContext& Context) const;
+	EDataValidationResult IsDataValid(class FDataValidationContext& Context) const override;
 
 	/**
 	 * Get the known mapping names that are current in use. This is a helper function if you want to use a "GetOptions" metadata on a UPROPERTY.
