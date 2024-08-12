@@ -38,6 +38,15 @@ public:
 	CHOOSER_PARAMETER_BOILERPLATE();
 };
 
+UENUM()
+enum class EGameplayTagMatchDirection : uint8
+{
+	// Row will pass if the Column Input Tags contains the Row Tag(s)
+	RowValueInInput,
+	// Row will pass if the Row Tags contain the Column Input Tag(s)
+	InputInRowValue,
+};
+
 USTRUCT()
 struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 {
@@ -50,6 +59,10 @@ struct CHOOSER_API FGameplayTagColumn : public FChooserColumnBase
 
 	UPROPERTY(EditAnywhere, Category="Data")
 	EGameplayContainerMatchType	TagMatchType = EGameplayContainerMatchType::Any;
+
+	
+	UPROPERTY(EditAnywhere, Category="Data")
+	EGameplayTagMatchDirection	TagMatchDirection = EGameplayTagMatchDirection::RowValueInInput;
 
 	//	If true, leaf tags must match exactly.
 	UPROPERTY(EditAnywhere, Category="Data")

@@ -31,17 +31,30 @@ bool FGameplayTagColumn::TestRow(int32 RowIndex, const FGameplayTagContainer& Va
 		}
 		else
 		{
+			const FGameplayTagContainer* A;
+			const FGameplayTagContainer* B;
+			if (TagMatchDirection == EGameplayTagMatchDirection::RowValueInInput)
+			{
+				A = &Value;
+				B = &RowValues[RowIndex];
+			}
+			else
+			{
+				A = &RowValues[RowIndex];
+				B = &Value;
+			}
+			
+			
 			if (TagMatchType == EGameplayContainerMatchType::All)
 			{
-				if (bMatchExact ? RowValues[RowIndex].HasAllExact(Value) : RowValues[RowIndex].HasAll(Value))
+				if (bMatchExact ? A->HasAllExact(*B) : A->HasAll(*B))
 				{
 					bPasses = true;
 				}
 			}
 			else
 			{
-				if (bMatchExact ? RowValues[RowIndex].HasAnyExact(Value) : RowValues[RowIndex].HasAny(Value))
-					
+				if (bMatchExact ? A->HasAnyExact(*B) : A->HasAny(*B))
 				{
 					bPasses = true;
 				}
