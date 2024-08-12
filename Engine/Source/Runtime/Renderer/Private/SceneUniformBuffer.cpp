@@ -217,6 +217,8 @@ RENDERER_API TRDGUniformBufferRef<FSceneUniformParameters> FSceneUniformBuffer::
 
 RENDERER_API FRHIUniformBuffer* FSceneUniformBuffer::GetBufferRHI(FRDGBuilder& GraphBuilder)
 {
+	// Ensure the buffer is prepped.
+	GetBuffer(GraphBuilder);
 	return GraphBuilder.ConvertToExternalUniformBuffer(Buffer);
 }
 
