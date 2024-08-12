@@ -977,10 +977,6 @@ namespace HordeServer.Agents
 			{
 				finishTime = agent.SessionExpiresAt.Value;
 			}
-			if (lease.ExpiryTime.HasValue && lease.ExpiryTime.Value < finishTime)
-			{
-				finishTime = lease.ExpiryTime.Value;
-			}
 
 			// Update the lease
 			await _leases.TrySetOutcomeAsync(lease.Id, finishTime, outcome, output, cancellationToken);

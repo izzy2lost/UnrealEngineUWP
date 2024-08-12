@@ -32,6 +32,7 @@ namespace HordeServer.Agents
 		readonly AgentService _agentService;
 		readonly IAgentTelemetryCollection _agentTelemetryCollection;
 		readonly IUserCollection _userCollection;
+		readonly ILeaseCollection _leaseCollection;
 		readonly IOptionsSnapshot<ComputeConfig> _computeConfig;
 		readonly Tracer _tracer;
 		readonly ILogger<AgentsController> _logger;
@@ -39,11 +40,12 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentsController(AgentService agentService, IAgentTelemetryCollection agentTelemetryCollection, IUserCollection userCollection, IOptionsSnapshot<ComputeConfig> computeConfig, Tracer tracer, ILogger<AgentsController> logger)
+		public AgentsController(AgentService agentService, IAgentTelemetryCollection agentTelemetryCollection, IUserCollection userCollection, ILeaseCollection leaseCollection, IOptionsSnapshot<ComputeConfig> computeConfig, Tracer tracer, ILogger<AgentsController> logger)
 		{
 			_agentService = agentService;
 			_agentTelemetryCollection = agentTelemetryCollection;
 			_userCollection = userCollection;
+			_leaseCollection = leaseCollection;
 			_computeConfig = computeConfig;
 			_tracer = tracer;
 			_logger = logger;
@@ -139,25 +141,24 @@ namespace HordeServer.Agents
 			}
 
 			List<GetAgentLeaseResponse> leases = new List<GetAgentLeaseResponse>();
-			foreach (AgentLease lease in agent.Leases)
+			foreach (AgentLease agentLease in agent.Leases)
 			{
 				try
 				{
-					Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
-					leases.Add(CreateGetAgentLeaseResponse(lease, details));
+					ILease? lease = await _leaseCollection.GetAsync(agentLease.Id, cancellationToken);
+					if (lease != null)
+					{
+						Dictionary<string, string>? details = await _agentService.GetPayloadDetailsAsync(lease.Payload, cancellationToken);
+						leases.Add(CreateGetAgentLeaseResponse(lease, details, null));
+					}
 				}
-				catch (Exception e)
+				catch (Exception ex)
 				{
-					_logger.LogError(e, "Failed getting payload details for agent lease {LeaseId}", lease.Id.ToString());
+					_logger.LogError(ex, "Failed getting payload details for agent lease {LeaseId}", agentLease.Id);
 				}
 			}
 
 			return CreateGetAgentResponse(agent, leases, rate).ApplyFilter(filter);
-		}
-
-		internal static GetAgentLeaseResponse CreateGetAgentLeaseResponse(AgentLease lease, Dictionary<string, string>? details)
-		{
-			return new GetAgentLeaseResponse(lease.Id, lease.ParentId, null, null, lease.Name, lease.LogId, lease.StartTime, lease.ExpiryTime, lease.Active, details, null, lease.State);
 		}
 
 		internal static GetAgentLeaseResponse CreateGetAgentLeaseResponse(ILease lease, Dictionary<string, string>? details, double? agentRate)

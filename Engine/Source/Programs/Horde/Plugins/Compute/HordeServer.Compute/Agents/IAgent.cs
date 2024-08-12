@@ -820,45 +820,9 @@ namespace HordeServer.Agents
 		public LeaseId? ParentId { get; set; }
 
 		/// <summary>
-		/// Name of this lease
-		/// </summary>
-		public string Name { get; set; }
-
-		/// <summary>
 		/// The current state of the lease
 		/// </summary>
 		public LeaseState State { get; set; }
-
-		/// <summary>
-		/// The stream for this lease
-		/// </summary>
-		public StreamId? StreamId { get; set; }
-
-		/// <summary>
-		/// The pool for this lease
-		/// </summary>
-		public PoolId? PoolId { get; set; }
-
-		/// <summary>
-		/// Optional log for this lease
-		/// </summary>
-		public LogId? LogId { get; set; }
-
-		/// <summary>
-		/// Time at which the lease started
-		/// </summary>
-		[BsonRequired]
-		public DateTime StartTime { get; set; }
-
-		/// <summary>
-		/// Time at which the lease should be terminated
-		/// </summary>
-		public DateTime? ExpiryTime { get; set; }
-
-		/// <summary>
-		/// Flag indicating whether this lease has been accepted by the agent
-		/// </summary>
-		public bool Active { get; set; }
 
 		/// <summary>
 		/// Resources used by this lease
@@ -881,7 +845,6 @@ namespace HordeServer.Agents
 		[BsonConstructor]
 		private AgentLease()
 		{
-			Name = String.Empty;
 		}
 
 		/// <summary>
@@ -889,27 +852,18 @@ namespace HordeServer.Agents
 		/// </summary>
 		/// <param name="id">Identifier for the lease</param>
 		/// <param name="parentId">The parent lease id</param>
-		/// <param name="name">Name of this lease</param>
-		/// <param name="streamId"></param>
-		/// <param name="poolId"></param>
-		/// <param name="logId">Unique id for the log</param>
 		/// <param name="state">State for the lease</param>
 		/// <param name="resources">Resources required for this lease</param>
 		/// <param name="exclusive">Whether to reserve the entire device</param>
 		/// <param name="payload">Encoded "any" protobuf describing the contents of the payload</param>
-		public AgentLease(LeaseId id, LeaseId? parentId, string name, StreamId? streamId, PoolId? poolId, LogId? logId, LeaseState state, IReadOnlyDictionary<string, int>? resources, bool exclusive, byte[]? payload)
+		public AgentLease(LeaseId id, LeaseId? parentId, LeaseState state, IReadOnlyDictionary<string, int>? resources, bool exclusive, byte[]? payload)
 		{
 			Id = id;
 			ParentId = parentId;
-			Name = name;
-			StreamId = streamId;
-			PoolId = poolId;
-			LogId = logId;
 			State = state;
 			Resources = resources;
 			Exclusive = exclusive;
 			Payload = payload;
-			StartTime = DateTime.UtcNow;
 		}
 
 		/// <summary>
@@ -918,7 +872,7 @@ namespace HordeServer.Agents
 		/// <param name="options"></param>
 		/// <returns></returns>
 		public AgentLease(CreateLeaseOptions options)
-			: this(options.Id, options.ParentId, options.Name, options.StreamId, options.PoolId, options.LogId, LeaseState.Pending, options.Resources, options.Exclusive, Any.Pack(options.Payload).ToByteArray())
+			: this(options.Id, options.ParentId, LeaseState.Pending, options.Resources, options.Exclusive, Any.Pack(options.Payload).ToByteArray())
 		{
 		}
 

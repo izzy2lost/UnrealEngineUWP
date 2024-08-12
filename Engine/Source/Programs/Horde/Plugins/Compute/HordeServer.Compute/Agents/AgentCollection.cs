@@ -9,7 +9,6 @@ using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Auditing;
@@ -763,8 +762,7 @@ namespace HordeServer.Agents
 		/// <inheritdoc/>
 		async Task<AgentDocument?> TryCreateLeaseAsync(AgentDocument agent, CreateLeaseOptions options, CancellationToken cancellationToken)
 		{
-			byte[] payloadData = Any.Pack(options.Payload).ToByteArray();
-			AgentLease newLease = new AgentLease(options.Id, options.ParentId, options.Name, options.StreamId, options.PoolId, options.LogId, LeaseState.Pending, options.Resources, options.Exclusive, payloadData);
+			AgentLease newLease = new AgentLease(options);
 
 			List<AgentLease> leases = new List<AgentLease>();
 			if (agent.Leases != null)
