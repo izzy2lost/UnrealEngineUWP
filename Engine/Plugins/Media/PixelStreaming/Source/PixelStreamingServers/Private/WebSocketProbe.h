@@ -13,15 +13,15 @@
 namespace UE::PixelStreamingServers
 {
 
-	/* 
-	* A utility class that tries to establish a websocket connection. 
-	* Useful for testing whether servers have come online yet.
-	*/
+	/*
+	 * A utility class that tries to establish a websocket connection.
+	 * Useful for testing whether servers have come online yet.
+	 */
 	class FWebSocketProbe
 	{
 	private:
 		TSharedRef<IWebSocket> WebSocket;
-		FThreadSafeBool bShouldAttemptReconnect;
+		FThreadSafeBool		   bShouldAttemptReconnect;
 
 	public:
 		FWebSocketProbe(FURL Url, TArray<FString> Protocols = TArray<FString>())
@@ -29,9 +29,22 @@ namespace UE::PixelStreamingServers
 			, bShouldAttemptReconnect(true)
 		{
 			WebSocket->OnConnectionError().AddLambda([Url, &bShouldAttemptReconnect = bShouldAttemptReconnect](const FString& Error) {
-				UE_LOG(LogPixelStreamingServers, Log, TEXT("Probing websocket %s | Msg= \"%s\" | Retrying..."), *Utils::ToString(Url),  *Error);
+				UE_LOG(LogPixelStreamingServers, Log, TEXT("Probing websocket %s | Msg= \"%s\" | Retrying..."), *Utils::ToString(Url), *Error);
 				bShouldAttemptReconnect = true;
 			});
+		}
+
+		void Close()
+		{
+			if (WebSocket->IsConnected())
+			{
+				WebSocket->Close();
+			}
+		}
+
+		bool IsConnected() const
+		{
+			return WebSocket->IsConnected();
 		}
 
 		bool Probe()
@@ -48,4 +61,4 @@ namespace UE::PixelStreamingServers
 		}
 	};
 
-} // UE::PixelStreamingServers
+} // namespace UE::PixelStreamingServers
