@@ -77,5 +77,8 @@ public:
 	/** Force finish current compile request and cancels all pending requests */
 	virtual void CancelCompileRequests() = 0;
 
+	/** Return the number of pending compilation requests. Ongoing requests included. */
+	virtual int32 GetNumCompileRequests() = 0;
+
 };
  

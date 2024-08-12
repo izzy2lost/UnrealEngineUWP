@@ -748,6 +748,12 @@ void FCustomizableObjectEditorModule::CancelCompileRequests()
 }
 
 
+int32 FCustomizableObjectEditorModule::GetNumCompileRequests()
+{
+	return Compiler.GetNumRemainingWork();
+}
+
+
 void FCustomizableObjectEditorModule::OnPreBeginPIE(const bool bIsSimulatingInEditor)
 {
 	if (IsRunningGame() || !UCustomizableObjectSystem::IsActive())

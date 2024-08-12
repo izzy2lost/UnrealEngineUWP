@@ -187,6 +187,12 @@ void FCustomizableObjectCompiler::Compile(const TSharedRef<FCompilationRequest>&
 
 	UCustomizableObjectSystem* System = UCustomizableObjectSystem::GetInstanceChecked();
 
+	if (!CurrentRequest->IsAsyncCompilation())
+	{
+		// Sync compilation. Force finish all pending updates and async compilations
+		System->GetPrivate()->BlockTillAllRequestsFinished();
+	}
+
 	check(!CurrentObject->GetPrivate()->IsLocked());
 
 	// Lock object during asynchronous asset loading to avoid instance/mip updates and reentrant compilations
@@ -1317,6 +1323,12 @@ void FCustomizableObjectCompiler::CompleteRequest(ECompilationStatePrivate State
 bool FCustomizableObjectCompiler::TryPopCompileRequest()
 {
 	if (CurrentRequest.IsValid() || CompileRequests.IsEmpty())
+	{
+		return false;
+	}
+
+	UCustomizableObjectSystemPrivate* SystemPrivate = UCustomizableObjectSystem::GetInstance()->GetPrivate();
+	if (SystemPrivate->CurrentMutableOperation)
 	{
 		return false;
 	}

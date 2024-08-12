@@ -53,6 +53,8 @@ public:
 
 	virtual void CancelCompileRequests() override;
 
+	virtual int32 GetNumCompileRequests() override;
+
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorToolBarExtensibilityManager() override { return CustomizableObjectEditor_ToolBarExtensibilityManager; }
 	virtual TSharedPtr<FExtensibilityManager> GetCustomizableObjectEditorMenuExtensibilityManager() override { return CustomizableObjectEditor_MenuExtensibilityManager; }
 

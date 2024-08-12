@@ -3607,8 +3607,14 @@ int32 UCustomizableObjectSystem::TickInternal(const bool bBlocking)
 
 	FMutableUpdateCandidate* LODUpdateCandidateFound = nullptr;
 	
+	bool bPendingCompilation = false;
+#if WITH_EDITOR
+	ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
+	bPendingCompilation = EditorModule && EditorModule->GetNumCompileRequests() > 0;
+#endif
+
 	// Get a new operation if we aren't working on one
-	if (!Private->CurrentMutableOperation && bIsMutableEnabled)
+	if (!Private->CurrentMutableOperation && bIsMutableEnabled && !bPendingCompilation)
 	{
 		// Reset the instance relevancy
 		// The RequestedUpdates only refer to LOD changes. User Customization and discards are handled separately
@@ -3782,9 +3788,6 @@ int32 UCustomizableObjectSystem::TickInternal(const bool bBlocking)
 	{
 		AdvanceCurrentOperation();
 	}
-
-#if WITH_EDITOR
-#endif
 	
 	const int32 RemainingTasks = Private->MutableTaskGraph.Tick();
 
@@ -3812,7 +3815,6 @@ int32 UCustomizableObjectSystem::TickInternal(const bool bBlocking)
 	if (bBlocking)
 	{
 #if WITH_EDITOR
-		ICustomizableObjectEditorModule* EditorModule = ICustomizableObjectEditorModule::Get();
 		RemainingWork += EditorModule ? EditorModule->Tick(true) : 0;
 #endif
 		
