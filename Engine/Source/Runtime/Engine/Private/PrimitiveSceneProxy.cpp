@@ -96,8 +96,7 @@ static TAutoConsoleVariable<int32> CVarApproximateOcclusionQueries(
 	ECVF_RenderThreadSafe
 );
 
-// Temporarily off by default as a workaround for UE-220106.
-bool GParallelGatherDynamicMeshElements = false;
+bool GParallelGatherDynamicMeshElements = true;
 static FAutoConsoleVariableRef CVarParallelGatherDynamicMeshElements(
 	TEXT("r.Visibility.DynamicMeshElements.Parallel"),
 	GParallelGatherDynamicMeshElements,

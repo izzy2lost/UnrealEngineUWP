@@ -73,8 +73,6 @@ public:
 			{
 				EmptyFunction();
 			}
-
-			NumEmptyEvents.fetch_add(1, std::memory_order_relaxed);
 		}
 	}
 
@@ -136,7 +134,6 @@ private:
 	TArray<CommandType, SceneRenderingAllocator> Queue;
 	UE::Tasks::FPipe Pipe;
 	std::atomic_int32_t NumCommands{ 0 };
-	std::atomic_int32_t NumEmptyEvents{ 0 };
 };
 
 ///////////////////////////////////////////////////////////////////////////////

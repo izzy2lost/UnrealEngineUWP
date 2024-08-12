@@ -4034,6 +4034,10 @@ void FDynamicMeshElementContext::Finish()
 	DynamicVertexBuffer.Commit();
 	DynamicIndexBuffer.Commit();
 	RHICmdList->FinishRecording();
+
+	// Even though task dependencies are setup so all work is done by this point, we still have to wait on the
+	// pipe to clear out its internal state. Otherwise it can assert that it still has work at shutdown.
+	Pipe.WaitUntilEmpty();
 }
 
 FDynamicMeshElementContextContainer::~FDynamicMeshElementContextContainer()
