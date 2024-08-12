@@ -2155,7 +2155,7 @@ FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<I
 					const FString& ProfileName = PreviewProfiles[ProfileIndex];
 					PreviewProfilesSelectionMenuBuilder.AddMenuEntry(
 						FText::FromString(ProfileName),
-						LOCTEXT("", ""),
+						FText(),
 						FSlateIcon(),
 						FUIAction(
 							FExecuteAction::CreateLambda(
