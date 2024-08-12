@@ -231,6 +231,7 @@ void FAnimNextEditorModule::StartupModule()
 	WorkspaceModule.RegisterWorkspaceItemDetails(Workspace::FOutlinerItemDetailsId(FAnimNextAnimationGraphOutlinerData::StaticStruct()->GetFName()), AssetItemDetails);
 
 	FAnimNextGraphItemDetails::RegisterToolMenuExtensions();
+	FAnimNextAssetItemDetails::RegisterToolMenuExtensions();
 
 	SupportedAssetClasses.Append(
 		{
