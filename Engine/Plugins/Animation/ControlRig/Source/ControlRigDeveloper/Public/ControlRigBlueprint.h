@@ -320,6 +320,11 @@ private:
 	/** If set to true, this control rig has animatable controls */
 	UPROPERTY(AssetRegistrySearchable)
 	bool bExposesAnimatableControls;
+public:
+
+	/** If set to true, multiple control rig tracks can be created for the same rig in sequencer*/
+	UPROPERTY(EditAnywhere, Category="Sequencer", AssetRegistrySearchable)
+	bool bAllowMultipleInstances = false;
 
 private:
 
