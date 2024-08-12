@@ -644,7 +644,7 @@ namespace UnrealBuildTool
 			get => overridePackageType ?? PackageOverrideType.None;
 			set => overridePackageType = !IsPlugin
 					? value
-					: throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' cannot override package type because it is part of a plugin!", Name);
+					: throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Module '{ModuleName}' cannot override package type because it is part of a plugin!", Name);
 		}
 
 		private PackageOverrideType? overridePackageType;
@@ -1286,7 +1286,7 @@ namespace UnrealBuildTool
 		public string GetModuleDirectory(string moduleName)
 		{
 			FileReference? moduleFileReference = RulesAssembly.GetModuleFileName(moduleName)
-				?? throw new CompilationResultException(CompilationResult.RulesError, "Could not find a module named '{ModuleName}'.", moduleName);
+				?? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Could not find a module named '{ModuleName}'.", moduleName);
 			return moduleFileReference.Directory.FullName;
 		}
 
@@ -1472,7 +1472,7 @@ namespace UnrealBuildTool
 		/// Property for the directory containing this plugin. Useful for adding paths to third party dependencies.
 		/// </summary>
 		public string PluginDirectory => Plugin == null
-					? throw new CompilationResultException(CompilationResult.RulesError, "Module '{ModuleName}' does not belong to a plugin; PluginDirectory property is invalid.", Name)
+					? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "Module '{ModuleName}' does not belong to a plugin; PluginDirectory property is invalid.", Name)
 					: Plugin.Directory.FullName;
 
 		/// <summary>

@@ -41,6 +41,11 @@ namespace EpicGames.Core
 		public static EventId Compiler_Summary { get; } = new EventId(101);
 
 		/// <summary>
+		/// TargetRules or ModuleRules error
+		/// </summary>
+		public static EventId RulesAssembly { get; } = new EventId(102);
+
+		/// <summary>
 		/// UHT compiler message
 		/// </summary>
 		public static EventId UHT { get; } = new EventId(110);

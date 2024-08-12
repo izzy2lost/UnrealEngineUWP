@@ -131,7 +131,7 @@ namespace UnrealBuildTool
 		public override void LogException(ILogger Logger)
 		{
 			Logger.Log(Event.Level, Event.Id, Event, this, (s, e) => s.ToString());
-			Logger.LogDebug(this, "{Ex}", ExceptionUtils.FormatExceptionDetails(this));
+			Logger.LogDebug(Event.Id, this, "{Ex}", ExceptionUtils.FormatExceptionDetails(this));
 		}
 	}
 
@@ -185,6 +185,19 @@ namespace UnrealBuildTool
 		/// Constructor
 		/// </summary>
 		/// <param name="Result">The resulting exit code</param>
+		/// <param name="EventId">Event id for the error</param>
+		/// <param name="Format">Formatting string for the error message</param>
+		/// <param name="Arguments">Arguments for the formatting string</param>
+		public CompilationResultException(CompilationResult Result, EventId EventId, string Format, params object[] Arguments)
+			: base(LogEvent.Create(LogLevel.Error, EventId, Format, Arguments))
+		{
+			this.Result = Result;
+		}
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		/// <param name="Result">The resulting exit code</param>
 		/// <param name="Format">Formatting string for the error message</param>
 		/// <param name="Arguments">Arguments for the formatting string</param>
 		public CompilationResultException(CompilationResult Result, string Format, params object[] Arguments)
@@ -227,7 +240,7 @@ namespace UnrealBuildTool
 			{
 				Logger.Log(Event.Level, Event.Id, Event, this, (s, e) => s.ToString());
 			}
-			Logger.LogDebug(this, "{Ex}", ExceptionUtils.FormatExceptionDetails(this));
+			Logger.LogDebug(Event.Id, this, "{Ex}", ExceptionUtils.FormatExceptionDetails(this));
 		}
 	}
 

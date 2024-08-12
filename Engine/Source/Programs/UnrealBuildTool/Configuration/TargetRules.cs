@@ -2987,7 +2987,7 @@ namespace UnrealBuildTool
 
 			// Find the constructor
 			ConstructorInfo? constructor = rulesType.GetConstructor(new Type[] { typeof(TargetInfo) })
-				?? throw new CompilationResultException(CompilationResult.RulesError, "No constructor found on {TargetName} which takes an argument of type TargetInfo.", rulesType.Name);
+				?? throw new CompilationResultException(CompilationResult.RulesError, KnownLogEvents.RulesAssembly, "No constructor found on {TargetName} which takes an argument of type TargetInfo.", rulesType.Name);
 
 			// Invoke the regular constructor
 			try
@@ -2996,7 +2996,7 @@ namespace UnrealBuildTool
 			}
 			catch (Exception ex)
 			{
-				throw new CompilationResultException(CompilationResult.RulesError, ex, "Unable to instantiate instance of '{TargetName}' object type from compiled assembly '{AssemblyPath}'.  Unreal Build Tool creates an instance of your module's 'Rules' object in order to find out about your module's requirements.  The CLR exception details may provide more information: {ExceptionMessage}",
+				throw new CompilationResultException(CompilationResult.RulesError, ex, KnownLogEvents.RulesAssembly, "Unable to instantiate instance of '{TargetName}' object type from compiled assembly '{AssemblyPath}'.  Unreal Build Tool creates an instance of your module's 'Rules' object in order to find out about your module's requirements.  The CLR exception details may provide more information: {ExceptionMessage}",
 					rulesType.Name, Path.GetFileNameWithoutExtension(rulesType.Assembly?.Location) ?? "Unknown Assembly", ex.ToString());
 			}
 
