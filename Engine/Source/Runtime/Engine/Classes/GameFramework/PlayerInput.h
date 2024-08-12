@@ -580,15 +580,7 @@ public:
 	ENGINE_API void FlushPressedActionBindingKeys(FName ActionName);
 
 	/** Handles a key input event.  Returns true if there is an action that handles the specified key. */
-	UE_DEPRECATED(5.0, "This version of InputKey has been deprecated, please use that which takes in FInputKeyParams")
-	ENGINE_API virtual bool InputKey(FKey Key, enum EInputEvent Event, float AmountDepressed, bool bGamepad);
-
-	/** Handles a key input event.  Returns true if there is an action that handles the specified key. */
 	ENGINE_API virtual bool InputKey(const FInputKeyParams& Params);
-	
-	/** Handles an axis input event.  Returns true if a legacy key bind handled the input, otherwise false. */
-	UE_DEPRECATED(5.0, "InputAxis has been deprecated, please use the version of InputKey which takes in FInputKeyParams")
-	ENGINE_API bool InputAxis(FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad);
 
 	/** Handles a touch input event.  Returns true. */
 	ENGINE_API bool InputTouch(uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex);

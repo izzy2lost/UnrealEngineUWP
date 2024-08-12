@@ -246,17 +246,6 @@ void UPlayerInput::FlushPressedActionBindingKeys(FName ActionName)
 	}
 }
 
-bool UPlayerInput::InputKey(FKey Key, EInputEvent Event, float AmountDepressed, bool bGamepad)
-{
-	FInputKeyParams Params;
-	Params.Key = Key;
-	Params.Event = Event;
-	Params.Delta = FVector((double)AmountDepressed, 0.0, 0.0);
-	Params.bIsGamepadOverride = bGamepad;
-	
-	return InputKey(Params);
-}
-
 bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 {
 	UE_LOG(LogPlayerInput, VeryVerbose, TEXT("[%hs] %s (outer: %s) received input : Key: %s Value: %s Event:  %s"),
@@ -452,17 +441,6 @@ bool UPlayerInput::InputKey(const FInputKeyParams& Params)
 
 		return true;
 	}
-}
-
-bool UPlayerInput::InputAxis(FKey Key, float Delta, float DeltaTime, int32 NumSamples, bool bGamepad)
-{
-	FInputKeyParams Params;
-	Params.Key = Key;
-	Params.Delta = FVector((double)Delta, 0.0, 0.0);
-	Params.NumSamples = NumSamples;
-	Params.bIsGamepadOverride = bGamepad;
-	
-	return InputKey(Params);
 }
 
 bool UPlayerInput::InputTouch(uint32 Handle, ETouchType::Type Type, const FVector2D& TouchLocation, float Force, FDateTime DeviceTimestamp, uint32 TouchpadIndex)
