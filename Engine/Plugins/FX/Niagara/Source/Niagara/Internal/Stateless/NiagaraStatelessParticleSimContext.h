@@ -140,9 +140,9 @@ public:
 	FVector4f		RandomFloat4(uint32 iInstance, uint32 RandomSeedOffset) const;
 
 	float			RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const float Scale, const float Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
-	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector2f& Scale, const FVector2f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
-	FVector3f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector3f& Scale, const FVector3f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
-	FVector4f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector4f& Scale, const FVector4f& Bias) const { return Bias + (RandomFloat(iInstance, RandomSeedOffset) * Scale); }
+	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector2f& Scale, const FVector2f& Bias) const { return Bias + (RandomFloat2(iInstance, RandomSeedOffset) * Scale); }
+	FVector3f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector3f& Scale, const FVector3f& Bias) const { return Bias + (RandomFloat3(iInstance, RandomSeedOffset) * Scale); }
+	FVector4f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FVector4f& Scale, const FVector4f& Bias) const { return Bias + (RandomFloat4(iInstance, RandomSeedOffset) * Scale); }
 
 	float			RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeFloat& Range) const { return Range.Min + (RandomFloat(iInstance, RandomSeedOffset) * Range.GetScale()); }
 	FVector2f		RandomScaleBiasFloat(uint32 iInstance, uint32 RandomSeedOffset, const FNiagaraStatelessRangeVector2& Range) const { return Range.Min + (RandomFloat2(iInstance, RandomSeedOffset) * Range.GetScale()); }
@@ -164,6 +164,12 @@ public:
 	FVector2f		SafeNormalize(const FVector2f& v) const { return SafeNormalize(v, FVector2f(1.0f, 0.0f)); }
 	FVector3f		SafeNormalize(const FVector3f& v) const { return SafeNormalize(v, FVector3f(1.0f, 0.0f, 0.0f)); }
 
+	void			ConvertRangeToScaleBias(const FNiagaraStatelessRangeFloat&   Range, float& OutScale, float& OutBias) const { OutScale = Range.ParameterOffset == INDEX_NONE ? Range.GetScale() : 0.0f; OutBias = Range.ParameterOffset == INDEX_NONE ? Range.Min : GetParameterBufferValue<float>(Range.ParameterOffset, 0); }
+	void			ConvertRangeToScaleBias(const FNiagaraStatelessRangeVector2& Range, FVector2f& OutScale, FVector2f& OutBias) const { OutScale = Range.ParameterOffset == INDEX_NONE ? Range.GetScale() : FVector2f::ZeroVector; OutBias = Range.ParameterOffset == INDEX_NONE ? Range.Min : GetParameterBufferValue<FVector2f>(Range.ParameterOffset, 0); }
+	void			ConvertRangeToScaleBias(const FNiagaraStatelessRangeVector3& Range, FVector3f& OutScale, FVector3f& OutBias) const { OutScale = Range.ParameterOffset == INDEX_NONE ? Range.GetScale() : FVector3f::ZeroVector; OutBias = Range.ParameterOffset == INDEX_NONE ? Range.Min : GetParameterBufferValue<FVector3f>(Range.ParameterOffset, 0); }
+	void			ConvertRangeToScaleBias(const FNiagaraStatelessRangeVector4& Range, FVector4f& OutScale, FVector4f& OutBias) const { OutScale = Range.ParameterOffset == INDEX_NONE ? Range.GetScale() : FVector4f::Zero(); OutBias = Range.ParameterOffset == INDEX_NONE ? Range.Min : GetParameterBufferValue<FVector4f>(Range.ParameterOffset, 0); }
+	void			ConvertRangeToScaleBias(const FNiagaraStatelessRangeColor&   Range, FLinearColor& OutScale, FLinearColor& OutBias) const { OutScale = Range.ParameterOffset == INDEX_NONE ? Range.GetScale() : FLinearColor(0.0f, 0.0f, 0.0f, 0.0f); OutBias = Range.ParameterOffset == INDEX_NONE ? Range.Min : GetParameterBufferValue<FLinearColor>(Range.ParameterOffset, 0); }
+
 	template<typename T>
 	const T* ReadBuiltData() const
 	{
@@ -173,7 +179,6 @@ public:
 		return reinterpret_cast<const T*>(BuiltData.GetData() + Offset);
 	}
 
-	//-TODO: Reconcile why this differs from C++ version and match shader accordingly
 	static FQuat4f RotatorToQuat(FVector3f Rotator)
 	{
 		Rotator.X = FMath::Fractional(Rotator.X) * UE_PI;

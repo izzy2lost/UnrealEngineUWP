@@ -31,8 +31,8 @@ namespace NiagaraStateless
 	END_SHADER_PARAMETER_STRUCT()
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FInitialMeshOrientationModule_ShaderParameters, NIAGARASHADER_API)
-		SHADER_PARAMETER(FVector3f,	InitialMeshOrientation_Rotation)
-		SHADER_PARAMETER(FVector3f,	InitialMeshOrientation_RandomRangeScale)
+		SHADER_PARAMETER(FVector3f, InitialMeshOrientation_RotationScale)
+		SHADER_PARAMETER(FVector3f, InitialMeshOrientation_RotationBias)
 	END_SHADER_PARAMETER_STRUCT()
 		
 

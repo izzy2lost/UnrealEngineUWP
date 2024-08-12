@@ -5,85 +5,57 @@
 #include "Stateless/NiagaraStatelessModule.h"
 #include "Stateless/NiagaraStatelessEmitterDataBuildContext.h"
 #include "Stateless/NiagaraStatelessModuleShaderParameters.h"
-#include "Stateless/NiagaraStatelessParticleSimContext.h"
 
 #include "NiagaraStatelessModule_InitialMeshOrientation.generated.h"
+
+UENUM()
+enum class ENSMInitialMeshOrientationMode
+{
+	None,
+	Random,
+	//System,
+	OrientToAxis,
+	//OrientToMatrix,
+	//OrientToQuaternion,
+};
 
 UCLASS(MinimalAPI, EditInlineNew, meta = (DisplayName = "Initial Mesh Orientation"))
 class UNiagaraStatelessModule_InitialMeshOrientation : public UNiagaraStatelessModule
 {
 	GENERATED_BODY()
 
-	struct FModuleBuiltData
-	{
-		FVector3f	Rotation = FVector3f::ZeroVector;
-		FVector3f	RandomRotationRange = FVector3f::ZeroVector;
-		int32		MeshOrientationVariableOffset = INDEX_NONE;
-		int32		PreviousMeshOrientationVariableOffset = INDEX_NONE;
-	};
-
 public:
 	using FParameters = NiagaraStateless::FInitialMeshOrientationModule_ShaderParameters;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg"))
-	FVector3f	Rotation = FVector3f::ZeroVector;
+	UPROPERTY(EditAnywhere, Category = "Parameters")
+	ENSMInitialMeshOrientationMode	MeshOrientationMode = ENSMInitialMeshOrientationMode::None;
 
-	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(Units="deg"))
-	FVector3f	RandomRotationRange = FVector3f(360.0f, 360.0f, 360.0f);
+	// Establish an initial orientation around which to yaw, pitch, or roll. Can be overriden with any vector, for instance the normalized velocity vector, to accomplish more elaborate behavior.
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (EditConditionHides, EditCondition  = "MeshOrientationMode == ENSMInitialMeshOrientationMode::OrientToAxis", DisableRangeDistribution, DisableUniformDistribution))
+	FNiagaraDistributionRangeVector3 OrientationVector = FNiagaraDistributionRangeVector3(FVector3f::XAxisVector);
 
-	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override
-	{
-		FModuleBuiltData* BuiltData = BuildContext.AllocateBuiltData<FModuleBuiltData>();
+	// This represents the Axis on which the model was first imported from your DCC package.
+	// This vector is then rotated in the direction of the Orientation Vector input.
+	// If your mesh was imported on a different axis than X forward, you can change it here.
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta = (EditConditionHides, EditCondition = "MeshOrientationMode == ENSMInitialMeshOrientationMode::OrientToAxis", DisableRangeDistribution, DisableUniformDistribution))
+	FNiagaraDistributionRangeVector3 MeshAxisToOrient = FNiagaraDistributionRangeVector3(FVector3f::XAxisVector);
 
-		const FNiagaraStatelessGlobals& StatelessGlobals	= FNiagaraStatelessGlobals::Get();
-		BuiltData->MeshOrientationVariableOffset			= BuildContext.FindParticleVariableIndex(StatelessGlobals.MeshOrientationVariable);
-		BuiltData->PreviousMeshOrientationVariableOffset	= BuildContext.FindParticleVariableIndex(StatelessGlobals.PreviousMeshOrientationVariable);
+	// Rotation in Degrees, this is applied after any other orientation is calculated and in the space of that orientation
+	UPROPERTY(EditAnywhere, Category = "Parameters", meta=(EditConditionHides, EditCondition = "MeshOrientationMode != ENSMInitialMeshOrientationMode::Random", DisableUniformDistribution, Units = "deg"))
+	FNiagaraDistributionRangeVector3 Rotation = FNiagaraDistributionRangeVector3(FVector3f::ZeroVector);
 
-		if (IsModuleEnabled())
-		{
-			BuiltData->Rotation				= Rotation / 360.0f;
-			BuiltData->RandomRotationRange	= RandomRotationRange / 360.0f;
-		}
-
-		if (BuiltData->MeshOrientationVariableOffset != INDEX_NONE || BuiltData->PreviousMeshOrientationVariableOffset != INDEX_NONE)
-		{
-			BuildContext.AddParticleSimulationExecSimulate(&UNiagaraStatelessModule_InitialMeshOrientation::ParticleSimulate);
-		}
-	}
-
-	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
-	{
-		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-
-		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
-		Parameters->InitialMeshOrientation_Rotation			= ModuleBuiltData->Rotation;
-		Parameters->InitialMeshOrientation_RandomRangeScale	= ModuleBuiltData->RandomRotationRange;
-	}
-
-	static void ParticleSimulate(const NiagaraStateless::FParticleSimulationContext& ParticleSimulationContext)
-	{
-		using namespace NiagaraStateless;
-
-		const FModuleBuiltData* ModuleBuiltData = ParticleSimulationContext.ReadBuiltData<FModuleBuiltData>();
-		for (uint32 i = 0; i < ParticleSimulationContext.GetNumInstances(); ++i)
-		{
-			const FVector3f	Rotation = ModuleBuiltData->Rotation + (ParticleSimulationContext.RandomFloat3(i, 0) * ModuleBuiltData->RandomRotationRange);
-			const FQuat4f Quat = ParticleSimulationContext.RotatorToQuat(Rotation);
-
-			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->MeshOrientationVariableOffset, i, Quat);
-			ParticleSimulationContext.WriteParticleVariable(ModuleBuiltData->PreviousMeshOrientationVariableOffset, i, Quat);
-		}
-	}
+	virtual void BuildEmitterData(const FNiagaraStatelessEmitterDataBuildContext& BuildContext) const override;
+	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override;
 
 #if WITH_EDITOR
 	virtual bool CanDisableModule() const override { return true; }
 #endif
 #if WITH_EDITORONLY_DATA
-	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override
-	{
-		const FNiagaraStatelessGlobals& StatelessGlobals = FNiagaraStatelessGlobals::Get();
-		OutVariables.AddUnique(StatelessGlobals.MeshOrientationVariable);
-		OutVariables.AddUnique(StatelessGlobals.PreviousMeshOrientationVariable);
-	}
+	virtual void GetOutputVariables(TArray<FNiagaraVariableBase>& OutVariables) const override;
+	virtual void PostLoad() override;
+
+private:
+	UPROPERTY()
+	FVector3f	RandomRotationRange_DEPRECATED = FVector3f(360.0f, 360.0f, 360.0f);
 #endif
 };

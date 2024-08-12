@@ -204,6 +204,8 @@ struct FNiagaraCustomVersion
 		NDCSpawnGroupOverrideDisabledByDefault, // NDC Read DIs will not override spawn group by default when spawning particles. Old content will remain unchanged.
 
 		CustomSortingBindingToAge, // Before it was normalized age which can introduce flickering with sorting and random lifetimes
+
+		StatelessInitialMeshOrientationV1,	// Update Initial Mesh Orientation Module
 		
 		// DO NOT ADD A NEW VERSION UNLESS YOU HAVE TALKED TO THE NIAGARA LEAD. Mismanagement of these versions can lead to data loss if it is adjusted in multiple streams simultaneously.
 		// -----<new versions can be added above this line>  -------------------------------------------------
