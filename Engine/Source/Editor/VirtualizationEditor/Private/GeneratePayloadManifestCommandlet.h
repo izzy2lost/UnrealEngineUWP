@@ -29,9 +29,9 @@ class UGeneratePayloadManifestCommandlet
 
 	static int32 StaticMain(const FString& Params);
 
-	bool ParseCmdline(const FString& Params);
-
 private:
+
+	bool ParseCmdline(const FString& Params);
 
 	enum class EPayloadFilter
 	{
