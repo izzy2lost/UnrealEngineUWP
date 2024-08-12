@@ -35,6 +35,8 @@ void SDMMaterialSlotLayerEffectItem::Construct(const FArguments& InArgs, const T
 	);
 
 	SetContent(CreateMainContent());
+
+	SetCursor(EMouseCursor::GrabHand);
 }
 
 TSharedPtr<SDMMaterialSlotLayerEffectView> SDMMaterialSlotLayerEffectItem::GetEffectView() const
@@ -75,37 +77,33 @@ TSharedRef<SWidget> SDMMaterialSlotLayerEffectItem::CreateMainContent()
 	constexpr float HorizontalSpacingEnd = 3.f;
 	constexpr float VerticalSpacing = 2.f;
 
-	return SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
+	return SNew(SHorizontalBox)
+		.ToolTipText(GetToolTipText())
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		.Padding(HorizontalSpacingEnd, VerticalSpacing, HorizontalSpacingEnd, VerticalSpacing)
 		[
-			SNew(SHorizontalBox)
-			.ToolTipText(GetToolTipText())
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(HorizontalSpacingEnd, VerticalSpacing, HorizontalSpacingEnd, VerticalSpacing)
-			[
-				CreateLayerBypassButton()
-			]
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			.HAlign(HAlign_Left)
-			.VAlign(VAlign_Center)
-			.Padding(HorizontalSpacing, VerticalSpacing, HorizontalSpacing, VerticalSpacing)
-			[
-				SNew(STextBlock)
-				.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
-				.Text(GetLayerHeaderText())
-			]
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			.HAlign(HAlign_Right)
-			.VAlign(VAlign_Center)
-			.Padding(HorizontalSpacingEnd, VerticalSpacing, HorizontalSpacingEnd, VerticalSpacing)
-			[
-				CreateLayerRemoveButton()
-			]
+			CreateLayerBypassButton()
+		]
+		+ SHorizontalBox::Slot()
+		.FillWidth(1.0f)
+		.HAlign(HAlign_Left)
+		.VAlign(VAlign_Center)
+		.Padding(HorizontalSpacing, VerticalSpacing, HorizontalSpacing, VerticalSpacing)
+		[
+			SNew(STextBlock)
+			.TextStyle(FDynamicMaterialEditorStyle::Get(), "SmallFont")
+			.Text(GetLayerHeaderText())
+		]
+		+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.HAlign(HAlign_Right)
+		.VAlign(VAlign_Center)
+		.Padding(HorizontalSpacingEnd, VerticalSpacing, HorizontalSpacingEnd, VerticalSpacing)
+		[
+			CreateLayerRemoveButton()
 		];
 }
 
@@ -115,6 +113,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerEffectItem::CreateLayerBypassButton()
 		.ContentPadding(FMargin(2.0f, 2.f))
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("LayerBypassTooltip", "Toggle the bypassing of this layer."))
+		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerEffectItem::OnLayerBypassButtonClick)
 		[
 			SNew(SImage)
@@ -129,6 +128,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerEffectItem::CreateLayerRemoveButton()
 		.ContentPadding(FMargin(2.0f, 2.f))
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("RemoveEffectTooltip", "Remove Effect"))
+		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerEffectItem::OnLayerRemoveButtonClick)
 		[
 			SNew(SImage)

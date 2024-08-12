@@ -40,36 +40,39 @@ namespace UE::DynamicMaterialEditor::Private
 	static const FName GlobalValuesSectionName = TEXT("GlobalValues");
 }
 
-UToolMenu* FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject)
+TSharedRef<SWidget> FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuLayer(SlotLayerMenuName, InSlotWidget->GetEditorWidget(), InLayerObject);
-
-	if (!NewToolMenu)
+	if (!UToolMenus::Get()->IsMenuRegistered(SlotLayerMenuName))
 	{
-		return nullptr;
+		UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuDefault(SlotLayerMenuName);
+
+		if (!NewToolMenu)
+		{
+			return SNullWidget::NullWidget;
+		}
+
+		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialSlotLayerMenus::AddAddLayerSection));
+
+		if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)
+		{
+			NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialSlotLayerMenus::AddGlobalValueSection));
+		}
+
+		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialSlotLayerMenus::AddLayerModifySection));
 	}
 
-	AddAddLayerSection(NewToolMenu);
+	FToolMenuContext MenuContext(UDMMenuContext::CreateEditor(InSlotWidget->GetEditorWidget()));
 
-	if constexpr (UE::DynamicMaterialEditor::bGlobalValuesEnabled)
-	{
-		AddGlobalValueSection(NewToolMenu);
-	}
-
-	AddLayerAddEffectsSection(NewToolMenu, InLayerObject);
-
-	AddLayerModifySection(NewToolMenu);
-
-	return NewToolMenu;
+	return UToolMenus::Get()->GenerateWidget(SlotLayerMenuName, MenuContext);
 }
 
 void FDMMaterialSlotLayerMenus::AddAddLayerSection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	if (!IsValid(InMenu) || InMenu->ContainsSection(SlotLayerAddSectionName))
+	if (!IsValid(InMenu))
 	{
 		return;
 	}
@@ -347,7 +350,7 @@ void FDMMaterialSlotLayerMenus::AddLayerModifySection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	if (!IsValid(InMenu) || InMenu->ContainsSection(SlotLayerModifySectionName))
+	if (!IsValid(InMenu))
 	{
 		return;
 	}
@@ -368,16 +371,11 @@ void FDMMaterialSlotLayerMenus::AddLayerModifySection(UToolMenu* InMenu)
 	NewSection.AddMenuEntry(FGenericCommands::Get().Delete);
 }
 
-void FDMMaterialSlotLayerMenus::AddLayerAddEffectsSection(UToolMenu* InMenu, UDMMaterialLayerObject* InLayerObject)
-{
-	FDMMaterialSlotLayerAddEffectMenus::AddEffectSubMenu(InMenu, InLayerObject);
-}
-
 void FDMMaterialSlotLayerMenus::AddGlobalValueSection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
-	if (!IsValid(InMenu) || InMenu->ContainsSection(GlobalValuesSectionName))
+	if (!IsValid(InMenu))
 	{
 		return;
 	}

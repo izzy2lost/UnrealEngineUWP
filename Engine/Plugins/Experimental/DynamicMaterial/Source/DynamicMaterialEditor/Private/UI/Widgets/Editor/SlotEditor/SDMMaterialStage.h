@@ -30,6 +30,7 @@ public:
 
 	//~ Begin SWidget
 	virtual FReply OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
+	virtual FReply OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 	//~ End SWidget
 
 protected:
@@ -46,4 +47,8 @@ protected:
 	void OnAssetsDropped(const FDragDropEvent& InDragDropEvent, TArrayView<FAssetData> InAssets);
 
 	void HandleDrop_Texture(UTexture* InTexture);
+
+	void OnMouseButtonDown_Left();
+
+	void OnMouseButtonUp_Right();
 };

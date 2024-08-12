@@ -69,6 +69,8 @@ void SDMMaterialSlotLayerItem::Construct(const FArguments& InArgs, const TShared
 	);
 
 	SetContent(CreateMainContent());
+
+	SetCursor(EMouseCursor::GrabHand);
 }
 
 TSharedPtr<SDMMaterialSlotLayerView> SDMMaterialSlotLayerItem::GetSlotLayerView() const
@@ -294,6 +296,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateEffectsRowContent()
 {
 	return SNew(SHorizontalBox)
 		.Visibility(this, &SDMMaterialSlotLayerItem::GetEffectsListVisibility)
+		.Cursor(EMouseCursor::Default)
 		+ SHorizontalBox::Slot()
 		.AutoWidth()
 		[
@@ -391,6 +394,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerBypassButton()
 		.IsEnabled(!bIsDynamic)
 		.ContentPadding(4.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+		.Cursor(EMouseCursor::Default)
 		.ToolTipText(LOCTEXT("LayerBypassTooltip", "Toggle the bypassing of this layer."))
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnCreateLayerBypassButtonClicked)
 		[
@@ -433,6 +437,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerBaseToggleButton()
 		.IsEnabled(!bIsDynamic)
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
+		.Cursor(EMouseCursor::Default)
 		.ToolTipText(LOCTEXT("MaterialLayerBaseToggleTooltip", "Toggle the layer base on and off.\n\n"
 			"Warning: Toggling a layer base off may result in inputs being reset where incompatibilities are found.\n\n"
 			"The base of the first layer cannot be toggled off."))
@@ -450,6 +455,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerMaskToggleButton()
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialLayerMaskToggleTooltip", "Toggle the layer mask on and off."))
+		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnStageToggleButtonClicked, EDMMaterialLayerStage::Mask)
 		[
 			SNew(SImage)
@@ -464,6 +470,7 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateLayerLinkToggleButton()
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialStageLinkTooltip", "Click to toggle UV Link on and off."))
+		.Cursor(EMouseCursor::Default)
 		.OnClicked(this, &SDMMaterialSlotLayerItem::OnLayerLinkToggleButton)
 		.Visibility(this, &SDMMaterialSlotLayerItem::GetLayerLinkToggleButtonVisibility)
 		[
@@ -535,8 +542,9 @@ TSharedRef<SWidget> SDMMaterialSlotLayerItem::CreateEffectsToggleButton()
 		.ContentPadding(0.0f)
 		.ButtonStyle(FDynamicMaterialEditorStyle::Get(), "HoverHintOnly")
 		.ToolTipText(LOCTEXT("MaterialLayerFxTooltip", "Show or hide the effect list."))
-		.OnClicked(this, &SDMMaterialSlotLayerItem::OnEffectsToggleButtonClicked)
 		.Visibility(this, &SDMMaterialSlotLayerItem::GetEffectsToggleButtonVisibility)
+		.Cursor(EMouseCursor::Default)
+		.OnClicked(this, &SDMMaterialSlotLayerItem::OnEffectsToggleButtonClicked)
 		[
 			SNew(SImage)
 			.Image(this, &SDMMaterialSlotLayerItem::GetEffectsToggleButtonImage)

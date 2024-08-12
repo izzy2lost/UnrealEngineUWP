@@ -6,6 +6,7 @@
 #include "Templates/SharedPointerFwd.h"
 
 class SDMMaterialSlotEditor;
+class SWidget;
 class UDMMaterialLayerObject;
 class UDMMaterialSlot;
 class UToolMenu;
@@ -14,14 +15,12 @@ enum class EDMMaterialPropertyType : uint8;
 class FDMMaterialSlotLayerMenus final
 {
 public:
-	static UToolMenu* GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject);
+	static TSharedRef<SWidget> GenerateSlotLayerMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, UDMMaterialLayerObject* InLayerObject);
 
 	static void AddAddLayerSection(UToolMenu* InMenu);
 
 private:
 	static void AddLayerModifySection(UToolMenu* InMenu);
-
-	static void AddLayerAddEffectsSection(UToolMenu* InMenu, UDMMaterialLayerObject* InLayerObject);
 
 	static void AddGlobalValueSection(UToolMenu* InMenu);
 

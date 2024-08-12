@@ -20,8 +20,6 @@ class FDMMaterialSlotLayerAddEffectMenus final
 public:
 	static TSharedRef<SWidget> OpenAddEffectMenu(const TSharedPtr<SDMMaterialEditor>& InEditor, UDMMaterialLayerObject* InLayer);
 
-	static void AddEffectSubMenu(UToolMenu* InMenu, UDMMaterialLayerObject* InLayer);
-
 private:
 	static void GenerateAddEffectSubMenu(UToolMenu* InMenu, int32 InCategoryIndex);
 
@@ -34,6 +32,8 @@ private:
 	static void GenerateEffectPresetMenu(UToolMenu* InMenu);
 
 	static void RegisterAddEffectMenu();
+
+	static void AddEffectSubMenu(UToolMenu* InMenu, UDMMaterialLayerObject* InLayer);
 
 	static bool CanAddEffect(const FToolMenuContext& InContext, TSoftObjectPtr<UMaterialFunctionInterface> InMaterialFunctionPtr);
 

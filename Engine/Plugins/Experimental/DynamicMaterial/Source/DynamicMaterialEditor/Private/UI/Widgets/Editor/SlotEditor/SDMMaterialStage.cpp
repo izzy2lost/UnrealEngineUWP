@@ -14,7 +14,9 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialEditorStyle.h"
 #include "Engine/Texture.h"
+#include "Framework/Application/SlateApplication.h"
 #include "SAssetDropTarget.h"
+#include "UI/Menus/DMMaterialStageMenus.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerItem.h"
 #include "UI/Widgets/Editor/SlotEditor/SDMMaterialSlotLayerView.h"
@@ -38,6 +40,7 @@ void SDMMaterialStage::Construct(const FArguments& InArgs, const TSharedRef<SDMM
 	StageWeak = InStage;
 
 	SetCanTick(false);
+	SetCursor(EMouseCursor::Default);
 
 	if (!IsValid(InStage))
 	{
@@ -136,49 +139,24 @@ UDMMaterialStage* SDMMaterialStage::GetStage() const
 
 FReply SDMMaterialStage::OnMouseButtonDown(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
 {
-	UDMMaterialStage* Stage = GetStage();
-
-	if (!Stage)
+	if (InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
+		OnMouseButtonDown_Left();
 		return FReply::Handled();
 	}
 
-	TSharedPtr<SDMMaterialSlotLayerItem> SlotLayerItem = SlotLayerItemWeak.Pin();
+	return FReply::Unhandled();
+}
 
-	if (!SlotLayerItem.IsValid())
+FReply SDMMaterialStage::OnMouseButtonUp(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent)
+{
+	if (InMouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 	{
+		OnMouseButtonUp_Right();
 		return FReply::Handled();
 	}
 
-	TSharedPtr<SDMMaterialSlotLayerView> SlotLayerView = SlotLayerItem->GetSlotLayerView();
-
-	if (!SlotLayerView.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = SlotLayerView->GetSlotEditorWidget();
-
-	if (!SlotEditorWidget.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	TSharedPtr<SDMMaterialEditor> EditorWidget = SlotEditorWidget->GetEditorWidget();
-
-	if (!EditorWidget.IsValid())
-	{
-		return FReply::Handled();
-	}
-
-	EditorWidget->EditComponent(Stage);
-
-	if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
-	{
-		SlotLayerView->SetSelectedLayer(Layer);
-	}
-
-	return FReply::Handled();
+	return FReply::Unhandled();
 }
 
 bool SDMMaterialStage::IsStageSelected() const
@@ -392,6 +370,92 @@ void SDMMaterialStage::HandleDrop_Texture(UTexture* InTexture)
 		TextureValue->Modify();
 		TextureValue->SetValue(InTexture);
 	}
+}
+
+void SDMMaterialStage::OnMouseButtonDown_Left()
+{
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotLayerItem> SlotLayerItem = SlotLayerItemWeak.Pin();
+
+	if (!SlotLayerItem.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotLayerView> SlotLayerView = SlotLayerItem->GetSlotLayerView();
+
+	if (!SlotLayerView.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = SlotLayerView->GetSlotEditorWidget();
+
+	if (!SlotEditorWidget.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = SlotEditorWidget->GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	EditorWidget->EditComponent(Stage);
+
+	if (UDMMaterialLayerObject* Layer = Stage->GetLayer())
+	{
+		SlotLayerView->SetSelectedLayer(Layer);
+	}
+}
+
+void SDMMaterialStage::OnMouseButtonUp_Right()
+{
+	UDMMaterialStage* Stage = GetStage();
+
+	if (!Stage)
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotLayerItem> SlotLayerItem = SlotLayerItemWeak.Pin();
+
+	if (!SlotLayerItem.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotLayerView> SlotLayerView = SlotLayerItem->GetSlotLayerView();
+
+	if (!SlotLayerView.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = SlotLayerView->GetSlotEditorWidget();
+
+	if (!SlotEditorWidget.IsValid())
+	{
+		return;
+	}
+
+	FSlateApplication& SlateApplication = FSlateApplication::Get();
+
+	SlateApplication.PushMenu(
+		SharedThis(this),
+		FWidgetPath(),
+		FDMMaterialStageMenus::GenerateStageMenu(SlotEditorWidget.ToSharedRef(), SharedThis(this)),
+		SlateApplication.GetCursorPos(),
+		FPopupTransitionEffect::ContextMenu
+	);
 }
 
 #undef LOCTEXT_NAMESPACE

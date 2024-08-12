@@ -7,17 +7,14 @@
 class FName;
 class SDMMaterialSlotEditor;
 class SDMMaterialStage;
+class SWidget;
 class UToolMenu;
 
 class FDMMaterialStageMenus final
 {
 public:
-	static UToolMenu* GenerateStageMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, const TSharedPtr<SDMMaterialStage>& InStageWidget);
+	static TSharedRef<SWidget> GenerateStageMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, const TSharedPtr<SDMMaterialStage>& InStageWidget);
 
 private:
-	static FName GetStageMenuName();
-
-	static FName GetStageToggleSectionName();
-
 	static void AddStageSection(UToolMenu* InMenu);
 };

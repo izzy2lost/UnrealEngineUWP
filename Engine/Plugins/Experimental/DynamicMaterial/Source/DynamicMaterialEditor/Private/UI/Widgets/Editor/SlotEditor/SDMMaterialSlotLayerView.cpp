@@ -285,8 +285,7 @@ TSharedPtr<SWidget> SDMMaterialSlotLayerView::CreateLayerItemContextMenu()
 		}
 	}
 
-	UToolMenu* ContextMenu = FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SlotEditor, LayerObject);
-	return UToolMenus::Get()->GenerateWidget(ContextMenu);
+	return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SlotEditor, LayerObject);
 }
 
 TSharedPtr<SDMMaterialSlotLayerItem> SDMMaterialSlotLayerView::WidgetFromLayerItem(const TSharedPtr<FDMMaterialLayerReference>& InItem) const

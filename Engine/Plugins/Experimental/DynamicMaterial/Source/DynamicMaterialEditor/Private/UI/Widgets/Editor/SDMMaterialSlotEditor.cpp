@@ -884,8 +884,7 @@ TSharedRef<SWidget> SDMMaterialSlotEditor::GetLayerButtonsMenuContent()
 {
 	if (UDMMaterialLayerObject* LayerObject = LayerViewSlot->GetSelectedLayer())
 	{
-		UToolMenu* ContextMenu = FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SharedThis(this), LayerObject);
-		return UToolMenus::Get()->GenerateWidget(ContextMenu);
+		return FDMMaterialSlotLayerMenus::GenerateSlotLayerMenu(SharedThis(this), LayerObject);
 	}
 
 	return SNullWidget::NullWidget;
