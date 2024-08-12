@@ -9,6 +9,7 @@
 #include "Framework/Text/ISlateRunRenderer.h"
 #include "Framework/Text/ISlateLineHighlighter.h"
 #include "Framework/Text/SlateTextRun.h"
+#include "Framework/Text/SlateTextUtils.h"
 #include "Framework/Text/SlatePasswordRun.h"
 #include "Trace/SlateMemoryTags.h"
 
@@ -147,15 +148,19 @@ int32 FSlateTextLayout::OnPaint( const FPaintArgs& Args, const FGeometry& Allott
 
 		bool bIsLastVisibleLine = false;
 		bool bIsNextLineClipped = false;
-		if (LineOverflowPolicy == ETextOverflowPolicy::Ellipsis || LineOverflowPolicy == ETextOverflowPolicy::MultilineEllipsis)
+		if (SlateTextUtils::IsEllipsisPolicy(LineOverflowPolicy))
 		{
+			// Middle Ellipsis currently do not support multiline
 			if (bIsMultiline)
 			{
-				bIsLastVisibleLine = LineIndex == LastLineIndexToDisplay;
-				bIsNextLineClipped = LineViews.IsValidIndex(LineIndex + 1) ? bIsLastVisibleLine : false;
+				if (LineOverflowPolicy != ETextOverflowPolicy::MiddleEllipsis)
+				{
+					bIsLastVisibleLine = LineIndex == LastLineIndexToDisplay;
+					bIsNextLineClipped = LineViews.IsValidIndex(LineIndex + 1) ? bIsLastVisibleLine : false;
 
-				//When wrapping/multiline text, we have to use the reading direction of the text, not the justification.
-				LineOverflowDirection = LineView.TextBaseDirection == TextBiDi::ETextDirection::LeftToRight ? ETextOverflowDirection::LeftToRight : ETextOverflowDirection::RightToLeft;
+					//When wrapping/multiline text, we have to use the reading direction of the text, not the justification.
+					LineOverflowDirection = LineView.TextBaseDirection == TextBiDi::ETextDirection::LeftToRight ? ETextOverflowDirection::LeftToRight : ETextOverflowDirection::RightToLeft;
+				}
 			}
 			else
 			{

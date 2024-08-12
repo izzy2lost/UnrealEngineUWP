@@ -6,6 +6,7 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Text/DefaultLayoutBlock.h"
 #include "Framework/Text/ShapedTextCache.h"
+#include "Framework/Text/SlateTextUtils.h"
 #include "Framework/Text/RunUtils.h"
 #include "Fonts/ShapedTextFwd.h"
 
@@ -119,10 +120,11 @@ int32 FSlateTextRun::OnPaint(const FPaintArgs& PaintArgs, const FTextArgs& TextA
 	);
 
 	FTextOverflowArgs OverflowArgs;
-	if ((TextArgs.OverflowPolicy == ETextOverflowPolicy::Ellipsis || TextArgs.OverflowPolicy == ETextOverflowPolicy::MultilineEllipsis) && TextArgs.OverflowDirection != ETextOverflowDirection::NoOverflow)
+	if (SlateTextUtils::IsEllipsisPolicy(TextArgs.OverflowPolicy) && TextArgs.OverflowDirection != ETextOverflowDirection::NoOverflow)
 	{
 		OverflowArgs.OverflowTextPtr = BlockTextContext.ShapedTextCache->FindOrAddOverflowEllipsisText(AllottedGeometry.GetAccumulatedLayoutTransform().GetScale(), BlockTextContext, Style.Font);
 		OverflowArgs.OverflowDirection = TextArgs.OverflowDirection;
+		OverflowArgs.OverflowPolicy = TextArgs.OverflowPolicy;
 		OverflowArgs.bIsLastVisibleBlock = TextArgs.bIsLastVisibleBlock;
 		OverflowArgs.bIsNextBlockClipped = TextArgs.bIsNextBlockClipped;
 	}

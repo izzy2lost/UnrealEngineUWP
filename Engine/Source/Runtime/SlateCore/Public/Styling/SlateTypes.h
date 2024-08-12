@@ -85,6 +85,15 @@ enum class ETextOverflowPolicy : uint8
 
 	/** Overflowing text will be replaced with an ellipsis. A partially clipped line on the vertical axis will be totally clipped, and ellipsis displayed on previous line */
 	MultilineEllipsis,
+
+	/** Overflowing text will be replaced with an ellipsis starting from the center\n
+	 * Current Limits:
+	 * - Multiline is not supported
+	 * - RichText is not fully supported
+	 * - Highlight text is not supported
+	 * - Arabic mix with western character is not supported
+	 */
+	MiddleEllipsis
 };
 
 

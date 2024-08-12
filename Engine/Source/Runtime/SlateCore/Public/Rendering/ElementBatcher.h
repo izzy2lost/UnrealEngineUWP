@@ -8,6 +8,7 @@
 #include "Layout/Clipping.h"
 #include "Stats/Stats.h"
 #include "SlateGlobals.h"
+#include "Styling/SlateTypes.h"
 #include "Containers/StaticArray.h"
 
 class FSlateBatchData;
@@ -436,6 +437,7 @@ private:
 		int32 LayerId;
 		FColor FontTint;
 		ETextOverflowDirection OverflowDirection;
+		ETextOverflowPolicy OverflowPolicy;
 		bool bEnableCulling : 1;
 		bool bForceEllipsis : 1;
 		
@@ -444,6 +446,29 @@ private:
 	template<ESlateVertexRounding Rounding>
 	int32 BuildShapedTextSequence(const FShapedTextBuildContext& Context);
 private:
+	/** struct containing info to use for the middle ellipsis policy */
+	struct FMiddleEllipsisOverflowData
+	{
+		FMiddleEllipsisOverflowData()
+			: SkipIndexStart(INDEX_NONE)
+			, SkipIndexEnd(INDEX_NONE)
+			, LineX(0.f)
+			, LineY(0.f)
+			, EllipsisLineX(0.f)
+			, EllipsisLineY(0.f)
+		{}
+
+		int32 SkipIndexStart;
+		int32 SkipIndexEnd;
+		float LineX;
+		float LineY;
+		float EllipsisLineX;
+		float EllipsisLineY;
+	};
+
+	/** Retrieve information for the middle ellipsis, like offset to use and Glyphs to skip */
+	void CalculateMiddleEllipsisSkipIndexAndOffset(const FShapedTextBuildContext& InContext, ETextOverflowDirection InOverflowDirection, FMiddleEllipsisOverflowData& OutMiddleEllipsisData);
+
 	/** Uncached Batch data currently being filled in */
 	FSlateBatchData* BatchData;
 	FSlateBatchData* BatchDataHDR;
