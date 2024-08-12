@@ -6601,6 +6601,8 @@ void FSceneRenderer::FinishDynamicShadowMeshPassSetup(FRDGBuilder& GraphBuilder,
 	GraphBuilder.RHICmdList.QueueAsyncCommandListSubmit(TaskData->CommandLists);
 	TaskData->CommandLists.Empty();
 
+	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
+
 	// Ensure all shadow view dynamic primitives are uploaded before shadow-culling batching pass.
 	// TODO: automate this such that:
 	//  1. we only process views that need it (have dynamic primitives)
@@ -6638,8 +6640,6 @@ void FSceneRenderer::FinishDynamicShadowMeshPassSetup(FRDGBuilder& GraphBuilder,
 	{
 		Scene->GPUScene.UploadDynamicPrimitiveShaderDataForView(GraphBuilder, *ProjectedShadowInfo->ShadowDepthView, false, GetShadowInvalidatingInstancesInterface(ProjectedShadowInfo->DependentView) );
 	}
-
-	DynamicReadBufferForShadows.Commit(GraphBuilder.RHICmdList);
 
 	TaskData->bFinishedMeshPassSetup = true;
 }
