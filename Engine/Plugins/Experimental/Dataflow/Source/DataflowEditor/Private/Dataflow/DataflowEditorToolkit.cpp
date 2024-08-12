@@ -81,6 +81,10 @@ FDataflowEditorToolkit::FDataflowEditorToolkit(UAssetEditor* InOwningAssetEditor
 	: FBaseCharacterFXEditorToolkit(InOwningAssetEditor, FName("DataflowEditor"))
 	, DataflowEditor(Cast< UDataflowEditor>(InOwningAssetEditor))
 {
+
+	// When saving, only prompt to checkout and save assets that are actually modified
+	bCheckDirtyOnAssetSave = true;
+
 	check(DataflowEditor);
 
 	ConstructionDefaultLayout = FTabManager::NewLayout(FName("DataflowConstructionLayout03"))
@@ -533,7 +537,7 @@ void FDataflowEditorToolkit::GetSaveableObjects(TArray<UObject*>& OutObjects) co
 		if (UDataflow* DataflowAsset = GetEditorContent()->GetDataflowAsset())
 		{
 			check(DataflowAsset->IsAsset());
-			OutObjects.Add(DataflowAsset);
+			OutObjects.AddUnique(DataflowAsset);
 		}
 	}
 }

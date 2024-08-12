@@ -232,7 +232,7 @@ namespace DataflowContextHelpers
 		}
 		else
 		{
-			Asset = NewObject<T>(ContentOwner, T::StaticClass());
+			Asset = NewObject<T>(GetTransientPackage(), T::StaticClass(), NAME_None, RF_Transient);
 			if (UDataflowBaseContent* BaseContent = Cast< UDataflowBaseContent>(Asset.Get()))
 			{
 				BaseContent->SetIsSaved(false);
