@@ -330,6 +330,10 @@ class FSlateMaskingPS : public FGlobalShader
 {
 public:
 	DECLARE_GLOBAL_SHADER(FSlateMaskingPS);
+	SHADER_USE_PARAMETER_STRUCT(FSlateMaskingPS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+	END_SHADER_PARAMETER_STRUCT()
 };
 
 /** The simple element vertex declaration. */

@@ -131,7 +131,7 @@ private:
 	 */
 	void CleanUpdatableTextures();
 
-	virtual void OnVirtualDesktopSizeChanged(const FDisplayMetrics& NewDisplayMetric);
+	void OnVirtualDesktopSizeChanged(const FDisplayMetrics& NewDisplayMetric);
 
 	/** A mapping of SWindows to their RHI implementation */
 	TMap<const SWindow*, FSlateViewportInfo*> WindowToViewportInfo;
