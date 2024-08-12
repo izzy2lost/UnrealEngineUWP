@@ -42,7 +42,7 @@ struct TPropertyAnimatorEditorCurveChannelInterface : ISequencerChannelInterface
 };
 
 template<typename InChannelType, typename InMenuExtensionType>
-void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::ExtendSectionMenu_Raw(FMenuBuilder& InMenuBuilder
+void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder
 	, TSharedPtr<FExtender> InMenuExtender
 	, TConstArrayView<FMovieSceneChannelHandle> InChannels
 	, TConstArrayView<UMovieSceneSection*> InSections
@@ -58,19 +58,14 @@ void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtension
 }
 
 template<typename InChannelType, typename InMenuExtensionType>
-void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::ExtendSidebarMenu_Raw(FMenuBuilder& InMenuBuilder
+void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtensionType>::ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder
 	, TSharedPtr<FExtender> InMenuExtender
 	, TConstArrayView<FMovieSceneChannelHandle> InChannels
 	, TConstArrayView<UMovieSceneSection*> InSections
 	, TWeakPtr<ISequencer> InSequencer) const
 {
 	TSharedRef<FPropertyAnimatorEditorCurveSectionMenuExtension> Extension = MakeShared<FMenuExtensionType>(InChannels, InSections);
-
-	InMenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
-		, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& InInnerMenuBuilder)
-			{
-				Extension->ExtendMenu(InInnerMenuBuilder);
-			}));
+	Extension->ExtendMenu(MenuBuilder, false);
 }
 
 template<typename InChannelType, typename InMenuExtensionType>

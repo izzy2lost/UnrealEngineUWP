@@ -237,9 +237,6 @@ void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSeque
 		return;
 	}
 
-	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
-
 	MenuBuilder.BeginSection(TEXT("KeyEdit"), LOCTEXT("KeyEditMenuSection", "Key Edit"));
 	{
 		MenuBuilder.AddWidget(CreateKeyFrameDetails(InSelection).ToSharedRef(), FText::GetEmpty(), /*bInNoIndent=*/true);
@@ -341,7 +338,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 
 					ChannelTypeNames.Add(Channel.GetChannelTypeName());
 					ChannelInterfaces.Add(SequencerChannelIterface);
-					ChannelHandles.Add(KeyArea->GetChannel());
+					ChannelHandles.Add(Channel);
 					SceneSections.Add(KeyArea->GetOwningSection());
 				}
 			}

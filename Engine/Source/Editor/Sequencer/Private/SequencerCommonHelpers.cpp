@@ -344,8 +344,16 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 		return;
 	}
 
-	auto BuildSection = [&Sequencer, InWeakSections](FMenuBuilder& LambdaMenuBuilder)
+	const TWeakPtr<FSequencer> WeakSequencer = StaticCastWeakPtr<FSequencer>(Sequencer.AsWeak());
+
+	auto BuildSection = [WeakSequencer, InWeakSections](FMenuBuilder& LambdaMenuBuilder)
 	{
+		const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+		if (!Sequencer)
+		{
+			return;
+		}
+
 		TSharedRef<SSectionDetailsNotifyHookWrapper> DetailsNotifyWrapper = SNew(SSectionDetailsNotifyHookWrapper);
 		FDetailsViewArgs DetailsViewArgs;
 		{
@@ -365,17 +373,21 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 
 		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 		DetailsView->RegisterInstancedCustomPropertyTypeLayout("FrameNumber",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([&Sequencer]()
+			FOnGetPropertyTypeCustomizationInstance::CreateLambda([WeakSequencer]()
 			{
-				return MakeShared<FFrameNumberDetailsCustomization>(Sequencer.GetNumericTypeInterface());
+				const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+				check(Sequencer);
+				return MakeShared<FFrameNumberDetailsCustomization>(Sequencer->GetNumericTypeInterface());
 			}));
 		DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneSection::StaticClass(),
-			FOnGetDetailCustomizationInstance::CreateLambda([&Sequencer]()
+			FOnGetDetailCustomizationInstance::CreateLambda([WeakSequencer]()
 			{
+				const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+				check(Sequencer);
 				// We pass the current scene to the UMovieSceneSection customization so we can get the overall bounds of the section when we change a section from infinite->bounded.
-				UMovieScene* const CurrentScene = Sequencer.GetFocusedMovieSceneSequence()->GetMovieScene();
+				UMovieScene* const CurrentScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
 				check(CurrentScene);
-				return MakeShared<FMovieSceneSectionDetailsCustomization>(Sequencer.GetNumericTypeInterface(), CurrentScene);
+				return MakeShared<FMovieSceneSectionDetailsCustomization>(Sequencer->GetNumericTypeInterface(), CurrentScene);
 			}));
 	
 		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda([](const FPropertyAndParent& PropertyAndParent)
@@ -385,7 +397,7 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 		);
 
 		// Let section interfaces further customize the properties details view.
-		TSharedRef<FSequencerNodeTree> SequencerNodeTree = Sequencer.GetNodeTree();
+		TSharedRef<FSequencerNodeTree> SequencerNodeTree = Sequencer->GetNodeTree();
 		for (TWeakObjectPtr<> Section : InWeakSections)
 		{
 			if (Section.IsValid())
@@ -395,7 +407,7 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 				{
 					TSharedPtr<ISequencerSection> SectionInterface = SectionHandle->GetSectionInterface();
 					FSequencerSectionPropertyDetailsViewCustomizationParams CustomizationDetails(
-						SectionInterface.ToSharedRef(), Sequencer.AsWeak(), *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
+						SectionInterface.ToSharedRef(), WeakSequencer, *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
 					TSharedPtr<FObjectBindingModel> ParentObjectBindingNode = SectionHandle->FindAncestorOfType<FObjectBindingModel>();
 					if (ParentObjectBindingNode.IsValid())
 					{
@@ -406,11 +418,11 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 			}
 		}
 
-		Sequencer.OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.AsShared());
+		Sequencer->OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.ToSharedRef());
 		DetailsView->SetObjects(InWeakSections);
 
-		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, Sequencer.AsWeak());
-		DetailsNotifyWrapper->SetEnabled(!Sequencer.IsReadOnly());
+		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, WeakSequencer);
+		DetailsNotifyWrapper->SetEnabled(!Sequencer->IsReadOnly());
 
 		LambdaMenuBuilder.BeginSection(TEXT("TrackSection"), NSLOCTEXT("Sequencer", "TrackSectionMenuSection", "Track Section"));
         {

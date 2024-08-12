@@ -9,14 +9,10 @@ class FMenuBuilder;
 class FName;
 class FSequencer;
 class FText;
-class IDetailsView;
 class SVerticalBox;
 class SWidget;
-class UMovieSceneFolder;
-class UMovieSceneSequence;
 struct FCurveChannelSectionSidebarExtension;
 struct FKeyEditData;
-struct FMovieSceneMarkedFrame;
 
 namespace UE::Sequencer
 {
@@ -58,6 +54,4 @@ protected:
 	TSharedPtr<SVerticalBox> ContentBox;
 
 	TSharedPtr<FCurveChannelSectionSidebarExtension> CurveChannelExtension;
-
-	TSharedPtr<class FCurveChannelSectionMenuExtension> CurveChannelSectionExtension;
 };
