@@ -27,7 +27,6 @@ void SGraphDocument::Construct(const FArguments& InArgs, TSharedRef<FWorkspaceEd
 	OnPasteNodes = InArgs._OnPasteNodes;
 	OnCanDuplicateSelectedNodes = InArgs._OnCanDuplicateSelectedNodes;
 	OnDuplicateSelectedNodes = InArgs._OnDuplicateSelectedNodes;
-	OnNodeDoubleClicked = InArgs._OnNodeDoubleClicked;
 
 	SGraphEditor::FGraphEditorEvents Events;
 	Events.OnCreateActionMenu = SGraphEditor::FOnCreateActionMenu::CreateLambda([this, OnCreateActionMenu = InArgs._OnCreateActionMenu](UEdGraph* InGraph, const FVector2D& InNodePosition, const TArray<UEdGraphPin*>& InDraggedPins, bool bInAutoExpand, SGraphEditor::FActionMenuClosed InOnMenuClosed)

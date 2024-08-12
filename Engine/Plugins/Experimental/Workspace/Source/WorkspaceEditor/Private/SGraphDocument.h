@@ -107,9 +107,6 @@ class SGraphDocument : public SCompoundWidget
 	FOnCanPerformActionOnSelectedNodes OnCanDuplicateSelectedNodes;
 	FOnDuplicateSelectedNodes OnDuplicateSelectedNodes;
 
-	// Node Double click
-	FOnNodeDoubleClicked OnNodeDoubleClicked;
-
 	friend class FWorkspaceEditorModule;
 };
 
