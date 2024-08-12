@@ -73,6 +73,7 @@ public:
     const TSRef<CSourceProject>& GetSourceProject() const       { return _SourceProject; }
     const TUPtr<SPackageUsage>& GetPackageUsage() const         { return _PackageUsage; }
     TArray<FSolLocalizationInfo> TakeLocalizationInfo()         { return _Toolchain->TakeLocalizationInfo(); }
+    TArray<FSolLocalizationInfo> TakeStringInfo()               { return _Toolchain->TakeStringInfo(); }
 
     SBuildResults BuildProject(const CSourceProject& SourceProject, const SBuildContext& BuildContext);
     ECompilerResult ParseSnippet(const uLang::TSRef<Verse::Vst::Snippet>& OutVst, const CUTF8StringView& TextSnippet, const SBuildContext& BuildContext);

@@ -449,7 +449,7 @@ ECompilerResult CToolchain::SemanticAnalyzeVst(TOptional<TSRef<CSemanticProgram>
 ECompilerResult CToolchain::ExtractLocalization(const TSRef<CSemanticProgram>& Program, const SBuildContext& BuildContext, const SProgramContext& ProgramContext)
 {
     FVerseLocalizationGen Gen;
-    Gen(*Program, *BuildContext._Diagnostics, _LocalizationInfo);
+    Gen(*Program, *BuildContext._Diagnostics, _LocalizationInfo, _StringInfo );
     return ECompilerResult::Compile_RanLocalizationPass;
 }
 
@@ -457,6 +457,11 @@ ECompilerResult CToolchain::ExtractLocalization(const TSRef<CSemanticProgram>& P
 {
     return Move(_LocalizationInfo);
 }
+
+ TArray<FSolLocalizationInfo> CToolchain::TakeStringInfo()
+ {
+     return Move(_StringInfo);
+ }
 
 ECompilerResult CToolchain::IrGenerateProgram(const TSRef<CSemanticProgram>& Program, const SBuildContext& BuildContext, const SProgramContext& ProgramContext)
 {

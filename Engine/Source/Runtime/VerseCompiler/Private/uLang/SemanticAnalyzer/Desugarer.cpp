@@ -586,7 +586,7 @@ private:
         {
             // DefaultText argument
             TSRef<CExpressionBase> DefaultTextString = TSRef<CExprString>::New(MessageDefaultText);
-            
+            DefaultTextString->SetNonReciprocalMappedVstNode(&DefinitionVst);
             ArgumentExprs.Add(Move(DefaultTextString));
         }
 
@@ -1609,9 +1609,10 @@ private:
         }
     }
 
-    TSRef<CExpressionBase> DesugarStringLiteral(const Vst::StringLiteral& StringLiteralNode)
+    // The extra optional VstNode parameter is used when the string literal is created from a temporary StringLiteralNode. 
+    TSRef<CExpressionBase> DesugarStringLiteral(const Vst::StringLiteral& StringLiteralNode, const Vst::Node* VstNode = nullptr)
     {
-        return AddMapping(StringLiteralNode, TSRef<CExprString>::New(StringLiteralNode.GetSourceText()));
+        return AddMapping(VstNode ? *VstNode : StringLiteralNode, TSRef<CExprString>::New(StringLiteralNode.GetSourceText()));
     }
 
     TSRef<CExpressionBase> DesugarPathLiteral(const Vst::PathLiteral& PathLiteralNode)
@@ -1672,7 +1673,8 @@ private:
                     // to a single string literal.
                     if (AccumulatedNodes.Num() == 1 && AccumulatedNodes[0]->IsA<Vst::StringLiteral>())
                     {
-                        return DesugarStringLiteral({AccumulatedNodes[0]->As<Vst::StringLiteral>()});
+                        // Need to use InterpolatedStringNode as Vst, since there is nothing keeping the one used to create the literal alive
+                        return DesugarStringLiteral({AccumulatedNodes[0]->As<Vst::StringLiteral>()}, &InterpolatedStringNode);
                     }
                 }
             }

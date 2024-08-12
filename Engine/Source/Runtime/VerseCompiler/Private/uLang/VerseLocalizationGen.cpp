@@ -20,11 +20,16 @@ namespace {
 			const CSemanticProgram& Program;
 			CDiagnostics& Diagnostics;
             TArray<FSolLocalizationInfo>& LocalizationInfo;
+            TArray<FSolLocalizationInfo>& StringInfo;
 
-			explicit FImpl(const CSemanticProgram& Program, CDiagnostics& Diagnostics, TArray<FSolLocalizationInfo>& LocalizationInfo)
+			explicit FImpl(const CSemanticProgram& Program,
+                           CDiagnostics& Diagnostics,
+                           TArray<FSolLocalizationInfo>& LocalizationInfo,
+                           TArray<FSolLocalizationInfo>& StringInfo)
 				: Program(Program)
 				, Diagnostics(Diagnostics)
 				, LocalizationInfo(LocalizationInfo)
+                , StringInfo(StringInfo)
 			{
 			}
 
@@ -54,6 +59,13 @@ namespace {
 					Diagnostics.AppendGlitch(Move(Glitch), SGlitchLocus(&AstNode));
 				}
 			}
+
+            //-------------------------------------------------------------------------------------------------
+            void ScrapeString(const CExprString& StringAst)
+            {
+                SGlitchLocus GlitchLocus(&StringAst);
+                StringInfo.Emplace(StringAst._String, GlitchLocus.AsFormattedString());
+            }
 
 			//-------------------------------------------------------------------------------------------------
 			void ScrapeLocalization(const CExprDefinition& DefinitionAst)
@@ -189,6 +201,10 @@ namespace {
 						ScrapeLocalization(DataDefAst);
 					}
 				}
+                else if (NodeType == EAstNodeType::Literal_String)
+                {
+                    ScrapeString(static_cast<CExprString&>(Node));
+                }
 				Node.VisitChildren(*this);
 			}
 
@@ -201,9 +217,12 @@ namespace {
 
 namespace uLang
 {
-void FVerseLocalizationGen::operator()(const CSemanticProgram& Program, CDiagnostics& Diagnostics, TArray<FSolLocalizationInfo>& LocalizationInfo) const
+void FVerseLocalizationGen::operator()(const CSemanticProgram& Program,
+    CDiagnostics& Diagnostics,
+    TArray<FSolLocalizationInfo>& LocalizationInfo,
+    TArray<FSolLocalizationInfo>& StringInfo) const
 {
-    ::Private::FImpl Impl(Program, Diagnostics, LocalizationInfo);
+    ::Private::FImpl Impl(Program, Diagnostics, LocalizationInfo, StringInfo);
     Impl.ScrapeProgram();
 }
 }

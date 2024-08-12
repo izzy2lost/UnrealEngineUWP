@@ -16,6 +16,12 @@ struct FSolLocalizationInfo
         , Default(Default)
         , Where(Where)
     {}
+    FSolLocalizationInfo(const CUTF8String& Default,
+        const CUTF8String& Where)
+        : Path("")
+        , Default(Default)
+        , Where(Where)
+    {}
     CUTF8String Path;
     CUTF8String Default;
     CUTF8String Where;
@@ -23,6 +29,9 @@ struct FSolLocalizationInfo
 
 struct FVerseLocalizationGen
 {
-    VERSECOMPILER_API void operator()(const uLang::CSemanticProgram& Program, uLang::CDiagnostics& Diagnostics, TArray<FSolLocalizationInfo>& LocalizationInfo) const;
+    VERSECOMPILER_API void operator()(const uLang::CSemanticProgram& Program, 
+        uLang::CDiagnostics& Diagnostics,
+        TArray<FSolLocalizationInfo>& LocalizationInfo, 
+        TArray<FSolLocalizationInfo>& StringInfo) const;
 };
 }

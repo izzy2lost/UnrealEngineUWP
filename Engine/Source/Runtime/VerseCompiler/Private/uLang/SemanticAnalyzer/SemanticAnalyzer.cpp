@@ -8631,6 +8631,8 @@ private:
                 _Context._Scope->GetScopePath('/', CScope::EPathMode::PrefixSeparator).AsCString(),
                 PathPlusSymbolAst._Symbol.IsNull() ? "" : "/",
                 PathPlusSymbolAst._Symbol.AsCString()));
+        Result->SetNonReciprocalMappedVstNode(_Context._VstNode);
+
         if (TSPtr<CExpressionBase> ReplaceResult = AnalyzeStringLiteral(*Result, ExprCtx))
         {
             return ReplaceResult;

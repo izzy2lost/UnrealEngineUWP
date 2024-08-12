@@ -233,6 +233,9 @@ namespace uLang
         // Take localization information, i.e, it removes it from this object.
         TArray<FSolLocalizationInfo> TakeLocalizationInfo();
 
+        // Take string information, i.e, it removes it from this object.
+        TArray<FSolLocalizationInfo> TakeStringInfo();
+
     private:
         friend VERSECOMPILER_API TSRef<CToolchain> CreateToolchain(const SToolchainParams& Params);
         friend TSRef<CToolchain>;
@@ -252,7 +255,8 @@ namespace uLang
 
         TSPtr<Verse::Vst::Project> _ProjectVst; 
 
-        // Localization information stored here.
+        // Localization and string information stored here.
         TArray<FSolLocalizationInfo> _LocalizationInfo;
+        TArray<FSolLocalizationInfo> _StringInfo;
     };
 }
