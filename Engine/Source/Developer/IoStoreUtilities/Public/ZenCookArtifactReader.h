@@ -8,6 +8,8 @@
 
 class IStorageServerPlatformFile;
 
+namespace UE::Zen { class FScopeZenService; }
+
 class FZenCookArtifactReader
 	: public FCookArtifactReaderCommon
 {
@@ -23,8 +25,11 @@ public:
 
 	IOSTOREUTILITIES_API bool IterateDirectory(const TCHAR* Directory, IPlatformFile::FDirectoryVisitor& Visitor) override;
 private:
+#if !UE_BUILD_SHIPPING
 	bool MakeStorageServerPath(const TCHAR* Filename, FString& OutFilename) const;
 
+	TUniquePtr<UE::Zen::FScopeZenService> ScopeZenService;
 	FString ZenRootPath;
 	TUniquePtr<IStorageServerPlatformFile> StorageServerPlatformFile;
+#endif // !UE_BUILD_SHIPPING
 };
