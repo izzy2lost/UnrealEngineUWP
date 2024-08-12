@@ -55,6 +55,7 @@ ShaderCodeLibrary.cpp: Bound shader state cache implementation.
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/CompactBinaryWriter.h"
 #include "RHIStrings.h"
+#include "CookArtifactReader.h"
 #endif
 
 // allow introspection (e.g. dumping the contents) for easier debugging
@@ -258,6 +259,10 @@ namespace UE
 	}
 }
 
+#if WITH_EDITOR
+static ICookArtifactReader* CookArtifactReader = nullptr;
+#endif // WITH_EDITOR
+
 TSet<UE::ShaderLibrary::Private::FMountedPakFileInfo> UE::ShaderLibrary::Private::FMountedPakFileInfo::KnownPakFiles;
 FCriticalSection UE::ShaderLibrary::Private::FMountedPakFileInfo::KnownPakFilesAccessLock;
 
@@ -289,6 +294,39 @@ public:
 	int32 ShaderMapIndex;
 	bool bShaderMapPreloaded;
 };
+
+static FArchive* CreateShaderFileReader(const TCHAR* Filename)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->CreateFileReader(Filename);
+	}
+#endif
+	return IFileManager::Get().CreateFileReader(Filename);
+}
+
+static void ShaderFindFiles(TArray<FString>& FoundFiles, const TCHAR* Directory, const TCHAR* FileExtension)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->FindFiles(FoundFiles, Directory, FileExtension);
+	}
+#endif
+	return IFileManager::Get().FindFiles(FoundFiles, Directory, FileExtension);
+}
+
+static void ShaderFindFiles(TArray<FString>& Result, const TCHAR* Filename, bool Files, bool Directories)
+{
+#if WITH_EDITOR
+	if (CookArtifactReader)
+	{
+		return CookArtifactReader->FindFiles(Result, Filename, Files, Directories);
+	}
+#endif
+	return IFileManager::Get().FindFiles(Result, Filename, Files, Directories);
+}
 
 static FString GetCodeArchiveFilename(const FString& BaseDir, const FString& LibraryName, FName Platform)
 {
@@ -902,7 +940,7 @@ public:
 			FString ShaderFormatAndPlatform = ShaderFormatName.ToString() + TEXT("-") + PlatformName.ToString();
 
 			const FString DestFilePath = GetCodeArchiveFilename(ShaderCodeDir, InLibraryName, FName(ShaderFormatAndPlatform));
-			TUniquePtr<FArchive> Ar(IFileManager::Get().CreateFileReader(*DestFilePath));
+			TUniquePtr<FArchive> Ar(CreateShaderFileReader(*DestFilePath));
 			if (Ar)
 			{
 				uint32 Version = 0;
@@ -1763,7 +1801,7 @@ struct FEditorShaderCodeArchive
 	bool LoadExistingShaderCodeLibrary(FString const& MetaDataDir)
 	{
 		FString IntermediateFormatPath = GetCodeArchiveFilename(MetaDataDir / TEXT("ShaderLibrarySource"), LibraryName, FormatName);
-		FArchive* PrevCookedAr = IFileManager::Get().CreateFileReader(*IntermediateFormatPath);
+		FArchive* PrevCookedAr = CreateShaderFileReader(*IntermediateFormatPath);
 		bool bOK = true;
 		if (PrevCookedAr)
 		{
@@ -1811,7 +1849,7 @@ struct FEditorShaderCodeArchive
 
 	void AddShaderCodeLibraryByName(const FString& BaseDir, const FString& InLibraryName)
 	{
-		if (FArchive* PrevCookedAr = IFileManager::Get().CreateFileReader(*GetCodeArchiveFilename(BaseDir, InLibraryName, FormatName)))
+		if (FArchive* PrevCookedAr = CreateShaderFileReader(*GetCodeArchiveFilename(BaseDir, InLibraryName, FormatName)))
 		{
 			uint32 Version = 0;
 			*PrevCookedAr << Version;
@@ -1823,7 +1861,8 @@ struct FEditorShaderCodeArchive
 				*PrevCookedAr << PrevCookedShaders;
 
 				// check if it also contains the asset info file
-				if (PrevCookedShaders.LoadAssetInfo(GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName)))
+				TUniquePtr<FArchive> ShaderAssetInfoReader(CreateShaderFileReader(*GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName)));
+				if (PrevCookedShaders.LoadAssetInfo(ShaderAssetInfoReader.Get()))
 				{
 					UE_LOG(LogShaderLibrary, Display, TEXT("Loaded asset info %s for the shader library %s: %d entries"),
 						*GetShaderAssetInfoFilename(BaseDir, InLibraryName, FormatName),
@@ -1865,7 +1904,7 @@ struct FEditorShaderCodeArchive
 		const FString ShaderIntermediateLocation = FPaths::ProjectSavedDir() / TEXT("Shaders") / FormatNameStr;
 
 		TArray<FString> ShaderFiles;
-		IFileManager::Get().FindFiles(ShaderFiles, *ShaderIntermediateLocation, *ShaderExtension);
+		ShaderFindFiles(ShaderFiles, *ShaderIntermediateLocation, *ShaderExtension);
 
 		for (const FString& ShaderFileName : ShaderFiles)
 		{
@@ -2304,7 +2343,7 @@ struct FEditorShaderStableInfo
 		{
 			const FString ShaderIntermediateLocation = FPaths::ProjectSavedDir() / TEXT("Shaders") / FormatName.ToString();
 			TArray<FString> ShaderFiles;
-			IFileManager::Get().FindFiles(ShaderFiles, *ShaderIntermediateLocation, *StableExtension);
+			ShaderFindFiles(ShaderFiles, *ShaderIntermediateLocation, *StableExtension);
 			FString ExpectedFileNameText = LibraryName + TEXT("-") + FormatName.ToString() + TEXT(".");
 
 			for (const FString& ShaderFileName : ShaderFiles)
@@ -2687,7 +2726,7 @@ public:
 #else
 						FString SearchMask = Directory / FString::Printf(TEXT("ShaderArchive-*%s*.ushaderbytecode"), *Name);
 #endif
-						IFileManager::Get().FindFiles(UshaderbytecodeFiles, *SearchMask, true, false);
+						ShaderFindFiles(UshaderbytecodeFiles, *SearchMask, true, false);
 
 						if (UshaderbytecodeFiles.Num() > 0)
 						{
@@ -3810,8 +3849,9 @@ void FShaderCodeLibrary::CloseLibrary(FString const& Name)
 
 #if WITH_EDITOR
 // for now a lot of FShaderLibraryCooker code is aliased with the runtime code, but this will be refactored (UE-103486)
-void FShaderLibraryCooker::InitForCooking(bool bNativeFormat)
+void FShaderLibraryCooker::InitForCooking(bool bNativeFormat, ICookArtifactReader* InCookArtifactReader)
 {
+	CookArtifactReader = InCookArtifactReader;
 	FShaderLibrariesCollection::Impl = new FShaderLibrariesCollection(SP_NumPlatforms, bNativeFormat);
 }
 
@@ -3927,7 +3967,7 @@ bool FShaderLibraryCooker::CreatePatchLibrary(TArray<FString> const& OldMetaData
 {
 	TMap<FName, TSet<FString>> FormatLibraryMap;
 	TArray<FString> LibraryFiles;
-	IFileManager::Get().FindFiles(LibraryFiles, *(NewMetaDataDir / TEXT("ShaderLibrarySource")), *ShaderExtension);
+	ShaderFindFiles(LibraryFiles, *(NewMetaDataDir / TEXT("ShaderLibrarySource")), *ShaderExtension);
 	
 	for (FString const& Path : LibraryFiles)
 	{
@@ -3996,7 +4036,7 @@ bool FShaderLibraryCooker::MergeShaderCodeArchive(const TArray<FString>& CookedM
 		const FString ShaderStableInfoDir = MetadataDir / TEXT("PipelineCaches");
 
 		TArray<FString> ShaderBytecodeFiles;
-		IFileManager::Get().FindFiles(ShaderBytecodeFiles, *ShaderCodeDir, *ShaderExtension);
+		ShaderFindFiles(ShaderBytecodeFiles, *ShaderCodeDir, *ShaderExtension);
 		for (const FString& ByteCodeFile : ShaderBytecodeFiles)
 		{
 			if (ShaderCodeArchives.Contains(ByteCodeFile))
@@ -4019,7 +4059,7 @@ bool FShaderLibraryCooker::MergeShaderCodeArchive(const TArray<FString>& CookedM
 		}
 
 		TArray<FString> StableInfoFiles;
-		IFileManager::Get().FindFiles(StableInfoFiles, *ShaderStableInfoDir, *StableExtension);
+		ShaderFindFiles(StableInfoFiles, *ShaderStableInfoDir, *StableExtension);
 		for (const FString& StableInfoFile : StableInfoFiles)
 		{
 			if (ShaderStableInfos.Contains(StableInfoFile))

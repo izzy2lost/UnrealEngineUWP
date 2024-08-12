@@ -17,12 +17,15 @@
 #include "Misc/AssertionMacros.h"
 #include "Serialization/PackageWriter.h"
 #include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "UObject/CookEnums.h"
 #include "UObject/NameTypes.h"
 #include "UObject/SavePackage.h"
 
 class FCbFieldView;
 class FCbWriter;
+class ICookArtifactReader;
 class ITargetPlatform;
 struct FWeakObjectPtr;
 namespace UE::DerivedData { class FBuildDefinition; }
@@ -312,13 +315,14 @@ namespace UE::Cook
 	*/
 	struct FCookSavePackageContext
 	{
-		FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
+		FCookSavePackageContext(const ITargetPlatform* InTargetPlatform, TSharedPtr<ICookArtifactReader> InCookArtifactReader,
 			ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
 			TUniquePtr<FDeterminismManager>&& InDeterminismManager);
 		~FCookSavePackageContext();
 
 		FSavePackageContext SaveContext;
 		FString WriterDebugName;
+		TSharedPtr<ICookArtifactReader> ArtifactReader;
 		ICookedPackageWriter* PackageWriter;
 		ICookedPackageWriter::FCookCapabilities PackageWriterCapabilities;
 		TUniquePtr<FDeterminismManager> DeterminismManager;
@@ -616,7 +620,7 @@ struct FBeginCookContext
 	TArray<FBeginCookContextPlatform> PlatformContexts;
 	/** The list of platforms by themselves, for passing to functions that need just a list of platforms */
 	TArray<ITargetPlatform*> TargetPlatforms;
-	const UCookOnTheFlyServer& COTFS;
+	UCookOnTheFlyServer& COTFS;
 };
 
 /** Helper struct for FBeginCookContextForWorker; holds the context data for each platform being cooked */

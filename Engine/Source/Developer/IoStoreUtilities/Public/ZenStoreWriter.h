@@ -25,6 +25,7 @@
 #include "Serialization/CompactBinary.h"
 #include "Serialization/PackageWriter.h"
 #include "Templates/RefCounting.h"
+#include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
@@ -46,6 +47,7 @@ class FCbPackage;
 class FCbWriter;
 class FPackageStoreOptimizer;
 class FPackageStorePackage;
+class FZenCookArtifactReader;
 class FZenFileSystemManifest;
 
 /** 
@@ -57,7 +59,8 @@ class FZenStoreWriter
 public:
 	IOSTOREUTILITIES_API FZenStoreWriter(	const FString& OutputPath, 
 											const FString& MetadataDirectoryPath, 
-											const ITargetPlatform* TargetPlatform);
+											const ITargetPlatform* TargetPlatform,
+											TSharedRef<FZenCookArtifactReader> CookArtifactReader);
 
 	IOSTOREUTILITIES_API ~FZenStoreWriter();
 
@@ -233,6 +236,7 @@ private:
 	TUniquePtr<UE::FZenStoreHttpClient>	HttpClient;
 	bool IsLocalConnection = true;
 
+	TSharedRef<FZenCookArtifactReader>	CookArtifactReader;
 	const ITargetPlatform&				TargetPlatform;
 	const FName							TargetPlatformFName;
 	FString								ProjectId;

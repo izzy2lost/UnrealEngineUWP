@@ -14,6 +14,7 @@
 #include "Misc/PackageAccessTracking.h"
 #include "Templates/Function.h"
 #include "Templates/RefCounting.h"
+#include "Templates/SharedPointer.h"
 #include "Templates/UniquePtr.h"
 #include "TickableEditorObject.h"
 #include "UObject/ICookInfo.h"
@@ -30,9 +31,12 @@ class FAssetRegistryGenerator;
 class FAsyncIODelete;
 class FDiffModeCookServerUtils;
 class FIterativeValidatePackageWriter;
+class FLayeredCookArtifactReader;
+class FLooseFilesCookArtifactReader;
 class FReferenceCollector;
 class FSavePackageContext;
 class IAssetRegistry;
+class ICookArtifactReader;
 class ICookedPackageWriter;
 class IPlugin;
 class ITargetPlatform;
@@ -1096,7 +1100,7 @@ private:
 	 */
 	void LoadBeginCookIterativeFlags(FBeginCookContext& BeginContext);
 	/** const because it is not always calledand should avoid sideeffects */
-	void LoadBeginCookIterativeFlagsLocal(FBeginCookContext& BeginContext) const;
+	void LoadBeginCookIterativeFlagsLocal(FBeginCookContext& BeginContext);
 	/** Initialize the sandbox for a new cook session */
 	void BeginCookSandbox(FBeginCookContext& BeginContext);
 
@@ -1226,7 +1230,7 @@ private:
 	 * previous cook even when running iteratively.
 	 */
 	bool ArePreviousCookSettingsCompatible(const TMap<FName, FString>& CurrentCookSettings,
-		const ITargetPlatform* TargetPlatform) const;
+		const ITargetPlatform* TargetPlatform);
 	/** Save the CurrentCookSettings into the output directory. */
 	void SaveCookSettings(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform);
 	/** Load the CookSettings written at beginning of cook and rewrite them with CookInProgress flag removed. */
@@ -1394,6 +1398,8 @@ private:
 	UE::Cook::EPollStatus TryPopulateGeneratedPackage(UE::Cook::FGenerationHelper& GenerationHelper,
 		UE::Cook::FCookGenerationInfo& GeneratedInfo);
 
+	ICookArtifactReader& FindOrCreateCookArtifactReader(const ITargetPlatform* TargetPlatform);
+	const ICookArtifactReader* FindCookArtifactReader(const ITargetPlatform* TargetPlatform) const;
 	ICookedPackageWriter& FindOrCreatePackageWriter(const ITargetPlatform* TargetPlatform);
 	const ICookedPackageWriter* FindPackageWriter(const ITargetPlatform* TargetPlatform) const;
 	void FindOrCreateSaveContexts(TConstArrayView<const ITargetPlatform*> TargetPlatforms);
@@ -1567,6 +1573,8 @@ private:
 	TUniquePtr<UE::Cook::FBuildDefinitions> BuildDefinitions;
 	TUniquePtr<UE::Cook::FCookDirector> CookDirector;
 	TUniquePtr<UE::Cook::FCookWorkerClient> CookWorkerClient;
+	TUniquePtr<FLayeredCookArtifactReader> AllContextArtifactReader;
+	TSharedPtr<FLooseFilesCookArtifactReader> SharedLooseFilesCookArtifactReader;
 
 	TArray<UE::Cook::FCookSavePackageContext*> SavePackageContexts;
 	/**

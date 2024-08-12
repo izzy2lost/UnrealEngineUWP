@@ -23,6 +23,7 @@ public class RenderCore : ModuleRules
 			DynamicallyLoadedModuleNames.Add("TargetPlatform");
 			// UObjects are used to produce the full path of the asset by which the shaders are identified
 			PrivateDependencyModuleNames.Add("CoreUObject");
+			PrivateIncludePathModuleNames.Add("IoStoreUtilities");
 		}
 		// shader runtime usage visualization requires ability to create images - it is only used in non-editor desktop development targets
 		// UE_BUILD_DEVELOPMENT is also defined for DebugGame

@@ -3,14 +3,15 @@
 #include "CookTypes.h"
 
 #include "Containers/StringView.h"
+#include "CookArtifactReader.h"
 #include "Cooker/CompactBinaryTCP.h"
 #include "Cooker/CookDeterminismManager.h"
 #include "Cooker/CookPackageData.h"
 #include "Cooker/PackageTracker.h"
 #include "DerivedDataRequest.h"
 #include "Editor.h"
-#include "HAL/PlatformTLS.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/PlatformTLS.h"
 #include "Interfaces/ITargetPlatform.h"
 #include "Interfaces/ITargetPlatformManagerModule.h"
 #include "Math/NumericLimits.h"
@@ -221,11 +222,12 @@ void SetIsSchedulerThread(bool bValue)
 	FPlatformTLS::SetTlsValue(SchedulerThreadTlsSlot, bValue ? (void*)0x1 : (void*)0x0);
 }
 
-FCookSavePackageContext::FCookSavePackageContext(const ITargetPlatform* InTargetPlatform,
+FCookSavePackageContext::FCookSavePackageContext(const ITargetPlatform* InTargetPlatform, TSharedPtr<ICookArtifactReader> InCookArtifactReader,
 	ICookedPackageWriter* InPackageWriter, FStringView InWriterDebugName, FSavePackageSettings InSettings,
 	TUniquePtr<FDeterminismManager>&& InDeterminismManager)
 	: SaveContext(InTargetPlatform, InPackageWriter, MoveTemp(InSettings))
 	, WriterDebugName(InWriterDebugName)
+	, ArtifactReader(InCookArtifactReader)
 	, PackageWriter(InPackageWriter)
 	, DeterminismManager(MoveTemp(InDeterminismManager))
 {

@@ -22,9 +22,10 @@
 #include "Templates/UniquePtr.h"
 #include "UObject/NameTypes.h"
 
-class FAsyncIODelete;
 class FAssetRegistryState;
+class FAsyncIODelete;
 class FLargeMemoryWriter;
+class FLooseFilesCookArtifactReader;
 class FMD5;
 class ITargetPlatform;
 template <typename ReferencedType> class TRefCountPtr;
@@ -40,7 +41,7 @@ public:
 	FLooseCookedPackageWriter(const FString& OutputPath, const FString& MetadataDirectoryPath,
 		const ITargetPlatform* TargetPlatform, FAsyncIODelete& InAsyncIODelete,
 		UE::Cook::FCookSandbox& InSandboxFile, FBeginCacheCallback&& InBeginCacheCallback,
-		FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback);
+		FRegisterDeterminismHelperCallback&& InRegisterDeterminismHelperCallback, TSharedRef<FLooseFilesCookArtifactReader> CookArtifactReader);
 	~FLooseCookedPackageWriter();
 
 	virtual FCapabilities GetCapabilities() const override
@@ -161,6 +162,8 @@ private:
 	{
 		return AllPackageHashes;
 	}
+
+	TSharedRef<FLooseFilesCookArtifactReader> CookArtifactReader;
 
 	// If EWriteOptions::ComputeHash is not set, the package will not get added to this.
 	TMap<FName, TRefCountPtr<FPackageHashes>> AllPackageHashes;

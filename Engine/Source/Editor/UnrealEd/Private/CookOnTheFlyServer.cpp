@@ -89,10 +89,12 @@
 #include "Internationalization/Culture.h"
 #include "Internationalization/PackageLocalizationManager.h"
 #include "IPAddress.h"
+#include "LayeredCookArtifactReader.h"
 #include "LocalizationChunkDataGenerator.h"
 #include "LockFile.h"
 #include "Logging/MessageLog.h"
 #include "Logging/TokenizedMessage.h"
+#include "LooseFilesCookArtifactReader.h"
 #include "Materials/Material.h"
 #include "Materials/MaterialInterface.h"
 #include "MeshCardRepresentation.h"
@@ -115,6 +117,7 @@
 #include "Modules/ModuleManager.h"
 #include "ObjectTools.h"
 #include "PackageHelperFunctions.h"
+#include "PipelineCacheChunkDataGenerator.h"
 #include "PlatformInfo.h"
 #include "ProfilingDebugging/CookStats.h"
 #include "ProfilingDebugging/PlatformFileTrace.h"
@@ -131,10 +134,9 @@
 #include "Settings/ProjectPackagingSettings.h"
 #include "ShaderCodeLibrary.h"
 #include "ShaderCompiler.h"
+#include "ShaderLibraryChunkDataGenerator.h"
 #include "ShaderStats.h"
 #include "ShaderStatsCollector.h"
-#include "ShaderLibraryChunkDataGenerator.h"
-#include "PipelineCacheChunkDataGenerator.h"
 #include "String/Find.h"
 #include "String/ParseLines.h"
 #include "String/ParseTokens.h"
@@ -156,6 +158,7 @@
 #include "UObject/UObjectArray.h"
 #include "UObject/UObjectIterator.h"
 #include "UserGeneratedContentLocalization.h"
+#include "ZenCookArtifactReader.h"
 #include "ZenStoreWriter.h"
 
 #define LOCTEXT_NAMESPACE "Cooker"
@@ -6897,6 +6900,9 @@ void UCookOnTheFlyServer::Initialize( ECookMode::Type DesiredCookMode, ECookInit
 	PackageTracker = MakeUnique<UE::Cook::FPackageTracker>(*this);
 	DiffModeHelper = MakeUnique<FDiffModeCookServerUtils>();
 	BuildDefinitions = MakeUnique<UE::Cook::FBuildDefinitions>();
+	SharedLooseFilesCookArtifactReader = MakeShared<FLooseFilesCookArtifactReader>();
+	AllContextArtifactReader = MakeUnique<FLayeredCookArtifactReader>();
+	AllContextArtifactReader->AddLayer(SharedLooseFilesCookArtifactReader.ToSharedRef());
 	CookByTheBookOptions = MakeUnique<UE::Cook::FCookByTheBookOptions>();
 	CookOnTheFlyOptions = MakeUnique<UE::Cook::FCookOnTheFlyOptions>();
 	AssetRegistry = IAssetRegistry::Get();
@@ -8250,11 +8256,18 @@ FString UCookOnTheFlyServer::GetCookSettingsFileName(const ITargetPlatform* Targ
 	return ConvertToFullSandboxPath(*CookedSettingsIni, true, TargetPlatform->PlatformName());
 }
 
-bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform) const
+bool UCookOnTheFlyServer::ArePreviousCookSettingsCompatible(const TMap<FName, FString>& CurrentCookSettings, const ITargetPlatform* TargetPlatform)
 {
 	FConfigFile ConfigFile;
 	FString CookSettingsFileName = GetCookSettingsFileName(TargetPlatform);
-	ConfigFile.Read(CookSettingsFileName);
+	if (TUniquePtr<FArchive> Reader(FindOrCreateCookArtifactReader(TargetPlatform).CreateFileReader(*CookSettingsFileName)); Reader)
+	{
+		FString CookSettingsFileContents;
+		if (FFileHelper::LoadFileToString(CookSettingsFileContents, *Reader.Get()))
+		{
+			ConfigFile.ProcessInputFileContents(CookSettingsFileContents, CookSettingsFileName);
+		}
+	}
 
 	const FConfigSection* CookSettings = ConfigFile.FindSection(TEXT_CookSettings);
 	if (CookSettings == nullptr)
@@ -9665,7 +9678,7 @@ void UCookOnTheFlyServer::BeginCookStartShaderCodeLibrary(FBeginCookContext& Beg
 	bool const bCacheShaderLibraries = IsUsingShaderCodeLibrary();
 	if (bCacheShaderLibraries)
 	{
-		FShaderLibraryCooker::InitForCooking(PackagingSettings->bSharedMaterialNativeLibraries);
+		FShaderLibraryCooker::InitForCooking(PackagingSettings->bSharedMaterialNativeLibraries, AllContextArtifactReader.Get());
 
 		bool bAllPlatformsNeedStableKeys = false;
 		// support setting without Hungarian prefix for the compatibility, but allow newer one to override
@@ -11195,7 +11208,7 @@ void UCookOnTheFlyServer::LoadBeginCookIterativeFlags(FBeginCookContext& BeginCo
 	WorkerRequests->GetBeginCookIterativeFlags(*this, BeginContext);
 }
 
-void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& BeginContext) const
+void UCookOnTheFlyServer::LoadBeginCookIterativeFlagsLocal(FBeginCookContext& BeginContext)
 {
 	const bool bIsDiffOnly = FParse::Param(FCommandLine::Get(), TEXT("DIFFONLY"));
 	bool bForceRecook = FParse::Param(FCommandLine::Get(), TEXT("fullcook")) || FParse::Param(FCommandLine::Get(), TEXT("forcerecook"));
@@ -11415,6 +11428,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	const FString ResolvedMetadataPath = MetadataPathSandbox.Replace(TEXT("[Platform]"), *PlatformString);
 
 	TUniquePtr<FDeterminismManager> DeterminismManager;
+	TSharedPtr<ICookArtifactReader> CookArtifactReader = nullptr;
 	ICookedPackageWriter* PackageWriter = nullptr;
 	FString WriterDebugName;
 	ICookedPackageWriter::FBeginCacheCallback BeginCacheCallback(
@@ -11437,7 +11451,13 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	}
 	if (IsUsingZenStore())
 	{
-		FZenStoreWriter* ZenWriter = new FZenStoreWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform);
+		TSharedRef<FLayeredCookArtifactReader> LayeredReader = MakeShared<FLayeredCookArtifactReader>();
+		TSharedRef<FZenCookArtifactReader> ZenReader = MakeShared<FZenCookArtifactReader>(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform);
+		LayeredReader->AddLayer(SharedLooseFilesCookArtifactReader.ToSharedRef());
+		LayeredReader->AddLayer(ZenReader);
+		AllContextArtifactReader->AddLayer(ZenReader);
+		CookArtifactReader = LayeredReader;
+		FZenStoreWriter* ZenWriter = new FZenStoreWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform, ZenReader);
 		ZenWriter->SetBeginCacheCallback(MoveTemp(BeginCacheCallback));
 		ZenWriter->SetRegisterDeterminismHelperCallback(MoveTemp(RegisterDeterminismHelperCallback));
 		PackageWriter = ZenWriter;
@@ -11445,9 +11465,11 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 	}
 	else
 	{
+		CookArtifactReader = SharedLooseFilesCookArtifactReader;
 		PackageWriter = new FLooseCookedPackageWriter(ResolvedRootPath, ResolvedMetadataPath, TargetPlatform,
 			GetAsyncIODelete(), *SandboxFile, MoveTemp(BeginCacheCallback),
-			MoveTemp(RegisterDeterminismHelperCallback));
+			MoveTemp(RegisterDeterminismHelperCallback),
+			SharedLooseFilesCookArtifactReader.ToSharedRef());
 		WriterDebugName = TEXT("LooseCookedPackageWriter");
 	}
 
@@ -11505,7 +11527,7 @@ UE::Cook::FCookSavePackageContext* UCookOnTheFlyServer::CreateSaveContext(const 
 			});
 	}
 
-	FCookSavePackageContext* Context = new FCookSavePackageContext(TargetPlatform, PackageWriter, WriterDebugName, MoveTemp(SavePackageSettings),
+	FCookSavePackageContext* Context = new FCookSavePackageContext(TargetPlatform, CookArtifactReader, PackageWriter, WriterDebugName, MoveTemp(SavePackageSettings),
 		MoveTemp(DeterminismManager));
 	return Context;
 
@@ -11536,6 +11558,11 @@ void UCookOnTheFlyServer::FinalizePackageStore()
 
 void UCookOnTheFlyServer::ClearPackageStoreContexts()
 {
+	if (AllContextArtifactReader)
+	{
+		AllContextArtifactReader->EmptyLayers();
+		AllContextArtifactReader->AddLayer(SharedLooseFilesCookArtifactReader.ToSharedRef());
+	}
 	for (UE::Cook::FCookSavePackageContext* Context : SavePackageContexts)
 	{
 		delete Context;
@@ -12941,6 +12968,17 @@ bool UCookOnTheFlyServer::GetAllPackageFilenamesFromAssetRegistry(const FString&
 	}
 
 	return false;
+}
+
+ICookArtifactReader& UCookOnTheFlyServer::FindOrCreateCookArtifactReader(const ITargetPlatform* TargetPlatform)
+{
+	return *FindOrCreateSaveContext(TargetPlatform).ArtifactReader;
+}
+
+const ICookArtifactReader* UCookOnTheFlyServer::FindCookArtifactReader(const ITargetPlatform* TargetPlatform) const
+{
+	const UE::Cook::FCookSavePackageContext* Context = FindSaveContext(TargetPlatform);
+	return Context ? Context->ArtifactReader.Get() : nullptr;
 }
 
 ICookedPackageWriter& UCookOnTheFlyServer::FindOrCreatePackageWriter(const ITargetPlatform* TargetPlatform)

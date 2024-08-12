@@ -623,14 +623,19 @@ void FSerializedShaderArchive::SaveAssetInfo(FArchive& Ar)
 
 bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 {
-	TArray<uint8> FileData;
-	if (!FFileHelper::LoadFileToArray(FileData, *Filename))
+	TUniquePtr<FArchive> Reader(IFileManager::Get().CreateFileReader(*Filename));
+	return LoadAssetInfo(Reader.Get());
+}
+
+bool FSerializedShaderArchive::LoadAssetInfo(FArchive* Ar)
+{
+	if (!Ar)
 	{
 		return false;
 	}
 
 	FString JsonText;
-	FFileHelper::BufferToString(JsonText, FileData.GetData(), FileData.Num());
+	FFileHelper::LoadFileToString(JsonText, *Ar);
 
 	TSharedPtr<FJsonObject> JsonObject;
 	TSharedRef<TJsonReader<TCHAR>> Reader = TJsonReaderFactory<TCHAR>::Create(JsonText);
@@ -645,7 +650,7 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 	if (!AssetInfoVersion.IsValid())
 	{
 		UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: missing AssetInfoVersion (damaged file?)"), 
-			*Filename);
+			*Ar->GetArchiveName());
 		return false;
 	}
 	
@@ -653,7 +658,7 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 	if (FileVersion != EAssetInfoVersion::CurrentVersion)
 	{
 		UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: expected version %d, got unsupported version %d."),
-			*Filename, static_cast<int32>(EAssetInfoVersion::CurrentVersion), static_cast<int32>(FileVersion));
+			*Ar->GetArchiveName(), static_cast<int32>(EAssetInfoVersion::CurrentVersion), static_cast<int32>(FileVersion));
 		return false;
 	}
 
@@ -661,13 +666,13 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 	if (!AssetInfoArrayValue.IsValid())
 	{
 		UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: missing ShaderCodeToAssets array (damaged file?)"),
-			*Filename);
+			*Ar->GetArchiveName());
 		return false;
 	}
 	
 	TArray<TSharedPtr<FJsonValue>> AssetInfoArray = AssetInfoArrayValue->AsArray();
 	UE_LOG(LogShaderLibrary, Display, TEXT("Reading asset info file %s: found %d existing mappings"),
-		*Filename, AssetInfoArray.Num());
+		*Ar->GetArchiveName(), AssetInfoArray.Num());
 
 	for (int32 IdxPair = 0, NumPairs = AssetInfoArray.Num(); IdxPair < NumPairs; ++IdxPair)
 	{
@@ -675,7 +680,7 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 		if (UNLIKELY(!Pair.IsValid()))
 		{
 			UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: ShaderCodeToAssets array contains unreadable mapping #%d (damaged file?)"),
-				*Filename,
+				*Ar->GetArchiveName(),
 				IdxPair
 				);
 			return false;
@@ -685,7 +690,7 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 		if (UNLIKELY(!ShaderMapHashJson.IsValid()))
 		{
 			UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: ShaderCodeToAssets array contains unreadable ShaderMapHash for mapping %d (damaged file?)"),
-				*Filename,
+				*Ar->GetArchiveName(),
 				IdxPair
 				);
 			return false;
@@ -698,7 +703,7 @@ bool FSerializedShaderArchive::LoadAssetInfo(const FString& Filename)
 		if (UNLIKELY(!AssetPathsArrayValue.IsValid()))
 		{
 			UE_LOG(LogShaderLibrary, Warning, TEXT("Rejecting asset info file %s: ShaderCodeToAssets array contains unreadable Assets array for mapping %d (damaged file?)"),
-				*Filename,
+				*Ar->GetArchiveName(),
 				IdxPair
 			);
 			return false;

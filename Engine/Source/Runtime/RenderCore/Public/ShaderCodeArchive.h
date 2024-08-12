@@ -262,6 +262,7 @@ public:
 #if WITH_EDITOR
 	RENDERCORE_API void SaveAssetInfo(FArchive& Ar);
 	RENDERCORE_API bool LoadAssetInfo(const FString& Filename);
+	RENDERCORE_API bool LoadAssetInfo(FArchive* Ar);
 	RENDERCORE_API void CreateAsChunkFrom(const FSerializedShaderArchive& Parent, const TSet<FName>& PackagesInChunk, TArray<int32>& OutShaderCodeEntriesNeeded);
 	RENDERCORE_API void CollectStatsAndDebugInfo(FDebugStats& OutDebugStats, FExtendedDebugStats* OutExtendedDebugStats);
 	RENDERCORE_API void DumpContentsInPlaintext(FString& OutText) const;

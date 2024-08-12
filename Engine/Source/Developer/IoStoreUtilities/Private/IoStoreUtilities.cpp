@@ -75,6 +75,7 @@
 #include "ShaderCodeArchive.h"
 #include "ZenStoreHttpClient.h"
 #include "IPlatformFilePak.h"
+#include "ZenCookArtifactReader.h"
 #include "ZenStoreWriter.h"
 #include "IO/IoContainerHeader.h"
 #include "ProfilingDebugging/CountersTrace.h"
@@ -8539,7 +8540,8 @@ int32 Staged2Zen(const FString& BuildPath, const FKeyChain& KeyChain, const FStr
 	}
 
 	FString MetaDataOutputPath = FPaths::Combine(CookedOutputPath, ProjectName, TEXT("Metadata"));
-	TUniquePtr<FZenStoreWriter> ZenStoreWriter = MakeUnique<FZenStoreWriter>(CookedOutputPath, MetaDataOutputPath, TargetPlatform);
+	TSharedRef<FZenCookArtifactReader> ZenCookArtifactReader = MakeShared<FZenCookArtifactReader>(CookedOutputPath, MetaDataOutputPath, TargetPlatform);
+	TUniquePtr<FZenStoreWriter> ZenStoreWriter = MakeUnique<FZenStoreWriter>(CookedOutputPath, MetaDataOutputPath, TargetPlatform, ZenCookArtifactReader);
 	
 	ICookedPackageWriter::FCookInfo CookInfo;
 	CookInfo.bFullBuild = true;

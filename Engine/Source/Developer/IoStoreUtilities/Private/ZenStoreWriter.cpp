@@ -31,6 +31,7 @@
 #include "Serialization/LargeMemoryWriter.h" 
 #include "SocketSubsystem.h"
 #include "UObject/SavePackage.h"
+#include "ZenCookArtifactReader.h"
 #include "ZenFileSystemManifest.h"
 #include "ZenStoreHttpClient.h"
 
@@ -162,9 +163,11 @@ void FZenStoreWriter::StaticInit()
 FZenStoreWriter::FZenStoreWriter(
 	const FString& InOutputPath, 
 	const FString& InMetadataDirectoryPath, 
-	const ITargetPlatform* InTargetPlatform
+	const ITargetPlatform* InTargetPlatform,
+	TSharedRef<FZenCookArtifactReader> InCookArtifactReader
 )
-	: TargetPlatform(*InTargetPlatform)
+	: CookArtifactReader(InCookArtifactReader)
+	, TargetPlatform(*InTargetPlatform)
 	, TargetPlatformFName(*InTargetPlatform->PlatformName())
 	, OutputPath(InOutputPath)
 	, MetadataDirectoryPath(InMetadataDirectoryPath)
@@ -553,10 +556,13 @@ void FZenStoreWriter::Initialize(const FCookInfo& Info)
 					FString ServerPath = FString(FileObj["serverpath"].AsString());
 					FString ClientPath = FString(FileObj["clientpath"].AsString());
 
-					FIoChunkId FileChunkId;
-					FileChunkId.Set(FileId.GetView());
+					if (!ServerPath.IsEmpty())
+					{
+						FIoChunkId FileChunkId;
+						FileChunkId.Set(FileId.GetView());
 
-					ZenFileSystemManifest->AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
+						ZenFileSystemManifest->AddManifestEntry(FileChunkId, MoveTemp(ServerPath), MoveTemp(ClientPath));
+					}
 				}
 
 				UE_LOG(LogZenStoreWriter, Display, TEXT("Fetched '%d' file(s) from oplog '%s/%s'"), ZenFileSystemManifest->NumEntries(), *ProjectId, *OplogId);
@@ -1041,16 +1047,16 @@ TUniquePtr<FAssetRegistryState> FZenStoreWriter::LoadPreviousAssetRegistry()
 	// the returned asset registry to the intersection of the oplog and the previous asset registry;
 	// to report a package as already cooked we have to have the information from both sources.
 	FString PreviousAssetRegistryFile = FPaths::Combine(MetadataDirectoryPath, GetDevelopmentAssetRegistryFilename());
-	FArrayReader SerializedAssetData;
-	if (!IFileManager::Get().FileExists(*PreviousAssetRegistryFile) ||
-		!FFileHelper::LoadFileToArray(SerializedAssetData, *PreviousAssetRegistryFile))
+	TUniquePtr<FArchive> Reader(CookArtifactReader->CreateFileReader(*PreviousAssetRegistryFile));
+
+	if (!Reader)
 	{
 		RemoveCookedPackages();
 		return TUniquePtr<FAssetRegistryState>();
 	}
 
 	TUniquePtr<FAssetRegistryState> PreviousState = MakeUnique<FAssetRegistryState>();
-	PreviousState->Load(SerializedAssetData);
+	PreviousState->Load(*Reader);
 
 	TSet<FName> RemoveSet;
 	const TMap<FName, const FAssetPackageData*>& PreviousStatePackages = PreviousState->GetAssetPackageDataMap(); 
