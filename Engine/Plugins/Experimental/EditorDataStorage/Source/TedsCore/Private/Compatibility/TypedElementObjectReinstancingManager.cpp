@@ -11,12 +11,12 @@
 
 DECLARE_LOG_CATEGORY_CLASS(LogTedsObjectReinstancing, Log, Log)
 
-UTypedElementObjectReinstancingManager::UTypedElementObjectReinstancingManager()
+UTedsObjectReinstancingManager::UTedsObjectReinstancingManager()
 	: MementoRowBaseTable(TypedElementInvalidTableHandle)
 {
 }
 
-void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
+void UTedsObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -25,9 +25,9 @@ void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& I
 	DataStorageCompatibility = &InDataStorageCompatibility;
 	
 	UpdateCompletedCallbackHandle = 
-		Database->OnUpdateCompleted().AddUObject(this, &UTypedElementObjectReinstancingManager::UpdateCompleted);
+		Database->OnUpdateCompleted().AddUObject(this, &UTedsObjectReinstancingManager::UpdateCompleted);
 	ReinstancingCallbackHandle = 
-		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced);
+		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTedsObjectReinstancingManager::HandleOnObjectsReinstanced);
 	ObjectRemovedCallbackHandle = DataStorageCompatibility->RegisterObjectRemovedCallback(
 		[this](const void* Object, const FObjectTypeInfo& TypeInfo, RowHandle Row)
 		{
@@ -35,7 +35,7 @@ void UTypedElementObjectReinstancingManager::Initialize(UTypedElementDatabase& I
 		});
 }
 
-void UTypedElementObjectReinstancingManager::Deinitialize()
+void UTedsObjectReinstancingManager::Deinitialize()
 {
 	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ReinstancingCallbackHandle);
 	DataStorageCompatibility->UnregisterObjectRemovedCallback(ObjectRemovedCallbackHandle);
@@ -45,7 +45,7 @@ void UTypedElementObjectReinstancingManager::Deinitialize()
 	Database = nullptr;
 }
 
-void UTypedElementObjectReinstancingManager::UpdateCompleted()
+void UTedsObjectReinstancingManager::UpdateCompleted()
 {
 	using namespace TypedElementDataStorage;
 
@@ -57,7 +57,7 @@ void UTypedElementObjectReinstancingManager::UpdateCompleted()
 	OldObjectToMementoMap.Reset();
 }
 
-void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(
+void UTedsObjectReinstancingManager::HandleOnObjectPreRemoved(
 	const void* Object, 
 	const UE::Editor::DataStorage::FObjectTypeInfo& TypeInfo, 
 	TypedElementDataStorage::RowHandle ObjectRow)
@@ -67,7 +67,7 @@ void UTypedElementObjectReinstancingManager::HandleOnObjectPreRemoved(
 	OldObjectToMementoMap.Add(Object, Memento);
 }
 
-void UTypedElementObjectReinstancingManager::HandleOnObjectsReinstanced(
+void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 	const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap)
 {
 	ITypedElementDataStorageInterface* Interface = Database;

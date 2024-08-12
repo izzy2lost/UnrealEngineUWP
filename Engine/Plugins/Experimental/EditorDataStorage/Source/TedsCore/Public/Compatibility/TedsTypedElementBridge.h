@@ -2,52 +2,12 @@
 
 #pragma once
 
-#include "Elements/Framework/TypedElementHandle.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "UObject/UObjectGlobals.h"
+#include "Delegates/Delegate.h"
 
-#include "TedsTypedElementBridge.generated.h"
-
-class UTypedElementRegistry;
-
-DECLARE_MULTICAST_DELEGATE_OneParam(FOnTEDSTypedElementBridgeEnable, bool /*bEnabled*/);
-
-/**
- * This class is responsible for running queries that will ensure TypedElementHandles
- * are cleaned up when TEDS is shut down.
- */
-UCLASS(Transient)
-class UTEDSTypedElementBridge : public UTypedElementDataStorageFactory
+namespace UE::Editor::DataStorage::Compatibility
 {
-	GENERATED_BODY()
-public:
-	~UTEDSTypedElementBridge() override = default;
-	virtual uint8 GetOrder() const override;
-	virtual void PreRegister(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void PreShutdown(ITypedElementDataStorageInterface& DataStorage) override;
-	virtual void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnTypedElementBridgeEnabled, bool /*bEnabled*/);
 
-	static TEDSCORE_API FOnTEDSTypedElementBridgeEnable& OnEnabled();
-	static TEDSCORE_API bool IsEnabled();
-
-private:
-	void RegisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage);
-	void UnregisterQuery_NewUObject(ITypedElementDataStorageInterface& DataStorage);
-	void CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage);
-	void HandleOnEnabled(IConsoleVariable* CVar);
-	
-	TypedElementQueryHandle RemoveTypedElementRowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
-	FDelegateHandle DebugEnabledDelegateHandle;
-};
-
-// A column which contains a TypedElementHandle
-// TypedElement, in this context, refers to the interface-based
-// TypedElements instead of the data-based TypedElementDataStorage (TEDS)
-USTRUCT()
-struct FTEDSTypedElementColumn : public FTypedElementDataStorageColumn
-{
-	GENERATED_BODY()
-	
-	FTypedElementHandle Handle;
-};
+	TEDSCORE_API FOnTypedElementBridgeEnabled& OnTypedElementBridgeEnabled();
+	TEDSCORE_API bool IsTypedElementBridgeEnabled();
+} // namespace UE::Editor::DataStorage::Compatibility

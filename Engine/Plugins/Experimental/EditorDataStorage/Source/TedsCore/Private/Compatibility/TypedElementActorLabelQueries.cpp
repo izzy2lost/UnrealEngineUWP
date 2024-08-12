@@ -11,15 +11,15 @@
 #include "Hash/CityHash.h"
 #include "ScopedTransaction.h"
 
-#define LOCTEXT_NAMESPACE "TypedElementDataStorage"
+#define LOCTEXT_NAMESPACE "TedsCore"
 
-void UTypedElementActorLabelFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UActorLabelDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	RegisterActorLabelToColumnQuery(DataStorage);
 	RegisterLabelColumnToActorQuery(DataStorage);
 }
 
-void UTypedElementActorLabelFactory::RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const
+void UActorLabelDataStorageFactory::RegisterActorLabelToColumnQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
@@ -49,7 +49,7 @@ void UTypedElementActorLabelFactory::RegisterActorLabelToColumnQuery(ITypedEleme
 	);
 }
 
-void UTypedElementActorLabelFactory::RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const
+void UActorLabelDataStorageFactory::RegisterLabelColumnToActorQuery(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;

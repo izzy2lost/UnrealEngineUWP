@@ -87,7 +87,7 @@ void FTypedElementsDataStorageModule::StartupModule()
 				DatabaseUi = NewObject<UTypedElementDatabaseUi>();
 				DatabaseUi->Initialize(Database.Get(), DatabaseCompatibility.Get());
 
-				ObjectReinstancingManager = NewObject<UTypedElementObjectReinstancingManager>();
+				ObjectReinstancingManager = NewObject<UTedsObjectReinstancingManager>();
 				ObjectReinstancingManager->Initialize(*Database, *DatabaseCompatibility);
 
 				// Register the various database instances.

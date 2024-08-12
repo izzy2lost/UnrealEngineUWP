@@ -20,11 +20,11 @@ namespace UE::Editor::DataStorage
 }
 
 UCLASS(Transient)
-class UTypedElementObjectReinstancingManager : public UObject
+class UTedsObjectReinstancingManager : public UObject
 {
 	GENERATED_BODY()
 public:
-	UTypedElementObjectReinstancingManager();
+	UTedsObjectReinstancingManager();
 
 	void Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility);
 	void Deinitialize();

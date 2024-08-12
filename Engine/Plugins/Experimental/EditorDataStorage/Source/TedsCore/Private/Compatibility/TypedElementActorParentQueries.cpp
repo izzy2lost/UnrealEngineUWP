@@ -20,7 +20,7 @@ namespace UE::TypedElementActorParentQueries::Local
 		TEXT("Mirror parent information for actors to TEDS (only works when set on startup)"));
 };
 
-void UTypedElementActorParentFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	if(UE::TypedElementActorParentQueries::Local::bAddParentColumnToActors)
 	{
@@ -29,7 +29,7 @@ void UTypedElementActorParentFactory::RegisterQueries(ITypedElementDataStorageIn
 	}
 }
 
-void UTypedElementActorParentFactory::RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
@@ -66,7 +66,7 @@ void UTypedElementActorParentFactory::RegisterAddParentColumn(ITypedElementDataS
 	);
 }
 
-void UTypedElementActorParentFactory::RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const
+void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedElementDataStorageInterface& DataStorage) const
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;

@@ -3,6 +3,7 @@
 #include "TedsTypedElementActorHandleFactory.h"
 
 #include "Compatibility/TedsTypedElementBridge.h"
+#include "Compatibility/Columns/TypedElement.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
 #include "Elements/Framework/EngineElementsLibrary.h"
 #include "Elements/Framework/TypedElementList.h"
@@ -10,24 +11,24 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "GameFramework/Actor.h"
 
-void UTEDSTypedElementActorHandleFactory::PreRegister(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::PreRegister(ITypedElementDataStorageInterface& DataStorage)
 {
 	Super::PreRegister(DataStorage);
 	
-	BridgeEnableDelegateHandle = UTEDSTypedElementBridge::OnEnabled().AddUObject(this, &UTEDSTypedElementActorHandleFactory::HandleBridgeEnabled);
+	BridgeEnableDelegateHandle = UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().AddUObject(this, &UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled);
 }
 
-void UTEDSTypedElementActorHandleFactory::PreShutdown(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::PreShutdown(ITypedElementDataStorageInterface& DataStorage)
 {
-	UTEDSTypedElementBridge::OnEnabled().Remove(BridgeEnableDelegateHandle);
+	UE::Editor::DataStorage::Compatibility::OnTypedElementBridgeEnabled().Remove(BridgeEnableDelegateHandle);
 	BridgeEnableDelegateHandle.Reset();
 }
 
-void UTEDSTypedElementActorHandleFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	Super::RegisterQueries(DataStorage);
 
-	if (UTEDSTypedElementBridge::IsEnabled())
+	if (UE::Editor::DataStorage::Compatibility::IsTypedElementBridgeEnabled())
 	{
 		RegisterQuery_ActorHandlePopulate(DataStorage);
 	}
@@ -42,7 +43,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQueries(ITypedElementDataStora
 	.Compile());
 }
 
-void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage)
+void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopulate(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
@@ -61,7 +62,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 			{
 				checkSlow(Cast<AActor>(Object));
 				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(static_cast<AActor*>(Object));
-				Context.AddColumn(Row, FTEDSTypedElementColumn
+				Context.AddColumn(Row, UE::Editor::DataStorage::Compatibility::FTypedElementColumn
 				{
 					.Handle = Handle
 				});
@@ -73,7 +74,7 @@ void UTEDSTypedElementActorHandleFactory::RegisterQuery_ActorHandlePopulate(ITyp
 	.Compile());
 }
 
-void UTEDSTypedElementActorHandleFactory::HandleBridgeEnabled(bool bEnabled)
+void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabled)
 {
 	ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 	
@@ -108,7 +109,7 @@ void UTEDSTypedElementActorHandleFactory::HandleBridgeEnabled(bool bEnabled)
 			if (const AActor* Actor = Actors[Index].Get())
 			{
 				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor);
-				DataStorage->AddColumn(CollatedRowHandles[Index], FTEDSTypedElementColumn
+				DataStorage->AddColumn(CollatedRowHandles[Index], UE::Editor::DataStorage::Compatibility::FTypedElementColumn
 				{
 					.Handle = Handle
 				});

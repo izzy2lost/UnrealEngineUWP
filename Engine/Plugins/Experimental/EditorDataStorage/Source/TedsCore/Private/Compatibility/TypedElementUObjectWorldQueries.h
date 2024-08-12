@@ -8,12 +8,12 @@
 #include "TypedElementUObjectWorldQueries.generated.h"
 
 UCLASS()
-class UTypedElementUObjectWorldFactory : public UTypedElementDataStorageFactory
+class UObjectWorldDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementUObjectWorldFactory() override = default;
+	~UObjectWorldDataStorageFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 

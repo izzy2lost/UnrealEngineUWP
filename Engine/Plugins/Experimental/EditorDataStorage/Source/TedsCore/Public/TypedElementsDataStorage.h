@@ -11,7 +11,7 @@ class FReferenceCollector;
 class UTypedElementDatabase;
 class UTypedElementDatabaseCompatibility;
 class UTypedElementDatabaseUi;
-class UTypedElementObjectReinstancingManager;
+class UTedsObjectReinstancingManager;
 
 class FTypedElementsDataStorageModule : public IModuleInterface, public FGCObject
 {
@@ -37,6 +37,6 @@ private:
 	TObjectPtr<UTypedElementDatabase> Database;
 	TObjectPtr<UTypedElementDatabaseCompatibility> DatabaseCompatibility;
 	TObjectPtr<UTypedElementDatabaseUi> DatabaseUi;
-	TObjectPtr<UTypedElementObjectReinstancingManager> ObjectReinstancingManager;
+	TObjectPtr<UTedsObjectReinstancingManager> ObjectReinstancingManager;
 	bool bInitialized{ false };
 };

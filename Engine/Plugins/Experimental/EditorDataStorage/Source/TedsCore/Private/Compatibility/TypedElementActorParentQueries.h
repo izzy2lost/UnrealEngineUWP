@@ -8,12 +8,12 @@
 #include "TypedElementActorParentQueries.generated.h"
 
 UCLASS()
-class UTypedElementActorParentFactory : public UTypedElementDataStorageFactory
+class UActorParentDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementActorParentFactory() override = default;
+	~UActorParentDataStorageFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 

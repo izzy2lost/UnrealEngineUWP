@@ -9,12 +9,12 @@
 
 
 UCLASS()
-class UTypedElementActorLabelFactory : public UTypedElementDataStorageFactory
+class UActorLabelDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementActorLabelFactory() override = default;
+	~UActorLabelDataStorageFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 

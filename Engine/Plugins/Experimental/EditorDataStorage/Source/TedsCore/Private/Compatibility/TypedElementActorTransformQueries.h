@@ -8,18 +8,18 @@
 #include "TypedElementActorTransformQueries.generated.h"
 
 UCLASS()
-class UTypedElementActorTransformFactory : public UTypedElementDataStorageFactory
+class UActorTransformDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementActorTransformFactory() override = default;
+	~UActorTransformDataStorageFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
 	/**
-	 * Checks actors that don't have a tranform column and adds one if an actor has been
+	 * Checks actors that don't have a transform column and adds one if an actor has been
 	 * assigned a transform.
 	 */
 	void RegisterActorAddTransformColumn(ITypedElementDataStorageInterface& DataStorage) const;

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -8,12 +8,12 @@
 #include "TypedElementActorViewportProcessors.generated.h"
 
 UCLASS()
-class UTypedElementActorViewportFactory : public UTypedElementDataStorageFactory
+class UActorViewportDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementActorViewportFactory() override = default;
+	~UActorViewportDataStorageFactory() override = default;
 
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 

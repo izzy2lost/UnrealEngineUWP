@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -12,11 +12,11 @@
 class UTypedElementRegistry;
 
 /**
- * This class is responsible for acquiring and registering Actor TypedElementHandles
+ * This class is responsible for acquiring and registering Actor Typed Element Handles
  * with TEDS/
  */
 UCLASS(Transient)
-class UTEDSTypedElementActorHandleFactory : public UTypedElementDataStorageFactory
+class UTypedElementActorHandleDataStorageFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 public:
