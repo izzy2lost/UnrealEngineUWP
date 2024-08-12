@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Item/AvaOutlinerTreeRoot.h"
-
 #include "ActorFactories/ActorFactory.h"
 #include "AssetSelection.h"
 #include "AvaOutliner.h"
@@ -10,6 +9,7 @@
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
 #include "EngineUtils.h"
 #include "Item/AvaOutlinerActor.h"
+#include "Item/AvaOutlinerLevel.h"
 #include "ItemActions/AvaOutlinerAddItem.h"
 #include "Textures/SlateIcon.h"
 #include "Widgets/SNullWidget.h"
@@ -25,26 +25,24 @@ void FAvaOutlinerTreeRoot::FindChildren(TArray<FAvaOutlinerItemPtr>& OutChildren
 		return;
 	}
 
-	FAvaOutliner& OutlinerPrivate = static_cast<FAvaOutliner&>(Outliner);
+	const TArray<ULevel*>& Levels = World->GetLevels();
 
-	// All the Actors that don't have an Outliner Parent will be at the Root
-	const TArray<TWeakObjectPtr<AActor>> RootChildren = OutlinerPrivate.GetActorSceneOutlinerChildren(nullptr);
+	OutChildren.Reserve(OutChildren.Num() + Levels.Num());
 
-	// Worst case and most likely case: all Outliner Children are valid.
-	// Note: if recursive, re-allocations will still need to be done past this reserve count, as it's unknown at this point how many items are going to be added
-	OutChildren.Reserve(OutChildren.Num() + RootChildren.Num());
-
-	for (const TWeakObjectPtr<AActor>& ChildWeak : RootChildren)
+	for (ULevel* Level : Levels)
 	{
-		if (AActor* const Child = ChildWeak.Get())
+		if (!Level)
 		{
-			const FAvaOutlinerItemPtr ChildActorItem = Outliner.FindOrAdd<FAvaOutlinerActor>(Child);
-			const FAvaOutlinerItemFlagGuard Guard(ChildActorItem, EAvaOutlinerItemFlags::IgnorePendingKill);
-			OutChildren.Add(ChildActorItem);
-			if (bRecursive)
-			{
-				ChildActorItem->FindChildren(OutChildren, bRecursive);
-			}
+			continue;
+		}
+
+		const FAvaOutlinerItemPtr LevelItem = Outliner.FindOrAdd<FAvaOutlinerLevel>(Level);
+
+		const FAvaOutlinerItemFlagGuard Guard(LevelItem, EAvaOutlinerItemFlags::IgnorePendingKill);
+		OutChildren.Add(LevelItem);
+		if (bRecursive)
+		{
+			LevelItem->FindChildren(OutChildren, bRecursive);
 		}
 	}
 }

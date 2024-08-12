@@ -452,8 +452,8 @@ void FAvaOutliner::Refresh()
 		InOutlinerView->Refresh();
 	});
 
-	// Reset Tree and Save so that the Tree is updated to the latest Outliner State
-	SaveState->SaveSceneTree(*this, /*bInResetTree*/true);
+	// Save so that the Tree is updated to the latest Outliner State
+	SaveState->SaveSceneTree(*this, /*bInResetTree*/false);
 }
 
 TSharedRef<FAvaOutlinerItem> FAvaOutliner::GetTreeRoot() const
