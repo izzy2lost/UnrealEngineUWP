@@ -161,6 +161,23 @@ SBuildResults& SBuildResults::operator|=(const SBuildResults& Other)
     return *this;
 }
 
+namespace Private
+{
+bool CaselessLessThan(const CUTF8String& Lhs, const CUTF8String& Rhs)
+{
+    for (int32_t Index = 0; Index < Lhs.ByteLen() && Index < Rhs.ByteLen(); ++Index)
+    {
+        UTF8Char UnitA = CUnicode::ToLower_ASCII(Lhs[Index]);
+        UTF8Char UnitB = CUnicode::ToLower_ASCII(Rhs[Index]);
+        if (UnitA != UnitB) 
+        { 
+            return UnitA < UnitB; 
+        }
+    }
+    return Lhs.ByteLen() < Rhs.ByteLen();
+};
+}
+
 /* CToolchain
  ******************************************************************************/
 
@@ -266,9 +283,10 @@ SBuildResults CToolchain::BuildProject(const CSourceProject& SourceProject, cons
         else
         {
             const bool bSortFiles = VerseFN::UploadedAtFNVersion::SortSourceFilesLexicographically(VstPackage->_UploadedAtFNVersion);
+            const bool bSortSubmodules = VerseFN::UploadedAtFNVersion::SortSourceSubmodulesLexicographically(VstPackage->_UploadedAtFNVersion);
 
             // Parse the full source of this package
-            auto ProcessModule = [&ProcessSnippet, bSortFiles](const CSourceModule& SourceModule, const TSRef<Verse::Vst::Node>& VstModule, auto& ProcessModule) -> void
+            auto ProcessModule = [&ProcessSnippet, bSortFiles, bSortSubmodules](const CSourceModule& SourceModule, const TSRef<Verse::Vst::Node>& VstModule, auto& ProcessModule) -> void
             {
                 // Ensure a consistent order for files within the module, which are not added in any particular order.
                 // This makes the few remaining order-dependent behaviors in the compiler deterministic.
@@ -277,16 +295,7 @@ SBuildResults CToolchain::BuildProject(const CSourceProject& SourceProject, cons
                 TSRefArray<ISourceSnippet> SortedSnippets = SourceModule._SourceSnippets;
                 if (bSortFiles)
                 {
-                    SortedSnippets.Sort([](ISourceSnippet* A, ISourceSnippet* B) {
-                        CUTF8String PathA = A->GetPath(), PathB = B->GetPath();
-                        for (auto Index = 0; Index < PathA.ByteLen() && Index < PathB.ByteLen(); ++Index)
-                        {
-                            UTF8Char UnitA = CUnicode::ToLower_ASCII(PathA[Index]);
-                            UTF8Char UnitB = CUnicode::ToLower_ASCII(PathB[Index]);
-                            if (UnitA != UnitB) { return UnitA < UnitB; }
-                        }
-                        return PathA.ByteLen() < PathB.ByteLen();
-                    });
+                    SortedSnippets.Sort([](ISourceSnippet* A, ISourceSnippet* B) { return Private::CaselessLessThan(A->GetPath(), B->GetPath()); });
                 }
 
                 // Process source snippets
@@ -295,9 +304,15 @@ SBuildResults CToolchain::BuildProject(const CSourceProject& SourceProject, cons
                     ProcessSnippet(SourceSnippet, VstModule);
                 }
 
+                TSRefArray<CSourceModule> SortedSubmodules = SourceModule._Submodules;
+                if (bSortSubmodules)
+                {
+                    SortedSubmodules.Sort([](CSourceModule* A, CSourceModule* B) { return Private::CaselessLessThan(A->GetFilePath(), B->GetFilePath()); });
+                }
+
                 // And recurse into submodules
-                VstModule->AccessChildren().Reserve(SourceModule._Submodules.Num());
-                for (const TSRef<CSourceModule>& Submodule : SourceModule._Submodules)
+                VstModule->AccessChildren().Reserve(SortedSubmodules.Num());
+                for (const TSRef<CSourceModule>& Submodule : SortedSubmodules)
                 {
                     // Create VST node equivalent for the submodule
                     TSRef<Verse::Vst::Module> VstSubmodule = TSRef<Verse::Vst::Module>::New(Submodule->GetName());

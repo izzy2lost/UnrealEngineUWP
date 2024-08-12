@@ -99,7 +99,7 @@ private:
     /**
      * Write a single snippet to the given directory
      **/
-    bool WriteSnippet(const TSRef<ISourceSnippet>& Snippet, const CUTF8String& ContainingDir) const;
+    bool WriteSnippet(const CSourceModule& Module, const TSRef<ISourceSnippet>& Snippet, const CUTF8String& ContainingDir) const;
 
     /**
      * Serialize to JSON and write a given struct of type T to a file

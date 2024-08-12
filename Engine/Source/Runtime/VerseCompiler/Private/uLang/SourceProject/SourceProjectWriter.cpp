@@ -198,7 +198,7 @@ bool CSourceProjectWriter::WritePackage(const CSourcePackage& Package, const CUT
             // Loop over all source snippets and place them into the module folder
             for (const TSRef<ISourceSnippet>& Snippet : Module._SourceSnippets)
             {
-                if (!WriteSnippet(Snippet, NewModuleDir))
+                if (!WriteSnippet(Module, Snippet, NewModuleDir))
                 {
                     return false;
                 }
@@ -224,7 +224,7 @@ bool CSourceProjectWriter::WritePackage(const CSourcePackage& Package, const CUT
     bool bIsDigestPackage = Package._Digest.IsSet() && Package.GetNumSnippets() == 0;
     if (bIsDigestPackage)
     {
-        if (!WriteSnippet(Package._Digest->_Snippet, NewPackageDir))
+        if (!WriteSnippet(*Package._RootModule, Package._Digest->_Snippet, NewPackageDir))
         {
             return false;
         }
@@ -350,13 +350,31 @@ SWorkspaceDesc CSourceProjectWriter::GetWorkspaceDesc(const CSourceProject& Proj
     return WorkspaceDesc;
 }
 
-bool CSourceProjectWriter::WriteSnippet(const TSRef<ISourceSnippet>& Snippet, const CUTF8String& ContainingDir) const
+namespace Private
 {
-    CUTF8String NewSnippetPath = FilePathUtils::CombinePaths(ContainingDir, FilePathUtils::GetFileName(Snippet->GetPath()));
+    // In order to preserve compilation order, we need to preseve any subdirectories in the module.
+    CUTF8String GetSnippetRelativeDirectory(const CSourceModule& Module, const TSRef<ISourceSnippet>& Snippet)
+    {
+        const CUTF8String& ModulePath = Module.GetFilePath();
+        if (ModulePath.IsFilled())
+        {
+            return FilePathUtils::ConvertFullPathToRelative(Snippet->GetPath(), FilePathUtils::GetDirectory(ModulePath));
+        }
+        else
+        {
+            return FilePathUtils::GetFileName(Snippet->GetPath());
+        }
+    }
+}
+
+bool CSourceProjectWriter::WriteSnippet(const CSourceModule& Module, const TSRef<ISourceSnippet>& Snippet, const CUTF8String& ContainingDir) const
+{
     TOptional<CUTF8String> SnippetText = Snippet->GetText();
     if (SnippetText)
     {
-        if (!_FileSystem->FileWrite(*NewSnippetPath, **SnippetText, (*SnippetText).ByteLen()))
+        const CUTF8String NewSnippetPath = FilePathUtils::CombinePaths(ContainingDir, Private::GetSnippetRelativeDirectory(Module, Snippet));
+        if (!_FileSystem->CreateDirectory(FilePathUtils::GetDirectory(NewSnippetPath).AsCString()) ||
+            !_FileSystem->FileWrite(*NewSnippetPath, **SnippetText, (*SnippetText).ByteLen()))
         {
             _Diagnostics->AppendGlitch({
                 EDiagnostic::ErrSystem_CannotWriteText,
