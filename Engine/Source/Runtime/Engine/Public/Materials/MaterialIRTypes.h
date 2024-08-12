@@ -12,7 +12,8 @@ namespace UE::MIR
 enum ETypeKind
 {
 	TK_Void,
-	TK_Arithmetic
+	TK_Arithmetic,
+	TK_Texture,
 };
 
 const TCHAR* TypeKindToString(ETypeKind Kind);
@@ -67,6 +68,9 @@ struct FArithmeticType : FType
 	static FArithmeticTypePtr GetBool1();
 	static FArithmeticTypePtr GetInt1();
 	static FArithmeticTypePtr GetFloat1();
+	static FArithmeticTypePtr GetFloat2();
+	static FArithmeticTypePtr GetFloat3();
+	static FArithmeticTypePtr GetFloat4();
 
 	static FArithmeticTypePtr GetScalar(EScalarKind InScalarKind);
 	static FArithmeticTypePtr GetVector(EScalarKind InScalarKind, int NumRows);
@@ -78,6 +82,11 @@ struct FArithmeticType : FType
 	bool IsVector() const { return NumRows > 1 && NumColumns == 1; }
 	bool IsMatrix() const { return NumRows > 1 && NumColumns > 1; }
 	FArithmeticTypePtr ToScalar() const;
+};
+
+struct FTextureType : FType
+{
+	static FTypePtr Get();
 };
 
 } // namespace UE::MIR

@@ -8,7 +8,7 @@
 
 #if WITH_EDITOR
 
-namespace IR = UE::MIR;
+namespace MIR = UE::MIR;
 
 namespace UE::Utility {
 
@@ -57,7 +57,7 @@ bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, F
 	return false;
 }
 
-IR::FValue* CreateMaterialAttributeDefaultValue(IR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property)
+MIR::FValue* CreateMaterialAttributeDefaultValue(MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property)
 {
 	EMaterialValueType Type = FMaterialAttributeDefinitionMap::GetValueType(Property);
 	FVector4f DefaultValue = FMaterialAttributeDefinitionMap::GetDefaultValue(Property);
@@ -76,6 +76,19 @@ IR::FValue* CreateMaterialAttributeDefaultValue(IR::FEmitter& Emitter, const UMa
 		case MCT_UInt3: return Emitter.EmitConstantInt3({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z });
 		case MCT_UInt4: return Emitter.EmitConstantInt4({ (int32)DefaultValue.X, (int32)DefaultValue.Y, (int32)DefaultValue.Z, (int32)DefaultValue.W });
 
+		default: UE_MIR_UNREACHABLE();
+	}
+}
+
+EMaterialTextureParameterType TextureMaterialValueTypeToParameterType(EMaterialValueType Type)
+{
+	switch (Type)
+	{
+		case MCT_Texture2D: return EMaterialTextureParameterType::Standard2D;
+		case MCT_Texture2DArray: return EMaterialTextureParameterType::Array2D;
+		case MCT_TextureCube: return EMaterialTextureParameterType::Cube;
+		case MCT_TextureCubeArray: return EMaterialTextureParameterType::ArrayCube;
+		case MCT_VolumeTexture: return EMaterialTextureParameterType::Volume;
 		default: UE_MIR_UNREACHABLE();
 	}
 }

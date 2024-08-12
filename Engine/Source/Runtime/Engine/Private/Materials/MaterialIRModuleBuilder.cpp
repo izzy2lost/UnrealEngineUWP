@@ -5,6 +5,7 @@
 #if WITH_EDITOR
 
 #include "Materials/MaterialIRModule.h"
+#include "Materials/MaterialIRDebug.h"
 #include "Materials/MaterialIR.h"
 #include "Materials/MaterialIRTypes.h"
 #include "Materials/MaterialIREmitter.h"
@@ -16,17 +17,26 @@
 #include "Materials/MaterialExpression.h"
 #include "Materials/MaterialInsights.h"
 #include "Async/ParallelFor.h"
+#include "Engine/Texture.h"
 
-namespace IR = UE::MIR;
+namespace MIR = UE::MIR;
 
 struct FMaterialIRModuleBuilder::FPrivate
 {
 	FMaterialIRModuleBuilder& Builder;
 	FMaterialIRModuleBuildParams Params;
 	FMaterialIRModule& Module;
-	IR::FEmitter& Emitter;
+	MIR::FEmitter& Emitter;
 	TArray<UMaterialExpression*> ExpressionAnalysisStack;
-	TArray<IR::FInstruction*> InstructionStack;
+	TArray<MIR::FInstruction*> InstructionStack;
+
+	void Build_Initialize()
+	{
+		Module.Empty();
+		Module.ShaderPlatform = Params.ShaderPlatform;
+
+		Emitter.Initialize();
+	}
 
 	void Build_GenerateOutputInstructions()
 	{
@@ -36,7 +46,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 		{
 			EMaterialProperty Property = (EMaterialProperty)Index;
 
-			IR::FSetMaterialOutput* Output = Emitter.EmitSetMaterialOutput(Property, nullptr);
+			MIR::FSetMaterialOutput* Output = Emitter.EmitSetMaterialOutput(Property, nullptr);
 
 			if (Input.bUseConstant)
 			{
@@ -53,7 +63,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 		}
 	}
 
-	void Build_AnalyzeExpressionGraph()
+	void Build_BuildIRGraph()
 	{
 		TSet<UMaterialExpression*> BuiltExpressions;
 
@@ -95,16 +105,17 @@ struct FMaterialIRModuleBuilder::FPrivate
 				if (FExpressionOutput* ConnectedOutput = It->GetConnectedOutput())
 				{
 					// Fetch the value flowing through connected output.
-					IR::FValue** ValuePtr = Builder.OutputValues.Find(ConnectedOutput);
-					check(ValuePtr && TEXT("Output value not found."));
-
-					// Set the value flowing into this input.
-					Builder.InputValues.Add(It.Input, *ValuePtr);
+					if (MIR::FValue** ValuePtr = Builder.OutputValues.Find(ConnectedOutput))
+					{
+						// Set the value flowing into this input.
+						Builder.InputValues.Add(It.Input, *ValuePtr);
+					}
+					else
+					{
+						Builder.InputValues.Remove(It.Input);
+					}
 				}
 			}
-
-			// And clear the expression errors.
-			Emitter.bHasExprBuildError = false;
 
 			// Invoke the expression build function. This will perform semantic analysis, error reporting and
 			// emit IR values for its outputs (which will flow into connected expressions inputs).
@@ -118,35 +129,22 @@ struct FMaterialIRModuleBuilder::FPrivate
 		}
 	}
 
-	void AddExpressionConnectionInsights(UMaterialExpression* Expression)
-	{
-		// Update expression inputs insight.
-		for (FExpressionInputIterator It{ Expression}; It; ++It)
-		{
-			if (!It->IsConnected())
-			{
-				continue;
-			}
-
-			IR::FValue** Value = Builder.InputValues.Find(It.Input);
-			PushConnectionInsight(Expression, It.Index, It->Expression, It->OutputIndex, Value ? (*Value)->Type : nullptr);
-		}
-	}
-	
 	void Build_LinkMaterialOutputsToIncomingValues()
 	{
-		for (IR::FSetMaterialOutput* Output : Module.Outputs)
+		for (MIR::FSetMaterialOutput* Output : Module.Outputs)
 		{
 			FMaterialInputDescription Input;
 			ensure(Params.Material->GetExpressionInputDescription(Output->Property, Input));
 
 			if (!Output->Arg)
 			{
-				IR::FValue** ValuePtr = Builder.OutputValues.Find(Input.Input->Expression->GetOutput(0));
+				MIR::FValue** ValuePtr = Builder.OutputValues.Find(Input.Input->GetConnectedOutput());
 				check(ValuePtr);
 
 				Builder.InputValues.Add(Input.Input, *ValuePtr);
-				Output->Arg = *ValuePtr;
+
+				MIR::FTypePtr OutputArgType = MIR::FType::FromShaderType(Input.Type);
+				Output->Arg = Emitter.TryEmitConstruct(OutputArgType, *ValuePtr);
 			}
 
 			if (Params.TargetInsight)
@@ -157,7 +155,168 @@ struct FMaterialIRModuleBuilder::FPrivate
 		}
 	}
 
-	void PushConnectionInsight(const UObject* InputObject, int InputIndex, const UMaterialExpression* OutputExpression, int OutputIndex, IR::FTypePtr Type)
+	void Build_AnalyzeIRGraph()
+	{
+		InstructionStack.Reserve(64);
+
+		for (MIR::FSetMaterialOutput* Output : Module.Outputs)
+		{
+			InstructionStack.Push(Output);
+		}
+
+		while (!InstructionStack.IsEmpty())
+		{
+			MIR::FValue* Instr = InstructionStack.Pop();
+			for (MIR::FValue* UseValue : Instr->GetUses())
+			{
+				if (UseValue && !(UseValue->Flags & MIR::VF_ValueAnalyzed))
+				{
+					UseValue->SetFlags(MIR::VF_ValueAnalyzed);
+					Build_AnalyzeValue(UseValue);
+				}
+
+				MIR::FInstruction* Use = UseValue->AsInstruction();
+				if (!Use)
+				{
+					continue;
+				}
+
+				Use->NumUsers += 1;
+
+				if (!(Use->Flags & MIR::VF_InstructionAnalyzed))
+				{
+					Use->SetFlags(MIR::VF_InstructionAnalyzed);
+					InstructionStack.Push(Use);
+				}
+			}
+		}
+	}
+
+	void Build_AnalyzeValue(MIR::FValue* Value)
+	{
+		if (auto ExternalInput = Value->As<MIR::FExternalInput>())
+		{
+			Module.Statistics.ExternalInputUsedMask[SF_Vertex][(int)ExternalInput->Id] = true;
+			Module.Statistics.ExternalInputUsedMask[SF_Pixel][(int)ExternalInput->Id] = true;
+		}
+		else if (auto TextureSample = Value->As<MIR::FTextureSample>())
+		{
+			EMaterialTextureParameterType ParamType = UE::Utility::TextureMaterialValueTypeToParameterType(TextureSample->Texture->GetMaterialType());
+
+			FMaterialTextureParameterInfo ParamInfo{};
+			ParamInfo.ParameterInfo = { "", EMaterialParameterAssociation::GlobalParameter, INDEX_NONE };
+			ParamInfo.SamplerSource = SSM_FromTextureAsset; // TODO - Is this needed?
+
+			ParamInfo.TextureIndex = Params.Material->GetReferencedTextures().Find(TextureSample->Texture);
+			check(ParamInfo.TextureIndex != INDEX_NONE);
+
+			TextureSample->TextureParameterIndex = Module.CompilationOutput.UniformExpressionSet.FindOrAddTextureParameter(ParamType, ParamInfo);
+		}
+	}
+
+	void Build_PopulateBlocks()
+	{
+		// This function walks the instruction graph and puts each instruction into the inner most possible block.
+		InstructionStack.Empty(InstructionStack.Max());
+
+		for (MIR::FSetMaterialOutput* Output : Module.Outputs)
+		{
+			Output->Block = Module.RootBlock;
+			InstructionStack.Add(Output);
+		}
+
+		while (!InstructionStack.IsEmpty())
+		{
+			MIR::FInstruction* Instr = InstructionStack.Pop();
+			if (MIR::FSetMaterialOutput* Output = Instr->As<MIR::FSetMaterialOutput>())
+			{
+				if (Output->Property == EMaterialProperty::MP_BaseColor)
+				{
+					static int l = 0;
+					++l;
+				}
+			}
+
+			// Push the instruction to its block in reverse order (push front)
+			Instr->Next = Instr->Block->Instructions;
+			Instr->Block->Instructions = Instr;
+
+			TArrayView<MIR::FValue*> Uses = Instr->GetUses();
+			for (int32 UseIndex = 0; UseIndex < Uses.Num(); ++UseIndex)
+			{
+				MIR::FValue* Use = Uses[UseIndex];
+				MIR::FInstruction* UseInstr = Use->AsInstruction();
+				if (!UseInstr)
+				{
+					continue;
+				}
+
+				// Get the block into which the dependency instruction should go.
+				MIR::FBlock* TargetBlock = Instr->GetDesiredBlockForUse(UseIndex);
+
+				// Update dependency's block to be a child of current instruction's block.
+				if (TargetBlock != Instr->Block)
+				{
+					TargetBlock->Parent = Instr->Block;
+					TargetBlock->Level = Instr->Block->Level + 1;
+				}
+
+				// Set the dependency's block to the common block betwen its current block and this one.
+				UseInstr->Block = UseInstr->Block
+					? UseInstr->Block->FindCommonParentWith(TargetBlock)
+					: TargetBlock;
+
+				// Increase the number of times this dependency instruction has been considered.
+				// When all of its users have processed, we can carry on visiting this instruction.
+				++UseInstr->NumProcessedUsers;
+				check(UseInstr->NumProcessedUsers <= UseInstr->NumUsers);
+
+				// If all dependants have been processed, we can carry the processing from this dependency.
+				if (UseInstr->NumProcessedUsers == UseInstr->NumUsers)
+				{
+					InstructionStack.Push(UseInstr);
+				}
+			}
+		}
+	}
+
+	void Build_Finalize()
+	{
+		/* Produce the module statistics */
+		for (int TexCoordIndex = 0; TexCoordIndex < MIR::TexCoordMaxNum; ++TexCoordIndex)
+		{
+			MIR::EExternalInput TexCoordInput = MIR::TexCoordIndexToExternalInput(TexCoordIndex);
+			if (Module.Statistics.ExternalInputUsedMask[SF_Vertex][(int)TexCoordInput])
+			{
+				Module.Statistics.NumVertexTexCoords = TexCoordIndex + 1;
+			}
+			if (Module.Statistics.ExternalInputUsedMask[SF_Pixel][(int)TexCoordInput])
+			{
+				Module.Statistics.NumPixelTexCoords = TexCoordIndex + 1;
+			}
+		}
+
+		/* Configure the compilation output */
+		FMaterialCompilationOutput& CompilationOutput = Module.CompilationOutput;
+		CompilationOutput.NumUsedUVScalars = Module.Statistics.NumPixelTexCoords * 2;
+	}
+
+	void AddExpressionConnectionInsights(UMaterialExpression* Expression)
+	{
+		// Update expression inputs insight.
+		for (FExpressionInputIterator It{ Expression}; It; ++It)
+		{
+			if (!It->IsConnected())
+			{
+				continue;
+			}
+
+			MIR::FValue** Value = Builder.InputValues.Find(It.Input);
+			PushConnectionInsight(Expression, It.Index, It->Expression, It->OutputIndex, Value ? (*Value)->Type : nullptr);
+		}
+	}
+	
+	void PushConnectionInsight(const UObject* InputObject, int InputIndex, const UMaterialExpression* OutputExpression, int OutputIndex, MIR::FTypePtr Type)
 	{
 		FMaterialInsights::FConnectionInsight Insight;
 		Insight.InputObject = InputObject,
@@ -168,126 +327,16 @@ struct FMaterialIRModuleBuilder::FPrivate
 		
 		Params.TargetInsight->ConnectionInsights.Push(Insight);
 	}
-
-	void Build_FinalizeValueGraph()
-	{
-		InstructionStack.Reserve(64);
-
-		for (IR::FSetMaterialOutput* Output : Module.Outputs)
-		{
-			InstructionStack.Push(Output);
-		}
-
-		while (!InstructionStack.IsEmpty())
-		{
-			IR::FValue* Instr = InstructionStack.Pop();
-			for (IR::FValue* UseValue : Instr->GetUses())
-			{
-				IR::FInstruction* Use = UseValue->AsInstruction();
-				if (!Use)
-				{
-					continue;
-				}
-
-				Use->NumUsers += 1;
-
-				if (!(Use->Flags & IR::IF_Counted))
-				{
-					Use->SetFlags(IR::IF_Counted);
-					InstructionStack.Push(Use);
-				}
-			}
-		}
-	}
-
-	void Build_PopulateBlock()
-	{
-		// This function walks the instruction graph and puts each instruction into the inner most possible block.
-		InstructionStack.Empty(InstructionStack.Max());
-
-		for (IR::FSetMaterialOutput* Output : Module.Outputs)
-		{
-			Output->Block = Module.RootBlock;
-			InstructionStack.Add(Output);
-		}
-
-		while (!InstructionStack.IsEmpty()) {
-			IR::FInstruction* Instr = InstructionStack.Pop();
-
-			// Push the instruction in its block
-			Instr->Next = Instr->Block->Instructions;
-			Instr->Block->Instructions = Instr;
-
-			IR::FValue* UseValue;
-			IR::FBlock* InnerBlock;
-			for (int32 i = 0; Instr->GetInnerBlock(i, UseValue, InnerBlock); ++i)
-			{
-				IR::FInstruction* Use = UseValue->AsInstruction();
-				if (!Use)
-				{
-					continue;
-				}
-
-				// Update dependency's block to be a child of current instruction's block.
-				if (InnerBlock != Instr->Block)
-				{
-					InnerBlock->Parent = Instr->Block;
-					InnerBlock->Level = Instr->Block->Level + 1;
-				}
-
-				// Set the dependency's block to the common block betwen its current block and this one.
-				Use->Block = Use->Block
-					? FindCommonParentBlock(Use->Block, InnerBlock)
-					: InnerBlock;
-
-				// Increase the number of times this dependency instruction has been considered.
-				// When all of its users have processed, we can carry on visiting this instruction.
-				++Use->NumProcessedUsers;
-				check(Use->NumProcessedUsers <= Use->NumUsers);
-
-				// If all dependants have been processed, we can carry the processing from this dependency.
-				if (Use->NumProcessedUsers == Use->NumUsers)
-				{
-					InstructionStack.Push(Use);
-				}
-			}
-		}
-	}
-
-    static IR::FBlock* FindCommonParentBlock(IR::FBlock* A, IR::FBlock* B)
-    {
-        if (A == B) {
-            return A;
-        }
-
-        while (A->Level > B->Level) {
-            A = A->Parent;
-        }
-
-        while (B->Level > A->Level) {
-            B = B->Parent;
-        }
-
-        while (A != B) {
-            A = A->Parent;
-            B = B->Parent;
-        }
-
-        return A;
-    }
 };
 
 bool FMaterialIRModuleBuilder::Build(const FMaterialIRModuleBuildParams& Params, FMaterialIRModule* TargetModule)
 {
-	TargetModule->Empty();
-	TargetModule->ShaderPlatform = Params.ShaderPlatform;
-
-	IR::FEmitter Emitter{ this, Params.Material, TargetModule };
-
+	MIR::FEmitter Emitter{ this, Params.Material, TargetModule };
 	FPrivate Private{ *this, Params, *TargetModule, Emitter };
 
+	Private.Build_Initialize();
 	Private.Build_GenerateOutputInstructions();
-	Private.Build_AnalyzeExpressionGraph();
+	Private.Build_BuildIRGraph();
 
 	if (Private.Emitter.IsInvalid())
 	{
@@ -295,8 +344,11 @@ bool FMaterialIRModuleBuilder::Build(const FMaterialIRModuleBuildParams& Params,
 	}
 
 	Private.Build_LinkMaterialOutputsToIncomingValues();
-	Private.Build_FinalizeValueGraph();
-	Private.Build_PopulateBlock();
+	Private.Build_AnalyzeIRGraph();
+	Private.Build_PopulateBlocks();
+	Private.Build_Finalize();
+
+	UE::MIR::DebugDumpIRUseGraph(*TargetModule);
 
 	return true;
 }

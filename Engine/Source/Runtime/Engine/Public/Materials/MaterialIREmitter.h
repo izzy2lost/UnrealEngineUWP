@@ -23,6 +23,8 @@ struct FSwizzleMask
 	EVectorComponent Components[4];
 	int NumComponents{};
 
+	static FSwizzleMask XYZ();
+
 	FSwizzleMask() {}
 	FSwizzleMask(EVectorComponent X);
 	FSwizzleMask(EVectorComponent X, EVectorComponent Y);
@@ -70,7 +72,9 @@ public:
 	// type matches `Kind`.
 	FValue* TryGetOfType(const FExpressionInput* Input, ETypeKind Kind);
 
-	/* Analysis */
+	/* Error Checking */
+
+	bool CheckValueValid(const FValue* Value);
 
 	//
 	void CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue);
@@ -101,11 +105,13 @@ public:
 	FValue* EmitVector2(FValue* InX, FValue* InY);
 	FValue* EmitVector3(FValue* InX, FValue* InY, FValue* InZ);
 	FValue* EmitVector4(FValue* InX, FValue* InY, FValue* InZ, FValue* InW);
+	FValue* GetExternalInput(EExternalInput Id);
 
 	/* Other Values */
 
-	FValue* EmitSubscript(FValue* Value, int ComponentIndex);
+	FValue* TryEmitSubscript(FValue* Value, int ComponentIndex);
 	FValue* TryEmitSwizzle(FValue* Value, FSwizzleMask Mask);
+	FValue* GetParameter(FName Name, const FMaterialParameterMetadata& Metadata);
 
 	/* Instructions */
 
@@ -113,12 +119,14 @@ public:
 	FValue* EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs);
 	FValue* EmitBranch(FValue* Condition, FValue* True, FValue* False);
 	FValue* TryEmitConstruct(FTypePtr Type, FValue* Initializer);
+	FValue* TryEmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType);
 
 	/* Types */
 
 	FArithmeticTypePtr TryGetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B);
 
 	/* Error reporting */
+
 	bool IsInvalid() const { return bHasExprBuildError; }
 
 	template <int TFormatLength, typename... TArgs>
@@ -130,8 +138,11 @@ public:
 	void Error(FString Message);
 
 	struct FPrivate;
+	friend FMaterialIRModuleBuilder;
 
 private:
+	void Initialize();
+
 	UMaterial* Material{};
 	FMaterialIRModule* Module{};
 	UMaterialExpression* Expression{};
@@ -139,8 +150,6 @@ private:
 	bool bHasExprBuildError = false;
 	FValue* ConstantTrue;
 	FValue* ConstantFalse;
-
-	friend FMaterialIRModuleBuilder;
 };
 
 } // namespace UE::MIR

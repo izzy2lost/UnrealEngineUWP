@@ -99,7 +99,8 @@ public:
 	ENGINE_API virtual uint32 GetInputType(int32 InputIndex) override;
 	virtual bool CanIgnoreOutputIndex() { return true; }
 	ENGINE_API virtual bool GenerateHLSLExpression(FMaterialHLSLGenerator& Generator, UE::HLSLTree::FScope& Scope, int32 OutputIndex, UE::HLSLTree::FExpression const*& OutExpression) const override;
-#endif // WITH_EDITOR
+	ENGINE_API virtual void Build(UE::MIR::FEmitter& Emitter) override;
+	#endif // WITH_EDITOR
 	//~ End UMaterialExpression Interface
 
 	ENGINE_API void UpdateTextureResource(class UTexture* InTexture);

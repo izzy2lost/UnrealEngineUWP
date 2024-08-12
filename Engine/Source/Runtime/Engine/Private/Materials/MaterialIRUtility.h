@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Materials/MaterialIRCommon.h"
+#include "MaterialShared.h"
 
 #if WITH_EDITOR
 
@@ -15,6 +16,9 @@ bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, F
 
 //
 UE::MIR::FValue* CreateMaterialAttributeDefaultValue(UE::MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property);
+
+//
+EMaterialTextureParameterType TextureMaterialValueTypeToParameterType(EMaterialValueType Type);
 
 } // namespace Utility
 

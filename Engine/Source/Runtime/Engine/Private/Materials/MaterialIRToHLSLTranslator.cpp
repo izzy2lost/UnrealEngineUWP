@@ -14,12 +14,13 @@
 #include "DataDrivenShaderPlatformInfo.h"
 #include "Materials/MaterialExpressionVolumetricAdvancedMaterialOutput.h"
 #include "RenderUtils.h"
+#include "Engine/Texture.h"
 
 #include <inttypes.h>
 
 #if WITH_EDITOR
 
-namespace IR = UE::MIR;
+namespace MIR = UE::MIR;
 
 enum ENoOp { NoOp };
 enum ENewLine { NewLine };
@@ -27,6 +28,11 @@ enum EEndOfStatement { EndOfStatement };
 enum EOpenBrace { OpenBrace };
 enum ECloseBrace { CloseBrace };
 enum EIndentation { Indentation };
+enum EBeginArgs { BeginArgs };
+enum EEndArgs { EndArgs };
+enum EListSeparator { ListSeparator };
+
+#define TAB "    "
 
 struct FHLSLPrinter
 {
@@ -35,7 +41,7 @@ struct FHLSLPrinter
 	int32 Tabs = 0;
 
 	template <int N, typename... Types>
-	void Printf(const TCHAR (&Format)[N], Types... Args)
+	void Appendf(const TCHAR (&Format)[N], Types... Args)
 	{
 		Buffer.Appendf(Format, Args...);
 	}
@@ -99,6 +105,25 @@ struct FHLSLPrinter
         --Tabs;
         Buffer.LeftChopInline(1); // undo tab
         Buffer.AppendChar('}');
+        return *this;
+    }
+	
+    FHLSLPrinter& operator<<(EBeginArgs)
+    {
+        Buffer.AppendChar('(');
+		BeginList();
+        return *this;
+    }
+
+    FHLSLPrinter& operator<<(EEndArgs)
+    {
+        Buffer.AppendChar(')');
+        return *this;
+    }
+
+	FHLSLPrinter& operator<<(EListSeparator)
+    {
+		PrintListSeparator();
         return *this;
     }
 
@@ -168,9 +193,9 @@ static const TCHAR* GetShadingModelParameterName(EMaterialShadingModel InModel)
 	}
 }
 
-static bool IsFoldable(const IR::FInstruction* Instr)
+static bool IsFoldable(const MIR::FInstruction* Instr)
 {
-	if (auto Branch = Instr->As<IR::FBranch>())
+	if (auto Branch = Instr->As<MIR::FBranch>())
 	{
 		return !Branch->TrueBlock.Instructions && !Branch->FalseBlock.Instructions;
 	}
@@ -181,7 +206,7 @@ static bool IsFoldable(const IR::FInstruction* Instr)
 struct FTranslator : FMaterialIRToHLSLTranslation
 {
 	int32 NumLocals{};
-	TMap<const IR::FInstruction*, FString> LocalToIdentifier;
+	TMap<const MIR::FInstruction*, FString> LocalIdentifier;
 	FHLSLPrinter Printer;
 	FString PixelAttributesHLSL;
 	FString EvaluateOtherMaterialAttributesHLSL;
@@ -213,14 +238,14 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 			EMaterialValueType Type = (Property == MP_SubsurfaceColor) ? MCT_Float4 : FMaterialAttributeDefinitionMap::GetValueType(Property);
 			check(PropertyName.Len() > 0);
 
-			PixelAttributesHLSL.Appendf(TEXT("\t%s %s;\n"), GetHLSLTypeString(Type), *PropertyName);
+			PixelAttributesHLSL.Appendf(TEXT(TAB "%s %s;\n"), GetHLSLTypeString(Type), *PropertyName);
 		}
 	}
 	
-	ENoOp LowerBlock(const IR::FBlock& Block)
+	ENoOp LowerBlock(const MIR::FBlock& Block)
 	{
 		int OldNumLocals = NumLocals;
-        for (IR::FInstruction* Instr = Block.Instructions; Instr; Instr = Instr->Next)
+        for (MIR::FInstruction* Instr = Block.Instructions; Instr; Instr = Instr->Next)
 		{
             if (Instr->NumUsers == 1 && IsFoldable(Instr))
 			{
@@ -232,9 +257,9 @@ struct FTranslator : FMaterialIRToHLSLTranslation
                 FString LocalStr = FString::Printf(TEXT("l%d"), NumLocals);
                 ++NumLocals;
 
-                Printer << InlineType(Instr->Type) << TEXT(" ") << LocalStr;
+                Printer << LowerType(Instr->Type) << TEXT(" ") << LocalStr;
 
-                LocalToIdentifier.Add(Instr, MoveTemp(LocalStr));
+                LocalIdentifier.Add(Instr, MoveTemp(LocalStr));
                 if (IsFoldable(Instr))
 				{
                     Printer << TEXT(" = ";)
@@ -257,120 +282,10 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 
 		return NoOp;
 	}
-
-	ENoOp LowerInstruction(const IR::FInstruction* Instr)
+	
+	ENoOp LowerValue(MIR::FValue* InValue)
 	{
-		switch (Instr->Kind)
-		{
-			case IR::VK_Dimensional:
-			{
-				const IR::FDimensional* Vector = static_cast<const IR::FDimensional*>(Instr);
-
-				IR::FArithmeticTypePtr ArithType = Vector->Type->AsArithmetic();
-				check(ArithType && ArithType->IsVector());
-
-				Printer << ScalarKindToString(ArithType->ScalarKind) << ArithType->NumRows << TEXT("(");
-
-				Printer.BeginList();
-				for (IR::FValue* Component : Vector->GetComponents())
-				{
-					Printer.PrintListSeparator();
-					LowerValue(Component);
-				}
-
-				Printer << TEXT(")");
-				break;
-			}
-
-			case IR::VK_SetMaterialOutput:
-			{
-				auto Output = static_cast<const IR::FSetMaterialOutput*>(Instr);
-
-				// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
-				const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
-
-				Printer << TEXT("PixelMaterialInputs.") << PropertyName << TEXT(" = ") << LowerValue(Output->Arg);
-
-				break;
-			}
-
-			case IR::VK_BinaryOperator:
-			{
-				auto BinaryOperator = static_cast<const IR::FBinaryOperator*>(Instr);
-
-				LowerValue(BinaryOperator->LhsArg);
-
-				const TCHAR* OpString;
-				switch (BinaryOperator->Operator)
-				{
-					case IR::BO_Add: OpString = TEXT(" + "); break;
-					case IR::BO_Subtract: OpString = TEXT(" - "); break;
-					case IR::BO_Multiply: OpString = TEXT(" * "); break;
-					case IR::BO_Divide: OpString = TEXT(" / "); break;
-					case IR::BO_Greater: OpString = TEXT(" > "); break;
-					case IR::BO_Lower: OpString = TEXT(" < "); break;
-					case IR::BO_Equals: OpString = TEXT(" == "); break;
-					default: UE_MIR_UNREACHABLE();
-				}
-				Printer << OpString;
-
-				LowerValue(BinaryOperator->RhsArg);
-
-				break;
-			}
-
-			case IR::VK_Branch:
-			{
-				auto Branch = static_cast<const IR::FBranch*>(Instr);
-
-				if (IsFoldable(Branch))
-				{
-					Printer << LowerValue(Branch->ConditionArg)
-						<< TEXT(" ? ") << LowerValue(Branch->TrueArg)
-						<< TEXT(" : ") << LowerValue(Branch->FalseArg);
-				}
-				else
-				{
-					Printer << EndOfStatement;
-					Printer << TEXT("if (") << LowerValue(Branch->ConditionArg) << TEXT(")") << NewLine << OpenBrace;
-					Printer << LowerBlock(Branch->TrueBlock);
-					Printer << LocalToIdentifier[Instr] << " = " << LowerValue(Branch->TrueArg) << EndOfStatement;
-					Printer << CloseBrace << NewLine;
-					Printer << TEXT("else") << NewLine << OpenBrace;
-					Printer << LowerBlock(Branch->FalseBlock);
-					Printer << LocalToIdentifier[Instr] << " = " << LowerValue(Branch->FalseArg) << EndOfStatement;
-					Printer << CloseBrace;
-				}
-				break;
-			}
-			
-			case IR::VK_Subscript:
-			{
-				const IR::FSubscript* Subscript = static_cast<const IR::FSubscript*>(Instr);
-
-				LowerValue(Subscript->Arg);
-
-				if (IR::FArithmeticTypePtr ArgArithmeticType = Subscript->Arg->Type->AsVector())
-				{
-					const TCHAR* ComponentsStr[] = { TEXT(".x"), TEXT(".y"), TEXT(".z"), TEXT(".w") };
-					check(Subscript->Index <= ArgArithmeticType->GetNumComponents());
-
-					Printer << ComponentsStr[Subscript->Index];
-				}
-
-				break;
-			}
-
-			default:
-				UE_MIR_UNREACHABLE();
-		}
-
-		return NoOp;
-	}
-
-	ENoOp LowerValue(const IR::FValue* InValue)
-	{
-		if (const IR::FInstruction* Instr = InValue->AsInstruction())
+		if (MIR::FInstruction* Instr = InValue->AsInstruction())
 		{
 			if (Instr->NumUsers <= 1 && IsFoldable(Instr))
 			{
@@ -378,7 +293,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 			}
 			else
 			{
-				Printer << LocalToIdentifier[Instr];
+				Printer << LocalIdentifier[Instr];
 			}
 
 			return NoOp;
@@ -386,41 +301,355 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 
 		switch (InValue->Kind)
 		{
-			case IR::VK_Constant:
-			{
-				const IR::FConstant* Scalar = static_cast<const IR::FConstant*>(InValue);
-				
-				IR::FArithmeticTypePtr ArithType = Scalar->Type->AsArithmetic();
-				check(ArithType && ArithType->IsScalar());
-
-				switch (ArithType->ScalarKind)
-				{
-					case IR::SK_Bool:  Printer.Buffer.Append(Scalar->Boolean ? TEXT("true") : TEXT("false")); break;
-					case IR::SK_Int:   Printer.Buffer.Appendf(TEXT("%") PRId64, Scalar->Integer); break;
-					case IR::SK_Float: Printer.Buffer.Appendf(TEXT("%.5ff"), Scalar->Float); break;
-				}
-
-				break;
-			}
-
-			default:
-			{
-				UE_MIR_UNREACHABLE();
-			}
+			case MIR::VK_Constant: LowerConstant(static_cast<const MIR::FConstant*>(InValue)); break;
+			case MIR::VK_ExternalInput: LowerExternalInput(static_cast<const MIR::FExternalInput*>(InValue)); break;
+			case MIR::VK_MaterialParameter: LowerMaterialParameter(static_cast<const MIR::FMaterialParameter*>(InValue)); break;
+			default: UE_MIR_UNREACHABLE();
 		}
 
 		return NoOp;
 	}
 
-	ENoOp InlineType(const IR::FType* Type)
+	ENoOp LowerInstruction(MIR::FInstruction* Instr)
+	{
+		switch (Instr->Kind)
+		{
+			case MIR::VK_Dimensional: LowerDimensional(static_cast<MIR::FDimensional*>(Instr)); break;
+			case MIR::VK_SetMaterialOutput: LowerSetMaterialOutput(static_cast<MIR::FSetMaterialOutput*>(Instr)); break;
+			case MIR::VK_BinaryOperator: LowerBinaryOperator(static_cast<MIR::FBinaryOperator*>(Instr)); break;
+			case MIR::VK_Branch: LowerBranch(static_cast<MIR::FBranch*>(Instr)); break;
+			case MIR::VK_Subscript: LowerSubscript(static_cast<MIR::FSubscript*>(Instr)); break;
+			case MIR::VK_TextureSample: LowerTextureSample(static_cast<MIR::FTextureSample*>(Instr)); break;
+
+			default:
+				UE_MIR_UNREACHABLE();
+		}
+
+		return NoOp;
+	}
+
+	void LowerConstant(const MIR::FConstant* Constant)
+	{
+		MIR::FArithmeticTypePtr ArithType = Constant->Type->AsArithmetic();
+		check(ArithType && ArithType->IsScalar());
+
+		switch (ArithType->ScalarKind)
+		{
+			case MIR::SK_Bool:  Printer.Buffer.Append(Constant->Boolean ? TEXT("true") : TEXT("false")); break;
+			case MIR::SK_Int:   Printer.Buffer.Appendf(TEXT("%") PRId64, Constant->Integer); break;
+			case MIR::SK_Float: Printer.Buffer.Appendf(TEXT("%.5ff"), Constant->Float); break;
+		}
+	}
+
+	void LowerExternalInput(const MIR::FExternalInput* ExternalInput)
+	{
+		int ExternalInputIndex = (int)ExternalInput->Id;
+
+		if (MIR::IsExternalInputTexCoord(ExternalInput->Id))
+		{
+			int Index = ExternalInputIndex - (int)MIR::EExternalInput::TexCoord0;
+			Printer.Appendf(TEXT("Parameters.TexCoords[%d]"), Index);
+		}
+		else if (MIR::IsExternalInputTexCoordDdx(ExternalInput->Id))
+		{
+			int Index = ExternalInputIndex - (int)MIR::EExternalInput::TexCoord0_Ddx;
+			Printer.Appendf(TEXT("Parameters.TexCoords_DDX[%d]"), Index);
+		}
+		else if (MIR::IsExternalInputTexCoordDdy(ExternalInput->Id))
+		{
+			int Index = ExternalInputIndex - (int)MIR::EExternalInput::TexCoord0_Ddy;
+			Printer.Appendf(TEXT("Parameters.TexCoords_DDY[%d]"), Index);
+		}
+		else
+		{
+			UE_MIR_UNREACHABLE();
+		}
+	}
+
+	void LowerMaterialParameter(const MIR::FMaterialParameter* Parameter)
+	{
+		UE_MIR_UNREACHABLE();
+	}
+	
+	void LowerDimensional(const MIR::FDimensional* Dimensional) 
+	{
+		MIR::FArithmeticTypePtr ArithmeticType = Dimensional->Type->AsArithmetic();
+		check(ArithmeticType && ArithmeticType->IsVector());
+
+		Printer << ScalarKindToString(ArithmeticType->ScalarKind) << ArithmeticType->NumRows << BeginArgs;
+
+		for (MIR::FValue* Component : Dimensional->GetComponents())
+		{
+			Printer << ListSeparator << LowerValue(Component);
+		}
+
+		Printer << EndArgs;
+	}
+
+	void LowerSetMaterialOutput(const MIR::FSetMaterialOutput* Output)
+	{
+		// Special case MP_SubsurfaceColor as the actual property is a combination of the color and the profile but we don't want to expose the profile
+		const FString& PropertyName = (Output->Property == MP_SubsurfaceColor) ? "Subsurface" : FMaterialAttributeDefinitionMap::GetAttributeName(Output->Property);
+		Printer << TEXT("PixelMaterialInputs.") << PropertyName << TEXT(" = ") << LowerValue(Output->Arg);
+	}
+
+	void LowerBinaryOperator(const MIR::FBinaryOperator* BinaryOperator)
+	{
+		LowerValue(BinaryOperator->LhsArg);
+
+		const TCHAR* OpString;
+		switch (BinaryOperator->Operator)
+		{
+			case MIR::BO_Add: OpString = TEXT(" + "); break;
+			case MIR::BO_Subtract: OpString = TEXT(" - "); break;
+			case MIR::BO_Multiply: OpString = TEXT(" * "); break;
+			case MIR::BO_Divide: OpString = TEXT(" / "); break;
+			case MIR::BO_GreaterThan: OpString = TEXT(" > "); break;
+			case MIR::BO_LowerThan: OpString = TEXT(" < "); break;
+			case MIR::BO_Equals: OpString = TEXT(" == "); break;
+			default: UE_MIR_UNREACHABLE();
+		}
+		Printer << OpString;
+
+		LowerValue(BinaryOperator->RhsArg);
+	}
+
+	void LowerBranch(const MIR::FBranch* Branch)
+	{
+		if (IsFoldable(Branch))
+		{
+			Printer << LowerValue(Branch->ConditionArg)
+				<< TEXT(" ? ") << LowerValue(Branch->TrueArg)
+				<< TEXT(" : ") << LowerValue(Branch->FalseArg);
+		}
+		else
+		{
+			Printer << EndOfStatement;
+			Printer << TEXT("if (") << LowerValue(Branch->ConditionArg) << TEXT(")") << NewLine << OpenBrace;
+			Printer << LowerBlock(Branch->TrueBlock);
+			Printer << LocalIdentifier[Branch] << " = " << LowerValue(Branch->TrueArg) << EndOfStatement;
+			Printer << CloseBrace << NewLine;
+			Printer << TEXT("else") << NewLine << OpenBrace;
+			Printer << LowerBlock(Branch->FalseBlock);
+			Printer << LocalIdentifier[Branch] << " = " << LowerValue(Branch->FalseArg) << EndOfStatement;
+			Printer << CloseBrace;
+		}
+	}
+			
+	void LowerSubscript(const MIR::FSubscript* Subscript)
+	{
+		LowerValue(Subscript->Arg);
+
+		if (MIR::FArithmeticTypePtr ArgArithmeticType = Subscript->Arg->Type->AsVector())
+		{
+			const TCHAR* ComponentsStr[] = { TEXT(".x"), TEXT(".y"), TEXT(".z"), TEXT(".w") };
+			check(Subscript->Index <= ArgArithmeticType->GetNumComponents());
+
+			Printer << ComponentsStr[Subscript->Index];
+		}
+	}
+
+	void LowerTextureSample(MIR::FTextureSample* TextureSample)
+	{
+		bool bUsesSpecialSampler = LowerSamplerType(TextureSample->SamplerType);
+		if (bUsesSpecialSampler)
+		{
+			Printer << TEXT("(");
+		}
+
+		switch (TextureSample->Texture->GetMaterialType())
+		{
+			case MCT_Texture2D:
+				Printer << TEXT("Texture2DSample");
+				break;
+
+			default:
+				UE_MIR_UNREACHABLE();
+		}
+
+		Printer << BeginArgs
+			<< ListSeparator << LowerTextureReference(TextureSample->Texture->GetMaterialType(), TextureSample->TextureParameterIndex)
+			<< ListSeparator << LowerTextureSamplerReference(TextureSample->SamplerSourceMode, TextureSample->Texture->GetMaterialType(), TextureSample->TextureParameterIndex)
+			<< ListSeparator << LowerValue(TextureSample->TexCoordArg)
+			<< EndArgs;
+
+		if (bUsesSpecialSampler)
+		{
+			Printer << TEXT(")");
+		}
+	}
+
+	bool LowerSamplerType(EMaterialSamplerType SamplerType)
+	{
+		switch (SamplerType)
+		{
+			case SAMPLERTYPE_External:
+				Printer << TEXT("ProcessMaterialExternalTextureLookup");
+				break;
+
+			case SAMPLERTYPE_Color:
+				Printer << TEXT("ProcessMaterialColorTextureLookup");
+				break;
+			case SAMPLERTYPE_VirtualColor:
+				// has a mobile specific workaround
+				Printer << TEXT("ProcessMaterialVirtualColorTextureLookup");
+				break;
+
+			case SAMPLERTYPE_LinearColor:
+			case SAMPLERTYPE_VirtualLinearColor:
+				Printer << TEXT("ProcessMaterialLinearColorTextureLookup");
+				break;
+
+			case SAMPLERTYPE_Alpha:
+			case SAMPLERTYPE_VirtualAlpha:
+			case SAMPLERTYPE_DistanceFieldFont:
+				Printer << TEXT("ProcessMaterialAlphaTextureLookup");
+				break;
+
+			case SAMPLERTYPE_Grayscale:
+			case SAMPLERTYPE_VirtualGrayscale:
+				Printer << TEXT("ProcessMaterialGreyscaleTextureLookup");
+				break;
+
+			case SAMPLERTYPE_LinearGrayscale:
+			case SAMPLERTYPE_VirtualLinearGrayscale:
+				Printer <<TEXT("ProcessMaterialLinearGreyscaleTextureLookup");
+				break;
+
+			case SAMPLERTYPE_Normal:
+			case SAMPLERTYPE_VirtualNormal:
+				// Normal maps need to be unpacked in the pixel shader.
+				Printer << TEXT("UnpackNormalMap");
+				break;
+
+			case SAMPLERTYPE_Masks:
+			case SAMPLERTYPE_VirtualMasks:
+			case SAMPLERTYPE_Data:
+				return false;
+
+			default:
+				UE_MIR_UNREACHABLE();
+		}
+
+		return true;
+	}
+
+	ENoOp LowerTextureSamplerReference(ESamplerSourceMode SamplerSource, EMaterialValueType TextureType, int TextureParameterIndex)
+	{
+		switch (SamplerSource)
+		{
+		case SSM_FromTextureAsset:
+			LowerTextureReference(TextureType, TextureParameterIndex);
+			Printer << TEXT("Sampler");
+			break;
+
+		default:
+			UE_MIR_UNREACHABLE();
+		}
+
+		return NoOp;
+	}
+
+	ENoOp LowerTextureReference(EMaterialValueType TextureType, int TextureParameterIndex)
+	{
+		Printer << TEXT("Material.");
+
+		switch (TextureType)
+		{
+			case MCT_Texture2D: Printer << TEXT("Texture2D_"); break;
+			default: UE_MIR_UNREACHABLE();
+		}
+
+		Printer << TextureParameterIndex;
+
+		return NoOp;
+	}
+	
+	/* Finalization */
+
+	void SetMaterialParameters(TMap<FString, FString>& Params)
+	{
+		const FMaterialIRModule::FStatistics ModuleStatistics = Module->GetStatistics();
+
+		auto SetParamInt = [&] (const TCHAR* InParamName, int InValue)
+		{
+			Params.Add(InParamName, FString::Printf(TEXT("%d"), InValue));
+		};
+		
+		auto SetParamReturnFloat = [&] (const TCHAR* InParamName, float InValue)
+		{
+			Params.Add(InParamName, FString::Printf(TEXT(TAB "return %.5f"), InValue));
+		};
+
+		Params.Add(TEXT("pixel_material_inputs"), MoveTemp(PixelAttributesHLSL));
+		Params.Add(TEXT("calc_pixel_material_inputs_initial_calculations"), EvaluateOtherMaterialAttributesHLSL);
+		Params.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_initial"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
+		
+		// MaterialAttributes
+		TArray<FGuid> OrderedVisibleAttributes = FMaterialAttributeDefinitionMap::GetOrderedVisibleAttributeList();
+		
+		FString MaterialDeclarations;
+		MaterialDeclarations.Appendf(TEXT("struct FMaterialAttributes\n{\n"));
+		for (const FGuid& AttributeID : OrderedVisibleAttributes)
+		{
+			const FString& PropertyName = FMaterialAttributeDefinitionMap::GetAttributeName(AttributeID);
+			const EMaterialValueType PropertyType = FMaterialAttributeDefinitionMap::GetValueType(AttributeID);
+			MaterialDeclarations.Appendf(TEXT(TAB "%s %s;\n"), GetHLSLTypeString(PropertyType), *PropertyName);
+		}
+		MaterialDeclarations.Appendf(TEXT("};"));
+		Params.Add(TEXT("material_declarations"), MoveTemp(MaterialDeclarations));
+		
+		SetParamInt(TEXT("num_material_texcoords_vertex"), ModuleStatistics.NumVertexTexCoords);
+		SetParamInt(TEXT("num_material_texcoords"), ModuleStatistics.NumPixelTexCoords);
+		SetParamInt(TEXT("num_custom_vertex_interpolators"), 0);
+		SetParamInt(TEXT("num_tex_coord_interpolators"), ModuleStatistics.NumPixelTexCoords);
+
+		FString GetMaterialCustomizedUVS;
+		for (int CustomUVIndex = 0; CustomUVIndex < ModuleStatistics.NumPixelTexCoords; CustomUVIndex++)
+		{
+			const FString AttributeName = FMaterialAttributeDefinitionMap::GetAttributeName((EMaterialProperty)(MP_CustomizedUVs0 + CustomUVIndex));
+			GetMaterialCustomizedUVS.Appendf(TEXT(TAB "OutTexCoords[%u] = Parameters.MaterialAttributes.%s;\n"), CustomUVIndex, *AttributeName);
+		}
+		Params.Add(TEXT("get_material_customized_u_vs"), MoveTemp(GetMaterialCustomizedUVS));
+
+		SetParamReturnFloat(TEXT("get_material_emissive_for_cs"), 0.f);
+		SetParamReturnFloat(TEXT("get_material_translucency_directional_lighting_intensity"), Material->GetTranslucencyDirectionalLightingIntensity());
+		SetParamReturnFloat(TEXT("get_material_translucent_shadow_density_scale"), Material->GetTranslucentShadowDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_density_scale"), Material->GetTranslucentSelfShadowDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_density_scale"), Material->GetTranslucentSelfShadowSecondDensityScale());
+		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_opacity"), Material->GetTranslucentSelfShadowSecondOpacity());
+		SetParamReturnFloat(TEXT("get_material_translucent_backscattering_exponent"), Material->GetTranslucentBackscatteringExponent());
+
+		FLinearColor Extinction = Material->GetTranslucentMultipleScatteringExtinction();
+		Params.Add(TEXT("get_material_translucent_multiple_scattering_extinction"), FString::Printf(TEXT(TAB "return MaterialFloat3(%.5f, %.5f, %.5f)"), Extinction.R, Extinction.G, Extinction.B));
+
+		SetParamReturnFloat(TEXT("get_material_opacity_mask_clip_value"), Material->GetOpacityMaskClipValue());
+		Params.Add(TEXT("get_material_world_position_offset_raw"), TEXT(TAB "return 0; // todo"));
+		Params.Add(TEXT("get_material_previous_world_position_offset_raw"), TEXT(TAB "return 0; // todo"));
+	
+		// CustomData0/1 are named ClearCoat/ClearCoatRoughness
+		Params.Add(TEXT("get_material_custom_data0"), TEXT(TAB "return 1.0f; // todo"));
+		Params.Add(TEXT("get_material_custom_data1"), TEXT(TAB "return 0.1f; // todo"));
+
+		FString EvaluateMaterialDeclaration;
+		EvaluateMaterialDeclaration.Append(TEXT("void EvaluateVertexMaterialAttributes(in out FMaterialVertexParameters Parameters)\n{\n"));
+		for (int CustomUVIndex = 0; CustomUVIndex < ModuleStatistics.NumPixelTexCoords; CustomUVIndex++)
+		{
+			EvaluateMaterialDeclaration.Appendf(TEXT(TAB "Parameters.MaterialAttributes.CustomizedUV%d = Parameters.TexCoords[%d].xy;\n"), CustomUVIndex, CustomUVIndex);
+		}
+		EvaluateMaterialDeclaration.Append(TEXT("\n}\n"));
+		Params.Add(TEXT("evaluate_material_attributes"), MoveTemp(EvaluateMaterialDeclaration));
+	}
+	
+	ENoOp LowerType(const MIR::FType* Type)
 	{
 		if (auto ArithmeticType = Type->AsArithmetic())
 		{
 			switch (ArithmeticType->ScalarKind)
 			{
-				case IR::SK_Bool:	Printer << TEXT("bool"); break;
-				case IR::SK_Int: 	Printer << TEXT("int"); break;
-				case IR::SK_Float:	Printer << TEXT("float"); break;
+				case MIR::SK_Bool:	Printer << TEXT("bool"); break;
+				case MIR::SK_Int: 	Printer << TEXT("int"); break;
+				case MIR::SK_Float:	Printer << TEXT("float"); break;
 			}
 
 			if (ArithmeticType->NumRows > 1)
@@ -440,53 +669,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 
 		return NoOp;
 	}
-
-	void SetMaterialParameters(TMap<FString, FString>& Params)
-	{
-		auto SetParamInt = [&] (const TCHAR* InParamName, int InValue)
-		{
-			Params.Add(InParamName, FString::Printf(TEXT("%d"), InValue));
-		};
-		
-		auto SetParamReturnFloat = [&] (const TCHAR* InParamName, float InValue)
-		{
-			Params.Add(InParamName, FString::Printf(TEXT("\treturn %.5f"), InValue));
-		};
-
-		Params.Add(TEXT("pixel_material_inputs"), MoveTemp(PixelAttributesHLSL));
-		Params.Add(TEXT("calc_pixel_material_inputs_initial_calculations"), EvaluateOtherMaterialAttributesHLSL);
-		Params.Add(TEXT("calc_pixel_material_inputs_analytic_derivatives_initial"), MoveTemp(EvaluateOtherMaterialAttributesHLSL));
-		Params.Add(TEXT("material_declarations"), TEXT("struct FMaterialAttributes {};"));
-		SetParamInt(TEXT("num_material_texcoords_vertex"), 0);
-		SetParamInt(TEXT("num_material_texcoords"), 0);
-		SetParamInt(TEXT("num_custom_vertex_interpolators"), 0);
-		SetParamInt(TEXT("num_tex_coord_interpolators"), 0);
-
-		SetParamReturnFloat(TEXT("get_material_emissive_for_cs"), 0.f);
-		SetParamReturnFloat(TEXT("get_material_translucency_directional_lighting_intensity"), Material->GetTranslucencyDirectionalLightingIntensity());
-		SetParamReturnFloat(TEXT("get_material_translucent_shadow_density_scale"), Material->GetTranslucentShadowDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_density_scale"), Material->GetTranslucentSelfShadowDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_density_scale"), Material->GetTranslucentSelfShadowSecondDensityScale());
-		SetParamReturnFloat(TEXT("get_material_translucent_self_shadow_second_opacity"), Material->GetTranslucentSelfShadowSecondOpacity());
-		SetParamReturnFloat(TEXT("get_material_translucent_backscattering_exponent"), Material->GetTranslucentBackscatteringExponent());
-
-		FLinearColor Extinction = Material->GetTranslucentMultipleScatteringExtinction();
-		Params.Add(TEXT("get_material_translucent_multiple_scattering_extinction"), FString::Printf(TEXT("\treturn MaterialFloat3(%.5f, %.5f, %.5f)"), Extinction.R, Extinction.G, Extinction.B));
-
-		SetParamReturnFloat(TEXT("get_material_opacity_mask_clip_value"), Material->GetOpacityMaskClipValue());
-		Params.Add(TEXT("get_material_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
-		Params.Add(TEXT("get_material_previous_world_position_offset_raw"), TEXT("\treturn 0; // todo"));
 	
-		// CustomData0/1 are named ClearCoat/ClearCoatRoughness
-		Params.Add(TEXT("get_material_custom_data0"), TEXT("\treturn 1.0f; // todo"));
-		Params.Add(TEXT("get_material_custom_data1"), TEXT("\treturn 0.1f; // todo"));
-
-		FString EvaluateMaterialDeclaration;
-		EvaluateMaterialDeclaration.Append(TEXT("void EvaluateVertexMaterialAttributes(in out FMaterialVertexParameters Parameters)\n{\n"));
-		EvaluateMaterialDeclaration.Append(TEXT("\n}\n"));
-		Params.Add(TEXT("evaluate_material_attributes"), EvaluateMaterialDeclaration);
-	}
-
 	void GetShaderCompilerEnvironment(FShaderCompilerEnvironment& OutEnvironment)
 	{
 		const FMaterialCompilationOutput& CompilationOutput = Module->GetCompilationOutput();
@@ -614,4 +797,5 @@ void FMaterialIRToHLSLTranslation::Run(TMap<FString, FString>& OutParameters, FS
 	Translator.GetShaderCompilerEnvironment(OutEnvironment);
 }
 
+#undef TAB
 #endif // #if WITH_EDITOR

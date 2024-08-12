@@ -157,6 +157,21 @@ FArithmeticTypePtr FArithmeticType::GetFloat1()
 	return GetScalar(SK_Float);
 }
 
+FArithmeticTypePtr FArithmeticType::GetFloat2()
+{
+	return GetVector(SK_Float, 2);
+}
+
+FArithmeticTypePtr FArithmeticType::GetFloat3()
+{
+	return GetVector(SK_Float, 3);
+}
+
+FArithmeticTypePtr FArithmeticType::GetFloat4()
+{
+	return GetVector(SK_Float, 4);
+}
+
 const FArithmeticType* FArithmeticType::GetScalar(EScalarKind InScalarKind)
 {
 	return Get(InScalarKind, 1, 1);
@@ -241,6 +256,13 @@ FArithmeticTypePtr FArithmeticType::ToScalar() const
 {
 	return FArithmeticType::GetScalar(ScalarKind);
 }
+
+FTypePtr FTextureType::Get()
+{
+	static FTextureType Instance { TK_Texture };
+	return &Instance;
+}
+
 
 } // namespace UE::MIR
 

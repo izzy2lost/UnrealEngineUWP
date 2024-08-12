@@ -10,13 +10,7 @@
 
 /* Forward declarations */
 
-namespace UE::Shader
-{
-	struct FValue;
-}
-
-namespace ERHIFeatureLevel { enum Type : int; }
-
+enum EMaterialProperty : int;
 class FMaterial;
 class FMaterialIRModule;
 class FMaterialIRModule;
@@ -30,6 +24,14 @@ struct FShaderCompilerEnvironment;
 struct FStaticParameterSet;
 struct FMaterialInputDescription;
 struct FMaterialInsights;
+class UTexture;
+
+namespace UE::Shader
+{
+	struct FValue;
+}
+
+namespace ERHIFeatureLevel { enum Type : int; }
 
 namespace UE::MIR
 {
@@ -43,10 +45,12 @@ using FArithmeticTypePtr = const FArithmeticType*;
 
 /* IR */
 struct FValue;
+struct FGlobalInput;
 struct FInstruction;
 struct FSetMaterialOutput;
 using FValuePtr = const FValue*;
 using FInstructionPtr = const FInstruction*;
+enum class EExternalInput;
 
 /* Others */
 class FEmitter;
@@ -55,6 +59,6 @@ struct FBlock;
 }
 
 #define UE_MIR_UNREACHABLE() { check(!"Unreachable"); UE_ASSUME(false); }
-#define UE_MIR_TODO() UE_MIR_UNREACHABLE()
+#define UE_MIR_TODO() checkNoEntry()
 
 #endif // #if WITH_EDITOR

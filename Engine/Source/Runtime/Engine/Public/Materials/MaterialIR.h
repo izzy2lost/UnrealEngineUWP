@@ -2,8 +2,7 @@
 #pragma once
 
 #include "Materials/MaterialIRCommon.h"
-
-enum EMaterialProperty : int;
+#include "MaterialTypes.h"
 
 #if WITH_EDITOR
 
@@ -14,8 +13,12 @@ enum EValueKind
 	/* Values */
 
 	VK_Constant,
+	VK_ExternalInput,
+	VK_MaterialParameter,
 
 	/* Instructions */
+
+	VK_InstructionBegin,
 
 	VK_Dimensional,
 	VK_SetMaterialOutput,
@@ -23,24 +26,37 @@ enum EValueKind
 	VK_Branch,
 	VK_Subscript,
 	VK_Cast,
+	VK_TextureSample,
 
 	VK_InstructionEnd,
-	VK_InstructionBegin = VK_Dimensional,
 };
+
+const TCHAR* ValueKindToString(EValueKind Kind);
 
 /* Values */
 
+enum EValueFlags
+{
+	VF_None = 0,
+	VF_ValueAnalyzed = 1,
+	VF_InstructionAnalyzed = 2,
+};
+
 struct FValue
 {
-	EValueKind Kind{};
+	EValueKind Kind : 8{};
+	EValueFlags Flags : 8{};
 	FTypePtr  Type{};
 
+	void SetFlags(EValueFlags InFlags) { Flags = (EValueFlags)(Flags | InFlags); }
 	bool IsA(EValueKind InKind) const { return Kind == InKind; }
 	FInstruction* AsInstruction();
 	const FInstruction* AsInstruction() const;
 	bool Equals(const FValue* Other) const;
 	uint32 GetSizeInBytes() const;
+	TArrayView<const FValue*> GetUses() const;
 	TArrayView<FValue*> GetUses();
+	UTexture* GetTexture();
 	
 	template <typename T>
 	T* As() { return this && IsA(T::TypeKind) ? static_cast<T*>(this) : nullptr; }
@@ -64,7 +80,7 @@ struct FConstant : TValue<VK_Constant>
 	{
 		bool  		Boolean;
 		TInteger	Integer;
-		TFloat 	Float;
+		TFloat 		Float;
 	};
 
 	template <typename T>
@@ -89,6 +105,60 @@ struct FConstant : TValue<VK_Constant>
 	}
 };
 
+enum class EExternalInput
+{
+	None,
+
+	TexCoord0,
+	TexCoord1,
+	TexCoord2,
+	TexCoord3,
+	TexCoord4,
+	TexCoord5,
+	TexCoord6,
+	TexCoord7,
+
+	TexCoord0_Ddx,
+	TexCoord1_Ddx,
+	TexCoord2_Ddx,
+	TexCoord3_Ddx,
+	TexCoord4_Ddx,
+	TexCoord5_Ddx,
+	TexCoord6_Ddx,
+	TexCoord7_Ddx,
+
+	TexCoord0_Ddy,
+	TexCoord1_Ddy,
+	TexCoord2_Ddy,
+	TexCoord3_Ddy,
+	TexCoord4_Ddy,
+	TexCoord5_Ddy,
+	TexCoord6_Ddy,
+	TexCoord7_Ddy,
+
+	Count,
+};
+
+static constexpr int TexCoordMaxNum = 8;
+
+const TCHAR* ExternalInputToString(EExternalInput Input);
+MIR::EExternalInput TexCoordIndexToExternalInput(int TexCoordIndex);
+FTypePtr GetExternalInputType(EExternalInput Id);
+bool IsExternalInputTexCoord(EExternalInput Id);
+bool IsExternalInputTexCoordDdx(EExternalInput Id);
+bool IsExternalInputTexCoordDdy(EExternalInput Id);
+
+struct FExternalInput : TValue<VK_ExternalInput>
+{
+	EExternalInput Id;
+};
+
+struct FMaterialParameter : TValue<VK_MaterialParameter>
+{	
+	FMaterialParameterInfo Info;
+	FMaterialParameterMetadata Metadata;
+};
+
 /* Instructions */
 
 struct FBlock
@@ -96,24 +166,18 @@ struct FBlock
 	FBlock* Parent{};
 	FInstruction* Instructions{};
 	int32 Level{};
-};
 
-enum EInstructionFlags
-{
-	IF_None = 0,
-	IF_Counted = 1,
+	FBlock* FindCommonParentWith(MIR::FBlock* Other);
 };
 
 struct FInstruction : FValue
 {
-	EInstructionFlags Flags{};
 	FInstruction* Next{};
 	FBlock* Block{};
 	uint32 NumUsers{};
 	uint32 NumProcessedUsers{};
 
-	void SetFlags(EInstructionFlags InFlags) { Flags = (EInstructionFlags)(Flags | InFlags); }
-	bool GetInnerBlock(int32 Index, FValue*& OutArg, FBlock*& OutBlock); 
+	FBlock* GetDesiredBlockForUse(int32 UseIndex); 
 };
 
 template <EValueKind TTypeKind>
@@ -158,16 +222,17 @@ enum EBinaryOperator
 	BO_Divide,
 
 	/* Comparison */
-	BO_Greater,
-	BO_GreaterOrEquals,
-	BO_Lower,
-	BO_LowerOrEquals,
+	BO_GreaterThan,
+	BO_GreaterThanOrEquals,
+	BO_LowerThan,
+	BO_LowerThanOrEquals,
 	BO_Equals,
 	BO_NotEquals,
 };
 
 bool IsArithmeticOperator(EBinaryOperator Op);
 bool IsComparisonOperator(EBinaryOperator Op);
+const TCHAR* BinaryOperatorToString(EBinaryOperator Op);
 
 struct FBinaryOperator : TInstruction<VK_BinaryOperator>
 {
@@ -195,6 +260,23 @@ struct FCast : TInstruction<VK_Cast>
 {
 	FValue* Arg{};
 };
+
+struct FTextureSample : TInstruction<VK_TextureSample>
+{
+	FValue* TexCoordArg;
+	// TexCoordDerivatives;
+	FValue* MipValueArg;
+	FValue* AutomaticMipBiasArg;
+	UTexture* Texture;
+	ESamplerSourceMode SamplerSourceMode;
+	ETextureMipValueMode MipValueMode;
+	EMaterialSamplerType SamplerType;
+	
+	/* Analysis Values */
+	int TextureParameterIndex;
+};
+
+UTexture* GetTextureFromValue(FValue* TextureValue);
 
 } // namespace UE::MIR
 #endif
