@@ -268,13 +268,13 @@ void UMeshPaintMode::BindCommands()
  		FExecuteAction::CreateUObject(this, &UMeshPaintMode::FillTexture),
  		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanFillTexture)));
 
- 	CommandList->MapAction(Commands.Apply, FUIAction(
+ 	CommandList->MapAction(Commands.ApplyVertex, FUIAction(
  		FExecuteAction::CreateUObject(this, &UMeshPaintMode::ApplyVertexColorsToAsset),
  		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanApplyVertexColorsToAsset)));
 
- 	CommandList->MapAction(Commands.Commit, FUIAction(
- 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::CommitTextureColorsToAsset),
- 		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanCommitTextureColorsToAsset)));
+ 	CommandList->MapAction(Commands.ApplyTexture, FUIAction(
+ 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::ApplyTextureColorsToAsset),
+ 		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanApplyTextureColorsToAsset)));
 
 	CommandList->MapAction(Commands.Propagate, FUIAction(
 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::PropagateVertexColorsToLODs),
@@ -907,15 +907,15 @@ bool UMeshPaintMode::CanCycleTextures() const
 	return TexturePaintingTool != nullptr;
 }
 
-void UMeshPaintMode::CommitTextureColorsToAsset()
+void UMeshPaintMode::ApplyTextureColorsToAsset()
 {
 	if (UMeshTexturePaintingTool* TexturePaintingTool = Cast<UMeshTexturePaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
 	{
-		TexturePaintingTool->CommitAllPaintedTextures();
+		TexturePaintingTool->ApplyAllPaintedTextures();
 	}
 }
 
-bool UMeshPaintMode::CanCommitTextureColorsToAsset() const
+bool UMeshPaintMode::CanApplyTextureColorsToAsset() const
 {
 	if (UMeshTexturePaintingTool* TexturePaintingTool = Cast<UMeshTexturePaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
 	{

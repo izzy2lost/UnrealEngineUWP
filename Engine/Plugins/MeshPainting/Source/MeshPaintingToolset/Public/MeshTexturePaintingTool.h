@@ -161,7 +161,7 @@ public:
 		return OnPaintingFinishedDelegate;
 	}
 
-	void CommitAllPaintedTextures();
+	void ApplyAllPaintedTextures();
 	void ClearAllTextureOverrides();
 	
 	/** Returns the number of texture that require a commit. */

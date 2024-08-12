@@ -4862,10 +4862,10 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set("MeshPaint.FillVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
 		Set("MeshPaint.FillTexture", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
 		Set("MeshPaint.FillTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/PaintBucket_40x", Icon20x20));
-		Set("MeshPaint.Apply", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
-		Set("MeshPaint.Apply.Small", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
-		Set("MeshPaint.Commit", new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
-		Set("MeshPaint.Commit.Small", new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
+		Set("MeshPaint.ApplyVertex", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
+		Set("MeshPaint.ApplyVertex.Small", new IMAGE_BRUSH("/Icons/Paint/Paint_Propagate_40x", Icon20x20));
+		Set("MeshPaint.ApplyTexture", new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
+		Set("MeshPaint.ApplyTexture.Small", new IMAGE_BRUSH("/Icons/Paint/Paint_PropagateTexture_40x", Icon20x20));
 		Set("MeshPaint.Propagate", new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
 		Set("MeshPaint.Propagate.Small", new IMAGE_BRUSH("Icons/Paint/Paint_AllLODs_40x", Icon20x20));
 		Set("MeshPaint.SaveVertex", new IMAGE_BRUSH("/Icons/GeneralTools/Save_40x", Icon20x20));

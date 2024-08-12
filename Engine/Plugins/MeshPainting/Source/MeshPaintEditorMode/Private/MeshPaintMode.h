@@ -100,8 +100,8 @@ protected:
 	bool CanFillTexture() const;
 	void ApplyVertexColorsToAsset();
 	bool CanApplyVertexColorsToAsset() const;
-	void CommitTextureColorsToAsset();
-	bool CanCommitTextureColorsToAsset() const;
+	void ApplyTextureColorsToAsset();
+	bool CanApplyTextureColorsToAsset() const;
 	void PropagateVertexColorsToLODs();
 	bool CanPropagateVertexColorsToLODs() const;
 	void SaveVertexColorsToAssets();

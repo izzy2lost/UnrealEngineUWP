@@ -720,7 +720,7 @@ FInputRayHit UMeshTexturePaintingTool::CanBeginClickDragSequence(const FInputDev
 	{
 		MeshPaintingSubsystem->LastPaintedComponent = (UMeshComponent*)LastBestHitResult.Component.Get();
 		GVertexViewModeOverrideOwnerName = *LastBestHitResult.Component->GetOwner()->GetName();
-		//CommitAllPaintedTextures();
+		//ApplyAllPaintedTextures();
 		//MeshPaintingSubsystem->bNeedsRecache = true;
 	}
 
@@ -1397,7 +1397,7 @@ void UMeshTexturePaintingTool::FinishPaintingTexture()
 		FPaintTexture2DData* TextureData = GetPaintTargetData(PaintingTexture2D);
 		check(TextureData);
 
-		// Commit to the texture source art but don't do any compression, compression is saved for the CommitAllPaintedTextures function.
+		// Set to the texture source art but don't do any compression, compression is saved for the ApplyAllPaintedTextures function.
 		if (TextureData->bIsPaintingTexture2DModified == true)
 		{
 			const int32 TexWidth = TextureData->PaintRenderTargetTexture->SizeX;
@@ -1593,16 +1593,16 @@ void UMeshTextureAssetPaintingTool::CycleTextures(int32 Direction)
 }
 
 
-void UMeshTexturePaintingTool::CommitAllPaintedTextures()
+void UMeshTexturePaintingTool::ApplyAllPaintedTextures()
 {
 	if (PaintTargetData.Num() > 0)
 	{
 		check(PaintingTexture2D == nullptr);
 
-		FScopedTransaction Transaction(LOCTEXT("MeshPaintMode_TexturePaint_Commit", "Commit Texture Paint"));
+		FScopedTransaction Transaction(LOCTEXT("MeshPaintMode_TexturePaint_Apply", "Apply Texture Paint"));
 		
 		Modify();
-	//	GWarn->BeginSlowTask(LOCTEXT("BeginMeshPaintMode_TexturePaint_CommitTask", "Committing Texture Paint Changes"), true);
+	//	GWarn->BeginSlowTask(LOCTEXT("BeginMeshPaintMode_TexturePaint_ApplyTask", "Applying Texture Paint Changes"), true);
 
 		int32 CurStep = 1;
 		int32 TotalSteps = GetNumberOfPendingPaintChanges();
@@ -1611,10 +1611,10 @@ void UMeshTexturePaintingTool::CommitAllPaintedTextures()
 		{
 			FPaintTexture2DData* TextureData = &It.Value();
 
-			// Commit the texture
+			// Apply the texture
 			if (TextureData->bIsPaintingTexture2DModified == true)
 			{
-			//	GWarn->StatusUpdate(CurStep++, TotalSteps, FText::Format(LOCTEXT("MeshPaintMode_TexturePaint_CommitStatus", "Committing Texture Paint Changes: {0}"), FText::FromName(TextureData->PaintingTexture2D->GetFName())));
+			//	GWarn->StatusUpdate(CurStep++, TotalSteps, FText::Format(LOCTEXT("MeshPaintMode_TexturePaint_ApplyStatus", "Applying Texture Paint Changes: {0}"), FText::FromName(TextureData->PaintingTexture2D->GetFName())));
 
 				const int32 TexWidth = TextureData->PaintRenderTargetTexture->SizeX;
 				const int32 TexHeight = TextureData->PaintRenderTargetTexture->SizeY;
@@ -1694,7 +1694,7 @@ int32 UMeshTexturePaintingTool::GetNumberOfPendingPaintChanges() const
 	{
 		const FPaintTexture2DData* TextureData = &It.Value();
 
-		// Commit the texture
+		// Apply the texture
 		if (TextureData->bIsPaintingTexture2DModified == true)
 		{
 			Result++;
