@@ -344,7 +344,7 @@ public:
 	TObjectPtr<class UAnimBlueprintGeneratedClass> AnimBlueprintGeneratedClass;
 
 	/* The AnimBlueprint class to use. Use 'SetAnimInstanceClass' to change at runtime. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Animation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	class TSubclassOf<UAnimInstance> AnimClass;
 
 	/** The active animation graph program instance. */
@@ -399,7 +399,7 @@ public:
 	UFUNCTION(BlueprintSetter)
 	ENGINE_API void SetDisablePostProcessBlueprint(bool bInDisablePostProcess);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Animation, meta=(ShowOnlyInnerProperties))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Animation, meta=(ShowOnlyInnerProperties, EditCondition = bEnableAnimation))
 	struct FSingleAnimationPlayData AnimationData;
 
 	// this is explicit copy because this buffer is reused during evaluation
@@ -562,7 +562,7 @@ protected:
 
 public:
 	/** Used to scale speed of all animations on this skeletal mesh. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta=(EditCondition = bEnableAnimation))
 	float GlobalAnimRateScale;
 	
 	/** If we are running physics, should we update non-simulated bones based on the animation bone positions. */
@@ -578,7 +578,7 @@ public:
 
 protected:
 	/** Whether to use Animation Blueprint or play Single Animation Asset. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Animation)
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Animation, meta=(EditCondition = bEnableAnimation))
 	TEnumAsByte<EAnimationMode::Type>	AnimationMode;
 public:
 	// helper function to get the member name and verify it exists, without making it public
@@ -596,7 +596,7 @@ private:
 	/** Controls whether or not this component will evaluate its post process instance. The post-process
 	 *  Instance is dictated by the skeletal mesh so this is used for per-instance control.
 	 */
-	UPROPERTY(EditAnywhere, BlueprintGetter=GetDisablePostProcessBlueprint, BlueprintSetter=SetDisablePostProcessBlueprint, Category = Animation)
+	UPROPERTY(EditAnywhere, BlueprintGetter=GetDisablePostProcessBlueprint, BlueprintSetter=SetDisablePostProcessBlueprint, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bDisablePostProcessBlueprint:1;
 
 public:
@@ -725,11 +725,19 @@ public:
 	uint8 bNoSkeletonUpdate:1;
 
 	/** pauses this component's animations (doesn't tick them, but still refreshes bones) */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category=Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bPauseAnims:1;
 
+	/**
+	 * Whether the built-in animation of this component should run when the component ticks.
+	 * It is assumed that if this is false then some external system will be animating this mesh.
+	 * Note that disabling animation will also cause cloth simulation not to run and the component's tick to run on any thread. 
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadOnly, Category=Animation)
+	uint8 bEnableAnimation : 1;
+
 	/** On InitAnim should we set to ref pose (if false use first tick of animation data). If enabled, takes precedence over UAnimationSettings::bTickAnimationOnSkeletalMeshInit*/
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Animation)
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = Animation, meta=(EditCondition = bEnableAnimation))
 	uint8 bUseRefPoseOnInitAnim:1;
 
 	/**
@@ -972,6 +980,9 @@ ENGINE_API PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	/** Clear the linked anim instances and mark them pending kill */
 	void ResetLinkedAnimInstances();
+
+	/** Internal helper - copies the mesh's reference pose to the local space transforms and regenerates component space transforms accordingly */ 
+	void ResetToRefPose();
 
 public:
 	UE_DEPRECATED(4.23, "This function is deprecated. Please use GetLinkedAnimGraphInstanceByTag")

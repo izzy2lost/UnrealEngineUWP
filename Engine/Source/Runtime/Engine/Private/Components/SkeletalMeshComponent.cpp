@@ -338,6 +338,7 @@ USkeletalMeshComponent::USkeletalMeshComponent(const FObjectInitializer& ObjectI
 	RagdollAggregateThreshold = UPhysicsSettings::Get()->RagdollAggregateThreshold;
 
 	bUpdateMeshWhenKinematic = false;
+	bEnableAnimation = true;
 
 	LastPoseTickFrame = 0u;
 
@@ -495,6 +496,8 @@ void USkeletalMeshComponent::PostInitProperties()
 			AnimationMode = EAnimationMode::AnimationSingleNode;
 		}
 #endif
+
+		PrimaryComponentTick.bRunOnAnyThread = !bEnableAnimation;
 	}
 }
 
@@ -738,12 +741,19 @@ void USkeletalMeshComponent::OnRegister()
 	// to correctly populate that list.
 	ResetLinkedAnimInstances();
 
-	// We force an initialization here because we're in one of two cases.
-	// 1) First register, no spawned instance, need to initialize
-	// 2) We're being re-registered, in which case we've went through
-	// OnUnregister and unconditionally uninitialized our anim instances
-	// so we need to force initialize them before we begin to tick.
-	InitAnim(true);
+	if(bEnableAnimation)
+	{
+		// We force an initialization here because we're in one of two cases.
+		// 1) First register, no spawned instance, need to initialize
+		// 2) We're being re-registered, in which case we've went through
+		// OnUnregister and unconditionally uninitialized our anim instances
+		// so we need to force initialize them before we begin to tick.
+		InitAnim(true);
+	}
+	else
+	{
+		ResetToRefPose();
+	}
 
 	if (bRenderStatic || (VisibilityBasedAnimTickOption == EVisibilityBasedAnimTickOption::OnlyTickPoseWhenRendered && !FApp::CanEverRender()))
 	{
@@ -906,6 +916,11 @@ void USkeletalMeshComponent::InitAnim(bool bForceReinit)
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_SkelMeshComp_InitAnim);
 	LLM_SCOPE(ELLMTag::Animation);
 
+	if(!bEnableAnimation)
+	{
+		return;
+	}
+	
 	// a lot of places just call InitAnim without checking Mesh, so 
 	// I'm moving the check here
 	if ( GetSkeletalMeshAsset() != nullptr && IsRegistered() )
@@ -964,13 +979,7 @@ void USkeletalMeshComponent::InitAnim(bool bForceReinit)
 				}
 				else
 				{
-					PRAGMA_DISABLE_DEPRECATION_WARNINGS
-					BoneSpaceTransforms = GetSkeletalMeshAsset()->GetRefSkeleton().GetRefBonePose();
-					//Mini RefreshBoneTransforms (the bit we actually care about)
-					GetSkeletalMeshAsset()->FillComponentSpaceTransforms(BoneSpaceTransforms, FillComponentSpaceTransformsRequiredBones, GetEditableComponentSpaceTransforms());
-					PRAGMA_ENABLE_DEPRECATION_WARNINGS
-					bNeedToFlipSpaceBaseBuffers = true; // Have updated space bases so need to flip
-					FlipEditableSpaceBases();
+					ResetToRefPose();
 				}
 
 				if (bInitializedAnimInstance)
@@ -1408,6 +1417,11 @@ bool USkeletalMeshComponent::ShouldOnlyTickMontages(const float DeltaTime) const
 
 void USkeletalMeshComponent::TickAnimation(float DeltaTime, bool bNeedsValidRootMotion)
 {
+	if(!bEnableAnimation)
+	{
+		return;
+	}
+
 	SCOPED_NAMED_EVENT(USkeletalMeshComponent_TickAnimation, FColor::Yellow);
 	SCOPE_CYCLE_COUNTER(STAT_AnimGameThreadTime);
 	SCOPE_CYCLE_COUNTER(STAT_AnimTickTime);
@@ -1456,6 +1470,11 @@ void USkeletalMeshComponent::SetPredictedLODLevel(int32 InPredictedLODLevel)
 
 void USkeletalMeshComponent::TickAnimInstances(float DeltaTime, bool bNeedsValidRootMotion)
 {
+	if(!bEnableAnimation)
+	{
+		return;
+	}
+
 	// Allow animation instance to do some processing before the linked instances update
 	if (AnimScriptInstance != nullptr)
 	{
@@ -2423,6 +2442,11 @@ void USkeletalMeshComponent::DoInstancePostEvaluation()
 
 void USkeletalMeshComponent::RefreshBoneTransforms(FActorComponentTickFunction* TickFunction)
 {
+	if(!bEnableAnimation)
+	{
+		return;
+	}
+
 	SCOPE_CYCLE_COUNTER(STAT_AnimGameThreadTime);
 	SCOPE_CYCLE_COUNTER(STAT_RefreshBoneTransforms);
 
@@ -3244,6 +3268,17 @@ void USkeletalMeshComponent::ResetLinkedAnimInstances()
 	LinkedInstances.Reset();
 }
 
+void USkeletalMeshComponent::ResetToRefPose()
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	BoneSpaceTransforms = GetSkeletalMeshAsset()->GetRefSkeleton().GetRefBonePose();
+	//Mini RefreshBoneTransforms (the bit we actually care about)
+	GetSkeletalMeshAsset()->FillComponentSpaceTransforms(BoneSpaceTransforms, FillComponentSpaceTransformsRequiredBones, GetEditableComponentSpaceTransforms());
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	bNeedToFlipSpaceBaseBuffers = true; // Have updated space bases so need to flip
+	FlipEditableSpaceBases();
+}
+
 void USkeletalMeshComponent::AllowQueuedAnimEventsNextDispatch()
 {
 	bNeedsQueuedAnimEventsDispatched = true;
@@ -3251,7 +3286,7 @@ void USkeletalMeshComponent::AllowQueuedAnimEventsNextDispatch()
 
 UAnimInstance* USkeletalMeshComponent::GetLinkedAnimGraphInstanceByTag(FName InName) const
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		return AnimScriptInstance->GetLinkedAnimGraphInstanceByTag(InName);
 	}
@@ -3260,7 +3295,7 @@ UAnimInstance* USkeletalMeshComponent::GetLinkedAnimGraphInstanceByTag(FName InN
 
 void USkeletalMeshComponent::GetLinkedAnimGraphInstancesByTag(FName InTag, TArray<UAnimInstance*>& OutLinkedInstances) const
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		AnimScriptInstance->GetLinkedAnimGraphInstancesByTag(InTag, OutLinkedInstances);
@@ -3270,7 +3305,7 @@ void USkeletalMeshComponent::GetLinkedAnimGraphInstancesByTag(FName InTag, TArra
 
 void USkeletalMeshComponent::LinkAnimGraphByTag(FName InTag, TSubclassOf<UAnimInstance> InClass)
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		AnimScriptInstance->LinkAnimGraphByTag(InTag, InClass);
 	}
@@ -3278,7 +3313,7 @@ void USkeletalMeshComponent::LinkAnimGraphByTag(FName InTag, TSubclassOf<UAnimIn
 
 void USkeletalMeshComponent::LinkAnimClassLayers(TSubclassOf<UAnimInstance> InClass)
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		AnimScriptInstance->LinkAnimClassLayers(InClass);
 	}
@@ -3286,7 +3321,7 @@ void USkeletalMeshComponent::LinkAnimClassLayers(TSubclassOf<UAnimInstance> InCl
 
 void USkeletalMeshComponent::UnlinkAnimClassLayers(TSubclassOf<UAnimInstance> InClass)
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		AnimScriptInstance->UnlinkAnimClassLayers(InClass);
 	}
@@ -3294,7 +3329,7 @@ void USkeletalMeshComponent::UnlinkAnimClassLayers(TSubclassOf<UAnimInstance> In
 
 UAnimInstance* USkeletalMeshComponent::GetLinkedAnimLayerInstanceByGroup(FName InGroup) const
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		return AnimScriptInstance->GetLinkedAnimLayerInstanceByGroup(InGroup);
 	}
@@ -3303,7 +3338,7 @@ UAnimInstance* USkeletalMeshComponent::GetLinkedAnimLayerInstanceByGroup(FName I
 
 UAnimInstance* USkeletalMeshComponent::GetLinkedAnimLayerInstanceByClass(TSubclassOf<UAnimInstance> InClass) const
 {
-	if(AnimScriptInstance)
+	if(bEnableAnimation && AnimScriptInstance)
 	{
 		return AnimScriptInstance->GetLinkedAnimLayerInstanceByClass(InClass);
 	}
@@ -3529,6 +3564,12 @@ void USkeletalMeshComponent::GetResourceSizeEx(FResourceSizeEx& CumulativeResour
 
 void USkeletalMeshComponent::SetAnimationMode(EAnimationMode::Type InAnimationMode, bool bForceInitAnimScriptInstance)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("SetAnimationMode: Animation is currently disabled"));
+		return;
+	}
+
 	const bool bNeedChange = AnimationMode != InAnimationMode;
 	if (bNeedChange)
 	{
@@ -3555,6 +3596,12 @@ EAnimationMode::Type USkeletalMeshComponent::GetAnimationMode() const
 
 void USkeletalMeshComponent::PlayAnimation(class UAnimationAsset* NewAnimToPlay, bool bLooping)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("PlayAnimation: Animation is currently disabled"));
+		return;
+	}
+
 	SetAnimationMode(EAnimationMode::AnimationSingleNode);
 	SetAnimation(NewAnimToPlay);
 	Play(bLooping);
@@ -3562,6 +3609,12 @@ void USkeletalMeshComponent::PlayAnimation(class UAnimationAsset* NewAnimToPlay,
 
 void USkeletalMeshComponent::SetAnimation(UAnimationAsset* NewAnimToPlay)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("SetAnimation: Animation is currently disabled"));
+		return;
+	}
+
 	UAnimSingleNodeInstance* SingleNodeInstance = GetSingleNodeInstance();
 	if (SingleNodeInstance)
 	{
@@ -3576,6 +3629,12 @@ void USkeletalMeshComponent::SetAnimation(UAnimationAsset* NewAnimToPlay)
 
 void USkeletalMeshComponent::Play(bool bLooping)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("Play: Animation is currently disabled"));
+		return;
+	}
+
 	UAnimSingleNodeInstance* SingleNodeInstance = GetSingleNodeInstance();
 	if (SingleNodeInstance)
 	{
@@ -3590,6 +3649,12 @@ void USkeletalMeshComponent::Play(bool bLooping)
 
 void USkeletalMeshComponent::Stop()
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("Stop: Animation is currently disabled"));
+		return;
+	}
+
 	UAnimSingleNodeInstance* SingleNodeInstance = GetSingleNodeInstance();
 	if (SingleNodeInstance)
 	{
@@ -3618,6 +3683,12 @@ bool USkeletalMeshComponent::IsPlaying() const
 
 void USkeletalMeshComponent::SetPosition(float InPos, bool bFireNotifies)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("SetPosition: Animation is currently disabled"));
+		return;
+	}
+
 	UAnimSingleNodeInstance* SingleNodeInstance = GetSingleNodeInstance();
 	if (SingleNodeInstance)
 	{
@@ -3646,6 +3717,12 @@ float USkeletalMeshComponent::GetPosition() const
 
 void USkeletalMeshComponent::SetPlayRate(float Rate)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("SetPlayRate: Animation is currently disabled"));
+		return;
+	}
+
 	UAnimSingleNodeInstance* SingleNodeInstance = GetSingleNodeInstance();
 	if (SingleNodeInstance)
 	{
@@ -3674,6 +3751,12 @@ float USkeletalMeshComponent::GetPlayRate() const
 
 void USkeletalMeshComponent::OverrideAnimationData(UAnimationAsset* InAnimToPlay, bool bIsLooping /*= true*/, bool bIsPlaying /*= true*/, float Position /*= 0.f*/, float PlayRate /*= 1.f*/)
 {
+	if(!bEnableAnimation)
+	{
+		UE_LOG(LogAnimation, Warning, TEXT("OverrideAnimationData: Animation is currently disabled"));
+		return;
+	}
+
 	AnimationData.AnimToPlay = InAnimToPlay;
 	AnimationData.bSavedLooping = bIsLooping;
 	AnimationData.bSavedPlaying = bIsPlaying;

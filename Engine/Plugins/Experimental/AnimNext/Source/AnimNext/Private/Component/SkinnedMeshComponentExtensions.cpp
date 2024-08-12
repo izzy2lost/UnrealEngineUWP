@@ -17,7 +17,7 @@ void FSkinnedMeshComponentExtensions::CompleteAndDispatch(USkinnedMeshComponent*
 
 		// Flag buffer for flip
 		InComponent->bNeedToFlipSpaceBaseBuffers = true;
-		InComponent->bHasValidBoneTransform = false;
+
 		InComponent->FlipEditableSpaceBases();
 		InComponent->bHasValidBoneTransform = true;
 
