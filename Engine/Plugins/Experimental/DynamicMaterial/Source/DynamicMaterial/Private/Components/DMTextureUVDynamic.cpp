@@ -154,11 +154,11 @@ void UDMTextureUVDynamic::CopyDynamicPropertiesTo(UDMMaterialComponent* InDestin
 		DestinationTextureUV->SetPivot(GetPivot());
 	}
 
-	DestinationTextureUV->Update(EDMUpdateType::Value);
+	DestinationTextureUV->Update(DestinationTextureUV, EDMUpdateType::Value);
 }
 #endif
 
-void UDMTextureUVDynamic::Update(EDMUpdateType InUpdateType)
+void UDMTextureUVDynamic::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
@@ -174,7 +174,7 @@ void UDMTextureUVDynamic::Update(EDMUpdateType InUpdateType)
 	MarkComponentDirty();
 #endif
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDynamicMaterialModelDynamic* MaterialModelDynamic = GetMaterialModelDynamic())
 	{
@@ -232,7 +232,7 @@ void UDMTextureUVDynamic::OnTextureUVChanged()
 
 	if (FDMUpdateGuard::CanUpdate())
 	{
-		Update(EDMUpdateType::Value);
+		Update(this, EDMUpdateType::Value);
 	}
 }
 

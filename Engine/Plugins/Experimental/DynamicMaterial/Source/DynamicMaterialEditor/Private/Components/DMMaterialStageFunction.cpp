@@ -288,7 +288,7 @@ void UDMMaterialStageFunction::OnMaterialFunctionChanged()
 	DeinitFunction();
 	InitFunction();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 bool UDMMaterialStageFunction::NeedsFunctionInit() const

@@ -23,7 +23,7 @@ public:
 	UDMMaterialComponent* GetComponent() const;
 
 protected:
-	void OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
+	void OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 
 	//~ Begin SDMObjectEditorWidgetBase
 	virtual TArray<FDMPropertyHandle> GetPropertyRows() override;

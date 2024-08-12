@@ -60,7 +60,7 @@ public:
 
 	/** Event that is triggered when this component, or a sub-component, changes to trigger other updates in the model. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType);
+	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 
 #if WITH_EDITOR
 	/** Returns the complete path from the model to this component. */
@@ -139,7 +139,12 @@ public:
 	/** Called to ensure that the object hierarchy is correct. */
 	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent);
 
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnUpdate, UDMMaterialComponent*, EDMUpdateType)
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(
+		FOnUpdate,
+		UDMMaterialComponent* /* Triggering Component */,
+		UDMMaterialComponent* /* Source Component */,
+		EDMUpdateType
+	)
 
 	/** Delegate called when this component's Update method is called. */
 	FOnUpdate::RegistrationType& GetOnUpdate() { return OnUpdate; }

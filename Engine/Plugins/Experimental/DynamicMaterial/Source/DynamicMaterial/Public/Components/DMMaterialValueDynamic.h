@@ -54,7 +54,7 @@ public:
 	virtual void SetMIDParameter(UMaterialInstanceDynamic* InMID) const PURE_VIRTUAL(UDMMaterialValueDynamic::SetMIDParameter)
 
 	//~ Begin UDMMaterialComponent
-	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 	/** Non-editor implementation. */

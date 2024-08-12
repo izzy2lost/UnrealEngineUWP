@@ -41,7 +41,7 @@ protected:
 
 	virtual void OnActorMaterialAdded(UMaterialInstanceDynamic* InAdded) override;
 	virtual void OnActorMaterialRemoved(UMaterialInstanceDynamic* InRemoved) override;
-	void OnDynamicMaterialValueChanged(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
+	void OnDynamicMaterialValueChanged(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 
 	/** Global opacity to set on all Material Designer Instances */
 	UPROPERTY(EditInstanceOnly, Setter="SetGlobalOpacity", Getter="GetGlobalOpacity", Category="Material Parameter", meta=(ClampMin="0", ClampMax="1", AllowPrivateAccess="true"))

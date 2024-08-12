@@ -27,7 +27,7 @@ public:
 	//~ End UDMMaterialStageSource
 
 	//~ Begin UDMMaterialComponent
-	DYNAMICMATERIALEDITOR_API virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 protected:

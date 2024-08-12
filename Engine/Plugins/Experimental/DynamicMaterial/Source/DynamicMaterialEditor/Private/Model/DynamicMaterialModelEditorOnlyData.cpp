@@ -824,7 +824,7 @@ bool UDynamicMaterialModelEditorOnlyData::AddTextureSet(UDMTextureSet* InTexture
 			}
 		}
 
-		Layer->Update(EDMUpdateType::Structure);
+		Layer->Update(Layer, EDMUpdateType::Structure);
 	}
 
 	return bMadeChange;
@@ -1339,7 +1339,7 @@ UDMMaterialSlot* UDynamicMaterialModelEditorOnlyData::AddSlotForMaterialProperty
 		Property->OnSlotAdded(NewSlot);
 	}
 
-	NewSlot->Update(EDMUpdateType::Structure);
+	NewSlot->Update(NewSlot, EDMUpdateType::Structure);
 
 	OnSlotListUpdateDelegate.Broadcast(MaterialModel);
 

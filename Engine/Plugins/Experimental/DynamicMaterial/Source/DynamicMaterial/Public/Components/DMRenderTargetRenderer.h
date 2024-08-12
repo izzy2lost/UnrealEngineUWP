@@ -57,7 +57,7 @@ public:
 	//~ End IDMJsonSerializable
 
 	//~ Begin UDMMaterialComponent
-	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 	//~ Begin UObject

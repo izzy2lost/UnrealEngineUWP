@@ -232,8 +232,8 @@ void UDMMaterialValue::SetShouldExposeParameter(bool bInExpose)
 	}
 
 	bExposeParameter = bInExpose;
-
-	Update(EDMUpdateType::Structure);
+	
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialValue::OnComponentAdded()
@@ -386,12 +386,12 @@ void UDMMaterialValue::OnValueChanged(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	Update(InUpdateType);
+	Update(this, InUpdateType);
 
 #if WITH_EDITOR
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
 	{
-		ParentComponent->Update(InUpdateType);
+		ParentComponent->Update(this, InUpdateType);
 	}
 #endif
 }
@@ -415,7 +415,7 @@ void UDMMaterialValue::UpdateCachedParameterName()
 }
 #endif
 
-void UDMMaterialValue::Update(EDMUpdateType InUpdateType)
+void UDMMaterialValue::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -441,7 +441,7 @@ void UDMMaterialValue::Update(EDMUpdateType InUpdateType)
 	}
 #endif
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{

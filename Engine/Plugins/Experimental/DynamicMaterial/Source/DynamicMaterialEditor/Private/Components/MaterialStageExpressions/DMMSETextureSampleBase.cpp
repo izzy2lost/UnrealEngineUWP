@@ -247,7 +247,7 @@ void UDMMaterialStageExpressionTextureSampleBase::SetClampTextureEnabled(bool bI
 
 	bClampTexture = bInValue;
 
-	Update(EDMUpdateType::Value);
+	Update(this, EDMUpdateType::Value);
 }
 
 void UDMMaterialStageExpressionTextureSampleBase::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
@@ -260,7 +260,7 @@ void UDMMaterialStageExpressionTextureSampleBase::PostEditChangeProperty(FProper
 
 	if (PropertyName == ClampTextureName)
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 }
 

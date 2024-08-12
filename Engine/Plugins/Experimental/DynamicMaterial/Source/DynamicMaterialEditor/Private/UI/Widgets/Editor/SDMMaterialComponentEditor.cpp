@@ -50,7 +50,7 @@ UDMMaterialComponent* SDMMaterialComponentEditor::GetComponent() const
 	return Cast<UDMMaterialComponent>(ObjectWeak.Get());
 }
 
-void SDMMaterialComponentEditor::OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void SDMMaterialComponentEditor::OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{

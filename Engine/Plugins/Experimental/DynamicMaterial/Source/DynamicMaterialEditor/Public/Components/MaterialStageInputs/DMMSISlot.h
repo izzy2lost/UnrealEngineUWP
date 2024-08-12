@@ -77,7 +77,7 @@ protected:
 
 	virtual ~UDMMaterialStageInputSlot() override = default;
 
-	void OnSlotUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
+	void OnSlotUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 	void OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot);
 	void OnSlotRemoved(UDMMaterialComponent* InComponent, EDMComponentLifetimeState InLifetimeState);
 	void OnParentSlotRemoved(UDMMaterialComponent* InComponent, EDMComponentLifetimeState InLifetimeState);

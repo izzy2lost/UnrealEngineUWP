@@ -291,16 +291,16 @@ UDMMaterialComponent* UDMMaterialStageInputTextureUV::GetSubComponentByPath(FDMC
 	return Super::GetSubComponentByPath(InPath, InPathSegment);
 }
 
-void UDMMaterialStageInputTextureUV::OnTextureUVUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageInputTextureUV::OnTextureUVUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (InComponent == TextureUV && EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	if (InSource == TextureUV && EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
-		Update(InUpdateType);
+		Update(InSource, InUpdateType);
 	}
 }
 

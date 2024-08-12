@@ -47,7 +47,7 @@ bool UDMMaterialStageGradient::SetMaterialFunction(UMaterialFunctionInterface* I
 
 	MaterialFunction = InMaterialFunction;
 
-	Update(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
+	Update(this, EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 
 	return true;
 }

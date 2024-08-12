@@ -53,7 +53,7 @@ protected:
 	/** Events */
 	void OnUndo();
 
-	void OnEffectStackUpdate(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType);
+	void OnEffectStackUpdate(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType);
 
 	TSharedPtr<SWidget> CreateEffectItemContextMenu();
 

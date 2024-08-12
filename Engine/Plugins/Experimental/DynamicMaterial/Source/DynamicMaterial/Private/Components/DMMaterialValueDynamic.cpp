@@ -48,7 +48,7 @@ UDMMaterialValue* UDMMaterialValueDynamic::GetParentValue() const
 	return Cast<UDMMaterialValue>(GeResolvedParentComponent());
 }
 
-void UDMMaterialValueDynamic::Update(EDMUpdateType InUpdateType)
+void UDMMaterialValueDynamic::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -69,7 +69,7 @@ void UDMMaterialValueDynamic::Update(EDMUpdateType InUpdateType)
 	MarkComponentDirty();
 #endif
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDynamicMaterialModelDynamic* MaterialModelDynamic = GetMaterialModelDynamic())
 	{
@@ -127,7 +127,7 @@ void UDMMaterialValueDynamic::OnValueChanged()
 		return;
 	}
 
-	Update();
+	Update(this, EDMUpdateType::Value);
 }
 
 #if WITH_EDITOR

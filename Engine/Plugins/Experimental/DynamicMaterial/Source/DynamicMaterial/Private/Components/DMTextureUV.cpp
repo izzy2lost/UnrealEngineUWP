@@ -329,7 +329,7 @@ void UDMTextureUV::SetShouldExposeParameter(FName InPropertyName, int32 InCompon
 		ExposedParameters.Remove(ParamId);
 	}
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMTextureUV::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
@@ -446,7 +446,7 @@ bool UDMTextureUV::Modify(bool bInAlwaysMarkDirty)
 }
 #endif
 
-void UDMTextureUV::Update(EDMUpdateType InUpdateType)
+void UDMTextureUV::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -472,7 +472,7 @@ void UDMTextureUV::Update(EDMUpdateType InUpdateType)
 	}
 #endif
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 	{
@@ -645,12 +645,12 @@ void UDMTextureUV::OnTextureUVChanged(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	Update(InUpdateType);
+	Update(this, InUpdateType);
 
 #if WITH_EDITOR
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::AllowParentUpdate) && ParentComponent)
 	{
-		ParentComponent->Update(InUpdateType);
+		ParentComponent->Update(this, InUpdateType);
 	}
 #endif
 }

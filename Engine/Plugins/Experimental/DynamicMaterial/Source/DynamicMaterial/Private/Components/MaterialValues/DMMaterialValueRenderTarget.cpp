@@ -142,14 +142,14 @@ void UDMMaterialValueRenderTarget::FlushCreateRenderTarget()
 	}
 }
 
-void UDMMaterialValueRenderTarget::Update(EDMUpdateType InUpdateType)
+void UDMMaterialValueRenderTarget::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
 		return;
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (!IsValid(GetRenderTarget()))
 	{

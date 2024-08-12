@@ -449,7 +449,7 @@ void UDMMaterialStageInputValue::SetValue(UDMMaterialValue* InValue)
 
 	UpdateOutputConnectors();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputValue::GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const
@@ -759,7 +759,7 @@ void UDMMaterialStageInputValue::OnValueUpdated(UDMMaterialComponent* InComponen
 		return;
 	}
 
-	Update(EDMUpdateType::Value);
+	Update(InComponent, EDMUpdateType::Value);
 }
 
 void UDMMaterialStageInputValue::UpdateOutputConnectors()

@@ -187,7 +187,7 @@ public:
 	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
 	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 #endif
-	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 protected:

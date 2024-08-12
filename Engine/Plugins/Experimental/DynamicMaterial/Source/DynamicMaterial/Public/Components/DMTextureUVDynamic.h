@@ -75,7 +75,7 @@ public:
 #endif
 
 	//~ Begin UDMMaterialComponent
-	DYNAMICMATERIAL_API virtual void Update(EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
+	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType = EDMUpdateType::Value) override;
 	//~ End UDMMaterialComponent
 
 #if WITH_EDITOR

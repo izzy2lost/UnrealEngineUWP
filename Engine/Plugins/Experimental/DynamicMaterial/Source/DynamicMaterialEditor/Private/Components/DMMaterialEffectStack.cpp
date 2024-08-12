@@ -57,7 +57,7 @@ bool UDMMaterialEffectStack::SetEnabled(bool bInIsEnabled)
 
 	bEnabled = bInIsEnabled;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -158,7 +158,7 @@ bool UDMMaterialEffectStack::AddEffect(UDMMaterialEffect* InEffect)
 		InEffect->SetComponentState(EDMComponentLifetimeState::Added);
 	}
 
-	InEffect->Update(EDMUpdateType::Structure);
+	InEffect->Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -194,7 +194,7 @@ UDMMaterialEffect* UDMMaterialEffectStack::SetEffect(int32 InIndex, UDMMaterialE
 	InEffect->SetComponentState(EDMComponentLifetimeState::Added);
 
 	Effects[InIndex] = InEffect;
-	Effects[InIndex]->Update(EDMUpdateType::Structure);
+	Effects[InIndex]->Update(this, EDMUpdateType::Structure);
 
 	return OldEffect;
 }
@@ -222,7 +222,7 @@ bool UDMMaterialEffectStack::MoveEffect(int32 InIndex, int32 InNewIndex)
 
 	const int MinIndex = FMath::Min(InIndex, InNewIndex);
 
-	Effects[MinIndex]->Update(EDMUpdateType::Structure);
+	Effects[MinIndex]->Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -269,7 +269,7 @@ UDMMaterialEffect* UDMMaterialEffectStack::RemoveEffect(int32 InIndex)
 
 	Effects.RemoveAt(InIndex);
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return Effect;
 }
@@ -387,7 +387,7 @@ FText UDMMaterialEffectStack::GetComponentDescription() const
 	return Description;
 }
 
-void UDMMaterialEffectStack::Update(EDMUpdateType InUpdateType)
+void UDMMaterialEffectStack::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -404,11 +404,11 @@ void UDMMaterialEffectStack::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDMMaterialComponent* Parent = GetParentComponent())
 	{
-		Parent->Update(InUpdateType);
+		Parent->Update(InSource, InUpdateType);
 	}
 }
 
@@ -464,7 +464,7 @@ void UDMMaterialEffectStack::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 TArray<UDMMaterialEffect*> UDMMaterialEffectStack::GetIncompatibleEffects(UDMMaterialEffect* InEffect)

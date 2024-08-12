@@ -258,7 +258,7 @@ void UDMRenderTargetTextRenderer::PostEditChangeProperty(FPropertyChangedEvent& 
 		|| PropertyName == FDMRenderTargetTextRenderer::AutoWrapTextName)
 	{
 		// Cause details panel refresh.
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 
 	if (FDMRenderTargetTextRenderer::PropertyNames.Contains(PropertyName))

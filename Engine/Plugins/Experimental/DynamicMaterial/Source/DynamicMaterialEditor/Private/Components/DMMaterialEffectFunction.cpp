@@ -50,7 +50,7 @@ bool UDMMaterialEffectFunction::SetMaterialFunction(UMaterialFunctionInterface* 
 
 	OnMaterialFunctionChanged();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -181,7 +181,7 @@ bool UDMMaterialEffectFunction::JsonDeserialize(const TSharedPtr<FJsonValue>& In
 
 	if (bSuccess)
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 
 	return bSuccess;

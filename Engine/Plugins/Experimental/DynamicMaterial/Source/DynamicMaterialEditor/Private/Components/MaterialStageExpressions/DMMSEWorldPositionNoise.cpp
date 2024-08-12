@@ -111,7 +111,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetLocationType(EDMLocationTy
 
 	LocationType = InLocationType;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetShaderOffset(EWorldPositionIncludedOffsets InShaderOffset)
@@ -123,7 +123,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetShaderOffset(EWorldPositio
 
 	ShaderOffset = InShaderOffset;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetNoiseFunction(EVectorNoiseFunction InNoiseFunction)
@@ -135,7 +135,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetNoiseFunction(EVectorNoise
 
 	NoiseFunction = InNoiseFunction;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetQuality(int32 InQuality)
@@ -147,7 +147,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetQuality(int32 InQuality)
 
 	Quality = InQuality;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetTiling(bool bInTiling)
@@ -159,7 +159,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetTiling(bool bInTiling)
 
 	bTiling = bInTiling;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::SetTileSize(int32 InTileSize)
@@ -171,7 +171,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::SetTileSize(int32 InTileSize)
 
 	TileSize = InTileSize;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageExpressionWorldPositionNoise::AddDefaultInput(int32 InInputIndex) const
@@ -262,7 +262,7 @@ void UDMMaterialStageExpressionWorldPositionNoise::PostEditChangeProperty(FPrope
 		|| PropertyName == TilingName
 		|| PropertyName == TileSizeName)
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 }
 

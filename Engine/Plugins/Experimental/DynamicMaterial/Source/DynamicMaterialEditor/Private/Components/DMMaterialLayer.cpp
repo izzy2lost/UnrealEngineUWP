@@ -173,7 +173,7 @@ bool UDMMaterialLayerObject::SetMaterialProperty(EDMMaterialPropertyType InMater
 
 	MaterialProperty = InMaterialProperty;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -192,7 +192,7 @@ bool UDMMaterialLayerObject::SetTextureUVLinkEnabled(bool bInValue)
 
 	bLinkedUVs = bInValue;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -479,7 +479,7 @@ bool UDMMaterialLayerObject::SetEnabled(bool bInIsEnabled)
 
 	bEnabled = bInIsEnabled;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -764,7 +764,7 @@ FText UDMMaterialLayerObject::GetComponentDescription() const
 	return LayerName;
 }
 
-void UDMMaterialLayerObject::Update(EDMUpdateType InUpdateType)
+void UDMMaterialLayerObject::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -785,23 +785,23 @@ void UDMMaterialLayerObject::Update(EDMUpdateType InUpdateType)
 	{
 		if (UDMMaterialStage* FirstStage = NextLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 		{
-			FirstStage->Update(InUpdateType);
+			FirstStage->Update(InSource, InUpdateType);
 		}
 		else if (UDMMaterialEffectStack* NextEffectStack = NextLayer->GetEffectStack())
 		{
-			NextEffectStack->Update(InUpdateType);
+			NextEffectStack->Update(InSource, InUpdateType);
 		}
 		else
 		{
-			NextLayer->Update(InUpdateType);
+			NextLayer->Update(InSource, InUpdateType);
 		}
 	}
 	else if (UDMMaterialSlot* Slot = GetSlot())
 	{
-		Slot->Update(InUpdateType);
+		Slot->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialLayerObject::PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent)
@@ -856,7 +856,7 @@ void UDMMaterialLayerObject::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialComponent* UDMMaterialLayerObject::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const

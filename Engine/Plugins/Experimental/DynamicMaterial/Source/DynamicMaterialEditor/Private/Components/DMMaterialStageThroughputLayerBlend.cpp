@@ -172,7 +172,7 @@ bool UDMMaterialStageThroughputLayerBlend::IsInputVisible(int32 InputIndex) cons
 	return (InputIndex == InputMaskSource);
 }
  
-void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageThroughputLayerBlend::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (bBlockUpdate)
 	{
@@ -219,7 +219,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(EDMUpdateType InUpdateType)
  
 	UpdateAlphaOnlyMasks(InUpdateType);
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	PullMaskChannelOverride();
 }
@@ -528,7 +528,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateLinkedInputStage(EDMUpdateType 
 	if (bInputInCommon)
 	{
 		bBlockUpdate = true;
-		BaseStage->Update(InUpdateType);
+		BaseStage->Update(this, InUpdateType);
 		bBlockUpdate = false;
 	}
 }
@@ -790,7 +790,7 @@ void UDMMaterialStageThroughputLayerBlend::SetPremultiplyAlpha(bool bInValue)
  
 	bPremultiplyAlpha = bInValue;
  
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
  
 int32 UDMMaterialStageThroughputLayerBlend::ResolveMaskInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
@@ -981,7 +981,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMaskStatus()
 	bIsAlphaOnlyBlend = (Layer->IsStageEnabled(EDMMaterialLayerStage::Base) == false && Layer->IsStageEnabled(EDMMaterialLayerStage::Mask) == true);
 }
  
-void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageThroughputLayerBlend::OnStageUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (bBlockUpdate)
 	{
@@ -1066,7 +1066,7 @@ void UDMMaterialStageThroughputLayerBlend::UpdateAlphaOnlyMasks(EDMUpdateType In
 		// Calling this will inevitably recall this method when the chain updates.
 		// Block this update.
 		bBlockUpdate = true;
-		PreviousLayer->GetStage(EDMMaterialLayerStage::Mask)->Update(InUpdateType);
+		PreviousLayer->GetStage(EDMMaterialLayerStage::Mask)->Update(this, InUpdateType);
 		bBlockUpdate = false;
 	}
 }
@@ -1119,7 +1119,7 @@ void UDMMaterialStageThroughputLayerBlend::SetMaskChannelOverride(EAvaColorChann
 	MaskChannelOverride = InMaskChannel;
 	PushMaskChannelOverride();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 bool UDMMaterialStageThroughputLayerBlend::CanUseMaskChannelOverride() const

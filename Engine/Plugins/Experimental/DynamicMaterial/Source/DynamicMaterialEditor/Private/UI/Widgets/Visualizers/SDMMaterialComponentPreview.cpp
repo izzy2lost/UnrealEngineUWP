@@ -84,7 +84,7 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 	if (ensure(IsValid(InComponent)))
 	{
 		InComponent->GetOnUpdate().AddSP(this, &SDMMaterialComponentPreview::OnComponentUpdated);
-		OnComponentUpdated(InComponent, EDMUpdateType::Structure);
+		OnComponentUpdated(InComponent, InComponent, EDMUpdateType::Structure);
 	}
 
 	ChildSlot
@@ -105,44 +105,56 @@ void SDMMaterialComponentPreview::Tick(const FGeometry& AllottedGeometry, const 
 	}	
 }
 
-void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
-	if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
+	UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent);
+
+	if (!Stage)
 	{
-		if (Stage == ComponentWeak.Get() && IsValid(Stage) && Stage->IsComponentValid())
-		{
-			if (TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin())
-			{
-				UMaterial* PreviewMaterialBase = PreviewMaterialBaseWeak.Get();
-
-				if (!PreviewMaterialBase)
-				{
-					PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Stage);
-				}
-
-				if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
-				{
-					Stage->GeneratePreviewMaterial(PreviewMaterialBase);
-
-					EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
-					PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);
-
-					UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
-
-					if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
-					{
-						MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-					}
-					else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
-					{
-						MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-					}
-
-					Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
-				}
-			}
-		}
+		return;
 	}
+
+	if (Stage != ComponentWeak.Get() || !IsValid(Stage) || !Stage->IsComponentValid())
+	{
+		return;
+	}
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	UMaterial* PreviewMaterialBase = PreviewMaterialBaseWeak.Get();
+
+	if (!PreviewMaterialBase)
+	{
+		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Stage);
+	}
+
+	if (!EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	{
+		return;
+	}
+
+	Stage->GeneratePreviewMaterial(PreviewMaterialBase);
+
+	EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
+	PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);
+
+	UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
+
+	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
+	{
+		MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+	}
+	else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
+	{
+		MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+	}
+
+	Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
 }
 
 void SDMMaterialComponentPreview::OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue)

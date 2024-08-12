@@ -25,7 +25,7 @@ public:
 		
 	//~ Begin UDMMaterialComponent
 	DYNAMICMATERIALEDITOR_API virtual FString GetComponentPathComponent() const override;
-	DYNAMICMATERIALEDITOR_API virtual void Update(EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 
 protected:

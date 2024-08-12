@@ -59,7 +59,7 @@ void UDMMaterialStageInputThroughput::SetMaterialStageThroughputClass(TSubclassO
 		}
 	}
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialStageThroughput* UDMMaterialStageInputThroughput::GetMaterialStageThroughput() const
@@ -284,16 +284,16 @@ UDMMaterialStageInputThroughput::UDMMaterialStageInputThroughput()
 	EditableProperties.Add(GET_MEMBER_NAME_CHECKED(UDMMaterialStageInputThroughput, SubStage));
 }
 
-void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageInputThroughput::OnSubStageUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (InComponent == SubStage)
+	if (InSource == SubStage)
 	{
-		Update(InUpdateType);
+		Update(InSource, InUpdateType);
 	}
 }
 

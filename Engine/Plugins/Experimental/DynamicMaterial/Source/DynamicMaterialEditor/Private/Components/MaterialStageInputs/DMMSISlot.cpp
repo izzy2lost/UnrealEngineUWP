@@ -184,7 +184,7 @@ void UDMMaterialStageInputSlot::SetSlot(UDMMaterialSlot* InSlot)
 
 	UpdateOutputConnectors();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMaterialProperty)
@@ -203,7 +203,7 @@ void UDMMaterialStageInputSlot::SetMaterialProperty(EDMMaterialPropertyType InMa
 
 	UpdateOutputConnectors();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageInputSlot::OnComponentRemoved()
@@ -333,19 +333,19 @@ UDMMaterialStageInputSlot::UDMMaterialStageInputSlot()
 {
 }
 
-void UDMMaterialStageInputSlot::OnSlotUpdated(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UDMMaterialStageInputSlot::OnSlotUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!IsComponentValid())
 	{
 		return;
 	}
 
-	if (Slot != InComponent)
+	if (Slot != InSource)
 	{
 		return;
 	}
 
-	Update(InUpdateType);
+	Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
@@ -370,7 +370,7 @@ void UDMMaterialStageInputSlot::OnSlotConnectorsUpdated(UDMMaterialSlot* InSlot)
 	{
 		if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask))
 		{
-			MaskStage->Update(EDMUpdateType::Structure);
+			MaskStage->Update(InSlot, EDMUpdateType::Structure);
 		}
 	}
 	else

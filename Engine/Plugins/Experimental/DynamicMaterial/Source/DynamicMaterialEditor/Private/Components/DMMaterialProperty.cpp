@@ -84,7 +84,7 @@ void UDMMaterialProperty::SetEnabled(bool bInEnabled)
 
 	bEnabled = bInEnabled;
 
-	Update(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
+	Update(this, EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
 }
 
 FText UDMMaterialProperty::GetDescription() const
@@ -593,7 +593,7 @@ void UDMMaterialProperty::AddOutputProcessor(const TSharedRef<FDMMaterialBuildSt
 	MaterialPropertyPtr->OutputIndex = 0;
 }
 
-void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
+void UDMMaterialProperty::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -610,7 +610,7 @@ void UDMMaterialProperty::Update(EDMUpdateType InUpdateType)
 		return;
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
@@ -700,7 +700,7 @@ void UDMMaterialProperty::OnOutputProcessorUpdated()
 	{
 		if (OutputProcessor_PreUpdate)
 		{
-			Update(EDMUpdateType::Structure);
+			Update(this, EDMUpdateType::Structure);
 		}
 
 		OutputProcessor = nullptr;
@@ -744,7 +744,7 @@ void UDMMaterialProperty::OnOutputProcessorUpdated()
 		}
 	}
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialComponent* UDMMaterialProperty::GetSubComponentByPath(FDMComponentPath& InPath, const FDMComponentPathSegment& InPathSegment) const

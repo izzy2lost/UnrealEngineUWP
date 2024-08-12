@@ -22,7 +22,7 @@ UDMMaterialStage* UDMMaterialStageSource::GetStage() const
 	return Cast<UDMMaterialStage>(GetOuterSafe());
 }
 
-void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageSource::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -47,9 +47,9 @@ void UDMMaterialStageSource::Update(EDMUpdateType InUpdateType)
 	UDMMaterialStage* Stage = GetStage();
 	check(Stage);
 
-	Stage->Update(InUpdateType);
+	Stage->Update(InSource, InUpdateType);
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageSource::OnComponentAdded()
@@ -61,7 +61,7 @@ void UDMMaterialStageSource::OnComponentAdded()
 
 	Super::OnComponentAdded();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStageSource::GetMaskAlphaBlendNode(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression, int32& OutOutputIndex, int32& OutOutputChannel) const
@@ -246,7 +246,7 @@ void UDMMaterialStageSource::PostEditUndo()
 	}
 
 	MarkComponentDirty();
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 UDMMaterialComponent* UDMMaterialStageSource::GetParentComponent() const

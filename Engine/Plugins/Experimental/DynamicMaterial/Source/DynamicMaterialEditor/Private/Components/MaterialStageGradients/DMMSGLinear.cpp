@@ -85,7 +85,7 @@ void UDMMaterialStageGradientLinear::OnTilingChanged()
 
 	if (!bWasUpdateCalled)
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 }
 

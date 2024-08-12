@@ -88,11 +88,11 @@ bool UDMMaterialSlot::MoveLayer(UDMMaterialLayerObject* InLayer, int32 InNewInde
 
 	if (UDMMaterialStage* Stage = LayerObjects[MinIndex]->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 	{
-		Stage->Update(EDMUpdateType::Structure);
+		Stage->Update(this, EDMUpdateType::Structure);
 	}
 	else
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 
 	OnLayersUpdateDelegate.Broadcast(this);
@@ -180,7 +180,7 @@ UDMMaterialLayerObject* UDMMaterialSlot::GetLastLayerForMaterialProperty(EDMMate
 	return nullptr;
 }
 
-void UDMMaterialSlot::Update(EDMUpdateType InUpdateType)
+void UDMMaterialSlot::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -203,7 +203,7 @@ void UDMMaterialSlot::Update(EDMUpdateType InUpdateType)
 		UpdateMaterialProperties();
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
@@ -448,7 +448,7 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddDefaultLayer(EDMMaterialPropertyType
 
 	UpdateOutputConnectorTypes();
 
-	NewLayer->Update(EDMUpdateType::Structure);
+	NewLayer->Update(this, EDMUpdateType::Structure);
 
 	OnLayersUpdateDelegate.Broadcast(this);
 
@@ -492,7 +492,7 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddLayer(EDMMaterialPropertyType InMate
 
 	UpdateOutputConnectorTypes();
 
-	NewLayer->Update(EDMUpdateType::Structure);
+	NewLayer->Update(this, EDMUpdateType::Structure);
 
 	OnLayersUpdateDelegate.Broadcast(this);
 
@@ -531,7 +531,7 @@ UDMMaterialLayerObject* UDMMaterialSlot::AddLayerWithMask(EDMMaterialPropertyTyp
 
 	UpdateOutputConnectorTypes();
 
-	NewLayer->Update(EDMUpdateType::Structure);
+	NewLayer->Update(this, EDMUpdateType::Structure);
 
 	OnLayersUpdateDelegate.Broadcast(this);
 
@@ -617,11 +617,11 @@ bool UDMMaterialSlot::PasteLayer(UDMMaterialLayerObject* InLayer)
 
 	if (UDMMaterialStage* Stage = InLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 	{
-		Stage->Update(EDMUpdateType::Structure);
+		Stage->Update(this, EDMUpdateType::Structure);
 	}
 	else
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 
 	OnLayersUpdateDelegate.Broadcast(this);
@@ -698,11 +698,11 @@ bool UDMMaterialSlot::RemoveLayer(UDMMaterialLayerObject* InLayer)
 	{
 		if (UDMMaterialStage* Stage = LayerObjects[0]->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 		{
-			Stage->Update(EDMUpdateType::Structure);
+			Stage->Update(this, EDMUpdateType::Structure);
 		}
 		else
 		{
-			Update(EDMUpdateType::Structure);
+			Update(this, EDMUpdateType::Structure);
 		}
 	}
 
@@ -1300,7 +1300,7 @@ bool UDMMaterialSlot::SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerO
 	{
 		if (UDMMaterialStage* Stage = CurrentSlot->LayerObjects[0]->GetFirstEnabledStage(EDMMaterialLayerStage::All))
 		{
-			Stage->Update(EDMUpdateType::Structure);
+			Stage->Update(this, EDMUpdateType::Structure);
 		}
 	}
 
@@ -1369,7 +1369,7 @@ bool UDMMaterialSlot::ChangeMaterialProperty(EDMMaterialPropertyType InPropertyF
 
 	if (FirstLayerObject)
 	{
-		FirstLayerObject->Update(EDMUpdateType::Structure);
+		FirstLayerObject->Update(this, EDMUpdateType::Structure);
 	}
 
 	return true;
@@ -1478,7 +1478,7 @@ void UDMMaterialSlot::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	// Fire all of these to make sure everything is updated.
 	OnPropertiesUpdateDelegate.Broadcast(this);
@@ -1533,11 +1533,11 @@ void UDMMaterialSlot::ConvertDeprecatedLayers(TArray<FDMMaterialLayer>& InLayers
 
 	if (!LayerObjects.IsEmpty())
 	{
-		LayerObjects[0]->Update(EDMUpdateType::Structure);
+		LayerObjects[0]->Update(this, EDMUpdateType::Structure);
 	}
 	else
 	{
-		Update(EDMUpdateType::Structure);
+		Update(this, EDMUpdateType::Structure);
 	}
 }
 

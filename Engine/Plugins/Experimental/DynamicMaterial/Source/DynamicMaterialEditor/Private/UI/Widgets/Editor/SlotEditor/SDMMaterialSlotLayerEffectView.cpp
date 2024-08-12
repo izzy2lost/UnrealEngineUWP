@@ -47,7 +47,7 @@ SDMMaterialSlotLayerEffectView::~SDMMaterialSlotLayerEffectView()
 		{
 			if (UDMMaterialEffectStack* EffectStack = Layer->GetEffectStack())
 			{
-				EffectStack->GetOnUpdate().AddSP(this, &SDMMaterialSlotLayerEffectView::OnEffectStackUpdate);
+				EffectStack->GetOnUpdate().RemoveAll(this);
 			}
 		}
 	}
@@ -232,7 +232,7 @@ void SDMMaterialSlotLayerEffectView::OnUndo()
 	RequestListRefresh();
 }
 
-void SDMMaterialSlotLayerEffectView::OnEffectStackUpdate(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void SDMMaterialSlotLayerEffectView::OnEffectStackUpdate(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{

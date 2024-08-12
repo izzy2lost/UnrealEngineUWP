@@ -71,7 +71,7 @@ bool UDMMaterialEffect::SetEnabled(bool bInIsEnabled)
 
 	bEnabled = bInIsEnabled;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -108,7 +108,7 @@ FText UDMMaterialEffect::GetComponentDescription() const
 	return Description;
 }
 
-void UDMMaterialEffect::Update(EDMUpdateType InUpdateType)
+void UDMMaterialEffect::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -136,14 +136,14 @@ void UDMMaterialEffect::Update(EDMUpdateType InUpdateType)
 
 	if (Index != INDEX_NONE && EffectStack->GetEffects().IsValidIndex(Index + 1))
 	{
-		EffectStack->GetEffects()[Index + 1]->Update(InUpdateType);
+		EffectStack->GetEffects()[Index + 1]->Update(InSource, InUpdateType);
 	}
 	else
 	{
-		EffectStack->Update(InUpdateType);
+		EffectStack->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDMMaterialLayerObject* Layer = EffectStack->GetLayer())
 	{
@@ -151,7 +151,7 @@ void UDMMaterialEffect::Update(EDMUpdateType InUpdateType)
 		{
 			if (UDMMaterialStage* BaseStage = Layer->GetStage(EDMMaterialLayerStage::Base))
 			{
-				BaseStage->Update(InUpdateType);
+				BaseStage->Update(InSource, InUpdateType);
 			}
 		}
 
@@ -159,7 +159,7 @@ void UDMMaterialEffect::Update(EDMUpdateType InUpdateType)
 		{
 			if (UDMMaterialStage* MaskStage = Layer->GetStage(EDMMaterialLayerStage::Mask))
 			{
-				MaskStage->Update(InUpdateType);
+				MaskStage->Update(InSource, InUpdateType);
 			}
 		}
 	}
@@ -194,7 +194,7 @@ void UDMMaterialEffect::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 #undef LOCTEXT_NAMESPACE

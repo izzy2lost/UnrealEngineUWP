@@ -76,7 +76,7 @@ bool UDMRenderTargetRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJs
 	return false;
 }
 
-void UDMRenderTargetRenderer::Update(EDMUpdateType InUpdateType)
+void UDMRenderTargetRenderer::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -99,10 +99,10 @@ void UDMRenderTargetRenderer::Update(EDMUpdateType InUpdateType)
 
 	if (UDMMaterialValueRenderTarget* RenderTarget = GetRenderTargetValue())
 	{
-		RenderTarget->Update(InUpdateType);
+		RenderTarget->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMRenderTargetRenderer::PostLoad()

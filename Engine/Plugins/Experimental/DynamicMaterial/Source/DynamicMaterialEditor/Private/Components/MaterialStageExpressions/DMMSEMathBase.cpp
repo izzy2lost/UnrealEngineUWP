@@ -207,7 +207,7 @@ bool UDMMaterialStageExpressionMathBase::CanInputAcceptType(int32 InInputIndex, 
 	return true;
 }
 
-void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageExpressionMathBase::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -284,7 +284,7 @@ void UDMMaterialStageExpressionMathBase::Update(EDMUpdateType InUpdateType)
 		}
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageExpressionMathBase::AddDefaultInput(int32 InInputIndex) const

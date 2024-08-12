@@ -111,11 +111,11 @@ UDMMaterialLayerObject* UDMMaterialSlotFunctionLibrary::AddNewLayer(UDMMaterialS
 
 	if (IsValid(Source))
 	{
-		Source->Update(EDMUpdateType::Structure);
+		Source->Update(Layer, EDMUpdateType::Structure);
 	}
 	else if (bValidLayer)
 	{
-		Layer->Update(EDMUpdateType::Structure);
+		Layer->Update(Layer, EDMUpdateType::Structure);
 	}
 
 	return Layer;

@@ -73,7 +73,7 @@ UDMMaterialComponent* UDMMaterialComponent::GetSubComponentByPath(FDMComponentPa
 	return nullptr;
 }
 
-void UDMMaterialComponent::Update(EDMUpdateType InUpdateType)
+void UDMMaterialComponent::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -81,7 +81,7 @@ void UDMMaterialComponent::Update(EDMUpdateType InUpdateType)
 	}
 
 #if WITH_EDITOR
-	OnUpdate.Broadcast(this, InUpdateType);
+	OnUpdate.Broadcast(this, InSource, InUpdateType);
 #endif
 }
 

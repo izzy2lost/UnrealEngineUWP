@@ -91,9 +91,9 @@ void UAvaGlobalOpacityModifier::OnActorMaterialRemoved(UMaterialInstanceDynamic*
 #endif
 }
 
-void UAvaGlobalOpacityModifier::OnDynamicMaterialValueChanged(UDMMaterialComponent* InComponent, EDMUpdateType InUpdateType)
+void UAvaGlobalOpacityModifier::OnDynamicMaterialValueChanged(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
-	if (InUpdateType != EDMUpdateType::Value)
+	if (!EnumHasAnyFlags(InUpdateType, EDMUpdateType::Value))
 	{
 		return;
 	}

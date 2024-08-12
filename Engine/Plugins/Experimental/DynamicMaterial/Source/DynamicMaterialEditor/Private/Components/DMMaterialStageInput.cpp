@@ -12,7 +12,7 @@
 
 const FString UDMMaterialStageInput::StageInputPrefixStr = FString(TEXT("DMMaterialStageInput"));
 
-void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStageInput::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -39,15 +39,15 @@ void UDMMaterialStageInput::Update(EDMUpdateType InUpdateType)
 
 	if (UDMMaterialStageThroughput* Throughput = Cast<UDMMaterialStageThroughput>(Stage->GetSource()))
 	{
-		Throughput->Update(InUpdateType);
+		Throughput->Update(InSource, InUpdateType);
 		Stage->InputUpdated(this, InUpdateType);
 	}
 	else
 	{
-		Stage->Update(InUpdateType);
+		Stage->Update(InSource, InUpdateType);
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 }
 
 void UDMMaterialStageInput::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)

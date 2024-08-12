@@ -241,7 +241,7 @@ bool UDMMaterialStage::SetEnabled(bool bInEnabled)
 
 	bEnabled = bInEnabled;
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 
 	return true;
 }
@@ -282,7 +282,7 @@ void UDMMaterialStage::SetSource(UDMMaterialStageSource* InSource)
 		Source->SetComponentState(EDMComponentLifetimeState::Added);
 	}
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 FText UDMMaterialStage::GetComponentDescription() const
@@ -348,7 +348,7 @@ bool UDMMaterialStage::IsInputMapped(int32 InputIndex) const
 	return false;
 }
 
-void UDMMaterialStage::Update(EDMUpdateType InUpdateType)
+void UDMMaterialStage::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
 	{
@@ -371,15 +371,15 @@ void UDMMaterialStage::Update(EDMUpdateType InUpdateType)
 		VerifyAllInputMaps();
 	}
 
-	Super::Update(InUpdateType);
+	Super::Update(InSource, InUpdateType);
 
 	if (UDMMaterialStage* NextStage = GetNextStage())
 	{
-		NextStage->Update(InUpdateType);
+		NextStage->Update(InSource, InUpdateType);
 	}
 	else if (UDMMaterialLayerObject* Layer = GetLayer())
 	{
-		Layer->Update(InUpdateType);
+		Layer->Update(InSource, InUpdateType);
 	}	
 }
 
@@ -833,7 +833,7 @@ void UDMMaterialStage::UpdateInputMap(int32 InInputIdx, int32 InSourceIndex, int
 
 	RemoveUnusedInputs();
 
-	Source->Update(EDMUpdateType::Structure);
+	Source->Update(this, EDMUpdateType::Structure);
 }
 
 int32 UDMMaterialStage::FindIndex() const
@@ -1188,7 +1188,7 @@ void UDMMaterialStage::RemoveInput(UDMMaterialStageInput* InInput)
 
 	InInput->SetComponentState(EDMComponentLifetimeState::Removed);
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStage::RemoveAllInputs()
@@ -1210,7 +1210,7 @@ void UDMMaterialStage::RemoveAllInputs()
 
 	Inputs.Empty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 const FDMMaterialStageConnectorChannel* UDMMaterialStage::FindInputChannel(UDMMaterialStageInput* InStageInput)
@@ -1259,7 +1259,7 @@ void UDMMaterialStage::PostEditUndo()
 
 	MarkComponentDirty();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 void UDMMaterialStage::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)

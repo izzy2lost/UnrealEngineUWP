@@ -76,7 +76,7 @@ void UDMMaterialStageBlend::SetBaseChannelOverride(EAvaColorChannel InMaskChanne
 	BaseChannelOverride = InMaskChannel;
 	PushBaseChannelOverride();
 
-	Update(EDMUpdateType::Structure);
+	Update(this, EDMUpdateType::Structure);
 }
 
 int32 UDMMaterialStageBlend::GetDefaultBaseChannelOverrideOutputIndex() const
