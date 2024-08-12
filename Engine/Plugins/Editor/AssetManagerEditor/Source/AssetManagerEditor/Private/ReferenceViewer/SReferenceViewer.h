@@ -287,6 +287,7 @@ private:
 	/** Used to delay graph rebuilding during spinbox slider interaction */
 	bool bNeedsGraphRebuild;
 	bool bNeedsGraphRefilter;
+	bool bNeedsReferencedPropertiesUpdate;
 	double SliderDelayLastMovedTime = 0.0;
 	double GraphRebuildSliderDelay = 0.25;
 

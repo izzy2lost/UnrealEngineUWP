@@ -79,6 +79,10 @@ public:
 
 	const TObjectPtr<UEdGraphNode_Reference>& GetReferencedNode() const { return ReferencedNode; }
 
+	UObject* GetReferencingObject() const;
+	
+	UObject* GetReferencedObject() const;
+
 	/** Initialize this Node */
 	void SetupReferencedPropertiesNode(const TArray<FReferencingPropertyDescription>& InPropertiesDescription
 		, const TObjectPtr<UEdGraphNode_Reference>& InReferencingNode, const TObjectPtr<UEdGraphNode_Reference>& InReferencedNode);

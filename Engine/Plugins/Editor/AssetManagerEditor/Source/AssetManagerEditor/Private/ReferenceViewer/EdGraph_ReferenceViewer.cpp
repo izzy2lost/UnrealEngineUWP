@@ -344,6 +344,48 @@ UEdGraphNode_Reference* UEdGraph_ReferenceViewer::ConstructNodes(const TArray<FA
 	return RefilterGraph();
 }
 
+void UEdGraph_ReferenceViewer::RefreshReferencedPropertiesNode(const UEdGraphNode_ReferencedProperties* InNode)
+{
+	const TObjectPtr<UEdGraphNode_Reference>& ReferencingNode = InNode->GetReferencingNode();
+	if (!ReferencingNode)
+	{
+		return;
+	}
+
+	const TObjectPtr<UEdGraphNode_Reference>& ReferencedNode = InNode->GetReferencedNode();
+	if (!ReferencedNode)
+	{
+		return;
+	}
+
+	UObject* ReferencingObject = InNode->GetReferencingObject();
+	UObject* ReferencedObject = InNode->GetReferencedObject();
+	if (!ReferencingObject || !ReferencedObject)
+	{
+		return;
+	}
+
+	TArray<FReferencingPropertyDescription> ReferencingPropertiesArray =
+		RetrieveReferencingProperties(ReferencingObject, ReferencedObject);
+	if (ReferencingPropertiesArray.IsEmpty())
+	{
+		return;
+	}
+
+	CreateReferencedPropertiesNode(ReferencingPropertiesArray, ReferencingNode, ReferencedNode);
+}
+
+void UEdGraph_ReferenceViewer::RefreshReferencedPropertiesNodes()
+{
+	for (const TPair<uint32, TWeakObjectPtr<UEdGraphNode_ReferencedProperties>>& Pair : ReferencedPropertiesNodes)
+	{
+		if (UEdGraphNode_ReferencedProperties* Node = Pair.Value.Get())
+		{
+			RefreshReferencedPropertiesNode(Node);
+		}
+	}
+}
+
 TArray<FReferencingPropertyDescription> UEdGraph_ReferenceViewer::RetrieveReferencingProperties(UObject* InReferencer, UObject* InReferencedAsset)
 {
 	// This method will check InReferencer for references to InReferencedAsset.

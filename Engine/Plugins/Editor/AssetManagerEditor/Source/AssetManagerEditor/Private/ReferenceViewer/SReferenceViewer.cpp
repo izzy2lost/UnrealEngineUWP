@@ -72,6 +72,7 @@ void SReferenceViewer::Construct(const FArguments& InArgs)
 	bRebuildingFilters = false;
 	bNeedsGraphRebuild = false;
 	bNeedsGraphRefilter = false;
+	bNeedsReferencedPropertiesUpdate = false;
 	Settings = GetMutableDefault<UReferenceViewerSettings>();
 
 	// Create an action list and register commands
@@ -619,6 +620,12 @@ void SReferenceViewer::Tick( const FGeometry& AllottedGeometry, const double InC
 		{
 			GraphObj->RefilterGraph();
 		}
+	}
+
+	if (bNeedsReferencedPropertiesUpdate)
+	{
+		bNeedsReferencedPropertiesUpdate = false;
+		GraphObj->RefreshReferencedPropertiesNodes();
 	}
 }
 
@@ -2290,6 +2297,9 @@ void SReferenceViewer::OnAssetRegistryChanged(const FAssetData& AssetData)
 {
 	// We don't do more specific checking because that data is not exposed, and it wouldn't handle newly added references anyway
 	bDirtyResults = true;
+
+	// Make sure referenced properties node are displaying updated information
+	bNeedsReferencedPropertiesUpdate = true;
 }
 
 void SReferenceViewer::OnInitialAssetRegistrySearchComplete()

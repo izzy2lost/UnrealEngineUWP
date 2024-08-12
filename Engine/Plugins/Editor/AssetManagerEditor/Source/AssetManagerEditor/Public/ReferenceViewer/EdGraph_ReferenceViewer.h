@@ -118,6 +118,9 @@ public:
 	/* Returns true if the current graph has overflow nodes */
 	bool BreadthLimitExceeded() const { return bBreadthLimitReached; };
 
+	/** Refreshes the information of existing Referenced Properties Nodes */
+	void RefreshReferencedPropertiesNodes();
+
 private:
 
 	/**
@@ -185,6 +188,7 @@ private:
 	UEdGraphNode_Reference* FindPath(const FAssetIdentifier& RootId, const FAssetIdentifier& TargetId);
 	bool FindPath_Recursive(bool bInReferencers, const FAssetIdentifier& InAssetId, const FAssetIdentifier& Target, TMap<FAssetIdentifier, FReferenceNodeInfo>& InNodeInfos, TSet<FAssetIdentifier>& Visited);
 
+	void RefreshReferencedPropertiesNode(const UEdGraphNode_ReferencedProperties* InNode);
 private:
 	/** Pool for maintaining and rendering thumbnails */
 	TSharedPtr<FAssetThumbnailPool> AssetThumbnailPool;

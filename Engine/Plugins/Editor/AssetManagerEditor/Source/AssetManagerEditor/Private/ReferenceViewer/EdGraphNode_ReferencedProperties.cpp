@@ -30,6 +30,25 @@ FString FReferencingPropertyDescription::GetTypeAsString() const
 	return TypeString;
 }
 
+UObject* UEdGraphNode_ReferencedProperties::GetReferencingObject() const
+{
+	if (ReferencingNode)
+	{
+		return ReferencingNode->GetAssetData().GetAsset();
+	}
+
+	return nullptr;
+}
+
+UObject* UEdGraphNode_ReferencedProperties::GetReferencedObject() const
+{
+	if (ReferencedNode)
+	{
+		return ReferencedNode->GetAssetData().GetAsset();
+	}
+
+	return nullptr;
+}
 
 void UEdGraphNode_ReferencedProperties::SetupReferencedPropertiesNode(const TArray<FReferencingPropertyDescription>& InPropertiesDescription
 	, const TObjectPtr<UEdGraphNode_Reference>& InReferencingNode, const TObjectPtr<UEdGraphNode_Reference>& InReferencedNode)
