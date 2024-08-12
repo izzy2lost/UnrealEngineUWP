@@ -26,6 +26,8 @@ public:
 	static void CreateSourceMenuTree(TFunction<void(EDMExpressionMenu InMenu, TArray<UDMMaterialStageExpression*>& SubmenuExpressionList)> InCallback, 
 		const TArray<TStrongObjectPtr<UClass>>& InAllExpressions);
 
+	static void CreateChangeMaterialStageSource(FToolMenuSection& InSection);
+
 private:
 	static void GenerateChangeSourceMenu_NewLocalValues(UToolMenu* InMenu);
 
@@ -58,6 +60,4 @@ private:
 	static void ChangeSourceToTextFromContext(UDMMenuContext* InMenuContext);
 
 	static void ChangeSourceToWidgetFromContext(UDMMenuContext* InMenuContext);
-
-	static void CreateChangeMaterialStageSource(FToolMenuSection& InSection);
 };

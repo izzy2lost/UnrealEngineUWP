@@ -10,6 +10,7 @@
 #include "DMEDefs.h"
 #include "DynamicMaterialEditorModule.h"
 #include "Internationalization/Text.h"
+#include "Internationalization/Text.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelBase.h"
 #include "UI/Menus/DMMaterialStageSourceMenus.h"

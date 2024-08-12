@@ -5,6 +5,7 @@
 #include "Components/DMMaterialLayer.h"
 #include "Components/DMMaterialSlot.h"
 #include "Components/DMMaterialStage.h"
+#include "DMMaterialStageSourceMenus.h"
 #include "ScopedTransaction.h"
 #include "Templates/SharedPointer.h"
 #include "ToolMenu.h"
@@ -18,8 +19,9 @@
 
 namespace UE::DynamicMaterialEditor::Private
 {
-	const FLazyName StageMenuName = TEXT("MaterialDesigner.MaterialStage");
+	const FLazyName StageSettingsMenuName = TEXT("MaterialDesigner.MaterialStage");
 	const FLazyName StageMenuToggleName = TEXT("StageToggle");
+	const FLazyName StageSourceMenuName = TEXT("MaterialDesigner.MaterialStageSource");
 }
 
 TSharedRef<SWidget> FDMMaterialStageMenus::GenerateStageMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget,
@@ -29,24 +31,25 @@ TSharedRef<SWidget> FDMMaterialStageMenus::GenerateStageMenu(const TSharedPtr<SD
 
 	UToolMenus* ToolMenus = UToolMenus::Get();
 
-	if (!ToolMenus->IsMenuRegistered(StageMenuName))
+	if (!ToolMenus->IsMenuRegistered(StageSettingsMenuName))
 	{
-		UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuDefault(StageMenuName);
+		UToolMenu* NewToolMenu = UDMMenuContext::GenerateContextMenuDefault(StageSettingsMenuName);
 
 		if (!NewToolMenu)
 		{
 			return SNullWidget::NullWidget;
 		}
 
-		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialStageMenus::AddStageSection));
+		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialStageMenus::AddStageSettingsSection));
+		NewToolMenu->AddDynamicSection(NAME_None, FNewToolMenuDelegate::CreateStatic(&FDMMaterialStageMenus::AddStageSourceSection));
 	}
 
 	FToolMenuContext MenuContext(UDMMenuContext::CreateStage(InSlotWidget->GetEditorWidget(), InStageWidget));
 
-	return ToolMenus->GenerateWidget(StageMenuName, MenuContext);
+	return ToolMenus->GenerateWidget(StageSettingsMenuName, MenuContext);
 }
 
-void FDMMaterialStageMenus::AddStageSection(UToolMenu* InMenu)
+void FDMMaterialStageMenus::AddStageSettingsSection(UToolMenu* InMenu)
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 
@@ -79,15 +82,10 @@ void FDMMaterialStageMenus::AddStageSection(UToolMenu* InMenu)
 		return;
 	}
 
-	const bool bAllowRemoveLayer = Slot->CanRemoveLayer(Layer);
 	const EDMMaterialLayerStage StageType = Layer->GetStageType(Stage);
+	const bool bAllowRemoveLayer = Slot->CanRemoveLayer(Layer);
 
 	FToolMenuSection& NewSection = InMenu->AddSection(StageMenuToggleName, LOCTEXT("MaterialStageMenu", "Material Stage"));
-
-	if (!bAllowRemoveLayer && StageType != EDMMaterialLayerStage::Mask)
-	{
-		return;
-	}
 
 	if (StageType == EDMMaterialLayerStage::Mask)
 	{
@@ -181,6 +179,21 @@ void FDMMaterialStageMenus::AddStageSection(UToolMenu* InMenu)
 			);
 		}
 	}
+}
+
+void FDMMaterialStageMenus::AddStageSourceSection(UToolMenu* InMenu)
+{
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	if (!IsValid(InMenu) || InMenu->ContainsSection(StageSourceMenuName))
+	{
+		return;
+	}
+
+	FToolMenuSection& NewSection = InMenu->AddSection(StageSourceMenuName, LOCTEXT("MaterialStageSource", "Stage Source"));
+	NewSection.Context.AddObject(InMenu->Context.FindContext<UDMMenuContext>());
+
+	FDMMaterialStageSourceMenus::CreateChangeMaterialStageSource(NewSection);
 }
 
 #undef LOCTEXT_NAMESPACE

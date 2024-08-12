@@ -16,5 +16,7 @@ public:
 	static TSharedRef<SWidget> GenerateStageMenu(const TSharedPtr<SDMMaterialSlotEditor>& InSlotWidget, const TSharedPtr<SDMMaterialStage>& InStageWidget);
 
 private:
-	static void AddStageSection(UToolMenu* InMenu);
+	static void AddStageSettingsSection(UToolMenu* InMenu);
+
+	static void AddStageSourceSection(UToolMenu* InMenu);
 };
