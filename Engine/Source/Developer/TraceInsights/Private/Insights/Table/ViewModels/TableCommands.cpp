@@ -8,7 +8,7 @@
 
 namespace UE::Insights::Private
 {
-void CopyToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNodePtr> SelectedNodes, TSharedPtr<Insights::ITableCellValueSorter> Sorter, EColumnSortMode::Type ColumnSortMode)
+void CopyToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNodePtr> SelectedNodes, TSharedPtr<Insights::ITableCellValueSorter> Sorter, ESortMode ColumnSortMode)
 {
 	if (SelectedNodes.Num() == 0)
 	{
@@ -19,7 +19,7 @@ void CopyToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNod
 
 	if (Sorter.IsValid())
 	{
-		Sorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending);
+		Sorter->Sort(SelectedNodes, ColumnSortMode);
 	}
 
 	Table->GetVisibleColumnsData(SelectedNodes, NAME_None, TEXT('\t'), true, ClipboardText);
@@ -30,7 +30,7 @@ void CopyToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNod
 	}
 }
 
-void CopyNameToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNodePtr> SelectedNodes, TSharedPtr<ITableCellValueSorter> Sorter, EColumnSortMode::Type ColumnSortMode)
+void CopyNameToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTreeNodePtr> SelectedNodes, TSharedPtr<ITableCellValueSorter> Sorter, ESortMode ColumnSortMode)
 {
 	if (SelectedNodes.Num() == 0)
 	{
@@ -39,7 +39,7 @@ void CopyNameToClipboardImpl(TSharedRef<FTable> Table, TArray<Insights::FBaseTre
 
 	if (Sorter.IsValid())
 	{
-		Sorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending);
+		Sorter->Sort(SelectedNodes, ColumnSortMode);
 	}
 
 	FString ClipboardText = FString::JoinBy(

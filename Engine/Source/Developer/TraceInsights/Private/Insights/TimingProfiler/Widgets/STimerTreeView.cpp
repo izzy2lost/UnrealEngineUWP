@@ -14,6 +14,7 @@
 
 // TraceInsightsCore
 #include "InsightsCore/Table/ViewModels/Table.h"
+#include "InsightsCore/Table/ViewModels/TableCellValueSorter.h"
 #include "InsightsCore/Table/ViewModels/TableColumn.h"
 #include "InsightsCore/Table/Widgets/SAsyncOperationStatus.h"
 
@@ -1122,7 +1123,8 @@ void STimerTreeView::ContextMenu_CopySelectedToClipboard_Execute()
 {
 	if (Table->IsValid())
 	{
-		UE::Insights::CopyToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, ColumnSortMode);
+		const ESortMode SortMode = ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending;
+		UE::Insights::CopyToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, SortMode);
 	}
 }
 
@@ -1139,7 +1141,8 @@ void STimerTreeView::ContextMenu_CopySelectedTimerNameToClipboard_Execute()
 {
 	if (Table->IsValid())
 	{
-		UE::Insights::CopyNameToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, ColumnSortMode);
+		const ESortMode SortMode = ColumnSortMode == EColumnSortMode::Ascending ? Insights::ESortMode::Ascending : Insights::ESortMode::Descending;
+		UE::Insights::CopyNameToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, SortMode);
 	}
 }
 
