@@ -880,6 +880,19 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 						FNewToolMenuChoice(FNewMenuDelegate::CreateRaw(ContextThis, &SAnimViewportToolBar::FillCharacterAdvancedMenu)));
 				}
 			}));
+
+			Section.AddDynamicEntry("Timecode", FNewToolMenuSectionDelegate::CreateLambda([](FToolMenuSection& InSection)
+			{
+				UAnimViewportToolBarToolMenuContext* Context = InSection.FindContext<UAnimViewportToolBarToolMenuContext>();
+				const SAnimViewportToolBar* ContextThis = Context ? Context->AnimViewportToolBar.Pin().Get() : nullptr;
+				if (ContextThis)
+				{
+					InSection.AddSubMenu(TEXT("TimecodeSubMenu"),
+						LOCTEXT("CharacterMenu_TimecodeSubMenu", "Timecode"),
+						LOCTEXT("CharacterMenu_TimecodeSubMenuToolTip", "Timecode options"),
+						FNewToolMenuChoice(FNewMenuDelegate::CreateRaw(ContextThis, &SAnimViewportToolBar::FillCharacterTimecodeMenu)));
+				}
+			}));
 		}
 	}
 
@@ -891,6 +904,16 @@ TSharedRef<SWidget> SAnimViewportToolBar::GenerateCharacterMenu() const
 	AnimViewportContext->AnimViewportToolBar = SharedThis(this);
 	MenuContext.AddObject(AnimViewportContext);
 	return UToolMenus::Get()->GenerateWidget(MenuName, MenuContext);
+}
+
+void SAnimViewportToolBar::FillCharacterTimecodeMenu(FMenuBuilder& MenuBuilder) const
+{
+	const FAnimViewportShowCommands& Actions = FAnimViewportShowCommands::Get();
+	MenuBuilder.BeginSection("Timecode", LOCTEXT("Timecode_Label", "Timecode"));
+	{
+		MenuBuilder.AddMenuEntry( Actions.ShowTimecode );
+	}
+	MenuBuilder.EndSection();
 }
 
 void SAnimViewportToolBar::FillCharacterAdvancedMenu(FMenuBuilder& MenuBuilder) const

@@ -162,6 +162,9 @@ public:
 	/** Show AssetUserData Visualizations */
 	TSharedPtr< FUICommandInfo > ShowAssetUserDataVisualizations;
 
+	/** Show Animation Timecode Values */
+	TSharedPtr< FUICommandInfo > ShowTimecode;
+
 public:
 	/** Registers our commands with the binding system */
 	virtual void RegisterCommands() override;

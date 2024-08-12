@@ -110,7 +110,7 @@ protected:
 	virtual void OnDragEnter(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	virtual void OnDragLeave(const FDragDropEvent& DragDropEvent) override;
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
-	
+
 protected:
 	// Viewport client
 	TSharedPtr<class FAnimationViewportClient> LevelViewportClient;
@@ -229,7 +229,7 @@ public:
 	virtual void AddOverlayWidget( TSharedRef<SWidget> InOverlaidWidget, int32 ZOrder = INDEX_NONE ) override;
 	virtual void RemoveOverlayWidget( TSharedRef<SWidget> InOverlaidWidget ) override;
 
-	
+
 	/** SWidget interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent) override;
 
@@ -422,6 +422,12 @@ private:
 
 	/** Function to check whether mesh info is displayed or not */
 	bool IsShowingMeshInfo(int32 DisplayInfoMode) const;
+
+	/** Function to show/hide timecode display. */
+	void OnToggleShowTimecode();
+
+	/** Function to check whether timecode is displayed or not */
+	bool IsShowTimecode() const;
 
 	/** Toggles floor alignment in the preview scene */
 	void OnToggleAutoAlignFloor();

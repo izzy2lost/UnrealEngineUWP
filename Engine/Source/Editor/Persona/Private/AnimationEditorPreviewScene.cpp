@@ -1292,4 +1292,13 @@ void FAnimationEditorPreviewScene::AddReferencedObjects( FReferenceCollector& Co
 	Collector.AddReferencedObjects(AdditionalMeshes);
 }
 
+TOptional<float> FAnimationEditorPreviewScene::GetCurrentTime() const
+{
+	if (SkeletalMeshComponent && SkeletalMeshComponent->PreviewInstance)
+	{
+		return SkeletalMeshComponent->PreviewInstance->GetCurrentTime();
+	}
+	return {};
+}
+
 #undef LOCTEXT_NAMESPACE

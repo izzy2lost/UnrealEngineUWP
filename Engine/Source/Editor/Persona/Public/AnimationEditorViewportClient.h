@@ -497,6 +497,11 @@ private:
 	void HandlePreviewScenePostTick();
 
 private:
+	struct FTimecodeDisplayInfo
+	{
+		FQualifiedFrameTime QualifiedTime;
+		FString	  Slate;
+	};
 
 	/** @return array of AssetUserData interfaces from editable objects on associated asset toolkit. */
 	TArray<IInterface_AssetUserData*> GetEditedObjectsWithAssetUserData() const;
@@ -530,4 +535,7 @@ private:
 
 	/** True when the preview animation should resume playing upon finishing tracking */
 	bool bResumeAfterTracking;
+
+	/** Timecode/slate information from current animation sequence. */
+	TOptional<FTimecodeDisplayInfo> TimecodeDisplay;
 };

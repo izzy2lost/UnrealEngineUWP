@@ -50,6 +50,7 @@
 #include "Animation/AnimNotifies/AnimNotifyState.h"
 #include "Animation/AnimMontage.h"
 #include "Animation/AnimSequenceHelpers.h"
+#include "AnimationBlueprintLibrary.h"
 
 namespace {
 	static const float AnimationEditorViewport_RotateSpeed = 0.02f;
@@ -723,6 +724,24 @@ void FAnimationViewportClient::Tick(float DeltaSeconds)
 	FEditorViewportClient::Tick(DeltaSeconds);
 
 	GetAnimPreviewScene()->FlagTickable();
+
+	TimecodeDisplay.Reset();
+	if (GetAnimPreviewScene()->IsShowTimecode())
+	{
+		UAnimationAsset* AnimationAsset = GetAnimPreviewScene()->GetPreviewAnimationAsset();
+		if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(AnimationAsset))
+		{
+			FName BoneName = UAnimationBlueprintLibrary::FindBoneNameWithTimecodeAttributes(AnimSequence);
+
+			FString SlateName;
+			FQualifiedFrameTime QualifiedFrameTime;
+			TOptional<float> PlayPosition = GetAnimPreviewScene()->GetCurrentTime();
+			if (PlayPosition && UAnimationBlueprintLibrary::EvaluateBoneTimecodeAndSlateAttributesAtTime(BoneName, AnimSequence, *PlayPosition, QualifiedFrameTime, SlateName))
+			{
+				TimecodeDisplay = {QualifiedFrameTime, SlateName};
+			}
+		}
+	}
 }
 
 void FAnimationViewportClient::HandlePreviewScenePreTick()
@@ -1329,6 +1348,12 @@ FText FAnimationViewportClient::GetDisplayInfo(bool bDisplayAllInfo) const
 		}
 	}
 
+	if (TimecodeDisplay)
+	{
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("TimecodeInfo", "Timecode: {0}"), FText::FromString(TimecodeDisplay->QualifiedTime.ToTimecode().ToString())));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("SlateName", "Slate: {0}"), FText::FromString(TimecodeDisplay->Slate)));
+		TextValue = ConcatenateLine(TextValue, FText::Format(LOCTEXT("Rate", "Rate: {0}"), FText::AsNumber(TimecodeDisplay->QualifiedTime.Rate.AsDecimal())));
+	}
 	return TextValue;
 }
 void FAnimationViewportClient::DrawNodeDebugLines(TArray<FText>& Lines, FCanvas* Canvas, FSceneView* View)

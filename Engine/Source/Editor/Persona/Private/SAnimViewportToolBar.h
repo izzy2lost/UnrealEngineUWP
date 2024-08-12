@@ -101,6 +101,11 @@ private:
 	void FillCharacterClothingMenu(FMenuBuilder& MenuBuilder);
 
 	/**
+	* Generate the Character -> Timecode menu
+	*/
+	void FillCharacterTimecodeMenu(FMenuBuilder& MenuBuilder) const;
+
+	/**
 	 * Generates the toolbar LOD menu content 
 	 */
 	TSharedRef<SWidget> GenerateLODMenu() const;

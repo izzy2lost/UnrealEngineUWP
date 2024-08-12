@@ -1007,6 +1007,16 @@ void SAnimationEditorViewportTabBody::BindCommands()
 
 	CommandList.EndGroup();
 
+	CommandList.BeginGroup(TEXT("TimecodeSettings"));
+
+	CommandList.MapAction(
+		ViewportShowMenuCommands.ShowTimecode,
+		FExecuteAction::CreateSP(this, &SAnimationEditorViewportTabBody::OnToggleShowTimecode),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateSP(this, &SAnimationEditorViewportTabBody::IsShowTimecode));
+
+	CommandList.EndGroup();
+
 
 	GetPreviewScene()->RegisterOnSelectedLODChanged(FOnSelectedLODChanged::CreateSP(this, &SAnimationEditorViewportTabBody::OnLODModelChanged));
 	//Bind LOD preview menu commands
@@ -1622,6 +1632,16 @@ bool SAnimationEditorViewportTabBody::IsShowPreviewMeshEnabled() const
 	}
 	
 	return false;
+}
+
+void SAnimationEditorViewportTabBody::OnToggleShowTimecode()
+{
+	GetPreviewScene()->ToggleShowTimecode();
+}
+
+bool SAnimationEditorViewportTabBody::IsShowTimecode() const
+{
+	return GetPreviewScene()->IsShowTimecode();
 }
 
 void SAnimationEditorViewportTabBody::UseInGameBound()
@@ -2757,7 +2777,6 @@ void SAnimationEditorViewportTabBody::AddSkinWeightProfileNotification()
 void SAnimationEditorViewportTabBody::HandleFocusCamera()
 {
 	TSharedRef<FAnimationViewportClient> AnimViewportClient = StaticCastSharedRef<FAnimationViewportClient>(LevelViewportClient.ToSharedRef());
-	// AnimViewportClient->SetCameraFollowMode(EAnimationViewportCameraFollowMode::None);
 	AnimViewportClient->FocusViewportOnPreviewMesh(false);
 }
 
