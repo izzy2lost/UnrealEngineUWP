@@ -210,10 +210,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = AudioProperties)
 	TObjectPtr<UAudioPropertiesSheetAssetBase> AudioPropertiesSheet;
 
-	UPROPERTY(EditAnywhere, Category = AudioProperties)
-	TObjectPtr<UAudioPropertiesBindings> AudioPropertiesBindings;
-
-
 private:
 	UPROPERTY()
 	FSoundTimecodeOffset TimecodeOffset;

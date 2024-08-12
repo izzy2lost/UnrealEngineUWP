@@ -195,12 +195,11 @@ void USoundBase::PostEditChangeProperty(struct FPropertyChangedEvent& PropertyCh
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 
 	const FName AudioPropertiesSheetFName = GET_MEMBER_NAME_CHECKED(USoundBase, AudioPropertiesSheet);
-	const FName AudioPropertiesBindingsFName = GET_MEMBER_NAME_CHECKED(USoundBase, AudioPropertiesBindings);
 
 	if (FProperty* PropertyThatChanged = PropertyChangedEvent.Property)
 	{
 		const FName& Name = PropertyThatChanged->GetFName();
-		if (Name == AudioPropertiesSheetFName || Name == AudioPropertiesBindingsFName)
+		if (Name == AudioPropertiesSheetFName)
 		{
 			InjectPropertySheet();
 		}
@@ -352,9 +351,9 @@ TOptional<FSoundTimecodeOffset> USoundBase::GetTimecodeOffset() const
 
 void USoundBase::InjectPropertySheet()
 {
-	if (AudioPropertiesSheet && AudioPropertiesBindings)
+	if (AudioPropertiesSheet)
 	{
-		AudioPropertiesSheet->CopyToObjectProperties(this, AudioPropertiesBindings);
+		AudioPropertiesSheet->CopyToObjectProperties(this);
 	}
 }
 
