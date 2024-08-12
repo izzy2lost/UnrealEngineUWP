@@ -57,6 +57,14 @@ bool FPCGParsingTest_Basic::RunTest(const FString& Parameters)
 		UTEST_TRUE("Multiple index (first) is correct", Results.ContainsIndex(4) && Results.ContainsIndex(ArraySize - 4));
 	}
 
+	// Repeated index
+	{
+		const PCGIndexing::FPCGIndexCollection Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("2:2", ArraySize);
+		UTEST_EQUAL("Repeated index has 1 index", Results.GetTotalIndexCount(), 1);
+		UTEST_EQUAL("Repeated index has 1 range", Results.GetTotalRangeCount(), 1);
+		UTEST_TRUE("Repeated index is correct", Results.ContainsIndex(2));
+	}
+
 	// More complex use case
 	{
 		TArray<int32> TestArray;
@@ -127,8 +135,8 @@ bool FPCGParsingTest_Ranges::RunTest(const FString& Parameters)
 	// ------------
 
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("0:1", ArraySize);
-	UTEST_EQUAL("Repeated single index results in a single range", Results.GetTotalRangeCount(), 1);
-	UTEST_EQUAL("Repeated single index results in a single index", Results.GetTotalIndexCount(), 1);
+	UTEST_EQUAL("Sequential single index results in a single range", Results.GetTotalRangeCount(), 1);
+	UTEST_EQUAL("Sequential single index results in a single index", Results.GetTotalIndexCount(), 1);
 	UTEST_TRUE("Included indices verified", CheckSplitTestArray(1));
 
 	Results = PCGParsingTestPrivate::ParseAndRetrieveIndices("0:10", ArraySize);
