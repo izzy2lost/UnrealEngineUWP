@@ -418,6 +418,7 @@ FStaticMeshSceneProxy::FStaticMeshSceneProxy(const FStaticMeshSceneProxyDesc& In
 	}
 
 	MeshPaintTextureResource = InProxyDesc.GetMeshPaintTextureResource();
+	MeshPaintTextureCoordinateIndex = InProxyDesc.MeshPaintTextureCoordinateIndex;
 }
 
 void FStaticMeshSceneProxy::SetEvaluateWorldPositionOffsetInRayTracing(FRHICommandListBase& RHICmdList, bool NewValue)
@@ -772,7 +773,7 @@ void FStaticMeshSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHI
 	}
 #endif
 
-	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource);
+	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource, MeshPaintTextureCoordinateIndex);
 }
 
 void FStaticMeshSceneProxy::DestroyRenderThreadResources()
@@ -2703,6 +2704,7 @@ void FStaticMeshSceneProxyDesc::InitializeFrom(const UStaticMeshComponent* InCom
 	SetCollisionResponseToChannels(InComponent->GetCollisionResponseToChannels());
 
 	MeshPaintTexture = InComponent->MeshPaintTextureOverride ? InComponent->MeshPaintTextureOverride.Get() : InComponent->GetMeshPaintTexture();
+	MeshPaintTextureCoordinateIndex = InComponent->GetMeshPaintTextureCoordinateIndex();
 }
 
 FPrimitiveSceneProxy* UStaticMeshComponent::CreateStaticMeshSceneProxy(Nanite::FMaterialAudit& NaniteMaterials, bool bCreateNanite)

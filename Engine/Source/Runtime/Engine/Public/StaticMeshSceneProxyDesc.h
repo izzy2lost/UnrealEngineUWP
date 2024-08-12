@@ -99,6 +99,7 @@ struct FStaticMeshSceneProxyDesc : public FPrimitiveSceneProxyDesc
 	FMaterialRelevance MaterialRelevance;
 		
 	UTexture* MeshPaintTexture = nullptr;
+	int32 MeshPaintTextureCoordinateIndex = 0;
 
 	UStaticMesh* GetStaticMesh() const { return StaticMesh; }
 

@@ -542,6 +542,8 @@ protected:
 	const FCardRepresentationData* CardRepresentationData;
 
 	uint32 bHasMaterialErrors : 1;
+	
+	uint32 MeshPaintTextureCoordinateIndex : 2;
 
 	const UStaticMesh* StaticMesh = nullptr;
 

@@ -272,6 +272,9 @@ protected:
 	/** This primitive has culling reversed */
 	uint32 bReverseCulling : 1;
 
+	/** The coordinate index to use for texture color painting. */
+	uint32 MeshPaintTextureCoordinateIndex : 2;
+
 	/** The view relevance for all the static mesh's materials. */
 	FMaterialRelevance MaterialRelevance;
 

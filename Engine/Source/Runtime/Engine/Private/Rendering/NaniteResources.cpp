@@ -830,6 +830,7 @@ FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FStaticMeshS
 	UpdateVisibleInLumenScene();
 
 	MeshPaintTextureResource = ProxyDesc.GetMeshPaintTextureResource();
+	MeshPaintTextureCoordinateIndex = ProxyDesc.MeshPaintTextureCoordinateIndex;
 }
 
 FSceneProxy::FSceneProxy(const FMaterialAudit& MaterialAudit, const FInstancedStaticMeshSceneProxyDesc& InProxyDesc)
@@ -921,7 +922,7 @@ void FSceneProxy::CreateRenderThreadResources(FRHICommandListBase& RHICmdList)
 	}
 #endif
 
-	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource);
+	MeshPaintTextureDescriptor = MeshPaintVirtualTexture::GetTextureDescriptor(MeshPaintTextureResource, MeshPaintTextureCoordinateIndex);
 }
 
 void FSceneProxy::OnEvaluateWorldPositionOffsetChanged_RenderThread()
