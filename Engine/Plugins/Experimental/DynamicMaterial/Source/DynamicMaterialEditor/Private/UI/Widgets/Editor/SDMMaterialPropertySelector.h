@@ -16,6 +16,15 @@ class UDynamicMaterialModelEditorOnlyData;
 enum class ECheckBoxState : uint8;
 enum class EDMMaterialPropertyType : uint8;
 
+namespace UE::DynamicMaterialEditor::Private
+{
+	namespace PropertySelectorColumns
+	{
+		constexpr int32 Enable = 0;
+		constexpr int32 Select = 1;
+	}
+}
+
 class SDMMaterialPropertySelector : public SCompoundWidget
 {
 	SLATE_DECLARE_WIDGET(SDMMaterialPropertySelector, SCompoundWidget)
@@ -44,11 +53,11 @@ protected:
 
 	TSharedPtr<SDMMaterialSlotEditor> GetSlotEditorWidget() const;
 
-	TSharedRef<SWidget> CreateSlot_PropertyList();
+	virtual TSharedRef<SWidget> CreateSlot_PropertyList() = 0;
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 
-	TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty);
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty) = 0;
 
 	bool IsPropertyEnabled(EDMMaterialPropertyType InMaterialProperty) const;
 

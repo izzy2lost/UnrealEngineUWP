@@ -28,6 +28,12 @@ class UDynamicMaterialModelBase;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMUpdateType : uint8;
 
+namespace UE::DynamicMaterialEditor::Private
+{
+	inline const TCHAR* EditorDarkBackground = TEXT("Brushes.Title");
+	inline const TCHAR* EditorLightBackground = TEXT("Brushes.Header");
+}
+
 class SDMMaterialEditor : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
 {
 	SLATE_DECLARE_WIDGET(SDMMaterialEditor, SCompoundWidget)
@@ -74,11 +80,11 @@ public:
 	/** Actions */
 	void SelectProperty(EDMMaterialPropertyType InProperty, bool bInForceRefresh = false);
 
-	void EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh = false);
+	virtual void EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh = false);
 
-	void EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh = false);
+	virtual void EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh = false);
 
-	void EditGlobalSettings(bool bInForceRefresh = false);
+	virtual void EditGlobalSettings(bool bInForceRefresh = false);
 
 	void Validate();
 
@@ -104,8 +110,6 @@ protected:
 	TDMWidgetSlot<SWidget> ContentSlot;
 	TDMWidgetSlot<SDMToolBar> ToolBarSlot;
 	TDMWidgetSlot<SWidget> MainSlot;
-	TDMWidgetSlot<SWidget> LeftSlot;
-	TDMWidgetSlot<SWidget> RightSlot;
 	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
 	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
 	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
@@ -143,7 +147,11 @@ protected:
 
 	void ValidateSlots();
 
+	virtual void ValidateSlots_Main() = 0;
+
 	void ClearSlots();
+
+	virtual void ClearSlots_Main() = 0;
 
 	/** Slots */
 	void CreateLayout();
@@ -152,21 +160,15 @@ protected:
 
 	TSharedRef<SDMToolBar> CreateSlot_ToolBar();
 
-	TSharedRef<SWidget> CreateSlot_Main();
-
-	TSharedRef<SWidget> CreateSlot_Left();
-
-	TSharedRef<SWidget> CreateSlot_Right();
-
-	TSharedRef<SWidget> CreateSlot_Right_GlobalSettings();
+	virtual TSharedRef<SWidget> CreateSlot_Main() = 0;
 
 	TSharedRef<SDMMaterialGlobalSettingsEditor> CreateSlot_GlobalSettingsEditor();
-
-	TSharedRef<SWidget> CreateSlot_Right_Slot();
 
 	TSharedRef<SDMMaterialPreview> CreateSlot_Preview();
 
 	TSharedRef<SDMMaterialPropertySelector> CreateSlot_PropertySelector();
+
+	virtual TSharedRef<SDMMaterialPropertySelector> CreateSlot_PropertySelector_Impl() = 0;
 
 	TSharedRef<SDMMaterialSlotEditor> CreateSlot_SlotEditor();
 
@@ -180,5 +182,5 @@ protected:
 	/** The material preview window is not cleaned up properly on uobject shutdown, so do it here. */
 	void OnEnginePreExit();
 
-	void OnRightSlotSplitterResized();
+	void OnEditorSplitterResized();
 };
