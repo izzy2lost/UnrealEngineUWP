@@ -2,10 +2,10 @@
 
 #include "Widgets/SOperatorStackEditorPanel.h"
 
-#include "DetailColumnSizeData.h"
+#include "Containers/Ticker.h"
 #include "Customizations/OperatorStackEditorStackCustomization.h"
+#include "DetailColumnSizeData.h"
 #include "SOperatorStackEditorStack.h"
-#include "Styling/ToolBarStyle.h"
 #include "Subsystems/OperatorStackEditorSubsystem.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
@@ -25,8 +25,6 @@ SOperatorStackEditorPanel::~SOperatorStackEditorPanel()
 
 void SOperatorStackEditorPanel::Construct(const FArguments& InArgs)
 {
-	static const FToolBarStyle& ToolBarStyle = FAppStyle::Get().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
-
 	PanelId = InArgs._PanelId;
 
 	// Generate default empty context
@@ -273,6 +271,8 @@ void SOperatorStackEditorPanel::UpdateSlots()
 {
 	const UOperatorStackEditorSubsystem* EditorSubsystem = UOperatorStackEditorSubsystem::Get();
 
+	CustomizationStacks.Empty(NamedStackIndexes.Num());
+
 	for (const TPair<FName, int32>& NamedSlot : NamedStackIndexes)
 	{
 		if (const TSharedPtr<SBox> Box = StaticCastSharedPtr<SBox>(WidgetSwitcher->GetWidget(NamedSlot.Value)))
@@ -283,17 +283,17 @@ void SOperatorStackEditorPanel::UpdateSlots()
 
 			CustomizationTrees.Add(Customization, FOperatorStackEditorTree(Customization, Context));
 
+			TSharedRef<SOperatorStackEditorStack> Stack = SNew(SOperatorStackEditorStack, SharedThis(this), Customization, nullptr);
+			CustomizationStacks.Add(Stack);
+
 			Box->SetContent(
-				SNew(SOperatorStackEditorStack
-					, SharedThis(this)
-					, Customization
-					, nullptr)
+				Stack
 			);
 		}
 	}
 }
 
-void SOperatorStackEditorPanel::OnToolbarButtonClicked(ECheckBoxState InState, int32 InWidgetIdx) const
+void SOperatorStackEditorPanel::OnToolbarButtonClicked(ECheckBoxState InState, int32 InWidgetIdx)
 {
 	if (!WidgetSwitcher.IsValid() || InWidgetIdx == INDEX_NONE)
 	{
@@ -301,6 +301,9 @@ void SOperatorStackEditorPanel::OnToolbarButtonClicked(ECheckBoxState InState, i
 	}
 
 	WidgetSwitcher->SetActiveWidgetIndex(InWidgetIdx);
+
+	// Refresh search for new active item
+	FilterItemsAsync(LastSearch);
 }
 
 ECheckBoxState SOperatorStackEditorPanel::IsToolbarButtonActive(int32 InWidgetIdx) const
@@ -313,4 +316,30 @@ ECheckBoxState SOperatorStackEditorPanel::IsToolbarButtonActive(int32 InWidgetId
 	return WidgetSwitcher->GetActiveWidgetIndex() == InWidgetIdx
 		? ECheckBoxState::Checked
 		: ECheckBoxState::Unchecked;
+}
+
+void SOperatorStackEditorPanel::FilterItemsAsync(const FText& InNewSearch, float InDelay)
+{
+	LastSearch = InNewSearch;
+
+	// Cancel previous search
+	if (LastSearchHandle.IsValid())
+	{
+		FTSTicker::GetCoreTicker().RemoveTicker(LastSearchHandle);
+		LastSearchHandle.Reset();
+	}
+
+	// Start a new search on active items
+	LastSearchHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateSPLambda(this, [this](float)->bool
+		{
+			const int32 Index = WidgetSwitcher->GetActiveWidgetIndex();
+
+			if (CustomizationStacks.IsValidIndex(Index))
+			{
+				CustomizationStacks[Index]->FilterItems(LastSearch);
+			}
+
+			return false;
+		}
+	), FMath::Abs(InDelay));
 }

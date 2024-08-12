@@ -5,22 +5,21 @@
 #include "Builders/OperatorStackEditorBodyBuilder.h"
 #include "Builders/OperatorStackEditorFooterBuilder.h"
 #include "Builders/OperatorStackEditorHeaderBuilder.h"
+#include "Contexts/OperatorStackEditorMenuContext.h"
 #include "CustomDetailsViewModule.h"
 #include "Customizations/OperatorStackEditorStackCustomization.h"
 #include "Framework/Application/SlateApplication.h"
 #include "ICustomDetailsView.h"
-#include "SOperatorStackEditorPanel.h"
 #include "Items/ICustomDetailsViewItem.h"
+#include "Items/OperatorStackEditorTree.h"
+#include "Items/OperatorStackEditorStructItem.h"
+#include "SOperatorStackEditorPanel.h"
 #include "SOperatorStackExpanderButton.h"
 #include "SPositiveActionButton.h"
 #include "Styles/OperatorStackEditorStyle.h"
 #include "Styling/AppStyle.h"
-#include "Styling/ToolBarStyle.h"
 #include "ToolMenu.h"
 #include "ToolMenus.h"
-#include "Contexts/OperatorStackEditorMenuContext.h"
-#include "Items/OperatorStackEditorTree.h"
-#include "Items/OperatorStackEditorStructItem.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SComboButton.h"
@@ -78,6 +77,12 @@ void SOperatorStackEditorStack::Construct(const FArguments& InArgs
 	[
 		GenerateStackWidget()
 	];
+
+	// Refresh search when we hit a leaf
+	if (CustomizeItem.IsValid() && Items.IsEmpty())
+	{
+		InMainPanel->FilterItemsAsync(InMainPanel->GetLastSearch());
+	}
 }
 
 FOperatorStackEditorContextPtr SOperatorStackEditorStack::GetContext() const
@@ -295,6 +300,7 @@ TSharedPtr<SWidget> SOperatorStackEditorStack::GenerateHeaderWidget()
             .AutoHeight()
             [
             	SAssignNew(SearchBox, SSearchBox)
+	            .InitialText(MainPanel->GetLastSearch())
             	.HintText(LOCTEXT("OperatorStackEditorStackSearchHint", "Search items"))
             	.OnTextChanged(this, &SOperatorStackEditorStack::OnSearchTextChanged)
             	.OnTextCommitted(this, &SOperatorStackEditorStack::OnSearchTextCommitted)
@@ -741,31 +747,53 @@ EVisibility SOperatorStackEditorStack::GetMessageBoxIconVisibility() const
 	return GetMessageBoxIcon() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-void SOperatorStackEditorStack::OnSearchTextChanged(const FText& InSearchText)
+void SOperatorStackEditorStack::RequestSearchAsync() const
 {
-	OnSearchChanged();
+	if (const TSharedPtr<SOperatorStackEditorPanel> MainPanel = GetMainPanel())
+	{
+		if (SearchBox.IsValid())
+		{
+			MainPanel->FilterItemsAsync(SearchBox->GetText());
+		}
+	}
 }
 
-void SOperatorStackEditorStack::OnSearchChanged()
+void SOperatorStackEditorStack::OnSearchTextChanged(const FText& InSearchText)
 {
+	RequestSearchAsync();
+}
+
+void SOperatorStackEditorStack::FilterItems(const FText& InText)
+{
+	if (!SearchBox.IsValid())
+	{
+		return;
+	}
+
+	if (!SearchBox->GetText().EqualTo(InText))
+	{
+		SearchBox->SetText(InText);
+	}
+
 	const TSet<FString> SearchOR = SearchedKeywords;
 	TSet<FString> SearchAND;
 
-	const FString FilterString = SearchBox->GetText().ToString();
+	const FString FilterString = InText.ToString();
 	if (!FilterString.IsEmpty())
 	{
 		SearchAND.Add(FilterString);
 	}
 
-	HandleSearch(SearchOR, SearchAND);
+	HandleRecursiveSearch(SearchOR, SearchAND);
 }
 
 void SOperatorStackEditorStack::OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType)
 {
 	if (InCommitType == ETextCommit::OnCleared)
 	{
-		SearchBox->SetText(FText::GetEmpty());
-		OnSearchChanged();
+		const FText& EmptyText = FText::GetEmpty();
+		SearchBox->SetText(EmptyText);
+		OnSearchTextChanged(EmptyText);
 		FSlateApplication::Get().ClearKeyboardFocus(EFocusCause::Cleared);
 	}
 }
@@ -781,7 +809,7 @@ void SOperatorStackEditorStack::OnSearchPinnedKeyword(ECheckBoxState InCheckStat
 		SearchedKeywords.Remove(InPinnedKeyword);
 	}
 
-	OnSearchChanged();
+	RequestSearchAsync();
 }
 
 bool SOperatorStackEditorStack::MatchSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND) const
@@ -861,7 +889,7 @@ bool SOperatorStackEditorStack::MatchSearch(const TSet<FString>& InSearchedKeywo
 	return bORSearchMatched && bANDSearchMatched;
 }
 
-bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND)
+bool SOperatorStackEditorStack::HandleRecursiveSearch(const TSet<FString>& InSearchedKeywords_OR, const TSet<FString>& InSearchedKeywords_AND)
 {
 	bool bMatchSearch = false;
 
@@ -869,7 +897,7 @@ bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeyw
 	{
 		if (ItemWidget.IsValid())
 		{
-			if (ItemWidget->HandleSearch(InSearchedKeywordsOR, InSearchedKeywordsAND))
+			if (ItemWidget->HandleRecursiveSearch(InSearchedKeywords_OR, InSearchedKeywords_AND))
 			{
 				bMatchSearch = true;
 			}
@@ -881,15 +909,15 @@ bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeyw
 
 	if (BodyDetailsView)
 	{
-		bRowFound |= BodyDetailsView->FilterItems(InSearchedKeywordsAND.Array());
+		bRowFound |= BodyDetailsView->FilterItems(InSearchedKeywords_AND.Array());
 	}
 
 	if (FooterDetailsView)
 	{
-		bRowFound |= FooterDetailsView->FilterItems(InSearchedKeywordsAND.Array());
+		bRowFound |= FooterDetailsView->FilterItems(InSearchedKeywords_AND.Array());
 	}
 
-	if (!InSearchedKeywordsAND.IsEmpty())
+	if (!InSearchedKeywords_AND.IsEmpty())
 	{
 		bMatchSearch |= bRowFound;
 	}
@@ -897,7 +925,7 @@ bool SOperatorStackEditorStack::HandleSearch(const TSet<FString>& InSearchedKeyw
 	// Do not hide root item if nothing was found
 	if (CustomizeItem.IsValid())
 	{
-		bMatchSearch |= MatchSearch(InSearchedKeywordsOR, InSearchedKeywordsAND);
+		bMatchSearch |= MatchSearch(InSearchedKeywords_OR, InSearchedKeywords_AND);
 		SetVisibility(bMatchSearch ? EVisibility::Visible : EVisibility::Collapsed);
 	}
 

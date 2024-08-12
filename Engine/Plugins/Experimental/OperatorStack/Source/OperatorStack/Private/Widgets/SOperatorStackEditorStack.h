@@ -50,6 +50,9 @@ public:
 
 	FOperatorStackEditorContextPtr GetContext() const;
 
+	/** Apply a filter on all items */
+	void FilterItems(const FText& InText);
+
 protected:
 	TSharedRef<ITableRow> OnGenerateRow(FOperatorStackEditorItemPtr InItem, const TSharedRef<STableViewBase>& InOwnerTable);
 
@@ -147,8 +150,14 @@ private:
 	void OnSearchTextCommitted(const FText& InFilterText, ETextCommit::Type InCommitType);
 	void OnSearchPinnedKeyword(ECheckBoxState InCheckState, FString InPinnedKeyword);
 
-	void OnSearchChanged();
+	/** Request an async search on the main panel */
+	void RequestSearchAsync() const;
+
+	/** Handles search in a recursive way, hiding items that do not match keywords */
+	bool HandleRecursiveSearch(const TSet<FString>& InSearchedKeywords_OR, const TSet<FString>& InSearchedKeywords_AND);
+
+	/** Returns true when this item matches the keywords */
 	bool MatchSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND) const;
-	bool HandleSearch(const TSet<FString>& InSearchedKeywordsOR, const TSet<FString>& InSearchedKeywordsAND);
+
 };
 
