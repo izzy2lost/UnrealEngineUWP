@@ -2092,7 +2092,13 @@ namespace Chaos
 						{
 							if(!bIsResim || DirtyParticle.SyncState() == ESyncState::HardDesync)
 							{
-								if (ShouldUpdateFromSimulation(DirtyParticle))
+								// Although per-particle we can control the syncing of target positions (see ShouldUpdateFromSimulation)
+								// we cannot avoid marking kinematics as dirty (unless the global config Chaos::SyncKinematicOnGameThread
+								// forces it) because we always need the correct velocities/dynamics to be synced back from the kinematic
+								// target.
+								// FSingleParticlePhysicsProxy::PullFromPhysicsState will use the proper checks to see whether it needs
+								// to sync the particle positions when the dirty particle is processed.
+								if(!(Chaos::SyncKinematicOnGameThread == 0 && DirtyParticle.ObjectState() == EObjectStateType::Kinematic))
 								{
 									ActiveRigid.AddUnique((FSingleParticlePhysicsProxy*)Proxy);
 								}
