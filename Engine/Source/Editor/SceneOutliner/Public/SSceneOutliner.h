@@ -963,11 +963,8 @@ private:
 	/** Reentrancy guard */
 	bool bIsReentrant;
 
-	/** The delay (in seconds) before a UI refresh is executed after being requested. 0 means the next refresh will be immediate */
+	/** The delay (in seconds) before a UI sort and refresh is executed after being requested. 0 means the next refresh will be immediate */
 	float UIRefreshDelay = 0.0f;
-
-	/** If true, the TreeView UI is pending a refresh */
-	bool bNeedsUIRefresh = false;
 
 	/* Widget containing the filtering text box */
 	TSharedPtr< SFilterSearchBox > FilterTextBoxWidget;
