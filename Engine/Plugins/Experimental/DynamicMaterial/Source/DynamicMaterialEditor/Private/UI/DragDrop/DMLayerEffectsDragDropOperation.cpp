@@ -29,6 +29,16 @@ FDMLayerEffectsDragDropOperation::FDMLayerEffectsDragDropOperation(const TShared
 	Construct();
 }
 
+UDMMaterialEffect* FDMLayerEffectsDragDropOperation::GetMaterialEffect() const
+{
+	if (TSharedPtr<SDMMaterialSlotLayerEffectItem> LayerItemWidget = GetLayerItemWidget())
+	{
+		return LayerItemWidget->GetMaterialEffect();
+	}
+
+	return nullptr;
+}
+
 TSharedPtr<SWidget> FDMLayerEffectsDragDropOperation::GetDefaultDecorator() const
 {
 	static const FLinearColor InvalidLocationColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.5f);

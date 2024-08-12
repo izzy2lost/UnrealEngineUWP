@@ -124,4 +124,10 @@ protected:
 	void HandleDrop_TextureSet(UDMTextureSet* InTextureSet);
 
 	void HandleDrop_MaterialFunction(UMaterialFunctionInterface* InMaterialFunction);
+
+	bool IsValidLayerDropForDelete(TSharedPtr<FDragDropOperation> InDragDropOperation);
+
+	bool CanDropLayerForDelete(TSharedPtr<FDragDropOperation> InDragDropOperation);
+
+	FReply OnLayerDroppedForDelete(const FGeometry& InGeometry, const FDragDropEvent& InDragDropEvent);
 };

@@ -11,6 +11,7 @@
 class FWidgetRenderer;
 class SDMMaterialSlotLayerEffectItem;
 class SWidget;
+class UDMMaterialEffect;
 class UDMMaterialStage;
 class UTextureRenderTarget2D;
 struct EVisibility;
@@ -28,6 +29,8 @@ public:
 	FORCEINLINE void SetToInvalidDropLocation() { bValidDropLocation = false; }
 
 	TSharedPtr<SDMMaterialSlotLayerEffectItem> GetLayerItemWidget() const { return LayerItemWidgetWeak.Pin(); }
+
+	UDMMaterialEffect* GetMaterialEffect() const;
 
 	//~ Begin FDragDropOperation
 	virtual TSharedPtr<SWidget> GetDefaultDecorator() const override;
