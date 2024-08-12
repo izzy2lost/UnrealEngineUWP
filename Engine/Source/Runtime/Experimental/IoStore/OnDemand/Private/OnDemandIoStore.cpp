@@ -1424,6 +1424,10 @@ FOnDemandInstallResult FOnDemandIoStore::TickInstallRequest(const FInstallReques
 
 			if ((Status.IsOk() == false) || CheckAndSetCancelled())
 			{
+				// TODO: Should there be a way to flush/cancel the HTTPClient?
+				while (HttpClient->Tick())
+					;
+
 				return OutResult;
 			}
 		}
