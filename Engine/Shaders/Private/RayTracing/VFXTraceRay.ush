@@ -58,8 +58,6 @@ void InitVFXTracePayloadFromHitShader(FRayTracingIntersectionAttributes Attribut
 	OutPayload.WorldNormal = normalize(mul(LocalNormal, InverseTranspose3x3));
 }
 
-#endif //#ifndef OVERRIDE_VFXTRACERAY_USH
-
 void VfxTraceRay(
 	RaytracingAccelerationStructure AccelerationStructure,
 	uint RayFlags,
@@ -72,6 +70,8 @@ void VfxTraceRay(
 {
 	TraceRay(AccelerationStructure, RayFlags, InstanceInclusionMask, RayContributionToHitGroupIndex, MultiplierForGeometryContributionToHitGroupIndex, MissShaderIndex, InRay, Payload);
 }
+
+#endif //#ifndef OVERRIDE_VFXTRACERAY_USH
 
 #if COMPUTESHADER
 
