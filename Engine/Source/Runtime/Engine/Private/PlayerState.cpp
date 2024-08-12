@@ -15,7 +15,6 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PlayerState)
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 APlayerState::APlayerState(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer
 		.DoNotCreateDefaultSubobject(TEXT("Sprite")) )

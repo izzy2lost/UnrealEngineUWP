@@ -301,7 +301,6 @@ private:
 	// Hidden functions that don't make sense to use on this class.
 	HIDE_ACTOR_TRANSFORM_FUNCTIONS();
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	//~ Begin Methods for Replicated Members.
 public:
 
@@ -431,7 +430,6 @@ public:
 	ENGINE_API virtual void OnSetUniqueId();
 
 	//~ End Methods for Replicated Members.
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 };
 
 struct FSetPlayerStatePawn
