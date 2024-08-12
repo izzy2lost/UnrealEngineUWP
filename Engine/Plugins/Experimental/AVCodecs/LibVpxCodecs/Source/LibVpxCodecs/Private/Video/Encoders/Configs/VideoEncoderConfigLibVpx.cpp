@@ -21,8 +21,8 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigLibVpx& Out
 	OutConfig.MinBitrate = InConfig.MinBitrate > -1 ? InConfig.MinBitrate : DEFAULT_BITRATE_MIN;
 	OutConfig.TargetBitrate = InConfig.TargetBitrate > -1 ? InConfig.TargetBitrate : DEFAULT_BITRATE_TARGET;
 	OutConfig.MaxBitrate = InConfig.MaxBitrate > -1 ? InConfig.MaxBitrate : DEFAULT_BITRATE_MAX;
-	OutConfig.MinQP = InConfig.MinQP;
-	OutConfig.MaxQP = InConfig.MaxQP;
+	OutConfig.MinQuality = InConfig.MinQuality;
+	OutConfig.MaxQuality = InConfig.MaxQuality;
 	OutConfig.KeyframeInterval = InConfig.KeyframeInterval > 0 ? InConfig.KeyframeInterval : 0;
 	OutConfig.ScalabilityMode = InConfig.ScalabilityMode;
 	OutConfig.NumberOfSpatialLayers = InConfig.NumberOfSpatialLayers;
@@ -55,8 +55,8 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig
 	OutConfig.MinBitrate = InConfig.MinBitrate > -1 ? InConfig.MinBitrate : DEFAULT_BITRATE_MIN;
 	OutConfig.TargetBitrate = InConfig.TargetBitrate > -1 ? InConfig.TargetBitrate : DEFAULT_BITRATE_TARGET;
 	OutConfig.MaxBitrate = InConfig.MaxBitrate > -1 ? InConfig.MaxBitrate : DEFAULT_BITRATE_MAX;
-	OutConfig.MinQP = InConfig.MinQP;
-	OutConfig.MaxQP = InConfig.MaxQP;
+	OutConfig.MinQuality = InConfig.MinQuality;
+	OutConfig.MaxQuality = InConfig.MaxQuality;
 	OutConfig.KeyframeInterval = InConfig.KeyframeInterval > 0 ? InConfig.KeyframeInterval : 0;
 	OutConfig.ScalabilityMode = InConfig.ScalabilityMode;
 	OutConfig.NumberOfSpatialLayers = InConfig.NumberOfSpatialLayers;

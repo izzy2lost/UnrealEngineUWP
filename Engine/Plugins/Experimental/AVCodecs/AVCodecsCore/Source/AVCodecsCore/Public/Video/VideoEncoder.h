@@ -8,9 +8,12 @@
 #include "Video/VideoPacket.h"
 #include "Video/VideoResource.h"
 
+#include "VideoEncoder.generated.h"
+
 /*
  * Implementation of Video Encoding domain, see TAVCoder for inheritance model
  */
+UENUM()
 enum class EScalabilityMode : uint8
 {
 	L1T1 = 0,
@@ -98,6 +101,7 @@ inline TOptional<EScalabilityMode> ScalabilityModeFromString(const FString& Mode
 	return FNullOpt(0);
 }
 
+UENUM()
 enum class ERateControlMode : uint8
 {
 	Unknown,
@@ -106,6 +110,7 @@ enum class ERateControlMode : uint8
 	CBR
 };
 
+UENUM()
 enum class EMultipassMode : uint8
 {
 	Unknown,
@@ -156,8 +161,8 @@ public:
 	// Advanced bitrate settings. Used for situations such as simulcast / SVC
 	TOptional<int32> Bitrates[Video::MaxSpatialLayers][Video::MaxTemporalStreams];
 
-	int32 MinQP = -1;
-	int32 MaxQP = -1;
+	int32 MinQuality = -1;
+	int32 MaxQuality = -1;
 
 	ERateControlMode RateControlMode = ERateControlMode::CBR;
 	uint8			 bFillData : 1;
@@ -181,56 +186,56 @@ public:
 	{
 		switch (Preset)
 		{
-			case EAVPreset::UltraLowQuality:
-				TargetBitrate = 500000;
-				MaxBitrate = 1000000;
+		case EAVPreset::UltraLowQuality:
+			TargetBitrate = 500000;
+			MaxBitrate = 1000000;
 
-				MinQP = 10;
-				MaxQP = 20;
+			MinQuality = 0;
+			MaxQuality = 33;
 
-				RateControlMode = ERateControlMode::CBR;
+			RateControlMode = ERateControlMode::CBR;
 
-				break;
-			case EAVPreset::LowQuality:
-				TargetBitrate = 3000000;
-				MaxBitrate = 4500000;
+			break;
+		case EAVPreset::LowQuality:
+			TargetBitrate = 3000000;
+			MaxBitrate = 4500000;
 
-				MinQP = 20;
-				MaxQP = 30;
+			MinQuality = 0;
+			MaxQuality = 50;
 
-				RateControlMode = ERateControlMode::CBR;
+			RateControlMode = ERateControlMode::CBR;
 
-				break;
-			case EAVPreset::Default:
-				TargetBitrate = 5000000;
-				MaxBitrate = 12500000;
+			break;
+		case EAVPreset::Default:
+			TargetBitrate = 5000000;
+			MaxBitrate = 12500000;
 
-				MinQP = 25;
-				MaxQP = 40;
+			MinQuality = 25;
+			MaxQuality = 75;
 
-				RateControlMode = ERateControlMode::CBR;
+			RateControlMode = ERateControlMode::CBR;
 
-				break;
-			case EAVPreset::HighQuality:
-				TargetBitrate = 10000000;
-				MaxBitrate = 20000000;
+			break;
+		case EAVPreset::HighQuality:
+			TargetBitrate = 10000000;
+			MaxBitrate = 20000000;
 
-				MinQP = 35;
-				MaxQP = 50;
+			MinQuality = 50;
+			MaxQuality = 100;
 
-				RateControlMode = ERateControlMode::VBR;
+			RateControlMode = ERateControlMode::VBR;
 
-				break;
-			case EAVPreset::Lossless:
-				TargetBitrate = 0;
-				MaxBitrate = 0;
+			break;
+		case EAVPreset::Lossless:
+			TargetBitrate = 0;
+			MaxBitrate = 0;
 
-				MinQP = -1;
-				MaxQP = -1;
+			MinQuality = -1;
+			MaxQuality = -1;
 
-				RateControlMode = ERateControlMode::ConstQP;
+			RateControlMode = ERateControlMode::ConstQP;
 
-				break;
+			break;
 		}
 	}
 };

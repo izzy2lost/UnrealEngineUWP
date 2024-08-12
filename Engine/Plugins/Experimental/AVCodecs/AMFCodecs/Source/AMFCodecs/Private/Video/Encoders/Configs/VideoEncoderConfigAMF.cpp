@@ -54,7 +54,7 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigAMF& OutCon
 
 	OutConfig.Width = InConfig.Width;
 	OutConfig.Height = InConfig.Height;
-	
+
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_USAGE, AMF_VIDEO_ENCODER_USAGE_LOW_LATENCY);
 
 	AMFRate const FrameRate = { InConfig.TargetFramerate, 1 };
@@ -66,9 +66,9 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigAMF& OutCon
 	{
 		return ConvertedRateControlMode;
 	}
-	
+
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_RATE_CONTROL_METHOD, ConvertedRateControlMode.ReturnValue);
-	
+
 	if (InConfig.RateControlMode == ERateControlMode::CBR)
 	{
 		OutConfig.SetProperty(AMF_VIDEO_ENCODER_FILLER_DATA_ENABLE, InConfig.bFillData);
@@ -76,14 +76,14 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigAMF& OutCon
 
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_PEAK_BITRATE, InConfig.MaxBitrate > -1 ? InConfig.MaxBitrate : DEFAULT_BITRATE_MAX);
 #endif
-	
+
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_TARGET_BITRATE, InConfig.TargetBitrate > -1 ? InConfig.TargetBitrate : DEFAULT_BITRATE_TARGET);
 
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_QUALITY_PRESET, AMF_VIDEO_ENCODER_QUALITY_PRESET_QUALITY);
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_B_PIC_PATTERN, 0);
 
-	OutConfig.SetProperty(AMF_VIDEO_ENCODER_MIN_QP, FMath::Clamp<amf_int64>(InConfig.MinQP, 0, 51));
-	OutConfig.SetProperty(AMF_VIDEO_ENCODER_MAX_QP, InConfig.MaxQP > -1 ? FMath::Clamp<amf_int64>(InConfig.MaxQP, 0, 51) : 51);
+	OutConfig.SetProperty(AMF_VIDEO_ENCODER_MIN_QP, FMath::Floor<amf_int64>((1.0f - (InConfig.MaxQuality / 100.0f)) * 51.0f));
+	OutConfig.SetProperty(AMF_VIDEO_ENCODER_MAX_QP, FMath::Floor<amf_int64>((1.0f - (InConfig.MinQuality / 100.0f)) * 51.0f));
 
 	OutConfig.SetProperty(AMF_VIDEO_ENCODER_QUERY_TIMEOUT, 16);
 
@@ -115,21 +115,26 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig
 	{
 		return ConvertedRateControlMode;
 	}
-	
+
 	OutConfig.RateControlMode = ConvertedRateControlMode;
 
 	bool FillData;
 	InConfig.GetProperty(AMF_VIDEO_ENCODER_FILLER_DATA_ENABLE, &FillData);
-	
+
 	OutConfig.bFillData = FillData;
 
 	InConfig.GetProperty(AMF_VIDEO_ENCODER_PEAK_BITRATE, &OutConfig.MaxBitrate);
 #endif
-	
+
 	InConfig.GetProperty(AMF_VIDEO_ENCODER_TARGET_BITRATE, &OutConfig.TargetBitrate);
 
-	InConfig.GetProperty(AMF_VIDEO_ENCODER_MIN_QP, &OutConfig.MinQP);
-	InConfig.GetProperty(AMF_VIDEO_ENCODER_MAX_QP, &OutConfig.MaxQP);
+	amf_int64 OutMinQpValue;
+	InConfig.GetProperty(AMF_VIDEO_ENCODER_MIN_QP, &OutMinQpValue);
+	OutConfig.MaxQuality = (1.0f - (OutMinQpValue / 51.0f)) * 100.0f;
+
+	amf_int64 OutMaxQpValue;
+	InConfig.GetProperty(AMF_VIDEO_ENCODER_MAX_QP, &OutMaxQpValue);
+	OutConfig.MinQuality = (1.0f - (OutMaxQpValue / 51.0f)) * 100.0f;
 
 	InConfig.GetProperty(AMF_VIDEO_ENCODER_IDR_PERIOD, &OutConfig.KeyframeInterval);
 
@@ -146,23 +151,23 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigAMF& OutCon
 	Config.encodeCodecConfig.h264Config.h264VUIParameters.colourPrimaries = 2;
 	Config.encodeCodecConfig.h264Config.h264VUIParameters.transferCharacteristics = 2;
 	Config.encodeCodecConfig.h264Config.h264VUIParameters.colourMatrix = 2;*/
-	
+
 	static auto const ConvertProfile = [](EH264Profile Profile) -> TAVResult<AMF_VIDEO_ENCODER_PROFILE_ENUM>
-	{
-		switch (Profile)
 		{
-		case EH264Profile::Baseline:
-			return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_BASELINE;
-		case EH264Profile::Main:
-			return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_MAIN;
-		case EH264Profile::High:
-			return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_HIGH;
-		case EH264Profile::ConstrainedHigh:
-			return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_CONSTRAINED_HIGH;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 profile %d is not supported"), Profile), TEXT("AMF"));
-		}
-	};
+			switch (Profile)
+			{
+			case EH264Profile::Baseline:
+				return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_BASELINE;
+			case EH264Profile::Main:
+				return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_MAIN;
+			case EH264Profile::High:
+				return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_HIGH;
+			case EH264Profile::ConstrainedHigh:
+				return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_CONSTRAINED_HIGH;
+			default:
+				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H264 profile %d is not supported"), Profile), TEXT("AMF"));
+			}
+		};
 
 	OutConfig.CodecType = FVideoEncoderConfigAMF::CodecTypeH264;
 	OutConfig.RepeatSPSPPS = InConfig.RepeatSPSPPS;
@@ -185,15 +190,15 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigAMF& OutCon
 	OutConfig.CodecType = FVideoEncoderConfigAMF::CodecTypeH265;
 
 	static auto const ConvertProfile = [](EH265Profile Profile) -> TAVResult<AMF_VIDEO_ENCODER_PROFILE_ENUM>
-	{
-		switch (Profile)
 		{
-		case EH265Profile::Main:
-			return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_MAIN;
-		default:
-			return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H265 profile %d is not supported"), Profile), TEXT("AMF"));
-		}
-	};
+			switch (Profile)
+			{
+			case EH265Profile::Main:
+				return AMF_VIDEO_ENCODER_PROFILE_ENUM::AMF_VIDEO_ENCODER_PROFILE_MAIN;
+			default:
+				return FAVResult(EAVResult::ErrorUnsupported, FString::Printf(TEXT("H265 profile %d is not supported"), Profile), TEXT("AMF"));
+			}
+		};
 
 	OutConfig.CodecType = FVideoEncoderConfigAMF::CodecTypeH265;
 	OutConfig.RepeatSPSPPS = InConfig.RepeatSPSPPS;

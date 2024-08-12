@@ -4,9 +4,12 @@
 
 #include "AVInstance.h"
 
+#include "AVConfig.generated.h"
+
 /**
  * Simple presets for whole AV pipeline.
  */
+UENUM()
 enum class EAVPreset : uint8
 {
 	UltraLowQuality,
@@ -19,6 +22,7 @@ enum class EAVPreset : uint8
 /**
  * Latency mode for the AV pipeline.
  */
+UENUM()
 enum class EAVLatencyMode : uint8
 {
 	UltraLowLatency,

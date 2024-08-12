@@ -135,13 +135,8 @@ FAVResult TVideoEncoderLibVpxVP8<TResource>::ApplyConfig()
 				VpxConfig->g_pass = VPX_RC_ONE_PASS;
 				// Handle resizing outside of libvpx.
 				VpxConfig->rc_resize_allowed = 0;
-				VpxConfig->rc_min_quantizer = 2;
-				if (PendingConfig.MaxQP >= static_cast<int32>(VpxConfig->rc_min_quantizer))
-				{
-					QpMax = PendingConfig.MaxQP;
-				}
-
-				VpxConfig->rc_max_quantizer = QpMax;
+				VpxConfig->rc_min_quantizer = (1.0f - (PendingConfig.MaxQuality / 100.0f)) * 63.0f;
+				VpxConfig->rc_max_quantizer = (1.0f - (PendingConfig.MinQuality / 100.0f)) * 63.0f;
 				VpxConfig->rc_undershoot_pct = 100;
 				VpxConfig->rc_overshoot_pct = 15;
 				VpxConfig->rc_buf_initial_sz = 500;
@@ -450,14 +445,14 @@ typename TVideoEncoderLibVpxVP8<TResource>::EEncodeResult TVideoEncoderLibVpxVP8
 	{
 		switch (Packet->kind)
 		{
-			case VPX_CODEC_CX_FRAME_PKT:
-			{
-				FMemory::Memcpy(&Buffer.GetData()[EncodedPos], Packet->data.frame.buf, Packet->data.frame.sz);
-				EncodedPos += Packet->data.frame.sz;
-				break;
-			}
-			default:
-				break;
+		case VPX_CODEC_CX_FRAME_PKT:
+		{
+			FMemory::Memcpy(&Buffer.GetData()[EncodedPos], Packet->data.frame.buf, Packet->data.frame.sz);
+			EncodedPos += Packet->data.frame.sz;
+			break;
+		}
+		default:
+			break;
 		}
 		// End of frame
 

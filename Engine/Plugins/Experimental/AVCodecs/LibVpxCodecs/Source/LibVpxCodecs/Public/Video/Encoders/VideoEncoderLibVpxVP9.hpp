@@ -102,8 +102,8 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 					&& this->AppliedConfig.Height == PendingConfig.Height
 					&& this->AppliedConfig.KeyframeInterval == PendingConfig.KeyframeInterval
 					&& this->AppliedConfig.PixelFormat == PendingConfig.PixelFormat
-					&& this->AppliedConfig.MinQP == PendingConfig.MinQP
-					&& this->AppliedConfig.MaxQP == PendingConfig.MaxQP
+					&& this->AppliedConfig.MinQuality == PendingConfig.MinQuality
+					&& this->AppliedConfig.MaxQuality == PendingConfig.MaxQuality
 					&& this->AppliedConfig.NumberOfCores == PendingConfig.NumberOfCores
 					&& this->AppliedConfig.bDenoisingOn == PendingConfig.bDenoisingOn
 					&& this->AppliedConfig.bAdaptiveQpMode == PendingConfig.bAdaptiveQpMode
@@ -206,29 +206,29 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 				unsigned int  BitsForStorage = 8;
 				switch (Profile)
 				{
-					case EProfile::Profile0:
-						PixelFormat = PreviousImgFmt.Get(VPX_IMG_FMT_I420);
-						BitsForStorage = 8;
-						VpxConfig->g_bit_depth = VPX_BITS_8;
-						VpxConfig->g_profile = 0;
-						VpxConfig->g_input_bit_depth = 8;
-						break;
-					case EProfile::Profile1:
-						// Encoding of profile 1 is not implemented. It would require extended
-						// support for I444, I422, and I440 buffers.
-						checkNoEntry();
-						break;
-					case EProfile::Profile2:
-						PixelFormat = VPX_IMG_FMT_I42016;
-						BitsForStorage = 16;
-						VpxConfig->g_bit_depth = VPX_BITS_10;
-						VpxConfig->g_profile = 2;
-						VpxConfig->g_input_bit_depth = 10;
-						break;
-					case EProfile::Profile3:
-						// Encoding of profile 3 is not implemented.
-						checkNoEntry();
-						break;
+				case EProfile::Profile0:
+					PixelFormat = PreviousImgFmt.Get(VPX_IMG_FMT_I420);
+					BitsForStorage = 8;
+					VpxConfig->g_bit_depth = VPX_BITS_8;
+					VpxConfig->g_profile = 0;
+					VpxConfig->g_input_bit_depth = 8;
+					break;
+				case EProfile::Profile1:
+					// Encoding of profile 1 is not implemented. It would require extended
+					// support for I444, I422, and I440 buffers.
+					checkNoEntry();
+					break;
+				case EProfile::Profile2:
+					PixelFormat = VPX_IMG_FMT_I42016;
+					BitsForStorage = 16;
+					VpxConfig->g_bit_depth = VPX_BITS_10;
+					VpxConfig->g_profile = 2;
+					VpxConfig->g_input_bit_depth = 10;
+					break;
+				case EProfile::Profile3:
+					// Encoding of profile 3 is not implemented.
+					checkNoEntry();
+					break;
 				}
 
 				// Creating a wrapper to the image - setting image data to nullptr. Actual
@@ -254,8 +254,8 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 				VpxConfig->rc_dropframe_thresh = 0;
 				VpxConfig->rc_end_usage = VPX_CBR;
 				VpxConfig->g_pass = VPX_RC_ONE_PASS;
-				VpxConfig->rc_min_quantizer = 2;
-				VpxConfig->rc_max_quantizer = 52;
+				VpxConfig->rc_min_quantizer = (1.0f - (PendingConfig.MaxQuality / 100.0f)) * 63.0f;
+				VpxConfig->rc_max_quantizer = (1.0f - (PendingConfig.MinQuality / 100.0f)) * 63.0f;
 				VpxConfig->rc_undershoot_pct = 50;
 				VpxConfig->rc_overshoot_pct = 50;
 				VpxConfig->rc_buf_initial_sz = 500;
@@ -493,44 +493,44 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::SendFrame(TSharedPtr<FVideoResource
 
 		switch (Profile)
 		{
-			case EProfile::Profile0:
-			{
-				int StrideY = Resource->GetWidth();
-				int StrideUV = (Resource->GetWidth() + 1) / 2;
+		case EProfile::Profile0:
+		{
+			int StrideY = Resource->GetWidth();
+			int StrideUV = (Resource->GetWidth() + 1) / 2;
 
-				int DataSizeY = StrideY * Resource->GetHeight();
-				int DataSizeUV = StrideUV * ((Resource->GetHeight() + 1) / 2);
+			int DataSizeY = StrideY * Resource->GetHeight();
+			int DataSizeUV = StrideUV * ((Resource->GetHeight() + 1) / 2);
 
-				RawImage->planes[VPX_PLANE_Y] = static_cast<uint8*>(Resource->GetRaw().Get());
-				RawImage->planes[VPX_PLANE_U] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY;
-				RawImage->planes[VPX_PLANE_V] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY + DataSizeUV;
-				RawImage->stride[VPX_PLANE_Y] = StrideY;
-				RawImage->stride[VPX_PLANE_U] = StrideUV;
-				RawImage->stride[VPX_PLANE_V] = StrideUV;
+			RawImage->planes[VPX_PLANE_Y] = static_cast<uint8*>(Resource->GetRaw().Get());
+			RawImage->planes[VPX_PLANE_U] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY;
+			RawImage->planes[VPX_PLANE_V] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY + DataSizeUV;
+			RawImage->stride[VPX_PLANE_Y] = StrideY;
+			RawImage->stride[VPX_PLANE_U] = StrideUV;
+			RawImage->stride[VPX_PLANE_V] = StrideUV;
 
-				break;
-			}
-			case EProfile::Profile1:
-				checkNoEntry();
-				break;
-			case EProfile::Profile2:
-			{
-				int StrideY = Resource->GetWidth();
-				int StrideUV = (Resource->GetWidth() + 1) / 2;
+			break;
+		}
+		case EProfile::Profile1:
+			checkNoEntry();
+			break;
+		case EProfile::Profile2:
+		{
+			int StrideY = Resource->GetWidth();
+			int StrideUV = (Resource->GetWidth() + 1) / 2;
 
-				int DataSizeY = 2 * StrideY * Resource->GetHeight();
-				int DataSizeUV = 2 * StrideUV * ((Resource->GetHeight() + 1) / 2);
+			int DataSizeY = 2 * StrideY * Resource->GetHeight();
+			int DataSizeUV = 2 * StrideUV * ((Resource->GetHeight() + 1) / 2);
 
-				RawImage->planes[VPX_PLANE_Y] = static_cast<uint8*>(Resource->GetRaw().Get());
-				RawImage->planes[VPX_PLANE_U] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY;
-				RawImage->planes[VPX_PLANE_V] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY + DataSizeUV;
-				RawImage->stride[VPX_PLANE_Y] = StrideY * 2;
-				RawImage->stride[VPX_PLANE_U] = StrideUV * 2;
-				RawImage->stride[VPX_PLANE_V] = StrideUV * 2;
-			}
-			case EProfile::Profile3:
-				checkNoEntry();
-				break;
+			RawImage->planes[VPX_PLANE_Y] = static_cast<uint8*>(Resource->GetRaw().Get());
+			RawImage->planes[VPX_PLANE_U] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY;
+			RawImage->planes[VPX_PLANE_V] = static_cast<uint8*>(Resource->GetRaw().Get()) + DataSizeY + DataSizeUV;
+			RawImage->stride[VPX_PLANE_Y] = StrideY * 2;
+			RawImage->stride[VPX_PLANE_U] = StrideUV * 2;
+			RawImage->stride[VPX_PLANE_V] = StrideUV * 2;
+		}
+		case EProfile::Profile3:
+			checkNoEntry();
+			break;
 		}
 
 		vpx_enc_frame_flags_t Flags = 0;
@@ -788,17 +788,17 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 	{
 		switch (InterLayerPrediction)
 		{
-			case EInterLayerPrediction::On:
-				SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 0);
-				break;
-			case EInterLayerPrediction::Off:
-				SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 1);
-				break;
-			case EInterLayerPrediction::OnKeyPicture:
-				SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 2);
-				break;
-			default:
-				checkNoEntry();
+		case EInterLayerPrediction::On:
+			SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 0);
+			break;
+		case EInterLayerPrediction::Off:
+			SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 1);
+			break;
+		case EInterLayerPrediction::OnKeyPicture:
+			SAFECONTROLVP9(Encoder.Get(), VP9E_SET_SVC_INTER_LAYER_PRED, 2);
+			break;
+		default:
+			checkNoEntry();
 		}
 
 		if (!SvcDropFrame.IsValid())
@@ -1242,7 +1242,7 @@ bool TVideoEncoderLibVpxVP9<TResource>::PopulateCodecSpecific(FCodecSpecificInfo
 	{
 		FScalableVideoController::FLayerFrameConfig* FoundLayer = LayerFrames.FindByPredicate([&LayerId](FScalableVideoController::FLayerFrameConfig& Config) {
 			return Config.GetSpatialId() == LayerId.spatial_layer_id;
-		});
+			});
 		if (FoundLayer == nullptr)
 		{
 			// UE_LOGFMT(LogPixelStreamingEpicRtc, Error, "Encoder produced a frame for layer S{0}T{1} that wasn't requested", LayerId.spatial_layer_id, LayerId.temporal_layer_id);
@@ -1395,10 +1395,10 @@ void TVideoEncoderLibVpxVP9<TResource>::UpdateReferenceBuffers(const vpx_codec_c
 	vpx_svc_layer_id_t LayerId = { 0 };
 	SAFECONTROLVP9(Encoder.Get(), VP9E_GET_SVC_LAYER_ID, &LayerId)
 
-	FRefFrameBuffer FrameBuf = {
-		.PicNum = PicNum,
-		.SpatialLayerId = LayerId.spatial_layer_id,
-		.TemporalLayerId = LayerId.temporal_layer_id
+		FRefFrameBuffer FrameBuf = {
+			.PicNum = PicNum,
+			.SpatialLayerId = LayerId.spatial_layer_id,
+			.TemporalLayerId = LayerId.temporal_layer_id
 	};
 
 	if (bIsSvc)
@@ -1748,7 +1748,7 @@ void TVideoEncoderLibVpxVP9<TResource>::UpdatePerformanceFlags(FVideoEncoderConf
 		}
 
 		return ParamsByResolution[ResolutionArray[Index]];
-	};
+		};
 	PerformanceFlagsBySpatialIndex.Empty();
 
 	if (bIsSvc)

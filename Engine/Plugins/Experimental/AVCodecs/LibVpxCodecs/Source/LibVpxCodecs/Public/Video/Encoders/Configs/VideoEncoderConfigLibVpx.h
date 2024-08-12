@@ -22,8 +22,8 @@ public:
 	TOptional<int32> Bitrates[Video::MaxSpatialLayers][Video::MaxTemporalStreams];
 	uint32			 KeyframeInterval = 0;
 	EVideoFormat	 PixelFormat;
-	int32			 MinQP;
-	int32			 MaxQP;
+	int32			 MinQuality;
+	int32			 MaxQuality;
 
 	int32					 NumberOfCores = 0;
 	bool					 bDenoisingOn = false;
@@ -68,8 +68,8 @@ public:
 			&& this->MinBitrate == Other.MinBitrate
 			&& this->KeyframeInterval == Other.KeyframeInterval
 			&& this->PixelFormat == Other.PixelFormat
-			&& this->MinQP == Other.MinQP
-			&& this->MaxQP == Other.MaxQP
+			&& this->MinQuality == Other.MinQuality
+			&& this->MaxQuality == Other.MaxQuality
 			&& this->NumberOfCores == Other.NumberOfCores
 			&& this->bDenoisingOn == Other.bDenoisingOn
 			&& this->bAdaptiveQpMode == Other.bAdaptiveQpMode

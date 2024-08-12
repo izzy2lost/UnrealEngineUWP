@@ -4,6 +4,9 @@
 
 #include "AVCoder.h"
 
+#include "VideoConfig.generated.h"
+
+UENUM()
 enum class EVideoCodec : uint8
 {
 	Undefined,

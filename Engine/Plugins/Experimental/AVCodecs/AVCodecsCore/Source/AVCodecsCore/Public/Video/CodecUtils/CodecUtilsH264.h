@@ -7,12 +7,16 @@
 
 #include "AVResult.h"
 
+#include "CodecUtilsH264.generated.h"
+
 struct FH264ProfileDefinition;
 struct FVideoPacket;
 
 // Easy to understand user facing profiles from the T-Rec-H.264-201304 spec
 // there is another enum in CodecUtilsH264 that aligns the profiles with PIC and constraints
 // however users are not expected to understand those ones.
+
+UENUM()
 enum class EH264Profile : uint8
 {
 	Auto,
@@ -235,7 +239,7 @@ struct FH264ProfileDefinition
 	EH264Profile							   Profile;
 	UE::AVCodecCore::H264::EH264ProfileIDC	   PIDC;
 	UE::AVCodecCore::H264::EH264ConstraintFlag ConstraintFlags;
-	const TCHAR*							   Name;
+	const TCHAR* Name;
 };
 
 namespace UE::AVCodecCore::H264
