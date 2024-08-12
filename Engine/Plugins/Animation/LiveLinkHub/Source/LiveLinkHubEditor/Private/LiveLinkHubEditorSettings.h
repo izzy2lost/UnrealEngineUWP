@@ -22,4 +22,8 @@ public:
 	/** Whether to find the livelinkhub executable by looking up a registry key. */
 	UPROPERTY(config)
 	bool bWriteLiveLinkHubRegistryKey = false;
+
+	/** Relative URI to the LiveLinkHub page in the epic games launcher. */
+	UPROPERTY(config)
+	FString LiveLinkHubStorePage;
 };

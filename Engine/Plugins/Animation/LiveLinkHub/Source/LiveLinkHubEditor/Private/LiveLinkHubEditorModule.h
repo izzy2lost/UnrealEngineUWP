@@ -29,7 +29,7 @@ private:
 	void OnPostEngineInit();
 
 	/** Launch the livelinkhub executable. */
-	void OpenLiveLinkHub() const;
+	void OpenLiveLinkHub();
 
 	/** Extend the editor's bottom status bar to add the livelink hub widget. */
 	void RegisterLiveLinkHubStatusBar();

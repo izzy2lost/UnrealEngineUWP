@@ -17,6 +17,7 @@ namespace UnrealBuildTool.Rules
 			new string[]
 			{
 				"Engine",
+				"LauncherPlatform",
 				"LiveLink",
 				"LiveLinkEditor",
 				"LiveLinkHub",
