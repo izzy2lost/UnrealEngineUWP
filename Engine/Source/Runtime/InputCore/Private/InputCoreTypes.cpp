@@ -1252,11 +1252,19 @@ FText EKeys::GetGamepadDisplayName(const FKey Key)
 		}
 		else if (Key == EKeys::Gamepad_LeftTrigger)
 		{
+#if WITH_EDITOR
+			return LOCTEXT("Gamepad_LeftTrigger_Editor", "Gamepad Left Trigger (Digital)");
+#else
 			return LOCTEXT("Gamepad_LeftTrigger", "Gamepad Left Trigger");
+#endif
 		}
 		else if (Key == EKeys::Gamepad_RightTrigger)
 		{
+#if WITH_EDITOR
+			return LOCTEXT("Gamepad_RightTrigger_Editor", "Gamepad Right Trigger (Digital)");
+#else
 			return LOCTEXT("Gamepad_RightTrigger", "Gamepad Right Trigger");
+#endif
 		}
 		else if (Key == EKeys::Gamepad_LeftTriggerAxis)
 		{
