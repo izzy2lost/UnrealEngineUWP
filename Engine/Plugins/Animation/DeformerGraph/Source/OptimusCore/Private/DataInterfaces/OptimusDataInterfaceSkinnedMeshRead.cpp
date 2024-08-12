@@ -29,7 +29,7 @@ FString UOptimusSkinnedMeshReadDataInterface::GetDisplayName() const
 
 FName UOptimusSkinnedMeshReadDataInterface::GetCategory() const
 {
-	return CategoryName::OutputDataInterfaces;
+	return CategoryName::DataInterfaces;
 }
 
 TArray<FOptimusCDIPinDefinition> UOptimusSkinnedMeshReadDataInterface::GetPinDefinitions() const
