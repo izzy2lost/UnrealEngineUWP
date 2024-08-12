@@ -838,7 +838,6 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 		SubSection->SetSequence(Sequence);
 		SubSection->SetRange(MovieScene->GetPlaybackRange());
 		SubSection->SetIsActive(bActivate);
-		SubSection->SetIsLocked(true);
 		
 		TargetActor->UpdateSubSectionTimeScale(SubSection);
 
@@ -867,6 +866,7 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 #endif
         
 		SubSection->MarkAsChanged();
+		SubSection->SetIsLocked(true);
 		return SubSection;
 	};
 	
@@ -890,8 +890,10 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 		const bool bActive = bIsEnabled && !TargetActor->EvaluateSequenceConditions(bInitialMuteState, Conditions);
 		if (SubSection->IsActive() != bActive)
 		{
+			SubSection->SetIsLocked(false);
 			SubSection->MarkAsChanged();
 			SubSection->SetIsActive(bActive);
+			SubSection->SetIsLocked(true);
 		}
 	};
 
@@ -905,8 +907,10 @@ UMovieSceneSubSection* UDaySequenceModifierComponent::InitializeDaySequence(cons
 		const bool bActive = bIsEnabled;
 		if (SubSection->IsActive() != bActive)
 		{
+			SubSection->SetIsLocked(false);
 			SubSection->MarkAsChanged();
 			SubSection->SetIsActive(bActive);
+			SubSection->SetIsLocked(true);
 		}
 	};
 
@@ -1000,8 +1004,10 @@ FGuid UDaySequenceModifierComponent::GetOrCreateProceduralBinding(UObject* Objec
 	UMovieSceneSubSection* SubSection = WeakSubSection.Get();
 	if (SubSection && SubSection->GetSequence() == nullptr)
 	{
+		SubSection->SetIsLocked(false);
 		SubSection->MarkAsChanged();
 		SubSection->SetSequence(ProceduralDaySequence);
+		SubSection->SetIsLocked(true);
 	}
 
 	UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();

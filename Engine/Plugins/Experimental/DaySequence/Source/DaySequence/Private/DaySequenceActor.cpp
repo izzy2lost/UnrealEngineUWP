@@ -760,8 +760,10 @@ UMovieSceneSubSection* ADaySequenceActor::InitializeDaySequence(const FDaySequen
 				constexpr bool bInitialMuteState = false;
 				if (const bool bActive = !EvaluateSequenceConditions(bInitialMuteState, Conditions); SubSection->IsActive() != bActive)
 				{
+					SubSection->SetIsLocked(false);
 					SubSection->MarkAsChanged();
 					SubSection->SetIsActive(bActive);
+					SubSection->SetIsLocked(true);
 				}
 			};
 
@@ -774,8 +776,10 @@ UMovieSceneSubSection* ADaySequenceActor::InitializeDaySequence(const FDaySequen
 
 				if (!SubSection->IsActive())
 				{
+					SubSection->SetIsLocked(false);
 					SubSection->MarkAsChanged();
 					SubSection->SetIsActive(true);
+					SubSection->SetIsLocked(true);
 				}
 			};
 			
@@ -849,9 +853,12 @@ void ADaySequenceActor::UpdateSubSectionTimeScale(UMovieSceneSubSection* InSubSe
 	// normalize playback by setting TimeScale on the section.
 	const UMovieScene* RootMovieScene = RootSequence->GetMovieScene();
 	const int32 RootDuration = RootMovieScene->GetPlaybackRange().GetUpperBoundValue().Value;
+	const bool bSubsectionWasLocked = InSubSection->IsLocked();
+	InSubSection->SetIsLocked(false);
 	InSubSection->MarkAsChanged();
 	InSubSection->Parameters.TimeScale = (float)OuterDuration / (float)RootDuration;
 	InSubSection->SetRange(RootMovieScene->GetPlaybackRange());
+	InSubSection->SetIsLocked(bSubsectionWasLocked);
 }
 
 void ADaySequenceActor::OnSequencePlayerUpdate(const UMovieSceneSequencePlayer& Player, FFrameTime CurrentTime, FFrameTime PreviousTime)
