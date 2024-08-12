@@ -14,17 +14,17 @@
 class ITypedElementDataStorageInterface;
 class ITypedElementDataStorageCompatibilityInterface;
 
-TEDSCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogTypedElementDatabaseUI, Log, All);
+TEDSCORE_API DECLARE_LOG_CATEGORY_EXTERN(LogEditorDataStorageUI, Log, All);
 
 UCLASS()
-class TEDSCORE_API UTypedElementDatabaseUi final
+class TEDSCORE_API UEditorDataStorageUi final
 	: public UObject
 	, public ITypedElementDataStorageUiInterface
 {
 	GENERATED_BODY()
 
 public:
-	~UTypedElementDatabaseUi() override = default;
+	~UEditorDataStorageUi() override = default;
 
 	void Initialize(
 		ITypedElementDataStorageInterface* StorageInterface, 

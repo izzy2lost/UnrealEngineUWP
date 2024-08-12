@@ -6,23 +6,25 @@
 #include "Elements/Common/TypedElementHandles.h"
 
 class ITypedElementDataStorageInterface;
-class UTypedElementDatabase;
-class UTypedElementMementoTranslatorBase;
-	
-class UTypedElementMementoSystem
+class UTedsMementoTranslatorBase;
+
+namespace UE::Editor::DataStorage
 {
-public:
-	explicit UTypedElementMementoSystem(ITypedElementDataStorageInterface& InDataStorage);
-	
-	TypedElementDataStorage::RowHandle CreateMemento(TypedElementDataStorage::RowHandle SourceRow);
-	void CreateMemento(TypedElementDataStorage::RowHandle ReservedMementoRow, TypedElementDataStorage::RowHandle SourceRow);
-	void RestoreMemento(TypedElementDataStorage::RowHandle MementoRow,  TypedElementDataStorage::RowHandle TargetRow);
-	void DestroyMemento(TypedElementDataStorage::RowHandle MementoRow);
+	class FMementoSystem
+	{
+	public:
+		explicit FMementoSystem(ITypedElementDataStorageInterface& InDataStorage);
 
-private:
-	void CreateMementoInternal(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle SourceRow);
+		TypedElementDataStorage::RowHandle CreateMemento(TypedElementDataStorage::RowHandle SourceRow);
+		void CreateMemento(TypedElementDataStorage::RowHandle ReservedMementoRow, TypedElementDataStorage::RowHandle SourceRow);
+		void RestoreMemento(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle TargetRow);
+		void DestroyMemento(TypedElementDataStorage::RowHandle MementoRow);
 
-	TArray<const UTypedElementMementoTranslatorBase*> MementoTranslators;
-	TypedElementDataStorage::TableHandle MementoRowBaseTable;
-	ITypedElementDataStorageInterface& DataStorage;
-};
+	private:
+		void CreateMementoInternal(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle SourceRow);
+
+		TArray<const UTedsMementoTranslatorBase*> MementoTranslators;
+		TypedElementDataStorage::TableHandle MementoRowBaseTable;
+		ITypedElementDataStorageInterface& DataStorage;
+	};
+} // namespace UE::Editor::DataStorage

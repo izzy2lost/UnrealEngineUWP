@@ -24,7 +24,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTedsCompat, Log, All);
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage::Private
 {
 	bool bIntegrateWithGC = true;
 	FAutoConsoleVariableRef CVarIntegrateWithGC(
@@ -59,12 +59,12 @@ namespace TypedElementDataStorage
 			"0 - disable\n"
 			"1 - summarize number of nops\n"
 			"2 - include nops"));
-}
 
-static const FName IntegrateWithGCName(TEXT("IntegrateWithGC"));
-static const FName CompatibilityUsesCommandBufferExtensionName(TEXT("CompatiblityUsesCommandBuffer"));
+	static const FName IntegrateWithGCName(TEXT("IntegrateWithGC"));
+	static const FName CompatibilityUsesCommandBufferExtensionName(TEXT("CompatiblityUsesCommandBuffer"));
+} // namespace UE::Editor::DataStorage::Private
 
-void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InStorage)
+void UEditorDataStorageCompatibility::Initialize(UEditorDataStorage* InStorage)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -79,22 +79,21 @@ void UTypedElementDatabaseCompatibility::Initialize(UTypedElementDatabase* InSto
 	
 	Prepare();
 
-	InStorage->OnUpdate().AddUObject(this, &UTypedElementDatabaseCompatibility::Tick);
+	InStorage->OnUpdate().AddUObject(this, &UEditorDataStorageCompatibility::Tick);
 
-	PreEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPrePropertyChanged);
-	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostEditChangeProperty);
-	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectModified);
-	ObjectReinstancedDelegateHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTypedElementDatabaseCompatibility::OnObjectReinstanced);
+	PreEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnPreObjectPropertyChanged.AddUObject(this, &UEditorDataStorageCompatibility::OnPrePropertyChanged);
+	PostEditChangePropertyDelegateHandle = FCoreUObjectDelegates::OnObjectPropertyChanged.AddUObject(this, &UEditorDataStorageCompatibility::OnPostEditChangeProperty);
+	ObjectModifiedDelegateHandle = FCoreUObjectDelegates::OnObjectModified.AddUObject(this, &UEditorDataStorageCompatibility::OnObjectModified);
+	ObjectReinstancedDelegateHandle = FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UEditorDataStorageCompatibility::OnObjectReinstanced);
 	
-	PostGcUnreachableAnalysisHandle = FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis);
+	PostGcUnreachableAnalysisHandle = FCoreUObjectDelegates::PostReachabilityAnalysis.AddUObject(this, &UEditorDataStorageCompatibility::OnPostGcUnreachableAnalysis);
 	// Used to get all the worlds and register the actor create/destroy handles on them.
-	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPostWorldInitialization);
-	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy);
+	PostWorldInitializationDelegateHandle = FWorldDelegates::OnPostWorldInitialization.AddUObject(this, &UEditorDataStorageCompatibility::OnPostWorldInitialization);
+	PreWorldFinishDestroyDelegateHandle = FWorldDelegates::OnPreWorldFinishDestroy.AddUObject(this, &UEditorDataStorageCompatibility::OnPreWorldFinishDestroy);
 }
 
-void UTypedElementDatabaseCompatibility::Deinitialize()
+void UEditorDataStorageCompatibility::Deinitialize()
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
@@ -116,7 +115,7 @@ void UTypedElementDatabaseCompatibility::Deinitialize()
 	Reset();
 }
 
-void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegistrationFilter Filter)
+void UEditorDataStorageCompatibility::RegisterRegistrationFilter(ObjectRegistrationFilter Filter)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -124,7 +123,7 @@ void UTypedElementDatabaseCompatibility::RegisterRegistrationFilter(ObjectRegist
 	ObjectRegistrationFilters.Add(MoveTemp(Filter));
 }
 
-void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
+void UEditorDataStorageCompatibility::RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -132,12 +131,12 @@ void UTypedElementDatabaseCompatibility::RegisterDealiaserCallback(ObjectToRowDe
 	ObjectToRowDialiasers.Add(MoveTemp(Dealiaser));
 }
 
-void UTypedElementDatabaseCompatibility::RegisterTypeTableAssociation(
+void UEditorDataStorageCompatibility::RegisterTypeTableAssociation(
 	TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table)
 {
 	using namespace UE::Editor::DataStorage;
 	
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		QueuedCommands.AddCommand(UE::Editor::DataStorage::FRegisterTypeTableAssociation{ .TypeInfo = TypeInfo, .Table = Table });
 	}
@@ -148,12 +147,12 @@ void UTypedElementDatabaseCompatibility::RegisterTypeTableAssociation(
 	}
 }
 
-FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(UE::Editor::DataStorage::ObjectAddedCallback&& OnObjectAdded)
+FDelegateHandle UEditorDataStorageCompatibility::RegisterObjectAddedCallback(UE::Editor::DataStorage::ObjectAddedCallback&& OnObjectAdded)
 {
 	using namespace UE::Editor::DataStorage;
 
 	FDelegateHandle Handle(FDelegateHandle::GenerateNewHandle);
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		QueuedCommands.AddCommand(UE::Editor::DataStorage::FRegisterObjectAddedCallback{ .Callback = MoveTemp(OnObjectAdded), .Handle = Handle });
 	}
@@ -165,11 +164,11 @@ FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectAddedCallback(
 	return Handle;
 }
 
-void UTypedElementDatabaseCompatibility::UnregisterObjectAddedCallback(FDelegateHandle Handle)
+void UEditorDataStorageCompatibility::UnregisterObjectAddedCallback(FDelegateHandle Handle)
 {
 	using namespace UE::Editor::DataStorage;
 
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		QueuedCommands.AddCommand(UE::Editor::DataStorage::FUnregisterObjectAddedCallback{ .Handle = Handle });
 	}
@@ -184,7 +183,7 @@ void UTypedElementDatabaseCompatibility::UnregisterObjectAddedCallback(FDelegate
 	}
 }
 
-FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallback(UE::Editor::DataStorage::ObjectRemovedCallback&& OnObjectAdded)
+FDelegateHandle UEditorDataStorageCompatibility::RegisterObjectRemovedCallback(UE::Editor::DataStorage::ObjectRemovedCallback&& OnObjectAdded)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -196,7 +195,7 @@ FDelegateHandle UTypedElementDatabaseCompatibility::RegisterObjectRemovedCallbac
 	return Handle;
 }
 
-void UTypedElementDatabaseCompatibility::UnregisterObjectRemovedCallback(FDelegateHandle Handle)
+void UEditorDataStorageCompatibility::UnregisterObjectRemovedCallback(FDelegateHandle Handle)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -209,7 +208,7 @@ void UTypedElementDatabaseCompatibility::UnregisterObjectRemovedCallback(FDelega
 	});
 }
 
-TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(UObject* Object)
+TypedElementRowHandle UEditorDataStorageCompatibility::AddCompatibleObjectExplicit(UObject* Object)
 {
 	// Because AddCompatibleObjectExplicitTransactionable needs a finer grained control over the lock, there's no higher up lock here.
 
@@ -219,7 +218,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	return bCanAddObject ? AddCompatibleObjectExplicitTransactionable<true>(Object) : TypedElementDataStorage::InvalidRowHandle;
 }
 
-TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
+TypedElementRowHandle UEditorDataStorageCompatibility::AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -232,7 +231,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	{
 		Result = Storage->ReserveRow();
 		Storage->IndexRow(GenerateIndexHash(Object), Result);
-		if (bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			QueuedCommands.AddCommand(FAddCompatibleExternalObject{ .Object = Object, .TypeInfo = TypeInfo, .Row = Result });
 		}
@@ -244,19 +243,19 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	return Result;
 }
 
-void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(UObject* Object)
+void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicit(UObject* Object)
 {
 	RemoveCompatibleObjectExplicitTransactionable<true>(Object);
 }
 
-void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Object)
+void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicit(void* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage, TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 
-	if (TypedElementDataStorage::bUseCommandBuffer && TypedElementDataStorage::bUseDeferredRemovesInCompat)
+	if (Private::bUseCommandBuffer && Private::bUseDeferredRemovesInCompat)
 	{
 		QueuedCommands.AddCommand(FRemoveCompatibleExternalObject{ .Object = Object });
 	}
@@ -278,7 +277,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicit(void* Ob
 	}
 }
 
-TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
+TypedElementRowHandle UEditorDataStorageCompatibility::FindRowWithCompatibleObjectExplicit(const UObject* Object) const
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -293,7 +292,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 	return InvalidRowHandle;
 }
 
-TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleObjectExplicit(const void* Object) const
+TypedElementRowHandle UEditorDataStorageCompatibility::FindRowWithCompatibleObjectExplicit(const void* Object) const
 {
 	// Thread safety is only needed by FindIndexedRow which internally takes care of it.
 
@@ -302,19 +301,19 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::FindRowWithCompatibleO
 	return (Object && Storage && Storage->IsAvailable()) ? Storage->FindIndexedRow(GenerateIndexHash(Object)) : InvalidRowHandle;
 }
 
-bool UTypedElementDatabaseCompatibility::SupportsExtension(FName Extension) const
+bool UEditorDataStorageCompatibility::SupportsExtension(FName Extension) const
 {
 	// No thread safety needed.
 
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
-	if (Extension == IntegrateWithGCName)
+	if (Extension == Private::IntegrateWithGCName)
 	{
-		return bIntegrateWithGC;
+		return Private::bIntegrateWithGC;
 	}
-	else if (Extension == CompatibilityUsesCommandBufferExtensionName)
+	else if (Extension == Private::CompatibilityUsesCommandBufferExtensionName)
 	{
-		return bUseCommandBuffer;
+		return Private::bUseCommandBuffer;
 	}
 	else
 	{
@@ -322,34 +321,34 @@ bool UTypedElementDatabaseCompatibility::SupportsExtension(FName Extension) cons
 	}
 }
 
-void UTypedElementDatabaseCompatibility::ListExtensions(TFunctionRef<void(FName)> Callback) const
+void UEditorDataStorageCompatibility::ListExtensions(TFunctionRef<void(FName)> Callback) const
 {
 	// No thread safety needed.
 
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
-	if (bIntegrateWithGC)
+	if (Private::bIntegrateWithGC)
 	{
-		Callback(IntegrateWithGCName);
+		Callback(Private::IntegrateWithGCName);
 	}
-	if (bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
-		Callback(CompatibilityUsesCommandBufferExtensionName);
+		Callback(Private::CompatibilityUsesCommandBufferExtensionName);
 	}
 }
 
-void UTypedElementDatabaseCompatibility::Prepare()
+void UEditorDataStorageCompatibility::Prepare()
 {
 	// Thread-safe as this is only called from a function that has an exclusive lock.
 	CreateStandardArchetypes();
 	RegisterTypeInformationQueries();
 }
 
-void UTypedElementDatabaseCompatibility::Reset()
+void UEditorDataStorageCompatibility::Reset()
 {
 }
 
-void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
+void UEditorDataStorageCompatibility::CreateStandardArchetypes()
 {
 	// Thread-safe as this is only called from a function that has an exclusive lock.
 
@@ -377,7 +376,7 @@ void UTypedElementDatabaseCompatibility::CreateStandardArchetypes()
 	RegisterTypeTableAssociation(UObject::StaticClass(), StandardUObjectTable);
 }
 
-void UTypedElementDatabaseCompatibility::RegisterTypeInformationQueries()
+void UEditorDataStorageCompatibility::RegisterTypeInformationQueries()
 {
 	// Thread-safe as this is only called from a function that has an exclusive lock.
 
@@ -399,7 +398,7 @@ void UTypedElementDatabaseCompatibility::RegisterTypeInformationQueries()
 		.Compile());
 }
 
-bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) const
+bool UEditorDataStorageCompatibility::ShouldAddObject(const UObject* Object) const
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -419,7 +418,7 @@ bool UTypedElementDatabaseCompatibility::ShouldAddObject(const UObject* Object) 
 	return Include;
 }
 
-TypedElementDataStorage::TableHandle UTypedElementDatabaseCompatibility::FindBestMatchingTable(const UStruct* TypeInfo) const
+TypedElementDataStorage::TableHandle UEditorDataStorageCompatibility::FindBestMatchingTable(const UStruct* TypeInfo) const
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -439,7 +438,7 @@ TypedElementDataStorage::TableHandle UTypedElementDatabaseCompatibility::FindBes
 }
 
 template<bool bEnableTransactions>
-TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExplicitTransactionable(UObject* Object)
+TypedElementRowHandle UEditorDataStorageCompatibility::AddCompatibleObjectExplicitTransactionable(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -451,7 +450,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 	{
 		Result = Storage->ReserveRow();
 		Storage->IndexRow(GenerateIndexHash(Object), Result);
-		if (bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			QueuedCommands.AddCommand(FAddCompatibleUObject{ .Object = Object, .Row = Result });
 		}
@@ -472,7 +471,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::AddCompatibleObjectExp
 }
 
 template<bool bEnableTransactions>
-void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(const UObject* Object)
+void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicitTransactionable(const UObject* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -482,7 +481,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 	
 	if constexpr (!bEnableTransactions)
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer && TypedElementDataStorage::bUseDeferredRemovesInCompat)
+		if (Private::bUseCommandBuffer && Private::bUseDeferredRemovesInCompat)
 		{
 			// There's no need for an transaction recording so the full operation can be done as part of the commands processing.
 			QueuedCommands.AddCommand(FRemoveCompatibleUObject{ .Object = Object });
@@ -504,7 +503,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 }
 
 template<bool bEnableTransactions>
-void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransactionable(
+void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicitTransactionable(
 	const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow)
 {
 	using namespace TypedElementDataStorage;
@@ -513,7 +512,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 	checkf(Storage,
 		TEXT("Removing compatible objects is not supported before Typed Element's Database compatibility manager has been initialized."));
 
-	if (TypedElementDataStorage::bUseCommandBuffer && TypedElementDataStorage::bUseDeferredRemovesInCompat)
+	if (Private::bUseCommandBuffer && Private::bUseDeferredRemovesInCompat)
 	{
 		if constexpr (bEnableTransactions)
 		{
@@ -547,7 +546,7 @@ void UTypedElementDatabaseCompatibility::RemoveCompatibleObjectExplicitTransacti
 	}
 }
 
-TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UObject* Object) const
+TypedElementRowHandle UEditorDataStorageCompatibility::DealiasObject(const UObject* Object) const
 {
 	// Thread safe because it's only called from functions that already lock.
 
@@ -561,7 +560,7 @@ TypedElementRowHandle UTypedElementDatabaseCompatibility::DealiasObject(const UO
 	return TypedElementDataStorage::InvalidRowHandle;
 }
 
-void UTypedElementDatabaseCompatibility::Tick()
+void UEditorDataStorageCompatibility::Tick()
 {
 	using namespace UE::Editor::DataStorage;
 	
@@ -572,7 +571,7 @@ void UTypedElementDatabaseCompatibility::Tick()
 	// Delay processing until the required systems are available by not clearing any lists or doing any work.
 	if (Storage && Storage->IsAvailable())
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			TickPendingCommands();
 		}
@@ -592,12 +591,12 @@ void UTypedElementDatabaseCompatibility::Tick()
 // FPendingTypeInformatUpdate
 // 
 
-UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::FPendingTypeInformationUpdate()
+UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::FPendingTypeInformationUpdate()
 	: PendingTypeInformationUpdatesActive(&PendingTypeInformationUpdates[0])
 	, PendingTypeInformationUpdatesSwapped(&PendingTypeInformationUpdates[1])
 {}
 
-void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::AddTypeInformation(const TMap<UObject*, UObject*>& ReplacedObjects)
+void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::AddTypeInformation(const TMap<UObject*, UObject*>& ReplacedObjects)
 {
 	UE::TUniqueLock Lock(Safeguard);
 
@@ -611,7 +610,7 @@ void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::AddTypeI
 	}
 }
 
-void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::Process(UTypedElementDatabaseCompatibility& Compatibility)
+void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::Process(UEditorDataStorageCompatibility& Compatibility)
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
@@ -684,7 +683,7 @@ void UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::Process(
 	}
 }
 
-TOptional<TWeakObjectPtr<UObject>> UTypedElementDatabaseCompatibility::FPendingTypeInformationUpdate::ProcessResolveTypeRecursively(
+TOptional<TWeakObjectPtr<UObject>> UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::ProcessResolveTypeRecursively(
 	const TWeakObjectPtr<UObject>& Target)
 {
 	// Thread-safety guaranteed because this is a private function that only gets called from functions that called inside a mutex.
@@ -709,28 +708,28 @@ TOptional<TWeakObjectPtr<UObject>> UTypedElementDatabaseCompatibility::FPendingT
 //
 
 template<typename AddressType>
-void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Add(TypedElementRowHandle ReservedRowHandle, AddressType Address)
+void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::Add(TypedElementRowHandle ReservedRowHandle, AddressType Address)
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	Entries.Emplace(FEntry{ .Address = Address, .Row = ReservedRowHandle });
 }
 
 template<typename AddressType>
-bool UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::IsEmpty() const
+bool UEditorDataStorageCompatibility::PendingRegistration<AddressType>::IsEmpty() const
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	return Entries.IsEmpty();
 }
 
 template<typename AddressType>
-int32 UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Num() const
+int32 UEditorDataStorageCompatibility::PendingRegistration<AddressType>::Num() const
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	return Entries.Num();
 }
 
 template<typename AddressType>
-void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback)
+void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback)
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	for (FEntry& Entry : Entries)
@@ -740,8 +739,8 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::ForEa
 }
 
 template<typename AddressType>
-void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::ProcessEntries(ITypedElementDataStorageInterface& StorageInterface,
-	UTypedElementDatabaseCompatibility& Compatibility, const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback)
+void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessEntries(ITypedElementDataStorageInterface& StorageInterface,
+	UEditorDataStorageCompatibility& Compatibility, const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback)
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	using namespace TypedElementDataStorage;
@@ -848,13 +847,13 @@ void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Proce
 }
 
 template<typename AddressType>
-void UTypedElementDatabaseCompatibility::PendingRegistration<AddressType>::Reset()
+void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::Reset()
 {
 	// Thread-safe as it's only called from functions that already lock using.
 	Entries.Reset();
 }
 
-void UTypedElementDatabaseCompatibility::TickPendingCommands()
+void UEditorDataStorageCompatibility::TickPendingCommands()
 {
 	using namespace UE::Editor::DataStorage;
 	using namespace TypedElementDataStorage;
@@ -880,17 +879,17 @@ void UTypedElementDatabaseCompatibility::TickPendingCommands()
 
 	if (CommandCount > 0)
 	{
-		if (bOptimizeCommandBuffer)
+		if (Private::bOptimizeCommandBuffer)
 		{
 			TEDS_EVENT_SCOPE(TEXT("Compatibility Tick - Optimization"))
 			FSorter::SortCommands(PendingCommands);
 			FCommandOptimizer::Run(PendingCommands, Environment->GetScratchBuffer());
 		}
 
-		if (PrintCompatCommandBuffer > 0 )
+		if (Private::PrintCompatCommandBuffer > 0 )
 		{
 			TEDS_EVENT_SCOPE(TEXT("Compatibility Tick - Logging"))
-			FString CommandsAsString = FRecordCommands::PrintToString(PendingCommands, PrintCompatCommandBuffer == 2);
+			FString CommandsAsString = FRecordCommands::PrintToString(PendingCommands, Private::PrintCompatCommandBuffer == 2);
 			UE_LOG(LogTedsCompat, Log, TEXT("Pending Commands:\n%s%u Nops"), 
 				*CommandsAsString, PendingCommands.GetCommandCount<FNopCommand>());
 		}
@@ -901,7 +900,7 @@ void UTypedElementDatabaseCompatibility::TickPendingCommands()
 	PendingCommands.Reset();
 }
 
-void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
+void UEditorDataStorageCompatibility::TickPendingUObjectRegistration()
 {
 	// Thread safe because it's only called from functions that already lock.
 
@@ -931,7 +930,7 @@ void UTypedElementDatabaseCompatibility::TickPendingUObjectRegistration()
 	}
 }
 
-void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
+void UEditorDataStorageCompatibility::TickPendingExternalObjectRegistration()
 {
 	// Thread safe because it's only called from functions that already lock.
 
@@ -952,7 +951,7 @@ void UTypedElementDatabaseCompatibility::TickPendingExternalObjectRegistration()
 	}
 }
 
-void UTypedElementDatabaseCompatibility::TickObjectSync()
+void UEditorDataStorageCompatibility::TickObjectSync()
 {
 	using namespace TypedElementDataStorage;
 	
@@ -996,11 +995,11 @@ void UTypedElementDatabaseCompatibility::TickObjectSync()
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain)
+void UEditorDataStorageCompatibility::OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain)
 {
 	using namespace UE::Editor::DataStorage;
 
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		QueuedCommands.AddCommand(FAddInteractiveSyncFromWorldTag{ .Target = Object });
 	}
@@ -1012,13 +1011,13 @@ void UTypedElementDatabaseCompatibility::OnPrePropertyChanged(UObject* Object, c
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
+void UEditorDataStorageCompatibility::OnPostEditChangeProperty(
 	UObject* Object,
 	FPropertyChangedEvent& PropertyChangedEvent)
 {
 	using namespace UE::Editor::DataStorage;
 
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		if (PropertyChangedEvent.ChangeType != EPropertyChangeType::Interactive)
 		{
@@ -1041,11 +1040,11 @@ void UTypedElementDatabaseCompatibility::OnPostEditChangeProperty(
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
+void UEditorDataStorageCompatibility::OnObjectModified(UObject* Object)
 {
 	using namespace UE::Editor::DataStorage;
 
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		QueuedCommands.AddCommand(FAddSyncFromWorldTag{ .Target = Object });
 	}
@@ -1061,7 +1060,7 @@ void UTypedElementDatabaseCompatibility::OnObjectModified(UObject* Object)
 	}
 }
 
-void UTypedElementDatabaseCompatibility::TriggerOnObjectAdded(
+void UEditorDataStorageCompatibility::TriggerOnObjectAdded(
 	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
 {
 	using namespace UE::Editor::DataStorage;
@@ -1075,7 +1074,7 @@ void UTypedElementDatabaseCompatibility::TriggerOnObjectAdded(
 	}
 }
 
-void UTypedElementDatabaseCompatibility::TriggerOnPreObjectRemoved(
+void UEditorDataStorageCompatibility::TriggerOnPreObjectRemoved(
 	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
 {
 	using namespace UE::Editor::DataStorage;
@@ -1089,11 +1088,11 @@ void UTypedElementDatabaseCompatibility::TriggerOnPreObjectRemoved(
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects)
+void UEditorDataStorageCompatibility::OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects)
 {
 	using namespace UE::Editor::DataStorage;
 	
-	if (TypedElementDataStorage::bUseCommandBuffer)
+	if (Private::bUseCommandBuffer)
 	{
 		bool bHasUpdatedTypeInformation = false;
 		for (TMap<UObject*, UObject*>::TConstIterator It = ReplacedObjects.CreateConstIterator(); It; ++It)
@@ -1114,18 +1113,18 @@ void UTypedElementDatabaseCompatibility::OnObjectReinstanced(const FCoreUObjectD
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
+void UEditorDataStorageCompatibility::OnPostGcUnreachableAnalysis()
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 
-	if (bIntegrateWithGC)
+	if (Private::bIntegrateWithGC)
 	{
 		TEDS_EVENT_SCOPE(TEXT("Post GC clean up"));
 		FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
-		if (TypedElementDataStorage::bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			Storage->RunQuery(UObjectQuery, CreateDirectQueryCallbackBinding(
 				[this](RowHandle Row, const FTypedElementUObjectIdColumn& ObjectId)
@@ -1177,18 +1176,18 @@ void UTypedElementDatabaseCompatibility::OnPostGcUnreachableAnalysis()
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)
+void UEditorDataStorageCompatibility::OnPostWorldInitialization(UWorld* World, const UWorld::InitializationValues InitializationValues)
 {
 	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
 	FDelegateHandle Handle = World->AddOnActorDestroyedHandler(
-		FOnActorDestroyed::FDelegate::CreateUObject(this, &UTypedElementDatabaseCompatibility::OnActorDestroyed));
+		FOnActorDestroyed::FDelegate::CreateUObject(this, &UEditorDataStorageCompatibility::OnActorDestroyed));
 	ActorDestroyedDelegateHandles.Add(World, Handle);
 }
 
-void UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy(UWorld* World)
+void UEditorDataStorageCompatibility::OnPreWorldFinishDestroy(UWorld* World)
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -1201,38 +1200,39 @@ void UTypedElementDatabaseCompatibility::OnPreWorldFinishDestroy(UWorld* World)
 	}
 }
 
-void UTypedElementDatabaseCompatibility::OnActorDestroyed(AActor* Actor)
+void UEditorDataStorageCompatibility::OnActorDestroyed(AActor* Actor)
 {
 	// The only function called is already thread safe.
 	RemoveCompatibleObjectExplicit(Actor);
 }
 
-SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column)
+SIZE_T GetTypeHash(const UEditorDataStorageCompatibility::FSyncTagInfo& Column)
 {
 	// Thread safe as it only uses local data.
 	return HashCombine(Column.ColumnType.GetWeakPtrTypeHash(), Column.bAddColumn);
 }
 
 //
-// UTypedElementDatabaseCompatibility::FRegistrationCommandChange
+// UEditorDataStorageCompatibility::FRegistrationCommandChange
 //
 
-UTypedElementDatabaseCompatibility::FRegistrationCommandChange::FRegistrationCommandChange(
-	UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject)
+UEditorDataStorageCompatibility::FRegistrationCommandChange::FRegistrationCommandChange(
+	UEditorDataStorageCompatibility* InOwner, UObject* InTargetObject)
 	: Owner(InOwner)
 	, TargetObject(InTargetObject)
 {
 }
 
-UTypedElementDatabaseCompatibility::FRegistrationCommandChange::~FRegistrationCommandChange()
+UEditorDataStorageCompatibility::FRegistrationCommandChange::~FRegistrationCommandChange()
 {
 	// Does not require any thread locking as IsRowAvailable is thread safe and DestroyMemento will lock.
+	using namespace UE::Editor::DataStorage;
 	
 	// If there has been no revert operation, there's also no memento.
-	if (UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get(); 
+	if (UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get(); 
 		DataStorageCompat && DataStorageCompat->Storage->IsRowAvailable(MementoRow))
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			DataStorageCompat->QueuedCommands.AddCommand(UE::Editor::DataStorage::FDestroyMemento{ .MementoRow = MementoRow});
 		}
@@ -1243,17 +1243,17 @@ UTypedElementDatabaseCompatibility::FRegistrationCommandChange::~FRegistrationCo
 	}
 }
 
-void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
+void UEditorDataStorageCompatibility::FRegistrationCommandChange::Apply(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Owner.IsValid() && Owner.Get() == Object, 
 		TEXT("Applying registration transaction command within TEDS Compat was called after TEDS is not longer available."));
-	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get();
 	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			RowHandle ObjectRow = DataStorageCompat->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
 			DataStorageCompat->QueuedCommands.AddCommand(FRestoreMemento{ .MementoRow = MementoRow, .TargetRow  = ObjectRow });
@@ -1268,7 +1268,7 @@ void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Apply(UObje
 	}
 }
 
-void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
+void UEditorDataStorageCompatibility::FRegistrationCommandChange::Revert(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -1279,13 +1279,13 @@ void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObj
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get(); 
+		UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get(); 
 		ITypedElementDataStorageInterface* DataStorage = DataStorageCompat->Storage;
 			
 		RowHandle ObjectRow = DataStorageCompat->FindRowWithCompatibleObjectExplicit(TargetRetrieved);
 		if (DataStorage->IsRowAvailable(ObjectRow))
 		{
-			if (TypedElementDataStorage::bUseCommandBuffer && TypedElementDataStorage::bUseDeferredRemovesInCompat)
+			if (Private::bUseCommandBuffer && Private::bUseDeferredRemovesInCompat)
 			{
 				MementoRow = DataStorage->ReserveRow();
 				DataStorageCompat->QueuedCommands.AddCommand(FCreateMemento{ .ReservedMementoRow = MementoRow, .TargetRow = ObjectRow });
@@ -1299,18 +1299,18 @@ void UTypedElementDatabaseCompatibility::FRegistrationCommandChange::Revert(UObj
 	}
 }
 
-FString UTypedElementDatabaseCompatibility::FRegistrationCommandChange::ToString() const
+FString UEditorDataStorageCompatibility::FRegistrationCommandChange::ToString() const
 {
 	return TEXT("Typed Element Data Storage Compatibility - Registration");
 }
 
 
 //
-// UTypedElementDatabaseCompatibility::FDeregistrationCommandChange
+// UEditorDataStorageCompatibility::FDeregistrationCommandChange
 //
 
-UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistrationCommandChange(
-	UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject)
+UEditorDataStorageCompatibility::FDeregistrationCommandChange::FDeregistrationCommandChange(
+	UEditorDataStorageCompatibility* InOwner, UObject* InTargetObject)
 	: Owner(InOwner)
 	, TargetObject(InTargetObject)
 {
@@ -1322,7 +1322,7 @@ UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistratio
 	RowHandle ObjectRow = InOwner->FindRowWithCompatibleObjectExplicit(InTargetObject);
 	if (DataStorage->IsRowAvailable(ObjectRow))
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer && TypedElementDataStorage::bUseDeferredRemovesInCompat)
+		if (Private::bUseCommandBuffer && Private::bUseDeferredRemovesInCompat)
 		{
 			MementoRow = DataStorage->ReserveRow();
 			InOwner->QueuedCommands.AddCommand(FCreateMemento{ .ReservedMementoRow = MementoRow, .TargetRow = ObjectRow });
@@ -1334,15 +1334,15 @@ UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::FDeregistratio
 	}
 }
 
-UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::~FDeregistrationCommandChange()
+UEditorDataStorageCompatibility::FDeregistrationCommandChange::~FDeregistrationCommandChange()
 {
 	using namespace UE::Editor::DataStorage;
 
 	// There's no memento row if target object was never registered with TEDS Compat.
-	if (UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	if (UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get();
 		DataStorageCompat && DataStorageCompat->Storage->IsRowAvailable(MementoRow))
 	{
-		if (TypedElementDataStorage::bUseCommandBuffer)
+		if (Private::bUseCommandBuffer)
 		{
 			DataStorageCompat->QueuedCommands.AddCommand(FDestroyMemento{ .MementoRow = MementoRow });
 		}
@@ -1353,7 +1353,7 @@ UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::~FDeregistrati
 	}
 }
 
-void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Apply(UObject* Object)
+void UEditorDataStorageCompatibility::FDeregistrationCommandChange::Apply(UObject* Object)
 {
 	// All function calls are guaranteed to be thread safe.
 
@@ -1361,14 +1361,14 @@ void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Apply(UOb
 
 	checkf(Owner.IsValid() && Owner.Get() == Object,
 		TEXT("Applying deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));
-	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get();
 	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
 		DataStorageCompat->RemoveCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
 	}
 }
 
-void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Revert(UObject* Object)
+void UEditorDataStorageCompatibility::FDeregistrationCommandChange::Revert(UObject* Object)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
@@ -1376,10 +1376,10 @@ void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Revert(UO
 	checkf(Owner.IsValid() && Owner.Get() == Object,
 		TEXT("Reverting deregistration transaction command within TEDS Compat was called after TEDS is not longer available."));
 	
-	UTypedElementDatabaseCompatibility* DataStorageCompat = Owner.Get();
+	UEditorDataStorageCompatibility* DataStorageCompat = Owner.Get();
 	if (UObject* TargetRetrieved = TargetObject.Get(/*bEvenIfPendingKill=*/ true))
 	{
-		if(TypedElementDataStorage::bUseCommandBuffer)
+		if(Private::bUseCommandBuffer)
 		{
 			RowHandle ObjectRow = DataStorageCompat->AddCompatibleObjectExplicitTransactionable<false>(TargetRetrieved);
 			DataStorageCompat->QueuedCommands.AddCommand(FRestoreMemento{ .MementoRow = MementoRow, .TargetRow = ObjectRow });
@@ -1394,7 +1394,7 @@ void UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::Revert(UO
 	}
 }
 
-FString UTypedElementDatabaseCompatibility::FDeregistrationCommandChange::ToString() const
+FString UEditorDataStorageCompatibility::FDeregistrationCommandChange::ToString() const
 {
 	return TEXT("Typed Element Data Storage Compatibility - Deregistration");
 }

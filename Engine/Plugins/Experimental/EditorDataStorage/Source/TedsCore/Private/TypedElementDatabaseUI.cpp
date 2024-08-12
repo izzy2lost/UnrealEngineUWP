@@ -13,7 +13,7 @@
 #include "GenericPlatform/GenericPlatformMemory.h"
 #include "Widgets/SlateControlledConstruction.h"
 
-DEFINE_LOG_CATEGORY(LogTypedElementDatabaseUI);
+DEFINE_LOG_CATEGORY(LogEditorDataStorageUI);
 
 namespace Internal
 {
@@ -27,22 +27,22 @@ namespace Internal
 	template<class... Ts> TOverloaded(Ts...) -> TOverloaded<Ts...>;
 }
 
-void UTypedElementDatabaseUi::Initialize(
+void UEditorDataStorageUi::Initialize(
 	ITypedElementDataStorageInterface* StorageInterface,
 	ITypedElementDataStorageCompatibilityInterface* StorageCompatibilityInterface)
 {
-	checkf(StorageInterface, TEXT("Typed Element's Database compatibility manager is being initialized with an invalid storage target."));
+	checkf(StorageInterface, TEXT("TEDS' compatibility manager is being initialized with an invalid storage target."));
 
 	Storage = StorageInterface;
 	StorageCompatibility = StorageCompatibilityInterface;
 	CreateStandardArchetypes();
 }
 
-void UTypedElementDatabaseUi::Deinitialize()
+void UEditorDataStorageUi::Deinitialize()
 {
 }
 
-void UTypedElementDatabaseUi::RegisterWidgetPurpose(FName Purpose, EPurposeType Type, FText Description)
+void UEditorDataStorageUi::RegisterWidgetPurpose(FName Purpose, EPurposeType Type, FText Description)
 {
 	FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose);
 	if (!PurposeInfo)
@@ -53,10 +53,10 @@ void UTypedElementDatabaseUi::RegisterWidgetPurpose(FName Purpose, EPurposeType 
 	}
 }
 
-bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor)
+bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor)
 {
 	checkf(Constructor->IsChildOf(FTypedElementWidgetConstructor::StaticStruct()),
-		TEXT("Attempting to register a Typed Elements widget constructor '%s' that isn't derived from FTypedElementWidgetConstructor."),
+		TEXT("Attempting to register a widget constructor '%s' that isn't derived from FTypedElementWidgetConstructor."),
 		*Constructor->GetFullName());
 	
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -79,7 +79,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, const UScript
 			}
 			return true;
 		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
-			UE_LOG(LogTypedElementDatabaseUI, Warning,
+			UE_LOG(LogEditorDataStorageUI, Warning,
 				TEXT("Unable to register widget factory '%s' as purpose '%s' requires at least one column for matching."), 
 				*Constructor->GetName(), *Purpose.ToString());
 			return false;
@@ -90,19 +90,19 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, const UScript
 	}
 	else
 	{
-		UE_LOG(LogTypedElementDatabaseUI, Warning, 
+		UE_LOG(LogEditorDataStorageUI, Warning, 
 			TEXT("Unable to register widget factory '%s' as purpose '%s' isn't registered."), *Constructor->GetName(), *Purpose.ToString());
 		return false;
 	}
 }
 
-bool UTypedElementDatabaseUi::RegisterWidgetFactory(
+bool UEditorDataStorageUi::RegisterWidgetFactory(
 	FName Purpose, const UScriptStruct* Constructor, TypedElementDataStorage::FQueryConditions Columns)
 {
 	if (!Columns.IsEmpty())
 	{
 		checkf(Constructor->IsChildOf(FTypedElementWidgetConstructor::StaticStruct()),
-			TEXT("Attempting to register a Typed Elements widget constructor '%s' that isn't deriving from FTypedElementWidgetConstructor."),
+			TEXT("Attempting to register a widget constructor '%s' that isn't deriving from FTypedElementWidgetConstructor."),
 			*Constructor->GetFullName());
 
 		if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -149,7 +149,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(
 		}
 		else
 		{
-			UE_LOG(LogTypedElementDatabaseUI, Warning,
+			UE_LOG(LogEditorDataStorageUI, Warning,
 				TEXT("Unable to register widget factory '%s' as purpose '%s' isn't registered."), *Constructor->GetName(), *Purpose.ToString());
 			return false;
 		}
@@ -160,7 +160,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(
 	}
 }
 
-bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor)
+bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor)
 {
 	checkf(Constructor->GetTypeInfo(), TEXT("Widget constructor being registered that doesn't have valid type information."));
 	
@@ -184,7 +184,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 			}
 			return true;
 		case ITypedElementDataStorageUiInterface::EPurposeType::UniqueByNameAndColumn:
-			UE_LOG(LogTypedElementDatabaseUI, Warning,
+			UE_LOG(LogEditorDataStorageUI, Warning,
 				TEXT("Unable to register widget factory '%s' as purpose '%s' requires at least one column for matching."),
 				*Constructor->GetTypeInfo()->GetName(), *Purpose.ToString());
 			return false;
@@ -195,13 +195,13 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 	}
 	else
 	{
-		UE_LOG(LogTypedElementDatabaseUI, Warning, 
+		UE_LOG(LogEditorDataStorageUI, Warning, 
 			TEXT("Unable to register widget factory as purpose '%s' isn't registered."), *Purpose.ToString());
 		return false;
 	}
 }
 
-bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
+bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
 	TypedElementDataStorage::FQueryConditions Columns)
 {
 	if (!Columns.IsEmpty())
@@ -252,7 +252,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 		}
 		else
 		{
-			UE_LOG(LogTypedElementDatabaseUI, Warning, TEXT("Unable to register widget factory '%s' as purpose '%s' isn't registered."), 
+			UE_LOG(LogEditorDataStorageUI, Warning, TEXT("Unable to register widget factory '%s' as purpose '%s' isn't registered."), 
 				*Constructor->GetTypeInfo()->GetName(), *Purpose.ToString());
 			return false;
 		}
@@ -263,7 +263,7 @@ bool UTypedElementDatabaseUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FT
 	}
 }
 
-void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose,
+void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose,
 	const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -278,7 +278,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose,
 	}
 }
 
-void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, 
+void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, 
 	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
@@ -325,7 +325,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors(FName Purpose, EMatchAppr
 	}
 }
 
-void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
+void UEditorDataStorageUi::ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -346,7 +346,7 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElement
 						}
 						else
 						{
-							checkf(false, TEXT("Remaining stack space is too small to create a Typed Elements widget constructor from a description."));
+							checkf(false, TEXT("Remaining stack space is too small to create a widget constructor from a description."));
 						}
 					},
 					[this, &Arguments, &ConstructionCallback](const TUniquePtr<FTypedElementWidgetConstructor>& Constructor)
@@ -358,7 +358,7 @@ void UTypedElementDatabaseUi::ConstructWidgets(FName Purpose, const TypedElement
 	}
 }
 
-bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
+bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments,
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
@@ -416,7 +416,7 @@ bool UTypedElementDatabaseUi::CreateSingleWidgetConstructor(
 	return std::visit(Visitor(MoveTemp(MatchedColumnTypes), QueryConditions, Arguments, Callback), Constructor);
 }
 
-void UTypedElementDatabaseUi::CreateWidgetInstance(
+void UEditorDataStorageUi::CreateWidgetInstance(
 	FTypedElementWidgetConstructor& Constructor, 
 	const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
@@ -434,13 +434,13 @@ void UTypedElementDatabaseUi::CreateWidgetInstance(
 	}
 }
 
-TSharedPtr<SWidget> UTypedElementDatabaseUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
+TSharedPtr<SWidget> UEditorDataStorageUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 }
 
-void UTypedElementDatabaseUi::ListWidgetPurposes(const WidgetPurposeCallback& Callback) const
+void UEditorDataStorageUi::ListWidgetPurposes(const WidgetPurposeCallback& Callback) const
 {
 	for (auto&& It : WidgetPurposes)
 	{
@@ -448,16 +448,16 @@ void UTypedElementDatabaseUi::ListWidgetPurposes(const WidgetPurposeCallback& Ca
 	}
 }
 
-bool UTypedElementDatabaseUi::SupportsExtension(FName Extension) const
+bool UEditorDataStorageUi::SupportsExtension(FName Extension) const
 {
 	return false;
 }
 
-void UTypedElementDatabaseUi::ListExtensions(TFunctionRef<void(FName)> Callback) const
+void UEditorDataStorageUi::ListExtensions(TFunctionRef<void(FName)> Callback) const
 {
 }
 
-void UTypedElementDatabaseUi::CreateStandardArchetypes()
+void UEditorDataStorageUi::CreateStandardArchetypes()
 {
 	WidgetTable = Storage->RegisterTable(MakeArrayView(
 		{
@@ -466,7 +466,7 @@ void UTypedElementDatabaseUi::CreateStandardArchetypes()
 		}), FName(TEXT("Editor_WidgetTable")));
 }
 
-void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray<FWidgetFactory>& WidgetFactories,
+void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FWidgetFactory>& WidgetFactories,
 	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
@@ -516,7 +516,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_LongestMatch(const TArray
 	}
 }
 
-void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<FWidgetFactory>& WidgetFactories,
+void UEditorDataStorageUi::CreateWidgetConstructors_ExactMatch(const TArray<FWidgetFactory>& WidgetFactories,
 	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
@@ -547,7 +547,7 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_ExactMatch(const TArray<F
 	}
 }
 
-void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<FWidgetFactory>& WidgetFactories,
+void UEditorDataStorageUi::CreateWidgetConstructors_SingleMatch(const TArray<FWidgetFactory>& WidgetFactories,
 	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
@@ -589,26 +589,26 @@ void UTypedElementDatabaseUi::CreateWidgetConstructors_SingleMatch(const TArray<
 // FWidgetFactory
 //
 
-UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor)
+UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor)
 	: Constructor(InConstructor)
 {
 }
 
-UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor)
+UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor)
 	: Constructor(MoveTemp(InConstructor))
 {
 	checkf(std::get<TUniquePtr<FTypedElementWidgetConstructor>>(Constructor)->GetTypeInfo(), 
 		TEXT("Widget constructor registered that didn't contain valid type information."));
 }
 
-UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor, 
+UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor, 
 	TypedElementDataStorage::FQueryConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(InConstructor)
 {
 }
 
-UTypedElementDatabaseUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, 
+UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, 
 	TypedElementDataStorage::FQueryConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(MoveTemp(InConstructor))

@@ -16,16 +16,16 @@ UTedsObjectReinstancingManager::UTedsObjectReinstancingManager()
 {
 }
 
-void UTedsObjectReinstancingManager::Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility)
+void UTedsObjectReinstancingManager::Initialize(UEditorDataStorage& InDataStorage, UEditorDataStorageCompatibility& InDataStorageCompatibility)
 {
 	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
-	Database = &InDatabase;
+	DataStorage = &InDataStorage;
 	DataStorageCompatibility = &InDataStorageCompatibility;
 	
 	UpdateCompletedCallbackHandle = 
-		Database->OnUpdateCompleted().AddUObject(this, &UTedsObjectReinstancingManager::UpdateCompleted);
+		DataStorage->OnUpdateCompleted().AddUObject(this, &UTedsObjectReinstancingManager::UpdateCompleted);
 	ReinstancingCallbackHandle = 
 		FCoreUObjectDelegates::OnObjectsReinstanced.AddUObject(this, &UTedsObjectReinstancingManager::HandleOnObjectsReinstanced);
 	ObjectRemovedCallbackHandle = DataStorageCompatibility->RegisterObjectRemovedCallback(
@@ -39,17 +39,18 @@ void UTedsObjectReinstancingManager::Deinitialize()
 {
 	FCoreUObjectDelegates::OnObjectsReinstanced.Remove(ReinstancingCallbackHandle);
 	DataStorageCompatibility->UnregisterObjectRemovedCallback(ObjectRemovedCallbackHandle);
-	Database->OnUpdateCompleted().Remove(UpdateCompletedCallbackHandle);
+	DataStorage->OnUpdateCompleted().Remove(UpdateCompletedCallbackHandle);
 
 	DataStorageCompatibility = nullptr;
-	Database = nullptr;
+	DataStorage = nullptr;
 }
 
 void UTedsObjectReinstancingManager::UpdateCompleted()
 {
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
-	UTypedElementMementoSystem& MementoSystem = Database->GetEnvironment()->GetMementoSystem();
+	FMementoSystem& MementoSystem = DataStorage->GetEnvironment()->GetMementoSystem();
 	for (TMap<const void*, RowHandle>::TConstIterator It = OldObjectToMementoMap.CreateConstIterator(); It; ++It)
 	{
 		MementoSystem.DestroyMemento(It.Value());
@@ -63,14 +64,14 @@ void UTedsObjectReinstancingManager::HandleOnObjectPreRemoved(
 	TypedElementDataStorage::RowHandle ObjectRow)
 {
 	// This is the chance to record the old object to memento
-	TypedElementDataStorage::RowHandle Memento = Database->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
+	TypedElementDataStorage::RowHandle Memento = DataStorage->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
 	OldObjectToMementoMap.Add(Object, Memento);
 }
 
 void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 	const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap)
 {
-	ITypedElementDataStorageInterface* Interface = Database;
+	ITypedElementDataStorageInterface* Interface = DataStorage;
 	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
 	{
 		const void* PreDeleteObject = Iter->Key;
@@ -93,7 +94,7 @@ void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 			}
 
 			// Kick off re-instantiation of NewObjectRow from the Memento
-			Database->GetEnvironment()->GetMementoSystem().RestoreMemento(Memento, NewObjectRow);
+			DataStorage->GetEnvironment()->GetMementoSystem().RestoreMemento(Memento, NewObjectRow);
 		}
 	}
 }

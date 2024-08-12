@@ -5,79 +5,79 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 
 //
-// UTypedElementDataStorageSubsystem
+// UEditorDataStorageSubsystem
 //
 
-UTypedElementDataStorageSubsystem::~UTypedElementDataStorageSubsystem()
+UEditorDataStorageSubsystem::~UEditorDataStorageSubsystem()
 {
 	DataStorage = nullptr;
 }
 
-ITypedElementDataStorageInterface* UTypedElementDataStorageSubsystem::Get()
+ITypedElementDataStorageInterface* UEditorDataStorageSubsystem::Get()
 {
 	if (!DataStorage)
 	{
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		checkf(Registry, TEXT("UTypedElementDataStorageSubsystem created before the Typed Elements Registry is available."));
+		checkf(Registry, TEXT("UEditorDataStorageSubsystem created before the Typed Elements Registry is available."));
 		DataStorage = Registry->GetMutableDataStorage();
 	}
 	return DataStorage;
 }
 
-const ITypedElementDataStorageInterface* UTypedElementDataStorageSubsystem::Get() const
+const ITypedElementDataStorageInterface* UEditorDataStorageSubsystem::Get() const
 {
-	return const_cast<UTypedElementDataStorageSubsystem*>(this)->Get();
+	return const_cast<UEditorDataStorageSubsystem*>(this)->Get();
 }
 
 
 //
-// UTypedElementDataStorageUiSubsystem
+// UEditorDataStorageUiSubsystem
 //
 
-UTypedElementDataStorageUiSubsystem::~UTypedElementDataStorageUiSubsystem()
+UEditorDataStorageUiSubsystem::~UEditorDataStorageUiSubsystem()
 {
 	DataStorageUi = nullptr;
 }
 
-ITypedElementDataStorageUiInterface* UTypedElementDataStorageUiSubsystem::Get()
+ITypedElementDataStorageUiInterface* UEditorDataStorageUiSubsystem::Get()
 {
 	if (!DataStorageUi)
 	{
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		checkf(Registry, TEXT("UTypedElementDataStorageUiSubsystem created before the Typed Elements Registry is available."));
+		checkf(Registry, TEXT("UEditorDataStorageUiSubsystem created before the Typed Elements Registry is available."));
 		DataStorageUi = Registry->GetMutableDataStorageUi();
 	}
 	return DataStorageUi;
 }
 
-const ITypedElementDataStorageUiInterface* UTypedElementDataStorageUiSubsystem::Get() const
+const ITypedElementDataStorageUiInterface* UEditorDataStorageUiSubsystem::Get() const
 {
-	return const_cast<UTypedElementDataStorageUiSubsystem*>(this)->Get();
+	return const_cast<UEditorDataStorageUiSubsystem*>(this)->Get();
 }
 
 
 //
-// UTypedElementDataStorageCompatibilitySubsystem
+// UEditorDataStorageCompatibilitySubsystem
 //
 
-UTypedElementDataStorageCompatibilitySubsystem::~UTypedElementDataStorageCompatibilitySubsystem()
+UEditorDataStorageCompatibilitySubsystem::~UEditorDataStorageCompatibilitySubsystem()
 {
 	DataStorageCompatibility = nullptr;
 }
 
-ITypedElementDataStorageCompatibilityInterface* UTypedElementDataStorageCompatibilitySubsystem::Get()
+ITypedElementDataStorageCompatibilityInterface* UEditorDataStorageCompatibilitySubsystem::Get()
 {
 	if (!DataStorageCompatibility)
 	{
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-		checkf(Registry, TEXT("UTypedElementDataStorageCompatibilitySubsystem created before the Typed Elements Registry is available."));
+		checkf(Registry, TEXT("UEditorDataStorageCompatibilitySubsystem created before the Typed Elements Registry is available."));
 
 		DataStorageCompatibility = Registry->GetMutableDataStorageCompatibility();
 	}
 	return DataStorageCompatibility;
 }
 
-const ITypedElementDataStorageCompatibilityInterface* UTypedElementDataStorageCompatibilitySubsystem::Get() const
+const ITypedElementDataStorageCompatibilityInterface* UEditorDataStorageCompatibilitySubsystem::Get() const
 {
-	return const_cast<UTypedElementDataStorageCompatibilitySubsystem*>(this)->Get();
+	return const_cast<UEditorDataStorageCompatibilitySubsystem*>(this)->Get();
 }

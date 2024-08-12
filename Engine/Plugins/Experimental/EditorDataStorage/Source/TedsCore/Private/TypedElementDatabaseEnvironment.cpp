@@ -5,7 +5,7 @@
 
 namespace UE::Editor::DataStorage
 {
-	FEnvironment::FEnvironment(UTypedElementDatabase& InDataStorage,
+	FEnvironment::FEnvironment(UEditorDataStorage& InDataStorage,
 		FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager)
 		: DataStorage(InDataStorage)
 		, DirectDeferredCommands(*this)
@@ -56,12 +56,12 @@ namespace UE::Editor::DataStorage
 		return Queries;
 	}
 
-	UTypedElementMementoSystem& FEnvironment::GetMementoSystem()
+	FMementoSystem& FEnvironment::GetMementoSystem()
 	{
 		return MementoSystem;
 	}
 
-	const UTypedElementMementoSystem& FEnvironment::GetMementoSystem() const
+	const FMementoSystem& FEnvironment::GetMementoSystem() const
 	{
 		return MementoSystem;
 	}

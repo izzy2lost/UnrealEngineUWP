@@ -153,7 +153,7 @@ namespace UE::Editor::DataStorage
 		return Commands.GetCommandCount<FTypeInfoReinstanced>() > 0;
 	}
 
-	void FPatchData::RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UTypedElementDatabaseCompatibility& StorageCompat,
+	void FPatchData::RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UEditorDataStorageCompatibility& StorageCompat,
 		FScratchBuffer& ScratchBuffer)
 	{
 		using namespace TypedElementDataStorage;
@@ -227,7 +227,7 @@ namespace UE::Editor::DataStorage
 	// FPrepareCommands
 	//
 
-	FPrepareCommands::FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UTypedElementDatabaseCompatibility& InStorageCompat,
+	FPrepareCommands::FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
 		CompatibilityCommandBuffer::FCollection& InCommands)
 		: Storage(InStorage)
 		, StorageCompat(InStorageCompat)
@@ -317,7 +317,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FPrepareCommands::RunPreparation(ITypedElementDataStorageInterface& Storage, UTypedElementDatabaseCompatibility& StorageCompat,
+	void FPrepareCommands::RunPreparation(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& StorageCompat,
 		CompatibilityCommandBuffer::FCollection& Commands)
 	{
 		FPrepareCommands PrepareVisitor(Storage, StorageCompat, Commands);
@@ -507,7 +507,7 @@ namespace UE::Editor::DataStorage
 	// FCommandProcessor
 	//
 
-	FCommandProcessor::FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UTypedElementDatabaseCompatibility& InStorageCompatibility)
+	FCommandProcessor::FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility)
 		: Storage(InStorage)
 		, StorageCompatibility(InStorageCompatibility)
 		, MementoSystem(InStorageCompatibility.Environment->GetMementoSystem())

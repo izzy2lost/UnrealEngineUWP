@@ -8,15 +8,15 @@
 #include "UObject/ObjectPtr.h"
 
 class FReferenceCollector;
-class UTypedElementDatabase;
-class UTypedElementDatabaseCompatibility;
-class UTypedElementDatabaseUi;
+class UEditorDataStorage;
+class UEditorDataStorageCompatibility;
+class UEditorDataStorageUi;
 class UTedsObjectReinstancingManager;
 
-class FTypedElementsDataStorageModule : public IModuleInterface, public FGCObject
+class FEditorDataStorageModule : public IModuleInterface, public FGCObject
 {
 public:
-	~FTypedElementsDataStorageModule() override = default;
+	~FEditorDataStorageModule() override = default;
 
 	//
 	// IModuleInterface
@@ -34,9 +34,9 @@ public:
 	FString GetReferencerName() const override;
 
 private:
-	TObjectPtr<UTypedElementDatabase> Database;
-	TObjectPtr<UTypedElementDatabaseCompatibility> DatabaseCompatibility;
-	TObjectPtr<UTypedElementDatabaseUi> DatabaseUi;
+	TObjectPtr<UEditorDataStorage> DataStorage;
+	TObjectPtr<UEditorDataStorageCompatibility> DataStorageCompatibility;
+	TObjectPtr<UEditorDataStorageUi> DataStorageUi;
 	TObjectPtr<UTedsObjectReinstancingManager> ObjectReinstancingManager;
 	bool bInitialized{ false };
 };

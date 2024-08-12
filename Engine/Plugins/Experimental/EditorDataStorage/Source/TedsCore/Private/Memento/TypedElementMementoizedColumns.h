@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,7 +10,7 @@
  * Enable SelectionColumn to be mementoized
  */
 UCLASS()
-class UTypedElementSelectionColumnMementoTranslator final : public UTypedElementDefaultMementoTranslator
+class UTedsSelectionColumnMementoTranslator final : public UTedsDefaultMementoTranslator
 {
 	GENERATED_BODY()
 public:

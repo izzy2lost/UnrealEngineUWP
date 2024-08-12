@@ -10,14 +10,14 @@
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class ITypedElementDataStorageInterface;
-class UTypedElementMementoSystem;
 class UScriptStruct;
-class UTypedElementDatabaseCompatibility;
+class UEditorDataStorageCompatibility;
 class UObject;
 
 namespace UE::Editor::DataStorage
 {
 	class FScratchBuffer;
+	class FMementoSystem;
 
 	enum class EObjectType : uint8
 	{
@@ -221,14 +221,14 @@ namespace UE::Editor::DataStorage
 		};
 
 		static bool IsPatchingRequired(const CompatibilityCommandBuffer::FCollection& Commands);
-		static void RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UTypedElementDatabaseCompatibility& StorageCompat,
+		static void RunPatch(CompatibilityCommandBuffer::FCollection& Commands, UEditorDataStorageCompatibility& StorageCompat,
 			FScratchBuffer& ScratchBuffer);
 	};
 
 	/** Prepares each command for further processing, e.g. resolving the target table. */
 	struct FPrepareCommands final
 	{
-		FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UTypedElementDatabaseCompatibility& InStorageCompat,
+		FPrepareCommands(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompat,
 			CompatibilityCommandBuffer::FCollection& InCommands);
 
 		template<typename T>
@@ -242,11 +242,11 @@ namespace UE::Editor::DataStorage
 		void operator()(FAddSyncFromWorldTag& Command);
 
 		ITypedElementDataStorageInterface& Storage;
-		UTypedElementDatabaseCompatibility& StorageCompat;
+		UEditorDataStorageCompatibility& StorageCompat;
 		CompatibilityCommandBuffer::FCollection& Commands;
 		int32 CurrentIndex = 0;
 
-		static void RunPreparation(ITypedElementDataStorageInterface& Storage, UTypedElementDatabaseCompatibility& StorageCompat, 
+		static void RunPreparation(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& StorageCompat, 
 			CompatibilityCommandBuffer::FCollection& Commands);
 	};
 
@@ -299,7 +299,7 @@ namespace UE::Editor::DataStorage
 	/** Executes the commands in the command buffer for TEDS Compatibility. */
 	struct FCommandProcessor final
 	{
-		FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UTypedElementDatabaseCompatibility& InStorageCompatibility);
+		FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility);
 
 		void SetupRow(TypedElementDataStorage::RowHandle Row, UObject* Object);
 		void SetupRow(TypedElementDataStorage::RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo);
@@ -324,8 +324,8 @@ namespace UE::Editor::DataStorage
 		void operator()(FAddSyncFromWorldTag& Command);
 
 		ITypedElementDataStorageInterface& Storage;
-		UTypedElementDatabaseCompatibility& StorageCompatibility;
-		UTypedElementMementoSystem& MementoSystem;
+		UEditorDataStorageCompatibility& StorageCompatibility;
+		FMementoSystem& MementoSystem;
 	};
 
 	struct FRecordCommands final

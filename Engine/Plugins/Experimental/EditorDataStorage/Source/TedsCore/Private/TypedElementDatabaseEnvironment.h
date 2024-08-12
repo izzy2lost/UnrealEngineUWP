@@ -11,14 +11,14 @@
 #include "Memento/TypedElementMementoSystem.h"
 #include "Queries/TypedElementExtendedQueryStore.h"
 
-class UTypedElementDatabase;
+class UEditorDataStorage;
 
 namespace UE::Editor::DataStorage
 {
 	class FEnvironment final
 	{
 	public:
-		FEnvironment(UTypedElementDatabase& InDataStorage,
+		FEnvironment(UEditorDataStorage& InDataStorage,
 			FMassEntityManager& InMassEntityManager, FMassProcessingPhaseManager& InMassPhaseManager);
 
 		Legacy::FCommandBuffer& GetDirectDeferredCommands();
@@ -33,8 +33,8 @@ namespace UE::Editor::DataStorage
 		FExtendedQueryStore& GetQueryStore();
 		const FExtendedQueryStore& GetQueryStore() const;
 
-		UTypedElementMementoSystem& GetMementoSystem();
-		const UTypedElementMementoSystem& GetMementoSystem() const;
+		FMementoSystem& GetMementoSystem();
+		const FMementoSystem& GetMementoSystem() const;
 
 		FMassEntityManager& GetMassEntityManager();
 		const FMassEntityManager& GetMassEntityManager() const;
@@ -51,12 +51,12 @@ namespace UE::Editor::DataStorage
 		uint64 GetUpdateCycleId() const;
 
 	private:
-		UTypedElementDatabase& DataStorage;
+		UEditorDataStorage& DataStorage;
 		Legacy::FCommandBuffer DirectDeferredCommands;
 		FIndexTable IndexTable;
 		FScratchBuffer ScratchBuffer;
 		FExtendedQueryStore Queries;
-		UTypedElementMementoSystem MementoSystem;
+		FMementoSystem MementoSystem;
 		FDynamicColumnGenerator DynamicColumnGenerator;
 		FDynamicTagManager DynamicTagManager;
 

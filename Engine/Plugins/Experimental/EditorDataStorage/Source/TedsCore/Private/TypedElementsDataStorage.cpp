@@ -52,7 +52,7 @@ void ImpersonateMassTagsAndFragments()
 	FTedsSharedColumn::StaticStruct()->SetSuperStruct(FMassConstSharedFragment::StaticStruct());
 }
 
-void FTypedElementsDataStorageModule::StartupModule()
+void FEditorDataStorageModule::StartupModule()
 {
 	// Setup the editor settings;
 	if (ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings"))
@@ -78,54 +78,54 @@ void FTypedElementsDataStorageModule::StartupModule()
 			{
 				UE_LOG(LogEditorDataStorage, Log, TEXT("Initializing"));
 				
-				Database = NewObject<UTypedElementDatabase>();
-				Database->Initialize();
+				DataStorage = NewObject<UEditorDataStorage>();
+				DataStorage->Initialize();
 
-				DatabaseCompatibility = NewObject<UTypedElementDatabaseCompatibility>();
-				DatabaseCompatibility->Initialize(Database.Get());
+				DataStorageCompatibility = NewObject<UEditorDataStorageCompatibility>();
+				DataStorageCompatibility->Initialize(DataStorage.Get());
 
-				DatabaseUi = NewObject<UTypedElementDatabaseUi>();
-				DatabaseUi->Initialize(Database.Get(), DatabaseCompatibility.Get());
+				DataStorageUi = NewObject<UEditorDataStorageUi>();
+				DataStorageUi->Initialize(DataStorage.Get(), DataStorageCompatibility.Get());
 
 				ObjectReinstancingManager = NewObject<UTedsObjectReinstancingManager>();
-				ObjectReinstancingManager->Initialize(*Database, *DatabaseCompatibility);
+				ObjectReinstancingManager->Initialize(*DataStorage, *DataStorageCompatibility);
 
-				// Register the various database instances.
+				// Register the various DataStorage instances.
 				UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 				checkf(Registry, TEXT(
 					"FTypedElementsDataStorageModule tried to register itself, but there was no Typed Element Registry to register to."));
-				Registry->SetDataStorage(Database.Get());
-				Registry->SetDataStorageCompatibility(DatabaseCompatibility.Get());
-				Registry->SetDataStorageUi(DatabaseUi.Get());
+				Registry->SetDataStorage(DataStorage.Get());
+				Registry->SetDataStorageCompatibility(DataStorageCompatibility.Get());
+				Registry->SetDataStorageUi(DataStorageUi.Get());
 
 				// Allow any factories to register their content.
 				TArray<UClass*> FactoryClasses;
 				GetDerivedClasses(UTypedElementDataStorageFactory::StaticClass(), FactoryClasses);
 
-				Database->SetFactories(FactoryClasses);
+				DataStorage->SetFactories(FactoryClasses);
 				TArray<UTypedElementDataStorageFactory*> Factories;
 				Factories.Reserve(FactoryClasses.Num());
 
 				// First pass to call all registration without dependencies.
-				for (UTypedElementDatabase::FactoryIterator Iterator = Database->CreateFactoryIterator(); Iterator; ++Iterator)
+				for (UEditorDataStorage::FactoryIterator Iterator = DataStorage->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
 					UTypedElementDataStorageFactory* Factory = *Iterator;
 					
-					Factory->RegisterTables(*Database);
-					Factory->RegisterTables(*Database, *DatabaseCompatibility);
-					Factory->RegisterTickGroups(*Database);
-					Factory->RegisterRegistrationFilters(*DatabaseCompatibility);
-					Factory->RegisterDealiaser(*DatabaseCompatibility);
-					Factory->RegisterWidgetPurposes(*DatabaseUi);
+					Factory->RegisterTables(*DataStorage);
+					Factory->RegisterTables(*DataStorage, *DataStorageCompatibility);
+					Factory->RegisterTickGroups(*DataStorage);
+					Factory->RegisterRegistrationFilters(*DataStorageCompatibility);
+					Factory->RegisterDealiaser(*DataStorageCompatibility);
+					Factory->RegisterWidgetPurposes(*DataStorageUi);
 				}
 
 				// Second pass to call all registration that would benefit or need the registration in the previous pass.
-				for (UTypedElementDatabase::FactoryIterator Iterator = Database->CreateFactoryIterator(); Iterator; ++Iterator)
+				for (UEditorDataStorage::FactoryIterator Iterator = DataStorage->CreateFactoryIterator(); Iterator; ++Iterator)
 				{
 					UTypedElementDataStorageFactory* Factory = *Iterator;
 					
-					Factory->RegisterQueries(*Database);
-					Factory->RegisterWidgetConstructors(*Database, *DatabaseUi);
+					Factory->RegisterQueries(*DataStorage);
+					Factory->RegisterWidgetConstructors(*DataStorage, *DataStorageUi);
 				}
 				
 				UE_LOG(LogEditorDataStorage, Log, TEXT("Initialized"));
@@ -133,16 +133,16 @@ void FTypedElementsDataStorageModule::StartupModule()
 				bInitialized = true;
 			}
 		});
-	FCoreDelegates::OnExit.AddRaw(this, &FTypedElementsDataStorageModule::ShutdownModule);
+	FCoreDelegates::OnExit.AddRaw(this, &FEditorDataStorageModule::ShutdownModule);
 }
 
-void FTypedElementsDataStorageModule::ShutdownModule()
+void FEditorDataStorageModule::ShutdownModule()
 {
 	if (bInitialized)
 	{
 		UE_LOG(LogEditorDataStorage, Log, TEXT("Deinitializing"));
 
-		Database->ResetFactories();
+		DataStorage->ResetFactories();
 
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 		if (Registry) // If the registry has already been destroyed there's no point in clearing the reference.
@@ -155,31 +155,31 @@ void FTypedElementsDataStorageModule::ShutdownModule()
 		if (UObjectInitialized())
 		{
 			ObjectReinstancingManager->Deinitialize();
-			DatabaseUi->Deinitialize();
-			DatabaseCompatibility->Deinitialize();
-			Database->Deinitialize();
+			DataStorageUi->Deinitialize();
+			DataStorageCompatibility->Deinitialize();
+			DataStorage->Deinitialize();
 		}
 
 		bInitialized = false;
 	}
 }
 
-void FTypedElementsDataStorageModule::AddReferencedObjects(FReferenceCollector& Collector)
+void FEditorDataStorageModule::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	if (bInitialized)
 	{
-		Collector.AddReferencedObject(Database);
-		Collector.AddReferencedObject(DatabaseCompatibility);
-		Collector.AddReferencedObject(DatabaseUi);
+		Collector.AddReferencedObject(DataStorage);
+		Collector.AddReferencedObject(DataStorageCompatibility);
+		Collector.AddReferencedObject(DataStorageUi);
 		Collector.AddReferencedObject(ObjectReinstancingManager);
 	}
 }
 
-FString FTypedElementsDataStorageModule::GetReferencerName() const
+FString FEditorDataStorageModule::GetReferencerName() const
 {
-	return TEXT("Typed Elements: Data Storage Module");
+	return TEXT("TEDS: Editor Data Storage Core Module");
 }
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FTypedElementsDataStorageModule, TedsCore)
+IMPLEMENT_MODULE(FEditorDataStorageModule, TedsCore)

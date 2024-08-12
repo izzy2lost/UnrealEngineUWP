@@ -25,7 +25,7 @@ namespace UE::Editor::DataStorage
 } // namespace UE::Editor::DataStorage
 
 UCLASS()
-class TEDSCORE_API UTypedElementDatabase
+class TEDSCORE_API UEditorDataStorage
 	: public UObject
 	, public ITypedElementDataStorageInterface
 {
@@ -52,11 +52,11 @@ public:
 		int32 Index = 0;
 	};
 
-	using FactoryIterator = TFactoryIterator<UTypedElementDataStorageFactory, UTypedElementDatabase>;
-	using FactoryConstIterator = TFactoryIterator<const UTypedElementDataStorageFactory, const UTypedElementDatabase>;
+	using FactoryIterator = TFactoryIterator<UTypedElementDataStorageFactory, UEditorDataStorage>;
+	using FactoryConstIterator = TFactoryIterator<const UTypedElementDataStorageFactory, const UEditorDataStorage>;
 
 public:
-	~UTypedElementDatabase() override = default;
+	~UEditorDataStorage() override = default;
 	
 	void Initialize();
 	
@@ -208,17 +208,17 @@ private:
 };
 
 template <typename FactoryType, typename DatabaseType>
-UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::TFactoryIterator(DatabasePtr InDatabase): Database(InDatabase)
+UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::TFactoryIterator(DatabasePtr InDatabase): Database(InDatabase)
 {}
 
 template <typename FactoryType, typename DatabaseType>
-typename UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::FactoryPtr UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator*() const
+typename UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::FactoryPtr UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::operator*() const
 {
 	return Database->Factories[Index].Instance;
 }
 
 template <typename FactoryType, typename DatabaseType>
-typename UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::ThisType& UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator++()
+typename UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::ThisType& UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::operator++()
 {
 	if (Database != nullptr && Index < Database->Factories.Num())
 	{
@@ -228,13 +228,13 @@ typename UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::Thi
 }
 
 template <typename FactoryType, typename DatabaseType>
-UTypedElementDatabase::TFactoryIterator<FactoryType, DatabaseType>::operator bool() const
+UEditorDataStorage::TFactoryIterator<FactoryType, DatabaseType>::operator bool() const
 {
 	return Database != nullptr && Index < Database->Factories.Num();
 }
 
 template <typename FactoryTypeT>
-const FactoryTypeT* UTypedElementDatabase::FindFactory() const
+const FactoryTypeT* UEditorDataStorage::FindFactory() const
 {
 	return static_cast<const FactoryTypeT*>(FindFactory(FactoryTypeT::StaticClass()));
 }

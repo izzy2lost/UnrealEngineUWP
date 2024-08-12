@@ -11,8 +11,9 @@
 
 class ITypedElementDataStorageCompatibilityInterface;
 class ITypedElementDataStorageInterface;
-class UTypedElementDatabaseCompatibility;
+class UEditorDataStorageCompatibility;
 class UTypedElementMementoSystem;
+class UEditorDataStorage;
 
 namespace UE::Editor::DataStorage
 {
@@ -26,7 +27,7 @@ class UTedsObjectReinstancingManager : public UObject
 public:
 	UTedsObjectReinstancingManager();
 
-	void Initialize(UTypedElementDatabase& InDatabase, UTypedElementDatabaseCompatibility& InDataStorageCompatibility);
+	void Initialize(UEditorDataStorage& InDataStorage, UEditorDataStorageCompatibility& InDataStorageCompatibility);
 	void Deinitialize();
 
 private:
@@ -38,9 +39,9 @@ private:
 	void HandleOnObjectsReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap);
 
 	UPROPERTY()
-	TObjectPtr<UTypedElementDatabase> Database = nullptr;
+	TObjectPtr<UEditorDataStorage> DataStorage = nullptr;
 	UPROPERTY()
-	TObjectPtr<UTypedElementDatabaseCompatibility> DataStorageCompatibility = nullptr;
+	TObjectPtr<UEditorDataStorageCompatibility> DataStorageCompatibility = nullptr;
 	
 	// Reverse lookup that holds all populated mementos for recently deleted objects
 	// Entry removed when the memento is removed

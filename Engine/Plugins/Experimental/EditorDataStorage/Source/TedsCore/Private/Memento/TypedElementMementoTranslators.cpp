@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Memento/TypedElementMementoTranslators.h"
 
@@ -6,12 +6,12 @@
 #include "StructUtils/PropertyBag.h"
 
 
-const UScriptStruct* UTypedElementDefaultMementoTranslator::GetMementoType() const
+const UScriptStruct* UTedsDefaultMementoTranslator::GetMementoType() const
 {
 	return MementoType;
 }
 
-void UTypedElementDefaultMementoTranslator::PostInitProperties()
+void UTedsDefaultMementoTranslator::PostInitProperties()
 {
 	Super::PostInitProperties();
 	
@@ -50,7 +50,7 @@ void UTypedElementDefaultMementoTranslator::PostInitProperties()
 	}
 }
 
-void UTypedElementDefaultMementoTranslator::TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const
+void UTedsDefaultMementoTranslator::TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const
 {
 	const std::byte* BaseAddressColumn = static_cast<const std::byte*>(TypeErasedColumn);
 	std::byte* BaseAddressMemento = static_cast<std::byte*>(TypeErasedMemento);
@@ -69,7 +69,7 @@ void UTypedElementDefaultMementoTranslator::TranslateColumnToMemento(const void*
 	}	
 }
 
-void UTypedElementDefaultMementoTranslator::TranslateMementoToColumn(const void* TypeErasedMemento,
+void UTedsDefaultMementoTranslator::TranslateMementoToColumn(const void* TypeErasedMemento,
 	void* TypeErasedColumn) const
 {
 	const std::byte* BaseAddressMemento = static_cast<const std::byte*>(TypeErasedMemento);

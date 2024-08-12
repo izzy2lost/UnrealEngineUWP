@@ -31,7 +31,7 @@ namespace UE::Editor::DataStorage
 } // namespace UE::Editor::DataStorage
 
 UCLASS()
-class TEDSCORE_API UTypedElementDatabaseCompatibility
+class TEDSCORE_API UEditorDataStorageCompatibility
 	: public UObject
 	, public ITypedElementDataStorageCompatibilityInterface
 {
@@ -41,9 +41,9 @@ class TEDSCORE_API UTypedElementDatabaseCompatibility
 	friend struct UE::Editor::DataStorage::FPatchData;
 	friend struct UE::Editor::DataStorage::FPrepareCommands;
 public:
-	~UTypedElementDatabaseCompatibility() override = default;
+	~UEditorDataStorageCompatibility() override = default;
 
-	void Initialize(UTypedElementDatabase* InStorage);
+	void Initialize(UEditorDataStorage* InStorage);
 	void Deinitialize();
 
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
@@ -67,13 +67,13 @@ public:
 	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
 	
 private:
-	// The below changes expect UTypedElementDatabaseCompatibility to be the object passed in to StoreUndo.
+	// The below changes expect UEditorDataStorageCompatibility to be the object passed in to StoreUndo.
 	// Note that we cannot pass in TargetObject to StoreUndo because doing so seems to stomp regular Modify()
 	// changes for that object.
 	class FRegistrationCommandChange final : public FCommandChange
 	{
 	public:
-		FRegistrationCommandChange(UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject);
+		FRegistrationCommandChange(UEditorDataStorageCompatibility* InOwner, UObject* InTargetObject);
 		~FRegistrationCommandChange() override;
 
 		void Apply(UObject* Object) override;
@@ -81,14 +81,14 @@ private:
 		FString ToString() const override;
 
 	private:
-		TWeakObjectPtr<UTypedElementDatabaseCompatibility> Owner;
+		TWeakObjectPtr<UEditorDataStorageCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
 		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
 	};
 	class FDeregistrationCommandChange final : public FCommandChange
 	{
 	public:
-		FDeregistrationCommandChange(UTypedElementDatabaseCompatibility* InOwner, UObject* InTargetObject);
+		FDeregistrationCommandChange(UEditorDataStorageCompatibility* InOwner, UObject* InTargetObject);
 		~FDeregistrationCommandChange() override;
 
 		void Apply(UObject* Object) override;
@@ -96,7 +96,7 @@ private:
 		FString ToString() const override;
 
 	private:
-		TWeakObjectPtr<UTypedElementDatabaseCompatibility> Owner;
+		TWeakObjectPtr<UEditorDataStorageCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
 		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
 	};
@@ -142,7 +142,7 @@ private:
 		FPendingTypeInformationUpdate();
 
 		void AddTypeInformation(const TMap<UObject*, UObject*>& ReplacedObjects);
-		void Process(UTypedElementDatabaseCompatibility& Compatibility);
+		void Process(UEditorDataStorageCompatibility& Compatibility);
 
 	private:
 		TOptional<TWeakObjectPtr<UObject>> ProcessResolveTypeRecursively(const TWeakObjectPtr<UObject>& Target);
@@ -186,7 +186,7 @@ private:
 		int32 Num() const;
 		
 		void ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback);
-		void ProcessEntries(ITypedElementDataStorageInterface& Storage, UTypedElementDatabaseCompatibility& Compatibility,
+		void ProcessEntries(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& Compatibility,
 			const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback);
 		void Reset();
 	};
@@ -244,4 +244,4 @@ private:
 	TypedElementDataStorage::QueryHandle UObjectQuery;
 };
 
-SIZE_T GetTypeHash(const UTypedElementDatabaseCompatibility::FSyncTagInfo& Column);
+SIZE_T GetTypeHash(const UEditorDataStorageCompatibility::FSyncTagInfo& Column);

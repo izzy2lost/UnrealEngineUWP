@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -10,7 +10,7 @@
  * a row.  This can be useful for reinstancing, undo/redo, LODs, etc.
  */
 UCLASS(Abstract)
-class UTypedElementMementoTranslatorBase : public UObject
+class UTedsMementoTranslatorBase : public UObject
 {
 	GENERATED_BODY()
 public:
@@ -19,7 +19,7 @@ public:
 	 */
 	virtual const UScriptStruct* GetColumnType() const
 	{
-		LowLevelFatalError(TEXT("Pure virtual not implemented (UTypedElementColumnMementoProcessorBase)"));
+		LowLevelFatalError(TEXT("Pure virtual not implemented (UTedsMementoTranslatorBase)"));
 		return nullptr;
 	}
 
@@ -28,18 +28,18 @@ public:
 	 */
 	virtual const UScriptStruct* GetMementoType() const
 	{
-		LowLevelFatalError(TEXT("Pure virtual not implemented (UTypedElementColumnMementoProcessorBase)"));
+		LowLevelFatalError(TEXT("Pure virtual not implemented (UTedsMementoTranslatorBase)"));
 		return nullptr;
 	}
 	
 	/**
 	 * Implements the logic to convert a column to a memento
 	 */
-	virtual void TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const PURE_VIRTUAL(UTypedElementColumnMementoProcessorBase, )
+	virtual void TranslateColumnToMemento(const void* TypeErasedColumn, void* TypeErasedMemento) const PURE_VIRTUAL(UTedsMementoTranslatorBase, )
 	/**
 	 * Implements the logic to convert a memento to a column
 	 */
-	virtual void TranslateMementoToColumn(const void* TypeErasedMemento, void* TypeErasedColumn) const PURE_VIRTUAL(UTypedElementColumnMementoProcessorBase, )
+	virtual void TranslateMementoToColumn(const void* TypeErasedMemento, void* TypeErasedColumn) const PURE_VIRTUAL(UTedsMementoTranslatorBase, )
 };
 
 /**
@@ -71,7 +71,7 @@ public:
  * that have both FTypedElementMementoOnDelete and FPathColumn columns
  */
 UCLASS(Abstract)
-class UTypedElementDefaultMementoTranslator : public UTypedElementMementoTranslatorBase
+class UTedsDefaultMementoTranslator : public UTedsMementoTranslatorBase
 {
 	GENERATED_BODY()
 public:
