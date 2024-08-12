@@ -594,9 +594,10 @@ public:
 	 * @param	InWidget				The widget that should be shown in the toolbar
 	 * @param	InLabel                 Optional Label.  
 	 * @param	InTutorialHighlightName	Name to identify this widget and highlight during tutorials
-	 * @param	bInSearchable				If true, widget will be searchable (default == true)
+	 * @param	bInSearchable			If true, widget will be searchable (default == true)
+	 * @param	InToolTip				Optional tool tip 
 	 */
-	SLATE_API void AddToolBarWidget(TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel = TAttribute<FText>(), FName InTutorialHighlightName = NAME_None, bool bInSearchable = true);
+	SLATE_API void AddToolBarWidget(TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel = TAttribute<FText>(), FName InTutorialHighlightName = NAME_None, bool bInSearchable = true, const TAttribute<FText>& InToolTip = TAttribute<FText>());
 
 
 	/**

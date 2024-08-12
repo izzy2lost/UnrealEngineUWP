@@ -569,7 +569,7 @@ void FToolBarBuilder::AddToolbarStackButton(const TSharedPtr< const FUICommandIn
 	MultiBox->AddMultiBlock(NewToolBarStackButtonBlock);
 }
 
-void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel, FName InTutorialHighlightName, bool bSearchable )
+void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAttribute<FText>& InLabel, FName InTutorialHighlightName, bool bSearchable, const TAttribute<FText>& InToolTip)
 {
 	ApplySectionBeginning();
 
@@ -579,6 +579,7 @@ void FToolBarBuilder::AddToolBarWidget( TSharedRef<SWidget> InWidget, const TAtt
 	InWidget = 
 		SNew( SVerticalBox )
 		.AddMetaData<FTagMetaData>(FTagMetaData(InTutorialHighlightName))
+		.ToolTipText(InToolTip)
 
 		+SVerticalBox::Slot()
 		.AutoHeight()
