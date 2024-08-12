@@ -196,6 +196,8 @@ protected:
 	uint32 ChangedOrRemovedPakCount;
 	/** Our passed-in World */
 	TWeakObjectPtr<UWorld> OwnerWorld;
+	/** Loaded hotfix contents that were not mapped to any known branch, but might be loaded later */
+	TMap<FName, FString> DynamicHotfixContents;
 
 	virtual void Init();
 	virtual void Cleanup();
@@ -246,6 +248,9 @@ protected:
 
 	/** Stop tracking hotfixed assets marked as garbage */
 	void StopTrackingInvalidHotfixedAssets();
+
+	/** Hotfix a dynamic config branch that was just loaded */
+	void HotfixDynamicBranch(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker);
 	
 protected:
 

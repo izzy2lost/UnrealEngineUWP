@@ -189,6 +189,8 @@ UOnlineHotfixManager::UOnlineHotfixManager() :
 	{
 		FCoreUObjectDelegates::GetPreGarbageCollectDelegate().AddUObject(this, &UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets);
 	}
+
+	UE::DynamicConfig::HotfixBranch.AddUObject(this, &UOnlineHotfixManager::HotfixDynamicBranch);
 }
 
 UOnlineHotfixManager::UOnlineHotfixManager(FVTableHelper& Helper)
@@ -941,13 +943,6 @@ FConfigBranch* UOnlineHotfixManager::GetBranch(const FString& IniName)
 
 	// find the branch by basename or full filename
 	FConfigBranch* Branch = GConfig->FindBranch(*StrippedIniNameNoExtension, StrippedIniNameNoExtension);
-	if (Branch == nullptr)
-	{
-		// does this really happen, seems pretty unexpected
-		UE_LOG(LogHotfixManager, Warning, TEXT("No config branch found, creating new branch for hotfix %s [stripped name is '%s']"), *IniName, *StrippedIniNameNoExtension);
-		
-		Branch = &GConfig->AddNewBranch(IniName);
-	}
 	
 	return Branch;
 }
@@ -1005,9 +1000,16 @@ bool UOnlineHotfixManager::HotfixIniFile(const FString& FileName, const FString&
 		UE::DynamicConfig::PerformDynamicConfig(Tag, [this, Tag, FileName, IniData](FConfigModificationTracker* ChangeTracker)
 		{
 			FConfigBranch* Branch = GetBranch(FileName);
-			ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByHotfix;
-
-			Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, ChangeTracker);
+			if (Branch)
+			{
+				ChangeTracker->CVars.Add(TEXT("ConsoleVariables")).CVarPriority = (int)ECVF_SetByHotfix;
+				Branch->AddDynamicLayerStringToHierarchy(FileName, IniData, Tag, DynamicLayerPriority::Hotfix, ChangeTracker);
+			}
+			else
+			{
+				UE_LOG(LogHotfixManager, Log, TEXT("Storing ini data for pending hotfix file %s"), *FileName);
+				DynamicHotfixContents.Add(*FileName, IniData);
+			}
 		});
 		
 		return true;
@@ -1977,6 +1979,32 @@ UWorld* UOnlineHotfixManager::GetWorld() const
 void UOnlineHotfixManager::StopTrackingInvalidHotfixedAssets()
 {
 	AssetsHotfixedFromIniFiles.RemoveAllSwap([](const UObject* Obj) { return !IsValid(Obj); });
+}
+
+void UOnlineHotfixManager::HotfixDynamicBranch(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)
+{
+	FConfigBranch* BranchToHotfix = GConfig->FindBranch(Branch, FString());
+	if (BranchToHotfix)
+	{
+		const auto TryApplyHotfix = [&](const FString Prefix)
+		{
+			const FString HotfixFileName = Prefix + Tag.ToString() + Branch.ToString() + TEXT(".ini");
+			const FString* IniContents = DynamicHotfixContents.Find(*HotfixFileName);
+
+			if (IniContents)
+			{
+				UE_LOG(LogHotfixManager, Log, TEXT("HotfixDynamicBranch: applying hotfix %s for tag %s on branch %s"), *HotfixFileName, *Tag.ToString(), *Branch.ToString());
+				if (!BranchToHotfix->AddDynamicLayerStringToHierarchy(HotfixFileName, *IniContents, Tag, DynamicLayerPriority::Hotfix, ModificationTracker))
+				{
+					UE_LOG(LogHotfixManager, Warning, TEXT("HotfixDynamicBranch: failed to apply hotfix"));
+				}
+			}
+		};
+
+		const FString PlatformName = FPlatformProperties::IniPlatformName();
+		TryApplyHotfix(FString());
+		TryApplyHotfix(PlatformName + TEXT("_"));		
+	}
 }
 
 void UOnlineHotfixManager::ReloadObjectsAffectedByConfigFile(const FString& IniDataFileName, const FString& IniData, const FString& ConfigFilename, TArray<FString>& ReloadedClassesPathNames, bool bUseLoadConfig)

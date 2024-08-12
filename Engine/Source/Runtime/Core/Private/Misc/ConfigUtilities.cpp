@@ -19,8 +19,8 @@
 
 namespace UE::DynamicConfig
 {
+TMulticastDelegate<void(const FName&, const FName&, class FConfigModificationTracker*)> HotfixBranch;
 TMulticastDelegate<void(const class FConfigModificationTracker* ChangeTracker)> ReloadObjects;
-TMulticastDelegate<void(const class FConfigModificationTracker* ChangeTracker)> UpdateCVars;
 TMulticastDelegate<void(const TSet<FString>&)> UpdateDeviceProfiles;
 
 void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTracker*)> PerformModification,
@@ -54,6 +54,8 @@ void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTra
 //					IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(*CVarPair.Key.ToString());
 //					CVar->Set(*CVarPair.Value.GetValue(), Priority, Tag);
 				}
+
+				HotfixBranch.Broadcast(Tag, BranchPair.Key, &ChangeTracker);
 			}
 		}
 

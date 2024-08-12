@@ -21,11 +21,10 @@ namespace UE::DynamicConfig
 {
 	extern CORE_API void PerformDynamicConfig(FName Tag, TFunction<void(class FConfigModificationTracker*)> PerformModification, TFunction<void(FConfigModificationTracker*)> PostModification=nullptr);
 
+	extern CORE_API TMulticastDelegate<void(const FName& Tag, const FName& Branch, class FConfigModificationTracker* ModificationTracker)> HotfixBranch;
 
 	// this calls the UObjectBaseUtility from code where object system is not linked (it also calls TSOnConfigSectionsChanged()!)
 	extern CORE_API TMulticastDelegate<void(const FConfigModificationTracker* ChangeTracker)> ReloadObjects;
-
-	extern CORE_API TMulticastDelegate<void(const FConfigModificationTracker* ChangeTracker)> UpdateCVars;
 
 	extern CORE_API TMulticastDelegate<void(const TSet<FString>& ModifiedSections)> UpdateDeviceProfiles;
 }
