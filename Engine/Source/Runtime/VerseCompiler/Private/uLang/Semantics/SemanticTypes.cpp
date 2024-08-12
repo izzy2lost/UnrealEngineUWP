@@ -3235,11 +3235,37 @@ const CTypeBase* SemanticTypeUtils::Meet(const CTypeBase* Type1, const CTypeBase
     {
         const CTupleType& TupleType = (NormalType1.IsA<CTupleType>() ? NormalType1 : NormalType2).AsChecked<CTupleType>();
         const CArrayType& ArrayType = (NormalType1.IsA<CArrayType>() ? NormalType1 : NormalType2).AsChecked<CArrayType>();
-        CTupleType::ElementArray ResultElements;
-        ResultElements.Reserve(TupleType.Num());
-        for (const CTypeBase* TupleElementType : TupleType.GetElements())
+        const CTupleType::ElementArray& TupleElementTypes = TupleType.GetElements();
+        if (!AllOf(TupleElementTypes.begin() + TupleType.GetFirstNamedIndex(), TupleElementTypes.end(),
+            [](const CTypeBase* Element) { return Element->GetNormalType().AsChecked<CNamedType>().HasValue(); }))
         {
-            ResultElements.Add(Meet(TupleElementType, ArrayType.GetElementType()));
+            // An array cannot provide named elements.  If any are present
+            // lacking a default in the tuple, the meet is `false`.
+            return &Program._falseType;
+        }
+        if (TupleType.NumNonNamedElements() == 1 && TupleElementTypes.Num() != 1)
+        {
+            // If named elements are present in the tuple and there is a single
+            // unnamed tuple element, the meet may be the meet of the single
+            // unnamed tuple element and the array.
+            const CTypeBase* ResultType = Meet(TupleElementTypes[0], &ArrayType);
+            if (!ResultType->GetNormalType().IsA<CFalseType>())
+            {
+                return ResultType;
+            }
+            // However, if `false`, a higher (non-`false`) type will certainly
+            // be found via element-wise meet on the tuple, as such a type will
+            // at least be `tuple(false)`, which is (arguably) higher than
+            // `false`.  Note the element-wise case may also produce lower types,
+            // e.g. `[]any \/ tuple([]any, ?X:int = 0)` would produce
+            // `tuple([]any)`, which is lower than what is produced by the
+            // above (`[]any`).
+        }
+        CTupleType::ElementArray ResultElements;
+        ResultElements.Reserve(TupleType.NumNonNamedElements());
+        for (auto I = TupleElementTypes.begin(), Last = TupleElementTypes.begin() + TupleType.NumNonNamedElements(); I != Last; ++I)
+        {
+            ResultElements.Add(Meet(*I, ArrayType.GetElementType()));
         }
         return &Program.GetOrCreateTupleType(Move(ResultElements));
     }
