@@ -108,6 +108,7 @@
 #include "ObjectEditorUtils.h"
 #include "Toolkits/ToolkitManager.h"
 #include "UnrealExporter.h"
+#include "BlueprintActionDatabase.h"
 #include "BlueprintEditorSettings.h"
 
 #include "Framework/Notifications/NotificationManager.h"
@@ -4181,6 +4182,8 @@ void FBlueprintEditorUtils::SetBlueprintFunctionOrMacroCategory(UEdGraph* Graph,
 			{
 				FBlueprintEditorUtils::MarkBlueprintAsModified(Blueprint);
 			}
+
+			FBlueprintActionDatabase::Get().RefreshAssetActions(Blueprint);
 		}
 	}
 }
