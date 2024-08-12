@@ -88,19 +88,8 @@ protected:
     virtual UWorld* CreateWorld() override;
 
 private:
-	/**
-	 * Handler called when the PIE session ends.
-	 */
+	/** Handler called when the PIE session ends. */
 	void OnEndPlayMap();
-
-#if WITH_EDITOR
-	/**
-	 * Handler called on map changed.
-	 */
-	void OnMapChanged(UWorld* World, EMapChangeType ChangeType);
-
-	FDelegateHandle MapChangedHandle;
-#endif // WITH_EDITOR
 
 	FString MapDirectory;
 	FString MapName;
