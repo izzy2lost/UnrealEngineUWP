@@ -218,13 +218,28 @@ FVirtualShadowMapSampleResult ProjectLight(
 	const float Noise,
 	const FSubsurfaceOpacityMFP SubsurfaceOpacityMFP)
 {
+	const bool bIsHairInput = InputType == INPUT_TYPE_HAIRSTRANDS;
+	
+	bool bBackfaceCull = (bCullBackfacingPixels > 0) && !bIsHairInput && !ShadingInfo.bIsSubsurface && !ShadingInfo.bIsHair;
+#if VISUALIZE
+	// Modes more related to the shadow depth rendering don't want to see the projection culling
+	bBackfaceCull = bBackfaceCull &&
+		VisualizeModeId != VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW;
+#endif
+
 #if DIRECTIONAL_LIGHT
 	float3 L = Light.Direction;
 	bool bInLightRegion = true;
-#else	
+
+	if (bBackfaceCull && IsBackfaceToDirectionalLight(ShadingInfo.WorldNormal, Light.Direction, Light.SourceRadius))
+	{
+		bInLightRegion = false;
+	}
+
+#else	// Local light
+
 	float3 ToLight = Light.TranslatedWorldPosition - TranslatedWorldPosition;
-	float d2 = dot( ToLight, ToLight );
-	float InvDist = rsqrt( d2 );
+	float InvDist = rsqrt(dot(ToLight, ToLight));
 	float3 L = ToLight * InvDist;
 	
 	bool bInLightRadius = InvDist >= Light.InvRadius;
@@ -241,27 +256,27 @@ FVirtualShadowMapSampleResult ProjectLight(
 			bInLightRegion = false;
 		}
 	}
+
+	if (bInLightRegion && bBackfaceCull)
+	{
+		if (IsBackfaceToLocalLight(ToLight, ShadingInfo.WorldNormal, Light.SourceRadius))
+		{
+			bInLightRegion = false;
+		}
+	}
+
 #endif // DIRECTIONAL_LIGHT
-
-	const bool bIsHairInput = InputType == INPUT_TYPE_HAIRSTRANDS;
-	const float DistanceToCamera = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
-	const float NormalBiasLength = ShadingInfo.bIsSubsurface ? 0.0f : max(0.02f, NormalBias * DistanceToCamera / GetCotanHalfFieldOfView().x);
-
+	
 	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
-
 	const bool bValidPixel = bIsHairInput || ShadingInfo.bIsValid;
 
 	BRANCH
 	if (bInLightRegion && bValidPixel)
 	{
-		bool bBackfaceCull = (bCullBackfacingPixels > 0) && !bIsHairInput && !ShadingInfo.bIsSubsurface;
-#if VISUALIZE
-		// Modes more related to the shadow depth rendering don't want to see the projection culling
-		bBackfaceCull = bBackfaceCull &&
-			VisualizeModeId != VIRTUAL_SHADOW_MAP_VISUALIZE_NANITE_OVERDRAW;
-#endif
+		const float3 WorldNormal = (bIsHairInput || ShadingInfo.bIsHair) ? L : ShadingInfo.WorldNormal;
 
-		float3 WorldNormal = (bIsHairInput || ShadingInfo.bIsHair) ? L : ShadingInfo.WorldNormal;
+		const float DistanceToCamera = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+		const float NormalBiasLength = ShadingInfo.bIsSubsurface ? 0.0f : max(0.02f, NormalBias * DistanceToCamera / GetCotanHalfFieldOfView().x);
 		TranslatedWorldPosition += WorldNormal * NormalBiasLength;
 
 		// Do not run contact shadow when computing the hair shadow mask (i.e. shadow mask applied on hair, has the scene 
@@ -292,7 +307,6 @@ FVirtualShadowMapSampleResult ProjectLight(
 				TranslatedWorldPosition,
 				SMRTRayOffset,
 				Noise,
-				bBackfaceCull,
 				WorldNormal);
 		}
 		else
@@ -314,7 +328,6 @@ FVirtualShadowMapSampleResult ProjectLight(
 				TranslatedWorldPosition,
 				SMRTRayOffset,
 				Noise,
-				bBackfaceCull,
 				WorldNormal);
 		}
 		else
@@ -379,7 +392,6 @@ FVirtualShadowMapSampleResult ProjectLight(
 					PixelPos,
 					TranslatedWorldPosition,
 					WorldNormal,
-					VirtualShadowMap.SMRTCotMaxRayAngleFromLight,
 					RayIndex,
 					HairRayCount,
 					RayStart,

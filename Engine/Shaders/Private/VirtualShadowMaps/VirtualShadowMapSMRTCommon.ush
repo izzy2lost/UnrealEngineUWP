@@ -65,3 +65,35 @@ float4 VirtualShadowMapGetRandomSample(
 	}
 #endif
 }
+
+// Handy structure for locally modifying some common SMRT parameters
+struct FSMRTTraceSettings
+{
+	int AdaptiveRayCount;
+	int RayCount;
+	int SamplesPerRay;
+	float ExtrapolateMaxSlope;
+	float TexelDitherScale;
+};
+
+FSMRTTraceSettings GetSMRTTraceSettingsDirectional()
+{
+	FSMRTTraceSettings Settings;
+	Settings.AdaptiveRayCount		= VirtualShadowMap.SMRTAdaptiveRayCount;
+	Settings.RayCount				= VirtualShadowMap.SMRTRayCountDirectional;
+	Settings.SamplesPerRay			= VirtualShadowMap.SMRTSamplesPerRayDirectional;
+	Settings.ExtrapolateMaxSlope	= VirtualShadowMap.SMRTExtrapolateMaxSlopeDirectional;
+	Settings.TexelDitherScale		= VirtualShadowMap.SMRTTexelDitherScaleDirectional;
+	return Settings;
+}
+
+FSMRTTraceSettings GetSMRTTraceSettingsLocal()
+{
+	FSMRTTraceSettings Settings;
+	Settings.AdaptiveRayCount		= VirtualShadowMap.SMRTAdaptiveRayCount;
+	Settings.RayCount				= VirtualShadowMap.SMRTRayCountLocal;
+	Settings.SamplesPerRay			= VirtualShadowMap.SMRTSamplesPerRayLocal;
+	Settings.ExtrapolateMaxSlope	= VirtualShadowMap.SMRTExtrapolateMaxSlopeLocal;
+	Settings.TexelDitherScale		= VirtualShadowMap.SMRTTexelDitherScaleLocal;
+	return Settings;
+}

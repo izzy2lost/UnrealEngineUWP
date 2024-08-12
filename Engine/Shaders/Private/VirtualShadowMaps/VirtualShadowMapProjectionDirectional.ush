@@ -180,8 +180,8 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	float3 TranslatedWorldPosition,
 	float RayStartOffset,
 	const float Noise,
-	bool bCullBackface,
-	float3 WorldNormal)
+	float3 WorldNormal,
+	const FSMRTTraceSettings Settings = GetSMRTTraceSettingsDirectional())
 {
 	float3 ViewPosition = mul(float4(TranslatedWorldPosition, 1.0f), View.TranslatedWorldToView).xyz;
 	float DistanceFromViewOrigin = length(ViewPosition);
@@ -189,12 +189,6 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	FVirtualShadowMapSampleResult Result = InitVirtualShadowMapSampleResult();
 	Result.bValid = true;	// TODO: false if all samples of all rays miss pages?
 	Result.ShadowFactor = 1.0f;
-
-	if (bCullBackface && IsBackfaceToDirectionalLight(WorldNormal, Light.Direction, Light.SourceRadius))
-	{
-		Result.ShadowFactor = 0.0f;		// Fully shadowed on backfaces
-		return Result;
-	}
 
 	// Find the best resolution mapped clipmap at the ray origin location
 	const int ClipmapId = GetMappedClipmapId(VirtualShadowMapId, TranslatedWorldPosition);
@@ -216,7 +210,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	// in some different way.
 	//
 	// 0.5 is arbitrary but makes it consistent with the previous dither scale cvar
-	float PerLightTexelDitherScale = VirtualShadowMap.SMRTTexelDitherScaleDirectional * ProjectionData.TexelDitherScale;
+	float PerLightTexelDitherScale = Settings.TexelDitherScale * ProjectionData.TexelDitherScale;
 	float DitherScale = 0.0f;
 	if (PerLightTexelDitherScale > 0.0f)
 	{
@@ -242,7 +236,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 	uint i = 0;
 	float OccluderDistanceSum = 0.0f;
 	float MaxOccluderDistance = -1.0f;
-	const uint MaxRayCount = VirtualShadowMap.SMRTRayCountDirectional;
+	const uint MaxRayCount = Settings.RayCount;
 	for ( ; i < MaxRayCount; i++)
 	{
 		// One sample for ray, one for texel dither
@@ -258,8 +252,8 @@ FVirtualShadowMapSampleResult TraceDirectional(
 			RayStartOffset,
 			DepthSlopeUV,
 			TexelOffset,
-			VirtualShadowMap.SMRTExtrapolateMaxSlopeDirectional);
-		FSMRTResult SMRTResult = SMRTRayCast(RayState, VirtualShadowMap.SMRTSamplesPerRayDirectional, Noise);
+			Settings.ExtrapolateMaxSlope);
+		FSMRTResult SMRTResult = SMRTRayCast(RayState, Settings.SamplesPerRay, Noise);
 
 		// Debug output (DCE'd if not used)
 		Result.ClipmapOrMipLevel = GetVirtualShadowMapProjectionData(RayState.SampledClipmapId).ClipmapLevel;
@@ -283,7 +277,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 		}
 
 		#if COMPUTESHADER
-		if (VirtualShadowMap.SMRTAdaptiveRayCount > 0)
+		if (Settings.AdaptiveRayCount > 0)
 		{
 			// TODO: Adapt this heuristic based on SMRTAdaptiveRayCount as well?
 			if( i == 0 )
@@ -297,7 +291,7 @@ FVirtualShadowMapSampleResult TraceDirectional(
 					break;
 				}
 			}
-			else if( i >= VirtualShadowMap.SMRTAdaptiveRayCount )
+			else if (i >= Settings.AdaptiveRayCount)
 			{
 				// After 2 iterations and all have hit, assume umbra
 				bool bAllLanesHit = WaveActiveAllTrue( RayMissCount == 0 );
