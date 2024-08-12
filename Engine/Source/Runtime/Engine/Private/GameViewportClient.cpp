@@ -1506,13 +1506,8 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		checkf(ViewFamily.GetScreenPercentageInterface() == nullptr,
 			TEXT("Some code has tried to set up an alien screen percentage driver, that could be wrong if not supported very well by the RHI."));
 
-		// Force screen percentage show flag to be turned off if not supported.
-		if (!ViewFamily.SupportsScreenPercentage())
-		{
-			ViewFamily.EngineShowFlags.ScreenPercentage = false;
-		}
-
-		// Set up secondary resolution fraction for the view family.
+		// Set up secondary resolution fraction for the view family (r.SecondaryScreenPercentage.GameViewport).
+		// If stereo rendering is enabled, we use xr.SecondaryScreenPercentage.HMDRenderTarget rather than r.SecondaryScreenPercentage.GameViewport.
 		if (!bStereoRendering && ViewFamily.SupportsScreenPercentage())
 		{
 			float CustomSecondaruScreenPercentage = CVarSecondaryScreenPercentage.GetValueOnGameThread();
@@ -1804,7 +1799,12 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		{
 			float GlobalResolutionFraction = 1.0f;
 
-			if (ViewFamily.EngineShowFlags.ScreenPercentage && !bDisableWorldRendering && ViewFamily.Views.Num() > 0)
+			// Although mobile LDR can technically support r.ScreenPercentage when using the OpenXR compositor, xr.SecondaryScreenPercentage.HMDRenderTarget should be used instead
+			// for fixed percentages, since it supports percentages >100 and will not cause an oversized render target for percentages <100. These are necessary trade-offs for
+			// dynamic resolution to avoid flushing commands and re-allocating the render target each time dynamic resolution is changed.
+			const bool bIsMobileLDR = (ViewFamily.GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR());
+
+			if (ViewFamily.EngineShowFlags.ScreenPercentage && !bDisableWorldRendering && ViewFamily.Views.Num() > 0 && !bIsMobileLDR)
 			{
 				// Get global view fraction.
 				FStaticResolutionFractionHeuristic StaticHeuristic;
@@ -1824,9 +1824,9 @@ void UGameViewportClient::Draw(FViewport* InViewport, FCanvas* SceneCanvas)
 		// Make sure the engine show flag for screen percentage is still what it was when setting up the screen percentage interface
 		ViewFamily.EngineShowFlags.ScreenPercentage = bFinalScreenPercentageShowFlag;
 
-		if (bStereoRendering && bUsesDynamicResolution)
+		if (bStereoRendering && bUsesDynamicResolution && !IsMobileHDR())
 		{
-			// Change screen percentage method to raw output when doing dynamic resolution with VR if not using TAA upsample.
+			// Change screen percentage method to raw output when doing dynamic resolution with XR if not using TAA upsample.
 			for (FSceneView* View : Views)
 			{
 				if (View->PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::SpatialUpscale)

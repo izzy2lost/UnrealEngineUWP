@@ -29,14 +29,29 @@ static TAutoConsoleVariable<int32> CVarHiddenAreaMask(
 	*LOCTEXT("CVarText_HiddenAreaMask", "Enable or disable hidden area mask\n0: disabled\n1: enabled").ToString(),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<float> CVarSecondaryScreenPercentageHMDRenderTarget(
+	TEXT("xr.SecondaryScreenPercentage.HMDRenderTarget"),
+	100.0f,
+	TEXT("Sets the VR render target texture size as a percentage of recommended texture size. Replaces r.SecondaryScreenPercentage.GameViewport when using an HMD.\n")
+	TEXT("The recommended texture size is the size that will result in no under sampling in most distorted area of the view when computing the final image to be displayed on the device by the runtime compositor.\n")
+	TEXT("Note that the recommended texture size will likely be larger than the display panel resolution of the device as the texture is used as input data for the final composition/lens distortion pass provided by the device's runtime.\n")
+	TEXT("A value of 100 (default) will use the device's recommended texture size.\n"),
+	ECVF_Scalability | ECVF_Default);
+
 static TAutoConsoleVariable<float> CVarPixelDensity(
 	TEXT("vr.PixelDensity"),
 	1.0f,
-	TEXT("Pixel density sets the VR render target texture size as a factor of recommended texture size.\n")
-	TEXT("The recommended texture size is the size that will result in no under sampling in most distorted area of the view when computing the final image to be displayed on the device by the runtime compositor.\n")
-	TEXT("Note that the recommended texture size will likely be larger than the display panel resolution of the device as the texture is used as input data for the final composition/lens distortion pass provided by the device's runtime.\n")
-	TEXT("A pixel density of 1.0 (default) will use the device's recommended texture size.\n"),
+	TEXT("This CVar is deprecated in UE 5.5. Use xr.SecondaryScreenPercentage.HMDRenderTarget instead.\n"),
 	ECVF_Scalability | ECVF_Default);
+
+static TAutoConsoleVariable<bool> CVarMobileDynamicResolution(
+	TEXT("xr.MobileLDRDynamicResolution"),
+	false,
+	TEXT("Enables dynamic resolution for supported devices (such as Meta Quest) even when Mobile HDR is disabled. Only upscaling is supported.\n")
+	TEXT("Because we can only render directly to the final render target when Mobile HDR is disabled, this will render reduced sized images to the upper left corner of the final RT.\n")
+	TEXT("The final RT will then be submitted to the OpenXR compositor alongside an appropriate ViewRect, and be automatically spatially scaled to the physical display by the runtime."),
+	ECVF_Scalability | ECVF_Default);
+
 
 #if !UE_BUILD_SHIPPING
 static void DrawDebugTrackingSensorLocations(UCanvas* Canvas, APlayerController* PlayerController)

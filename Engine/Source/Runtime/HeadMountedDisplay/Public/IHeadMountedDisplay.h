@@ -149,7 +149,7 @@ public:
 	virtual void SetPixelDensity(const float NewDensity) { };
 
 	/**
-	* Gets the ideal render target size for the device. See vr.pixeldensity description.
+	* Gets the ideal render target size for the device. See xr.SecondaryScreenPercentage.HMDRenderTarget description.
 	*/
 	virtual FIntPoint GetIdealRenderTargetSize() const { check(IsInGameThread() || IsInRenderingThread()); return FIntPoint(); }
 

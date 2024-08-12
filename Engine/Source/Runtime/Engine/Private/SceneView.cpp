@@ -3003,12 +3003,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 #endif
 	LandscapeLODOverride = -1;
 
-	// ScreenPercentage is not supported in ES 3.1 with MobileHDR = false. Disable show flag so to have it respected.
-	const bool bIsMobileLDR = (GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR());
-	if (bIsMobileLDR)
-	{
-		EngineShowFlags.ScreenPercentage = false;
-	}
+	EngineShowFlags.ScreenPercentage = SupportsScreenPercentage();
 }
 
 PRAGMA_DISABLE_DEPRECATION_WARNINGS // TOptional can't be deprecated without emitting warnings in destructor
@@ -3064,11 +3059,15 @@ bool FSceneViewFamily::SupportsScreenPercentage() const
 			return true;
 		}
 
-		// Mobile renderer does not support screen percentage with LDR.
-		if ((GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR()))
+		// Mobile renderer does not support screen percentage with LDR unless we are using dynamic resolution + OpenXR compositor.
+		static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataBool(TEXT("xr.MobileLDRDynamicResolution"));
+		const bool bMobileLDRDynamicResolution = CVar && CVar->GetValueOnAnyThread() && GEngine && GEngine->IsStereoscopic3D();
+
+		if (GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR() && !bMobileLDRDynamicResolution)
 		{
 			return false;
 		}
+
 		return true;
 	}
 

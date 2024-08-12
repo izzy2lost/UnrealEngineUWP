@@ -489,7 +489,13 @@ void FMobileSceneRenderer::InitViews(
 		RenderTargetSize = ViewFamily.RenderTarget->GetRenderTargetTexture()->GetSizeXY();
 		RenderTargetPixelFormat = ViewFamily.RenderTarget->GetRenderTargetTexture()->GetFormat();
 	}
-	const bool bRequiresUpscale = ((int32)RenderTargetSize.X > FamilySize.X || (int32)RenderTargetSize.Y > FamilySize.Y);
+
+	// Upscaling is not supported in Mobile LDR since we don't have a post-processing pass.
+	// The only time we support FamilySize != RenderTargetSize in Mobile LDR is when using Dynamic Resolution + OpenXR, where we render to the upper-left
+	// corner of the render target and upscale in the OpenXR compositor. Enabled when xr.MobileLDRDynamicResolution = 1.
+	const bool bIsMobileLDR = ViewFamily.GetFeatureLevel() <= ERHIFeatureLevel::ES3_1 && !IsMobileHDR();
+	const bool bRequiresUpscale = ((int32)RenderTargetSize.X > FamilySize.X || (int32)RenderTargetSize.Y > FamilySize.Y) && !bIsMobileLDR;
+
 	// ES requires that the back buffer and depth match dimensions.
 	// For the most part this is not the case when using scene captures. Thus scene captures always render to scene color target.
 	const bool bShouldCompositeEditorPrimitives = FSceneRenderer::ShouldCompositeEditorPrimitives(Views[0]);

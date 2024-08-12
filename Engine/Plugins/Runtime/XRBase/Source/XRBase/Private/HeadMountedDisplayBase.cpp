@@ -164,17 +164,24 @@ void FHeadMountedDisplayBase::CVarSinkHandler()
 
 	if (GEngine && GEngine->XRSystem.IsValid())
 	{
-		static const auto PixelDensityCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.PixelDensity"));
+		static const auto SecondaryScreenPercentageHMDCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("xr.SecondaryScreenPercentage.HMDRenderTarget"));
 		IHeadMountedDisplay* const HMDDevice = GEngine->XRSystem->GetHMDDevice();
-		if (HMDDevice && PixelDensityCVar)
+		if (HMDDevice && SecondaryScreenPercentageHMDCVar)
 		{
-			float NewPixelDensity = PixelDensityCVar->GetFloat();
+			float NewPixelDensity = SecondaryScreenPercentageHMDCVar->GetFloat() / 100.0f;
 			if (NewPixelDensity < PixelDensityMin || NewPixelDensity > PixelDensityMax)
 			{
 				UE_LOG(LogHMD, Warning, TEXT("Invalid pixel density. Valid values must be within the range: [%f, %f]."), PixelDensityMin, PixelDensityMax);
 				NewPixelDensity = FMath::Clamp(NewPixelDensity, PixelDensityMin, PixelDensityMax);
 			}
 			HMDDevice->SetPixelDensity(NewPixelDensity);
+		}
+
+		// If vr.PixelDensity is defined in a config file or set manually somewhere, trigger an ensure.
+		static const auto DeprecatedCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("vr.PixelDensity"));
+		if (DeprecatedCVar && DeprecatedCVar->GetFloat() != 1.0f)
+		{
+			ensureMsgf(false, TEXT("vr.PixelDensity is deprecated in UE 5.5 and will not affect the resolution. Use xr.SecondaryScreenPercentage.HMDRenderTarget instead, where 100.0f = ideal resolution."));
 		}
 	}
 }

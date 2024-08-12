@@ -211,8 +211,8 @@ void UHeadMountedDisplayFunctionLibrary::SetClippingPlanes(float Near, float Far
 
 float UHeadMountedDisplayFunctionLibrary::GetPixelDensity()
 {
-	static const auto PixelDensityTCVar = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("vr.pixeldensity"));
-	return PixelDensityTCVar->GetValueOnGameThread();
+	static const auto PixelDensityTCVar = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("xr.SecondaryScreenPercentage.HMDRenderTarget"));
+	return PixelDensityTCVar->GetValueOnGameThread() / 100.0f;
 }
 
 void UHeadMountedDisplayFunctionLibrary::SetWorldToMetersScale(UObject* WorldContext, float NewScale)

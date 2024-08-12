@@ -3281,12 +3281,16 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 		ComputeFamilySize();
 		
 		// Notify StereoRenderingDevice about new ViewRects
-		if (GEngine->StereoRenderingDevice.IsValid())
+		if (GEngine->StereoRenderingDevice.IsValid() && ViewFamily.EngineShowFlags.StereoRendering)
 		{
 			for (int32 i = 0; i < Views.Num(); i++)
 			{
 				FViewInfo& View = Views[i];
-				GEngine->StereoRenderingDevice->SetFinalViewRect(RHICmdList, View.StereoViewIndex, View.ViewRect);
+				
+				if (IStereoRendering::IsStereoEyePass(View.StereoPass))
+				{
+					GEngine->StereoRenderingDevice->SetFinalViewRect(RHICmdList, View.StereoViewIndex, View.ViewRect);
+				}
 			}
 		}
 		return;
@@ -3454,7 +3458,7 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 	ComputeFamilySize();
 
 	// Notify StereoRenderingDevice about new ViewRects
-	if (GEngine->StereoRenderingDevice.IsValid())
+	if (GEngine->StereoRenderingDevice.IsValid() && ViewFamily.EngineShowFlags.StereoRendering)
 	{
 		for (const FViewInfo& View : Views)
 		{
@@ -3462,7 +3466,10 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 			const FIntRect OutputViewRect =
 				(View.PrimaryScreenPercentageMethod == EPrimaryScreenPercentageMethod::RawOutput) ? View.ViewRect : View.UnscaledViewRect;
 
-			GEngine->StereoRenderingDevice->SetFinalViewRect(RHICmdList, View.StereoViewIndex, OutputViewRect);
+			if (IStereoRendering::IsStereoEyePass(View.StereoPass))
+			{
+				GEngine->StereoRenderingDevice->SetFinalViewRect(RHICmdList, View.StereoViewIndex, OutputViewRect);
+			}
 		}
 	}
 
