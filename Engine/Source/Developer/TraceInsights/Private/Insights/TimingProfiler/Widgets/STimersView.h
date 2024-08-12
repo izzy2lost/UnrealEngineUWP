@@ -130,6 +130,9 @@ private:
 	bool ContextMenu_CopyToClipboard_CanExecute() const;
 	void ContextMenu_CopyToClipboard_Execute();
 
+	bool ContextMenu_CopyTimerNameToClipboard_CanExecute() const;
+	void ContextMenu_CopyTimerNameToClipboard_Execute();
+
 	bool ContextMenu_Export_CanExecute() const;
 	void ContextMenu_Export_Execute();
 

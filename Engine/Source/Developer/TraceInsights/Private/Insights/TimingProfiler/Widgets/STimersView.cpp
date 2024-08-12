@@ -50,6 +50,7 @@
 #include "Insights/TimingProfilerCommon.h"
 #include "Insights/ViewModels/TimingGraphTrack.h"
 #include "Insights/Widgets/STimingView.h"
+#include "Insights/Table/ViewModels/TableCommands.h"
 
 #include <limits>
 
@@ -87,6 +88,12 @@ public:
 			"Copies the selection (timers and their aggregated statistics) to clipboard.",
 			EUserInterfaceActionType::Button,
 			FInputChord(EModifierKey::Control, EKeys::C));
+
+		UI_COMMAND(Command_CopyNameToClipboard,
+			"Copy Name To Clipboard",
+			"Copies the name of the selected timer to the clipboard.",
+			EUserInterfaceActionType::Button,
+			FInputChord(EModifierKey::Control | EModifierKey::Shift, EKeys::C));
 
 		UI_COMMAND(Command_Export,
 			"Export...",
@@ -151,6 +158,7 @@ public:
 	UE_ENABLE_OPTIMIZATION_SHIP
 
 	TSharedPtr<FUICommandInfo> Command_CopyToClipboard;
+	TSharedPtr<FUICommandInfo> Command_CopyNameToClipboard;
 	TSharedPtr<FUICommandInfo> Command_Export;
 	TSharedPtr<FUICommandInfo> Command_ExportTimingEventsSelection;
 	TSharedPtr<FUICommandInfo> Command_ExportTimingEvents;
@@ -208,6 +216,7 @@ void STimersView::InitCommandList()
 	FTimersViewCommands::Register();
 	CommandList = MakeShared<FUICommandList>();
 	CommandList->MapAction(FTimersViewCommands::Get().Command_CopyToClipboard, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_CopyToClipboard_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_CopyToClipboard_CanExecute));
+	CommandList->MapAction(FTimersViewCommands::Get().Command_CopyNameToClipboard, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_CopyTimerNameToClipboard_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_CopyTimerNameToClipboard_CanExecute));
 	CommandList->MapAction(FTimersViewCommands::Get().Command_Export, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_Export_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_Export_CanExecute));
 	CommandList->MapAction(FTimersViewCommands::Get().Command_ExportTimingEventsSelection, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimingEventsSelection_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimingEventsSelection_CanExecute));
 	CommandList->MapAction(FTimersViewCommands::Get().Command_ExportTimingEvents, FExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimingEvents_Execute), FCanExecuteAction::CreateSP(this, &STimersView::ContextMenu_ExportTimingEvents_CanExecute));
@@ -653,6 +662,15 @@ TSharedPtr<SWidget> STimersView::TreeView_GetMenuContent()
 		MenuBuilder.AddMenuEntry
 		(
 			FTimersViewCommands::Get().Command_CopyToClipboard,
+			NAME_None,
+			TAttribute<FText>(),
+			TAttribute<FText>(),
+			FSlateIcon(FAppStyle::Get().GetStyleSetName(), "GenericCommands.Copy")
+		);
+
+		MenuBuilder.AddMenuEntry
+		(
+			FTimersViewCommands::Get().Command_CopyNameToClipboard,
 			NAME_None,
 			TAttribute<FText>(),
 			TAttribute<FText>(),
@@ -2830,35 +2848,26 @@ bool STimersView::ContextMenu_CopyToClipboard_CanExecute() const
 
 void STimersView::ContextMenu_CopyToClipboard_Execute()
 {
-	if (!Table->IsValid())
+	if (Table->IsValid())
 	{
-		return;
+		UE::Insights::CopyToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, ColumnSortMode);
 	}
+}
 
-	const TArray<FTimerNodePtr> SelectedTimerNodes = TreeView->GetSelectedItems();
-	if (SelectedTimerNodes.Num() == 0)
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool STimersView::ContextMenu_CopyTimerNameToClipboard_CanExecute() const
+{
+	return TreeView->GetSelectedItems().Num() > 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void STimersView::ContextMenu_CopyTimerNameToClipboard_Execute()
+{
+	if (Table->IsValid())
 	{
-		return;
-	}
-
-	TArray<FBaseTreeNodePtr> SelectedNodes;
-	for (FTimerNodePtr TimerPtr : SelectedTimerNodes)
-	{
-		SelectedNodes.Add(TimerPtr);
-	}
-
-	FString ClipboardText;
-
-	if (CurrentSorter.IsValid())
-	{
-		CurrentSorter->Sort(SelectedNodes, ColumnSortMode == EColumnSortMode::Ascending ? ESortMode::Ascending : ESortMode::Descending);
-	}
-
-	Table->GetVisibleColumnsData(SelectedNodes, FTimingProfilerManager::Get()->GetLogListingName(), TEXT('\t'), true, ClipboardText);
-
-	if (ClipboardText.Len() > 0)
-	{
-		FPlatformApplicationMisc::ClipboardCopy(*ClipboardText);
+		UE::Insights::CopyNameToClipboard(Table.ToSharedRef(), TreeView->GetSelectedItems(), CurrentSorter, ColumnSortMode);
 	}
 }
 

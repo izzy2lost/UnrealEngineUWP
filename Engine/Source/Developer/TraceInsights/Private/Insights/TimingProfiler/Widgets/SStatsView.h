@@ -127,6 +127,9 @@ private:
 	bool ContextMenu_CopySelectedToClipboard_CanExecute() const;
 	void ContextMenu_CopySelectedToClipboard_Execute();
 
+	bool ContextMenu_CopySelectedNameToClipboard_CanExecute() const;
+	void ContextMenu_CopySelectedNameToClipboard_Execute();
+
 	bool ContextMenu_Export_CanExecute() const;
 	void ContextMenu_Export_Execute();
 

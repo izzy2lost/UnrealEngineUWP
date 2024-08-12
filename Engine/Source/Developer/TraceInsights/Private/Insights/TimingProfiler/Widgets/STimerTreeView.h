@@ -77,6 +77,9 @@ private:
 	bool ContextMenu_CopySelectedToClipboard_CanExecute() const;
 	void ContextMenu_CopySelectedToClipboard_Execute();
 
+	bool ContextMenu_CopySelectedTimerNameToClipboard_CanExecute() const;
+	void ContextMenu_CopySelectedTimerNameToClipboard_Execute();
+
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 	// Tree View - Columns' Header
 
