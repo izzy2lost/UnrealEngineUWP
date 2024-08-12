@@ -10,6 +10,20 @@
 
 #define LOCTEXT_NAMESPACE "AvaRadialArrangeModifier"
 
+void UAvaRadialArrangeModifier::PostLoad()
+{
+	Super::PostLoad();
+
+	if (OrientationAxis == EAvaModifiersAxis::None)
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+		OrientationAxis = static_cast<EAvaModifiersAxis>(1 << static_cast<int32>(OrientAxis));
+
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	}
+}
+
 #if WITH_EDITOR
 void UAvaRadialArrangeModifier::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
 {
@@ -19,6 +33,7 @@ void UAvaRadialArrangeModifier::PostEditChangeProperty(FPropertyChangedEvent& Pr
 
 	static const TSet<FName> PropertiesName =
 	{
+		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, Plane),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, Count),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, Rings),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, InnerRadius),
@@ -28,7 +43,7 @@ void UAvaRadialArrangeModifier::PostEditChangeProperty(FPropertyChangedEvent& Pr
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, Arrangement),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, bStartFromOuterRadius),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, bOrient),
-		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, OrientAxis),
+		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, OrientationAxis),
 		GET_MEMBER_NAME_CHECKED(UAvaRadialArrangeModifier, bFlipOrient)
 	};
 
@@ -39,80 +54,135 @@ void UAvaRadialArrangeModifier::PostEditChangeProperty(FPropertyChangedEvent& Pr
 }
 #endif // WITH_EDITOR
 
+void UAvaRadialArrangeModifier::SetPlane(EAvaRadialArrangePlane InPlane)
+{
+	if (Plane == InPlane)
+	{
+		return;
+	}
+
+	Plane = InPlane;
+	MarkModifierDirty();
+}
+
 void UAvaRadialArrangeModifier::SetCount(const int32 InCount)
 {
-	Count = InCount;
+	if (Count == InCount)
+	{
+		return;
+	}
 
+	Count = InCount;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetRings(const int32 InRings)
 {
-	Rings = InRings;
+	if (Rings == InRings)
+	{
+		return;
+	}
 
+	Rings = InRings;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetInnerRadius(const float InInnerRadius)
 {
-	InnerRadius = InInnerRadius;
+	if (FMath::IsNearlyEqual(InnerRadius, InInnerRadius))
+	{
+		return;
+	}
 
+	InnerRadius = InInnerRadius;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetOuterRadius(const float InOuterRadius)
 {
-	OuterRadius = InOuterRadius;
+	if (FMath::IsNearlyEqual(OuterRadius, InOuterRadius))
+	{
+		return;
+	}
 
+	OuterRadius = InOuterRadius;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetStartAngle(const float InStartAngle)
 {
-	StartAngle = InStartAngle;
+	if (FMath::IsNearlyEqual(StartAngle, InStartAngle))
+	{
+		return;
+	}
 
+	StartAngle = InStartAngle;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetEndAngle(const float InEndAngle)
 {
-	EndAngle = InEndAngle;
+	if (FMath::IsNearlyEqual(EndAngle, InEndAngle))
+	{
+		return;
+	}
 
+	EndAngle = InEndAngle;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetArrangement(const EAvaRadialArrangement InArrangement)
 {
-	Arrangement = InArrangement;
+	if (Arrangement == InArrangement)
+	{
+		return;
+	}
 
+	Arrangement = InArrangement;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetStartFromOuterRadius(const bool bInStartFromOuterRadius)
 {
-	bStartFromOuterRadius = bInStartFromOuterRadius;
+	if (bStartFromOuterRadius == bInStartFromOuterRadius)
+	{
+		return;
+	}
 
+	bStartFromOuterRadius = bInStartFromOuterRadius;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetOrient(const bool bInOrient)
 {
-	bOrient = bInOrient;
+	if (bOrient == bInOrient)
+	{
+		return;
+	}
 
+	bOrient = bInOrient;
 	MarkModifierDirty();
 }
 
-void UAvaRadialArrangeModifier::SetOrientAxis(const EAvaAxis InOrientAxis)
+void UAvaRadialArrangeModifier::SetOrientationAxis(EAvaModifiersAxis InAxis)
 {
-	OrientAxis = InOrientAxis;
+	if (OrientationAxis == InAxis)
+	{
+		return;
+	}
 
+	OrientationAxis = InAxis;
 	MarkModifierDirty();
 }
 
 void UAvaRadialArrangeModifier::SetFlipOrient(const bool bInFlipOrient)
 {
-	bFlipOrient = bInFlipOrient;
+	if (bFlipOrient == bInFlipOrient)
+	{
+		return;
+	}
 
+	bFlipOrient = bInFlipOrient;
 	MarkModifierDirty();
 }
 
@@ -137,7 +207,7 @@ void UAvaRadialArrangeModifier::Apply()
 		Next();
 		return;
 	}
-	
+
 	const FAvaSceneTreeUpdateModifierExtension* SceneExtension = GetExtension<FAvaSceneTreeUpdateModifierExtension>();
 	if (!SceneExtension)
 	{
@@ -165,7 +235,22 @@ void UAvaRadialArrangeModifier::Apply()
 		const float RingStartOffset = RadiusDistancePerRing * InRingIndex;
 		const float ChildRadius = InnerRadius + RingStartOffset;
 
-		return FVector(0.0f, ChildRadius * SlotCos, ChildRadius * SlotSin);
+		FVector Offset = FVector::ZeroVector;
+
+		switch (Plane)
+		{
+			case EAvaRadialArrangePlane::XY:
+				Offset = FVector(ChildRadius * SlotCos, ChildRadius * SlotSin, 0);
+				break;
+			case EAvaRadialArrangePlane::YZ:
+				Offset = FVector(0, ChildRadius * SlotCos, ChildRadius * SlotSin);
+				break;
+			case EAvaRadialArrangePlane::XZ:
+				Offset = FVector(ChildRadius * SlotCos, 0, ChildRadius * SlotSin);
+				break;
+		}
+
+		return Offset;
 	};
 
 	UAvaTransformModifierShared* LayoutShared = GetShared<UAvaTransformModifierShared>(true);
@@ -190,13 +275,13 @@ void UAvaRadialArrangeModifier::Apply()
 				NewChildrenActorsWeak.Add(ChildActor);
 			}
 		}
-		
+
 		// No need to handle nested children actor, only direct children, visibility will propagate
 		if (AttachedActor->GetAttachParentActor() != ModifyActor)
 		{
 			continue;
 		}
-		
+
 		// Track this actor visibility state
 		const bool bIsVisible = ChildIndex < TotalSlotCount;
 		VisibilityShared->SetActorVisibility(this, AttachedActor, !bIsVisible, true);
@@ -257,22 +342,28 @@ void UAvaRadialArrangeModifier::Apply()
 			RingIndex = Rings - (RingIndex - 1);
 		}
 
-		const FVector RelativeOffset = CalculateRelativeOffset(SlotAngle, RingIndex);
-
 		// Track this actor layout state
 		LayoutShared->SaveActorState(this, AttachedActor);
+
+		const FVector RelativeOffset = CalculateRelativeOffset(SlotAngle, RingIndex);
 		AttachedActor->SetActorRelativeLocation(RelativeOffset);
 
 		if (bOrient)
 		{
 			const FVector EyePosition = AttachedActor->GetActorLocation();
 			const FVector TargetPosition = ModifyActor->GetActorLocation();
-			const FRotator NewRotation = FAvaModifiersActorUtils::FindLookAtRotation(EyePosition, TargetPosition, OrientAxis, bFlipOrient);
+
+			const FRotator NewRotation = FAvaModifiersActorUtils::FindLookAtRotation(EyePosition, TargetPosition, OrientationAxis, bFlipOrient);
 
 			AttachedActor->SetActorRotation(NewRotation);
 		}
+		// Restore original rotation
+		else if (FAvaTransformSharedActorState* ActorState = LayoutShared->FindActorState(AttachedActor))
+		{
+			AttachedActor->SetActorRotation(ActorState->ActorTransform.GetRotation());
+		}
 	}
-	
+
 	// Untrack previous actors that are not attached anymore
 	const TSet<TWeakObjectPtr<AActor>> UntrackActors = ChildrenActorsWeak.Difference(NewChildrenActorsWeak);
 	LayoutShared->RestoreActorsState(this, UntrackActors);

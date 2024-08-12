@@ -38,7 +38,7 @@ struct FAvaModifiersActorUtils
 	/** Begin Outliner */
 	static bool IsActorNotIsolated(const AActor* InActor);
 	/** End Outliner */
-	
-	static FRotator FindLookAtRotation(const FVector& InEyePosition, const FVector& InTargetPosition, const EAvaAxis InAxis, const bool bInFlipAxis);
+
+	static FRotator FindLookAtRotation(const FVector& InEyePosition, const FVector& InTargetPosition, EAvaModifiersAxis InAxis, bool bInFlipAxis);
 	static bool IsActorVisible(const AActor* InActor);
 };

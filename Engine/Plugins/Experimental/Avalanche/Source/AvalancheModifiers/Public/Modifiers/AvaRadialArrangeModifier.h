@@ -3,6 +3,7 @@
 #pragma once
 
 #include "AvaArrangeBaseModifier.h"
+#include "AvaModifiersActorUtils.h"
 #include "AvaRadialArrangeModifier.generated.h"
 
 /** Specifies how child elements will be arranged radially. */
@@ -21,6 +22,15 @@ enum class EAvaRadialArrangement : uint8
 	 Equal
 };
 
+/** Enumerates how to layout the ring */
+UENUM(BlueprintType)
+enum class EAvaRadialArrangePlane : uint8
+{
+	XY,
+	YZ,
+	XZ,
+};
+
 /**
  * Arranges child actors in a circular rings around its center
  */
@@ -30,6 +40,12 @@ class UAvaRadialArrangeModifier : public UAvaArrangeBaseModifier
 	GENERATED_BODY()
 
 public:
+	AVALANCHEMODIFIERS_API void SetPlane(EAvaRadialArrangePlane InPlane);
+	EAvaRadialArrangePlane GetPlane() const
+	{
+		return Plane;
+	}
+
 	/** Sets the number of child elements to use in the arrangement. Children whose index is greater than or equal to this value will be hidden. */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|RadialArrange")
 	AVALANCHEMODIFIERS_API void SetCount(const int32 InCount);
@@ -131,13 +147,13 @@ public:
 
 	/** Sets the axis to look at the center. */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|RadialArrange")
-	AVALANCHEMODIFIERS_API void SetOrientAxis(const EAvaAxis InOrientAxis);
+	AVALANCHEMODIFIERS_API void SetOrientationAxis(EAvaModifiersAxis InAxis);
 
 	/** Gets the axis to look at the center. */
 	UFUNCTION(BlueprintPure, Category="Motion Design|Modifiers|RadialArrange")
-	EAvaAxis GetOrientAxis() const
+	EAvaModifiersAxis GetOrientationAxis() const
 	{
-		return OrientAxis;
+		return OrientationAxis;
 	}
 
 	/** If true, will flip the center orientation to face outwards. */
@@ -153,6 +169,7 @@ public:
 
 protected:
 	//~ Begin UObject
+	virtual void PostLoad() override;
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
@@ -163,32 +180,36 @@ protected:
 	virtual void Apply() override;
 	//~ End UActorModifierCoreBase
 
+	/** Base plane for the radial arrangement */
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(AllowPrivateAccess="true"))
+	EAvaRadialArrangePlane Plane = EAvaRadialArrangePlane::XY;
+
 	/** The number of child elements to limit in the arrangement, or -1 if unlimited. Children whose index is greater than or equal to this value will be hidden. */
-	UPROPERTY(EditInstanceOnly, Setter="SetCount", Getter="GetCount", Category="RadialArrange", meta=(ClampMin="-1", UIMin="-1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(ClampMin="-1", UIMin="-1", AllowPrivateAccess="true"))
 	int32 Count = -1;
 
 	/** The number of rings. */
-	UPROPERTY(EditInstanceOnly, Setter="SetRings", Getter="GetRings", Category="RadialArrange", meta=(ClampMin="1", UIMin="1", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(ClampMin="1", UIMin="1", AllowPrivateAccess="true"))
 	int32 Rings = 1;
 
 	/** The radius from the center to the first inner ring. */
-	UPROPERTY(EditInstanceOnly, Setter="SetInnerRadius", Getter="GetInnerRadius", Interp, Category="RadialArrange", meta=(ClampMin="0.0", UIMin="0.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="RadialArrange", meta=(ClampMin="0.0", UIMin="0.0", AllowPrivateAccess="true"))
 	float InnerRadius = 70.0f;
 
 	/** The radius from the center to the last outer ring. */
-	UPROPERTY(EditInstanceOnly, Setter="SetOuterRadius", Getter="GetOuterRadius", Interp, Category="RadialArrange", meta=(EditCondition="Rings > 1", EditConditionHides, ClampMin="0.0", UIMin="0.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="RadialArrange", meta=(EditCondition="Rings > 1", EditConditionHides, ClampMin="0.0", UIMin="0.0", AllowPrivateAccess="true"))
 	float OuterRadius = 200.0f;
 
 	/** The start angle for the arrangement space and moving clockwise. 0 = Up, -90 = Left, 90 = Right */
-	UPROPERTY(EditInstanceOnly, Setter="SetStartAngle", Getter="GetStartAngle", Interp, Category="RadialArrange", meta=(ClampMin="-180.0", UIMin="-180.0", ClampMax="180.0", UIMax="180.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="RadialArrange", meta=(ClampMin="-180.0", UIMin="-180.0", ClampMax="180.0", UIMax="180.0", AllowPrivateAccess="true"))
 	float StartAngle = -180.0f;
 
 	/** The end angle for the arrangement space. 0 = Up, -90 = Left, 90 = Right */
-	UPROPERTY(EditInstanceOnly, Setter="SetEndAngle", Getter="GetEndAngle", Interp, Category="RadialArrange", meta=(ClampMin = "-180.0", UIMin = "-180.0", ClampMax = "180.0", UIMax = "180.0", AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Interp, Category="RadialArrange", meta=(ClampMin = "-180.0", UIMin = "-180.0", ClampMax = "180.0", UIMax = "180.0", AllowPrivateAccess="true"))
 	float EndAngle = 180.0f;
 
 	/** Defines how to arrange the child elements around the center. */
-	UPROPERTY(EditInstanceOnly, Setter="SetArrangement", Getter="GetArrangement", Category="RadialArrange", meta=(AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(AllowPrivateAccess="true"))
 	EAvaRadialArrangement Arrangement = EAvaRadialArrangement::Equal;
 
 	/** If true, will arrange the child elements starting from the outer radius and moving to the inner radius. Has no effect if only using one ring. */
@@ -200,7 +221,11 @@ protected:
 	bool bOrient;
 
 	/** The axis to look at the center. */
-	UPROPERTY(EditInstanceOnly, Setter="SetOrientAxis", Getter="GetOrientAxis", Category="RadialArrange", meta=(EditCondition="bOrient", EditConditionHides, AllowPrivateAccess="true"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="RadialArrange", meta=(EditCondition="bOrient", EditConditionHides, AllowPrivateAccess="true"))
+	EAvaModifiersAxis OrientationAxis = EAvaModifiersAxis::None;
+
+	UE_DEPRECATED(5.5, TEXT("Use OrientationAxis instead"))
+	UPROPERTY(meta=(DeprecatedProperty, DeprecationMessage="Use OrientationAxis instead"))
 	EAvaAxis OrientAxis;
 
 	/** If true, will flip the orientation axis to the opposite direction. */
