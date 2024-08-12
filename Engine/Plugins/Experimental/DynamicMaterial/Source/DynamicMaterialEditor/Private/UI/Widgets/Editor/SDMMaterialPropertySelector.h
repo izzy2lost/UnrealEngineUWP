@@ -33,6 +33,10 @@ class SDMMaterialPropertySelector : public SCompoundWidget
 	SLATE_END_ARGS()
 
 public:
+	static FText GetSelectButtonText(EDMMaterialPropertyType InMaterialProperty, bool bInShortName);
+
+	static FText GetButtonToolTip(EDMMaterialPropertyType InMaterialProperty);
+
 	virtual ~SDMMaterialPropertySelector() override = default;
 
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor> InEditorWidget);
@@ -42,6 +46,8 @@ public:
 	EDMMaterialPropertyType GetSelectedProperty() const;
 
 	void SetGlobalSettings();
+
+	void SetPropertyPreviews();
 
 	void SetSelectedProperty(EDMMaterialPropertyType InMaterialProperty);
 

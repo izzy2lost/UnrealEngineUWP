@@ -55,6 +55,22 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapBase::CreateSlot_PropertyLis
 			]
 		];
 
+	NewSlotList->AddSlot()
+		[
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SBox)
+				.WidthOverride(20.f)
+			]
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				CreateSlot_SelectButton(EDMMaterialPropertyType::Any)
+			]
+		];
+
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
 	{
 		if (IsCustomMaterialProperty(PropertyPair.Key))
@@ -83,17 +99,8 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapBase::CreateSlot_PropertyLis
 
 TSharedRef<SWidget> SDMMaterialPropertySelector_WrapBase::CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty)
 {
-	UEnum* PropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
-	const FText ButtonText = InMaterialProperty == EDMMaterialPropertyType::None
-		? LOCTEXT("GlobalSettings", "Global Settings")
-		: UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InMaterialProperty);
-
-	const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
-
-	const FText ToolTip = (InMaterialProperty == EDMMaterialPropertyType::None)
-		? LOCTEXT("GeneralSettingsToolTip", "Edit the material global settings.")
-		: FText::Format(Format, PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
+	const FText ButtonText = GetSelectButtonText(InMaterialProperty, /* Short Name */ true);
+	const FText ToolTip = GetButtonToolTip(InMaterialProperty);
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
@@ -125,6 +132,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapBase::CreateSlot_SelectButto
 					SNew(STextBlock)
 					.Font(IDetailLayoutBuilder::GetDetailFont())
 					.Text(ButtonText)
+					.Justification(ETextJustify::Center)
 				]
 			]
 		];

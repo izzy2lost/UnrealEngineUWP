@@ -9,6 +9,7 @@
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UI/Utils/DMWidgetStatics.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialModelPropertyRowGenerator"
 
@@ -112,8 +113,6 @@ void FDMMaterialModelPropertyRowGenerator::AddGlobalMaterialParameterValue(EDMMa
 			{
 				if (UDMMaterialValueFloat1* AlphaValue = Cast<UDMMaterialValueFloat1>(MaterialProperty->GetComponent(UDynamicMaterialModelEditorOnlyData::AlphaValueName)))
 				{
-					UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
 					AddGlobalValue(
 						InGlobalSettingEditorWidget,
 						InMaterialModelBase,
@@ -121,7 +120,7 @@ void FDMMaterialModelPropertyRowGenerator::AddGlobalMaterialParameterValue(EDMMa
 						AlphaValue,
 						FText::Format(
 							LOCTEXT("PropertyFormat", "Global {0}"),
-							MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InProperty))
+							UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InProperty)
 						)
 					);
 				}

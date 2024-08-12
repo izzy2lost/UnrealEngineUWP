@@ -23,17 +23,8 @@ void SDMMaterialPropertySelector_Vertical::Construct(const FArguments& InArgs, c
 
 TSharedRef<SWidget> SDMMaterialPropertySelector_Vertical::CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty)
 {
-	UEnum* PropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
-	const FText ButtonText = InMaterialProperty == EDMMaterialPropertyType::None
-		? LOCTEXT("GlobalSettings", "Global Settings")
-		: PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty));
-
-	const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
-
-	const FText ToolTip = (InMaterialProperty == EDMMaterialPropertyType::None)
-		? LOCTEXT("GeneralSettingsToolTip", "Edit the material global settings.")
-		: FText::Format(Format, PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
+	const FText ButtonText = GetSelectButtonText(InMaterialProperty, /* Short Name */ false);
+	const FText ToolTip = GetButtonToolTip(InMaterialProperty);
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")

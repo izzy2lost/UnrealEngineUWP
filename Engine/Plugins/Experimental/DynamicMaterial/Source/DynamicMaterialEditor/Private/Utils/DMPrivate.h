@@ -34,6 +34,8 @@ namespace UE::DynamicMaterialEditor::Private
 
 	void LogError(const FString& InMessage, bool bInToast = true, const UObject* InSource = nullptr);
 
+	FText GetMaterialPropertyLongDisplayName(EDMMaterialPropertyType InMaterialProperty);
+
 	FText GetMaterialPropertyShortDisplayName(EDMMaterialPropertyType InMaterialProperty);
 }
 

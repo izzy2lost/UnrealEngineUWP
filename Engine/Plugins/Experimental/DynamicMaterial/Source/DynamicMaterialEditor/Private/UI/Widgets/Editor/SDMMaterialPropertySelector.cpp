@@ -65,7 +65,21 @@ void SDMMaterialPropertySelector::SetGlobalSettings()
 		return;
 	}
 
-	EditorWidget->EditSlot(nullptr);
+	EditorWidget->EditGlobalSettings();
+}
+
+void SDMMaterialPropertySelector::SetPropertyPreviews()
+{
+	SelectedProperty = EDMMaterialPropertyType::Any;
+
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	EditorWidget->ShowPropertyPreviews();
 }
 
 void SDMMaterialPropertySelector::SetSelectedProperty(EDMMaterialPropertyType InMaterialProperty)
@@ -114,9 +128,7 @@ TSharedPtr<SDMMaterialSlotEditor> SDMMaterialPropertySelector::GetSlotEditorWidg
 TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
 {
 	const FText Format = LOCTEXT("PropertyEnableFormat", "Toggle the {0} property.\n\nProperty must be valid for the Material Type.");
-	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
-	const FText ToolTip = FText::Format(Format, MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
+	const FText ToolTip = FText::Format(Format, GetSelectButtonText(InMaterialProperty, /* Short Name */ false));
 
 	return SNew(SCheckBox)
 		.IsEnabled(this, &SDMMaterialPropertySelector::GetPropertyEnabledEnabled, InMaterialProperty)
@@ -125,78 +137,43 @@ TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_EnabledButton(EDMMat
 		.ToolTipText(ToolTip);
 }
 
-TSharedRef<SWidget> SDMMaterialPropertySelector::CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty)
+FText SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialPropertyType InMaterialProperty, bool bInShortName)
 {
-	EDMMaterialEditorLayout Layout = EDMMaterialEditorLayout::First;
-
-	if (UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get())
+	switch (InMaterialProperty)
 	{
-		Layout = Settings->Layout;
+		case EDMMaterialPropertyType::None:
+			return bInShortName
+				? LOCTEXT("GlobalSettingsShort", "Global")
+				: LOCTEXT("GlobalSettings", "Global Settings");
+
+		case EDMMaterialPropertyType::Any:
+			return bInShortName
+				? LOCTEXT("Properties", "Props")
+				: LOCTEXT("PropertyPreviews", "Properties");
+
+		default:
+			return bInShortName
+				? UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InMaterialProperty)
+				: UE::DynamicMaterialEditor::Private::GetMaterialPropertyLongDisplayName(InMaterialProperty);
 	}
+}
 
-	UEnum* PropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+FText SDMMaterialPropertySelector::GetButtonToolTip(EDMMaterialPropertyType InMaterialProperty)
+{
+	switch (InMaterialProperty)
+	{
+		case EDMMaterialPropertyType::None:
+			return LOCTEXT("GeneralSettingsToolTip", "Edit the Material Global Settings.");
 
-	auto UseShortName = [Layout]()
+		case EDMMaterialPropertyType::Any:
+			return LOCTEXT("PropertyPreviewsToolTip", "Preview and toggle all the Material Properties.");
+
+		default:
 		{
-			switch (Layout)
-			{
-				case EDMMaterialEditorLayout::LeftSlim:
-					return true;
-
-				default:
-					return false;
-			}
-		};
-
-	const bool bUseShortName = UseShortName();
-
-	const FText ButtonText = InMaterialProperty == EDMMaterialPropertyType::None
-		? LOCTEXT("GlobalSettings", "Global Settings")
-		: (bUseShortName 
-			? UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InMaterialProperty)
-			: PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
-
-	const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
-	UEnum* MaterialPropertyEnum = StaticEnum<EDMMaterialPropertyType>();
-
-	const FText ToolTip = (InMaterialProperty == EDMMaterialPropertyType::None)
-		? LOCTEXT("GeneralSettingsToolTip", "Edit the material global settings.")
-		: FText::Format(Format, MaterialPropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty)));
-
-	return SNew(SCheckBox)
-		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
-		.HAlign(EHorizontalAlignment::HAlign_Center)
-		.Padding(0.f)
-		.IsEnabled(this, &SDMMaterialPropertySelector::GetPropertySelectEnabled, InMaterialProperty)
-		.IsChecked(this, &SDMMaterialPropertySelector::GetPropertySelectState, InMaterialProperty)
-		.OnCheckStateChanged(this, &SDMMaterialPropertySelector::OnPropertySelectStateChanged, InMaterialProperty)
-		.ToolTipText(ToolTip)
-		.Content()
-		[
-			SNew(SBox)
-			.WidthOverride(bUseShortName ? 42.f : 135.f)
-			.Clipping(EWidgetClipping::ClipToBounds)
-			[
-				SNew(SHorizontalBox)
-				+SHorizontalBox::Slot()
-				.VAlign(VAlign_Center)
-				.AutoWidth()
-				[
-					SNew(SImage)
-					.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-					.ColorAndOpacity(this, &SDMMaterialPropertySelector::GetPropertySelectButtonChipColor, InMaterialProperty)
-				]
-				+SHorizontalBox::Slot()
-				.Padding(bUseShortName ? 2.f : 10.f, 6.f)
-				.VAlign(VAlign_Center)
-				.FillWidth(1.f)
-				[
-					SNew(STextBlock)
-					.Font(IDetailLayoutBuilder::GetDetailFont())
-					.Text(ButtonText)
-				]
-			]
-		];
+			const FText Format = LOCTEXT("PropertySelectFormat", "Edit the {0} property.");
+			return FText::Format(Format, GetSelectButtonText(InMaterialProperty, /* Short Name */ false));
+		}
+	}
 }
 
 bool SDMMaterialPropertySelector::IsPropertyEnabled(EDMMaterialPropertyType InMaterialProperty) const
@@ -313,7 +290,7 @@ void SDMMaterialPropertySelector::OnPropertyEnabledStateChanged(ECheckBoxState I
 
 bool SDMMaterialPropertySelector::GetPropertySelectEnabled(EDMMaterialPropertyType InMaterialProperty) const
 {
-	if (InMaterialProperty == EDMMaterialPropertyType::None)
+	if (InMaterialProperty == EDMMaterialPropertyType::None || InMaterialProperty == EDMMaterialPropertyType::Any)
 	{
 		return true;
 	}
@@ -333,6 +310,12 @@ void SDMMaterialPropertySelector::OnPropertySelectStateChanged(ECheckBoxState In
 	if (InMaterialProperty == EDMMaterialPropertyType::None)
 	{
 		SetGlobalSettings();
+		return;
+	}
+
+	if (InMaterialProperty == EDMMaterialPropertyType::Any)
+	{
+		SetPropertyPreviews();
 		return;
 	}
 
@@ -360,7 +343,7 @@ void SDMMaterialPropertySelector::OnPropertySelectStateChanged(ECheckBoxState In
 
 FSlateColor SDMMaterialPropertySelector::GetPropertySelectButtonChipColor(EDMMaterialPropertyType InMaterialProperty) const
 {
-	if (InMaterialProperty == EDMMaterialPropertyType::None)
+	if (InMaterialProperty == EDMMaterialPropertyType::None || InMaterialProperty == EDMMaterialPropertyType::Any)
 	{
 		return FStyleColors::AccentGreen;
 	}

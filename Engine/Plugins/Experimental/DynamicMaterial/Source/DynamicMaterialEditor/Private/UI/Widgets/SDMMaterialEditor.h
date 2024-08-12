@@ -16,6 +16,7 @@ class SDMMaterialComponentEditor;
 class SDMMaterialDesigner;
 class SDMMaterialGlobalSettingsEditor;
 class SDMMaterialPreview;
+class SDMMaterialPropertyPreviews;
 class SDMMaterialPropertySelector;
 class SDMMaterialSlotEditor;
 class SDMStatusBar;
@@ -33,6 +34,13 @@ namespace UE::DynamicMaterialEditor::Private
 	inline const TCHAR* EditorDarkBackground = TEXT("Brushes.Title");
 	inline const TCHAR* EditorLightBackground = TEXT("Brushes.Header");
 }
+
+enum class EDMMaterialEditorMode : uint8
+{
+	GlobalSettings,
+	PropertyPreviews,
+	EditSlot
+};
 
 class SDMMaterialEditor : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
 {
@@ -67,7 +75,7 @@ public:
 	AActor* GetMaterialActor() const;
 
 	/** Widget Components */
-	bool IsEditingGlobalSettings() const;
+	EDMMaterialEditorMode GetEditMode() const;
 
 	const TSharedRef<FUICommandList>& GetCommandList() const;
 
@@ -85,6 +93,8 @@ public:
 	virtual void EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh = false);
 
 	virtual void EditGlobalSettings(bool bInForceRefresh = false);
+
+	virtual void ShowPropertyPreviews(bool bInForceRefresh = false);
 
 	void Validate();
 
@@ -113,6 +123,7 @@ protected:
 	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewSlot;
 	TDMWidgetSlot<SDMMaterialPropertySelector> PropertySelectorSlot;
 	TDMWidgetSlot<SDMMaterialGlobalSettingsEditor> GlobalSettingsEditorSlot;
+	TDMWidgetSlot<SDMMaterialPropertyPreviews> MaterialPropertyPreviewsSlot;
 	FSlotBase* SplitterSlot;
 	TDMWidgetSlot<SDMMaterialSlotEditor> SlotEditorSlot;
 	TDMWidgetSlot<SDMMaterialComponentEditor> ComponentEditorSlot;
@@ -127,7 +138,7 @@ protected:
 	TOptional<EDMMaterialPropertyType> PropertyToSelect;
 	TWeakObjectPtr<UDMMaterialSlot> SlotToEdit;
 	TWeakObjectPtr<UDMMaterialComponent> ComponentToEdit;
-	bool bGlobalSettingsMode;
+	EDMMaterialEditorMode EditMode;
 
 	FOnEditedSlotChanged OnEditedSlotChanged;
 	FOnEditedComponentChanged OnEditedComponentChanged;
@@ -163,6 +174,8 @@ protected:
 	virtual TSharedRef<SWidget> CreateSlot_Main() = 0;
 
 	TSharedRef<SDMMaterialGlobalSettingsEditor> CreateSlot_GlobalSettingsEditor();
+
+	TSharedRef<SDMMaterialPropertyPreviews> CreateSlot_MaterialPropertyPreviews();
 
 	TSharedRef<SDMMaterialPreview> CreateSlot_Preview();
 

@@ -94,6 +94,11 @@ namespace UE::DynamicMaterialEditor::Private
 		}
 	}
 
+	FText GetMaterialPropertyLongDisplayName(EDMMaterialPropertyType InMaterialProperty)
+	{
+		return StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty));
+	}
+
 	FText GetMaterialPropertyShortDisplayName(EDMMaterialPropertyType InMaterialProperty)
 	{
 		constexpr const TCHAR* ShortNameName = TEXT("ShortName");
@@ -107,7 +112,7 @@ namespace UE::DynamicMaterialEditor::Private
 			return FText::FromString(ShortName);
 		}
 
-		return PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty));
+		return GetMaterialPropertyLongDisplayName(InMaterialProperty);
 	}
 }
 

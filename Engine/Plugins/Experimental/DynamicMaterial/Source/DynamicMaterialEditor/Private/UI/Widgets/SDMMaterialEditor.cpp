@@ -19,6 +19,7 @@
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialPreview.h"
+#include "UI/Widgets/Editor/SDMMaterialPropertyPreviews.h"
 #include "UI/Widgets/Editor/SDMMaterialPropertySelector.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "UI/Widgets/Editor/SDMStatusBar.h"
@@ -39,7 +40,7 @@ void SDMMaterialEditor::PrivateRegisterAttributes(FSlateAttributeDescriptor::FIn
 SDMMaterialEditor::SDMMaterialEditor()
 	: CommandList(MakeShared<FUICommandList>())
 	, PreviewMaterialManager(MakeShared<FDMPreviewMaterialManager>())
-	, bGlobalSettingsMode(true)
+	, EditMode(EDMMaterialEditorMode::GlobalSettings)
 {
 }
 
@@ -51,7 +52,7 @@ SDMMaterialEditor::~SDMMaterialEditor()
 void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialDesigner>& InDesignerWidget)
 {
 	DesignerWidgetWeak = InDesignerWidget;
-	bGlobalSettingsMode = true;
+	EditMode = EDMMaterialEditorMode::GlobalSettings;
 	PropertyToSelect.Reset();
 
 	SetCanTick(false);
@@ -147,9 +148,9 @@ AActor* SDMMaterialEditor::GetMaterialActor() const
 	return nullptr;
 }
 
-bool SDMMaterialEditor::IsEditingGlobalSettings() const
+EDMMaterialEditorMode SDMMaterialEditor::GetEditMode() const
 {
-	return bGlobalSettingsMode;
+	return EditMode;
 }
 
 void SDMMaterialEditor::SetMaterialActor(AActor* InActor)
@@ -215,7 +216,7 @@ void SDMMaterialEditor::EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh)
 	ComponentEditorSlot.Invalidate();
 	ComponentToEdit.Reset();
 
-	bGlobalSettingsMode = !InSlot;
+	EditMode = InSlot ? EDMMaterialEditorMode::EditSlot : EDMMaterialEditorMode::GlobalSettings;
 
 	if (InSlot)
 	{
@@ -237,13 +238,15 @@ void SDMMaterialEditor::EditComponent(UDMMaterialComponent* InComponent, bool bI
 		return;
 	}
 
-	if (bGlobalSettingsMode)
+	if (EditMode != EDMMaterialEditorMode::EditSlot)
 	{
 		SlotEditorSlot.Invalidate();
 		SplitterSlot = nullptr;
+		GlobalSettingsEditorSlot.Invalidate();
+		MaterialPropertyPreviewsSlot.Invalidate();
 	}
 
-	bGlobalSettingsMode = false;
+	EditMode = EDMMaterialEditorMode::EditSlot;
 
 	ComponentEditorSlot.Invalidate();
 	ComponentToEdit = InComponent;
@@ -251,21 +254,42 @@ void SDMMaterialEditor::EditComponent(UDMMaterialComponent* InComponent, bool bI
 
 void SDMMaterialEditor::EditGlobalSettings(bool bInForceRefresh)
 {
-	if (bGlobalSettingsMode && !bInForceRefresh)
+	if (EditMode == EDMMaterialEditorMode::GlobalSettings && !bInForceRefresh)
 	{
 		return;
 	}
 
-	if (!bGlobalSettingsMode)
+	if (EditMode != EDMMaterialEditorMode::GlobalSettings)
 	{
 		SlotEditorSlot.Invalidate();
 		SplitterSlot = nullptr;
 		ComponentEditorSlot.Invalidate();
+		MaterialPropertyPreviewsSlot.Invalidate();
 	}
 
-	bGlobalSettingsMode = true;
+	EditMode = EDMMaterialEditorMode::GlobalSettings;
 
 	GlobalSettingsEditorSlot.Invalidate();
+}
+
+void SDMMaterialEditor::ShowPropertyPreviews(bool bInForceRefresh)
+{
+	if (EditMode == EDMMaterialEditorMode::PropertyPreviews && !bInForceRefresh)
+	{
+		return;
+	}
+
+	if (EditMode != EDMMaterialEditorMode::PropertyPreviews)
+	{
+		SlotEditorSlot.Invalidate();
+		SplitterSlot = nullptr;
+		ComponentEditorSlot.Invalidate();
+		GlobalSettingsEditorSlot.Invalidate();
+	}
+
+	EditMode = EDMMaterialEditorMode::PropertyPreviews;
+
+	MaterialPropertyPreviewsSlot.Invalidate();
 }
 
 void SDMMaterialEditor::Validate()
@@ -477,7 +501,7 @@ void SDMMaterialEditor::ValidateSlots()
 			PropertySelectorSlot << CreateSlot_PropertySelector();
 		}
 
-		if (bGlobalSettingsMode)
+		if (EditMode == EDMMaterialEditorMode::GlobalSettings)
 		{
 			if (GlobalSettingsEditorSlot.HasBeenInvalidated())
 			{
@@ -486,6 +510,17 @@ void SDMMaterialEditor::ValidateSlots()
 			else
 			{
 				GlobalSettingsEditorSlot->Validate();
+			}
+		}
+		else if (EditMode == EDMMaterialEditorMode::PropertyPreviews)
+		{
+			if (MaterialPropertyPreviewsSlot.HasBeenInvalidated())
+			{
+				MaterialPropertyPreviewsSlot << CreateSlot_MaterialPropertyPreviews();
+			}
+			else
+			{
+				MaterialPropertyPreviewsSlot->Validate();
 			}
 		}
 		else
@@ -586,6 +621,11 @@ TSharedRef<SDMToolBar> SDMMaterialEditor::CreateSlot_ToolBar()
 TSharedRef<SDMMaterialGlobalSettingsEditor> SDMMaterialEditor::CreateSlot_GlobalSettingsEditor()
 {
 	return SNew(SDMMaterialGlobalSettingsEditor, SharedThis(this), GetMaterialModelBase());
+}
+
+TSharedRef<SDMMaterialPropertyPreviews> SDMMaterialEditor::CreateSlot_MaterialPropertyPreviews()
+{
+	return SNew(SDMMaterialPropertyPreviews, SharedThis(this));
 }
 
 TSharedRef<SDMMaterialPreview> SDMMaterialEditor::CreateSlot_Preview()

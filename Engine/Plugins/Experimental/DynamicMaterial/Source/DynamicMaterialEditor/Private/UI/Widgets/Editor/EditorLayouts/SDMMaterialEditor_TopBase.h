@@ -23,6 +23,7 @@ public:
 	virtual void EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh = false) override;
 	virtual void EditComponent(UDMMaterialComponent* InComponent, bool bInForceRefresh = false) override;
 	virtual void EditGlobalSettings(bool bInForceRefresh = false) override;
+	virtual void ShowPropertyPreviews(bool bInForceRefresh = false) override;
 	//~ End SDMMaterialEditor
 
 protected:
@@ -35,7 +36,9 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_Bottom_GlobalSettings();
 
-	TSharedRef<SWidget> CreateSlot_Bottom_Slot();
+	TSharedRef<SWidget> CreateSlot_Bottom_PropertyPreviews();
+
+	TSharedRef<SWidget> CreateSlot_Bottom_EditSlot();
 
 	//~ Begin SDMMaterialEditor
 	virtual void ValidateSlots_Main() override;

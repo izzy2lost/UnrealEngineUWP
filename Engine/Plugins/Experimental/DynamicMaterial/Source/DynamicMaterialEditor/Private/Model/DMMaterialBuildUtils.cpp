@@ -88,7 +88,7 @@ UMaterialExpression* FDMMaterialBuildUtils::CreateExpressionParameter(TSubclassO
 				{
 					const EDMMaterialPropertyType PropertyType = Property->GetMaterialProperty();
 					PropertyIndex = static_cast<int32>(PropertyType);
-					PropertyName = StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(PropertyType)).ToString();
+					PropertyName = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(PropertyType).ToString();
 					break;
 				}
 

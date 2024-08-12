@@ -42,6 +42,13 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 
 	++Row;
 
+	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+		[
+			CreateSlot_SelectButton(EDMMaterialPropertyType::Any)
+		];
+
+	++Row;
+
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
 	{
 		if (IsCustomMaterialProperty(PropertyPair.Key))

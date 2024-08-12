@@ -89,7 +89,7 @@ void UDMMaterialProperty::SetEnabled(bool bInEnabled)
 
 FText UDMMaterialProperty::GetDescription() const
 {
-	return StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(MaterialProperty));
+	return UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(MaterialProperty);
 }
 
 bool UDMMaterialProperty::IsMaterialPin() const

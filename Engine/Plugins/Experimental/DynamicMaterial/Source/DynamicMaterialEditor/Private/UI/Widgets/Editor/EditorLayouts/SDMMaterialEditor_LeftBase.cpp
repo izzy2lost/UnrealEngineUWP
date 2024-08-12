@@ -7,6 +7,7 @@
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialPreview.h"
+#include "UI/Widgets/Editor/SDMMaterialPropertyPreviews.h"
 #include "UI/Widgets/Editor/SDMMaterialPropertySelector.h"
 #include "UI/Widgets/Editor/SDMMaterialSlotEditor.h"
 #include "Widgets/Layout/SBorder.h"
@@ -43,7 +44,7 @@ void SDMMaterialEditor_LeftBase::EditComponent(UDMMaterialComponent* InComponent
 		return;
 	}
 
-	if (bGlobalSettingsMode)
+	if (EditMode != EDMMaterialEditorMode::EditSlot)
 	{
 		RightSlot.Invalidate();
 	}
@@ -53,17 +54,32 @@ void SDMMaterialEditor_LeftBase::EditComponent(UDMMaterialComponent* InComponent
 
 void SDMMaterialEditor_LeftBase::EditGlobalSettings(bool bInForceRefresh)
 {
-	if (bGlobalSettingsMode && !bInForceRefresh)
+	if (EditMode == EDMMaterialEditorMode::GlobalSettings && !bInForceRefresh)
 	{
 		return;
 	}
 
-	if (!bGlobalSettingsMode)
+	if (EditMode != EDMMaterialEditorMode::GlobalSettings)
 	{
 		RightSlot.Invalidate();
 	}
 
 	SDMMaterialEditor::EditGlobalSettings(bInForceRefresh);
+}
+
+void SDMMaterialEditor_LeftBase::ShowPropertyPreviews(bool bInForceRefresh)
+{
+	if (EditMode == EDMMaterialEditorMode::PropertyPreviews && !bInForceRefresh)
+	{
+		return;
+	}
+
+	if (EditMode != EDMMaterialEditorMode::PropertyPreviews)
+	{
+		RightSlot.Invalidate();
+	}
+
+	SDMMaterialEditor::ShowPropertyPreviews(bInForceRefresh);
 }
 
 void SDMMaterialEditor_LeftBase::ValidateSlots_Main()
@@ -152,22 +168,38 @@ TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right()
 
 	const bool bHasSlotToEdit = SlotToEdit.IsValid();
 
-	if (!bGlobalSettingsMode && !bHasSlotToEdit)
+	if (EditMode == EDMMaterialEditorMode::EditSlot && !bHasSlotToEdit)
 	{
-		bGlobalSettingsMode = true;
+		EditMode = EDMMaterialEditorMode::GlobalSettings;
 	}
 	else if (bHasSlotToEdit)
 	{
-		bGlobalSettingsMode = false;
+		EditMode = EDMMaterialEditorMode::EditSlot;
+	}
+
+	TSharedPtr<SWidget> Content;
+
+	switch (EditMode)
+	{
+		default:
+		case EDMMaterialEditorMode::GlobalSettings:
+			Content = CreateSlot_Right_GlobalSettings();
+			break;
+
+		case EDMMaterialEditorMode::PropertyPreviews:
+			Content = CreateSlot_Right_PropertyPreviews();
+			break;
+
+		case EDMMaterialEditorMode::EditSlot:
+			Content = CreateSlot_Right_EditSlot();
+			break;
 	}
 
 	return SNew(SBorder)
 		.BorderImage(FAppStyle::GetBrush(EditorDarkBackground))
 		.Padding(FMargin(0.f, 5.f))
 		[
-			bGlobalSettingsMode
-				? CreateSlot_Right_GlobalSettings()
-				: CreateSlot_Right_Slot()
+			Content.ToSharedRef()
 		];
 }
 
@@ -195,7 +227,31 @@ TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right_GlobalSettings(
 	return NewRight;
 }
 
-TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right_Slot()
+TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right_PropertyPreviews()
+{
+	using namespace UE::DynamicMaterialEditor::Private;
+
+	SScrollBox::FSlot* PropertyPreviewsSlotPtr = nullptr;
+
+	TSharedRef<SBorder> NewRight = SNew(SBorder)
+		.BorderImage(FAppStyle::GetBrush(EditorLightBackground))
+		.Padding(0.f)
+		[
+			SNew(SScrollBox)
+			+ SScrollBox::Slot()
+			.Expose(PropertyPreviewsSlotPtr)
+			.VAlign(EVerticalAlignment::VAlign_Fill)
+			[
+				SNullWidget::NullWidget
+			]
+		];
+
+	MaterialPropertyPreviewsSlot = TDMWidgetSlot<SDMMaterialPropertyPreviews>(PropertyPreviewsSlotPtr, CreateSlot_MaterialPropertyPreviews());
+
+	return NewRight;
+}
+
+TSharedRef<SWidget> SDMMaterialEditor_LeftBase::CreateSlot_Right_EditSlot()
 {
 	using namespace UE::DynamicMaterialEditor::Private;
 

@@ -36,6 +36,11 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 			CreateSlot_SelectButton(EDMMaterialPropertyType::None)
 		];
 
+	NewSlotList->AddSlot()
+		[
+			CreateSlot_SelectButton(EDMMaterialPropertyType::Any)
+		];
+
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
 	{
 		if (!PropertyPair.Value || !PropertyPair.Value->IsEnabled())

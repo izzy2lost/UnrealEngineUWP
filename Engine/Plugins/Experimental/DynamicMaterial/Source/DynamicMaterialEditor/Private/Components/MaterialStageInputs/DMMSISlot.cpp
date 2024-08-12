@@ -11,6 +11,7 @@
 #include "DMValueDefinition.h"
 #include "Model/DMMaterialBuildState.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Utils/DMPrivate.h"
 
 #define LOCTEXT_NAMESPACE "DMMaterialStageInputSlot"
 
@@ -435,7 +436,7 @@ void UDMMaterialStageInputSlot::UpdateOutputConnectors()
 
 		if (MaterialProperties.Contains(MaterialProperty))
 		{
-			const FText MaterialPropertyName = StaticEnum<EDMMaterialPropertyType>()->GetDisplayNameTextByValue(static_cast<int64>(MaterialProperty));
+			const FText MaterialPropertyName = UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(MaterialProperty);
 			const TArray<EDMValueType>& OutputTypes = Slot->GetOutputConnectorTypesForMaterialProperty(MaterialProperty);
 
 			for (int32 OutputTypeIdx = 0; OutputTypeIdx < OutputTypes.Num(); ++OutputTypeIdx)
