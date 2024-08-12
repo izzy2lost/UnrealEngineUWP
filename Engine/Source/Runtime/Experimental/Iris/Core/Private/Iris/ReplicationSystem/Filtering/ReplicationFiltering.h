@@ -270,6 +270,9 @@ private:
 
 	uint8 GetObjectScopeHysteresisFrameCount(FName Profile) const;
 
+	bool HasSubObjectInScopeWithFilteredOutRootObject(FNetBitArrayView Objects) const;
+	bool HasSubObjectInScopeWithFilteredOutRootObject(uint32 connectionId) const;
+
 private:
 	enum EHysteresisProcessingMode : uint32
 	{
