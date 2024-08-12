@@ -10,11 +10,6 @@ public class CADLibrary : ModuleRules
 	{
 		bLegalToDistributeObjectCode = true;
 
-		if (Target.bIsBuildingConsoleApplication)
-		{
-			PublicDefinitions.Add("DO_ENSURE=0");
-		}
-
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{

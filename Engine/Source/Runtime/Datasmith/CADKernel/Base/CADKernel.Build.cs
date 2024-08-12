@@ -13,16 +13,10 @@ namespace UnrealBuildTool.Rules
 			
 			PublicDefinitions.Add("CADKERNEL_THINZONE=0");
 
-			if (Target.bIsBuildingConsoleApplication)
-			{
-				PublicDefinitions.Add("DO_ENSURE=0");
-			}
-
 			PublicDependencyModuleNames.AddRange(
 				new string[]
 				{
 					"Core",
-					"GeometryCore",
 				}
 			);
 		}
