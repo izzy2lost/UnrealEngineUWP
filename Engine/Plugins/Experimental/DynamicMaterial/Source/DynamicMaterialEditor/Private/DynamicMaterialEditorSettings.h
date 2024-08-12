@@ -137,6 +137,22 @@ enum class EDMMaterialPreviewMesh : uint8
 	ShaderBall
 };
 
+UENUM(BlueprintType)
+enum class EDMMaterialEditorLayout : uint8
+{
+	Left,
+	LeftAutoHide,
+	LeftSlim,
+	TopVertical,
+	TopVerticalAutoHide,
+	TopHorizontal,
+	TopHorizontalAutoHide,
+	TopSlim,
+
+	First = Left,
+	Last = TopSlim
+};
+
 /**
  * Material Designer Settings
  */
@@ -154,6 +170,9 @@ public:
 	/** Changes the currently active material in the designer following actor/object selection. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Editor")
 	bool bFollowSelection;
+
+	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout")
+	EDMMaterialEditorLayout Layout;
 
 	/** Adjusts the vertical size of the material layer view. */
 	UPROPERTY(Config, EditAnywhere, BlueprintReadWrite, Category = "Layout", meta = (

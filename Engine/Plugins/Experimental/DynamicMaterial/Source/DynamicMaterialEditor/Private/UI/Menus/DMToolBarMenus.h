@@ -14,6 +14,7 @@ class UDMMenuContext;
 class UDynamicMaterialInstance;
 class UDynamicMaterialModelBase;
 class UToolMenu;
+enum class EDMMaterialEditorLayout : uint8;
 struct FToolMenuSection;
 struct FUIAction;
 
@@ -23,17 +24,19 @@ public:
 	static TSharedRef<SWidget> MakeEditorLayoutMenu(const TSharedPtr<SDMMaterialEditor>& InEditorWidget = nullptr);
 
 private:
-	static void AddToolBarExportMenu(UToolMenu* InMenu);
+	static void AddMenu(UToolMenu* InMenu);
 
-	static void AddToolBarAdvancedSection(UToolMenu* InMenu);
+	static void AddExportMenu(UToolMenu* InMenu);
 
-	static void AddToolBarSettingsMenu(UToolMenu* InMenu);
+	static void AddSettingsMenu(UToolMenu* InMenu);
 
-	static void AddToolBarEditorLayoutMenu(UToolMenu* InMenu);
+	static void AddEditorLayoutSection(UToolMenu* InMenu);
 
-	static void AddToolBarBoolOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName, const FUIAction InAction);
+	static void AddAdvancedSection(UToolMenu* InMenu);
 
-	static void AddToolBarIntOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName,
+	static void AddBoolOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName, const FUIAction InAction);
+
+	static void AddIntOptionMenuEntry(FToolMenuSection& InSection, const FName& InPropertyName,
 		TAttribute<bool> InIsEnabledAttribute = TAttribute<bool>(),
 		TAttribute<EVisibility> InVisibilityAttribute = TAttribute<EVisibility>());
 

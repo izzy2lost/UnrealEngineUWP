@@ -93,6 +93,22 @@ namespace UE::DynamicMaterialEditor::Private
 			FSlateNotificationManager::Get().AddNotification(Info);
 		}
 	}
+
+	FText GetMaterialPropertyShortDisplayName(EDMMaterialPropertyType InMaterialProperty)
+	{
+		constexpr const TCHAR* ShortNameName = TEXT("ShortName");
+
+		UEnum* PropertyEnum = StaticEnum<EDMMaterialPropertyType>();
+
+		const FString ShortName = PropertyEnum->GetMetaData(ShortNameName, PropertyEnum->GetIndexByValue(static_cast<int64>(InMaterialProperty)));
+
+		if (!ShortName.IsEmpty())
+		{
+			return FText::FromString(ShortName);
+		}
+
+		return PropertyEnum->GetDisplayNameTextByValue(static_cast<int64>(InMaterialProperty));
+	}
 }
 
 FDMMaterialLayerReference::FDMMaterialLayerReference()
