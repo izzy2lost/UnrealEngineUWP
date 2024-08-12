@@ -403,21 +403,20 @@ void UE::Interchange::FTaskParsing::Execute()
 		}
 		for (const TPair<TWeakObjectPtr<UInterchangeTranslatorBase>, FString>& MessagePerTranslator : TranslatorMessageMap)
 		{
+
+			FText ResultText = FText::Format(NSLOCTEXT("InterchangeTaskParsingDoTask", "RenamedAssetsMessageHeader", "Renamed Assets: {0}")
+				, FText::FromString(MessagePerTranslator.Value));
+
 			if (GIsAutomationTesting)
 			{
-				
 				UInterchangeResultDisplay_Generic* DisplayResult = NewObject<UInterchangeResultDisplay_Generic>(GetTransientPackage(), UInterchangeResultDisplay_Generic::StaticClass());
-				FString Message = NSLOCTEXT("InterchangeTaskParsingDoTask", "RenamedAssetsMessageHeader", "Renamed Assets:").ToString();
-				Message += MessagePerTranslator.Value;
-				DisplayResult->Text = FText::FromString(Message);
+				DisplayResult->Text = ResultText;
 				MessagePerTranslator.Key->AddMessage(DisplayResult);
 			}
 			else
 			{
 				UInterchangeResultWarning_Generic* WarningResult = NewObject<UInterchangeResultWarning_Generic>(GetTransientPackage(), UInterchangeResultWarning_Generic::StaticClass());
-				FString Message = NSLOCTEXT("InterchangeTaskParsingDoTask", "RenamedAssetsMessageHeader", "Renamed Assets:").ToString();
-				Message += MessagePerTranslator.Value;
-				WarningResult->Text = FText::FromString(Message);
+				WarningResult->Text = ResultText;
 				MessagePerTranslator.Key->AddMessage(WarningResult);
 			}
 		}

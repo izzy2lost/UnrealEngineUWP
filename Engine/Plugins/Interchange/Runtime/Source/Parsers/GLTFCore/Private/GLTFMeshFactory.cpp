@@ -7,6 +7,8 @@
 #include "StaticMeshAttributes.h"
 #include "Util/ColorConstants.h"
 
+#define LOCTEXT_NAMESPACE "InterchangeGLTFMeshFactory"
+
 namespace GLTF
 {
 	class FMeshFactoryImpl : public GLTF::FBaseLogger
@@ -337,7 +339,7 @@ namespace GLTF
 
 			if (!Primitive.IsValid())
 			{
-				Messages.Emplace(EMessageSeverity::Warning, TEXT("Mesh has an invalid primitive: ") + Mesh.Name);
+				Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("InvalidMeshPrimitive", "Mesh has an invalid primitive : {0}"), FText::FromString(Mesh.Name)));
 				continue;
 			}
 
@@ -417,13 +419,12 @@ namespace GLTF
 
 			if (bHasDegenerateTriangles)
 			{
-				Messages.Emplace(EMessageSeverity::Warning,
-					FString::Printf(TEXT("Mesh %s has primitive with degenerate triangles: %d"), *Mesh.Name, Index));
+				Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("PrimitiveFoundDegenerateTriangles", "Mesh {0} has primitive with degenerate triangles: {1}"), FText::FromString(Mesh.Name), Index));
 			}
 		}
 		if (bMeshUsesEmptyMaterial)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, TEXT("Mesh has primitives with no materials assigned: ") + Mesh.Name);
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("PrimitiveNoMaterialsAssigned", "Mesh has primitives with no materials assigned: {0}") , FText::FromString(Mesh.Name)));
 		}
 	}
 
@@ -789,3 +790,5 @@ namespace GLTF
 		return Impl->PositionIndexToVertexIdPerPrim;
 	}
 } //namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

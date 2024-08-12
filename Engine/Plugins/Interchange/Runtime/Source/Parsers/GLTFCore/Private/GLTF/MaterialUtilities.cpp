@@ -3,6 +3,8 @@
 #include "MaterialUtilities.h"
 #include "GLTFAsset.h"
 
+#define LOCTEXT_NAMESPACE "InterchangeGLTFMaterialUtilities"
+
 namespace GLTF
 {
 	// Returns scale factor if JSON has it, 1.0 by default.
@@ -45,7 +47,7 @@ namespace GLTF
 						const FString ExtensionName = SupportedTextureInfoExtensionsStringified[Index];
 						if (!ExtensionsObj.HasTypedField<EJson::Object>(ExtensionName))
 						{
-							OutMessages.Emplace(RuntimeWarningSeverity(), FString::Printf(TEXT("Extension is not supported: %s"), *ExtensionName));
+							OutMessages.Emplace(RuntimeWarningSeverity(), FText::Format(LOCTEXT("UnsupportedExtension", "Extension is not supported: {0}"), FText::FromString(ExtensionName)));
 							continue;
 						}
 
@@ -94,3 +96,5 @@ namespace GLTF
 	}
 
 }  // namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

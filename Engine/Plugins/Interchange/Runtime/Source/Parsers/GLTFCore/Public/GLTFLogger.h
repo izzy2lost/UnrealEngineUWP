@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Templates/Tuple.h"
-#include "Containers/UnrealString.h"
+#include "Internationalization/Text.h"
 
 namespace GLTF
 {
@@ -22,7 +22,7 @@ namespace GLTF
 	*/
 	EMessageSeverity RuntimeWarningSeverity();
 
-	using FLogMessage = TTuple<EMessageSeverity, FString>;
+	using FLogMessage = TTuple<EMessageSeverity, FText>;
 
 	class GLTFCORE_API FBaseLogger
 	{

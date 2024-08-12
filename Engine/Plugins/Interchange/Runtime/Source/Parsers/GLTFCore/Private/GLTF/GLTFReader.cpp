@@ -21,6 +21,9 @@
 
 #include "Math/UnrealMathVectorConstants.h"
 
+
+#define LOCTEXT_NAMESPACE "InterchangeGLTFReader"
+
 namespace GLTF
 {
 	namespace
@@ -211,7 +214,7 @@ namespace GLTF
 				bool    bSuccess = DecodeDataURI(URI, MimeType, CurrentBufferOffset, DataSize);
 				if (!bSuccess || (MimeType != TEXT("application/octet-stream") && MimeType != TEXT("application/gltf-buffer")) || !ensure(DataSize == ByteLength))
 				{
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Problem decoding buffer from data URI."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BufferDecodingProblem", "Problem decoding buffer from data URI."));
 				}
 				else
 				{
@@ -235,7 +238,7 @@ namespace GLTF
 					}
 					else
 					{
-						Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer file size does not match."));
+						Messages.Emplace(EMessageSeverity::Error, LOCTEXT("NonMatchingBufferFileSize", "Buffer file size does not match."));
 					}
 
 					Reader->Close();
@@ -243,7 +246,7 @@ namespace GLTF
 				}
 				else
 				{
-					Messages.Emplace(EMessageSeverity::Error, FString::Printf(TEXT("Could not load file: '%s'"), *FullPath));
+					Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("LoadingFileFailed", "Could not load file: '{0}'"), FText::FromString(FullPath)));
 				}
 			}
 		}
@@ -253,11 +256,11 @@ namespace GLTF
 			const uint32 BinSize = Asset->BinData.Num();
 			if (BinSize == 0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer from BIN chunk is missing or empty."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BINChunkMissing","Buffer from BIN chunk is missing or empty."));
 			}
 			else if (BinSize < ByteLength)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("Buffer from BIN chunk is too small."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("BINChunkTooSmall","Buffer from BIN chunk is too small."));
 			}
 			else
 			{
@@ -410,7 +413,11 @@ namespace GLTF
 
 		if (!FPrimitive::SupportedModes.Contains(Mode))
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Primitive Mode[%s] in Primitive[%i] (in Mesh[%s]) is currently not supported. Geometry won't be imported."), *FPrimitive::ToString(Mode), PrimitiveIndex, *Mesh.Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("UnsupportedPrimitiveMode", 
+				"Primitive Mode[{0}] in Primitive[{1}] (in Mesh[{2}]) is currently not supported. Geometry won't be imported."), 
+				FText::FromString(FPrimitive::ToString(Mode)), 
+				PrimitiveIndex, 
+				FText::FromString(Mesh.Name)));
 		}
 
 		const int32                   MaterialIndex = GetIndex(Object, TEXT("material"));
@@ -479,7 +486,7 @@ namespace GLTF
 				if (NumberOfMorphTargets != Mesh.Primitives.Last().MorphTargets.Num())
 				{
 					//All primitives MUST have the same number of morph targets in the same order.
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Number of Primitive.Targets is not consistent across the Mesh."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("InconsistentNumMorphTargets", "Number of Primitive.Targets is not consistent across the Mesh."));
 				}
 			}
 
@@ -603,7 +610,7 @@ namespace GLTF
 		FString Name = GetString(Object, TEXT("name"));
 		if (!Found)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("No camera node found for camera %d('%s')"), CameraIndex, *Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("NoCameraNodeFound", "No camera node found for camera {0}('{1}')"), CameraIndex, FText::FromString(Name)));
 			return;
 		}
 
@@ -633,7 +640,7 @@ namespace GLTF
 		}
 		else
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid camera type: ") + Type);
+			Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("InvalidCameraType", "Invalid camera type: {0}"), FText::FromString(Type)));
 		}
 
 		ProcessExtras(Object, Camera.Extras);
@@ -751,7 +758,7 @@ namespace GLTF
 				Image.Format     = ImageFormatFromMimeType(MimeType);
 				if (!bSuccess || Image.Format == FImage::EFormat::Unknown)
 				{
-					Messages.Emplace(EMessageSeverity::Error, TEXT("Problem decoding image from data URI."));
+					Messages.Emplace(EMessageSeverity::Error, LOCTEXT("DecodingImageProblem", "Problem decoding image from data URI."));
 				}
 				else
 				{
@@ -780,7 +787,7 @@ namespace GLTF
 					}
 					else
 					{
-						Messages.Emplace(EMessageSeverity::Error, TEXT("Could not load image file."));
+						Messages.Emplace(EMessageSeverity::Error, LOCTEXT("ErrorLoadingImageFile", "Could not load image file."));
 					}
 				}
 			}
@@ -850,7 +857,7 @@ namespace GLTF
 		}
 		else
 		{
-			Messages.Emplace(EMessageSeverity::Warning, TEXT("Invalid texture source index: ") + FString::FromInt(SourceIndex));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("InvalidTextureSourceIndex", "Invalid texture source index: {0}"), SourceIndex));
 		}
 	}
 
@@ -901,7 +908,7 @@ namespace GLTF
 		TUniquePtr<FArchive> JsonFileReader;
 		if (!FileReader)
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Can't load file: ") + InFilePath);
+			Messages.Emplace(EMessageSeverity::Error, FText::Format(LOCTEXT("ErrorLoadingFile", "Can't load file: {0}"), FText::FromString(InFilePath)));
 			return;
 		}
 
@@ -926,7 +933,7 @@ namespace GLTF
 		}
 		else
 		{
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Invalid extension."));
+			Messages.Emplace(EMessageSeverity::Error, LOCTEXT("InvalidFileExtention", "Invalid extension."));
 			return;
 		}
 		JsonFileReader.Reset(new FBufferReader(JsonBuffer.GetCharArray().GetData(), sizeof(FString::ElementType) * JsonBuffer.Len(), false));
@@ -936,7 +943,7 @@ namespace GLTF
 		if (!FJsonSerializer::Deserialize(JsonReader, JsonRoot))
 		{
 			JsonRoot.Reset();
-			Messages.Emplace(EMessageSeverity::Error, TEXT("Problem loading JSON."));
+			Messages.Emplace(EMessageSeverity::Error, LOCTEXT("JSONDeserializationError","Problem loading JSON."));
 			return;
 		}
 
@@ -947,7 +954,7 @@ namespace GLTF
 			const double MinVersion = AssetInfo->GetNumberField(TEXT("minVersion"));
 			if (MinVersion > 2.0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("This importer supports glTF version 2.0 (or compatible) assets."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("UnsupportedGLTFAssetMinVersion", "This importer supports glTF version 2.0 (or compatible) assets."));
 				return;
 			}
 			OutAsset.Metadata.Version = MinVersion;
@@ -957,7 +964,7 @@ namespace GLTF
 			const double Version = AssetInfo->GetNumberField(TEXT("version"));
 			if (Version < 2.0)
 			{
-				Messages.Emplace(EMessageSeverity::Error, TEXT("This importer supports glTF asset version 2.0 or later."));
+				Messages.Emplace(EMessageSeverity::Error, LOCTEXT("UnsupportedGLTFAssetVersion", "This importer supports glTF asset version 2.0 or later."));
 				return;
 			}
 			OutAsset.Metadata.Version = Version;
@@ -988,7 +995,7 @@ namespace GLTF
 
 		if (OutAsset.ValidationCheck() != FAsset::Valid)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("For GLTF Asset [%s] not all imported objects are valid."), *OutAsset.Name));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("SomeImportedObjectsInvalid","For GLTF Asset [{0}] not all imported objects are valid."), FText::FromString(OutAsset.Name)));
 		}
 
 		JsonRoot.Reset();
@@ -1270,7 +1277,7 @@ namespace GLTF
 
 		if (UnUsedIndicesString.Len() > 0)
 		{
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Skin objects unused. At indices: %s."), *UnUsedIndicesString));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("UnusedSkinObjects","Skin objects unused. At indices: {0}."), FText::FromString(UnUsedIndicesString)));
 		}
 	}
 
@@ -1432,7 +1439,7 @@ namespace GLTF
 				OffendingJointsNamesString += OffendingJointName;
 			}
 			
-			Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("The same Joint(s) are used in multiple Skins with multiple different InverseBindMatrix values, which is not supported. Ignoring InverseBindMatrices for the entire Import. Offending Joints' Names: %s."), *OffendingJointsNamesString));
+			Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("MultipleSkinsUseSameJointProblem","The same Joint(s) are used in multiple Skins with multiple different InverseBindMatrix values, which is not supported. Ignoring InverseBindMatrices for the entire Import. Offending Joints' Names: {0}."), FText::FromString(OffendingJointsNamesString)));
 			
 			Asset->HasAbnormalInverseBindMatrices = true;
 
@@ -1562,6 +1569,8 @@ namespace GLTF
 					const GLTF::FNode SkinSkeletonNode = Asset->Nodes[Skin.Skeleton];
 					int32 SkinSkeletonDistance = GetRootDistance(SkinSkeletonNode);
 					
+
+					const FText MessageText = LOCTEXT("NonCommonRootNode", "Skeleton node is not a common root.");
 					for (TPair<int32, FRootJoints> Group : ParentToRootJointIndices)
 					{
 						if (Group.Value.Indices.Num() == 1 )
@@ -1574,7 +1583,7 @@ namespace GLTF
 							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
 							if (SkinSkeletonDistance > RootNodeCandidateDistance)
 							{
-								Messages.Emplace(EMessageSeverity::Warning, TEXT("Skeleton node is not a common root."));
+								Messages.Emplace(EMessageSeverity::Warning, MessageText);
 								break;
 							}
 						}
@@ -1588,7 +1597,7 @@ namespace GLTF
 							int32 RootNodeCandidateDistance = GetRootDistance(RootNodeCandidate);
 							if (SkinSkeletonDistance > RootNodeCandidateDistance)
 							{
-								Messages.Emplace(EMessageSeverity::Warning, TEXT("Skeleton node is not a common root."));
+								Messages.Emplace(EMessageSeverity::Warning, MessageText);
 								break;
 							}
 						}
@@ -1638,3 +1647,5 @@ namespace GLTF
 	}
 
 }  // namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

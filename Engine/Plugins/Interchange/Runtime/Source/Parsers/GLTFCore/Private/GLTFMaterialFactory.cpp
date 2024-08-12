@@ -14,6 +14,8 @@
 #include "GLTFTexture.h"
 // IWYU pragma: end_keep
 
+#define LOCTEXT_NAMESPACE "InterchangeGLTFMaterialFactory"
+
 namespace GLTF
 {
 	namespace
@@ -35,7 +37,7 @@ namespace GLTF
 		{
 			if (!ensure(MaterialElementFactory))
 			{
-				Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("MaterialElementFactory is unexpected nullptr.")));
+				Messages.Emplace(EMessageSeverity::Warning, LOCTEXT("MaterialElementFactoryNull", "MaterialElementFactory is unexpected nullptr."));
 			}
 		}
 
@@ -226,7 +228,7 @@ namespace GLTF
 			default:
 				if (!ensure(false))
 				{
-					Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("AlphaMode Opaque not supported for Opacity")));
+					Messages.Emplace(EMessageSeverity::Warning, LOCTEXT("InvalidAlphaMode", "AlphaMode Opaque not supported for Opacity"));
 				}
 				break;
 		}
@@ -834,3 +836,5 @@ namespace GLTF
 	}
 
 }  // namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

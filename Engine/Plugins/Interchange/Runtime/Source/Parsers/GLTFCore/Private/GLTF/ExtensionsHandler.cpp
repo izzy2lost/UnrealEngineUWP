@@ -13,6 +13,9 @@
 #include "draco/compression/decode.h"
 #endif
 
+
+#define LOCTEXT_NAMESPACE "InterchangeGLTFExtensionHandler"
+
 namespace GLTF
 {
 #if USE_DRACO_LIBRARY
@@ -400,7 +403,7 @@ namespace GLTF
 				default:
 					if (!ensure(false))
 					{
-						Messages.Emplace(RuntimeWarningSeverity(), FString::Printf(TEXT("Material.Extension not supported: %s"), ToString(Extension)));
+						Messages.Emplace(RuntimeWarningSeverity(), FText::Format(LOCTEXT("UnsupportedMaterialExtension", "Material.Extension not supported: {0}"), FText::FromString(ToString(Extension))));
 					}
 					break;
 			}
@@ -513,7 +516,7 @@ namespace GLTF
 									if (!DracoHelpers::AcquireIndicesFromDracoMesh(Mesh.get(), Accessor.ComponentType, Accessor.BufferView.Buffer.Data))
 									{
 										Accessor.BufferView = FBufferView();
-										Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Failed to acquire Indices from Draco Mesh, for PrimitiveIdx: %s, in Mesh: %s"), *FString::FromInt(PrimitiveIndex), *MeshUniqueId));
+										Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("DracoMeshIndexAcquisitionFailed", "Failed to acquire Indices from Draco Mesh, for PrimitiveIdx: {0}, in Mesh: {1}"), PrimitiveIndex, FText::FromString(MeshUniqueId)));
 									}
 								}
 							}
@@ -540,7 +543,7 @@ namespace GLTF
 												{
 													//Clear out the BufferView so it is not used:
 													Accessor.BufferView = FBufferView();
-													Messages.Emplace(EMessageSeverity::Warning, FString::Printf(TEXT("Failed to acquire %s Attributes from Draco Mesh, for PrimitiveIdx: %s, in Mesh: %s"), *ToString(MeshAttributeType), *FString::FromInt(PrimitiveIndex), *MeshUniqueId));
+													Messages.Emplace(EMessageSeverity::Warning, FText::Format(LOCTEXT("DracoMeshAttributeAcquisitionFailed", "Failed to acquire {0} Attributes from Draco Mesh, for PrimitiveIdx: {1}, in Mesh: {2}"), FText::FromString(ToString(MeshAttributeType)), PrimitiveIndex, FText::FromString(MeshUniqueId)));
 												}
 											}
 										}
@@ -561,7 +564,7 @@ namespace GLTF
 				default:
 					if (!ensure(false))
 					{
-						Messages.Emplace(RuntimeWarningSeverity(), FString::Printf(TEXT("Primitive.Extension not supported: %s"), ToCStr(ToString(Extension))));
+						Messages.Emplace(RuntimeWarningSeverity(), FText::Format(LOCTEXT("UnsupportedPrimitiveExtension", "Primitive.Extension not supported: {0}"), FText::FromString(ToString(Extension))));
 					}
 				break;
 			}
@@ -642,7 +645,7 @@ namespace GLTF
 		{
 			if (ExtensionsSupported.Find(StrValuePair.Get<0>()) == INDEX_NONE)
 			{
-				Messages.Emplace(RuntimeWarningSeverity(), FString::Printf(TEXT("Extension is not supported: %s"), *StrValuePair.Get<0>()));
+				Messages.Emplace(RuntimeWarningSeverity(), FText::Format(LOCTEXT("UnsupportedExtension", "Extension is not supported: {0}"), FText::FromString(StrValuePair.Get<0>())));
 			}
 		}
 	}
@@ -675,7 +678,9 @@ namespace GLTF
 		else if (Type == TEXT("directional"))
 			Light.Type = FLight::EType::Directional;
 		else
-			Messages.Emplace(RuntimeWarningSeverity(), FString::Printf(TEXT("Light has no type specified: %s"), *Light.Name));
+			Messages.Emplace(RuntimeWarningSeverity(), FText::Format(LOCTEXT("UnspecifiedLightType", "Light has no type specified: %s"), FText::FromString(Light.Name)));
 	}
 
 }  // namespace GLTF
+
+#undef LOCTEXT_NAMESPACE

@@ -51,7 +51,7 @@ bool FInterchangeWorkerImpl::Run(const FString& WorkerVersionError)
 		FErrorCommand ErrorCmd;
 		
 		UInterchangeResultError_Generic* Message = FbxParser.AddMessage<UInterchangeResultError_Generic>();
-		Message->Text = FText::FromString(WorkerVersionError);
+		Message->Text = FText::Format(NSLOCTEXT("InterchangeWorker", "WorkerVersionError", "Version Error: {0}"), FText::FromString(WorkerVersionError));
 
 		ErrorCmd.ErrorMessage = Message->ToJson();
 		CommandIO.SendCommand(ErrorCmd, Config::SendCommandTimeout_s);

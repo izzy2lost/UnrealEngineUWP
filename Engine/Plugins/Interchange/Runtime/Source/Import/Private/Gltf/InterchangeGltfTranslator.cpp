@@ -47,7 +47,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(InterchangeGltfTranslator)
 
-#define LOCTEXT_NAMESPACE "InterchangeGltfTranslator"
+#define LOCTEXT_NAMESPACE "InterchangeGLTFTranslator"
 
 static const TArray<FString> ImporterSupportedExtensions = {
 	/* Lights */
@@ -149,7 +149,7 @@ namespace UE::Interchange::Gltf::Private
 	};
 	void SendAnalytics(const TranslationResult& TranslationResult,
 		const GLTF::FAsset& Asset = GLTF::FAsset(),
-		const FString& GLTFReaderLogMessage = "")
+		const FText& GLTFReaderLogMessage = FText::GetEmpty())
 	{
 		if (FEngineAnalytics::IsAvailable())
 		{
@@ -461,7 +461,7 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		{
 			UInterchangeResultError_Generic* ErrorResult = AddMessage< UInterchangeResultError_Generic >();
 			ErrorResult->SourceAssetName = FileName;
-			ErrorResult->Text = FText::Format(LOCTEXT("GLTF::FFileReader::ReadFile Failed.", "LogMessage: {0}"), FText::FromString(LogMessage.Value));
+			ErrorResult->Text = LogMessage.Value;
 
 			SendAnalytics(TranslationResult::GLTFREADER_FAILED, GltfAsset, LogMessage.Value);
 			return false;
@@ -807,21 +807,21 @@ bool UInterchangeGLTFTranslator::Translate( UInterchangeBaseNodeContainer& NodeC
 		case GLTF::EMessageSeverity::Error :
 			{
 				UInterchangeResultError_Generic* ErrorResult = AddMessage< UInterchangeResultError_Generic >();
-				ErrorResult->Text = FText::FromString(LogMessage.Get<1>());
+				ErrorResult->Text = LogMessage.Get<1>();
 				Result = ErrorResult;
 			}
 			break;
 		case GLTF::EMessageSeverity::Warning:
 			{
 				UInterchangeResultWarning_Generic* WarningResult = AddMessage< UInterchangeResultWarning_Generic >();
-				WarningResult->Text = FText::FromString(LogMessage.Get<1>());
+				WarningResult->Text = LogMessage.Get<1>();
 				Result = WarningResult;
 			}
 			break;
 		case GLTF::EMessageSeverity::Display:
 			{
 				UInterchangeResultDisplay_Generic* DisplayResult = AddMessage< UInterchangeResultDisplay_Generic >();
-				DisplayResult->Text = FText::FromString(LogMessage.Get<1>());
+				DisplayResult->Text = LogMessage.Get<1>();
 				Result = DisplayResult;
 			}
 			break;
@@ -1239,7 +1239,7 @@ TFuture< TOptional< UE::Interchange::FMeshPayloadData > > UInterchangeGLTFTransl
 				{
 					UInterchangeResultError_Generic* ErrorResult = AddMessage<UInterchangeResultError_Generic>();
 					ErrorResult->SourceAssetName = SourceData ? SourceData->GetFilename() : FString();
-					ErrorResult->Text = NSLOCTEXT("UInterchangeGLTFTranslator", "GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
+					ErrorResult->Text = LOCTEXT("GetMeshPayloadData_ValidateMeshDescriptionFail", "Invalid mesh data (NAN) was found and changed to zero. This may affect the mesh rendering.");
 				}
 
 				Result.Emplace(MeshPayLoadData);
