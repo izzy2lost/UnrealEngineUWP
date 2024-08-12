@@ -41,6 +41,7 @@ struct FMetalRenderPipelineHash
 class FMetalSubBufferHeap;
 class FMetalSubBufferLinear;
 class FMetalSubBufferMagazine;
+class FMetalDevice;
 
 inline uint32 GetTypeHash(const MTLBufferPtr& BufferPtr)
 {
@@ -106,6 +107,11 @@ public:
 	
     MTLBufferPtr GetMTLBuffer() {return Buffer;};
     
+    void MarkDeleted()
+    {
+        bMarkedDeleted = true;
+    }
+    
 private:
     MTLBufferPtr Buffer;
 	FMetalSubBufferHeap* Heap;
@@ -116,16 +122,14 @@ private:
     bool bPooled = false;
     bool bSingleUse = false;
     bool bMarkedAllocated = false;
+    bool bMarkedDeleted = false;
 };
 
-typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
-
-// Safely release a metal buffer, correctly handling the case where the RHI has been destructed first
-void SafeReleaseMetalBuffer(FMetalBufferPtr Buffer);
+typedef TSharedPtr<FMetalBuffer, ESPMode::ThreadSafe> FMetalBufferPtr;
 
 struct FMetalTextureCreateDesc : public FRHITextureCreateDesc
 {
-	FMetalTextureCreateDesc(FRHITextureCreateDesc const& CreateDesc);
+	FMetalTextureCreateDesc(FMetalDevice& Device, FRHITextureCreateDesc const& CreateDesc);
     FMetalTextureCreateDesc(FMetalTextureCreateDesc const& Other);
     FMetalTextureCreateDesc& operator=(const FMetalTextureCreateDesc& Other);
     
@@ -173,7 +177,7 @@ public:
 	/** 
 	 * Constructor that will create Texture and Color/DepthBuffers as needed
 	 */
-	FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc);
+	FMetalSurface(FMetalDevice& Device, FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc);
 	
 	/**
 	 * Destructor
@@ -186,7 +190,7 @@ public:
 	/** Apply the data in Buffer to the surface specified.
 	 * Will also handle destroying SourceBuffer appropriately.
 	 */
-	void UpdateSurfaceAndDestroySourceBuffer(MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex);
+	void UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex);
 	
 	/**
 	 * Locks one of the texture's mip-maps.
@@ -232,6 +236,7 @@ public:
     MTLTexturePtr Reallocate(MTLTexturePtr Texture, MTL::TextureUsage UsageModifier);
 	void MakeAliasable(void);
 	
+	FMetalDevice& Device;
 	int16 volatile Written;
 	uint8 const FormatKey;
 
@@ -274,6 +279,11 @@ public:
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
 private:
+	/** Safely releases the texture when not in use
+	 * @param MTLTexturePtr Texture from surface to be released
+	 */
+	void SafeRelease(MTLTexturePtr Texture);
+	
 	// The movie playback IOSurface/CVTexture wrapper to avoid page-off
 	CFTypeRef ImageSurfaceRef;
 
@@ -297,18 +307,23 @@ public:
 	// Matches other RHIs
 	static constexpr const uint32 MetalMaxNumBufferedFrames = 4;
 	
-	FMetalRHIBuffer(FRHICommandListBase& RHICmdList, FRHIBufferDesc const& InBufferDesc, FRHIResourceCreateInfo& CreateInfo);
+	FMetalRHIBuffer(FRHICommandListBase& RHICmdList, FMetalDevice& MetalDevice, FRHIBufferDesc const& InBufferDesc, FRHIResourceCreateInfo& CreateInfo);
 	virtual ~FMetalRHIBuffer();
 	
-	/**
-	 * Prepare a CPU accessible buffer for uploading to GPU memory
-	 */
-	void* Lock(bool bIsOnRHIThread, EResourceLockMode LockMode, uint32 Offset, uint32 Size=0);
+	bool RequiresTransferBuffer();
+	
+	void AllocateBuffers();
+	void ReleaseBuffers();
 	
 	/**
 	 * Prepare a CPU accessible buffer for uploading to GPU memory
 	 */
-	void Unlock();
+	void* Lock(bool bIsOnRHIThread, EResourceLockMode LockMode, uint32 Offset, uint32 Size=0, FMetalBufferPtr InTransferBuffer = nullptr);
+	
+	/**
+	 * Prepare a CPU accessible buffer for uploading to GPU memory
+	 */
+	void Unlock(FRHICommandListBase& RHICmdList);
 	
 	FMetalBufferPtr GetCurrentBuffer()
 	{
@@ -345,6 +360,8 @@ public:
     void TakeOwnership(FMetalRHIBuffer& Other);
     void ReleaseOwnership();
     
+	FMetalDevice& Device;
+	
 	// A temporary shared/CPU accessible buffer for upload/download
 	FMetalBufferPtr TransferBuffer = nullptr;
 	
@@ -443,10 +460,11 @@ public:
 		AccelerationStructure = TStorage::IndexOfType<MTL::AccelerationStructure>()
 #endif
 	};
-
+	
 protected:
-	FMetalResourceViewBase() = default;
-
+	FMetalResourceViewBase(FMetalDevice& InDevice) : Device(InDevice)
+	{}
+	
 public:
 	virtual ~FMetalResourceViewBase();
 
@@ -493,6 +511,7 @@ protected:
 
 	void Invalidate();
 
+	FMetalDevice& Device;
 	bool bOwnsResource = true;
 
 private:
@@ -502,18 +521,15 @@ private:
 class FMetalShaderResourceView final : public FRHIShaderResourceView, public FMetalResourceViewBase
 {
 public:
-	FMetalShaderResourceView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	FMetalShaderResourceView(FMetalDevice& Device, FRHICommandListBase& RHICmdList,
+							FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
 	~FMetalShaderResourceView();
 	FMetalViewableResource* GetBaseResource() const;
 
 	virtual void UpdateView() override;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-private:
-    
-
 public:
-	
 	FRHIDescriptorHandle BindlessHandle;
 	
     virtual FRHIDescriptorHandle GetBindlessHandle() const override
@@ -526,7 +542,8 @@ public:
 class FMetalUnorderedAccessView final : public FRHIUnorderedAccessView, public FMetalResourceViewBase
 {
 public:
-	FMetalUnorderedAccessView(FRHICommandListBase& RHICmdList, FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
+	FMetalUnorderedAccessView(FMetalDevice& Device, FRHICommandListBase& RHICmdList,
+							  FRHIViewableResource* InResource, FRHIViewDesc const& InViewDesc);
 	~FMetalUnorderedAccessView();
 	FMetalViewableResource* GetBaseResource() const;
 
@@ -536,6 +553,7 @@ public:
 #if UE_METAL_RHI_SUPPORT_CLEAR_UAV_WITH_BLIT_ENCODER
 	void ClearUAVWithBlitEncoder(TRHICommandList_RecursiveHazardous<FMetalRHICommandContext>& RHICmdList, uint32 Pattern);
 #endif
+	
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 private:
     FRHIDescriptorHandle BindlessHandle;

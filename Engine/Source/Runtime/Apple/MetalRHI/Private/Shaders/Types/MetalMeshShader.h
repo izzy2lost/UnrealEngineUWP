@@ -19,8 +19,8 @@
 class FMetalMeshShader : public TMetalBaseShader<FRHIMeshShader, SF_Mesh>
 {
 public:
-    FMetalMeshShader(TArrayView<const uint8> InCode);
-    FMetalMeshShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
+    FMetalMeshShader(FMetalDevice& Device, TArrayView<const uint8> InCode);
+    FMetalMeshShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 
     MTLFunctionPtr GetFunction();
 };

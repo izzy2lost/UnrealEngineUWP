@@ -9,9 +9,9 @@
 #include "ResourcePool.h"
 
 class FMetalCommandQueue;
-
+class FMetalDevice;
 class FMetalBuffer;
-typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
+typedef TSharedPtr<FMetalBuffer, ESPMode::ThreadSafe> FMetalBufferPtr;
 
 struct FMetalPooledBufferArgs
 {
@@ -38,7 +38,7 @@ class FMetalSubBufferHeap
     friend class FMetalResourceHeap;
     
 public:
-	FMetalSubBufferHeap(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions, FCriticalSection& PoolMutex);
+	FMetalSubBufferHeap(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions, FCriticalSection& PoolMutex);
 	~FMetalSubBufferHeap();
 	
 	NS::String*        GetLabel() const;
@@ -69,6 +69,7 @@ private:
         FMetalRHIBuffer* Owner;
     };
     
+	FMetalDevice& Device;
 	FCriticalSection& PoolMutex;
 	int64 volatile OutstandingAllocs;
 	NS::UInteger MinAlign;
@@ -82,7 +83,7 @@ private:
 class FMetalSubBufferLinear
 {
 public:
-	FMetalSubBufferLinear(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions, FCriticalSection& PoolMutex);
+	FMetalSubBufferLinear(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions, FCriticalSection& PoolMutex);
 	~FMetalSubBufferLinear();
 	
 	NS::String*         GetLabel() const;
@@ -100,18 +101,19 @@ public:
 	void FreeRange(NS::Range const& Range);
 	
 private:
-	FCriticalSection& PoolMutex;
-	NS::UInteger MinAlign;
-	NS::UInteger WriteHead;
-	NS::UInteger UsedSize;
-	NS::UInteger FreedSize;
-    MTLBufferPtr ParentBuffer;
+	FMetalDevice& 		Device;
+	FCriticalSection& 	PoolMutex;
+	NS::UInteger 		MinAlign;
+	NS::UInteger 		WriteHead;
+	NS::UInteger 		UsedSize;
+	NS::UInteger 		FreedSize;
+    MTLBufferPtr 		ParentBuffer;
 };
 
 class FMetalSubBufferMagazine
 {
 public:
-	FMetalSubBufferMagazine(NS::UInteger Size, NS::UInteger ChunkSize, MTL::ResourceOptions);
+	FMetalSubBufferMagazine(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger ChunkSize, MTL::ResourceOptions);
 	~FMetalSubBufferMagazine();
 	
 	NS::String*   GetLabel() const;
@@ -131,18 +133,19 @@ public:
     MTL::PurgeableState SetPurgeableState(MTL::PurgeableState state);
 
 private:
-	NS::UInteger MinAlign;
-    NS::UInteger BlockSize;
-	int64 volatile OutstandingAllocs;
-	int64 volatile UsedSize;
-    MTLBufferPtr ParentBuffer;
-	MTLHeapPtr ParentHeap;
-	TArray<int8> Blocks;
+	FMetalDevice& 	Device;
+	NS::UInteger 	MinAlign;
+    NS::UInteger 	BlockSize;
+	int64 volatile 	OutstandingAllocs;
+	int64 volatile 	UsedSize;
+    MTLBufferPtr 	ParentBuffer;
+	MTLHeapPtr 		ParentHeap;
+	TArray<int8> 	Blocks;
 };
 
 struct FMetalRingBufferRef
 {
-	FMetalRingBufferRef(FMetalBufferPtr Buf);
+	FMetalRingBufferRef(FMetalDevice& InDevice, FMetalBufferPtr Buf);
 	~FMetalRingBufferRef();
 	
 	void SetLastRead(uint64 Read) { FPlatformAtomics::InterlockedExchange((int64*)&LastRead, Read); }
@@ -157,6 +160,7 @@ struct FMetalRingBufferRef
         return Buffer ? Buffer->GetMTLBuffer() : MTLBufferPtr();
     }
     
+	FMetalDevice& Device;
 	FMetalBufferPtr Buffer = nullptr;
 	uint64 LastRead;
 };
@@ -167,7 +171,7 @@ class FMetalCommandBuffer;
 class FMetalSubBufferRing
 {
 public:
-	FMetalSubBufferRing(NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options);
+	FMetalSubBufferRing(FMetalDevice& MetalDevice, NS::UInteger Size, NS::UInteger Alignment, MTL::ResourceOptions Options);
 	~FMetalSubBufferRing();
 	
 	MTL::Device*        GetDevice() const;
@@ -187,6 +191,8 @@ public:
 	void Commit(FMetalCommandBuffer* CmdBuffer);
 	
 private:
+	FMetalDevice& Device;
+	
 	NS::UInteger FrameSize[10];
 	NS::UInteger LastFrameChange;
 	NS::UInteger InitialSize;
@@ -361,7 +367,7 @@ public:
 	FMetalTexturePool(FCriticalSection& PoolMutex);
 	~FMetalTexturePool();
 	
-	MTLTexturePtr CreateTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc);
+	MTLTexturePtr CreateTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc);
 	void ReleaseTexture(MTLTexturePtr Texture);
 	
 	void Drain(bool const bForce);
@@ -436,7 +442,7 @@ class FMetalResourceHeap
     };
     
 public:
-	FMetalResourceHeap(void);
+	FMetalResourceHeap(FMetalDevice& MetalDevice);
 	~FMetalResourceHeap();
 	
 	void Init(FMetalCommandQueue& Queue);
@@ -447,7 +453,7 @@ public:
 	void ReleaseBuffer(FMetalBufferPtr Buffer);
 	void ReleaseTexture(FMetalSurface* Surface, MTLTexturePtr Texture);
 	
-	void Compact(class FMetalRenderPass* Pass, bool const bForce);
+	void Compact(bool const bForce);
 	
 private:
 	uint32 GetMagazineIndex(uint32 Size);
@@ -463,7 +469,8 @@ private:
 	static uint32 HeapAllocSizes[NumHeapSizes];
 	static uint32 HeapTextureHeapSizes[NumTextureHeapSizes];
 
-	FCriticalSection Mutex;
+	FMetalDevice& 		Device;
+	FCriticalSection 	Mutex;
 	FMetalCommandQueue* Queue;
 	
 	/** Small allocations (<= 4KB) are made from magazine allocators that use sub-ranges of a buffer */

@@ -12,33 +12,11 @@ class FMetalCommandList;
 class FMetalCommandQueue;
 class FMetalGraphicsPipelineState;
 class FMetalCommandBufferFence;
+class FMetalDevice;
 struct FMetalCommandBufferStats;
 
 class FMetalShaderPipeline;
 typedef TSharedPtr<FMetalShaderPipeline, ESPMode::ThreadSafe> FMetalShaderPipelinePtr;
-
-/**
- * Enumeration for submission hints to avoid unclear bool values.
- */
-enum EMetalSubmitFlags
-{
-	/** No submission flags. */
-	EMetalSubmitFlagsNone = 0,
-	/** Create the next command buffer. */
-	EMetalSubmitFlagsCreateCommandBuffer = 1 << 0,
-	/** Wait on the submitted command buffer. */
-	EMetalSubmitFlagsWaitOnCommandBuffer = 1 << 1,
-	/** Break a single logical command-buffer into parts to keep the GPU active. */
-	EMetalSubmitFlagsBreakCommandBuffer = 1 << 2,
-	/** Submit the prologue command-buffer only, leave the current command-buffer active.  */
-	EMetalSubmitFlagsAsyncCommandBuffer = 1 << 3,
-	/** Submit and reset all the cached encoder state.  */
-	EMetalSubmitFlagsResetState = 1 << 4,
-	/** Force submission even if the command-buffer is empty. */
-	EMetalSubmitFlagsForce = 1 << 5,
-	/** Indicates this is the final command buffer in a frame. */
-	EMetalSubmitFlagsLastCommandBuffer = 1 << 6,
-};
 
 @class FMetalCommandBufferDebug;
 
@@ -161,17 +139,6 @@ struct FMetalCommandEncoderFence
 };
 
 /**
- * EMetalCommandEncoderType:
- *   EMetalCommandEncoderCurrent: The primary encoder that is used for draw calls & dispatches
- *   EMetalCommandEncoderPrologue: A secondary encoder that is used for blits & dispatches that setup resources & state for the current encoder.
- */
-enum EMetalCommandEncoderType
-{
-	EMetalCommandEncoderCurrent,
-	EMetalCommandEncoderPrologue
-};
-
-/**
  * FMetalCommandEncoder:
  *	Wraps the details of switching between different command encoders on the command-buffer, allowing for restoration of the render encoder if needed.
  * 	UnrealEngine expects the API to serialise commands in-order, but Metal expects applications to work with command-buffers directly so we need to implement 
@@ -184,10 +151,10 @@ public:
 #pragma mark - Public C++ Boilerplate -
 
 	/** Default constructor */
-	FMetalCommandEncoder(FMetalCommandList& CmdList, EMetalCommandEncoderType Type);
+	FMetalCommandEncoder(FMetalDevice& Device, FMetalCommandList& CmdList);
 	
-	/** Destructor */
-	~FMetalCommandEncoder(void);
+	/** Release Function */
+	void Release(void);
 	
 	/** Reset cached state for reuse */
 	void Reset(void);
@@ -205,9 +172,8 @@ public:
 	
 	/**
 	 * Commit the existing command buffer if there is one & optionally waiting for completion, if there isn't a current command buffer this is a no-op.
-	 * @param Flags Flags to control commit behaviour.
  	 */
-	void CommitCommandBuffer(uint32 const Flags);
+	FMetalCommandBuffer* Finalize();
 
 #pragma mark - Public Command Buffer Accessors -
 	
@@ -220,13 +186,33 @@ public:
 #pragma mark - Public Command Encoder Accessors -
 	
 	/** @returns True if and only if there is an active render command encoder, otherwise false. */
-	bool IsRenderCommandEncoderActive(void) const;
-	
+	inline bool IsRenderCommandEncoderActive(void) const
+	{
+		return RenderCommandEncoder.get() != nullptr;
+	}
+
 	/** @returns True if and only if there is an active compute command encoder, otherwise false. */
-	bool IsComputeCommandEncoderActive(void) const;
-	
+	inline bool IsComputeCommandEncoderActive(void) const
+	{
+		return ComputeCommandEncoder.get() != nullptr;
+	}
+
 	/** @returns True if and only if there is an active blit command encoder, otherwise false. */
-	bool IsBlitCommandEncoderActive(void) const;
+	inline bool IsBlitCommandEncoderActive(void) const
+	{
+		return BlitCommandEncoder.get() != nullptr;
+	}
+
+	/** @returns True if any encoder is active, otherwise false. */
+	inline bool IsAnyCommandEncoderActive(void) const
+	{
+		return IsRenderCommandEncoderActive() || 
+				IsComputeCommandEncoderActive() ||
+#if METAL_RHI_RAYTRACING
+				IsAccelerationStructureCommandEncoderActive() ||
+#endif
+				IsBlitCommandEncoderActive();
+	}
 	
 #if METAL_RHI_RAYTRACING
 	/** @returns True if and only if there is an active acceleration structure command encoder, otherwise false. */
@@ -291,6 +277,12 @@ public:
 	
 	/** Prevent further GPU work until the event is reached. */
 	void WaitForFence(FMetalFence* Fence);
+	
+	/** Update the event to capture all GPU work so far enqueued by this encoder. */
+	void SignalEvent(MTLEventPtr Event, uint32_t SignalCount);
+	
+	/** Prevent further GPU work until the event is reached. */
+	void WaitForEvent(MTLEventPtr Event, uint32_t SignalCount);
 
 #pragma mark - Public Debug Support -
 	
@@ -586,6 +578,7 @@ public:
 	};
 	
 #pragma mark - Private Member Variables -
+	FMetalDevice& Device;
 	FMetalCommandList& CommandList;
 
     // Cache Queue feature
@@ -625,5 +618,4 @@ public:
 	FMetalCommandEncoderFence CommandEncoderFence;
 	uint32 EncoderNum;
 	uint32 CmdBufIndex;
-	EMetalCommandEncoderType Type;
 };

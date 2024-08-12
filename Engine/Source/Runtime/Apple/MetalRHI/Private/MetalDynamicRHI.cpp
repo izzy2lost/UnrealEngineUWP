@@ -117,11 +117,19 @@ TRefCountPtr<FRHIComputePipelineState> FMetalDynamicRHI::RHICreateComputePipelin
 
 FStagingBufferRHIRef FMetalDynamicRHI::RHICreateStagingBuffer()
 {
-	return new FMetalRHIStagingBuffer();
+	return new FMetalRHIStagingBuffer(*Device);
 }
 
 void* FMetalDynamicRHI::RHILockStagingBuffer(FRHIStagingBuffer* StagingBuffer, FRHIGPUFence* Fence, uint32 Offset, uint32 SizeRHI)
 {
+	if (Fence && !Fence->Poll())
+	{
+		FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+		RHICmdList.SubmitAndBlockUntilGPUIdle();
+		
+		ResourceCast(Fence)->WaitCPU();
+	}
+	
 	FMetalRHIStagingBuffer* Buffer = ResourceCast(StagingBuffer);
 	return Buffer->Lock(Offset, SizeRHI);
 }
@@ -160,7 +168,7 @@ FRenderQueryRHIRef FMetalDynamicRHI::RHICreateRenderQuery(ERenderQueryType Query
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-    FRenderQueryRHIRef Query = new FMetalRHIRenderQuery(QueryType);
+    FRenderQueryRHIRef Query = new FMetalRHIRenderQuery(*Device, QueryType);
 	return Query;
 }
 

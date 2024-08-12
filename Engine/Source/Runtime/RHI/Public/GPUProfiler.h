@@ -399,7 +399,7 @@ struct FGPUProfiler
 	int32 GPUCrashDataDepth;
 
 	/** Current perf event node frame. */
-	FGPUProfilerEventNodeFrame* CurrentEventNodeFrame;
+	FGPUProfilerEventNodeFrame* CurrentEventNodeFrame = nullptr;
 
 	/** Current perf event node. */
 	FGPUProfilerEventNode* CurrentEventNode;

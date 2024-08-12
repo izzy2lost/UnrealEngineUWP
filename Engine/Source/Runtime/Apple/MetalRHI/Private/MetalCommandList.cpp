@@ -205,15 +205,9 @@ void FMetalCommandList::HandleMetalCommandBufferFailure(MTL::CommandBuffer* Comp
 	}
 }
 
-void FMetalCommandList::Commit(FMetalCommandBuffer* Buffer, TArray<FMetalCommandBufferCompletionHandler> CompletionHandlers, bool const bWait, bool const bIsLastCommandBuffer)
+void FMetalCommandList::FinalizeCommandBuffer(FMetalCommandBuffer* Buffer, TArray<FMetalCommandBufferCompletionHandler> CompletionHandlers)
 {
 	check(Buffer);
-
-	// The lifetime of this array is per frame
-	if (!FrameCommitedBufferTimings.IsValid())
-	{
-		FrameCommitedBufferTimings = MakeShared<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe>();
-	}
 
 	// The lifetime of this should be for the entire game
 	if (!LastCompletedBufferTiming.IsValid())
@@ -221,7 +215,7 @@ void FMetalCommandList::Commit(FMetalCommandBuffer* Buffer, TArray<FMetalCommand
 		LastCompletedBufferTiming = MakeShared<FMetalCommandBufferTiming, ESPMode::ThreadSafe>();
 	}
     
-    MTL::HandlerFunction CompletionHandler = [CompletionHandlers, FrameCommitedBufferTimingsLocal = FrameCommitedBufferTimings, LastCompletedBufferTimingLocal = LastCompletedBufferTiming, Buffer](MTL::CommandBuffer* CompletedBuffer)
+    MTL::HandlerFunction CompletionHandler = [CompletionHandlers, &InDevice = CommandQueue.GetDevice(), FrameBufferTimingsLocal = FMetalGPUProfiler::GetFrameBufferTimings(), LastCompletedBufferTimingLocal = LastCompletedBufferTiming, Buffer](MTL::CommandBuffer* CompletedBuffer)
 	{
 		if (CompletedBuffer->status() == MTL::CommandBufferStatusError)
 		{
@@ -237,27 +231,19 @@ void FMetalCommandList::Commit(FMetalCommandBuffer* Buffer, TArray<FMetalCommand
 
 		if (CompletedBuffer->status() == MTL::CommandBufferStatusCompleted)
 		{
-			FrameCommitedBufferTimingsLocal->Add({CompletedBuffer->GPUStartTime(), CompletedBuffer->GPUEndTime()});
+			FrameBufferTimingsLocal->Add({CompletedBuffer->GPUStartTime(), CompletedBuffer->GPUEndTime()});
 		}
 
 		// If this is the last reference, then it is the last command buffer to return, so record the frame
-		if (FrameCommitedBufferTimingsLocal.IsUnique())
+		if (FrameBufferTimingsLocal.IsUnique())
 		{
-			FMetalGPUProfiler::RecordFrame(*FrameCommitedBufferTimingsLocal, *LastCompletedBufferTimingLocal);
+			FMetalGPUProfiler::RecordFrame(*FrameBufferTimingsLocal, *LastCompletedBufferTimingLocal);
 		}
+		
+		InDevice.RemoveInflightCommandBuffer(CompletedBuffer);
 	};
     
     Buffer->GetMTLCmdBuffer()->addCompletedHandler(CompletionHandler);
-    
-	// If bIsLastCommandBuffer is set then this is the end of the "frame".
-	if (bIsLastCommandBuffer)
-	{
-		FrameCommitedBufferTimings = MakeShared<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe>();
-	}
-    
-	CommandQueue.CommitCommandBuffer(Buffer);
-	if (bWait)
-	{
-		Buffer->GetMTLCmdBuffer()->waitUntilCompleted();
-	}
+	
+	CommandQueue.GetDevice().AddInflightCommandBuffer(Buffer->GetMTLCmdBuffer().get());
 }

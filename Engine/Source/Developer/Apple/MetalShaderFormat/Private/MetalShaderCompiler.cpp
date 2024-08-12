@@ -565,7 +565,6 @@ void BuildMetalShaderOutput(
 	Header.NumThreadsY = CCHeader.NumThreads[1];
 	Header.NumThreadsZ = CCHeader.NumThreads[2];
 	
-	// TODO: Should be for inline RT only.
 	if (Frequency == SF_Compute)
 	{
 		Header.RayTracing.InstanceIndexBuffer = CCHeader.RayTracingInstanceIndexBuffer;
@@ -897,6 +896,7 @@ void CompileMetalShader(const FShaderCompilerInput& Input, const FShaderPreproce
 
 	FString MinOSVersion;
 	FString StandardVersion;
+	
 	switch (VersionEnum)
 	{
 	case 9:

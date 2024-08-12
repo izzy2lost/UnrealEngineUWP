@@ -961,11 +961,15 @@ IRHIComputeContext* FVulkanDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipelin
 	return CmdContext;
 }
 
-IRHIPlatformCommandList* FVulkanDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
+void FVulkanDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	FVulkanPlatformCommandList* PlatformCmdList = new FVulkanPlatformCommandList();
-	PlatformCmdList->CmdContext = static_cast<FVulkanCommandListContext*>(Args.Context);
-	return PlatformCmdList;
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		FVulkanPlatformCommandList* PlatformCmdList = new FVulkanPlatformCommandList();
+		PlatformCmdList->CmdContext = static_cast<FVulkanCommandListContext*>(Context);
+		
+		Output[Context->GetPipeline()] = PlatformCmdList;
+	}
 }
 
 void FVulkanDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)

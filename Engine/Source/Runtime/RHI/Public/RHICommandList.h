@@ -686,6 +686,15 @@ public:
 		return *ComputeContext;
 	}
 
+	FORCEINLINE IRHIUploadContext& GetUploadContext()
+	{
+		if(!UploadContext)
+		{
+			UploadContext = GDynamicRHI->RHIGetUploadContext();
+		}
+		return *UploadContext;
+	}
+	
 	inline bool Bypass() const;
 
 private:
@@ -1198,6 +1207,9 @@ protected:
 	// The active compute context into which (possibly async) compute commands are recorded.
 	IRHIComputeContext* ComputeContext  = nullptr;
 
+	// The active upload context into which RHI specific commands are recorded.
+	IRHIUploadContext* UploadContext 	= nullptr;
+	
 	// The RHI contexts available to the command list during execution.
 	// These are always set for the immediate command list, see InitializeImmediateContexts().
 	FRHIContextArray Contexts { InPlace, nullptr };
@@ -5280,6 +5292,8 @@ private:
 			IRHIPlatformCommandList* FinalizedCmdList = nullptr;
 		};
 		TRHIPipelineArray<FPipelineState> PipelineStates {};
+		IRHIUploadContext* UploadContextState = nullptr;
+		
 
 #if WITH_RHI_BREADCRUMBS
 		FRHIBreadcrumbAllocatorArray BreadcrumbAllocatorRefs {};

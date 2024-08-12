@@ -850,6 +850,12 @@ public:
 	//
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) = 0;
 
+	
+	virtual IRHIUploadContext* RHIGetUploadContext()
+	{
+		return nullptr;
+	};
+	
 	//
 	// Finalizes (i.e. closes) the specified command context, returning the completed platform command list object.
 	// The returned command list can later be submitted to the GPU by calling RHISubmitCommandLists().
@@ -860,9 +866,11 @@ public:
 	//
 	struct FRHIFinalizeContextArgs
 	{
-		IRHIComputeContext* Context;
+		TArray<IRHIComputeContext*> Contexts;
+		IRHIUploadContext* UploadContext;
 	};
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) = 0;
+	
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) = 0;
 
 	//
 	// Submits a batch of previously recorded/finalized command lists to the GPU. 
@@ -873,6 +881,7 @@ public:
 	struct FRHISubmitCommandListsArgs
 	{
 		TArray<IRHIPlatformCommandList*> CommandLists;
+		IRHIUploadContext* UploadContext;
 	};
 	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) = 0;
 

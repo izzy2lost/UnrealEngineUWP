@@ -7,6 +7,7 @@
 
 #include "MetalRHIStagingBuffer.h"
 #include "MetalResources.h"
+#include "MetalDevice.h"
 #include "MetalRHIPrivate.h"
 
 
@@ -15,8 +16,9 @@
 #pragma mark - Metal RHI Staging Buffer Class
 
 
-FMetalRHIStagingBuffer::FMetalRHIStagingBuffer()
+FMetalRHIStagingBuffer::FMetalRHIStagingBuffer(FMetalDevice& InDevice)
 	: FRHIStagingBuffer()
+	, Device(InDevice)
 {
 	// void
 }
@@ -25,7 +27,7 @@ FMetalRHIStagingBuffer::~FMetalRHIStagingBuffer()
 {
 	if (ShadowBuffer)
 	{
-		SafeReleaseMetalBuffer(ShadowBuffer);
+		Device.ReleaseBuffer(ShadowBuffer);
 		ShadowBuffer = nullptr;
 	}
 }

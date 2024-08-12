@@ -4,6 +4,7 @@
 #include "MetalCommandQueue.h"
 #include "MetalProfiler.h"
 #include "MetalResources.h"
+#include "MetalDevice.h"
 #include "RenderUtils.h"
 #include "HAL/LowLevelMemStats.h"
 
@@ -145,12 +146,12 @@ static EPixelFormat MetalToRHIPixelFormat(MTL::PixelFormat Format)
 	return PF_MAX;
 }
 
-void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture)
+void MetalLLM::LogAllocTexture(FMetalDevice& Device, MTL::TextureDescriptor* Desc, MTL::Texture* Texture)
 {
 	MTL::SizeAndAlign SizeAlign;
-	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesGPUCaptureManager))
+	if (Device.SupportsFeature(EMetalFeaturesGPUCaptureManager))
 	{
-		SizeAlign = Device->heapTextureSizeAndAlign(Desc);
+		SizeAlign = Device.GetDevice()->heapTextureSizeAndAlign(Desc);
 	}
 	
 	void* Ptr = (void*)Texture;
@@ -209,7 +210,7 @@ void MetalLLM::LogAllocTexture(MTL::Device* Device, MTL::TextureDescriptor* Desc
 	}
 }
 
-void MetalLLM::LogAllocBuffer(MTL::Device* Device, FMetalBufferPtr Buffer)
+void MetalLLM::LogAllocBuffer(FMetalBufferPtr Buffer)
 {
 	void* Ptr = (void*)Buffer.Get();
 	uint64 Size = Buffer->GetLength();
@@ -221,7 +222,7 @@ void MetalLLM::LogAllocBuffer(MTL::Device* Device, FMetalBufferPtr Buffer)
     Buffer->MarkAllocated();
 }
 
-void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
+void MetalLLM::LogAllocBufferNative(MTLBufferPtr Buffer)
 {
     void* Ptr = (void*)Buffer.get();
     uint64 Size = Buffer->length();
@@ -247,7 +248,7 @@ void MetalLLM::LogAllocBufferNative(MTL::Device* Device, MTLBufferPtr Buffer)
     }
 }
 
-void MetalLLM::LogAllocHeap(MTL::Device* Device, MTL::Heap* Heap)
+void MetalLLM::LogAllocHeap(MTL::Heap* Heap)
 {
 	void* Ptr = (void*)Heap;
 	uint64 Size = Heap->size();

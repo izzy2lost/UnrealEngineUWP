@@ -90,13 +90,13 @@ class FMetalRayTracingCompactionRequestHandler
 public:
 	UE_NONCOPYABLE(FMetalRayTracingCompactionRequestHandler)
 
-	FMetalRayTracingCompactionRequestHandler(FMetalDeviceContext* DeviceContext);
+	FMetalRayTracingCompactionRequestHandler(FMetalDevice& DeviceContext);
 	~FMetalRayTracingCompactionRequestHandler();
 
 	void RequestCompact(FMetalRayTracingGeometry* InRTGeometry);
 	bool ReleaseRequest(FMetalRayTracingGeometry* InRTGeometry);
 
-	void Update(FMetalDeviceContext* DeviceContext);
+	void Update(FMetalRHICommandContext& Context);
 
 private:
 	/** Enqueued requests (waiting on size request submit). */
@@ -118,13 +118,13 @@ private:
 	uint32_t WriteIndex;
 };
 
-FMetalRayTracingCompactionRequestHandler::FMetalRayTracingCompactionRequestHandler(FMetalDeviceContext* DeviceContext)
+FMetalRayTracingCompactionRequestHandler::FMetalRayTracingCompactionRequestHandler(FMetalDevice& Device)
 	: SizeBufferMaxCapacity(GMetalRayTracingMaxBatchedCompaction)
 	, WriteIndex(0u)
 {
 	PendingRequests.Reserve(GMetalRayTracingMaxBatchedCompaction);
 
-	CompactedStructureSizeBuffer = FMetalBuffer(DeviceContext->GetDevice().NewBuffer(GMetalRayTracingMaxBatchedCompaction * sizeof(uint32), MTL::ResourceStorageModeShared));
+	CompactedStructureSizeBuffer = FMetalBuffer(Device.GetDevice().NewBuffer(GMetalRayTracingMaxBatchedCompaction * sizeof(uint32), MTL::ResourceStorageModeShared));
 	check(CompactedStructureSizeBuffer);
 
 	NumActiveRequests = 0;
@@ -155,7 +155,7 @@ bool FMetalRayTracingCompactionRequestHandler::ReleaseRequest(FMetalRayTracingGe
 	return true;
 }
 
-void FMetalRayTracingCompactionRequestHandler::Update(FMetalDeviceContext* DeviceContext)
+void FMetalRayTracingCompactionRequestHandler::Update(FMetalRHICommandContext& Context)
 {
 	// Early exit to avoid unecessary encoding breaks.
 	if (PendingRequests.IsEmpty() && ActiveRequests.IsEmpty())
@@ -166,7 +166,7 @@ void FMetalRayTracingCompactionRequestHandler::Update(FMetalDeviceContext* Devic
 	check(CompactedStructureSizeBuffer);
 
 	// Submit build commands.
-	MTL::Device* Device = DeviceContext->GetDevice();
+	MTL::Device* Device = Context.GetDevice();
 	FMetalRenderPass& RenderPass = DeviceContext->GetCurrentRenderPass();
 	FMetalCommandEncoder& Encoder = RenderPass.GetCurrentCommandEncoder();
 	Encoder.EndEncoding();
@@ -290,12 +290,8 @@ static void FillPrimitiveAccelerationStructureDesc(MTL::PrimitiveAccelerationStr
 	[AccelerationStructureDescriptor retain];
 }
 
-static FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(MTL::AccelerationStructureDescriptor* AccelerationStructureDescriptor)
+static FRayTracingAccelerationStructureSize CalcRayTracingGeometrySize(FMetalDevice& Device, MTL::AccelerationStructureDescriptor* AccelerationStructureDescriptor)
 {
-	// Fill and return the descriptor.
-	FMetalDeviceContext& Context = GetMetalDeviceContext();
-	MTL::Device* Device = Context.GetDevice();
-
 	MTL::AccelerationStructureSizes DescriptorSize = Device.AccelerationStructureSizesWithDescriptor(AccelerationStructureDescriptor);
 
 	FRayTracingAccelerationStructureSize SizeInfo = {};
@@ -422,10 +418,7 @@ void FMetalRayTracingGeometry::RemoveCompactionRequest()
 void FMetalRayTracingGeometry::RebuildDescriptors()
 {
 	[GeomArray removeAllObjects];
-
-	FMetalDeviceContext& Context = GetMetalDeviceContext();
-	MTL::Device* Device = Context.GetDevice();
-
+	
 	AccelerationStructureDescriptor = MTL::PrimitiveAccelerationStructureDescriptor();
 	FillPrimitiveAccelerationStructureDesc(AccelerationStructureDescriptor, Initializer, GeomArray);
 }
@@ -839,19 +832,19 @@ FShaderBindingTableRHIRef FMetalDynamicRHI::RHICreateShaderBindingTable(const FR
 	return nullptr;
 }
 
-void FMetalDeviceContext::InitializeRayTracing()
+void FMetalDevice::InitializeRayTracing()
 {
 	// Explicitly request a pointer to the DeviceContext since the CompactionHandler
 	// is initialized before the global getter is setup.
 	RayTracingCompactionRequestHandler = new FMetalRayTracingCompactionRequestHandler(this);
 }
 
-void FMetalDeviceContext::UpdateRayTracing()
+void FMetalDevice::UpdateRayTracing()
 {
 	RayTracingCompactionRequestHandler->Update(this);
 }
 
-void FMetalDeviceContext::CleanUpRayTracing()
+void FMetalDevice::CleanUpRayTracing()
 {
 	delete RayTracingCompactionRequestHandler;
 }

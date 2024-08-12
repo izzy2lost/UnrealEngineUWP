@@ -3,11 +3,11 @@
 #include "MetalRHIPrivate.h"
 #include "MetalDynamicRHI.h"
 #include "MetalShaderTypes.h"
-#include "MetalFrameAllocator.h"
+#include "MetalTempAllocator.h"
 
 FUniformBufferRHIRef FMetalDynamicRHI::RHICreateUniformBuffer(const void* Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation Validation)
 {
-	return new FMetalUniformBuffer(Contents, Layout, Usage, Validation);
+	return new FMetalUniformBuffer(*Device, Contents, Layout, Usage, Validation);
 }
 
 void FMetalDynamicRHI::RHIUpdateUniformBuffer(FRHICommandListBase& RHICmdList, FRHIUniformBuffer* UniformBufferRHI, const void* Contents)

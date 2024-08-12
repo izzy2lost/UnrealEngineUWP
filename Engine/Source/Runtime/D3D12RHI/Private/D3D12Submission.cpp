@@ -170,10 +170,9 @@ void FD3D12DynamicRHI::ShutdownSubmissionPipe()
 struct FD3D12FinalizedCommands : public IRHIPlatformCommandList, public TArray<FD3D12Payload*>
 {};
 
-IRHIPlatformCommandList* FD3D12DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
+void FD3D12DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	FD3D12FinalizedCommands Result;
-	auto FinalizeContext = [&](FD3D12CommandContext* CmdContext)
+	auto FinalizeContext = [&](FD3D12CommandContext* CmdContext, FD3D12FinalizedCommands& Result)
 	{
 		CmdContext->Finalize(Result);
 
@@ -184,30 +183,29 @@ IRHIPlatformCommandList* FD3D12DynamicRHI::RHIFinalizeContext(FRHIFinalizeContex
 		}
 	};
 
-	FD3D12CommandContextBase* CmdContextBase = static_cast<FD3D12CommandContextBase*>(Args.Context);
-	if (FD3D12CommandContextRedirector* Redirector = CmdContextBase->AsRedirector())
+	for(IRHIComputeContext* Context : Args.Contexts)
 	{
-		for (uint32 GPUIndex : Redirector->GetPhysicalGPUMask())
-			FinalizeContext(Redirector->GetSingleDeviceContext(GPUIndex));
-
-		if (!Redirector->bIsDefaultContext)
+		FD3D12FinalizedCommands Result;
+		ERHIPipeline Pipeline = Context->GetPipeline();
+		
+		FD3D12CommandContextBase* CmdContextBase = static_cast<FD3D12CommandContextBase*>(Context);
+		if (FD3D12CommandContextRedirector* Redirector = CmdContextBase->AsRedirector())
 		{
-			delete Redirector;
+			for (uint32 GPUIndex : Redirector->GetPhysicalGPUMask())
+				FinalizeContext(Redirector->GetSingleDeviceContext(GPUIndex), Result);
+			
+			if (!Redirector->bIsDefaultContext)
+			{
+				delete Redirector;
+			}
 		}
-	}
-	else
-	{
-		FD3D12CommandContext* CmdContext = static_cast<FD3D12CommandContext*>(CmdContextBase);
-		FinalizeContext(CmdContext);
-	}
-
-	if (Result.Num())
-	{
-		return new FD3D12FinalizedCommands(MoveTemp(Result));
-	}
-	else
-	{
-		return nullptr;
+		else
+		{
+			FD3D12CommandContext* CmdContext = static_cast<FD3D12CommandContext*>(CmdContextBase);
+			FinalizeContext(CmdContext, Result);
+		}
+		
+		Output[Pipeline] = Result.Num() ? new FD3D12FinalizedCommands(MoveTemp(Result)) : nullptr;
 	}
 }
 

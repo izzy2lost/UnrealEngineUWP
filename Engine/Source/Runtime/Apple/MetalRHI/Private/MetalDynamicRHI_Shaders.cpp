@@ -21,7 +21,7 @@ FVertexShaderRHIRef FMetalDynamicRHI::RHICreateVertexShader(TArrayView<const uin
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	FMetalVertexShader* Shader = new FMetalVertexShader(Code);
+	FMetalVertexShader* Shader = new FMetalVertexShader(*Device, Code);
 	return Shader;
 }
 
@@ -29,27 +29,25 @@ FPixelShaderRHIRef FMetalDynamicRHI::RHICreatePixelShader(TArrayView<const uint8
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-	FMetalPixelShader* Shader = new FMetalPixelShader(Code);
+	FMetalPixelShader* Shader = new FMetalPixelShader(*Device, Code);
 	return Shader;
 }
-
 
 FGeometryShaderRHIRef FMetalDynamicRHI::RHICreateGeometryShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-    FMetalGeometryShader* Shader = new FMetalGeometryShader(Code);
+    FMetalGeometryShader* Shader = new FMetalGeometryShader(*Device, Code);
     return Shader;
 #else
 	return nullptr;
 #endif
 }
 
-
 FComputeShaderRHIRef FMetalDynamicRHI::RHICreateComputeShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    return new FMetalComputeShader(Code, MTLLibraryPtr());
+    return new FMetalComputeShader(*Device, Code, MTLLibraryPtr());
 }
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
@@ -57,14 +55,14 @@ FMeshShaderRHIRef FMetalDynamicRHI::RHICreateMeshShader(TArrayView<const uint8> 
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    return new FMetalMeshShader(Code);
+    return new FMetalMeshShader(*Device, Code);
 }
 
 FAmplificationShaderRHIRef FMetalDynamicRHI::RHICreateAmplificationShader(TArrayView<const uint8> Code, const FSHAHash& Hash)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    return new FMetalAmplificationShader(Code);
+    return new FMetalAmplificationShader(*Device, Code);
 }
 #endif
 
@@ -211,7 +209,7 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
                 NS::Error* Error;
                 NS::String* MetalLibraryFilePathNSString = FStringToNSString(MetalLibraryAbsoluteFilePath);
                 NS::URL *metalLibraryURL = NS::URL::fileURLWithPath(MetalLibraryFilePathNSString);
-                MTLLibraryPtr Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(metalLibraryURL, &Error));
+                MTLLibraryPtr Library = NS::TransferPtr(Device->GetDevice()->newLibrary(metalLibraryURL, &Error));
 
                 if (Library.get() == nullptr)
                 {
@@ -223,7 +221,7 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
                         if (FFileHelper::LoadFileToArray(LibraryData, *MetalLibraryFilePath))
                         {
                             dispatch_data_t data = dispatch_data_create(LibraryData.GetData(), LibraryData.Num(), nil, DISPATCH_DATA_DESTRUCTOR_DEFAULT);
-                            Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(data, &Error));
+                            Library = NS::TransferPtr(Device->GetDevice()->newLibrary(data, &Error));
                         }
                         else
                         {
@@ -249,7 +247,7 @@ FRHIShaderLibraryRef FMetalDynamicRHI::RHICreateShaderLibrary(EShaderPlatform Pl
                 }
             }
 
-            FMetalShaderLibrary* MtlLib = new FMetalShaderLibrary(Platform, Name, BinaryShaderFile, Header, MoveTemp(SerializedShaders), MoveTemp(ShaderCode), Libraries
+            FMetalShaderLibrary* MtlLib = new FMetalShaderLibrary(*Device, Platform, Name, BinaryShaderFile, Header, MoveTemp(SerializedShaders), MoveTemp(ShaderCode), Libraries
 #if USE_MMAPPED_SHADERARCHIVE
 				,MoveTemp(MemOwner)
 #endif

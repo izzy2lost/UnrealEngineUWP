@@ -12,7 +12,7 @@
 #include "RHICommandList.h"
 #include "RHIGlobals.h"
 
-class FMetalDeviceContext;
+class FMetalDevice;
 class FMetalSurface;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogMetal, Display, All);
@@ -144,23 +144,6 @@ extern bool GMetalCommandBufferDebuggingEnabled;
 	#define METAL_IGNORED(Func)
 #endif
 
-// Access the internal context for the device-owning DynamicRHI object
-FMetalDeviceContext& GetMetalDeviceContext();
-
-// Safely release a metal object, correctly handling the case where the RHI has been destructed first
-void METALRHI_API SafeReleaseMetalObject(NS::Object* Object);
-
-// Safely release a metal texture, correctly handling the case where the RHI has been destructed first
-void SafeReleaseMetalTexture(MTLTexturePtr Object);
-
-// Safely release a fence, correctly handling cases where fences aren't supported or the debug implementation is used.
-void SafeReleaseMetalFence(class FMetalFence* Object);
-
-// Safely release a render pass descriptor so that it may be reused.
-void SafeReleaseMetalRenderPassDescriptor(MTL::RenderPassDescriptor* Desc);
-
-void SafeReleaseFunction(TFunction<void()> ReleaseFunction);
-
 FORCEINLINE bool IsMetalBindlessEnabled()
 {
 	return GRHIBindlessSupport != ERHIBindlessSupport::Unsupported &&
@@ -212,7 +195,7 @@ MTL::PrimitiveType TranslatePrimitiveType(uint32 PrimitiveType);
 MTL::PrimitiveTopologyClass TranslatePrimitiveTopology(uint32 PrimitiveType);
 #endif
 
-MTL::PixelFormat UEToMetalFormat(EPixelFormat UEFormat, bool bSRGB);
+MTL::PixelFormat UEToMetalFormat(FMetalDevice& Device, EPixelFormat UEFormat, bool bSRGB);
 
 uint8 GetMetalPixelFormatKey(MTL::PixelFormat Format);
 
@@ -231,10 +214,6 @@ static FORCEINLINE FMetalSurface* ResourceCast(FRHITexture* Texture)
 {
 	return GetMetalSurfaceFromRHITexture(Texture);
 }
-
-uint32 SafeGetRuntimeDebuggingLevel();
-
-extern int32 GMetalBufferZeroFill;
 
 MTL::LanguageVersion ValidateVersion(uint32 Version);
 

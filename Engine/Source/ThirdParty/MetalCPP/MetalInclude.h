@@ -46,6 +46,8 @@ typedef NS::SharedPtr<MTL::ComputePipelineReflection> MTLComputePipelineReflecti
 typedef NS::SharedPtr<MTL::Library> MTLLibraryPtr;
 typedef NS::SharedPtr<MTL::Function> MTLFunctionPtr;
 
+typedef NS::SharedPtr<MTL::Event> MTLEventPtr;
+
 namespace NS
 {
     inline bool operator == (const Range& A, const Range& B)

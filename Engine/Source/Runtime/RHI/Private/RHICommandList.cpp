@@ -876,6 +876,11 @@ void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* Cm
 		}
 	}
 
+	if(!CmdList->UploadContext)
+	{
+		CmdList->UploadContext = UploadContextState;
+	}
+	
 	CmdList->ActivePipelines = ERHIPipeline::None;
 
 #if WITH_RHI_BREADCRUMBS
@@ -910,6 +915,8 @@ void FRHICommandListExecutor::FTranslateState::Translate(FRHICommandListBase* Cm
 		TranslateState.Range.InsertAfter(CmdListState.Range, TranslateState.Range.Last, Pipeline);
 #endif // WITH_RHI_BREADCRUMBS
 	}
+	
+	UploadContextState = CmdList->UploadContext;
 
 #if WITH_RHI_BREADCRUMBS
 	BreadcrumbAllocatorRefs.Append(MoveTemp(CmdList->BreadcrumbAllocatorRefs));
@@ -926,11 +933,28 @@ FGraphEventRef FRHICommandListExecutor::FTranslateState::Finalize()
 		{
 			SCOPED_NAMED_EVENT(RHI_Finalize, FColor::White);
 
+			TRHIPipelineArray<IRHIPlatformCommandList*> PlatformCommandLists {InPlace, nullptr};
+			FDynamicRHI::FRHIFinalizeContextArgs FinalizeArgs;
 			for (auto& State : PipelineStates)
 			{
 				if (State.Context)
 				{
-					State.FinalizedCmdList = GDynamicRHI->RHIFinalizeContext({ State.Context });
+					FinalizeArgs.Contexts.Add(State.Context);
+				}
+			}
+		
+			if(GDynamicRHI)
+			{
+				FinalizeArgs.UploadContext = UploadContextState;
+				
+				GDynamicRHI->RHIFinalizeContext(MoveTemp(FinalizeArgs), PlatformCommandLists);
+				
+				for (auto& State : PipelineStates)
+				{
+					if (State.Context)
+					{
+						State.FinalizedCmdList = PlatformCommandLists[State.Context->GetPipeline()];
+					}
 				}
 			}
 		}
@@ -1295,7 +1319,7 @@ RHI_API void FRHICommandListImmediate::ImmediateFlush(EImmediateFlushType::Type 
 		}
 
 		EnumAddFlags(SubmitFlags, ERHISubmitFlags::SubmitToGPU);
-
+		
 		GRHICommandList.Submit({}, SubmitFlags);
 	}
 }

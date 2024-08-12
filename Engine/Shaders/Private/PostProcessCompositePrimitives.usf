@@ -311,8 +311,11 @@ void MainCompositeEditorPrimitivesPS(
 #if MSAA_DONT_RESOLVE && MSAA_SAMPLE_COUNT > 1
 	uint TargetSampleIndex : SV_SampleIndex,
 #endif
-	out float4 OutColor : SV_Target0,
-	out float OutDepth : SV_Depth)
+	out float4 OutColor : SV_Target0
+ #if WRITE_DEPTH
+	,out float OutDepth : SV_Depth
+ #endif
+    )
 {
 	const float2 DistortedViewportUV = ApplyScreenTransform(SvPosition.xy, PassSvPositionToViewportUV);
 	const float2 UndistortedViewportUV = ApplyLensDistortionOnViewportUV(UndistortingDisplacementTexture, UndistortingDisplacementSampler, DistortedViewportUV);
@@ -328,7 +331,9 @@ void MainCompositeEditorPrimitivesPS(
 	// Resolve editor primitive scene color and depth.
 	float4 EditorPrimitiveColor;
 	float DepthMask;
+	#if WRITE_DEPTH
 	OutDepth = 0;
+    #endif
 	#if MSAA_DONT_RESOLVE && MSAA_SAMPLE_COUNT > 1
 	{
 		TargetSampleIndex = min(TargetSampleIndex, MSAA_SAMPLE_COUNT-1);
@@ -347,7 +352,9 @@ void MainCompositeEditorPrimitivesPS(
 		}
 
 		DepthMask = ComputeDepthMask(SampleSceneDeviceZ, SampleEditorDeviceZ);
+		#if WRITE_DEPTH
 		OutDepth = HAS_INVERTED_Z_BUFFER ? max(SampleSceneDeviceZ, SampleEditorDeviceZ) : min(SampleSceneDeviceZ, SampleEditorDeviceZ);
+        #endif
 	}
 	#elif MSAA_SAMPLE_COUNT > 1
 	{
@@ -386,9 +393,11 @@ void MainCompositeEditorPrimitivesPS(
 				DepthMaskWeight += Weight;
 			}
 
-			OutDepth = HAS_INVERTED_Z_BUFFER 
+			#if WRITE_DEPTH
+			OutDepth = HAS_INVERTED_Z_BUFFER
 				? max3(OutDepth, SampleSceneDeviceZ, SampleEditorDeviceZ)
 				: min3(OutDepth, SampleSceneDeviceZ, SampleEditorDeviceZ);
+            #endif
 		}
 
 		EditorPrimitiveColor.rgb /= MSAA_SAMPLE_COUNT;
@@ -407,7 +416,9 @@ void MainCompositeEditorPrimitivesPS(
 		
 		EditorPrimitiveColor = EditorPrimitivesColor.Load(int3(ColorPixelPos, 0));
 		DepthMask = ComputeDepthMask(SceneDeviceZ, EditorDeviceZ);
+		#if WRITE_DEPTH
 		OutDepth = HAS_INVERTED_Z_BUFFER ? max(SceneDeviceZ, EditorDeviceZ) : min(SceneDeviceZ, EditorDeviceZ);
+        #endif
 
 		if (EditorDeviceZ > 0.0 && bCompositeAnyNonNullDepth)
 		{

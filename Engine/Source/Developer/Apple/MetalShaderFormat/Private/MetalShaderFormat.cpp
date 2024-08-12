@@ -345,7 +345,6 @@ public:
 	virtual void ModifyShaderCompilerInput(FShaderCompilerInput& Input) const override
 	{
 		// Work out which standard we need, this is dependent on the shader platform.
-		// TODO: Read from toolchain class
 		const bool bIsMobile = FMetalCompilerToolchain::Get()->IsMobile((EShaderPlatform)Input.Target.Platform);
 		if (bIsMobile)
 		{

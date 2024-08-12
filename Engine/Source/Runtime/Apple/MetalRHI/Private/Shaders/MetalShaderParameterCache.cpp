@@ -115,8 +115,6 @@ void FMetalShaderParameterCache::CommitPackedGlobals(FMetalStateCache* Cache, FM
 				FMetalBufferPtr Buffer;
 				PackedGlobalUniforms[Index]->Len = Size;
 				Cache->IRBindPackedUniforms((EMetalShaderStages)Frequency, UniformBufferIndex, Bytes, TotalSize, Buffer);
-				
-				SafeReleaseMetalBuffer(Buffer);
 			}
 			else
 #endif

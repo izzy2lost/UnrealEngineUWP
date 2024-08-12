@@ -17,7 +17,7 @@ public:
 	/** 
 	 * Constructor/destructor
 	 */
-	FMetalSamplerState(class FMetalDeviceContext* Context, const FSamplerStateInitializerRHI& Initializer);
+	FMetalSamplerState(class FMetalDevice& Device, const FSamplerStateInitializerRHI& Initializer);
 	~FMetalSamplerState();
 
 	MTL::SamplerState* State;
@@ -30,6 +30,8 @@ public:
     // TODO: Do we need to support NoAnisoState too? (or is it some leftover we don't care about anymore?)
     virtual FRHIDescriptorHandle GetBindlessHandle() const override final { return BindlessHandle; }
 #endif
+	
+	FMetalDevice& Device;
 };
 
 class FMetalRasterizerState : public FRHIRasterizerState

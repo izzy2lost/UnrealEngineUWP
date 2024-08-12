@@ -11,13 +11,15 @@
 #pragma mark - Metal RHI Mesh Shader Class
 
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-FMetalMeshShader::FMetalMeshShader(TArrayView<const uint8> InCode)
+FMetalMeshShader::FMetalMeshShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode)
+	: TMetalBaseShader<FRHIMeshShader, SF_Mesh>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, MTLLibraryPtr());
 }
 
-FMetalMeshShader::FMetalMeshShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+FMetalMeshShader::FMetalMeshShader(FMetalDevice& MetalDevice, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+	: TMetalBaseShader<FRHIMeshShader, SF_Mesh>(MetalDevice)
 {
 	FMetalCodeHeader Header;
 	Init(InCode, Header, InLibrary);

@@ -22,6 +22,7 @@
 #endif
 
 class FMetalSurface;
+class FMetalDevice;
 
 enum EMetalViewportAccessFlag
 {
@@ -46,7 +47,7 @@ typedef void (^FMetalViewportPresentHandler)(uint32 CGDirectDisplayID, double Ou
 class FMetalViewport : public FRHIViewport
 {
 public:
-	FMetalViewport(void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
+	FMetalViewport(FMetalDevice& InDevice, void* WindowHandle, uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
 	~FMetalViewport();
 
 	void Resize(uint32 InSizeX, uint32 InSizeY, bool bInIsFullscreen,EPixelFormat Format);
@@ -90,6 +91,7 @@ private:
 	CP_OBJECT_cp_layer_renderer* SwiftLayer = nullptr;
 #endif
 	
+	FMetalDevice& Device;
 	CA::MetalDrawable* Drawable;
 	TRefCountPtr<FMetalSurface> BackBuffer[2];
 	mutable FCriticalSection Mutex;

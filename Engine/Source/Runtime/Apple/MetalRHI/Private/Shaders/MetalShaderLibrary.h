@@ -12,6 +12,8 @@
 #include "ShaderCodeArchive.h"
 #include "Async/MappedFileHandle.h"
 
+class FMetalDevice;
+
 class FMetalShaderLibrary final : public FRHIShaderLibrary
 {
 public:
@@ -31,7 +33,8 @@ private:
     TUniquePtr<FShaderLibDataOwner> MemOwner;
 public:
     
-    FMetalShaderLibrary(EShaderPlatform Platform,
+    FMetalShaderLibrary(FMetalDevice& Device,
+		EShaderPlatform Platform,
         FString const& Name,
         const FString& InShaderLibraryFilename,
         const FMetalShaderLibraryHeader& InHeader,
@@ -40,7 +43,7 @@ public:
         const TArray<MTLLibraryPtr>& InLibrary,
         TUniquePtr<FShaderLibDataOwner>&& InMemOwner)
         :
-        FMetalShaderLibrary(Platform, Name, InShaderLibraryFilename, InHeader, MoveTemp(InSerializedShaders), MoveTemp(InShaderCode), InLibrary)
+        FMetalShaderLibrary(Device, Platform, Name, InShaderLibraryFilename, InHeader, MoveTemp(InSerializedShaders), MoveTemp(InShaderCode), InLibrary)
         {
             MemOwner = MoveTemp(InMemOwner);
         }
@@ -49,7 +52,8 @@ public:
 	static FCriticalSection LoadedShaderLibraryMutex;
 	static TMap<FString, FRHIShaderLibrary*> LoadedShaderLibraryMap;
 
-	FMetalShaderLibrary(EShaderPlatform Platform,
+	FMetalShaderLibrary(FMetalDevice& Device,
+						EShaderPlatform Platform,
 						FString const& Name,
 						const FString& InShaderLibraryFilename,
 						const FMetalShaderLibraryHeader& InHeader,
@@ -80,6 +84,7 @@ public:
 	virtual TRefCountPtr<FRHIShader> CreateShader(int32 Index) override;
 
 private:
+	FMetalDevice& Device;
 	FString ShaderLibraryFilename;
 	TArray<MTLLibraryPtr> Library;
 	FMetalShaderLibraryHeader Header;

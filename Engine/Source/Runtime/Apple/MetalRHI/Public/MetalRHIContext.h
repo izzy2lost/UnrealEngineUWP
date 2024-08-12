@@ -7,10 +7,14 @@
 #include "MetalState.h"
 #include "MetalResources.h"
 #include "MetalViewport.h"
+#include "MetalDevice.h"
+#include "MetalCommandList.h"
+#include "MetalCommandEncoder.h"
+#include "MetalRHIRenderQuery.h"
 #include "RHICore.h"
 
-class FMetalDeviceContext;
 class FMetalCommandBufferFence;
+class FMetalEventNode;
 
 #if PLATFORM_VISIONOS
 namespace MetalRHIVisionOS
@@ -24,11 +28,20 @@ namespace MetalRHIVisionOS
 class FMetalRHICommandContext : public IRHICommandContext
 {
 public:
-	FMetalRHICommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext);
+	FMetalRHICommandContext(FMetalDevice& Device, class FMetalProfiler* InProfiler);
 	virtual ~FMetalRHICommandContext();
-
-	/** Get the internal context */
-	FORCEINLINE FMetalDeviceContext& GetInternalContext() const { return *Context; }
+	
+	static inline FMetalRHICommandContext& Get(FRHICommandListBase& CmdList)
+	{
+		check(CmdList.IsBottomOfPipe());
+		return static_cast<FMetalRHICommandContext&>(CmdList.GetContext().GetLowestLevelContext());
+	}
+	
+	void ResetContext();
+	void BeginComputeEncoder();
+	void EndComputeEncoder();
+	void BeginBlitEncoder();
+	void EndBlitEncoder();
 	
 	/** Get the profiler pointer */
 	FORCEINLINE class FMetalProfiler* GetProfiler() const { return Profiler; }
@@ -168,6 +181,35 @@ public:
 		ERayTracingBindingType BindingType) final override;
 #endif // METAL_RHI_RAYTRACING
 
+	void FillBuffer(MTL::Buffer* Buffer, NS::Range Range, uint8 Value);
+	void CopyFromTextureToBuffer(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, FMetalBufferPtr toBuffer, uint32 destinationOffset, uint32 destinationBytesPerRow, uint32 destinationBytesPerImage, MTL::BlitOption options);
+	void CopyFromBufferToTexture(FMetalBufferPtr Buffer, uint32 sourceOffset, uint32 sourceBytesPerRow, uint32 sourceBytesPerImage, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin, MTL::BlitOption options);
+	void CopyFromTextureToTexture(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin);
+	void CopyFromBufferToBuffer(FMetalBufferPtr SourceBuffer, NS::UInteger SourceOffset, FMetalBufferPtr DestinationBuffer, NS::UInteger DestinationOffset, NS::UInteger Size);
+	
+	void CommitRenderResourceTables(void);
+	void PrepareToRender(uint32 PrimitiveType);
+	bool PrepareToDraw(uint32 PrimitiveType);
+	void PrepareToDispatch();
+
+	FMetalCommandBuffer* Finalize();
+	
+	void InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>& Fence, FMetalCommandBufferCompletionHandler Handler);
+	
+	void StartTiming(class FMetalEventNode* EventNode);
+	void EndTiming(class FMetalEventNode* EventNode);
+	
+	void SynchronizeResource(MTL::Resource* Resource);
+	void SynchronizeTexture(MTL::Texture* Texture, uint32 Slice, uint32 Level);
+	
+	void AddCompletionHandler(FMetalCommandBufferCompletionHandler& Handler);
+	
+	/** Update the event to capture all GPU work so far enqueued by this encoder. */
+	void SignalEvent(MTLEventPtr Event, uint32_t SignalCount);
+	
+	/** Prevent further GPU work until the event is reached. */
+	void WaitForEvent(MTLEventPtr Event, uint32_t SignalCount);
+	
 #if PLATFORM_VISIONOS
     void BeginRenderingImmersive(const MetalRHIVisionOS::BeginRenderingImmersiveParams& Params);
     cp_frame_t SwiftFrame = nullptr;
@@ -175,6 +217,8 @@ public:
     void SetCustomPresentViewport(FRHIViewport* Viewport) { CustomPresentViewport = Viewport; }
     FRHIViewport* CustomPresentViewport = nullptr;
 
+	FMetalCommandBuffer* GetCurrentCommandBuffer();
+	
 	void BeginRecursiveCommand()
 	{
 		// Nothing to do
@@ -184,42 +228,101 @@ public:
     {
         return GlobalUniformBuffers;
     }
-protected:
 	
-	/** Context implementation details. */
-	FMetalDeviceContext* Context = nullptr;
+	inline void SetProfiler(FMetalProfiler* InProfiler)
+	{
+		Profiler = InProfiler;
+	}
+	
+	inline FMetalProfiler* GetProfiler()
+	{
+		return Profiler;
+	}
+	
+	inline TSharedRef<FMetalQueryBufferPool, ESPMode::ThreadSafe> GetQueryBufferPool()
+	{
+		return QueryBuffer.ToSharedRef();
+	}
+	
+	inline FMetalStateCache& GetStateCache()
+	{
+		return StateCache;
+	}
+	
+	inline FMetalCommandQueue& GetCommandQueue()
+	{
+		return CommandQueue;
+	}
+	
+	inline FMetalDevice& GetDevice()
+	{
+		return Device;
+	}
+	
+	inline bool IsInsideRenderPass() const
+	{
+		return bWithinRenderPass;
+	}
+	
+protected:
+	FMetalDevice& Device;
+	
+	/** The wrapper around the device command-queue for creating & committing command buffers to */
+	FMetalCommandQueue& CommandQueue;
+	
+	/** The wrapper around command buffers for ensuring correct parallel execution order */
+	FMetalCommandList CommandList;
+	
+	FMetalCommandEncoder CurrentEncoder;
+	
+	/** The cache of all tracked & accessible state. */
+	FMetalStateCache StateCache;
+	
+	/** A pool of buffers for writing visibility query results. */
+	TSharedPtr<FMetalQueryBufferPool, ESPMode::ThreadSafe> QueryBuffer;
+	
+	MTL::RenderPassDescriptor* RenderPassDesc = nullptr;
 	
 	/** Occlusion query batch fence */
 	TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> CommandBufferFence;
 	
 	/** Profiling implementation details. */
 	class FMetalProfiler* Profiler = nullptr;
-	
-	/** Some local variables to track the pending primitive information used in RHIEnd*UP functions */
-	FMetalBuffer PendingVertexBuffer;
-	uint32 PendingVertexDataStride = 0;
-	
-	FMetalBuffer PendingIndexBuffer;
-	uint32 PendingIndexDataStride = 0;
-	
-	uint32 PendingPrimitiveType = 0;
-	uint32 PendingNumPrimitives = 0;
 
+	TRefCountPtr<FMetalFence> CurrentEncoderFence;
+	uint64_t UploadSyncCounter = 0;
+	
+	bool bWithinRenderPass = false;
 	void ResolveTexture(UE::RHICore::FResolveTextureInfo Info);
 
 	TArray<FRHIUniformBuffer*> GlobalUniformBuffers;
-
+	
 private:
 	void RHIClearMRT(bool bClearColor, int32 NumClearColors, const FLinearColor* ColorArray, bool bClearDepth, float Depth, bool bClearStencil, uint32 Stencil);
 };
 
-class FMetalRHIImmediateCommandContext : public FMetalRHICommandContext
+class FMetalRHIUploadContext : public IRHIUploadContext
 {
 public:
-	FMetalRHIImmediateCommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext);
+	FMetalRHIUploadContext(FMetalDevice& Device);
+	~FMetalRHIUploadContext();
 	
-protected:
-	friend class FMetalDynamicRHI;
+	typedef TFunction<void(FMetalRHICommandContext*)> UploadContextFunction;
+	
+	virtual TArray<FMetalCommandBuffer*>* Finalize();
+	
+	virtual void EnqueueFunction(UploadContextFunction Function)
+	{
+		UploadFunctions.Add(Function);
+	}
+	
+private:
+	FMetalRHICommandContext* UploadContext;
+	FMetalRHICommandContext* WaitContext;
+	TArray<UploadContextFunction> UploadFunctions;
+	
+	MTLEventPtr UploadSyncEvent;
+	uint64_t UploadSyncCounter = 0;
 };
 
 struct FMetalContextArray : public TRHIPipelineArray<FMetalRHICommandContext*>

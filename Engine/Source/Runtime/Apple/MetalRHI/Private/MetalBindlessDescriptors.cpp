@@ -1,12 +1,19 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalBindlessDescriptors.h"
+#include "GlobalShader.h"
+#include "PipelineStateCache.h"
+#include "MetalRHIContext.h"
+#include "UpdateDescriptorHandle.h"
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 
-#include "MetalContext.h"
+#include "MetalDevice.h"
+#include "MetalCommandEncoder.h"
 
-int32 GBindlessResourceDescriptorHeapSize = 1000 * 1000;
+#define USE_DESCRIPTOR_BUFFER_COPY 1
+
+int32 GBindlessResourceDescriptorHeapSize = 2048 * 1024;
 static FAutoConsoleVariableRef CVarBindlessResourceDescriptorHeapSize(
     TEXT("Metal.Bindless.ResourceDescriptorHeapSize"),
     GBindlessResourceDescriptorHeapSize,
@@ -22,23 +29,47 @@ static FAutoConsoleVariableRef CVarBindlessSamplerDescriptorHeapSize(
     ECVF_ReadOnly
 );
 
-FMetalDescriptorHeap::FMetalDescriptorHeap(const ERHIDescriptorHeapType DescriptorType)
-    : DeferredDeletionListIndex(0)
-    , ResourceHeap(nil)
+FMetalDescriptorHeap::FMetalDescriptorHeap(FMetalDevice& MetalDevice, const ERHIDescriptorHeapType DescriptorType)
+    : Device(MetalDevice)
+	, DeferredDeletionListIndex(0)
+    , ResourceHeap(nullptr)
     , Type(DescriptorType)
 {
-
 }
 
 void FMetalDescriptorHeap::Init(const int32 HeapSize)
 {
-    ResourceHeap = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), HeapSize, BUF_Dynamic, MTL::StorageModeShared));
-    Descriptors = reinterpret_cast<IRDescriptorTableEntry*>(ResourceHeap->Contents());
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	
+	FRHIBufferDesc Desc(HeapSize, 1, BUF_Dynamic | BUF_KeepCPUAccessible | BUF_StructuredBuffer | BUF_UnorderedAccess);
+	FRHIResourceCreateInfo CreateInfo(TEXT("ResourceHeap"));
+	
+	ResourceHeapLength = HeapSize;
+	ResourceHeap = new FMetalRHIBuffer(RHICmdList, Device, Desc, CreateInfo);
+	
+	FMetalRHIBuffer* Buffer = ResourceCast(ResourceHeap.GetReference());
+	
+	if(Type == ERHIDescriptorHeapType::Sampler)
+	{
+		Descriptors = reinterpret_cast<IRDescriptorTableEntry*>(Buffer->GetCurrentBuffer()->Contents());
+	}
+	else
+	{
+#if !USE_DESCRIPTOR_BUFFER_COPY
+		Descriptors = reinterpret_cast<IRDescriptorTableEntry*>(Buffer->GetCurrentBuffer()->Contents());
+#else
+		Descriptors = reinterpret_cast<IRDescriptorTableEntry*>(FMemory::Malloc(HeapSize, 16));
+#endif
+	}
+	
+	DescriptorsDirty = false;
+	MinDirtyIndex = UINT32_MAX;
+	MaxDirtyIndex = 0;
 }
 
 void FMetalDescriptorHeap::Reset()
 {
-    DeferredDeletionListIndex = (GetMetalDeviceContext().GetFrameNumberRHIThread() % NumPendingFrame);
+    DeferredDeletionListIndex = (Device.GetFrameNumberRHIThread() % NumPendingFrame);
 
     {
         FScopeLock ScopeLock(&FreeListCS);
@@ -69,7 +100,7 @@ uint32 FMetalDescriptorHeap::GetFreeResourceIndex()
         }
     }
 
-    NSUInteger MaxDescriptorCount = ResourceHeap->GetLength() / sizeof(IRDescriptorTableEntry);
+    NSUInteger MaxDescriptorCount = ResourceHeapLength / sizeof(IRDescriptorTableEntry);
     checkf((PeakDescriptorCount + 1) < MaxDescriptorCount, TEXT("Reached Heap Max Capacity (%u/%u)"), PeakDescriptorCount + 1, MaxDescriptorCount);
 
     const uint32 ResourceIndex = PeakDescriptorCount++;
@@ -88,6 +119,10 @@ void FMetalDescriptorHeap::UpdateDescriptor(FRHIDescriptorHandle DescriptorHandl
 
     uint32 DescriptorIndex = DescriptorHandle.GetIndex();
     Descriptors[DescriptorIndex] = DescriptorData;
+	
+	DescriptorsDirty = true;
+	MinDirtyIndex = FMath::Min(DescriptorIndex, MinDirtyIndex);
+	MaxDirtyIndex = FMath::Max(DescriptorIndex, MaxDirtyIndex);
 }
 
 void FMetalDescriptorHeap::BindHeap(FMetalCommandEncoder* Encoder, MTL::FunctionType FunctionType, const uint32 BindIndex)
@@ -95,12 +130,14 @@ void FMetalDescriptorHeap::BindHeap(FMetalCommandEncoder* Encoder, MTL::Function
     uint32 DescriptorCount = PeakDescriptorCount.load();
     const uint64 HeapSize = DescriptorCount * sizeof(IRDescriptorTableEntry);
 
-    Encoder->SetShaderBuffer(FunctionType, ResourceHeap, 0, HeapSize, BindIndex, MTL::ResourceUsageRead);
+    FMetalRHIBuffer* Buffer = ResourceCast(ResourceHeap.GetReference());
+    Encoder->SetShaderBuffer(FunctionType, Buffer->GetCurrentBuffer(), 0, HeapSize, BindIndex, MTL::ResourceUsageRead);
 }
 
-FMetalBindlessDescriptorManager::FMetalBindlessDescriptorManager()
-    : StandardResources(ERHIDescriptorHeapType::Standard)
-    , SamplerResources(ERHIDescriptorHeapType::Sampler)
+FMetalBindlessDescriptorManager::FMetalBindlessDescriptorManager(FMetalDevice& MetalDevice)
+    : Device(MetalDevice)
+	, StandardResources(Device, ERHIDescriptorHeapType::Standard)
+    , SamplerResources(Device, ERHIDescriptorHeapType::Sampler)
 {
 	
 }
@@ -230,14 +267,187 @@ void FMetalBindlessDescriptorManager::BindResource(FRHIDescriptorHandle Descript
         return;
     };
 
-    StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
+#if !USE_DESCRIPTOR_BUFFER_COPY
+	if(GIsRHIInitialized)
+	{
+		FScopeLock ScopeLock(&ComputeDescriptorCS);
+		
+		StandardResources.ComputeDescriptorEntries.Add(DescriptorData);
+		StandardResources.ComputeDescriptorIndices.Add(DescriptorHandle.GetIndex());
+	}
+	else
+	{
+		StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
+	}
+#else
+	StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
+#endif
 }
 
-void FMetalBindlessDescriptorManager::BindTexture(FRHIDescriptorHandle DescriptorHandle, MTL::Texture* Texture)
+void FMetalBindlessDescriptorManager::UpdateDescriptorsWithGPU()
+{
+#ifdef USE_DESCRIPTOR_BUFFER_COPY
+	UpdateDescriptorsWithCopy();
+#else
+	UpdateDescriptorsWithCompute();
+#endif
+}
+
+void FMetalBindlessDescriptorManager::UpdateDescriptorsWithCopy()
+{
+	FScopeLock ScopeLock(&ComputeDescriptorCS);
+	
+	if(!StandardResources.DescriptorsDirty)
+	{
+		return;
+	}
+	
+	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+	TRHIComputeCommandList_RecursiveHazardous<FMetalRHICommandContext> RHICmdList(Context);
+	
+	uint32_t IndexOffset = StandardResources.MinDirtyIndex;
+	uint32_t UpdateSize = ((StandardResources.MaxDirtyIndex - StandardResources.MinDirtyIndex) + 1) * sizeof(IRDescriptorTableEntry);
+	uint32_t UpdateOffset = StandardResources.MinDirtyIndex * sizeof(IRDescriptorTableEntry);
+	
+	FRHIBufferDesc Desc(UpdateSize, 1, BUF_Dynamic | BUF_KeepCPUAccessible | BUF_StructuredBuffer | BUF_UnorderedAccess);
+	FRHIResourceCreateInfo CreateInfo(TEXT("SrcResourceHeap"));
+	
+	FBufferRHIRef SrcHeap = new FMetalRHIBuffer(RHICmdList, Device, Desc, CreateInfo);
+	
+	StandardResources.DescriptorsDirty = false;
+	StandardResources.MinDirtyIndex = UINT32_MAX;
+	StandardResources.MaxDirtyIndex = 0;
+	
+	FMetalRHIBuffer* SourceBuffer = ResourceCast(SrcHeap.GetReference());
+	FMetalRHIBuffer* DestBuffer = ResourceCast(StandardResources.ResourceHeap.GetReference());
+	
+	IRDescriptorTableEntry* DescriptorCopy = (IRDescriptorTableEntry*)SourceBuffer->GetCurrentBuffer()->Contents();
+	
+#if USE_DESCRIPTOR_BUFFER_COPY
+	FMemory::Memcpy(DescriptorCopy, StandardResources.Descriptors + IndexOffset, UpdateSize);
+#else
+	FMemory::Memcpy(DescriptorCopy, StandardResources.Descriptors + IndexOffset, StandardResources.ResourceHeapLength);
+	
+	for(uint32_t Idx = 0; Idx < ComputeDescriptorEntriesCopy.Num(); ++Idx)
+	{
+		DescriptorCopy[ComputeDescriptorIndicesCopy[Idx]-IndexOffset] = ComputeDescriptorEntriesCopy[Idx];
+	}
+#endif
+	Context->CopyFromBufferToBuffer(SourceBuffer->GetCurrentBuffer(), 0, DestBuffer->GetCurrentBuffer(), UpdateOffset, UpdateSize);
+}
+
+void FMetalBindlessDescriptorManager::UpdateDescriptorsWithCompute()
+{
+    FScopeLock ScopeLock(&ComputeDescriptorCS);
+    
+    TResourceArray<IRDescriptorTableEntry> ComputeDescriptorEntriesCopy = MoveTemp(StandardResources.ComputeDescriptorEntries);
+    TResourceArray<uint32_t> ComputeDescriptorIndicesCopy = MoveTemp(StandardResources.ComputeDescriptorIndices);
+    
+    uint32_t NumDescriptors = ComputeDescriptorIndicesCopy.Num();
+    
+    if(!NumDescriptors)
+    {
+        return;
+    }
+    
+    FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
+    TRHIComputeCommandList_RecursiveHazardous<FMetalRHICommandContext> RHICmdList(Context);
+
+    TShaderMapRef<FUpdateDescriptorHandleCS> ComputeShader(GetGlobalShaderMap(GMaxRHIFeatureLevel));
+    FRHIComputeShader* ShaderRHI = ComputeShader.GetComputeShader();
+    SetComputePipelineState(RHICmdList, ShaderRHI);
+    
+    FShaderResourceViewRHIRef DescriptorEntriesView;
+    FShaderResourceViewRHIRef DescriptorIndicesView;
+    FUnorderedAccessViewRHIRef DstDescriptorBufferView;
+    
+    {
+        FRHIResourceCreateInfo CreateInfo(TEXT("DescriptorEntries"), &ComputeDescriptorEntriesCopy);
+        CreateInfo.GPUMask = FRHIGPUMask::GPU0();
+        
+        FBufferRHIRef DescriptorEntriesBuffer = RHICmdList.CreateStructuredBuffer(sizeof(IRDescriptorTableEntry), NumDescriptors * sizeof(IRDescriptorTableEntry), BUF_Dynamic | BUF_ShaderResource | BUF_KeepCPUAccessible, CreateInfo);
+        
+        auto DescriptorEntriesBufferCreateDesc = FRHIViewDesc::CreateBufferSRV()
+            .SetType(FRHIViewDesc::EBufferType::Structured)
+            .SetStride(sizeof(IRDescriptorTableEntry))
+            .SetNumElements(NumDescriptors);
+        
+        DescriptorEntriesView = RHICmdList.CreateShaderResourceView(DescriptorEntriesBuffer, DescriptorEntriesBufferCreateDesc);
+    }
+    
+    {
+        FRHIResourceCreateInfo CreateInfo(TEXT("DescriptorIndices"), &ComputeDescriptorIndicesCopy);
+        CreateInfo.GPUMask = FRHIGPUMask::GPU0();
+        
+        FBufferRHIRef DescriptorIndicesBuffer = RHICmdList.CreateStructuredBuffer(sizeof(uint), NumDescriptors*sizeof(uint), BUF_Dynamic | BUF_ShaderResource | BUF_KeepCPUAccessible, CreateInfo);
+        
+        auto DescriptorIndicesBufferCreateDesc = FRHIViewDesc::CreateBufferSRV()
+            .SetType(FRHIViewDesc::EBufferType::Structured)
+            .SetStride(sizeof(uint))
+            .SetNumElements(NumDescriptors);
+        
+        DescriptorIndicesView = RHICmdList.CreateShaderResourceView(DescriptorIndicesBuffer, DescriptorIndicesBufferCreateDesc);
+    }
+    
+    {
+        auto DstDescriptorBufferCreateDesc = FRHIViewDesc::CreateBufferUAV()
+            .SetType(FRHIViewDesc::EBufferType::Structured)
+            .SetStride(sizeof(IRDescriptorTableEntry))
+            .SetNumElements(GBindlessResourceDescriptorHeapSize/sizeof(IRDescriptorTableEntry));
+        
+        DstDescriptorBufferView = RHICmdList.CreateUnorderedAccessView(StandardResources.ResourceHeap, DstDescriptorBufferCreateDesc);
+    }
+    
+    FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
+    
+    SetShaderValue(BatchedParameters, ComputeShader->NumUpdates, NumDescriptors);
+    SetSRVParameter(BatchedParameters, ComputeShader->DescriptorEntries, DescriptorEntriesView);
+    SetSRVParameter(BatchedParameters, ComputeShader->DescriptorIndices, DescriptorIndicesView);
+    SetUAVParameter(BatchedParameters, ComputeShader->OutputData, DstDescriptorBufferView);
+	
+	MTLEventPtr Evt = Device.CreateEvent();
+	
+	RHICmdList.EnqueueLambda([InContext=Context, InEvt=Evt](FRHICommandListBase&)
+	{
+		InContext->SignalEvent(InEvt, 1);
+	});
+	
+    RHICmdList.SetBatchedShaderParameters(ShaderRHI, BatchedParameters);
+    RHICmdList.DispatchComputeShader(NumDescriptors, 1, 1);
+	
+	RHICmdList.EnqueueLambda([InContext=Context, InEvt=Evt](FRHICommandListBase&)
+	{
+		InContext->WaitForEvent(InEvt, 1);
+	});
+	
+	Device.ReleaseFunction([Evt](){});
+}
+
+void FMetalBindlessDescriptorManager::BindTexture(FRHICommandListBase& RHICmdList, FRHIDescriptorHandle DescriptorHandle, MTL::Texture* Texture, EDescriptorUpdateType UpdateType)
 {
     IRDescriptorTableEntry DescriptorData = {0};
     IRDescriptorTableSetTexture(&DescriptorData, Texture, 0.0f, 0u);
-    StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
+    
+#if USE_DESCRIPTOR_BUFFER_COPY
+	UpdateType = EDescriptorUpdateType_Immediate;
+#else
+	UpdateType = !GIsRHIInitialized ? EDescriptorUpdateType_Immediate : UpdateType;
+#endif
+	
+    if(UpdateType == EDescriptorUpdateType_Immediate)
+    {
+        StandardResources.UpdateDescriptor(DescriptorHandle, DescriptorData);
+    }
+    else if(UpdateType == EDescriptorUpdateType_GPU)
+    {
+		RHICmdList.EnqueueLambda([this, Data=DescriptorData, Handle=DescriptorHandle](FRHICommandListBase&)
+		{
+			FScopeLock ScopeLock(&ComputeDescriptorCS);
+			
+			StandardResources.ComputeDescriptorEntries.Add(Data);
+			StandardResources.ComputeDescriptorIndices.Add(Handle.GetIndex());
+		});
+    }
 }
 
 void FMetalBindlessDescriptorManager::BindDescriptorHeapsToEncoder(FMetalCommandEncoder* Encoder, MTL::FunctionType FunctionType, EMetalShaderStages Frequency)

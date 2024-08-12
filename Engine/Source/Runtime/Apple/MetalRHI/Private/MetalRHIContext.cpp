@@ -1,108 +1,188 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalRHIContext.h"
-#include "MetalContext.h"
 #include "MetalRHIPrivate.h"
 #include "MetalRHIRenderQuery.h"
 #include "MetalRHIVisionOSBridge.h"
+#include "MetalBindlessDescriptors.h"
+#include "MetalDevice.h"
+#include "MetalCommandBuffer.h"
 
-FMetalDeviceContext& GetMetalDeviceContext()
-{
-	FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-	check(Context);
-	return ((FMetalDeviceContext&)Context->GetInternalContext());
-}
+#if PLATFORM_VISIONOS
+#import <CompositorServices/CompositorServices.h>
+#endif
 
-void SafeReleaseMetalObject(NS::Object* Object)
+void METALRHI_API SafeReleaseMetalObject(NS::Object* Object)
 {
 	if(GIsMetalInitialized && GDynamicRHI && Object)
 	{
 		FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
 		if(Context)
 		{
-			((FMetalDeviceContext&)Context->GetInternalContext()).ReleaseObject(Object);
+			Context->GetDevice().ReleaseObject(Object);
 			return;
 		}
 	}
 	Object->release();
 }
 
-void SafeReleaseMetalTexture(MTLTexturePtr Object)
-{
-	if(GIsMetalInitialized && GDynamicRHI && Object)
-	{
-		FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-		if(Context)
-		{
-			((FMetalDeviceContext&)Context->GetInternalContext()).ReleaseTexture(Object);
-			return;
-		}
-	}
-}
-
-void SafeReleaseMetalBuffer(FMetalBufferPtr Buffer)
-{
-	if(GIsMetalInitialized && GDynamicRHI && Buffer)
-	{
-		Buffer->SetOwner(nullptr, false);
-		FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-		if(Context)
-		{
-			((FMetalDeviceContext&)Context->GetInternalContext()).ReleaseBuffer(Buffer);
-		}
-	}
-}
-
-void SafeReleaseMetalFence(FMetalFence* Object)
-{
-	if(GIsMetalInitialized && GDynamicRHI && Object)
-	{
-		FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-		if(Context)
-		{
-			((FMetalDeviceContext&)Context->GetInternalContext()).ReleaseFence(Object);
-			return;
-		}
-	}
-}
-
-void SafeReleaseFunction(TFunction<void()> ReleaseFunc)
-{
-    if(GIsMetalInitialized && GDynamicRHI)
-    {
-        FMetalRHICommandContext* Context = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
-        if(Context)
-        {
-            ((FMetalDeviceContext&)Context->GetInternalContext()).ReleaseFunction(ReleaseFunc);
-            return;
-        }
-    }
-}
-
-FMetalRHICommandContext::FMetalRHICommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext)
-	: Context(WrapContext)
+FMetalRHICommandContext::FMetalRHICommandContext(FMetalDevice& MetalDevice, class FMetalProfiler* InProfiler)
+	: Device(MetalDevice)
+	, CommandQueue(Device.GetCommandQueue())
+	, CommandList(Device.GetCommandQueue())
+	, CurrentEncoder(MetalDevice, CommandList)
+	, StateCache(MetalDevice, true)
+	, QueryBuffer(new FMetalQueryBufferPool(MetalDevice))
+	, RenderPassDesc(nullptr)
 	, Profiler(InProfiler)
+	, bWithinRenderPass(false)
 {
-	check(Context);
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
 }
 
 FMetalRHICommandContext::~FMetalRHICommandContext()
 {
-	delete Context;
+	CurrentEncoder.Release();
+	Device.WaitForGPUIdle();
 }
 
-FMetalRHIImmediateCommandContext::FMetalRHIImmediateCommandContext(class FMetalProfiler* InProfiler, FMetalDeviceContext* WrapContext)
-	: FMetalRHICommandContext(InProfiler, WrapContext)
+void FMetalRHICommandContext::ResetContext()
 {
+	// Reset cached state in the encoder
+	StateCache.Reset();
+	
+	// Reset the current encoder
+	CurrentEncoder.Reset();
+	
+	// Reallocate if necessary to ensure >= 80% usage, otherwise we're just too wasteful
+	CurrentEncoder.GetRingBuffer().Shrink();
+	
+	// Begin the render pass frame.
+	CurrentEncoder.StartCommandBuffer();
+	
+	// make sure first SetRenderTarget goes through
+	StateCache.InvalidateRenderTargets();
+}
+
+static uint32_t MAX_COLOR_RENDER_TARGETS_PER_DESC = 8;
+
+void FMetalRHICommandContext::BeginComputeEncoder()
+{
+	SCOPE_CYCLE_COUNTER(STAT_MetalSwitchToComputeTime);
+	
+	check(CurrentEncoder.GetCommandBuffer());
+	check(IsInParallelRenderingThread());
+	
+	StateCache.SetStateDirty();
+	
+	if(!CurrentEncoder.IsComputeCommandEncoderActive())
+	{
+		if(CurrentEncoder.IsAnyCommandEncoderActive())
+		{
+			CurrentEncoderFence = CurrentEncoder.EndEncoding();
+		}
+		CurrentEncoder.BeginComputeCommandEncoding(MTL::DispatchTypeSerial);
+	}
+	
+	if (CurrentEncoderFence)
+	{
+		CurrentEncoder.WaitForFence(CurrentEncoderFence);
+		CurrentEncoderFence = nullptr;
+	}
+	
+	check(CurrentEncoder.IsComputeCommandEncoderActive());
+}
+
+void FMetalRHICommandContext::EndComputeEncoder()
+{
+	check(CurrentEncoder.IsComputeCommandEncoderActive());
+	
+	StateCache.SetRenderTargetsActive(false);
+}
+
+void FMetalRHICommandContext::BeginBlitEncoder()
+{
+	SCOPE_CYCLE_COUNTER(STAT_MetalSwitchToBlitTime);
+	
+	check(CurrentEncoder.GetCommandBuffer());
+	
+	if(!CurrentEncoder.IsBlitCommandEncoderActive())
+	{
+		if(CurrentEncoder.IsAnyCommandEncoderActive())
+		{
+			CurrentEncoderFence = CurrentEncoder.EndEncoding();
+		}
+		CurrentEncoder.BeginBlitCommandEncoding();
+	}
+	
+	if (CurrentEncoderFence)
+	{
+		CurrentEncoder.WaitForFence(CurrentEncoderFence);
+		CurrentEncoderFence = nullptr;
+	}
+	
+	check(CurrentEncoder.IsBlitCommandEncoderActive());
+}
+
+void FMetalRHICommandContext::EndBlitEncoder()
+{
+	check(CurrentEncoder.IsBlitCommandEncoderActive());
+	
+	StateCache.SetRenderTargetsActive(false);
 }
 
 void FMetalRHICommandContext::RHIBeginRenderPass(const FRHIRenderPassInfo& InInfo, const TCHAR* InName)
-{
+{	
     MTL_SCOPED_AUTORELEASE_POOL;
+	
+#if PLATFORM_SUPPORTS_BINDLESS_RENDERING
+	if(!bWithinRenderPass && IsMetalBindlessEnabled())
+	{
+		Device.GetBindlessDescriptorManager()->UpdateDescriptorsWithGPU();
+	}
+#endif
+    
+	RenderPassInfo = InInfo;
+	
+	if (InInfo.NumOcclusionQueries > 0)
+	{
+		RHIBeginOcclusionQueryBatch(InInfo.NumOcclusionQueries);
+	}
+	
+	if (!CurrentEncoder.GetCommandBuffer())
+	{
+		CurrentEncoder.StartCommandBuffer();
+		check(CurrentEncoder.GetCommandBuffer());
+	}
+	
+	StateCache.SetStateDirty();
+	StateCache.SetRenderTargetsActive(true);
+	StateCache.StartRenderPass(InInfo, QueryBuffer->GetCurrentQueryBuffer());
+	
+	RenderPassDesc = StateCache.GetRenderPassDescriptor();
+	
+	check(IsInParallelRenderingThread());
+	
+	if(!CurrentEncoder.IsRenderCommandEncoderActive())
+	{
+		if(CurrentEncoder.IsAnyCommandEncoderActive())
+		{
+			CurrentEncoderFence = CurrentEncoder.EndEncoding();
+		}
+		CurrentEncoder.SetRenderPassDescriptor(RenderPassDesc);
+		CurrentEncoder.BeginRenderCommandEncoding();
+	}
+	
+	if (CurrentEncoderFence)
+	{
+		CurrentEncoder.WaitForFence(CurrentEncoderFence);
+		CurrentEncoderFence = nullptr;
+	}
+	StateCache.SetRenderStoreActions(CurrentEncoder, false);
+	check(CurrentEncoder.IsRenderCommandEncoderActive());
 
-	Context->SetRenderPassInfo(InInfo);
-
+	bWithinRenderPass = true;
+	
 	// Set the viewport to the full size of render target 0.
 	if (InInfo.ColorRenderTargets[0].RenderTarget)
 	{
@@ -114,12 +194,6 @@ void FMetalRHICommandContext::RHIBeginRenderPass(const FRHIRenderPassInfo& InInf
 
 		RHISetViewport(0.0f, 0.0f, 0.0f, (float)Width, (float)Height, 1.0f);
 	}
-	
-	RenderPassInfo = InInfo;
-	if (InInfo.NumOcclusionQueries > 0)
-	{
-		RHIBeginOcclusionQueryBatch(InInfo.NumOcclusionQueries);
-	}
 }
 
 void FMetalRHICommandContext::RHIEndRenderPass()
@@ -129,12 +203,22 @@ void FMetalRHICommandContext::RHIEndRenderPass()
 		RHIEndOcclusionQueryBatch();
 	}
     
-    Context->EndRenderPass();
-
 	UE::RHICore::ResolveRenderPassTargets(RenderPassInfo, [this](UE::RHICore::FResolveTextureInfo Info)
 	{
 		ResolveTexture(Info);
 	});
+	
+	check(bWithinRenderPass);
+	check(CurrentEncoder.IsRenderCommandEncoderActive());
+	
+	StateCache.FlushVisibilityResults(CurrentEncoder);
+	
+	CurrentEncoderFence = CurrentEncoder.EndEncoding();
+	
+	StateCache.SetRenderTargetsActive(false);
+	
+	RenderPassDesc = nullptr;
+	bWithinRenderPass = false;
 }
 
 void FMetalRHICommandContext::ResolveTexture(UE::RHICore::FResolveTextureInfo Info)
@@ -148,8 +232,8 @@ void FMetalRHICommandContext::ResolveTexture(UE::RHICore::FResolveTextureInfo In
 	const FRHITextureDesc& DestinationDesc = Destination->GetDesc();
 
 	const bool bDepthStencil = SourceDesc.Format == PF_DepthStencil;
-	const bool bSupportsMSAADepthResolve = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesMSAADepthResolve);
-	const bool bSupportsMSAAStoreAndResolve = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesMSAAStoreAndResolve);
+	const bool bSupportsMSAADepthResolve = Device.SupportsFeature(EMetalFeaturesMSAADepthResolve);
+	const bool bSupportsMSAAStoreAndResolve = Device.SupportsFeature(EMetalFeaturesMSAAStoreAndResolve);
 	// Resolve required - Device must support this - Using Shader for resolve not supported amd NumSamples should be 1
 	check((!bDepthStencil && bSupportsMSAAStoreAndResolve) || (bDepthStencil && bSupportsMSAADepthResolve));
 
@@ -183,10 +267,19 @@ void FMetalRHICommandContext::ResolveTexture(UE::RHICore::FResolveTextureInfo In
 		ArraySliceEnd   = SourceDesc.ArraySize;
 	}
 
+	BeginBlitEncoder();
+	
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	
+	check(Encoder);
+	
 	for (int32 ArraySlice = ArraySliceBegin; ArraySlice < ArraySliceEnd; ArraySlice++)
 	{
-		Context->CopyFromTextureToTexture(Source->MSAAResolveTexture.get(), ArraySlice, Info.MipLevel, Origin, Size, Destination->Texture.get(), ArraySlice, Info.MipLevel, Origin);
+		METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+		Encoder->copyFromTexture(Source->MSAAResolveTexture.get(), ArraySlice, Info.MipLevel, Origin, Size, Destination->Texture.get(), ArraySlice, Info.MipLevel, Origin);
 	}
+	
+	EndBlitEncoder();
 }
 
 void FMetalRHICommandContext::RHINextSubpass()
@@ -194,10 +287,11 @@ void FMetalRHICommandContext::RHINextSubpass()
 #if PLATFORM_MAC
 	if (RenderPassInfo.SubpassHint == ESubpassHint::DepthReadSubpass)
 	{
-		FMetalRenderPass& RP = Context->GetCurrentRenderPass();
-		if (RP.GetCurrentCommandEncoder().IsRenderCommandEncoderActive())
+		if (CurrentEncoder.IsRenderCommandEncoderActive())
 		{
-			RP.InsertTextureBarrier();
+			MTL::RenderCommandEncoder* RenderEncoder = CurrentEncoder.GetRenderCommandEncoder();
+			check(RenderEncoder);
+			RenderEncoder->memoryBarrier(MTL::BarrierScopeRenderTargets, MTL::RenderStageFragment, MTL::RenderStageVertex);
 		}
 	}
 #endif
@@ -205,7 +299,7 @@ void FMetalRHICommandContext::RHINextSubpass()
 
 void FMetalRHICommandContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* CalibrationQuery)
 {
-    MTL::Device* MTLDevice = GetMetalDeviceContext().GetDevice();
+    MTL::Device* MTLDevice = Device.GetDevice();
     
     MTL::Timestamp CPUTimeStamp, GPUTimestamp;
     MTLDevice->sampleTimestamps(&CPUTimeStamp, &GPUTimestamp);
@@ -218,27 +312,260 @@ void FMetalRHICommandContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 	FMetalRHIRenderQuery* Query = ResourceCast(QueryRHI);
-    Query->Begin(Context, CommandBufferFence);
+    Query->Begin(this, CommandBufferFence);
 }
 
 void FMetalRHICommandContext::RHIEndRenderQuery(FRHIRenderQuery* QueryRHI)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     FMetalRHIRenderQuery* Query = ResourceCast(QueryRHI);
-	Query->End(Context);
+	Query->End(this);
 }
 
 void FMetalRHICommandContext::RHIBeginOcclusionQueryBatch(uint32 NumQueriesInBatch)
 {
     check(!CommandBufferFence.IsValid());
 	CommandBufferFence = MakeShareable(new FMetalCommandBufferFence);
-    Context->InsertCommandBufferFence(CommandBufferFence, FMetalCommandBufferCompletionHandler());
+    CurrentEncoder.InsertCommandBufferFence(CommandBufferFence, FMetalCommandBufferCompletionHandler());
 }
 
 void FMetalRHICommandContext::RHIEndOcclusionQueryBatch()
 {
 	check(CommandBufferFence.IsValid());
 	CommandBufferFence.Reset();
+}
+
+void FMetalRHICommandContext::FillBuffer(MTL::Buffer* Buffer, NS::Range Range, uint8 Value)
+{
+	check(Buffer);
+	
+	MTL::BlitCommandEncoder *TargetEncoder;
+	
+	BeginBlitEncoder();
+	TargetEncoder = CurrentEncoder.GetBlitCommandEncoder();
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), FString::Printf(TEXT("FillBuffer: %p %llu %llu"), Buffer, Range.location, Range.length)));
+	
+	check(TargetEncoder);
+	
+	TargetEncoder->fillBuffer(Buffer, Range, Value);
+	
+	EndBlitEncoder();
+}
+
+void FMetalRHICommandContext::CopyFromTextureToBuffer(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, FMetalBufferPtr toBuffer, uint32 destinationOffset, uint32 destinationBytesPerRow, uint32 destinationBytesPerImage, MTL::BlitOption options)
+{
+	BeginBlitEncoder();
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	{
+		if(Texture)
+		{
+			Encoder->copyFromTexture(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize,
+									 toBuffer->GetMTLBuffer().get(), destinationOffset + toBuffer->GetOffset(), destinationBytesPerRow, destinationBytesPerImage, options);
+		}
+	}
+	EndBlitEncoder();
+}
+
+void FMetalRHICommandContext::CopyFromBufferToTexture(FMetalBufferPtr Buffer, uint32 sourceOffset, uint32 sourceBytesPerRow, uint32 sourceBytesPerImage, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin, MTL::BlitOption options)
+{
+	BeginBlitEncoder();
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	if (options == MTL::BlitOptionNone)
+	{
+		Encoder->copyFromBuffer(Buffer->GetMTLBuffer().get(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
+								toTexture, destinationSlice, destinationLevel, destinationOrigin);
+	}
+	else
+	{
+		Encoder->copyFromBuffer(Buffer->GetMTLBuffer().get(), sourceOffset + Buffer->GetOffset(), sourceBytesPerRow, sourceBytesPerImage, sourceSize,
+								toTexture, destinationSlice, destinationLevel, destinationOrigin, options);
+	}
+	
+	EndBlitEncoder();
+}
+
+void FMetalRHICommandContext::CopyFromTextureToTexture(MTL::Texture* Texture, uint32 sourceSlice, uint32 sourceLevel, MTL::Origin sourceOrigin, MTL::Size sourceSize, MTL::Texture* toTexture, uint32 destinationSlice, uint32 destinationLevel, MTL::Origin destinationOrigin)
+{
+	BeginBlitEncoder();
+	
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	Encoder->copyFromTexture(Texture, sourceSlice, sourceLevel, sourceOrigin, sourceSize, toTexture, destinationSlice, destinationLevel, destinationOrigin);
+	
+	EndBlitEncoder();
+}
+
+void FMetalRHICommandContext::CopyFromBufferToBuffer(FMetalBufferPtr SourceBuffer, NS::UInteger SourceOffset, FMetalBufferPtr DestinationBuffer, NS::UInteger DestinationOffset, NS::UInteger Size)
+{
+	BeginBlitEncoder();
+	
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	
+	Encoder->copyFromBuffer(SourceBuffer->GetMTLBuffer().get(), SourceOffset + SourceBuffer->GetOffset(),
+							DestinationBuffer->GetMTLBuffer().get(), DestinationOffset + DestinationBuffer->GetOffset(), Size);
+	
+	EndBlitEncoder();
+}
+
+FMetalCommandBuffer* FMetalRHICommandContext::Finalize()
+{
+	GetQueryBufferPool()->ReleaseCurrentQueryBuffer();
+	
+	if(CurrentEncoder.IsAnyCommandEncoderActive())
+	{
+		CurrentEncoderFence = CurrentEncoder.EndEncoding();
+	}
+	
+	if (CurrentEncoder.GetCommandBuffer())
+	{
+		FMetalCommandBuffer* CommandBuffer = CurrentEncoder.Finalize();
+		return CommandBuffer;
+	}
+	
+	return nullptr;
+}
+
+void FMetalRHICommandContext::InsertCommandBufferFence(TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe>& Fence, FMetalCommandBufferCompletionHandler Handler)
+{
+	CurrentEncoder.InsertCommandBufferFence(Fence, Handler);
+}
+
+void FMetalRHICommandContext::SignalEvent(MTLEventPtr Event, uint32_t SignalCount)
+{
+	CurrentEncoder.SignalEvent(Event, SignalCount);
+}
+
+void FMetalRHICommandContext::WaitForEvent(MTLEventPtr Event, uint32_t SignalCount)
+{
+	CurrentEncoder.WaitForEvent(Event, SignalCount);
+}
+
+void FMetalRHICommandContext::StartTiming(class FMetalEventNode* EventNode)
+{
+	FMetalCommandBufferCompletionHandler Handler;
+	
+	bool const bHasCurrentCommandBuffer = CurrentEncoder.GetCommandBuffer();
+	
+	if(EventNode)
+	{
+		Handler = EventNode->Start();
+		
+		if (bHasCurrentCommandBuffer)
+		{
+			CurrentEncoder.AddCompletionHandler(Handler);
+		}
+	}
+	
+	if (Handler.IsBound() && !bHasCurrentCommandBuffer)
+	{
+		CurrentEncoder.GetCommandBuffer()->GetMTLCmdBuffer()->addScheduledHandler(
+						MTL::HandlerFunction([Handler](MTL::CommandBuffer* CommandBuffer)
+						{
+							Handler.Execute(CommandBuffer);
+						}));
+	}
+}
+
+void FMetalRHICommandContext::EndTiming(class FMetalEventNode* EventNode)
+{
+	FMetalCommandBufferCompletionHandler Handler = EventNode->Stop();
+	CurrentEncoder.AddCompletionHandler(Handler);
+}
+
+void FMetalRHICommandContext::SynchronizeResource(MTL::Resource* Resource)
+{
+	check(Resource);
+#if PLATFORM_MAC
+	BeginBlitEncoder();
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	Encoder->synchronizeResource(Resource);
+	EndBlitEncoder();
+#endif
+}
+
+void FMetalRHICommandContext::SynchronizeTexture(MTL::Texture* Texture, uint32 Slice, uint32 Level)
+{
+	check(Texture);
+#if PLATFORM_MAC
+	BeginBlitEncoder();
+	MTL::BlitCommandEncoder* Encoder = CurrentEncoder.GetBlitCommandEncoder();
+	check(Encoder);
+	
+	METAL_GPUPROFILE(FMetalProfiler::GetProfiler()->EncodeBlit(CurrentEncoder.GetCommandBufferStats(), __FUNCTION__));
+	Encoder->synchronizeTexture(Texture, Slice, Level);
+	EndBlitEncoder();
+#endif
+}
+
+void FMetalRHICommandContext::AddCompletionHandler(FMetalCommandBufferCompletionHandler& Handler)
+{
+	CurrentEncoder.AddCompletionHandler(Handler);
+}
+
+FMetalCommandBuffer* FMetalRHICommandContext::GetCurrentCommandBuffer()
+{
+	FMetalCommandBuffer* CommandBuffer = CurrentEncoder.GetCommandBuffer();
+	if(!CommandBuffer)
+	{
+		CurrentEncoder.StartCommandBuffer();
+	}
+	return CurrentEncoder.GetCommandBuffer();
+}
+
+FMetalRHIUploadContext::FMetalRHIUploadContext(FMetalDevice& Device)
+{
+	UploadContext = new FMetalRHICommandContext(Device, nullptr);
+	UploadContext->ResetContext();
+	
+	WaitContext = new FMetalRHICommandContext(Device, nullptr);
+	WaitContext->ResetContext();
+	
+	UploadSyncEvent = Device.CreateEvent();
+}
+
+FMetalRHIUploadContext::~FMetalRHIUploadContext()
+{
+	delete UploadContext;
+	delete WaitContext;
+}
+
+TArray<FMetalCommandBuffer*>* FMetalRHIUploadContext::Finalize()
+{
+	for(auto& Function : UploadFunctions)
+	{
+		Function(UploadContext);
+	}
+	
+	UploadSyncCounter++;
+	UploadContext->SignalEvent(UploadSyncEvent, UploadSyncCounter);
+	
+	TArray<FMetalCommandBuffer*>* CommandBuffers = new TArray<FMetalCommandBuffer*>();
+	
+	CommandBuffers->Add(UploadContext->Finalize());
+	
+	UploadFunctions.Reset();
+	UploadContext->ResetContext();
+	
+	WaitContext->WaitForEvent(UploadSyncEvent, UploadSyncCounter);
+	CommandBuffers->Add(WaitContext->Finalize());
+	
+	WaitContext->ResetContext();
+	
+	return CommandBuffers;
 }
 
 FMetalContextArray::FMetalContextArray(FRHIContextArray const& Contexts)

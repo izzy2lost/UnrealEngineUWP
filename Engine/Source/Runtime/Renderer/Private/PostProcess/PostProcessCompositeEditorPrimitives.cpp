@@ -18,6 +18,10 @@ namespace
 class FCompositeEditorPrimitivesPS : public FCompositePrimitiveShaderBase
 {
 public:
+	class FWriteDepth : SHADER_PERMUTATION_BOOL("WRITE_DEPTH");
+					
+	using FPermutationDomain = TShaderPermutationDomain<FWriteDepth, FSampleCountDimension, FMSAADontResolve>;
+			
 	DECLARE_GLOBAL_SHADER(FCompositeEditorPrimitivesPS);
 	SHADER_USE_PARAMETER_STRUCT(FCompositeEditorPrimitivesPS, FCompositePrimitiveShaderBase);
 
@@ -36,7 +40,6 @@ public:
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, DepthTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState,  DepthSampler)
 
-
 		SHADER_PARAMETER(FScreenTransform, PassSvPositionToViewportUV)
 		SHADER_PARAMETER(FScreenTransform, ViewportUVToColorUV)
 		SHADER_PARAMETER(FScreenTransform, ViewportUVToDepthUV)
@@ -46,6 +49,24 @@ public:
 		SHADER_PARAMETER(uint32, bProcessAlpha)
 		RENDER_TARGET_BINDING_SLOTS()
 	END_SHADER_PARAMETER_STRUCT()
+
+	static bool ShouldCompilePermutation(const FPermutationDomain& PermutationVector, const EShaderPlatform Platform)
+	{
+		const int32 SampleCount = PermutationVector.Get<FSampleCountDimension>();
+		// Only use permutations with valid MSAA sample counts.
+		if (!FMath::IsPowerOfTwo(SampleCount))
+		{
+		   return false;
+		}
+
+		return IsPCPlatform(Platform);
+	}
+	   
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+	   const FPermutationDomain PermutationVector(Parameters.PermutationId);
+	   return ShouldCompilePermutation(PermutationVector, Parameters.Platform);
+	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
@@ -444,6 +465,7 @@ FScreenPassTexture AddEditorPrimitivePass(
 		FCompositeEditorPrimitivesPS::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FCompositeEditorPrimitivesPS::FSampleCountDimension>(NumMSAASamples);
 		PermutationVector.Set<FCompositeEditorPrimitivesPS::FMSAADontResolve>(bOutputIsMSAA);
+		PermutationVector.Set<FCompositeEditorPrimitivesPS::FWriteDepth>(DepthOutput.IsValid());
 
 		TShaderMapRef<FCompositeEditorPrimitivesPS> PixelShader(View.ShaderMap, PermutationVector);
 		

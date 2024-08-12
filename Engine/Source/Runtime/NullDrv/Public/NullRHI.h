@@ -508,9 +508,8 @@ public:
 		return nullptr;
 	}
 
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) final override
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) final override
 	{
-		return nullptr;
 	}
 
 	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) final override

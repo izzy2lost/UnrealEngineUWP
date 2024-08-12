@@ -10,7 +10,8 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformFileManager.h"
 #include "MetalCommandQueue.h"
-#include "MetalContext.h"
+#include "MetalDevice.h"
+#include "MetalProfiler.h"
 #include "MetalShaderResources.h"
 #include "Misc/FileHelper.h"
 #include "Misc/ScopeExit.h"
@@ -96,7 +97,7 @@ public:
 		StaticFrequency = ShaderType
 	};
 
-	TMetalBaseShader()
+	TMetalBaseShader(FMetalDevice& MetalDevice) : Device(MetalDevice)
 	{
 		// void
 	}
@@ -117,6 +118,7 @@ public:
 	NS::String* GetSourceCode();
 
 protected:
+	FMetalDevice& Device;
 	MTLFunctionPtr GetCompiledFunction(bool const bAsync = false, const int32 FunctionIndex = -1);
 };
 
@@ -171,7 +173,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 	const ANSICHAR* ShaderSource = ShaderCode.FindOptionalData(EShaderOptionalDataKey::SourceCode);
 	bool bHasShaderSource = (ShaderSource && FCStringAnsi::Strlen(ShaderSource) > 0);
 
-	static bool bForceTextShaders = FMetalCommandQueue::SupportsFeature(EMetalFeaturesGPUTrace);
+	static bool bForceTextShaders = Device.SupportsFeature(EMetalFeaturesGPUTrace);
 	if (!bHasShaderSource)
 	{
 		int32 LZMASourceSize = 0;
@@ -253,7 +255,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 				dispatch_data_t GCDBuffer = dispatch_data_create(Buffer, BufferSize, dispatch_get_main_queue(), ^(void) { FMemory::Free(Buffer); } );
 
 				// load up the already compiled shader
-				Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(GCDBuffer, &AError));
+				Library = NS::TransferPtr(Device.GetDevice()->newLibrary(GCDBuffer, &AError));
 				dispatch_release(GCDBuffer);
 
 				if (!Library)
@@ -353,7 +355,7 @@ void TMetalBaseShader<BaseResourceType, ShaderType>::Init(TArrayView<const uint8
 			}
 
 			NS::Error* Error = nullptr;
-			Library = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newLibrary(NewShaderString, CompileOptions, &Error));
+			Library = NS::TransferPtr(Device.GetDevice()->newLibrary(NewShaderString, CompileOptions, &Error));
 			if (Library.get() == nullptr)
 			{
 				UE_LOG(LogRHI, Error, TEXT("*********** Error\n%s"), *NSStringToFString(NewShaderString));
@@ -510,7 +512,7 @@ MTLFunctionPtr TMetalBaseShader<BaseResourceType, ShaderType>::GetCompiledFuncti
 		}
 	}
 
-	if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesIABs) && Bindings.ArgumentBuffers && ArgumentEncoders.Num() == 0)
+	if (Device.SupportsFeature(EMetalFeaturesIABs) && Bindings.ArgumentBuffers && ArgumentEncoders.Num() == 0)
 	{
 		uint32 ArgumentBuffers = Bindings.ArgumentBuffers;
 		while(ArgumentBuffers)

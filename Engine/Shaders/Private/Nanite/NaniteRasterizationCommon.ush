@@ -175,7 +175,7 @@ void DeduplicateVertIndexes( uint3 VertIndexes, uint GroupThreadIndex, bool bTri
 		}
 	}
 
-	uint2 UsedVertMask;
+	uint2 UsedVertMask = uint2(0,0);
 	BRANCH
 	if( LaneCount < 32 )
 	{

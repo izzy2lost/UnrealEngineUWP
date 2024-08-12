@@ -6,19 +6,6 @@
 #include "MetalResources.h"
 #include "MetalShaderResources.h"
 
-/**
- * EMetalDebugLevel: Level of Metal debug features to be enabled.
- */
-enum EMetalDebugLevel
-{
-	EMetalDebugLevelOff,
-	EMetalDebugLevelFastValidation,
-	EMetalDebugLevelResetOnBind,
-	EMetalDebugLevelConditionalSubmit,
-	EMetalDebugLevelValidation,
-	EMetalDebugLevelWaitForComplete,
-};
-
 class FMetalCommandBuffer
 {
 public:

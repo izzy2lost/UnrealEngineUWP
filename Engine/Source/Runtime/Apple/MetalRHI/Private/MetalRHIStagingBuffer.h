@@ -8,16 +8,16 @@
 
 #include "RHIResources.h"
 
+class FMetalDevice;
 class FMetalBuffer;
-typedef TSharedPtr<FMetalBuffer> FMetalBufferPtr;
+typedef TSharedPtr<FMetalBuffer, ESPMode::ThreadSafe> FMetalBufferPtr;
 
 class FMetalRHIStagingBuffer final : public FRHIStagingBuffer
 {
 	friend class FMetalRHICommandContext;
 
 public:
-	FMetalRHIStagingBuffer();
-
+	FMetalRHIStagingBuffer(FMetalDevice& Device);
 	virtual ~FMetalRHIStagingBuffer() final override;
 
 	/**
@@ -31,5 +31,6 @@ public:
 	virtual void Unlock() final override;
 
 private:
+	FMetalDevice& Device;
 	FMetalBufferPtr ShadowBuffer = nullptr;
 };

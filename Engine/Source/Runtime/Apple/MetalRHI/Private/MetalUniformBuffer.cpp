@@ -6,18 +6,19 @@
 
 #include "MetalUniformBuffer.h"
 #include "MetalRHIPrivate.h"
-#include "MetalContext.h"
-#include "MetalFrameAllocator.h"
+#include "MetalTempAllocator.h"
+#include "MetalDevice.h"
 #include "ShaderParameterStruct.h"
 #include "RHIUniformBufferDataShared.h"
 
 #pragma mark Suballocated Uniform Buffer Implementation
 
-FMetalSuballocatedUniformBuffer::FMetalSuballocatedUniformBuffer(const void *Contents, const FRHIUniformBufferLayout* Layout, EUniformBufferUsage Usage, EUniformBufferValidation InValidation)
+FMetalSuballocatedUniformBuffer::FMetalSuballocatedUniformBuffer(FMetalDevice& InDevice, const void *Contents, const FRHIUniformBufferLayout* Layout,
+																EUniformBufferUsage Usage, EUniformBufferValidation InValidation)
     : FRHIUniformBuffer(Layout)
     , LastFrameUpdated(0)
-    , Offset(0)
     , Shadow(FMemory::Malloc(GetSize()))
+	, Device(InDevice)
 #if METAL_UNIFORM_BUFFER_VALIDATION
     , Validation(InValidation)
 #endif // METAL_UNIFORM_BUFFER_VALIDATION
@@ -31,10 +32,13 @@ FMetalSuballocatedUniformBuffer::FMetalSuballocatedUniformBuffer(const void *Con
 
 FMetalSuballocatedUniformBuffer::~FMetalSuballocatedUniformBuffer()
 {
+	if(BackingBuffer)
+	{
+		Device.ReleaseBuffer(BackingBuffer);
+		BackingBuffer = nullptr;
+	}
+	
 	FMemory::Free(Shadow);
-
-    // Note: this object does NOT own a reference
-    // to the uniform buffer backing store
 }
 
 void FMetalSuballocatedUniformBuffer::Update(const void* Contents)
@@ -49,16 +53,19 @@ void FMetalSuballocatedUniformBuffer::Update(const void* Contents)
 // The amount of data read from Contents is given by the Layout
 void FMetalSuballocatedUniformBuffer::PushToGPUBacking(const void* Contents)
 {
-    FMetalDeviceContext& DeviceContext = GetMetalDeviceContext();
+    if(BackingBuffer)
+    {
+        Device.ReleaseBuffer(BackingBuffer);
+    }
     
-    FMetalFrameAllocator* Allocator = DeviceContext.GetUniformAllocator();
-    FMetalFrameAllocator::AllocationEntry Entry = Allocator->AcquireSpace(GetSize());
-    // copy contents into backing
-    Backing = Entry.Backing;
-    Offset = Entry.Offset;
-    uint8* ConstantSpace = reinterpret_cast<uint8*>(Backing->contents()) + Entry.Offset;
-    FMemory::Memcpy(ConstantSpace, Contents, GetSize());
-    LastFrameUpdated = DeviceContext.GetFrameNumberRHIThread();
+	FMetalTempAllocator* Allocator = Device.GetUniformAllocator();
+	FMetalBufferPtr Buffer = Allocator->Allocate(GetSize());
+	// copy contents into backing
+	BackingBuffer = Buffer;
+	
+	uint8* ConstantSpace = reinterpret_cast<uint8*>(Buffer->Contents());
+	FMemory::Memcpy(ConstantSpace, Contents, GetSize());
+	LastFrameUpdated = Device.GetFrameNumberRHIThread();
 }
 
 // Because we can create a uniform buffer on frame N and may not bind it until frame N+10
@@ -66,8 +73,7 @@ void FMetalSuballocatedUniformBuffer::PushToGPUBacking(const void* Contents)
 // uniform buffer we can push the data into the GPU backing.
 void FMetalSuballocatedUniformBuffer::PrepareToBind()
 {
-    FMetalDeviceContext& DeviceContext = GetMetalDeviceContext();
-    if(!LastFrameUpdated || LastFrameUpdated < DeviceContext.GetFrameNumberRHIThread())
+    if(!LastFrameUpdated || LastFrameUpdated < Device.GetFrameNumberRHIThread())
     {
         PushToGPUBacking(Shadow);
     }

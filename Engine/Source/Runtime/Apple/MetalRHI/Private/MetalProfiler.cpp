@@ -1,11 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MetalProfiler.h"
-#include "MetalContext.h"
 #include "MetalRHIPrivate.h"
 #include "EngineGlobals.h"
 #include "StaticBoundShaderState.h"
 #include "MetalCommandBuffer.h"
+#include "MetalRHIContext.h"
+#include "HAL/PlatformFramePacer.h"
 #include "HAL/FileManager.h"
 
 DEFINE_STAT(STAT_MetalUniformMemAlloc);
@@ -23,7 +24,6 @@ DEFINE_STAT(STAT_MetalSwitchToNoneTime);
 DEFINE_STAT(STAT_MetalSwitchToRenderTime);
 DEFINE_STAT(STAT_MetalSwitchToComputeTime);
 DEFINE_STAT(STAT_MetalSwitchToBlitTime);
-DEFINE_STAT(STAT_MetalSwitchToAsyncBlitTime);
 DEFINE_STAT(STAT_MetalPrepareToRenderTime);
 DEFINE_STAT(STAT_MetalPrepareToDispatchTime);
 DEFINE_STAT(STAT_MetalCommitRenderResourceTablesTime);
@@ -54,9 +54,7 @@ DEFINE_STAT(STAT_MetalUniformMemoryInFlight);
 DEFINE_STAT(STAT_MetalUniformAllocatedMemory);
 DEFINE_STAT(STAT_MetalUniformBytesPerFrame);
 
-DEFINE_STAT(STAT_MetalFrameAllocatorMemoryInFlight);
-DEFINE_STAT(STAT_MetalFrameAllocatorAllocatedMemory);
-DEFINE_STAT(STAT_MetalFrameAllocatorBytesPerFrame);
+DEFINE_STAT(STAT_MetalTempAllocatorAllocatedMemory);
 
 int64 volatile GMetalTexturePageOnTime = 0;
 int64 volatile GMetalGPUWorkTime = 0;
@@ -77,10 +75,10 @@ void FMetalGPUTiming::PlatformStaticInitialize(void* UserData)
 		SetTimingFrequency(1000 * 1000 * 1000);
 		GAreGlobalsInitialized = true;
 		
-		MTL::Device* MTLDevice = ((FMetalContext*)UserData)->GetDevice();
+		FMetalDevice& Device = ((FMetalRHICommandContext*)UserData)->GetDevice();
 		
 		MTL::Timestamp CPUTimeStamp, GPUTimestamp;
-		MTLDevice->sampleTimestamps(&CPUTimeStamp, &GPUTimestamp);
+		Device.GetDevice()->sampleTimestamps(&CPUTimeStamp, &GPUTimestamp);
 
 		FGPUTiming::SetCalibrationTimestamp({ GPUTimestamp, CPUTimeStamp });
 	}
@@ -88,7 +86,7 @@ void FMetalGPUTiming::PlatformStaticInitialize(void* UserData)
 
 FMetalEventNode::~FMetalEventNode()
 {
-    
+
 }
 
 float FMetalEventNode::GetTiming()
@@ -101,7 +99,7 @@ void FMetalEventNode::StartTiming()
 	StartTime = 0;
 	EndTime = 0;
 
-	Context->StartTiming(this);
+	Context.StartTiming(this);
 }
 
 FMetalCommandBufferCompletionHandler FMetalEventNode::Start(void)
@@ -118,7 +116,7 @@ FMetalCommandBufferCompletionHandler FMetalEventNode::Start(void)
 
 void FMetalEventNode::StopTiming()
 {
-	Context->EndTiming(this);
+	Context.EndTiming(this);
 }
 
 FMetalCommandBufferCompletionHandler FMetalEventNode::Stop(void)
@@ -180,6 +178,8 @@ FGPUProfilerEventNode* FMetalGPUProfiler::CreateEventNode(const TCHAR* InName, F
 #endif
 }
 
+TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FMetalGPUProfiler::FrameBufferTimings;
+
 void FMetalGPUProfiler::Cleanup()
 {
 	
@@ -228,7 +228,7 @@ void FMetalGPUProfiler::EndFrame()
 	{
 		dispatch_async(dispatch_get_global_queue(QOS_CLASS_UTILITY, 0), ^{
 #if PLATFORM_MAC
-			FPlatformMisc::UpdateDriverMonitorStatistics(GetMetalDeviceContext().GetDeviceIndex());
+			FPlatformMisc::UpdateDriverMonitorStatistics(Context.GetDevice().GetDeviceIndex());
 #endif
 		});
 #if STATS
@@ -277,6 +277,16 @@ void FMetalGPUProfiler::RecordFrame(TArray<FMetalCommandBufferTiming>& CommandBu
 
 	CFTimeInterval FirstStartTime = 0.0;
 
+	double FrameStartTime = DBL_MAX;
+	double FrameEndTime = 0.0;
+	
+	for (const FMetalCommandBufferTiming& Timing : CommandBufferTimings)
+	{
+		FrameStartTime = FMath::Min(FrameStartTime, Timing.StartTime);
+		FrameEndTime = FMath::Max(FrameStartTime, Timing.EndTime);
+	}
+	double FrameTime = FrameEndTime - FrameStartTime;
+	
 	// Add the timings excluding any overlapping time
 	for (const FMetalCommandBufferTiming& Timing : CommandBufferTimings)
 	{
@@ -328,6 +338,21 @@ void FMetalGPUProfiler::RecordPresent(MTL::CommandBuffer* CommandBuffer)
 	FPlatformAtomics::AtomicStore_Relaxed(&GMetalPresentTime, Time);
 }
 // END WARNING
+
+void FMetalGPUProfiler::ResetFrameBufferTimings()
+{
+	FrameBufferTimings = MakeShared<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe>();
+}
+
+TSharedPtr<TArray<FMetalCommandBufferTiming>, ESPMode::ThreadSafe> FMetalGPUProfiler::GetFrameBufferTimings()
+{
+	if(!FrameBufferTimings)
+	{
+		ResetFrameBufferTimings();
+	}
+		
+	return FrameBufferTimings;
+}
 
 IMetalStatsScope::~IMetalStatsScope()
 {
@@ -511,7 +536,7 @@ void FMetalProfiler::AddDisplayVBlank(uint32 DisplayID, double OutputSeconds, do
 	}
 }
 
-FMetalProfiler::FMetalProfiler(FMetalContext* Context)
+FMetalProfiler::FMetalProfiler(FMetalRHICommandContext& Context)
 : FMetalGPUProfiler(Context)
 , bEnabled(false)
 {
@@ -536,7 +561,7 @@ FMetalProfiler::~FMetalProfiler()
 	}
 }
 
-FMetalProfiler* FMetalProfiler::CreateProfiler(FMetalContext *InContext)
+FMetalProfiler* FMetalProfiler::CreateProfiler(FMetalRHICommandContext& InContext)
 {
 	if (!Self)
 	{
@@ -690,7 +715,8 @@ void FMetalProfiler::PopEvent()
 
 void FMetalProfiler::SaveTrace()
 {
-	Context->SubmitCommandBufferAndWait();
+	Context.GetDevice().WaitForGPUIdle();
+	
 	{
 		FScopeLock Lock(&Mutex);
 		

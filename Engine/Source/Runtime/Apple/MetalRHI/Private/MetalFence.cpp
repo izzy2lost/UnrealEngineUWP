@@ -4,7 +4,6 @@
 #include "MetalRHIPrivate.h"
 #include "MetalCommandBuffer.h"
 #include "MetalCommandQueue.h"
-#include "MetalContext.h"
 #include "MetalProfiler.h"
 
 uint32 FMetalFence::Release() const

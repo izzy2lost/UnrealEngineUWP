@@ -19,9 +19,9 @@
 
 
 template<typename ShaderType>
-static TRefCountPtr<FRHIShader> CreateMetalShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
+static TRefCountPtr<FRHIShader> CreateMetalShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary)
 {
-	ShaderType* Shader = new ShaderType(InCode, InLibrary);
+	ShaderType* Shader = new ShaderType(Device, InCode, InLibrary);
 	if (!Shader->GetFunction())
 	{
 		delete Shader;
@@ -46,7 +46,8 @@ TMap<FString, FRHIShaderLibrary*> FMetalShaderLibrary::LoadedShaderLibraryMap;
 #pragma mark - Metal Shader Library Class
 
 
-FMetalShaderLibrary::FMetalShaderLibrary(EShaderPlatform Platform,
+FMetalShaderLibrary::FMetalShaderLibrary(FMetalDevice& MetalDevice,
+										 EShaderPlatform Platform,
 										 FString const& Name,
 										 const FString& InShaderLibraryFilename,
 										 const FMetalShaderLibraryHeader& InHeader,
@@ -54,6 +55,7 @@ FMetalShaderLibrary::FMetalShaderLibrary(EShaderPlatform Platform,
                                          FShaderCodeArrayType&& InShaderCode,
 										 const TArray<MTLLibraryPtr>& InLibrary)
 	: FRHIShaderLibrary(Platform, Name)
+	, Device(MetalDevice)
 	, ShaderLibraryFilename(InShaderLibraryFilename)
 	, Library(InLibrary)
 	, Header(InHeader)
@@ -140,16 +142,16 @@ TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 	switch (ShaderEntry.Frequency)
 	{
 		case SF_Vertex:
-			Shader = CreateMetalShader<FMetalVertexShader>(Code, Library[LibraryIndex]);
+			Shader = CreateMetalShader<FMetalVertexShader>(Device, Code, Library[LibraryIndex]);
 			break;
 
 		case SF_Pixel:
-			Shader = CreateMetalShader<FMetalPixelShader>(Code, Library[LibraryIndex]);
+			Shader = CreateMetalShader<FMetalPixelShader>(Device, Code, Library[LibraryIndex]);
 			break;
  
  		case SF_Geometry:
 #if PLATFORM_SUPPORTS_GEOMETRY_SHADERS
-            Shader = CreateMetalShader<FMetalGeometryShader>(Code, Library[LibraryIndex]);
+            Shader = CreateMetalShader<FMetalGeometryShader>(Device, Code, Library[LibraryIndex]);
 #else
             checkf(false, TEXT("Geometry shaders not supported"));
 #endif
@@ -158,7 +160,7 @@ TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 
         case SF_Mesh:
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-            Shader = CreateMetalShader<FMetalMeshShader>(Code, Library[LibraryIndex]);
+            Shader = CreateMetalShader<FMetalMeshShader>(Device, Code, Library[LibraryIndex]);
 #else
 			checkf(false, TEXT("Mesh shaders not supported"));
 #endif
@@ -166,14 +168,14 @@ TRefCountPtr<FRHIShader> FMetalShaderLibrary::CreateShader(int32 Index)
 
         case SF_Amplification:
 #if PLATFORM_SUPPORTS_MESH_SHADERS
-            Shader = CreateMetalShader<FMetalAmplificationShader>(Code, Library[LibraryIndex]);
+            Shader = CreateMetalShader<FMetalAmplificationShader>(Device, Code, Library[LibraryIndex]);
 #else
 			checkf(false, TEXT("Amplification shaders not supported"));
 #endif
             break;
 
 		case SF_Compute:
-			Shader = CreateMetalShader<FMetalComputeShader>(Code, Library[LibraryIndex]);
+			Shader = CreateMetalShader<FMetalComputeShader>(Device, Code, Library[LibraryIndex]);
 			break;
 
 		default:

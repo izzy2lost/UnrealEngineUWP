@@ -370,7 +370,7 @@ IRHICommandContext* FValidationRHI::RHIGetDefaultContext()
 struct FValidationCommandList : public IRHIPlatformCommandList
 {
 	ERHIPipeline Pipeline;
-	IRHIPlatformCommandList* InnerCommandList;
+	TRHIPipelineArray<IRHIPlatformCommandList*> InnerCommandLists;
 	TArray<RHIValidation::FOperation> CompletedOpList;
 };
 
@@ -401,35 +401,54 @@ IRHIComputeContext* FValidationRHI::RHIGetCommandContext(ERHIPipeline Pipeline, 
 	}
 }
 
-IRHIPlatformCommandList* FValidationRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
+void FValidationRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	IRHIComputeContext& InnerContext = Args.Context->GetLowestLevelContext();
-
-	FValidationCommandList* OuterCommandList = new FValidationCommandList();
-
-	// RHIFinalizeContext makes the context available to other threads, so finalize the tracker beforehand.
-	OuterCommandList->CompletedOpList = InnerContext.Tracker->Finalize();
-	OuterCommandList->Pipeline = Args.Context->GetPipeline();
-	OuterCommandList->InnerCommandList = RHI->RHIFinalizeContext({ &InnerContext });
-
-	switch (OuterCommandList->Pipeline)
+	FRHIFinalizeContextArgs FinalArgs;
+	
+	TRHIPipelineArray<IRHIPlatformCommandList*> FinalizedCommandLists;
+	TRHIPipelineArray<FValidationCommandList*> OuterCommandLists;
+	
+	// Re-combine the args so that the validation matches a normal call to RHIFinalizeContext
+	for(IRHIComputeContext* Context : Args.Contexts)
 	{
-	case ERHIPipeline::Graphics:
-		if (static_cast<FValidationContext*>(Args.Context)->Type == FValidationContext::EType::Parallel)
-			delete Args.Context;
-		break;
-
-	case ERHIPipeline::AsyncCompute:
-		if (static_cast<FValidationComputeContext*>(Args.Context)->Type == FValidationComputeContext::EType::Parallel)
-			delete Args.Context;
-		break;
-
-	default:
-		checkNoEntry();
-		break;
+		IRHIComputeContext& InnerContext = Context->GetLowestLevelContext();
+		
+		FValidationCommandList* OuterCommandList = new FValidationCommandList();
+		
+		// RHIFinalizeContext makes the context available to other threads, so finalize the tracker beforehand.
+		OuterCommandList->CompletedOpList = InnerContext.Tracker->Finalize();
+		OuterCommandList->Pipeline = Context->GetPipeline();
+		OuterCommandLists[OuterCommandList->Pipeline] = OuterCommandList;
+		
+		FinalArgs.Contexts.Add(&InnerContext);
 	}
-
-	return OuterCommandList;
+	FinalArgs.UploadContext = Args.UploadContext;
+	
+	RHI->RHIFinalizeContext(MoveTemp(FinalArgs), FinalizedCommandLists);
+	
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		FValidationCommandList* ValidationCmdList = OuterCommandLists[Context->GetPipeline()];
+		switch (ValidationCmdList->Pipeline)
+		{
+		case ERHIPipeline::Graphics:
+			if (static_cast<FValidationContext*>(Context)->Type == FValidationContext::EType::Parallel)
+				delete Context;
+			break;
+			
+		case ERHIPipeline::AsyncCompute:
+			if (static_cast<FValidationComputeContext*>(Context)->Type == FValidationComputeContext::EType::Parallel)
+				delete Context;
+			break;
+			
+		default:
+			checkNoEntry();
+			break;
+		}
+		
+		ValidationCmdList->InnerCommandLists = FinalizedCommandLists[ValidationCmdList->Pipeline];
+		Output[ValidationCmdList->Pipeline] = ValidationCmdList;
+	}
 }
 
 void FValidationRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
@@ -447,15 +466,18 @@ void FValidationRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)
 		// Replay or queue any barrier operations to validate resource barrier usage.
 		RHIValidation::FTracker::SubmitValidationOps(OuterCommandList->Pipeline, MoveTemp(OuterCommandList->CompletedOpList));
 
-		if (OuterCommandList->InnerCommandList)
+		for(IRHIPlatformCommandList* InnerCmdList : OuterCommandList->InnerCommandLists)
 		{
+			if(!InnerCmdList)
+			{
+				continue;
+			}
 #if WITH_RHI_BREADCRUMBS
 			// Forward the breadcrumb range and allocators
-			OuterCommandList->InnerCommandList->BreadcrumbAllocators = MoveTemp(CmdList->BreadcrumbAllocators);
-			OuterCommandList->InnerCommandList->BreadcrumbRange = CmdList->BreadcrumbRange;
+			InnerCmdList->BreadcrumbAllocators = MoveTemp(CmdList->BreadcrumbAllocators);
+			InnerCmdList->BreadcrumbRange = CmdList->BreadcrumbRange;
 #endif
-
-			InnerArgs.CommandLists.Add(OuterCommandList->InnerCommandList);
+			InnerArgs.CommandLists.Add(InnerCmdList);
 		}
 
 		delete OuterCommandList;

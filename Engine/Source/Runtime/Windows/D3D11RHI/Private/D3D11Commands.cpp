@@ -1397,10 +1397,14 @@ IRHIComputeContext* FD3D11DynamicRHI::RHIGetCommandContext(ERHIPipeline Pipeline
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
+void FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
 	// "Context" will always be the default context, since we don't implement parallel execution.
-	check(Args.Context == this);
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		// "Context" will always be the default context, since we don't implement parallel execution.
+		check(Context == this);
+	}
 
 	// Reset some context state
 	for (int32 Frequency = 0; Frequency < SF_NumStandardFrequencies; ++Frequency)
@@ -1412,8 +1416,6 @@ IRHIPlatformCommandList* FD3D11DynamicRHI::RHIFinalizeContext(FRHIFinalizeContex
 			BoundUniformBuffers[Frequency][BindIndex] = nullptr;
 		}
 	}
-
-	return nullptr;
 }
 
 void FD3D11DynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)

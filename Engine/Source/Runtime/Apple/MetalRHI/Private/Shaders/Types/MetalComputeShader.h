@@ -14,11 +14,11 @@
 
 #pragma mark - Metal RHI Compute Shader Class
 
-
+class FMetalDevice;
 class FMetalComputeShader : public TMetalBaseShader<FRHIComputeShader, SF_Compute>
 {
 public:
-	FMetalComputeShader(TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
+	FMetalComputeShader(FMetalDevice& Device, TArrayView<const uint8> InCode, MTLLibraryPtr InLibrary);
 	virtual ~FMetalComputeShader();
 
 	FMetalShaderPipelinePtr GetPipeline();

@@ -1076,7 +1076,12 @@ public:
 
 	virtual IRHICommandContext* RHIGetDefaultContext() override final;
 	virtual IRHIComputeContext* RHIGetCommandContext(ERHIPipeline Pipeline, FRHIGPUMask GPUMask) override final;
-	virtual IRHIPlatformCommandList* RHIFinalizeContext(FRHIFinalizeContextArgs&& Args) override final;
+	virtual IRHIUploadContext* RHIGetUploadContext() final override
+	{
+		return RHI->RHIGetUploadContext();
+	}
+	
+	virtual void RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output) override final;
 	virtual void RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args) override final;
 	
 	virtual void RHIProcessDeleteQueue() override final

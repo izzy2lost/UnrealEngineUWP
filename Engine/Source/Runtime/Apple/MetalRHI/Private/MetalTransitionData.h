@@ -21,7 +21,7 @@ typedef TArray<FRHITransitionInfo, TInlineAllocator<4> > FMetalTransitionInfoArr
 
 #pragma mark - Metal RHI Resource Transition Data Class -
 
-
+class FMetalCommandEncoder;
 class FMetalTransitionData
 {
 public:
@@ -42,7 +42,7 @@ public:
 	void BeginResourceTransitions() const;
 
 	// End resource transitions.
-	void EndResourceTransitions() const;
+	void EndResourceTransitions(FMetalCommandEncoder& CurrentEncoder) const;
 
 private:
 	ERHIPipeline              SrcPipelines   = ERHIPipeline::Num;

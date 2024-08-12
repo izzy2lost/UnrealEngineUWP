@@ -5,7 +5,6 @@
  =============================================================================*/
 
 #include "MetalRHIPrivate.h"
-#include "MetalContext.h"
 #include "MetalDynamicRHI.h"
 #include "MetalProfiler.h" // for STAT_MetalTexturePageOffTime
 #include "MetalCommandBuffer.h"
@@ -171,32 +170,9 @@ static bool IsPixelFormatPVRTCCompressed(EPixelFormat Format)
 	}
 }
 
-void SafeReleaseMetalTexture(FMetalSurface* Surface, MTLTexturePtr Texture, bool bAVFoundationTexture)
+MTL::PixelFormat UEToMetalFormat(FMetalDevice& Device, EPixelFormat UEFormat, bool bSRGB)
 {
-	if(GIsMetalInitialized && GDynamicRHI)
-	{
-		if (!bAVFoundationTexture)
-		{
-			GetMetalDeviceContext().ReleaseTexture(Surface, Texture);
-		}
-		else
-		{
-			SafeReleaseMetalTexture(Texture);
-		}
-	}
-}
-
-void SafeReleaseMetalTexture(FMetalSurface* Surface, MTLTexturePtr Texture)
-{
-	if(GIsMetalInitialized && GDynamicRHI)
-	{
-		GetMetalDeviceContext().ReleaseTexture(Surface, Texture);
-	}
-}
-
-MTL::PixelFormat UEToMetalFormat(EPixelFormat UEFormat, bool bSRGB)
-{
-	bool bAppleGPU = GetMetalDeviceContext().GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
+	bool bAppleGPU = Device.GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
     MTL::PixelFormat MTLFormat = (MTL::PixelFormat)GPixelFormats[UEFormat].PlatformFormat;
 
 	if (bSRGB)
@@ -266,7 +242,7 @@ MTLTexturePtr FMetalSurface::Reallocate(MTLTexturePtr InTexture, MTL::TextureUsa
 	Desc->setArrayLength(InTexture->arrayLength());
 	
 	MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
-	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 	if(bSupportsHeaps)
 	{
 		HazardTrackingMode = MTL::ResourceHazardTrackingModeTracked;
@@ -279,7 +255,7 @@ MTLTexturePtr FMetalSurface::Reallocate(MTLTexturePtr InTexture, MTL::TextureUsa
 	Desc->setStorageMode(InTexture->storageMode());
 	Desc->setUsage(MTL::TextureUsage(InTexture->usage() | UsageModifier));
 	
-	MTLTexturePtr NewTex = GetMetalDeviceContext().CreateTexture(this, Desc);
+	MTLTexturePtr NewTex = Device.CreateTexture(this, Desc);
     
     Desc->release();
 	check(NewTex);
@@ -290,7 +266,7 @@ void FMetalSurface::MakeAliasable(void)
 {
 	check(ImageSurfaceRef == nullptr);
 	
-	static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+	static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 	if (bSupportsHeaps && Texture->storageMode() == MTL::StorageModePrivate && Texture->heap())
 	{
 		if (MSAATexture && (MSAATexture != Texture) && !MSAATexture->isAliasable())
@@ -352,11 +328,11 @@ uint8 GetMetalPixelFormatKey(MTL::PixelFormat Format)
 	return PixelFormatKeyMap.Get(Format);
 }
 
-FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& InDesc)
+FMetalTextureCreateDesc::FMetalTextureCreateDesc(FMetalDevice& Device, FRHITextureCreateDesc const& InDesc)
 	: FRHITextureCreateDesc(InDesc)
 	, bIsRenderTarget(IsRenderTarget(InDesc.Flags))
 {
-	MTLFormat = UEToMetalFormat(InDesc.Format, EnumHasAnyFlags(InDesc.Flags, TexCreate_SRGB));
+	MTLFormat = UEToMetalFormat(Device, InDesc.Format, EnumHasAnyFlags(InDesc.Flags, TexCreate_SRGB));
 
 	// get a unique key for this surface's format
 	FormatKey = GetMetalPixelFormatKey(MTLFormat);
@@ -391,7 +367,7 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 		Desc->setArrayLength(InDesc.ArraySize);
 		if (InDesc.IsTextureCube())
 		{
-			if (FMetalCommandQueue::SupportsFeature(EMetalFeaturesCubemapArrays))
+			if (Device.SupportsFeature(EMetalFeaturesCubemapArrays))
 			{
 				Desc->setTextureType(MTL::TextureTypeCubeArray);
 			}
@@ -439,7 +415,7 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 #if WITH_IOS_SIMULATOR
 		const bool bAppleGPU = false;
 #else
-		const bool bAppleGPU = GetMetalDeviceContext().GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
+		const bool bAppleGPU = Device.GetDevice()->supportsFamily(MTL::GPUFamilyApple1);
 #endif
 
 		if (EnumHasAnyFlags(InDesc.Flags, TexCreate_CPUReadback) && !EnumHasAnyFlags(InDesc.Flags, TexCreate_RenderTargetable | TexCreate_DepthStencilTargetable | TexCreate_FastVRAM))
@@ -537,7 +513,7 @@ FMetalTextureCreateDesc::FMetalTextureCreateDesc(FRHITextureCreateDesc const& In
 		}
 
 		MTL::ResourceOptions HazardTrackingMode = MTL::ResourceHazardTrackingModeUntracked;
-		static bool bSupportsHeaps = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesHeaps);
+		static bool bSupportsHeaps = Device.SupportsFeature(EMetalFeaturesHeaps);
 		if(bSupportsHeaps)
 		{
 			HazardTrackingMode = MTL::ResourceHazardTrackingModeTracked;
@@ -567,8 +543,9 @@ FMetalTextureCreateDesc& FMetalTextureCreateDesc::operator =(FMetalTextureCreate
     return *this;
 }
 
-FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc)
+FMetalSurface::FMetalSurface(FMetalDevice& MetalDevice, FRHICommandListBase* RHICmdList, FMetalTextureCreateDesc const& CreateDesc)
 	: FRHITexture       (CreateDesc)
+	, Device			(MetalDevice)
 	, FormatKey         (CreateDesc.FormatKey)
 	, TotalTextureSize  (0)
 	, Viewport          (nullptr)
@@ -577,7 +554,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 	FPlatformAtomics::InterlockedExchange(&Written, 0);
 	check(CreateDesc.Extent.X > 0 && CreateDesc.Extent.Y > 0 && CreateDesc.NumMips > 0);
     
-	// the special back buffer surface will be updated in GetMetalDeviceContext().BeginDrawingViewport - no need to set the texture here
+	// the special back buffer surface will be updated in BeginDrawingViewport - no need to set the texture here
 	if (EnumHasAnyFlags(CreateDesc.Flags, TexCreate_Presentable))
 	{
 		return;
@@ -600,9 +577,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 				CFRetain(ImageSurfaceRef);
 				
 #if !COREVIDEO_SUPPORTS_METAL
-				//Texture = MTLPP_VALIDATE(MTL::Device, GetMetalDeviceContext().GetDevice(), SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, NewTexture(CreateDesc.Desc, CVPixelBufferGetIOSurface((CVPixelBufferRef)ImageSurfaceRef), 0));
-                
-                Texture = GetMetalDeviceContext().GetDevice()->newTexture(CreateDesc.Desc, CVPixelBufferGetIOSurface((CVPixelBufferRef)ImageSurfaceRef));
+                Texture = Device.GetDevice()->newTexture(CreateDesc.Desc, CVPixelBufferGetIOSurface((CVPixelBufferRef)ImageSurfaceRef));
 #else
 				Texture = NS::RetainPtr((__bridge MTL::Texture*)CVMetalTextureGetTexture((CVPixelBufferRef)ImageSurfaceRef));
 #endif
@@ -623,7 +598,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 				DescCopy->setStorageMode(MTL::StorageModeManaged);
 				DescCopy->setResourceOptions((MTL::ResourceOptions)((DescCopy->resourceOptions() & ~(MTL::ResourceStorageModeMask)) | MTL::ResourceStorageModeManaged));
 
-				Texture = NS::TransferPtr(GetMetalDeviceContext().GetDevice()->newTexture(DescCopy.get(), (IOSurfaceRef)ImageSurfaceRef, 0));
+				Texture = NS::TransferPtr(Device.GetDevice()->newTexture(DescCopy.get(), (IOSurfaceRef)ImageSurfaceRef, 0));
 
 				METAL_FATAL_ASSERT(Texture, TEXT("Failed to create texture, desc %s"), *NSStringToFString(DescCopy->description()));
 
@@ -680,34 +655,38 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 
 		if (bBufferBacked)
 		{
-			MTL::Device* Device = GetMetalDeviceContext().GetDevice();
+			MTL::Device* MTLDevice = Device.GetDevice();
 
-			const uint32 MinimumByteAlignment = Device->minimumLinearTextureAlignmentForPixelFormat(CreateDesc.MTLFormat);
+			const uint32 MinimumByteAlignment = MTLDevice->minimumLinearTextureAlignmentForPixelFormat(CreateDesc.MTLFormat);
 			const NS::UInteger BytesPerRow = Align(NewCreateDesc.Desc->width() * GPixelFormats[NewCreateDesc.Format].BlockBytes, MinimumByteAlignment);
 
 			// Backing buffer resource options must match the texture we are going to create from it
-			FMetalPooledBufferArgs Args(Device, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
-			FMetalBufferPtr Buffer = GetMetalDeviceContext().CreatePooledBuffer(Args);
+			FMetalPooledBufferArgs Args(MTLDevice, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
+			FMetalBufferPtr Buffer = Device.CreatePooledBuffer(Args);
 
 			Texture = NS::TransferPtr(Buffer->GetMTLBuffer()->newTexture(NewCreateDesc.Desc.get(), Buffer->GetOffset(), BytesPerRow));
+            
+            Device.ReleaseBuffer(Buffer);
 		}
         else if (bTextureArrayWithAtomics)
         {
             checkf(GMaxRHIFeatureLevel >= ERHIFeatureLevel::SM5, TEXT("Requested texture array with atomics that is unsupported on this platform"));
             
-            MTL::Device* Device = GetMetalDeviceContext().GetDevice();
+            MTL::Device* MTLDevice = Device.GetDevice();
 
-            const uint32 MinimumByteAlignment = Device->minimumLinearTextureAlignmentForPixelFormat(CreateDesc.MTLFormat);
+            const uint32 MinimumByteAlignment = MTLDevice->minimumLinearTextureAlignmentForPixelFormat(CreateDesc.MTLFormat);
             const NS::UInteger BytesPerRow = Align(NewCreateDesc.Desc->width() * NewCreateDesc.Desc->arrayLength() * GPixelFormats[NewCreateDesc.Format].BlockBytes, MinimumByteAlignment);
 
             // Backing buffer resource options must match the texture we are going to create from it
-            FMetalPooledBufferArgs Args(Device, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
-            FMetalBufferPtr Buffer = GetMetalDeviceContext().CreatePooledBuffer(Args);
+            FMetalPooledBufferArgs Args(MTLDevice, BytesPerRow * NewCreateDesc.Desc->height(), BUF_Dynamic, MTL::StorageModePrivate, NewCreateDesc.Desc->cpuCacheMode());
+            FMetalBufferPtr Buffer = Device.CreatePooledBuffer(Args);
 
             NewCreateDesc.Desc->setWidth(NewCreateDesc.Desc->width() * NewCreateDesc.Desc->arrayLength());
             NewCreateDesc.Desc->setArrayLength(1);
             NewCreateDesc.Desc->setTextureType(MTL::TextureType2D);
             Texture = NS::TransferPtr(Buffer->GetMTLBuffer()->newTexture(NewCreateDesc.Desc.get(), Buffer->GetOffset(), BytesPerRow));
+            
+            Device.ReleaseBuffer(Buffer);
         }
 		else
 		{
@@ -718,7 +697,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 				checkf(!EnumHasAllFlags(CreateDesc.Flags, TexCreate_AtomicCompatible), TEXT("Requested buffer backed texture that breaks Metal linear texture limitations: %s"), *NSStringToFString(NewCreateDesc.Desc->description()));
 			}
 
-			Texture = GetMetalDeviceContext().CreateTexture(this, NewCreateDesc.Desc.get());
+			Texture = Device.CreateTexture(this, NewCreateDesc.Desc.get());
 		}
 		
 		METAL_FATAL_ASSERT(Texture, TEXT("Failed to create texture, desc %s"), *NSStringToFString(CreateDesc.Desc->description()));
@@ -774,11 +753,11 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 			Desc->setResourceOptions(MTL::ResourceStorageModeMemoryless);
 		}
 
-		MSAATexture = GetMetalDeviceContext().CreateTexture(this, Desc.get());
+		MSAATexture = Device.CreateTexture(this, Desc.get());
 			
 		//device doesn't support HW depth resolve.  This case only valid on mobile renderer or
 		//on Mac where RHISupportsSeparateMSAAAndResolveTextures is true.
-		const bool bSupportsMSAADepthResolve = GetMetalDeviceContext().SupportsFeature(EMetalFeaturesMSAADepthResolve);
+		const bool bSupportsMSAADepthResolve = Device.SupportsFeature(EMetalFeaturesMSAADepthResolve);
 		const bool bDepthButNoResolveSupported = CreateDesc.Format == PF_DepthStencil && !bSupportsMSAADepthResolve;
 		if (bDepthButNoResolveSupported)
 		{
@@ -842,7 +821,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 	}
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 	
 	if(IsMetalBindlessEnabled())
@@ -852,7 +831,7 @@ FMetalSurface::FMetalSurface(FRHICommandListBase* RHICmdList, FMetalTextureCreat
 		// NOTE: Might be updated later (using RHIUpdateTextureReference).
 		if (Texture)
 		{
-			BindlessDescriptorManager->BindTexture(BindlessHandle, Texture.get());
+			BindlessDescriptorManager->BindTexture(*RHICmdList, BindlessHandle, Texture.get(), EDescriptorUpdateType_Immediate);
 		}
 	}
 #endif
@@ -879,7 +858,7 @@ FMetalSurface::~FMetalSurface()
 	{
 		if (Texture != MSAATexture)
 		{
-			SafeReleaseMetalTexture(this, MSAATexture, false);
+			SafeRelease(MSAATexture);
 		}
 	}
 	
@@ -888,13 +867,13 @@ FMetalSurface::~FMetalSurface()
 	{
 		if (Texture != MSAAResolveTexture)
 		{
-			SafeReleaseMetalTexture(this, MSAAResolveTexture, false);
+			SafeRelease(MSAAResolveTexture);
 		}
 	}
 	
 	if (!(GetDesc().Flags & TexCreate_Presentable) && Texture)
 	{
-		SafeReleaseMetalTexture(this, Texture, (ImageSurfaceRef != nullptr));
+		SafeRelease(Texture);
 	}
 	
 	MSAATexture.reset();
@@ -907,7 +886,7 @@ FMetalSurface::~FMetalSurface()
     DeferredStats->Flags = GetDesc().Flags;
     DeferredStats->TextureSize = TotalTextureSize;
     
-    SafeReleaseFunction([DeferredStats]() {
+	Device.ReleaseFunction([DeferredStats]() {
         delete DeferredStats;
     });
 	
@@ -915,14 +894,14 @@ FMetalSurface::~FMetalSurface()
 	{
 		// CFArray can contain CFType objects and is toll-free bridged with NSArray
 		CFArrayRef Temp = CFArrayCreate(kCFAllocatorSystemDefault, &ImageSurfaceRef, 1, &kCFTypeArrayCallBacks);
-		SafeReleaseMetalObject((__bridge NS::Array*)Temp);
+		Device.ReleaseObject((__bridge NS::Array*)Temp);
 		CFRelease(ImageSurfaceRef);
 	}
 	
 	ImageSurfaceRef = nullptr;
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-    FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+    FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device.GetBindlessDescriptorManager();
     check(BindlessDescriptorManager);
 
 	if(IsMetalBindlessEnabled())
@@ -935,6 +914,14 @@ FMetalSurface::~FMetalSurface()
 #endif
 }
 
+void FMetalSurface::SafeRelease(MTLTexturePtr InTexture)
+{
+	if(GIsMetalInitialized && GDynamicRHI)
+	{
+		Device.ReleaseTexture(InTexture);
+	}
+}
+
 MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool SingleLayer /*= false*/)
 {
 	check(IsInRenderingThread());
@@ -944,8 +931,8 @@ MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, ERe
 	
 	// allocate some temporary memory
 	// This should really be pooled and texture transfers should be their own pool
-	MTL::Device* Device = GetMetalDeviceContext().GetDevice();
-    MTLBufferPtr* Buffer = new MTLBufferPtr(NS::TransferPtr(Device->newBuffer(MipBytes, MTL::ResourceStorageModeShared)));
+	MTL::Device* MTLDevice = Device.GetDevice();
+    MTLBufferPtr* Buffer = new MTLBufferPtr(NS::TransferPtr(MTLDevice->newBuffer(MipBytes, MTL::ResourceStorageModeShared)));
 	(*Buffer)->setLabel(NS::String::string("Temporary Surface Backing", NS::UTF8StringEncoding));
 	
 	// Note: while the lock is active, this map owns the backing store.
@@ -969,7 +956,7 @@ MTLBufferPtr FMetalSurface::AllocSurface(uint32 MipIndex, uint32 ArrayIndex, ERe
 	return *Buffer;
 }
 
-void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex)
+void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(FMetalRHICommandContext* Context, MTLBufferPtr SourceBuffer, uint32 MipIndex, uint32 ArrayIndex)
 {
 #if STATS
 	uint64 Start = FPlatformTime::Cycles64();
@@ -1046,46 +1033,22 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(MTLBufferPtr SourceBuffe
 #endif
         FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceBuffer, NS::Range(0, SourceBuffer->length()), false));
                             
-		if(GetMetalDeviceContext().AsyncCopyFromBufferToTexture(Source, 0, Stride, BytesPerImage, Region.size, Texture.get(), ArrayIndex, MipIndex, Region.origin, Options))
+		Context->CopyFromBufferToTexture(Source, 0, Stride, BytesPerImage, Region.size, Texture.get(), ArrayIndex, MipIndex, Region.origin, Options);
+		
+		FMetalCommandBufferCompletionHandler CompletionHandler;
+		CompletionHandler.BindLambda([TempBuffer = SourceBuffer, Size](MTL::CommandBuffer *)
 		{
-			MTL::HandlerFunction ScheduledHandler = nullptr;
-	#if STATS
-			int64* Cycles = new int64;
-			FPlatformAtomics::InterlockedExchange(Cycles, 0);
-			ScheduledHandler = [Cycles](MTL::CommandBuffer*)
-			{
-				FPlatformAtomics::InterlockedExchange(Cycles, FPlatformTime::Cycles64());
-			};
-            MTL::HandlerFunction CompletionHandler = [TempBuffer = SourceBuffer, Size, Cycles](MTL::CommandBuffer *)
-	#else
-            MTL::HandlerFunction CompletionHandler = [TempBuffer = SourceBuffer, Size](MTL::CommandBuffer *)
-	#endif
-			{
-				FPlatformAtomics::InterlockedAdd(&ActiveUploads, -Size);
-	#if STATS
-				int64 Taken = FPlatformTime::Cycles64() - *Cycles;
-				delete Cycles;
-				FPlatformAtomics::InterlockedAdd(&GMetalTexturePageOnTime, Taken);
-	#endif
-			};
-			GetMetalDeviceContext().SubmitAsyncCommands(ScheduledHandler, CompletionHandler, bWait);
-			
-		}
-		else
-		{
-            FMetalCommandBufferCompletionHandler CompletionHandler;
-            CompletionHandler.BindLambda([TempBuffer = SourceBuffer, Size](MTL::CommandBuffer *)
-			{
-				FPlatformAtomics::InterlockedAdd(&ActiveUploads, -Size);
-			});
-			GetMetalDeviceContext().GetCurrentRenderPass().AddCompletionHandler(CompletionHandler);
-		}
+			FPlatformAtomics::InterlockedAdd(&ActiveUploads, -Size);
+		});
+		
+		Context->AddCompletionHandler(CompletionHandler);
+		Device.ReleaseBuffer(Source);
 		
 		INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, Size);
 		
 		if (bWait)
 		{
-			GetMetalDeviceContext().ClearFreeList();
+			Device.ClearFreeList();
 		}
 	}
 	else
@@ -1098,8 +1061,6 @@ void FMetalSurface::UpdateSurfaceAndDestroySourceBuffer(MTLBufferPtr SourceBuffe
 		}
 #endif
 		
-		//MTLPP_VALIDATE(mtlpp::Texture, Texture, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Replace(Region, MipIndex, ArrayIndex, SourceBuffer.contents, Stride, BytesPerImage));
-        
         Texture->replaceRegion(Region, MipIndex, ArrayIndex, SourceBuffer->contents(), Stride, BytesPerImage);
 		SourceBuffer.reset();
 		
@@ -1131,8 +1092,7 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 		{
 			SCOPE_CYCLE_COUNTER(STAT_MetalTexturePageOffTime);
 			
-			FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-			const bool bIssueImmediateCommands = RHICmdList.Bypass() || IsInRHIThread();
+			FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 			
 			MTL::Region Region;
 			if (GetDesc().IsTexture3D())
@@ -1158,24 +1118,16 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 			{
 				// If we are running with command lists or the RHI thread is enabled we have to execute GFX commands in that context.
 				auto CopyTexToBuf =
-				[this, &ArrayIndex, &MipIndex, &Region, &SourceData, &DestStride, &MipBytes](FRHICommandListImmediate& RHICmdList)
+				[this, ArrayIndex, MipIndex, Region, SourceData, DestStride, MipBytes](FRHICommandListImmediate& RHICmdList)
 				{
                     FMetalBufferPtr Source = FMetalBufferPtr(new FMetalBuffer(SourceData, NS::Range(0, SourceData->length()), false));
                                         
-					GetMetalDeviceContext().CopyFromTextureToBuffer(this->Texture.get(), ArrayIndex, MipIndex, Region.origin, Region.size, Source, 0, DestStride, MipBytes, MTL::BlitOptionNone);
-					//kick the current command buffer.
-					GetMetalDeviceContext().SubmitCommandBufferAndWait();
+					FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+					Context.CopyFromTextureToBuffer(this->Texture.get(), ArrayIndex, MipIndex, Region.origin, Region.size, Source, 0, DestStride, MipBytes, MTL::BlitOptionNone);
 				};
 				
-				if (bIssueImmediateCommands)
-				{
-					CopyTexToBuf(RHICmdList);
-				}
-				else
-				{
-					RHICmdList.EnqueueLambda(MoveTemp(CopyTexToBuf));
-					RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-				}
+				RHICmdList.EnqueueLambda(MoveTemp(CopyTexToBuf));
+				RHICmdList.GetAsImmediate().SubmitAndBlockUntilGPUIdle();
 			}
 			else
 			{
@@ -1184,23 +1136,14 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 				{
 					// Managed texture - need to sync GPU -> CPU before access as it could have been written to by the GPU
 					auto SyncReadbackToCPU =
-					[this, &ArrayIndex, &MipIndex](FRHICommandListImmediate& RHICmdList)
+					[this, ArrayIndex, MipIndex](FRHICommandListImmediate& RHICmdList)
 					{
-						GetMetalDeviceContext().SynchronizeTexture(this->Texture.get(), ArrayIndex, MipIndex);
-						GetMetalDeviceContext().SubmitCommandBufferAndWait();
+						FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+						Context.SynchronizeTexture(this->Texture.get(), ArrayIndex, MipIndex);
 					};
 					
-					// Similar to above. If we are in a context where we have command lists or the RHI thread we must execute
-					// commands there. Otherwise we can just do this directly.
-					if (bIssueImmediateCommands)
-					{
-						SyncReadbackToCPU(RHICmdList);
-					}
-					else
-					{
-						RHICmdList.EnqueueLambda(MoveTemp(SyncReadbackToCPU));
-						RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
-					}
+					RHICmdList.EnqueueLambda(MoveTemp(SyncReadbackToCPU));
+					RHICmdList.GetAsImmediate().SubmitAndBlockUntilGPUIdle();
 				}
 #endif
 				
@@ -1220,16 +1163,14 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 					BytesPerRow = 0;
 					MipBytes = 0;
 				}
-                
-                uint32_t BytesPerImage = MipBytes;
-                BytesPerImage = MipBytes / Region.size.depth;
-                                
-                //void * Contents = MTLPP_VALIDATE(mtlpp::Buffer, SourceData, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, GetContents());
-                void * Contents = SourceData->contents();
-                
-                //MTLPP_VALIDATE(mtlpp::Texture, Texture, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, GetBytes(Contents, BytesPerRow, BytesPerImage, Region, MipIndex, ArrayIndex));
-                Texture->getBytes(Contents, BytesPerRow, BytesPerImage, Region, MipIndex, ArrayIndex);
-                }
+				
+				uint32_t BytesPerImage = MipBytes;
+				BytesPerImage = MipBytes / Region.size.depth;
+				
+				void * Contents = SourceData->contents();
+				
+				Texture->getBytes(Contents, BytesPerRow, BytesPerImage, Region, MipIndex, ArrayIndex);
+			}
 			
 #if PLATFORM_MAC
 			// Pack RGBA8_sRGB into R8_sRGB for non Apple Silicon Mac.
@@ -1266,6 +1207,7 @@ void* FMetalSurface::Lock(uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode 
 			break;
 	}
 	
+	Device.ReleaseFunction([SourceData]{});
 	return SourceData->contents();
 }
 
@@ -1277,16 +1219,19 @@ void FMetalSurface::Unlock(uint32 MipIndex, uint32 ArrayIndex, bool bTryAsync)
 	FRHILockTracker::FLockParams Params = GRHILockTracker.Unlock(this, LockIndex);
 	
 	MTLBufferPtr* SourceData = (MTLBufferPtr*) Params.Buffer;
-	if(bTryAsync)
+	
+	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
+	
+	RHICmdList.EnqueueLambda([
+		Surface = this,
+		MipIndex,
+		ArrayIndex,
+		SourceData](FRHICommandListBase& ExecutingCmdList)
 	{
-		AsyncUnlock(*SourceData, MipIndex, ArrayIndex);
-	}
-	else
-	{
-		UpdateSurfaceAndDestroySourceBuffer(*SourceData, MipIndex, ArrayIndex);
-	}
-    
-    delete SourceData;
+		FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(ExecutingCmdList);
+		Surface->UpdateSurfaceAndDestroySourceBuffer(&Context, *SourceData, MipIndex, ArrayIndex);
+		delete SourceData;
+	});
 }
 
 void* FMetalSurface::AsyncLock(class FRHICommandListImmediate& RHICmdList, uint32 MipIndex, uint32 ArrayIndex, EResourceLockMode LockMode, uint32& DestStride, bool bNeedsDefaultRHIFlush, uint64* OutLockedByteCount)
@@ -1308,42 +1253,6 @@ void* FMetalSurface::AsyncLock(class FRHICommandListImmediate& RHICmdList, uint3
 	check(BufferData);
 	
 	return BufferData;
-}
-
-struct FMetalRHICommandUnlockTextureUpdate final : public FRHICommand<FMetalRHICommandUnlockTextureUpdate>
-{
-	FMetalSurface* Surface;
-	MTLBufferPtr UpdateData;
-	uint32 MipIndex;
-	
-	FORCEINLINE_DEBUGGABLE FMetalRHICommandUnlockTextureUpdate(FMetalSurface* InSurface, MTLBufferPtr InUpdateData, uint32 InMipIndex)
-	: Surface(InSurface)
-	, UpdateData(InUpdateData)
-	, MipIndex(InMipIndex)
-	{
-	}
-	
-	void Execute(FRHICommandListBase& CmdList)
-	{
-		Surface->UpdateSurfaceAndDestroySourceBuffer(UpdateData, MipIndex, 0);
-	}
-	
-	virtual ~FMetalRHICommandUnlockTextureUpdate()
-	{
-	}
-};
-
-void FMetalSurface::AsyncUnlock(MTLBufferPtr SourceData, uint32 MipIndex, uint32 ArrayIndex)
-{
-	FRHICommandListImmediate& RHICmdList = FRHICommandListExecutor::GetImmediateCommandList();
-	if (RHICmdList.Bypass() || !IsRunningRHIInSeparateThread())
-	{
-		UpdateSurfaceAndDestroySourceBuffer(SourceData, MipIndex, ArrayIndex);
-	}
-	else
-	{
-		new (RHICmdList.AllocCommand<FMetalRHICommandUnlockTextureUpdate>()) FMetalRHICommandUnlockTextureUpdate(this, SourceData, MipIndex);
-	}
 }
 
 uint32 FMetalSurface::GetMipSize(uint32 MipIndex, uint32* Stride, bool bSingleLayer)
@@ -1487,7 +1396,7 @@ uint32 FMetalDynamicRHI::RHIComputeMemorySize(FRHITexture* TextureRHI)
 FTextureRHIRef FMetalDynamicRHI::RHICreateTexture(FRHICommandListBase& RHICmdList, const FRHITextureCreateDesc& CreateDesc)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
-    return new FMetalSurface(&RHICmdList, CreateDesc);
+    return new FMetalSurface(*Device, &RHICmdList, FMetalTextureCreateDesc(*Device, CreateDesc));
 }
 
 FTextureRHIRef FMetalDynamicRHI::RHIAsyncCreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, ETextureCreateFlags Flags, ERHIAccess InResourceState, void** InitialMipData, uint32 NumInitialMips, const TCHAR* DebugName, FGraphEventRef& OutCompletionEvent)
@@ -1531,13 +1440,11 @@ FTextureRHIRef FMetalDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture* OldTex
         TEXT("RHIAsyncReallocateTexture2D")
     );
     
-    FMetalSurface* NewTexture = new FMetalSurface(&RHICmdList, CreateDesc);
+    FMetalSurface* NewTexture = new FMetalSurface(*Device, &RHICmdList, FMetalTextureCreateDesc(*Device, CreateDesc));
 
     // Copy shared mips
     RHICmdList.EnqueueLambda([this, OldTexture, NewSizeX, NewSizeY, NewTexture, RequestStatus](FRHICommandListImmediate& RHICmdList)
     {
-        FMetalContext& Context = ImmediateContext.GetInternalContext();
-
         // figure out what mips to schedule
         const uint32 NumSharedMips = FMath::Min(OldTexture->GetNumMips(), NewTexture->GetNumMips());
         const uint32 SourceMipOffset = OldTexture->GetNumMips() - NumSharedMips;
@@ -1555,7 +1462,6 @@ FTextureRHIRef FMetalDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture* OldTex
         // DXT/BC formats on Mac actually do have mip-tails that are smaller than the block size, they end up being uncompressed.
         bool const bPixelFormatASTC = IsPixelFormatASTCCompressed(OldTexture->GetFormat());
 
-        bool bAsync = true;
         for (uint32 MipIndex = 0; MipIndex < NumSharedMips; ++MipIndex)
         {
             const uint32 UnalignedMipSizeX = FMath::Max<uint32>(1, NewSizeX >> (MipIndex + DestMipOffset));
@@ -1563,18 +1469,7 @@ FTextureRHIRef FMetalDynamicRHI::RHIAsyncReallocateTexture2D(FRHITexture* OldTex
             const uint32 MipSizeX = FMath::Max<uint32>(1, NewSizeX >> (MipIndex + DestMipOffset));
             const uint32 MipSizeY = FMath::Max<uint32>(1, NewSizeY >> (MipIndex + DestMipOffset));
 
-            bAsync &= Context.AsyncCopyFromTextureToTexture(OldTexture->Texture.get(), SliceIndex, MipIndex + SourceMipOffset, Origin, MTL::Size(MipSizeX, MipSizeY, 1), NewTexture->Texture.get(), SliceIndex, MipIndex + DestMipOffset, Origin);
-        }
-
-        // when done, decrement the counter to indicate it's safe
-        MTL::HandlerFunction CompletionHandler = [Tex](MTL::CommandBuffer*)
-        {
-        };
-        
-        if (bAsync)
-        {
-            // kck it off!
-            Context.SubmitAsyncCommands(nullptr, CompletionHandler, false);
+            ImmediateContext.CopyFromTextureToTexture(OldTexture->Texture.get(), SliceIndex, MipIndex + SourceMipOffset, Origin, MTL::Size(MipSizeX, MipSizeY, 1), NewTexture->Texture.get(), SliceIndex, MipIndex + DestMipOffset, Origin);
         }
 
         // Like D3D mark this as complete immediately.
@@ -1666,7 +1561,7 @@ static void InternalExpandR8ToStandardRGBA(uint32* pDest, const struct FUpdateTe
 }
 #endif
 
-static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FRHITexture* TextureRHI, const struct FUpdateTextureRegion2D& UpdateRegion, uint32& InOutSourcePitch, const uint8* SourceData)
+static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FMetalDevice& Device, FRHITexture* TextureRHI, const struct FUpdateTextureRegion2D& UpdateRegion, uint32& InOutSourcePitch, const uint8* SourceData)
 {
 	const EPixelFormat PixelFormat = TextureRHI->GetFormat();
 	const FPixelFormatInfo& FormatInfo = GPixelFormats[PixelFormat];
@@ -1697,7 +1592,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FRH
 		&& Texture->Texture->pixelFormat() == MTL::PixelFormatRGBA8Unorm_sRGB)
 	{
 		const uint32 ExpandedBufferSize = UpdateRegion.Height * UpdateRegion.Width * sizeof(uint32);
-		OutBuffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), ExpandedBufferSize, BUF_Static, MTL::StorageModeShared));
+		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), ExpandedBufferSize, BUF_Static, MTL::StorageModeShared));
 		InternalExpandR8ToStandardRGBA((uint32*)OutBuffer->Contents(), UpdateRegion, InOutSourcePitch, OffsetSourceData);
 	}
 	else
@@ -1707,7 +1602,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FRH
 		const uint32 StagingPitch = static_cast<size_t>(WidthInBlocks) * FormatInfo.BlockBytes;
 
 		const uint32 BufferSize = UpdateRegion.Height * InOutSourcePitch;
-		OutBuffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
+		OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
 
 		uint8* pDestRow = (uint8*)OutBuffer->Contents();
 		const uint8* pSourceRow = OffsetSourceData;
@@ -1726,7 +1621,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture2DUpdateRegionData(FRH
 	return OutBuffer;
 }
 
-static void InternalUpdateTexture2D(FMetalContext& Context, FRHITexture* TextureRHI, uint32 MipIndex, FUpdateTextureRegion2D const& UpdateRegion, uint32 SourcePitch, FMetalBufferPtr Buffer)
+static void InternalUpdateTexture2D(FMetalRHICommandContext& Context, FRHITexture* TextureRHI, uint32 MipIndex, FUpdateTextureRegion2D const& UpdateRegion, uint32 SourcePitch, FMetalBufferPtr Buffer)
 {
 	FMetalSurface* Texture = ResourceCast(TextureRHI);
 	MTLTexturePtr Tex = Texture->Texture;
@@ -1748,15 +1643,10 @@ static void InternalUpdateTexture2D(FMetalContext& Context, FRHITexture* Texture
 			Options = MTL::BlitOptionRowLinearPVRTC;
 		}
 #endif
-		if(Context.AsyncCopyFromBufferToTexture(Buffer, 0, SourcePitch, BytesPerImage, Region.size, Tex.get(), 0, MipIndex, Region.origin, Options))
-		{
-			Context.SubmitAsyncCommands(nullptr, nullptr, false);
-		}
+		Context.CopyFromBufferToTexture(Buffer, 0, SourcePitch, BytesPerImage, Region.size, Tex.get(), 0, MipIndex, Region.origin, Options);
 	}
 	else
 	{
-		//MTLPP_VALIDATE(mtlpp::Texture, Tex, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Replace(Region, MipIndex, 0, MTLPP_VALIDATE(mtlpp::Buffer, Buffer, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, GetContents()), SourcePitch, 0));
-        
         Tex->replaceRegion(Region, MipIndex, 0, Buffer->Contents(), SourcePitch, 0);
 	}
 
@@ -1767,23 +1657,23 @@ void FMetalDynamicRHI::RHIUpdateTexture2D(FRHICommandListBase& RHICmdList, FRHIT
 {
     MTL_SCOPED_AUTORELEASE_POOL;
 
-    FMetalBufferPtr Buffer = Internal_CreateBufferAndCopyTexture2DUpdateRegionData(TextureRHI, UpdateRegion, SourcePitch, SourceData);
+    FMetalBufferPtr Buffer = Internal_CreateBufferAndCopyTexture2DUpdateRegionData(*Device, TextureRHI, UpdateRegion, SourcePitch, SourceData);
 
-    RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer](FRHICommandListBase& InRHICmdList) mutable
+    RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer, InDevice=Device](FRHICommandListBase& InRHICmdList) mutable
     {
-        InternalUpdateTexture2D(static_cast<FMetalRHICommandContext&>(InRHICmdList.GetContext()).GetInternalContext(), TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer);
-        GetMetalDeviceContext().ReleaseBuffer(Buffer);
+		InternalUpdateTexture2D(FMetalRHICommandContext::Get(InRHICmdList), TextureRHI, MipIndex, UpdateRegion, SourcePitch, Buffer);
+		InDevice->ReleaseBuffer(Buffer);
     });
 
     INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, UpdateRegion.Height*SourcePitch);
 }
 
-static FMetalBufferPtr Internal_CreateBufferAndCopyTexture3DUpdateRegionData(FRHITexture* TextureRHI, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData)
+static FMetalBufferPtr Internal_CreateBufferAndCopyTexture3DUpdateRegionData(FMetalDevice& Device, FRHITexture* TextureRHI, const struct FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData)
 {
 	FMetalSurface* Texture = ResourceCast(TextureRHI);
 	
 	const uint32 BufferSize = SourceDepthPitch * UpdateRegion.Depth;
-	FMetalBufferPtr OutBuffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetMetalDeviceContext().GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
+	FMetalBufferPtr OutBuffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), BufferSize, BUF_Static, MTL::StorageModeShared));
 
 	const FPixelFormatInfo& FormatInfo = GPixelFormats[TextureRHI->GetFormat()];
 	uint32 CopyPitch = FMath::DivideAndRoundUp(UpdateRegion.Width, (uint32)FormatInfo.BlockSizeX) * FormatInfo.BlockBytes;
@@ -1812,7 +1702,7 @@ static FMetalBufferPtr Internal_CreateBufferAndCopyTexture3DUpdateRegionData(FRH
 }
 
 
-static void InternalUpdateTexture3D(FMetalContext& Context, FRHITexture* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, FMetalBufferPtr Buffer)
+static void InternalUpdateTexture3D(FMetalRHICommandContext& Context, FRHITexture* TextureRHI, uint32 MipIndex, const FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, FMetalBufferPtr Buffer)
 {
 	FMetalSurface* Texture = ResourceCast(TextureRHI);
 	MTLTexturePtr Tex = Texture->Texture;
@@ -1832,14 +1722,10 @@ static void InternalUpdateTexture3D(FMetalContext& Context, FRHITexture* Texture
 			Options = MTL::BlitOptionRowLinearPVRTC;
 		}
 #endif
-		if(Context.AsyncCopyFromBufferToTexture(Buffer, 0, SourceRowPitch, BytesPerImage, Region.size, Tex.get(), 0, MipIndex, Region.origin, Options))
-		{
-			Context.SubmitAsyncCommands(nullptr, nullptr, false);
-		}
+		Context.CopyFromBufferToTexture(Buffer, 0, SourceRowPitch, BytesPerImage, Region.size, Tex.get(), 0, MipIndex, Region.origin, Options);
 	}
 	else
 	{
-		//MTLPP_VALIDATE(mtlpp::Texture, Tex, SafeGetRuntimeDebuggingLevel() >= EMetalDebugLevelValidation, Replace(Region, MipIndex, 0, (uint8*)Buffer.GetContents(), SourceRowPitch, SourceDepthPitch));
         Tex->replaceRegion(Region, MipIndex, 0, (uint8*)Buffer->Contents(), SourceRowPitch, SourceDepthPitch);
 	}
 
@@ -1867,16 +1753,16 @@ void FMetalDynamicRHI::RHIEndUpdateTexture3D(FRHICommandListBase& RHICmdList, FU
 	UpdateData.Data = nullptr;
 }
 
-void FMetalDynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI,uint32 MipIndex,const FUpdateTextureRegion3D& UpdateRegion,uint32 SourceRowPitch,uint32 SourceDepthPitch, const uint8* SourceData)
+void FMetalDynamicRHI::RHIUpdateTexture3D(FRHICommandListBase& RHICmdList, FRHITexture* TextureRHI,uint32 MipIndex, const FUpdateTextureRegion3D& UpdateRegion, uint32 SourceRowPitch, uint32 SourceDepthPitch, const uint8* SourceData)
 {
     MTL_SCOPED_AUTORELEASE_POOL;
     
-    FMetalBufferPtr Buffer = Internal_CreateBufferAndCopyTexture3DUpdateRegionData(TextureRHI, UpdateRegion, SourceRowPitch, SourceDepthPitch, SourceData);
-
-    RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer](FRHICommandListBase& InRHICmdList) mutable
+    FMetalBufferPtr Buffer = Internal_CreateBufferAndCopyTexture3DUpdateRegionData(*Device, TextureRHI, UpdateRegion, SourceRowPitch, SourceDepthPitch, SourceData);
+	
+    RHICmdList.EnqueueLambda([TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer, InDevice=Device](FRHICommandListBase& InRHICmdList) mutable
     {
-        InternalUpdateTexture3D(static_cast<FMetalRHICommandContext&>(InRHICmdList.GetContext()).GetInternalContext(), TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer);
-        GetMetalDeviceContext().ReleaseBuffer(Buffer);
+        InternalUpdateTexture3D(FMetalRHICommandContext::Get(InRHICmdList), TextureRHI, MipIndex, UpdateRegion, SourceRowPitch, SourceDepthPitch, Buffer);
+		InDevice->ReleaseBuffer(Buffer);
     });
 
     INC_DWORD_STAT_BY(STAT_MetalTextureMemUpdate, UpdateRegion.Height * UpdateRegion.Width * SourceDepthPitch);
@@ -1990,7 +1876,7 @@ void FMetalRHICommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHI
                 // Account for create with TexCreate_SRGB flag which could make these different
                 if (TextureFormatExactMatch && (SrcTexture->pixelFormat() == MetalDestTexture->Texture->pixelFormat()))
                 {
-                    GetInternalContext().CopyFromTextureToTexture(SrcTexture.get(), SourceSliceIndex, SourceMipIndex, SourceOrigin,SourceSize, MetalDestTexture->Texture.get(), DestSliceIndex, DestMipIndex, DestinationOrigin);
+                    CopyFromTextureToTexture(SrcTexture.get(), SourceSliceIndex, SourceMipIndex, SourceOrigin,SourceSize, MetalDestTexture->Texture.get(), DestSliceIndex, DestMipIndex, DestinationOrigin);
                 }
                 else
                 {
@@ -2012,7 +1898,7 @@ void FMetalRHICommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHI
                     const uint32 BytesPerImage = AlignedStride *  SourceSize.height;
                     const uint32 DataSize = BytesPerImage * SourceSize.depth;
                     
-                    FMetalBufferPtr Buffer = GetMetalDeviceContext().CreatePooledBuffer(FMetalPooledBufferArgs(GetInternalContext().GetDevice(), DataSize, BUF_Dynamic, MTL::StorageModeShared));
+                    FMetalBufferPtr Buffer = Device.CreatePooledBuffer(FMetalPooledBufferArgs(Device.GetDevice(), DataSize, BUF_Dynamic, MTL::StorageModeShared));
                     
                     check(Buffer);
                     
@@ -2023,17 +1909,17 @@ void FMetalRHICommandContext::RHICopyTexture(FRHITexture* SourceTextureRHI, FRHI
                         Options = MTL::BlitOptionRowLinearPVRTC;
                     }
 #endif
-                    GetInternalContext().CopyFromTextureToBuffer(MetalSrcTexture->Texture.get(), SourceSliceIndex, SourceMipIndex, SourceOrigin, SourceSize, Buffer, 0, AlignedStride, BytesPerImage, Options);
-                    GetInternalContext().CopyFromBufferToTexture(Buffer, 0, Stride, BytesPerImage, DestSize, MetalDestTexture->Texture.get(), DestSliceIndex, DestMipIndex, DestinationOrigin, Options);
+                    CopyFromTextureToBuffer(MetalSrcTexture->Texture.get(), SourceSliceIndex, SourceMipIndex, SourceOrigin, SourceSize, Buffer, 0, AlignedStride, BytesPerImage, Options);
+                    CopyFromBufferToTexture(Buffer, 0, Stride, BytesPerImage, DestSize, MetalDestTexture->Texture.get(), DestSliceIndex, DestMipIndex, DestinationOrigin, Options);
                     
-                    GetMetalDeviceContext().ReleaseBuffer(Buffer);
+                    Device.ReleaseBuffer(Buffer);
                 }
             }
         }
         
         if (SrcTexture && (SrcTexture != MetalSrcTexture->Texture))
         {
-            SafeReleaseMetalTexture(SrcTexture);
+			Device.ReleaseTexture(SrcTexture);
         }
     }
     else
@@ -2058,7 +1944,7 @@ void FMetalRHICommandContext::RHICopyBufferRegion(FRHIBuffer* DstBufferRHI, uint
     check(!DstBuffer->Data && !SrcBuffer->Data);
     check(DstOffset + NumBytes <= DstBufferRHI->GetSize() && SrcOffset + NumBytes <= SrcBufferRHI->GetSize());
 
-    GetInternalContext().CopyFromBufferToBuffer(SrcBuffer->GetCurrentBuffer(), SrcOffset, DstBuffer->GetCurrentBuffer(), DstOffset, NumBytes);
+    CopyFromBufferToBuffer(SrcBuffer->GetCurrentBuffer(), SrcOffset, DstBuffer->GetCurrentBuffer(), DstOffset, NumBytes);
 }
 
 class FMetalTextureReference : public FRHITextureReference
@@ -2091,7 +1977,7 @@ FTextureReferenceRHIRef FMetalDynamicRHI::RHICreateTextureReference(FRHICommandL
 	FRHITexture* ReferencedTexture = InReferencedTexture ? InReferencedTexture : FRHITextureReference::GetDefaultTexture();
 
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
-	FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+	FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
 	check(BindlessDescriptorManager);
 	
 	if(IsMetalBindlessEnabled())
@@ -2112,7 +1998,6 @@ void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
 {
     FRHITexture* NewTexture = InNewTexture ? InNewTexture : FRHITextureReference::GetDefaultTexture();
 
-	// TODO: Need to handle these updates correctly, currently you can update an inflight handle
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	if (TextureRef && TextureRef->IsBindless())
 	{
@@ -2125,10 +2010,10 @@ void FMetalDynamicRHI::RHIUpdateTextureReference(FRHICommandListBase& RHICmdList
         {
             FMetalSurface* NewSurface = GetMetalSurfaceFromRHITexture(NewTexture);
             
-            FMetalBindlessDescriptorManager* BindlessDescriptorManager = GetMetalDeviceContext().GetBindlessDescriptorManager();
+            FMetalBindlessDescriptorManager* BindlessDescriptorManager = Device->GetBindlessDescriptorManager();
             check(BindlessDescriptorManager);
             
-            BindlessDescriptorManager->BindTexture(DestHandle, NewSurface->Texture.get());
+            BindlessDescriptorManager->BindTexture(RHICmdList, DestHandle, NewSurface->Texture.get(), EDescriptorUpdateType_GPU);
         }
 	}
 #endif // PLATFORM_SUPPORTS_BINDLESS_RENDERING

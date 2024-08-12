@@ -88,10 +88,11 @@ enum EMetalPipelineHashOffsets
 	Offset_End = Offset_AlphaToCoverage + NumBits_AlphaToCoverage
 };
 
+class FMetalDevice;
 class FMetalPipelineStateCacheManager
 {
 public:
-	FMetalPipelineStateCacheManager();
+	FMetalPipelineStateCacheManager(FMetalDevice& Device);
 	~FMetalPipelineStateCacheManager();
 	
 private:
@@ -108,13 +109,15 @@ private:
 class FMetalShaderPipeline
 {
 public:
-    FMetalShaderPipeline() {};
+    FMetalShaderPipeline(FMetalDevice& MetalDevice)
+	 : Device(MetalDevice) {};
     ~FMetalShaderPipeline();
     
     void Init();
     void InitResourceMask();
     void InitResourceMask(EMetalShaderFrequency Frequency);
     
+	FMetalDevice& Device;
 	MTLRenderPipelineStatePtr RenderPipelineState;
     MTLComputePipelineStatePtr ComputePipelineState;
     MTLRenderPipelineStatePtr StreamPipelineState;

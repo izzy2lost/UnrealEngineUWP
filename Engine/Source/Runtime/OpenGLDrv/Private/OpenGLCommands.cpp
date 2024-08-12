@@ -2910,10 +2910,13 @@ IRHIComputeContext* FOpenGLDynamicRHI::RHIGetCommandContext(ERHIPipeline Pipelin
 	return nullptr;
 }
 
-IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args)
+void FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeContextArgs&& Args, TRHIPipelineArray<IRHIPlatformCommandList*>& Output)
 {
-	// "Context" will always be the default context, since we don't implement parallel execution.
-	check(Args.Context == this);
+	for(IRHIComputeContext* Context : Args.Contexts)
+	{
+		// "Context" will always be the default context, since we don't implement parallel execution.
+		check(Context == this);
+	}
 
 	// Flush the context to ensure recorded commands will reach the driver.
 	//if (PlatformOpenGLContextValid())
@@ -2924,8 +2927,6 @@ IRHIPlatformCommandList* FOpenGLDynamicRHI::RHIFinalizeContext(FRHIFinalizeConte
 	// Clear some context state
 	FMemory::Memset(PendingState.BoundUniformBuffers, 0, sizeof(PendingState.BoundUniformBuffers));
 	FMemory::Memset(PendingState.BoundUniformBuffersDynamicOffset, 0u, sizeof(PendingState.BoundUniformBuffersDynamicOffset));
-
-	return nullptr;
 }
 
 void FOpenGLDynamicRHI::RHISubmitCommandLists(FRHISubmitCommandListsArgs&& Args)

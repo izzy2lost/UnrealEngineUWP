@@ -519,6 +519,10 @@ public:
 #endif
 };
 
+/** Context that is used to generate Upload commands. */
+class IRHIUploadContext
+{};
+
 // Utility function to generate pre-transfer sync points to pass to CrossGPUTransferSignal and CrossGPUTransfer
 RHI_API void RHIGenerateCrossGPUPreTransferFences(TConstArrayView<FTransferResourceParams> Params, TArray<FCrossGPUTransferFence*>& OutPreTransfer);
 
