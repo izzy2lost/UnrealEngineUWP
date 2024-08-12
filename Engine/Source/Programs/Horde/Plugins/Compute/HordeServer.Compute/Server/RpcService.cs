@@ -147,48 +147,6 @@ namespace HordeServer.Server
 			}
 		}
 
-		static void CopyPropertyToResource(string name, List<string> properties, Dictionary<string, int> resources)
-		{
-			foreach (string property in properties)
-			{
-				if (property.Length > name.Length && property.StartsWith(name, StringComparison.OrdinalIgnoreCase) && property[name.Length] == '=')
-				{
-					int value;
-					if (Int32.TryParse(property.AsSpan(name.Length + 1), out value))
-					{
-						resources[name] = value;
-					}
-				}
-			}
-		}
-
-		static void GetCapabilities(RpcAgentCapabilities? capabilities, out List<string> properties, out Dictionary<string, int> resources)
-		{
-			properties = new List<string>();
-			resources = new Dictionary<string, int>();
-
-			if (capabilities == null)
-			{
-				return;
-			}
-			properties.AddRange(capabilities.Properties);
-
-			if (capabilities.Devices.Count <= 0)
-			{
-				return;
-			}
-
-			RpcDeviceCapabilities device = capabilities.Devices[0];
-			if (device.Properties == null)
-			{
-				return;
-			}
-
-			properties.AddRange(device.Properties);
-			CopyPropertyToResource(KnownPropertyNames.LogicalCores, properties, resources);
-			CopyPropertyToResource(KnownPropertyNames.Ram, properties, resources);
-		}
-
 		/// <summary>
 		/// Creates a new agent
 		/// </summary>
@@ -261,11 +219,8 @@ namespace HordeServer.Server
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "User is not authenticated to create session for {AgentId}", agentId);
 			}
 
-			// Get the known properties for this agent
-			GetCapabilities(request.Capabilities, out List<string> properties, out Dictionary<string, int> resources);
-
 			// Create a new session
-			agent = await _agentService.CreateSessionAsync(agent, (AgentStatus)request.Status, properties, resources, request.Version, context.CancellationToken);
+			agent = await _agentService.CreateSessionAsync(agent, (AgentStatus)request.Status, request.Capabilities, request.Version, context.CancellationToken);
 			if (agent == null)
 			{
 				throw new StructuredRpcException(StatusCode.NotFound, "Agent {AgentId} not found", agentId);
@@ -327,18 +282,10 @@ namespace HordeServer.Server
 						throw new StructuredRpcException(StatusCode.PermissionDenied, "Not authenticated for {AgentId}. Reason {Reason}", request.AgentId, authReason);
 					}
 
-					// Get the new capabilities of this agent
-					List<string>? properties = null;
-					Dictionary<string, int>? resources = null;
-					if (request.Capabilities != null)
-					{
-						GetCapabilities(request.Capabilities, out properties, out resources);
-					}
-
 					// Update the session
 					try
 					{
-						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, properties, resources, request.Leases, cancellationSource.Token);
+						agent = await _agentService.UpdateSessionWithWaitAsync(agent, sessionId, (AgentStatus)request.Status, request.Capabilities, request.Leases, cancellationSource.Token);
 					}
 					catch (OperationCanceledException)
 					{

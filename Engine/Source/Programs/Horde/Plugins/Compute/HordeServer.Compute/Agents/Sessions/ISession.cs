@@ -31,16 +31,6 @@ namespace HordeServer.Agents.Sessions
 		public DateTime? FinishTime { get; }
 
 		/// <summary>
-		/// Properties of this agent at the time the session started
-		/// </summary>
-		public IReadOnlyList<string> Properties { get; }
-
-		/// <summary>
-		/// Resources reported by the agent at the start of the session
-		/// </summary>
-		public IReadOnlyDictionary<string, int> Resources { get; }
-
-		/// <summary>
 		/// Version of the agent software
 		/// </summary>
 		public string Version { get; }

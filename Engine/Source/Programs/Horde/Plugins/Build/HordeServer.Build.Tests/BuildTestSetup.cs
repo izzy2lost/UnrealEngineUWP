@@ -7,6 +7,7 @@ using Amazon.EC2;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Artifacts;
+using HordeCommon.Rpc.Messages;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Enrollment;
@@ -300,7 +301,6 @@ namespace HordeServer.Tests
 				Clock.UtcNow = now + adjustClockBy.Value;
 			}
 
-			Dictionary<string, int> resources = new();
 			List<string> tempProps = new(properties ?? new List<string>());
 			if (awsInstanceId != null)
 			{
@@ -313,7 +313,7 @@ namespace HordeServer.Tests
 			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = enabled, ExplicitPools = poolId != null ? [poolId.Value] : [] });
 			Assert.IsNotNull(agent);
 
-			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, tempProps, resources, null);
+			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(tempProps), null);
 			Assert.IsNotNull(agent);
 
 			if (workspaces is { Count: > 0 })

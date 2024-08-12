@@ -10,6 +10,7 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
 using Google.Protobuf.WellKnownTypes;
+using HordeCommon.Rpc.Messages;
 using HordeCommon.Rpc.Tasks;
 using HordeServer.Auditing;
 using HordeServer.Server;
@@ -548,17 +549,20 @@ namespace HordeServer.Agents
 			{
 				updates.Add(updateBuilder.Set(x => x.SessionExpiresAt, options.SessionExpiresAt.Value));
 			}
-			if (options.Properties != null)
+
+			List<string>? newProperties = agent.Properties;
+			if (options.Capabilities != null)
 			{
-				List<string> newProperties = options.Properties.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
+				options.Capabilities.Flatten(out newProperties, out Dictionary<string, int> newResources);
+
 				if (!(agent.Properties ?? Enumerable.Empty<string>()).SequenceEqual(newProperties, StringComparer.Ordinal))
 				{
 					updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
 				}
-			}
-			if (options.Resources != null && !ResourcesEqual(options.Resources, agent.Resources))
-			{
-				updates.Add(updateBuilder.Set(x => x.Resources, new Dictionary<string, int>(options.Resources)));
+				if (!ResourcesEqual(newResources, agent.Resources))
+				{
+					updates.Add(updateBuilder.Set(x => x.Resources, newResources));
+				}
 			}
 			if (options.DynamicPools != null)
 			{
@@ -597,7 +601,7 @@ namespace HordeServer.Agents
 			}
 
 			// Update the pools
-			List<PoolId> pools = CreatePoolsList(options.DynamicPools ?? agent.DynamicPools, agent.ExplicitPools, options.Properties ?? agent.Properties ?? Enumerable.Empty<string>());
+			List<PoolId> pools = CreatePoolsList(options.DynamicPools ?? agent.DynamicPools, agent.ExplicitPools, newProperties ?? Enumerable.Empty<string>());
 			if (!Enumerable.SequenceEqual(pools, agent.Pools))
 			{
 				updates.Add(updateBuilder.Set(x => x.Pools, pools));
@@ -688,8 +692,7 @@ namespace HordeServer.Agents
 		/// <inheritdoc/>
 		async Task<AgentDocument?> TryCreateSessionAsync(AgentDocument agent, CreateSessionOptions options, CancellationToken cancellationToken)
 		{
-			List<string> newProperties = options.Properties.OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
-			Dictionary<string, int> newResources = new(options.Resources);
+			options.Capabilities.Flatten(out List<string> newProperties, out Dictionary<string, int> newResources);
 			List<PoolId> newDynamicPools = new(options.DynamicPools);
 
 			// Reset the agent to use the new session

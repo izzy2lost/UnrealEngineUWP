@@ -273,23 +273,21 @@ namespace HordeServer.Agents
 	/// <param name="SessionId">New session id</param>
 	/// <param name="SessionExpiresAt">Expiry time for the new session</param>
 	/// <param name="Status">Status of the agent</param>
-	/// <param name="Properties">Properties for the current session</param>
-	/// <param name="Resources">Resources for the agent</param>
+	/// <param name="Capabilities">Capabilities for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="LastStatusChange">Time to force status change timestamp to</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, IReadOnlyList<string> Properties, IReadOnlyDictionary<string, int> Resources, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
+	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session
 	/// </summary>
 	/// <param name="Status">New status of the agent</param>
 	/// <param name="SessionExpiresAt">New expiry time for the current session</param>
-	/// <param name="Properties">Properties for the current session</param>
-	/// <param name="Resources">Resources for the agent</param>
+	/// <param name="Capabilities">Capbilities for the session</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Leases">New set of leases</param>
-	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, IReadOnlyList<string>? Properties = null, IReadOnlyDictionary<string, int>? Resources = null, IReadOnlyList<PoolId>? DynamicPools = null, List<AgentLease>? Leases = null);
+	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, List<AgentLease>? Leases = null);
 
 	/// <summary>
 	/// Extension methods for IAgent

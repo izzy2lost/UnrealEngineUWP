@@ -8,6 +8,7 @@ using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Templates;
 using EpicGames.Horde.Streams;
+using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Commits;
 using HordeServer.Jobs;
@@ -252,7 +253,7 @@ namespace HordeServer.Tests.Jobs
 			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = true, ExplicitPools = new List<PoolId> { new PoolId("win") } });
 			Assert.IsNotNull(agent);
 
-			await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), null);
+			await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), null);
 
 			ITemplate template = await TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" });
 			IGraph graph = await GraphCollection.AddAsync(template, null);

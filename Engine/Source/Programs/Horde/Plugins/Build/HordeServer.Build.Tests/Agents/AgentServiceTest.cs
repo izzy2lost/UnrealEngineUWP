@@ -44,8 +44,7 @@ public class AgentServiceTest : BuildTestSetup
 	{
 		Fixture fixture = await CreateFixtureAsync();
 
-		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, new List<string>(),
-			new Dictionary<string, int>(),
+		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, new RpcAgentCapabilities(), 
 			"test");
 
 		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent), out string _));
@@ -68,7 +67,7 @@ public class AgentServiceTest : BuildTestSetup
 		Assert.IsFalse(agent.LastStatusChange.HasValue);
 
 		// A session has been created, status change timestamp is current time
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
 		Assert.AreEqual(ToUnixTime(Clock.UtcNow), ToUnixTime(agent.LastStatusChange!.Value));
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
@@ -76,7 +75,7 @@ public class AgentServiceTest : BuildTestSetup
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
 
 		// The session is re-created, status change timestamp is same as when it first got created
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
 		Assert.AreEqual(ToUnixTime(lastStatusChange), ToUnixTime(agent.LastStatusChange!.Value));
 	}
@@ -85,7 +84,7 @@ public class AgentServiceTest : BuildTestSetup
 	private async Task<IAgent> CreateAgentSessionAsync()
 	{
 		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, false, "");
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new List<string>(), new Dictionary<string, int>(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
 		return agent;
 	}
 
@@ -113,7 +112,7 @@ public class AgentServiceTest : BuildTestSetup
 		DateTime lastStatusChange = agent.LastStatusChange!.Value;
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
 
-		agent = (await AgentService.UpdateSessionAsync(agent, agent.SessionId!.Value, status, null, null, new List<RpcLease>()))!;
+		agent = (await AgentService.UpdateSessionAsync(agent, agent.SessionId!.Value, status, null, new List<RpcLease>()))!;
 		if (expectTimestampUpdate)
 		{
 			AssertNotEqual(lastStatusChange, agent.LastStatusChange);
@@ -137,11 +136,11 @@ public class AgentServiceTest : BuildTestSetup
 		}
 
 		List<string> props = new() { $"{KnownPropertyNames.AwsInstanceType}=m5.large" };
-		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, props, new Dictionary<string, int>(), "test");
+		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, new RpcAgentCapabilities(props), "test");
 		Assert.IsFalse(await AuditLogContains("AWS EC2 instance type changed"));
 
 		props = new() { $"{KnownPropertyNames.AwsInstanceType}=c6.xlarge" };
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, props, new Dictionary<string, int>(), "test");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(props), "test");
 		Assert.IsTrue(await AuditLogContains("AWS EC2 instance type changed"));
 	}
 
@@ -150,8 +149,8 @@ public class AgentServiceTest : BuildTestSetup
 	{
 		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", false, "");
 		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", false, "");
-		await AgentService.CreateSessionAsync(agent1, AgentStatus.Ok, new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }, new Dictionary<string, int>(), "test");
-		await AgentService.CreateSessionAsync(agent2, AgentStatus.Ok, new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }, new Dictionary<string, int>(), "test");
+		await AgentService.CreateSessionAsync(agent1, AgentStatus.Ok, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }), "test");
+		await AgentService.CreateSessionAsync(agent2, AgentStatus.Ok, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }), "test");
 
 		List<AgentRateConfig> agentRateConfigs = new()
 		{

@@ -379,12 +379,11 @@ namespace HordeServer.Agents
 		/// </summary>
 		/// <param name="agent">The agent to create a session for</param>
 		/// <param name="status">Current status of the agent</param>
-		/// <param name="properties">Properties for the agent</param>
-		/// <param name="resources">Resources which the agent has</param>
+		/// <param name="capabilities">Capabilities for the agent</param>
 		/// <param name="version">Version of the software that's running</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New agent state</returns>
-		public async Task<IAgent> CreateSessionAsync(IAgent agent, AgentStatus status, IReadOnlyList<string> properties, IReadOnlyDictionary<string, int> resources, string? version, CancellationToken cancellationToken = default)
+		public async Task<IAgent> CreateSessionAsync(IAgent agent, AgentStatus status, RpcAgentCapabilities capabilities, string? version, CancellationToken cancellationToken = default)
 		{
 			DateTime? lastStatusChange = null;
 			for (; ; )
@@ -413,14 +412,14 @@ namespace HordeServer.Agents
 					}
 
 					// Create a new session document
-					ISession newSession = await _sessions.AddAsync(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, properties, resources, version, cancellationToken);
+					ISession newSession = await _sessions.AddAsync(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, version, cancellationToken);
 					DateTime sessionExpiresAt = utcNow + SessionExpiryTime;
 
 					// Get the new pools for the agent
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 					// Reset the agent to use the new session
-					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(newSession.Id, sessionExpiresAt, status, properties, resources, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(newSession.Id, sessionExpiresAt, status, capabilities, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);
@@ -686,7 +685,7 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// 
 		/// </summary>
-		public async Task<IAgent?> UpdateSessionWithWaitAsync(IAgent inAgent, SessionId sessionId, AgentStatus status, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, IList<HordeCommon.Rpc.Messages.RpcLease> newLeases, CancellationToken cancellationToken = default)
+		public async Task<IAgent?> UpdateSessionWithWaitAsync(IAgent inAgent, SessionId sessionId, AgentStatus status, RpcAgentCapabilities? capabilities, IList<HordeCommon.Rpc.Messages.RpcLease> newLeases, CancellationToken cancellationToken = default)
 		{
 			IAgent? agent = inAgent;
 
@@ -694,7 +693,7 @@ namespace HordeServer.Agents
 			uint updateIndex = agent.UpdateIndex;
 
 			// Update the agent session and return to the caller if anything changes
-			agent = await UpdateSessionAsync(agent, sessionId, status, properties, resources, newLeases, cancellationToken);
+			agent = await UpdateSessionAsync(agent, sessionId, status, capabilities, newLeases, cancellationToken);
 			if (agent != null && agent.UpdateIndex == updateIndex && (agent.Leases.Count > 0 || agent.Status != AgentStatus.Stopping))
 			{
 				agent = await WaitForLeaseAsync(agent, newLeases, cancellationToken);
@@ -708,12 +707,11 @@ namespace HordeServer.Agents
 		/// <param name="inAgent">The current agent state</param>
 		/// <param name="sessionId">Id of the session</param>
 		/// <param name="status">New status for the agent</param>
-		/// <param name="properties">New agent properties</param>
-		/// <param name="resources">New agent resources</param>
+		/// <param name="capabilities">New agent capabilities</param>
 		/// <param name="newLeases">New list of leases for this session</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Updated agent state</returns>
-		public async Task<IAgent?> UpdateSessionAsync(IAgent inAgent, SessionId sessionId, AgentStatus status, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, IList<HordeCommon.Rpc.Messages.RpcLease> newLeases, CancellationToken cancellationToken = default)
+		public async Task<IAgent?> UpdateSessionAsync(IAgent inAgent, SessionId sessionId, AgentStatus status, RpcAgentCapabilities? capabilities, IList<HordeCommon.Rpc.Messages.RpcLease> newLeases, CancellationToken cancellationToken = default)
 		{
 			DateTime utcNow = _clock.UtcNow;
 
@@ -805,7 +803,7 @@ namespace HordeServer.Agents
 				List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 				// Update the agent, and try to create new lease documents if we succeed
-				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, properties, resources, dynamicPools, updateLeases ? leases : null), cancellationToken);
+				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, capabilities, dynamicPools, updateLeases ? leases : null), cancellationToken);
 				if (newAgent != null)
 				{
 					agent = newAgent;
@@ -872,7 +870,7 @@ namespace HordeServer.Agents
 
 				// Update the session document
 				Agents.GetLogger(agent.Id).LogInformation("Terminated session {SessionId}", sessionId);
-				await _sessions.UpdateAsync(sessionId, finishTime, agent.Properties, agent.Resources, cancellationToken);
+				await _sessions.UpdateAsync(sessionId, finishTime, cancellationToken);
 				return agent;
 			}
 			return null;

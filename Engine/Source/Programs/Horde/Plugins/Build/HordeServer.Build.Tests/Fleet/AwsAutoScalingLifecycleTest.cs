@@ -7,6 +7,7 @@ using Amazon.AutoScaling.Model;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
+using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
 using HordeServer.Agents.Fleet;
 using HordeServer.Utilities;
@@ -101,7 +102,7 @@ public class AwsAutoScalingLifecycleServiceTest : BuildTestSetup
 		LifecycleActionEvent lae = new() { Ec2InstanceId = "i-1234", LifecycleActionToken = "action-token-test", Origin = "AutoScalingGroup" };
 		List<string> props = new() { KnownPropertyNames.AwsInstanceId + "=" + lae.Ec2InstanceId };
 		IAgent agent = await CreateAgentAsync(new PoolId("pool1"), properties: props);
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, props, new Dictionary<string, int>(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(props), "v1");
 		await _asgLifecycleService.InitiateTerminationAsync(lae, CancellationToken.None);
 		TimeSpan extraMargin = TimeSpan.FromSeconds(10);
 
@@ -114,7 +115,7 @@ public class AwsAutoScalingLifecycleServiceTest : BuildTestSetup
 		AssertLifecycleUpdate(lae, AwsAutoScalingLifecycleService.ActionContinue, _lifecycleUpdates[1]);
 
 		// Agent responded to shutdown request, now safe to notify AWS ASG the termination can take place
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Stopped, props, new Dictionary<string, int>(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Stopped, new RpcAgentCapabilities(props), "v1");
 		await Clock.AdvanceAsync(_asgLifecycleService.LifecycleUpdaterInterval + extraMargin);
 		AssertLifecycleUpdate(lae, AwsAutoScalingLifecycleService.ActionAbandon, _lifecycleUpdates[2]);
 

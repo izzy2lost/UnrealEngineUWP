@@ -16,11 +16,9 @@ namespace HordeServer.Agents.Sessions
 		/// <param name="id">The session id</param>
 		/// <param name="agentId">The agent this session is for</param>
 		/// <param name="startTime">Start time of this session</param>
-		/// <param name="properties">Properties of this agent at the time the session started</param>
-		/// <param name="resources">Resources which the agent has</param>
 		/// <param name="version">Version of the agent software</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, string? version, CancellationToken cancellationToken = default);
+		Task<ISession> AddAsync(SessionId id, AgentId agentId, DateTime startTime, string? version, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets information about a particular session
@@ -56,11 +54,9 @@ namespace HordeServer.Agents.Sessions
 		/// </summary>
 		/// <param name="sessionId">The session to update</param>
 		/// <param name="finishTime">Time at which the session finished</param>
-		/// <param name="properties">The agent properties</param>
-		/// <param name="resources">Resources which the agent has</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		Task UpdateAsync(SessionId sessionId, DateTime? finishTime, IReadOnlyList<string>? properties, IReadOnlyDictionary<string, int>? resources, CancellationToken cancellationToken = default);
+		Task UpdateAsync(SessionId sessionId, DateTime? finishTime, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Delete a session from the collection

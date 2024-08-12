@@ -347,7 +347,7 @@ namespace HordeServer.Agents
 
 		static GetSessionResponse CreateGetSessionResponse(ISession session)
 		{
-			return new GetSessionResponse(session.Id, session.StartTime, session.FinishTime, new List<string>(session.Properties), new Dictionary<string, int>(session.Resources), session.Version);
+			return new GetSessionResponse(session.Id, session.StartTime, session.FinishTime, session.Version);
 		}
 
 		/// <summary>
