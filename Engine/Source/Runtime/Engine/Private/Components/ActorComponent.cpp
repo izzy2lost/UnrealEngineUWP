@@ -2529,6 +2529,8 @@ void UActorComponent::ClearUCSModifiedProperties()
 
 void UActorComponent::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	FTransactionallySafeRWScopeLock Lock(AllUCSModifiedPropertiesLock, SLT_ReadOnly);
 	if (TArray<FSimpleMemberReference>* UCSModifiedProperties = AllUCSModifiedProperties.Find(CastChecked<UActorComponent>(InThis)))
 	{

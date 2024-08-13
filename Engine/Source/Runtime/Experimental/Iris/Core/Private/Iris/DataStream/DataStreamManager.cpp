@@ -153,6 +153,8 @@ UE::Net::Private::FNetExports& UDataStreamManager::GetNetExports()
 
 void UDataStreamManager::AddReferencedObjects(UObject* Object, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(Object, Collector);
+
 	UDataStreamManager* StreamManager = CastChecked<UDataStreamManager>(Object);
 	if (FImpl* Impl = StreamManager->Impl.Get())
 	{

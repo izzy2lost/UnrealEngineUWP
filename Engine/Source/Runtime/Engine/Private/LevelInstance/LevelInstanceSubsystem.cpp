@@ -80,6 +80,8 @@ ULevelInstanceSubsystem::~ULevelInstanceSubsystem()
 
 void ULevelInstanceSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	ULevelInstanceSubsystem* This = CastChecked<ULevelInstanceSubsystem>(InThis);
 
 #if WITH_EDITORONLY_DATA

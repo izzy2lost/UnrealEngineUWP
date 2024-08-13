@@ -422,6 +422,8 @@ UControlRig* FControlRigLayerInstanceProxy::GetFirstAvailableControlRig() const
 
 void FControlRigLayerInstanceProxy::AddReferencedObjects(UAnimInstance* InAnimInstance, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InAnimInstance, Collector);
+
 	if (CurrentSourceAnimInstance)
 	{
 		Collector.AddReferencedObject(CurrentSourceAnimInstance);

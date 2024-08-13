@@ -912,6 +912,8 @@ void UDataRegistrySubsystem::Deinitialize()
 
 void UDataRegistrySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UDataRegistrySubsystem* This = CastChecked<UDataRegistrySubsystem>(InThis);
 
 	if (GIsEditor)

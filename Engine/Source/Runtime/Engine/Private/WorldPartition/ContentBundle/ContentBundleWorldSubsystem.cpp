@@ -72,6 +72,8 @@ bool UContentBundleManager::CanInject() const
 
 void UContentBundleManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UContentBundleManager* Subsystem = CastChecked<UContentBundleManager>(InThis);
 	for (TUniquePtr<FContentBundleContainer>& ContentBundleContainer : Subsystem->ContentBundleContainers)
 	{

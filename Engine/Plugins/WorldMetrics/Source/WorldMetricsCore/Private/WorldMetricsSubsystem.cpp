@@ -53,6 +53,8 @@ void UWorldMetricsSubsystem::Deinitialize()
 
 void UWorldMetricsSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UWorldMetricsSubsystem* This = CastChecked<UWorldMetricsSubsystem>(InThis);
 
 	for (TPair<TSubclassOf<UWorldMetricsExtension>, FExtension>& ExtensionPair : This->Extensions)

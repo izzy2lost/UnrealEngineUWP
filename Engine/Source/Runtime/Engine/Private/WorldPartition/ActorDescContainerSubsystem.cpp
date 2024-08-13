@@ -25,6 +25,8 @@ UActorDescContainerSubsystem& UActorDescContainerSubsystem::GetChecked()
 
 void UActorDescContainerSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UActorDescContainerSubsystem* This = CastChecked<UActorDescContainerSubsystem>(InThis);
 
 	This->ContainerManager.AddReferencedObjects(Collector);

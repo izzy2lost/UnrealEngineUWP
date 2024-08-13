@@ -1231,6 +1231,8 @@ void UEditorDataStorage::DebugPrintQueryCallbacks(FOutputDevice& Output)
 
 void UEditorDataStorage::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UEditorDataStorage* Database = static_cast<UEditorDataStorage*>(InThis);
 
 	for (auto& FactoryPair : Database->Factories)

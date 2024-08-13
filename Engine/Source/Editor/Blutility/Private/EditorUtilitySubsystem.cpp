@@ -126,6 +126,8 @@ void UEditorUtilitySubsystem::Deinitialize()
 
 void UEditorUtilitySubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UEditorUtilitySubsystem* This = static_cast<UEditorUtilitySubsystem*>(InThis);
 	for (auto& KVP : This->PendingTasks)
 	{

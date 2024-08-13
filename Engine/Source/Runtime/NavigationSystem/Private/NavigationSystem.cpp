@@ -1632,6 +1632,8 @@ void UNavigationSystemV1::Tick(float DeltaSeconds)
 
 void UNavigationSystemV1::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UNavigationSystemV1* This = CastChecked<UNavigationSystemV1>(InThis);
 	Collector.AddReferencedObject(This->CrowdManager, InThis);
 

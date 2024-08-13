@@ -281,6 +281,8 @@ void USignificanceManager::RegisterManagedObject(FManagedObjectInfo* ObjectInfo)
 
 void USignificanceManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	USignificanceManager* This = CastChecked<USignificanceManager>(InThis);
 	// Do not allow eliminating references here so that we don't have to deal with cleaning up management info during GC.
 	// All managed objects should be removed from the significance manager before being marked for explicit destruction.

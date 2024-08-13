@@ -62,6 +62,8 @@ UMovieSceneSequenceTickManager::UMovieSceneSequenceTickManager(const FObjectInit
 
 void UMovieSceneSequenceTickManager::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UMovieSceneSequenceTickManager* This = CastChecked<UMovieSceneSequenceTickManager>(InThis);
 	for (FLinkerGroup& Group : This->LinkerGroups)
 	{
