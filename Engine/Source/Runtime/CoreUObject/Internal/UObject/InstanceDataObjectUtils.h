@@ -26,6 +26,9 @@ bool IsInstanceDataObjectSupportEnabled();
 bool IsInstanceDataObjectSupportEnabled(const UObject* Object);
 bool StructContainsLooseProperties(const UStruct* Struct);
 
+/** Query if placeholder support is enabled for a specific import class type. */
+bool CanCreatePropertyBagPlaceholderTypeForImportClass(const UClass* ImportType);
+
 /** Helper to check if a class is an IDO class. */
 bool IsClassOfInstanceDataObjectClass(UStruct* Class);
 

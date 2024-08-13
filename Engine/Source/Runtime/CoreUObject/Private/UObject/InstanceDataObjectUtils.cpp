@@ -208,6 +208,12 @@ namespace UE
 		return !!ObjClass;
 	}
 
+	bool CanCreatePropertyBagPlaceholderTypeForImportClass(const UClass* ImportClass)
+	{
+		// @todo - Expand to other import types (e.g. prefab BPs) later; for now restricted to Verse class objects only.
+		return ImportClass && ImportClass->GetFName() == NAME_VerseClass;
+	}
+
 
 	bool IsClassOfInstanceDataObjectClass(UStruct* Class)
 	{

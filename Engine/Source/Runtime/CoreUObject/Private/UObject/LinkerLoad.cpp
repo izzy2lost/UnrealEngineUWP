@@ -4096,7 +4096,7 @@ UClass* FLinkerLoad::TryCreatePlaceholderClassImport(int32 ImportIndex)
 	{
 		if (UClass* ImportClass = FindObjectFast<UClass>(ImportClassPackage, Import.ClassName, /*bExactClass =*/ false))
 		{
-			if (ImportClass->IsChildOf<UClass>())
+			if (UE::CanCreatePropertyBagPlaceholderTypeForImportClass(ImportClass))
 			{
 				// If the outer package import is also missing, create it now so that the full path remains the same. 
 				UPackage* ClassObjectPackage = Cast<UPackage>(IndexToObject(Import.OuterIndex));

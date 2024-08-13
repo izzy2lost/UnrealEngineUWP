@@ -1073,7 +1073,7 @@ bool FPropertyBagRepository::IsPropertyBagPlaceholderObjectSupportEnabled()
 UStruct* FPropertyBagRepository::CreatePropertyBagPlaceholderType(UObject* Outer, UClass* Class, FName Name, EObjectFlags Flags, UStruct* SuperStruct)
 {
 	// Generate and link a new type object using the given SuperStruct as its base.
-	UStruct* PlaceholderType = NewObject<UClass>(Outer, Class, Name, Flags);
+	UStruct* PlaceholderType = NewObject<UStruct>(Outer, Class, Name, Flags);
 	PlaceholderType->SetSuperStruct(SuperStruct);
 	PlaceholderType->Bind();
 	PlaceholderType->StaticLink(/*bRelinkExistingProperties =*/ true);
