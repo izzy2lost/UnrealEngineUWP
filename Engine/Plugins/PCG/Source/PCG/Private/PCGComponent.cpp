@@ -1624,7 +1624,7 @@ void UPCGComponent::Serialize(FArchive& Ar)
 	Super::Serialize(Ar);
 
 #if WITH_EDITORONLY_DATA
-	if (!Ar.IsCooking())
+	if (!Ar.IsCooking() && !Ar.IsLoadingFromCookedPackage())
 	{
 		int32 DataVersion = FPCGCustomVersion::LatestVersion;
 		if (Ar.IsLoading())
