@@ -137,6 +137,9 @@ private:
 	UPROPERTY()
 	bool bIsEnabled;
 
+	UPROPERTY()
+	ENiagaraEmitterMode EmitterMode = ENiagaraEmitterMode::Standard;
+
 #if WITH_EDITORONLY_DATA
 	/** The source emitter this emitter handle was built from. */
 	UPROPERTY()
@@ -164,9 +167,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UNiagaraStatelessEmitter> StatelessEmitter = nullptr;
 	//-TODO:Stateless: Should we return a bass class here / have a factory method to generate the runtime instance?
-
-	UPROPERTY()
-	ENiagaraEmitterMode EmitterMode = ENiagaraEmitterMode::Standard;
 
 #if WITH_EDITORONLY_DATA
 	FSimpleMulticastDelegate OnEmitterModeChangedDelegate;

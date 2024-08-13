@@ -107,7 +107,7 @@ enum class ENiagaraGpuBufferFormat : uint8
 };
 
 UENUM()
-enum class ENiagaraGpuSyncMode
+enum class ENiagaraGpuSyncMode : uint8
 {
 	/** Data will not be automatically pushed and could diverge between Cpu & Gpu. */
 	None,
@@ -147,7 +147,7 @@ enum class ENiagaraDefaultMode : uint8
 
 /** How to handle how Niagara rendered effects should generate motion vectors by default (can still be overridden on a case-by-case basis) */
 UENUM()
-enum class ENiagaraDefaultRendererMotionVectorSetting
+enum class ENiagaraDefaultRendererMotionVectorSetting : uint8
 {
 	/**
 	 * Motion vectors generated are precise (ideal for motion blur and temporal anti-aliasing).
@@ -163,7 +163,7 @@ enum class ENiagaraDefaultRendererMotionVectorSetting
 
 /** How a given Niagara renderer should handle motion vector generation. */
 UENUM()
-enum class ENiagaraRendererMotionVectorSetting
+enum class ENiagaraRendererMotionVectorSetting : uint8
 {
 	/** Determines the best method to employ when generating motion vectors (accurate vs. approximate) based on project and renderer settings */
 	AutoDetect,

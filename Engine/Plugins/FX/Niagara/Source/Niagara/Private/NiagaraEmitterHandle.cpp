@@ -29,12 +29,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(UNiagaraEmitter& InEmitter, const F
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Standard)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, VersionedInstance(FVersionedNiagaraEmitter(&InEmitter, Version))
-	, EmitterMode(ENiagaraEmitterMode::Standard)
 {
 }
 
@@ -43,12 +43,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(const FVersionedNiagaraEmitter& InE
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Standard)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, VersionedInstance(InEmitter)
-	, EmitterMode(ENiagaraEmitterMode::Standard)
 {
 }
 
@@ -58,12 +58,12 @@ FNiagaraEmitterHandle::FNiagaraEmitterHandle(UNiagaraStatelessEmitter& InEmitter
 	, Id(FGuid::NewGuid())
 	, IdName(*Id.ToString())
 	, bIsEnabled(true)
+	, EmitterMode(ENiagaraEmitterMode::Stateless)
 	, Source_DEPRECATED(nullptr)
 	, LastMergedSource_DEPRECATED(nullptr)
 	, bIsolated(false)
 	, Instance_DEPRECATED(nullptr)
 	, StatelessEmitter(&InEmitter)
-	, EmitterMode(ENiagaraEmitterMode::Stateless)
 {
 }
 //-TODO:Stateless

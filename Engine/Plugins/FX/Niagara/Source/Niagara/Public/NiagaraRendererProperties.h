@@ -422,6 +422,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Rendering")
 	ENiagaraRendererMotionVectorSetting MotionVectorSetting;
 
+	UPROPERTY()
+	bool bIsEnabled;
+
+	UPROPERTY(EditAnywhere, Category = "Scalability")
+	bool bAllowInCullProxies;
+
 	/**
 	Binding to control if the renderer is enabled or disabled.
 	When disabled the renderer does not generate or render any particle data.
@@ -429,13 +435,7 @@ public:
 	*/
 	UPROPERTY(EditAnywhere, Category = "Bindings")
 	FNiagaraVariableAttributeBinding RendererEnabledBinding;
-
-	UPROPERTY()
-	bool bIsEnabled;
-
-	UPROPERTY(EditAnywhere, Category = "Scalability")
-	bool bAllowInCullProxies;
-
+	
 	UPROPERTY()
 	FGuid OuterEmitterVersion;
 

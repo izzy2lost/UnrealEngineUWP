@@ -8,7 +8,7 @@
 #include "NiagaraSystemEmitterState.generated.h"
 
 UENUM()
-enum class ENiagaraSystemInactiveResponse
+enum class ENiagaraSystemInactiveResponse : uint8
 {
 	/** Let Emitters Finish Then Kill Emitter */
 	Complete,
@@ -17,7 +17,7 @@ enum class ENiagaraSystemInactiveResponse
 };
 
 UENUM()
-enum class ENiagaraEmitterInactiveResponse
+enum class ENiagaraEmitterInactiveResponse : uint8
 {
 	/** Let Particles Finish Then Kill Emitter */
 	Complete,
@@ -28,7 +28,7 @@ enum class ENiagaraEmitterInactiveResponse
 };
 
 UENUM()
-enum class ENiagaraLoopBehavior
+enum class ENiagaraLoopBehavior : uint8
 {
 	Infinite,
 	Multiple,
