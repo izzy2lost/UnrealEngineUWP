@@ -135,7 +135,7 @@ void ConvertTexture3DFixedPointToFloatCS(
 	RWFloatTexture3D[DispatchThreadId] = Value / 65535.0;
 }
 
-Texture3D ExistenceTexture;
+Texture3D<float> ExistenceTexture;
 SamplerState TextureSampler;
 RWTexture3D<float> RWDilatedExistenceTexture;
 
@@ -151,8 +151,7 @@ void DilateExistenceMaskCS(
 
 	float3 UVW = DispatchThreadId / (float3)TextureResolution;
 	int MipLevel = 0;
-	float Sample = Texture3DSampleLevel(
-		ExistenceTexture,
+	float Sample = ExistenceTexture.SampleLevel(
 		TextureSampler,
 		UVW,
 		MipLevel).r;

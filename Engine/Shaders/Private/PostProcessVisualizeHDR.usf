@@ -435,7 +435,7 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 			float4 SceneColor = Texture2DSample(HDRSceneColorTexture, HDRSceneColorSampler, UV);
 			SceneColor.xyz *= View.OneOverPreExposure;
 
-			Luminance = CalculateEyeAdaptationLuminance(SceneColor);
+			Luminance = CalculateEyeAdaptationLuminance(SceneColor.xyz);
 		}
 
 		OutColor.rgb = Luminance * LuminanceScale;
