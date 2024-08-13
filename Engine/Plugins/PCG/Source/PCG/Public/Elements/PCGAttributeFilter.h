@@ -119,6 +119,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (EditCondition = "bUseConstantThreshold", EditConditionHides, ShowOnlyInnerProperties, DisplayAfter = "bUseConstantThreshold", PCG_NotOverridable))
 	FPCGMetadataTypesConstantStruct AttributeTypes;
 
+	/** Controls whether the node will emit a warning when the input data or the filter data doesn't have the attribute to filter on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bWarnOnDataMissingAttribute = true;
+
 	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
 	UPROPERTY()
 	bool bHasSpatialToPointDeprecation = false;
@@ -183,6 +187,10 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FPCGAttributeFilterThresholdSettings MaxThreshold;
 
+	/** Controls whether the node will emit a warning when the input data or the filter data doesn't have the attribute to filter on. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bWarnOnDataMissingAttribute = true;
+
 	// Hidden value to indicate that Spatial -> Point deprecation is on where pins are not explicitly points.
 	UPROPERTY()
 	bool bHasSpatialToPointDeprecation = false;
@@ -192,7 +200,7 @@ class FPCGAttributeFilterElementBase : public IPCGElement
 {
 protected:
 	virtual EPCGElementExecutionLoopMode ExecutionLoopMode(const UPCGSettings* Settings) const override { return EPCGElementExecutionLoopMode::SinglePrimaryPin; }
-	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
+	bool DoFiltering(FPCGContext* Context, EPCGAttributeFilterOperator InOperation, const FPCGAttributePropertyInputSelector& TargetAttribute, bool bHasSpatialToPointDeprecation, bool bWarnOnDataMissingAttribute, const FPCGAttributeFilterThresholdSettings& FirstThreshold, const FPCGAttributeFilterThresholdSettings* SecondThreshold = nullptr) const;
 };
 
 class FPCGAttributeFilterElement : public FPCGAttributeFilterElementBase
