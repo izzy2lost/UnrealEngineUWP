@@ -33,6 +33,7 @@ namespace UnrealBuildTool.Rules
 				"PropertyAccessEditor",
 				"StructUtilsEditor",
 				"GameplayTags",
+				"EditorSubsystem"
 			}
 			);
 
@@ -50,7 +51,9 @@ namespace UnrealBuildTool.Rules
 				"RewindDebuggerInterface",
 				"DetailCustomizations",
 				"AppFramework",
-				"KismetCompiler"
+				"KismetCompiler",
+				"EditorInteractiveToolsFramework",
+				"InteractiveToolsFramework",
 			}
 			);
 

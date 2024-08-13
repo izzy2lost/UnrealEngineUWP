@@ -37,12 +37,14 @@ namespace UnrealBuildTool.Rules
 				PublicDependencyModuleNames.AddRange(
 					new [] {
 						"UnrealEd",
-						"BlueprintGraph"
+						"BlueprintGraph",
 					}
 				);
 				PrivateDependencyModuleNames.AddRange(
 					new [] {
-						"StructUtilsEditor"
+						"StructUtilsEditor",
+						"EditorSubsystem",
+						"EditorFramework"
 					}
 				);
 			}

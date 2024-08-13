@@ -5,6 +5,7 @@
 #include "StateTreeDelegates.h"
 #include "StateTreeDragDrop.h"
 #include "StateTreeEditorData.h"
+#include "StateTreeEditorModule.h"
 #include "StateTreeEditorStyle.h"
 #include "StateTreeViewModel.h"
 #include "Widgets/Input/SSearchBox.h"
@@ -193,36 +194,7 @@ void SCompactStateTreeView::CacheState(TSharedPtr<FStateTreeStateItem> ParentNod
 			StateItem->Color = FoundColor->Color;
 		}
 		
-		// Figure out icon.
-		if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::None)
-		{
-			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.SelectNone");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryEnterState)
-		{
-			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");			
-			}
-			else
-			{
-				StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
-			}
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
-		{
-			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenAtRandom");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
-		{
-			StateItem->Icon = FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryFollowTransitions");
-		}
+		StateItem->Icon = FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(State->SelectionBehavior, !State->Children.IsEmpty(), State->Type);
 
 		// Linked states
 		if (State->Type == EStateTreeStateType::Linked)

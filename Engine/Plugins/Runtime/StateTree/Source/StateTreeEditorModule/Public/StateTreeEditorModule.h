@@ -34,12 +34,16 @@ public:
 
 	TSharedPtr<FStateTreeNodeClassCache> GetNodeClassCache();
 	
+	DECLARE_EVENT_OneParam(FStateTreeEditorModule, FOnRegisterLayoutExtensions, FLayoutExtender&);
+	FOnRegisterLayoutExtensions& OnRegisterLayoutExtensions() { return RegisterLayoutExtensions; }
+
 protected:
 	TSharedPtr<FExtensibilityManager> MenuExtensibilityManager;
 	TSharedPtr<FExtensibilityManager> ToolBarExtensibilityManager;
 	TSharedPtr<FStateTreeNodeClassCache> NodeClassCache;
 
 	FDelegateHandle OnUserDefinedStructReinstancedHandle;
+	FOnRegisterLayoutExtensions RegisterLayoutExtensions;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

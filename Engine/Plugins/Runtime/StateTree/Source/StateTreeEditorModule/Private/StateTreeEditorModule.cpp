@@ -25,6 +25,7 @@
 #include "StateTreeCompilerLog.h"
 #include "Debugger/StateTreeDebuggerCommands.h"
 #include "StateTreeDelegates.h"
+#include "StateTreeEditingSubsystem.h"
 #include "StateTreeEditor.h"
 #include "StateTreeEditorCommands.h"
 #include "StateTreeEditorStyle.h"
@@ -42,33 +43,15 @@ namespace UE::StateTree::Editor
 	// @todo Could we make this a IModularFeature?
 	static bool CompileStateTree(UStateTree& StateTree)
 	{
-		// Compile the StateTree asset.
-		UE::StateTree::Editor::ValidateAsset(StateTree);
-		const uint32 EditorDataHash = UE::StateTree::Editor::CalcAssetHash(StateTree);
-
-		FStateTreeCompilerLog Log;
-		FStateTreeCompiler Compiler(Log);
-
-		const bool bSuccess = Compiler.Compile(StateTree);
-
-		if (bSuccess)
+		if (UStateTreeEditingSubsystem* StateTreeEditingSubsystem = GEditor->GetEditorSubsystem<UStateTreeEditingSubsystem>())
 		{
-			// Success
-			StateTree.LastCompiledEditorDataHash = EditorDataHash;
-			UE::StateTree::Delegates::OnPostCompile.Broadcast(StateTree);
-			UE_LOG(LogStateTreeEditor, Log, TEXT("Compile StateTree '%s' succeeded."), *StateTree.GetFullName());
-		}
-		else
-		{
-			// Make sure not to leave stale data on failed compile.
-			StateTree.ResetCompiled();
-			StateTree.LastCompiledEditorDataHash = 0;
+			FStateTreeCompilerLog Log;
+			const bool bSuccess = UStateTreeEditingSubsystem::CompileStateTree(&StateTree, Log);
 
-			UE_LOG(LogStateTreeEditor, Error, TEXT("Failed to compile '%s', errors follow."), *StateTree.GetFullName());
-			Log.DumpToLog(LogStateTreeEditor);
+			return bSuccess;
 		}
 
-		return bSuccess;
+		return false;
 	}
 
 }; // UE::StateTree::Editor
@@ -76,7 +59,7 @@ namespace UE::StateTree::Editor
 void FStateTreeEditorModule::StartupModule()
 {
 	UE::StateTree::Delegates::OnRequestCompile.BindStatic(&UE::StateTree::Editor::CompileStateTree);
-	UE::StateTree::Delegates::OnRequestEditorHash.BindStatic(&UE::StateTree::Editor::CalcAssetHash);
+	UE::StateTree::Delegates::OnRequestEditorHash.BindLambda([](const UStateTree& InStateTree) -> uint32 { return UStateTreeEditingSubsystem::CalculateStateTreeHash(&InStateTree); });
 
 #if WITH_STATETREE_TRACE_DEBUGGER
 	FStateTreeDebuggerCommands::Register();

@@ -13,6 +13,7 @@
 #include "StateTreeConditionBase.h"
 #include "StateTreeDescriptionHelpers.h"
 #include "StateTreeDragDrop.h"
+#include "StateTreeEditorModule.h"
 #include "StateTreeState.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeViewModel.h"
@@ -1004,70 +1005,7 @@ const FSlateBrush* SStateTreeViewRow::GetSelectorIcon() const
 {
 	if (const UStateTreeState* State = WeakState.Get())
 	{
-		if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::None)
-		{
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.SelectNone");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryEnterState)
-		{
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				// Backwards compatible behavior
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
-			}
-			else
-			{
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
-			}
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				// Backwards compatible behavior
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
-			}
-
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectCHildrenAtRandom");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				// Backwards compatible behavior
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
-			}
-
-			//place holder
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
-		{
-			if (State->Children.IsEmpty()
-				|| State->Type == EStateTreeStateType::Linked
-				|| State->Type == EStateTreeStateType::LinkedAsset)
-			{
-				// Backwards compatible behavior
-				return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryEnterState");
-			}
-
-			//place holder
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
-		}
-		else if (State->SelectionBehavior == EStateTreeStateSelectionBehavior::TryFollowTransitions)
-		{
-			return FStateTreeEditorStyle::Get().GetBrush("StateTreeEditor.TryFollowTransitions");
-		}
+		return FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(State->SelectionBehavior, !State->Children.IsEmpty(), State->Type);		
 	}
 
 	return nullptr;

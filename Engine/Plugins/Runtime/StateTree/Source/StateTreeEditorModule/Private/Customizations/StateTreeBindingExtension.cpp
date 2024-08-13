@@ -1790,8 +1790,11 @@ bool FStateTreeBindingsChildrenCustomization::ShouldCustomizeChildren(TSharedRef
 		FStateTreePropertyPath TargetPath;
 		UE::StateTree::PropertyBinding::MakeStructPropertyPathFromPropertyHandle(InPropertyHandle, TargetPath);
 		IStateTreeEditorPropertyBindingsOwner* BindingOwner = Cast<IStateTreeEditorPropertyBindingsOwner>(UE::StateTree::PropertyBinding::FindEditorBindingsOwner(OuterObjects[0]));
-		FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
-		return EditorBindings->HasPropertyBinding(TargetPath);
+		if (!TargetPath.IsPathEmpty() && BindingOwner)
+		{
+			FStateTreeEditorPropertyBindings* EditorBindings = BindingOwner->GetPropertyEditorBindings();
+			return EditorBindings->HasPropertyBinding(TargetPath);
+		}
 	}
 
 	return false;

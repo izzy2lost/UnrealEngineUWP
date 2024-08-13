@@ -30,7 +30,7 @@ enum class FStateTreeViewModelInsert : uint8
 /**
  * ModelView for editing StateTreeEditorData.
  */
-class FStateTreeViewModel : public FEditorUndoClient, public TSharedFromThis<FStateTreeViewModel>
+class STATETREEEDITORMODULE_API FStateTreeViewModel : public FEditorUndoClient, public TSharedFromThis<FStateTreeViewModel>
 {
 public:
 

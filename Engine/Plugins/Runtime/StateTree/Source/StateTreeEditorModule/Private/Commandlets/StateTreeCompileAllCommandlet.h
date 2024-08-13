@@ -24,7 +24,7 @@ public:
 	//~ End UCommandlet Interface
 
 protected:
-	bool CompileAndSaveStateTree(UStateTree& StateTree) const;
+	bool CompileAndSaveStateTree(TNonNullPtr<UStateTree> StateTree) const;
 
 	ISourceControlProvider* SourceControlProvider = nullptr;
 };

@@ -9,6 +9,7 @@
 #include "Styling/SlateTypes.h"
 #include "Misc/Paths.h"
 #include "Styling/StyleColors.h"
+#include "StateTreeTypes.h"
 #include "Styling/SlateStyleMacros.h"
 
 
@@ -403,4 +404,41 @@ FStateTreeEditorStyle& FStateTreeEditorStyle::Get()
 {
 	static FStateTreeEditorStyle Instance;
 	return Instance;
+}
+
+const FSlateBrush* FStateTreeEditorStyle::GetBrushForSelectionBehaviorType(EStateTreeStateSelectionBehavior InBehaviour, bool bHasChildren, EStateTreeStateType StateType)
+{	
+	if (InBehaviour == EStateTreeStateSelectionBehavior::None)
+	{
+		return Get().GetBrush("StateTreeEditor.SelectNone");
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TryEnterState)
+	{
+		return Get().GetBrush("StateTreeEditor.TryEnterState");			
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenInOrder
+		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenWithHighestUtility
+		|| InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenBasedOnRelativeUtility)
+	{
+		if (!bHasChildren
+			|| StateType == EStateTreeStateType::Linked
+			|| StateType == EStateTreeStateType::LinkedAsset)
+		{
+			return Get().GetBrush("StateTreeEditor.TryEnterState");			
+		}
+		else
+		{
+			return Get().GetBrush("StateTreeEditor.TrySelectChildrenInOrder");
+		}
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TrySelectChildrenAtUniformRandom)
+	{
+		return Get().GetBrush("StateTreeEditor.TrySelectChildrenAtRandom");
+	}
+	else if (InBehaviour == EStateTreeStateSelectionBehavior::TryFollowTransitions)
+	{
+		return Get().GetBrush("StateTreeEditor.TryFollowTransitions");
+	}
+
+	return nullptr;
 }

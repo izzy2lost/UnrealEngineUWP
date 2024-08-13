@@ -11,6 +11,7 @@
 #include "StateTreeEditor.h"
 #include "StateTreeCompiler.h"
 #include "StateTreeDelegates.h"
+#include "StateTreeEditingSubsystem.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(StateTreeCompileAllCommandlet)
 
@@ -60,7 +61,7 @@ int32 UStateTreeCompileAllCommandlet::Main(const FString& Params)
 		}
 		else
 		{
-			CompileAndSaveStateTree(*StateTree);
+			CompileAndSaveStateTree(StateTree);
 		}
 		Counter++;
 	}
@@ -68,36 +69,20 @@ int32 UStateTreeCompileAllCommandlet::Main(const FString& Params)
 	return 0;
 }
 
-bool UStateTreeCompileAllCommandlet::CompileAndSaveStateTree(UStateTree& StateTree) const
+bool UStateTreeCompileAllCommandlet::CompileAndSaveStateTree(TNonNullPtr<UStateTree> StateTree) const
 {
-	UPackage* Package = StateTree.GetPackage();
+	UPackage* Package = StateTree->GetPackage();
 	const FString PackageFileName = SourceControlHelpers::PackageFilename(Package);
 
 	// Compile the StateTree asset.
-	UE::StateTree::Editor::ValidateAsset(StateTree);
-	const uint32 EditorDataHash = UE::StateTree::Editor::CalcAssetHash(StateTree);
+	UStateTreeEditingSubsystem::ValidateStateTree(StateTree);
+	const uint32 EditorDataHash = UStateTreeEditingSubsystem::CalculateStateTreeHash(StateTree);
 
 	FStateTreeCompilerLog Log;
-	FStateTreeCompiler Compiler(Log);
+	const bool bSuccess = UStateTreeEditingSubsystem::CompileStateTree(StateTree, Log);
 
-	const bool bSuccess = Compiler.Compile(StateTree);
-
-	if (bSuccess)
+	if (!bSuccess)
 	{
-		// Success
-		StateTree.LastCompiledEditorDataHash = EditorDataHash;
-		UE::StateTree::Delegates::OnPostCompile.Broadcast(StateTree);
-		UE_LOG(LogStateTreeCompile, Log, TEXT("Compile StateTree %s succeeded."), *PackageFileName, EditorDataHash);
-	}
-	else
-	{
-		// Make sure not to leave stale data on failed compile.
-		StateTree.ResetCompiled();
-		StateTree.LastCompiledEditorDataHash = 0;
-
-		UE_LOG(LogStateTreeCompile, Error, TEXT("Failed to compile StateTree %s, errors follow."), *PackageFileName);
-		Log.DumpToLog(LogStateTreeCompile);
-
 		return false;
 	}
 

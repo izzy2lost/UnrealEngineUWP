@@ -280,6 +280,11 @@ void UStateTree::GetAssetRegistryTags(FAssetRegistryTagsContext Context) const
 	const FString SchemaClassName = Schema ? Schema->GetClass()->GetPathName() : TEXT("");
 	Context.AddTag(FAssetRegistryTag(UE::StateTree::SchemaTag, SchemaClassName, FAssetRegistryTag::TT_Alphabetical));
 
+	if (Schema)
+	{
+		Schema->GetAssetRegistryTags(Context);
+	}
+
 	Super::GetAssetRegistryTags(Context);
 }
 
