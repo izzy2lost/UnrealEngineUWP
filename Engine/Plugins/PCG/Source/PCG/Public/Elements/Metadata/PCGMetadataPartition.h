@@ -49,6 +49,17 @@ public:
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (EditCondition = "bTokenizeOnWhiteSpace", EditConditionHides, DeprecationMessage = "bTokenizeOnWhiteSpace has been deprecated."))
 	bool bTokenizeOnWhiteSpace = false;
 
+	/** Assign an index partition as an extra attribute. */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bAssignIndexPartition = false;
+
+	/** If we assign an index, we can also not partition (and only assign the partition index to the original data). */
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bAssignIndexPartition", EditConditionHides))
+	bool bDoNotPartition = true;
+
+	UPROPERTY(EditAnywhere, Category = Settings, meta = (PCG_Overridable, EditCondition = "bAssignIndexPartition", EditConditionHides))
+	FName PartitionIndexAttributeName = TEXT("PartitionIndex");
+
 #if WITH_EDITORONLY_DATA
 	UE_DEPRECATED(5.5, "PartitionAttribute has been deprecated.")
 	UPROPERTY(meta = (DeprecatedProperty, DeprecationMessage = "PartitionAttribute has been deprecated."))

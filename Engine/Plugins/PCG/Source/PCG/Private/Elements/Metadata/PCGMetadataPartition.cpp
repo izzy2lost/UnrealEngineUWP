@@ -5,8 +5,13 @@
 #include "PCGContext.h"
 #include "PCGCustomVersion.h"
 #include "Helpers/PCGHelpers.h"
+#include "Metadata/PCGMetadata.h"
 #include "Metadata/PCGMetadataAttribute.h"
 #include "Metadata/PCGMetadataPartitionCommon.h"
+#include "Metadata/Accessors/IPCGAttributeAccessor.h"
+#include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "Metadata/Accessors/PCGAttributeAccessorKeys.h"
+#include "Utils/PCGLogErrors.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGMetadataPartition)
 
@@ -105,10 +110,10 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	// If the names are overridden by the user, generate the selectors with them
-	OverriddenSelectors.SetNum(AttributeNames.Num());
+	OverriddenSelectors.Reserve(AttributeNames.Num());
 	for (const FString& AttributeName : AttributeNames)
 	{
-		OverriddenSelectors.Emplace_GetRef().SetAttributeName(FName(AttributeName));
+		OverriddenSelectors.Emplace_GetRef().Update(AttributeName);
 	}
 
 	const TArray<FPCGAttributePropertyInputSelector>& ActiveSelectors = OverriddenSelectors.IsEmpty() ? Settings->PartitionAttributeSelectors : OverriddenSelectors;
@@ -125,25 +130,89 @@ bool FPCGMetadataPartitionElement::ExecuteInternal(FPCGContext* Context) const
 		return true;
 	}
 
+	const bool bAssignIndexPartition = Settings->bAssignIndexPartition;
+	// bDoNotPartition is only exposed to the user if bAssignIndexPartition is true, so make sure that this condition is respected
+	// as no partition and no assign index is a trivial operation.
+	const bool bDoPartition = !bAssignIndexPartition || !Settings->bDoNotPartition;
+
 	for (const FPCGTaggedData& Input : Inputs)
 	{
 		const UPCGData* InData = Input.Data;
 
-		for (int I = 0; I < PartitionAttributeSources.Num(); ++I)
+		for (int32 i = 0; i < PartitionAttributeSources.Num(); ++i)
 		{
-			PartitionAttributeSources[I] = static_cast<FPCGAttributePropertySelector>(ActiveSelectors[I].CopyAndFixLast(InData));
+			PartitionAttributeSources[i] = static_cast<FPCGAttributePropertySelector>(ActiveSelectors[i].CopyAndFixLast(InData));
 		}
 
-		TArray<UPCGData*> PartitionDataArray;
-		PartitionDataArray = PCGMetadataPartitionCommon::AttributePartition(InData, PartitionAttributeSources, Context);
-
-		for (UPCGData* PartitionData : PartitionDataArray)
+		if (bDoPartition)
 		{
-			if (PartitionData)
+			TArray<UPCGData*> PartitionDataArray = PCGMetadataPartitionCommon::AttributePartition(InData, PartitionAttributeSources, Context);
+
+			for (int32 i = 0; i < PartitionDataArray.Num(); ++i)
 			{
+				UPCGData* PartitionData = PartitionDataArray[i];
+				// By construction, it must be valid
+				check(PartitionData);
+
 				FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
 				Output.Data = PartitionData;
+
+				if (bAssignIndexPartition)
+				{
+					UPCGMetadata* Metadata = PartitionData->MutableMetadata();
+					if (ensure(Metadata))
+					{
+						Metadata->CreateAttribute<int32>(Settings->PartitionIndexAttributeName, i, /*bAllowInterpolation=*/false, /*bOverrideParent=*/true);
+					}
+				}
 			}
+		}
+		else
+		{
+			const TArray<TArray<int32>> PartitionDataArray = PCGMetadataPartitionCommon::AttributeGenericPartition(InData, PartitionAttributeSources, Context);
+			FPCGTaggedData& Output = Outputs.Add_GetRef(Input);
+
+			if (PartitionDataArray.IsEmpty())
+			{
+				continue;
+			}
+
+			UPCGData* OutputData = InData->DuplicateData(Context);
+			check(OutputData);
+			UPCGMetadata* Metadata = OutputData->MutableMetadata();
+			check(Metadata);
+
+			FPCGMetadataAttributeBase* AttributePartitionIndex = Metadata->CreateAttribute<int32>(Settings->PartitionIndexAttributeName, 0, /*bAllowInterpolation=*/false, /*bOverrideParent=*/true);
+			if (!AttributePartitionIndex)
+			{
+				PCGLog::Metadata::LogFailToCreateAttribute<int32>(Settings->PartitionIndexAttributeName, Context);
+				continue;
+			}
+
+			const FPCGAttributePropertySelector Selector = FPCGAttributePropertySelector::CreateAttributeSelector(Settings->PartitionIndexAttributeName);
+			TUniquePtr<IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateAccessor(OutputData, Selector);
+			TUniquePtr<IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateKeys(OutputData, Selector);
+
+			// Attribute exists, so Accessor and keys should exist
+			if (!ensure(Accessor && Keys))
+			{
+				continue;
+			}
+
+			// Flatten the array to write it in one go.
+			TArray<int32> AllIndexes;
+			AllIndexes.SetNumUninitialized(Keys->GetNum());
+
+			for (int32 i = 0; i < PartitionDataArray.Num(); ++i)
+			{
+				for (int32 j : PartitionDataArray[i])
+				{
+					AllIndexes[j] = i;
+				}
+			}
+
+			Accessor->SetRange<int32>(AllIndexes, 0, *Keys);
+			Output.Data = OutputData;
 		}
 	}
 
