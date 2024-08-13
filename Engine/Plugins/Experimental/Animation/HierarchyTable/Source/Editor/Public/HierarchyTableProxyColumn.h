@@ -10,7 +10,7 @@ class UHierarchyTable;
 struct FHierarchyTableEntryData;
 
 USTRUCT()
-struct FHierarchyTableProxyColumn : public FTypedElementDataStorageColumn
+struct FHierarchyTableProxyColumn : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

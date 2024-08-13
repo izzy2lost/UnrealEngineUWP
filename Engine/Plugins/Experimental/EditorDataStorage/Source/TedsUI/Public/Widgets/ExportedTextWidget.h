@@ -53,7 +53,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Exported text widget"))
-struct TEDSUI_API FExportedTextWidgetTag : public FTypedElementDataStorageTag
+struct TEDSUI_API FExportedTextWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

@@ -10,7 +10,7 @@
 #include "TedsAssetDataColumns.generated.h"
 
 USTRUCT()
-struct FAssetPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -19,7 +19,7 @@ struct FAssetPathColumn_Experimental : public FTypedElementDataStorageColumn
 };
 
 USTRUCT()
-struct FParentAssetPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FParentAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -27,7 +27,7 @@ struct FParentAssetPathColumn_Experimental : public FTypedElementDataStorageColu
 };
 
 USTRUCT()
-struct FChildrenAssetPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FChildrenAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -35,7 +35,7 @@ struct FChildrenAssetPathColumn_Experimental : public FTypedElementDataStorageCo
 };
 
 USTRUCT()
-struct FAssetsInPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FAssetsInPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -43,7 +43,7 @@ struct FAssetsInPathColumn_Experimental : public FTypedElementDataStorageColumn
 };
 
 USTRUCT()
-struct FAssetDataColumn_Experimental : public FTypedElementDataStorageColumn
+struct FAssetDataColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -52,7 +52,7 @@ struct FAssetDataColumn_Experimental : public FTypedElementDataStorageColumn
 };
 
 USTRUCT()
-struct FUnresolvedParentAssetPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FUnresolvedParentAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -60,7 +60,7 @@ struct FUnresolvedParentAssetPathColumn_Experimental : public FTypedElementDataS
 };
 
 USTRUCT()
-struct FUnresolvedAssetsInPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FUnresolvedAssetsInPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -69,28 +69,28 @@ struct FUnresolvedAssetsInPathColumn_Experimental : public FTypedElementDataStor
 
 // Tag to identify assets
 USTRUCT(meta = (DisplayName = "Asset"))
-struct FAssetTag final : public FTypedElementDataStorageTag
+struct FAssetTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 // Tag to identify assets with private visibility
 USTRUCT(meta = (DisplayName = "Private Asset"))
-struct FPrivateAssetTag final : public FTypedElementDataStorageTag
+struct FPrivateAssetTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 // Tag to identify assets with public visibility
 USTRUCT(meta = (DisplayName = "Public Asset"))
-struct FPublicAssetTag final : public FTypedElementDataStorageTag
+struct FPublicAssetTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 // Column to store the disk size of an asset
 USTRUCT(meta = (DisplayName = "Disk Size"))
-struct FDiskSizeColumn final : public FTypedElementDataStorageColumn
+struct FDiskSizeColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -101,7 +101,7 @@ struct FDiskSizeColumn final : public FTypedElementDataStorageColumn
 
 // Column to store the verse path of an asset
 USTRUCT(meta = (DisplayName = "Verse Path"))
-struct FVersePathColumn final : public FTypedElementDataStorageColumn
+struct FVersePathColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -110,20 +110,20 @@ struct FVersePathColumn final : public FTypedElementDataStorageColumn
 
 // Used to notify the dependent queries of the update to the path of the row
 USTRUCT()
-struct FUpdatedPathTag : public FTypedElementDataStorageTag
+struct FUpdatedPathTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 // Used to notify the dependent queries of a update to the asset data
 USTRUCT()
-struct FUpdatedAssetDataTag : public FTypedElementDataStorageTag
+struct FUpdatedAssetDataTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "CB Item Path"))
-struct FVirtualPathColumn_Experimental : public FTypedElementDataStorageColumn
+struct FVirtualPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -132,7 +132,7 @@ struct FVirtualPathColumn_Experimental : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = "Name"))
-struct FItemNameColumn_Experimental : public FTypedElementDataStorageColumn
+struct FItemNameColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

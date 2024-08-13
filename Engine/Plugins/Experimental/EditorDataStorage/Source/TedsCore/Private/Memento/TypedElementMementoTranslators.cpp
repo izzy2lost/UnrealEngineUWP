@@ -35,8 +35,8 @@ void UTedsDefaultMementoTranslator::PostInitProperties()
 	const UPropertyBag* PropertyBag = UPropertyBag::GetOrCreateFromDescs(PropertyDescs, *GeneratedMementoStructName);
 	MementoType = PropertyBag;
 
-	// Need to change the type to a FTypedElementDataStorageColumn to appease TEDS/Mass
-	const_cast<UPropertyBag*>(PropertyBag)->SetSuperStruct(FTypedElementDataStorageColumn::StaticStruct());
+	// Need to change the type to a FColumn to appease TEDS/Mass
+	const_cast<UPropertyBag*>(PropertyBag)->SetSuperStruct(UE::Editor::DataStorage::FColumn::StaticStruct());
 
 	// Create the property mapping
 	for (FProperty* SourceProperty = SourceColumnType->PropertyLink; SourceProperty; SourceProperty = SourceProperty->PropertyLinkNext)

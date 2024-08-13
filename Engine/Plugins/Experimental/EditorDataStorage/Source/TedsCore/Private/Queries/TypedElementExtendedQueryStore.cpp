@@ -505,9 +505,9 @@ namespace UE::Editor::DataStorage
 					DSI::EQueryAccessType AccessType = Query.SelectionAccessTypes[SelectionIndex];
 					if (ensureMsgf(Type.IsValid(), TEXT("Provided query selection type can not be null.")) &&
 						ensureMsgf(
-							Type->IsChildOf(FTypedElementDataStorageColumn::StaticStruct()) ||
+							Type->IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()) ||
 							Type->IsChildOf(FMassFragment::StaticStruct()),
-							TEXT("Provided query selection type '%s' is not based on FTypedElementDataStorageColumn or another supported base type."),
+							TEXT("Provided query selection type '%s' is not based on UE::Editor::DataStorage::FColumn or another supported base type."),
 							*Type->GetStructPathName().ToString()))
 					{
 						NativeQuery.AddRequirement(Type.Get(), ConvertToNativeAccessType(AccessType), ConvertToNativePresenceType(AccessType));

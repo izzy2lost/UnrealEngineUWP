@@ -31,6 +31,12 @@ class TEDSCORE_API UEditorDataStorage
 {
 	GENERATED_BODY()
 
+	using RowCreationCallbackRef = UE::Editor::DataStorage::RowCreationCallbackRef;
+	using ColumnCreationCallbackRef = UE::Editor::DataStorage::ColumnCreationCallbackRef;
+	using ColumnListCallbackRef = UE::Editor::DataStorage::ColumnListCallbackRef;
+	using ColumnListWithDataCallbackRef = UE::Editor::DataStorage::ColumnListWithDataCallbackRef;
+	using ColumnCopyOrMoveCallback = UE::Editor::DataStorage::ColumnCopyOrMoveCallback;
+
 public:
 	template<typename FactoryType, typename DatabaseType>
 	class TFactoryIterator
@@ -93,15 +99,15 @@ public:
 	virtual void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) override;
 	virtual void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) override;
 	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+		RowCreationCallbackRef OnCreated) override;
 	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override;
 	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) override;
 	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+		RowCreationCallbackRef OnCreated) override;
 	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+		RowCreationCallbackRef OnCreated) override;
 	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) override;
+		RowCreationCallbackRef OnCreated) override;
 	virtual void RemoveRow(TypedElementDataStorage::RowHandle Row) override;
 	virtual bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override;
 	virtual bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
@@ -109,8 +115,8 @@ public:
 	virtual void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	virtual void AddColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue) override;
 	virtual void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
-		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
-		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) override;
+		const ColumnCreationCallbackRef& Initializer,
+		ColumnCopyOrMoveCallback Relocator) override;
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag) override;
 	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
@@ -123,8 +129,8 @@ public:
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const;
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback);
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListCallbackRef Callback) const;
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListWithDataCallbackRef Callback);
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
 
 	void RegisterTickGroup(FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode);

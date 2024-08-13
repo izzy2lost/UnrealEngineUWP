@@ -2,55 +2,55 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "UObject/ObjectMacros.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
+#include "Elements/Common/TypedElementHandles.h"
 
 #include "TypedElementTestColumns.generated.h"
 
 USTRUCT(meta = (DisplayName = "ColumnA"))
-struct FTestColumnA final : public FTypedElementDataStorageColumn
+struct FTestColumnA final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnB"))
-struct FTestColumnB final : public FTypedElementDataStorageColumn
+struct FTestColumnB final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnC"))
-struct FTestColumnC final : public FTypedElementDataStorageColumn
+struct FTestColumnC final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnD"))
-struct FTestColumnD final : public FTypedElementDataStorageColumn
+struct FTestColumnD final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnE"))
-struct FTestColumnE final : public FTypedElementDataStorageColumn
+struct FTestColumnE final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnF"))
-struct FTestColumnF final : public FTypedElementDataStorageColumn
+struct FTestColumnF final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnG"))
-struct FTestColumnG final : public FTypedElementDataStorageColumn
+struct FTestColumnG final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "ColumnInt"))
-struct FTestColumnInt final : public FTypedElementDataStorageColumn
+struct FTestColumnInt final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -59,7 +59,7 @@ struct FTestColumnInt final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = "ColumnString"))
-struct FTestColumnString final : public FTypedElementDataStorageColumn
+struct FTestColumnString final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -69,31 +69,31 @@ struct FTestColumnString final : public FTypedElementDataStorageColumn
 
 
 USTRUCT(meta = (DisplayName = "TagA"))
-struct FTestTagColumnA final : public FTypedElementDataStorageTag
+struct FTestTagColumnA final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TagB"))
-struct FTestTagColumnB final : public FTypedElementDataStorageTag
+struct FTestTagColumnB final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TagC"))
-struct FTestTagColumnC final : public FTypedElementDataStorageTag
+struct FTestTagColumnC final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TagD"))
-struct FTestTagColumnD final : public FTypedElementDataStorageTag
+struct FTestTagColumnD final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TestReferenceColumn"))
-struct FTEDSProcessorTestsReferenceColumn final : public FTypedElementDataStorageColumn
+struct FTEDSProcessorTestsReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -104,19 +104,19 @@ struct FTEDSProcessorTestsReferenceColumn final : public FTypedElementDataStorag
 };
 
 USTRUCT(meta = (DisplayName = "TEDSProcessorTests_PrimaryTag"))
-struct FTEDSProcessorTests_PrimaryTag final : public FTypedElementDataStorageTag
+struct FTEDSProcessorTests_PrimaryTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TEDSProcessorTestsSecondaryTag"))
-struct FTEDSProcessorTests_SecondaryTag final : public FTypedElementDataStorageTag
+struct FTEDSProcessorTests_SecondaryTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "TEDSProcessorTests_Linked"))
-struct FTEDSProcessorTests_Linked final : public FTypedElementDataStorageTag
+struct FTEDSProcessorTests_Linked final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

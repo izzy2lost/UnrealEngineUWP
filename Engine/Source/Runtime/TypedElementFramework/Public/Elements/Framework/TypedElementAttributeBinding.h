@@ -10,6 +10,8 @@ class ITypedElementDataStorageInterface;
 
 namespace UE::EditorDataStorage
 {
+	using namespace UE::Editor::DataStorage;
+
 	// Concept for a conversion function used by the attribute binder to bind a column data member to an attribute of a different type
 	template <typename FunctionType, typename ArgumentType>
 	concept AttributeBinderInvocable = std::is_invocable_v<std::decay_t<FunctionType>, const ArgumentType&>;
@@ -41,7 +43,7 @@ namespace UE::EditorDataStorage
 		 * TypedElementDataStorage::FAttributeBinder Binder(RowHandle);
 		 * TAttribute<FString> TestAttribute(Binder.BindData(&FTypedElementLabelColumn::Label))
 		 */
-		template <typename AttributeType, TypedElementDataStorage::TDataColumnType ColumnType>
+		template <typename AttributeType, TDataColumnType ColumnType>
 		TAttribute<AttributeType> BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue = AttributeType());
 
 		/**
@@ -62,7 +64,7 @@ namespace UE::EditorDataStorage
 		 *                                   }
 		 *                                 ));
 		 */
-		template <typename AttributeType, typename DataType, TypedElementDataStorage::TDataColumnType ColumnType>
+		template <typename AttributeType, typename DataType, TDataColumnType ColumnType>
 		TAttribute<AttributeType> BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter, const DataType& InDefaultValue = DataType());
 
 		/**
@@ -73,7 +75,7 @@ namespace UE::EditorDataStorage
 		 * @param InDefaultValue The default value to be used when the column isn't present on a row
 		 * @return A TAttribute bound to the row, column pair specified
 		 */
-		template <typename DataType, TypedElementDataStorage::TDataColumnType ColumnType, typename FunctionType>
+		template <typename DataType, TDataColumnType ColumnType, typename FunctionType>
 			requires AttributeBinderInvocable<FunctionType, DataType>
 		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType());
 		

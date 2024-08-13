@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "UObject/ObjectMacros.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 
 #include "TypedElementViewportColumns.generated.h"
 
@@ -11,7 +10,7 @@
  * Column to hold the color that the object is outlined with in the viewport
  */
 USTRUCT(meta = (DisplayName = "Viewport Outline Color"))
-struct FTypedElementViewportOutlineColorColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementViewportOutlineColorColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -23,7 +22,7 @@ struct FTypedElementViewportOutlineColorColumn final : public FTypedElementDataS
  * Column to hold the color that the object is overlaid with in the viewport
  */
 USTRUCT(meta = (DisplayName = "Viewport Overlay Color"))
-struct FTypedElementViewportOverlayColorColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementViewportOverlayColorColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

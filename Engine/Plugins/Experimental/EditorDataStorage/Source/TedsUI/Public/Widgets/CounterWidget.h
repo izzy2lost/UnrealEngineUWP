@@ -65,7 +65,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Counter widget"))
-struct TEDSUI_API FCounterWidgetColumn : public FTypedElementDataStorageColumn
+struct TEDSUI_API FCounterWidgetColumn : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

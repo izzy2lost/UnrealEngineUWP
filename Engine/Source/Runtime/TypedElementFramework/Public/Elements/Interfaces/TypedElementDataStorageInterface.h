@@ -50,7 +50,7 @@ class UTypedElementDataStorageInterface : public UInterface
  * multiple column lists are used. Note that the returned array view is only available while
  * this object is constructed, so care must be taken with functions that return a const array view.
  */
-template<TypedElementDataStorage::TColumnType... Columns>
+template<UE::Editor::DataStorage::TColumnType... Columns>
 struct TTypedElementColumnTypeList
 {
 	const UScriptStruct* ColumnTypes[sizeof...(Columns)] = { Columns::StaticStruct()... };
@@ -61,6 +61,12 @@ struct TTypedElementColumnTypeList
 class ITypedElementDataStorageInterface
 {
 	GENERATED_BODY()
+
+	using RowCreationCallbackRef = UE::Editor::DataStorage::RowCreationCallbackRef;
+	using ColumnCreationCallbackRef = UE::Editor::DataStorage::ColumnCreationCallbackRef;
+	using ColumnListCallbackRef = UE::Editor::DataStorage::ColumnListCallbackRef;
+	using ColumnListWithDataCallbackRef = UE::Editor::DataStorage::ColumnListWithDataCallbackRef;
+	using ColumnCopyOrMoveCallback = UE::Editor::DataStorage::ColumnCopyOrMoveCallback;
 
 public:
 	/**
@@ -89,7 +95,7 @@ public:
 
 	/** Creates a new table for with the provided columns. Optionally a name can be given which is useful for retrieval later. */
 	virtual TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) = 0;
-	template<TypedElementDataStorage::TColumnType... Columns>
+	template<UE::Editor::DataStorage::TColumnType... Columns>
 	TypedElementDataStorage::TableHandle RegisterTable(const FName Name);
 	/** 
 	 * Copies the column information from the provided table and creates a new table for with the provided columns. Optionally a 
@@ -97,7 +103,7 @@ public:
 	 */
 	virtual TypedElementDataStorage::TableHandle RegisterTable(TypedElementDataStorage::TableHandle SourceTable,
 		TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) = 0;
-	template<TypedElementDataStorage::TColumnType... Columns>
+	template<UE::Editor::DataStorage::TColumnType... Columns>
 	TypedElementDataStorage::TableHandle RegisterTable(TypedElementDataStorage::TableHandle SourceTable, const FName Name);
 
 	/** Returns a previously created table with the provided name or TypedElementInvalidTableHandle if not found. */
@@ -134,7 +140,7 @@ public:
 	 * initialize the row if needed.
 	 */
 	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+		RowCreationCallbackRef OnCreated) = 0;
 	/** Adds a new row to the provided table using a previously reserved row. */
 	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) = 0;
 	/**
@@ -142,20 +148,20 @@ public:
 	 * initialize the row if needed.
 	 */
 	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+		RowCreationCallbackRef OnCreated) = 0;
 
 	/**
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed.
 	 */
-	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count, RowCreationCallbackRef OnCreated) = 0;
 	/**
 	 * Add multiple rows at once. For each new row the OnCreated callback is called. Callers are expected to use the callback to
 	 * initialize the row if needed. This version uses a set of previously reserved rows. Any row that can't be used will be 
 	 * released.
 	 */
 	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
-		TypedElementDataStorage::RowCreationCallbackRef OnCreated) = 0;
+		RowCreationCallbackRef OnCreated) = 0;
 
 	/** Removes a previously reserved or added row. If the row handle is invalid or already removed, nothing happens */
 	virtual void RemoveRow(TypedElementDataStorage::RowHandle Row) = 0;
@@ -172,16 +178,16 @@ public:
 
 	/** Adds a column to a row or does nothing if already added. */
 	virtual void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	template<TypedElementDataStorage::TColumnType ColumnType>
+	template<UE::Editor::DataStorage::TColumnType ColumnType>
 	void AddColumn(TypedElementRowHandle Row);
 	/**
 	 * Adds a new data column and initializes it. The relocator will be used to copy or move the column out of
 	 * its temporary location into the final table if the addition needs to be deferred.
 	 */
 	virtual void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
-		const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
-		TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator) = 0;
-	template<TypedElementDataStorage::TDataColumnType ColumnType>
+		const ColumnCreationCallbackRef& Initializer,
+		ColumnCopyOrMoveCallback Relocator) = 0;
+	template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 	void AddColumn(TypedElementRowHandle Row, ColumnType&& Column);
 
 	/**
@@ -203,10 +209,10 @@ public:
 	template<>
 	void AddColumn<UE::Editor::DataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag, const FName& Value);
 
-	template<TypedElementDataStorage::TEnumType EnumT>
+	template<UE::Editor::DataStorage::TEnumType EnumT>
 	void AddColumn(TypedElementDataStorage::RowHandle Row, EnumT Value);
 	
-	template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+	template<auto Value, UE::Editor::DataStorage::TEnumType EnumT = decltype(Value)>
 	void AddColumn(TypedElementDataStorage::RowHandle Row);
 
 	/**
@@ -214,15 +220,15 @@ public:
 	 * at a time.
 	 */
 	virtual void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
-	template<TypedElementDataStorage::TColumnType... Columns>
+	template<UE::Editor::DataStorage::TColumnType... Columns>
 	void AddColumns(TypedElementRowHandle Row);
 
 	/** Removes a column from a row or does nothing if already removed. */
 	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
-	template<TypedElementDataStorage::TColumnType Column>
+	template<UE::Editor::DataStorage::TColumnType Column>
 	void RemoveColumn(TypedElementRowHandle Row);
 
-	template<TypedElementDataStorage::TEnumType EnumT>
+	template<UE::Editor::DataStorage::TEnumType EnumT>
 	void RemoveColumn(TypedElementDataStorage::RowHandle Row);
 
 	/**
@@ -242,7 +248,7 @@ public:
 	 * at a time.
 	 */
 	virtual void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) = 0;
-	template<TypedElementDataStorage::TColumnType... Columns>
+	template<UE::Editor::DataStorage::TColumnType... Columns>
 	void RemoveColumns(TypedElementRowHandle Row);
 
 	/** 
@@ -263,25 +269,25 @@ public:
 	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) = 0;
 	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const = 0;
 	/** Returns a pointer to the column of the given row or a nullptr if the type couldn't be found or the row doesn't exist. */
-	template<TypedElementDataStorage::TDataColumnType ColumnType>
+	template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 	ColumnType* GetColumn(TypedElementRowHandle Row);
-	template<TypedElementDataStorage::TDataColumnType ColumnType>
+	template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
 	
 	/** Determines if the provided row contains the collection of columns and tags. */
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const = 0;
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const = 0;
-	template<TypedElementDataStorage::TColumnType... ColumnTypes>
+	template<UE::Editor::DataStorage::TColumnType... ColumnTypes>
 	bool HasColumns(TypedElementRowHandle Row) const;
 
 	/** Lists the columns on a row. This includes data and tag columns. */
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const = 0;
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListCallbackRef Callback) const = 0;
 
 	/** 
 	 * Lists the column type and data on a row. This includes data and tag columns. Not all columns may have data so the data pointer in 
 	 * the callback can be null.
 	 */
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback) = 0;
+	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListWithDataCallbackRef Callback) = 0;
 
 	/** Determines if the columns in the row match the query conditions. */
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
@@ -418,32 +424,32 @@ const FactoryT* ITypedElementDataStorageInterface::FindFactory() const
 	return static_cast<const FactoryT*>(FindFactory(FactoryT::StaticClass()));
 }
 
-template<TypedElementDataStorage::TColumnType... Columns>
+template<UE::Editor::DataStorage::TColumnType... Columns>
 TypedElementDataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(const FName Name)
 {
 	return RegisterTable({ Columns::StaticStruct()... }, Name);
 }
 
-template<TypedElementDataStorage::TColumnType... Columns>
+template<UE::Editor::DataStorage::TColumnType... Columns>
 TypedElementDataStorage::TableHandle ITypedElementDataStorageInterface::RegisterTable(
 	TypedElementDataStorage::TableHandle SourceTable, const FName Name)
 {
 	return RegisterTable(SourceTable, { Columns::StaticStruct()... }, Name);
 }
 
-template<TypedElementDataStorage::TColumnType Column>
+template<UE::Editor::DataStorage::TColumnType Column>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row)
 {
 	AddColumn(Row, Column::StaticStruct());
 }
 
-template<TypedElementDataStorage::TColumnType Column>
+template<UE::Editor::DataStorage::TColumnType Column>
 void ITypedElementDataStorageInterface::RemoveColumn(TypedElementRowHandle Row)
 {
 	RemoveColumn(Row, Column::StaticStruct());
 }
 
-template<TypedElementDataStorage::TColumnType... Columns>
+template<UE::Editor::DataStorage::TColumnType... Columns>
 void ITypedElementDataStorageInterface::AddColumns(TypedElementRowHandle Row)
 {
 	AddColumns(Row, { Columns::StaticStruct()...});
@@ -462,7 +468,7 @@ inline void ITypedElementDataStorageInterface::RemoveColumn<UE::Editor::DataStor
 	RemoveColumn(Row, FDynamicTag(Tag));
 }
 
-template<TypedElementDataStorage::TEnumType EnumT>
+template<UE::Editor::DataStorage::TEnumType EnumT>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, EnumT Value)
 {
 	const UEnum* Enum = StaticEnum<EnumT>();
@@ -473,26 +479,26 @@ void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHa
 	}
 }
 
-template<auto Value, TypedElementDataStorage::TEnumType EnumT>
+template<auto Value, UE::Editor::DataStorage::TEnumType EnumT>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row)
 {
 	AddColumn<EnumT>(Row, Value);
 }
 
-template<TypedElementDataStorage::TEnumType EnumT>
+template<UE::Editor::DataStorage::TEnumType EnumT>
 void ITypedElementDataStorageInterface::RemoveColumn(TypedElementDataStorage::RowHandle Row)
 {
 	const UEnum* Enum = StaticEnum<EnumT>();
 	RemoveColumn(Row, UE::Editor::DataStorage::FDynamicTag(Enum->GetFName()));
 }
 
-template<TypedElementDataStorage::TColumnType... Columns>
+template<UE::Editor::DataStorage::TColumnType... Columns>
 void ITypedElementDataStorageInterface::RemoveColumns(TypedElementRowHandle Row)
 {
 	RemoveColumns(Row, { Columns::StaticStruct()...});
 }
 
-template<TypedElementDataStorage::TDataColumnType ColumnType>
+template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row, ColumnType&& Column)
 {
 	AddColumnData(Row, ColumnType::StaticStruct(),
@@ -520,19 +526,19 @@ void ITypedElementDataStorageInterface::AddColumn(TypedElementRowHandle Row, Col
 		});
 }
 
-template<TypedElementDataStorage::TDataColumnType ColumnType>
+template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row)
 {
 	return reinterpret_cast<ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
-template<TypedElementDataStorage::TDataColumnType ColumnType>
+template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 const ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row) const
 {
 	return reinterpret_cast<const ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
 }
 
-template<TypedElementDataStorage::TColumnType... ColumnType>
+template<UE::Editor::DataStorage::TColumnType... ColumnType>
 bool ITypedElementDataStorageInterface::HasColumns(TypedElementRowHandle Row) const
 {
 	return HasColumns(Row, TConstArrayView<const UScriptStruct*>({ ColumnType::StaticStruct()... }));

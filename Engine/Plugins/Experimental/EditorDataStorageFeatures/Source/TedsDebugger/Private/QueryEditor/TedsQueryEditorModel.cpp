@@ -33,8 +33,8 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 		TArray<const UScriptStruct*> Columns;
 		TArray<const UScriptStruct*> Tags;
 
-		UScriptStruct* ColumnType = FTypedElementDataStorageColumn::StaticStruct();
-		UScriptStruct* TagType = FTypedElementDataStorageTag::StaticStruct();
+		UScriptStruct* ColumnType = UE::Editor::DataStorage::FColumn::StaticStruct();
+		UScriptStruct* TagType = UE::Editor::DataStorage::FTag::StaticStruct();
 		// Not sure if there is a faster way to do this.  Would be nice to iterate only the derived classes
 		for(TObjectIterator< UScriptStruct > It; It; ++It)
 		{
@@ -260,7 +260,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 			}
 		}
 
-		const UScriptStruct* TagType = FTypedElementDataStorageTag::StaticStruct();
+		const UScriptStruct* TagType = UE::Editor::DataStorage::FTag::StaticStruct();
 		for (FConditionEntryInternal& Entry : Conditions)
 		{
 			if (Entry.OperatorType == EOperatorType::Unset)

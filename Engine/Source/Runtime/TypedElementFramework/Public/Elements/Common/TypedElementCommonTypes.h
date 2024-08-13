@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
 #include "Elements/Common/TypedElementHandles.h"
 
 #include "TypedElementCommonTypes.generated.h"
@@ -11,7 +10,7 @@
  * Base for the data structures for a column.
  */
 USTRUCT()
-struct FTypedElementDataStorageColumn
+struct FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
@@ -20,7 +19,7 @@ struct FTypedElementDataStorageColumn
  * Base for the data structures that act as tags to rows. Tags should not have any data.
  */
 USTRUCT()
-struct FTypedElementDataStorageTag
+struct FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -41,12 +40,12 @@ namespace UE
 
 	template<typename Derived, typename Base>
 	concept derived_from = std::is_base_of_v<Base, Derived> && std::is_convertible_v<const volatile Derived*, const volatile Base*>;
-}
 
-namespace UE
-{
 	namespace Editor::DataStorage
 	{
+		using FColumn = FEditorDataStorageColumn;
+		using FTag = FEditorDataStorageTag;
+
 		/**
 		 * Defines a dynamic type for a dynamic tag
 		 * Example:
@@ -83,35 +82,27 @@ namespace UE
 			return Other.Name == Name;
 		}
 
-	}
-}
+		// Standard callbacks.
+
+		using RowCreationCallbackRef = TFunctionRef<void(TypedElementDataStorage::RowHandle Row)>;
+		using ColumnCreationCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
+		using ColumnListCallbackRef = TFunctionRef<void(const UScriptStruct& ColumnType)>;
+		using ColumnListWithDataCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
+		using ColumnCopyOrMoveCallback = void (*)(const UScriptStruct& ColumnType, void* Destination, void* Source);
 
 
 
-namespace TypedElementDataStorage
-{
-	// Standard callbacks.
+		// Template concepts to enforce type correctness.
+		template<typename T>
+		concept TDataColumnType = UE::derived_from<T, FColumn>;
 
-	using RowCreationCallbackRef = TFunctionRef<void(TypedElementDataStorage::RowHandle Row)>;
-	using ColumnCreationCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
-	using ColumnListCallbackRef = TFunctionRef<void(const UScriptStruct& ColumnType)>;
-	using ColumnListWithDataCallbackRef = TFunctionRef<void(void* Column, const UScriptStruct& ColumnType)>;
-	using ColumnCopyOrMoveCallback = void (*)(const UScriptStruct& ColumnType, void* Destination, void* Source);
+		template<typename T>
+		concept TTagColumnType = UE::derived_from<T, FTag>;
 
+		template<typename T>
+		concept TColumnType = TDataColumnType<T> || TTagColumnType<T>;
 
-
-	// Template concepts to enforce type correctness.
-
-	template<typename T>
-	concept TDataColumnType = UE::derived_from<T, FTypedElementDataStorageColumn>;
-
-	template<typename T>
-	concept TTagColumnType = UE::derived_from<T, FTypedElementDataStorageTag>;
-
-	template<typename T>
-	concept TColumnType = TDataColumnType<T> || TTagColumnType<T>;
-
-	template<typename T>
-	concept TEnumType = std::is_enum_v<T>;
-
-} // namespace TypedElementDataStorage
+		template<typename T>
+		concept TEnumType = std::is_enum_v<T>;
+	} // namespace Editor::DataStorage
+} // namespace UE

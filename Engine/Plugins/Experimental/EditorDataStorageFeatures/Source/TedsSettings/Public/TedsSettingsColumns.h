@@ -8,7 +8,7 @@
 #include "TedsSettingsColumns.generated.h"
 
 USTRUCT(meta = (DisplayName = "Settings Container"))
-struct FSettingsContainerColumn final : public FTypedElementDataStorageColumn
+struct FSettingsContainerColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -17,7 +17,7 @@ struct FSettingsContainerColumn final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = "Settings Category"))
-struct FSettingsCategoryColumn final : public FTypedElementDataStorageColumn
+struct FSettingsCategoryColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -26,7 +26,7 @@ struct FSettingsCategoryColumn final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = "Settings Section"))
-struct FSettingsSectionColumn final : public FTypedElementDataStorageColumn
+struct FSettingsSectionColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

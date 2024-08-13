@@ -170,7 +170,7 @@ bool FExportedTextWidgetConstructor::FinalizeWidget(
 	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
 	MatchedColumn = TypedElementDataStorage::FQueryConditions(TypedElementDataStorage::FColumn(TypeInfoColumn.TypeInfo));
 
-	if (TypeInfoColumn.TypeInfo->IsChildOf(FTypedElementDataStorageTag::StaticStruct()))
+	if (TypeInfoColumn.TypeInfo->IsChildOf(UE::Editor::DataStorage::FTag::StaticStruct()))
 	{
 		UpdateExportedTextWidget(
 			LOCTEXT("ExportedTextWidgetTag", "<Tag>"),

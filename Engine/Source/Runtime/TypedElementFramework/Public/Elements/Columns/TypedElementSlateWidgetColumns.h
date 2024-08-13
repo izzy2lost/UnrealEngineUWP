@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Templates/SharedPointer.h"
-#include "UObject/ObjectMacros.h"
 
 #include "TypedElementSlateWidgetColumns.generated.h"
 
@@ -19,7 +18,7 @@ struct FTypedElementWidgetConstructor;
  * be deleted.
  */
 USTRUCT(meta = (DisplayName = "Slate widget reference"))
-struct FTypedElementSlateWidgetReferenceColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementSlateWidgetReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -39,7 +38,7 @@ struct FTypedElementSlateWidgetReferenceColumn final : public FTypedElementDataS
  * the column will be removed.
  */
 USTRUCT(meta = (DisplayName = "Slate widget reference deletes row"))
-struct FTypedElementSlateWidgetReferenceDeletesRowTag final : public FTypedElementDataStorageTag
+struct FTypedElementSlateWidgetReferenceDeletesRowTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

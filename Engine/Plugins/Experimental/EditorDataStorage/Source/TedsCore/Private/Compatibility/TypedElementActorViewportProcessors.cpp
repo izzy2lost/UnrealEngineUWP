@@ -13,7 +13,7 @@
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 
 namespace UE::Editor::DataStorage::Private
-	{
+{
 	FAutoConsoleCommandWithArgsAndOutputDevice SetOutlineColorConsoleCommand(
 		TEXT("TEDS.Debug.SetOutlineColor"),
 		TEXT("Adds an outline color to selected objects."),

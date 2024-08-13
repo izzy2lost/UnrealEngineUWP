@@ -87,7 +87,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 								if (!Arg.IsEmpty() && Arg[0] == '/' && Path.TrySetPath(Arg))
 								{
 									const UScriptStruct* ColumnType = TypeOptional(Path);
-									if (ColumnType && ColumnType->IsChildOf(FTypedElementDataStorageColumn::StaticStruct()))
+									if (ColumnType && ColumnType->IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()))
 									{
 										Query.ReadOnly(ColumnType);
 										++AdditionCount;

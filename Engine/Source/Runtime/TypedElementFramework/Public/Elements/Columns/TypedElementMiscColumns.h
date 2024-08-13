@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "UObject/ObjectMacros.h"
 
 #include "TypedElementMiscColumns.generated.h"
@@ -14,7 +14,7 @@
  * will automatically be removed at the end of a tick.
  */
 USTRUCT(meta = (DisplayName = "Sync back to world"))
-struct FTypedElementSyncBackToWorldTag final : public FTypedElementDataStorageTag
+struct FTypedElementSyncBackToWorldTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -26,7 +26,7 @@ struct FTypedElementSyncBackToWorldTag final : public FTypedElementDataStorageTa
  * queries for specific changed properties.
  */
 USTRUCT(meta = (DisplayName = "Sync from world"))
-struct FTypedElementSyncFromWorldTag final : public FTypedElementDataStorageTag
+struct FTypedElementSyncFromWorldTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -40,7 +40,7 @@ struct FTypedElementSyncFromWorldTag final : public FTypedElementDataStorageTag
  * queries for specific changed properties.
  */
 USTRUCT(meta = (DisplayName = "Sync from world (interactive)"))
-struct FTypedElementSyncFromWorldInteractiveTag final : public FTypedElementDataStorageTag
+struct FTypedElementSyncFromWorldInteractiveTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -49,7 +49,7 @@ struct FTypedElementSyncFromWorldInteractiveTag final : public FTypedElementData
  * A general reference to another row. 
  */
 USTRUCT(meta = (DisplayName = "Row reference"))
-struct FTypedElementRowReferenceColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementRowReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

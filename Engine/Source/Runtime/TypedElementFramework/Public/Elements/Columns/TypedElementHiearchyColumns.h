@@ -12,7 +12,7 @@
  * A reference to the direct hierarchical parent of this row.
  */
 USTRUCT(meta = (DisplayName = "Parent"))
-struct FTableRowParentColumn final : public FTypedElementDataStorageColumn
+struct FTableRowParentColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -24,7 +24,7 @@ struct FTableRowParentColumn final : public FTypedElementDataStorageColumn
  * be used to attempt to find the indexed row. This column can not be used to find rows that are not indexed.
  */
 USTRUCT(meta = (DisplayName = "Parent (Unresolved)"))
-struct FUnresolvedTableRowParentColumn final : public FTypedElementDataStorageColumn
+struct FUnresolvedTableRowParentColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

@@ -6,6 +6,8 @@
 
 namespace TypedElementDataStorage
 {
+	using IndexHash = uint64;
+
 	enum class EQueryTickPhase : uint8
 	{
 		PrePhysics, //< Queries are executed before physics simulation starts.

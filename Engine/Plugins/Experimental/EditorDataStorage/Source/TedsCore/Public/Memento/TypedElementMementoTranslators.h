@@ -50,7 +50,7 @@ public:
  * As an example, suppose there was a column defined as:
  * ```
  * USTRUCT()
- * struct FPathColumn : public FTypedElementDataStorageColumn
+ * struct FPathColumn : public FEditorDataStorageColumn
  * {
  *		GENERATED_BODY()
  *		

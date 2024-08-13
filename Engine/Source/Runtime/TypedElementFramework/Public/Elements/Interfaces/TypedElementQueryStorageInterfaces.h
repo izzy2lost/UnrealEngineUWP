@@ -21,8 +21,6 @@ namespace TypedElementDataStorage
 	using SubqueryCallback = TFunction<void(const FQueryDescription&, ISubqueryContext&)>;
 	using SubqueryCallbackRef = TFunctionRef<void(const FQueryDescription&, ISubqueryContext&)>;
 
-	using IndexHash = uint64;
-
 	/**
 	 * Base interface for any contexts provided to query callbacks.
 	 */

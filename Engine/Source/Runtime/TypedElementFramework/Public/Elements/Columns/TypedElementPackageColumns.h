@@ -3,7 +3,9 @@
 #pragma once
 
 #include "Containers/UnrealString.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
+#include "Elements/Common/TypedElementHandles.h"
+#include "Elements/Common/TypedElementQueryTypes.h"
 #include "IO/PackageId.h"
 #include "Misc/PackagePath.h"
 #include "UObject/ObjectMacros.h"
@@ -14,7 +16,7 @@
  * A package reference column that has not yet been resolved to reference a package.
  */
 USTRUCT(meta = (DisplayName = "Unresolved package path reference"))
-struct FTypedElementPackageUnresolvedReference final : public FTypedElementDataStorageColumn
+struct FTypedElementPackageUnresolvedReference final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -27,18 +29,18 @@ struct FTypedElementPackageUnresolvedReference final : public FTypedElementDataS
  * Column that references a row in the table that provides package and source control information.
  */
 USTRUCT(meta = (DisplayName = "Package path reference"))
-struct FTypedElementPackageReference final : public FTypedElementDataStorageColumn
+struct FTypedElementPackageReference final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TypedElementRowHandle Row;
+	TypedElementDataStorage::RowHandle Row;
 };
 
 /**
  * Tag that indicates some related package information has been modified.
  */
 USTRUCT(meta = (DisplayName = "Package information has been updated"))
-struct FTypedElementPackageUpdatedTag final : public FTypedElementDataStorageTag
+struct FTypedElementPackageUpdatedTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -47,7 +49,7 @@ struct FTypedElementPackageUpdatedTag final : public FTypedElementDataStorageTag
  * Column that stores relevant rows when a package is updated
  */
 USTRUCT()
-struct FTypedElementPackageUpdateColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementPackageUpdateColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -59,7 +61,7 @@ struct FTypedElementPackageUpdateColumn final : public FTypedElementDataStorageC
  * Column that stores the path of a package.
  */
 USTRUCT(meta = (DisplayName = "Package path"))
-struct FTypedElementPackagePathColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementPackagePathColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -76,7 +78,7 @@ inline uint32 GetTypeHash(const FTypedElementPackagePathColumn& InStruct)
  * Column that stores the full loading path to a package.
  */
 USTRUCT(meta = (DisplayName = "Package loaded path"))
-struct FTypedElementPackageLoadedPathColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementPackageLoadedPathColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

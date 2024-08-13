@@ -7,7 +7,7 @@
 #include "MaskProfileProxyColumn.generated.h"
 
 USTRUCT()
-struct FHierarchyTableMaskColumn_Value final : public FTypedElementDataStorageColumn
+struct FHierarchyTableMaskColumn_Value final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };

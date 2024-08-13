@@ -31,8 +31,8 @@ namespace UE::Editor::DataStorage
 		}
 		
 		checkf(
-			Template.IsChildOf(FTypedElementDataStorageColumn::StaticStruct()) ||
-			Template.IsChildOf(FTypedElementDataStorageTag::StaticStruct()) ||
+			Template.IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()) ||
+			Template.IsChildOf(UE::Editor::DataStorage::FTag::StaticStruct()) ||
 			Template.IsChildOf(FTedsSharedColumn::StaticStruct()),
 			TEXT("Template struct must derive from Column, Tag or SharedColumn"));
 	

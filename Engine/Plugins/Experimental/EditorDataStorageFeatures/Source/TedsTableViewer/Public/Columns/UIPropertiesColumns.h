@@ -8,7 +8,7 @@
 #include "UIPropertiesColumns.generated.h"
 
 USTRUCT()
-struct FUIHeaderPropertiesColumn final : public FTypedElementDataStorageColumn
+struct FUIHeaderPropertiesColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	

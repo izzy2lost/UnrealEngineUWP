@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "TypedElementMementoRowTypes.generated.h"
 
 /**
@@ -14,7 +14,7 @@
  * MementoTag denotes that the row is a memento
  */
 USTRUCT()
-struct FTypedElementMementoTag : public FTypedElementDataStorageTag
+struct FTypedElementMementoTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

@@ -96,7 +96,7 @@ namespace UE::Editor::DataStorage::Legacy
 	}
 
 	void* FCommandBuffer::Queue_AddDataColumnCommandUnitialized(
-		TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
+		TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType, ColumnCopyOrMoveCallback Relocator)
 	{
 		checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
 			TEXT("Trying to queue a data column creation for '%s' which isn't a data column."), *ColumnType->GetName());
@@ -215,7 +215,7 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::Execute_AddDataColumnCommand(
 		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
-		void* Data, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
+		void* Data, ColumnCopyOrMoveCallback Relocator)
 	{
 		if (ColumnType)
 		{

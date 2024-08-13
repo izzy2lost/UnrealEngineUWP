@@ -152,16 +152,16 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FDependency DependsOn();
 		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
 
-		template<TypedElementDataStorage::TColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TColumnType... TargetTypes>
 		FSimpleQuery& All();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(TConstArrayView<const UScriptStruct*> Targets);
 		
-		template<TypedElementDataStorage::TColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TColumnType... TargetTypes>
 		FSimpleQuery& Any();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(TConstArrayView<const UScriptStruct*> Targets);
-		template<TypedElementDataStorage::TColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TColumnType... TargetTypes>
 		FSimpleQuery& None();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
@@ -192,13 +192,13 @@ namespace TypedElementQueryBuilder
 		template<>
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag, const FName& Value);
 		
-		template<TypedElementDataStorage::TEnumType EnumT>
+		template<UE::Editor::DataStorage::TEnumType EnumT>
 		FSimpleQuery& All();
 		
-		template<TypedElementDataStorage::TEnumType EnumT>
+		template<UE::Editor::DataStorage::TEnumType EnumT>
 		FSimpleQuery& All(EnumT EnumValue);
 
-		template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+		template<auto Value, UE::Editor::DataStorage::TEnumType EnumT = decltype(Value)>
 		FSimpleQuery& All();
 
 	private:
@@ -237,14 +237,14 @@ namespace TypedElementQueryBuilder
 
 		TYPEDELEMENTFRAMEWORK_API FObserver(EEvent MonitorForEvent, const UScriptStruct* MonitoredColumn);
 
-		template<TypedElementDataStorage::TColumnType ColumnType>
+		template<UE::Editor::DataStorage::TColumnType ColumnType>
 		static FObserver OnAdd();
-		template<TypedElementDataStorage::TColumnType ColumnType>
+		template<UE::Editor::DataStorage::TColumnType ColumnType>
 		static FObserver OnRemove();
 
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetEvent(EEvent MonitorForEvent);
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetMonitoredColumn(const UScriptStruct* MonitoredColumn);
-		template<TypedElementDataStorage::TColumnType ColumnType>
+		template<UE::Editor::DataStorage::TColumnType ColumnType>
 		FObserver& SetMonitoredColumn();
 		TYPEDELEMENTFRAMEWORK_API FObserver& SetExecutionMode(TypedElementDataStorage::EExecutionMode Mode);
 		TYPEDELEMENTFRAMEWORK_API FObserver& MakeActivatable(FName Name);
@@ -347,7 +347,7 @@ namespace TypedElementQueryBuilder
 		Select(FName Name, const CallbackType& Type, Class* Instance, Function&& Callback);
 
 		/** Request read-only access to the listed columns. */
-		template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TDataColumnType... TargetTypes>
 		Select& ReadOnly();
 		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target);
@@ -357,7 +357,7 @@ namespace TypedElementQueryBuilder
 		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
 		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
 		 */
-		template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TDataColumnType... TargetTypes>
 		Select& ReadOnly(EOptional Optional);
 		/**
 		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
@@ -370,7 +370,7 @@ namespace TypedElementQueryBuilder
 		 */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optionall);
 		/** Request read and write access to the listed columns. */
-		template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+		template<UE::Editor::DataStorage::TDataColumnType... TargetTypes>
 		Select& ReadWrite();
 		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UScriptStruct* Target);

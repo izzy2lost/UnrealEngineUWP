@@ -4,7 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Modules/ModuleManager.h"
 
 #include "TypedElementDataStoragePerformanceTestCommands.generated.h"
@@ -13,7 +13,7 @@
  * Column to represent that a row is selected
  */
 USTRUCT(meta = (DisplayName = ""))
-struct FTest_PingPongPrePhys final : public FTypedElementDataStorageColumn
+struct FTest_PingPongPrePhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
@@ -22,7 +22,7 @@ struct FTest_PingPongPrePhys final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = ""))
-struct FTest_PingPongDurPhys final : public FTypedElementDataStorageColumn
+struct FTest_PingPongDurPhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -31,7 +31,7 @@ struct FTest_PingPongDurPhys final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = ""))
-struct FTest_PingPongPostPhys final : public FTypedElementDataStorageColumn
+struct FTest_PingPongPostPhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	

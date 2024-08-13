@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
-#include "UObject/ObjectMacros.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
 #include "TypedElementTypeInfoColumns.generated.h"
@@ -15,7 +14,7 @@ class UScriptStruct;
  * Column that stores type information for classes.
  */
 USTRUCT(meta = (DisplayName = "Type"))
-struct FTypedElementClassTypeInfoColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementClassTypeInfoColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -26,7 +25,7 @@ struct FTypedElementClassTypeInfoColumn final : public FTypedElementDataStorageC
  * Column that stores type information for structs.
  */
 USTRUCT(meta = (DisplayName = "ScriptStruct type info"))
-struct FTypedElementScriptStructTypeInfoColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementScriptStructTypeInfoColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

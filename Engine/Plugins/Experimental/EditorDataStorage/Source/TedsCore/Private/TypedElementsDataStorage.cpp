@@ -31,23 +31,23 @@
  */
 void ImpersonateMassTagsAndFragments()
 {
-	// Have FTypedElementDataStorageColumn impersonate a FMassFragment, which is the actual data storage when using MASS as a backend.
-	static_assert(sizeof(FTypedElementDataStorageColumn) == sizeof(FMassFragment),
-		"In order for FTypedElementDataStorageColumn to impersonate FMassFragment they need to be identical.");
+	// Have UE::Editor::DataStorage::FColumn impersonate a FMassFragment, which is the actual data storage when using MASS as a backend.
+	static_assert(sizeof(UE::Editor::DataStorage::FColumn) == sizeof(FMassFragment),
+		"In order for UE::Editor::DataStorage::FColumn to impersonate FMassFragment they need to be identical.");
 	static_assert(!TIsPolymorphic<FMassFragment>::Value,
 		"In order to be able to impersonate FMassFragment it can't have any virtual functions.");
-	static_assert(!TIsPolymorphic<FTypedElementDataStorageColumn>::Value,
-		"In order to be able to use FTypedElementDataStorageColumn to impersonate FMassFragment it can't have any virtual functions.");
-	FTypedElementDataStorageColumn::StaticStruct()->SetSuperStruct(FMassFragment::StaticStruct());
+	static_assert(!TIsPolymorphic<UE::Editor::DataStorage::FColumn>::Value,
+		"In order to be able to use UE::Editor::DataStorage::FColumn to impersonate FMassFragment it can't have any virtual functions.");
+	UE::Editor::DataStorage::FColumn::StaticStruct()->SetSuperStruct(FMassFragment::StaticStruct());
 
-	// Have FTypedElementDataStorageTag impersonate a FMassTag, which is the tag type when using MASS as a backend.
-	static_assert(sizeof(FTypedElementDataStorageTag) == sizeof(FMassTag),
-		"In order for FTypedElementDataStorageTag to impersonate FMassTag they need to be identical.");
+	// Have UE::Editor::DataStorage::FTag impersonate a FMassTag, which is the tag type when using MASS as a backend.
+	static_assert(sizeof(UE::Editor::DataStorage::FTag) == sizeof(FMassTag),
+		"In order for UE::Editor::DataStorage::FTag to impersonate FMassTag they need to be identical.");
 	static_assert(!TIsPolymorphic<FMassTag>::Value,
 		"In order to be able to impersonate FMassTag it can't have any virtual functions.");
-	static_assert(!TIsPolymorphic<FTypedElementDataStorageTag>::Value,
-		"In order to be able to use FTypedElementDataStorageTag to impersonate FMassTag it can't have any virtual functions.");
-	FTypedElementDataStorageTag::StaticStruct()->SetSuperStruct(FMassTag::StaticStruct());
+	static_assert(!TIsPolymorphic<UE::Editor::DataStorage::FTag>::Value,
+		"In order to be able to use UE::Editor::DataStorage::FTag to impersonate FMassTag it can't have any virtual functions.");
+	UE::Editor::DataStorage::FTag::StaticStruct()->SetSuperStruct(FMassTag::StaticStruct());
 
 	FTedsSharedColumn::StaticStruct()->SetSuperStruct(FMassConstSharedFragment::StaticStruct());
 }

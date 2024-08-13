@@ -6,6 +6,8 @@
 
 namespace UE::EditorDataStorage
 {
+	using namespace UE::Editor::DataStorage;
+
 	// A property that can be directly be accessed from an object
 	template <typename PropertyType>
 	struct DirectProperty final
@@ -51,7 +53,7 @@ namespace UE::EditorDataStorage
 	public:
 		
 		// Bind this property directly
-		template <TypedElementDataStorage::TDataColumnType ObjectType>
+		template <TDataColumnType ObjectType>
 		void Bind(PropertyType ObjectType::* Variable)
 		{
 			DirectProperty<PropertyType> Result;
@@ -62,7 +64,7 @@ namespace UE::EditorDataStorage
 		}
 
 		// Bind this property using a conversion function
-		template <typename InputType, TypedElementDataStorage::TDataColumnType ObjectType>
+		template <typename InputType, TDataColumnType ObjectType>
 		void Bind(InputType ObjectType::* Variable, TFunction<PropertyType(const InputType&)> Converter)
 		{
 			ConvertibleProperty<PropertyType> Result;
@@ -76,14 +78,14 @@ namespace UE::EditorDataStorage
 		}
 
 		// Get the bound property for the specified object
-		template <TypedElementDataStorage::TDataColumnType ObjectType>
+		template <TDataColumnType ObjectType>
 		PropertyType& Get(ObjectType& Object) const
 		{
 			return Get(&Object, ObjectType::StaticStruct());
 		}
 
 		// Get the bound property for the specified object
-		template <TypedElementDataStorage::TDataColumnType ObjectType>
+		template <TDataColumnType ObjectType>
 		const PropertyType& Get(const ObjectType& Object) const
 		{
 			return Get(&Object, ObjectType::StaticStruct());
@@ -119,7 +121,7 @@ namespace UE::EditorDataStorage
 		UScriptStruct* ObjectTypeInfo = nullptr;
 	};
 	
-	template <typename AttributeType, TypedElementDataStorage::TDataColumnType ColumnType>
+	template <typename AttributeType, TDataColumnType ColumnType>
 	TAttribute<AttributeType> FAttributeBinder::BindData(AttributeType ColumnType::* InVariable, const AttributeType& InDefaultValue)
 	{
 		if(!DataStorage)
@@ -143,7 +145,7 @@ namespace UE::EditorDataStorage
 		});
 	}
 
-	template <typename AttributeType, typename DataType, TypedElementDataStorage::TDataColumnType ColumnType>
+	template <typename AttributeType, typename DataType, TDataColumnType ColumnType>
 	TAttribute<AttributeType> FAttributeBinder::BindData(DataType ColumnType::* InVariable, const TFunction<AttributeType(const DataType&)>& InConverter, const DataType& InDefaultValue)
 	{
 		if(!DataStorage)
@@ -166,7 +168,7 @@ namespace UE::EditorDataStorage
 		});
 	}
 	
-	template <typename DataType, TypedElementDataStorage::TDataColumnType ColumnType, typename FunctionType>
+	template <typename DataType, TDataColumnType ColumnType, typename FunctionType>
 		requires AttributeBinderInvocable<FunctionType, DataType>
 	auto FAttributeBinder::BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue)
 	{

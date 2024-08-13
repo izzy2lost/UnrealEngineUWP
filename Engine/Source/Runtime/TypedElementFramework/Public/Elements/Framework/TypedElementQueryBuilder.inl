@@ -12,6 +12,8 @@
 
 namespace TypedElementQueryBuilder
 {
+	using namespace UE::Editor::DataStorage;
+
 	namespace Internal
 	{
 		// This assumes that the types are unique, but for queries this should be true and otherwise
@@ -90,19 +92,19 @@ namespace TypedElementQueryBuilder
 	// FObserver
 	//
 	
-	template<TypedElementDataStorage::TColumnType ColumnType>
+	template<TColumnType ColumnType>
 	FObserver FObserver::OnAdd()
 	{
 		return FObserver(FObserver::EEvent::Add, ColumnType::StaticStruct());
 	}
 
-	template<TypedElementDataStorage::TColumnType ColumnType>
+	template<TColumnType ColumnType>
 	FObserver FObserver::OnRemove()
 	{
 		return FObserver(FObserver::EEvent::Remove, ColumnType::StaticStruct());
 	}
 
-	template<TypedElementDataStorage::TColumnType ColumnType>
+	template<TColumnType ColumnType>
 	FObserver& FObserver::SetMonitoredColumn()
 	{
 		return SetMonitoredColumn(ColumnType::StaticStruct());
@@ -1117,21 +1119,21 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		Internal::BindQueryFunction<TypedElementDataStorage::IQueryContext, ValidateColumns>(Query.Callback.Function, Instance, Callback);
 	}
 
-	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadOnly()
 	{
 		ReadOnly({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadOnly(EOptional Optional)
 	{
 		ReadOnly({ TargetTypes::StaticStruct()... }, Optional);
 		return *this;
 	}
 
-	template<TypedElementDataStorage::TDataColumnType... TargetTypes>
+	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadWrite()
 	{
 		ReadWrite({ TargetTypes::StaticStruct()... });
@@ -1143,40 +1145,40 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 	// FSimpleQuery
 	//
 
-	template<TypedElementDataStorage::TColumnType... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::All()
 	{
 		All({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TypedElementDataStorage::TColumnType... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::Any()
 	{
 		Any({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 
-	template<TypedElementDataStorage::TColumnType... TargetTypes>
+	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::None()
 	{
 		None({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
 	
-	template <TypedElementDataStorage::TEnumType EnumT>
+	template <TEnumType EnumT>
     FSimpleQuery& FSimpleQuery::All()
     {
     	return All(static_cast<const UEnum&>(*StaticEnum<EnumT>()));
     }
 
-    template <TypedElementDataStorage::TEnumType EnumT>
+    template <TEnumType EnumT>
     FSimpleQuery& FSimpleQuery::All(EnumT EnumValue)
     {
     	return All(static_cast<const UEnum&>(*StaticEnum<EnumT>()), static_cast<int64>(EnumValue));
     }
 	
-	template<auto Value, TypedElementDataStorage::TEnumType EnumT = decltype(Value)>
+	template<auto Value, TEnumType EnumT = decltype(Value)>
 	FSimpleQuery& All()
 	{
 		return All<EnumT>(Value);

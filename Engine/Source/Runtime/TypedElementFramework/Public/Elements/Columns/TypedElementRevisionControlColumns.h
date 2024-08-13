@@ -2,36 +2,36 @@
 
 #pragma once
 
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 
 #include "TypedElementRevisionControlColumns.generated.h"
 
 USTRUCT(meta = (DisplayName = "In a changelist"))
-struct FSCCInChangelistTag final : public FTypedElementDataStorageTag
+struct FSCCInChangelistTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Staged"))
-struct FSCCStagedTag final : public FTypedElementDataStorageTag
+struct FSCCStagedTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Locked by you"))
-struct FSCCLockedTag final : public FTypedElementDataStorageTag
+struct FSCCLockedTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Edited by others"))
-struct FSCCExternallyEditedTag final : public FTypedElementDataStorageTag
+struct FSCCExternallyEditedTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Not at the latest revision"))
-struct FSCCNotCurrentTag final : public FTypedElementDataStorageTag
+struct FSCCNotCurrentTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -46,7 +46,7 @@ enum class ESCCModification
 };
 
 USTRUCT(meta = (DisplayName = "Revision Control Status"))
-struct FSCCStatusColumn final : public FTypedElementDataStorageColumn
+struct FSCCStatusColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -64,7 +64,7 @@ struct FSCCRevisionId
 };
 
 USTRUCT(meta = (DisplayName = "Revision ID"))
-struct FSCCRevisionIdColumn final : public FTypedElementDataStorageColumn
+struct FSCCRevisionIdColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -73,7 +73,7 @@ struct FSCCRevisionIdColumn final : public FTypedElementDataStorageColumn
 };
 
 USTRUCT(meta = (DisplayName = "Revision ID from server"))
-struct FSCCExternalRevisionIdColumn final : public FTypedElementDataStorageColumn
+struct FSCCExternalRevisionIdColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -91,7 +91,7 @@ struct FSCCUserInfo
 };
 
 USTRUCT(meta = (DisplayName = "Locked by others"))
-struct FSCCExternallyLockedColumn final : public FTypedElementDataStorageColumn
+struct FSCCExternallyLockedColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

@@ -363,7 +363,7 @@ TypedElementDataStorage::RowHandle UEditorDataStorage::AddRow(TypedElementDataSt
 }
 
 TypedElementDataStorage::RowHandle UEditorDataStorage::AddRow(TypedElementDataStorage::TableHandle Table,
-	TypedElementDataStorage::RowCreationCallbackRef OnCreated)
+	RowCreationCallbackRef OnCreated)
 {
 	using namespace TypedElementDataStorage;
 
@@ -401,7 +401,7 @@ bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, 
 }
 
 bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
-	TypedElementDataStorage::RowCreationCallbackRef OnCreated)
+	RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
@@ -418,7 +418,7 @@ bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, 
 }
 
 bool UEditorDataStorage::BatchAddRow(
-	TypedElementDataStorage::TableHandle Table, int32 Count, TypedElementDataStorage::RowCreationCallbackRef OnCreated)
+	TypedElementDataStorage::TableHandle Table, int32 Count, RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
@@ -441,7 +441,7 @@ bool UEditorDataStorage::BatchAddRow(
 }
 
 bool UEditorDataStorage::BatchAddRow(TypedElementDataStorage::TableHandle Table, 
-	TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles, TypedElementDataStorage::RowCreationCallbackRef OnCreated)
+	TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles, RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
@@ -513,8 +513,8 @@ void UEditorDataStorage::AddColumn(TypedElementRowHandle Row, const UScriptStruc
 }
 
 void UEditorDataStorage::AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
-	const TypedElementDataStorage::ColumnCreationCallbackRef& Initializer,
-	TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator)
+	const ColumnCreationCallbackRef& Initializer,
+	ColumnCopyOrMoveCallback Relocator)
 {
 	if (ActiveEditorEntityManager && ColumnType && ColumnType->IsChildOf(FMassFragment::StaticStruct()))
 	{
@@ -854,7 +854,7 @@ bool UEditorDataStorage::HasColumns(TypedElementRowHandle Row, TConstArrayView<T
 	return false;
 }
 
-void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListCallbackRef Callback) const
+void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListCallbackRef Callback) const
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -879,7 +879,7 @@ void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, Typ
 	}
 }
 
-void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::ColumnListWithDataCallbackRef Callback)
+void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListWithDataCallbackRef Callback)
 {
 	if (ActiveEditorEntityManager)
 	{

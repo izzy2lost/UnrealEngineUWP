@@ -50,7 +50,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "Label widget"))
-struct FLabelWidgetColumn : public FTypedElementDataStorageColumn
+struct FLabelWidgetColumn : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

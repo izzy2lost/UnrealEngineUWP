@@ -37,7 +37,7 @@ namespace UE::Editor::DataStorage
 			 */
 			void Queue_AddColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
 			void* Queue_AddDataColumnCommandUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
-				TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator);
+				ColumnCopyOrMoveCallback Relocator);
 			void Queue_AddColumnsCommand(TypedElementDataStorage::RowHandle Row, FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
 	
 			void Queue_RemoveColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
@@ -54,7 +54,7 @@ namespace UE::Editor::DataStorage
 				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
 			static void Execute_AddDataColumnCommand(
 				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
-				void* Data, TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator);
+				void* Data, ColumnCopyOrMoveCallback Relocator);
 			static void Execute_AddSharedColumnCommand(
 				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const FConstSharedStruct& SharedColumn);
 			static void Execute_RemoveSharedColumnCommand(
@@ -78,7 +78,7 @@ namespace UE::Editor::DataStorage
 			struct FAddDataColumnCommand
 			{
 				TWeakObjectPtr<const UScriptStruct> ColumnType;
-				TypedElementDataStorage::ColumnCopyOrMoveCallback Relocator;
+				ColumnCopyOrMoveCallback Relocator;
 				void* Data;
 	
 				~FAddDataColumnCommand();

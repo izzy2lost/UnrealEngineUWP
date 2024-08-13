@@ -16,7 +16,7 @@ class UWorld;
  * Column containing a non-owning reference to a UObject.
  */
 USTRUCT(meta = (DisplayName = "UObject reference"))
-struct FTypedElementUObjectColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementUObjectColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -30,7 +30,7 @@ struct FTypedElementUObjectColumn final : public FTypedElementDataStorageColumn
  * Column containing information to uniquely identify the UObject, e.g. for use by the garbage collection.
  */
 USTRUCT(meta = (DisplayName = "UObject ID"))
-struct FTypedElementUObjectIdColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementUObjectIdColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -46,7 +46,7 @@ struct FTypedElementUObjectIdColumn final : public FTypedElementDataStorageColum
  * recovered.
  */
 USTRUCT(meta = (DisplayName = "External object reference"))
-struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementExternalObjectColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -58,7 +58,7 @@ struct FTypedElementExternalObjectColumn final : public FTypedElementDataStorage
  * If there's a FTypedElementUObjectColumn, the stored object will be a CDO if this tag is present.
  */
 USTRUCT(meta = (DisplayName = "Class Default Object"))
-struct FTypedElementClassDefaultObjectTag final : public FTypedElementDataStorageTag
+struct FTypedElementClassDefaultObjectTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -68,7 +68,7 @@ struct FTypedElementClassDefaultObjectTag final : public FTypedElementDataStorag
  * an actor if this tag is present.
  */
 USTRUCT(meta = (DisplayName = "Actor"))
-struct FTypedElementActorTag final : public FTypedElementDataStorageTag
+struct FTypedElementActorTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -77,7 +77,7 @@ struct FTypedElementActorTag final : public FTypedElementDataStorageTag
  * Column that stores a reference to the world.
  */
 USTRUCT(meta = (DisplayName = "World"))
-struct FTypedElementWorldColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementWorldColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
@@ -90,7 +90,7 @@ struct FTypedElementWorldColumn final : public FTypedElementDataStorageColumn
  * bag" containing any serialized data that was loaded for it as a set of "loose" properties.
  */
 USTRUCT(meta = (DisplayName = "Property bag placeholder"))
-struct FTypedElementPropertyBagPlaceholderTag final : public FTypedElementDataStorageTag
+struct FTypedElementPropertyBagPlaceholderTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -99,7 +99,7 @@ struct FTypedElementPropertyBagPlaceholderTag final : public FTypedElementDataSt
  * Tag to signal that a row contains an object with at least one loose property associated with it.
  */
 USTRUCT(meta = (DisplayName = "Loose property"))
-struct FTypedElementLoosePropertyTag final : public FTypedElementDataStorageTag
+struct FTypedElementLoosePropertyTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -111,7 +111,7 @@ struct FTypedElementLoosePropertyTag final : public FTypedElementDataStorageTag
  * for systems that need to look/behave differently based on an inferred base type context (e.g. UI).
  */
 USTRUCT(meta = (DisplayName = "Placeholder type info"))
-struct FTypedElementPropertyBagPlaceholderTypeInfoColumn final : public FTypedElementDataStorageColumn
+struct FTypedElementPropertyBagPlaceholderTypeInfoColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 

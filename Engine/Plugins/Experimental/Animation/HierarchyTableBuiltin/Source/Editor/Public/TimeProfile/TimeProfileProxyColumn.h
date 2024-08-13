@@ -7,25 +7,25 @@
 #include "TimeProfileProxyColumn.generated.h"
 
 USTRUCT()
-struct FHierarchyTableTimeColumn_StartTime final : public FTypedElementDataStorageColumn
+struct FHierarchyTableTimeColumn_StartTime final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct FHierarchyTableTimeColumn_EndTime final : public FTypedElementDataStorageColumn
+struct FHierarchyTableTimeColumn_EndTime final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct FHierarchyTableTimeColumn_TimeFactor final : public FTypedElementDataStorageColumn
+struct FHierarchyTableTimeColumn_TimeFactor final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };
 
 USTRUCT()
-struct FHierarchyTableTimeColumn_Preview final : public FTypedElementDataStorageColumn
+struct FHierarchyTableTimeColumn_Preview final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 };

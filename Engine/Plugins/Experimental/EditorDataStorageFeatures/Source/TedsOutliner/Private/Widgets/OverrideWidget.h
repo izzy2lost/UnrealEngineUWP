@@ -29,7 +29,7 @@ public:
 };
 
 USTRUCT(meta = (DisplayName = "Override Widget"))
-struct FOverrideWidgetTag : public FTypedElementDataStorageTag
+struct FOverrideWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

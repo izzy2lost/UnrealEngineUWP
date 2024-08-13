@@ -126,10 +126,10 @@ void FTedsOutlinerImpl::CreateFilterQueries()
 		TSharedRef<FFilterCategory> TedsColumnFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsColumnFilters", "TEDS Columns"), LOCTEXT("TedsColumnFiltersTooltip", "Filter by TEDS columns"));
 		TSharedRef<FFilterCategory> TedsTagFilterCategory = MakeShared<FFilterCategory>(LOCTEXT("TedsTagFilters", "TEDS Tags"), LOCTEXT("TedsTagFiltersTooltip", "Filter by TEDS Tags"));
 
-		const UStruct* TedsColumn = FTypedElementDataStorageColumn::StaticStruct();
-		const UStruct* TedsTag = FTypedElementDataStorageTag::StaticStruct();
+		const UStruct* TedsColumn = UE::Editor::DataStorage::FColumn::StaticStruct();
+		const UStruct* TedsTag = UE::Editor::DataStorage::FTag::StaticStruct();
 
-		// Grab all UStruct types to see if they derive from FTypedElementDataStorageColumn or FTypedElementDataStorageTag
+		// Grab all UStruct types to see if they derive from FColumn or FTag
 		ForEachObjectOfClass(UScriptStruct::StaticClass(), [&](UObject* Obj)
 		{
 			if (UScriptStruct* Struct = Cast<UScriptStruct>(Obj))

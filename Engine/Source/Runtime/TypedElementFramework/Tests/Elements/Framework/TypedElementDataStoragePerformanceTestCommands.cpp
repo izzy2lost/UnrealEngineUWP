@@ -2,6 +2,7 @@
 
 #include "TypedElementDataStoragePerformanceTestCommands.h"
 
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"

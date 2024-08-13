@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
 #include "AlertWidget.generated.h"
@@ -51,7 +51,7 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "General purpose alert"))
-struct FAlertWidgetTag : public FTypedElementDataStorageTag
+struct FAlertWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
@@ -73,13 +73,13 @@ protected:
 };
 
 USTRUCT(meta = (DisplayName = "General purpose alert header"))
-struct FAlertHeaderWidgetTag : public FTypedElementDataStorageTag
+struct FAlertHeaderWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
 
 USTRUCT(meta = (DisplayName = "Alert header active"))
-struct FAlertHeaderActiveWidgetTag : public FTypedElementDataStorageTag
+struct FAlertHeaderActiveWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

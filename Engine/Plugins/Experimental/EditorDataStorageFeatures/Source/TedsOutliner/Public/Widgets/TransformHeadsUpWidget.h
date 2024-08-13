@@ -3,8 +3,10 @@
 #pragma once
 
 #include "Elements/Interfaces/TypedElementDataStorageFactory.h"
-#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
+#include "Elements/Common/TypedElementHandles.h"
+#include "Elements/Framework/TypedElementMetaData.h"
 #include "Internationalization/Text.h"
 #include "UObject/ObjectMacros.h"
 
@@ -45,12 +47,12 @@ protected:
 	bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row,
+		TypedElementDataStorage::RowHandle Row,
 		const TSharedPtr<SWidget>& Widget) override;
 };
 
 USTRUCT(meta = (DisplayName = "Heads up display for transforms widget"))
-struct FTransformHeadsUpWidgetTag : public FTypedElementDataStorageTag
+struct FTransformHeadsUpWidgetTag : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };
