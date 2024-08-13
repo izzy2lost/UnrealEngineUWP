@@ -30,6 +30,9 @@ struct FNotThreadSafeDelegateMode;
 template<typename ThreadSafetyMode>
 class TDelegateAccessHandlerBase;
 
+template <typename ThreadSafetyMode>
+struct TWriteLockedDelegateAllocation;
+
 /**
  * non thread-safe version that does not do any race detection. supposed to be used in a controlled environment that provides own
  * detection or synchronisation.
@@ -37,6 +40,8 @@ class TDelegateAccessHandlerBase;
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeNotCheckedDelegateMode>;
+
 protected:
 	struct FReadAccessScope {};
 	struct FWriteAccessScope {};
@@ -66,6 +71,8 @@ struct TIsZeroConstructType<TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedD
 template<>
 class TDelegateAccessHandlerBase<FThreadSafeDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FThreadSafeDelegateMode>;
+
 protected:
 	struct FReadAccessScope { FTransactionallySafeScopeLock Lock; };
 	struct FWriteAccessScope { FTransactionallySafeScopeLock Lock; };
@@ -98,6 +105,8 @@ struct TIsZeroConstructType<TDelegateAccessHandlerBase<FThreadSafeDelegateMode>>
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeDelegateMode>;
+
 protected:
 #if !UE_AUTORTFM
 	class FReadAccessScope

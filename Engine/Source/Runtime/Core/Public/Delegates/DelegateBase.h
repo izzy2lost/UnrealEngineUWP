@@ -91,12 +91,44 @@ struct FNotThreadSafeNotCheckedDelegateUserPolicy
 	using FMulticastDelegateExtras = TMulticastDelegateBase<FNotThreadSafeNotCheckedDelegateUserPolicy>;
 };
 
+struct FDelegateAllocation
+{
+	FDelegateAllocatorType::ForElementType<FAlignedInlineDelegateType> DelegateAllocator;
+	int32 DelegateSize = 0;
+};
+
+template <typename ThreadSafetyMode>
+struct TWriteLockedDelegateAllocation;
+
+template <typename ThreadSafetyMode>
+void* operator new(size_t Size, const TWriteLockedDelegateAllocation<ThreadSafetyMode>& LockedAllocation);
+
+template <typename ThreadSafetyMode>
+struct TWriteLockedDelegateAllocation
+{
+	UE_NONCOPYABLE(TWriteLockedDelegateAllocation)
+
+	friend void* operator new<ThreadSafetyMode>(size_t Size, const TWriteLockedDelegateAllocation<ThreadSafetyMode>& LockedAllocation);
+
+	explicit TWriteLockedDelegateAllocation(TDelegateBase<ThreadSafetyMode>& Delegate)
+		: WriteScope(Delegate.GetWriteAccessScope())
+		, Allocation(Delegate)
+	{
+	}
+
+private:
+	typename TDelegateAccessHandlerBase<ThreadSafetyMode>::FWriteAccessScope WriteScope;
+	FDelegateAllocation& Allocation;
+};
+
 /**
  * Base class for unicast delegates.
  */
 template<typename ThreadSafetyMode>
-class TDelegateBase : public TDelegateAccessHandlerBase<ThreadSafetyMode>
+class TDelegateBase : public TDelegateAccessHandlerBase<ThreadSafetyMode>, private FDelegateAllocation
 {
+	friend struct TWriteLockedDelegateAllocation<ThreadSafetyMode>;
+
 private:
 	using Super = TDelegateAccessHandlerBase<ThreadSafetyMode>;
 
@@ -129,6 +161,8 @@ private:
 
 	template <typename, typename, typename, typename, typename...>
 	friend class TWeakBaseFunctorDelegateInstance;
+
+	friend class FWriteLockedDelegateAllocation;
 
 protected:
 	using typename Super::FReadAccessScope;
@@ -304,23 +338,6 @@ public:
 
 protected:
 	/**
-	 * "emplacement" of delegate instance of the given type
-	 */
-	template<typename DelegateInstanceType, typename... DelegateInstanceParams>
-	void CreateDelegateInstance(DelegateInstanceParams&&... Params)
-	{
-		FWriteAccessScope WriteScope = GetWriteAccessScope();
-
-		IDelegateInstance* DelegateInstance = GetDelegateInstanceProtected();
-		if (DelegateInstance)
-		{
-			DelegateInstance->~IDelegateInstance();
-		}
-
-		new(Allocate(sizeof(DelegateInstanceType))) DelegateInstanceType(Forward<DelegateInstanceParams>(Params)...);
-	}
-
-	/**
 	 * Gets the delegate instance.  Not intended for use by user code.
 	 *
 	 * @return The delegate instance.
@@ -337,18 +354,6 @@ protected:
 	}
 
 private:
-	void* Allocate(int32 Size)
-	{
-		int32 NewDelegateSize = FMath::DivideAndRoundUp(Size, (int32)sizeof(FAlignedInlineDelegateType));
-		if (DelegateSize != NewDelegateSize)
-		{
-			DelegateAllocator.ResizeAllocation(0, NewDelegateSize, sizeof(FAlignedInlineDelegateType));
-			DelegateSize = NewDelegateSize;
-		}
-
-		return DelegateAllocator.GetAllocation();
-	}
-
 	template<typename OtherThreadSafetyMode>
 	void MoveConstruct(TDelegateBase<OtherThreadSafetyMode>&& Other)
 	{
@@ -391,6 +396,18 @@ private:
 		}
 	}
 
-	FDelegateAllocatorType::ForElementType<FAlignedInlineDelegateType> DelegateAllocator;
-	int32 DelegateSize = 0;
+	using FDelegateAllocation::DelegateAllocator;
+	using FDelegateAllocation::DelegateSize;
 };
+
+namespace UE::Core::Private
+{
+	// Should only be called by the TWriteLockedDelegateAllocation<ThreadSafetyMode> overload, because it obtains the write lock
+	CORE_API void* DelegateAllocate(size_t Size, FDelegateAllocation& Allocation);
+}
+
+template <typename ThreadSafetyMode>
+FORCEINLINE void* operator new(size_t Size, const TWriteLockedDelegateAllocation<ThreadSafetyMode>& LockedAllocation)
+{
+	return UE::Core::Private::DelegateAllocate(Size, LockedAllocation.Allocation);
+}
