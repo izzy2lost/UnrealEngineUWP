@@ -88,12 +88,14 @@ class FTonemapperLocalExposureDim  : SHADER_PERMUTATION_INT("LOCAL_EXPOSURE_MODE
 class FTonemapperSharpenDim        : SHADER_PERMUTATION_BOOL("USE_SHARPEN");
 class FTonemapperFilmGrainDim      : SHADER_PERMUTATION_BOOL("USE_FILM_GRAIN");
 class FTonemapperMsaaDim           : SHADER_PERMUTATION_BOOL("METAL_MSAA_HDR_DECODE");
+class FTonemapperAlphaChannelDim   : SHADER_PERMUTATION_BOOL("DIM_ALPHA_CHANNEL");
 using FCommonDomain = TShaderPermutationDomain<
 	FTonemapperGammaOnlyDim,
 	FTonemapperLocalExposureDim,
 	FTonemapperSharpenDim,
 	FTonemapperFilmGrainDim,
-	FTonemapperMsaaDim>;
+	FTonemapperMsaaDim,
+	FTonemapperAlphaChannelDim>;
 
 bool ShouldCompileCommonPermutation(const FGlobalShaderPermutationParameters& Parameters, const FCommonDomain& PermutationVector)
 {
@@ -127,6 +129,7 @@ FCommonDomain BuildCommonPermutationDomain(const FViewInfo& View, bool bGammaOnl
 	const FSceneViewFamily* Family = View.Family;
 
 	FCommonDomain PermutationVector;
+	PermutationVector.Set<FTonemapperAlphaChannelDim>(IsPostProcessingWithAlphaChannelSupported());
 
 	// Gamma
 	if (bGammaOnly ||

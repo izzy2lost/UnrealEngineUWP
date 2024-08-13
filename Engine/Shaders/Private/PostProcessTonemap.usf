@@ -614,7 +614,7 @@ float4 TonemapCommonPS(
 	}
 	#endif
 
-	#if POST_PROCESS_ALPHA
+	#if DIM_ALPHA_CHANNEL
 		OutColor.a = SceneColor.a;
 	#endif
 
