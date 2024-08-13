@@ -442,15 +442,12 @@ namespace Metasound::Editor
 
 		Utilities->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
 
-		const FText HeaderName = LOCTEXT("PagesGroupDisplayName", "Pages");
-		IDetailCategoryBuilder& Category = DetailLayout.EditCategory(FName(ItemName), HeaderName);
-		Category.AddCustomRow(HeaderName) [ Utilities ];
-
-		EntryWidgets = SNew(SVerticalBox);
-		Category.AddCustomRow(LOCTEXT("ImplementedPagesLabel", "Implemented Pages"))
-		[
-			EntryWidgets->AsShared()
-		];
+		{
+			const FText HeaderName = LOCTEXT("PageGraphsDisplayName", "Pages");
+			IDetailCategoryBuilder& Category = DetailLayout.EditCategory("Pages", HeaderName);
+			Category.AddCustomRow(HeaderName)[Utilities];
+			Category.AddCustomRow(LOCTEXT("ImplementedPagesLabel", "Graphs")) [ SAssignNew(EntryWidgets, SVerticalBox) ];
+		}
 
 		// Registration of page listener instance calls OnReload which in turn causes RefreshView, so no need to call directly
 		if (UMetasoundEditorViewBase* View = CastChecked<UMetasoundEditorViewBase>(Objects.Last()))

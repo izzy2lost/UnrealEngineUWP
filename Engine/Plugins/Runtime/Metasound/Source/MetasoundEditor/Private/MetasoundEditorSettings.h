@@ -56,7 +56,10 @@ enum class EMetasoundActiveDetailView : uint8
 UENUM()
 enum class EAuditionPageMode : uint8
 {
+	// Audition Target Page set automatically set to page focused in asset editor
 	Focused,
+
+	// Audition Target Page is specified by user (does not automatically change when new page is visualized)
 	User
 };
 
@@ -152,20 +155,26 @@ public:
 	FString DefaultAuthor;
 
 	/* Currently set page audition mode. Set by the MetaSound Asset Editor. */
-	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	UPROPERTY(EditAnywhere, config, Category = Audition, meta = (DisplayName = "Audition Mode"))
 	EAuditionPageMode AuditionPageMode = EAuditionPageMode::Focused;
 
 	/** Name of platform to mock when previewing playback. This will limit playback to only pages that are cooked for the given platform.
 	  * Set in the MetaSound Asset Editor.
 	  */
-	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	UPROPERTY(EditAnywhere, config, Category = Audition, meta = (DisplayName = "Platform", GetOptions = "MetasoundEditor.MetasoundEditorSettings.GetAuditionPlatformNames"))
 	FName AuditionPlatform;
 
 	/** Name of the page to target when previewing playback in editor. If target page is not implemented for the set audition platform,
 	  *  uses order of cooked pages (see 'project MetaSound Settings --> Page Settings' for order) falling back to lower index-ordered page
 	  * implemented in MetaSound asset. Set in the MetaSound Asset Editor.
 	  */
-	UPROPERTY(VisibleAnywhere, config, Category = Pages)
+	UPROPERTY(EditAnywhere, config, Category = Audition, meta =
+	(
+		DisplayName = "Audition Page",
+		EditCondition = "AuditionPageMode == EAuditionPageMode::User",
+		EditConditionHides = true,
+		GetOptions = "MetasoundEngine.MetaSoundSettings.GetPageNames")
+	)
 	FName AuditionTargetPage;
 
 	/** Maps Pin Category To Pin Color */
@@ -286,4 +295,7 @@ public:
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
 	Metasound::Engine::FAuditionPageInfo ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const;
+
+	UFUNCTION()
+	static TArray<FName> GetAuditionPlatformNames();
 };

@@ -83,13 +83,13 @@ public:
 	// the provided name. If the given builder has an asset editor open, optionally opens or brings
 	// that editor's associated page into user focus.
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder|Editor", meta = (ExpandEnumAsExecs = "OutResult"))
-	void SetFocusedPage(UMetaSoundBuilderBase* Builder, FName PageName, bool bFocusPageEditor, EMetaSoundBuilderResult& OutResult) const;
+	void SetFocusedPage(UMetaSoundBuilderBase* Builder, FName PageName, bool bOpenEditor, EMetaSoundBuilderResult& OutResult) const;
 
 	// If the given PageID is implemented on the provided builder, sets the focused page of
 	// the provided builder to the given PageID if and sets the audition target page to
 	// the provided ID. If the given builder has an asset editor open, optionally opens or brings
 	// that editor's associated PageID into user focus.
-	bool SetFocusedPage(UMetaSoundBuilderBase& Builder, const FGuid& InPageID, bool bFocusPageEditor) const;
+	bool SetFocusedPage(UMetaSoundBuilderBase& Builder, const FGuid& InPageID, bool bOpenEditor) const;
 
 	// Unregisters toolbar extender that is displayed in the MetaSound Asset Editor.
 	bool UnregisterToolbarExtender(TSharedRef<FExtender> InExtender);
@@ -104,7 +104,7 @@ public:
 	static const UMetaSoundEditorSubsystem& GetConstChecked();
 
 private:
-	bool SetFocusedPageInternal(const FMetaSoundPageSettings& InPageSettings, UMetaSoundBuilderBase& Builder, bool bFocusPageEditor) const;
+	bool SetFocusedPageInternal(const FMetaSoundPageSettings& InPageSettings, UMetaSoundBuilderBase& Builder, bool bOpenEditor) const;
 
 	// Copy over sound wave settings such as attenuation, modulation, and sound class from the template sound wave to the MetaSound
 	void SetSoundWaveSettingsFromTemplate(USoundWave& NewMetasound, const USoundWave& TemplateSoundWave) const;

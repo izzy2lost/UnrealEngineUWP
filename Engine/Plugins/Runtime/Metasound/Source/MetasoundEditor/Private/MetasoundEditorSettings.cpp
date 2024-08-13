@@ -8,6 +8,7 @@
 #include "MetasoundDocumentBuilderRegistry.h"
 #include "MetasoundFrontendDocument.h"
 #include "MetasoundSettings.h"
+#include "PlatformInfo.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateWidgetStyleAsset.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -149,5 +150,22 @@ Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::ResolveAuditionPa
 
 	return PreviewInfo;
 
+}
+
+TArray<FName> UMetasoundEditorSettings::GetAuditionPlatformNames()
+{
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		TSet<FName> PlatformNames { "Default" };
+		for (const FMetaSoundPageSettings& PageSettings : Settings->GetPageSettings())
+		{
+			TSet<FName> PagePlatforms;
+			PageSettings.IsCooked.PerPlatform.GetKeys(PagePlatforms);
+			PlatformNames.Append(PagePlatforms);
+		}
+		return PlatformNames.Array();
+	}
+
+	return { };
 }
 #undef LOCTEXT_NAMESPACE // "MetaSoundEditor"

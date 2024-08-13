@@ -299,21 +299,30 @@ FName UMetaSoundSettings::GetQualitySettingPropertyName()
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
-TArray<FName> UMetaSoundSettings::GetQualityList()
+TArray<FName> UMetaSoundSettings::GetPageNames()
 {
-	TArray<FName> Names;
-
-#if WITH_EDITORONLY_DATA
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		Algo::Transform(Settings->GetQualitySettings(), Names, [](const FMetaSoundQualitySettings& Quality) -> FName
-		{
-			return Quality.Name;
-		});
+		TArray<FName> Names;
+		auto GetName = [](const FMetaSoundPageSettings& Page) { return Page.Name; };
+		Algo::Transform(Settings->GetPageSettings(), Names, GetName);
+		return Names;
 	}
-#endif //WITH_EDITORONLY_DATA
 
-	return Names;
+	return { };
+}
+
+TArray<FName> UMetaSoundSettings::GetQualityNames()
+{
+	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
+	{
+		TArray<FName> Names;
+		auto GetName = [](const FMetaSoundQualitySettings& Quality) { return Quality.Name; };
+		Algo::Transform(Settings->GetQualitySettings(), Names, GetName);
+		return Names;
+	}
+
+	return { };
 }
 #endif // WITH_EDITOR
 
