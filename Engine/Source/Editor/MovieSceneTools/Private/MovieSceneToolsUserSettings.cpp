@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MovieSceneToolsUserSettings.h"
+#include "SceneManagement.h"
 #include "UObject/UnrealType.h"
 
 
@@ -26,6 +27,16 @@ void UMovieSceneUserThumbnailSettings::PostEditChangeProperty(FPropertyChangedEv
 	ThumbnailSize.Y = FMath::Clamp(ThumbnailSize.Y, 1, 1024);
 
 	SaveConfig();
+}
+
+void UMovieSceneUserThumbnailSettings::AddReferencedObjects(UObject* InThis, FReferenceCollector& InCollector)
+{
+	UMovieSceneUserThumbnailSettings* This = CastChecked<UMovieSceneUserThumbnailSettings>(InThis);
+	if (This->ViewState.GetReference())
+	{
+		This->ViewState.GetReference()->AddReferencedObjects(InCollector);
+	}
+	Super::AddReferencedObjects(InThis, InCollector);
 }
 
 UMovieSceneUserImportFBXSettings::UMovieSceneUserImportFBXSettings(const FObjectInitializer& Initializer)
