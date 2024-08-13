@@ -638,10 +638,7 @@ void ULevel::Serialize( FArchive& Ar )
 				return false;
 			}
 
-			if (!ensureMsgf(Actor->GetLevel() == this, TEXT("Actor %s is in wrong level:") LINE_TERMINATOR TEXT("\tOwner Level=%s") LINE_TERMINATOR TEXT("\tActor Level=%s)"), *GetPathNameSafe(Actor), *GetPathNameSafe(this), *GetPathNameSafe(Actor->GetLevel())))
-			{
-				return false;
-			}
+			check(Actor->GetLevel() == this);
 
 			if (Actor->HasAnyFlags(RF_Transient))
 			{
@@ -4325,7 +4322,7 @@ UPackage* ULevel::CreateActorPackage(UPackage* InLevelPackage, EActorPackagingSc
 	const FString PackageName = ULevel::GetActorPackageName(InLevelPackage, InActorPackagingScheme, InActorPath, InTargetContextObject);
 	UPackage* ActorPackage = CreateActorPackageInternal(PackageName, InActorPath);
 	// Should be prevented upstream but we propagate the flag to prevent issues in asset enumeration
-	
+	if (!ensureMsgf(!(InLevelPackage->GetPackageFlags() & PKG_PlayInEditor), TEXT("Actor packages should not be created on PlayInEditor levels")))
 	{
 		ActorPackage->SetPackageFlags(PKG_PlayInEditor);
 	}
