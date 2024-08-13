@@ -5,6 +5,7 @@
 #include "Algo/Unique.h"
 #include "AssetRegistry/AssetData.h"
 #include "Cooker/CookDirector.h"
+#include "Cooker/CookGarbageCollect.h"
 #include "Cooker/CookPlatformManager.h"
 #include "Cooker/CookWorkerServer.h"
 #include "Cooker/IWorkerRequests.h"
@@ -1517,11 +1518,11 @@ void FGenerationHelper::PreGarbageCollectGCLifetimeData()
 	bNeedConfirmGeneratorPackageDestroyed = IsRequiresGeneratorPackageDestructBeforeResplit();
 }
 
-void FGenerationHelper::PostGarbageCollectGCLifetimeData()
+void FGenerationHelper::PostGarbageCollectGCLifetimeData(FCookGCDiagnosticContext& Context)
 {
 	if (bNeedConfirmGeneratorPackageDestroyed)
 	{
-		VerifyGeneratorPackageGarbageCollected();
+		VerifyGeneratorPackageGarbageCollected(Context);
 		bNeedConfirmGeneratorPackageDestroyed = false;
 	}
 
@@ -1592,9 +1593,9 @@ void FGenerationHelper::MarkPackageIterativelySkipped(FPackageData& PackageData)
 	}
 }
 
-void FGenerationHelper::PostGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller)
+void FGenerationHelper::PostGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller, FCookGCDiagnosticContext& Context)
 {
-	PostGarbageCollectGCLifetimeData();
+	PostGarbageCollectGCLifetimeData(Context);
 	if (!IsInitialized())
 	{
 		return;
@@ -1622,7 +1623,7 @@ void FGenerationHelper::PostGarbageCollect(const TRefCountPtr<FGenerationHelper>
 		// The splitter can opt-out of this contract and keep it referenced itself if it desires.
 		if (!Owner.IsInProgress() && !Owner.IsKeepReferencedDuringGC())
 		{
-			VerifyGeneratorPackageGarbageCollected();
+			VerifyGeneratorPackageGarbageCollected(Context);
 		}
 	}
 
@@ -1670,32 +1671,34 @@ void FGenerationHelper::PostGarbageCollect(const TRefCountPtr<FGenerationHelper>
 	}
 }
 
-void FGenerationHelper::VerifyGeneratorPackageGarbageCollected()
+void FGenerationHelper::VerifyGeneratorPackageGarbageCollected(FCookGCDiagnosticContext& Context)
 {
 	FString GeneratorPackageName = GetOwner().GetPackageName().ToString();
 	UPackage* LocalOwnerPackage = FindObject<UPackage>(nullptr, *GeneratorPackageName);
 	if (LocalOwnerPackage)
 	{
-		// Might be called when uninitialized, so do not call GetSplitDataObjectNameIfAvailable
-		FString Identifier;
-		if (!SplitDataObjectName.IsNone())
+		if (!Context.TryRequestGCWithHistory())
 		{
-			Identifier = FString::Printf(TEXT("Splitter=%s"), *SplitDataObjectName.ToString());
-		}
-		else
-		{
-			Identifier = FString::Printf(TEXT("GeneratorPackage=%s"), *GeneratorPackageName);
-		}
-		UE_LOG(LogCook, Error,
-			TEXT("PackageSplitter found the Generator package still in memory after it should have been deleted by GC.")
-			TEXT("\n\tThis is unexpected since garbage has been collected and the package should have been unreferenced so it should have been collected, and will break population of Generated packages.")
+			// Might be called when uninitialized, so do not call GetSplitDataObjectNameIfAvailable
+			FString Identifier;
+			if (!SplitDataObjectName.IsNone())
+			{
+				Identifier = FString::Printf(TEXT("Splitter=%s"), *SplitDataObjectName.ToString());
+			}
+			else
+			{
+				Identifier = FString::Printf(TEXT("GeneratorPackage=%s"), *GeneratorPackageName);
+			}
+			UE_LOG(LogCook, Error,
+				TEXT("PackageSplitter found the Generator package still in memory after it should have been deleted by GC.")
+				TEXT("\n\tThis is unexpected since garbage has been collected and the package should have been unreferenced so it should have been collected, and will break population of Generated packages.")
 			TEXT("\n\tSplitter=%s"), *Identifier);
-		EReferenceChainSearchMode SearchMode = EReferenceChainSearchMode::Shortest
-			| EReferenceChainSearchMode::PrintAllResults
-			| EReferenceChainSearchMode::FullChain;
-		FReferenceChainSearch RefChainSearch(LocalOwnerPackage, SearchMode);
+			EReferenceChainSearchMode SearchMode = EReferenceChainSearchMode::Shortest
+				| EReferenceChainSearchMode::PrintAllResults
+				| EReferenceChainSearchMode::FullChain;
+			FReferenceChainSearch RefChainSearch(LocalOwnerPackage, SearchMode, ELogVerbosity::Display);
+		}
 	}
-
 }
 
 void FGenerationHelper::UpdateSaveAfterGarbageCollect(const FPackageData& PackageData, bool& bInOutDemote)

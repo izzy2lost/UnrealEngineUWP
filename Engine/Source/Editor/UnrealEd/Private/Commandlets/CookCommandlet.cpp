@@ -734,7 +734,15 @@ void UCookCommandlet::ConditionalCollectGarbage(uint32 TickResults, UCookOnTheFl
 	UE_LOG(LogCookCommandlet, Display, TEXT("GarbageCollection...%s (%s)"), *GCType, *GCReason);
 	{
 		TGuardValue<bool> SoftGCGuard(UPackage::bSupportCookerSoftGC, true);
+		COTFS.OnCookerStartCollectGarbage();
 		CollectGarbage(RF_NoFlags);
+		COTFS.OnCookerEndCollectGarbage();
+		if (COTFS.NeedsDiagnosticSecondGC())
+		{
+			COTFS.OnCookerStartCollectGarbage();
+			CollectGarbage(RF_NoFlags);
+			COTFS.OnCookerEndCollectGarbage();
+		}
 	}
 
 	COTFS.ClearGarbageCollectType();

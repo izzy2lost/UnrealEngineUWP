@@ -24,6 +24,7 @@
 #include "Cooker/CookConfigAccessTracker.h"
 #include "Cooker/CookDiagnostics.h"
 #include "Cooker/CookDirector.h"
+#include "Cooker/CookGarbageCollect.h"
 #include "Cooker/CookGenerationHelper.h"
 #include "Cooker/CookOnTheFlyServerInterface.h"
 #include "Cooker/CookPackageData.h"
@@ -5558,15 +5559,11 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 	// Remove objects that were deleted by garbage collection from our containers that track raw object pointers
 	PackageDatas->CachedCookedPlatformDataObjectsPostGarbageCollect(SaveQueueObjectsThatStillExist);
 
-	GCKeepObjects.Empty();
-	UPackage::SoftGCPackageToObjectList.Empty();
-	SoftGCPackageToObjectListBuffer.Empty();
-
-	PackageDatas->LockAndEnumeratePackageDatas([](FPackageData* PackageData)
+	PackageDatas->LockAndEnumeratePackageDatas([this](FPackageData* PackageData)
 	{
 		if (TRefCountPtr<FGenerationHelper> GenerationHelper = PackageData->GetGenerationHelper())
 		{
-			GenerationHelper->PostGarbageCollect(GenerationHelper);
+			GenerationHelper->PostGarbageCollect(GenerationHelper, *GCDiagnosticContext);
 		}
 	});
 	PackageDatas->LockAndEnumeratePackageDatas([](FPackageData* PackageData)
@@ -5574,11 +5571,32 @@ void UCookOnTheFlyServer::PostGarbageCollect()
 		PackageData->SetKeepReferencedDuringGC(false);
 	});
 
+	// Only after running all possible callbacks that need our links for diagnostics, clear the list of temporary
+	// references that we created for the garbage collection.
+	GCKeepObjects.Empty();
+	UPackage::SoftGCPackageToObjectList.Empty();
+	SoftGCPackageToObjectListBuffer.Empty();
+
 	CookedPackageCountSinceLastGC = 0;
 
 	// Whenever we collect garbage, reset the counter for how many busy reports with an
 	// idle shadercompiler we need before we issue a warning
 	bShaderCompilerWasActiveeOnPreviousBusyReport = true;
+}
+
+bool UCookOnTheFlyServer::NeedsDiagnosticSecondGC() const
+{
+	return GCDiagnosticContext->NeedsDiagnosticSecondGC();
+}
+
+void UCookOnTheFlyServer::OnCookerStartCollectGarbage()
+{
+	GCDiagnosticContext->OnCookerStartCollectGarbage();
+}
+
+void UCookOnTheFlyServer::OnCookerEndCollectGarbage()
+{
+	GCDiagnosticContext->OnCookerEndCollectGarbage();
 }
 
 void UCookOnTheFlyServer::EvaluateGarbageCollectionResults(bool bWasDueToOOM, bool bWasPartialGC, uint32 ResultFlags,
@@ -5592,6 +5610,7 @@ void UCookOnTheFlyServer::EvaluateGarbageCollectionResults(bool bWasDueToOOM, bo
 	ON_SCOPE_EXIT
 	{
 		ExpectedFreedPackageNames.Empty();
+		GCDiagnosticContext->OnEvaluateResultsComplete();
 	};
 	bWarnedExceededMaxMemoryWithinGCCooldown = false;
 	LastGCTime = FPlatformTime::Seconds();
@@ -6907,6 +6926,7 @@ void UCookOnTheFlyServer::Initialize( ECookMode::Type DesiredCookMode, ECookInit
 	CookOnTheFlyOptions = MakeUnique<UE::Cook::FCookOnTheFlyOptions>();
 	AssetRegistry = IAssetRegistry::Get();
 	CachedDependencies = MakeUnique<UE::Cook::FCachedDependencies>();
+	GCDiagnosticContext = MakeUnique<UE::Cook::FCookGCDiagnosticContext>();
 
 	if (!IsCookWorkerMode())
 	{

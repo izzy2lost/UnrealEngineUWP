@@ -25,6 +25,7 @@
 
 class ITargetPlatform;
 class UCookOnTheFlyServer;
+namespace UE::Cook { class FCookGCDiagnosticContext; }
 namespace UE::TargetDomain { struct FGeneratedPackageResultStruct; }
 
 namespace UE::Cook
@@ -369,7 +370,8 @@ public:
 	 * Callback during garbage collection. Does not call initialize. Caller must pass in a refcount to show
 	 * a guarantee that clearing internal references will not delete before function return.
 	 */
-	void PostGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller);
+	void PostGarbageCollect(const TRefCountPtr<FGenerationHelper>& RefcountHeldByCaller,
+		FCookGCDiagnosticContext& Context);
 	/**
 	 * Called from PackageData function of the same name to decide whether to demote the package out of save.
 	 * Does not call Initialize.
@@ -459,10 +461,10 @@ private:
 	FCookGenerationInfo* FindInfoNoInitialize(const FPackageData& PackageData);
 	void NotifyCompletion(ICookPackageSplitter::ETeardown Status);
 	void PreGarbageCollectGCLifetimeData();
-	void PostGarbageCollectGCLifetimeData();
+	void PostGarbageCollectGCLifetimeData(FCookGCDiagnosticContext& Context);
 	void Uninitialize();
 	void ModifyNumSaved(int32 Delta);
-	void VerifyGeneratorPackageGarbageCollected();
+	void VerifyGeneratorPackageGarbageCollected(FCookGCDiagnosticContext& Context);
 	void DemoteStalledPackages(UCookOnTheFlyServer& COTFS);
 
 private:

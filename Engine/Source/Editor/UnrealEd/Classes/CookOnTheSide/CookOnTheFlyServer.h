@@ -176,6 +176,7 @@ namespace UE::Cook
 	class FBuildDefinitions;
 	class FCachedDependencies;
 	class FCookDirector;
+	class FCookGCDiagnosticContext;
 	class FCookSandbox;
 	class FCookWorkerClient;
 	class FCookWorkerServer;
@@ -827,11 +828,14 @@ public:
 	UNREALED_API void SetGarbageCollectType(uint32 ResultFlagsFromTick);
 	UNREALED_API void ClearGarbageCollectType();
 
+	UNREALED_API void OnCookerStartCollectGarbage();
+	UNREALED_API void OnCookerEndCollectGarbage();
 	UNREALED_API void EvaluateGarbageCollectionResults(bool bWasDueToOOM, bool bWasPartialGC, uint32 ResultFlags,
 		int32 NumObjectsBeforeGC, const FPlatformMemoryStats& MemStatsBeforeGC,
 		const FGenericMemoryStats& AllocatorStatsBeforeGC,
 		int32 NumObjectsAfterGC, const FPlatformMemoryStats& MemStatsAfterGC,
 		const FGenericMemoryStats& AllocatorStatsAfterGC);
+	UNREALED_API bool NeedsDiagnosticSecondGC() const;
 
 	/**
 	 * RequestPackage to be cooked
@@ -1575,6 +1579,7 @@ private:
 	TUniquePtr<UE::Cook::FCookWorkerClient> CookWorkerClient;
 	TUniquePtr<FLayeredCookArtifactReader> AllContextArtifactReader;
 	TSharedPtr<FLooseFilesCookArtifactReader> SharedLooseFilesCookArtifactReader;
+	TUniquePtr<UE::Cook::FCookGCDiagnosticContext> GCDiagnosticContext;
 
 	TArray<UE::Cook::FCookSavePackageContext*> SavePackageContexts;
 	/**
