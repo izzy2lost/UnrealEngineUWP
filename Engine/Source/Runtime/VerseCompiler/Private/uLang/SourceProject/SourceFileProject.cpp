@@ -381,6 +381,29 @@ void CSourceFilePackage::GatherPackageSourceFiles(const CUTF8String& PackageFile
                 {
                     bool bIsVNIPackage = _Settings._VniDestDir.IsSet();
                     bool bHasNativeFileExtension = Snippet->GetFilePath().EndsWith(".native.verse");
+
+                    // Ignore files containing '.' in the stem of the file
+                    // name.  This is currently redundant for files gathered via
+                    // the asset registry, as those files are currently ignored.
+                    // However, this is required for backwards compat constraint
+                    // packages and any other packages that don't have a set
+                    // `_FilePaths`.
+                    // TODO: Make this conditional on the uploaded-in-FN-version
+                    // of the package.
+                    if (!bHasNativeFileExtension)
+                    {
+                        CUTF8StringView Dir;
+                        CUTF8StringView FileName;
+                        FilePathUtils::SplitPath(Snippet->GetFilePath(), Dir, FileName);
+                        CUTF8StringView Stem;
+                        CUTF8StringView Extension;
+                        FilePathUtils::SplitFileName(FileName, Stem, Extension);
+                        if (Stem.Contains('.'))
+                        {
+                            return;
+                        }
+                    }
+
                     if (bIsVNIPackage && !bHasNativeFileExtension)
                     {
                         Diagnostics->AppendGlitch({
