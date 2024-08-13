@@ -63,7 +63,7 @@ namespace Metasound::Frontend
 				// If connections are present, add a location for safety.  Try adding near existing node.
 				if (!ConnectedVertices.IsEmpty())
 				{
-					UE_LOG(LogMetaSound, Warning, TEXT("Template node being generated for input '%s' had no editor location set.  Procedurally placing near connected node."), *InputName.ToString());
+					UE_LOG(LogMetaSound, Display, TEXT("Template node being generated for input '%s' had no editor location set.  Procedurally placing near connected node."), *InputName.ToString());
 					FVector2D NewLocation;
 					if (const FMetasoundFrontendNode* Node = InOutBuilder.FindNode(ConnectedVertices.Last().NodeID))
 					{
@@ -147,6 +147,12 @@ namespace Metasound::Frontend
 		return nullptr;
 	}
 #endif // WITH_EDITOR
+
+	const TArray<FMetasoundFrontendClassInputDefault>* FInputNodeTemplate::FindNodeClassInputDefaults(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName VertexName) const
+	{
+		// Just returns the default of the given node's class input and not walk to values provided by connected input like reroutes.
+		return FNodeTemplateBase::FindNodeClassInputDefaults(InBuilder, InPageID, InNodeID, VertexName);
+	}
 
 	const FMetasoundFrontendClassName& FInputNodeTemplate::GetClassName() const
 	{

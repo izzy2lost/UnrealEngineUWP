@@ -894,6 +894,7 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVertex : public FMetasoundFr
 	void SplitName(FName& OutNamespace, FName& OutParameterName) const;
 
 	static bool IsFunctionalEquivalent(const FMetasoundFrontendClassVertex& InLHS, const FMetasoundFrontendClassVertex& InRHS);
+
 	// Whether vertex access types are compatible when connecting from an output to an input 
 	static bool CanConnectVertexAccessTypes(EMetasoundFrontendVertexAccessType InFromType, EMetasoundFrontendVertexAccessType InToType);
 };
@@ -942,14 +943,15 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassInputDefault
 
 	FMetasoundFrontendClassInputDefault() = default;
 
-	FMetasoundFrontendClassInputDefault(const FMetasoundFrontendLiteral& Literal)
-		: Literal(Literal)
+	FMetasoundFrontendClassInputDefault(const FMetasoundFrontendLiteral& InLiteral)
+		: Literal(InLiteral)
 		, PageID(Metasound::Frontend::DefaultPageID)
 	{
 	}
 
-	FMetasoundFrontendClassInputDefault(const FGuid& InPageID)
-		: PageID(InPageID)
+	FMetasoundFrontendClassInputDefault(const FGuid& InPageID, FMetasoundFrontendLiteral InLiteral = { })
+		: Literal(MoveTemp(InLiteral))
+		, PageID(InPageID)
 	{
 	}
 
@@ -994,6 +996,7 @@ public:
 	const FMetasoundFrontendLiteral& FindConstDefaultChecked(const FGuid& InPageID) const;
 	FMetasoundFrontendLiteral* FindDefault(const FGuid& InPageID);
 	FMetasoundFrontendLiteral& FindDefaultChecked(const FGuid& InPageID);
+	const TArray<FMetasoundFrontendClassInputDefault>& GetDefaults() const;
 	FMetasoundFrontendLiteral& InitDefault();
 	void InitDefault(FMetasoundFrontendLiteral InitLiteral);
 	void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral&)> IterFunc);
@@ -1002,6 +1005,7 @@ public:
 #if WITH_EDITORONLY_DATA
 	void RemoveAllDefaults();
 	bool RemoveDefault(const FGuid& InPageID);
+	void SetDefaults(TArray<FMetasoundFrontendClassInputDefault> InputDefaults);
 #endif // WITH_EDITORONLY_DATA
 };
 
@@ -1012,7 +1016,6 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVariable : public FMetasound
 	GENERATED_BODY()
 
 	FMetasoundFrontendClassVariable() = default;
-
 	FMetasoundFrontendClassVariable(const FMetasoundFrontendClassVertex& InOther);
 
 	// Default value for this variable.

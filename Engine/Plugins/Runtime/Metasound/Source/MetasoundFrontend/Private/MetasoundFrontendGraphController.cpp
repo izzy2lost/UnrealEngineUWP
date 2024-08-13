@@ -1635,9 +1635,9 @@ namespace Metasound
 				FString UnknownAsset = TEXT("UnknownAsset");
 				FProxyDataCache ProxyCache;
 				const FMetasoundFrontendDocument& Doc = *(OwningDocument->GetDocumentPtr().Get());
-				ProxyCache.CreateAndCacheProxies(Doc, Frontend::DefaultPageID);
+				ProxyCache.CreateAndCacheProxies(Doc);
 
-				TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(*GraphClass, Subgraphs, Dependencies, ProxyCache, UnknownAsset, Frontend::CreateLocallyUniqueId(), { });
+				TUniquePtr<FFrontendGraph> Graph = FFrontendGraphBuilder::CreateGraph(*GraphClass, Subgraphs, Dependencies, ProxyCache, UnknownAsset, Frontend::CreateLocallyUniqueId());
 
 				if (!Graph.IsValid())
 				{

@@ -106,8 +106,17 @@ namespace Metasound::Frontend
 		// false if not found.
 		virtual bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const = 0;
 
-		// Given the provided document and its respective pages, returns the PageID to be used for runtime IGraph and proxy generation.
-		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendDocument& Document, const FTopLevelAssetPath& AssetPath) const = 0;
+		// Given the provided document and its respective pages, provides the PageID to be used for runtime IGraph and proxy generation.
+		// Returns true if valid page was found, false if not.
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass, FGuid& OutResolvedPageID) const = 0;
+
+		// Given the provided input and its respective paged default values, provides the default PageID to be used for runtime IGraph and proxy generation.
+		// Returns true if valid page was found, false if not.
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput, FGuid& OutResolvedPageID) const = 0;
+
+		// Given the provided array of default values, provides the default PageID to be used for runtime IGraph and proxy generation.
+		// Returns true if valid page was found, false if not.
+		virtual bool TryResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults, FGuid& OutResolvedPageID) const = 0;
 
 		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();

@@ -8,6 +8,7 @@
 #include "Algo/Transform.h"
 #include "CoreMinimal.h"
 #include "CoreGlobals.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDataTypeRegistry.h"
 #include "MetasoundFrontendNodeTemplateRegistry.h"
@@ -21,18 +22,37 @@
 
 namespace Metasound
 {
-	namespace FrontendGraphPrivate
+	namespace Frontend
 	{
-		FNodeInitData CreateNodeInitData(const FMetasoundFrontendNode& InNode)
+		namespace GraphPrivate
 		{
-			FNodeInitData InitData;
+			FNodeInitData CreateNodeInitData(const FMetasoundFrontendNode& InNode)
+			{
+				FNodeInitData InitData;
 
-			InitData.InstanceName = InNode.Name;
-			InitData.InstanceID = InNode.GetID();
+				InitData.InstanceName = InNode.Name;
+				InitData.InstanceID = InNode.GetID();
 
-			return InitData;
-		}
-	}
+				return InitData;
+			}
+
+			template <typename ResolveType>
+			bool TryResolveTargetPageID(const ResolveType& InToResolve, FGuid& OutPageID)
+			{
+				OutPageID = Frontend::DefaultPageID;
+
+				// Registry is not available in tests, so for now resolution is considered successful at this level
+				// if registry is not initialized and providing a resolved page ID. TODO: Add a test implementation
+				// that returns the default page (or whatever page behavior is desired for testing).
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					return IDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(InToResolve, OutPageID);
+				}
+
+				return true;
+			}
+		} // namespace GraphPrivate
+	} // namespace Frontend
 
 	FFrontendGraph::FFrontendGraph(const FString& InInstanceName, const FGuid& InInstanceID)
 	:	FGraph(InInstanceName, InInstanceID)
@@ -204,7 +224,7 @@ namespace Metasound
 			};
 
 			{
-				const FNodeInitData InitData = FrontendGraphPrivate::CreateNodeInitData(InNode);
+				const FNodeInitData InitData = GraphPrivate::CreateNodeInitData(InNode);
 				TArray<FDefaultLiteralData> DefaultLiteralData = GetInputDefaultLiteralData(InContext, InNode, InitData, InEdgeDestinations);
 				for (FDefaultLiteralData& Data : DefaultLiteralData)
 				{
@@ -231,7 +251,7 @@ namespace Metasound
 
 		check(InNode.ClassID == InClass.ID);
 
-		const FNodeInitData InitData = FrontendGraphPrivate::CreateNodeInitData(InNode);
+		const FNodeInitData InitData = GraphPrivate::CreateNodeInitData(InNode);
 		{
 			TArray<FDefaultLiteralData> DefaultLiteralData = GetInputDefaultLiteralData(InContext, InNode, InitData, InEdgeDestinations);
 			for (FDefaultLiteralData& Data : DefaultLiteralData)
@@ -301,6 +321,8 @@ namespace Metasound
 
 	const FMetasoundFrontendLiteral* FFrontendGraphBuilder::FindInputLiteralForInputNode(const FMetasoundFrontendNode& InInputNode, const FMetasoundFrontendClass& InInputNodeClass, const FMetasoundFrontendClassInput& InOwningGraphClassInput)
 	{
+		using namespace Frontend;
+
 		// Default value priority is:
 		// 1. A value set directly on the node
 		// 2. A default value of the owning graph
@@ -327,26 +349,34 @@ namespace Metasound
 			}
 		}
 
+		FGuid PageID = Frontend::DefaultPageID;
+		const bool bPageIDResolved = GraphPrivate::TryResolveTargetPageID(InOwningGraphClassInput, PageID);
+
 		// Check for default value on owning graph.
 		if (nullptr == Literal)
 		{
 			// Find Class Default that is not invalid
-			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
-			if (DefaultLiteral.IsValid())
+			if (bPageIDResolved)
 			{
-				Literal = &DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(PageID);
+				if (DefaultLiteral.IsValid())
+				{
+					Literal = &DefaultLiteral;
+				}
 			}
 		}
 
 		// Check for default value on input node class
 		if (nullptr == Literal && ensure(InInputNodeClass.Interface.Inputs.Num() == 1))
 		{
-			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs[0];
-
-			const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
-			if (DefaultLiteral.IsValid())
+			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs.Last();
+			if (bPageIDResolved)
 			{
-				Literal = &DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(PageID);
+				if (DefaultLiteral.IsValid())
+				{
+					Literal = &DefaultLiteral;
+				}
 			}
 		}
 
@@ -743,14 +773,20 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return bSuccess;
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(FBuildContext& InContext, const FMetasoundFrontendGraphClass& InGraphClass, const FGuid* InPageId)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(FBuildContext& InContext, const FMetasoundFrontendGraphClass& InGraphClass)
 	{
+		using namespace Frontend;
+
 		const FString GraphName = InContext.DebugAssetName;
 
-		const FMetasoundFrontendGraph& PageGraph = InPageId
-			? InGraphClass.FindConstGraphChecked(*InPageId)
-			: InGraphClass.GetConstDefaultGraph();
+		FGuid PageID = Frontend::DefaultPageID;
+		const bool bPageIDResolved = GraphPrivate::TryResolveTargetPageID(InGraphClass, PageID);
+		if (!bPageIDResolved)
+		{
+			return { };
+		}
 
+		const FMetasoundFrontendGraph& PageGraph = InGraphClass.FindConstGraphChecked(PageID);
 		FBuildGraphContext BuildGraphContext
 		{
 			MakeUnique<FFrontendGraph>(GraphName, InContext.GraphId),
@@ -786,7 +822,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return CreateGraph(InGraph, InSubgraphs, InDependencies, InDebugAssetName);
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId, const FGuid* InPageId)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId)
 	{
 		FBuildContext Context
 		{
@@ -820,10 +856,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Create each subgraph.
-		const FGuid PageId = InPageId ? *InPageId : FGuid();
 		for (const FMetasoundFrontendGraphClass* FrontendSubgraphPtr : FrontendSubgraphPtrs)
 		{
-			TSharedPtr<const INode> Subgraph(CreateGraph(Context, *FrontendSubgraphPtr, &PageId).Release());
+			TSharedPtr<const INode> Subgraph(CreateGraph(Context, *FrontendSubgraphPtr).Release());
 			if (!Subgraph.IsValid())
 			{
 				UE_LOG(LogMetaSound, Warning, TEXT("Failed to create subgraph [SubgraphName: %s] in asset '%s'"), *FrontendSubgraphPtr->Metadata.GetClassName().ToString(), *InDebugAssetName);
@@ -836,36 +871,35 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		}
 
 		// Create parent graph.
-		return CreateGraph(Context, InGraph, &PageId);
+		return CreateGraph(Context, InGraph);
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const FString& InDebugAssetName, const FGuid* InPageId)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const FString& InDebugAssetName)
 	{
 		// Create proxies before creating graph.
-		const FGuid PageId = InPageId ? *InPageId : FGuid();
 		Frontend::FProxyDataCache ProxyDataCache;
-		ProxyDataCache.CreateAndCacheProxies(InDocument, PageId);
+		ProxyDataCache.CreateAndCacheProxies(InDocument);
 		
-		return CreateGraph(InDocument, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId(), &PageId);
+		return CreateGraph(InDocument, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId());
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const FString& InDebugAssetName, const FGuid* InPageId)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendGraphClass& InGraph, const TArray<FMetasoundFrontendGraphClass>& InSubgraphs, const TArray<FMetasoundFrontendClass>& InDependencies, const FString& InDebugAssetName)
 	{
 		// Create proxies before building graph
-		const FGuid PageId = InPageId ? *InPageId : FGuid();
 		Frontend::FProxyDataCache ProxyDataCache;
-		ProxyDataCache.CreateAndCacheProxies(InGraph, PageId);
+		ProxyDataCache.CreateAndCacheProxies(InGraph);
+
 		for (const FMetasoundFrontendGraphClass& SubgraphClass : InSubgraphs)
 		{
-			ProxyDataCache.CreateAndCacheProxies(SubgraphClass, PageId);
+			ProxyDataCache.CreateAndCacheProxies(SubgraphClass);
 		}
+
 		for (const FMetasoundFrontendClass& DependencyClass : InDependencies)
 		{
 			ProxyDataCache.CreateAndCacheProxies(DependencyClass);
 		}
 
-
-		return CreateGraph(InGraph, InSubgraphs, InDependencies, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId(), &PageId);
+		return CreateGraph(InGraph, InSubgraphs, InDependencies, ProxyDataCache, InDebugAssetName, Frontend::CreateLocallyUniqueId());
 	}
 	
 	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const TSet<FName>& InTransmittableInputNames, const FString& InDebugAssetName)
@@ -873,8 +907,8 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		return CreateGraph(InDocument, InDebugAssetName);
 	}
 
-	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId, const FGuid* InPageId)
+	TUniquePtr<FFrontendGraph> FFrontendGraphBuilder::CreateGraph(const FMetasoundFrontendDocument& InDocument, const Frontend::FProxyDataCache& InProxyDataCache, const FString& InDebugAssetName, const FGuid InGraphId)
 	{
-		return CreateGraph(InDocument.RootGraph, InDocument.Subgraphs, InDocument.Dependencies, InProxyDataCache, InDebugAssetName, InGraphId, InPageId);
+		return CreateGraph(InDocument.RootGraph, InDocument.Subgraphs, InDocument.Dependencies, InProxyDataCache, InDebugAssetName, InGraphId);
 	}
 }

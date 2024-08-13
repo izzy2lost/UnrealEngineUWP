@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "MetasoundFrontendDocumentBuilder.h"
 
+#include "Algo/AllOf.h"
 #include "Algo/AnyOf.h"
 #include "Algo/Find.h"
 #include "Algo/ForEach.h"
@@ -1865,6 +1866,98 @@ const FMetasoundFrontendVertex* FMetaSoundFrontendDocumentBuilder::FindNodeInput
 	return NodeCache.FindInputVertex(InNodeID, InVertexName);
 }
 
+const TArray<FMetasoundFrontendClassInputDefault>* FMetaSoundFrontendDocumentBuilder::FindNodeClassInputDefaults(const FGuid& InNodeID, FName InVertexName, const FGuid* InPageID) const
+{
+	using namespace Metasound;
+
+	if (const FMetasoundFrontendNode* Node = FindNode(InNodeID, InPageID))
+	{
+		if (const FMetasoundFrontendClass* Class = FindDependency(Node->ClassID))
+		{
+			const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+			switch (ClassType)
+			{
+				case EMetasoundFrontendClassType::External:
+				{
+					auto MatchesName = [&InVertexName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InVertexName; };
+					if (const FMetasoundFrontendClassInput* Input = Class->Interface.Inputs.FindByPredicate(MatchesName))
+					{
+						return &Input->GetDefaults();
+					}
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Input:
+				case EMetasoundFrontendClassType::Output:
+				case EMetasoundFrontendClassType::Literal:
+				{
+					return &Class->Interface.Inputs.Last().GetDefaults();
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Variable:
+				case EMetasoundFrontendClassType::VariableDeferredAccessor:
+				case EMetasoundFrontendClassType::VariableAccessor:
+				case EMetasoundFrontendClassType::VariableMutator:
+				{
+					using namespace VariableNames;
+					auto IsDataInput = [](const FMetasoundFrontendClassInput& Input) { return Input.Name == METASOUND_GET_PARAM_NAME(InputData); };
+					if (const FMetasoundFrontendClassInput* Input = Class->Interface.Inputs.FindByPredicate(IsDataInput))
+					{
+						return &Input->GetDefaults();
+					}
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Template:
+				{
+					const Frontend::FNodeRegistryKey Key = Frontend::FNodeRegistryKey(Class->Metadata);
+					const Frontend::INodeTemplate* Template = Frontend::INodeTemplateRegistry::Get().FindTemplate(Key);
+					check(Template);
+					const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+					return Template->FindNodeClassInputDefaults(*this, PageID, InNodeID, InVertexName);
+				}
+				break;
+
+				case EMetasoundFrontendClassType::Graph:
+				case EMetasoundFrontendClassType::Invalid:
+				default:
+				{
+					checkNoEntry();
+				}
+				break;
+			}
+		}
+	}
+
+	return nullptr;
+}
+
+const FMetasoundFrontendVertexLiteral* FMetaSoundFrontendDocumentBuilder::FindNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID) const
+{
+	if (const FMetasoundFrontendNode* Node = FindNode(InNodeID, InPageID))
+	{
+		auto VertexLiteralMatchesID = [&InVertexID](const FMetasoundFrontendVertexLiteral& VertexLiteral)
+		{
+			return VertexLiteral.VertexID == InVertexID;
+		};
+		return Node->InputLiterals.FindByPredicate(VertexLiteralMatchesID);
+	}
+
+	return nullptr;
+}
+
+const FMetasoundFrontendVertexLiteral* FMetaSoundFrontendDocumentBuilder::FindNodeInputDefault(const FGuid& InNodeID, FName InVertexName, const FGuid* InPageID) const
+{
+	using namespace Metasound::Frontend;
+	if (const FMetasoundFrontendVertex* Vertex = FindNodeInput(InNodeID, InVertexName, InPageID))
+	{
+		return FindNodeInputDefault(InNodeID, Vertex->VertexID, InPageID);
+	}
+
+	return nullptr;
+}
+
 TArray<const FMetasoundFrontendVertex*> FMetaSoundFrontendDocumentBuilder::FindNodeInputs(const FGuid& InNodeID, FName TypeName, const FGuid* InPageID) const
 {
 	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
@@ -2216,7 +2309,6 @@ const FMetasoundFrontendLiteral* FMetaSoundFrontendDocumentBuilder::GetNodeInput
 		{
 			const FMetasoundFrontendVertex& NodeInput = Node.Interface.Inputs[VertexIndex];
 
-			// If default not found on node, check class definition
 			auto IsLiteral = [&InVertexID](const FMetasoundFrontendVertexLiteral& Literal) { return Literal.VertexID == InVertexID; };
 			const int32 LiteralIndex = Node.InputLiterals.IndexOfByPredicate(IsLiteral);
 			if (LiteralIndex != INDEX_NONE)
@@ -2689,7 +2781,10 @@ void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
 	FMetasoundFrontendGraphClass& RootGraph = GetDocumentChecked().RootGraph;
 	RootGraph.IterateGraphPages([this](FMetasoundFrontendGraph& Graph)
 	{
-		DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Frontend::FDocumentMutatePageArgs { Graph.PageID });
+		if (Graph.PageID != Frontend::DefaultPageID)
+		{
+			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Frontend::FDocumentMutatePageArgs { Graph.PageID });
+		}
 	});
 	RootGraph.RemoveAllGraphPages();
 	SetBuildPageID(Frontend::DefaultPageID);

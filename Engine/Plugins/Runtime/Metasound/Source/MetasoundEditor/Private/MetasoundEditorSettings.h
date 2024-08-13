@@ -285,5 +285,5 @@ public:
 	/** Get the AudioMaterialMeter Style. If MeterStyleOverride is not set, returns default style.*/
 	const FAudioMaterialMeterStyle* GetMeterStyle() const;
 
-	Metasound::Engine::FAuditionPageInfo GetAuditionPageInfo(const FMetasoundFrontendDocument& InDocument) const;
+	Metasound::Engine::FAuditionPageInfo ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const;
 };

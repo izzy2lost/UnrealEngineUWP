@@ -7,6 +7,7 @@
 #include "Algo/Transform.h"
 #include "IAudioParameterInterfaceRegistry.h"
 #include "Logging/LogMacros.h"
+#include "MetasoundDocumentInterface.h"
 #include "MetasoundFrontend.h"
 #include "MetasoundFrontendDocumentIdGenerator.h"
 #include "MetasoundFrontendDocumentVersioning.h"
@@ -27,6 +28,25 @@ namespace Metasound
 
 	namespace Frontend
 	{
+		namespace DocumentPrivate
+		{
+			template <typename ResolveType>
+			bool TryResolveTargetPageID(const ResolveType& InToResolve, FGuid& OutPageID)
+			{
+				OutPageID = Frontend::DefaultPageID;
+
+				// Registry is not available in tests, so for now resolution is considered successful at this level
+				// if registry is not initialized and providing a resolved page ID. TODO: Add a test implementation
+				// that returns the default page (or whatever page behavior is desired for testing).
+				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
+				{
+					return IDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(InToResolve, OutPageID);
+				}
+
+				return true;
+			}
+		} // namespace DocumentPrivate
+
 #if WITH_EDITORONLY_DATA
 		const FText DefaultGraphPageDisplayName = NSLOCTEXT("MetasoundFrontend", "DefaultGraphPageDisplayName", "Default");
 #endif // WITH_EDITORONLY_DATA
@@ -887,6 +907,11 @@ FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::FindDefaultChecked(cons
 	return *Literal;
 }
 
+const TArray<FMetasoundFrontendClassInputDefault>& FMetasoundFrontendClassInput::GetDefaults() const
+{
+	return Defaults;
+}
+
 FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::InitDefault()
 {
 	checkf(Defaults.IsEmpty(), TEXT("Default(s) already initialized"));
@@ -926,6 +951,12 @@ bool FMetasoundFrontendClassInput::RemoveDefault(const FGuid& InPageID)
 	auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
 	return Defaults.RemoveAllSwap(IsPage) > 0;
 }
+
+void FMetasoundFrontendClassInput::SetDefaults(TArray<FMetasoundFrontendClassInputDefault> InputDefaults)
+{
+	Defaults = MoveTemp(InputDefaults);
+}
+
 #endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendClassVariable::FMetasoundFrontendClassVariable(const FMetasoundFrontendClassVertex& InOther)
@@ -1207,27 +1238,15 @@ namespace Metasound::Frontend
 		}
 	}
 
-	void ForEachLiteral(const FMetasoundFrontendDocument& InDoc, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID)
-	{
-		ForEachLiteral(InDoc.RootGraph, OnLiteral, InPageID);
-
-		for (const FMetasoundFrontendGraphClass& GraphClass : InDoc.Subgraphs)
-		{
-			ForEachLiteral(GraphClass, OnLiteral, InPageID);
-		}
-
-		for (const FMetasoundFrontendClass& Dependency : InDoc.Dependencies)
-		{
-			ForEachLiteral(Dependency, OnLiteral);
-		}
-	}
-
 	void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral)
 	{
 		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
 
-		InGraphClass.IterateGraphPages([&OnLiteral](const FMetasoundFrontendGraph& Graph)
+		FGuid PageID = Frontend::DefaultPageID;
+		const bool bPageIDResolved = DocumentPrivate::TryResolveTargetPageID(InGraphClass, PageID);
+		if (bPageIDResolved)
 		{
+			const FMetasoundFrontendGraph& Graph = InGraphClass.FindConstGraphChecked(PageID);
 			for (const FMetasoundFrontendNode& Node : Graph.Nodes)
 			{
 				ForEachLiteral(Node, OnLiteral);
@@ -1237,22 +1256,6 @@ namespace Metasound::Frontend
 			{
 				OnLiteral(Variable.TypeName, Variable.Literal);
 			}
-		});
-	}
-
-	void ForEachLiteral(const FMetasoundFrontendGraphClass& InGraphClass, FForEachLiteralFunctionRef OnLiteral, const FGuid& InPageID)
-	{
-		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
-
-		const FMetasoundFrontendGraph& Graph = InGraphClass.FindConstGraphChecked(InPageID);
-		for (const FMetasoundFrontendNode& Node : Graph.Nodes)
-		{
-			ForEachLiteral(Node, OnLiteral);
-		}
-
-		for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
-		{
-			OnLiteral(Variable.TypeName, Variable.Literal);
 		}
 	}
 
@@ -1260,8 +1263,13 @@ namespace Metasound::Frontend
 	{
 		for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
 		{
-			const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.FindConstDefaultChecked(Frontend::DefaultPageID);
-			OnLiteral(ClassInput.TypeName, DefaultLiteral);
+			FGuid PageID = Frontend::DefaultPageID;
+			const bool bPageIDResolved = DocumentPrivate::TryResolveTargetPageID(ClassInput, PageID);
+			if (bPageIDResolved)
+			{
+				const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.FindConstDefaultChecked(PageID);
+				OnLiteral(ClassInput.TypeName, DefaultLiteral);
+			}
 		}
 	}
 

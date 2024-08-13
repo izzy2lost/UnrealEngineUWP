@@ -21,7 +21,7 @@ namespace Metasound::Engine
 		TOptional<FGuid> PageID;
 	};
 
-	DECLARE_DELEGATE_RetVal_OneParam(FAuditionPageInfo, FOnResolveAuditionPageInfo, const FMetasoundFrontendDocument& /* Document */);
+	DECLARE_DELEGATE_RetVal_OneParam(FAuditionPageInfo, FOnResolveAuditionPageInfo, const TSet<FGuid>& /* InPageIDs */);
 #endif // WITH_EDITOR
 
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
@@ -137,7 +137,9 @@ namespace Metasound::Engine
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
 		// Given the provided document and its respective pages, returns the PageID to be used for runtime IGraph and proxy generation.
-		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendDocument& Document, const FTopLevelAssetPath& AssetPath) const override;
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass, FGuid& OutResolvedPageID) const override;
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput, FGuid& OutResolvedPageID) const override;
+		virtual bool TryResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults, FGuid& OutResolvedPageID) const override;
 
 		void SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity);
 
@@ -145,6 +147,7 @@ namespace Metasound::Engine
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
 		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
+		bool TryResolveTargetPageID(const TSet<FGuid>& InPageIDs, FGuid& OutResolvedPageID) const;
 
 #if WITH_EDITOR
 		FOnResolveAuditionPageInfo OnResolveAuditionPageInfo;

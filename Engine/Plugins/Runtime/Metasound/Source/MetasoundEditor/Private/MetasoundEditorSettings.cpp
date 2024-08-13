@@ -109,21 +109,14 @@ const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
 	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
 }
 
-Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::GetAuditionPageInfo(const FMetasoundFrontendDocument& InDocument) const
+Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const
 {
 	using namespace Metasound::Engine;
 
 	FAuditionPageInfo PreviewInfo { .PlatformName = AuditionPlatform };
-
-	TSet<FGuid> DocPageIds;
-	InDocument.RootGraph.IterateGraphPages([&DocPageIds](const FMetasoundFrontendGraph& PageGraph)
+	auto PageIsCooked = [&InPageIDs, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
 	{
-		DocPageIds.Add(PageGraph.PageID);
-	});
-
-	auto PageIsCooked = [&DocPageIds, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
-	{
-		if (DocPageIds.Contains(PageSettings.UniqueId))
+		if (InPageIDs.Contains(PageSettings.UniqueId))
 		{
 			return PageSettings.IsCooked.GetValueForPlatform(PreviewInfo.PlatformName);
 		}

@@ -423,7 +423,7 @@ namespace Metasound
 				}
 
 				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-				FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate().BindUObject(EditorSettings, &UMetasoundEditorSettings::GetAuditionPageInfo);
+				FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate().BindUObject(EditorSettings, &UMetasoundEditorSettings::ResolveAuditionPageInfo);
 
 				FEditorDelegates::PreBeginPIE.AddWeakLambda(EditorSettings, [](const bool /* bSimulating */)
 				{
@@ -443,7 +443,7 @@ namespace Metasound
 						FOnResolveAuditionPageInfo& OnResolveAuditionPageInfo = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate();
 						if (!OnResolveAuditionPageInfo.IsBoundToObject(EdSettings))
 						{
-							OnResolveAuditionPageInfo.BindUObject(EdSettings, &UMetasoundEditorSettings::GetAuditionPageInfo);
+							OnResolveAuditionPageInfo.BindUObject(EdSettings, &UMetasoundEditorSettings::ResolveAuditionPageInfo);
 						}
 					}
 				});

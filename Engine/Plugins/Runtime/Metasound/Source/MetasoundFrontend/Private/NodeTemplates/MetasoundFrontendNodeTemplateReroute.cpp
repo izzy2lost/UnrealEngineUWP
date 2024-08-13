@@ -245,6 +245,35 @@ namespace Metasound::Frontend
 		return FrontendClass;
 	}
 
+	const TArray<FMetasoundFrontendClassInputDefault>* FRerouteNodeTemplate::FindNodeClassInputDefaults(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName VertexName) const
+	{
+		// Recursive search up DAG for first connected non-reroute node's input class input
+		if (const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID, &InPageID))
+		{
+			// Should only ever be one
+			const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
+
+			TArray<const FMetasoundFrontendNode*> ConnectedNodes;
+			TArray<const FMetasoundFrontendVertex*> ConnectedInputs = InBuilder.FindNodeInputsConnectedToNodeOutput(InNodeID, RerouteOutput.VertexID, &ConnectedNodes, &InPageID);
+			for (int32 Index = 0; Index < ConnectedNodes.Num(); ++Index)
+			{
+				const FMetasoundFrontendNode* ConnectedNode = ConnectedNodes[Index];
+				if (const FMetasoundFrontendClass* ConnectedNodeClass = InBuilder.FindDependency(ConnectedNode->ClassID))
+				{
+					const FMetasoundFrontendVertex* ConnectedInput = ConnectedInputs[Index];
+					if (ConnectedNodeClass->Metadata.GetClassName() == GetClassName())
+					{
+						return this->FindNodeClassInputDefaults(InBuilder, InPageID, ConnectedNode->GetID(), ConnectedInput->Name);
+					}
+
+					return InBuilder.FindNodeClassInputDefaults(ConnectedNode->GetID(), ConnectedInput->Name, &InPageID);
+				}
+			}
+		}
+
+		return nullptr;
+	}
+
 	EMetasoundFrontendVertexAccessType FRerouteNodeTemplate::GetNodeInputAccessType(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, const FGuid& InVertexID) const
 	{
 		// Recursive search up DAG for first connected non-reroute node's input access type

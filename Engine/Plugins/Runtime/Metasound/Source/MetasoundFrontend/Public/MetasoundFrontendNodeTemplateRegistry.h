@@ -64,6 +64,12 @@ namespace Metasound::Frontend
 
 		virtual ~INodeTemplate() = default;
 
+		virtual const TArray<FMetasoundFrontendClassInputDefault>* FindNodeClassInputDefaults(
+			const FMetaSoundFrontendDocumentBuilder& InBuilder,
+			const FGuid& InPageID,
+			const FGuid& InNodeID,
+			FName VertexName) const = 0;
+
 		// Returns note template class name.
 		virtual const FMetasoundFrontendClassName& GetClassName() const = 0;
 
@@ -148,6 +154,8 @@ namespace Metasound::Frontend
 	class METASOUNDFRONTEND_API FNodeTemplateBase : public INodeTemplate
 	{
 	public:
+		virtual const TArray<FMetasoundFrontendClassInputDefault>* FindNodeClassInputDefaults(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName VertexName) const override;
+
 #if WITH_EDITOR
 		virtual FText GetNodeDisplayName(const IMetaSoundDocumentInterface& Interface, const FGuid& InPageID, const FGuid& InNodeID) const override;
 		virtual FText GetInputVertexDisplayName(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName InputName) const override;

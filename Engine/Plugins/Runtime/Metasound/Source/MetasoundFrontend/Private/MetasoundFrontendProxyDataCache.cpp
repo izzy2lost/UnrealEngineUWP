@@ -22,8 +22,8 @@ namespace Metasound
 	{
 		namespace MetasoundFrontendProxyDataCachePrivate
 		{
-			template<typename DocElementType, typename ...Args>
-			void CreateAndCacheProxies(FProxyDataCache& InCache, const DocElementType& InDocElement, Args&&... InArgs)
+			template<typename DocElementType>
+			void CreateAndCacheProxies(FProxyDataCache& InCache, const DocElementType& InDocElement)
 			{
 				checkf(IsInGameThread() || IsInAudioThread(), TEXT("Proxies should only be created in the game thread or audio thread"));
 				IDataTypeRegistry& DataRegistry = IDataTypeRegistry::Get();
@@ -61,20 +61,20 @@ namespace Metasound
 						}
 					}
 				};
-				ForEachLiteral(InDocElement, CreateProxies, Forward<Args>(InArgs)...);
+				ForEachLiteral(InDocElement, CreateProxies);
 			}
 		}
 
-		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument, const FGuid& InPageID)
+		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendDocument& InDocument)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_Document)
-			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InDocument, InPageID);
+			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InDocument);
 		}
 
-		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass, const FGuid& InPageID)
+		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendGraphClass& InGraphClass)
 		{
 			METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(Metasound::FProxyDataCache::CreateAndCacheProxies_GraphClass)
-			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InGraphClass, InPageID);
+			MetasoundFrontendProxyDataCachePrivate::CreateAndCacheProxies(*this, InGraphClass);
 		}
 
 		void FProxyDataCache::CreateAndCacheProxies(const FMetasoundFrontendClass& InClass)

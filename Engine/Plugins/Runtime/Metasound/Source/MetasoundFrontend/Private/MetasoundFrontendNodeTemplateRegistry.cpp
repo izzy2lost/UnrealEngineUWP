@@ -3,6 +3,7 @@
 #include "MetasoundFrontendNodeTemplateRegistry.h"
 
 #include "MetasoundFrontendDocument.h"
+#include "MetasoundFrontendDocumentBuilder.h"
 #include "MetasoundFrontendRegistryContainerImpl.h"
 #include "MetasoundFrontendRegistryTransaction.h"
 #include "MetasoundFrontendTransform.h"
@@ -104,6 +105,26 @@ namespace Metasound::Frontend
 
 	TUniquePtr<INodeTransform> INodeTemplate::GenerateNodeTransform(FMetasoundFrontendDocument& InDocument) const
 	{
+		return nullptr;
+	}
+
+	const TArray<FMetasoundFrontendClassInputDefault>* FNodeTemplateBase::FindNodeClassInputDefaults(const FMetaSoundFrontendDocumentBuilder& InBuilder, const FGuid& InPageID, const FGuid& InNodeID, FName VertexName) const
+	{
+		if (const FMetasoundFrontendVertex* Vertex = InBuilder.FindNodeInput(InNodeID, VertexName, &InPageID))
+		{
+			const FMetasoundFrontendNode* Node = InBuilder.FindNode(InNodeID, &InPageID);
+			check(Node);
+			if (const FMetasoundFrontendClass* Class = InBuilder.FindDependency(Node->ClassID))
+			{
+				const EMetasoundFrontendClassType ClassType = Class->Metadata.GetType();
+				auto MatchesName = [&Vertex](const FMetasoundFrontendClassInput& Input) { return Input.Name == Vertex->Name; };
+				if (const FMetasoundFrontendClassInput* Input = Class->Interface.Inputs.FindByPredicate(MatchesName))
+				{
+					return &Input->GetDefaults();
+				}
+			}
+		}
+
 		return nullptr;
 	}
 
