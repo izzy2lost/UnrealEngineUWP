@@ -1681,57 +1681,116 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 
 					SettingsSection.AddMenuEntry(FLevelViewportCommands::Get().ToggleImmersive);
 
-					{
-						FToolUIAction MaximizeRestoreAction;
-						MaximizeRestoreAction.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
-							[](const FToolMenuContext& Context)
+					SettingsSection.AddDynamicEntry(
+						"MaximizeRestoreDynamicEntry",
+						FNewToolMenuSectionDelegate::CreateLambda(
+							[](FToolMenuSection& InnerSection) -> void
 							{
 								ULevelViewportContext* const LevelViewportContext =
-									Context.FindContext<ULevelViewportContext>();
+									InnerSection.FindContext<ULevelViewportContext>();
 								if (!LevelViewportContext)
 								{
 									return;
 								}
 
-								if (const TSharedPtr<::SLevelViewport> LevelViewport =
-										LevelViewportContext->LevelViewport.Pin())
-								{
-									LevelViewport->OnToggleMaximize();
-								}
+								const TAttribute<FText> Label = TAttribute<FText>::CreateLambda(
+									[WeakLevelViewport = LevelViewportContext->LevelViewport]() -> FText
+									{
+										if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakLevelViewport.Pin())
+										{
+											if (!LevelViewport->IsMaximized())
+											{
+												return LOCTEXT("MaximizeRestoreLabel_Maximize", "Maximize Viewport");
+											}
+										}
+										return LOCTEXT("MaximizeRestoreLabel_Restore", "Restore All Viewports");
+									}
+								);
+
+								const TAttribute<FText> Tooltip = TAttribute<FText>::CreateLambda(
+									[WeakLevelViewport = LevelViewportContext->LevelViewport]() -> FText
+									{
+										if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakLevelViewport.Pin())
+										{
+											if (!LevelViewport->IsMaximized())
+											{
+												return LOCTEXT("MaximizeRestoreTooltip_Maximize", "Maximizes this viewport");
+											}
+										}
+										return LOCTEXT(
+											"MaximizeRestoreLabel_Restore", "Restores the layout to show all viewports"
+										);
+									}
+								);
+
+								const TAttribute<FSlateIcon> Icon = TAttribute<FSlateIcon>::CreateLambda(
+									[WeakLevelViewport = LevelViewportContext->LevelViewport]() -> FSlateIcon
+									{
+										if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakLevelViewport.Pin())
+										{
+											if (!LevelViewport->IsMaximized())
+											{
+												return FSlateIcon(
+													FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"
+												);
+											}
+										}
+
+										return FSlateIcon(
+											FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Checked"
+										);
+									}
+								);
+
+								FToolUIAction Action;
+								Action.ExecuteAction = FToolMenuExecuteAction::CreateLambda(
+									[](const FToolMenuContext& Context) -> void
+									{
+										if (ULevelViewportContext* const LevelViewportContext =
+												Context.FindContext<ULevelViewportContext>())
+										{
+											if (const TSharedPtr<::SLevelViewport> LevelViewport =
+													LevelViewportContext->LevelViewport.Pin())
+											{
+												LevelViewport->OnToggleMaximize();
+											}
+										}
+									}
+								);
+								Action.CanExecuteAction = FToolMenuCanExecuteAction::CreateLambda(
+									[](const FToolMenuContext& Context) -> bool
+									{
+										if (ULevelViewportContext* const LevelViewportContext =
+												Context.FindContext<ULevelViewportContext>())
+										{
+											if (const TSharedPtr<::SLevelViewport> LevelViewport =
+													LevelViewportContext->LevelViewport.Pin())
+											{
+												return LevelViewport->CanMaximize();
+											}
+										}
+
+										return false;
+									}
+								);
+
+								// Only top-level flag the button if it is actually clickable.
+								const TAttribute<bool> TopLevel = TAttribute<bool>::CreateLambda(
+									[WeakLevelViewport = LevelViewportContext->LevelViewport]() -> bool
+									{
+										if (const TSharedPtr<::SLevelViewport> LevelViewport = WeakLevelViewport.Pin())
+										{
+											return LevelViewport->CanMaximize();
+										}
+
+										return false;
+									}
+								);
+								InnerSection.AddMenuEntry("MaximizeRestore", Label, Tooltip, Icon, Action)
+									.SetShowInToolbarTopLevel(TopLevel);
 							}
-						);
-						MaximizeRestoreAction.GetActionCheckState = FToolMenuGetActionCheckState::CreateLambda(
-							[](const FToolMenuContext& Context) -> ECheckBoxState
-							{
-								ULevelViewportContext* const LevelViewportContext =
-									Context.FindContext<ULevelViewportContext>();
-								if (!LevelViewportContext)
-								{
-									return ECheckBoxState::Undetermined;
-								}
-
-								if (const TSharedPtr<::SLevelViewport> LevelViewport =
-										LevelViewportContext->LevelViewport.Pin())
-								{
-									return LevelViewport->IsMaximized() ? ECheckBoxState::Checked
-																		: ECheckBoxState::Unchecked;
-								}
-
-								return ECheckBoxState::Undetermined;
-							}
-						);
-
-						SettingsSection
-							.AddMenuEntry(
-								"MaximizeRestore",
-								LOCTEXT("MaximizeRestoreLabel", "Maximize Viewport"),
-								LOCTEXT("MaximizeRestoreTooltip", "Maximizes or restores this viewport"),
-								FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorViewportToolBar.Maximize.Normal"),
-								MaximizeRestoreAction,
-								EUserInterfaceActionType::ToggleButton
-							)
-							.SetShowInToolbarTopLevel(true);
-					}
+						)
+					);
 
 					SettingsSection.AddSeparator("AdvancedSeparator");
 

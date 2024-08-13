@@ -145,6 +145,11 @@ public:
 	bool IsMaximized() const;
 
 	/**
+	 * @return true if this viewport can be maximized, false otherwise
+	 */
+	bool CanMaximize() const;
+
+	/**
 	 * Attempts to switch this viewport into immersive mode
 	 *
 	 * @param	bWantImmersive Whether to switch to immersive mode, or switch back to normal mode

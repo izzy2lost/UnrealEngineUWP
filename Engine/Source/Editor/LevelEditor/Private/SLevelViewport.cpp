@@ -1887,6 +1887,15 @@ bool SLevelViewport::IsMaximized() const
 	return true;
 }
 
+bool SLevelViewport::CanMaximize() const
+{
+	if (TSharedPtr<FLevelViewportLayout> PinnedParentLayout = ParentLayout.Pin())
+	{
+		return PinnedParentLayout->IsMaximizeSupported();
+	}
+	return false;
+}
+
 TSharedRef<FEditorViewportClient> SLevelViewport::MakeEditorViewportClient() 
 {
 	return LevelViewportClient.ToSharedRef();
