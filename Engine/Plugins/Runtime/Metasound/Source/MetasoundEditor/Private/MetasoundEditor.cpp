@@ -4131,15 +4131,18 @@ namespace Metasound
 
 			if (Actions.IsEmpty())//Section is selected
 			{
-				MenuBuilder.BeginSection("GraphActionMenuSectionActions", LOCTEXT("SectionActionsMenuHeader", "Section Actions"));
-				MenuBuilder.AddMenuEntry(
-					LOCTEXT("DeleteAllUnusedInSection", "Delete Unused Members"),
-					LOCTEXT("DeleteAllUnusedInSectionTooltip", "Delete all Unused Members under this Section"),
-					FSlateIcon(),
-					FUIAction(
-						FExecuteAction::CreateSP(this, &FEditor::DeleteAllUnusedInSection),
-						FCanExecuteAction::CreateSP(this, &FEditor::CanDeleteUnusedMembers)));
-				MenuBuilder.EndSection();
+				if (!Builder->IsPreset())
+				{
+					MenuBuilder.BeginSection("GraphActionMenuSectionActions", LOCTEXT("SectionActionsMenuHeader", "Section Actions"));
+					MenuBuilder.AddMenuEntry(
+						LOCTEXT("DeleteAllUnusedInSection", "Delete Unused Members"),
+						LOCTEXT("DeleteAllUnusedInSectionTooltip", "Delete all Unused Members under this Section"),
+						FSlateIcon(),
+						FUIAction(
+							FExecuteAction::CreateSP(this, &FEditor::DeleteAllUnusedInSection),
+							FCanExecuteAction::CreateSP(this, &FEditor::CanDeleteUnusedMembers)));
+					MenuBuilder.EndSection();
+				}
 			}
 			else //Member is selected
 			{

@@ -1424,18 +1424,24 @@ void UMetasoundEditorGraphSchema::GetContextMenuActions(class UToolMenu* Menu, c
 	}
 	else if (Context->Pin && Context->Node && Context->Node->IsA<UMetasoundEditorGraphNode>())
 	{
-		FToolMenuSection& Section = Menu->FindOrAddSection("Pin Actions");
+		const UMetasoundEditorGraph* EdGraph = CastChecked<UMetasoundEditorGraph>(Context->Graph);
+		UMetaSoundBuilderBase& Builder = Metasound::Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(EdGraph->GetMetasoundChecked());
 
-		if (Context->Pin->Direction == EGPD_Input)
+		if (!Builder.IsPreset())
 		{
-			Section.AddMenuEntry(FEditorCommands::Get().PromoteToInput);
-			Section.AddMenuEntry(FEditorCommands::Get().PromoteToVariable);
-			Section.AddMenuEntry(FEditorCommands::Get().PromoteToDeferredVariable);
-		}
-		else
-		{
-			Section.AddMenuEntry(FEditorCommands::Get().PromoteToOutput);
-			Section.AddMenuEntry(FEditorCommands::Get().PromoteToVariable);
+			FToolMenuSection& Section = Menu->FindOrAddSection("Pin Actions");
+
+			if (Context->Pin->Direction == EGPD_Input)
+			{
+				Section.AddMenuEntry(FEditorCommands::Get().PromoteToInput);
+				Section.AddMenuEntry(FEditorCommands::Get().PromoteToVariable);
+				Section.AddMenuEntry(FEditorCommands::Get().PromoteToDeferredVariable);
+			}
+			else
+			{
+				Section.AddMenuEntry(FEditorCommands::Get().PromoteToOutput);
+				Section.AddMenuEntry(FEditorCommands::Get().PromoteToVariable);
+			}
 		}
 	}
 
