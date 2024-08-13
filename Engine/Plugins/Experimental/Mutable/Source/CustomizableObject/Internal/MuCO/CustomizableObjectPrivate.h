@@ -7,6 +7,7 @@
 #include "MuCO/StateMachine.h"
 #include "MuCO/CustomizableObjectUIData.h"
 #include "MuCO/CustomizableObjectIdentifier.h"
+#include "Serialization/BulkData.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UObject/SoftObjectPtr.h"
@@ -34,7 +35,8 @@ class UAnimInstance;
 class UAssetUserData;
 class UCustomizableObject;
 class USkeletalMeshLODSettings;
-
+struct FModelResources;
+struct FModelStreamableBulkData;
 
 FGuid CUSTOMIZABLEOBJECT_API GenerateIdentifier(const UCustomizableObject& CustomizableObject);
 
@@ -691,6 +693,180 @@ struct CUSTOMIZABLEOBJECT_API FMutableStateData
 };
 
 
+#if WITH_EDITOR
+namespace MutablePrivate
+{
+	enum class EDataType : uint32 // uint32 for padding and DDC purposes
+	{
+		None = 0,
+		Model,
+		RealTimeMorph,
+		Clothing,
+	};
+
+
+	struct FBlock
+	{
+		/** Data Type*/
+		EDataType DataType;
+
+		/** Used on some data types as the index to the block stored in the CustomizableObject */
+		uint32 Id;
+
+		/** Size of the data block. */
+		uint32 Size;
+
+		/** Data flags, like "high-res". */
+		uint32 Flags;
+
+		/** Offset in the full source streamed data file that is created when compiling. */
+		uint64 Offset;
+
+		friend FArchive& operator<<(FArchive& Ar, FBlock& Data)
+		{
+			Ar << Data.DataType;
+			Ar << Data.Id;
+			Ar << Data.Size;
+			Ar << Data.Flags;
+			Ar << Data.Offset;
+			return Ar;
+		};
+	};
+	template<> struct TCanBulkSerialize<FBlock> { enum { Value = true }; };
+
+	struct CUSTOMIZABLEOBJECT_API FFile
+	{
+		EDataType DataType = EDataType::None;
+
+		uint32 Padding = 0;
+
+		/** Id generated from a hash of the file content + offset to avoid collisions. */
+		uint32 Id;
+
+		/** Common flags of the data stored in this file. See mu::ERomFlags. */
+		uint32 Flags = 0;
+
+		/** List of blocks that are contained in the file, in order. */
+		TArray<FBlock> Blocks;
+
+		/** Get the total size of blocks in this file. */
+		int64 GetSize() const;
+
+		/** Copy the requested block to the requested buffer and return its size. */
+		void GetFileData(struct FMutableCachedPlatformData*, TArray64<uint8>& DataDestination, bool bDropData);
+
+		friend FArchive& operator<<(FArchive& Ar, FFile& Data)
+		{
+			Ar << Data.DataType;
+			Ar << Data.Padding;
+			Ar << Data.Id;
+			Ar << Data.Flags;
+			Ar << Data.Blocks;
+			return Ar;
+		};
+	};
+
+	struct FModelStreamableData
+	{
+		void Get(uint32 Key, TArrayView64<uint8> Destination, bool bDropData)
+		{
+			TArray64<uint8>* Buffer = Data.Find(Key);
+			check(Buffer);
+			check(Destination.Num() == Buffer->Num());
+			FMemory::Memcpy(Destination.GetData(), Buffer->GetData(), Buffer->Num());
+
+			if (bDropData)
+			{
+				Buffer->Empty();
+			}
+		}
+
+		void Set(uint32 Key, const uint8* Source, int64 Size)
+		{
+			check(Source);
+			check(Size);
+			TArray64<uint8>& Buffer = Data.Add(Key);
+			check(Buffer.Num() == 0);
+			Buffer.SetNumUninitialized(Size);
+			FMemory::Memcpy(Buffer.GetData(), Source, Size);
+		}
+
+		// Temp, to be replaced with disk storage
+		TMap<uint32, TArray64<uint8> > Data;
+	};
+
+
+	struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
+	{
+		/** */
+		TArray64<uint8> ModelData;
+
+		/** */
+		FModelStreamableData ModelStreamableData;
+
+		/** */
+		TArray64<uint8> MorphData;
+
+		/** */
+		TArray64<uint8> ClothingData;
+
+		/** List of files to serialize. Each file has a list of binary blocks to be serialized. */
+		TArray<FFile> BulkDataFiles;
+	};
+
+
+	/** Compute the number of files and sizes the BulkData will be split into and update
+	 * the streamables's FileIds and Offsets.
+	 */
+	void CUSTOMIZABLEOBJECT_API GenerateBulkDataFilesList(
+		TSharedPtr<const mu::Model, ESPMode::ThreadSafe> Model,
+		TSharedPtr<FModelStreamableBulkData> StreamableBulkData,
+		const ITargetPlatform* TargetPlatform,
+		uint64 TargetBulkDataFileBytes,
+		TArray<FFile>& OutBulkDataFiles);
+
+	void CUSTOMIZABLEOBJECT_API SerializeBulkDataFiles(
+		FMutableCachedPlatformData& CachedPlatformData,
+		TArray<FFile>& BulkDataFiles,
+		TFunctionRef<void(FFile&, TArray64<uint8>&)> WriteFile,
+		bool bDropData
+	);
+}
+#endif
+
+
+struct CUSTOMIZABLEOBJECT_API FModelStreamableBulkData
+{
+	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
+	TMap<uint32, FMutableStreamableBlock> ModelStreamables;
+
+	TMap<uint32, FClothingStreamable> ClothingStreamables;
+
+	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
+
+	TMap<uint32, FByteBulkData> HashToBulkData;
+
+	void Serialize(FArchive& Ar, UObject* Owner, bool bCooked);
+
+#if WITH_EDITORONLY_DATA
+	friend FArchive& operator<<(FArchive& Ar, FModelStreamableBulkData& Struct);
+#endif
+};
+
+/** Interface class to allow custom serialization of FModelStreamableBulkData and its FBulkData. */
+UCLASS()
+class UModelStreamableData : public UObject
+{
+	GENERATED_BODY()
+
+	UModelStreamableData();
+
+public:
+	virtual void Serialize(FArchive& Ar) override;
+
+	TSharedPtr<FModelStreamableBulkData> StreamingData;
+};
+
 // Referenced materials, skeletons, passthrough textures...
 USTRUCT()
 struct FModelResources
@@ -774,16 +950,11 @@ struct FModelResources
 	TMap<FString, FMutableStateData> StateUIDataMap;
 
 	UPROPERTY()
-	TMap<uint32, FRealTimeMorphStreamable> RealTimeMorphStreamables;
-
-	UPROPERTY()
 	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
 
 	UPROPERTY()
 	TArray<FCustomizableObjectClothingAssetData> ClothingAssetsData;
 
-	UPROPERTY()
-	TMap<uint32, FClothingStreamable> ClothingStreamables;
 
 	/** Currently not used, this option should be selectable from editor maybe as a compilation flag */
 	UPROPERTY()
@@ -799,10 +970,6 @@ struct FModelResources
 	// Stores what param names use a certain table as a table can be used from multiple table nodes, useful for partial compilations to restrict params
 	TMap<TObjectPtr<const UDataTable>, TSet<FString>> TableToParamNames;
 #endif
-	
-	/** Map of Hash to Streaming blocks, used to stream a block of data representing a resource from the BulkData */
-	UPROPERTY()
-	TMap<uint32, FMutableStreamableBlock> HashToStreamableBlock;
 
 	/** Max number of components in the compiled Model. */
 	UPROPERTY()
@@ -819,47 +986,6 @@ struct FModelResources
 	/** First LOD available, some platforms may remove lower LODs when cooking, this MinLOD represents the first LOD we can generate */
 	UPROPERTY()
 	uint8 FirstLODAvailable = 0;
-};
-
-
-struct FModelStreamableData
-{
-	void Get(uint32 Key, uint8* Destination) const
-	{
-		check(Destination);
-		const TArray64<uint8>* Buffer = Data.Find(Key);
-		check(Buffer);
-		FMemory::Memcpy(Destination, Buffer->GetData(), Buffer->Num());
-	}
-
-	void Set(uint32 Key, const uint8* Source, int64 Size)
-	{
-		check(Source);
-		check(Size);
-		TArray64<uint8>& Buffer = Data.Add(Key);
-		check(Buffer.Num()==0);
-		Buffer.SetNumUninitialized(Size);
-		FMemory::Memcpy(Buffer.GetData(), Source, Size);
-	}
-
-	// Temp, to be replaced with disk storage
-	TMap<uint32, TArray64<uint8> > Data;
-};
-
-
-struct CUSTOMIZABLEOBJECT_API FMutableCachedPlatformData
-{
-	/** */
-	TArray64<uint8> ModelData;
-
-	/** */
-	FModelStreamableData ModelStreamableData;
-
-	/** */
-	TArray64<uint8> MorphData;
-	
-	/** */
-	TArray64<uint8> ClothingData;
 };
 
 
@@ -892,6 +1018,10 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> MutableModel;
 
+	/** Stores streamable data info to be used by MutableModel In-Game. Cooked resources. */
+	UPROPERTY()
+	TObjectPtr<UModelStreamableData> ModelStreamableData;
+
 	/** Stores resources to be used by MutableModel In-Game. Cooked resources. */
 	UPROPERTY()
 	FModelResources ModelResources;
@@ -903,6 +1033,11 @@ class CUSTOMIZABLEOBJECT_API UCustomizableObjectPrivate : public UObject
 	 */
 	UPROPERTY(Transient)
 	FModelResources ModelResourcesEditor;
+
+	/**
+	 * Stores streamable data info to be used by MutableModel in the Editor. Editor streaming.
+	 */
+	TSharedPtr<FModelStreamableBulkData> ModelStreamableDataEditor;
 #endif
 
 public:
@@ -917,7 +1052,11 @@ public:
 
 #if WITH_EDITORONLY_DATA
 	FModelResources& GetModelResources(bool bIsCooking);
+
+	void SetModelStreamableBulkData(const TSharedPtr<FModelStreamableBulkData>& StreamableData, bool bIsCooking);
 #endif
+
+	TSharedPtr<FModelStreamableBulkData> GetModelStreamableBulkData(bool bIsCooking = false);
 
 	// See UCustomizableObjectSystem::LockObject()
 	bool IsLocked() const;
@@ -1080,7 +1219,7 @@ public:
 
 #if WITH_EDITOR
 	/** Map of PlatformName to CachedPlatformData. Only valid while cooking. */
-	TMap<FString, FMutableCachedPlatformData> CachedPlatformsData;
+	TMap<FString, MutablePrivate::FMutableCachedPlatformData> CachedPlatformsData;
 #endif
 #endif
 
@@ -1171,6 +1310,8 @@ public:
 		DataTablesParamTrackingForCompileOnlySelected,
 
 		CompilationOptimizationsMeshFormat,
+
+		ModelStreamableBulkData,
 
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

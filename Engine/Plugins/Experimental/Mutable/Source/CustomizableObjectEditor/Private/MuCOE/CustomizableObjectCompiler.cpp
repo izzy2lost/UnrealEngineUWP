@@ -930,6 +930,8 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 	}
 	else
 	{
+		ModelStreamableBulkData = MakeShared<FModelStreamableBulkData>();
+
 		FModelResources ModelResources;
 		
 		ModelResources.ReferenceSkeletalMeshesData = MoveTemp(GenerationContext.ReferenceSkeletalMeshesData);
@@ -1019,14 +1021,14 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			RealTimeMorphDataSize += MeshData.Value.Data.Num();
 		}
 		
-		ModelResources.RealTimeMorphStreamables.Empty(32);
+		ModelStreamableBulkData->RealTimeMorphStreamables.Empty(32);
 		ModelResources.EditorOnlyMorphTargetReconstructionData.Empty(RealTimeMorphDataSize);
 
 		uint64 RealTimeMorphDataOffsetInBytes = 0;
 		for (const TPair<uint32, FRealTimeMorphMeshData>& MeshData : GenerationContext.RealTimeMorphTargetPerMeshData)
 		{
 			const uint32 DataSizeInBytes = (uint32)MeshData.Value.Data.Num()*sizeof(FMorphTargetVertexData); 
-			FRealTimeMorphStreamable& ResourceMeshData = ModelResources.RealTimeMorphStreamables.FindOrAdd(MeshData.Key);
+			FRealTimeMorphStreamable& ResourceMeshData = ModelStreamableBulkData->RealTimeMorphStreamables.FindOrAdd(MeshData.Key);
 			
 			check(ResourceMeshData.NameResolutionMap.IsEmpty());
 			check(ResourceMeshData.Size == 0);
@@ -1047,14 +1049,14 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 			ClothingDataNum += MeshData.Value.Data.Num();
 		}
 		
-		ModelResources.ClothingStreamables.Empty(32);
+		ModelStreamableBulkData->ClothingStreamables.Empty(32);
 		ModelResources.EditorOnlyClothingMeshToMeshVertData.Empty(ClothingDataNum);
 
 		uint64 ClothingDataOffsetInBytes = 0;
 		for (const TPair<uint32, FClothingMeshData>& MeshData : GenerationContext.ClothingPerMeshData)
 		{
 			const uint32 DataSizeInBytes = (uint32)MeshData.Value.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData); 
-			FClothingStreamable& ResourceMeshData = ModelResources.ClothingStreamables.FindOrAdd(MeshData.Key);
+			FClothingStreamable& ResourceMeshData = ModelStreamableBulkData->ClothingStreamables.FindOrAdd(MeshData.Key);
 			
 			check(ResourceMeshData.ClothingAssetIndex == INDEX_NONE);
 			check(ResourceMeshData.ClothingAssetLOD == INDEX_NONE);
@@ -1415,13 +1417,10 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 	// At this point it is assumed that all data goes into a single file.
 	if (CurrentModel)
 	{
-		// Always work with the ModelResources (Editor) when compiling. They'll be copied to the cooked version during PreSave.
-		FModelResources& ModelResources = CurrentObject->GetPrivate()->GetModelResources(false);
-
 		const int32 NumStreamingFiles = CurrentModel->GetRomCount();
 
-		TSharedPtr<TMap<uint32, FMutableStreamableBlock>> HashToStreamableBlock = MakeShared<TMap<uint32, FMutableStreamableBlock>>();
-		HashToStreamableBlock->Empty(NumStreamingFiles);
+		TMap<uint32, FMutableStreamableBlock>& ModelStreamables = ModelStreamableBulkData->ModelStreamables;
+		ModelStreamables.Empty(NumStreamingFiles);
 
 		uint64 Offset = 0;
 		for (int32 FileIndex = 0; FileIndex < NumStreamingFiles; ++FileIndex)
@@ -1429,11 +1428,12 @@ void FCustomizableObjectCompiler::FinishCompilationTask()
 			const uint32 ResourceId = CurrentModel->GetRomId(FileIndex);
 			const uint32 ResourceSize = CurrentModel->GetRomSize(FileIndex);
 			mu::ERomFlags Flags = CurrentModel->GetRomFlags(FileIndex);
-			HashToStreamableBlock->Add(ResourceId, FMutableStreamableBlock{ 0, uint32(Flags), Offset });
+			ModelStreamables.Add(ResourceId, FMutableStreamableBlock{ 0, uint32(Flags), Offset });
 			Offset += ResourceSize;
 		}
 
-		ModelResources.HashToStreamableBlock = *(HashToStreamableBlock.Get());
+		// Always work with the ModelStreamableData (Editor) when compiling. They'll be copied to the cooked version during PreSave.
+		CurrentObject->GetPrivate()->SetModelStreamableBulkData(ModelStreamableBulkData, false);
 	}
 
 	// Generate ParameterProperties and IntParameterLookUpTable
@@ -1467,7 +1467,7 @@ void FCustomizableObjectCompiler::FinishSavingDerivedDataTask()
 
 		check(!CurrentObject->GetPrivate()->CachedPlatformsData.Find(PlatformName));
 
-		FMutableCachedPlatformData& Data = CurrentObject->GetPrivate()->CachedPlatformsData.Add(PlatformName);
+		MutablePrivate::FMutableCachedPlatformData& Data = CurrentObject->GetPrivate()->CachedPlatformsData.Add(PlatformName);
 
 		// Cache CO data and mu::Model
 		FMemoryWriter64 MemoryWriter(Data.ModelData);

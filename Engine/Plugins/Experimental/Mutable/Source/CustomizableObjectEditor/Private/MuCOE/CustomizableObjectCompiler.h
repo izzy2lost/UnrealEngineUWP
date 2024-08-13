@@ -168,6 +168,7 @@ private:
 	TArray<TObjectPtr<UCustomizableObject>> ArrayGCProtect;
 
 	TSharedPtr<mu::Model, ESPMode::ThreadSafe> CurrentModel;
+	TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData;
 
 	// Protected from GC with FCustomizableObjectCompiler::AddReferencedObjects
 	TObjectPtr<UCustomizableObject> CurrentObject = nullptr;

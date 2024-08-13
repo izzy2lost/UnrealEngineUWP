@@ -52,6 +52,7 @@
 #include "PhysicsEngine/SkeletalBodySetup.h"
 #include "Hash/CityHash.h"
 #include "MuCO/CustomizableObjectCustomVersion.h"
+#include "Serialization/BulkData.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(CustomizableObjectInstance)
 
@@ -5209,6 +5210,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	UCustomizableObject* CustomizableObject = GetPublic()->GetCustomizableObject();
 
 	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+	const TSharedPtr<FModelStreamableBulkData>& ModelStreamableBulkData = CustomizableObject->GetPrivate()->GetModelStreamableBulkData();
 
 	AssetsToStream.Empty();
 	TArray<uint32> RealTimeMorphStreamableBlocksToStream;
@@ -5342,7 +5344,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 					{
 						check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
 
-						const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelResources.RealTimeMorphStreamables;
+						const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelStreamableBulkData->RealTimeMorphStreamables;
 						if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
 						{
 							RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
@@ -5356,7 +5358,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 					{
 						check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
 						
-						const TMap<uint32, FClothingStreamable>& ClothingStreamables = ModelResources.ClothingStreamables;
+						const TMap<uint32, FClothingStreamable>& ClothingStreamables = ModelStreamableBulkData->ClothingStreamables;
 						if (const FClothingStreamable* ClothingStreamable = ClothingStreamables.Find(TypedResourceId.Id))
 						{
 							// TODO: Add async loading of ClothingAsset Data. This could be loaded as an streamead resource similar to and the asset user data.
@@ -5531,6 +5533,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	// File handles will end up owned by the gather task.
 	TArray<TUniquePtr<IAsyncReadFileHandle>> OpenFileHandles;
 	TArray<UE::Tasks::TTask<TUniquePtr<IAsyncReadRequest>>> ReadRequestTasks;
+	TArray<UE::Tasks::TTask<TUniquePtr<IBulkDataIORequest>>> BulkReadRequestTasks;
 	
 	bool bHasInvalidMesh = false;
 	bool bUpdateMeshes = DoComponentsNeedUpdate(GetPublic(), OperationData, bHasInvalidMesh);
@@ -5545,7 +5548,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingEditor);
 			for (uint32 BlockId : RealTimeMorphStreamableBlocksToStream)
 			{	
-				const FRealTimeMorphStreamable& RealTimeMorphStreamable = ModelResources.RealTimeMorphStreamables[BlockId]; 
+				const FRealTimeMorphStreamable& RealTimeMorphStreamable = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId];
 			
 				const FMutableStreamableBlock& Block = RealTimeMorphStreamable.Block;
 
@@ -5567,7 +5570,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(ClothingStreamingEditor);
 			for (uint32 BlockId : ClothingStreamableBlocksToStream)
 			{	
-				const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId]; 
+				const FClothingStreamable& ClothingStreamable = ModelStreamableBulkData->ClothingStreamables[BlockId]; 
 			
 				const FMutableStreamableBlock& Block = ClothingStreamable.Block;
 
@@ -5597,13 +5600,18 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			uint32 FileId;
 		};
 
+		const bool bUseFBulkData = !ModelStreamableBulkData->HashToBulkData.IsEmpty();
+
 		TArray<FBlockReadInfo> BlockReadInfos;
 		BlockReadInfos.Reserve(16);
 		
 		const UCustomizableObjectBulk* BulkData = CustomizableObject->GetPrivate()->GetStreamableBulkData();
-		UE_CLOG(!BulkData, LogMutable, Error, TEXT("BulkData object for CustomizableObject [%s] not found."), 
+		if (!bUseFBulkData)
+		{
+			UE_CLOG(!BulkData, LogMutable, Error, TEXT("BulkData object for CustomizableObject [%s] not found."),
 				*CustomizableObject->GetFName().ToString());
-		check(BulkData);
+			check(BulkData);
+		}
 
 		TArray<uint32> OpenFilesIds;
 		const int32 NumMorphBlocks = RealTimeMorphStreamableBlocksToStream.Num();
@@ -5612,7 +5620,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingRequest_Alloc);
 
 			const int32 BlockId = RealTimeMorphStreamableBlocksToStream[I];
-			const FRealTimeMorphStreamable& Streamable = ModelResources.RealTimeMorphStreamables[BlockId];
+			const FRealTimeMorphStreamable& Streamable = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId];
 			const FMutableStreamableBlock& Block = Streamable.Block; 
 		
 			FInstanceUpdateData::FMorphTargetMeshData& ReadDestData = 
@@ -5624,26 +5632,33 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 				continue;
 			}
 
-			ReadDestData.NameResolutionMap = ModelResources.RealTimeMorphStreamables[BlockId].NameResolutionMap;
+			ReadDestData.NameResolutionMap = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId].NameResolutionMap;
 
 			check(Streamable.Size % sizeof(FMorphTargetVertexData) == 0);
 			uint32 NumElems = Streamable.Size / sizeof(FMorphTargetVertexData);
 
 			ReadDestData.Data.SetNumUninitialized(NumElems);
 
-			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
-			if (FileHandleIndex == INDEX_NONE && BulkData)
-			{
-				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId,Block.Flags);
+			IAsyncReadFileHandle* FileHandle = nullptr;
 
-				OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
-				FileHandleIndex = OpenFilesIds.Add(Block.FileId);
-			}	
+			if (!bUseFBulkData)
+			{
+				int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
+				if (FileHandleIndex == INDEX_NONE && BulkData)
+				{
+					TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId, Block.Flags);
+
+					FileHandle = ReadFileHandle.Get();
+
+					OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
+					FileHandleIndex = OpenFilesIds.Add(Block.FileId);
+				}
+			}
 
 			BlockReadInfos.Emplace(FBlockReadInfo
 			{ 
 				Block.Offset,
-				OpenFileHandles[FileHandleIndex].Get(), 
+				FileHandle,
 				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FMorphTargetVertexData)),
 				Block.FileId
 			});
@@ -5655,7 +5670,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			MUTABLE_CPUPROFILER_SCOPE(ClothingStreamingRequest_Alloc);
 
 			const int32 BlockId = ClothingStreamableBlocksToStream[I];
-			const FClothingStreamable& ClothingStreamable = ModelResources.ClothingStreamables[BlockId];
+			const FClothingStreamable& ClothingStreamable = ModelStreamableBulkData->ClothingStreamables[BlockId];
 			const FMutableStreamableBlock& Block = ClothingStreamable.Block;
 		
 			FInstanceUpdateData::FClothingMeshData& ReadDestData = 
@@ -5676,19 +5691,26 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 			ReadDestData.Data.SetNumUninitialized(NumElems);
 
-			int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
-			if (FileHandleIndex == INDEX_NONE && BulkData)
-			{
-				TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId, Block.Flags);
+			IAsyncReadFileHandle* FileHandle = nullptr;
 
-				OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
-				FileHandleIndex = OpenFilesIds.Add(Block.FileId);
-			}	
+			if (!bUseFBulkData)
+			{
+				int32 FileHandleIndex = OpenFilesIds.Find(Block.FileId);
+				if (FileHandleIndex == INDEX_NONE && BulkData)
+				{
+					TUniquePtr<IAsyncReadFileHandle> ReadFileHandle = BulkData->OpenFileAsyncRead(Block.FileId, Block.Flags);
+
+					FileHandle = ReadFileHandle.Get();
+
+					OpenFileHandles.Emplace(MoveTemp(ReadFileHandle));
+					FileHandleIndex = OpenFilesIds.Add(Block.FileId);
+				}
+			}
 
 			BlockReadInfos.Emplace(FBlockReadInfo
 			{ 
 				Block.Offset,
-				OpenFileHandles[FileHandleIndex].Get(), 
+				FileHandle,
 				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FCustomizableObjectMeshToMeshVertData)),
 				Block.FileId
 			});
@@ -5697,50 +5719,83 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 
 		for (const FBlockReadInfo& BlockReadInfo : BlockReadInfos)
 		{
-			if (!BlockReadInfo.FileHandle)
+			if (bUseFBulkData)
 			{
-				continue;
-			}	
-	
-			ReadRequestTasks.Emplace(UE::Tasks::Launch(TEXT("CustomizableObjectInstanceReadRequestTask"),
-			[
-				OwnedOperationData = OperationData.ToSharedPtr(), // Keep a reference to make sure allocated memory is always alive.
-				ReadDataReadyEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AsyncReadDataReadyEvent")),
-				Block              = BlockReadInfo,
-				Priority 		   = bEnableHighPriorityLoading ? AIOP_High : AIOP_Normal
-			]() -> TUniquePtr<IAsyncReadRequest>
-			{
-				MUTABLE_CPUPROFILER_SCOPE(CustomizableInstanceLoadBlocksAsyncRead_Request);
-				FAsyncFileCallBack ReadRequestCallBack = 
-						[OwnedOperationData, ReadDataReadyEvent, FileId = Block.FileId](bool bWasCancelled, IAsyncReadRequest*) mutable
-						{
-							if (bWasCancelled)
+				BulkReadRequestTasks.Emplace(UE::Tasks::Launch(TEXT("CustomizableObjectInstanceBulkReadRequestTask"),
+					[
+						OwnedOperationData = OperationData.ToSharedPtr(), // Keep a reference to make sure allocated memory is always alive.
+							ModelStreamableBulkData,
+							ReadDataReadyEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AsyncReadDataReadyEvent")),
+							Block = BlockReadInfo,
+							Priority = bEnableHighPriorityLoading ? AIOP_High : AIOP_Normal
+					]() -> TUniquePtr<IBulkDataIORequest>
+					{
+						MUTABLE_CPUPROFILER_SCOPE(CustomizableInstanceLoadBlocksAsyncRead_Request);
+						FBulkDataIORequestCallBack IOCallback = 
+							[OwnedOperationData, ReadDataReadyEvent, FileId = Block.FileId](bool bWasCancelled, IBulkDataIORequest*) mutable
 							{
-								UE_LOG(LogMutable, Warning, TEXT("An AsyncReadRequest to file %08x was cancelled. The file may not exist."), FileId);
-							}
-							ReadDataReadyEvent.Trigger();
-						}; 
+								if (bWasCancelled)
+								{
+									UE_LOG(LogMutable, Warning, TEXT("An AsyncReadRequest to file %08x was cancelled. The file may not exist."), FileId);
+								}
+								ReadDataReadyEvent.Trigger();
+							};
 
-				return TUniquePtr<IAsyncReadRequest>(Block.FileHandle->ReadRequest(
-						Block.Offset, 
-						(int64)Block.AllocatedMemoryView.Num(),
-						Priority,
-						&ReadRequestCallBack,
-						Block.AllocatedMemoryView.GetData()));
-			}, 
-			bEnableHighPriorityLoading ? UE::Tasks::ETaskPriority::High : UE::Tasks::ETaskPriority::Normal));
+						FByteBulkData* ByteBulkData = ModelStreamableBulkData->HashToBulkData.Find(Block.FileId);
+						check(ByteBulkData);
+
+						return TUniquePtr<IBulkDataIORequest>(ByteBulkData->CreateStreamingRequest(
+							Block.Offset,
+							(int64)Block.AllocatedMemoryView.Num(),
+							Priority,
+							&IOCallback,
+							Block.AllocatedMemoryView.GetData()));
+					},
+					bEnableHighPriorityLoading ? UE::Tasks::ETaskPriority::High : UE::Tasks::ETaskPriority::Normal));
+			}
+			else if (BlockReadInfo.FileHandle)
+			{
+				ReadRequestTasks.Emplace(UE::Tasks::Launch(TEXT("CustomizableObjectInstanceReadRequestTask"),
+					[
+						OwnedOperationData = OperationData.ToSharedPtr(), // Keep a reference to make sure allocated memory is always alive.
+							ReadDataReadyEvent = StreamingCompletionEvents.Emplace_GetRef(TEXT("AsyncReadDataReadyEvent")),
+							Block = BlockReadInfo,
+							Priority = bEnableHighPriorityLoading ? AIOP_High : AIOP_Normal
+					]() -> TUniquePtr<IAsyncReadRequest>
+					{
+						MUTABLE_CPUPROFILER_SCOPE(CustomizableInstanceLoadBlocksAsyncRead_Request);
+						FAsyncFileCallBack ReadRequestCallBack =
+							[OwnedOperationData, ReadDataReadyEvent, FileId = Block.FileId](bool bWasCancelled, IAsyncReadRequest*) mutable
+							{
+								if (bWasCancelled)
+								{
+									UE_LOG(LogMutable, Warning, TEXT("An AsyncReadRequest to file %08x was cancelled. The file may not exist."), FileId);
+								}
+								ReadDataReadyEvent.Trigger();
+							};
+
+						return TUniquePtr<IAsyncReadRequest>(Block.FileHandle->ReadRequest(
+							Block.Offset,
+							(int64)Block.AllocatedMemoryView.Num(),
+							Priority,
+							&ReadRequestCallBack,
+							Block.AllocatedMemoryView.GetData()));
+					},
+					bEnableHighPriorityLoading ? UE::Tasks::ETaskPriority::High : UE::Tasks::ETaskPriority::Normal));
+			}
 		}	
 
 #endif
 
 	}
-
-	if (AssetsToStream.Num() > 0 || OpenFileHandles.Num() > 0)
+	
+	if (AssetsToStream.Num() > 0 || OpenFileHandles.Num() > 0 || BulkReadRequestTasks.Num() > 0)
 	{
 		return UE::Tasks::Launch(TEXT("GatherStreamingRequestsCompletionTask"),
 				[
 					ReadRequestTasks = MoveTemp(ReadRequestTasks),
-					OpenFileHandles  = MoveTemp(OpenFileHandles)
+					OpenFileHandles  = MoveTemp(OpenFileHandles),
+					BulkReadRequestTasks = MoveTemp(BulkReadRequestTasks)
 				]() mutable 
 				{
 					for (UE::Tasks::TTask<TUniquePtr<IAsyncReadRequest>>& ReadRequestTask : ReadRequestTasks)
@@ -5754,8 +5809,20 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 						}
 					}
 					
+					for (UE::Tasks::TTask<TUniquePtr<IBulkDataIORequest>>& BulkReadRequestTask : BulkReadRequestTasks)
+					{
+						// GetResult() may wait for the task to complete, this should not be a problem as this task
+						// prerequisites guarantee ReadRequestTask has at least started execution.
+						TUniquePtr<IBulkDataIORequest>& ReadRequest = BulkReadRequestTask.GetResult();
+						if (ReadRequest)
+						{
+							ReadRequest->WaitCompletion();
+						}
+					}
+
 					ReadRequestTasks.Empty();
 					OpenFileHandles.Empty();
+					BulkReadRequestTasks.Empty();
 				},
 				StreamingCompletionEvents,
 				bEnableHighPriorityLoading ? UE::Tasks::ETaskPriority::High : UE::Tasks::ETaskPriority::Normal);
@@ -5763,6 +5830,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	else
 	{
 		check(ReadRequestTasks.Num() == 0);
+		check(BulkReadRequestTasks.Num() == 0);
 		return UE::Tasks::MakeCompletedTask<void>();
 	}
 }

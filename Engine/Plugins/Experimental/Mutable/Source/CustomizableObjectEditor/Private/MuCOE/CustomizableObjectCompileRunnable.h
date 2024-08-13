@@ -123,7 +123,7 @@ public:
 	TArray64<uint8> ModelBytes;
 
 	// Model streamed data
-	FModelStreamableData ModelStreamableData;
+	MutablePrivate::FModelStreamableData ModelStreamableData;
 
 	// Bytes store streameable files coming form the CO itself.
 	TArray64<uint8> MorphDataBytes;

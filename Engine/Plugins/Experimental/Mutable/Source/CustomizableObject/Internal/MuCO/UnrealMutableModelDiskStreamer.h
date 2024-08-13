@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuR/Serialisation.h"
 
 class FArchive;
 class IAsyncReadFileHandle;
 class IAsyncReadRequest;
+class IBulkDataIORequest;
 class UCustomizableObject;
 namespace mu { class Model; }
 struct FMutableStreamableBlock;
@@ -64,7 +64,8 @@ protected:
 
 	struct FReadRequest
 	{
-		TSharedPtr<IAsyncReadRequest> ReadRequest = nullptr;
+		TSharedPtr<IBulkDataIORequest> BulkReadRequest = nullptr;
+		TSharedPtr<IAsyncReadRequest> FileReadRequest = nullptr;
 		TSharedPtr<FAsyncFileCallBack> FileCallback;
 	};
 	
@@ -73,10 +74,11 @@ protected:
 	{
 		TWeakPtr<const mu::Model> Model;
 		TMap<OPERATION_ID, FReadRequest> CurrentReadRequests;
-		TMap<uint32, FMutableStreamableBlock> StreamableBlocks;
 		FString BulkFilePrefix;
 
 		TMap<uint32, TSharedPtr<IAsyncReadFileHandle>> ReadFileHandles;
+
+		TSharedPtr<FModelStreamableBulkData> ModelStreamableBulkData;
 	};
 
 	TArray<FObjectData> Objects;
@@ -134,7 +136,7 @@ class CUSTOMIZABLEOBJECT_API FUnrealMutableModelBulkWriterCook : public mu::Mode
 {
 public:
 	// 
-	FUnrealMutableModelBulkWriterCook(FArchive* InMainDataArchive = nullptr, FModelStreamableData* InStreamedData = nullptr);
+	FUnrealMutableModelBulkWriterCook(FArchive* InMainDataArchive = nullptr, MutablePrivate::FModelStreamableData* InStreamedData = nullptr);
 
 	// mu::ModelWriter interface
 	void OpenWriteFile(uint32 BlockKey) override;
@@ -147,7 +149,7 @@ protected:
 	FArchive* MainDataArchive = nullptr;
 
 	// Non-owned pointer to an archive where we'll store the resouces (streamable)
-	FModelStreamableData* StreamedData = nullptr;
+	MutablePrivate::FModelStreamableData* StreamedData = nullptr;
 
 	uint32 CurrentKey = 0;
 

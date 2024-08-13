@@ -279,69 +279,10 @@ public:
 	//~ Begin UObject Interface
 	virtual void CookAdditionalFilesOverride(const TCHAR*, const ITargetPlatform*, TFunctionRef<void(const TCHAR*, void*, int64)> ) override;
 	//~ End UObject Interface
-
-	/** Compute the number of files and sizes the BulkData will be split into and fix up 
-	 * the HashToStreamableBlock's FileIds and Offsets. 
-	 */	
-	void PrepareBulkData(UCustomizableObject* InCustomizableObject, const ITargetPlatform* TargetPlatform);
-
 #endif
 
 #if WITH_EDITOR
-
-	enum class EDataType : uint8
-	{
-		None = 0,
-		Model,
-		RealTimeMorph,
-		Clothing,
-	};
-
-	struct FBlock
-	{
-		/** Data Type*/
-		EDataType DataType;
-	
-		/** Used on some data types as the index to the block stored in the CustomizableObject */
-		uint32 Id;
-
-		/** Size of the data block. */
-		uint32 Size;
-
-		/** Data flags, like "high-res". */
-		uint32 Flags;
-
-		/** Offset in the full source streamed data file that is created when compiling. */
-		uint64 Offset;
-	};
-
 private:
-
-	struct FFile
-	{
-		EDataType DataType;
-
-		/** Id generated from a hash of the file content + offset to avoid collisions. */
-		uint32 Id;
-
-		/** Common flags of the data stored in this file. See mu::ERomFlags. */
-		uint32 Flags=0;
-
-		/** List of blocks that are contained in the file, in order. */
-		TArray<FBlock> Blocks;
-
-		/** Get the total size of blocks in this file. */
-		int64 GetSize() const;
-
-		/** Copy the requested block to the requested buffer and return its size. */
-		void GetFileData(struct FMutableCachedPlatformData*, uint8* DataDestination) const;
-	};
-
-	/** Helper to store the size of each BulkData partition. Only valid while cooking */
-	TArray<FFile> BulkDataFiles;
-
-	/** Helper to retrieve the BulkData from within the CookAdditionalFilesOverride */
-	TObjectPtr<UCustomizableObject> CustomizableObject;
 #endif
 
 	/** Prefix to locate bulkfiles for loading, using the file ids in each FMutableStreamableBlock. */

@@ -153,7 +153,7 @@ bool FCustomizableObjectCookPackageSplitter::ShouldSplit(UObject* SplitData)
 {
 	const UCustomizableObject* Object = CastChecked<UCustomizableObject>(SplitData);
 
-	return Object->GetPrivate()->GetStreamedResourceData().Num() > 0 || Object->GetPrivate()->GetStreamedExtensionData().Num() > 0;
+	return !Object->IsChildObject() && (Object->GetPrivate()->GetStreamedResourceData().Num() > 0 || Object->GetPrivate()->GetStreamedExtensionData().Num() > 0);
 }
 
 TArray<ICookPackageSplitter::FGeneratedPackage> FCustomizableObjectCookPackageSplitter::GetGenerateList(
