@@ -27,6 +27,7 @@ struct BLENDSTACK_API FBlendStackAnimPlayer
 	
 	int32 GetBlendInWeightsNum() const;
 	void GetBlendInWeights(TArrayView<float> Weights) const;
+	float GetBlendInWeight() const;
 
 	EAlphaBlendOption GetBlendOption() const { return BlendOption; }
 	void StorePoseContext(const FPoseContext& PoseContext);
