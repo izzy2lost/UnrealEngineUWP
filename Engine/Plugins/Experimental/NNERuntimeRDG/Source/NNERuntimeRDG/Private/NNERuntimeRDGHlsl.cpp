@@ -125,19 +125,19 @@ bool UNNERuntimeRDGHlslImpl::IsCurrentPlatformSupported()
 	if(GMaxRHIFeatureLevel < ERHIFeatureLevel::SM5)
 	{
 		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: minimum feature level required is SM5 for current RHI platform."));
-		bResult &= false;
+		bResult = false;
 	}
 
 	if(!GRHISupportsWaveOperations)
 	{
 		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support wave operations."));
-		bResult &= false;
+		bResult = false;
 	}
 
 	if(!GRHIGlobals.SupportsNative16BitOps)
 	{
 		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support native 16-bit operations."));
-		bResult &= false;
+		bResult = false;
 	}
 #endif
 
