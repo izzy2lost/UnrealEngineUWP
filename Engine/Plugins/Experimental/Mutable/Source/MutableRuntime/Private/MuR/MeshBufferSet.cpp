@@ -190,6 +190,8 @@ namespace mu
 
 		FMeshBuffer& Buffer = Buffers[BufferIndex];
 
+		const bool bWasNotInitialized = Buffer.ElementSize == 0 && Buffer.Channels.IsEmpty() && Buffer.Data.IsEmpty();
+
 		int32 MinElemSize = 0;
 		Buffer.Channels.SetNum(ChannelCount);
 		for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
@@ -208,18 +210,23 @@ namespace mu
 		// Set the user specified element size, or enlarge it if it was too small
 		Buffer.ElementSize = FMath::Max(ElementSize, MinElemSize);
 
+		bool bAllocateMemory = !IsDescriptor() || bWasNotInitialized; 
+
 		// Update the buffer data
-		if (MemoryInitPolicy == EMemoryInitPolicy::Uninitialized)
+		if (bAllocateMemory)
 		{
-			Buffer.Data.SetNumUninitialized(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
-		}
-		else if (MemoryInitPolicy == EMemoryInitPolicy::Zeroed)
-		{
-			Buffer.Data.SetNumZeroed(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
-		}
-		else
-		{
-			check(false);
+			if (MemoryInitPolicy == EMemoryInitPolicy::Uninitialized)
+			{
+				Buffer.Data.SetNumUninitialized(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
+			}
+			else if (MemoryInitPolicy == EMemoryInitPolicy::Zeroed)
+			{
+				Buffer.Data.SetNumZeroed(Buffer.ElementSize * ElementCount, EAllowShrinking::No);
+			}
+			else
+			{
+				check(false);
+			}
 		}
 	}
 
@@ -373,10 +380,17 @@ namespace mu
 	{
 		int32 Result = 0;
 
+		const bool bIsDescriptor = IsDescriptor();
+
 		const int32 NumBuffers = Buffers.Num();
 		for (int32 BufferIndex = 0; BufferIndex < NumBuffers; ++BufferIndex)
 		{
-			Result += Buffers[BufferIndex].ElementSize * ElementCount;
+			Result += sizeof(FMeshBufferChannel) * Buffers[BufferIndex].Channels.Num();
+
+			if (!bIsDescriptor)
+			{
+				Result += Buffers[BufferIndex].ElementSize * ElementCount;
+			}
 		}
 
 		return Result;
@@ -615,6 +629,8 @@ namespace mu
 
 	void FMeshBufferSet::UpdateOffsets(int32 BufferIndex)
 	{
+		checkf(Buffers[BufferIndex].Data.IsEmpty(), TEXT("UpdateOffsets called on a non empty buffer set. This is not supported."));
+		
 		uint32 Offset = 0;
 		for (FMeshBufferChannel& Channel : Buffers[BufferIndex].Channels)
 		{
@@ -656,6 +672,20 @@ namespace mu
 		return false;
 	}
 
+
+	bool FMeshBufferSet::IsDescriptor() const
+	{
+		for (const FMeshBuffer& Buffer : Buffers)
+		{
+			if (!Buffer.Data.IsEmpty())
+			{
+				return false;
+			}
+		}
+
+		return ElementCount > 0;
+	}
+	
 	void FMeshBuffer::Serialise(OutputArchive& Arch) const
 	{
 		Arch << Channels;

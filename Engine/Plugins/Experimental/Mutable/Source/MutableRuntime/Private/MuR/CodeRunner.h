@@ -42,15 +42,15 @@ namespace  mu
     {
 		// The private token allows only members or friends to call MakeShared.
 		struct FPrivateToken { explicit FPrivateToken() = default; };
-
 	public:
+		
 		static TSharedRef<CodeRunner> Create(
 				const Ptr<const Settings>&, 
 				class System::Private*, 
 				EExecutionStrategy,
 				const TSharedPtr<const Model>&, 
-				const Parameters* pParams,
-				OP::ADDRESS at, uint32 lodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType);
+				const Parameters* Params,
+				OP::ADDRESS At, uint32 LodMask, uint8 ExecutionOptions, int32 InImageLOD, FScheduledOp::EType);
 
 		// Private constructor to prevent stack allocation. In general we can not call AsShared() if the lifetime is
 		// bounded.
@@ -138,6 +138,12 @@ namespace  mu
         void RunCode_Projector(const FScheduledOp&, const Parameters*, const Model* );
 
 		void RunCodeImageDesc(const FScheduledOp&, const Parameters*, const Model*, uint32 LodMask);
+	
+		/**
+	 	* Run code for meshes components. Any resource that is referenced or owned by a mesh that is not
+	 	* geometry data. 
+	 	*/
+		void RunCodeMeshComponents(const FScheduledOp&, const Parameters*, const Model*, uint32 LodMask);
 
     public:
 
@@ -260,10 +266,12 @@ namespace  mu
 		class FLoadMeshRomTask : public CodeRunner::FIssuedTask
 		{
 		public:
-			FLoadMeshRomTask( const FScheduledOp& InOp, int32 InRomIndex)
+			FLoadMeshRomTask( const FScheduledOp& InOp, int32 InGeometryRomIndex, int32 InPoseRomIndex, int32 InComponentsRomIndex)
 				: FIssuedTask(InOp)
+				, GeometryRomIndex(InGeometryRomIndex)
+				, PoseRomIndex(InPoseRomIndex)
+				, ComponentsRomIndex(InComponentsRomIndex)
 			{
-				RomIndex = InRomIndex;
 			}
 
 			// FIssuedTask interface
@@ -271,7 +279,11 @@ namespace  mu
 			virtual bool Complete(CodeRunner*) override;
 
 		private:
-			int32 RomIndex = -1;
+			int32 GeometryRomIndex = -1;
+			int32 PoseRomIndex = -1;
+			int32 ComponentsRomIndex = -1;
+
+			TArray<int32, TInlineAllocator<3>> RomIndices;
 		};
 
 		class FLoadExtensionDataTask : public CodeRunner::FIssuedTask
@@ -693,21 +705,23 @@ namespace  mu
     	
     	FRomLoadOps RomLoadOps = FRomLoadOps(*this);
     	    	
-		inline void AddChildren(const FScheduledOp& dep)
+		inline void AddChildren(const FScheduledOp& Dep)
 		{
-			FCacheAddress at(dep);
-			if (dep.At && !GetMemory().IsValid(at))
+			FCacheAddress At(Dep);
+			if (Dep.At && !GetMemory().IsValid(At))
 			{
-				if (ScheduledStagePerOp.get(at) <= dep.Stage)
+				if (ScheduledStagePerOp.Get(At) <= Dep.Stage)
 				{
-					OpenTasks.Add(dep);
-					ScheduledStagePerOp[at] = dep.Stage + 1;
+					OpenTasks.Add(Dep);
+					ScheduledStagePerOp[At] = Dep.Stage + 1;
 				}
 			}
 
-			if (dep.Type == FScheduledOp::EType::Full)
+			// ImageDesc is the exception. Will not decrease the hit counter because results are not
+			// stored in the cache.
+			if (Dep.Type != FScheduledOp::EType::ImageDesc)
 			{
-				m_pSystem->WorkingMemoryManager.CurrentInstanceCache->IncreaseHitCount(at);
+				m_pSystem->WorkingMemoryManager.CurrentInstanceCache->IncreaseHitCount(At);
 			}
 		}
 

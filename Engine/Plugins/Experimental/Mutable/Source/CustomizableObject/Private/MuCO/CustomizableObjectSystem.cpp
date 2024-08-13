@@ -54,6 +54,7 @@ DECLARE_CYCLE_STAT(TEXT("MutableTask"), STAT_MutableTask, STATGROUP_Game);
 
 #define UE_MUTABLE_UPDATE_REGION TEXT("Mutable Update")
 #define UE_TASK_MUTABLE_GETMESHES_REGION TEXT("Task_Mutable_GetMeshes")
+#define UE_TASK_MUTABLE_GETMESHES_COMPS_REGION TEXT("Task_Mutable_GetMeshesComponents")
 #define UE_TASK_MUTABLE_GETIMAGES_REGION TEXT("Task_Mutable_GetImages")
 
 
@@ -1563,8 +1564,7 @@ namespace impl
 		double StartTime,
 		uint32 StartCycles,
 		const TSharedRef<TArray<FGetImageData>>& GetImagesData,
-		int32 GetImageIndex);
-	
+		int32 GetImageIndex);	
 
 	struct FGetMeshData
 	{
@@ -1572,6 +1572,13 @@ namespace impl
 		mu::FResourceID MeshID;
 	};
 
+	/** Process the next Mesh. If there are no more Meshes, go to the process Images loop. */
+	void Task_Mutable_GetMeshes_GetMeshComps_Loop(
+		const TSharedRef<FUpdateContextPrivate>& OperationData,
+		double StartTime,
+		uint32 StartCycles,
+		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
+		int32 GetMeshIndex);
 
 	/** Process the next Mesh. If there are no more Meshes, go to the process Images loop. */
 	void Task_Mutable_GetMeshes_GetMesh_Loop(
@@ -1581,9 +1588,10 @@ namespace impl
 		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
 		int32 GetMeshIndex);
 
-
-	/** Call GetImage.
-	  * Once GetImage is called, the task must end. Following code will be in a subsequent TaskGraph task. */
+	/** 
+	 * Call GetImage.
+	 * Once GetImage is called, the task must end. Following code will be in a subsequent TaskGraph task. 
+	 */
 	void Task_Mutable_GetImages_GetImage(
 		const TSharedRef<FUpdateContextPrivate>& OperationData,
 		double StartTime,
@@ -1601,7 +1609,7 @@ namespace impl
 		const TSharedPtr<TArray<mu::FResourceID>>& ImagesInThisInstance,
 		int32 ImageIndex);
 
-	
+
 	void Subtask_Mutable_UpdateParameterRelevancy(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Subtask_Mutable_UpdateParameterRelevancy)
@@ -1783,7 +1791,7 @@ namespace impl
 			{
 				FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[Component.FirstLOD+LODIndex];
 
-				mu::Ptr<const mu::Mesh> Mesh = LOD.Mesh;
+				mu::Ptr<const mu::Mesh> Mesh = LOD.MeshComps;
 				if (!Mesh || Mesh->IsReference())
 				{
 					continue;
@@ -1910,9 +1918,9 @@ namespace impl
 				const FInstanceUpdateData::FComponent& Component = UpdateData.Components[ComponentIndex];
 				const FInstanceUpdateData::FLOD& LOD = UpdateData.LODs[Component.FirstLOD+LODIndex];
 				check(LOD.bGenerated);
-				check(LOD.Mesh);
+				check(LOD.MeshGeometry);
 
-				const mu::FMeshBufferSet& MeshSet = LOD.Mesh->GetVertexBuffers();
+				const mu::FMeshBufferSet& MeshSet = LOD.MeshGeometry->GetVertexBuffers();
 
 				int32 VertexMorphsInfoIndexAndCountBufferIndex, VertexMorphsInfoIndexAndCountBufferChannel;
 				MeshSet.FindChannel(mu::MBS_OTHER, 0, &VertexMorphsInfoIndexAndCountBufferIndex, &VertexMorphsInfoIndexAndCountBufferChannel);
@@ -1931,7 +1939,7 @@ namespace impl
 				const uint32* const VertexMorphsResourceIdBuffer = reinterpret_cast<const uint32*>(MeshSet.GetBufferData(VertexMorphsResourceIdBufferIndex));
 				TArrayView<const uint32> VertexMorphsResourceIdView(VertexMorphsResourceIdBuffer, MeshSet.GetElementCount());
 
-				const int32 SurfaceCount = LOD.Mesh->GetSurfaceCount();
+				const int32 SurfaceCount = LOD.MeshGeometry->GetSurfaceCount();
 				for (int32 Section = 0; Section < SurfaceCount; ++Section)
 				{
 					// Reset SectionMorphTargets.
@@ -1941,7 +1949,7 @@ namespace impl
 					}
 
 					int32 FirstVertex, VerticesCount, FirstIndex, IndiciesCount, UnusedBoneIndex, UnusedBoneCount;
-					LOD.Mesh->GetSurface(Section, FirstVertex, VerticesCount, FirstIndex, IndiciesCount, UnusedBoneIndex, UnusedBoneCount);
+					LOD.MeshGeometry->GetSurface(Section, FirstVertex, VerticesCount, FirstIndex, IndiciesCount, UnusedBoneIndex, UnusedBoneCount);
 
 					for (int32 VertexIdx = FirstVertex; VertexIdx < FirstVertex + VerticesCount;)
 					{
@@ -2072,7 +2080,7 @@ namespace impl
 		uint32 StartCycles)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshes_End)
-
+		
 		// TODO: Not strictly mutable: move to another worker thread task to free mutable access?
 		Subtask_Mutable_PrepareSkeletonData(OperationData);
 		if (OperationData->GetCapturedDescriptor().GetBuildParameterRelevancy())
@@ -2107,7 +2115,6 @@ namespace impl
 
 		TRACE_END_REGION(UE_TASK_MUTABLE_GETMESHES_REGION);
 	}
-
 
 	/** TaskGraph task after GetImage has completed. */
 	void Task_Mutable_GetMeshes_GetImage_Post(
@@ -2210,7 +2217,7 @@ namespace impl
 				LOD.FirstSurface = OperationData->InstanceUpdateData.Surfaces.Num();
 				LOD.SurfaceCount = 0;
 
-				if (!LOD.Mesh)
+				if (!LOD.MeshGeometry)
 				{
 					continue;
 				}
@@ -2332,7 +2339,7 @@ namespace impl
 
 				// If the mesh is a reference mesh, it won't have the surface information in the mutable mesh. We need to get it from the instance
 				// and all defined surfaces will be present. 
-				if (LOD.Mesh->IsReference())
+				if (LOD.MeshGeometry->IsReference())
 				{
 					const int32 SurfaceCount = MutableInstance->GetSurfaceCount(InstanceComponentIndex, MutableLODIndex);
 					for (int32 SurfaceIndex = 0; SurfaceIndex < SurfaceCount; ++SurfaceIndex)
@@ -2345,13 +2352,13 @@ namespace impl
 				// If the mesh is a not a reference mesh, we have to add only the materials of the surfaces that appear in the actual final mesh. 
 				else
 				{
-					const int32 SurfaceCount = LOD.Mesh->GetSurfaceCount();
+					const int32 SurfaceCount = LOD.MeshGeometry->GetSurfaceCount();
 					for (int32 MeshSurfaceIndex = 0; MeshSurfaceIndex < SurfaceCount; ++MeshSurfaceIndex)
 					{
-						const uint32 SurfaceId = LOD.Mesh->GetSurfaceId(MeshSurfaceIndex);
+						const uint32 SurfaceId = LOD.MeshGeometry->GetSurfaceId(MeshSurfaceIndex);
 
 						const int32 InstanceSurfaceIndex = MutableInstance->FindSurfaceById(InstanceComponentIndex, MutableLODIndex, SurfaceId);
-						check(LOD.Mesh->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
+						check(LOD.MeshGeometry->GetVertexCount() > 0 || InstanceSurfaceIndex >= 0);
 
 						if (InstanceSurfaceIndex >= 0)
 						{
@@ -2381,15 +2388,15 @@ namespace impl
 		const int32 LODIndex = (*GetMeshesData)[GetMeshIndex].LODIndex;
 		FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
 
-		LOD.Mesh = GetMeshTask.GetResult();
+		LOD.MeshGeometry = GetMeshTask.GetResult();
 
-		if (LOD.Mesh->IsReference())
+		if (LOD.MeshGeometry->IsReference())
 		{
 			const UCustomizableObjectInstance* Instance = OperationData->Instance.Get();
 			const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
 			const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
 
-			uint32 ReferenceID = LOD.Mesh->GetReferencedMesh();
+			uint32 ReferenceID = LOD.MeshGeometry->GetReferencedMesh();
 
 			if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
 			{
@@ -2405,7 +2412,6 @@ namespace impl
 			
 		Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, ++GetMeshIndex);
 	}
-	
 
 	/** See declaration. */
 	void Task_Mutable_GetMeshes_GetMesh_Loop(
@@ -2424,8 +2430,8 @@ namespace impl
 		}
 		
 		const FGetMeshData& MeshData = (*GetMeshesData)[GetMeshIndex];
+
 		UE::Tasks::TTask<mu::Ptr<const mu::Mesh>> GetMeshTask = OperationData->MutableSystem->GetMesh(OperationData->InstanceID, MeshData.MeshID);
-		
 		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_MutableGetMeshes_GetMesh_Post"), [=]()
 		{
 			Task_MutableGetMeshes_GetMesh_Post(OperationData, StartTime, StartCycles, GetMeshesData, GetMeshIndex, GetMeshTask);
@@ -2433,11 +2439,79 @@ namespace impl
 		GetMeshTask));
 	}
 
+	void Task_MutableGetMeshes_GetMeshComps_Post(
+		const TSharedRef<FUpdateContextPrivate>& OperationData,
+		double StartTime,
+		uint32 StartCycles,
+		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
+		int32 GetMeshIndex,
+		UE::Tasks::TTask<mu::Ptr<const mu::Mesh>> GetMeshCompTask)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_MutableGetMeshes_GetMeshComps_Post)
+
+		const int32 LODIndex = (*GetMeshesData)[GetMeshIndex].LODIndex;
+		FInstanceUpdateData::FLOD& LOD = OperationData->InstanceUpdateData.LODs[LODIndex];
+
+		LOD.MeshComps = GetMeshCompTask.GetResult();
+
+		// For now Mesh references are processed as a normal mesh but this could be resolved earlier in the
+		// component gather phase.
+		//if (LOD.MeshComps->IsReference())
+		//{
+		//	const UCustomizableObjectInstance* Instance = OperationData->Instance.Get();
+		//	const UCustomizableObject* CustomizableObject = Instance->GetCustomizableObject();
+		//	const FModelResources& ModelResources = CustomizableObject->GetPrivate()->GetModelResources();
+
+		//	uint32 ReferenceID = LOD.Mesh->GetReferencedMesh();
+
+		//	if (ModelResources.PassThroughMeshes.IsValidIndex(ReferenceID))
+		//	{
+		//		TSoftObjectPtr<USkeletalMesh> Ref = ModelResources.PassThroughMeshes[ReferenceID];
+		//		Instance->GetPrivate()->PassThroughMeshesToLoad.Add(Ref);
+		//	}
+		//	else
+		//	{
+		//		// internal error.
+		//		UE_LOG(LogMutable, Error, TEXT("Referenced mesh [%d] was not stored in the resource array."), ReferenceID);
+		//	}
+		//}
+			
+		Task_Mutable_GetMeshes_GetMeshComps_Loop(OperationData, StartTime, StartCycles, GetMeshesData, ++GetMeshIndex);
+	}
+
+	void Task_Mutable_GetMeshes_GetMeshComps_Loop(
+		const TSharedRef<FUpdateContextPrivate>& OperationData,
+		double StartTime,
+		uint32 StartCycles,
+		const TSharedRef<TArray<FGetMeshData>>& GetMeshesData,
+		int32 GetMeshIndex)
+	{
+		MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshes_GetMeshCompoenents_Loop)
+
+		if (GetMeshIndex >= GetMeshesData->Num())
+		{
+			TRACE_END_REGION(UE_TASK_MUTABLE_GETMESHES_COMPS_REGION);
+			// After processing mesh components start meshes loop.
+			// TODO: We need to be able to generate only the resident lods for mesh streaming.
+			Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, 0);
+			return;
+		}
+		
+		const FGetMeshData& MeshData = (*GetMeshesData)[GetMeshIndex];
+
+		UE::Tasks::TTask<mu::Ptr<const mu::Mesh>> GetMeshCompTask = OperationData->MutableSystem->GetMeshComponents(OperationData->InstanceID, MeshData.MeshID);
+		UE::Tasks::AddNested(UE::Tasks::Launch(TEXT("Task_MutableGetMeshes_GetMeshComps_Post"), [=]()
+		{
+			Task_MutableGetMeshes_GetMeshComps_Post(OperationData, StartTime, StartCycles, GetMeshesData, GetMeshIndex, GetMeshCompTask);
+		},
+		GetMeshCompTask));
+	}
 
 	namespace Impl
 	{
-		/** Start of the GetMeshes tasks.
-		  * Gathers all GetMeshes that has to be called. */
+		/** 
+		* Start of the GetMeshes tasks.  
+		*/
 		void Task_Mutable_GetMeshes(const TSharedRef<FUpdateContextPrivate>& OperationData)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(Task_Mutable_GetMeshes)
@@ -2523,16 +2597,16 @@ namespace impl
 						{
 							LOD.bGenerated = true;
 
-							GetMeshesData->Add({ UpdateDataLODIndex, LOD.MeshID});
+							GetMeshesData->Add({UpdateDataLODIndex, LOD.MeshID});
 						}
 					}
 				}
 			}
 
-			Task_Mutable_GetMeshes_GetMesh_Loop(OperationData, StartTime, StartCycles, GetMeshesData, 0);
+			TRACE_BEGIN_REGION(UE_TASK_MUTABLE_GETMESHES_COMPS_REGION);
+			Task_Mutable_GetMeshes_GetMeshComps_Loop(OperationData, StartTime, StartCycles, GetMeshesData, 0);
 		}
 	}
-
 
 	void Task_Mutable_GetMeshes(const TSharedRef<FUpdateContextPrivate>& OperationData)
 	{

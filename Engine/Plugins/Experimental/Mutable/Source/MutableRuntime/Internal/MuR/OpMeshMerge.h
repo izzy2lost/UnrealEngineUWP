@@ -39,7 +39,17 @@ namespace mu
 
 			const int32 FirstCount = pFirst->GetIndexBuffers().GetElementCount();
 			const int32 SecondCount = pSecond->GetIndexBuffers().GetElementCount();
-			Result->GetIndexBuffers().SetElementCount(FirstCount + SecondCount);
+
+			const bool bIsMergingDescriptor = pFirst->IndexBuffers.IsDescriptor() || pSecond->IndexBuffers.IsDescriptor();
+
+			if (bIsMergingDescriptor)
+			{
+				Result->IndexBuffers.ElementCount = FirstCount + SecondCount;
+			}
+			else
+			{
+				Result->GetIndexBuffers().SetElementCount(FirstCount + SecondCount);
+			}
 
 			check(pFirst->GetIndexBuffers().GetBufferCount() <= 1);
 			check(pSecond->GetIndexBuffers().GetBufferCount() <= 1);
@@ -64,13 +74,13 @@ namespace mu
 				check(FirstIndexBuffer.ElementSize == SecondIndexBuffer.ElementSize);
 
 				// We need to know the total number of vertices in case we need to adjust the index buffer format.
-				const uint64 totalVertexCount = pFirst->GetVertexBuffers().GetElementCount() + pSecond->GetVertexBuffers().GetElementCount();
-				const uint64 maxValueBits = GetMeshFormatData(pFirst->GetIndexBuffers().Buffers[0].Channels[0].Format).MaxValueBits;
-				const uint64 maxSupportedVertices = uint64(1) << maxValueBits;
+				const uint64 TotalVertexCount = pFirst->GetVertexBuffers().GetElementCount() + pSecond->GetVertexBuffers().GetElementCount();
+				const uint64 MaxValueBits = GetMeshFormatData(pFirst->GetIndexBuffers().Buffers[0].Channels[0].Format).MaxValueBits;
+				const uint64 MaxSupportedVertices = uint64(1) << MaxValueBits;
 				
-				if (totalVertexCount > maxSupportedVertices)
+				if (TotalVertexCount > MaxSupportedVertices)
 				{
-					IndexBufferFormat = totalVertexCount > MAX_uint16 ? MBF_UINT32 : MBF_UINT16;
+					IndexBufferFormat = TotalVertexCount > MAX_uint16 ? MBF_UINT32 : MBF_UINT16;
 				}
 
 			}
@@ -99,74 +109,83 @@ namespace mu
 				ResultIndexBuffer.ElementSize = SecondIndexBuffer.ElementSize;
 			}
 
-			ResultIndexBuffer.Data.SetNum(ResultIndexBuffer.ElementSize * (FirstCount + SecondCount));
-
 			check(ResultIndexBuffer.Channels.Num() == 1);
 			check(ResultIndexBuffer.Channels[0].Semantic == MBS_VERTEXINDEX);
 
-			if (!ResultIndexBuffer.Data.IsEmpty())
+			if (!bIsMergingDescriptor)
 			{
-				if (FirstCount)
+				ResultIndexBuffer.Data.SetNum(ResultIndexBuffer.ElementSize * (FirstCount + SecondCount));
+				
+				if (!ResultIndexBuffer.Data.IsEmpty())
 				{
-					if (IndexBufferFormat == MBF_NONE
-						|| IndexBufferFormat == FirstIndexBuffer.Channels[0].Format)
+					if (FirstCount)
 					{
-						FMemory::Memcpy(&ResultIndexBuffer.Data[0],
-							&FirstIndexBuffer.Data[0],
-							FirstIndexBuffer.ElementSize * FirstCount);
-					}
-					else
-					{
-						// Conversion required
-						const uint8_t* pSource = &FirstIndexBuffer.Data[0];
-						uint8_t* pDest = &ResultIndexBuffer.Data[0];
-						switch (IndexBufferFormat)
+						if (IndexBufferFormat == MBF_NONE
+							|| IndexBufferFormat == FirstIndexBuffer.Channels[0].Format)
 						{
-						case MBF_UINT32:
+							FMemory::Memcpy(&ResultIndexBuffer.Data[0],
+								&FirstIndexBuffer.Data[0],
+								FirstIndexBuffer.ElementSize * FirstCount);
+						}
+						else
 						{
-							switch (FirstIndexBuffer.Channels[0].Format)
+							// Conversion required
+							const uint8* pSource = &FirstIndexBuffer.Data[0];
+							uint8* pDest = &ResultIndexBuffer.Data[0];
+							switch (IndexBufferFormat)
 							{
+							case MBF_UINT32:
+							{
+								switch (FirstIndexBuffer.Channels[0].Format)
+								{
+								case MBF_UINT16:
+								{
+									for (int32 v = 0; v < FirstCount; ++v)
+									{
+										*(uint32*)pDest = *(const uint16*)pSource;
+										pSource += FirstIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
+								}
+
+								case MBF_UINT8:
+								{
+									for (int32 v = 0; v < FirstCount; ++v)
+									{
+										*(uint32*)pDest = *(const uint8*)pSource;
+										pSource += FirstIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
+								}
+
+								default:
+									checkf(false, TEXT("Format not supported."));
+									break;
+								}
+								break;
+							}
+
 							case MBF_UINT16:
 							{
-								for (int v = 0; v < FirstCount; ++v)
+								switch (FirstIndexBuffer.Channels[0].Format)
 								{
-									*(uint32_t*)pDest = *(const uint16*)pSource;
-									pSource += FirstIndexBuffer.ElementSize;
-									pDest += ResultIndexBuffer.ElementSize;
+
+								case MBF_UINT8:
+								{
+									for (int32 v = 0; v < FirstCount; ++v)
+									{
+										*(uint16*)pDest = *(const uint8*)pSource;
+										pSource += FirstIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
 								}
-								break;
-							}
 
-							case MBF_UINT8:
-							{
-								for (int v = 0; v < FirstCount; ++v)
-								{
-									*(uint32_t*)pDest = *(const uint8_t*)pSource;
-									pSource += FirstIndexBuffer.ElementSize;
-									pDest += ResultIndexBuffer.ElementSize;
-								}
-								break;
-							}
-
-							default:
-								checkf(false, TEXT("Format not supported."));
-								break;
-							}
-							break;
-						}
-
-						case MBF_UINT16:
-						{
-							switch (FirstIndexBuffer.Channels[0].Format)
-							{
-
-							case MBF_UINT8:
-							{
-								for (int v = 0; v < FirstCount; ++v)
-								{
-									*(uint16*)pDest = *(const uint8_t*)pSource;
-									pSource += FirstIndexBuffer.ElementSize;
-									pDest += ResultIndexBuffer.ElementSize;
+								default:
+									checkf(false, TEXT("Format not supported."));
+									break;
 								}
 								break;
 							}
@@ -175,93 +194,43 @@ namespace mu
 								checkf(false, TEXT("Format not supported."));
 								break;
 							}
-							break;
-						}
-
-						default:
-							checkf(false, TEXT("Format not supported."));
-							break;
 						}
 					}
-				}
 
-				if (SecondCount)
-				{
-					const uint8_t* pSource = &SecondIndexBuffer.Data[0];
-					uint8_t* pDest = &ResultIndexBuffer.Data[ResultIndexBuffer.ElementSize * FirstCount];
-
-					uint32_t firstVertexCount = pFirst->GetVertexBuffers().GetElementCount();
-
-					if (IndexBufferFormat == MBF_NONE
-						|| IndexBufferFormat == SecondIndexBuffer.Channels[0].Format)
+					if (SecondCount)
 					{
-						switch (SecondIndexBuffer.Channels[0].Format)
-						{
-						case MBF_INT32:
-						case MBF_UINT32:
-						case MBF_NINT32:
-						case MBF_NUINT32:
-						{
-							for (int v = 0; v < SecondCount; ++v)
-							{
-								*(uint32_t*)pDest = firstVertexCount + *(const uint32_t*)pSource;
-								pSource += SecondIndexBuffer.ElementSize;
-								pDest += ResultIndexBuffer.ElementSize;
-							}
-							break;
-						}
+						const uint8* pSource = &SecondIndexBuffer.Data[0];
+						uint8* pDest = &ResultIndexBuffer.Data[ResultIndexBuffer.ElementSize * FirstCount];
 
-						case MBF_INT16:
-						case MBF_UINT16:
-						case MBF_NINT16:
-						case MBF_NUINT16:
-						{
-							for (int v = 0; v < SecondCount; ++v)
-							{
-								*(uint16*)pDest = uint16(firstVertexCount) + *(const uint16*)pSource;
-								pSource += SecondIndexBuffer.ElementSize;
-								pDest += ResultIndexBuffer.ElementSize;
-							}
-							break;
-						}
+						uint32 firstVertexCount = pFirst->GetVertexBuffers().GetElementCount();
 
-						case MBF_INT8:
-						case MBF_UINT8:
-						case MBF_NINT8:
-						case MBF_NUINT8:
-						{
-							for (int v = 0; v < SecondCount; ++v)
-							{
-								*(uint8_t*)pDest = uint8_t(firstVertexCount) + *(const uint8_t*)pSource;
-								pSource += SecondIndexBuffer.ElementSize;
-								pDest += ResultIndexBuffer.ElementSize;
-							}
-							break;
-						}
-
-						default:
-							checkf(false, TEXT("Format not supported."));
-							break;
-						}
-					}
-					else
-					{
-						// Format conversion required
-						switch (IndexBufferFormat)
-						{
-
-						case MBF_UINT32:
+						if (IndexBufferFormat == MBF_NONE
+							|| IndexBufferFormat == SecondIndexBuffer.Channels[0].Format)
 						{
 							switch (SecondIndexBuffer.Channels[0].Format)
 							{
+							case MBF_INT32:
+							case MBF_UINT32:
+							case MBF_NINT32:
+							case MBF_NUINT32:
+							{
+								for (int32 v = 0; v < SecondCount; ++v)
+								{
+									*(uint32*)pDest = firstVertexCount + *(const uint32*)pSource;
+									pSource += SecondIndexBuffer.ElementSize;
+									pDest += ResultIndexBuffer.ElementSize;
+								}
+								break;
+							}
+
 							case MBF_INT16:
 							case MBF_UINT16:
 							case MBF_NINT16:
 							case MBF_NUINT16:
 							{
-								for (int v = 0; v < SecondCount; ++v)
+								for (int32 v = 0; v < SecondCount; ++v)
 								{
-									*(uint32_t*)pDest = uint32_t(firstVertexCount) + *(const uint16*)pSource;
+									*(uint16*)pDest = uint16(firstVertexCount) + *(const uint16*)pSource;
 									pSource += SecondIndexBuffer.ElementSize;
 									pDest += ResultIndexBuffer.ElementSize;
 								}
@@ -273,9 +242,9 @@ namespace mu
 							case MBF_NINT8:
 							case MBF_NUINT8:
 							{
-								for (int v = 0; v < SecondCount; ++v)
+								for (int32 v = 0; v < SecondCount; ++v)
 								{
-									*(uint32_t*)pDest = uint32_t(firstVertexCount) + *(const uint8_t*)pSource;
+									*(uint8*)pDest = uint8(firstVertexCount) + *(const uint8*)pSource;
 									pSource += SecondIndexBuffer.ElementSize;
 									pDest += ResultIndexBuffer.ElementSize;
 								}
@@ -286,40 +255,84 @@ namespace mu
 								checkf(false, TEXT("Format not supported."));
 								break;
 							}
-
-							break;
 						}
-
-						case MBF_UINT16:
+						else 
 						{
-							switch (SecondIndexBuffer.Channels[0].Format)
+							// Format conversion required
+							switch (IndexBufferFormat)
 							{
-							case MBF_INT8:
-							case MBF_UINT8:
-							case MBF_NINT8:
-							case MBF_NUINT8:
+
+							case MBF_UINT32:
 							{
-								for (int v = 0; v < SecondCount; ++v)
+								switch (SecondIndexBuffer.Channels[0].Format)
 								{
-									*(uint16*)pDest = uint16(firstVertexCount) + *(const uint8_t*)pSource;
-									pSource += SecondIndexBuffer.ElementSize;
-									pDest += ResultIndexBuffer.ElementSize;
+								case MBF_INT16:
+								case MBF_UINT16:
+								case MBF_NINT16:
+								case MBF_NUINT16:
+								{
+									for (int32 v = 0; v < SecondCount; ++v)
+									{
+										*(uint32*)pDest = uint32(firstVertexCount) + *(const uint16*)pSource;
+										pSource += SecondIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
 								}
+
+								case MBF_INT8:
+								case MBF_UINT8:
+								case MBF_NINT8:
+								case MBF_NUINT8:
+								{
+									for (int32 v = 0; v < SecondCount; ++v)
+									{
+										*(uint32*)pDest = uint32(firstVertexCount) + *(const uint8*)pSource;
+										pSource += SecondIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
+								}
+
+								default:
+									checkf(false, TEXT("Format not supported."));
+									break;
+								}
+
+								break;
+							}
+
+							case MBF_UINT16:
+							{
+								switch (SecondIndexBuffer.Channels[0].Format)
+								{
+								case MBF_INT8:
+								case MBF_UINT8:
+								case MBF_NINT8:
+								case MBF_NUINT8:
+								{
+									for (int32 v = 0; v < SecondCount; ++v)
+									{
+										*(uint16*)pDest = uint16(firstVertexCount) + *(const uint8*)pSource;
+										pSource += SecondIndexBuffer.ElementSize;
+										pDest += ResultIndexBuffer.ElementSize;
+									}
+									break;
+								}
+
+								default:
+									checkf(false, TEXT("Format not supported."));
+									break;
+								}
+
 								break;
 							}
 
 							default:
 								checkf(false, TEXT("Format not supported."));
 								break;
+
 							}
-
-							break;
-						}
-
-						default:
-							checkf(false, TEXT("Format not supported."));
-							break;
-
 						}
 					}
 				}
@@ -537,6 +550,7 @@ namespace mu
 
 		// Pose
 		//---------------------------
+		if (Result->GetSkeleton())
 		{
 			MUTABLE_CPUPROFILER_SCOPE(Pose);
 
@@ -894,7 +908,7 @@ namespace mu
 								int32 offset = 0;
 								for (int32 AuxChannelIndex = 0; AuxChannelIndex < ChannelsCount; ++AuxChannelIndex)
 								{
-									result.Channels[AuxChannelIndex].Offset = (uint8_t)offset;
+									result.Channels[AuxChannelIndex].Offset = (uint8)offset;
 									offset += result.Channels[AuxChannelIndex].ComponentCount
 										*
 										GetMeshFormatData(result.Channels[AuxChannelIndex].Format).SizeInBytes;
@@ -914,11 +928,18 @@ namespace mu
 			}
 
 
-			// Step 2: Fill the result buffers
-			//-----------------------------------------------------------------------
+			// Step 2: Fill the result buffers. In case we are merging descriptors only update the element count.
+			//--------------------------------------------------------------------------------------------------
+			if (pFirst->VertexBuffers.IsDescriptor() || pSecond->VertexBuffers.IsDescriptor())
+			{
+				Result->VertexBuffers.ElementCount = FirstVertexCount + SecondVertexCount;
+			}
+			else
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ResultFill);
 
+				check(!pFirst->VertexBuffers.IsDescriptor() && !pSecond->VertexBuffers.IsDescriptor());
+				
 				// We have the final result vertex buffers structure: allocate the memory for them.
 				Result->VertexBuffers.SetElementCount(FirstVertexCount + SecondVertexCount);
 
@@ -1129,12 +1150,12 @@ namespace mu
 		}
 
         // Fix bone parent indices of the bones added from pOther
-        for ( int b=initialBones;b<pBase->GetBoneCount(); ++b)
+        for (int32 b = initialBones; b<pBase->GetBoneCount(); ++b)
         {
-            int16_t sourceIndex = pBase->BoneParents[b];
+            int16 sourceIndex = pBase->BoneParents[b];
             if (sourceIndex>=0)
             {
-                pBase->BoneParents[b] = (int16_t)otherToResult[ sourceIndex ];
+                pBase->BoneParents[b] = (int16)otherToResult[ sourceIndex ];
             }
         }
     }

@@ -279,6 +279,175 @@ namespace mu
 
 	namespace
 	{
+		/** Adds a constant mesh data to a program and returns its constant index. */
+		int32 AddConstantMesh(FProgram& Program, const Ptr<const Mesh>& MeshData, FLinkerOptions& Options)
+		{
+			// TODO: Add LinkerOptions to control how the mesh is split.
+		
+			// Split generated mesh data in two parts. Geometry and other components. 
+			// Bone maps are needed for some geoemtry only operations, duplicate the data for now.
+			
+			int32 FirstIndex = Program.ConstantMeshIndices.Num();
+			
+			// GeometryMesh
+			{
+				const EMeshCopyFlags GeometryDataCopyFlags = 
+						//EMeshCopyFlags::WithBoneMap       |
+						//EMeshCopyFlags::WithPoses         |
+						EMeshCopyFlags::WithSurfaces      | 
+						EMeshCopyFlags::WithVertexBuffers |
+						EMeshCopyFlags::WithIndexBuffers  |
+						EMeshCopyFlags::WithLayouts;
+
+				Ptr<Mesh> MeshGeometryData = MeshData->Clone(GeometryDataCopyFlags);
+
+				// Copy geometry related additional buffers.
+				for (const TPair<EMeshBufferType, FMeshBufferSet>& AdditionalBuffer : MeshData->AdditionalBuffers)
+				{
+					const bool bIsGeometryBufferType = 
+							AdditionalBuffer.Key == EMeshBufferType::MeshLaplacianData    ||
+							AdditionalBuffer.Key == EMeshBufferType::MeshLaplacianOffsets ||
+							AdditionalBuffer.Key == EMeshBufferType::UniqueVertexMap;
+
+					if (bIsGeometryBufferType)
+					{
+						MeshGeometryData->AdditionalBuffers.Emplace(AdditionalBuffer);
+					}
+				}
+
+				// Use a map-based deduplication
+	
+				int32 GeometryIndex = -1;
+				mu::Ptr<const mu::Mesh> GeometryKey = MeshGeometryData;
+				const int32* GeometryIndexPtr = Options.MeshConstantMap.Find(GeometryKey);
+				if (!GeometryIndexPtr)
+				{
+					GeometryIndex = Program.ConstantMeshData.Add(TPair<int32, Ptr<const Mesh>>(-1, MeshGeometryData));
+					Options.MeshConstantMap.Add(MeshGeometryData.get(), GeometryIndex);
+				}
+				else
+				{
+					GeometryIndex = *GeometryIndexPtr;
+				}
+
+				Program.ConstantMeshIndices.Add(GeometryIndex);
+			}
+
+			// Pose Mesh
+			{
+				Ptr<Mesh> MeshPoseData = new Mesh();
+				MeshPoseData->BonePoses = MeshData->BonePoses;
+				MeshPoseData->BoneMap =  MeshData->BoneMap;
+
+				int32 PoseIndex = -1;
+				mu::Ptr<const mu::Mesh> PoseKey = MeshPoseData;
+				const int32* PoseIndexPtr = Options.MeshConstantMap.Find(PoseKey);
+				if (!PoseIndexPtr)
+				{
+					PoseIndex = Program.ConstantMeshData.Add(TPair<int32, Ptr<const Mesh>>(-1, MeshPoseData));
+					Options.MeshConstantMap.Add(MeshPoseData.get(), PoseIndex);
+				}
+				else
+				{
+					PoseIndex = *PoseIndexPtr;
+				}
+				
+				Program.ConstantMeshIndices.Add(PoseIndex);
+			}
+
+			// Components Mesh
+			{
+				const EMeshCopyFlags ComponentsDataCopyFlags = 
+						//EMeshCopyFlags::WithBoneMap           |
+						//EMeshCopyFlags::WithPoses             |
+						EMeshCopyFlags::WithSurfaces          |
+						EMeshCopyFlags::WithTags              |
+						EMeshCopyFlags::WithSkeletonIDs       |
+						EMeshCopyFlags::WithAdditionalPhysics |
+						EMeshCopyFlags::WithStreamedResources;
+
+				Ptr<Mesh> MeshComponentsData = MeshData->Clone(ComponentsDataCopyFlags);
+			
+				// Add an empty MeshBufferSet to the Component Part to have formating info.
+				// Probably not needed, it needs special handling when data is empty but
+				// element count is non zero.
+				{
+					FMeshBufferSet VertexMeshFormat;
+					const FMeshBufferSet& VertexBufferSet = MeshData->VertexBuffers;
+					
+					VertexMeshFormat.ElementCount = VertexBufferSet.ElementCount;
+
+					const int32 NumVertexBuffers = VertexBufferSet.Buffers.Num();
+					VertexMeshFormat.Buffers.SetNum(NumVertexBuffers);
+
+					for (int32 BufferIndex = 0; BufferIndex < NumVertexBuffers; ++BufferIndex)
+					{
+						VertexMeshFormat.Buffers[BufferIndex].Channels = VertexBufferSet.Buffers[BufferIndex].Channels;	
+						VertexMeshFormat.Buffers[BufferIndex].ElementSize = VertexBufferSet.Buffers[BufferIndex].ElementSize;	
+					}
+				
+					MeshComponentsData->VertexBuffers = MoveTemp(VertexMeshFormat);
+				}
+
+				{
+					FMeshBufferSet IndexMeshFormat;
+					const FMeshBufferSet& IndexBufferSet = MeshData->IndexBuffers;
+					
+					IndexMeshFormat.ElementCount = IndexBufferSet.ElementCount;
+
+					const int32 NumIndexBuffers = IndexBufferSet.Buffers.Num();
+					IndexMeshFormat.Buffers.SetNum(NumIndexBuffers);
+
+					for (int32 BufferIndex = 0; BufferIndex < NumIndexBuffers; ++BufferIndex)
+					{
+						IndexMeshFormat.Buffers[BufferIndex].Channels = IndexBufferSet.Buffers[BufferIndex].Channels;	
+						IndexMeshFormat.Buffers[BufferIndex].ElementSize = IndexBufferSet.Buffers[BufferIndex].ElementSize;	
+					}
+					
+					MeshComponentsData->IndexBuffers = MoveTemp(IndexMeshFormat);
+				}
+
+				// Copy components related additional buffers.
+				for (const TPair<EMeshBufferType, FMeshBufferSet>& AdditionalBuffer : MeshData->AdditionalBuffers)
+				{
+					const bool bIsComponentsBufferType = 
+							AdditionalBuffer.Key == EMeshBufferType::SkeletonDeformBinding      ||
+							AdditionalBuffer.Key == EMeshBufferType::PhysicsBodyDeformBinding   ||
+							AdditionalBuffer.Key == EMeshBufferType::PhysicsBodyDeformSelection ||
+							AdditionalBuffer.Key == EMeshBufferType::PhysicsBodyDeformOffsets;
+
+					if (bIsComponentsBufferType)
+					{
+						MeshComponentsData->AdditionalBuffers.Emplace(AdditionalBuffer);
+					}
+				}
+
+				int32 ComponentsIndex = -1;
+				mu::Ptr<const mu::Mesh> ComponentsKey = MeshComponentsData;
+				const int32* ComponentsIndexPtr = Options.MeshConstantMap.Find(ComponentsKey);
+				if (!ComponentsIndexPtr)
+				{
+					ComponentsIndex = Program.ConstantMeshData.Add(TPair<int32, Ptr<const Mesh>>(-1, MeshComponentsData));
+					Options.MeshConstantMap.Add(MeshComponentsData.get(), ComponentsIndex);
+				}
+				else
+				{
+					ComponentsIndex = *ComponentsIndexPtr;
+				}
+
+				Program.ConstantMeshIndices.Add(ComponentsIndex);
+			}
+
+			check(Program.ConstantMeshIndices.Num() - FirstIndex == 3);
+
+			// Using a FMeshIndexRange is not strictly needed at the moment as we have a regular layout,
+			// all meshes have 3 pices of data. This may not be the case if linker options are added or 
+			// if some data can be discarded. Notice that in the later case we will need to specify the 
+			// content per Index.
+			return Program.ConstantMeshes.Add(FMeshRange{FirstIndex, 3});
+		}
+		
+
 		/** Adds a constant image data to a program and returns its constant index. */
 		int32 AddConstantImage(FProgram& Program, const Ptr<const Image>& pImage, FLinkerOptions& Options)
 		{
@@ -400,8 +569,7 @@ namespace mu
 		}
 	}
 
-	//-------------------------------------------------------------------------------------------------
-	void ASTOpConstantResource::Link(FProgram& program, FLinkerOptions* Options)
+	void ASTOpConstantResource::Link(FProgram& Program, FLinkerOptions* Options)
 	{
 		MUTABLE_CPUPROFILER_SCOPE(ASTOpConstantResource_Link);
 
@@ -409,43 +577,30 @@ namespace mu
 		{
 			if (Type == OP_TYPE::ME_CONSTANT)
 			{
-				OP::MeshConstantArgs args;
-				FMemory::Memset(&args, 0, sizeof(args));
+				OP::MeshConstantArgs Args;
+				FMemory::Memzero(Args);
 
-				Ptr<Mesh> MeshData = static_cast<const Mesh*>(GetValue().get())->Clone();
-				check(MeshData);
+				Ptr<const Mesh> TypedValue = static_cast<const Mesh*>(GetValue().get());
+				check(TypedValue);
+				
+				Args.Value = AddConstantMesh(Program, TypedValue, *Options);
 
-				args.skeleton = -1;
-				if (Ptr<const Skeleton> pSkeleton = MeshData->GetSkeleton())
+				Args.Skeleton = -1;
+				if (Ptr<const Skeleton> MeshSkeleton = TypedValue->GetSkeleton())
 				{
-					args.skeleton = program.AddConstant(pSkeleton.get());
-					MeshData->SetSkeleton(nullptr);
+					Args.Skeleton = Program.AddConstant(MeshSkeleton.get());
 				}
 
-				args.physicsBody = -1;
-				if (Ptr<const PhysicsBody> pPhysicsBody = MeshData->GetPhysicsBody())
+				Args.PhysicsBody = -1;
+				if (Ptr<const PhysicsBody> MeshPhysicsBody = TypedValue->GetPhysicsBody())
 				{
-					args.physicsBody = program.AddConstant(pPhysicsBody.get());
-					MeshData->SetPhysicsBody(nullptr);
+					Args.PhysicsBody = Program.AddConstant(MeshPhysicsBody.get());
 				}
 
-				// Use a map-based deduplication
-				mu::Ptr<const mu::Mesh> Key = MeshData;
-				const int32* IndexPtr = Options->MeshConstantMap.Find(Key);
-				if (!IndexPtr)
-				{
-					args.value = program.AddConstant(MeshData.get());
-					Options->MeshConstantMap.Add(MeshData, int32(args.value));
-				}
-				else
-				{
-					args.value = *IndexPtr;
-				}
-
-				linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-				program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
-				AppendCode(program.m_byteCode, Type);
-				AppendCode(program.m_byteCode, args);
+				linkedAddress = (OP::ADDRESS)Program.m_opAddress.Num();
+				Program.m_opAddress.Add((uint32)Program.m_byteCode.Num());
+				AppendCode(Program.m_byteCode, Type);
+				AppendCode(Program.m_byteCode, Args);
 			}
 			else
 			{
@@ -468,7 +623,7 @@ namespace mu
 					}
 					else
 					{
-						args.value = AddConstantImage( program, pTyped, *Options);
+						args.value = AddConstantImage(Program, pTyped, *Options);
 
 						int32 DataDescIndex = Options->AdditionalData.SourceImagePerConstant.Add(SourceDataDescriptor);
 						check(DataDescIndex == args.value);
@@ -480,7 +635,7 @@ namespace mu
 				{
 					Ptr<const Layout> pTyped = static_cast<const Layout*>(GetValue().get());
 					check(pTyped);
-					args.value = program.AddConstant(pTyped);
+					args.value = Program.AddConstant(pTyped);
 					break;
 				}
 				default:
@@ -489,10 +644,10 @@ namespace mu
 
 				if (bValidData)
 				{
-					linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-					program.m_opAddress.Add((uint32)program.m_byteCode.Num());
-					AppendCode(program.m_byteCode, Type);
-					AppendCode(program.m_byteCode, args);
+					linkedAddress = (OP::ADDRESS)Program.m_opAddress.Num();
+					Program.m_opAddress.Add((uint32)Program.m_byteCode.Num());
+					AppendCode(Program.m_byteCode, Type);
+					AppendCode(Program.m_byteCode, args);
 				}
 				else
 				{

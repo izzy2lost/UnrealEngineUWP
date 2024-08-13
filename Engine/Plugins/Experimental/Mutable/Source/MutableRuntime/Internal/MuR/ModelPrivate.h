@@ -69,6 +69,13 @@ namespace mu
 	};
 	MUTABLE_DEFINE_POD_SERIALISABLE(FImageLODRange);
 
+	struct FMeshRange
+	{
+		int32 FirstIndex = 0;
+		int32 NumMeshes = 0;
+	};
+	MUTABLE_DEFINE_POD_SERIALISABLE(FMeshRange);
+
 	struct FExtensionDataConstant
 	{
 		// This should always be valid, but if the state is Unloaded it won't be usable.
@@ -235,7 +242,13 @@ namespace mu
 		TArray<FImageLODRange> ConstantImages;
 
         //! Constant mesh data: the first is the index in m_roms for each mesh or -1 if it is always loaded.
-		TArray<TPair<int32, Ptr<const Mesh>>> ConstantMeshes;
+		TArray<TPair<int32, Ptr<const Mesh>>> ConstantMeshData;
+	
+		/** Indices pointing at ConstantMeshData */
+		TArray<int32> ConstantMeshIndices;
+
+		/** Span in the ConstantMeshIndices indicating the indices of the components of a mesh constant. */
+		TArray<FMeshRange> ConstantMeshes;
 
 		//! Constant ExtensionData
 		TArray<FExtensionDataConstant> m_constantExtensionData;
@@ -259,10 +272,10 @@ namespace mu
 		TArray<FRichCurve> ConstantCurves;
 
         //! Constant skeletons
-		TArray<Ptr<const Skeleton>> m_constantSkeletons;
+		TArray<Ptr<const Skeleton>> ConstantSkeletons;
 
 		//! Constant Physics Bodies
-		TArray<Ptr<const PhysicsBody>> m_constantPhysicsBodies;
+		TArray<Ptr<const PhysicsBody>> ConstantPhysicsBodies;
 
         //! Parameters of the model.
         //! The value stored here is the default value.
@@ -282,53 +295,57 @@ namespace mu
 		bool bIsValid = true;
 #endif
         //!
-        void Serialise( OutputArchive& arch ) const
+        void Serialise(OutputArchive& Arch) const
         {
-            arch << m_opAddress;
-            arch << m_byteCode;
-            arch << m_states;
-			arch << m_roms;
-			arch << ConstantImageLODs;
-			arch << ConstantImageLODIndices;
-			arch << ConstantImages;
-			arch << ConstantMeshes;
-			arch << m_constantExtensionData;
-			arch << m_constantStrings;
-            arch << m_constantLayouts;
-            arch << m_constantProjectors;
-			arch << m_constantMatrices;
-			arch << m_constantShapes;
-            arch << ConstantCurves;
-            arch << m_constantSkeletons;
-			arch << m_constantPhysicsBodies;
-            arch << m_parameters;
-            arch << m_ranges;
-            arch << m_parameterLists;
+            Arch << m_opAddress;
+            Arch << m_byteCode;
+            Arch << m_states;
+			Arch << m_roms;
+			Arch << ConstantImageLODs;
+			Arch << ConstantImageLODIndices;
+			Arch << ConstantImages;
+			Arch << ConstantMeshes;
+			Arch << ConstantMeshIndices;
+			Arch << ConstantMeshData;
+			Arch << m_constantExtensionData;
+			Arch << m_constantStrings;
+            Arch << m_constantLayouts;
+            Arch << m_constantProjectors;
+			Arch << m_constantMatrices;
+			Arch << m_constantShapes;
+            Arch << ConstantCurves;
+            Arch << ConstantSkeletons;
+			Arch << ConstantPhysicsBodies;
+            Arch << m_parameters;
+            Arch << m_ranges;
+            Arch << m_parameterLists;
         }
 
         //!
-        void Unserialise( InputArchive& arch )
+        void Unserialise(InputArchive& Arch)
         {
-            arch >> m_opAddress;
-            arch >> m_byteCode;
-            arch >> m_states;
-			arch >> m_roms;
-			arch >> ConstantImageLODs;
-			arch >> ConstantImageLODIndices;
-			arch >> ConstantImages;
-			arch >> ConstantMeshes;
-			arch >> m_constantExtensionData;
-			arch >> m_constantStrings;
-            arch >> m_constantLayouts;
-            arch >> m_constantProjectors;
-			arch >> m_constantMatrices;
-			arch >> m_constantShapes;
-            arch >> ConstantCurves;
-            arch >> m_constantSkeletons;
-			arch >> m_constantPhysicsBodies;
-            arch >> m_parameters;
-            arch >> m_ranges;
-            arch >> m_parameterLists;
+            Arch >> m_opAddress;
+            Arch >> m_byteCode;
+            Arch >> m_states;
+			Arch >> m_roms;
+			Arch >> ConstantImageLODs;
+			Arch >> ConstantImageLODIndices;
+			Arch >> ConstantImages;
+			Arch >> ConstantMeshes;
+			Arch >> ConstantMeshIndices;
+			Arch >> ConstantMeshData;
+			Arch >> m_constantExtensionData;
+			Arch >> m_constantStrings;
+            Arch >> m_constantLayouts;
+            Arch >> m_constantProjectors;
+			Arch >> m_constantMatrices;
+			Arch >> m_constantShapes;
+            Arch >> ConstantCurves;
+            Arch >> ConstantSkeletons;
+			Arch >> ConstantPhysicsBodies;
+            Arch >> m_parameters;
+            Arch >> m_ranges;
+            Arch >> m_parameterLists;
         }
 
         //! Debug method that sanity-checks the program with a variety of tests.
@@ -345,7 +362,7 @@ namespace mu
 				case DT_IMAGE: 
 					return ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
 				case DT_MESH: 
-					return ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
+					return ConstantMeshData[m_roms[RomIndex].ResourceIndex].Value.get() != nullptr;
 				default:
 					check(false);
 					break;
@@ -377,10 +394,10 @@ namespace mu
 				}
 				break;
 			case DT_MESH:
-				if (ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value)
+				if (ConstantMeshData[m_roms[RomIndex].ResourceIndex].Value)
 				{
-					RomSize = ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
-					ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value = nullptr;
+					RomSize = ConstantMeshData[m_roms[RomIndex].ResourceIndex].Value->GetDataSize();
+					ConstantMeshData[m_roms[RomIndex].ResourceIndex].Value = nullptr;
 				}
 				break;
 			default:
@@ -396,7 +413,7 @@ namespace mu
 			check(m_roms[RomIndex].ResourceType == DT_MESH);
 			
 			LoadedMemTrackedRoms.EmplaceAt(RomIndex, (uint8)m_roms[RomIndex].ResourceType);
-			ConstantMeshes[m_roms[RomIndex].ResourceIndex].Value = Value;
+			ConstantMeshData[m_roms[RomIndex].ResourceIndex].Value = Value;
 		}
 
 		FORCEINLINE void SetImageRomValue(int32 RomIndex, const Ptr<Image>& Value)
@@ -405,13 +422,6 @@ namespace mu
 			
 			LoadedMemTrackedRoms.EmplaceAt(RomIndex, (uint8)m_roms[RomIndex].ResourceType);
 			ConstantImageLODs[m_roms[RomIndex].ResourceIndex].Value = Value;
-		}
-
-
-		int32 AddConstant(Ptr<const Mesh> pMesh)
-		{
-			// Uniques needs to be ensured outside
-			return ConstantMeshes.Add(TPair<int32, Ptr<const Mesh>>( -1, pMesh.get() ));
 		}
 
 		OP::ADDRESS AddConstant(Ptr<const ExtensionData> Data)
@@ -454,42 +464,36 @@ namespace mu
             return index;
         }
 
-        OP::ADDRESS AddConstant( Ptr<const Skeleton> pSkeleton )
+        OP::ADDRESS AddConstant(Ptr<const Skeleton> SkeletonPtr)
         {
             // Ensure unique
-            for ( SIZE_T i=0; i<m_constantSkeletons.Num(); ++i)
+            for (int32 SkeletonIndex = 0; SkeletonIndex < ConstantSkeletons.Num(); ++SkeletonIndex)
             {
-                if ( m_constantSkeletons[i]==pSkeleton
-                     ||
-                     *m_constantSkeletons[i]==*pSkeleton
-                     )
+                if (ConstantSkeletons[SkeletonIndex] == SkeletonPtr || *ConstantSkeletons[SkeletonIndex] == *SkeletonPtr)
                 {
-                    return (OP::ADDRESS)i;
+                    return (OP::ADDRESS)SkeletonIndex;
                 }
             }
 
-            OP::ADDRESS index = OP::ADDRESS( m_constantSkeletons.Num() );
-            m_constantSkeletons.Add( pSkeleton );
-            return index;
+            OP::ADDRESS NewSkeletonIndex = OP::ADDRESS(ConstantSkeletons.Num());
+            ConstantSkeletons.Add(SkeletonPtr);
+            return NewSkeletonIndex;
         }
 
-        OP::ADDRESS AddConstant( Ptr<const PhysicsBody> pPhysicsBody )
+        OP::ADDRESS AddConstant(Ptr<const PhysicsBody> PhysicsBodyPtr)
         {
             // Ensure unique
-            for ( SIZE_T i=0; i<m_constantPhysicsBodies.Num(); ++i)
+            for (int32 BodyIndex = 0; BodyIndex < ConstantPhysicsBodies.Num(); ++BodyIndex)
             {
-                if ( m_constantPhysicsBodies[i]==pPhysicsBody
-                     ||
-                     *m_constantPhysicsBodies[i]==*pPhysicsBody
-                     )
+                if (ConstantPhysicsBodies[BodyIndex] == PhysicsBodyPtr || *ConstantPhysicsBodies[BodyIndex] == *PhysicsBodyPtr)
                 {
-                    return (OP::ADDRESS)i;
+                    return (OP::ADDRESS)BodyIndex;
                 }
             }
 
-            OP::ADDRESS index = OP::ADDRESS( m_constantPhysicsBodies.Num() );
-            m_constantPhysicsBodies.Add( pPhysicsBody );
-            return index;
+            OP::ADDRESS NewPhysicsBodyIndex = OP::ADDRESS(ConstantPhysicsBodies.Num());
+            ConstantPhysicsBodies.Add(PhysicsBodyPtr);
+            return NewPhysicsBodyIndex;
         }
 
         OP::ADDRESS AddConstant( const FString& str )
@@ -643,9 +647,17 @@ namespace mu
 			}
 		}
 
-        void GetConstant(int32 ConstantIndex, MeshPtrConst& res) const
+        void GetConstant(int32 ConstantIndex, Ptr<const Mesh>& OutResult) const
         {
-			res = ConstantMeshes[ConstantIndex].Value;
+			// TODO: This should probably accept load mesh options and make a composite of the requested 
+			// data. Currently only used in Mutable Debugger code. Other code paths that need to get the 
+			// constant manage the merge themselves accessing directly to the program.
+			MUTABLE_CPUPROFILER_SCOPE(ComposeConstantMesh);
+
+			const FMeshRange MeshRange = ConstantMeshes[ConstantIndex];
+	
+			// Only the geometry part.
+			OutResult = ConstantMeshData[ConstantMeshIndices[MeshRange.FirstIndex + 0]].Value;
 		}
 
 		void GetExtensionDataConstant(int32 ConstantIndex, ExtensionDataPtrConst& Result) const

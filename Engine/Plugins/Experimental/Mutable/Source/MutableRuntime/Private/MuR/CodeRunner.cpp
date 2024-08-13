@@ -124,8 +124,8 @@ namespace mu
 		EExecutionStrategy InExecutionStrategy,
 		const TSharedPtr<const Model>& InModel,
 		const Parameters* InParams,
-		OP::ADDRESS at,
-		uint32 InLodMask, uint8 executionOptions, int32 InImageLOD, FScheduledOp::EType Type )
+		OP::ADDRESS At,
+		uint32 InLodMask, uint8 ExecutionOptions, int32 InImageLOD, FScheduledOp::EType Type)
 		: m_pSettings(InSettings)
 		, RunnerCompletionEvent(TEXT("CodeRunnerCompletioneEventInit"))
 		, ExecutionStrategy(InExecutionStrategy)
@@ -134,13 +134,15 @@ namespace mu
 		, m_pParams(InParams)
 		, m_lodMask(InLodMask)
 	{
-		const FProgram& program = m_pModel->GetPrivate()->m_program;
-		ScheduledStagePerOp.resize(program.m_opAddress.Num());
+		const FProgram& Program = m_pModel->GetPrivate()->m_program;
+		ScheduledStagePerOp.Resize(Program.m_opAddress.Num());
 
 		// We will read this in the end, so make sure we keep it.
-   		if (Type == FScheduledOp::EType::Full)
+   		if (Type != FScheduledOp::EType::ImageDesc)
    		{
-			GetMemory().IncreaseHitCount(FCacheAddress(at, 0, executionOptions));
+			FCacheAddress RootCacheAddress = FCacheAddress(At, 0, ExecutionOptions);
+			RootCacheAddress.Type = Type;
+			GetMemory().IncreaseHitCount(RootCacheAddress);
 		}
     
 		// Start with a completed Event. This is checked at StartRun() to make sure StartRun is not called while there is 
@@ -150,11 +152,12 @@ namespace mu
 		ImageLOD = InImageLOD;
 	
 		// Push the root operation
-		FScheduledOp rootOp;
-		rootOp.At = at;
-		rootOp.ExecutionOptions = executionOptions;
-		rootOp.Type = Type;
-		AddOp(rootOp);
+		FScheduledOp RootOp;
+		RootOp.At = At;
+		RootOp.ExecutionOptions = ExecutionOptions;
+		RootOp.Type = Type;
+		
+		AddOp(RootOp);
 	}
 
 
@@ -922,60 +925,130 @@ namespace mu
         }
     }
 
-
-    //---------------------------------------------------------------------------------------------
-    bool CodeRunner::RunCode_ConstantResource(const FScheduledOp& item, const Model* pModel )
+    bool CodeRunner::RunCode_ConstantResource(const FScheduledOp& Item, const Model* pModel)
     {
 		MUTABLE_CPUPROFILER_SCOPE(RunCode_Constant);
 
 		const FProgram& Program = m_pModel->GetPrivate()->m_program;
 
-		OP_TYPE type = Program.GetOpType(item.At);
-        switch (type)
+		OP_TYPE Type = Program.GetOpType(Item.At);
+        switch (Type)
         {
 
         case OP_TYPE::ME_CONSTANT:
         {
-			OP::MeshConstantArgs args = Program.GetOpArgs<OP::MeshConstantArgs>(item.At);
+			OP::MeshConstantArgs Args = Program.GetOpArgs<OP::MeshConstantArgs>(Item.At);
 
-            OP::ADDRESS cat = args.value;
+			const EMeshExecutionOptions ExecutionOptions = static_cast<EMeshExecutionOptions>(Item.ExecutionOptions);
 
-            // Assume the ROM has been loaded previously
-            check(Program.ConstantMeshes[cat].Value)
+			const FMeshRange MeshIndexRange = Program.ConstantMeshes[Args.Value];
+			check(MeshIndexRange.NumMeshes == 3);
+			
+			uint32 EstimatedMeshDataSize = 0;
+			Ptr<const Mesh> GeometryMesh;
+			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadGeometryData))
+			{	
+				int32 GeometryRomIndex = Program.ConstantMeshIndices[MeshIndexRange.FirstIndex + 0];
+            	check(Program.ConstantMeshData[GeometryRomIndex].Value)
 
-            Ptr<const Mesh> SourceConst;
-			Program.GetConstant(cat, SourceConst);
+				GeometryMesh = Program.ConstantMeshData[GeometryRomIndex].Value;
 
-			check(SourceConst);
-			Ptr<Mesh> Source = CreateMesh(SourceConst->GetDataSize());
-			Source->CopyFrom(*SourceConst);
+				check(GeometryMesh);
 
-            // Set the separate skeleton if necessary
-            if (args.skeleton >= 0)
-            {
-                check(Program.m_constantSkeletons.Num() > size_t(args.skeleton));
-                Ptr<const Skeleton> pSkeleton = Program.m_constantSkeletons[args.skeleton];
-                Source->SetSkeleton(pSkeleton);
-            }
-
-			if (args.physicsBody >= 0)
-			{
-                check(Program.m_constantPhysicsBodies.Num() > size_t(args.physicsBody));
-                Ptr<const PhysicsBody> pPhysicsBody = Program.m_constantPhysicsBodies[args.physicsBody];
-                Source->SetPhysicsBody(pPhysicsBody);
+				EstimatedMeshDataSize += GeometryMesh->GetDataSize();
 			}
 
-            StoreMesh(item, Source);
+			Ptr<const Mesh> PoseMesh;
+			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadPoseData | EMeshExecutionOptions::LoadGeometryData))
+			{	
+				int32 PoseRomIndex = Program.ConstantMeshIndices[MeshIndexRange.FirstIndex + 1];
+            	check(Program.ConstantMeshData[PoseRomIndex].Value)
+				PoseMesh = Program.ConstantMeshData[PoseRomIndex].Value;
+				
+				check(PoseMesh);
+
+				EstimatedMeshDataSize += PoseMesh->GetDataSize();
+			}
+
+			Ptr<const Mesh> ComponentsMesh;
+			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadComponentsData))
+			{
+				int32 ComponentsRomIndex = Program.ConstantMeshIndices[MeshIndexRange.FirstIndex + 2];
+            	check(Program.ConstantMeshData[ComponentsRomIndex].Value)
+				
+				ComponentsMesh = Program.ConstantMeshData[ComponentsRomIndex].Value;
+				check(ComponentsMesh);
+				
+				EstimatedMeshDataSize += ComponentsMesh->GetDataSize();
+			}
+
+			Ptr<Mesh> Result = CreateMesh(EstimatedMeshDataSize);
+		
+			if (GeometryMesh)
+			{
+				Result->CopyFrom(*GeometryMesh);
+			}
+
+			if (ComponentsMesh)
+			{
+				// ComponentMeshes may have data like buffer descriptors that would clash with the
+				// proper data in the Geometry mesh. If There is no Geometry mesh, then the mesh can be copied directly
+				// otherwise only take the missing bits.
+				if (!GeometryMesh)
+				{
+					Result->CopyFrom(*ComponentsMesh);
+				}
+				else
+				{
+					Result->SkeletonIDs = ComponentsMesh->SkeletonIDs;
+					Result->AdditionalPhysicsBodies = ComponentsMesh->AdditionalPhysicsBodies;
+					Result->Tags = ComponentsMesh->Tags;
+					Result->StreamedResources = ComponentsMesh->StreamedResources;
+					
+					// Add additional buffers.
+					for (const TPair<EMeshBufferType, FMeshBufferSet>& AdditionalBuffer : ComponentsMesh->AdditionalBuffers)
+					{
+						Result->AdditionalBuffers.Add(AdditionalBuffer);
+					}
+				}
+			}
+
+			if (PoseMesh)
+			{		
+				Result->BonePoses = PoseMesh->BonePoses;
+				Result->BoneMap = PoseMesh->BoneMap;
+			}
+
+			// Shared Physics and Skeleton only get loaded if LoadComponentsData option is present.
+			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadComponentsData))
+			{
+				if (Args.PhysicsBody >= 0)
+				{
+					check(Program.ConstantPhysicsBodies.Num() > Args.PhysicsBody);
+					Ptr<const PhysicsBody> PhysicsBodyConstant = Program.ConstantPhysicsBodies[Args.PhysicsBody];
+					Result->SetPhysicsBody(PhysicsBodyConstant);
+				}
+
+				// Set the separate skeleton if necessary.
+				if (Args.Skeleton >= 0)
+				{
+					check(Program.ConstantSkeletons.Num() > Args.Skeleton);
+					Ptr<const Skeleton> SkeletonConstant = Program.ConstantSkeletons[Args.Skeleton];
+					Result->SetSkeleton(SkeletonConstant);
+				}
+			}
+
+            StoreMesh(Item, Result);
 			//UE_LOG(LogMutableCore, Log, TEXT("Set mesh constant %d."), item.At);
             break;
         }
 
         case OP_TYPE::IM_CONSTANT:
         {
-			OP::ResourceConstantArgs args = Program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
+			OP::ResourceConstantArgs args = Program.GetOpArgs<OP::ResourceConstantArgs>(Item.At);
             OP::ADDRESS cat = args.value;
 
-			int32 MipsToSkip = item.ExecutionOptions;
+			int32 MipsToSkip = Item.ExecutionOptions;
             Ptr<const Image> Source;
 			Program.GetConstant(cat, Source, MipsToSkip, [this](int32 x, int32 y, int32 m, EImageFormat f, EInitializationType i)
 				{
@@ -988,14 +1061,14 @@ namespace mu
 				return false;
 			}
 
-            StoreImage( item, Source );
+            StoreImage(Item, Source);
 			//UE_LOG(LogMutableCore, Log, TEXT("Set image constant %d."), item.At);
 			break;
         }
 
 		case OP_TYPE::ED_CONSTANT:
 		{
-			OP::ResourceConstantArgs Args = Program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
+			OP::ResourceConstantArgs Args = Program.GetOpArgs<OP::ResourceConstantArgs>(Item.At);
 
 			// Assume the ROM has been loaded previously
 			ExtensionDataPtrConst SourceConst;
@@ -1003,12 +1076,12 @@ namespace mu
 
 			check(SourceConst);
 
-            StoreExtensionData(item, SourceConst);
+            StoreExtensionData(Item, SourceConst);
             break;
 		}
 
         default:
-            if (type!=OP_TYPE::NONE)
+            if (Type != OP_TYPE::NONE)
             {
                 // Operation not implemented
                 check( false );
@@ -1018,6 +1091,814 @@ namespace mu
 
 		// Success
 		return true;
+    }
+
+	void CodeRunner::RunCodeMeshComponents(const FScheduledOp& Item, const Parameters* ParamsPtr, const Model* ModelPtr, uint32 LodMask)
+    {
+		MUTABLE_CPUPROFILER_SCOPE(RunCode_MeshComponents);
+
+		check(Item.Type == FScheduledOp::EType::MeshComp);
+
+		const FProgram& Program = m_pModel->GetPrivate()->m_program;
+
+		auto ScheduleOrRunPassthroughOp = [this](const FScheduledOp& Item, OP::ADDRESS SourceAddress)
+		{
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				if (SourceAddress)
+				{
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(SourceAddress, Item));
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+            case 1:
+            {
+                StoreMesh(Item, LoadMesh(FCacheAddress(SourceAddress, Item)));
+                break;
+            }
+
+            default:
+                check(false);
+            }
+		};
+
+
+		OP_TYPE Type = Program.GetOpType(Item.At);
+        switch (Type)
+        {
+		case OP_TYPE::ME_CONDITIONAL:
+		{
+			OP::ConditionalArgs Args = Program.GetOpArgs<OP::ConditionalArgs>(Item.At);
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				// We need to run the full condition result
+				FScheduledOp FullConditionOp(Args.condition, Item);
+				FullConditionOp.Type = FScheduledOp::EType::Full;
+				AddOp(FScheduledOp(Item.At, Item, 1), FullConditionOp);
+				break;
+			}
+
+			case 1:
+			{
+				const bool Value = LoadBool(FCacheAddress(Args.condition, Item.ExecutionIndex, Item.ExecutionOptions));
+				const OP::ADDRESS ResultAddress = Value ? Args.yes : Args.no;
+				AddOp(FScheduledOp(Item.At, Item, 2, ResultAddress), FScheduledOp(ResultAddress, Item));
+				break;
+			}
+
+			case 2:
+			{
+				const uint32 ResultAddress = Item.CustomState;
+				if (ResultAddress)
+				{
+					StoreMesh(Item, LoadMesh(FCacheAddress(ResultAddress, Item)));
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+			default: check(false);
+			}
+			break;
+		}	
+		case OP_TYPE::ME_SWITCH:
+		{
+			uint8 const * const Data = Program.GetOpArgsPointer(Item.At);
+
+			constexpr uint32 DefAddressOffset = sizeof(OP::ADDRESS);
+			constexpr uint32 CaseCountOffset = DefAddressOffset + sizeof(OP::ADDRESS);
+			constexpr uint32 SwitchFixedOffset = CaseCountOffset + sizeof(uint32);		
+
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				OP::ADDRESS VarAddress;
+				FMemory::Memcpy(&VarAddress, Data + 0, sizeof(OP::ADDRESS));
+				
+				if (VarAddress)
+				{
+					FScheduledOp FullVariableOp(VarAddress, Item);
+					FullVariableOp.Type = FScheduledOp::EType::Full;
+
+					AddOp(FScheduledOp(Item.At, Item, 1), FullVariableOp);
+				}
+				else
+				{
+					check(GetOpDataType(Type) == DT_MESH);
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+			case 1:
+			{
+				OP::ADDRESS VarAddress;
+				FMemory::Memcpy(&VarAddress, Data + 0, sizeof(OP::ADDRESS));
+			
+				OP::ADDRESS DefAddress;
+				FMemory::Memcpy(&DefAddress, Data + DefAddressOffset, sizeof(OP::ADDRESS));
+
+				uint32 CaseCount;
+				FMemory::Memcpy(&CaseCount, Data + CaseCountOffset, sizeof(uint32));
+				
+				// Get the variable result
+				int32 Variable = LoadInt(FCacheAddress(VarAddress, Item.ExecutionIndex, Item.ExecutionOptions));
+				
+				constexpr uint32 SwitchCaseSize = sizeof(int32) + sizeof(OP::ADDRESS);
+
+				OP::ADDRESS ValueAt = DefAddress;
+				for (uint32 C = 0; C < CaseCount; ++C)
+				{
+					const uint32 CaseOffset = SwitchFixedOffset + SwitchCaseSize*C;
+
+					int32 Condition;
+					FMemory::Memcpy(&Condition, Data + CaseOffset, sizeof(int32));
+
+					OP::ADDRESS At;
+					FMemory::Memcpy(&At, Data + CaseOffset + sizeof(int32), sizeof(OP::ADDRESS));
+
+					if (At && Variable == Condition)
+					{
+						ValueAt = At;
+						break; 
+					}
+				}
+
+				// Schedule the end of this instruction if necessary
+				AddOp(FScheduledOp(Item.At, Item, 2, ValueAt), FScheduledOp(ValueAt, Item));
+				break;
+			}
+
+			case 2:
+			{
+				OP::ADDRESS ResultAt = OP::ADDRESS(Item.CustomState);
+				
+				check(GetOpDataType(Type) == DT_MESH);
+				StoreMesh(FCacheAddress(Item), LoadMesh(FCacheAddress(ResultAt, Item)));
+				break;
+			}
+
+			default:
+				check(false);
+			}
+			break;
+		}
+		case OP_TYPE::ME_CONSTANT:
+		{	
+            RunCode_ConstantResource(Item, ModelPtr);
+			break;
+		}
+		case OP_TYPE::ME_REFERENCE:
+		{
+			OP::ResourceReferenceArgs Args = Program.GetOpArgs<OP::ResourceReferenceArgs>(Item.At);
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				Ptr<Mesh> Result;
+				if (Args.ForceLoad)
+				{
+					// This should never be reached because it should have been caught as a Task in IssueOp
+					check(false);
+				}
+				else
+				{
+					Result = Mesh::CreateAsReference(Args.ID, false);
+				}
+				StoreMesh(Item, Result);
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+        case OP_TYPE::ME_APPLYLAYOUT:
+        {
+			OP::MeshApplyLayoutArgs Args = Program.GetOpArgs<OP::MeshApplyLayoutArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.mesh);
+
+            break;
+        }
+
+        case OP_TYPE::ME_DIFFERENCE:
+        {
+			const uint8* Data = Program.GetOpArgsPointer(Item.At);
+
+			OP::ADDRESS BaseAt = 0;
+			FMemory::Memcpy(&BaseAt, Data, sizeof(OP::ADDRESS)); 
+			ScheduleOrRunPassthroughOp(Item, BaseAt);
+
+            break;
+        }
+
+        case OP_TYPE::ME_MORPH:
+        {
+			const uint8* Data = Program.GetOpArgsPointer(Item.At);
+	
+			OP::ADDRESS BaseAt = 0;
+			FMemory::Memcpy(&BaseAt, Data + sizeof(OP::ADDRESS), sizeof(OP::ADDRESS)); 
+			ScheduleOrRunPassthroughOp(Item, BaseAt);
+
+            break;
+        }
+
+        case OP_TYPE::ME_MERGE:
+        {
+			OP::MeshMergeArgs Args = Program.GetOpArgs<OP::MeshMergeArgs>(Item.At);
+            switch (Item.Stage)
+            {
+            case 0:
+			{
+				AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Args.base, Item), FScheduledOp(Args.added, Item));
+				break;
+			}
+            case 1:
+            {
+                Ptr<const Mesh> AMesh = LoadMesh(FCacheAddress(Args.base, Item));
+                Ptr<const Mesh> BMesh = LoadMesh(FCacheAddress(Args.added, Item));
+
+				// TODO: Optimize for mesh component pass.
+                if (AMesh && BMesh && AMesh->GetVertexCount() && BMesh->GetVertexCount())
+                {
+					check(!AMesh->IsReference() && !BMesh->IsReference());
+
+					FMeshMergeScratchMeshes Scratch;
+					Scratch.FirstReformat = CreateMesh();
+					Scratch.SecondReformat = CreateMesh();
+
+					Ptr<Mesh> Result = CreateMesh();
+
+					MeshMerge(Result.get(), AMesh.get(), BMesh.get(), !Args.newSurfaceID, Scratch);
+
+					Release(Scratch.FirstReformat);
+					Release(Scratch.SecondReformat);
+
+                    if (Args.newSurfaceID)
+                    {
+						check(BMesh->GetSurfaceCount() == 1);
+						Result->Surfaces.Last().Id = Args.newSurfaceID;
+                    }
+
+					Release(AMesh);
+					Release(BMesh);
+					StoreMesh(Item, Result);
+                }
+                else if (AMesh && (AMesh->GetVertexCount() || AMesh->IsReference()))
+                {
+					Release(BMesh);
+					StoreMesh(Item, AMesh);
+                }
+                else if (BMesh && (BMesh->GetVertexCount() || BMesh->IsReference()))
+                {
+					Ptr<Mesh> Result = CloneOrTakeOver(BMesh);
+
+                    check(Result->IsReference() || (Result->GetSurfaceCount() == 1));
+
+                    if (Result->GetSurfaceCount() > 0 && Args.newSurfaceID)
+                    {
+                        Result->Surfaces.Last().Id = Args.newSurfaceID;
+                    }
+
+					Release(AMesh);
+					StoreMesh(Item, Result);
+                }
+                else
+                {
+					Release(AMesh);
+					Release(BMesh);
+					StoreMesh(Item, CreateMesh());
+                }
+                break;
+            }
+
+            default:
+                check(false);
+            }
+
+            break;
+        }
+
+        case OP_TYPE::ME_INTERPOLATE:
+        {
+			OP::MeshInterpolateArgs Args = Program.GetOpArgs<OP::MeshInterpolateArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.base);
+            break;
+        }
+
+        case OP_TYPE::ME_MASKCLIPMESH:
+        {
+			OP::MeshMaskClipMeshArgs Args = Program.GetOpArgs<OP::MeshMaskClipMeshArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.source);
+            break;
+        }
+
+		case OP_TYPE::ME_MASKCLIPUVMASK:
+		{
+			OP::MeshMaskClipUVMaskArgs Args = Program.GetOpArgs<OP::MeshMaskClipUVMaskArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.Source);
+			break;
+		}
+
+        case OP_TYPE::ME_FORMAT:
+        {
+			OP::MeshFormatArgs Args = Program.GetOpArgs<OP::MeshFormatArgs>(Item.At);
+            switch (Item.Stage)
+            {
+            case 0:
+			{
+				if (Args.source && Args.format)
+				{
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Args.source, Item), FScheduledOp(Args.format, Item));
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+            case 1:
+            {
+            	MUTABLE_CPUPROFILER_SCOPE(ME_FORMAT_Gather);
+
+				Ptr<const Mesh> Source = LoadMesh(FCacheAddress(Args.source, Item));
+                Ptr<const Mesh> Format = LoadMesh(FCacheAddress(Args.format, Item));
+
+				if (Source && Source->IsReference())
+				{
+					Release(Format);
+					StoreMesh(Item, Source);
+				}
+				else if (Source)
+				{
+					uint8 Flags = Args.Flags;
+					if (!Format && !(Flags & OP::MeshFormatArgs::ResetBufferIndices))
+					{
+						StoreMesh(Item, Source);
+					}
+					else if (!Format)
+					{
+						Ptr<Mesh> Result = CloneOrTakeOver(Source);
+
+						if (Flags & OP::MeshFormatArgs::ResetBufferIndices)
+						{
+							Result->ResetBufferIndices();
+						}
+
+						StoreMesh(Item, Result);
+					}
+					else
+					{
+						Ptr<Mesh> Result = CreateMesh();
+
+						bool bOutSuccess = false;
+						MeshFormat(Result.get(), Source.get(), Format.get(),
+							true,
+							(Flags & OP::MeshFormatArgs::Vertex) != 0,
+							(Flags & OP::MeshFormatArgs::Index) != 0,
+							(Flags & OP::MeshFormatArgs::IgnoreMissing) != 0,
+							bOutSuccess);
+
+						check(bOutSuccess);
+
+						if (Flags & OP::MeshFormatArgs::ResetBufferIndices)
+						{
+							Result->ResetBufferIndices();
+						}
+
+						if (Flags & OP::MeshFormatArgs::OptimizeBuffers)
+						{
+							MUTABLE_CPUPROFILER_SCOPE(MeshOptimizeBuffers)
+							MeshOptimizeBuffers(Result.get());
+						}
+
+						Release(Source);
+						Release(Format);
+						StoreMesh(Item, Result);
+					}
+				}
+				else
+				{
+					Release(Format);
+					StoreMesh(Item, nullptr);
+				}
+                break;
+            }
+
+            default:
+                check(false);
+            }
+
+            break;
+        }
+
+        case OP_TYPE::ME_CLIPMORPHPLANE:
+        {
+			OP::MeshClipMorphPlaneArgs Args = Program.GetOpArgs<OP::MeshClipMorphPlaneArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.source);
+            break;
+        }
+
+		case OP_TYPE::ME_CLIPDEFORM:
+		{
+			OP::MeshClipDeformArgs Args = Program.GetOpArgs<OP::MeshClipDeformArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.mesh);
+			break;
+		}
+
+        case OP_TYPE::ME_APPLYPOSE:
+        {
+			OP::MeshApplyPoseArgs Args = Program.GetOpArgs<OP::MeshApplyPoseArgs>(Item.At);
+
+			constexpr uint8 PoseExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadPoseData);
+            switch (Item.Stage)
+            {
+            case 0:
+			{
+				if (Args.base)
+				{
+					// Execute the pose as a full operation with specialized options for the pose
+					FScheduledOp PoseOp = FScheduledOp::FromOpAndOptions(Args.pose, Item, PoseExecutionOptions);
+					PoseOp.Type = FScheduledOp::EType::Full;
+
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Args.base, Item), PoseOp);
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+            case 1:
+            {
+          		MUTABLE_CPUPROFILER_SCOPE(ME_APPLYPOSE_Gather);
+
+                Ptr<const Mesh> BaseMesh = LoadMesh(FCacheAddress(Args.base, Item));
+                Ptr<const Mesh> PoseMesh = LoadMesh(FCacheAddress(Args.pose, Item.ExecutionIndex, PoseExecutionOptions));
+
+                // Only if both are valid.
+                if (BaseMesh && PoseMesh)
+                {
+					Ptr<Mesh> Result = CloneOrTakeOver(BaseMesh);
+
+					SetPoseAsReference(Result.get(), PoseMesh.get());
+					Release(PoseMesh);
+					StoreMesh(Item, Result);
+                }
+                else
+                {
+					Release(PoseMesh);
+					StoreMesh(Item, BaseMesh);
+                }
+
+                break;
+            }
+
+            default:
+                check(false);
+            }
+
+            break;
+        }
+
+		case OP_TYPE::ME_BINDSHAPE:
+		{
+			OP::MeshBindShapeArgs Args = Program.GetOpArgs<OP::MeshBindShapeArgs>(Item.At);
+			const uint8* Data = Program.GetOpArgsPointer(Item.At);
+
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				if (Args.mesh)
+				{
+					// The Geometry of the Shape is needed, switch to Full execution policy.
+					FScheduledOp ShapeFullSheduledOp = FScheduledOp(Args.shape, Item);
+					ShapeFullSheduledOp.Type = FScheduledOp::EType::Full;
+
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Args.mesh, Item), ShapeFullSheduledOp);
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_BINDSHAPE_1)
+				Ptr<const Mesh> BaseMesh = LoadMesh(FCacheAddress(Args.mesh, Item));
+				Ptr<const Mesh> Shape = LoadMesh(FCacheAddress(Args.shape, Item));
+				
+				EShapeBindingMethod BindingMethod = static_cast<EShapeBindingMethod>(Args.bindingMethod); 
+
+				if (BindingMethod == EShapeBindingMethod::ReshapeClosestProject)
+				{ 
+					// Bones are stored after the args
+					Data += sizeof(Args);
+
+					// Rebuilding array of bone names ----
+					int32 NumBones;
+					FMemory::Memcpy(&NumBones, Data, sizeof(int32)); 
+					Data += sizeof(int32);
+					
+					TArray<FBoneName> BonesToDeform;
+					BonesToDeform.SetNumUninitialized(NumBones);
+					FMemory::Memcpy(BonesToDeform.GetData(), Data, NumBones * sizeof(FBoneName));
+					Data += NumBones * sizeof(FBoneName);
+
+					int32 NumPhysicsBodies;
+					FMemory::Memcpy(&NumPhysicsBodies, Data, sizeof(int32)); 
+					Data += sizeof(int32);
+
+					TArray<FBoneName> PhysicsToDeform;
+					PhysicsToDeform.SetNumUninitialized(NumPhysicsBodies);
+					FMemory::Memcpy(PhysicsToDeform.GetData(), Data, NumPhysicsBodies * sizeof(FBoneName));
+					Data += NumPhysicsBodies * sizeof(FBoneName);
+
+					const EMeshBindShapeFlags BindFlags = static_cast<EMeshBindShapeFlags>(Args.flags);
+
+					FMeshBindColorChannelUsages ColorChannelUsages;
+					FMemory::Memcpy(&ColorChannelUsages, &Args.ColorUsage, sizeof(ColorChannelUsages));
+					static_assert(sizeof(ColorChannelUsages) == sizeof(Args.ColorUsage));
+
+					Ptr<Mesh> BindMeshResult = CreateMesh();
+
+					bool bOutSuccess = false;
+					MeshBindShapeReshape(BindMeshResult.get(), BaseMesh.get(), Shape.get(), BonesToDeform, PhysicsToDeform, BindFlags, ColorChannelUsages, bOutSuccess);
+				
+					Release(Shape);
+					// not success indicates nothing has bond so the base mesh can be reused.
+					if (!bOutSuccess)
+					{
+						Release(BindMeshResult);
+						StoreMesh(Item, BaseMesh);
+					}
+					else
+					{
+						if (!EnumHasAnyFlags(BindFlags, EMeshBindShapeFlags::ReshapeVertices))
+						{
+							Ptr<Mesh> BindMeshNoVertsResult = CloneOrTakeOver(BaseMesh);
+							BindMeshNoVertsResult->AdditionalBuffers = MoveTemp(BindMeshResult->AdditionalBuffers);
+
+							Release(BaseMesh);
+							Release(BindMeshResult);
+							StoreMesh(Item, BindMeshNoVertsResult);
+						}
+						else
+						{
+							Release(BaseMesh);
+							StoreMesh(Item, BindMeshResult);
+						}
+					}
+				}	
+				else
+				{
+					Ptr<Mesh> Result = CreateMesh();
+
+					bool bOutSuccess = false;
+					MeshBindShapeClipDeform(Result.get(), BaseMesh.get(), Shape.get(), BindingMethod, bOutSuccess);
+
+					Release(Shape);
+					if (!bOutSuccess)
+					{
+						Release(Result);
+						StoreMesh(Item, BaseMesh);
+					}
+					else
+					{
+						Release(BaseMesh);
+						StoreMesh(Item, Result);
+					}
+				}
+
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
+
+		case OP_TYPE::ME_APPLYSHAPE:
+		{
+			OP::MeshApplyShapeArgs Args = Program.GetOpArgs<OP::MeshApplyShapeArgs>(Item.At);
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				if (Args.mesh)
+				{
+					// Shape needs the geomtry, schedule as Full execution policy.
+					FScheduledOp ShapeFullScheduledOp = FScheduledOp(Args.shape, Item);
+					ShapeFullScheduledOp.Type = FScheduledOp::EType::Full;
+					
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Args.mesh, Item), ShapeFullScheduledOp);
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_APPLYSHAPE_1)
+					
+				Ptr<const Mesh> BaseMesh = LoadMesh(FCacheAddress(Args.mesh, Item));
+				Ptr<const Mesh> Shape = LoadMesh(FCacheAddress(Args.shape, Item));
+
+				const EMeshBindShapeFlags ReshapeFlags = static_cast<EMeshBindShapeFlags>(Args.flags);
+				const bool bReshapeVertices = EnumHasAnyFlags(ReshapeFlags, EMeshBindShapeFlags::ReshapeVertices);
+
+				Ptr<Mesh> ReshapedMeshResult = CreateMesh(BaseMesh ? BaseMesh->GetDataSize() : 0);
+
+				bool bOutSuccess = false;
+				MeshApplyShape(ReshapedMeshResult.get(), BaseMesh.get(), Shape.get(), ReshapeFlags, bOutSuccess);
+
+				Release(Shape);
+				
+				if (!bOutSuccess)
+				{
+					Release(ReshapedMeshResult);
+					StoreMesh(Item, BaseMesh);
+				}
+				else
+				{
+					if (!bReshapeVertices)
+					{
+						// Clone without Skeleton, Physics or Poses 
+						EMeshCopyFlags CopyFlags = ~(
+							EMeshCopyFlags::WithSkeleton |
+							EMeshCopyFlags::WithPhysicsBody |
+							EMeshCopyFlags::WithAdditionalPhysics |
+							EMeshCopyFlags::WithPoses);
+
+						Ptr<Mesh> NoVerticesReshpedMesh = CloneOrTakeOver(BaseMesh);
+
+						NoVerticesReshpedMesh->SetSkeleton(ReshapedMeshResult->GetSkeleton().get());
+						NoVerticesReshpedMesh->SetPhysicsBody(ReshapedMeshResult->GetPhysicsBody().get());
+						NoVerticesReshpedMesh->AdditionalPhysicsBodies = ReshapedMeshResult->AdditionalPhysicsBodies;
+						NoVerticesReshpedMesh->BonePoses = ReshapedMeshResult->BonePoses;
+
+						Release(BaseMesh);
+						Release(ReshapedMeshResult);
+						StoreMesh(Item, NoVerticesReshpedMesh);
+					}
+					else
+					{
+						Release(BaseMesh);
+						StoreMesh(Item, ReshapedMeshResult);
+					}
+				}
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
+		case OP_TYPE::ME_MORPHRESHAPE:
+		{
+			OP::MeshMorphReshapeArgs Args = Program.GetOpArgs<OP::MeshMorphReshapeArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.Reshape);
+			break;
+		}
+
+        case OP_TYPE::ME_SETSKELETON:
+        {
+			checkf(false, TEXT("Unsupported operation."));
+            break;
+        }
+
+        case OP_TYPE::ME_REMOVEMASK:
+        {
+       		MUTABLE_CPUPROFILER_SCOPE(ME_REMOVEMASK)
+        		
+            // Decode op
+            // TODO: Partial decode for each stage
+            const uint8* Data = Program.GetOpArgsPointer(Item.At);
+
+            OP::ADDRESS Source;
+            FMemory::Memcpy(&Source, Data, sizeof(OP::ADDRESS)); 
+			ScheduleOrRunPassthroughOp(Item, Source);
+            break;
+        }
+
+        case OP_TYPE::ME_ADDTAGS:
+		{
+			MUTABLE_CPUPROFILER_SCOPE(ME_ADDTAGS)
+
+			// Decode op
+			// TODO: Partial decode for each stage
+			const uint8* Data = Program.GetOpArgsPointer(Item.At);
+
+			OP::ADDRESS Source;
+			FMemory::Memcpy(&Source, Data, sizeof(OP::ADDRESS));
+			Data += sizeof(OP::ADDRESS);
+
+			// Schedule next stages
+			switch (Item.Stage)
+			{
+			case 0:
+			{
+				if (Source)
+				{
+					// Request the source
+					AddOp(FScheduledOp(Item.At, Item, 1), FScheduledOp(Source, Item));
+				}
+				else
+				{
+					StoreMesh(Item, nullptr);
+				}
+				break;
+			}
+
+			case 1:
+			{
+				MUTABLE_CPUPROFILER_SCOPE(ME_ADDTAGS_2)
+
+				Ptr<const Mesh> SourceMesh = LoadMesh(FCacheAddress(Source, Item));
+
+				if (!SourceMesh)
+				{
+					StoreMesh(Item, nullptr);
+				}
+				else
+				{
+					Ptr<Mesh> Result = CloneOrTakeOver(SourceMesh);
+
+					// Decode the tags
+					uint16 TagCount;
+					FMemory::Memcpy(&TagCount, Data, sizeof(uint16));
+					Data += sizeof(uint16);
+
+					int32 FirstMeshTagIndex = Result->Tags.Num();
+					Result->Tags.SetNum(FirstMeshTagIndex+TagCount);
+					for (uint16 TagIndex = 0; TagIndex < TagCount; ++TagIndex)
+					{
+						OP::ADDRESS TagConstant;
+						FMemory::Memcpy(&TagConstant, Data, sizeof(OP::ADDRESS));
+						Data += sizeof(OP::ADDRESS);
+
+						check(TagConstant < (uint32)ModelPtr->GetPrivate()->m_program.m_constantStrings.Num());
+						const FString& Name = Program.m_constantStrings[TagConstant];
+						Result->Tags[FirstMeshTagIndex+TagIndex] = Name;
+					}
+
+					StoreMesh(Item, Result);
+				}
+
+				break;
+			}
+
+			default:
+				check(false);
+			}
+
+			break;
+		}
+
+		case OP_TYPE::ME_PROJECT:
+        {
+			OP::MeshProjectArgs Args = Program.GetOpArgs<OP::MeshProjectArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.mesh);
+            break;
+        }
+
+		case OP_TYPE::ME_OPTIMIZESKINNING:
+		{
+			OP::MeshOptimizeSkinningArgs Args = Program.GetOpArgs<OP::MeshOptimizeSkinningArgs>(Item.At);
+			ScheduleOrRunPassthroughOp(Item, Args.source);
+			break;
+		}
+
+        default:
+            if (Type != OP_TYPE::NONE)
+            {
+                // Operation not implemented
+                check(false);
+            }
+            break;
+        }
     }
 
     //---------------------------------------------------------------------------------------------
@@ -1069,7 +1950,7 @@ namespace mu
 			{
 				AddOp(FScheduledOp(item.At, item, 1),
 					FScheduledOp(args.mesh, item),
-					FScheduledOp(args.layout, item));
+					FScheduledOp::FromOpAndOptions(args.layout, item, 0));
 				break;
 			}
             case 1:
@@ -1082,7 +1963,7 @@ namespace mu
                 {
 					Ptr<Mesh> Result = CloneOrTakeOver(pBase);
 
-                    Ptr<const Layout> pLayout = LoadLayout(FCacheAddress(args.layout, item));
+                    Ptr<const Layout> pLayout = LoadLayout(FCacheAddress(args.layout, item.ExecutionIndex, 0, item.Type));
                     int texCoordsSet = args.channel;
 
                     MeshApplyLayout(Result.get(), pLayout.get(), texCoordsSet);
@@ -1661,7 +2542,7 @@ namespace mu
 			{
 				AddOp(FScheduledOp(item.At, item, 1),
 					FScheduledOp(args.Source, item),
-					FScheduledOp(args.Mask, item));
+					FScheduledOp::FromOpAndOptions(args.Mask, item, 0));
 				break;
 			}
 			case 1:
@@ -1669,7 +2550,7 @@ namespace mu
 				MUTABLE_CPUPROFILER_SCOPE(ME_MASKCLIPUVMASK_1)
 
 				Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.Source, item));
-				Ptr<const Image> Mask = LoadImage(FCacheAddress(args.Mask, item));
+				Ptr<const Image> Mask = LoadImage(FCacheAddress(args.Mask, item.ExecutionIndex, item.ExecutionOptions, item.Type));
 
 				// Only if both are valid.
 				if (Source.get() && Mask.get())
@@ -1994,6 +2875,14 @@ namespace mu
         case OP_TYPE::ME_CLIPMORPHPLANE:
         {
 			OP::MeshClipMorphPlaneArgs args = Program.GetOpArgs<OP::MeshClipMorphPlaneArgs>(item.At);
+
+			// In case of bone hierarchy selection the skeleton needs to be loaded.
+			// For now we fully load the mesh. We may want this to be an extra option where
+			// only skeleton and pose data is added. 
+			const uint8 MeshExecutionOptions = args.vertexSelectionType == OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY
+					? item.ExecutionOptions | static_cast<uint8>(EMeshExecutionOptions::LoadPoseData) 
+					: item.ExecutionOptions;
+
             switch (item.Stage)
             {
             case 0:
@@ -2001,7 +2890,7 @@ namespace mu
 				if (args.source)
 				{
 					AddOp(FScheduledOp(item.At, item, 1),
-						FScheduledOp(args.source, item));
+						FScheduledOp::FromOpAndOptions(args.source, item, MeshExecutionOptions));
 				}
 				else
 				{
@@ -2013,7 +2902,7 @@ namespace mu
             {
            		MUTABLE_CPUPROFILER_SCOPE(ME_CLIPMORPHPLANE_1)
             		
-                Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source, item));
+                Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source, item.ExecutionIndex, MeshExecutionOptions, item.Type));
 
                 check(args.morphShape < (uint32)pModel->GetPrivate()->m_program.m_constantShapes.Num());
 
@@ -2232,15 +3121,19 @@ namespace mu
         case OP_TYPE::ME_APPLYPOSE:
         {
 			OP::MeshApplyPoseArgs args = Program.GetOpArgs<OP::MeshApplyPoseArgs>(item.At);
+
+			// Pose needs to load the components part of the mesh as it needs skeleton and pose info. It does not need geometry.
+			constexpr uint8 PoseExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadPoseData);
             switch (item.Stage)
             {
             case 0:
 			{
 				if (args.base)
 				{
+
 					AddOp(FScheduledOp(item.At, item, 1),
 						FScheduledOp(args.base, item),
-						FScheduledOp(args.pose, item));
+						FScheduledOp::FromOpAndOptions(args.pose, item, PoseExecutionOptions));
 				}
 				else
 				{
@@ -2253,7 +3146,7 @@ namespace mu
           		MUTABLE_CPUPROFILER_SCOPE(ME_APPLYPOSE_1)
 
                 Ptr<const Mesh> pBase = LoadMesh(FCacheAddress(args.base, item));
-                Ptr<const Mesh> pPose = LoadMesh(FCacheAddress(args.pose, item));
+                Ptr<const Mesh> pPose = LoadMesh(FCacheAddress(args.pose, item.ExecutionIndex, PoseExecutionOptions, item.Type));
 
                 // Only if both are valid.
                 if (pBase && pPose)
@@ -2304,8 +3197,8 @@ namespace mu
 					AddOp(FScheduledOp(item.At, item, 1),
 						FScheduledOp(args.meshA, item),
 						FScheduledOp(args.meshB, item),
-						FScheduledOp(args.scalarA, item),
-						FScheduledOp(args.scalarB, item));
+						FScheduledOp::FromOpAndOptions(args.scalarA, item, 0),
+						FScheduledOp::FromOpAndOptions(args.scalarB, item, 0));
 				}
 				else
 				{
@@ -2319,8 +3212,8 @@ namespace mu
 				
 				Ptr<const Mesh> MeshA = LoadMesh(FCacheAddress(args.meshA, item));
 				Ptr<const Mesh> MeshB = LoadMesh(FCacheAddress(args.meshB, item));
-				float ScalarA = LoadScalar(FCacheAddress(args.scalarA, item));
-				float ScalarB = LoadScalar(FCacheAddress(args.scalarB, item));
+				float ScalarA = LoadScalar(FCacheAddress(args.scalarA, item.ExecutionIndex, 0, item.Type));
+				float ScalarB = LoadScalar(FCacheAddress(args.scalarB, item.ExecutionIndex, 0, item.Type));
 
 				Ptr<Mesh> Result = CreateMesh(MeshA ? MeshA->GetDataSize() : 0);
 
@@ -2613,6 +3506,7 @@ namespace mu
         case OP_TYPE::ME_SETSKELETON:
         {
 			OP::MeshSetSkeletonArgs args = Program.GetOpArgs<OP::MeshSetSkeletonArgs>(item.At);
+			constexpr uint8 SkeletonExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadComponentsData);
             switch (item.Stage)
             {
             case 0:
@@ -2621,7 +3515,7 @@ namespace mu
 				{
 					AddOp(FScheduledOp(item.At, item, 1),
 						FScheduledOp(args.source, item),
-						FScheduledOp(args.skeleton, item));
+						FScheduledOp::FromOpAndOptions(args.skeleton, item, SkeletonExecutionOptions));
 				}
 				else
 				{
@@ -2634,14 +3528,12 @@ namespace mu
             	MUTABLE_CPUPROFILER_SCOPE(ME_SETSKELETON_1)
             		
                 Ptr<const Mesh> Source = LoadMesh(FCacheAddress(args.source, item));
-                Ptr<const Mesh> pSkeleton = LoadMesh(FCacheAddress(args.skeleton, item));
+                Ptr<const Mesh> pSkeleton = LoadMesh(FCacheAddress(args.skeleton, item.ExecutionIndex, SkeletonExecutionOptions, item.Type));
 
                 // Only if both are valid.
                 if (Source && pSkeleton)
                 {
-                    if ( Source->GetSkeleton()
-                         &&
-                         Source->GetSkeleton()->GetBoneCount() > 0 )
+                    if (Source->GetSkeleton() && Source->GetSkeleton()->GetBoneCount() > 0)
                     {
                         // For some reason we already have bone data, so we can't just overwrite it
                         // or the skinning may break. This may happen because of a problem in the
@@ -2714,13 +3606,13 @@ namespace mu
 			FMemory::Memcpy(&removes,data,sizeof(uint16)); 
 			data += sizeof(uint16);
 
-            for( uint16 r=0; r<removes; ++r)
+            for (uint16 r = 0; r < removes; ++r)
             {
                 OP::ADDRESS condition;
 				FMemory::Memcpy(&condition,data,sizeof(OP::ADDRESS)); 
 				data += sizeof(OP::ADDRESS);
                 
-				conditions.Emplace(condition, item);
+				conditions.Add(FScheduledOp::FromOpAndOptions(condition, item, 0));
 
                 OP::ADDRESS mask;
 				FMemory::Memcpy(&mask,data,sizeof(OP::ADDRESS)); 
@@ -2754,13 +3646,13 @@ namespace mu
                 // \todo: store condition values in heap?
                 TArray<FScheduledOp> deps;
                 deps.Emplace( source, item );
-                for( size_t r=0; source && r<conditions.Num(); ++r )
+                for (int32 r = 0; source && r < conditions.Num(); ++r)
                 {
                     // If there is no expression, we'll assume true.
                     bool value = true;
                     if (conditions[r].At)
                     {
-                        value = LoadBool(FCacheAddress(conditions[r].At, item));
+                        value = LoadBool(FCacheAddress(conditions[r].At, item.ExecutionIndex, 0, item.Type));
                     }
 
                     if (value)
@@ -2796,7 +3688,7 @@ namespace mu
 						bool value = true;
 						if (conditions[r].At)
 						{
-							value = LoadBool(FCacheAddress(conditions[r].At, item));
+							value = LoadBool(FCacheAddress(conditions[r].At, item.ExecutionIndex, 0, item.Type));
 						}
 
 						if (value)
@@ -2877,16 +3769,19 @@ namespace mu
 
 				Ptr<const Mesh> SourceMesh = LoadMesh(FCacheAddress(Source, item));
 
-				if (!SourceMesh)
+				// In case the we are executing only for geometry, skip this operation.
+				const bool bSkipOperation = 
+						!EnumHasAnyFlags(static_cast<EMeshExecutionOptions>(item.ExecutionOptions), EMeshExecutionOptions::LoadComponentsData);
+				if (!SourceMesh || bSkipOperation)
 				{
-					StoreMesh(item, nullptr);
+					StoreMesh(item, SourceMesh);
 				}
 				else
 				{
+					// Decode the tags.
 					Ptr<Mesh> Result = CloneOrTakeOver(SourceMesh);
-
-					// Decode the tags
-					uint16 TagCount;
+					
+					uint16 TagCount = 0;
 					FMemory::Memcpy(&TagCount, Data, sizeof(uint16));
 					Data += sizeof(uint16);
 
@@ -2902,7 +3797,6 @@ namespace mu
 						const FString& Name = Program.m_constantStrings[TagConstant];
 						Result->Tags[FirstMeshTagIndex+TagIndex] = Name;
 					}
-
 					StoreMesh(item, Result);
 				}
 
@@ -2927,7 +3821,7 @@ namespace mu
 				{
 					AddOp(FScheduledOp(item.At, item, 1),
 						FScheduledOp(args.mesh, item),
-						FScheduledOp(args.projector, item));
+						FScheduledOp::FromOpAndOptions(args.projector, item, 0));
 				}
 				else
 				{
@@ -2939,8 +3833,8 @@ namespace mu
             {
 				MUTABLE_CPUPROFILER_SCOPE(ME_PROJECT_1)
 
-                Ptr<const Mesh> pMesh = LoadMesh(FCacheAddress(args.mesh,item));
-                const FProjector Projector = LoadProjector(FCacheAddress(args.projector, item));
+                Ptr<const Mesh> pMesh = LoadMesh(FCacheAddress(args.mesh, item));
+                const FProjector Projector = LoadProjector(FCacheAddress(args.projector, item.ExecutionIndex, 0, item.Type));
 
                 // Only if both are valid.
                 if (pMesh && pMesh->GetVertexBuffers().GetBufferCount() > 0)
@@ -3033,10 +3927,10 @@ namespace mu
 		}
 
         default:
-            if (type!=OP_TYPE::NONE)
+            if (type != OP_TYPE::NONE)
             {
                 // Operation not implemented
-                check( false );
+                check(false);
             }
             break;
         }
@@ -4450,19 +5344,20 @@ namespace mu
         case OP_TYPE::IM_RASTERMESH:
         {
 			OP::ImageRasterMeshArgs args = Program.GetOpArgs<OP::ImageRasterMeshArgs>(item.At);
+			constexpr uint8 MeshExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadGeometryData);
             switch (item.Stage)
             {
             case 0:
 				if (args.image)
 				{
 					AddOp(FScheduledOp(item.At, item, 1),
-						FScheduledOp::FromOpAndOptions(args.mesh, item, 0),
+						FScheduledOp::FromOpAndOptions(args.mesh, item, MeshExecutionOptions),
 						FScheduledOp::FromOpAndOptions(args.projector, item, 0));
 				}
 				else
 				{
 					AddOp(FScheduledOp(item.At, item, 1),
-						FScheduledOp::FromOpAndOptions(args.mesh, item, 0));
+						FScheduledOp::FromOpAndOptions(args.mesh, item, MeshExecutionOptions));
 				}
                 break;
 
@@ -4470,7 +5365,7 @@ namespace mu
 			{
 				MUTABLE_CPUPROFILER_SCOPE(IM_RASTERMESH_1)
 
-				Ptr<const Mesh> pMesh = LoadMesh(FScheduledOp::FromOpAndOptions(args.mesh, item, 0));
+				Ptr<const Mesh> pMesh = LoadMesh(FScheduledOp::FromOpAndOptions(args.mesh, item, MeshExecutionOptions));
 
 				// If no image, we are generating a flat mesh UV raster. This is the final stage in this case.
 				if (!args.image)
@@ -5824,11 +6719,10 @@ namespace mu
         case OP_TYPE::LA_CONSTANT:
         {
 			OP::ResourceConstantArgs args = Program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
-            check( args.value < (uint32)pModel->GetPrivate()->m_program.m_constantLayouts.Num() );
+            check(args.value < (uint32)pModel->GetPrivate()->m_program.m_constantLayouts.Num());
 
-            Ptr<const Layout> pResult = Program.m_constantLayouts
-                    [ args.value ];
-            StoreLayout( item, pResult );
+            Ptr<const Layout> pResult = Program.m_constantLayouts[args.value];
+            StoreLayout(item, pResult);
             break;
         }
 
@@ -5911,17 +6805,18 @@ namespace mu
 		case OP_TYPE::LA_FROMMESH:
 		{
 			OP::LayoutFromMeshArgs args = Program.GetOpArgs<OP::LayoutFromMeshArgs>(item.At);
+			
+			constexpr uint8 MeshExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadGeometryData);
 			switch (item.Stage)
 			{
 			case 0:
 				AddOp(FScheduledOp(item.At, item, 1),
-					FScheduledOp(args.Mesh, item));
+						FScheduledOp::FromOpAndOptions(args.Mesh, item, MeshExecutionOptions));
 				break;
 
 			case 1:
 			{
-				Ptr<const Mesh> Mesh = LoadMesh(FCacheAddress(args.Mesh, item));
-
+				Ptr<const Mesh> Mesh = LoadMesh(FCacheAddress(args.Mesh, item.ExecutionIndex, MeshExecutionOptions, item.Type));
 				Ptr<const Layout> Result = LayoutFromMesh_RemoveBlocks(Mesh.get(), args.LayoutIndex);
 
 				Release(Mesh);
@@ -6094,7 +6989,6 @@ namespace mu
         }
     }
 
-	//---------------------------------------------------------------------------------------------
 	void CodeRunner::RunCodeImageDesc(const FScheduledOp& item, const Parameters* pParams, const Model* pModel,  uint32 lodMask )
 	{
 		MUTABLE_CPUPROFILER_SCOPE(RunCodeImageDesc);
@@ -6166,7 +7060,10 @@ namespace mu
 
 			case 1:
 			{
-				bool value = LoadBool(FCacheAddress(args.condition, item.ExecutionIndex, item.ExecutionOptions));
+				FCacheAddress BoolLoadAddress = FCacheAddress(args.condition, item);
+				BoolLoadAddress.Type = FScheduledOp::EType::Full;
+
+				bool value = LoadBool(BoolLoadAddress);
 				OP::ADDRESS resultAt = value ? args.yes : args.no;
 				AddOp(FScheduledOp(item.At, item, 2), FScheduledOp(resultAt, item));
 				break;
@@ -6180,19 +7077,19 @@ namespace mu
 
 		case OP_TYPE::IM_SWITCH:
 		{
-			const uint8* data = Program.GetOpArgsPointer(item.At);
+			const uint8* Data = Program.GetOpArgsPointer(item.At);
 		
 			OP::ADDRESS VarAddress;
-			FMemory::Memcpy( &VarAddress, data, sizeof(OP::ADDRESS));
-			data += sizeof(OP::ADDRESS);
+			FMemory::Memcpy(&VarAddress, Data, sizeof(OP::ADDRESS));
+			Data += sizeof(OP::ADDRESS);
 
 			OP::ADDRESS DefAddress;
-			FMemory::Memcpy( &DefAddress, data, sizeof(OP::ADDRESS));
-			data += sizeof(OP::ADDRESS);
+			FMemory::Memcpy(&DefAddress, Data, sizeof(OP::ADDRESS));
+			Data += sizeof(OP::ADDRESS);
 
 			uint32 CaseCount;
-			FMemory::Memcpy( &CaseCount, data, sizeof(uint32));
-			data += sizeof(uint32);
+			FMemory::Memcpy(&CaseCount, Data, sizeof(uint32));
+			Data += sizeof(uint32);
 	
 			switch (item.Stage)
 			{
@@ -6215,28 +7112,31 @@ namespace mu
 			case 1:
 			{
 				// Get the variable result
-				int var = LoadInt(FCacheAddress(VarAddress, item));
+				FCacheAddress IntLoadAddress = FCacheAddress(VarAddress, item);
+				IntLoadAddress.Type = FScheduledOp::EType::Full;
+				
+				int32 Var = LoadInt(IntLoadAddress);
 
-				OP::ADDRESS valueAt = DefAddress;
+				OP::ADDRESS ValueAt = DefAddress;
 				for (uint32 C = 0; C < CaseCount; ++C)
 				{
 					int32 Condition;
-					FMemory::Memcpy( &Condition, data, sizeof(int32) );
-					data += sizeof(int32);
+					FMemory::Memcpy( &Condition, Data, sizeof(int32) );
+					Data += sizeof(int32);
 					
 					OP::ADDRESS At;
-					FMemory::Memcpy( &At, data, sizeof(OP::ADDRESS) );
-					data += sizeof(OP::ADDRESS);
+					FMemory::Memcpy(&At, Data, sizeof(OP::ADDRESS));
+					Data += sizeof(OP::ADDRESS);
 
-					if (At && var == (int)Condition)
+					if (At && Var == (int32)Condition)
 					{
-						valueAt = At;
+						ValueAt = At;
 						break;
 					}
 				}
 
-				AddOp(FScheduledOp(item.At, item, 2, valueAt),
-					  FScheduledOp(valueAt, item));
+				AddOp(FScheduledOp(item.At, item, 2, ValueAt),
+					  FScheduledOp(ValueAt, item));
 
 				break;
 			}
@@ -6469,7 +7369,9 @@ namespace mu
 
 			case 1:
 			{
-				Ptr<const Layout> pLayout = LoadLayout(FCacheAddress(args.layout, item));
+				FCacheAddress LayoutLoadAddress = FCacheAddress(args.layout, item);
+				LayoutLoadAddress.Type =  FScheduledOp::EType::Full; 
+				Ptr<const Layout> pLayout = LoadLayout(LayoutLoadAddress);
 
 				FIntPoint SizeInBlocks = pLayout->GetGridSize();
 				FIntPoint BlockSizeInPixels(args.blockSize[0], args.blockSize[1]);

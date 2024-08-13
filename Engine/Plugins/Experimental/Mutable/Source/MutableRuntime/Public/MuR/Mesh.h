@@ -162,7 +162,6 @@ namespace mu
 
 		/** The mesh is a reference to an external resource mesh and must be loaded when first referenced. */
 		IsResourceForceLoad = 1 << 3,
-
 	};
 
 
@@ -438,8 +437,8 @@ namespace mu
 			EBoneUsageFlags BoneUsageFlags = EBoneUsageFlags::None;
 			FTransform3f BoneTransform;
 
-			inline void Serialise(OutputArchive& arch) const;
-			inline void Unserialise(InputArchive& arch);
+			inline void Serialise(OutputArchive& Arch) const;
+			inline void Unserialise(InputArchive& Arch);
 
 			inline bool operator==(const FBonePose& Other) const
 			{

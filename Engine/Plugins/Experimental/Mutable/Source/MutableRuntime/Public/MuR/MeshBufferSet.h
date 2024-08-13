@@ -13,7 +13,7 @@ namespace mu::MemoryCounters
 {
 	struct MUTABLERUNTIME_API FMeshMemoryCounter
 	{
-		alignas(8) static inline std::atomic<SSIZE_T> Counter{0};
+		alignas(8) static inline std::atomic<SSIZE_T> Counter {0};
 	};
 }
 
@@ -194,8 +194,16 @@ namespace mu
 		inline bool operator==(const FMeshBuffer& Other) const
 		{
 			bool bEqual = (Channels == Other.Channels);
-			bEqual = bEqual && (ElementSize == Other.ElementSize);
-			bEqual = bEqual && (Data == Other.Data);
+			
+            if (bEqual) 
+            {
+                bEqual = (ElementSize == Other.ElementSize);
+            }
+
+			if (bEqual)
+            {
+                bEqual = (Data == Other.Data);
+            }
 
 			return bEqual;
 		}
@@ -235,8 +243,8 @@ namespace mu
 	class MUTABLERUNTIME_API FMeshBufferSet
 	{
 	public:
-
 		uint32 ElementCount = 0;
+
 		TArray<FMeshBuffer> Buffers;
 
 		void Serialise(OutputArchive& Arch) const;
@@ -431,6 +439,9 @@ namespace mu
 		
 		/** Check that all channels of a specific semantic use the provided format. */
 		bool HasAnySemanticWithDifferentFormat(EMeshBufferSemantic Semantic, EMeshBufferFormat ExpectedFormat) const;
+
+		/** Check if this buffer set is only a format descriptor, e.i. reports num elements larger than 0 but does not hold any data*/ 
+		bool IsDescriptor() const;
 	};	
 
 	

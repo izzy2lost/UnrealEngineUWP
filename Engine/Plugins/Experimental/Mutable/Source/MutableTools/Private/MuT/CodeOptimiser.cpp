@@ -503,21 +503,23 @@ namespace mu
 			pSystem->GetPrivate()->BeginBuild( model );
 
 			// Calculate the value and replace this op by a constant
-			switch( DataType )
+			switch(DataType)
 			{
 			case DT_MESH:
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ConstantMesh);
 
-				mu::Ptr<const Mesh> pMesh = pSystem->GetPrivate()->BuildMesh( model, LocalParams.get(), at );
+				// Build mesh with ExecutionOptions indicating a full mesh load is needed for mesh constant resolution.
+				const uint8 ExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::AllFlags);
+				mu::Ptr<const Mesh> BuildMesh = pSystem->GetPrivate()->BuildMesh(model, LocalParams.get(), at, ExecutionOptions);
 
-				if (pMesh)
+				if (BuildMesh)
 				{
-					mu::Ptr<ASTOpConstantResource> constantOp = new ASTOpConstantResource();
-					constantOp->Type = OP_TYPE::ME_CONSTANT;
-					constantOp->SetValue( pMesh, DiskCacheContext );
-					Result = constantOp;
-				  }
+					mu::Ptr<ASTOpConstantResource> ConstantOp = new ASTOpConstantResource();
+					ConstantOp->Type = OP_TYPE::ME_CONSTANT;
+					ConstantOp->SetValue(BuildMesh, DiskCacheContext);
+					Result = ConstantOp;
+				}
 				break;
 			}
 
