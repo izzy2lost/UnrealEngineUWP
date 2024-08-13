@@ -108,6 +108,8 @@ namespace HarmonixMetasoundTests::StepSequencePlayerNode
 			}
 		}
 
+		UTEST_TRUE("No stuck notes", GotNoteOff);
+
 		return true;
 	}
 
