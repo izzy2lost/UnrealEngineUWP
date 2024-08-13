@@ -879,6 +879,10 @@ public:
 	/** Creates a shallow transient copy of this script for compilation purposes. */
 	NIAGARA_API UNiagaraScript* CreateCompilationCopy();
 
+	/** Clears out resolved runtime data.  For scripts belonging to standalone emitters the resolved data could be references to the transient
+		NiagaraSystem used for editing.  In the future all this data will be moved to live on the System itself so this will no longer be required. */
+	NIAGARA_API void ClearResolvedData();
+
 	/** A set of rules to apply when this script is used in the stack. To create your own rules, write a custom class that extends UNiagaraValidationRule. */
 	UPROPERTY(EditAnywhere, Category = "Validation", Instanced)
 	TArray<TObjectPtr<UNiagaraValidationRule>> ValidationRules;

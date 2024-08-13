@@ -1146,6 +1146,17 @@ void FNiagaraSystemToolkit::UpdateOriginalEmitter()
 		// Restore RF_Standalone and RF_Public on the original emitter, as it had been removed from the preview emitter so that it could be GC'd.
 		Source->SetFlags(RF_Standalone | RF_Public);
 
+		// clear out any resolved data on the scripts for the emitter so that we don't reference anything connected to the transient system
+		Source->ForEachVersionData([&](const FVersionedNiagaraEmitterData& EmitterData)
+		{
+			TArray<UNiagaraScript*> AllSourceScripts;
+			EmitterData.GetScripts(AllSourceScripts, true);
+			for (UNiagaraScript* SourceScript : AllSourceScripts)
+			{
+				SourceScript->ClearResolvedData();
+			}
+		});
+
 		Source->PostEditChange();
 
 		TArray<UNiagaraScript*> EmitterScripts;

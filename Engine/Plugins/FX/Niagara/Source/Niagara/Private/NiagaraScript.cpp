@@ -794,6 +794,15 @@ UNiagaraScript* UNiagaraScript::CreateCompilationCopy()
 	return Result;
 }
 
+// intended to be used for scripts belonging to standalone emitters.  This ensures that no runtime data generated from
+// transient systems are stored in the script.
+void UNiagaraScript::ClearResolvedData()
+{
+	ResolvedDataInterfaces.Empty();
+	ResolvedUserDataInterfaceBindings.Empty();
+	ResolvedUObjectInfos.Empty();
+}
+
 #endif
 
 FVersionedNiagaraEmitter UNiagaraScript::GetOuterEmitter() const
