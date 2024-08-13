@@ -3,7 +3,7 @@
 #include "RemoteClient.h"
 
 #include "IConcertClient.h"
-#include "Assets/MultiUserReplicationClientContent.h"
+#include "Assets/MultiUserReplicationClientPreset.h"
 #include "Replication/Authority/AuthoritySynchronizer_RemoteClient.h"
 #include "Replication/Stream/StreamSynchronizer_RemoteClient.h"
 #include "Replication/Submission/Remote/SubmissionWorkflow_RemoteClient.h"

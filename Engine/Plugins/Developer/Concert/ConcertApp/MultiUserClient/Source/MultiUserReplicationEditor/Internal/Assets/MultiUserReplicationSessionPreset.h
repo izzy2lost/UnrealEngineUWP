@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "MultiUserReplicationClientContent.h"
-#include "Replication/Messages/Muting.h"
 #include "UObject/Object.h"
+
+#include "Replication/Messages/Muting.h"
 #include "MultiUserReplicationSessionPreset.generated.h"
 
 struct FConcertClientInfo;
+struct FMultiUserReplicationClientPreset;
 
 USTRUCT()
 struct FMultiUserMuteSessionContent
@@ -42,9 +43,9 @@ public:
 	/********** Clients **********/
 
 	/** @return The client preset that matches ClientInfo.DisplayName. If there are multiple, returns the one that matches ClientInfo.DeviceName, as well. */
-	UMultiUserReplicationClientContent* GetClientContent(const FConcertClientInfo& ClientInfo) const;
+	const FMultiUserReplicationClientPreset* GetClientContent(const FConcertClientInfo& ClientInfo) const;
 	/** @return The client preset that matches both the display and device name. */
-	UMultiUserReplicationClientContent* GetExactClientContent(const FConcertClientInfo& ClientInfo) const;
+	const FMultiUserReplicationClientPreset* GetExactClientContent(const FConcertClientInfo& ClientInfo) const;
 	
 	/** @return Whether a client that matches ClientInfo.DisplayName. */
 	bool ContainsClient(const FConcertClientInfo& ClientInfo) const { return GetClientContent(ClientInfo) != nullptr; }
@@ -52,9 +53,9 @@ public:
 	bool ContainsExactClient(const FConcertClientInfo& ClientInfo) const { return GetExactClientContent(ClientInfo) != nullptr; }
 	
 	/** Adds a client to the preset if it's not already present. */
-	UMultiUserReplicationClientContent* AddClientIfUnique(const FConcertClientInfo& ClientInfo, const FGuid& StreamId);
+	FMultiUserReplicationClientPreset* AddClientIfUnique(const FConcertClientInfo& ClientInfo, const FGuid& StreamId);
 	
-	const TArray<TObjectPtr<UMultiUserReplicationClientContent>>& GetClientPresets() const { return ClientPresets; }
+	const TArray<FMultiUserReplicationClientPreset>& GetClientPresets() const { return ClientPresets; }
 	
 	/********** Muting **********/
 	
@@ -63,8 +64,8 @@ public:
 	
 private:
 	
-	UPROPERTY(Instanced)
-	TArray<TObjectPtr<UMultiUserReplicationClientContent>> ClientPresets;
+	UPROPERTY()
+	TArray<FMultiUserReplicationClientPreset> ClientPresets;
 
 	UPROPERTY()
 	FMultiUserMuteSessionContent MuteContent;

@@ -2,7 +2,7 @@
 
 #include "StreamSynchronizer_RemoteClient.h"
 
-#include "Assets/MultiUserReplicationClientContent.h"
+#include "Assets/MultiUserReplicationClientPreset.h"
 #include "MultiUserStreamId.h"
 #include "Replication/Misc/Query/StreamAndAuthorityQueryService.h"
 

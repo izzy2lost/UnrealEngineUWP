@@ -2,7 +2,9 @@
 
 #include "PresetManager.h"
 
+#include "Assets/MultiUserReplicationClientPreset.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
+#include "Assets/MultiUserReplicationStream.h"
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
@@ -39,7 +41,7 @@ namespace UE::MultiUserClient::Replication
 		{
 			const auto AddClient = [&Preset, &Request, bClearUnreferencedClients](const FConcertSessionClientInfo& ClientSessionInfo)
 			{
-				const UMultiUserReplicationClientContent* ClientSessionContent = Preset.GetClientContent(ClientSessionInfo.ClientInfo);
+				const FMultiUserReplicationClientPreset* ClientSessionContent = Preset.GetClientContent(ClientSessionInfo.ClientInfo);
 				if (!ClientSessionContent)
 				{
 					if (bClearUnreferencedClients)
@@ -49,19 +51,19 @@ namespace UE::MultiUserClient::Replication
 					return;
 				}
 
-				const UMultiUserReplicationStream* SavedStream = ClientSessionContent->Stream;
-				if (SavedStream->ReplicationMap.IsEmpty())
+				const FConcertObjectReplicationMap& ReplicationMap = ClientSessionContent->ReplicationMap;
+				if (ReplicationMap.IsEmpty())
 				{
 					// This causes the client's content to be cleared.
 					Request.NewStreams.Add(ClientSessionInfo.ClientEndpointId, {});
 					return;
 				}
 				
-				const FGuid& StreamId = SavedStream->StreamId;
-				FConcertReplicationStream Stream { { .Identifier = StreamId, .ReplicationMap = SavedStream->ReplicationMap } };
+				const FGuid& StreamId = MultiUserStreamID;
+				FConcertReplicationStream Stream { { .Identifier = StreamId, .ReplicationMap = ReplicationMap } };
 				// Empty objects will be rejected by the server
 				RemoveEmptyObjectsFromRequest(Stream);
-				Stream.BaseDescription.FrequencySettings = ClientSessionContent->Stream->FrequencySettings;
+				Stream.BaseDescription.FrequencySettings = ClientSessionContent->FrequencySettings;
 				Request.NewStreams.Add(ClientSessionInfo.ClientEndpointId, { TArray{ Stream } });
 				
 				// MU automatically requests authority when it adds an object.
@@ -304,7 +306,7 @@ namespace UE::MultiUserClient::Replication
 		{
 			const auto[Client, ClientInfo] = ClientData;
 			UMultiUserReplicationStream* CopiedClientStream = Client->GetClientStreamObject();
-			UMultiUserReplicationClientContent* TargetClientPreset = Preset->AddClientIfUnique(ClientInfo, MultiUserStreamID);
+			FMultiUserReplicationClientPreset* TargetClientPreset = Preset->AddClientIfUnique(ClientInfo, MultiUserStreamID);
 			if (!TargetClientPreset)
 			{
 				UE_LOG(LogConcert, Warning,
@@ -315,9 +317,8 @@ namespace UE::MultiUserClient::Replication
 				continue;
 			}
 
-			TargetClientPreset->Stream->Copy(*CopiedClientStream);
-			// TODO UE-219834: Once UMultiUserReplicationStream::FrequencySettings reflect the server state, this can be removed.
-			TargetClientPreset->Stream->FrequencySettings = Client->GetStreamSynchronizer().GetFrequencySettings();
+			TargetClientPreset->ReplicationMap = CopiedClientStream->ReplicationMap;
+			TargetClientPreset->FrequencySettings = Client->GetStreamSynchronizer().GetFrequencySettings();
 		}
 
 		Preset->SetMuteContent(

@@ -2,7 +2,8 @@
 
 #include "OnlineClient.h"
 
-#include "Assets/MultiUserReplicationClientContent.h"
+#include "Assets/MultiUserReplicationStream.h"
+#include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/ReplicationWidgetFactories.h"
 #include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
@@ -11,7 +12,6 @@
 #include "Settings/MultiUserReplicationSettings.h"
 
 #include "Misc/CoreDelegates.h"
-#include "Replication/ClientReplicationWidgetFactories.h"
 
 namespace UE::MultiUserClient::Replication
 {

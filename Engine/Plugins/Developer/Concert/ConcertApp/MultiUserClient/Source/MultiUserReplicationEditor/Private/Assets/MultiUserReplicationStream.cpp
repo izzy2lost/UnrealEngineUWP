@@ -14,12 +14,5 @@ UMultiUserReplicationStream::UMultiUserReplicationStream()
 
 FConcertReplicationStream UMultiUserReplicationStream::GenerateDescription() const
 {
-	return { StreamId, ReplicationMap, FrequencySettings };
-}
-
-void UMultiUserReplicationStream::Copy(UMultiUserReplicationStream& OtherStream)
-{
-	StreamId = OtherStream.StreamId;
-	ReplicationMap = OtherStream.ReplicationMap;
-	FrequencySettings = OtherStream.FrequencySettings;
+	return { StreamId, ReplicationMap };
 }

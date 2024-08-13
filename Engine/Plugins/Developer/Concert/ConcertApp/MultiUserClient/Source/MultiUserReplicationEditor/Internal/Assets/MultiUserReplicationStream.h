@@ -21,16 +21,6 @@ public:
 	/** The objects this stream will modify. */
 	UPROPERTY()
 	FConcertObjectReplicationMap ReplicationMap;
-	
-	/**
-	 * The frequency setting the stream has.
-	 *
-	 * TODO UE-219834:
-	 * Currently, this is only written to by the preset system.
-	 * In the future, FFrequencyChangeTracker could / should use this so changes to frequencies can be transacted, as well.
-	 */
-	UPROPERTY()
-	FConcertStreamFrequencySettings FrequencySettings;
 
 	UMultiUserReplicationStream();
 
@@ -45,7 +35,4 @@ public:
 			return WeakThis.IsValid() ? &WeakThis->ReplicationMap : nullptr;
 		});
 	}
-	
-	/** Copies the stream content of OtherStream. */
-	void Copy(UMultiUserReplicationStream& OtherStream);
 };

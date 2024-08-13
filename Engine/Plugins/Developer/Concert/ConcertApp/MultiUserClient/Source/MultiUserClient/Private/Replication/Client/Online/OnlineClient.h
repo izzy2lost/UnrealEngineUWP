@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "Assets/MultiUserReplicationClientContent.h"
 #include "Replication/Authority/AuthorityChangeTracker.h"
 #include "Replication/Authority/IClientAuthoritySynchronizer.h"
 #include "Replication/Editor/UnrealEditor/ModifyObjectInLevelHandler.h"
@@ -18,8 +17,8 @@
 #include "Templates/SharedPointer.h"
 #include "Templates/UnrealTemplate.h"
 
+class UMultiUserReplicationStream;
 class IConcertClient;
-class UMultiUserReplicationClientContent;
 
 namespace UE::ConcertSharedSlate
 {
