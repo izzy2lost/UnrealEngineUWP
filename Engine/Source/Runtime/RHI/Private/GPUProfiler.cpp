@@ -671,53 +671,507 @@ bool FGPUTiming::GAreGlobalsInitialized = false;
 
 namespace UE::RHI::GPUProfiler
 {
-	static TArray<IEventSink*>& GetSinks()
+	static TArray<FEventSink*>& GetSinks()
 	{
-		static TArray<IEventSink*> Sinks;
+		static TArray<FEventSink*> Sinks;
 		return Sinks;
 	}
 
-	void RegisterEventSink(IEventSink* Sink)
+	FEventSink::FEventSink()
 	{
-		GetSinks().Add(Sink);
+		GetSinks().Add(this);
 	}
 
-	void PushEvents(
-		FQueue Queue,
-		TConstArrayView<TUniquePtr<FBreadcrumbEvent>> BreadcrumbEvents,
-		TConstArrayView<TUniquePtr<FWorkEvent      >> WorkEvents,
-		TConstArrayView<TUniquePtr<FMarkerEvent    >> MarkerEvents)
+	FEventSink::~FEventSink()
 	{
-		if (BreadcrumbEvents.IsEmpty()
-		   || WorkEvents.IsEmpty()
-		   || MarkerEvents.IsEmpty())
-		{
-			return;
-		}
+		GetSinks().RemoveSingle(this);
+	}
 
-		for (IEventSink* Sink : GetSinks())
+	void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events)
+	{
+		if (!Events.IsEmpty())
 		{
-			Sink->ProcessEvents(Queue, BreadcrumbEvents, WorkEvents, MarkerEvents);
+			for (FEventSink* Sink : GetSinks())
+			{
+				Sink->ProcessEvents(Queue, Events);
+			}
 		}
 	}
 
-	struct FGPUProfilerSink_ProfileGPU final : public IEventSink
+	void InitializeQueues(TConstArrayView<FQueue> Queues)
 	{
-		FGPUProfilerSink_ProfileGPU()
+		for (FEventSink* Sink : GetSinks())
 		{
-			RegisterEventSink(this);
+			Sink->InitializeQueues(Queues);
+		}
+	}
+
+	struct FGPUProfilerSink_StatUnit final : public FEventSink
+	{
+		struct FQueueTimestamps : public TArray<uint64>
+		{
+			int32 TimestampIndex = 0;
+			uint64 BusyCycles = 0;
+
+			uint64 GetCurrentTimestamp (uint64 Anchor) const { return (*this)[TimestampIndex] - Anchor; }
+			uint64 GetPreviousTimestamp(uint64 Anchor) const { return (*this)[TimestampIndex - 1] - Anchor; }
+
+			bool HasMoreTimestamps() const { return TimestampIndex < Num(); }
+			bool IsStartingWork()    const { return (TimestampIndex & 0x01) == 0x00; }
+
+			void AdvanceTimestamp() { TimestampIndex++; }
+		};
+
+		struct FQueueState
+		{
+			bool bBusy = false;
+			FQueueTimestamps Timestamps;
+		};
+
+		using FFrameState = TMap<FQueue, FQueueTimestamps>;
+
+		TMap<FQueue, FQueueState> QueueStates;
+		TMap<uint32, FFrameState> Frames;
+
+		void InitializeQueues(TConstArrayView<FQueue> Queues) override
+		{
+			for (FQueue const& Queue : Queues)
+			{
+				check(QueueStates.Find(Queue) == nullptr);
+				QueueStates.Add(Queue);
+			}
 		}
 
-		void ProcessEvents(
-			FQueue Queue,
-			TConstArrayView<TUniquePtr<FBreadcrumbEvent>> const& BreadcrumbEvents,
-			TConstArrayView<TUniquePtr<FWorkEvent      >> const& WorkEvents,
-			TConstArrayView<TUniquePtr<FMarkerEvent    >> const& MarkerEvents) override
+		void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) override
 		{
-			// @todo - new gpu profiler
+			FQueueState& QueueState = QueueStates.FindChecked(Queue);
+
+			for (auto const& Event : Events)
+			{
+				switch (Event->GetType())
+				{
+				case FEvent::EType::BeginWork:
+					{
+						check(!QueueState.bBusy);
+						QueueState.bBusy = true;
+						uint64 Value = Event->Value.Get<FEvent::FBeginWork>().GPUTimestampTOP;
+							
+						if (!QueueState.Timestamps.IsEmpty() && Value <= QueueState.Timestamps.Last())
+						{
+							//
+							// The Begin TOP event is sooner than the last End BOP event.
+							// The markers overlap, and the GPU was not idle.
+							// 
+							// Remove the previous End event, and discard this Begin event.
+							//
+							QueueState.Timestamps.RemoveAt(QueueState.Timestamps.Num() - 1, EAllowShrinking::No);
+						}
+						else
+						{
+							// GPU was idle. Keep this timestamp.
+							QueueState.Timestamps.Add(Value);
+						}
+					}
+					break;
+
+				case FEvent::EType::EndWork:
+					{
+						check(QueueState.bBusy);
+						QueueState.bBusy = false;
+
+						uint64 Value = Event->Value.Get<FEvent::FEndWork>().GPUTimestampBOP;
+						QueueState.Timestamps.Add(Value);
+					}
+					break;
+
+				case FEvent::EType::FrameBoundary:
+					{
+						check(!QueueState.bBusy);
+						auto const& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
+
+						FFrameState& FrameState = Frames.FindOrAdd(FrameBoundary.FrameNumber);
+						FrameState.Emplace(Queue, MoveTemp(QueueState.Timestamps));
+
+						if (FrameState.Num() == QueueStates.Num())
+						{
+							// All registered queues have reported their frame boundary event.
+							// We have a full set of data to compute the total frame GPU stats.
+							ProcessFrame(FrameState);
+
+							Frames.Remove(FrameBoundary.FrameNumber);
+						}
+					}
+					break;
+				}
+			}
+		}
+
+		void ProcessFrame(FFrameState& FrameState)
+		{
+			// The total number of cycles where at least one GPU pipe was busy during the frame.
+			uint64 UnionBusyCycles = 0;
+
+			uint64 LastMinCycles = 0;
+			int32 BusyPipes = 0;
+			bool bFirst = true;
+
+			uint64 Anchor = 0; // @todo - handle possible timestamp wraparound
+
+			// Process the time ranges from each pipe.
+			while (true)
+			{
+				// Find the next minimum timestamp
+				FQueueTimestamps* NextMin = nullptr;
+				for (auto& [Queue, Current] : FrameState)
+				{
+					if (Current.HasMoreTimestamps() && (!NextMin || Current.GetCurrentTimestamp(Anchor) < NextMin->GetCurrentTimestamp(Anchor)))
+					{
+						NextMin = &Current;
+					}
+				}
+
+				if (!NextMin)
+					break; // No more timestamps to process
+
+				if (!bFirst)
+				{
+					if (BusyPipes > 0 && NextMin->GetCurrentTimestamp(Anchor) > LastMinCycles)
+					{
+						// Accumulate the union busy time across all pipes
+						UnionBusyCycles += NextMin->GetCurrentTimestamp(Anchor) - LastMinCycles;
+					}
+
+					if (!NextMin->IsStartingWork())
+					{
+						// Accumulate the busy time for this pipe specifically.
+						NextMin->BusyCycles += NextMin->GetCurrentTimestamp(Anchor) - NextMin->GetPreviousTimestamp(Anchor);
+					}
+				}
+
+				LastMinCycles = NextMin->GetCurrentTimestamp(Anchor);
+
+				BusyPipes += NextMin->IsStartingWork() ? 1 : -1;
+				check(BusyPipes >= 0);
+
+				NextMin->AdvanceTimestamp();
+				bFirst = false;
+			}
+
+			check(BusyPipes == 0);
+
+			// Update the global GPU frame time stats - need to convert to Cycles32 rather than Cycles64.
+			GGPUFrameTime = FPlatformMath::TruncToInt(FPlatformTime::ToSeconds64(UnionBusyCycles) / FPlatformTime::GetSecondsPerCycle());
+		}
+
+	} GGPUProfilerSink_StatUnit;
+
+	struct FGPUProfilerSink_ProfileGPU final : public FEventSink
+	{
+		struct FNode
+		{
+			FString Name;
+			FNode* Parent = nullptr;
+			FNode* Next = nullptr;
+			uint32 Level = 0;
+			TArray<uint64> Timestamps;
+
+			uint64 BusyCycles = 0;
+
+			FNode(FString&& Name)
+				: Name(MoveTemp(Name))
+			{}
+		};
+
+		struct FQueueState
+		{
+			FQueue const Queue;
+			TArray<TUniquePtr<FNode>> Nodes;
+			FNode* Current = nullptr;
+			FNode* Prev = nullptr;
+			FNode* First = nullptr;
+
+			enum class EState
+			{
+				Idle,
+				WaitingFrame,
+				Active
+			} State = EState::Idle;
+
+			std::atomic<bool> bTriggerProfile { false };
+
+			FQueueState(FQueue Queue)
+				: Queue(Queue)
+			{}
+
+			void PushNode(FString&& Name)
+			{
+				FNode* Parent = Current;
+				Current = Nodes.Emplace_GetRef(MakeUnique<FNode>(MoveTemp(Name))).Get();
+				Current->Parent = Parent;
+
+				if (!First)
+				{
+					First = Current;
+				}
+
+				if (Parent)
+				{
+					Current->Level = Parent->Level + 1;
+				}
+
+				if (Prev)
+				{
+					Prev->Next = Current;
+				}
+				Prev = Current;
+			}
+
+			void PopNode()
+			{
+				check(Current && Current->Parent);
+				Current = Current->Parent;
+			}
+
+			void ProcessEvents(TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events);
+
+			void LogTree(uint32 FrameNumber);
+		};
+
+		TMap<FQueue, TUniquePtr<FQueueState>> QueueStates;
+
+		void InitializeQueues(TConstArrayView<FQueue> Queues) override
+		{
+			for (FQueue const& Queue : Queues)
+			{
+				check(QueueStates.Find(Queue) == nullptr);
+				QueueStates.Add(Queue, MakeUnique<FQueueState>(Queue));
+			}
+		}
+
+		void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) override
+		{
+			QueueStates.FindChecked(Queue)->ProcessEvents(Events);
+		}
+
+		void ProfileNextFrame()
+		{
+			for (auto& [Queue, State] : QueueStates)
+			{
+				State->bTriggerProfile = true;
+			}
 		}
 
 	} GGPUProfilerSink_ProfileGPU;
+
+	void FGPUProfilerSink_ProfileGPU::FQueueState::ProcessEvents(TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events)
+	{
+		int32 Index = 0;
+	Restart:
+		if (State == EState::Idle && bTriggerProfile.exchange(false))
+		{
+			State = EState::WaitingFrame;
+		}
+
+		if (State == EState::WaitingFrame)
+		{
+			// Discard all received events until we reach a FrameBoundary event
+			for (; Index < Events.Num(); ++Index)
+			{
+				if (Events[Index]->GetType() == FEvent::EType::FrameBoundary)
+				{
+					// Start profiling until we receive another FrameBoundary event
+					State = EState::Active;
+
+					FEvent::FFrameBoundary& FrameBoundary = Events[Index]->Value.Get<FEvent::FFrameBoundary>();
+
+					// Build the node tree 
+					PushNode(TEXT("<root>"));
+
+				#if WITH_RHI_BREADCRUMBS
+					auto Recurse = [&](auto& Recurse, FRHIBreadcrumbNode* Breadcrumb) -> void
+					{
+						if (!Breadcrumb)
+						{
+							return;
+						}
+
+						Recurse(Recurse, Breadcrumb->GetParent());
+
+						FRHIBreadcrumb::FBuffer Buffer;
+						PushNode(Breadcrumb->Name.GetTCHAR(Buffer));
+					};
+					Recurse(Recurse, FrameBoundary.Breadcrumb);
+				#endif // WITH_RHI_BREADCRUMBS
+
+					++Index;
+					break;
+				}
+			}
+		}
+
+		if (State == EState::Active)
+		{
+			for (; Index < Events.Num(); ++Index)
+			{
+				auto const& Event = Events[Index];
+
+				switch (Event->GetType())
+				{
+				case FEvent::EType::BeginWork:
+					{
+						uint64 Timestamp = Event->Value.Get<FEvent::FBeginWork>().GPUTimestampTOP;
+						for (FNode* Node = Current; Node; Node = Node->Parent)
+						{
+							Node->Timestamps.Add(Timestamp);
+						}
+					}
+					break;
+
+				case FEvent::EType::EndWork:
+					{
+						uint64 Timestamp = Event->Value.Get<FEvent::FEndWork>().GPUTimestampBOP;
+						for (FNode* Node = Current; Node; Node = Node->Parent)
+						{
+							Node->Timestamps.Add(Timestamp);
+						}
+					}
+					break;
+
+			#if WITH_RHI_BREADCRUMBS
+				case FEvent::EType::BeginBreadcrumb:
+					{
+						auto& BeginBreadcrumb = Event->Value.Get<FEvent::FBeginBreadcrumb>();
+
+						// Push a new node
+						FRHIBreadcrumb::FBuffer Buffer;
+						PushNode(BeginBreadcrumb.Breadcrumb->Name.GetTCHAR(Buffer));
+
+						Current->Timestamps.Add(BeginBreadcrumb.GPUTimestampTOP);
+					}
+					break;
+
+				case FEvent::EType::EndBreadcrumb:
+					{
+						auto& EndBreadcrumb = Event->Value.Get<FEvent::FEndBreadcrumb>();
+						Current->Timestamps.Add(EndBreadcrumb.GPUTimestampBOP);
+
+						PopNode();
+					}
+					break;
+			#endif // WITH_RHI_BREADCRUMBS
+
+				case FEvent::EType::FrameBoundary:
+					{
+						FEvent::FFrameBoundary& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
+						LogTree(FrameBoundary.FrameNumber);
+
+						// Reset tracking
+						Nodes.Reset();
+						Current = nullptr;
+						Prev = nullptr;
+						First = nullptr;
+
+						State = EState::Idle;
+						goto Restart;
+					}
+					break;
+				}
+			}
+		}
+	}
+
+	template <uint32 Width>
+	struct TUnicodeHorizontalBar
+	{
+		TCHAR Text[Width + 1];
+
+		// 0 <= Value <= 1
+		TUnicodeHorizontalBar(double Value)
+		{
+			TCHAR* Output = Text;
+			int32 Solid, Partial, Blank;
+			{
+				double Integer;
+				double Remainder = FMath::Modf(FMath::Clamp(Value, 0.0, 1.0) * Width, &Integer);
+
+				Solid = (int32)Integer;
+				Partial = (int32)FMath::Floor(Remainder * 8);
+				Blank = (Width - Solid - (Partial > 0 ? 1 : 0));
+			}
+
+			// Solid characters
+			for (int32 Index = 0; Index < Solid; ++Index)
+			{
+				*Output++ = TEXT('█');
+			}
+
+			// Partially filled character
+			if (Partial > 0)
+			{
+				static constexpr TCHAR const Data[] = TEXT("▏▎▍▌▋▊▉");
+				*Output++ = Data[Partial - 1];
+			}
+
+			// Blank Characters to pad out the width
+			for (int32 Index = 0; Index < Blank; ++Index)
+			{
+				*Output++ = TEXT(' ');
+			}
+
+			*Output++ = 0;
+			check(uintptr_t(Output) == (uintptr_t(Text) + sizeof(Text)));
+		}
+	};
+
+	void FGPUProfilerSink_ProfileGPU::FQueueState::LogTree(uint32 FrameNumber)
+	{
+		for (FNode* Node = First; Node; Node = Node->Next)
+		{
+			check(Node->Timestamps.Num() % 2 == 0);
+			Node->BusyCycles = 0;
+
+			uint64 LastBeginCycles = 0;
+			uint64 LastEndCycles = 0;
+
+			for (int32 Index = 0; Index < Node->Timestamps.Num(); ++Index)
+			{
+				if ((Index & 1) == 0)
+				{
+					// Begin
+					LastBeginCycles = FMath::Max(LastEndCycles, Node->Timestamps[Index]);
+				}
+				else
+				{
+					// End
+					uint64 End = Node->Timestamps[Index];
+					Node->BusyCycles += End - LastBeginCycles;
+
+					LastEndCycles = End;
+				}
+			}
+		}
+
+		double RootMilliseconds = FPlatformTime::ToMilliseconds64(First->BusyCycles);
+
+		FString LogMessage;
+		for (FNode* Node = First; Node; Node = Node->Next)
+		{
+			double Milliseconds = FPlatformTime::ToMilliseconds64(Node->BusyCycles);
+
+			TUnicodeHorizontalBar<8> Bar = Milliseconds / RootMilliseconds;
+			LogMessage += FString::Printf(TEXT("%9.3f ms |%s| %*s\n"), Milliseconds, Bar.Text, Node->Name.Len() + (Node->Level * 4), *Node->Name);
+		}
+
+		UE_LOG(LogRHI, Display, TEXT("GPU Profile for Frame %d, Queue [%s, GPU: %d, Idx: %d]:\n%s\n\n"), FrameNumber, Queue.GetTypeString(), Queue.GPU, Queue.Index, *LogMessage);
+	}
+
+	static FAutoConsoleCommand ProfileGPUNew(
+		TEXT("ProfileGPUNew"),
+		TEXT(""),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			GGPUProfilerSink_ProfileGPU.ProfileNextFrame();
+		}));
 }
 
 #endif // RHI_NEW_GPU_PROFILER

@@ -1266,7 +1266,7 @@ void FMetalDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmd
 	});
 }
 
-void FMetalDynamicRHI::RHIEndFrame()
+void FMetalDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	// increment the internal frame counter
 	Device->IncrementFrameRHIThread();

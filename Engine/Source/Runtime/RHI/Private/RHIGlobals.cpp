@@ -5,6 +5,8 @@
 
 FRHIGlobals GRHIGlobals;
 
+uint32 GGPUFrameTime = 0;
+
 //
 //	MSAA sample offsets.
 //

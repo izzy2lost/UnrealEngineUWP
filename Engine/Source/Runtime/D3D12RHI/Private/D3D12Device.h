@@ -66,12 +66,6 @@ class FD3D12Timing
 {
 public:
 	FD3D12Queue& Queue;
-
-	TArray<uint64> Timestamps;
-	int32 TimestampIndex = 0;
-
-	uint64 BusyCycles = 0;
-
 	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats {};
 
 #if RHI_NEW_GPU_PROFILER
@@ -79,12 +73,17 @@ public:
 	uint64 GPUFrequency = 0, GPUTimestamp = 0;
 	uint64 CPUFrequency = 0, CPUTimestamp = 0;
 
-#if WITH_RHI_BREADCRUMBS
+	#if WITH_RHI_BREADCRUMBS
 	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>> BreadcrumbAllocators {};
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents;
-#endif
+	#endif
 
-#endif
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events;
+
+#else
+
+	TArray<uint64> Timestamps;
+	int32 TimestampIndex = 0;
+	uint64 BusyCycles = 0;
 
 	uint64 GetCurrentTimestamp()  const { return Timestamps[TimestampIndex]; }
 	uint64 GetPreviousTimestamp() const { return Timestamps[TimestampIndex - 1]; }
@@ -93,6 +92,8 @@ public:
 	bool IsStartingWork()    const { return (TimestampIndex & 0x01) == 0x00; }
 
 	void AdvanceTimestamp() { TimestampIndex++; }
+
+#endif
 
 	FD3D12Timing(FD3D12Queue& Queue)
 		: Queue(Queue)
@@ -143,9 +144,6 @@ public:
 	// The active timing struct on this queue. Updated / accessed by the interrupt thread.
 	FD3D12Timing* Timing = nullptr;
 
-	uint64 CumulativeIdleTicks = 0;
-	uint64 LastEndTime = 0;
-
 	TUniquePtr<FD3D12DiagnosticBuffer> DiagnosticBuffer;
 
 	// On some hardware, some auxiliary queue types may not support tile mapping and a separate queue must be used
@@ -166,6 +164,10 @@ public:
 
 	FD3D12Queue(FD3D12Device* Device, ED3D12QueueType QueueType);
 	~FD3D12Queue();
+
+#if RHI_NEW_GPU_PROFILER
+	UE::RHI::GPUProfiler::FQueue GetProfilerQueue() const;
+#endif
 
 private:
 	// Internal fence which may be used before calling ExecuteCommandLists

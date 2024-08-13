@@ -74,6 +74,25 @@ FD3D12Queue::~FD3D12Queue()
 	check(PendingInterrupt.IsEmpty());
 }
 
+#if RHI_NEW_GPU_PROFILER
+UE::RHI::GPUProfiler::FQueue FD3D12Queue::GetProfilerQueue() const
+{
+	UE::RHI::GPUProfiler::FQueue Queue;
+	Queue.GPU = Device->GetGPUIndex();
+	Queue.Index = 0;
+
+	switch (QueueType)
+	{
+	default: checkNoEntry(); [[fallthrough]];
+	case ED3D12QueueType::Direct: Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Graphics; break;
+	case ED3D12QueueType::Async : Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Compute ; break;
+	case ED3D12QueueType::Copy  : Queue.Type = UE::RHI::GPUProfiler::FQueue::EType::Copy    ; break;
+	}
+
+	return Queue;
+}
+#endif // RHI_NEW_GPU_PROFILER
+
 FD3D12Device::FD3D12Device(FRHIGPUMask InGPUMask, FD3D12Adapter* InAdapter)
 	: FD3D12SingleNodeGPUObject(InGPUMask)
 	, FD3D12AdapterChild       (InAdapter)

@@ -115,6 +115,19 @@ public:
 	FD3D12ResidencySet* CloseResidencySet();
 #endif // ENABLE_RESIDENCY_MANAGEMENT
 
+#if RHI_NEW_GPU_PROFILER
+	template <typename TEventType>
+	TEventType& EmplaceEvent()
+	{
+		return State.EmplaceEvent<TEventType>();
+	}
+
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>>&& RetrieveEvents()
+	{
+		return MoveTemp(State.Events);
+	}
+#endif // RHI_NEW_GPU_PROFILER
+
 private:
 	struct FInterfaces
 	{
@@ -299,5 +312,15 @@ private:
 		bool bLocalQueriesBegun = false;
 		bool bLocalQueriesEnded = false;
 
+#if RHI_NEW_GPU_PROFILER
+		TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events; // @todo dev-pr : optimize storage
+
+		template <typename TEventType>
+		TEventType& EmplaceEvent()
+		{
+			return Events.Emplace_GetRef(MakeUnique<UE::RHI::GPUProfiler::FEvent>(TEventType()))->Value.Get<TEventType>();
+		}
+#endif
+		
 	} State;
 };

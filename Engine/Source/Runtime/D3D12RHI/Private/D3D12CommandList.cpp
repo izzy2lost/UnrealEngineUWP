@@ -322,6 +322,11 @@ void FD3D12CommandList::BeginLocalQueries()
 	{
 		if (State.BeginTimestamp)
 		{
+#if RHI_NEW_GPU_PROFILER
+			auto& Event = EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>();
+			State.BeginTimestamp.Target = &Event.GPUTimestampTOP;
+#endif
+
 			EndQuery(State.BeginTimestamp);
 		}
 
@@ -345,6 +350,11 @@ void FD3D12CommandList::EndLocalQueries()
 
 		if (State.EndTimestamp)
 		{
+#if RHI_NEW_GPU_PROFILER
+			auto& Event = EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+			State.EndTimestamp.Target = &Event.GPUTimestampBOP;
+#endif
+
 			EndQuery(State.EndTimestamp);
 		}
 
@@ -401,20 +411,22 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 				Position = ED3D12QueryPosition::BottomOfPipe;
 				break;
 
-			case ED3D12QueryType::CommandListBegin:
-			case ED3D12QueryType::IdleBegin:
 #if RHI_NEW_GPU_PROFILER
 			case ED3D12QueryType::ProfilerTimestampTOP:
+#else
+			case ED3D12QueryType::CommandListBegin:
+			case ED3D12QueryType::IdleBegin:
 #endif
 				Position = ED3D12QueryPosition::TopOfPipe;
 				break;
 
-			case ED3D12QueryType::CommandListEnd:
-			case ED3D12QueryType::IdleEnd:
-			case ED3D12QueryType::AdjustedMicroseconds:
-			case ED3D12QueryType::AdjustedRaw:
+			case ED3D12QueryType::TimestampMicroseconds:
+			case ED3D12QueryType::TimestampRaw:
 #if RHI_NEW_GPU_PROFILER
 			case ED3D12QueryType::ProfilerTimestampBOP:
+#else
+			case ED3D12QueryType::CommandListEnd:
+			case ED3D12QueryType::IdleEnd:
 #endif
 				Position = ED3D12QueryPosition::BottomOfPipe;
 				break;
@@ -422,9 +434,11 @@ void FD3D12CommandList::EndQuery(FD3D12QueryLocation const& Location)
 
 			WriteTimestamp(Location, Position);
 
+#if RHI_NEW_GPU_PROFILER == 0
 			// Command list begin/end timestamps are handled separately by the 
 			// submission thread, so shouldn't be in the TimestampQueries array.
 			if (Location.Type != ED3D12QueryType::CommandListBegin && Location.Type != ED3D12QueryType::CommandListEnd)
+#endif
 			{
 				State.TimestampQueries.Add(Location);
 			}
@@ -452,8 +466,13 @@ FD3D12CommandList::FState::FState(FD3D12CommandAllocator* CommandAllocator, FD3D
 
 	if (TimestampAllocator)
 	{
+#if RHI_NEW_GPU_PROFILER
+		BeginTimestamp = TimestampAllocator->Allocate(ED3D12QueryType::ProfilerTimestampTOP, nullptr);
+		EndTimestamp   = TimestampAllocator->Allocate(ED3D12QueryType::ProfilerTimestampBOP, nullptr);
+#else
 		BeginTimestamp = TimestampAllocator->Allocate(ED3D12QueryType::CommandListBegin, nullptr);
 		EndTimestamp   = TimestampAllocator->Allocate(ED3D12QueryType::CommandListEnd  , nullptr);
+#endif
 	}
 
 	if (PipelineStatsAllocator)

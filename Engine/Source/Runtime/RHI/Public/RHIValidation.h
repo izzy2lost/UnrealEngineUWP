@@ -101,7 +101,7 @@ public:
 	/////// RHI Methods
 
 	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) override final;
-	virtual void RHIEndFrame() override final;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) override final;
 
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) override final

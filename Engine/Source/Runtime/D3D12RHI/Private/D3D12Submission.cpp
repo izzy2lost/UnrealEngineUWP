@@ -14,9 +14,6 @@
 #define D3D12_USE_SUBMISSION_THREAD (1)
 #define D3D12_USE_INTERRUPT_THREAD  (1 && D3D12_PLATFORM_SUPPORTS_BLOCKING_FENCES)
 
-// When enabled, GPU timestamp queries are adjusted to remove idle time caused by CPU bubbles.
-#define D3D12_ENABLE_ADJUSTED_TIMESTAMPS 0		// Adjusted timestamps break Unreal Insights, disabling for now
-
 static TAutoConsoleVariable<int32> CVarRHIUseSubmissionThread(
 	TEXT("rhi.UseSubmissionThread"),
 	2,
@@ -122,6 +119,25 @@ private:
 
 void FD3D12DynamicRHI::InitializeSubmissionPipe()
 {
+#if RHI_NEW_GPU_PROFILER
+	{
+		TArray<UE::RHI::GPUProfiler::FQueue> Queues;
+		ForEachQueue([&](FD3D12Queue& Queue)
+		{
+			if (Queue.QueueType == ED3D12QueueType::Copy)
+			{
+				// @todo dev-pr : Skip copy queues for now. We don't have copy queue support in RHI contexts,
+				// so it's not possible to insert frame boundary events in a way that is pipelined correctly.
+				return;
+			}
+
+			Queues.Add(Queue.GetProfilerQueue());
+		});
+
+		UE::RHI::GPUProfiler::InitializeQueues(Queues);
+	}
+#endif
+
 	if (FPlatformProcess::SupportsMultithreading())
 	{
 #if D3D12_USE_INTERRUPT_THREAD
@@ -146,12 +162,32 @@ void FD3D12DynamicRHI::InitializeSubmissionPipe()
 #endif
 	}
 
-	FlushTiming(true);
+#if WITH_RHI_BREADCRUMBS
+	TRHIPipelineArray<FRHIBreadcrumbNode*> GPUBreadcrumbs { InPlace, nullptr };
+	FRHIEndFrameArgs Args
+	{
+		.GPUBreadcrumbs = GPUBreadcrumbs
+	};
+#else
+	FRHIEndFrameArgs Args;
+#endif
+	
+	FlushTiming(true, Args);
 }
 
 void FD3D12DynamicRHI::ShutdownSubmissionPipe()
 {
-	FlushTiming(false);
+#if WITH_RHI_BREADCRUMBS
+	TRHIPipelineArray<FRHIBreadcrumbNode*> GPUBreadcrumbs { InPlace, nullptr };
+	FRHIEndFrameArgs Args
+	{
+		.GPUBreadcrumbs = GPUBreadcrumbs
+	};
+#else
+	FRHIEndFrameArgs Args;
+#endif
+
+	FlushTiming(false, Args);
 
 	delete SubmissionThread;
 	SubmissionThread = nullptr;
@@ -425,6 +461,9 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 						TargetQueue.BatchedObjects.OcclusionQueries.Append(MoveTemp(CommandList->State.OcclusionQueries));
 						TargetQueue.BatchedObjects.PipelineStatsQueries.Append(MoveTemp(CommandList->State.PipelineStatsQueries));
 
+#if RHI_NEW_GPU_PROFILER
+						TargetQueue.BatchedObjects.TimestampQueries.Append(MoveTemp(CommandList->State.TimestampQueries));
+#else
 						// Timestamp Queries
 						if (CommandList->State.BeginTimestamp)
 						{
@@ -455,6 +494,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 							check(CommandList->State.TimestampQueries.IsEmpty());
 							check(!CommandList->State.EndTimestamp);
 						}
+#endif
 					};
 
 					for (int32 Index = 0; Index < Payload->CommandListsToExecute.Num(); Index++)
@@ -698,8 +738,6 @@ uint64 FD3D12Queue::FinalizePayload(bool bRequiresSignal, FPayloadArray& Payload
 	{
 		BatchedObjects.BreadcrumbAllocators.Append(MoveTemp(PayloadToSubmit->BatchedObjects.BreadcrumbAllocators));
 	}
-
-	BatchedObjects.BreadcrumbEvents.Append(MoveTemp(PayloadToSubmit->BatchedObjects.BreadcrumbEvents));
 #endif
 
 	// Gather query ranges from this payload, grouping by heap pointer
@@ -902,6 +940,8 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 		TArray<FD3D12ResidencySet*, TInlineAllocator<128>> ResidencySets;
 #endif
 
+		uint64 Time = FPlatformTime::Cycles64();
+
 		// Accumulate the command lists from the payload
 		for (uint32 Index = FirstPayload; Index < LastPayload; ++Index)
 		{
@@ -911,6 +951,18 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 			for (FD3D12CommandList* CommandList : Payload->CommandListsToExecute)
 			{
 				check(CommandList->IsClosed());
+
+#if RHI_NEW_GPU_PROFILER
+				{
+					TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events = CommandList->RetrieveEvents();
+					if (Events.Num() > 0)
+					{
+						Events[0]->Value.Get<UE::RHI::GPUProfiler::FEvent::FBeginWork>().CPUTimestamp = Time;
+						Payload->Events.Append(MoveTemp(Events));
+					}
+				}
+#endif // RHI_NEW_GPU_PROFILER
+
 				D3DCommandLists.Add(CommandList->Interfaces.CommandList);
 
 #if ENABLE_RESIDENCY_MANAGEMENT
@@ -1004,12 +1056,13 @@ void FD3D12DynamicRHI::FlushBatchedPayloads(FD3D12Queue::FPayloadArray& Payloads
 		{
 			Flush();
 
+			if (FD3D12Timing* LocalTiming = *Payload->Timing)
 			{
 				SCOPED_NAMED_EVENT(CalibrateClocks, FColor::Red);
-				FD3D12Timing* LocalTiming = *Payload->Timing;
+
 				// Calibrate the GPU timestamp / clock
-				VERIFYD3D12RESULT(D3DCommandQueue->GetClockCalibration(&LocalTiming->GPUTimestamp, &LocalTiming->CPUTimestamp));
-				VERIFYD3D12RESULT(D3DCommandQueue->GetTimestampFrequency(&LocalTiming->GPUFrequency));
+				VERIFYD3D12RESULT(Payload->Queue.D3DCommandQueue->GetClockCalibration(&LocalTiming->GPUTimestamp, &LocalTiming->CPUTimestamp));
+				VERIFYD3D12RESULT(Payload->Queue.D3DCommandQueue->GetTimestampFrequency(&LocalTiming->GPUFrequency));
 				QueryPerformanceFrequency(reinterpret_cast<LARGE_INTEGER*>(&LocalTiming->CPUFrequency));
 			}
 		}
@@ -1282,12 +1335,6 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 
 			// Resolve query results
 			{
-				if (Payload->Timing.IsSet())
-				{
-					// Switch the new timing struct into the queue. This redirects timestamp results to separate each frame's work.
-					CurrentQueue.Timing = Payload->Timing.GetValue();
-				}
-
 				for (FD3D12QueryLocation& Query : Payload->BatchedObjects.OcclusionQueries)
 				{
 					check(Query.Target);
@@ -1309,9 +1356,6 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 
 				if (Payload->BatchedObjects.TimestampQueries.Num())
 				{
-					FD3D12QueryLocation* IdleBegin = nullptr;
-					FD3D12QueryLocation* ListBegin = nullptr;
-
 					// Some timestamp queries report in microseconds
 					const double MicrosecondsScale = 1000000.0 / CurrentQueue.Device->GetTimestampFrequency(CurrentQueue.QueueType);
 
@@ -1324,50 +1368,10 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 
 						switch (Query.Type)
 						{
-						case ED3D12QueryType::CommandListBegin:
-						case ED3D12QueryType::CommandListEnd:
-						case ED3D12QueryType::IdleBegin:
-						case ED3D12QueryType::IdleEnd:
-							check(CurrentQueue.Timing);
-							CurrentQueue.Timing->Timestamps.Add(Query.GetResult<uint64>());
-							break;
-						}
-
-						switch (Query.Type)
-						{
-						case ED3D12QueryType::CommandListBegin:
-							check(!ListBegin && !IdleBegin);
-							ListBegin = &Query;
-							break;
-
-						case ED3D12QueryType::CommandListEnd:
-							check(ListBegin != nullptr && IdleBegin == nullptr);
-							// Accumulate the number of ticks that have elapsed between the end of the previous command list, and the start of this one.
-							CurrentQueue.CumulativeIdleTicks += (CurrentQueue.LastEndTime != 0) ? ListBegin->GetResult<uint64>() - CurrentQueue.LastEndTime : 0; //-V522
-							CurrentQueue.LastEndTime = Query.GetResult<uint64>();
-							ListBegin = nullptr;
-							break;
-
-						case ED3D12QueryType::IdleBegin:
-							check(ListBegin && !IdleBegin);
-							IdleBegin = &Query;
-							break;
-
-						case ED3D12QueryType::IdleEnd:
-							check(ListBegin != nullptr && IdleBegin != nullptr);
-							// Accumulate the time this pipe spent in an idle scope. This includes vsync and waiting on other pipes.
-							CurrentQueue.CumulativeIdleTicks += Query.GetResult<uint64>() - IdleBegin->GetResult<uint64>(); //-V522
-							IdleBegin = nullptr;
-							break;
-
-						case ED3D12QueryType::AdjustedMicroseconds:
-						case ED3D12QueryType::AdjustedRaw:
-							check(ListBegin && !IdleBegin && Query.Target);
-#if D3D12_ENABLE_ADJUSTED_TIMESTAMPS
-							// Adjust the time such that the ticks reported only advance when this pipe is busy
-							*Query.Target -= CurrentQueue.CumulativeIdleTicks;
-#endif
-							if (Query.Type == ED3D12QueryType::AdjustedMicroseconds)
+						case ED3D12QueryType::TimestampMicroseconds:
+						case ED3D12QueryType::TimestampRaw:
+							check(Query.Target);
+							if (Query.Type == ED3D12QueryType::TimestampMicroseconds)
 							{
 								// Convert to microseconds
 								*static_cast<uint64*>(Query.Target) = FPlatformMath::TruncToInt(double(*static_cast<uint64*>(Query.Target)) * MicrosecondsScale);
@@ -1387,20 +1391,18 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 								Target = CPUDelta + CurrentQueue.Timing->CPUTimestamp;
 							}
 							break;
-#endif // RHI_NEW_GPU_PROFILER
+#else
+						case ED3D12QueryType::CommandListBegin:
+						case ED3D12QueryType::CommandListEnd:
+						case ED3D12QueryType::IdleBegin:
+						case ED3D12QueryType::IdleEnd:
+							check(CurrentQueue.Timing);
+							CurrentQueue.Timing->Timestamps.Add(Query.GetResult<uint64>());
+							break;
+
+#endif
 						}
 					}
-
-					check(!ListBegin && !IdleBegin);
-				}
-			}
-
-			// Signal the CPU events of all sync points associated with this batch.
-			for (FD3D12SyncPointRef& SyncPoint : Payload->SyncPointsToSignal)
-			{
-				if (SyncPoint->GraphEvent)
-				{
-					SyncPoint->GraphEvent->DispatchSubsequents();
 				}
 			}
 
@@ -1411,12 +1413,27 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessInterruptQueue()
 				CurrentQueue.Timing->BreadcrumbAllocators.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbAllocators));
 			}
 
-			if (Payload->BatchedObjects.BreadcrumbEvents.Num())
+			if (Payload->Events.Num())
 			{
 				check(CurrentQueue.Timing);
-				CurrentQueue.Timing->BreadcrumbEvents.Append(MoveTemp(Payload->BatchedObjects.BreadcrumbEvents));
+				CurrentQueue.Timing->Events.Append(MoveTemp(Payload->Events));
 			}
 #endif
+
+			if (Payload->Timing.IsSet())
+			{
+				// Switch the new timing struct into the queue. This redirects timestamp results to separate each frame's work.
+				CurrentQueue.Timing = Payload->Timing.GetValue();
+			}
+
+			// Signal the CPU events of all sync points associated with this batch.
+			for (FD3D12SyncPointRef& SyncPoint : Payload->SyncPointsToSignal)
+			{
+				if (SyncPoint->GraphEvent)
+				{
+					SyncPoint->GraphEvent->DispatchSubsequents();
+				}
+			}
 
 			// We're done with this payload now.
 
@@ -1461,26 +1478,16 @@ static TAutoConsoleVariable<int32> CVarGPUTimeFromTimestamps(
 	TEXT("Prefer timestamps instead of GetHardwareGPUFrameTime to compute GPU frame time"),
 	ECVF_RenderThreadSafe);
 
-void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPerQueue)
+void FD3D12DynamicRHI::ProcessTimestamps(FD3D12TimingArray const& TimingPerQueue)
 {
 #if RHI_NEW_GPU_PROFILER
-	for (FD3D12Timing const& Timing : TimingPerQueue)
-	{
-		UE::RHI::GPUProfiler::FQueue QueueID {};
-		QueueID.GPU = Timing.Queue.Device->GetGPUIndex();
-		QueueID.Index = 0;
 
-		switch (Timing.Queue.QueueType)
-		{
-		default: checkNoEntry(); [[fallthrough]];
-		case ED3D12QueueType::Direct: QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Graphics; break;
-		case ED3D12QueueType::Async : QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Compute ; break;
-		case ED3D12QueueType::Copy  : QueueID.Type = UE::RHI::GPUProfiler::FQueue::EType::Copy    ; break;
-		}
-		
-		UE::RHI::GPUProfiler::PushEvents(QueueID, Timing.BreadcrumbEvents, {}, {});
+	for (auto const& Timing : TimingPerQueue)
+	{
+		UE::RHI::GPUProfiler::ProcessEvents(Timing->Queue.GetProfilerQueue(), Timing->Events);
 	}
-#endif // RHI_NEW_GPU_PROFILER
+
+#else
 
 	// The total number of cycles where at least one GPU pipe was busy during the frame.
 	uint64 UnionBusyCycles = 0;
@@ -1494,11 +1501,11 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPer
 	{
 		// Find the next minimum timestamp
 		FD3D12Timing* NextMin = nullptr;
-		for (FD3D12Timing& Current : TimingPerQueue)
+		for (auto const& Current : TimingPerQueue)
 		{
-			if (Current.HasMoreTimestamps() && (!NextMin || Current.GetCurrentTimestamp() < NextMin->GetCurrentTimestamp()))
+			if (Current->HasMoreTimestamps() && (!NextMin || Current->GetCurrentTimestamp() < NextMin->GetCurrentTimestamp()))
 			{
-				NextMin = &Current;
+				NextMin = Current.Get();
 			}
 		}
 
@@ -1531,10 +1538,12 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPer
 
 	check(BusyPipes == 0);
 	
+#endif
+
 	D3D12_QUERY_DATA_PIPELINE_STATISTICS PipelineStats{};
-	for (FD3D12Timing& Current : TimingPerQueue)
+	for (auto const& Current : TimingPerQueue)
 	{
-		PipelineStats += Current.PipelineStats;
+		PipelineStats += Current->PipelineStats;
 	}
 
 	SET_DWORD_STAT(STAT_D3D12RHI_IAVertices   , PipelineStats.IAVertices   );
@@ -1548,6 +1557,8 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPer
 	SET_DWORD_STAT(STAT_D3D12RHI_HSInvocations, PipelineStats.HSInvocations);
 	SET_DWORD_STAT(STAT_D3D12RHI_DSInvocations, PipelineStats.DSInvocations);
 	SET_DWORD_STAT(STAT_D3D12RHI_CSInvocations, PipelineStats.CSInvocations);
+
+#if RHI_NEW_GPU_PROFILER == 0
 
 	// @todo mgpu - how to handle multiple devices / queues with potentially different timestamp frequencies?
 	FD3D12Device* Device = GetAdapter().GetDevice(0);
@@ -1571,13 +1582,15 @@ void FD3D12DynamicRHI::ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPer
 		GGPUFrameTime = FPlatformMath::TruncToInt(double(UnionBusyCycles) * Scale32);
 	}
 
-	for (FD3D12Timing& Current : TimingPerQueue)
+	for (auto const& Current : TimingPerQueue)
 	{
-		switch (Current.Queue.QueueType)
+		switch (Current->Queue.QueueType)
 		{
-		case ED3D12QueueType::Direct: SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeGraphics    , FPlatformMath::TruncToInt(double(Current.BusyCycles) * Scale64)); break;
-		case ED3D12QueueType::Async : SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeAsyncCompute, FPlatformMath::TruncToInt(double(Current.BusyCycles) * Scale64)); break;
-		case ED3D12QueueType::Copy  : SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeCopy        , FPlatformMath::TruncToInt(double(Current.BusyCycles) * Scale64)); break;
+		case ED3D12QueueType::Direct: SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeGraphics    , FPlatformMath::TruncToInt(double(Current->BusyCycles) * Scale64)); break;
+		case ED3D12QueueType::Async : SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeAsyncCompute, FPlatformMath::TruncToInt(double(Current->BusyCycles) * Scale64)); break;
+		case ED3D12QueueType::Copy  : SET_CYCLE_COUNTER(STAT_RHI_GPUTotalTimeCopy        , FPlatformMath::TruncToInt(double(Current->BusyCycles) * Scale64)); break;
 		}
 	}
+
+#endif
 }

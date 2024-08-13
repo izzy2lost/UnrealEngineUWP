@@ -98,7 +98,7 @@ public:
 	void InitInstance();
 
 	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) final override;
-	virtual void RHIEndFrame() final override;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override;
 
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;
 	virtual FRasterizerStateRHIRef RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer) final override;

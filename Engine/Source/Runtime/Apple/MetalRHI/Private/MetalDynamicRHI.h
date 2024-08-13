@@ -42,7 +42,7 @@ public:
 	virtual ERHIInterfaceType GetInterfaceType() const override { return ERHIInterfaceType::Metal; }
 
 	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) final override;
-	virtual void RHIEndFrame() final override;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override;
 
 	virtual FRHIShaderLibraryRef RHICreateShaderLibrary(EShaderPlatform Platform, FString const& FilePath, FString const& Name) final override;
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;

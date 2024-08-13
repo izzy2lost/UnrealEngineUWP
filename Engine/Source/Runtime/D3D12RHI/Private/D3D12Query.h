@@ -14,16 +14,22 @@ struct FD3D12QueryLocation;
 enum class ED3D12QueryType
 {
 	None,
+	PipelineStats,
+	TimestampMicroseconds,
+	TimestampRaw,
+#if RHI_NEW_GPU_PROFILER
+
+	// Top-of-pipe GPU timestamp, converted to the CPU clock domain (i.e. relative to FPlatformTime::Cycles64())
+	ProfilerTimestampTOP,
+
+	// Bottom-of-pipe GPU timestamp, converted to the CPU clock domain (i.e. relative to FPlatformTime::Cycles64())
+	ProfilerTimestampBOP,
+
+#else
 	CommandListBegin,
 	CommandListEnd,
-	PipelineStats,
 	IdleBegin,
 	IdleEnd,
-	AdjustedMicroseconds,
-	AdjustedRaw,
-#if RHI_NEW_GPU_PROFILER
-	ProfilerTimestampTOP,
-	ProfilerTimestampBOP,
 #endif
 	Occlusion
 };

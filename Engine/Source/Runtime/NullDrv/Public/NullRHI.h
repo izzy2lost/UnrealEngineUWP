@@ -340,7 +340,7 @@ public:
 		return new FNullTexture(Desc);
 	}
 
-	virtual void RHIEndFrame() final override
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override
 	{
 
 	}

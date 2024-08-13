@@ -24,18 +24,77 @@ namespace UE::RHI::GPUProfiler
 			SwapChain
 		};
 
-		EType Type;
-		uint8 GPU;
-		uint8 Index;
-	};
-
-	struct FBreadcrumbEvent
-	{
-		struct FFrameBoundary
+		union
 		{
-			uint32 FrameNumber;
+			struct
+			{
+				EType Type;
+				uint8 GPU;
+				uint8 Index;
+				uint8 Padding;
+			};
+			uint32 Value = 0;
 		};
 
+		FQueue() = default;
+
+		FQueue(EType Type, uint8 GPU, uint8 Index)
+			: Type   (Type)
+			, GPU    (GPU)
+			, Index  (Index)
+			, Padding(0)
+		{}
+
+		bool operator == (FQueue const& RHS) const
+		{
+			return Value == RHS.Value;
+		}
+
+		bool operator != (FQueue const& RHS) const
+		{
+			return !(*this == RHS);
+		}
+
+		friend uint32 GetTypeHash(FQueue const& Queue)
+		{
+			return GetTypeHash(Queue.Value);
+		}
+
+		TCHAR const* GetTypeString() const
+		{
+			switch (Type)
+			{
+			case EType::Graphics:  return TEXT("Graphics");
+			case EType::Compute:   return TEXT("Compute");
+			case EType::Copy:      return TEXT("Copy");
+			case EType::SwapChain: return TEXT("Swapchain");
+			default:               return TEXT("<unknown>");
+			}
+		}
+	};
+
+	struct FEvent
+	{
+		//
+		// All timestamps are relative to FPlatformTime::Cycles64().
+		// TOP = Top of Pipe. Timestamps written by the GPU's command processor before work begins.
+		// BOP = Bottom of Pipe. Timestamps written after the GPU completes work.
+		//
+		
+		// Inserted on each call to RHIEndFrame. Marks the end of a profiler frame.
+		struct FFrameBoundary
+		{
+			// The index of the frame that just ended.
+			// Very first frame of the engine is frame 0 (from boot to first call to RHIEndFrame).
+			uint32 FrameNumber;
+
+#if WITH_RHI_BREADCRUMBS
+			// The RHI breadcrumb currently at the top of the stack at the frame boundary.
+			FRHIBreadcrumbNode* Breadcrumb;
+#endif
+		};
+
+#if WITH_RHI_BREADCRUMBS
 		struct FBeginBreadcrumb
 		{
 			FRHIBreadcrumbNode* Breadcrumb;
@@ -47,27 +106,19 @@ namespace UE::RHI::GPUProfiler
 			FRHIBreadcrumbNode* Breadcrumb;
 			uint64 GPUTimestampBOP;
 		};
-		
-		TVariant<
-			  FFrameBoundary
-			, FBeginBreadcrumb
-			, FEndBreadcrumb
-		> Value;
+#endif // WITH_RHI_BREADCRUMBS
 
-		template <typename T>
-		FBreadcrumbEvent(T const& Value)
-			: Value(TInPlaceType<T>(), Value)
-		{}
-	};
-
-	struct FWorkEvent
-	{
+		// Inserted when the GPU starts work on a queue.
 		struct FBeginWork
 		{
+			// CPU timestamp of when the work was submitted to the driver for execution on the GPU.
 			uint64 CPUTimestamp;
+
+			// TOP timestamp of when the work actually started on the GPU.
 			uint64 GPUTimestampTOP;
 		};
 
+		// Inserted when the GPU completes work on a queue and goes idle.
 		struct FEndWork
 		{
 			uint64 GPUTimestampBOP;
@@ -85,21 +136,6 @@ namespace UE::RHI::GPUProfiler
 			uint64 ID;
 		};
 
-		TVariant<
-			  FBeginWork
-			, FEndWork
-			, FSignalFence
-			, FWaitFence
-		> Value;
-
-		template <typename T>
-		FWorkEvent(T const& Value)
-			: Value(TInPlaceType<T>(), Value)
-		{}
-	};
-
-	struct FMarkerEvent
-	{
 		struct FFlip
 		{
 			uint64 GPUTimestamp;
@@ -109,35 +145,65 @@ namespace UE::RHI::GPUProfiler
 		{
 			uint64 GPUTimestamp;
 		};
-
-		TVariant<
-			  FFlip
+		
+		using FStorage = TVariant<
+			  FFrameBoundary
+#if WITH_RHI_BREADCRUMBS
+			, FBeginBreadcrumb
+			, FEndBreadcrumb
+#endif
+			, FBeginWork
+			, FEndWork
+			, FSignalFence
+			, FWaitFence
+			, FFlip
 			, FVsync
-		> Value;
+		>;
+
+		enum class EType
+		{
+			FrameBoundary   = FStorage::IndexOfType<FFrameBoundary  >(),
+#if WITH_RHI_BREADCRUMBS
+			BeginBreadcrumb = FStorage::IndexOfType<FBeginBreadcrumb>(),
+			EndBreadcrumb   = FStorage::IndexOfType<FEndBreadcrumb  >(),
+#endif
+			BeginWork       = FStorage::IndexOfType<FBeginWork      >(),
+			EndWork         = FStorage::IndexOfType<FEndWork        >(),
+			SignalFence     = FStorage::IndexOfType<FSignalFence    >(),
+			WaitFence       = FStorage::IndexOfType<FWaitFence      >(),
+			Flip            = FStorage::IndexOfType<FFlip           >(),
+			VSync		    = FStorage::IndexOfType<FVsync          >()
+		};
+
+		FStorage Value;
+
+		EType GetType() const
+		{
+			return static_cast<EType>(Value.GetIndex());
+		}
 
 		template <typename T>
-		FMarkerEvent(T const& Value)
+		FEvent(T const& Value)
 			: Value(TInPlaceType<T>(), Value)
 		{}
 	};
 
-	struct IEventSink
+	struct FEventSink
 	{
-		virtual void ProcessEvents(
-			FQueue Queue,
-			TConstArrayView<TUniquePtr<FBreadcrumbEvent>> const& BreadcrumbEvents,
-			TConstArrayView<TUniquePtr<FWorkEvent      >> const& WorkEvents,
-			TConstArrayView<TUniquePtr<FMarkerEvent    >> const& MarkerEvents) = 0;
+	protected:
+		RHI_API FEventSink();
+		RHI_API ~FEventSink();
+
+		FEventSink(FEventSink const&) = delete;
+		FEventSink(FEventSink&&) = delete;
+
+	public:
+		virtual void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events) = 0;
+		virtual void InitializeQueues(TConstArrayView<FQueue> Queues) = 0;
 	};
 
-	RHI_API void RegisterEventSink(IEventSink* Sink);
-
-	RHI_API void PushEvents(
-		FQueue Queue,
-		TConstArrayView<TUniquePtr<FBreadcrumbEvent>> BreadcrumbEvents,
-		TConstArrayView<TUniquePtr<FWorkEvent      >> WorkEvents,
-		TConstArrayView<TUniquePtr<FMarkerEvent    >> MarkerEvents
-	);
+	RHI_API void ProcessEvents(FQueue Queue, TConstArrayView<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events);
+	RHI_API void InitializeQueues(TConstArrayView<FQueue> Queues);
 }
 
 #else

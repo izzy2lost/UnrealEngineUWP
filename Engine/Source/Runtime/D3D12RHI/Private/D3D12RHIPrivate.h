@@ -235,9 +235,11 @@ public:
 	// Called when the GPU has crashed. This function will not return.
 	void ProcessInterruptQueueOnGPUCrash();
 
-	TUniquePtr<TIndirectArray<FD3D12Timing>> CurrentTimingPerQueue;
-	void FlushTiming(bool bCreateNew);
-	void ProcessTimestamps(TIndirectArray<FD3D12Timing>& TimingPerQueue);
+	using FD3D12TimingArray = TArray<TUniquePtr<FD3D12Timing>, TInlineAllocator<GD3D12MaxNumQueues>>;
+
+	FD3D12TimingArray CurrentTimingPerQueue;
+	void FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args);
+	void ProcessTimestamps(FD3D12TimingArray const& TimingPerQueue);
 
 	void InitializeSubmissionPipe();
 	void ShutdownSubmissionPipe();
@@ -292,7 +294,7 @@ public:
 	}
 
 	virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList) final override;
-	virtual void RHIEndFrame() final override;
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) final override;
 
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) final override;
 	virtual FRasterizerStateRHIRef RHICreateRasterizerState(const FRasterizerStateInitializerRHI& Initializer) final override;
@@ -550,6 +552,9 @@ protected:
 #if PLATFORM_WINDOWS
 	TRefCountPtr<IDXGIFactory2> DXGIFactoryForDisplayList;
 #endif
+
+	// Counts the number of calls to RHIEndFrame, and is used in GPU profiler frame boundary events.
+	uint32 FrameNumber = 0;
 
 public:
 

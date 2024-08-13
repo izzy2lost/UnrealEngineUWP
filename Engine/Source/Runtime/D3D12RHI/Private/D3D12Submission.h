@@ -150,7 +150,6 @@ struct FD3D12BatchedPayloadObjects
 
 #if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
 	TArray<TSharedPtr<FRHIBreadcrumbAllocatorArray>, TInlineAllocator<1>> BreadcrumbAllocators {};
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents;
 #endif
 
 	bool IsEmpty() const
@@ -162,7 +161,6 @@ struct FD3D12BatchedPayloadObjects
 			&& QueryRanges         .Num() == 0
 #if WITH_RHI_BREADCRUMBS && RHI_NEW_GPU_PROFILER
 			&& BreadcrumbAllocators.Num() == 0
-			&& BreadcrumbEvents    .Num() == 0
 #endif
 		;
 
@@ -246,6 +244,9 @@ struct FD3D12PayloadBase : public FD3D12PayloadBaseFixLayout
 
 #if WITH_RHI_BREADCRUMBS
 	FRHIBreadcrumbRange BreadcrumbRange {};
+#endif
+#if RHI_NEW_GPU_PROFILER
+	TArray<TUniquePtr<UE::RHI::GPUProfiler::FEvent>> Events;
 #endif
 
 	virtual ~FD3D12PayloadBase();

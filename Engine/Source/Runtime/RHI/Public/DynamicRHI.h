@@ -152,7 +152,14 @@ public:
 	/////// RHI Methods
 
 	RHI_API virtual void RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList);
-	virtual void RHIEndFrame() = 0;
+
+	struct FRHIEndFrameArgs
+	{
+#if WITH_RHI_BREADCRUMBS
+		const TRHIPipelineArray<FRHIBreadcrumbNode*>& GPUBreadcrumbs;
+#endif
+	};
+	virtual void RHIEndFrame(const FRHIEndFrameArgs& Args) = 0;
 
 	// FlushType: Thread safe
 	virtual FSamplerStateRHIRef RHICreateSamplerState(const FSamplerStateInitializerRHI& Initializer) = 0;

@@ -1661,9 +1661,26 @@ void FD3D12ResourceBarrierBatcher::AddAliasingBarrier(ID3D12Resource* InResource
 
 void FD3D12ResourceBarrierBatcher::FlushIntoCommandList(FD3D12CommandList& CommandList, FD3D12QueryAllocator& TimestampAllocator)
 {
-	auto InsertTimestamp = [&](ED3D12QueryType Type)
+	auto InsertTimestamp = [&](bool bBegin)
 	{
+#if RHI_NEW_GPU_PROFILER
+		if (bBegin)
+		{
+			auto& Event = CommandList.EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndWork>();
+			CommandList.EndQuery(TimestampAllocator.Allocate(ED3D12QueryType::ProfilerTimestampBOP, &Event.GPUTimestampBOP));
+		}
+		else
+		{
+			auto& Event = CommandList.EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginWork>();
+			CommandList.EndQuery(TimestampAllocator.Allocate(ED3D12QueryType::ProfilerTimestampTOP, &Event.GPUTimestampTOP));
+		}
+#else
+		ED3D12QueryType Type = bBegin
+			? ED3D12QueryType::IdleBegin
+			: ED3D12QueryType::IdleEnd;
+
 		CommandList.EndQuery(TimestampAllocator.Allocate(Type, nullptr));
+#endif
 	};
 
 	for (int32 BatchStart = 0, BatchEnd = 0; BatchStart < Barriers.Num(); BatchStart = BatchEnd)
@@ -1681,7 +1698,7 @@ void FD3D12ResourceBarrierBatcher::FlushIntoCommandList(FD3D12CommandList& Comma
 		// Insert an idle begin/end timestamp around the barrier batch if required.
 		if (bIdle)
 		{
-			InsertTimestamp(ED3D12QueryType::IdleBegin);
+			InsertTimestamp(true);
 		}
 
 		CommandList.GraphicsCommandList()->ResourceBarrier(BatchEnd - BatchStart, &Barriers[BatchStart]);
@@ -1695,7 +1712,7 @@ void FD3D12ResourceBarrierBatcher::FlushIntoCommandList(FD3D12CommandList& Comma
 
 		if (bIdle)
 		{
-			InsertTimestamp(ED3D12QueryType::IdleEnd);
+			InsertTimestamp(false);
 		}
 	}
 

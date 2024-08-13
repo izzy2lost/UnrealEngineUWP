@@ -1151,7 +1151,7 @@ void FVulkanDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICm
 	});
 }
 
-void FVulkanDynamicRHI::RHIEndFrame()
+void FVulkanDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	// @todo dev-pr - refactor RHIEndFrame_RenderThread to reduce use of the immediate command list, and move cleanup work to here.
 }

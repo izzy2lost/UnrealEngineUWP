@@ -413,34 +413,44 @@ void FD3D12DynamicRHI::EnqueueEndOfPipeTask(TUniqueFunction<void()> TaskFunc, TU
 	);
 }
 
-void FD3D12DynamicRHI::FlushTiming(bool bCreateNew)
+void FD3D12DynamicRHI::FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args)
 {
+	bool bHasTiming = !CurrentTimingPerQueue.IsEmpty();
 	auto Lambda = [this, OldTiming = MoveTemp(CurrentTimingPerQueue)]()
 	{
-		if (OldTiming)
-		{
-			ProcessTimestamps(*OldTiming.Get());
-		}
+		ProcessTimestamps(OldTiming);
 	};
 
-	if (bCreateNew)
-	{
-		CurrentTimingPerQueue = MakeUnique<TIndirectArray<FD3D12Timing>>();
-		CurrentTimingPerQueue->Reserve(GD3D12MaxNumQueues);
-	}
-
-	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&](FD3D12Payload& Payload)
+	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&, Number = FrameNumber++](FD3D12Payload& Payload)
 	{
 		if (bCreateNew)
 		{
-			FD3D12Timing* NewTiming = new FD3D12Timing(Payload.Queue);
-			Payload.Timing = NewTiming;
-			CurrentTimingPerQueue->Add(NewTiming);
+			TUniquePtr<FD3D12Timing> NewTiming = MakeUnique<FD3D12Timing>(Payload.Queue);
+			Payload.Timing = NewTiming.Get();
+			CurrentTimingPerQueue.Emplace(MoveTemp(NewTiming));
 		}
 		else
 		{
 			Payload.Timing = nullptr;
 		}
+
+#if RHI_NEW_GPU_PROFILER
+		if (bHasTiming && Payload.Queue.QueueType != ED3D12QueueType::Copy)
+		{
+			UE::RHI::GPUProfiler::FEvent::FFrameBoundary Boundary;
+			Boundary.FrameNumber = Number;
+
+		#if WITH_RHI_BREADCRUMBS
+			switch (Payload.Queue.QueueType)
+			{
+			case ED3D12QueueType::Direct: Boundary.Breadcrumb = Args.GPUBreadcrumbs[ERHIPipeline::Graphics    ]; break;
+			case ED3D12QueueType::Async : Boundary.Breadcrumb = Args.GPUBreadcrumbs[ERHIPipeline::AsyncCompute]; break;
+			}
+		#endif
+
+			Payload.Events.Emplace(MakeUnique<UE::RHI::GPUProfiler::FEvent>(Boundary));
+		}
+#endif // RHI_NEW_GPU_PROFILER
 	});
 }
 
@@ -576,7 +586,7 @@ void FD3D12DynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmd
 	});
 }
 
-void FD3D12DynamicRHI::RHIEndFrame()
+void FD3D12DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	for (auto& Adapter : ChosenAdapters)
 	{
@@ -601,7 +611,7 @@ void FD3D12DynamicRHI::RHIEndFrame()
 	UpdateMemoryStats();
 
 	// Close the previous frame's timing and start a new one
-	FlushTiming(true);
+	FlushTiming(true, Args);
 
 	// Pump the interrupt queue to gather completed events
 	// (required if we're not using an interrupt thread).

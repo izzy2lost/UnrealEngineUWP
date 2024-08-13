@@ -217,7 +217,7 @@ FOpenGLContextState& FOpenGLDynamicRHI::GetContextStateForCurrentContext()
 	return *CachedContextState;
 }
 
-void FOpenGLDynamicRHI::RHIEndFrame()
+void FOpenGLDynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 #if (RHI_NEW_GPU_PROFILER == 0)
 	GPUProfilingData->EndFrame();
@@ -1369,7 +1369,9 @@ FOpenGLDynamicRHI::FOpenGLDynamicRHI()
 	PrivateOpenGLDevicePtr = this;
 	GlobalUniformBuffers.AddZeroed(FUniformBufferStaticSlotRegistry::Get().GetSlotCount());
 
+#if RHI_NEW_GPU_PROFILER == 0
 	GPUProfilingData.Emplace();
+#endif
 }
 
 extern void DestroyShadersAndPrograms();

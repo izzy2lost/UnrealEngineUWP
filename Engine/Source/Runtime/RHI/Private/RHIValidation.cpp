@@ -966,10 +966,10 @@ void FValidationRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdLi
 	RHI->RHIEndFrame_RenderThread(RHICmdList);
 }
 
-void FValidationRHI::RHIEndFrame()
+void FValidationRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	RHIThreadFrameID++;
-	RHI->RHIEndFrame();
+	RHI->RHIEndFrame(Args);
 }
 
 namespace RHIValidation

@@ -680,6 +680,9 @@ struct FRHIGlobals
 
 extern RHI_API FRHIGlobals GRHIGlobals;
 
+/** The GPU time taken to render the last frame. Same metric as FPlatformTime::Cycles(). */
+extern RHI_API uint32 GGPUFrameTime;
+
 //
 // Deprecated old-style names
 

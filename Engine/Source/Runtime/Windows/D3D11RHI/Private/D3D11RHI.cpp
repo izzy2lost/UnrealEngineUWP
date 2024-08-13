@@ -29,7 +29,7 @@ extern void UniformBufferBeginFrame();
 // Has to be .exe module to be correctly detected.
 // extern "C" { _declspec(dllexport) uint32 NvOptimusEnablement = 0x00000001; }
 
-void FD3D11DynamicRHI::RHIEndFrame()
+void FD3D11DynamicRHI::RHIEndFrame(const FRHIEndFrameArgs& Args)
 {
 	// End Frame
 #if (RHI_NEW_GPU_PROFILER == 0)

@@ -472,7 +472,7 @@ public:
 		}
 
 		// Command lists that use RHIThreadFence(true) are going to mutate resource state, so must be single-threaded.
-		if (LastLockFenceCommand)
+		if (bUsesLockFence)
 		{
 			return false;
 		}
@@ -1219,6 +1219,7 @@ protected:
 	bool bAllowParallelTranslate = true;
 	bool bUsesSetTrackedAccess   = false;
 	bool bUsesShaderBundles      = false;
+	bool bUsesLockFence          = false;
 
 	// The currently selected pipelines that RHI commands are directed to, during command list recording.
 	// This is also adjusted during command list execution based on recorded use of ActivatePipeline().
@@ -5336,7 +5337,13 @@ private:
 
 		void Dispatch(FRHICommandListBase* CmdList);
 
-		void Submit();
+		struct FSubmitArgs
+		{
+#if WITH_RHI_BREADCRUMBS
+			TRHIPipelineArray<FRHIBreadcrumbNode*> GPUBreadcrumbs;
+#endif
+		};
+		void Submit(const FSubmitArgs& Args);
 		void FinalizeCurrent();
 	} *SubmitState = nullptr;
 

@@ -286,6 +286,13 @@ private:
 	// A sync point signaled when all payloads in this context have completed.
 	FD3D12SyncPointRef ContextSyncPoint;
 
+public:
+	void BeginRecursiveCommand()
+	{
+		// Nothing to do
+	}
+
+protected:
 	// Returns the current command list (or creates a new one if the command list was not open).
 	FD3D12CommandList& GetCommandList()
 	{
@@ -294,13 +301,6 @@ private:
 		return *CommandList;
 	}
 
-public:
-	void BeginRecursiveCommand()
-	{
-		// Nothing to do
-	}
-
-protected:
 	enum class EMarkerType { In, Out };
 	void WriteMarker(D3D12_GPU_VIRTUAL_ADDRESS Address, uint32 Value, EMarkerType Type);
 
@@ -335,10 +335,6 @@ protected:
 			OpenCommandList();
 		}
 	}
-
-#if RHI_NEW_GPU_PROFILER
-	TArray<TUniquePtr<UE::RHI::GPUProfiler::FBreadcrumbEvent>> BreadcrumbEvents; // @todo - new gpu profiler - optimize storage / allocation
-#endif
 
 public:
 	// Flushes any pending commands in this context to the GPU.

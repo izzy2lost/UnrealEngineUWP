@@ -200,11 +200,10 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 
 	#if RHI_NEW_GPU_PROFILER
 		{
-			using namespace UE::RHI::GPUProfiler;
+			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>();
+			Event.Breadcrumb = Breadcrumb;
 
-			auto& Event = BreadcrumbEvents.Emplace_GetRef(MakeUnique<FBreadcrumbEvent>(FBreadcrumbEvent::FBeginBreadcrumb{ .Breadcrumb = Breadcrumb }));
-
-			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampTOP, &Event->Value.Get<FBreadcrumbEvent::FBeginBreadcrumb>().GPUTimestampTOP);
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampTOP, &Event.GPUTimestampTOP);
 			EndQuery(TimestampQuery);
 		}
 	#else
@@ -223,11 +222,10 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 	{
 	#if RHI_NEW_GPU_PROFILER
 		{
-			using namespace UE::RHI::GPUProfiler;
+			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>();
+			Event.Breadcrumb = Breadcrumb;
 
-			auto& Event = BreadcrumbEvents.Emplace_GetRef(MakeUnique<FBreadcrumbEvent>(FBreadcrumbEvent::FEndBreadcrumb{ .Breadcrumb = Breadcrumb }));
-
-			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampBOP, &Event->Value.Get<FBreadcrumbEvent::FEndBreadcrumb>().GPUTimestampBOP);
+			FD3D12QueryLocation TimestampQuery = AllocateQuery(ED3D12QueryType::ProfilerTimestampBOP, &Event.GPUTimestampBOP);
 			EndQuery(TimestampQuery);
 		}
 	#else
@@ -333,8 +331,8 @@ FD3D12QueryLocation FD3D12ContextCommon::AllocateQuery(ED3D12QueryType Type, voi
 		checkNoEntry();
 		[[fallthrough]];
 
-	case ED3D12QueryType::AdjustedRaw:
-	case ED3D12QueryType::AdjustedMicroseconds:
+	case ED3D12QueryType::TimestampRaw:
+	case ED3D12QueryType::TimestampMicroseconds:
 #if RHI_NEW_GPU_PROFILER
 	case ED3D12QueryType::ProfilerTimestampTOP:
 	case ED3D12QueryType::ProfilerTimestampBOP:
@@ -358,8 +356,8 @@ FD3D12QueryLocation FD3D12ContextCommon::InsertTimestamp(ED3D12Units Units, uint
 		checkNoEntry();
 		[[fallthrough]];
 
-	case ED3D12Units::Microseconds: Type = ED3D12QueryType::AdjustedMicroseconds; break;
-	case ED3D12Units::Raw:          Type = ED3D12QueryType::AdjustedRaw;          break;
+	case ED3D12Units::Microseconds: Type = ED3D12QueryType::TimestampMicroseconds; break;
+	case ED3D12Units::Raw:          Type = ED3D12QueryType::TimestampRaw;          break;
 	}
 
 	FD3D12QueryLocation Location = AllocateQuery(Type, Target);
@@ -427,10 +425,6 @@ void FD3D12ContextCommon::CloseCommandList()
 	TimestampQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
 	OcclusionQueries    .CloseAndReset(Payload->BatchedObjects.QueryRanges);
 	PipelineStatsQueries.CloseAndReset(Payload->BatchedObjects.QueryRanges);
-
-#if RHI_NEW_GPU_PROFILER
-	Payload->BatchedObjects.BreadcrumbEvents.Append(MoveTemp(BreadcrumbEvents));
-#endif
 }
 
 void FD3D12CommandContext::CloseCommandList()

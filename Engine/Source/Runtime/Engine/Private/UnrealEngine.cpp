@@ -427,9 +427,6 @@ static TAutoConsoleVariable<float> CVarForceDynamicResScreenPercentage(
 	ECVF_Default | ECVF_RenderThreadSafe);
 #endif
 
-
-ENGINE_API uint32 GGPUFrameTime = 0;
-
 /** System resolution instance */
 FSystemResolution GSystemResolution;
 

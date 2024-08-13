@@ -974,7 +974,7 @@ FGraphEventRef FRHICommandListExecutor::FTranslateState::Finalize()
 	}
 }
 
-void FRHICommandListExecutor::FSubmitState::Submit()
+void FRHICommandListExecutor::FSubmitState::Submit(const FSubmitArgs& Args)
 {
 	// Coalesce finalized platform command lists into a single array
 	TArray<IRHIPlatformCommandList*> FinalizedCmdLists;
@@ -1060,7 +1060,14 @@ void FRHICommandListExecutor::FSubmitState::Submit()
 
 	if (EnumHasAnyFlags(SubmitFlags, ERHISubmitFlags::EndFrame))
 	{
-		GDynamicRHI->RHIEndFrame();
+		FDynamicRHI::FRHIEndFrameArgs EndFrameArgs
+		{
+#if WITH_RHI_BREADCRUMBS
+			.GPUBreadcrumbs = Args.GPUBreadcrumbs
+#endif
+		};
+
+		GDynamicRHI->RHIEndFrame(EndFrameArgs);
 		GRHICommandList.FrameDrawStats.ProcessAsFrameStats();
 	}
 
@@ -1210,12 +1217,20 @@ RHI_API void FRHICommandListExecutor::Submit(TConstArrayView<FRHICommandListBase
 				// Finalize the last translate job
 				State->FinalizeCurrent();
 
+				FSubmitState::FSubmitArgs Args;
+#if WITH_RHI_BREADCRUMBS
+				for (ERHIPipeline Pipeline : MakeFlagsRange(ERHIPipeline::All))
+				{
+					Args.GPUBreadcrumbs[Pipeline] = GRHICommandList.Breadcrumbs.GPU[Pipeline].Current;
+				}
+#endif
+
 				// Submission thread
 				EnqueueSubmitTask(MoveTemp(State->TranslateEvents),
-					[State]() mutable
+					[State, Args]() mutable
 					{
 						SCOPED_NAMED_EVENT(RHI_SubmitToGPU, FColor::White);
-						State->Submit();
+						State->Submit(Args);
 					}
 				);
 				LastSubmit = RHIThreadPipe.Close();
@@ -1340,6 +1355,8 @@ RHI_API void FRHICommandListImmediate::QueueAsyncCommandListSubmit(TArrayView<FQ
 FGraphEventRef FRHICommandListBase::RHIThreadFence(bool bSetLockFence)
 {
 	checkf(IsTopOfPipe() || Bypass(), TEXT("RHI thread fences only work when recording RHI commands (or in bypass mode)."));
+
+	bUsesLockFence |= bSetLockFence;
 
 	if (IsRunningRHIInSeparateThread())
 	{
