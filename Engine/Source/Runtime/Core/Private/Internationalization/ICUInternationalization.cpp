@@ -178,7 +178,16 @@ bool FICUInternationalization::Initialize()
 		I18N->InvariantCulture = FindOrMakeCanonizedCulture(FString(), EAllowDefaultCultureFallback::Yes);
 	}
 	I18N->DefaultLanguage = FindOrMakeCulture(FPlatformMisc::GetDefaultLanguage(), EAllowDefaultCultureFallback::Yes);
-	I18N->DefaultLocale = FindOrMakeCulture(FPlatformMisc::GetDefaultLocale(), EAllowDefaultCultureFallback::Yes);
+	if (const FString& DefaultLocaleName = FPlatformMisc::GetDefaultLocale();
+		AllAvailableCulturesMap.Contains(DefaultLocaleName))
+	{
+		I18N->DefaultLocale = FindOrMakeCulture(DefaultLocaleName, EAllowDefaultCultureFallback::Yes);
+	}
+	else
+	{
+		UE_LOG(LogICUInternationalization, Log, TEXT("OS requested locale '%s' is not supported. Using the OS requested language of '%s' as the locale."), *DefaultLocaleName, *I18N->DefaultLanguage->GetName());
+		I18N->DefaultLocale = I18N->DefaultLanguage;
+	}
 	I18N->CurrentLanguage = I18N->DefaultLanguage;
 	I18N->CurrentLocale = I18N->DefaultLocale;
 
