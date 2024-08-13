@@ -13727,7 +13727,7 @@ int32 FHLSLMaterialTranslator::SubstrateUnlitBSDF(int32 EmissiveColor, int32 Tra
 			MCT_Substrate, TEXT("Parameters.%s.PromoteParameterBlendedBSDFToOperator(GetSubstrateUnlitBSDF(%s, %s, %s), %u, %u, %u, %u)"),
 			*GetParametersSubstrateTreeName(CurrentSubstrateCompilationContext),
 			*SubstrateGetCastParameterCode(EmissiveColor,		MCT_Float3),
-			*SubstrateGetCastParameterCode(TransmittanceColor, MCT_Float3),
+			*SubstrateGetCastParameterCode(TransmittanceColor,	MCT_Float3),
 			*SubstrateGetCastParameterCode(Normal,				MCT_Float3),
 			PromoteToOperator->Index,
 			PromoteToOperator->BSDFIndex,
@@ -13738,8 +13738,30 @@ int32 FHLSLMaterialTranslator::SubstrateUnlitBSDF(int32 EmissiveColor, int32 Tra
 	return AddCodeChunk(
 		MCT_Substrate, TEXT("GetSubstrateUnlitBSDF(%s, %s, %s)"),
 		*SubstrateGetCastParameterCode(EmissiveColor,		MCT_Float3),
-		*SubstrateGetCastParameterCode(TransmittanceColor, MCT_Float3),
+		*SubstrateGetCastParameterCode(TransmittanceColor,	MCT_Float3),
 		*SubstrateGetCastParameterCode(Normal,				MCT_Float3)
+	);
+}
+
+int32 FHLSLMaterialTranslator::SubstrateUIBSDF(int32 EmissiveColor, int32 Opacity, FSubstrateOperator* PromoteToOperator)
+{
+	if (PromoteToOperator)
+	{
+		return AddCodeChunk(
+			MCT_Substrate, TEXT("Parameters.%s.PromoteParameterBlendedBSDFToOperator(SubstrateCreateUIMaterial(%s, %s), %u, %u, %u, %u)"),
+			*GetParametersSubstrateTreeName(CurrentSubstrateCompilationContext),
+			*SubstrateGetCastParameterCode(EmissiveColor, MCT_Float3),
+			*SubstrateGetCastParameterCode(Opacity, MCT_Float1),
+			PromoteToOperator->Index,
+			PromoteToOperator->BSDFIndex,
+			PromoteToOperator->LayerDepth,
+			PromoteToOperator->bIsBottom ? 1 : 0);
+	}
+
+	return AddCodeChunk(
+		MCT_Substrate, TEXT("SubstrateCreateUIMaterial(%s, %s)"),
+		*SubstrateGetCastParameterCode(EmissiveColor,		MCT_Float3),
+		*SubstrateGetCastParameterCode(Opacity,				MCT_Float1)
 	);
 }
 
@@ -13749,10 +13771,10 @@ int32 FHLSLMaterialTranslator::SubstrateHairBSDF(int32 BaseColor, int32 Scatter,
 		MCT_Substrate, TEXT("Parameters.%s.PromoteParameterBlendedBSDFToOperator(GetSubstrateHairBSDF(%s, %s, %s, %s, %s, %s, %s), %u, %u, %u, %u) /* Tangent:%s */"),
 		*GetParametersSubstrateTreeName(CurrentSubstrateCompilationContext),
 		*SubstrateGetCastParameterCode(BaseColor,			MCT_Float3),
-		*SubstrateGetCastParameterCode(Scatter,			MCT_Float),
+		*SubstrateGetCastParameterCode(Scatter,				MCT_Float),
 		*SubstrateGetCastParameterCode(Specular,			MCT_Float),
 		*SubstrateGetCastParameterCode(Roughness,			MCT_Float),
-		*SubstrateGetCastParameterCode(Backlit,			MCT_Float),
+		*SubstrateGetCastParameterCode(Backlit,				MCT_Float),
 		*SubstrateGetCastParameterCode(EmissiveColor,		MCT_Float3),
 		*SharedLocalBasisIndexMacro,
 		PromoteToOperator->Index,

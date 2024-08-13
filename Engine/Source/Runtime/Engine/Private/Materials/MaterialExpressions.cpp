@@ -28108,13 +28108,11 @@ UMaterialExpressionSubstrateUI::UMaterialExpressionSubstrateUI(const FObjectInit
 int32 UMaterialExpressionSubstrateUI::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
 	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 0.0f);
-	int TransmittanceCodeChunk = Compiler->Saturate(Compiler->Sub(Compiler->Constant(1.0f), OpacityCodeChunk));
 
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
-	int32 OutputCodeChunk = Compiler->SubstrateUnlitBSDF(
+	int32 OutputCodeChunk = Compiler->SubstrateUIBSDF(
 		CompileWithDefaultFloat3(Compiler, Color, 0.0f, 0.0f, 0.0f),
-		TransmittanceCodeChunk,
-		Compiler->Constant3(0.0f, 0.0f, 1.0f),	// place holder normal
+		OpacityCodeChunk,
 		&SubstrateOperator);
 	return OutputCodeChunk;
 }

@@ -586,3 +586,43 @@ FSubstrateData SubstrateConvertLegacyMaterialStatic(
 
 	return Out;
 }
+
+FSubstrateData SubstrateCreateUIMaterial(
+	float3 Emissive,
+	float Opacity)
+{
+	// We create a UI material using a Unlit Substrate BSDF. And we adapt to the blending mode in order to respect legacy behavior.
+	FSubstrateData Out = GetInitialisedSubstrateData();
+
+	const float3 RawNormal = float3(0, 0, 1);	// Unused in this case.
+	const float GreyTransmittance = saturate(1.0f - Opacity);
+
+#if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
+	// Opaque materials only write emissive.
+	Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
+#elif MATERIALBLENDING_ALPHACOMPOSITE
+	// Uses (Luminance, black transmittance) for premultiplied alpha blending. 
+	// Coverage over the background is specified through the root node input "Coverage Override".
+	Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
+#elif MATERIALBLENDING_ALPHAHOLDOUT
+	// The MATERIALBLENDING_ALPHAHOLDOUT case needs to be before the MATERIALBLENDING_TRANSLUCENT case, as alphaholdout material have both cases defined.
+	Out = GetSubstrateUnlitBSDF(0.0f, GreyTransmittance, RawNormal);
+#elif MATERIALBLENDING_TRANSLUCENT
+	// Uses (Luminance, black transmittance) for translucency blending. Opacity is controled using coverage.
+	Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
+#if SUBSTRATE_INLINE_SHADING
+	Out.InlinedBSDF.Coverage = Opacity; // Applied to emissive via the Substrate Tree, (see SubstrateUpdateTreeUnlit).
+#endif
+#elif MATERIALBLENDING_ADDITIVE
+	// Emissive is weighted by opacity in the legacy material.
+	Out = GetSubstrateUnlitBSDF(Emissive * Opacity, 1.0f, RawNormal);
+#elif MATERIALBLENDING_MODULATE
+	// Setting up emissive as the transmittance color. It is not clamped in case brightening is required.
+	Out = GetSubstrateUnlitBSDF(0.0f, Emissive, RawNormal);
+#else
+	// Required default for some materials such as Editor UI.
+	Out = GetSubstrateUnlitBSDF(Emissive, 0.0f, RawNormal);
+#endif
+
+	return Out;
+}
