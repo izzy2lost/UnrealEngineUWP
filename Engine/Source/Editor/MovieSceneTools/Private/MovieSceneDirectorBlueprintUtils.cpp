@@ -311,7 +311,14 @@ FMovieSceneDirectorBlueprintEntrypointResult FMovieSceneDirectorBlueprintUtils::
 				bool bMarkAsModified = false;
 				if (PayloadVariable->ObjectValue.IsValid())
 				{
-					Schema->TrySetDefaultObject(*Pin, PayloadVariable->ObjectValue.ResolveObject(), bMarkAsModified);
+					if (UObject* ResolvedObject = PayloadVariable->ObjectValue.ResolveObject())
+					{
+						Schema->TrySetDefaultObject(*Pin, ResolvedObject, bMarkAsModified);
+					}
+					else
+					{
+						Schema->TrySetDefaultValue(*Pin, PayloadVariable->ObjectValue.ToString(), bMarkAsModified);
+					}
 				}
 				else if (!PayloadVariable->Value.IsEmpty())
 				{
