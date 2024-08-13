@@ -10,6 +10,9 @@
 	#define Undefined SUPPORTS_SCENE_COLOR_APPLY_PARAMETERS 0
 #endif
 
+#define LOCAL_EXPOSURE_MODE_NONE 0
+#define LOCAL_EXPOSURE_MODE_BILATERAL 1
+#define LOCAL_EXPOSURE_MODE_FUSION 2
 
 #include "Common.ush"
 #include "PostProcessCommon.ush"
@@ -49,10 +52,17 @@ SamplerState BloomSampler;
 	StructuredBuffer<float4> SceneColorApplyParamaters;
 #endif
 
+#if LOCAL_EXPOSURE_MODE == LOCAL_EXPOSURE_MODE_BILATERAL
 Texture3D LumBilateralGrid;
 Texture2D BlurredLogLum;
 SamplerState LumBilateralGridSampler;
 SamplerState BlurredLogLumSampler;
+#elif LOCAL_EXPOSURE_MODE == LOCAL_EXPOSURE_MODE_FUSION
+FScreenTransform ColorToExposureFusion;
+SCREEN_PASS_TEXTURE_VIEWPORT(ExposureFusion)
+Texture2D ExposureFusionTexture;
+SamplerState ExposureFusionSampler;
+#endif
 
 // xyz:SceneColorTint.rgb, w:unused
 float4 ColorScale0;
@@ -406,7 +416,7 @@ float4 TonemapCommonPS(
 	#endif
 
 	// Compute the local exposure based of the scene color.
-	#if USE_LOCAL_EXPOSURE
+	#if LOCAL_EXPOSURE_MODE == LOCAL_EXPOSURE_MODE_BILATERAL
 	float LocalExposure = 1.0;
 	{
 		float LuminanceVal = CalculateEyeAdaptationLuminance(SceneColor.rgb * OneOverPreExposure);
@@ -418,7 +428,24 @@ float4 TonemapCommonPS(
 		float BaseLogLum = CalculateBaseLogLuminance(LogLuminance, LocalExposure_BlurredLuminanceBlend, GlobalExposure, FullViewUV, LumBilateralGrid, BlurredLogLum, LumBilateralGridSampler, BlurredLogLumSampler);
 		LocalExposure = CalculateLocalExposure(LogLuminance + log2(GlobalExposure), BaseLogLum, MiddleGreyLumValue, LocalExposure_HighlightContrastScale, LocalExposure_ShadowContrastScale, LocalExposure_DetailStrength);
 	}
-	#else // !USE_LOCAL_EXPOSURE
+	#elif LOCAL_EXPOSURE_MODE == LOCAL_EXPOSURE_MODE_FUSION
+	float LocalExposure = 1.0;
+	{
+		float2 ExposureFusionUV = ApplyScreenTransform(UV.xy, ColorToExposureFusion);
+		ExposureFusionUV = clamp(ExposureFusionUV, ExposureFusion_UVViewportBilinearMin, ExposureFusion_UVViewportBilinearMax);
+
+		const float FusionVal = Texture2DSample(ExposureFusionTexture, ExposureFusionSampler, ExposureFusionUV);
+
+		const float LuminanceVal = CalculateEyeAdaptationLuminance(SceneColor.rgb * OneOverPreExposure * GlobalExposure);
+		
+#if 1
+		LocalExposure = ExposureFusionInverseTonemap(FusionVal) / LuminanceVal;
+#else
+		const float LuminanceValTonemapped = ExposureFusionTonemap(LuminanceVal);
+		LocalExposure = FusionVal / LuminanceValTonemapped;
+#endif
+	}
+	#else // LOCAL_EXPOSURE_MODE_NONE
 	const float LocalExposure = 1.0;
 	#endif
 
@@ -475,7 +502,7 @@ float4 TonemapCommonPS(
 	float4 OutColor = 0;
 #if USE_GAMMA_ONLY
 	{
-		#if USE_LOCAL_EXPOSURE
+		#if LOCAL_EXPOSURE_MODE != LOCAL_EXPOSURE_MODE_NONE
 			#error Local exposure is not supported with gamma only
 		#endif
 		#if USE_SHARPEN

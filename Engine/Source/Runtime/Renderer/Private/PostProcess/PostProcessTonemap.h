@@ -42,10 +42,13 @@ struct FTonemapInputs
 	FRDGBufferRef SceneColorApplyParamaters = nullptr;
 
 	// [Optional] Luminance bilateral grid. If this is null, local exposure is disabled.
-	FRDGTextureRef LocalExposureTexture = nullptr;
+	FRDGTextureRef LocalExposureBilateralGridTexture = nullptr;
 
 	// [Optional] Blurred luminance texture used to calculate local exposure.
 	FRDGTextureRef BlurredLogLuminanceTexture = nullptr;
+
+	// [Optional] Exposure Fusion. If this is null, local exposure is disabled.
+	FScreenPassTextureSlice ExposureFusion;
 
 	// [Optional] Local exposure parameters.
 	const FLocalExposureParameters* LocalExposureParameters = nullptr;

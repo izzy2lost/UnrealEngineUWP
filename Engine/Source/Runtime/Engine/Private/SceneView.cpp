@@ -1644,6 +1644,7 @@ void FSceneView::OverridePostProcessSettings(const FPostProcessSettings& Src, fl
 		LERP_PP(AutoExposureBias);
 		LERP_PP(HistogramLogMin);
 		LERP_PP(HistogramLogMax);
+		SET_PP(LocalExposureMethod);
 		LERP_PP(LocalExposureContrastScale_DEPRECATED);
 		LERP_PP(LocalExposureHighlightContrastScale);
 		LERP_PP(LocalExposureShadowContrastScale);

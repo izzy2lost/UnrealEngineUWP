@@ -509,6 +509,7 @@ FPostProcessSettings::FPostProcessSettings()
 
 	AutoExposureApplyPhysicalCameraExposure = 1;
 
+	LocalExposureMethod = ELocalExposureMethod::Bilateral;
 	LocalExposureContrastScale_DEPRECATED = 1.0f;
 	LocalExposureHighlightContrastScale = 1.0f;
 	LocalExposureShadowContrastScale = 1.0f;

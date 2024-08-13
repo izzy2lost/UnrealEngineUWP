@@ -84,7 +84,7 @@ namespace TonemapperPermutation
 {
 // Shared permutation dimensions between deferred and mobile renderer.
 class FTonemapperGammaOnlyDim      : SHADER_PERMUTATION_BOOL("USE_GAMMA_ONLY");
-class FTonemapperLocalExposureDim  : SHADER_PERMUTATION_BOOL("USE_LOCAL_EXPOSURE");
+class FTonemapperLocalExposureDim  : SHADER_PERMUTATION_INT("LOCAL_EXPOSURE_MODE", 3);
 class FTonemapperSharpenDim        : SHADER_PERMUTATION_BOOL("USE_SHARPEN");
 class FTonemapperFilmGrainDim      : SHADER_PERMUTATION_BOOL("USE_FILM_GRAIN");
 class FTonemapperMsaaDim           : SHADER_PERMUTATION_BOOL("METAL_MSAA_HDR_DECODE");
@@ -138,10 +138,19 @@ FCommonDomain BuildCommonPermutationDomain(const FViewInfo& View, bool bGammaOnl
 	}
 
 	const FPostProcessSettings& Settings = View.FinalPostProcessSettings;
-	PermutationVector.Set<FTonemapperLocalExposureDim>(bLocalExposure);
 	PermutationVector.Set<FTonemapperFilmGrainDim>(View.FilmGrainTexture != nullptr);
 	PermutationVector.Set<FTonemapperSharpenDim>(GetSharpenSetting(Settings) > 0.0f);
 	PermutationVector.Set<FTonemapperMsaaDim>(bMetalMSAAHDRDecode);
+
+	if (bLocalExposure)
+	{
+		PermutationVector.Set<FTonemapperLocalExposureDim>(View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral ? 1 : 2);
+	}
+	else
+	{
+		PermutationVector.Set<FTonemapperLocalExposureDim>(0);
+	}
+
 	return PermutationVector;
 }
 
@@ -296,6 +305,11 @@ BEGIN_SHADER_PARAMETER_STRUCT(FTonemapParameters, )
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, BlurredLogLum)
 	SHADER_PARAMETER_SAMPLER(SamplerState, LumBilateralGridSampler)
 	SHADER_PARAMETER_SAMPLER(SamplerState, BlurredLogLumSampler)
+
+	SHADER_PARAMETER(FScreenTransform, ColorToExposureFusion)
+	SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, ExposureFusion)
+	SHADER_PARAMETER_RDG_TEXTURE_SRV(Texture2D, ExposureFusionTexture)
+	SHADER_PARAMETER_SAMPLER(SamplerState, ExposureFusionSampler)
 
 	SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, EyeAdaptationBuffer)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ColorGradingLUT)
@@ -766,7 +780,9 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	
 	const float LUTSize = Inputs.ColorGradingTexture ? (float)Inputs.ColorGradingTexture->Desc.Extent.Y : /* unused (default): */ 32.0f;
 
-	const bool bLocalExposureEnabled = Inputs.LocalExposureTexture != nullptr;
+	const bool bBilateralLocalExposureEnabled = Inputs.LocalExposureBilateralGridTexture != nullptr;
+	const bool bExposureFusionEnabled = Inputs.ExposureFusion.IsValid();
+	const bool bLocalExposureEnabled = bBilateralLocalExposureEnabled || bExposureFusionEnabled;
 
 	if (bLocalExposureEnabled)
 	{
@@ -778,10 +794,18 @@ FScreenPassTexture AddTonemapPass(FRDGBuilder& GraphBuilder, const FViewInfo& Vi
 	CommonParameters.Color = GetScreenPassTextureViewportParameters(SceneColorViewport);
 	CommonParameters.Output = GetScreenPassTextureViewportParameters(OutputViewport);
 	CommonParameters.ColorTexture = Inputs.SceneColor.TextureSRV;
-	CommonParameters.LumBilateralGrid = Inputs.LocalExposureTexture;
+	CommonParameters.LumBilateralGrid = Inputs.LocalExposureBilateralGridTexture;
 	CommonParameters.BlurredLogLum = Inputs.BlurredLogLuminanceTexture;
 	CommonParameters.LumBilateralGridSampler = BilinearClampSampler;
 	CommonParameters.BlurredLogLumSampler = BilinearClampSampler;
+	if(Inputs.ExposureFusion.IsValid())
+	{
+		const FScreenPassTextureViewport ExposureFusionViewport(Inputs.ExposureFusion);
+		CommonParameters.ColorToExposureFusion = FScreenTransform::ChangeTextureUVCoordinateFromTo(SceneColorViewport, ExposureFusionViewport);
+		CommonParameters.ExposureFusion = GetScreenPassTextureViewportParameters(ExposureFusionViewport);
+		CommonParameters.ExposureFusionTexture = Inputs.ExposureFusion.TextureSRV;
+		CommonParameters.ExposureFusionSampler = BilinearClampSampler;
+	}
 	CommonParameters.EyeAdaptationBuffer = GraphBuilder.CreateSRV(EyeAdaptationBuffer);
 	CommonParameters.EyeAdaptation = *Inputs.EyeAdaptationParameters;
 	CommonParameters.ColorGradingLUT = Inputs.ColorGradingTexture;

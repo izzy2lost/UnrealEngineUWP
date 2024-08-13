@@ -365,8 +365,9 @@ void AddPostProcessingPasses(
 	// Histogram defaults to black because the histogram eye adaptation pass is used for the manual metering mode.
 	FRDGTextureRef HistogramTexture = BlackDummy.Texture;
 
-	FRDGTextureRef LocalExposureTexture = nullptr;
+	FRDGTextureRef LocalExposureBilateralGridTexture = nullptr;
 	FRDGTextureRef LocalExposureBlurredLogLumTexture = BlackDummy.Texture;
+	FScreenPassTexture ExposureFusion;
 
 	FVisualizeTemporalUpscalerInputs VisualizeTemporalUpscalerInputs;
 
@@ -707,7 +708,7 @@ void AddPostProcessingPasses(
 		const bool bFFTBloomEnabled = bBloomEnabled && IsFFTBloomEnabled(View);
 
 		const bool bBasicEyeAdaptationEnabled = bEyeAdaptationEnabled && (AutoExposureMethod == EAutoExposureMethod::AEM_Basic);
-		const bool bLocalExposureBlurredLum = bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureBlurredLuminanceBlend > 0.0f;
+		const bool bLocalExposureBlurredLum = bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral && View.FinalPostProcessSettings.LocalExposureBlurredLuminanceBlend > 0.0f;
 
 		const bool bProcessQuarterResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 1;
 		const bool bProcessEighthResolution = CVarPostProcessingQuarterResolutionDownsample.GetValueOnRenderThread() == 2;
@@ -1088,9 +1089,9 @@ void AddPostProcessingPasses(
 		{
 			FScreenPassTextureSlice LocalExposureSceneColor = bProcessEighthResolution ? EighthResSceneColor : (bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
 
-			if (bLocalExposureEnabled)
+			if (bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral)
 			{
-				LocalExposureTexture = AddLocalExposurePass(
+				LocalExposureBilateralGridTexture = AddLocalExposurePass(
 					GraphBuilder, View,
 					EyeAdaptationParameters,
 					LocalExposureSceneColor);
@@ -1152,7 +1153,7 @@ void AddPostProcessingPasses(
 				LocalExposureParameters,
 				SceneDownsampleChain.GetLastTexture(),
 				LastEyeAdaptationBuffer,
-				bLocalExposureEnabled);
+				bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
 		}
 		// Add histogram eye adaptation pass even if no histogram exists to support the manual clamping mode.
 		else if (bEyeAdaptationEnabled)
@@ -1162,7 +1163,18 @@ void AddPostProcessingPasses(
 				EyeAdaptationParameters,
 				LocalExposureParameters,
 				HistogramTexture,
-				bLocalExposureEnabled);
+				bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
+		}
+
+		if (bLocalExposureEnabled && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Fusion)
+		{
+			ExposureFusion = AddLocalExposureFusionPass(
+				GraphBuilder, View,
+				EyeAdaptationParameters,
+				EyeAdaptationBuffer,
+				LocalExposureParameters,
+				//bProcessQuarterResolution ? QuarterResSceneColor : HalfResSceneColor);
+				SceneColorSlice);
 		}
 
 		FScreenPassTexture Bloom;
@@ -1209,7 +1221,7 @@ void AddPostProcessingPasses(
 					EyeAdaptationParameters,
 					EyeAdaptationBuffer,
 					LocalExposureParameters,
-					CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureTexture : nullptr,
+					CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureBilateralGridTexture : nullptr,
 					LocalExposureBlurredLogLumTexture);
 
 				Bloom = Outputs.BloomTexture;
@@ -1217,7 +1229,7 @@ void AddPostProcessingPasses(
 			}
 			else
 			{
-				const bool bBloomSetupRequiredEnabled = View.FinalPostProcessSettings.BloomThreshold > -1.0f || LocalExposureTexture != nullptr;
+				const bool bBloomSetupRequiredEnabled = View.FinalPostProcessSettings.BloomThreshold > -1.0f || (LocalExposureBilateralGridTexture != nullptr && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral);
 
 				// Reuse the main scene downsample chain if setup isn't required for gaussian bloom.
 				if (SceneDownsampleChain.IsInitialized() && !bBloomSetupRequiredEnabled)
@@ -1237,7 +1249,7 @@ void AddPostProcessingPasses(
 						SetupPassInputs.EyeAdaptationBuffer = EyeAdaptationBuffer;
 						SetupPassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
 						SetupPassInputs.LocalExposureParameters = &LocalExposureParameters;
-						SetupPassInputs.LocalExposureTexture = CVarBloomApplyLocalExposure.GetValueOnRenderThread() ? LocalExposureTexture : nullptr;
+						SetupPassInputs.LocalExposureTexture = CVarBloomApplyLocalExposure.GetValueOnRenderThread() && View.FinalPostProcessSettings.LocalExposureMethod == ELocalExposureMethod::Bilateral ? LocalExposureBilateralGridTexture : nullptr;
 						SetupPassInputs.BlurredLogLuminanceTexture = LocalExposureBlurredLogLumTexture;
 						SetupPassInputs.Threshold = BloomThreshold;
 
@@ -1308,8 +1320,9 @@ void AddPostProcessingPasses(
 				PassInputs.SceneColor = SceneColorSlice;
 				PassInputs.Bloom = Bloom;
 				PassInputs.SceneColorApplyParamaters = SceneColorApplyParameters;
-				PassInputs.LocalExposureTexture = LocalExposureTexture;
+				PassInputs.LocalExposureBilateralGridTexture = LocalExposureBilateralGridTexture;
 				PassInputs.BlurredLogLuminanceTexture = LocalExposureBlurredLogLumTexture;
+				PassInputs.ExposureFusion = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, ExposureFusion);
 				PassInputs.LocalExposureParameters = &LocalExposureParameters;
 				PassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;
 				PassInputs.EyeAdaptationBuffer = EyeAdaptationBuffer;
@@ -1679,7 +1692,7 @@ void AddPostProcessingPasses(
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeLocalExposure, PassInputs.OverrideOutput);
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.HDRSceneColor = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorBeforeTonemapSlice);
-		PassInputs.LumBilateralGridTexture = LocalExposureTexture;
+		PassInputs.LumBilateralGridTexture = LocalExposureBilateralGridTexture;
 		PassInputs.BlurredLumTexture = LocalExposureBlurredLogLumTexture;
 		PassInputs.LocalExposureParameters = &LocalExposureParameters;
 		PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);

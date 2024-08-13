@@ -42,6 +42,15 @@ enum EAutoExposureMethod : int
 };
 
 UENUM()
+enum class ELocalExposureMethod : uint8
+{
+	/** Decompose image into base and detail layers using a bilateral blur. Only the base layer contrast is reduced in order to preserve details. */
+	Bilateral UMETA(DisplayName = "Bilateral"),
+	/** Fuse multiple exposures according to quality measures. Local Exposure is calculated using the fused exposures. */
+	Fusion UMETA(DisplayName = "Fusion (Experimental)"),
+};
+
+UENUM()
 enum EBloomMethod : int
 {
 	/** Sum of Gaussian formulation */
@@ -886,6 +895,9 @@ struct FPostProcessSettings
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
 	uint8 bOverride_HistogramLogMax:1;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Overrides, meta=(PinHiddenByDefault, InlineEditConditionToggle))
+	uint8 bOverride_LocalExposureMethod : 1;
 
 	UPROPERTY()
 	uint8 bOverride_LocalExposureContrastScale_DEPRECATED:1;
@@ -1841,6 +1853,10 @@ struct FPostProcessSettings
 	/** Calibration constant for 18% albedo, deprecating this value. */
 	UPROPERTY()
 	float AutoExposureCalibrationConstant_DEPRECATED;
+
+	/** Local Exposure algorithm */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lens|Local Exposure", meta = (editcondition = "bOverride_LocalExposureMethod", DisplayName = "Method"))
+	ELocalExposureMethod LocalExposureMethod;
 
 	UPROPERTY()
 	float LocalExposureContrastScale_DEPRECATED;
