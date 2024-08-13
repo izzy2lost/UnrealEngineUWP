@@ -375,6 +375,14 @@ static TAutoConsoleVariable<float> CVarScreenRayLength(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<float> CVarNormalBias(
+	TEXT("r.Shadow.Virtual.NormalBias"),
+	0.5f,
+	TEXT("Receiver offset along surface normal for shadow lookup. Scaled by distance to camera.")
+	TEXT("Higher values avoid artifacts on surfaces nearly parallel to the light, but also visibility offset shadows and increase the chance of hitting unmapped pages."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarSMRTAdaptiveRayCount(
 	TEXT("r.Shadow.Virtual.SMRT.AdaptiveRayCount"),
 	1,
@@ -502,6 +510,10 @@ FMatrix CalcTranslatedWorldToShadowUVNormalMatrix(
 	return CalcTranslatedWorldToShadowUVMatrix(TranslatedWorldToShadowView, ViewToClip).GetTransposed().Inverse();
 }
 
+static float GetNormalBiasForShader()
+{
+	return CVarNormalBias.GetValueOnRenderThread() / 1000.0f;
+}
 
 template <typename ShaderType>
 static bool SetStatsArgsAndPermutation(FRDGBufferUAVRef StatsBufferUAV, typename ShaderType::FParameters *OutPassParameters, typename ShaderType::FPermutationDomain& OutPermutationVector)
@@ -571,6 +583,8 @@ void FVirtualShadowMapArray::Initialize(
 	
 	// Global SMRT settings so they can be shared between different passes that call into them
 	UniformParameters.ScreenRayLength = CVarScreenRayLength.GetValueOnRenderThread();
+	UniformParameters.NormalBias = GetNormalBiasForShader();
+
 	UniformParameters.SMRTAdaptiveRayCount = CVarSMRTAdaptiveRayCount.GetValueOnRenderThread();
 
 	UniformParameters.SMRTRayCountLocal = CVarSMRTRayCountLocal.GetValueOnRenderThread();

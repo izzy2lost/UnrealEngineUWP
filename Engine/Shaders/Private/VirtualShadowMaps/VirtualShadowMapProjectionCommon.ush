@@ -119,6 +119,13 @@ FVirtualShadowMapSample SampleVirtualShadowMap(int VirtualShadowMapId, float2 Sh
 	return Result;
 }
 
+// VSM normal bias that smoothly scales with distance to camera
+float3 VirtualShadowMapGetNormalBiasLength(float3 TranslatedWorldPosition)
+{
+	float DistanceToCamera = GetDistanceToCameraFromViewVector(TranslatedWorldPosition - View.TranslatedWorldCameraOrigin);
+	float NormalBiasLength = max(0.02f, VirtualShadowMap.NormalBias * DistanceToCamera / GetCotanHalfFieldOfView().x);
+	return NormalBiasLength;
+}
 
 // Data to convert UV's and depths from one clipmap level basis to another
 struct FVirtualShadowMapClipmapRelativeTransform
@@ -517,3 +524,4 @@ FVirtualShadowMapSampleResult SampleVirtualShadowMapTranslatedWorld(int VirtualS
 		return SampleVirtualShadowMapLocal(VirtualShadowMapId, TranslatedWorldPosition, RayStartDistance);
 	}
 }
+

@@ -157,6 +157,7 @@ BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT(FVirtualShadowMapUniformParameters, )
 
 	// SMRT parameters that are sometimes used globally
 	SHADER_PARAMETER(float, ScreenRayLength)
+	SHADER_PARAMETER(float, NormalBias)
 	SHADER_PARAMETER(uint32, SMRTAdaptiveRayCount)
 	SHADER_PARAMETER(int32, SMRTRayCountLocal)
 	SHADER_PARAMETER(int32, SMRTSamplesPerRayLocal)
