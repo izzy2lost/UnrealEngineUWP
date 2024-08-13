@@ -84,8 +84,8 @@ namespace UE::ChooserEditor
 		virtual void NotifyPreChange( FProperty* PropertyAboutToChange ) override;
 		virtual void NotifyPostChange( const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
 
-		const UChooserTable* GetRootChooser() const { return Cast<UChooserTable>(EditingObjects[0]); }
-		UChooserTable* GetRootChooser() { return Cast<UChooserTable>(EditingObjects[0]); }
+		const UChooserTable* GetRootChooser() const { return RootChooser; }
+		UChooserTable* GetRootChooser() { return RootChooser; }
 		UChooserTable* GetChooser() { return BreadcrumbTrail->PeekCrumb(); }
 		const UChooserTable* GetChooser() const { return BreadcrumbTrail->PeekCrumb(); }
 
@@ -174,8 +174,8 @@ namespace UE::ChooserEditor
 		bool CanNavigateForward() const;
 		void NavigateForward();
 
-		/** The objects open within this editor */
-		TArray<UObject*> EditingObjects;
+		/** The root chooser asset being edited in this editor */
+		UChooserTable* RootChooser = nullptr;
 
 		UChooserColumnDetails* SelectedColumn = nullptr;
 		TArray<TObjectPtr<UChooserRowDetails>> SelectedRows;

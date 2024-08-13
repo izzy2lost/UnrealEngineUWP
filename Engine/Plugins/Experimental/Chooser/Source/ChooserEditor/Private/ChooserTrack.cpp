@@ -110,6 +110,8 @@ bool FChooserTrack::HandleDoubleClickInternal()
 		// attach chooser table editor debugging
 		if (ChooserTable)
 		{
+			UChooserTable* RootChooser = ChooserTable->GetRootChooser();
+			
 			const FObjectInfo& OwnerObjectInfo  = GameplayProvider->GetObjectInfo(ObjectId);
 			FString DebugName(OwnerObjectInfo.Name);
 			if (const FObjectInfo* ActorInfo = RewindDebugger->FindOwningActorInfo(GameplayProvider, ObjectId))
@@ -131,12 +133,15 @@ bool FChooserTrack::HandleDoubleClickInternal()
 				}
 			}
 			
-			ChooserTable->SetDebugTarget(DebugName);
-			ChooserTable->SetEnableDebugTesting(true);
+			RootChooser->SetDebugTarget(DebugName);
+			RootChooser->SetEnableDebugTesting(true);
+			
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(ChooserTable);
 		}
-		
-
-		GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetInfo.PathName);
+		else
+		{
+			GEditor->GetEditorSubsystem<UAssetEditorSubsystem>()->OpenEditorForAsset(AssetInfo.PathName);
+		}
 
 		return true;
 	}
