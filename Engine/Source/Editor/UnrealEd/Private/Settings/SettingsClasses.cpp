@@ -963,6 +963,7 @@ ULevelEditorViewportSettings::ULevelEditorViewportSettings( const FObjectInitial
 	// Set a default preview mesh
 	PreviewMeshes.Add(FSoftObjectPath("/Engine/EditorMeshes/ColorCalibrator/SM_ColorCalibrator.SM_ColorCalibrator"));
 	LastInViewportMenuLocation = FVector2D(EForceInit::ForceInitToZero);
+	PreserveNonUniformScale = true;
 }
 
 void ULevelEditorViewportSettings::PostInitProperties()
