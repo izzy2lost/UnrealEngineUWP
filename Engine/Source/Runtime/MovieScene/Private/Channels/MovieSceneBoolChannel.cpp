@@ -69,7 +69,7 @@ bool FMovieSceneBoolChannel::Evaluate(FFrameTime InTime, bool& OutValue) const
 				return false;
 			}
 
-			if (PostInfinityExtrap == RCCE_Constant || PreInfinityExtrap == RCCE_Linear)
+			if (PostInfinityExtrap == RCCE_Constant || PostInfinityExtrap == RCCE_Linear)
 			{
 				OutValue = Values.Last();
 				return true;

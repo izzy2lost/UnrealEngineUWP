@@ -70,7 +70,7 @@ bool FMovieSceneIntegerChannel::Evaluate(FFrameTime InTime, int32& OutValue) con
 				return false;
 			}
 
-			if (PostInfinityExtrap == RCCE_Constant || PreInfinityExtrap == RCCE_Linear)
+			if (PostInfinityExtrap == RCCE_Constant || PostInfinityExtrap == RCCE_Linear)
 			{
 				OutValue = Values.Last();
 				return true;
