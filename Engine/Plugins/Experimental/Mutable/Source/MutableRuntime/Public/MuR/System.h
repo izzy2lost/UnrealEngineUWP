@@ -171,9 +171,6 @@ namespace mu
         //! Only valid between BeginUpdate and EndUpdate
 		UE::Tasks::TTask<Ptr<const Mesh>> GetMesh(Instance::ID InstanceID, FResourceID MeshId);
 
-		UE::Tasks::TTask<Ptr<const Mesh>> GetMeshComponents(Instance::ID InstanceID, FResourceID MeshId);
-
-
 		//! Only valid between BeginUpdate and EndUpdate
 		//! Calculate the description of an image, without generating it.
 		void GetImageDescInline(Instance::ID InstanceID, FResourceID ImageId, FImageDesc& OutDesc);
@@ -186,8 +183,6 @@ namespace mu
 
         //! Only valid between BeginUpdate and EndUpdate
 		Ptr<const Mesh> GetMeshInline(Instance::ID InstanceID, FResourceID MeshId);
-
-		Ptr<const Mesh> GetMeshComponentsInline(Instance::ID InstanceID, FResourceID MeshId);
 
         //! Invalidate and free the last Instance data returned by a call to BeginUpdate with
         //! the same instance index. After a call to this method, that Instance cannot be used any

@@ -435,18 +435,7 @@ namespace mu
 				else
 				{
 					// Run immediately
-					if (item.Type == FScheduledOp::EType::Full)
-					{
-						RunCode(item, m_pParams, m_pModel, m_lodMask);
-					}
-					else if (item.Type == FScheduledOp::EType::MeshComp)
-					{
-						RunCodeMeshComponents(item, m_pParams, m_pModel.Get(), m_lodMask);
-					}
-					else
-					{
-						checkf(false, TEXT("Unexpected execution type."));
-					}
+					RunCode(item, m_pParams, m_pModel, m_lodMask);
 
 					if (ScheduledStagePerOp[item] == item.Stage + 1)
 					{
@@ -2102,85 +2091,60 @@ namespace mu
 		bOutFailed = false;
 
 		const FProgram& Program = Runner->m_pModel->GetPrivate()->m_program;
-		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
+
+		check(RomIndex < Program.m_roms.Num());
 		
-		TArray<UE::Tasks::FTask, TInlineAllocator<3>> ReadCompleteEvents;
-		ReadCompleteEvents.Reserve(3); 
+		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
+		++ModelCache->PendingOpsPerRom[RomIndex];
 
-		const TArray<int32, TFixedAllocator<3>> TaskRoms = {GeometryRomIndex, PoseRomIndex, ComponentsRomIndex};
-		for (int32 RomIndex : TaskRoms)
+		if (Program.IsRomLoaded(RomIndex))
 		{
-			if (RomIndex < 0)
-			{
-				continue;
-			}
-
-			check(RomIndex < Program.m_roms.Num());
-
-			++ModelCache->PendingOpsPerRom[RomIndex];
-
-			if (DebugRom && (DebugRomAll || RomIndex == DebugRomIndex))
-			{
-				UE_LOG(LogMutableCore, Log, TEXT("Preparing rom %d, now peding ops is %d."), RomIndex, ModelCache->PendingOpsPerRom[RomIndex]);
-			}
-
-			if (Program.IsRomLoaded(RomIndex))
-			{
-				continue;
-			}
-
-			RomIndices.Add(RomIndex);
-
-			if (const FRomLoadOp* Result = Runner->RomLoadOps.Find(RomIndex))
-			{
-				ReadCompleteEvents.Add(Result->Event); // Wait for the read operation started by other task
-				continue;
-			}
-
-			FRomLoadOp& RomLoadOp = Runner->RomLoadOps.Create(RomIndex);
-			
-			check(Runner->m_pSystem->StreamInterface);
-
-			const uint32 RomSize = Program.m_roms[RomIndex].Size;
-			check(RomSize > 0);
-
-			// Free roms if necessary
-			{
-				Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
-				Runner->m_pSystem->WorkingMemoryManager.EnsureBudgetBelow(RomSize);
-			}
-
-			const int32 SizeBefore = RomLoadOp.m_streamBuffer.GetAllocatedSize();
-			RomLoadOp.m_streamBuffer.SetNumUninitialized(RomSize);
-			const int32 SizeAfter = RomLoadOp.m_streamBuffer.GetAllocatedSize();
-
-			UE::Tasks::FTaskEvent ReadCompletionEvent(TEXT("FLoadMeshRomsTaskRom"));
-			ReadCompleteEvents.Add(ReadCompletionEvent);
-			RomLoadOp.Event = ReadCompletionEvent;
-
-			TFunction<void(bool)> Callback = [ReadCompletionEvent](bool bSuccess) mutable // Mutable due Trigger not being const
-			{
-				ReadCompletionEvent.Trigger();
-			};
-			
-			const uint32 RomId = Program.m_roms[RomIndex].Id;
-			RomLoadOp.m_streamID = Runner->m_pSystem->StreamInterface->BeginReadBlock(Runner->m_pModel.Get(), RomId, RomLoadOp.m_streamBuffer.GetData(), RomSize, &Callback);
-			if (RomLoadOp.m_streamID < 0)
-			{
-				bOutFailed = true;
-				return false;
-			}
+			return false;
 		}
 
-		// Wait for all read operations to end
-		UE::Tasks::FTaskEvent GatherReadsCompletionEvent(TEXT("FLoadMeshRomsTask"));
-		GatherReadsCompletionEvent.AddPrerequisites(ReadCompleteEvents);
-		GatherReadsCompletionEvent.Trigger();
+		if (const FRomLoadOp* Result = Runner->RomLoadOps.Find(RomIndex))
+		{
+			Event = Result->Event;  // Wait for the read operation started by other task
+			return false;
+		}
 
-		Event = GatherReadsCompletionEvent;
-			
+		FRomLoadOp& RomLoadOp = Runner->RomLoadOps.Create(RomIndex);
+		
+		check(Runner->m_pSystem->StreamInterface);
+
+		const uint32 RomSize = Program.m_roms[RomIndex].Size;
+		check(RomSize > 0);
+
+		// Free roms if necessary
+		{
+			MUTABLE_CPUPROFILER_SCOPE(FreeingRoms);
+
+			Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
+			Runner->m_pSystem->WorkingMemoryManager.EnsureBudgetBelow(RomSize);
+		}
+
+		const int32 SizeBefore = RomLoadOp.m_streamBuffer.GetAllocatedSize();
+		RomLoadOp.m_streamBuffer.SetNumUninitialized(RomSize);
+		const int32 SizeAfter = RomLoadOp.m_streamBuffer.GetAllocatedSize();
+
+	 	UE::Tasks::FTaskEvent ReadCompletionEvent = UE::Tasks::FTaskEvent(TEXT("FLoadMeshRomTask"));	
+		RomLoadOp.Event = ReadCompletionEvent;
+		
+		TFunction<void(bool)> Callback = [ReadCompletionEvent](bool bSuccess) mutable
+		{
+			ReadCompletionEvent.Trigger();
+		};
+		
+		const uint32 RomId = Program.m_roms[RomIndex].Id;
+		RomLoadOp.m_streamID = Runner->m_pSystem->StreamInterface->BeginReadBlock(Runner->m_pModel.Get(), RomId, RomLoadOp.m_streamBuffer.GetData(), RomSize, &Callback);
+		if (RomLoadOp.m_streamID < 0)
+		{
+			bOutFailed = true;
+			return false;
+		}
+
+		Event = ReadCompletionEvent; // Wait for read operation to end
 		return false; // No worker thread work
-
 	}
 	
 
@@ -2196,67 +2160,38 @@ namespace mu
 		}
 
 		FProgram& Program = Runner->m_pModel->GetPrivate()->m_program;
+
+		// Since task could be reordered, we need to make sure we end the rom read before continuing
+		if (FRomLoadOp* RomLoadOp = Runner->RomLoadOps.Find(RomIndex))
+		{
+			Runner->m_pSystem->StreamInterface->EndRead(RomLoadOp->m_streamID);									
+
+			const int32 ResIndex = Program.m_roms[RomIndex].ResourceIndex;
+			check(!Program.ConstantMeshes[ResIndex].Value)
+			MUTABLE_CPUPROFILER_SCOPE(Unserialise);
+
+			InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
+			InputArchive Arch(&Stream);
+
+			check(!Program.ConstantMeshes[ResIndex].Value);
+			Ptr<Mesh> Value = Mesh::StaticUnserialise(Arch);
+			Program.SetMeshRomValue(RomIndex, Value);
+
+			check(Program.ConstantMeshes[ResIndex].Value);
+
+			Runner->RomLoadOps.Remove(*RomLoadOp);
+		}
+
+		// Process the constant op normally, now that the rom is loaded.
+		Runner->RunCode(Op, Runner->m_pParams, Runner->m_pModel, Runner->m_lodMask);
+
 		FWorkingMemoryManager::FModelCacheEntry* ModelCache = Runner->m_pSystem->WorkingMemoryManager.FindModelCache(Runner->m_pModel.Get());
-		
-		bool bSomeMissingData = false;
-		for (const int32 RomIndex : RomIndices)
-		{
-			// Since task could be reordered, we need to make sure we end the rom read before continuing
-			if (FRomLoadOp* RomLoadOp = Runner->RomLoadOps.Find(RomIndex))
-			{				
-				bool bSuccess = Runner->m_pSystem->StreamInterface->EndRead(RomLoadOp->m_streamID);
 
-				MUTABLE_CPUPROFILER_SCOPE(Unserialise);
+		Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
+		--ModelCache->PendingOpsPerRom[RomIndex];
 
-				if (bSuccess)
-				{
-					InputMemoryStream Stream(RomLoadOp->m_streamBuffer.GetData(), RomLoadOp->m_streamBuffer.Num());
-					InputArchive Arch(&Stream);
-
-					const int32 ResourceIndex = Program.m_roms[RomIndex].ResourceIndex;
-						
-					check(!Program.ConstantMeshData[ResourceIndex].Value);
-					Ptr<Mesh> Value = Mesh::StaticUnserialise(Arch);
-
-					Program.SetMeshRomValue(RomIndex, Value);
-					check(Program.ConstantMeshData[ResourceIndex].Value);
-				}
-				else
-				{
-					bSomeMissingData = true;
-				}
-				
-				Runner->RomLoadOps.Remove(*RomLoadOp);
-			}
-		}
-
-		if (bSomeMissingData)
-		{
-			// Some data may be missing. We can try to go on if some requested mesh parts are there. 
-			UE_LOG(LogMutableCore, Verbose, TEXT("FLoadMeshRomsTask::Complete failed: missing data?"));
-		}
-
-		// Process the constant op normally, now that the rom is loaded.	
-		bool bSuccess = Runner->RunCode_ConstantResource(Op, Runner->m_pModel.Get());
-
-		if (bSuccess)
-		{
-			for (int32 RomIndex : RomIndices)
-			{
-				check(RomIndex < Program.m_roms.Num());
-
-				Runner->m_pSystem->WorkingMemoryManager.MarkRomUsed(RomIndex, Runner->m_pModel);
-				--ModelCache->PendingOpsPerRom[RomIndex];
-
-				if (DebugRom && (DebugRomAll || RomIndex == DebugRomIndex))
-				{
-					UE_LOG(LogMutableCore, Log, TEXT("FLoadMeshRomsTask::Complete rom %d, now peding ops is %d."), RomIndex, ModelCache->PendingOpsPerRom[RomIndex]);
-				}
-			}
-		}
-
+		bool bSuccess = true;
 		return bSuccess;
-
 	}
 
 
@@ -2667,59 +2602,39 @@ namespace mu
 	}
 
 
-	TSharedPtr<CodeRunner::FIssuedTask> CodeRunner::IssueOp(FScheduledOp Item)
+	//---------------------------------------------------------------------------------------------
+	//---------------------------------------------------------------------------------------------
+	//---------------------------------------------------------------------------------------------
+	TSharedPtr<CodeRunner::FIssuedTask> CodeRunner::IssueOp(FScheduledOp item)
 	{
 		TSharedPtr<FIssuedTask> Issued;
 
-		FProgram& Program = m_pModel->GetPrivate()->m_program;
+		FProgram& program = m_pModel->GetPrivate()->m_program;
 
-		OP_TYPE Type = Program.GetOpType(Item.At);
+		OP_TYPE type = program.GetOpType(item.At);
 
-		switch (Type)
+		switch (type)
 		{
 		case OP_TYPE::ME_CONSTANT:
 		{
-			// Mesh constants have three parts. Geometry, pose and components. 
-
-			OP::MeshConstantArgs Args = Program.GetOpArgs<OP::MeshConstantArgs>(Item.At);
-
-			int32 GeometryRomIndex = -1;
-			int32 PoseRomIndex = -1;
-			int32 ComponentsRomIndex = -1;
-		
-			const FMeshRange MeshRange = Program.ConstantMeshes[Args.Value];
-			const EMeshExecutionOptions ExecutionOptions = static_cast<EMeshExecutionOptions>(Item.ExecutionOptions);
-			
-			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadGeometryData))
+			OP::MeshConstantArgs args = program.GetOpArgs<OP::MeshConstantArgs>(item.At);
+			int32 RomIndex = program.ConstantMeshes[args.value].Key;
+			if (RomIndex >= 0 && !program.ConstantMeshes[args.value].Value)
 			{
-				int32 GeometryConstantIndex = Program.ConstantMeshIndices[MeshRange.FirstIndex + 0];
-				GeometryRomIndex = Program.ConstantMeshData[GeometryConstantIndex].Key;
+				Issued = MakeShared<FLoadMeshRomTask>(item, RomIndex);
 			}
-	
-			// Pose data will be loaded with geometry as some geometry operations need skinning data.
-			// This could be tuned on a Op to Op basis but it might not be worth it.
-			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadPoseData | EMeshExecutionOptions::LoadGeometryData))
+			else
 			{
-				int32 PoseConstantIndex = Program.ConstantMeshIndices[MeshRange.FirstIndex + 1];
-				PoseRomIndex = Program.ConstantMeshData[PoseConstantIndex].Key;
+				// If already available, the rest of the constant code will run right away.
 			}
-
-			if (EnumHasAnyFlags(ExecutionOptions, EMeshExecutionOptions::LoadComponentsData))
-			{
-				int32 ComponentsConstantIndex = Program.ConstantMeshIndices[MeshRange.FirstIndex + 2];
-				ComponentsRomIndex = Program.ConstantMeshData[ComponentsConstantIndex].Key;
-			}
-
-			Issued = MakeShared<FLoadMeshRomTask>(Item, GeometryRomIndex, PoseRomIndex, ComponentsRomIndex);
-
 			break;
 		}
 		
 		case OP_TYPE::ED_CONSTANT:
 		{
-			OP::ResourceConstantArgs Args = Program.GetOpArgs<OP::ResourceConstantArgs>(Item.At);
+			OP::ResourceConstantArgs Args = program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
 
-			const FExtensionDataConstant::ELoadState LoadState = Program.m_constantExtensionData[Args.value].LoadState;
+			const FExtensionDataConstant::ELoadState LoadState = program.m_constantExtensionData[Args.value].LoadState;
 
 			check(LoadState != FExtensionDataConstant::ELoadState::Invalid);
 			
@@ -2730,19 +2645,19 @@ namespace mu
 			}
 			else
 			{
-				Issued = MakeShared<FLoadExtensionDataTask>(Item, Program.m_constantExtensionData[Args.value].Data, Args.value);
+				Issued = MakeShared<FLoadExtensionDataTask>(item, program.m_constantExtensionData[Args.value].Data, Args.value);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_CONSTANT:
 		{
-			OP::ResourceConstantArgs args = Program.GetOpArgs<OP::ResourceConstantArgs>(Item.At);
-			int32 MipsToSkip = Item.ExecutionOptions;
+			OP::ResourceConstantArgs args = program.GetOpArgs<OP::ResourceConstantArgs>(item.At);
+			int32 MipsToSkip = item.ExecutionOptions;
 			int32 ImageIndex = args.value;
-			int32 ReallySkip = FMath::Min(MipsToSkip, Program.ConstantImages[ImageIndex].LODCount - 1);
-			int32 LODIndexIndex = Program.ConstantImages[ImageIndex].FirstIndex + ReallySkip;
-			int32 LODIndexCount = Program.ConstantImages[ImageIndex].LODCount - ReallySkip;
+			int32 ReallySkip = FMath::Min(MipsToSkip, program.ConstantImages[ImageIndex].LODCount - 1);
+			int32 LODIndexIndex = program.ConstantImages[ImageIndex].FirstIndex + ReallySkip;
+			int32 LODIndexCount = program.ConstantImages[ImageIndex].LODCount - ReallySkip;
 			check(LODIndexCount > 0);
 
 			// We always need to follow this path, or roms may not be protected for long enough and might be unloaded 
@@ -2751,8 +2666,8 @@ namespace mu
 			//bool bAnyMissing = false;
 			//for (int32 i=0; i<LODIndexCount; ++i)
 			//{
-			//	uint32 LODIndex = Program.ConstantImageLODIndices[LODIndexIndex+i];
-			//	if ( !Program.ConstantImageLODs[LODIndex].Value )
+			//	uint32 LODIndex = program.ConstantImageLODIndices[LODIndexIndex+i];
+			//	if ( !program.ConstantImageLODs[LODIndex].Value )
 			//	{
 			//		bAnyMissing = true;
 			//		break;
@@ -2761,7 +2676,7 @@ namespace mu
 
 			if (bAnyMissing)
 			{
-				Issued = MakeShared<FLoadImageRomsTask>(Item, LODIndexIndex, LODIndexCount);
+				Issued = MakeShared<FLoadImageRomsTask>(item, LODIndexIndex, LODIndexCount);
 
 				if (DebugRom && (DebugRomAll || ImageIndex == DebugImageIndex))
 					UE_LOG(LogMutableCore, Log, TEXT("Issuing image %d skipping %d ."), ImageIndex, ReallySkip);
@@ -2777,37 +2692,37 @@ namespace mu
 
 		case OP_TYPE::IM_PARAMETER:
 		{
-			OP::ParameterArgs args = Program.GetOpArgs<OP::ParameterArgs>(Item.At);
-			Ptr<RangeIndex> Index = BuildCurrentOpRangeIndex(Item, m_pParams, m_pModel.Get(), args.variable);
+			OP::ParameterArgs args = program.GetOpArgs<OP::ParameterArgs>(item.At);
+			Ptr<RangeIndex> Index = BuildCurrentOpRangeIndex(item, m_pParams, m_pModel.Get(), args.variable);
 
 			const FName Id = m_pParams->GetImageValue(args.variable, Index);
 
 			check(ImageLOD < TNumericLimits<uint8>::Max() && ImageLOD >= 0);
-			check(ImageLOD + static_cast<int32>(Item.ExecutionOptions) < TNumericLimits<uint8>::Max());
+			check(ImageLOD + static_cast<int32>(item.ExecutionOptions) < TNumericLimits<uint8>::Max());
 
-			const uint8 MipmapsToSkip = Item.ExecutionOptions + static_cast<uint8>(ImageLOD);
+			const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
 
 			CodeRunner::FExternalResourceId FullId;
 			FullId.ParameterId = Id;
-			Issued = MakeShared<FImageExternalLoadTask>(Item, MipmapsToSkip, FullId);
+			Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
 
 			break;
 		}
 
 		case OP_TYPE::IM_REFERENCE:
 		{
-			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(Item.At);
+			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
 
 			// We only convert references to images if indicated in the operation.
 			if (Args.ForceLoad)
 			{
-				check(Item.Stage==0);
+				check(item.Stage==0);
 
-				const uint8 MipmapsToSkip = Item.ExecutionOptions + static_cast<uint8>(ImageLOD);
+				const uint8 MipmapsToSkip = item.ExecutionOptions + static_cast<uint8>(ImageLOD);
 
 				FExternalResourceId FullId;
 				FullId.ReferenceResourceId = Args.ID;
-				Issued = MakeShared<FImageExternalLoadTask>(Item, MipmapsToSkip, FullId);
+				Issued = MakeShared<FImageExternalLoadTask>(item, MipmapsToSkip, FullId);
 			}
 
 			break;
@@ -2815,17 +2730,16 @@ namespace mu
 
 		case OP_TYPE::ME_REFERENCE:
 		{
-			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(Item.At);
+			OP::ResourceReferenceArgs Args = m_pModel->GetPrivate()->m_program.GetOpArgs<OP::ResourceReferenceArgs>(item.At);
 
 			// We only convert references to meshes if indicated in the operation.
 			if (Args.ForceLoad)
 			{
-				check(Item.Stage == 0);
-				checkf(Item.Type != FScheduledOp::EType::MeshComp, TEXT("Operation not implemented with mesh components execution mode."));
+				check(item.Stage == 0);
 
 				FExternalResourceId FullId;
 				FullId.ReferenceResourceId = Args.ID;
-				Issued = MakeShared<FMeshExternalLoadTask>(Item, FullId);
+				Issued = MakeShared<FMeshExternalLoadTask>(item, FullId);
 			}
 
 			break;
@@ -2833,105 +2747,105 @@ namespace mu
 
 		case OP_TYPE::IM_PIXELFORMAT:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImagePixelFormatArgs Args = Program.GetOpArgs<OP::ImagePixelFormatArgs>(Item.At);
-				Issued = MakeShared<FImagePixelFormatTask>(Item, Args);
+				OP::ImagePixelFormatArgs Args = program.GetOpArgs<OP::ImagePixelFormatArgs>(item.At);
+				Issued = MakeShared<FImagePixelFormatTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_LAYERCOLOUR:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageLayerColourArgs Args = Program.GetOpArgs<OP::ImageLayerColourArgs>(Item.At);
-				Issued = MakeShared<FImageLayerColourTask>(Item, Args);
+				OP::ImageLayerColourArgs Args = program.GetOpArgs<OP::ImageLayerColourArgs>(item.At);
+				Issued = MakeShared<FImageLayerColourTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_LAYER:
 		{
-			if ((ExecutionStrategy == EExecutionStrategy::MinimizeMemory && Item.Stage == 2)
+			if ((ExecutionStrategy == EExecutionStrategy::MinimizeMemory && item.Stage == 2)
 				||
-				(ExecutionStrategy != EExecutionStrategy::MinimizeMemory && Item.Stage == 1)
+				(ExecutionStrategy != EExecutionStrategy::MinimizeMemory && item.Stage == 1)
 				)
 			{
-				OP::ImageLayerArgs Args = Program.GetOpArgs<OP::ImageLayerArgs>(Item.At);
-				Issued = MakeShared<FImageLayerTask>(Item, Args);
+				OP::ImageLayerArgs Args = program.GetOpArgs<OP::ImageLayerArgs>(item.At);
+				Issued = MakeShared<FImageLayerTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_MIPMAP:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageMipmapArgs Args = Program.GetOpArgs<OP::ImageMipmapArgs>(Item.At);
-				Issued = MakeShared<FImageMipmapTask>(Item, Args);
+				OP::ImageMipmapArgs Args = program.GetOpArgs<OP::ImageMipmapArgs>(item.At);
+				Issued = MakeShared<FImageMipmapTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_SWIZZLE:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageSwizzleArgs Args = Program.GetOpArgs<OP::ImageSwizzleArgs>(Item.At);
-				Issued = MakeShared<FImageSwizzleTask>(Item, Args);
+				OP::ImageSwizzleArgs Args = program.GetOpArgs<OP::ImageSwizzleArgs>(item.At);
+				Issued = MakeShared<FImageSwizzleTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_SATURATE:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageSaturateArgs Args = Program.GetOpArgs<OP::ImageSaturateArgs>(Item.At);
-				Issued = MakeShared<FImageSaturateTask>(Item, Args);
+				OP::ImageSaturateArgs Args = program.GetOpArgs<OP::ImageSaturateArgs>(item.At);
+				Issued = MakeShared<FImageSaturateTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_INVERT:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageInvertArgs Args = Program.GetOpArgs<OP::ImageInvertArgs>(Item.At);
-				Issued = MakeShared<FImageInvertTask>(Item, Args);
+				OP::ImageInvertArgs Args = program.GetOpArgs<OP::ImageInvertArgs>(item.At);
+				Issued = MakeShared<FImageInvertTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_RESIZE:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageResizeArgs Args = Program.GetOpArgs<OP::ImageResizeArgs>(Item.At);
-				Issued = MakeShared<FImageResizeTask>(Item, Args);
+				OP::ImageResizeArgs Args = program.GetOpArgs<OP::ImageResizeArgs>(item.At);
+				Issued = MakeShared<FImageResizeTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_RESIZEREL:
 		{
-			if (Item.Stage == 1)
+			if (item.Stage == 1)
 			{
-				OP::ImageResizeRelArgs Args = Program.GetOpArgs<OP::ImageResizeRelArgs>(Item.At);
-				Issued = MakeShared<FImageResizeRelTask>(Item, Args);
+				OP::ImageResizeRelArgs Args = program.GetOpArgs<OP::ImageResizeRelArgs>(item.At);
+				Issued = MakeShared<FImageResizeRelTask>(item, Args);
 			}
 			break;
 		}
 
 		case OP_TYPE::IM_COMPOSE:
 		{
-			if ((ExecutionStrategy == EExecutionStrategy::MinimizeMemory && Item.Stage == 3) ||
-				(ExecutionStrategy != EExecutionStrategy::MinimizeMemory && Item.Stage == 2))
+			if ((ExecutionStrategy == EExecutionStrategy::MinimizeMemory && item.Stage == 3) ||
+				(ExecutionStrategy != EExecutionStrategy::MinimizeMemory && item.Stage == 2))
 			{
-				OP::ImageComposeArgs Args = Program.GetOpArgs<OP::ImageComposeArgs>(Item.At);
-				Ptr<const Layout> ComposeLayout = static_cast<const Layout*>( m_heapData[Item.CustomState].Resource.get());
-				Issued = MakeShared<FImageComposeTask>(Item, Args, ComposeLayout);
+				OP::ImageComposeArgs Args = program.GetOpArgs<OP::ImageComposeArgs>(item.At);
+				Ptr<const Layout> ComposeLayout = static_cast<const Layout*>( m_heapData[item.CustomState].Resource.get());
+				Issued = MakeShared<FImageComposeTask>(item, Args, ComposeLayout);
 			}
 			break;
 		}

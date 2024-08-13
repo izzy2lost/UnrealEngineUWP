@@ -419,15 +419,15 @@ namespace mu
         struct MeshConstantArgs
         {
             // Index of the mesh in the mesh constant array
-            ADDRESS Value;
+            ADDRESS value;
 
             // If not negative, index of the skeleton to set to the mesh from the skeleton
             // constant array.
-            int32 Skeleton;
+            int32 skeleton;
 
             // If not negative, index of the physics body to set to the mesh from the physics body
             // constant array.
-			int32 PhysicsBody;
+			int32 physicsBody;
         };
 
         struct ParameterArgs

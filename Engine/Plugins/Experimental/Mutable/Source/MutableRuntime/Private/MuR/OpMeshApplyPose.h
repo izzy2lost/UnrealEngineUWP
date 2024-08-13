@@ -14,47 +14,13 @@ namespace mu
 	/**
     * Reference version
     */
-
-	inline void SetPoseAsReference(Mesh* InOutResult, const Mesh* PoseMesh)
-	{
-		// Set the pose as the Result reference pose.
-		// PoseMesh PoseXform can be decomposed to PoseXform = ModelPoseXform * ModelRefXform^-1, 
-		// BaseMesh Poses have ModelRefXform, to get the new ModelRefXform to be ModelPoseXform we need 
-		// to multiply PoseXform * ModelRefXform. 
-		// (Note, transform multiplication application is from right to left for this comment, but TTransform::operator* is reversed).
-		const int32 ResultNumBones = InOutResult->GetBonePoseCount();
-		for (int32 BoneIndex = 0; BoneIndex < ResultNumBones; ++BoneIndex)
-		{
-			const FBoneName BoneName = InOutResult->GetBonePoseId(BoneIndex);
-			const int32 FoundPoseIndex = PoseMesh->FindBonePose(BoneName);
-			if (FoundPoseIndex == INDEX_NONE)
-			{
-				continue;
-			}
-
-			FTransform3f ModelRefTransform;
-			InOutResult->GetBonePoseTransform(BoneIndex, ModelRefTransform);
-
-			FTransform3f PoseTransform;
-			PoseMesh->GetBonePoseTransform(FoundPoseIndex, PoseTransform); 
-
-			// Adding the Reshaped flag will prioritize this bone over other bones without the flag
-			// when merging poses with the same bone.
-			// TODO: Add another flag to indicate this case or generalize the Reshaped flag. 
-			EBoneUsageFlags UsageFlags = InOutResult->GetBoneUsageFlags(BoneIndex);
-			EnumAddFlags(UsageFlags, EBoneUsageFlags::Reshaped);
-			
-			InOutResult->SetBonePose(BoneIndex, BoneName, ModelRefTransform * PoseTransform, UsageFlags);
-		}
-	}
-
     inline void MeshApplyPose(Mesh* Result, const Mesh* BaseMesh, const Mesh* PoseMesh, bool& bOutSuccess)
     {
         MUTABLE_CPUPROFILER_SCOPE(MeshApplyPose);
 
 		bOutSuccess = true;
 
-		Ptr<const Skeleton> Skeleton = PoseMesh->GetSkeleton();
+		Ptr<const Skeleton> Skeleton = BaseMesh->GetSkeleton();
 		if (!Skeleton)
 		{
 			bOutSuccess = false;
@@ -139,7 +105,34 @@ namespace mu
 
 		Result->CopyFrom(*BaseMesh);
 
-		SetPoseAsReference(Result, PoseMesh);
+		// Set the pose as the Result reference pose.
+		// PoseMesh PoseXform can be decomposed to PoseXform = ModelPoseXform * ModelRefXform^-1, 
+		// BaseMesh Poses have ModelRefXform, to get the new ModelRefXform to be ModelPoseXform we need 
+		// to multiply PoseXform * ModelRefXform. 
+		// (Note, transform multiplication application is from right to left for this comment, but TTransform::operator* is reversed).
+		const int32 ResultNumBones = Result->GetBonePoseCount();
+		for (int32 BoneIndex = 0; BoneIndex < ResultNumBones; ++BoneIndex)
+		{
+			const FBoneName BoneName = Result->GetBonePoseId(BoneIndex);
+			const int32 FoundPoseIndex = PoseMesh->FindBonePose(BoneName);
+			if (FoundPoseIndex == INDEX_NONE)
+			{
+				continue;
+			}
+
+			FTransform3f ModelRefTransform;
+			Result->GetBonePoseTransform(BoneIndex, ModelRefTransform);
+
+			FTransform3f PoseTransform;
+			PoseMesh->GetBonePoseTransform(FoundPoseIndex, PoseTransform); 
+
+			// Reshape flag is added so the bone is prioritized in case of merge conflict.
+			// TODO: Add another flag to indicate this case or generalize the Reshaped flag. 
+			EBoneUsageFlags UsageFlags = BaseMesh->GetBoneUsageFlags(BoneIndex);
+			EnumAddFlags(UsageFlags, EBoneUsageFlags::Reshaped);
+			
+			Result->SetBonePose(BoneIndex, BoneName, ModelRefTransform * PoseTransform, UsageFlags);
+		}
 
 		MeshBufferIterator<MBF_FLOAT32, float, 3> TargetPositionIterBegin(Result->VertexBuffers, MBS_POSITION, 0);
 		

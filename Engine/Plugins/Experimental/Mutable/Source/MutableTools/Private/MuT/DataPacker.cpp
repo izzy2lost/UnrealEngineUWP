@@ -230,10 +230,12 @@ namespace mu
                 default:
                 {
                     // If we hit the constant we are analysing
-                    if (m_opType == OP_TYPE::ME_CONSTANT && program.GetOpType(at) == m_opType)
+                    if ( m_opType == OP_TYPE::ME_CONSTANT
+                         &&
+                         program.GetOpType(at) == m_opType )
                     {
-						OP::MeshConstantArgs Args = program.GetOpArgs<OP::MeshConstantArgs>(at);
-                        if (Args.Value == m_constant)
+						OP::MeshConstantArgs args = program.GetOpArgs<OP::MeshConstantArgs>(at);
+                        if ( args.value == m_constant )
                         {
                             // Accumulate the currently relevant parameters
                             const TArray<int>& currentParams = GetCurrentState();

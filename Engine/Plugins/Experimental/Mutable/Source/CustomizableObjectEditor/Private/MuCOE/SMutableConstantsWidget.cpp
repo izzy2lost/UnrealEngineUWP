@@ -1228,9 +1228,8 @@ void SMutableConstantsWidget::LoadConstantMeshes()
 	
 	for (int32 MeshIndex = 0; MeshIndex < ConstantsCount; MeshIndex++)
 	{
-		TSharedPtr<FMutableConstantMeshElement> ConstantMeshElement = MakeShared<FMutableConstantMeshElement>();
-
-		MutableProgramPtr->GetConstant(MeshIndex, ConstantMeshElement->MeshPtr);
+		TSharedPtr< FMutableConstantMeshElement> ConstantMeshElement = MakeShared<FMutableConstantMeshElement>();
+		ConstantMeshElement->MeshPtr = MutableProgramPtr->ConstantMeshes[MeshIndex].Value;
 		ConstantMeshElement->IndexOnSourceVector = MeshIndex;
 
 		// Actual core disk size would be:
@@ -1277,7 +1276,7 @@ void SMutableConstantsWidget::LoadConstantLayouts()
 void SMutableConstantsWidget::LoadConstantSkeletons()
 {
 	check (MutableProgramPtr);
-	const int32 ConstantsCount = MutableProgramPtr->ConstantSkeletons.Num();
+	const int32 ConstantsCount = MutableProgramPtr->m_constantSkeletons.Num();
 	ConstantSkeletonElements.Empty(ConstantsCount);
 
 	mu::OutputMemoryStream Stream;
@@ -1286,7 +1285,7 @@ void SMutableConstantsWidget::LoadConstantSkeletons()
 	for (int32 SkeletonIndex = 0; SkeletonIndex < ConstantsCount; SkeletonIndex++)
 	{
 		TSharedPtr<FMutableConstantSkeletonElement> ConstantSkeletonElement = MakeShared<FMutableConstantSkeletonElement>();
-		ConstantSkeletonElement->Skeleton = MutableProgramPtr->ConstantSkeletons[SkeletonIndex];
+		ConstantSkeletonElement->Skeleton = MutableProgramPtr->m_constantSkeletons[SkeletonIndex];
 		ConstantSkeletonElement->IndexOnSourceVector = SkeletonIndex;
 		
 		ConstantSkeletonElement->Skeleton->Serialise(Archive);

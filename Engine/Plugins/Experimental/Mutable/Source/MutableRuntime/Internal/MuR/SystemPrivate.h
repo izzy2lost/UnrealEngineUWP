@@ -52,19 +52,8 @@ namespace mu
 #endif
 	}
 
-	constexpr uint64 AllParametersMask = TNumericLimits<uint64>::Max();
+	constexpr uint64 AllParametersMask = TNumericLimits<uint64> ::Max();
 
-	enum class EMeshExecutionOptions : uint8
-	{
-		None               = 0,
-		LoadGeometryData   = 1 << 0,
-		LoadPoseData       = 1 << 1,
-		LoadComponentsData = 1 << 2,
-
-		AllFlags 	       = 0xFF,
-	};
-
-	ENUM_CLASS_FLAGS(EMeshExecutionOptions);
 
 	/** ExecutinIndex stores the location inside all ranges of the execution of a specific
 	* operation. The first integer on each pair is the dimension/range index in the program
@@ -157,23 +146,25 @@ namespace mu
 		//! Internal stage of the operation.
 		//! Stage 0 is usually scheduling of children, and 1 is execution. Some instructions
 		//! may have more steges to schedule children that are optional for execution, etc.
-		uint8 Stage : 6;
+		uint8 Stage : 7;
 
 		//! Type of calculation we are requesting for this operation.
 		enum class EType : uint8
 		{
-			// Execute the operation to calculate the full result
+			//! Execute the operation to calculate the full result
 			Full,
 
-			// Execute the operation to obtain the descriptor of an image.
-			ImageDesc,
-
-			// Execute the operation to generate a mesh components. Skeletons, referenced ids...
-			MeshComp,
+			//! Execute the operation to obtain the descriptor of an image.
+			ImageDesc
 		};
-
-		EType Type : 2;
+		EType Type : 1;
 	};
+
+	inline uint32 GetTypeHash(const FScheduledOp& Op)
+	{
+		return HashCombine(::GetTypeHash(Op.At), HashCombine(::GetTypeHash(Op.Stage), ::GetTypeHash(Op.ExecutionIndex)));
+	}
+
 
 	/** A cache address is the operation plus the context of execution(iteration indices, etc...). */
 	struct FCacheAddress
@@ -184,175 +175,192 @@ namespace mu
 		uint8 ExecutionOptions = 0;
 		FScheduledOp::EType Type = FScheduledOp::EType::Full;
 
-		FCacheAddress() 
-		{
-		}
+		FCacheAddress() {}
 
-		FCacheAddress(OP::ADDRESS InAt, uint16 InExecutionIndex, uint8 InExecutionOptions, FScheduledOp::EType InType = FScheduledOp::EType::Full)
-			: At(InAt), ExecutionIndex(InExecutionIndex), ExecutionOptions(InExecutionOptions), Type(InType)
+		FCacheAddress(OP::ADDRESS InAt, uint16 InExecutionIndex, uint8 InExecutionOptions)
 		{
+			At = InAt;
+			ExecutionIndex = InExecutionIndex;
+			ExecutionOptions = InExecutionOptions;
 		}
 
 		FCacheAddress(OP::ADDRESS InAt, const FScheduledOp& Item)
-			: At(InAt), ExecutionIndex(Item.ExecutionIndex), ExecutionOptions(Item.ExecutionOptions), Type(Item.Type)
 		{
+			At = InAt;
+			ExecutionIndex = Item.ExecutionIndex;
+			ExecutionOptions = Item.ExecutionOptions;
+			Type = Item.Type;
 		}
 
 		FCacheAddress(const FScheduledOp& Item)
-			: At(Item.At), ExecutionIndex(Item.ExecutionIndex), ExecutionOptions(Item.ExecutionOptions), Type(Item.Type)
 		{
+			At = Item.At;
+			ExecutionIndex = Item.ExecutionIndex;
+			ExecutionOptions = Item.ExecutionOptions;
+			Type = Item.Type;
 		}
 	};
 
-	static_assert(std::has_unique_object_representations_v<FCacheAddress>);
-	static_assert(sizeof(FCacheAddress) == sizeof(uint64));
 
-	inline bool operator==(const FCacheAddress& A, const FCacheAddress& B)
+	inline uint32 GetTypeHash(const FCacheAddress& a)
 	{
-		return BitCast<uint64>(A) == BitCast<uint64>(B); 
+		return HashCombine(::GetTypeHash(a.At), a.ExecutionIndex);
 	}
 
-	inline uint32 GetTypeHash(const FCacheAddress& CacheAddress)
-	{
-		return ::GetTypeHash(BitCast<uint64>(CacheAddress));
-	}
 
-	inline uint32 GetTypeHash(const Ptr<const Resource>& Value)
+	inline uint32 GetTypeHash(const Ptr<const Resource>& V)
 	{
-		return ::GetTypeHash(Value.get());
+		return ::GetTypeHash(V.get());
 	}
 
 
 	//! Container that stores data per executable code operation (indexed by address and execution
 	//! index).
-	template<class DataType>
+	template<class DATA>
 	class CodeContainer
 	{
 		using MemoryCounter = MemoryCounters::FInternalMemoryCounter;
-		using ArrayDataContainerType = TArray<DataType, FDefaultMemoryTrackingAllocator<MemoryCounter>>;
-		using MapDataContainerType = TMap<FCacheAddress, DataType, FDefaultMemoryTrackingSetAllocator<MemoryCounter>>;
+		using ArrayDataContainerType = TArray<DATA, FDefaultMemoryTrackingAllocator<MemoryCounter>>;
+		using MapDataContainerType = TMap<FCacheAddress, DATA, FDefaultMemoryTrackingSetAllocator<MemoryCounter>>;
 
 	public:
-		void Resize(int32 NewSize)
+		void resize(size_t s)
 		{
-			Index0.SetNumZeroed(NewSize);
+			m_index0.SetNumZeroed(s);
 		}
 
-		uint32 CodeSize() const
+		uint32 size_code() const
 		{
-			return uint32(Index0.Num());
+			return uint32(m_index0.Num());
 		}
 
-		void Clear()
+		void clear()
 		{
-			Index0.Empty();
-			OtherIndex.Empty();
+			m_index0.Empty();
+			m_otherIndex.Empty();
 		}
 
-		inline void Erase(const FCacheAddress& At)
+		inline void erase(const FCacheAddress& at)
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				Index0[At.At] = nullptr;
+				m_index0[at.At] = nullptr;
 			}
 			else
 			{
-				OtherIndex.Remove(At);
+				m_otherIndex.Remove(at);
 			}
 		}
 
-		inline DataType Get(const FCacheAddress& At) const
+		inline DATA get(const FCacheAddress& at) const
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				if (At.At < OP::ADDRESS(Index0.Num()))
+				if (at.At < uint32(m_index0.Num()))
 				{
-					return Index0[At.At];
+					return m_index0[at.At];
+				}
+				else
+				{
+					return 0;
 				}
 			}
 			else
 			{
-				const DataType* Found = OtherIndex.Find(At);
-				if (Found)
+				const DATA* it = m_otherIndex.Find(at);
+				if (it)
 				{
-					return *Found;
+					return *it;
 				}
 			}
-
-			return DataType{};
+			return 0;
 		}
 
-		inline DataType* GetPtr(const FCacheAddress& At)
+		inline DATA* get_ptr(const FCacheAddress& at)
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				if (At.At < OP::ADDRESS(Index0.Num()))
+				if (at.At < uint32(m_index0.Num()))
 				{
-					return &Index0[At.At];
+					return &m_index0[at.At];
+				}
+				else
+				{
+					return nullptr;
 				}
 			}
 			else
 			{
-				return &OtherIndex.FindOrAdd(At);
+				DATA* it = m_otherIndex.Find(at);
+				if (it)
+				{
+					return it;
+				}
 			}
-
 			return nullptr;
 		}
 
-		inline const DataType* GetPtr(const FCacheAddress& At) const
+		inline const DATA* get_ptr(const FCacheAddress& at) const
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				if (At.At < uint32(Index0.Num()))
+				if (at.At < uint32(m_index0.Num()))
 				{
-					return &Index0[At.At];
+					return &m_index0[at.At];
+				}
+				else
+				{
+					return nullptr;
 				}
 			}
 			else
 			{
-				return OtherIndex.Find(At);
+				const DATA* it = m_otherIndex.Find(at);
+				if (it)
+				{
+					return it;
+				}
 			}
-
 			return nullptr;
 		}
 
-		inline DataType& operator[](const FCacheAddress& At)
+		inline DATA& operator[](const FCacheAddress& at)
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				return Index0[At.At];
+				return m_index0[at.At];
 			}
 			else
 			{
-				return OtherIndex.FindOrAdd(At);
+				return m_otherIndex.FindOrAdd(at);
 			}
 		}
 
-		inline const DataType& operator[](const FCacheAddress& At) const
+		inline const DATA& operator[](const FCacheAddress& at) const
 		{
-			if (At.Type == FScheduledOp::EType::Full && At.ExecutionIndex == 0 && At.ExecutionOptions == 0)
+			if (at.ExecutionIndex == 0 && at.ExecutionOptions == 0)
 			{
-				return Index0[At.At];
+				return m_index0[at.At];
 			}
 			else
 			{
-				return OtherIndex[At];
+				return m_otherIndex[at];
 			}
 		}
 
-		struct TIterator
+		struct iterator
 		{
 		private:
-			friend class CodeContainer<DataType>;
+			friend class CodeContainer<DATA>;
 
-			const CodeContainer<DataType>* Container;
-			typename CodeContainer<DataType>::ArrayDataContainerType::TIterator Iter0;
-			typename CodeContainer<DataType>::MapDataContainerType::TIterator Iter1;
+			const CodeContainer<DATA>* container;
+			typename CodeContainer<DATA>::ArrayDataContainerType::TIterator it0;
+			typename CodeContainer<DATA>::MapDataContainerType::TIterator it1;
 
-			TIterator(CodeContainer<DataType>* InContainer)
-				: Container(InContainer)
-				, Iter0(InContainer->Index0.CreateIterator())
-				, Iter1(InContainer->OtherIndex.CreateIterator())
+			iterator(CodeContainer<DATA>* InContainer)
+				: container(InContainer)
+				, it0(InContainer->m_index0.CreateIterator())
+				, it1(InContainer->m_otherIndex.CreateIterator())
 			{
 			}
 
@@ -360,81 +368,81 @@ namespace mu
 
 			inline void operator++(int)
 			{
-				if (Iter0)
+				if (it0)
 				{
-					++Iter0;
+					++it0;
 				}
 				else
 				{
-					++Iter1;
+					++it1;
 				}
 			}
 
-			TIterator operator++()
+			iterator operator++()
 			{
-				if (Iter0)
+				if (it0)
 				{
-					++Iter0;
+					++it0;
 				}
 				else
 				{
-					++Iter1;
+					++it1;
 				}
-
 				return *this;
 			}
 
-			inline bool operator != (const TIterator& Other) const
+			inline bool operator!=(const iterator& o) const
 			{
-				return Iter0 != Other.Iter0 || Iter1 != Other.Iter1;
+				return it0 != o.it0 || it1 != o.it1;
 			}
 
-			inline DataType& operator*()
+			inline DATA& operator*()
 			{
-				if (Iter0)
+				if (it0)
 				{
-					return *Iter0;
+					return *it0;
 				}
 				else
 				{
-					return Iter1->Value;
+					return it1->Value;
 				}
 			}
 
-			inline FCacheAddress GetAddress() const
+			inline FCacheAddress get_address() const
 			{
-				if (Iter0)
+				if (it0)
 				{
-					return {uint32(Iter0.GetIndex()), 0, 0};
+					return { uint32_t(it0.GetIndex()), 0, 0};
 				}
 				else
 				{
-					return Iter1->Key;
+					return it1->Key;
 				}
 			}
 
 			inline bool IsValid() const
 			{
-				return bool(Iter0) || bool(Iter1);
+				return bool(it0) || bool(it1);
 			}
 		};
 
-		inline TIterator Begin()
+		inline iterator begin()
 		{
-			TIterator Iter(this);
-			return Iter;
+			iterator it(this);
+			return it;
 		}
 
 		inline int32 GetAllocatedSize() const
 		{
-			return Index0.GetAllocatedSize() + OtherIndex.GetAllocatedSize();
+			return m_index0.GetAllocatedSize()
+				+ m_otherIndex.GetAllocatedSize();
 		}
 	private:
 		// For index 0
-		ArrayDataContainerType Index0;
+		ArrayDataContainerType m_index0;
 
-		// For index > 0
-		MapDataContainerType OtherIndex;
+		// For index>0
+		MapDataContainerType m_otherIndex;
 	};
 
 
@@ -445,10 +453,10 @@ namespace mu
 
 		using AllocType = FDefaultMemoryTrackingAllocator<MemoryCounters::FInternalMemoryCounter>;
 
-		template<class Type, class Alloc = AllocType>
+		template<class Type, class Alloc = AllocType >
 		using TMemoryTrackedArray = TArray<Type, Alloc>;
 		
-		TMemoryTrackedArray<ExecutionIndex, TInlineAllocator<4, AllocType>> UsedRangeIndices;
+		TMemoryTrackedArray<ExecutionIndex, TInlineAllocator<4, AllocType>> m_usedRangeIndices;
 
 		/** Runtime data for each program op. */
 		struct FOpExecutionData
@@ -457,17 +465,16 @@ namespace mu
 
 			/** Enabled if the op descriptor has been calculated. */
 			uint8 IsDescCacheValid : 1;
-			uint8 IsValueValid     : 1;
-			uint8 IsCacheLocked    : 1;
+			uint8 IsValueValid : 1;
+			uint8 IsCacheLocked : 1;
 
 			/** The operation DATA_TYPE. */
 			uint8 DataType;
 
-			/** 
-			 * The position in the type-specific array where the result data is stored. 
-			 * 0 means index not valid.
-			 * For small types like bool, int and float, the actual value is the index, instead of having their own array.
-			 */
+			/** The position in the type-specific array where the result data is stored. 
+			* 0 means index not valid.
+			* For small types like bool, int and float, the actual value is the index, instead of having their own array.
+			*/
 			union
 			{
 				int32 DataTypeIndex;
@@ -506,49 +513,49 @@ namespace mu
 		TMemoryTrackedArray<Ptr<const ExtensionData>> ExtensionDataResults;
 
 		/** */
-		inline const ExecutionIndex& GetRangeIndex(uint32 Index)
+		inline const ExecutionIndex& GetRangeIndex(uint32_t i)
 		{
 			// Make sure we have the default element.
-			if (UsedRangeIndices.IsEmpty())
+			if (m_usedRangeIndices.IsEmpty())
 			{
-				UsedRangeIndices.Push(ExecutionIndex());
+				m_usedRangeIndices.Push(ExecutionIndex());
 			}
 
-			check(Index < uint32(UsedRangeIndices.Num()));
-			return UsedRangeIndices[Index];
+			check(i < uint32_t(m_usedRangeIndices.Num()));
+			return m_usedRangeIndices[i];
 		}
 
 		//!
-		inline uint32 GetRangeIndexIndex(const ExecutionIndex& RangeIndex)
+		inline uint32 GetRangeIndexIndex(const ExecutionIndex& rangeIndex)
 		{
-			if (RangeIndex.IsEmpty())
+			if (rangeIndex.IsEmpty())
 			{
 				return 0;
 			}
 
 			// Make sure we have the default element.
-			if (UsedRangeIndices.IsEmpty())
+			if (m_usedRangeIndices.IsEmpty())
 			{
-				UsedRangeIndices.Push(ExecutionIndex());
+				m_usedRangeIndices.Push(ExecutionIndex());
 			}
 
 			// Look for or add the new element.
-			int32 ElemIndex = UsedRangeIndices.Find(RangeIndex);
+			int32 ElemIndex = m_usedRangeIndices.Find(rangeIndex);
 			if (ElemIndex != INDEX_NONE)
 			{
 				return ElemIndex;
 			}
 
-			UsedRangeIndices.Push(RangeIndex);
-			return uint32(UsedRangeIndices.Num()) - 1;
+			m_usedRangeIndices.Push(rangeIndex);
+			return uint32_t(m_usedRangeIndices.Num()) - 1;
 		}
 
 		void Init(uint32 Size)
 		{
 			// This clear would prevent live update cache reusal
-			//OpExecutionData.Clear();
+			//OpExecutionData.clear();
 
-			OpExecutionData.Resize(Size);
+			OpExecutionData.resize(Size);
 
 			if (ColorResults.IsEmpty())
 			{
@@ -598,21 +605,21 @@ namespace mu
 		}
 
 
-		bool IsValid(FCacheAddress At) const
+		bool IsValid(FCacheAddress at) const
 		{
-			if ((At.At == 0) || (At.At >= OP::ADDRESS(OpExecutionData.CodeSize())))
+			if (at.At == 0 || at.At>=OpExecutionData.size_code() )
 			{
 				return false;
 			}
 
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			if (!Data)
 			{
 				return false;
 			}
 
 			// Is it a desc data query?
-			if (At.Type == FScheduledOp::EType::ImageDesc)
+			if (at.Type == FScheduledOp::EType::ImageDesc)
 			{
 				return Data->IsDescCacheValid;
 			}
@@ -629,8 +636,8 @@ namespace mu
 			//MUTABLE_CPUPROFILER_SCOPE(CheckHitCountsCleared);
 
 			//int32 IncorrectCount = 0;
-			//CodeContainer<int32>::TIterator Iter = OpHitCount.begin();
-			//for (; Iter.IsValid(); ++it)
+			//CodeContainer<int>::iterator it = m_opHitCount.begin();
+			//for (; it.IsValid(); ++it)
 			//{
 			//	int32 Count = *it;
 			//	if (Count>0 && Count < UE_MUTABLE_CACHE_COUNT_LIMIT)
@@ -658,9 +665,9 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ProgramCacheClear);
 
-			uint32 CodeSize = OpExecutionData.CodeSize();
-			OpExecutionData.Clear();
-			OpExecutionData.Resize(CodeSize);
+			uint32 CodeSize = OpExecutionData.size_code();
+			OpExecutionData.clear();
+			OpExecutionData.resize(CodeSize);
 		}
 
 
@@ -668,113 +675,69 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ProgramDescCacheClear);
 
-			CodeContainer<FProgramCache::FOpExecutionData>::TIterator Iter = OpExecutionData.Begin();
-			for (; Iter.IsValid(); ++Iter)
+			CodeContainer<FProgramCache::FOpExecutionData>::iterator it = OpExecutionData.begin();
+			for (; it.IsValid(); ++it)
 			{
-				FProgramCache::FOpExecutionData& Data = *Iter;
-				Data.IsDescCacheValid = false;
+				(*it).IsDescCacheValid = false;
 			}
 		}
 
 
-		bool GetBool(FCacheAddress At)
+		bool GetBool(FCacheAddress at)
 		{
-			if (!At.At)
-			{
-				return false;
-			}
+			if (!at.At) return false;
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return false;
 
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data)
-			{
-				return false;
-			}
-
-			check(Data->DataType == DATATYPE::DT_BOOL);
-			return Data->DataTypeIndex != 0;
+			check(Data->DataType==DATATYPE::DT_BOOL);
+			return Data->DataTypeIndex!=0;
 		}
 
-		float GetScalar(FCacheAddress At)
+		float GetScalar(FCacheAddress at)
 		{
-			if (!At.At)
-			{
-				return 0.0f;
-			}
-
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return 0.0f;
-			}
+			if (!at.At) return 0.0f;
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return 0.0f;
 
 			check(Data->DataType == DATATYPE::DT_SCALAR);
 			return Data->ScalarResult;
 		}
 
-		int32 GetInt(FCacheAddress At)
+		int32 GetInt(FCacheAddress at)
 		{
-			if (!At.At) 
-			{
-				return 0;
-			}
-
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return 0;
-			}
+			if (!at.At) return 0;
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return 0;
 
 			check(Data->DataType == DATATYPE::DT_INT);
 			return Data->DataTypeIndex;
 		}
 
-		FVector4f GetColour(FCacheAddress At)
+		FVector4f GetColour(FCacheAddress at)
 		{
-			if (!At.At)
-			{
-				return FVector4f();
-			}
-
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return FVector4f();
-			}
+			if (!at.At) return FVector4f();
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return FVector4f();
 
 			check(Data->DataType == DATATYPE::DT_COLOUR);
 			return ColorResults[Data->DataTypeIndex];
 		}
 
-		FProjector GetProjector(FCacheAddress At)
+		FProjector GetProjector(FCacheAddress at)
 		{
-			if (!At.At)
-			{
-				return FProjector();
-			}
-
-			const FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-
-			if (!Data) 
-			{
-				return FProjector();
-			}
+			if (!at.At) return FProjector();
+			const FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return FProjector();
 
 			check(Data->DataType == DATATYPE::DT_PROJECTOR);
 			return ProjectorResults[Data->DataTypeIndex];
 		}
 
-		Ptr<const Instance> GetInstance(FCacheAddress At)
+		Ptr<const Instance> GetInstance(FCacheAddress at)
 		{
-			if (!At.At) 
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data)
-			{
-				return nullptr;
-			}
+			if (!at.At) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_INSTANCE);
 			Ptr<const Instance> Result = InstanceResults[Data->DataTypeIndex];
@@ -792,25 +755,14 @@ namespace mu
 		}
 
 
-		Ptr<const Image> GetImage(FCacheAddress At, bool& bIsLastReference)
+		Ptr<const Image> GetImage(FCacheAddress at, bool& bIsLastReference)
 		{
 			bIsLastReference = false;
 
-			if (!At.At) 
-			{
-				return nullptr;
-			}
-
-			if (At.At >= OpExecutionData.CodeSize())
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return nullptr;
-			}
+			if (!at.At) return nullptr;
+			if (at.At >= OpExecutionData.size_code()) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_IMAGE);
 			Ptr<const Image> Result = ImageResults[Data->DataTypeIndex].Value;
@@ -829,28 +781,14 @@ namespace mu
 		}
 
 
-		Ptr<const Mesh> GetMesh(FCacheAddress At, bool& bIsLastReference)
+		Ptr<const Mesh> GetMesh(FCacheAddress at, bool& bIsLastReference)
 		{
 			bIsLastReference = false;
 
-			if (!At.At)
-			{
-				return nullptr;
-			}
-
-			if (At.At >= OpExecutionData.CodeSize())
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data)
-			{
-				return nullptr;
-			}
-
-			// Chache lock forcing is only done at base address, without options, index or type. See SetForceCached().
-			FOpExecutionData& ForceLockCacheData = OpExecutionData[FCacheAddress(At.At, 0, 0)];
+			if (!at.At) return nullptr;
+			if (at.At >= OpExecutionData.size_code()) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_MESH);
 			Ptr<const Mesh> Result = MeshResults[Data->DataTypeIndex].Value;
@@ -859,7 +797,7 @@ namespace mu
 			check(Data->OpHitCount > 0);
 
 			--Data->OpHitCount;
-			if (Data->OpHitCount == 0 && !Data->IsCacheLocked && !ForceLockCacheData.IsCacheLocked)
+			if (Data->OpHitCount == 0 && !Data->IsCacheLocked)
 			{
 				SetUnused(*Data);
 				bIsLastReference = true;
@@ -869,101 +807,80 @@ namespace mu
 		}
 
 
-		Ptr<const Layout> GetLayout(FCacheAddress At)
+		Ptr<const Layout> GetLayout(FCacheAddress at)
 		{
-			if (!At.At) 
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return nullptr;
-			}
+			if (!at.At) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_LAYOUT);
 			return LayoutResults[Data->DataTypeIndex];
 		}
 
 
-		Ptr<const String> GetString(FCacheAddress At)
+		Ptr<const String> GetString(FCacheAddress at)
 		{
-			if (!At.At) 
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return nullptr;
-			}
+			if (!at.At) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_STRING);
 			return StringResults[Data->DataTypeIndex];
 		}
 
 
-		Ptr<const ExtensionData> GetExtensionData(FCacheAddress At)
+		Ptr<const ExtensionData> GetExtensionData(FCacheAddress at)
 		{
-			if (!At.At) 
-			{
-				return nullptr;
-			}
-
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
-			if (!Data) 
-			{
-				return nullptr;
-			}
+			if (!at.At) return nullptr;
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
+			if (!Data) return nullptr;
 
 			check(Data->DataType == DATATYPE::DT_EXTENSION_DATA);
 			return ExtensionDataResults[Data->DataTypeIndex];
 		}
 
-		void SetValidDesc(FCacheAddress At)
+		void SetValidDesc(FCacheAddress at)
 		{
-			check(At.Type == FScheduledOp::EType::ImageDesc);
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.Type == FScheduledOp::EType::ImageDesc);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			Data->IsDescCacheValid = true;
 		}
 
-		void SetBool(FCacheAddress At, bool Value)
+		void SetBool(FCacheAddress at, bool v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_BOOL || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_BOOL;
-			Data->DataTypeIndex = Value;
+			Data->DataTypeIndex = v;
 			Data->IsValueValid = true;
 		}
 
-		void SetInt(FCacheAddress At, int32 Value)
+		void SetInt(FCacheAddress at, int32 v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_INT || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_INT;
-			Data->DataTypeIndex = Value;
+			Data->DataTypeIndex = v;
 			Data->IsValueValid = true;
 		}
 
-		void SetScalar(FCacheAddress At, float Value)
+		void SetScalar(FCacheAddress at, float v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_SCALAR || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_SCALAR;
-			Data->ScalarResult = Value;
+			Data->ScalarResult = v;
 			Data->IsValueValid = true;
 		}
 
-		void SetColour(FCacheAddress At, const FVector4f& Value)
+		void SetColour(FCacheAddress at, const FVector4f& v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_COLOUR || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_COLOUR;
 			Data->IsValueValid = true;
@@ -971,19 +888,19 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = ColorResults.Num();
-				ColorResults.Add(Value);
+				ColorResults.Add(v);
 			}
 			else
 			{
-				ColorResults[Data->DataTypeIndex] = Value;
+				ColorResults[Data->DataTypeIndex] = v;
 			}
 			check(Data->DataTypeIndex != 0);
 		}
 
-		void SetProjector(FCacheAddress At, const FProjector& Value)
+		void SetProjector(FCacheAddress at, const FProjector& v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_PROJECTOR || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_PROJECTOR;
 			Data->IsValueValid = true;
@@ -991,19 +908,19 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = ProjectorResults.Num();
-				ProjectorResults.Add(Value);
+				ProjectorResults.Add(v);
 			}
 			else
 			{
-				ProjectorResults[Data->DataTypeIndex] = Value;
+				ProjectorResults[Data->DataTypeIndex] = v;
 			}
 			check(Data->DataTypeIndex != 0);
 		}
 
-		void SetInstance(FCacheAddress At, Ptr<const Instance> Value)
+		void SetInstance(FCacheAddress at, Ptr<const Instance> v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_INSTANCE || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_INSTANCE;
 			Data->IsValueValid = true;
@@ -1011,19 +928,19 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = InstanceResults.Num();
-				InstanceResults.Add(Value);
+				InstanceResults.Add(v);
 			}
 			else
 			{
-				InstanceResults[Data->DataTypeIndex] = Value;
+				InstanceResults[Data->DataTypeIndex] = v;
 			}
 			check(Data->DataTypeIndex != 0);
 		}
 
-		void SetExtensionData(FCacheAddress At, Ptr<const ExtensionData> Value)
+		void SetExtensionData(FCacheAddress at, Ptr<const ExtensionData> v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_EXTENSION_DATA || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_EXTENSION_DATA;
 			Data->IsValueValid = true;
@@ -1031,19 +948,19 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = ExtensionDataResults.Num();
-				ExtensionDataResults.Add(Value);
+				ExtensionDataResults.Add(v);
 			}
 			else
 			{
-				ExtensionDataResults[Data->DataTypeIndex] = Value;
+				ExtensionDataResults[Data->DataTypeIndex] = v;
 			}
 			check(Data->DataTypeIndex != 0);
 		}
 
 		void SetImage(FCacheAddress At, Ptr<const Image> Value)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(At.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(At);
 			check(Data->DataType == DATATYPE::DT_IMAGE || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_IMAGE;
 			Data->IsValueValid = true;
@@ -1064,9 +981,9 @@ namespace mu
 
 		void SetMesh(FCacheAddress At, Ptr<const Mesh> Value)
 		{
-			check(At.At < OpExecutionData.CodeSize());
+			check(At.At < OpExecutionData.size_code());
 
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			FOpExecutionData* Data = OpExecutionData.get_ptr(At);
 
 			check(Data->DataType == DATATYPE::DT_MESH || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_MESH;
@@ -1086,10 +1003,10 @@ namespace mu
 			mu::UpdateLLMStats();
 		}
 
-		void SetLayout(FCacheAddress At, Ptr<const Layout> Value)
+		void SetLayout(FCacheAddress at, Ptr<const Layout> v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_LAYOUT || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_LAYOUT;
 			Data->IsValueValid = true;
@@ -1097,21 +1014,21 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = LayoutResults.Num();
-				LayoutResults.Add(Value);
+				LayoutResults.Add(v);
 			}
 			else
 			{
-				LayoutResults[Data->DataTypeIndex] = Value;
+				LayoutResults[Data->DataTypeIndex] = v;
 			}
 			check(Data->DataTypeIndex != 0);
 
 			mu::UpdateLLMStats();
 		}
 
-		void SetString(FCacheAddress At, Ptr<const String> Value)
+		void SetString(FCacheAddress at, Ptr<const String> v)
 		{
-			check(At.At < OpExecutionData.CodeSize());
-			FOpExecutionData* Data = OpExecutionData.GetPtr(At);
+			check(at.At < OpExecutionData.size_code());
+			FOpExecutionData* Data = OpExecutionData.get_ptr(at);
 			check(Data->DataType == DATATYPE::DT_STRING || Data->DataType == DATATYPE::DT_NONE);
 			Data->DataType = DATATYPE::DT_STRING;
 			Data->IsValueValid = true;
@@ -1119,45 +1036,67 @@ namespace mu
 			if (!Data->DataTypeIndex)
 			{
 				Data->DataTypeIndex = StringResults.Num();
-				StringResults.Add(Value);
+				StringResults.Add(v);
 			}
 			else
 			{
-				StringResults[Data->DataTypeIndex] = Value;
+				StringResults[Data->DataTypeIndex] = v;
 			}
-			check(Data->DataTypeIndex != 0);
+			check(Data->DataTypeIndex!=0);
 		}
 
 
-		inline void IncreaseHitCount(FCacheAddress At)
+		inline void IncreaseHitCount(FCacheAddress at)
 		{
 			// Don't count hits for instruction 0, which is always null. It is usually already
 			// check that At is not 0, and then it is not requested, generating a stray non-zero count
 			// at its position.
-			if (At.At)
+			if (at.At)
 			{
-				check(At.At < OpExecutionData.CodeSize());
-				FOpExecutionData& Data = OpExecutionData[At];
+				check(at.At < OpExecutionData.size_code());
+				FOpExecutionData& Data = OpExecutionData[at];
 				Data.OpHitCount++;
 			}
 		}
 
-		inline void SetForceCached(OP::ADDRESS At)
+		inline void SetForceCached(OP::ADDRESS at)
 		{
 			// \TODO: It only locks at,0,0
-			if (At)
+			if (at)
 			{
-				check(At < OpExecutionData.CodeSize());
-				FOpExecutionData& Data = OpExecutionData[FCacheAddress(At, 0, 0)];
+				check(at < OpExecutionData.size_code());
+				FOpExecutionData& Data = OpExecutionData[FCacheAddress(at, 0, 0)];
 				Data.IsCacheLocked = true;
 			}
 		}
 	};
 
-	/** 
-	 * Data for an instance that is currently being processed in the mutable system. This means it is
-	 * between a BeginUpdate and EndUpdate, or during an "atomic" operation (like generate a single resource).
-	 */
+
+	inline bool operator==(const FCacheAddress& a, const FCacheAddress& b)
+	{
+		return a.At == b.At
+			&&
+			a.ExecutionIndex == b.ExecutionIndex
+			&&
+			a.ExecutionOptions == b.ExecutionOptions
+			&&
+			a.Type == b.Type;
+	}
+
+	inline bool operator<(const FCacheAddress& a, const FCacheAddress& b)
+	{
+		if (a.At < b.At) return true;
+		if (a.At > b.At) return false;
+		if (a.ExecutionIndex < b.ExecutionIndex) return true;
+		if (a.ExecutionIndex > b.ExecutionIndex) return false;
+		if (a.ExecutionOptions < b.ExecutionOptions) return true;
+		if (a.ExecutionOptions > b.ExecutionOptions) return false;
+		return a.Type < b.Type;
+	}
+
+	/** Data for an instance that is currently being processed in the mutable system. This means it is
+	* between a BeginUpdate and EndUpdate, or during an "atomic" operation (like generate a single resource).
+	*/
 	struct FLiveInstance
 	{
 		Instance::ID InstanceID;
@@ -1306,7 +1245,7 @@ namespace mu
 
 			// Look for an unused image in the pool that can be reused
 			int32 PooledImageCount = PooledImages.Num();
-			for (int32 Index = 0; DataSize > 0 && Index < PooledImageCount; ++Index)
+			for (int Index = 0; DataSize>0 && Index<PooledImageCount; ++Index)
 			{
 				Ptr<Image>& Candidate = PooledImages[Index];
 				if (Candidate->GetFormat() == Format
@@ -1657,7 +1596,7 @@ namespace mu
 						Result += Rom.Value->GetDataSize();
 					}
 				}
-				for (const TPair<int32, Ptr<const Mesh>>& Rom : Program.ConstantMeshData)
+				for (const TPair<int32, Ptr<const Mesh>>& Rom : Program.ConstantMeshes)
 				{
 					if (Rom.Value && Rom.Key >= 0)
 					{
@@ -1690,27 +1629,25 @@ namespace mu
 
 			for (const FLiveInstance& Instance : LiveInstances)
 			{
-				CodeContainer<FProgramCache::FOpExecutionData>::TIterator Iter = Instance.Cache->OpExecutionData.Begin();
-				for (; Iter.IsValid(); ++Iter)
+				CodeContainer<FProgramCache::FOpExecutionData>::iterator it = Instance.Cache->OpExecutionData.begin();
+				for (; it.IsValid(); ++it)
 				{
-					FProgramCache::FOpExecutionData& Data = *Iter;
-
-					if (!Data.DataTypeIndex)
+					if (!(*it).DataTypeIndex)
 					{
 						continue;
 					}
 
 					TSet<const Resource*>* TargetSet = &Cache0Unique;
-					if (Data.IsCacheLocked)
+					if ((*it).IsCacheLocked)
 					{
 						TargetSet = &Cache1Unique;
 					}
 
 					const Resource* Value = nullptr;
-					switch (Data.DataType)
+					switch ((*it).DataType)
 					{
 					case DATATYPE::DT_IMAGE:
-						Value = Instance.Cache->ImageResults[Data.DataTypeIndex].Value.get();
+						Value = Instance.Cache->ImageResults[(*it).DataTypeIndex].Value.get();
 						if (Value)
 						{
 							TargetSet->Add(Value);
@@ -1718,7 +1655,7 @@ namespace mu
 						break;
 
 					case DATATYPE::DT_MESH:
-						Value = Instance.Cache->MeshResults[Data.DataTypeIndex].Value.get();
+						Value = Instance.Cache->MeshResults[(*it).DataTypeIndex].Value.get();
 						if (Value)
 						{
 							TargetSet->Add(Value);
@@ -1752,12 +1689,13 @@ namespace mu
 
 			MUTABLE_CPUPROFILER_SCOPE(ClearLayer0);
 
-			CodeContainer<FProgramCache::FOpExecutionData>::TIterator Iter = CurrentInstanceCache->OpExecutionData.Begin();
-			for (; Iter.IsValid(); ++Iter)
+			CodeContainer<FProgramCache::FOpExecutionData>::iterator it = CurrentInstanceCache->OpExecutionData.begin();
+			for (; it.IsValid(); ++it)
 			{
-				FProgramCache::FOpExecutionData& Data = *Iter;
-				
-				if (!Data.DataTypeIndex || Data.IsCacheLocked)
+				FProgramCache::FOpExecutionData& Data = *it;
+				if (!Data.DataTypeIndex
+					||
+					Data.IsCacheLocked)
 				{
 					continue;
 				}
@@ -1811,11 +1749,10 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(ClearLayer1);
 
-			CodeContainer<FProgramCache::FOpExecutionData>::TIterator Iter = CurrentInstanceCache->OpExecutionData.Begin();
-			for (; Iter.IsValid(); ++Iter)
+			CodeContainer<FProgramCache::FOpExecutionData>::iterator it = CurrentInstanceCache->OpExecutionData.begin();
+			for (; it.IsValid(); ++it)
 			{
-				FProgramCache::FOpExecutionData& Data = *Iter;
-
+				FProgramCache::FOpExecutionData& Data = *it;
 				if (!Data.DataTypeIndex)
 				{
 					continue;
@@ -1963,16 +1900,16 @@ namespace mu
 		MUTABLERUNTIME_API void BeginBuild(const TSharedPtr<const Model>&);
 		MUTABLERUNTIME_API void EndBuild();
 
-		MUTABLERUNTIME_API bool BuildBool(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API int32 BuildInt(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API float BuildScalar(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API FVector4f BuildColour(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API Ptr<const String> BuildString(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API Ptr<const Image> BuildImage(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS, int32 MipsToSkip, int32 LOD);
-		MUTABLERUNTIME_API Ptr<const Mesh> BuildMesh(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS, uint8 ExecutionOptions = 0);
+		MUTABLERUNTIME_API bool BuildBool(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+		MUTABLERUNTIME_API int32 BuildInt(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+		MUTABLERUNTIME_API float BuildScalar(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+		MUTABLERUNTIME_API FVector4f BuildColour(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+		MUTABLERUNTIME_API Ptr<const String> BuildString(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+		MUTABLERUNTIME_API Ptr<const Image> BuildImage(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS, int32 MipsToSkip, int32 LOD) ;
+		MUTABLERUNTIME_API Ptr<const Mesh> BuildMesh(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
 		MUTABLERUNTIME_API Ptr<const Instance> BuildInstance(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-		MUTABLERUNTIME_API Ptr<const Layout> BuildLayout(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
-    	MUTABLERUNTIME_API FProjector BuildProjector(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS);
+		MUTABLERUNTIME_API Ptr<const Layout> BuildLayout(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
+    	MUTABLERUNTIME_API FProjector BuildProjector(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS) ;
 
 		ExtensionDataStreamer* GetExtensionDataStreamer() const { return ExtensionDataStreamer.Get(); }
 
@@ -2007,7 +1944,7 @@ namespace mu
         bool CheckUpdatedParameters( const FLiveInstance*, const Ptr<const Parameters>&, uint64& OutUpdatedParameters );
 
 
-		void RunCode(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS at, uint32 LODs = System::AllLODs, uint8 ExecutionOptions = 0, int32 LOD = 0);
+		void RunCode(const TSharedPtr<const Model>&, const Parameters*, OP::ADDRESS at, uint32 LODs = System::AllLODs, uint8 executionOptions = 0, int32 LOD = 0);
 
 		//!
 		void PrepareCache(const Model*, int32 State);

@@ -24,7 +24,6 @@ namespace mu
 {
     MUTABLE_IMPLEMENT_POD_SERIALISABLE(FRomData);
 	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FImageLODRange);
-	MUTABLE_IMPLEMENT_POD_SERIALISABLE(FMeshRange);
 
 	
     //---------------------------------------------------------------------------------------------
@@ -151,7 +150,7 @@ namespace mu
 		if (!bDropData)
 		{
 			InitialImages = program.ConstantImageLODs;
-			InitialMeshes = program.ConstantMeshData;
+			InitialMeshes = program.ConstantMeshes;
 		}
 
 		OutputMemoryStream MemStream(16 * 1024 * 1024);
@@ -187,9 +186,9 @@ namespace mu
 		}
 
 		// Save meshes and unload from memory
-		for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantMeshData.Num(); ++ResourceIndex)
+		for (int32 ResourceIndex = 0; ResourceIndex < program.ConstantMeshes.Num(); ++ResourceIndex)
 		{
-			TPair<int32, mu::MeshPtrConst>& ResData = program.ConstantMeshData[ResourceIndex];
+			TPair<int32, mu::MeshPtrConst>& ResData = program.ConstantMeshes[ResourceIndex];
 
 			// This shouldn't have been serialised with rom support before.
 			if (ResData.Key < 0)
@@ -231,7 +230,7 @@ namespace mu
 		if (!bDropData)
 		{
 			program.ConstantImageLODs = InitialImages;
-			program.ConstantMeshData = InitialMeshes;
+			program.ConstantMeshes = InitialMeshes;
 		}
 	}
 
@@ -270,11 +269,11 @@ namespace mu
 			}
 		}
 
-		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.ConstantMeshData.Num(); ++ResIndex)
+		for (int32 ResIndex = 0; ResIndex < m_pD->m_program.ConstantMeshes.Num(); ++ResIndex)
 		{
-			if (m_pD->m_program.ConstantMeshData[ResIndex].Key >= 0)
+			if (m_pD->m_program.ConstantMeshes[ResIndex].Key >= 0)
 			{
-				m_pD->m_program.ConstantMeshData[ResIndex].Value = nullptr;
+				m_pD->m_program.ConstantMeshes[ResIndex].Value = nullptr;
 			}
 		}
 	}

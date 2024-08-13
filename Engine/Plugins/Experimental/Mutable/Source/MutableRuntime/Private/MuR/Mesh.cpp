@@ -73,11 +73,50 @@ uint32 Mesh::GetReferencedMesh() const
 	return ReferenceID;
 }
 
+
 Ptr<Mesh> Mesh::Clone() const
 {
     //MUTABLE_CPUPROFILER_SCOPE(MeshClone);
-    return Clone(EMeshCopyFlags::AllFlags);
+	LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
+
+    Ptr<Mesh> Result = new Mesh();
+
+    Result->InternalId = InternalId;
+	Result->Flags = Flags;
+	Result->ReferenceID = ReferenceID;
+	Result->Surfaces = Surfaces;
+	Result->Skeleton = Skeleton;
+	Result->PhysicsBody = PhysicsBody;
+	Result->Tags = Tags;
+	Result->StreamedResources = StreamedResources;
+	Result->MeshIDPrefix = MeshIDPrefix;
+
+    // Clone the main buffers
+    Result->VertexBuffers = VertexBuffers;
+    Result->IndexBuffers = IndexBuffers;
+
+	// Clone additional buffers
+	Result->AdditionalBuffers = AdditionalBuffers;
+
+    // Clone the layouts
+	Result->Layouts = Layouts;
+
+    // The skeleton is not cloned because it is not owned by this mesh and it is always assumed
+    // to be shared.
+
+	// physics body doen't need to be deep cloned either as they are also assumed to be shared.
+	
+	// Clone bone poses
+	Result->BonePoses = BonePoses;
+	Result->BoneMap = BoneMap;
+
+	// Clone SkeletonIDs
+	Result->SkeletonIDs = SkeletonIDs;
+	Result->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
+
+    return Result;
 }
+
 
 Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
 {
@@ -86,20 +125,99 @@ Ptr<Mesh> Mesh::Clone(EMeshCopyFlags InFlags) const
 
 	Ptr<Mesh> Result = new Mesh();
 
-	Result->CopyFrom(*this, InFlags);
-    
-	return Result;
+    Result->InternalId = InternalId;
+	Result->MeshIDPrefix = MeshIDPrefix;
+	Result->Flags = Flags;
+	Result->ReferenceID = ReferenceID;
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
+	{
+		Result->Surfaces = Surfaces;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeleton))
+	{
+		Result->Skeleton = Skeleton;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPhysicsBody))
+	{
+		Result->PhysicsBody = PhysicsBody;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithTags))
+	{
+		Result->Tags = Tags;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithStreamedResources))
+	{
+		Result->StreamedResources = StreamedResources;
+	}
+
+    // Clone the main buffers
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithVertexBuffers))
+    {
+		Result->VertexBuffers = VertexBuffers;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithIndexBuffers))
+    {
+		Result->IndexBuffers = IndexBuffers;
+	}
+
+	// Clone additional buffers
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalBuffers))
+	{
+		Result->AdditionalBuffers = AdditionalBuffers;
+	}
+
+    // Clone the layout	
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithLayouts))
+	{
+		Result->Layouts = Layouts;
+	}
+    // The skeleton is not cloned because it is not owned by this mesh and it is always assumed
+    // to be shared.
+
+	// physics body doen't need to be deep cloned either as they are also assumed to be shared.
+	
+	// Clone bone poses
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithPoses))
+	{
+		Result->BonePoses = BonePoses;
+	}
+
+	// Clone BoneMap
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithBoneMap))
+	{
+		Result->BoneMap = BoneMap;
+	}
+
+	// Clone SkeletonIDs
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSkeletonIDs))
+	{
+		Result->SkeletonIDs = SkeletonIDs;
+	}
+
+	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithAdditionalPhysics))
+	{
+		Result->AdditionalPhysicsBodies = AdditionalPhysicsBodies;
+	}
+
+    return Result;
 }
 
 
 void Mesh::CopyFrom(const Mesh& From, EMeshCopyFlags InFlags)
 {
     //MUTABLE_CPUPROFILER_SCOPE(CopyFrom);
-	
+
     InternalId = From.InternalId;
-	MeshIDPrefix = From.MeshIDPrefix;
 	Flags = From.Flags;
 	ReferenceID = From.ReferenceID;
+
+	MeshIDPrefix = From.MeshIDPrefix;
 
 	if (EnumHasAnyFlags(InFlags, EMeshCopyFlags::WithSurfaces))
 	{

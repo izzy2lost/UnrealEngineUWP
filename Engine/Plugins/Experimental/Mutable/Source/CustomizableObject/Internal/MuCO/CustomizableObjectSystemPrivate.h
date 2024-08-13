@@ -363,20 +363,7 @@ struct FInstanceUpdateData
 	struct FLOD
 	{		
 		mu::FResourceID MeshID;
-		
-		/** 
-		 * Mesh generated only loading the geometry data. It may contain Pose and other data information
-		 * as a side result, but should not be used. 
-		 */
-		mu::Ptr<const mu::Mesh> MeshGeometry;
-
-		/**
-		 * Mesh generated without executing geometry operations. It contains Pose information,
-		 * external references and tags. Its buffers are imprecise descriptors, e.i., don't have 
-		 * data, the number of elements is an upper bound of the final result and its format may 
-		 * vary in bit width for some channels.
-		 */
-		mu::Ptr<const mu::Mesh> MeshComps;
+		mu::Ptr<const mu::Mesh> Mesh;
 
 		/** Range in the Surfaces array */
 		uint16 FirstSurface = 0;

@@ -466,20 +466,14 @@ namespace mu
 		}
 
 
-		if (!Source.IsDescriptor())
+		// For every vertex buffer in result
+		int32 vCount = Source.GetElementCount();
+		Result.SetElementCount(vCount);
+		for (int32 b = 0; b < Result.GetBufferCount(); ++b)
 		{
-			// For every vertex buffer in result
-			int32 vCount = Source.GetElementCount();
-			Result.SetElementCount(vCount);
-			for (int32 b = 0; b < Result.GetBufferCount(); ++b)
-			{
-				MeshFormatBuffer(Source, Result.Buffers[b], 0, bIsVertexBuffer, IDPrefix);
-			}
+			MeshFormatBuffer(Source, Result.Buffers[b], 0, bIsVertexBuffer, IDPrefix);
 		}
-		else
-		{
-			Result.ElementCount = Source.GetElementCount();
-		}
+
 
 		// Detect internal system buffers and clone them unmodified.
 		if (bKeepSystemBuffers)
@@ -524,105 +518,21 @@ namespace mu
 				}
 			}
 		}
+
 	}
 
-	int32 FindHighestBoneIndexInUse(const Mesh* InMesh, const FMeshBufferChannel& Channel)
-	{
-		const FMeshBufferSet& VertexBuffers = InMesh->GetVertexBuffers();
 
-		// If InMesh buffers are descriptors, use the bone map to get an upper bound of the highest index
-		// we will find in the mesh. Otherwise, find it from the vertex buffers data.
-		if (VertexBuffers.IsDescriptor())
-		{
-			return FMath::Max(0, InMesh->BoneMap.Num() - 1);
-		}
 
-		const UntypedMeshBufferIteratorConst BoneIndicesBegin(VertexBuffers, MBS_BONEINDICES, Channel.SemanticIndex);
-
-		if (!BoneIndicesBegin.ptr())
-		{
-			return 0;
-		}
-
-		const int32 NumVertices = VertexBuffers.GetElementCount();
-		const int32 NumInfluences = BoneIndicesBegin.GetComponents();
-		
-		int32 HighestBoneIndex = 0;
-		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
-		{
-			// If MAX_TOTAL_INFLUENCES ever changed, the next line would no longer work or compile and 
-			// GetAsVec12i would need to be changed accordingly
-			int32 VertexInfluences[MAX_TOTAL_INFLUENCES];
-			(BoneIndicesBegin + VertexIndex).GetAsInt32Vec(VertexInfluences, MAX_TOTAL_INFLUENCES);
-			
-			for (int32 InfluenceIndex = 0; InfluenceIndex < NumInfluences; ++InfluenceIndex)
-			{
-				HighestBoneIndex = FMath::Max(HighestBoneIndex, VertexInfluences[InfluenceIndex]);
-			}
-		}
-
-		return HighestBoneIndex;
-	}
-
-	/** Updates the InOutFormat bone index semantic format if it cannot represent the highest bone index in use. */
-	void EnsureBoneIndexFormat(const Mesh* InMesh, FMeshBufferSet& InOutFormatBufferSet)
-	{
-		const FMeshBufferSet& VertexBuffers = InMesh->GetVertexBuffers();
-
-		const int32 BufferCount = VertexBuffers.GetBufferCount();
-		for (int32 BufferIndex = 0; BufferIndex < BufferCount; ++BufferIndex)
-		{
-			const int32 ChannelCount = VertexBuffers.GetBufferChannelCount(BufferIndex);
-			for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
-			{
-				const FMeshBufferChannel& Channel = VertexBuffers.Buffers[BufferIndex].Channels[ChannelIndex];
-
-				if (Channel.Semantic == MBS_BONEINDICES)
-				{
-					int32 ResultBuf = 0;
-					int32 ResultChan = 0;
-					InOutFormatBufferSet.FindChannel(MBS_BONEINDICES, Channel.SemanticIndex, &ResultBuf, &ResultChan);
-					if (ResultBuf >= 0)
-					{
-						int32 HighestBoneIndexInUse = FindHighestBoneIndexInUse(InMesh, Channel);
-						check(HighestBoneIndexInUse >= 0);
-
-						EMeshBufferFormat& BoneIndexFormat = InOutFormatBufferSet.Buffers[ResultBuf].Channels[ResultChan].Format;
-						if (HighestBoneIndexInUse > 0xffff && (BoneIndexFormat == MBF_UINT8 || BoneIndexFormat == MBF_UINT16))
-						{
-							BoneIndexFormat = MBF_UINT32;
-							InOutFormatBufferSet.UpdateOffsets(ResultBuf);
-						}
-						else if (HighestBoneIndexInUse > 0x7fff && (BoneIndexFormat == MBF_INT8 || BoneIndexFormat == MBF_INT16))
-						{
-							BoneIndexFormat = MBF_UINT32;
-							InOutFormatBufferSet.UpdateOffsets(ResultBuf);
-						}
-						else if (HighestBoneIndexInUse > 0xff && BoneIndexFormat == MBF_UINT8)
-						{
-							BoneIndexFormat = MBF_UINT16;
-							InOutFormatBufferSet.UpdateOffsets(ResultBuf);
-						}
-						else if (HighestBoneIndexInUse > 0x7f && BoneIndexFormat == MBF_INT8)
-						{
-							BoneIndexFormat = MBF_INT16;
-							InOutFormatBufferSet.UpdateOffsets(ResultBuf);
-						}
-					}
-				}
-			}
-		}
-	}
-
+	//-------------------------------------------------------------------------------------------------
 	void MeshFormat
 	(
 		Mesh* Result, 
 		const Mesh* PureSource,
 		const Mesh* Format,
-		bool bKeepSystemBuffers,
-		bool bFormatVertices,
-		bool bFormatIndices,
-		bool bIgnoreMissingChannels,
+		bool keepSystemBuffers,
+		bool formatVertices,
+		bool formatIndices,
+		bool ignoreMissingChannels,
 		bool& bOutSuccess
 	)
 	{
@@ -648,22 +558,84 @@ namespace mu
 		Result->CopyFrom(*Format);
 		Result->MeshIDPrefix = Source->MeshIDPrefix;
 
-		if (bFormatVertices)
+		// Make sure that the bone indices will fit in this format, or extend it.
+		if (formatVertices)
 		{
-			EnsureBoneIndexFormat(Source.get(), Result->GetVertexBuffers());
+			const FMeshBufferSet& VertexBuffers = Source->GetVertexBuffers();
+
+			const int32 BufferCount = VertexBuffers.GetBufferCount();
+			for (int32 BufferIndex = 0; BufferIndex < BufferCount; ++BufferIndex)
+			{
+				const int32 ChannelCount = VertexBuffers.GetBufferChannelCount(BufferIndex);
+				for (int32 ChannelIndex = 0; ChannelIndex < ChannelCount; ++ChannelIndex)
+				{
+					const FMeshBufferChannel& Channel = VertexBuffers.Buffers[BufferIndex].Channels[ChannelIndex];
+
+					if (Channel.Semantic == MBS_BONEINDICES)
+					{
+						int32 resultBuf = 0;
+						int32 resultChan = 0;
+						FMeshBufferSet& formBuffs = Result->GetVertexBuffers();
+						formBuffs.FindChannel(MBS_BONEINDICES, Channel.SemanticIndex, &resultBuf, &resultChan);
+						if (resultBuf >= 0)
+						{
+							UntypedMeshBufferIteratorConst it(VertexBuffers, MBS_BONEINDICES, Channel.SemanticIndex);
+							int32 maxBoneIndex = 0;
+							for (int32 v = 0; v < VertexBuffers.GetElementCount(); ++v)
+							{
+								// If MAX_TOTAL_INFLUENCES ever changed, the next line would no longer work or compile and 
+								// GetAsVec12i would need to be changed accordingly
+								int32 va[MAX_TOTAL_INFLUENCES];
+								it.GetAsInt32Vec(va, MAX_TOTAL_INFLUENCES);
+								for (int32 c = 0; c < it.GetComponents(); ++c)
+								{
+									maxBoneIndex = FMath::Max(maxBoneIndex, va[c]);
+								}
+								++it;
+							}
+
+							EMeshBufferFormat& format = formBuffs.Buffers[resultBuf].Channels[resultChan].Format;
+							if (maxBoneIndex > 0xffff && (format == MBF_UINT8 || format == MBF_UINT16))
+							{
+								format = MBF_UINT32;
+								formBuffs.UpdateOffsets(resultBuf);
+							}
+							else if (maxBoneIndex > 0x7fff && (format == MBF_INT8 || format == MBF_INT16))
+							{
+								format = MBF_UINT32;
+								formBuffs.UpdateOffsets(resultBuf);
+							}
+							else if (maxBoneIndex > 0xff && format == MBF_UINT8)
+							{
+								format = MBF_UINT16;
+								formBuffs.UpdateOffsets(resultBuf);
+							}
+							else if (maxBoneIndex > 0x7f && format == MBF_INT8)
+							{
+								format = MBF_INT16;
+								formBuffs.UpdateOffsets(resultBuf);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if (formatVertices)
+		{
 			FormatBufferSet(Source->GetVertexBuffers(), Result->GetVertexBuffers(),
-				bKeepSystemBuffers, bIgnoreMissingChannels, true, Source->MeshIDPrefix);
+				keepSystemBuffers, ignoreMissingChannels, true, Source->MeshIDPrefix);
 		}
 		else
 		{
 			Result->VertexBuffers = Source->GetVertexBuffers();
 		}
 
-		if (bFormatIndices)
+		if (formatIndices)
 		{
 			// \todo Make sure that the vertex indices will fit in this format, or extend it.
-			FormatBufferSet(Source->GetIndexBuffers(), Result->GetIndexBuffers(), bKeepSystemBuffers,
-				bIgnoreMissingChannels, false);
+			FormatBufferSet(Source->GetIndexBuffers(), Result->GetIndexBuffers(), keepSystemBuffers,
+				ignoreMissingChannels, false);
 		}
 		else
 		{
@@ -700,7 +672,7 @@ namespace mu
 	}
 
 
-	void MeshOptimizeBuffers(Mesh* InMesh)
+	void MeshOptimizeBuffers( Mesh* InMesh )
 	{
 		if (!InMesh)
 		{
@@ -708,12 +680,6 @@ namespace mu
 		}
 
 		FMeshBufferSet& VertexBuffers = InMesh->VertexBuffers;
-
-		// Ignore the operation if the MeshBuffersSet is a descriptor.
-		if (VertexBuffers.IsDescriptor())
-		{
-			return;
-		}
 
 		// Reduce the number of influences if possible
 		constexpr int32 SemanticIndex = 0;

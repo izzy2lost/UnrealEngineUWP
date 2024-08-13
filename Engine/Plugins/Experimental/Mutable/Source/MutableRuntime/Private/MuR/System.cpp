@@ -467,6 +467,7 @@ namespace mu
 		m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
 	}
 
+
 	UE::Tasks::TTask<FImageDesc> System::GetImageDesc(Instance::ID instanceID, FResourceID ImageId)
 	{
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
@@ -524,112 +525,6 @@ namespace mu
 
 	}
 
-	Ptr<const Mesh> System::GetMeshComponentsInline(Instance::ID InstanceID, FResourceID MeshId)
-	{
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		MUTABLE_CPUPROFILER_SCOPE(SystemGetMesh);
-
-		Ptr<const Mesh> Result;
-
-		// Find the live instance
-		FLiveInstance* LiveInstancePtr = m_pD->FindLiveInstance(InstanceID);
-		check(LiveInstancePtr);
-		m_pD->WorkingMemoryManager.CurrentInstanceCache = LiveInstancePtr->Cache;
-		m_pD->WorkingMemoryManager.BeginRunnerThread();
-
-		OP::ADDRESS RootAddress = GetResourceIDRoot(MeshId);
-		
-		
-		constexpr uint8 ExecutionsOptions = static_cast<uint8>(
-                EMeshExecutionOptions::LoadComponentsData | EMeshExecutionOptions::LoadPoseData);
-		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
-				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, LiveInstancePtr->Model, 
-				LiveInstancePtr->OldParameters.get(), RootAddress, System::AllLODs, ExecutionsOptions, 0, FScheduledOp::EType::MeshComp);
-
-		constexpr bool bForceInlineExecutution = true;
-		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecutution);
-		check(RunnerCompletionEvent.IsCompleted());
-
-		m_pD->bUnrecoverableError = Runner->bUnrecoverableError;
-		if (!Runner->bUnrecoverableError)
-		{
-			const FCacheAddress ResultAddress = FCacheAddress(RootAddress, 0, ExecutionsOptions, FScheduledOp::EType::MeshComp);
-			Result = m_pD->WorkingMemoryManager.LoadMesh(ResultAddress, true);
-		}
-
-		if (!Result)
-		{
-			Result = new Mesh();
-		}
-
-		m_pD->WorkingMemoryManager.EndRunnerThread();
-		m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
-
-		return Result;
-	}
-
-	UE::Tasks::TTask<Ptr<const Mesh>> System::GetMeshComponents(Instance::ID InstanceID, FResourceID MeshId)
-	{
-		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		MUTABLE_CPUPROFILER_SCOPE(SystemGetMeshComponents);
-
-		Ptr<const Mesh> ResultMesh;
-
-		// Find the live instance
-		FLiveInstance* LiveInstancePtr = m_pD->FindLiveInstance(InstanceID);
-		check(LiveInstancePtr);
-		m_pD->WorkingMemoryManager.CurrentInstanceCache = LiveInstancePtr->Cache;
-		m_pD->WorkingMemoryManager.BeginRunnerThread();
-		
-		OP::ADDRESS RootAddress = GetResourceIDRoot(MeshId);
-			
-		mu::OP_TYPE OpType = LiveInstancePtr->Model->GetPrivate()->m_program.GetOpType(RootAddress);
-		if (GetOpDataType(OpType) != DT_MESH)
-		{
-			m_pD->WorkingMemoryManager.EndRunnerThread();
-			m_pD->WorkingMemoryManager.CurrentInstanceCache = nullptr;
-
-			return UE::Tasks::MakeCompletedTask<Ptr<const Mesh>>(new Mesh());
-		}
-			
-		constexpr uint8 ExecutionsOptions = static_cast<uint8>(
-                EMeshExecutionOptions::LoadComponentsData | EMeshExecutionOptions::LoadPoseData);
-
-		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
-				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, LiveInstancePtr->Model, 
-				LiveInstancePtr->OldParameters.get(), RootAddress, System::AllLODs, ExecutionsOptions, 0, FScheduledOp::EType::MeshComp);
-		
-		constexpr bool bForceInlineExecution = false;
-		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecution);
-
-		return UE::Tasks::Launch(TEXT("System::GetMeshComponentsResultTask"),
-				[SystemPrivate = m_pD, Runner, RootAddress]() -> Ptr<const Mesh>
-				{
-					Ptr<const Mesh> Result;
-
-					SystemPrivate->bUnrecoverableError = Runner->bUnrecoverableError;
-					if (!Runner->bUnrecoverableError)
-					{
-						const FCacheAddress ResultAddress = FCacheAddress(RootAddress, 0, ExecutionsOptions, FScheduledOp::EType::MeshComp);
-						Result = SystemPrivate->WorkingMemoryManager.LoadMesh(ResultAddress, true);
-					}
-
-					if (!Result)
-					{
-						Result = new Mesh();
-					}
-
-					SystemPrivate->WorkingMemoryManager.EndRunnerThread();
-					SystemPrivate->WorkingMemoryManager.CurrentInstanceCache = nullptr;
-					
-					return Result;
-				},
-				UE::Tasks::Prerequisites(RunnerCompletionEvent),
-				UE::Tasks::ETaskPriority::Inherit,
-				UE::Tasks::EExtendedTaskPriority::Inline);
-	}
-
-
 
     Ptr<const Mesh> System::GetMeshInline(Instance::ID instanceID, FResourceID MeshId)
     {
@@ -659,7 +554,7 @@ namespace mu
 	UE::Tasks::TTask<Ptr<const Mesh>> System::GetMesh(Instance::ID instanceID, FResourceID MeshId)
     {
 		LLM_SCOPE_BYNAME(TEXT("MutableRuntime"));
-		MUTABLE_CPUPROFILER_SCOPE(SystemGetMesh);
+		MUTABLE_CPUPROFILER_SCOPE(SystemGetImage);
 
 		Ptr<const Mesh> ResultMesh;
 
@@ -679,14 +574,9 @@ namespace mu
 
 			return UE::Tasks::MakeCompletedTask<Ptr<const Mesh>>(new Mesh());
 		}
-	
-		// For now the pose data is loaded for all constants since some operations need it. The idea is to set this option on
-		// an Op to Op basis if it needs the data.	
-		constexpr uint8 ExecutionOptions = static_cast<uint8>(EMeshExecutionOptions::LoadGeometryData | EMeshExecutionOptions::LoadPoseData);
+		
 		TSharedRef<CodeRunner> Runner = CodeRunner::Create(
-				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, 
-				pLiveInstance->Model, pLiveInstance->OldParameters.get(), 
-				RootAddress, System::AllLODs, ExecutionOptions, 0, FScheduledOp::EType::Full);
+				m_pD->Settings, m_pD, EExecutionStrategy::MinimizeMemory, pLiveInstance->Model, pLiveInstance->OldParameters.get(), RootAddress, System::AllLODs, 0, 0, FScheduledOp::EType::Full);
 		
 		constexpr bool bForceInlineExecution = false;
 		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecution);
@@ -699,7 +589,7 @@ namespace mu
 					SystemPrivate->bUnrecoverableError = Runner->bUnrecoverableError;
 					if (!Runner->bUnrecoverableError)
 					{
-						Result = SystemPrivate->WorkingMemoryManager.LoadMesh(FCacheAddress(RootAddress, 0, ExecutionOptions), true);
+						Result = SystemPrivate->WorkingMemoryManager.LoadMesh(FCacheAddress(RootAddress, 0, 0), true);
 					}
 
 					if (!Result)
@@ -959,10 +849,10 @@ namespace mu
 
 	//---------------------------------------------------------------------------------------------
 	void System::Private::RunCode(const TSharedPtr<const Model>& InModel,
-		const Parameters* InParameters, OP::ADDRESS InCodeRoot, uint32 InLODs, uint8 ExecutionOptions, int32 InImageLOD)
+		const Parameters* InParameters, OP::ADDRESS InCodeRoot, uint32 InLODs, uint8 executionOptions, int32 InImageLOD)
 	{
 		TSharedRef<CodeRunner> Runner = CodeRunner::Create(Settings, this, EExecutionStrategy::MinimizeMemory, InModel, InParameters, InCodeRoot, InLODs,
-			ExecutionOptions, InImageLOD, FScheduledOp::EType::Full);
+			executionOptions, InImageLOD, FScheduledOp::EType::Full);
 		
 		constexpr bool bForceInlineExecutution = true;
 		UE::Tasks::FTask RunnerCompletionEvent = Runner->StartRun(bForceInlineExecutution);
@@ -1092,7 +982,8 @@ namespace mu
 		return Result;
 	}
 
-	Ptr<const Mesh> System::Private::BuildMesh(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at, uint8 ExecutionOptions)
+
+	Ptr<const Mesh> System::Private::BuildMesh(const TSharedPtr<const Model>& pModel, const Parameters* Params, OP::ADDRESS at)
 	{
 		WorkingMemoryManager.BeginRunnerThread();
 
@@ -1101,10 +992,10 @@ namespace mu
 		mu::OP_TYPE opType = pModel->GetPrivate()->m_program.GetOpType(at);
 		if (GetOpDataType(opType) == DT_MESH)
 		{
-			RunCode(pModel, Params, at, System::AllLODs, ExecutionOptions);
+			RunCode(pModel, Params, at);
 			if (!bUnrecoverableError)
 			{
-				Result = WorkingMemoryManager.LoadMesh(FCacheAddress(at, 0, ExecutionOptions), true);
+				Result = WorkingMemoryManager.LoadMesh(FCacheAddress(at, 0, 0), true);
 			}	
 		}
 
@@ -1198,18 +1089,15 @@ namespace mu
 		WorkingMemoryManager.CurrentInstanceCache->Init(OpCount);
 
 		// Clear cache flags of existing data
-		CodeContainer<FProgramCache::FOpExecutionData>::TIterator Iter = 
-				WorkingMemoryManager.CurrentInstanceCache->OpExecutionData.Begin();
-		for (; Iter.IsValid(); ++Iter)
+		CodeContainer<FProgramCache::FOpExecutionData>::iterator It = WorkingMemoryManager.CurrentInstanceCache->OpExecutionData.begin();
+		for (; It.IsValid(); ++It)
 		{
-			FProgramCache::FOpExecutionData& Data = *Iter;
-
-			Data.OpHitCount = 0; // This should already be 0, but just in case.
-			Data.IsCacheLocked = false;
+			(*It).OpHitCount = 0; // This should already be 0, but just in case.
+			(*It).IsCacheLocked = false;
 		}
 
 		// Mark the resources that have to be cached to update the instance in this state
-		if (InState >= 0 && InState < Program.m_states.Num())
+		if (InState >= 0 && InState< Program.m_states.Num())
 		{
 			const FProgram::FState& State = Program.m_states[InState];
 			for (uint32 Address : State.m_updateCache)

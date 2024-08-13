@@ -1315,8 +1315,6 @@ public:
 
 		LayoutBlocksAsInt32,
 
-		MeshDataStorageSplit,
-
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

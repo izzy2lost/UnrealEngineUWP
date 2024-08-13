@@ -463,14 +463,14 @@ namespace mu
 		uint64 NumHighResBytes = 0;
 
 		// Maximum number of roms
-		int32 MaxRomCount = Program.ConstantImageLODs.Num() + Program.ConstantMeshData.Num();
+		int32 MaxRomCount = Program.ConstantImageLODs.Num() + Program.ConstantMeshes.Num();
 		Program.m_roms.Reserve(MaxRomCount);
 
 		TSet<uint32> UsedIds;
 		UsedIds.Reserve(MaxRomCount);
 
 		TArray<FRomData> RomDatas;
-		RomDatas.SetNumZeroed(FMath::Max(Program.ConstantImageLODs.Num(), Program.ConstantMeshData.Num()));
+		RomDatas.SetNumZeroed(FMath::Max(Program.ConstantImageLODs.Num(), Program.ConstantMeshes.Num()));
 
 		// Images
 		{
@@ -579,10 +579,10 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_MeshIds);
 
-			ParallelFor(Program.ConstantMeshData.Num(),
+			ParallelFor(Program.ConstantMeshes.Num(),
 				[EmbeddedDataBytesLimit, &Program, &RomDatas](uint32 ResourceIndex)
 				{
-					TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshData[ResourceIndex];
+					TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshes[ResourceIndex];
 
 					// This shouldn't have been serialised with rom support before.
 					check(ResData.Key < 0);
@@ -616,7 +616,7 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(GenerateRoms_MeshIdsUnique);
 
-			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantMeshData.Num(); ++ResourceIndex)
+			for (int32 ResourceIndex = 0; ResourceIndex < Program.ConstantMeshes.Num(); ++ResourceIndex)
 			{
 				FRomData& RomData = RomDatas[ResourceIndex];
 
@@ -635,7 +635,7 @@ namespace mu
 
 				int32 RomIndex = Program.m_roms.Add(RomData);
 
-				TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshData[ResourceIndex];
+				TPair<int32, Ptr<const Mesh>>& ResData = Program.ConstantMeshes[ResourceIndex];
 				ResData.Key = RomIndex;
 			}
 		}
