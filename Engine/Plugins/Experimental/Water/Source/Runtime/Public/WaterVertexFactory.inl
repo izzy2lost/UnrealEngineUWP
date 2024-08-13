@@ -15,15 +15,13 @@
 // ----------------------------------------------------------------------------------
 
 template <bool bWithWaterSelectionSupport, EWaterVertexFactoryDrawMode DrawMode>
-TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, const FVector& InQuadTreePositionWS, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale, float InCaptureDepthRange)
+TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::TWaterVertexFactory(ERHIFeatureLevel::Type InFeatureLevel, int32 InNumQuadsPerSide, int32 InNumQuadsLOD0, int32 InNumDensities, float InLeafSize, float InLODScale)
 	: FVertexFactory(InFeatureLevel)
-	, QuadTreePositionWS(InQuadTreePositionWS)
 	, NumQuadsPerSide(InNumQuadsPerSide)
 	, NumQuadsLOD0(InNumQuadsLOD0)
 	, NumDensities(InNumDensities)
 	, LeafSize(InLeafSize)
 	, LODScale(InLODScale)
-	, CaptureDepthRange(InCaptureDepthRange)
 {
 	VertexBuffer = new FWaterMeshVertexBuffer(NumQuadsPerSide);
 	IndexBuffer = new FWaterMeshIndexBuffer(NumQuadsPerSide);
@@ -151,7 +149,6 @@ void TWaterVertexFactory<bWithWaterSelectionSupport, DrawMode>::SetupUniformData
 	UniformParams.NumDensities = NumDensities;
 	UniformParams.LODScale = LODScale;
 	UniformParams.LeafSize = LeafSize;
-	UniformParams.CaptureDepthRange = CaptureDepthRange;
 	UniformParams.bRenderSelected = true;
 	UniformParams.bRenderUnselected = true;
 

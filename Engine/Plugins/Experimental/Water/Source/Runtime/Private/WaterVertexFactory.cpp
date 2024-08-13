@@ -29,6 +29,7 @@ public:
 		if (DrawMode == EWaterVertexFactoryDrawMode::Indirect || DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo)
 		{
 			QuadTreePositionParameter.Bind(ParameterMap, TEXT("QuadTreePosition"));
+			CaptureDepthRangeParameter.Bind(ParameterMap, TEXT("CaptureDepthRange"));
 			LODMorphingEnabledParameter.Bind(ParameterMap, TEXT("bLODMorphingEnabled"));
 
 			if (DrawMode == EWaterVertexFactoryDrawMode::IndirectInstancedStereo)
@@ -115,7 +116,8 @@ public:
 			}
 
 			const FVector PreViewTranslation = View->ViewMatrices.GetPreViewTranslation();
-			ShaderBindings.Add(QuadTreePositionParameter, FVector3f(PreViewTranslation + VertexFactory->GetQuadTreePositionWS()));
+			ShaderBindings.Add(QuadTreePositionParameter, FVector3f(PreViewTranslation + WaterMeshUserData->QuadTreePosition));
+			ShaderBindings.Add(CaptureDepthRangeParameter, WaterMeshUserData->CaptureDepthRange);
 
 			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.Water.WaterMesh.LODMorphEnabled"));
 			const bool bLODMorphingEnabled = CVar && CVar->GetValueOnRenderThread() != 0;
@@ -143,6 +145,7 @@ public:
 
 private:
 	LAYOUT_FIELD(FShaderParameter, QuadTreePositionParameter);
+	LAYOUT_FIELD(FShaderParameter, CaptureDepthRangeParameter);
 	LAYOUT_FIELD(FShaderParameter, LODMorphingEnabledParameter);
 	LAYOUT_FIELD(FShaderResourceParameter, InstanceDataOffsetsBufferParameter);
 	LAYOUT_FIELD(FShaderResourceParameter, InstanceData0BufferParameter);
