@@ -431,6 +431,8 @@ groupshared uint IntegerTileMaxZ2;
 groupshared uint TileNumObjects0;
 groupshared uint TileNumObjects1;
 
+float4x4 ScreenToView;
+
 void CullObjectsToTileWithGather(
 	float SceneDepth, 
 	uint ThreadIndex, 
@@ -608,8 +610,6 @@ uint DownsampleFactor;
 float2 InvOutputBufferSize;
 Texture2D ShadowFactorsTexture;
 SamplerState ShadowFactorsSampler;
-
-float4x4 ScreenToView;
 
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void DistanceFieldShadowingCS(
