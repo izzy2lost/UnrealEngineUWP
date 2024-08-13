@@ -36,9 +36,9 @@ URigVMNode::~URigVMNode()
 {
 }
 
-void URigVMNode::PostLoad()
+void URigVMNode::Serialize(FArchive& Ar)
 {
-	Super::PostLoad();
+	Super::Serialize(Ar);
 
 	for (const FString& TraitRootPinName : TraitRootPinNames)
 	{

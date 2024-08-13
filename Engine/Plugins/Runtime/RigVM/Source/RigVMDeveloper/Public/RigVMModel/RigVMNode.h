@@ -35,7 +35,7 @@ public:
 	// Default destructor
 	virtual ~URigVMNode();
 
-	void PostLoad() override;
+	void Serialize(FArchive& Ar) override;
 
 	// Returns the a . separated string containing all of the
 	// names used to reach this Node within the Graph.
