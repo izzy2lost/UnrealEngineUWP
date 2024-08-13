@@ -34,7 +34,7 @@ public:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
 	virtual void SynchronizeProperties() override;
-	/** End UWidet */
+	/** End UWidget */
 	
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	virtual FSlateBrush GetIcon() const;
@@ -51,6 +51,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetInputAction(FDataTableRowHandle InputActionRow);
 
+	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
 	void SetInputActionBinding(FUIActionBindingHandle BindingHandle);
 
 	UFUNCTION(BlueprintCallable, Category = CommonActionWidget)
