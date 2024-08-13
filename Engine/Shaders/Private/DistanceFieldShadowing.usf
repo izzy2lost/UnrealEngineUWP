@@ -495,6 +495,7 @@ void CullObjectsToTileWithGather(
 
 	float ExpandRadius = 0;
 
+#if !STEREO_RENDERING
 	// Note: this code is assuming a centered projection, aka no translation present in ViewToClip
 	// Stereo rendering uses an off center projection
 	float2 TanViewFOV = GetTanHalfFieldOfView();
@@ -513,7 +514,20 @@ void CullObjectsToTileWithGather(
 	ViewTileMax2.xy = max(MinTileZ2 * UnitPlaneTileMax, MaxTileZ * UnitPlaneTileMax) + ExpandRadius;
 	ViewTileMin2.z = MinTileZ2 - ExpandRadius;
 	ViewTileMax2.z = MaxTileZ + ExpandRadius;
+#else
+	// For stereo, we need to do a more expensive transform to account for non-centered projection
+	float2 ScreenTileMin = ((GroupId.xy / NumGroups) - 0.5) * float2(2, -2);
+	float2 ScreenTileMax = (((GroupId.xy + 1) / NumGroups) - 0.5) * float2(2, -2);
 
+	ViewTileMin.xy = min(mul(float4(ScreenTileMin * MinTileZ, MinTileZ, 1), ScreenToView).xy, mul(float4(ScreenTileMin * MaxTileZ2, MaxTileZ2, 1), ScreenToView).xy) - ExpandRadius;
+	ViewTileMax.xy = max(mul(float4(ScreenTileMax * MinTileZ, MinTileZ, 1), ScreenToView).xy, mul(float4(ScreenTileMax * MaxTileZ2, MaxTileZ2, 1), ScreenToView).xy) + ExpandRadius;
+	ViewTileMin.z = MinTileZ - ExpandRadius;
+	ViewTileMax.z = MaxTileZ2 + ExpandRadius;
+	ViewTileMin2.xy = min(mul(float4(ScreenTileMin * MinTileZ2, MinTileZ2, 1), ScreenToView).xy, mul(float4(ScreenTileMin * MaxTileZ, MaxTileZ, 1), ScreenToView).xy) - ExpandRadius;
+	ViewTileMax2.xy = max(mul(float4(ScreenTileMax * MinTileZ2, MinTileZ2, 1), ScreenToView).xy, mul(float4(ScreenTileMax * MaxTileZ, MaxTileZ, 1), ScreenToView).xy) + ExpandRadius;
+	ViewTileMin2.z = MinTileZ2 - ExpandRadius;
+	ViewTileMax2.z = MaxTileZ + ExpandRadius;
+#endif
 	float3 ViewGroup0Center = (ViewTileMax + ViewTileMin) / 2;
 	float3 TranslatedWorldGroup0Center = mul(float4(ViewGroup0Center, 1), View.ViewToTranslatedWorld).xyz;
 	float Group0BoundingRadius = length(ViewGroup0Center - ViewTileMax);
@@ -594,6 +608,8 @@ uint DownsampleFactor;
 float2 InvOutputBufferSize;
 Texture2D ShadowFactorsTexture;
 SamplerState ShadowFactorsSampler;
+
+float4x4 ScreenToView;
 
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void DistanceFieldShadowingCS(

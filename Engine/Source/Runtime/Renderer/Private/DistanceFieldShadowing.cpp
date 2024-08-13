@@ -31,6 +31,7 @@
 #include "ClearQuad.h"
 #include "Substrate/Substrate.h"
 #include "PixelShaderUtils.h"
+#include "Engine/Engine.h"
 
 int32 GDistanceFieldShadowing = 1;
 FAutoConsoleVariableRef CVarDistanceFieldShadowing(
@@ -312,6 +313,7 @@ class FDistanceFieldShadowingCS : public FGlobalShader
 		SHADER_PARAMETER(FVector2f, InvOutputBufferSize)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, ShadowFactorsTexture)
 		SHADER_PARAMETER_SAMPLER(SamplerState, ShadowFactorsSampler)
+		SHADER_PARAMETER(FMatrix44f, ScreenToView)
 	END_SHADER_PARAMETER_STRUCT()
 
 	class FCullingType : SHADER_PERMUTATION_INT("CULLING_TYPE", 3);
@@ -321,7 +323,8 @@ class FDistanceFieldShadowingCS : public FGlobalShader
 	class FOffsetDataStructure : SHADER_PERMUTATION_INT("OFFSET_DATA_STRUCT", 3);
 	class FCompactCulledObjects : SHADER_PERMUTATION_BOOL("COMPACT_CULLED_SHADOW_OBJECTS");
 	class FCullingSubSampleDepth : SHADER_PERMUTATION_BOOL("CULLING_SUBSAMPLE_DEPTH");
-	using FPermutationDomain = TShaderPermutationDomain<FCullingType, FShadowQuality, FPrimitiveType, FHasPreviousOutput, FOffsetDataStructure, FCompactCulledObjects, FCullingSubSampleDepth>;
+	class FStereoRendering : SHADER_PERMUTATION_BOOL("STEREO_RENDERING");
+	using FPermutationDomain = TShaderPermutationDomain<FCullingType, FShadowQuality, FPrimitiveType, FHasPreviousOutput, FOffsetDataStructure, FCompactCulledObjects, FCullingSubSampleDepth, FStereoRendering>;
 
 	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
 	{
@@ -866,16 +869,20 @@ void RayTraceShadows(
 		PassParameters->InvOutputBufferSize = FVector2f(1.f / OutputBufferSize.X, 1.f / OutputBufferSize.Y);
 		PassParameters->ShadowFactorsTexture = PrevOutputTexture;
 		PassParameters->ShadowFactorsSampler = TStaticSamplerState<>::GetRHI();
+		PassParameters->ScreenToView = FMatrix44f(View.ViewMatrices.GetScreenToClipMatrix() * View.ViewMatrices.GetInvTranslatedViewProjectionMatrix() * View.ViewMatrices.GetOverriddenTranslatedViewMatrix());
 		
+
+
 		FDistanceFieldShadowingCS::FPermutationDomain PermutationVector;
-		PermutationVector.Set< FDistanceFieldShadowingCS::FCullingType >((uint32)DistanceFieldShadowingType);
-		PermutationVector.Set< FDistanceFieldShadowingCS::FShadowQuality >(DFShadowQuality);
-		PermutationVector.Set< FDistanceFieldShadowingCS::FPrimitiveType >(PrimitiveType);
-		PermutationVector.Set< FDistanceFieldShadowingCS::FHasPreviousOutput >(bHasPrevOutput);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FCullingType>((uint32)DistanceFieldShadowingType);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FShadowQuality>(DFShadowQuality);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FPrimitiveType>(PrimitiveType);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FHasPreviousOutput>(bHasPrevOutput);
 		extern int32 GDistanceFieldOffsetDataStructure;
-		PermutationVector.Set< FDistanceFieldShadowingCS::FOffsetDataStructure >(GDistanceFieldOffsetDataStructure);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FOffsetDataStructure>(GDistanceFieldOffsetDataStructure);
 		PermutationVector.Set<FDistanceFieldShadowingCS::FCompactCulledObjects>(GDFShadowCompactCulledObjects != 0);
-		PermutationVector.Set< FDistanceFieldShadowingCS::FCullingSubSampleDepth>(GDFShadowCullingSubsampleDepth);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FCullingSubSampleDepth>(GDFShadowCullingSubsampleDepth);
+		PermutationVector.Set<FDistanceFieldShadowingCS::FStereoRendering>(GEngine && GEngine->IsStereoscopic3D());
 
 		PermutationVector = FDistanceFieldShadowingCS::RemapPermutation(PermutationVector);
 
