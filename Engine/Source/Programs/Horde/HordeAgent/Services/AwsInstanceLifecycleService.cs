@@ -225,8 +225,8 @@ class AwsInstanceLifecycleService : BackgroundService
 
 	private async Task OnTerminationWarningAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
 	{
-		// Signal to server we are disabled, setting state to paused preventing new leases getting scheduled
-		_statusService.IsBusy = true;
+		// Request agent to be stopped. Agent's session loop will pick this up and notify the server, preventing new leases getting scheduled.
+		_statusService.IsStopRequested = true;
 
 		// Create and write the termination signal file, containing the time-to-live for the EC2 instance.
 		// Workloads executed by the agent that support this protocol can pick this up and prepare/clean up prior to termination

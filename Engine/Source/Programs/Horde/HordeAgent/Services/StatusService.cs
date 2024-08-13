@@ -21,6 +21,7 @@ namespace HordeAgent.Services
 
 		private AgentStatusMessage _current;
 		private bool _isBusy;
+		private bool _isStopRequested;
 
 		readonly IOptionsMonitor<AgentSettings> _settings;
 		readonly BackgroundTask _task;
@@ -42,6 +43,22 @@ namespace HordeAgent.Services
 				if (_isBusy != value)
 				{
 					_isBusy = value;
+					StatusChangedEvent.Set();
+				}
+			}
+		}
+		
+		/// <summary>
+		/// Whether a stop of the agent is requested
+		/// </summary>
+		public bool IsStopRequested
+		{
+			get => _isStopRequested;
+			set
+			{
+				if (_isStopRequested != value)
+				{
+					_isStopRequested = value;
 					StatusChangedEvent.Set();
 				}
 			}

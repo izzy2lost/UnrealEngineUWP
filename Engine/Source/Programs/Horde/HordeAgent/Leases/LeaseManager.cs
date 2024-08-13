@@ -246,6 +246,11 @@ namespace HordeAgent.Leases
 						stopping = true;
 					}
 				}
+				
+				if (_statusService.IsStopRequested)
+				{
+					stopping = true;
+				}
 
 				// Get the new agent status
 				bool busy = _statusService.IsBusy;
