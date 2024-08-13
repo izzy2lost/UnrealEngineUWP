@@ -138,6 +138,13 @@ namespace UE::ImageWidgets
 		 * @return true if the GUID represents a currently available image
 		 */
 		virtual bool IsValidImage(const FGuid& Guid) const = 0;
+
+		/**
+		 * Returns the name of a currently available image. This is potentially used in the UI to refer to an image.
+		 * @param Guid Unique identifier of the potentially available image
+		 * @return Name of the image if the GUID represents a currently available image
+		 */
+		virtual FText GetImageName(const FGuid& Guid) const = 0;
 #endif
 
 	protected:

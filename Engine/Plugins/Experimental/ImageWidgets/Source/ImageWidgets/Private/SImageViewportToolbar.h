@@ -29,7 +29,7 @@ namespace UE::ImageWidgets
 		DECLARE_DELEGATE_RetVal(bool, FHasImage)
 		DECLARE_DELEGATE_RetVal(int32, FNumMips)
 		DECLARE_DELEGATE_RetVal(FGuid, FImageGuid)
-		
+
 		SLATE_BEGIN_ARGS(SImageViewportToolbar)	{}
 		SLATE_END_ARGS()
 

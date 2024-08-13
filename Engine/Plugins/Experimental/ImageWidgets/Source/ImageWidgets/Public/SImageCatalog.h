@@ -70,12 +70,12 @@ namespace UE::ImageWidgets
 
 		/**
 		 * Adds a regular item to the catalog.
-		 * @param Item Data for the item that is being added. 
+		 * @param Item Data for the item that is being added.
 		 */
 		IMAGEWIDGETS_API void AddItem(const TSharedPtr<FImageCatalogItemData>& Item);
 
 		/**
-		 * Adds a pinned item to the catalog. Pinned items appear in a seperate list above regular items.
+		 * Adds a pinned item to the catalog. Pinned items appear in a separate list above regular items.
 		 * @param Item Data for the item that is being added. 
 		 */
 		IMAGEWIDGETS_API void AddPinnedItem(const TSharedPtr<FImageCatalogItemData>& Item);

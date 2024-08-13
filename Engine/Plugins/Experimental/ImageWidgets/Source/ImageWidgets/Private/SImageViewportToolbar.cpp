@@ -137,18 +137,22 @@ MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
 					return SNew(SCheckBox)
 					.Style(ButtonStyle)
 					.IsEnabled_Lambda([this, AorB]
-					                      {
-						                      return ABComparison->CanSetABComparison(AorB);
-					                      })
+						{
+							return ABComparison->CanSetABComparison(AorB);
+						})
 					.IsChecked(ABComparison->ABComparisonIsSet(AorB))
 					.OnCheckStateChanged_Lambda([this, AorB](const ECheckBoxState State)
-					                      {
-						                      ABComparison->SetABComparison(AorB, State != ECheckBoxState::Checked ? FGuid() : ImageGuid.Execute());
-					                      })
+					    {
+							ABComparison->SetABComparison(AorB, State != ECheckBoxState::Checked ? FGuid() : ImageGuid.Execute());
+					    })
 					[
 						SNew(STextBlock)
 							.Font(FAppStyle::GetFontStyle("EditorViewportToolBar.Font"))
 							.Text(FText::FromString(Label))
+							.ToolTipText_Lambda([&ABComparison = ABComparison, AorB]
+								{
+									return ABComparison->ABComparisonIsSet(AorB) ? ABComparison->GetName(AorB) : FText();
+								})
 							.Margin(FMargin(2.0f, 0.0f))
 					];
 				};
@@ -160,12 +164,12 @@ MakeCenterToolbar(Parameters.ToolbarExtender, ABComparison != nullptr)
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						GetTextButton("A", ButtonStyleStart, FImageABComparison::A)
+						GetTextButton("A", ButtonStyleStart, FImageABComparison::EAorB::A)
 					]
 					+ SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						GetTextButton("B", ButtonStyleEnd, FImageABComparison::B)
+						GetTextButton("B", ButtonStyleEnd, FImageABComparison::EAorB::B)
 					];
 
 				ToolbarBuilder.AddToolBarWidget(RGBA);

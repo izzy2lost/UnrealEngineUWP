@@ -98,16 +98,20 @@ namespace UE::ImageWidgets::Sample
 		ToolbarBuilder.EndBlockGroup();
 	}
 
-	TTuple<FText, FText, FText> GetColorItemMetaData(const FColor Color, FDateTime DateTime)
+	TTuple<FText, FText, FText> GetColorItemMetaData(const FColorViewer& ColorViewer, const FColorViewer::FColorItem* ColorItem)
 	{
-		const FString HexColor = FString::Printf(TEXT("#%02X%02X%02X"), Color.R, Color.G, Color.B);
-		const FText Name = FText::Format(LOCTEXT("ColorEntryLabel", "{0}"), FText::FromString(HexColor));
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+		const FText Name = ColorViewer.GetImageName(ColorItem->Guid);
+#else
+		const FString HexColor = FString::Printf(TEXT("#%02X%02X%02X"), ColorItem->Color.R, ColorItem->Color.G, ColorItem->Color.B);
+		const FText Name = FText::FromString(HexColor);
+#endif
 
 		const FText Info = FText::Format(
-			LOCTEXT("ColorEntryInfoLabel", "{0}"), FText::AsTime(DateTime, EDateTimeStyle::Short, FText::GetInvariantTimeZone()));
+			LOCTEXT("ColorEntryInfoLabel", "{0}"), FText::AsTime(ColorItem->DateTime, EDateTimeStyle::Short, FText::GetInvariantTimeZone()));
 
 		const FText ToolTip = FText::Format(
-			LOCTEXT("ColorEntryToolTip", "R {0}, G {1}, B {2}"), {Color.R, Color.G, Color.B});
+			LOCTEXT("ColorEntryToolTip", "R {0}, G {1}, B {2}"), {ColorItem->Color.R, ColorItem->Color.G, ColorItem->Color.B});
 
 		return {Name, Info, ToolTip};
 	}
@@ -116,7 +120,7 @@ namespace UE::ImageWidgets::Sample
 	{
 		if (const FColorViewer::FColorItem* ColorItem = ColorViewer->AddColor())
 		{
-			auto [Name, Info, ToolTip] = GetColorItemMetaData(ColorItem->Color, ColorItem->DateTime);
+			auto [Name, Info, ToolTip] = GetColorItemMetaData(*ColorViewer, ColorItem);
 			const FLinearColor ToneMappedColor = ColorViewer->GetDefaultToneMappedColor(ColorItem->Color);
 
 			Catalog->AddItem(MakeShared<FImageCatalogItemData>(ColorItem->Guid, FSlateColorBrush(ToneMappedColor), Name, Info, ToolTip));
@@ -134,9 +138,10 @@ namespace UE::ImageWidgets::Sample
 	{
 		if (const FColorViewer::FColorItem* ColorItem = ColorViewer->RandomizeColor())
 		{
-			const auto [Name, Info, ToolTip] = GetColorItemMetaData(ColorItem->Color, ColorItem->DateTime);
+			const auto [Name, Info, ToolTip] = GetColorItemMetaData(*ColorViewer, ColorItem);
+			const FLinearColor ToneMappedColor = ColorViewer->GetDefaultToneMappedColor(ColorItem->Color);
 
-			Catalog->UpdateItem({ColorItem->Guid, FSlateColorBrush(ColorItem->Color), Name, Info, ToolTip});
+			Catalog->UpdateItem({ColorItem->Guid, FSlateColorBrush(ToneMappedColor), Name, Info, ToolTip});
 		}
 	}
 

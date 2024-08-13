@@ -210,7 +210,7 @@ void FImageViewportClient::Draw(FViewport* InViewport, FCanvas* Canvas)
 
 	const IImageViewer::FDrawProperties::FABComparison ABComparisonProperties = [this, &ABComparisonDividerX]() -> IImageViewer::FDrawProperties::FABComparison
 	{
-		return {ABComparison->GuidA(), ABComparison->GuidB(), FMath::Clamp(ABComparisonDividerX, 0.0, 1.0)};
+		return {ABComparison->GetGuidA(), ABComparison->GetGuidB(), FMath::Clamp(ABComparisonDividerX, 0.0, 1.0)};
 	}();
 
 	// Draw image

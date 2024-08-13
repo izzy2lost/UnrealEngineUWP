@@ -55,7 +55,8 @@ namespace UE::ImageWidgets
 #if IMAGE_WIDGETS_WITH_AB_COMPARISON
 		: ABComparison(MakePimpl<FImageABComparison>(
 			FImageABComparison::FImageIsValid::CreateLambda([this](const FGuid& Guid) { return ImageViewer->IsValidImage(Guid); }),
-			FImageABComparison::FGetCurrentImageGuid::CreateLambda([this] { return ImageViewer->GetCurrentImageInfo().Guid; })))
+			FImageABComparison::FGetCurrentImageGuid::CreateLambda([this] { return ImageViewer->GetCurrentImageInfo().Guid; }),
+			FImageABComparison::FGetImageName::CreateLambda([this](const FGuid& Guid) { return ImageViewer->GetImageName(Guid); })))
 #endif
 	{
 	}

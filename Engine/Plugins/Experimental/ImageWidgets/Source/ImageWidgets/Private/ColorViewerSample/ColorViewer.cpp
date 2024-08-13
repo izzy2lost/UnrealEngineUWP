@@ -61,6 +61,17 @@ namespace UE::ImageWidgets::Sample
 	{
 		return ColorIsValid(Guid.B) && Colors[Guid.B].Guid == Guid;
 	}
+
+	FText FColorViewer::GetImageName(const FGuid& Guid) const
+	{
+		if (IsValidImage(Guid))
+		{
+			const FColor& Color = Colors[Guid.B].Color;
+			const FString HexColor = FString::Printf(TEXT("#%02X%02X%02X"), Color.R, Color.G, Color.B);
+			return FText::FromString(HexColor);
+		}
+		return {};
+	}
 #endif
 
 	const FColorViewer::FColorItem* FColorViewer::AddColor()

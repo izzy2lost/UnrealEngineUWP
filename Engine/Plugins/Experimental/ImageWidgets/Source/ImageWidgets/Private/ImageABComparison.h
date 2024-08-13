@@ -2,10 +2,12 @@
 
 #pragma once
 
+#if IMAGE_WIDGETS_WITH_AB_COMPARISON
+
 #include "Delegates/Delegate.h"
+#include "Internationalization/Text.h"
 #include "Misc/Guid.h"
 
-#if IMAGE_WIDGETS_WITH_AB_COMPARISON
 namespace UE::ImageWidgets
 {
 	/**
@@ -16,16 +18,19 @@ namespace UE::ImageWidgets
 	public:
 		DECLARE_DELEGATE_RetVal(FGuid, FGetCurrentImageGuid)
 		DECLARE_DELEGATE_RetVal_OneParam(bool, FImageIsValid, const FGuid&)
+		DECLARE_DELEGATE_RetVal_OneParam(FText, FGetImageName, const FGuid&)
 
-		FImageABComparison(FImageIsValid&& ImageIsValid, FGetCurrentImageGuid&& GetCurrentImageGuid)
-			: ImageIsValid(ImageIsValid)
-			, GetCurrentImageGuid(GetCurrentImageGuid)
+		FImageABComparison(FImageIsValid&& InImageIsValid, FGetCurrentImageGuid&& InGetCurrentImageGuid, FGetImageName&& InGetImageName)
+			: ImageIsValid(MoveTemp(InImageIsValid))
+			, GetCurrentImageGuid(MoveTemp(InGetCurrentImageGuid))
+			, GetImageName(MoveTemp(InGetImageName))
 		{
 			check(ImageIsValid.IsBound());
 			check(GetCurrentImageGuid.IsBound());
+			check(GetImageName.IsBound());
 		}
 
-		enum EAorB
+		enum class EAorB : int8
 		{
 			A,
 			B
@@ -53,23 +58,29 @@ namespace UE::ImageWidgets
 
 		bool IsActive() const
 		{
-			return Guids[0].IsValid() && Guids[1].IsValid();
+			return Guids[static_cast<int32>(EAorB::A)].IsValid() && Guids[static_cast<int32>(EAorB::B)].IsValid();
 		}
 
-		const FGuid& GuidA() const
+		const FGuid& GetGuidA() const
 		{
-			return Guids[0];
+			return Guids[static_cast<int32>(EAorB::A)];
 		}
 
-		const FGuid& GuidB() const
+		const FGuid& GetGuidB() const
 		{
-			return Guids[1];
+			return Guids[static_cast<int32>(EAorB::B)];
+		}
+
+		FText GetName(EAorB AorB) const
+		{
+			return Guids[static_cast<int32>(AorB)].IsValid() ? GetImageName.Execute(Guids[static_cast<int32>(AorB)]) : FText();
 		}
 
 	private:
 		FGuid Guids[2];
 		FImageIsValid ImageIsValid;
 		FGetCurrentImageGuid GetCurrentImageGuid;
+		FGetImageName GetImageName;
 	};
 }
 #else

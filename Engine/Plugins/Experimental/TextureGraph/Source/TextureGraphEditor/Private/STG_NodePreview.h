@@ -32,6 +32,7 @@ public:
 	virtual void OnImageSelected(const FGuid& ImageGuid) override {};
 #if IMAGE_WIDGETS_WITH_AB_COMPARISON
 	virtual bool IsValidImage(const FGuid& Guid) const override { return true; }
+	virtual FText GetImageName(const FGuid& Guid) const override { return {}; }
 #endif
 	// IImageViewer overrides - end
 
