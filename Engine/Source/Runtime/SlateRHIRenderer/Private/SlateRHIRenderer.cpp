@@ -674,8 +674,6 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuilder& GraphBuilder, const
 		RDG_CSV_STAT_EXCLUSIVE_SCOPE(GraphBuilder, Slate);
 		TRACE_CPUPROFILER_EVENT_SCOPE(Slate::DrawWindow_RenderThread);
 
-		FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
-
 		// The viewport texture is an optional user-allocated render target. This is rendered to if valid.
 		FRHITexture* ViewportTextureRHI = ViewportInfo.GetRenderTargetTexture();
 
@@ -805,6 +803,8 @@ void FSlateRHIRenderer::DrawWindow_RenderThread(FRDGBuilder& GraphBuilder, const
 			RDG_EVENT_SCOPE(GraphBuilder, "CompositeUI");
 
 			FRDGTexture* ElementsWriteMaskTexture = nullptr;
+
+			FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
 
 			if (RHISupportsRenderTargetWriteMask(GMaxRHIShaderPlatform))
 			{
