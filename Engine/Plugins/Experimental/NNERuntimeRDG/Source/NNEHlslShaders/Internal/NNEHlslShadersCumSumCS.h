@@ -76,6 +76,5 @@ namespace UE::NNEHlslShaders::Internal
 		END_SHADER_PARAMETER_STRUCT()
 
 		static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& InParameters, FShaderCompilerEnvironment& OutEnvironment);
-		static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& InParameters);
 	};
 } // UE::NNEHlslShaders::Internal

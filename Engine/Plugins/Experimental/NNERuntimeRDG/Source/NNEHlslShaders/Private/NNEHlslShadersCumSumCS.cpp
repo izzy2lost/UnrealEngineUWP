@@ -24,16 +24,6 @@ namespace UE::NNEHlslShaders::Internal
 		FPermutationDomain PermutationVector(InParameters.PermutationId);
 	}
 
-	bool TCumSumCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& InParameters)
-	{
-		//NOTE: platform compatibility checks should be rather done in a NNERuntimeRDG-wise place and called from here
-
-		const ERHIFeatureSupport WaveOpsSupport = FDataDrivenShaderPlatformInfo::GetSupportsWaveOperations(InParameters.Platform);
-		const bool bWaveOpsAvailable = WaveOpsSupport == ERHIFeatureSupport::RuntimeDependent || WaveOpsSupport == ERHIFeatureSupport::RuntimeGuaranteed;
-
-		return bWaveOpsAvailable;
-	}
-
 	IMPLEMENT_GLOBAL_SHADER(TInitCumSumCS, "/NNEHlslShaders/NNEHlslShadersCumSum.usf", "InitCumSum", SF_Compute);
 	IMPLEMENT_GLOBAL_SHADER(TCumSumCS, "/NNEHlslShaders/NNEHlslShadersCumSum.usf", "CumSum", SF_Compute);
 } // UE::NNEHlslShaders::Internal

@@ -130,13 +130,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			check(InputTensorDescs.Num() == 2);
 			check(OutputTensorDescs.Num() == 1);
 
-			//NOTE: hardware compatibility check should rather be done in a NNERuntimeRDG-wise place
-			if(!GRHISupportsWaveOperations)
-			{
-				UE_LOG(LogNNE, Warning, TEXT("Hlsl CumSum not supported on current hardware."));
-				return false;
-			}
-
 			const int32 InputRank = InputTensorDescs[0].GetShape().Rank();
 			
 			int32 Exclusive = Attributes.GetValueOrDefault<int32>(TEXT("exclusive"), 0);

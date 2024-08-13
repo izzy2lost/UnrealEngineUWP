@@ -117,6 +117,33 @@ namespace ConsoleCommands
 	);
 } // ConsoleCommands
 
+bool UNNERuntimeRDGHlslImpl::IsCurrentPlatformSupported()
+{
+	bool bResult = true;
+
+#ifndef NNE_FORCE_HARDWARE_SUPPORTS_HLSL
+	if(GMaxRHIFeatureLevel < ERHIFeatureLevel::SM5)
+	{
+		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: minimum feature level required is SM5 for current RHI platform."));
+		bResult &= false;
+	}
+
+	if(!GRHISupportsWaveOperations)
+	{
+		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support wave operations."));
+		bResult &= false;
+	}
+
+	if(!GRHIGlobals.SupportsNative16BitOps)
+	{
+		UE_LOG(LogNNE, Display, TEXT("UNNERuntimeRDGHlsl: current RHI platform doesn't support native 16-bit operations."));
+		bResult &= false;
+	}
+#endif
+
+	return bResult;
+}
+
 UNNERuntimeRDGHlslImpl::ECanCreateModelDataStatus UNNERuntimeRDGHlslImpl::CanCreateModelData(const FString& FileType, TConstArrayView<uint8> FileData, const TMap<FString, TConstArrayView<uint8>>& AdditionalFileData, const FGuid& FileId, const ITargetPlatform* TargetPlatform) const
 {
 #ifdef NNE_UTILITIES_AVAILABLE
@@ -146,6 +173,8 @@ UNNERuntimeRDGHlslImpl::ECanCreateModelRDGStatus UNNERuntimeRDGHlslImpl::CanCrea
 	}
 	bool bResult = FGenericPlatformMemory::Memcmp(&(Data[0]), &(GUID), GuidSize) == 0;
 	bResult &= FGenericPlatformMemory::Memcmp(&(Data[GuidSize]), &(Version), VersionSize) == 0;
+
+	bResult &= IsCurrentPlatformSupported();
 
 	return bResult ? ECanCreateModelRDGStatus::Ok : ECanCreateModelRDGStatus::Fail;
 };

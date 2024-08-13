@@ -38,12 +38,31 @@ public class NNERuntimeRDG : ModuleRules
 			PrivateDependencyModuleNames.Add("VulkanRHI");
 		}
 
-		if ((Target.Type == TargetType.Editor || Target.Type == TargetType.Program) &&
-			(Target.Platform == UnrealTargetPlatform.Win64 || Target.Platform == UnrealTargetPlatform.Linux || Target.Platform == UnrealTargetPlatform.Mac)
-			)
+		if (Target.Type == TargetType.Editor || Target.Type == TargetType.Program)
 		{
-			PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
-			PrivateDependencyModuleNames.Add("NNERuntimeRDGUtils");
+			// Supported platforms (editor)
+			if ( Target.Platform == UnrealTargetPlatform.Win64 || 
+				Target.Platform == UnrealTargetPlatform.Linux || 
+				Target.Platform == UnrealTargetPlatform.Mac
+			)
+			{
+				PublicDefinitions.Add("WITH_NNE_RUNTIME_HLSL");
+				PrivateDefinitions.Add("NNE_UTILITIES_AVAILABLE");
+				PrivateDependencyModuleNames.Add("NNERuntimeRDGUtils");
+			}
+		}
+		else
+		{
+			// Supported platforms (standalone)
+			// NOTE: To add a supported platform:
+			// - either here or in a NNERuntimeRDG_*.Build.cs extension, set WITH_NNE_RUNTIME_HLSL for Game/Client target type,
+			// - set bSupportsNNEShaders=true in DataDrivenPlatformInfo.ini for the platform - shader format pair.
+			if ( Target.Platform == UnrealTargetPlatform.Win64 || 
+				 Target.Platform == UnrealTargetPlatform.Mac
+			   )
+			{
+				PublicDefinitions.Add("WITH_NNE_RUNTIME_HLSL");
+			}
 		}
 
 		PublicDefinitions.Add("NNERUNTIMERDGHLSL_BUFFER_LENGTH_ALIGNMENT=4");

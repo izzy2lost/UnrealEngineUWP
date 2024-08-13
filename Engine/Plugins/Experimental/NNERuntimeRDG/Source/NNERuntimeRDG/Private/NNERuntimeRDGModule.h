@@ -12,6 +12,8 @@ class UNNERuntimeRDGHlslImpl;
 
 class FNNERuntimeRDGModule : public IModuleInterface
 {
+private:
+	void RegisterRuntime();
 
 public:
 	TWeakObjectPtr<UNNERuntimeRDGHlslImpl> NNERuntimeRDGHlsl{ nullptr };

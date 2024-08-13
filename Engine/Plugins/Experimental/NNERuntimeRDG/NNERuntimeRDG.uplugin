@@ -15,21 +15,16 @@
 	"IsBetaVersion": false,
 	"IsExperimentalVersion": true,
 	"Installed": false,
-	"SupportedTargetPlatforms": [
-		"Win64", "Linux", "Mac"
-	],
 	"Modules": [
 		{
 			"Name": "NNEHlslShaders",
 			"Type": "RuntimeAndProgram",
-			"LoadingPhase": "PostConfigInit",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"LoadingPhase": "PostConfigInit"
 		},
 		{
 			"Name": "NNERuntimeRDG",
 			"Type": "RuntimeAndProgram",
-			"LoadingPhase": "Default",
-			"PlatformAllowList": [ "Win64", "Linux", "Mac" ]
+			"LoadingPhase": "Default"
 		},
 		{
 			"Name": "NNERuntimeRDGUtils",

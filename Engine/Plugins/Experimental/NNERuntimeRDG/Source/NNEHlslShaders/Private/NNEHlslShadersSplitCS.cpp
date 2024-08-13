@@ -7,6 +7,11 @@ namespace UE::NNEHlslShaders::Internal
 {
 	bool FSplitCS::ShouldCompilePermutation(const FGlobalShaderPermutationParameters& InParameters)
 	{
+		if (!FHlslShaderBase::ShouldCompilePermutation(InParameters))
+		{
+			return false;
+		}
+
 		const FPermutationDomain PermutationVector(InParameters.PermutationId);
 
 		return PermutationVector.Get<FSplitCS::FSplitAxis>() < PermutationVector.Get<FSplitCS::FSplitRank>();
