@@ -93,6 +93,16 @@ public:
 	{
 	};
 
+	struct FExportTimerCalleesParams : private FExportTimingEventsParams
+	{
+		using FExportTimingEventsParams::ThreadFilter;
+		using FExportTimingEventsParams::IntervalStartTime;
+		using FExportTimingEventsParams::IntervalEndTime;
+		using FExportTimingEventsParams::Region;
+
+		TSet<uint32> TimerIds;
+	};
+
 	struct FExportCountersParams
 	{
 		/**
@@ -220,6 +230,8 @@ public:
 	 */
 	int32 ExportTimerStatisticsAsText(const FString& Filename, FExportTimerStatisticsParams& Params) const;
 
+	int32 ExportTimerCalleesAsText(const FString& Filename, const FExportTimerCalleesParams& Params) const;
+
 	int32 ExportCountersAsText(const FString& Filename, FExportCountersParams& Params) const;
 
 	int32 ExportCounterAsText(const FString& Filename, uint32 CounterId, FExportCounterParams& Params) const;
@@ -283,6 +295,7 @@ private:
 	int32 ExportTimingEvents_WriteEvents(FExportTimingEventsInternalParams& Params) const;
 	int32 ExportTimingEventsAsTextByRegions(const FString& FilenamePattern, FExportTimingEventsParams& Params) const;
 	int32 ExportTimerStatisticsAsTextByRegions(const FString& Filename, FExportTimerStatisticsParams& Params) const;
+	int32 ExportTimerCalleesByRegions(const FString& FilenamePattern, const FExportTimerCalleesParams& Params) const;
 	int32 ExportCounterAsTextByRegions(const FString& Filename, uint32 CounterId, FExportCounterParams& Params) const;
 
 private:

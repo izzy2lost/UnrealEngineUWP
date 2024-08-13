@@ -9,6 +9,7 @@
 #include "Common/ProviderLock.h"
 #include "TraceServices/Model/Bookmarks.h"
 #include "TraceServices/Model/Counters.h"
+#include "TraceServices/Model/Frames.h"
 #include "TraceServices/Model/Regions.h"
 #include "TraceServices/Model/Threads.h"
 #include "TraceServices/Model/TimingProfiler.h"
@@ -792,6 +793,160 @@ int32 FTimingExporter::ExportTimerStatisticsAsText(const FString& Filename, FExp
 		UE_LOG(TraceInsights, Error, TEXT("Failed to write the CSV file (\"%s\")!"), *Filename);
 	}
 	return bSuccess ? 1 : -2;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int32 FTimingExporter::ExportTimerCalleesByRegions(const FString& FilenamePattern, const FExportTimerCalleesParams& Params) const
+{
+	TMap<FString, FTimeRegionGroup> RegionGroups;
+	GetRegions(Params.Region, RegionGroups);
+
+	if (RegionGroups.Num() == 0)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("Unable to find any region with name pattern '%s'."), *Params.Region);
+		return -1;
+	}
+
+	FStopwatch Stopwatch;
+	Stopwatch.Start();
+
+	// Export timing callees for each region.
+	FExportTimerCalleesParams RegionParams = Params;
+	RegionParams.Region.Reset();
+	int32 ExportedRegionCount = EnumerateRegions(RegionGroups, FilenamePattern,
+		[this, &RegionParams](const FString& Filename, const FString& RegionName, double IntervalStartTime, double IntervalEndTime)
+		{
+			RegionParams.IntervalStartTime = IntervalStartTime;
+			RegionParams.IntervalEndTime = IntervalEndTime;
+			UE_LOG(TraceInsights, Display, TEXT("Exporting timing callees for region '%s' [%f .. %f] to '%s'"), *RegionName, RegionParams.IntervalStartTime, RegionParams.IntervalEndTime, *Filename);
+			ExportTimerCalleesAsText(Filename, RegionParams);
+		});
+
+	Stopwatch.Stop();
+	const double TotalTime = Stopwatch.GetAccumulatedTime();
+	UE_LOG(TraceInsights, Log, TEXT("Exported timing callees for %d regions in %.3fs."), ExportedRegionCount, TotalTime);
+	return ExportedRegionCount;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+int32 FTimingExporter::ExportTimerCalleesAsText(const FString& Filename, const FExportTimerCalleesParams& Params) const
+{
+	if (!Params.Region.IsEmpty())
+	{
+		return ExportTimerCalleesByRegions(Filename, Params);
+	}
+
+	TUniquePtr<TraceServices::ITimingProfilerButterfly> Butterfly = [&Params, this]() -> TUniquePtr<TraceServices::ITimingProfilerButterfly>
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(Session);
+
+		const TraceServices::ITimingProfilerProvider* TimingProfilerProvider = TraceServices::ReadTimingProfilerProvider(Session);
+		if (!TimingProfilerProvider)
+		{
+			UE_LOG(TraceInsights, Error, TEXT("Unable to access TimingProfilerProvider for ExportTimerCalleesAsText"));
+			return nullptr;
+		}
+
+		const bool bIncludeGpu = Params.ThreadFilter(FGpuTimingTrack::Gpu1ThreadId) || Params.ThreadFilter(FGpuTimingTrack::Gpu2ThreadId);
+	
+		return TUniquePtr<TraceServices::ITimingProfilerButterfly>
+		{
+			TimingProfilerProvider->CreateButterfly(Params.IntervalStartTime, Params.IntervalEndTime, Params.ThreadFilter, bIncludeGpu)
+		};
+	}();
+
+	if (!Butterfly)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("ExportTimerCalleesAsText failed to create Butterfly for region %s [%.6f-%.6f]"), *Params.Region, Params.IntervalStartTime, Params.IntervalEndTime);
+		return -1;
+	}
+
+	TUniquePtr<IFileHandle> ExportFileHandle{ OpenExportFile(*Filename) };
+	if (!ExportFileHandle)
+	{
+		UE_LOG(TraceInsights, Error, TEXT("ExportTimerCalleesAsText failed to open export file %s."), *Filename);
+		return -1;
+	}
+
+	const bool bIsCSV = Filename.EndsWith(TEXT(".csv"));
+	FUtf8Writer Writer(ExportFileHandle.Get(), bIsCSV);
+
+	// Write header
+	{
+		TArray<FStringView> Columns
+		{
+			TEXTVIEW("TimerId"),
+			TEXTVIEW("ParentId"),
+			TEXTVIEW("TimerName"),
+			TEXTVIEW("Count"),
+			TEXTVIEW("Inc.Time"),
+			TEXTVIEW("Exc.Time"),
+			TEXTVIEW("NumFrames")
+		};
+
+		for (const FStringView ColumnName : Columns)
+		{
+			Writer.AppendString(ColumnName.GetData());
+			if (ColumnName != Columns.Last())
+			{
+				Writer.AppendSeparator();
+			}
+		}
+		Writer.AppendLineEnd();
+	}
+
+	// Count the number of frames in this region so it can be output and used to calculate frame averages.
+	uint64 NumFrames = 0;
+	{
+		TraceServices::FAnalysisSessionReadScope SessionReadScope(Session);
+		const TraceServices::IFrameProvider& FrameProvider = TraceServices::ReadFrameProvider(Session);
+		FrameProvider.EnumerateFrames(ETraceFrameType::TraceFrameType_Game, Params.IntervalStartTime, Params.IntervalEndTime, [&NumFrames](const TraceServices::FFrame& Frame)
+		{
+			++NumFrames;
+		});
+	}
+
+	// Write rows
+	{
+		FUtf8StringBuilder& StringBuilder = Writer.GetStringBuilder();
+
+		for (uint32 TimerId : Params.TimerIds)
+		{
+			TArray<const TraceServices::FTimingProfilerButterflyNode*> NodesToVisit{ &Butterfly->GenerateCalleesTree(TimerId) };
+			while (!NodesToVisit.IsEmpty())
+			{
+				// Root node can be null if the timer id is for a thread we've filtered out.
+				const TraceServices::FTimingProfilerButterflyNode* CurrentNode = NodesToVisit.Pop(EAllowShrinking::No);
+				if (!CurrentNode || !CurrentNode->Timer)
+				{
+					continue;
+				}
+
+				NodesToVisit.Append(CurrentNode->Children);
+
+				StringBuilder.Appendf(UTF8TEXT("%u"), CurrentNode->Timer->Id);
+				Writer.AppendSeparator();
+				StringBuilder.Appendf(UTF8TEXT("%u"), CurrentNode->Parent ? CurrentNode->Parent->Timer->Id : uint32(-1));
+				Writer.AppendSeparator();
+				Writer.AppendString(CurrentNode->Timer->Name);
+				Writer.AppendSeparator();
+				StringBuilder.Appendf(UTF8TEXT("%llu"), CurrentNode->Count);
+				Writer.AppendSeparator();
+				StringBuilder.Appendf(UTF8TEXT("%.9g"), CurrentNode->InclusiveTime);
+				Writer.AppendSeparator();
+				StringBuilder.Appendf(UTF8TEXT("%.9g"), CurrentNode->ExclusiveTime);
+				Writer.AppendSeparator();
+				StringBuilder.Appendf(UTF8TEXT("%llu"), NumFrames);
+				Writer.AppendLineEnd();
+			}
+		}
+	}
+
+	Writer.Flush();
+	ExportFileHandle->Flush();
+	return 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
