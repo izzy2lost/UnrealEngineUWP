@@ -667,6 +667,11 @@ UClass* UBlueprintEditorLibrary::GeneratedClass(UBlueprint* BlueprintObj)
 {
 	if (BlueprintObj)
 	{
+		if(BlueprintObj->GeneratedClass == nullptr)
+		{
+			UE_LOG(LogBlueprintEditorLib, Warning, TEXT("Blueprint %s does not have a generated class - consider compiling it"), *BlueprintObj->GetPathName());
+			return nullptr;
+		}
 		return BlueprintObj->GeneratedClass->GetAuthoritativeClass();
 	}
 	return nullptr;
