@@ -16,9 +16,6 @@ static FAutoConsoleVariableRef CVarD3D12ExtraDepthTransitions(
 	GD3D12ExtraDepthTransitions,
 	TEXT("Adds extra transitions for the depth buffer to fix validation issues. However, this currently breaks async compute"));
 
-
-int64 FD3D12CommandList::FState::NextCommandListID = 0;
-
 void FD3D12CommandList::UpdateResidency(const FD3D12Resource* Resource)
 {
 #if ENABLE_RESIDENCY_MANAGEMENT
@@ -460,7 +457,6 @@ void FD3D12CommandList::WriteTimestamp(FD3D12QueryLocation const& Location, ED3D
 
 FD3D12CommandList::FState::FState(FD3D12CommandAllocator* CommandAllocator, FD3D12QueryAllocator* TimestampAllocator, FD3D12QueryAllocator* PipelineStatsAllocator)
 	: CommandAllocator(CommandAllocator)
-	, CommandListID   (FPlatformAtomics::InterlockedIncrement(&NextCommandListID))
 {
 	PendingResourceBarriers.Reserve(256);
 

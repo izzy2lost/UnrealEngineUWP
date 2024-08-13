@@ -238,9 +238,6 @@ public:
 
 	bool IsOpen() const { return CommandList != nullptr; }
 
-	// Returns unique identity that can be used to distinguish between command lists even after they were recycled.
-	uint64 GetCommandListID() { return GetCommandList().State.CommandListID; }
-
 	FD3D12SyncPoint* GetContextSyncPoint()
 	{
 		if (!ContextSyncPoint)

@@ -270,8 +270,6 @@ private:
 	// Contents of the state struct are reset when the command list is recycled
 	struct FState
 	{
-		static int64 NextCommandListID;
-
 		FState(FD3D12CommandAllocator* CommandAllocator, FD3D12QueryAllocator* TimestampAllocator, FD3D12QueryAllocator* PipelineStatsAllocator);
 
 		// The allocator currently assigned to this command list.
@@ -282,11 +280,6 @@ private:
 
 		// A map of all D3D resources, and their states, that were state transitioned with tracking.
 		TMap<FD3D12Resource*, CResourceState> TrackedResourceState;
-
-		// Unique ID of this command list used to avoid costly redundant operations, such as resource residency updates.
-		// This value is updated every time the command list is reset, so it is safe to use even when command list object is recycled.
-		// Value should be only used for identity, not for synchronization. Valid values are guaranteed to be > 0.
-		uint64 CommandListID;
 
 #if DEBUG_RESOURCE_STATES
 		// Tracks all the resources barriers being issued on this command list in order
