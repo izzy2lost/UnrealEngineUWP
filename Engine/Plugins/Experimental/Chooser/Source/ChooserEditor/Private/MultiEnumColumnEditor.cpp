@@ -189,7 +189,7 @@ TSharedRef<SWidget> CreateMultiEnumColumnWidget(UChooserTable* Chooser, FChooser
 			{
 				if (MultiEnumColumn->RowValues.IsValidIndex(Row))
 				{
-					MultiEnumColumn->RowValues[Row].Value = static_cast<uint8>(Value);
+					MultiEnumColumn->RowValues[Row].Value = static_cast<uint32>(Value);
 				}
 			})
 			.EnumValue_Lambda([MultiEnumColumn, Row]()
