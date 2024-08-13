@@ -7,7 +7,7 @@
 namespace mu
 {
 
-	void FImageOperator::ImageCompose(Image* Base, const Image* Block, const box< UE::Math::TIntVector2<uint16> >& Rect)
+	void FImageOperator::ImageCompose(Image* Base, const Image* Block, const box< FIntVector2 >& Rect)
 	{
 		check(Base && Block);
 		check(Base != Block);
@@ -63,8 +63,8 @@ namespace mu
 				Rect.min[1] / FormatInfo.PixelsPerBlockY);
 
 			UE::Math::TIntVector2<uint16> BlockMipSize(
-				FMath::DivideAndRoundUp(Rect.size[0], uint16(FormatInfo.PixelsPerBlockX)),
-				FMath::DivideAndRoundUp(Rect.size[1], uint16(FormatInfo.PixelsPerBlockY)));
+				FMath::DivideAndRoundUp(Rect.size[0], int32(FormatInfo.PixelsPerBlockX)),
+				FMath::DivideAndRoundUp(Rect.size[1], int32(FormatInfo.PixelsPerBlockY)));
 
 			int32 DoneMips = 0;
 			for (; DoneMips < Base->GetLODCount() && DoneMips < Block->GetLODCount(); ++DoneMips)

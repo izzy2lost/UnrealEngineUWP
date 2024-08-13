@@ -4,6 +4,7 @@
 
 
 #include "MuT/NodeLayout.h"
+#include "MuR/Image.h"
 #include "CustomizableObjectLayout.generated.h"
 
 
@@ -19,6 +20,29 @@ enum class ECustomizableObjectTextureLayoutPackingStrategy : uint8
 };
 
 mu::EPackStrategy ConvertLayoutStrategy(const ECustomizableObjectTextureLayoutPackingStrategy LayoutPackStrategy);
+
+UENUM()
+enum class ECustomizableObjectLayoutAutomaticBlocksStrategy : uint8
+{
+	// Create rectangles on a grid splitting the UV space if possible
+	Rectangles = 0 UMETA(DisplayName = "Rectangles"),
+	// Detect UV islands and create blocks for them with masks
+	UVIslands = 1 UMETA(DisplayName = "UV Islands"),
+	// Don't create automatic blocks, and ignore UVs that don't have a manual block already. They get assigned to the first avilable block or ignored if none. This is the legacy behavior.
+	Ignore = 2 UMETA(DisplayName = "Ignore"),
+};
+
+UENUM()
+enum class ECustomizableObjectLayoutAutomaticBlocksMergeStrategy : uint8
+{
+	// Don't merge the blocks
+	DontMerge = 0 UMETA(DisplayName = "Don't merge"),
+	// Merge the block if a block is entirely included in another block
+	MergeChildBlocks = 1 UMETA(DisplayName = "Child blocks"),
+	// TODO: this option would merge only when the child falls entirely inside the mask
+	// MergeChildInsideMask = 2 UMETA(DisplayName = "Child in mask"),
+};
+
 
 // Fixed Layout reduction methods
 UENUM()
@@ -72,6 +96,9 @@ struct CUSTOMIZABLEOBJECTEDITOR_API FCustomizableObjectLayoutBlock
 	/** Block mask to use to filter the UVs when assigning them to the block. */
 	UPROPERTY(EditAnywhere, Category = CustomizableObject)
 	TObjectPtr<class UTexture2D> Mask = nullptr;
+
+	/** Transient flag used in the UI to differentiate between manual and automatic blocks. */
+	bool bIsAutomatic = false;
 };
 
 UCLASS()
@@ -85,14 +112,11 @@ public:
 
 	// Sets the layout parameters
 	void SetLayout(UObject* InMesh, int32 LODIndex, int32 MatIndex, int32 UVIndex);
-	void SetPackingStrategy(ECustomizableObjectTextureLayoutPackingStrategy Strategy);
 	void SetGridSize(FIntPoint Size);
 	void SetMaxGridSize(FIntPoint Size);
 	void SetLayoutName(FString Name);
 	void SetIgnoreVertexLayoutWarnings(bool bValue);
 	void SetIgnoreWarningsLOD(int32 LODValue);
-	void SetBlockReductionMethod(ECustomizableObjectLayoutBlockReductionMethod Method);
-
 
 	int32 GetLOD() const { return LOD; }
 	int32 GetMaterial() const { return Material; }
@@ -101,22 +125,43 @@ public:
 	UObject* GetMesh() const { return Mesh; }
 	FIntPoint GetGridSize() const { return GridSize; }
 	FIntPoint GetMaxGridSize() const { return MaxGridSize; }
-	ECustomizableObjectTextureLayoutPackingStrategy GetPackingStrategy() const { return PackingStrategy; }
 	bool GetIgnoreVertexLayoutWarnings() const { return bIgnoreUnassignedVertexWarning; };
 	int32 GetFirstLODToIgnoreWarnings() const { return FirstLODToIgnore; };
-	ECustomizableObjectLayoutBlockReductionMethod GetBlockReductionMethod()const { return BlockReductionMethod; }
 
+	// TODO: Remove the default channel index. Anywhere using the default is probably wrong.
 	void GetUVChannel(TArray<FVector2f>& UVs, int32 UVChannelIndex = 0) const;
 
-	// Get a block index in the array from its id. Return -1 if not found.
+	/** Get a block index in the array from its id.Return - 1 if not found. */
 	int32 FindBlock(const FGuid& InId) const;
 
-	void GenerateBlocksFromUVs();
+	/** Generate all the transient UV layout automatic blocks with unassigned UVs. */
+	void GenerateAutomaticBlocksFromUVs();
 
+	/** Convert the transient automatic blocks into real blocks. */
+	void ConsolidateAutomaticBlocks();
+
+	/** List of blocks manually defined in the layout. */
 	UPROPERTY()
 	TArray<FCustomizableObjectLayoutBlock> Blocks;
 
+	/** List of blocks automatically defined (in the layout) for preview. */
+	UPROPERTY(Transient)
+	TArray<FCustomizableObjectLayoutBlock> AutomaticBlocks;
+
+	/** List of UVs to highlight in the layout because they have issues. */
 	TArray< TArray<FVector2f> > UnassignedUVs;
+
+	UPROPERTY()
+	ECustomizableObjectTextureLayoutPackingStrategy PackingStrategy = ECustomizableObjectTextureLayoutPackingStrategy::Resizable;
+
+	UPROPERTY()
+	ECustomizableObjectLayoutAutomaticBlocksStrategy AutomaticBlocksStrategy = ECustomizableObjectLayoutAutomaticBlocksStrategy::Rectangles;
+
+	UPROPERTY()
+	ECustomizableObjectLayoutAutomaticBlocksMergeStrategy AutomaticBlocksMergeStrategy = ECustomizableObjectLayoutAutomaticBlocksMergeStrategy::MergeChildBlocks;
+
+	UPROPERTY()
+	ECustomizableObjectLayoutBlockReductionMethod BlockReductionMethod = ECustomizableObjectLayoutBlockReductionMethod::Halve;
 
 private:
 
@@ -135,12 +180,9 @@ private:
 	UPROPERTY()
 	FIntPoint GridSize;
 
-	/** Used with the fixed layout strategy. */
+	/** Maximum grid size the layout can grow to. Used with the fixed layout strategy. */
 	UPROPERTY()
 	FIntPoint MaxGridSize;
-
-	UPROPERTY()
-	ECustomizableObjectTextureLayoutPackingStrategy PackingStrategy = ECustomizableObjectTextureLayoutPackingStrategy::Resizable;
 
 	UPROPERTY()
 	FString LayoutName;
@@ -152,8 +194,5 @@ private:
 	/* First LOD from which unassigned vertices warning will be ignored */
 	UPROPERTY()
 	int32 FirstLODToIgnore = 0;
-
-	UPROPERTY()
-	ECustomizableObjectLayoutBlockReductionMethod BlockReductionMethod = ECustomizableObjectLayoutBlockReductionMethod::Halve;
 
 };

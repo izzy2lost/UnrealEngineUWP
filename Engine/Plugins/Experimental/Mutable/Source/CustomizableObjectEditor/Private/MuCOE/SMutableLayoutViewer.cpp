@@ -104,8 +104,8 @@ void SMutableLayoutViewer::Tick(const FGeometry& AllottedGeometry, const double 
 			Blocks.SetNum( BlockCount );
 			for (int32 BlockIndex = 0; BlockIndex < BlockCount; ++BlockIndex)
 			{
-				UE::Math::TIntVector2<uint16> Min = MutableLayout->Blocks[BlockIndex].Min;
-				UE::Math::TIntVector2<uint16> Size = MutableLayout->Blocks[BlockIndex].Size;
+				FIntVector2 Min = MutableLayout->Blocks[BlockIndex].Min;
+				FIntVector2 Size = MutableLayout->Blocks[BlockIndex].Size;
 
 				Blocks[BlockIndex].Min[0] = Min[0];
 				Blocks[BlockIndex].Min[1] = Min[1];

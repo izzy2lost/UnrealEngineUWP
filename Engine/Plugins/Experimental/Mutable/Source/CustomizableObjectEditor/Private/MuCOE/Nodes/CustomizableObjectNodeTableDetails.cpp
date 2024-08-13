@@ -773,7 +773,7 @@ EVisibility FCustomizableObjectNodeTableDetails::LayoutOptionsVisibility() const
 
 EVisibility FCustomizableObjectNodeTableDetails::FixedStrategyOptionsVisibility() const
 {
-	return (SelectedLayout.IsValid() && SelectedLayout->GetPackingStrategy() == ECustomizableObjectTextureLayoutPackingStrategy::Fixed) ? EVisibility::Visible : EVisibility::Collapsed;
+	return (SelectedLayout.IsValid() && SelectedLayout->PackingStrategy == ECustomizableObjectTextureLayoutPackingStrategy::Fixed) ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 
@@ -797,8 +797,8 @@ void FCustomizableObjectNodeTableDetails::FillLayoutComboBoxOptions()
 			}
 		}
 
-		StrategyComboBox->SetSelectedItem(LayoutPackingStrategies[(uint32)SelectedLayout->GetPackingStrategy()]);
-		ReductionMethodComboBox->SetSelectedItem(BlockReductionMethods[(uint32)SelectedLayout->GetBlockReductionMethod()]);
+		StrategyComboBox->SetSelectedItem(LayoutPackingStrategies[(uint32)SelectedLayout->PackingStrategy]);
+		ReductionMethodComboBox->SetSelectedItem(BlockReductionMethods[(uint32)SelectedLayout->BlockReductionMethod]);
 	}
 }
 
@@ -853,7 +853,7 @@ FText FCustomizableObjectNodeTableDetails::GetSelectedLayoutStrategyName() const
 {
 	if (SelectedLayout.IsValid())
 	{
-		return FText::FromString(*LayoutPackingStrategies[(uint32)SelectedLayout->GetPackingStrategy()]);
+		return FText::FromString(*LayoutPackingStrategies[(uint32)SelectedLayout->PackingStrategy]);
 	}
 
 	return FText();
@@ -864,7 +864,7 @@ FText FCustomizableObjectNodeTableDetails::GetSelectedLayoutReductionMethodName(
 {
 	if (SelectedLayout.IsValid())
 	{
-		return FText::FromString(*BlockReductionMethods[(uint32)SelectedLayout->GetBlockReductionMethod()]);
+		return FText::FromString(*BlockReductionMethods[(uint32)SelectedLayout->BlockReductionMethod]);
 	}
 
 	return FText();
@@ -875,20 +875,21 @@ void FCustomizableObjectNodeTableDetails::OnGridSizeChanged(TSharedPtr<FString> 
 {
 	if (SelectedLayout.IsValid())
 	{
-		int Size = 1 << LayoutGridSizes.Find(NewSelection);
+		int32 Size = 1 << LayoutGridSizes.Find(NewSelection);
 
 		if (SelectedLayout->GetGridSize().X != Size || SelectedLayout->GetGridSize().Y != Size)
 		{
 			SelectedLayout->SetGridSize(FIntPoint(Size));
 
 			// Adjust all the blocks sizes
-			for (int b = 0; b < SelectedLayout->Blocks.Num(); ++b)
-			{
-				SelectedLayout->Blocks[b].Min.X = FMath::Min(SelectedLayout->Blocks[b].Min.X, Size - 1);
-				SelectedLayout->Blocks[b].Min.Y = FMath::Min(SelectedLayout->Blocks[b].Min.Y, Size - 1);
-				SelectedLayout->Blocks[b].Max.X = FMath::Min(SelectedLayout->Blocks[b].Max.X, Size);
-				SelectedLayout->Blocks[b].Max.Y = FMath::Min(SelectedLayout->Blocks[b].Max.Y, Size);
-			}
+			//for (int32 BlockIndex = 0; BlockIndex < SelectedLayout->Blocks.Num(); ++BlockIndex)
+			//{
+			//	FCustomizableObjectLayoutBlock& Block = SelectedLayout->Blocks[BlockIndex];
+			//	Block.Min.X = FMath::Min(Block.Min.X, Size - 1);
+			//	Block.Min.Y = FMath::Min(Block.Min.Y, Size - 1);
+			//	Block.Max.X = FMath::Min(Block.Max.X, Size);
+			//	Block.Max.Y = FMath::Min(Block.Max.Y, Size);
+			//}
 
 			Node->MarkPackageDirty();
 		}
@@ -900,11 +901,11 @@ void FCustomizableObjectNodeTableDetails::OnLayoutPackingStrategyChanged(TShared
 {
 	if (SelectedLayout.IsValid())
 	{
-		uint32 selection = LayoutPackingStrategies.IndexOfByKey(NewSelection);
+		uint32 Selection = LayoutPackingStrategies.IndexOfByKey(NewSelection);
 
-		if (SelectedLayout->GetPackingStrategy() != (ECustomizableObjectTextureLayoutPackingStrategy)selection)
+		if (SelectedLayout->PackingStrategy != (ECustomizableObjectTextureLayoutPackingStrategy)Selection)
 		{
-			SelectedLayout->SetPackingStrategy((ECustomizableObjectTextureLayoutPackingStrategy)selection);
+			SelectedLayout->PackingStrategy=(ECustomizableObjectTextureLayoutPackingStrategy)Selection;
 			Node->MarkPackageDirty();
 		}
 	}
@@ -915,7 +916,7 @@ void FCustomizableObjectNodeTableDetails::OnMaxGridSizeChanged(TSharedPtr<FStrin
 {
 	if (SelectedLayout.IsValid())
 	{
-		int Size = 1 << LayoutGridSizes.Find(NewSelection);
+		int32 Size = 1 << LayoutGridSizes.Find(NewSelection);
 
 		if (SelectedLayout->GetMaxGridSize().X != Size || SelectedLayout->GetMaxGridSize().Y != Size)
 		{
@@ -930,11 +931,11 @@ void FCustomizableObjectNodeTableDetails::OnReductionMethodChanged(TSharedPtr<FS
 {
 	if (SelectedLayout.IsValid())
 	{
-		uint32 selection = BlockReductionMethods.IndexOfByKey(NewSelection);
+		uint32 Selection = BlockReductionMethods.IndexOfByKey(NewSelection);
 
-		if (SelectedLayout->GetBlockReductionMethod() != (ECustomizableObjectLayoutBlockReductionMethod)selection)
+		if (SelectedLayout->BlockReductionMethod != (ECustomizableObjectLayoutBlockReductionMethod)Selection)
 		{
-			SelectedLayout->SetBlockReductionMethod((ECustomizableObjectLayoutBlockReductionMethod)selection);
+			SelectedLayout->BlockReductionMethod=(ECustomizableObjectLayoutBlockReductionMethod)Selection;
 			Node->MarkPackageDirty();
 		}
 	}
@@ -948,7 +949,7 @@ FText FCustomizableObjectNodeTableDetails::GetSelectedLayoutStrategyTooltip() co
 		//A list of tool tips should have been populated in a 1 to 1 correspondance
 		check(LayoutPackingStrategies.Num() == LayoutPackingStrategiesTooltips.Num());
 
-		return LayoutPackingStrategiesTooltips[(uint32)SelectedLayout->GetPackingStrategy()];
+		return LayoutPackingStrategiesTooltips[(uint32)SelectedLayout->PackingStrategy];
 	}
 
 	return FText();
@@ -962,7 +963,7 @@ FText FCustomizableObjectNodeTableDetails::GetSelectedLayoutReductionMethodToolt
 		//A list of tool tips should have been populated in a 1 to 1 correspondance
 		check(BlockReductionMethods.Num() == BlockReductionMethodsTooltips.Num());
 
-		return BlockReductionMethodsTooltips[(uint32)SelectedLayout->GetBlockReductionMethod()];
+		return BlockReductionMethodsTooltips[(uint32)SelectedLayout->BlockReductionMethod];
 	}
 
 	return FText();

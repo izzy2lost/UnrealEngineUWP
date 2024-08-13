@@ -1976,7 +1976,7 @@ namespace mu
 			Image* BaseImage,
 			const Image* MaskImage,
 			const Image* BlendedImage,
-			const box<UE::Math::TIntVector2<uint16>>& Rect)
+			const box<FIntVector2>& Rect)
 	{
 		check(BaseImage->GetSizeX() >= Rect.min[0] + Rect.size[0]);
 		check(BaseImage->GetSizeY() >= Rect.min[1] + Rect.size[1]);
@@ -2553,7 +2553,7 @@ namespace mu
 	inline void ImageBlendOnBaseNoAlpha(Image* BaseImage,
 		const Image* MaskImage,
 		const Image* BlendedImage,
-		const box<UE::Math::TIntVector2<uint16>>& Rect)
+		const box<FIntVector2>& Rect)
 	{
 		ImageLayerOnBaseNoAlpha<BlendChannel, false>(BaseImage, MaskImage, BlendedImage, Rect);
 	}

@@ -343,7 +343,7 @@ namespace mu
 		MUTABLERUNTIME_API bool ImageCrop(Image* Cropped, int32 CompressionQuality, const Image* Base, const box<FIntVector2>& Rect);
 
 		/** */
-		void ImageCompose(Image* Base, const Image* Block, const box< UE::Math::TIntVector2<uint16> >& Rect);
+		void ImageCompose(Image* Base, const Image* Block, const box<FIntVector2>& Rect);
 
 	};
 

@@ -4,6 +4,7 @@
 
 #include "UObject/GCObject.h"
 #include "Widgets/SCompoundWidget.h"
+#include "MuCOE/SCustomizableObjectLayoutGrid.h"
 
 namespace ESelectInfo { enum Type : int; }
 
@@ -31,7 +32,6 @@ public:
 	SLATE_END_ARGS()
 
 	SCustomizableObjectNodeLayoutBlocksEditor();
-	virtual ~SCustomizableObjectNodeLayoutBlocksEditor();
 
 	void Construct(const FArguments& InArgs);
 	
@@ -54,8 +54,11 @@ public:
 
 private:
 
-	/** */
+	/** Layout whose blocksa re being edited. */
 	TObjectPtr<class UCustomizableObjectLayout> CurrentLayout;
+
+	/** If valid, layout use to show the UVs instead of CurrentLayout. */
+	TObjectPtr<class UCustomizableObjectLayout> UVOverrideLayout;
 
 	/** */
 	TSharedPtr<SCustomizableObjectLayoutGrid> LayoutGridWidget;
@@ -66,6 +69,7 @@ private:
 private:
 
 	/** */
+	ELayoutGridMode GetGridMode() const;
 	FIntPoint GetGridSize() const;
 	void OnBlockChanged(FGuid BlockId, FIntRect Block );
 	TArray<FCustomizableObjectLayoutBlock> GetBlocks() const;
@@ -77,8 +81,8 @@ private:
 	void OnAddBlockAt(const FIntPoint Min, const FIntPoint Max);
 	void OnRemoveBlock();
 
-	/** Generate layout blocks using UVs*/
-	void OnGenerateBlocks();
+	/** Turn the automatic layout blocks into user-created blocks. */
+	void OnConsolidateBlocks();
 
 	/** Sets the block priority from the input text. */
 	void OnSetBlockPriority(int32 InValue);

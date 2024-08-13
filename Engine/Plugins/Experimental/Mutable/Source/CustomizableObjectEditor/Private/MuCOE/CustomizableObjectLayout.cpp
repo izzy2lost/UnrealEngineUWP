@@ -4,8 +4,9 @@
 
 #include "Engine/StaticMesh.h"
 #include "MuCO/CustomizableObjectCompilerTypes.h"
+#include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
-#include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeLayoutBlocks.h"
@@ -33,12 +34,6 @@ void UCustomizableObjectLayout::SetLayout(UObject* InMesh, int32 LODIndex, int32
 	LOD = LODIndex;
 	Material = MatIndex;
 	UVChannel = UVIndex;
-}
-
-
-void UCustomizableObjectLayout::SetPackingStrategy(ECustomizableObjectTextureLayoutPackingStrategy Strategy)
-{
-	PackingStrategy = Strategy;
 }
 
 
@@ -86,64 +81,92 @@ void UCustomizableObjectLayout::SetLayoutName(FString Name)
 }
 
 
-void UCustomizableObjectLayout::GenerateBlocksFromUVs()
+void UCustomizableObjectLayout::GenerateAutomaticBlocksFromUVs()
 {
-	mu::Ptr<mu::NodeLayout> LayoutNode;
-
 	UCustomizableObjectNode* Node = Cast<UCustomizableObjectNode>(GetOuter());
 
-	if (Node && Mesh)
+	if (!Node || !Mesh)
 	{
-		//Creating a GenerationContext
-		FCustomizableObjectCompiler Compiler;
-		UCustomizableObject* Object = Node->GetGraphEditor()->GetCustomizableObject();
-		FCompilationOptions Options = Object->GetPrivate()->GetCompileOptions();
-	
-		FMutableGraphGenerationContext GenerationContext(Object, &Compiler, Options);
-	
-		//Transforming skeletalmesh to mutable mesh
-		mu::MeshPtr	MutableMesh = nullptr;
-		
-		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(Mesh))
-		{
-			// We don't need all the data to generate the blocks
-			const EMutableMeshConversionFlags ShapeFlags = 
-					EMutableMeshConversionFlags::IgnoreSkinning | 
-					EMutableMeshConversionFlags::IgnorePhysics;
+		return;
+	}
 
-			GenerationContext.MeshGenerationFlags.Push(ShapeFlags);
+	if (AutomaticBlocksStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::Ignore)
+	{
+		return;
+	}
 
-			GenerationContext.ComponentInfos.Add(FMutableComponentInfo(FName(), SkeletalMesh));
-			MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), LOD, Material, LOD, Material, GenerationContext, Node, nullptr);
-		}
-		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(Mesh))
+	// Create a GenerationContext
+	FCustomizableObjectCompiler Compiler;
+	UCustomizableObject* Object = Node->GetGraphEditor()->GetCustomizableObject();
+	FCompilationOptions Options = Object->GetPrivate()->GetCompileOptions();
+
+	FMutableGraphGenerationContext GenerationContext(Object, &Compiler, Options);
+
+	bool bOutWasEmpty = false;
+	mu::Ptr<mu::NodeLayout> LayoutNode = CreateMutableLayoutNode(GenerationContext, this, false, bOutWasEmpty );
+
+	if (LayoutNode)
+	{
+		AutomaticBlocks.Empty();
+
+		// Generate the editor layout blocks from the mutable layout
+		for (int32 i = 0; i < LayoutNode->Blocks.Num(); ++i)
 		{
-			MutableMesh = ConvertStaticMeshToMutable(StaticMesh, LOD, Material, GenerationContext, Node);
-		}
-	
-		if (MutableMesh)
-		{
-			// Generating blocks with the mutable mesh
-			LayoutNode = mu::NodeLayout::GenerateLayoutBlocks(MutableMesh, UVChannel, GridSize.X, GridSize.Y);
-		}
-	
-		if (LayoutNode)
-		{
-			Blocks.Empty();
-		
-			// Generating the layout blocks with the mutable layout
-			for (int i = 0; i < LayoutNode->Blocks.Num(); ++i)
+			FIntPoint Min = FIntPoint(LayoutNode->Blocks[i].Min.X, LayoutNode->Blocks[i].Min.Y);
+			FIntPoint Size = FIntPoint(LayoutNode->Blocks[i].Size.X, LayoutNode->Blocks[i].Size.Y);
+
+			// Ignore blocks contained inside any block in the initial block set.
+			bool bContainedInInitialSet = false;
+			for (const FCustomizableObjectLayoutBlock& Block : Blocks)
 			{
-				mu::FImageSize Min = LayoutNode->Blocks[i].Min;
-				mu::FImageSize Size = LayoutNode->Blocks[i].Size;
-		
-				FCustomizableObjectLayoutBlock block(FIntPoint(Min.X, Min.Y), FIntPoint(Min.X + Size.X, Min.Y + Size.Y));
-				Blocks.Add(block);
+				FInt32Rect ExistingRect(Block.Min, Block.Max + FIntPoint(1));
+				if (ExistingRect.Contains(Min) && ExistingRect.Contains(Min + Size))
+				{
+					bContainedInInitialSet = true;
+					break;
+				}
 			}
-		
-			Node->PostEditChange();
-			Node->GetGraph()->MarkPackageDirty();
+			if (bContainedInInitialSet)
+			{
+				continue;
+			}
+
+			FCustomizableObjectLayoutBlock Block(FIntPoint(Min.X, Min.Y), FIntPoint(Min.X + Size.X, Min.Y + Size.Y));
+			Block.bIsAutomatic = true;
+			Block.Id = FGuid::NewGuid();
+
+			mu::Ptr<mu::Image> Mask = LayoutNode->Blocks[i].Mask;
+			if (Mask)
+			{
+				UTexture2D* UnrealImage = NewObject<UTexture2D>(UTexture2D::StaticClass());
+
+				FMutableModelImageProperties Props;
+				Props.Filter = TF_Nearest;
+				Props.SRGB = true;
+				Props.LODBias = 0;
+				ConvertImage(UnrealImage, Mask, Props );
+				UnrealImage->NeverStream = true;
+				UnrealImage->UpdateResource();
+
+				Block.Mask = UnrealImage;
+			}
+			AutomaticBlocks.Add(Block);
 		}
+
+		Node->PostEditChange();
+		Node->GetGraph()->MarkPackageDirty();
+	}
+}
+
+
+void UCustomizableObjectLayout::ConsolidateAutomaticBlocks()
+{
+	Blocks.Append(AutomaticBlocks);
+	AutomaticBlocks.Empty();
+	for (FCustomizableObjectLayoutBlock& Block : Blocks)
+	{
+		Block.Id = FGuid::NewGuid();
+		Block.bIsAutomatic = false;
 	}
 }
 
@@ -172,7 +195,7 @@ void UCustomizableObjectLayout::GetUVChannel(TArray<FVector2f>& UVs, int32 UVCha
 
 int32 UCustomizableObjectLayout::FindBlock(const FGuid& InId) const
 {
-	for (int Index = 0; Index < Blocks.Num(); ++Index)
+	for (int32 Index = 0; Index < Blocks.Num(); ++Index)
 	{
 		if (Blocks[Index].Id == InId)
 		{
@@ -196,8 +219,4 @@ void UCustomizableObjectLayout::SetIgnoreWarningsLOD(int32 LODValue)
 }
 
 
-void UCustomizableObjectLayout::SetBlockReductionMethod(ECustomizableObjectLayoutBlockReductionMethod Method)
-{
-	BlockReductionMethod = Method;
-}
 #undef LOCTEXT_NAMESPACE

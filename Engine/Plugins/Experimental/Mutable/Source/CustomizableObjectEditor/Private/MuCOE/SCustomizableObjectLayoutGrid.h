@@ -29,7 +29,7 @@ typedef enum
 {
 	ELGM_Show,
 	ELGM_Edit,
-	ELGM_Select
+	ELGM_ShowUVsOnly,
 } ELayoutGridMode;
 
 struct FBlockWidgetData
@@ -61,11 +61,11 @@ public:
 
 	SLATE_BEGIN_ARGS( SCustomizableObjectLayoutGrid ){}
 
+		SLATE_ATTRIBUTE(ELayoutGridMode, Mode)
 		SLATE_ATTRIBUTE( FIntPoint, GridSize )
-		SLATE_ATTRIBUTE( TArray<FCustomizableObjectLayoutBlock>, Blocks )
+		SLATE_ATTRIBUTE(TArray<FCustomizableObjectLayoutBlock>, Blocks)
 		SLATE_ARGUMENT( TArray<FVector2f>, UVLayout )
 		SLATE_ARGUMENT( TArray<FVector2f>, UnassignedUVLayoutVertices )
-		SLATE_ARGUMENT( ELayoutGridMode, Mode )
 		SLATE_ARGUMENT( FColor, SelectionColor )
 		SLATE_EVENT( FBlockChangedDelegate, OnBlockChanged )
 		SLATE_EVENT( FBlockSelectionChangedDelegate, OnSelectionChanged )
@@ -100,7 +100,6 @@ public:
 
 	/** Set the currently selected block */
 	void SetSelectedBlock( FGuid block );
-	void SetSelectedBlocks( const TArray<FGuid>& blocks );
 
 	/** */
 	const TArray<FGuid>& GetSelectedBlocks() const;
@@ -127,6 +126,24 @@ public:
 	/** Set the grid and blocks to show in the widget. */
 	void SetBlocks( const FIntPoint& GridSize, const TArray<FCustomizableObjectLayoutBlock>& Blocks);
 
+	struct FPointOfView
+	{
+		/** Amount of padding since start dragging */
+		FVector2D PaddingAmount = FVector2D::Zero();
+
+		/** Level of zoom */
+		int32 Zoom = 1;
+
+		/** */
+		double GetZoomFactor() const
+		{
+			return FMath::Pow(2.0, double(Zoom - 1));
+		}
+
+	};
+
+	/** Current point of view. */
+	FPointOfView PointOfView;
 
 private:
 
@@ -170,7 +187,7 @@ private:
 	/** Size of the grid in blocks */
 	TAttribute<FIntPoint> GridSize;
 
-	/** Array with all the blocks of the layout */
+	/** Array with all the editable blocks of the layout */
 	TAttribute< TArray<FCustomizableObjectLayoutBlock> > Blocks;
 
 	/** Array with all the UVs to draw in the layout */
@@ -180,7 +197,7 @@ private:
 	TArray<FVector2f> UnassignedUVLayoutVertices;
 
 	/** Layout mode */
-	ELayoutGridMode Mode = ELGM_Show;
+	TAttribute<ELayoutGridMode> Mode = ELGM_Show;
 
 	float CellSize = 0.0f;
 
@@ -216,14 +233,8 @@ private:
 	/** Position where the layout grid starts to be drawn */
 	FVector2D DrawOrigin;
 
-	/** Amount of padding since start dragging */
-	FVector2D PaddingAmount = FVector2D::Zero();
-
 	/** Position where the padding started */
 	FVector2D PaddingStart;
-
-	/** Level of zoom */
-	int32 Zoom = 1;
 
 	/** Selection Rectangle */
 	FRect2D SelectionRect;

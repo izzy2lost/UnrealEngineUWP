@@ -17,6 +17,12 @@ namespace mu
 	}
 
 	template<>
+	inline int32 GetDim<FVector2f>()
+	{
+		return 2;
+	}
+
+	template<>
 	inline int32 GetDim<FVector3f>()
 	{
 		return 3;
@@ -93,17 +99,23 @@ namespace mu
             return result;
         }
 
-        //-----------------------------------------------------------------------------------------
-        inline bool Contains( const VECTOR& v ) const
-        {
-            return AllGreaterOrEqualThan(v,min) && AllSmallerThan(v, min+size);
-        }
+		//-----------------------------------------------------------------------------------------
+		inline bool Contains(const VECTOR& v) const
+		{
+			return AllGreaterOrEqualThan(v, min) && AllSmallerThan(v, min + size);
+		}
 
-        //-----------------------------------------------------------------------------------------
-        inline bool ContainsInclusive( const VECTOR& v ) const
-        {
-            return AllGreaterOrEqualThan(v, min) && AllSmallerOrEqualThan(v, min+size);
-        }
+		//-----------------------------------------------------------------------------------------
+		inline bool ContainsInclusive(const VECTOR& v) const
+		{
+			return AllGreaterOrEqualThan(v, min) && AllSmallerOrEqualThan(v, min + size);
+		}
+
+		//-----------------------------------------------------------------------------------------
+		inline bool Contains(const box<VECTOR>& v) const
+		{
+			return Contains(v.min) && ContainsInclusive(v.min+v.size);
+		}
 
         //-----------------------------------------------------------------------------------------
         //! It is inclusive: If the borders touch it is considered an intersection.

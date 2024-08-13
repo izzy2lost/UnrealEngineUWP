@@ -39,7 +39,7 @@ public:
 	/**  */
 	TSharedPtr< FUICommandInfo > AddBlock;
 	TSharedPtr< FUICommandInfo > RemoveBlock;
-	TSharedPtr< FUICommandInfo > GenerateBlocks;
+	TSharedPtr< FUICommandInfo > ConsolidateBlocks;
 
 	/**
 	 * Initialize commands
@@ -48,7 +48,7 @@ public:
 	{
 		UI_COMMAND( AddBlock, "Add Block", "Add a new block to the layout.", EUserInterfaceActionType::Button, FInputChord() );
 		UI_COMMAND( RemoveBlock, "Remove Block", "Remove a block from the layout.", EUserInterfaceActionType::Button, FInputChord() );
-		UI_COMMAND( GenerateBlocks, "Generate Blocks", "Generate Blocks automatically from UVs", EUserInterfaceActionType::Button, FInputChord() );
+		UI_COMMAND(ConsolidateBlocks, "Consolidate Blocks", "Convert automatic blocks into user blocks.", EUserInterfaceActionType::Button, FInputChord() );
 	}
 };
 
@@ -66,16 +66,15 @@ void SCustomizableObjectNodeLayoutBlocksEditor::Construct(const FArguments& InAr
 }
 
 
-void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableObjectLayout* Layout, UCustomizableObjectLayout* UVOverrideLayout )
+void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableObjectLayout* InLayout, UCustomizableObjectLayout* InUVOverrideLayout )
 {
-	CurrentLayout = Layout;
+	CurrentLayout = InLayout;
+	UVOverrideLayout = InUVOverrideLayout;
 
-	UCustomizableObjectLayout* LayoutForUVs = UVOverrideLayout ? UVOverrideLayout : Layout;
+	UCustomizableObjectLayout* LayoutForUVs = UVOverrideLayout ? UVOverrideLayout : CurrentLayout;
 
-	// Try to locate the source mesh
 	TArray<FVector2f> UVs;
 	TArray<FVector2f> UnassignedUVs;
-
 	if (CurrentLayout)
 	{
 		LayoutForUVs->GetUVChannel(UVs, LayoutForUVs->GetUVChannel());
@@ -86,6 +85,15 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableO
 		{
 			UnassignedUVs = LayoutForUVs->UnassignedUVs[0];
 		}
+	}
+
+	// Save some layout widget state to persist between updates
+	bool bHadWidget = false;
+	SCustomizableObjectLayoutGrid::FPointOfView OldView;
+	if (LayoutGridWidget)
+	{
+		bHadWidget = true;
+		OldView = LayoutGridWidget->PointOfView;
 	}
 
 	this->ChildSlot
@@ -103,7 +111,7 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableO
 		.FillHeight(1)
 		[
 			SAssignNew(LayoutGridWidget, SCustomizableObjectLayoutGrid)
-			.Mode(ELGM_Edit)
+			.Mode(this, &SCustomizableObjectNodeLayoutBlocksEditor::GetGridMode)
 			.GridSize(this, &SCustomizableObjectNodeLayoutBlocksEditor::GetGridSize)
 			.Blocks(this, &SCustomizableObjectNodeLayoutBlocksEditor::GetBlocks)
 			.UVLayout(UVs)
@@ -118,11 +126,16 @@ void SCustomizableObjectNodeLayoutBlocksEditor::SetCurrentLayout( UCustomizableO
 			.OnSetBlockMask(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockMask)
 		]
 	];	
-}
 
+	if (CurrentLayout)
+	{
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
+	}
 
-SCustomizableObjectNodeLayoutBlocksEditor::~SCustomizableObjectNodeLayoutBlocksEditor()
-{
+	if (bHadWidget)
+	{
+		LayoutGridWidget->PointOfView = OldView;
+	}
 }
 
 
@@ -141,13 +154,29 @@ TSharedRef<SWidget> SCustomizableObjectNodeLayoutBlocksEditor::BuildLayoutToolBa
 	const ISlateStyle* const StyleSet = &FCoreStyle::Get();
 	const FName& StyleName = "ToolBar";
 
-	LayoutToolbarBuilder.BeginSection("Blocks");
+	if (CurrentLayout->PackingStrategy!=ECustomizableObjectTextureLayoutPackingStrategy::Overlay)
 	{
-		LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().AddBlock);
-		LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().RemoveBlock);
-		LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().GenerateBlocks);
+		LayoutToolbarBuilder.BeginSection("Blocks");
+		{
+			LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().AddBlock);
+			LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().RemoveBlock);
+			
+			// Disable block consolidation if we are defininf blocks on top of another layout
+			bool bCanConsolidate = !UVOverrideLayout;
+
+			// Disable block consolidation if the cuyrrent automatic strategy doesn't generate blocks.
+			if (CurrentLayout->AutomaticBlocksStrategy != ECustomizableObjectLayoutAutomaticBlocksStrategy::Rectangles)
+			{
+				bCanConsolidate = false;
+			}
+
+			if (bCanConsolidate)
+			{
+				LayoutToolbarBuilder.AddToolBarButton(FLayoutEditorCommands::Get().ConsolidateBlocks);
+			}
+		}
+		LayoutToolbarBuilder.EndSection();
 	}
-	LayoutToolbarBuilder.EndSection();
 
 	LayoutToolbarBuilder.BeginSection("Info");
 	{
@@ -191,6 +220,8 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlock()
 		FCustomizableObjectLayoutBlock Block;
 		CurrentLayout->Blocks.Add(Block);
 
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
+
 		if (LayoutGridWidget.IsValid())
 		{
 			LayoutGridWidget->SetSelectedBlock(Block.Id);
@@ -208,6 +239,8 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnAddBlockAt(const FIntPoint Min
 		
 		FCustomizableObjectLayoutBlock block(Min,Max);
 		CurrentLayout->Blocks.Add(block);
+
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
 	}
 }
 
@@ -229,26 +262,41 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnRemoveBlock()
 					It.RemoveCurrent();
 				}
 			}
+
+			CurrentLayout->GenerateAutomaticBlocksFromUVs();
 		}
 	}
 }
 
 
-void SCustomizableObjectNodeLayoutBlocksEditor::OnGenerateBlocks()
+void SCustomizableObjectNodeLayoutBlocksEditor::OnConsolidateBlocks()
 {
 	if (CurrentLayout)
 	{
-		const FScopedTransaction Transaction(LOCTEXT("OnGenerateBlocks", "Generate Blocks"));
+		const FScopedTransaction Transaction(LOCTEXT("OnConsolidateBlocks", "Consolidate Blocks"));
 		CurrentLayout->Modify();
-		
-		CurrentLayout->GenerateBlocksFromUVs();
+				
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
+
+		CurrentLayout->ConsolidateAutomaticBlocks();
 	}
+}
+
+
+ELayoutGridMode SCustomizableObjectNodeLayoutBlocksEditor::GetGridMode() const
+{
+	if (CurrentLayout && CurrentLayout->PackingStrategy != ECustomizableObjectTextureLayoutPackingStrategy::Overlay)
+	{
+		return ELayoutGridMode::ELGM_Edit;
+	}
+
+	return ELayoutGridMode::ELGM_ShowUVsOnly;
 }
 
 
 FIntPoint SCustomizableObjectNodeLayoutBlocksEditor::GetGridSize() const
 {
-	if ( CurrentLayout )
+	if (CurrentLayout)
 	{
 		return CurrentLayout->GetGridSize();
 	}
@@ -273,6 +321,8 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnBlockChanged( FGuid BlockId, F
 				break;
 			}
 		}
+
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
 	}
 }
 
@@ -365,6 +415,8 @@ void SCustomizableObjectNodeLayoutBlocksEditor::OnSetBlockMask(UTexture2D* InVal
 				}
 			}
 		}
+
+		CurrentLayout->GenerateAutomaticBlocksFromUVs();
 	}
 }
 
@@ -377,6 +429,8 @@ TArray<FCustomizableObjectLayoutBlock> SCustomizableObjectNodeLayoutBlocksEditor
 	{
 		Blocks = CurrentLayout->Blocks;
 	}
+
+	Blocks.Append(CurrentLayout->AutomaticBlocks );
 
 	return Blocks;
 }
@@ -402,8 +456,8 @@ void SCustomizableObjectNodeLayoutBlocksEditor::BindCommands()
 		FIsActionChecked() );
 
 	UICommandList->MapAction(
-		Commands.GenerateBlocks,
-		FExecuteAction::CreateSP(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnGenerateBlocks),
+		Commands.ConsolidateBlocks,
+		FExecuteAction::CreateSP(this, &SCustomizableObjectNodeLayoutBlocksEditor::OnConsolidateBlocks),
 		FCanExecuteAction(),
 		FIsActionChecked());
 }
@@ -435,12 +489,17 @@ TSharedPtr<IToolTip> SCustomizableObjectNodeLayoutBlocksEditor::GenerateInfoTool
 	};
 
 	// Duplicate command
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_DuplicateBlocks", "CTRL + D"), LOCTEXT("Tooltip_DuplicateBlocks", "Duplicate selected block/s"));
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_CreateNewBlock", "CTRL + N"), LOCTEXT("Tooltip_CreateNewBlock", "Create new block"));
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_FillGridSize", "CTRL + F"), LOCTEXT("Tooltip_FillGridSize", "Resize selected block/s to grid size"));
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_DeleteSelectedBlock","DEL"), LOCTEXT("Tooltip_DeleteSelectedBlock","Delete selected block/s"));
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_SelectMultipleBlocksOneByOne","SHIFT + L Click"), LOCTEXT("Tooltip_SelectMultipleBlocksOneByOne","Select multiple blocks one by one"));
-	BuildShortcutAndTooltip(LOCTEXT("ShortCut_SelectMultipleBlocks","L Click + Drag"), LOCTEXT("Tooltip_SelectMultipleBlocks","Select blocks that intersect with the yellow rectangle"));
+	if (CurrentLayout->PackingStrategy != ECustomizableObjectTextureLayoutPackingStrategy::Overlay)
+	{
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_DuplicateBlocks", "CTRL + D"), LOCTEXT("Tooltip_DuplicateBlocks", "Duplicate selected block/s"));
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_CreateNewBlock", "CTRL + N"), LOCTEXT("Tooltip_CreateNewBlock", "Create new block"));
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_FillGridSize", "CTRL + F"), LOCTEXT("Tooltip_FillGridSize", "Resize selected block/s to grid size"));
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_DeleteSelectedBlock", "DEL"), LOCTEXT("Tooltip_DeleteSelectedBlock", "Delete selected block/s"));
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_SelectMultipleBlocksOneByOne", "SHIFT + L Click"), LOCTEXT("Tooltip_SelectMultipleBlocksOneByOne", "Select multiple blocks one by one"));
+		BuildShortcutAndTooltip(LOCTEXT("ShortCut_SelectMultipleBlocks", "L Click + Drag"), LOCTEXT("Tooltip_SelectMultipleBlocks", "Select blocks that intersect with the yellow rectangle"));
+	}
+	BuildShortcutAndTooltip(LOCTEXT("ShortCut_Pan", "M Click + Drag"), LOCTEXT("Tooltip_Pan", "Pan the UV view."));
+	BuildShortcutAndTooltip(LOCTEXT("ShortCut_Zoom", "M Wheel"), LOCTEXT("Tooltip_Zoom", "Zoom in and out the UV view."));
 
 	return SNew(SToolTip)
 	[

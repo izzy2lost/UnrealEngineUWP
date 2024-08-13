@@ -33,8 +33,8 @@ namespace mu
 	{
 		static constexpr uint64 InvalidBlockId = TNumericLimits<uint64>::Max();
 
-		UE::Math::TIntVector2<uint16> Min = { 0, 0 };
-		UE::Math::TIntVector2<uint16> Size = { 0, 0 };
+		FIntVector2 Min = { 0, 0 };
+		FIntVector2 Size = { 0, 0 };
 
 		//! Absolute id used to control merging of various layouts
 		uint64 Id;
@@ -52,7 +52,7 @@ namespace mu
 		uint32 UnusedPadding : 30;
 
 		/** */
-		FLayoutBlock(UE::Math::TIntVector2<uint16> InMin = {}, UE::Math::TIntVector2<uint16> InSize = {})
+		FLayoutBlock(FIntVector2 InMin = {}, FIntVector2 InSize = {})
 		{
 			Min = InMin;
 			Size = InSize;
@@ -92,12 +92,12 @@ namespace mu
 	public:
 
 		//!
-		UE::Math::TIntVector2<uint16> Size = UE::Math::TIntVector2<uint16>(0, 0);
+		FIntVector2 Size = FIntVector2(0, 0);
 
 		/** Maximum size in layout blocks that this layout can grow to. From there on, blocks will shrink to fit. 
 		* If 0,0 then no maximum size applies.
 		*/
-		UE::Math::TIntVector2<uint16> MaxSize = UE::Math::TIntVector2<uint16>(0, 0);
+		FIntVector2 MaxSize = FIntVector2(0, 0);
 
 		//!
 		TArray<FLayoutBlock> Blocks;

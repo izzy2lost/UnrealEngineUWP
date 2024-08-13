@@ -224,7 +224,7 @@ namespace mu
 			check( BlockIndex>=0 );
 
 			// Block in layout grid units
-			box< UE::Math::TIntVector2<uint16> > RectInCells;
+			box< FIntVector2 > RectInCells;
 			RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
 			RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
@@ -233,22 +233,40 @@ namespace mu
 			grid[1] = FMath::Max(1, grid[1]);
 
 			// Transform to pixels
-			box< UE::Math::TIntVector2<int32> > rect;
-			rect.min[0]  = (RectInCells.min[0]  * SourceImageSize[0]) / grid[0];
-			rect.min[1]  = (RectInCells.min[1]  * SourceImageSize[1]) / grid[1];
-			rect.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
-			rect.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
+			box< FIntVector2 > RectInPixels;
+			RectInPixels.min[0]  = (RectInCells.min[0]  * SourceImageSize[0]) / grid[0];
+			RectInPixels.min[1]  = (RectInCells.min[1]  * SourceImageSize[1]) / grid[1];
+			RectInPixels.size[0] = (RectInCells.size[0] * SourceImageSize[0]) / grid[0];
+			RectInPixels.size[1] = (RectInCells.size[1] * SourceImageSize[1]) / grid[1];
 
 			// Do we need to crop?
-			if (rect.min[0]!=0 || rect.min[1]!=0 || pImage->GetSizeX() != rect.size[0] || pImage->GetSizeY() != rect.size[1])
+			if (RectInPixels.min[0]!=0 || RectInPixels.min[1]!=0 || pImage->GetSizeX()!=RectInPixels.size[0] || pImage->GetSizeY()!=RectInPixels.size[1])
 			{
-				Ptr<ASTOpImageCrop> CropOp = new ASTOpImageCrop();
-				CropOp->Source = Result.op;
-				CropOp->Min[0] = rect.min[0];
-				CropOp->Min[1] = rect.min[1];
-				CropOp->Size[0] = rect.size[0];
-				CropOp->Size[1] = rect.size[1];
-				Result.op = CropOp;
+				// See if the rect belongs to a single texture tile
+				FIntVector2 TileMin(RectInPixels.min[0] / SourceImageSize[0], RectInPixels.min[1] / SourceImageSize[1]);
+				FIntVector2 TileMax((RectInPixels.min[0]+ RectInPixels.size[0]-1) / SourceImageSize[0], (RectInPixels.min[1]+ RectInPixels.size[1]-1) / SourceImageSize[1]);
+
+				if (TileMin != TileMax)
+				{
+					// Blocks spaning multiple texture tiles are not supported.
+					// To implement them, assemble a series of instructions to crop and compose the necessary rects from each tile into the final image.
+					ensure(false);
+
+					// Log an error message
+					ErrorLog->GetPrivate()->Add("A layout block goes across different texture tiles. This is not supported yet.", ELMT_ERROR, InNode->GetMessageContext());
+				}
+				else
+				{
+					Ptr<ASTOpImageCrop> CropOp = new ASTOpImageCrop();
+					CropOp->Source = Result.op;
+					
+					// Bring the crop rect to tile 0,0
+					CropOp->Min[0] = RectInPixels.min[0] - TileMin[0] * SourceImageSize[0];
+					CropOp->Min[1] = RectInPixels.min[1] - TileMin[1] * SourceImageSize[1];
+					CropOp->Size[0] = RectInPixels.size[0];
+					CropOp->Size[1] = RectInPixels.size[1];
+					Result.op = CropOp;
+				}
 			}
 		}
     }
@@ -1152,7 +1170,7 @@ namespace mu
 				check(BlockIndex >= 0);
 
 				// Block in layout grid units
-				box< UE::Math::TIntVector2<uint16> > RectInCells;
+				box< FIntVector2 > RectInCells;
 				RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
 				RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
@@ -1211,7 +1229,7 @@ namespace mu
 				check(BlockIndex >= 0);
 
 				// Block in layout grid units
-				box< UE::Math::TIntVector2<uint16> > RectInCells;
+				box< FIntVector2 > RectInCells;
 				RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
 				RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 
@@ -1574,7 +1592,7 @@ namespace mu
 			check(BlockIndex >= 0);
 
 			// Block in layout grid units
-			box< UE::Math::TIntVector2<uint16> > RectInCells;
+			box< FIntVector2 > RectInCells;
 			RectInCells.min = Options.LayoutToApply->Blocks[BlockIndex].Min;
 			RectInCells.size = Options.LayoutToApply->Blocks[BlockIndex].Size;
 

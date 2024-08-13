@@ -1162,7 +1162,7 @@ mu::MeshPtr ConvertSkeletalMeshToMutable(const USkeletalMesh* InSkeletalMesh, co
 
 	// TODO: Add Mesh generation flags to not include RT Morph and clothing if not needed.
 	int32 NextBufferIndex = MutableMesh->VertexBuffers.Buffers.Num();
-	if (GenerationContext.Options.bRealTimeMorphTargetsEnabled)
+	if (GenerationContext.Options.bRealTimeMorphTargetsEnabled && CurrentNode)
 	{
 
 		// This call involves resolving every TObjectPtr<UMorphTarget> to a UMorphTarget*, so

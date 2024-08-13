@@ -137,6 +137,7 @@ private:
 	/** Default colors. */
 	FColor SelectedBlockColor = FColor(75, 106, 230, 155);
 	FColor UnselectedBlockColor = FColor(230, 199, 75, 155);
+	FColor AutomaticBlockColor = FColor(125, 125, 125, 125);
 };
 
 
@@ -160,7 +161,6 @@ void SCustomizableObjectLayoutGrid::Construct( const FArguments& InArgs )
 	for (int32 BufferIndex=0;BufferIndex< UE_MUTABLE_UI_DRAWBUFFERS; ++BufferIndex)
 	{
 		UVCanvasDrawers[BufferIndex] = TSharedPtr<FUVCanvasDrawer>(new FUVCanvasDrawer());
-		UVCanvasDrawers[BufferIndex]->SetLayoutMode(Mode);
 	}
 }
 
@@ -211,7 +211,7 @@ int32 SCustomizableObjectLayoutGrid::OnPaint(const FPaintArgs& Args, const FGeom
 
 	FVector2D OldSize = Size;
 
-	double ZoomFactor = FMath::Pow(2.0,double(Zoom-1));
+	double ZoomFactor = PointOfView.GetZoomFactor();
 	Size *= ZoomFactor;
 
 	float AuxCellSize = Size.X / GridSizePoint.X;
@@ -220,7 +220,7 @@ int32 SCustomizableObjectLayoutGrid::OnPaint(const FPaintArgs& Args, const FGeom
 	FVector2D Offset = FVector2D((AreaSize - Size).X / 2.0f, 0.0f);
 	
 	// Drawing Origin
-	FVector2D Origin = BorderPadding + Offset + PaddingAmount;
+	FVector2D Origin = BorderPadding + Offset + PointOfView.PaddingAmount;
 
 	// Setting Canvas Drawing Rectangles
 	FSlateRect SlateCanvasRect = AllottedGeometry.GetLayoutBoundingRect();
@@ -239,8 +239,12 @@ int32 SCustomizableObjectLayoutGrid::OnPaint(const FPaintArgs& Args, const FGeom
 		FMath::TruncToInt(FMath::Max(0.0f, ClippedCanvasRect.Bottom)));
 
 	TSharedPtr<class FUVCanvasDrawer> UVCanvasDrawer = UVCanvasDrawers[CurrentDrawBuffer];
+	
+	ELayoutGridMode GridMode = Mode.Get();
+	UVCanvasDrawer->SetLayoutMode(GridMode);
 	UVCanvasDrawer->InitializeDrawingData(UVLayout, UnassignedUVLayoutVertices, Blocks.Get(), SelectedBlocks);
 	UVCanvasDrawer->Initialize(CanvasRect, ClippingRect, Origin * AllottedGeometry.Scale, Size * AllottedGeometry.Scale, GridSizePoint, AuxCellSize * AllottedGeometry.Scale);
+
 	FSlateDrawElement::MakeCustom(OutDrawElements, RetLayerId, UVCanvasDrawer);
 
 	const auto MakeYellowSquareLine = [&](const TArray<FVector2D>& Points) -> void
@@ -250,7 +254,7 @@ int32 SCustomizableObjectLayoutGrid::OnPaint(const FPaintArgs& Args, const FGeom
 	};
 
 	// Drawing Multi-Selection rect
-	if (Mode == ELGM_Edit && bIsSelecting)
+	if (GridMode == ELGM_Edit && bIsSelecting)
 	{
 		TArray<FVector2D> SelectionSquarePoints;
 		SelectionSquarePoints.SetNum(2);
@@ -285,6 +289,7 @@ int32 SCustomizableObjectLayoutGrid::OnPaint(const FPaintArgs& Args, const FGeom
 
 void SCustomizableObjectLayoutGrid::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
+	// Swap the rendering buffer.
 	CurrentDrawBuffer = FMath::Modulo(CurrentDrawBuffer+1, UE_MUTABLE_UI_DRAWBUFFERS);
 
 	const FVector2D BorderPadding = FVector2D(2,2);
@@ -303,12 +308,12 @@ void SCustomizableObjectLayoutGrid::Tick( const FGeometry& AllottedGeometry, con
 	}
 
 	FVector2D OldSize = Size;
-	double ZoomFactor = FMath::Pow(2.0, double(Zoom - 1));
+	double ZoomFactor = PointOfView.GetZoomFactor();
 	Size *= ZoomFactor;
 
 	CellSize = Size.X/GridSize.Get().X;
 	FVector2D Offset = FVector2D((AreaSize - Size).X / 2.0f, 0.0f);
-	FVector2D Origin = BorderPadding + Offset + PaddingAmount;
+	FVector2D Origin = BorderPadding + Offset + PointOfView.PaddingAmount;
 	DrawOrigin = Origin;
 
 	BlockRects.Empty();
@@ -331,7 +336,7 @@ void SCustomizableObjectLayoutGrid::Tick( const FGeometry& AllottedGeometry, con
 	}
 
 	// Update selection list
-	for (int32 SelectedBlockIndex=0; SelectedBlockIndex <SelectedBlocks.Num();)
+	for (int32 SelectedBlockIndex=0; SelectedBlockIndex<SelectedBlocks.Num();)
 	{
 		bool bFound = false;
 		for (const FCustomizableObjectLayoutBlock& Block : CurrentBlocks)
@@ -365,9 +370,9 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 {
 	FReply Reply = FReply::Unhandled();
 
-	if (Mode == ELGM_Edit)
+	ELayoutGridMode GridMode = Mode.Get();
 	{
-		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
+		if (MouseEvent.GetEffectingButton() == EKeys::LeftMouseButton && GridMode == ELGM_Edit)
 		{
 			bHasDragged = false;
 			bIsDragging = false;
@@ -416,7 +421,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 		}
 		else if (MouseEvent.GetEffectingButton() == EKeys::RightMouseButton)
 		{
-			//Mouse position
+			// Mouse position
 			FVector2D Pos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 			FVector2D CellDelta = (Pos - DrawOrigin) / CellSize;
 
@@ -431,97 +436,101 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonDown( const FGeometry& MyGeom
 			}
 			MenuBuilder.EndSection();
 
-			MenuBuilder.BeginSection("Block Management", LOCTEXT("BlockActionsTitle", "Block Actions"));
+			if (GridMode == ELGM_Edit)
 			{
-				if (SelectedBlocks.Num())
+				MenuBuilder.BeginSection("Block Management", LOCTEXT("BlockActionsTitle", "Block Actions"));
 				{
-					FUIAction DeleteAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::DeleteSelectedBlocks));
-					MenuBuilder.AddMenuEntry(LOCTEXT("DeleteBlocksLabel", "Delete"), LOCTEXT("DeleteBlocksTooltip", "Delete Selected Blocks"), FSlateIcon(), DeleteAction);
+					if (SelectedBlocks.Num())
+					{
+						FUIAction DeleteAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::DeleteSelectedBlocks));
+						MenuBuilder.AddMenuEntry(LOCTEXT("DeleteBlocksLabel", "Delete"), LOCTEXT("DeleteBlocksTooltip", "Delete Selected Blocks"), FSlateIcon(), DeleteAction);
 
-					FUIAction DuplicateAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::DuplicateBlocks));
-					MenuBuilder.AddMenuEntry(LOCTEXT("DuplicateBlocksLabel", "Duplicate"), LOCTEXT("DuplicateBlocksTooltip", "Duplicate Selected Blocks"), FSlateIcon(), DuplicateAction);
+						FUIAction DuplicateAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::DuplicateBlocks));
+						MenuBuilder.AddMenuEntry(LOCTEXT("DuplicateBlocksLabel", "Duplicate"), LOCTEXT("DuplicateBlocksTooltip", "Duplicate Selected Blocks"), FSlateIcon(), DuplicateAction);
+					}
+					else
+					{
+						FUIAction AddNewBlockAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::GenerateNewBlock, CellDelta));
+						MenuBuilder.AddMenuEntry(LOCTEXT("AddNewBlockLabel", "Add Block"), LOCTEXT("AddNewBlockTooltip", "Add New Block"), FSlateIcon(), AddNewBlockAction);
+					}
 				}
-				else
+				MenuBuilder.EndSection();
+
+				MenuBuilder.BeginSection("Block Properties for Fixed Layout", LOCTEXT("BlockPropertiesFixedTitle", "Block Properties for Fixed Layout"));
 				{
-					FUIAction AddNewBlockAction(FExecuteAction::CreateSP(this, &SCustomizableObjectLayoutGrid::GenerateNewBlock, CellDelta));
-					MenuBuilder.AddMenuEntry(LOCTEXT("AddNewBlockLabel", "Add Block"), LOCTEXT("AddNewBlockTooltip", "Add New Block"), FSlateIcon(), AddNewBlockAction);
+					if (SelectedBlocks.Num())
+					{
+						MenuBuilder.AddWidget(
+							SNew(SBox)
+							.WidthOverride(125.0f)
+							.ToolTipText(LOCTEXT("SetBlockPriority_Tooltip", "Sets the block priority for a Fixed Layout Strategy."))
+							[
+								SNew(SNumericEntryBox<int32>)
+									.MinValue(0)
+									.MaxValue(INT_MAX)
+									.MaxSliderValue(100)
+									.AllowSpin(SelectedBlocks.Num() == 1)
+									.Value(this, &SCustomizableObjectLayoutGrid::GetBlockPriorityValue)
+									.UndeterminedString(LOCTEXT("MultipleValues", "Multiples Values"))
+									.OnValueChanged(this, &SCustomizableObjectLayoutGrid::OnBlockPriorityChanged)
+									.EditableTextBoxStyle(&UE_MUTABLE_GET_WIDGETSTYLE<FEditableTextBoxStyle>("NormalEditableTextBox"))
+							]
+							, FText::FromString("Block Priority"), true);
+
+						MenuBuilder.AddWidget(
+							SNew(SBox)
+							.WidthOverride(125.0f)
+							.ToolTipText(LOCTEXT("SetBlockSymmetry_Tooltip", "If true, this block will be reduced in both axes at the same time in a Fixed Layout Strategy."))
+							[
+								SNew(SCheckBox)
+									.IsChecked(this, &SCustomizableObjectLayoutGrid::GetReductionMethodBoolValue, EFRO_Symmetry)
+									.OnCheckStateChanged(this, &SCustomizableObjectLayoutGrid::OnReduceBlockSymmetricallyChanged)
+							]
+							, FText::FromString("Reduce Symmetrically"), true);
+
+						MenuBuilder.AddWidget(
+							SNew(SBox)
+							.WidthOverride(125.0f)
+							.ToolTipText(LOCTEXT("SetBlockReduceByTwo_Tooltip", "Only for Unitary reduction. If true, this option reduces each time the block by two block units."))
+							[
+								SNew(SCheckBox)
+									.IsChecked(this, &SCustomizableObjectLayoutGrid::GetReductionMethodBoolValue, EFRO_RedyceByTwo)
+									.OnCheckStateChanged(this, &SCustomizableObjectLayoutGrid::OnReduceBlockByTwoChanged)
+							]
+							, FText::FromString("Reduce by Two"), true);
+					}
 				}
+				MenuBuilder.EndSection();
+
+
+				MenuBuilder.BeginSection("Block Properties for Masks", LOCTEXT("BlockPropertiesMaskTitle", "Block Mask"));
+				{
+					if (SelectedBlocks.Num())
+					{
+						MenuBuilder.AddWidget(
+							SNew(SBox)
+							.WidthOverride(125.0f)
+							.ToolTipText(LOCTEXT("SetBlockMask_Tooltip", "Sets the UV mask texture for the block."))
+							[
+								SNew(SStandAloneAssetPicker)
+									.OnAssetSelected(this, &SCustomizableObjectLayoutGrid::OnMaskAssetSelected)
+									.OnGetAllowedClasses(FOnGetAllowedClasses::CreateLambda([](TArray<const UClass*>& OutClasses) {OutClasses.Add(UTexture2D::StaticClass()); }))
+									.InitialAsset(GetBlockMaskValue())
+							]
+							, FText::FromString("Block Mask"), true);
+
+						// TODO: Additional properties: color used for preview?
+					}
+				}
+				MenuBuilder.EndSection();
 			}
-			MenuBuilder.EndSection();
-
-			MenuBuilder.BeginSection("Block Properties for Fixed Layout", LOCTEXT("BlockPropertiesFixedTitle", "Block Properties for Fixed Layout"));
-			{
-				if (SelectedBlocks.Num())
-				{
-					MenuBuilder.AddWidget(
-						SNew(SBox)
-						.WidthOverride(125.0f)
-						.ToolTipText(LOCTEXT("SetBlockPriority_Tooltip", "Sets the block priority for a Fixed Layout Strategy."))
-						[
-							SNew(SNumericEntryBox<int32>)
-							.MinValue(0)
-							.MaxValue(INT_MAX)
-							.MaxSliderValue(100)
-							.AllowSpin(SelectedBlocks.Num() == 1)
-							.Value(this, &SCustomizableObjectLayoutGrid::GetBlockPriorityValue)
-							.UndeterminedString(LOCTEXT("MultipleValues", "Multiples Values"))
-							.OnValueChanged(this, &SCustomizableObjectLayoutGrid::OnBlockPriorityChanged)
-							.EditableTextBoxStyle(&UE_MUTABLE_GET_WIDGETSTYLE<FEditableTextBoxStyle>("NormalEditableTextBox"))
-						]
-					, FText::FromString("Block Priority"), true);
-
-					MenuBuilder.AddWidget(
-						SNew(SBox)
-						.WidthOverride(125.0f)
-						.ToolTipText(LOCTEXT("SetBlockSymmetry_Tooltip", "If true, this block will be reduced in both axes at the same time in a Fixed Layout Strategy."))
-						[
-							SNew(SCheckBox)
-							.IsChecked(this, &SCustomizableObjectLayoutGrid::GetReductionMethodBoolValue, EFRO_Symmetry)
-							.OnCheckStateChanged(this, &SCustomizableObjectLayoutGrid::OnReduceBlockSymmetricallyChanged)
-						]
-					, FText::FromString("Reduce Symmetrically"), true);
-
-					MenuBuilder.AddWidget(
-						SNew(SBox)
-						.WidthOverride(125.0f)
-						.ToolTipText(LOCTEXT("SetBlockReduceByTwo_Tooltip", "Only for Unitary reduction. If true, this option reduces each time the block by two block units."))
-						[
-							SNew(SCheckBox)
-							.IsChecked(this, &SCustomizableObjectLayoutGrid::GetReductionMethodBoolValue, EFRO_RedyceByTwo)
-							.OnCheckStateChanged(this, &SCustomizableObjectLayoutGrid::OnReduceBlockByTwoChanged)
-						]
-					, FText::FromString("Reduce by Two"), true);
-				}
-			}
-			MenuBuilder.EndSection();
-
-
-			MenuBuilder.BeginSection("Block Properties for Masks", LOCTEXT("BlockPropertiesMaskTitle", "Block Mask"));
-			{
-				if (SelectedBlocks.Num())
-				{
-					MenuBuilder.AddWidget(
-						SNew(SBox)
-						.WidthOverride(125.0f)
-						.ToolTipText(LOCTEXT("SetBlockMask_Tooltip", "Sets the UV mask texture for the block."))
-						[
-							SNew(SStandAloneAssetPicker)
-								.OnAssetSelected(this, &SCustomizableObjectLayoutGrid::OnMaskAssetSelected)
-								.OnGetAllowedClasses(FOnGetAllowedClasses::CreateLambda([](TArray<const UClass*>& OutClasses) {OutClasses.Add(UTexture2D::StaticClass()); }))
-								.InitialAsset( GetBlockMaskValue() )
-						]
-						, FText::FromString("Block Mask"), true);
-
-					// TODO: Additional properties: color used for preview?
-				}
-			}
-			MenuBuilder.EndSection();
 
 			FWidgetPath WidgetPath = MouseEvent.GetEventPath() != nullptr ? *MouseEvent.GetEventPath() : FWidgetPath();
 			FSlateApplication::Get().PushMenu(AsShared(), WidgetPath, MenuBuilder.MakeWidget(), FSlateApplication::Get().GetCursorPos(), FPopupTransitionEffect(FPopupTransitionEffect::ContextMenu));
 
 			Reply = FReply::Handled();
 		}
+
 		else if (MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
 		{
 			bIsPadding = true;
@@ -595,12 +604,9 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonUp( const FGeometry& MyGeomet
 {
 	FReply Reply = FReply::Unhandled();
 
-	if (Mode == ELGM_Show)
-	{
-		return SCompoundWidget::OnMouseButtonUp(MyGeometry, MouseEvent);
-	}
+	ELayoutGridMode GridMode = Mode.Get();
 
-	if ( MouseEvent.GetEffectingButton()==EKeys::LeftMouseButton)
+	if ( MouseEvent.GetEffectingButton()==EKeys::LeftMouseButton && GridMode == ELGM_Edit)
 	{
 		bIsDragging = false;
 		bIsResizing = false;
@@ -613,12 +619,12 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonUp( const FGeometry& MyGeomet
 		
 		// Selection before reset
 		TArray<FGuid> OldSelection = SelectedBlocks;
-		TArray<FGuid> OldPossibleSelection = PossibleSelectedBlocks;
 
+		TArray<FGuid> OldPossibleSelection = PossibleSelectedBlocks;
 		PossibleSelectedBlocks.Reset();
 
 		// Reset selection if multi selection is not enabled
-		if (Mode == ELGM_Edit && !bLeftShift && !bHasDragged)
+		if (GridMode == ELGM_Edit && !bLeftShift && !bHasDragged)
 		{
 			// Only one selected block allowed in edit mode.
 			SelectedBlocks.Reset();
@@ -628,11 +634,11 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonUp( const FGeometry& MyGeomet
 		{
 			if (!bHasDragged)
 			{
-				//Backward iteration to select the block rendered in front of the rest
+				// Backward iteration to select the block rendered in front of the rest
 				const TArray<FCustomizableObjectLayoutBlock>& CurrentBlocks = Blocks.Get();
 				for (int32 i = CurrentBlocks.Num() - 1; i > -1; --i)
 				{
-					if (MouseOnBlock(CurrentBlocks[i].Id, Pos))
+					if ( (!CurrentBlocks[i].bIsAutomatic) && MouseOnBlock(CurrentBlocks[i].Id, Pos))
 					{
 						PossibleSelectedBlocks.Add(CurrentBlocks[i].Id);
 					}
@@ -642,7 +648,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonUp( const FGeometry& MyGeomet
 
 				for (int32 i = 0; i < PossibleSelectedBlocks.Num(); ++i)
 				{
-					if (bLeftShift || Mode == ELGM_Select)
+					if (bLeftShift)
 					{
 						if (PossibleSelectedBlocks.Num() == 1)
 						{
@@ -712,6 +718,11 @@ FReply SCustomizableObjectLayoutGrid::OnMouseButtonUp( const FGeometry& MyGeomet
 			const TArray<FCustomizableObjectLayoutBlock>& CurrentBlocks = Blocks.Get();
 			for (int32 i = 0; i < CurrentBlocks.Num(); ++i)
 			{
+				if (CurrentBlocks[i].bIsAutomatic)
+				{
+					continue;
+				}
+
 				FBox2D CurrentBlock(FVector2D(BlockRects[CurrentBlocks[i].Id].Rect.Min), FVector2D(BlockRects[CurrentBlocks[i].Id].Rect.Min + BlockRects[CurrentBlocks[i].Id].Rect.Size));
 				
 				if (SelectedBlocks.Contains(CurrentBlocks[i].Id))
@@ -762,12 +773,9 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 {
 	CurrentMousePosition = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
-	if (Mode != ELGM_Edit)
-	{
-		return SCompoundWidget::OnMouseMove(MyGeometry, MouseEvent);
-	}
+	ELayoutGridMode GridMode = Mode.Get();
 
-	if(MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton))
+	if(MouseEvent.IsMouseButtonDown(EKeys::LeftMouseButton) && GridMode == ELGM_Edit)
 	{
 		FVector2D Pos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
 
@@ -788,6 +796,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 
 				if (!bIsResizing)
 				{
+					// Bounding box of all selected blocks in grid units.
 					FIntRect TotalBlock;
 					bool bFirstBlock = true;
 
@@ -812,8 +821,14 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 
 					FIntPoint Grid = GridSize.Get();
 					FIntRect BlockMovement = TotalBlock;
-					BlockMovement.Min.X = FMath::Max(0, FMath::Min(TotalBlock.Min.X + CellDeltaX, Grid.X - TotalBlock.Size().X));
-					BlockMovement.Min.Y = FMath::Max(0, FMath::Min(TotalBlock.Min.Y + CellDeltaY, Grid.Y - TotalBlock.Size().Y));
+
+					// Block movement in layouts is restricted to the positive quadrant.
+					//BlockMovement.Min.X = FMath::Max(0, FMath::Min(TotalBlock.Min.X + CellDeltaX, Grid.X - TotalBlock.Size().X));
+					//BlockMovement.Min.Y = FMath::Max(0, FMath::Min(TotalBlock.Min.Y + CellDeltaY, Grid.Y - TotalBlock.Size().Y));
+					BlockMovement.Min.X = FMath::Max(0, TotalBlock.Min.X + CellDeltaX);
+					BlockMovement.Min.Y = FMath::Max(0, TotalBlock.Min.Y + CellDeltaY);
+					//BlockMovement.Min.X = TotalBlock.Min.X + CellDeltaX;
+					//BlockMovement.Min.Y = TotalBlock.Min.Y + CellDeltaY;
 
 					BlockMovement.Max = BlockMovement.Min + TotalBlock.Size();
 
@@ -851,8 +866,11 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 							FIntPoint Grid = GridSize.Get();
 
 							FIntPoint BlockSize = Block.Size();
-							Block.Max.X = FMath::Max(Block.Min.X + 1, FMath::Min(Block.Max.X + CellDeltaX, Grid.X));
-							Block.Max.Y = FMath::Max(Block.Min.Y + 1, FMath::Min(Block.Max.Y + CellDeltaY, Grid.Y));
+							// Block movement in layouts is restricted to the positive quadrant.
+							//Block.Max.X = FMath::Max(Block.Min.X + 1, FMath::Min(Block.Max.X + CellDeltaX, Grid.X));
+							//Block.Max.Y = FMath::Max(Block.Min.Y + 1, FMath::Min(Block.Max.Y + CellDeltaY, Grid.Y));
+							Block.Max.X = Block.Max.X + CellDeltaX;
+							Block.Max.Y = Block.Max.Y + CellDeltaY;
 
 							if (Block != InitialBlock)
 							{
@@ -893,7 +911,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 		}
 	}
 	
-	if (!bIsDragging && !bIsResizing && SelectedBlocks.Num()==1)
+	if (!bIsDragging && !bIsResizing && SelectedBlocks.Num()==1 && GridMode == ELGM_Edit)
 	{
 		const TArray<FCustomizableObjectLayoutBlock>& CurrentBlocks = Blocks.Get();
 		for (int32 i = CurrentBlocks.Num() - 1; i > -1; --i)
@@ -919,7 +937,7 @@ FReply SCustomizableObjectLayoutGrid::OnMouseMove( const FGeometry& MyGeometry, 
 		if (MouseEvent.IsMouseButtonDown(EKeys::MiddleMouseButton))
 		{
 			FVector2D Pos = MyGeometry.AbsoluteToLocal(MouseEvent.GetScreenSpacePosition());
-			PaddingAmount += Pos - PaddingStart;
+			PointOfView.PaddingAmount += Pos - PaddingStart;
 			PaddingStart = Pos;
 		}
 		else
@@ -949,37 +967,36 @@ FReply SCustomizableObjectLayoutGrid::OnMouseWheel(const FGeometry& MyGeometry, 
 	constexpr int32 MinZoomLevel = -2;
 	constexpr int32 MaxZoomLevel = 3;
 
-	if (Mode == ELGM_Edit)
 	{
-		double OldZoomFactor = FMath::Pow(2.0, double(Zoom - 1));
-		FVector2D UnzoomedPadding = PaddingAmount * (1.0f / OldZoomFactor);
+		double OldZoomFactor = PointOfView.GetZoomFactor();
+		FVector2D UnzoomedPadding = PointOfView.PaddingAmount * (1.0f / OldZoomFactor);
 
 		if (MouseEvent.GetWheelDelta() > 0)
 		{
-			int32 NewZoomLevel = FMath::Min(Zoom + 1, MaxZoomLevel);
-			if (Zoom != NewZoomLevel)
+			int32 NewZoomLevel = FMath::Min(PointOfView.Zoom + 1, MaxZoomLevel);
+			if (PointOfView.Zoom != NewZoomLevel)
 			{
 				//FVector2D GridCenter = DrawOrigin + (FVector2D((float)GridSize.Get().X, (float)GridSize.Get().Y) / 2.0f) * CellSize;
 				//DistanceFromOrigin = CurrentMousePosition - GridCenter;
 
-				Zoom = NewZoomLevel;
+				PointOfView.Zoom = NewZoomLevel;
 			}
 		}
 		else
 		{
-			int32 NewZoomLevel = FMath::Max(Zoom - 1, MinZoomLevel);
-			if (Zoom != NewZoomLevel)
+			int32 NewZoomLevel = FMath::Max(PointOfView.Zoom - 1, MinZoomLevel);
+			if (PointOfView.Zoom != NewZoomLevel)
 			{
 				//DistanceFromOrigin = FVector2D::Zero();
 				//PaddingAmount = FVector2D::Zero();
 
-				Zoom = NewZoomLevel;
+				PointOfView.Zoom = NewZoomLevel;
 			}
 		}
 
-		double NewZoomFactor = FMath::Pow(2.0, double(Zoom - 1));
+		double NewZoomFactor = PointOfView.GetZoomFactor();
 		FVector2D RezoomedPadding = UnzoomedPadding * NewZoomFactor;
-		PaddingAmount = RezoomedPadding;
+		PointOfView.PaddingAmount = RezoomedPadding;
 
 		return FReply::Handled().SetUserFocus(SharedThis(this), EFocusCause::Mouse, true);
 	}
@@ -990,7 +1007,8 @@ FReply SCustomizableObjectLayoutGrid::OnMouseWheel(const FGeometry& MyGeometry, 
 
 FReply SCustomizableObjectLayoutGrid::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent)
 {
-	if (Mode != ELGM_Edit)
+	ELayoutGridMode GridMode = Mode.Get();
+	if (GridMode != ELGM_Edit)
 	{
 		return SCompoundWidget::OnKeyDown(MyGeometry, InKeyEvent);
 	}
@@ -1047,12 +1065,6 @@ void SCustomizableObjectLayoutGrid::SetSelectedBlock(FGuid block )
 }
 
 
-void SCustomizableObjectLayoutGrid::SetSelectedBlocks( const TArray<FGuid>& blocks )
-{
-	SelectedBlocks = blocks;
-}
-
-
 const TArray<FGuid>& SCustomizableObjectLayoutGrid::GetSelectedBlocks() const
 {
 	return SelectedBlocks;
@@ -1067,8 +1079,8 @@ void SCustomizableObjectLayoutGrid::DeleteSelectedBlocks()
 
 void SCustomizableObjectLayoutGrid::ResetView()
 {
-	Zoom = 1;
-	PaddingAmount = { 0,0 };
+	PointOfView.Zoom = 1;
+	PointOfView.PaddingAmount = { 0,0 };
 }
 
 
@@ -1372,7 +1384,7 @@ void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPa
 	Canvas.SetRenderTargetScissorRect(RenderTarget->GetClippingRect());
 
 	// Number of tiles to render in each axis including the unit tile.
-	constexpr int32 NumTiles = 8;
+	constexpr int32 NumTiles = 4;
 
 	// Num Lines
 	const uint32 NumAxisLines = 2;
@@ -1406,7 +1418,8 @@ void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPa
 	const FHitProxyId HitProxyId = Canvas.GetHitProxyId();
 
 	int32 FullTilesSize = NumTiles * Size.X;
-	FVector2D TilesOrigin = Origin - FVector2D(FullTilesSize / 2, FullTilesSize / 2);
+	//FVector2D TilesOrigin = Origin - FVector2D(FullTilesSize / 2, FullTilesSize / 2);
+	FVector2D TilesOrigin = Origin;
 
 	// Create lines as pairs of points
 	FVector LinePoints[2];
@@ -1422,6 +1435,7 @@ void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPa
 
 
 	// Drawing Extended Grid
+	if (LayoutMode!=ELGM_ShowUVsOnly)
 	{
 		// Vertical Lines
 		for (int32 LineIndex = 0; LineIndex < NumTiles*GridSize.X + 1; LineIndex++)
@@ -1443,6 +1457,7 @@ void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPa
 	}
 
 	// Drawing Unit Grid
+	if (LayoutMode != ELGM_ShowUVsOnly)
 	{
 		// Vertical Lines
 		for (int32 LineIndex = 0; LineIndex < GridSize.X + 1; LineIndex++)
@@ -1524,29 +1539,37 @@ void FUVCanvasDrawer::Draw_RenderThread(FRDGBuilder& GraphBuilder, const FDrawPa
 	}
 
 	// Drawing Blocks
-	for (const FCustomizableObjectLayoutBlock& Block : Blocks)
+	if (LayoutMode != ELGM_ShowUVsOnly)
 	{
-		const FColor SelectionBlockColor = SelectedBlocks.Contains(Block.Id) ? SelectedBlockColor : UnselectedBlockColor;
-
-		const FVector2f BlockMin(Block.Min);
-		const FVector2f BlockMax(Block.Max);
-
-		// Selection Block
-		FRect2D SelectionBlock;
-		SelectionBlock.Min = FVector2f(Origin) + BlockMin * CellSize + CellSize * 0.1f;
-		SelectionBlock.Size = (BlockMax - BlockMin) * CellSize - CellSize * 0.2f;
-
-		DrawBlock(BatchedElements, HitProxyId, SelectionBlock, SelectionBlockColor, Block.Mask.Get());
-
-		if (LayoutMode == ELayoutGridMode::ELGM_Edit)
+		for (const FCustomizableObjectLayoutBlock& Block : Blocks)
 		{
-			// Resize Block
-			FRect2D ResizeBlock;;
-			float HandleRectSize = FMath::Log2(float(GridSize.X)) / 10.0f;
-			ResizeBlock.Size = FVector2f(CellSize) * HandleRectSize;
-			ResizeBlock.Min = SelectionBlock.Min + SelectionBlock.Size - ResizeBlock.Size;
+			FColor BlockColor = AutomaticBlockColor;
+			if (!Block.bIsAutomatic)
+			{
+				BlockColor = SelectedBlocks.Contains(Block.Id) ? SelectedBlockColor : UnselectedBlockColor;
+			}
 
-			DrawBlock(BatchedElements, HitProxyId, ResizeBlock, ResizeBlockColor);
+
+			const FVector2f BlockMin(Block.Min);
+			const FVector2f BlockMax(Block.Max);
+
+			// Selection Block
+			FRect2D BlockRect;
+			BlockRect.Min = FVector2f(Origin) + BlockMin * CellSize + CellSize * 0.1f;
+			BlockRect.Size = (BlockMax - BlockMin) * CellSize - CellSize * 0.2f;
+
+			DrawBlock(BatchedElements, HitProxyId, BlockRect, BlockColor, Block.Mask.Get());
+
+			if (LayoutMode == ELayoutGridMode::ELGM_Edit && !Block.bIsAutomatic)
+			{
+				// Resize Block
+				FRect2D ResizeBlock;;
+				float HandleRectSize = FMath::Log2(float(GridSize.X)) / 10.0f;
+				ResizeBlock.Size = FVector2f(CellSize) * HandleRectSize;
+				ResizeBlock.Min = BlockRect.Min + BlockRect.Size - ResizeBlock.Size;
+
+				DrawBlock(BatchedElements, HitProxyId, ResizeBlock, ResizeBlockColor);
+			}
 		}
 	}
 
@@ -1566,7 +1589,11 @@ void FUVCanvasDrawer::DrawBlock(FBatchedElements* BatchedElements, const FHitPro
 
 	auto VertexToMaskUVs = [this](const FVector4& V)
 		{
-			return ( FVector2D(V.X,V.Y) - Origin ) / (FVector2D(CellSize) * FVector2D(GridSize.X, GridSize.X));
+			FVector2D Result = ( FVector2D(V.X,V.Y) - Origin ) / (FVector2D(CellSize) * FVector2D(GridSize.X, GridSize.X));
+			// TODO Modulo doesn't work with cross-tile blocks: use tiling.
+			Result.X = FMath::Fmod(Result.X, 1.0);
+			Result.Y = FMath::Fmod(Result.Y, 1.0);
+			return Result;
 		};
 
 	// Brush Paint triangle
@@ -1576,13 +1603,17 @@ void FUVCanvasDrawer::DrawBlock(FBatchedElements* BatchedElements, const FHitPro
 		int32 V2 = BatchedElements->AddVertex(Vert2, VertexToMaskUVs(Vert2), Color, HitProxyId);
 		int32 V3 = BatchedElements->AddVertex(Vert3, VertexToMaskUVs(Vert3), Color, HitProxyId);
 
-		FTexture* Texture = GWhiteTexture;
+		EBlendMode Mode = EBlendMode::BLEND_Translucent;
+		BatchedElements->AddTriangle(V0, V1, V2, GWhiteTexture, Mode);
+		BatchedElements->AddTriangle(V1, V3, V2, GWhiteTexture, Mode);
+
 		if (Mask)
 		{
-			Texture = Mask->GetResource();
+			Mode = EBlendMode::BLEND_Additive;
+			FTexture* Texture = Mask->GetResource();
+			BatchedElements->AddTriangle(V0, V1, V2, Texture, Mode);
+			BatchedElements->AddTriangle(V1, V3, V2, Texture, Mode);
 		}
-		BatchedElements->AddTriangle(V0, V1, V2, Texture, EBlendMode::BLEND_Translucent);
-		BatchedElements->AddTriangle(V1, V3, V2, Texture, EBlendMode::BLEND_Translucent);
 	}
 
 	// Drawing Outline to selected Blocks

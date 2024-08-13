@@ -1919,7 +1919,7 @@ namespace mu
 		Ptr<const Image> Block;
 		Ptr<const Image> Mask;
 		Ptr<Image> Result;
-		box< UE::Math::TIntVector2<uint16> > Rect;
+		box<FIntVector2> Rect;
 		FImageOperator::FImagePixelFormatFunc ImagePixelFormatFunc;
 	};
 
@@ -1950,7 +1950,7 @@ namespace mu
 			Mask = Runner->LoadImage({ Args.mask, Op.ExecutionIndex, Op.ExecutionOptions });
 		}
 
-		box< UE::Math::TIntVector2<uint16> > RectInblocks;
+		box<FIntVector2> RectInblocks;
 		RectInblocks.min = Layout->Blocks[RelBlockIndex].Min;
 		RectInblocks.size = Layout->Blocks[RelBlockIndex].Size;
 
@@ -1986,7 +1986,7 @@ namespace mu
 			EImageFormat Format = GetMostGenericFormat(Result->GetFormat(), Block->GetFormat());
 
 			// Resize image if it doesn't fit in the new block size
-			if (Block->GetSize() != Rect.size)
+			if (FIntVector2(Block->GetSize()) != Rect.size)
 			{
 				MUTABLE_CPUPROFILER_SCOPE(ImageComposeWithoutMask_BlockResize);
 

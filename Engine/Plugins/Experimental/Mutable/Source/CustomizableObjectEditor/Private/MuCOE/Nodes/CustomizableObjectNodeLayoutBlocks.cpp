@@ -186,7 +186,7 @@ void UCustomizableObjectNodeLayoutBlocks::Serialize(FArchive& Ar)
 		Layout->SetGridSize(GridSize_DEPRECATED);
 		Layout->SetMaxGridSize(MaxGridSize_DEPRECATED);
 		Layout->Blocks = Blocks_DEPRECATED;
-		Layout->SetPackingStrategy(PackingStrategy_DEPRECATED);
+		Layout->PackingStrategy = PackingStrategy_DEPRECATED;
 
 		if (Layout->GetGridSize() == FIntPoint::ZeroValue)
 		{

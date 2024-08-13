@@ -4,12 +4,14 @@
 
 #include "DetailLayoutBuilder.h"
 #include "DetailWidgetRow.h"
+#include "IDetailGroup.h"
 #include "IDetailsView.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeRemoveMeshBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeMaterialBase.h"
 #include "MuCOE/SCustomizableObjectNodeLayoutBlocksEditor.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Input/STextComboBox.h"
 #include "UObject/Package.h"
 
 class FString;
@@ -24,7 +26,7 @@ TSharedRef<IDetailCustomization> FCustomizableObjectNodeRemoveMeshBlocksDetails:
 }
 
 
-void FCustomizableObjectNodeRemoveMeshBlocksDetails::CustomizeDetails( IDetailLayoutBuilder& DetailBuilder )
+void FCustomizableObjectNodeRemoveMeshBlocksDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
 {
 	FCustomizableObjectNodeEditMaterialBaseDetails::CustomizeDetails(DetailBuilder);
 
@@ -35,51 +37,112 @@ void FCustomizableObjectNodeRemoveMeshBlocksDetails::CustomizeDetails( IDetailLa
 		Node = Cast<UCustomizableObjectNodeRemoveMeshBlocks>(DetailsView->GetSelectedObjects()[0].Get());
 	}
 
-	IDetailCategoryBuilder& BlocksCategory = DetailBuilder.EditCategory( "Blocks" );
+	IDetailCategoryBuilder& LayoutCategory = DetailBuilder.EditCategory("LayoutOptions");
+	IDetailCategoryBuilder& BlocksCategory = DetailBuilder.EditCategory("Blocks");
 
-	if (Node)
+	if (!Node)
 	{
-		// Add blocks selector
-		LayoutBlocksEditor = SNew(SCustomizableObjectNodeLayoutBlocksEditor);
-
-		BlocksCategory.AddCustomRow(LOCTEXT("BlocksDetails_BlockInstructions", "BlockInstructions"))
-		[
-			SNew(SBox)
-			.HeightOverride(700.0f)
-			.WidthOverride(700.0f)
+		BlocksCategory.AddCustomRow(LOCTEXT("BlocksDetails_NodeNotFound", "NodeNotFound"))
 			[
-				LayoutBlocksEditor.ToSharedRef()
-			]
-		];
+				SNew(STextBlock)
+					.Text(LOCTEXT("Node not found", "Node not found"))
+			];
+		return;
+	}
 
-		// Try to find the parent layout, because we want to show its UVs in the widget
-		UCustomizableObjectLayout* ParentLayout = nullptr;
-		if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = Node->GetParentMaterialNode())
+	// Grid size combo
+	{
+		int32 MaxGridSize = 128;
+		LayoutGridSizes.Empty();
+
+		TSharedPtr<FString> CurrentSize;
+		for (int32 Size = 1; Size <= MaxGridSize; Size *= 2)
 		{
-			TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
+			LayoutGridSizes.Add(MakeShareable(new FString(FString::Printf(TEXT("%d x %d"), Size, Size))));
 
-			if (!Layouts.IsValidIndex(Node->ParentLayoutIndex))
+			if (Node->Layout->GetGridSize() == FIntPoint(Size))
 			{
-				UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid texture layout index %d. Parent node has %d layouts."),
-					*Node->GetOutermost()->GetName(), Node->ParentLayoutIndex, Layouts.Num());
-			}
-			else
-			{
-				ParentLayout = Layouts[Node->ParentLayoutIndex];
+				CurrentSize = LayoutGridSizes.Last();
 			}
 		}
 
-		LayoutBlocksEditor->SetCurrentLayout(Node->Layout, ParentLayout);
-	}
-	else
-	{
-		BlocksCategory.AddCustomRow( LOCTEXT("BlocksDetails_NodeNotFound", "NodeNotFound") )
-		[
-			SNew( STextBlock )
-			.Text( LOCTEXT( "Node not found", "Node not found" ) )
-		];
+		IDetailGroup& LayoutOptionsGroup = LayoutCategory.AddGroup(TEXT("LayoutOptionsGroup"), LOCTEXT("LayoutGroup", "Layout Group"), false, true);
+		LayoutOptionsGroup.HeaderRow()
+			.NameContent()
+			[
+				SNew(STextBlock)
+					.Text(LOCTEXT("LayoutGridSizeText", "Grid Size"))
+					.Font(DetailBuilder.GetDetailFont())
+			]
+			.ValueContent()
+			[
+				SNew(STextComboBox)
+					.InitiallySelectedItem(CurrentSize)
+					.OptionsSource(&LayoutGridSizes)
+					.OnSelectionChanged(this, &FCustomizableObjectNodeRemoveMeshBlocksDetails::OnGridSizeChanged)
+					.Font(DetailBuilder.GetDetailFont())
+			];
 	}
 
+	// Block editor
+	LayoutBlocksEditor = SNew(SCustomizableObjectNodeLayoutBlocksEditor);
+
+	BlocksCategory.AddCustomRow(LOCTEXT("BlocksDetails_BlockInstructions", "BlockInstructions"))
+		[
+			SNew(SBox)
+				.HeightOverride(700.0f)
+				.WidthOverride(700.0f)
+				[
+					LayoutBlocksEditor.ToSharedRef()
+				]
+		];
+
+	UpdateLayout();
 }
+
+
+void FCustomizableObjectNodeRemoveMeshBlocksDetails::UpdateLayout()
+{
+	// Try to find the parent layout, because we want to show its UVs in the widget
+	UCustomizableObjectLayout* ParentLayout = nullptr;
+	if (UCustomizableObjectNodeMaterialBase* ParentMaterialNode = Node->GetParentMaterialNode())
+	{
+		TArray<UCustomizableObjectLayout*> Layouts = ParentMaterialNode->GetLayouts();
+
+		if (!Layouts.IsValidIndex(Node->ParentLayoutIndex))
+		{
+			UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks refers to an invalid texture layout index %d. Parent node has %d layouts."),
+				*Node->GetOutermost()->GetName(), Node->ParentLayoutIndex, Layouts.Num());
+		}
+		else
+		{
+			ParentLayout = Layouts[Node->ParentLayoutIndex];
+		}
+	}
+
+	LayoutBlocksEditor->SetCurrentLayout(Node->Layout, ParentLayout);
+
+}
+
+
+void FCustomizableObjectNodeRemoveMeshBlocksDetails::OnGridSizeChanged(TSharedPtr<FString> NewSelection, ESelectInfo::Type SelectInfo)
+{
+	if (!Node->Layout)
+	{
+		return;
+	}
+
+	int32 Size = 1 << LayoutGridSizes.Find(NewSelection);
+
+	if (Node->Layout->GetGridSize().X != Size || Node->Layout->GetGridSize().Y != Size)
+	{
+		Node->Layout->SetGridSize(FIntPoint(Size));
+
+		Node->MarkPackageDirty();
+
+		UpdateLayout();
+	}
+}
+
 
 #undef LOCTEXT_NAMESPACE

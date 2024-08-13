@@ -75,190 +75,39 @@
 #include "MuT/Table.h"
 #include "MuT/TablePrivate.h"
 
-#include "Spatial/PointHashGrid3.h"
-
 namespace mu
 {
 	class Node;
 
-	
-	//---------------------------------------------------------------------------------------------
-    //! Create a map from vertices into vertices, collapsing vertices that have the same position. 
-	//! This version uses UE Containers to return.	
-    //---------------------------------------------------------------------------------------------
-	void MeshCreateCollapsedVertexMap(const mu::Mesh* Mesh, TArray<int32>& CollapsedVertices)
+	template<typename T>
+	struct TArray2D
 	{
-		MUTABLE_CPUPROFILER_SCOPE(LayoutUV_CreateCollapsedVertexMap);
-	
-		const int32 NumVertices = Mesh->GetVertexCount();
-		CollapsedVertices.Reserve(NumVertices);
-	
-		UE::Geometry::TPointHashGrid3f<int32> VertHash(0.01f, INDEX_NONE);
-		VertHash.Reserve(NumVertices);
-	
-		TArray<FVector3f> Vertices;
-		Vertices.SetNumUninitialized(NumVertices);
-	
-		mu::UntypedMeshBufferIteratorConst ItPosition = mu::UntypedMeshBufferIteratorConst(Mesh->GetVertexBuffers(), mu::MBS_POSITION);
-	
-		FVector3f* VertexData = Vertices.GetData();
-	
-		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+		int32 SizeX = 0;
+		int32 SizeY = 0;
+		TArray<T> Data;
+
+		void Init(const T& Value, int32 InSizeX, int32 InSizeY)
 		{
-			*VertexData = ItPosition.GetAsVec3f();
-			VertHash.InsertPointUnsafe(VertexIndex, *VertexData);
-	
-			++ItPosition;
-			++VertexData;
+			SizeX = InSizeX;
+			SizeY = InSizeY;
+			Data.Init(Value, SizeX*SizeY );
 		}
-	
-		// Find unique vertices
-		CollapsedVertices.Init(INDEX_NONE, NumVertices);
-	
-		TArray<int32> NearbyVertices;
-		for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
+
+		inline const T& Get(int32 X, int32 Y) const
 		{
-			if (CollapsedVertices[VertexIndex] != INDEX_NONE)
-			{
-				continue;
-			}
-	
-			const FVector3f& Vertex = Vertices[VertexIndex];
-	
-			NearbyVertices.Reset();
-			VertHash.FindPointsInBall(Vertex, 0.00001,
-				[&Vertex, &Vertices](const int32& Other) -> float {return FVector3f::DistSquared(Vertices[Other], Vertex); },
-				NearbyVertices);
-	
-			// Find equals
-			for (int32 NearbyVertexIndex : NearbyVertices)
-			{
-				CollapsedVertices[NearbyVertexIndex] = VertexIndex;
-			}
+			check(X >= 0 && X < SizeX);
+			check(Y >= 0 && Y < SizeY);
+			return Data[SizeX * Y + X];
 		}
-	}
 
-	// Helper used to connect triangles of a UV island
-	struct FTriangle
-	{
-		uint32 Indices[3];
-		uint32 CollapsedIndices[3];
+		inline void Set(int32 X, int32 Y, const T& Value)
+		{
+			check(X >= 0 && X < SizeX);
+			check(Y >= 0 && Y < SizeY);
+			Data[SizeX * Y + X] = Value;
+		}
 
-		uint16 BlockIndices[3];
-
-		bool bUVsFixed = false;
 	};
-
-	//---------------------------------------------------------------------------------------------
-	//! Fill an array with the indices of all triangles belonging to the same UV island as InFirstTriangle. 
-	//---------------------------------------------------------------------------------------------
-	void GetUVIsland(TArray<FTriangle>& InTriangles,
-		const uint32 InFirstTriangle,
-		TArray<uint32>& OutTriangleIndices,
-		const TArray<FVector2f>& InUVs,
-		const TMultiMap<int32, uint32>& InVertexToTriangleMap)
-	{
-		MUTABLE_CPUPROFILER_SCOPE(LayoutUV_GetUVIsland);
-
-		const uint32 NumTriangles = (uint32)InTriangles.Num();
-		
-		OutTriangleIndices.Reserve(NumTriangles);
-		OutTriangleIndices.Add(InFirstTriangle);
-
-		TArray<bool> SkipTrinalges;
-		SkipTrinalges.Init(false, NumTriangles);
-
-		TArray<uint32> PendingTriangles;
-		PendingTriangles.Reserve(NumTriangles / 64);
-		PendingTriangles.Add(InFirstTriangle);
-
-		while (!PendingTriangles.IsEmpty())
-		{
-			const uint32 TriangleIndex = PendingTriangles.Pop();
-
-			// Triangle about to be proccessed, mark as skip;
-			SkipTrinalges[TriangleIndex] = true;
-
-			bool ConnectedEdges[3] = { false, false, false };
-
-			const FTriangle& Triangle = InTriangles[TriangleIndex];
-
-			// Find Triangles connected to edges 0 and 2
-			int32 CollapsedVertex1 = Triangle.CollapsedIndices[1];
-			int32 CollapsedVertex2 = Triangle.CollapsedIndices[2];
-
-			TArray<uint32> FoundTriangleIndices;
-			InVertexToTriangleMap.MultiFind(Triangle.CollapsedIndices[0], FoundTriangleIndices);
-
-			for (uint32 OtherTriangleIndex : FoundTriangleIndices)
-			{
-				const FTriangle& OtherTriangle = InTriangles[OtherTriangleIndex];
-
-				for (int32 OtherIndex = 0; OtherIndex < 3; ++OtherIndex)
-				{
-					const int32 OtherCollapsedIndex = OtherTriangle.CollapsedIndices[OtherIndex];
-					if (OtherCollapsedIndex == CollapsedVertex1)
-					{
-						// Check if the vertex is in the same UV Island 
-						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[1]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
-						{
-							OutTriangleIndices.Add(OtherTriangleIndex);
-							PendingTriangles.Add(OtherTriangleIndex);
-							SkipTrinalges[OtherTriangleIndex] = true;
-						}
-
-						// Connected but already processed or in another island
-						break;
-					}
-
-					if (OtherCollapsedIndex  == CollapsedVertex2)
-					{
-						// Check if the vertex is in the same UV Island 
-						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[2]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
-						{
-							OutTriangleIndices.Add(OtherTriangleIndex);
-							PendingTriangles.Add(OtherTriangleIndex);
-							SkipTrinalges[OtherTriangleIndex] = true;
-						}
-
-						// Connected but already processed or in another UV Island
-						break;
-					}
-				}
-
-			}
-
-			// Find the triangle connected to edge 1
-			FoundTriangleIndices.Reset();
-			InVertexToTriangleMap.MultiFind(CollapsedVertex1, FoundTriangleIndices);
-
-			for (uint32 OtherTriangleIndex : FoundTriangleIndices)
-			{
-				const FTriangle& OtherTriangle = InTriangles[OtherTriangleIndex];
-
-				for (int32 OtherIndex = 0; OtherIndex < 3; ++OtherIndex)
-				{
-					const int32 OtherCollapsedIndex = OtherTriangle.CollapsedIndices[OtherIndex];
-					if (OtherCollapsedIndex == CollapsedVertex2)
-					{
-						// Check if the vertex belong to the same UV island
-						if (!SkipTrinalges[OtherTriangleIndex]
-							&& InUVs[Triangle.Indices[2]].Equals(InUVs[OtherTriangle.Indices[OtherIndex]], 0.00001f))
-						{
-							OutTriangleIndices.Add(OtherTriangleIndex);
-							PendingTriangles.Add(OtherTriangleIndex);
-							SkipTrinalges[OtherTriangleIndex] = true;
-						}
-
-						// Connected but already processed or in another island
-						break;
-					}
-				}
-			}
-		}
-	}
 
     //---------------------------------------------------------------------------------------------
 	void CodeGenerator::PrepareMeshForLayout( const FGeneratedLayout& GeneratedLayout,
@@ -286,12 +135,20 @@ namespace mu
 		const int32 NumVertices = Mesh->GetVertexCount();
 		const int32 NumBlocks = Layout->GetBlockCount();
 
-		bool bIsSingleFullBlock = (NumBlocks == 1) && (Layout->Blocks[0].Min == FImageSize(0, 0) && Layout->Blocks[0].Size == Layout->Size);
+		bool bIsSingleFullBlock = (NumBlocks == 1) && (Layout->Blocks[0].Min == FIntVector2(0, 0) && Layout->Blocks[0].Size == Layout->Size);
 
-		// Find block ids for each block in the grid
-		const FIntPoint Grid = Layout->GetGridSize();
-		TArray<int32> GridBlockBlockId;
-		GridBlockBlockId.Init(MAX_uint16, Grid.X * Grid.Y);
+		// Find block ids for each block in the grid. Calculate a grid size that contains all blocks
+		FIntPoint LayoutGrid = Layout->GetGridSize();
+		FIntPoint WorkingGrid = LayoutGrid;
+		for (const FSourceLayoutBlock& Block: GeneratedLayout.Source->Blocks)
+		{
+			WorkingGrid.X = FMath::Max(WorkingGrid.X, Block.Min.X + Block.Size.X );
+			WorkingGrid.Y = FMath::Max(WorkingGrid.Y, Block.Min.Y + Block.Size.Y );
+		}
+
+
+		TArray2D<int32> GridBlockBlockId;
+		GridBlockBlockId.Init(MAX_uint16, WorkingGrid.X, WorkingGrid.Y);
 
 		// 
 		TArray<box<FVector2f>> BlockRects;
@@ -304,14 +161,14 @@ namespace mu
 			bool bBlockHasMask = GeneratedLayout.Source->Blocks[BlockIndex].Mask.get() != nullptr;
 
 			// Fill the block rect
-			FImageSize Min = Layout->Blocks[BlockIndex].Min;
-			FImageSize Size = Layout->Blocks[BlockIndex].Size;
+			FIntVector2 Min = Layout->Blocks[BlockIndex].Min;
+			FIntVector2 Size = Layout->Blocks[BlockIndex].Size;
 
 			box<FVector2f>& BlockRect = BlockRects[BlockIndex];
-			BlockRect.min[0] = float(Min.X) / float(Grid.X);
-			BlockRect.min[1] = float(Min.Y) / float(Grid.Y);
-			BlockRect.size[0] = float(Size.X) / float(Grid.X);
-			BlockRect.size[1] = float(Size.Y) / float(Grid.Y);
+			BlockRect.min[0] = float(Min.X) / float(LayoutGrid.X);
+			BlockRect.min[1] = float(Min.Y) / float(LayoutGrid.Y);
+			BlockRect.size[0] = float(Size.X) / float(LayoutGrid.X);
+			BlockRect.size[1] = float(Size.Y) / float(LayoutGrid.Y);
 
 			// Fill the block index per cell array
 			// Ignore the block in this stage if it has a mask, because blocks with masks will very likely overlap other blocks
@@ -319,13 +176,11 @@ namespace mu
 			{
 				for (uint16 Y = Min.Y; Y < Min.Y + Size.Y; ++Y)
 				{
-					const uint16 PositionY = Y * Grid.X;
-
 					for (uint16 X = Min.X; X < Min.X + Size.X; ++X)
 					{
-						if (GridBlockBlockId[PositionY + X] == MAX_uint16)
+						if (GridBlockBlockId.Get(X,Y) == MAX_uint16)
 						{
-							GridBlockBlockId[PositionY + X] = BlockIndex;
+							GridBlockBlockId.Set(X,Y, BlockIndex);
 						}
 						else
 						{
@@ -405,7 +260,7 @@ namespace mu
 
 
 		const int32 NumTriangles = Mesh->GetIndexCount() / 3;
-		TArray<FTriangle> Triangles;
+		TArray<FTriangleInfo> Triangles;
 
 		// Vertices mapped to unique vertex index
 		TArray<int32> CollapsedVertices;
@@ -424,8 +279,8 @@ namespace mu
 
 		TArray<int32> ConflictiveTriangles;
 
-		const uint32 MaxGridX = MeshOptions.bNormalizeUVs ? MAX_uint32 : Grid.X - 1;
-		const uint32 MaxGridY = MeshOptions.bNormalizeUVs ? MAX_uint32 : Grid.Y - 1;
+		const uint32 MaxGridX = MeshOptions.bNormalizeUVs ? MAX_uint32 : WorkingGrid.X - 1;
+		const uint32 MaxGridY = MeshOptions.bNormalizeUVs ? MAX_uint32 : WorkingGrid.Y - 1;
 
 		// Allocate the per-vertex layout block data
 		TArray<uint16> LayoutData;
@@ -443,12 +298,21 @@ namespace mu
 			++ItIndices;
 
 			auto AssignOneVertex = 
-				[Grid, MaxGridX, MaxGridY, NumBlocks, Layout, &GeneratedLayout, &GridBlockBlockId, &TexCoords, &LayoutData]
+				[LayoutGrid, MaxGridX, MaxGridY, NumBlocks, Layout, &GeneratedLayout, &GridBlockBlockId, &TexCoords, &LayoutData]
 				(int32 VertexIndex)
 				{
 					uint16& BlockIndex = LayoutData[VertexIndex];
 
+					// Was it previously assigned?
+					if (BlockIndex != NullBlockId)
+					{
+						return BlockIndex;
+					}
+
 					FVector2f UV = TexCoords[VertexIndex];
+
+					int32 VertexWorkingGridX = FMath::Clamp(LayoutGrid.X * UV[0], 0, LayoutGrid.X - 1);
+					int32 VertexWorkingGridY = FMath::Clamp(LayoutGrid.Y * UV[1], 0, LayoutGrid.Y - 1);
 
 					// First: Assign the vertices to masked blocks in order
 					for (int32 CandidateBlockIndex = 0; CandidateBlockIndex < NumBlocks; ++CandidateBlockIndex)
@@ -457,19 +321,22 @@ namespace mu
 						if (Mask)
 						{
 							// First discard with block limits.
-							FImageSize Min = Layout->Blocks[CandidateBlockIndex].Min;
-							FImageSize Size = Layout->Blocks[CandidateBlockIndex].Size;
+							FIntVector2 Min = Layout->Blocks[CandidateBlockIndex].Min;
+							FIntVector2 Size = Layout->Blocks[CandidateBlockIndex].Size;
 
-							uint16 X = (uint16)FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, (uint32)(Grid.X * UV[0])));
-							uint16 Y = (uint16)FMath::Min<uint32>(MaxGridY, FMath::Max<uint32>(0, (uint32)(Grid.Y * UV[1])));
 							bool bInBlock = 
-								(X >= Min.X && X < Min.X + Size.X)
+								(VertexWorkingGridX >= Min.X && VertexWorkingGridX < Min.X + Size.X)
 								&&
-								(Y >= Min.Y && Y < Min.Y + Size.Y);
+								(VertexWorkingGridY >= Min.Y && VertexWorkingGridY < Min.Y + Size.Y);
 
 							if (bInBlock)
 							{
-								FVector4f MaskValue = Mask->Sample(UV);
+								// TODO: This always clamps the UVs
+								FVector2f SampleUV;
+								SampleUV.X = FMath::Fmod(UV.X, 1.0);
+								SampleUV.Y = FMath::Fmod(UV.Y, 1.0);
+
+								FVector4f MaskValue = Mask->Sample(SampleUV);
 								if (MaskValue.X > 0.5f)
 								{
 									BlockIndex = CandidateBlockIndex;
@@ -482,9 +349,9 @@ namespace mu
 					// Second: Assign to non-masked blocks if not assigned yet
 					if (BlockIndex == NullBlockId)
 					{
-						uint16 X = (uint16)FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, (uint32)(Grid.X * UV[0])));
-						uint16 Y = (uint16)FMath::Min<uint32>(MaxGridY, FMath::Max<uint32>(0, (uint32)(Grid.Y * UV[1])));
-						BlockIndex = (X < Grid.X && Y < Grid.Y) ? GridBlockBlockId[Y * Grid.X + X] : 0;
+						uint32 ClampedX = FMath::Min<uint32>(MaxGridX, FMath::Max<uint32>(0, VertexWorkingGridX));
+						uint32 ClampedY = FMath::Min<uint32>(MaxGridY, FMath::Max<uint32>(0, VertexWorkingGridY));
+						BlockIndex = GridBlockBlockId.Get(ClampedX, ClampedY);
 					}
 					return BlockIndex;
 				};
@@ -500,7 +367,7 @@ namespace mu
 					ConflictiveTriangles.Add(TriangleIndex);
 				}
 
-				FTriangle& Triangle = Triangles[TriangleIndex];
+				FTriangleInfo& Triangle = Triangles[TriangleIndex];
 
 				Triangle.Indices[0] = Index0;
 				Triangle.Indices[1] = Index1;
@@ -523,7 +390,7 @@ namespace mu
 		// Clamp UV islands to the predominant block of each island. Will only happen if bClampUVIslands is true.
 		for (int32 ConflictiveTriangleIndex : ConflictiveTriangles)
 		{
-			FTriangle& Triangle = Triangles[ConflictiveTriangleIndex];
+			FTriangleInfo& Triangle = Triangles[ConflictiveTriangleIndex];
 
 			// Skip the ones that have been fixed already
 			if (Triangle.bUVsFixed)
@@ -541,7 +408,7 @@ namespace mu
 
 			for (int32 TriangleIndex : TriangleIndices)
 			{
-				FTriangle& OtherTriangle = Triangles[TriangleIndex];
+				FTriangleInfo& OtherTriangle = Triangles[TriangleIndex];
 				for (int32 VertexIndex = 0; VertexIndex < 3; ++VertexIndex)
 				{
 					const uint16& BlockIndex = OtherTriangle.BlockIndices[VertexIndex];
@@ -567,15 +434,15 @@ namespace mu
 			const FLayoutBlock& LayoutBlock = Layout->Blocks[BlockIndex];
 
 			const float SmallNumber = 0.000001;
-			const float MinX = ((float)LayoutBlock.Min.X) / (float)Grid.X + SmallNumber;
-			const float MinY = ((float)LayoutBlock.Min.Y) / (float)Grid.Y + SmallNumber;
-			const float MaxX = (((float)LayoutBlock.Size.X + LayoutBlock.Min.X) / (float)Grid.X) - 2 * SmallNumber;
-			const float MaxY = (((float)LayoutBlock.Size.Y + LayoutBlock.Min.Y) / (float)Grid.Y) - 2 * SmallNumber;
+			const float MinX = ((float)LayoutBlock.Min.X) / (float)LayoutGrid.X + SmallNumber;
+			const float MinY = ((float)LayoutBlock.Min.Y) / (float)LayoutGrid.Y + SmallNumber;
+			const float MaxX = (((float)LayoutBlock.Size.X + LayoutBlock.Min.X) / (float)LayoutGrid.X) - 2 * SmallNumber;
+			const float MaxY = (((float)LayoutBlock.Size.Y + LayoutBlock.Min.Y) / (float)LayoutGrid.Y) - 2 * SmallNumber;
 
 			// Iterate triangles and clamp the UVs
 			for (int32 TriangleIndex : TriangleIndices)
 			{
-				FTriangle& OtherTriangle = Triangles[TriangleIndex];
+				FTriangleInfo& OtherTriangle = Triangles[TriangleIndex];
 
 				for (int8 VertexIndex = 0; VertexIndex < 3; ++VertexIndex)
 				{
@@ -586,7 +453,7 @@ namespace mu
 
 					OtherTriangle.BlockIndices[VertexIndex] = BlockIndex;
 
-					// Clamp UVs
+					// Clamp UVs to the block they are assigned to
 					const int32 UVIndex = OtherTriangle.Indices[VertexIndex];
 					FVector2f& UV = TexCoords[UVIndex];
 					UV[0] = FMath::Clamp(UV[0], MinX, MaxX);
@@ -660,14 +527,14 @@ namespace mu
 
 			for (int32 VertexIndex = 0; VertexIndex < NumVertices; ++VertexIndex)
 			{
-				FVector2f* UV = &TexCoords[VertexIndex];
+				FVector2f& UV = TexCoords[VertexIndex];
 
 				uint16 LayoutBlockIndex = LayoutData[VertexIndex];
 				if (Layout->Blocks.IsValidIndex(LayoutBlockIndex))
 				{
 					uint64 LayoutBlockId = Layout->Blocks[LayoutBlockIndex].Id;
 
-					*UV = BlockRects[LayoutBlockIndex].Homogenize(*UV);
+					UV = BlockRects[LayoutBlockIndex].Homogenize(UV);
 
 					// Replace block index by the actual id of the block
 					if (bUseAbsoluteBlockIds)
@@ -700,13 +567,13 @@ namespace mu
 				if (TexCoordsChannel.Format == MBF_FLOAT32)
 				{
 					FVector2f* pUV = reinterpret_cast<FVector2f*>(pVertices);
-					*pUV = *UV;
+					*pUV = UV;
 				}
 				else if (TexCoordsChannel.Format == MBF_FLOAT16)
 				{
 					FFloat16* pUV = reinterpret_cast<FFloat16*>(pVertices);
-					pUV[0] = FFloat16((*UV)[0]);
-					pUV[1] = FFloat16((*UV)[1]);
+					pUV[0] = FFloat16(UV[0]);
+					pUV[1] = FFloat16(UV[1]);
 				}
 
 				pVertices += elemSize;

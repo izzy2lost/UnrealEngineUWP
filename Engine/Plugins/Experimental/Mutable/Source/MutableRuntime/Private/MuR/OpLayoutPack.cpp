@@ -14,7 +14,7 @@ namespace mu
 	{
 		FPackLayoutBlock() {}
 
-		FPackLayoutBlock(int32 InIndex, UE::Math::TIntVector2<uint16> InSize, int32 InPriority = 0, bool bInReduceBothAxes = false, bool bInReduceByTwo = false)
+		FPackLayoutBlock(int32 InIndex, FIntVector2 InSize, int32 InPriority = 0, bool bInReduceBothAxes = false, bool bInReduceByTwo = false)
 		{
 			Index = InIndex;
 			size = InSize;
@@ -24,7 +24,7 @@ namespace mu
 		}
 
 		int32 Index = -1;
-		UE::Math::TIntVector2<uint16> size = UE::Math::TIntVector2<uint16>(0, 0);
+		FIntVector2 size = { 0, 0 };
 		int32 priority = 0;
 		bool bReduceBothAxes = false;
 		bool bReduceByTwo = false;
@@ -74,7 +74,7 @@ namespace mu
 
 	struct FScratchLayoutPack
 	{
-		TArray< UE::Math::TIntVector2<uint16> > blocks;
+		TArray< FIntVector2 > blocks;
 		TArray< FPackLayoutBlock > sorted;
 		TArray< FIntVector2 > positions;
 		TArray< int32 > priorities;
@@ -107,7 +107,7 @@ namespace mu
     }
 
 
-	inline void ReductionOperation(uint16& BlockSize, EReductionMethod ReductionMethod, int32 bReduceByTwo)
+	inline void ReductionOperation(int32& BlockSize, EReductionMethod ReductionMethod, int32 bReduceByTwo)
 	{
 		if (ReductionMethod == EReductionMethod::Unitary)
 		{
@@ -129,7 +129,9 @@ namespace mu
 
 		int32 oldBlockArea = scratch.sorted[r_it].size[0] * scratch.sorted[r_it].size[1];
 
-		if (scratch.sorted[r_it].size[0] != 1 || scratch.sorted[r_it].size[1] != 1)
+		if (oldBlockArea>0
+			&&
+			(scratch.sorted[r_it].size[0] != 1 || scratch.sorted[r_it].size[1] != 1))
 		{
 			if (scratch.sorted[r_it].bReduceBothAxes)
 			{
@@ -212,7 +214,7 @@ namespace mu
 	}
 
 
-	inline bool SetPositions(int32 bestY,int32 layoutSizeY, uint16* maxX, uint16* maxY, FScratchLayoutPack& scratch, EPackStrategy packStrategy)
+	inline bool SetPositions(int32 bestY,int32 layoutSizeY, int32* maxX, int32* maxY, FScratchLayoutPack& scratch, EPackStrategy packStrategy)
 	{
 		bool fits = true;
 
@@ -269,8 +271,8 @@ namespace mu
 					}
 
 					// Does it make an unfillable hole with the top or side?
-					uint16 minX = TNumericLimits<uint16>::Max();
-					uint16 minY = TNumericLimits<uint16>::Max();
+					int32 minX = TNumericLimits<int32>::Max();
+					int32 minY = TNumericLimits<int32>::Max();
 					for (size_t b = 0; b < scratch.sorted.Num(); ++b)
 					{
 						if (!packedFlag[b] && b != candidate)
@@ -349,7 +351,7 @@ namespace mu
 
 			// Store
 			scratch.positions[scratch.sorted[best].Index] = FIntVector2(bestX, bestLevel);
-			*maxY = FMath::Max(*maxY, uint16(bestLevel + scratch.sorted[best].size[1]) );
+			*maxY = FMath::Max(*maxY, bestLevel + scratch.sorted[best].size[1] );
 
 			if (packStrategy == EPackStrategy::Fixed && *maxY > layoutSizeY)
 			{
@@ -413,13 +415,13 @@ namespace mu
 		EReductionMethod ReductionMethod = pSourceLayout->ReductionMethod;
 
         // Look for the maximum block sizes on the layout and the total area
-		uint16 maxX = 0;
-		uint16 maxY = 0;
+		int32 maxX = 0;
+		int32 maxY = 0;
         int32 area = 0;
 
         for ( int32 Index=0; Index<BlockCount; ++Index )
         {
-            box< UE::Math::TIntVector2<uint16> > b;
+            box< FIntVector2 > b;
 			b.min = pSourceLayout->Blocks[Index].Min;
 			b.size = pSourceLayout->Blocks[Index].Size;
 
@@ -640,7 +642,7 @@ namespace mu
 
         for ( int32 Index=0; Index<BlockCount; ++Index )
         {
-			pResult->Blocks[Index].Min = UE::Math::TIntVector2<uint16>(scratch.positions[Index]);
+			pResult->Blocks[Index].Min = scratch.positions[Index];
 			pResult->Blocks[Index].Size = scratch.blocks[Index];
 			pResult->Blocks[Index].Priority = scratch.priorities[Index];
 			pResult->Blocks[Index].bReduceBothAxes = scratch.ReduceBothAxes[Index];

@@ -4366,7 +4366,7 @@ namespace mu
 
 				// Apply the mipmap reduction to the crop rectangle.
 				int32 MipsToSkip = item.ExecutionOptions;
-				box<UE::Math::TIntVector2<uint16>> rect;
+				box<FIntVector2> rect;
 				rect.min[0] = args.minX / (1 << MipsToSkip);
 				rect.min[1] = args.minY / (1 << MipsToSkip);
 				rect.size[0] = pB->GetSizeX();

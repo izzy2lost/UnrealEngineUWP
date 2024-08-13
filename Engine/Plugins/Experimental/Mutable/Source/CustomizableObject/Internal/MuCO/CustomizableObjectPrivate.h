@@ -1313,6 +1313,8 @@ public:
 
 		ModelStreamableBulkData,
 
+		LayoutBlocksAsInt32,
+
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

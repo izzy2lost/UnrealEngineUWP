@@ -134,12 +134,7 @@ namespace mu
 				return KeyHash;
 			}
 
-			bool operator==(const FGenericGenerationOptions& InKey) const
-			{
-				if (State != InKey.State) return false;
-				if (ActiveTags != InKey.ActiveTags) return false;
-				return true;
-			}
+			bool operator==(const FGenericGenerationOptions& InKey) const = default;
 
 			int32 State = -1;
 			TArray<FString> ActiveTags;
@@ -212,10 +207,7 @@ namespace mu
 				return KeyHash;
 			}
 
-			FORCEINLINE bool operator==(const FGeneratedCacheKey& Other) const
-			{
-				return Node == Other.Node && Options == Other.Options;
-			}
+			FORCEINLINE bool operator==(const FGeneratedCacheKey& Other) const = default;
 		};
 
 		typedef TMap<FGeneratedCacheKey, FGenericGenerationResult> FGeneratedGenericNodesMap;
@@ -513,7 +505,7 @@ namespace mu
 		Ptr<ASTOp> ApplyTiling(Ptr<ASTOp> Source, UE::Math::TIntVector2<int32> Size, EImageFormat Format);
 
 		/** Generate a layout block-sized image with a mask including all pixels in the blocks defined in the patch node. */
-		Ptr<Image> GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<UE::Math::TIntVector2<uint16>> RectInCells);
+		Ptr<Image> GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells);
 
 		/** Generate all the operations to apply the block patching on top of the BlockOp, and masking with PatchMask. */
 		Ptr<ASTOp> GenerateImageBlockPatch(Ptr<ASTOp> BlockOp, const NodePatchImage*, Ptr<Image> PatchMask, Ptr<ASTOp> ConditionOp, const FImageGenerationOptions&);

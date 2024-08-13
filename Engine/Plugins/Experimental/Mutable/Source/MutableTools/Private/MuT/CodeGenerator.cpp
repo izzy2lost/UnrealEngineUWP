@@ -794,7 +794,7 @@ namespace mu
 	}
 
 
-	Ptr<Image> CodeGenerator::GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<UE::Math::TIntVector2<uint16>> RectInCells )
+	Ptr<Image> CodeGenerator::GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells )
 	{
 		// Create a patching mask for the block
 		Ptr<Image> PatchMask;
@@ -1372,7 +1372,7 @@ namespace mu
 								FIntPoint GridSize(FakeLayoutSize, FakeLayoutSize);
 								int32 BlockPixelsX = 1;
 								int32 BlockPixelsY = 1;
-								box< UE::Math::TIntVector2<uint16> > RectInCells;
+								box< FIntVector2 > RectInCells;
 								RectInCells.min = { 0,0 };
 								RectInCells.size = { FakeLayoutSize ,FakeLayoutSize };
 
@@ -1476,9 +1476,9 @@ namespace mu
 								imageAd = BlankImageOp;
 							}
 
-							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, surfaceNode, &t, &Options, this]( FImageDesc BlockDesc, UE::Math::TIntVector2<uint16> LayoutCellSize )
+							auto UpdateBlockSize = [&BlockPixelsX, &BlockPixelsY, &FinalFormat, &bBlocksHaveMips, &bImageSizeWarning, &formatNode, &BlankImageOp, &node, surfaceNode, &t, &Options, this]( FImageDesc BlockDesc, FIntVector2 LayoutCellSize )
 							{
-								if (BlockPixelsX == 0)
+								if (BlockPixelsX == 0 && LayoutCellSize.X>0 && LayoutCellSize.Y>0)
 								{
 									if (!bImageSizeWarning)
 									{
@@ -1547,7 +1547,7 @@ namespace mu
 								FImageDesc BlockDesc = blockAd->GetImageDesc(bReturnBestOption, nullptr);
 
 								// Block in layout grid units (cells)
-								box< UE::Math::TIntVector2<uint16> > RectInCells;
+								box< FIntVector2 > RectInCells;
 								RectInCells.min = pLayout->Blocks[BlockIndex].Min;
 								RectInCells.size = pLayout->Blocks[BlockIndex].Size;
 
@@ -1645,7 +1645,7 @@ namespace mu
 												Ptr<ASTOp> fragmentAd = ExtendResult.op;
 
 												// Block in layout grid units
-												box< UE::Math::TIntVector2<uint16> > rectInCells;
+												box< FIntVector2 > rectInCells;
 												rectInCells.min = pExtendLayout->Blocks[b].Min;
 												rectInCells.size = pExtendLayout->Blocks[b].Size;
 

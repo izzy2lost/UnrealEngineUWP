@@ -540,7 +540,10 @@ namespace mu
 		{
 			MUTABLE_CPUPROFILER_SCOPE(Pose);
 
-			Result->BonePoses.Reserve(Result->GetSkeleton()->GetBoneCount());
+			if (Result->GetSkeleton())
+			{
+				Result->BonePoses.Reserve(Result->GetSkeleton()->GetBoneCount());
+			}
 
 			// Copy poses from the first mesh
 			Result->BonePoses = pFirst->BonePoses;

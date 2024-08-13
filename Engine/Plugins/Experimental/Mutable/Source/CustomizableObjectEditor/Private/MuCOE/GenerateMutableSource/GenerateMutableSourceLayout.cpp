@@ -2,11 +2,13 @@
 
 #include "MuCOE/GenerateMutableSource/GenerateMutableSourceLayout.h"
 
+#include "MuCOE/GenerateMutableSource/GenerateMutableSourceMesh.h"
 #include "MuCOE/CustomizableObjectCompiler.h"
 #include "MuCOE/CustomizableObjectLayout.h"
 #include "MuCOE/GraphTraversal.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeLayoutBlocks.h"
 #include "MuCOE/Nodes/CustomizableObjectNodeSkeletalMesh.h"
+#include "Engine/StaticMesh.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -84,14 +86,13 @@ mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& 
 	bWasEmpty = false;
 	mu::Ptr<mu::NodeLayout> LayoutNode = new mu::NodeLayout;
 
-	LayoutNode->Size = UE::Math::TIntVector2<uint16>(UnrealLayout->GetGridSize().X, UnrealLayout->GetGridSize().Y);
-	LayoutNode->MaxSize = UE::Math::TIntVector2<uint16>(UnrealLayout->GetMaxGridSize().X, UnrealLayout->GetMaxGridSize().Y);
-	LayoutNode->Blocks.SetNum(UnrealLayout->Blocks.Num() ? UnrealLayout->Blocks.Num() : 1);
+	LayoutNode->Size = FIntVector2(UnrealLayout->GetGridSize().X, UnrealLayout->GetGridSize().Y);
+	LayoutNode->MaxSize = FIntVector2(UnrealLayout->GetMaxGridSize().X, UnrealLayout->GetMaxGridSize().Y);
 
-	mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(UnrealLayout->GetPackingStrategy());
+	mu::EPackStrategy PackStrategy = ConvertLayoutStrategy(UnrealLayout->PackingStrategy);
 	LayoutNode->Strategy = PackStrategy;
 
-	LayoutNode->ReductionMethod = (UnrealLayout->GetBlockReductionMethod() == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::Halve : mu::EReductionMethod::Unitary);
+	LayoutNode->ReductionMethod = (UnrealLayout->BlockReductionMethod == ECustomizableObjectLayoutBlockReductionMethod::Halve ? mu::EReductionMethod::Halve : mu::EReductionMethod::Unitary);
 
 	if (bIgnoreLayoutWarnings)
 	{
@@ -103,21 +104,71 @@ mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& 
 		LayoutNode->FirstLODToIgnoreWarnings = UnrealLayout->GetIgnoreVertexLayoutWarnings() ? UnrealLayout->GetFirstLODToIgnoreWarnings() : -1;
 	}
 
-	if (UnrealLayout->Blocks.Num())
+	LayoutNode->Blocks.SetNum(UnrealLayout->Blocks.Num());
+	for (int32 BlockIndex = 0; BlockIndex < UnrealLayout->Blocks.Num(); ++BlockIndex)
 	{
-		for (int BlockIndex = 0; BlockIndex < UnrealLayout->Blocks.Num(); ++BlockIndex)
+		LayoutNode->Blocks[BlockIndex] = ToMutable(GenerationContext, UnrealLayout->Blocks[BlockIndex]);
+	}
+
+
+	ECustomizableObjectLayoutAutomaticBlocksStrategy AutomaticBlockStrategy = UnrealLayout->AutomaticBlocksStrategy;
+
+	if (AutomaticBlockStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::Ignore)
+	{
+		// Legacy behavior
+		if (!UnrealLayout->Blocks.Num())
 		{
-			LayoutNode->Blocks[BlockIndex] = ToMutable(GenerationContext, UnrealLayout->Blocks[BlockIndex]);
+			bWasEmpty = true;
+			LayoutNode->Blocks.SetNum(1);
+			LayoutNode->Blocks[0].Min = { 0,0 };
+			LayoutNode->Blocks[0].Size = LayoutNode->Size;
+			LayoutNode->Blocks[0].Priority = 0;
+			LayoutNode->Blocks[0].bReduceBothAxes = false;
+			LayoutNode->Blocks[0].bReduceByTwo = false;
 		}
 	}
 	else
 	{
-		bWasEmpty = true;
-		LayoutNode->Blocks[0].Min = { 0,0 };
-		LayoutNode->Blocks[0].Size = { uint16(UnrealLayout->GetGridSize().X), uint16(UnrealLayout->GetGridSize().Y) };
-		LayoutNode->Blocks[0].Priority = 0;
-		LayoutNode->Blocks[0].bReduceBothAxes = false;
-		LayoutNode->Blocks[0].bReduceByTwo = false;
+		// Convert the UE mesh in the layout into a Mutable mesh.
+		mu::Ptr<mu::Mesh> MutableMesh = nullptr;
+
+		if (USkeletalMesh* SkeletalMesh = Cast<USkeletalMesh>(UnrealLayout->GetMesh()))
+		{
+			// We don't need all the data to generate the blocks
+			const EMutableMeshConversionFlags ShapeFlags =
+				EMutableMeshConversionFlags::IgnoreSkinning |
+				EMutableMeshConversionFlags::IgnorePhysics;
+
+			GenerationContext.MeshGenerationFlags.Push(ShapeFlags);
+
+			GenerationContext.ComponentInfos.Add(FMutableComponentInfo(FName(), SkeletalMesh));
+			MutableMesh = ConvertSkeletalMeshToMutable(SkeletalMesh, TSoftClassPtr<UAnimInstance>(), UnrealLayout->GetLOD(), UnrealLayout->GetMaterial(), UnrealLayout->GetLOD(), UnrealLayout->GetMaterial(), GenerationContext, nullptr, nullptr);
+
+			GenerationContext.MeshGenerationFlags.Pop();
+		}
+		else if (UStaticMesh* StaticMesh = Cast<UStaticMesh>(UnrealLayout->GetMesh()))
+		{
+			MutableMesh = ConvertStaticMeshToMutable(StaticMesh, UnrealLayout->GetLOD(), UnrealLayout->GetMaterial(), GenerationContext, nullptr);
+		}
+
+		if (MutableMesh)
+		{
+			// Generating blocks with the mutable mesh
+			if (AutomaticBlockStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::Rectangles)
+			{
+				LayoutNode->GenerateLayoutBlocks(MutableMesh, UnrealLayout->GetUVChannel());
+			}
+			else if (AutomaticBlockStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::UVIslands)
+			{
+				bool bMergeChildBlocks = UnrealLayout->AutomaticBlocksMergeStrategy == ECustomizableObjectLayoutAutomaticBlocksMergeStrategy::MergeChildBlocks;
+				LayoutNode->GenerateLayoutBlocksFromUVIslands(MutableMesh, UnrealLayout->GetUVChannel(), bMergeChildBlocks);
+			}
+			else
+			{
+				// Unimplemented
+				check(false);
+			}
+		}
 	}
 
 	return LayoutNode;

@@ -202,7 +202,7 @@ namespace mu {
 	bool Layout::IsSingleBlockAndFull() const
 	{
 		if (Blocks.Num() == 1
-			&& Blocks[0].Min == UE::Math::TIntVector2<uint16>(0, 0)
+			&& Blocks[0].Min == FIntVector2(0, 0)
 			&& Blocks[0].Size == Size)
 		{
 			return true;
