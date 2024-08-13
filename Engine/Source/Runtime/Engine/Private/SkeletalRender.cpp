@@ -246,6 +246,25 @@ bool FSkeletalMeshObject::IsMaterialHidden(int32 InLODIndex,int32 MaterialIdx) c
 	check(LODInfo.IsValidIndex(InLODIndex));
 	return LODInfo[InLODIndex].HiddenMaterials.IsValidIndex(MaterialIdx) && LODInfo[InLODIndex].HiddenMaterials[MaterialIdx];
 }
+
+/**
+ * Determine if any material section entry for an LOD is hidden or not
+ *
+ * @param InLODIndex - LOD entry to get hidden material flags for
+ */
+bool FSkeletalMeshObject::IsAnyMaterialHidden(int32 InLODIndex) const
+{
+	check(LODInfo.IsValidIndex(InLODIndex));
+	for (const bool bIsHidden : LODInfo[InLODIndex].HiddenMaterials)
+	{
+		if (bIsHidden)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
 /**
  * Initialize the array of LODInfo based on the settings of the current skel mesh component
  */
