@@ -12,7 +12,6 @@
 class IDNAReader;
 class USkeleton;
 class USkeletalMesh;
-class USkeletalMeshComponent;
 
 struct FDNAIndexMapping
 {
@@ -35,7 +34,7 @@ struct FDNAIndexMapping
 
 	void MapControlCurves(const IDNAReader* DNAReader, const USkeleton* Skeleton);
 	void MapNeuralNetworkMaskCurves(const IDNAReader* DNAReader, const USkeleton* Skeleton);
-	void MapJoints(const IDNAReader* DNAReader, const USkeletalMeshComponent* SkeletalMeshComponent);
+	void MapJoints(const IDNAReader* DNAReader, const USkeletalMesh* SkeletalMesh);
 	void MapMorphTargets(const IDNAReader* DNAReader, const USkeleton* Skeleton, const USkeletalMesh* SkeletalMesh);
 	void MapMaskMultipliers(const IDNAReader* DNAReader, const USkeleton* Skeleton);
 

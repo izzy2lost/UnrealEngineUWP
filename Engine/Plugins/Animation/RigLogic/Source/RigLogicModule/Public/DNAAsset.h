@@ -92,16 +92,16 @@ public:
 	 **/
 	void InitializeForRuntimeFrom(UDNAAsset* Other);
 
+	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
+	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton,
+		const USkeletalMesh* SkeletalMesh);
+
 private:
 	friend struct FAnimNode_RigLogic;
 	friend struct FRigUnit_RigLogic;
 
-	TSharedPtr<FSharedRigRuntimeContext> GetRigRuntimeContext();
 	void InvalidateRigRuntimeContext();
 	void InitializeRigRuntimeContext();
-	TSharedPtr<FDNAIndexMapping> GetDNAIndexMapping(const USkeleton* Skeleton,
-													const USkeletalMesh* SkeletalMesh,
-													const USkeletalMeshComponent* SkeletalMeshComponent);
 
 private:
 	// Synchronize DNA updates

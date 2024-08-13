@@ -205,8 +205,7 @@ TSharedPtr<FSharedRigRuntimeContext> UDNAAsset::GetRigRuntimeContext()
 }
 
 TSharedPtr<FDNAIndexMapping> UDNAAsset::GetDNAIndexMapping(const USkeleton* Skeleton,
-														   const USkeletalMesh* SkeletalMesh,
-														   const USkeletalMeshComponent* SkeletalMeshComponent)
+														   const USkeletalMesh* SkeletalMesh)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));
 
@@ -238,7 +237,7 @@ TSharedPtr<FDNAIndexMapping> UDNAAsset::GetDNAIndexMapping(const USkeleton* Skel
 		DNAIndexMapping->SkeletonGuid = SkeletonGuid;
 		DNAIndexMapping->MapControlCurves(BehaviorReader.Get(), Skeleton);
 		DNAIndexMapping->MapNeuralNetworkMaskCurves(BehaviorReader.Get(), Skeleton);
-		DNAIndexMapping->MapJoints(BehaviorReader.Get(), SkeletalMeshComponent);
+		DNAIndexMapping->MapJoints(BehaviorReader.Get(), SkeletalMesh);
 		DNAIndexMapping->MapMorphTargets(BehaviorReader.Get(), Skeleton, SkeletalMesh);
 		DNAIndexMapping->MapMaskMultipliers(BehaviorReader.Get(), Skeleton);
 		DNAIndexMappingContainer.Add(SkeletalMesh, DNAIndexMapping);

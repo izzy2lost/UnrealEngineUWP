@@ -6,7 +6,6 @@
 #include "DNAReader.h"
 #include "Animation/Skeleton.h"
 #include "Animation/SmartName.h"
-#include "Components/SkeletalMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Animation/AnimCurveTypes.h"
 
@@ -78,20 +77,22 @@ void FDNAIndexMapping::MapNeuralNetworkMaskCurves(const IDNAReader* DNAReader, c
 	}
 }
 
-
-void FDNAIndexMapping::MapJoints(const IDNAReader* DNAReader, const USkeletalMeshComponent* SkeletalMeshComponent)
+void FDNAIndexMapping::MapJoints(const IDNAReader* DNAReader, const USkeletalMesh* SkeletalMesh)
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/RigLogic"));
 
+	const FReferenceSkeleton& RefSkeleton = SkeletalMesh->GetRefSkeleton();
 	const uint16 JointCount = DNAReader->GetJointCount();
 	JointsMapDNAIndicesToMeshPoseBoneIndices.Reset(JointCount);
+
 	for (uint16 JointIndex = 0; JointIndex < JointCount; ++JointIndex)
 	{
 		const FString JointName = DNAReader->GetJointName(JointIndex);
 		const FName BoneName = FName(*JointName);
-		const int32 BoneIndex = SkeletalMeshComponent->GetBoneIndex(BoneName);
+		const int32 BoneIndex = RefSkeleton.FindBoneIndex(BoneName);
+
 		// BoneIndex may be INDEX_NONE, but it's handled properly by the Evaluate method
-		JointsMapDNAIndicesToMeshPoseBoneIndices.Add(FMeshPoseBoneIndex{BoneIndex});
+		JointsMapDNAIndicesToMeshPoseBoneIndices.Add(FMeshPoseBoneIndex{ BoneIndex });
 	}
 }
 

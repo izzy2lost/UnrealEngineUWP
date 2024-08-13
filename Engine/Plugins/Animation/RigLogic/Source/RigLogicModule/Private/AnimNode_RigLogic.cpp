@@ -91,7 +91,7 @@ void FAnimNode_RigLogic::CacheBones_AnyThread(const FAnimationCacheBonesContext&
 		RigInstance = new FRigInstance(LocalRigRuntimeContext->RigLogic.Get());
 	}
 
-	LocalDNAIndexMapping = DNAAsset->GetDNAIndexMapping(Skeleton, SkeletalMesh, SkeletalMeshComponent);
+	LocalDNAIndexMapping = DNAAsset->GetDNAIndexMapping(Skeleton, SkeletalMesh);
 	// CacheBones is called on LOD switches as well, in which case compact pose bone indices must be remapped
 	const FBoneContainer& RequiredBones = Context.AnimInstanceProxy->GetRequiredBones();
 	if (RequiredBones.IsValid())
