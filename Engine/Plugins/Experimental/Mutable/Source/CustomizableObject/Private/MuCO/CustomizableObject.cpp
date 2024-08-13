@@ -193,19 +193,19 @@ void UCustomizableObject::PreSave(FObjectPreSaveContext ObjectSaveContext)
 					{
 						MUTABLE_CPUPROFILER_SCOPE(WriteBulkData);
 
-						FByteBulkData& BulkData = ModelStreamableBulkData->HashToBulkData.FindOrAdd(File.Id);
+						FByteBulkData& ByteBulkData = ModelStreamableBulkData->HashToBulkData.FindOrAdd(File.Id);
 
-						BulkData.Lock(LOCK_READ_WRITE);
-						uint8* Ptr = (uint8*)BulkData.Realloc(FileBulkData.Num());
+						ByteBulkData.Lock(LOCK_READ_WRITE);
+						uint8* Ptr = (uint8*)ByteBulkData.Realloc(FileBulkData.Num());
 						FMemory::Memcpy(Ptr, FileBulkData.GetData(), FileBulkData.Num());
-						BulkData.Unlock();
+						ByteBulkData.Unlock();
 
 						uint32 BulkDataFlags = BULKDATA_PayloadInSeperateFile | BULKDATA_Force_NOT_InlinePayload;
 						if (File.Flags == uint32(mu::ERomFlags::HighRes))
 						{
 							BulkDataFlags |= BULKDATA_OptionalPayload;
 						}
-						BulkData.SetBulkDataFlags(BulkDataFlags);
+						ByteBulkData.SetBulkDataFlags(BulkDataFlags);
 					};
 
 				bool bDropData = true;
