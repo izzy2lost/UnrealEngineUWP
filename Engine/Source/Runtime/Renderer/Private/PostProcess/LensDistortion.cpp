@@ -248,3 +248,11 @@ const FLensDistortionLUT& LensDistortion::GetLUTUnsafe(const FSceneView& InView)
 	return static_cast<const FViewInfo&>(InView).LensDistortionLUT;
 }
 
+void LensDistortion::SetLUTUnsafe(FSceneView& InView, const FLensDistortionLUT& DistortionLUT)
+{
+	check(InView.bIsViewInfo);
+
+	FViewInfo& ViewInfo = static_cast<FViewInfo&>(InView);
+
+	ViewInfo.LensDistortionLUT = DistortionLUT;
+}

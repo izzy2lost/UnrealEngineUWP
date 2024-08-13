@@ -6,6 +6,8 @@
 #include "Math/Vector2D.h"
 #include "Math/Vector4.h"
 
+#include "LensDistortionModelHandlerBase.h"
+
 class UTextureRenderTarget2D;
 
 /** Types of blending used which drives permutation */
@@ -60,6 +62,9 @@ struct FDisplacementMapBlendingParams
 	/** Corners of the blending patch, indexed in the following order: (X0, Y0) -> (X1, Y0) -> (X1, Y1) -> (X0, Y1) */
 	FDisplacementMapBlendPatchCorner PatchCorners[4];
 	
+	/** Distortion state for each of four possible corners to be blended */
+	FLensDistortionState States[4];
+
 	/** Scale parameter that allows displacement maps for one sensor size to be applied to camera's with a different sensor size */
 	FVector2D FxFyScale = { 1.0f, 1.0f };
 

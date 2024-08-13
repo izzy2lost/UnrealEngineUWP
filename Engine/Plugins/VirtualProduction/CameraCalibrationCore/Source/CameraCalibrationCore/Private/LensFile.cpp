@@ -405,6 +405,36 @@ void ULensFile::SetupNoDistortionOutput(ULensDistortionModelHandlerBase* LensHan
 	LensHandler->SetOverscanFactor(1.0f);
 }
 
+void ULensFile::GetBlendState(float InFocus, float InZoom, FVector2D InFilmback, FDisplacementMapBlendingParams& OutBlendState)
+{
+	LensInterpolationUtils::FDistortionMapBlendParams<FDistortionTable> Params;
+	Params.bGenerateBlendingParams = true;
+
+ 	FImageCenterInfo InterpolatedImageCenter;
+ 	EvaluateImageCenterParameters(InFocus, InZoom, InterpolatedImageCenter);
+
+	Params.GetDistortionState = LensInterpolationUtils::FDistortionMapBlendParams<FDistortionTable>::FGetDistortionState::CreateLambda(
+		[this, &InterpolatedImageCenter]
+		(const FDistortionFocusPoint& FocusPoint, const FDistortionFocusCurve& FocusCurve, FLensDistortionState& OutState)
+		{
+			// In case the point doesn't exist, we need to fill the distortion parameter array with default values
+			LensInfo.LensModel->GetDefaultObject<ULensModel>()->GetDefaultParameterArray(OutState.DistortionInfo.Parameters);
+			FocusPoint.GetPoint(FocusCurve.Zoom, OutState.DistortionInfo);
+
+			LensDataTableUtils::GetPointValue<FFocalLengthFocusPoint>(FocusPoint.Focus, FocusCurve.Zoom, FocalLengthTable.FocusPoints, OutState.FocalLengthInfo);
+			OutState.ImageCenter = InterpolatedImageCenter;
+		}
+	);
+
+	LensInterpolationUtils::FDistortionMapBlendResults Results = LensInterpolationUtils::DistortionMapBlend(DistortionTable, InFocus, InZoom, Params);
+
+	if (Results.BlendingParams.IsSet())
+	{
+		OutBlendState = Results.BlendingParams.GetValue();
+		OutBlendState.FxFyScale = FVector2D(InFilmback.X / LensInfo.SensorDimensions.X, InFilmback.Y / LensInfo.SensorDimensions.Y);
+	}
+}
+
 bool ULensFile::EvaluateDistortionForParameters(float InFocus, float InZoom, FVector2D InFilmback, ULensDistortionModelHandlerBase* InLensHandler) const
 {
 	// Compute interpolated image center and focal length to pass to the lens handler

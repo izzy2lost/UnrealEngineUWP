@@ -3,10 +3,10 @@
 #pragma once
 
 #include "CoreTypes.h"
-#include "LensFileRendering.h"
 #include "Curves/RichCurve.h"
+#include "LensDistortionSceneViewExtension.h"
+#include "LensFileRendering.h"
 #include "Math/Vector2D.h"
-
 #include "Misc/EnumClassFlags.h"
 #include "Tables/DistortionParametersTable.h"
 #include "Tables/LensTableUtils.h"
@@ -243,6 +243,11 @@ namespace LensInterpolationUtils
 			UTextureRenderTarget2D* /* InUndistortedMap */,
 			UTextureRenderTarget2D* /* InDistortedMap */);
 
+		DECLARE_DELEGATE_ThreeParams(FGetDistortionState,
+			const FocusPointType& /* FocusPoint */,
+			const FocusCurveType& /* FocusCurve */,
+			FLensDistortionState& /* OutState */);
+
 		/**
 		 * Callback to use to retrieve the distortion parameters for a specified point being blended.
 		 * If unbound, no distortion parameters will be computed in the blending results
@@ -260,7 +265,13 @@ namespace LensInterpolationUtils
 		 * If unbound, no overscan blending will be computed in the blending results
 		 */
 		FProcessDisplacementMaps ProcessDisplacementMaps;
-		
+
+		/**
+		 * Callback to use to retrieve the complete distortion state for a specified point being blended.
+		 * If unbound, no distortion state will be added to the blending results
+		 */
+		FGetDistortionState GetDistortionState;
+
 		/** Indicates that shader blending parameters should be calculated */
 		bool bGenerateBlendingParams = false;
 		
@@ -278,7 +289,7 @@ namespace LensInterpolationUtils
 	/** Blended results from a distortion map blend. Optionals are set when the blend input parameters indicated those blended values should be computed */
 	struct FDistortionMapBlendResults
 	{
-		/** Indicates that a distortion map blend successfully occured */
+		/** Indicates that a distortion map blend successfully occurred */
 		bool bValid = false;
 
 		/** The shader blending parameters, if they were computed for the blend */
@@ -394,6 +405,7 @@ namespace LensInterpolationUtils
 			if (Results.BlendingParams.IsSet())
 			{
 				Results.BlendingParams->BlendType = EDisplacementMapBlendType::OneFocusOneZoom;
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, PrevFocusCurve, Results.BlendingParams->States[0]);
 			}
 
 			if (Results.BlendedDistortionParams.IsSet())
@@ -424,6 +436,9 @@ namespace LensInterpolationUtils
 				Results.BlendingParams->BlendType = EDisplacementMapBlendType::OneFocusTwoZoom;
 				Results.BlendingParams->PatchCorners[0] = FDisplacementMapBlendPatchCorner(PrevFocusCurve.Zoom, PrevFocusPoint.Focus, PrevTangent, 0.0);
 				Results.BlendingParams->PatchCorners[1] = FDisplacementMapBlendPatchCorner(NextFocusCurve.Zoom, PrevFocusPoint.Focus, NextTangent, 0.0);
+
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, PrevFocusCurve, Results.BlendingParams->States[0]);
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, NextFocusCurve, Results.BlendingParams->States[1]);
 			}
 
 			if (Results.BlendedDistortionParams.IsSet())
@@ -467,6 +482,9 @@ namespace LensInterpolationUtils
 				Results.BlendingParams->BlendType = EDisplacementMapBlendType::TwoFocusOneZoom;
 				Results.BlendingParams->PatchCorners[0] = FDisplacementMapBlendPatchCorner(PrevFocusCurve.Zoom, PrevFocusPoint.Focus, 0.0, PrevTangent);
 				Results.BlendingParams->PatchCorners[1] = FDisplacementMapBlendPatchCorner(PrevFocusCurve.Zoom, NextFocusPoint.Focus, 0.0, NextTangent);
+
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, PrevFocusCurve, Results.BlendingParams->States[0]);
+				InParams.GetDistortionState.ExecuteIfBound(NextFocusPoint, PrevFocusCurve, Results.BlendingParams->States[1]);
 			}
 			
 			if (Results.BlendedDistortionParams.IsSet())
@@ -517,6 +535,11 @@ namespace LensInterpolationUtils
 				Results.BlendingParams->PatchCorners[1] = FDisplacementMapBlendPatchCorner(NextFocusCurve.Zoom, PrevFocusPoint.Focus, XTangents[1], YTangents[1]);
 				Results.BlendingParams->PatchCorners[2] = FDisplacementMapBlendPatchCorner(NextFocusCurve.Zoom, NextFocusPoint.Focus, XTangents[2], YTangents[2]);
 				Results.BlendingParams->PatchCorners[3] = FDisplacementMapBlendPatchCorner(PrevFocusCurve.Zoom, NextFocusPoint.Focus, XTangents[3], YTangents[3]);
+
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, PrevFocusCurve, Results.BlendingParams->States[0]);
+				InParams.GetDistortionState.ExecuteIfBound(PrevFocusPoint, NextFocusCurve, Results.BlendingParams->States[1]);
+				InParams.GetDistortionState.ExecuteIfBound(NextFocusPoint, NextFocusCurve, Results.BlendingParams->States[2]);
+				InParams.GetDistortionState.ExecuteIfBound(NextFocusPoint, PrevFocusCurve, Results.BlendingParams->States[3]);
 			}
 			
 			if (Results.BlendedDistortionParams.IsSet())

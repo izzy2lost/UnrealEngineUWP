@@ -2,6 +2,8 @@
 
 #include "LensComponent.h"
 
+#include "Camera/CameraActor.h"
+#include "CameraCalibrationSettings.h"
 #include "CameraCalibrationSubsystem.h"
 #include "CineCameraComponent.h"
 #include "Controllers/LiveLinkTransformController.h"
@@ -115,6 +117,8 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		bWasDistortionEvaluated = false;
 		TObjectPtr<ULensDistortionModelHandlerBase> LensDistortionHandler = LensDistortionHandlerMap.FindRef(LensModel);
 
+		FDisplacementMapBlendingParams BlendState;
+
 		if (LensDistortionHandler)
 		{
 			switch (DistortionStateSource)
@@ -129,6 +133,8 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 				LensFile->EvaluateDistortionData(EvalInputs.Focus, EvalInputs.Zoom, FVector2D(EvalInputs.Filmback.SensorWidth, EvalInputs.Filmback.SensorHeight), LensDistortionHandler);
 
 				DistortionState = LensDistortionHandler->GetCurrentDistortionState();
+
+				LensFile->GetBlendState(EvalInputs.Focus, EvalInputs.Zoom, FVector2D(EvalInputs.Filmback.SensorWidth, EvalInputs.Filmback.SensorHeight), BlendState);
 
 				// Adjust overscan by the overscan multiplier
 				if (bScaleOverscan)
@@ -149,6 +155,9 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 			{
 				LensDistortionHandler->SetDistortionState(DistortionState);
 				LensDistortionHandler->SetCameraFilmback(CineCameraComponent->Filmback);
+
+				BlendState.States[0] = DistortionState;
+				BlendState.BlendType = EDisplacementMapBlendType::OneFocusOneZoom;
 
 				//Recompute overscan factor for the distortion state
 				float OverscanFactor = LensDistortionHandler->ComputeOverscanFactor();
@@ -177,30 +186,45 @@ void ULensComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorC
 		{
 			if (LensDistortionHandler && bWasDistortionEvaluated)
 			{
-				// Get the current distortion MID from the lens distortion handler
-				UMaterialInstanceDynamic* NewDistortionMID = LensDistortionHandler->GetDistortionMID();
-
-				// If the MID has changed
-				if (LastDistortionMID != NewDistortionMID)
+				if (DistortionRenderingMode == EDistortionRenderingMode::LegacyPPM)
 				{
-					CineCameraComponent->RemoveBlendable(LastDistortionMID);
-					CineCameraComponent->AddOrUpdateBlendable(NewDistortionMID);
+					// Get the current distortion MID from the lens distortion handler
+					UMaterialInstanceDynamic* NewDistortionMID = LensDistortionHandler->GetDistortionMID();
+
+					// If the MID has changed
+					if (LastDistortionMID != NewDistortionMID)
+					{
+						CineCameraComponent->RemoveBlendable(LastDistortionMID);
+						CineCameraComponent->AddOrUpdateBlendable(NewDistortionMID);
+					}
+
+					// Cache the latest distortion MID
+					LastDistortionMID = NewDistortionMID;
+
+					// Get the overscan factor and use it to modify the target camera's FOV
+					const float OverscanFactor = LensDistortionHandler->GetOverscanFactor();
+					const float OverscanSensorWidth = GetDesqueezedSensorWidth(CineCameraComponent) * OverscanFactor;
+					const float OverscanFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(OverscanSensorWidth / (2.0f * OriginalFocalLength)));
+					CineCameraComponent->SetFieldOfView(OverscanFOV);
+
+					// Update the minimum and maximum focal length of the camera (if needed)
+					CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
+					CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
+
+					bIsDistortionSetup = true;
 				}
+				else if (DistortionRenderingMode == EDistortionRenderingMode::SceneViewExtension)
+				{
+					if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
+					{
+						if (ACameraActor* CameraActor = Cast<ACameraActor>(GetOwner()))
+						{
+							SubSystem->SetLensDistortionSVEState(CameraActor, BlendState);
+						}
+					}
 
-				// Cache the latest distortion MID
-				LastDistortionMID = NewDistortionMID;
-
-				// Get the overscan factor and use it to modify the target camera's FOV
-				const float OverscanFactor = LensDistortionHandler->GetOverscanFactor();
-				const float OverscanSensorWidth = GetDesqueezedSensorWidth(CineCameraComponent) * OverscanFactor;
-				const float OverscanFOV = FMath::RadiansToDegrees(2.0f * FMath::Atan(OverscanSensorWidth / (2.0f * OriginalFocalLength)));
-				CineCameraComponent->SetFieldOfView(OverscanFOV);
-
-				// Update the minimum and maximum focal length of the camera (if needed)
-				CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
-				CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
-
-				bIsDistortionSetup = true;
+					bIsDistortionSetup = true;
+				}
 			}
 			else
 			{
@@ -309,6 +333,13 @@ void ULensComponent::PostEditChangeProperty(struct FPropertyChangedEvent& Proper
 			{
 				CleanupDistortion(CineCameraComponent);
 			}
+		}
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULensComponent, DistortionRenderingMode))
+	{
+		if (UCineCameraComponent* const CineCameraComponent = Cast<UCineCameraComponent>(TargetCameraComponent.GetComponent(GetOwner())))
+		{
+			CleanupDistortion(CineCameraComponent);
 		}
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(ULensComponent, TargetCameraComponent))
@@ -744,6 +775,14 @@ void ULensComponent::CleanupDistortion(UCineCameraComponent* const CineCameraCom
 		// Update the minimum and maximum focal length of the camera (if needed)
 		CineCameraComponent->LensSettings.MinFocalLength = FMath::Min(CineCameraComponent->LensSettings.MinFocalLength, CineCameraComponent->CurrentFocalLength);
 		CineCameraComponent->LensSettings.MaxFocalLength = FMath::Max(CineCameraComponent->LensSettings.MaxFocalLength, CineCameraComponent->CurrentFocalLength);
+
+		if (UCameraCalibrationSubsystem* SubSystem = GEngine->GetEngineSubsystem<UCameraCalibrationSubsystem>())
+		{
+			if (ACameraActor* CameraActor = Cast<ACameraActor>(GetOwner()))
+			{
+				SubSystem->ClearLensDistortionSVEState(CameraActor);
+			}
+		}
 	}
 
 	bIsDistortionSetup = false;

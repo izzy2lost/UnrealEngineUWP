@@ -27,7 +27,7 @@ class UCineCameraComponent;
 class ULensDistortionModelHandlerBase;
 class UTextureRenderTarget2D;
 struct FBaseLensTable;
-
+struct FDisplacementMapBlendingParams;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FOnLensFileModelChanged, const TSubclassOf<ULensModel>&);
 
@@ -240,6 +240,9 @@ public:
 	
 	/** Returns the delegate that is triggered when the LensModel changes */
 	FOnLensFileModelChanged& OnLensFileModelChanged() { return OnLensFileModelChangedDelegate; }
+
+	/** Returns the distortion state and blend paramters for input focus and zoom */
+	void GetBlendState(float InFocus, float InZoom, FVector2D InFilmback, FDisplacementMapBlendingParams& OutBlendState);
 
 protected:
 	/** Updates derived data entries to make sure it matches what is assigned in map points based on data mode */

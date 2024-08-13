@@ -55,6 +55,16 @@ enum class EDistortionSource : uint8
 	Manual,
 };
 
+/** Specifies how the distortion should be rendered in the post-processing pipeline */
+UENUM(BlueprintType)
+enum class EDistortionRenderingMode : uint8
+{
+	/** Use the legacy post process material */
+	LegacyPPM,
+	/** Use the experimental lens distortion scene view extension. Further control of where distortion is rendered can be set via the console command r.TSR.LensDistortion */
+	SceneViewExtension UMETA(DisplayName = "Scene View Extension (Experimental)"),
+};
+
 /** Component for applying a post-process lens distortion effect to a CineCameraComponent on the same actor */
 UCLASS(HideCategories=(Tags, Activation, Cooking, AssetUserData, Collision), meta=(BlueprintSpawnableComponent))
 class LENSCOMPONENT_API ULensComponent : public UActorComponent
@@ -283,6 +293,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = ShouldApplyDistortion, Setter = SetApplyDistortion, Category = "Distortion")
 	bool bApplyDistortion = false;
 
+	/** Specifies how the distortion should be rendered in the post-processing pipeline */
+	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "bApplyDistortion"))
+	EDistortionRenderingMode DistortionRenderingMode = EDistortionRenderingMode::LegacyPPM;
+
 	/** The current lens model used for distortion */
 	UPROPERTY(EditAnywhere, Category = "Distortion", meta = (EditCondition = "DistortionStateSource == EDistortionSource::Manual"))
 	TSubclassOf<ULensModel> LensModel;
@@ -292,7 +306,7 @@ protected:
 	FLensDistortionState DistortionState;
 
 	/** Whether to scale the computed overscan by the overscan percentage */
-	UPROPERTY(AdvancedDisplay, BlueprintReadWrite, Category = "Distortion")
+	UPROPERTY(AdvancedDisplay, BlueprintReadWrite, Category = "Distortion", meta = (InlineEditConditionToggle))
 	bool bScaleOverscan = false;
 
 	/** The percentage of the computed overscan that should be applied to the target camera */

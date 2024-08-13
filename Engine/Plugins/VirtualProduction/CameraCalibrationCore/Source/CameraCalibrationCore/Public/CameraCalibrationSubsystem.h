@@ -12,6 +12,7 @@
 #include "CameraCalibrationStep.h"
 #include "Containers/ArrayView.h"
 #include "LensDistortionModelHandlerBase.h"
+#include "LensDistortionSceneViewExtension.h"
 #include "LensFile.h"
 #include "UObject/ObjectKey.h"
 
@@ -117,6 +118,12 @@ public:
 	/** Unregister an overlay material */
 	void UnregisterOverlayMaterial(const FName& MaterialName);
 
+	/** Adds the input distortion state and blending parameters to the Lens Distortion Scene View Extension for the input camera actor */
+	void SetLensDistortionSVEState(ACameraActor* CameraActor, FDisplacementMapBlendingParams DistortionState);
+
+	/** Removes all distortion state from the Lens Distortion Scene View Extension for the input camera actor */
+	void ClearLensDistortionSVEState(ACameraActor* CameraActor);
+
 private:
 	/** Default lens file to use when no override has been provided */
 	UPROPERTY(Transient)
@@ -143,6 +150,9 @@ private:
 
 	/** Map of actor components to the authoritative lens model that should be used with that component */
 	TMap<FObjectKey, TSubclassOf<ULensModel>> ComponentsWithAuthoritativeModels;
+
+	/** Lens Distortion Scene View Extension, used to render distortion and undistortion displacement maps */
+	TSharedPtr<FLensDistortionSceneViewExtension, ESPMode::ThreadSafe> SceneViewExtension;
 
 private:
 

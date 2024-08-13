@@ -91,5 +91,14 @@ namespace LensDistortion
 	 */
 	RENDERER_API const FLensDistortionLUT& GetLUTUnsafe(const FSceneView& InView);
 
+	/**
+	 * Set the view lens distortion LUT.
+	 * Unsafe to due internal argument cast from "FSceneView" to "FViewInfo".
+	 *
+	 * @param InView Active view info.
+	 * @param DistortionLUT The LUT object to set on the FViewInfo
+	 */
+	RENDERER_API void SetLUTUnsafe(FSceneView& InView, const FLensDistortionLUT& DistortionLUT);
+
 } // end namespace LensDistortion
 

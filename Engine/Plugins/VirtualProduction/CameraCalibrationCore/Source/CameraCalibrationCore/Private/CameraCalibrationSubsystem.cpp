@@ -176,9 +176,21 @@ TArray<FName> UCameraCalibrationSubsystem::GetCameraCalibrationSteps() const
 	return OutKeys;
 }
 
+void UCameraCalibrationSubsystem::SetLensDistortionSVEState(ACameraActor* CameraActor, FDisplacementMapBlendingParams DistortionState)
+{
+	SceneViewExtension->UpdateDistortionState_AnyThread(CameraActor, DistortionState);
+}
+
+void UCameraCalibrationSubsystem::ClearLensDistortionSVEState(ACameraActor* CameraActor)
+{
+	SceneViewExtension->ClearDistortionState_AnyThread(CameraActor);
+}
+
 void UCameraCalibrationSubsystem::Initialize(FSubsystemCollectionBase& Collection)
 {
 	Super::Initialize(Collection);
+
+	SceneViewExtension = FSceneViewExtensions::NewExtension<FLensDistortionSceneViewExtension>();
 
 	PostEngineInitHandle = FCoreDelegates::OnPostEngineInit.AddLambda([&]()
 	{
@@ -227,6 +239,9 @@ void UCameraCalibrationSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 
 void UCameraCalibrationSubsystem::Deinitialize()
 {
+	SceneViewExtension.Reset();
+	SceneViewExtension = nullptr;
+	
 	LensModelMap.Empty(0);
 	CameraImageCenterAlgosMap.Empty(0);
 	CameraNodalOffsetAlgosMap.Empty(0);
