@@ -46,7 +46,7 @@ static FAutoConsoleVariableRef CVarReplicateGameplayAbilitiesToOwnerOnly(TEXT("A
 static bool bForceReplicationAlsoUpdatesReplicatedProxyInterface = true;
 static FAutoConsoleVariableRef CVarForceReplicationAlsoUpdatesReplicatedProxyInterface(TEXT("AbilitySystem.Fix.ForceReplicationAlsoUpdatesReplicatedProxyInterface"), bForceReplicationAlsoUpdatesReplicatedProxyInterface, TEXT("Default: True.  When true, Calling ForceReplication() on the AbilitySystemComponent will also call ForceReplication() on the ReplicationProxy to ensure prompt replication of Cues and Tags"));
 
-static int32 bSafeRemoveAllGameplayCuesMode = 1;
+static int32 bSafeRemoveAllGameplayCuesMode = 2;
 static FAutoConsoleVariableRef CVarSafeRemoveAllGameplayCues(
 	TEXT("AbilitySystem.Fix.SafeRemovalAllGameplayCuesMode"),
 	bSafeRemoveAllGameplayCuesMode,
