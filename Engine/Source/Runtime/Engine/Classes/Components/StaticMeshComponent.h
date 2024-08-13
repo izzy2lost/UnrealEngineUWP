@@ -329,7 +329,7 @@ public:
 
 	/** The overriden coordinate index to use when texture color painting on this mesh. */
 	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
-	int32 OverridenMeshPaintTextureCoordinateIndex;
+	int32 OverriddenMeshPaintTextureCoordinateIndex;
 
 	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )

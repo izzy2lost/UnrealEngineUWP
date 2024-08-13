@@ -3195,7 +3195,7 @@ int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
 {
 	if (bOverrideMeshPaintTextureCoordinateIndex)
 	{
-		return OverridenMeshPaintTextureCoordinateIndex;
+		return OverriddenMeshPaintTextureCoordinateIndex;
 	}
 	if (StaticMesh != nullptr)
 	{
