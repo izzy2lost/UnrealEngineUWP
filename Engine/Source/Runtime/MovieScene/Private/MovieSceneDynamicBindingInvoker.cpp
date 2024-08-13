@@ -102,7 +102,7 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 	{
 		FProperty* LocalProp = *It;
 		checkSlow(LocalProp);
-		if (!LocalProp->HasAnyPropertyFlags(CPF_ZeroConstructor))
+		if (!LocalProp->HasAnyPropertyFlags(CPF_ZeroConstructor) && LocalProp->HasAllPropertyFlags(CPF_Parm))
 		{
 			LocalProp->InitializeValue_InContainer(Parameters);
 		}
@@ -140,7 +140,13 @@ FMovieSceneDynamicBindingResolveResult FMovieSceneDynamicBindingInvoker::InvokeD
 	// Destroy parameters.
 	for (TFieldIterator<FProperty> It(DynamicBindingFunc); It; ++It)
 	{
-		It->DestroyValue_InContainer(Parameters);
+		FProperty* LocalProp = *It;
+		checkSlow(LocalProp);
+
+		if (LocalProp->HasAllPropertyFlags(CPF_Parm))
+		{
+			It->DestroyValue_InContainer(Parameters);
+		}
 	}
 
 	return Result;
