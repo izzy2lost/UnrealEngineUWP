@@ -732,7 +732,7 @@ namespace MutablePrivate
 			return Ar;
 		};
 	};
-	template<> struct TCanBulkSerialize<FBlock> { enum { Value = true }; };
+	//template<> struct TCanBulkSerialize<FBlock> { enum { Value = true }; };
 
 	struct CUSTOMIZABLEOBJECT_API FFile
 	{
