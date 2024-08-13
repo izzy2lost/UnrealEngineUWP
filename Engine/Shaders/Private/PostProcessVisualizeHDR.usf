@@ -18,12 +18,18 @@ SamplerState SceneColorSampler;
 Texture2D HDRSceneColorTexture;
 SamplerState HDRSceneColorSampler;
 
+FScreenTransform ColorUVToLuminanceUV;
+Texture2D LuminanceTexture;
+SamplerState LuminanceSampler;
+
 Texture2D HistogramTexture;
 
 SCREEN_PASS_TEXTURE_VIEWPORT(Input)
 SCREEN_PASS_TEXTURE_VIEWPORT(Output)
 
 float IlluminanceMeterEnabled;
+float UsingIlluminance;
+float LuminanceScale;
 
 // only needed for nice visualization
 float ComputeHistogramMax(Texture2D HistogramTexture)
@@ -412,6 +418,27 @@ void MainPS(noperspective float4 UVAndScreenPos : TEXCOORD0, float4 SvPosition :
 		{
 			OutColor.rgb = float3(0,0,.5);
 		}
+	}
+	else if (EyeAdaptation_VisualizeDebugType == 2)
+	{
+		float Luminance;
+
+		if (UsingIlluminance > 0.5f)
+		{
+			float2 LuminanceUV = ApplyScreenTransform(UV, ColorUVToLuminanceUV);
+
+			Luminance = Texture2DSample(LuminanceTexture, LuminanceSampler, LuminanceUV).r;
+			Luminance *= View.OneOverPreExposure;
+		}
+		else
+		{
+			float4 SceneColor = Texture2DSample(HDRSceneColorTexture, HDRSceneColorSampler, UV);
+			SceneColor.xyz *= View.OneOverPreExposure;
+
+			Luminance = CalculateEyeAdaptationLuminance(SceneColor);
+		}
+
+		OutColor.rgb = Luminance * LuminanceScale;
 	}
 	else // should never happen?
 	{

@@ -357,6 +357,9 @@ void AddPostProcessingPasses(
 	FRDGBufferRef LastEyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 	FRDGBufferRef EyeAdaptationBuffer = LastEyeAdaptationBuffer;
 
+	const FIntRect ExposureIlluminanceRect = GetDownscaledRect(PrimaryViewRect, GetAutoExposureIlluminanceDownscaleFactor());
+	FScreenPassTexture ExposureIlluminance = FScreenPassTexture(Inputs.ExposureIlluminance, ExposureIlluminanceRect);
+
 	FLocalExposureParameters LocalExposureParameters;
 
 	// Histogram defaults to black because the histogram eye adaptation pass is used for the manual metering mode.
@@ -1102,11 +1105,9 @@ void AddPostProcessingPasses(
 
 			if (IsAutoExposureUsingIlluminanceEnabled(View))
 			{
-				if (Inputs.ExposureIlluminance)
+				if (ExposureIlluminance.IsValid())
 				{
-					const FIntRect IlluminanceRect = GetDownscaledRect(PrimaryViewRect, GetAutoExposureIlluminanceDownscaleFactor());
-
-					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, FScreenPassTexture(Inputs.ExposureIlluminance, IlluminanceRect));
+					HistogramSceneColor = FScreenPassTextureSlice::CreateFromScreenPassTexture(GraphBuilder, ExposureIlluminance);
 				}
 				else
 				{
@@ -1664,6 +1665,7 @@ void AddPostProcessingPasses(
 		PassSequence.AcceptOverrideIfLastPass(EPass::VisualizeHDR, PassInputs.OverrideOutput);
 		PassInputs.SceneColor = SceneColor;
 		PassInputs.SceneColorBeforeTonemap = FScreenPassTexture::CopyFromSlice(GraphBuilder, SceneColorBeforeTonemapSlice);
+		PassInputs.Luminance = ExposureIlluminance;
 		PassInputs.HistogramTexture = HistogramTexture;
 		PassInputs.EyeAdaptationBuffer = GetEyeAdaptationBuffer(GraphBuilder, View);
 		PassInputs.EyeAdaptationParameters = &EyeAdaptationParameters;

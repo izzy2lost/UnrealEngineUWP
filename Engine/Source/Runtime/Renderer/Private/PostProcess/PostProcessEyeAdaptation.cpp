@@ -54,8 +54,9 @@ namespace
 		TEXT("r.EyeAdaptation.VisualizeDebugType"),
 		0,
 		TEXT("When enabling Show->Visualize->HDR (Eye Adaptation) is enabled, this flag controls the scene color.\n")
-		TEXT("    0: Scene Color after tonemapping (default).\n")
-		TEXT("    1: Histogram Debug\n"),
+		TEXT("    0: Scene Color after tonemapping (default)\n")
+		TEXT("    1: Histogram Debug\n")
+		TEXT("    2: Luminance\n"),
 		ECVF_RenderThreadSafe);
 
 	TAutoConsoleVariable<float> CVarEyeAdaptationLensAttenuation(
