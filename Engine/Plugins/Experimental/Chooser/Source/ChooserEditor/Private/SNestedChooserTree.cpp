@@ -145,6 +145,7 @@ namespace UE::ChooserEditor
 			{
 				TSharedRef<STextEntryPopup> TextEntry =
 					SNew(STextEntryPopup)
+					.DefaultText(FText::FromString(ChooserToRename->GetName()))
 					.Label(LOCTEXT("RenameNestedChooserLabel", "Rename Chooser"))
 					.OnTextCommitted_Lambda([ChooserToRename, this](FText InText, ETextCommit::Type InCommitType)
 					{
