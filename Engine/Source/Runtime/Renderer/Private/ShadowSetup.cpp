@@ -1302,6 +1302,7 @@ public:
 		Collector.Finish();
 		DynamicVertexBuffer.Commit();
 		DynamicIndexBuffer.Commit();
+		Pipe.WaitUntilEmpty();
 	}
 
 	UE::Tasks::FPipe& GetPipe()
