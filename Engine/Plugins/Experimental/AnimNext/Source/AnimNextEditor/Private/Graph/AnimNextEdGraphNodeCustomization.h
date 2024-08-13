@@ -74,6 +74,8 @@ protected:
 		}
 
 		TArray<TSharedPtr<FStructOnScope>> ScopedSharedDataInstances;
+		TSharedPtr<IPropertyHandle> RootPropertyHandle;
+		TArray<TSharedRef<IPropertyHandle>> PropertyHandles;
 	};
 
 	struct FRigVMNodeDetailsData : FCategoryDetailsData
