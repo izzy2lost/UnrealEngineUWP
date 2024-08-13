@@ -16,6 +16,7 @@ using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
+using HordeServer.Agents.Sessions;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
@@ -184,6 +185,25 @@ namespace HordeServer.Agents
 		public uint UpdateIndex { get; }
 
 		/// <summary>
+		/// Gets a sessions for the agent
+		/// </summary>
+		/// <param name="sessionId">Identifier for the session</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>List of sessions matching the given criteria</returns>
+		Task<ISession?> GetSessionAsync(SessionId sessionId, CancellationToken cancellationToken = default);
+
+		/// <summary>
+		/// Find sessions for the given agent
+		/// </summary>
+		/// <param name="startTime">Start time to include in the search</param>
+		/// <param name="finishTime">Finish time to include in the search</param>
+		/// <param name="index">Index of the first result to return</param>
+		/// <param name="count">Number of results to return</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		/// <returns>List of sessions matching the given criteria</returns>
+		Task<IReadOnlyList<ISession>> FindSessionsAsync(DateTime? startTime = null, DateTime? finishTime = null, int index = 0, int count = 10, CancellationToken cancellationToken = default);
+
+		/// <summary>
 		/// Resets an agent to use new settings
 		/// </summary>
 		/// <param name="ephemeral">Whether the agent is ephemeral or not</param>
@@ -277,14 +297,12 @@ namespace HordeServer.Agents
 	/// <summary>
 	/// Options for starting a new agent session
 	/// </summary>
-	/// <param name="SessionId">New session id</param>
-	/// <param name="SessionExpiresAt">Expiry time for the new session</param>
 	/// <param name="Status">Status of the agent</param>
 	/// <param name="Capabilities">Capabilities for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="LastStatusChange">Time to force status change timestamp to</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(SessionId SessionId, DateTime SessionExpiresAt, AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
+	public record class CreateSessionOptions(AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session

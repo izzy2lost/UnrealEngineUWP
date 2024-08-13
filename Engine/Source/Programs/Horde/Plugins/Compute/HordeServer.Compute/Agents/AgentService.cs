@@ -17,7 +17,6 @@ using HordeCommon.Rpc.Messages;
 using HordeServer.Acls;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
-using HordeServer.Agents.Sessions;
 using HordeServer.Auditing;
 using HordeServer.Server;
 using HordeServer.Tasks;
@@ -70,7 +69,6 @@ namespace HordeServer.Agents
 		public IAgentCollection Agents { get; }
 
 		readonly ILeaseCollection _leases;
-		readonly ISessionCollection _sessions;
 		readonly IAclService _aclService;
 		readonly IDowntimeService _downtimeService;
 		readonly ITaskSource[] _taskSources;
@@ -108,7 +106,6 @@ namespace HordeServer.Agents
 		public AgentService(
 			IAgentCollection agents,
 			ILeaseCollection leases,
-			ISessionCollection sessions,
 			IAclService aclService,
 			IDowntimeService downtimeService,
 			IPoolCollection poolCollection,
@@ -122,7 +119,6 @@ namespace HordeServer.Agents
 		{
 			Agents = agents;
 			_leases = leases;
-			_sessions = sessions;
 			_aclService = aclService;
 			_downtimeService = downtimeService;
 			_cachedRates = new AsyncCachedValue<AgentRateTable?>(_ => redisService.GetDatabase().StringGetAsync(_agentRateTableData), TimeSpan.FromMinutes(2));
@@ -412,25 +408,18 @@ namespace HordeServer.Agents
 						await RemoveLeaseAsync(agent, lease, utcNow, LeaseOutcome.Failed, null, cancellationToken);
 					}
 
-					// Create a new session document
-					ISession newSession = await _sessions.AddAsync(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, version, cancellationToken);
-					DateTime sessionExpiresAt = utcNow + SessionExpiryTime;
-
 					// Get the new pools for the agent
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 					// Reset the agent to use the new session
-					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(newSession.Id, sessionExpiresAt, status, capabilities, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(status, capabilities, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);
 						agent = newAgent;
-						agentLogger.LogInformation("Session {SessionId} started", newSession.Id);
+						agentLogger.LogInformation("Session {SessionId} started", newAgent.SessionId);
 						break;
 					}
-
-					// Remove the session we didn't use
-					await _sessions.DeleteAsync(newSession.Id, cancellationToken);
 				}
 
 				// Get the current agent state
@@ -853,7 +842,6 @@ namespace HordeServer.Agents
 			}
 
 			// Save off the session id and current leases
-			SessionId sessionId = agent.SessionId.Value;
 			IReadOnlyList<IAgentLease> leases = agent.Leases;
 
 			// Clear the current session
@@ -869,9 +857,6 @@ namespace HordeServer.Agents
 					await RemoveLeaseAsync(agent, lease, finishTime, LeaseOutcome.Failed, null, cancellationToken);
 				}
 
-				// Update the session document
-				Agents.GetLogger(agent.Id).LogInformation("Terminated session {SessionId}", sessionId);
-				await _sessions.UpdateAsync(sessionId, finishTime, cancellationToken);
 				return agent;
 			}
 			return null;
@@ -1002,30 +987,6 @@ namespace HordeServer.Agents
 				}
 			}
 #endif
-		}
-
-		/// <summary>
-		/// Gets information about a particular session
-		/// </summary>
-		/// <param name="sessionId">The unique session id</param>
-		/// <returns>The session information</returns>
-		public Task<ISession?> GetSessionAsync(SessionId sessionId)
-		{
-			return _sessions.GetAsync(sessionId);
-		}
-
-		/// <summary>
-		/// Find sessions for the given agent
-		/// </summary>
-		/// <param name="agentId">The unique agent id</param>
-		/// <param name="startTime">Start time to include in the search</param>
-		/// <param name="finishTime">Finish time to include in the search</param>
-		/// <param name="index">Index of the first result to return</param>
-		/// <param name="count">Number of results to return</param>
-		/// <returns>List of sessions matching the given criteria</returns>
-		public Task<List<ISession>> FindSessionsAsync(AgentId agentId, DateTime? startTime, DateTime? finishTime, int index, int count)
-		{
-			return _sessions.FindAsync(agentId, startTime, finishTime, index, count);
 		}
 
 		/// <summary>

@@ -13,7 +13,6 @@ using HordeServer.Agents.Fleet;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
 using HordeServer.Agents.Relay;
-using HordeServer.Agents.Sessions;
 using HordeServer.Agents.Telemetry;
 using HordeServer.Aws;
 using HordeServer.Compute;
@@ -67,7 +66,6 @@ namespace HordeServer
 			services.AddSingleton<ILeaseCollection, LeaseCollection>();
 			services.AddSingleton<ILogCollection, LogCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
-			services.AddSingleton<ISessionCollection, SessionCollection>();
 
 			services.AddSingleton<IAgentVersionProvider, AgentVersionProvider>();
 
@@ -92,7 +90,6 @@ namespace HordeServer
 			services.AddSingleton<AgentRelayService>();
 			services.AddHostedService(provider => provider.GetRequiredService<AgentRelayService>());
 
-			services.AddSingleton<ConsistencyService>();
 			services.AddSingleton<ComputeService>();
 			services.AddSingleton<EnrollmentService>();
 			services.AddSingleton<LogTailService>();
@@ -121,7 +118,6 @@ namespace HordeServer
 				if (_serverInfo.IsRunModeActive(RunMode.Worker))
 				{
 					services.AddHostedService(provider => provider.GetRequiredService<FleetService>());
-					services.AddHostedService(provider => provider.GetRequiredService<ConsistencyService>());
 					services.AddHostedService(provider => provider.GetRequiredService<ComputeService>());
 					services.AddHostedService(provider => provider.GetRequiredService<EnrollmentService>());
 				}

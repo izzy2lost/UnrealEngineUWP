@@ -6,7 +6,6 @@ using EpicGames.Horde.Agents.Pools;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Agents;
-using HordeServer.Agents.Sessions;
 
 namespace HordeServer.Tests.Agents;
 
@@ -57,7 +56,7 @@ public class AgentCollectionTests : BuildTestSetup
 		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryCreateSessionAsync(new CreateSessionOptions(SessionIdUtils.GenerateNewId(), DateTime.UtcNow, AgentStatus.Ok,
+		await _agent.TryCreateSessionAsync(new CreateSessionOptions(AgentStatus.Ok,
 			new RpcAgentCapabilities(), new List<PoolId>(), DateTime.UtcNow, null));
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();

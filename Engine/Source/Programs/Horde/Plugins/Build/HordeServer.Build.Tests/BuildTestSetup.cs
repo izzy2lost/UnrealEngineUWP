@@ -15,7 +15,6 @@ using HordeServer.Agents.Fleet;
 using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
 using HordeServer.Agents.Relay;
-using HordeServer.Agents.Sessions;
 using HordeServer.Agents.Telemetry;
 using HordeServer.Agents.Utilization;
 using HordeServer.Artifacts;
@@ -71,7 +70,6 @@ namespace HordeServer.Tests
 		public IPoolCollection PoolCollection => ServiceProvider.GetRequiredService<IPoolCollection>();
 		public ILeaseCollection LeaseCollection => ServiceProvider.GetRequiredService<ILeaseCollection>();
 		public ILogCollection LogCollection => ServiceProvider.GetRequiredService<ILogCollection>();
-		public ISessionCollection SessionCollection => ServiceProvider.GetRequiredService<ISessionCollection>();
 		public ITestDataCollection TestDataCollection => ServiceProvider.GetRequiredService<ITestDataCollection>();
 		public IUserCollection UserCollection => ServiceProvider.GetRequiredService<IUserCollection>();
 		public IDeviceCollection DeviceCollection => ServiceProvider.GetRequiredService<IDeviceCollection>();
@@ -141,7 +139,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<INotificationTriggerCollection, NotificationTriggerCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 			services.AddSingleton<IBisectTaskCollection, BisectTaskCollection>();
-			services.AddSingleton<ISessionCollection, SessionCollection>();
 			services.AddSingleton<ISubscriptionCollection, SubscriptionCollection>();
 			services.AddSingleton<IStreamCollection, StreamCollection>();
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
@@ -169,7 +166,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<AwsAutoScalingLifecycleService>();
 			services.AddSingleton<ArtifactExpirationService>();
 			services.AddSingleton<FleetService>();
-			services.AddSingleton<ConsistencyService>();
 			services.AddSingleton<RequestTrackerService>();
 			services.AddSingleton<GlobalsService>();
 			services.AddSingleton<JobTaskSource>();

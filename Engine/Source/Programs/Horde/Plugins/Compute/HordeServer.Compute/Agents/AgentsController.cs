@@ -342,7 +342,7 @@ namespace HordeServer.Agents
 				return NotFound(agentId);
 			}
 
-			List<ISession> sessions = await _agentService.FindSessionsAsync(agentId, startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
+			IReadOnlyList<ISession> sessions = await agent.FindSessionsAsync(startTime?.UtcDateTime, finishTime?.UtcDateTime, index, count);
 			return sessions.ConvertAll(x => CreateGetSessionResponse(x));
 		}
 
@@ -372,8 +372,8 @@ namespace HordeServer.Agents
 				return NotFound(agentId);
 			}
 
-			ISession? session = await _agentService.GetSessionAsync(sessionId);
-			if (session == null || session.AgentId != agentId)
+			ISession? session = await agent.GetSessionAsync(sessionId, HttpContext.RequestAborted);
+			if (session == null)
 			{
 				return NotFound();
 			}
