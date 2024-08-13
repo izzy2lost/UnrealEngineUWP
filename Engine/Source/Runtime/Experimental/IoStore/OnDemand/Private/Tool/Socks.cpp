@@ -2,6 +2,7 @@
 
 #if defined(UE_WITH_IAS_TOOL) && PLATFORM_WINDOWS
 
+#include "CoreGlobals.h"
 #include "Command.h"
 
 #include <Misc/ScopeExit.h>
