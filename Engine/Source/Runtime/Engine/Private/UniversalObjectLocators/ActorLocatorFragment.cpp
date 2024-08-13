@@ -109,35 +109,50 @@ UE::UniversalObjectLocator::FResolveResult FActorLocatorFragment::Resolve(const 
 		Result = ResolveActorWithinLevel(*this, Level);
 	}
 
-	// Finally fallback to just trying to resolve the path directly
-	if (!Result)
+	if (Result)
 	{
-		FSoftObjectPath TempPath = Path;
-
-		// Soft Object Paths don't follow asset redirectors when attempting to call ResolveObject or TryLoad.
-		// We want to follow the asset redirector so that maps that have been renamed (from Untitled to their first asset name)
-		// properly resolve. This fixes Possessable bindings losing their references the first time you save a map.
-		TempPath.PreSavePath();
+		return FResolveResultData(Result);
+	}
 
 #if WITH_EDITORONLY_DATA
-		UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
-		if (ContextPackage)
+
+	const UPackage* ContextPackage = Params.Context ? Params.Context->GetOutermost() : nullptr;
+	const int32     PIEInstanceID  = ContextPackage ? ContextPackage->GetPIEInstanceID() : INDEX_NONE;
+
+	// Finally fallback to just trying to resolve the path directly
+	auto ResolvePathWithPIEHandling = [PIEInstanceID](const FSoftObjectPath& PathPtr)
+	{
+		// If we are resolving within a PIE instance, fixup the PIE instance on the path first
+		if (PIEInstanceID != INDEX_NONE)
 		{
-			// If we are resolving within a PIE instance, fixp the PIE instance on the path first
-			const int32 PIEInstanceID = ContextPackage->GetPIEInstanceID();
-			if (PIEInstanceID != INDEX_NONE)
-			{
-				FSoftObjectPath PIEPath = TempPath;
-				PIEPath.FixupForPIE(PIEInstanceID);
-
-				Result = PIEPath.ResolveObject();
-				return FResolveResultData(Result);
-			}
+			FSoftObjectPath PIEPath = PathPtr;
+			PIEPath.FixupForPIE(PIEInstanceID);
+			return PIEPath.ResolveObject();
 		}
-#endif
+		return PathPtr.ResolveObject();
+	};
 
-		Result = TempPath.ResolveObject();
+	Result = ResolvePathWithPIEHandling(Path);
+
+	if (!Result)
+	{
+		// If the path failed to resolve, attempt to fixup redirectors on the path to handle cases
+		//     where this path hasn't been saved yet, but references things that have (and have been redirected)
+		FSoftObjectPath TempPath = Path;
+		TempPath.PreSavePath();
+
+		if (TempPath != Path)
+		{
+			Result = ResolvePathWithPIEHandling(TempPath);
+		}
 	}
+
+#else  // WITH_EDITORONLY_DATA
+
+	// By default we just resolve the path directly
+	Result = Path.ResolveObject();
+
+#endif // WITH_EDITORONLY_DATA
 
 	return FResolveResultData(Result);
 }
