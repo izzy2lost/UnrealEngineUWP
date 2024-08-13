@@ -240,6 +240,9 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 	UPROPERTY(EditAnywhere, Category="Message")
 	uint32 NumParticipantsRequired = 0;
 
+	UPROPERTY(EditAnywhere, Category="Message")
+	FString TestTags;
+
 	/** Default constructor. */
 	FAutomationWorkerSingleTestReply() = default;
 
@@ -256,6 +259,7 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 		OpenCommand = InTestInfo.GetOpenCommand();
 		TestFlags = (uint32)InTestInfo.GetTestFlags();
 		NumParticipantsRequired = InTestInfo.GetNumParticipantsRequired();
+		TestTags = InTestInfo.GetTestTags();
 	}
 
 	FAutomationTestInfo GetTestInfo() const
@@ -270,7 +274,8 @@ struct FAutomationWorkerSingleTestReply : public FAutomationWorkerMessageBase
 			SourceFile,
 			SourceFileLine,
 			AssetPath,
-			OpenCommand);
+			OpenCommand,
+			TestTags);
 	}
 };
 

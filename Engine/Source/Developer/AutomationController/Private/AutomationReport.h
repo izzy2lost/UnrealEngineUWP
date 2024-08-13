@@ -22,6 +22,7 @@ public:
 
 	virtual void Empty() override;
 	virtual FString GetTestParameter() const override;
+	virtual FString GetTags() const override;
 	virtual FString GetAssetPath() const override;
 	virtual FString GetOpenCommand() const override;
 	virtual FString GetCommand() const override;

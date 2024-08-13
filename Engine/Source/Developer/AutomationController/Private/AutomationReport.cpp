@@ -42,6 +42,11 @@ FString FAutomationReport::GetTestParameter() const
 	return TestInfo.GetTestParameter();
 }
 
+FString FAutomationReport::GetTags() const
+{
+	return TestInfo.GetTestTags();
+}
+
 FString FAutomationReport::GetAssetPath() const
 {
 	return TestInfo.GetAssetPath();

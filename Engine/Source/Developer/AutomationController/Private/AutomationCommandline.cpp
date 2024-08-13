@@ -264,6 +264,24 @@ public:
 		}
 	}
 
+
+	void ApplyCVarTagFilter(TSharedPtr <AutomationFilterCollection> AutomationFilters)
+	{
+		if (IConsoleVariable* TagCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Automation.TestTagGlobalFilter")))
+		{
+			FString TagFilterValue = TagCVar->GetString();
+			if (!TagFilterValue.IsEmpty())
+			{
+				UE_LOG(LogAutomationCommandLine, Display, TEXT("Applying Automation Test tag filter '%s'"), *TagFilterValue);
+				FAutomationGroupFilter* FilterTags = new FAutomationGroupFilter();
+				TArray<FAutomatedTestTagFilter> TagList;
+				TagList.Add(FAutomatedTestTagFilter(TagFilterValue));
+				FilterTags->SetTagFilter(TagList);
+				AutomationFilters->Add(MakeShareable(FilterTags));
+			}
+		}
+	}
+
 	void HandleRefreshTestCallback()
 	{
 		TArray<FString> FilteredTestNames;
@@ -279,6 +297,7 @@ public:
 		// We have found some workers
 		// Create a filter to add to the automation controller, otherwise we don't get any reports
 		TSharedPtr <AutomationFilterCollection> AutomationFilters = MakeShareable(new AutomationFilterCollection());
+		ApplyCVarTagFilter(AutomationFilters);
 		AutomationController->SetFilter(AutomationFilters);
 		AutomationController->SetVisibleTestsEnabled(true);
 		AutomationController->GetEnabledTestNames(FilteredTestNames);
@@ -710,6 +729,15 @@ protected:
 						CVar->Set(true);
 					}
 				}
+				else if (FParse::Command(&TempCmd, TEXT("SetTagFilter")))
+				{
+					if (IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("Automation.TestTagGlobalFilter")))
+					{
+						FString FilterValue(TempCmd);
+						Ar.Logf(TEXT("Automation: Setting test tag global filter to: '%s'"), *FilterValue);
+						CVar->Set(*FilterValue);
+					}
+				}
 				else if (FParse::Command(&TempCmd, TEXT("Help")))
 				{
 					Ar.Logf(TEXT("Supported commands are: "));
@@ -726,6 +754,7 @@ protected:
 					Ar.Logf(TEXT("\tAutomation SoftQuit"));
 					Ar.Logf(TEXT("\tAutomation IgnoreLogEvents"));
 					Ar.Logf(TEXT("\tAutomation EnableStereoTests"));
+					Ar.Logf(TEXT("\tAutomation SetTagFilter"));
 					bHandled = false;
 				}
 				else

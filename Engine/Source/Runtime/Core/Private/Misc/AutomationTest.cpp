@@ -64,6 +64,12 @@ namespace AutomationTest
 		bLightweightStereoTestVariants,
 		TEXT("Whether to skip variants when the baseline test fails, and skip saving screenshots for successful variants"));
 
+	FString TestTagGlobalFilter = "";
+	static FAutoConsoleVariableRef CVarAutomationTestTagGlobalFilter(
+		TEXT("Automation.TestTagGlobalFilter"),
+		TestTagGlobalFilter,
+		TEXT("Only include tests marked with Tags matching this filter string, using the Advanced Search Syntax"));
+
 	// The method prepares the filename and LineNumber to be placed in the form that could be extracted by SAutomationWindow widget if it is additionally eclosed into []
 	// The result format is filename(line)
 	static FString CreateFileLineDescription(const FString& Filename, const int32 LineNumber)
@@ -366,9 +372,9 @@ bool FAutomationTestFramework::UnregisterAutomationTestTags(const FString& InTes
 	return bRegistered;
 }
 
-bool FAutomationTestFramework::RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InTestNameToRegister, const FString& InTestTagsToRegister)
+bool FAutomationTestFramework::RegisterComplexAutomationTestTags(const FAutomationTestBase* InTest, const FString& InBeautifiedTestName, const FString& InTestTagsToRegister)
 {
-	FString FullTestName = InTest->GetBeautifiedTestName().AppendChar('.').Append(InTestNameToRegister);
+	FString FullTestName = InTest->GetBeautifiedTestName().AppendChar('.').Append(InBeautifiedTestName);
 	return RegisterAutomationTestTags(FullTestName, InTestTagsToRegister);
 }
 
@@ -1704,7 +1710,7 @@ void FAutomationTestBase::GenerateTestNames(TArray<FAutomationTestInfo>& TestInf
 			GetTestSourceFileLine(CompleteTestName),
 			GetTestAssetPath(ParameterNames[ParameterIndex]),
 			GetTestOpenCommand(ParameterNames[ParameterIndex]),
-			Framework.GetTagsForAutomationTest(TestName)
+			Framework.GetTagsForAutomationTest(CompleteBeautifiedNames)
 		);
 		
 		TestInfo.Add( NewTestInfo );

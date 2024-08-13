@@ -235,6 +235,13 @@ public:
 	virtual FString GetTestParameter() const = 0;
 
 	/**
+	 * Get the tags associated with this test.
+	 *
+	 * @return the tags concatenated into a single string.
+	 */
+	virtual FString GetTags() const = 0;
+
+	/**
 	 * Gets the asset path associated with a test, it may not have one.
 	 * 
 	 * @return the asset name.
