@@ -77,7 +77,7 @@ namespace PCGPropertyHelpers
 	* @param OptionalObjectTraversed Optional set to store all object that we traversed, to be able to react to those objects changes.
 	* @returns                 The last property of the chain (and its container address is in OutContainer)
 	*/
-	const FProperty* ExtractPropertyChain(const UStruct* CurrentClass, const FName CurrentName, TArrayView<const FString> NextNames, const bool bNeedsToBeVisible, TArray<const void*>& OutContainers, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed)
+	const FProperty* ExtractPropertyChain(const UStruct* CurrentClass, const FName CurrentName, TArrayView<const FString> NextNames, const bool bNeedsToBeVisible, TArray<const void*>& OutContainers, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed, bool bQuiet)
 	{
 		check(CurrentClass);
 
@@ -102,14 +102,22 @@ namespace PCGPropertyHelpers
 
 		if (!Property)
 		{
-			LogError(FText::Format(LOCTEXT("PropertyDoesNotExist", "Property '{0}' does not exist in {1}."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			if (!bQuiet)
+			{
+				LogError(FText::Format(LOCTEXT("PropertyDoesNotExist", "Property '{0}' does not exist in {1}."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			}
+
 			return nullptr;
 		}
 
 		// Make sure the property is visible, if requested
 		if (bNeedsToBeVisible && (Property->HasAnyPropertyFlags(ExcludePropertyFlags) || !Property->HasAnyPropertyFlags(IncludePropertyFlags)))
 		{
-			LogError(FText::Format(LOCTEXT("PropertyExistsButNotVisible", "Property '{0}' does exist in {1}, but is not visible."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			if (!bQuiet)
+			{
+				LogError(FText::Format(LOCTEXT("PropertyExistsButNotVisible", "Property '{0}' does exist in {1}, but is not visible."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+			}
+
 			return nullptr;
 		}
 
@@ -165,11 +173,15 @@ namespace PCGPropertyHelpers
 			
 			if(bPropertyNotExtractable)
 			{
-				LogError(FText::Format(LOCTEXT("PropertyIsNotExtractable", "Property '{0}' does exist in {1}, but is not extractable."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+				if (!bQuiet)
+				{
+					LogError(FText::Format(LOCTEXT("PropertyIsNotExtractable", "Property '{0}' does exist in {1}, but is not extractable."), FText::FromName(CurrentName), FText::FromName(CurrentClass->GetFName())), OptionalContext);
+				}
+
 				return nullptr;
 			}
 
-			return ExtractPropertyChain(NextClass, FName(NextNames[0]), NextNames.RightChop(1), bNeedsToBeVisible, OutContainers, OptionalContext, OptionalObjectTraversed);
+			return ExtractPropertyChain(NextClass, FName(NextNames[0]), NextNames.RightChop(1), bNeedsToBeVisible, OutContainers, OptionalContext, OptionalObjectTraversed, bQuiet);
 		}
 		else
 		{
@@ -218,7 +230,7 @@ EPCGMetadataTypes PCGPropertyHelpers::GetMetadataTypeFromProperty(const FPropert
 	return PropertyAccessor.IsValid() ? EPCGMetadataTypes(PropertyAccessor->GetUnderlyingType()) : EPCGMetadataTypes::Unknown;
 }
 
-UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGPropertyHelpers::FExtractorParameters& Parameters, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed)
+UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGPropertyHelpers::FExtractorParameters& Parameters, FPCGContext* OptionalContext, TSet<FSoftObjectPath>* OptionalObjectTraversed, bool bQuiet)
 {
 	check(Parameters.Container && Parameters.Class);
 
@@ -251,7 +263,7 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 		// If Name is none, extract the container as-is, using Parameters.Class, otherwise, extract the chain.
 		if (!ExtractRoot)
 		{
-			Property = ExtractPropertyChain(Parameters.Class, PropertyName, PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Containers, OptionalContext, OptionalObjectTraversed);
+			Property = ExtractPropertyChain(Parameters.Class, PropertyName, PropertySelector.GetExtraNames(), Parameters.bPropertyNeedsToBeVisible, Containers, OptionalContext, OptionalObjectTraversed, bQuiet);
 			if (!Property)
 			{
 				return nullptr;
@@ -342,7 +354,11 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 		if (ExtractableProperties.IsEmpty())
 		{
-			LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"), OptionalContext);
+			if (!bQuiet)
+			{
+				LogError(LOCTEXT("NoPropertiesFound", "No properties found to extract"), OptionalContext);
+			}
+
 			return nullptr;
 		}
 
@@ -367,7 +383,11 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 		{
 			if (Entries.Num() != ElementAddresses.Num())
 			{
-				LogError(LOCTEXT("InvalidCardinality", "Unable to extract because some properties are of mismatched sizes"), OptionalContext);
+				if (!bQuiet)
+				{
+					LogError(LOCTEXT("InvalidCardinality", "Unable to extract because some properties are of mismatched sizes"), OptionalContext);
+				}
+
 				return nullptr;
 			}
 		}
@@ -390,7 +410,11 @@ UPCGParamData* PCGPropertyHelpers::ExtractPropertyAsAttributeSet(const PCGProper
 
 				if (!Metadata->SetAttributeFromDataProperty(FName(AttributeName), EntryKey, ContainerPtr, FinalProperty, /*bCreate=*/ true))
 				{
-					LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), OptionalContext);
+					if (!bQuiet)
+					{
+						LogError(FText::Format(LOCTEXT("ErrorCreatingAttribute", "Error while creating an attribute for property '{0}'. Either the property type is not supported by PCG or attribute creation failed."), FText::FromString(FinalProperty->GetName())), OptionalContext);
+					}
+
 					bValidOperation = false;
 					break;
 				}

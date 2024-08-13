@@ -47,6 +47,7 @@ protected:
 
 public:
 	//~Begin UPCGSettings interface
+	virtual bool RequiresDataFromPreTask() const override { return true; }
 	virtual bool HasFlippedTitleLines() const override { return true; }
 	// The graph may contain nodes that have side effects, don't assume we can cull even when unwired.
 	// TODO: For static SGs we could probably compute this value based on the subgraph nodes.

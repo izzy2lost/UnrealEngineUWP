@@ -223,7 +223,8 @@ EPCGChangeType UPCGGraphInterface::GetChangeTypeForGraphParameterChange(EPCGGrap
 	}
 
 	// Finally if anything change on a property that has an impact for the graph, look for GetUserParameters nodes for this property, to only refresh if the property is used.
-	for (const UPCGNode* Node : Graph->GetNodes())
+	// TODO: add tracking for user parameters from subgraphs
+	/*for (const UPCGNode* Node : Graph->GetNodes())
 	{
 		if (!Node)
 		{
@@ -240,7 +241,8 @@ EPCGChangeType UPCGGraphInterface::GetChangeTypeForGraphParameterChange(EPCGGrap
 	}
 
 	// At this point, we didn't find any node that use our property, so no refresh needed.
-	return EPCGChangeType::Cosmetic;
+	return EPCGChangeType::Cosmetic;*/
+	return EPCGChangeType::Settings;
 }
 
 /****************************

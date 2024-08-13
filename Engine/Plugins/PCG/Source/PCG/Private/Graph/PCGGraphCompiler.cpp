@@ -125,11 +125,24 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			for (const UPCGPin* InputPin : Node->InputPins)
 			{
 				check(InputPin);
+				// Params have to be funneled in the subgraph element (so we can pass down user parameters)
+				const bool bIsParamPin = SubgraphSettings->HasOverridableParam(InputPin->Properties.Label);
+
 				for (const UPCGEdge* InboundEdge : InputPin->Edges)
 				{
 					if (InboundEdge->IsValid())
 					{
-						PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties);
+						// Implementation note: conceptually, the non-param inputs need to be connected only to the input node task.
+						// However, because of the static/dynamic culling which happen on the subgraph node, we need to have the connections on the pretask too (e.g. the subgraph node) even if they don't provide data.
+						if (bIsParamPin)
+						{
+							PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties, /*bInProvideData=*/true);
+						}
+						else
+						{
+							PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties, /*bInProvideData=*/false);
+							InputNodeTask->Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties, /*bInProvideData=*/true);
+						}
 					}
 					else
 					{
@@ -138,10 +151,10 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 				}
 			}
 
-			// Add pre-task as input to subgraph input node task
+			// Add pre-task as input to subgraph input node task, without data dependency
 			if (InputNodeTask)
 			{
-				InputNodeTask->Inputs.Emplace(PreId);
+				InputNodeTask->Inputs.Emplace(PreId,/*InUpstreamPin=*/FPCGGraphTaskInput::NoPin, /*InDownstreamPin=*/FPCGGraphTaskInput::NoPin, /*bInProvideData=*/false);
 			}
 
 			// Hook nodes to the PreTask if they require so.

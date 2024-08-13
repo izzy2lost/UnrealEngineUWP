@@ -9,6 +9,7 @@
 #include "PCGInputOutputSettings.h"
 #include "PCGManagedResource.h"
 #include "PCGPin.h"
+#include "PCGSubgraph.h"
 #include "PCGSubsystem.h"
 #include "Data/PCGIntersectionData.h"
 #include "Data/PCGLandscapeData.h"
@@ -2434,7 +2435,7 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 
 	if (IsInspecting())
 	{
-		auto StorePinInspectionData = [InStack, InNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+		auto StorePinInspectionDataFromNode = [](const FPCGStack* InStack, const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
 		{
 			for (const UPCGPin* Pin : InPins)
 			{
@@ -2442,8 +2443,6 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 
 				// Append the Node and Pin to the current Stack to uniquely identify each DataCollection
 				TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
-				StackFrames.Reserve(StackFrames.Num() + 2);
-				StackFrames.Emplace(InNode);
 				StackFrames.Emplace(Pin);
 
 				FPCGDataCollection PinDataCollection;
@@ -2452,12 +2451,48 @@ void UPCGComponent::StoreInspectionData(const FPCGStack* InStack, const UPCGNode
 				// Implementation note: since static subgraphs actually are visited twice and the second time the input doesn't match the input pins, we don't clear the data.
 				if (!PinDataCollection.TaggedData.IsEmpty())
 				{
-					InOutInspectionCache.Add(Stack, PinDataCollection);
+					if (FPCGDataCollection* CollectionInCache = InOutInspectionCache.Find(Stack))
+					{
+						CollectionInCache->TaggedData.Append(PinDataCollection.TaggedData);
+					}
+					else
+					{
+						InOutInspectionCache.Add(Stack, PinDataCollection);
+					}
 				}
 			}
 		};
 
+		auto StorePinInspectionData = [InStack, InNode, &StorePinInspectionDataFromNode](const TArray<TObjectPtr<UPCGPin>>& InPins, const FPCGDataCollection& InData, TMap<FPCGStack, FPCGDataCollection>& InOutInspectionCache)
+		{
+			FPCGStack Stack = *InStack;
+
+			// Append the Node (here) and Pin (in call) to the current Stack to uniquely identify each DataCollection
+			TArray<FPCGStackFrame>& StackFrames = Stack.GetStackFramesMutable();
+			StackFrames.Reserve(StackFrames.Num() + 2);
+			StackFrames.Emplace(InNode);
+
+			StorePinInspectionDataFromNode(&Stack, InPins, InData, InOutInspectionCache);
+		};
+
 		FWriteScopeLock Lock(InspectionCacheLock);
+
+		// Special case: if we have a static (embedded) subgraph, then the actual data inputs (not params) of the subgraph will be on the input node.
+		// Considering we don't allow inspection on input pins of the input node, then we can move that data up the chain.
+		if (InNode->GetSettings()->IsA<UPCGGraphInputOutputSettings>() && InStack->GetStackFrames().Num() > 2)
+		{
+			// We're expecting the last frame to be the graph
+			// Then, if the graph was statically dispatched, it will be the subgraph node.
+			// In the case of a dynamic subgraph or loop, it will be the loop index instead.
+			FPCGStack StackToSubgraphNode = *InStack;
+			TArray<FPCGStackFrame>& StackFrames = StackToSubgraphNode.GetStackFramesMutable();
+			StackFrames.Pop();
+
+			if (StackFrames.Last().Object.IsValid() && StackFrames.Last().Object->IsA<UPCGSubgraphNode>())
+			{
+				StorePinInspectionDataFromNode(&StackToSubgraphNode, Cast<const UPCGSubgraphNode>(StackFrames.Last().Object)->GetInputPins(), InInputData, InspectionCache);
+			}
+		}
 
 		StorePinInspectionData(InNode->GetInputPins(), InInputData, InspectionCache);
 		StorePinInspectionData(InNode->GetOutputPins(), InOutputData, InspectionCache);

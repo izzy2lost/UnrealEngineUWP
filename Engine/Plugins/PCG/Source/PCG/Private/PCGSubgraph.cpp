@@ -614,6 +614,21 @@ void FPCGSubgraphElement::PrepareSubgraphUserParameters(const UPCGSubgraphSettin
 			// Do nothing, we still want to have a User Parameter Data to indicate we are in a subgraph context.
 		}
 
+		// Hook up user parameter data from upstream
+		TArray<FPCGTaggedData> UpstreamUserParameterData = Context->InputData.GetTaggedTypedInputs<UPCGUserParametersData>(PCGBaseSubgraphConstants::UserParameterTagData);
+		if (!UpstreamUserParameterData.IsEmpty())
+		{
+#if WITH_EDITOR
+			// Safeguard to make sure we always have one and only one data of this type
+			ensure(UpstreamUserParameterData.Num() == 1);
+#endif
+
+			if (UPCGUserParametersData* UpstreamData = Cast<UPCGUserParametersData>(const_cast<UPCGData*>(UpstreamUserParameterData[0].Data.Get())))
+			{
+				UserParamData->UpstreamData = UpstreamData;
+			}
+		}
+
 		FPCGTaggedData& TaggedData = OutputData.TaggedData.Emplace_GetRef();
 		TaggedData.Data = UserParamData;
 		TaggedData.Tags.Add(PCGBaseSubgraphConstants::UserParameterTagData);
@@ -690,9 +705,10 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 					return true;
 				}
 
-				// Prepare the invocation stack - which is the stack up to this node, and then this node
+				// Prepare the invocation stack - which is the stack up to this node, and then this node and the 'not-a-loop index' which we use to differentiate dynamic vs static subgraphs
 				FPCGStack InvocationStack = ensure(Context->Stack) ? *Context->Stack : FPCGStack();
 				InvocationStack.GetStackFramesMutable().Emplace(Context->Node);
+				InvocationStack.GetStackFramesMutable().Emplace(INDEX_NONE); // not a loop index
 
 				// Higen is not allowed in dynamic subgraphs, entire subgraph is executed on the same grid as this subgraph node.
 				FPCGTaskId SubgraphTaskId = Subsystem->ScheduleGraph(
@@ -784,8 +800,7 @@ bool FPCGSubgraphElement::ExecuteInternal(FPCGContext* InContext) const
 	}
 	else
 	{
-		// This node acts as both the pre-graph node and the input node so it should have both the user parameters & the actual inputs
-		PrepareSubgraphData(Settings, Context, Context->InputData, Context->OutputData);
+		// This node acts as the pre-graph node only.
 		PrepareSubgraphUserParameters(Settings, Context, Context->OutputData);
 		return true;
 	}

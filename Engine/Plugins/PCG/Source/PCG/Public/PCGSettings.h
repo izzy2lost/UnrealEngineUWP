@@ -504,6 +504,9 @@ public:
 	/** Check if we have some override. Can be overriden to force params pin for example */
 	virtual bool HasOverridableParams() const { return !CachedOverridableParams.IsEmpty(); }
 
+	/** Checks if a label matches an overridable param */
+	virtual bool HasOverridableParam(FName InParamName) const;
+
 	/** Check if we need to hook the output of the pre-task to this. One use is to compute overrides in the subgraph element and pass the overrides as data, to all nodes that needs it. */
 	virtual bool RequiresDataFromPreTask() const { return false; }
 protected:

@@ -90,7 +90,7 @@ namespace PCGPropertyHelpers
 	* @param OptionalContext - Optional context if the extraction is done in a PCG Node, so errors are using the context to log.
 	* @param OptionalObjectTraversed - Optional set to store all objects that we traversed, to be able to react to those objects changes.
 	*/
-	PCG_API UPCGParamData* ExtractPropertyAsAttributeSet(const FExtractorParameters& Parameters, FPCGContext* OptionalContext = nullptr, TSet<FSoftObjectPath>* OptionalObjectTraversed = nullptr);
+	PCG_API UPCGParamData* ExtractPropertyAsAttributeSet(const FExtractorParameters& Parameters, FPCGContext* OptionalContext = nullptr, TSet<FSoftObjectPath>* OptionalObjectTraversed = nullptr, bool bQuiet = false);
 
 	/**
 	* Extract an attribute set in a array of structures. T MUST be a UStruct. Also, it must only contain supported types (so no arrays nor other structures)

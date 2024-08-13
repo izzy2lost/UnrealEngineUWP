@@ -30,4 +30,7 @@ public:
 
 	UPROPERTY()
 	FInstancedStruct UserParameters;
+
+	UPROPERTY()
+	TSoftObjectPtr<UPCGUserParametersData> UpstreamData = nullptr;
 };

@@ -9,6 +9,14 @@
 
 #include "PCGUserParameterGet.generated.h"
 
+UENUM()
+enum class EPCGUserParameterSource : uint8
+{
+	Current,
+	Upstream,
+	Root
+};
+
 /**
 * Getter for user parameters defined in PCGGraph, by the user.
 * Will pick up the value from the graph instance.
@@ -72,6 +80,12 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	FName OutputAttributeName = NAME_None;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	EPCGUserParameterSource Source = EPCGUserParameterSource::Current;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings)
+	bool bQuiet = false;
 
 	//~Begin UPCGSettings interface
 	virtual bool RequiresDataFromPreTask() const override { return true; }

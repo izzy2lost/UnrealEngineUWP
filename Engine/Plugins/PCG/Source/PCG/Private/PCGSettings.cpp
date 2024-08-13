@@ -438,6 +438,14 @@ TArray<FPCGPinProperties> UPCGSettings::OutputPinProperties() const
 	return PinProperties;
 }
 
+bool UPCGSettings::HasOverridableParam(FName InParamName) const
+{
+	return CachedOverridableParams.FindByPredicate([InParamName](const FPCGSettingsOverridableParam& ParamToCheck)
+	{
+		return !ParamToCheck.PropertiesNames.IsEmpty() && ParamToCheck.PropertiesNames.Last() == InParamName;
+	}) != nullptr;
+}
+
 void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins) const
 {
 	if (!HasOverridableParams())
