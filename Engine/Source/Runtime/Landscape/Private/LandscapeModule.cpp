@@ -55,15 +55,9 @@ private:
  */
 void AddPerWorldLandscapeData(UWorld* World)
 {
-	EObjectFlags NewLandscapeDataFlags = RF_NoFlags;
 	if (!World->PerModuleDataObjects.FindItemByClass<ULandscapeInfoMap>())
 	{
-		if (World->HasAnyFlags(RF_Transactional))
-		{
-			NewLandscapeDataFlags = RF_Transactional;
-		}
-		ULandscapeInfoMap* InfoMap = NewObject<ULandscapeInfoMap>(GetTransientPackage(), NAME_None, NewLandscapeDataFlags);
-		InfoMap->World = World;
+		ULandscapeInfoMap* InfoMap = NewObject<ULandscapeInfoMap>(World, TEXT("LandscapeInfoMap"), World->GetMaskedFlags(RF_Transactional) | RF_Transient);
 		World->PerModuleDataObjects.Add(InfoMap);
 	}
 }
@@ -167,8 +161,6 @@ void WorldDuplicateEventFunction(UWorld* World, bool bDuplicateForPIE, TMap<UObj
 	if (World->PerModuleDataObjects.FindItemByClass(&InfoMap, &Index))
 	{
 		ULandscapeInfoMap* NewInfoMap = Cast<ULandscapeInfoMap>( StaticDuplicateObject(InfoMap, InfoMap->GetOuter()) );
-		NewInfoMap->World = World;
-
 		World->PerModuleDataObjects[Index] = NewInfoMap;
 	}
 	else
