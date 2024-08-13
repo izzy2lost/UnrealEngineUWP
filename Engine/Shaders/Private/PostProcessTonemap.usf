@@ -615,13 +615,7 @@ float4 TonemapCommonPS(
 	#endif
 
 	#if POST_PROCESS_ALPHA
-	#if POST_PROCESS_ALPHA == 1
-		BRANCH
-		if(GetOutputDevice() == TONEMAPPER_OUTPUT_NoToneCurve || GetOutputDevice() == TONEMAPPER_OUTPUT_WithToneCurve)
-	#endif
-		{
-			OutColor.a = SceneColor.a;
-		}
+		OutColor.a = SceneColor.a;
 	#endif
 
 	return OutColor;

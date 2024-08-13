@@ -84,10 +84,10 @@ EMediaCaptureConversionOperation UFileMediaOutput::GetConversionOperation(EMedia
 	// All formats supporting alpha
 	if (WriteOptions.Format == EDesiredImageFormat::EXR || WriteOptions.Format == EDesiredImageFormat::PNG)
 	{
-		// We invert alpha only when alpha channel as valid data when used with "passthrough tone mapper" or using a render target, otherwise we force it to 1.0f.
-		static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-		EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnAnyThread());
-		if ((PropagateAlpha == EAlphaChannelMode::AllowThroughTonemapper) || (InSourceType == EMediaCaptureSourceType::RENDER_TARGET))
+		// We invert alpha only when alpha channel as valid data when used with propagate alpha or using a render target, otherwise we force it to 1.0f.
+		static const auto CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+		const bool bPropagateAlpha = CVarPropagateAlpha->GetBool();
+		if (bPropagateAlpha || (InSourceType == EMediaCaptureSourceType::RENDER_TARGET))
 		{
 			return bInvertAlpha ? EMediaCaptureConversionOperation::INVERT_ALPHA :
 				EMediaCaptureConversionOperation::NONE;

@@ -435,12 +435,7 @@ static FShaderGlobalDefines FetchShaderGlobalDefines(EShaderPlatform TargetPlatf
 
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		int32 PropagateAlpha = CVar->GetInt();
-		if (PropagateAlpha < 0 || PropagateAlpha > 2)
-		{
-			PropagateAlpha = 0;
-		}
-		Ret.POST_PROCESS_ALPHA = PropagateAlpha != 0;
+		Ret.POST_PROCESS_ALPHA = CVar->GetBool();
 	}
 
 	Ret.PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS = RHISupportsShaderRootConstants(EShaderPlatform(TargetPlatform)) ? 1 : 0;

@@ -62,7 +62,7 @@ TAutoConsoleVariable<int32> CVarTSRR11G11B10History(
 	TEXT("Select the bitdepth of the history. r.TSR.History.R11G11B10=1 Saves memory bandwidth that is of particular interest of the TSR's ")
 	TEXT("UpdateHistory's runtime performance by saving memory both at previous frame's history reprojection and write out of the output and ")
 	TEXT("new history.\n")
-	TEXT("This optimisation is unsupported with r.PostProcessing.PropagateAlpha=1.\n")
+	TEXT("This optimisation is unsupported with r.PostProcessing.PropagateAlpha=True.\n")
 	TEXT("\n")
 	TEXT("Please also not that increasing r.TSR.History.ScreenPercentage=200 adds 2 additional implicit encoding bits in the history compared to the TSR.Output's bitdepth thanks to the downscaling pass from TSR history resolution to TSR output resolution."),
 	ECVF_Scalability | ECVF_RenderThreadSafe);

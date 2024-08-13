@@ -114,29 +114,26 @@ namespace EVertexDeformationOutputsVelocity
 UENUM()
 namespace EAlphaChannelMode
 {
-	enum Type : int
+	enum UE_DEPRECATED(5.5, "Propagate alpha was converted back to a boolean.") Type : int
 	{
 		/** Disabled, reducing GPU cost to the minimum. (default). */
-		Disabled = 0 UMETA(DisplayName = "Disabled"),
+		Disabled = 0,
 
-		/** Maintain alpha channel only within linear color space. Tonemapper won't output alpha channel. */
-		LinearColorSpaceOnly = 1 UMETA(DisplayName="Linear color space only"),
+		/** Propagate alpha channel through post-processing. */
+		Enabled = 1,
 
-		/** Maintain alpha channel within linear color space, but also pass it through the tonemapper.
-		 *
-		 * CAUTION: Passing the alpha channel through the tonemapper can unevitably lead to pretty poor compositing quality as
-		 * opposed to linear color space compositing, especially on purely additive pixels bloom can generate. This settings is
-		 * exclusively targeting broadcast industry in case of hardware unable to do linear color space compositing and
-		 * tonemapping.
-		 */
-		AllowThroughTonemapper = 2 UMETA(DisplayName="Allow through tonemapper"),
+		// Deprecated
+		LinearColorSpaceOnly = Enabled UMETA(Hidden),
+		AllowThroughTonemapper = Enabled UMETA(Hidden)
 	};
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 namespace EAlphaChannelMode
 {
 	ENGINE_API EAlphaChannelMode::Type FromInt(int32 InAlphaChannelMode);
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** used by FPostProcessSettings AutoExposure*/
 UENUM()
@@ -729,10 +726,10 @@ class URendererSettings : public UDeveloperSettings
 	uint32 bCustomDepthTaaJitter : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = Postprocessing, meta = (
-		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable alpha channel support in post processing (experimental).",
-		ToolTip = "Configures alpha channel support in renderer's post processing chain. Still experimental: works only with Temporal AA, Motion Blur, Circle Depth Of Field. This option also force disable the separate translucency.",
+		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable alpha channel support in post processing",
+		ToolTip = "Propagates the alpha channel through the renderer's post-processing chain.",
 		ConfigRestartRequired = true))
-	TEnumAsByte<EAlphaChannelMode::Type> bEnableAlphaChannelInPostProcessing;
+	bool bEnableAlphaChannelInPostProcessing;
 
 	UPROPERTY(config, EditAnywhere, Category = DefaultSettings, meta = (
 		ConsoleVariable = "r.DefaultFeature.Bloom", DisplayName = "Bloom",

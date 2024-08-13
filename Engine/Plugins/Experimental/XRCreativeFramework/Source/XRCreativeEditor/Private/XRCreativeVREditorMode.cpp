@@ -286,9 +286,9 @@ bool UXRCreativeVREditorMode::ValidateSettings()
 	IConsoleManager& ConsoleMgr = IConsoleManager::Get();
 	if (IConsoleVariable* PropagateAlpha = ConsoleMgr.FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha")))
 	{
-		if (PropagateAlpha->GetInt() != 0)
+		if (PropagateAlpha->GetBool())
 		{
-			InvalidSettingNotification(LOCTEXT("InvalidCvarPropagateAlpha", "r.PostProcessing.PropagateAlpha must be set to 0 (and requires an engine restart)"));
+			InvalidSettingNotification(LOCTEXT("InvalidCvarPropagateAlpha", "r.PostProcessing.PropagateAlpha must be disabled (and requires an engine restart)"));
 			bSettingsValid = false;
 		}
 	}

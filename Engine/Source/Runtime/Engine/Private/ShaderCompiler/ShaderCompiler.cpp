@@ -3821,20 +3821,15 @@ void GlobalBeginCompileShader(
 
 	{
 		static IConsoleVariable* CVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		int32 PropagateAlpha = CVar->GetInt();
+		bool bPropagateAlpha = CVar->GetBool();
 
 		if (bIsMobilePlatform)
 		{
 			static FShaderPlatformCachedIniValue<int32> MobilePropagateAlphaIniValue(TEXT("r.Mobile.PropagateAlpha"));
-			int MobilePropagateAlphaIniValueInt = MobilePropagateAlphaIniValue.Get((EShaderPlatform)ShaderPlatform);
-			PropagateAlpha = MobilePropagateAlphaIniValueInt > 0 ? 2 : 0;
+			bPropagateAlpha = MobilePropagateAlphaIniValue.Get((EShaderPlatform)ShaderPlatform) > 0;
 		}
 
-		if (PropagateAlpha < 0 || PropagateAlpha > 2)
-		{
-			PropagateAlpha = 0;
-		}
-		SET_SHADER_DEFINE(Input.Environment, POST_PROCESS_ALPHA, PropagateAlpha);
+		SET_SHADER_DEFINE(Input.Environment, POST_PROCESS_ALPHA, bPropagateAlpha ? 1 : 0);
 	}
 
 	if (TargetPlatform && 

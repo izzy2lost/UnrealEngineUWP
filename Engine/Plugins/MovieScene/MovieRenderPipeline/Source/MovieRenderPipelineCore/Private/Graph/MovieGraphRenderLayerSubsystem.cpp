@@ -192,12 +192,11 @@ void UMovieGraphRenderPropertyModifier::ApplyModifier(const UWorld* World)
 
 	// Generate a warning if holdout is being used, but alpha is not enabled in post processing. Without that setting enabled, holdout will not work.
 	const URendererSettings* RendererSettings = GetDefault<URendererSettings>();
-	if (bHoldout && (RendererSettings->bEnableAlphaChannelInPostProcessing == EAlphaChannelMode::Disabled))
+	if (bHoldout && (RendererSettings->bEnableAlphaChannelInPostProcessing == false))
 	{
 		// TODO: Ideally this is called in a general-purpose validation step instead, but that framework does not exist yet.
 		UE_LOG(LogMovieRenderPipeline, Warning, TEXT("A modifier with 'Holdout' is active, but 'Enable alpha channel support in post processing' in "
-													 "the project's Rendering settings is set to Disabled. Holdout will not work properly if this "
-													 "setting is Disabled."));
+													 "the project's Rendering settings is disabled: holdout will not work properly."));
 	}
 	
 	for (const UMovieGraphCollection* Collection : Collections)

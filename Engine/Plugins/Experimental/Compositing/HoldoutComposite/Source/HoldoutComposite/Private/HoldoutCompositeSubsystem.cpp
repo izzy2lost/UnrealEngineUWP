@@ -38,7 +38,7 @@ void UHoldoutCompositeSubsystem::RegisterPrimitives(TArrayView<TSoftObjectPtr<UP
 {
 	// The compositing relies on alpha preserved through the "tonemapper" post-processing step.
 	static IConsoleVariable* CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-	if (CVarPropagateAlpha && CVarPropagateAlpha->GetInt() != static_cast<int32>(EAlphaChannelMode::AllowThroughTonemapper))
+	if (CVarPropagateAlpha && CVarPropagateAlpha->GetBool() != true)
 	{
 		UE_CALL_ONCE([]()
 			{

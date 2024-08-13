@@ -105,14 +105,20 @@ TAutoConsoleVariable<bool> CVarBloomApplyLocalExposure(
 	TEXT("Whether to apply local exposure when calculating bloom, default: true"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-TAutoConsoleVariable<int32> CVarPostProcessingPropagateAlpha(
+static bool GPostProcessingPropagateAlpha = false;
+/**
+* NOTE (5.5):
+* r.PostProcessing.PropagateAlpha has been converted back to a boolean. In order to prevent silent failures
+* with IConsoleManager::Get().FindTConsoleVariableDataInt returning 0 with a boolean cvar set to True, we now use
+* a FAutoConsoleVariableRef which will warn licensees with typed-access at runtime, see IConsoleObject::AsVariableBool()
+* or IConsoleObject::AsVariableInt(). However both CVar->GetBool() & CVar->GetInt() will continue to work, assuming > 0
+* or EAlphaChannelMode::Type comparisons were used.
+*/
+FAutoConsoleVariableRef CVarPostProcessingPropagateAlpha(
 	TEXT("r.PostProcessing.PropagateAlpha"),
-	0,
-	TEXT("0 to disable scene alpha channel support in the post processing.\n")
-	TEXT(" 0: disabled (default);\n")
-	TEXT(" 1: enabled in linear color space;\n")
-	TEXT(" 2: same as 1, but also enable it through the tonemapper. Compositing after the tonemapper is incorrect, as their is no meaning to tonemap the alpha channel. This is only meant to be use exclusively for broadcasting hardware that does not support linear color space compositing and tonemapping."),
-	ECVF_ReadOnly);
+	GPostProcessingPropagateAlpha,
+	TEXT("Whether to propagate alpha through post-processing, default: false"),
+	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarPostProcessingPreferCompute(
 	TEXT("r.PostProcessing.PreferCompute"),
@@ -212,7 +218,7 @@ bool IsPostProcessingEnabled(const FViewInfo& View)
 
 bool IsPostProcessingWithAlphaChannelSupported()
 {
-	return CVarPostProcessingPropagateAlpha.GetValueOnAnyThread() != 0;
+	return CVarPostProcessingPropagateAlpha->GetBool();
 }
 
 #if DEBUG_POST_PROCESS_VOLUME_ENABLE

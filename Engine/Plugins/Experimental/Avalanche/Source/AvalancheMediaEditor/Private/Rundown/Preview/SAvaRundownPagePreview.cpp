@@ -304,11 +304,11 @@ void SAvaRundownPagePreview::HandleCheckerboardActionExecute() const
 	if (bShowCheckerBoard)
 	{
 		const IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
-		if (PropagateAlphaCVar && PropagateAlphaCVar->GetInt() != static_cast<int32>(EAlphaChannelMode::AllowThroughTonemapper))
+		if (PropagateAlphaCVar && PropagateAlphaCVar->GetBool() != true)
 		{
 			const FText NotificationText = LOCTEXT("AlphaSupport",
 				"An output requested Alpha Support but the required project setting is not enabled!\n"
-				"Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Channel Support in Post Processing' and set it to 'Allow through tonemapper'.");
+				"Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Channel Support in Post Processing' and enable it.");
 
 			FNotificationInfo Info(NotificationText);
 			Info.ExpireDuration = 5.0f;	// The message is long, need more time to read it.

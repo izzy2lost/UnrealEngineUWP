@@ -69,7 +69,7 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 	URendererSettings* RendererSettings = GetMutableDefault<URendererSettings>();
 	check(RendererSettings);
 
-	if (RendererSettings->bEnableAlphaChannelInPostProcessing == EAlphaChannelMode::AllowThroughTonemapper)
+	if (RendererSettings->bEnableAlphaChannelInPostProcessing)
 	{
 		return true;
 	}
@@ -84,11 +84,11 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 	{
 		case EAppReturnType::Yes:
 		{
-			RendererSettings->bEnableAlphaChannelInPostProcessing = EAlphaChannelMode::AllowThroughTonemapper;
+			RendererSettings->bEnableAlphaChannelInPostProcessing = true;
 
 			if (IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha")))
 			{
-				PropagateAlphaCVar->Set(EAlphaChannelMode::AllowThroughTonemapper);
+				PropagateAlphaCVar->Set(true);
 			}
 
 			FProperty* Property = RendererSettings->GetClass()->FindPropertyByName(GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableAlphaChannelInPostProcessing));

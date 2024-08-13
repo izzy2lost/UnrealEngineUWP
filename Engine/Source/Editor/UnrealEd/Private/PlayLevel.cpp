@@ -3342,9 +3342,8 @@ TSharedRef<SPIEViewport> UEditorEngine::GeneratePIEViewportWindow(const FRequest
 	bool bRenderDirectlyToWindow = bVRPreview;
 	bool bEnableStereoRendering = bVRPreview;
 
-	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-	const EAlphaChannelMode::Type PropagateAlpha = EAlphaChannelMode::FromInt(CVarPropagateAlpha->GetValueOnGameThread());
-	const bool bIgnoreTextureAlpha = (PropagateAlpha != EAlphaChannelMode::AllowThroughTonemapper);
+	static const auto CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+	const bool bIgnoreTextureAlpha = (CVarPropagateAlpha->GetBool() != true);
 
 	TSharedRef<SPIEViewport> PieViewportWidget =
 		SNew(SPIEViewport)

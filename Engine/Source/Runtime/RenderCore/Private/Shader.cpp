@@ -2192,34 +2192,25 @@ void ShaderMapAppendKey(EShaderPlatform Platform, FShaderKeyGenerator& KeyGen)
 	}
 
 	{
-		int PropagateAlphaType = 0;
+		bool bPropagateAlpha = false;
 		if (IsMobilePlatform(Platform))
 		{
 			static FShaderPlatformCachedIniValue<int32> MobilePropagateAlphaIniValue(TEXT("r.Mobile.PropagateAlpha"));
-			int MobilePropagateAlphaIniValueInt = MobilePropagateAlphaIniValue.Get((EShaderPlatform)Platform);
-			PropagateAlphaType = MobilePropagateAlphaIniValueInt > 0 ? 2 : 0;
+			bPropagateAlpha = MobilePropagateAlphaIniValue.Get((EShaderPlatform)Platform) > 0;
 		}
 		else
 		{
-			static const auto CVar = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.PostProcessing.PropagateAlpha"));
-			if (CVar)
+			static const auto CVarPropagateAlpha = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha"));
+			if (CVarPropagateAlpha)
 			{
-				PropagateAlphaType = CVar->GetValueOnAnyThread();
+				bPropagateAlpha = CVarPropagateAlpha->GetBool();
 			}
 		}
 
-		if (PropagateAlphaType > 0)
+		if (bPropagateAlpha)
 		{
-			if (PropagateAlphaType == 2)
-			{
-				KeyGen.AppendSeparator();
-				KeyGen.Append(TEXT("SA2"));
-			}
-			else
-			{
-				KeyGen.AppendSeparator();
-				KeyGen.Append(TEXT("SA"));
-			}
+			KeyGen.AppendSeparator();
+			KeyGen.Append(TEXT("PA"));
 		}
 	}
 

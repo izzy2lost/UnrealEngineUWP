@@ -100,10 +100,9 @@ void InternalCommonDrawPass(
 			{
 				// Alpha usage/output is controlled with r.PostProcessing.PropagateAlpha. The value are:
 				// 0: disabled(default);
-				// 1: enabled in linear color space;
-				// 2: same as 1, but also enable it through the tonemapper.
+				// 1: enabled
 				//
-				// When enable (PorpagateAlpha is set to 1 or 2), the alpha value means:
+				// When enabled, the alpha value means:
 				// 0: valid pixel
 				// 1: invalid pixel (background)
 				GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
