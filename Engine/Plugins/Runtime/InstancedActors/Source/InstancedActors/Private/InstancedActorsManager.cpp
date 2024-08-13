@@ -180,7 +180,7 @@ void AInstancedActorsManager::BeginPlay()
 
 	Super::BeginPlay();
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("AInstancedActorsManager::BeginPlay");
+	TRACE_CPUPROFILER_EVENT_SCOPE(AInstancedActorsManager::BeginPlay);
 
 	UE_LOG(LogInstancedActors, Verbose, TEXT("%s (%d instances) BeginPlay"), *GetPathName(), GetNumValidInstances());
 	UMassEntitySubsystem* EntitySubsystem = World->GetSubsystem<UMassEntitySubsystem>();

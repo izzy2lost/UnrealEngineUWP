@@ -267,7 +267,7 @@ void FExrReader::CalculateTileOffsets
 	, int32 NumMipLevels
 	, int64 PixelSize)
 {
-	TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("CalculateTileOffsets")));
+	TRACE_CPUPROFILER_EVENT_SCOPE(CalculateTileOffsets);
 
 	int64 CurrentPosition = 0;
 	for (int32 MipLevel = 0; MipLevel < NumMipLevels; MipLevel++)

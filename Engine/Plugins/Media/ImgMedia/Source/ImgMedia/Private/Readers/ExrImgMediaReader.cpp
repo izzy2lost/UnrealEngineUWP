@@ -85,7 +85,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReader::ReadTiles
 		ConverterParams.PixelSize);
 
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTiles_OpenFile")));
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("FExrImgMediaReader_ReadTiles_OpenFile");
 		if (!ChunkReader.OpenExrAndPrepareForPixelReading(ImagePath, NumTilesPerLevel))
 		{
 			return Fail;
@@ -93,7 +93,7 @@ FExrImgMediaReader::EReadResult FExrImgMediaReader::ReadTiles
 	}
 	{
 		int64 CurrentBufferPos = 0;
-		TRACE_CPUPROFILER_EVENT_SCOPE_TEXT(*FString::Printf(TEXT("FExrImgMediaReader_ReadTiles_ReadTiles")));
+		TRACE_CPUPROFILER_EVENT_SCOPE_STR("FExrImgMediaReader_ReadTiles_ReadTiles");
 		for (const FIntRect& RawTileRegion : TileRegions)
 		{
 			// This clamp is to make sure that tile region is not out of bounds in case the region wasn't calculated incorrectly for some reason.
