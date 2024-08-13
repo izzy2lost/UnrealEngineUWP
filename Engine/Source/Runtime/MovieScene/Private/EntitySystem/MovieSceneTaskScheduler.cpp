@@ -537,7 +537,7 @@ void FEntitySystemScheduler::ExecuteTasks()
 		ensure(NumInitialTasks != 0);
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("Wait For Scheduled Tasks");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("Wait For Scheduled Tasks");
 	for(;;)
 	{
 		while (const FScheduledTask* Task = GameThreadTaskList.Pop())

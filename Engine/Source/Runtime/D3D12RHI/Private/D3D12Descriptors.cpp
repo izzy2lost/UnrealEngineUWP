@@ -19,7 +19,7 @@ void UE::D3D12Descriptors::CopyDescriptor(FD3D12Device* Device, FD3D12Descriptor
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, FD3D12DescriptorHeap* SourceHeap, uint32 FirstDescriptor, uint32 NumDescriptors)
 {
 	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
-	TRACE_CPUPROFILER_EVENT_SCOPE("CopyDescriptors HeapToHeap");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors HeapToHeap");
 	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap (%d)"), FColor::Turquoise, NumDescriptors);
 
 	const D3D12_CPU_DESCRIPTOR_HANDLE TargetStart = TargetHeap->GetCPUSlotHandle(FirstDescriptor);
@@ -37,7 +37,7 @@ void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12Descripto
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, FD3D12DescriptorHeap* SourceHeap, TConstArrayView<FRHIDescriptorHandle> Handles)
 {
 	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
-	TRACE_CPUPROFILER_EVENT_SCOPE("CopyDescriptors HeapToHeap Scattered");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors HeapToHeap Scattered");
 	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors HeapToHeap Scattered (%d)"), FColor::Turquoise, Handles.Num());
 
 	const int32 NumDescriptors = Handles.Num();
@@ -68,7 +68,7 @@ void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12Descripto
 void UE::D3D12Descriptors::CopyDescriptors(FD3D12Device* Device, FD3D12DescriptorHeap* TargetHeap, TConstArrayView<FRHIDescriptorHandle> DstHandles, TConstArrayView<FD3D12OfflineDescriptor> SrcOfflineDescriptors)
 {
 	// Use regular CPU Profile without dynamic value - almost same overhead for string formatting as actual Copy
-	TRACE_CPUPROFILER_EVENT_SCOPE("CopyDescriptors Scattered");
+	TRACE_CPUPROFILER_EVENT_SCOPE_STR("CopyDescriptors Scattered");
 	//SCOPED_NAMED_EVENT_F(TEXT("CopyDescriptors Scattered (%d)"), FColor::Turquoise, DstHandles.Num());
 
 	check(DstHandles.Num() == SrcOfflineDescriptors.Num());

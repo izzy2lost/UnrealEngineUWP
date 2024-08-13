@@ -155,7 +155,7 @@ void FD3D12BindlessResourceManager::Free(FRHIDescriptorHandle InHandle)
 
 FRHIDescriptorHandle FD3D12BindlessResourceManager::ResizeGrowAndAllocate()
 {	
-	TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::ResizeGrow");
+	TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12BindlessResourceManager::ResizeGrow);
 
 	FScopeLock ScopeLock(&HeapsCS);
 
@@ -272,7 +272,7 @@ void FD3D12BindlessResourceManager::GarbageCollect()
 	}
 	else
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::GarbageCollect");
+		TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12BindlessResourceManager::GarbageCollect);
 
 		// Update the moving window max gpu heaps and reset the working value
 		MovingWindowMaxInUseGPUHeaps.PushValue(MaxInUseGPUHeaps);
@@ -359,7 +359,7 @@ void FD3D12BindlessResourceManager::InitializeDescriptor(FRHIDescriptorHandle Ds
 {
 	if (DstHandle.IsValid())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::InitializeDescriptor");
+		TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12BindlessResourceManager::InitializeDescriptor);
 		
 		FScopeLock ScopeLock(&HeapsCS);
 
@@ -382,7 +382,7 @@ void FD3D12BindlessResourceManager::UpdateDescriptor(FD3D12ContextArray const& C
 {
 	if (DstHandle.IsValid())
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::UpdateDescriptor");
+		TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12BindlessResourceManager::UpdateDescriptor);
 
 		check(IsInRHIThread() || GRHICommandList.Bypass());
 	
@@ -556,7 +556,7 @@ void FD3D12BindlessResourceManager::CheckRequestNewActiveGPUHeap()
 		return;
 	}
 
-	TRACE_CPUPROFILER_EVENT_SCOPE("FD3D12BindlessResourceManager::RequestNewActiveGPUHeap");
+	TRACE_CPUPROFILER_EVENT_SCOPE(FD3D12BindlessResourceManager::RequestNewActiveGPUHeap);
 
 	FScopeLock ScopeLock(&HeapsCS);
 
