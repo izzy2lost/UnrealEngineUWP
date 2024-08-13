@@ -175,8 +175,6 @@ struct STAGEDATACORE_API FStageProviderMessage : public FStageDataBaseMessage
 	GENERATED_BODY()
 
 public:
-	FStageProviderMessage();
-
 	/** Method to override if a detailed description is desired in the monitor event viewer */
 	virtual FString ToString() const { return FString(); }
 

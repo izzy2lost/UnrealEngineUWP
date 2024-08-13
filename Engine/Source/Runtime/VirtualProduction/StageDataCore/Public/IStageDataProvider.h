@@ -6,9 +6,13 @@
 #include "Features/IModularFeatures.h"
 
 #include "CoreMinimal.h"
+#include "Misc/App.h"
 #include "StageMessages.h"
 
-
+namespace UE::StageProviderUtils
+{
+	static const FQualifiedFrameTime InvalidTime = FQualifiedFrameTime(FFrameTime(FFrameNumber(-1)), FFrameRate(-1, -1));
+}
 
 struct FStageDataBaseMessage;
 
@@ -74,6 +78,20 @@ private:
 			IStageDataProvider* StageDataProvider = &IModularFeatures::Get().GetModularFeature<IStageDataProvider>(IStageDataProvider::ModularFeatureName);
 
 			static_assert(TIsDerivedFrom<MessageType, FStageProviderEventMessage>::IsDerived || TIsDerivedFrom<MessageType, FStageProviderPeriodicMessage>::IsDerived, "MessageType must be a FStageProviderEventMessage or FStageProviderPeriodicMessage derived UStruct.");
+
+			// Timestamp the outgoing message.
+			TOptional<FQualifiedFrameTime> CurrentFrameTime = FApp::GetCurrentFrameTime();
+			Message.DateTime = FDateTime::Now();
+
+			if (CurrentFrameTime.IsSet())
+			{
+				Message.FrameTime = CurrentFrameTime.GetValue();
+			}
+			else
+			{
+				Message.FrameTime = UE::StageProviderUtils::InvalidTime;
+			}
+
 			return StageDataProvider->SendMessageInternal(&Message, MessageType::StaticStruct(), InFlags);
 		}
 
