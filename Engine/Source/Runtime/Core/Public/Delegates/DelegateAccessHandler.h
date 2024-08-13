@@ -40,7 +40,8 @@ struct TWriteLockedDelegateAllocation;
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
-	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeNotCheckedDelegateMode>;
+	template <typename T>
+	friend struct TWriteLockedDelegateAllocation;
 
 protected:
 	struct FReadAccessScope {};
