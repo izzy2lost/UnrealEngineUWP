@@ -32,7 +32,8 @@ public class TedsOutliner : ModuleRules
 					"UnrealEd", // FEditorUndoClient used by SSceneOutliner
 					"ToolMenus",
 					"ApplicationCore",
-					"TedsTableViewer"
+					"TedsTableViewer",
+					"ToolWidgets"
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

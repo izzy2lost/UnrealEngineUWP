@@ -42,7 +42,7 @@ bool FTedsOutlinerTreeItem::CanInteract() const
 TSharedRef<SWidget> FTedsOutlinerTreeItem::GenerateLabelWidget(ISceneOutliner& Outliner,
 	const STableRow<FSceneOutlinerTreeItemPtr>& InRow)
 {
-	return TedsOutlinerImpl->CreateLabelWidgetForItem(RowHandle);
+	return TedsOutlinerImpl->CreateLabelWidgetForItem(RowHandle, InRow);
 }
 
 void FTedsOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner& Outliner)

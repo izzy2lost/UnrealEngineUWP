@@ -17,7 +17,8 @@ public class ToolWidgets : ModuleRules
 				"SlateCore",
 				"InputCore",
 				"ToolMenus",
-				"CoreUObject"
+				"CoreUObject",
+				"TypedElementFramework"
 			}
 		);
 

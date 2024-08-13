@@ -23,7 +23,13 @@ public class TedsUI : ModuleRules
 					"SlateCore",
 					"ToolMenus",
 					"TypedElementFramework",
-					"TedsCore",
+					"TedsCore"
+				});
+			
+			PrivateDependencyModuleNames.AddRange(
+				new string[]
+				{
+					"ToolWidgets",
 				});
 
 			DynamicallyLoadedModuleNames.AddRange(new string[] {});

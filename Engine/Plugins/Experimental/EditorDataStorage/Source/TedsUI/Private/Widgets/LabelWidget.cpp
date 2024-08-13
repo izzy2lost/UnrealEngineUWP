@@ -3,6 +3,7 @@
 #include "Widgets/LabelWidget.h"
 
 #include "ActorEditorUtils.h"
+#include "Columns/SlateDelegateColumns.h"
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
@@ -155,7 +156,8 @@ TConstArrayView<const UScriptStruct*> FLabelWidgetConstructor::GetAdditionalColu
 	static const TTypedElementColumnTypeList<
 		FTypedElementRowReferenceColumn,
 		FTypedElementU64IntValueCacheColumn,
-		FLabelWidgetColumn> Columns;
+		FLabelWidgetColumn,
+		FExternalWidgetSelectionColumn> Columns;
 	return Columns;
 }
 
@@ -192,7 +194,8 @@ TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
 						// Note: The use of actor specific functionality should be minimized, but this function acts generic enough that the 
 						// use of actor is just in names.
 						return FActorEditorUtils::ValidateActorName(Label, ErrorMessage);
-					});
+					})
+				.IsSelected_Static(&FLabelWidgetConstructor::IsWidgetSelected, DataStorage, Row);;
 			TextBlock->AddMetadata(MakeShared<TTypedElementUiEditableCapability<SInlineEditableTextBlock>>(*TextBlock));
 			TextBlock->AddMetadata(MakeShared<TTypedElementUiTextCapability<SInlineEditableTextBlock>>(*TextBlock));
 			TextBlock->AddMetadata(MakeShared<TTypedElementUiTooltipCapability<SInlineEditableTextBlock>>(*TextBlock));
@@ -243,5 +246,17 @@ bool FLabelWidgetConstructor::FinalizeWidget(
 		*DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row),
 		Widget, MatchedColumnTypes.Num() == 2);
 	return true;
+}
+
+bool FLabelWidgetConstructor::IsWidgetSelected(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle UiRow)
+{
+	if (const FExternalWidgetSelectionColumn* ExternalWidgetSelectionColumn = DataStorage->GetColumn<FExternalWidgetSelectionColumn>(UiRow))
+	{
+		if (ExternalWidgetSelectionColumn->IsSelected.IsBound())
+		{
+			return ExternalWidgetSelectionColumn->IsSelected.Execute();
+		}
+	}
+	return false;
 }
 #undef LOCTEXT_NAMESPACE
