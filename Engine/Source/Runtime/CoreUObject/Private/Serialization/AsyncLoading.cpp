@@ -4791,8 +4791,9 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 			{
 				break;
 			}
-			// if we are done with post load and there isn't any package currently depending on this package we can start to clean it up
-			else if (Package->GetDependencyRefCount() == 0)
+			// if we are done with post load (including not recursively handling one currently) 
+			// and there isn't any package currently depending on this package we can start to clean it up
+			else if (Package->GetDependencyRefCount() == 0 && !Package->IsBeingProcessedRecursively())
 			{
 				check(Result == EAsyncPackageState::Complete);
 				// Remove the package from the list before we trigger the callbacks, 
@@ -4805,10 +4806,7 @@ EAsyncPackageState::Type FAsyncLoadingThread::ProcessLoadedPackages(bool bUseTim
 					if (FPlatformProperties::RequiresCookedData())
 					{
 						// Emulates ResetLoaders on the package linker's linkerroot.
-						if (!Package->IsBeingProcessedRecursively())
-						{
-							Package->ResetLoader();
-						}
+						Package->ResetLoader();
 					}
 					else
 					{
