@@ -134,7 +134,7 @@ namespace NFORDenoise
 
 	TAutoConsoleVariable<int32> CVarNFORLinearSolverType(
 		TEXT("r.NFOR.LinearSolver.Type"),
-		2,
+		0,
 		TEXT("The linear regression solver type implemented in GPU.\n")
 		TEXT("0: Newton Schulz iterative method (High quality but slow).\n")
 		TEXT("1: Cholesky decomposition (Fast but has too smoothed result or artifacts).\n")
