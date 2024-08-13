@@ -87,8 +87,8 @@ public:
 class FMeshCardsBuildData
 {
 public:
-	FBox Bounds;
-	bool bMostlyTwoSided;
+	FBox Bounds = FBox(ForceInit);
+	bool bMostlyTwoSided = false;
 	TArray<FLumenCardBuildData> CardBuildData;
 
 	// Temporary debug visualization data, don't serialize
