@@ -70,7 +70,10 @@ public:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = MeshSelector)
 	bool bAllowDescriptorChanges = true;
 
-	/** Defines the method of custom data packing for spawned (H)ISMCs */
+	/**
+	 * Defines the method of custom data packing for spawned (H)ISMCs. Note, Rotators are treated as 3 floats, while Quaternions are
+	 * treated as 4 floats. You can see an attribute's type in the 'Attribute List View' window, and use an 'Attribute Cast' node to cast to the desired type.
+	 */
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = InstanceDataPacker)
 	TSubclassOf<UPCGInstanceDataPackerBase> InstanceDataPackerType;
 

@@ -10,6 +10,7 @@ namespace PCGLog::InputOutput
 	{
 		const FTextFormat TypedInputNotFoundWarning = LOCTEXT("DataInputNotFound", "Data of type {0} not found on pin '{1}'.");
 		const FTextFormat FirstInputOnlyWarning = LOCTEXT("FirstInputOnly", "Multiple inputs found on single-input pin '{0}'. Only the first will be selected.");
+		const FText InvalidInputDataError = LOCTEXT("InvalidInputData", "Invalid input data.");
 	}
 
 	void LogTypedDataNotFoundWarning(EPCGDataType DataType, const FName PinLabel, const FPCGContext* InContext)
@@ -22,6 +23,11 @@ namespace PCGLog::InputOutput
 	void LogFirstInputOnlyWarning(const FName PinLabel, const FPCGContext* InContext)
 	{
 		LogWarningOnGraph(FText::Format(ErrorFormat::FirstInputOnlyWarning, FText::FromName(PinLabel)), InContext);
+	}
+
+	void LogInvalidInputDataError(const FPCGContext* InContext)
+	{
+		LogErrorOnGraph(ErrorFormat::InvalidInputDataError, InContext);
 	}
 }
 

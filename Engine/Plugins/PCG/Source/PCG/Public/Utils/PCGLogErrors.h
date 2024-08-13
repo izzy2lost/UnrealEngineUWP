@@ -23,10 +23,12 @@ namespace PCGLog
 		{
 			extern const FTextFormat TypedInputNotFoundWarning;
 			extern const FTextFormat FirstInputOnlyWarning;
+			extern const FText InvalidInputDataError;
 		}
 
 		void LogTypedDataNotFoundWarning(EPCGDataType DataType, const FName PinLabel, const FPCGContext* InContext = nullptr);
 		void LogFirstInputOnlyWarning(const FName PinLabel, const FPCGContext* InContext = nullptr);
+		void LogInvalidInputDataError(const FPCGContext* InContext = nullptr);
 	}
 
 	namespace Metadata
