@@ -161,6 +161,9 @@ struct RIGVM_API FRigVMVariantRef
 		return HashCombine(GetTypeHash(InVariantRef.ObjectPath), GetTypeHash(InVariantRef.Variant.Guid));
 	}
 
+	UPROPERTY(BlueprintReadOnly, Category=RigVMVariantRef)
 	FSoftObjectPath ObjectPath;
+
+	UPROPERTY(BlueprintReadOnly, Category=RigVMVariantRef)
 	FRigVMVariant Variant;
 };

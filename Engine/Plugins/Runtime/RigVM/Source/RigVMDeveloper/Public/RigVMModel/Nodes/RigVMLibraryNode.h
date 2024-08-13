@@ -60,6 +60,12 @@ public:
 
 	virtual FRigVMGraphFunctionIdentifier GetFunctionIdentifier() const;
 	FRigVMGraphFunctionHeader GetFunctionHeader(IRigVMGraphFunctionHost* InHostObject = nullptr) const;
+	
+	UFUNCTION(BlueprintPure, Category = RigVMLibraryNode)
+	FRigVMVariant GetFunctionVariant() const;
+
+	UFUNCTION(BlueprintPure, Category = RigVMLibraryNode)
+	TArray<FRigVMVariantRef> GetMatchingVariants() const;
 
 protected:
 

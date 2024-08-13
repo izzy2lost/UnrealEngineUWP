@@ -1573,6 +1573,7 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 		case ERigVMGraphNotifType::PinDisplayNameChanged: // A pin's display name / UI label has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinCategoryChanged: // A pin's category has changed (Subject == URigVMPin)
 		case ERigVMGraphNotifType::PinCategoryExpansionChanged: // A pin category has been collapsed / expanded on the function node (Subject == URigVMNode)
+		case ERigVMGraphNotifType::FunctionVariantGuidChanged: // A function has changed its guid (Subject == URigVMLibraryNode)
 		{
 			URigVMNode* Node = Cast<URigVMNode>(InSubject);
 			if (const URigVMPin* Pin = Cast<URigVMPin>(InSubject))
@@ -1641,7 +1642,6 @@ void FRigVMClient::HandleGraphModifiedEvent(ERigVMGraphNotifType InNotifType, UR
 			}
 			break;
 		}
-		
 		
 		default:
 		{

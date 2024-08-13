@@ -375,6 +375,9 @@ public:
 	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const override;
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
+	virtual URigVMFunctionLibrary* GetOrCreateLocalFunctionLibrary(bool bSetupUndoRedo = true) override;
+
+	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
 	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
 
 	UFUNCTION(BlueprintCallable, Category = "RigVM Blueprint")
@@ -563,6 +566,21 @@ public:
 	bool ChangeMemberVariableType(const FName& InName, const FString& InCPPType, bool bIsPublic = false, bool bIsReadOnly = false, FString InDefaultValue = TEXT(""));
 
 	const FRigVMVariant& GetAssetVariant() const { return AssetVariant; }
+
+	UFUNCTION(BlueprintPure, Category = "Variables", meta = (DisplayName = "GetAssetVariant", ScriptName = "GetAssetVariant"))
+	FRigVMVariant GetAssetVariantBP() const;
+
+	/** Resets the asset's guid to a new one and splits it from the former variant set */
+	UFUNCTION(BlueprintCallable, Category = "Variables")
+	bool SplitAssetVariant();
+
+	/** Merges the asset's guid with a provided one to join the variant set */
+	UFUNCTION(BlueprintCallable, Category = "Variables")
+	bool JoinAssetVariant(const FGuid& InGuid);
+
+	UFUNCTION(BlueprintPure, Category = "Variables")
+	TArray<FRigVMVariantRef> GetMatchingVariants() const;
+
 #endif
 
 private:

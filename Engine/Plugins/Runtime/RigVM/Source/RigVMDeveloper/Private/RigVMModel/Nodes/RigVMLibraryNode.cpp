@@ -333,4 +333,19 @@ FRigVMGraphFunctionHeader URigVMLibraryNode::GetFunctionHeader(IRigVMGraphFuncti
 	return Header;
 }
 
+FRigVMVariant URigVMLibraryNode::GetFunctionVariant() const
+{
+	return GetFunctionHeader().Variant;
+}
+
+TArray<FRigVMVariantRef> URigVMLibraryNode::GetMatchingVariants() const
+{
+	const FRigVMGraphFunctionHeader Header = GetFunctionHeader();
+	if(Header.IsValid())
+	{
+		return Header.LibraryPointer.GetVariants(false);
+	}
+	return TArray<FRigVMVariantRef>();
+}
+
 

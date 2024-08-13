@@ -58,6 +58,7 @@ enum class ERigVMGraphNotifType : uint8
 	PinCategoryChanged, // The category of a pin has changed - requiring a rebuild of the node user interface (Subject == URigVMPin)
 	PinCategoriesChanged, // The category list of a node has changed - requiring a rebuild of the node user interface (Subject == URigVMNode)
 	PinCategoryExpansionChanged, // The category of a pin expanded / collapsed (Subject == URigVMNode)
+	FunctionVariantGuidChanged, // The guid for a function has changed (Subject == URigVMLibraryNode)
 	Invalid // The max for this enum (used for guarding)
 };
 

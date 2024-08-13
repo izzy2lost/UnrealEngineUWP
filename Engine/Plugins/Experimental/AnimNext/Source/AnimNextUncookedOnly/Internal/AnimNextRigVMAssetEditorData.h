@@ -177,6 +177,7 @@ protected:
 	virtual URigVMGraph* GetDefaultModel() const override;
 	virtual TArray<URigVMGraph*> GetAllModels() const override;
 	virtual URigVMFunctionLibrary* GetLocalFunctionLibrary() const override;
+	virtual URigVMFunctionLibrary* GetOrCreateLocalFunctionLibrary(bool bSetupUndoRedo =  true) override;
 	virtual URigVMGraph* AddModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
 	virtual bool RemoveModel(FString InName = TEXT("Rig Graph"), bool bSetupUndoRedo = true, bool bPrintPythonCommand = true) override;
 	virtual FRigVMGetFocusedGraph& OnGetFocusedGraph() override;

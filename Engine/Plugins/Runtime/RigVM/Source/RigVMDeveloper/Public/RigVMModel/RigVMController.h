@@ -1037,7 +1037,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool AddTagToFunctionVariant(const FName& InFunctionName, const FRigVMTag& InTag, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
-
 	// Adds a tag to a function variant
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	bool RemoveTagFromFunctionVariant(const FName& InFunctionName, const FName& InTagName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
@@ -1045,6 +1044,14 @@ public:
 	// Returns all variant refs related to the given function
 	UFUNCTION(BlueprintCallable, Category = RigVMController)
 	TArray<FRigVMVariantRef> FindVariantsOfFunction(const FName& InFunctionName);
+
+	/** Resets the function's guid to a new one and splits it from the former variant set */
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool SplitFunctionVariant(const FName& InFunctionName, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
+
+	/** Merges the function's guid with a provided one to join the variant set */
+	UFUNCTION(BlueprintCallable, Category = RigVMController)
+	bool JoinFunctionVariant(const FName& InFunctionName, const FGuid& InGuid, bool bSetupUndoRedo = true, bool bPrintPythonCommand = false);
 
 	// Add a local variable to the graph
 	UFUNCTION(BlueprintCallable, Category = RigVMController)

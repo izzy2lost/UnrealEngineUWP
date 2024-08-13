@@ -34,6 +34,7 @@
 #include "RigVMModel/Nodes/RigVMBranchNode.h"
 #include "RigVMModel/Nodes/RigVMArrayNode.h"
 #include "Logging/LogScopedVerbosityOverride.h"
+#include "ScopedTransaction.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMController)
 
@@ -8114,9 +8115,12 @@ bool URigVMController::AddEmptyPinCategory(const URigVMNode* InNode, const FStri
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	FRigVMControllerCompileBracketScope CompileScope(this);
@@ -8241,9 +8245,12 @@ bool URigVMController::SetPinCategory(URigVMPin* InPin, const FString& InCategor
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	TArray<FString> Categories;
@@ -8496,9 +8503,12 @@ bool URigVMController::RemovePinCategory(const URigVMNode* InNode, const FString
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	const TArray<FString> AllCategories = InNode->GetPinCategories();
@@ -8628,9 +8638,12 @@ bool URigVMController::RenamePinCategory(const URigVMNode* InNode, const FString
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	if(InOldPinCategory.Equals(FRigVMPinCategory::GetDefaultCategoryName(), ESearchCase::IgnoreCase))
@@ -8792,9 +8805,12 @@ bool URigVMController::SetPinCategoryIndex(const URigVMNode* InNode, const FStri
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	// for entry or return nodes we relay to the outer pins
@@ -8883,9 +8899,12 @@ bool URigVMController::SetPinCategoryExpansion(const URigVMNode* InNode, const F
 		return false;
 	}
 
-	if(!GetGraph()->GetSchema()->SupportsNodeLayouts(GetGraph()))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	const TArray<FString> AllCategories = InNode->GetPinCategories();
@@ -9107,9 +9126,12 @@ bool URigVMController::SetNodeLayout(const FName& InNodeName, FRigVMNodeLayout I
 	const URigVMGraph* Graph = GetGraph();
 	check(Graph);
 
-	if(!Graph->GetSchema()->SupportsNodeLayouts(Graph))
+	if(const URigVMSchema* Schema = GetGraph()->GetSchema())
 	{
-		return false;
+		if(!Schema->SupportsNodeLayouts(GetGraph()))
+		{
+			return false;
+		}
 	}
 
 	const URigVMNode* Node = Graph->FindNodeByName(InNodeName);
@@ -14108,6 +14130,132 @@ TArray<FRigVMVariantRef> URigVMController::FindVariantsOfFunction(const FName& I
     }
 
 	return FunctionData->Header.LibraryPointer.GetVariants(true);
+}
+
+bool URigVMController::SplitFunctionVariant(const FName& InFunctionName, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(!IsValidGraph())
+	{
+		return false;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	if (!Graph->IsA<URigVMFunctionLibrary>())
+	{
+		ReportError(TEXT("Cannot split function variants on normal (non-function-library) graphs."));
+		return false;
+	}
+
+	URigVMFunctionLibrary* Library = CastChecked<URigVMFunctionLibrary>(Graph);
+	const URigVMLibraryNode* LibraryNode = Library->FindFunction(InFunctionName);
+	if(LibraryNode == nullptr)
+	{
+		ReportError(TEXT("Function '%s' cannot be found"));
+		return false;
+	}
+
+	FRigVMVariant Variant;
+	if (FRigVMGraphFunctionStore* FunctionStore = GetGraphFunctionStore())
+	{
+		if (FRigVMGraphFunctionData* FunctionData = FunctionStore->FindFunctionByName(InFunctionName))
+		{
+			Variant = FunctionData->Header.Variant;
+		}
+	}
+
+	// prefer the deterministic path based guid - and only fall back on
+	// random guids if necessary
+	const FGuid PreviousGuid = Variant.Guid; 
+	Variant.Guid = FRigVMVariant::GenerateGUID(LibraryNode->GetPathName());
+	if(Variant.Guid == PreviousGuid)
+	{
+		Variant.Guid = FRigVMVariant::GenerateGUID();
+	}
+
+	FScopedTransaction Transaction(NSLOCTEXT("RigVMController", "SplitAssetVariant", "Split Asset Variant"));
+	if(bSetupUndoRedo)
+	{
+		Library->Modify();
+	}
+	Library->FunctionToVariant.FindOrAdd(InFunctionName) = Variant;
+
+	Notify(ERigVMGraphNotifType::FunctionVariantGuidChanged, Library->FindFunction(InFunctionName));
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').split_function_variant('%s')"),
+				*GraphName,
+				*InFunctionName.ToString()));
+	}
+
+	return true;
+}
+
+bool URigVMController::JoinFunctionVariant(const FName& InFunctionName, const FGuid& InGuid, bool bSetupUndoRedo, bool bPrintPythonCommand)
+{
+	if(!IsValidGraph())
+	{
+		return false;
+	}
+
+	URigVMGraph* Graph = GetGraph();
+	check(Graph);
+
+	if (!Graph->IsA<URigVMFunctionLibrary>())
+	{
+		ReportError(TEXT("Cannot join function variants on normal (non-function-library) graphs."));
+		return false;
+	}
+
+	URigVMFunctionLibrary* Library = CastChecked<URigVMFunctionLibrary>(Graph);
+	if(Library->FindFunction(InFunctionName) == nullptr)
+	{
+		ReportError(TEXT("Function '%s' cannot be found"));
+		return false;
+	}
+
+	FRigVMVariant Variant;
+	if (FRigVMGraphFunctionStore* FunctionStore = GetGraphFunctionStore())
+	{
+		if (FRigVMGraphFunctionData* FunctionData = FunctionStore->FindFunctionByName(InFunctionName))
+		{
+			Variant = FunctionData->Header.Variant;
+		}
+	}
+
+	if(Variant.Guid == InGuid)
+	{
+		return false;
+	}
+	Variant.Guid = InGuid;
+
+	FScopedTransaction Transaction(NSLOCTEXT("RigVMController", "SplitAssetVariant", "Split Asset Variant"));
+	if(bSetupUndoRedo)
+	{
+		Library->Modify();
+	}
+	Library->FunctionToVariant.FindOrAdd(InFunctionName) = Variant;
+
+	Notify(ERigVMGraphNotifType::FunctionVariantGuidChanged, Library->FindFunction(InFunctionName));
+
+	if (bPrintPythonCommand)
+	{
+		const FString GraphName = GetSchema()->GetSanitizedGraphName(GetGraph()->GetGraphName());
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("guid = unreal.Guid()")));
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("guid.import_text(\"%s\")"), *Variant.Guid.ToString()));
+		RigVMPythonUtils::Print(GetSchema()->GetGraphOuterName(GetGraph()), 
+			FString::Printf(TEXT("blueprint.get_controller_by_name('%s').join_function_variant('%s', guid)"),
+				*GraphName,
+				*InFunctionName.ToString()));
+	}
+
+	return true;
 }
 
 FRigVMGraphVariableDescription URigVMController::AddLocalVariable(const FName& InVariableName, const FString& InCPPType, UObject* InCPPTypeObject, const FString& InDefaultValue, bool bSetupUndoRedo, bool bPrintPythonCommand)

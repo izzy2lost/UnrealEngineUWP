@@ -515,6 +515,26 @@ TArray<FRigVMVariantRef> URigVMBuildData::GatherAllFunctionVariantRefs()
 
 	for (const FAssetData& Asset : Assets)
 	{
+		if(Asset.IsAssetLoaded())
+		{
+			if(const IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(Asset.GetAsset()))
+			{
+				if(const URigVMFunctionLibrary* FunctionLibrary = ClientHost->GetLocalFunctionLibrary())
+				{
+					const TArray<URigVMLibraryNode*> Functions = FunctionLibrary->GetFunctions();
+					for(const URigVMLibraryNode* Function : Functions)
+					{
+						FRigVMVariant FunctionVariant = Function->GetFunctionVariant();
+						if(!FunctionVariant.Guid.IsValid())
+						{
+							FunctionVariant.Guid = FRigVMVariant::GenerateGUID(Function->GetPathName());
+						}
+						Result.Add(FRigVMVariantRef(Function->GetPathName(), FunctionVariant));
+					}
+					continue;
+				}
+			}
+		}
 		TArray<FRigVMVariantRef> VariantRefs = URigVMBuildData::GatherFunctionVariantRefsForAsset(Asset);
 		Result.Append(VariantRefs);
 	}
@@ -563,11 +583,25 @@ TArray<FRigVMVariantRef> URigVMBuildData::GatherAllAssetVariantRefs()
 
 	for (const FAssetData& Asset : Assets)
 	{
-		static const FName AssetVariantPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant);
-		const FProperty* AssetVariantProperty = CastField<FProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(AssetVariantPropertyName));
-		const FString VariantStr = Asset.GetTagValueRef<FString>(AssetVariantPropertyName);
 		FRigVMVariant AssetVariant;
-		AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+		if(Asset.IsAssetLoaded())
+		{
+			if(const URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(Asset.GetAsset()))
+			{
+				AssetVariant = Blueprint->GetAssetVariant();
+			}
+		}
+		
+		if (!AssetVariant.Guid.IsValid())
+		{
+			static const FName AssetVariantPropertyName = GET_MEMBER_NAME_CHECKED(URigVMBlueprint, AssetVariant);
+			const FProperty* AssetVariantProperty = CastField<FProperty>(URigVMBlueprint::StaticClass()->FindPropertyByName(AssetVariantPropertyName));
+			const FString VariantStr = Asset.GetTagValueRef<FString>(AssetVariantPropertyName);
+			if(!VariantStr.IsEmpty())
+			{
+				AssetVariantProperty->ImportText_Direct(*VariantStr, &AssetVariant, nullptr, EPropertyPortFlags::PPF_None);
+			}
+		}
 
 		if (!AssetVariant.Guid.IsValid())
 		{

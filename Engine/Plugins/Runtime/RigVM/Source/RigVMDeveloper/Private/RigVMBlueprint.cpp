@@ -37,6 +37,7 @@
 #include "Editor/Transactor.h"
 #include "CookOnTheSide/CookOnTheFlyServer.h"
 #include "RigVMEditorModule.h"
+#include "ScopedTransaction.h"
 #endif//WITH_EDITOR
 
 #define LOCTEXT_NAMESPACE "RigVMBlueprint"
@@ -1869,6 +1870,11 @@ URigVMFunctionLibrary* URigVMBlueprint::GetLocalFunctionLibrary() const
 	return RigVMClient.GetFunctionLibrary();
 }
 
+URigVMFunctionLibrary* URigVMBlueprint::GetOrCreateLocalFunctionLibrary(bool bSetupUndoRedo)
+{
+	return RigVMClient.GetOrCreateFunctionLibrary(bSetupUndoRedo);
+}
+
 URigVMGraph* URigVMBlueprint::AddModel(FString InName, bool bSetupUndoRedo, bool bPrintPythonCommand)
 {
 	TGuardValue<bool> EnablePythonPrint(bSuspendPythonMessagesForRigVMClient, !bPrintPythonCommand);
@@ -2811,6 +2817,64 @@ bool URigVMBlueprint::ChangeMemberVariableType(const FName& InName, const FStrin
 	FBlueprintEditorUtils::ChangeMemberVariableType(this, InName, PinType);
 
 	return true;
+}
+
+FRigVMVariant URigVMBlueprint::GetAssetVariantBP() const
+{
+	return GetAssetVariant();
+}
+
+bool URigVMBlueprint::SplitAssetVariant()
+{
+	if(GetMatchingVariants().IsEmpty())
+	{
+		return false;
+	}
+
+	FScopedTransaction Transaction(LOCTEXT("SplitAssetVariant", "Split Asset Variant"));
+	Modify();
+
+	// prefer the path based (deterministic) guid - and fall back on random.
+	const FGuid PathBasedGuid = FRigVMVariant::GenerateGUID(GetPathName());
+	if(PathBasedGuid != AssetVariant.Guid)
+	{
+		AssetVariant.Guid = PathBasedGuid;
+	}
+	else
+	{
+		AssetVariant.Guid = FRigVMVariant::GenerateGUID();
+	}
+	
+	return true;
+}
+
+bool URigVMBlueprint::JoinAssetVariant(const FGuid& InGuid)
+{
+	if(AssetVariant.Guid != InGuid)
+	{
+		FScopedTransaction Transaction(LOCTEXT("JoinAssetVariant", "Join Asset Variant"));
+		Modify();
+		
+		AssetVariant.Guid = InGuid;
+		return true;
+	}
+
+	return false;
+}
+
+TArray<FRigVMVariantRef> URigVMBlueprint::GetMatchingVariants() const
+{
+	if(URigVMBuildData* BuildData = URigVMBuildData::Get())
+	{
+		TArray<FRigVMVariantRef> Variants = BuildData->FindAssetVariantRefs(AssetVariant.Guid);
+		const FRigVMVariantRef MyVariantRef = FRigVMVariantRef(GetPathName(), AssetVariant);
+		Variants.RemoveAll([MyVariantRef](const FRigVMVariantRef& VariantRef) -> bool
+		{
+			return VariantRef == MyVariantRef;
+		});
+		return Variants;
+	}
+	return TArray<FRigVMVariantRef>();
 }
 
 #endif
