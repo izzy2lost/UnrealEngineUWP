@@ -13,6 +13,12 @@
 #include "ShaderCompilerCore.h"
 #include "DataDrivenShaderPlatformInfo.h"
 
+static TAutoConsoleVariable<float> CVarExposureFusionTargetLuminance(
+	TEXT("r.LocalExposure.ExposureFusion.TargetLuminance"),
+	0.5f,
+	TEXT("Target Luminance used to determine the weight of each exposure."),
+	ECVF_RenderThreadSafe);
+
 namespace
 {
 
@@ -116,6 +122,8 @@ public:
 		SHADER_PARAMETER_STRUCT(FScreenPassTextureViewportParameters, Output)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputFloat4)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, OutputFloat4_1)
+
+		SHADER_PARAMETER(float, TargetLuminance)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -390,6 +398,7 @@ FScreenPassTexture AddLocalExposureFusionPass(
 		PassParameters->Output = GetScreenPassTextureViewportParameters(FScreenPassTextureViewport(LumTexture));
 		PassParameters->OutputFloat4 = GraphBuilder.CreateUAV(LumTexture.Texture);
 		PassParameters->OutputFloat4_1 = GraphBuilder.CreateUAV(WeightTexture.Texture);
+		PassParameters->TargetLuminance = CVarExposureFusionTargetLuminance.GetValueOnRenderThread();
 
 		FComputeShaderUtils::AddPass(
 			GraphBuilder,

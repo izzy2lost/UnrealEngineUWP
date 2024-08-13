@@ -67,6 +67,8 @@ float ExposureWeight(float V, float Target)
 	return exp2(-A * A / B);
 }
 
+float TargetLuminance;
+
 [numthreads(THREADGROUP_SIZEX, THREADGROUP_SIZEY, 1)]
 void FusionSetupCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 {
@@ -92,12 +94,10 @@ void FusionSetupCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 	float HighlightLuminanceValTonemapped = ExposureFusionTonemap(HighlightLuminanceVal);
 	float ShadowLuminanceValTonemapped = ExposureFusionTonemap(ShadowLuminanceVal);
 
-	const float Target = 0.50f;
-
-	float3 Weights = float3(ExposureWeight(LuminanceValTonemapped, Target), ExposureWeight(HighlightLuminanceValTonemapped, Target), ExposureWeight(ShadowLuminanceValTonemapped, Target));
+	float3 Weights = float3(ExposureWeight(LuminanceValTonemapped, TargetLuminance), ExposureWeight(HighlightLuminanceValTonemapped, TargetLuminance), ExposureWeight(ShadowLuminanceValTonemapped, TargetLuminance));
 	Weights /= dot(Weights, 1.0f); // normalize weights
 
-	OutputFloat4[OutputPixelPos] = float4((LuminanceValTonemapped), (HighlightLuminanceValTonemapped), (ShadowLuminanceValTonemapped), 0.0f);
+	OutputFloat4[OutputPixelPos] = float4(LuminanceValTonemapped, HighlightLuminanceValTonemapped, ShadowLuminanceValTonemapped, 0.0f);
 	OutputFloat4_1[OutputPixelPos] = float4(Weights, 0.0f);
 }
 
