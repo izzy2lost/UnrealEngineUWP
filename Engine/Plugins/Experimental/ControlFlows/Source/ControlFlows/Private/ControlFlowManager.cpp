@@ -29,7 +29,7 @@ void FControlFlowStatics::HandleControlFlowStartedNotification(TSharedRef<const 
 	TArray<TSharedRef<FControlFlowContainerBase>>& NewFlows = GetNewlyCreatedFlows();
 	for (size_t Idx = 0; Idx < NewFlows.Num(); ++Idx)
 	{
-		if (ensureAlways(UE::Private::OwningObjectIsValid(NewFlows[Idx])))
+		if (ensure(UE::Private::OwningObjectIsValid(NewFlows[Idx])))
 		{
 			if (InFlow == NewFlows[Idx]->GetControlFlow())
 			{

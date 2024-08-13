@@ -15,10 +15,10 @@ public:
 	template<typename OwningObjectT>
 	static FControlFlow& Create(OwningObjectT* OwningObject, const FString& FlowId)
 	{
-		ensureAlwaysMsgf(FlowId.Len() > 0, TEXT("All Flows need a non-empty ID!"));
+		ensureMsgf(FlowId.Len() > 0, TEXT("All Flows need a non-empty ID!"));
 
 		FControlFlow* AlreadyExistedFlow = Find(OwningObject, FlowId);
-		if (!ensureAlwaysMsgf(!AlreadyExistedFlow, TEXT("Flow already exists! All flows should have a unique ID. If there are multiple instances of the owning object, that might cause this! You can call MakeShared<FControlFlow> instead of using FControlFlowStatics!")))
+		if (!ensureMsgf(!AlreadyExistedFlow, TEXT("Flow already exists! All flows should have a unique ID. If there are multiple instances of the owning object, that might cause this! You can call MakeShared<FControlFlow> instead of using FControlFlowStatics!")))
 		{
 			AlreadyExistedFlow->Reset();
 		}
@@ -31,7 +31,7 @@ public:
 	static void StopFlow(OwningObjectT* OwningObject, const FString& FlowId)
 	{
 		FControlFlow* FlowToStop = Find(OwningObject, FlowId);
-		if (ensureAlwaysMsgf(FlowToStop && FlowToStop->IsRunning(), TEXT("Called to stop flow when it doesn't exist or not running!")))
+		if (ensureMsgf(FlowToStop && FlowToStop->IsRunning(), TEXT("Called to stop flow when it doesn't exist or not running!")))
 		{
 			FlowToStop->CancelFlow();
 
