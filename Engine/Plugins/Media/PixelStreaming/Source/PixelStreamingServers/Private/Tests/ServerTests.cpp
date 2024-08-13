@@ -96,12 +96,12 @@ namespace UE::PixelStreamingServers
 
 		if (Probe->Probe())
 		{
-			return false;
+			UE_LOG(LogPixelStreamingServers, Log, TEXT("Websocket client probe connected."));
+			return true;
 		}
 		else
 		{
-			UE_LOG(LogPixelStreamingServers, Log, TEXT("Websocket client probe connected."));
-			return true;
+			return false;
 		}
 	}
 
