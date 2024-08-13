@@ -15,7 +15,7 @@ struct FNiagaraSimCacheDebugDataFrame
 	GENERATED_BODY()
 
 	UPROPERTY()
-	FNiagaraParameterStore OverrideParameters;
+	TMap<FString, FNiagaraParameterStore> DebugParameterStores;
 };
 
 // Contains data useful for debugging a Niagara system

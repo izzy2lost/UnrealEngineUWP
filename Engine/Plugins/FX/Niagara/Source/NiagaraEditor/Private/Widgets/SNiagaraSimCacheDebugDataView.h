@@ -5,6 +5,7 @@
 #include "Widgets/SCompoundWidget.h"
 
 class FNiagaraSimCacheViewModel;
+struct FNiagaraSimCacheDebugDataFrame;
 namespace UE::Niagara::SimCache::DebugDataUI
 {
 	class SParameterStoreListView;
@@ -20,10 +21,14 @@ public:
 	void Construct(const FArguments& InArgs);
 
 private:
+	const FNiagaraSimCacheDebugDataFrame* GetCurrentFrameData() const;
+	TSharedRef<SWidget> GetParameterStoreSelectionMenu();
+
 	void RefreshContents();
 	void RefreshContents(bool);
 
 private:
-	TSharedPtr<FNiagaraSimCacheViewModel>		SimCacheViewModel;
-	TSharedPtr<UE::Niagara::SimCache::DebugDataUI::SParameterStoreListView>			OverrideParametersWidget;
+	TSharedPtr<FNiagaraSimCacheViewModel> SimCacheViewModel;
+	TSharedPtr<UE::Niagara::SimCache::DebugDataUI::SParameterStoreListView> OverrideParametersWidget;
+	FString	SelectedParameterStoreName;
 };

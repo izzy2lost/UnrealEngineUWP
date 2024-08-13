@@ -5,6 +5,8 @@
 #include "Widgets/SNiagaraParameterName.h"
 #include "NiagaraSimCacheDebugData.h"
 
+#include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "Widgets/Input/SComboButton.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Views/SListView.h"
 
@@ -143,6 +145,12 @@ void SNiagaraSimCacheDebugDataView::Construct(const FArguments& InArgs)
 	SimCacheViewModel->OnSimCacheChanged().AddSP(this, &SNiagaraSimCacheDebugDataView::RefreshContents);
 	SimCacheViewModel->OnBufferChanged().AddSP(this, &SNiagaraSimCacheDebugDataView::RefreshContents);
 
+
+	if (const FNiagaraSimCacheDebugDataFrame* FrameData = GetCurrentFrameData())
+	{
+		SelectedParameterStoreName = FrameData->DebugParameterStores.CreateConstIterator().Key();
+	}
+
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -157,7 +165,21 @@ void SNiagaraSimCacheDebugDataView::Construct(const FArguments& InArgs)
 				.AutoWidth()
 				[
 					SNew(STextBlock)
-					.Text(LOCTEXT("OverrideParameters", "Override Parameters"))
+					.Text(LOCTEXT("ParameterStoreSelection", "Parameter Store Selection:"))
+					.Margin(FMargin(0.0, 0.0, 5.0, 0.0))
+				]
+				+ SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(SComboButton)
+					.OnGetMenuContent(this, &SNiagaraSimCacheDebugDataView::GetParameterStoreSelectionMenu)
+					.ButtonContent()
+					[
+						SNew(STextBlock)
+						.Text(
+							TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateLambda([this]() { return FText::FromString(SelectedParameterStoreName); }))
+						)
+					]
 				]
 			]
 		]
@@ -176,22 +198,56 @@ void SNiagaraSimCacheDebugDataView::Construct(const FArguments& InArgs)
 	RefreshContents();
 };
 
-void SNiagaraSimCacheDebugDataView::RefreshContents()
+const FNiagaraSimCacheDebugDataFrame* SNiagaraSimCacheDebugDataView::GetCurrentFrameData() const
 {
 	const UNiagaraSimCacheDebugData* DebugData = SimCacheViewModel ? SimCacheViewModel->GetCacheDebugData() : nullptr;
 	if (DebugData)
 	{
 		const int32 FrameIndex = SimCacheViewModel->GetFrameIndex();
-		if ( DebugData->Frames.IsValidIndex(FrameIndex))
+		if (DebugData->Frames.IsValidIndex(FrameIndex))
 		{
-			const FNiagaraSimCacheDebugDataFrame& DebugFrameData = DebugData->Frames[FrameIndex];
-			OverrideParametersWidget->SetParameterStore(DebugFrameData.OverrideParameters);
-			return;
+			return &DebugData->Frames[FrameIndex];
+		}
+	}
+	return nullptr;
+}
+
+TSharedRef<SWidget> SNiagaraSimCacheDebugDataView::GetParameterStoreSelectionMenu()
+{
+	FMenuBuilder MenuBuilder(true, nullptr);
+	if (const FNiagaraSimCacheDebugDataFrame* FrameData = GetCurrentFrameData())
+	{
+		for ( auto It=FrameData->DebugParameterStores.CreateConstIterator(); It; ++It)
+		{
+			MenuBuilder.AddMenuEntry(
+				FText::FromString(It->Key),
+				FText(),
+				FSlateIcon(),
+				FUIAction(
+					FExecuteAction::CreateLambda(
+						[this, SelectedValue=It->Key]()
+						{
+							SelectedParameterStoreName = SelectedValue;
+							RefreshContents();
+						}
+					)
+				)
+			);
 		}
 	}
 
-	// If we get here we failed to set anything so update the display with defaults
-	OverrideParametersWidget->SetParameterStore(FNiagaraParameterStore());
+	return MenuBuilder.MakeWidget();
+}
+
+void SNiagaraSimCacheDebugDataView::RefreshContents()
+{
+	const FNiagaraParameterStore* ParameterStore = nullptr;
+	if (const FNiagaraSimCacheDebugDataFrame* FrameData = GetCurrentFrameData())
+	{
+		ParameterStore = FrameData->DebugParameterStores.Find(SelectedParameterStoreName);
+	}
+
+	OverrideParametersWidget->SetParameterStore(ParameterStore ? *ParameterStore : FNiagaraParameterStore());
 }
 
 void SNiagaraSimCacheDebugDataView::RefreshContents(bool)
