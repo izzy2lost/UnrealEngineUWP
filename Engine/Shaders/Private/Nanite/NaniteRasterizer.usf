@@ -62,40 +62,12 @@ MAX_OCCUPANCY
 
 HOIST_DESCRIPTORS
 
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+#include "/Engine/Public/RootConstants.ush"
 
-#include "/Engine/Shared/HLSLReservedSpaces.h"
-
-struct FUERootConstants
-{
-	uint  RecordIndex;
-	uint3 PassData;
-};
-
-// RecordIndex = Raster Bin
-// PassData .x = Unused, .y = Unused, .z = Unused
-ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
-
-#else
-
-// .x = Raster Bin, .y = Unused, .z = Unused, .w = Unused
-uint4 PassData;
-
-#endif
-
-uint GetRasterBin()
-{
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
-	return UERootConstants.RecordIndex;
-#else
-	return PassData.x;
-#endif
-}
+uint GetRasterBin() { return GetRootConstant0(); }
 
 RWStructuredBuffer<FNaniteStats> OutStatsBuffer;
-
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
-
 StructuredBuffer<uint2> RasterBinData;
 
 // .x = VisibleIndex

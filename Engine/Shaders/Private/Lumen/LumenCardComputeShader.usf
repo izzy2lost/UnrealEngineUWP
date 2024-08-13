@@ -17,26 +17,11 @@
 
 COMPILER_ALLOW_CS_DERIVATIVES
 
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+#include "/Engine/Public/RootConstants.ush"
 
-#include "/Engine/Shared/HLSLReservedSpaces.h"
-
-struct FUERootConstants
-{
-	uint  RecordIndex;
-	uint3 PassData;
-};
-
-// RecordIndex = ShadingBin
-// PassData .x = Quad Binning Flag, .y = Unused, .z = Unused
-ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
-
-#else
-
-// .x = shading bin, .y = Quad Binning Flag, .z = Unused, .w = Unused
-uint4 PassData; 
-
-#endif
+uint GetShadingBin()    { return GetRootConstant0(); }
+uint GetQuadBinning()   { return GetRootConstant1(); }
+uint GetMeshPassIndex() { return GetRootConstant2(); }
 
 struct FLumenOutput
 {
@@ -231,17 +216,9 @@ struct FLumenShadingBinMeta
 [numthreads(64, 1, 1)]
 void Main(uint ThreadIndex : SV_GroupIndex, uint GroupID : SV_GroupID)
 {
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
-	const uint ShadingBin		= UERootConstants.RecordIndex;
-	const bool bQuadBinning		= UERootConstants.PassData.x != 0u;
-	const uint MeshPassIndex	= UERootConstants.PassData.y;
-	const uint Unused			= UERootConstants.PassData.z;
-#else
-	const uint ShadingBin		= PassData.x;
-	const bool bQuadBinning		= PassData.y != 0u;
-	const uint MeshPassIndex	= PassData.z;
-	const uint Unused			= PassData.w;
-#endif
+	const uint ShadingBin		= GetShadingBin();
+	const bool bQuadBinning		= GetQuadBinning() != 0u;
+	const uint MeshPassIndex	= GetMeshPassIndex();
 
 	const FLumenShadingBinMeta ShadingBinMeta = NaniteShading.ShadingBinData.Load<FLumenShadingBinMeta>(ShadingBin * (uint)sizeof(FLumenShadingBinMeta));
 

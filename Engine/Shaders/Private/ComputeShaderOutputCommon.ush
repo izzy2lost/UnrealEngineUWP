@@ -21,26 +21,11 @@ MAX_OCCUPANCY
 #include "ShaderBundleWorkGraphCommon.ush"
 #endif
 
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
+#include "/Engine/Public/RootConstants.ush"
 
-#include "/Engine/Shared/HLSLReservedSpaces.h"
-
-struct FUERootConstants
-{
-	uint  RecordIndex;
-	uint3 PassData;
-};
-
-// RecordIndex = ShadingBin
-// PassData .x = Quad Binning Flag, .y = DataByteOffset, .z = Unused
-ConstantBuffer<FUERootConstants> UERootConstants : UE_HLSL_REGISTER(b, 0, UE_HLSL_SPACE_SHADER_ROOT_CONSTANTS);
-
-#else
-
-// .x = shading bin, .y = Quad Binning Flag, .z = DataByteOffset, .w = Unused
-uint4 PassData; 
-
-#endif
+uint GetShadingBin()     { return GetRootConstant0(); }
+uint GetQuadBinning()    { return GetRootConstant1(); }
+uint GetDataByteOffset() { return GetRootConstant2(); }
 
 // TODO: Is this ever used? (see bHighPrecisionGBuffers)
 #define HIGH_PRECISION_GBUFFERS 0
@@ -259,15 +244,9 @@ void MainCS(
 #endif
 )
 {
-#if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
-	const uint ShadingBin		= UERootConstants.RecordIndex;
-	const bool bQuadBinning		= UERootConstants.PassData.x != 0u;
-	const uint DataByteOffset	= UERootConstants.PassData.y;
-#else
-	const uint ShadingBin		= PassData.x;
-	const bool bQuadBinning		= PassData.y != 0u;
-	const uint DataByteOffset	= PassData.z;
-#endif
+	const uint ShadingBin		= GetShadingBin();
+	const bool bQuadBinning		= GetQuadBinning() != 0u;
+	const uint DataByteOffset	= GetDataByteOffset();
 
 	const uint PixelIndex = (GroupID * COMPUTE_MATERIAL_GROUP_SIZE) + ThreadIndex;
 

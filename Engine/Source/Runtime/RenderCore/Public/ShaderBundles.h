@@ -21,7 +21,7 @@ public:
 		: FGlobalShader(Initializer)
 	{
 		// Platforms with support for root constants will not have a bind point for this parameter
-		RootConstantsParam.Bind(Initializer.ParameterMap, TEXT("UERootConstants"), SPF_Optional);
+		RootConstantsParam.Bind(Initializer.ParameterMap, TEXT("PassData"), SPF_Optional);
 
 		RecordArgBufferParam.Bind(Initializer.ParameterMap, TEXT("RecordArgBuffer"), SPF_Mandatory);
 		RecordDataBufferParam.Bind(Initializer.ParameterMap, TEXT("RecordDataBuffer"), SPF_Mandatory);
