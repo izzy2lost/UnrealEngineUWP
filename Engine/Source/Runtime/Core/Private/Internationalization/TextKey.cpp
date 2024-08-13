@@ -148,7 +148,7 @@ private:
 		{
 			LLM_SCOPE_BYNAME(TEXT("Localization/TextKeys"));
 			StrPtr = StringAllocations.Add(KeyData.ToView());
-			KeysTable.Add(FKeyData(StrPtr, KeyData));
+			KeysTable.Add(FKeyData(FStringView(StrPtr, KeyData.StrLen), KeyData));
 		}
 		return StrPtr;
 #else
