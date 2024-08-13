@@ -343,7 +343,7 @@ void UpdateCacheForUsedProbesCS(
 		if (LastFrameProbeIndex != INVALID_PROBE_INDEX)
 		{
 			float3 ProbeTranslatedWorldPosition = GetLastFrameProbeTranslatedWorldPosition(LastFrameProbeCoord, ClipmapIndex);
-			int3 ProbeCoord = GetRadianceProbeCoord(ProbeTranslatedWorldPosition - DFHackToFloat(PrimaryView.PreViewTranslation), ClipmapIndex);
+			int3 ProbeCoord = GetRadianceProbeCoord(ProbeTranslatedWorldPosition - DFHackToFloat(PrimaryView.PrevPreViewTranslation), ClipmapIndex);
 
 			bool bReused = false;
 
