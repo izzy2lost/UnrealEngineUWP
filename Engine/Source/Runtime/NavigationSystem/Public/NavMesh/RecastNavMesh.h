@@ -792,7 +792,8 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(EditAnywhere, Category=Generation, config, meta = (EditCondition = "bAllowWorldPartitionedNavMesh", HideEditConditionToggle, DisplayName = "IsWorldPartitionedNavMesh"))
 	uint32 bIsWorldPartitioned : 1;
 
-	/** Experimental: if set, navlinks will be automatically generated. */ 
+	/** Experimental: if set, navlinks will be automatically generated.
+	 * @see FNavLinkGenerationJumpDownConfig */ 
 	UPROPERTY(EditAnywhere, Category=Generation, config)
 	uint32 bGenerateNavLinks : 1;
 	
@@ -834,7 +835,8 @@ class ARecastNavMesh : public ANavigationData
 	UPROPERTY(config)
 	uint32 bUseVirtualFilters : 1;
 
-	/** Indicates whether use the virtual methods to check if an object should generate geometry or if we should call the normal method directly (i.e. FNavigationOctreeElement::ShouldUseGeometry).
+	/** Indicates whether to use the virtual methods to check if an object should generate geometry or
+	 *  if we should call the normal method directly (i.e. FNavigationOctreeElement::ShouldUseGeometry).
 	 *  If enabled, will also check if an object requesting an update on the navmesh is excluded to avoid dirtying the areas unnecessarily.
 	 *  Defaults to false. */
 	UPROPERTY(config)
@@ -867,7 +869,7 @@ protected:
 	uint32 bAllowWorldPartitionedNavMesh : 1;
 #endif // WITH_EDITORONLY_DATA
 
-	/** Experimental: paramters for building jump down links.  */
+	/** Experimental configuration to generate vertical links. */
 	UPROPERTY(EditAnywhere, Category=Generation, config)
 	FNavLinkGenerationJumpDownConfig NavLinkJumpDownConfig;
 	
