@@ -139,10 +139,15 @@ bool UNiagaraDataInterfaceAudioPlayer::PerInstanceTick(void* PerInstanceData, FN
 	
 	if (IsValid(SoundToPlay) && SystemInstance)
 	{
-		PIData->SoundToPlay = SoundToPlay;
+		if (PIData->SoundToPlay != SoundToPlay)
+		{
+			PIData->SoundToPlay = SoundToPlay;
+			PIData->bSoundToPlayIsLooping = SoundToPlay->IsLooping();
+		}
+
 		PIData->Attenuation = Attenuation;
 		PIData->Concurrency = Concurrency;
-		PIData->bValidOneShotSound = SoundToPlay->IsLooping() ? bAllowLoopingOneShotSounds : true;
+		PIData->bValidOneShotSound = bAllowLoopingOneShotSounds || !PIData->bSoundToPlayIsLooping;
 
 		if (ConfigurationUserParameter.Parameter.IsValid())
 		{
@@ -158,6 +163,7 @@ bool UNiagaraDataInterfaceAudioPlayer::PerInstanceTick(void* PerInstanceData, FN
 		PIData->Concurrency.Reset();
 		PIData->CachedUserParam.Reset();
 		PIData->bValidOneShotSound = false;
+		PIData->bSoundToPlayIsLooping = false;
 	}
 
 	
