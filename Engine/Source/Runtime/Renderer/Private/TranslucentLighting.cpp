@@ -922,7 +922,7 @@ void InjectTranslucencyLightingVolumeAmbientCubemap(
 	const TArrayView<const FViewInfo> Views,
 	const FTranslucencyLightingVolumeTextures& Textures)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering)
+	if (!GUseTranslucentLightingVolumes || !RHISupportsVolumeTextureRendering())
 	{
 		return;
 	}
@@ -1091,7 +1091,7 @@ void InjectTranslucencyLightingVolume(
 	const FTranslucencyLightingVolumeTextures& Textures,
 	const FTranslucentLightInjectionCollector& Collector)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering)
+	if (!GUseTranslucentLightingVolumes || !RHISupportsVolumeTextureRendering())
 	{
 		return;
 	}
@@ -1382,7 +1382,7 @@ void FilterTranslucencyLightingVolume(
 	const TArrayView<const FViewInfo> Views,
 	FTranslucencyLightingVolumeTextures& Textures)
 {
-	if (!GUseTranslucentLightingVolumes || !GSupportsVolumeTextureRendering || !GUseTranslucencyVolumeBlur)
+	if (!GUseTranslucentLightingVolumes || !RHISupportsVolumeTextureRendering() || !GUseTranslucencyVolumeBlur)
 	{
 		return;
 	}

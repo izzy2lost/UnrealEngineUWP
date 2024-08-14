@@ -1493,6 +1493,18 @@ int32 RHIGetPreferredClearUAVRectPSResourceType(const FStaticShaderPlatform Plat
 	return 1; // TEXTURE_2D
 }
 
+RHI_API bool RHISupportsVolumeTextureRendering()
+{
+#if WITH_EDITOR
+	// When preview platforms are supported (when building with editor) we might be previewing an RHI that doesn't support geometry shaders (such as Metal)
+	// while rendering with a runtime RHI that doesn't support vertex shader layers as an alternative (such as D3D), so take these DDPI entries into account, too.
+	const EShaderPlatform Platform = GShaderPlatformForFeatureLevel[GMaxRHIFeatureLevel];
+	return GSupportsVolumeTextureRendering && (RHISupportsGeometryShaders(Platform) || RHISupportsVertexShaderLayer(Platform));
+#else
+	return GSupportsVolumeTextureRendering;
+#endif
+}
+
 void FRHIRenderPassInfo::ConvertToRenderTargetsInfo(FRHISetRenderTargetsInfo& OutRTInfo) const
 {
 	for (int32 Index = 0; Index < MaxSimultaneousRenderTargets; ++Index)

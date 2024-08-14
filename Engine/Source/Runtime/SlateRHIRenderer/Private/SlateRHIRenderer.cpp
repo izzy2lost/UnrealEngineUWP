@@ -560,7 +560,7 @@ bool CompositeUIWithSceneHDR()
 	static const auto CVarCompositeMode = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.HDR.UI.CompositeMode"));
 
 	return GRHISupportsHDROutput
-		&& GSupportsVolumeTextureRendering
+		&& RHISupportsVolumeTextureRendering()
 		&& SupportsCompositeUIWithSceneHDR(GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel))
 		&& CVarCompositeMode
 		&& CVarCompositeMode->GetValueOnAnyThread() != 0;

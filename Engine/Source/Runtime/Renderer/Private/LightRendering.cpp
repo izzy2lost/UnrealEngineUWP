@@ -1408,7 +1408,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 			Substrate::AddSubstrateStencilPass(GraphBuilder, Views, SceneTextures);
 		}
 
-		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && GSupportsVolumeTextureRendering)
+		if (ViewFamily.EngineShowFlags.DirectLighting && GUseTranslucentLightingVolumes && RHISupportsVolumeTextureRendering())
 		{
 			RDG_EVENT_SCOPE(GraphBuilder, "InjectTranslucencyLightingVolume");
 
