@@ -24,7 +24,7 @@ class ONLINESERVICESCOMMON_API FOnlineServicesCommon
 public:
 	using Super = IOnlineServices;
 
-	FOnlineServicesCommon(const FString& InConfigName, FName InInstanceName);
+	FOnlineServicesCommon(const FString& InServiceConfigName, FName InInstanceName, FName InInstanceConfigName = NAME_None);
 	FOnlineServicesCommon(const FOnlineServicesCommon&) = delete;
 	FOnlineServicesCommon(FOnlineServicesCommon&&) = delete;
 	virtual ~FOnlineServicesCommon();
@@ -49,6 +49,7 @@ public:
 	virtual IUserFilePtr GetUserFileInterface() override;
 	virtual TOnlineResult<FGetResolvedConnectString> GetResolvedConnectString(FGetResolvedConnectString::Params&& Params) override;
 	virtual FName GetInstanceName() const override;
+	virtual FName GetInstanceConfigName() const override;
 	virtual void AssignBaseInterfaceSharedPtr(const FOnlineTypeName& TypeName, void* OutBaseInterfaceSP) override final;
 
 	// FOnlineServicesCommon
@@ -168,16 +169,18 @@ public:
 	}
 
 	/**
-	 * Get the config name for the Subsystem
+	 * Get the ini config name for the Subsystem
 	 */
-	const FString& GetConfigName() const { return ConfigName; }
+	UE_DEPRECATED(5.5, "GetConfigName has been renamed GetServiceConfigName")
+	const FString& GetConfigName() const { return ServiceConfigName; }
+	const FString& GetServiceConfigName() const { return ServiceConfigName; }
 
 	TArray<FString> GetConfigSectionHeiarchy(const FString& OperationName = FString()) const
 	{
 		TArray<FString> SectionHeiarchy;
 		FString SectionName = TEXT("OnlineServices");
 		SectionHeiarchy.Add(SectionName);
-		SectionName += TEXT(".") + GetConfigName();
+		SectionName += TEXT(".") + GetServiceConfigName();
 		SectionHeiarchy.Add(SectionName);
 		if (!OperationName.IsEmpty())
 		{
@@ -212,7 +215,7 @@ public:
 		{
 			SectionHeiarchy.Add(SectionName + TEXT(".") + InterfaceName);
 		}
-		SectionName += TEXT(".") + GetConfigName();
+		SectionName += TEXT(".") + GetServiceConfigName();
 		SectionHeiarchy.Add(SectionName);
 		if (!InterfaceName.IsEmpty())
 		{
@@ -327,13 +330,14 @@ protected:
 	static uint32 NextInstanceIndex;
 	uint32 InstanceIndex;
 	FName InstanceName;
+	FName InstanceConfigName;
 
 	FOnlineComponentRegistry Components;
 	TUniquePtr<IOnlineConfigProvider> ConfigProvider;
 
 	/* Config section overrides */
 	TArray<FString> ConfigSectionOverrides;
-	FString ConfigName;
+	FString ServiceConfigName;
 
 	FOnlineAsyncOpQueueParallel ParallelQueue;
 	FOnlineAsyncOpQueueSerial SerialQueue;
