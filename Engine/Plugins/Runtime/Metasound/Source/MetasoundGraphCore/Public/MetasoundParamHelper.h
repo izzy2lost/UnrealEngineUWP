@@ -46,6 +46,29 @@
 
 */
 
+/**
+ * Declare a node parameter that can be accessed by other code (e.g. tests)
+ * @param API_EXPORT If this parameter should be available to other modules (common), provide your module API export here
+ * @param PARAM_NAME The parameter name
+ */
+#define DECLARE_METASOUND_PARAM(API_EXPORT, PARAM_NAME) \
+	API_EXPORT extern const FLazyName PARAM_NAME##Name;
+
+/**
+ * Use this macro to define your parameter if you used DECLARE_METASOUND_PARAM, otherwise just use METASOUND_PARAM in a source file
+ */
+#if WITH_EDITOR
+#define DEFINE_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
+	const FLazyName NAME##Name = TEXT(NAME_TEXT); \
+	static const FText NAME##Tooltip = LOCTEXT(#NAME "Tooltip", TOOLTIP_TEXT); \
+	static const FText NAME##DisplayName = LOCTEXT(#NAME "DisplayName", NAME_TEXT);
+#else 
+#define DEFINE_METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
+	const FLazyName NAME##Name = TEXT(NAME_TEXT); \
+	static const FText NAME##Tooltip = FText::GetEmpty(); \
+	static const FText NAME##DisplayName = FText::GetEmpty();
+#endif // WITH_EDITOR
+
 #if WITH_EDITOR
 #define LOC_DEFINE_REGION
 #define METASOUND_PARAM(NAME, NAME_TEXT, TOOLTIP_TEXT) \
