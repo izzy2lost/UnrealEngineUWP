@@ -153,11 +153,6 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 	{
 		return;
 	}
-
-	ContentBox->ClearChildren();
-
-	CurveChannelExtension.Reset();
-
 	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
 	if (!WeakSequencer.IsValid())
 	{
@@ -169,59 +164,88 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 	{
 		return;
 	}
+	static bool bWaitingToHandleSelectionChanged = false;
 
-	const TSharedRef<FSequencerSelection> SelectionRef = SequencerSelection.ToSharedRef();
-
-	auto AddToContent = [this](const TSharedRef<SWidget>& InWidget)
+	if (bWaitingToHandleSelectionChanged == false)
+	{
+		bWaitingToHandleSelectionChanged = true;
+		GEditor->GetTimerManager()->SetTimerForNextTick([this]()
 		{
-			ContentBox->AddSlot()
-				.AutoHeight()
-				[
-					InWidget
-				];
-		};
+			bWaitingToHandleSelectionChanged = false;
+			if (!ContentBox.IsValid())
+			{
+				return;
+			}
+			ContentBox->ClearChildren();
 
-	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
+			CurveChannelExtension.Reset();
 
-	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/false
-		, Sequencer->GetCommandBindings()
-		, SidebarExtensibilityManager->GetAllExtenders()
-		, /*bInCloseSelfOnly=*/true, &FCoreStyle::Get(), /*bInSearchable=*/true, TEXT("Sequencer.Sidebar"));
+			const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+			if (!WeakSequencer.IsValid())
+			{
+				return;
+			}
 
-	/**
-	 * Selection details display order preference:
-	 *  1) Key items
-	 *  2) Track area items (if no key selected)
-	 *  3) Outliner items (if no key or track area selected)
-	 *  4) Marked frames
-	 */
+			const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get());
+			if (!SequencerSelection.IsValid())
+			{
+				return;
+			}
 
-	// 1) Key items
-	BuildKeySelectionDetails(SelectionRef, MenuBuilder);
+			const TSharedRef<FSequencerSelection> SelectionRef = SequencerSelection.ToSharedRef();
 
-	// Early out for key selections
-	const bool bIsKeySelected = SequencerSelection->KeySelection.Num() > 0;
-	if (bIsKeySelected)
-	{
-		AddToContent(MenuBuilder.MakeWidget());
-		return;
+			auto AddToContent = [this](const TSharedRef<SWidget>& InWidget)
+				{
+					ContentBox->AddSlot()
+						.AutoHeight()
+						[
+							InWidget
+						];
+				};
+
+			const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+			const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
+
+			FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/false
+				, Sequencer->GetCommandBindings()
+				, SidebarExtensibilityManager->GetAllExtenders()
+				, /*bInCloseSelfOnly=*/true, &FCoreStyle::Get(), /*bInSearchable=*/true, TEXT("Sequencer.Sidebar"));
+
+			/**
+				* Selection details display order preference:
+				*  1) Key items
+				*  2) Track area items (if no key selected)
+				*  3) Outliner items (if no key or track area selected)
+				*  4) Marked frames
+				*/
+
+				// 1) Key items
+			BuildKeySelectionDetails(SelectionRef, MenuBuilder);
+
+			// Early out for key selections
+			const bool bIsKeySelected = SequencerSelection->KeySelection.Num() > 0;
+			if (bIsKeySelected)
+			{
+				AddToContent(MenuBuilder.MakeWidget());
+				return;
+			}
+
+			// 2) Track area items
+			BuildTrackAreaDetails(*Sequencer, SelectionRef, MenuBuilder);
+
+			// 3) Outliner items
+			const bool bIsTrackAreaSelected = SequencerSelection->TrackArea.Num() > 0;
+			if (!bIsTrackAreaSelected)
+			{
+				BuildOutlinerDetails(*Sequencer, SelectionRef, MenuBuilder);
+			}
+
+			// 4) Marked frames
+			BuildMarkedFrameDetails(SelectionRef, MenuBuilder);
+
+			AddToContent(MenuBuilder.MakeWidget());
+		});
 	}
-
-	// 2) Track area items
-	BuildTrackAreaDetails(*Sequencer, SelectionRef, MenuBuilder);
-
-	// 3) Outliner items
-	const bool bIsTrackAreaSelected = SequencerSelection->TrackArea.Num() > 0;
-	if (!bIsTrackAreaSelected)
-	{
-		BuildOutlinerDetails(*Sequencer, SelectionRef, MenuBuilder);
-	}
-
-	// 4) Marked frames
-	BuildMarkedFrameDetails(SelectionRef, MenuBuilder);
-
-	AddToContent(MenuBuilder.MakeWidget());
 }
 
 void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
