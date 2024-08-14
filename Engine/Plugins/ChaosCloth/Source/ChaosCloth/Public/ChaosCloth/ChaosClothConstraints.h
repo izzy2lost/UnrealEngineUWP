@@ -88,7 +88,9 @@ namespace Chaos
 			const TMap<FString, const TSet<int32>*>& FaceSets,
 			const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 			Softs::FSolverReal MeshScale,
-			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.);
+			Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)1.,
+			const FRotation3& LocalSpaceRotation = FRotation3::Identity,
+			const FRotation3& ReferenceSpaceRotation = FRotation3::Identity);
 
 		UE_DEPRECATED(5.4, "Use Update() with WeightMaps, VertexSets, FaceSets, and FaceIntMaps instead.")
 		void Update(

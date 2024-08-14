@@ -163,9 +163,23 @@ namespace Chaos
 				Property->SetWeightedValue(DragIndex, ClothConfig->Drag.Low, ClothConfig->Drag.High);
 				Property->SetStringValue(DragIndex, TEXT("Drag"));
 
+				if (ClothConfig->bEnableOuterDrag)
+				{
+					const int32 OuterDragIndex = Property->AddProperty(TEXT("OuterDrag"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(OuterDragIndex, ClothConfig->OuterDrag.Low, ClothConfig->OuterDrag.High);
+					Property->SetStringValue(OuterDragIndex, TEXT("OuterDrag"));
+				}
+
 				const int32 LiftIndex = Property->AddProperty(TEXT("Lift"), AnimatablePropertyFlags);
 				Property->SetWeightedValue(LiftIndex, ClothConfig->Lift.Low, ClothConfig->Lift.High);
 				Property->SetStringValue(LiftIndex, TEXT("Lift"));
+
+				if (ClothConfig->bEnableOuterLift)
+				{
+					const int32 OuterLiftIndex = Property->AddProperty(TEXT("OuterLift"), AnimatablePropertyFlags);
+					Property->SetWeightedValue(OuterLiftIndex, ClothConfig->OuterLift.Low, ClothConfig->OuterLift.High);
+					Property->SetStringValue(OuterLiftIndex, TEXT("OuterLift"));
+				}
 
 				constexpr float AirDensity = 1.225f;  // Air density in kg/m^3
 				Property->AddValue(TEXT("FluidDensity"), AirDensity, AnimatablePropertyFlags);

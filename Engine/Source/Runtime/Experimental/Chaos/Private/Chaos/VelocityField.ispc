@@ -19,8 +19,10 @@ export void UpdateField(uniform FVector3f Forces[],
 								const uniform FVector3f X[],
 								const uniform FVector3f& Velocity,
 								const uniform float QuarterRho,
-								const uniform float Cd,
-								const uniform float Cl,
+								const uniform float CdI,
+								const uniform float CdO,
+								const uniform float ClI,
+								const uniform float ClO,
 								const uniform float Cp,
 								const uniform int32 NumElements)
 {
@@ -45,7 +47,7 @@ export void UpdateField(uniform FVector3f Forces[],
 		const FVector3f X2 = VectorGather(&X[Element.V[2]]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Element.V[0]]);
@@ -67,10 +69,10 @@ export void UpdateField(uniform FVector3f Forces[],
 		}
 #endif
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
 
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 
 		VectorStore(&Forces[Offset], Force);
 
@@ -87,9 +89,15 @@ export void UpdateFieldWithWeightMaps(uniform FVector3f Forces[],
 								const uniform bool bDragHasMap,
 								const uniform FVector2f& DragOffsetRange,
 								const uniform float DragMapValues[],
+								const uniform bool bOuterDragHasMap,
+								const uniform FVector2f& OuterDragOffsetRange,
+								const uniform float OuterDragMapValues[],
 								const uniform bool bLiftHasMap,
 								const uniform FVector2f& LiftOffsetRange,
 								const uniform float LiftMapValues[],
+								const uniform bool bOuterLiftHasMap,
+								const uniform FVector2f& OuterLiftOffsetRange,
+								const uniform float OuterLiftMapValues[],
 								const uniform bool bPressureHasMap,
 								const uniform FVector2f& PressureOffsetRange,
 								const uniform float PressureMapValues[],
@@ -115,7 +123,7 @@ export void UpdateFieldWithWeightMaps(uniform FVector3f Forces[],
 		const FVector3f X2 = VectorGather(&X[Element.V[2]]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Element.V[0]]);
@@ -130,8 +138,10 @@ export void UpdateFieldWithWeightMaps(uniform FVector3f Forces[],
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
 
-		const float Cd = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
-		const float Cl = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float CdI = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
+		const float CdO = bOuterDragHasMap ? OuterDragOffsetRange.V[0] + OuterDragMapValues[ElementIndex] * OuterDragOffsetRange.V[1] : OuterDragOffsetRange.V[0];
+		const float ClI = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float ClO = bOuterLiftHasMap ? OuterLiftOffsetRange.V[0] + OuterLiftMapValues[ElementIndex] * OuterLiftOffsetRange.V[1] : OuterLiftOffsetRange.V[0];
 		const float Cp = bPressureHasMap ? PressureOffsetRange.V[0] + PressureMapValues[ElementIndex] * PressureOffsetRange.V[1] : PressureOffsetRange.V[0];
 
 #if HW_GATHER_SUPPORTED == 1
@@ -141,10 +151,10 @@ export void UpdateFieldWithWeightMaps(uniform FVector3f Forces[],
 		}
 #endif
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
 
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 
 		VectorStore(&Forces[Offset], Force);
 
@@ -158,8 +168,10 @@ export void UpdateFieldAndClampVelocity(uniform FVector3f Forces[],
 								const uniform FVector3f X[],
 								const uniform FVector3f& Velocity,
 								const uniform float QuarterRho,
-								const uniform float Cd,
-								const uniform float Cl,
+								const uniform float CdI,
+								const uniform float CdO,
+								const uniform float ClI,
+								const uniform float ClO,
 								const uniform float Cp,
 								const uniform int32 NumElements,
 								const uniform float MaxVelocitySquared)
@@ -185,7 +197,7 @@ export void UpdateFieldAndClampVelocity(uniform FVector3f Forces[],
 		const FVector3f X2 = VectorGather(&X[Element.V[2]]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Element.V[0]]);
@@ -214,10 +226,10 @@ export void UpdateFieldAndClampVelocity(uniform FVector3f Forces[],
 		}
 #endif
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
-
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
+		
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 
 		VectorStore(&Forces[Offset], Force);
 
@@ -234,9 +246,15 @@ export void UpdateFieldWithWeightMapsAndClampVelocity(uniform FVector3f Forces[]
 								const uniform bool bDragHasMap,
 								const uniform FVector2f& DragOffsetRange,
 								const uniform float DragMapValues[],
+								const uniform bool bOuterDragHasMap,
+								const uniform FVector2f& OuterDragOffsetRange,
+								const uniform float OuterDragMapValues[],
 								const uniform bool bLiftHasMap,
 								const uniform FVector2f& LiftOffsetRange,
 								const uniform float LiftMapValues[],
+								const uniform bool bOuterLiftHasMap,
+								const uniform FVector2f& OuterLiftOffsetRange,
+								const uniform float OuterLiftMapValues[],
 								const uniform bool bPressureHasMap,
 								const uniform FVector2f& PressureOffsetRange,
 								const uniform float PressureMapValues[],
@@ -263,7 +281,7 @@ export void UpdateFieldWithWeightMapsAndClampVelocity(uniform FVector3f Forces[]
 		const FVector3f X2 = VectorGather(&X[Element.V[2]]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Element.V[0]]);
@@ -285,8 +303,10 @@ export void UpdateFieldWithWeightMapsAndClampVelocity(uniform FVector3f Forces[]
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
 		
-		const float Cd = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
-		const float Cl = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float CdI = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
+		const float CdO = bOuterDragHasMap ? OuterDragOffsetRange.V[0] + OuterDragMapValues[ElementIndex] * OuterDragOffsetRange.V[1] : OuterDragOffsetRange.V[0];
+		const float ClI = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float ClO = bOuterLiftHasMap ? OuterLiftOffsetRange.V[0] + OuterLiftMapValues[ElementIndex] * OuterLiftOffsetRange.V[1] : OuterLiftOffsetRange.V[0];
 		const float Cp = bPressureHasMap ? PressureOffsetRange.V[0] + PressureMapValues[ElementIndex] * PressureOffsetRange.V[1] : PressureOffsetRange.V[0];
 
 #if HW_GATHER_SUPPORTED == 1
@@ -296,10 +316,10 @@ export void UpdateFieldWithWeightMapsAndClampVelocity(uniform FVector3f Forces[]
 		}
 #endif
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
 
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 
 		VectorStore(&Forces[Offset], Force);
 
@@ -314,8 +334,10 @@ export void UpdateAndApplyVelocityField(uniform FVector3f Acceleration[],
 								const uniform FVector3f X[],
 								const uniform FVector3f& Velocity,
 								const uniform float QuarterRho,
-								const uniform float Cd,
-								const uniform float Cl,
+								const uniform float CdI,
+								const uniform float CdO,
+								const uniform float ClI,
+								const uniform float ClO,
 								const uniform float Cp,
 								const uniform int32 NumElements)
 {
@@ -332,7 +354,7 @@ export void UpdateAndApplyVelocityField(uniform FVector3f Acceleration[],
 		const FVector3f X2 = VectorGather(&X[Index2]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Index0]);
@@ -346,11 +368,11 @@ export void UpdateAndApplyVelocityField(uniform FVector3f Acceleration[],
 		// Set the aerodynamic forces
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
-
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
-
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
+		
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 		
 		#pragma ignore warning(perf)
 		const float InvM0 = InvM[Index0];
@@ -376,8 +398,10 @@ export void UpdateAndClampVelocityAndApplyVelocityField(uniform FVector3f Accele
 								const uniform FVector3f X[],
 								const uniform FVector3f& Velocity,
 								const uniform float QuarterRho,
-								const uniform float Cd,
-								const uniform float Cl,
+								const uniform float CdI,
+								const uniform float CdO,
+								const uniform float ClI,
+								const uniform float ClO,
 								const uniform float Cp,
 								const uniform int32 NumElements,
 								const uniform float MaxVelocitySquared)
@@ -395,7 +419,7 @@ export void UpdateAndClampVelocityAndApplyVelocityField(uniform FVector3f Accele
 		const FVector3f X2 = VectorGather(&X[Index2]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Index0]);
@@ -416,11 +440,11 @@ export void UpdateAndClampVelocityAndApplyVelocityField(uniform FVector3f Accele
 		// Set the aerodynamic forces
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
-
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
-
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
+		
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 		
 		#pragma ignore warning(perf)
 		const float InvM0 = InvM[Index0];
@@ -450,9 +474,15 @@ export void UpdateAndApplyVelocityFieldWithWeightMaps(uniform FVector3f Accelera
 								const uniform bool bDragHasMap,
 								const uniform FVector2f& DragOffsetRange,
 								const uniform float DragMapValues[],
+								const uniform bool bOuterDragHasMap,
+								const uniform FVector2f& OuterDragOffsetRange,
+								const uniform float OuterDragMapValues[],
 								const uniform bool bLiftHasMap,
 								const uniform FVector2f& LiftOffsetRange,
 								const uniform float LiftMapValues[],
+								const uniform bool bOuterLiftHasMap,
+								const uniform FVector2f& OuterLiftOffsetRange,
+								const uniform float OuterLiftMapValues[],
 								const uniform bool bPressureHasMap,
 								const uniform FVector2f& PressureOffsetRange,
 								const uniform float PressureMapValues[],
@@ -471,7 +501,7 @@ export void UpdateAndApplyVelocityFieldWithWeightMaps(uniform FVector3f Accelera
 		const FVector3f X2 = VectorGather(&X[Index2]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Index0]);
@@ -486,14 +516,16 @@ export void UpdateAndApplyVelocityFieldWithWeightMaps(uniform FVector3f Accelera
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
 		
-		const float Cd = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
-		const float Cl = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float CdI = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
+		const float CdO = bOuterDragHasMap ? OuterDragOffsetRange.V[0] + OuterDragMapValues[ElementIndex] * OuterDragOffsetRange.V[1] : OuterDragOffsetRange.V[0];
+		const float ClI = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float ClO = bOuterLiftHasMap ? OuterLiftOffsetRange.V[0] + OuterLiftMapValues[ElementIndex] * OuterLiftOffsetRange.V[1] : OuterLiftOffsetRange.V[0];
 		const float Cp = bPressureHasMap ? PressureOffsetRange.V[0] + PressureMapValues[ElementIndex] * PressureOffsetRange.V[1] : PressureOffsetRange.V[0];
+		
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
-
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 		
 		#pragma ignore warning(perf)
 		const float InvM0 = InvM[Index0];
@@ -522,9 +554,15 @@ export void UpdateAndClampVelocityAndApplyVelocityFieldWithWeightMaps(uniform FV
 								const uniform bool bDragHasMap,
 								const uniform FVector2f& DragOffsetRange,
 								const uniform float DragMapValues[],
+								const uniform bool bOuterDragHasMap,
+								const uniform FVector2f& OuterDragOffsetRange,
+								const uniform float OuterDragMapValues[],
 								const uniform bool bLiftHasMap,
 								const uniform FVector2f& LiftOffsetRange,
 								const uniform float LiftMapValues[],
+								const uniform bool bOuterLiftHasMap,
+								const uniform FVector2f& OuterLiftOffsetRange,
+								const uniform float OuterLiftMapValues[],
 								const uniform bool bPressureHasMap,
 								const uniform FVector2f& PressureOffsetRange,
 								const uniform float PressureMapValues[],
@@ -544,7 +582,7 @@ export void UpdateAndClampVelocityAndApplyVelocityFieldWithWeightMaps(uniform FV
 		const FVector3f X2 = VectorGather(&X[Index2]);
 
 		// Calculate the normal and the area of the surface exposed to the flow
-		FVector3f N = VectorCross(X1 - X0, X2 - X0);
+		FVector3f N = VectorCross(X2 - X0, X1 - X0);
 		const float DoubleArea = SafeNormalize(N);
 
 		const FVector3f V0 = VectorGather(&V[Index0]);
@@ -566,14 +604,16 @@ export void UpdateAndClampVelocityAndApplyVelocityFieldWithWeightMaps(uniform FV
 		const float VDotN = VectorDot(RelVelocity, N);
 		const float VSquare = VectorDot(RelVelocity, RelVelocity);
 		
-		const float Cd = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
-		const float Cl = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float CdI = bDragHasMap ? DragOffsetRange.V[0] + DragMapValues[ElementIndex] * DragOffsetRange.V[1] : DragOffsetRange.V[0];
+		const float CdO = bOuterDragHasMap ? OuterDragOffsetRange.V[0] + OuterDragMapValues[ElementIndex] * OuterDragOffsetRange.V[1] : OuterDragOffsetRange.V[0];
+		const float ClI = bLiftHasMap ? LiftOffsetRange.V[0] + LiftMapValues[ElementIndex] * LiftOffsetRange.V[1] : LiftOffsetRange.V[0];
+		const float ClO = bOuterLiftHasMap ? OuterLiftOffsetRange.V[0] + OuterLiftMapValues[ElementIndex] * OuterLiftOffsetRange.V[1] : OuterLiftOffsetRange.V[0];
 		const float Cp = bPressureHasMap ? PressureOffsetRange.V[0] + PressureMapValues[ElementIndex] * PressureOffsetRange.V[1] : PressureOffsetRange.V[0];
+		
+		const FVector3f EvenForce = (CdI - ClI) * VDotN * RelVelocity + ClI * VSquare * N;
+		const FVector3f OddForce = (ClO - CdO) * VDotN * RelVelocity - ClO * VSquare * N;
 
-		const FVector3f EvenForce = (Cd - Cl) * VDotN * RelVelocity + Cl * VSquare * N;
-		const FVector3f OddForce = (Cl - Cd) * VDotN * RelVelocity - Cl * VSquare * N;
-
-		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) - DoubleArea * 0.5 * Cp * N; // N points in the opposite direction of the actual mesh normals
+		const FVector3f Force = QuarterRho * DoubleArea * VectorSelect(VDotN >= 0, EvenForce, OddForce) + DoubleArea * 0.5 * Cp * N;
 		
 		#pragma ignore warning(perf)
 		const float InvM0 = InvM[Index0];

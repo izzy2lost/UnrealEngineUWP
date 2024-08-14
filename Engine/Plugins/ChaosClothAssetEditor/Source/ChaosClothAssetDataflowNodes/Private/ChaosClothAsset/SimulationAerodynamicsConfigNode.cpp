@@ -13,7 +13,13 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 	RegisterInputConnection(&Drag.WeightMap)
 		.SetCanHidePin(true)
 		.SetPinIsHidden(true);
+	RegisterInputConnection(&OuterDrag.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
 	RegisterInputConnection(&Lift.WeightMap)
+		.SetCanHidePin(true)
+		.SetPinIsHidden(true);
+	RegisterInputConnection(&OuterLift.WeightMap)
 		.SetCanHidePin(true)
 		.SetPinIsHidden(true);
 }
@@ -21,6 +27,7 @@ FChaosClothAssetSimulationAerodynamicsConfigNode::FChaosClothAssetSimulationAero
 void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHelper& PropertyHelper) const
 {
 	PropertyHelper.SetProperty(this, &FluidDensity);
+	PropertyHelper.SetPropertyEnum(this, &WindVelocitySpace, {}, ECollectionPropertyFlags::None);
 	PropertyHelper.SetProperty(this, &WindVelocity);
 	
 	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Drag")), Drag, [](
@@ -29,9 +36,19 @@ void FChaosClothAssetSimulationAerodynamicsConfigNode::AddProperties(FPropertyHe
 		return ClothFacade.GetSolverAirDamping();
 	},{});
 
+	if (bEnableOuterDrag)
+	{
+		PropertyHelper.SetPropertyWeighted(this, &OuterDrag);
+	}
+
 	PropertyHelper.SetSolverPropertyWeighted(FName(TEXT("Lift")), Lift, [](
 				const UE::Chaos::ClothAsset::FCollectionClothFacade& ClothFacade)-> float
 	{
 		return ClothFacade.GetSolverAirDamping();
 	},{});
+
+	if (bEnableOuterLift)
+	{
+		PropertyHelper.SetPropertyWeighted(this, &OuterLift);
+	}
 }

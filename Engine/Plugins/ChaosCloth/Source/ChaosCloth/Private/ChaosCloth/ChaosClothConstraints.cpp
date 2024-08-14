@@ -2187,7 +2187,9 @@ void FClothConstraints::Update(
 	const TMap<FString, const TSet<int32>*>& FaceSets,
 	const TMap<FString, TConstArrayView<int32>>& FaceIntMaps,
 	Softs::FSolverReal MeshScale,
-	Softs::FSolverReal MaxDistancesScale)
+	Softs::FSolverReal MaxDistancesScale,
+	const FRotation3& LocalSpaceRotation,
+	const FRotation3& ReferenceSpaceRotation)
 {
 	if (EdgeConstraints)
 	{
@@ -2282,7 +2284,9 @@ void FClothConstraints::Update(
 			WeightMaps,
 			WorldScale,
 			bEnableAerodynamics,
-			SolverWindVelocity
+			SolverWindVelocity,
+			LocalSpaceRotation,
+			ReferenceSpaceRotation
 		);
 	}
 	if (CollisionConstraint)

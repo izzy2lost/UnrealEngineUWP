@@ -25,5 +25,7 @@ enum class EChaosWeightMapTarget : uint8
 	AreaStiffness,
 	BucklingStiffness,
 	Pressure,
-	FlatnessRatio
+	FlatnessRatio,
+	OuterDrag,
+	OuterLift
 };
