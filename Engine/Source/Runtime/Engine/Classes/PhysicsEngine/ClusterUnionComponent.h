@@ -426,6 +426,9 @@ private:
 	mutable bool bHasCachedLocalBounds;
 	mutable FBoxSphereBounds CachedLocalBounds;
 
+	// If Physics Prediction is enabled
+	bool bPhysicsPredictionEnabled;
+
 protected:
 	// Handles changes to ReplicatedRigidState. Note that this function does not handle replication of X/R since we make use
 	// of the scene component's default replication for that.

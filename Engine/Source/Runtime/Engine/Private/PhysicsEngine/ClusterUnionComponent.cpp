@@ -697,6 +697,9 @@ void UClusterUnionComponent::OnCreatePhysicsState()
 		return;
 	}
 
+	const FPhysicsPredictionSettings& PhysicsPredictionSettings = UPhysicsSettings::Get()->PhysicsPrediction;
+	bPhysicsPredictionEnabled = PhysicsPredictionSettings.bEnablePhysicsPrediction;
+
 	// TODO: Expose these parameters via the component.
 	Chaos::FClusterCreationParameters Parameters{ 0.3f, 100, false, false };
 	Parameters.ConnectionMethod = Chaos::FClusterCreationParameters::EConnectionMethod::PointImplicit;
@@ -1334,7 +1337,15 @@ void UClusterUnionComponent::OnRep_RigidState()
 		return;
 	}
 
-	SetRigidState(static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState));
+	Chaos::EObjectStateType ObjectState = static_cast<Chaos::EObjectStateType>(ReplicatedRigidState.ObjectState);
+
+	// If Physics Prediction is enabled, only update to and from Kinematic state (sleeping/dynamic switching will be handled via the enabled EPhysicsReplicationMode)
+	if (!bPhysicsPredictionEnabled 
+		|| PhysicsProxy->GetObjectState_External() == Chaos::EObjectStateType::Kinematic
+		|| ObjectState == Chaos::EObjectStateType::Kinematic)
+	{
+		SetRigidState(ObjectState);
+	}
 }
 
 void UClusterUnionComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
