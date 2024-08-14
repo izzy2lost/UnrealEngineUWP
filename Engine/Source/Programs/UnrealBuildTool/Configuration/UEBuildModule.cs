@@ -267,7 +267,7 @@ namespace UnrealBuildTool
 							ZipFile: FileReference.Combine(ModuleDirectory, FrameworkRules.Path),
 							OutputDirectory: DirectoryReference.Combine(Unreal.EngineDirectory, "Intermediate", "UnzippedFrameworks", FrameworkRules.Name, Path.GetFileNameWithoutExtension(FrameworkRules.Path)),
 							CopyBundledAssets: FrameworkRules.CopyBundledAssets,
-							bLinkFramework, bCopyFramework);
+							bLinkFramework, bCopyFramework, Logger);
 					}
 					else
 					{
