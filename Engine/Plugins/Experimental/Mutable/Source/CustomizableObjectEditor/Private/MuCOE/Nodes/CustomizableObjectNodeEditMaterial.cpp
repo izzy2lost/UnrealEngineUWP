@@ -180,7 +180,7 @@ void UCustomizableObjectNodeEditMaterial::BackwardsCompatibleFixup()
 						if (ExistingBlock.Id == BlockId)
 						{
 							bSkipBlock = true;
-							UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeEditMaterial has a duplicated layout block id. One has been ignored during version upgrade."), *GetOutermost()->GetName());
+							UE_LOG(LogMutable, Log, TEXT("[%s] UCustomizableObjectNodeEditMaterial has a duplicated layout block id. One has been ignored during version upgrade."), *GetOutermost()->GetName());
 							break;
 						}
 					}

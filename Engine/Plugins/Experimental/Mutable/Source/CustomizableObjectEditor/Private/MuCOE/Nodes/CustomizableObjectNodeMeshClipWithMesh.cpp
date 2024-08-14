@@ -52,7 +52,7 @@ void UCustomizableObjectNodeMeshClipWithMesh::AllocateDefaultPins(UCustomizableO
 	UEdGraphPin* ClipMeshPin = CustomCreatePin(EGPD_Input, Schema->PC_Mesh, FName("Clip Mesh"));
 	ClipMeshPin->bDefaultValueIsIgnored = true;
 
-	UEdGraphPin* OutputPin_p = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName("Material"));
+	UEdGraphPin* OutputPin_p = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
 }
 
 
@@ -73,13 +73,6 @@ FText UCustomizableObjectNodeMeshClipWithMesh::GetNodeTitle(ENodeTitleType::Type
 }
 
 
-FLinearColor UCustomizableObjectNodeMeshClipWithMesh::GetNodeTitleColor() const
-{
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-	return Schema->GetPinTypeColor(Schema->PC_Material);
-}
-
-
 void UCustomizableObjectNodeMeshClipWithMesh::PinConnectionListChanged(UEdGraphPin* Pin)
 {
 	Super::PinConnectionListChanged(Pin);
@@ -95,7 +88,7 @@ void UCustomizableObjectNodeMeshClipWithMesh::PinConnectionListChanged(UEdGraphP
 
 UEdGraphPin* UCustomizableObjectNodeMeshClipWithMesh::OutputPin() const
 {
-	return FindPin(TEXT("Material"));
+	return FindPin(TEXT("Modifier"));
 }
 
 

@@ -95,7 +95,7 @@ void UCustomizableObjectNodeRemoveMeshBlocks::BackwardsCompatibleFixup()
 						if (ExistingBlock.Id == BlockId)
 						{
 							bSkipBlock = true;
-							UE_LOG(LogMutable, Warning, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks has a duplicated layout block id. One has been ignored during version upgrade."), *GetOutermost()->GetName());
+							UE_LOG(LogMutable, Log, TEXT("[%s] UCustomizableObjectNodeRemoveMeshBlocks has a duplicated layout block id. One has been ignored during version upgrade."), *GetOutermost()->GetName());
 							break;
 						}
 					}
@@ -160,6 +160,7 @@ void UCustomizableObjectNodeRemoveMeshBlocks::PostEditChangeProperty(FPropertyCh
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
 
 void UCustomizableObjectNodeRemoveMeshBlocks::AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins)
 {

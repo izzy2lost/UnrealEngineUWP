@@ -15,6 +15,11 @@ class CUSTOMIZABLEOBJECTEDITOR_API UCustomizableObjectNodeModifierBase : public 
 public:
 	GENERATED_BODY()
 
-	UCustomizableObjectNodeModifierBase();
+	// EdGraphNode interface
+	virtual FLinearColor GetNodeTitleColor() const override;
+
+	// UCustomizableObjectNode interface
+	virtual void PostBackwardsCompatibleFixup() override;
+
 };
 

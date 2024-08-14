@@ -16,7 +16,7 @@ void UCustomizableObjectNodeMeshClipDeform::AllocateDefaultPins(UCustomizableObj
 	UEdGraphPin* ClipMeshPin = CustomCreatePin(EGPD_Input, Schema->PC_Mesh, FName("Clip Shape"));
 	ClipMeshPin->bDefaultValueIsIgnored = true;
 	
-	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName("Material"));
+	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
 	ClipMeshPin->bDefaultValueIsIgnored = true;
 }
 
@@ -29,7 +29,7 @@ UEdGraphPin* UCustomizableObjectNodeMeshClipDeform::ClipShapePin() const
 
 UEdGraphPin* UCustomizableObjectNodeMeshClipDeform::OutputPin() const
 {
-	return FindPin(TEXT("Material"));
+	return FindPin(TEXT("Modifier"));
 }
 
 
@@ -38,11 +38,6 @@ FText UCustomizableObjectNodeMeshClipDeform::GetNodeTitle(ENodeTitleType::Type T
 	return LOCTEXT("Clip_Deform_Mesh", "Clip Deform Mesh");
 }
 
-FLinearColor UCustomizableObjectNodeMeshClipDeform::GetNodeTitleColor() const
-{
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-	return Schema->GetPinTypeColor(Schema->PC_Material);
-}
 
 FText UCustomizableObjectNodeMeshClipDeform::GetTooltipText() const
 {

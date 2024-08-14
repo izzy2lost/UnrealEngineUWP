@@ -1105,12 +1105,38 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 							continue;
 						}
 
-						mu::NodeSurfacePtr SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext);
+						mu::Ptr<mu::NodeSurface> SurfaceNode = GenerateMutableSourceSurface(ChildNodePin, GenerationContext);
 						LODNode->Surfaces.Add(SurfaceNode);
 					}
 
-					// Process modifiers.
+					// Process legacy modifiers.
 					for (UEdGraphPin* const ChildNodePin : ConnectedLODPins)
+					{
+						if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
+						{
+							continue;
+						}
+
+						// Warn about legacy modifier connection
+						FString Msg = FString::Printf(TEXT("The object has legacy modifier connections (to material pins?) that should be updated."));
+						GenerationContext.Compiler->CompilerLog(FText::FromString(Msg), Node, EMessageSeverity::Warning);
+
+						// Set it to "None" to indicate we don't care about component id.
+						GenerationContext.CurrentMeshComponent = FName();
+
+						mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+						LODNode->Modifiers.Add(ModifierNode);
+
+						GenerationContext.CurrentMeshComponent = ComponentName;
+					}
+				}
+
+				// Process modifiers.
+				const UEdGraphPin* ModifierPin = TypedNodeObj->ModifiersPin();
+				if (ModifierPin)
+				{
+					TArray<UEdGraphPin*> ConnectedModifierPins = FollowInputPinArray(*ModifierPin);
+					for (UEdGraphPin* const ChildNodePin : ConnectedModifierPins)
 					{
 						if (!Cast<UCustomizableObjectNodeModifierBase>(ChildNodePin->GetOwningNode()))
 						{
@@ -1120,12 +1146,13 @@ mu::Ptr<mu::NodeObject> GenerateMutableSource(const UEdGraphPin * Pin, FMutableG
 						// Set it to "None" to indicate we don't care about component id.
 						GenerationContext.CurrentMeshComponent = FName();
 
-						mu::NodeModifierPtr ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
+						mu::Ptr<mu::NodeModifier> ModifierNode = GenerateMutableSourceModifier(ChildNodePin, GenerationContext);
 						LODNode->Modifiers.Add(ModifierNode);
 
 						GenerationContext.CurrentMeshComponent = ComponentName;
 					}
 				}
+
 			}
 		}
 

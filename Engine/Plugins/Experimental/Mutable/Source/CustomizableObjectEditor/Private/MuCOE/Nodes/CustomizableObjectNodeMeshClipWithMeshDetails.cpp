@@ -44,7 +44,6 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLay
 
 	IDetailCategoryBuilder& CustomizableObjectToClipCategory = DetailBuilder.EditCategory("CustomizableObjectToClip");
 
-
 	if(Node != nullptr)
 	{
 		SelectedCO = Node->CustomizableObjectToClipWith;
@@ -54,10 +53,6 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLay
 		// Hidding unnecessary properties
 		DetailBuilder.HideProperty("CustomizableObjectToClipWith");
 		DetailBuilder.HideProperty("ArrayMaterialNodeToClipWithID");
-		if (!Node->bUseTags)
-		{
-			DetailBuilder.HideProperty("Tags");			
-		}
 
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*Node->ClipMeshPin());
 			ConnectedPin && !Cast<UCustomizableObjectNodeStaticMesh>(ConnectedPin->GetOwningNode()))
@@ -103,6 +98,12 @@ void FCustomizableObjectNodeMeshClipWithMeshDetails::CustomizeDetails(IDetailLay
 		// Initializing the inital value of the ComboBox
 		SelectedMethod = SetInitialClippingMethod();
 		
+		// This flag is now up to date and can be used to hide ui.
+		if (!Node->bUseTags)
+		{
+			DetailBuilder.HideProperty("Tags");
+		}
+
 		// ComboBox to select the Clipping method (material or/and tags)
 		CustomizableObjectToClipCategory.AddCustomRow(LOCTEXT("FCustomizableObjectNodeMeshClipWithMeshDetails", "Blocks"))
 		[

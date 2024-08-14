@@ -226,6 +226,7 @@ UEdGraphNode* FCustomizableObjectSchemaAction_Paste::PerformAction(class UEdGrap
 const FName UEdGraphSchema_CustomizableObject::PC_Object("object");
 const FName UEdGraphSchema_CustomizableObject::PC_Component("component");
 const FName UEdGraphSchema_CustomizableObject::PC_Material("material");
+const FName UEdGraphSchema_CustomizableObject::PC_Modifier("modifier");
 const FName UEdGraphSchema_CustomizableObject::PC_Mesh("mesh");
 const FName UEdGraphSchema_CustomizableObject::PC_PassThroughMesh("passThroughMesh");
 const FName UEdGraphSchema_CustomizableObject::PC_Layout("layout");
@@ -533,7 +534,7 @@ void UEdGraphSchema_CustomizableObject::GetGraphContextActions(FGraphContextMenu
 
 	{
 		// External Pin Nodes
-		TArray<FName> PinTypes({ PC_Material, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Stack, PC_PassThroughImage, PC_MaterialAsset, PC_PoseAsset });
+		TArray<FName> PinTypes({ PC_Material, PC_Modifier, PC_Mesh, PC_Image, PC_Projector, PC_GroupProjector, PC_Color, PC_Float, PC_Bool, PC_Enum, PC_Stack, PC_PassThroughImage, PC_MaterialAsset, PC_PoseAsset });
 
 		// Add pin types from extensions
 		for (const FRegisteredCustomizableObjectPinType& PinType : ICustomizableObjectModule::Get().GetExtendedPinTypes())
@@ -719,6 +720,10 @@ FLinearColor UEdGraphSchema_CustomizableObject::GetPinTypeColor(const FName& Typ
 	else if (TypeString == PC_Material)
 	{
 		return FLinearColor(0.000000f, 0.100000f, 0.600000f, 1.000000f); // Blue
+	}
+	else if (TypeString == PC_Modifier)
+	{
+		return FColor::Silver;
 	}
 	else if (TypeString == PC_Object)
 	{
@@ -1334,6 +1339,10 @@ FText UEdGraphSchema_CustomizableObject::GetPinCategoryName(const FName& PinCate
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Material)
 	{
 		return LOCTEXT("Material_Pin_Category", "Material");
+	}
+	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Modifier)
+	{
+		return LOCTEXT("Modifier_Pin_Category", "Modifier");
 	}
 	else if (PinCategory == UEdGraphSchema_CustomizableObject::PC_Mesh)
 	{

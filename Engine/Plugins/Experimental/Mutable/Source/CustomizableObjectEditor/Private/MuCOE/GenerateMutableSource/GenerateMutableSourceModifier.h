@@ -7,4 +7,4 @@
 class UEdGraphPin;
 struct FMutableGraphGenerationContext;
 
-mu::NodeModifierPtr GenerateMutableSourceModifier(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);
+mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin* Pin, FMutableGraphGenerationContext& GenerationContext);

@@ -82,13 +82,12 @@ public:
 
 	// EdGraphNode interface
 	virtual FText GetNodeTitle(ENodeTitleType::Type TitleType) const override;
-	virtual FLinearColor GetNodeTitleColor() const override;
 	virtual FText GetTooltipText() const override;
 
 	// UCustomizableObjectNode interface
 	virtual void AllocateDefaultPins(UCustomizableObjectNodeRemapPins* RemapPins) override;
 	virtual void PinConnectionListChanged(UEdGraphPin* Pin) override;
-	
+
 	// Own interface
 	UEdGraphPin* OutputPin() const;
 

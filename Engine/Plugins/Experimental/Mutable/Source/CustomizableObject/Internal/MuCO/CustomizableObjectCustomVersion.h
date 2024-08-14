@@ -130,6 +130,8 @@ struct CUSTOMIZABLEOBJECT_API FCustomizableObjectCustomVersion
 
 		UseUVRects, // Instead of pointing at layout blocks in the edited parent, define custom absolute UV layout rects.
 
+		AddModifierPin, // Move the modifiers output pin from Material to Modifier
+
 		// -----<new versions can be added above this line>-------------------------------------------------
 		VersionPlusOne,
 		LatestVersion = VersionPlusOne - 1

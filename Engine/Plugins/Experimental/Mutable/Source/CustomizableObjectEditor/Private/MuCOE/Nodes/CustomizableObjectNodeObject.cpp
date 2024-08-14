@@ -24,6 +24,7 @@ class UCustomizableObjectNodeRemapPins;
 
 const FName UCustomizableObjectNodeObject::ChildrenPinName(TEXT("Children"));
 const FName UCustomizableObjectNodeObject::ComponentsPinName(TEXT("Components"));
+const FName UCustomizableObjectNodeObject::ModifiersPinName(TEXT("Modifiers"));
 const FName UCustomizableObjectNodeObject::OutputPinName(TEXT("Object"));
 const TCHAR* UCustomizableObjectNodeObject::LODPinNamePrefix = TEXT("LOD ");
 
@@ -153,6 +154,9 @@ void UCustomizableObjectNodeObject::AllocateDefaultPins(UCustomizableObjectNodeR
 
 	UEdGraphPin* ComponentsPin = CustomCreatePin(EGPD_Input, Schema->PC_Component, ComponentsPinName, true);
 	ComponentsPin->bDefaultValueIsIgnored = true;
+
+	UEdGraphPin* ModifiersPin = CustomCreatePin(EGPD_Input, Schema->PC_Modifier, ModifiersPinName, true);
+	ModifiersPin->bDefaultValueIsIgnored = true;
 
 	UEdGraphPin* ChildrenPin = CustomCreatePin(EGPD_Input, Schema->PC_Object, ChildrenPinName, true);
 	ChildrenPin->bDefaultValueIsIgnored = true;

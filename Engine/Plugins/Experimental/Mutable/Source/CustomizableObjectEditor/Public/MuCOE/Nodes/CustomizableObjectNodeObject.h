@@ -258,6 +258,11 @@ public:
 		return FindPin(ComponentsPinName);
 	}
 
+	UEdGraphPin* ModifiersPin() const
+	{
+		return FindPin(ModifiersPinName);
+	}
+
 	UEdGraphPin* ChildrenPin() const
 	{
 		return FindPin(ChildrenPinName);
@@ -292,6 +297,7 @@ public:
 private:
 	static const FName ChildrenPinName;
 	static const FName ComponentsPinName;
+	static const FName ModifiersPinName;
 	static const FName OutputPinName;
 	static const TCHAR* LODPinNamePrefix;
 

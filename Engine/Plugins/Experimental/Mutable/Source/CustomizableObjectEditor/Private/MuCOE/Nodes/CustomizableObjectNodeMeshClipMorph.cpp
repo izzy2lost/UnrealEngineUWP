@@ -6,6 +6,7 @@
 #include "MuCOE/EdGraphSchema_CustomizableObject.h"
 #include "MuCOE/ICustomizableObjectEditor.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
+#include "MuCOE/Nodes/CustomizableObjectNodeObject.h"
 
 class UCustomizableObjectNodeRemapPins;
 class UEdGraphPin;
@@ -88,7 +89,7 @@ void UCustomizableObjectNodeMeshClipMorph::ChangeStartOffsetTransform()
 
 UEdGraphPin* UCustomizableObjectNodeMeshClipMorph::OutputPin() const
 {
-	return FindPin(TEXT("Material"));
+	return FindPin(TEXT("Modifier"));
 }
 
 
@@ -105,6 +106,7 @@ void UCustomizableObjectNodeMeshClipMorph::PostEditChangeProperty(FPropertyChang
 
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 }
+
 
 void UCustomizableObjectNodeMeshClipMorph::Serialize(FArchive& Ar)
 {
@@ -135,20 +137,13 @@ void UCustomizableObjectNodeMeshClipMorph::AllocateDefaultPins(UCustomizableObje
 {
 	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
 
-	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName("Material"));
+	UEdGraphPin* OutputPin = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
 }
 
 
 FText UCustomizableObjectNodeMeshClipMorph::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_Morph_Mesh", "Clip Morph Mesh");
-}
-
-
-FLinearColor UCustomizableObjectNodeMeshClipMorph::GetNodeTitleColor() const
-{
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-	return Schema->GetPinTypeColor(Schema->PC_Material);
 }
 
 
@@ -166,7 +161,6 @@ void UCustomizableObjectNodeMeshClipMorph::PinConnectionListChanged(UEdGraphPin*
 		}
 	}
 }
-
 
 
 FText UCustomizableObjectNodeMeshClipMorph::GetTooltipText() const

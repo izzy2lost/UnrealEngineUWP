@@ -91,6 +91,7 @@ public:
 	static const FName PC_Object;
 	static const FName PC_Component;
 	static const FName PC_Material;
+	static const FName PC_Modifier;
 	static const FName PC_Mesh;
 	static const FName PC_PassThroughMesh;
 	static const FName PC_Layout;

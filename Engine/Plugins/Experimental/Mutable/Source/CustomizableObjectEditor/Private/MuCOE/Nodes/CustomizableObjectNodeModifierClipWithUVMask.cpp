@@ -19,20 +19,13 @@ void UCustomizableObjectNodeModifierClipWithUVMask::AllocateDefaultPins(UCustomi
 	UEdGraphPin* ClipMaskPin = CustomCreatePin(EGPD_Input, Schema->PC_Image, FName("Clip Mask"));
 	ClipMaskPin->bDefaultValueIsIgnored = true;
 
-	UEdGraphPin* OutputPin_p = CustomCreatePin(EGPD_Output, Schema->PC_Material, FName("Modifier"));
+	UEdGraphPin* OutputPin_p = CustomCreatePin(EGPD_Output, Schema->PC_Modifier, FName("Modifier"));
 }
 
 
 FText UCustomizableObjectNodeModifierClipWithUVMask::GetNodeTitle(ENodeTitleType::Type TitleType) const
 {
 	return LOCTEXT("Clip_With_UV_Mask", "Clip With UV Mask");
-}
-
-
-FLinearColor UCustomizableObjectNodeModifierClipWithUVMask::GetNodeTitleColor() const
-{
-	const UEdGraphSchema_CustomizableObject* Schema = GetDefault<UEdGraphSchema_CustomizableObject>();
-	return Schema->GetPinTypeColor(Schema->PC_Material);
 }
 
 
