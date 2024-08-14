@@ -20,53 +20,26 @@ bool UWorldPartitionRuntimeHashSet::GenerateRuntimePartitionsStreamingDescs(cons
 	//
 	// Split actor sets into their corresponding runtime partition implementation
 	//
-	TMap<FName, const FRuntimePartitionDesc*> NameToRuntimePartitionDescMap;
-
-	// Actors with RuntimeGrid set to None will be assigned to the default partition
-	NameToRuntimePartitionDescMap.Add(NAME_None, &RuntimePartitions[0]);
-
-	for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
-	{
-		NameToRuntimePartitionDescMap.Add(RuntimePartitionDesc.Name, &RuntimePartitionDesc);
-	}
+	TMap<FName, URuntimePartition*> NameToRuntimePartitionMap;
+		
 
 	TMap<URuntimePartition*, TArray<const IStreamingGenerationContext::FActorSetInstance*>> RuntimePartitionsToActorSetMap;
-	StreamingGenerationContext->ForEachActorSetInstance([this, &NameToRuntimePartitionDescMap, &RuntimePartitionsToActorSetMap](const IStreamingGenerationContext::FActorSetInstance& ActorSetInstance)
+	StreamingGenerationContext->ForEachActorSetInstance([this, &NameToRuntimePartitionMap, &RuntimePartitionsToActorSetMap](const IStreamingGenerationContext::FActorSetInstance& ActorSetInstance)
 	{
-		TArray<FName> MainPartitionTokens;
-		TArray<FName> HLODPartitionTokens;
-		verify(ParseGridName(ActorSetInstance.RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
+		URuntimePartition* RuntimePartition = nullptr;
+		URuntimePartition** RuntimePartitionPtr = NameToRuntimePartitionMap.Find(ActorSetInstance.RuntimeGrid);
 
-		check(!MainPartitionTokens.IsEmpty());
-		if (const FRuntimePartitionDesc** RuntimePartitionDesc = NameToRuntimePartitionDescMap.Find(MainPartitionTokens[0]))
+		if (RuntimePartitionPtr)
 		{
-			if (!HLODPartitionTokens.IsEmpty())
-			{
-				bool bFoundHLODPartitionLayer = false;
-
-				for (const FRuntimePartitionHLODSetup& HLODSetup : (*RuntimePartitionDesc)->HLODSetups)
-				{
-					for (const UHLODLayer* HLODPartitionLayer : HLODSetup.HLODLayers)
-					{
-						if (HLODPartitionLayer->GetName() == HLODPartitionTokens[0])
-						{
-							RuntimePartitionsToActorSetMap.FindOrAdd(HLODSetup.PartitionLayer).Add(&ActorSetInstance);
-							bFoundHLODPartitionLayer = true;
-							break;
-						}
-					}
-
-					if (bFoundHLODPartitionLayer)
-					{
-						break;
-					}
-				}
-			}
-			else
-			{
-				RuntimePartitionsToActorSetMap.FindOrAdd((*RuntimePartitionDesc)->MainLayer).Add(&ActorSetInstance);
-			}
+			RuntimePartition = *RuntimePartitionPtr;
 		}
+		else
+		{
+			RuntimePartition = const_cast<URuntimePartition*>(ResolveRuntimePartition(ActorSetInstance.RuntimeGrid));// @todo-ow: GenerateStreaming() requires a non-const URuntimePartition object
+			NameToRuntimePartitionMap.Emplace(ActorSetInstance.RuntimeGrid, RuntimePartition); 
+		}
+
+		RuntimePartitionsToActorSetMap.FindOrAdd(RuntimePartition).Add(&ActorSetInstance);
 	});
 
 	//

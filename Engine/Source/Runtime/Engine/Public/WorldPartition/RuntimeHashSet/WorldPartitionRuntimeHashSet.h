@@ -28,14 +28,15 @@ struct FRuntimePartitionHLODSetup
 {
 	GENERATED_USTRUCT_BODY()
 
-#if WITH_EDITORONLY_DATA
 	/** Name for this HLOD layer setup */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	FName Name;
 
+#if WITH_EDITORONLY_DATA
 	/** Associated HLOD Layer objects */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
 	TArray<TObjectPtr<const UHLODLayer>> HLODLayers;
+#endif
 
 	/** whether this HLOD setup is spatially loaded or not */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings)
@@ -43,7 +44,6 @@ struct FRuntimePartitionHLODSetup
 
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "bIsSpatiallyLoaded", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> PartitionLayer;
-#endif
 };
 
 /** Holds settings for a runtime partition instance. */
@@ -64,11 +64,9 @@ struct FRuntimePartitionDesc
 	UPROPERTY(VisibleAnywhere, Category = RuntimeSettings, Instanced, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, NoResetToDefault, TitleProperty = "Name"))
 	TObjectPtr<URuntimePartition> MainLayer;
 
-#if WITH_EDITORONLY_DATA
 	/** HLOD setups used by this partition, one for each layers in the hierarchy */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (EditCondition = "Class != nullptr", HideEditConditionToggle, ForceInlineRow))
 	TArray<FRuntimePartitionHLODSetup> HLODSetups;
-#endif
 
 #if WITH_EDITOR
 	void UpdateHLODPartitionLayers();
@@ -218,7 +216,8 @@ private:
 	ENGINE_API void ForEachStreamingData(TFunctionRef<bool(const FRuntimePartitionStreamingData&)> Func) const;
 
 	ENGINE_API void UpdateRuntimeDataGridMap();
-	ENGINE_API bool IsValidGridInternal(FName GridName, const UClass* ActorClass) const;
+	const URuntimePartition* ResolveRuntimePartition(FName GridName, bool bMainPartitionLayer = false) const;
+	const URuntimePartition* ResolveRuntimePartitionForHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const;
 
 	/** Array of runtime partition descriptors */
 	UPROPERTY(EditAnywhere, Category = RuntimeSettings, Meta = (TitleProperty = "Name"))

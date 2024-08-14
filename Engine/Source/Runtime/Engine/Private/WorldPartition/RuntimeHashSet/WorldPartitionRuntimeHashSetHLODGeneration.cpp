@@ -217,21 +217,24 @@ bool UWorldPartitionRuntimeHashSet::SetupHLODActors(const IStreamingGenerationCo
 				// Fake tick
 				PrivateUtils::GameTick(WorldPartition->GetWorld());
 
-				TArray<FName> MainPartitionTokens;
-				TArray<FName> HLODPartitionTokens;
-				verify(ParseGridName(ActorInstances[0].ActorSetInstance->RuntimeGrid, MainPartitionTokens, HLODPartitionTokens));
-
-				if (MainPartitionTokens[0].IsNone())
-				{
-					MainPartitionTokens[0] = RuntimePartitions[0].Name;
-				}
+				// Resolve main partition
+				const URuntimePartition* MainRuntimePartition = ResolveRuntimePartition(ActorInstances[0].ActorSetInstance->RuntimeGrid, /*bMainPartitionLayer*/ true);
+				check(MainRuntimePartition);
+				
+				// Retrieve the runtime grid to use for this HLOD
+				auto GetHLODRuntimeGrid = [this, MainRuntimePartition](const UHLODLayer* InHLODLayer)
+				{					
+					const URuntimePartition* HLODRuntimePartition = ResolveRuntimePartitionForHLODLayer(MainRuntimePartition->Name, InHLODLayer);
+					check(HLODRuntimePartition);
+					return FName(*FString::Printf(TEXT("%s:%s"), *MainRuntimePartition->Name.ToString(), *HLODRuntimePartition->Name.ToString()));
+				};				
 
 				FHLODCreationParams HLODCreationParams;
 				HLODCreationParams.WorldPartition = WorldPartition;
 				HLODCreationParams.CellName = CellUniqueId.Name;
 				HLODCreationParams.CellGuid = CellUniqueId.Guid;
 				HLODCreationParams.CellBounds = CellBounds;
-				HLODCreationParams.GetRuntimeGrid = [&MainPartitionTokens](const UHLODLayer* InHLODLayer) { return FName(*FString::Printf(TEXT("%s:%s"), *FString::JoinBy(MainPartitionTokens, TEXT("."), [](const FName Token) { return Token.ToString(); }), *InHLODLayer->GetName())); };
+				HLODCreationParams.GetRuntimeGrid = GetHLODRuntimeGrid;
 				HLODCreationParams.HLODLevel = HLODLevel;
 				HLODCreationParams.MinVisibleDistance = RuntimePartition->LoadingRange;
 				HLODCreationParams.ContentBundleGuid = CellDescInstance.ContentBundleID;

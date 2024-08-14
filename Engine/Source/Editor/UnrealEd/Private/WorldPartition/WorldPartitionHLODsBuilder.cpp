@@ -393,42 +393,45 @@ bool UWorldPartitionHLODsBuilder::BuildHLODActors()
 			return false;
 		}
 
-		UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Building %d HLOD actors ####"), HLODActorsToBuild.Num());
-		if (bResumeBuild)
+		if (0)
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Resuming build at %d ####"), ResumeBuildIndex);
-		}
-
-		for (int32 CurrentActor = ResumeBuildIndex; CurrentActor < HLODActorsToBuild.Num(); ++CurrentActor)
-		{
-			TRACE_BOOKMARK(TEXT("BuildHLOD Start - %d"), CurrentActor);
-
+			UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Building %d HLOD actors ####"), HLODActorsToBuild.Num());
+			if (bResumeBuild)
 			{
-				const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
-
-				FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
-
-				AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
-
-				UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
-
-				// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
-				FWorldPartitionHelpers::FakeEngineTick(World);
-
-				HLODActor->BuildHLOD(bForceBuild);
-
-				bool bSaved = SaveHLODActor(HLODActor);
-				if (!bSaved)
-				{
-					return false;
-				}
+				UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("#### Resuming build at %d ####"), ResumeBuildIndex);
 			}
 
-			TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
-
-			if (FWorldPartitionHelpers::ShouldCollectGarbage())
+			for (int32 CurrentActor = ResumeBuildIndex; CurrentActor < HLODActorsToBuild.Num(); ++CurrentActor)
 			{
-				FWorldPartitionHelpers::DoCollectGarbage();
+				TRACE_BOOKMARK(TEXT("BuildHLOD Start - %d"), CurrentActor);
+
+				{
+					const FGuid& HLODActorGuid = HLODActorsToBuild[CurrentActor];
+
+					FWorldPartitionReference ActorRef(WorldPartition, HLODActorGuid);
+
+					AWorldPartitionHLOD* HLODActor = CastChecked<AWorldPartitionHLOD>(ActorRef.GetActor());
+
+					UE_LOG(LogWorldPartitionHLODsBuilder, Display, TEXT("[%d / %d] Building HLOD actor %s..."), CurrentActor + 1, HLODActorsToBuild.Num(), *HLODActor->GetActorLabel());
+
+					// Simulate an engine tick to make sure engine & render resources that are queued for deletion are processed.
+					FWorldPartitionHelpers::FakeEngineTick(World);
+
+					HLODActor->BuildHLOD(bForceBuild);
+
+					bool bSaved = SaveHLODActor(HLODActor);
+					if (!bSaved)
+					{
+						return false;
+					}
+				}
+
+				TRACE_BOOKMARK(TEXT("BuildHLOD End - %d"), CurrentActor);
+
+				if (FWorldPartitionHelpers::ShouldCollectGarbage())
+				{
+					FWorldPartitionHelpers::DoCollectGarbage();
+				}
 			}
 		}
 
@@ -726,13 +729,13 @@ bool UWorldPartitionHLODsBuilder::ValidateWorkload(const TArray<FGuid>& Workload
 		const FWorldPartitionActorDescInstance* ActorDescInstance = WorldPartition->GetActorDescInstance(HLODActorGuid);
 		if(!ActorDescInstance)
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unknown actor guid found, your HLOD actors are probably out of date. Run with -SetupHLODs to fix this. Exiting..."));
+			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unknown actor guid found (\"%s\"), your HLOD actors are probably out of date. Run with -SetupHLODs to fix this. Exiting..."), *HLODActorGuid.ToString());
 			return false;
 		}
 
 		if (!ActorDescInstance->GetActorNativeClass()->IsChildOf<AWorldPartitionHLOD>())
 		{
-			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unexpected actor guid found in HLOD workload, exiting..."));
+			UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Unexpected actor guid found in HLOD workload (\"%s\"), exiting..."), *HLODActorGuid.ToString());
 			return false;
 		}
 
@@ -745,7 +748,7 @@ bool UWorldPartitionHLODsBuilder::ValidateWorkload(const TArray<FGuid>& Workload
 			{
 				if (!ProcessedHLOD.Contains(ChildHLODActorGuid))
 				{
-					UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Child HLOD actor missing or out of order in HLOD workload, exiting..."));
+					UE_LOG(LogWorldPartitionHLODsBuilder, Error, TEXT("Child HLOD actor (\"%s\") missing or out of order in HLOD workload, exiting..."), *HLODActorGuid.ToString());
 					return false;
 				}
 			}

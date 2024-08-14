@@ -1950,24 +1950,37 @@ FGuid UWorldPartitionRuntimeSpatialHash::RegisterWorldAssetStreaming(const UWorl
 {
 	if (!InParams.IsValid())
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Invalid parameters provided."));
 		return FGuid();
 	}
 
 	if (WorldAssetStreamingObjects.Contains(InParams.Guid))
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: World asset guid '%s' was already registered."), *InParams.Guid.ToString());
 		return FGuid();
 	}
 
 	const FSpatialHashStreamingGrid* TargetGrid = GetStreamingGridByName(InParams.TargetGrid);
-	const FSpatialHashStreamingGrid* HLODTargetGrid = GetStreamingGridByName(InParams.TargetGridHLOD);
-	if (!TargetGrid || (!InParams.TargetGridHLOD.IsNone() && !HLODTargetGrid))
+	if (!TargetGrid)
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Unable to resolve TargetGrid '%s'."), *InParams.TargetGrid.ToString());
 		return FGuid();
+	}
+
+	const FSpatialHashStreamingGrid* HLODTargetGrid = nullptr;
+	if (!InParams.WorldAssetHLOD.IsNull() && !InParams.TargetGridHLOD.IsNone())
+	{
+		HLODTargetGrid = GetStreamingGridByName(InParams.TargetGridHLOD);
+		if (!HLODTargetGrid)
+		{
+			UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Unable to resolve TargetGridHLOD '%s'."), *InParams.TargetGridHLOD.ToString());
+		}
 	}
 
 	URuntimeSpatialHashExternalStreamingObject* StreamingObject = CastChecked<URuntimeSpatialHashExternalStreamingObject>(CreateExternalStreamingObject(URuntimeSpatialHashExternalStreamingObject::StaticClass(), this, GetTypedOuter<UWorld>()));
 	if (!StreamingObject)
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Couldn't create ExternalStreamingObject."));
 		return FGuid();
 	}		
 

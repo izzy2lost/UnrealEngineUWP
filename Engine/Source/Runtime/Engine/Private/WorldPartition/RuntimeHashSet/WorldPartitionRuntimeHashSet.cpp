@@ -249,11 +249,11 @@ void UWorldPartitionRuntimeHashSet::FlushStreamingContent()
 
 bool UWorldPartitionRuntimeHashSet::IsValidGrid(FName GridName, const UClass* ActorClass) const
 {
-	return IsValidGridInternal(GridName, ActorClass);
+	return ResolveRuntimePartition(GridName) != nullptr;
 }
 #endif
 
-bool UWorldPartitionRuntimeHashSet::IsValidGridInternal(FName GridName, const UClass* ActorClass) const
+const URuntimePartition* UWorldPartitionRuntimeHashSet::ResolveRuntimePartition(FName GridName, bool bMainPartitionLayer) const
 {
 	TArray<FName> MainPartitionTokens;
 	TArray<FName> HLODPartitionTokens;
@@ -264,81 +264,101 @@ bool UWorldPartitionRuntimeHashSet::IsValidGridInternal(FName GridName, const UC
 		// The None grid name will always map to the first runtime partition in the list
 		if (MainPartitionTokens[0].IsNone())
 		{
-			return true;
-		}
-
-		for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
-		{
-			if (RuntimePartitionDesc.Name == MainPartitionTokens[0])
+			if (RuntimePartitions.IsValidIndex(0))
 			{
-				if (!RuntimePartitionDesc.MainLayer)
-				{
-					return false;
-				}
-
-				if (!RuntimePartitionDesc.MainLayer->IsValidPartitionTokens(MainPartitionTokens))
-				{
-					return false;
-				}
-
-				return true;
+				return RuntimePartitions[0].MainLayer;
+			}
+			else
+			{
+				return nullptr;
 			}
 		}
-	}
 
-	return false;
+		// Make sure the runtime partition is valid
+		const FRuntimePartitionDesc* FoundRuntimePartitionDesc = RuntimePartitions.FindByPredicate([&MainPartitionTokens](const FRuntimePartitionDesc& RuntimePartitionDesc)
+		{
+			return RuntimePartitionDesc.Name == MainPartitionTokens[0];
+		});
+		
+		if (!FoundRuntimePartitionDesc || !FoundRuntimePartitionDesc->MainLayer || !FoundRuntimePartitionDesc->MainLayer->IsValidPartitionTokens(MainPartitionTokens))
+		{
+			return nullptr;
+		}
+	
+		// If an HLOD partition token was specified ("MainPartition:HLODPartition"), make sure it's valid too
+		if (!bMainPartitionLayer && HLODPartitionTokens.IsValidIndex(0))
+		{
+			const FRuntimePartitionHLODSetup* FoundRuntimePartitionHLODSetup = FoundRuntimePartitionDesc->HLODSetups.FindByPredicate([&HLODPartitionTokens](const FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup)
+			{
+				return RuntimePartitionHLODSetup.Name == HLODPartitionTokens[0];
+			});
+
+			if (!FoundRuntimePartitionHLODSetup || !FoundRuntimePartitionHLODSetup->PartitionLayer || !FoundRuntimePartitionHLODSetup->PartitionLayer->IsValidPartitionTokens(HLODPartitionTokens))
+			{
+				return nullptr;
+			}
+
+			return FoundRuntimePartitionHLODSetup->PartitionLayer;
+		}
+
+		return FoundRuntimePartitionDesc->MainLayer;
+	}			
+
+	return nullptr;
 }
 
 #if WITH_EDITOR
 bool UWorldPartitionRuntimeHashSet::IsValidHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const
 {
-	if (!RuntimePartitions.Num())
+	return ResolveRuntimePartitionForHLODLayer(GridName, HLODLayerPath) != nullptr;
+}
+
+const URuntimePartition* UWorldPartitionRuntimeHashSet::ResolveRuntimePartitionForHLODLayer(FName GridName, const FSoftObjectPath& HLODLayerPath) const
+{
+	const URuntimePartition* RuntimePartition = nullptr;
+
+	if (!RuntimePartitions.IsEmpty())
 	{
-		return false;
+	    if (const UHLODLayer* HLODLayer = Cast<UHLODLayer>(HLODLayerPath.ResolveObject()))
+	    {
+		    // The None grid name will always map to the first runtime partition in the list
+		    int32 RuntimePartitionIndex = GridName.IsNone() ? 0 : INDEX_NONE;
+    
+		    if (RuntimePartitionIndex == INDEX_NONE)
+		    {
+			    TArray<FName> PartitionTokens;
+			    TArray<FName> HLODPartitionTokens;
+    
+			    // Parse the potentially dot separated grid name to identiy the associated runtime partition
+			    if (ParseGridName(GridName, PartitionTokens, HLODPartitionTokens))
+			    {
+				    int32 RuntimePartitionIndexLookup = 0;
+				    for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
+				    {
+					    if (RuntimePartitionDesc.Name == PartitionTokens[0])
+					    {
+						    RuntimePartitionIndex = RuntimePartitionIndexLookup;
+						    break;
+					    }
+    
+					    RuntimePartitionIndexLookup++;
+				    }
+			    }
+		    }
+    
+		    if (RuntimePartitionIndex != INDEX_NONE)
+		    {
+		        const FRuntimePartitionHLODSetup* FoundRuntimePartitionHLODSetup = RuntimePartitions[RuntimePartitionIndex].HLODSetups.FindByPredicate([&HLODLayer](const FRuntimePartitionHLODSetup& RuntimePartitionHLODSetup)
+		        {
+			        return RuntimePartitionHLODSetup.HLODLayers.Contains(HLODLayer);
+		        });
+
+				RuntimePartition = FoundRuntimePartitionHLODSetup ? FoundRuntimePartitionHLODSetup->PartitionLayer : nullptr;
+    		}
+	    }
 	}
 
-	if (const UHLODLayer* HLODLayer = Cast<UHLODLayer>(HLODLayerPath.ResolveObject()))
-	{
-		// The None grid name will always map to the first runtime partition in the list
-		int32 RuntimePartitionIndex = GridName.IsNone() ? 0 : INDEX_NONE;
-		
-		if (RuntimePartitionIndex == INDEX_NONE)
-		{
-			TArray<FName> PartitionTokens;
-			TArray<FName> HLODPartitionTokens;
-
-			// Parse the potentially dot separated grid name to identiy the associated runtime partition
-			if (ParseGridName(GridName, PartitionTokens, HLODPartitionTokens))
-			{
-				int32 RuntimePartitionIndexLookup = 0;
-				for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
-				{
-					if (RuntimePartitionDesc.Name == PartitionTokens[0])
-					{
-						RuntimePartitionIndex = RuntimePartitionIndexLookup;
-						break;
-					}
-
-					RuntimePartitionIndexLookup++;
-				}
-			}
-		}
-
-		if (RuntimePartitionIndex == INDEX_NONE)
-		{
-			return false;
-		}
-
-		for (const FRuntimePartitionHLODSetup& HLODSetup : RuntimePartitions[RuntimePartitionIndex].HLODSetups)
-		{
-			if (HLODSetup.HLODLayers.Contains(HLODLayer))
-			{
-				return true;
-			}
-		}
-	}
-
-	return false;
+	return RuntimePartition;
 }
 #endif
 
@@ -635,29 +655,47 @@ void UWorldPartitionRuntimeHashSet::ForEachStreamingCellsSources(const TArray<FW
 
 bool UWorldPartitionRuntimeHashSet::SupportsWorldAssetStreaming(const FName& InTargetGrid)
 {
-	return IsValidGridInternal(InTargetGrid, nullptr);
+	return ResolveRuntimePartition(InTargetGrid) != nullptr;
 }
 
 FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPartition::FRegisterWorldAssetStreamingParams& InParams)
 {
 	if (!InParams.IsValid())
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Invalid parameters provided."));
 		return FGuid();
 	}
 
 	if (WorldAssetStreamingObjects.Contains(InParams.Guid))
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: World asset guid '%s' was already registered."), *InParams.Guid.ToString());
 		return FGuid();
 	}
 
-	if (!IsValidGridInternal(InParams.TargetGrid, nullptr) || (!InParams.TargetGridHLOD.IsNone() && !IsValidGridInternal(InParams.TargetGridHLOD, nullptr)))
+	FName RuntimePartitionName;
+	const URuntimePartition* RuntimePartition = ResolveRuntimePartition(InParams.TargetGrid);
+	if (!RuntimePartition)
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Unable to resolve TargetGrid '%s'."), *InParams.TargetGrid.ToString());
 		return FGuid();
+	}
+
+	FName HLODRuntimePartitionName;
+	const URuntimePartition* HLODRuntimePartition = nullptr;
+	if (!InParams.WorldAssetHLOD.IsNull() && !InParams.TargetGridHLOD.IsNone())
+	{
+		HLODRuntimePartition = ResolveRuntimePartition(InParams.TargetGridHLOD);
+		if (!HLODRuntimePartition)
+		{
+			UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Unable to resolve TargetGridHLOD '%s'."), *InParams.TargetGridHLOD.ToString());
+			return FGuid();
+		}
 	}
 
 	URuntimeHashSetExternalStreamingObject* StreamingObject = CastChecked<URuntimeHashSetExternalStreamingObject>(CreateExternalStreamingObject(URuntimeHashSetExternalStreamingObject::StaticClass(), this, GetTypedOuter<UWorld>()));
 	if (!StreamingObject)
 	{
+		UE_LOG(LogWorldPartition, Error, TEXT("RegisterWorldAssetStreaming: Couldn't create ExternalStreamingObject."));
 		return FGuid();
 	}		
 
@@ -666,51 +704,24 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 	// 2 passes : 1st for target grid, 2nd for HLOD target grid
 	for (const bool bIsHLODPass : { false, true })
 	{
-		const FName TargetGrid = bIsHLODPass ? InParams.TargetGridHLOD : InParams.TargetGrid;
-		if (TargetGrid.IsNone())
+		const URuntimePartition* TargetPartition = bIsHLODPass ? HLODRuntimePartition : RuntimePartition;
+		if (!TargetPartition)
 		{
 			continue;
 		}
 
-		TArray<FName> MainPartitionTokens;
-		TArray<FName> HLODPartitionTokens;
-		if (!ParseGridName(TargetGrid, MainPartitionTokens, HLODPartitionTokens))
-		{
-			continue;
-		}
-
-		if (bIsHLODPass && InParams.WorldAssetHLOD.IsNull())
-		{
-			continue;
-		}
+		bool bClientOnlyVisible = TargetPartition->bClientOnlyVisible;
+		bool bBlockOnSlowStreaming = TargetPartition->bBlockOnSlowStreaming;
 
 		FRuntimePartitionStreamingData StreamingData;
-		StreamingData.LoadingRange = -1;
-
-		bool bClientOnlyVisible = false;
-		bool bBlockOnSlowStreaming = false;
-		for (const FRuntimePartitionDesc& RuntimePartitionDesc : RuntimePartitions)
-		{
-			if (RuntimePartitionDesc.MainLayer && ((RuntimePartitionDesc.Name == MainPartitionTokens[0]) || MainPartitionTokens[0].IsNone()))
-			{
-				StreamingData.Name = RuntimePartitionDesc.Name;
-				StreamingData.LoadingRange = RuntimePartitionDesc.MainLayer->LoadingRange;
-				bClientOnlyVisible = RuntimePartitionDesc.MainLayer->bClientOnlyVisible;
-				bBlockOnSlowStreaming = RuntimePartitionDesc.MainLayer->bBlockOnSlowStreaming;
-				break;
-			}
-		}
-
-		if (StreamingData.LoadingRange == -1)
-		{
-			continue;
-		}
+		StreamingData.Name = TargetPartition->Name;
+		StreamingData.LoadingRange = TargetPartition->LoadingRange;
 
 		// Create Cell
-		FName TargetGridName = (bIsHLODPass ? InParams.TargetGridHLOD : InParams.TargetGrid);
+		FName TargetPartitionName = TargetPartition->Name;
 		FGuid InstanceGuid = InParams.Guid;
 		FArchiveMD5 ArMD5;
-		ArMD5 << TargetGridName << InstanceGuid;
+		ArMD5 << TargetPartitionName << InstanceGuid;
 		const FGuid CellGuid = ArMD5.GetGuidFromHash();
 		check(CellGuid.IsValid());
 		if (!bIsHLODPass)
@@ -741,7 +752,7 @@ FGuid UWorldPartitionRuntimeHashSet::RegisterWorldAssetStreaming(const UWorldPar
 			RuntimeCellData->ContentBounds = InParams.Bounds;
 			RuntimeCellData->HierarchicalLevel = MAX_int32;
 			RuntimeCellData->Priority = InParams.Priority;
-			RuntimeCellData->GridName = TargetGrid;
+			RuntimeCellData->GridName = TargetPartition->Name;
 			RuntimeCellData->bIs2D = false;
 
 			if (RuntimeCell->CreateAndSetLevelStreaming(WorldAsset, InParams.Transform))
