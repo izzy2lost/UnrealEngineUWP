@@ -31,8 +31,10 @@
 #include "K2Node_Composite.h"
 #include "K2Node_CreateDelegate.h"
 #include "K2Node_CustomEvent.h"
+#include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
+#include "K2Node_GeneratedBoundEvent.h"
 #include "K2Node_Knot.h"
 #include "K2Node_MacroInstance.h"
 #include "K2Node_MakeArray.h"
@@ -973,6 +975,20 @@ FProperty* FKismetCompilerContext::CreateVariable(const FName VarName, const FEd
 	}
 
 	return NewProperty;
+}
+
+FMulticastDelegateProperty* FKismetCompilerContext::CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type)
+{
+	// Note: We don't transact like OnAddNewDelegate since this method is intented to used during compilation only
+	FMulticastDelegateProperty* NewMulticastDelegateProperty = CastField<FMulticastDelegateProperty>(CreateVariable(Name, Type));
+	GeneratedMulticastDelegateProps.Add(NewMulticastDelegateProperty);
+	return NewMulticastDelegateProperty;
+}
+
+FMulticastDelegateProperty* FKismetCompilerContext::CreateMulticastDelegateVariable(const FName Name)
+{
+	FEdGraphPinType MulticastDelegatePinType(UEdGraphSchema_K2::PC_MCDelegate, NAME_None, Blueprint->GeneratedClass, EPinContainerType::None, false, FEdGraphTerminalType());
+	return CreateMulticastDelegateVariable(Name, MulticastDelegatePinType);
 }
 
 /** Determines if a node is pure */
@@ -2569,6 +2585,67 @@ void FKismetCompilerContext::PrecompileFunction(FKismetFunctionContext& Context,
 	}
 }
 
+void FKismetCompilerContext::InitializeGeneratedEventNodes(EInternalCompilerFlags InternalFlags)
+{
+	if (GeneratedMulticastDelegateProps.IsEmpty())
+	{
+		return;
+	}
+
+	TArray<UK2Node_GeneratedBoundEvent*> EventNodes;
+	ConsolidatedEventGraph->GetNodesOfClass<UK2Node_GeneratedBoundEvent>(EventNodes);
+
+	for (FMulticastDelegateProperty* GeneratedMulticastDelegateProp : GeneratedMulticastDelegateProps)
+	{
+		if (UClass* OwningClass = GeneratedMulticastDelegateProp->GetOwner<UClass>())
+		{
+			// Don't associate the skeleton BPGC with the precompiled function (Skeleton is not authoritative).
+			if (OwningClass->GetAuthoritativeClass() != OwningClass)
+			{
+				continue;
+			}
+		}
+
+		auto FindNodeWithDelegateName = [GeneratedMulticastDelegateProp](UK2Node_GeneratedBoundEvent* EventNode)
+		{
+			if (EventNode && GeneratedMulticastDelegateProp)
+			{
+				if (EventNode->EventReference.GetMemberName() == GeneratedMulticastDelegateProp->GetFName())
+				{
+					return true;
+				}
+			}
+
+			return false;
+		};
+		
+		if (UK2Node_GeneratedBoundEvent** EventNodeItr = EventNodes.FindByPredicate(FindNodeWithDelegateName))
+		{
+			UK2Node_GeneratedBoundEvent* EventNode = *EventNodeItr;
+
+			auto FindFunctionWithDelegateName = [GeneratedMulticastDelegateProp, EventNode](const FKismetFunctionContext& FunctionContext)
+			{
+				if (FunctionContext.Function && FunctionContext.Function->GetFName() == EventNode->CustomFunctionName)
+				{
+					if (EventNode->EventReference.GetMemberName() == GeneratedMulticastDelegateProp->GetFName())
+					{
+						return true;
+					}
+				}
+
+				return false;
+			};
+
+			if (const FKismetFunctionContext* PrecompiledFunctionItr = Algo::FindByPredicate(FunctionList, FindFunctionWithDelegateName))
+			{
+				const FKismetFunctionContext& PrecompiledFunction = *PrecompiledFunctionItr;
+				GeneratedMulticastDelegateProp->SignatureFunction = PrecompiledFunction.Function;
+				EventNode->InitializeGeneratedBoundEventParams(GeneratedMulticastDelegateProp);
+			}
+		}
+	}
+}
+
 void FKismetCompilerContext::PreCompileUpdateBlueprintOnLoad(UBlueprint* BP)
 {
 	check(BP);
@@ -3751,30 +3828,12 @@ void FKismetCompilerContext::MergeUbergraphPagesIn(UEdGraph* Ubergraph)
 	for (decltype(Blueprint->UbergraphPages)::TIterator It(Blueprint->UbergraphPages); It; ++It)
 	{
 		UEdGraph* SourceGraph = *It;
+		MergeGraphIntoUbergraph(SourceGraph, Ubergraph);
+	}
 
-		if (CompileOptions.bSaveIntermediateProducts)
-		{
-			TArray<UEdGraphNode*> ClonedNodeList;
-			FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true, &ClonedNodeList);
-
-			// Create a comment block around the ubergrapgh contents before anything else got started
-			int32 OffsetX = 0;
-			int32 OffsetY = 0;
-			CreateCommentBlockAroundNodes(ClonedNodeList, SourceGraph, Ubergraph, SourceGraph->GetName(), FLinearColor(1.0f, 0.7f, 0.7f), /*out*/ OffsetX, /*out*/ OffsetY);
-			
-			// Reposition the nodes, so nothing ever overlaps
-			for (TArray<UEdGraphNode*>::TIterator NodeIt(ClonedNodeList); NodeIt; ++NodeIt)
-			{
-				UEdGraphNode* ClonedNode = *NodeIt;
-
-				ClonedNode->NodePosX += OffsetX;
-				ClonedNode->NodePosY += OffsetY;
-			}
-		}
-		else
-		{
-			FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true);
-		}
+	for (UEdGraph* UbergraphPage : GeneratedUbergraphPages)
+	{
+		MergeGraphIntoUbergraph(UbergraphPage, Ubergraph);
 	}
 }
 
@@ -4446,6 +4505,33 @@ void FKismetCompilerContext::ResetErrorFlags(UEdGraph* Graph) const
 	}
 }
 
+void FKismetCompilerContext::MergeGraphIntoUbergraph(UEdGraph* SourceGraph, UEdGraph* Ubergraph)
+{
+	if (CompileOptions.bSaveIntermediateProducts)
+	{
+		TArray<UEdGraphNode*> ClonedNodeList;
+		FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true, &ClonedNodeList);
+
+		// Create a comment block around the ubergrapgh contents before anything else got started
+		int32 OffsetX = 0;
+		int32 OffsetY = 0;
+		CreateCommentBlockAroundNodes(ClonedNodeList, SourceGraph, Ubergraph, SourceGraph->GetName(), FLinearColor(1.0f, 0.7f, 0.7f), /*out*/ OffsetX, /*out*/ OffsetY);
+			
+		// Reposition the nodes, so nothing ever overlaps
+		for (TArray<UEdGraphNode*>::TIterator NodeIt(ClonedNodeList); NodeIt; ++NodeIt)
+		{
+			UEdGraphNode* ClonedNode = *NodeIt;
+
+			ClonedNode->NodePosX += OffsetX;
+			ClonedNode->NodePosY += OffsetY;
+		}
+	}
+	else
+	{
+		FEdGraphUtilities::CloneAndMergeGraphIn(Ubergraph, SourceGraph, MessageLog, /*bRequireSchemaMatch=*/ true, /*bIsCompiling*/ true);
+	}
+}
+
 /**
  * Merges macros/subgraphs into the graph and validates it, creating a function list entry if it's reasonable.
  */
@@ -4859,6 +4945,10 @@ void FKismetCompilerContext::CompileClassLayout(EInternalCompilerFlags InternalF
 			PrecompileFunction(FunctionList[i], InternalFlags);
 		}
 	}
+
+	// Now that generated delegate signature functions are compiled & linked to multicast properties, bind generated event nodes
+	// The functions have only been compiled to script, so we can initialize the node events now
+	InitializeGeneratedEventNodes(InternalFlags);
 
 	if (UsePersistentUberGraphFrame() && UbergraphContext)
 	{

@@ -17,3 +17,45 @@ class UMVVMConversionFunctionGraphSchema : public UEdGraphSchema_K2
 public:
 	virtual bool TryCreateConnection(UEdGraphPin* A, UEdGraphPin* B) const override;
 };
+
+/**
+ * Schema used to test if a node is async or not
+ * 
+ * Note: Keep in private header.
+ */
+UCLASS()
+class UMVVMFakeTestUbergraphSchema : public UEdGraphSchema_K2
+{
+	GENERATED_BODY()
+
+public:
+	virtual EGraphType GetGraphType(const UEdGraph* TestEdGraph) const override;
+};
+
+/**
+ * Graph used to test if a node is async or not
+ *
+ * Note: Keep in private header.
+ */
+UCLASS()
+class UMVVMFakeTestUbergraph : public UEdGraph
+{
+	GENERATED_BODY()
+
+public:
+	UMVVMFakeTestUbergraph();
+};
+
+/**
+ * Graph used to test if a node is async or not
+ *
+ * Note: Keep in private header.
+ */
+UCLASS()
+class UMVVMFakeTestFunctiongraph : public UEdGraph
+{
+	GENERATED_BODY()
+
+public:
+	UMVVMFakeTestFunctiongraph();
+};

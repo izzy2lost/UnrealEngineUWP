@@ -12,6 +12,7 @@
 #include "EdGraphSchema_K2.h"
 #include "EdGraph/EdGraphPin.h"
 #include "GraphEditAction.h"
+#include "K2Node_BaseAsyncTask.h"
 #include "K2Node_CallFunction.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
@@ -147,12 +148,39 @@ bool UMVVMBlueprintViewConversionFunction::IsWrapperGraphTransient() const
 	return bWrapperGraphTransient;
 }
 
+bool UMVVMBlueprintViewConversionFunction::IsUbergraphPage() const
+{
+	return bIsUbergraphPage;
+}
+
+void UMVVMBlueprintViewConversionFunction::SetDestinationPath(FMVVMBlueprintPropertyPath InDestinationPath)
+{
+	if (InDestinationPath == DestinationPath)
+	{
+		return;
+	}
+
+	DestinationPath = MoveTemp(InDestinationPath);
+
+	// @TODO: FORT-776262 - In general need to make sure the workflow for when async dest bindings change causes graph rebuild, or async func removal
+	//RemoveWrapperGraph(GetWidgetBlueprintInternal());
+	//CreateWrapperGraphInternal();
+	//SavePinValues();
+}
+
 const UFunction* UMVVMBlueprintViewConversionFunction::GetCompiledFunction(const UClass* SelfContext) const
 {
 	if (NeedsWrapperGraphInternal(SelfContext))
 	{
 		FMemberReference CompiledFunction;
-		CompiledFunction.SetSelfMember(GraphName);
+		if (bIsUbergraphPage)
+		{
+			CompiledFunction.SetSelfMember(UE::MVVM::BindingHelper::GetDelegateSignatureName(GraphName));
+		}
+		else
+		{
+			CompiledFunction.SetSelfMember(GraphName);
+		}
 		return CompiledFunction.ResolveMember<UFunction>(const_cast<UClass*>(SelfContext));
 	}
 
@@ -187,6 +215,8 @@ void UMVVMBlueprintViewConversionFunction::Reset()
 	ConversionFunction = FMVVMBlueprintFunctionReference();
 	GraphName = FName();
 	bWrapperGraphTransient = true;
+	bIsUbergraphPage = false;
+	LatentEventNodeUUID = nullptr;
 	SavedPins.Reset();
 	SetCachedWrapperGraph(nullptr, nullptr, nullptr);
 }
@@ -199,9 +229,18 @@ void UMVVMBlueprintViewConversionFunction::Initialize(UBlueprint* InContext, FNa
 	{
 		ConversionFunction = InFunction;
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
+
+		bIsUbergraphPage = false;
+		TSubclassOf<UK2Node> Node = ConversionFunction.GetNode();
+		if (UE::MVVM::ConversionFunctionHelper::IsAsyncNode(Node))
+		{
+			bIsUbergraphPage = true;
+		}
+
 		GraphName = InGraphName;
 		bWrapperGraphTransient = true;
-		GetOrCreateWrapperGraphInternal(InContext);
+		LatentEventNodeUUID = nullptr;
+		CreateWrapperGraphInternal(InContext);
 		SavePinValues(InContext);
 	}
 }
@@ -216,7 +255,9 @@ void UMVVMBlueprintViewConversionFunction::InitializeFromFunction(UBlueprint* In
 		check(GraphName.IsNone()); // the name needs to be set before a GetOrCreateWrapperGraph
 		GraphName = InGraphName;
 		bWrapperGraphTransient = true;
-		GetOrCreateWrapperGraphInternal(InContext);
+		bIsUbergraphPage = false;
+		LatentEventNodeUUID = nullptr;
+		CreateWrapperGraphInternal(InContext);
 		SavePinValues(InContext);
 	}
 }
@@ -362,7 +403,7 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 	if (FoundGraph)
 	{
 		UBlueprint* NullContext = nullptr; // do not register the callback
-		const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(NullContext, *FoundGraph, UE::MVVM::ConversionFunctionHelper::GetWrapperNode(*FoundGraph));
+		SetCachedWrapperGraph(NullContext, *FoundGraph, UE::MVVM::ConversionFunctionHelper::GetWrapperNode(*FoundGraph));
 		LoadPinValuesInternal(Context.Blueprint);
 
 		// Conversion Function graph are not saved in the editor anymore.
@@ -375,7 +416,7 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateIntermediateWrapperGr
 	else if (IsValid(Context.Blueprint))
 	{
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Context);
+		return CreateWrapperGraphInternal(Context);
 	}
 	return nullptr;
 }
@@ -408,7 +449,7 @@ UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraph(UBluepri
 	else if (IsValid(Blueprint))
 	{
 		CreateWrapperGraphName();
-		return GetOrCreateWrapperGraphInternal(Blueprint);
+		return CreateWrapperGraphInternal(Blueprint);
 	}
 	return nullptr;
 }
@@ -419,33 +460,70 @@ UEdGraphPin* UMVVMBlueprintViewConversionFunction::GetOrCreateGraphPin(UBlueprin
 	return CachedWrapperGraph ? UE::MVVM::ConversionFunctionHelper::FindPin(CachedWrapperGraph, PinId.GetNames()) : nullptr;
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(FKismetCompilerContext& Context)
+UEdGraph* UMVVMBlueprintViewConversionFunction::CreateWrapperGraphInternal(FKismetCompilerContext& Context)
 {
-	return GetOrCreateWrapperGraphInternal(Context.Blueprint);
+	return CreateWrapperGraphInternal(Context.Blueprint);
 }
 
-UEdGraph* UMVVMBlueprintViewConversionFunction::GetOrCreateWrapperGraphInternal(UBlueprint* Blueprint)
+UEdGraph* UMVVMBlueprintViewConversionFunction::CreateWrapperGraphInternal(UBlueprint* Blueprint)
 {
 	check(Blueprint);
+
 	bool bConst = true;
+	UE::MVVM::ConversionFunctionHelper::FCreateGraphParams Params;
+	Params.bIsConst = bConst;
+	Params.bTransient = bWrapperGraphTransient;
+
 	UE::MVVM::ConversionFunctionHelper::FCreateGraphResult Result;
 	if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Function)
 	{
 		const UFunction* Function = ConversionFunction.GetFunction(Blueprint);
 		check(Function);
-		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Function, bConst, bWrapperGraphTransient);
+		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Function, Params);
 	}
 	else if (ConversionFunction.GetType() == EMVVMBlueprintFunctionReferenceType::Node)
 	{
 		TSubclassOf<UK2Node> Node = ConversionFunction.GetNode();
 		check(Node.Get());
-		Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Node, bConst, bWrapperGraphTransient, [](UK2Node*){});
+
+		if (UE::MVVM::ConversionFunctionHelper::IsAsyncNode(Node))
+		{
+			Params.bCreateUbergraphPage = true;
+		}
+
+		if (Params.bCreateUbergraphPage)
+		{
+			TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> SetterGraphResult = UE::MVVM::ConversionFunctionHelper::CreateSetterGraph(Blueprint
+				, GraphName
+				, Node
+				, DestinationPath
+				, Params);
+
+			// @TODO: UE-221351 - Handle Error Case, although a bit difficult since no error log in this context
+			if (!SetterGraphResult.HasError())
+			{
+				Result = SetterGraphResult.GetValue();
+			}
+		}
+		else
+		{
+			Result = UE::MVVM::ConversionFunctionHelper::CreateGraph(Blueprint, GraphName, nullptr, Node, Params, [](UK2Node*) {});
+		}
 	}
 
 	static FName NAME_Hidden("Hidden");
 	UE::MVVM::ConversionFunctionHelper::SetMetaData(Result.NewGraph, NAME_Hidden, FStringView());
 
-	const_cast<UMVVMBlueprintViewConversionFunction*>(this)->SetCachedWrapperGraph(Blueprint, Result.NewGraph, Result.WrappedNode);
+	bIsUbergraphPage = Result.bIsUbergraphPage;
+
+	// Generate a non-transient node for latent manager to use when handling latents by Node UUID
+	if (bIsUbergraphPage)
+	{
+		LatentEventNodeUUID = NewObject<UEdGraphNode>(this);
+		LatentEventNodeUUID->CreateNewGuid();
+	}
+
+	SetCachedWrapperGraph(Blueprint, Result.NewGraph, Result.WrappedNode);
 	LoadPinValuesInternal(Blueprint);
 	return CachedWrapperGraph;
 }
@@ -457,6 +535,7 @@ void UMVVMBlueprintViewConversionFunction::RemoveWrapperGraph(UBlueprint* Bluepr
 	{
 		FBlueprintEditorUtils::RemoveGraph(Blueprint, Result->Get());
 	}
+	bIsUbergraphPage = false;
 	SetCachedWrapperGraph(Blueprint, nullptr, nullptr);
 }
 

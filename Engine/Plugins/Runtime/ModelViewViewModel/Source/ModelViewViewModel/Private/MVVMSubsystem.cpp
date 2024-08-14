@@ -358,10 +358,11 @@ TValueOrError<bool, FText> UMVVMSubsystem::IsBindingValid(FConstDirectionalBindi
 {
 	const bool bIsSimpleConversionFunction = Args.ConversionFunction && UE::MVVM::BindingHelper::IsValidForSimpleRuntimeConversion(Args.ConversionFunction);
 	const bool bIsComplexConversionFunction = Args.ConversionFunction && UE::MVVM::BindingHelper::IsValidForComplexRuntimeConversion(Args.ConversionFunction);
+	const bool bIsDelegateSignatureBinding = Args.ConversionFunction && UE::MVVM::BindingHelper::IsValidForDelegateSignatureBinding(Args.ConversionFunction);
 
 	// Test Source
 	const FProperty* SourceProperty = nullptr;
-	if (!bIsComplexConversionFunction)
+	if (!bIsComplexConversionFunction && !bIsDelegateSignatureBinding)
 	{
 		TValueOrError<const FProperty*, FText> SourceResult = UE::MVVM::BindingHelper::TryGetPropertyTypeForSourceBinding(Args.SourceBinding);
 		if (SourceResult.HasError())
@@ -394,6 +395,11 @@ TValueOrError<bool, FText> UMVVMSubsystem::IsBindingValid(FConstDirectionalBindi
 
 	auto GetPropertyType = [](const FProperty* Property)
 	{
+		if (!Property)
+		{
+			return FString("");
+		}
+
 		FString InnerType;
 		FString CppType = Property->GetCPPType(&InnerType);
 		if (InnerType.Len())
@@ -402,6 +408,12 @@ TValueOrError<bool, FText> UMVVMSubsystem::IsBindingValid(FConstDirectionalBindi
 		}
 		return CppType;
 	};
+
+	// Async events do not need a return property, their graph will handle value setting, simply pass compilation
+	if (bIsDelegateSignatureBinding)
+	{
+		return MakeValue(true);
+	}
 
 	// Test the conversion function
 	if (Args.ConversionFunction)

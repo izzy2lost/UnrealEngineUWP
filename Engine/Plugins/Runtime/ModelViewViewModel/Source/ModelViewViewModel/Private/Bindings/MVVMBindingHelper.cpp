@@ -155,6 +155,12 @@ namespace UE::MVVM::BindingHelper
 	}
 
 
+	bool IsValidForDelegateSignatureBinding(const UFunction* InFunction)
+	{
+		return Private::IsValidCommon(InFunction) && InFunction->HasAnyFunctionFlags(FUNC_Delegate | FUNC_BlueprintEvent);
+	}
+
+
 	bool IsValidForEventBinding(const UFunction* InFunction)
 	{
 		return Private::IsValidCommon(InFunction) && !InFunction->HasAnyFunctionFlags(FUNC_Const | FUNC_BlueprintPure | FUNC_BlueprintEvent);
@@ -186,6 +192,13 @@ namespace UE::MVVM::BindingHelper
 	}
 #endif //WITH_EDITOR
 
+	FName GetDelegateSignatureName(FName InGraphName)
+	{
+		TStringBuilder<512> StringBuilder;
+		StringBuilder << InGraphName.ToString();
+		StringBuilder << HEADER_GENERATED_DELEGATE_SIGNATURE_SUFFIX;
+		return FName(StringBuilder.ToString());
+	}
 
 	FMVVMFieldVariant FindFieldByName(const UStruct* Container, FMVVMBindingName BindingName)
 	{
@@ -729,10 +742,9 @@ namespace UE::MVVM::BindingHelper
 
 		ConversionFunction.GetObject()->ProcessEvent(ConversionFunction.GetFunction(), ConversionFunctionDataPtr);
 
+		// The return property will be baked into async conversion functions, so it may not exist
+		if (const FProperty* ReturnConversionProperty = Private::GetRuntimeReturnProperty(ConversionFunction.GetFunction()))
 		{
-			const FProperty* ReturnConversionProperty = Private::GetRuntimeReturnProperty(ConversionFunction.GetFunction());
-			check(ReturnConversionProperty);
-
 			const bool bIsDestinationBindingIsProperty = Destination.GetFieldVariant().IsProperty();
 			const FProperty* SetterType = bIsDestinationBindingIsProperty ? Destination.GetFieldVariant().GetProperty() : GetFirstArgumentProperty(Destination.GetFieldVariant().GetFunction());
 			check(SetterType);

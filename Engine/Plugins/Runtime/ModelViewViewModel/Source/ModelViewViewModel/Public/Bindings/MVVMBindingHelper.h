@@ -62,6 +62,12 @@ namespace UE::MVVM::BindingHelper
 	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForComplexRuntimeConversion(const UFunction* InFunction);
 
 	/**
+	 * Is the Function usable as a delegate signature binding.
+	 * Delegate signature functions are used for binding to generated events
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsValidForDelegateSignatureBinding(const UFunction* InFunction);
+
+	/**
 	 * Is the Function usable as an event binding.
 	 * Events can trigger functions with any number of parameters and any return values.
 	 */
@@ -85,6 +91,11 @@ namespace UE::MVVM::BindingHelper
 	/** Is the Property usable as a destination by the binding system and a Setter exists. */
 	[[nodiscard]] MODELVIEWVIEWMODEL_API bool IsAccessibleWithSetterForDestinationBinding(const FProperty* InProperty);
 #endif
+
+	/**
+	 * Converts a given graph / function name into it's delegate signature name (By appending the correct UE suffix).
+	 */
+	[[nodiscard]] MODELVIEWVIEWMODEL_API FName GetDelegateSignatureName(FName InGraphName);
 
 	/**
 	 * Returns the Property or the Function that matches that BindingName.

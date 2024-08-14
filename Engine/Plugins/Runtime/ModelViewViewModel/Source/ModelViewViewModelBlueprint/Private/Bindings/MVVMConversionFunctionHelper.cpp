@@ -11,10 +11,13 @@
 #include "MVVMWidgetBlueprintExtension_View.h"
 #include "UObject/MetaData.h"
 
+#include "K2Node_BaseAsyncTask.h"
 #include "K2Node_BreakStruct.h"
 #include "K2Node_CallFunction.h"
+#include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_FunctionResult.h"
+#include "K2Node_GeneratedBoundEvent.h"
 #include "K2Node_Self.h"
 #include "K2Node_VariableGet.h"
 #include "K2Node_VariableSet.h"
@@ -31,6 +34,12 @@ namespace Private
 	static const FLazyName ConversionFunctionMetadataKey = "ConversionFunction";
 	static const FStringView AutoPromoteFunctionMetadataKey = TEXT("AutoPromoteFunction");
 	static const FLazyName ConversionFunctionCategory = "Conversion Functions";
+
+namespace NamedNodes
+{
+	static const FLazyName GeneratedSetter = "MVVM_Named_Node_Generated_Setter";
+	static const FLazyName GeneratedCallFunction = "MVVM_Named_Node_Generated_CallFunction";
+}
 
 	UMVVMBlueprintView* GetView(const UBlueprint* Blueprint)
 	{
@@ -65,6 +74,18 @@ namespace Private
 		return nullptr;
 	}
 
+	UK2Node_Event* FindEventEntry(const UEdGraph* Graph)
+	{
+		for (UEdGraphNode* Node : Graph->Nodes)
+		{
+			if (UK2Node_Event* EventEntry = Cast<UK2Node_Event>(Node))
+			{
+				return EventEntry;
+			}
+		}
+		return nullptr;
+	}
+
 	UK2Node_FunctionResult* FindFunctionResult(const UEdGraph* Graph)
 	{
 		for (UEdGraphNode* Node : Graph->Nodes)
@@ -92,10 +113,22 @@ namespace Private
 	struct FCreateGraphResult
 	{
 		UEdGraph* FunctionGraph = nullptr;
+		UK2Node_Event* EventEntry = nullptr;
 		UK2Node_FunctionEntry* FunctionEntry = nullptr;
 		UK2Node_FunctionResult* FunctionResult = nullptr;
 	};
-	FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, bool bIsConst, bool bIsEditable, bool bAddToBlueprint)
+
+	struct FCreateGraphParams
+	{
+		bool bIsConst = false;
+		bool bIsEditable = false;
+		bool bAddToBlueprint = false;
+
+		/** If true implies this graph will create events*/
+		bool bCreateUbergraphPage = false;
+	};
+
+	FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* FunctionEntryDefinition, FCreateGraphParams InParams)
 	{
 		if (UObject* ExistingObject = StaticFindObject(nullptr, Blueprint, *GraphName.ToString(), true))
 		{
@@ -103,12 +136,22 @@ namespace Private
 		}
 
 		FName UniqueFunctionName = FBlueprintEditorUtils::FindUniqueKismetName(Blueprint, GraphName.ToString());
+
+		// Ubergraph pages create multicast delegate variables of the same name during BP Skeleton generation prior to graph generation
+		// These will cause name conflicts, so don't require unique names for ubergraphs
+		if (InParams.bCreateUbergraphPage)
+		{
+			UniqueFunctionName = GraphName;
+		}
+
 		ensure(GraphName == UniqueFunctionName);
+
+		// Create function graph
 		UEdGraph* FunctionGraph = FBlueprintEditorUtils::CreateNewGraph(Blueprint, UniqueFunctionName, UEdGraph::StaticClass(), UMVVMConversionFunctionGraphSchema::StaticClass());
 		ensure(FunctionGraph->GetFName() == GraphName);
 
-		FunctionGraph->bEditable = bIsEditable;
-		if (bAddToBlueprint)
+		FunctionGraph->bEditable = InParams.bIsEditable;
+		if (InParams.bAddToBlueprint)
 		{
 			Blueprint->FunctionGraphs.Add(FunctionGraph);
 		}
@@ -118,48 +161,67 @@ namespace Private
 		}
 
 		const UEdGraphSchema_K2* Schema = GetDefault<UMVVMConversionFunctionGraphSchema>();
-		Schema->MarkFunctionEntryAsEditable(FunctionGraph, bIsEditable);
+		Schema->MarkFunctionEntryAsEditable(FunctionGraph, InParams.bIsEditable);
 		Schema->CreateDefaultNodesForGraph(*FunctionGraph);
 
-		// function entry node
-		FGraphNodeCreator<UK2Node_FunctionEntry> FunctionEntryCreator(*FunctionGraph);
-		UK2Node_FunctionEntry* FunctionEntry = FunctionEntryCreator.CreateNode();
-		if (FunctionEntryDefinition)
-		{
-			UClass* OwnerClass = FunctionEntryDefinition->GetOwnerClass();
-			FunctionEntry->FunctionReference.SetExternalMember(FunctionEntryDefinition->GetFName(), OwnerClass);
-			FunctionEntry->CustomGeneratedFunctionName = GraphName;
-		}
-		else
-		{
-			FunctionEntry->FunctionReference.SetSelfMember(FunctionGraph->GetFName());
-		}
-		if (bIsConst)
-		{
-			FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure | FUNC_Const | FUNC_Protected | FUNC_Final);
-		}
-		else
-		{
-			FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_Protected | FUNC_Final);
-		}
-		FunctionEntry->bIsEditable = bIsEditable;
-		FunctionEntry->MetaData.Category = FText::FromName(ConversionFunctionCategory.Resolve());
-		FunctionEntry->NodePosX = -500;
-		FunctionEntry->NodePosY = 0;
-		FunctionEntryCreator.Finalize();
-
-		FGraphNodeCreator<UK2Node_FunctionResult> FunctionResultCreator(*FunctionGraph);
-		UK2Node_FunctionResult* FunctionResult = FunctionResultCreator.CreateNode();
-		FunctionResult->FunctionReference.SetSelfMember(FunctionGraph->GetFName());
-		FunctionResult->bIsEditable = bIsEditable;
-		FunctionResult->NodePosX = 500;
-		FunctionResult->NodePosY = 0;
-		FunctionResultCreator.Finalize();
-
 		FCreateGraphResult Result;
+
+		// Function entry node
+		if (!InParams.bCreateUbergraphPage)
+		{
+			FGraphNodeCreator<UK2Node_FunctionEntry> FunctionEntryCreator(*FunctionGraph);
+			UK2Node_FunctionEntry* FunctionEntry = FunctionEntryCreator.CreateNode();
+			if (FunctionEntryDefinition)
+			{
+				UClass* OwnerClass = FunctionEntryDefinition->GetOwnerClass();
+				FunctionEntry->FunctionReference.SetExternalMember(FunctionEntryDefinition->GetFName(), OwnerClass);
+				FunctionEntry->CustomGeneratedFunctionName = GraphName;
+			}
+			else
+			{
+				FunctionEntry->FunctionReference.SetSelfMember(FunctionGraph->GetFName());
+			}
+			if (InParams.bIsConst)
+			{
+				FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_BlueprintPure | FUNC_Const | FUNC_Protected | FUNC_Final);
+			}
+			else
+			{
+				FunctionEntry->AddExtraFlags(FUNC_BlueprintCallable | FUNC_Protected | FUNC_Final);
+			}
+			FunctionEntry->bIsEditable = InParams.bIsEditable;
+			FunctionEntry->MetaData.Category = FText::FromName(ConversionFunctionCategory.Resolve());
+			FunctionEntry->NodePosX = -500;
+			FunctionEntry->NodePosY = 0;
+			FunctionEntryCreator.Finalize();
+
+			FGraphNodeCreator<UK2Node_FunctionResult> FunctionResultCreator(*FunctionGraph);
+			UK2Node_FunctionResult* FunctionResult = FunctionResultCreator.CreateNode();
+			FunctionResult->FunctionReference.SetSelfMember(FunctionGraph->GetFName());
+			FunctionResult->bIsEditable = InParams.bIsEditable;
+			FunctionResult->NodePosX = 500;
+			FunctionResult->NodePosY = 0;
+			FunctionResultCreator.Finalize();
+
+			Result.FunctionEntry = FunctionEntry;
+			Result.FunctionResult = FunctionResult;
+		}
+		else
+		{
+			FGraphNodeCreator<UK2Node_GeneratedBoundEvent> EventEntryCreator(*FunctionGraph);
+			UK2Node_GeneratedBoundEvent* EventEntry = EventEntryCreator.CreateNode();
+
+			EventEntry->EventReference.SetSelfMember(FunctionGraph->GetFName());
+			EventEntry->bIsEditable = InParams.bIsEditable;
+			EventEntry->CustomFunctionName = UE::MVVM::BindingHelper::GetDelegateSignatureName(FunctionGraph->GetFName());
+			EventEntry->NodePosX = -750;
+			EventEntry->NodePosY = 0;
+			EventEntryCreator.Finalize();
+
+			Result.EventEntry = EventEntry;
+		}
+
 		Result.FunctionGraph = FunctionGraph;
-		Result.FunctionEntry = FunctionEntry;
-		Result.FunctionResult = FunctionResult;
 		return Result;
 	}
 
@@ -340,12 +402,17 @@ namespace Private
 
 	UEdGraphPin* FindNewOutputPin(const UEdGraphNode* NewNode)
 	{
+		if (!NewNode)
+		{
+			return nullptr;
+		}
+
 		// then update our previous pin pointers
 		for (UEdGraphPin* Pin : NewNode->Pins)
 		{
 			if (Pin->Direction == EGPD_Output)
 			{
-				if (Pin->PinName != UEdGraphSchema_K2::PN_Then)
+				if (Pin->PinName != UEdGraphSchema_K2::PN_Then && Pin->PinName != UEdGraphSchema_K2::PN_Completed)
 				{
 					return Pin;
 				}
@@ -684,6 +751,256 @@ namespace Private
 
 		return MakeValue(Result);
 	}
+	
+	void RemoveGraph(UBlueprint* Blueprint, bool bAddToBlueprint, Private::FCreateGraphResult& CreateGraphInternalResult)
+	{
+		if (CreateGraphInternalResult.FunctionGraph && bAddToBlueprint)
+		{
+			Blueprint->FunctionGraphs.RemoveSingleSwap(CreateGraphInternalResult.FunctionGraph);
+		}
+	};
+
+	UE::MVVM::ConversionFunctionHelper::FCreateGraphResult CreateCallFunctionAndLinkNodes(const TSubclassOf<UK2Node>& Node
+		, UE::MVVM::ConversionFunctionHelper::FCreateGraphParams& InParams
+		, UE::MVVM::ConversionFunctionHelper::Private::FCreateGraphResult& CreateGraphInternalResult
+		, TFunctionRef<void(UK2Node*)> InitNodeCallback)
+	{
+		UE::MVVM::ConversionFunctionHelper::FCreateGraphResult Result;
+		Result.NewGraph = CreateGraphInternalResult.FunctionGraph;
+		Result.WrappedNode = nullptr;
+		Result.bIsUbergraphPage = InParams.bCreateUbergraphPage;
+
+		const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+
+		UK2Node* CallFunctionNode = nullptr;
+		{
+			FGraphNodeCreator<UK2Node> CallFunctionCreator(*CreateGraphInternalResult.FunctionGraph);
+			CallFunctionNode = CallFunctionCreator.CreateNode(true, Node);
+			InitNodeCallback(CallFunctionNode);
+			CallFunctionNode->NodePosX = 0;
+			CallFunctionCreator.Finalize();
+			Private::MarkAsConversionFunction(CallFunctionNode, CreateGraphInternalResult.FunctionGraph);
+		}
+
+		Result.WrappedNode = CallFunctionNode;
+		Result.NamedNodes.Add(Private::NamedNodes::GeneratedCallFunction, CallFunctionNode);
+
+		// Create return value pin
+		UEdGraphPin* CallFunctionOutputPin = Private::FindNewOutputPin(CallFunctionNode);
+		if (!Result.bIsUbergraphPage && CallFunctionOutputPin)
+		{
+			TSharedPtr<FUserPinInfo> PinInfo = MakeShared<FUserPinInfo>();
+			PinInfo->PinType = CallFunctionOutputPin->PinType;
+			PinInfo->PinName = CallFunctionOutputPin->GetFName();
+			PinInfo->DesiredPinDirection = EGPD_Input;
+			CreateGraphInternalResult.FunctionResult->UserDefinedPins.Add(PinInfo);
+			CreateGraphInternalResult.FunctionResult->ReconstructNode();
+		}
+
+		// Make link Entry -> CallFunction || Entry -> Return
+		if (!Result.bIsUbergraphPage)
+		{
+			UEdGraphPin* FunctionEntryThenPin = CreateGraphInternalResult.FunctionEntry->GetThenPin();
+			UEdGraphPin* FunctionResultExecPin = CreateGraphInternalResult.FunctionResult->GetExecPin();
+
+			if (!CallFunctionNode->IsNodePure())
+			{
+				UEdGraphPin* CallFunctionExecPin = CallFunctionNode->GetExecPin();
+				UEdGraphPin* CallFunctionThenPin = CallFunctionNode->GetThenPin();
+
+				GraphSchema->TryCreateConnection(FunctionEntryThenPin, CallFunctionExecPin); 
+				GraphSchema->TryCreateConnection(CallFunctionThenPin, FunctionResultExecPin);
+
+				CallFunctionNode->NodePosY = 0;
+			}
+			else
+			{
+				GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
+				CallFunctionNode->NodePosY = 100;
+			}
+		}
+		else
+		{
+			UEdGraphPin* EventEntryThenPin = CreateGraphInternalResult.EventEntry->GetThenPin();
+
+			if (!CallFunctionNode->IsNodePure())
+			{
+				UEdGraphPin* CallFunctionExecPin = CallFunctionNode->GetExecPin();
+				UEdGraphPin* CallFunctionThenPin = CallFunctionNode->GetThenPin();
+
+				GraphSchema->TryCreateConnection(EventEntryThenPin, CallFunctionExecPin);
+
+				CallFunctionNode->NodePosY = 0;
+			}
+		}
+
+		if (!Result.bIsUbergraphPage && CallFunctionOutputPin)
+		{
+			UEdGraphPin* FunctionResultPin = CreateGraphInternalResult.FunctionResult->FindPin(CallFunctionOutputPin->GetFName(), EGPD_Input);
+			check(FunctionResultPin);
+
+			GraphSchema->TryCreateConnection(CallFunctionOutputPin, FunctionResultPin);
+		}
+
+		return Result;
+	}
+
+	const TValueOrError<UE::MVVM::ConversionFunctionHelper::FCreateGraphResult, FText> CreateSetterAndLinkNodes(const FMVVMBlueprintPropertyPath& PropertyPath
+		, UBlueprint* Blueprint
+		, UE::MVVM::ConversionFunctionHelper::FCreateGraphParams& InParams
+		, UE::MVVM::ConversionFunctionHelper::FCreateGraphResult& Result
+		, UE::MVVM::ConversionFunctionHelper::Private::FCanSetterGraphResult& CanCreateSetterGraphResult
+		, UE::MVVM::ConversionFunctionHelper::Private::FCreateGraphResult& CreateGraphInternalResult)
+	{
+		TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
+
+		const bool bIsEditable = false;
+		const bool bAddToBlueprint = !InParams.bTransient;
+
+		Result.bIsUbergraphPage = InParams.bCreateUbergraphPage;
+
+		const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+
+		// Create the wrapper setter node
+		UK2Node* SetterNode = nullptr;
+		{
+			int32 WrapperFieldIndex = CanCreateSetterGraphResult.bSplitPin ? CanCreateSetterGraphResult.LocalContainerPathIndex : (CanCreateSetterGraphResult.LocalContainerPathIndex + 1);
+			check(Fields.IsValidIndex(WrapperFieldIndex));
+			const FMVVMConstFieldVariant& WrapperField = Fields[WrapperFieldIndex];
+
+			if (WrapperField.IsProperty())
+			{
+				FGraphNodeCreator<UK2Node_VariableSet> CallFunctionCreator(*CreateGraphInternalResult.FunctionGraph);
+				UK2Node_VariableSet* VariableNode = CallFunctionCreator.CreateNode(false);
+				UEdGraphSchema_K2::ConfigureVarNode(VariableNode, WrapperField.GetName(), WrapperField.GetOwner(), Blueprint);
+				VariableNode->NodePosX = Result.bIsUbergraphPage ? 500 : 0;
+				CallFunctionCreator.Finalize();
+
+				SetterNode = VariableNode;
+			}
+			else
+			{
+				check(!CanCreateSetterGraphResult.bSplitPin);
+				check(WrapperField.IsFunction());
+
+				FGraphNodeCreator<UK2Node_CallFunction> CallFunctionCreator(*CreateGraphInternalResult.FunctionGraph);
+				UK2Node_CallFunction* CallFunctionNode = CallFunctionCreator.CreateNode();
+				CallFunctionNode->SetFromFunction(WrapperField.GetFunction());
+				CallFunctionNode->NodePosX = Result.bIsUbergraphPage ? 500 : 0;
+				CallFunctionCreator.Finalize();
+
+				SetterNode = CallFunctionNode;
+			}
+
+			// If we are not creating a setter for an ubergraph page the relevant node is the setter node
+			if (!Result.bIsUbergraphPage)
+			{
+				Result.WrappedNode = SetterNode;
+			}
+
+			Result.NamedNodes.Add(Private::NamedNodes::GeneratedSetter, SetterNode);
+			Private::MarkAsConversionFunction(Result.WrappedNode, Result.NewGraph);
+		}
+
+		// Make link Entry -> CallFunction || Entry -> Return
+		if (CreateGraphInternalResult.FunctionResult)
+		{
+			UEdGraphPin* FunctionEntryThenPin = InParams.bCreateUbergraphPage ? CreateGraphInternalResult.EventEntry->GetThenPin() : CreateGraphInternalResult.FunctionEntry->GetThenPin();
+			UEdGraphPin* FunctionResultExecPin = CreateGraphInternalResult.FunctionResult->GetExecPin();
+
+			if (SetterNode->IsNodePure())
+			{
+				GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
+			}
+			else
+			{
+				GraphSchema->TryCreateConnection(FunctionEntryThenPin, SetterNode->GetExecPin());
+				GraphSchema->TryCreateConnection(SetterNode->GetThenPin(), FunctionResultExecPin);
+
+				SetterNode->NodePosY = 0;
+			}
+		}
+
+		// Build the path to get the container to get to the wrapper.
+		UEdGraphPin* SplitPin = nullptr;
+		if (ensure(Fields.Num() > 0))
+		{
+			UEdGraphPin* WrapperSelfPin = SetterNode->FindPinChecked(UEdGraphSchema_K2::PSC_Self);
+			int32 ArgumentIndex = SetterNode->Pins.IndexOfByKey(WrapperSelfPin);
+			const float PosX = SetterNode->NodePosX;
+			const float PosY = SetterNode->NodePosY + ArgumentIndex * 100.0f;
+			TValueOrError<TArray<UEdGraphPin*>, void> PropertyPathPinsResult = Private::BuildPropertyPath(Blueprint, CreateGraphInternalResult.FunctionGraph, PropertyPath, CanCreateSetterGraphResult.LocalContainerPathIndex, FVector2f(PosX, PosY));
+			if (PropertyPathPinsResult.HasError())
+			{
+				Private::RemoveGraph(Blueprint, bAddToBlueprint, CreateGraphInternalResult);
+				return MakeError(LOCTEXT("SetterGraph_BuildPropertyPathFail", "Can't build the path to the setter."));
+			}
+
+			// Link the last data pin to the Conversation Function Pin
+			int32 DeltaIndex = CanCreateSetterGraphResult.bSplitPin ? -1 : 0;
+			int32 WrapperPinIndex = PropertyPathPinsResult.GetValue().Num() - 1 + DeltaIndex;
+			UEdGraphPin* ToLinkPin = PropertyPathPinsResult.GetValue()[WrapperPinIndex];
+
+			GraphSchema->TryCreateConnection(ToLinkPin, WrapperSelfPin);
+
+			SplitPin = CanCreateSetterGraphResult.bSplitPin ? PropertyPathPinsResult.GetValue().Last() : nullptr;
+		}
+
+		// If the path continue, split the pins and make the link
+		if (CanCreateSetterGraphResult.bSplitPin && SplitPin)
+		{
+			// need to break the pin
+			UK2Node* CurrentNode = SetterNode;
+			check(CurrentNode);
+			TArrayView<UEdGraphPin*> InPins = CurrentNode->Pins;
+			TArrayView<UEdGraphPin*> OutPins = TArrayView<UEdGraphPin*>(&SplitPin, 1);
+			FName PinName;
+			for (int32 Index = CanCreateSetterGraphResult.LocalContainerPathIndex; Index < Fields.Num(); ++Index)
+			{
+				const FMVVMConstFieldVariant& NewWrapperField = Fields[Index];
+
+				if (PinName.IsNone())
+				{
+					PinName = NewWrapperField.GetName();
+				}
+				else
+				{
+					PinName = FName(*FString::Printf(TEXT("%s_%s"), *PinName.ToString(), *NewWrapperField.GetName().ToString()));
+					for (int32 SubPinIndex = 0; SubPinIndex < InPins.Num(); ++SubPinIndex)
+					{
+						if (OutPins[SubPinIndex]->GetFName() != PinName)
+						{
+							GraphSchema->TryCreateConnection(OutPins[SubPinIndex], InPins[SubPinIndex]);
+							InPins[SubPinIndex]->bHidden = true;
+						}
+					}
+				}
+
+				bool bLastItem = Index == Fields.Num() - 1;
+				if (!bLastItem)
+				{
+					UEdGraphPin** FoundInPinPtr = InPins.FindByPredicate([PinName](const UEdGraphPin* Other) { return Other->GetFName() == PinName && Other->Direction == EGPD_Input && !Other->bHidden; });
+					UEdGraphPin** FoundOutPinPtr = OutPins.FindByPredicate([PinName](const UEdGraphPin* Other) { return Other->GetFName() == PinName && Other->Direction == EGPD_Output && !Other->bHidden; });
+					if (FoundInPinPtr == nullptr
+						|| FoundOutPinPtr == nullptr
+						|| !GraphSchema->CanSplitStructPin(**FoundInPinPtr)
+						|| !GraphSchema->CanSplitStructPin(**FoundOutPinPtr))
+					{
+						Private::RemoveGraph(Blueprint, bAddToBlueprint, CreateGraphInternalResult);
+						return MakeError(FText::Format(LOCTEXT("SetterGraph_CantSplitPin", "The pin {0} can't be split."), FText::FromName(NewWrapperField.GetName())));
+					}
+
+					GraphSchema->SplitPin(*FoundInPinPtr, false);
+					GraphSchema->SplitPin(*FoundOutPinPtr, false);
+
+					InPins = (*FoundInPinPtr)->SubPins;
+					OutPins = (*FoundOutPinPtr)->SubPins;
+				}
+			}
+		}
+
+		return MakeValue(MoveTemp(Result));
+	}
 
 	void RemoveNodesFromPin(UEdGraph* FunctionGraph, UEdGraphPin* PathPin)
 	{
@@ -735,6 +1052,42 @@ namespace Private
 			GraphSchema->TryCreateConnection(ThenPin, FunctionResultExecPin);
 		}
 	}
+
+	void LinkAllNodesForEvent(UEdGraph* FunctionGraph, UK2Node_Event* EventEntry, UEdGraphNode* Wrapper)
+	{
+		check(FunctionGraph && EventEntry && Wrapper);
+		const UEdGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+
+		UEdGraphPin* ThenPin = EventEntry->FindPinChecked(UEdGraphSchema_K2::PN_Then);
+		check(ThenPin);
+		ThenPin->BreakAllPinLinks();
+
+		// Break Pins for every pins
+		for (UEdGraphPin* Pin : Wrapper->Pins)
+		{
+			TArray<TTuple<UEdGraphNode*, UEdGraphPin*>> AllNodesForPath = Private::GetPropertyPathGraphNode(Pin);
+			for (const TTuple<UEdGraphNode*, UEdGraphPin*>& Pair : AllNodesForPath)
+			{
+				UEdGraphNode* PathNode = Pair.Get<UEdGraphNode*>();
+				if (UK2Node_CallFunction* CallFunction = Cast<UK2Node_CallFunction>(PathNode))
+				{
+					// if it not a pure node
+					if (UEdGraphPin* ExecPin = CallFunction->FindPin(UEdGraphSchema_K2::PN_Execute))
+					{
+						ThenPin->BreakAllPinLinks();
+						GraphSchema->TryCreateConnection(ThenPin, ExecPin);
+						ThenPin = CallFunction->FindPinChecked(UEdGraphSchema_K2::PN_Then);
+					}
+				}
+			}
+		}
+
+		// Make pin to the conversion node or to the return node
+		if (UEdGraphPin* CallFunctionExecPin = Wrapper->FindPin(UEdGraphSchema_K2::PN_Execute))
+		{
+			GraphSchema->TryCreateConnection(ThenPin, CallFunctionExecPin);
+		}
+	}
 } //namespace
 
 bool RequiresWrapper(const UFunction* ConversionFunction)
@@ -778,30 +1131,28 @@ TValueOrError<void, FText> CanCreateSetterGraph(UBlueprint* Blueprint, const FMV
 	return MakeValue();
 }
 
-TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient, const bool bIsForEvent)
+TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, FCreateGraphParams InParams)
 {
 	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
-	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields, bIsForEvent);
+	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields, InParams.bIsForEvent);
 	if (CanCreateSetterGraphResult.HasError())
 	{
 		return MakeError(CanCreateSetterGraphResult.StealError());
 	}
 
 	const bool bIsEditable = false;
-	const bool bAddToBlueprint = !bTransient;
-	Private::FCreateGraphResult CreateGraphInternalResult = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
+	const bool bAddToBlueprint = !InParams.bTransient;
 
-	auto RemoveGraph = [Blueprint, bAddToBlueprint, &CreateGraphInternalResult]()
-		{
-			if (CreateGraphInternalResult.FunctionGraph && bAddToBlueprint)
-			{
-				Blueprint->FunctionGraphs.RemoveSingleSwap(CreateGraphInternalResult.FunctionGraph);
-			}
-		};
+	Private::FCreateGraphParams CreateGraphParams;
+	CreateGraphParams.bIsConst = InParams.bIsConst;
+	CreateGraphParams.bIsEditable = bIsEditable;
+	CreateGraphParams.bAddToBlueprint = bAddToBlueprint;
+
+	Private::FCreateGraphResult CreateGraphInternalResult = Private::CreateGraph(Blueprint, GraphName, Signature, CreateGraphParams);
 
 	if (CreateGraphInternalResult.FunctionGraph == nullptr || CreateGraphInternalResult.FunctionEntry == nullptr)
 	{
-		RemoveGraph();
+		Private::RemoveGraph(Blueprint, bAddToBlueprint, CreateGraphInternalResult);
 		return MakeError(LOCTEXT("SetterGraph_CreateGraphFail", "Can create the graph object."));
 	}
 
@@ -809,157 +1160,94 @@ TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint
 	Result.NewGraph = CreateGraphInternalResult.FunctionGraph;
 	Result.WrappedNode = nullptr;
 
-	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
-
-	// Create the wrapper setter node
-	{
-		int32 WrapperFieldIndex = CanCreateSetterGraphResult.GetValue().bSplitPin ? CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex : (CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex + 1);
-		check(Fields.IsValidIndex(WrapperFieldIndex));
-		const FMVVMConstFieldVariant& WrapperField = Fields[WrapperFieldIndex];
-
-		if (WrapperField.IsProperty())
-		{
-			FGraphNodeCreator<UK2Node_VariableSet> CallFunctionCreator(*CreateGraphInternalResult.FunctionGraph);
-			UK2Node_VariableSet* VariableNode = CallFunctionCreator.CreateNode(false);
-			UEdGraphSchema_K2::ConfigureVarNode(VariableNode, WrapperField.GetName(), WrapperField.GetOwner(), Blueprint);
-			VariableNode->NodePosX = 0;
-			CallFunctionCreator.Finalize();
-
-			Result.WrappedNode = VariableNode;
-		}
-		else
-		{
-			check(!CanCreateSetterGraphResult.GetValue().bSplitPin);
-			check(WrapperField.IsFunction());
-
-			FGraphNodeCreator<UK2Node_CallFunction> CallFunctionCreator(*CreateGraphInternalResult.FunctionGraph);
-			UK2Node_CallFunction* CallFunctionNode = CallFunctionCreator.CreateNode();
-			CallFunctionNode->SetFromFunction(WrapperField.GetFunction());
-			CallFunctionNode->NodePosX = 0;
-			CallFunctionCreator.Finalize();
-
-			Result.WrappedNode = CallFunctionNode;
-		}
-		Private::MarkAsConversionFunction(Result.WrappedNode, Result.NewGraph);
-	}
-
-	// Make link Entry -> CallFunction || Entry -> Return
-	if (CreateGraphInternalResult.FunctionResult)
-	{
-		UEdGraphPin* FunctionEntryThenPin = CreateGraphInternalResult.FunctionEntry->GetThenPin();
-		UEdGraphPin* FunctionResultExecPin = CreateGraphInternalResult.FunctionResult->GetExecPin();
-
-		if (Result.WrappedNode->IsNodePure())
-		{
-			GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
-		}
-		else
-		{
-			GraphSchema->TryCreateConnection(FunctionEntryThenPin, Result.WrappedNode->GetExecPin());
-			GraphSchema->TryCreateConnection(Result.WrappedNode->GetThenPin(), FunctionResultExecPin);
-
-			Result.WrappedNode->NodePosY = 0;
-		}
-	}
-
-	// Build the path to get the container to get to the wrapper.
-	UEdGraphPin* SplitPin = nullptr;
-	if (ensure(Fields.Num() > 0))
-	{
-		UEdGraphPin* WrapperSelfPin = Result.WrappedNode->FindPinChecked(UEdGraphSchema_K2::PSC_Self);
-		int32 ArgumentIndex = Result.WrappedNode->Pins.IndexOfByKey(WrapperSelfPin);
-		const float PosX = Result.WrappedNode->NodePosX;
-		const float PosY = Result.WrappedNode->NodePosY + ArgumentIndex * 100.0f;
-		TValueOrError<TArray<UEdGraphPin*>, void> PropertyPathPinsResult = Private::BuildPropertyPath(Blueprint, CreateGraphInternalResult.FunctionGraph, PropertyPath, CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex, FVector2f(PosX, PosY));
-		if (PropertyPathPinsResult.HasError())
-		{
-			RemoveGraph();
-			return MakeError(LOCTEXT("SetterGraph_BuildPropertyPathFail", "Can't build the path to the setter."));
-		}
-
-		// Link the last data pin to the Conversation Function Pin
-		int32 DeltaIndex = CanCreateSetterGraphResult.GetValue().bSplitPin ? -1 : 0;
-		int32 WrapperPinIndex = PropertyPathPinsResult.GetValue().Num() - 1 + DeltaIndex;
-		UEdGraphPin* ToLinkPin = PropertyPathPinsResult.GetValue()[WrapperPinIndex];
-
-		GraphSchema->TryCreateConnection(ToLinkPin, WrapperSelfPin);
-
-		SplitPin = CanCreateSetterGraphResult.GetValue().bSplitPin ? PropertyPathPinsResult.GetValue().Last() : nullptr;
-	}
-
-	auto ForEachPins = [](TArrayView<UEdGraphPin*> Pins, TFunctionRef<void(UEdGraphPin*)> Function)
-		{
-			for (UEdGraphPin* Pin : Pins)
-			{
-				if (Pin->PinName != UEdGraphSchema_K2::PN_Self && Pin->PinName != UEdGraphSchema_K2::PN_Execute && Pin->Direction == EGPD_Input && !Pin->bHidden)
-				{
-					Function(Pin);
-				}
-			}
-		};
-
-	// If the path continue, split the pins and make the link
-	if (CanCreateSetterGraphResult.GetValue().bSplitPin && SplitPin)
-	{
-		// need to break the pin
-		UK2Node* CurrentNode = Result.WrappedNode;
-		check(CurrentNode);
-		TArrayView<UEdGraphPin*> InPins = CurrentNode->Pins;
-		TArrayView<UEdGraphPin*> OutPins = TArrayView<UEdGraphPin*>(&SplitPin, 1);
-		FName PinName;
-		for (int32 Index = CanCreateSetterGraphResult.GetValue().LocalContainerPathIndex; Index < Fields.Num(); ++Index)
-		{
-			const FMVVMConstFieldVariant& NewWrapperField = Fields[Index];
-
-			if (PinName.IsNone())
-			{
-				PinName = NewWrapperField.GetName();
-			}
-			else
-			{
-				PinName = FName(*FString::Printf(TEXT("%s_%s"), *PinName.ToString(), *NewWrapperField.GetName().ToString()));
-				for (int32 SubPinIndex = 0; SubPinIndex < InPins.Num(); ++SubPinIndex)
-				{
-					if (OutPins[SubPinIndex]->GetFName() != PinName)
-					{
-						GraphSchema->TryCreateConnection(OutPins[SubPinIndex], InPins[SubPinIndex]);
-						InPins[SubPinIndex]->bHidden = true;
-					}
-				}
-			}
-
-			bool bLastItem = Index == Fields.Num() -1;
-			if (!bLastItem)
-			{
-				UEdGraphPin** FoundInPinPtr = InPins.FindByPredicate([PinName](const UEdGraphPin* Other) { return Other->GetFName() == PinName && Other->Direction == EGPD_Input && !Other->bHidden; });
-				UEdGraphPin** FoundOutPinPtr = OutPins.FindByPredicate([PinName](const UEdGraphPin* Other) { return Other->GetFName() == PinName && Other->Direction == EGPD_Output && !Other->bHidden; });
-				if (FoundInPinPtr == nullptr
-					|| FoundOutPinPtr == nullptr
-					|| !GraphSchema->CanSplitStructPin(**FoundInPinPtr)
-					|| !GraphSchema->CanSplitStructPin(**FoundOutPinPtr))
-				{
-					RemoveGraph();
-					return MakeError(FText::Format(LOCTEXT("SetterGraph_CantSplitPin", "The pin {0} can't be split."), FText::FromName(NewWrapperField.GetName())));
-				}
-
-				GraphSchema->SplitPin(*FoundInPinPtr, false);
-				GraphSchema->SplitPin(*FoundOutPinPtr, false);
-
-				InPins = (*FoundInPinPtr)->SubPins;
-				OutPins = (*FoundOutPinPtr)->SubPins;
-			}
-		}
-	}
-
-	return MakeValue(MoveTemp(Result));
+	return Private::CreateSetterAndLinkNodes(PropertyPath, Blueprint, InParams, Result, CanCreateSetterGraphResult.GetValue(), CreateGraphInternalResult);
 }
 
-FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient)
+TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* Blueprint, FName GraphName, const TSubclassOf<UK2Node> Node, const FMVVMBlueprintPropertyPath& PropertyPath, FCreateGraphParams InParams)
+{
+	TArray<UE::MVVM::FMVVMConstFieldVariant> Fields = PropertyPath.GetCompleteFields(Blueprint);
+	TValueOrError<Private::FCanSetterGraphResult, FText> CanCreateSetterGraphResult = Private::CanCreateSetterGraph(Blueprint, Fields, InParams.bIsForEvent);
+	if (CanCreateSetterGraphResult.HasError())
+	{
+		return MakeError(CanCreateSetterGraphResult.StealError());
+	}
+
+	const bool bIsEditable = false;
+	const bool bAddToBlueprint = !InParams.bTransient;
+
+	Private::FCreateGraphParams CreateGraphParams;
+	CreateGraphParams.bIsConst = InParams.bIsConst;
+	CreateGraphParams.bIsEditable = bIsEditable;
+	CreateGraphParams.bAddToBlueprint = bAddToBlueprint;
+	CreateGraphParams.bCreateUbergraphPage = InParams.bCreateUbergraphPage;
+
+	Private::FCreateGraphResult CreateGraphInternalResult = Private::CreateGraph(Blueprint, GraphName, nullptr, CreateGraphParams);
+
+	if (CreateGraphInternalResult.FunctionGraph == nullptr || (!CreateGraphInternalResult.FunctionEntry && !CreateGraphInternalResult.EventEntry))
+	{
+		Private::RemoveGraph(Blueprint, bAddToBlueprint, CreateGraphInternalResult);
+		return MakeError(LOCTEXT("SetterGraph_CreateGraphFail", "Can create the graph object."));
+	}
+
+	FCreateGraphResult Result = CreateCallFunctionAndLinkNodes(Node, InParams, CreateGraphInternalResult, [](UK2Node*) {});
+
+	// Create the wrapper setter node
+	TValueOrError<FCreateGraphResult, FText> LinkedSetterGraph = Private::CreateSetterAndLinkNodes(PropertyPath, Blueprint, InParams, Result, CanCreateSetterGraphResult.GetValue(), CreateGraphInternalResult);
+
+	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+
+	if (!LinkedSetterGraph.HasError())
+	{
+		UK2Node** SetterNodeItr = LinkedSetterGraph.GetValue().NamedNodes.Find(Private::NamedNodes::GeneratedSetter);
+		UK2Node** CallFunctionNodeItr = LinkedSetterGraph.GetValue().NamedNodes.Find(Private::NamedNodes::GeneratedCallFunction);
+
+		if (SetterNodeItr && CallFunctionNodeItr)
+		{
+			UK2Node* SetterNode = *SetterNodeItr;
+			UK2Node* CallFunctionNode = *CallFunctionNodeItr;
+			UEdGraphPin* AsyncCompletedPin = CallFunctionNode->FindPinChecked(UEdGraphSchema_K2::PN_Completed);
+
+			// Link the Async result Exec with the setter
+			if (AsyncCompletedPin)
+			{
+				GraphSchema->TryCreateConnection(AsyncCompletedPin, SetterNode->GetExecPin());
+			}
+
+			// Link the Async result value with the setter args
+			if (AsyncCompletedPin)
+			{
+				UClass* BlueprintClass = Blueprint->SkeletonGeneratedClass ? Blueprint->SkeletonGeneratedClass : Blueprint->GeneratedClass;
+
+				if (UEdGraphPin* SetterParamPin = SetterNode->FindPin(PropertyPath.GetFieldNames(BlueprintClass).Last()))
+				{
+					GraphSchema->TryCreateConnection(CallFunctionNode->GetAllPins().Last(), SetterParamPin);
+				}
+				else
+				{
+					// @TODO: UE-221370 - Find a more robust way to link to multiple function args. Maybe enforce functions to have one arg for now if async.
+					GraphSchema->TryCreateConnection(CallFunctionNode->GetAllPins().Last(), SetterNode->GetAllPins().Last());
+				}
+
+			}
+		}
+	}
+
+	return LinkedSetterGraph;
+}
+
+FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, FCreateGraphParams InParams)
 {
 	bool bIsEditable = false;
-	bool bAddToBlueprint = !bTransient;
+	bool bAddToBlueprint = !InParams.bTransient;
+	bool bIsUbergraphPage = false;
 
-	Private::FCreateGraphResult NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
+	Private::FCreateGraphParams CreateGraphParams;
+	CreateGraphParams.bIsConst = InParams.bIsConst;
+	CreateGraphParams.bIsEditable = bIsEditable;
+	CreateGraphParams.bAddToBlueprint = bAddToBlueprint;
+	CreateGraphParams.bCreateUbergraphPage = bIsUbergraphPage;
+
+	Private::FCreateGraphResult NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, CreateGraphParams);
 	const UMVVMConversionFunctionGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
 
 	// create return value pin
@@ -1014,72 +1302,57 @@ FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFu
 		GraphSchema->TryCreateConnection(FunctionReturnPin, FunctionResultPin);
 	}
 
-	return { NewGraph.FunctionGraph , CallFunctionNode };
+	return FCreateGraphResult{ NewGraph.FunctionGraph , CallFunctionNode, TMap<FName, UK2Node*>{}, bIsUbergraphPage };
 }
 
-
-FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
+FCreateGraphResult CreateGraph(UBlueprint* Blueprint, FName GraphName, const UFunction* Signature, TSubclassOf<UK2Node> NodeType, FCreateGraphParams InParams, TFunctionRef<void(UK2Node*)> InitNodeCallback)
 {
 	bool bIsEditable = false;
-	bool bAddToBlueprint = !bTransient;
+	bool bAddToBlueprint = !InParams.bTransient;
 
-	Private::FCreateGraphResult NewGraph = Private::CreateGraph(Blueprint, GraphName, Signature, bIsConst, bIsEditable, bAddToBlueprint);
-	const UEdGraphSchema* GraphSchema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+	Private::FCreateGraphParams CreateGraphParams;
+	CreateGraphParams.bIsConst = InParams.bIsConst;
+	CreateGraphParams.bIsEditable = bIsEditable;
+	CreateGraphParams.bAddToBlueprint = bAddToBlueprint;
+	CreateGraphParams.bCreateUbergraphPage = InParams.bCreateUbergraphPage;
 
-	UK2Node* CallFunctionNode = nullptr;
-	{
-		FGraphNodeCreator<UK2Node> CallFunctionCreator(*NewGraph.FunctionGraph);
-		CallFunctionNode = CallFunctionCreator.CreateNode(true, NodeType);
-		InitNodeCallback(CallFunctionNode);
-		CallFunctionNode->NodePosX = 0;
-		CallFunctionCreator.Finalize();
-		Private::MarkAsConversionFunction(CallFunctionNode, NewGraph.FunctionGraph);
-	}
+	Private::FCreateGraphResult CreateGraphInternalResult = Private::CreateGraph(Blueprint, GraphName, Signature, CreateGraphParams);
+	FCreateGraphResult Result = CreateCallFunctionAndLinkNodes(NodeType, InParams, CreateGraphInternalResult, InitNodeCallback);
 
-	// Create return value pin
-	UEdGraphPin* CallFunctionOutputPin = Private::FindNewOutputPin(CallFunctionNode);
-	if (CallFunctionOutputPin)
-	{
-		TSharedPtr<FUserPinInfo> PinInfo = MakeShared<FUserPinInfo>();
-		PinInfo->PinType = CallFunctionOutputPin->PinType;
-		PinInfo->PinName = CallFunctionOutputPin->GetFName();
-		PinInfo->DesiredPinDirection = EGPD_Input;
-		NewGraph.FunctionResult->UserDefinedPins.Add(PinInfo);
-		NewGraph.FunctionResult->ReconstructNode();
-	}
-
-	// Make link Entry -> CallFunction || Entry -> Return
-	{
-		UEdGraphPin* FunctionEntryThenPin = NewGraph.FunctionEntry->GetThenPin();
-		UEdGraphPin* FunctionResultExecPin = NewGraph.FunctionResult->GetExecPin();
-
-		if (!CallFunctionNode->IsNodePure())
-		{
-			UEdGraphPin* CallFunctionExecPin = CallFunctionNode->GetExecPin();
-			UEdGraphPin* CallFunctionThenPin = CallFunctionNode->GetThenPin();
-
-			GraphSchema->TryCreateConnection(FunctionEntryThenPin, CallFunctionExecPin);
-			GraphSchema->TryCreateConnection(CallFunctionThenPin, FunctionResultExecPin);
-
-			CallFunctionNode->NodePosY = 0;
-		}
-		else
-		{
-			GraphSchema->TryCreateConnection(FunctionEntryThenPin, FunctionResultExecPin);
-			CallFunctionNode->NodePosY = 100;
-		}
-	}
-
-	if (CallFunctionOutputPin)
-	{
-		UEdGraphPin* FunctionResultPin = NewGraph.FunctionResult->FindPin(CallFunctionOutputPin->GetFName(), EGPD_Input);
-		check(FunctionResultPin);
-
-		GraphSchema->TryCreateConnection(CallFunctionOutputPin, FunctionResultPin);
-	}
-
-	return { NewGraph.FunctionGraph , CallFunctionNode };
+	return Result;
 }
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+TValueOrError<FCreateGraphResult, FText> CreateSetterGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const FMVVMBlueprintPropertyPath& PropertyPath, bool bIsConst, bool bTransient, const bool bIsForEvent)
+{
+	FCreateGraphParams Params;
+	Params.bIsConst = bIsConst;
+	Params.bTransient = bTransient;
+	Params.bIsForEvent = bIsForEvent;
+
+	return CreateSetterGraph(WidgetBlueprint, GraphName, Signature, PropertyPath, Params);
+}
+
+FCreateGraphResult CreateGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const UFunction* FunctionToWrap, bool bIsConst, bool bTransient)
+{
+	FCreateGraphParams Params;
+	Params.bIsConst = bIsConst;
+	Params.bTransient = bTransient;
+
+	return CreateGraph(WidgetBlueprint, GraphName, Signature, FunctionToWrap, Params);
+}
+
+FCreateGraphResult CreateGraph(UBlueprint* WidgetBlueprint, FName GraphName, const UFunction* Signature, const TSubclassOf<UK2Node> Node, bool bIsConst, bool bTransient, TFunctionRef<void(UK2Node*)> InitNodeCallback)
+{
+	FCreateGraphParams Params;
+	Params.bIsConst = bIsConst;
+	Params.bTransient = bTransient;
+
+	return CreateGraph(WidgetBlueprint, GraphName, Signature, Node, Params, InitNodeCallback);
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 UK2Node* InsertEarlyExitBranchNode(UEdGraph* Graph, TSubclassOf<UK2Node> BranchNodeType)
 {
@@ -1171,6 +1444,44 @@ void SetPropertyPathForPin(const UBlueprint* Blueprint, const FMVVMBlueprintProp
 	UEdGraphNode* ConversionNode = PathPin->GetOwningNode();
 	UEdGraph* FunctionGraph = ConversionNode ? ConversionNode->GetGraph() : nullptr;
 	const UEdGraphSchema* Schema = GetDefault<UMVVMConversionFunctionGraphSchema>();
+
+
+	UK2Node* K2ConversionNode = Cast<UK2Node>(ConversionNode);
+	if (K2ConversionNode && FunctionGraph)
+	{
+		if (UE::MVVM::ConversionFunctionHelper::IsAsyncNode(K2ConversionNode->GetClass()))
+		{
+			UK2Node_Event* ConversionEventEntry = Private::FindEventEntry(FunctionGraph);
+
+			// Remove previous nodes
+			Private::RemoveNodesFromPin(FunctionGraph, PathPin);
+
+			// Add new nodes
+			if (PropertyPath.IsValid())
+			{
+				const int32 ArgumentIndex = ConversionNode->Pins.IndexOfByPredicate([PathPin](const UEdGraphPin* Other){ return Other == PathPin; });
+				if (!ensure(ConversionNode->Pins.IsValidIndex(ArgumentIndex)))
+				{
+					return;
+				}
+
+				const int32 NumberOfFields = PropertyPath.GetFieldPaths().Num();
+				const float PosX = ConversionNode->NodePosX;
+				const float PosY = ConversionNode->NodePosY + ArgumentIndex * 100;
+				TValueOrError<TArray<UEdGraphPin*>, void> BuildPropertyPathResult = Private::BuildPropertyPath(Blueprint, FunctionGraph, PropertyPath, NumberOfFields, FVector2f(PosX, PosY));
+				if (BuildPropertyPathResult.HasError())
+				{
+					return;
+				}
+
+				// Link the last data pin to the Conversation Function Pin
+				Schema->TryCreateConnection(BuildPropertyPathResult.GetValue().Last(), PathPin);
+			}
+
+			// Link Then / Exec pin
+			Private::LinkAllNodesForEvent(FunctionGraph, ConversionEventEntry, ConversionNode);
+		}
+	}
 
 	UK2Node_FunctionEntry* ConverionFunctionEntry = ConversionNode ? Private::FindFunctionEntry(FunctionGraph) : nullptr;
 	UK2Node_FunctionResult* ConverionFunctionResult = ConversionNode ? Private::FindFunctionResult(FunctionGraph) : nullptr;
@@ -1325,6 +1636,20 @@ void MarkNodeAsAutoPromote(UEdGraphNode* Node)
 bool IsAutoPromoteNode(const UEdGraphNode* Node)
 {
 	return Node && Node->NodeComment.Contains(Private::AutoPromoteFunctionMetadataKey);
+}
+
+bool IsAsyncNode(const TSubclassOf<UK2Node> Node)
+{
+	// Note: Currently exists in MVVM as we would like for the kismet-level solution to not use CDO's.
+	// CDO's may give false readings if they are conditionally async (Ex: CallFunction).
+
+	if (!Node)
+	{
+		return false;
+	}
+
+	return Node->GetDefaultObject<UK2Node>()->IsCompatibleWithGraph(UMVVMFakeTestUbergraph::StaticClass()->GetDefaultObject<UEdGraph>())
+		&& !Node->GetDefaultObject<UK2Node>()->IsCompatibleWithGraph(UMVVMFakeTestFunctiongraph::StaticClass()->GetDefaultObject<UEdGraph>());
 }
 
 } // UE::MVVM::ConversionFunctionHelper

@@ -39,6 +39,7 @@ class FKismetCompilerContext;
 class FKismetCompilerVMBackend;
 class FLinkerLoad;
 class FProperty;
+class FMulticastDelegateProperty;
 class UBlueprintGeneratedClass;
 class UClass;
 class UEdGraph;
@@ -101,6 +102,14 @@ protected:
 
 	/** Set of function graphs generated for the class layout at compile time  */
 	TArray<UEdGraph*> GeneratedFunctionGraphs;
+
+	/** Set of ubergraph pages generated for the class layout at compile time  */
+	TArray<UEdGraph*> GeneratedUbergraphPages;
+
+	/** 
+	 * Set of generated multicast delegate properties 
+	 */
+	TArray<FMulticastDelegateProperty*> GeneratedMulticastDelegateProps;
 
 	/** Event that is broadcast immediately after the function list for this context has been compiled. */
 	FOnFunctionListCompiled FunctionListCompiledEvent;
@@ -385,6 +394,22 @@ protected:
 	/** Creates a class variable */
 	FProperty* CreateVariable(const FName Name, const FEdGraphPinType& Type);
 
+	/** 
+	 * Creates a multicast delegate variable & associated signature graph / function, use to generate events 
+	 * 
+	 * You must add an ubergraph page containing an 'UK2Node_GeneratedBoundEvent' that corresponds to this delegate
+	 * to 'GeneratedUbergraphPages' in your 'FKismetCompilerContext'. We do not create this graph / page for you so that
+	 * graph creation is not coupled to variable creation. We will associate this delegate with your node for you by name.
+	 */
+	FMulticastDelegateProperty* CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type);
+
+	/** 
+	 * Creates a multicast delegate variable & associated signature graph / Function, use to generate events 
+	 * 
+	 * Defaults to base MulticastDelegate type. See above version with 'Type' arg for more info.
+	 */
+	FMulticastDelegateProperty* CreateMulticastDelegateVariable(const FName Name);
+
 	// Gives derived classes a chance to emit debug data
 	virtual void PostCompileDiagnostics() {}
 
@@ -455,6 +480,11 @@ protected:
 	FKismetFunctionContext* CreateFunctionContext();
 
 	/**
+	 * Merges a single ubergraph page into the main ubergraph
+	 */
+	virtual void MergeGraphIntoUbergraph(UEdGraph* SourceGraph, UEdGraph* Ubergraph);
+
+	/**
 	 * Merges macros/subgraphs into the graph and validates it, creating a function list entry if it's reasonable.
 	 */
 	virtual void ProcessOneFunctionGraph(UEdGraph* SourceGraph, bool bInternalFunction = false);
@@ -514,6 +544,9 @@ protected:
 	 *   - Creates a UFunction object containing parameters and local variables (but no script code yet)
 	 */
 	virtual void PrecompileFunction(FKismetFunctionContext& Context, EInternalCompilerFlags InternalFlags);
+
+	/** Called to initialize generated event nodes that came from generated ubergraph pages after delegate signature compilation is done */
+	virtual void InitializeGeneratedEventNodes(EInternalCompilerFlags InternalFlags);
 
 	/**
 	 * Used for performing custom patching during stage IX of the compilation during load.

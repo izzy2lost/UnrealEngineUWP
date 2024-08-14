@@ -10,6 +10,8 @@
 #include "Components/Widget.h"
 #include "Extensions/MVVMBlueprintViewExtension.h"
 #include "HAL/IConsoleManager.h"
+#include "Kismet2/BlueprintEditorUtils.h"
+#include "K2Node_ComponentBoundEvent.h"
 #include "Misc/NamePermissionList.h"
 #include "MVVMBlueprintView.h"
 #include "MVVMBlueprintViewConversionFunction.h"
@@ -398,7 +400,7 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 
 	// Create variable
 	{
-		auto CreateVariable = [&Context](const FCompilerUserWidgetProperty& UserWidgetProperty) -> FProperty*
+		auto CreateObjectVariable = [&Context](const FCompilerUserWidgetProperty& UserWidgetProperty) -> FProperty*
 		{
 			FEdGraphPinType NewPropertyPinType(UEdGraphSchema_K2::PC_Object, NAME_None, UserWidgetProperty.AuthoritativeClass, EPinContainerType::None, false, FEdGraphTerminalType());
 			FProperty* NewProperty = Context.CreateVariable(UserWidgetProperty.Name, NewPropertyPinType);
@@ -567,7 +569,7 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 				|| (UserWidgetProperty.CreationType == FCompilerUserWidgetProperty::ECreationType::CreateIfDoesntExist && UserWidgetPropertyField.IsEmpty());
 			if (bCreateVariable)
 			{
-				UserWidgetProperty.Property = CreateVariable(UserWidgetProperty);
+				UserWidgetProperty.Property = CreateObjectVariable(UserWidgetProperty);
 			}
 			else if (UserWidgetPropertyField.IsProperty())
 			{
@@ -579,6 +581,38 @@ void FMVVMViewBlueprintCompiler::CreateVariables(const FWidgetBlueprintCompilerC
 				WidgetBlueprintCompilerContext.MessageLog.Error(*FText::Format(LOCTEXT("VariableCouldNotBeCreated", "The variable for '{0}' could not be created."), UserWidgetProperty.DisplayName).ToString());
 				bIsCreateVariableStepValid = false;
 				continue;
+			}
+		}
+	}
+
+	// Add multicast delegate variables for any events / ubergraph pages that need them to fire
+	{
+		for (const TSharedRef<FCompilerBinding>& ValidBinding : ValidBindings)
+		{
+			FMVVMBlueprintViewBinding& Binding = *BlueprintView->GetBindingAt(ValidBinding->Key.ViewBindingIndex);
+
+			// Functions are not yet generated / valid, but their graphs exist & we need to create delegates events that may be added to the ubergraph
+			if (ValidBinding->Type == FCompilerBinding::EType::Unknown)
+			{
+				if (UMVVMBlueprintViewConversionFunction* ConversionFunction = Binding.Conversion.GetConversionFunction(ValidBinding->Key.bIsForwardBinding))
+				{
+					if (ConversionFunction->IsUbergraphPage() && !ConversionFunction->GetWrapperGraphName().IsNone())
+					{
+						// Create a multicast delegate variable that the event node will bind to
+						Context.CreateMulticastDelegateVariable(ConversionFunction->GetWrapperGraphName());
+
+						// Functions / Graphs should only be compiled in full compilations
+						if (Context.GetCompileType() == EKismetCompileType::Full)
+						{
+							ConversionFunction->SetDestinationPath(Binding.DestinationPath);
+							UEdGraph* WrapperGraph = ConversionFunction->GetOrCreateIntermediateWrapperGraph(WidgetBlueprintCompilerContext);
+
+							ensure(WrapperGraph);
+							ensure(ConversionFunction->IsWrapperGraphTransient());
+							ensure(!WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph));
+						}
+					}
+				}
 			}
 		}
 	}
@@ -1481,9 +1515,27 @@ void FMVVMViewBlueprintCompiler::CreateIntermediateGraphFunctions(const FWidgetB
 				bool bAlreadyContained = WidgetBlueprintCompilerContext.Blueprint->FunctionGraphs.Contains(WrapperGraph);
 				if (ensure(!bAlreadyContained))
 				{
-					Context.AddGeneratedFunctionGraph(WrapperGraph);
+					if (ConversionFunction->IsUbergraphPage())
+					{
+						// Calls to Latent Functions require a mapping to a stable, non-transient UObject for Latent Manager to use as UUID for execution
+						WidgetBlueprintCompilerContext.MessageLog.NotifyIntermediateObjectCreation(ConversionFunction->GetWrapperNode(), ConversionFunction->GetLatentNodeUUID());
+						Context.AddGeneratedUbergraphPage(WrapperGraph);
+					}
+					else
+					{
+						Context.AddGeneratedFunctionGraph(WrapperGraph);
+					}
 				}
-				GeneratedFunctions.Add(WrapperGraph->GetFName());
+
+				if (ConversionFunction->IsUbergraphPage())
+				{
+					// Append the delegate signature suffix, note that we can't name the graph this as the delegate itself uses this name.
+					GeneratedFunctions.Add(UE::MVVM::BindingHelper::GetDelegateSignatureName(WrapperGraph->GetFName()));
+				}
+				else
+				{
+					GeneratedFunctions.Add(WrapperGraph->GetFName());
+				}
 			}
 		}
 	}
@@ -2669,8 +2721,8 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 	auto AddConversionFunction = [Self = this, Class](FCompilerBinding& ValidBinding, const FMVVMBlueprintViewBinding& Binding) -> bool
 	{
 		const UFunction* ConversionFunction = nullptr;
+		UMVVMBlueprintViewConversionFunction* ViewConversionFunction = ValidBinding.ConversionFunction.Get();
 		{
-			UMVVMBlueprintViewConversionFunction* ViewConversionFunction = ValidBinding.ConversionFunction.Get();
 			if (ViewConversionFunction)
 			{
 				ConversionFunction = ViewConversionFunction->GetCompiledFunction(Class);
@@ -2722,9 +2774,12 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 			}
 		}
 
+		bool bIsUbergraphPage = ViewConversionFunction && ViewConversionFunction->IsUbergraphPage();
 		if (ConversionFunction != nullptr)
 		{
-			TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FieldPathResult = Self->BindingLibraryCompiler.AddConversionFunctionFieldPath(Class, ConversionFunction);
+			TValueOrError<FCompiledBindingLibraryCompiler::FFieldPathHandle, FText> FieldPathResult = bIsUbergraphPage 
+				? Self->BindingLibraryCompiler.AddDelegateSignatureFieldPath(Class, ConversionFunction)
+				: Self->BindingLibraryCompiler.AddConversionFunctionFieldPath(Class, ConversionFunction);
 			if (FieldPathResult.HasError())
 			{
 				Self->AddMessageForBinding(Binding
@@ -2741,6 +2796,7 @@ void FMVVMViewBlueprintCompiler::PreCompileBindings(UWidgetBlueprintGeneratedCla
 		}
 
 		// Sanity check
+		if (!bIsUbergraphPage)
 		{
 			const bool bShouldHaveConversionFunction = ValidBinding.Type == FCompilerBinding::EType::ComplexConversionFunction || ValidBinding.Type == FCompilerBinding::EType::SimpleConversionFunction;
 			if ((ConversionFunction != nullptr) != bShouldHaveConversionFunction)

@@ -405,6 +405,9 @@ void UMVVMEditorSubsystem::SetSourceToDestinationConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.SourceToDestinationConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+
+				// Set Destination Path in case this is an async conversion function which will handle destination update in graph
+				Binding.Conversion.SourceToDestinationConversion->SetDestinationPath(Binding.DestinationPath);
 				Binding.Conversion.SourceToDestinationConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 
@@ -461,6 +464,9 @@ void UMVVMEditorSubsystem::SetDestinationToSourceConversionFunction(UWidgetBluep
 			{
 				Binding.Conversion.DestinationToSourceConversion = NewObject<UMVVMBlueprintViewConversionFunction>(WidgetBlueprint);
 				FName GraphName = UE::MVVM::ConversionFunctionHelper::CreateWrapperName(Binding, true);
+
+				// Set Destination Path in case this is an async conversion function which will handle destination update in graph
+				Binding.Conversion.DestinationToSourceConversion->SetDestinationPath(Binding.DestinationPath);
 				Binding.Conversion.DestinationToSourceConversion->Initialize(WidgetBlueprint, GraphName, NewConversionFunction);
 			}
 

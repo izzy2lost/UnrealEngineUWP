@@ -31,3 +31,20 @@ bool UMVVMConversionFunctionGraphSchema::TryCreateConnection(UEdGraphPin* A, UEd
 	}
 	return bResult;
 }
+
+///////////////////////////////////////////////////////////////////////////////
+
+EGraphType UMVVMFakeTestUbergraphSchema::GetGraphType(const UEdGraph* TestEdGraph) const
+{
+	return EGraphType::GT_Ubergraph;
+}
+
+UMVVMFakeTestUbergraph::UMVVMFakeTestUbergraph()
+{
+	Schema = UMVVMFakeTestUbergraphSchema::StaticClass();
+}
+
+UMVVMFakeTestFunctiongraph::UMVVMFakeTestFunctiongraph()
+{
+	Schema = UMVVMConversionFunctionGraphSchema::StaticClass();
+}

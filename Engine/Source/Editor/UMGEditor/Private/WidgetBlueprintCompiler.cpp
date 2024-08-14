@@ -44,6 +44,16 @@ FProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateVariab
 	return Context.CreateVariable(Name, Type);
 }
 
+FMulticastDelegateProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateMulticastDelegateVariable(const FName Name, const FEdGraphPinType& Type) const
+{
+	return Context.CreateMulticastDelegateVariable(Name, Type);
+}
+
+FMulticastDelegateProperty* FWidgetBlueprintCompilerContext::FCreateVariableContext::CreateMulticastDelegateVariable(const FName Name) const
+{
+	return Context.CreateMulticastDelegateVariable(Name);
+}
+
 void FWidgetBlueprintCompilerContext::FCreateVariableContext::AddGeneratedFunctionGraph(UEdGraph* Graph) const
 {
 	Context.GeneratedFunctionGraphs.Add(Graph);
@@ -80,6 +90,11 @@ FWidgetBlueprintCompilerContext::FCreateFunctionContext::FCreateFunctionContext(
 void FWidgetBlueprintCompilerContext::FCreateFunctionContext::AddGeneratedFunctionGraph(UEdGraph* Graph) const
 {
 	Context.GeneratedFunctionGraphs.Add(Graph);
+}
+
+void FWidgetBlueprintCompilerContext::FCreateFunctionContext::AddGeneratedUbergraphPage(UEdGraph* Graph) const
+{
+	Context.GeneratedUbergraphPages.Add(Graph);
 }
 
 UWidgetBlueprintGeneratedClass* FWidgetBlueprintCompilerContext::FCreateFunctionContext::GetGeneratedClass() const
