@@ -1364,7 +1364,7 @@ void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Fron
 	checkf(!DocObject.IsAsset(), TEXT("Cannot call clear document on asset '%s': builder API does not support document mutation on serialized objects without editor data loaded"), *GetDebugName());
 #endif // !WITH_EDITORONLY_DATA
 
-	GraphClass.InitDefaultGraph();
+	GraphClass.InitDefaultGraphPage();
 
 	Doc.Interfaces.Empty();
 	Doc.Dependencies.Empty();
@@ -2384,7 +2384,7 @@ void FMetaSoundFrontendDocumentBuilder::InitDocument(const FMetasoundFrontendDoc
 	METASOUND_TRACE_CPUPROFILER_EVENT_SCOPE(FMetaSoundFrontendDocumentBuilder::InitDocument);
 
 	FMetasoundFrontendDocument& Document = GetDocumentChecked();
-	Document.RootGraph.InitDefaultGraph();
+	Document.RootGraph.InitDefaultGraphPage();
 
 	// 1. Set default class Metadata.
 	if (InDocumentTemplate)

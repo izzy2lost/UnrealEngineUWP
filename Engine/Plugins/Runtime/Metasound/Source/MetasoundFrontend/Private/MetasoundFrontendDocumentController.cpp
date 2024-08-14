@@ -403,7 +403,7 @@ namespace Metasound
 							FMetasoundFrontendGraphClass NewClass;
 							NewClass.ID = FGuid::NewGuid();
 							NewClass.Metadata = InMetadata;
-							NewClass.InitDefaultGraph();
+							NewClass.InitDefaultGraphPage();
 							Document->Subgraphs.Add(NewClass);
 						}
 						break;

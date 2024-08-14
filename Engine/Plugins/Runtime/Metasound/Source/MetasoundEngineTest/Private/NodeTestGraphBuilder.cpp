@@ -14,7 +14,7 @@ namespace Metasound::Test
 	{
 		Document.RootGraph.Metadata.SetClassName({ "Metasound", "TestNodes", *LexToString(FGuid::NewGuid()) });
 		Document.RootGraph.Metadata.SetType(EMetasoundFrontendClassType::Graph);
-		Document.RootGraph.InitDefaultGraph();
+		Document.RootGraph.InitDefaultGraphPage();
 
 		DocumentHandle = IDocumentController::CreateDocumentHandle(Document);
 		RootGraph = DocumentHandle->GetRootGraph();
