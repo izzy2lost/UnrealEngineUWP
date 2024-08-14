@@ -53,7 +53,7 @@ FRDGTextureRef TryCreateViewFamilyDepthTexture(FRDGBuilder& GraphBuilder, const 
 	if (TextureRHI)
 	{
 		Texture = RegisterExternalTexture(GraphBuilder, TextureRHI, TEXT("ViewFamilyDepthTexture"));
-		GraphBuilder.SetTextureAccessFinal(Texture, ERHIAccess::RTV);
+		GraphBuilder.SetTextureAccessFinal(Texture, ERHIAccess::DSVWrite);
 	}
 	return Texture;
 }
