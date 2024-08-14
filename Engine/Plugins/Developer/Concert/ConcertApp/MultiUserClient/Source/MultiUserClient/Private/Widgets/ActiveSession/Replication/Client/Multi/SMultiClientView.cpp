@@ -202,6 +202,8 @@ namespace UE::MultiUserClient::Replication
 			Client.OnHierarchyNeedsRefresh().AddRaw(this, &SMultiClientView::RefreshUI);
 			return EBreakBehavior::Continue;
 		});
+
+		RefreshUI();
 	}
 
 	void SMultiClientView::CleanClientSubscriptions() const
