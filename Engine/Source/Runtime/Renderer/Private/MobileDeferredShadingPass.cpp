@@ -377,6 +377,14 @@ static void GetLightMaterial(const FCachedLightMaterial& DefaultLightMaterial, c
 	// use default material
 	OutLightMaterial.Material = DefaultLightMaterial.Material;
 	OutLightMaterial.MaterialProxy = DefaultLightMaterial.MaterialProxy;
+
+	// Perform a TryGetShaders to allow ODSC to record a shader recompile request when enabled
+	if (DefaultLightMaterial.Material->TryGetShaders(ShaderTypes, nullptr, Shaders))
+	{
+		Shaders.TryGetPixelShader(OutShader);
+		return;
+	}
+
 	const FMaterialShaderMap* MaterialShaderMap = OutLightMaterial.Material->GetRenderingThreadShaderMap();
 	OutShader = MaterialShaderMap->GetShader<ShaderType>(PermutationId);
 }

@@ -369,6 +369,7 @@ void FODSCThread::AddShaderPipelineRequest(
 )
 {
 	bool bShouldAddRequest = false;
+	bool bDefaultMaterial = false;
 
 	FString ActorPath;
 	{
@@ -380,6 +381,8 @@ void FODSCThread::AddShaderPipelineRequest(
 			CachedMaterialName = FName(Material->GetFullPath());
 		}
 		
+		bDefaultMaterial = Material->IsDefaultMaterial();
+
 		FODSCShaderMapData& ODSCShaderMapData = RequestHashes.FindOrAdd(CachedMaterialName);
 
 		for (const FShaderId& ShaderId : RequestShaderIds)
@@ -390,6 +393,12 @@ void FODSCThread::AddShaderPipelineRequest(
 			{
 				bShouldAddRequest = true;
 			}
+		}
+
+		// for default materials, we request all the permutations anyway
+		if (bDefaultMaterial && ODSCShaderMapData.CurrentRequests.Num() > 1)
+		{
+			bShouldAddRequest = false;
 		}
 
 		if (bShouldAddRequest)
@@ -418,7 +427,7 @@ void FODSCThread::AddShaderPipelineRequest(
 
 		FString MaterialName = Material->GetFullPath();
 
-		if (!ActorPath.IsEmpty())
+		if (!bDefaultMaterial && !ActorPath.IsEmpty())
 		{
 			MaterialName += ":::";
 			MaterialName += ActorPath;
@@ -430,7 +439,16 @@ void FODSCThread::AddShaderPipelineRequest(
 			RequestString += ShaderTypeName;
 		}
 		const FString RequestHash = FMD5::HashAnsiString(*RequestString);
-		PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
+		if (bDefaultMaterial)
+		{
+			TArray<FString> MaterialsToCompile = {MaterialName};
+			FString ShaderTypesToLoad;
+			PendingMaterialThreadedRequests.Enqueue(new FODSCMessageHandler(MaterialsToCompile, ShaderTypesToLoad, ShaderPlatform, FeatureLevel, QualityLevel, ODSCRecompileCommand::Material));
+		}
+		else
+		{
+			PendingMeshMaterialThreadedRequests.Enqueue(FODSCRequestPayload(ShaderPlatform, FeatureLevel, QualityLevel, MaterialName, VertexFactoryName, PipelineName, ShaderTypeNames, PermutationId, RequestHash));
+		}
 	}
 }
 

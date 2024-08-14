@@ -327,6 +327,11 @@ bool FODSCManager::ShouldForceRecompileInternal(const FMaterialShaderMap* Materi
 		return false;
 	}
 
+	if (Material->IsDefaultMaterial() && !Material->IsLightFunction())
+	{
+		return false;
+	}
+
 	if (!MaterialNameToRecompile.IsNone())
 	{
 		EODSCMetaDataType ODSCMetaData = (EODSCMetaDataType)Material->GetODSCMetaData();

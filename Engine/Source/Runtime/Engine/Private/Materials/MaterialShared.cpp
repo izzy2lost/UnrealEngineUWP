@@ -3731,7 +3731,7 @@ bool FMaterial::TryGetShaders(const FMaterialShaderTypes& InTypes, const FVertex
 
 #if WITH_ODSC
 	const bool bIsODSCActive = FODSCManager::IsODSCActive();
-	bool bShouldForceRecompile = bIsODSCActive && FODSCManager::ShouldForceRecompile(ShaderMap, this) && !IsDefaultMaterial();
+	bool bShouldForceRecompile = bIsODSCActive && FODSCManager::ShouldForceRecompile(ShaderMap, this);
 #else
 	constexpr bool bIsODSCActive = false;
 	constexpr bool bShouldForceRecompile = false;
