@@ -112,7 +112,8 @@ void FNetTrace::TraceInstanceUpdated(uint32 GameInstanceId, bool bIsServer, cons
 
 FNetTraceCollector* FNetTrace::CreateTraceCollector()
 {
-	if (!GNetTraceRuntimeVerbosity)
+	if (!GNetTraceRuntimeVerbosity || 
+		!UE::Trace::IsTracing()) // don't use collectors when not actively tracing, for perf reasons
 	{
 		return nullptr;
 	}
@@ -531,7 +532,7 @@ UE::Net::FNetDebugNameId FNetTrace::TraceName(const TCHAR* Name)
 		ThreadBufferPtr->DynamicNameHashToNameIdMap.Add(HashedName, NameId);
 
 		FTCHARToUTF8 Converter(Name);
-		FNetTraceInternal::Reporter::ReportAnsiName(NameId, Converter.Length() + 1, (const char*)Converter.Get());		
+		FNetTraceInternal::Reporter::ReportAnsiName(NameId, Converter.Length(), (const char*)Converter.Get());		
 		
 		return NameId;
 	}
@@ -566,7 +567,7 @@ UE::Net::FNetDebugNameId FNetTrace::TraceName(FName Name)
 		TCHAR Buffer[StringBufferSize];
 		uint32 NameLen = Name.ToString(Buffer);
 		FTCHARToUTF8 Converter(Buffer);
-		FNetTraceInternal::Reporter::ReportAnsiName(NameId, Converter.Length() + 1, (const char*)Converter.Get());		
+		FNetTraceInternal::Reporter::ReportAnsiName(NameId, Converter.Length(), (const char*)Converter.Get());		
 		
 		return NameId;
 	}
