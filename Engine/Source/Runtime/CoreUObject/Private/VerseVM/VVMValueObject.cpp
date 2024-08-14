@@ -4,6 +4,7 @@
 #include "VerseVM/VVMValueObject.h"
 #include "Templates/TypeHash.h"
 #include "VerseVM/Inline/VVMAbstractVisitorInline.h"
+#include "VerseVM/Inline/VVMArrayBaseInline.h"
 #include "VerseVM/Inline/VVMMarkStackVisitorInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
@@ -18,16 +19,42 @@ template <typename TVisitor>
 void VValueObject::VisitReferencesImpl(TVisitor& Visitor)
 {
 	const VEmergentType* EmergentType = GetEmergentType();
-	VRestValue* Data = GetFieldData(*EmergentType->CppClassInfo);
-	uint64 NumIndexedFields = EmergentType->Shape->NumIndexedFields;
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginArray(TEXT("Data"), NumIndexedFields);
-		Visitor.Visit(Data, Data + NumIndexedFields);
-		Visitor.EndArray();
+		Visitor.BeginObject();
+		const VCppClassInfo* CppClassInfo = EmergentType->CppClassInfo;
+		for (VShape::FieldsMap::TConstIterator I = EmergentType->Shape->Fields; I; ++I)
+		{
+			FString Key = I->Key->AsString();
+			switch (I->Value.Type)
+			{
+				case EFieldType::Offset:
+				{
+					VRestValue& Value = GetFieldData(*CppClassInfo)[I->Value.Index];
+					::Verse::Visit(Visitor, Value, *Key);
+					break;
+				}
+				case EFieldType::FProperty:
+				{
+					check(I->Value.UProperty->IsA<FVRestValueProperty>());
+					VRestValue& Value = *I->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(*CppClassInfo));
+					::Verse::Visit(Visitor, Value, *Key);
+					break;
+				}
+				case EFieldType::Constant:
+				{
+					VValue Value = I->Value.Value.Get();
+					::Verse::Visit(Visitor, Value, *Key);
+					break;
+				}
+			}
+		}
+		Visitor.EndObject();
 	}
 	else
 	{
+		VRestValue* Data = GetFieldData(*EmergentType->CppClassInfo);
+		uint64 NumIndexedFields = EmergentType->Shape->NumIndexedFields;
 		Visitor.Visit(Data, Data + NumIndexedFields);
 	}
 }
