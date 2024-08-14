@@ -115,9 +115,10 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 				float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 				uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), WaterDepth);
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+				FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
+				uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+				uint DataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 			#else
 				uint NumCulledReflectionCaptures = 0;
 				uint CaptureDataStartIndex = 0;
@@ -190,9 +191,10 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 				float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 				uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), WaterDepth);
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+				FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
+				uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+				uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 			#else
 				uint NumCulledReflectionCaptures = 0;
 				uint CaptureDataStartIndex = 0;

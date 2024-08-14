@@ -165,9 +165,7 @@ float3 GatherRadiance(float3 RayDirection, float Roughness, uint2 PixelPosition,
 	const uint EyeIndex = 0;
 	const uint GridIndex = ComputeLightGridCellIndex(PixelPosition, PixelSceneDepth, EyeIndex);
 
-	const uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-	const uint NumLocalReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-	const uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, EyeIndex);
 
 	const bool bCompositeSkylight = true;
 	return CompositeReflectionCapturesAndSkylightTWS(
@@ -178,8 +176,8 @@ float3 GatherRadiance(float3 RayDirection, float Roughness, uint2 PixelPosition,
 		IndirectIrradiance,
 		1.0f,
 		0.0f,
-		NumLocalReflectionCaptures,
-		DataStartIndex,
+		CulledReflectionCapturesGridHeader.NumReflectionCaptures,
+		CulledReflectionCapturesGridHeader.DataStartIndex,
 		SingleCaptureIndex,
 		bCompositeSkylight,
 		EyeIndex);

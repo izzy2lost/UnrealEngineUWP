@@ -204,9 +204,10 @@ float3 ReflectionEnvironment(FGBufferData GBuffer, float AmbientOcclusion, float
 	float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 
 	uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), GBuffer.Depth);
-	uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-	uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-	uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
+	uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+	uint DataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 #else
 	uint DataStartIndex = 0;
 	uint NumCulledReflectionCaptures = 0;
@@ -437,9 +438,10 @@ void ReflectionEnvironmentSkyLighting(
 		float2 LocalPosition = SvPosition.xy - View.ViewRectMin.xy;
 	
 		uint GridIndex = ComputeLightGridCellIndex(uint2(LocalPosition.x, LocalPosition.y), SceneDepth);
-		uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-		uint NumCulledReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-		uint CaptureDataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+		FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
+		uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
+		uint DataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 	#else
 		uint CaptureDataStartIndex = 0;
 		uint NumCulledReflectionCaptures = 0;

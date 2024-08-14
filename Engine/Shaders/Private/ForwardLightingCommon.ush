@@ -434,30 +434,7 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 	else
 #endif
 	{
-		uint NumLocalReflectionCaptures = 0;
-		uint DataStartIndex = 0;
-
-#if REFLECTION_COMPOSITE_USE_BLENDED_REFLECTION_CAPTURES
-		#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
-			BRANCH
-			if (EyeIndex == 0)
-			{
-		#endif
-
-				uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				NumLocalReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-				DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
-
-		#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
-			}
-			else
-			{
-				uint NumCulledEntryIndex = (ForwardLightDataISR.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-				NumLocalReflectionCaptures = min(ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightDataISR.NumReflectionCaptures);
-				DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 1];
-			}
-		#endif
-#endif
+		FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, EyeIndex);
 
 		const bool bCompositeSkylight = true;
 		SpecularIBL = CompositeReflectionCapturesAndSkylightTWS(
@@ -468,8 +445,8 @@ half3 GetImageBasedReflectionSpecular(FMaterialPixelParameters MaterialParameter
 			IndirectIrradiance, 
 			1.0f, 
 			0.0f, 
-			NumLocalReflectionCaptures, 
-			DataStartIndex, 
+			CulledReflectionCapturesGridHeader.NumReflectionCaptures, 
+			CulledReflectionCapturesGridHeader.DataStartIndex, 
 			SingleCaptureIndex,
 			bCompositeSkylight,
 			EyeIndex);

@@ -157,6 +157,39 @@ FCulledLightsGridData GetCulledLightsGrid(uint GridIndex, uint EyeIndex)
 	return Result;
 }
 
+struct FCulledReflectionCapturesGridHeader
+{
+	uint NumReflectionCaptures;
+	uint DataStartIndex;
+};
+
+FCulledReflectionCapturesGridHeader GetCulledReflectionCapturesGrid(uint GridIndex, uint EyeIndex)
+{
+	FCulledReflectionCapturesGridHeader Result;
+
+#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
+	BRANCH
+	if (EyeIndex == 0)
+	{
+#endif
+
+		const uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
+		Result.NumReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
+		Result.DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+
+#if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
+	}
+	else
+	{
+		const uint NumCulledEntryIndex = (ForwardLightDataISR.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
+		Result.NumReflectionCaptures = min(ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightDataISR.NumReflectionCaptures);
+		Result.DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+	}
+#endif
+
+	return Result;
+}
+
 FDirectionalLightData GetDirectionalLightData(uint EyeIndex)
 {
 	FDirectionalLightData Result;

@@ -356,9 +356,7 @@ half3 GetImageBasedReflectionLighting_Mobile(
 	half3 SpecularIBL = (half3)0.0f;
 
 #if ENABLE_CLUSTERED_REFLECTION
-	uint NumCulledEntryIndex = (ForwardLightData.NumGridCells + GridIndex) * NUM_CULLED_LIGHTS_GRID_STRIDE;
-	uint NumLocalReflectionCaptures = min(ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 0], ForwardLightData.NumReflectionCaptures);
-	uint DataStartIndex = ForwardLightData.NumCulledLightsGrid[NumCulledEntryIndex + 1];
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
 
 	SpecularIBL = CompositeReflectionCapturesAndSkylightTWS(
 		CompositeAlpha,
@@ -368,8 +366,8 @@ half3 GetImageBasedReflectionLighting_Mobile(
 		IndirectIrradiance,
 		1.0f,
 		0.0f,
-		NumLocalReflectionCaptures,
-		DataStartIndex,
+		CulledReflectionCapturesGridHeader.NumReflectionCaptures,
+		CulledReflectionCapturesGridHeader.DataStartIndex,
 		0,
 		true);
 
