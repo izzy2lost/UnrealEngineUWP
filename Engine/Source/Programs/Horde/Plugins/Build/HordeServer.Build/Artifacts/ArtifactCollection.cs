@@ -321,6 +321,12 @@ namespace HordeServer.Artifacts
 
 		async Task ExpireArtifactsForStreamAsync(StreamId streamId, ArtifactTypeConfig artifactTypeConfig, DateTime utcNow, CancellationToken cancellationToken)
 		{
+			if (artifactTypeConfig.KeepCount == null && artifactTypeConfig.KeepDays == null)
+			{
+				_logger.LogInformation("No expiration policy set for {StreamId} {ArtifactType}; keeping all artifacts.", streamId, artifactTypeConfig.Type);
+				return;
+			}
+
 			if (artifactTypeConfig.KeepCount.HasValue)
 			{
 				_logger.LogInformation("Removing {StreamId} {ArtifactType} artifacts except newest {Count}", streamId, artifactTypeConfig.Type, artifactTypeConfig.KeepCount.Value);
