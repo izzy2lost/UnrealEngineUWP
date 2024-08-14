@@ -83,7 +83,11 @@ void UPoseSearchSchema::InitBoneContainersFromRoledSkeleton(TMap<FName, FBoneCon
 
 	for (const FPoseSearchRoledSkeleton& RoledSkeleton : Skeletons)
 	{
-		RoledBoneContainers.Add(RoledSkeleton.Role).InitializeTo(RoledSkeleton.BoneIndicesWithParents, UE::Anim::FCurveFilterSettings(UE::Anim::ECurveFilterMode::DisallowAll), *RoledSkeleton.Skeleton);
+		FBoneContainer& RoledBoneContainer = RoledBoneContainers.Add(RoledSkeleton.Role);
+		// Add a curve filter to our bone container to only eval curves actually used by the schema.
+		const UE::Anim::FCurveFilterSettings CurveFilterSettings(UE::Anim::ECurveFilterMode::AllowOnlyFiltered, &RoledSkeleton.RequiredCurves);
+
+		RoledBoneContainer.InitializeTo(RoledSkeleton.BoneIndicesWithParents, CurveFilterSettings, *RoledSkeleton.Skeleton);
 	}
 }
 
@@ -200,6 +204,31 @@ int8 UPoseSearchSchema::AddBoneReference(const FBoneReference& BoneReference, co
 	SchemaBoneIdx = RoledSkeleton->BoneReferences.AddUnique(TempBoneReference);
 	check(SchemaBoneIdx >= 0 && SchemaBoneIdx < 128);
 	return int8(SchemaBoneIdx);
+}
+
+int8 UPoseSearchSchema::AddCurveReference(const FName& CurveReference, const UE::PoseSearch::FRole& Role)
+{
+	using namespace UE::PoseSearch;
+
+	FPoseSearchRoledSkeleton* RoledSkeleton = GetRoledSkeleton(Role);
+	if (!RoledSkeleton)
+	{
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchSchema::AddCurveReference: couldn't find data for the requested Role '%s' in UPoseSearchSchema '%s'"), *Role.ToString(), *GetNameSafe(this));
+		return -1;
+	}
+
+	int32 SchemaBoneIdx = 0;
+	const USkeleton* Skeleton = RoledSkeleton->Skeleton;
+	if (!Skeleton)
+	{
+		UE_LOG(LogPoseSearch, Error, TEXT("UPoseSearchSchema::AddCurveReference: couldn't find Skeleton with Role '%s' in UPoseSearchSchema '%s'"), *Role.ToString(), *GetNameSafe(this));
+		return -1;
+	}
+
+	// Curves are loosely bound, so there's no guarantee this curve will ever exist in any of the assets indexed by the database.
+	const int32 CurveIdx = RoledSkeleton->RequiredCurves.AddUnique(CurveReference);
+	check(CurveIdx >= 0 && CurveIdx < 128);
+	return int8(CurveIdx);
 }
 
 void UPoseSearchSchema::ResetFinalize()

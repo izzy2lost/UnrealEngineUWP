@@ -410,6 +410,19 @@ void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose) cons
 	ExtractPose(ExtractionCtx, AnimPoseData);
 }
 
+void FAnimationAssetSampler::ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve) const
+{
+	UE::Anim::FStackAttributeContainer UnusedAtrribute;
+	OutCurve.InitFrom(OutPose.GetBoneContainer());
+	FAnimationPoseData AnimPoseData = { OutPose, OutCurve, UnusedAtrribute };
+
+	FDeltaTimeRecord DeltaTimeRecord;
+	DeltaTimeRecord.Set(Time, 0.f);
+	FAnimExtractContext ExtractionCtx(double(Time), false, DeltaTimeRecord, IsLoopable());
+
+	ExtractPose(ExtractionCtx, AnimPoseData);
+}
+
 FTransform FAnimationAssetSampler::ExtractRootTransform(float Time) const
 {
 	FTransform RootTransform = FTransform::Identity;

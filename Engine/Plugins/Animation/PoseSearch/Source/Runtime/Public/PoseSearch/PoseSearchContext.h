@@ -127,6 +127,10 @@ struct POSESEARCH_API FSearchContext
 
 	void AddRole(const FRole& Role, const UAnimInstance* AnimInstance, const IPoseHistory* PoseHistory);
 
+	// Returns the curve value of name CurveName at an offset time of SampleTimeOffset.
+	// If the curve is not found, assume value of 0, which is consistent with curve behavior in the animation update.
+	float GetSampleCurveValue(float SampleTimeOffset, const FName& CurveName, const FRole& SampleRole);
+
 	// Returns the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at an offset time of SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at an offset time of time OriginTimeOffset 
 	// Times will be processed by GetPermutationTimeOffsets(PermutationTimeType, ...)
@@ -191,6 +195,7 @@ struct POSESEARCH_API FSearchContext
 	void SetUseCachedChannelData(bool bInUseCachedChannelData) { bUseCachedChannelData = bInUseCachedChannelData; }
 
 private:
+	float GetSampleCurveValueInternal(float SampleTime, const FName& CurveName, const FRole& SampleRole);
 	FVector GetSamplePositionInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, const FVector* SampleBonePositionWorldOverride = nullptr);
 	FQuat GetSampleRotationInternal(float SampleTime, float OriginTime, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, const FQuat* SampleBoneRotationWorldOverride = nullptr);
 	FTransform GetWorldRootBoneTransformAtTime(float SampleTime, const FRole& SampleRole) const;

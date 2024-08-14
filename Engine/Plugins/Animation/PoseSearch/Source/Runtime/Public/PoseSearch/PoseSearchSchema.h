@@ -48,6 +48,9 @@ struct POSESEARCH_API FPoseSearchRoledSkeleton
 
 	UPROPERTY(Transient)
 	TArray<uint16> BoneIndicesWithParents;
+
+	UPROPERTY(Transient)
+	TArray<FName> RequiredCurves;
 };
 
 /**
@@ -144,6 +147,7 @@ public:
 	virtual void PostLoad() override;
 
 	int8 AddBoneReference(const FBoneReference& BoneReference, const UE::PoseSearch::FRole& Role);
+	int8 AddCurveReference(const FName& CurveReference, const UE::PoseSearch::FRole& Role);
 
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent) override;

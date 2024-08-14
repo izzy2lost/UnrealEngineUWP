@@ -189,6 +189,11 @@ void FAnimationAssetSamplers::ExtractPose(float Time, FCompactPose& OutPose, int
 	AnimationAssetSamplers[RoleIndex]->ExtractPose(Time, OutPose);
 }
 
+void FAnimationAssetSamplers::ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve, int32 RoleIndex) const
+{
+	AnimationAssetSamplers[RoleIndex]->ExtractPose(Time, OutPose, OutCurve);
+}
+
 FTransform FAnimationAssetSamplers::MirrorTransform(const FTransform& InTransform, int32 RoleIndex) const
 {
 	return MirrorDataCaches[RoleIndex]->MirrorTransform(InTransform);
@@ -417,6 +422,7 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 
 		Entry->RootTransform.SetNum(AssetSamplersNum);
 		Entry->ComponentSpacePose.SetNum(AssetSamplersNum);
+		Entry->Curves.SetNum(AssetSamplersNum);
 		for (int32 RoleIndex = 0; RoleIndex < AssetSamplers.AnimationAssetSamplers.Num(); ++RoleIndex)
 		{
 			if (!BoneContainers[RoleIndex].IsValid())
@@ -443,8 +449,10 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 
 			FMemMark Mark(FMemStack::Get());
 			FCompactPose Pose;
+			FBlendedCurve Curve;
 			Pose.SetBoneContainer(&BoneContainers[RoleIndex]);
-			AssetSamplers.ExtractPose(CurrentTime, Pose, RoleIndex);
+			Curve.InitFrom(BoneContainers[RoleIndex]);
+			AssetSamplers.ExtractPose(CurrentTime, Pose, Curve, RoleIndex);
 
 #if ENABLE_ANIM_DEBUG
 			const int32 NumIterations = CVarMotionMatchTestExtractPoseDeterminismNumIterations.GetValueOnAnyThread();
@@ -481,6 +489,7 @@ FAssetIndexer::FCachedEntry& FAssetIndexer::GetEntry(float SampleTime)
 			FCSPose<FCompactPose> StackComponentSpacePose;
 			StackComponentSpacePose.InitPose(MoveTemp(Pose));
 			Entry->ComponentSpacePose[RoleIndex].CopyPose(StackComponentSpacePose);
+			Entry->Curves[RoleIndex].CopyFrom(Curve);
 
 			Entry->RootTransform[RoleIndex] = MirrorTransform(SampleRootTransform, RoleIndex);
 			Entry->bClamped |= bSampleClamped;
@@ -597,6 +606,24 @@ bool FAssetIndexer::GetSampleRotation(FQuat& OutSampleRotation, float SampleTime
 	const FTransform SampleBoneTransform = GetTransform(SampleTime, SampleRole, bUnused, SchemaSampleBoneIdx);
 	OutSampleRotation = RootBoneTransform.InverseTransformRotation(SampleBoneTransform.GetRotation());
 	return true;
+}
+
+bool FAssetIndexer::GetSampleCurveValue(float& OutCurveValue, float SampleTimeOffset, int32 SampleIdx, const FName& CurveName, const FRole& SampleRole)
+{
+	const float Time = CalculateSampleTime(SampleIdx);
+	const float SampleTime = Time + SampleTimeOffset;
+
+	OutCurveValue = GetSampleCurveValueInternal(SampleTime, CurveName, SampleRole);
+	return true;
+}
+
+
+float FAssetIndexer::GetSampleCurveValueInternal(float SampleTime, const FName& CurveName, const FRole& Role)
+{
+	const int32 SampleRoleIndex = RoleToIndex[Role];
+	FCachedEntry& Entry = GetEntry(SampleTime);
+
+	return Entry.Curves[SampleRoleIndex].Get(CurveName);
 }
 
 bool FAssetIndexer::GetSamplePosition(FVector& OutSamplePosition, float SampleTimeOffset, float OriginTimeOffset, int32 SampleIdx, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, EPermutationTimeType PermutationTimeType, int32 SamplingAttributeId)

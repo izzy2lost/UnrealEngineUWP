@@ -42,6 +42,7 @@ struct FAnimationAssetSamplers
 	FTransform ExtractRootTransform(float Time, int32 RoleIndex) const;
 	FTransform GetTotalRootTransform(int32 RoleIndex) const;
 	void ExtractPose(float Time, FCompactPose& OutPose, int32 RoleIndex) const;
+	void ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve, int32 RoleIndex) const;
 	FTransform MirrorTransform(const FTransform& InTransform, int32 RoleIndex) const;
 	void MirrorPose(FCompactPose& Pose, int32 RoleIndex) const;
 
@@ -66,6 +67,9 @@ public:
 	void AssignWorkingData(int32 InStartPoseIdx, TArrayView<float> InOutFeatureVectorTable, TArrayView<FPoseMetadata> InOutPoseMetadata);
 	void Process(int32 AssetIdx);
 	const FStats& GetStats() const { return Stats; }
+
+	// Returns the value of float curve CurveName at time CalculateSampleTime(SampleIdx) + SampleTimeOffset.
+	bool GetSampleCurveValue(float& OutCurveValue, float SampleTimeOffset, int32 SampleIdx, const FName& CurveName, const FRole& SampleRole);
 
 	// Returns OutSampleRotation as the rotation of the bone Schema.BoneReferences[SchemaSampleBoneIdx] at time CalculateSampleTime(SampleIdx) + SampleTimeOffset relative to the
 	// transform of the bone Schema.BoneReferences[SchemaOriginBoneIdx] at time CalculateSampleTime(SampleIdx) + OriginTimeOffset 
@@ -111,6 +115,9 @@ private:
 	// bClamped will be true if SampleTime is outside the animation duration boundaries
 	FTransform GetTransform(float SampleTime, const FRole& Role, bool& bClamped, int8 SchemaBoneIdx = RootSchemaBoneIdx);
 	FTransform GetTransform(float SampleTime, int32 RoleIndex, bool& bClamped, const FBoneReference& BoneReference);
+	
+	// Returns the value of float curve CurveName at time SampleTime
+	float GetSampleCurveValueInternal(float SampleTime, const FName& CurveName, const FRole& Role);
 
 	// Returns the component space transform of the bone Schema.BoneReferences[SchemaBoneIdx] at time SampleTime
 	// bClamped will be true if SampleTime is outside the animation duration boundaries
@@ -129,6 +136,7 @@ private:
 		// RootTransform and ComponentSpacePose are stored mirrored in case SearchIndexAsset.IsMirrored
 		TArray<FTransform> RootTransform;
 		TArray<FCSPose<FCompactHeapPose>> ComponentSpacePose;
+		TArray<FBlendedHeapCurve> Curves;
 	};
 
 	void GetSampleInfo(float SampleTime, int32 RoleIndex, FTransform& OutRootTransform, float& OutClipTime, bool& bOutClamped) const;

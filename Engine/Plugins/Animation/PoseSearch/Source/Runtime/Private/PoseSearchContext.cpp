@@ -490,6 +490,31 @@ void FSearchContext::UpdateCurrentResultPoseVector()
 	}
 }
 
+float FSearchContext::GetSampleCurveValue(float SampleTimeOffset, const FName& CurveName, const FRole& SampleRole)
+{
+	const float SampleTime = SampleTimeOffset;
+	return GetSampleCurveValueInternal(SampleTime, CurveName, SampleRole);
+}
+
+float FSearchContext::GetSampleCurveValueInternal(float SampleTime, const FName& CurveName, const FRole& SampleRole)
+{
+	check(!CachedQueries.IsEmpty());
+	const UPoseSearchSchema* Schema = CachedQueries.Last().GetSchema();
+	check(Schema);
+
+	float OutCurveValue = 0.0f;
+	const IPoseHistory* PoseHistory = GetPoseHistory(SampleRole);
+	{
+		if (ensure(PoseHistory))
+		{
+			// @TODO: Add curve support to the pose history node.
+			return OutCurveValue;
+		}
+	}
+
+	return OutCurveValue;
+}
+
 FQuat FSearchContext::GetSampleRotation(float SampleTimeOffset, float OriginTimeOffset, int8 SchemaSampleBoneIdx, int8 SchemaOriginBoneIdx, const FRole& SampleRole, const FRole& OriginRole, EPermutationTimeType PermutationTimeType, const FQuat* SampleBoneRotationWorldOverride)
 {
 	float PermutationSampleTimeOffset = 0.f;

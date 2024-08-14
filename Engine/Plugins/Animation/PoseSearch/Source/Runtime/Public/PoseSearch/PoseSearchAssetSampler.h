@@ -35,6 +35,7 @@ struct POSESEARCH_API FAnimationAssetSampler
 
 	// Extracts pose for this asset at a given Time
 	void ExtractPose(float Time, FCompactPose& OutPose) const;
+	void ExtractPose(float Time, FCompactPose& OutPose, FBlendedCurve& OutCurve) const;
 
 	// Extracts root transform at the given time, using the extremities of the sequence to extrapolate beyond the 
 	// sequence limits when Time is less than zero or greater than the sequence length.
