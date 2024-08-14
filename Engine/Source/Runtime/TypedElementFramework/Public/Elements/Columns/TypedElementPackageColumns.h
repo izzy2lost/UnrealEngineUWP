@@ -65,7 +65,7 @@ struct FTypedElementPackagePathColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FString Path;
 };
 

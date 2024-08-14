@@ -16,7 +16,7 @@ struct FTypedElementLabelColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FString Label;
 };
 

@@ -12,7 +12,7 @@ struct FSettingsContainerColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName ContainerName;
 };
 
@@ -21,7 +21,7 @@ struct FSettingsCategoryColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName CategoryName;
 };
 
@@ -30,6 +30,12 @@ struct FSettingsSectionColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName SectionName;
+};
+
+USTRUCT(meta = (DisplayName = "Settings"))
+struct FSettingsTag final : public FEditorDataStorageTag
+{
+	GENERATED_BODY()
 };

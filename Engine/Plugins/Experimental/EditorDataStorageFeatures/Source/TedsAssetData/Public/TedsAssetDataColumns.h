@@ -14,7 +14,7 @@ struct FAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName Path;
 };
 
@@ -127,7 +127,7 @@ struct FVirtualPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName VirtualPath;
 };
 
@@ -136,6 +136,6 @@ struct FItemNameColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (Searchable))
 	FName Name;
 };

@@ -270,6 +270,7 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 			DataStorage->AddColumn<FSettingsContainerColumn>(NewRow, { .ContainerName = ContainerName });
 			DataStorage->AddColumn<FSettingsCategoryColumn>(NewRow, { .CategoryName = CategoryName });
 			DataStorage->AddColumn<FSettingsSectionColumn>(NewRow, { .SectionName = SectionName });
+			DataStorage->AddColumn<FSettingsTag>(NewRow);
 
 			UE_LOG(LogTedsSettings, Log, TEXT("Added Settings Section : '%s'"), *SectionName.ToString());
 		}
