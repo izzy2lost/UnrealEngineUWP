@@ -6,6 +6,11 @@
 #include "EdGraph/EdGraphPin.h"
 #include "PCGSettings.h"
 
+UPCGEditorProjectSettings::UPCGEditorProjectSettings(const FObjectInitializer& ObjectInitializer)
+	: Super(ObjectInitializer)
+{
+}
+
 UPCGEditorSettings::UPCGEditorSettings(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {

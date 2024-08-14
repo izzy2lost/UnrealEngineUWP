@@ -2,12 +2,18 @@
 
 #include "WorldPartitionBuilder/PCGWorldPartitionBuilder.h"
 
+#include "PCGBuilderSettings.h"
 #include "PCGComponent.h"
+#include "PCGEditorSettings.h"
 #include "PCGGraph.h"
+#include "SPCGBuilderDialog.h"
 
 #include "AssetCompilingManager.h"
 #include "Editor.h"
 #include "FileHelpers.h"
+
+#include "Framework/Application/SlateApplication.h"
+#include "Interfaces/IMainFrameModule.h"
 #include "Misc/OutputDevice.h"
 #include "Modules/ModuleManager.h"
 #include "UObject/Linker.h"
@@ -15,6 +21,8 @@
 #include "WorldPartition/WorldPartitionHelpers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogPCGWorldPartitionBuilder, All, All);
+
+#define LOCTEXT_NAMESPACE "PCGWorldPartitionBulder"
 
 namespace PCGWorldPartitionBuilder
 {
@@ -38,18 +46,20 @@ namespace PCGWorldPartitionBuilder
 	void WaitForAllAsyncEditorProcesses(UWorld* InWorld);
 
 	/** Runs builder on current editor world. */
-	void Build(const TArray<FString>& Args);
+	bool Build(UWorld* InWorld, const TArray<FString>& Args);
 
 	static FAutoConsoleCommand CommandBuildComponents(
 		TEXT("pcg.BuildComponents"),
-		TEXT("Runs PCG world builder on PCG components in current world. Arguments (multiple values separated with ';'):\n"
-			"\t[-IncludeGraphNames=PCG_GraphA;PCG_GraphB]\n"
-			"\t[-GenerateComponentEditingModeNormal]\n"
-			"\t[-GenerateComponentEditingModePreview]\n"
-			"\t[-IgnoreGenerationErrors]\n"
-			"\t[-IncludeActorIDs=MyActor1_UAID1234678;MyActor2_UAID1234678]\n"
-			"\t[-OneComponentAtATime]\n"),
-		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args) { PCGWorldPartitionBuilder::Build(Args); }));
+		TEXT("Runs PCG world builder on PCG components in current world. Arguments (multiple values separated with ';'), Flags can optionally have a specified '=true or false', true if none provided:\n"
+			"\t[-PCGBuilderSettings=/Game/Path/BuilderSettingsAssetName]\n"
+			"\t[-IncludeGraphNames=PCG_GraphA;PCG_GraphB] (default: all graphs)\n"
+			"\t[-GenerateComponentEditingModeLoadAsPreview] (default: true)\n"
+			"\t[-GenerateComponentEditingModeNormal] (default: false)\n"
+			"\t[-GenerateComponentEditingModePreview] (default: false)\n"
+			"\t[-IgnoreGenerationErrors] (default: false)\n"
+			"\t[-IncludeActorIDs=MyActor1_UAID1234678;MyActor2_UAID1234678] (default: all actors)\n"
+			"\t[-OneComponentAtATime] (default: false)\n"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args) { PCGWorldPartitionBuilder::Build(GEditor ? GEditor->GetEditorWorldContext().World() : nullptr, Args); }));
 };
 
 /** Output device to capture presence of errors during generation. */
@@ -90,37 +100,200 @@ private:
 	std::atomic<bool> bErrorOccurred = false;
 };
 
+FPCGWorldPartitionBuilderArgs FPCGWorldPartitionBuilderArgs::InitializeFrom(const FPCGWorldPartitionCommandlineArgs& CommandlineArgs)
+{
+	FPCGWorldPartitionBuilderArgs BuilderArgs;
+	TSoftObjectPtr<UPCGBuilderSettings> SettingsPath = CommandlineArgs.SettingAsset.IsSet() ? CommandlineArgs.SettingAsset.GetValue() : GetDefault<UPCGEditorProjectSettings>()->DefaultBuilderSetting;
+	
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Initialize Builder Args"));
+
+	bool bUsingBuilderSettings = false;
+	// Load Settings Asset if any exists
+	if (SettingsPath.IsValid() || SettingsPath.IsPending())
+	{
+		if (UPCGBuilderSettings* BuilderSettings = Cast<UPCGBuilderSettings>(SettingsPath.LoadSynchronous()))
+		{
+			BuilderArgs.bGenerateEditingModeLoadAsPreviewComponents = BuilderSettings->EditingModes.Contains(EPCGEditorDirtyMode::LoadAsPreview);
+			BuilderArgs.bGenerateEditingModeNormalComponents = BuilderSettings->EditingModes.Contains(EPCGEditorDirtyMode::Normal);
+			BuilderArgs.bGenerateEditingModePreviewComponents = BuilderSettings->EditingModes.Contains(EPCGEditorDirtyMode::Preview);
+			BuilderArgs.bIgnoreGenerationErrors = BuilderSettings->bIgnoreGenerationErrors;
+			BuilderArgs.bOneComponentAtATime = BuilderSettings->bOneComponentAtATime;
+			BuilderArgs.IncludeActorIDs = BuilderSettings->FilterByActorNames;
+			BuilderArgs.IncludeGraphs = BuilderSettings->Graphs;
+
+			UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Loaded PCGBuilderSettings '%s'"), *SettingsPath.ToString());
+			bUsingBuilderSettings = true;
+		}
+		else
+		{
+			UE_LOG(LogPCGWorldPartitionBuilder, Warning, TEXT("Failed to load PCGBuilderSettings '%s'"), *SettingsPath.ToString());
+		}
+	}
+	
+	if (!bUsingBuilderSettings)
+	{
+		UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Not using any PCGBuilderSettings"));
+	}
+
+	// Then apply Commandline since it has priority
+	const TCHAR* FromCommandline = TEXT("Commandline");
+	const TCHAR* FromDefault = bUsingBuilderSettings ? TEXT("PCGBuilderSettings") : TEXT("Default");
+		
+	// Init 'bGenerateEditingModeLoadAsPreviewComponents'
+	bool bFromCommandline = CommandlineArgs.bGenerateEditingModeLoadAsPreviewComponents.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.bGenerateEditingModeLoadAsPreviewComponents = CommandlineArgs.bGenerateEditingModeLoadAsPreviewComponents.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("bGenerateEditingModeLoadAsPreviewComponents : '%d' (%s)"), 
+		BuilderArgs.bGenerateEditingModeLoadAsPreviewComponents ? 1 : 0,
+		bFromCommandline ? FromCommandline : FromDefault);
+	
+	// Init 'bGenerateEditingModeNormalComponents'
+	bFromCommandline = CommandlineArgs.bGenerateEditingModeNormalComponents.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.bGenerateEditingModeNormalComponents = CommandlineArgs.bGenerateEditingModeNormalComponents.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("bGenerateEditingModeNormalComponents : '%d' (%s)"),
+		BuilderArgs.bGenerateEditingModeNormalComponents ? 1 : 0,
+		bFromCommandline ? FromCommandline : FromDefault);
+	
+	// Init 'bGenerateEditingModePreviewComponents'
+	bFromCommandline = CommandlineArgs.bGenerateEditingModePreviewComponents.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.bGenerateEditingModePreviewComponents = CommandlineArgs.bGenerateEditingModePreviewComponents.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("bGenerateEditingModePreviewComponents : '%d' (%s)"),
+		BuilderArgs.bGenerateEditingModePreviewComponents ? 1 : 0,
+		bFromCommandline ? FromCommandline : FromDefault);
+
+
+	// Init 'bOneComponentAtATime'
+	bFromCommandline = CommandlineArgs.bOneComponentAtATime.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.bOneComponentAtATime = CommandlineArgs.bOneComponentAtATime.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("bOneComponentAtATime : '%d' (%s)"),
+		BuilderArgs.bOneComponentAtATime ? 1 : 0,
+		bFromCommandline ? FromCommandline : FromDefault);
+	
+	// Init 'bIgnoreGenerationErrors'
+	bFromCommandline = CommandlineArgs.bIgnoreGenerationErrors.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.bIgnoreGenerationErrors = CommandlineArgs.bIgnoreGenerationErrors.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("bIgnoreGenerationErrors : '%d' (%s)"),
+		BuilderArgs.bIgnoreGenerationErrors ? 1 : 0,
+		bFromCommandline ? FromCommandline : FromDefault);
+		
+	// Init 'IncludeActorIDs'
+	bFromCommandline = CommandlineArgs.IncludeActorIDs.IsSet();
+	if (bFromCommandline)
+	{
+		BuilderArgs.IncludeActorIDs = CommandlineArgs.IncludeActorIDs.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("IncludeActorIDs : '%s' (%s)"),
+		BuilderArgs.IncludeActorIDs.IsEmpty() ? TEXT("None") : *FString::Join(BuilderArgs.IncludeActorIDs, TEXT(",")),
+		bFromCommandline ? FromCommandline : FromDefault);
+		
+	// Init 'IncludeGraphNames'
+	bFromCommandline = CommandlineArgs.IncludeGraphNames.IsSet();
+	if (bFromCommandline)
+	{
+		// Commandline overrides using graph names so we empty whatever graph specified in the settings (it one or the other)
+		BuilderArgs.IncludeGraphs.Empty();
+		BuilderArgs.IncludeGraphNames = CommandlineArgs.IncludeGraphNames.GetValue();
+	}
+
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("IncludeGraphNames : '%s' (%s)"),
+		BuilderArgs.IncludeGraphNames.IsEmpty() ? TEXT("None") : *FString::Join(BuilderArgs.IncludeGraphNames, TEXT(",")),
+		bFromCommandline ? FromCommandline : TEXT("Default"));
+
+	TArray<FString> GraphsToString;
+	Algo::Transform(BuilderArgs.IncludeGraphs, GraphsToString, [](const TSoftObjectPtr<UPCGGraphInterface>& Graph) { return Graph.ToString(); });
+		
+	UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("IncludeGraphs '%s' (%s)"),
+		GraphsToString.IsEmpty() ? TEXT("None") : *FString::Join(GraphsToString, TEXT(",")),
+		FromDefault);
+
+	return BuilderArgs;
+}
+
 UPCGWorldPartitionBuilder::UPCGWorldPartitionBuilder(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
 {
 	if (!HasAnyFlags(RF_ClassDefaultObject))
 	{
-		bGenerateEditingModeNormalComponents = HasParam("GenerateComponentEditingModeNormal");
+		auto GetBoolParam = [this](const FString& ParamName, TOptional<bool>& OutOptionalParam)
+		{
+			const FString ParamNameAssignment = ParamName + "=";
+			bool bParamValue;
+			if (HasParam(ParamName))
+			{
+				OutOptionalParam = true;
+			}
+			else if (FParse::Bool(*GetBuilderArgs(), *ParamNameAssignment, bParamValue))
+			{
+				OutOptionalParam = bParamValue;
+			}
+		};
 
-		bGenerateEditingModePreviewComponents = HasParam("GenerateComponentEditingModePreview");
-
-		bOneComponentAtATime = HasParam("OneComponentAtATime");
-
-		bIgnoreGenerationErrors = HasParam("IgnoreGenerationErrors");
-
+		GetBoolParam("GenerateComponentEditingModeLoadAsPreview", CommandlineArgs.bGenerateEditingModeLoadAsPreviewComponents);
+		GetBoolParam("GenerateComponentEditingModeNormal", CommandlineArgs.bGenerateEditingModeNormalComponents);
+		GetBoolParam("GenerateComponentEditingModePreview", CommandlineArgs.bGenerateEditingModePreviewComponents);
+		GetBoolParam("OneComponentAtATime", CommandlineArgs.bOneComponentAtATime);
+		GetBoolParam("IgnoreGenerationErrors", CommandlineArgs.bIgnoreGenerationErrors);
+	
 		FString IncludeGraphNamesValue;
-		if (GetParamValue("IncludeGraphNames=", IncludeGraphNamesValue) && !IncludeGraphNamesValue.IsEmpty())
+		if (GetParamValue("IncludeGraphNames=", IncludeGraphNamesValue))
 		{
 			TArray<FString> IncludeGraphNameStrings;
-			IncludeGraphNamesValue.ParseIntoArray(IncludeGraphNameStrings, TEXT(";"), true);
-
-			IncludeGraphNames.Append(IncludeGraphNameStrings);
+			if (!IncludeGraphNamesValue.IsEmpty())
+			{
+				IncludeGraphNamesValue.ParseIntoArray(IncludeGraphNameStrings, TEXT(";"), true);
+			}
+			CommandlineArgs.IncludeGraphNames = IncludeGraphNameStrings;
 		}
 
 		FString IncludeActorIDsValue;
-		if (GetParamValue("IncludeActorIDs=", IncludeActorIDsValue) && !IncludeActorIDsValue.IsEmpty())
+		if (GetParamValue("IncludeActorIDs=", IncludeActorIDsValue))
 		{
 			TArray<FString> IncludeActorIDStrings;
-			IncludeActorIDsValue.ParseIntoArray(IncludeActorIDStrings, TEXT(";"), true);
+			if (!IncludeActorIDsValue.IsEmpty())
+			{
+				IncludeActorIDsValue.ParseIntoArray(IncludeActorIDStrings, TEXT(";"), true);
+			}
+			CommandlineArgs.IncludeActorIDs = IncludeActorIDStrings;
+		}
 
-			IncludeActorIDs.Append(IncludeActorIDStrings);
+		FString SettingAsset;
+		if (GetParamValue("PCGBuilderSettings=", SettingAsset) && !SettingAsset.IsEmpty())
+		{
+			CommandlineArgs.SettingAsset = TSoftObjectPtr<UPCGBuilderSettings>(FSoftObjectPath(SettingAsset));
 		}
 	}
+}
+
+bool UPCGWorldPartitionBuilder::PreRun(UWorld* World, FPackageSourceControlHelper& PackageHelper)
+{
+	if (!Super::PreRun(World, PackageHelper))
+	{
+		return false;
+	}
+
+	Args = FPCGWorldPartitionBuilderArgs::InitializeFrom(CommandlineArgs);
+		
+	return true;
 }
 
 bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCellInfo, FPackageSourceControlHelper& PackageHelper)
@@ -145,15 +318,15 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 			}
 
 			// Check actor in inclusion list if provided.
-			if (!IncludeActorIDs.IsEmpty() && !IncludeActorIDs.Contains(InComponent->GetOwner()->GetName()))
+			if (!Args.IncludeActorIDs.IsEmpty() && !Args.IncludeActorIDs.Contains(InComponent->GetOwner()->GetName()))
 			{
 				return false;
 			}
 
 			// Accept based on editing mode.
-			return (InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview)
-				|| (bGenerateEditingModeNormalComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Normal)
-				|| (bGenerateEditingModePreviewComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview);
+			return (Args.bGenerateEditingModeLoadAsPreviewComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::LoadAsPreview)
+				|| (Args.bGenerateEditingModeNormalComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Normal)
+				|| (Args.bGenerateEditingModePreviewComponents && InComponent->GetSerializedEditingMode() == EPCGEditorDirtyMode::Preview);
 		};
 
 		PCGWorldPartitionBuilder::CollectComponentsToGenerate(World, ComponentFilter, ComponentsToGenerate);
@@ -182,10 +355,10 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 
 	bool bGeneratedAnyComponent = false;
 
-	if (!IncludeGraphNames.IsEmpty())
+	if (!Args.IncludeGraphNames.IsEmpty())
 	{
 		// Generate all components with graph of each name, in specified order.
-		for (const FName& IncludeGraphName : IncludeGraphNames)
+		for (const FString& IncludeGraphName : Args.IncludeGraphNames)
 		{
 			auto FilterOnGraphName = [IncludeGraphName](const UPCGComponent* InComponent)
 			{
@@ -194,7 +367,24 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 			};
 
 			bool bErrorsOccurred = false;
-			bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, FilterOnGraphName, DeletedActorPackages, bErrorsOccurred);
+			bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, Args.bOneComponentAtATime, FilterOnGraphName, DeletedActorPackages, bErrorsOccurred);
+
+			bErrorOccurredWhileGenerating |= bErrorsOccurred;
+		}
+	}
+	else if (!Args.IncludeGraphs.IsEmpty())
+	{
+		// Generate all components with graph of each name, in specified order.
+		for (const TSoftObjectPtr<UPCGGraphInterface>& IncludeGraphPtr : Args.IncludeGraphs)
+		{
+			auto FilterOnGraphPtr = [&IncludeGraphPtr](const UPCGComponent* InComponent)
+				{
+					TSoftObjectPtr<UPCGGraphInterface> ComponentGraphPtr(InComponent ? InComponent->GetGraph() : nullptr);
+					return ComponentGraphPtr.IsValid() && ComponentGraphPtr == IncludeGraphPtr;
+				};
+
+			bool bErrorsOccurred = false;
+			bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, Args.bOneComponentAtATime, FilterOnGraphPtr, DeletedActorPackages, bErrorsOccurred);
 
 			bErrorOccurredWhileGenerating |= bErrorsOccurred;
 		}
@@ -202,7 +392,7 @@ bool UPCGWorldPartitionBuilder::RunInternal(UWorld* World, const FCellInfo& InCe
 	else
 	{
 		bool bErrorsOccurred = false;
-		bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, bOneComponentAtATime, DeletedActorPackages, bErrorsOccurred);
+		bGeneratedAnyComponent |= PCGWorldPartitionBuilder::GenerateComponents(ComponentsToGenerate, World, Args.bOneComponentAtATime, DeletedActorPackages, bErrorsOccurred);
 
 		bErrorOccurredWhileGenerating |= bErrorsOccurred;
 	}
@@ -250,7 +440,7 @@ bool UPCGWorldPartitionBuilder::SaveDirtyPackages(UWorld* World, FPackageSourceC
 	// Check whether an error was thrown while generating components and fail the builder if the ignore argument is not provided.
 	if (bErrorOccurredWhileGenerating)
 	{
-		if (!bIgnoreGenerationErrors)
+		if (!Args.bIgnoreGenerationErrors)
 		{
 			UE_LOG(LogPCGWorldPartitionBuilder, Display, TEXT("Dirty package detection and save skipped due to errors during generation."));
 
@@ -570,22 +760,65 @@ void PCGWorldPartitionBuilder::WaitForAllAsyncEditorProcesses(UWorld* InWorld)
 	FAssetCompilingManager::Get().ProcessAsyncTasks();
 }
 
-void PCGWorldPartitionBuilder::Build(const TArray<FString>& Args)
+bool PCGWorldPartitionBuilder::Build(UWorld* InWorld, const TArray<FString>& Args)
 {
-	if (UWorld* World = (GEditor ? GEditor->GetEditorWorldContext().World() : nullptr))
+	if (InWorld)
 	{
 		IWorldPartitionEditorModule::FRunBuilderParams Params;
 		Params.BuilderClass = UPCGWorldPartitionBuilder::StaticClass();
-		Params.World = World;
+		Params.World = InWorld;
 		Params.OperationDescription = FText::FromString("Generating PCG Components...");
 		
-		Params.ExtraArgs = TEXT("-AllowCommandletRendering");
+		Params.ExtraArgs = TEXT("-AllowCommandletRendering -AllowSoftwareRendering -AssetGatherAll=true");
 		for (const FString& Arg : Args)
 		{
 			Params.ExtraArgs += " ";
 			Params.ExtraArgs += Arg;
 		}
 
-		IWorldPartitionEditorModule::Get().RunBuilder(Params);
+		return IWorldPartitionEditorModule::Get().RunBuilder(Params);
 	}
+
+	return false;
 }
+
+bool UPCGWorldPartitionBuilder::CanBuild(const UWorld* InWorld, FName InBuildOption)
+{
+	return InWorld && InWorld->IsPartitionedWorld();
+}
+
+EEditorBuildResult UPCGWorldPartitionBuilder::Build(UWorld* InWorld, FName InBuildOption)
+{
+	TSharedPtr<SWindow> DlgWindow =
+		SNew(SWindow)
+		.Title(LOCTEXT("BuildPCGWindowTitle", "Build PCG"))
+		.ClientSize(SPCGBuilderDialog::DEFAULT_WINDOW_SIZE)
+		.SizingRule(ESizingRule::UserSized)
+		.SupportsMinimize(false)
+		.SupportsMaximize(false)
+		.SizingRule(ESizingRule::FixedSize);
+
+	TSharedRef<SPCGBuilderDialog> BuildDialog =
+		SNew(SPCGBuilderDialog)
+		.ParentWindow(DlgWindow);
+
+	DlgWindow->SetContent(BuildDialog);
+
+	IMainFrameModule& MainFrameModule = FModuleManager::LoadModuleChecked<IMainFrameModule>(TEXT("MainFrame"));
+	FSlateApplication::Get().AddModalWindow(DlgWindow.ToSharedRef(), MainFrameModule.GetParentWindow());
+
+	if (BuildDialog->GetDialogResult() != SPCGBuilderDialog::DialogResult::Cancel)
+	{
+		TArray<FString> Args;
+		FString BuilderSettingStr = BuildDialog->GetBuilderSetting().ToString();
+		if(!BuilderSettingStr.IsEmpty())
+		{
+			Args.Add("-PCGBuilderSettings=" + BuilderSettingStr);
+		}
+		return PCGWorldPartitionBuilder::Build(InWorld, Args) ? EEditorBuildResult::Success : EEditorBuildResult::Skipped;
+	}
+
+	return EEditorBuildResult::Skipped;
+}
+
+#undef LOCTEXT_NAMESPACE

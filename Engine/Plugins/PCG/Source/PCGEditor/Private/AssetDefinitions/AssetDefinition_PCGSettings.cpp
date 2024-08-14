@@ -2,9 +2,8 @@
 
 #include "AssetDefinition_PCGSettings.h"
 
+#include "PCGEditorCommon.h"
 #include "PCGSettings.h"
-
-#include "Misc/AssetCategoryPath.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_PCGSettings"
 
@@ -25,7 +24,7 @@ TSoftClassPtr<UObject> UAssetDefinition_PCGSettings::GetAssetClass() const
 
 TConstArrayView<FAssetCategoryPath> UAssetDefinition_PCGSettings::GetAssetCategories() const
 {
-	static const FAssetCategoryPath Categories[] = { FAssetCategoryPath(LOCTEXT("PCGCategory", "PCG")) }; 
+	static const FAssetCategoryPath Categories[] = { FPCGEditorCommon::PCGAssetCategoryPath };
 	return Categories;
 }
 

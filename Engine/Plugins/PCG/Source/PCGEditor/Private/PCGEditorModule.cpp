@@ -21,10 +21,12 @@
 #include "DataVisualizations/PCGSpatialDataVisualization.h"
 #include "DataVisualizations/PCGSplineDataVisualization.h"
 #include "Grid/PCGPartitionActor.h"
+#include "WorldPartitionBuilder/PCGWorldPartitionBuilder.h"
 
 #include "ContentBrowserMenuContexts.h"
 #include "ContentBrowserModule.h"
 #include "Editor.h"
+#include "EditorBuildUtils.h"
 #include "EditorModeManager.h"
 #include "EditorModes.h"
 #include "IContentBrowserSingleton.h"
@@ -49,6 +51,11 @@
 
 #define LOCTEXT_NAMESPACE "FPCGEditorModule"
 
+namespace PCGEditorModule
+{
+	static const FName PCGBuildType(TEXT("PCG"));
+}
+
 void FPCGEditorModule::StartupModule()
 {
 	RegisterDetailsCustomizations();
@@ -72,6 +79,13 @@ void FPCGEditorModule::StartupModule()
 	{
 		LevelEditorModule.OnLevelEditorCreated().AddRaw(this, &FPCGEditorModule::OnLevelEditorCreated);
 	}
+
+	FEditorBuildUtils::RegisterCustomBuildType(PCGEditorModule::PCGBuildType,
+		FCanDoEditorBuildDelegate::CreateStatic(&UPCGWorldPartitionBuilder::CanBuild),
+		FDoEditorBuildDelegate::CreateStatic(&UPCGWorldPartitionBuilder::Build),
+		/*BuildAllExtensionPoint*/NAME_None,
+		/*MenuEntryLabel*/LOCTEXT("BuildPCG", "Build PCG"),
+		/*MenuSectionLabel*/LOCTEXT("PCG", "PCG"));
 }
 
 void FPCGEditorModule::ShutdownModule()
@@ -105,6 +119,8 @@ void FPCGEditorModule::ShutdownModule()
 			FirstLevelEditor->GetEditorModeManager().OnEditorModeIDChanged().RemoveAll(this);
 		}
 	}
+
+	FEditorBuildUtils::UnregisterCustomBuildType(PCGEditorModule::PCGBuildType);
 }
 
 void FPCGEditorModule::OnLevelEditorCreated(TSharedPtr<ILevelEditor> InLevelEditor)

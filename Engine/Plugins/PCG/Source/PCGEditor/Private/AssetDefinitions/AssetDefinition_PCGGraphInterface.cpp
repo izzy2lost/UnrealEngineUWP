@@ -4,6 +4,7 @@
 
 #include "PCGGraph.h"
 
+#include "PCGEditorCommon.h"
 #include "PCGEditorStyle.h"
 #include "PCGGraphFactory.h"
 
@@ -13,7 +14,6 @@
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
 #include "ToolMenus.h"
-#include "Misc/AssetCategoryPath.h"
 #include "Misc/DelayedAutoRegister.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_PCGGraphInterface"
@@ -35,7 +35,7 @@ TSoftClassPtr<UObject> UAssetDefinition_PCGGraphInterface::GetAssetClass() const
 
 TConstArrayView<FAssetCategoryPath> UAssetDefinition_PCGGraphInterface::GetAssetCategories() const
 {
-	static const FAssetCategoryPath Categories[] = { FAssetCategoryPath(LOCTEXT("PCGCategory", "PCG")) };
+	static const FAssetCategoryPath Categories[] = { FPCGEditorCommon::PCGAssetCategoryPath };
 	return Categories;
 }
 

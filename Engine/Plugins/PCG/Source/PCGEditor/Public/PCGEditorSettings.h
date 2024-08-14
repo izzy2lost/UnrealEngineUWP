@@ -2,13 +2,28 @@
 
 #pragma once
 
+#include "Engine/DeveloperSettings.h"
 #include "Templates/SubclassOf.h"
 
 #include "PCGEditorSettings.generated.h"
 
 class UPCGSettings;
+class UPCGBuilderSettings;
 
 struct FEdGraphPinType;
+
+UCLASS(config=Editor, meta=(DisplayName="PCG"))
+class PCGEDITOR_API UPCGEditorProjectSettings : public UDeveloperSettings
+{
+	GENERATED_BODY()
+
+public:
+	UPCGEditorProjectSettings(const FObjectInitializer& ObjectInitializer);
+		
+	/** Default Builder Settings to use when running the PCGWorldPartitionBuilder */
+	UPROPERTY(EditAnywhere, config, Category = Builder)
+	TSoftObjectPtr<UPCGBuilderSettings> DefaultBuilderSetting;
+};
 
 UCLASS(config=EditorPerProjectUserSettings)
 class PCGEDITOR_API UPCGEditorSettings : public UObject
