@@ -298,9 +298,9 @@ namespace uba
 		FlushWork();
 	}
 
-	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port)
+	bool NetworkClient::StartListen(NetworkBackend& backend, u16 port, const tchar* ip)
 	{
-		backend.StartListen(m_logger, port, nullptr, [&](void* connection, const sockaddr& remoteSockAddr)
+		backend.StartListen(m_logger, port, ip, [&](void* connection, const sockaddr& remoteSockAddr)
 			{
 				return AddConnection(backend, connection, nullptr);
 			});

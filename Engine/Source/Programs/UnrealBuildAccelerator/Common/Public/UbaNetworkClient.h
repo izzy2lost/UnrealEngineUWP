@@ -36,7 +36,7 @@ namespace uba
 		bool Connect(NetworkBackend& backend, const tchar* ip, u16 port = DefaultPort, bool* timedOut = nullptr);
 		void Disconnect();
 
-		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort);
+		bool StartListen(NetworkBackend& backend, u16 port = DefaultPort, const tchar* ip = TC("0.0.0.0"));
 		bool SetConnectionCount(u32 count);
 		bool SendKeepAlive();
 
