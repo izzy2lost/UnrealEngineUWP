@@ -56,6 +56,10 @@ public:
 	static TArray<FString> GetFileNameFormatSuggestions();
 
 private:
+	/** Get the relevant brace positions for the given cursor position within the text. */
+	static void GetBracePositionsForCursor(const FString& InText, int32 CursorPos, int32& OutStartingBracePos, int32& OutEndBracePos);
+
+private:
 	TSharedPtr<SListView<TSharedPtr<FString>>> SuggestionListView;
 	TSharedPtr<SMultiLineEditableTextBox> TextBox;
 	TSharedPtr<SMenuAnchor> MenuAnchor;
