@@ -84,7 +84,9 @@ public class LevelEditor : ModuleRules
 				"UncontrolledChangelists",
 				"RenderCore",
 				"DeveloperSettings",
-				"ActionableMessage"
+				"ActionableMessage",
+				"Json",
+				"JsonUtilities"
 			}
 		);
 

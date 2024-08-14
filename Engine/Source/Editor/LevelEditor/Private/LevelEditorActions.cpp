@@ -118,6 +118,15 @@
 #include "DataDrivenShaderPlatformInfo.h"
 
 #include "Internationalization/Culture.h"
+#include "Misc/FileHelper.h"
+#include "EditorDirectories.h"
+#include "IDesktopPlatform.h"
+#include "DesktopPlatformModule.h"
+#include "Serialization/JsonReader.h"
+#include "Serialization/JsonSerializer.h"
+#include "IDeviceProfileSelectorModule.h"
+#include "DeviceProfiles/DeviceProfile.h"
+#include "DeviceProfiles/DeviceProfileManager.h"
 
 #if WITH_LIVE_CODING
 #include "ILiveCodingModule.h"
@@ -537,6 +546,119 @@ void FLevelEditorActionCallbacks::ImportScene_Clicked()
 	FEditorFileUtils::Import();
 }
 
+void FLevelEditorActionCallbacks::PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName)
+{
+	TArray<FString> OpenedFiles;
+	FString DefaultLocation(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::PROJECT));
+
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+	bool bOpened = false;
+	if (DesktopPlatform)
+	{
+		bOpened = DesktopPlatform->OpenFileDialog(
+			FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
+			NSLOCTEXT("UnrealEd", "PreviewJson", "Preview Json").ToString(),
+			DefaultLocation,
+			TEXT(""),
+			TEXT("*.json"),
+			EFileDialogFlags::None,
+			OpenedFiles
+		);
+	}
+
+	if (bOpened && OpenedFiles.Num() > 0 && OpenedFiles[0].IsEmpty() == false)
+	{
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+		FString DeviceProfileSelectionModule;
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+			{
+				FString DevileProfileName;
+
+				TMap<FName, FString> DeviceParameters;
+				DPSelectorModule->GetDeviceParametersFromJson(OpenedFiles[0], DeviceParameters);
+				DPSelectorModule->SetSelectorProperties(DeviceParameters);
+
+				DevileProfileName = DPSelectorModule->GetDeviceProfileName();
+				
+				UDeviceProfile* DevileProfile = UDeviceProfileManager::Get().FindProfile(DevileProfileName, false);
+				if (DevileProfile)
+				{
+					EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(PreviewShaderPlatformName);
+
+					auto GetPreviewFeatureLevelInfo = [&]()
+						{
+							const ERHIFeatureLevel::Type FeatureLevel = GetMaxSupportedFeatureLevel(ShaderPlatform);
+							return FPreviewPlatformInfo(FeatureLevel, ShaderPlatform, PlatformName, FDataDrivenShaderPlatformInfo::GetShaderFormat(ShaderPlatform), DevileProfile->GetFName(), true, PreviewShaderPlatformName, FText::FromName(DevileProfile->GetFName()));
+						};
+
+					FPreviewPlatformInfo PreviewFeatureLevelInfo = GetPreviewFeatureLevelInfo();
+					GEditor->SetPreviewPlatform(PreviewFeatureLevelInfo, false);
+				}
+			}
+		}
+	}
+}
+
+bool FLevelEditorActionCallbacks::IsPreviewJsonVisible(FName PlatformName)
+{
+	FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+	FString DeviceProfileSelectionModule;
+	if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+	{
+		if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+		{
+			return DPSelectorModule->CanGetDeviceParametersFromJson();
+		}
+	}
+	return false;
+}
+
+bool FLevelEditorActionCallbacks::IsGeneratePreviewJsonVisible(FName PlatformName)
+{
+	FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName.ToString());
+	FString DeviceProfileSelectionModule;
+	if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+	{
+		if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+		{
+			return DPSelectorModule->CanExportDeviceParametersToJson();
+		}
+	}
+	return false;
+}
+
+void FLevelEditorActionCallbacks::GeneratePreviewJson_Clicked(FString PlatformName)
+{
+	FString DefaultLocation(FEditorDirectories::Get().GetLastDirectory(ELastDirectory::PROJECT));
+	FString OutputDirectory;
+	IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
+
+	if (DesktopPlatform &&
+		DesktopPlatform->OpenDirectoryDialog(FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr), 
+		LOCTEXT("LocationToOutputJsons", "Location to Output Json Files").ToString(), 
+		DefaultLocation,
+		OutputDirectory)
+		)
+	{
+		FScopedSlowTask SlowTask(100.f, NSLOCTEXT("Engine", "GeneratePlatformJson", "Generate Platform Json"), true);
+		SlowTask.Visibility = ESlowTaskVisibility::ForceVisible;
+		SlowTask.MakeDialog();
+
+		SlowTask.EnterProgressFrame(35.0f);
+
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*PlatformName);
+		FString DeviceProfileSelectionModule;
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			if (IDeviceProfileSelectorModule* DPSelectorModule = FModuleManager::LoadModulePtr<IDeviceProfileSelectorModule>(*DeviceProfileSelectionModule))
+			{
+				DPSelectorModule->ExportDeviceParametersToJson(OutputDirectory);
+			}
+		}
+	}
+}
 
 void FLevelEditorActionCallbacks::ExportAll_Clicked()
 {
@@ -3992,6 +4114,8 @@ void FLevelEditorCommands::RegisterCommands()
 	UI_COMMAND(ToggleFeatureLevelPreview, "Preview Mode Toggle", "Toggles the Preview Mode on or off for the currently selected Preview target", EUserInterfaceActionType::ToggleButton, FInputChord());
 
 	// Add preview platforms
+	TSet<FName> PreviewShaderPlatformNames;
+	TSet<FName> PlatformName;
 	for (const FPreviewPlatformMenuItem& Item : FDataDrivenPlatformInfoRegistry::GetAllPreviewPlatformMenuItems())
 	{
 		FTextBuilder FriendlyNameBuilder;
@@ -4029,6 +4153,47 @@ void FLevelEditorCommands::RegisterCommands()
 		);
 
 		PlatformToPreviewPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatformOverrides.Last());
+
+		FConfigCacheIni* PlatformEngineIni = FConfigCacheIni::ForPlatform(*Item.PlatformName.ToString());
+		FString DeviceProfileSelectionModule;
+
+		if (PlatformEngineIni && PlatformEngineIni->GetString(TEXT("DeviceProfileManager"), TEXT("PreviewDeviceProfileSelectionModule"), DeviceProfileSelectionModule, GEngineIni))
+		{
+			EShaderPlatform ShaderPlatform = FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(Item.ShaderPlatformToPreview);
+			FText PlatformFriendlyName = FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform);
+
+			if (!PlatformName.Find(Item.PlatformName))
+			{
+				GeneratePlatformJson.Add(
+					FUICommandInfoDecl(
+						this->AsShared(),
+						FName(*FString::Printf(TEXT("Generate Platform Json for %s"), *Item.PlatformName.ToString())),
+						NSLOCTEXT("GeneratePlatformJson", "Generate Platform Json", "Generate Platform Json"),
+						NSLOCTEXT("GeneratePlatformJsonDesc", "Generate Platform Json Desc", "Generate Platform Json Desc"))
+					.UserInterfaceType(EUserInterfaceActionType::Button)
+					.DefaultChord(FInputChord())
+				);
+
+				PlatformToPreviewJsonPlatformOverrides.FindOrAdd(Item.PlatformName).Add(GeneratePlatformJson.Last());
+				PlatformName.Add(Item.PlatformName);
+			}
+
+			if (!PreviewShaderPlatformNames.Find(Item.PreviewShaderPlatformName))
+			{
+				PreviewPlatformFromJson.Add(
+					FUICommandInfoDecl(
+						this->AsShared(),
+						FName(*FString::Printf(TEXT("Preview %s with Json"), *Item.PreviewShaderPlatformName.ToString())),
+						FText::Format(NSLOCTEXT("PreviewJson", "Preview Json", "Preview {0} with Json"), PlatformFriendlyName),
+						NSLOCTEXT("PreviewJsonDesc", "Preview Json Desc", "Preview Json Desc"))
+					.UserInterfaceType(EUserInterfaceActionType::Button)
+					.DefaultChord(FInputChord())
+				);
+
+				PlatformToPreviewJsonPlatformOverrides.FindOrAdd(Item.PlatformName).Add(PreviewPlatformFromJson.Last());
+				PreviewShaderPlatformNames.Add(Item.PreviewShaderPlatformName);
+			}
+		}
 	}
 
 	PlatformToPreviewPlatformOverrides.KeyStableSort([](FName lhs, FName rhs) {return lhs.Compare(rhs) < 0; });

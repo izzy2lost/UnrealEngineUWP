@@ -81,15 +81,13 @@ namespace PreviewModeFunctionality
 	FText GetPreviewModeTooltip()
 	{
 #define LOCTEXT_NAMESPACE "LevelEditorToolBar"
-		EShaderPlatform PreviewShaderPlatform = GEditor->PreviewPlatform.PreviewShaderPlatformName != NAME_None ?
-			FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(GEditor->PreviewPlatform.PreviewShaderPlatformName) :
-			GetFeatureLevelShaderPlatform(GEditor->PreviewPlatform.PreviewFeatureLevel);
+		EShaderPlatform PreviewShaderPlatform = GEditor->PreviewPlatform.GetShaderPlatform();
 
 		EShaderPlatform MaxRHIFeatureLevelPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
 
 		{
-			const FText& RenderingAsPlatformName = FDataDrivenShaderPlatformInfo::GetFriendlyName(GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? PreviewShaderPlatform : MaxRHIFeatureLevelPlatform);
-			const FText& SwitchToPlatformName = FDataDrivenShaderPlatformInfo::GetFriendlyName(GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? MaxRHIFeatureLevelPlatform : PreviewShaderPlatform);
+			const FText& RenderingAsPlatformName = GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? GEditor->PreviewPlatform.GetFriendlyName() : FDataDrivenShaderPlatformInfo::GetFriendlyName(MaxRHIFeatureLevelPlatform);
+			const FText& SwitchToPlatformName = GEditor->PreviewPlatform.bPreviewFeatureLevelActive ? FDataDrivenShaderPlatformInfo::GetFriendlyName(MaxRHIFeatureLevelPlatform) :GEditor->PreviewPlatform.GetFriendlyName();
 			if (PreviewShaderPlatform == MaxRHIFeatureLevelPlatform)
 			{
 				return FText::Format(LOCTEXT("PreviewModeViewingAs", "Viewing {0}."), RenderingAsPlatformName);
@@ -110,7 +108,7 @@ namespace PreviewModeFunctionality
 	{
 		const FPreviewPlatformMenuItem* Item = FDataDrivenPlatformInfoRegistry::GetAllPreviewPlatformMenuItems().FindByPredicate([](const FPreviewPlatformMenuItem& TestItem)
 			{
-				return GEditor->PreviewPlatform.PreviewPlatformName == TestItem.PlatformName && GEditor->PreviewPlatform.PreviewShaderFormatName == TestItem.ShaderFormat && GEditor->PreviewPlatform.PreviewShaderPlatformName == TestItem.PreviewShaderPlatformName;
+				return GEditor->PreviewPlatform.PreviewPlatformName == TestItem.PlatformName;
 			});
 		if (Item)
 		{

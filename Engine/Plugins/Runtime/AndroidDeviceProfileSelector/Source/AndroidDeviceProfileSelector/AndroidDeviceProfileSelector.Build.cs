@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 using EpicGames.Core;
 using System.IO;
+using System.Linq;
 using UnrealBuildTool;
 
 public class AndroidDeviceProfileSelector : ModuleRules
@@ -32,5 +33,18 @@ public class AndroidDeviceProfileSelector : ModuleRules
 				"Engine",
 			}
 			);
+
+		if(Target.Type == TargetType.Editor)
+		{
+			if (!Target.GlobalDefinitions.Contains("WITH_ANDROID_DEVICE_DETECTION=0"))
+			{
+				PrivateDefinitions.Add("WITH_ANDROID_DEVICE_DETECTION=1");
+				PrivateDependencyModuleNames.Add("AndroidDeviceDetection");
+			}
+
+			PrivateDependencyModuleNames.Add("PIEPreviewDeviceSpecification");
+			PublicDependencyModuleNames.Add("Json");
+			PublicDependencyModuleNames.Add("JsonUtilities");
+		}
 	}
 }

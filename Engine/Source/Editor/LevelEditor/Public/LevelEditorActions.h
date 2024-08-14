@@ -610,7 +610,10 @@ public:
 	TSharedPtr< FUICommandInfo > ToggleFeatureLevelPreview;
 
 	TArray<TSharedPtr<FUICommandInfo>> PreviewPlatformOverrides;
+	TArray<TSharedPtr<FUICommandInfo>> PreviewPlatformFromJson;
+	TArray<TSharedPtr<FUICommandInfo>> GeneratePlatformJson;
 	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> PlatformToPreviewPlatformOverrides;
+	TMap<FName, TArray<TSharedPtr<FUICommandInfo>>> PlatformToPreviewJsonPlatformOverrides;
 
 	///**
 	// * Mode Commands                   
@@ -730,7 +733,26 @@ public:
 	 * Called when import scene is selected
 	 */
 	static void ImportScene_Clicked();
+	
+	/**
+	* Called When Preview Json is selected in the Platforms Preview Sub Menu
+	*/
+	static void PreviewJson_Clicked(FName PlatformName, FName PreviewShaderPlatformName);
 
+	/**
+	* Is Preview Json visible in the Platforms Preview Sub Menu
+	*/
+	static bool IsPreviewJsonVisible(FName PlatformName);
+
+	/**
+	* Called When Generate Preview Json is selected in the Platforms Preview Sub Menu
+	*/
+	static void GeneratePreviewJson_Clicked(FString PlatformName);
+	
+	/**
+	* Is Generate Preview Json visible in the Platforms Preview Sub Menu
+	*/
+	static bool IsGeneratePreviewJsonVisible(FName PlatformName);
 
 	/**
 	 * Called when export all is selected

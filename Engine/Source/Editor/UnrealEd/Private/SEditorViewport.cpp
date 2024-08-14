@@ -1010,8 +1010,7 @@ FText SEditorViewport::GetCurrentFeatureLevelPreviewText(bool bDrawOnlyLabel) co
 		if (World != nullptr)
 		{
 			ERHIFeatureLevel::Type TargetFeatureLevel = World->GetFeatureLevel();
-			EShaderPlatform ShaderPlatform = GetShaderPlatformHelper(TargetFeatureLevel);
-			const FText& PlatformText = FDataDrivenShaderPlatformInfo::GetFriendlyName(ShaderPlatform);
+			const FText& PlatformText = GEditor->PreviewPlatform.GetFriendlyName();
 			LabelName = FText::Format(LOCTEXT("WorldFeatureLevel", "{0}"), PlatformText);
 		}
 	}

@@ -16,7 +16,12 @@ public:
 	//~ Begin IDeviceProfileSelectorModule Interface
 	virtual const FString GetDeviceProfileName() override;
 	virtual const FString GetRuntimeDeviceProfileName() override;
-
+#if WITH_EDITOR
+	virtual void ExportDeviceParametersToJson(FString& FolderLocation) override;
+	virtual bool CanExportDeviceParametersToJson() override;
+	virtual void GetDeviceParametersFromJson(FString& JsonLocation, TMap<FName, FString>& OutDeviceParameters) override;
+	virtual bool CanGetDeviceParametersFromJson() override { return true; }
+#endif
 	// Set the device parameters this selector will use.
 	virtual void SetSelectorProperties(const TMap<FName, FString>& SelectorProperties) override;
 	virtual bool GetSelectorPropertyValue(const FName& PropertyType, FString& PropertyValueOUT) override;

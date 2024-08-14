@@ -227,9 +227,12 @@ struct FPreviewPlatformInfo
 	,	PreviewShaderFormatName(NAME_None)
 	,	bPreviewFeatureLevelActive(false)
 	,	PreviewShaderPlatformName(NAME_None)
-	{}
+	,	PreviewShaderPlatformFriendlyName()
+	{
+		InternalSetFriendlyName();
+	}
 
-	FPreviewPlatformInfo(ERHIFeatureLevel::Type InFeatureLevel, EShaderPlatform InShaderPlatform = EShaderPlatform::SP_NumPlatforms, FName InPreviewPlatformName = NAME_None, FName InPreviewShaderFormatName = NAME_None, FName InDeviceProfileName = NAME_None, bool InbPreviewFeatureLevelActive = false, FName InShaderPlatformName = NAME_None)
+	FPreviewPlatformInfo(ERHIFeatureLevel::Type InFeatureLevel, EShaderPlatform InShaderPlatform = EShaderPlatform::SP_NumPlatforms, FName InPreviewPlatformName = NAME_None, FName InPreviewShaderFormatName = NAME_None, FName InDeviceProfileName = NAME_None, bool InbPreviewFeatureLevelActive = false, FName InShaderPlatformName = NAME_None, FText InPreviewShaderPlatformFriendlyName = FText())
 	:	PreviewFeatureLevel(InFeatureLevel)
 	,	ShaderPlatform(InShaderPlatform)
 	,	PreviewPlatformName(InPreviewPlatformName)
@@ -237,7 +240,10 @@ struct FPreviewPlatformInfo
 	,	DeviceProfileName(InDeviceProfileName)
 	,	bPreviewFeatureLevelActive(InbPreviewFeatureLevelActive)
 	,	PreviewShaderPlatformName(InShaderPlatformName)
-	{}
+	,	PreviewShaderPlatformFriendlyName(InPreviewShaderPlatformFriendlyName)
+	{
+		InternalSetFriendlyName();
+	}
 
 	/** The feature level we should use when loading or creating a new world */
 	ERHIFeatureLevel::Type PreviewFeatureLevel;
@@ -274,6 +280,17 @@ struct FPreviewPlatformInfo
 
 	/** returns the preview feature level if active, or GMaxRHIFeatureLevel otherwise */
 	UNREALED_API ERHIFeatureLevel::Type GetEffectivePreviewFeatureLevel() const;
+	
+	/** Returns the Friendly Name of the Preview*/
+	UNREALED_API FText GetFriendlyName() const { return PreviewShaderPlatformFriendlyName; }
+	
+	/** Returns the Shader Platform of the Preview*/
+	UNREALED_API EShaderPlatform GetShaderPlatform() const;
+private:
+	/**Cache Preview ShaderPlatform Name*/
+	FText PreviewShaderPlatformFriendlyName;
+	
+	UNREALED_API void InternalSetFriendlyName();
 };
 
 enum class EAssetReferenceFilterProperties : uint8

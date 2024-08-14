@@ -448,6 +448,23 @@ ERHIFeatureLevel::Type FPreviewPlatformInfo::GetEffectivePreviewFeatureLevel() c
 	return bPreviewFeatureLevelActive ? PreviewFeatureLevel : GMaxRHIFeatureLevel;
 }
 
+EShaderPlatform FPreviewPlatformInfo::GetShaderPlatform() const
+{
+	return PreviewShaderPlatformName != NAME_None ?
+		FDataDrivenShaderPlatformInfo::GetShaderPlatformFromName(PreviewShaderPlatformName) :
+		GetFeatureLevelShaderPlatform(PreviewFeatureLevel);
+}
+
+void FPreviewPlatformInfo::InternalSetFriendlyName()
+{
+	if (PreviewShaderPlatformFriendlyName.IsEmpty())
+	{
+		EShaderPlatform PreviewShaderPlatform = GetShaderPlatform();
+		EShaderPlatform MaxRHIFeatureLevelPlatform = GetFeatureLevelShaderPlatform(GMaxRHIFeatureLevel);
+		PreviewShaderPlatformFriendlyName = FDataDrivenShaderPlatformInfo::GetFriendlyName(bPreviewFeatureLevelActive ? PreviewShaderPlatform : MaxRHIFeatureLevelPlatform);
+	}
+}
+
 void FAssetReferenceFilterContext::AddReferencingAsset(const FAssetData& InReferencingAsset, EAssetReferenceFilterProperties InProperties)
 {
 	if (InReferencingAsset.IsValid())
