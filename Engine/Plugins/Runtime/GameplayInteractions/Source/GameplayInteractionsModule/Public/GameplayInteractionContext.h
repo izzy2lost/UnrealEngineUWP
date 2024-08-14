@@ -23,22 +23,45 @@ struct FGameplayInteractionContext
 	GENERATED_BODY()
 
 public:
-	const FSmartObjectClaimHandle& GetClaimedHandle() const { return ClaimedHandle; }
-	void SetClaimedHandle(const FSmartObjectClaimHandle& InClaimedHandle) { ClaimedHandle = InClaimedHandle; }
+	const FSmartObjectClaimHandle& GetClaimedHandle() const
+	{
+		return ClaimedHandle;
+	}
 
-	void SetSlotEntranceHandle(const FSmartObjectSlotEntranceHandle InSlotEntranceHandle) { SlotEntranceHandle = InSlotEntranceHandle; }
+	void SetClaimedHandle(const FSmartObjectClaimHandle& InClaimedHandle)
+	{
+		ClaimedHandle = InClaimedHandle;
+	}
+
+	void SetSlotEntranceHandle(const FSmartObjectSlotEntranceHandle InSlotEntranceHandle)
+	{
+		SlotEntranceHandle = InSlotEntranceHandle;
+	}
 	
-	UE_DEPRECATED(5.1, "Please use SetContextActor")
-	void SetInteractorActor(AActor* InInteractorActor) { ContextActor = InInteractorActor; }
-	UE_DEPRECATED(5.1, "Please use SetSmartObjectActor")
-	void SetInteractableActor(AActor* InInteractableActor) { SmartObjectActor = InInteractableActor; }
-	
-	void SetContextActor(AActor* InContextActor) { ContextActor = InContextActor; }
-	void SetSmartObjectActor(AActor* InSmartObjectActor) { SmartObjectActor = InSmartObjectActor; }
+	void SetContextActor(AActor* InContextActor)
+	{
+		ContextActor = InContextActor;
+	}
 
-	void SetAbortContext(const FGameplayInteractionAbortContext& InAbortContext) { AbortContext = InAbortContext; }
+	void SetSmartObjectActor(AActor* InSmartObjectActor)
+	{
+		SmartObjectActor = InSmartObjectActor;
+	}
 
-	bool IsValid() const { return ClaimedHandle.IsValid() && ContextActor != nullptr && SmartObjectActor != nullptr; }
+	void SetAbortContext(const FGameplayInteractionAbortContext& InAbortContext)
+	{
+		AbortContext = InAbortContext;
+	}
+
+	bool IsValid() const
+	{
+		return ClaimedHandle.IsValid() && ContextActor != nullptr && SmartObjectActor != nullptr;
+	}
+
+	EStateTreeRunStatus GetLastRunStatus() const
+	{
+		return LastRunStatus;
+	};
 
 	/**
 	 * Prepares the StateTree execution context using provided Definition then starts the underlying StateTree 
@@ -56,10 +79,6 @@ public:
 	 * Stops the underlying StateTree
 	 */
 	GAMEPLAYINTERACTIONSMODULE_API void Deactivate();
-	
-	/** Sends event for the StateTree. Will be received on the next tick by the StateTree. */
-	UE_DEPRECATED(5.2, "Please use SendEvent() with separate parameters instead.")
-	GAMEPLAYINTERACTIONSMODULE_API void SendEvent(const FStateTreeEvent& Event);
 
 	/** Sends event for the StateTree. Will be received on the next tick by the StateTree. */
 	GAMEPLAYINTERACTIONSMODULE_API void SendEvent(const FGameplayTag Tag, const FConstStructView Payload = FConstStructView(), const FName Origin = FName());
@@ -94,8 +113,6 @@ protected:
 
 	UPROPERTY()
 	TObjectPtr<const UGameplayInteractionSmartObjectBehaviorDefinition> Definition = nullptr;
-};
 
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "StateTreeExecutionContext.h"
-#endif
+	EStateTreeRunStatus LastRunStatus = EStateTreeRunStatus::Unset;
+};

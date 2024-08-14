@@ -102,6 +102,8 @@ bool FGameplayInteractionContext::Tick(const float DeltaTime)
 		RunStatus = StateTreeContext.Tick(DeltaTime);
 	}
 
+	LastRunStatus = RunStatus;
+
 	return RunStatus == EStateTreeRunStatus::Running;
 }
 
@@ -142,11 +144,6 @@ void FGameplayInteractionContext::Deactivate()
 			UserData->UserActor = nullptr;
 		}
 	}
-}
-
-void FGameplayInteractionContext::SendEvent(const FStateTreeEvent& Event)
-{
-	SendEvent(Event.Tag, Event.Payload, Event.Origin);
 }
 
 void FGameplayInteractionContext::SendEvent(const FGameplayTag Tag, const FConstStructView Payload, const FName Origin)
