@@ -62,6 +62,7 @@ public:
 	virtual void DeleteRows(const TArray<uint32> & RowIndices) {}
 	virtual void MoveRow(int SourceIndex, int TargetIndex) {}
 	virtual void InsertRows(int Index, int Count) {}
+	virtual void CopyRow(FChooserColumnBase& SourceColumn, int SourceIndex, int TargetIndex) {}
 	
 	virtual UScriptStruct* GetInputBaseType() const { return nullptr; };
 	virtual const UScriptStruct* GetInputType() const { return nullptr; };
@@ -110,19 +111,23 @@ public:
 			RowValuesProperty.Insert(DefaultRowValue, Index);\
 		}\
 	}\
-	virtual void DeleteRows(const TArray<uint32> & RowIndices )\
+	virtual void DeleteRows(const TArray<uint32> & RowIndices ) override\
 	{\
 		for(uint32 Index : RowIndices)\
 		{\
 			RowValuesProperty.RemoveAt(Index);\
 		}\
 	}\
-	virtual void MoveRow(int SourceRowIndex, int TargetRowIndex)\
+	virtual void MoveRow(int SourceRowIndex, int TargetRowIndex) override\
 	{\
 		auto RowData = RowValuesProperty[SourceRowIndex];\
     	RowValuesProperty.RemoveAt(SourceRowIndex);\
     	if (SourceRowIndex < TargetRowIndex) { TargetRowIndex--; }\
     	RowValuesProperty.Insert(RowData, TargetRowIndex);\
+	}\
+	virtual void CopyRow(FChooserColumnBase& SourceColumn, int SourceRowIndex, int TargetRowIndex) override\
+	{\
+		RowValuesProperty.Insert(static_cast<decltype(this)>(&SourceColumn)->RowValuesProperty[SourceRowIndex], TargetRowIndex);\
 	}\
 	virtual UScriptStruct* GetInputBaseType() const override { return ParameterType::StaticStruct(); };\
 	virtual const UScriptStruct* GetInputType() const override { return InputValue.IsValid() ? InputValue.GetScriptStruct() : nullptr; };\

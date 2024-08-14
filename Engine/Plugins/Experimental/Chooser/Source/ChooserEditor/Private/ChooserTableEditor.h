@@ -103,6 +103,10 @@ namespace UE::ChooserEditor
 		bool IsSelectionDisabled();
 		void ToggleDisableSelection();
 		void DeleteSelection();
+		
+		void CopySelection();
+        void CutSelection();
+        		
 
 		void AutoPopulateColumn(FChooserColumnBase& Column);
 		void AutoPopulateRow(int Index);
@@ -137,6 +141,10 @@ namespace UE::ChooserEditor
 		void RemoveDisabledData();
 		void RegisterToolbar();
 		void RegisterMenus();
+
+
+		void Paste();
+		bool CanPaste() const;
 		void BindCommands();
 		void OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event);
 		void MakeDebugTargetMenu(UToolMenu* InToolMenu);
