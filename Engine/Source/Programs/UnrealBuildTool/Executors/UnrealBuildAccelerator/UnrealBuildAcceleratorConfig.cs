@@ -86,7 +86,7 @@ namespace UnrealBuildTool
 		/// </summary>
 		[XmlConfigFile(Category = "UnrealBuildAccelerator")]
 		[CommandLine("-UBAHost")]
-		public string Host { get; set; } = String.Empty;
+		public string Host { get; set; } = "0.0.0.0";
 
 		/// <summary>
 		/// Which port UBA server should listen to for connections.
