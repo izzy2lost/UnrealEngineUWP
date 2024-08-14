@@ -13,7 +13,7 @@ namespace UE::MultiUserClient::Replication
 {
 	void SAllClientsView::Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{
-		ClientManager = InMultiUserReplicationManager.GetClientManager();
+		ClientManager = InMultiUserReplicationManager.GetOnlineClientManager();
 		check(ClientManager);
 		AllClientsModel = MakeUnique<FAllOnlineClientsSelectionModel>(*ClientManager);
 		

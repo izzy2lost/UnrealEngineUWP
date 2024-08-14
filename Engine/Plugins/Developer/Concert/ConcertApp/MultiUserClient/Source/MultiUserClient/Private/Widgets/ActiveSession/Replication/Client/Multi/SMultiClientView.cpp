@@ -37,7 +37,7 @@ namespace UE::MultiUserClient::Replication
 		IOnlineClientSelectionModel& InOnlineClientSelectionModel
 		)
 	{
-		ClientManager = InMultiUserReplicationManager.GetClientManager();
+		ClientManager = InMultiUserReplicationManager.GetOnlineClientManager();
 		UserSelectedProperties = InMultiUserReplicationManager.GetUserPropertySelector();
 		StreamModel = MakeShared<FMultiStreamModel>(InOnlineClientSelectionModel, *ClientManager);
 		OnlineClientSelectionModel = &InOnlineClientSelectionModel;

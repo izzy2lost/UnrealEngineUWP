@@ -62,8 +62,8 @@ namespace UE::MultiUserClient::Replication
 		void JoinReplicationSession();
 
 		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
-		FOnlineClientManager* GetClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
-		const FOnlineClientManager* GetClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		FOnlineClientManager* GetOnlineClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		const FOnlineClientManager* GetOnlineClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
 		
 		/** @note You're not supposed to keep any reference to the MuteManager since it can become invalid depending on connection state. */
 		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
