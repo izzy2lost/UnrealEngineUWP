@@ -222,6 +222,7 @@ namespace HordeAgent
 			services.AddSingleton<CapabilitiesService>();
 			services.AddSingleton<ISessionFactory, SessionFactory>();
 			services.AddSingleton<WorkerService>();
+			services.AddSingleton<IWorkerService>(sp => sp.GetRequiredService<WorkerService>());
 			services.AddSingleton<LeaseLoggerFactory>();
 			services.AddHostedService(sp => sp.GetRequiredService<WorkerService>());
 

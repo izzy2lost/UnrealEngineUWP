@@ -61,7 +61,7 @@ class AwsInstanceLifecycleService : BackgroundService
 	public const string HttpClientName = "Horde.HttpAwsInstanceClient";
 
 	private const string BaseUri = "http://169.254.169.254/latest/meta-data";
-	private readonly StatusService _statusService;
+	private readonly IWorkerService _workerService;
 	private readonly HttpClient _httpClient;
 	private readonly FileReference _terminationSignalFile;
 	private readonly ILogger<AwsInstanceLifecycleService> _logger;
@@ -93,9 +93,9 @@ class AwsInstanceLifecycleService : BackgroundService
 	/// <summary>
 	/// Constructor
 	/// </summary>
-	public AwsInstanceLifecycleService(StatusService statusService, HttpClient httpClient, IOptions<AgentSettings> settings, ILogger<AwsInstanceLifecycleService> logger)
+	public AwsInstanceLifecycleService(IWorkerService workerService, HttpClient httpClient, IOptions<AgentSettings> settings, ILogger<AwsInstanceLifecycleService> logger)
 	{
-		_statusService = statusService;
+		_workerService = workerService;
 		_httpClient = httpClient;
 		_httpClient.Timeout = TimeSpan.FromSeconds(10);
 		_terminationWarningCallback = OnTerminationWarningAsync;
@@ -225,8 +225,9 @@ class AwsInstanceLifecycleService : BackgroundService
 
 	private async Task OnTerminationWarningAsync(Ec2TerminationInfo info, CancellationToken cancellationToken)
 	{
-		// Request agent to be stopped. Agent's session loop will pick this up and notify the server, preventing new leases getting scheduled.
-		_statusService.IsStopRequested = true;
+		// Request shutdown of entire machine while waiting for the current lease executing to finish.
+		// Agent's session loop will pick this up and notify the server, preventing new leases getting scheduled.
+		_workerService.TerminateSessionAfterLease();
 
 		// Create and write the termination signal file, containing the time-to-live for the EC2 instance.
 		// Workloads executed by the agent that support this protocol can pick this up and prepare/clean up prior to termination

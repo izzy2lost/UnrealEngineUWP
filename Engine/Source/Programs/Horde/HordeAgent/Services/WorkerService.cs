@@ -11,9 +11,25 @@ using Microsoft.Extensions.Logging;
 namespace HordeAgent.Services
 {
 	/// <summary>
+	/// Interface for WorkerService. Mainly for extracting methods which simplifies testing and dependencies
+	/// </summary>
+	internal interface IWorkerService
+	{
+		/// <summary>
+		/// Gets all the current leases held by the agent
+		/// </summary>
+		public List<RpcLease> GetActiveLeases();
+		
+		/// <summary>
+		/// Stop the session loop after at least one lease has finished executing
+		/// </summary>
+		public void TerminateSessionAfterLease();
+	}
+	
+	/// <summary>
 	/// Implements the message handling loop for an agent. Runs asynchronously until disposed.
 	/// </summary>
-	class WorkerService : BackgroundService, IDisposable
+	class WorkerService : BackgroundService, IWorkerService
 	{
 		readonly ILogger _logger;
 		readonly ISessionFactory _sessionFactory;
@@ -41,13 +57,20 @@ namespace HordeAgent.Services
 			_logger = logger;
 			_serviceProvider = serviceProvider;
 		}
-
-		/// <summary>
-		/// Gets all the current leases held by the agent
-		/// </summary>
+		
+		/// <inheritdoc/>
 		public List<RpcLease> GetActiveLeases()
 		{
 			return _currentLeaseManager?.GetActiveLeases() ?? new List<RpcLease>();
+		}
+		
+		/// <inheritdoc/>
+		public void TerminateSessionAfterLease()
+		{
+			if (_currentLeaseManager != null)
+			{
+				_currentLeaseManager.TerminateSessionAfterLease = true;
+			}
 		}
 
 		/// <summary>
@@ -107,7 +130,7 @@ namespace HordeAgent.Services
 						await using (ISession session = await _sessionFactory.CreateAsync(stoppingToken))
 						{
 							_currentLeaseManager = new LeaseManager(session, _serviceProvider);
-							result = await _currentLeaseManager.RunAsync(false, stoppingToken);
+							result = await _currentLeaseManager.RunAsync(stoppingToken);
 						}
 
 						failureCount = 0;

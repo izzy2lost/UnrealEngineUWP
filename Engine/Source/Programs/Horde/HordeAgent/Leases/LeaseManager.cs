@@ -18,6 +18,32 @@ namespace HordeAgent.Leases
 	class LeaseManager
 	{
 		/// <summary>
+		/// Number of leases completed
+		/// </summary>
+		public int NumLeasesCompleted { get; private set; }
+		
+		/// <summary>
+		/// Delegate for lease active events
+		/// </summary>
+		public delegate void LeaseActiveEvent(RpcLease lease);
+		
+		/// <summary>
+		/// Event triggered when a lease is accepted and set to active
+		/// </summary>
+		public event LeaseActiveEvent? OnLeaseActive;
+		
+		/// <summary>
+		/// List of pool IDs this session is a member of
+		/// </summary>
+		public IReadOnlyList<string> PoolIds { get; private set; } = new List<string>();
+		
+		/// <summary>
+		/// Whether to terminate session after at least one lease has finished
+		/// Useful for shutting down as gracefully as possible without interrupting the current lease executing.
+		/// </summary>
+		public bool TerminateSessionAfterLease { get; set; }
+		
+		/// <summary>
 		/// Object used for controlling access to the access tokens and active sessions list
 		/// </summary>
 		readonly object _lockObject = new object();
@@ -26,11 +52,6 @@ namespace HordeAgent.Leases
 		/// The list of active leases.
 		/// </summary>
 		readonly List<LeaseHandler> _activeLeases = new List<LeaseHandler>();
-
-		/// <summary>
-		/// Number of leases completed
-		/// </summary>
-		public int NumLeasesCompleted { get; private set; }
 
 		/// <summary>
 		/// Whether the agent is currently in an unhealthy state
@@ -51,21 +72,6 @@ namespace HordeAgent.Leases
 		/// Number of times UpdateSession has failed
 		/// </summary>
 		int _updateSessionFailures;
-
-		/// <summary>
-		/// Delegate for lease active events
-		/// </summary>
-		public delegate void LeaseActiveEvent(RpcLease lease);
-
-		/// <summary>
-		/// Event triggered when a lease is accepted and set to active
-		/// </summary>
-		public event LeaseActiveEvent? OnLeaseActive;
-
-		/// <summary>
-		/// List of pool IDs this session is a member of
-		/// </summary>
-		public IReadOnlyList<string> PoolIds { get; private set; } = new List<string>();
 
 		/// <summary>
 		/// How long to wait before trying to reacquire a new connection
@@ -107,12 +113,12 @@ namespace HordeAgent.Leases
 			}
 		}
 
-		public async Task<SessionResult> RunAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
+		public async Task<SessionResult> RunAsync(CancellationToken stoppingToken)
 		{
 			SessionResult result;
 			try
 			{
-				result = await HandleSessionAsync(shutdownAfterFinishedLease, stoppingToken);
+				result = await HandleSessionAsync(stoppingToken);
 			}
 			catch (OperationCanceledException ex) when (stoppingToken.IsCancellationRequested)
 			{
@@ -192,7 +198,7 @@ namespace HordeAgent.Leases
 			}
 		}
 
-		async Task<SessionResult> HandleSessionAsync(bool shutdownAfterFinishedLease, CancellationToken stoppingToken)
+		async Task<SessionResult> HandleSessionAsync(CancellationToken stoppingToken)
 		{
 			HordeRpc.HordeRpcClient hordeRpc = await _session.HordeClient.CreateGrpcClientAsync<HordeRpc.HordeRpcClient>(stoppingToken);
 
@@ -246,11 +252,6 @@ namespace HordeAgent.Leases
 						stopping = true;
 					}
 				}
-				
-				if (_statusService.IsStopRequested)
-				{
-					stopping = true;
-				}
 
 				// Get the new agent status
 				bool busy = _statusService.IsBusy;
@@ -286,9 +287,9 @@ namespace HordeAgent.Leases
 						if (updateSessionResponse != null)
 						{
 							bool atLeastOneLeaseFinished = _activeLeases.Any(x => x.RpcLease.State is RpcLeaseState.Completed or RpcLeaseState.Cancelled);
-							if (atLeastOneLeaseFinished && shutdownAfterFinishedLease)
+							if (atLeastOneLeaseFinished && TerminateSessionAfterLease)
 							{
-								_logger.LogInformation("At least one lease executed. Requesting shutdown.");
+								_logger.LogInformation("At least one lease executed. Terminating session");
 								_sessionResult = new SessionResult(SessionOutcome.Terminate);
 							}
 
@@ -337,15 +338,16 @@ namespace HordeAgent.Leases
 							// Update the session result if we've transitioned to stopped
 							if (updateSessionResponse.Status == RpcAgentStatus.Stopped)
 							{
-								_logger.LogInformation("Agent status is stopped; returning from session update loop.");
-								return _sessionResult ?? new SessionResult(SessionOutcome.BackOff);
+								SessionResult result = _sessionResult ?? new SessionResult(SessionOutcome.BackOff);
+								_logger.LogInformation("Agent status is stopped; returning from session update loop with result {Result}", result.Outcome);
+								return result;
 							}
 						}
 
 						// If there's nothing still running and cancellation was requested, exit
 						if (_activeLeases.Count == 0 && _sessionResult != null)
 						{
-							_logger.LogInformation("No leases are active. Agent is stopping."); // TODO: Should not really hit this any more; server should report stopping state in lease update above.
+							_logger.LogInformation("No leases are active. Agent is stopping. Session result {Result}", _sessionResult.Outcome); // TODO: Should not really hit this any more; server should report stopping state in lease update above.
 							return _sessionResult;
 						}
 					}

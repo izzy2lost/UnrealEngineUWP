@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
@@ -8,6 +9,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using HordeAgent.Services;
+using HordeCommon.Rpc.Messages;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -15,6 +17,24 @@ using Moq;
 using Moq.Protected;
 
 namespace HordeAgent.Tests.Services;
+
+/// <summary>
+/// Testing stub for IWorkerService
+/// </summary>
+public class WorkerServiceStub : IWorkerService
+{
+	public bool TerminateSession { get; set; }
+	
+	public List<RpcLease> GetActiveLeases()
+	{
+		throw new NotImplementedException();
+	}
+	
+	public void TerminateSessionAfterLease()
+	{
+		TerminateSession = true;
+	}
+}
 
 /// <summary>
 /// Fake implementation of the AWS EC2 metadata server (IMDS)
@@ -73,7 +93,7 @@ public class FakeAwsImds
 }
 
 [TestClass]
-public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDisposable
+public sealed class AwsInstanceLifecycleServiceTests : IDisposable
 {
 	// Stub for fulfilling IOptionsMonitor interface during testing
 	// Copied from HordeServerTests until a good way to share code between these is decided.
@@ -94,7 +114,7 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 			=> null;
 	}
 
-	private readonly StatusService _statusService;
+	private readonly WorkerServiceStub _workerService = new();
 	private readonly HttpClient _httpClient;
 	private readonly FakeAwsImds _fakeImds = new();
 	private readonly AwsInstanceLifecycleService _service;
@@ -113,9 +133,8 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		AgentSettings settings = new() { WorkingDir = new DirectoryReference(tempDir) };
 		_terminationSignalFile = settings.GetTerminationSignalFile();
 
-		_statusService = new(new TestOptionsMonitor<AgentSettings>(settings), loggerFactory.CreateLogger<StatusService>());
 		_httpClient = _fakeImds.GetHttpClient();
-		_service = new AwsInstanceLifecycleService(_statusService, _httpClient, new OptionsWrapper<AgentSettings>(settings), loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
+		_service = new AwsInstanceLifecycleService(_workerService, _httpClient, new OptionsWrapper<AgentSettings>(settings), loggerFactory.CreateLogger<AwsInstanceLifecycleService>());
 		_service._timeToLiveAsg = TimeSpan.FromMilliseconds(10);
 		_service._timeToLiveSpot = TimeSpan.FromMilliseconds(20);
 		_service._terminationBufferTime = TimeSpan.FromMilliseconds(2);
@@ -165,7 +184,9 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 		_fakeImds.InstanceLifeCycle = FakeAwsImds.Spot;
 		Assert.IsFalse(File.Exists(_terminationSignalFile.FullName));
 
+		Assert.IsFalse(_workerService.TerminateSession);
 		await _service.MonitorInstanceLifecycleAsync(CancellationToken.None);
+		Assert.IsTrue(_workerService.TerminateSession);
 
 		string data = await File.ReadAllTextAsync(_terminationSignalFile.FullName);
 		Assert.AreEqual("v1\n18\n2222000\nAWS EC2 Spot interruption\n", data); // 20 ms for spot, minus 2 ms for termination buffer
@@ -175,10 +196,5 @@ public sealed class AwsInstanceLifecycleServiceTests : IAsyncDisposable, IDispos
 	{
 		_httpClient.Dispose();
 		_service.Dispose();
-	}
-
-	public ValueTask DisposeAsync()
-	{
-		return _statusService.DisposeAsync();
 	}
 }
