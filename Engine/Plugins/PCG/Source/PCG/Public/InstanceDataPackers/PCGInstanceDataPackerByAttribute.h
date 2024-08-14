@@ -22,7 +22,7 @@ public:
 	virtual void PackInstances_Implementation(UPARAM(ref) FPCGContext& Context, const UPCGSpatialData* InSpatialData, UPARAM(ref) const FPCGMeshInstanceList& InstanceList, FPCGPackedCustomData& OutPackedCustomData) const override;
 
 public:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = InstanceDataPacker)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = InstanceDataPacker, meta = (PCG_DiscardPropertySelection))
 	TArray<FPCGAttributePropertyInputSelector> AttributeSelectors;
 
 #if WITH_EDITORONLY_DATA

@@ -7,6 +7,7 @@
 #include "Data/PCGSpatialData.h"
 #include "InstanceDataPackers/PCGInstanceDataPackerBase.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
+#include "MeshSelectors/PCGMeshSelectorBase.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGInstanceDataPackerByAttribute)
 
@@ -47,7 +48,7 @@ void UPCGInstanceDataPackerByAttribute::PackInstances_Implementation(FPCGContext
 	for (const FPCGAttributePropertyInputSelector& Selector : AttributeSelectors)
 	{
 		TUniquePtr<const IPCGAttributeAccessor> Accessor = PCGAttributeAccessorHelpers::CreateConstAccessor(InSpatialData, Selector);
-		TUniquePtr<const IPCGAttributeAccessorKeys> Keys = PCGAttributeAccessorHelpers::CreateConstKeys(InSpatialData, Selector);
+		TUniquePtr<const IPCGAttributeAccessorKeys> Keys = MakeUnique<FPCGAttributeAccessorKeysEntries>(InstanceList.InstancesMetadataEntry);
 
 		if (!Accessor.IsValid() || !Keys.IsValid())
 		{

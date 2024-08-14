@@ -192,6 +192,11 @@ void UPCGInstanceDataPackerBase::PackCustomDataFromAccessors(const FPCGMeshInsta
 
 	OutPackedCustomData.CustomData.SetNumUninitialized(TotalNumCustomDataFloats);
 
+	if (TotalNumCustomDataFloats == 0)
+	{
+		return;
+	}
+
 	// Index of the accessor's attribute/property for a single instance (e.g. if the
 	// accessors are [float, FVector, float], AccessorPackedIndex will be [0, 1, 4])
 	int AccessorPackedIndex = 0;
