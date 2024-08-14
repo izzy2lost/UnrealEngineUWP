@@ -132,6 +132,100 @@ FString FNavDataConfig::GetDescription() const
 //----------------------------------------------------------------------//
 // FNavigationRelevantData
 //----------------------------------------------------------------------//
+FNavigationRelevantData::FNavigationRelevantData(const FNavigationRelevantData& Other)
+	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(Other)
+	, CollisionData(Other.CollisionData)
+	, VoxelData(Other.VoxelData)
+	, Bounds(Other.Bounds)
+	, NavDataPerInstanceTransformDelegate(Other.NavDataPerInstanceTransformDelegate)
+	, ShouldUseGeometryDelegate(Other.ShouldUseGeometryDelegate)
+	, Modifiers(Other.Modifiers)
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, SourceObject(Other.SourceObject)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, SourceElement(Other.SourceElement)
+	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
+	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
+	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
+	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
+	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
+	, bLoadedData(Other.bLoadedData)
+{
+}
+
+FNavigationRelevantData::FNavigationRelevantData(FNavigationRelevantData&& Other)
+	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(MoveTemp(Other))
+	, CollisionData(MoveTemp(Other.CollisionData))
+	, VoxelData(MoveTemp(Other.VoxelData))
+	, Bounds(MoveTemp(Other.Bounds))
+	, NavDataPerInstanceTransformDelegate(MoveTemp(Other.NavDataPerInstanceTransformDelegate))
+	, ShouldUseGeometryDelegate(MoveTemp(Other.ShouldUseGeometryDelegate))
+	, Modifiers(MoveTemp(Other.Modifiers))
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, SourceObject(MoveTemp(Other.SourceObject))
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, SourceElement(MoveTemp(Other.SourceElement))
+	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
+	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
+	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
+	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
+	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
+	, bLoadedData(Other.bLoadedData)
+{
+}
+
+FNavigationRelevantData& FNavigationRelevantData::operator=(FNavigationRelevantData&& Other)
+{
+	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(MoveTemp(Other));
+	CollisionData = MoveTemp(Other.CollisionData);
+	VoxelData = MoveTemp(Other.VoxelData);
+	Bounds = MoveTemp(Other.Bounds);
+	NavDataPerInstanceTransformDelegate = MoveTemp(Other.NavDataPerInstanceTransformDelegate);
+	ShouldUseGeometryDelegate = MoveTemp(Other.ShouldUseGeometryDelegate);
+	Modifiers = MoveTemp(Other.Modifiers);
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SourceObject = MoveTemp(Other.SourceObject);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	SourceElement = MoveTemp(Other.SourceElement);
+	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
+	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
+	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
+	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
+	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
+	bLoadedData = Other.bLoadedData;
+	return *this;
+}
+
+FNavigationRelevantData& FNavigationRelevantData::operator=(const FNavigationRelevantData& Other)
+{
+	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(Other);
+	CollisionData = Other.CollisionData;
+	VoxelData = Other.VoxelData;
+	Bounds = Other.Bounds;
+	NavDataPerInstanceTransformDelegate = Other.NavDataPerInstanceTransformDelegate;
+	ShouldUseGeometryDelegate = Other.ShouldUseGeometryDelegate;
+	Modifiers = Other.Modifiers;
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	SourceObject = Other.SourceObject;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	SourceElement = Other.SourceElement;
+	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
+	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
+	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
+	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
+	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
+	bLoadedData = Other.bLoadedData;
+	return *this;
+}
+
 bool FNavigationRelevantData::FCollisionDataHeader::IsValid(const uint8* RawData, int32 RawDataSize)
 {
 	constexpr int32 HeaderSize = sizeof(FCollisionDataHeader);
@@ -424,100 +518,6 @@ FNavigationRelevantData::FNavigationRelevantData(UObject& Source)
 	, bShouldSkipDirtyAreaOnAddOrRemove(false)
 	, bLoadedData(false)
 {
-}
-
-FNavigationRelevantData::FNavigationRelevantData(const FNavigationRelevantData& Other)
-	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(Other)
-	, CollisionData(Other.CollisionData)
-	, VoxelData(Other.VoxelData)
-	, Bounds(Other.Bounds)
-	, NavDataPerInstanceTransformDelegate(Other.NavDataPerInstanceTransformDelegate)
-	, ShouldUseGeometryDelegate(Other.ShouldUseGeometryDelegate)
-	, Modifiers(Other.Modifiers)
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	, SourceObject(Other.SourceObject)
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
-	, SourceElement(Other.SourceElement)
-	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
-	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
-	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
-	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
-	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
-	, bLoadedData(Other.bLoadedData)
-{
-}
-
-FNavigationRelevantData::FNavigationRelevantData(FNavigationRelevantData&& Other)
-	: TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>(MoveTemp(Other))
-	, CollisionData(MoveTemp(Other.CollisionData))
-	, VoxelData(MoveTemp(Other.VoxelData))
-	, Bounds(MoveTemp(Other.Bounds))
-	, NavDataPerInstanceTransformDelegate(MoveTemp(Other.NavDataPerInstanceTransformDelegate))
-	, ShouldUseGeometryDelegate(MoveTemp(Other.ShouldUseGeometryDelegate))
-	, Modifiers(MoveTemp(Other.Modifiers))
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	, SourceObject(MoveTemp(Other.SourceObject))
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
-	, SourceElement(MoveTemp(Other.SourceElement))
-	, bPendingLazyGeometryGathering(Other.bPendingLazyGeometryGathering)
-	, bPendingLazyModifiersGathering(Other.bPendingLazyModifiersGathering)
-	, bPendingChildLazyModifiersGathering(Other.bPendingChildLazyModifiersGathering)
-	, bSupportsGatheringGeometrySlices(Other.bSupportsGatheringGeometrySlices)
-	, bShouldSkipDirtyAreaOnAddOrRemove(Other.bShouldSkipDirtyAreaOnAddOrRemove)
-	, bLoadedData(Other.bLoadedData)
-{
-}
-
-FNavigationRelevantData& FNavigationRelevantData::operator=(FNavigationRelevantData&& Other)
-{
-	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(MoveTemp(Other));
-	CollisionData = MoveTemp(Other.CollisionData);
-	VoxelData = MoveTemp(Other.VoxelData);
-	Bounds = MoveTemp(Other.Bounds);
-	NavDataPerInstanceTransformDelegate = MoveTemp(Other.NavDataPerInstanceTransformDelegate);
-	ShouldUseGeometryDelegate = MoveTemp(Other.ShouldUseGeometryDelegate);
-	Modifiers = MoveTemp(Other.Modifiers);
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	SourceObject = MoveTemp(Other.SourceObject);
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
-	SourceElement = MoveTemp(Other.SourceElement);
-	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
-	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
-	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
-	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
-	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
-	bLoadedData = Other.bLoadedData;
-	return *this;
-}
-
-FNavigationRelevantData& FNavigationRelevantData::operator=(const FNavigationRelevantData& Other)
-{
-	TSharedFromThis<FNavigationRelevantData, ESPMode::ThreadSafe>::operator =(Other);
-	CollisionData = Other.CollisionData;
-	VoxelData = Other.VoxelData;
-	Bounds = Other.Bounds;
-	NavDataPerInstanceTransformDelegate = Other.NavDataPerInstanceTransformDelegate;
-	ShouldUseGeometryDelegate = Other.ShouldUseGeometryDelegate;
-	Modifiers = Other.Modifiers;
-#if WITH_EDITORONLY_DATA
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	SourceObject = Other.SourceObject;
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
-#endif // WITH_EDITORONLY_DATA
-	SourceElement = Other.SourceElement;
-	bPendingLazyGeometryGathering = Other.bPendingLazyGeometryGathering;
-	bPendingLazyModifiersGathering = Other.bPendingLazyModifiersGathering;
-	bPendingChildLazyModifiersGathering = Other.bPendingChildLazyModifiersGathering;
-	bSupportsGatheringGeometrySlices = Other.bSupportsGatheringGeometrySlices;
-	bShouldSkipDirtyAreaOnAddOrRemove = Other.bShouldSkipDirtyAreaOnAddOrRemove;
-	bLoadedData = Other.bLoadedData;
-	return *this;
 }
 
 // Deprecated
