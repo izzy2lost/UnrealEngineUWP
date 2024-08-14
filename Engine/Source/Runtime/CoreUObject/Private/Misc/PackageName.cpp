@@ -790,7 +790,7 @@ void FPackageName::InternalFilenameToLongPackageName(FStringView InFilename, FSt
 	OutPackageName << Result;
 }
 
-bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason)
+bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason, const EConvertFlags Flags)
 {
 	TStringBuilder<256> FailureReasonBuilder;
 	FStringBuilderBase* FailureReasonBuilderPtr = nullptr;
@@ -800,7 +800,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename
 	}
 
 	TStringBuilder<256> PackageNameBuilder;
-	const bool bResult = TryConvertFilenameToLongPackageName(MakeStringView(InFilename), PackageNameBuilder, FailureReasonBuilderPtr);
+	const bool bResult = TryConvertFilenameToLongPackageName(MakeStringView(InFilename), PackageNameBuilder, FailureReasonBuilderPtr, Flags);
 	if (bResult)
 	{
 		OutPackageName = PackageNameBuilder.ToView();
@@ -812,7 +812,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(const FString& InFilename
 	return bResult;
 }
 
-bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason /*= nullptr*/)
+bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason /*= nullptr*/, const EConvertFlags Flags)
 {
 	TStringBuilder<256> LongPackageNameBuilder;
 	InternalFilenameToLongPackageName(InFilename, LongPackageNameBuilder);
@@ -836,7 +836,8 @@ bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, F
 	const bool bContainsBackslash = LongPackageName.FindChar(TEXT('\\'), CharacterIndex);
 	const bool bContainsColon = LongPackageName.FindChar(TEXT(':'), CharacterIndex);
 
-	if (!(bContainsDot || bContainsBackslash || bContainsColon))
+	// For Verse files, the filenames can have dots in them to allow for `*.*.verse` to be considered as valid Verse snippets.
+	if (!(!EnumHasAnyFlags(Flags, EConvertFlags::AllowDots) && bContainsDot || bContainsBackslash || bContainsColon))
 	{
 		OutPackageName = LongPackageName;
 		return true;
@@ -850,7 +851,7 @@ bool FPackageName::TryConvertFilenameToLongPackageName(FStringView InFilename, F
 		FPathViews::ToAbsolutePath(InFilename, AbsPath);
 		if (!FPathViews::IsRelativePath(AbsPath) && AbsPath.Len() > 1)
 		{
-			if (TryConvertFilenameToLongPackageName(AbsPath, OutPackageName, nullptr))
+			if (TryConvertFilenameToLongPackageName(AbsPath, OutPackageName, nullptr, Flags))
 			{
 				return true;
 			}

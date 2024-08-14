@@ -4439,7 +4439,7 @@ bool UAssetRegistryImpl::VerseCreated(const FString& FilePathOnDisk)
 	}
 
 	FString PackageName;
-	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName))
+	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName, /*OutFailureReason*/nullptr, FPackageName::EConvertFlags::AllowDots))
 	{
 		return false;
 	}
@@ -4468,7 +4468,7 @@ bool UAssetRegistryImpl::VerseDeleted(const FString& FilePathOnDisk)
 	}
 
 	FString PackageName;
-	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName))
+	if (!FPackageName::TryConvertFilenameToLongPackageName(FilePathOnDisk, PackageName, /*OutFailureReason*/nullptr, FPackageName::EConvertFlags::AllowDots))
 	{
 		return false;
 	}
@@ -7224,7 +7224,12 @@ void FAssetRegistryImpl::OnDirectoryChanged(Impl::FEventContext& EventContext,
 		FString LongPackageName;
 		const FString File = FString(FileChangesProcessed[FileIdx].Filename);
 		const bool bIsPackageFile = FPackageName::IsPackageExtension(*FPaths::GetExtension(File, true));
-		const bool bIsValidPackageName = FPackageName::TryConvertFilenameToLongPackageName(File, LongPackageName);
+		const bool bIsValidPackageName = FPackageName::TryConvertFilenameToLongPackageName(
+			File,
+			LongPackageName,
+			/*OutFailureReason*/ nullptr,
+			/* Verse files can be of the wildcard pattern `*.*.verse`. */
+			FAssetDataGatherer::IsVerseFile(File) && !bIsPackageFile ? FPackageName::EConvertFlags::AllowDots : FPackageName::EConvertFlags::None);
 		const bool bIsValidPackage = bIsPackageFile && bIsValidPackageName;
 
 		if (bIsValidPackage)
