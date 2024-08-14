@@ -1100,7 +1100,7 @@ NTSTATUS NTAPI Shared_NtCreateFile(bool IsCreateFunc, PHANDLE hFileHandle, ACCES
 			}
 			else
 			{
-				if (g_rules->IsThrowAway(fileName))
+				if (g_rules->IsThrowAway(fileName, g_runningRemote))
 				{
 					//isDeleteOnClose = true;
 				}
@@ -1376,7 +1376,7 @@ NTSTATUS NTAPI Detoured_NtClose(HANDLE handle)
 		mappingWritten = fi.memoryFile->writtenSize;
 
 		u32 orginalNameLen = TStrlen(fi.originalName);
-		if (IsOutputFile(StringView(fi.originalName, orginalNameLen), IsWrite(fo->desiredAccess, 0), fo->deleteOnClose) && !g_rules->IsThrowAway(StringView(fi.originalName, orginalNameLen)))
+		if (IsOutputFile(StringView(fi.originalName, orginalNameLen), IsWrite(fo->desiredAccess, 0), fo->deleteOnClose) && !g_rules->IsThrowAway(StringView(fi.originalName, orginalNameLen), g_runningRemote))
 		{
 			// Need to report this file to host so it can be tracked in directory table
 			if (!fi.memoryFile->isReported)

@@ -34,16 +34,16 @@ namespace uba
 		}
 
 		// Throw-away means that the file is temporary and will not be used after process exists. (By default these are kept in memory and never touch disk)
-		virtual bool IsThrowAway(const StringView& fileName) const
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const
 		{
 			return false;
 		}
 
 		// Keep file in memory
 		// If this returns true it means that file will be kept in memory and never touch disk.
-		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const
 		{
-			return IsThrowAway(fileName);
+			return IsThrowAway(fileName, isRunningRemote);
 		}
 
 		// For files that are kept in memory but shared between process (temporary files where one process write and another read)

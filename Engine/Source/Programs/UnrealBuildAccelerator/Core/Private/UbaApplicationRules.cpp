@@ -30,17 +30,17 @@ namespace uba
 				return false;
 			return true;
 		}
-		virtual bool IsThrowAway(const StringView& fileName) const override
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const override
 		{
-			return fileName.Contains(TC("vctip_")) || Super::IsThrowAway(fileName);
+			return fileName.Contains(TC("vctip_")) || Super::IsThrowAway(fileName, isRunningRemote);
 		}
-		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const override
 		{
 			if (fileName.Contains(TC("\\vctip_")))
 				return true;
 			if (fileName.Contains(systemTemp))
 				return true;
-			return Super::KeepInMemory(fileName, systemTemp);
+			return Super::KeepInMemory(fileName, systemTemp, isRunningRemote);
 		}
 
 		virtual bool IsExitCodeSuccess(u32 exitCode) const override
@@ -110,7 +110,7 @@ namespace uba
 				|| fileName.EndsWith(TC(".rc2.res")); // Not really an obj file.. 
 		}
 
-		virtual bool IsThrowAway(const StringView& fileName) const override
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const override
 		{
 			return fileName.Contains(TC(".sup.")); // .sup.lib/exp are throw-away files that we don't want created
 		}
@@ -164,7 +164,7 @@ namespace uba
 	{
 		using Super = ApplicationRulesLinkExe;
 
-		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const override
 		{
 			return fileName.EndsWith(TC(".manifest")) && fileName.Contains(systemTemp);
 		}
@@ -298,9 +298,9 @@ namespace uba
 	{
 		using Super = ApplicationRulesClangPlusPlusExe;
 
-		virtual bool IsThrowAway(const StringView& fileName) const override
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const override
 		{
-			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
+			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName, isRunningRemote);
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
@@ -317,9 +317,9 @@ namespace uba
 		//{
 		//	return fileName.EndsWith(TC(".self")) || Equals(file, TC("Symbols.map"));
 		//}
-		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp) const override
+		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const override
 		{
-			return Super::KeepInMemory(fileName, systemTemp)
+			return Super::KeepInMemory(fileName, systemTemp, isRunningRemote)
 				|| fileName.Contains(TC("thinlto-"));// Used by a clang based platform's link time optimization pass. Shared from lto process back to linker process
 		}
 		virtual bool NeedsSharedMemory(const tchar* file) const override
@@ -342,9 +342,10 @@ namespace uba
 			return fileName.Contains(TC(".self")) || Super::IsOutputFile(fileName);
 		}
 
-		virtual bool IsThrowAway(const StringView& fileName) const override
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const override
 		{
-			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
+			return Super::IsThrowAway(fileName, isRunningRemote)
+				|| isRunningRemote && fileName.EndsWith(TC("-telemetry.json"));
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
@@ -362,9 +363,10 @@ namespace uba
 			return fileName.Contains(TC(".self"));
 		}
 
-		virtual bool IsThrowAway(const StringView& fileName) const override
+		virtual bool IsThrowAway(const StringView& fileName, bool isRunningRemote) const override
 		{
-			return fileName.EndsWith(TC("-telemetry.json")) || Super::IsThrowAway(fileName);
+			return Super::IsThrowAway(fileName, isRunningRemote)
+				|| isRunningRemote && fileName.EndsWith(TC("-telemetry.json"));
 		}
 
 		//virtual bool NeedsSharedMemory(const tchar* file)
