@@ -262,7 +262,7 @@ void UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase* Builder, F
 	check(Settings);
 	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageName))
 	{
-		const bool bFocusedPage = SetFocusedPageInternal(*PageSettings, *Builder, bOpenEditor);
+		const bool bFocusedPage = SetFocusedPageInternal(PageSettings->Name, PageSettings->UniqueId, *Builder, bOpenEditor);
 		if (bFocusedPage)
 		{
 			OutResult = EMetaSoundBuilderResult::Succeeded;
@@ -279,34 +279,38 @@ bool UMetaSoundEditorSubsystem::SetFocusedPage(UMetaSoundBuilderBase& Builder, c
 
 	const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 	check(Settings);
+
+	FName PageName;
 	if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(InPageID))
 	{
-		return SetFocusedPageInternal(*PageSettings, Builder, bOpenEditor);
+		PageName = PageSettings->Name;
 	}
 
-	return false;
+	return SetFocusedPageInternal(PageName, InPageID, Builder, bOpenEditor);
 }
 
-bool UMetaSoundEditorSubsystem::SetFocusedPageInternal(const FMetaSoundPageSettings& InPageSettings, UMetaSoundBuilderBase& Builder, bool bOpenEditor) const
+bool UMetaSoundEditorSubsystem::SetFocusedPageInternal(FName PageName, const FGuid& InPageID, UMetaSoundBuilderBase& Builder, bool bOpenEditor) const
 {
 	using namespace Metasound::Frontend;
 
-	const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedPageTransactionFormat", "Set Focused Page '{0}'"), FText::FromName(InPageSettings.Name)));
+	const FScopedTransaction Transaction(FText::Format(LOCTEXT("SetFocusedPageTransactionFormat", "Set Focused Page '{0}'"), FText::FromName(PageName)));
 	Builder.Modify();
 
 	if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
 	{
-		if (EditorSettings->AuditionPageMode == EAuditionPageMode::Focused)
+		if (!PageName.IsNone())
 		{
-			// Must set audition target page before setting build page ID as listeners
-			// to build page ID changes need to reliably be able to adjust to newly assigned
-			// audition target page.
-			EditorSettings->AuditionTargetPage = InPageSettings.Name;
+			if (EditorSettings->AuditionPageMode == EAuditionPageMode::Focused)
+			{
+				// Must set audition target page before setting build page ID as listeners
+				// to build page ID changes need to reliably be able to adjust to newly assigned
+				// audition target page.
+				EditorSettings->AuditionTargetPage = PageName;
+			}
 		}
 
-		if (Builder.GetBuilder().SetBuildPageID(InPageSettings.UniqueId))
+		if (Builder.GetBuilder().SetBuildPageID(InPageID))
 		{
-
 			// Reregister to ensure all future audible instances are using the new page implementation.
 			RegisterGraphWithFrontend(Builder.GetBuilder().CastDocumentObjectChecked<UObject>());
 		}

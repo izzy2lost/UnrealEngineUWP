@@ -20,6 +20,8 @@ namespace Metasound
 {
 	namespace Editor
 	{
+		const FName GetMissingPageName(const FGuid& InPageID);
+
 		class FMetaSoundDetailCustomizationBase : public IDetailCustomization
 		{
 		public:

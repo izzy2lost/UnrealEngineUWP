@@ -49,6 +49,11 @@
 
 namespace Metasound::Editor
 {
+	const FName GetMissingPageName(const FGuid& InPageID)
+	{
+		return FName(*FString::Printf(TEXT("Invalid (...%s)"), *InPageID.ToString().Mid(28, 8)));
+	}
+
 	FName BuildChildPath(const FString& InBasePath, FName InPropertyName)
 	{
 		return FName(InBasePath + TEXT(".") + InPropertyName.ToString());
@@ -470,16 +475,22 @@ namespace Metasound::Editor
 	{
 		EntryWidgets->ClearChildren();
 
-		auto CreateEntryWidget = [this](bool bIsDefault, FName InName) -> TSharedRef<SWidget>
+		TSet<FGuid> ImplementedGuids;
+		const FMetasoundFrontendDocument& Document = Builder->GetBuilder().GetConstDocumentChecked();
+		Document.RootGraph.IterateGraphPages([&ImplementedGuids](const FMetasoundFrontendGraph& Graph)
+		{
+			ImplementedGuids.Add(Graph.PageID);
+		});
+
+		auto CreateEntryWidget = [this](bool bIsDefault, const FGuid& InEntryPageID, FName InName) -> TSharedRef<SWidget>
 		{
 			using namespace Frontend;
 
-			TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateLambda([this, InName]()
+			TSharedRef<SWidget> SelectButtonWidget = PropertyCustomizationHelpers::MakeUseSelectedButton(FSimpleDelegate::CreateLambda([this, InEntryPageID, InName]()
 			{
-				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-				constexpr bool bFocusEditor = false; // Already focused by user action
-				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), InName, bFocusEditor, Result);
-				if (Result == EMetaSoundBuilderResult::Succeeded)
+				constexpr bool bOpenEditor = false; // Already focused by user action
+				const bool bFocusedPage = UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), InEntryPageID, bOpenEditor);
+				if (bFocusedPage)
 				{
 					BuildPageName = InName;
 				}
@@ -508,7 +519,7 @@ namespace Metasound::Editor
 
 			if (!bIsDefault)
 			{
-				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InName]()
+				TSharedRef<SWidget> RemoveButtonWidget = PropertyCustomizationHelpers::MakeDeleteButton(FSimpleDelegate::CreateLambda([this, InName, InEntryPageID]()
 				{
 					using namespace Frontend;
 					const FScopedTransaction Transaction(FText::Format(LOCTEXT("RemovePageTransactionFormat", "Remove MetaSound Page '{0}'"), FText::FromName(InName)));
@@ -518,12 +529,12 @@ namespace Metasound::Editor
 					// Removal may modify the builder's build page ID if it is the currently set value
 					Builder->Modify();
 
-					EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-					Builder->RemoveGraphPage(InName, Result);
-					if (Result == EMetaSoundBuilderResult::Succeeded)
+					const bool bGraphRemoved = Builder->GetBuilder().RemoveGraphPage(InEntryPageID);
+					if (bGraphRemoved)
 					{
 						UpdateItemNames();
 						ComboBox->RefreshOptions();
+						RebuildImplemented();
 					}
 				}), LOCTEXT("RemovePageTooltip2", "Removes the associated page from the MetaSound."));
 				EntryWidget->AddSlot()
@@ -547,16 +558,30 @@ namespace Metasound::Editor
 		check(Settings);
 		for (const FMetaSoundPageSettings& PageSettings : Settings->GetPageSettings())
 		{
-			if (ImplementedNames.Contains(PageSettings.Name))
+			if (ImplementedGuids.Remove(PageSettings.UniqueId) > 0)
 			{
+				const bool bIsDefault = PageSettings.UniqueId == Frontend::DefaultPageID;
 				EntryWidgets->AddSlot()
 				.HAlign(HAlign_Left)
 				.VAlign(VAlign_Center)
 				.AutoHeight()
 				[
-					CreateEntryWidget(!PageSettings.UniqueId.IsValid(), PageSettings.Name)
+					CreateEntryWidget(bIsDefault, PageSettings.UniqueId, PageSettings.Name)
 				];
 			}
+		}
+
+		for (const FGuid& MissingPageID : ImplementedGuids)
+		{
+			constexpr bool bIsDefault = false;
+			const FName MissingName = Editor::GetMissingPageName(MissingPageID);
+			EntryWidgets->AddSlot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				.AutoHeight()
+				[
+					CreateEntryWidget(bIsDefault, MissingPageID, MissingName)
+				];
 		}
 	}
 
@@ -564,22 +589,22 @@ namespace Metasound::Editor
 	{
 		if (Builder.IsValid())
 		{
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			check(Settings);
 			FMetaSoundFrontendDocumentBuilder& DocBuilder = Builder->GetBuilder();
 			const FGuid& PageID = DocBuilder.GetBuildPageID();
+
+			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+			check(Settings);
 			if (const FMetaSoundPageSettings* PageSettings = Settings->FindPageSettings(PageID))
 			{
 				BuildPageName = PageSettings->Name;
 			}
 			else
 			{
-				constexpr bool bFocusEditor = false; // Already focused by user action
-				EMetaSoundBuilderResult Result = EMetaSoundBuilderResult::Failed;
-				UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(Builder.Get(), Frontend::DefaultPageName, bFocusEditor, Result);
-				if (Result == EMetaSoundBuilderResult::Succeeded)
+				constexpr bool bOpenEditor = false; // Already open/focused by user action
+				const bool bFocusedPage = UMetaSoundEditorSubsystem::GetConstChecked().SetFocusedPage(*Builder.Get(), PageID, bOpenEditor);
+				if (bFocusedPage)
 				{
-					BuildPageName = Frontend::DefaultPageName;
+					BuildPageName = GetMissingPageName(PageID);
 				}
 			}
 		}
@@ -595,16 +620,13 @@ namespace Metasound::Editor
 
 	void FMetasoundPagesDetailCustomization::UpdateItemNames()
 	{
-		using namespace Frontend;
-
 		AddableItems.Reset();
 		ImplementedNames.Reset();
 
 		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
 		check(Settings);
 
-		TSet<FGuid> ImplementedGuids { FGuid() }; // Default "no guid" is always implemented (base graph for back compat & cook safety to ensure there's always at least one)
-
+		TSet<FGuid> ImplementedGuids;
 		const FMetasoundFrontendDocument& Document = Builder->GetBuilder().GetConstDocumentChecked();
 		Document.RootGraph.IterateGraphPages([&ImplementedGuids](const FMetasoundFrontendGraph& Graph)
 		{
@@ -618,12 +640,12 @@ namespace Metasound::Editor
 		auto GetPageName = [&Settings](const FGuid& PageID)
 		{
 			const FMetaSoundPageSettings* Page = Settings->FindPageSettings(PageID);
-			if (ensure(Page))
+			if (Page)
 			{
 				return Page->Name;
 			}
 
-			return FName();
+			return GetMissingPageName(PageID);
 		};
 
 		Algo::Transform(ImplementedGuids, ImplementedNames, GetPageName);
