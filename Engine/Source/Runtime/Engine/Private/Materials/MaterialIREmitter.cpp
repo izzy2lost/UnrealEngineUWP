@@ -152,6 +152,26 @@ static FValue* EmitPrototype(FEmitter* Emitter, const TValueType& Prototype)
 	return Value;
 }
 
+// Finds the expression input index. Although the implementation has O(n) complexity, it is only used for error reporting.
+static int SlowFindExpressionInputIndex(UMaterialExpression* Expression, const FExpressionInput* Input)
+{
+	for (FExpressionInputIterator It{ Expression }; It; ++It)
+	{
+		if (It.Input == Input)
+		{
+			return It.Index;
+		}
+	}
+	check(false && "No input found.");
+	return -1;
+}
+
+// Finds the expression input name. Although the implementation has O(n) complexity, it is only used for error reporting.
+static FName SlowFindInputName(UMaterialExpression* Expression, const FExpressionInput* Input)
+{
+	int InputIndex = SlowFindExpressionInputIndex(Expression, Input);
+	return Expression->GetInputName(InputIndex);
+}
 
 // FEmitter API
 
@@ -162,20 +182,34 @@ FEmitter::FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, F
 	Module = InModule;
 }
 
-FValue* FEmitter::Get(const FExpressionInput* Input)
+FValue*  FEmitter::TryGet(const FExpressionInput* Input)
 {
 	FValue** Value = Builder->InputValues.Find(Input);
-	if (!Value || !*Value)
+	return Value ? *Value : nullptr;
+}
+
+FValue* FEmitter::Get(const FExpressionInput* Input)
+{
+	FValue* Value = TryGet(Input);
+	if (!Value)
 	{
+		Errorf(TEXT("Input '%s' has no input value."), *SlowFindInputName(Expression, Input).ToString());
 		return nullptr;
 	}
-	return *Value;
+	return Value;
 }
 	
-void FEmitter::Put(const FExpressionOutput* Output, FValue* Value)
+FEmitter& FEmitter::Put(int OutputIndex, FValue* Value)
+{
+	Put(Expression->GetOutput(OutputIndex), Value);
+	return *this;
+}
+
+FEmitter& FEmitter::Put(const FExpressionOutput* Output, FValue* Value)
 {
 	check(Output);
 	Builder->OutputValues.Add(Output, Value);
+	return *this;
 }
 
 FEmitter& FEmitter::DefaultToFloatZero(const FExpressionInput* Input)
@@ -193,33 +227,33 @@ FEmitter& FEmitter::DefaultTo(const FExpressionInput* Input, TFloat Float)
 	return *this;
 }
 
-FValue* FEmitter::TryGetFloat(const FExpressionInput* Input)
+FValue* FEmitter::GetFloat(const FExpressionInput* Input)
 {
 	FValue* Value = Get(Input);
 	CheckInputIsScalar(Input, Value, SK_Float);
 	return Value;
 }
 
-FValue* FEmitter::TryGetScalar(const FExpressionInput* Input)
+FValue* FEmitter::GetScalar(const FExpressionInput* Input)
 {
-	FValue* Value = TryGetArithmetic(Input);
+	FValue* Value = GetArithmetic(Input);
 	if (!Value)
 	{
 		return nullptr;
 	}
 
 	FArithmeticTypePtr ScalarType = Value->Type->AsArithmetic()->ToScalar();
-	return TryEmitConstruct(ScalarType, Value);
+	return EmitConstruct(ScalarType, Value);
 }
 
-FValue* FEmitter::TryGetArithmetic(const FExpressionInput* Input)
+FValue* FEmitter::GetArithmetic(const FExpressionInput* Input)
 {
 	FValue* Value = Get(Input);
 	CheckInputTypeIs(Input, Value, TK_Arithmetic);
 	return Value;
 }
 
-FValue* FEmitter::TryGetOfType(const FExpressionInput* Input, ETypeKind Kind)
+FValue* FEmitter::GetOfType(const FExpressionInput* Input, ETypeKind Kind)
 {
 	FValue* Value = Get(Input);
 	if (!Value)
@@ -246,7 +280,7 @@ void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputVa
 	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
 	if (!ArithmeticType || !ArithmeticType->IsScalar())
 	{
-		Errorf(TEXT("Input '%s' expected to be a scalar. It is %s instead."), *Input->InputName.ToString(), InputValue->Type->GetSpelling().GetData());
+		Errorf(TEXT("Input '%s' expected to be a scalar. It is %s instead."), *SlowFindInputName(Expression, Input).ToString(), InputValue->Type->GetSpelling().GetData());
 	}
 }
 
@@ -255,7 +289,7 @@ void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputVa
 	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
 	if (!ArithmeticType || !ArithmeticType->IsScalar() || ArithmeticType->ScalarKind != Kind)
 	{
-		Errorf(TEXT("Input '%s' expected to be a %s scalar. It is %s instead."), *Input->InputName.ToString(), ScalarKindToString(Kind), InputValue->Type->GetSpelling().GetData());
+		Errorf(TEXT("Input '%s' expected to be a %s scalar. It is %s instead."), *SlowFindInputName(Expression, Input).ToString(), ScalarKindToString(Kind), InputValue->Type->GetSpelling().GetData());
 	}
 }
 
@@ -263,7 +297,7 @@ void FEmitter::CheckInputTypeIs(const FExpressionInput* Input, FValue* InputValu
 {
 	if (InputValue && InputValue->Type->Kind != Kind)
 	{
-		Errorf(TEXT("Input '%s' expected to be have type %s. It is %s instead."), *Input->InputName.ToString(), TypeKindToString(Kind), InputValue->Type->GetSpelling().GetData());
+		Errorf(TEXT("Input '%s' expected to be have type %s. It is %s instead."), *SlowFindInputName(Expression, Input).ToString(), TypeKindToString(Kind), InputValue->Type->GetSpelling().GetData());
 	}
 }
 
@@ -427,7 +461,7 @@ FValue* FEmitter::GetExternalInput(EExternalInput Id)
 	return EmitPrototype(this, Prototype);
 }
 
-FValue* FEmitter::TryEmitSubscript(FValue* Value, int Index)
+FValue* FEmitter::EmitSubscript(FValue* Value, int Index)
 {
 	FArithmeticTypePtr ArithmeticType = Value->Type->AsArithmetic();
 	if (!ArithmeticType)
@@ -463,7 +497,7 @@ FValue* FEmitter::TryEmitSubscript(FValue* Value, int Index)
 	return EmitPrototype(this, Prototype);
 }
 
-FValue* FEmitter::TryEmitSwizzle(FValue* Value, FSwizzleMask Mask)
+FValue* FEmitter::EmitSwizzle(FValue* Value, FSwizzleMask Mask)
 {
 	// At least one component must have been specified.
 	check(Mask.NumComponents > 0);
@@ -489,7 +523,7 @@ FValue* FEmitter::TryEmitSwizzle(FValue* Value, FSwizzleMask Mask)
 	// If only one component is requested, we can use EmitSubscript() to return the single component.
 	if (Mask.NumComponents == 1)
 	{
-		return TryEmitSubscript(Value, (int)Mask.Components[0]);
+		return EmitSubscript(Value, (int)Mask.Components[0]);
 	}
 
 	// If the requested number of components is the same as Value and the order in which the components
@@ -518,7 +552,7 @@ FValue* FEmitter::TryEmitSwizzle(FValue* Value, FSwizzleMask Mask)
 
 	for (int i = 0; i < Mask.NumComponents; ++i)
 	{
-		Result->GetComponents()[i] = TryEmitSubscript(Value, (int)Mask.Components[i]);
+		Result->GetComponents()[i] = EmitSubscript(Value, (int)Mask.Components[i]);
 	}
 
 	return Result;
@@ -756,7 +790,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 	if (TargetArithmeticType->IsScalar())
 	{
 		//
-		Initializer = Emitter->TryEmitSubscript(Initializer, 0);
+		Initializer = Emitter->EmitSubscript(Initializer, 0);
 		InitializerArithmeticType = Initializer->Type->AsArithmetic();
 		
 		//
@@ -785,7 +819,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 
 		// Create a dimensional and initialize each of its components to the conversion
 		// of initializer value to the single component type.
-		FValue* Component = Emitter->TryEmitConstruct(TargetArithmeticType->ToScalar(), Initializer);
+		FValue* Component = Emitter->EmitConstruct(TargetArithmeticType->ToScalar(), Initializer);
 
 		// Initialize all result components to the same scalar.
 		for (int i = 0; i < TargetArithmeticType->GetNumComponents(); ++i)
@@ -817,7 +851,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 		int MinNumComponents = FMath::Min(TargetNumComponents, InitializerNumComponents);
 		for (; Index < MinNumComponents; ++Index)
 		{
-			Result->GetComponents()[Index] = Emitter->TryEmitConstruct(ResultComponentType, Emitter->TryEmitSubscript(Initializer, Index));
+			Result->GetComponents()[Index] = Emitter->EmitConstruct(ResultComponentType, Emitter->EmitSubscript(Initializer, Index));
 		}
 
 		// Initialize remaining result dimensional components to zero.
@@ -847,7 +881,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 			// Convert components from the initializer vector.
 			for (int Index = 0, Num = TargetArithmeticType->GetNumComponents(); Index < Num; ++Index)
 			{
-				Result->GetComponents()[Index] = Emitter->TryEmitConstruct(ResultComponentType, DimensionalInitializer->GetComponents()[Index]);
+				Result->GetComponents()[Index] = Emitter->EmitConstruct(ResultComponentType, DimensionalInitializer->GetComponents()[Index]);
 			}
 
 			return EmitNew(Emitter, Result);
@@ -865,7 +899,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 	return nullptr;
 }
 
-FValue* FEmitter::TryEmitConstruct(FTypePtr Type, FValue* Initializer)
+FValue* FEmitter::EmitConstruct(FTypePtr Type, FValue* Initializer)
 {
 	// If target type matches initializer's, simply return the same value.
 	FTypePtr InitializerType = Initializer->Type;
@@ -889,7 +923,7 @@ FValue* FEmitter::TryEmitConstruct(FTypePtr Type, FValue* Initializer)
 	return Result;
 }
 
-FValue* FEmitter::TryEmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType)
+FValue* FEmitter::EmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType)
 {
 	MIR::FTextureSample Prototype = MakePrototype<MIR::FTextureSample>(FArithmeticType::GetFloat4());
 	Prototype.Texture = Texture;
@@ -903,7 +937,7 @@ FValue* FEmitter::TryEmitTextureSample(UTexture* Texture, FValue* TexCoord, ESam
 	return EmitPrototype(this, Prototype);
 }
 
-FArithmeticTypePtr FEmitter::TryGetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B)
+FArithmeticTypePtr FEmitter::GetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B)
 {
 	// Trivial case: types are equal
 	if (A == B)

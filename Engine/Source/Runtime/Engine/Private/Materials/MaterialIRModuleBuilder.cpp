@@ -144,7 +144,7 @@ struct FMaterialIRModuleBuilder::FPrivate
 				Builder.InputValues.Add(Input.Input, *ValuePtr);
 
 				MIR::FTypePtr OutputArgType = MIR::FType::FromShaderType(Input.Type);
-				Output->Arg = Emitter.TryEmitConstruct(OutputArgType, *ValuePtr);
+				Output->Arg = Emitter.EmitConstruct(OutputArgType, *ValuePtr);
 			}
 
 			if (Params.TargetInsight)

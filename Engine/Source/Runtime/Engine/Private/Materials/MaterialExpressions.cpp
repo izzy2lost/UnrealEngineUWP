@@ -799,7 +799,14 @@ UMaterialExpression::UMaterialExpression(const FObjectInitializer& ObjectInitial
 		}
 	}
 	CachedInputs.Shrink();
-#endif
+
+	// Initialize the input names from GetInputName())
+	for (FExpressionInputIterator It{ this }; It; ++It)
+	{
+		It.Input->InputName = GetInputName(It.Index);
+	}
+
+	#endif
 }
 
 UObject* UMaterialExpression::GetAssetOwner() const

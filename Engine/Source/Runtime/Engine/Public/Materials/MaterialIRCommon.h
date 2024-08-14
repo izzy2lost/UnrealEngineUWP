@@ -48,7 +48,6 @@ struct FValue;
 struct FGlobalInput;
 struct FInstruction;
 struct FSetMaterialOutput;
-using FValuePtr = const FValue*;
 using FInstructionPtr = const FInstruction*;
 enum class EExternalInput;
 

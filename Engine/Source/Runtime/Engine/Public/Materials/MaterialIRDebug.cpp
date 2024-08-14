@@ -11,14 +11,14 @@
 #if WITH_EDITOR
 
 static TAutoConsoleVariable<bool> CVarDumpMaterialIRUseGraph(
-	TEXT("r.MaterialEditor.MaterialTranslator.DumpUseGraph"),
+	TEXT("r.Material.Translator.DumpUseGraph"),
 	true,
 	TEXT("Whether the material translator should emit the Module IR 'Uses' graph in Graphviz Dot syntax (to 'MaterialIRDumpGraph.dot')."),
 	ECVF_RenderThreadSafe);
 
 
 static TAutoConsoleVariable<bool> CVarDumpMaterialIRUseGraph_EnableNext(
-	TEXT("r.MaterialEditor.MaterialTranslator.DumpUseGraphOpts.EnableSuccessors"),
+	TEXT("r.Material.Translator.DumpUseGraphOpts.EnableSuccessors"),
 	false,
 	TEXT("Whether the Material Module IR 'Uses' graph should also display 'Instruction Next' edges."),
 	ECVF_RenderThreadSafe);

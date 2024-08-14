@@ -270,7 +270,7 @@ void UMaterialExpressionConstant2Vector::Build(MIR::FEmitter& Emitter)
 	Emitter.Put(GetOutput(0), Value);
 	for (int i = 0; i < 2; ++i)
 	{
-		Emitter.Put(GetOutput(i + 1), Emitter.TryEmitSubscript(Value, i));
+		Emitter.Put(GetOutput(i + 1), Emitter.EmitSubscript(Value, i));
 	}
 }
 
@@ -280,7 +280,7 @@ void UMaterialExpressionConstant3Vector::Build(MIR::FEmitter& Emitter)
 	Emitter.Put(GetOutput(0), Value);
 	for (int i = 0; i < 3; ++i)
 	{
-		Emitter.Put(GetOutput(i + 1), Emitter.TryEmitSubscript(Value, i));
+		Emitter.Put(GetOutput(i + 1), Emitter.EmitSubscript(Value, i));
 	}
 }
 
@@ -290,8 +290,82 @@ void UMaterialExpressionConstant4Vector::Build(MIR::FEmitter& Emitter)
 	Emitter.Put(GetOutput(0), Value);
 	for (int i = 0; i < 4; ++i)
 	{
-		Emitter.Put(GetOutput(i + 1), Emitter.TryEmitSubscript(Value, i));
+		Emitter.Put(GetOutput(i + 1), Emitter.EmitSubscript(Value, i));
 	}
+}
+
+void UMaterialExpressionAppendVector::Build(MIR::FEmitter& Emitter)
+{
+	MIR::FValue* AValue = Emitter.GetArithmetic(&A);
+	MIR::FValue* BValue = Emitter.TryGet(&B) ? Emitter.GetArithmetic(&B) : nullptr;
+
+	if (Emitter.IsInvalid())
+	{
+		return;
+	}
+
+	MIR::FArithmeticTypePtr AType = AValue->Type->AsArithmetic();
+	if (AType->IsMatrix())
+	{
+		Emitter.Error(TEXT("Input A does not have scalar or vector type."));
+		return;
+	}
+
+	MIR::FArithmeticTypePtr BType = nullptr;
+	if (BValue)
+	{
+		BType = BValue->Type->AsArithmetic();
+		if (BType->IsMatrix()) 
+		{
+			Emitter.Error(TEXT("Input B does not have scalar or vector type."));
+			return;
+		}
+	}
+
+	int Dimensions = AType->NumRows + (BType ? BType->NumRows : 0);
+	if (Dimensions > 4)
+	{
+		Emitter.Errorf(TEXT("The resulting vector would have %d component (it can have at most 4)."), Dimensions);
+		return;
+	}
+
+	check(Dimensions >= 2 && Dimensions <= 4);
+
+	// Construct the output vector type.
+	MIR::FArithmeticTypePtr ResultType = MIR::FArithmeticType::GetVector(MIR::SK_Float, Dimensions);
+
+	// Set up each output vector component 
+	MIR::FValue* Components[4] = { nullptr, nullptr, nullptr, nullptr };
+	int ComponentIndex = 0;
+	for (int i = 0; i < AType->NumRows; ++i, ++ComponentIndex)
+	{
+		Components[ComponentIndex] = Emitter.EmitSubscript(AValue, i);
+	}
+
+	if (BType)
+	{
+		for (int i = 0; i < BType->NumRows; ++i, ++ComponentIndex)
+		{
+			Components[ComponentIndex] = Emitter.EmitSubscript(BValue, i);
+		}
+	}
+
+	// Create the vector value and output it.
+	MIR::FValue* Output{};
+	if (Dimensions == 2)
+	{
+		Output = Emitter.EmitVector2(Components[0], Components[1]);
+	}
+	else if (Dimensions == 3)
+	{
+		Output = Emitter.EmitVector3(Components[0], Components[1], Components[2]);
+	}
+	else
+	{
+		Output = Emitter.EmitVector4(Components[0], Components[1], Components[2], Components[3]);
+	}
+
+	Emitter.Put(0, Output);
 }
 
 /* Mathematical Operations */
@@ -302,12 +376,11 @@ static void BuildBinaryArithmeticOperator(
 	FExpressionInput* LhsInput,
 	float LhsConst,
 	FExpressionInput* RhsInput,
-	float RhsConst,
-	FExpressionOutput* Output)
+	float RhsConst)
 {
 	// Default inputs to their relative constants if disconnected, then get each input after checking it has arithmetic type.
-	MIR::FValue* LhsValue = Emitter.DefaultTo(LhsInput, LhsConst).TryGetArithmetic(LhsInput);
-	MIR::FValue* RhsValue = Emitter.DefaultTo(RhsInput, RhsConst).TryGetArithmetic(RhsInput);
+	MIR::FValue* LhsValue = Emitter.DefaultTo(LhsInput, LhsConst).GetArithmetic(LhsInput);
+	MIR::FValue* RhsValue = Emitter.DefaultTo(RhsInput, RhsConst).GetArithmetic(RhsInput);
 
 	if (Emitter.IsInvalid())
 	{
@@ -320,8 +393,8 @@ static void BuildBinaryArithmeticOperator(
 		: MIR::FArithmeticType::GetScalar(MIR::SK_Float);
 
 	// Convert operand values to determined result type. 
-	LhsValue = Emitter.TryEmitConstruct(ResultType, LhsValue);
-	RhsValue = Emitter.TryEmitConstruct(ResultType, RhsValue);
+	LhsValue = Emitter.EmitConstruct(ResultType, LhsValue);
+	RhsValue = Emitter.EmitConstruct(ResultType, RhsValue);
 
 	if (Emitter.IsInvalid())
 	{
@@ -332,27 +405,27 @@ static void BuildBinaryArithmeticOperator(
 	MIR::FValue* Value = Emitter.EmitBinaryOperator(Op, LhsValue, RhsValue);
 
 	// And flow it out of the expression's only output.
-	Emitter.Put(Output, Value);
+	Emitter.Put(0, Value);
 }
 
 void UMaterialExpressionAdd::Build(MIR::FEmitter& Emitter)
 { 
-	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Add, &A, ConstA, &B, ConstB, GetOutput(0));
+	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Add, &A, ConstA, &B, ConstB);
 }
 
 void UMaterialExpressionSubtract::Build(MIR::FEmitter& Emitter)
 { 
-	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Subtract, &A, ConstA, &B, ConstB, GetOutput(0));
+	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Subtract, &A, ConstA, &B, ConstB);
 }
 
 void UMaterialExpressionMultiply::Build(MIR::FEmitter& Emitter)
 { 
-	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Multiply, &A, ConstA, &B, ConstB, GetOutput(0));
+	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Multiply, &A, ConstA, &B, ConstB);
 }
 
 void UMaterialExpressionDivide::Build(MIR::FEmitter& Emitter)
 { 
-	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Divide, &A, ConstA, &B, ConstB, GetOutput(0));
+	BuildBinaryArithmeticOperator(Emitter, MIR::BO_Divide, &A, ConstA, &B, ConstB);
 }
 
 void UMaterialExpressionIf::Build(MIR::FEmitter& Emitter)
@@ -365,11 +438,11 @@ void UMaterialExpressionIf::Build(MIR::FEmitter& Emitter)
 	Emitter.DefaultToFloatZero(&ALessThanB);
 
 	// Get input values and check their types are what we expect.
-	MIR::FValue* AValue = Emitter.TryGetScalar(&A);
-	MIR::FValue* BValue = Emitter.TryGetScalar(&B);
-	MIR::FValue* AGreaterThanBValue = Emitter.TryGetArithmetic(&AGreaterThanB);
-	MIR::FValue* AEqualsBValue = Emitter.TryGetArithmetic(&AEqualsB);
-	MIR::FValue* ALessThanBValue = Emitter.TryGetArithmetic(&ALessThanB);
+	MIR::FValue* AValue = Emitter.GetScalar(&A);
+	MIR::FValue* BValue = Emitter.GetScalar(&B);
+	MIR::FValue* AGreaterThanBValue = Emitter.GetArithmetic(&AGreaterThanB);
+	MIR::FValue* AEqualsBValue = Emitter.GetArithmetic(&AEqualsB);
+	MIR::FValue* ALessThanBValue = Emitter.GetArithmetic(&ALessThanB);
 
 	if (Emitter.IsInvalid())
 	{
@@ -377,7 +450,7 @@ void UMaterialExpressionIf::Build(MIR::FEmitter& Emitter)
 	}
 
 	// Get the arithmetic common type between the conditional arguments (e.g. if inputs are int and float, it will return float).
-	MIR::FArithmeticTypePtr ConditionArgsType = Emitter.TryGetCommonArithmeticType(AValue->Type->AsArithmetic(), BValue->Type->AsArithmetic());
+	MIR::FArithmeticTypePtr ConditionArgsType = Emitter.GetCommonArithmeticType(AValue->Type->AsArithmetic(), BValue->Type->AsArithmetic());
 
 	if (Emitter.IsInvalid())
 	{
@@ -385,12 +458,12 @@ void UMaterialExpressionIf::Build(MIR::FEmitter& Emitter)
 	}
 
 	// Convert both conditional argument values to the common type. This is expected to work as the common type could be found.
-	AValue = Emitter.TryEmitConstruct(ConditionArgsType, AValue);
-	BValue = Emitter.TryEmitConstruct(ConditionArgsType, BValue);
+	AValue = Emitter.EmitConstruct(ConditionArgsType, AValue);
+	BValue = Emitter.EmitConstruct(ConditionArgsType, BValue);
 
 	// Now determine the output type by taking the common arithmetic type between result values.
-	MIR::FArithmeticTypePtr OutputType = Emitter.TryGetCommonArithmeticType(AGreaterThanBValue->Type->AsArithmetic(), AEqualsBValue->Type->AsArithmetic());
-	OutputType = Emitter.TryGetCommonArithmeticType(OutputType, ALessThanBValue->Type->AsArithmetic());
+	MIR::FArithmeticTypePtr OutputType = Emitter.GetCommonArithmeticType(AGreaterThanBValue->Type->AsArithmetic(), AEqualsBValue->Type->AsArithmetic());
+	OutputType = Emitter.GetCommonArithmeticType(OutputType, ALessThanBValue->Type->AsArithmetic());
 
 	if (Emitter.IsInvalid())
 	{
@@ -398,9 +471,9 @@ void UMaterialExpressionIf::Build(MIR::FEmitter& Emitter)
 	}
 
 	// Convert result values to the common result type.
-	AGreaterThanBValue = Emitter.TryEmitConstruct(OutputType, AGreaterThanBValue);
-	AEqualsBValue = Emitter.TryEmitConstruct(OutputType, AEqualsBValue);
-	ALessThanBValue = Emitter.TryEmitConstruct(OutputType, ALessThanBValue);
+	AGreaterThanBValue = Emitter.EmitConstruct(OutputType, AGreaterThanBValue);
+	AEqualsBValue = Emitter.EmitConstruct(OutputType, AEqualsBValue);
+	ALessThanBValue = Emitter.EmitConstruct(OutputType, ALessThanBValue);
 
 	if (Emitter.IsInvalid())
 	{
@@ -448,13 +521,13 @@ void UMaterialExpressionTextureSample::Build(UE::MIR::FEmitter& Emitter)
 		return;
 	}
 
-	MIR::FValue* OutputValue = Emitter.TryEmitTextureSample(InputTexture, TexCoordsValue, SamplerSource, MipValueMode, SamplerType);
+	MIR::FValue* OutputValue = Emitter.EmitTextureSample(InputTexture, TexCoordsValue, SamplerSource, MipValueMode, SamplerType);
 	
-	Emitter.Put(GetOutput(0), Emitter.TryEmitSwizzle(OutputValue, MIR::FSwizzleMask::XYZ()));
-	Emitter.Put(GetOutput(1), Emitter.TryEmitSubscript(OutputValue, 0)); 
-	Emitter.Put(GetOutput(2), Emitter.TryEmitSubscript(OutputValue, 1)); 
-	Emitter.Put(GetOutput(3), Emitter.TryEmitSubscript(OutputValue, 2));
-	Emitter.Put(GetOutput(4), Emitter.TryEmitSubscript(OutputValue, 3));
+	Emitter.Put(GetOutput(0), Emitter.EmitSwizzle(OutputValue, MIR::FSwizzleMask::XYZ()));
+	Emitter.Put(GetOutput(1), Emitter.EmitSubscript(OutputValue, 0)); 
+	Emitter.Put(GetOutput(2), Emitter.EmitSubscript(OutputValue, 1)); 
+	Emitter.Put(GetOutput(3), Emitter.EmitSubscript(OutputValue, 2));
+	Emitter.Put(GetOutput(4), Emitter.EmitSubscript(OutputValue, 3));
 	Emitter.Put(GetOutput(5), OutputValue); 
 }
 

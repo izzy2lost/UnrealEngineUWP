@@ -44,13 +44,21 @@ public:
 	
 	/* IO */
 
-	// Gets and returns the value flowing into specified `Input`. If disconnected,
-	// it returns nullptr. 
+	// Tries to get a value from specified input. If it has no value (for instance
+	// because it is not connected), it returns null.
+	FValue* TryGet(const FExpressionInput* Input);
+
+	// Gets and returns the value flowing into input with specified `InputIndex`.
+	// If no value is flowing in (e.g. bacause it is not connected) it reports
+	// an error and returns null.
 	FValue* Get(const FExpressionInput* Input);
+	
+	// Flows specified `Value` out of output with specified `OutputIndex`.
+	FEmitter& Put(int OutputIndex, FValue* Value);
 
 	// Flows specified `Value` out of specified expression `Output`.
-	void 	Put(const FExpressionOutput* Output, FValue* Value);
-
+	FEmitter& Put(const FExpressionOutput* Output, FValue* Value);
+	
 	/* IO Helpers */
 
 	//
@@ -60,17 +68,17 @@ public:
 	FEmitter& DefaultTo(const FExpressionInput* Input, TFloat Float);
 
 	// It gets the value flowing into it and checks that its type is float scalar.
-	FValue* TryGetFloat(const FExpressionInput* Input);
+	FValue* GetFloat(const FExpressionInput* Input);
 
 	//
-	FValue* TryGetScalar(const FExpressionInput* Input);
-
+	FValue* GetScalar(const FExpressionInput* Input);
+	
 	//
-	FValue* TryGetArithmetic(const FExpressionInput* Input);
+	FValue* GetArithmetic(const FExpressionInput* Input);
 
 	// Gets the value flowing into `Input` and returns it after checking that its
 	// type matches `Kind`.
-	FValue* TryGetOfType(const FExpressionInput* Input, ETypeKind Kind);
+	FValue* GetOfType(const FExpressionInput* Input, ETypeKind Kind);
 
 	/* Error Checking */
 
@@ -109,8 +117,8 @@ public:
 
 	/* Other Values */
 
-	FValue* TryEmitSubscript(FValue* Value, int ComponentIndex);
-	FValue* TryEmitSwizzle(FValue* Value, FSwizzleMask Mask);
+	FValue* EmitSubscript(FValue* Value, int ComponentIndex);
+	FValue* EmitSwizzle(FValue* Value, FSwizzleMask Mask);
 	FValue* GetParameter(FName Name, const FMaterialParameterMetadata& Metadata);
 
 	/* Instructions */
@@ -118,12 +126,12 @@ public:
 	FSetMaterialOutput* EmitSetMaterialOutput(EMaterialProperty InProperty, FValue* InArgValue);
 	FValue* EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FValue* Rhs);
 	FValue* EmitBranch(FValue* Condition, FValue* True, FValue* False);
-	FValue* TryEmitConstruct(FTypePtr Type, FValue* Initializer);
-	FValue* TryEmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType);
+	FValue* EmitConstruct(FTypePtr Type, FValue* Initializer);
+	FValue* EmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType);
 
 	/* Types */
 
-	FArithmeticTypePtr TryGetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B);
+	FArithmeticTypePtr GetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B);
 
 	/* Error reporting */
 

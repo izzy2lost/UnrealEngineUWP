@@ -99,7 +99,7 @@ static TAutoConsoleVariable<bool> CVarMaterialEdPreshaderDumpToHLSL(
 #endif
 
 static TAutoConsoleVariable<bool> CVarUsingUseNewMaterialTranslatorPrototype(
-	TEXT("r.MaterialEditor.UseNewTranslatorPrototype"),
+	TEXT("r.Material.Translator.EnableNew"),
 	false,
 	TEXT("Controls whether to enable the new material translator prototype (WIP) ."),
 	ECVF_RenderThreadSafe);
