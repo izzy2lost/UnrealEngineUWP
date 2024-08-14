@@ -26,3 +26,45 @@ struct CONTROLRIG_API FRigUnit_PrepareForExecution : public FRigUnit
 
 	static inline const FLazyName EventName = FLazyName(TEXT("Construction"));
 };
+
+/**
+ * Event to create / configure elements before any other event
+ */
+USTRUCT(meta=(DisplayName="Pre Construction", Category="Events", NodeColor="0.6, 0, 1", Keywords="Create,Build,Spawn,Setup,Init,Fit"))
+struct CONTROLRIG_API FRigUnit_PrePrepareForExecution : public FRigUnit
+{
+	GENERATED_BODY()
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	virtual FName GetEventName() const override { return EventName; }
+	virtual bool CanOnlyExistOnce() const override { return true; }
+
+	// The execution result
+	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "PrePrepareForExecution", meta = (Output))
+	FControlRigExecuteContext ExecuteContext;
+
+	static inline const FLazyName EventName = FLazyName(TEXT("PreConstruction"));
+};
+
+/**
+ * Event to create / configure elements before any other event
+ */
+USTRUCT(meta=(DisplayName="Post Construction", Category="Events", NodeColor="0.6, 0, 1", Keywords="Create,Build,Spawn,Setup,Init,Fit"))
+struct CONTROLRIG_API FRigUnit_PostPrepareForExecution : public FRigUnit
+{
+	GENERATED_BODY()
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	virtual FName GetEventName() const override { return EventName; }
+	virtual bool CanOnlyExistOnce() const override { return true; }
+
+	// The execution result
+	UPROPERTY(EditAnywhere, Transient, DisplayName = "Execute", Category = "PostPrepareForExecution", meta = (Output))
+	FControlRigExecuteContext ExecuteContext;
+
+	static inline const FLazyName EventName = FLazyName(TEXT("PostConstruction"));
+};

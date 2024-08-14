@@ -1604,6 +1604,19 @@ void UControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueToRun
 
 	for (int32 i=0; i<InOutEventQueueToRun.Num(); ++i)
 	{
+		if (InOutEventQueueToRun[i] == FRigUnit_PrepareForExecution::EventName)
+		{
+			if (SupportsEvent(FRigUnit_PrePrepareForExecution::EventName))
+			{
+				InOutEventQueueToRun.Insert(FRigUnit_PrePrepareForExecution::EventName, i);
+				i++; // skip preconstruction 
+			}
+			if (SupportsEvent(FRigUnit_PostPrepareForExecution::EventName))
+			{
+				i++; // skip construction
+				InOutEventQueueToRun.Insert(FRigUnit_PostPrepareForExecution::EventName, i);
+			}
+		}
 		if (InOutEventQueueToRun[i] == FRigUnit_BeginExecution::EventName)
 		{
 			if (SupportsEvent(FRigUnit_PreBeginExecution::EventName))
