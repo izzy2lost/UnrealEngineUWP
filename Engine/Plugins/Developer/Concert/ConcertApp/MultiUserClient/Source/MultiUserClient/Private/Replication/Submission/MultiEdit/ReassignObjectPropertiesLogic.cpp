@@ -50,8 +50,7 @@ namespace UE::MultiUserClient::Replication
 					{
 						// Get the property assignments of the client being reassigned from
 						const FOnlineClient* ClientToReassignFrom = ClientManager.FindClient(ClientId);
-						if (!ensureMsgf(ClientToReassignFrom, TEXT("Authority cache out of sync"))
-							|| !ClientToReassignFrom->AllowsEditing())
+						if (!ensureMsgf(ClientToReassignFrom, TEXT("Authority cache out of sync")))
 						{
 							return EBreakBehavior::Continue;
 						}
@@ -202,39 +201,39 @@ namespace UE::MultiUserClient::Replication
 		}
 
 		/** @return Whether TargetClientObjects includes all properties ClientsToConsider have registered for ObjectToCheck. */
-		static bool DoesTargetIncludeOthers_SingleObject(
+		static bool DoesTargetIncludeOtherClientsContent_SingleObject(
 			const FConcertObjectReplicationMap& TargetClientObjects,
-			const TArray<TNonNullPtr<const FOnlineClient>> ClientsToConsider,
-			const FSoftObjectPath& ObjectToCheck)
+			const FOnlineClientManager& ClientManager,
+			const FSoftObjectPath& ObjectToCheck
+			)
 		{
 			const FConcertReplicatedObjectInfo* ObjectInfo = TargetClientObjects.ReplicatedObjects.Find(ObjectToCheck);
-				
-			for (const FOnlineClient* OtherClient : ClientsToConsider)
+
+			bool bIncludesAllOtherClients = true;
+			ClientManager.ForEachClient([&ObjectToCheck, ObjectInfo, &bIncludesAllOtherClients](const FOnlineClient& OtherClient)
 			{
-				const FConcertObjectReplicationMap& OtherClientObjects = OtherClient->GetStreamSynchronizer().GetServerState();
+				const FConcertObjectReplicationMap& OtherClientObjects = OtherClient.GetStreamSynchronizer().GetServerState();
 				const FConcertReplicatedObjectInfo* OtherObjectInfo = OtherClientObjects.ReplicatedObjects.Find(ObjectToCheck);
 					
 				// TargetClient has at least as much if OtherClient has nothing
 				if (!OtherObjectInfo || OtherObjectInfo->PropertySelection.ReplicatedProperties.IsEmpty())
 				{
-					continue;
+					return EBreakBehavior::Continue;
 				}
 
-				if (!ObjectInfo || !ObjectInfo->PropertySelection.Includes(OtherObjectInfo->PropertySelection))
-				{
-					return false;
-				}
-			}
+				const bool bTargetContainsOther = ObjectInfo && ObjectInfo->PropertySelection.Includes(OtherObjectInfo->PropertySelection);
+				bIncludesAllOtherClients &= bTargetContainsOther;
+				return bIncludesAllOtherClients ? EBreakBehavior::Continue : EBreakBehavior::Break;
+			});
 
-			return true;
+			return bIncludesAllOtherClients;
 		}
 		
-		/** @return Whether ClientId includes all properties assigned to ObjectsToCheck as all other clients (passing the predicate) do. */
-		static bool DoesTargetIncludeOthers(
+		/** @return Whether ClientId includes all properties assigned to ObjectsToCheck as all other clients do. */
+		static bool DoesTargetIncludeOtherClientsContent(
 			const FGuid& TargetClientId,
 			TConstArrayView<FSoftObjectPath> ObjectsToCheck,
-			const FOnlineClientManager& ClientManager,
-			TFunctionRef<bool(const FOnlineClient& Client)> ShouldConsiderClientPredicate
+			const FOnlineClientManager& ClientManager
 			)
 		{
 			const FOnlineClient* TargetClient = ClientManager.FindClient(TargetClientId);
@@ -244,10 +243,9 @@ namespace UE::MultiUserClient::Replication
 			}
 
 			const FConcertObjectReplicationMap& TargetClientObjects = TargetClient->GetStreamSynchronizer().GetServerState();
-			const TArray<TNonNullPtr<const FOnlineClient>> ClientsToConsider = ClientManager.GetClients(ShouldConsiderClientPredicate);
-			return Algo::AllOf(ObjectsToCheck, [&TargetClientObjects, &ClientsToConsider](const FSoftObjectPath& ObjectToCheck)
+			return Algo::AllOf(ObjectsToCheck, [&ClientManager, &TargetClientObjects](const FSoftObjectPath& ObjectToCheck)
 			{
-				return DoesTargetIncludeOthers_SingleObject(TargetClientObjects, ClientsToConsider, ObjectToCheck);
+				return DoesTargetIncludeOtherClientsContent_SingleObject(TargetClientObjects, ClientManager, ObjectToCheck);
 			});
 		}
 
@@ -343,16 +341,9 @@ namespace UE::MultiUserClient::Replication
 			SET_REASON(LOCTEXT("Reason.ClientDisconnected", "Client disconnected"));
 			return false;
 		}
-		
-		if (!Client->AllowsEditing())
-		{
-			SET_REASON(LOCTEXT("Reason.ClientNoEditing", "Client does not allow remote editing"));
-			return false;
-		}
 
 		// Relevant after user has re-assigned all properties to a given client
-		auto ShouldConsiderClient = [this](const FOnlineClient& Client) { return Client.AllowsEditing(); };
-		if (ReassignObjectProperties::Private::DoesTargetIncludeOthers(ClientId, ObjectsToReassign, ClientManager, ShouldConsiderClient))
+		if (ReassignObjectProperties::Private::DoesTargetIncludeOtherClientsContent(ClientId, ObjectsToReassign, ClientManager))
 		{
 			const bool bHasAnyProperties = ReassignObjectProperties::Private::HasAnyProperties(ClientId, ObjectsToReassign, ClientManager);
 			SET_REASON(
@@ -373,7 +364,7 @@ namespace UE::MultiUserClient::Replication
 		using namespace ConcertSyncClient::Replication;
 		
 		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(ClientId);
-		if (!ensure(ClientToAssignTo && ClientToAssignTo->AllowsEditing()))
+		if (!ensure(ClientToAssignTo))
 		{
 			UE_LOG(LogConcert, Error, TEXT("Property Reassignment: The target client is not editable."));
 			return;
@@ -477,8 +468,7 @@ namespace UE::MultiUserClient::Replication
 		}
 		
 		const FOnlineClient* ClientToAssignTo = ClientManager.FindClient(InProgressOperation->AssignedToClient);
-		if (!ensureMsgf(ClientToAssignTo, TEXT("FReassignObjectPropertiesLogic should have cancelled the change upon disconnect"))
-			|| !ClientToAssignTo->AllowsEditing())
+		if (!ensureMsgf(ClientToAssignTo, TEXT("FReassignObjectPropertiesLogic should have cancelled the change upon disconnect")))
 		{
 			UE_LOG(LogConcert, Error, TEXT("Property Reassignment: The target client is no longer editable."));
 			return;

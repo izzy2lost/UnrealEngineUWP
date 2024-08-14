@@ -245,7 +245,7 @@ namespace UE::MultiUserClient::Replication
 		bool bCanRemoveFromOwners = true;
 		ClientManager->ForEachClient([this, &EndpointId, &Reason, Client, &bCanRemoveFromOwners](const FOnlineClient& ClientToRemoveFrom)
 		{
-			if (*Client != ClientToRemoveFrom && !ClientToRemoveFrom.AllowsEditing())
+			if (*Client != ClientToRemoveFrom)
 			{
 				const bool bHasAnySelectedObject = Algo::AnyOf(EditedObjects, [this, &ClientToRemoveFrom](const TSoftObjectPtr<>& Object)
 				{
@@ -267,15 +267,7 @@ namespace UE::MultiUserClient::Replication
 			return false;
 		}
 		
-		const bool bAllowsEditing = Client->AllowsEditing();
-		if (!bAllowsEditing)
-		{
-			SET_REASON(FText::Format(
-				LOCTEXT("RemoteEditingDisabled", "Client {0} does not allow remote editing of its properties."),
-				FText::FromString(ClientUtils::GetClientDisplayName(*ConcertClient, EndpointId))
-				));
-		}
-		return bAllowsEditing;
+		return true;
 	}
 #undef SET_REASON
 	
@@ -353,7 +345,7 @@ namespace UE::MultiUserClient::Replication
 		ClientManager->ForEachClient([this, &ShouldRemoveFromClient](const FOnlineClient& ClientToRemoveFrom)
 		{
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
-			if (ClientToRemoveFrom.AllowsEditing() && ShouldRemoveFromClient(ClientToRemoveFrom))
+			if (ShouldRemoveFromClient(ClientToRemoveFrom))
 			{
 				for (const TSoftObjectPtr<>& Object : EditedObjects)
 				{

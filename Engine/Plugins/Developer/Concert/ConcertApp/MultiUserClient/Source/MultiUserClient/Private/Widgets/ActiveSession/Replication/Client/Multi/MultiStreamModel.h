@@ -24,12 +24,10 @@ namespace UE::MultiUserClient::Replication
 		
 		FMultiStreamModel(IOnlineClientSelectionModel& InOnlineClientSelectionModel, FOnlineClientManager& InClientManager);
 		
-		const TSet<const FOnlineClient*>& GetCachedReadOnlyClients() const { return CachedReadOnlyClients; }
-		const TSet<const FOnlineClient*>& GetCachedWritableClients() const { return CachedWritableClients; }
 		void ForEachClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const;
 
 		//~ Begin IEditableMultiReplicationStreamModel Interface
-		virtual TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override;
+		virtual TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override { return {}; }
 		virtual TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> GetEditableStreams() const override;
 		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() override { return OnReadOnlyStreamChangedDelegate; }
 		virtual FOnStreamSetChanged& OnStreamSetChanged() override { return OnStreamSetChangedDelegate; }
@@ -42,7 +40,6 @@ namespace UE::MultiUserClient::Replication
 		/** Used to obtain a list of clients for unsubscribing. */
 		FOnlineClientManager& ClientManager;
 
-		TSet<const FOnlineClient*> CachedReadOnlyClients;
 		TSet<const FOnlineClient*> CachedWritableClients;
 
 		FOnStreamExternallyChanged OnReadOnlyStreamChangedDelegate;

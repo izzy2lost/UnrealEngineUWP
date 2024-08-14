@@ -78,9 +78,8 @@ namespace UE::MultiUserClient::Replication::FrequencyUtils
 	inline bool CanChangeFrequencySettings(const FSoftObjectPath& ContextObject, const FOnlineClient& Client)
 	{
 		const bool bHasProperties = Client.GetStreamSynchronizer().GetServerState().HasProperties(ContextObject);
-		const bool bAllowsEditing = Client.AllowsEditing();
 		const bool bNotProcessingOtherRequests = Client.GetSubmissionWorkflow().CanSubmit();
-		return bHasProperties && bAllowsEditing && bNotProcessingOtherRequests;
+		return bHasProperties && bNotProcessingOtherRequests;
 	}
 
 	/** @return Whether ContextObject's frequency settings can be changed for all given Clients. */
