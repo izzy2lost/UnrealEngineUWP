@@ -362,11 +362,11 @@ struct FCompositeNavModifier : public FNavigationModifier
     void MarkAsPerInstanceModifier() { bIsPerInstanceModifier = true; }
 
 	/** returns a copy of Modifier */
-	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const struct FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const;
-	ENGINE_API uint32 GetAllocatedSize() const;
+	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<const UObject>& WeakOwnerPtr) const;
+	UE_DEPRECATED(5.5, "Use the version taking a const reference instead.")
+	ENGINE_API FCompositeNavModifier GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const;
 
-	UE_DEPRECATED(4.24, "This method will be removed in future versions. Use FNavigationRelevantData::HasPerInstanceTransforms instead.")
-	ENGINE_API bool HasPerInstanceTransforms() const;
+	ENGINE_API uint32 GetAllocatedSize() const;
 
 	TArray<FAreaNavModifier>& GetMutableAreas() { return Areas; }
 	TArray<FSimpleLinkNavModifier>& GetSimpleLinks() { return SimpleLinks; }

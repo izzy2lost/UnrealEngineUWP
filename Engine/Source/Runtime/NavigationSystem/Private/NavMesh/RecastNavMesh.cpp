@@ -3051,7 +3051,14 @@ void ARecastNavMesh::OnStreamingNavDataAdded(ANavigationDataChunkActor& InActor)
 				{
 					UE_VLOG_BOX(this, LogNavigation, Verbose, NavElement.Bounds.GetBox(), FColor::Orange, TEXT(""));
 
-					NavSys->AddDirtyArea(NavElement.Bounds.GetBox(), ENavigationDirtyFlag::All, [&NavElement] { return NavElement.Data->SourceObject.Get(); }, "Streaming data added");
+					NavSys->AddDirtyArea(
+						NavElement.Bounds.GetBox(),
+						ENavigationDirtyFlag::All,
+						[SourceElement = NavElement.Data->SourceElement]
+						{
+							return SourceElement;
+						},
+						"Streaming data added");
 				}
 			}
 		}

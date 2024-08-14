@@ -5,6 +5,7 @@
 #include "Engine/EngineTypes.h"
 
 struct FNavigationRelevantData;
+struct FNavigationElement;
 
 #if WITH_RECAST
 
@@ -43,8 +44,8 @@ struct FRecastGeometryExport : public FNavigableGeometryExport
 	/** Store Vertex and Index buffer data in associated FNavigationRelevantData. */
 	NAVIGATIONSYSTEM_API void StoreCollisionCache();
 
-	/** Collect the collision information from an INavRelevantInterface and store it into the FNavigationRelevantData's CollisionData. */
-	static NAVIGATIONSYSTEM_API void ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData);
+	/** Collects the collision information from a navigation element and stores it into the FNavigationRelevantData's CollisionData. */
+	static NAVIGATIONSYSTEM_API void ExportElementGeometry(const FNavigationElement& InElement, FNavigationRelevantData& OutData);
 
 	/** Convert a list of vertices into the navigation format and store it into the FNavigationRelevantData's CollisionData.
 	 * @param InVerts Array of triangles vertices position. Each triangle will be created from 3 consecutive vertices in the array. Its size must be a multiple a 3.*/

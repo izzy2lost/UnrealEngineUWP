@@ -19,22 +19,22 @@ struct FNavigableGeometryExport;
 struct FNavigationRelevantData;
 class UBodySetup;
 
-/** Determines if a NavRelevant object contains custom collision for navigation/AI */
+/** Determines if, and how, a navigation element should export collision for AI navigation */
 UENUM()
 namespace EHasCustomNavigableGeometry
 {
 enum Type : int
 {
-	/** Primitive doesn't have custom navigation geometry, if collision is enabled then its convex/trimesh collision will be used for generating the navmesh */
+	/** Element custom geometry export callback is not called, but the default collision export is performed using its convex/trimesh collision. */
 	No,
 
-	/** If primitive would normally affect navmesh, DoCustomNavigableGeometryExport() should be called to export this primitive's navigable geometry */
+	/** The custom geometry export callback is called and indicates if the default collision export should also be performed. */
 	Yes,
 
-	/** DoCustomNavigableGeometryExport() should be called even if the mesh is non-collidable and wouldn't normally affect the navmesh */
+	/** The custom geometry export callback is called even if the mesh is non-collidable and wouldn't normally affect the navigation data. */
 	EvenIfNotCollidable,
 
-	/** Don't export navigable geometry even if primitive is relevant for navigation (can still add modifiers) */
+	/** Neither the custom geometry export delegate nor the default export will be called (can still add modifiers through the NavigationData export callback). */
 	DontExport,
 };
 }
@@ -59,7 +59,7 @@ class INavRelevantInterface
 	virtual bool SupportsGatheringGeometrySlices() const { return false; }
 	
 	/** Indicates if the area covered by the navigation bounds of the object should not be dirtied when inserting, or removing, the object in the navigation octree.
-	 * In this case we expect that object to manually dirty areas (e.g. using OnObjectBoundsChanged).
+	 * In this case we expect that object to manually dirty areas (e.g. using UpdateNavigationElementBoundsDelegate).
 	 */
 	virtual bool ShouldSkipDirtyAreaOnAddOrRemove() const { return false; }
 

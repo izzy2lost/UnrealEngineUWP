@@ -7,21 +7,27 @@
 
 enum class ENavigationDirtyFlag : uint8;
 class INavRelevantInterface;
+struct FNavigationElement;
 
 struct FNavigationDirtyElement
 {
 	/**
-	 * If not empty and the associated navigation relevant object controls the dirty areas explicitly (i.e. ShouldSkipDirtyAreaOnAddOrRemove returns true),
+	 * If not empty and the associated navigation element controls the dirty areas explicitly (i.e. DirtyAreasOnRegistration is 'false'),
 	 * the list will be used to indicate the areas that need rebuilding.
-	 * Otherwise, the default behavior, NavRelevant object's bounds will be used.
+	 * Otherwise, the default behavior, element's bounds will be used.
 	 */
 	TArray<FBox> ExplicitAreasToDirty;
 
-	/** object owning this element */
+	/** Navigation element associated with this dirty element */
+	TSharedRef<const FNavigationElement> NavigationElement;
+
+#if WITH_EDITORONLY_DATA
+	UE_DEPRECATED(5.5, "Use NavigationElement instead.")
 	FWeakObjectPtr Owner;
 
-	/** cached interface pointer */
+	UE_DEPRECATED(5.5, "Use NavigationElement instead.")
 	INavRelevantInterface* NavInterface = nullptr;
+#endif // WITH_EDITORONLY_DATA
 
 	/** bounds of already existing entry for this actor */
 	FBox PrevBounds = FBox(ForceInit);
@@ -44,26 +50,17 @@ struct FNavigationDirtyElement
 	/** part of the base navmesh */
 	uint8 bIsInBaseNavmesh : 1 = false;
 
+	UE_DEPRECATED(5.5, "The default constructor will be remove. Use the version with FNavigationElement instead.")
 	ENGINE_API FNavigationDirtyElement();
+	UE_DEPRECATED(5.5, "Use the version with FNavigationElement instead.")
 	ENGINE_API explicit FNavigationDirtyElement(UObject* InOwner);
-	ENGINE_API FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface* InNavInterface, ENavigationDirtyFlag InFlagsOverride, const bool bUseWorldPartitionedDynamicMode = false);
-	ENGINE_API FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface* InNavInterface, const bool bUseWorldPartitionedDynamicMode = false);
-
-	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag instead.")
+	UE_DEPRECATED(5.5, "Use the version with FNavigationElement instead.")
 	ENGINE_API FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface* InNavInterface, int32 InFlagsOverride = 0, const bool bUseWorldPartitionedDynamicMode = false);
+	ENGINE_API FNavigationDirtyElement(const TSharedRef<const FNavigationElement>& InNavigationElement, ENavigationDirtyFlag InFlagsOverride, const bool bUseWorldPartitionedDynamicMode = false);
+	ENGINE_API explicit FNavigationDirtyElement(const TSharedRef<const FNavigationElement>& InNavigationElement, const bool bUseWorldPartitionedDynamicMode = false);
 
-	bool operator==(const FNavigationDirtyElement& Other) const 
-	{ 
-		return Owner == Other.Owner; 
-	}
+	UE_DEPRECATED(5.5, "This operator will no longer be used.")
+	ENGINE_API bool operator==(const UObject*& OtherOwner) const;
 
-	bool operator==(const UObject*& OtherOwner) const 
-	{ 
-		return (Owner == OtherOwner);
-	}
-
-	FORCEINLINE friend uint32 GetTypeHash(const FNavigationDirtyElement& Info)
-	{
-		return GetTypeHash(Info.Owner);
-	}
+	ENGINE_API friend uint32 GetTypeHash(const FNavigationDirtyElement& Info);
 };

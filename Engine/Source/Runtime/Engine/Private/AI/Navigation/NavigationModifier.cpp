@@ -792,7 +792,12 @@ void FCompositeNavModifier::Empty()
 	NavMeshResolution = ENavigationDataResolution::Invalid;
 }
 
-FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, TWeakObjectPtr<UObject> WeakOwnerPtr) const
+FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<UObject> WeakOwnerPtr) const
+{
+	return GetInstantiatedMetaModifier(NavAgent, static_cast<const TWeakObjectPtr<const UObject>&>(WeakOwnerPtr));
+}
+
+FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const FNavAgentProperties* NavAgent, const TWeakObjectPtr<const UObject>& WeakOwnerPtr) const
 {
 	SCOPE_CYCLE_COUNTER(STAT_Navigation_MetaAreaTranslation);
 	FCompositeNavModifier Result;
@@ -801,13 +806,13 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 	// should not be called when HasMetaAreas == false since it's a waste of performance
 	ensure(HasMetaAreas() == true);
 
-	UObject* ObjectOwner = WeakOwnerPtr.Get();
-	if (ObjectOwner == NULL)
+	const UObject* ObjectOwner = WeakOwnerPtr.Get();
+	if (ObjectOwner == nullptr)
 	{
 		return Result;
 	}
 	
-	auto FindActorOwner = [](UObject* Obj) -> const AActor*
+	auto FindActorOwner = [](const UObject* Obj) -> const AActor*
 	{
 		while (Obj)
 		{
@@ -820,8 +825,13 @@ FCompositeNavModifier FCompositeNavModifier::GetInstantiatedMetaModifier(const F
 		return nullptr;
 	};
 
-	const AActor* ActorOwner = Cast<AActor>(ObjectOwner) ? (AActor*)ObjectOwner : FindActorOwner(ObjectOwner);
-	if (ActorOwner == NULL)
+	const AActor* ActorOwner = Cast<AActor>(ObjectOwner);
+	if (ActorOwner == nullptr)
+	{
+		ActorOwner = FindActorOwner(ObjectOwner);
+	}
+
+	if (ActorOwner == nullptr)
 	{
 		return Result;
 	}
@@ -1004,11 +1014,4 @@ uint32 FCompositeNavModifier::GetAllocatedSize() const
 	}
 
 	return IntCastChecked<uint32>(MemUsed);
-}
-
-bool FCompositeNavModifier::HasPerInstanceTransforms() const
-{
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	return NavDataPerInstanceTransformDelegate.IsBound();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }

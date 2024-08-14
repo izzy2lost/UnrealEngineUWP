@@ -1,13 +1,14 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AI/Navigation/NavigationTypes.h"
-#include "AI/NavigationSystemBase.h"
-#include "AI/Navigation/NavQueryFilter.h"
+#include "AI/Navigation/NavAreaBase.h"
 #include "AI/Navigation/NavigationRelevantData.h"
+#include "AI/Navigation/NavigationElement.h"
+#include "AI/Navigation/NavQueryFilter.h"
+#include "AI/NavigationSystemBase.h"
+#include "Components/ShapeComponent.h"
 #include "Engine/Level.h"
 #include "EngineStats.h"
-#include "Components/ShapeComponent.h"
-#include "AI/Navigation/NavAreaBase.h"
 #include "GameFramework/WorldSettings.h"
 #include "WorldPartition/DataLayer/DataLayerAsset.h"
 
@@ -137,6 +138,11 @@ bool FNavigationRelevantData::FCollisionDataHeader::IsValid(const uint8* RawData
 	return (RawDataSize == 0) || ((RawDataSize >= HeaderSize) && (((const FCollisionDataHeader*)RawData)->DataSize == RawDataSize));
 }
 
+FCompositeNavModifier FNavigationRelevantData::GetModifierForAgent(const FNavAgentProperties* NavAgent) const
+{
+	return Modifiers.HasMetaAreas() ? Modifiers.GetInstantiatedMetaModifier(NavAgent, SourceElement->GetWeakUObject()) : Modifiers;
+}
+
 bool FNavigationRelevantData::HasPerInstanceTransforms() const
 {
 	return NavDataPerInstanceTransformDelegate.IsBound();
@@ -166,7 +172,7 @@ bool FNavigationRelevantData::IsCollisionDataValid() const
 	const bool bIsValid = FCollisionDataHeader::IsValid(CollisionData.GetData(), CollisionData.Num());
 	if (!ensure(bIsValid))
 	{
-		UE_LOG(LogNavigation, Error, TEXT("NavOctree element has corrupted collision data! Owner:%s Bounds:%s"), *GetNameSafe(GetOwner()), *Bounds.ToString());
+		UE_LOG(LogNavigation, Error, TEXT("NavOctree element has corrupted collision data! Owner:%s Bounds:%s"), *SourceElement->GetName(), *Bounds.ToString());
 		return false;
 	}
 
@@ -402,3 +408,34 @@ TSubclassOf<UNavAreaBase> UNavAreaBase::PickAreaClassForAgent(const AActor& Acto
 	return GetClass();
 }
 
+//----------------------------------------------------------------------//
+// Deprecated methods
+//----------------------------------------------------------------------//
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+// Deprecated
+FNavigationRelevantData::FNavigationRelevantData(UObject& Source)
+	: SourceElement(MakeShared<const FNavigationElement>(Source))
+	, bPendingLazyGeometryGathering(false)
+	, bPendingLazyModifiersGathering(false)
+	, bPendingChildLazyModifiersGathering(false)
+	, bSupportsGatheringGeometrySlices(false)
+	, bShouldSkipDirtyAreaOnAddOrRemove(false)
+	, bLoadedData(false)
+{
+}
+
+// Deprecated
+const UObject* FNavigationRelevantData::GetOwner() const
+{
+	return SourceElement->GetWeakUObject().Get();
+}
+
+// Deprecated
+TWeakObjectPtr<UObject> FNavigationRelevantData::GetOwnerPtr() const
+{
+	return TWeakObjectPtr(const_cast<UObject*>(GetOwner()));
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

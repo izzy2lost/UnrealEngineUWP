@@ -8,7 +8,6 @@
 #include "HAL/FileManager.h"
 #include "Misc/Paths.h"
 #include "Serialization/MemoryWriter.h"
-#include "EngineGlobals.h"
 #include "GameFramework/PlayerController.h"
 #include "Engine/Engine.h"
 #include "Logging/LogScopedCategoryAndVerbosityOverride.h"
@@ -127,8 +126,8 @@ int32 GetTilesCountHelper(const dtNavMesh* DetourMesh)
 
 /**
  * Exports geometry to OBJ file. Can be used to verify NavMesh generation in RecastDemo app
- * @param FileName - full name of OBJ file with extension
- * @param GeomVerts - list of vertices
+ * @param InFileName - full name of OBJ file with extension
+ * @param GeomCoords - list of vertices
  * @param GeomFaces - list of triangles (3 vert indices for each)
  */
 static void ExportGeomToOBJFile(const FString& InFileName, const TNavStatArray<FVector::FReal>& GeomCoords, const TNavStatArray<int32>& GeomFaces, const FString& AdditionalData)
@@ -972,56 +971,50 @@ FORCEINLINE_DEBUGGABLE void ExportRigidBodySetup(UBodySetup& BodySetup, TNavStat
 	TemporaryShapeBuffer.Reset();
 }
 
-void ExportObject(INavRelevantInterface& NavRelevantInterface, FRecastGeometryExport& GeomExport)
+void ExportObject(const FNavigationElement& Element, FRecastGeometryExport& GeomExport)
 {
-	if (NavRelevantInterface.IsNavigationRelevant() && (NavRelevantInterface.HasCustomNavigableGeometry() != EHasCustomNavigableGeometry::DontExport))
+	const EHasCustomNavigableGeometry::Type GeometryExportType = Element.GetGeometryExportType();
+	if (GeometryExportType == EHasCustomNavigableGeometry::DontExport)
 	{
-		const bool bHasData = (NavRelevantInterface.HasCustomNavigableGeometry() != EHasCustomNavigableGeometry::Type::No)
-			&& !NavRelevantInterface.DoCustomNavigableGeometryExport(GeomExport);
+		return;
+	}
 
-		UBodySetup* BodySetup = nullptr;
+	bool bDefaultGeometryExportRequired = true;
+	if (GeometryExportType != EHasCustomNavigableGeometry::No)
+	{
+		Element.CustomGeometryExportDelegate.ExecuteIfBound(Element, GeomExport, bDefaultGeometryExportRequired);
+	}
+
+	if (UBodySetup* BodySetup = Element.GetBodySetup())
+	{
+		if (bDefaultGeometryExportRequired)
 		{
-			// Might need to create the BodySetup outside of the main thread so garbage collection guard is required.
-			FGCScopeGuard GCGuard;
-			BodySetup = NavRelevantInterface.GetNavigableGeometryBodySetup();
-
-			if (BodySetup)
-			{
-				// Async flag need to be cleared to allow garbage collection.
-				BodySetup->AtomicallyClearInternalFlags(EInternalObjectFlags::Async);
-			}
+			ExportRigidBodySetup(*BodySetup, GeomExport.VertexBuffer, GeomExport.IndexBuffer, GeomExport.Data->Bounds, Element.GetTransform());
 		}
-
-		if (BodySetup)
-		{
-			if (!bHasData)
-			{
-				ExportRigidBodySetup(*BodySetup, GeomExport.VertexBuffer, GeomExport.IndexBuffer, GeomExport.Data->Bounds, NavRelevantInterface.GetNavigableGeometryTransform());
-			}
-
-			GeomExport.SlopeOverride = BodySetup->WalkableSlopeOverride;
-		}
+		GeomExport.SlopeOverride = BodySetup->WalkableSlopeOverride;
 	}
 }
 
 #if !UE_BUILD_SHIPPING
 FORCEINLINE_DEBUGGABLE void ValidateGeometryExport(const FRecastGeometryExport& GeomExport)
 {
-	if (const UObject* Owner = GeomExport.Data->GetOwner())
+	if (const UObject* Owner = GeomExport.Data->SourceElement->GetWeakUObject().Get())
 	{
 		if (const UNavigationSystemV1* NavSys = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Owner->GetWorld()))
 		{
 			constexpr int32 CoordinatePerTriangle = 9;
-			if (NavSys->GeometryExportTriangleCountWarningThreshold > 0 && (GeomExport.VertexBuffer.Num() / CoordinatePerTriangle) > NavSys->GeometryExportTriangleCountWarningThreshold)
+			if (NavSys->GeometryExportTriangleCountWarningThreshold > 0
+				&& (GeomExport.VertexBuffer.Num() / CoordinatePerTriangle) > NavSys->GeometryExportTriangleCountWarningThreshold)
 			{
 				static uint32 LastNameHash = 0;
-				const FString FullName = GetFullNameSafe(Owner);
+				const FString FullName = GeomExport.Data->SourceElement.Get().GetFullName();
 				const uint32 NameHash = GetTypeHash(FullName);
 				if (NameHash != LastNameHash)
 				{
 					UE_LOG(LogNavigation,
-						Warning, 
-						TEXT("Exporting collision geometry with too many triangles (%i). This might cause performance and memory issues. Add a simple collision or change GeometryExportVertexCountWarningThreshold. See '%s'."), 
+						Warning,
+						TEXT("Exporting collision geometry with too many triangles (%i). This might cause performance and memory issues."
+						" Add a simple collision or change GeometryExportVertexCountWarningThreshold. See '%s'."),
 						GeomExport.VertexBuffer.Num() / CoordinatePerTriangle, *FullName);
 				}
 				LastNameHash = NameHash;
@@ -1188,7 +1181,7 @@ void FRecastGeometryExport::TransformVertexSoupToRecast(const TArray<FVector>& V
 
 FString FRecastGeometryExport::GetDataOwnerName() const
 {
-	return Data ? GetNameSafe(Data->GetOwner()) : TEXT("No Data");
+	return Data ? Data->SourceElement.Get().GetName() : TEXT("No Data");
 }
 
 FORCEINLINE void GrowConvexHull(const FVector::FReal ExpandBy, const TArray<FVector>& Verts, TArray<FVector>& OutResult)
@@ -1455,27 +1448,27 @@ public:
 protected:
 	/// Logs a message.
 	///  @param[in]		category	The category of the message.
-	///  @param[in]		msg			The formatted message.
+	///  @param[in]		Msg			The formatted message.
 	///  @param[in]		len			The length of the formatted message.
 	virtual void doLog(const rcLogCategory category, const char* Msg, const int32 /*len*/) 
 	{
 		switch (category) 
 		{
 		case RC_LOG_ERROR:
-			UE_LOG(LogNavigation, Error, TEXT("Recast: %s"), ANSI_TO_TCHAR( Msg ) );
+			UE_LOG(LogNavigation, Error, TEXT("Recast: %hs"),  Msg);
 			break;
 		case RC_LOG_WARNING:
-			UE_LOG(LogNavigation, Log, TEXT("Recast: %s"), ANSI_TO_TCHAR( Msg ) );
+			UE_LOG(LogNavigation, Log, TEXT("Recast: %hs"),  Msg);
 			break;
 		default:
-			UE_LOG(LogNavigation, VeryVerbose, TEXT("Recast: %s"), ANSI_TO_TCHAR( Msg ) );
+			UE_LOG(LogNavigation, VeryVerbose, TEXT("Recast: %hs"), Msg);
 			break;
 		}
 	}
 
 	virtual void doDtLog(const char* Msg, const int32 /*len*/)
 	{
-		UE_LOG(LogNavigation, Error, TEXT("Recast: %s"), ANSI_TO_TCHAR(Msg));
+		UE_LOG(LogNavigation, Error, TEXT("Recast: %hs"), Msg);
 	}
 };
 
@@ -1975,12 +1968,6 @@ void FRecastTileGenerator::GatherGeometryFromSources()
 
 	for (TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData : NavigationRelevantData)
 	{
-		if (ElementData->GetOwner() == nullptr)
-		{
-			UE_LOG(LogNavigation, Warning, TEXT("%s: skipping an element with no longer valid Owner"), ANSI_TO_TCHAR(__FUNCTION__));
-			continue;
-		}
-
 		GatherNavigationDataGeometry(ElementData, *NavSys, NavDataConfig, bUpdateGeometry);
 	}
 }
@@ -1997,15 +1984,8 @@ ETimeSliceWorkResult FRecastTileGenerator::GatherGeometryFromSourcesTimeSliced()
 
 	while(NavigationRelevantData.Num())
 	{
-		TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe> ElementData = NavigationRelevantData.Pop(EAllowShrinking::No);
-		if (ElementData->GetOwner() == nullptr)
-		{
-			UE_LOG(LogNavigation, Warning, TEXT("%s: skipping an element with no longer valid Owner"), ANSI_TO_TCHAR(__FUNCTION__));
-			continue;
-		}
+		GatherNavigationDataGeometry(NavigationRelevantData.Pop(EAllowShrinking::No), *NavSys, NavDataConfig, bUpdateGeometry);
 
-		GatherNavigationDataGeometry(ElementData, *NavSys, NavDataConfig, bUpdateGeometry);
-		
 		MARK_TIMESLICE_SECTION_DEBUG(TimeSliceManager->GetTimeSlicer(), GatherGeometryFromSources);
 
 		if (TimeSliceManager->GetTimeSlicer().TestTimeSliceFinished())
@@ -2107,59 +2087,57 @@ void FRecastTileGenerator::GatherGeometry(const FRecastNavMeshGenerator& ParentG
 	}
 }
 
-void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, UNavigationSystemV1& NavSys, const FNavDataConfig& OwnerNavDataConfig, const bool bGeometryChanged)
+void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementDataRef, UNavigationSystemV1& NavSys, const FNavDataConfig& OwnerNavDataConfig, const bool bGeometryChanged)
 {
 	bool bDumpGeometryData = false;
+	FNavigationRelevantData& ElementData = ElementDataRef.Get();
 
 #if RECAST_INTERNAL_DEBUG_DATA
 	if (!IsTileDebugAllowingGeneration())
 	{
 		return;
 	}
+
 	if (IsTileDebugActive())
 	{
-		UE_LOG(LogNavigation, Log, TEXT("Gathering geometry for tile (%i,%i): %s."), TileX, TileY, *GetFullNameSafe(ElementData->GetOwner()));
-		UE_LOG(LogNavigation, Log, TEXT("                       Bounds: %s"), *ElementData->Bounds.ToString());
-		UE_LOG(LogNavigation, Log, TEXT("                       Geometry: Has=%s Pending=%s Slice=%s"), ElementData->HasGeometry() ? TEXT("true") : TEXT("false"), ElementData->IsPendingLazyGeometryGathering() ? TEXT("true") : TEXT("false"), ElementData->SupportsGatheringGeometrySlices() ? TEXT("true") : TEXT("false"));
-		UE_LOG(LogNavigation, Log, TEXT("                       Modifier: Has=%s Pending=%s"), ElementData->HasModifiers() ? TEXT("true") : TEXT("false"), ElementData->NeedAnyPendingLazyModifiersGathering() ? TEXT("true") : TEXT("false"));
+		UE_LOG(LogNavigation, Log, TEXT("Gathering geometry for tile (%i,%i): %s.\n"
+										"                       Bounds: %s\n"
+										"                       Geometry: Has=%s Pending=%s Slice=%s\n"
+										"                       Modifier: Has=%s Pending=%s"),
+			TileX, TileY, *ElementData.SourceElement.Get().GetFullName(),
+			*ElementData.Bounds.ToString(),
+			*LexToString(ElementData.HasGeometry()), *LexToString(ElementData.IsPendingLazyGeometryGathering()), *LexToString(ElementData.SupportsGatheringGeometrySlices()),
+			*LexToString(ElementData.HasModifiers()), *LexToString(ElementData.NeedAnyPendingLazyModifiersGathering()));
 	}
 #endif // RECAST_INTERNAL_DEBUG_DATA
 
-	if (ElementData->IsPendingLazyGeometryGathering() || ElementData->NeedAnyPendingLazyModifiersGathering())
+	if (ElementData.IsPendingLazyGeometryGathering() || ElementData.NeedAnyPendingLazyModifiersGathering())
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_LazyGeometryExport);
-		NavSys.DemandLazyDataGathering(*ElementData);
+		NavSys.DemandLazyDataGathering(ElementData);
 	}
 				
-	if (ElementData->IsPendingLazyGeometryGathering() && ElementData->SupportsGatheringGeometrySlices())
+	if (ElementData.IsPendingLazyGeometryGathering() && ElementData.SupportsGatheringGeometrySlices())
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_LandscapeSlicesExporting);
 
-		FRecastGeometryExport GeomExport(const_cast<FNavigationRelevantData&>(*ElementData));
+		FRecastGeometryExport GeomExport(ElementData);
 
-		INavRelevantInterface* NavRelevant = const_cast<INavRelevantInterface*>(Cast<const INavRelevantInterface>(ElementData->GetOwner()));
-		if (NavRelevant)
-		{
-			NavRelevant->PrepareGeometryExportSync();
-			// adding a small bump to avoid special case of zero-expansion when tile bounds
-			// overlap landscape's tile bounds
-			NavRelevant->GatherGeometrySlice(GeomExport, TileBBExpandedForAgent);
-
-			RecastGeometryExport::ConvertCoordDataToRecast(GeomExport.VertexBuffer);
-			RecastGeometryExport::StoreCollisionCache(GeomExport);
-			bDumpGeometryData = true;
-		}
-		else
-		{
-			UE_LOG(LogNavigation, Error, TEXT("GatherGeometry: got an invalid NavRelevant instance!"));
-		}
+		// adding a small bump to avoid special case of zero-expansion when tile bounds
+		// overlap landscape's tile bounds
+		ElementData.SourceElement->GeometrySliceExportDelegate.ExecuteIfBound(ElementData.SourceElement.Get(), GeomExport, TileBBExpandedForAgent);
+		RecastGeometryExport::ConvertCoordDataToRecast(GeomExport.VertexBuffer);
+		RecastGeometryExport::StoreCollisionCache(GeomExport);
+		bDumpGeometryData = true;
 	}
 
 	// Temporary change to help narrow down a rare crash:
 	// Was: const FCompositeNavModifier ModifierInstance = ElementData->GetModifierForAgent(&OwnerNavDataConfig);
-	const FCompositeNavModifier& ModifierInstance = ElementData->Modifiers.HasMetaAreas() ? ElementData->Modifiers.GetInstantiatedMetaModifier(&OwnerNavDataConfig, ElementData->SourceObject) : ElementData->Modifiers;
+	const FCompositeNavModifier& ModifierInstance = ElementData.Modifiers.HasMetaAreas()
+		? ElementData.Modifiers.GetInstantiatedMetaModifier(&OwnerNavDataConfig, ElementData.SourceElement->GetWeakUObject())
+		: ElementData.Modifiers;
 
-	const bool bExportGeometry = bGeometryChanged && ElementData->HasGeometry();
+	const bool bExportGeometry = bGeometryChanged && ElementData.HasGeometry();
 	if (bExportGeometry)
 	{
 		if (ARecastNavMesh::IsVoxelCacheEnabled())
@@ -2170,11 +2148,11 @@ void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNaviga
 
 			DECLARE_SCOPE_CYCLE_COUNTER(TEXT("Rasterization: prepare voxel cache"), Stat_RecastRasterCachePrep, STATGROUP_Navigation);
 
-			if (!HasVoxelCache(ElementData->VoxelData, CachedVoxels, NumCachedVoxels))
+			if (!HasVoxelCache(ElementData.VoxelData, CachedVoxels, NumCachedVoxels))
 			{
 
 				// rasterize
-				PrepareVoxelCache(ElementData->CollisionData, ModifierInstance, SpanData);
+				PrepareVoxelCache(ElementData.CollisionData, ModifierInstance, SpanData);
 				CachedVoxels = SpanData.GetData();
 				NumCachedVoxels = SpanData.Num();
 
@@ -2182,11 +2160,10 @@ void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNaviga
 				{
 					LLM_SCOPE_BYTAG(NavigationOctree);
 
-					const SIZE_T PrevElementMemory = ElementData->GetAllocatedSize();
-					FNavigationRelevantData* ModData = (FNavigationRelevantData*)&ElementData;
-					AddVoxelCache(ModData->VoxelData, CachedVoxels, NumCachedVoxels);
+					const SIZE_T PrevElementMemory = ElementData.GetAllocatedSize();
+					AddVoxelCache(ElementData.VoxelData, CachedVoxels, NumCachedVoxels);
 
-					const SIZE_T NewElementMemory = ElementData->GetAllocatedSize();
+					const SIZE_T NewElementMemory = ElementData.GetAllocatedSize();
 					const SIZE_T ElementMemoryDelta = NewElementMemory - PrevElementMemory;
 					INC_MEMORY_STAT_BY(STAT_Navigation_CollisionTreeMemory, ElementMemoryDelta);
 				}
@@ -2199,13 +2176,13 @@ void FRecastTileGenerator::GatherNavigationDataGeometry(const TSharedRef<FNaviga
 
 		if (bDumpGeometryData)
 		{
-			const_cast<FNavigationRelevantData&>(*ElementData).CollisionData.Empty();
+			ElementData.CollisionData.Empty();
 		}
 	}
 				
 	if (ModifierInstance.IsEmpty() == false)
 	{
-		AppendModifier(ModifierInstance, ElementData->NavDataPerInstanceTransformDelegate);
+		AppendModifier(ModifierInstance, ElementData.NavDataPerInstanceTransformDelegate);
 	}
 }
 
@@ -2488,18 +2465,22 @@ void FRecastTileGenerator::AppendModifier(const FCompositeNavModifier& Modifier,
 	Modifiers.Add(MoveTemp(ModifierElement));
 }
 
-void FRecastTileGenerator::ValidateAndAppendGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, const FCompositeNavModifier& InModifier)
+void FRecastTileGenerator::ValidateAndAppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier)
 {
-	const FNavigationRelevantData& DataRef = ElementData.Get();
-	if (DataRef.IsCollisionDataValid())
+	if (ElementData.IsCollisionDataValid())
 	{
-		AppendGeometry(DataRef, InModifier, DataRef.NavDataPerInstanceTransformDelegate);
+		AppendGeometry(ElementData, InModifier, ElementData.NavDataPerInstanceTransformDelegate);
 	}
 }
 
-void FRecastTileGenerator::AppendGeometry(const FNavigationRelevantData& DataRef, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate)
+void FRecastTileGenerator::ValidateAndAppendGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, const FCompositeNavModifier& InModifier)
+{
+	ValidateAndAppendGeometry(ElementData.Get(), InModifier);
+}
+
+void FRecastTileGenerator::AppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate)
 {	
-	const TNavStatArray<uint8>& RawCollisionCache = DataRef.CollisionData;
+	const TNavStatArray<uint8>& RawCollisionCache = ElementData.CollisionData;
 	if (RawCollisionCache.Num() == 0)
 	{
 		return;
@@ -2527,7 +2508,8 @@ void FRecastTileGenerator::AppendGeometry(const FNavigationRelevantData& DataRef
 	const int32 NumIndices = CollisionCache.Header.NumFaces * 3;
 	if (NumIndices > 0)
 	{
-		UE_LOG(LogNavigationDataBuild, VeryVerbose, TEXT("%s adding %i vertices from %s."), ANSI_TO_TCHAR(__FUNCTION__), CollisionCache.Header.NumVerts, *GetFullNameSafe(DataRef.GetOwner()));
+		UE_LOG(LogNavigationDataBuild, VeryVerbose, TEXT("%hs adding %i vertices from %s."),
+			__FUNCTION__, CollisionCache.Header.NumVerts, *ElementData.SourceElement.Get().GetFullName());
 
 		GeometryElement.GeomCoords.SetNumUninitialized(NumCoords);
 		GeometryElement.GeomIndices.SetNumUninitialized(NumIndices);
@@ -4788,13 +4770,11 @@ uint32 FRecastTileGenerator::GetUsedMemCount() const
 
 void FRecastTileGenerator::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (auto& RelevantData : NavigationRelevantData)
+	for (const TSharedRef<FNavigationRelevantData>& RelevantData : NavigationRelevantData)
 	{
-		auto& Owner = RelevantData->GetOwnerPtr();
-		if (Owner.Get())
-		{
-			Collector.AddReferencedObject(Owner);
-		}
+		// Local variable since 'AddReferencedObject' requires a non-const& parameter
+		TWeakObjectPtr<const UObject> WeakObject = RelevantData->SourceElement->GetWeakUObject();
+		Collector.AddReferencedObject(WeakObject);
 	}
 }
 
@@ -5995,21 +5975,17 @@ void FRecastNavMeshGenerator::LogDirtyAreas(const UObject& OwnerNav,
 			DirtyResultsTuple->TotalDirtyTiles++;
 		}
 	}
-		
-	for (const FNavigationDirtyAreaDebugInformation& DirtyResultsTuple : DirtyAreaToDirtyTilesCount)
+
+	for (const auto& [DirtyArea, NewlyAddedDirtyTiles, TotalDirtyTiles] : DirtyAreaToDirtyTilesCount)
 	{
-		const UObject* const SourceObject = DirtyResultsTuple.DirtyArea.OptionalSourceObject.Get();
-		const UActorComponent* const ObjectAsComponent = Cast<UActorComponent>(SourceObject);
-		const AActor* const ComponentOwner = ObjectAsComponent ? ObjectAsComponent->GetOwner() : nullptr;
-		const FVector2D BoundsSize(DirtyResultsTuple.DirtyArea.Bounds.GetSize());
+		const FVector2D BoundsSize(DirtyArea.Bounds.GetSize());
 		
 		UE_LOG(LogNavigationDirtyArea, VeryVerbose,
-			TEXT("(navmesh: %-30s) Dirty area trying to dirt %2d tiles (out of which %2d are newly added/not pending) | Source Object = %s | Potential component's owner = %s | Bounds size = %s)"),
-			*GetNameSafe(GetOwner()), DirtyResultsTuple.TotalDirtyTiles, DirtyResultsTuple.NewlyAddedDirtyTiles, *GetFullNameSafe(SourceObject),
-			*GetFullNameSafe(ComponentOwner), *BoundsSize.ToString());
+			TEXT("(navmesh: %-30s) Dirty area trying to dirty %2d tiles (out of which %2d are newly added/not pending) | Source = %s | Bounds size = %s)"),
+			*GetNameSafe(GetOwner()), TotalDirtyTiles, NewlyAddedDirtyTiles, *DirtyArea.GetSourceDescription(), *BoundsSize.ToString());
 
-		UE_VLOG_BOX(&OwnerNav, LogNavigationDirtyArea, VeryVerbose, DirtyResultsTuple.DirtyArea.Bounds, FColor::Purple,
-			TEXT("Tiles %d (new: %d), Source: %s"), DirtyResultsTuple.TotalDirtyTiles, DirtyResultsTuple.NewlyAddedDirtyTiles,*GetFullNameSafe(SourceObject));
+		UE_VLOG_BOX(&OwnerNav, LogNavigationDirtyArea, VeryVerbose, DirtyArea.Bounds, FColor::Purple,
+			TEXT("Tiles %d (new: %d), Source: %s"), TotalDirtyTiles, NewlyAddedDirtyTiles, *DirtyArea.GetSourceDescription());
 	}
 }
 #endif
@@ -6309,8 +6285,9 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 		for (const FNavigationDirtyArea& DirtyArea : DirtyAreas)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_DirtyArea);
-		
-			if (!ensureMsgf(DirtyArea.Bounds.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. SourceObject: %s"), __FUNCTION__, *GetFullNameSafe(DirtyArea.OptionalSourceObject.Get())))
+
+			if (!ensureMsgf(DirtyArea.Bounds.IsValid, TEXT("%hs Attempting to use DirtyArea.Bounds which are not valid. Source: %s"),
+					__FUNCTION__, *DirtyArea.GetSourceDescription()))
 			{
 				continue;
 			}
@@ -6321,17 +6298,16 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 				continue;
 			}
 
-			UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, DirtyArea.Bounds, FColor::Blue, TEXT("DirtyArea %s"), *GetNameSafe(DirtyArea.OptionalSourceObject.Get()));
-		
+			UE_VLOG_BOX(OwnerNav, LogNavigation, VeryVerbose, DirtyArea.Bounds, FColor::Blue, TEXT("DirtyArea %s"), *DirtyArea.GetSourceDescription());
+
 			// (if bUseVirtualGeometryFilteringAndDirtying is true) Ignore dirty areas flagged by a source object that is not supposed to apply to this navmesh
 			if (bUseVirtualGeometryFilteringAndDirtying && NavSys && NavOctreeInstance && NavDataConfig)
 			{
-				if (const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get())
+				const FNavigationElement* SourceElement = DirtyArea.OptionalSourceElement.Get();
+				if (SourceElement
+					&& !ShouldDirtyTilesRequestedByElement(*NavSys, *NavOctreeInstance, SourceElement->GetHandle(), *NavDataConfig))
 				{
-					if (!ShouldDirtyTilesRequestedByObject(*NavSys, *NavOctreeInstance, *SourceObject, *NavDataConfig))
-					{
-						continue;
-					}
+					continue;
 				}
 			}
 		
@@ -6367,7 +6343,7 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_RecastNavMeshGenerator_CheckTilesInBounds);
 
 				uint32 PendingTilesMarked = 0;
-			
+
 				const FRcTileBox TileBox(AdjustedAreaBounds, RcNavMeshOrigin, TileSizeInWorldUnits);
 
 				for (int32 TileY = TileBox.YMin; TileY <= TileBox.YMax; ++TileY)
@@ -6439,7 +6415,7 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 
 #if !UE_BUILD_SHIPPING
 				// Warn if this is from a big dirty area
-				UE_SUPPRESS(LogNavigationDirtyArea, Warning, 
+				UE_SUPPRESS(LogNavigationDirtyArea, Warning,
 				{
 					if (PendingTilesMarked > 0)
 					{
@@ -6453,14 +6429,11 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 						if (NavSys && NavSys->GetOperationMode() == FNavigationSystemRunMode::GameMode && NavSys->IsActiveTilesGenerationEnabled() &&
 							AdjustedAreaBounds.GetSize().GetMax() > NavSys->GetDirtyAreaWarningSizeThreshold())
 						{
-							const UObject* const SourceObject = DirtyArea.OptionalSourceObject.Get();
-							const UActorComponent* const ObjectAsComponent = Cast<UActorComponent>(SourceObject);
-							const AActor* const ComponentOwner = ObjectAsComponent ? ObjectAsComponent->GetOwner() : nullptr;
 							const FVector2D AdjustedAreaBoundsSize(AdjustedAreaBounds.GetSize());
-		
+
 							UE_LOG(LogNavigationDirtyArea, Warning,
-								TEXT("(navmesh: %-30s) Added an oversized dirty area | Tiles marked: %2u | Source object = %s | Potential comp owner = %s | Bounds size = %s | Threshold: %.0f"),
-								*GetNameSafe(GetOwner()), PendingTilesMarked, *GetFullNameSafe(SourceObject), *GetFullNameSafe(ComponentOwner),
+								TEXT("(navmesh: %-30s) Added an oversized dirty area | Tiles marked: %2u | Source Element = %s | Bounds size = %s | Threshold: %.0f"),
+								*GetNameSafe(GetOwner()), PendingTilesMarked, *DirtyArea.GetSourceDescription(),
 								*AdjustedAreaBoundsSize.ToString(), NavSys->GetDirtyAreaWarningSizeThreshold());
 						}
 					}
@@ -6535,10 +6508,20 @@ void FRecastNavMeshGenerator::MarkDirtyTiles(const TArray<FNavigationDirtyArea>&
 	}
 }
 
+// Deprecated
 bool FRecastNavMeshGenerator::ShouldDirtyTilesRequestedByObject(const UNavigationSystemV1& NavSys,
 	const FNavigationOctree& NavOctreeInstance, const UObject& SourceObject, const FNavDataConfig& NavDataConfig) const
 {
-	const FOctreeElementId2* const OctreeElementId = NavSys.GetObjectsNavOctreeId(SourceObject);
+	return ShouldDirtyTilesRequestedByElement(NavSys, NavOctreeInstance, FNavigationElementHandle(&SourceObject), NavDataConfig); 
+}
+
+bool FRecastNavMeshGenerator::ShouldDirtyTilesRequestedByElement(
+	const UNavigationSystemV1& NavSys,
+	const FNavigationOctree& NavOctreeInstance,
+	const FNavigationElementHandle SourceElement,
+	const FNavDataConfig& NavDataConfig) const
+{
+	const FOctreeElementId2* const OctreeElementId = NavSys.GetNavOctreeIdForElement(SourceElement);
 
 	return (OctreeElementId == nullptr) || ShouldGenerateGeometryForOctreeElement(NavOctreeInstance.GetElementById(*OctreeElementId), NavDataConfig);
 }
@@ -7144,7 +7127,7 @@ TArray<FNavTileRef> FRecastNavMeshGenerator::ProcessTileTasksAndGetUpdatedTiles(
 
 		if (RebuildAllStartTime != 0)
 		{
-			UE_LOG(LogNavigationDataBuild, Display, TEXT("   %s build time: %.2fs"), ANSI_TO_TCHAR(__FUNCTION__), (FPlatformTime::Seconds() - RebuildAllStartTime));
+			UE_LOG(LogNavigationDataBuild, Display, TEXT("   %hs build time: %.2fs"), __FUNCTION__, (FPlatformTime::Seconds() - RebuildAllStartTime));
 			RebuildAllStartTime = 0;
 		}
 		
@@ -7203,20 +7186,22 @@ void FRecastNavMeshGenerator::ExportComponentGeometry(UActorComponent* InOutComp
 {
 	if (INavRelevantInterface* NavRelevantInterface = Cast<INavRelevantInterface>(InOutComponent))
 	{
-		FRecastGeometryExport::ExportNavRelevantObjectGeometry(*NavRelevantInterface, OutData);
+		const TSharedRef<const FNavigationElement> TmpElement = FNavigationElement::CreateFromNavRelevantInterface(*NavRelevantInterface);
+		FRecastGeometryExport::ExportElementGeometry(TmpElement.Get(), OutData);
 	}
 }
 
 // Deprecated
 void FRecastNavMeshGenerator::ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData)
 {
-	FRecastGeometryExport::ExportNavRelevantObjectGeometry(InOutNavRelevantInterface, OutData);
+	const TSharedRef<const FNavigationElement> TmpElement = FNavigationElement::CreateFromNavRelevantInterface(InOutNavRelevantInterface);
+	FRecastGeometryExport::ExportElementGeometry(TmpElement.Get(), OutData);
 }
 
-void FRecastGeometryExport::ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData)
+void FRecastGeometryExport::ExportElementGeometry(const FNavigationElement& InElement, FNavigationRelevantData& OutData)
 {
 	FRecastGeometryExport GeomExport(OutData);
-	RecastGeometryExport::ExportObject(InOutNavRelevantInterface, GeomExport);
+	RecastGeometryExport::ExportObject(InElement, GeomExport);
 
 #if !UE_BUILD_SHIPPING
 	RecastGeometryExport::ValidateGeometryExport(GeomExport);
@@ -7450,7 +7435,7 @@ bool FRecastNavMeshGenerator::IsTileChanged(const FNavTileRef InTileRef) const
 
 uint32 FRecastNavMeshGenerator::LogMemUsed() const 
 {
-	UE_LOG(LogNavigation, Display, TEXT("    FRecastNavMeshGenerator: self %d"), sizeof(FRecastNavMeshGenerator));
+	UE_LOG(LogNavigation, Display, TEXT("    FRecastNavMeshGenerator: self %llu"), sizeof(FRecastNavMeshGenerator));
 	
 	uint32 GeneratorsMem = 0;
 	for (const TRunningTileElement<FRecastTileGeneratorWrapper>& Element : RunningDirtyTiles)
@@ -7550,9 +7535,9 @@ void FRecastNavMeshGenerator::GrabDebugSnapshot(struct FVisualLogEntry* Snapshot
 							continue;
 						}
 
-						const uint8 AreaId = IntCastChecked<uint8>(NavData->GetAreaID(AreaMod.GetAreaClass()));
+						const int32 AreaId = NavData->GetAreaID(AreaMod.GetAreaClass());
 						const UClass* AreaClass = NavData->GetAreaClass(AreaId);
-						const UNavArea* DefArea = AreaClass ? ((UClass*)AreaClass)->GetDefaultObject<UNavArea>() : NULL;
+						const UNavArea* DefArea = AreaClass ? ((UClass*)AreaClass)->GetDefaultObject<UNavArea>() : nullptr;
 						const FColor PolygonColor = AreaClass != FNavigationSystem::GetDefaultWalkableArea() ? (DefArea ? DefArea->DrawColor : NavData->GetConfig().Color) : FColorList::Cyan;
 
 						if (ShapeType == ENavigationShapeType::Box)
@@ -7704,7 +7689,8 @@ void FRecastNavMeshGenerator::ExportNavigationData(const FString& FileName) cons
 						if (ShapeType == ENavigationShapeType::Convex || ShapeType == ENavigationShapeType::InstancedConvex)
 						{
 							FAreaExportData ExportInfo;
-							ExportInfo.AreaId = IntCastChecked<uint8>(NavData->GetAreaID(AreaMod.GetAreaClass()));
+							const int32 AreaId = NavData->GetAreaID(AreaMod.GetAreaClass());
+							ExportInfo.AreaId = AreaId != INDEX_NONE ? IntCastChecked<uint8>(AreaId) : INDEX_NONE;
 
 							auto AddAreaExportDataFunc = [&](const FConvexNavAreaData& InConvexNavAreaData)
 							{

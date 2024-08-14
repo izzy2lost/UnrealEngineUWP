@@ -2,12 +2,15 @@
 
 #pragma once
 
-#include "AI/Navigation/NavigationDirtyArea.h"
-#include "AI/Navigation/NavigationTypes.h"
-#include "AI/NavigationModifier.h"
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
 #include "UObject/ObjectMacros.h"
-#endif //UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+#include "AI/Navigation/NavigationTypes.h"
+#endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_5
+
+#include "AI/NavigationModifier.h"
+#include "NavigationDirtyArea.h"
+
+struct FNavigationElement;
 
 struct FNavigationRelevantDataFilter 
 {
@@ -66,8 +69,14 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	/** additional modifiers: areas and external links */
 	FCompositeNavModifier Modifiers;
 
+#if WITH_EDITORONLY_DATA
 	/** UObject these data represents */
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
 	TWeakObjectPtr<UObject> SourceObject;
+#endif // WITH_EDITORONLY_DATA
+
+	/** Navigation element this data represents */
+	TSharedRef<const FNavigationElement> SourceElement;
 
 	/** get set to true when lazy navigation exporting is enabled and this navigation data has "potential" of
 	*	containing geometry data. First access will result in gathering the data and setting this flag back to false.
@@ -84,8 +93,13 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 	/** From level loading (only valid in WP dynamic mode) */
 	uint32 bLoadedData : 1;
 
-	FNavigationRelevantData(UObject& Source)
-		: SourceObject(&Source)
+	FNavigationRelevantData() = delete;
+
+	UE_DEPRECATED(5.5, "Use the constructor using FNavigationElement instead.")
+	ENGINE_API FNavigationRelevantData(UObject& Source);
+
+	explicit FNavigationRelevantData(const TSharedRef<const FNavigationElement>& Source)
+		: SourceElement(Source)
 		, bPendingLazyGeometryGathering(false)
 		, bPendingLazyModifiersGathering(false)
 		, bPendingChildLazyModifiersGathering(false)
@@ -129,10 +143,7 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 				: ENavigationDirtyFlag::None);
 	}
 
-	FORCEINLINE FCompositeNavModifier GetModifierForAgent(const struct FNavAgentProperties* NavAgent = nullptr) const
-	{
-		return Modifiers.HasMetaAreas() ? Modifiers.GetInstantiatedMetaModifier(NavAgent, SourceObject) : Modifiers;
-	}
+	ENGINE_API FCompositeNavModifier GetModifierForAgent(const FNavAgentProperties* NavAgent = nullptr) const;
 
 	ENGINE_API bool HasPerInstanceTransforms() const;
 	ENGINE_API bool IsMatchingFilter(const FNavigationRelevantDataFilter& Filter) const;
@@ -151,6 +162,9 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 		}
 	}
 
-	FORCEINLINE UObject* GetOwner() const { return SourceObject.Get(); }
-	ENGINE_API FORCEINLINE decltype(SourceObject)& GetOwnerPtr() { return SourceObject; }
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
+	ENGINE_API const UObject* GetOwner() const;
+
+	UE_DEPRECATED(5.5, "Use SourceElement instead.")
+	ENGINE_API TWeakObjectPtr<UObject> GetOwnerPtr() const;
 };

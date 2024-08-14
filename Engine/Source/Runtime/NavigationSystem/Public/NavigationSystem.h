@@ -27,11 +27,6 @@
 #include "Math/MovingWindowAverageFast.h"
 #include "AI/Navigation/NavigationBounds.h"
 #include "Containers/ContainerAllocationPolicies.h"
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#if WITH_EDITOR
-#include "UnrealEdMisc.h"
-#endif // WITH_EDITOR
-#endif
 #include "NavigationSystem.generated.h"
 
 
@@ -46,9 +41,12 @@ class INavRelevantInterface;
 class UCrowdManagerBase;
 class UNavArea;
 class UNavigationPath;
+class UNavigationObjectRepository;
 class UNavigationSystemModuleConfig;
+struct FDebugText;
 struct FNavigationRelevantData;
 struct FNavigationOctreeElement;
+struct FNavigationElement;
 
 #if !UE_BUILD_SHIPPING
 #define ALLOW_TIME_SLICE_DEBUG 1
@@ -303,6 +301,8 @@ class UNavigationSystemV1 : public UNavigationSystemBase
 public:
 	NAVIGATIONSYSTEM_API UNavigationSystemV1(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 	NAVIGATIONSYSTEM_API virtual ~UNavigationSystemV1();
+
+	NAVIGATIONSYSTEM_API void GatherDebugLabels(TArray<FString>& InOutDebugLabels) const;
 
 	UPROPERTY(Transient)
 	TObjectPtr<ANavigationData> MainNavData;
@@ -677,7 +677,7 @@ public:
 	 *	@param NavData If NavData == NULL then MainNavData is used.
 	 *	@return true if any location found, false otherwise */
 	NAVIGATIONSYSTEM_API bool GetRandomPointInNavigableRadius(const FVector& Origin, float Radius, FNavLocation& ResultLocation, ANavigationData* NavData = NULL, FSharedConstNavQueryFilter QueryFilter = NULL) const;
-	
+
 	/** Calculates a path from PathStart to PathEnd and retrieves its cost.
 	 *	@NOTE potentially expensive, so use it with caution */
 	NAVIGATIONSYSTEM_API ENavigationQueryResult::Type GetPathCost(const FVector& PathStart, const FVector& PathEnd, FVector::FReal& PathCost, const ANavigationData* NavData = NULL, FSharedConstNavQueryFilter QueryFilter = NULL) const;
@@ -877,6 +877,12 @@ protected:
 	/** @return pointer to ANavigationData instance of given ID, or NULL if it was not found. Note it looks only through registered navigation data */
 	NAVIGATIONSYSTEM_API ANavigationData* GetNavDataWithID(const uint16 NavDataID) const;
 
+	/** @return Valid shared pointer on a FNavigationElement if the provided UObject is registered in the navigation system, an invalid one otherwise. */
+	NAVIGATIONSYSTEM_API TSharedPtr<const FNavigationElement> GetNavigationElementForUObject(const UObject*) const;
+
+	/** @return Valid handle if the provided UObject is registered in the navigation system, FNavigationElementHandle::Invalid otherwise. */
+	NAVIGATIONSYSTEM_API FNavigationElementHandle GetNavigationElementHandleForUObject(const UObject*) const;
+
 	static NAVIGATIONSYSTEM_API void RegisterComponentToNavOctree(UActorComponent* Comp);
 	static NAVIGATIONSYSTEM_API void UnregisterComponentToNavOctree(UActorComponent* Comp);
 
@@ -886,6 +892,10 @@ public:
 	//----------------------------------------------------------------------//
 	// navigation octree related functions
 	//----------------------------------------------------------------------//
+	static NAVIGATIONSYSTEM_API FNavigationElementHandle AddNavigationElement(UWorld* World, FNavigationElement&& Element);
+	static NAVIGATIONSYSTEM_API void RemoveNavigationElement(UWorld* World, FNavigationElementHandle ElementHandle);
+	static NAVIGATIONSYSTEM_API void OnNavigationElementUpdated(UWorld* World, FNavigationElementHandle ElementHandle, FNavigationElement&& Element);
+
 	static NAVIGATIONSYSTEM_API void OnNavRelevantObjectRegistered(UObject& Object);
 	static NAVIGATIONSYSTEM_API void UpdateNavRelevantObjectInNavOctree(UObject& Object);
 	static NAVIGATIONSYSTEM_API void OnNavRelevantObjectUnregistered(UObject& Object);
@@ -906,9 +916,33 @@ public:
 	static NAVIGATIONSYSTEM_API void UpdateNavOctreeAfterMove(USceneComponent* Comp);
 
 protected:
+	/** Fetches the repository from the provided object and registers the object with it. */
+	static NAVIGATIONSYSTEM_API void RegisterNavRelevantObjectStatic(const INavRelevantInterface& NavRelevantObject, const UObject& Object);
+
+	/** Similar to UnregisterNavRelevantObjectStatic but uses the cached repository. */
+	NAVIGATIONSYSTEM_API void RegisterNavRelevantObjectInternal(const INavRelevantInterface& NavRelevantObject, const UObject& Object);
+
+	/** Fetches the repository from the provided object and unregisters the object with it. */
+	static NAVIGATIONSYSTEM_API void UnregisterNavRelevantObjectStatic(const UObject& Object);
+
+	/** Similar to UnregisterNavRelevantObjectStatic but uses the cached repository. */
+	NAVIGATIONSYSTEM_API void UnregisterNavRelevantObjectInternal(const UObject& Object);
+
+	/**
+	 * In actor/component code paths it is possible that updates get called without a previous call to register (wasn't relevant at that time).
+	 * In those cases we create a new, or an updated, navigation element if needed.
+	 * @note Method expects only navigation relevant objects and will ensure otherwise.
+	 */
+	static NAVIGATIONSYSTEM_API void UpdateNavRelevantObjectInNavOctreeStatic(
+		const INavRelevantInterface& InNavRelevantObject,
+		const UObject& InObject,
+		UNavigationSystemV1* InNavigationSystem,
+		TFunctionRef<void(UNavigationSystemV1&, const TSharedRef<const FNavigationElement>&)> InCallback);
+
 	/** A helper function that gathers all actors attached to RootActor and fetches 
-	 *	them back. The function does consider multi-level attachments. 
-	 *	@param AttachedActors is getting reset at the beginning of the function. 
+	 *	them back. The function does consider multi-level attachments.
+	 *	@param RootActor The reference actor to get the attached actors from.
+	 *	@param OutAttachedActors is getting reset at the beginning of the function. 
 	 *		When done it is guaranteed to contain unique, non-null ptrs. It 
 	 *		will not include RootActor.
 	 *	@return the number of unique attached actors */
@@ -920,11 +954,12 @@ protected:
 public:
 	/** removes all navoctree entries for actor and its components */
 	static NAVIGATIONSYSTEM_API void ClearNavOctreeAll(AActor* Actor);
+
 	/** updates bounds of all components implementing INavRelevantInterface */
 	static NAVIGATIONSYSTEM_API void UpdateNavOctreeBounds(AActor* Actor);
 
 	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, ENavigationDirtyFlag Flags, const FName& DebugReason = NAME_None);
-	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, ENavigationDirtyFlag Flags, const TFunction<UObject*()>& ObjectProviderFunc, const FName& DebugReason = NAME_None);
+	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, ENavigationDirtyFlag Flags, const TFunction<const TSharedPtr<const FNavigationElement>()>& ElementProviderFunc, const FName& DebugReason = NAME_None);
 	NAVIGATIONSYSTEM_API void AddDirtyAreas(const TArray<FBox>& NewAreas, ENavigationDirtyFlag Flags, const FName& DebugReason = NAME_None);
 	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag instead.")
 	NAVIGATIONSYSTEM_API void AddDirtyArea(const FBox& NewArea, int32 Flags, const FName& DebugReason = NAME_None);
@@ -939,36 +974,64 @@ public:
 	const FNavigationOctree* GetNavOctree() const { return DefaultOctreeController.GetOctree(); }
 	FNavigationOctree* GetMutableNavOctree() { return DefaultOctreeController.GetMutableOctree(); }
 
-	FORCEINLINE static uint32 HashObject(const UObject& Object)
-	{
-		return FNavigationOctree::HashObject(Object);
-	}
-	FORCEINLINE const FOctreeElementId2* GetObjectsNavOctreeId(const UObject& Object) const { return DefaultOctreeController.GetObjectsNavOctreeId(Object); }
-	FORCEINLINE bool HasPendingObjectNavOctreeId(UObject* Object) const { return Object && DefaultOctreeController.HasPendingObjectNavOctreeId(*Object); }
-	FORCEINLINE void RemoveObjectsNavOctreeId(const UObject& Object) { DefaultOctreeController.RemoveObjectsNavOctreeId(Object); }
+	UE_DEPRECATED(5.5, "This method is no longer used by the navigation system.")
+	NAVIGATIONSYSTEM_API static uint32 HashObject(const UObject& Object);
 
+	FORCEINLINE const FOctreeElementId2* GetNavOctreeIdForElement(FNavigationElementHandle Element) const
+	{
+		return DefaultOctreeController.GetNavOctreeIdForElement(Element);
+	}
+	UE_DEPRECATED(5.5, "Use GetNavOctreeIdForElement instead.")
+	NAVIGATIONSYSTEM_API const FOctreeElementId2* GetObjectsNavOctreeId(const UObject& Object) const;
+
+	FORCEINLINE bool HasPendingUpdateForElement(FNavigationElementHandle Element) const
+	{
+		return DefaultOctreeController.HasPendingUpdateForElement(Element);
+	}
+	UE_DEPRECATED(5.5, "Use HasPendingUpdateForElement instead.")
+	NAVIGATIONSYSTEM_API bool HasPendingObjectNavOctreeId(UObject* Object) const;
+
+	UE_DEPRECATED(5.5, "This functionality should not be exposed and will be removed.")
+	NAVIGATIONSYSTEM_API void RemoveObjectsNavOctreeId(const UObject& Object);
+
+	UE_DEPRECATED(5.5, "This functionality should not be exposed publicly and will be removed. Derived classes should use RemoveFromNavOctree instead.")
 	NAVIGATIONSYSTEM_API void RemoveNavOctreeElementId(const FOctreeElementId2& ElementId, int32 UpdateFlags);
 
+protected:
+	NAVIGATIONSYSTEM_API void RemoveFromNavOctree(const FOctreeElementId2& ElementId, int32 UpdateFlags);
+public:
+
+	NAVIGATIONSYSTEM_API const FNavigationRelevantData* GetDataForElement(FNavigationElementHandle Element) const;
+	UE_DEPRECATED(5.5, "Use GetDataForElement instead.")
 	NAVIGATIONSYSTEM_API const FNavigationRelevantData* GetDataForObject(const UObject& Object) const;
+
+	NAVIGATIONSYSTEM_API FNavigationRelevantData* GetMutableDataForElement(FNavigationElementHandle Element);
+
+	UE_DEPRECATED(5.5, "Use GetMutableDataForElement instead.")
 	NAVIGATIONSYSTEM_API FNavigationRelevantData* GetMutableDataForObject(const UObject& Object);
 
 	/** find all elements in navigation octree within given box (intersection) */
 	NAVIGATIONSYSTEM_API void FindElementsInNavOctree(const FBox& QueryBox, const FNavigationOctreeFilter& Filter, TArray<FNavigationOctreeElement>& Elements);
 
 	/** update single element in navoctree */
-	NAVIGATIONSYSTEM_API void UpdateNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
+	NAVIGATIONSYSTEM_API void UpdateNavOctreeElement(FNavigationElementHandle Handle, const TSharedRef<const FNavigationElement>& Element, int32 UpdateFlags);
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement instead.")
+	void UpdateNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
 
-	/** force updating parent node and all its children */
+	UE_DEPRECATED(5.5, "This method will no longer be public and should not be called directly.")
 	NAVIGATIONSYSTEM_API void UpdateNavOctreeParentChain(UObject* ElementOwner, bool bSkipElementOwnerUpdate = false);
 
+	/** update element's bounds in navigation octree and mark only specified area as dirty, doesn't re-export geometry */
+	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(FNavigationElementHandle Handle, const FBox& NewBounds, TConstArrayView<FBox> DirtyAreas);
 	UE_DEPRECATED(5.4, "Use the overloaded version with object reference and list of dirty areas as parameters instead.")
 	/** update component bounds in navigation octree and mark only specified area as dirty, doesn't re-export component geometry */
 	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UActorComponent* Comp, const FBox& NewBounds, const FBox& DirtyArea);
-
-	/** update object bounds in navigation octree and mark only specified area as dirty, doesn't re-export geometry */
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement instead.")
 	NAVIGATIONSYSTEM_API bool UpdateNavOctreeElementBounds(UObject& Object, const FBox& NewBounds, TConstArrayView<FBox> DirtyAreas);
 
-	/** fetched Object's data from the octree and replaces occurrences of OldArea with NewArea */
+	/** fetched element's data from the octree and replaces occurrences of OldArea with NewArea */
+	NAVIGATIONSYSTEM_API bool ReplaceAreaInOctreeData(FNavigationElementHandle Handle, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool bReplaceChildClasses = false);
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement instead.")
 	NAVIGATIONSYSTEM_API bool ReplaceAreaInOctreeData(const UObject& Object, TSubclassOf<UNavArea> OldArea, TSubclassOf<UNavArea> NewArea, bool bReplaceChildClasses = false);
 
 	//----------------------------------------------------------------------//
@@ -1149,11 +1212,12 @@ public:
 
 	static FORCEINLINE bool IsNavigationSystemStatic()
 	{
-		return bStaticRuntimeNavigation
 #if WITH_EDITOR
-			&& !(GIsEditor && !GIsPlayInEditorWorld)
-#endif
-			;
+		return (bStaticRuntimeNavigation && !(GIsEditor && !GIsPlayInEditorWorld))
+			|| IsRunningCookCommandlet(); // consider navigation static when cooking to eliminate useless operations
+#else
+	return bStaticRuntimeNavigation;
+#endif // WITH_EDITOR
 	}
 
 	/**	call with bEnableStatic == true to signal the NavigationSystem it doesn't need to store
@@ -1212,6 +1276,9 @@ protected:
 	TMap<FNavLinkId, FNavigationSystem::FCustomLinkOwnerInfo> CustomNavLinksMap;
 
 	FNavigationDirtyAreasController DefaultDirtyAreasController;
+
+	UPROPERTY(transient)
+	TObjectPtr<UNavigationObjectRepository> Repository = nullptr;
 
 	// async queries
 	FCriticalSection NavDataRegistrationSection;
@@ -1280,13 +1347,18 @@ protected:
 	NAVIGATIONSYSTEM_API void UnregisterNavAreaClass(UClass* NavAreaClass);
 
 	NAVIGATIONSYSTEM_API void OnNavigationAreaEvent(UClass* AreaClass, ENavAreaEvent::Type Event);
-	
- 	NAVIGATIONSYSTEM_API FSetElementId RegisterNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
+
+	NAVIGATIONSYSTEM_API FSetElementId RegisterNavigationElementWithNavOctree(const TSharedRef<const FNavigationElement>& Element, int32 UpdateFlags);
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement as parameter instead.")
+	NAVIGATIONSYSTEM_API FSetElementId RegisterNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
+
+	NAVIGATIONSYSTEM_API void UnregisterNavigationElementWithOctree(const TSharedRef<const FNavigationElement>& Element, int32 UpdateFlags);
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement as parameter instead.")
 	NAVIGATIONSYSTEM_API void UnregisterNavOctreeElement(UObject* ElementOwner, INavRelevantInterface* ElementInterface, int32 UpdateFlags);
-	
+
 	/** read element data from navigation octree */
-	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, ENavigationDirtyFlag& OutDirtyFlags, FBox& OutDirtyBounds);
-	UE_DEPRECATED(5.5, "Use the version taking ENavigationDirtyFlag& instead.")
+	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(FNavigationElementHandle Element, ENavigationDirtyFlag& OutDirtyFlags, FBox& OutDirtyBounds);
+	UE_DEPRECATED(5.5, "Use the version taking FNavigationElement instead.")
 	NAVIGATIONSYSTEM_API bool GetNavOctreeElementData(const UObject& NodeOwner, int32& DirtyFlags, FBox& DirtyBounds);
 
 	/** Adds given element to NavOctree. No check for owner's validity are performed, 
@@ -1391,7 +1463,7 @@ protected:
 	//----------------------------------------------------------------------//
 public:
 	NAVIGATIONSYSTEM_API void VerifyNavigationRenderingComponents(const bool bShow);
-	/** @param if InLevel is given then only navigation bounds from that level will be considered*/
+	/** @param InLevel Optional parameter to limit the navigation bounds to consider to the ones from that level */
 	NAVIGATIONSYSTEM_API virtual int GetNavigationBoundsForNavData(const ANavigationData& NavData, TArray<FBox>& OutBounds, ULevel* InLevel = nullptr) const;
 	static NAVIGATIONSYSTEM_API INavigationDataInterface* GetNavDataForActor(const AActor& Actor);
 	NAVIGATIONSYSTEM_API virtual void Configure(const UNavigationSystemConfig& Config) override;

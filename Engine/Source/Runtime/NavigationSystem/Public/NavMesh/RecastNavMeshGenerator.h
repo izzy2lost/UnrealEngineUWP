@@ -45,6 +45,7 @@ struct FTileCacheCompressor;
 struct FTileCacheAllocator;
 struct FTileGenerationContext;
 struct dtLinkBuilderData;
+struct FNavigationElement;
 class dtNavMesh;
 class FNavRegenTimeSliceManager;
 class UNavigationSystemV1;
@@ -516,8 +517,11 @@ protected:
 
 	NAVIGATIONSYSTEM_API void AppendModifier(const FCompositeNavModifier& Modifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
 	/** Appends specified geometry to tile's geometry */
+	NAVIGATIONSYSTEM_API void ValidateAndAppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier);
+	UE_DEPRECATED(5.5, "Use the version taking a const reference on FNavigationRelevantData.")
 	NAVIGATIONSYSTEM_API void ValidateAndAppendGeometry(const TSharedRef<FNavigationRelevantData, ESPMode::ThreadSafe>& ElementData, const FCompositeNavModifier& InModifier);
-	NAVIGATIONSYSTEM_API void AppendGeometry(const FNavigationRelevantData& DataRef, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
+
+	NAVIGATIONSYSTEM_API void AppendGeometry(const FNavigationRelevantData& ElementData, const FCompositeNavModifier& InModifier, const FNavDataPerInstanceTransformDelegate& InTransformsDelegate);
 	
 	/** prepare voxel cache from collision data */
 	NAVIGATIONSYSTEM_API void PrepareVoxelCache(const TNavStatArray<uint8>& RawCollisionCache, const FCompositeNavModifier& InModifier, TNavStatArray<rcSpanCache>& SpanData);
@@ -845,7 +849,7 @@ public:
 	NAVIGATIONSYSTEM_API virtual void GrabDebugSnapshot(struct FVisualLogEntry* Snapshot, const FBox& BoundingBox, const FName& CategoryName, ELogVerbosity::Type Verbosity) const override;
 #endif
 
-	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportNavRelevantObjectGeometry")
+	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportElementGeometry")
 	static NAVIGATIONSYSTEM_API void ExportComponentGeometry(UActorComponent* InOutComponent, FNavigationRelevantData& OutData);
 
 	UE_DEPRECATED(5.4, "Use FRecastGeometryExport::ExportRigidBodyGeometry.")
@@ -873,7 +877,7 @@ public:
 		TNavStatArray<int32>& OutShapeBuffer,
 		const FTransform& LocalToWorld = FTransform::Identity);
 
-	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportNavRelevantObjectGeometry.")
+	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportElementGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportNavRelevantObjectGeometry(INavRelevantInterface& InOutNavRelevantInterface, FNavigationRelevantData& OutData);
 	UE_DEPRECATED(5.5, "Use FRecastGeometryExport::ExportVertexSoupGeometry.")
 	static NAVIGATIONSYSTEM_API void ExportVertexSoupGeometry(const TArray<FVector>& InVerts, FNavigationRelevantData& OutData);
@@ -943,8 +947,19 @@ protected:
 	/** Marks grid tiles affected by specified areas as dirty */
 	NAVIGATIONSYSTEM_API virtual void MarkDirtyTiles(const TArray<FNavigationDirtyArea>& DirtyAreas);
 
-	/** Returns if the provided UObject that requested a navmesh dirtying should dirty this Navmesh. Useful to avoid tiles regeneration from objects that are excluded from the provided NavDataConfig */
-	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByObject(const UNavigationSystemV1& NavSys, const FNavigationOctree& NavOctreeInstance, const UObject& SourceObject, const FNavDataConfig& NavDataConfig) const;
+	UE_DEPRECATED(5.5, "Use ShouldDirtyTilesRequestedByElement with FNavigationElement instead.")
+	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByObject(
+		const UNavigationSystemV1& NavSys,
+		const FNavigationOctree& NavOctreeInstance,
+		const UObject& SourceObject,
+		const FNavDataConfig& NavDataConfig) const final;
+
+	/** Returns if the provided FNavigationElement that requested a navmesh dirtying should dirty this Navmesh. Useful to avoid tiles regeneration from elements that are excluded from the provided NavDataConfig */
+	NAVIGATIONSYSTEM_API virtual bool ShouldDirtyTilesRequestedByElement(
+		const UNavigationSystemV1& NavSys,
+		const FNavigationOctree& NavOctreeInstance,
+		FNavigationElementHandle SourceElement,
+		const FNavDataConfig& NavDataConfig) const;
 
 	/** Marks all tiles overlapping with InclusionBounds dirty (via MarkDirtyTiles). */
 	NAVIGATIONSYSTEM_API bool MarkNavBoundsDirty();

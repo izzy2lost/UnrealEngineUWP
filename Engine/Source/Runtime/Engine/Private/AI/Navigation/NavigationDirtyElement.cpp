@@ -2,47 +2,59 @@
 
 #include "AI/Navigation/NavigationDirtyElement.h"
 #include "AI/Navigation/NavigationDirtyArea.h"
+#include "AI/Navigation/NavigationElement.h"
 #include "AI/Navigation/NavigationTypes.h"
 
 FNavigationDirtyElement::FNavigationDirtyElement(
-	UObject* InOwner,
-	INavRelevantInterface* InNavInterface,
+	const TSharedRef<const FNavigationElement>& InNavigationElement,
 	const ENavigationDirtyFlag InFlagsOverride,
 	const bool bUseWorldPartitionedDynamicMode /*= false*/)
-	: Owner(InOwner)
-	, NavInterface(InNavInterface)
+	: NavigationElement(InNavigationElement)
 	, FlagsOverride(InFlagsOverride)
 	, PrevFlags(ENavigationDirtyFlag::None)
-{
-	if (bUseWorldPartitionedDynamicMode)
-	{
-		bIsFromVisibilityChange = FNavigationSystem::IsLevelVisibilityChanging(InOwner);
-		bIsInBaseNavmesh = FNavigationSystem::IsInBaseNavmesh(InOwner);
-	}
-	else
-	{
-		bIsFromVisibilityChange = false;
-		bIsInBaseNavmesh = false;
-	}
-}
-
-FNavigationDirtyElement::FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface* InNavInterface, const bool bUseWorldPartitionedDynamicMode /*= false*/)
-	: FNavigationDirtyElement(InOwner, InNavInterface, ENavigationDirtyFlag::None, bUseWorldPartitionedDynamicMode)
+	, bIsFromVisibilityChange(bUseWorldPartitionedDynamicMode && NavigationElement->IsFromLevelVisibilityChange())
+	, bIsInBaseNavmesh(bUseWorldPartitionedDynamicMode && NavigationElement->IsInBaseNavigationData())
 {
 }
 
-FNavigationDirtyElement::FNavigationDirtyElement(UObject* InOwner)
-	: FNavigationDirtyElement(InOwner, /*InNavInterface*/nullptr, /*bUseWorldPartitionedDynamicMode*/false)
+FNavigationDirtyElement::FNavigationDirtyElement(const TSharedRef<const FNavigationElement>& InNavigationElement, const bool bUseWorldPartitionedDynamicMode /*= false*/)
+	: FNavigationDirtyElement(InNavigationElement, ENavigationDirtyFlag::None, bUseWorldPartitionedDynamicMode)
 {
 }
 
+uint32 GetTypeHash(const FNavigationDirtyElement& Info)
+{
+	return GetTypeHash(Info.NavigationElement.Get());
+}
+
+
+//----------------------------------------------------------------------//
+// Deprecated methods
+//----------------------------------------------------------------------//
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+// Deprecated
 FNavigationDirtyElement::FNavigationDirtyElement()
-	: FNavigationDirtyElement(/*InOwner*/nullptr, /*InNavInterface*/nullptr, /*bUseWorldPartitionedDynamicMode*/false)
+	: FNavigationDirtyElement(FNavigationElement::MakeFromUObject_DEPRECATED(nullptr))
 {
 }
 
 // Deprecated
-FNavigationDirtyElement::FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface* InNavInterface, int32 InFlagsOverride /*= 0*/, const bool bUseWorldPartitionedDynamicMode /*= false*/)
-	: FNavigationDirtyElement(InOwner, InNavInterface, static_cast<ENavigationDirtyFlag>(InFlagsOverride), bUseWorldPartitionedDynamicMode)
+FNavigationDirtyElement::FNavigationDirtyElement(UObject* InOwner, INavRelevantInterface*, int32 InFlagsOverride /*= 0*/, const bool bUseWorldPartitionedDynamicMode /*= false*/)
+	: FNavigationDirtyElement(FNavigationElement::MakeFromUObject_DEPRECATED(InOwner), static_cast<ENavigationDirtyFlag>(InFlagsOverride), bUseWorldPartitionedDynamicMode)
 {
 }
+
+// Deprecated
+FNavigationDirtyElement::FNavigationDirtyElement(UObject* InOwner)
+	: FNavigationDirtyElement(FNavigationElement::MakeFromUObject_DEPRECATED(InOwner))
+{
+}
+
+// Deprecated
+bool FNavigationDirtyElement::operator==(const UObject*& OtherOwner) const
+{ 
+	return NavigationElement->GetHandle() == FNavigationElementHandle(OtherOwner);
+}
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
