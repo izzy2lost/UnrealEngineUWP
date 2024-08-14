@@ -1,0 +1,307 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#include "/Engine/Private/ComputeShaderUtils.ush"
+#include "/Engine/Private/Quaternion.ush"
+#include "/Plugin/PCG/Private/PCGShaderUtils.ush"
+
+// Mirrors EPCGCopyPointsInheritanceMode
+#define COPY_POINTS_INHERITANCE_MODE_Relative 0
+#define COPY_POINTS_INHERITANCE_MODE_Source 1
+#define COPY_POINTS_INHERITANCE_MODE_Target 2
+
+// Mirrors EPCGCopyPointsMetadataInheritanceMode
+#define COPY_POINTS_METADATA_INHERITANCE_MODE_SourceFirst 0
+#define COPY_POINTS_METADATA_INHERITANCE_MODE_TargetFirst 1
+#define COPY_POINTS_METADATA_INHERITANCE_MODE_SourceOnly 2
+#define COPY_POINTS_METADATA_INHERITANCE_MODE_TargetOnly 3
+#define COPY_POINTS_METADATA_INHERITANCE_MODE_None 4
+
+// TODO: should be code-gen'd from PCGComputeCommon.h
+#define MAX_NUM_ATTRS 128
+#define NUM_RESERVED_ATTRS 32
+
+void CopyAttributesFromSource(uint SourceDataIndex, uint SourceElemIndex, uint OutDataIndex, uint OutElemIndex)
+{
+	const uint SourceDataAddress = Source_GetDataAddress(SourceDataIndex);
+	const uint SourceHeadersAddress = Source_GetDataAttributeHeadersAddress(SourceDataAddress);
+
+	const uint OutDataAddress = Out_GetDataAddress(OutDataIndex);
+	const uint OutHeadersAddress = Out_GetDataAttributeHeadersAddress(OutDataAddress);
+
+	const uint NumAttributes = Source_GetDataNumAttributes(SourceDataAddress);
+	uint NumAttributesProcessed = 0;
+	
+	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Source to pin Out.
+	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
+	{
+		const uint SourceHeaderAddress = Source_GetAttributeHeaderAddress(SourceHeadersAddress, AttributeIndex);
+		const uint SourceAddress = Source_GetAttributeAddress(SourceHeaderAddress);
+
+		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(OutHeadersAddress, AttributeIndex);
+		const uint OutAddress = Out_GetAttributeAddress(OutHeaderAddress);
+
+		const uint Stride = Source_GetAttributeStride(SourceHeaderAddress);
+
+		if (SourceAddress != 0 && OutAddress != 0)
+		{
+			const uint SourceBaseElementAddress = SourceAddress + SourceElemIndex * Stride;
+			const uint OutBaseElementAddress = OutAddress + OutElemIndex * Stride;
+
+			for (int I = 0; I < Stride; I += 4)
+			{
+				const uint SourceElementAddress = SourceBaseElementAddress + I;
+				const uint OutElementAddress = OutBaseElementAddress + I;
+				Out_StoreBufferInternal(OutElementAddress, Source_LoadBufferInternal(SourceElementAddress));
+			}
+
+			// We can early-out when we've looked at all the possible attributes
+			if (++NumAttributesProcessed >= NumAttributes)
+			{
+				break;
+			}
+		}
+	}
+}
+
+void CopyAttributesFromTarget(uint TargetDataIndex, uint TargetElemIndex, uint OutDataIndex, uint OutElemIndex)
+{
+	const uint TargetDataAddress = Target_GetDataAddress(TargetDataIndex);
+	const uint TargetHeadersAddress = Target_GetDataAttributeHeadersAddress(TargetDataAddress);
+
+	const uint OutDataAddress = Out_GetDataAddress(OutDataIndex);
+	const uint OutHeadersAddress = Out_GetDataAttributeHeadersAddress(OutDataAddress);
+
+	const uint NumAttributes = Target_GetDataNumAttributes(TargetDataAddress);
+	uint NumAttributesProcessed = 0;
+	
+	// Loop over all attribute headers, if the address is non-zero, then copy it from pin Target to pin Out.
+	for (int AttributeIndex = NUM_RESERVED_ATTRS; AttributeIndex < MAX_NUM_ATTRS; ++AttributeIndex)
+	{
+		const uint TargetHeaderAddress = Target_GetAttributeHeaderAddress(TargetHeadersAddress, AttributeIndex);
+		const uint TargetAddress = Target_GetAttributeAddress(TargetHeaderAddress);
+
+		const uint OutHeaderAddress = Out_GetAttributeHeaderAddress(OutHeadersAddress, AttributeIndex);
+		const uint OutAddress = Out_GetAttributeAddress(OutHeaderAddress);
+
+		const uint Stride = Target_GetAttributeStride(TargetHeaderAddress);
+
+		if (TargetAddress != 0 && OutAddress != 0)
+		{
+			const uint TargetBaseElementAddress = TargetAddress + TargetElemIndex * Stride;
+			const uint OutBaseElementAddress = OutAddress + OutElemIndex * Stride;
+
+			for (int I = 0; I < Stride; I += 4)
+			{
+				const uint TargetElementAddress = TargetBaseElementAddress + I;
+				const uint OutElementAddress = OutBaseElementAddress + I;
+				Out_StoreBufferInternal(OutElementAddress, Target_LoadBufferInternal(TargetElementAddress));
+			}
+
+			// We can early-out when we've looked at all the possible attributes
+			if (++NumAttributesProcessed >= NumAttributes)
+			{
+				break;
+			}
+		}
+	}
+}
+
+[numthreads(64, 1, 1)]
+void Main(uint3 GroupId : SV_GroupID, uint GroupIndex : SV_GroupIndex)
+{
+	const uint ThreadIndex = GetUnWrappedDispatchThreadId(GroupId, GroupIndex, 64);
+	if (ThreadIndex >= GetNumThreads().x) return;
+
+	const uint SourceNumData = Source_GetNumData();
+	const uint TargetNumData = Target_GetNumData();
+	const uint SourcePointsCount = Source_GetNumElements();
+	const uint bCopyEachSourceOnEveryTarget = GetCopyEachSourceOnEveryTarget();
+
+	// Data must be non-zero, and NxM (when bCopyEachSourceOnEveryTarget == true), N:N, 1:N, or N:1
+	if (SourceNumData == 0 || TargetNumData == 0 || (!bCopyEachSourceOnEveryTarget && SourceNumData != TargetNumData && SourceNumData != 1 && TargetNumData != 1))
+	{
+		// TODO: Runtime error diagnostics
+		return;
+	}
+	
+	uint SourceDataIndex, SourcePointIndexInData;
+	uint TargetDataIndex, TargetPointIndexInData;
+
+	if (bCopyEachSourceOnEveryTarget)
+	{
+		const uint TargetPointIndex = ThreadIndex / SourcePointsCount;
+		const uint SourcePointIndex = ThreadIndex % SourcePointsCount;
+
+		if (!Source_GetThreadData(SourcePointIndex, SourceDataIndex, SourcePointIndexInData))
+		{
+			return;
+		}
+
+		if (!Target_GetThreadData(TargetPointIndex, TargetDataIndex, TargetPointIndexInData))
+		{
+			return;
+		}
+	}
+	else
+	{
+		const uint NumIterations = max(SourceNumData, TargetNumData);
+
+		bool bFoundInData = false;
+		uint TotalElementCount = 0;
+
+		for (uint DataIndex = 0; DataIndex < NumIterations; ++DataIndex)
+		{
+			SourceDataIndex = min(DataIndex, SourceNumData - 1);
+			TargetDataIndex = min(DataIndex, TargetNumData - 1);
+
+			const uint SourceDataAddress = Source_GetDataAddress(SourceDataIndex);
+			const uint TargetDataAddress = Target_GetDataAddress(TargetDataIndex);
+
+			const uint SourceElemCount = Source_GetDataInfo(SourceDataAddress);
+			const uint TargetElemCount = Target_GetDataInfo(TargetDataAddress);
+
+			const uint ElemCount = SourceElemCount * TargetElemCount;
+
+			if (TotalElementCount + ElemCount > ThreadIndex)
+			{
+				const uint ElementIndex = ThreadIndex - TotalElementCount;
+				SourcePointIndexInData = ElementIndex / TargetElemCount;
+				TargetPointIndexInData = ElementIndex % TargetElemCount;
+				bFoundInData = true;
+				break;
+			}
+
+			TotalElementCount += ElemCount;
+		}
+
+		if (!bFoundInData)
+		{
+			return;
+		}
+	}
+
+	float3 SourcePosition = Source_GetPosition(SourceDataIndex,SourcePointIndexInData);
+	float4 SourceRotation = Source_GetRotation(SourceDataIndex,SourcePointIndexInData);
+	float3 SourceScale = Source_GetScale(SourceDataIndex,SourcePointIndexInData);
+	float4 SourceColor = Source_GetColor(SourceDataIndex,SourcePointIndexInData);
+	uint SourceSeed = Source_GetSeed(SourceDataIndex,SourcePointIndexInData);
+	
+	float3 TargetPosition = Target_GetPosition(TargetDataIndex,TargetPointIndexInData);
+	float4 TargetRotation = Target_GetRotation(TargetDataIndex,TargetPointIndexInData);
+	float3 TargetScale = Target_GetScale(TargetDataIndex,TargetPointIndexInData);
+	float4 TargetColor = Target_GetColor(TargetDataIndex,TargetPointIndexInData);
+	uint TargetSeed = Target_GetSeed(TargetDataIndex,TargetPointIndexInData);
+	
+	float3 OutPosition = TargetPosition + (QuatRotateVector(TargetRotation, (SourcePosition * TargetScale)));
+	float4 OutRotation = float4(0, 0, 0, 1);
+	float3 OutScale = (float3)0;
+	float4 OutColor = (float4)0;
+	uint OutSeed = 0;
+
+	const uint RotationInheritance = GetRotationInheritance();
+	const uint ScaleInheritance = GetScaleInheritance();
+	const uint ColorInheritance = GetColorInheritance();
+	const uint SeedInheritance = GetSeedInheritance();
+	const uint AttributeInheritance = GetAttributeInheritance();
+
+	if (RotationInheritance == COPY_POINTS_INHERITANCE_MODE_Relative)
+	{
+	  OutRotation = QuatMultiply(SourceRotation,TargetRotation);
+	}
+	else if (RotationInheritance == COPY_POINTS_INHERITANCE_MODE_Source)
+	{
+		OutRotation = SourceRotation;
+	}
+	else if (RotationInheritance == COPY_POINTS_INHERITANCE_MODE_Target)
+	{
+		OutRotation = TargetRotation;
+	}
+
+	if (ScaleInheritance == COPY_POINTS_INHERITANCE_MODE_Relative)
+	{
+		OutScale = SourceScale * TargetScale;
+	}
+	else if (ScaleInheritance == COPY_POINTS_INHERITANCE_MODE_Source)
+	{
+		OutScale = SourceScale;
+	}
+	else if (ScaleInheritance == COPY_POINTS_INHERITANCE_MODE_Target)
+	{
+		OutScale = TargetScale;
+	}
+
+	if (ColorInheritance == COPY_POINTS_INHERITANCE_MODE_Relative)
+	{
+		OutColor = SourceColor * TargetColor;
+	}
+	else if (ColorInheritance == COPY_POINTS_INHERITANCE_MODE_Source)
+	{
+		OutColor = SourceColor;
+	}
+	else if (ColorInheritance == COPY_POINTS_INHERITANCE_MODE_Target)
+	{
+		OutColor = TargetColor;
+	}
+
+	if (SeedInheritance == COPY_POINTS_INHERITANCE_MODE_Relative)
+	{
+		OutSeed = ComputeSeed(SourceSeed, TargetSeed);
+	}
+	else if (SeedInheritance == COPY_POINTS_INHERITANCE_MODE_Source)
+	{
+		OutSeed = SourceSeed;
+	}
+	else if (SeedInheritance == COPY_POINTS_INHERITANCE_MODE_Target)
+	{
+		OutSeed = TargetSeed;
+	}
+
+	uint OutNumData = 0;
+
+	if (bCopyEachSourceOnEveryTarget)
+	{
+		OutNumData = SourceNumData * TargetNumData;
+	}
+	else
+	{
+		OutNumData = max(SourceNumData, TargetNumData);
+	}
+
+	Out_SetNumDataInternal(OutNumData);
+
+	uint OutDataIndex, OutElemIndex;
+	if (!Out_GetThreadData(ThreadIndex, OutDataIndex, OutElemIndex))
+	{
+		return;
+	}
+	
+	// Initialize all fields
+	Out_InitializePoint(OutDataIndex, OutElemIndex);
+	
+	// Write output
+	Out_SetPosition(OutDataIndex, OutElemIndex, OutPosition);
+	Out_SetRotation(OutDataIndex, OutElemIndex, OutRotation);
+	Out_SetScale(OutDataIndex, OutElemIndex, OutScale);
+	Out_SetColor(OutDataIndex, OutElemIndex, OutColor);
+	Out_SetSeed(OutDataIndex, OutElemIndex, OutSeed);
+
+	// Copy attributes
+	if (AttributeInheritance == COPY_POINTS_METADATA_INHERITANCE_MODE_SourceOnly)
+	{
+		CopyAttributesFromSource(SourceDataIndex, SourcePointIndexInData, OutDataIndex, OutElemIndex);
+	}
+	else if (AttributeInheritance == COPY_POINTS_METADATA_INHERITANCE_MODE_TargetOnly)
+	{
+		CopyAttributesFromTarget(TargetDataIndex, TargetPointIndexInData, OutDataIndex, OutElemIndex);
+	}
+	else if (AttributeInheritance == COPY_POINTS_METADATA_INHERITANCE_MODE_SourceFirst)
+	{
+		CopyAttributesFromTarget(TargetDataIndex, TargetPointIndexInData, OutDataIndex, OutElemIndex);
+		CopyAttributesFromSource(SourceDataIndex, SourcePointIndexInData, OutDataIndex, OutElemIndex);
+	}
+	else if (AttributeInheritance == COPY_POINTS_METADATA_INHERITANCE_MODE_TargetFirst)
+	{
+		CopyAttributesFromSource(SourceDataIndex, SourcePointIndexInData, OutDataIndex, OutElemIndex);
+		CopyAttributesFromTarget(TargetDataIndex, TargetPointIndexInData, OutDataIndex, OutElemIndex);
+	}
+}

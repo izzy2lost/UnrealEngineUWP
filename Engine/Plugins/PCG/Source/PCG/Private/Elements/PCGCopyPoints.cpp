@@ -3,11 +3,15 @@
 #include "Elements/PCGCopyPoints.h"
 
 #include "PCGContext.h"
+#include "Compute/DataInterfaces/PCGCopyPointsDataInterface.h"
+#include "Compute/PCGComputeCommon.h"
 #include "Data/PCGPointData.h"
 #include "Data/PCGSpatialData.h"
 #include "Helpers/PCGAsync.h"
 #include "Helpers/PCGHelpers.h"
 
+#include "RHIShaderPlatform.h"
+#include "ShaderCompilerCore.h"
 #include "Async/ParallelFor.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCopyPoints)
@@ -20,6 +24,99 @@ FText UPCGCopyPointsSettings::GetNodeTooltipText() const
 	return LOCTEXT("NodeTooltip", "For each point pair from the source and the target, create a copy, inheriting properties & attributes depending on the node settings.");
 }
 #endif
+
+FString UPCGCopyPointsSettings::GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const
+{
+	FString TemplateFile;
+	LoadShaderSourceFile(TEXT("/Plugin/PCG/Private/Elements/PCGCopyPoints.usf"), EShaderPlatform::SP_PCD3D_SM5, &TemplateFile, nullptr);
+	return TemplateFile;
+}
+
+FPCGDataCollectionDesc UPCGCopyPointsSettings::ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const
+{
+	check(OutputPin);
+
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	const UPCGPin* SourcePin = Node->GetInputPin(PCGCopyPointsConstants::SourcePointsLabel);
+	const UPCGPin* TargetPin = Node->GetInputPin(PCGCopyPointsConstants::TargetPointsLabel);
+
+	FPCGDataCollectionDesc PinDesc;
+
+	if (ensure(SourcePin && TargetPin))
+	{
+		const FPCGDataCollectionDesc SourcePinDesc = ComputeInputPinDataDesc(SourcePin, Binding);
+		const FPCGDataCollectionDesc TargetPinDesc = ComputeInputPinDataDesc(TargetPin, Binding);
+
+		const int32 NumSources = SourcePinDesc.DataDescs.Num();
+		const int32 NumTargets = TargetPinDesc.DataDescs.Num();
+		const int32 NumIterations = bCopyEachSourceOnEveryTarget ? NumSources * NumTargets : FMath::Max(NumSources, NumTargets);
+
+		if (NumSources > 0 && NumTargets > 0 && (bCopyEachSourceOnEveryTarget || NumSources == NumTargets || NumSources == 1 || NumTargets == 1))
+		{
+			for (int32 I = 0; I < NumIterations; ++I)
+			{
+				const int32 SourceIndex = bCopyEachSourceOnEveryTarget ? (I / NumTargets) : FMath::Min(I, NumSources - 1);
+				const int32 TargetIndex = bCopyEachSourceOnEveryTarget ? (I % NumTargets) : FMath::Min(I, NumTargets - 1);
+
+				const FPCGDataDesc& SourceDesc = SourcePinDesc.DataDescs[SourceIndex];
+				const FPCGDataDesc& TargetDesc = TargetPinDesc.DataDescs[TargetIndex];
+
+				FPCGDataDesc& ResultDataDesc = PinDesc.DataDescs.Emplace_GetRef(EPCGDataType::Point, SourceDesc.ElementCount * TargetDesc.ElementCount);
+
+				if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::SourceFirst)
+				{
+					ResultDataDesc.AttributeDescs = SourceDesc.AttributeDescs;
+
+					for (const FPCGKernelAttributeDesc& AttrDesc : TargetDesc.AttributeDescs)
+					{
+						ResultDataDesc.AttributeDescs.AddUnique(AttrDesc);
+					}
+				}
+				else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::TargetFirst)
+				{
+					ResultDataDesc.AttributeDescs = TargetDesc.AttributeDescs;
+
+					for (const FPCGKernelAttributeDesc& AttrDesc : SourceDesc.AttributeDescs)
+					{
+						ResultDataDesc.AttributeDescs.AddUnique(AttrDesc);
+					}
+				}
+				else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::SourceOnly)
+				{
+					ResultDataDesc.AttributeDescs = SourceDesc.AttributeDescs;
+				}
+				else if (AttributeInheritance == EPCGCopyPointsMetadataInheritanceMode::TargetOnly)
+				{
+					ResultDataDesc.AttributeDescs = TargetDesc.AttributeDescs;
+				}
+			}
+		}
+	}
+
+	return PinDesc;
+}
+
+int UPCGCopyPointsSettings::ComputeKernelThreadCount(const UPCGDataBinding* Binding) const
+{
+	const UPCGNode* Node = CastChecked<UPCGNode>(GetOuter());
+	const UPCGPin* OutPin = Node->GetOutputPin(PCGPinConstants::DefaultOutputLabel);
+
+	const FPCGDataCollectionDesc OutputPinDesc = ComputeOutputPinDataDesc(OutPin, Binding);
+	int ThreadCount = 0;
+
+	for (const FPCGDataDesc& DataDesc : OutputPinDesc.DataDescs)
+	{
+		ThreadCount += DataDesc.ElementCount;
+	}
+
+	return ThreadCount;
+}
+
+void UPCGCopyPointsSettings::CreateAdditionalInputDataInterfaces(TArray<TObjectPtr<UComputeDataInterface>>& OutDataInterfaces) const
+{
+	TObjectPtr<UPCGCopyPointsDataInterface> DataInterface = Cast<UPCGCopyPointsDataInterface>(OutDataInterfaces.Add_GetRef(NewObject<UPCGCopyPointsDataInterface>()));
+	DataInterface->Settings = this;
+}
 
 TArray<FPCGPinProperties> UPCGCopyPointsSettings::InputPinProperties() const
 {
@@ -74,7 +171,7 @@ bool FPCGCopyPointsElement::ExecuteInternal(FPCGContext* Context) const
 	{
 		if (NumSources != NumTargets && NumSources != 1 && NumTargets != 1)
 		{
-			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("MismatchNum", "Num Sources ({0}) mismatches with Num Targets ({1}). Only supports N:N, 1:N and N:1 operation."), NumSources, NumTargets), Context);
+			PCGLog::LogErrorOnGraph(FText::Format(LOCTEXT("NumDataMismatch", "Num Sources ({0}) mismatches with Num Targets ({1}). Only supports N:N, 1:N and N:1 operation."), NumSources, NumTargets), Context);
 			Outputs = Sources;
 			return true;
 		}

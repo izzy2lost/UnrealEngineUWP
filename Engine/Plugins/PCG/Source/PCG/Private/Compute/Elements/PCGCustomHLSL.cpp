@@ -19,13 +19,6 @@
 #include UE_INLINE_GENERATED_CPP_BY_NAME(PCGCustomHLSL)
 
 #define LOCTEXT_NAMESPACE "PCGCustomHLSLElement"
-#define PCG_LOGGING_ENABLED (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING)
-
-#if PCG_LOGGING_ENABLED
-#define PCG_LOG_VALIDATION(ValidationMessage) LogGraphError(ValidationMessage);
-#else
-#define PCG_LOG_VALIDATION(ValidationMessage) // Log removed
-#endif
 
 namespace PCGHLSLElement
 {
@@ -851,50 +844,29 @@ void UPCGCustomHLSLSettings::UpdateAttributeKeys()
 
 bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) const
 {
-	auto LogGraphError = [InContext, bQuiet, This=this](const FText& InText)
-	{
-		if (!bQuiet)
-		{
-#if WITH_EDITOR
-			if (InContext && ensure(InContext->SourceComponent.IsValid() && InContext->SourceComponent.Get()))
-			{
-				if (UPCGSubsystem* Subsystem = InContext->SourceComponent->GetSubsystem())
-				{
-					FPCGStack StackWithNode = InContext->Stack ? *InContext->Stack : FPCGStack();
-					StackWithNode.PushFrame(This->GetOuter());
-
-					Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Error, InText);
-				}
-			}
-#endif
-
-			PCGE_LOG_C(Error, LogOnly, InContext, InText);
-		}
-	};
-
 	if (OutputPins.IsEmpty())
 	{
-		PCG_LOG_VALIDATION(LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
+		PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("NoOutputs", "Custom HLSL nodes must have at least one output."));
 		return false;
 	}
 
-	auto CheckPinLabel = [InContext, &InPins = InputPins, OutPins = OutputPinProperties(), &LogGraphError](FName PinLabel)
+	auto CheckPinLabel = [This = this, InContext, bQuiet, &InPins = InputPins, OutPins = OutputPinProperties()](FName PinLabel)
 	{
 		if (PinLabel == NAME_None)
 		{
-			PCG_LOG_VALIDATION(LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
+			PCG_KERNEL_VALIDATION(InContext, This, bQuiet, LOCTEXT("InvalidPinLabelNone", "Pin label 'None' is not a valid pin label."));
 			return false;
 		}
 
 		bool bFoundPinLabel = false;
 
-		auto IsAlreadyFound = [InContext, &LogGraphError, PinLabel, &bFoundPinLabel](const FPCGPinProperties PinProps)
+		auto IsAlreadyFound = [This, InContext, bQuiet, PinLabel, &bFoundPinLabel](const FPCGPinProperties PinProps)
 		{
 			if (PinProps.Label == PinLabel)
 			{
 				if (bFoundPinLabel)
 				{
-					PCG_LOG_VALIDATION(FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(PinLabel)));
+					PCG_KERNEL_VALIDATION(InContext, This, bQuiet, FText::Format(LOCTEXT("DuplicatedPinLabels", "Duplicate pin label '{0}', all labels must be unique."), FText::FromName(PinLabel)));
 					return true;
 				}
 
@@ -936,7 +908,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				PCG_LOG_VALIDATION(FText::Format(
+				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 					LOCTEXT("InvalidNonPointPrimaryInput", "'Point Processor' nodes require primary input pin to be of type 'Point', but found '{0}'."),
 					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
 
@@ -946,7 +918,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 		if (!PCGComputeHelpers::IsTypeAllowedAsInput(Properties.AllowedTypes))
 		{
-			PCG_LOG_VALIDATION(FText::Format(
+			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 				LOCTEXT("InvalidInputType", "Unsupported input type '{0}', found on pin '{1}'."),
 				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
 				FText::FromName(Properties.Label)));
@@ -972,7 +944,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (Properties.AllowedTypes != EPCGDataType::Point)
 			{
-				PCG_LOG_VALIDATION(FText::Format(
+				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 					LOCTEXT("InvalidNonPointPrimaryOutput", "'Point Processor' and 'Point Generator' nodes require primary output pin to be of type 'Point', but found '{0}'."),
 					FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes))));
 
@@ -982,7 +954,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 		if (!PCGComputeHelpers::IsTypeAllowedAsOutput(Properties.AllowedTypes))
 		{
-			PCG_LOG_VALIDATION(FText::Format(
+			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 				LOCTEXT("InvalidOutputType", "Unsupported output type '{0}', found on pin '{1}'."),
 				FText::FromString(PCGHLSLElement::GetDataTypeString(Properties.AllowedTypes)),
 				FText::FromName(Properties.Label)));
@@ -996,7 +968,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (Properties.FixedBufferElementCount <= 0)
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidFixedBufferSize", "Fixed GPU buffer size on '{0}' was invalid (%d)."),
 						FText::FromName(Properties.Label),
 						Properties.FixedBufferElementCount));
@@ -1006,7 +978,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (Properties.AllowedTypes == EPCGDataType::Param && Properties.InitializeFromPin != NAME_None && !GetInputPin(Properties.InitializeFromPin))
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidInitFromPin", "Tried to initialize attribute set pin '{0}' from non-existent pin '{1}'. Must reference a valid input pin or be 'None'."),
 						FText::FromName(Properties.Label),
 						FText::FromName(Properties.InitializeFromPin)));
@@ -1018,7 +990,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (InputPins.IsEmpty())
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoInputPin", "GPU buffer size for pin '{0}' could not be computed as there are no input pins."),
 						FText::FromName(Properties.Label)));
 
@@ -1027,7 +999,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (!GetFirstInputPin())
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("MissingPrimaryInputPin", "GPU buffer size for pin '{0}' could not be computed, because it refers to the primary input pin, which does not exist."),
 						FText::FromName(Properties.Label)));
 
@@ -1038,7 +1010,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 			{
 				if (InputPins.IsEmpty())
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoInputPins", "GPU buffer size for pin '{0}' could not be computed as there are no input pins on this node."),
 						FText::FromName(Properties.Label)));
 
@@ -1047,7 +1019,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 
 				if (Properties.BufferSizeInputPinLabels.IsEmpty())
 				{
-					PCG_LOG_VALIDATION(FText::Format(
+					PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 						LOCTEXT("InvalidBufferSizeNoBufferPins", "GPU buffer size for pin '{0}' could not be computed as input pins are specified in the pin settings."),
 						FText::FromName(Properties.Label)));
 
@@ -1058,7 +1030,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 				{
 					if (!GetInputPin(Label))
 					{
-						PCG_LOG_VALIDATION(FText::Format(
+						PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(
 							LOCTEXT("MissingBufferSizePin", "GPU buffer size for pin '{0}' could not be computed. Invalid pin specified in Input Pins array: '{1}'."),
 							FText::FromName(Properties.Label),
 							FText::FromName(Label)));
@@ -1076,7 +1048,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (ThreadCountInputPinLabels.IsEmpty())
 		{
-			PCG_LOG_VALIDATION(LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
+			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("MissingThreadCountPins", "Dispatch thread count is based on input pins but no labels have been set in Input Pins array."));
 			return false;
 		}
 
@@ -1084,7 +1056,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (!GetInputPin(Label))
 			{
-				PCG_LOG_VALIDATION(FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
+				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(LOCTEXT("MissingThreadCountPin", "Invalid pin specified in Input Pins array: '{0}'."), FText::FromName(Label)));
 				return false;
 			}
 		}
@@ -1094,7 +1066,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (ThreadCountMultiplier < 1)
 		{
-			PCG_LOG_VALIDATION(FText::Format(LOCTEXT("InvalidThreadCountMultiplier", "Thread Count Multiplier has invalid value ({0}). Must be greater than 0."), ThreadCountMultiplier));
+			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, FText::Format(LOCTEXT("InvalidThreadCountMultiplier", "Thread Count Multiplier has invalid value ({0}). Must be greater than 0."), ThreadCountMultiplier));
 			return false;
 		}
 	}
@@ -1104,7 +1076,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	{
 		if (AttributeKey.Name == NAME_None)
 		{
-			PCG_LOG_VALIDATION(LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
+			PCG_KERNEL_VALIDATION(InContext, this, bQuiet, LOCTEXT("InvalidAttributeNameNone", "'None' is not a valid GPU attribute name, check the 'Attributes to Create' array on your pins."));
 			return false;
 		}
 	}
@@ -1112,7 +1084,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 	if (InContext)
 	{
 		FText* ErrorTextPtr = nullptr;
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 		FText ErrorText;
 		ErrorTextPtr = &ErrorText;
 #endif
@@ -1121,7 +1093,7 @@ bool UPCGCustomHLSLSettings::IsKernelValid(FPCGContext* InContext, bool bQuiet) 
 		{
 			if (ErrorTextPtr)
 			{
-				PCG_LOG_VALIDATION(*ErrorTextPtr);
+				PCG_KERNEL_VALIDATION(InContext, this, bQuiet, *ErrorTextPtr);
 			}
 			return false;
 		}
@@ -1187,7 +1159,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 				if (!PinDesc && InputPinDescs.Find(PinName))
 				{
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 					if (OutErrorText)
 					{
 						*OutErrorText = FText::Format(
@@ -1207,7 +1179,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 			if (!PinDesc)
 			{
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 				if (OutErrorText)
 				{
 					*OutErrorText = FText::Format(
@@ -1227,7 +1199,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 			if (AttributeType == INDEX_NONE)
 			{
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 				if (OutErrorText)
 				{
 					*OutErrorText = FText::Format(
@@ -1252,7 +1224,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 			if (!AttrDesc)
 			{
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 				if (OutErrorText)
 				{
 					*OutErrorText = FText::Format(
@@ -1267,7 +1239,7 @@ bool UPCGCustomHLSLSettings::AreKernelAttributesValid(FPCGContext* InContext, FT
 
 			if (AttrDesc->Type != static_cast<EPCGKernelAttributeType>(AttributeType))
 			{
-#if PCG_LOGGING_ENABLED
+#if PCG_KERNEL_LOGGING_ENABLED
 				if (OutErrorText)
 				{
 					const FString ActualTypeStr = AttributeTypeEnum->GetNameStringByIndex(static_cast<int64>(AttrDesc->Type));
@@ -1558,11 +1530,6 @@ FString UPCGCustomHLSLSettings::GetCookedKernelSource(const TMap<FPCGKernelAttri
 			*Includes, *Functions, *KernelFunc, *UnWrappedDispatchThreadId, *HeaderWriters, *KernelSpecificPreamble, *ShaderPathName, *Source);
 	}
 
-	if (bDumpCookedHLSL)
-	{
-		UE_LOG(LogPCG, Log, TEXT("Cooked HLSL:\n%s\n"), *Result);
-	}
-
 	return Result;
 }
 
@@ -1578,6 +1545,4 @@ bool FPCGCustomHLSLElement::ExecuteInternal(FPCGContext* Context) const
 	return true;
 }
 
-#undef PCG_LOG_VALIDATION
-#undef PCG_LOGGING_ENABLED
 #undef LOCTEXT_NAMESPACE

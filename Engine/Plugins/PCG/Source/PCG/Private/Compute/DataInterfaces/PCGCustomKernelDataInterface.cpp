@@ -35,7 +35,7 @@ void UPCGCustomKernelDataInterface::GetSupportedInputs(TArray<FShaderFunctionDef
 		.AddReturnType(EShaderFundamentalType::Float, 3);
 }
 
-BEGIN_SHADER_PARAMETER_STRUCT(FPCGKernelDataInterfaceParameters, )
+BEGIN_SHADER_PARAMETER_STRUCT(FPCGCustomKernelDataInterfaceParameters, )
 	SHADER_PARAMETER(FIntVector3, NumThreads)
 	SHADER_PARAMETER(uint32, Seed)
 	SHADER_PARAMETER(FVector3f, ComponentBoundsMin)
@@ -44,7 +44,7 @@ END_SHADER_PARAMETER_STRUCT()
 
 void UPCGCustomKernelDataInterface::GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const
 {
-	InOutBuilder.AddNestedStruct<FPCGKernelDataInterfaceParameters>(UID);
+	InOutBuilder.AddNestedStruct<FPCGCustomKernelDataInterfaceParameters>(UID);
 }
 
 void UPCGCustomKernelDataInterface::GetHLSL(FString& OutHLSL, FString const& InDataInterfaceName) const

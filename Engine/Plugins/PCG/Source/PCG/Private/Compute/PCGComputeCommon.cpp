@@ -2,7 +2,10 @@
 
 #include "PCGComputeCommon.h"
 
+#include "PCGComponent.h"
+#include "PCGContext.h"
 #include "PCGParamData.h"
+#include "PCGSubsystem.h"
 #include "Data/PCGPointData.h"
 
 namespace PCGComputeHelpers
@@ -38,4 +41,23 @@ namespace PCGComputeHelpers
 	{
 		return (Type | PCGComputeConstants::AllowedDataCollectionTypes) == PCGComputeConstants::AllowedDataCollectionTypes;
 	}
+
+#if PCG_KERNEL_LOGGING_ENABLED
+	void LogKernelError(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText)
+	{
+#if WITH_EDITOR
+		if (Context && ensure(Context->SourceComponent.IsValid() && Context->SourceComponent.Get()))
+		{
+			if (UPCGSubsystem* Subsystem = Context->SourceComponent->GetSubsystem())
+			{
+				FPCGStack StackWithNode = Context->Stack ? *Context->Stack : FPCGStack();
+				StackWithNode.PushFrame(Settings->GetOuter());
+
+				Subsystem->GetNodeVisualLogsMutable().Log(StackWithNode, ELogVerbosity::Error, InText);
+			}
+		}
+#endif
+		PCGE_LOG_C(Error, LogOnly, Context, InText);
+	}
+#endif
 }

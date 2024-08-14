@@ -9,7 +9,7 @@
 
 #include "PCGCustomKernelDataInterface.generated.h"
 
-class FPCGKernelDataInterfaceParameters;
+class FPCGCustomKernelDataInterfaceParameters;
 
 /** Interface for any meta data provided to the compute kernel, such as num threads. */
 UCLASS(ClassGroup = (Procedural))
@@ -21,7 +21,7 @@ public:
 	static const TCHAR* NumThreadsReservedName;
 	
 	//~ Begin UComputeDataInterface Interface
-	TCHAR const* GetClassName() const override { return TEXT("CustomComputeKernelData"); }
+	TCHAR const* GetClassName() const override { return TEXT("PCGCustomKernel"); }
 	bool CanSupportUnifiedDispatch() const override { return true; }
 	void GetSupportedInputs(TArray<FShaderFunctionDefinition>& OutFunctions) const override;
 	void GetShaderParameters(TCHAR const* UID, FShaderParametersMetadataBuilder& InOutBuilder, FShaderParametersMetadataAllocations& InOutAllocations) const override;
@@ -33,7 +33,7 @@ public:
 	//~ End UComputeDataInterface Interface
 
 	UPROPERTY()
-	TObjectPtr<const UPCGSettings> Settings;
+	TObjectPtr<const UPCGSettings> Settings = nullptr;
 };
 
 /** Compute Framework Data Provider for each custom compute kernel. */
@@ -74,7 +74,7 @@ public:
 	//~ End FComputeDataProviderRenderProxy Interface
 
 protected:
-	using FParameters = FPCGKernelDataInterfaceParameters;
+	using FParameters = FPCGCustomKernelDataInterfaceParameters;
 
 	TArray<int32> InvocationThreadCounts;
 	int32 TotalThreadCount;

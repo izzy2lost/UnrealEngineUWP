@@ -111,15 +111,16 @@ public:
 	virtual TArray<FPCGPinProperties> OutputPinProperties() const override;
 	virtual bool IsInputPinRequiredByExecution(const UPCGPin* InPin) const { return true; }
 #if WITH_EDITOR
-	virtual bool DisplayExecuteOnGPUSetting() const override { return false; }
 	virtual FName GetDefaultNodeName() const override { return FName(TEXT("CustomHLSL")); }
 	virtual FText GetDefaultNodeTitle() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTitle", "Custom HLSL"); }
 	virtual FText GetNodeTooltipText() const override { return NSLOCTEXT("PCGCustomHLSLElement", "NodeTooltip", "Produces a HLSL compute shader which will be executed on the GPU."); }
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::GPU; }
 #endif
 
-	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
+	virtual bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const override;
+	virtual FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const override;
 	virtual int ComputeKernelThreadCount(const UPCGDataBinding* Binding) const override;
+	virtual FPCGDataCollectionDesc ComputeOutputPinDataDesc(const UPCGPin* OutputPin, const UPCGDataBinding* Binding) const override;
 
 protected:
 #if WITH_EDITOR
@@ -139,27 +140,14 @@ protected:
 	void UpdateAttributeKeys();
 #endif
 
-public:
-	bool IsKernelValid(FPCGContext* InContext = nullptr, bool bQuiet = true) const;
-	
-	FString GetCookedKernelSource(const TMap<FPCGKernelAttributeKey, int>& GlobalAttributeLookupTable) const;
-	FString GetKernelEntryPoint() const { return TEXT("Main"); }
-	FIntVector GetThreadGroupSize() const { return FIntVector(64, 1, 1); }
-
-	int GetPointCount() const { return PointCount; }
-	int GetFixedThreadCount() const { return FixedThreadCount; }
-
+protected:
 	const UPCGPin* GetInputPin(FName Label) const;
 	const UPCGPin* GetOutputPin(FName Label) const;
 	const UPCGPin* GetFirstInputPin() const;
 	const UPCGPin* GetPointProcessingInputPin() const;
 	const UPCGPin* GetFirstOutputPin() const;
 	const UPCGPin* GetFirstPointOutputPin() const;
-
 	int GetProcessingElemCountForInputPin(const UPCGPin* InputPin, const UPCGDataBinding* Binding) const;
-	virtual const UPCGPin* GetExecutionPin() const { return GetPointProcessingInputPin(); }
-
-protected:
 	bool AreKernelAttributesValid(FPCGContext* InContext, FText* OutErrorText) const;
 
 	/** Will the ThreadCountMultiplier value be applied when calculating the dispatch thread count. */
@@ -183,19 +171,6 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins", EditConditionHides))
 	TArray<FName> ThreadCountInputPinLabels;
-
-public:
-	/** Dump the cooked HLSL into the log after it is generated. */
-	UPROPERTY(EditAnywhere, Category = "Debug")
-	bool bDumpCookedHLSL = false;
-
-	/** Enable use of 'WriteDebugValue(uint Index, float Value)' function in your kernel. Allows you to write float values to a buffer for logging on the CPU. */
-	UPROPERTY(EditAnywhere, Category = "Debug")
-	bool bPrintShaderDebugValues = false;
-
-	/** Size (in number of floats) of the shader debug print buffer. */
-	UPROPERTY(EditAnywhere, Category = "Debug", meta = (EditCondition="bPrintShaderDebugValues", EditConditionHides))
-	int DebugBufferSize = 16;
 
 public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings")

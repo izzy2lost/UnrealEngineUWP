@@ -154,14 +154,9 @@ bool FPCGComputeGraphElement::ExecuteInternal(FPCGContext* InContext) const
 		{
 			const UPCGSettings* Settings = Node.Get() ? Node->GetSettings() : nullptr;
 
-			if (Settings)
+			if (!Settings || !Settings->IsKernelValid(Context, /*bQuiet=*/false))
 			{
-				const UPCGCustomHLSLSettings* KernelSettings = CastChecked<UPCGCustomHLSLSettings>(Settings);
-
-				if (!KernelSettings->IsKernelValid(Context, /*bQuiet=*/false))
-				{
-					return true;
-				}
+				return true;
 			}
 		}
 	}

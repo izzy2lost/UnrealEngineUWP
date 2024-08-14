@@ -5,9 +5,6 @@
 #include "PCGGraph.h"
 #include "PCGModule.h"
 #include "PCGPin.h"
-#include "Compute/PCGComputeCommon.h"
-#include "Compute/PCGComputeKernelSource.h"
-#include "Compute/DataInterfaces/PCGComputeDataInterface.h"
 #include "Compute/DataInterfaces/PCGCustomKernelDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionDataInterface.h"
 #include "Compute/DataInterfaces/PCGDataCollectionUploadDataInterface.h"
@@ -15,7 +12,8 @@
 #include "Compute/DataInterfaces/PCGLandscapeDataInterface.h"
 #include "Compute/DataInterfaces/PCGTextureDataInterface.h"
 #include "Compute/Elements/PCGComputeGraphElement.h"
-#include "Compute/Elements/PCGCustomHLSL.h"
+#include "Compute/PCGComputeCommon.h"
+#include "Compute/PCGComputeKernelSource.h"
 #include "Graph/PCGGraphCompiler.h"
 #include "Graph/PCGGraphExecutor.h"
 
@@ -238,7 +236,7 @@ void FPCGGraphCompilerGPU::CollectGPUNodeSubsets(
 			bool bAllNodesValid = true;
 			for (FPCGTaskId& TaskId : GPUSubsetTaskIds)
 			{
-				const UPCGCustomHLSLSettings* Settings = Cast<UPCGCustomHLSLSettings>(InCompiledTasks[TaskId].Node ? InCompiledTasks[TaskId].Node->GetSettings() : nullptr);
+				const UPCGSettings* Settings = InCompiledTasks[TaskId].Node ? InCompiledTasks[TaskId].Node->GetSettings() : nullptr;
 				if (Settings && !Settings->IsKernelValid())
 				{
 					bAllNodesValid = false;
@@ -680,7 +678,7 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 		const UPCGNode* Node = InOutCompiledTasks[TaskId].Node;
 
-		const UPCGCustomHLSLSettings* Settings = Cast<UPCGCustomHLSLSettings>(Node ? Node->GetSettings() : nullptr);
+		const UPCGSettings* Settings = Node ? Node->GetSettings() : nullptr;
 		check(Settings && Settings->bEnabled && Settings->ShouldExecuteOnGPU());
 
 		// For every usage of a DI, get the original (non-aliased) pin label.
@@ -786,22 +784,64 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 
 		UPCGCustomKernelDataInterface* KernelDI = NewObject<UPCGCustomKernelDataInterface>(ComputeGraph);
 		KernelDI->Settings = Settings;
-		const int KernelDIIndex = ComputeGraph->DataInterfaces.Num();
+
+		const int32 KernelDIIndex = ComputeGraph->DataInterfaces.Num();
 		ComputeGraph->DataInterfaces.Add(KernelDI);
+		InputDataInterfaceIndices.Add(KernelDIIndex);
+
+		TArray<TObjectPtr<UComputeDataInterface>> AdditionalInputDIs, AdditionalOutputDIs;
+		Settings->CreateAdditionalInputDataInterfaces(AdditionalInputDIs);
+		Settings->CreateAdditionalOutputDataInterfaces(AdditionalOutputDIs);
+
+		auto AddAdditionalDataInterface = [ComputeGraph](TObjectPtr<UComputeDataInterface> DataInterface) -> int32
+		{
+			if (ensure(DataInterface))
+			{
+				// Re-outer to the ComputeGraph
+				DataInterface->Rename(/*Name=*/nullptr, ComputeGraph);
+
+				const int32 DataInterfaceIndex = ComputeGraph->DataInterfaces.Num();
+				ComputeGraph->DataInterfaces.Add(DataInterface);
+
+				return DataInterfaceIndex;
+			}
+
+			return static_cast<int32>(INDEX_NONE);
+		};
+
+		for (TObjectPtr<UComputeDataInterface> DataInterface : AdditionalInputDIs)
+		{
+			const int32 DataInterfaceIndex = AddAdditionalDataInterface(DataInterface);
+
+			if (DataInterfaceIndex != INDEX_NONE)
+			{
+				InputDataInterfaceIndices.Add(DataInterfaceIndex);
+			}
+		}
+
+		for (TObjectPtr<UComputeDataInterface> DataInterface : AdditionalOutputDIs)
+		{
+			const int32 DataInterfaceIndex = AddAdditionalDataInterface(DataInterface);
+
+			if (DataInterfaceIndex != INDEX_NONE)
+			{
+				OutputDataInterfaceIndices.Add(DataInterfaceIndex);
+			}
+		}
 
 		// TODO add graph data interface (graph params). Reference: UOptimusGraphDataInterface.
 		//Element->Graph->DataInterfaces.Add(NewObject< UPCGDataCollectionDataInterface>(InGraph));
 		//Element->Graph->DataInterfaceToBinding.Add(0);
 
 		// TODO once we support cooking for different platforms/configs, don't create the interface if logging is not present.
-		int DebugDIIndex = INDEX_NONE;
 		if (Settings->bPrintShaderDebugValues)
 		{
 			UPCGDebugDataInterface* DebugDI = NewObject<UPCGDebugDataInterface>(ComputeGraph);
 			DebugDI->SetDebugBufferSize(Settings->DebugBufferSize);
 
-			DebugDIIndex = ComputeGraph->DataInterfaces.Num();
+			const int32 DebugDIIndex = ComputeGraph->DataInterfaces.Num();
 			ComputeGraph->DataInterfaces.Add(DebugDI);
+			OutputDataInterfaceIndices.Add_GetRef(DebugDIIndex);
 		}
 
 		// Now that all data interfaces added, create the (trivial) binding mapping. All map to primary binding, index 0.
@@ -867,16 +907,9 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			SetupAllInputBindings(InputDataInterfaceIndex);
 		}
 
-		SetupAllInputBindings(KernelDIIndex);
-
 		for (int OutputDataInterfaceIndex : OutputDataInterfaceIndices)
 		{
 			SetupAllOutputBindings(OutputDataInterfaceIndex);
-		}
-
-		if (DebugDIIndex != INDEX_NONE)
-		{
-			SetupAllOutputBindings(DebugDIIndex);
 		}
 
 		{
@@ -884,8 +917,12 @@ void FPCGGraphCompilerGPU::BuildGPUGraphTask(
 			KernelWithBindings.Kernel->KernelSource = KernelSource;
 			KernelSource->EntryPoint = Settings->GetKernelEntryPoint();
 			KernelSource->GroupSize = Settings->GetThreadGroupSize();
-
 			KernelSource->SetSource(Settings->GetCookedKernelSource(ComputeGraph->GlobalAttributeLookupTable));
+
+			if (Settings->bDumpCookedHLSL)
+			{
+				UE_LOG(LogPCG, Log, TEXT("Cooked HLSL:\n%s\n"), *KernelSource->GetSource());
+			}
 
 #if WITH_EDITOR
 			if (PCGGraphCompilerGPU::CVarEnableGPUDebugging.GetValueOnAnyThread())

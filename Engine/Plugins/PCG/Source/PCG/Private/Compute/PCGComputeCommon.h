@@ -5,6 +5,16 @@
 #include "PCGCommon.h"
 
 class UPCGData;
+class UPCGSettings;
+struct FPCGContext;
+
+#define PCG_KERNEL_LOGGING_ENABLED (!(UE_BUILD_SHIPPING || UE_BUILD_TEST) || USE_LOGGING_IN_SHIPPING)
+
+#if PCG_KERNEL_LOGGING_ENABLED
+#define PCG_KERNEL_VALIDATION(Context, Settings, bQuiet, ValidationMessage) if (!bQuiet) PCGComputeHelpers::LogKernelError(Context, Settings, ValidationMessage);
+#else
+#define PCG_KERNEL_VALIDATION(Context, Settings, bQuiet, ValidationMessage) // Log removed
+#endif
 
 namespace PCGComputeConstants
 {
@@ -56,4 +66,8 @@ namespace PCGComputeHelpers
 
 	/** True if 'Type' is valid in a GPU data collection. Some types are only supported as DataInterfaces, and cannot be uploaded in data collections. */
 	bool IsTypeAllowedInDataCollection(EPCGDataType Type);
+
+#if PCG_KERNEL_LOGGING_ENABLED
+	void LogKernelError(const FPCGContext* Context, const UPCGSettings* Settings, const FText& InText);
+#endif
 }

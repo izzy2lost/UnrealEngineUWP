@@ -5,7 +5,6 @@
 #include "PCGElement.h"
 
 #include "PCGContext.h"
-#include "Compute/Elements/PCGCustomHLSL.h"
 
 #include "Compute/PCGComputeGraph.h"
 #include "Compute/PCGDataBinding.h"
