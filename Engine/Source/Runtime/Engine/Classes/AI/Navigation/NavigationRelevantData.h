@@ -108,6 +108,12 @@ struct FNavigationRelevantData : public TSharedFromThis<FNavigationRelevantData,
 		, bLoadedData(false)
 	{}
 
+	ENGINE_API FNavigationRelevantData(const FNavigationRelevantData& Other);
+	ENGINE_API FNavigationRelevantData(FNavigationRelevantData&& Other);
+
+	ENGINE_API FNavigationRelevantData& operator=(FNavigationRelevantData&& Other);
+	ENGINE_API FNavigationRelevantData& operator=(const FNavigationRelevantData& Other);
+
 	FORCEINLINE bool HasGeometry() const { return VoxelData.Num() || CollisionData.Num(); }
 	FORCEINLINE bool HasModifiers() const { return !Modifiers.IsEmpty(); }
 	FORCEINLINE bool HasDynamicModifiers() const { return Modifiers.IsDynamic(); }

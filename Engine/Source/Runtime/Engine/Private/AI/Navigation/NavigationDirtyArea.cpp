@@ -32,3 +32,53 @@ FNavigationDirtyArea::FNavigationDirtyArea(const FBox& InBounds, const int32 InF
 	: FNavigationDirtyArea(InBounds, static_cast<ENavigationDirtyFlag>(InFlags), /*InOptionalSourceElement*/nullptr)
 {
 }
+
+FNavigationDirtyArea::FNavigationDirtyArea(const FNavigationDirtyArea& Other)
+	: Bounds(Other.Bounds)
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, OptionalSourceObject(Other.OptionalSourceObject)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, OptionalSourceElement(Other.OptionalSourceElement)
+	, Flags(Other.Flags)
+{
+}
+
+FNavigationDirtyArea::FNavigationDirtyArea(FNavigationDirtyArea&& Other)
+	: Bounds(MoveTemp(Other.Bounds))
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, OptionalSourceObject(MoveTemp(Other.OptionalSourceObject))
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, OptionalSourceElement(MoveTemp(Other.OptionalSourceElement))
+	, Flags(Other.Flags)
+{
+}
+
+FNavigationDirtyArea& FNavigationDirtyArea::operator=(const FNavigationDirtyArea& Other)
+{
+	Bounds = Other.Bounds;
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	OptionalSourceObject = Other.OptionalSourceObject;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	OptionalSourceElement = Other.OptionalSourceElement;
+	Flags = Other.Flags;
+	return *this;
+}
+
+FNavigationDirtyArea& FNavigationDirtyArea::operator=(FNavigationDirtyArea&& Other)
+{
+	Bounds = MoveTemp(Other.Bounds);
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	OptionalSourceObject = MoveTemp(Other.OptionalSourceObject);
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	OptionalSourceElement = MoveTemp(Other.OptionalSourceElement);
+	Flags = Other.Flags;
+	return *this;
+}

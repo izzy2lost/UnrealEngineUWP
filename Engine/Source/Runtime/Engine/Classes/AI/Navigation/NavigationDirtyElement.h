@@ -59,6 +59,10 @@ struct FNavigationDirtyElement
 	ENGINE_API FNavigationDirtyElement(const TSharedRef<const FNavigationElement>& InNavigationElement, ENavigationDirtyFlag InFlagsOverride, const bool bUseWorldPartitionedDynamicMode = false);
 	ENGINE_API explicit FNavigationDirtyElement(const TSharedRef<const FNavigationElement>& InNavigationElement, const bool bUseWorldPartitionedDynamicMode = false);
 
+	ENGINE_API FNavigationDirtyElement(const FNavigationDirtyElement& Other);
+
+	ENGINE_API FNavigationDirtyElement& operator=(const FNavigationDirtyElement& Other);
+
 	UE_DEPRECATED(5.5, "This operator will no longer be used.")
 	ENGINE_API bool operator==(const UObject*& OtherOwner) const;
 

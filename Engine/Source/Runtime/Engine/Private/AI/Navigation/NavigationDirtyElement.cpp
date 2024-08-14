@@ -22,6 +22,45 @@ FNavigationDirtyElement::FNavigationDirtyElement(const TSharedRef<const FNavigat
 {
 }
 
+FNavigationDirtyElement::FNavigationDirtyElement(const FNavigationDirtyElement& Other)
+	: ExplicitAreasToDirty(Other.ExplicitAreasToDirty)
+	, NavigationElement(Other.NavigationElement)
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	, Owner(Other.Owner)
+	, NavInterface(Other.NavInterface)
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	, PrevBounds(Other.PrevBounds)
+	, FlagsOverride(Other.FlagsOverride)
+	, PrevFlags(Other.PrevFlags)
+	, bHasPrevData(Other.bHasPrevData)
+	, bInvalidRequest(Other.bInvalidRequest)
+	, bIsFromVisibilityChange(Other.bIsFromVisibilityChange)
+	, bIsInBaseNavmesh(Other.bIsInBaseNavmesh)
+{
+}
+
+FNavigationDirtyElement& FNavigationDirtyElement::operator=(const FNavigationDirtyElement& Other)
+{
+	ExplicitAreasToDirty = Other.ExplicitAreasToDirty;
+	NavigationElement = Other.NavigationElement;
+#if WITH_EDITORONLY_DATA
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	Owner = Other.Owner;
+	NavInterface = Other.NavInterface;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+#endif // WITH_EDITORONLY_DATA
+	PrevBounds = Other.PrevBounds;
+	FlagsOverride = Other.FlagsOverride;
+	PrevFlags = Other.PrevFlags;
+	bHasPrevData = Other.bHasPrevData;
+	bInvalidRequest = Other.bInvalidRequest;
+	bIsFromVisibilityChange = Other.bIsFromVisibilityChange;
+	bIsInBaseNavmesh = Other.bIsInBaseNavmesh;
+	return *this;
+}
+
 uint32 GetTypeHash(const FNavigationDirtyElement& Info)
 {
 	return GetTypeHash(Info.NavigationElement.Get());

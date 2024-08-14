@@ -37,6 +37,12 @@ struct FNavigationDirtyArea
 	UE_DEPRECATED(5.5, "Use the constructor taking ENavigationDirtyFlag and FNavigationElement instead.")
 	ENGINE_API FNavigationDirtyArea(const FBox& InBounds, int32 InFlags, UObject* const InOptionalSourceObject = nullptr);
 
+	ENGINE_API FNavigationDirtyArea(const FNavigationDirtyArea& Other);
+	ENGINE_API FNavigationDirtyArea(FNavigationDirtyArea&& Other);
+
+	ENGINE_API FNavigationDirtyArea& operator=(const FNavigationDirtyArea& Other);
+	ENGINE_API FNavigationDirtyArea& operator=(FNavigationDirtyArea&& Other);
+
 	bool HasFlag(const ENavigationDirtyFlag Flag) const
 	{
 		return (Flags & Flag) != ENavigationDirtyFlag::None;
