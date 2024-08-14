@@ -650,7 +650,7 @@ TSharedRef< SWidget > SMenuEntryBlock::BuildMenuEntryWidget( const FMenuEntryBui
 		.ClickMethod( ButtonClickMethod )
 		.ContentPadding(StyleSet->GetMargin(StyleName,".Block.Padding"))
 		// Pass along the block's tool-tip string
-		.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand ) )
+		.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand, /*ShowActionShortcut=*/ false ) )
 		// Bind the button's "on clicked" event to our object's method for this
 		.OnClicked(this, &SMenuEntryBlock::OnMenuItemButtonClicked)
 		[
@@ -900,7 +900,7 @@ TSharedRef< SWidget> SMenuEntryBlock::BuildSubMenuWidget( const FMenuEntryBuildP
 			// Create a button
 			SNew( SSubMenuButton )
 			// Pass along the block's tool-tip string
-			.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand ) )
+			.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute(EntryToolTip, nullptr, UICommand, /*ShowActionShortcut=*/ false) )
 			// Style to use
 			.ButtonStyle( &StyleSet->GetWidgetStyle<FButtonStyle>( ISlateStyle::Join( StyleName, ".Button" ) ) )
 			.ContentPadding(StyleSet->GetMargin(StyleName, ".Block.Padding"))

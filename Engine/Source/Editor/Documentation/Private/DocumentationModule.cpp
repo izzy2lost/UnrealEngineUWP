@@ -49,11 +49,33 @@ public:
 
 private:
 
-	TSharedRef< SToolTip > ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action )
+	TSharedRef< SToolTip > ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action, bool ShowActionShortcut = false )
 	{
+		struct Local
+		{
+			/** Appends the key binding to the end of the provided ToolTip */
+			static FText GetCommandShortcut(TSharedPtr< const FUICommandInfo> Command)
+			{
+				if (Command.IsValid() && (Command->GetFirstValidChord()->IsValidChord()))
+				{
+					return Command->GetInputText();
+				}
+				else
+				{
+					return FText();
+				}
+			}
+		};
+
 		if ( Action.IsValid() )
 		{
-			return Documentation->CreateToolTip( ToolTipText, OverrideContent, FString( TEXT("Shared/") ) + Action->GetBindingContext().ToString(), Action->GetCommandName().ToString() );
+			TAttribute<FText> Shortcut;
+			if (ShowActionShortcut)
+			{
+				Shortcut = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::GetCommandShortcut, Action));
+			}
+
+			return Documentation->CreateToolTip( ToolTipText, OverrideContent, FString( TEXT("Shared/") ) + Action->GetBindingContext().ToString(), Action->GetCommandName().ToString(), Shortcut);
 		} 
 		else
 		{
