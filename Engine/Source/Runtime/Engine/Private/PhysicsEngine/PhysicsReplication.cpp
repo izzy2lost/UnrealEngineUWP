@@ -101,7 +101,7 @@ namespace PhysicsReplicationCVars
 
 	namespace ResimulationCVars
 	{
-		bool bRuntimeCorrectionEnabled = true;
+		bool bRuntimeCorrectionEnabled = false;
 		static FAutoConsoleVariableRef CVarResimRuntimeCorrectionEnabled(TEXT("np2.Resim.RuntimeCorrectionEnabled"), bRuntimeCorrectionEnabled, TEXT("Apply positional and rotational runtime corrections while within resim trigger distance."));
 
 		bool bRuntimeVelocityCorrection = false;
