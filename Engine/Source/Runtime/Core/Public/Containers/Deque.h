@@ -556,7 +556,7 @@ private:
 			RelocateConstructItems<ElementType>(TempStorage.GetAllocation(), GetData(), Tail);
 			const SizeType HeadToEndOffset = Capacity - Head;
 			ShiftElementsLeft(HeadToEndOffset);
-			RelocateConstructItems<ElementType>(GetData() + HeadToEndOffset, TempStorage.GetAllocation(), Tail);
+			RelocateConstructItems<ElementType>(GetData() + HeadToEndOffset, (ElementType*)TempStorage.GetAllocation(), Tail);
 		}
 	}
 
