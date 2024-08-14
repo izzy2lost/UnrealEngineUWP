@@ -110,6 +110,7 @@ namespace UE::ChooserEditor
 
 		void AutoPopulateColumn(FChooserColumnBase& Column);
 		void AutoPopulateRow(int Index);
+		bool CanAutoPopulateSelection();
 		void AutoPopulateSelection();
 		void AutoPopulateAll();
 		
@@ -220,7 +221,6 @@ namespace UE::ChooserEditor
 		static FName EditorName;
 		static FName ContextMenuName;
 	};
-
 
 }
 
