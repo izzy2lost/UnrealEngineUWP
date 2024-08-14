@@ -2843,7 +2843,7 @@ void FStarshipEditorStyle::FStyle::SetupTutorialStyles()
 	// Documentation defaults
 	const FTextBlockStyle DocumentationText = FTextBlockStyle(NormalText)
 		.SetColorAndOpacity( FLinearColor::Black )
-		.SetFont(DEFAULT_FONT( "Regular", 11 ));
+		.SetFont(DEFAULT_FONT( "Regular", 10 ));
 	Set("Documentation.Text", FTextBlockStyle(DocumentationText));
 
 	const FTextBlockStyle DocumentationHyperlinkText = FTextBlockStyle(DocumentationText)
@@ -2876,6 +2876,8 @@ void FStarshipEditorStyle::FStyle::SetupTutorialStyles()
 		Set("Documentation.NumberedContent",  FTextBlockStyle(DocumentationText));
 		Set( "Documentation.BoldContent", FTextBlockStyle(DocumentationText)
 			.SetTypefaceFontName(TEXT("Bold")));
+		Set("Documentation.ItalicContent", FTextBlockStyle(DocumentationText)
+			.SetTypefaceFontName(TEXT("Italic")));
 
 		Set("Documentation.Header1", FTextBlockStyle(DocumentationHeaderText)
 			.SetFontSize(32));

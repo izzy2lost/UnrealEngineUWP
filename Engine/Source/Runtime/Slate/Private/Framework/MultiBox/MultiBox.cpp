@@ -97,8 +97,27 @@ FMultiBoxSettings::FMultiBoxSettings()
 	ResetToolTipConstructor();
 }
 
-TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action )
+TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttribute<FText>& ToolTipText, const TSharedPtr<SWidget>& OverrideContent, const TSharedPtr<const FUICommandInfo>& Action, bool ShowActionShortcut )
 {
+	struct Local
+	{
+		/** Appends the key binding to the end of the provided ToolTip */
+		static FText AppendKeyBindingToToolTip(const TAttribute<FText> ToolTip, TSharedPtr< const FUICommandInfo> Command)
+		{
+			if (Command.IsValid() && (Command->GetFirstValidChord()->IsValidChord()))
+			{
+				FFormatNamedArguments Args;
+				Args.Add(TEXT("ToolTipDescription"), ToolTip.Get());
+				Args.Add(TEXT("Keybinding"), Command->GetInputText());
+				return FText::Format(NSLOCTEXT("ToolBar", "ToolTip + Keybinding", "{ToolTipDescription} ({Keybinding})"), Args);
+			}
+			else
+			{
+				return ToolTip.Get();
+			}
+		}
+	};
+
 	if ( OverrideContent.IsValid() )
 	{
 		return SNew( SToolTip )
@@ -107,7 +126,13 @@ TSharedRef< SToolTip > FMultiBoxSettings::ConstructDefaultToolTip( const TAttrib
 		];
 	}
 
-	return SNew( SToolTip ).Text( ToolTipText );
+	TAttribute<FText> ActualToolTip = ToolTipText;
+	if (Action.IsValid())
+	{
+		ActualToolTip = TAttribute< FText >::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::AppendKeyBindingToToolTip, ToolTipText, Action));
+	}
+
+	return SNew( SToolTip ).Text(ActualToolTip);
 }
 
 void FMultiBoxSettings::ResetToolTipConstructor()

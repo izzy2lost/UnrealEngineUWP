@@ -212,10 +212,6 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 	{
 		ActualToolTip = UICommand.IsValid() ? UICommand->GetDescription() : FText::GetEmpty();
 	}
-
-	// If a key is bound to the command, append it to the tooltip text.
-	TWeakPtr<const FUICommandInfo> Action = ToolBarButtonBlock->GetAction();
-	ActualToolTip = TAttribute< FText >::Create(TAttribute<FText>::FGetter::CreateStatic(&Local::AppendKeyBindingToToolTip, ActualToolTip, Action ) );
 	
 	// If we were supplied an image than go ahead and use that, otherwise we use a null widget
 	TSharedRef<SLayeredImage> IconWidget =
@@ -331,6 +327,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 	EMultiBlockLocation::Type BlockLocation = GetMultiBlockLocation();
 	
 	// What type of UI should we create for this block?
+	TWeakPtr<const FUICommandInfo> Action = ToolBarButtonBlock->GetAction();
 	EUserInterfaceActionType UserInterfaceType = ToolBarButtonBlock->UserInterfaceActionType;
 	if ( Action.IsValid() )
 	{
@@ -356,7 +353,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 			.ButtonStyle(ToolbarButtonStyle)
 			.IsEnabled(this, &SToolBarButtonBlock::IsEnabled)
 			.OnClicked(this, &SToolBarButtonBlock::OnClicked)
-			.ToolTip(FMultiBoxSettings::ToolTipConstructor.Execute(ActualToolTip, nullptr, Action.Pin()))
+			.ToolTip(FMultiBoxSettings::ToolTipConstructor.Execute(ActualToolTip, nullptr, Action.Pin(), /*ShowActionShortcut=*/ true))
 			.IsFocusable(bIsFocusable)
 			[
 				ButtonContent
@@ -379,7 +376,7 @@ void SToolBarButtonBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, con
 						.Style(CheckStyle)
 						.CheckBoxContentUsesAutoWidth(false)
 						.IsFocusable(bIsFocusable)
-						.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute( ActualToolTip, nullptr, Action.Pin()))		
+						.ToolTip( FMultiBoxSettings::ToolTipConstructor.Execute( ActualToolTip, nullptr, Action.Pin(), /*ShowActionShortcut=*/ true))		
 						.OnCheckStateChanged(this, &SToolBarButtonBlock::OnCheckStateChanged )
 						.OnGetMenuContent( ToolBarButtonBlock->OnGetMenuContent )
 						.IsChecked(this, &SToolBarButtonBlock::GetCheckState)
