@@ -1176,6 +1176,11 @@ namespace UnrealBuildTool
 				if (CompileEnvironment.bEnableAutoRTFMInstrumentation)
 				{
 					Arguments.Add("-fautortfm");
+
+					if (CompileEnvironment.bEnableAutoRTFMVerification)
+					{
+						Arguments.Add("-fautortfm-verify");
+					}
 				}
 			}
 
@@ -1217,6 +1222,11 @@ namespace UnrealBuildTool
 				if (CompileEnvironment.bEnableAutoRTFMInstrumentation)
 				{
 					Arguments.Add("-fautortfm");
+
+					if (CompileEnvironment.bEnableAutoRTFMVerification)
+					{
+						Arguments.Add("-fautortfm-verify");
+					}
 				}
 			}
 		}

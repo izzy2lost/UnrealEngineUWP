@@ -1565,6 +1565,7 @@ namespace UnrealBuildTool
 			CompileEnvironment.IncludeOrderVersion = ModuleCompileEnvironment.IncludeOrderVersion;
 			CompileEnvironment.bUseAutoRTFMCompiler = ModuleCompileEnvironment.bUseAutoRTFMCompiler;
 			CompileEnvironment.bDisableAutoRTFMInstrumentation = ModuleCompileEnvironment.bDisableAutoRTFMInstrumentation;
+			CompileEnvironment.bEnableAutoRTFMVerification = ModuleCompileEnvironment.bEnableAutoRTFMVerification;
 			CompileEnvironment.bValidateFormatStrings = ModuleCompileEnvironment.bValidateFormatStrings;
 			CompileEnvironment.bValidateInternalApi = ModuleCompileEnvironment.bValidateInternalApi;
 		}
@@ -2163,10 +2164,11 @@ namespace UnrealBuildTool
 
 			CompileEnvironmentDebugInfoSettings(Target, Result);
 
-			// Only copy the AutoRTFM flag if we are using the AutoRTFM compiler
+			// Only copy the AutoRTFM flags if we are using the AutoRTFM compiler
 			if (Result.bUseAutoRTFMCompiler)
 			{
 				Result.bDisableAutoRTFMInstrumentation = Rules.bDisableAutoRTFMInstrumentation;
+				Result.bEnableAutoRTFMVerification = Target.bUseAutoRTFMVerifier;
 			}
 
 			if (Result.OptimizationLevel != Rules.OptimizationLevel)

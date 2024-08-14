@@ -889,6 +889,14 @@ namespace UnrealBuildTool
 		public bool bForceNoAutoRTFMCompiler { get; set; } = false;
 
 		/// <summary>
+		/// Whether to enable emitting AutoRTFM verification metadata
+		/// </summary>
+		[RequiresUniqueBuildEnvironment]
+		[CommandLine("-UseAutoRTFMVerifier", Value = "true")]
+		[XmlConfigFile(Category = "BuildConfiguration")]
+		public bool bUseAutoRTFMVerifier { get; set; } = false;
+
+		/// <summary>
 		/// Whether to compile the Chaos physics plugin.
 		/// </summary>
 		[Obsolete("Deprecated in UE5.1 - No longer used as Chaos is always enabled.")]
