@@ -60,8 +60,7 @@ void SetFBLoggingBehavior()
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorCacheErrors];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorUIControlErrors];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugWarning];
-	// Commented because it hangs on FacebookSDK-17.0.2
-	//[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugInfo];
+	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorGraphAPIDebugInfo];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorNetworkRequests];
 	[[FBSDKSettings sharedSettings] enableLoggingBehavior:FBSDKLoggingBehaviorDeveloperErrors];
 #endif

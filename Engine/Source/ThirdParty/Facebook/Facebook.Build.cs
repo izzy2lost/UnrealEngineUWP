@@ -24,7 +24,7 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBAEMKit",
-					$"IOS/FBAEMKit.xcframework",
+					$"IOS/FacebookSDK/FBAEMKit.xcframework.zip",
 					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
@@ -32,7 +32,7 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKCoreKit_Basics",
-					$"IOS/FBSDKCoreKit_Basics.xcframework",
+					$"IOS/FacebookSDK/FBSDKCoreKit_Basics.xcframework.zip",
 					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
@@ -41,7 +41,7 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKCoreKit",
-					$"IOS/FBSDKCoreKit.xcframework",
+					$"IOS/FacebookSDK/FBSDKCoreKit.xcframework.zip",
 					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
@@ -50,7 +50,7 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKLoginKit",
-					$"IOS/FBSDKLoginKit.xcframework",
+					"IOS/FacebookSDK/FBSDKLoginKit.xcframework.zip",
 					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
@@ -59,7 +59,7 @@ public class Facebook : ModuleRules
 			PublicAdditionalFrameworks.Add(
 				new Framework(
 					"FBSDKShareKit",
-					$"IOS/FBSDKShareKit.xcframework",
+					"IOS/FacebookSDK/FBSDKShareKit.xcframework.zip",
 					Framework.FrameworkMode.LinkAndCopy
 				)
 			);
