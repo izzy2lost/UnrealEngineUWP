@@ -287,6 +287,7 @@ void UAvaPlayable::BeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings
 		
 		// Playable events need to transit through playback events to reach the rundown for proper impl layer separation.
 		UAvaSequencePlayer::OnSequenceStarted().AddUObject(this, &UAvaPlayable::HandleOnSequenceStarted);
+		UAvaSequencePlayer::OnSequencePaused().AddUObject(this, &UAvaPlayable::HandleOnSequencePaused);
 		UAvaSequencePlayer::OnSequenceFinished().AddUObject(this, &UAvaPlayable::HandleOnSequenceFinished);
 
 		OnPlay();
@@ -302,6 +303,7 @@ void UAvaPlayable::EndPlay(EAvaPlayableEndPlayOptions InOptions)
 
 	bIsPlaying = false;
 	UAvaSequencePlayer::OnSequenceStarted().RemoveAll(this);
+	UAvaSequencePlayer::OnSequencePaused().RemoveAll(this);
 	UAvaSequencePlayer::OnSequenceFinished().RemoveAll(this);
 	OnEndPlay();
 
@@ -363,7 +365,18 @@ void UAvaPlayable::HandleOnSequenceStarted(UAvaSequencePlayer* InSequencePlayer,
 		using namespace UE::AvaPlayable::Private;
 		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} started."),
 			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
-		OnSequenceEventDelegate.Broadcast(this, InSequence->GetFName(), EAvaPlayableSequenceEventType::Started);
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Started);
+	}
+}
+
+void UAvaPlayable::HandleOnSequencePaused(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence)
+{
+	if (HasSequence(InSequence))
+	{
+		using namespace UE::AvaPlayable::Private;
+		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} paused."),
+			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Paused);
 	}
 }
 
@@ -374,7 +387,7 @@ void UAvaPlayable::HandleOnSequenceFinished(UAvaSequencePlayer* InSequencePlayer
 		using namespace UE::AvaPlayable::Private;
 		UE_LOG(LogAvaPlayable, Verbose, TEXT("%s Playable {%s}: Sequence {%s} finished."),
 			*GetBriefFrameInfo(), *GetPrettyPlayableInfo(this),  *GetPrettySequenceInfo(InSequence));
-		OnSequenceEventDelegate.Broadcast(this, InSequence->GetFName(), EAvaPlayableSequenceEventType::Finished);
+		OnSequenceEventDelegate.Broadcast(this, InSequence->GetLabel(), EAvaPlayableSequenceEventType::Finished);
 	}
 }
 

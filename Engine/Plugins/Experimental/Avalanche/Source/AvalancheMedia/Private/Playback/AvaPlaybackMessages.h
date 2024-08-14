@@ -418,7 +418,7 @@ struct FAvaPlaybackSequenceEvent : public FAvaPlaybackServerMessageBase
 	FString ChannelName;
 	
 	UPROPERTY()
-	FString SequenceName;
+	FString SequenceLabel;
 
 	UPROPERTY()
 	EAvaPlayableSequenceEventType EventType = EAvaPlayableSequenceEventType::None;

@@ -146,7 +146,7 @@ protected:
 	void OnPlaybackInstanceInvalidated(const FAvaPlaybackInstance& InPlaybackInstance);
 	void OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstance& InPlaybackInstance);
 	void OnPlaybackAssetRemoved(const FSoftObjectPath& InAssetPath);
-	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType);
+	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType);
 	
 	void ApplyAvaMediaSettings();
 

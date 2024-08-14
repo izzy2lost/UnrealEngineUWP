@@ -55,6 +55,8 @@ public:
 	virtual FString GetPrettyInfo() const;
 
 	EAvaPlayableTransitionFlags GetTransitionFlags() const { return TransitionFlags; }
+
+	const FGuid& GetTransitionId() const { return TransitionId; }
 	
 protected:
 	UAvaPlayable* FindPlayable(const FGuid& InstanceId) const;

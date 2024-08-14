@@ -746,25 +746,68 @@ public:
 	FString PreviewChannelName;
 };
 
-UENUM()
-enum class EAvaRundownPageEvents
-{
-	None,
-	AnimStarted,
-	AnimPaused,
-	AnimFinished
-};
-
+/**
+ * Page Sequence Event Message
+ */
 USTRUCT()
-struct FAvaRundownPageEvent : public FAvaRundownMsgBase
+struct FAvaRundownPageSequenceEvent : public FAvaRundownMsgBase
 {
 	GENERATED_BODY()
-public:
+
+	UPROPERTY()
+	FString Channel;
+	
 	UPROPERTY()
 	int32 PageId = FAvaRundownPage::InvalidPageId;
 
+	/** Playable Instance Id. */
 	UPROPERTY()
-	EAvaRundownPageEvents Event = EAvaRundownPageEvents::None;
+	FGuid InstanceId;
+
+	/** Full asset path: /PackagePath/PackageName.AssetName */
+	UPROPERTY()
+	FString AssetPath;
+	
+	UPROPERTY()
+	FString SequenceLabel;
+
+	UPROPERTY()
+	EAvaPlayableSequenceEventType Event = EAvaPlayableSequenceEventType::None;
+};
+
+UENUM()
+enum class EAvaRundownPageTransitionEvents
+{
+	None,
+	Started,
+	Finished
+};
+
+/**
+ * Page Transition Event Message
+ */
+USTRUCT()
+struct FAvaRundownPageTransitionEvent : public FAvaRundownMsgBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Channel;
+	
+	UPROPERTY()
+	FGuid TransitionId;
+
+	UPROPERTY()
+	TArray<int32> EnteringPageIds;
+
+	UPROPERTY()
+	TArray<int32> PlayingPageIds;
+
+	UPROPERTY()
+	TArray<int32> ExitingPageIds;
+
+	UPROPERTY()
+	EAvaRundownPageTransitionEvents Event = EAvaRundownPageTransitionEvents::None;
 };
 
 USTRUCT()

@@ -401,7 +401,7 @@ void UAvaRundownPagePlayer::RemoveInstancePlayer(UAvaRundownPlaybackInstancePlay
 	InstancePlayers.Remove(InInstancePlayer);
 }
 
-void UAvaRundownPagePlayer::HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType)
+void UAvaRundownPagePlayer::HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType)
 {
 	// Check that this is the playable for this page player.
 	if (!HasPlayable(InPlayable))
@@ -415,12 +415,12 @@ void UAvaRundownPagePlayer::HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayab
 		using namespace UE::AvaPlayback::Utils;
 		if (InEventType == EAvaPlayableSequenceEventType::Started)
 		{
-			UE_LOG(LogAvaRundown, Verbose, TEXT("%s Rundown Page %d: Sequence Started \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
+			UE_LOG(LogAvaRundown, Verbose, TEXT("%s Rundown Page %d: Sequence Started \"%s\"."), *GetBriefFrameInfo(), PageId, *InSequenceLabel.ToString());
 		}
 
 		if (InEventType == EAvaPlayableSequenceEventType::Finished)
 		{
-			UE_LOG(LogAvaRundown, Verbose, TEXT("%s Rundown Page %d: Sequence Finished \"%s\"."), *GetBriefFrameInfo(), PageId, *SequenceName.ToString());
+			UE_LOG(LogAvaRundown, Verbose, TEXT("%s Rundown Page %d: Sequence Finished \"%s\"."), *GetBriefFrameInfo(), PageId, *InSequenceLabel.ToString());
 			RundownWeak->NotifyPageSequenceFinished(PageId);
 		}
 	}

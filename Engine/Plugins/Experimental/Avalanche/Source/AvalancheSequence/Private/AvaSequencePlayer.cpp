@@ -11,12 +11,18 @@
 #include "IAvaSequenceProvider.h"
 
 UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequenceStartedDelegate;
+UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequencePausedDelegate;
 UAvaSequencePlayer::FOnSequenceEvent UAvaSequencePlayer::OnSequenceFinishedDelegate;
 
 UAvaSequencePlayer::UAvaSequencePlayer(const FObjectInitializer& InObjectInitializer)
 	: ULevelSequencePlayer(InObjectInitializer)
 {
-	OnNativeFinished.BindUObject(this, &UAvaSequencePlayer::NotifySequenceFinished);
+	if (!IsTemplate())
+	{
+		OnNativeFinished.BindUObject(this, &UAvaSequencePlayer::NotifySequenceFinished);
+		// Remark: UMovieSceneSequencePlayer has a virtual OnPaused() function, but it is not called. Using event instead.
+		OnPause.AddDynamic(this, &UAvaSequencePlayer::NotifySequencePaused);
+	}
 }
 
 void UAvaSequencePlayer::InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel)
@@ -210,6 +216,11 @@ FFrameTime UAvaSequencePlayer::CalculateDeltaFrameTime(float InDeltaSeconds) con
 void UAvaSequencePlayer::NotifySequenceStarted()
 {
 	OnSequenceStartedDelegate.Broadcast(this, GetAvaSequence());
+}
+
+void UAvaSequencePlayer::NotifySequencePaused()
+{
+	OnSequencePausedDelegate.Broadcast(this, GetAvaSequence());
 }
 
 void UAvaSequencePlayer::NotifySequenceFinished()

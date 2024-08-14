@@ -24,6 +24,7 @@ public:
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnSequenceEvent, UAvaSequencePlayer*, UAvaSequence*);
 	static FOnSequenceEvent& OnSequenceStarted() { return OnSequenceStartedDelegate; }
+	static FOnSequenceEvent& OnSequencePaused() { return OnSequencePausedDelegate; }
 	static FOnSequenceEvent& OnSequenceFinished() { return OnSequenceFinishedDelegate; }
 
 	void InitSequence(UAvaSequence* InSequence, IAvaSequencePlaybackObject* InPlaybackObject, ULevel* InLevel);
@@ -75,9 +76,14 @@ private:
 	FFrameTime CalculateDeltaFrameTime(float InDeltaSeconds) const;
 
 	void NotifySequenceStarted();
+
+	UFUNCTION()
+	void NotifySequencePaused();
+
 	void NotifySequenceFinished();
 
 	static FOnSequenceEvent OnSequenceStartedDelegate;
+	static FOnSequenceEvent OnSequencePausedDelegate;
 	static FOnSequenceEvent OnSequenceFinishedDelegate;
 
 	/** Encapsulate OnNativeFinished as it's a simple delegate that only this Player will bind to and through it call the multicast version (OnSequenceFinishedDelegate) */

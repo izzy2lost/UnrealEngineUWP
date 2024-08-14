@@ -32,6 +32,10 @@ public:
 	bool AddEnterPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddPlayingPage(UAvaRundownPagePlayer* InPagePlayer);
 	bool AddExitPage(UAvaRundownPagePlayer* InPagePlayer);
+
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetEnterPlayers() const { return EnterPlayersWeak; }
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetPlayingPlayers() const { return PlayingPlayersWeak; }
+	TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> GetExitPlayers() const { return ExitPlayersWeak; }
 	
 	//~ Begin IAvaPlayableVisibilityConstraint
 	virtual bool IsVisibilityConstrained(const UAvaPlayable* InPlayable) const override;

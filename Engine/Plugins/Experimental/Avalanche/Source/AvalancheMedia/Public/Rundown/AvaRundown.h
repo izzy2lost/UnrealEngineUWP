@@ -717,16 +717,35 @@ public:
 
 	FOnPagePlayerEvent& GetOnPagePlayerAdded() { return OnPagePlayerAdded; }
 	FOnPagePlayerEvent& GetOnPagePlayerRemoving() { return OnPagePlayerRemoving; }
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPageTransitionEvent, UAvaRundown*, UAvaRundownPageTransition*);
+
+	/**
+	 * Rundown Transition Event - Called when a new page transition is added to the playback context.
+	 */
+	FOnPageTransitionEvent OnPageTransitionAdded;
+
+	/**
+	 * Rundown Transition Event - Called when a completed page transition is about to be removed from the playback context.
+	 */
+	FOnPageTransitionEvent OnPageTransitionRemoving;
+
+	FOnPageTransitionEvent& GetOnPageTransitionAdded() { return OnPageTransitionAdded; }
+	FOnPageTransitionEvent& GetOnPageTransitionRemoving() { return OnPageTransitionRemoving; }
 	
 	void AddPageTransition(UAvaRundownPageTransition* InPageTransition)
 	{
 		PageTransitions.Add(InPageTransition);
+		OnPageTransitionAdded.Broadcast(this, InPageTransition);
 	}
 
 	void RemovePageTransition(UAvaRundownPageTransition* InPageTransition)
 	{
+		OnPageTransitionRemoving.Broadcast(this, InPageTransition);
 		PageTransitions.Remove(InPageTransition);
 	}
+
+	UAvaRundownPageTransition* GetPageTransition(const FGuid& InTransitionId) const;
 
 	bool CanStartTransitionForPage(const FAvaRundownPage& InPage, bool bInIsPreview, const FName& InPreviewChannelName) const;
 
@@ -742,6 +761,9 @@ public:
 	{
 		return bInIsPreview ?  FindPlayerForPreviewPage(InPageId, InPreviewChannelName) : FindPlayerForProgramPage(InPageId);
 	}
+
+	/** Finds the page player for the given pageId and channel name. */
+	UAvaRundownPagePlayer* FindPagePlayer(int32 InPageId, FName InChannelName) const;
 
 	void RemoveStoppedPagePlayers();
 

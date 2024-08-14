@@ -161,7 +161,7 @@ protected:
 
 	void RemoveInstancePlayer(UAvaRundownPlaybackInstancePlayer* InInstancePlayer);
 	
-	void HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType);
+	void HandleOnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType);
 
 public:
 	UPROPERTY()

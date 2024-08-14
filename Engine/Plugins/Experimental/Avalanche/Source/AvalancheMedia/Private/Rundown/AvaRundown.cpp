@@ -1044,7 +1044,7 @@ TArray<int32> UAvaRundown::PlayPages(const TArray<int32>& InPageIds, EAvaRundown
 		{
 			const bool bIsPreview = UE::AvaRundown::IsPreviewPlayType(InPlayType);
 
-			if (!IsChannelTypeCompatibleForRequest(SelectedPage, bIsPreview, InPreviewChannelName, true))
+			if (!IsChannelTypeCompatibleForRequest(SelectedPage, bIsPreview, InPreviewChannelName, true) || !CanPlayPage(PageId, bIsPreview))
 			{
 				continue;
 			}
@@ -2209,6 +2209,18 @@ FAvaRundownPage& UAvaRundown::GetNextFromSubList(const TArray<int32>& InSubListI
 	return FAvaRundownPage::NullPage;
 }
 
+UAvaRundownPageTransition* UAvaRundown::GetPageTransition(const FGuid& InTransitionId) const
+{
+	for (UAvaRundownPageTransition* PageTransition : PageTransitions)
+	{
+		if (PageTransition && PageTransition->GetTransitionId() == InTransitionId)
+		{
+			return PageTransition;
+		}
+	}
+	return nullptr;
+}
+
 bool UAvaRundown::CanStartTransitionForPage(const FAvaRundownPage& InPage, bool bInIsPreview, const FName& InPreviewChannelName) const
 {
 	// Current constraint: There can only be one transition (running properly) at a time in a world.
@@ -2216,7 +2228,7 @@ bool UAvaRundown::CanStartTransitionForPage(const FAvaRundownPage& InPage, bool 
 	// we can equate a "channel" to a "world", this is hardcoded for the level streaming playables.
 	// So, we can just check the channels for now.
 	const FName ChannelName = bInIsPreview ? InPreviewChannelName : InPage.GetChannelName();
-	for (const TObjectPtr<UAvaRundownPageTransition>& PageTransition : PageTransitions)
+	for (const UAvaRundownPageTransition* PageTransition : PageTransitions)
 	{
 		if (PageTransition && PageTransition->GetChannelName() == ChannelName)
 		{
@@ -2234,7 +2246,7 @@ void UAvaRundown::StopPageTransitionsForPage(const FAvaRundownPage& InPage, bool
 	// Note: we build a separate list because stopping the transitions should
 	// lead to the transitions being removed from PageTransitions (through the events).
 	const FName ChannelName = bInIsPreview ? InPreviewChannelName : InPage.GetChannelName();
-	for (TObjectPtr<UAvaRundownPageTransition>& PageTransition : PageTransitions)
+	for (UAvaRundownPageTransition* PageTransition : PageTransitions)
 	{
 		if (PageTransition && PageTransition->GetChannelName() == ChannelName)
 		{
@@ -2270,6 +2282,15 @@ UAvaRundownPagePlayer* UAvaRundown::FindPlayerForPreviewPage(int32 InPageId, con
 	const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId, InPreviewChannelFName](const UAvaRundownPagePlayer* InPagePlayer)
 	{
 		return InPagePlayer->PageId == InPageId && InPagePlayer->bIsPreview && InPagePlayer->ChannelFName == InPreviewChannelFName;
+	});
+	return FoundPlayer ? *FoundPlayer : nullptr;
+}
+
+UAvaRundownPagePlayer* UAvaRundown::FindPagePlayer(int32 InPageId, FName InChannelName) const
+{
+	const TObjectPtr<UAvaRundownPagePlayer>* FoundPlayer = PagePlayers.FindByPredicate([InPageId, InChannelName](const UAvaRundownPagePlayer* InPagePlayer)
+	{
+		return InPagePlayer->PageId == InPageId && InPagePlayer->ChannelFName == InChannelName;
 	});
 	return FoundPlayer ? *FoundPlayer : nullptr;
 }

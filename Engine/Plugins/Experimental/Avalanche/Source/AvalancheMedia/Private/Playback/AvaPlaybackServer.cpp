@@ -1105,7 +1105,7 @@ void FAvaPlaybackServer::OnPlaybackAssetRemoved(const FSoftObjectPath& InAssetPa
 	}
 }
 
-void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType)
+void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType)
 {
 	if (!InPlayable)
 	{
@@ -1132,7 +1132,7 @@ void FAvaPlaybackServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const
 	Message->InstanceId = InPlayable->GetInstanceId();
 	Message->AssetPath = PlaybackInstance->GetSourcePath();
 	Message->ChannelName = PlaybackInstance->GetChannelName();
-	Message->SequenceName = SequenceName.ToString();
+	Message->SequenceLabel = InSequenceLabel.ToString();
 	Message->EventType = InEventType;
 	Message->FrameNumber = GFrameNumber;
 	SendResponse(Message, ClientAddresses);

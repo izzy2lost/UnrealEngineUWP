@@ -58,6 +58,9 @@ public:
 	void OnAssetRemoved(const FAssetData& InAssetData) const;
 	void OnAssetsPreDelete(const TArray<UObject*>& InObjects);
 	void OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstance& InPlaybackInstance);
+	void OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InSequenceEvent);
+	void OnPlayableTransitionEvent(UAvaPlayable* InPlayable, UAvaPlayableTransition* InPlayableTransition, EAvaPlayableTransitionEventFlags InTransitionFlags);
+	void OnPageTransitionRemoved(UAvaRundown* InRundown, UAvaRundownPageTransition* InPageTransition);
 	void OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const;
 	
 	// Rundown message handlers

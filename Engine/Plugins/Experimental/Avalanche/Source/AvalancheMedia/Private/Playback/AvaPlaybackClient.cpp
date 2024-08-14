@@ -1232,7 +1232,7 @@ void FAvaPlaybackClient::HandlePlaybackSequenceEventMessage(const FAvaPlaybackSe
 		InMessage.AssetPath,
 		InMessage.ChannelName,
 		InMessage.ServerName,
-		InMessage.SequenceName,
+		InMessage.SequenceLabel,
 		InMessage.EventType,
 		InMessage.FrameNumber
 	};

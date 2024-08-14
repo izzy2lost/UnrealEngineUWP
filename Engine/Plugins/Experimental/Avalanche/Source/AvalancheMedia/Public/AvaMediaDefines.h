@@ -115,6 +115,7 @@ enum class EAvaPlayableSequenceEventType : uint8
 {
 	None,
 	Started,
+	Paused,
 	Finished
 };
 

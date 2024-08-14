@@ -100,7 +100,7 @@ public:
 	 */
 	static UAvaPlayable* Create(UObject* InOuter, const FPlayableCreationInfo& InPlayableInfo);
 
-	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnSequenceEvent, UAvaPlayable*, const FName& /*InSequenceName*/, EAvaPlayableSequenceEventType);
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnSequenceEvent, UAvaPlayable*, FName /*InSequenceLabel*/, EAvaPlayableSequenceEventType);
 	static FOnSequenceEvent& OnSequenceEvent() { return OnSequenceEventDelegate; }
 
 	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnTransitionEvent, UAvaPlayable*, UAvaPlayableTransition*, EAvaPlayableTransitionEventFlags);
@@ -172,6 +172,7 @@ protected:
 	virtual void OnRemoteControlValuesApplied() {}
 	
 	void HandleOnSequenceStarted(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence);
+	void HandleOnSequencePaused(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence);
 	void HandleOnSequenceFinished(UAvaSequencePlayer* InSequencePlayer, UAvaSequence* InSequence);
 
 	static UAvaPlayable* CreateLocalPlayable(UObject* InOuter, const FPlayableCreationInfo& InPlayableInfo);

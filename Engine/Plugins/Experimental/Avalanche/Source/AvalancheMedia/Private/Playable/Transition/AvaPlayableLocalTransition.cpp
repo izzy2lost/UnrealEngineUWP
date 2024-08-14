@@ -477,7 +477,7 @@ void UAvaPlayableLocalTransition::FinishWaitOnPostExecutorSequences()
 	UAvaPlayable::OnSequenceEvent().RemoveAll(this);
 }
 
-void UAvaPlayableLocalTransition::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, const FName& SequenceName, EAvaPlayableSequenceEventType InEventType)
+void UAvaPlayableLocalTransition::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InEventType)
 {
 	// Remark: the sequence events are not entirely reliable.
 	// The transitions are also "ticked" to poll this condition.

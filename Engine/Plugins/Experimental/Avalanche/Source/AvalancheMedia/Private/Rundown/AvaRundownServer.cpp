@@ -25,6 +25,7 @@
 #include "MessageEndpointBuilder.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
+#include "Playable/Transition/AvaPlayableTransition.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackUtils.h"
 #include "RemoteControlSettings.h"
@@ -36,6 +37,7 @@
 #include "Rundown/AvaRundownSerializationUtils.h"
 #include "Rundown/AvaRundownServerMediaOutputUtils.h"
 #include "TextureResource.h"
+#include "Transition/AvaRundownPageTransition.h"
 
 #if WITH_EDITOR
 #include "Editor.h"
@@ -277,6 +279,29 @@ namespace UE::AvaRundownServer::Private
 		}
 		return bSuccess;
 	}
+
+	TArray<int32> GetPageIds(TConstArrayView<TWeakObjectPtr<UAvaRundownPagePlayer>> InPagePlayers)
+	{
+		TArray<int32> PageIds;
+		PageIds.Reserve(InPagePlayers.Num());
+		for (const TWeakObjectPtr<UAvaRundownPagePlayer>& PagePlayerWeak : InPagePlayers)
+		{
+			if (const UAvaRundownPagePlayer* PagePlayer = PagePlayerWeak.Get())
+			{
+				PageIds.Add(PagePlayer->PageId);
+			}
+		}
+		return PageIds;
+	}
+
+	void FillPageTransitionInfo(const UAvaRundownPageTransition& InPageTransition, FAvaRundownPageTransitionEvent& OutMessage)
+	{
+		OutMessage.Channel = InPageTransition.GetChannelName().ToString();
+		OutMessage.TransitionId = InPageTransition.GetTransitionId();
+		OutMessage.EnteringPageIds = GetPageIds(InPageTransition.GetEnterPlayers());
+		OutMessage.PlayingPageIds = GetPageIds(InPageTransition.GetPlayingPlayers());
+		OutMessage.ExitingPageIds = GetPageIds(InPageTransition.GetExitPlayers());
+	}
 }
 
 /**
@@ -412,8 +437,9 @@ void FAvaRundownServer::Init(const FString& InAssignedHostName)
 	.Handling<FAvaRundownGetChannelQualitySettings>(this, &FAvaRundownServer::HandleGetChannelQualitySettings)
 	.Handling<FAvaRundownSetChannelQualitySettings>(this, &FAvaRundownServer::HandleSetChannelQualitySettings)
 	.Handling<FAvaRundownSaveBroadcast>(this, &FAvaRundownServer::HandleSaveBroadcast)
-	.NotificationHandling(FOnBusNotification::CreateRaw(this, &FAvaRundownServer::OnMessageBusNotification));
-	
+	.NotificationHandling(FOnBusNotification::CreateSP(this, &FAvaRundownServer::OnMessageBusNotification))
+	.ReceivingOnThread(ENamedThreads::GameThread);
+
 	if (MessageEndpoint.IsValid())
 	{
 		// Subscribe to the server listing requests
@@ -431,6 +457,9 @@ void FAvaRundownServer::SetupPlaybackDelegates()
 {
 	FAvaPlaybackManager& Manager = IAvaMediaModule::Get().GetLocalPlaybackManager();
 	Manager.OnPlaybackInstanceStatusChanged.AddSP(this, &FAvaRundownServer::OnPlaybackInstanceStatusChanged);
+
+	UAvaPlayable::OnSequenceEvent().AddSP(this, &FAvaRundownServer::OnPlayableSequenceEvent);
+	UAvaPlayable::OnTransitionEvent().AddSP(this, &FAvaRundownServer::OnPlayableTransitionEvent);
 }
 
 void FAvaRundownServer::SetupBroadcastDelegates(UAvaBroadcast* InBroadcast)
@@ -459,6 +488,9 @@ void FAvaRundownServer::RemovePlaybackDelegates() const
 		FAvaPlaybackManager& Manager = AvaMediaModule.GetLocalPlaybackManager();
 		Manager.OnPlaybackInstanceStatusChanged.RemoveAll(this);
 	}
+
+	UAvaPlayable::OnSequenceEvent().RemoveAll(this);
+	UAvaPlayable::OnTransitionEvent().RemoveAll(this);
 }
 
 void FAvaRundownServer::RemoveBroadcastDelegates(UAvaBroadcast* InBroadcast) const
@@ -2408,6 +2440,7 @@ FAvaRundownServer::FRundownEntry::FRundownEntry(const TSharedPtr<FAvaRundownServ
 		Rundown->GetOnPagesChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPagesChanged);
 		Rundown->GetOnPageListChanged().AddSP(RundownServerRef, &FAvaRundownServer::OnPageListChanged);
 		Rundown->GetOnCanClosePlaybackContext().AddSP(RundownServerRef, &FAvaRundownServer::OnCanClosePlaybackContext);
+		Rundown->GetOnPageTransitionRemoving().AddSP(RundownServerRef, &FAvaRundownServer::OnPageTransitionRemoved);
 	}
 }
 
@@ -2418,6 +2451,7 @@ FAvaRundownServer::FRundownEntry::~FRundownEntry()
 		Rundown->GetOnPagesChanged().RemoveAll(RundownServerRaw);
 		Rundown->GetOnPageListChanged().RemoveAll(RundownServerRaw);
 		Rundown->GetOnCanClosePlaybackContext().RemoveAll(RundownServerRaw);
+		Rundown->GetOnPageTransitionRemoving().RemoveAll(RundownServerRaw);
 	}
 }
 
@@ -2536,6 +2570,91 @@ void FAvaRundownServer::OnPlaybackInstanceStatusChanged(const FAvaPlaybackInstan
 	{
 		PageStatusChanged(Rundown, Page);
 	}
+}
+
+void FAvaRundownServer::OnPlayableSequenceEvent(UAvaPlayable* InPlayable, FName InSequenceLabel, EAvaPlayableSequenceEventType InSequenceEvent)
+{
+	if (!InPlayable || !InPlayable->GetPlayableGroup())
+	{
+		return;
+	}
+	
+	const UAvaRundown* CurrentPlaybackRundown = PlaybackCommandContext.GetCurrentRundown();
+	if (!CurrentPlaybackRundown)
+	{
+		return; // Not an event from current playback rundown.
+	}
+
+	const FName ChannelName = InPlayable->GetPlayableGroup()->GetChannelName();
+	const int32 PageId = UAvaRundownPagePlayer::GetPageIdFromInstanceUserData(InPlayable->GetUserData()); 
+
+	if (!CurrentPlaybackRundown->FindPagePlayer(PageId, ChannelName))
+	{
+		return; // Not a playable from current playback rundown.
+	}
+	
+	FAvaRundownPageSequenceEvent* Message = FMessageEndpoint::MakeMessage<FAvaRundownPageSequenceEvent>();
+	Message->Channel = ChannelName.ToString();
+	Message->PageId = PageId;
+	Message->InstanceId = InPlayable->GetInstanceId();
+	Message->AssetPath = InPlayable->GetSourceAssetPath().ToString();
+	Message->SequenceLabel = InSequenceLabel.ToString();
+	Message->Event = InSequenceEvent;
+
+	SendResponse(Message, ClientAddresses);
+}
+
+void FAvaRundownServer::OnPlayableTransitionEvent(UAvaPlayable* InPlayable, UAvaPlayableTransition* InPlayableTransition, EAvaPlayableTransitionEventFlags InTransitionFlags)
+{
+	const UAvaRundown* CurrentPlaybackRundown = PlaybackCommandContext.GetCurrentRundown();
+	if (!CurrentPlaybackRundown)
+	{
+		return; // Not an event from current playback rundown.
+	}
+	
+	if (!EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::Finished | EAvaPlayableTransitionEventFlags::Starting))
+	{
+		return; // Not interested;
+	}
+
+	// Note: Page Transition can already be removed from Rundown, in that case event is propagated from the OnPageTransitionRemoved callback.
+	const UAvaRundownPageTransition* PageTransition = CurrentPlaybackRundown->GetPageTransition(InPlayableTransition->GetTransitionId()); 
+	if (!PageTransition)
+	{
+		return; // Not transition from current rundown.
+	}
+	
+	FAvaRundownPageTransitionEvent* Message = FMessageEndpoint::MakeMessage<FAvaRundownPageTransitionEvent>();
+
+	UE::AvaRundownServer::Private::FillPageTransitionInfo(*PageTransition, *Message);
+
+	if (EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::Finished))
+	{
+		Message->Event = EAvaRundownPageTransitionEvents::Finished;
+	}
+	else if (EnumHasAnyFlags(InTransitionFlags, EAvaPlayableTransitionEventFlags::Starting))
+	{
+		Message->Event = EAvaRundownPageTransitionEvents::Started;
+	}
+
+	SendResponse(Message, ClientAddresses);
+}
+
+void FAvaRundownServer::OnPageTransitionRemoved(UAvaRundown* InRundown, UAvaRundownPageTransition* InPageTransition)
+{
+	const UAvaRundown* CurrentPlaybackRundown = PlaybackCommandContext.GetCurrentRundown();
+	
+	if (!CurrentPlaybackRundown || InRundown != CurrentPlaybackRundown || !InPageTransition)
+	{
+		return; // Not an event from current playback rundown.
+	}
+
+	// Note: if the page transition is removed from the rundown, it indicates the transition is finished.
+	// It can be received before the "playable" transition event because the order of event handlers is not guaranteed.
+	FAvaRundownPageTransitionEvent* Message = FMessageEndpoint::MakeMessage<FAvaRundownPageTransitionEvent>();
+	UE::AvaRundownServer::Private::FillPageTransitionInfo(*InPageTransition, *Message);
+	Message->Event = EAvaRundownPageTransitionEvents::Finished;
+	SendResponse(Message, ClientAddresses);
 }
 
 void FAvaRundownServer::OnCanClosePlaybackContext(const UAvaRundown* InRundown, bool& bOutResult) const
