@@ -54,7 +54,7 @@ void UPixelStreamingBlueprints::SendFile(FString FilePath, FString MimeType, FSt
 	}
 
 	TArray64<uint8> ByteData;
-	bool bSuccess = FFileHelper::LoadFileToArray(ByteData, *FilePath);
+	bool			bSuccess = FFileHelper::LoadFileToArray(ByteData, *FilePath);
 	if (bSuccess)
 	{
 		Streamer->SendFileData(ByteData, MimeType, FileExtension);
@@ -79,7 +79,7 @@ void UPixelStreamingBlueprints::StreamerSendFile(FString StreamerId, FString Fil
 	}
 
 	TArray64<uint8> ByteData;
-	bool bSuccess = FFileHelper::LoadFileToArray(ByteData, *FilePath);
+	bool			bSuccess = FFileHelper::LoadFileToArray(ByteData, *FilePath);
 	if (bSuccess)
 	{
 		Streamer->SendFileData(ByteData, MimeType, FileExtension);
@@ -177,9 +177,7 @@ void UPixelStreamingBlueprints::KickPlayer(FString PlayerId)
 	{
 		return;
 	}
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Streamer->KickPlayer(ToPlayerId(PlayerId));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UPixelStreamingBlueprints::StreamerKickPlayer(FString StreamerId, FString PlayerId)
@@ -194,9 +192,7 @@ void UPixelStreamingBlueprints::StreamerKickPlayer(FString StreamerId, FString P
 	{
 		return;
 	}
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	Streamer->KickPlayer(ToPlayerId(PlayerId));
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UPixelStreamingBlueprints::SetPlayerLayerPreference(FString PlayerId, int SpatialLayerId, int TemporalLayerId)
