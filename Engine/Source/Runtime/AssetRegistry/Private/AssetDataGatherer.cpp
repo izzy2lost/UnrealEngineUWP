@@ -1973,7 +1973,7 @@ void FAssetDataDiscovery::TickInternal(bool bTickAll)
 				if (FileType != EGatherableFileType::Invalid)
 				{
 					FStringView BaseName = FPathViews::GetBaseFilename(RelPath);
-					if (!DoesPathContainInvalidCharacters(FileType, BaseName))
+					if (!FPackageName::DoesPackageNameContainInvalidCharacters(BaseName))
 					{
 						int32 DirLongPackageRootNameLen = Data.DirLongPackageName.Len();
 						int32 DirLocalAbsPathLen = Data.DirLocalAbsPath.Len();
@@ -2110,7 +2110,7 @@ void FAssetDataDiscovery::TickInternal(bool bTickAll)
 					if (FileType != EGatherableFileType::Invalid)
 					{
 						FStringView BaseName = FPathViews::GetBaseFilename(RelPath);
-						if (!DoesPathContainInvalidCharacters(FileType, BaseName))
+						if (!FPackageName::DoesPackageNameContainInvalidCharacters(BaseName))
 						{
 							if (Data.IteratedFiles.Num() < Data.NumIteratedFiles + 1)
 							{
@@ -2510,7 +2510,7 @@ void FAssetDataDiscovery::SetPropertiesAndWait(TArrayView<FPathExistence> QueryP
 					if (FileType != EGatherableFileType::Invalid)
 					{
 						FStringView FileRelPathNoExt = FPathViews::GetBaseFilenameWithPath(RelPath);
-						if (!DoesPathContainInvalidCharacters(FileType, FileRelPathNoExt))
+						if (!FPackageName::DoesPackageNameContainInvalidCharacters(FileRelPathNoExt))
 						{
 							TStringBuilder<256> LongPackageName;
 							LongPackageName << MountDir->GetLongPackageName();
@@ -2984,7 +2984,7 @@ void FAssetDataDiscovery::OnFileCreated(const FString& LocalAbsPath)
 	if (FileType != EGatherableFileType::Invalid)
 	{
 		FStringView FileRelPathNoExt = FPathViews::GetBaseFilenameWithPath(FileRelPath);
-		if (!DoesPathContainInvalidCharacters(FileType, FileRelPathNoExt))
+		if (!FPackageName::DoesPackageNameContainInvalidCharacters(FileRelPathNoExt))
 		{
 			TStringBuilder<256> LongPackageName;
 			LongPackageName << MountDir->GetLongPackageName();
@@ -3105,22 +3105,9 @@ void FAssetDataDiscovery::AddDiscoveredFile(FDiscoveredPathData&& File)
 
 EGatherableFileType FAssetDataDiscovery::GetFileType(FStringView FilePath)
 {
-	if (FPackageName::IsPackageFilename(FilePath))
-	{
-		return EGatherableFileType::PackageFile;
-	}
-	else if (FilePath.EndsWith(TEXT(".verse")))
-	{
-		return EGatherableFileType::VerseFile;
-	}
-	else if (FilePath.EndsWith(TEXT(".vmodule")))
-	{
-		return EGatherableFileType::VerseModule;
-	}
-	else
-	{
-		return EGatherableFileType::Invalid;
-	}
+	return FPackageName::IsPackageFilename(FilePath)
+		? EGatherableFileType::PackageFile
+		: (FAssetDataGatherer::IsVerseFile(FilePath) ? EGatherableFileType::VerseFile : EGatherableFileType::Invalid);
 }
 
 FAssetDataDiscovery::FDirectoryResult::FDirectoryResult(FStringView InDirAbsPath, TConstArrayView<FDiscoveredPathData> InFiles)
@@ -4143,8 +4130,8 @@ FAssetDataGatherer::ETickResult FAssetDataGatherer::TickInternal(double& TickSta
 	TArray<FReadContext> ReadContexts;
 	for (FGatheredPathData& AssetFileData : LocalFilesToSearch)
 	{
-		// If this a Verse-related file, just directly add its file name to the Verse results
-		if (UE::AssetDataGather::Private::IsVerseFile(AssetFileData.Type))
+		// If this a Verse source file, just directly add its file name to the Verse results
+		if (AssetFileData.Type == EGatherableFileType::VerseFile)
 		{
 			// Store Verse results in a hybrid format using the LongPackageName but keeping the extension
 			LocalVerseResults.Emplace(WriteToString<256>(AssetFileData.LongPackageName, FPathViews::GetExtension(AssetFileData.LocalAbsPath, true)));
@@ -5325,9 +5312,7 @@ bool FAssetDataGatherer::IsMonitored(FStringView LocalPath) const
 	return Discovery->IsMonitored(NormalizeLocalPath(LocalPath));
 }
 
-static const TCHAR* VerseExtensions[] = {TEXT(".verse"), TEXT(".vmodule")};
-// NOTE: If you want this to check against Verse naming conventions for filenames, this isn't what you want.
-// Call `UE::AssetDataGather::Private::IsVerseFile` instead.
+static const TCHAR* VerseExtensions[] = { TEXT(".verse"), TEXT(".vmodule") };
 bool FAssetDataGatherer::IsVerseFile(FStringView FilePath)
 {
 	for (const TCHAR* Extension : VerseExtensions)
@@ -5766,40 +5751,4 @@ int32 FFilesToSearch::FTreeNode::NumFiles() const
 	return Num;
 }
 
-bool IsVerseFile(const EGatherableFileType FileType)
-{
-	return (FileType == EGatherableFileType::VerseFile) | (FileType == EGatherableFileType::VerseModule);
 }
-
-bool DoesPathContainInvalidCharacters(const EGatherableFileType FileType, FStringView FilePath)
-{
-	// NOTE: This is replicating the logic in `CSourceFileProject::IsValidModuleName`/`CSourceFileProject::IsValidSnippetFileName`
-	// because we cannot bring in the `uLang` string utilities here (as they assume `uLang` is initialized, which may not be the case).
-	if (FileType == EGatherableFileType::VerseFile)
-	{
-		for (const auto& Char : FilePath)
-		{
-			if (!FChar::IsAlnum(Char) && Char != '_' && Char != '.')
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-	else if (FileType == EGatherableFileType::VerseModule)
-	{
-		for (const auto& Char : FilePath)
-		{
-			if (!FChar::IsAlnum(Char) && Char != '_')
-			{
-				return false;
-			}
-		}
-		return true;
-	}
-	else
-	{
-		return FPackageName::DoesPackageNameContainInvalidCharacters(FilePath);
-	}
-}
-} // namespace UE::AssetDataGather::Private

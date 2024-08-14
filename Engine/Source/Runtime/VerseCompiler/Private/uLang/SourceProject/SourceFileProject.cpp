@@ -756,20 +756,21 @@ bool CSourceFileProject::IsValidSnippetFileName(const CUTF8StringView& FileName)
     {
         return false;
     }
-
+    
     for (const UTF8Char* Ch = FileName._Begin; Ch < FileName._End; ++Ch)
     {
-        if (!CUnicode::IsAlphaASCII(*Ch) && !CUnicode::IsDigitASCII(*Ch) && *Ch != '_' && *Ch != '.')
+        if (*Ch == '.')
+        {
+            return CUTF8StringView(Ch, FileName._End) == SnippetExt;
+        }
+
+        if (!CUnicode::IsAlphaASCII(*Ch) && !CUnicode::IsDigitASCII(*Ch) && *Ch != '_')
         {
             return false;
         }
     }
-    if (FileName.EndsWith(SnippetExt))
-    {
-        return true;
-    }
 
-	return false;
+    return false;
 }
 
 }

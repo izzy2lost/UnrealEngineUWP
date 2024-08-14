@@ -26,8 +26,7 @@ namespace VerseFN
         inline bool ConcurrencyAddScope(const uint32_t CurrentVersion)                     { return CurrentVersion >= 3100; }
         inline bool DecidesEffectNoLongerImpliesComputes(const uint32_t CurrentVersion)    { return CurrentVersion >= 3100; }
         inline bool StricterEditableOverrideCheck(const uint32_t CurrentVersion)           { return CurrentVersion >= 3200; }
-        inline bool OptionTypeDoesntIgnoreValueHashability(const uint32_t CurrentVersion)  { return CurrentVersion >= 3100; }
+        inline bool OptionTypeDoesntIgnoreValueHashability(const uint32_t CurrentVersion)  { return CurrentVersion >= 3100;  }
         inline bool SortSourceSubmodulesLexicographically(const uint32_t CurrentVersion)   { return CurrentVersion >= 3200; }
-        inline bool AllowPeriodsInVerseSnippetFilenames(const uint32_t CurrentVersion)     { return CurrentVersion >= 3200; }
     }
 }

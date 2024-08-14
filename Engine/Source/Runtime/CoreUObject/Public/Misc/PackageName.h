@@ -55,13 +55,6 @@ public:
 		LongPackageNames_PathWithDoubleSlash,
 	};
 
-	enum class EConvertFlags
-	{
-		None = 0,
-		/// When set, this will allow filenames following the wildcard pattern of `*.*.*`, rather than `*.*`.
-		AllowDots = 0x1
-	};
-
 	/**
 	 * Return a user-readable string for the error code returned from a FPackageName function
 	 *
@@ -105,21 +98,17 @@ public:
 	 */
 	static COREUOBJECT_API FName* FindScriptPackageName(FName InShortName);
 
-	/**
-	 * Tries to convert the supplied relative or absolute filename to a long package name/path starting with a root like
-	 * /game This works on both package names and directories, and it does not validate that it actually exists on disk.
-	 *
+	/** 
+	 * Tries to convert the supplied relative or absolute filename to a long package name/path starting with a root like /game
+	 * This works on both package names and directories, and it does not validate that it actually exists on disk.
+	 * 
 	 * @param InFilename Filename to convert.
 	 * @param OutPackageName The resulting long package name if the conversion was successful.
 	 * @param OutFailureReason Description of an error if the conversion failed.
-	 * @param Flags Modifies the behaviour of how filename conversions are applied.
 	 * @return Returns true if the supplied filename properly maps to one of the long package roots.
 	 */
-	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName,
-		FString* OutFailureReason = nullptr, const EConvertFlags Flags = EConvertFlags::None);
-	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(FStringView InFilename,
-		FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason = nullptr,
-		const EConvertFlags Flags = EConvertFlags::None);
+	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(const FString& InFilename, FString& OutPackageName, FString* OutFailureReason = nullptr);
+	static COREUOBJECT_API bool TryConvertFilenameToLongPackageName(FStringView InFilename, FStringBuilderBase& OutPackageName, FStringBuilderBase* OutFailureReason = nullptr);
 
 	/** 
 	 * Converts the supplied filename to long package name.
@@ -969,4 +958,3 @@ private:
 	static COREUOBJECT_API EPackageLocationFilter InternalDoesPackageExistEx(const FString& LongPackageName, EPackageLocationFilter Filterconst, bool bMatchCaseOnDisk = false, FPackagePath* OutPackagePath = nullptr);
 };
 
-ENUM_CLASS_FLAGS(FPackageName::EConvertFlags);
