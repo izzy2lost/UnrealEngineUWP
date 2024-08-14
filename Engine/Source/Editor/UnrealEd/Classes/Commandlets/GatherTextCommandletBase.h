@@ -40,16 +40,24 @@ private:
 		Exclude,
 	};
 
+	/**
+	* * The algorithm used to test path matches for a fuzzy path. Defaults to FString::MatchesWildcard
+	*/
+	enum class EPathTestPolicy : uint8
+	{
+		/** Performs the path test with FString::MatchesWildcard. This is the default algorithm to use for fuzzy paths that can't be optimized with FString::StartsWith.*/
+		MatchesWildcard,
+		/** Uses FSTring::StartsWith to perform the path test against this fuzzy path. This is an optimization for fuzzy paths that only contain a single wildcard and the * wildcard only exists at the end of the fuzzy path. */
+		StartsWith
+	};
+
 	struct FFuzzyPath
 	{
-		FFuzzyPath(FString InPathFilter, const EPathType InPathType)
-			: PathFilter(MoveTemp(InPathFilter))
-			, PathType(InPathType)
-		{
-		}
+		FFuzzyPath(FString InPathFilter, const EPathType InPathType);
 
 		FString PathFilter;
 		EPathType PathType;
+		EPathTestPolicy PathTestPolicy;
 	};
 
 	TArray<FFuzzyPath> FuzzyPaths;

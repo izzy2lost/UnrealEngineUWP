@@ -171,6 +171,22 @@ const FString& UGatherTextCommandletBase::GetProjectBasePath()
 	return ProjectBasePath;
 }
 
+FFuzzyPathMatcher::FFuzzyPath::FFuzzyPath(FString InPathFilter, const EPathType InPathType)
+	: PathFilter(MoveTemp(InPathFilter))
+	, PathType(InPathType)
+	, PathTestPolicy(EPathTestPolicy::MatchesWildcard)
+{
+	const int32 PathLastIndex = PathFilter.Len() - 1;
+	bool bEndsWithWildcard = PathFilter[PathLastIndex] == TEXT('*');
+	// If we know we end with a * but searching from the front, the index of the first * is not the end of the string, there's more than 1 *
+	int32 FirstAsteriskIndex = INDEX_NONE;
+	PathFilter.FindChar(TEXT('*'), FirstAsteriskIndex);
+	bool bOnlyContainsOneWildcard = FirstAsteriskIndex == PathLastIndex;
+	if (bEndsWithWildcard && bOnlyContainsOneWildcard)
+	{
+		PathTestPolicy = EPathTestPolicy::StartsWith;
+	}
+}
 
 FFuzzyPathMatcher::FFuzzyPathMatcher(const TArray<FString>& InIncludePathFilters, const TArray<FString>& InExcludePathFilters)
 {
@@ -217,15 +233,37 @@ FFuzzyPathMatcher::FFuzzyPathMatcher(const TArray<FString>& InIncludePathFilters
 		}
 		return PathOneFuzzRating < PathTwoFuzzRating;
 	});
+
+	// Now we pre-process and alter the path filter for paths that will be compared with EPathTestPolicy::StartsWith
+	// We only do that here because we need the paths that end with the * wildcard to be intact for the above sorting 
+	for (FFuzzyPath& FuzzyPath : FuzzyPaths)
+	{
+		if (FuzzyPath.PathTestPolicy == EPathTestPolicy::StartsWith)
+		{
+			FuzzyPath.PathFilter.LeftChopInline(1);
+		}
+	}
 }
 
 FFuzzyPathMatcher::EPathMatch FFuzzyPathMatcher::TestPath(const FString& InPathToTest) const
 {
 	for (const FFuzzyPath& FuzzyPath : FuzzyPaths)
 	{
-		if (InPathToTest.MatchesWildcard(FuzzyPath.PathFilter))
+		if (FuzzyPath.PathTestPolicy == EPathTestPolicy::StartsWith)
 		{
-			return (FuzzyPath.PathType == EPathType::Include) ? EPathMatch::Included : EPathMatch::Excluded;
+			// The wildcard at the end should already be be removed as part of a preprocessing step.
+			check(FuzzyPath.PathFilter[FuzzyPath.PathFilter.Len() - 1] != TEXT('*'));
+			if (InPathToTest.StartsWith(FuzzyPath.PathFilter))
+			{
+				return (FuzzyPath.PathType == EPathType::Include) ? EPathMatch::Included : EPathMatch::Excluded;
+			}
+		}
+		else if (FuzzyPath.PathTestPolicy == EPathTestPolicy::MatchesWildcard)
+		{
+			if (InPathToTest.MatchesWildcard(FuzzyPath.PathFilter))
+			{
+				return (FuzzyPath.PathType == EPathType::Include) ? EPathMatch::Included : EPathMatch::Excluded;
+			}
 		}
 	}
 
