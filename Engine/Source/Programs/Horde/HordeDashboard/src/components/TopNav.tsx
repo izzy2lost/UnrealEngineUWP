@@ -12,7 +12,7 @@ import { PreviewChangesModal } from './PreviewChanges';
 import { VersionModal } from './VersionModal';
 import { getHordeTheme } from '../styles/theme';
 import { getHordeStyling } from '../styles/Styles';
-import { FindArtifactsModal } from './artifacts/ArtifactsSearch';
+import { ArtifactQueryState, FindArtifactsModal } from './artifacts/ArtifactsSearch';
 
 
 const getStyles = () => {
@@ -758,6 +758,7 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
       <div style={{ backgroundColor: hordeTheme.horde.topNavBackground }}>
          {showArtifacts && <FindArtifactsModal onClose={() => {
             query.delete("showArtifacts");
+            ArtifactQueryState.clearSearch(query);
             const url = `${window.location.pathname}?` + query.toString();
             navigate(url, { replace: true })
 

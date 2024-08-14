@@ -10,16 +10,20 @@ export interface IStreamChooser {
 
 export interface IStreamChooserProps {
    defaultStreamId?: string;
+   allowAll?: boolean;
+   onChange?: (streamId: string | undefined) => void;
 
 }
 
+export const streamIdAll = "stream_id_all";
+
 export const StreamChooser = React.forwardRef<IStreamChooser, IStreamChooserProps>((props, ref) => {
 
-   const [chosen, setChosen] = useState(props?.defaultStreamId ?? "");
+   const [chosen, setChosen] = useState(props?.defaultStreamId ?? streamIdAll);
 
    useImperativeHandle(ref, () => ({
       streamId: chosen,
-    }));   
+   }));
 
    const projectIds = projectStore.projects.sort((a, b) => a.name.localeCompare(b.name)).map(p => p.id);
 
@@ -50,7 +54,10 @@ export const StreamChooser = React.forwardRef<IStreamChooser, IStreamChooserProp
             key: s.id,
             text: s.fullname ?? s.name,
             onClick: () => {
-               setChosen(s.id)
+               setChosen(s.id);
+               if (props.onChange) {
+                  props.onChange(s.id);
+               }
             }
          };
 
@@ -70,6 +77,19 @@ export const StreamChooser = React.forwardRef<IStreamChooser, IStreamChooserProp
 
    });
 
+   if (props.allowAll) {
+      projectOptions.unshift({
+         key: `project_key_all`,
+         text: "All Streams",
+         onClick: () => {
+            setChosen(streamIdAll);
+            if (props.onChange) {
+               props.onChange(streamIdAll);
+            }
+         }
+      })
+   }
+
    const templateMenuProps: IContextualMenuProps = {
       shouldFocusOnMount: true,
       subMenuHoverDelay: 0,
@@ -79,9 +99,13 @@ export const StreamChooser = React.forwardRef<IStreamChooser, IStreamChooserProp
    let text = "Choose Stream";
 
    if (chosen) {
-      const stream = projectStore.streamById(chosen);
-      if (stream) {
-         text = stream.fullname ?? stream.name;
+      if (chosen === streamIdAll) {
+         text = "All Streams";
+      } else {
+         const stream = projectStore.streamById(chosen);
+         if (stream) {
+            text = stream.fullname ?? stream.name;
+         }
       }
    }
 

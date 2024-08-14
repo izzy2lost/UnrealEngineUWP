@@ -23,8 +23,6 @@ import { NewBuild } from './NewBuild';
 import { StreamSummary } from './StreamSummary';
 import { TopNav } from './TopNav';
 import { NewBuildV2 } from './build/NewBuildV2';
-import { getSiteConfig } from '../backend/Config';
-import { FindArtifactsModal } from './artifacts/ArtifactsSearch';
 
 export const SummaryPage: React.FC = () => {
 
@@ -345,7 +343,6 @@ const StreamViewInner: React.FC = observer(() => {
    const [showOthersPreflights, setShowOthersPreflights] = useState<boolean | undefined>(dashboard.showPreflights);
 
    const [shown, setShown] = useState(query.get("newbuild") ? true : false);
-   const [artifactSearchShown, setArtifactSearchShown] = useState(false);
    const [findJobsShown, setFindJobsShown] = useState(false);
 
    const { projectStore } = useBackend();
@@ -466,14 +463,6 @@ const StreamViewInner: React.FC = observer(() => {
                }
             },
             {
-               key: "find_artifacts",
-               text: "Find Artifacts",
-               iconProps: { iconName: "Search" },
-               onClick: () => {
-                  setArtifactSearchShown(true);
-               }
-            },
-            {
                key: 'show_other_preflights',
                text: 'Show preflights for all users',
                iconProps: { iconName: showOthersPreflights ? 'Tick' : "" },
@@ -503,7 +492,6 @@ const StreamViewInner: React.FC = observer(() => {
       <Stack className={hordeClasses.horde}>
          <TopNav />
          <Breadcrumbs items={crumbItems} title={crumbTitle} />
-         {artifactSearchShown && <FindArtifactsModal streamId={stream.id} onClose={() => setArtifactSearchShown(false)} />}
          {shown && newBuildVersion == "2" && <NewBuildV2 streamId={streamId!} jobKey={newBuildTab!} show={true} onClose={(newJobId) => {
             setShown(false);
             if (newJobId) {
