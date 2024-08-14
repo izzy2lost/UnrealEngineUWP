@@ -1677,7 +1677,10 @@ void FGenerationHelper::VerifyGeneratorPackageGarbageCollected(FCookGCDiagnostic
 	UPackage* LocalOwnerPackage = FindObject<UPackage>(nullptr, *GeneratorPackageName);
 	if (LocalOwnerPackage)
 	{
-		if (!Context.TryRequestGCWithHistory())
+		bool bWillRetry = false;
+		bWillRetry = Context.TryRequestGCWithHistory() || bWillRetry;
+		bWillRetry = Context.TryRequestFullGC() || bWillRetry;
+		if (!bWillRetry)
 		{
 			// Might be called when uninitialized, so do not call GetSplitDataObjectNameIfAvailable
 			FString Identifier;

@@ -2,6 +2,8 @@
 
 #include "Cooker/CookGarbageCollect.h"
 
+#include "CookOnTheSide/CookOnTheFlyServer.h"
+#include "Misc/EnumClassFlags.h"
 #include "UObject/GarbageCollectionHistory.h"
 
 namespace UE::Cook
@@ -14,7 +16,7 @@ FCookGCDiagnosticContext::~FCookGCDiagnosticContext()
 
 bool FCookGCDiagnosticContext::NeedsDiagnosticSecondGC() const
 {
-	return bRequestGCWithHistory;
+	return bRequestGCWithHistory || bRequestFullGC;
 }
 
 bool FCookGCDiagnosticContext::CurrentGCHasHistory() const
@@ -36,7 +38,17 @@ bool FCookGCDiagnosticContext::TryRequestGCWithHistory()
 #endif
 }
 
-void FCookGCDiagnosticContext::OnCookerStartCollectGarbage()
+bool FCookGCDiagnosticContext::TryRequestFullGC()
+{
+	if (!bRequestsAvailable || !bGCInProgress || bCurrentGCIsFull)
+	{
+		return false;
+	}
+	bRequestFullGC = true;
+	return true;
+}
+
+void FCookGCDiagnosticContext::OnCookerStartCollectGarbage(UCookOnTheFlyServer& COTFS, uint32& ResultFlagsFromTick)
 {
 	bRequestsAvailable = true;
 
@@ -46,17 +58,25 @@ void FCookGCDiagnosticContext::OnCookerStartCollectGarbage()
 #else
 	bCurrentGCHasHistory = false;
 #endif
+	if (bRequestFullGC)
+	{
+		COTFS.bGarbageCollectTypeSoft = false;
+		ResultFlagsFromTick = ResultFlagsFromTick & ~UCookOnTheFlyServer::COSR_RequiresGC_Soft_OOM;
+	}
+	bCurrentGCIsFull = !COTFS.bGarbageCollectTypeSoft;
 }
 
-void FCookGCDiagnosticContext::OnCookerEndCollectGarbage()
+void FCookGCDiagnosticContext::OnCookerEndCollectGarbage(UCookOnTheFlyServer& COTFS, uint32& ResultFlagsFromTick)
 {
 	bGCInProgress = false;
 	bCurrentGCHasHistory = false;
+	bCurrentGCIsFull = false;
 }
 
 void FCookGCDiagnosticContext::OnEvaluateResultsComplete()
 {
 	SetGCWithHistoryRequested(false);
+	bRequestFullGC = false;
 }
 
 void FCookGCDiagnosticContext::SetGCWithHistoryRequested(bool bValue)

@@ -5589,14 +5589,14 @@ bool UCookOnTheFlyServer::NeedsDiagnosticSecondGC() const
 	return GCDiagnosticContext->NeedsDiagnosticSecondGC();
 }
 
-void UCookOnTheFlyServer::OnCookerStartCollectGarbage()
+void UCookOnTheFlyServer::OnCookerStartCollectGarbage(uint32& ResultFlagsFromTick)
 {
-	GCDiagnosticContext->OnCookerStartCollectGarbage();
+	GCDiagnosticContext->OnCookerStartCollectGarbage(*this, ResultFlagsFromTick);
 }
 
-void UCookOnTheFlyServer::OnCookerEndCollectGarbage()
+void UCookOnTheFlyServer::OnCookerEndCollectGarbage(uint32& ResultFlagsFromTick)
 {
-	GCDiagnosticContext->OnCookerEndCollectGarbage();
+	GCDiagnosticContext->OnCookerEndCollectGarbage(*this, ResultFlagsFromTick);
 }
 
 void UCookOnTheFlyServer::EvaluateGarbageCollectionResults(bool bWasDueToOOM, bool bWasPartialGC, uint32 ResultFlags,

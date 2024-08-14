@@ -828,8 +828,8 @@ public:
 	UNREALED_API void SetGarbageCollectType(uint32 ResultFlagsFromTick);
 	UNREALED_API void ClearGarbageCollectType();
 
-	UNREALED_API void OnCookerStartCollectGarbage();
-	UNREALED_API void OnCookerEndCollectGarbage();
+	UNREALED_API void OnCookerStartCollectGarbage(uint32& ResultFlagsFromTick);
+	UNREALED_API void OnCookerEndCollectGarbage(uint32& ResultFlagsFromTick);
 	UNREALED_API void EvaluateGarbageCollectionResults(bool bWasDueToOOM, bool bWasPartialGC, uint32 ResultFlags,
 		int32 NumObjectsBeforeGC, const FPlatformMemoryStats& MemStatsBeforeGC,
 		const FGenericMemoryStats& AllocatorStatsBeforeGC,
@@ -1628,6 +1628,7 @@ private:
 	friend UE::Cook::FAssetRegistryMPCollector;
 	friend UE::Cook::FBeginCookConfigSettings;
 	friend UE::Cook::FCookDirector;
+	friend UE::Cook::FCookGCDiagnosticContext;
 	friend UE::Cook::FCookGenerationInfo;
 	friend UE::Cook::FCookWorkerClient;
 	friend UE::Cook::FCookWorkerServer;

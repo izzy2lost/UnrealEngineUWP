@@ -4,6 +4,8 @@
 
 #include "CoreTypes.h"
 
+class UCookOnTheFlyServer;
+
 namespace UE::Cook
 {
 
@@ -22,13 +24,19 @@ public:
 
 	/**
 	 * Add a request to reexecute the current GC after all of the PostGarbageCollect calls run and
-	 * control returns back to the caller of CollectGarbage. Returns false if not currently in post-GC,
-	 * or the garbage collect that just ran already had history.
+	 * control returns back to the caller of CollectGarbage, and with history turned on.
+	 * Returns false if not currently in post-GC, or the garbage collect that just ran already had history.
 	 */
 	bool TryRequestGCWithHistory();
+	/**
+	 * Add a request to reexecute the current GC after all of the PostGarbageCollect calls run and
+	 * control returns back to the caller of CollectGarbage, and with soft GC turned off.
+	 * Returns false if not currently in post-GC, or the garbage collect that just ran already was a full GC.
+	 */
+	bool TryRequestFullGC();
 
-	void OnCookerStartCollectGarbage();
-	void OnCookerEndCollectGarbage();
+	void OnCookerStartCollectGarbage(UCookOnTheFlyServer& COTFS, uint32& ResultFlagsFromTick);
+	void OnCookerEndCollectGarbage(UCookOnTheFlyServer& COTFS, uint32& ResultFlagsFromTick);
 	void OnEvaluateResultsComplete();
 
 private:
@@ -38,7 +46,9 @@ private:
 	bool bRequestsAvailable = false;
 	bool bGCInProgress = false;
 	bool bRequestGCWithHistory = false;
+	bool bRequestFullGC = false;
 	bool bCurrentGCHasHistory = false;
+	bool bCurrentGCIsFull = false;
 };
 
 } // namespace UE::Cook
