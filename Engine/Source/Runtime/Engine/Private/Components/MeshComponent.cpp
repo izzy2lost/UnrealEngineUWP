@@ -449,6 +449,11 @@ void UMeshComponent::SetScalarParameterValueOnMaterials(const FName ParameterNam
 
 void UMeshComponent::SetVectorParameterValueOnMaterials(const FName ParameterName, const FVector ParameterValue)
 {
+	SetColorParameterValueOnMaterials(ParameterName, FLinearColor(ParameterValue));
+}
+
+void UMeshComponent::SetColorParameterValueOnMaterials(const FName ParameterName, const FLinearColor ParameterValue)
+{
 	if (!bEnableMaterialParameterCaching)
 	{
 		const TArray<UMaterialInterface*> MaterialInterfaces = GetMaterials();

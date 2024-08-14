@@ -175,6 +175,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
 	ENGINE_API void SetVectorParameterValueOnMaterials(const FName ParameterName, const FVector ParameterValue);
 
+	/** Set all occurrences of Vector Material Parameters with ParameterName in the set of materials of the SkeletalMesh to ParameterValue */
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Material")
+	ENGINE_API void SetColorParameterValueOnMaterials(const FName ParameterName, const FLinearColor ParameterValue);
+
 	/**  
 	 * Returns default value for the parameter input. 
 	 *
