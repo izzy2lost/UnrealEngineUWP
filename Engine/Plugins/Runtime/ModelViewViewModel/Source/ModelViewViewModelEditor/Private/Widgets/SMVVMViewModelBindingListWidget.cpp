@@ -37,7 +37,7 @@ namespace Private
 			return TOptional<FFieldVariant>();
 		}
 
-		if (EnumHasAllFlags(FieldVisibilityFlags, EFieldVisibility::Notify) && !Binding.HasNotify())
+		if (EnumHasAllFlags(FieldVisibilityFlags, EFieldVisibility::Notify | EFieldVisibility::Readable) && !Binding.HasNotify())
 		{
 			return TOptional<FFieldVariant>();
 		}
