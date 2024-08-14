@@ -432,6 +432,13 @@ void FGeometryCacheStreamBase::UpdateCurrentFrameIndex(int32 FrameIndex)
 {
 	if (FrameIndex != CurrentFrameIndex)
 	{
+		const int32 FrameDelta = FMath::Abs(FrameIndex - CurrentFrameIndex);
+		if (FrameDelta >= MaxCachedFrames && FramesNeeded.Num() == 0)
+		{
+			// When the time jump is greater than the number of cached frames and it is not currently streaming,
+			// force loading the requested FrameIndex so that it gets displayed when the proxy is updated.
+			LoadFrameData(FrameIndex);
+		}
 		CurrentFrameIndex = FrameIndex;
 		bCacheNeedsUpdate = true;
 	}
