@@ -41,7 +41,7 @@ const FMetasoundEditorGraphVertexNodeBreadcrumb& UMetasoundEditorGraphInputNode:
 
 void UMetasoundEditorGraphInputNode::CacheBreadcrumb()
 {
-	using namespace Metasound::Frontend;
+	using namespace Metasound;
 
 	Breadcrumb = { };
 
@@ -50,18 +50,25 @@ void UMetasoundEditorGraphInputNode::CacheBreadcrumb()
 	// to associate or create new associated input.
 	if (Input)
 	{
-		FConstNodeHandle NodeHandle = Input->GetConstNodeHandle();
+		Breadcrumb.MemberName = Input->GetMemberName();
 
-		Breadcrumb.MemberName = NodeHandle->GetNodeName();
-		Breadcrumb.ClassName = NodeHandle->GetClassMetadata().GetClassName();
-
-		FConstOutputHandle OutputHandle = NodeHandle->GetConstOutputs().Last();
-		Breadcrumb.AccessType = OutputHandle->GetVertexAccessType();
-		Breadcrumb.DataType = OutputHandle->GetDataType();
-
-		if (const UMetasoundEditorGraphMemberDefaultLiteral* Literal = Input->GetLiteral())
+		const FMetaSoundFrontendDocumentBuilder& Builder = Input->GetFrontendBuilderChecked();
+		if (const FMetasoundFrontendClassInput* ClassInput = Builder.FindGraphInput(Breadcrumb.MemberName))
 		{
-			Breadcrumb.DefaultLiteral = Literal->GetDefault();
+			if (const FMetasoundFrontendNode* Node = Builder.FindGraphInputNode(Breadcrumb.MemberName))
+			{
+				if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
+				{
+					Breadcrumb.ClassName = Class->Metadata.GetClassName();
+					Breadcrumb.AccessType = ClassInput->AccessType;
+					Breadcrumb.DataType = ClassInput->TypeName;
+
+					ClassInput->IterateDefaults([this](const FGuid& PageID, const FMetasoundFrontendLiteral& Literal)
+					{
+						Breadcrumb.DefaultLiterals.Add(PageID, Literal);
+					});
+				}
+			}
 		}
 	}
 }
@@ -208,13 +215,26 @@ bool UMetasoundEditorGraphInputNode::EnableInteractWidgets() const
 {
 	using namespace Metasound::Frontend;
 	
-	//If Constructor input
-	if (Input && Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
+	if (Input)
 	{
-		UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
-		return !Graph->IsPreviewing();
+		if (Input->GetVertexAccessType() == EMetasoundFrontendVertexAccessType::Value)
+		{
+			UMetasoundEditorGraph* Graph = CastChecked<UMetasoundEditorGraph>(GetGraph());
+			return !Graph->IsPreviewing();
+		}
+
+		bool bPageDefaultImplemented = false;
+		const FGuid& BuildPageID = Input->GetFrontendBuilderChecked().GetBuildPageID();
+		if (UMetasoundEditorGraphMemberDefaultLiteral* Literal = Input->GetLiteral())
+		{
+			Literal->IterateDefaults([&bPageDefaultImplemented, &BuildPageID](const FGuid& InDefaultPageID, FMetasoundFrontendLiteral)
+			{
+				bPageDefaultImplemented |= InDefaultPageID == BuildPageID;
+			});
+		}
+		return bPageDefaultImplemented;
 	}
 
-	return true;
+	return false;
 }
 #undef LOCTEXT_NAMESPACE

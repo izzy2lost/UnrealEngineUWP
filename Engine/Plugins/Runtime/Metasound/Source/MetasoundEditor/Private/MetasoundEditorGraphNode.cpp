@@ -972,20 +972,28 @@ const FMetasoundEditorGraphNodeBreadcrumb& UMetasoundEditorGraphOutputNode::GetB
 
 void UMetasoundEditorGraphOutputNode::CacheBreadcrumb()
 {
-	using namespace Metasound::Frontend;
-	FConstNodeHandle NodeHandle = GetConstNodeHandle();
-
-	Breadcrumb.MemberName = NodeHandle->GetNodeName();
-	Breadcrumb.ClassName = NodeHandle->GetClassMetadata().GetClassName();
-
-	FConstInputHandle InputHandle = NodeHandle->GetConstInputs().Last();
-	Breadcrumb.AccessType = InputHandle->GetVertexAccessType();
-	Breadcrumb.DataType = InputHandle->GetDataType();
-
-
-	if (const UMetasoundEditorGraphMemberDefaultLiteral* Literal = Output->GetLiteral())
+	if (Output)
 	{
-		Breadcrumb.DefaultLiteral = Literal->GetDefault();
+		Breadcrumb.MemberName = Output->GetMemberName();
+
+		const FMetaSoundFrontendDocumentBuilder& Builder = Output->GetFrontendBuilderChecked();
+		if (const FMetasoundFrontendClassOutput* ClassOutput = Builder.FindGraphOutput(Breadcrumb.MemberName))
+		{
+			if (const FMetasoundFrontendNode* Node = Builder.FindGraphInputNode(Breadcrumb.MemberName))
+			{
+				if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
+				{
+					Breadcrumb.ClassName = Class->Metadata.GetClassName();
+					Breadcrumb.AccessType = ClassOutput->AccessType;
+					Breadcrumb.DataType = ClassOutput->TypeName;
+				}
+			}
+		}
+
+		if (const UMetasoundEditorGraphMemberDefaultLiteral* Literal = Output->GetLiteral())
+		{
+			Breadcrumb.DefaultLiterals.Add(Metasound::Frontend::DefaultPageID, Literal->GetDefault());
+		}
 	}
 }
 

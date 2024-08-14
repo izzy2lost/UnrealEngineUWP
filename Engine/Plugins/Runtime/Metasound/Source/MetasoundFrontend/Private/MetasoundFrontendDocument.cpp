@@ -1141,6 +1141,13 @@ TArray<FMetasoundFrontendGraph>& FMetasoundFrontendGraphClass::IPropertyVersionT
 	return GraphClass.PagedGraphs;
 }
 
+void UMetaSoundFrontendMemberMetadata::IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const
+{
+	// TODO: Replace with follow-up change using page-addressed defaults
+	Iter(Metasound::Frontend::DefaultPageID, GetDefault());
+}
+
+
 FMetasoundFrontendVersionNumber FMetasoundFrontendDocument::GetMaxVersion()
 {
 	return Metasound::Frontend::GetMaxDocumentVersion();

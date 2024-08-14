@@ -1785,6 +1785,7 @@ class METASOUNDFRONTEND_API UMetaSoundFrontendMemberMetadata : public UObject
 public:
 	virtual void ForceRefresh() { }
 	virtual FMetasoundFrontendLiteral GetDefault() const { return FMetasoundFrontendLiteral(); }
+	virtual void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral)> Iter) const;
 	virtual EMetasoundFrontendLiteralType GetLiteralType() const { return EMetasoundFrontendLiteralType::None; }
 	virtual void SetFromLiteral(const FMetasoundFrontendLiteral& InLiteral) { }
 #endif // WITH_EDITOR

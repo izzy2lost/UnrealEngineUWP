@@ -25,7 +25,7 @@ class UMetasoundEditorGraphMember;
 class UMetasoundEditorGraphVariable;
 class UMetasoundEditorGraphMemberDefaultFloat;
 
-namespace EMessageSeverity { enum Type : int; }
+namespace EMessageSeverity { enum Type : int32; }
 
 namespace Metasound::Editor
 {
@@ -67,7 +67,7 @@ struct FMetasoundEditorGraphMemberNodeBreadcrumb : public FMetasoundEditorGraphN
 	FName DataType;
 
 	UPROPERTY()
-	FMetasoundFrontendLiteral DefaultLiteral;
+	TMap<FGuid, FMetasoundFrontendLiteral> DefaultLiterals;
 };
 
 USTRUCT()
