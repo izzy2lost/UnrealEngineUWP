@@ -449,8 +449,7 @@ void UDataflowSimulationManager::AddSimulationInterface(IDataflowSimulationInter
 			Dataflow::FDataflowSimulationData& DataflowData = SimulationData.FindOrAdd(DataflowAsset);
 			if(!DataflowData.SimulationContext.IsValid())
 			{
-				DataflowData.SimulationContext = MakeShared<Dataflow::FDataflowSimulationContext>(
-					DataflowAsset, Dataflow::FTimestamp::Invalid);
+				DataflowData.SimulationContext = MakeShared<Dataflow::FDataflowSimulationContext>(DataflowAsset);
 			}
 			DataflowData.SimulationInterfaces.FindOrAdd(SimulationInterface->GetSimulationType()).Add(SimulationInterface);
 		}

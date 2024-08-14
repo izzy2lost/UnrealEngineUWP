@@ -54,7 +54,7 @@ void FChaosClothAssetWeightMapNode::OnTransfer()
 	using namespace UE::Chaos::ClothAsset;
 
 	// Create a temporary context (until we find a way to re-use the one from the tool calling this function)
-	Dataflow::FContextThreaded Context(FPlatformTime::Cycles64());
+	Dataflow::FContextThreaded Context;
 
 	// Transfer weight map if the transfer collection input has changed and is valid
 	FManagedArrayCollection InCollection = GetValue<FManagedArrayCollection>(Context, &Collection);

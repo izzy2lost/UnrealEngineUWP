@@ -14,6 +14,15 @@ namespace Dataflow
 	uint64 FTimestamp::Invalid = 0;
 	uint64 FTimestamp::Current() { return FPlatformTime::Cycles64(); }
 
+	FTimestamp FContext::GetTimestamp(FContextCacheKey Key) const
+	{
+		if (const TUniquePtr<FContextCacheElementBase>* const Cache = const_cast<FContext*>(this)->GetDataImpl(Key))
+		{
+			return (*Cache)->GetTimestamp();
+		}
+		return FTimestamp::Invalid;
+	}
+
 	void FContext::PushToCallstack(const FDataflowConnection* Connection)
 	{
 #if DATAFLOW_EDITOR_EVALUATION
@@ -53,27 +62,31 @@ namespace Dataflow
 
 	void BeginContextEvaluation(FContext& Context, const FDataflowNode* Node, const FDataflowOutput* Output)
 	{
-		if (Node != nullptr)
+		if (Output)
 		{
-			Context.Timestamp = FTimestamp(FPlatformTime::Cycles64());
+			Context.Evaluate(*Output);
+		}
+		else if (Node)
+		{
 			if (Node->NumOutputs())
 			{
-				if (Output)
+				for (const FDataflowOutput* const NodeOutput : Node->GetOutputs())
 				{
-					Node->Evaluate(Context, Output);
-				}
-				else
-				{
-					for (FDataflowOutput* NodeOutput : Node->GetOutputs())
-					{
-						Node->Evaluate(Context, NodeOutput);
-					}
+					Context.Evaluate(*NodeOutput);
 				}
 			}
 			else
 			{
+				// TODO: When no outputs are specified, this call to Evaluate should really be removed.
+				//       The purpose of the node evaluation function is to evaluate outputs.
+				//       Therefore if a node has no outputs, then it shouldn't need any evaluation.
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowNode::Evaluate(): Node [%s], Output [nullptr], NodeTimestamp [%lu]"), *Node->GetName().ToString(), Node->LastModifiedTimestamp.Value);
 				Node->Evaluate(Context, nullptr);
 			}
+		}
+		else
+		{
+			ensureMsgf(false, TEXT("Invalid arguments, either Node or Output needs to be non null."));
 		}
 	}
 
@@ -84,6 +97,7 @@ namespace Dataflow
 
 	bool FContextSingle::Evaluate(const FDataflowOutput& Connection)
 	{
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FContextSingle::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
 		return Connection.EvaluateImpl(*this);
 	}
 
@@ -96,6 +110,7 @@ namespace Dataflow
 
 	bool FContextThreaded::Evaluate(const FDataflowOutput& Connection)
 	{
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FContextThreaded::Evaluate(): Node [%s], Output [%s]"), *Connection.GetOwningNode()->GetName().ToString(), *Connection.GetName().ToString());
 		Connection.OutputLock->Lock(); ON_SCOPE_EXIT{ Connection.OutputLock->Unlock(); };
 		return Connection.EvaluateImpl(*this);
 	}

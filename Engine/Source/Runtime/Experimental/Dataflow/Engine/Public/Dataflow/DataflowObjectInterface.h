@@ -16,8 +16,8 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(Base, TEngineContext);
 
-		TEngineContext(const TObjectPtr<UObject>& InOwner, FTimestamp InTimestamp)
-			: Base(InTimestamp)
+		explicit TEngineContext(const TObjectPtr<UObject>& InOwner)
+			: Base()
 			, Owner(InOwner)
 		{}
 

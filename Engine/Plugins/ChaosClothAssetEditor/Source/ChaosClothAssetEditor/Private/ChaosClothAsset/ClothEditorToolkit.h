@@ -31,8 +31,8 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<FContextSingle>, FClothAssetDataflowContext);
 
-		FClothAssetDataflowContext(UObject* InOwner, UDataflow* InGraph, FTimestamp InTimestamp)
-			: Super(InOwner, InTimestamp)
+		FClothAssetDataflowContext(UObject* InOwner, UDataflow* InGraph)
+			: Super(InOwner)
 		{}
 	};
 }
@@ -124,9 +124,7 @@ private:
 	void InvalidateViews();
 
 	// Dataflow
-	UE_DEPRECATED(5.4, "Use EvaluateNode(FDataflowNode*, bool) instead.")
-	void EvaluateNode(FDataflowNode* Node, FDataflowOutput* Out) { EvaluateNode(Node); }
-	void EvaluateNode(FDataflowNode* Node, bool bForceOperation = true);
+	void EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output);
 	TSharedRef<SDataflowGraphEditor> CreateGraphEditorWidget();
 	void ReinitializeGraphEditorWidget();
 	TSharedPtr<IStructureDetailsView> CreateNodeDetailsEditorWidget(UObject* ObjectToEdit);

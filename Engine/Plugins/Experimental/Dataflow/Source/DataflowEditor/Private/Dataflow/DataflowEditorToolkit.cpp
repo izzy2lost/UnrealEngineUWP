@@ -1059,36 +1059,45 @@ void FDataflowEditorToolkit::Tick(float DeltaTime)
 	{
 		if (EditorContent->GetDataflowAsset())
 		{
-			Dataflow::FTimestamp TimeStamp = EditorContent->GetLastModifiedTimestamp();
+			Dataflow::FTimestamp InitTimeStamp = EditorContent->GetLastModifiedTimestamp();
 			if (!EditorContent->GetDataflowContext())
 			{
-				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner(), Dataflow::FTimestamp::Invalid));
-				TimeStamp = Dataflow::FTimestamp::Invalid;
+				EditorContent->SetDataflowContext(MakeShared<Dataflow::FEngineContext>(EditorContent->GetDataflowOwner()));
+				InitTimeStamp = Dataflow::FTimestamp::Invalid;
 			}
 
 			// Update the list of dataflow terminal contents 
-			DataflowEditor->UpdateTerminalContents(TimeStamp);
-			
+			DataflowEditor->UpdateTerminalContents(InitTimeStamp);
+
 			// OnTick evaluation only pulls the terminal nodes. The other evaluations can be specific nodes.
 			// We only evaluate multiple terminal nodes if the dataflow owner is a UDataflow (Owner == Asset)
-			if(!GetTerminalContents().IsEmpty() && (EditorContent->GetDataflowOwner() == EditorContent->GetDataflowAsset()) && EditorContent->GetDataflowContext())
+			if (!GetTerminalContents().IsEmpty() && (EditorContent->GetDataflowOwner() == EditorContent->GetDataflowAsset()) && EditorContent->GetDataflowContext())
 			{
-				const Dataflow::FTimestamp InitTimeStamp = TimeStamp;
-				for(const TObjectPtr<UDataflowBaseContent>& TerminalContent : GetTerminalContents())
+				for (const TObjectPtr<UDataflowBaseContent>& TerminalContent : GetTerminalContents())
 				{
-					Dataflow::FTimestamp TerminalTimeStamp = InitTimeStamp;
-					FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TerminalTimeStamp, EditorContent->GetDataflowAsset(),
-						nullptr, nullptr, TerminalContent->GetTerminalAsset(), TerminalContent->GetDataflowTerminal());
+					if (const UDataflow* const Dataflow = EditorContent->GetDataflowAsset())
+					{
+						if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
+						{
+							const FName TerminalNodeName(TerminalContent->GetDataflowTerminal());
+							const FDataflowNode* const Node = Graph->FindBaseNode(TerminalNodeName).Get();
 
-					TimeStamp = FMath::Max(TimeStamp, TerminalTimeStamp);
+							Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
+							EvaluateNode(Node, nullptr, TerminalNodeTimeStamp);  // When Node is null, EvaluateNode falls back on the EditorContent terminal node
+
+							// Take the Max of the existing time stamp, as other terminal nodes might have more recent invalidations
+							const Dataflow::FTimestamp LastModifiedTimestamp = FMath::Max(EditorContent->GetLastModifiedTimestamp(), TerminalNodeTimeStamp);
+							EditorContent->SetLastModifiedTimestamp(LastModifiedTimestamp);
+						}
+					}
 				}
 			}
 			else
 			{
-				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
-					nullptr, nullptr, EditorContent->GetTerminalAsset(), EditorContent->GetDataflowTerminal());
+				Dataflow::FTimestamp TerminalNodeTimeStamp = InitTimeStamp;
+				EvaluateNode(nullptr, nullptr, TerminalNodeTimeStamp);
+				EditorContent->SetLastModifiedTimestamp(TerminalNodeTimeStamp);
 			}
-			EditorContent->SetLastModifiedTimestamp(TimeStamp);
 
 			// Ensure the context object's selected node matches the selected node in the graph editor
 			// TODO: Create an Editor Context Object that can just hold a reference to the graph editor, rather than keeping these in sync
@@ -1108,27 +1117,42 @@ TStatId FDataflowEditorToolkit::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FDataflowEditorToolkit, STATGROUP_Tickables);
 }
 
-TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget(UDataflow* DataflowToEdit, TSharedPtr<IStructureDetailsView> InNodeDetailsEditor)
+void FDataflowEditorToolkit::EvaluateNode(const FDataflowNode* Node, const FDataflowOutput* Output, Dataflow::FTimestamp& InOutTimestamp)
 {
-	ensure(DataflowToEdit);
-	using namespace Dataflow;
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowEditorToolkit::EvaluateNode(): Node [%s], Output [%s]"), Node ? *Node->GetName().ToString() : TEXT("nullptr"), Output ? *Output->GetName().ToString() : TEXT("nullptr"));
 
-	FDataflowEditorCommands::FGraphEvaluationCallback Evaluate = [&](FDataflowNode* Node, FDataflowOutput* Out)
+	const bool bIsInPIEOrSimulate = GEditor->PlayWorld || GEditor->bIsSimulatingInEditor;
+	if (!bIsInPIEOrSimulate)  // TODO: make this test optional for some toolkit
 	{
 		if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 		{
 			if (EditorContent->GetDataflowAsset())
 			{
-				Node->Invalidate();
-				Dataflow::FTimestamp TimeStamp = Dataflow::FTimestamp::Invalid;
-				
-				FDataflowEditorCommands::EvaluateTerminalNode(*EditorContent->GetDataflowContext().Get(), TimeStamp, EditorContent->GetDataflowAsset(),
-					Node, Out, EditorContent->GetTerminalAsset(), EditorContent->GetDataflowTerminal());
-
-				EditorContent->SetLastModifiedTimestamp(TimeStamp);
+				// If Node is null, the terminal node with the given name will be used instead
+				FDataflowEditorCommands::EvaluateNode(*EditorContent->GetDataflowContext().Get(), InOutTimestamp, EditorContent->GetDataflowAsset(),
+					Node, Output, EditorContent->GetDataflowTerminal(), EditorContent->GetTerminalAsset());
 			}
 		}
-	};
+	}
+}
+
+TSharedRef<SDataflowGraphEditor> FDataflowEditorToolkit::CreateGraphEditorWidget(UDataflow* DataflowToEdit, TSharedPtr<IStructureDetailsView> InNodeDetailsEditor)
+{
+	ensure(DataflowToEdit);
+	using namespace Dataflow;
+
+	const FDataflowEditorCommands::FGraphEvaluationCallback Evaluate =
+		[this](const FDataflowNode* Node, const FDataflowOutput* Output)
+		{
+			if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
+			{
+				Dataflow::FTimestamp LastNodeTimestamp = EditorContent->GetLastModifiedTimestamp();
+
+				EvaluateNode(Node, Output, LastNodeTimestamp);
+
+				EditorContent->SetLastModifiedTimestamp(LastNodeTimestamp);
+			}
+		};
 	
 	DataflowEditor->UpdateTerminalContents(Dataflow::FTimestamp::Invalid);
 	

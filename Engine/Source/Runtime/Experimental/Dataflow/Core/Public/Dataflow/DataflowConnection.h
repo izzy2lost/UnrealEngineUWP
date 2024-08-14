@@ -183,6 +183,7 @@ public:
 
 	DATAFLOWCORE_API FGuid GetOwningNodeGuid() const;
 	DATAFLOWCORE_API uint32 GetOwningNodeValueHash() const;
+	DATAFLOWCORE_API Dataflow::FTimestamp GetOwningNodeTimestamp() const;
 
 	const FProperty* GetProperty() const { return Property; }
 

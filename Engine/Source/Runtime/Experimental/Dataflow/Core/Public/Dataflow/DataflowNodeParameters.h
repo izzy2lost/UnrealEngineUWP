@@ -182,13 +182,8 @@ namespace Dataflow
 		FContextCache DataStore;
 
 	public:
-		FContext(FTimestamp InTimestamp)
-			: Timestamp(InTimestamp)
-		{}
-
-		virtual ~FContext() {}
-		
-		FTimestamp Timestamp = FTimestamp::Invalid;
+		FContext() = default;
+		virtual ~FContext() = default;
 
 		static FName StaticType() { return FName("FContext"); }
 
@@ -244,7 +239,6 @@ namespace Dataflow
 			return Default;
 		}
 
-		
 		virtual bool HasDataImpl(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid) = 0;
 		
 		bool HasData(FContextCacheKey Key, FTimestamp InTimestamp = FTimestamp::Invalid)
@@ -262,12 +256,13 @@ namespace Dataflow
 
 		virtual void Serialize(FArchive& Ar)
 		{
+			FTimestamp Timestamp = FTimestamp::Invalid;
 			Ar << Timestamp;
 			Ar << DataStore;
 		}
 
+		DATAFLOWCORE_API FTimestamp GetTimestamp(FContextCacheKey Key) const;
 
-		FTimestamp GetTimestamp() const { return Timestamp; }
 		virtual void Evaluate(const FDataflowNode* Node, const FDataflowOutput* Output) = 0;
 		virtual bool Evaluate(const FDataflowOutput& Connection) = 0;
 
@@ -308,9 +303,7 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(FContext, FContextSingle);
 
-		FContextSingle(FTimestamp InTime)
-			: FContext(InTime)
-		{}
+		FContextSingle() = default;
 
 		virtual void SetDataImpl(FContextCacheKey Key, TUniquePtr<FContextCacheElementBase>&& DataStoreEntry) override
 		{
@@ -345,8 +338,8 @@ namespace Dataflow
 		DATAFLOW_CONTEXT_INTERNAL(FContext, FContextThreaded);
 
 
-		FContextThreaded(FTimestamp InTime)
-			: FContext(InTime)
+		FContextThreaded()
+			: FContext()
 		{
 			CacheLock = MakeShared<FCriticalSection>();
 		}
@@ -359,7 +352,7 @@ namespace Dataflow
 			// Threaded evaluation can only set an output once per context evaluation. Otherwise
 			// downstream nodes that are extracting the data will get currupted store entries. 
 			TUniquePtr<FContextCacheElementBase>* CurrentData = DataStore.Find(Key);
-			if (!CurrentData || !(*CurrentData) || (*CurrentData)->GetTimestamp() < GetTimestamp())
+			if (!CurrentData || !(*CurrentData) || (*CurrentData)->GetTimestamp() < DataStoreEntry->GetTimestamp())
 			{
 				DataStore.Emplace(Key, MoveTemp(DataStoreEntry));
 			}

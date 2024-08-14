@@ -17,8 +17,8 @@ namespace Dataflow
 	public:
 		DATAFLOW_CONTEXT_INTERNAL(TEngineContext<Base>, TSimulationContext);
 
-		TSimulationContext(const TObjectPtr<UObject>& InOwner, FTimestamp InTimestamp)
-				: Super(InOwner, InTimestamp)
+		explicit TSimulationContext(const TObjectPtr<UObject>& InOwner)
+				: Super(InOwner)
 		{}
 		
 		virtual ~TSimulationContext() override {};

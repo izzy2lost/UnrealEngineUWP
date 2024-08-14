@@ -62,6 +62,11 @@ FGuid FDataflowConnection::GetOwningNodeGuid() const
 	return OwningNode ? OwningNode->GetGuid() : FGuid();
 }
 
+Dataflow::FTimestamp FDataflowConnection::GetOwningNodeTimestamp() const
+{
+	return OwningNode ? OwningNode->GetTimestamp() : Dataflow::FTimestamp::Invalid;
+}
+
 uint32 FDataflowConnection::GetOwningNodeValueHash() const
 {
 	return OwningNode ? OwningNode->GetValueHash() : 0;

@@ -193,7 +193,7 @@ public:
 	{
 		if (Property)
 		{
-			Context.SetData(CacheKey(), Property, Forward<T>(InVal), GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
+			Context.SetData(CacheKey(), Property, Forward<T>(InVal), GetOwningNodeGuid(), GetOwningNodeValueHash(), GetOwningNodeTimestamp());
 		}
 	}
 
@@ -206,7 +206,7 @@ public:
 				using FSingleType = typename decltype(SingleTypePolicy)::FType;
 				FSingleType ValueToSet{};
 				FDataflowConverter<typename TAnyType::FStorageType>::To(InVal, ValueToSet);
-				Context.SetData(CacheKey(), GetProperty(), Forward<FSingleType>(ValueToSet), GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
+				Context.SetData(CacheKey(), GetProperty(), Forward<FSingleType>(ValueToSet), GetOwningNodeGuid(), GetOwningNodeValueHash(), GetOwningNodeTimestamp());
 			});
 	}
 
@@ -215,7 +215,7 @@ public:
 	{
 		if (!this->Evaluate(Context))
 		{
-			Context.SetData(CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
+			Context.SetData(CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), GetOwningNodeTimestamp());
 		}
 
 		if (Context.HasData(CacheKey()))
@@ -224,6 +224,11 @@ public:
 		}
 
 		return Default;
+	}
+
+	bool HasCachedValue(Dataflow::FContext& Context) const
+	{
+		return Context.HasData(CacheKey(), GetOwningNodeTimestamp());
 	}
 
 	// there's no need for a templatized version as the parameter will not be used
@@ -259,7 +264,7 @@ const T& FDataflowInput::GetValue(Dataflow::FContext& Context, const T& Default)
 	{
 		if (!ConnectionOut->Evaluate(Context))
 		{
-			Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), Dataflow::FTimestamp::Current());
+			Context.SetData(ConnectionOut->CacheKey(), Property, Default, GetOwningNodeGuid(), GetOwningNodeValueHash(), GetOwningNodeTimestamp());
 		}
 		if (Context.HasData(ConnectionOut->CacheKey()))
 		{

@@ -179,19 +179,42 @@ const TSharedPtr<Dataflow::FEngineContext> SDataflowGraphEditor::GetDataflowCont
 
 void SDataflowGraphEditor::EvaluateNode()
 {
-	if (EvaluateGraphCallback)
-	{
-		FDataflowEditorCommands::EvaluateSelectedNodes(GetSelectedNodes(), EvaluateGraphCallback);
-	}
-	else
-	{
-		FDataflowEditorCommands::FGraphEvaluationCallback LocalEvaluateCallback = [](FDataflowNode* Node, FDataflowOutput* Out)
-		{
-			using namespace Dataflow;
-			FContextThreaded(FPlatformTime::Cycles64()).Evaluate(Node, Out);
-		};
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("SDataflowGraphEditor::EvaluateNode(): Nodes [%s]"),
+		*FString::JoinBy(GetSelectedNodes().Array(), TEXT(", "), [](const UObject* SelectedNode)
+			{
+				return Cast<UDataflowEdNode>(SelectedNode) && Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode() ? 
+					Cast<UDataflowEdNode>(SelectedNode)->GetDataflowNode()->GetName().ToString() : FString();
+			}));
 
-		FDataflowEditorCommands::EvaluateSelectedNodes(GetSelectedNodes(), LocalEvaluateCallback);
+	using namespace Dataflow;
+
+	TOptional<FContextThreaded> DefaultContext(EvaluateGraphCallback ? TOptional<FContextThreaded>() : TOptional<FContextThreaded>(FContextThreaded()));
+
+	for (UObject* Node : GetSelectedNodes())
+	{
+		if (UDataflowEdNode* const EdNode = Cast<UDataflowEdNode>(Node))
+		{
+			if (const TSharedPtr<FGraph> DataflowGraph = EdNode->GetDataflowGraph())
+			{
+				if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
+				{
+					if (DataflowNode->bActive)
+					{
+						DataflowNode->Invalidate();  // Force evaluation
+
+						if (EvaluateGraphCallback)
+						{
+							EvaluateGraphCallback(DataflowNode.Get(), nullptr);  // Evaluation processes all outputs when passing a null Output
+						}
+						else
+						{
+							check(DefaultContext);
+							DefaultContext->Evaluate(DataflowNode.Get(), nullptr);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

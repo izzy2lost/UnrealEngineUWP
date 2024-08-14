@@ -123,13 +123,13 @@ namespace Dataflow
 		{
 			if (!Content->GetDataflowContext())
 			{
-				Content->SetDataflowContext(MakeShared<FEngineContext>(Content->GetDataflowOwner(), FTimestamp::Invalid));
+				Content->SetDataflowContext(MakeShared<FEngineContext>(Content->GetDataflowOwner()));
 			}
 			return Content->GetDataflowContext();
 		}
 
 		ensure(false);
-		return MakeShared<FEngineContext>(nullptr, FTimestamp::Invalid);
+		return MakeShared<FEngineContext>(nullptr);
 	}
 
 	bool CanRenderNodeOutput(const UDataflowEdNode& EdNode, const UDataflowBaseContent& EditorContent, const IDataflowConstructionViewMode& ViewMode)

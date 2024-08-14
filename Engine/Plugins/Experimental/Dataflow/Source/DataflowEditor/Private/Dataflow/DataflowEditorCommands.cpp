@@ -165,113 +165,34 @@ void FDataflowEditorCommands::Unregister()
 	return FDataflowEditorCommandsImpl::Unregister();
 }
 
-void FDataflowEditorCommands::EvaluateSelectedNodes(const FGraphPanelSelectionSet& SelectedNodes, FDataflowEditorCommands::FGraphEvaluationCallback Evaluate)
+const FDataflowNode* FDataflowEditorCommands::EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& InOutLastNodeTimestamp,
+	const UDataflow* Dataflow, const FDataflowNode* Node, const FDataflowOutput* Output, const FString& NodeName, UObject* Asset)
 {
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowEditorCommands::EvaluateNode(): Node [%s], NodeName [%s] Output [%s]"), Node ? *Node->GetName().ToString() : TEXT("nullptr"), *NodeName, Output ? *Output->GetName().ToString() : TEXT("nullptr"));
+
+	if (!Node && Dataflow)
 	{
-		for (UObject* Node : SelectedNodes)
+		if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
 		{
-			if (UDataflowEdNode* EdNode = dynamic_cast<UDataflowEdNode*>(Node))
-			{
-				if (const TSharedPtr<Dataflow::FGraph> DataflowGraph = EdNode->GetDataflowGraph())
-				{
-					if (const TSharedPtr<FDataflowNode> DataflowNode = DataflowGraph->FindBaseNode(EdNode->GetDataflowNodeGuid()))
-					{
-						if (DataflowNode->bActive)
-						{
-							if (DataflowNode->GetOutputs().Num())
-							{
-								for (FDataflowConnection* NodeOutput : DataflowNode->GetOutputs())
-								{
-									Evaluate(DataflowNode.Get(), (FDataflowOutput*)NodeOutput);
-								}
-							}
-							else
-							{
-								Evaluate(DataflowNode.Get(), nullptr);
-							}
-						}
-					}
-				}
-			}
+			Node = Graph->FindBaseNode(FName(NodeName)).Get();
 		}
 	}
-}
-
-void FDataflowEditorCommands::EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-	const UDataflow* Dataflow, const FDataflowNode* InNode, const FDataflowOutput* Output, FString NodeName)
-{
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
+	if (Node && InOutLastNodeTimestamp < Node->GetTimestamp())
 	{
-		if (Dataflow)
-		{
-			const FDataflowNode* Node = InNode;
-			if (Node == nullptr)
-			{
-				if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
-				{
-					if (TSharedPtr<const FDataflowNode> GraphNode = Graph->FindBaseNode(FName(NodeName)))
-					{
-						Node = GraphNode.Get();
-					}
-				}
-			}
+		Context.Evaluate(Node, Output);
 
-			if (Node)
+		if (Asset)
+		{
+			if (const FDataflowTerminalNode* const TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 			{
-				if (Context.GetTimestamp() < Node->GetTimestamp())
-				{
-					Context.Evaluate(Node, Output);
-					OutLastNodeTimestamp = Context.GetTimestamp();
-				}
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowTerminalNode::SetAssetValue(): TerminalNode [%s], Asset [%s]"), *TerminalNode->GetName().ToString(), *Asset->GetName());
+				TerminalNode->SetAssetValue(Asset, Context);
 			}
 		}
+
+		InOutLastNodeTimestamp = Node->GetTimestamp();
 	}
-}
-
-void FDataflowEditorCommands::EvaluateTerminalNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-	const UDataflow* Dataflow, const FDataflowNode* InNode, const FDataflowOutput* Output, UObject* InAsset, FString NodeName)
-{
-	const bool bIsInPIEOrSimulate = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
-	if (!bIsInPIEOrSimulate)
-	{
-		if (Dataflow)
-		{
-			const FDataflowNode* Node = InNode;
-			if (Node == nullptr)
-			{
-				if (const TSharedPtr<const Dataflow::FGraph> Graph = Dataflow->GetDataflow())
-				{
-					if (TSharedPtr<const FDataflowNode> GraphNode = Graph->FindBaseNode(FName(NodeName)))
-					{
-						Node = GraphNode.Get();
-					}
-				}
-			}
-
-			if (Node)
-			{
-				if (Context.GetTimestamp() < Node->GetTimestamp())
-				{
-					if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
-					{
-						if (InAsset)
-						{
-							TerminalNode->SetAssetValue(InAsset, Context);  // Kriss.Gossart: Must set asset value before call to Evaluate
-																			// This dependency is neccessary for now for the cloth editor code.
-																			// It is order dependant, with some nodes relying on the non const 
-																			// SetAssetValue to be called first in order to have a valid const Evaluation.
-						}
-					}
-
-					Context.Evaluate(Node, Output);
-					OutLastNodeTimestamp = Context.GetTimestamp();
-				}
-			}
-		}
-	}
+	return Node;
 }
 
 bool FDataflowEditorCommands::OnNodeVerifyTitleCommit(const FText& NewText, UEdGraphNode* GraphNode, FText& OutErrorMessage)

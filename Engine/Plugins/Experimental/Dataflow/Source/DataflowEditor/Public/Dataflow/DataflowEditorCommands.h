@@ -99,7 +99,7 @@ public:
 class DATAFLOWEDITOR_API FDataflowEditorCommands
 {
 public:
-	typedef TFunction<void(FDataflowNode*, FDataflowOutput*)> FGraphEvaluationCallback;
+	typedef TFunction<void(const FDataflowNode*, const FDataflowOutput*)> FGraphEvaluationCallback;
 	typedef TFunction<void(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)> FOnDragDropEventCallback;
 
 	static void Register();
@@ -108,20 +108,20 @@ public:
 	static const FDataflowEditorCommandsImpl& Get();
 
 	/*
-	*  EvaluateSelectedNodes
+	* Node evaluation utility function.
+	* 
+	* @param Context  The evaluation context.
+	* @param InOutLastNodeTimestamp  The last evaluation time used to trigger the evaluation when the node's timestamp is more recent than this value. If the node is evaluated, the value also gets updated with the evaluated node's current timestamp.
+	* @param Dataflow  The dataflow asset used to search for the NodeName when Node is nullptr.
+	* @param Node  The node to evaluate. When null, a node with the given NodeName will be evaluated instead if it exists.
+	* @param Output  The node's output to evaluate. When no output are specified, all outputs will be evaluated.
+	* @param NodeName  When no node is specified, then the node will be searched instead within the Dataflow's graph using NodeName, otherwise NodeName is ignored.
+	* @param Asset  When Asset is non null, if the node is a terminal node, and if the node timestamp is more recent than InOutLastNodeTimestamp. then the node SetAssetValue method will be called on this asset.
+	* @return  The node that has been evaluated if any.
 	*/
-	static void EvaluateSelectedNodes(const FGraphPanelSelectionSet& SelectedNodes, FGraphEvaluationCallback);
-
-	/*
-	* EvaluateGraph
-	*/
-	static void EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-		const UDataflow* Dataflow, const FDataflowNode* Node = nullptr, const FDataflowOutput* Out = nullptr, 
-		FString NodeName = FString()); // @todo(Dataflow) deprecate  
-
-	static void EvaluateTerminalNode(Dataflow::FContext& Context, Dataflow::FTimestamp& OutLastNodeTimestamp,
-		const UDataflow* Dataflow, const FDataflowNode* Node = nullptr, const FDataflowOutput* Out = nullptr,
-		UObject* InAsset = nullptr, FString NodeName = FString());
+	static const FDataflowNode* EvaluateNode(Dataflow::FContext& Context, Dataflow::FTimestamp& InOutLastNodeTimestamp,
+		const UDataflow* Dataflow, const FDataflowNode* Node, const FDataflowOutput* Output = nullptr, 
+		const FString& NodeName = FString(), UObject* Asset = nullptr);
 
 	/*
 	*  DeleteNodes

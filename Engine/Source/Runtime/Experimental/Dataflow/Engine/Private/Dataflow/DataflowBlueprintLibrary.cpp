@@ -14,10 +14,12 @@ void UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(UDataflow* Dataflow, 
 		{
 			if (const FDataflowTerminalNode* TerminalNode = Node->AsType<const FDataflowTerminalNode>())
 			{
-				Dataflow::FEngineContext Context(ResultAsset, FPlatformTime::Cycles64());
+				UE_LOG(LogChaosDataflow, Verbose, TEXT("UDataflowBlueprintLibrary::EvaluateTerminalNodeByName(): Node [%s]"), *TerminalNodeName.ToString());
+				Dataflow::FEngineContext Context(ResultAsset);
 				TerminalNode->Evaluate(Context);
 				if (ResultAsset)
 				{
+					UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowTerminalNode::SetAssetValue(): TerminalNode [%s], Asset [%s]"), *TerminalNodeName.ToString(), *ResultAsset->GetName());
 					TerminalNode->SetAssetValue(ResultAsset, Context);
 				}
 			}

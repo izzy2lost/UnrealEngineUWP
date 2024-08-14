@@ -250,6 +250,8 @@ bool FDataflowOutput::Evaluate(Dataflow::FContext& Context) const
 
 bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 {
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowOutput::EvaluateImpl(): Node [%s], Output [%s]"), *GetOwningNode()->GetName().ToString(), *GetName().ToString());
+
 	Dataflow::FContextScopedCallstack Callstack(Context, this);
 	if (Callstack.IsLoopDetected())
 	{ 
@@ -260,9 +262,11 @@ bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 	// check if the cache has a valid version
 	if(Context.HasData(CacheKey(), OwningNode->LastModifiedTimestamp))
 	{
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowOutput::EvaluateImpl(): Context has data, NodeTimestamp [%ul], CacheTimestamp [%lu]"), OwningNode->LastModifiedTimestamp.Value, Context.GetTimestamp(CacheKey()).Value);
 		return true;
 	}
 	// if not, evaluate
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowNode::Evaluate(): Node [%s], Output [%s], NodeTimestamp [%lu]"), *GetOwningNode()->GetName().ToString(), *GetName().ToString(), OwningNode->LastModifiedTimestamp.Value);
 	OwningNode->Evaluate(Context, this);
 	// Validation
 	if (!Context.HasData(CacheKey()))

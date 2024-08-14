@@ -156,8 +156,6 @@ namespace DataflowContextHelpers
 				return false;
 			}
 		}
-		Context->Timestamp = NewTimestamp;
-
 		return true;
 	}
 
@@ -308,7 +306,7 @@ void UDataflowBaseContent::SetDataflowOwner(const TObjectPtr<UObject>& InOwner)
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, Dataflow::FTimestamp::Invalid);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowContext->Owner = InOwner;  
 	SetConstructionDirty(true);
@@ -324,7 +322,7 @@ void UDataflowBaseContent::SetDataflowAsset(const TObjectPtr<UDataflow>& Dataflo
 {
 	if(!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, Dataflow::FTimestamp::Invalid);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowGraph = DataflowAsset;  
 	SetConstructionDirty(true);
@@ -377,7 +375,7 @@ void UDataflowBaseContent::Serialize(FArchive& Ar)
 
 	if (!DataflowContext)
 	{
-		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr, LastModifiedTimestamp);
+		DataflowContext = MakeShared<Dataflow::FEngineContext>(nullptr);
 	}
 	DataflowContext->Serialize(Ar);
 }

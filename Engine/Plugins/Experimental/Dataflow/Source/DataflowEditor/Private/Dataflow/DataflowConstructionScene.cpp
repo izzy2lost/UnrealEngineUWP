@@ -68,27 +68,32 @@ void FDataflowConstructionScene::AddReferencedObjects(FReferenceCollector& Colle
 	Collector.AddReferencedObjects(WireframeElements);
 }
 
-FORCEINLINE Dataflow::FTimestamp LatestTimestamp(const UDataflow* Dataflow, const ::Dataflow::FContext* Context)
-{
-	if (Dataflow && Context)
-	{
-		return FMath::Max(Dataflow->GetRenderingTimestamp().Value, Context->GetTimestamp().Value);
-	}
-	return ::Dataflow::FTimestamp::Invalid;
-}
-
 void FDataflowConstructionScene::TickDataflowScene(const float DeltaSeconds)
 {
 	if (const TObjectPtr<UDataflowBaseContent>& EditorContent = GetEditorContent())
 	{
-		if (const TSharedPtr<Dataflow::FContext> DataflowContext = EditorContent->GetDataflowContext())
+		if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
 		{
-			if (const UDataflow* Dataflow = EditorContent->GetDataflowAsset())
+			if (Dataflow->GetDataflow())
 			{
-				const Dataflow::FTimestamp SystemTimestamp = DataflowContext->GetTimestamp().Value;
-				if (LastRenderedTimestamp < SystemTimestamp || EditorContent->IsConstructionDirty())
+				Dataflow::FTimestamp SystemTimestamp = Dataflow::FTimestamp::Invalid;
+				bool bMustUpdateConstructionScene = false;
+				for (TObjectPtr<const UDataflowBaseContent> DataflowBaseContent : GetTerminalContents())
 				{
-					LastRenderedTimestamp = SystemTimestamp;
+					const FName DataflowTerminalName(DataflowBaseContent->GetDataflowTerminal());
+					if (TSharedPtr<const FDataflowNode> DataflowTerminalNode = Dataflow->GetDataflow()->FindBaseNode(DataflowTerminalName))
+					{
+						SystemTimestamp = DataflowTerminalNode->GetTimestamp();
+					}
+
+					if (LastRenderedTimestamp < SystemTimestamp)
+					{
+						LastRenderedTimestamp = SystemTimestamp;
+						bMustUpdateConstructionScene = true;
+					}
+				}
+				if (bMustUpdateConstructionScene || EditorContent->IsConstructionDirty())
+				{
 					UpdateConstructionScene();
 				}
 			}
