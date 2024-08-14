@@ -61,7 +61,7 @@ namespace HordeServer.Tests.Artifacts
 		public async Task ExpireArtifactAsync()
 		{
 			FakeClock clock = ServiceProvider.GetRequiredService<FakeClock>();
-			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
+			ArtifactCollection expirationService = ServiceProvider.GetRequiredService<ArtifactCollection>();
 
 			ArtifactType type = new ArtifactType("my-artifact");
 			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
@@ -95,7 +95,7 @@ namespace HordeServer.Tests.Artifacts
 			ArtifactType type = new ArtifactType("my-artifact");
 			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepDays = 1 }));
 
-			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
+			ArtifactCollection expirationService = ServiceProvider.GetRequiredService<ArtifactCollection>();
 
 			await expirationService.StartAsync(CancellationToken.None);
 
@@ -135,8 +135,7 @@ namespace HordeServer.Tests.Artifacts
 			ArtifactType type = new ArtifactType("my-artifact");
 			UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
 
-			ArtifactExpirationService expirationService = ServiceProvider.GetRequiredService<ArtifactExpirationService>();
-
+			ArtifactCollection expirationService = ServiceProvider.GetRequiredService<ArtifactCollection>();
 			await expirationService.StartAsync(CancellationToken.None);
 
 			StreamId fooStreamId = new StreamId("foo");
@@ -183,6 +182,54 @@ namespace HordeServer.Tests.Artifacts
 			{
 				List<IArtifact> artifacts = await artifactCollection.FindAsync(barStreamId, keys: new[] { "test1" }).ToListAsync();
 				Assert.AreEqual(0, artifacts.Count);
+			}
+		}
+
+		[TestMethod]
+		public async Task ExpireOrphanedAsync()
+		{
+			DateTime startTime = Clock.UtcNow;
+
+			ArtifactType type = new ArtifactType("my-artifact");
+			StreamId fooStreamId = new StreamId("foo");
+
+			ArtifactCollection artifactCollection = ServiceProvider.GetRequiredService<ArtifactCollection>();
+			await artifactCollection.StartAsync(CancellationToken.None);
+
+			// Orphan the artifact type
+			{
+				UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
+				IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName($"default"), type, null, fooStreamId, CommitIdWithOrder.FromPerforceChange(1), new string[] { "test1", "test2" }, Array.Empty<string>(), AclScopeName.Root);
+
+				await Clock.AdvanceAsync(TimeSpan.FromDays(30.0));
+				IArtifact? artifact2 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNotNull(artifact2);
+
+				UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Clear());
+				IArtifact? artifact3 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNotNull(artifact3);
+
+				await Clock.AdvanceAsync(TimeSpan.FromDays(30.0));
+				IArtifact? artifact4 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNull(artifact4);
+			}
+
+			// Orphan the stream
+			{
+				UpdateConfig(config => config.Plugins.GetBuildConfig().ArtifactTypes.Add(new ArtifactTypeConfig { Type = type, KeepCount = 4 }));
+				IArtifact artifact = await artifactCollection.AddAsync(new ArtifactName($"default"), type, null, fooStreamId, CommitIdWithOrder.FromPerforceChange(1), new string[] { "test1", "test2" }, Array.Empty<string>(), AclScopeName.Root);
+
+				await Clock.AdvanceAsync(TimeSpan.FromDays(30.0));
+				IArtifact? artifact2 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNotNull(artifact2);
+
+				UpdateConfig(config => config.Plugins.GetBuildConfig().Projects.Clear());
+				IArtifact? artifact3 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNotNull(artifact3);
+
+				await Clock.AdvanceAsync(TimeSpan.FromDays(30.0));
+				IArtifact? artifact4 = await artifactCollection.GetAsync(artifact.Id);
+				Assert.IsNull(artifact4);
 			}
 		}
 	}

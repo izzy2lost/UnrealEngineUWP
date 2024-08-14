@@ -48,12 +48,6 @@ namespace EpicGames.Horde.Artifacts
 		}
 
 		/// <inheritdoc/>
-		public Task DeleteAsync(IEnumerable<ArtifactId> ids, CancellationToken cancellationToken = default)
-		{
-			throw new NotImplementedException();
-		}
-
-		/// <inheritdoc/>
 		public async IAsyncEnumerable<IArtifact> FindAsync(StreamId? streamId = null, CommitId? minCommitId = null, CommitId? maxCommitId = null, ArtifactName? name = null, ArtifactType? type = null, IEnumerable<string>? keys = null, int maxResults = 100, [EnumeratorCancellation] CancellationToken cancellationToken = default)
 		{
 			HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
@@ -63,12 +57,6 @@ namespace EpicGames.Horde.Artifacts
 			{
 				yield return new Artifact(response);
 			}
-		}
-
-		/// <inheritdoc/>
-		public IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(ArtifactType type, DateTime? expireAtUtc, CancellationToken cancellationToken = default)
-		{
-			throw new NotImplementedException();
 		}
 
 		/// <inheritdoc/>

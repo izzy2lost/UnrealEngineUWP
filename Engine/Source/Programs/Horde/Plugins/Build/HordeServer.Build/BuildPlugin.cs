@@ -69,7 +69,8 @@ namespace HordeServer
 			services.AddSingleton<IDefaultAclModifier, BuildAclModifier>();
 			services.AddSingleton<IPluginResponseFilter, BuildResponseFilter>();
 
-			services.AddSingleton<IArtifactCollection, ArtifactCollection>();
+			services.AddSingleton<ArtifactCollection>();
+			services.AddSingleton<IArtifactCollection>(sp => sp.GetRequiredService<ArtifactCollection>());
 			services.AddSingleton<IGraphCollection, GraphCollection>();
 			services.AddSingleton<IssueCollection>();
 			services.AddSingleton<IIssueCollection>(sp => sp.GetRequiredService<IssueCollection>());
@@ -88,7 +89,7 @@ namespace HordeServer
 			services.AddSingleton<ITemplateCollection, TemplateCollection>();
 
 			services.AddSingleton<IPoolSizeStrategyFactory, JobQueueStrategyFactory>();
-			services.AddHostedService<ArtifactExpirationService>();
+			services.AddHostedService(sp => sp.GetRequiredService<ArtifactCollection>());
 			services.AddSingleton<ICommitService, CommitService>();
 
 			services.AddSingleton<DeviceService>();

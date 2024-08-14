@@ -1,7 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.ComponentModel;
 using EpicGames.Core;
+using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Artifacts
 {
@@ -59,5 +61,31 @@ namespace EpicGames.Horde.Artifacts
 
 		/// <inheritdoc/>
 		public override StringId ToStringId(ArtifactType value) => value.Id;
+	}
+
+	/// <summary>
+	/// Exception thrown to indicate that an artifact type does not exist
+	/// </summary>
+	public sealed class ArtifactTypeNotFoundException : Exception
+	{
+		/// <summary>
+		/// The stream containing the artifact
+		/// </summary>
+		public StreamId StreamId { get; }
+
+		/// <summary>
+		/// The missing artifact type
+		/// </summary>
+		public ArtifactType ArtifactType { get; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public ArtifactTypeNotFoundException(StreamId streamId, ArtifactType artifactType)
+			: base($"Artifact type {artifactType} not found in stream {streamId}")
+		{
+			StreamId = streamId;
+			ArtifactType = artifactType;
+		}
 	}
 }

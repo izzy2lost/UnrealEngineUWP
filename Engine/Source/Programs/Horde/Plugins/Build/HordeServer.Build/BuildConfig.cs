@@ -100,7 +100,7 @@ namespace HordeServer
 			foreach (ProjectConfig project in Projects)
 			{
 				_projectLookup.Add(project.Id, project);
-				project.PostLoad(project.Id, configOptions.ParentAcl);
+				project.PostLoad(project.Id, configOptions.ParentAcl, ArtifactTypes);
 
 				foreach (StreamConfig stream in project.Streams)
 				{
@@ -201,9 +201,9 @@ namespace HordeServer
 			return auth ?? Acl.Authorize(action, user);
 		}
 
-		static bool? AuthorizeArtifactType(IReadOnlyList<ArtifactTypeAclConfig> artifactTypes, ArtifactType artifactType, AclAction action, ClaimsPrincipal user)
+		static bool? AuthorizeArtifactType(IReadOnlyList<ArtifactTypeConfig> artifactTypes, ArtifactType artifactType, AclAction action, ClaimsPrincipal user)
 		{
-			ArtifactTypeAclConfig? config = artifactTypes.FirstOrDefault(x => x.Type == artifactType);
+			ArtifactTypeConfig? config = artifactTypes.FirstOrDefault(x => x.Type == artifactType);
 			return config?.Acl?.AuthorizeSingleScope(action, user);
 		}
 
@@ -322,25 +322,9 @@ namespace HordeServer
 	}
 
 	/// <summary>
-	/// ACL configuration for an artifact type
-	/// </summary>
-	public class ArtifactTypeAclConfig
-	{
-		/// <summary>
-		/// Name of the artifact type
-		/// </summary>
-		public ArtifactType Type { get; set; }
-
-		/// <summary>
-		/// Acl for the artifact type
-		/// </summary>
-		public AclConfig? Acl { get; set; }
-	}
-
-	/// <summary>
 	/// Configuration for an artifact
 	/// </summary>
-	public class ArtifactTypeConfig : ArtifactTypeAclConfig
+	public class ArtifactTypeConfig
 	{
 		/// <summary>
 		/// Legacy 'Name' property
@@ -351,6 +335,16 @@ namespace HordeServer
 			get => Type;
 			set => Type = value;
 		}
+
+		/// <summary>
+		/// Name of the artifact type
+		/// </summary>
+		public ArtifactType Type { get; set; }
+
+		/// <summary>
+		/// Acl for the artifact type
+		/// </summary>
+		public AclConfig? Acl { get; set; }
 
 		/// <summary>
 		/// Number of artifacts to retain

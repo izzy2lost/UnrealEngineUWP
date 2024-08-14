@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Security.Claims;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Projects;
 using EpicGames.Horde.Telemetry;
@@ -104,12 +105,14 @@ namespace HordeServer.Projects
 		/// <summary>
 		/// Permissions for artifact types
 		/// </summary>
-		public List<ArtifactTypeAclConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeAclConfig>();
+		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
 
 		/// <summary>
 		/// Acl entries
 		/// </summary>
 		public AclConfig Acl { get; set; } = new AclConfig();
+
+		readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
@@ -120,15 +123,26 @@ namespace HordeServer.Projects
 		/// </summary>
 		/// <param name="id">Id of this project</param>
 		/// <param name="parentAcl">The owning global config object</param>
-		public void PostLoad(ProjectId id, AclConfig parentAcl)
+		/// <param name="parentArtifactTypes">Set of artifact types</param>
+		public void PostLoad(ProjectId id, AclConfig parentAcl, IEnumerable<ArtifactTypeConfig> parentArtifactTypes)
 		{
 			Id = id;
 			Acl.PostLoad(parentAcl, $"project:{Id}");
 			Acl.LegacyScopeNames = new AclScopeName[] { parentAcl.ScopeName.Append($"p:{Id}") };
 
+			_artifactTypeLookup.Clear();
+			foreach (ArtifactTypeConfig artifactTypeConfig in parentArtifactTypes)
+			{
+				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
+			}
+			foreach (ArtifactTypeConfig artifactTypeConfig in ArtifactTypes)
+			{
+				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
+			}
+
 			foreach (StreamConfig stream in Streams)
 			{
-				stream.PostLoad(stream.Id, this);
+				stream.PostLoad(stream.Id, this, _artifactTypeLookup.Values);
 			}
 		}
 	}

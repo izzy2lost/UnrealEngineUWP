@@ -11,6 +11,7 @@ using EpicGames.Core;
 using EpicGames.Horde;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Agents.Pools;
+using EpicGames.Horde.Artifacts;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
 using EpicGames.Horde.Jobs;
@@ -244,7 +245,9 @@ namespace HordeServer.Streams
 		/// <summary>
 		/// Permissions for artifact types
 		/// </summary>
-		public List<ArtifactTypeAclConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeAclConfig>();
+		public List<ArtifactTypeConfig> ArtifactTypes { get; set; } = new List<ArtifactTypeConfig>();
+
+		readonly Dictionary<ArtifactType, ArtifactTypeConfig> _artifactTypeLookup = new Dictionary<ArtifactType, ArtifactTypeConfig>();
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>
 		public bool Authorize(AclAction action, ClaimsPrincipal user)
@@ -255,7 +258,8 @@ namespace HordeServer.Streams
 		/// </summary>
 		/// <param name="id">The stream id</param>
 		/// <param name="projectConfig">Owning project</param>
-		public void PostLoad(StreamId id, ProjectConfig projectConfig)
+		/// <param name="parentArtifactTypes">Parent artifact types</param>
+		public void PostLoad(StreamId id, ProjectConfig projectConfig, IEnumerable<ArtifactTypeConfig> parentArtifactTypes)
 		{
 			Id = id;
 			ProjectConfig = projectConfig;
@@ -325,10 +329,35 @@ namespace HordeServer.Streams
 				}
 			}
 
+			// Build a set of all the artifact types
+			_artifactTypeLookup.Clear();
+			foreach (ArtifactTypeConfig artifactTypeConfig in parentArtifactTypes)
+			{
+				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
+			}
+			foreach (ArtifactTypeConfig artifactTypeConfig in ArtifactTypes)
+			{
+				_artifactTypeLookup[artifactTypeConfig.Type] = artifactTypeConfig;
+			}
+
 			// Compute a hash of this stream revision to make it easier to detect changes
 			byte[] streamData = JsonSerializer.SerializeToUtf8Bytes(this, JsonUtils.DefaultSerializerOptions);
 			Revision = IoHash.Compute(streamData).ToString();
 		}
+
+		/// <summary>
+		/// Get all artifact types for this stream
+		/// </summary>
+		public IEnumerable<ArtifactTypeConfig> GetAllArtifactTypes()
+			=> _artifactTypeLookup.Values;
+
+		/// <summary>
+		/// Finds an artifact type configuration block
+		/// </summary>
+		/// <param name="type">The artifact type</param>
+		/// <param name="artifactTypeConfig">Receives the configuration for the artifact type</param>
+		public bool TryGetArtifactType(ArtifactType type, [NotNullWhen(true)] out ArtifactTypeConfig? artifactTypeConfig)
+			=> _artifactTypeLookup.TryGetValue(type, out artifactTypeConfig);
 
 		/// <summary>
 		/// Enumerates all commit tags, including the default tags for code and content.

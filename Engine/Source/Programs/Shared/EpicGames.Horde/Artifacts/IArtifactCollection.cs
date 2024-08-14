@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -31,23 +30,6 @@ namespace EpicGames.Horde.Artifacts
 		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Deletes artifacts
-		/// </summary>
-		/// <param name="ids">Ids to search for</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of artifacts</returns>
-		Task DeleteAsync(IEnumerable<ArtifactId> ids, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Finds artifacts which are ready for expiry
-		/// </summary>
-		/// <param name="type">Type of artifacts to find</param>
-		/// <param name="expireAtUtc">Number of artifacts to keep</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of artifacts</returns>
-		IAsyncEnumerable<IEnumerable<IArtifact>> FindExpiredAsync(ArtifactType type, DateTime? expireAtUtc, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Finds artifacts with the given keys.
 		/// </summary>
 		/// <param name="streamId">Stream to find artifacts for</param>
@@ -68,17 +50,5 @@ namespace EpicGames.Horde.Artifacts
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The artifact document</returns>
 		Task<IArtifact?> GetAsync(ArtifactId artifactId, CancellationToken cancellationToken = default);
-	}
-
-	/// <summary>
-	/// Extension methods for <see cref="IArtifactCollection"/>
-	/// </summary>
-	public static class ArtifactCollectionExtensions
-	{
-		/// <inheritdoc cref="IArtifactCollection.DeleteAsync(IEnumerable{ArtifactId}, CancellationToken)"/>>
-		public static Task DeleteAsync(this IArtifactCollection artifactCollection, ArtifactId artifactId, CancellationToken cancellationToken = default)
-		{
-			return artifactCollection.DeleteAsync(new[] { artifactId }, cancellationToken);
-		}
 	}
 }
