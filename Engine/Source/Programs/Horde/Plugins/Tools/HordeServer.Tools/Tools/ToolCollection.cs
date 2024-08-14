@@ -461,7 +461,7 @@ namespace HordeServer.Tools
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? $"Tools"), _cache, _logger);
+				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools"), _cache, _logger);
 			}
 			else
 			{
@@ -478,7 +478,7 @@ namespace HordeServer.Tools
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? $"tools/{toolConfig.Id}")), _logger);
+				return new FileStorageBackend(_fileObjectStoreFactory.CreateStore(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools")), _logger);
 			}
 			else
 			{

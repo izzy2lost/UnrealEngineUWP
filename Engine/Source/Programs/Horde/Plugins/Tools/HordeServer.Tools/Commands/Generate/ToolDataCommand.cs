@@ -75,19 +75,13 @@ namespace HordeServer.Commands.Generate
 				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
 				{
 					IHashedBlobRef<DirectoryNode> dirNodeRef;
-					await using (DedupeBlobWriter writer = client.CreateDedupeBlobWriter(refName))
+					await using (IBlobWriter writer = client.CreateBlobWriter(refName))
 					{
-						logger.LogInformation("Populating cache with existing refs...");
-						await PopulateCacheAsync(client, writer, bundleDir, CancellationToken.None);
-
 						logger.LogInformation("");
 						logger.LogInformation("Writing tool data for {ToolId}", refName);
 						DirectoryNode dirNode = new DirectoryNode();
 						await dirNode.AddFilesAsync(InputDir.ToDirectoryInfo(), writer);
 						dirNodeRef = await writer.WriteBlobAsync(dirNode);
-
-						logger.LogInformation("");
-						writer.GetStats().Print(logger);
 
 						logger.LogInformation("");
 					}
