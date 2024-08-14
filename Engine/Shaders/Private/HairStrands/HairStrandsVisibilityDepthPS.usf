@@ -41,7 +41,7 @@ FHairSampleData ExtractSampleData(uint3 PixelCoord)
 		const FHairSample Sample = UnpackHairSample(HairSampleData[SampleIndex]);
 		Out.DeviceZ = max(Out.DeviceZ, Sample.Depth); // Inverse-Z
 		Out.LightChannelMask |= Sample.LightChannelMask;
-		Out.CastContactShadow |= HasHairFlags(Sample.Flags, HAIR_FLAGS_CAST_CONTACT_SHADOW);
+		Out.CastContactShadow = Out.CastContactShadow || HasHairFlags(Sample.Flags, HAIR_FLAGS_CAST_CONTACT_SHADOW);
 	}
 	return Out;
 }

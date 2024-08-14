@@ -534,7 +534,8 @@ void RenderSingleScatteringWithPreshadingCS(
 	float2 ViewPixelCoord = PixelCoord * DownsampleFactor;
 
 	float3 Radiance = 0.0;
-	float3 Transmittance = RWLightingTexture[PixelCoord].a;
+	float4 LightingTexture = RWLightingTexture[PixelCoord];
+	float3 Transmittance = LightingTexture.aaa;
 	float PrevOpacity = Luminance(1.0 - Transmittance);
 
 	// Create screen ray
@@ -645,11 +646,11 @@ void RenderSingleScatteringWithPreshadingCS(
 	}
 
 	// Radiance
-	RWLightingTexture[PixelCoord].rgb += Radiance * View.PreExposure;
+	LightingTexture.rgb += Radiance * View.PreExposure;
 	if (bApplyEmissionAndTransmittance)
 	{
 		float Opacity = Luminance(1.0 - Transmittance);
-		RWLightingTexture[PixelCoord].a = Luminance(Transmittance);
+		LightingTexture.a = Luminance(Transmittance);
 
 #if DIM_WRITE_VELOCITY
 		bool bWriteVelocity =
@@ -676,4 +677,6 @@ void RenderSingleScatteringWithPreshadingCS(
 		}
 #endif
 	}
+
+	RWLightingTexture[PixelCoord] = LightingTexture;
 }

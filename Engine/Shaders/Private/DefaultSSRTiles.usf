@@ -83,8 +83,9 @@ bool DoesPixelContainSSR(uint2 PixelPos)
 			{
 				const FHaziness Haziness = UnpackHaziness(SLAB_HAZINESS(BSDF));
 				const bool bHazeAsSimpleClearCoat = Haziness.bSimpleClearCoat;
-				bContainValidPixels |= bHazeAsSimpleClearCoat;
+				bContainValidPixels = bContainValidPixels || bHazeAsSimpleClearCoat;
 			}
+			break;
 		}
 		}
 	}
