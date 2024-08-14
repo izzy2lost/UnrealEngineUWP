@@ -1487,7 +1487,13 @@ protected:
 	struct FUpdateActiveTilesWorkingMem
 	{
 		TSet<FIntPoint> OldActiveSet;
+
+#if WITH_EDITORONLY_DATA
+		UE_DEPRECATED(5.5, "TilesInMinDistance not used anymore, use TilesInMinDistanceMap instead.")
 		TArray<FNavMeshDirtyTileElement> TilesInMinDistance;
+#endif
+		TMap<FIntPoint, FNavMeshDirtyTileElement> TilesInMinDistanceMap;
+		
 		TSet<FIntPoint> TilesInMaxDistance;
 		TArray<FIntPoint> TileToAppend;
 	};
