@@ -19,6 +19,7 @@ namespace UE::AnimNext
 		static FText InterfaceShortName = NSLOCTEXT("TraitInterfaces", "TraitInterface_IBlendStack_ShortName", "SBG");
 		return InterfaceShortName;
 	}
+#endif // WITH_EDITOR
 
 	void IBlendStack::PushGraph(FExecutionContext& Context, const TTraitBinding<IBlendStack>& Binding, const IBlendStack::FGraphRequest& GraphRequest, FAnimNextGraphInstancePtr& OutGraphInstance) const
 	{
@@ -43,6 +44,4 @@ namespace UE::AnimNext
 
 		OutRequest.AnimationGraph = nullptr;
 	}
-
-#endif // WITH_EDITOR
 }
