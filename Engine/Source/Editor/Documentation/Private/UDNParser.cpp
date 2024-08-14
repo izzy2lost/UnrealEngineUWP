@@ -72,8 +72,6 @@ static const FString AssetLinkSpecifier(TEXT("ASSETLINK:"));
 
 }
 
-static const int IndentWidth = 32;
-
 TSharedRef< FUDNParser > FUDNParser::Create( const TSharedPtr< FParserConfiguration >& ParserConfig, const FDocumentationStyle& Style ) 
 {
 	TSharedPtr< FParserConfiguration > FinalParserConfig = ParserConfig;
@@ -791,38 +789,6 @@ void FUDNParser::AddContentToExcerpt(TSharedPtr<SVerticalBox> Box, const FString
 	}
 }
 
-void FUDNParser::AddCaptionToExcerpt(TSharedPtr<SVerticalBox> Box, const FString& ContentSource, FExcerpt& Excerpt)
-{
-	if (!ContentSource.IsEmpty())
-	{
-		AppendExcerpt(Box,
-			SNew(SBox)
-			.WidthOverride(ContentWidth)
-			[
-				SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot()
-				.AutoWidth()
-				[
-					SNew(SBox)
-					.WidthOverride(IndentWidth)
-				]
-				+SHorizontalBox::Slot()
-				.FillWidth(1.0f)
-				.HAlign(HAlign_Right)
-				[
-					SNew(STextBlock)
-					.Text(FText::Format(LOCTEXT("ImageCaptionLabel", "Image: {0}"), FText::FromString(ContentSource)))
-					.TextStyle(FAppStyle::Get(), Style.ItalicContentStyleName)
-					.WrapTextAt(WrapAt.Get() - IndentWidth)
-				]
-			]
-		);
-
-		AddLineSeperator(Excerpt);
-		Excerpt.RichText += FString::Printf(TEXT("<TextStyle Style=\"%s\">%s</>"), *Style.ContentStyleName.ToString(), *ContentSource);
-	}
-}
-
 void FUDNParser::AddListItemToExcerpt(TSharedPtr<SVerticalBox> Box, const FString& LeftContentSource, const FString& RightContentSource, FExcerpt& Excerpt)
 {
 	if (!LeftContentSource.IsEmpty() && !RightContentSource.IsEmpty())
@@ -841,7 +807,7 @@ void FUDNParser::AddListItemToExcerpt(TSharedPtr<SVerticalBox> Box, const FStrin
 					.AutoWidth()
 					[
 						SNew(SBox)
-						.WidthOverride(IndentWidth)
+						.MinDesiredWidth(40.f)
 						.Padding(FMargin(16.f, 0, 0, 0))
 						.HAlign(HAlign_Left)
 						[
@@ -851,12 +817,12 @@ void FUDNParser::AddListItemToExcerpt(TSharedPtr<SVerticalBox> Box, const FStrin
 						]
 					]
 					+ SHorizontalBox::Slot()
-					.FillWidth(100.0f)
+					.FillWidth(100)
 					[
 						SNew(STextBlock)
 						.Text(FText::FromString(RightContentSource))
 						.TextStyle(FAppStyle::Get(), Style.ContentStyleName)
-						.WrapTextAt(WrapAt.Get() - IndentWidth)
+						.AutoWrapText(true)
 					]
 				]
 			];
@@ -1103,11 +1069,6 @@ TSharedRef< SWidget > FUDNParser::GenerateExcerptContent( const FString& InLink,
 						);
 
 					DynamicBrushesUsed.AddUnique(DynamicBrush);
-
-					if (!Line.AdditionalContent[0].IsEmpty())
-					{
-						AddCaptionToExcerpt(Box, Line.AdditionalContent[0], Excerpt);
-					}
 				}
 
 				AddLineSeperator(Excerpt);

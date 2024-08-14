@@ -20,7 +20,6 @@ public:
 	FDocumentationStyle()
 		: ContentStyleName(TEXT("Documentation.Content"))
 		, BoldContentStyleName(TEXT("Documentation.BoldContent"))
-		, ItalicContentStyleName(TEXT("Documentation.ItalicContent"))
 		, NumberedContentStyleName(TEXT("Documentation.NumberedContent"))
 		, Header1StyleName(TEXT("Documentation.Header1"))
 		, Header2StyleName(TEXT("Documentation.Header2"))
@@ -42,13 +41,6 @@ public:
 	FDocumentationStyle& BoldContentStyle(const FName& InName) 
 	{
 		BoldContentStyleName = InName;
-		return *this;
-	}
-
-	/** Set the italic content style for this documentation */
-	FDocumentationStyle& ItalicContentStyle(const FName& InName)
-	{
-		ItalicContentStyleName = InName;
 		return *this;
 	}
 
@@ -106,9 +98,6 @@ public:
 
 	/** Bold content text style */
 	FName BoldContentStyleName;
-
-	/** Italic content text style */
-	FName ItalicContentStyleName;
 
 	/** Numbered content text style */
 	FName NumberedContentStyleName;
@@ -211,8 +200,6 @@ public:
 	virtual const TArray < FString >& GetSourcePaths() const = 0;
 
 	virtual TSharedRef< class SToolTip > CreateToolTip( const TAttribute<FText>& Text, const TSharedPtr<SWidget>& OverrideContent, const FString& Link, const FString& ExcerptName ) const = 0;
-
-	virtual TSharedRef< class SToolTip > CreateToolTip(const TAttribute<FText>& Text, const TSharedPtr<SWidget>& OverrideContent, const FString& Link, const FString& ExcerptName, const TAttribute<FText>& Shortcut) const = 0;
 
 	virtual TSharedRef< class SToolTip > CreateToolTip(const TAttribute<FText>& Text, const TSharedRef<SWidget>& OverrideContent, const TSharedPtr<class SVerticalBox>& DocVerticalBox, const FString& Link, const FString& ExcerptName) const = 0;
 

@@ -8,7 +8,6 @@
 #include "Framework/Application/SlateApplication.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/SToolTip.h"
 #include "Styling/AppStyle.h"
 #include "Editor/EditorPerProjectUserSettings.h"
@@ -24,8 +23,6 @@
 #include "Widgets/Input/SHyperlink.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
-#include "DocumentationStyleSet.h"
-#include "SPrimaryButton.h"
 
 void SDocumentationToolTip::Construct( const FArguments& InArgs )
 {
@@ -34,13 +31,11 @@ void SDocumentationToolTip::Construct( const FArguments& InArgs )
 	SubduedStyleInfo = FAppStyle::GetWidgetStyle<FTextBlockStyle>(InArgs._SubduedStyle);
 	HyperlinkTextStyleInfo = FAppStyle::GetWidgetStyle<FTextBlockStyle>(InArgs._HyperlinkTextStyle);
 	HyperlinkButtonStyleInfo = FAppStyle::GetWidgetStyle<FButtonStyle>(InArgs._HyperlinkButtonStyle);
-	KeybindStyleInfo = FDocumentationStyleSet::Get().GetWidgetStyle<FTextBlockStyle>("ToolTip.KeybindText");
 	ColorAndOpacity = InArgs._ColorAndOpacity;
 	DocumentationLink = InArgs._DocumentationLink;
+	IsDisplayingDocumentationLink = false;
 	bAddDocumentation = InArgs._AddDocumentation;
 	DocumentationMargin = InArgs._DocumentationMargin;
-	IsDisplayingDocumentationLink = false;
-	Shortcut = InArgs._Shortcut;
 
 	ExcerptName = InArgs._ExcerptName;
 	IsShowingFullTip = false;
@@ -52,65 +47,15 @@ void SDocumentationToolTip::Construct( const FArguments& InArgs )
 		OverrideContent = InArgs._Content.Widget;
 	}
 
-	SAssignNew(DocumentationControlBox, SHorizontalBox);
-	SAssignNew(FullTipContent, SBox);
 	ConstructSimpleTipContent();
 
 	ChildSlot
 	[
 		SAssignNew(WidgetContent, SBox)
-		.Padding(2.0f)
 		[
-			SNew(SVerticalBox)
-			+SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SimpleTipContent.ToSharedRef()
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				FullTipContent.ToSharedRef()
-			]
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				SNew(SBox)
-				.Visibility(this, &SDocumentationToolTip::GetControlVisibility)
-				[
-					SNew(SVerticalBox)
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						SNew(SBorder)
-						.Padding(0.0)
-						.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.TopSeparator"))
-						[
-							SNew(SBox)
-							.HeightOverride(1.0f)
-						]
-					]
-					+ SVerticalBox::Slot()
-					.AutoHeight()
-					[
-						SNew(SBorder)
-						.Padding(9.0)
-						.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.Header"))
-						[
-							DocumentationControlBox.ToSharedRef()
-						]
-					]
-				]
-			]
+			SimpleTipContent.ToSharedRef()
 		]
 	];
-
-	bIsInTransition = false;
-	TransitionStartTime = 0;
-	TransitionLength = 0.2f;
-	LastDesiredSize = SimpleTipContent->GetDesiredSize();
-	TransitionStartSize = SimpleTipContent->GetDesiredSize();
-	bFullTipContentIsReady = false;
 }
 
 void SDocumentationToolTip::ConstructSimpleTipContent()
@@ -140,69 +85,31 @@ void SDocumentationToolTip::ConstructSimpleTipContent()
 	}
 
 	TSharedPtr< SVerticalBox > VerticalBox;
-	TSharedPtr< SHorizontalBox > TextBox;
 	if ( !OverrideContent.IsValid() )
 	{
 		SAssignNew( SimpleTipContent, SBox )
 		[
-			SNew(SBorder)
-			.BorderImage(this, &SDocumentationToolTip::GetSimpleTipBorderStyle)
-			.Padding(9.f)
+			SAssignNew( VerticalBox, SVerticalBox )
+			+SVerticalBox::Slot()
+			.FillHeight( 1.0f )
 			[
-				SAssignNew( VerticalBox, SVerticalBox )
-				+SVerticalBox::Slot()
-				.FillHeight( 1.0f )
-				[
-					SAssignNew(TextBox, SHorizontalBox)
-
-					+SHorizontalBox::Slot()
-					.FillWidth(1.0f)
-					.VAlign(VAlign_Center)
-					[
-					SNew( STextBlock )
-					.Text( TextContent )
-					.TextStyle( &StyleInfo )
-					.ColorAndOpacity( ColorAndOpacity )
-					.WrapTextAt_Static( &SToolTip::GetToolTipWrapWidth )
-					]
-				]
+				SNew( STextBlock )
+				.Text( TextContent )
+				.TextStyle( &StyleInfo )
+				.ColorAndOpacity( ColorAndOpacity )
+				.WrapTextAt_Static( &SToolTip::GetToolTipWrapWidth )
 			]
 		];
-
-		TextBox->AddSlot()
-		.VAlign(VAlign_Center)
-		.AutoWidth()
-		[
-			SNew(SBox)
-			.Visibility(this, &SDocumentationToolTip::GetShortcutVisibility)
-			.Padding(9.0f, 0.0f, 0.0f, 0.0f)
-			[
-				SNew(SBorder)
-				.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.KeybindBorder"))
-				.Padding(4.0f, 2.0f)
-				[
-					SNew(STextBlock)
-					.TextStyle(&KeybindStyleInfo)
-					.Text(Shortcut)
-				]
-			]
-		];
-	
 	}
 	else
 	{
 		SAssignNew( SimpleTipContent, SBox )
 		[
-			SNew(SBorder)
-			.BorderImage(this, &SDocumentationToolTip::GetSimpleTipBorderStyle)
-			.Padding(9.f)
+			SAssignNew( VerticalBox, SVerticalBox )
+			+SVerticalBox::Slot()
+			.FillHeight( 1.0f )
 			[
-				SAssignNew( VerticalBox, SVerticalBox )
-				+SVerticalBox::Slot()
-				.FillHeight( 1.0f )
-				[
-					OverrideContent.ToSharedRef()
-				]
+				OverrideContent.ToSharedRef()
 			]
 		];
 	}
@@ -217,15 +124,36 @@ void SDocumentationToolTip::AddDocumentation(TSharedPtr< SVerticalBox > Vertical
 {
 	if ( !DocumentationLink.IsEmpty() )
 	{
+		IsDisplayingDocumentationLink = GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
+
+		if ( IsDisplayingDocumentationLink )
+		{
+			FString OptionalExcerptName;
+			if ( !ExcerptName.IsEmpty() )
+			{ 
+				OptionalExcerptName = FString( TEXT(" [") ) + ExcerptName + TEXT("]");
+			}
+
+			VerticalBox->AddSlot()
+			.AutoHeight()
+			.Padding(0, 5, 0, 0)
+			.HAlign( HAlign_Center )
+			[
+				SNew( STextBlock )
+				.Text( FText::FromString(DocumentationLink + OptionalExcerptName) )
+				.TextStyle( &SubduedStyleInfo )
+			];
+		}
+
 		if ( !DocumentationPage.IsValid() )
 		{
 			DocumentationPage = IDocumentation::Get()->GetPage( DocumentationLink, NULL );
 		}
 
-		if ( DocumentationPage->HasExcerpt( ExcerptName ))
+		if ( DocumentationPage->HasExcerpt( ExcerptName ) )
 		{
-			FText MacShortcut = NSLOCTEXT("SToolTip", "MacRichTooltipShortcut", "Command + Option");
-			FText WinShortcut = NSLOCTEXT("SToolTip", "WinRichTooltipShortcut", "Ctrl + Alt");
+			FText MacShortcut = NSLOCTEXT("SToolTip", "MacRichTooltipShortcut", "(Command + Option)");
+			FText WinShortcut = NSLOCTEXT("SToolTip", "WinRichTooltipShortcut", "(Ctrl + Alt)");
 
 			FText KeyboardShortcut;
 #if PLATFORM_MAC
@@ -236,77 +164,34 @@ void SDocumentationToolTip::AddDocumentation(TSharedPtr< SVerticalBox > Vertical
 
 			VerticalBox->AddSlot()
 			.AutoHeight()
-			.HAlign( HAlign_Right )
+			.HAlign( HAlign_Center )
+			.Padding(0, 5, 0, 0)
 			[
-				SNew(SBox)
-				.Visibility(this, &SDocumentationToolTip::GetPromptVisibility)
-				.Padding(0, 9, 0, 0)
-				[
-					SNew(SHorizontalBox)
-					+SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					.Padding(0.0f, 0.0f, 5.0f, 0.0f)
-					[
-						SNew( STextBlock )
-						.TextStyle( &SubduedStyleInfo )
-						.Text( NSLOCTEXT( "SToolTip", "AdvancedToolTipMessage", "Learn more: hold" ) )
-					]
-					+SHorizontalBox::Slot()
-					.VAlign(VAlign_Center)
-					.AutoWidth()
-					[
-						SNew( SBorder )
-						.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.ToggleKeybindBorder"))
-						.Padding(4.0f, 2.0f)
-						[
-							SNew(STextBlock)
-							.TextStyle(&SubduedStyleInfo)
-							.Text(FText::Format(NSLOCTEXT("SToolTip", "AdvancedToolTipKeybind", "{0}"), KeyboardShortcut))
-							.Visibility(this, &SDocumentationToolTip::GetPromptVisibility)
-						]
-					]
-				]
+				SNew( STextBlock )
+				.TextStyle( &SubduedStyleInfo )
+				.Text( FText::Format( NSLOCTEXT( "SToolTip", "AdvancedToolTipMessage", "hold {0} for more" ), KeyboardShortcut) )
 			];
 		}
-
-		SAssignNew(DocumentationControlBox, SHorizontalBox);
-		IsDisplayingDocumentationLink = GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
-		if (IsDisplayingDocumentationLink)
+		else
 		{
-
-			FString OptionalExcerptName;
-			if (!ExcerptName.IsEmpty())
+			if ( IsDisplayingDocumentationLink && FSlateApplication::Get().SupportsSourceAccess() )
 			{
-				OptionalExcerptName = FString(TEXT(" [")) + ExcerptName + TEXT("]");
-			}
-			DocumentationControlBox->AddSlot()
-			.FillWidth(1.0f)
-			.HAlign(HAlign_Left)
-			.Padding(0, 0, 9, 0)
-			[
-				SNew(STextBlock)
-					.Text(FText::FromString(DocumentationLink + OptionalExcerptName))
-					.TextStyle(&SubduedStyleInfo)
-			];
-
-			if (!DocumentationPage->HasExcerpt(ExcerptName) && FSlateApplication::Get().SupportsSourceAccess())
-			{
-				FString DocPath = FDocumentationLink::ToSourcePath(DocumentationLink, FInternationalization::Get().GetCurrentCulture());
-				if (!FPaths::FileExists(DocPath))
+				FString DocPath = FDocumentationLink::ToSourcePath( DocumentationLink, FInternationalization::Get().GetCurrentCulture() );
+				if ( !FPaths::FileExists(DocPath) )
 				{
 					DocPath = FPaths::ConvertRelativePathToFull(DocPath);
 				}
 
-				DocumentationControlBox->AddSlot()
-				.AutoWidth()
-				.HAlign(HAlign_Right)
+				VerticalBox->AddSlot()
+				.AutoHeight()
+				.Padding(0, 5, 0, 0)
+				.HAlign( HAlign_Center )
 				[
-					SNew(SHyperlink)
-						.Text(NSLOCTEXT("SToolTip", "EditDocumentationMessage_Create", "create"))
-						.TextStyle(&HyperlinkTextStyleInfo)
-						.UnderlineStyle(&HyperlinkButtonStyleInfo)
-						.OnNavigate(this, &SDocumentationToolTip::CreateExcerpt, DocPath, ExcerptName)
+					SNew( SHyperlink )
+					.Text( NSLOCTEXT( "SToolTip", "EditDocumentationMessage_Create", "create" ) )
+					.TextStyle( &HyperlinkTextStyleInfo )
+					.UnderlineStyle( &HyperlinkButtonStyleInfo )
+					.OnNavigate( this, &SDocumentationToolTip::CreateExcerpt, DocPath, ExcerptName )
 				];
 			}
 		}
@@ -414,29 +299,18 @@ void SDocumentationToolTip::ConstructFullTipContent()
 		if ( Excerpts[ ExcerptIndex ].Content.IsValid() )
 		{
 			TSharedPtr< SVerticalBox > Box;
-			TSharedPtr< SWidget > FullTipBox = SNew(SBox)
-			.Visibility(this, &SDocumentationToolTip::GetFullTipVisibility)
-			.Padding(DocumentationMargin)
-			[
-				SAssignNew(Box, SVerticalBox)
-				+ SVerticalBox::Slot()
-				.HAlign(HAlign_Center)
-				.AutoHeight()
-				.MaxHeight(900.f)
+			FullTipContent = 
+				SNew(SBox)
+				.Padding(DocumentationMargin)
 				[
-					SNew(SBorder)
-					.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.TopSeparator"))
+					SAssignNew(Box, SVerticalBox)
+					+ SVerticalBox::Slot()
+					.HAlign(HAlign_Center)
+					.AutoHeight()
 					[
-						SNew(SScrollBox)
-						.Style(FDocumentationStyleSet::Get(), "ToolTip.ScrollBox")
-						+SScrollBox::Slot()
-						.Padding(9.0f)
-						[
-							Excerpts[ExcerptIndex].Content.ToSharedRef()
-						]
+						Excerpts[ExcerptIndex].Content.ToSharedRef()
 					]
-				]
-			];
+				];
 
 			FString* FullDocumentationLink = Excerpts[ ExcerptIndex ].Variables.Find( TEXT("ToolTipFullLink") );
 			FString* ExcerptBaseUrl = Excerpts[ExcerptIndex].Variables.Find(TEXT("BaseUrl"));
@@ -449,65 +323,40 @@ void SDocumentationToolTip::ConstructFullTipContent()
 				}
 
 				Box->AddSlot()
+				.HAlign( HAlign_Center )
 				.AutoHeight()
 				[
-					SNew(SBorder)
-					.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.TopSeparator"))
-					.Padding(0.0f)
-					[
-						SNew(SBox)
-						.HeightOverride(1.0f)
-					]
-				];
-
-				Box->AddSlot()
-				.AutoHeight()
-				[
-					SNew(SBorder)
-					.Padding(9.0f)
-					.BorderImage(FDocumentationStyleSet::Get().GetBrush("ToolTip.Header"))
-					[
-						SNew(SHorizontalBox)
-						+SHorizontalBox::Slot()
-						.FillWidth(1.0f)
-						.HAlign(HAlign_Right)
-						[
-							SNew(SPrimaryButton)
-							.Icon(FAppStyle::Get().GetBrush("Icons.Help"))
-							.Text(NSLOCTEXT("SToolTip", "LearnMoreButton", "Learn More Online"))
-							.OnClicked_Static([](FString Link, FString BaseUrl) -> FReply {
+					SNew( SHyperlink )
+						.Text( NSLOCTEXT( "SToolTip", "GoToFullDocsLinkMessage", "see full documentation" ) )
+						.TextStyle( &HyperlinkTextStyleInfo )
+						.UnderlineStyle( &HyperlinkButtonStyleInfo )
+						.OnNavigate_Static([](FString Link, FString BaseUrl) {
 								if (!IDocumentation::Get()->Open(Link, FDocumentationSourceInfo(TEXT("rich_tooltips")), BaseUrl))
 								{
 									FNotificationInfo Info(NSLOCTEXT("SToolTip", "FailedToOpenLink", "Failed to Open Link"));
 									FSlateNotificationManager::Get().AddNotification(Info);
 								}
-								return FReply::Handled();
-								}, *FullDocumentationLink, BaseUrl)
-						]
-					]
+							}, *FullDocumentationLink, BaseUrl)
 				];
 			}
 
-			if (IsDisplayingDocumentationLink && FSlateApplication::Get().SupportsSourceAccess() )
+			if ( GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink && FSlateApplication::Get().SupportsSourceAccess() )
 			{
-				DocumentationControlBox->AddSlot()
-				.AutoWidth()
-				.HAlign( HAlign_Right )
+				Box->AddSlot()
+				.AutoHeight()
+				.HAlign( HAlign_Center )
 				[
 					SNew( SHyperlink )
-					.Text( NSLOCTEXT( "SToolTip", "EditDocumentationMessage_Edit", "edit" ) )
-					.TextStyle( &HyperlinkTextStyleInfo )
-					.UnderlineStyle( &HyperlinkButtonStyleInfo )
-					// todo: needs to update to point to the "real" source file used for the excerpt
-					.OnNavigate_Static([](FString Link, int32 LineNumber) {
-							ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
-							SourceCodeAccessModule.GetAccessor().OpenFileAtLine(Link, LineNumber);
-						}, FPaths::ConvertRelativePathToFull(FDocumentationLink::ToSourcePath(DocumentationLink, FInternationalization::Get().GetCurrentCulture())), Excerpts[ExcerptIndex].LineNumber)
+						.Text( NSLOCTEXT( "SToolTip", "EditDocumentationMessage_Edit", "edit" ) )
+						.TextStyle( &HyperlinkTextStyleInfo )
+						.UnderlineStyle( &HyperlinkButtonStyleInfo )
+						// todo: needs to update to point to the "real" source file used for the excerpt
+						.OnNavigate_Static([](FString Link, int32 LineNumber) {
+								ISourceCodeAccessModule& SourceCodeAccessModule = FModuleManager::LoadModuleChecked<ISourceCodeAccessModule>("SourceCodeAccess");
+								SourceCodeAccessModule.GetAccessor().OpenFileAtLine(Link, LineNumber);
+							}, FPaths::ConvertRelativePathToFull(FDocumentationLink::ToSourcePath(DocumentationLink, FInternationalization::Get().GetCurrentCulture())), Excerpts[ExcerptIndex].LineNumber)
 				];
 			}
-			
-			FullTipContent->SetContent(FullTipBox.ToSharedRef());
-			bFullTipContentIsReady = true;
 		}
 	}
 }
@@ -515,8 +364,7 @@ void SDocumentationToolTip::ConstructFullTipContent()
 FReply SDocumentationToolTip::ReloadDocumentation()
 {
 	SimpleTipContent.Reset();
-	DocumentationControlBox.Reset();
-	bFullTipContentIsReady = false;
+	FullTipContent.Reset();
 
 	ConstructSimpleTipContent();
 
@@ -535,30 +383,12 @@ FReply SDocumentationToolTip::ReloadDocumentation()
 
 void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime )
 {
-	LastDesiredSize = WidgetContent->GetDesiredSize();
-
 	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
 	const bool NeedsUpdate = IsDisplayingDocumentationLink != GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
-	if (TransitionStartTime > 0)
-	{
-		bIsInTransition = InCurrentTime - TransitionStartTime <= TransitionLength;
-		if (bIsInTransition) {
-			TransitionPercentage = (InCurrentTime - TransitionStartTime) / TransitionLength;
-			FVector2D TransitionEndSize = WidgetContent->GetDesiredSize();
-			if (TransitionEndSize.Y > TransitionStartSize.Y)
-			{
-				LastDesiredSize = ((TransitionEndSize - TransitionStartSize) * FMath::InterpEaseOut<float>(0.f, 1.f, TransitionPercentage, 4.f)) + TransitionStartSize;
-			}
-			else
-			{
-				LastDesiredSize = TransitionStartSize - ((TransitionStartSize - TransitionEndSize) * FMath::InterpEaseOut<float>(0.f, 1.f, TransitionPercentage, 4.f));
-			}
-		}
-	}
 
 	if ( !IsShowingFullTip && ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() )
 	{
-		if ( !bFullTipContentIsReady && DocumentationPage.IsValid() && DocumentationPage->HasExcerpt(ExcerptName))
+		if ( !FullTipContent.IsValid() && DocumentationPage.IsValid() && DocumentationPage->HasExcerpt( ExcerptName ) )
 		{
 			ConstructFullTipContent();
 		}
@@ -567,8 +397,11 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 			ReloadDocumentation();
 		}
 
-		if ( bFullTipContentIsReady)
+		if ( FullTipContent.IsValid() )
 		{
+			WidgetContent->SetContent( FullTipContent.ToSharedRef() );
+			IsShowingFullTip = true;
+
 			// Analytics event
 			if (FEngineAnalytics::IsAvailable())
 			{
@@ -578,10 +411,6 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 
 				FEngineAnalytics::GetProvider().RecordEvent(TEXT("Editor.Usage.Documentation.FullTooltipShown"), Params);
 			}
-			bIsInTransition = true;
-			IsShowingFullTip = true;
-			TransitionStartTime = InCurrentTime;
-			TransitionStartSize = LastDesiredSize;
 		}
 	}
 	else if ( ( IsShowingFullTip || NeedsUpdate )  && ( !ModifierKeys.IsAltDown() || !ModifierKeys.IsControlDown() ) )
@@ -592,10 +421,8 @@ void SDocumentationToolTip::Tick( const FGeometry& AllottedGeometry, const doubl
 			IsDisplayingDocumentationLink = GetDefault<UEditorPerProjectUserSettings>()->bDisplayDocumentationLink;
 		}
 
-		bIsInTransition = true;
+		WidgetContent->SetContent( SimpleTipContent.ToSharedRef() );
 		IsShowingFullTip = false;
-		TransitionStartTime = InCurrentTime;
-		TransitionStartSize = LastDesiredSize;
 	}
 }
 
@@ -603,54 +430,4 @@ bool SDocumentationToolTip::IsInteractive() const
 {
 	const FModifierKeysState ModifierKeys = FSlateApplication::Get().GetModifierKeys();
 	return ( DocumentationPage.IsValid() && ModifierKeys.IsAltDown() && ModifierKeys.IsControlDown() );
-}
-
-FVector2D SDocumentationToolTip::ComputeDesiredSize(float LayoutScaleMultiplier) const
-{
-	return LastDesiredSize;
-}
-
-EVisibility SDocumentationToolTip::GetFullTipVisibility() const
-{
-	if (IsShowingFullTip)
-	{
-		return EVisibility::Visible;
-	}
-	return EVisibility::Collapsed;
-}
-
-EVisibility SDocumentationToolTip::GetPromptVisibility() const
-{
-	if (IsShowingFullTip)
-	{
-		return EVisibility::Collapsed;
-	}
-	return EVisibility::Visible;
-}
-
-EVisibility SDocumentationToolTip::GetControlVisibility() const
-{
-	if (IsDisplayingDocumentationLink && (IsShowingFullTip || !DocumentationPage.IsValid() || !DocumentationPage->HasExcerpt(ExcerptName)))
-	{
-		return EVisibility::Visible;
-	}
-	return EVisibility::Collapsed;
-}
-
-EVisibility SDocumentationToolTip::GetShortcutVisibility() const
-{
-	if ((Shortcut.IsSet() || Shortcut.IsBound()) && !Shortcut.Get().IsEmpty())
-	{
-		return EVisibility::Visible;
-	}
-	return EVisibility::Collapsed;
-}
-
-const FSlateBrush* SDocumentationToolTip::GetSimpleTipBorderStyle() const
-{
-	if (IsShowingFullTip)
-	{
-		return FDocumentationStyleSet::Get().GetBrush("ToolTip.Header");
-	}
-	return FAppStyle::GetBrush("");
 }
