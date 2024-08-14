@@ -41,6 +41,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 		EConvAutoPad AutoPad = EConvAutoPad::NOTSET;
 		TArray<int32> Dilations;
+		bool bHasDilation;
 		int32 Group = 1;
 		TArray<int32> Pads;
 		TArray<int32> Strides;
@@ -113,6 +114,7 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 
 			FConvCS::LexFromString(AutoPad, *Attributes.GetValueOrDefault<FString>(TEXT("auto_pad"), TEXT("NOTSET")));
 			Dilations = Attributes.GetValueOrDefault<TArray<int32>>(TEXT("dilations"), DilationsOrStridesDefault);
+			bHasDilation = Algo::AnyOf(Dilations, [](auto Dim) {return Dim != 1u; });
 			Group = Attributes.GetValueOrDefault<int32>(TEXT("group"), 1);
 			if (AutoPad == EConvAutoPad::NOTSET)
 			{
@@ -180,10 +182,6 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 				return false;
 			if (Weights.GetShape().Rank() != 4)
 				return false;
-			
-			bool bHasBias = Bias != nullptr;
-
-			const bool bHasDilation = Algo::AnyOf(Dilations, [](auto Dim) {return Dim != 1u; });
 			if (bHasDilation)
 				return false;
 
@@ -202,14 +200,11 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			int Hw = Weights.GetShape().GetData()[2];
 			int Ww = Weights.GetShape().GetData()[3];
 
-			if (Ci % 16 != 0)
-				return false;
-			if (Cw % 32 != 0)
-				return false;
 			if (Wo % 32 != 0) // Idea : support this by launching more threads and discard some results so a threadgroup still operator on only one value for H.
 				return false;
 
 			TArray<int32> Padding = FConvCS::GetPadding(Input.GetShape().GetData(), Weights.GetShape().GetData(), AutoPad, Dilations, Strides, Pads);
+			bool bHasBias = Bias != nullptr;
 
 			// Set parameters
 			FConvMatmulCS::FParameters* Params = GraphBuilder.AllocParameters<FConvMatmulCS::FParameters>();
@@ -293,15 +288,9 @@ namespace UE::NNERuntimeRDG::Private::Hlsl
 			// Heuristics : only matmul implementation benefits from transposed weights
 			if (Weights->GetShape().Rank() != 4)
 				return;
-
-			uint32 Cw = Weights->GetShape().GetData()[0];
-			uint32 Ci = Weights->GetShape().GetData()[1];
-
-			if (Ci % 16 != 0)
-				return;
-			if (Cw % 32 != 0)
-				return;
 			if (Group != 1)
+				return;
+			if (bHasDilation)
 				return;
 
 			//Transpose from CwCiHwWw to HwWwCiCw
