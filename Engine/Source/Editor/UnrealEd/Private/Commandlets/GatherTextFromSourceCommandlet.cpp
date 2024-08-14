@@ -9,6 +9,7 @@
 #include "Algo/Transform.h"
 #include "Internationalization/InternationalizationMetadata.h"
 #include "Internationalization/TextNamespaceUtil.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGatherTextFromSourceCommandlet, Log, All);
 
@@ -43,6 +44,7 @@ bool UGatherTextFromSourceCommandlet::ShouldRunInPreview(const TArray<FString>& 
 
 int32 UGatherTextFromSourceCommandlet::Main( const FString& Params )
 {
+	UE_SCOPED_TIMER(TEXT("UGatherTextFromSourceCommandlet::Main"), LogGatherTextFromSourceCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

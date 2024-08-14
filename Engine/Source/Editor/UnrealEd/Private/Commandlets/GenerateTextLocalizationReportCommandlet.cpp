@@ -16,6 +16,7 @@
 #include "Misc/DateTime.h"
 #include "Templates/SharedPointer.h"
 #include "Trace/Detail/Channel.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGenerateTextLocalizationReportCommandlet, Log, All);
 
@@ -26,6 +27,7 @@ UGenerateTextLocalizationReportCommandlet::UGenerateTextLocalizationReportComman
 
 int32 UGenerateTextLocalizationReportCommandlet::Main(const FString& Params)
 {
+	UE_SCOPED_TIMER(TEXT("UGenerateTextLocalizationReportCommandlet::Main"), LogGenerateTextLocalizationReportCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

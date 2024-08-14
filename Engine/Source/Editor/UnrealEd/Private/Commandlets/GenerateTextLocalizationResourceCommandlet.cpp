@@ -20,6 +20,7 @@
 #include "TextLocalizationResourceGenerator.h"
 #include "Trace/Detail/Channel.h"
 #include "UObject/NameTypes.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogGenerateTextLocalizationResourceCommandlet, Log, All);
 
@@ -30,6 +31,7 @@ UGenerateTextLocalizationResourceCommandlet::UGenerateTextLocalizationResourceCo
 
 int32 UGenerateTextLocalizationResourceCommandlet::Main(const FString& Params)
 {
+	UE_SCOPED_TIMER(TEXT("UGenerateTextLocalizationResourceCommandlet::Main"), LogGenerateTextLocalizationResourceCommandlet, Display);
 	// Parse command line - we're interested in the param vals
 	TArray<FString> Tokens;
 	TArray<FString> Switches;

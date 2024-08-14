@@ -15,6 +15,7 @@
 #include "Trace/Detail/Channel.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectGlobals.h"
+#include "ProfilingDebugging/ScopedTimers.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogInternationalizationExportCommandlet, Log, All);
 
@@ -159,6 +160,7 @@ int32 UInternationalizationExportCommandlet::Main(const FString& Params)
 
 	if (bDoImport)
 	{
+		UE_SCOPED_TIMER(TEXT("UInternationalizationExportCommandlet::Main Import"), LogInternationalizationExportCommandlet, Display);
 		// Load the manifest and all archives
 		FLocTextHelper LocTextHelper(DestinationPath, ManifestName, ArchiveName, NativeCultureName, CulturesToGenerate, GatherManifestHelper->GetLocFileNotifies(), GatherManifestHelper->GetPlatformSplitMode());
 		LocTextHelper.SetCopyrightNotice(GatherManifestHelper->GetCopyrightNotice());
@@ -181,6 +183,7 @@ int32 UInternationalizationExportCommandlet::Main(const FString& Params)
 
 	if (bDoExport)
 	{
+		UE_SCOPED_TIMER(TEXT("UInternationalizationExportCommandlet::Main (Export)"), LogInternationalizationExportCommandlet, Display);
 		bool bShouldPersistComments = false;
 		GetBoolFromConfig(*SectionName, TEXT("ShouldPersistCommentsOnExport"), bShouldPersistComments, ConfigPath);
 
