@@ -60,7 +60,7 @@ SCustomizableObjectNodeLayoutBlocksEditor::SCustomizableObjectNodeLayoutBlocksEd
 
 void SCustomizableObjectNodeLayoutBlocksEditor::Construct(const FArguments& InArgs)
 {
-	CurrentLayout = 0;
+	CurrentLayout = nullptr;
 	
 	BindCommands();
 }
@@ -428,9 +428,8 @@ TArray<FCustomizableObjectLayoutBlock> SCustomizableObjectNodeLayoutBlocksEditor
 	if (CurrentLayout)
 	{
 		Blocks = CurrentLayout->Blocks;
+		Blocks.Append(CurrentLayout->AutomaticBlocks);
 	}
-
-	Blocks.Append(CurrentLayout->AutomaticBlocks );
 
 	return Blocks;
 }
