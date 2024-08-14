@@ -34,6 +34,23 @@
 
 FLinearColor OrangeLabelBackgroundColor(0.8f, 0.3f, 0.0f);
 
+
+int32 GDisplayClusterConfiguratorMinResolution = 0;
+static FAutoConsoleVariableRef CVarDisplayClusterConfiguratorMinResolution(
+	TEXT("nDisplay.UI.MinResolution"),
+	GDisplayClusterConfiguratorMinResolution,
+	TEXT("The minimum value of the resolution parameter in the nDisplay UI. (Default = 0)"),
+	ECVF_Default
+);
+
+int32 GDisplayClusterConfiguratorMaxResolution = 16384;
+static FAutoConsoleVariableRef CVarDisplayClusterConfiguratorMaxResolution(
+	TEXT("nDisplay.UI.MaxResolution"),
+	GDisplayClusterConfiguratorMaxResolution,
+	TEXT("The maximum value of the resolution parameter in the nDisplay UI. (Default = 16384)"),
+	ECVF_Default
+);
+
 //////////////////////////////////////////////////////////////////////////////////////////////
 // Policy Parameter Configuration
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -493,11 +510,33 @@ FReply FPolicyParameterInfoFile::OnChangePathClicked()
 	return FReply::Handled();
 }
 
+/**
+* FPolicyParameterInfoFloatReference
+*/
 TSharedRef<SWidget> FPolicyParameterInfoFloatReference::MakeFloatInputWidget(TSharedRef<TOptional<float>>& ProxyValue, const FText& Label,
-                                                                     bool bRotationInDegrees,
-                                                                     const FLinearColor& LabelColor,
-                                                                     const FLinearColor& LabelBackgroundColor)
+											const bool bRotationInDegrees,
+											const FLinearColor& LabelColor, const FLinearColor& LabelBackgroundColor,
+											const float* InMinValue, const float* InMaxValue)
 {
+	TOptional<float> MinValue, MaxValue;
+
+	if (bRotationInDegrees)
+	{
+		MinValue = 0;
+		MaxValue = 360;
+	}
+
+	if (InMinValue)
+	{
+		MinValue = *InMinValue;
+	}
+	
+	if (InMaxValue)
+	{
+		MaxValue = *InMaxValue;
+	}
+
+
 	return
 		SNew(SNumericEntryBox<float>)
 			.Value(this, &FPolicyParameterInfoFloatReference::OnGetValue, ProxyValue)
@@ -507,20 +546,51 @@ TSharedRef<SWidget> FPolicyParameterInfoFloatReference::MakeFloatInputWidget(TSh
 			.LabelVAlign(VAlign_Fill)
 			.LabelPadding(0)
 			.AllowSpin(bRotationInDegrees)
-			.MaxSliderValue(bRotationInDegrees ? 360.0f : TOptional<float>())
-			.MinSliderValue(bRotationInDegrees ? 0.0f : TOptional<float>())
+			.MaxSliderValue(MaxValue)
+			.MinSliderValue(MinValue)
 			.Label()
 		[
 			SNumericEntryBox<float>::BuildLabel(Label, LabelColor, LabelBackgroundColor)
 		];
 }
 
-void FPolicyParameterInfoFloatReference::OnValueCommitted(float NewValue, ETextCommit::Type CommitType, TSharedRef<TOptional<float>> Value)
+/**
+* FPolicyParameterInfoIntReference
+*/
+TSharedRef<SWidget> FPolicyParameterInfoIntReference::MakeIntInputWidget(TSharedRef<TOptional<int32>>& ProxyValue, const FText& Label,
+										const FLinearColor& LabelColor, const FLinearColor& LabelBackgroundColor,
+										const int32* InMinValue, const int32* InMaxValue)
 {
-	*Value = NewValue;
-	FormatTextAndUpdateParameter();
+	TOptional<int32> MinValue, MaxValue;
+
+	if (InMinValue)
+	{
+		MinValue = *InMinValue;
+	}
+
+	if (InMaxValue)
+	{
+		MaxValue = *InMaxValue;
+	}
+	return
+		SNew(SNumericEntryBox<int32>)
+			.Value(this, &FPolicyParameterInfoIntReference::OnGetValue, ProxyValue)
+			.Font(IDetailLayoutBuilder::GetDetailFont())
+			.UndeterminedString(NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values"))
+			.OnValueCommitted(this, &FPolicyParameterInfoIntReference::OnValueCommitted, ProxyValue)
+			.LabelVAlign(VAlign_Fill)
+			.LabelPadding(0)
+			.MaxSliderValue(MaxValue)
+			.MinSliderValue(MinValue)
+			.Label()
+		[
+			SNumericEntryBox<float>::BuildLabel(Label, LabelColor, LabelBackgroundColor)
+		];
 }
 
+/**
+* FPolicyParameterInfoMatrix
+*/
 const FString FPolicyParameterInfoMatrix::BaseMatrixString = DisplayClusterTypesConverter::template ToString<FMatrix>(FMatrix(FPlane(1.0f, 0.0f, 0.0f, 0.0f), FPlane(0.0f, 1.0f, 0.0f, 0.0f), FPlane(0.0f, 0.0f, 0.0f, 1.0f), FPlane(0.0f, 0.0f, 1.0f, 0.0f)));
 
 FPolicyParameterInfoMatrix::FPolicyParameterInfoMatrix(const FString& InDisplayName, const FString& InKey,
@@ -1080,6 +1150,169 @@ void FPolicyParameterInfoFrustumAngle::FormatTextAndUpdateParameter()
 	const FString AngleString = FString::Printf(TEXT("l=%s, r=%s, t=%s, b=%s"), *AngleLStr, *AngleRStr, *AngleTStr, *AngleBStr);
 
 	UpdateCustomParameterValueText(AngleString);
+}
+
+/**
+* FPolicyParameterInfoResolution
+*/
+const FString FPolicyParameterInfoResolution::BaseResolutionString = FString("X=2048, Y=2048");
+
+FPolicyParameterInfoResolution::FPolicyParameterInfoResolution(const FString& InDisplayName, const FString& InKey,
+	UDisplayClusterBlueprint* InBlueprint, const TArray<TWeakObjectPtr<UDisplayClusterConfigurationViewport>>& InConfigurationViewports)
+	: FPolicyParameterInfoIntReference(InDisplayName, InKey, InBlueprint, InConfigurationViewports, &BaseResolutionString)
+	, CachedX(MakeShared<TOptional<int32>>())
+	, CachedY(MakeShared<TOptional<int32>>())
+{
+	if (!DoParametersMatchForAllViewports())
+	{
+		for (const TWeakObjectPtr<UDisplayClusterConfigurationViewport>& Viewport : ConfigurationViewports)
+		{
+			UDisplayClusterConfigurationViewport* ConfigurationViewport = Viewport.Get();
+			check(ConfigurationViewport != nullptr);
+
+			if (const FString* ParameterValue = ConfigurationViewport->ProjectionPolicy.Parameters.Find(GetParameterKey()))
+			{
+				const FIntPoint Resolution = DisplayClusterTypesConverter::template FromString<FIntPoint>(*ParameterValue);
+
+				ResetOrSetCachedValue(CachedX, FMath::Max(0, Resolution.X));
+				ResetOrSetCachedValue(CachedY, FMath::Max(0, Resolution.Y));
+			}
+		}
+	}
+	else
+	{
+		const FString TextValue = GetOrAddCustomParameterValueText().ToString();
+		const FIntPoint Resolution = DisplayClusterTypesConverter::template FromString<FIntPoint>(*TextValue);
+
+		*CachedX = FMath::Max(0, Resolution.X);
+		*CachedY = FMath::Max(0, Resolution.Y);
+	}
+}
+
+void FPolicyParameterInfoResolution::CreateCustomRowWidget(IDetailChildrenBuilder& InDetailWidgetRow)
+{
+	InDetailWidgetRow.AddCustomRow(GetParameterDisplayName())
+		.Visibility(MakeAttributeRaw(this, &FPolicyParameterInfoResolution::IsParameterVisible))
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(GetParameterDisplayName())
+				.ToolTipText(this, &FPolicyParameterInfo::GetParameterTooltip)
+		]
+		.ValueContent()
+		.MinDesiredWidth(375.0f)
+		.MaxDesiredWidth(375.0f)
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.0f, 2.0f, 3.0f, 2.0f))
+				[
+					MakeIntInputWidget(CachedX, LOCTEXT("Width", "W"),
+						FLinearColor::White, SNumericEntryBox<float>::RedLabelBackgroundColor,
+						&GDisplayClusterConfiguratorMinResolution, &GDisplayClusterConfiguratorMaxResolution)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.0f, 2.0f, 3.0f, 2.0f))
+				[
+					MakeIntInputWidget(CachedY, LOCTEXT("Height", "H"),
+						FLinearColor::White, SNumericEntryBox<float>::GreenLabelBackgroundColor,
+						&GDisplayClusterConfiguratorMinResolution, &GDisplayClusterConfiguratorMaxResolution)
+				]
+		];
+}
+
+void FPolicyParameterInfoResolution::FormatTextAndUpdateParameter()
+{
+	const bool bAllValuesSet = CachedX->IsSet() && CachedY->IsSet();
+	if (!bAllValuesSet)
+	{
+		return;
+	}
+
+	const FIntPoint Resolution(*CachedX.Get(), *CachedY.Get());
+	UpdateCustomParameterValueText(Resolution.ToString());
+}
+
+/**
+* FPolicyParameterInfoNormalizedVector2D
+*/
+const FString FPolicyParameterInfoNormalizedVector2D::BaseVectorValueStr = FString("X=0, Y=0");
+
+FPolicyParameterInfoNormalizedVector2D::FPolicyParameterInfoNormalizedVector2D(const FString& InDisplayName, const FString& InKey,
+	UDisplayClusterBlueprint* InBlueprint, const TArray<TWeakObjectPtr<UDisplayClusterConfigurationViewport>>& InConfigurationViewports, const FString* InDefaultValue)
+	: FPolicyParameterInfoFloatReference(InDisplayName, InKey, InBlueprint, InConfigurationViewports, InDefaultValue ? InDefaultValue : &BaseVectorValueStr)
+	, CachedX(MakeShared<TOptional<float>>())
+	, CachedY(MakeShared<TOptional<float>>())
+{
+	if (!DoParametersMatchForAllViewports())
+	{
+		for (const TWeakObjectPtr<UDisplayClusterConfigurationViewport>& Viewport : ConfigurationViewports)
+		{
+			UDisplayClusterConfigurationViewport* ConfigurationViewport = Viewport.Get();
+			check(ConfigurationViewport != nullptr);
+
+			if (const FString* ParameterValue = ConfigurationViewport->ProjectionPolicy.Parameters.Find(GetParameterKey()))
+			{
+				const FVector2D Pts = DisplayClusterTypesConverter::template FromString<FVector2D>(*ParameterValue);
+
+				ResetOrSetCachedValue(CachedX, FMath::Max(0.f, FMath::Min(1.f, Pts.X)));
+				ResetOrSetCachedValue(CachedY, FMath::Max(0.f, FMath::Min(1.f, Pts.Y)));
+			}
+		}
+	}
+	else
+	{
+		const FString TextValue = GetOrAddCustomParameterValueText().ToString();
+		const FVector2D Pts = DisplayClusterTypesConverter::template FromString<FVector2D>(*TextValue);
+
+		*CachedX = FMath::Max(0.f, FMath::Min(1.f, Pts.X));
+		*CachedY = FMath::Max(0.f, FMath::Min(1.f, Pts.Y));
+	}
+}
+
+void FPolicyParameterInfoNormalizedVector2D::CreateCustomRowWidget(IDetailChildrenBuilder& InDetailWidgetRow)
+{
+	const float MinVectorComponentValue = 0.f;
+	const float MaxVectorComponentValue = 1.0f;
+
+	InDetailWidgetRow.AddCustomRow(GetParameterDisplayName())
+		.Visibility(MakeAttributeRaw(this, &FPolicyParameterInfoNormalizedVector2D::IsParameterVisible))
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(GetParameterDisplayName())
+				.ToolTipText(this, &FPolicyParameterInfo::GetParameterTooltip)
+		]
+		.ValueContent()
+		.MinDesiredWidth(375.0f)
+		.MaxDesiredWidth(375.0f)
+		[
+			SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.0f, 2.0f, 3.0f, 2.0f))
+				[
+					MakeFloatInputWidget(CachedX, LOCTEXT("NormV2D_X", "X"), false, FLinearColor::White, SNumericEntryBox<float>::RedLabelBackgroundColor, &MinVectorComponentValue, &MaxVectorComponentValue)
+				]
+				+ SHorizontalBox::Slot()
+				.Padding(FMargin(0.0f, 2.0f, 3.0f, 2.0f))
+				[
+					MakeFloatInputWidget(CachedY, LOCTEXT("NormV2D_Y", "Y"), false, FLinearColor::White, SNumericEntryBox<float>::GreenLabelBackgroundColor, &MinVectorComponentValue, &MaxVectorComponentValue)
+				]
+		];
+}
+
+void FPolicyParameterInfoNormalizedVector2D::FormatTextAndUpdateParameter()
+{
+	const bool bAllValuesSet = CachedX->IsSet() && CachedY->IsSet();
+	if (!bAllValuesSet)
+	{
+		return;
+	}
+
+	const FVector2D Pts(*CachedX.Get(), *CachedY.Get());
+	UpdateCustomParameterValueText(DisplayClusterTypesConverter::ToString(Pts));
 }
 
 #undef LOCTEXT_NAMESPACE

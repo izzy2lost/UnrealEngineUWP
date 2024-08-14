@@ -642,7 +642,11 @@ bool FDisplayClusterConfiguratorBlueprintEditor::LoadWithOpenFileDialog()
 		{
 			FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_IMPORT, OpenFilenames[0]);
 
-			return LoadFromFile(OpenFilenames[0]);
+			// The system relative path is not associated with the project directory.
+			// We must convert it to the relative path of the UE project
+			const FString RelativeFilePath = DisplayClusterHelpers::filesystem::GetRelativePathForConfigResource(FPaths::ConvertRelativePathToFull(OpenFilenames[0]));
+
+			return LoadFromFile(RelativeFilePath);
 		}
 	}
 
@@ -1106,10 +1110,14 @@ void FDisplayClusterConfiguratorBlueprintEditor::ImportMPCDI_Clicked()
 			const FString& FileName = OpenFileNames[0];
 			FEditorDirectories::Get().SetLastDirectory(ELastDirectory::GENERIC_IMPORT, FileName);
 
+			// The system relative path is not associated with the project directory.
+			// We must convert it to the relative path of the UE project
+			const FString RelativeFilePath = DisplayClusterHelpers::filesystem::GetRelativePathForConfigResource(FPaths::ConvertRelativePathToFull(FileName));
+
 			UDisplayClusterBlueprint* Blueprint = LoadedBlueprint.Get();
 
 			FDisplayClusterConfiguratorMPCDIImporterParams ImportParams {};
-			if (FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(FileName, Blueprint, ImportParams))
+			if (FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(RelativeFilePath, Blueprint, ImportParams))
 			{
 				GetEditorData()->MarkPackageDirty();
 				ClusterChanged();

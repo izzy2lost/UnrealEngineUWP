@@ -208,6 +208,18 @@ UMeshComponent* FDisplayClusterWarpBlend::GetOrCreatePreviewMeshComponentImpl(ID
 	case EDisplayClusterWarpGeometryType::WarpMap:
 		if (ProjectionPolicy.IsValid())
 		{
+			// use the existing DCRA component
+			if (USceneComponent* PreviewMeshComponent = GeometryContext.GeometryProxy.PreviewMeshComponentRef.GetOrFindSceneComponent())
+			{
+				if (PreviewMeshComponent->IsA<UMeshComponent>())
+				{
+					UMeshComponent* ExistMeshComponent = static_cast<UMeshComponent*>(PreviewMeshComponent);
+
+					bExistingComponent = true;
+					return ExistMeshComponent;
+				}
+			}
+
 			// create a new mesh component
 			bExistingComponent = false;
 

@@ -11,6 +11,7 @@
 #include "DisplayClusterProjectionStrings.h"
 
 #include "Misc/DisplayClusterHelpers.h"
+#include "Misc/DisplayClusterProjectionHelpers.h"
 #include "Misc/FileHelper.h"
 
 #include "DisplayClusterRootActor.h"
@@ -39,20 +40,26 @@ bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ReadConfig()
 		{
 			UE_LOG(LogDisplayClusterProjectionMPCDI, Error, TEXT("Undefined mpcdi type key '%s'='%s'"), DisplayClusterProjectionStrings::cfg::mpcdi::MPCDITypeKey, *MPCDITypeKey);
 		}
+
+		return false;
+	}
+
+	if (!ImplGetBaseConfig())
+	{
 		return false;
 	}
 
 	if (MPCDITypeKey.Compare(DisplayClusterProjectionStrings::cfg::mpcdi::TypeMPCDI) == 0)
 	{
-		return ImplGetMPCDIConfig() && ImplGetBaseConfig();
+		return ImplGetMPCDIConfig();
 	}
-
-	if (MPCDITypeKey.Compare(DisplayClusterProjectionStrings::cfg::mpcdi::TypePFM) == 0)
+	else if (MPCDITypeKey.Compare(DisplayClusterProjectionStrings::cfg::mpcdi::TypePFM) == 0)
 	{
-		return ImplGetPFMConfig() && ImplGetMPCDIAttributes() && ImplGetBaseConfig();
+		return ImplGetPFMConfig();
 	}
 
 	UE_LOG(LogDisplayClusterProjectionMPCDI, Error, TEXT("Unknown mpcdi type key '%s'='%s'"), DisplayClusterProjectionStrings::cfg::mpcdi::MPCDITypeKey, *MPCDITypeKey);
+
 	return false;
 }
 
@@ -103,30 +110,6 @@ bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ImplGetMPCDIConfig()
 		return false;
 	}
 
-	// Screen component
-	FString ScreenComponentName;
-	if (DisplayClusterHelpers::map::template ExtractValue(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::Component, ScreenComponentName))
-	{
-		if (!ScreenComponentName.IsEmpty())
-		{
-			if (ADisplayClusterRootActor* SceneRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
-			{
-				if (UDisplayClusterScreenComponent* ScreenComp = SceneRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
-				{
-					ScreenComponent = ScreenComp;
-				}
-			}
-
-			if (ADisplayClusterRootActor* PreviewRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Preview))
-			{
-				if (UDisplayClusterScreenComponent* PreviewScreenComp = PreviewRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
-				{
-					PreviewScreenComponent = PreviewScreenComp;
-				}
-			}
-		}
-	}
-
 	return true;
 }
 
@@ -143,33 +126,6 @@ bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ImplGetPFMConfig()
 	if (PFMFile.IsEmpty())
 	{
 		return false;
-	}
-
-	// MPCDIType (optional)
-	FString MPCDITypeStr;
-	if (!DisplayClusterHelpers::map::template ExtractValue(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, MPCDITypeStr))
-	{
-		MPCDIAttributes.ProfileType = EDisplayClusterWarpProfileType::warp_A3D;
-	}
-	else
-	{
-		MPCDIAttributes.ProfileType = EDisplayClusterWarpProfileType::Invalid;
-
-		static const TArray<FString> Profiles({ "2d","3d","a3d","sl" });
-		for (int32 ProfileIndex = 0; ProfileIndex < Profiles.Num(); ++ProfileIndex)
-		{
-			if (!MPCDITypeStr.Compare(Profiles[ProfileIndex], ESearchCase::IgnoreCase))
-			{
-				MPCDIAttributes.ProfileType = (EDisplayClusterWarpProfileType)ProfileIndex;
-				break;
-			}
-		}
-
-		if (MPCDIAttributes.ProfileType == EDisplayClusterWarpProfileType::Invalid)
-		{
-			UE_LOG(LogDisplayClusterProjectionMPCDI, Error, TEXT("Argument '%s' has unknown value '%s'"), DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, *MPCDITypeStr);
-			return false;
-		}
 	}
 
 	// Default is UE scale, cm
@@ -231,13 +187,76 @@ bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ImplGetBaseConfig()
 		UE_LOG(LogDisplayClusterProjectionMPCDI, Verbose, TEXT("Found EnablePreview value - %s"), bEnablePreview ? TEXT("true") : TEXT("false"));
 	}
 
-	return true;
-}
+	// Screen component
+	FString ScreenComponentName;
+	if (DisplayClusterHelpers::map::template ExtractValue(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::Component, ScreenComponentName))
+	{
+		if (!ScreenComponentName.IsEmpty())
+		{
+			if (ADisplayClusterRootActor* SceneRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Scene))
+			{
+				if (UDisplayClusterScreenComponent* ScreenComp = SceneRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
+				{
+					ScreenComponent = ScreenComp;
+				}
+			}
 
-bool FDisplayClusterProjectionMPCDIPolicy_ConfigParser::ImplGetMPCDIAttributes()
-{
-	// Todo: Read parameters with names from the DisplayClusterProjectionStrings::cfg::mpcdi::Attributes namespace
-	// into a local variable named MPCDIAttributes;
+			if (ADisplayClusterRootActor* PreviewRootActor = Viewport->GetConfiguration().GetRootActor(EDisplayClusterRootActorType::Preview))
+			{
+				if (UDisplayClusterScreenComponent* PreviewScreenComp = PreviewRootActor->GetComponentByName<UDisplayClusterScreenComponent>(ScreenComponentName))
+				{
+					PreviewScreenComponent = PreviewScreenComp;
+				}
+			}
+		}
+	}
+
+	// MPCDIType (optional)
+	FString MPCDITypeStr;
+	if (!DisplayClusterHelpers::map::template ExtractValue(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, MPCDITypeStr))
+	{
+		MPCDIAttributes.ProfileType = EDisplayClusterWarpProfileType::warp_A3D;
+	}
+	else
+	{
+		MPCDIAttributes.ProfileType = UE::DisplayClusterProjectionHelpers::MPCDI::ProfileTypeFromString(MPCDITypeStr);
+
+		if (MPCDIAttributes.ProfileType == EDisplayClusterWarpProfileType::Invalid)
+		{
+			UE_LOG(LogDisplayClusterProjectionMPCDI, Error, TEXT("Argument '%s' has unknown value '%s'"), DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, *MPCDITypeStr);
+			return false;
+		}
+	}
+
+	switch (MPCDIAttributes.ProfileType)
+	{
+	case EDisplayClusterWarpProfileType::warp_2D:
+	// Reads additional properties of the mpcdi 2d profile.
+	{
+		FIntPoint BufferRes;
+		if (DisplayClusterHelpers::map::template ExtractValueFromString(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Buffer::Resolution, BufferRes))
+		{
+			UE_LOG(LogDisplayClusterProjectionMPCDI, Verbose, TEXT("Found buffer resolution %s"), *DisplayClusterTypesConverter::ToString(BufferRes));
+			MPCDIAttributes.Buffer.Resolution = BufferRes;
+		}
+
+		FVector2D RegionPos(0,0), RegionSize(1,1);
+		if (DisplayClusterHelpers::map::template ExtractValueFromString(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Region::Pos, RegionPos)
+		&& DisplayClusterHelpers::map::template ExtractValueFromString(ConfigParameters, DisplayClusterProjectionStrings::cfg::mpcdi::Attributes::Region::Size, RegionSize))
+		{
+			UE_LOG(LogDisplayClusterProjectionMPCDI, Verbose, TEXT("Found region pos (%s) and size (%s)"), *DisplayClusterTypesConverter::ToString(RegionPos), *DisplayClusterTypesConverter::ToString(RegionSize));
+
+			MPCDIAttributes.Region.Pos = RegionPos;
+			MPCDIAttributes.Region.Size= RegionSize;
+		}
+	}
+	break;
+
+	default:
+		// Todo: Read parameters with names from the DisplayClusterProjectionStrings::cfg::mpcdi::Attributes namespace
+		// into a local variable named MPCDIAttributes;
+		break;
+	}
 
 	return true;
 }

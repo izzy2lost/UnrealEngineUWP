@@ -60,12 +60,22 @@ template <> inline FString DisplayClusterTypesConverter::ToString<>(const int32&
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const uint32& From)     { return ToString(static_cast<int32>(From)); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const float& From)      { return FString::SanitizeFloat(From); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const double& From)     { return FString::Printf(TEXT("%lf"), From); }
-template <> inline FString DisplayClusterTypesConverter::ToString<>(const FVector& From)    { return From.ToString(); }
-template <> inline FString DisplayClusterTypesConverter::ToString<>(const FVector2D& From)  { return From.ToString(); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const FRotator& From)   { return From.ToString(); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const FMatrix& From)    { return From.ToString(); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const FQuat& From)      { return From.ToString(); }
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const FIntPoint& From)  { return From.ToString(); }
+
+// The TVector::ToString() function uses "%3.3f" which compresses the value. A proprietary function is used to get a full-size float.
+template <> inline FString DisplayClusterTypesConverter::ToString<>(const FVector& From)
+{
+	return FString::Printf(TEXT("X=%f Y=%f Z=%f"), From.X, From.Y, From.Z);
+}
+
+// The TVector2D::ToString() function uses "%3.3f" which compresses the value. A proprietary function is used to get a full-size float.
+template <> inline FString DisplayClusterTypesConverter::ToString<>(const FVector2D& From)
+{
+	return FString::Printf(TEXT("X=%f Y=%f"), From.X, From.Y);
+}
 
 // We can't just use FTimecode ToString as that loses information.
 template <> inline FString DisplayClusterTypesConverter::ToString<>(const FTimecode& From)

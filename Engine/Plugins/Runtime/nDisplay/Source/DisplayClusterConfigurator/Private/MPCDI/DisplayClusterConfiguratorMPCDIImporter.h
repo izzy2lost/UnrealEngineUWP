@@ -13,14 +13,21 @@ class UDisplayClusterConfigurationViewport;
 class UDisplayClusterBlueprint;
 class UDisplayClusterScreenComponent;
 
-/** USed to pass parameters into the MPCDI importer */
-struct FDisplayClusterConfiguratorMPCDIImporterParams
+/** Additional parameters for the mpcdi 2d profile. */
+struct FDisplayClusterConfiguratorMPCDIProfile2DImporterParams
 {
 	/** The amount to scale an MPCDI buffer by when converting from pixels to world coordinates */
-	float BufferToWorldScale = 0.1;
+	float BufferPixelsToWorldUnits = 0.1;
 
-	/** The distance from the origin to position an MPCDI buffer in world coordinates */
-	float BufferToWorldDistance = 100;
+	/** Desired FOV. The focal length will be calculated for that FOV and the geometry will be shifted by that value. */
+	float DesiredFOV = 90.f;
+};
+
+/** Used to pass parameters into the MPCDI importer */
+struct FDisplayClusterConfiguratorMPCDIImporterParams
+{
+	/** Additional parameters for the mpcdi 2d profile. */
+	FDisplayClusterConfiguratorMPCDIProfile2DImporterParams Profile2DParams;
 
 	/** The name of the component to make the parent of the MPCDI geometry */
 	FName ParentComponentName = NAME_None;
@@ -68,7 +75,7 @@ private:
 	 * @param InAttributes - The attributes of the region to configure
 	 * @param InParams - The import parameters 
 	 **/
-	static void ConfigureScreenFromRegion(UDisplayClusterScreenComponent* InScreenComponent, UDisplayClusterCameraComponent* InViewOriginComponent, const FDisplayClusterWarpMPCDIAttributes& InAttributes, const FDisplayClusterConfiguratorMPCDIImporterParams& InParams);
+	static void ConfigureScreenComponentFrom2DProfileRegion(UDisplayClusterScreenComponent* InScreenComponent, UDisplayClusterCameraComponent* InViewOriginComponent, const FDisplayClusterWarpMPCDIAttributes& InAttributes, const FDisplayClusterConfiguratorMPCDIImporterParams& InParams);
 
 	/**
 	 * Attempts to find an existing viewport configuration for the specified region, and if one is not found, creates a new viewport configuration

@@ -118,41 +118,38 @@ namespace DisplayClusterProjectionStrings
 
 			static constexpr const TCHAR* Component = TEXT("screen_component");
 
+			namespace Profiles
+			{
+				static constexpr const TCHAR* mpcdi_2d  = TEXT("2d");
+				static constexpr const TCHAR* mpcdi_3d  = TEXT("3d");
+				static constexpr const TCHAR* mpcdi_a3d = TEXT("a3d");
+				static constexpr const TCHAR* mpcdi_sl  = TEXT("sl");
+			}
+
 			namespace Attributes
 			{
 				namespace Buffer
 				{
-					static constexpr const TCHAR* Resolution = TEXT("BufferResolution");
+					static constexpr const TCHAR* Resolution = TEXT("BufferRes");
 				}
 
 				namespace Region
 				{
-					static constexpr const TCHAR* Resolution = TEXT("RegionResolution");
-					static constexpr const TCHAR* Pos = TEXT("RegionPos");
-					static constexpr const TCHAR* Size = TEXT("RegionSize");
+					static constexpr const TCHAR* Resolution = TEXT("RegionRes");
+					static constexpr const TCHAR* Pos        = TEXT("RegionPos");
+					static constexpr const TCHAR* Size       = TEXT("RegionSize");
 				}
 
 				namespace Frustum
 				{
-					static constexpr const TCHAR* Pitch = TEXT("FrustumPitch");
-					static constexpr const TCHAR* Yaw   = TEXT("FrustumYaw");
-					static constexpr const TCHAR* Roll  = TEXT("FrustumRoll");
-					
-					namespace Angle
-					{
-						static constexpr const TCHAR* Left   = TEXT("FrustumAngleLeft");
-						static constexpr const TCHAR* Right  = TEXT("FrustumAngleRight");
-						static constexpr const TCHAR* Top    = TEXT("FrustumAngleTop");
-						static constexpr const TCHAR* Bottom = TEXT("FrustumAngleBottom");
-					}
+					static constexpr const TCHAR* Rotation = TEXT("FrustumRot");
+					static constexpr const TCHAR* Angles   = TEXT("FrustumAngles");
 				}
 
 				namespace CoordinateFrame
 				{
-					static constexpr const TCHAR* Pos   = TEXT("CoordinateFramePos");
-					static constexpr const TCHAR* Yaw   = TEXT("CoordinateFrameYaw");
-					static constexpr const TCHAR* Pitch = TEXT("CoordinateFramePitch");
-					static constexpr const TCHAR* Roll  = TEXT("CoordinateFrameRoll");
+					static constexpr const TCHAR* Position = TEXT("CoordFramePos");
+					static constexpr const TCHAR* Rotation = TEXT("CoordFrameRot");
 				}
 			}
 		}

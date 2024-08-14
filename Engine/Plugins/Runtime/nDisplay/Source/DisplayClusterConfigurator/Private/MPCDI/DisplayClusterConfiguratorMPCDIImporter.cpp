@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DisplayClusterConfiguratorMPCDIImporter.h"
+#include "DisplayClusterConfiguratorLog.h"
 
 #include "DisplayClusterProjectionStrings.h"
 #include "IDisplayClusterWarp.h"
@@ -15,16 +16,27 @@
 #include "Engine/SCS_Node.h"
 #include "Engine/SimpleConstructionScript.h"
 #include "Misc/DisplayClusterHelpers.h"
+#include "Misc/DisplayClusterProjectionHelpers.h"
 
 bool FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(const FString& InFilePath, UDisplayClusterBlueprint* InBlueprint, const FDisplayClusterConfiguratorMPCDIImporterParams& InParams)
 {
 	const FString MPCDIFileFullPath = DisplayClusterHelpers::filesystem::GetFullPathForConfigResource(InFilePath);
+	if (MPCDIFileFullPath.IsEmpty())
+	{
+		UE_LOG(DisplayClusterConfiguratorLog, Error, TEXT("Could not find the MPCDI file '%s'."), *InFilePath);
+		return false;
+	}
 
 	TMap<FString, TMap<FString, FDisplayClusterWarpMPCDIAttributes>> MPCDIFile;
-	IDisplayClusterWarp::Get().ReadMPCDFileStructure(InFilePath, MPCDIFile);
+	if (!IDisplayClusterWarp::Get().ReadMPCDFileStructure(InFilePath, MPCDIFile))
+	{
+		UE_LOG(DisplayClusterConfiguratorLog, Error, TEXT("Could not read the data from the MPCDI file '%s'."), *InFilePath);
+		return false;
+	}
 
-
-	FName ViewOriginComponentName = !InParams.ViewOriginComponentName.IsNone() ? InParams.ViewOriginComponentName : TEXT("DefaultViewPoint");
+	// The ViewPoint component cannot be used as a ViewOrigin. They have different purposes.
+	// The default ViewOrigin is the RootComponent.
+	const FName ViewOriginComponentName = !InParams.ViewOriginComponentName.IsNone() ? InParams.ViewOriginComponentName : TEXT("RootComponent");
 
 	USCS_Node* ViewOriginNode = nullptr;
 	UDisplayClusterCameraComponent* ViewOriginComponent = Cast<UDisplayClusterCameraComponent>(FindBlueprintSceneComponent(InBlueprint, ViewOriginComponentName, &ViewOriginNode));
@@ -44,7 +56,7 @@ bool FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(const FS
 					if (ScreenNode)
 					{
 						UDisplayClusterScreenComponent* ScreenComponent = CastChecked<UDisplayClusterScreenComponent>(ScreenNode->GetActualComponentTemplate(InBlueprint->GetGeneratedClass()));
-						ConfigureScreenFromRegion(ScreenComponent, ViewOriginComponent, Region.Value, InParams);
+						ConfigureScreenComponentFrom2DProfileRegion(ScreenComponent, ViewOriginComponent, Region.Value, InParams);
 
 						// If a new screen had to be created, it needs to be parented to a valid parent component
 						if (!bFoundExistingScreen)
@@ -92,14 +104,13 @@ bool FDisplayClusterConfiguratorMPCDIImporter::ImportMPCDIIntoBlueprint(const FS
 					ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::Region, Region.Key);
 					ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::EnablePreview, TEXT("true"));
 
-					if (Region.Value.ProfileType == EDisplayClusterWarpProfileType::warp_2D)
-					{
-						ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, TEXT("2d"));
+					// Always pass the mpcdi profile type through the projection policy parameter.
+					const FString ProfileName = UE::DisplayClusterProjectionHelpers::MPCDI::ProfileTypeToString(Region.Value.ProfileType);
+					ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::MPCDIType, ProfileName);
 
-						if (InParams.bCreateStageGeometryComponents)
-						{
-							ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::Component, GetScreenNameForRegion(Region.Key));
-						}
+					if (Region.Value.ProfileType == EDisplayClusterWarpProfileType::warp_2D && InParams.bCreateStageGeometryComponents)
+					{
+						ProjectionPolicyViewModel.SetParameterValue(DisplayClusterProjectionStrings::cfg::mpcdi::Component, GetScreenNameForRegion(Region.Key));
 					}
 
 					if (!InParams.ParentComponentName.IsNone())
@@ -147,17 +158,37 @@ USCS_Node* FDisplayClusterConfiguratorMPCDIImporter::FindOrCreateScreenNodeForRe
 	return InBlueprint->SimpleConstructionScript->CreateNode(UDisplayClusterScreenComponent::StaticClass(), *ScreenName);
 }
 
-void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenFromRegion(
+void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DProfileRegion(
 	UDisplayClusterScreenComponent* InScreenComponent,
 	UDisplayClusterCameraComponent* InViewOriginComponent,
 	const FDisplayClusterWarpMPCDIAttributes& InAttributes,
 	const FDisplayClusterConfiguratorMPCDIImporterParams& InParams)
 {
-	const FVector2D BufferActualSize(InAttributes.Buffer.Resolution.X * InParams.BufferToWorldScale, InAttributes.Buffer.Resolution.Y * InParams.BufferToWorldScale);
-	const FVector2D RegionActualPosition((InAttributes.Region.Pos.X - 0.5) * BufferActualSize.X, (InAttributes.Region.Pos.Y - 0.5) * BufferActualSize.Y);
-	const FVector2D RegionActualSize(InAttributes.Region.Size.X * BufferActualSize.X, InAttributes.Region.Size.Y * BufferActualSize.Y);
+	// Computes the buffer size in world units from the resolution in pixels.
+	const FVector2D BufferSize(InAttributes.Buffer.Resolution.X * InParams.Profile2DParams.BufferPixelsToWorldUnits, InAttributes.Buffer.Resolution.Y * InParams.Profile2DParams.BufferPixelsToWorldUnits);
 
-	FVector ScreenPosition = FVector(InParams.BufferToWorldDistance, RegionActualPosition.X + RegionActualSize.X * 0.5, RegionActualPosition.Y + RegionActualSize.Y * 0.5);
+	// Calculates the position and size of the region.
+	const FVector2D  RegionPos(InAttributes.Region.Pos.X  * BufferSize.X, InAttributes.Region.Pos.Y  * BufferSize.Y);
+	const FVector2D RegionSize(InAttributes.Region.Size.X * BufferSize.X, InAttributes.Region.Size.Y * BufferSize.Y);
+
+	float FocalLength = 0.f;
+	// Moves the buffer position along the X axis to achieve a DesiredFOV.
+	if (InParams.Profile2DParams.DesiredFOV > 0.f && InParams.Profile2DParams.DesiredFOV < 180.f)
+	{
+		// Convert FOV to focal length,
+		// 
+		// fov = 2 * atan(d/(2*f))
+		// where,
+		//   d = sensor dimension
+		//   f = focal length
+		// 
+		// f = 0.5 * d * (1/tan(fov/2))
+		const float TanHalfFOV = FMath::Tan(FMath::DegreesToRadians(InParams.Profile2DParams.DesiredFOV * 0.5f));
+		FocalLength = (BufferSize.X * 0.5f) / TanHalfFOV;
+	}
+
+	const FVector2D RegionCenterPos = RegionPos + (RegionSize * 0.5) - (BufferSize * 0.5);
+	FVector ScreenPosition = FVector(FocalLength, RegionCenterPos.X, RegionCenterPos.Y);
 
 	if (InViewOriginComponent)
 	{
@@ -183,7 +214,7 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenFromRegion(
 	}
 
 	InScreenComponent->SetRelativeLocation(ScreenPosition);
-	InScreenComponent->SetScreenSize(RegionActualSize);
+	InScreenComponent->SetScreenSize(RegionSize);
 }
 
 UDisplayClusterConfigurationViewport* FDisplayClusterConfiguratorMPCDIImporter::FindOrCreateViewportForRegion(UDisplayClusterBlueprint* InBlueprint, const FString& RegionId, bool& bOutFoundExistingViewport)
@@ -250,6 +281,11 @@ USceneComponent* FDisplayClusterConfiguratorMPCDIImporter::FindBlueprintSceneCom
 	USceneComponent* FoundComponent = nullptr;
 	if (CDO)
 	{
+		if (ComponentName.IsNone())
+		{
+			return FoundComponent = CDO->GetRootComponent();
+		}
+
 		for (UActorComponent* Component : CDO->GetComponents())
 		{
 			if (USceneComponent* SceneComponent = Cast<USceneComponent>(Component))
@@ -266,6 +302,11 @@ USceneComponent* FDisplayClusterConfiguratorMPCDIImporter::FindBlueprintSceneCom
 	// If a native component was not found, check the SCS to see if one exists there
 	if (!FoundComponent)
 	{
+		if (ComponentName.IsNone())
+		{
+			return nullptr;
+		}
+
 		if (USCS_Node* FoundNode = InBlueprint->SimpleConstructionScript->FindSCSNode(ComponentName))
 		{
 			if (FoundNode->ComponentTemplate && FoundNode->ComponentTemplate->IsA<USceneComponent>())
