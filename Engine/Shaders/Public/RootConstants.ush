@@ -3,10 +3,10 @@
 #pragma once
 
 #if PLATFORM_SUPPORTS_SHADER_ROOT_CONSTANTS
-	#if SM6_PROFILE || SM5_PROFILE
-		#include "Platform/D3D/D3DRootConstants.ush"
-	#else
+	#if OVERRIDE_ROOTCONSTANTS_USH
 		#include "/Platform/Public/PlatformRootConstants.ush"
+	#elif SM6_PROFILE || SM5_PROFILE
+		#include "Platform/D3D/D3DRootConstants.ush"
 	#endif
 #else
 	uint4 PassData; 
