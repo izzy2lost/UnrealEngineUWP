@@ -249,9 +249,16 @@ bool UObject::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 		}
 
 		// If moving the object to a new package, remove its linker and detach the object
-		if (((Flags & REN_AllowPackageLinkerMismatch) == 0) && GetLinker() != NewOuter->GetLinker())
+		const FLinkerLoad* Linker = GetLinker();
+		const FLinkerLoad* NewOuterLinker = NewOuter->GetLinker();
+		if (((Flags & REN_AllowPackageLinkerMismatch) == 0) && Linker != NewOuterLinker)
 		{
-			SetLinker(nullptr, INDEX_NONE);
+			// It's possible we are moving to a new outer in the same package which doesn't
+			// have a linker (in which case we don't want to clear the existing linker)
+			if (NewOuterLinker || GetPackage() != NewOuter->GetPackage())
+			{
+				SetLinker(nullptr, INDEX_NONE);
+			}
 		}
 	}
 
