@@ -26,7 +26,7 @@ void FLandscapeCircleHeightPatchPS::AddToRenderGraph(FRDGBuilder& GraphBuilder, 
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,
 		ShaderMap,
-		RDG_EVENT_NAME("LandmassCircleHeightPatch"),
+		RDG_EVENT_NAME("LandscapeCircleHeightPatch"),
 		PixelShader,
 		Parameters,
 		DestinationBounds);
@@ -45,7 +45,7 @@ void FLandscapeCircleVisibilityPatchPS::AddToRenderGraph(FRDGBuilder& GraphBuild
 	FPixelShaderUtils::AddFullscreenPass(
 		GraphBuilder,
 		ShaderMap,
-		RDG_EVENT_NAME("LandmassCircleVisibilityPatch"),
+		RDG_EVENT_NAME("LandscapeCircleVisibilityPatch"),
 		PixelShader,
 		Parameters,
 		DestinationBounds);

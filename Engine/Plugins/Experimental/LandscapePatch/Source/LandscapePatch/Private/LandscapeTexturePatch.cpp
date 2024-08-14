@@ -1932,7 +1932,7 @@ void ULandscapeTexturePatch::GetRendererStateInfo(const ULandscapeInfo* InLandsc
 
 FString ULandscapeTexturePatch::GetEditLayerRendererDebugName() const
 {
-	return FString::Printf(TEXT("ULandscapeTexturePatch:%s"), *GetFullName());
+	return FString::Printf(TEXT("%s:%s"), *GetOwner()->GetActorNameOrLabel(), *GetName());
 }
 
 TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> ULandscapeTexturePatch::GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const

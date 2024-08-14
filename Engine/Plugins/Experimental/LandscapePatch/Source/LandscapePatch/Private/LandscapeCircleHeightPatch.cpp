@@ -223,7 +223,7 @@ void ULandscapeCircleHeightPatch::GetRendererStateInfo(const ULandscapeInfo* InL
 
 FString ULandscapeCircleHeightPatch::GetEditLayerRendererDebugName() const
 {
-	return FString::Printf(TEXT("ULandscapeCircleHeightPatch:%s"), *GetFullName());
+	return FString::Printf(TEXT("%s:%s"), *GetOwner()->GetActorNameOrLabel(), *GetName());
 }
 
 TArray<UE::Landscape::EditLayers::FEditLayerRenderItem> ULandscapeCircleHeightPatch::GetRenderItems(const ULandscapeInfo* InLandscapeInfo) const
