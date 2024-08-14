@@ -47,7 +47,7 @@ namespace HordeServer
 		/// <summary>
 		/// Default agent pool sizing strategy for pools that doesn't have one explicitly configured
 		/// </summary>
-		public PoolSizeStrategy DefaultAgentPoolSizeStrategy { get; set; } = PoolSizeStrategy.JobQueue;
+		public PoolSizeStrategy DefaultAgentPoolSizeStrategy { get; set; } = PoolSizeStrategy.LeaseUtilization;
 
 		/// <summary>
 		/// Scale-out cooldown for auto-scaling agent pools (in seconds). Can be overridden by per-pool settings.
