@@ -1423,13 +1423,15 @@ void FClothingSimulationSolver::SetWindAndPressureGeometry(
 	uint32 GroupId,
 	const FTriangleMesh& TriangleMesh,
 	const TConstArrayView<FRealSingle>& DragMultipliers,
+	const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 	const TConstArrayView<FRealSingle>& LiftMultipliers,
+	const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 	const TConstArrayView<FRealSingle>& PressureMultipliers)
 {
 	if (PBDEvolution)
 	{
 		Softs::FVelocityAndPressureField& VelocityAndPressureField = PBDEvolution->GetVelocityAndPressureField(GroupId);
-		VelocityAndPressureField.SetGeometry(&TriangleMesh, DragMultipliers, LiftMultipliers, PressureMultipliers);
+		VelocityAndPressureField.SetGeometry(&TriangleMesh, DragMultipliers, OuterDragMultipliers, LiftMultipliers, OuterLiftMultipliers, PressureMultipliers);
 	}
 }
 
@@ -1449,7 +1451,9 @@ void FClothingSimulationSolver::SetWindAndPressureProperties(
 void FClothingSimulationSolver::SetWindAndPressureProperties(
 	uint32 GroupId,
 	const TVec2<FRealSingle>& Drag,
+	const TVec2<FRealSingle>& OuterDrag,
 	const TVec2<FRealSingle>& Lift,
+	const TVec2<FRealSingle>& OuterLift,
 	FRealSingle FluidDensity,
 	const TVec2<FRealSingle>& Pressure)
 {
@@ -1458,7 +1462,9 @@ void FClothingSimulationSolver::SetWindAndPressureProperties(
 		Softs::FVelocityAndPressureField& VelocityAndPressureField = PBDEvolution->GetVelocityAndPressureField(GroupId);
 		VelocityAndPressureField.SetProperties(
 			Drag,
+			OuterDrag,
 			Lift,
+			OuterLift,
 			FluidDensity / FMath::Cube(ClothingSimulationSolverConstant::WorldScale),  // Fluid density is given in kg/m^3. Need to convert to kg/cm^3 for solver.
 			Pressure / ClothingSimulationSolverConstant::WorldScale);  // UI Pressure is in kg/m s^2. Need to convert to kg/cm s^2 for solver.
 	}

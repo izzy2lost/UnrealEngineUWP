@@ -196,8 +196,21 @@ namespace Chaos
 			uint32 GroupId,
 			const FTriangleMesh& TriangleMesh,
 			const TConstArrayView<FRealSingle>& DragMultipliers,
+			const TConstArrayView<FRealSingle>& OuterDragMultipliers,
 			const TConstArrayView<FRealSingle>& LiftMultipliers,
+			const TConstArrayView<FRealSingle>& OuterLiftMultipliers,
 			const TConstArrayView<FRealSingle>& PressureMultipliers);
+
+		UE_DEPRECATED(5.5, "Use version with PropertyCollection (preferred) or OuterDrag and OuterLift")
+		void SetWindAndPressureGeometry(
+			uint32 GroupId,
+			const FTriangleMesh& TriangleMesh,
+			const TConstArrayView<FRealSingle>& DragMultipliers,
+			const TConstArrayView<FRealSingle>& LiftMultipliers,
+			const TConstArrayView<FRealSingle>& PressureMultipliers)
+		{
+			SetWindAndPressureGeometry(GroupId, TriangleMesh, DragMultipliers, DragMultipliers, LiftMultipliers, LiftMultipliers, PressureMultipliers);
+		}
 
 		// Set the wind and pressure properties.
 		CHAOSCLOTH_API void SetWindAndPressureProperties(
@@ -209,9 +222,22 @@ namespace Chaos
 		CHAOSCLOTH_API void SetWindAndPressureProperties(
 			uint32 GroupId,
 			const TVec2<FRealSingle>& Drag,
+			const TVec2<FRealSingle>& OuterDrag,
+			const TVec2<FRealSingle>& Lift,
+			const TVec2<FRealSingle>& OuterLift,
+			FRealSingle FluidDensity,
+			const TVec2<FRealSingle>& Pressure);
+
+		UE_DEPRECATED(5.5, "Use version with PropertyCollection (preferred) or OuterDrag and OuterLift")
+		void SetWindAndPressureProperties(
+			uint32 GroupId,
+			const TVec2<FRealSingle>& Drag,
 			const TVec2<FRealSingle>& Lift,
 			FRealSingle FluidDensity = 1.225f,
-			const TVec2<FRealSingle>& Pressure = TVec2<FRealSingle>::ZeroVector);
+			const TVec2<FRealSingle>& Pressure = TVec2<FRealSingle>::ZeroVector)
+		{
+			SetWindAndPressureProperties(GroupId, Drag, Drag, Lift, Lift, FluidDensity, Pressure);
+		}
 
 		// Return the wind velocity and pressure field associated with a given group id.
 		CHAOSCLOTH_API const Softs::FVelocityAndPressureField& GetWindVelocityAndPressureField(uint32 GroupId) const;
