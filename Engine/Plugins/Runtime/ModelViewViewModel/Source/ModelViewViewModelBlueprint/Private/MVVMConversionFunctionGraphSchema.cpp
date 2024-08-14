@@ -32,6 +32,20 @@ bool UMVVMConversionFunctionGraphSchema::TryCreateConnection(UEdGraphPin* A, UEd
 	return bResult;
 }
 
+const FPinConnectionResponse UMVVMConversionFunctionGraphSchema::CanCreateConnection(const UEdGraphPin* PinA, const UEdGraphPin* PinB) const
+{
+	check(PinA);
+	check(PinB);
+	if (PinA->PinType.PinCategory == UEdGraphSchema_K2::PC_SoftObject && PinB->PinType.PinCategory == UEdGraphSchema_K2::PC_Object)
+	{
+		FPinConnectionResponse Response(CONNECT_RESPONSE_DISALLOW, FString::Printf(TEXT("Conversion disallowed from %s to %s"), *UEdGraphSchema_K2::PC_SoftObject.ToString(), *UEdGraphSchema_K2::PC_Object.ToString()));
+		Response.SetFatal();
+		return Response;
+	}
+
+	return Super::CanCreateConnection(PinA, PinB);
+}
+
 ///////////////////////////////////////////////////////////////////////////////
 
 EGraphType UMVVMFakeTestUbergraphSchema::GetGraphType(const UEdGraph* TestEdGraph) const

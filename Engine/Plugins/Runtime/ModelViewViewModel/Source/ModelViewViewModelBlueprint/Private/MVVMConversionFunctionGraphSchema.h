@@ -16,6 +16,7 @@ class UMVVMConversionFunctionGraphSchema : public UEdGraphSchema_K2
 
 public:
 	virtual bool TryCreateConnection(UEdGraphPin* A, UEdGraphPin* B) const override;
+	virtual const FPinConnectionResponse CanCreateConnection(const UEdGraphPin* A, const UEdGraphPin* B) const override;
 };
 
 /**
