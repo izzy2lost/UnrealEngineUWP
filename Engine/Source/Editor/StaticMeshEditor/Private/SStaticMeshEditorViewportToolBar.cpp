@@ -20,6 +20,7 @@
 #include "SEditorViewportToolBarMenu.h"
 #include "StaticMeshViewportLODCommands.h"
 #include "PreviewProfileController.h"
+#include "StaticMeshEditorViewportToolbarSections.h"
 
 #define LOCTEXT_NAMESPACE "StaticMeshEditorViewportToolbar"
 
@@ -96,69 +97,18 @@ void SStaticMeshEditorViewportToolbar::ExtendLeftAlignedToolbarSlots(TSharedPtr<
 
 FText SStaticMeshEditorViewportToolbar::GetLODMenuLabel() const
 {
-	FText Label = LOCTEXT("LODMenu_AutoLabel", "LOD Auto");
-
 	TSharedRef<SEditorViewport> BaseViewportRef = GetInfoProvider().GetViewportWidget();
 	TSharedRef<SStaticMeshEditorViewport> ViewportRef = StaticCastSharedRef<SStaticMeshEditorViewport, SEditorViewport>(BaseViewportRef);
 
-	int32 LODSelectionType = ViewportRef->GetLODSelection();
-
-	if (LODSelectionType > 0)
-	{
-		FString TitleLabel = FString::Printf(TEXT("LOD %d"), LODSelectionType - 1);
-		Label = FText::FromString(TitleLabel);
-	}
-
-	return Label;
+	return UE::StaticMeshEditor::GetLODMenuLabel(ViewportRef);
 }
 
 TSharedRef<SWidget> SStaticMeshEditorViewportToolbar::GenerateLODMenu() const
 {
-	const FStaticMeshViewportLODCommands& Actions = FStaticMeshViewportLODCommands::Get();
-
 	TSharedRef<SEditorViewport> BaseViewportRef = GetInfoProvider().GetViewportWidget();
 	TSharedRef<SStaticMeshEditorViewport> ViewportRef = StaticCastSharedRef<SStaticMeshEditorViewport, SEditorViewport>(BaseViewportRef);
 
-	TSharedPtr<FExtender> MenuExtender = GetInfoProvider().GetExtenders();
-
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder InMenuBuilder(bInShouldCloseWindowAfterMenuSelection, ViewportRef->GetCommandList(), MenuExtender);
-
-	InMenuBuilder.PushCommandList(ViewportRef->GetCommandList().ToSharedRef());
-	if (MenuExtender.IsValid())
-	{ 
-		InMenuBuilder.PushExtender(MenuExtender.ToSharedRef());
-	}
-
-	{
-		// LOD Models
-		InMenuBuilder.BeginSection("StaticMeshViewportPreviewLODs", LOCTEXT("ShowLOD_PreviewLabel", "Preview LODs"));
-		{
-			InMenuBuilder.AddMenuEntry(Actions.LODAuto);
-			InMenuBuilder.AddMenuEntry(Actions.LOD0);
-
-			int32 LODCount = ViewportRef->GetLODModelCount();
-			for (int32 LODId = 1; LODId < LODCount; ++LODId)
-			{
-				FString TitleLabel = FString::Printf(TEXT(" LOD %d"), LODId);
-
-				FUIAction Action(FExecuteAction::CreateSP(ViewportRef, &SStaticMeshEditorViewport::OnSetLODModel, LODId + 1),
-					FCanExecuteAction(),
-					FIsActionChecked::CreateSP(ViewportRef, &SStaticMeshEditorViewport::IsLODModelSelected, LODId + 1));
-
-				InMenuBuilder.AddMenuEntry(FText::FromString(TitleLabel), FText::GetEmpty(), FSlateIcon(), Action, NAME_None, EUserInterfaceActionType::RadioButton);
-			}
-		}
-		InMenuBuilder.EndSection();
-	}
-
-	InMenuBuilder.PopCommandList();
-	if (MenuExtender.IsValid())
-	{
-		InMenuBuilder.PopExtender();
-	}
-
-	return InMenuBuilder.MakeWidget();
+	return UE::StaticMeshEditor::GenerateLODMenuWidget(ViewportRef);
 }
 
 #undef LOCTEXT_NAMESPACE
