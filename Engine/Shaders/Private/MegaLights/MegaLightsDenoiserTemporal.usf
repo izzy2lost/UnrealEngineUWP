@@ -31,14 +31,6 @@ RWTexture2D<float4> RWDiffuseLightingAndSecondMoment;
 RWTexture2D<float4> RWSpecularLightingAndSecondMoment;
 RWTexture2D<UNORM float> RWNumFramesAccumulated;
 
-struct FDebug
-{
-#if DEBUG_MODE
-	bool bActive;
-	FShaderPrintContext Context;
-#endif
-};
-
 struct FNeighborhood
 {
 	float3 Center;

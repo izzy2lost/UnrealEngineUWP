@@ -6,10 +6,19 @@
 
 class FSceneViewFamily;
 struct FGlobalShaderPermutationParameters;
+enum EShaderPlatform : uint16;
+class FRDGTexture;
+using FRDGTextureRef = FRDGTexture*;
 
 namespace ECastRayTracedShadow
 {
 	enum Type : int;
+};
+
+class FMegaLightsVolume
+{
+public:
+	FRDGTextureRef Texture = nullptr;
 };
 
 // Public MegaLights interface
@@ -24,5 +33,5 @@ namespace MegaLights
 	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);
-	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
+	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform);
 };

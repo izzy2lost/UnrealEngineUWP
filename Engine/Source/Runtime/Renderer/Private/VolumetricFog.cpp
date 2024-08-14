@@ -922,7 +922,8 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 	class FCloudTransmittance			: SHADER_PERMUTATION_BOOL("USE_CLOUD_TRANSMITTANCE");
 	class FRaytracedShadowsVolume		: SHADER_PERMUTATION_BOOL("USE_RAYTRACED_SHADOWS_VOLUME");
 	class FSampleLightFunctionAtlas		: SHADER_PERMUTATION_BOOL("USE_LIGHT_FUNCTION_ATLAS");
-	
+	class FMegaLights					: SHADER_PERMUTATION_BOOL("USE_MEGA_LIGHTS");
+
 	using FPermutationDomain = TShaderPermutationDomain<
 		FSuperSampleCount,
 		FTemporalReprojection,
@@ -931,7 +932,8 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		FVirtualShadowMap,
 		FCloudTransmittance,
 		FRaytracedShadowsVolume,
-		FSampleLightFunctionAtlas>;
+		FSampleLightFunctionAtlas,
+		FMegaLights>;
 
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, View)
@@ -940,6 +942,7 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLightFunctionAtlasGlobalParameters, LightFunctionAtlas)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FVolumetricFogIntegrationParameters, VolumetricFogParameters)
 
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D, MegaLightsVolume)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VBufferA)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, VBufferB)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D, LocalShadowedLightScattering)
@@ -1011,6 +1014,7 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 			PermutationVector.Set<FCloudTransmittance>(false);
 			PermutationVector.Set<FTemporalReprojection>(false);
 			PermutationVector.Set<FSampleLightFunctionAtlas>(false);
+			PermutationVector.Set<FMegaLights>(false);
 		}
 
 		if (!FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(ShaderPlatform))
@@ -1021,6 +1025,16 @@ class FVolumetricFogLightScatteringCS : public FGlobalShader
 		if (!ShouldCompileRayTracingShadersForProject(ShaderPlatform))
 		{
 			PermutationVector.Set<FRaytracedShadowsVolume>(false);
+		}
+
+		if (!MegaLights::ShouldCompileShaders(ShaderPlatform))
+		{
+			PermutationVector.Set<FMegaLights>(false);
+		}
+
+		if (PermutationVector.Get<FLumenGI>())
+		{
+			PermutationVector.Set<FDistanceFieldSkyOcclusion>(false);
 		}
 
 		return PermutationVector;
@@ -1636,6 +1650,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			auto* LumenUniforms = GraphBuilder.AllocParameters<FLumenTranslucencyLightingUniforms>();
 			LumenUniforms->Parameters = GetLumenTranslucencyLightingParameters(GraphBuilder, View.GetLumenTranslucencyGIVolume(), View.LumenFrontLayerTranslucency);
 			PassParameters->LumenGIVolumeStruct = GraphBuilder.CreateUniformBuffer(LumenUniforms);
+			PassParameters->MegaLightsVolume = View.GetMegaLightsVolume().Texture;
 			PassParameters->RWLightScattering = IntegrationData.LightScatteringUAV;
 			PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
 
@@ -1742,6 +1757,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			}
 
 			const bool bUseLumenGI = View.GetLumenTranslucencyGIVolume().Texture0 != nullptr && FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(View.GetShaderPlatform());
+			const bool bUseMegaLights = View.GetMegaLightsVolume().Texture != nullptr && MegaLights::IsEnabled();
 			const bool bUseGlobalDistanceField = UseGlobalDistanceField() && Scene->DistanceFieldSceneData.NumObjectsInBuffer > 0;
 			const bool bUseRaytracedShadowsVolume = RaytracedShadowsVolume != nullptr;
 
@@ -1769,6 +1785,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FCloudTransmittance >(AtmosphericDirectionalLightIndex >= 0);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FRaytracedShadowsVolume >(bUseRaytracedShadowsVolume);
 			PermutationVector.Set< FVolumetricFogLightScatteringCS::FSampleLightFunctionAtlas >(PassParameters->DirectionalApplyLightFunctionFromAtlas>1);
+			PermutationVector.Set<FVolumetricFogLightScatteringCS::FMegaLights>(bUseMegaLights);
 
 			auto ComputeShader = View.ShaderMap->GetShader< FVolumetricFogLightScatteringCS >(PermutationVector);
 			ClearUnusedGraphResources(ComputeShader, PassParameters);

@@ -14,6 +14,14 @@ uint2 SampleCoordToDownsampledScreenCoord(uint2 SampleCoord)
 	return SampleCoord >> NumSamplesPerPixelDivideShift;
 }
 
+uint3 NumSamplesPerVoxelDivideShift;
+
+uint3 SampleCoordToDownsampledVolumeCoord(uint3 SampleCoord)
+{
+	// SampleCoord / NumSamplesPerVoxel
+	return SampleCoord >> NumSamplesPerVoxelDivideShift;
+}
+
 uint2 SampleCoordToScreenCoord(uint2 SampleCoord)
 {
 	uint2 DownsampledScreenCoord = SampleCoordToDownsampledScreenCoord(SampleCoord);
@@ -79,7 +87,7 @@ struct FLightSampleTrace
 };
 
 /**
- * Compute shadow ray direction and distance for a given reservoir.
+ * Compute shadow ray direction and distance for a given light sample.
  */
 FLightSampleTrace GetLightSampleTrace(float3 TranslatedWorldPosition, uint LocalLightIndex, uint2 SampleCoord)
 {
@@ -126,5 +134,22 @@ uint2 UnpackTraceTexel(uint PackedTraceTexel)
 	uint2 SampleCoord;
 	SampleCoord.x = PackedTraceTexel >> 16;
 	SampleCoord.y = PackedTraceTexel & 0xFFFF;
+	return SampleCoord;
+}
+
+uint PackTraceVoxel(uint3 SampleCoord)
+{
+	uint PackedTraceVoxel = SampleCoord.z & 0x3FF;
+	PackedTraceVoxel |= (SampleCoord.y & 0x3FF) << 10;
+	PackedTraceVoxel |= (SampleCoord.x & 0x3FF) << 20;
+	return PackedTraceVoxel;
+}
+
+uint3 UnpackTraceVoxel(uint PackedTraceVoxel)
+{
+	uint3 SampleCoord;
+	SampleCoord.x = (PackedTraceVoxel >> 20) & 0x3FF;
+	SampleCoord.y = (PackedTraceVoxel >> 10) & 0x3FF;
+	SampleCoord.z = PackedTraceVoxel & 0x3FF;
 	return SampleCoord;
 }

@@ -5,6 +5,7 @@
 #include "RendererPrivate.h"
 #include "PixelShaderUtils.h"
 #include "BasePassRendering.h"
+#include "VolumetricFogShared.h"
 
 static TAutoConsoleVariable<int32> CVarMegaLights(
 	TEXT("r.MegaLights"),
@@ -12,21 +13,19 @@ static TAutoConsoleVariable<int32> CVarMegaLights(
 	TEXT("Whether to enable Mega Lights. Experimental feature leveraging ray tracing to stochastically importance sample lights.\n")
 	TEXT("1 - all lights using ray tracing shadows will be stochastically sampled\n")
 	TEXT("2 - all lights will be stochastically sampled"),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMegaLightsNumSamplesPerPixel(
 	TEXT("r.MegaLights.NumSamplesPerPixel"),
 	4,
 	TEXT("Number of samples (shadow rays) per half-res pixel.\n")
 	TEXT("2 - 0.5 trace per pixel\n")
-	TEXT("4 - 1 trace per pixel")
+	TEXT("4 - 1 trace per pixel\n")
 	TEXT("16 - 4 traces per pixel"),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<float> CVarMegaLightsSamplingMinWeight(
-	TEXT("r.MegaLights.Sampling.MinWeight"),
+static TAutoConsoleVariable<float> CVarMegaLightsMinSampleWeight(
+	TEXT("r.MegaLights.MinSampleWeight"),
 	0.001f,
 	TEXT("Determines minimal sample influence on final pixels. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
@@ -149,6 +148,41 @@ static TAutoConsoleVariable<int32> CVarMegaLightsIESProfiles(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMegaLightsVolume(
+	TEXT("r.MegaLights.Volume"),
+	1,
+	TEXT("Whether to enable a translucency volume used for Volumetric Fog and Volume Lit Translucency."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeNumSamplesPerVoxel(
+	TEXT("r.MegaLights.Volume.NumSamplesPerVoxel"),
+	2,
+	TEXT("Number of samples (shadow rays) per half-res voxel.\n")
+	TEXT("2 - 0.25 trace per voxel\n")
+	TEXT("4 - 0.5 trace per pixel"),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<float> CVarMegaLightsVolumeMinSampleWeight(
+	TEXT("r.MegaLights.Volume.MinSampleWeight"),
+	0.1f,
+	TEXT("Determines minimal sample influence on lighting cached in a volume. Used to skip samples which would have minimal impact to the final image even if light is fully visible."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebug(
+	TEXT("r.MegaLights.Volume.Debug"),
+	0,
+	TEXT("Whether to enabled debug mode, which prints various extra debug information from volume shaders.")
+	TEXT("0 - Disable\n")
+	TEXT("1 - Visualize sampling\n")
+	TEXT("2 - Visualize tracing\n"),
+	ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebugSliceIndex(
+	TEXT("r.MegaLights.Volume.DebugSliceIndex"),
+	16,
+	TEXT("Which volume slice to visualize."),
+	ECVF_RenderThreadSafe);
+
 namespace MegaLights
 {
 	// must match values in MegaLights.ush
@@ -158,6 +192,11 @@ namespace MegaLights
 	bool IsEnabled()
 	{
 		return CVarMegaLights.GetValueOnRenderThread() != 0;
+	}
+
+	bool UseVolume()
+	{
+		return CVarMegaLightsVolume.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsUsingLightFunctions()
@@ -176,15 +215,15 @@ namespace MegaLights
 		return false;
 	}
 
-	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters)
+	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform)
 	{
-		if (IsMobilePlatform(Parameters.Platform))
+		if (IsMobilePlatform(ShaderPlatform))
 		{
 			return false;
 		}
 
 		// SM6 because it uses typed loads to accumulate lights
-		return IsFeatureLevelSupported(Parameters.Platform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(Parameters.Platform);
+		return IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(ShaderPlatform);
 	}
 
 	uint32 GetStateFrameIndex(FSceneViewState* ViewState)
@@ -220,9 +259,31 @@ namespace MegaLights
 		return GetNumSamplesPerPixel2d(CVarMegaLightsNumSamplesPerPixel.GetValueOnAnyThread());
 	}
 
+	FIntVector GetNumSamplesPerVoxel3d(int32 NumSamplesPerVoxel1d)
+	{
+		if (NumSamplesPerVoxel1d >= 4)
+		{
+			return FIntVector(2, 2, 1);
+		}
+		else
+		{
+			return FIntVector(2, 1, 1);
+		}
+	}
+
+	FIntVector GetNumSamplesPerVoxel3d()
+	{
+		return GetNumSamplesPerVoxel3d(CVarMegaLightsVolumeNumSamplesPerVoxel.GetValueOnAnyThread());
+	}
+
 	int32 GetDebugMode()
 	{
 		return CVarMegaLightsDebug.GetValueOnRenderThread();
+	}
+
+	int32 GetVolumeDebugMode()
+	{
+		return CVarMegaLightsVolumeDebug.GetValueOnRenderThread();
 	}
 
 	bool UseWaveOps(EShaderPlatform ShaderPlatform)
@@ -271,7 +332,7 @@ class FTileClassificationCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -298,7 +359,7 @@ class FInitTileIndirectArgsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -345,7 +406,7 @@ class FGenerateLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -396,6 +457,48 @@ class FGenerateLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FGenerateLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsSampling.usf", "GenerateLightSamplesCS", SF_Compute);
 
+class FVolumeGenerateLightSamplesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVolumeGenerateLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FVolumeGenerateLightSamplesCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float>, RWVolumeLightSamples)
+	END_SHADER_PARAMETER_STRUCT()
+
+	class FNumSamplesPerVoxel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_VOXEL_1D", 2, 4);
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FDebugMode>;
+
+	static int32 GetGroupSize()
+	{
+		return 4;
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+		OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		const int32 NumSamplesPerVoxel1d = PermutationVector.Get<FNumSamplesPerVoxel1d>();
+		const FIntVector NumSamplesPerVoxel3d = MegaLights::GetNumSamplesPerVoxel3d(NumSamplesPerVoxel1d);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_X"), NumSamplesPerVoxel3d.X);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_Y"), NumSamplesPerVoxel3d.Y);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_Z"), NumSamplesPerVoxel3d.Z);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVolumeGenerateLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeSampling.usf", "VolumeGenerateLightSamplesCS", SF_Compute);
+
 class FClearLightSamplesCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FClearLightSamplesCS)
@@ -421,7 +524,7 @@ class FClearLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -451,7 +554,7 @@ class FInitCompositeUpsampleWeightsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -494,7 +597,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -535,6 +638,48 @@ class FShadeLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FShadeLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsShading.usf", "ShadeLightSamplesCS", SF_Compute);
 
+class FVolumeShadeLightSamplesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVolumeShadeLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FVolumeShadeLightSamplesCS, FGlobalShader)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<float3>, RWVolumeResolvedLighting)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<uint>, VolumeLightSamples)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static int32 GetGroupSize()
+	{
+		return 4;
+	}
+
+	class FNumSamplesPerVoxel1d : SHADER_PERMUTATION_SPARSE_INT("NUM_SAMPLES_PER_VOXEL_1D", 2, 4);
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FNumSamplesPerVoxel1d, FDebugMode>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		const int32 NumSamplesPerVoxel1d = PermutationVector.Get<FNumSamplesPerVoxel1d>();
+		const FIntVector NumSamplesPerVoxel3d = MegaLights::GetNumSamplesPerVoxel3d(NumSamplesPerVoxel1d);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_X"), NumSamplesPerVoxel3d.X);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_Y"), NumSamplesPerVoxel3d.Y);
+		OutEnvironment.SetDefine(TEXT("NUM_SAMPLES_PER_VOXEL_3D_Z"), NumSamplesPerVoxel3d.Z);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVolumeShadeLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeShading.usf", "VolumeShadeLightSamplesCS", SF_Compute);
+
 class FClearResolvedLightingCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FClearResolvedLightingCS)
@@ -556,7 +701,7 @@ class FClearResolvedLightingCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -602,7 +747,7 @@ class FDenoiserTemporalCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -641,7 +786,7 @@ class FDenoiserSpatialCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -674,7 +819,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 
 	for (int32 ViewIndex = 0; ViewIndex < AllViews.Num(); ++ViewIndex)
 	{
-		const FViewInfo& View = Views[ViewIndex];
+		FViewInfo& View = *AllViews[ViewIndex];
+		View.GetOwnMegaLightsVolume().Texture = nullptr;
 
 		// History reset for debugging purposes
 		bool bResetHistory = false;
@@ -691,11 +837,13 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 		}
 
 		const bool bDebug = MegaLights::GetDebugMode() != 0;
+		const bool bVolumeDebug = MegaLights::GetVolumeDebugMode() != 0;
 		const bool bWaveOps = MegaLights::UseWaveOps(View.GetShaderPlatform())
 			&& GRHIMinimumWaveSize <= 32
 			&& GRHIMaximumWaveSize >= 32;
 
 		const FIntPoint NumSamplesPerPixel2d = MegaLights::GetNumSamplesPerPixel2d();
+		const FIntVector NumSamplesPerVoxel3d = MegaLights::GetNumSamplesPerVoxel3d();
 
 		const uint32 DownsampleFactor = 2;
 		const FIntPoint DownsampledViewSize = FIntPoint::DivideAndRoundUp(View.ViewRect.Size(), DownsampleFactor);
@@ -772,6 +920,18 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureDesc::Create2D(FMath::DivideAndRoundUp<FIntPoint>(DownsampledBufferSize, MegaLights::TileSize), PF_R8_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("MegaLights.DownsampledTileMask"));
 
+		FVolumetricFogGlobalData VolumetricFogParamaters;
+		if (ShouldRenderVolumetricFog())
+		{
+			SetupVolumetricFogGlobalData(View, VolumetricFogParamaters);
+		}
+
+		const FIntVector VolumeViewSize = VolumetricFogParamaters.ViewGridSizeInt;
+		const FIntVector VolumeBufferSize = VolumetricFogParamaters.ResourceGridSizeInt;
+		const FIntVector VolumeDownsampledViewSize = FIntVector::DivideAndRoundUp(VolumetricFogParamaters.ViewGridSizeInt, DownsampleFactor);
+		const FIntVector VolumeSampleViewSize = VolumeDownsampledViewSize * NumSamplesPerVoxel3d;
+		const FIntVector VolumeSampleBufferSize = FIntVector::DivideAndRoundUp(VolumetricFogParamaters.ResourceGridSizeInt, DownsampleFactor) * NumSamplesPerVoxel3d;
+
 		FMegaLightsParameters MegaLightsParameters;
 		{
 			MegaLightsParameters.ViewUniformBuffer = View.ViewUniformBuffer;
@@ -796,7 +956,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.DownsampledSceneDepth = DownsampledSceneDepth;
 			MegaLightsParameters.DownsampledSceneWorldNormal = DownsampledSceneWorldNormal;
 			MegaLightsParameters.DownsampledBufferInvSize = FVector2f(1.0f) / DownsampledBufferSize;
-			MegaLightsParameters.SamplingMinWeight = FMath::Max(CVarMegaLightsSamplingMinWeight.GetValueOnRenderThread(), 0.0f);
+			MegaLightsParameters.MinSampleWeight = FMath::Max(CVarMegaLightsMinSampleWeight.GetValueOnRenderThread(), 0.0f);
 			MegaLightsParameters.TileDataStride = TileDataStride;
 			MegaLightsParameters.DownsampledTileDataStride = DownsampledTileDataStride;
 			MegaLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarMegaLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
@@ -805,7 +965,32 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.DebugMode = MegaLights::GetDebugMode();
 			MegaLightsParameters.DebugLightId = INDEX_NONE;
 
-			if (bDebug)
+			// Volume
+			extern float GInverseSquaredLightDistanceBiasScale;
+			MegaLightsParameters.VolumeMinSampleWeight = FMath::Max(CVarMegaLightsVolumeMinSampleWeight.GetValueOnRenderThread(), 0.0f);
+			MegaLightsParameters.NumSamplesPerVoxel = NumSamplesPerVoxel3d;
+			MegaLightsParameters.NumSamplesPerVoxelDivideShift.X = FMath::FloorLog2(NumSamplesPerVoxel3d.X);
+			MegaLightsParameters.NumSamplesPerVoxelDivideShift.Y = FMath::FloorLog2(NumSamplesPerVoxel3d.Y);
+			MegaLightsParameters.NumSamplesPerVoxelDivideShift.Z = FMath::FloorLog2(NumSamplesPerVoxel3d.Z);
+			MegaLightsParameters.UnjitteredClipToTranslatedWorld = FMatrix44f(View.ViewMatrices.ComputeInvProjectionNoAAMatrix() * View.ViewMatrices.GetTranslatedViewMatrix().GetTransposed()); // LWC_TODO: Precision loss?
+			MegaLightsParameters.DownsampledVolumeViewSize = VolumeDownsampledViewSize;
+			MegaLightsParameters.VolumeViewSize = VolumeViewSize;
+			MegaLightsParameters.VolumeSampleViewSize = VolumeSampleViewSize;
+			MegaLightsParameters.MegaLightsVolumeZParams = VolumetricFogParamaters.GridZParams;
+			MegaLightsParameters.MegaLightsVolumePixelSize = VolumetricFogParamaters.FogGridToPixelXY.X;
+			MegaLightsParameters.MegaLightsVolumePixelSizeShift = FMath::FloorLog2(MegaLightsParameters.MegaLightsVolumePixelSize);
+			MegaLightsParameters.VolumePhaseG = Scene->ExponentialFogs.Num() > 0 ? Scene->ExponentialFogs[0].VolumetricFogScatteringDistribution : 0.0f;
+			MegaLightsParameters.VolumeInverseSquaredLightDistanceBiasScale = GInverseSquaredLightDistanceBiasScale;
+			MegaLightsParameters.VolumeFrameJitterOffset = VolumetricFogTemporalRandom(View.Family->FrameNumber);
+			MegaLightsParameters.FurthestHZBTexture = View.HZB;
+			MegaLightsParameters.HZBMipLevel = FMath::Max<float>((int32)FMath::FloorLog2(MegaLightsParameters.MegaLightsVolumePixelSize) - 1, 0.0f);
+			MegaLightsParameters.ViewportUVToHZBBufferUV = FVector2f(
+				float(View.ViewRect.Width()) / float(2 * View.HZBMipmap0Size.X),
+				float(View.ViewRect.Height()) / float(2 * View.HZBMipmap0Size.Y));
+			MegaLightsParameters.VolumeDebugMode = MegaLights::GetVolumeDebugMode();
+			MegaLightsParameters.VolumeDebugSliceIndex = CVarMegaLightsVolumeDebugSliceIndex.GetValueOnRenderThread();
+
+			if (bDebug || bVolumeDebug)
 			{
 				ShaderPrint::SetEnabled(true);
 				ShaderPrint::RequestSpaceForLines(1024);
@@ -964,6 +1149,36 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			}
 		}
 
+		FRDGTextureRef VolumeLightSamples = nullptr;
+
+		if (MegaLights::UseVolume() && ShouldRenderVolumetricFog())
+		{
+			VolumeLightSamples = GraphBuilder.CreateTexture(
+				FRDGTextureDesc::Create3D(VolumeSampleBufferSize, PF_R32_UINT, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+				TEXT("MegaLights.Volume.LightSamples"));
+
+			// Generate new candidate light samples for the volume
+			{
+				FVolumeGenerateLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVolumeGenerateLightSamplesCS::FParameters>();
+				PassParameters->MegaLightsParameters = MegaLightsParameters;
+				PassParameters->RWVolumeLightSamples = GraphBuilder.CreateUAV(VolumeLightSamples);
+
+				FVolumeGenerateLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FNumSamplesPerVoxel1d>(NumSamplesPerVoxel3d.X * NumSamplesPerVoxel3d.Y * NumSamplesPerVoxel3d.Z);
+				PermutationVector.Set<FVolumeGenerateLightSamplesCS::FDebugMode>(bVolumeDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FVolumeGenerateLightSamplesCS>(PermutationVector);
+
+				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(VolumeDownsampledViewSize, FVolumeGenerateLightSamplesCS::GetGroupSize());
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("VolumeGenerateSamples"),
+					ComputeShader,
+					PassParameters,
+					GroupCount);
+			}
+		}
+
 		MegaLights::RayTraceLightSamples(
 			ViewFamily,
 			View,
@@ -972,6 +1187,8 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			SampleBufferSize,
 			LightSamples,
 			LightSampleRayDistance,
+			VolumeSampleBufferSize,
+			VolumeLightSamples,
 			MegaLightsParameters
 		);
 
@@ -1060,6 +1277,34 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 					TileIndirectArgs,
 					TileType * sizeof(FRHIDispatchIndirectParameters));
 			}
+		}
+
+		if (MegaLights::UseVolume() && ShouldRenderVolumetricFog())
+		{
+			FRDGTextureRef VolumeResolvedLighting = GraphBuilder.CreateTexture(
+				FRDGTextureDesc::Create3D(VolumeBufferSize, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+				TEXT("MegaLights.Volume.ResolvedLighting"));
+
+			FVolumeShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVolumeShadeLightSamplesCS::FParameters>();
+			PassParameters->RWVolumeResolvedLighting = GraphBuilder.CreateUAV(VolumeResolvedLighting);
+			PassParameters->MegaLightsParameters = MegaLightsParameters;
+			PassParameters->VolumeLightSamples = VolumeLightSamples;
+
+			FVolumeShadeLightSamplesCS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FVolumeShadeLightSamplesCS::FNumSamplesPerVoxel1d>(NumSamplesPerVoxel3d.X * NumSamplesPerVoxel3d.Y * NumSamplesPerVoxel3d.Z);
+			PermutationVector.Set<FVolumeShadeLightSamplesCS::FDebugMode>(bVolumeDebug);
+			auto ComputeShader = View.ShaderMap->GetShader<FVolumeShadeLightSamplesCS>(PermutationVector);
+
+			const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(VolumeViewSize, FVolumeShadeLightSamplesCS::GetGroupSize());
+
+			FComputeShaderUtils::AddPass(
+				GraphBuilder,
+				RDG_EVENT_NAME("VolumeShadeLightSamples"),
+				ComputeShader,
+				PassParameters,
+				GroupCount);
+
+			View.GetOwnMegaLightsVolume().Texture = VolumeResolvedLighting;
 		}
 
 		// Demodulated lighting components with second luminance moments stored in alpha channel for temporal variance tracking

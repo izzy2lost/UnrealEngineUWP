@@ -3,7 +3,7 @@
 #pragma once
 
 // Change this to force recompilation of all Mega Lights shaders
-#pragma message("UESHADERMETADATA_VERSION 79F169FE-4FCA-47EA-8539-1ED66DAF713E")
+#pragma message("UESHADERMETADATA_VERSION 6B9BA9CC-6798-4A69-9A12-3C63ECB0A328")
 
 #include "../LightGridCommon.ush"
 
@@ -43,6 +43,14 @@
 #define TILE_MODE_COMPLEX_SHADING	1
 #define TILE_MODE_EMPTY				2
 #define TILE_MODE_MAX				3
+
+struct FDebug
+{
+#if DEBUG_MODE
+	bool bActive;
+	FShaderPrintContext Context;
+#endif
+};
 
 uint PackTile(uint2 TileCoord)
 {
@@ -102,7 +110,7 @@ uint2 GetSampleScreenCoordJitter(uint2 DownsampledScreenCoord)
 	uint LinearIndex = CellIndex.x + CellIndex.y * 2;
 	LinearIndex = (LinearIndex + MegaLightsStateFrameIndex) % 4;
 
-	// 4 rooks sampling pattern
+	// 4-rooks sampling pattern
 	uint2 Jitter;
 	Jitter.x = LinearIndex & 0x02 ? 1 : 0;
 	Jitter.y = LinearIndex & 0x01 ? 0 : 1;

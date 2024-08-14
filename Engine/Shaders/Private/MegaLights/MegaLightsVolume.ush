@@ -1,0 +1,135 @@
+// Copyright Epic Games, Inc. All Rights Reserved.
+
+#pragma once
+
+/** 
+ * Returns sample jitter offset in the range [0, DOWNSAMPLE_FACTOR - 1]
+ */
+uint3 GetSampleVoxelCoordJitter(uint3 DownsampledVolumeCoord)
+{
+	if (View.GeneralPurposeTweak < 0.5f)
+	{
+		return 0;
+	}
+
+	uint3 CellIndex = DownsampledVolumeCoord % 2;
+	uint LinearIndex = CellIndex.x + CellIndex.y * 2 + CellIndex.z * 4;
+	LinearIndex = (LinearIndex + MegaLightsStateFrameIndex) % 8;
+
+	// #ml_todo: investigate whether this produces a good pattern
+	// 4-rooks sampling pattern
+	uint3 Jitter;
+	Jitter.x = LinearIndex & 0x04 ? 0 : 1;
+	Jitter.y = LinearIndex & 0x02 ? 1 : 0;
+	Jitter.z = LinearIndex & 0x01 ? 0 : 1;
+	return 0;
+}
+
+uint3 DownsampledVolumeCoordToVolumeCoord(uint3 DownsampledVolumeCoord)
+{
+	return DownsampledVolumeCoord * DOWNSAMPLE_FACTOR + GetSampleVoxelCoordJitter(DownsampledVolumeCoord);
+}
+
+uint3 VolumeCoordToDownsampledVolumeCoord(uint3 VolumeCoord)
+{
+	return VolumeCoord / DOWNSAMPLE_FACTOR;
+}
+
+uint2 VolumeCoordToNoiseCoord(uint3 VolumeCoord)
+{
+	// #ml_todo: hard coded for BlueNoise 128x128, but is used for other things too
+	// https://github.com/electronicarts/fastnoise/blob/main/FastNoiseDesign.md
+	return VolumeCoord.xy + R2Sequence(VolumeCoord.z) * 128;
+}
+
+float4x4 UnjitteredClipToTranslatedWorld;
+float3 MegaLightsVolumeZParams;
+uint MegaLightsVolumePixelSize;
+uint MegaLightsVolumePixelSizeShift;
+uint3 VolumeViewSize;
+
+float ComputeDepthFromZSlice(float ZSlice)
+{
+	float SliceDepth = (exp2(ZSlice / MegaLightsVolumeZParams.z) - MegaLightsVolumeZParams.y) / MegaLightsVolumeZParams.x;
+	return SliceDepth;
+}
+
+float ComputeZSliceFromDepth(float SliceDepth)
+{
+	float ZSlice = log2(SliceDepth * MegaLightsVolumeZParams.x + MegaLightsVolumeZParams.y) * MegaLightsVolumeZParams.z;
+	return ZSlice;
+}
+
+float3 ComputeCellTranslatedWorldPosition(uint3 GridCoordinate, float3 CellOffset, out float SceneDepth)
+{
+	float2 VolumeUV = (GridCoordinate.xy + CellOffset.xy) / float2(VolumeViewSize.xy);
+	float2 VolumeNDC = (VolumeUV * 2 - 1) * float2(1, -1);
+
+	SceneDepth = ComputeDepthFromZSlice(GridCoordinate.z + CellOffset.z);
+
+	float TileDeviceZ = ConvertToDeviceZ(SceneDepth);
+	float4 CenterPosition = mul(float4(VolumeNDC, TileDeviceZ, 1), UnjitteredClipToTranslatedWorld);
+	return CenterPosition.xyz / CenterPosition.w;
+}
+
+float VolumePhaseG;
+
+float3 GetMegaLightsVolumeLighting(
+	float3 TranslatedWorldPosition,
+	float3 CameraVector,
+	float DistanceBiasSqr,
+	FLocalLightData LocalLightData,
+	FDeferredLightData LightData)
+{
+	float3 LightScattering = 0.0f;
+
+	const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLightData);
+	if (VolumetricScatteringIntensity > 0.0f)
+	{
+		float3 L = 0;
+		float3 ToLight = 0;
+		float LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+
+		float Lighting;
+		if (LightData.bRectLight)
+		{
+			FRect Rect = GetRect(ToLight, LightData);
+			Lighting = IntegrateLight(Rect);
+		}
+		else
+		{
+			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
+			Capsule.DistBiasSqr = DistanceBiasSqr;
+			Lighting = IntegrateLight(Capsule, LightData.bInverseSquared);
+		}
+
+		float CombinedAttenuation = Lighting * LightMask;
+		LightScattering += LightData.Color * (HenyeyGreensteinPhase(VolumePhaseG, dot(L, -CameraVector)) * CombinedAttenuation * VolumetricScatteringIntensity);
+	}
+
+	return LightScattering;
+}
+
+Texture2D FurthestHZBTexture;
+float HZBMipLevel;
+float2 ViewportUVToHZBBufferUV;
+
+float GetMaxVisibleDepth(uint2 GridCoordinate)
+{
+	float2 HZBScreenUV = (GridCoordinate.xy + 0.5f) * (1U << MegaLightsVolumePixelSizeShift) * View.ViewSizeAndInvSize.zw * ViewportUVToHZBBufferUV;
+	float TrilinearFootprintMipBias = 1.0f;
+	return ConvertFromDeviceZ(FurthestHZBTexture.SampleLevel(GlobalPointClampedSampler, HZBScreenUV, HZBMipLevel + TrilinearFootprintMipBias).x);
+}
+
+bool IsFroxelVisible(uint3 GridCoordinate)
+{
+#define HZB_OCCLUSION_TEST 1
+#if HZB_OCCLUSION_TEST
+	float MaxVisibleDepth = GetMaxVisibleDepth(GridCoordinate.xy);
+	float TrilinearFootprintBias = -1.0f;
+	float FroxelMinSceneDepth = ComputeDepthFromZSlice(max((float)GridCoordinate.z + TrilinearFootprintBias, 0.0f));
+	return FroxelMinSceneDepth < MaxVisibleDepth;
+#else
+	return true;
+#endif
+}

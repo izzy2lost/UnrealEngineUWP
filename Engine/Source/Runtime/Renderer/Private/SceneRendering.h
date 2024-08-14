@@ -35,6 +35,7 @@
 #include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "VirtualShadowMaps/VirtualShadowMapProjection.h"
 #include "Lumen/LumenTranslucencyVolumeLighting.h"
+#include "MegaLights/MegaLights.h"
 #include "HairStrands/HairStrandsData.h"
 #include "Substrate/Substrate.h"
 #include "TemporalUpscaler.h"
@@ -1466,6 +1467,8 @@ public:
 
 private:
 	FLumenTranslucencyGIVolume LumenTranslucencyGIVolume;
+	FMegaLightsVolume MegaLightsVolume;
+
 public:
 	FLumenFrontLayerTranslucency LumenFrontLayerTranslucency;
 
@@ -1482,6 +1485,16 @@ public:
 	inline FLumenTranslucencyGIVolume& GetOwnLumenTranslucencyGIVolume()
 	{
 		return LumenTranslucencyGIVolume;
+	}
+
+	inline const FMegaLightsVolume& GetMegaLightsVolume() const
+	{
+		return MegaLightsVolume;
+	}
+
+	inline FMegaLightsVolume& GetOwnMegaLightsVolume()
+	{
+		return MegaLightsVolume;
 	}
 
 	FLumenSceneData* ViewLumenSceneData;

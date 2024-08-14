@@ -23,14 +23,6 @@
 #include "MegaLightsRayTracing.ush"
 #include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 
-struct FDebug
-{
-#if DEBUG_MODE
-	bool bActive;
-	FShaderPrintContext Context;
-#endif
-};
-
 struct FLightTargetPDF
 {
 	float3 Diffuse;
@@ -84,7 +76,7 @@ FLightTargetPDF GetLocalLightTargetPDF(FDeferredLightData LightData, float3 Tran
 
 uint2 DownsampledViewMin;
 uint2 DownsampledViewSize;
-float SamplingMinWeight;
+float MinSampleWeight;
 uint2 NumSamplesPerPixel;
 int DebugMode;
 
@@ -102,6 +94,11 @@ StructuredBuffer<uint> DownsampledTileAllocator;
 StructuredBuffer<uint> DownsampledTileData;
 uint DownsampledTileDataStride;
 float2 DownsampledBufferInvSize;
+
+uint2 GetSampleCoord(uint2 DownsampledScreenCoord, uint LightSampleIndex)
+{
+	return DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X);
+}
 
 /**
  * Run one thread per sample and generate new light samples for tracing
@@ -140,7 +137,7 @@ void GenerateLightSamplesCS(
 			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
 
-			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
+			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
 
 			const uint EyeIndex = 0;
 			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
@@ -229,6 +226,8 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType: "));
 					Print(Debug.Context, uint(TILE_TYPE));
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("TileNum: "));
 					Print(Debug.Context, DownsampledTileAllocator[TILE_TYPE]);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("View.PreExposure: "));
@@ -236,6 +235,7 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("NumLightsInGridCell: "));
 					Print(Debug.Context, NumLightsInGridCell);
+					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("NumLocalLights: "));
 					if (NumLocalLights <= MAX_LOCAL_LIGHT_INDEX)
 					{
@@ -284,7 +284,7 @@ void GenerateLightSamplesCS(
 						}
 						#endif
 
-						if (LightTargetPDF.Weight > SamplingMinWeight)
+						if (LightTargetPDF.Weight > MinSampleWeight)
 						{
 							float Tau = WeightSum / (WeightSum + LightTargetPDF.Weight);
 							WeightSum += LightTargetPDF.Weight;
@@ -329,10 +329,8 @@ void GenerateLightSamplesCS(
 
 						if (DebugMode == DEBUG_MODE_VISUALIZE_SAMPLING)
 						{
-							const uint2 SampleCoord = DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X);
-
 							const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LightSample.LocalLightIndex);
-							const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
+							const FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, GetSampleCoord(DownsampledScreenCoord, LightSampleIndex));
 
 							AddLineTWS(Debug.Context, TranslatedWorldPosition, TranslatedWorldPosition + LightSampleTrace.Direction * LightSampleTrace.Distance, float4(LocalLightData.LightColorAndIdAndFalloffExponent.xyz / Luminance(LocalLightData.LightColorAndIdAndFalloffExponent.xyz), 1.0f));
 						}
@@ -358,14 +356,14 @@ void GenerateLightSamplesCS(
 					LightSample.Weight = WeightSum / (NUM_SAMPLES_PER_PIXEL_1D * LightSample.Weight);
 				}
 
-				RWLightSamples[DownsampledScreenCoord * NumSamplesPerPixel + uint2(LightSampleIndex % NUM_SAMPLES_PER_PIXEL_2D_X, LightSampleIndex / NUM_SAMPLES_PER_PIXEL_2D_X)] = PackLightSample(LightSample);
+				RWLightSamples[GetSampleCoord(DownsampledScreenCoord, LightSampleIndex)] = PackLightSample(LightSample);
 			}
 		}
 	}
 }
 
 /**
- * Clear some data for empty tiles, which won't be processed by GenerateLightSamplesCS
+ * Clear data for empty tiles, which won't be processed by GenerateLightSamplesCS
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ClearLightSamplesCS(

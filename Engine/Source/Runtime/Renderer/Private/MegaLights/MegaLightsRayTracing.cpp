@@ -117,15 +117,19 @@ static TAutoConsoleVariable<int32> CVarMegaLightsHardwareRayTracingAvoidSelfInte
 	TEXT("0 - Disabled. May have extra leaking, but it's the fastest mode.\n")
 	TEXT("1 - Enabled. This mode retraces to skip first backface hit up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Good default on most platforms.\n")
 	TEXT("2 - Enabled. This mode uses AHS to skip any backface hits up to r.Lumen.HardwareRayTracing.SkipBackFaceHitDistance. Faster on platforms with inline AHS support."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 static TAutoConsoleVariable<int32> CVarMegaLightsHairVoxelTraces(
 	TEXT("r.MegaLights.HairVoxelTraces"),
 	1,
 	TEXT("Whether to trace hair voxels."),
-	ECVF_Scalability | ECVF_RenderThreadSafe
-);
+	ECVF_Scalability | ECVF_RenderThreadSafe);
+
+static TAutoConsoleVariable<int32> CVarMegaLightsVolumeWorldSpaceTraces(
+	TEXT("r.MegaLights.Volume.WorldSpaceTraces"),
+	1,
+	TEXT("Whether to trace world space shadow rays for volume samples. Useful for debugging."),
+	ECVF_Scalability | ECVF_RenderThreadSafe);
 
 namespace MegaLights
 {
@@ -207,6 +211,13 @@ namespace MegaLights
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		const FMegaLightsParameters& MegaLightsParameters);
+
+	FCompactedTraceParameters CompactMegaLightsVolumeTraces(
+		const FViewInfo& View,
+		FRDGBuilder& GraphBuilder,
+		const FIntVector VolumeSampleBufferSize,
+		FRDGTextureRef VolumeLightSamples,
+		const FMegaLightsParameters& MegaLightsParameters);
 };
 
 class FCompactLightSampleTracesCS : public FGlobalShader
@@ -231,7 +242,7 @@ class FCompactLightSampleTracesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -249,6 +260,46 @@ class FCompactLightSampleTracesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FCompactLightSampleTracesCS, "/Engine/Private/MegaLights/MegaLightsRayTracing.usf", "CompactLightSampleTracesCS", SF_Compute);
 
+class FVolumeCompactLightSampleTracesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVolumeCompactLightSampleTracesCS)
+	SHADER_USE_PARAMETER_STRUCT(FVolumeCompactLightSampleTracesCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCompactedTraceTexelData)
+		SHADER_PARAMETER_RDG_BUFFER_UAV(RWBuffer<uint>, RWCompactedTraceTexelAllocator)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture3D<uint>, VolumeLightSamples)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static int32 GetGroupSize()
+	{
+		return 8;
+	}
+
+	class FWaveOps : SHADER_PERMUTATION_BOOL("WAVE_OPS");
+	using FPermutationDomain = TShaderPermutationDomain<FWaveOps>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
+	}
+
+	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+		if (PermutationVector.Get<FWaveOps>())
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		}
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVolumeCompactLightSampleTracesCS, "/Engine/Private/MegaLights/MegaLightsVolumeRayTracing.usf", "VolumeCompactLightSampleTracesCS", SF_Compute);
+
 class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
 {
 	DECLARE_GLOBAL_SHADER(FInitCompactedTraceTexelIndirectArgsCS)
@@ -262,7 +313,7 @@ class FInitCompactedTraceTexelIndirectArgsCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -335,7 +386,7 @@ class FHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
 			return false;
 		}
 
-		return MegaLights::ShouldCompileShaders(Parameters)  
+		return MegaLights::ShouldCompileShaders(Parameters.Platform)  
 			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
 	}
 
@@ -364,6 +415,65 @@ IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FHardwareRayTraceLightSamp
 IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesCS", SF_Compute);
 IMPLEMENT_GLOBAL_SHADER(FHardwareRayTraceLightSamplesRGS, "/Engine/Private/MegaLights/MegaLightsHardwareRayTracing.usf", "HardwareRayTraceLightSamplesRGS", SF_RayGen);
 
+class FVolumeHardwareRayTraceLightSamples : public FLumenHardwareRayTracingShaderBase
+{
+	DECLARE_LUMEN_RAYTRACING_SHADER(FVolumeHardwareRayTraceLightSamples)
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<uint>, RWVolumeLightSamples)
+		SHADER_PARAMETER(float, RayTracingBias)
+		SHADER_PARAMETER(float, RayTracingEndBias)
+		SHADER_PARAMETER(float, RayTracingNormalBias)
+		// Ray Tracing
+		SHADER_PARAMETER(uint32, MaxTraversalIterations)
+		SHADER_PARAMETER(uint32, MeshSectionVisibilityTest)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(RaytracingAccelerationStructure, TLAS)
+		SHADER_PARAMETER_SRV(StructuredBuffer, RayTracingSceneMetadata)
+		// Inline Ray Tracing
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<Lumen::FHitGroupRootConstants>, HitGroupData)
+		SHADER_PARAMETER_STRUCT_REF(FLumenHardwareRayTracingUniformBufferParameters, LumenHardwareRayTracingUniformBuffer)
+	END_SHADER_PARAMETER_STRUCT()
+
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FLumenHardwareRayTracingShaderBase::FBasePermutationDomain, FDebugMode>;
+
+	static FPermutationDomain RemapPermutation(FPermutationDomain PermutationVector)
+	{
+		return PermutationVector;
+	}
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (RemapPermutation(PermutationVector) != PermutationVector)
+		{
+			return false;
+		}
+
+		return MegaLights::ShouldCompileShaders(Parameters.Platform)
+			&& FLumenHardwareRayTracingShaderBase::ShouldCompilePermutation(Parameters, ShaderDispatchType);
+	}
+
+	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, Lumen::ERayTracingShaderDispatchType ShaderDispatchType, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FLumenHardwareRayTracingShaderBase::ModifyCompilationEnvironment(Parameters, ShaderDispatchType, Lumen::ESurfaceCacheSampling::AlwaysResidentPagesWithoutFeedback, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+	}
+
+	static ERayTracingPayloadType GetRayTracingPayloadType(const int32 PermutationId)
+	{
+		return ERayTracingPayloadType::LumenMinimal;
+	}
+};
+
+IMPLEMENT_LUMEN_RAYGEN_AND_COMPUTE_RAYTRACING_SHADERS(FVolumeHardwareRayTraceLightSamples)
+
+IMPLEMENT_GLOBAL_SHADER(FVolumeHardwareRayTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeHardwareRayTracing.usf", "VolumeHardwareRayTraceLightSamplesCS", SF_Compute);
+IMPLEMENT_GLOBAL_SHADER(FVolumeHardwareRayTraceLightSamplesRGS, "/Engine/Private/MegaLights/MegaLightsVolumeHardwareRayTracing.usf", "VolumeHardwareRayTraceLightSamplesRGS", SF_RayGen);
+
 #endif // RHI_RAYTRACING
 
 class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
@@ -390,7 +500,7 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -406,6 +516,44 @@ class FSoftwareRayTraceLightSamplesCS : public FGlobalShader
 };
 
 IMPLEMENT_GLOBAL_SHADER(FSoftwareRayTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsRayTracing.usf", "SoftwareRayTraceLightSamplesCS", SF_Compute);
+
+class FVolumeSoftwareRayTraceLightSamplesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVolumeSoftwareRayTraceLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FVolumeSoftwareRayTraceLightSamplesCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture3D<uint>, RWVolumeLightSamples)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static int32 GetGroupSize()
+	{
+		return 64;
+	}
+
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
+	}
+
+	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+
+		// GPU Scene definitions
+		OutEnvironment.SetDefine(TEXT("VF_SUPPORTS_PRIMITIVE_SCENE_DATA"), 1);
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVolumeSoftwareRayTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVolumeRayTracing.usf", "VolumeSoftwareRayTraceLightSamplesCS", SF_Compute);
 
 class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 {
@@ -435,7 +583,7 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
-		return MegaLights::ShouldCompileShaders(Parameters);
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
 	}
 
 	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
@@ -452,8 +600,6 @@ IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/Meg
 #if RHI_RAYTRACING
 void FDeferredShadingSceneRenderer::PrepareMegaLightsHardwareRayTracing(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	using namespace MegaLights;
-
 	const bool bEvaluateMaterials = CVarMegaLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
 
 	if (MegaLights::UseHardwareRayTracing(*View.Family) && bEvaluateMaterials)
@@ -477,12 +623,11 @@ void FDeferredShadingSceneRenderer::PrepareMegaLightsHardwareRayTracing(const FV
 
 void FDeferredShadingSceneRenderer::PrepareMegaLightsHardwareRayTracingLumenMaterial(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
-	using namespace MegaLights;
-
 	const bool bEvaluateMaterials = CVarMegaLightsHardwareRayTracingEvaluateMaterialMode.GetValueOnRenderThread() > 0;
 
 	if (MegaLights::UseHardwareRayTracing(*View.Family) && !MegaLights::UseInlineHardwareRayTracing(*View.Family))
 	{
+		// Opaque
 		for (int32 HairVoxelTraces = 0; HairVoxelTraces < 2; ++HairVoxelTraces)
 		{
 			FHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
@@ -497,6 +642,17 @@ void FDeferredShadingSceneRenderer::PrepareMegaLightsHardwareRayTracingLumenMate
 
 			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
 		}
+
+		// Volume
+		{
+			FVolumeHardwareRayTraceLightSamplesRGS::FPermutationDomain PermutationVector;
+			PermutationVector.Set<FVolumeHardwareRayTraceLightSamplesRGS::FDebugMode>(MegaLights::GetVolumeDebugMode() != 0);
+			PermutationVector = FVolumeHardwareRayTraceLightSamplesRGS::RemapPermutation(PermutationVector);
+
+			TShaderRef<FVolumeHardwareRayTraceLightSamplesRGS> RayGenerationShader = View.ShaderMap->GetShader<FVolumeHardwareRayTraceLightSamplesRGS>(PermutationVector);
+
+			OutRayGenShaders.Add(RayGenerationShader.GetRayTracingShader());
+		}
 	}
 }
 
@@ -505,44 +661,62 @@ namespace MegaLights
 	void SetHardwareRayTracingPassParameters(
 		const FViewInfo& View,
 		FRDGBuilder& GraphBuilder,
-		const FCompactedTraceParameters& CompactedTraceParameters,
+		const MegaLights::FCompactedTraceParameters& CompactedTraceParameters,
 		const FMegaLightsParameters& MegaLightsParameters,
 		const FHairVoxelTraceParameters& HairVoxelTraceParameters,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
-		FHardwareRayTraceLightSamples::FParameters* PassParameters);
-};
+		FHardwareRayTraceLightSamples::FParameters* PassParameters)
+	{
+		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
+		PassParameters->MegaLightsParameters = MegaLightsParameters;
+		PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
+		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
+		PassParameters->LightSampleRayDistance = LightSampleRayDistance;
+		PassParameters->RayTracingBias = CVarMegaLightsHardwareRayTracingBias.GetValueOnRenderThread();
+		PassParameters->RayTracingEndBias = CVarMegaLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
+		PassParameters->RayTracingNormalBias = CVarMegaLightsHardwareRayTracingNormalBias.GetValueOnRenderThread();
 
-void MegaLights::SetHardwareRayTracingPassParameters(
-	const FViewInfo& View,
-	FRDGBuilder& GraphBuilder,
-	const MegaLights::FCompactedTraceParameters& CompactedTraceParameters,
-	const FMegaLightsParameters& MegaLightsParameters,
-	const FHairVoxelTraceParameters& HairVoxelTraceParameters,
-	FRDGTextureRef LightSamples,
-	FRDGTextureRef LightSampleRayDistance,
-	FHardwareRayTraceLightSamples::FParameters* PassParameters)
-{
-	PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-	PassParameters->MegaLightsParameters = MegaLightsParameters;
-	PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
-	PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-	PassParameters->LightSampleRayDistance = LightSampleRayDistance;
-	PassParameters->RayTracingBias = CVarMegaLightsHardwareRayTracingBias.GetValueOnRenderThread();
-	PassParameters->RayTracingEndBias = CVarMegaLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
-	PassParameters->RayTracingNormalBias = CVarMegaLightsHardwareRayTracingNormalBias.GetValueOnRenderThread();
+		checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
+		PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
+		PassParameters->MaxTraversalIterations = FMath::Max(CVarMegaLightsHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+		PassParameters->MeshSectionVisibilityTest = CVarMegaLightsHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
 
-	checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
-	PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
-	PassParameters->MaxTraversalIterations = FMath::Max(CVarMegaLightsHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
-	PassParameters->MeshSectionVisibilityTest = CVarMegaLightsHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
+		// Inline
+		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
+		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
+		checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
+		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
+	}
 
-	// Inline
-	PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
-	PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
-	checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
-	PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
-}
+	void SetHardwareRayTracingPassParameters(
+		const FViewInfo& View,
+		FRDGBuilder& GraphBuilder,
+		const MegaLights::FCompactedTraceParameters& CompactedTraceParameters,
+		const FMegaLightsParameters& MegaLightsParameters,
+		FRDGTextureRef VolumeLightSamples,
+		FVolumeHardwareRayTraceLightSamples::FParameters* PassParameters)
+	{
+		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
+		PassParameters->MegaLightsParameters = MegaLightsParameters;
+		PassParameters->RWVolumeLightSamples = GraphBuilder.CreateUAV(VolumeLightSamples);
+		PassParameters->RayTracingBias = CVarMegaLightsHardwareRayTracingBias.GetValueOnRenderThread();
+		PassParameters->RayTracingEndBias = CVarMegaLightsHardwareRayTracingEndBias.GetValueOnRenderThread();
+		PassParameters->RayTracingNormalBias = CVarMegaLightsHardwareRayTracingNormalBias.GetValueOnRenderThread();
+
+		checkf(View.HasRayTracingScene(), TEXT("TLAS does not exist. Verify that the current pass is represented in Lumen::AnyLumenHardwareRayTracingPassEnabled()."));
+		PassParameters->TLAS = View.GetRayTracingSceneLayerViewChecked(ERayTracingSceneLayer::Base);
+		PassParameters->MaxTraversalIterations = FMath::Max(CVarMegaLightsHardwareRayTracingMaxIterations.GetValueOnRenderThread(), 1);
+		PassParameters->MeshSectionVisibilityTest = CVarMegaLightsHardwareRayTracingMeshSectionVisibilityTest.GetValueOnRenderThread();
+
+		// Inline
+		PassParameters->HitGroupData = View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer ? GraphBuilder.CreateSRV(View.GetPrimaryView()->LumenHardwareRayTracingHitDataBuffer) : nullptr;
+		PassParameters->LumenHardwareRayTracingUniformBuffer = View.GetPrimaryView()->LumenHardwareRayTracingUniformBuffer;
+		checkf(View.RayTracingSceneInitTask == nullptr, TEXT("RayTracingSceneInitTask must be completed before creating SRV for RayTracingSceneMetadata."));
+		PassParameters->RayTracingSceneMetadata = View.GetRayTracingSceneChecked(ERayTracingSceneLayer::Base)->GetOrCreateMetadataBufferSRV(GraphBuilder.RHICmdList);
+	}
+}; // namespace MegaLights
+
 #endif
 
 MegaLights::FCompactedTraceParameters MegaLights::CompactMegaLightsTraces(
@@ -614,6 +788,75 @@ MegaLights::FCompactedTraceParameters MegaLights::CompactMegaLightsTraces(
 	return Parameters;
 }
 
+MegaLights::FCompactedTraceParameters MegaLights::CompactMegaLightsVolumeTraces(
+	const FViewInfo& View,
+	FRDGBuilder& GraphBuilder,
+	const FIntVector VolumeSampleBufferSize,
+	FRDGTextureRef VolumeLightSamples,
+	const FMegaLightsParameters& MegaLightsParameters)
+{
+	FRDGBufferRef CompactedTraceTexelData = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), VolumeSampleBufferSize.X * VolumeSampleBufferSize.Y * VolumeSampleBufferSize.Z),
+		TEXT("MegaLightsParameters.CompactedVolumeTraceTexelData"));
+
+	FRDGBufferRef CompactedTraceTexelAllocator = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateBufferDesc(sizeof(uint32), 1),
+		TEXT("MegaLightsParameters.CompactedVolumeTraceTexelAllocator"));
+
+	FRDGBufferRef CompactedTraceTexelIndirectArgs = GraphBuilder.CreateBuffer(
+		FRDGBufferDesc::CreateIndirectDesc<FRHIDispatchIndirectParameters>((int32)ECompactedTraceIndirectArgs::MAX),
+		TEXT("MegaLights.CompactedVolumeTraceTexelIndirectArgs"));
+
+	AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(CompactedTraceTexelAllocator, PF_R32_UINT), 0);
+
+	// Compact light sample traces before tracing
+	{
+		FVolumeCompactLightSampleTracesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVolumeCompactLightSampleTracesCS::FParameters>();
+		PassParameters->RWCompactedTraceTexelData = GraphBuilder.CreateUAV(CompactedTraceTexelData, PF_R32_UINT);
+		PassParameters->RWCompactedTraceTexelAllocator = GraphBuilder.CreateUAV(CompactedTraceTexelAllocator, PF_R32_UINT);
+		PassParameters->MegaLightsParameters = MegaLightsParameters;
+		PassParameters->VolumeLightSamples = VolumeLightSamples;
+
+		const bool bWaveOps = MegaLights::UseWaveOps(View.GetShaderPlatform())
+			&& GRHIMinimumWaveSize <= 32
+			&& GRHIMaximumWaveSize >= 32;
+
+		FVolumeCompactLightSampleTracesCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FVolumeCompactLightSampleTracesCS::FWaveOps>(bWaveOps);
+		auto ComputeShader = View.ShaderMap->GetShader<FVolumeCompactLightSampleTracesCS>(PermutationVector);
+
+		const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(MegaLightsParameters.VolumeSampleViewSize, FVolumeCompactLightSampleTracesCS::GetGroupSize());
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("CompactVolumeLightSampleTraces"),
+			ComputeShader,
+			PassParameters,
+			GroupCount);
+	}
+
+	// Setup indirect args for tracing
+	{
+		FInitCompactedTraceTexelIndirectArgsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FInitCompactedTraceTexelIndirectArgsCS::FParameters>();
+		PassParameters->MegaLightsParameters = MegaLightsParameters;
+		PassParameters->RWIndirectArgs = GraphBuilder.CreateUAV(CompactedTraceTexelIndirectArgs);
+		PassParameters->CompactedTraceTexelAllocator = GraphBuilder.CreateSRV(CompactedTraceTexelAllocator, PF_R32_UINT);
+
+		auto ComputeShader = View.ShaderMap->GetShader<FInitCompactedTraceTexelIndirectArgsCS>();
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("InitCompactedVolumeTraceTexelIndirectArgs"),
+			ComputeShader,
+			PassParameters,
+			FIntVector(1, 1, 1));
+	}
+
+	FCompactedTraceParameters Parameters;
+	Parameters.CompactedTraceTexelAllocator = GraphBuilder.CreateSRV(CompactedTraceTexelAllocator, PF_R32_UINT);
+	Parameters.CompactedTraceTexelData = GraphBuilder.CreateSRV(CompactedTraceTexelData, PF_R32_UINT);
+	Parameters.IndirectArgs = CompactedTraceTexelIndirectArgs;
+	return Parameters;
+}
+
 /**
  * Ray trace light samples using a variety of tracing methods depending on the feature configuration.
  */
@@ -625,9 +868,12 @@ void MegaLights::RayTraceLightSamples(
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
+	FIntVector VolumeSampleBufferSize,
+	FRDGTextureRef VolumeLightSamples,
 	const FMegaLightsParameters& MegaLightsParameters)
 {
 	const bool bDebug = MegaLights::GetDebugMode() != 0;
+	const bool bVolumeDebug = MegaLights::GetVolumeDebugMode() != 0;
 
 	if (CVarMegaLightsScreenTraces.GetValueOnRenderThread() != 0)
 	{
@@ -687,6 +933,17 @@ void MegaLights::RayTraceLightSamples(
 			LightSamples,
 			MegaLightsParameters);
 
+		FCompactedTraceParameters CompactedVolumeTraceParameters;
+		if (VolumeLightSamples && CVarMegaLightsVolumeWorldSpaceTraces.GetValueOnRenderThread() != 0)
+		{
+			CompactedVolumeTraceParameters = MegaLights::CompactMegaLightsVolumeTraces(
+				View,
+				GraphBuilder,
+				VolumeSampleBufferSize,
+				VolumeLightSamples,
+				MegaLightsParameters);
+		}
+
 		if (MegaLights::UseHardwareRayTracing(ViewFamily))
 		{
 #if RHI_RAYTRACING
@@ -740,6 +997,48 @@ void MegaLights::RayTraceLightSamples(
 				}
 			}
 
+			// Volume
+			if (VolumeLightSamples && CVarMegaLightsVolumeWorldSpaceTraces.GetValueOnRenderThread() != 0)
+			{
+				FVolumeHardwareRayTraceLightSamples::FParameters* PassParameters = GraphBuilder.AllocParameters<FVolumeHardwareRayTraceLightSamples::FParameters>();
+				MegaLights::SetHardwareRayTracingPassParameters(
+					View,
+					GraphBuilder,
+					CompactedVolumeTraceParameters,
+					MegaLightsParameters,
+					VolumeLightSamples,
+					PassParameters);
+
+				FVolumeHardwareRayTraceLightSamples::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FVolumeHardwareRayTraceLightSamples::FDebugMode>(bVolumeDebug);
+				PermutationVector = FVolumeHardwareRayTraceLightSamples::RemapPermutation(PermutationVector);
+
+				if (MegaLights::UseInlineHardwareRayTracing(ViewFamily))
+				{
+					FVolumeHardwareRayTraceLightSamplesCS::AddLumenRayTracingDispatchIndirect(
+						GraphBuilder,
+						RDG_EVENT_NAME("VolumeHardwareRayTraceLightSamples Inline"),
+						View,
+						PermutationVector,
+						PassParameters,
+						CompactedVolumeTraceParameters.IndirectArgs,
+						(int32)MegaLights::ECompactedTraceIndirectArgs::NumTracesDiv32,
+						ERDGPassFlags::Compute);
+				}
+				else
+				{
+					FVolumeHardwareRayTraceLightSamplesRGS::AddLumenRayTracingDispatchIndirect(
+						GraphBuilder,
+						RDG_EVENT_NAME("VolumeHardwareRayTraceLightSamples RayGen"),
+						View,
+						PermutationVector,
+						PassParameters,
+						PassParameters->CompactedTraceParameters.IndirectArgs,
+						(int32)MegaLights::ECompactedTraceIndirectArgs::NumTraces,
+						/*bUseMinimalPayload*/ true);
+				}
+			}
+
 			if(bEvaluateMaterials)
 			{
 				FCompactedTraceParameters RetraceCompactedTraceParameters = MegaLights::CompactMegaLightsTraces(
@@ -784,25 +1083,49 @@ void MegaLights::RayTraceLightSamples(
 		{
 			ensure(MegaLights::IsUsingGlobalSDF(ViewFamily));
 
-			FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
-			PassParameters->CompactedTraceParameters = CompactedTraceParameters;
-			PassParameters->MegaLightsParameters = MegaLightsParameters;
-			PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
-			PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-			PassParameters->LightSampleRayDistance = LightSampleRayDistance;
+			// GBuffer
+			{
+				FSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FSoftwareRayTraceLightSamplesCS::FParameters>();
+				PassParameters->CompactedTraceParameters = CompactedTraceParameters;
+				PassParameters->MegaLightsParameters = MegaLightsParameters;
+				PassParameters->HairVoxelTraceParameters = HairVoxelTraceParameters;
+				PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
+				PassParameters->LightSampleRayDistance = LightSampleRayDistance;
 
-			FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
-			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FHairVoxelTraces>(bHairVoxelTraces);
-			PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
-			auto ComputeShader = View.ShaderMap->GetShader<FSoftwareRayTraceLightSamplesCS>(PermutationVector);
+				FSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FHairVoxelTraces>(bHairVoxelTraces);
+				PermutationVector.Set<FSoftwareRayTraceLightSamplesCS::FDebugMode>(bDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FSoftwareRayTraceLightSamplesCS>(PermutationVector);
 
-			FComputeShaderUtils::AddPass(
-				GraphBuilder,
-				RDG_EVENT_NAME("SoftwareRayTraceLightSamples"),
-				ComputeShader,
-				PassParameters,
-				CompactedTraceParameters.IndirectArgs,
-				0);
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("SoftwareRayTraceLightSamples"),
+					ComputeShader,
+					PassParameters,
+					CompactedTraceParameters.IndirectArgs,
+					0);
+			}
+
+			// Volume
+			if (VolumeLightSamples && CVarMegaLightsVolumeWorldSpaceTraces.GetValueOnRenderThread() != 0)
+			{
+				FVolumeSoftwareRayTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVolumeSoftwareRayTraceLightSamplesCS::FParameters>();
+				PassParameters->CompactedTraceParameters = CompactedVolumeTraceParameters;
+				PassParameters->MegaLightsParameters = MegaLightsParameters;
+				PassParameters->RWVolumeLightSamples = GraphBuilder.CreateUAV(VolumeLightSamples);
+
+				FVolumeSoftwareRayTraceLightSamplesCS::FPermutationDomain PermutationVector;
+				PermutationVector.Set<FVolumeSoftwareRayTraceLightSamplesCS::FDebugMode>(bVolumeDebug);
+				auto ComputeShader = View.ShaderMap->GetShader<FVolumeSoftwareRayTraceLightSamplesCS>(PermutationVector);
+
+				FComputeShaderUtils::AddPass(
+					GraphBuilder,
+					RDG_EVENT_NAME("VolumeSoftwareRayTraceLightSamples"),
+					ComputeShader,
+					PassParameters,
+					CompactedVolumeTraceParameters.IndirectArgs,
+					0);
+			}
 		}
 	}
 }

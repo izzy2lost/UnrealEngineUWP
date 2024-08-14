@@ -27,7 +27,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FMegaLightsParameters, )
 	SHADER_PARAMETER(FVector2f, DownsampledBufferInvSize)
 	SHADER_PARAMETER(uint32, DownsampleFactor)
 	SHADER_PARAMETER(uint32, MegaLightsStateFrameIndex)
-	SHADER_PARAMETER(float, SamplingMinWeight)
+	SHADER_PARAMETER(float, MinSampleWeight)
 	SHADER_PARAMETER(int32, TileDataStride)
 	SHADER_PARAMETER(int32, DownsampledTileDataStride)
 	SHADER_PARAMETER(float, TemporalMaxFramesAccumulated)
@@ -35,6 +35,24 @@ BEGIN_SHADER_PARAMETER_STRUCT(FMegaLightsParameters, )
 	SHADER_PARAMETER(int32, TemporalAdvanceFrame)
 	SHADER_PARAMETER(int32, DebugMode)
 	SHADER_PARAMETER(int32, DebugLightId)
+	SHADER_PARAMETER(float, VolumeMinSampleWeight)
+	SHADER_PARAMETER(int32, VolumeDebugMode)
+	SHADER_PARAMETER(int32, VolumeDebugSliceIndex)
+	SHADER_PARAMETER(FIntVector, NumSamplesPerVoxel)
+	SHADER_PARAMETER(FIntVector, NumSamplesPerVoxelDivideShift)
+	SHADER_PARAMETER(FMatrix44f, UnjitteredClipToTranslatedWorld)
+	SHADER_PARAMETER(FIntVector, DownsampledVolumeViewSize)
+	SHADER_PARAMETER(FIntVector, VolumeViewSize)
+	SHADER_PARAMETER(FIntVector, VolumeSampleViewSize)
+	SHADER_PARAMETER(FVector3f, MegaLightsVolumeZParams)
+	SHADER_PARAMETER(uint32, MegaLightsVolumePixelSize)
+	SHADER_PARAMETER(uint32, MegaLightsVolumePixelSizeShift)
+	SHADER_PARAMETER(FVector3f, VolumeFrameJitterOffset)
+	SHADER_PARAMETER(float, VolumePhaseG)
+	SHADER_PARAMETER(float, VolumeInverseSquaredLightDistanceBiasScale)
+	SHADER_PARAMETER_RDG_TEXTURE(Texture2D, FurthestHZBTexture)
+	SHADER_PARAMETER(float, HZBMipLevel)
+	SHADER_PARAMETER(FVector2f, ViewportUVToHZBBufferUV)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, DownsampledTileMask)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, DownsampledSceneDepth)
 	SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float3>, DownsampledSceneWorldNormal)
@@ -51,12 +69,14 @@ namespace MegaLights
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
+		FIntVector VolumeSampleBufferSize,
+		FRDGTextureRef VolumeLightSamples,
 		const FMegaLightsParameters& MegaLightsParameters
 	);
 
-	bool ShouldCompileShaders(const FGlobalShaderPermutationParameters& Parameters);
 	bool UseWaveOps(EShaderPlatform ShaderPlatform);
 	int32 GetDebugMode();
+	int32 GetVolumeDebugMode();
 
 	void ModifyCompilationEnvironment(EShaderPlatform Platform, FShaderCompilerEnvironment& OutEnvironment);
 };

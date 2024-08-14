@@ -57,7 +57,7 @@ void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float 
 }
 
 /**
- * Upsample light weights and apply all lights per pixel to affected tiles
+ * Upsample light samples and apply all lights per pixel to affected tiles
  */
 [numthreads(THREADGROUP_SIZE, THREADGROUP_SIZE, 1)]
 void ShadeLightSamplesCS(
@@ -165,7 +165,7 @@ void ShadeLightSamplesCS(
 					Print(Context, ScreenCoord.y);
 					Newline(Context);
 
-					Print(Context, TEXT("LocalLightId |LightId   | Weight    | Diffuse   | Specular"));
+					Print(Context, TEXT("LocalLightId |LightId   | Weight    | Diffuse   | Specular")); 
 				}
 				#endif
 
@@ -190,7 +190,7 @@ void ShadeLightSamplesCS(
 						const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 						FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 
-						uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
+						const uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
 
 						float SampleWeight = 0.0f;
 						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 0), LocalLightIndex, DownsampledScreenWeights.x, SampleWeight);
