@@ -875,6 +875,9 @@ namespace UE::RHI::GPUProfiler
 			uint32 Level = 0;
 			TArray<uint64> Timestamps;
 
+			uint32 NumDraws = 0;
+			uint32 NumPrimitives = 0;
+
 			uint64 BusyCycles = 0;
 
 			FNode(FString&& Name)
@@ -1060,6 +1063,14 @@ namespace UE::RHI::GPUProfiler
 					break;
 			#endif // WITH_RHI_BREADCRUMBS
 
+				case FEvent::EType::Stats:
+					{
+						auto& Stats = Event->Value.Get<FEvent::FStats>();
+						Current->NumDraws += Stats.NumDraws;
+						Current->NumPrimitives += Stats.NumPrimitives;
+					}
+					break;
+
 				case FEvent::EType::FrameBoundary:
 					{
 						FEvent::FFrameBoundary& FrameBoundary = Event->Value.Get<FEvent::FFrameBoundary>();
@@ -1151,15 +1162,20 @@ namespace UE::RHI::GPUProfiler
 			}
 		}
 
-		double RootMilliseconds = FPlatformTime::ToMilliseconds64(First->BusyCycles);
-
 		FString LogMessage;
 		for (FNode* Node = First; Node; Node = Node->Next)
 		{
 			double Milliseconds = FPlatformTime::ToMilliseconds64(Node->BusyCycles);
 
-			TUnicodeHorizontalBar<8> Bar = Milliseconds / RootMilliseconds;
-			LogMessage += FString::Printf(TEXT("%9.3f ms |%s| %*s\n"), Milliseconds, Bar.Text, Node->Name.Len() + (Node->Level * 4), *Node->Name);
+			TUnicodeHorizontalBar<8> Bar = Milliseconds / FPlatformTime::ToMilliseconds64(First->BusyCycles);
+			LogMessage += FString::Printf(TEXT("%9.3f ms |%s| %6d | %6d | %*s\n")
+				, Milliseconds
+				, Bar.Text
+				, Node->NumDraws
+				, Node->NumPrimitives
+				, Node->Name.Len() + (Node->Level * 4)
+				, *Node->Name
+			);
 		}
 
 		UE_LOG(LogRHI, Display, TEXT("GPU Profile for Frame %d, Queue [%s, GPU: %d, Idx: %d]:\n%s\n\n"), FrameNumber, Queue.GetTypeString(), Queue.GPU, Queue.Index, *LogMessage);

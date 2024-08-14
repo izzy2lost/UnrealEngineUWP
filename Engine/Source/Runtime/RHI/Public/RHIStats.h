@@ -103,8 +103,13 @@ struct FRHIDrawStatsCategory
 
 // Macros for use inside RHI context Draw functions.
 // Updates the Stats structure on the executing RHI command list
-#define RHI_DRAW_CALL_INC()                              do { GetExecutingCommandList().Stats_AddDraw();                                          } while (false)
-#define RHI_DRAW_CALL_STATS(PrimitiveType,NumPrimitives) do { GetExecutingCommandList().Stats_AddDrawAndPrimitives(PrimitiveType, NumPrimitives); } while (false)
+#if RHI_NEW_GPU_PROFILER
+	#define RHI_DRAW_CALL_INC()             do { StatEvent.NumDraws++; GetExecutingCommandList().Stats_AddDraw(); } while (false)
+	#define RHI_DRAW_CALL_STATS(Type,Prims) do { StatEvent.NumDraws++; StatEvent.NumPrimitives += Prims; GetExecutingCommandList().Stats_AddDrawAndPrimitives(Type, Prims); } while (false)
+#else
+	#define RHI_DRAW_CALL_INC()             do { GetExecutingCommandList().Stats_AddDraw(); } while (false)
+	#define RHI_DRAW_CALL_STATS(Type,Prims) do { GetExecutingCommandList().Stats_AddDrawAndPrimitives(Type, Prims); } while (false)
+#endif
 
 struct FRHIDrawStats
 {

@@ -200,6 +200,8 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 
 	#if RHI_NEW_GPU_PROFILER
 		{
+			FlushProfilerStats();
+
 			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FBeginBreadcrumb>();
 			Event.Breadcrumb = Breadcrumb;
 
@@ -222,6 +224,8 @@ void FD3D12ContextCommon::BindDiagnosticBuffer(FD3D12RootSignature const* RootSi
 	{
 	#if RHI_NEW_GPU_PROFILER
 		{
+			FlushProfilerStats();
+
 			auto& Event = GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FEndBreadcrumb>();
 			Event.Breadcrumb = Breadcrumb;
 
@@ -486,6 +490,10 @@ void FD3D12CommandContext::Finalize(TArray<FD3D12Payload*>& OutPayloads)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
 	GetParentDevice()->GetBindlessDescriptorManager().FinalizeContext(*this);
+#endif
+
+#if RHI_NEW_GPU_PROFILER
+	FlushProfilerStats();
 #endif
 
 	FD3D12ContextCommon::Finalize(OutPayloads);

@@ -19,6 +19,7 @@
 #include "RHIBreadcrumbs.h"
 #include "RHIResources.h"
 #include "RHIShaderParameters.h"
+#include "GPUProfiler.h"
 
 class FRHIDepthRenderTargetView;
 class FRHIRenderTargetView;
@@ -516,6 +517,13 @@ public:
 	// Platform RHI implementations should check for this inside RHIBeginBreadcrumbGPU and RHIEndBreadcrumbGPU.
 	//
 	inline bool ShouldEmitBreadcrumbs() const;
+#endif
+
+protected:
+#if RHI_NEW_GPU_PROFILER
+	// Used to accumulate draw call and primitive counts,
+	// via the RHI_DRAW_CALL_INC / RHI_DRAW_CALL_STATS macros.
+	UE::RHI::GPUProfiler::FEvent::FStats StatEvent {};
 #endif
 };
 

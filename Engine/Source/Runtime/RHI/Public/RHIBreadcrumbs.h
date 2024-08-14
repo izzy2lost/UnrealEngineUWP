@@ -2,16 +2,15 @@
 
 #pragma once
 
-#include "Containers/Array.h"
-#include "RHIFwd.h"
-#include "RHIDefinitions.h"
-#include "UObject/NameTypes.h"
+#include "Misc/Build.h"
 #include "Misc/MemStack.h"
+#include "HAL/Platform.h"
 #include "Templates/SharedPointer.h"
-#include "RHIPipeline.h"
-#include "Math/Color.h"
-#include "MultiGPU.h"
 #include "GenericPlatform/GenericPlatformCrashContext.h"
+
+#include "RHIFwd.h"
+#include "RHIPipeline.h"
+#include "MultiGPU.h"
 
 #ifndef WITH_RHI_BREADCRUMBS
 #define WITH_RHI_BREADCRUMBS ((UE_BUILD_DEBUG || UE_BUILD_DEVELOPMENT) || WITH_PROFILEGPU)

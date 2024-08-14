@@ -7,8 +7,9 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Templates/RefCounting.h"
-#include "RHI.h"
+#include "Misc/TVariant.h"
+
+#include "RHIBreadcrumbs.h"
 
 #if RHI_NEW_GPU_PROFILER
 
@@ -124,6 +125,17 @@ namespace UE::RHI::GPUProfiler
 			uint64 GPUTimestampBOP;
 		};
 
+		struct FStats
+		{
+			uint32 NumDraws;
+			uint32 NumPrimitives;
+
+			operator bool() const
+			{
+				return NumDraws > 0 || NumPrimitives > 0;
+			}
+		};
+
 		struct FSignalFence
 		{
 			uint64 CPUTimestamp;
@@ -154,6 +166,7 @@ namespace UE::RHI::GPUProfiler
 #endif
 			, FBeginWork
 			, FEndWork
+			, FStats
 			, FSignalFence
 			, FWaitFence
 			, FFlip
@@ -169,6 +182,7 @@ namespace UE::RHI::GPUProfiler
 #endif
 			BeginWork       = FStorage::IndexOfType<FBeginWork      >(),
 			EndWork         = FStorage::IndexOfType<FEndWork        >(),
+			Stats           = FStorage::IndexOfType<FStats          >(),
 			SignalFence     = FStorage::IndexOfType<FSignalFence    >(),
 			WaitFence       = FStorage::IndexOfType<FWaitFence      >(),
 			Flip            = FStorage::IndexOfType<FFlip           >(),

@@ -527,6 +527,18 @@ public:
 	void ClearShaderResources(FD3D12BaseShaderResource* Resource, EShaderParameterTypeMask ShaderParameterTypeMask);
 	void ClearAllShaderResources();
 
+#if RHI_NEW_GPU_PROFILER
+	void FlushProfilerStats()
+	{
+		// Flush accumulated draw stats
+		if (StatEvent)
+		{
+			GetCommandList().EmplaceEvent<UE::RHI::GPUProfiler::FEvent::FStats>() = StatEvent;
+			StatEvent = {};
+		}
+	}
+#endif
+
 	FD3D12FastConstantAllocator ConstantsAllocator;
 
 	// Current GPU event stack
