@@ -571,6 +571,7 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 		return FMaterialLayersFunctions::ResolveParent(Parent.GetRuntime(), Parent.EditorOnly, GetRuntime(), EditorOnly, OutRemapLayerIndices);
 	}
 
+
 	static ENGINE_API void Validate(const FMaterialLayersFunctionsRuntimeData& Runtime, const FMaterialLayersFunctionsEditorOnlyData& EditorOnly);
 
 	void Validate()
@@ -579,7 +580,10 @@ struct FMaterialLayersFunctions : public FMaterialLayersFunctionsRuntimeData
 	}
 
 	ENGINE_API void SerializeLegacy(FArchive& Ar);
-	#endif // WITH_EDITOR
+
+	static ENGINE_API void CheckAndRepairPostSerializeEditorOnlyDataForRuntimeData(FMaterialLayersFunctionsRuntimeData& Runtime, FMaterialLayersFunctionsEditorOnlyData& EditorOnly);
+
+#endif // WITH_EDITOR
 
 	ENGINE_API void PostSerialize(const FArchive& Ar);
 
