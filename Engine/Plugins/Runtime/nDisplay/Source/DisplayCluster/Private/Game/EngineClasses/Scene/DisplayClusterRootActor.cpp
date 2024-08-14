@@ -762,7 +762,7 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 		PrimitiveComponentsArray.AddDefaulted(NumIterThreads);
 
 		// Start the iteration parallel threads
-		ParallelFor(NumIterThreads, [NumIterThreads, CurrentWorld, &Actors, &PrimitiveComponentsArray](int32 Index)
+		ParallelFor(NumIterThreads, [NumIterThreads, CurrentWorld, &Actors, CurrentRootActor = this, &PrimitiveComponentsArray](int32 Index)
 			{
 				// Using inline allocator for efficiency
 				constexpr int32 MaxExpectedComponentsPerActor = 64;
@@ -775,7 +775,9 @@ bool ADisplayClusterRootActor::GetHiddenInGamePrimitives(TSet<FPrimitiveComponen
 				{
 					const AActor* Actor = Actors[ActorIdx];
 
-					if (IsValid(Actor))
+					// RootActor visibility is already handled by this GetHiddenInGamePrimitives() function. (See the code above.)
+					// The code below is generic for all actor types and hides all primitives without following the DCRA rules used above.
+					if (IsValid(Actor) && Actor != CurrentRootActor)
 					{
 						Actor->GetComponents(PrimitiveComponents);
 						for (UPrimitiveComponent* PrimComp : PrimitiveComponents)

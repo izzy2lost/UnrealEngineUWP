@@ -220,18 +220,29 @@ FDisplayClusterViewport* FDisplayClusterViewportConfigurationHelpers_Tile::GetOr
 
 		// Setup as tile.
 		InOutRenderSettings.TileSettings = FDisplayClusterViewport_TileSettings(InSourceViewport.GetId(), InTilePos, InTileSize, TileFlags);
+	}
 
+	return TileViewport;
+}
+
+void FDisplayClusterViewportConfigurationHelpers_Tile::ConfigureTileViewport(FDisplayClusterViewport& InSourceViewport, const FIntPoint& InTilePos)
+{
+	const FDisplayClusterViewport_RenderSettings& SourceRenderSettings = InSourceViewport.GetRenderSettings();
+	if (SourceRenderSettings.TileSettings.GetType() == EDisplayClusterViewportTileType::Source)
+	{
+		if (FDisplayClusterViewport* TileViewport = FindTileViewport(InSourceViewport, InTilePos))
+		{
 		// Copy internal render settings from the source:
 		TileViewport->GetCustomPostProcessSettings() = InSourceViewport.GetCustomPostProcessSettings();
 		TileViewport->GetVisibilitySettingsImpl() = InSourceViewport.GetVisibilitySettingsImpl();
 		TileViewport->GetCameraMotionBlurImpl() = InSourceViewport.GetCameraMotionBlurImpl();
 		TileViewport->GetCameraDepthOfFieldImpl() = InSourceViewport.GetCameraDepthOfFieldImpl();
+			TileViewport->GetRenderSettingsICVFXImpl() = InSourceViewport.GetRenderSettingsICVFX();
 
 		// Copy OCIO.
 		TileViewport->SetOpenColorIO(InSourceViewport.GetOpenColorIO());
 	}
-
-	return TileViewport;
+	}
 }
 
 FDisplayClusterViewport_OverscanSettings FDisplayClusterViewportConfigurationHelpers_Tile::GetTileOverscanSettings(const FDisplayClusterConfigurationTile_Overscan& InTileOverscan)

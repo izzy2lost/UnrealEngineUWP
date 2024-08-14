@@ -23,6 +23,9 @@ public:
 	/** Get or create a new tile viewport from source. */
 	static FDisplayClusterViewport* GetOrCreateTileViewport(FDisplayClusterViewport& InSourceViewport, const FIntPoint& TilePos);
 
+	/** Configure tile viewport from source. */
+	static void ConfigureTileViewport(FDisplayClusterViewport& InSourceViewport, const FIntPoint& TilePos);
+
 	/** Get unique viewport name for tile. */
 	static FString GetUniqueViewportNameForTile(const FString& InViewportId, const FIntPoint& TilePos);
 
