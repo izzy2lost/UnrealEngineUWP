@@ -130,16 +130,33 @@ void USmartObjectComponent::OnRegister()
 {
 	Super::OnRegister();
 
-	// Component gets registered on BeginPlay for game worlds
 	const UWorld* World = GetWorld();
 	if (World != nullptr && !World->IsGameWorld())
 	{
+		// Component gets registered on BeginPlay for game worlds
 		RegisterToSubsystem();
+
+		// For non-game world in Editor we monitor saved definition,
+		// so we can clear our cached variation when the based definition is saved.
+		// This way we don't stick with the old base definition.
+		OnSavingDefinitionDelegateHandle = UE::SmartObject::Delegates::OnSavingDefinition.AddLambda([this](const USmartObjectDefinition& Definition)
+		{
+			if (CachedDefinitionAssetVariation
+				&& GetBaseDefinition() == &Definition)
+			{
+				CachedDefinitionAssetVariation = nullptr;
+			}
+		});
 	}
 }
 
 void USmartObjectComponent::OnUnregister()
 {
+	if (OnSavingDefinitionDelegateHandle.IsValid())
+	{
+		UE::SmartObject::Delegates::OnSavingDefinition.Remove(OnSavingDefinitionDelegateHandle);
+	}
+
 	// Component gets unregistered on EndPlay for game worlds
 	const UWorld* World = GetWorld();
 	if (World != nullptr && World->IsGameWorld() == false)

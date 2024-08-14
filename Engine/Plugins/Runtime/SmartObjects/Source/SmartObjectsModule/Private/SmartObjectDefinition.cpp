@@ -31,7 +31,8 @@ namespace UE::SmartObject
 	{
 #if WITH_EDITOR
 		FOnParametersChanged OnParametersChanged;
-#endif	
+		FOnSavingDefinition OnSavingDefinition;
+#endif // WITH_EDITOR
 	} // Delegates
 
 } // UE::SmartObject
@@ -380,11 +381,13 @@ void USmartObjectDefinition::PreSave(FObjectPreSaveContext SaveContext)
 	Super::PreSave(SaveContext);
 
 #if WITH_EDITOR
-
 	UpdateBindingDataHandles();
 
+	// Invalidate variations since they are using a copy of the previous version of the asset.
+	// Also send notification so loaded references can be refreshed.
+	Variations.Reset();
+	UE::SmartObject::Delegates::OnSavingDefinition.Broadcast(*this);
 #endif // WITH_EDITOR
-	
 }
 
 void USmartObjectDefinition::CollectSaveOverrides(FObjectCollectSaveOverridesContext SaveContext)

@@ -28,8 +28,12 @@ namespace UE::SmartObject::Delegates
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnParametersChanged, const USmartObjectDefinition& /*SmartObjectDefinition*/);
 	extern SMARTOBJECTSMODULE_API FOnParametersChanged OnParametersChanged;
 
-#endif
-}; //
+	/** Called in editor when a SmartObjectDefinition is about to be saved. */
+	DECLARE_MULTICAST_DELEGATE_OneParam(FOnSavingDefinition, const USmartObjectDefinition& /*SmartObjectDefinition*/);
+	extern SMARTOBJECTSMODULE_API FOnSavingDefinition OnSavingDefinition;
+
+#endif // WITH_EDITOR
+}; // UE::SmartObject::Delegates
 
 /** Indicates how Tags from slots and parent object are combined to be evaluated by a TagQuery from a find request. */
 UENUM()
