@@ -205,6 +205,12 @@ namespace Metasound
 			FDocumentHandle GetOwningDocument() override;
 			FConstDocumentHandle GetOwningDocument() const override;
 
+			// Exposed to aid in transition of controller API to Document Builder API
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const;
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const;
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const;
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const;
+
 		protected:
 
 			FDocumentAccess ShareAccess() override;
@@ -262,16 +268,12 @@ namespace Metasound
 			FConstNodeHandle GetNodeHandle(const FConstNodeAndClass& InNodeAndClass) const;
 
 			FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName);
-			const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const;
 
 			FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID);
-			const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const;
 
 			FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName);
-			const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const;
 
 			FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID);
-			const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const;
 
 			FClassInputAccessPtr FindInputDescriptionWithNodeID(FGuid InNodeID);
 			FConstClassInputAccessPtr FindInputDescriptionWithNodeID(FGuid InNodeID) const;

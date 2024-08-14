@@ -435,6 +435,11 @@ namespace Metasound
 
 			virtual void UpdateInterfaceChangeID() override { }
 
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithName(const FVertexName& InName) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassInput* FindInputDescriptionWithVertexID(const FGuid& InVertexID) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithName(const FVertexName& InName) const override { return nullptr; }
+			virtual const FMetasoundFrontendClassOutput* FindOutputDescriptionWithVertexID(const FGuid& InVertexID) const override { return nullptr; }
+
 		protected:
 			virtual FDocumentAccess ShareAccess() override { return FDocumentAccess(); }
 			virtual FConstDocumentAccess ShareAccess() const override { return FConstDocumentAccess(); }
