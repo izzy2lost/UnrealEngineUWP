@@ -11,7 +11,7 @@ void UMoviePipelineRenderPass::ValidateStateImpl()
 	if (IsAlphaInTonemapperRequired())
 	{
 		const URendererSettings* RenderSettings = GetDefault<URendererSettings>();
-		if (RenderSettings->bEnableAlphaChannelInPostProcessing == false)
+		if (RenderSettings->bEnableAlphaChannelInPostProcessing == EAlphaChannelMode::Disabled)
 		{
 			ValidationState = EMoviePipelineValidationState::Warnings;
 			ValidationResults.Add(NSLOCTEXT("MovieRenderPipeline", "Outputs_AlphaWithoutProjectSetting", "This option does not work without enabling the Alpha Support in Tonemapper setting via Project Settings > Rendering > Post Processing > Enable Alpha Channel Support."));

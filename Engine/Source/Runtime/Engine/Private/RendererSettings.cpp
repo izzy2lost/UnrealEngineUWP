@@ -32,15 +32,13 @@ extern UNREALED_API class UEditorEngine* GEditor;
 
 #define LOCTEXT_NAMESPACE "RendererSettings"
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 namespace EAlphaChannelMode
 {
 	EAlphaChannelMode::Type FromInt(int32 InAlphaChannelMode)
 	{
-		return static_cast<EAlphaChannelMode::Type>(FMath::Clamp(InAlphaChannelMode, (int32)Disabled, (int32)AllowThroughTonemapper));
+		return static_cast<EAlphaChannelMode::Type>(FMath::Clamp(InAlphaChannelMode, (int32)Disabled, (int32)Enabled));
 	}
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 namespace EDefaultBackBufferPixelFormat
 {
@@ -120,6 +118,9 @@ void URendererSettings::PostInitProperties()
 		ImportConsoleVariableValues();
 	}
 #endif // #if WITH_EDITOR
+
+	// Necessary clamp after 5.5 remapping of propagate alpha back to a boolean state.
+	bEnableAlphaChannelInPostProcessing = EAlphaChannelMode::FromInt(static_cast<int32>(bEnableAlphaChannelInPostProcessing));
 }
 
 #if WITH_EDITOR

@@ -114,7 +114,7 @@ namespace EVertexDeformationOutputsVelocity
 UENUM()
 namespace EAlphaChannelMode
 {
-	enum UE_DEPRECATED(5.5, "Propagate alpha was converted back to a boolean.") Type : int
+	enum Type : int
 	{
 		/** Disabled, reducing GPU cost to the minimum. (default). */
 		Disabled = 0,
@@ -123,17 +123,15 @@ namespace EAlphaChannelMode
 		Enabled = 1,
 
 		// Deprecated
-		LinearColorSpaceOnly = Enabled UMETA(Hidden),
-		AllowThroughTonemapper = Enabled UMETA(Hidden)
+		LinearColorSpaceOnly UE_DEPRECATED(5.5, "Propagate alpha was converted back to a boolean.") = Enabled UMETA(Hidden),
+		AllowThroughTonemapper UE_DEPRECATED(5.5, "Propagate alpha was converted back to a boolean.") = Enabled UMETA(Hidden)
 	};
 }
 
-PRAGMA_DISABLE_DEPRECATION_WARNINGS
 namespace EAlphaChannelMode
 {
 	ENGINE_API EAlphaChannelMode::Type FromInt(int32 InAlphaChannelMode);
 }
-PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** used by FPostProcessSettings AutoExposure*/
 UENUM()
@@ -726,10 +724,10 @@ class URendererSettings : public UDeveloperSettings
 	uint32 bCustomDepthTaaJitter : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = Postprocessing, meta = (
-		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable Alpha Output",
+		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Alpha Output",
 		ToolTip = "Enable r.PostProcessing.PropagateAlpha to enforce alpha in scene color (overriding r.SceneColorFormat if necessary) and propagate it through the renderer's post-processing chain.  The legacy \"Linear color space only\" and \"Allow through tonemapper\" options now map to true and the engine keeps full alpha precision throughout post-processing.",
 		ConfigRestartRequired = true))
-	bool bEnableAlphaChannelInPostProcessing;
+	TEnumAsByte<EAlphaChannelMode::Type> bEnableAlphaChannelInPostProcessing;
 
 	UPROPERTY(config, EditAnywhere, Category = DefaultSettings, meta = (
 		ConsoleVariable = "r.DefaultFeature.Bloom", DisplayName = "Bloom",

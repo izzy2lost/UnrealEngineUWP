@@ -69,7 +69,7 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 	URendererSettings* RendererSettings = GetMutableDefault<URendererSettings>();
 	check(RendererSettings);
 
-	if (RendererSettings->bEnableAlphaChannelInPostProcessing)
+	if (RendererSettings->bEnableAlphaChannelInPostProcessing == EAlphaChannelMode::Enabled)
 	{
 		return true;
 	}
@@ -84,7 +84,7 @@ bool FAvaViewportPostProcessVisualizer::CanActivate(bool bInSilent) const
 	{
 		case EAppReturnType::Yes:
 		{
-			RendererSettings->bEnableAlphaChannelInPostProcessing = true;
+			RendererSettings->bEnableAlphaChannelInPostProcessing = EAlphaChannelMode::Enabled;
 
 			if (IConsoleVariable* PropagateAlphaCVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.PostProcessing.PropagateAlpha")))
 			{
