@@ -262,13 +262,13 @@ namespace HordeServer.Storage
 				return Forbid(StorageAclAction.ReadRefs, namespaceId);
 			}
 
-			return await ReadRefInternalAsync(_storageService, namespaceId, refName, Request.Headers, cancellationToken);
+			return await ReadRefInternalAsync(_storageService, $"/api/v1/storage/{namespaceId}", namespaceId, refName, Request.Headers, cancellationToken);
 		}
 
 		/// <summary>
 		/// Reads a ref from storage, without performing namespace access checks.
 		/// </summary>
-		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
+		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, string basePath, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
 			IStorageClient client = storageService.CreateClient(namespaceId);
 
@@ -287,7 +287,7 @@ namespace HordeServer.Storage
 				return new NotFoundResult();
 			}
 
-			return new ReadRefResponse { Hash = target.Hash, Target = target.GetLocator(), Link = GetNodeLink(namespaceId, target) };
+			return new ReadRefResponse { Hash = target.Hash, Target = target.GetLocator(), Link = GetNodeLink(namespaceId, target), BasePath = basePath };
 		}
 
 		/// <summary>

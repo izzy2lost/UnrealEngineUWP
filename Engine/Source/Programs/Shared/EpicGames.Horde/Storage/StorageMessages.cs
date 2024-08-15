@@ -136,5 +136,10 @@ namespace EpicGames.Horde.Storage
 		/// Link to information about the target node
 		/// </summary>
 		public string Link { get; set; } = String.Empty;
+
+		/// <summary>
+		/// Base path for this storage backend
+		/// </summary>
+		public string BasePath { get; set; } = String.Empty;
 	}
 }
