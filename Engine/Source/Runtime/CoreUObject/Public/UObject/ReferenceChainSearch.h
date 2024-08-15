@@ -310,7 +310,7 @@ public:
 	 * @param bDumpAllChains - if set to false, the output will be trimmed to the first 100 reference chains
 	 * @returns The number of results printed.
 	 */
-	COREUOBJECT_API int32 PrintResults(bool bDumpAllChains = false, UObject* TargetObject=nullptr) const;
+	COREUOBJECT_API int32 PrintResults(bool bDumpAllChains = false, UObject* TargetObject = nullptr, ELogVerbosity::Type VerbosityForPrint = ELogVerbosity::Log) const;
 	COREUOBJECT_API void SetVerbosityForPrint(ELogVerbosity::Type Verbosity);
 
 	/**
@@ -319,7 +319,7 @@ public:
 	 * @param bDumpAllChains - if set to false, the output will be trimmed to the first 100 reference chains
 	 * @returns The number of results printed.
 	 */
-	COREUOBJECT_API int32 PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains = false, UObject* TargetObject = nullptr) const;
+	COREUOBJECT_API int32 PrintResults(TFunctionRef<bool(FCallbackParams& Params)> ReferenceCallback, bool bDumpAllChains = false, UObject* TargetObject = nullptr, ELogVerbosity::Type VerbosityForPrint = ELogVerbosity::Log) const;
 
 	/** Returns a string with a short report explaining the root path, will contain newlines */
 	COREUOBJECT_API FString GetRootPath(UObject* TargetObject = nullptr) const;
