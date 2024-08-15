@@ -18,6 +18,7 @@
 #include "pxr/base/gf/vec2f.h"
 #include "pxr/base/gf/vec3f.h"
 #include "pxr/base/gf/vec4f.h"
+#include "pxr/base/vt/array.h"
 #include "pxr/usd/sdf/path.h"
 #include "pxr/usd/usdGeom/tokens.h"
 #include "USDIncludesEnd.h"
@@ -572,6 +573,34 @@ namespace UnrealToUsd
 		}
 
 		return Value;
+	}
+
+	TUsdStore<pxr::VtArray<pxr::GfVec3f>> ConvertBounds(const FUsdStageInfo& StageInfo, FBox Bounds)
+	{
+		TUsdStore<pxr::VtArray<pxr::GfVec3f>> Result;
+		if (!Bounds.IsValid)
+		{
+			return Result;
+		}
+
+		pxr::GfVec3f ConvertedMin = UnrealToUsd::ConvertVectorFloat(StageInfo, Bounds.Min);
+		pxr::GfVec3f ConvertedMax = UnrealToUsd::ConvertVectorFloat(StageInfo, Bounds.Max);
+
+		// Because of the up axis conversion, we may have e.g. ConvertedMin.y > ConvertedMax.y, so here we
+		// fix that up
+		pxr::GfVec3f ActualMin = {
+			FMath::Min(ConvertedMin[0], ConvertedMax[0]),
+			FMath::Min(ConvertedMin[1], ConvertedMax[1]),
+			FMath::Min(ConvertedMin[2], ConvertedMax[2])};
+		pxr::GfVec3f ActualMax = {
+			FMath::Max(ConvertedMin[0], ConvertedMax[0]),
+			FMath::Max(ConvertedMin[1], ConvertedMax[1]),
+			FMath::Max(ConvertedMin[2], ConvertedMax[2])};
+
+		pxr::VtArray<pxr::GfVec3f>& ResultInner = Result.Get();
+		ResultInner = {ActualMin, ActualMax};
+
+		return Result;
 	}
 }	 // namespace UnrealToUsd
 

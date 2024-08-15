@@ -3902,6 +3902,8 @@ bool UnrealToUsd::ConvertStaticMesh(
 	// here, so would our referencer and we wouldn't be able to put a transform on it
 	UsdPrim = Stage->DefinePrim(UsdPrim.GetPath(), UnrealToUsd::ConvertToken(bExportMultipleLODs ? TEXT("Xform") : TEXT("Mesh")).Get());
 
+	TUsdStore<pxr::VtArray<pxr::GfVec3f>> USDBounds = UnrealToUsd::ConvertBounds(StageInfo, StaticMesh->GetBoundingBox());
+
 #if WITH_EDITOR
 	const bool bExportNaniteDataAsSourceData = GExportNaniteSourceMeshData && StaticMesh->IsNaniteEnabled()
 											   && StaticMesh->IsHiResMeshDescriptionValid();
@@ -3947,6 +3949,15 @@ bool UnrealToUsd::ConvertStaticMesh(
 			TargetMesh = pxr::UsdGeomMesh{UsdPrim};
 
 			MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
+		}
+
+		// Export extents
+		if (USDBounds.Get().size() > 0)
+		{
+			if (pxr::UsdAttribute Attr = TargetMesh.CreateExtentAttr())
+			{
+				Attr.Set(USDBounds.Get());
+			}
 		}
 
 #if WITH_EDITOR
@@ -4543,6 +4554,7 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 
 	pxr::UsdGeomMesh TargetMesh{UsdPrim};
 	pxr::UsdPrim MaterialPrim = MaterialStage->OverridePrim(UsdPrim.GetPath());
+	pxr::UsdAttribute ExtentsAttr = TargetMesh ? TargetMesh.CreateExtentAttr() : pxr::UsdAttribute{};
 
 	UsdGeometryCacheImpl::FGeometryCacheExportContext ExportContext(*GeometryCache);
 	const int32 StartFrame = GeometryCache->GetStartFrame();
@@ -4564,6 +4576,12 @@ bool UnrealToUsd::ConvertGeometryCache(const UGeometryCache* GeometryCache, pxr:
 			}
 			const float TimeCode = FrameIndex;
 			UsdGeometryCacheImpl::ConvertGeometryCacheMeshData(MeshData, TargetMesh, MaterialAssignments, TimeCode, MaterialPrim, ExportContext);
+		}
+
+		if (MeshData.BoundingBox.IsValid && ExtentsAttr)
+		{
+			TUsdStore<pxr::VtArray<pxr::GfVec3f>> USDBounds = UnrealToUsd::ConvertBounds(StageInfo, FBox{MeshData.BoundingBox});
+			ExtentsAttr.Set(USDBounds.Get(), pxr::UsdTimeCode(FrameIndex));
 		}
 	}
 

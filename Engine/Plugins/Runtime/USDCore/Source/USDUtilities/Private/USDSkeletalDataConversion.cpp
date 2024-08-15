@@ -3693,6 +3693,16 @@ bool UnrealToUsd::ConvertSkeletalMesh(
 		UnrealToUsd::ConvertSkeleton(SkeletalMesh->GetRefSkeleton(), SkelSkeleton);
 	}
 
+	// Export extents onto the SkelRoot
+	TUsdStore<pxr::VtArray<pxr::GfVec3f>> USDBounds = UnrealToUsd::ConvertBounds(StageInfo, SkeletalMesh->GetBounds().GetBox());
+	if (USDBounds.Get().size() > 0)
+	{
+		if (pxr::UsdAttribute Attr = SkelRoot.CreateExtentAttr())
+		{
+			Attr.Set(USDBounds.Get());
+		}
+	}
+
 	// Actual meshes
 	for (int32 LODIndex = LowestMeshLOD; LODIndex <= HighestMeshLOD; ++LODIndex)
 	{
@@ -3730,6 +3740,15 @@ bool UnrealToUsd::ConvertSkeletalMesh(
 		));
 		pxr::UsdPrim UsdLODPrim = Stage->DefinePrim(MeshPrimPath, UnrealToUsd::ConvertToken(TEXT("Mesh")).Get());
 		pxr::UsdGeomMesh UsdLODPrimGeomMesh{UsdLODPrim};
+
+		// Export extents onto the Mesh itself too (it's the same extent in our case as we always just have one mesh)
+		if (USDBounds.Get().size() > 0)
+		{
+			if (pxr::UsdAttribute Attr = UsdLODPrimGeomMesh.CreateExtentAttr())
+			{
+				Attr.Set(USDBounds.Get());
+			}
+		}
 
 		pxr::UsdPrim MaterialPrim = UsdLODPrim;
 		if (StageForMaterialAssignments)
@@ -3858,6 +3877,9 @@ bool UnrealToUsd::ConvertAnimSequence(UAnimSequence* AnimSequence, pxr::UsdPrim&
 	FScopedUsdAllocs UsdAllocs;
 	pxr::SdfChangeBlock ChangeBlock;
 
+	pxr::UsdSkelRoot ParentSkelRoot = pxr::UsdSkelRoot{UsdUtils::GetClosestParentSkelRoot(SkelAnimPrim)};
+	pxr::UsdAttribute ExtentsAttr = ParentSkelRoot ? ParentSkelRoot.CreateExtentAttr() : pxr::UsdAttribute{};
+
 	FUsdStageInfo StageInfo(SkelAnimPrim.GetStage());
 
 	// Blend shapes
@@ -3908,7 +3930,7 @@ bool UnrealToUsd::ConvertAnimSequence(UAnimSequence* AnimSequence, pxr::UsdPrim&
 		UnrealToUsd::ConvertJointsAttribute(RefSkeleton, JointsAttr);
 	}
 
-	// Translations, Rotations & Scales
+	// Translations, Rotations, Scales & Extents
 	{
 		pxr::UsdAttribute TranslationsAttr = UsdSkelAnim.CreateTranslationsAttr();
 		pxr::UsdAttribute RotationsAttr = UsdSkelAnim.CreateRotationsAttr();
@@ -3954,6 +3976,13 @@ bool UnrealToUsd::ConvertAnimSequence(UAnimSequence* AnimSequence, pxr::UsdPrim&
 			TranslationsAttr.Set(Translations, pxr::UsdTimeCode(TimeCode));
 			RotationsAttr.Set(Rotations, pxr::UsdTimeCode(TimeCode));
 			ScalesAttr.Set(Scales, pxr::UsdTimeCode(TimeCode));
+
+			FBox Bounds = DebugSkelMeshComponent->CalcBounds(FTransform::Identity).GetBox();
+			if (Bounds.IsValid && ExtentsAttr)
+			{
+				TUsdStore<pxr::VtArray<pxr::GfVec3f>> USDBounds = UnrealToUsd::ConvertBounds(StageInfo, Bounds);
+				ExtentsAttr.Set(USDBounds.Get(), pxr::UsdTimeCode(TimeCode));
+			}
 		}
 
 		// Actively delete it or else it will remain visible on the viewport

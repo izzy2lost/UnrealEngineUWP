@@ -40,6 +40,9 @@ PXR_NAMESPACE_OPEN_SCOPE
 	class TfRefPtr;
 
 	using UsdStageRefPtr = TfRefPtr<UsdStage>;
+
+	template <typename T>
+	class VtArray;
 PXR_NAMESPACE_CLOSE_SCOPE
 
 struct USDUTILITIES_API FUsdStageInfo
@@ -154,6 +157,8 @@ namespace UnrealToUsd
 
 	/** Returns a distance in USD units (depends on metersPerUnit) */
 	USDUTILITIES_API float ConvertDistance(const FUsdStageInfo& StageInfo, float InValue);
+
+	USDUTILITIES_API TUsdStore<pxr::VtArray<pxr::GfVec3f>> ConvertBounds(const FUsdStageInfo& StageInfo, FBox Bounds);
 }	 // namespace UnrealToUsd
 
 namespace UsdUtils
