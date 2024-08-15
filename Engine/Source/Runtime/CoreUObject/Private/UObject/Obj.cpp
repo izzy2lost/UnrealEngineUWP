@@ -3075,7 +3075,7 @@ void UObject::LoadConfig(UClass* ConfigClass/*=nullptr*/, const TCHAR* InFilenam
 		const FString& PropFileName = *PropFileNamePtr;
 
 		FString Key = Property->GetName();
-		int32 PortFlags = 0;
+		int32 PortFlags = EPropertyPortFlags::PPF_SerializedAsImportText;
 
 #if WITH_EDITOR
 		const FString& CVarName = Property->GetMetaData(GConsoleVariableFName);
@@ -3378,7 +3378,7 @@ void UObject::SaveConfig(uint64 RequiredPropertyFlags, const TCHAR* InFilename, 
 			}
 
 			FString Key				= Property->GetName();
-			int32 PortFlags			= 0;
+			int32 PortFlags			= EPropertyPortFlags::PPF_SerializedAsImportText;
 
 #if WITH_EDITOR
 			const FString& CVarName = Property->GetMetaData(GConsoleVariableFName);
