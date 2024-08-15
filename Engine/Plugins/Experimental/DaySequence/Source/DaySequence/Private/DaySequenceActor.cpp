@@ -109,6 +109,7 @@ namespace UE::DaySequence
 
 ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 : Super(Init)
+, SequenceUpdateInterval(0.f)
 , bRunDayCycle(true)
 , bUseInterpCurve(false)
 , DayLength(24, 0, 0)

@@ -474,6 +474,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UDaySequence> RootSequence;
 
+	UPROPERTY(EditAnywhere, Category=RuntimeDayCycle)
+	float SequenceUpdateInterval;
+	
 #if WITH_EDITORONLY_DATA
 	/**
 	 * Sets the time of day to preview in the editor. Does not affect the start time at runtime.
