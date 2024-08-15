@@ -129,7 +129,6 @@ struct FStaticMeshNaniteBuildContext
 	const FStaticMeshSourceModel* SourceModel	= nullptr;
 	Nanite::IBuilderModule* Builder 			= nullptr;
 
-	bool bStripNaniteResources	: 1	= false;
 	bool bHiResSourceModel 		: 1	= false;
 
 	bool IsValid() const { return StaticMesh != nullptr; }
@@ -213,7 +212,6 @@ static bool PrepareNaniteStaticMeshBuild(
 	OutContext.SourceModel				= bUseHiResSourceModel ? &HiResSourceModel : &LOD0SourceModel;
 	OutContext.TargetPlatform			= TargetPlatform;
 	OutContext.Builder					= &Nanite::IBuilderModule::Get();
-	OutContext.bStripNaniteResources	= !bTargetSupportsNanite;
 	OutContext.bHiResSourceModel		= bUseHiResSourceModel;
 
 	return true;
@@ -418,15 +416,6 @@ static bool BuildNanite(
 	}
 
 	TRACE_CPUPROFILER_EVENT_SCOPE( FStaticMeshBuilder::BuildNanite );
-
-	ON_SCOPE_EXIT
-	{
-		if (Context.bStripNaniteResources)
-		{
-			// Strip the Nanite bulk from this target platform
-			NaniteResources = Nanite::FResources();
-		}
-	};
 	
 	// Build new vertex buffers
 	bool bNeeds32BitIndices;
@@ -608,8 +597,11 @@ bool FStaticMeshBuilder::Build(FStaticMeshRenderData& StaticMeshRenderData, cons
 
 		FStaticMeshSourceModel& SrcModel = StaticMesh->GetSourceModel(LodIndex);
 
+		// NOTE: Make a local copy on the stack, as build settings are used to generate the DDC key for static mesh, and
+		// the mesh description helper might make changes to validate some settings
+		FMeshBuildSettings LODBuildSettings = SrcModel.BuildSettings;
+
 		float MaxDeviation = 0.0f;
-		FMeshBuildSettings& LODBuildSettings = SrcModel.BuildSettings;
 		bool bIsMeshDescriptionValid = StaticMesh->CloneMeshDescription(LodIndex, MeshDescriptions[LodIndex]);
 		bIsMeshDescriptionValid &= !MeshDescriptions[LodIndex].IsEmpty();
 		FMeshDescriptionHelper MeshDescriptionHelper(&LODBuildSettings);

@@ -236,49 +236,63 @@ void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 	FStripDataFlags StripFlags( Ar, 0 );
 	if( !StripFlags.IsAudioVisualDataStripped() )
 	{
-		uint32 StoredResourceFlags;
-		if (Ar.IsSaving() && bCooked)
+		if (Ar.IsSaving() && bCooked && PageStreamingStates.Num() > 0 && !DoesTargetPlatformSupportNanite(Ar.CookingTarget()))
 		{
-			// Disable DDC store when saving out a cooked build
-			StoredResourceFlags = ResourceFlags & ~NANITE_RESOURCE_FLAG_STREAMING_DATA_IN_DDC;
-			Ar << StoredResourceFlags;
+			// Cook out the Nanite resources for platforms that don't support it.
+			FResources Dummy;
+			Dummy.SerializeInternal(Ar, Owner, bCooked);
 		}
 		else
 		{
-			Ar << ResourceFlags;
-			StoredResourceFlags = ResourceFlags;
+			SerializeInternal(Ar, Owner, bCooked);
 		}
+	}
+}
+
+void FResources::SerializeInternal(FArchive& Ar, UObject* Owner, bool bCooked)
+{
+	uint32 StoredResourceFlags;
+	if (Ar.IsSaving() && bCooked)
+	{
+		// Disable DDC store when saving out a cooked build
+		StoredResourceFlags = ResourceFlags & ~NANITE_RESOURCE_FLAG_STREAMING_DATA_IN_DDC;
+		Ar << StoredResourceFlags;
+	}
+	else
+	{
+		Ar << ResourceFlags;
+		StoredResourceFlags = ResourceFlags;
+	}
 		
-		if (StoredResourceFlags & NANITE_RESOURCE_FLAG_STREAMING_DATA_IN_DDC)
-		{
+	if (StoredResourceFlags & NANITE_RESOURCE_FLAG_STREAMING_DATA_IN_DDC)
+	{
 #if !WITH_EDITOR
-			checkf(false, TEXT("DDC streaming should only happen in editor"));
-#endif
-		}
-		else
-		{
-			StreamablePages.Serialize(Ar, Owner, 0);
-		}
-
-		Ar << RootData;
-		Ar << PageStreamingStates;
-		Ar << HierarchyNodes;
-		Ar << HierarchyRootOffsets;
-		Ar << PageDependencies;
-		Ar << ImposterAtlas;
-		Ar << NumRootPages;
-		Ar << PositionPrecision;
-		Ar << NormalPrecision;
-		Ar << NumInputTriangles;
-		Ar << NumInputVertices;
-		Ar << NumInputMeshes;
-		Ar << NumInputTexCoords;
-		Ar << NumClusters;
-
-#if !WITH_EDITOR
-		check(!HasStreamingData() || StreamablePages.GetBulkDataSize() > 0);
+		checkf(false, TEXT("DDC streaming should only happen in editor"));
 #endif
 	}
+	else
+	{
+		StreamablePages.Serialize(Ar, Owner, 0);
+	}
+
+	Ar << RootData;
+	Ar << PageStreamingStates;
+	Ar << HierarchyNodes;
+	Ar << HierarchyRootOffsets;
+	Ar << PageDependencies;
+	Ar << ImposterAtlas;
+	Ar << NumRootPages;
+	Ar << PositionPrecision;
+	Ar << NormalPrecision;
+	Ar << NumInputTriangles;
+	Ar << NumInputVertices;
+	Ar << NumInputMeshes;
+	Ar << NumInputTexCoords;
+	Ar << NumClusters;
+
+#if !WITH_EDITOR
+	check(!HasStreamingData() || StreamablePages.GetBulkDataSize() > 0);
+#endif
 }
 
 bool FResources::HasStreamingData() const

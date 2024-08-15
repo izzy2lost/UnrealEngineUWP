@@ -3209,7 +3209,8 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 		}
 		
 		check(SrcModel.RawMeshBulkData->IsEmpty());
-		if (!SrcModel.GetMeshDescriptionBulkData()->IsEmpty())
+		const bool bMeshDescriptionValid = !SrcModel.GetMeshDescriptionBulkData()->IsEmpty();
+		if (bMeshDescriptionValid)
 		{
 			KeySuffix += SrcModel.GetMeshDescriptionBulkData()->GetIdString();
 		}
@@ -3224,7 +3225,12 @@ static FString BuildStaticMeshDerivedDataKeySuffix(const ITargetPlatform* Target
 		// identical binary results.
 		TempBytes.Reset();
 		FMemoryWriter Ar(TempBytes, /*bIsPersistent=*/ true);
-		SerializeBuildSettingsForDDC(Ar, SrcModel.BuildSettings);
+
+		if (LODIndex == 0 || bMeshDescriptionValid)
+		{
+			// Only include the build settings into the DDC key for LOD that will use them (generated LOD use the base model's)
+			SerializeBuildSettingsForDDC(Ar, SrcModel.BuildSettings);
+		}
 
 		ANSICHAR Flag[2] = { SrcModel.BuildSettings.bUseFullPrecisionUVs ? '1' : '0', '\0' };
 		Ar.Serialize(Flag, 1);

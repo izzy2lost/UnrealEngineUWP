@@ -366,6 +366,9 @@ public:
 
 	void GetResourceSizeEx(FResourceSizeEx& CumulativeResourceSize) const;
 	bool IsRootPage(uint32 PageIndex) const { return PageIndex < NumRootPages; }
+
+private:
+	ENGINE_API void SerializeInternal(FArchive& Ar, UObject* Owner, bool bCooked);
 };
 
 class FVertexFactoryResource : public FRenderResource
