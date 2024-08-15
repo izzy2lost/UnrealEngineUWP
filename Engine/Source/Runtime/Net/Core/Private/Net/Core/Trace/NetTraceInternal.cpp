@@ -13,13 +13,6 @@
 #define UE_NET_TRACE_VALIDATE 1
 
 struct FNetTraceReporter;
-namespace UE::Net
-{
-	namespace Private
-	{
-		typedef uint64 FReplicationProtocolIdentifier;
-	}
-}
 
 #if UE_NET_TRACE_ENABLED
 

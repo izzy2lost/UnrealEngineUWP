@@ -19,9 +19,13 @@ namespace UE::Net
 	enum class ENetRefHandleError : uint32;
 
 	struct FNetObjectResolveContext;
+
 	typedef uint32 FNetObjectFilterHandle;
 	typedef uint32 FNetObjectPrioritizerHandle;
+	typedef uint32 FReplicationProtocolIdentifier;
+
 	class FNetObjectReference;
+
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
@@ -151,7 +155,7 @@ public:
 
 	private:
 		friend UObjectReplicationBridge;
-		uint64 ProtocolIdentifier = uint64(0);
+		UE::Net::FReplicationProtocolIdentifier ProtocolIdentifier = 0U;
 	};
 	
 	/**

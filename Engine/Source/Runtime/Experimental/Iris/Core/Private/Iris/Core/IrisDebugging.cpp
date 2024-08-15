@@ -494,7 +494,7 @@ FNetReplicatedObjectDebugInfo DebugInternalNetRefIndex(uint32 InternalIndex, uin
 	return Info;
 }
 
-void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, uint64 ProtocolId, uint32 ReplicationSystemId)
+void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId)
 {
 	using namespace UE::Net::Private;
 
@@ -512,7 +512,7 @@ void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, uint
 	ProtocolManager.ForEachProtocol(ProtocolId, [&StringBuilder, &NetRefHandleManager](const FReplicationProtocol* Protocol, const UObject* ArchetypeOrCDOUsedAsKey)
 		{
 			StringBuilder << TEXT("Protocol: ") << ToCStr(Protocol->DebugName);
-			StringBuilder.Appendf(TEXT("Id: 0x%" UINT64_x_FMT " Created From : 0x%p"), Protocol->ProtocolIdentifier, ArchetypeOrCDOUsedAsKey) << TEXT(" Used by : \n");
+			StringBuilder.Appendf(TEXT("Id: 0x%x Created From : 0x%p"), Protocol->ProtocolIdentifier, ArchetypeOrCDOUsedAsKey) << TEXT(" Used by : \n");
 
 			auto FindMatchingProtocol = [&StringBuilder, &Protocol, &NetRefHandleManager](uint32 InternalObjectIndex)
 			{
@@ -528,7 +528,7 @@ void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, uint
 	);
 }
 
-void DebugOutputNetObjectProtocolReferences(uint64 ProtocolId, uint32 ReplicationSystemId)
+void DebugOutputNetObjectProtocolReferences(FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId)
 {
 	TStringBuilder<4096> StringBuilder;
 	StringBuilder.Reset();
@@ -538,7 +538,7 @@ void DebugOutputNetObjectProtocolReferences(uint64 ProtocolId, uint32 Replicatio
 	FPlatformMisc::LowLevelOutputDebugString(StringBuilder.ToString());
 }
 
-const TCHAR* DebugNetObjectProtocolReferencesToString(uint64 ProtocolId, uint32 ReplicationSystemId)
+const TCHAR* DebugNetObjectProtocolReferencesToString(FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId)
 {
 	static TStringBuilder<4096> StringBuilder;
 	StringBuilder.Reset();

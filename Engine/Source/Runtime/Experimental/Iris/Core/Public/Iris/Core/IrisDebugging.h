@@ -9,8 +9,10 @@
 class UReplicationSystem;
 namespace UE::Net
 {
-struct FReplicationProtocol;
-struct FReplicationInstanceProtocol;
+	struct FReplicationProtocol;
+	struct FReplicationInstanceProtocol;
+
+	typedef uint32 FReplicationProtocolIdentifier;
 }
 
 namespace UE::Net::Private
@@ -51,7 +53,7 @@ IRISCORE_API FNetRefHandle GetDebugNetRefHandle();
 void NetObjectStateToString(FStringBuilderBase& StringBuilder, FNetRefHandle RefHandle);
 
 /** Find all handles references registered for a protocol and output to StringBuilder */
-void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, uint64 ProtocolId, uint32 ReplicationSystemId);
+void NetObjectProtocolReferencesToString(FStringBuilderBase& StringBuilder, FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId);
 
 // Helper functions for debugging state data exposed as extern "C" that are callable from immediate and watch window in the debugger
 
@@ -69,7 +71,7 @@ extern "C" IRISCORE_API void DebugOutputNetObjectState(uint64 NetRefHandleId, ui
 extern "C" IRISCORE_API const TCHAR* DebugNetObjectStateToString(uint32 NetRefHandleId, uint32 ReplicationSystemId);
 
 /** Find all handles references registered for a protocol and output to DebugOutput in debugger */
-extern "C" IRISCORE_API void DebugOutputNetObjectProtocolReferences(uint64 ProtocolId, uint32 ReplicationSystemId);
+extern "C" IRISCORE_API void DebugOutputNetObjectProtocolReferences(FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId);
 
 /** Get info about replicated object */
 struct FNetReplicatedObjectDebugInfo
@@ -100,7 +102,7 @@ extern "C" IRISCORE_API FNetReplicatedObjectDebugInfo DebugInternalNetRefIndex(U
 /** Variant of DebugOutputNetObjectProtocolReferences that can be used from breakpoints or in watch window to find all handles references registered for a protocol and output to DebugOutput in debugger
  * NOTE: Use only for debugging as this variant uses a static buffer which is not thread safe	
 */
-extern "C" IRISCORE_API const TCHAR* DebugNetObjectProtocolReferencesToString(uint64 ProtocolId, uint32 ReplicationSystemId);
+extern "C" IRISCORE_API const TCHAR* DebugNetObjectProtocolReferencesToString(FReplicationProtocolIdentifier ProtocolId, uint32 ReplicationSystemId);
 
 /** Set the Object Name to break on */
 extern "C" IRISCORE_API void SetIrisDebugObjectName(const ANSICHAR* NameBuffer);

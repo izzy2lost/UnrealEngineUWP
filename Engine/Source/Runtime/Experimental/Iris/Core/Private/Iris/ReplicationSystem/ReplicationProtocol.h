@@ -9,7 +9,7 @@
 namespace UE::Net
 {
 	struct FNetDebugName;
-	typedef uint64 FReplicationProtocolIdentifier;
+	typedef uint32 FReplicationProtocolIdentifier;
 	class FReplicationFragment;
 	struct FReplicationStateDescriptor;
 }

@@ -402,7 +402,7 @@ UE::Net::FNetRefHandle UReplicationBridge::InternalCreateNetObject(FNetRefHandle
 
 	if (Handle.IsValid())
 	{
-		UE_NET_TRACE_NETHANDLE_CREATED(Handle, ReplicationProtocol->DebugName, ReplicationProtocol->ProtocolIdentifier, 0/*Local*/);
+		UE_NET_TRACE_NETHANDLE_CREATED(Handle, ReplicationProtocol->DebugName, (uint64)ReplicationProtocol->ProtocolIdentifier, 0/*Local*/);
 	}
 
 	return Handle;
@@ -419,7 +419,7 @@ UE::Net::FNetRefHandle UReplicationBridge::InternalCreateNetObjectFromRemote(FNe
 
 	if (Handle.IsValid())
 	{
-		UE_NET_TRACE_NETHANDLE_CREATED(Handle, ReplicationProtocol->DebugName, ReplicationProtocol->ProtocolIdentifier, 1/*Remote*/);
+		UE_NET_TRACE_NETHANDLE_CREATED(Handle, ReplicationProtocol->DebugName, (uint64)ReplicationProtocol->ProtocolIdentifier, 1/*Remote*/);
 	}
 
 	return Handle;
