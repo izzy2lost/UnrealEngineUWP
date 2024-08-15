@@ -65,13 +65,6 @@ namespace EpicGames.Horde.Storage
 		Task DeleteAsync(ObjectKey key, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Enumerates all the objects in the store
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Sequence of object paths</returns>
-		IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Gets a HTTP redirect for a read request
 		/// </summary>
 		/// <param name="key">Path to read from</param>
@@ -118,7 +111,6 @@ namespace EpicGames.Horde.Storage
 			public Task WriteAsync(ObjectKey key, Stream stream, CancellationToken cancellationToken) => _inner.WriteAsync(key, stream, cancellationToken);
 			public Task DeleteAsync(ObjectKey path, CancellationToken cancellationToken) => _inner.DeleteAsync(path, cancellationToken);
 			public Task<bool> ExistsAsync(ObjectKey path, CancellationToken cancellationToken) => _inner.ExistsAsync(path, cancellationToken);
-			public IAsyncEnumerable<ObjectKey> EnumerateAsync(CancellationToken cancellationToken = default) => _inner.EnumerateAsync(cancellationToken);
 			public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => _inner.TryGetReadRedirectAsync(path, cancellationToken);
 			public ValueTask<Uri?> TryGetWriteRedirectAsync(ObjectKey path, CancellationToken cancellationToken = default) => _inner.TryGetWriteRedirectAsync(path, cancellationToken);
 			public void GetStats(StorageStats stats) => _inner.GetStats(stats);

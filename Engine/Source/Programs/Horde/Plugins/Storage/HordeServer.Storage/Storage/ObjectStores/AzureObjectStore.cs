@@ -142,19 +142,6 @@ namespace HordeServer.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			bool exists = await _blobContainer.ExistsAsync(cancellationToken);
-			if (exists)
-			{
-				await foreach (BlobItem? item in _blobContainer.GetBlobsAsync(BlobTraits.Metadata, cancellationToken: cancellationToken))
-				{
-					yield return new ObjectKey(item.Name);
-				}
-			}
-		}
-
-		/// <inheritdoc/>
 		public async ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default)
 		{
 			if (!await _blobContainer.ExistsAsync(cancellationToken))

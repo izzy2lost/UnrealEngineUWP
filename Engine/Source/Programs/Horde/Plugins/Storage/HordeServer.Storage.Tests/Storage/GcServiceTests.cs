@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Storage;
+using EpicGames.Horde.Storage.ObjectStores;
 using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Storage;
@@ -51,9 +52,9 @@ namespace HordeServer.Tests.Storage
 
 			await Clock.AdvanceAsync(TimeSpan.FromDays(1.0));
 
-			IObjectStore backend = ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(storageConfig.Backends[0]);
+			MemoryObjectStore backend = (MemoryObjectStore)ServiceProvider.GetRequiredService<IObjectStoreFactory>().CreateObjectStore(storageConfig.Backends[0]);
 
-			ObjectKey[] remaining = await backend.EnumerateAsync().ToArrayAsync();
+			ObjectKey[] remaining = backend.Blobs.Keys.ToArray();
 			Assert.AreEqual(nodes.Count, remaining.Length);
 
 			HashSet<ObjectKey> nodePaths = new HashSet<ObjectKey>(nodes.Select(x => StorageService.GetObjectKey(x.BaseLocator)));

@@ -40,18 +40,6 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		public Task DeleteAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.DeleteAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			await foreach (ObjectKey key in _inner.EnumerateAsync(cancellationToken))
-			{
-				if (key.Path.StartsWith(_prefix))
-				{
-					yield return new ObjectKey(key.Path.Substring(_prefix.Length));
-				}
-			}
-		}
-
-		/// <inheritdoc/>
 		public Task<bool> ExistsAsync(ObjectKey locator, CancellationToken cancellationToken = default) => _inner.ExistsAsync(GetKeyWithPrefix(locator), cancellationToken);
 
 		/// <inheritdoc/>

@@ -72,17 +72,6 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			foreach (ObjectKey key in _keyToData.Keys)
-			{
-				yield return key;
-				cancellationToken.ThrowIfCancellationRequested();
-				await Task.Yield();
-			}
-		}
-
-		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>

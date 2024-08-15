@@ -553,43 +553,6 @@ namespace HordeServer.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			ListObjectsV2Request request = new ListObjectsV2Request();
-			request.BucketName = _options.AwsBucketName;
-			if (_pathPrefix.Length > 0)
-			{
-				request.Prefix = _pathPrefix;
-			}
-
-			for (; ; )
-			{
-				ListObjectsV2Response response = await _client.ListObjectsV2Async(request, cancellationToken);
-				foreach (S3Object obj in response.S3Objects)
-				{
-					string path = obj.Key;
-					if (path.StartsWith(_pathPrefix, StringComparison.Ordinal))
-					{
-						yield return new ObjectKey(path.Substring(_pathPrefix.Length));
-					}
-					else
-					{
-						_logger.LogError("Unexpected object enumerated from {AwsBucketName} - expected object \"{Path}\" to start with \"{AwsBucketPath}\"", _options.AwsBucketName, path, _pathPrefix);
-					}
-				}
-
-				if (response.IsTruncated)
-				{
-					request.ContinuationToken = response.NextContinuationToken;
-				}
-				else
-				{
-					break;
-				}
-			}
-		}
-
-		/// <inheritdoc/>
 		public void GetStats(StorageStats stats) { }
 	}
 

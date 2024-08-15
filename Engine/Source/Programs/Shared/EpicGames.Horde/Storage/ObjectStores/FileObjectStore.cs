@@ -127,45 +127,6 @@ namespace EpicGames.Horde.Storage.ObjectStores
 		}
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			Stack<IEnumerator<DirectoryInfo>> queue = new Stack<IEnumerator<DirectoryInfo>>();
-			try
-			{
-				queue.Push(new List<DirectoryInfo> { _baseDir.ToDirectoryInfo() }.GetEnumerator());
-				while (queue.Count > 0)
-				{
-					IEnumerator<DirectoryInfo> top = queue.Peek();
-					if (!top.MoveNext())
-					{
-						top.Dispose();
-						queue.Pop();
-						continue;
-					}
-
-					DirectoryInfo current = top.Current;
-					foreach (FileInfo fileInfo in current.EnumerateFiles("*"))
-					{
-						string path = fileInfo.FullName.Substring(_baseDir.FullName.Length + 1).Replace(Path.DirectorySeparatorChar, '/');
-						yield return new ObjectKey(path.Substring(0, path.Length - 5));
-					}
-
-					queue.Push(current.EnumerateDirectories().GetEnumerator());
-
-					cancellationToken.ThrowIfCancellationRequested();
-					await Task.Yield();
-				}
-			}
-			finally
-			{
-				while (queue.TryPop(out IEnumerator<DirectoryInfo>? enumerator))
-				{
-					enumerator.Dispose();
-				}
-			}
-		}
-
-		/// <inheritdoc/>
 		public ValueTask<Uri?> TryGetReadRedirectAsync(ObjectKey key, CancellationToken cancellationToken = default) => default;
 
 		/// <inheritdoc/>

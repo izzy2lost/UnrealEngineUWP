@@ -33,19 +33,6 @@ namespace HordeServer.Storage.Storage.ObjectStores
 			=> _primary.DeleteAsync(key, cancellationToken);
 
 		/// <inheritdoc/>
-		public async IAsyncEnumerable<ObjectKey> EnumerateAsync([EnumeratorCancellation] CancellationToken cancellationToken = default)
-		{
-			await foreach (ObjectKey key in _primary.EnumerateAsync(cancellationToken))
-			{
-				yield return key;
-			}
-			await foreach (ObjectKey key in _secondary.EnumerateAsync(cancellationToken))
-			{
-				yield return key;
-			}
-		}
-
-		/// <inheritdoc/>
 		public async Task<bool> ExistsAsync(ObjectKey key, CancellationToken cancellationToken = default)
 			=> await _primary.ExistsAsync(key, cancellationToken) || await _secondary.ExistsAsync(key, cancellationToken);
 
