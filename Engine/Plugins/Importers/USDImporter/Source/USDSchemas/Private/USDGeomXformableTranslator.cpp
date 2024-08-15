@@ -1062,7 +1062,8 @@ namespace UE::UsdXformableTranslatorImpl::Private
 
 				// Note that this is false if PrimKind is None
 				const bool bPrimKindCollapses = EnumHasAnyFlags(KindsToCollapse, PrimKind);
-				bool bCanBeCollapsed = bPrimKindCollapses || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind);
+				bool bCanBeCollapsed = (KindsToCollapse != EUsdDefaultKind::None)
+									   && (bPrimKindCollapses || (PrimKind == EUsdDefaultKind::None && GCollapsePrimsWithoutKind));
 
 				if (!bCanBeCollapsed)
 				{
