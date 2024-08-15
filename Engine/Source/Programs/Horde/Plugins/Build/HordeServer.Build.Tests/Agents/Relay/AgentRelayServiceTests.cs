@@ -6,7 +6,6 @@ using EpicGames.Horde.Compute;
 using Grpc.Core;
 using Horde.Common.Rpc;
 using HordeServer.Agents.Relay;
-//using HordeServer.Tests.Server;
 using HordeServer.Utilities;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -51,7 +50,7 @@ public class AgentRelayServiceTests : BuildTestSetup
 
 	public AgentRelayServiceTests()
 	{
-		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, NullLogger<AgentRelayService>.Instance);
+		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, Tracer, NullLogger<AgentRelayService>.Instance);
 	}
 
 	public override async ValueTask DisposeAsync()

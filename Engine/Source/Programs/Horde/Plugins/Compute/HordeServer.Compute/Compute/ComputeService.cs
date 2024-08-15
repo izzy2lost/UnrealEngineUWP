@@ -760,6 +760,7 @@ namespace HordeServer.Compute
 						if (agentPort == pmPort.AgentPort)
 						{
 							ports[portId] = new ComputeResourcePort(pmPort.RelayPort, pmPort.AgentPort);
+							_logger.LogInformation("Port {PortId} mapped {RelayIp}:{RelayPort} -> {AgentPort} for lease ID {LeaseId}", portId, relayIp, pmPort.RelayPort, pmPort.AgentPort, leaseId);
 						}
 					}
 				}
