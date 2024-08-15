@@ -2013,7 +2013,7 @@ bool FPrimitiveSceneInfo::RequestUniformBufferUpdate()
 	return false;
 }
 
-const FInstanceSceneDataBuffers *FPrimitiveSceneInfo::GetInstanceSceneDataBuffers() const
+const FInstanceSceneDataBuffers* FPrimitiveSceneInfo::GetInstanceSceneDataBuffers() const
 { 
 	if (!HasInstanceDataBuffers())
 	{
@@ -2024,7 +2024,8 @@ const FInstanceSceneDataBuffers *FPrimitiveSceneInfo::GetInstanceSceneDataBuffer
 	{
 		InstanceDataUpdateTaskInfo->WaitForUpdateCompletion();
 	}
-	return InstanceSceneDataBuffersInternal; 
+
+	return InstanceSceneDataBuffersInternal;
 }
 
 FInstanceDataBufferHeader FPrimitiveSceneInfo::GetInstanceDataHeader() const

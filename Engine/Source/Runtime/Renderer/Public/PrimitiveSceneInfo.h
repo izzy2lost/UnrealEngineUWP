@@ -604,7 +604,7 @@ public:
 	/**
 	 * Waits for (potential) instance update to produce the data, to avoid a sync, use GetInstanceDataHeader().
 	 */
-	const FInstanceSceneDataBuffers *GetInstanceSceneDataBuffers() const;
+	RENDERER_API const FInstanceSceneDataBuffers* GetInstanceSceneDataBuffers() const;
 
 	/**
 	 * Returns the updated header data in the InstanceDataUpdateTaskInfo without blocking. 
