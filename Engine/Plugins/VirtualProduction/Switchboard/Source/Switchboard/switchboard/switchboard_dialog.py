@@ -617,11 +617,11 @@ class SwitchboardDialog(QtCore.QObject):
         self.insights_launcher_menuitem.setEnabled(not self.insights_launcher.is_running())
 
     def update_package_game_menuitem(self):
-        ''' Enables/disables the package game menu depending on whether
-        there are any nDisplay devices connected or not.
+        ''' Enables/disables the package game menu depending on whether there are any nDisplay devices or not.
+        For discoverability of the feature, we don't check if they are connected. Otherwise the user might be
+        clueless as to why the option is disabled.
         '''
-        ndisplay_devices = [device for device in self.device_manager.devices()
-                            if isinstance(device, DevicenDisplay) and not device.is_disconnected]
+        ndisplay_devices = [device for device in self.device_manager.devices() if isinstance(device, DevicenDisplay)]
 
         do_enable = len(ndisplay_devices) > 0
 
@@ -740,14 +740,36 @@ class SwitchboardDialog(QtCore.QObject):
         all_levels_action = self.register_tools_menu_action("All Levels", ["Fill DDC (Prepare Shaders)"])
         all_levels_action.triggered.connect(fill_ddc_all_levels_action)
 
-    def register_package_game_menuitem(self):
+    def register_package_game_menuitem(self) -> None:
         ''' Registers a menu item to package the nDisplay cluster game'''
 
-        def package_nDisplay_game(clientconfig: PackagingClientConfig):
+        def package_nDisplay_game(clientconfig: PackagingClientConfig) -> None:
             ''' Callback to kick off the packaging process '''
-            ndisplay_devices = [device for device in self.device_manager.devices() 
+            ndisplay_devices = [device for device in self.device_manager.devices()
                                 if isinstance(device, DevicenDisplay) and not device.is_disconnected]
 
+            # We need at least 1 device connected
+            if not len(ndisplay_devices):
+                QtWidgets.QMessageBox.information(
+                    self.window,
+                    "Unable to start packaging",
+                    "Please connect to at least one nDisplay node and try again."
+                )
+                return
+
+            # Validate all the devices before starting to package
+            for device in ndisplay_devices:
+                try:
+                    device.package_game(clientconfig=clientconfig, dryrun=True)
+                except Exception as e:
+                    QtWidgets.QMessageBox.information(
+                        self.window,
+                        "Unable to start packaging",
+                        f"nDisplay '{device.name}': {str(e)}"
+                    )
+                    return
+
+            # Ok, we should be good to go.
             for device in ndisplay_devices:
                 device.package_game(clientconfig)
 
