@@ -14,7 +14,7 @@
 
 #include "LiveLinkSkeletonRemapper.generated.h"
 
-class FLiveLinkSkeletonRemapperWorker : public ILiveLinkSubjectRemapperWorker
+class LIVELINK_API FLiveLinkSkeletonRemapperWorker : public ILiveLinkSubjectRemapperWorker
 {
 public:
 	virtual void RemapStaticData(FLiveLinkStaticDataStruct& InOutStaticData)
@@ -55,7 +55,7 @@ public:
 };
 
 UCLASS(Abstract)
-class ULiveLinkSkeletonRemapper : public ULiveLinkSubjectRemapper
+class LIVELINK_API ULiveLinkSkeletonRemapper : public ULiveLinkSubjectRemapper
 {
 public:
 	GENERATED_BODY()
