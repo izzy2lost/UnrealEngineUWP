@@ -19,7 +19,6 @@ class FSidebarDrawer
 public:
 	FSidebarDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 		: Config(MoveTemp(InDrawerConfig))
-		, SizeCoefficient(Config.DefaultSizeCoefficient)
 	{}
 
 	bool operator==(const FName InOtherId) const
@@ -59,16 +58,12 @@ public:
 	TSharedPtr<SWidget> ContentWidget;
 
 	TMap<FName, TSharedRef<ISidebarDrawerContent>> ContentSections;
-	TSet<FName> SelectedContentSections;
-
-	bool bIsOpen = false;
-	bool bIsPinned = false;
-	bool bIsDocked = false;
 
 	bool bDisablePin = false;
 	bool bDisableDock = false;
 
-	float SizeCoefficient;
+	bool bIsOpen = false;
+	FSidebarDrawerState State;
 
 	FOnSidebarDrawerOpened DrawerOpenedDelegate;
 	FOnSidebarDrawerClosed DrawerClosedDelegate;

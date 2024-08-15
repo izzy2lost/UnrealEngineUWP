@@ -176,6 +176,7 @@ void FLevelSequenceEditorToolkit::Initialize(const EToolkitMode::Type Mode, cons
 		SequencerInitParams.HostCapabilities.bSupportsRecording = true;
 		SequencerInitParams.HostCapabilities.bSupportsRenderMovie = true;
 		SequencerInitParams.HostCapabilities.bSupportsAddFromContentBrowser = true;
+		SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
 	}
 
 	ExtendSequencerToolbar("Sequencer.MainToolBar");

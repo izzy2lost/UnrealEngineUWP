@@ -1212,8 +1212,14 @@ public:
 	 */
 	virtual bool UnregisterDrawerSection(const FName InDrawerId, const FName InSectionId) override;
 
+	/** Toggles the visibility of the Sequencer sidebar. */
+	void ToggleSidebar();
+
+	/** @return True if the Sequencer sidebar is currently visible. */
+	bool IsSidebarVisible() const;
+
 	/** Toggles the sidebar "Selection" drawer open or closed. */
-	void ShowHideSidebarSelectionDrawer();
+	void ToggleSidebarSelectionDrawer();
 
 	/** Undocks the docked sidebar drawer if docked or docks the sidebar drawer if there is one open and no currently docked drawer. */
 	void ToggleSidebarDrawerDocked();

@@ -4,7 +4,9 @@
 #include "Framework/Application/SlateApplication.h"
 #include "SidebarButtonMenuContext.h"
 #include "Sidebar/ISidebarDrawerContent.h"
+#include "Sidebar/SidebarState.h"
 #include "Sidebar/SSidebarButton.h"
+#include "Sidebar/SSidebarContainer.h"
 #include "Sidebar/SSidebarDrawer.h"
 #include "Sidebar/SSidebarDrawerContent.h"
 #include "ToolMenu.h"
@@ -21,20 +23,23 @@ SSidebar::~SSidebar()
 	RemoveAllDrawers();
 }
 
-void SSidebar::Construct(const FArguments& InArgs, const TSharedRef<SOverlay>& InDrawersOverlay, const TSharedRef<SBox>& InDockLocation)
+void SSidebar::Construct(const FArguments& InArgs, const TSharedRef<SSidebarContainer>& InContainerWidget)
 {
-	DrawersOverlayWeak = InDrawersOverlay;
-	DockLocationWeak = InDockLocation;
+	ContainerWidget = InContainerWidget;
 
 	TabLocation = InArgs._TabLocation;
-	bHideWhenDocked = InArgs._HideWhenDocked;
+	InContainerWidget->SidebarSizePercent = InArgs._InitialDrawerSize;
+	OnGetContent = InArgs._OnGetContent;
+	bHideWhenAllDocked = InArgs._HideWhenAllDocked;
 	bAlwaysUseMaxButtonSize = InArgs._AlwaysUseMaxButtonSize;
 	bDisablePin = InArgs._DisablePin;
 	bDisableDock = InArgs._DisableDock;
-	OnDockStateChanged = InArgs._OnDockStateChanged;
+	OnStateChanged = InArgs._OnStateChanged;
 
-	SetVisibility(EVisibility::SelfHitTestInvisible);
-	
+	check(OnGetContent.IsBound());
+
+	SetVisibility(EVisibility::Visible);
+
 	ChildSlot
 	.Padding(FMargin(
 		TabLocation == ESidebarTabLocation::Right ? 2.f : 0.f,
@@ -43,11 +48,11 @@ void SSidebar::Construct(const FArguments& InArgs, const TSharedRef<SOverlay>& I
 		TabLocation == ESidebarTabLocation::Top ? 2.f : 0.f))
 	[
 		SNew(SBorder)
-		.Padding(0.0f)
+		.Padding(0.f)
 		.BorderImage(FAppStyle::Get().GetBrush(TEXT("Docking.Sidebar.Background")))
 		[
 			SAssignNew(TabButtonContainer, SScrollBox)
-			.Orientation(IsHorizontal() ? EOrientation::Orient_Horizontal : EOrientation::Orient_Vertical)
+			.Orientation(IsHorizontal() ? Orient_Horizontal : Orient_Vertical)
 			.ScrollBarAlwaysVisible(false)
 			.ScrollBarVisibility(EVisibility::Collapsed)
 		]
@@ -62,6 +67,7 @@ bool SSidebar::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 	}
 
 	const TSharedRef<FSidebarDrawer> NewDrawer = MakeShared<FSidebarDrawer>(MoveTemp(InDrawerConfig));
+	NewDrawer->State = InDrawerConfig.InitialState;
 	NewDrawer->bDisablePin = bDisablePin;
 	NewDrawer->bDisableDock = bDisableDock;
 	NewDrawer->ContentWidget = NewDrawer->Config.OverrideContentWidget.IsValid()
@@ -71,7 +77,7 @@ bool SSidebar::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 	// Add tab button
 	TabButtonContainer->AddSlot()
 		[
-			SAssignNew(NewDrawer->ButtonWidget, SSidebarButton, NewDrawer, TabLocation)
+			SAssignNew(NewDrawer->ButtonWidget, SSidebarButton, NewDrawer, GetTabLocation())
 			.MinButtonSize(bAlwaysUseMaxButtonSize ? MaxTabButtonSize : MinTabButtonSize)
 			.MaxButtonSize(MaxTabButtonSize)
 			.ButtonThickness(TabButtonThickness)
@@ -83,36 +89,24 @@ bool SSidebar::RegisterDrawer(FSidebarDrawerConfig&& InDrawerConfig)
 
 	Drawers.Add(NewDrawer);
 
-	// Figure out the size this tab should be when opened later. We do it now when the tab still has valid geometry. Once it is moved to the sidebar it will not.
-	float TargetDrawerSizePct = NewDrawer->SizeCoefficient;
-	if (TargetDrawerSizePct == 0)
+	const FName DrawerId = NewDrawer->GetUniqueId();
+
+	if (NewDrawer->State.bIsPinned)
 	{
-		TSharedPtr<SWindow> MyWindow = FSlateApplication::Get().FindWidgetWindow(AsShared());
-		if (MyWindow.IsValid() && NewDrawer->ContentWidget.IsValid())
-		{
-			TargetDrawerSizePct = NewDrawer->ContentWidget->GetTickSpaceGeometry().GetLocalSize().X / MyWindow->GetPaintSpaceGeometry().GetLocalSize().X;
-			NewDrawer->SizeCoefficient = TargetDrawerSizePct;
-		}
+		UndockAllDrawers();
+		SetDrawerPinned(DrawerId, true);
+	}
+	else if (NewDrawer->State.bIsDocked)
+	{
+		SetDrawerDocked(DrawerId, true);
 	}
 
-	// We don't currently allow more than one pinned tab per sidebar, so enforce that
-	// Note: it's possible to relax this if users actually want multiple pinned tabs
-	if (FindFirstPinnedTab())
-	{
-		SetDrawerPinned(NewDrawer->GetUniqueId(), false);
-	}
+	ContainerWidget->UpdateDrawerTabAppearance();
 
-	if (NewDrawer->bIsPinned)
+	if (bHideWhenAllDocked && !AreAllDrawersDocked())
 	{
-		// If this tab is a pinned tab, then open the drawer automatically after it's added
-		OpenDrawerNextFrame(NewDrawer, /*bAnimateOpen=*/false);
+		SetVisibility(EVisibility::Visible);
 	}
-	else if (NewDrawer->Config.bInitiallyDocked)
-	{
-		SetDrawerDocked(NewDrawer->GetUniqueId(), true);
-	}
-
-	UpdateDrawerAppearance();
 
 	return true;
 }
@@ -121,7 +115,7 @@ bool SSidebar::UnregisterDrawer(const FName InDrawerId)
 {
 	if (IsDrawerOpened(InDrawerId))
 	{
-		CloseAllDrawers();
+		ContainerWidget->CloseAllDrawerWidgets(false);
 	}
 	
 	const int32 IndexToRemove = Drawers.IndexOfByPredicate(
@@ -139,7 +133,7 @@ bool SSidebar::UnregisterDrawer(const FName InDrawerId)
 	RemoveDrawer(Drawers[IndexToRemove]);
 	Drawers.RemoveAt(IndexToRemove);
 
-	SummonPinnedTabIfNothingOpened();
+	ContainerWidget->SummonPinnedTabIfNothingOpened();
 
 	// Clear the pinned flag when the tab is removed from the sidebar.
 	// (Users probably expect that pinning a tab, restoring it/closing it,
@@ -152,7 +146,7 @@ bool SSidebar::UnregisterDrawer(const FName InDrawerId)
 	}
 	else
 	{
-		UpdateDrawerAppearance();
+		ContainerWidget->UpdateDrawerTabAppearance();
 	}
 
 	return true;
@@ -224,16 +218,14 @@ bool SSidebar::TryOpenDrawer(const FName InDrawerId)
 		return false;
 	}
 
-	OpenDrawerNextFrame(Drawer.ToSharedRef());
+	ContainerWidget->OpenDrawerNextFrame(Drawer.ToSharedRef());
+
 	return true;
 }
 
 void SSidebar::CloseAllDrawers(const bool bInAnimate)
 {
-	for (const TSharedRef<FSidebarDrawer>& DrawerTab : Drawers)
-	{
-		CloseDrawerInternal(DrawerTab, bInAnimate);
-	}
+	ContainerWidget->CloseAllDrawerWidgets(bInAnimate);
 }
 
 void SSidebar::OnTabDrawerButtonPressed(const TSharedRef<FSidebarDrawer>& InDrawer)
@@ -243,17 +235,17 @@ void SSidebar::OnTabDrawerButtonPressed(const TSharedRef<FSidebarDrawer>& InDraw
 		// When clicking on the button of an active (but unpinned) tab, close that tab drawer
 		if (!IsDrawerPinned(InDrawer->GetUniqueId()))
 		{
-			CloseDrawerInternal(InDrawer);
+			ContainerWidget->CloseDrawer_Internal(InDrawer);
+		}
+		else if (!InDrawer->DrawerWidget->HasKeyboardFocus())
+		{
+			FSlateApplication::Get().SetKeyboardFocus(InDrawer->DrawerWidget);
 		}
 	}
-	else if (!InDrawer->bIsDocked)
+	else if (!InDrawer->State.bIsDocked)
 	{
 		// Otherwise clicking on an inactive tab should open the drawer
-		OpenDrawerInternal(InDrawer);
-	}
-	else if (InDrawer->bIsDocked && InDrawer->DrawerWidget.IsValid())
-	{
-		FSlateApplication::Get().SetKeyboardFocus(InDrawer->DrawerWidget);
+		ContainerWidget->OpenDrawer_Internal(InDrawer);
 	}
 }
 
@@ -264,69 +256,16 @@ void SSidebar::OnDrawerTabPinToggled(const TSharedRef<FSidebarDrawer>& InDrawer,
 	{
 		SetDrawerPinned(DrawerTab->GetUniqueId(), DrawerTab == InDrawer ? bIsPinned : false);
 	}
-
-	// Open any newly-pinned tab
-	if (bIsPinned)
-	{
-		OpenDrawerInternal(InDrawer);
-	}
 }
 
 void SSidebar::OnDrawerTabDockToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsDocked)
 {
-	// Undock the previously docked drawer
-	if (DockedDrawerTab.IsValid())
+	SetDrawerDocked(InDrawer->GetUniqueId(), bIsDocked);
+
+	if (!bIsDocked)
 	{
-		SetDrawerDocked(DockedDrawerTab->GetUniqueId(), false);
+		SetWidgetDrawerSize(InDrawer);
 	}
-
-	// Dock new drawer if needed
-	if (bIsDocked)
-	{
-		SetDrawerDocked(InDrawer->GetUniqueId(), bIsDocked);
-	}
-}
-
-void SSidebar::OnTabDrawerFocusLost(const TSharedRef<SSidebarDrawer>& InDrawerWidget)
-{
-	const TSharedPtr<FSidebarDrawer> Drawer = InDrawerWidget->GetDrawer();
-	if (!Drawer.IsValid() || IsDrawerPinned(Drawer->GetUniqueId()))
-	{
-		return;
-	}
-
-	CloseDrawerInternal(Drawer.ToSharedRef());
-}
-
-void SSidebar::OnOpenAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget)
-{
-}
-
-void SSidebar::OnCloseAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget)
-{
-	if (const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin())
-	{
-		DrawersOverlay->RemoveSlot(InDrawerWidget);
-	}
-
-	ClosingDrawerWidgets.Remove(InDrawerWidget);
-}
-
-void SSidebar::OnDrawerTargetSizeChanged(const TSharedRef<SSidebarDrawer>& InDrawerWidget, const float InNewSize)
-{
-	const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin();
-	if (!DrawersOverlay.IsValid())
-	{
-		return;
-	}
-	
-	const TSharedPtr<FSidebarDrawer> DrawerWidget = InDrawerWidget->GetDrawer();
-	if (!DrawerWidget.IsValid())
-	{
-		return;
-	}
-	
-	DrawerWidget->SizeCoefficient = InNewSize / DrawersOverlay->GetPaintSpaceGeometry().GetLocalSize().X;
 }
 
 TSharedRef<SWidget> SSidebar::OnGetTabDrawerContextMenuWidget(TSharedRef<FSidebarDrawer> InDrawer)
@@ -375,7 +314,7 @@ void SSidebar::BuildOptionsMenu(UToolMenu* const InMenu)
 
 	FToolMenuSection& Section = InMenu->FindOrAddSection(TEXT("Options"), LOCTEXT("Options", "Options"));
 
-	if (Drawer->bIsDocked)
+	if (Drawer->State.bIsDocked)
 	{
 		Section.AddMenuEntry(TEXT("Undock"),
 			LOCTEXT("UndockLabel", "Undock"),
@@ -392,7 +331,7 @@ void SSidebar::BuildOptionsMenu(UToolMenu* const InMenu)
 			FUIAction(FExecuteAction::CreateSP(this, &SSidebar::SetDrawerDocked, Drawer->GetUniqueId(), true)));
 	}
 
-	if (Drawer->bIsPinned)
+	if (Drawer->State.bIsPinned)
 	{
 		Section.AddMenuEntry(TEXT("Unpin"),
 			LOCTEXT("UnpinLabel", "Unpin"),
@@ -414,217 +353,24 @@ void SSidebar::RemoveDrawer(const TSharedRef<FSidebarDrawer>& InDrawer)
 {
 	if (InDrawer->DrawerWidget.IsValid())
 	{
-		if (const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin())
-		{
-			DrawersOverlay->RemoveSlot(InDrawer->DrawerWidget.ToSharedRef());
-		}
+		ContainerWidget->RemoveDrawerOverlaySlot(InDrawer, false);
 	}
-
-	InDrawer->bIsOpen = false;
 
 	InDrawer->DrawerClosedDelegate.ExecuteIfBound(InDrawer->GetUniqueId());
 
-	UpdateDrawerAppearance();
+	Drawers.Remove(InDrawer);
+
+	ContainerWidget->UpdateDrawerTabAppearance();
 }
 
 void SSidebar::RemoveAllDrawers()
 {
-	PendingTabToOpen.Reset();
-	bAnimatePendingTabOpen = false;
-
-	// Closing drawers can remove them from the opened drawers list so copy the list first
-	TArray<TSharedRef<SSidebarDrawer>> OpenDrawerWidgetsCopy = OpenDrawerWidgets;
-
-	for (const TSharedRef<SSidebarDrawer>& Drawer : OpenDrawerWidgetsCopy)
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
 	{
-		RemoveDrawer(Drawer->GetDrawer().ToSharedRef());
+		RemoveDrawer(Drawer);
 	}
 
 	Drawers.Empty();
-}
-
-EActiveTimerReturnType SSidebar::OnOpenPendingDrawerTimer(const double InCurrentTime, const float InDeltaTime)
-{
-	if (const TSharedPtr<FSidebarDrawer> TabToOpen = PendingTabToOpen.Pin())
-	{
-		// Wait until the drawers overlay has been arranged once to open the drawer
-		// It might not have geometry yet if we're adding back tabs on startup
-		if (const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin())
-		{
-			if (DrawersOverlay->GetTickSpaceGeometry().GetLocalSize().IsZero())
-			{
-				return EActiveTimerReturnType::Continue;
-			}
-		}
-
-		OpenDrawerInternal(TabToOpen.ToSharedRef(), bAnimatePendingTabOpen);
-	}
-
-	PendingTabToOpen.Reset();
-	bAnimatePendingTabOpen = false;
-	OpenPendingDrawerTimerHandle.Reset();
-
-	return EActiveTimerReturnType::Stop;
-}
-
-void SSidebar::OpenDrawerNextFrame(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate)
-{
-	PendingTabToOpen = InDrawer;
-	bAnimatePendingTabOpen = bInAnimate;
-
-	if (!OpenPendingDrawerTimerHandle.IsValid())
-	{
-		OpenPendingDrawerTimerHandle = RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SSidebar::OnOpenPendingDrawerTimer));
-	}
-}
-
-void SSidebar::OpenDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate)
-{
-	if (OpenDrawerWidgets.Contains(InDrawer->DrawerWidget))
-	{
-		return;
-	}
-
-	const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin();
-	if (!DrawersOverlay.IsValid())
-	{
-		return;
-	}
-
-	PendingTabToOpen.Reset();
-	bAnimatePendingTabOpen = false;
-
-	const FGeometry DrawersOverlayGeometry = DrawersOverlay->GetTickSpaceGeometry();
-	const FGeometry Geometry = GetTickSpaceGeometry();
-
-	// Calculate padding for the drawer itself
-	const float MinDrawerSize = Geometry.GetLocalSize().X - 4.f; // overlap with sidebar border slightly
-	const FVector2D ShadowOffset(8.f, 8.f);
-	const FMargin SlotPadding(
-		TabLocation == ESidebarTabLocation::Left ? MinDrawerSize : 0.f,
-		-ShadowOffset.Y,
-		TabLocation == ESidebarTabLocation::Right ? MinDrawerSize : 0.f,
-		-ShadowOffset.Y);
-	const float AvailableWidth = DrawersOverlayGeometry.GetLocalSize().X - SlotPadding.GetTotalSpaceAlong<EOrientation::Orient_Horizontal>();
-	const float MaxDrawerSize = AvailableWidth * 0.5f;
-
-	float TargetDrawerSizePct = InDrawer->SizeCoefficient;
-	TargetDrawerSizePct = FMath::Clamp(TargetDrawerSizePct, 0.f, 0.5f);
-
-	const float TargetDrawerSize = AvailableWidth * TargetDrawerSizePct;
-
-	if (!InDrawer->DrawerWidget.IsValid())
-	{
-		InDrawer->DrawerWidget =
-			SNew(SSidebarDrawer, InDrawer, TabLocation)
-			.MinDrawerSize(MinDrawerSize)
-			.TargetDrawerSize(TargetDrawerSize)
-			.MaxDrawerSize(MaxDrawerSize)
-			.OnDrawerFocusLost(this, &SSidebar::OnTabDrawerFocusLost)
-			.OnOpenAnimationFinish(this, &SSidebar::OnOpenAnimationFinish)
-			.OnCloseAnimationFinish(this, &SSidebar::OnCloseAnimationFinish)
-			.OnDrawerTargetSizeChanged(this, &SSidebar::OnDrawerTargetSizeChanged);
-	}
-
-	const TSharedRef<SSidebarDrawer> DrawerWidgetRef = InDrawer->DrawerWidget.ToSharedRef();
-
-	if (ClosingDrawerWidgets.Contains(DrawerWidgetRef))
-	{
-		ClosingDrawerWidgets.Remove(DrawerWidgetRef);
-	}
-	else
-	{
-		DrawersOverlay->AddSlot()
-			.Padding(SlotPadding)
-			.HAlign(TabLocation == ESidebarTabLocation::Left ? HAlign_Left : HAlign_Right)
-			[
-				DrawerWidgetRef
-			];
-	}
-
-	OpenDrawerWidgets.Add(DrawerWidgetRef);
-
-	InDrawer->DrawerWidget->Open(bInAnimate);
-
-	for (const TSharedRef<FSidebarDrawer>& DrawerTab : Drawers)
-	{
-		DrawerTab->bIsOpen = false;
-	}
-	InDrawer->bIsOpen = true;
-
-	InDrawer->DrawerOpenedDelegate.ExecuteIfBound(InDrawer->GetUniqueId());
-
-	UpdateDrawerAppearance();
-
-	// This changes the focus and will trigger focus-related events, such as closing other tabs,
-	// so it's important that we only call it after we added the new drawer to OpenedDrawers.
-	FSlateApplication::Get().SetKeyboardFocus(InDrawer->DrawerWidget);
-}
-
-void SSidebar::CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate)
-{
-	const TSharedPtr<SSidebarDrawer> FoundDrawerWidget = FindOpenDrawerWidget(InDrawer);
-	if (OpenDrawerWidgets.Contains(FoundDrawerWidget) && !ClosingDrawerWidgets.Contains(InDrawer->DrawerWidget))
-	{
-		const TSharedRef<SSidebarDrawer> FoundDrawerWidgetRef = FoundDrawerWidget.ToSharedRef();
-
-		FoundDrawerWidgetRef->Close(bInAnimate);
-
-		if (bInAnimate)
-		{
-			ClosingDrawerWidgets.Add(FoundDrawerWidgetRef);
-		}
-		else
-		{
-			if (const TSharedPtr<SOverlay> DrawersOverlay = DrawersOverlayWeak.Pin())
-			{
-				DrawersOverlay->RemoveSlot(FoundDrawerWidgetRef);
-			}
-		}
-
-		OpenDrawerWidgets.Remove(FoundDrawerWidgetRef);
-
-		InDrawer->bIsOpen = false;
-	}
-
-	SummonPinnedTabIfNothingOpened();
-	UpdateDrawerAppearance();
-}
-
-void SSidebar::SummonPinnedTabIfNothingOpened()
-{
-	// If there's already a tab in the foreground, don't bring the pinned tab forward
-	if (GetForegroundTab())
-	{
-		return;
-	}
-
-	// But if there's no current foreground tab, then bring forward a pinned tab (there should be at most one)
-	// This should happen when:
-	// - the current foreground tab is not pinned and loses focus
-	// - the current foreground tab's drawer is manually closed by pressing on the tab button
-	// - closing or restoring the current foreground tab
-	if (const TSharedPtr<FSidebarDrawer> PinnedTab = FindFirstPinnedTab())
-	{
-		OpenDrawerInternal(PinnedTab.ToSharedRef());
-	}
-}
-
-void SSidebar::UpdateDrawerAppearance()
-{
-	TSharedPtr<FSidebarDrawer> OpenedDrawer;
-	if (OpenDrawerWidgets.Num() > 0)
-	{
-		OpenedDrawer = OpenDrawerWidgets.Last()->GetDrawer();
-	}
-
-	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
-	{
-		if (const TSharedPtr<SSidebarButton> TabButton = StaticCastSharedPtr<SSidebarButton>(Drawer->ButtonWidget))
-		{
-			TabButton->UpdateAppearance(OpenedDrawer);
-		}
-	}
 }
 
 TSharedPtr<FSidebarDrawer> SSidebar::FindDrawer(const FName InDrawerId) const
@@ -635,38 +381,6 @@ TSharedPtr<FSidebarDrawer> SSidebar::FindDrawer(const FName InDrawerId) const
 			return InDrawerId == InDrawer->GetUniqueId();
 		});
 	return FoundDrawer ? *FoundDrawer : TSharedPtr<FSidebarDrawer>();
-}
-
-TSharedPtr<FSidebarDrawer> SSidebar::FindFirstPinnedTab() const
-{
-	for (const TSharedRef<FSidebarDrawer>& DrawerTab : Drawers)
-	{
-		if (DrawerTab->bIsPinned)
-		{
-			return DrawerTab;
-		}
-	}
-	return nullptr;
-}
-
-TSharedPtr<FSidebarDrawer> SSidebar::GetForegroundTab() const
-{
-	const int32 Index = OpenDrawerWidgets.FindLastByPredicate(
-		[](const TSharedRef<SSidebarDrawer>& InDrawerWidget)
-		{
-			return InDrawerWidget->IsOpen() && !InDrawerWidget->IsClosing();
-		});
-	return Index == INDEX_NONE ? nullptr : OpenDrawerWidgets[Index]->GetDrawer();
-}
-
-TSharedPtr<SSidebarDrawer> SSidebar::FindOpenDrawerWidget(const TSharedRef<FSidebarDrawer>& InDrawer) const
-{
-	const TSharedRef<SSidebarDrawer>* const OpenDrawWidget = OpenDrawerWidgets.FindByPredicate(
-		[&InDrawer](const TSharedRef<SSidebarDrawer>& Drawer)
-		{
-			return InDrawer == Drawer->GetDrawer();
-		});
-	return OpenDrawWidget ? OpenDrawWidget->ToSharedPtr(): nullptr;
 }
 
 bool SSidebar::HasDrawerOpened() const
@@ -695,20 +409,14 @@ bool SSidebar::IsDrawerOpened(const FName InDrawerId) const
 
 FName SSidebar::GetOpenedDrawerId() const
 {
-	if (OpenDrawerWidgets.IsEmpty())
-	{
-		return NAME_None;
-	}
-	
-	const TSharedRef<SSidebarDrawer> LastOpenDrawerWidget = OpenDrawerWidgets.Last();
-	return LastOpenDrawerWidget->GetDrawer()->GetUniqueId();
+	return ContainerWidget->GetOpenedDrawerId();
 }
 
 bool SSidebar::HasDrawerPinned() const
 {
 	for (const TSharedRef<FSidebarDrawer>& DrawerTab : Drawers)
 	{
-		if (DrawerTab->bIsPinned)
+		if (DrawerTab->State.bIsPinned)
 		{
 			return true;
 		}
@@ -718,131 +426,129 @@ bool SSidebar::HasDrawerPinned() const
 
 bool SSidebar::IsDrawerPinned(const FName InDrawerId) const
 {
-	if (const TSharedPtr<FSidebarDrawer> Drawer = FindDrawer(InDrawerId))
+	const TSharedPtr<FSidebarDrawer> Drawer = FindDrawer(InDrawerId);
+	if (!Drawer.IsValid())
 	{
-		return PinnedDrawerTabs.Contains(Drawer.ToSharedRef());
+		return false;
 	}
-	return false;
+	return Drawer->State.bIsPinned;
+}
+
+TSet<FName> SSidebar::GetPinnedDrawerIds() const
+{
+	TSet<FName> OutDrawerIds;
+
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
+	{
+		if (Drawer->State.bIsPinned)
+		{
+			OutDrawerIds.Add(Drawer->GetUniqueId());
+		}
+	}
+
+	return OutDrawerIds;
 }
 
 void SSidebar::SetDrawerPinned(const FName InDrawerId, const bool bInIsPinned)
 {
 	const TSharedPtr<FSidebarDrawer> DrawerToPin = FindDrawer(InDrawerId);
-	if (!DrawerToPin.IsValid() || DrawerToPin->bIsPinned == bInIsPinned)
+	if (!DrawerToPin.IsValid())
 	{
 		return;
 	}
 
 	if (bInIsPinned)
 	{
-		if (DrawerToPin->bIsDocked)
+		if (DrawerToPin->State.bIsDocked)
 		{
 			SetDrawerDocked(InDrawerId, false);
 		}
 
 		if (!DrawerToPin->bIsOpen)
 		{
-			OpenDrawerInternal(DrawerToPin.ToSharedRef(), false);
-		}
-		if (!DrawerToPin->bIsOpen)
-		{
-			return;
+			ContainerWidget->OpenDrawerNextFrame(DrawerToPin.ToSharedRef(), false);
 		}
 
 		// In case two modules attempt to register drawers with initially pinned states
 		for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
 		{
-			Drawer->bIsPinned = false;
+			Drawer->State.bIsPinned = false;
 		}
 	}
 
-	DrawerToPin->bIsPinned = bInIsPinned;
+	DrawerToPin->State.bIsPinned = bInIsPinned;
+	if (DrawerToPin->State.bIsPinned)
+	{
+		DrawerToPin->bIsOpen = true;
+	}
 
-	if (bInIsPinned)
-	{
-		PinnedDrawerTabs.AddUnique(DrawerToPin.ToSharedRef());
-	}
-	else
-	{
-		PinnedDrawerTabs.Remove(DrawerToPin.ToSharedRef());
-	}
+	OnStateChanged.ExecuteIfBound(GetState());
 }
 
 bool SSidebar::HasDrawerDocked() const
 {
-	return DockedDrawerTab.IsValid();
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
+	{
+		if (Drawer->State.bIsDocked)
+		{
+			return true;
+		}
+	}
+	return false;
 }
 
 bool SSidebar::IsDrawerDocked(const FName InDrawerId) const
 {
-	if (!DockedDrawerTab.IsValid())
+	const TSharedPtr<FSidebarDrawer> Drawer = FindDrawer(InDrawerId);
+	if (!Drawer.IsValid())
 	{
 		return false;
 	}
+	return Drawer->State.bIsDocked;
+}
 
-	const TSharedPtr<FSidebarDrawer> DrawerConfig = FindDrawer(InDrawerId);
-	if (!DrawerConfig.IsValid())
+TSet<FName> SSidebar::GetDockedDrawerIds() const
+{
+	TSet<FName> OutDrawerIds;
+
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
 	{
-		return false;
+		if (Drawer->State.bIsDocked)
+		{
+			OutDrawerIds.Add(Drawer->GetUniqueId());
+		}
 	}
 
-	return DrawerConfig->GetUniqueId() == DockedDrawerTab->GetUniqueId();
+	return OutDrawerIds;
 }
 
 void SSidebar::SetDrawerDocked(const FName InDrawerId, const bool bInIsDocked)
 {
-	const TSharedPtr<SBox> DockLocation = DockLocationWeak.Pin();
-	if (!DockLocation.IsValid())
-	{
-		return;
-	}
-
 	const TSharedPtr<FSidebarDrawer> DrawerToDock = FindDrawer(InDrawerId);
-	if (!DrawerToDock.IsValid() || DrawerToDock->bIsDocked == bInIsDocked)
+	if (!DrawerToDock.IsValid())
 	{
 		return;
 	}
 
 	if (bInIsDocked)
 	{
-		if (DrawerToDock->bIsPinned)
+		if (DrawerToDock->State.bIsPinned)
 		{
 			SetDrawerPinned(InDrawerId, false);
 		}
 
-		CloseAllDrawers(false);
-
-		if (DockedDrawerTab.IsValid())
-		{
-			UndockAllDrawers();
-		}
-
-		DockedDrawerTab = DrawerToDock;
-
-		// In case two modules attempt to register drawers with initially docked states
-		for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
-		{
-			Drawer->bIsDocked = false;
-		}
-
-		DockedDrawerTab->bIsOpen = true;
-		DockedDrawerTab->bIsPinned = false;
-		DockedDrawerTab->bIsDocked = true;
+		ContainerWidget->DockDrawer_Internal(DrawerToDock.ToSharedRef());
 
 		if (DrawerToDock->ContentWidget.IsValid())
 		{
-			DockLocation->SetContent(DrawerToDock->ContentWidget.ToSharedRef());
-			
-			if (bHideWhenDocked)
+			if (bHideWhenAllDocked && AreAllDrawersDocked())
 			{
 				SetVisibility(EVisibility::Collapsed);
 			}
 		}
 		else
 		{
-			DockLocation->SetContent(SNullWidget::NullWidget);
-			
-			if (bHideWhenDocked)
+			if (bHideWhenAllDocked && !AreAllDrawersDocked())
 			{
 				SetVisibility(EVisibility::Visible);
 			}
@@ -850,52 +556,30 @@ void SSidebar::SetDrawerDocked(const FName InDrawerId, const bool bInIsDocked)
 	}
 	else
 	{
-		if (DockedDrawerTab.IsValid())
-		{
-			DockedDrawerTab->bIsOpen = false;
-			DockedDrawerTab->bIsDocked = false;
-			DockedDrawerTab.Reset();
+		ContainerWidget->UndockDrawer_Internal(DrawerToDock.ToSharedRef());
 
-			DockLocation->SetContent(SNullWidget::NullWidget);
-			if (bHideWhenDocked)
-			{
-				SetVisibility(EVisibility::Visible);
-			}
-		}
+		if (bHideWhenAllDocked && !AreAllDrawersDocked())
+        {
+        	SetVisibility(EVisibility::Visible);
+        }
 	}
 
-	OnDockStateChanged.ExecuteIfBound(InDrawerId);
+	OnStateChanged.ExecuteIfBound(GetState());
 }
 
 void SSidebar::UndockAllDrawers()
 {
-	for (const TSharedRef<FSidebarDrawer>& DrawerTab : Drawers)
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
 	{
-		SetDrawerDocked(DrawerTab->GetUniqueId(), false);
+		SetDrawerDocked(Drawer->GetUniqueId(), false);
 	}
 }
 
-void SSidebar::UpdateDockedSplitterSlot(const FName InDrawerId, SSplitter::FSlot* const InSlot, const bool bInAutoUndock, const float InDefaultDockPercent)
+void SSidebar::UnpinAllDrawers()
 {
-	if (!InSlot)
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
 	{
-		return;
-	}
-	
-	const TSharedPtr<FSidebarDrawer> Drawer = FindDrawer(InDrawerId);
-	if (!Drawer.IsValid())
-	{
-		return;
-	}
-
-	const bool bDocked = IsDrawerDocked(InDrawerId);
-
-	InSlot->SetSizingRule(bDocked ? SSplitter::ESizeRule::FractionOfParent : SSplitter::ESizeRule::SizeToContent);
-	InSlot->SetResizable(bDocked);
-	if (bInAutoUndock && InSlot->GetSizeValue() < 0.01f)
-	{
-		Drawer->SizeCoefficient = bDocked ? InDefaultDockPercent : 0.f;
-		InSlot->SetSizeValue(Drawer->SizeCoefficient);
+		SetDrawerPinned(Drawer->GetUniqueId(), false);
 	}
 }
 
@@ -926,6 +610,63 @@ bool SSidebar::IsHorizontal() const
 bool SSidebar::IsVertical() const
 {
 	return TabLocation == ESidebarTabLocation::Left || TabLocation == ESidebarTabLocation::Right;
+}
+
+FSidebarState SSidebar::GetState() const
+{
+	FSidebarState OutState;
+
+	OutState.SetHidden(false);
+
+	const float CurrentDrawerSize = ContainerWidget->GetCurrentDrawerSize();
+	OutState.SetDrawerSizes(CurrentDrawerSize, 1.f - CurrentDrawerSize);
+
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
+	{
+		OutState.FindOrAddDrawerState(Drawer->State);
+	}
+
+	return OutState;
+}
+
+ESidebarTabLocation SSidebar::GetTabLocation() const
+{
+	return TabLocation;
+}
+
+TSharedRef<SWidget> SSidebar::GetMainContent() const
+{
+	return OnGetContent.IsBound() ? OnGetContent.Execute() : SNullWidget::NullWidget;
+}
+
+const TArray<TSharedRef<FSidebarDrawer>>& SSidebar::GetAllDrawers() const
+{
+	return Drawers;
+}
+
+void SSidebar::SetWidgetDrawerSize(const TSharedRef<FSidebarDrawer>& InDrawer)
+{
+	if (!InDrawer->DrawerWidget.IsValid())
+	{
+		return;
+	}
+
+	const float DrawerOverlayWidth = ContainerWidget->GetOverlaySize().X;
+	const float CurrentDrawerSize = ContainerWidget->GetCurrentDrawerSize();
+	const float PixelWidth = CurrentDrawerSize * DrawerOverlayWidth;
+	InDrawer->DrawerWidget->SetCurrentSize(PixelWidth);
+}
+
+bool SSidebar::AreAllDrawersDocked() const
+{
+	for (const TSharedRef<FSidebarDrawer>& Drawer : Drawers)
+	{
+		if (!Drawer->State.bIsDocked)
+		{
+			return false;
+		}
+	}
+	return true;
 }
 
 #undef LOCTEXT_NAMESPACE

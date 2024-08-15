@@ -133,7 +133,7 @@ void SSidebarDrawerContent::BuildContent()
 		AddContentSlot(SectionPair.Value, 1.f);
 	}
 
-	if (Drawer->SelectedContentSections.IsEmpty())
+	if (Drawer->State.SelectedSections.IsEmpty())
 	{
 		// Find first section that is visible
 		FName FoundSectionName;
@@ -148,7 +148,7 @@ void SSidebarDrawerContent::BuildContent()
 
 		if (FoundSectionName != NAME_None)
 		{
-			Drawer->SelectedContentSections.Add(FoundSectionName);
+			Drawer->State.SelectedSections.Add(FoundSectionName);
 		}
 	}
 }
@@ -168,30 +168,30 @@ void SSidebarDrawerContent::OnSectionSelected(const ECheckBoxState InCheckBoxSta
 	{
 		if (bIsModifierDown)
 		{
-			Drawer->SelectedContentSections.Add(InSectionName);
+			Drawer->State.SelectedSections.Add(InSectionName);
 		}
 		else
 		{
-			Drawer->SelectedContentSections.Reset();
-			Drawer->SelectedContentSections.Add(InSectionName);
+			Drawer->State.SelectedSections.Reset();
+			Drawer->State.SelectedSections.Add(InSectionName);
 		}
 	}
 	else
 	{
 		if (bIsModifierDown)
 		{
-			Drawer->SelectedContentSections.Remove(InSectionName);
+			Drawer->State.SelectedSections.Remove(InSectionName);
 
 			// Force to always have a Selected Section, making it unable to de-select the last one
-			if (Drawer->SelectedContentSections.IsEmpty())
+			if (Drawer->State.SelectedSections.IsEmpty())
 			{
-				Drawer->SelectedContentSections.Add(InSectionName);
+				Drawer->State.SelectedSections.Add(InSectionName);
 			}
 		}
 		else
 		{
-			Drawer->SelectedContentSections.Reset();
-			Drawer->SelectedContentSections.Add(InSectionName);
+			Drawer->State.SelectedSections.Reset();
+			Drawer->State.SelectedSections.Add(InSectionName);
 		}
 	}
 }
@@ -199,7 +199,7 @@ void SSidebarDrawerContent::OnSectionSelected(const ECheckBoxState InCheckBoxSta
 bool SSidebarDrawerContent::IsSectionSelected(const FName InSectionName) const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = OwnerDrawerWeak.Pin();
-	return Drawer.IsValid() && Drawer->SelectedContentSections.Contains(InSectionName);
+	return Drawer.IsValid() && Drawer->State.SelectedSections.Contains(InSectionName);
 }
 
 bool SSidebarDrawerContent::ShouldShowSection(const TWeakPtr<ISidebarDrawerContent>& InSectionWeak) const

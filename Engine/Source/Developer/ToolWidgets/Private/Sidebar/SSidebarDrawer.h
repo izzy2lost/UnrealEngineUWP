@@ -39,8 +39,8 @@ public:
 		SLATE_ARGUMENT(FVector2D, ShadowOffset)
 		/** The size of the handle used to resize the drawer */
 		SLATE_ARGUMENT(float, ExpanderHandleSize)
-		/** Called when the target drawer size is changed by the user */
-		SLATE_EVENT(FOnSidebarDrawerTargetSizeChanged, OnDrawerTargetSizeChanged)
+		/** Called when the drawer size is changed by the user */
+		SLATE_EVENT(FOnSidebarDrawerTargetSizeChanged, OnDrawerSizeChanged)
 		/** Called when the drawer gains focus */
 		SLATE_EVENT(FGenericSidebarDrawerWidgetDelegate, OnDrawerFocused)
 		/** Called when the drawer loses focus */
@@ -75,9 +75,10 @@ public:
 	/** @return True if the drawer is currently playing the close animation. */
 	bool IsClosing() const;
 
-	/** Sets the current size of the drawer, ignoring any open/close animation. */
+	/** Sets the current size of the drawer in pixels, ignoring any open/close animation. */
 	void SetCurrentSize(const float InSize);
 
+	/** @return The drawer associated with this drawer widget. */
 	TSharedPtr<FSidebarDrawer> GetDrawer() const;
 
 protected:
@@ -115,7 +116,7 @@ protected:
 	FVector2D ShadowOffset = FVector2D::ZeroVector;
 	float ExpanderHandleSize = 5.f;
 
-	FOnSidebarDrawerTargetSizeChanged OnDrawerTargetSizeChanged;
+	FOnSidebarDrawerTargetSizeChanged OnDrawerSizeChanged;
 	FGenericSidebarDrawerWidgetDelegate OnDrawerFocused;
 	FGenericSidebarDrawerWidgetDelegate OnDrawerFocusLost;
 	FGenericSidebarDrawerWidgetDelegate OnCloseAnimationFinish;

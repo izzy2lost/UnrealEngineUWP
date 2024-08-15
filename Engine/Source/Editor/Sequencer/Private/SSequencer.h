@@ -37,7 +37,9 @@ class SSequencerStretchBox;
 class SCurveEditorPanel;
 class SBox;
 class SDockTab;
+class SGridPanel;
 class SSidebar;
+class SSidebarContainer;
 class SWindow;
 class USequencerSettings;
 class FSequencerTrackFilter;
@@ -46,6 +48,7 @@ class SSequencerTreeFilterStatusBar;
 struct FPaintPlaybackRangeArgs;
 struct FSequencerCustomizationInfo;
 struct FSidebarDrawerConfig;
+struct FTimeSliderArgs;
 
 namespace UE
 {
@@ -389,7 +392,13 @@ protected:
 	virtual void OnMouseLeave(const FPointerEvent& MouseEvent) override;
 
 private:
-	
+
+	static constexpr float CommonPadding = 3.f;
+
+	TSharedRef<SWidget> ConstructMainContent();
+	TSharedRef<SWidget> ConstructGridPanel();
+	TSharedRef<SGridPanel> ConstructTrackAreaGridPanel(const FArguments& InArgs, const TSharedRef<FSequencer>& InSequencer, const FTimeSliderArgs& InTimeSliderArgs);
+
 	/** Initalizes a list of all track filter objects */
 	void InitializeTrackFilters();
 
@@ -700,6 +709,12 @@ public:
 	/** @return True if the sidebar is being displayed. */
 	bool IsSidebarVisible() const;
 
+	/** Set the visibility of the sidebar */
+	void SetSidebarVisible(const bool bInVisible);
+
+	/** Toggle the visibility of the sidebar. */
+	void ToggleSidebarVisible();
+
 	/** Toggles the sidebar "Selection" drawer open or closed. */
 	void ToggleSidebarSelectionDrawerOpen();
 
@@ -720,18 +735,25 @@ private:
 	/** Applies a single customization. */
 	void ApplySequencerCustomization(const FSequencerCustomizationInfo& Customization);
 
-	void OnSidebarDockStateChanged(const FName InDrawerId);
+	void OnSidebarStateChanged(const FSidebarState& InNewState);
 
-	void OnSidebarSlotResized(const float InFillCoefficient);
+	/** This is the main container widget for the Sequencer (minus the toolbar). This is the parent of
+	 * the GridPanel widget below and is used to rebuild content when the sidebar is added/removed. */
+	TSharedPtr<SBox> MainContentContainer;
+
+	/** Grid panel that holds most of the content and contains MainSequencerArea widget below.
+	 * Built once at Sequencer initialize and used when rebuilding the main content container when the sidebar is added/removed. */
+	TSharedPtr<SGridPanel> GridPanel;
+
+	/** Contains the outliner tree and track area. Used by GetPinnedAreaMaxHeight().
+	 * Built once at Sequencer initialize and used when rebuilding the main content container when the sidebar is added/removed. */
+	TSharedPtr<SVerticalBox> MainSequencerArea;
 
 	/** Transform box widget. */
 	TSharedPtr<SSequencerTransformBox> TransformBox;
 
 	/** Stretch box widget. */
 	TSharedPtr<SSequencerStretchBox> StretchBox;
-
-	/** Main Sequencer Area*/
-	TSharedPtr<SVerticalBox> MainSequencerArea;
 
 	/** Filter Status Bar */
 	TSharedPtr<SSequencerTreeFilterStatusBar> SequencerTreeFilterStatusBar;
@@ -873,8 +895,6 @@ private:
 
 	TSharedPtr<SSequencerGroupManager> NodeGroupManager;
 
-	TSharedPtr<SBox> DetailsDockLocation;
-
+	TSharedPtr<SSidebarContainer> SidebarContainer;
 	TSharedPtr<SSidebar> DetailsSidebar;
-	SSplitter::FSlot* SidebarSlot = nullptr;
 };

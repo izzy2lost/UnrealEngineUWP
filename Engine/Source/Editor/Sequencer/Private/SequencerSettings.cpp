@@ -1068,3 +1068,15 @@ void USequencerSettings::SetOutlinerColumnVisibility(const TArray<FColumnVisibil
 		SaveConfig();
 	}
 }
+
+FSidebarState& USequencerSettings::GetSidebarState()
+{
+	return SidebarState.FindOrAdd(GetFName());
+}
+
+void USequencerSettings::SetSidebarState(const FSidebarState& InSidebarState)
+{
+	FSidebarState& State = SidebarState.FindOrAdd(GetFName());
+	State = InSidebarState;
+	SaveConfig();
+}

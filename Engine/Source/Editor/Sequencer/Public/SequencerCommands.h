@@ -478,6 +478,9 @@ public:
 	/** Toggles selectability of viewport objects to Sequencer items only */
 	TSharedPtr< FUICommandInfo > ToggleLimitViewportSelection;
 
+	/** Toggles the visibility of the Sequencer sidebar */
+	TSharedPtr< FUICommandInfo > ToggleSidebarVisible;
+
 	/** Toggles the sidebar "Selection" drawer open or closed */
 	TSharedPtr< FUICommandInfo > ToggleSidebarSelectionDrawerOpen;
 

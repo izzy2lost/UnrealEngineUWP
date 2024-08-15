@@ -5,6 +5,7 @@
 #include "Containers/Array.h"
 #include "Internationalization/Text.h"
 #include "Misc/Attribute.h"
+#include "SidebarState.h"
 #include "Templates/SharedPointer.h"
 #include "UObject/NameTypes.h"
 
@@ -14,8 +15,6 @@ struct FSlateBrush;
 /** Configuration information used to register a sidebar drawer. */
 struct TOOLWIDGETS_API FSidebarDrawerConfig
 {
-	static constexpr float DefaultSizeCoefficient = 0.25f;
-
 	bool operator==(const FName InOtherId) const
 	{
 		return UniqueId == InOtherId;
@@ -48,11 +47,8 @@ struct TOOLWIDGETS_API FSidebarDrawerConfig
 	/** Icon to display for the drawer tab button */
 	TAttribute<const FSlateBrush*> Icon;
 
-	/** True if the drawers initial state should be docked. */
-	bool bInitiallyDocked = false;
-
-	/** Size co-efficient from 0 to 1 to use for the size of the docked content. */
-	float SizeCoefficient = DefaultSizeCoefficient;
+	/** The state of the sidebar drawer. (Visible, Pinned, Docked, Size) */
+	FSidebarDrawerState InitialState;
 
 	/** Optional content widget to use instead of registering sections. */
 	TSharedPtr<SWidget> OverrideContentWidget;

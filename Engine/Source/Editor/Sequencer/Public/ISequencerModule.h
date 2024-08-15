@@ -150,12 +150,16 @@ struct FSequencerHostCapabilities
 	/** Do we support adding content from the content browser */
 	bool bSupportsAddFromContentBrowser;
 
+	/** Do we support the sidebar widget */
+	bool bSupportsSidebar;
+
 	FSequencerHostCapabilities()
 		: bSupportsSaveMovieSceneAsset(false)
 		, bSupportsCurveEditor(false)
 		, bSupportsRecording(false)
 		, bSupportsRenderMovie(false)
 		, bSupportsAddFromContentBrowser(false)
+		, bSupportsSidebar(false)
 	{}
 };
 

@@ -293,8 +293,8 @@ namespace UE
 	} // namespace Sequencer
 } // namespace UE
 
-bool FSequencer::bSelectionLimited = false;
 const FName FSequencer::SelectionDrawerId = TEXT("SelectionDetails");
+bool FSequencer::bSelectionLimited = false;
 
 void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSharedRef<ISequencerObjectChangeListener>& InObjectChangeListener, const TArray<FOnCreateTrackEditor>& TrackEditorDelegates, const TArray<FOnCreateEditorObjectBinding>& EditorObjectBindingDelegates, const TArray<FOnCreateOutlinerColumn>& OutlinerColumnDelegates)
 {
@@ -669,13 +669,15 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs[0]);
 
-	{ // Selection Details Drawer
+	// Selection Details Drawer
+	if (HostCapabilities.bSupportsSidebar)
+	{
 		FSidebarDrawerConfig DetailsDrawer;
 		DetailsDrawer.UniqueId = SelectionDrawerId;
 		DetailsDrawer.ButtonText = LOCTEXT("SelectionDetailsPanelLabel", "Selection");
 		DetailsDrawer.ToolTipText = TAttribute<FText>::CreateSP(this, &FSequencer::GetSidebarSelectionDrawerToolTipText);
 		DetailsDrawer.Icon = FAppStyle::GetBrush(TEXT("EditorPreferences.TabIcon"));
-		DetailsDrawer.bInitiallyDocked = true;
+		DetailsDrawer.InitialState = Settings->GetSidebarState().FindOrAddDrawerState(SelectionDrawerId);
 		RegisterDrawer(MoveTemp(DetailsDrawer));
 
 		RegisterDrawerSection(SelectionDrawerId, MakeShared<FSequencerSelectionDrawer>(SharedThis(this)));
@@ -11594,9 +11596,18 @@ void FSequencer::BindCommands()
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(this, &FSequencer::IsViewportSelectionLimited));
 
+	if (HostCapabilities.bSupportsSidebar)
+	{
+		SequencerCommandBindings->MapAction(
+			Commands.ToggleSidebarVisible,
+			FExecuteAction::CreateSP(this, &FSequencer::ToggleSidebar),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &FSequencer::IsSidebarVisible));
+	}
+
 	SequencerCommandBindings->MapAction(
 		Commands.ToggleSidebarSelectionDrawerOpen,
-		FExecuteAction::CreateSP( this, &FSequencer::ShowHideSidebarSelectionDrawer));
+		FExecuteAction::CreateSP(this, &FSequencer::ToggleSidebarSelectionDrawer));
 
 	SequencerCommandBindings->MapAction(
 		Commands.ToggleSidebarDrawerDock,
@@ -12179,7 +12190,20 @@ bool FSequencer::UnregisterDrawerSection(const FName InDrawerId, const FName InS
 	return false;
 }
 
-void FSequencer::ShowHideSidebarSelectionDrawer()
+void FSequencer::ToggleSidebar()
+{
+	if (SequencerWidget.IsValid())
+	{
+		return SequencerWidget->ToggleSidebarVisible();
+	}
+}
+
+bool FSequencer::IsSidebarVisible() const
+{
+	return SequencerWidget.IsValid() ? SequencerWidget->IsSidebarVisible() : false;
+}
+
+void FSequencer::ToggleSidebarSelectionDrawer()
 {
 	if (SequencerWidget.IsValid())
 	{

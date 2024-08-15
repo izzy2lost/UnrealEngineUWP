@@ -28,7 +28,7 @@ void SSidebarDrawer::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 	ShadowOffset = InArgs._ShadowOffset;
 	ExpanderHandleSize = InArgs._ExpanderHandleSize;
 	
-	OnDrawerTargetSizeChanged = InArgs._OnDrawerTargetSizeChanged;
+	OnDrawerSizeChanged = InArgs._OnDrawerSizeChanged;
 	OnDrawerFocused = InArgs._OnDrawerFocused;
 	OnDrawerFocusLost = InArgs._OnDrawerFocusLost;
 	OnCloseAnimationFinish = InArgs._OnCloseAnimationFinish;
@@ -165,7 +165,7 @@ void SSidebarDrawer::OnArrangeChildren(const FGeometry& InAllottedGeometry, FArr
 	ArrangedChildren.AddWidget(InAllottedGeometry.MakeChild(ChildSlot.GetWidget(), ChildOffset, LocalSize));
 }
 
-FReply SSidebarDrawer::OnMouseButtonDown(const FGeometry& InAllottedGeometry, const FPointerEvent& InMouseEvent) 
+FReply SSidebarDrawer::OnMouseButtonDown(const FGeometry& InAllottedGeometry, const FPointerEvent& InMouseEvent)
 {
 	FReply Reply = FReply::Unhandled();
 
@@ -187,14 +187,15 @@ FReply SSidebarDrawer::OnMouseButtonDown(const FGeometry& InAllottedGeometry, co
 	return Reply;
 }
 
-FReply SSidebarDrawer::OnMouseButtonUp(const FGeometry& InAllottedGeometry, const FPointerEvent& InMouseEvent) 
+FReply SSidebarDrawer::OnMouseButtonUp(const FGeometry& InAllottedGeometry, const FPointerEvent& InMouseEvent)
 {
 	if (bIsResizing && InMouseEvent.GetEffectingButton() == EKeys::LeftMouseButton)
 	{
 		bIsResizing = false;
 		FSlateThrottleManager::Get().LeaveResponsiveMode(ResizeThrottleHandle);
 
-		OnDrawerTargetSizeChanged.ExecuteIfBound(SharedThis(this), TargetDrawerSize);
+		OnDrawerSizeChanged.ExecuteIfBound(SharedThis(this), TargetDrawerSize);
+
 		return FReply::Handled().ReleaseMouseCapture();
 	}
 
@@ -330,7 +331,7 @@ int32 SSidebarDrawer::OnPaint(const FPaintArgs& InArgs, const FGeometry& InAllot
 	// Main Shadow
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
-		InLayerId,
+		InLayerId++,
 		RenderTransformedChildGeometry.ToPaintGeometry(),
 		ShadowBrush,
 		ESlateDrawEffect::None,
@@ -339,7 +340,7 @@ int32 SSidebarDrawer::OnPaint(const FPaintArgs& InArgs, const FGeometry& InAllot
 	// Background
 	FSlateDrawElement::MakeBox(
 		OutDrawElements,
-		InLayerId,
+		InLayerId++,
 		OffsetPaintGeom,
 		BackgroundBrush,
 		ESlateDrawEffect::None,
@@ -548,7 +549,7 @@ void SSidebarDrawer::OnGlobalFocusChanging(const FFocusEvent& InFocusEvent
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
 
 	// Only open drawers that are not docked or pinned need to close the drawer when focus is lost
-	if (!Drawer || Drawer->bIsDocked || Drawer->bIsPinned || !Drawer->bIsOpen)
+	if (!Drawer || Drawer->State.bIsDocked || Drawer->State.bIsPinned || !Drawer->bIsOpen)
 	{
 		return;
 	}

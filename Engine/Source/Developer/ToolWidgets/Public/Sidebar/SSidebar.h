@@ -3,6 +3,7 @@
 #pragma once
 
 #include "SidebarDrawerConfig.h"
+#include "Framework/SlateDelegates.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SCompoundWidget.h"
@@ -14,10 +15,12 @@ class SBox;
 class SOverlay;
 class SScrollBox;
 class SSidebarButton;
+class SSidebarContainer;
 class SSidebarDrawer;
 class STabDrawer;
 class SVerticalBox;
 class UToolMenu;
+struct FSidebarState;
 struct FTabId;
 
 /**
@@ -37,7 +40,7 @@ enum class ESidebarTabLocation : uint8
 	Bottom
 };
 
-DECLARE_DELEGATE_OneParam(FOnSidebarDrawerDockStateChanged, const FName /*InDrawerId*/);
+DECLARE_DELEGATE_OneParam(FOnSidebarStateChanged, const FSidebarState& /*InNewState*/);
 
 /**
  * Static sidebar tab widget that cannot be dragged or moved to a different location. Multiple drawers can be registered
@@ -47,29 +50,34 @@ DECLARE_DELEGATE_OneParam(FOnSidebarDrawerDockStateChanged, const FName /*InDraw
 class TOOLWIDGETS_API SSidebar : public SCompoundWidget
 {
 public:
+	friend class SSidebarContainer;
+
 	static constexpr float MinTabButtonSize = 100.f;
 	static constexpr float MaxTabButtonSize = 200.f;
 	static constexpr float TabButtonThickness = 25.f;
 
 	SLATE_BEGIN_ARGS(SSidebar)
-		: _TabLocation(ESidebarTabLocation::Right)
-		, _HideWhenDocked(false)
+		: _HideWhenAllDocked(false)
 		, _AlwaysUseMaxButtonSize(false)
 		, _DisablePin(false)
 		, _DisableDock(false)
 	{}
 		/** The direction that a tab drawer opens relative to the location of the sidebar. */
 		SLATE_ARGUMENT(ESidebarTabLocation, TabLocation)
-		/** Hides the sidebar when a drawer is docked. NOTE: Must provide a way to manually undock the drawer to restore the sidebar visibility. */
-		SLATE_ARGUMENT(bool, HideWhenDocked)
+		/** The initial size of a drawer for the sidebar. */
+		SLATE_ARGUMENT(float, InitialDrawerSize)
+		/** Delegate used to retrieve the main inner content of the sidebar that will be overlayed. */
+		SLATE_ARGUMENT(FOnGetContent, OnGetContent)
+		/** Hides the sidebar when all drawers is docked. NOTE: Must provide a way to manually undock the drawer to restore the sidebar visibility. */
+		SLATE_ARGUMENT(bool, HideWhenAllDocked)
 		/** Forces the sidebar tab buttons to always be a uniform size of max. */
 		SLATE_ARGUMENT(bool, AlwaysUseMaxButtonSize)
 		/** Disables the ability to pin a drawer. */
 		SLATE_ARGUMENT(bool, DisablePin)
 		/** Disables the ability to dock a drawer. */
 		SLATE_ARGUMENT(bool, DisableDock)
-		/** Event triggered when a drawers dock state changes. */
-		SLATE_EVENT(FOnSidebarDrawerDockStateChanged, OnDockStateChanged)
+		/** Event triggered when the sidebar state changes. */
+		SLATE_EVENT(FOnSidebarStateChanged, OnStateChanged)
 	SLATE_END_ARGS()
 
 	virtual ~SSidebar() override;
@@ -78,10 +86,10 @@ public:
 	 * Constructs the sidebar widget.
 	 * 
 	 * @param InArgs Widget construction arguments
-	 * @param InDrawersOverlay Overlay widget used to display the animating drawer
+	 * @param InContainerWidget Container widget used to manage the drawer sidebar widgets
 	 * @param InDockLocation Parent widget that will contain the drawer content widget when docked
 	 */
-	void Construct(const FArguments& InArgs, const TSharedRef<SOverlay>& InDrawersOverlay, const TSharedRef<SBox>& InDockLocation);
+	void Construct(const FArguments& InArgs, const TSharedRef<SSidebarContainer>& InContainerWidget);
 
 	/**
 	 * Registers and displays a new drawer in the sidebar.
@@ -182,6 +190,9 @@ public:
 	 */
 	bool IsDrawerPinned(const FName InDrawerId) const;
 
+	/** @return List of drawer Ids that are pinned. */
+	TSet<FName> GetPinnedDrawerIds() const;
+
 	/**
 	 * Pins a drawer so it stays open even when focus is lost.
 	 * 
@@ -196,6 +207,9 @@ public:
 	/** @return True if the specified drawer Id is docked. */
 	bool IsDrawerDocked(const FName InDrawerId) const;
 
+	/** @return List of drawer Ids that are docked. */
+	TSet<FName> GetDockedDrawerIds() const;
+
 	/**
 	 * Docks a drawer so it embeds itself into the content.
 	 * 
@@ -207,17 +221,8 @@ public:
 	/** Undocks any drawers that are docked. */
 	void UndockAllDrawers();
 
-	/**
-	 * Helper function to update a splitter slot size based on a drawers state.
-	 * Sets the slots resize-ability, sizing rule, size value.
-	 * 
-	 * @param InDrawerId Unique Id of the drawer to update for
-	 * @param InSlot The splitter slot to modify the size of
-	 * @param bInAutoUndock Automatically undocks the drawer if the size is below the threshold
-	 * @param InDefaultDockPercent Default size co-efficient to reset the drawer size to
-	 */
-	void UpdateDockedSplitterSlot(const FName InDrawerId, SSplitter::FSlot* const InSlot, const bool bInAutoUndock = true
-		, const float InDefaultDockPercent = FSidebarDrawerConfig::DefaultSizeCoefficient);
+	/** Unpins any drawers that are pinned. */
+	void UnpinAllDrawers();
 
 	/** @return True if the sidebar is set to animate horizontally. */
 	bool IsHorizontal() const;
@@ -225,14 +230,19 @@ public:
 	/** @return True if the sidebar is set to animate vertically. */
 	bool IsVertical() const;
 
+	/** @return The current state of the sidebar to save/restore. */
+	FSidebarState GetState() const;
+
+	/** @return The location of the sidebar (left, right, top, bottom). */
+	ESidebarTabLocation GetTabLocation() const;
+
+	TSharedRef<SWidget> GetMainContent() const;
+
 private:
 	void OnTabDrawerButtonPressed(const TSharedRef<FSidebarDrawer>& InDrawer);
 	void OnDrawerTabPinToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsPinned);
 	void OnDrawerTabDockToggled(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bIsDocked);
-	void OnTabDrawerFocusLost(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
-	void OnOpenAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
-	void OnCloseAnimationFinish(const TSharedRef<SSidebarDrawer>& InDrawerWidget);
-	void OnDrawerTargetSizeChanged(const TSharedRef<SSidebarDrawer>& InDrawerWidget, const float InNewSize);
+
 	TSharedRef<SWidget> OnGetTabDrawerContextMenuWidget(TSharedRef<FSidebarDrawer> InDrawer);
 	void BuildOptionsMenu(UToolMenu* const InMenu);
 
@@ -242,54 +252,25 @@ private:
 	/** Removes all drawers instantly (including drawers for pinned tabs). */
 	void RemoveAllDrawers();
 
-	EActiveTimerReturnType OnOpenPendingDrawerTimer(const double InCurrentTime, const float InDeltaTime);
-	void OpenDrawerNextFrame(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
-	void OpenDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
-	void CloseDrawerInternal(const TSharedRef<FSidebarDrawer>& InDrawer, const bool bInAnimate = true);
-
-	/** Reopens the pinned tab only if there are no other open drawers. This should be used to bring pinned tabs back after other tabs lose focus/are closed. */
-	void SummonPinnedTabIfNothingOpened();
-
-	/** Updates the appearance of open drawers. */
-	void UpdateDrawerAppearance();
-
 	TSharedPtr<FSidebarDrawer> FindDrawer(const FName InDrawerId) const;
 
-	/** Returns the first tab in this sidebar that is marked pinned. */
-	TSharedPtr<FSidebarDrawer> FindFirstPinnedTab() const;
+	void SetWidgetDrawerSize(const TSharedRef<FSidebarDrawer>& InDrawer);
 
-	/** Returns the tab for the last-opened drawer that is still open, excluding any drawers that are in the process of closing. */
-	TSharedPtr<FSidebarDrawer> GetForegroundTab() const;
+	bool AreAllDrawersDocked() const;
 
-	/** Returns the drawer for the given tab if it's open. */
-	TSharedPtr<SSidebarDrawer> FindOpenDrawerWidget(const TSharedRef<FSidebarDrawer>& InDrawer) const;
+	const TArray<TSharedRef<FSidebarDrawer>>& GetAllDrawers() const;
 
-	TWeakPtr<SOverlay> DrawersOverlayWeak;
-	TWeakPtr<SBox> DockLocationWeak;
+	TSharedPtr<SSidebarContainer> ContainerWidget;
 
 	ESidebarTabLocation TabLocation = ESidebarTabLocation::Right;
-	bool bHideWhenDocked = false;
+	FOnGetContent OnGetContent;
+	bool bHideWhenAllDocked = false;
 	bool bAlwaysUseMaxButtonSize = false;
 	bool bDisablePin = false;
 	bool bDisableDock = false;
-	FOnSidebarDrawerDockStateChanged OnDockStateChanged;
+	FOnSidebarStateChanged OnStateChanged;
 
 	TSharedPtr<SScrollBox> TabButtonContainer;
 
 	TArray<TSharedRef<FSidebarDrawer>> Drawers;
-
-	/** Generally speaking one drawer is only ever open at once but we animate any previous drawer
-	 * closing so there could be more than one while an animation is playing. A docked drawer is
-	 * also considered open, along with any user opened/pinned drawers. */
-	TArray<TSharedRef<SSidebarDrawer>> OpenDrawerWidgets;
-
-	TArray<TSharedRef<SSidebarDrawer>> ClosingDrawerWidgets;
-
-	TWeakPtr<FSidebarDrawer> PendingTabToOpen;
-	bool bAnimatePendingTabOpen = false;
-	TSharedPtr<FActiveTimerHandle> OpenPendingDrawerTimerHandle;
-
-	TArray<TSharedRef<FSidebarDrawer>> PinnedDrawerTabs;
-
-	TSharedPtr<FSidebarDrawer> DockedDrawerTab;
 };

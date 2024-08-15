@@ -7,6 +7,7 @@
 #include "UObject/Object.h"
 #include "UObject/Package.h"
 #include "FrameNumberDisplayFormat.h"
+#include "Sidebar/SidebarState.h"
 #include "SequencerSettings.generated.h"
 
 struct FPropertyChangedEvent;
@@ -484,6 +485,11 @@ public:
 	/** Sets the visibility of outliner columns in display order */
 	void SetOutlinerColumnVisibility(const TArray<FColumnVisibilitySetting>& InColumnVisibilitySettings);
 
+	/** Gets the last saved sidebar state */
+	FSidebarState& GetSidebarState();
+	/** Sets the sidebar state to be restored on Sequencer initialize */
+	void SetSidebarState(const FSidebarState& InSidebarState);
+
 protected:
 
 	/** The auto change mode (auto-key, auto-track or none). */
@@ -758,6 +764,10 @@ protected:
 	/** List of all columns and their visibility, in the order to be displayed in the outliner view */
 	UPROPERTY(config, EditAnywhere, Category = General)
 	TArray<FColumnVisibilitySetting> ColumnVisibilitySettings;
+
+	/** The state of a sidebar to be restored when each Sequencer type is initialized */
+	UPROPERTY(config)
+	TMap<FName, FSidebarState> SidebarState;
 
 	FOnEvaluateSubSequencesInIsolationChanged OnEvaluateSubSequencesInIsolationChangedEvent;
 	FOnShowSelectedNodesOnlyChanged OnShowSelectedNodesOnlyChangedEvent;

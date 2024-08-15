@@ -29,6 +29,7 @@ class SAvaSequenceTree;
 class SBox;
 class SHeaderRow;
 class SSidebar;
+class SSidebarContainer;
 class SWidget;
 class UAvaSequence;
 class UAvaSequencerSettings;
@@ -43,6 +44,7 @@ struct FAvaSequencerArgs;
 struct FMovieSceneBinding;
 struct FMovieScenePossessable;
 struct FSequencerInitParams;
+struct FSidebarState;
 struct FToolMenuContext;
 template<typename ItemType> class STreeView;
 
@@ -221,8 +223,7 @@ private:
 
 	void OnUpdateCameraCut(UObject* InCameraObject, bool bInJumpCut);
 
-	void OnSidebarDockStateChanged(const FName InDrawerId);
-	void OnSidebarSlotResized(const float InFillCoefficient);
+	void OnSidebarStateChanged(const FSidebarState& InNewState);
 
 	void ExtendSidebarSelectionMenu(FMenuBuilder& OutMenuBuilder);
 	void ExtendSidebarMarkedFramesMenu(FMenuBuilder& OutMenuBuilder);
@@ -278,9 +279,8 @@ private:
 
 	TSharedPtr<FAvaEaseCurveTool> EaseCurveTool;
 
+	TSharedPtr<SSidebarContainer> SidebarContainer;
 	TSharedPtr<SSidebar> LeftSidebar;
-	TSharedPtr<SBox> SequenceTreeDockLocation;
-	SSplitter::FSlot* SidebarSlot = nullptr;
 
 	TSharedPtr<FExtender> SidebarExtender;
 	FDelegateHandle SidebarSelectionExtenderHandle;

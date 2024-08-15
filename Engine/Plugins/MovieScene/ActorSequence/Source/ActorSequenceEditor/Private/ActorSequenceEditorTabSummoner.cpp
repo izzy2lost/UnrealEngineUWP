@@ -399,6 +399,7 @@ public:
 			{
 				SequencerInitParams.ToolkitHost = WeakBlueprintEditor.Pin()->GetToolkitHost();
 				SequencerInitParams.HostCapabilities.bSupportsCurveEditor = true;
+				SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
 			}
 
 			TSharedRef<FExtender> AddMenuExtender = MakeShareable(new FExtender);

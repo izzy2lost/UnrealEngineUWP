@@ -5,6 +5,7 @@
 #include "Sidebar/SidebarDrawer.h"
 #include "Sidebar/SSidebar.h"
 #include "Sidebar/SSidebarButtonText.h"
+#include "Sidebar/SSidebarDrawer.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Images/SImage.h"
@@ -206,7 +207,7 @@ void SSidebarButton::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 			[
 				SAssignNew(MainButton, SButton)
 				.ToolTipText(InDrawer->Config.ToolTipText)
-				.ContentPadding(FMargin(0.0f, DockTabStyle->TabPadding.Top, 0.0f, DockTabStyle->TabPadding.Bottom))
+				.ContentPadding(FMargin(0.f, DockTabStyle->TabPadding.Top, 0.f, DockTabStyle->TabPadding.Bottom))
 				.OnPressed_Lambda([this]()
 					{
 						// Activate tab on mouse down (not mouse down-up) for consistency with non-sidebar tabs
@@ -223,12 +224,13 @@ void SSidebarButton::Construct(const FArguments& InArgs, const TSharedRef<FSideb
 				.Visibility(EVisibility::HitTestInvisible)
 			]
 			+ SOverlay::Slot()
-			.HAlign(TabLocation == ESidebarTabLocation::Left ? HAlign_Left : HAlign_Right)
+			.HAlign(GetHAlignFromTabLocation(TabLocation))
+			.VAlign(GetVAlignFromTabLocation(TabLocation))
 			[
 				SAssignNew(ActiveIndicator, SComplexGradient)
-				.DesiredSizeOverride(FVector2D(1.0f, 1.0f))
+				.DesiredSizeOverride(FVector2D(1.f, 1.f))
 				.GradientColors(GradientStops)
-				.Orientation(EOrientation::Orient_Horizontal)
+				.Orientation(Orient_Horizontal)
 				.Visibility(this, &SSidebarButton::GetActiveTabIndicatorVisibility)
 			]
 		]
@@ -269,8 +271,8 @@ void SSidebarButton::UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InLastDr
 		Label->SetRotation(LabelRotation);
 	}
 
-	// Border when open/docked
-	if (InLastDrawerOpen == ThisDrawer && (!ThisDrawer->bIsDocked && ThisDrawer->bIsOpen))
+	// Border when not docked and open
+	if (InLastDrawerOpen == ThisDrawer && (!ThisDrawer->State.bIsDocked && ThisDrawer->bIsOpen))
 	{
 		OpenBorder->SetVisibility(EVisibility::HitTestInvisible);
 		OpenBorder->SetBorderImage(FAppStyle::Get().GetBrush(FocusBorderBrushName));
@@ -281,7 +283,7 @@ void SSidebarButton::UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InLastDr
 	}
 
 	// Button style
-	if (InLastDrawerOpen == ThisDrawer || ThisDrawer->bIsDocked)
+	if (InLastDrawerOpen == ThisDrawer || ThisDrawer->State.bIsDocked)
 	{
 		// this button is the one with the tab that is actually opened so show the tab border
 		MainButton->SetButtonStyle(&FAppStyle::Get().GetWidgetStyle<FButtonStyle>(TEXT("Docking.SidebarButton.Opened")));
@@ -335,7 +337,10 @@ FSlateColor SSidebarButton::GetForegroundColor() const
 EVisibility SSidebarButton::GetActiveTabIndicatorVisibility() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsOpen)
+	if (Drawer.IsValid()
+		&& Drawer->bIsOpen
+		&& Drawer->DrawerWidget.IsValid()
+		&& Drawer->DrawerWidget->HasAnyUserFocusOrFocusedDescendants())
 	{
 		return EVisibility::HitTestInvisible;
 	}
@@ -349,14 +354,14 @@ EVisibility SSidebarButton::GetPinVisibility() const
 	{
 		return EVisibility::Collapsed;
 	}
-	return (Drawer->bIsPinned || IsHovered() || Drawer->bIsOpen)
+	return (Drawer->State.bIsPinned || IsHovered() || Drawer->bIsOpen)
 		? EVisibility::Visible : EVisibility::Hidden;
 }
 
 FText SSidebarButton::GetPinToolTipText() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsPinned)
+	if (Drawer.IsValid() && Drawer->State.bIsPinned)
 	{
 		return LOCTEXT("UnpinTabToolTip", "Unpin Tab");
 	}
@@ -366,7 +371,7 @@ FText SSidebarButton::GetPinToolTipText() const
 ECheckBoxState SSidebarButton::IsPinChecked() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsPinned)
+	if (Drawer.IsValid() && Drawer->State.bIsPinned)
 	{
 		return ECheckBoxState::Checked;
 	}
@@ -376,7 +381,7 @@ ECheckBoxState SSidebarButton::IsPinChecked() const
 const FSlateBrush* SSidebarButton::GetPinImage() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsPinned)
+	if (Drawer.IsValid() && Drawer->State.bIsPinned)
 	{
 		return FAppStyle::Get().GetBrush(TEXT("Icons.Pinned"));
 	}
@@ -395,13 +400,13 @@ EVisibility SSidebarButton::GetDockVisibility() const
 	{
 		return EVisibility::Collapsed;
 	}
-	return (Drawer->bIsDocked || IsHovered() || Drawer->bIsOpen) ? EVisibility::Visible : EVisibility::Hidden;
+	return (Drawer->State.bIsDocked || IsHovered() || Drawer->bIsOpen) ? EVisibility::Visible : EVisibility::Hidden;
 }
 
 FText SSidebarButton::GetDockToolTipText() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsDocked)
+	if (Drawer.IsValid() && Drawer->State.bIsDocked)
 	{
 		return LOCTEXT("UndockTabToolTip", "Undock Tab");
 	}
@@ -411,7 +416,7 @@ FText SSidebarButton::GetDockToolTipText() const
 ECheckBoxState SSidebarButton::IsDockChecked() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsDocked)
+	if (Drawer.IsValid() && Drawer->State.bIsDocked)
 	{
 		return ECheckBoxState::Checked;
 	}
@@ -421,7 +426,7 @@ ECheckBoxState SSidebarButton::IsDockChecked() const
 const FSlateBrush* SSidebarButton::GetDockImage() const
 {
 	const TSharedPtr<FSidebarDrawer> Drawer = DrawerWeak.Pin();
-	if (Drawer.IsValid() && Drawer->bIsPinned)
+	if (Drawer.IsValid() && Drawer->State.bIsPinned)
 	{
 		return FAppStyle::Get().GetBrush(TEXT("Icons.Layout"));
 	}
@@ -431,6 +436,36 @@ const FSlateBrush* SSidebarButton::GetDockImage() const
 void SSidebarButton::OnDockStateChanged(const ECheckBoxState InNewState)
 {
 	OnDockToggled.ExecuteIfBound(DrawerWeak.Pin().ToSharedRef(), InNewState == ECheckBoxState::Checked);
+}
+
+EHorizontalAlignment SSidebarButton::GetHAlignFromTabLocation(const ESidebarTabLocation InTabLocation)
+{
+	switch (InTabLocation)
+	{
+	case ESidebarTabLocation::Left:
+		return HAlign_Left;
+	case ESidebarTabLocation::Right:
+		return HAlign_Right;
+	case ESidebarTabLocation::Top:
+	case ESidebarTabLocation::Bottom:
+		return HAlign_Fill;
+	}
+	return HAlign_Fill;
+}
+
+EVerticalAlignment SSidebarButton::GetVAlignFromTabLocation(const ESidebarTabLocation InTabLocation)
+{
+	switch (InTabLocation)
+	{
+	case ESidebarTabLocation::Left:
+	case ESidebarTabLocation::Right:
+		return VAlign_Fill;
+	case ESidebarTabLocation::Top:
+		return VAlign_Top;
+	case ESidebarTabLocation::Bottom:
+		return VAlign_Bottom;
+	}
+	return VAlign_Fill;
 }
 
 #undef LOCTEXT_NAMESPACE

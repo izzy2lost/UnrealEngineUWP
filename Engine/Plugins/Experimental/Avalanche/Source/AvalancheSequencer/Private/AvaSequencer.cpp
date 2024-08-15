@@ -50,6 +50,7 @@
 #include "Settings/AvaSequencerSettings.h"
 #include "Sidebar/SidebarDrawerConfig.h"
 #include "Sidebar/SSidebar.h"
+#include "Sidebar/SSidebarContainer.h"
 #include "ToolMenu.h"
 #include "ToolMenuEntry.h"
 #include "ToolMenuSection.h"
@@ -350,6 +351,7 @@ TSharedRef<ISequencer> FAvaSequencer::CreateSequencer()
 		// Host Capabilities
 		SequencerInitParams.HostCapabilities.bSupportsCurveEditor = true;
 		SequencerInitParams.HostCapabilities.bSupportsSaveMovieSceneAsset = false;
+		SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
 	};
 
 	InstancedSequencer = FAvaSequencerUtils::GetSequencerModule().CreateSequencer(SequencerInitParams);
@@ -1488,57 +1490,43 @@ TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 
 	TSharedRef<ISequencer> Sequencer = GetSequencer();
 
-	const TSharedRef<SOverlay> SidebarOverlay = SNew(SOverlay);
-	SequenceTreeDockLocation = SNew(SBox);
+	UAvaSequencerSettings* const SequencerSettings = GetMutableDefault<UAvaSequencerSettings>();
+	check(IsValid(SequencerSettings));
+	FSidebarState& SidebarState = SequencerSettings->GetSidebarState();
 
-	TSharedRef<SOverlay> OutWidget = SNew(SOverlay)
-		+ SOverlay::Slot()
-		[
-			SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				SAssignNew(LeftSidebar, SSidebar, SidebarOverlay, SequenceTreeDockLocation.ToSharedRef())
-				.TabLocation(ESidebarTabLocation::Left)
-				.OnDockStateChanged(this, &FAvaSequencer::OnSidebarDockStateChanged)
-			]
-			+ SHorizontalBox::Slot()
-			[
-				SNew(SSplitter)
-				+ SSplitter::Slot()
-				.Resizable(false)
-				.SizeRule(SSplitter::ESizeRule::SizeToContent)
-				.Value(FSidebarDrawerConfig::DefaultSizeCoefficient)
-				.OnSlotResized(this, &FAvaSequencer::OnSidebarSlotResized)
-				.Expose(SidebarSlot)
-				[
-					SequenceTreeDockLocation.ToSharedRef()
-				]
-				+ SSplitter::Slot()
-				.Value(0.8f)
-				[
-					SNew(SOverlay)
-					.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("Sequencer")))
-					+ SOverlay::Slot()
-					[
-						Sequencer->GetSequencerWidget()
-					]
-				]
-			]
-		]
-		+ SOverlay::Slot()
-		[
-			SidebarOverlay
-		];
+	TSharedPtr<SWidget> OutWidget;
+
+	if (SidebarState.IsVisible())
+	{
+		SidebarContainer = SNew(SSidebarContainer);
+
+		LeftSidebar = SNew(SSidebar, SidebarContainer.ToSharedRef())
+			.TabLocation(ESidebarTabLocation::Left)
+			.InitialDrawerSize(SidebarState.GetDrawerSize())
+			.OnStateChanged(this, &FAvaSequencer::OnSidebarStateChanged)
+			.OnGetContent(FOnGetContent::CreateLambda([this]()
+				{
+					return GetSequencer()->GetSequencerWidget();
+				}));
+
+		SidebarContainer->RebuildSidebar(LeftSidebar.ToSharedRef(), SidebarState);
+
+		OutWidget = SidebarContainer.ToSharedRef();
+	}
+	else
+	{
+		OutWidget = Sequencer->GetSequencerWidget();
+	}
 
 	FSidebarDrawerConfig SequenceTreeDrawerConfig;
 	SequenceTreeDrawerConfig.UniqueId = SidebarDrawerId;
 	SequenceTreeDrawerConfig.ButtonText = LOCTEXT("SequenceLabel", "Sequence");
 	SequenceTreeDrawerConfig.ToolTipText = LOCTEXT("SequenceTooltip", "Open the Sequence options panel");
 	SequenceTreeDrawerConfig.Icon = FAppStyle::GetBrush(TEXT("Persona.EditInSequencer"));
-	SequenceTreeDrawerConfig.bInitiallyDocked = true;
+	SequenceTreeDrawerConfig.InitialState = SidebarState.FindOrAddDrawerState(SidebarDrawerId);
+
 	LeftSidebar->RegisterDrawer(MoveTemp(SequenceTreeDrawerConfig));
-	
+
 	// Make sure the sequence tree widget is created
 	GetSequenceTreeWidget();
 
@@ -1547,7 +1535,7 @@ TSharedRef<SWidget> FAvaSequencer::CreateSequenceWidget()
 	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequencePlaybackDetails>(ThisSequencerRef));
 	LeftSidebar->RegisterDrawerSection(SidebarDrawerId, MakeShared<FAvaSequenceSettingsDetails>(ThisSequencerRef));
 
-	return OutWidget;
+	return OutWidget.ToSharedRef();
 }
 
 void FAvaSequencer::OnActorsCopied(FString& InOutCopiedData, TConstArrayView<AActor*> InCopiedActors)
@@ -1804,16 +1792,12 @@ TSharedRef<FAvaEaseCurveTool> FAvaSequencer::GetEaseCurveTool() const
 	return EaseCurveTool.ToSharedRef(); 
 }
 
-void FAvaSequencer::OnSidebarDockStateChanged(const FName InDrawerId)
+void FAvaSequencer::OnSidebarStateChanged(const FSidebarState& InNewState)
 {
-	LeftSidebar->UpdateDockedSplitterSlot(SidebarDrawerId, SidebarSlot);
-}
-
-void FAvaSequencer::OnSidebarSlotResized(const float InFillCoefficient)
-{
-	if (InFillCoefficient == 0.f && LeftSidebar->HasDrawerDocked())
+	UAvaSequencerSettings* const SequencerSettings = GetMutableDefault<UAvaSequencerSettings>();
+	if (IsValid(SequencerSettings))
 	{
-		LeftSidebar->UndockAllDrawers();
+		SequencerSettings->SetSidebarState(InNewState);
 	}
 }
 

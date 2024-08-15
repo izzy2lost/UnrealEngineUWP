@@ -45,7 +45,10 @@ public:
 	void UpdateAppearance(const TSharedPtr<FSidebarDrawer>& InLastDrawerOpen);
 
 	void OnTabRenamed(const TWeakPtr<FSidebarDrawer>& InDrawer);
-	
+
+	static EHorizontalAlignment GetHAlignFromTabLocation(const ESidebarTabLocation InTabLocation);
+	static EVerticalAlignment GetVAlignFromTabLocation(const ESidebarTabLocation InTabLocation);
+
 protected:
 	EVisibility GetActiveTabIndicatorVisibility() const;
 
