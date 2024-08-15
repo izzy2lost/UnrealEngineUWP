@@ -322,10 +322,17 @@ private:
 	/** Deinitialize of the object*/
 	void Cleanup();
 
-	TUniquePtr<FRealtimeGPUProfilerFrame> ActiveFrame;
-	TQueue<TUniquePtr<FRealtimeGPUProfilerFrame>> PendingFrames;
 
+	/** Ringbuffer of profiler frames */
+	TArray<FRealtimeGPUProfilerFrame*> Frames;
+
+	int32 WriteBufferIndex;
+	int32 ReadBufferIndex;
+	uint32 WriteFrameNumber;
+	uint32 QueryCount = 0;
 	FRenderQueryPoolRHIRef RenderQueryPool;
+	bool bStatGatheringPaused;
+	bool bInBeginEndBlock;
 	bool bLocked = false;
 
 #if GPUPROFILERTRACE_ENABLED
