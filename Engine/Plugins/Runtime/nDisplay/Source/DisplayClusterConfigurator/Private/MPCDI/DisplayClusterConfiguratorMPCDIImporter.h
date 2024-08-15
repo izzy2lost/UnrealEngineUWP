@@ -13,22 +13,9 @@ class UDisplayClusterConfigurationViewport;
 class UDisplayClusterBlueprint;
 class UDisplayClusterScreenComponent;
 
-/** Additional parameters for the mpcdi 2d profile. */
-struct FDisplayClusterConfiguratorMPCDIProfile2DImporterParams
-{
-	/** The amount to scale an MPCDI buffer by when converting from pixels to world coordinates */
-	float BufferPixelsToWorldUnits = 0.1;
-
-	/** Desired FOV. The focal length will be calculated for that FOV and the geometry will be shifted by that value. */
-	float DesiredFOV = 90.f;
-};
-
 /** Used to pass parameters into the MPCDI importer */
 struct FDisplayClusterConfiguratorMPCDIImporterParams
 {
-	/** Additional parameters for the mpcdi 2d profile. */
-	FDisplayClusterConfiguratorMPCDIProfile2DImporterParams Profile2DParams;
-
 	/** The name of the component to make the parent of the MPCDI geometry */
 	FName ParentComponentName = NAME_None;
 

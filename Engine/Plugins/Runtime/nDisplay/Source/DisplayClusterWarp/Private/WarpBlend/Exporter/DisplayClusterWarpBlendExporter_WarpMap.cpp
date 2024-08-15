@@ -120,31 +120,28 @@ using namespace UE::DisplayClusterWarp::PFM;
 //---------------------------------------------------------------
 // FDisplayClusterWarpBlendExporter_WarpMap
 //---------------------------------------------------------------
-float FDisplayClusterWarpBlendExporter_WarpMap::Get2DProfilePixelsToUnitScale()
+void FDisplayClusterWarpBlendExporter_WarpMap::Get2DProfileGeometry(const FDisplayClusterWarpMPCDIAttributes& InAttributes, TArray<FVector>& OutGeometryPoints, TArray<FVector>* OutNormal, TArray<FVector2D>* OutUV)
 {
-	return 0.1f; // 10 pixels = 1 centimeter
-}
-
-void FDisplayClusterWarpBlendExporter_WarpMap::Get2DProfileGeometry(const FDisplayClusterWarpMPCDIAttributes& InMPCDIAttributes, TArray<FVector>& OutGeometryPoints, TArray<FVector>* OutNormal, TArray<FVector2D>* OutUV)
-{
-	const float PixelsToUnitScale = FDisplayClusterWarpBlendExporter_WarpMap::Get2DProfilePixelsToUnitScale();
-
-	// export each region as a plain
-	const float Width = InMPCDIAttributes.Buffer.Resolution.X * PixelsToUnitScale;
-	const float Height = InMPCDIAttributes.Buffer.Resolution.Y * PixelsToUnitScale;
+	FVector ScreenPosition;
+	FVector2D ScreenSize;
+	if (!InAttributes.CalcProfile2DScreen(ScreenPosition, ScreenSize))
+	{
+		return;
+	}
 
 	// Rectangle stands on the floor, centered at zero
-	const float X0 = Width * (InMPCDIAttributes.Region.Pos.X) - (Width * 0.5f);
-	const float X1 = Width * (InMPCDIAttributes.Region.Pos.X + InMPCDIAttributes.Region.Size.X) - (Width * 0.5f);
-	const float Y0 = Height * (InMPCDIAttributes.Region.Pos.Y);
-	const float Y1 = Height * (InMPCDIAttributes.Region.Pos.Y + InMPCDIAttributes.Region.Size.Y);
+	const float X = ScreenPosition.X;
+	const float Y0 = ScreenPosition.Y - (ScreenSize.X * 0.5f);
+	const float Y1 = ScreenPosition.Y + (ScreenSize.X * 0.5f);
+	const float Z0 = ScreenPosition.Z - (ScreenSize.Y * 0.5f);
+	const float Z1 = ScreenPosition.Z + (ScreenSize.Y * 0.5f);
 
 	// Create a vertices
 	// Y - right, Z - Up
-	OutGeometryPoints.Add(FVector(0, X0, Y1));
-	OutGeometryPoints.Add(FVector(0, X1, Y1));
-	OutGeometryPoints.Add(FVector(0, X0, Y0));
-	OutGeometryPoints.Add(FVector(0, X1, Y0));
+	OutGeometryPoints.Add(FVector(X, Y0, Z1));
+	OutGeometryPoints.Add(FVector(X, Y1, Z1));
+	OutGeometryPoints.Add(FVector(X, Y0, Z0));
+	OutGeometryPoints.Add(FVector(X, Y1, Z0));
 
 	if (OutNormal)
 	{

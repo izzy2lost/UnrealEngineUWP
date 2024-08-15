@@ -164,31 +164,12 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DPro
 	const FDisplayClusterWarpMPCDIAttributes& InAttributes,
 	const FDisplayClusterConfiguratorMPCDIImporterParams& InParams)
 {
-	// Computes the buffer size in world units from the resolution in pixels.
-	const FVector2D BufferSize(InAttributes.Buffer.Resolution.X * InParams.Profile2DParams.BufferPixelsToWorldUnits, InAttributes.Buffer.Resolution.Y * InParams.Profile2DParams.BufferPixelsToWorldUnits);
-
-	// Calculates the position and size of the region.
-	const FVector2D  RegionPos(InAttributes.Region.Pos.X  * BufferSize.X, InAttributes.Region.Pos.Y  * BufferSize.Y);
-	const FVector2D RegionSize(InAttributes.Region.Size.X * BufferSize.X, InAttributes.Region.Size.Y * BufferSize.Y);
-
-	float FocalLength = 0.f;
-	// Moves the buffer position along the X axis to achieve a DesiredFOV.
-	if (InParams.Profile2DParams.DesiredFOV > 0.f && InParams.Profile2DParams.DesiredFOV < 180.f)
+	FVector ScreenPosition;
+	FVector2D ScreenSize;
+	if (!InAttributes.CalcProfile2DScreen(ScreenPosition, ScreenSize))
 	{
-		// Convert FOV to focal length,
-		// 
-		// fov = 2 * atan(d/(2*f))
-		// where,
-		//   d = sensor dimension
-		//   f = focal length
-		// 
-		// f = 0.5 * d * (1/tan(fov/2))
-		const float TanHalfFOV = FMath::Tan(FMath::DegreesToRadians(InParams.Profile2DParams.DesiredFOV * 0.5f));
-		FocalLength = (BufferSize.X * 0.5f) / TanHalfFOV;
+		return;
 	}
-
-	const FVector2D RegionCenterPos = RegionPos + (RegionSize * 0.5) - (BufferSize * 0.5);
-	FVector ScreenPosition = FVector(FocalLength, RegionCenterPos.X, RegionCenterPos.Y);
 
 	if (InViewOriginComponent)
 	{
@@ -214,7 +195,7 @@ void FDisplayClusterConfiguratorMPCDIImporter::ConfigureScreenComponentFrom2DPro
 	}
 
 	InScreenComponent->SetRelativeLocation(ScreenPosition);
-	InScreenComponent->SetScreenSize(RegionSize);
+	InScreenComponent->SetScreenSize(ScreenSize);
 }
 
 UDisplayClusterConfigurationViewport* FDisplayClusterConfiguratorMPCDIImporter::FindOrCreateViewportForRegion(UDisplayClusterBlueprint* InBlueprint, const FString& RegionId, bool& bOutFoundExistingViewport)
