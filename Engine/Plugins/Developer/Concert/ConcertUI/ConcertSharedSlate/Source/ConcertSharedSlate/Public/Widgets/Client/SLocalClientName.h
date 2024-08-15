@@ -10,7 +10,7 @@
 
 class IConcertClient;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	/**
 	 * Displays the name of a client.

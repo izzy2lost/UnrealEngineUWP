@@ -79,9 +79,10 @@ public:
 			}
 
 			const bool bIsLocalClient = SyncClientPin->GetConcertClient()->GetCurrentSession()->GetSessionClientEndpointId() == SessionClientInfoPin->ClientEndpointId;
-			return SNew(UE::ConcertClientSharedSlate::SClientName)
+			const FText ParenthesesContent = bIsLocalClient ? UE::ConcertSharedSlate::ParenthesesClientNameContent::LocalClient : FText::GetEmpty();
+			return SNew(UE::ConcertSharedSlate::SClientName)
 				.ClientInfo(UE::ConcertClientSharedSlate::MakeClientInfoAttribute(SyncClientPin->GetConcertClient(), SessionClientInfoPin->ClientEndpointId))
-				.DisplayAsLocalClient(bIsLocalClient);
+				.ParenthesisContent(ParenthesesContent);
 		}
 		else if (ColumnName == ActiveSessionDetailsUI::PresenceColumnName)
 		{

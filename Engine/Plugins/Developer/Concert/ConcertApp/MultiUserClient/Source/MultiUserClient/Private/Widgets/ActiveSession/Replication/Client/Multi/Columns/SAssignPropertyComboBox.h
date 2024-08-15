@@ -13,8 +13,11 @@ class IConcertClient;
 enum class ECheckBoxState : uint8;
 struct FGuid;
 
-namespace UE::ConcertClientSharedSlate { class SHorizontalClientList; }
-namespace UE::ConcertSharedSlate { class IMultiReplicationStreamEditor; }
+namespace UE::ConcertSharedSlate
+{
+	class IMultiReplicationStreamEditor;
+	class SHorizontalClientList;
+}
 
 namespace UE::MultiUserClient::Replication
 {
@@ -70,7 +73,7 @@ namespace UE::MultiUserClient::Replication
 		FConcertPropertyChain Property;
 
 		/** The static menu content (when there is no drop-down). */
-		TSharedPtr<ConcertClientSharedSlate::SHorizontalClientList> ClientListWidget;
+		TSharedPtr<ConcertSharedSlate::SHorizontalClientList> ClientListWidget;
 		/** Passed to MakeListWidgetDelegate */
 		TSharedPtr<FText> HighlightText;
 

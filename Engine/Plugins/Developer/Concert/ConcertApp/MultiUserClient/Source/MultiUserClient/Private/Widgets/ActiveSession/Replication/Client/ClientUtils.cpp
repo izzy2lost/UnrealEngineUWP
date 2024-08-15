@@ -20,13 +20,13 @@ namespace UE::MultiUserClient::Replication::ClientUtils
 		const bool bIsLocalClient = InSession.GetSessionClientEndpointId() == InClientEndpointId;
 		if (bIsLocalClient)
 		{
-			return ConcertClientSharedSlate::SClientName::GetDisplayText(InSession.GetLocalClientInfo(), bIsLocalClient).ToString();
+			return ConcertSharedSlate::SClientName::GetDisplayText(InSession.GetLocalClientInfo(), bIsLocalClient).ToString();
 		}
 
 		FConcertSessionClientInfo ClientInfo;
 		if (InSession.FindSessionClient(InClientEndpointId, ClientInfo))
 		{
-			return ConcertClientSharedSlate::SClientName::GetDisplayText(ClientInfo.ClientInfo, bIsLocalClient).ToString();
+			return ConcertSharedSlate::SClientName::GetDisplayText(ClientInfo.ClientInfo, bIsLocalClient).ToString();
 		}
 
 		ensureMsgf(false, TEXT("Bad args"));
@@ -81,8 +81,8 @@ namespace UE::MultiUserClient::Replication::ClientUtils
 		{
 			const FConcertClientInfo& LeftInfo = ClientToDisplayInfo[&Left];
 			const FConcertClientInfo& RightInfo = ClientToDisplayInfo[&Right];
-			const FText LeftDisplayName = ConcertClientSharedSlate::SClientName::GetDisplayText(LeftInfo, false);
-			const FText RightDisplayName = ConcertClientSharedSlate::SClientName::GetDisplayText(RightInfo, false);
+			const FText LeftDisplayName = ConcertSharedSlate::SClientName::GetDisplayText(LeftInfo);
+			const FText RightDisplayName = ConcertSharedSlate::SClientName::GetDisplayText(RightInfo);
 			return LeftDisplayName.ToString() <= RightDisplayName.ToString();
 		});
 		

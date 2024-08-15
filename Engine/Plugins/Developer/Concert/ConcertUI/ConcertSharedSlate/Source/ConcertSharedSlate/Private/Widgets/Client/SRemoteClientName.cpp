@@ -7,7 +7,7 @@
 
 #define LOCTEXT_NAMESPACE "SLocalClientName"
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	void SRemoteClientName::Construct(const FArguments& InArgs)
 	{
@@ -17,7 +17,6 @@ namespace UE::ConcertClientSharedSlate
 		[
 			SNew(SClientName)
 			.ClientInfo(this, &SRemoteClientName::GetClientInfo)
-			.DisplayAsLocalClient(false)
 			.DisplayAvatarColor(InArgs._DisplayAvatarColor)
 			.HighlightText(InArgs._HighlightText)
 			.Font(InArgs._Font)

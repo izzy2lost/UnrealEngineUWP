@@ -295,9 +295,8 @@ TSharedRef<SWidget> SConcertClientSessionBrowser::MakeUserAndSettings(TSharedPtr
 		.VAlign(VAlign_Center)
 		.AutoWidth()
 		[
-			SNew(UE::ConcertClientSharedSlate::SClientName)
+			SNew(UE::ConcertSharedSlate::SClientName)
 			.ClientInfo(UE::ConcertClientSharedSlate::MakeLocalClientInfoAttribute(Client))
-			.DisplayAsLocalClient(false) // It is obvious that it's the local user because we have not joined any session yet so do not display (You) in the back.
 			.HighlightText_Lambda([InSearchText](){ return *InSearchText.Get(); })
 		]
 

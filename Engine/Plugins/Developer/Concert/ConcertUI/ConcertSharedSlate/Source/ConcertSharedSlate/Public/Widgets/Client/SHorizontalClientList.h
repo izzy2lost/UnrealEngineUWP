@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ClientInfoDelegate.h"
+#include "ClientSorting.h"
 #include "Styling/AppStyle.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
@@ -14,29 +15,27 @@ class SWidgetSwitcher;
 struct FConcertSessionClientInfo;
 struct FGuid;
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate
 {
 	/** Aligns client widgets from left to right. If there is not enough space, a horizontal scroll bar cuts of the list. */
 	class CONCERTSHAREDSLATE_API SHorizontalClientList : public SCompoundWidget
 	{
 	public:
 
-		DECLARE_DELEGATE_RetVal_TwoParams(bool, FSortPredicate, const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& FConcertSessionClientInfo);
-		static bool SortLocalClientFirstThenAlphabetical(const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right, ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate);
-
 		/** @return The display string a SHorizontalClientList would display with the given state. Returns unset optional if EmptyListSlot would be shown. */
 		static TOptional<FString> GetDisplayString(
 			const TConstArrayView<FGuid>& Clients,
-			const ConcertSharedSlate::FGetOptionalClientInfo& GetClientInfoDelegate,
-			const FSortPredicate& SortPredicate,
-			const ConcertSharedSlate::FIsLocalClient& IsLocalClientDelegate = {}
+			const FGetOptionalClientInfo& GetClientInfoDelegate,
+			const FClientSortPredicate& SortPredicate,
+			const FGetClientParenthesesContent& GetClientParenthesesContent = {}
 			);
 		
 		SLATE_BEGIN_ARGS(SHorizontalClientList)
 			: _Font(FAppStyle::Get().GetFontStyle("NormalFont"))
 		{}
-			/** Decides whether the given client should be displayed as if it was a local client. */
-			SLATE_EVENT(ConcertSharedSlate::FIsLocalClient, IsLocalClient)
+			/** Gets the content to place in parentheses behind the given client. */
+			SLATE_EVENT(ConcertSharedSlate::FGetClientParenthesesContent, GetClientParenthesesContent)
+			
 			/** Used to get client display info for remote clients. */
 			SLATE_EVENT(ConcertSharedSlate::FGetOptionalClientInfo, GetClientInfo)
 			
@@ -49,7 +48,7 @@ namespace UE::ConcertClientSharedSlate
 			SLATE_ARGUMENT(FSlateFontInfo, Font)
 			
 			/** Defaults to placing the local client first (if contained) and sorting alphabetically otherwise. */
-			SLATE_EVENT(FSortPredicate, SortPredicate)
+			SLATE_EVENT(FClientSortPredicate, SortPredicate)
 
 			/** Tooltip text to display when the list is non-empty. */
 			SLATE_ATTRIBUTE(FText, ListToolTipText)
@@ -61,19 +60,19 @@ namespace UE::ConcertClientSharedSlate
 		void Construct(const FArguments& InArgs);
 
 		/** Refreshes the list. */
-		void RefreshList(const TConstArrayView<FGuid>& Clients);
+		void RefreshList(const TConstArrayView<FGuid>& Clients) const;
 
 	private:
 		
-		/** Decides whether the given client should be displayed as if it was a local client. */
-		ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate;
+		/** Gets the content to place in parentheses behind the given client. */
+		FGetClientParenthesesContent GetClientParenthesesContentDelegate;
 		/** Used to get client display info for remote clients. */
-		ConcertSharedSlate::FGetOptionalClientInfo GetClientInfoDelegate;
+		FGetOptionalClientInfo GetClientInfoDelegate;
 		/** Sorts the client list */
-		FSortPredicate SortPredicateDelegate;
+		FClientSortPredicate SortPredicateDelegate;
 
 		/** Whether the square in front of the client name should be displayed. */
-		TAttribute<bool> DisplayAvatarColorAttribute;
+		TAttribute<bool> ShouldDisplayAvatarColorAttribute;
 		/** Used for highlighting in the text */
 		TAttribute<FText> HighlightTextAttribute;
 		

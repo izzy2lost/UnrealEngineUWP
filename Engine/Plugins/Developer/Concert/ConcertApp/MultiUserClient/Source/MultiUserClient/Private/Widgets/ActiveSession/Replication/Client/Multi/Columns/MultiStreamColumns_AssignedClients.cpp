@@ -54,7 +54,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		
 		class SAssignedClientsWidget : public SCompoundWidget
 		{
-			TSharedPtr<ConcertClientSharedSlate::SHorizontalClientList> ClientList;
+			TSharedPtr<ConcertSharedSlate::SHorizontalClientList> ClientList;
 			FSoftObjectPath ManagedObject;
 			const ConcertSharedSlate::IObjectHierarchyModel* ObjectHierarchy = nullptr;
 			FReassignObjectPropertiesLogic* ReassignmentLogic = nullptr;
@@ -79,8 +79,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			
 				ChildSlot
 				[
-					SAssignNew(ClientList, ConcertClientSharedSlate::SHorizontalClientList)
-					.IsLocalClient(ConcertClientSharedSlate::MakeIsLocalClientGetter(InConcertClient))
+					SAssignNew(ClientList, ConcertSharedSlate::SHorizontalClientList)
+					.GetClientParenthesesContent(ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(InConcertClient))
 					.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(InConcertClient))
 					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 					.HighlightText(InArgs._HighlightText)
@@ -185,14 +185,20 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			
 			TOptional<FString> GetDisplayString(const FSoftObjectPath& ManagedObject) const
 			{
-				using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
+				using SWidgetType = ConcertSharedSlate::SHorizontalClientList;
 				const TArray<FGuid> Clients = Private::GetDisplayedClients(ObjectHierarchy, ReassignmentLogic, ManagedObject);
-				const ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate = ConcertClientSharedSlate::MakeIsLocalClientGetter(ConcertClient);
+
+				const ConcertSharedSlate::FGetClientParenthesesContent GetParenthesesContent =
+					ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(ConcertClient);
+				const auto SortPredicate = [&GetParenthesesContent](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
+				{
+					return ConcertSharedSlate::SortLocalClientParenthesesFirstThenThenAlphabetical(Left, Right, GetParenthesesContent);
+				};
 				return SWidgetType::GetDisplayString(
 					Clients,
 					ConcertClientSharedSlate::MakeClientInfoGetter(ConcertClient),
-					SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, IsLocalClientDelegate),
-					IsLocalClientDelegate
+					ConcertSharedSlate::FClientSortPredicate::CreateLambda(SortPredicate),
+					GetParenthesesContent
 					);
 			}
 		};

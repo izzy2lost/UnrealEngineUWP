@@ -6,6 +6,7 @@
 #include "IConcertClient.h"
 #include "IConcertSession.h"
 #include "Widgets/Client/ClientInfoDelegate.h"
+#include "Widgets/Client/SClientName.h"
 
 #include "Misc/Attribute.h"
 #include "Misc/Optional.h"
@@ -47,6 +48,19 @@ namespace UE::ConcertClientSharedSlate
 		{
 			const TSharedPtr<IConcertClient> ClientPin = WeakClient.Pin();
 			return ClientPin && ClientPin->GetCurrentSession() && ClientPin->GetCurrentSession()->GetSessionClientEndpointId() == ClientEndpointId;
+		});
+	}
+
+	/** @return A parentheses delegate that returns "You" if the endpoint ID is that of Client and returns FText::GetEmpty() otherwise. */
+	inline ConcertSharedSlate::FGetClientParenthesesContent MakeGetLocalClientParenthesesContent(const TSharedRef<IConcertClient>& Client)
+	{
+		return ConcertSharedSlate::FGetClientParenthesesContent::CreateLambda([WeakClient = Client.ToWeakPtr()](const FGuid& ClientEndpointId)
+		{
+			const TSharedPtr<IConcertClient> ClientPin = WeakClient.Pin();
+			const bool bIsLocalClient =  ClientPin
+				&& ClientPin->GetCurrentSession()
+				&& ClientPin->GetCurrentSession()->GetSessionClientEndpointId() == ClientEndpointId;
+			return bIsLocalClient ? ConcertSharedSlate::ParenthesesClientNameContent::LocalClient : FText::GetEmpty();
 		});
 	}
 

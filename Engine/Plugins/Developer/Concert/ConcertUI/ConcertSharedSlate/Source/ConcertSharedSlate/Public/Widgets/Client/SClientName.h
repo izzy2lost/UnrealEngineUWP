@@ -9,23 +9,36 @@
 
 class IConcertClient;
 
-namespace UE::ConcertClientSharedSlate
+/** Contains SClientName's parentheses content definitions. */
+namespace UE::ConcertSharedSlate::ParenthesesClientNameContent
 {
-	/** Knows how to display FConcertClientInfo. */
+	/** The client corresponds to the local user. "You" is appended to name, e.g. "ClientName(You)". */
+	CONCERTSHAREDSLATE_API extern const FText LocalClient;
+}
+
+namespace UE::ConcertSharedSlate
+{
+	/**
+	 * Knows how to display FConcertClientInfo.
+	 * 
+	 * The widget looks like this: []DisplayName(ParenthesesContent)
+	 *  - [] is a square displaying the avatar colour (optional)
+	 *  - DisplayName is FConcertClientInfo::DisplayName
+	 *  - ParenthesesContent is additional info you can supply, like "You" (optional). See ParenthesesClientNameContent. 
+	 */
 	class CONCERTSHAREDSLATE_API SClientName : public SCompoundWidget
 	{
 	public:
 
 		SLATE_BEGIN_ARGS(SClientName)
-			: _DisplayAsLocalClient(false)
-			, _DisplayAvatarColor(true)
+			: _DisplayAvatarColor(true)
 			, _Font(FAppStyle::Get().GetFontStyle("BoldFont"))
 		{}
 			/** The client info to display. */
 			SLATE_ATTRIBUTE(TOptional<FConcertClientInfo>, ClientInfo)
 			
-			/** Whether visually indicate that this is a local client (appends "(me)" if true). */
-			SLATE_ATTRIBUTE(bool, DisplayAsLocalClient)
+			/** Content to display behind the display name in parentheses. */
+			SLATE_ATTRIBUTE(FText, ParenthesisContent)
 			/** Whether to show a square image in front of the name. */
 			SLATE_ATTRIBUTE(bool, DisplayAvatarColor)
 			
@@ -39,13 +52,15 @@ namespace UE::ConcertClientSharedSlate
 
 		/** @return The display that would be used given the settings. */
 		static FText GetDisplayText(const FConcertClientInfo& Info, bool bDisplayAsLocalClient);
+		/** @return The display that would be used given the settings. */
+		static FText GetDisplayText(const FConcertClientInfo& Info, const FText& ParenthesesContent = FText::GetEmpty());
 
 	private:
 
 		/** The client info to display. */
 		TAttribute<TOptional<FConcertClientInfo>> ClientInfoAttribute;
-		/** Whether visually indicate that this is a local client (appends "(me)" if true). */
-		TAttribute<bool> DisplayAsLocalClientAttribute;
+		/** Content to display behind the display name in parentheses. */
+		TAttribute<FText> ParenthesisContentAttribute;
 
 		/** Gets the display name. */
 		FText GetClientDisplayName() const;

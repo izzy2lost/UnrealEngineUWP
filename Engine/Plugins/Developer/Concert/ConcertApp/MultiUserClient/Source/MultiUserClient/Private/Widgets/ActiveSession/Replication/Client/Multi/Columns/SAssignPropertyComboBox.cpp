@@ -57,14 +57,21 @@ namespace UE::MultiUserClient::Replication
 		const FConcertPropertyChain& DisplayedProperty,
 		const TArray<TSoftObjectPtr<>>& EditedObjects)
 	{
-		using SWidgetType = ConcertClientSharedSlate::SHorizontalClientList;
+		using SWidgetType = ConcertSharedSlate::SHorizontalClientList;
 		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
-		const ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate = ConcertClientSharedSlate::MakeIsLocalClientGetter(LocalConcertClient);
+		
+		const ConcertSharedSlate::FGetClientParenthesesContent GetParenthesesContent =
+			ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(LocalConcertClient);
+		const auto SortPredicate = [&GetParenthesesContent](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
+		{
+			return ConcertSharedSlate::SortLocalClientParenthesesFirstThenThenAlphabetical(Left, Right, GetParenthesesContent);
+		};
+		
 		return SWidgetType::GetDisplayString(
 			Clients,
 			ConcertClientSharedSlate::MakeClientInfoGetter(LocalConcertClient),
-			SWidgetType::FSortPredicate::CreateStatic(&SWidgetType::SortLocalClientFirstThenAlphabetical, IsLocalClientDelegate),
-			IsLocalClientDelegate
+			ConcertSharedSlate::FClientSortPredicate::CreateLambda(SortPredicate),
+			GetParenthesesContent
 			);
 	}
 
@@ -91,8 +98,8 @@ namespace UE::MultiUserClient::Replication
 			.HasDownArrow(true)
 			.ButtonContent()
 			[
-				SAssignNew(ClientListWidget, ConcertClientSharedSlate::SHorizontalClientList)
-				.IsLocalClient(ConcertClientSharedSlate::MakeIsLocalClientGetter(ConcertClient.ToSharedRef()))
+				SAssignNew(ClientListWidget, ConcertSharedSlate::SHorizontalClientList)
+				.GetClientParenthesesContent(ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(ConcertClient.ToSharedRef()))
 				.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(ConcertClient.ToSharedRef()))
 				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
@@ -115,7 +122,7 @@ namespace UE::MultiUserClient::Replication
 
 	TSharedRef<SWidget> SAssignPropertyComboBox::GetMenuContent()
 	{
-		using namespace ConcertClientSharedSlate;
+		using namespace ConcertSharedSlate;
 
 		const auto MakeWidget = [this](const FGuid& EndpointId) -> TSharedRef<SWidget>
 		{

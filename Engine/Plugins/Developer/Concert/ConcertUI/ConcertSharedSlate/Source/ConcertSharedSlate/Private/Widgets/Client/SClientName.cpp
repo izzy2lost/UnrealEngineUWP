@@ -10,14 +10,18 @@
 
 #define LOCTEXT_NAMESPACE "SClientName"
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate::ParenthesesClientNameContent
+{
+	const FText LocalClient = LOCTEXT("ParenthesesClientNameContent.LocalClient", "You");
+}
+
+namespace UE::ConcertSharedSlate
 {
 	void SClientName::Construct(const FArguments& InArgs)
 	{
 		ClientInfoAttribute = InArgs._ClientInfo;
-		DisplayAsLocalClientAttribute = InArgs._DisplayAsLocalClient;
+		ParenthesisContentAttribute = InArgs._ParenthesisContent;
 		check(ClientInfoAttribute.IsSet() || ClientInfoAttribute.IsBound());
-		check(DisplayAsLocalClientAttribute.IsSet() || DisplayAsLocalClientAttribute.IsBound());
 		
 		ChildSlot
 		[
@@ -54,11 +58,19 @@ namespace UE::ConcertClientSharedSlate
 
 	FText SClientName::GetDisplayText(const FConcertClientInfo& Info, bool bDisplayAsLocalClient)
 	{
-		if (bDisplayAsLocalClient)
+		return bDisplayAsLocalClient
+			? GetDisplayText(Info, ParenthesesClientNameContent::LocalClient)
+			: GetDisplayText(Info);
+	}
+
+	FText SClientName::GetDisplayText(const FConcertClientInfo& Info, const FText& ParenthesesContent)
+	{
+		if (!ParenthesesContent.IsEmpty())
 		{
 			return FText::Format(
-				LOCTEXT("ClientDisplayNameFmt", "{0} (You)"),
-				FText::FromString(Info.DisplayName)
+				LOCTEXT("ClientDisplayNameFmt", "{0} ({1})"),
+				FText::FromString(Info.DisplayName),
+				ParenthesesContent
 				);
 		}
 		
@@ -68,8 +80,11 @@ namespace UE::ConcertClientSharedSlate
 	FText SClientName::GetClientDisplayName() const
 	{
 		const TOptional<FConcertClientInfo> ClientInfo = ClientInfoAttribute.Get();
+		const FText ParenthesesContent = ParenthesisContentAttribute.IsSet() || ParenthesisContentAttribute.IsBound()
+			? ParenthesisContentAttribute.Get()
+			: FText::GetEmpty();
 		return ClientInfo
-			? GetDisplayText(*ClientInfo, DisplayAsLocalClientAttribute.Get())
+			? GetDisplayText(*ClientInfo, ParenthesesContent)
 			: LOCTEXT("Unavailable", "Unavailable");
 	}
 

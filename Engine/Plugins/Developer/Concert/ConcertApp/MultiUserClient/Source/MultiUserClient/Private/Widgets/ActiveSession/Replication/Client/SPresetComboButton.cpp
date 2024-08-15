@@ -136,7 +136,7 @@ namespace UE::MultiUserClient::Replication
 
 		const auto GetDisplayText = [](const FConcertClientInfo& ClientInfo, bool bDisplayAsLocalClient = false)
 		{
-			return ConcertClientSharedSlate::SClientName::GetDisplayText(ClientInfo, bDisplayAsLocalClient);
+			return ConcertSharedSlate::SClientName::GetDisplayText(ClientInfo, bDisplayAsLocalClient);
 		};
 		
 		TArray<FConcertSessionClientInfo> RemoteClients = Session->GetSessionClients();

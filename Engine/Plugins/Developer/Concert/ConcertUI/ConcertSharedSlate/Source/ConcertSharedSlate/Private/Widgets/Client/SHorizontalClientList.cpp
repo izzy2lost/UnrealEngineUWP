@@ -12,49 +12,40 @@
 
 #define LOCTEXT_NAMESPACE "SHorizontalClientList"
 
-namespace UE::ConcertClientSharedSlate
+namespace UE::ConcertSharedSlate::HorizontalClientList
 {
-	namespace HorizontalClientList
-	{
-		TArray<FConcertSessionClientInfo> GetSortedClients(
+	static TArray<FConcertSessionClientInfo> GetSortedClients(
 			const TConstArrayView<FGuid>& Clients,
 			const ConcertSharedSlate::FGetOptionalClientInfo& GetClientInfoDelegate,
-			const SHorizontalClientList::FSortPredicate& SortPredicate
+			const FClientSortPredicate& SortPredicate
 			)
-		{
-			// Prefetch the client info to avoid many GetClientInfoDelegate calls during Sort()
-			TArray<FConcertSessionClientInfo> ClientsToDisplay;
-			for (const FGuid& Client : Clients)
-			{
-				const TOptional<FConcertClientInfo> ClientInfo = GetClientInfoDelegate.Execute(Client);
-				FConcertSessionClientInfo Info;
-				Info.ClientEndpointId = Client;
-				Info.ClientInfo = ClientInfo ? *ClientInfo : FConcertClientInfo{ .DisplayName = TEXT("Unavailable") };
-				ClientsToDisplay.Add(Info);
-			}
-
-			ClientsToDisplay.Sort([&SortPredicate](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
-			{
-				return SortPredicate.Execute(Left, Right);
-			});
-			return ClientsToDisplay;
-		}
-	}
-	
-	bool SHorizontalClientList::SortLocalClientFirstThenAlphabetical(const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right, ConcertSharedSlate::FIsLocalClient IsLocalClientDelegate)
 	{
-		// If one of the compare clients is local, always return that the local client is smaller.
-		const bool bLeftIsLocalClient = IsLocalClientDelegate.IsBound() && IsLocalClientDelegate.Execute(Left.ClientEndpointId);
-		const bool bRightIsLocalClient = IsLocalClientDelegate.IsBound() && IsLocalClientDelegate.Execute(Right.ClientEndpointId);
-		return bLeftIsLocalClient
-			|| (!bRightIsLocalClient && Left.ClientInfo.DisplayName < Right.ClientInfo.DisplayName);
-	}
+		// Prefetch the client info to avoid many GetClientInfoDelegate calls during Sort()
+		TArray<FConcertSessionClientInfo> ClientsToDisplay;
+		for (const FGuid& Client : Clients)
+		{
+			const TOptional<FConcertClientInfo> ClientInfo = GetClientInfoDelegate.Execute(Client);
+			FConcertSessionClientInfo Info;
+			Info.ClientEndpointId = Client;
+			Info.ClientInfo = ClientInfo ? *ClientInfo : FConcertClientInfo{ .DisplayName = TEXT("Unavailable") };
+			ClientsToDisplay.Add(Info);
+		}
 
+		ClientsToDisplay.Sort([&SortPredicate](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
+		{
+			return SortPredicate.Execute(Left, Right);
+		});
+		return ClientsToDisplay;
+	}
+}
+
+namespace UE::ConcertSharedSlate
+{
 	TOptional<FString> SHorizontalClientList::GetDisplayString(
 		const TConstArrayView<FGuid>& Clients,
-		const ConcertSharedSlate::FGetOptionalClientInfo& GetClientInfoDelegate,
-		const FSortPredicate& SortPredicate,
-		const ConcertSharedSlate::FIsLocalClient& IsLocalClientDelegate
+		const FGetOptionalClientInfo& GetClientInfoDelegate,
+		const FClientSortPredicate& SortPredicate,
+		const FGetClientParenthesesContent& GetClientParenthesesContent
 		)
 	{
 		const TArray<FConcertSessionClientInfo> ClientsToDisplay = HorizontalClientList::GetSortedClients(Clients, GetClientInfoDelegate, SortPredicate);
@@ -63,23 +54,28 @@ namespace UE::ConcertClientSharedSlate
 			return {};
 		}
 		
-		return FString::JoinBy(ClientsToDisplay, TEXT(", "), [&IsLocalClientDelegate](const FConcertSessionClientInfo& ClientInfo)
+		return FString::JoinBy(ClientsToDisplay, TEXT(", "), [&GetClientParenthesesContent](const FConcertSessionClientInfo& ClientInfo)
 			{
 				// GetSortedClients should return empty if GetSortedClients is invalid
-				const bool bIsLocalClient = IsLocalClientDelegate.IsBound() && IsLocalClientDelegate.Execute(ClientInfo.ClientEndpointId);
-				return SClientName::GetDisplayText(ClientInfo.ClientInfo, bIsLocalClient).ToString();
+				const FText ParenthesesContent = EvaluateGetClientParenthesesContent(GetClientParenthesesContent, ClientInfo.ClientEndpointId);
+				return SClientName::GetDisplayText(ClientInfo.ClientInfo, ParenthesesContent).ToString();
 			});
 	}
 
 	void SHorizontalClientList::Construct(const FArguments& InArgs)
 	{
-		IsLocalClientDelegate = InArgs._IsLocalClient;
+		GetClientParenthesesContentDelegate = InArgs._GetClientParenthesesContent;
 		GetClientInfoDelegate = InArgs._GetClientInfo;
 		SortPredicateDelegate = InArgs._SortPredicate.IsBound()
 			? InArgs._SortPredicate
-			: FSortPredicate::CreateStatic(&SHorizontalClientList::SortLocalClientFirstThenAlphabetical, IsLocalClientDelegate);
+			: FClientSortPredicate::CreateLambda([this](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
+			{
+				return SortSpecifiedParenthesesFirstThenThenAlphabetical(
+					Left, Right, GetClientParenthesesContentDelegate, ParenthesesClientNameContent::LocalClient
+					);
+			});
 		
-		DisplayAvatarColorAttribute = InArgs._DisplayAvatarColor;
+		ShouldDisplayAvatarColorAttribute = InArgs._DisplayAvatarColor;
 		HighlightTextAttribute = InArgs._HighlightText;
 		
 		NameFont = InArgs._Font;
@@ -103,7 +99,7 @@ namespace UE::ConcertClientSharedSlate
 		];
 	}
 
-	void SHorizontalClientList::RefreshList(const TConstArrayView<FGuid>& Clients)
+	void SHorizontalClientList::RefreshList(const TConstArrayView<FGuid>& Clients) const
 	{
 		ScrollBox->ClearChildren();
 
@@ -115,7 +111,6 @@ namespace UE::ConcertClientSharedSlate
 		WidgetSwitcher->SetActiveWidgetIndex(1);
 
 		const TArray<FConcertSessionClientInfo> ClientsToDisplay = HorizontalClientList::GetSortedClients(Clients, GetClientInfoDelegate, SortPredicateDelegate);
-		
 		bool bIsFirst = true;
 		for (const FConcertSessionClientInfo& Info : ClientsToDisplay)
 		{
@@ -133,30 +128,19 @@ namespace UE::ConcertClientSharedSlate
 			}
 
 			const FGuid& EndpointId = Info.ClientEndpointId;
-			const bool bIsLocalClient = IsLocalClientDelegate.IsBound() && IsLocalClientDelegate.Execute(Info.ClientEndpointId);
-			if (bIsLocalClient)
+			const auto GetParenthesesContent = [this, EndpointId]()
 			{
-				ScrollBox->AddSlot()
-				[
-					SNew(SLocalClientName)
-					.DisplayInfo_Lambda([this, EndpointId](){ return GetClientInfoDelegate.Execute(EndpointId); })
-					.DisplayAvatarColor(DisplayAvatarColorAttribute)
-					.HighlightText(HighlightTextAttribute)
-					.Font(NameFont)
-				];
-			}
-			else
-			{
-				ScrollBox->AddSlot()
-				[
-					SNew(SRemoteClientName)
-					.DisplayInfo_Lambda([this, EndpointId](){ return GetClientInfoDelegate.Execute(EndpointId); })
-					.DisplayAvatarColor(DisplayAvatarColorAttribute)
-					.HighlightText(HighlightTextAttribute)
-					.Font(NameFont)
-				];
-			}
-
+				return EvaluateGetClientParenthesesContent(GetClientParenthesesContentDelegate, EndpointId);
+			};
+			ScrollBox->AddSlot()
+			[
+				SNew(SClientName)
+				.ClientInfo_Lambda([this, EndpointId](){ return GetClientInfoDelegate.Execute(EndpointId); })
+				.ParenthesisContent_Lambda(GetParenthesesContent)
+				.DisplayAvatarColor(ShouldDisplayAvatarColorAttribute)
+				.HighlightText(HighlightTextAttribute)
+				.Font(NameFont)
+			];
 			bIsFirst = false;
 		}
 	}
