@@ -52,6 +52,7 @@ void FLightSceneInfoCompact::Init(FLightSceneInfo* InLightSceneInfo)
 	bAffectGlobalIllumination = InLightSceneInfo->Proxy->AffectGlobalIllumination();
 	bIsMovable = InLightSceneInfo->Proxy->IsMovable();
 	CastRaytracedShadow = InLightSceneInfo->Proxy->CastsRaytracedShadow();
+	bUseVirtualShadowMaps = InLightSceneInfo->Proxy->UseVirtualShadowMaps();
 }
 
 FLightSceneInfo::FLightSceneInfo(FLightSceneProxy* InProxy, bool InbVisible)

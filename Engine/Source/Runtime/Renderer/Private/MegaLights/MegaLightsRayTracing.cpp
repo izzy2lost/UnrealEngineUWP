@@ -4,6 +4,7 @@
 #include "MegaLightsInternal.h"
 #include "Lumen/LumenTracingUtils.h"
 #include "Lumen/LumenHardwareRayTracingCommon.h"
+#include "VirtualShadowMaps/VirtualShadowMapArray.h"
 #include "BasePassRendering.h"
 
 static TAutoConsoleVariable<int32> CVarMegaLightsScreenTraces(
@@ -597,6 +598,44 @@ class FScreenSpaceRayTraceLightSamplesCS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FScreenSpaceRayTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsRayTracing.usf", "ScreenSpaceRayTraceLightSamplesCS", SF_Compute);
 
+class FVirtualShadowMapTraceLightSamplesCS : public FGlobalShader
+{
+	DECLARE_GLOBAL_SHADER(FVirtualShadowMapTraceLightSamplesCS)
+	SHADER_USE_PARAMETER_STRUCT(FVirtualShadowMapTraceLightSamplesCS, FGlobalShader);
+
+	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
+		SHADER_PARAMETER_STRUCT_INCLUDE(MegaLights::FCompactedTraceParameters, CompactedTraceParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
+		SHADER_PARAMETER_STRUCT_INCLUDE(FVirtualShadowMapSamplingParameters, VirtualShadowMapSamplingParameters)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, LightSampleRayDistance)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<uint>, RWLightSamples)
+	END_SHADER_PARAMETER_STRUCT()
+
+	static int32 GetGroupSize()
+	{
+		return 64;
+	}
+
+	class FDebugMode : SHADER_PERMUTATION_BOOL("DEBUG_MODE");
+	using FPermutationDomain = TShaderPermutationDomain<FDebugMode>;
+
+	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
+	{
+		return MegaLights::ShouldCompileShaders(Parameters.Platform);
+	}
+
+	FORCENOINLINE static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
+	{
+		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
+		MegaLights::ModifyCompilationEnvironment(Parameters.Platform, OutEnvironment);
+		FVirtualShadowMapArray::SetShaderDefines(OutEnvironment);
+		OutEnvironment.CompilerFlags.Add(CFLAG_Wave32);
+		OutEnvironment.SetDefine(TEXT("THREADGROUP_SIZE"), GetGroupSize());
+	}
+};
+
+IMPLEMENT_GLOBAL_SHADER(FVirtualShadowMapTraceLightSamplesCS, "/Engine/Private/MegaLights/MegaLightsVSMTracing.usf", "VirtualShadowMapTraceLightSamplesCS", SF_Compute);
+
 #if RHI_RAYTRACING
 void FDeferredShadingSceneRenderer::PrepareMegaLightsHardwareRayTracing(const FViewInfo& View, TArray<FRHIRayTracingShader*>& OutRayGenShaders)
 {
@@ -865,6 +904,7 @@ void MegaLights::RayTraceLightSamples(
 	const FViewInfo& View,
 	FRDGBuilder& GraphBuilder,
 	const FSceneTextures& SceneTextures,
+	const FVirtualShadowMapArray& VirtualShadowMapArray,
 	const FIntPoint SampleBufferSize,
 	FRDGTextureRef LightSamples,
 	FRDGTextureRef LightSampleRayDistance,
@@ -874,6 +914,34 @@ void MegaLights::RayTraceLightSamples(
 {
 	const bool bDebug = MegaLights::GetDebugMode() != 0;
 	const bool bVolumeDebug = MegaLights::GetVolumeDebugMode() != 0;
+
+	if (VirtualShadowMapArray.IsEnabled() && MegaLights::IsUsingVirtualShadowMaps())
+	{
+		FCompactedTraceParameters CompactedTraceParameters = MegaLights::CompactMegaLightsTraces(
+			View,
+			GraphBuilder,
+			SampleBufferSize,
+			LightSamples,
+			MegaLightsParameters);
+
+		FVirtualShadowMapTraceLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualShadowMapTraceLightSamplesCS::FParameters>();
+		PassParameters->CompactedTraceParameters = CompactedTraceParameters;
+		PassParameters->MegaLightsParameters = MegaLightsParameters;
+		PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
+		PassParameters->VirtualShadowMapSamplingParameters = VirtualShadowMapArray.GetSamplingParameters(GraphBuilder);
+
+		FVirtualShadowMapTraceLightSamplesCS::FPermutationDomain PermutationVector;
+		PermutationVector.Set<FVirtualShadowMapTraceLightSamplesCS::FDebugMode>(bDebug);
+		auto ComputeShader = View.ShaderMap->GetShader<FVirtualShadowMapTraceLightSamplesCS>(PermutationVector);
+
+		FComputeShaderUtils::AddPass(
+			GraphBuilder,
+			RDG_EVENT_NAME("VirtualShadowMapTraceLightSamples"),
+			ComputeShader,
+			PassParameters,
+			CompactedTraceParameters.IndirectArgs,
+			(int32)MegaLights::ECompactedTraceIndirectArgs::NumTracesDiv64);
+	}
 
 	if (CVarMegaLightsScreenTraces.GetValueOnRenderThread() != 0)
 	{

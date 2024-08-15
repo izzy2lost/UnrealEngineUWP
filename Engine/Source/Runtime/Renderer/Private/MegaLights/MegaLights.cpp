@@ -183,6 +183,13 @@ static TAutoConsoleVariable<int32> CVarMegaLightsVolumeDebugSliceIndex(
 	TEXT("Which volume slice to visualize."),
 	ECVF_RenderThreadSafe);
 
+static TAutoConsoleVariable<int32> CVarMegaLightsVSM(
+	TEXT("r.MegaLights.VSM"),
+	0,
+	TEXT("Whether to include local lights with VSMs."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 namespace MegaLights
 {
 	// must match values in MegaLights.ush
@@ -194,9 +201,19 @@ namespace MegaLights
 		return CVarMegaLights.GetValueOnRenderThread() != 0;
 	}
 
+	bool IsUsingForcedRaytracing()
+	{
+		return CVarMegaLights.GetValueOnRenderThread() == 2;
+	}
+
 	bool UseVolume()
 	{
 		return CVarMegaLightsVolume.GetValueOnRenderThread() != 0;
+	}
+
+	bool IsUsingVirtualShadowMaps()
+	{
+		return IsEnabled() && CVarMegaLightsVSM.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsUsingLightFunctions()
@@ -204,12 +221,13 @@ namespace MegaLights
 		return IsEnabled() && CVarMegaLightsLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow)
+	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled)
 	{
 		if (MegaLights::IsEnabled() && LightType != LightType_Directional)
 		{
 			const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
-			return CVarMegaLights.GetValueOnRenderThread() == 2 || bRayTracedShadows;
+			const bool bVSMShadows = IsUsingVirtualShadowMaps() && bVSMEnabled;
+			return IsUsingForcedRaytracing() || bRayTracedShadows || bVSMShadows;
 		}
 
 		return false;
@@ -1184,6 +1202,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			View,
 			GraphBuilder,
 			SceneTextures,
+			VirtualShadowMapArray,
 			SampleBufferSize,
 			LightSamples,
 			LightSampleRayDistance,

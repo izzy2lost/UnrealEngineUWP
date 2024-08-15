@@ -6102,8 +6102,11 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 				FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo->Id];
 
 				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneInfoCompact);
-				if (OcclusionType != FLightOcclusionType::Shadowmap)
+				if (OcclusionType != FLightOcclusionType::Shadowmap &&
+					OcclusionType != FLightOcclusionType::MegaLightsVSM)
+				{
 					continue;
+				}
 
 				// Only consider lights that may have shadows.
 				if (LightSceneInfoCompact.bCastStaticShadow || LightSceneInfoCompact.bCastDynamicShadow)

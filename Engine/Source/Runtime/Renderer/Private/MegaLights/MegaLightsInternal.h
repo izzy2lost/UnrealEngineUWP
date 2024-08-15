@@ -66,6 +66,7 @@ namespace MegaLights
 		const FViewInfo& View,
 		FRDGBuilder& GraphBuilder,
 		const FSceneTextures& SceneTextures,
+		const FVirtualShadowMapArray& VirtualShadowMapArray,
 		const FIntPoint SampleBufferSize,
 		FRDGTextureRef LightSamples,
 		FRDGTextureRef LightSampleRayDistance,
