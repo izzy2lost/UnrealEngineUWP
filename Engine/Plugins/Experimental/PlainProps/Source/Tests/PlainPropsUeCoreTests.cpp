@@ -101,36 +101,41 @@ struct TScopedStructDeclaration
 {
 	using Ids = typename Runtime::Ids;
 
-	FStructSchemaId Id;
+	FStructSchemaId DeclId;
 
 	TScopedStructDeclaration()
-	: Id(DeclareNativeStruct<CttiOf<T>, Ids>(Runtime::GetTypes(), Occupancy))
+	: DeclId(DeclareNativeStruct<CttiOf<T>, Ids>(Runtime::GetTypes(), Occupancy))
 	{}
 
 	~TScopedStructDeclaration()
 	{
-		Runtime::GetTypes().DropStruct(Id);
+		Runtime::GetTypes().DropStructRef(DeclId);
 	}
 
 	const FStructDeclaration& Get() const
 	{
-		return Runtime::GetTypes().Get(Id);
+		return Runtime::GetTypes().Get(DeclId);
 	}
 };
 
 template<class T, EMemberPresence Occupancy = EMemberPresence::AllowSparse, class Runtime = FDefaultRuntime>
 struct TScopedStructBinding : TScopedStructDeclaration<T, Occupancy, Runtime>
 {
-	using TScopedStructDeclaration<T, Occupancy, Runtime>::Id;
+	using Super = TScopedStructDeclaration<T, Occupancy, Runtime>;
+	using Ids = typename Runtime::Ids;
+	using Typename = TTypename<T>;
+
+	FStructSchemaId BindId;
 
 	TScopedStructBinding()
+	: BindId(IndexStructBindIdIfNeeded<T, Ids>(Super::DeclId))
 	{
-		BindNativeStruct<CttiOf<T>, Runtime>(Runtime::GetSchemas(), Id);
+		BindNativeStruct<CttiOf<T>, Runtime>(Runtime::GetSchemas(), BindId, Super::DeclId);
 	}
 
 	~TScopedStructBinding()
 	{
-		Runtime::GetSchemas().DropStruct(Id);
+		Runtime::GetSchemas().DropStruct(BindId);
 	}
 };
 
@@ -142,7 +147,7 @@ struct FNameDeclaration
 	FStructSchemaId		Id;
 	FMemberId			Idx;
 
-	FNameDeclaration(FTypeId Type = FIds::IndexNativeType(CttiOf<FName>::Name))
+	FNameDeclaration(FTypeId Type = IndexTypename<FIds, ETypename::Decl, TTypename<FName>>())
 	: Id(FIds::IndexStruct(Type))
 	, Idx(FIds::IndexMember("Idx"))
 	{
@@ -151,13 +156,13 @@ struct FNameDeclaration
 
 	~FNameDeclaration()
 	{
-		GTypes.DropStruct(Id);
+		GTypes.DropStructRef(Id);
 	}
 };
 
 struct FTestCustomBinding : ICustomBinding
 {
-	virtual FStructSchemaId GetId() const = 0;
+//	virtual FDualStructSchemaId GetId() const = 0;
 };
 
 struct FNameBinding : FTestCustomBinding
@@ -181,7 +186,7 @@ struct FNameBinding : FTestCustomBinding
 		return A.IsEqual(B, ENameCase::CaseSensitive);
 	}
 
-	virtual FStructSchemaId GetId() const override { return Declaration.Id; }
+//	virtual FDualStructSchemaId GetId() const override { return { Declaration.Id, Declaration.Id }; }
 
 	FNameDeclaration	Declaration;
 	TSet<FName>			Names;
@@ -212,23 +217,23 @@ private:
 FBatchSaver::FBatchSaver()
 : Customs(/* debug */ GNames, &GCustoms)
 {
-	Customs.BindStruct(SavedNames.Declaration.Id, SavedNames);
+	Customs.BindStruct(SavedNames.Declaration.Id, SavedNames.Declaration.Id, SavedNames);
 }
 
 template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
-	FStructSchemaId Id = IndexStruct<std::remove_reference_t<T>, FIds>();
-	SavedObjects.Emplace(Id, SaveStruct(&Object, Id, {GTypes, GSchemas, Customs, Scratch}));
+	FDualStructSchemaId Id = IndexStructDualId<std::remove_reference_t<T>, FIds>();
+	SavedObjects.Emplace(Id.Decl, SaveStruct(&Object, Id.Bind, {GTypes, GSchemas, Customs, Scratch}));
 }
 
 template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
-	FStructSchemaId Id = IndexStruct<std::remove_reference_t<T>, FIds>();
-	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id, {GTypes, GSchemas, Customs, Scratch}))
+	FDualStructSchemaId Id = IndexStructDualId<std::remove_reference_t<T>, FIds>();
+	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id.Bind, {GTypes, GSchemas, Customs, Scratch}))
 	{
-		SavedObjects.Emplace(Id, MoveTemp(Delta));
+		SavedObjects.Emplace(Id.Decl, MoveTemp(Delta));
 		return true;
 	}
 	return false;
@@ -253,7 +258,7 @@ inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887
 TArray64<uint8> FBatchSaver::Write() const
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(GTypes, Scratch);
+	FSchemasBuilder SchemaBuilders(GTypes, GSchemas, Scratch);
 	for (const IdBuiltStructPair& Object : SavedObjects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
@@ -261,7 +266,7 @@ TArray64<uint8> FBatchSaver::Write() const
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
 	// Filter out declared but unused names and ids
-	FWriter Writer(GNames, Schemas, ESchemaFormat::StableNames);
+	FWriter Writer(GNames, GSchemas, Schemas, ESchemaFormat::StableNames);
 	TArray<FName> UsedNames;
 	for (uint32 Idx = 0, Num = GNames.NumNames(); Idx < Num; ++Idx)
 	{
@@ -346,7 +351,7 @@ public:
 
 		// Read names and bind custom loader
 		Names.Names.Append(GrabNumAndArray<FName>(It));
-		Customs.BindStruct(Names.Declaration.Id, Names);
+		Customs.BindStruct(Names.Declaration.Id, Names.Declaration.Id, Names);
 		CHECK(It.Grab<uint32>() == Magics[5]);
 
 		// Finally create load plans
@@ -532,6 +537,61 @@ inline bool operator==(const FMaps& A, const FMaps& B)
 	return LegacyCompareEqual(A.Leaves, B.Leaves) && LegacyCompareEqual(A.Ranges, B.Ranges) && LegacyCompareEqual(A.Structs, B.Structs);
 }
 
+struct FIntAlias
+{
+	int X;
+	bool operator==(const FIntAlias&) const = default;
+};
+
+struct FSame1
+{
+	int X = 1;
+	bool operator==(const FSame1&) const = default;
+};
+
+struct FSame2
+{ 
+	int Unused;
+	int X = 2;
+	bool operator==(const FSame2& O) const { return X == O.X; };
+};
+
+
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FIntAlias, void, X);
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FSame1, void, X);
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FSame2, void, X);
+
+} namespace PlainProps {
+
+template <> struct TTypename<PlainProps::UE::Test::FIntAlias>
+{
+	inline static constexpr std::string_view DeclName = "FInt";
+	inline static constexpr std::string_view BindName = "IntAlias";
+};
+template <> struct TTypename<PlainProps::UE::Test::FSame1>
+{
+	inline static constexpr std::string_view DeclName = "Same";
+	inline static constexpr std::string_view BindName = "Same1";
+};
+template <> struct TTypename<PlainProps::UE::Test::FSame2>
+{
+	inline static constexpr std::string_view DeclName = "Same";
+	inline static constexpr std::string_view BindName = "Same2";
+};
+
+} namespace PlainProps::UE::Test {
+
+struct FTypeErasure
+{
+	FSame1 A;
+	FSame2 B;
+	FIntAlias C;
+	TPair<FString, TArray<char8_t>> D;
+	TPair<TArray<char>, TArray<char, TInlineAllocator<8>>> E;
+	bool operator==(const FTypeErasure&) const = default;
+};
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FTypeErasure, void, A, B, C, D, E); 
+
 //////////////////////////////////////////////////////////////////////////
 
 struct FUniquePtrs
@@ -673,6 +733,18 @@ PP_REFLECT_STRUCT(PlainProps::UE::Test, FDelta, void, A, B, C, D, E);
 //PP_REFLECT_STRUCT(PlainProps::UE::Test, FOwner, void, Objects);
 
 //////////////////////////////////////////////////////////////////////////
+
+template<typename T>
+TArray<T> MakeArray(const T* Str)
+{
+	return TArray<T>(Str, TCString<T>::Strlen(Str));
+}
+
+template<int N, typename T>
+TArray<T, TInlineAllocator<N>> MakeInlArray(const T* Str)
+{
+	return TArray<T, TInlineAllocator<N>>(Str, TCString<T>::Strlen(Str));
+}
 
 TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps::UE::Core", "[Core][PlainProps][SmokeFilter]")
 {
@@ -828,7 +900,28 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 				}
 			});	
 	}
-		
+
+	SECTION("TypeErasure")
+	{
+		TScopedStructBinding<FSame1> Same1;
+		TScopedStructBinding<FSame2> Same2;	
+		TScopedStructBinding<FIntAlias> IntAlias;
+		TScopedStructBinding<TPair<FString, TArray<char8_t>>> X;
+		TScopedStructBinding<TPair<TArray<char>, TArray<char, TInlineAllocator<8>>>> Y;
+		TScopedStructBinding<FTypeErasure> TypeErasure;
+
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FTypeErasure{});
+				Batch.Save(FTypeErasure{{10}, {0,20}, {30}, {"a", TArray<char8_t>({u8'b'})}, {MakeArray("c"), MakeInlArray<8>("d")}});
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FTypeErasure>() == FTypeErasure{});
+				CHECK(Batch.Load<FTypeErasure>() == FTypeErasure{FTypeErasure{{10}, {0,20}, {30}, {"a", TArray<char8_t>({u8'b'})}, {MakeArray("c"), MakeInlArray<8>("d")}}});
+			});
+	}
+
 	SECTION("TSet")
 	{
 		TScopedStructBinding<FInt> Int;

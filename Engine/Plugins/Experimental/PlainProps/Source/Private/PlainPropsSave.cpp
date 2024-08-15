@@ -310,27 +310,34 @@ static void SaveMember(FMemberBuilder& Out, const void* Struct, FMemberId Name, 
 	Out.AddStruct(Name, Member.Id, SaveStruct(At(Struct, Member.Offset), Member.Id, Ctx));
 }
 
-FBuiltStruct* SaveStruct(const void* Struct, FStructSchemaId Id, const FSaveContext& Ctx)
+FBuiltStruct* SaveStruct(const void* Struct, FStructSchemaId BindId, const FSaveContext& Ctx)
 {
-	const FStructDeclaration& Declaration = Ctx.Declarations.Get(Id);
-
+	const FStructDeclaration* Declaration = nullptr;
 	FMemberBuilder Out;
-	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
+	if (FCustomBindingEntry Custom = Ctx.Customs.FindStructToSave(BindId))
 	{
-		Custom->SaveCustom(Out, Struct, nullptr, Ctx);
+		Custom.Binding->SaveCustom(Out, Struct, nullptr, Ctx);
+		Declaration = &Ctx.Declarations.Get(Custom.DeclId);	
 	}
-	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )
+	else
 	{
-		FMemberId Name = Declaration.GetMemberOrder()[It.GetIndex()];
-		switch (It.PeekKind())
+		const FSchemaBinding& Schema = Ctx.Schemas.GetStruct(BindId);
+		Declaration = &Ctx.Declarations.Get(Schema.DeclId);	
+		TConstArrayView<FMemberId> MemberOrder = Declaration->GetMemberOrder();
+
+		for (FMemberVisitor It(Schema); It.HasMore(); )
 		{
-			case EMemberKind::Leaf:		SaveMember(Out, Struct, Name, Ctx, It.GrabLeaf());		break;
-			case EMemberKind::Range:	SaveMember(Out, Struct, Name, Ctx, It.GrabRange());		break;
-			case EMemberKind::Struct:	SaveMember(Out, Struct, Name, Ctx, It.GrabStruct());	break;
+			FMemberId Name = MemberOrder[It.GetIndex()];
+			switch (It.PeekKind())
+			{
+				case EMemberKind::Leaf:		SaveMember(Out, Struct, Name, Ctx, It.GrabLeaf());		break;
+				case EMemberKind::Range:	SaveMember(Out, Struct, Name, Ctx, It.GrabRange());		break;
+				case EMemberKind::Struct:	SaveMember(Out, Struct, Name, Ctx, It.GrabStruct());	break;
+			}
 		}
 	}
-	
-	return Out.BuildAndReset(Ctx.Scratch, Declaration, Ctx.Declarations.GetDebug());
+
+	return Out.BuildAndReset(Ctx.Scratch, *Declaration, Ctx.Declarations.GetDebug());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -474,7 +481,7 @@ static bool DiffItem(const uint8* A, const uint8* B, const FSaveContext& Ctx, FR
 
 static bool DiffItem(const uint8* A, const uint8* B, const FSaveContext& Ctx, FStructSchemaId Id)
 {
-	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
+	if (const ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
 	{
 		return Custom->DiffCustom(A, B);
 	}
@@ -524,30 +531,37 @@ static void SaveMemberDelta(FMemberBuilder& Out, const void* Struct, const void*
 	}
 }
 
-FBuiltStruct* SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId Id, const FSaveContext& Ctx)
+FBuiltStruct* SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId BindId, const FSaveContext& Ctx)
 {
-	const FStructDeclaration& Declaration = Ctx.Declarations.Get(Id);
-
+	const FStructDeclaration* Declaration = nullptr;
 	FMemberBuilder Out;
-	if (ICustomBinding* Custom = Ctx.Customs.FindStruct(Id))
+	if (FCustomBindingEntry Custom = Ctx.Customs.FindStructToSave(BindId))
 	{
-		if (Custom->DiffCustom(Struct, Default))
+		if (Custom.Binding->DiffCustom(Struct, Default))
 		{
-			Custom->SaveCustom(Out, Struct, Default, Ctx);
+			Declaration = &Ctx.Declarations.Get(Custom.DeclId);	
+			Custom.Binding->SaveCustom(Out, Struct, Default, Ctx);
 		}
 	}
-	else for (FMemberVisitor It(Ctx.Schemas.GetStruct(Id)); It.HasMore(); )
+	else
 	{
-		FMemberId Name = Declaration.GetMemberOrder()[It.GetIndex()];
-		switch (It.PeekKind())
+		const FSchemaBinding& Schema = Ctx.Schemas.GetStruct(BindId);
+		Declaration = &Ctx.Declarations.Get(Schema.DeclId);	
+		TConstArrayView<FMemberId> MemberOrder = Declaration->GetMemberOrder();
+
+		for (FMemberVisitor It(Schema); It.HasMore(); )
 		{
-			case EMemberKind::Leaf:		SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabLeaf());	break;
-			case EMemberKind::Range:	SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabRange());	break;
-			case EMemberKind::Struct:	SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabStruct());	break;
+			FMemberId Name = MemberOrder[It.GetIndex()];
+			switch (It.PeekKind())
+			{
+				case EMemberKind::Leaf:		SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabLeaf());	break;
+				case EMemberKind::Range:	SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabRange());	break;
+				case EMemberKind::Struct:	SaveMemberDelta(Out, Struct, Default, Name, Ctx, It.GrabStruct());	break;
+			}
 		}
 	}
 	
-	return Out.IsEmpty() ? nullptr : Out.BuildAndReset(Ctx.Scratch, Declaration, Ctx.Declarations.GetDebug());
+	return Out.IsEmpty() ? nullptr : Out.BuildAndReset(Ctx.Scratch, *Declaration, Ctx.Declarations.GetDebug());
 }
 
 } // namespace PlainProps

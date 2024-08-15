@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "PlainPropsDeclare.h"
+#include "Algo/Compare.h"
 #include "Containers/Set.h"
 
 namespace PlainProps
@@ -43,20 +44,31 @@ void CopyItems(T* It, TConstArrayView<T> Items)
 	}
 }
 
-void FDeclarations::DeclareStruct(FStructSchemaId Id, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super)
+void FDeclarations::DeclareStruct(FStructSchemaId DeclId, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super)
 {
-	if (static_cast<int32>(Id.Idx) >= DeclaredStructs.Num())
+	if (static_cast<int32>(DeclId.Idx) >= DeclaredStructs.Num())
 	{
-		DeclaredStructs.SetNum(Id.Idx + 1);
+		DeclaredStructs.SetNum(DeclId.Idx + 1);
 	}
 
-	TUniquePtr<FStructDeclaration>& Ptr = DeclaredStructs[Id.Idx];
-	checkf(!Ptr, TEXT("'%s' is already declared"), *Debug.Print(Id));
+	TUniquePtr<FStructDeclaration>& Ptr = DeclaredStructs[DeclId.Idx];
+	if (Ptr)
+	{
+		check(DeclId == Ptr->Id);
+		check(Type == Ptr->Type);
+		check(Super == Ptr->Super);
+		check(Occupancy == Ptr->Occupancy);
+		check(Algo::Compare(MemberOrder, Ptr->GetMemberOrder()));
 
-	FStructDeclaration Header{Id, Type, Super, Occupancy, IntCastChecked<uint16>(MemberOrder.Num())};
-	void* Data = FMemory::Malloc(sizeof(FStructDeclaration) + MemberOrder.Num() * MemberOrder.GetTypeSize());
-	Ptr.Reset(new (Data) FStructDeclaration(Header));
-	CopyItems(Ptr->MemberOrder, MemberOrder);
+		Ptr->RefCount++;
+	}
+	else
+	{
+		FStructDeclaration Header{1, DeclId, Type, Super, Occupancy, IntCastChecked<uint16>(MemberOrder.Num())};
+		void* Data = FMemory::Malloc(sizeof(FStructDeclaration) + MemberOrder.Num() * MemberOrder.GetTypeSize());
+		Ptr.Reset(new (Data) FStructDeclaration(Header));
+		CopyItems(Ptr->MemberOrder, MemberOrder);
+	}
 }
 
 void FDeclarations::DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, ELeafWidth Width, TConstArrayView<FEnumerator> Enumerators)
@@ -75,6 +87,18 @@ void FDeclarations::DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, 
 	CopyItems(Ptr->Enumerators, Enumerators);
 
 	ValidateDeclaration(*Ptr);
+}
+
+void FDeclarations::DropStructRef(FStructSchemaId DeclId)
+{
+	Check(DeclId);
+	
+	TUniquePtr<FStructDeclaration>& Ptr = DeclaredStructs[DeclId.Idx];
+	Ptr->RefCount--;
+	if (Ptr->RefCount == 0)
+	{
+		Ptr.Reset();
+	}
 }
 
 #if DO_CHECK

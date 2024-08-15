@@ -104,7 +104,7 @@ TEST_CASE_NAMED(FPlainPropsIndexTest, "System::Core::Serialization::PlainProps::
 
 inline constexpr uint32 TestMagics[] = {0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887766, 0xF0F1F2F3 };
 
-class FTestBatchBuilder : public TIdIndexer<FAnsiString>
+class FTestBatchBuilder : public TIdIndexer<FAnsiString>, public IStructBindIds
 {
 public:
 	FTestBatchBuilder(FScratchAllocator& InScratch) : Declarations(*this), Scratch(InScratch) {}
@@ -151,6 +151,12 @@ private:
 	}
 
 	TArray<char> GetNameData() const;
+
+	virtual FStructSchemaId GetDeclId(FStructSchemaId BindId) const override
+	{
+		checkf(false, TEXT("All struct ids should be declared, nothing is bound with different names in this test suite"));
+		return BindId;
+	}
 };
 
 FStructSchemaId FTestBatchBuilder::DeclareStruct(FTypeId Type, std::initializer_list<const char*> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super)
@@ -185,7 +191,7 @@ void FTestBatchBuilder::AddObject(FStructSchemaId Schema, FMemberBuilder&& Membe
 TArray64<uint8> FTestBatchBuilder::Write()
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(Declarations, Scratch);
+	FSchemasBuilder SchemaBuilders(Declarations, *this, Scratch);
 	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : Objects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
@@ -193,7 +199,7 @@ TArray64<uint8> FTestBatchBuilder::Write()
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
 	// Filter out declared but unused names and ids
-	FWriter Writer(*this, Schemas, ESchemaFormat::StableNames);
+	FWriter Writer(*this, *this, Schemas, ESchemaFormat::StableNames);
 
 	// Write names
 	TArray64<uint8> Out;

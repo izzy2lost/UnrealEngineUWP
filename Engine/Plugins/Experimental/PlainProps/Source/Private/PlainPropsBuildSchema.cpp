@@ -72,15 +72,14 @@ struct FEnumSchemaBuilder
 
 //////////////////////////////////////////////////////////////////////////
 
-FSchemasBuilder::FSchemasBuilder(const FDeclarations& Types, FScratchAllocator& InScratch)
-: FSchemasBuilder(Types.GetStructs(), Types.GetEnums(), Types.GetDebug(), InScratch)
-{
+FSchemasBuilder::FSchemasBuilder(const FDeclarations& Types, const IStructBindIds& InBindIds, FScratchAllocator& InScratch)
+: FSchemasBuilder(Types.GetStructs(), Types.GetEnums(), InBindIds, Types.GetDebug(), InScratch)
+{}
 
-}
-
-FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug, FScratchAllocator& InScratch)
+FSchemasBuilder::FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const IStructBindIds& InBindIds, const FDebugIds& InDebug, FScratchAllocator& InScratch)
 : DeclaredStructs(InStructs)
 , DeclaredEnums(InEnums)
+, BindIds(InBindIds)
 , Scratch(InScratch)
 , Debug(InDebug)
 {
@@ -109,16 +108,20 @@ FORCEINLINE FEnumSchemaBuilder&	FSchemasBuilder::NoteEnum(FEnumSchemaId Id)
 	return GetOrEmplace(EnumIndices[Id.Idx], Enums, *DeclaredEnums[Id.Idx], Id);
 }
 
-FORCEINLINE FStructSchemaBuilder& FSchemasBuilder::NoteStruct(FStructSchemaId Id)
+FORCEINLINE FStructSchemaBuilder& FSchemasBuilder::NoteStruct(FStructSchemaId BindId)
 {
 	checkf(!bBuilt, TEXT("Noted new members after building"));
-	checkf(Id.Idx < uint32(DeclaredStructs.Num()) && DeclaredStructs[Id.Idx], TEXT("Undeclared struct '%s' noted"), *Debug.Print(Id));
-	return GetOrEmplace(StructIndices[Id.Idx], Structs, *DeclaredStructs[Id.Idx], *this);
+
+	FStructSchemaId DeclId	= BindId.Idx < uint32(DeclaredStructs.Num()) && DeclaredStructs[BindId.Idx] 
+							? BindId : BindIds.GetDeclId(BindId);
+
+	checkf(DeclId.Idx < uint32(DeclaredStructs.Num()) && DeclaredStructs[DeclId.Idx], TEXT("Undeclared struct '%s' noted"), *Debug.Print(DeclId));
+	return GetOrEmplace(StructIndices[DeclId.Idx], Structs, *DeclaredStructs[DeclId.Idx], *this);
 }
 
-void FSchemasBuilder::NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct)
+void FSchemasBuilder::NoteStructAndMembers(FStructSchemaId BindId, const FBuiltStruct& Struct)
 {
-	NoteStruct(Id).NoteMembersRecursively(Struct);
+	NoteStruct(BindId).NoteMembersRecursively(Struct);
 }
 
 FBuiltSchemas FSchemasBuilder::Build()

@@ -3,29 +3,10 @@
 #pragma once
 
 #include "HAL/Platform.h"
+#include <tuple>
 
 namespace PlainProps 
 {
-
-#define _PP_ARITHMETIC_CTTI(T, N) struct T##_Ctti  { inline static constexpr char Name[] = #N; using Type = T; }; T##_Ctti CttiOfPtr(T*);
-_PP_ARITHMETIC_CTTI(float, f32)
-_PP_ARITHMETIC_CTTI(double, f64)
-_PP_ARITHMETIC_CTTI(bool, bool)
-_PP_ARITHMETIC_CTTI(int8, s8)
-_PP_ARITHMETIC_CTTI(uint8, u8)
-_PP_ARITHMETIC_CTTI(int16, s16)
-_PP_ARITHMETIC_CTTI(uint16, u16)
-_PP_ARITHMETIC_CTTI(int32, s32)
-_PP_ARITHMETIC_CTTI(uint32, u32)
-_PP_ARITHMETIC_CTTI(int64, s64)
-_PP_ARITHMETIC_CTTI(uint64, u64)
-_PP_ARITHMETIC_CTTI(char, utf8)
-_PP_ARITHMETIC_CTTI(char8_t, utf8)
-_PP_ARITHMETIC_CTTI(char16_t, utf16)
-_PP_ARITHMETIC_CTTI(char32_t, utf32)
-#undef _PP_ARITHMETIC_CTTI
-
-//////////////////////////////////////////////////////////////////////////
 
 template<typename T> struct TCttiOf { using Type = decltype(CttiOfPtr((T*)nullptr)); };
 template<typename T> using CttiOf = typename TCttiOf<T>::Type;
@@ -96,4 +77,3 @@ template<class Ctti>
 concept Templated = requires { typename Ctti::TemplateArgs; };
 
 } // namespace PlainProps
-

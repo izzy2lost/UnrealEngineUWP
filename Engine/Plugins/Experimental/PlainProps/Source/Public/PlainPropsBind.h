@@ -3,10 +3,12 @@
 #pragma once
 
 #include "Containers/ArrayView.h"
+#include "Containers/StringView.h"
 #include "Memory/MemoryFwd.h"
 #include "Memory/MemoryView.h"
 #include "PlainPropsCtti.h"
 #include "PlainPropsDeclare.h"
+#include "PlainPropsTypename.h"
 #include "PlainPropsRead.h"
 #include "PlainPropsTypes.h"
 #include <tuple>
@@ -27,6 +29,10 @@ struct FSaveContext;
 struct FTypedRange;
 class IItemRangeBinding;
 template<class T> class TIdIndexer;
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+inline FAnsiStringView ToAnsiView(std::string_view Str) { return FAnsiStringView(Str.data(), Str.length()); }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -122,6 +128,7 @@ static_assert(sizeof(FMemberBindType) == 1);
 // Members are loaded in saved FStructSchema order, not current offset order unless upgrade layer reorders
 struct FSchemaBinding
 {
+	FStructSchemaId			DeclId;
 	uint16					NumMembers;
 	uint16					NumInnerSchemas;
 	uint16					NumInnerRanges;
@@ -234,6 +241,14 @@ protected: // for unit tests
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+struct FDualStructSchemaId
+{
+	FStructSchemaId Bind;
+	FStructSchemaId Decl;
+};
+
+////////////////////////////////////////////////////////////////////////////////////////////////
+
 enum ECustomLoadMethod { Construct, Assign };
 
 /// Load/save a struct with custom code to handle:
@@ -251,6 +266,15 @@ struct ICustomBinding
 	virtual bool				DiffCustom(const void* StructA, const void* StructB) const = 0;
 };
 
+struct FCustomBindingEntry
+{
+	FStructSchemaId BindId;
+	FStructSchemaId DeclId;
+	ICustomBinding* Binding = nullptr;
+
+	explicit operator bool() const { return !!Binding; }
+};
+
 class FCustomBindings
 {
 public:
@@ -258,22 +282,17 @@ public:
 	FCustomBindings(const FDebugIds& Dbg, const FCustomBindings* InBase = nullptr) : Base(InBase), Debug(Dbg) {}
 
 	// @param Binding must outlive this or call DropStruct()
-	PLAINPROPS_API void						BindStruct(FStructSchemaId Id, ICustomBinding& Binding);
-	ICustomBinding*							FindStruct(FStructSchemaId Id)								{ return Find(Id); }
-	const ICustomBinding*					FindStruct(FStructSchemaId Id) const						{ return Find(Id); }
-	PLAINPROPS_API void						DropStruct(FStructSchemaId Id);
+	PLAINPROPS_API void						BindStruct(FStructSchemaId BindId, FStructSchemaId DeclId, ICustomBinding& Binding);
+	const ICustomBinding*					FindStruct(FStructSchemaId BindId) const		{ return Find(BindId).Binding; }
+	FStructSchemaId							FindStructDeclId(FStructSchemaId BindId) const	{ return Find(BindId).DeclId; }
+	FCustomBindingEntry						FindStructToSave(FStructSchemaId BindId)		{ return Find(BindId); }
+	PLAINPROPS_API void						DropStruct(FStructSchemaId BindId);
 
 private:
-	PLAINPROPS_API ICustomBinding* Find(FStructSchemaId Id) const;
-
-	struct FEntry
-	{
-		FStructSchemaId	Id;
-		ICustomBinding* Binding;
-	};
-
+	PLAINPROPS_API FCustomBindingEntry		Find(FStructSchemaId BindId) const;
+	
 	const FCustomBindings*					Base = nullptr;
-	TArray<FEntry, TInlineAllocator<8>>		Entries;
+	TArray<FCustomBindingEntry, TInlineAllocator<8>>		Entries;
 	const FDebugIds&						Debug;
 };
 
@@ -529,93 +548,161 @@ struct FMemberBinding
 	TConstArrayView<FRangeBinding>	RangeBindings;		// Non-empty -> Range
 };
 
-class FSchemaBindings
+class FSchemaBindings : public IStructBindIds
 {
 public:
 	UE_NONCOPYABLE(FSchemaBindings);
 	explicit FSchemaBindings(const FDebugIds& In) : Debug(In) {}
 	PLAINPROPS_API ~FSchemaBindings();
 
-	PLAINPROPS_API void						BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Schema);
-	PLAINPROPS_API const FSchemaBinding&	GetStruct(FStructSchemaId Id) const;
-	PLAINPROPS_API void						DropStruct(FStructSchemaId Id);
+	PLAINPROPS_API void						BindStruct(FStructSchemaId BindId, FStructSchemaId DeclId, TConstArrayView<FMemberBinding> Schema);
+	PLAINPROPS_API const FSchemaBinding*	FindStruct(FStructSchemaId BindId) const;
+	PLAINPROPS_API const FSchemaBinding&	GetStruct(FStructSchemaId BindId) const;
+	PLAINPROPS_API void						DropStruct(FStructSchemaId BindId);
 
 private:
 	TArray<TUniquePtr<FSchemaBinding>>		Bindings;
 	const FDebugIds&						Debug;
+
+	virtual FStructSchemaId GetDeclId(FStructSchemaId BindId) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<class Ctti, typename Ids>
-FTypeId IndexStructOrEnumType();
+template<class Ids, ETypename Kind, typename Typename>
+FTypeId IndexBaseName()
+{	
+	if constexpr (Kind == ETypename::Bind && ExplicitBindName<Typename>)
+	{
+		return Ids::IndexNativeType(ToAnsiView(Typename::BindName));
+	}
+	else
+	{
+		return Ids::IndexNativeType(ToAnsiView(Typename::DeclName));	
+	}
+}
 
-template<typename Enum, typename Ids>
-FEnumSchemaId IndexEnum()
+template<class Ids, ETypename Kind, typename Typename>
+FTypeId IndexTypename()
+{
+	return IndexBaseName<Ids, Kind, Typename>();
+}
+
+template<class Ids, ETypename Kind, ParametricName Typename>
+FTypeId IndexTypename()
+{
+	FTypeId BaseName = IndexBaseName<Ids, Kind, Typename>();
+	return IndexParametricType<Ids, Kind>(BaseName, (typename Typename::Parameters*)nullptr);
+}
+
+template<typename Struct, class Ids>
+FStructSchemaId IndexStructBindIdIfNeeded(FStructSchemaId DeclId)
+{
+	using Typename = TTypename<Struct>;
+
+	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
+	{
+		return Ids::IndexStruct(IndexTypename<Ids, ETypename::Bind, Typename>());
+	}
+	else
+	{
+		return DeclId;
+	}
+}
+
+template<typename Struct, class Ids>
+FDualStructSchemaId IndexStructDualId()
+{
+	using Typename = TTypename<Struct>;
+	
+	FDualStructSchemaId Out;
+	FTypeId DeclName = IndexTypename<Ids, ETypename::Decl, Typename>();
+	Out.Decl = Ids::IndexStruct(DeclName);
+	Out.Bind = Out.Decl;
+
+	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
+	{
+		FTypeId BindName = IndexTypename<Ids, ETypename::Bind, Typename>();
+		Out.Bind = BindName != DeclName ? Ids::IndexStruct(BindName) : Out.Decl;
+	}
+
+	return Out;
+}
+
+// Cached by function static
+template<class Ids, typename Struct>
+FStructSchemaId GetStructDeclId()
+{
+	static FStructSchemaId Id = Ids::IndexStruct(IndexTypename<Ids, ETypename::Decl, TTypename<Struct>>());
+	return Id;
+}
+
+// Cached by function static
+template<class Ids, typename Struct>
+FStructSchemaId GetStructBindId()
+{
+	static FStructSchemaId Id = Ids::IndexStruct(IndexTypename<Ids, ETypename::Bind, TTypename<Struct>>());
+	return Id;
+}
+
+// Cached by function static
+template<class Ids, typename Enum>
+FEnumSchemaId GetEnumId()
 {
 	static FEnumSchemaId Id = Ids::IndexEnum(CttiOf<Enum>::Name);
 	return Id;
 }
 
-template<typename Struct, typename Ids>
-FStructSchemaId IndexStruct()
+template<class Ids, Arithmetic T>
+FTypeId IndexArithmeticName()
 {
-	static FStructSchemaId Id = Ids::IndexStruct(IndexStructOrEnumType<CttiOf<Struct>, Ids>());
-	return Id;
+	static constexpr FUnpackedLeafType Leaf = ReflectArithmetic<T>;
+	return { NoId, Ids::IndexTypename(ToAnsiView(ArithmeticName<Leaf.Type, Leaf.Width>)) };
 }
 
-template<typename Struct, typename Ids>
-FOptionalStructSchemaId IndexOptionalStruct()
+template<class Ids, ETypename, Arithmetic Leaf>
+FTypeId IndexParameterName()
 {
-	if constexpr (!std::is_void_v<Struct>)
-	{
-		return IndexStruct<Struct, Ids>();
-	}
-	
-	return NoId;
+	return IndexArithmeticName<Ids, Leaf>();
 }
 
-template<typename T, typename Ids>
-FTypeId IndexAnyType()
+template<class Ids, ETypename, Enumeration Leaf>
+FTypeId IndexParameterName()
+{
+	return Ids::IndexEnum(CttiOf<Leaf>::Name);
+}
+
+template<class Ids, ETypename Kind, typename T>
+FTypeId IndexParameterName()
 {
 	using RangeBinding = RangeBind<T>;
-	if constexpr (!std::is_void_v<RangeBinding>)
+	if constexpr (std::is_void_v<RangeBinding>)
 	{
-		FTypeId InnerType = IndexAnyType<typename RangeBinding::ItemType, Ids>();
-		FTypeId SizeType = { NoId, Ids::IndexTypename(CttiOf<typename RangeBinding::SizeType>::Name) };
-		return Ids::GetIndexer().MakeAnonymousParametricType({InnerType, SizeType});
-	}
-	else 
-	{
-		return IndexStructOrEnumType<CttiOf<T>, Ids>();
-	}
-}
-
-template<Arithmetic T, typename Ids>
-FTypeId IndexAnyType()
-{
-	return { NoId, Ids::IndexTypename(CttiOf<T>::Name) };
-}
-
-template<typename Ids, typename... Ts>
-FTypeId IndexTemplatedType(FTypeId TemplatedType, const std::tuple<Ts...>*)
-{
-	FTypeId Parameters[] = { (IndexAnyType<Ts, Ids>())... };
-	return Ids::GetIndexer().MakeParametricType(TemplatedType, Parameters);
-}
-
-template<class Ctti, typename Ids>
-FTypeId IndexStructOrEnumType()
-{
-	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
-	if constexpr (Templated<Ctti>)
-	{
-		return IndexTemplatedType<Ids>(Type, (typename Ctti::TemplateArgs*)nullptr);
+		return IndexTypename<Ids, Kind, TTypename<T>>();
 	}
 	else
 	{
-		return Type;
+		FTypeId ItemTypename = IndexParameterName<Ids, Kind, typename RangeBinding::ItemType>();
+		FTypeId SizeTypename = IndexArithmeticName<Ids, typename RangeBinding::SizeType>();
+
+		if constexpr (Kind == ETypename::Decl)
+		{
+			// Type-erase range type
+			return Ids::GetIndexer().MakeAnonymousParametricType({ItemTypename, SizeTypename});
+		}
+		else
+		{
+			FTypeId RangeBindName = Ids::IndexNativeType(ToAnsiView(TTypename<T>::RangeBindName));
+			return Ids::GetIndexer().MakeParametricType(RangeBindName, {ItemTypename, SizeTypename});
+		}
 	}
+}
+
+template<class Ids, ETypename Kind, typename... Ts>
+FTypeId IndexParametricType(FTypeId TemplatedType, const std::tuple<Ts...>*)
+{
+	FTypeId Parameters[] = { (IndexParameterName<Ids, Kind, Ts>())... };
+	return Ids::GetIndexer().MakeParametricType(TemplatedType, Parameters);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -630,17 +717,19 @@ FStructSchemaId BindCustomStructOnce()
 
 		FBinding()
 		{
-			FTypeId Name = IndexStructOrEnumType<CttiOf<Type>, Ids>();
-			Id = Ids::IndexStruct(Name);
+			FTypeId DeclType = IndexTypename<Ids, ETypename::Decl, TTypename<Type>>();
+			DeclId = Ids::IndexStruct(DeclType);
+			BindId = IndexStructBindIdIfNeeded<Type, Ids>(DeclId);
+			
 			CustomBinding::template InitIds<Ids>();
-			Runtime::GetTypes().DeclareStruct(Id, Name, CustomBinding::MemberIds, CustomBinding::Occupancy);
-			Runtime::GetCustoms().BindStruct(Id, *this);
+			Runtime::GetTypes().DeclareStruct(DeclId, DeclType, CustomBinding::MemberIds, CustomBinding::Occupancy);
+			Runtime::GetCustoms().BindStruct(BindId, DeclId, *this);
 		}
 
 		~FBinding()
 		{
-			Runtime::GetCustoms().DropStruct(Id);
-			Runtime::GetTypes().DropStruct(Id);
+			Runtime::GetCustoms().DropStruct(BindId);
+			Runtime::GetTypes().DropStructRef(DeclId);
 		}
 
 		virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override
@@ -657,20 +746,21 @@ FStructSchemaId BindCustomStructOnce()
 		{
 			return CustomBinding::Diff(*static_cast<const Type*>(A), *static_cast<const Type*>(B));
 		}
-
-		FStructSchemaId Id;
+		
+		FStructSchemaId DeclId;
+		FStructSchemaId BindId;
 	};
 
 	static FBinding Binding;
-	return Binding.Id;
+	return Binding.BindId;
 }
 
-template<class Type, class CustomBinding, class Runtime>
+template<class Struct, class CustomBinding, class Runtime>
 FMemberBindType BindMemberStruct(FOptionalSchemaId& OutSchema)
 {
 	if constexpr (std::is_void_v<CustomBinding>)
 	{
-		OutSchema = FOptionalSchemaId(IndexStruct<Type, typename Runtime::Ids>());
+		OutSchema = FOptionalSchemaId(GetStructBindId<typename Runtime::Ids, Struct>());
 	}
 	else
 	{
@@ -680,10 +770,10 @@ FMemberBindType BindMemberStruct(FOptionalSchemaId& OutSchema)
 	return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
 }
 
-template<typename Type, class Ids>
+template<typename Struct, class Ids>
 FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
 {
-	OutSchema = FOptionalSchemaId(IndexStruct<Type, Ids>());
+	OutSchema = FOptionalSchemaId(GetStructBindId<Ids, Struct>());
 	return FMemberBindType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});
 }
 
@@ -694,11 +784,11 @@ FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
 	return FMemberBindType(ReflectArithmetic<Type>);
 }
 
-template<Enumeration Type, class Ids>
+template<Enumeration Enum, class Ids>
 FMemberBindType BindInnermostType(FOptionalSchemaId& OutSchema)
 {
-	OutSchema = ToOptional(static_cast<FSchemaId>(IndexEnum<Type, Ids>()));
-	return FMemberBindType(ReflectEnum<Type>);
+	OutSchema = ToOptional(static_cast<FSchemaId>(GetEnumId<Ids, Enum>()));
+	return FMemberBindType(ReflectEnum<Enum>);
 }
 
 template<typename RangeBinding>
@@ -829,9 +919,17 @@ FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
 template<class Ctti, class Ids>
 FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupancy)
 {
-	FTypeId Type = IndexStructOrEnumType<Ctti, Ids>();
+	using Typename = TTypename<typename Ctti::Type>;
+	using SuperType = typename Ctti::Super;
+
+	FTypeId Type = IndexTypename<Ids, ETypename::Decl, Typename>();
 	FStructSchemaId Id = Ids::IndexStruct(Type);
-	FOptionalStructSchemaId SuperId = IndexOptionalStruct<typename Ctti::Super, Ids>();
+	FOptionalStructSchemaId SuperId;
+	if constexpr (!std::is_void_v<SuperType>)
+	{
+		SuperId = GetStructDeclId<Ids, SuperType>();
+	}
+
 	FMemberId MemberIds[Ctti::NumVars];
 	ForEachVar<Ctti>([&]<class Var>()
 	{ 
@@ -843,14 +941,14 @@ FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupanc
 }
 
 template<class Ctti, class Runtime>
-void BindNativeStruct(FSchemaBindings& Out, FStructSchemaId DeclaredId)
+void BindNativeStruct(FSchemaBindings& Out, FStructSchemaId BindId, FStructSchemaId DeclId)
 {
 	FMemberBinding MemberBindings[Ctti::NumVars];
 	ForEachVar<Ctti>([&]<class Var>()
 	{ 
 		MemberBindings[Var::Index] = BindMember<typename Var::Type, Runtime>(Var::Offset);
 	});
-	Out.BindStruct(DeclaredId, MemberBindings);
+	Out.BindStruct(BindId, DeclId, MemberBindings);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////

@@ -34,9 +34,6 @@ struct TConcat
     inline static constexpr std::string_view Value{Chars.data(), Len};
 };
 
-template <const std::string_view&... Strs>
-inline constexpr std::string_view Concat = TConcat<Strs...>::Value;
-
 template<uint64 N>
 struct THexString
 {
@@ -59,7 +56,15 @@ struct THexString
 	inline static constexpr std::string_view Value{Chars + 16 - Len, Len};
 };
 
-template <uint64 N>
-inline constexpr std::string_view HexString = THexString<N>::Value;
-
 } // namespace PlainProps::Private
+
+namespace PlainProps
+{
+
+template <const std::string_view&... Strs>
+inline constexpr std::string_view Concat = Private::TConcat<Strs...>::Value;
+
+template <uint64 N>
+inline constexpr std::string_view HexString = Private::THexString<N>::Value;
+
+} // namespace PlainProps

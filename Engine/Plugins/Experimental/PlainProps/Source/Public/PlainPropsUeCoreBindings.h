@@ -11,11 +11,10 @@
 #include "PlainPropsLoad.h"
 #include "PlainPropsRead.h"
 #include "PlainPropsIndex.h"
+#include "PlainPropsStringUtil.h"
 #include "UObject/NameTypes.h"
 
 
-PP_NAME_STRUCT(, FName);
-PP_NAME_STRUCT_TEMPLATE(, TSet);
 PP_REFLECT_STRUCT_TEMPLATE(, TTuple, void, Key, Value); // Todo handle TTuple and higher arities
 
 namespace UE::Math
@@ -23,7 +22,6 @@ namespace UE::Math
 PP_REFLECT_STRUCT(, FVector, void, X, Y, Z);
 PP_REFLECT_STRUCT(, FVector4, void, X, Y, Z, W);
 PP_REFLECT_STRUCT(, FQuat, void, X, Y, Z, W);
-PP_NAME_STRUCT(, FTransform);
 }
 
 namespace PlainProps::UE
@@ -431,15 +429,15 @@ struct FTransformBinding : ICustomBinding
 	FStructSchemaId VectorId;
 	FStructSchemaId QuatId;
 
-	template<typename Ids>
+	template<class Ids>
 	void InitIds(/*const FDeclarations& Declared*/) 
 	{
 		MemberIds[(uint8)EMember::Translate] = Ids::IndexMember("Translate");
 		MemberIds[(uint8)EMember::Rotate] = Ids::IndexMember("Rotate");
 		MemberIds[(uint8)EMember::Scale] = Ids::IndexMember("Scale");
 
-		VectorId = IndexStruct<FVector, Ids>();
-		QuatId = IndexStruct<FQuat, Ids>();
+		VectorId = GetStructDeclId<Ids, FVector>();
+		QuatId = GetStructDeclId<Ids, FQuat>();
 	}
 
 	PLAINPROPS_API void	Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const;
@@ -464,6 +462,7 @@ struct FSetDeltaOps
 		*this = Cache;
 	}
 };
+
 
 template <typename T, typename KeyFuncs, typename SetAllocator>
 struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
@@ -678,10 +677,76 @@ struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 //	}
 //};
 
-}
+} // namespace PlainProps::UE
 
 namespace PlainProps
 {
+
+template <>
+struct TTypename<FName>
+{
+	inline static constexpr std::string_view DeclName = "Name";
+};
+
+template <>
+struct TTypename<FTransform>
+{
+	inline static constexpr std::string_view DeclName = "Transform";
+};
+
+template <typename K, typename V>
+struct TTypename<TPair<K,V>>
+{
+	inline static constexpr std::string_view DeclName = "Pair";
+	using Parameters = std::tuple<K, V>;
+};
+
+template <>
+struct TTypename<FString>
+{
+	inline static constexpr std::string_view RangeBindName = "String";
+};
+
+inline static constexpr std::string_view UeArrayName = "Array";
+inline static constexpr std::string_view UeSetName = "Set";
+inline static constexpr std::string_view UeMapName = "Map";
+
+template<typename T, typename Allocator>
+struct TTypename<TArray<T, Allocator>>
+{
+	inline static constexpr std::string_view RangeBindName = Concat<UeArrayName, ShortTypename<Allocator>>;
+};
+
+template<>
+struct TShortTypename<FDefaultAllocator> : FOmitTypename {};
+template<>
+struct TShortTypename<FDefaultSetAllocator> : FOmitTypename {};
+template<typename T>
+struct TShortTypename<DefaultKeyFuncs<T, false>> : FOmitTypename {};
+template<typename K, typename V>
+struct TShortTypename<TDefaultMapHashableKeyFuncs<K, V, false>> : FOmitTypename {};
+
+inline constexpr std::string_view InlineAllocatorPrefix = "InlX";
+template<int N>
+struct TShortTypename<TInlineAllocator<N>>
+{
+	inline static constexpr std::string_view Value = Concat<InlineAllocatorPrefix, HexString<N>>;
+};
+
+template<int N>
+struct TShortTypename<TInlineSetAllocator<N>> : TShortTypename<TInlineAllocator<N>> {};
+
+template <typename T, typename KeyFuncs, typename SetAllocator>
+struct TTypename<TSet<T, KeyFuncs, SetAllocator>>
+{
+	inline static constexpr std::string_view RangeBindName = Concat<UeSetName, ShortTypename<KeyFuncs>, ShortTypename<SetAllocator>>;
+};
+
+template <typename K, typename V, typename SetAllocator, typename KeyFuncs>
+struct TTypename<TMap<K, V, SetAllocator, KeyFuncs>>
+{
+	inline static constexpr std::string_view RangeBindName = Concat<UeMapName, ShortTypename<SetAllocator>, ShortTypename<KeyFuncs>>;
+};
 
 template<>
 PLAINPROPS_API void AppendString(FString& Out, const FName& Name);
@@ -721,7 +786,6 @@ struct TRangeBind<TOptional<T>>
 {
 	using Type = UE::TOptionalBinding<T>;
 };
-
 
 template<>
 struct TCustomBind<FTransform>

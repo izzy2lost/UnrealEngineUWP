@@ -7,11 +7,6 @@
 namespace PlainProps::Test
 {
 
-static_assert(std::is_same_v<CttiOf<float>::Type, float>);
-static_assert(std::string_view(CttiOf<int>::Name) == std::string_view("s32"));
-
-//////////////////////////////////////////////////////////////////////////
-
 enum class E1 : uint8_t { A, B };
 
 namespace Actual
@@ -37,7 +32,6 @@ static_assert(Actual::E1_Ctti::Enumerators[0].Constant	== Expect::E1_Ctti::Enume
 static_assert(Actual::E1_Ctti::Enumerators[1].Constant	== Expect::E1_Ctti::Enumerators[1].Constant);
 static_assert(std::string_view(Actual::E1_Ctti::Enumerators[0].Name) == std::string_view(Expect::E1_Ctti::Enumerators[0].Name));
 static_assert(std::string_view(Actual::E1_Ctti::Enumerators[1].Name) == std::string_view(Expect::E1_Ctti::Enumerators[1].Name));
-
 
 //////////////////////////////////////////////////////////////////////////
 

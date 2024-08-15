@@ -4,6 +4,7 @@
 #include "PlainPropsBind.h"
 #include "PlainPropsInternalFormat.h"
 #include "PlainPropsInternalRead.h"
+#include "Containers/Set.h"
 #include "Misc/Optional.h"
 #include <type_traits>
 
@@ -124,6 +125,57 @@ static bool HasDifferentSupers(const FStructSchema& From, const FSchemaBinding& 
 
 ////////////////////////////////////////////////////////////////////////////
 
+// Used to create an additional load plan, beyond the saved struct schema ids
+struct FLoadIdMapping
+{
+	FStructSchemaId SaveId; // ~ Batch decl id, index into saved schemas and load plans
+	FStructSchemaId LoadId; // ~ Batch bind id, index into load plans
+	FStructSchemaId BindId; // Runtime bind id
+};
+
+// Helps load type-erased structs with ExplicitBindName by allocating new load-time struct ids
+class FLoadIdBinder
+{
+public:
+	FLoadIdBinder(TConstArrayView<FStructSchemaId> RuntimeDeclIds)
+	: DeclIds(RuntimeDeclIds)
+	, NextLoadIdx(static_cast<uint32>(RuntimeDeclIds.Num()))
+	{}
+
+	FStructSchemaId					BindLoadId(FStructSchemaId SaveId, FStructSchemaId BindId)
+	{
+		FStructSchemaId DeclId = DeclIds[SaveId.Idx];
+		return BindId == DeclId ? SaveId : MapLoadId(SaveId, BindId);
+	}
+	FLoadIdMapping					GetMapping(int32 Idx) const { return Mappings[Idx]; }
+	int32							NumMappings() const { return Mappings.Num(); }
+
+private:
+	TConstArrayView<FStructSchemaId>	DeclIds;
+	uint32								NextLoadIdx;
+	TArray<FLoadIdMapping>				Mappings;
+
+	FStructSchemaId MapLoadId(FStructSchemaId SaveId, FStructSchemaId BindId)
+	{
+		for (FLoadIdMapping Mapping : Mappings)
+		{
+			if (Mapping.BindId == BindId)
+			{
+				check(Mapping.SaveId == SaveId);
+				return Mapping.LoadId;
+			}
+		}
+
+		FLoadIdMapping& Mapping = Mappings.AddDefaulted_GetRef();
+		Mapping.SaveId = SaveId;
+		Mapping.LoadId = { NextLoadIdx++ };
+		Mapping.BindId = BindId;
+		return Mapping.LoadId;
+	}
+};
+
+////////////////////////////////////////////////////////////////////////////
+
 struct FLoadBatch
 {
 	FReadBatchId			ReadId; // Needed to access schemas for custom struct loading
@@ -146,20 +198,24 @@ static void CopyMemberBinding(FLeafMemberBinding Binding, /* in-out */ const FSc
 	Out.AddMember(Binding.Leaf.Pack(), static_cast<uint32>(Binding.Offset));
 }
 
-static void CopyMemberBinding(FStructMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt,FMemberBinder& Out)
+// TODO: Make all below free functions FLoadPlanner member functions and make LoadIds a member variable
+
+static void CopyMemberBinding(FStructMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt, FLoadIdBinder& LoadIds, FMemberBinder& Out)
 {
+	FStructSchemaId LoadId = LoadIds.BindLoadId(static_cast<FStructSchemaId>(*InnerSchemaIt), Binding.Id);
 	Out.AddMember(FMemberBindType(Binding.Type), static_cast<uint32>(Binding.Offset));
-	Out.AddInnerSchema(*InnerSchemaIt);
+	Out.AddInnerSchema(LoadId);
 	++InnerSchemaIt;
 }
 
-static void CopyMemberBinding(FRangeMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt, FMemberBinder& Out)
+static void CopyMemberBinding(FRangeMemberBinding Binding, /* in-out */ const FSchemaId*& InnerSchemaIt, FLoadIdBinder& LoadIds, FMemberBinder& Out)
 {
 	FMemberBindType InnermostType = Binding.InnerTypes[Binding.NumRanges - 1];
 	Out.AddRange(MakeArrayView(Binding.RangeBindings, Binding.NumRanges), InnermostType, static_cast<uint32>(Binding.Offset));
 	if (InnermostType.IsStruct())
 	{
-		Out.AddInnerSchema(*InnerSchemaIt);
+		FStructSchemaId LoadId = LoadIds.BindLoadId(static_cast<FStructSchemaId>(*InnerSchemaIt), static_cast<FStructSchemaId>(Binding.InnermostSchema.Get()));
+		Out.AddInnerSchema(LoadId);
 		++InnerSchemaIt;
 	}
 	else
@@ -168,24 +224,24 @@ static void CopyMemberBinding(FRangeMemberBinding Binding, /* in-out */ const FS
 	}
 }
 
-static void CopyMemberBinding(/* in-out */ FMemberVisitor& BindIt, /* in-out */ const FSchemaId*& InnerSchemaIt, FMemberBinder& Out)
+static void CopyMemberBinding(/* in-out */ FMemberVisitor& BindIt, /* in-out */ const FSchemaId*& InnerSchemaIt, FLoadIdBinder& LoadIds, FMemberBinder& Out)
 {
 	switch (BindIt.PeekKind())
 	{
-		case EMemberKind::Leaf:		CopyMemberBinding(BindIt.GrabLeaf(), InnerSchemaIt, Out);	break;
-		case EMemberKind::Range:	CopyMemberBinding(BindIt.GrabRange(), InnerSchemaIt, Out);	break;
-		case EMemberKind::Struct:	CopyMemberBinding(BindIt.GrabStruct(), InnerSchemaIt, Out);	break;
-		default:					check(false);												break;
+		case EMemberKind::Leaf:		CopyMemberBinding(BindIt.GrabLeaf(), InnerSchemaIt, Out);				break;
+		case EMemberKind::Range:	CopyMemberBinding(BindIt.GrabRange(), InnerSchemaIt, LoadIds, Out);		break;
+		case EMemberKind::Struct:	CopyMemberBinding(BindIt.GrabStruct(), InnerSchemaIt, LoadIds, Out);	break;
+		default:					check(false);															break;
 	}
 }
 
-static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToNames,  uint16 NumEnums, SubsetByteArray& Out)
+static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToNames, uint16 NumEnums, FLoadIdBinder& LoadIds, SubsetByteArray& Out)
 {
 	check(To.NumMembers == ToNames.Num());
 	check(To.NumMembers >= From.NumMembers);
 
 	int32 OutPos = Out.Num();
-	FSchemaBinding Header = { From.NumMembers, From.NumInnerSchemas - NumEnums, From.NumRangeTypes };
+	FSchemaBinding Header = { To.DeclId, From.NumMembers, From.NumInnerSchemas - NumEnums, From.NumRangeTypes };
 	Out.AddUninitialized(Header.CalculateSize());
 	FSchemaBinding* Schema = new (&Out[OutPos]) FSchemaBinding {Header};
 	
@@ -199,26 +255,33 @@ static void CreateSubsetBindingWithoutEnumIds(const FStructSchema& From, const F
 			ToIt.SkipMember();
 		}
 
-		CopyMemberBinding(/* in-out */ ToIt, /* in-out */ InnerSchemaIt, /* out */ Footer);	
+		CopyMemberBinding(/* in-out */ ToIt, /* in-out */ InnerSchemaIt, /* in-out */ LoadIds,  /* out */ Footer);	
 	}
 	check(InnerSchemaIt == From.GetInnerSchemas() + From.NumInnerSchemas);
 }
 
-static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FSchemaBinding& To, SubsetByteArray& Out)
+static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FSchemaBinding& To, FLoadIdBinder& LoadIds, SubsetByteArray& Out)
 {
 	uint32 Size = To.CalculateSize();
 	Out.AddUninitialized(Size);
 	FSchemaBinding* Schema = reinterpret_cast<FSchemaBinding*>(&Out[Out.Num() - Size]);
 	FMemory::Memcpy(Schema, &To, Size);
-	FMemory::Memcpy(const_cast<FSchemaId*>(Schema->GetInnerSchemas()), FromIds, To.NumInnerSchemas * sizeof(FSchemaId));
+
+	const FStructSchemaId* SaveIdIt = static_cast<const FStructSchemaId*>(FromIds);
+	FStructSchemaId* OutIds = static_cast<FStructSchemaId*>(const_cast<FSchemaId*>(Schema->GetInnerSchemas()));
+	for (FStructSchemaId& OutId : MakeArrayView(OutIds, To.NumInnerSchemas))
+	{
+		FStructSchemaId MemcopiedBindId = OutId;
+		OutId = LoadIds.BindLoadId(*SaveIdIt++, MemcopiedBindId);
+	}
 }
 
-[[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
+[[nodiscard]] static FLoadStructPlan MakeSchemaLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, FLoadIdBinder& LoadIds, SubsetByteArray& OutSubsetSchemas)
 {
 	uint16 NumEnums = CountEnums(From);
 	if (From.NumMembers < To.NumMembers || NumEnums || HasDifferentSupers(From, To, ToStructIds))
 	{
-		CreateSubsetBindingWithoutEnumIds(From, To, ToMemberIds, NumEnums, OutSubsetSchemas);
+		CreateSubsetBindingWithoutEnumIds(From, To, ToMemberIds, NumEnums, LoadIds, OutSubsetSchemas);
 	}
 	else
 	{
@@ -228,7 +291,7 @@ static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FS
 
 		if (From.NumInnerSchemas > 0)
 		{
-			CloneBindingWithReplacedStructIds(From.GetInnerSchemas(), To, OutSubsetSchemas);
+			CloneBindingWithReplacedStructIds(From.GetInnerSchemas(), To, LoadIds, OutSubsetSchemas);
 		}
 		// else reuse existing bindings
 	}
@@ -243,90 +306,158 @@ static void CloneBindingWithReplacedStructIds(const FSchemaId* FromIds, const FS
 	return NullOpt;
 }
 
-[[nodiscard]] static FLoadStructPlan MakeLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, SubsetByteArray& OutSubsetSchemas)
+[[nodiscard]] static FLoadStructPlan MakeLoadPlan(const FStructSchema& From, const FSchemaBinding& To, TConstArrayView<FMemberId> ToMemberIds, TConstArrayView<FStructSchemaId> ToStructIds, FLoadIdBinder& LoadIds, SubsetByteArray& OutSubsetSchemas)
 {
 	TOptional<FLoadStructMemcpy> Memcpy = TryMakeMemcpyPlan(From, To, ToMemberIds);
-	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, OutSubsetSchemas);
+	return Memcpy ? FLoadStructPlan(Memcpy.GetValue()) : MakeSchemaLoadPlan(From, To, ToMemberIds, ToStructIds, LoadIds, OutSubsetSchemas);
 }
 
-struct FMemberlessDummyBinding : ICustomBinding
+struct FMissingBinding : ICustomBinding
 {
-	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override { check(false); }
-	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override { check(false);}
-	virtual bool DiffCustom(const void* StructA, const void* StructB) const override { check(false); return false; }
+	FMissingBinding(const TCHAR* InType) : Type(InType) {}
+	const TCHAR* Type;
+	virtual void SaveCustom(FMemberBuilder& Dst, const void* Src, const void* Default, const FSaveContext& Ctx) override { checkf(false, TEXT("Can't save %s"), Type); }
+	virtual void LoadCustom(void* Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const override { checkf(false, TEXT("Can't load %s"), Type); }
+	virtual bool DiffCustom(const void* StructA, const void* StructB) const override { checkf(false, TEXT("Can't diff %s"), Type); return false; }
 };
-static FMemberlessDummyBinding GMemberlessBinding;
+static FMissingBinding GMemberlessBinding(TEXT("Memberless struct binding"));
+static FMissingBinding GUnboundBinding{TEXT("Type-erased struct binding")};
+
+struct FLoadPlanner
+{
+	// Constructor parameters
+	const FReadBatchId								ReadId;
+	const FDeclarations&							Declarations;
+	const FCustomBindings&							Customs;
+	const FSchemaBindings&							Schemas;
+	const TConstArrayView<FStructSchemaId>			RuntimeIds;
+
+	// Temporary data structures	
+	TArray<FLoadStructPlan, TInlineAllocator<256>>	Plans;
+	TArray<uint32, TInlineAllocator<256>>			SubsetSchemaSizes;
+	SubsetByteArray									SubsetSchemaData;
+	TSet<FStructSchemaId>							UnboundSaveIds;
+	
+	FLoadBatchPtr CreatePlans()
+	{
+		check(NumStructSchemas(ReadId) == RuntimeIds.Num());
+
+		// Make load plans for saved schemas
+		const uint32 NumPlans = RuntimeIds.Num();
+		Plans.SetNumUninitialized(NumPlans);
+		SubsetSchemaSizes.SetNumUninitialized(NumPlans);
+		FLoadIdBinder LoadIds(RuntimeIds);
+		for (uint32 Idx = 0; Idx < NumPlans; ++Idx)
+		{
+			FLoadIdMapping Mapping;
+			Mapping.SaveId = { Idx };
+			Mapping.LoadId = { Idx };
+			Mapping.BindId = RuntimeIds[Idx];
+			CreatePlan(Mapping, LoadIds);
+		}
+
+		// Make load plans for type-erased/ExplicitBindName structs needed by already created load plans
+		if (LoadIds.NumMappings() > 0)
+		{
+			Plans.Reserve(NumPlans + LoadIds.NumMappings());
+			SubsetSchemaSizes.Reserve(NumPlans + LoadIds.NumMappings());
+			for (int32 Idx = 0; Idx < LoadIds.NumMappings(); ++Idx)
+			{
+				check(LoadIds.GetMapping(Idx).LoadId.Idx == static_cast<uint32>(Plans.Num()));
+				Plans.AddUninitialized();
+				SubsetSchemaSizes.AddUninitialized();
+				CreatePlan(LoadIds.GetMapping(Idx), /* might grow */ LoadIds);
+			}
+
+			// Verify that all UnboundSaveIds were bound by some load plan
+			for (int32 Idx = 0; !UnboundSaveIds.IsEmpty() && Idx < LoadIds.NumMappings(); ++Idx)
+			{
+				UnboundSaveIds.Remove(LoadIds.GetMapping(Idx).SaveId);
+			}
+		}
+
+		for (FStructSchemaId UnboundSaveId : UnboundSaveIds)
+		{
+			checkf(false, TEXT("Unbound struct '%s' can't be loaded"), *Declarations.GetDebug().Print(RuntimeIds[UnboundSaveId.Idx]));
+		}
+
+		// Allocate load batch, copy plans and subset schemas, and fixup subset schema plans
+		return CreateBatch();
+	}
+private:
+
+	FLoadBatchPtr CreateBatch()
+	{
+		const uint32 NumPlans = Plans.Num();
+
+		SIZE_T Bytes = sizeof(FLoadBatch) + sizeof(FLoadStructPlan) * NumPlans + SubsetSchemaData.Num();
+		FLoadBatch Header = { ReadId, NumPlans };
+		FLoadBatch* Out = new (FMemory::Malloc(Bytes)) FLoadBatch{Header};
+		FMemory::Memcpy(Out->Plans, Plans.GetData(), sizeof(FLoadStructPlan) * NumPlans);
+		if (SubsetSchemaData.Num() > 0)
+		{
+			uint8* OutSubsetData = reinterpret_cast<uint8*>(Out->Plans + NumPlans);
+			FMemory::Memcpy(OutSubsetData, SubsetSchemaData.GetData(), SubsetSchemaData.Num());
+		
+			// Update plans with actual subset schema pointers
+			const uint8* It = OutSubsetData;
+			for (uint32 Idx = 0; Idx < NumPlans; ++Idx)
+			{
+				if (int32 Size = SubsetSchemaSizes[Idx])
+				{
+					check(IsAligned(Size, alignof(FSchemaBinding)));
+					check(Plans[Idx].IsSchema());
+					bool bSparse = Plans[Idx].IsSparseSchema();
+					Out->Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FSchemaBinding*>(It), ELeafWidth::B32, bSparse);
+					It += Size;
+				}
+			}
+			check(It == OutSubsetData + SubsetSchemaData.Num());
+		}
+
+		return FLoadBatchPtr(Out);
+	}
+
+	void CreatePlan(FLoadIdMapping Mapping, FLoadIdBinder& LoadIds)
+	{
+		int32 SubsetSchemaOffset = SubsetSchemaData.Num();	
+		Plans[Mapping.LoadId.Idx] = CreatePlanInner(Mapping, LoadIds);
+		SubsetSchemaSizes[Mapping.LoadId.Idx] = static_cast<uint32>(SubsetSchemaData.Num() - SubsetSchemaOffset);
+	}
+
+	FLoadStructPlan CreatePlanInner(FLoadIdMapping Mapping, FLoadIdBinder& LoadIds)
+	{
+		if (const ICustomBinding* Custom = Customs.FindStruct(Mapping.BindId))
+		{
+			return FLoadStructPlan(*Custom);
+		}
+
+		const FStructSchema& From = ResolveStructSchema(ReadId, Mapping.SaveId);
+		if (From.NumMembers)
+		{
+			if (const FSchemaBinding* To = Schemas.FindStruct(Mapping.BindId))
+			{
+				// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
+				TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(To->DeclId).GetMemberOrder();
+				return MakeLoadPlan(From, *To, ToMemberIds, RuntimeIds, LoadIds, /* out */ SubsetSchemaData);	
+			}
+			
+			// Type-erased structs
+			UnboundSaveIds.Add(Mapping.SaveId);
+			return FLoadStructPlan(GUnboundBinding);
+		}
+		
+		checkf(!From.Type.Scope && From.Type.Name.NumParameters == 2, TEXT("Only range-bound template parameters are memberless. "
+				"They're always anonymous two-parameter types and uninstantiable as structs, bound via MakeAnonymousParametricType()"));
+		return FLoadStructPlan(GMemberlessBinding);
+	}
+};
 
 FLoadBatchPtr CreateLoadPlans(FReadBatchId ReadId, const FDeclarations& Declarations, const FCustomBindings& Customs, const FSchemaBindings& Schemas, TConstArrayView<FStructSchemaId> RuntimeIds)
 {
-	check(NumStructSchemas(ReadId) == RuntimeIds.Num());
-
-	// Temporary data structures
-	const uint32 NumPlans = RuntimeIds.Num();
-	TArray<FLoadStructPlan, TInlineAllocator<256>> Plans;
-	TArray<uint32, TInlineAllocator<256>> SubsetSchemaSizes;
-	SubsetByteArray SubsetSchemaData;
-	Plans.SetNumUninitialized(NumPlans);
-	SubsetSchemaSizes.SetNumUninitialized(NumPlans);
-
-	// Create plans
-	for (FStructSchemaId SavedId = { 0 }; SavedId.Idx < NumPlans; ++SavedId.Idx)
-	{
-		FStructSchemaId RuntimeId = RuntimeIds[SavedId.Idx];
-		int32 SubsetSchemaOffset = SubsetSchemaData.Num();
-		if (const ICustomBinding* Custom = Customs.FindStruct(RuntimeId))
-		{
-			Plans[SavedId.Idx] = FLoadStructPlan(*Custom);
-		}
-		else
-		{
-			const FStructSchema& From = ResolveStructSchema(ReadId, SavedId);
-			if (From.NumMembers)
-			{
-				const FSchemaBinding& To = Schemas.GetStruct(RuntimeId);
-				// Possible optimization - some simple memcpy cases doesn't need to resolve the declaration
-				TConstArrayView<FMemberId> ToMemberIds = Declarations.Get(RuntimeId).GetMemberOrder();
-				Plans[SavedId.Idx] = MakeLoadPlan(From, To, ToMemberIds, RuntimeIds, /* out */ SubsetSchemaData);	
-			}
-			else
-			{
-				checkf(!From.Type.Scope && From.Type.Name.NumParameters == 2, TEXT("Only range-bound template parameters are memberless. "
-					"They're always anonymous two-parameter types and uninstantiable as structs, bound via MakeAnonymousParametricType()"));
-				Plans[SavedId.Idx] = FLoadStructPlan(GMemberlessBinding);
-			}
-		}
-		
-		SubsetSchemaSizes[SavedId.Idx] = SubsetSchemaData.Num() - SubsetSchemaOffset;
-	}
-	
-	// Allocate load batch, copy plans and subset schemas, and fixup subset schema plans
-	SIZE_T Bytes = sizeof(FLoadBatch) + sizeof(FLoadStructPlan) * Plans.Num() + SubsetSchemaData.Num();
-	FLoadBatch Header = { ReadId, NumPlans };
-	FLoadBatch* Out = new (FMemory::Malloc(Bytes)) FLoadBatch{Header};
-	FMemory::Memcpy(Out->Plans, Plans.GetData(), sizeof(FLoadStructPlan) * Plans.Num());
-	if (SubsetSchemaData.Num() > 0)
-	{
-		uint8* OutSubsetData = reinterpret_cast<uint8*>(Out->Plans + Plans.Num());
-		FMemory::Memcpy(OutSubsetData, SubsetSchemaData.GetData(), SubsetSchemaData.Num());
-		
-		// Update plans with actual subset schema pointers
-		const uint8* It = OutSubsetData;
-		for (uint32 Idx = 0; Idx < NumPlans; ++Idx)
-		{
-			if (int32 Size = SubsetSchemaSizes[Idx])
-			{
-				check(IsAligned(Size, alignof(FSchemaBinding)));
-				check(Plans[Idx].IsSchema());
-				bool bSparse = Plans[Idx].IsSparseSchema();
-				Out->Plans[Idx] = FLoadStructPlan(*reinterpret_cast<const FSchemaBinding*>(It), ELeafWidth::B32, bSparse);
-				It += Size;
-			}
-		}
-		check(It == OutSubsetData + SubsetSchemaData.Num());
-	}
-
-	return FLoadBatchPtr(Out);
+	return FLoadPlanner{ReadId, Declarations, Customs, Schemas, RuntimeIds}.CreatePlans();
 }
+
 
 ////////////////////////////////////////////////////////////////////////////
 

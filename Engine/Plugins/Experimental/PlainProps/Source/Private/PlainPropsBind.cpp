@@ -147,37 +147,37 @@ void* FLeafRangeAllocator::Allocate(FUnpackedLeafType Leaf, uint64 Num)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-void FCustomBindings::BindStruct(FStructSchemaId Id, ICustomBinding& Binding)
+void FCustomBindings::BindStruct(FStructSchemaId BindId, FStructSchemaId DeclId, ICustomBinding& Binding)
 {
-	checkf(!Find(Id), TEXT("'%s' already bound"), *Debug.Print(Id));
-	Entries.Emplace(Id, &Binding);
+	checkf(!Find(BindId), TEXT("'%s' already bound"), *Debug.Print(BindId));
+	Entries.Emplace(BindId, DeclId, &Binding);
 }
 
-void FCustomBindings::DropStruct(FStructSchemaId Id)
+void FCustomBindings::DropStruct(FStructSchemaId BindId)
 {
-	for (FEntry& Entry : Entries)
+	for (FCustomBindingEntry& Entry : Entries)
 	{
-		if (Entry.Id == Id)
+		if (Entry.BindId == BindId)
 		{
 			Entries.RemoveAtSwap(&Entry - Entries.GetData(), EAllowShrinking::No);
 			return;
 		}
 	}
 	
-	checkf(false, TEXT("'%s' unbound"), *Debug.Print(Id));
+	checkf(false, TEXT("'%s' unbound"), *Debug.Print(BindId));
 }
 
-ICustomBinding*	FCustomBindings::Find(FStructSchemaId Id) const
+FCustomBindingEntry	FCustomBindings::Find(FStructSchemaId BindId) const
 {
-	for (const FEntry& Entry : Entries)
+	for (FCustomBindingEntry Entry : Entries)
 	{
-		if (Entry.Id == Id)
+		if (Entry.BindId == BindId)
 		{
-			return Entry.Binding;
+			return Entry;
 		}
 	}
 
-	return Base ? Base->Find(Id) : nullptr;
+	return Base ? Base->Find(BindId) : FCustomBindingEntry{};
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,10 +205,10 @@ static uint16 CountRanges(TConstArrayView<FMemberBinding> Members)
 	return IntCastChecked<uint16>(Out);
 }
 
-void FSchemaBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBinding> Members)
+void FSchemaBindings::BindStruct(FStructSchemaId BindId, FStructSchemaId DeclId, TConstArrayView<FMemberBinding> Members)
 {
 	// Make header, allocate and copy header
-	FSchemaBinding Header = { IntCastChecked<uint16>(Members.Num()), CountInnerSchemas(Members), CountRanges(Members) };
+	FSchemaBinding Header = { DeclId, IntCastChecked<uint16>(Members.Num()), CountInnerSchemas(Members), CountRanges(Members) };
 	FSchemaBinding* Schema = new (FMemory::MallocZeroed(Header.CalculateSize())) FSchemaBinding {Header};
 
 	// Write footer
@@ -232,24 +232,34 @@ void FSchemaBindings::BindStruct(FStructSchemaId Id, TConstArrayView<FMemberBind
 	}
 
 	// Bind
-	if (Id.Idx >= static_cast<uint32>(Bindings.Num()))
+	if (BindId.Idx >= static_cast<uint32>(Bindings.Num()))
 	{
-		Bindings.SetNum(Id.Idx + 1);
+		Bindings.SetNum(BindId.Idx + 1);
 	}
-	checkf(!Bindings[Id.Idx], TEXT("'%s' already bound"), *Debug.Print(Id));
-	Bindings[Id.Idx].Reset(Schema);
+	checkf(!Bindings[BindId.Idx], TEXT("'%s' already bound"), *Debug.Print(BindId));
+	Bindings[BindId.Idx].Reset(Schema);
 }
 
-const FSchemaBinding& FSchemaBindings::GetStruct(FStructSchemaId Id) const
+const FSchemaBinding* FSchemaBindings::FindStruct(FStructSchemaId BindId) const
 {
-	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
-	return *Bindings[Id.Idx].Get();
+	return BindId.Idx < (uint32)Bindings.Num() ? Bindings[BindId.Idx].Get() : nullptr;
 }
 
-void FSchemaBindings::DropStruct(FStructSchemaId Id)
+const FSchemaBinding& FSchemaBindings::GetStruct(FStructSchemaId BindId) const
 {
-	checkf(Id.Idx < (uint32)Bindings.Num() && Bindings[Id.Idx], TEXT("'%s' is unbound"), *Debug.Print(Id));
-	Bindings[Id.Idx].Reset();
+	checkf(BindId.Idx < (uint32)Bindings.Num() && Bindings[BindId.Idx], TEXT("'%s' is unbound"), *Debug.Print(BindId));
+	return *Bindings[BindId.Idx].Get();
+}
+
+void FSchemaBindings::DropStruct(FStructSchemaId BindId)
+{
+	checkf(BindId.Idx < (uint32)Bindings.Num() && Bindings[BindId.Idx], TEXT("'%s' is unbound"), *Debug.Print(BindId));
+	Bindings[BindId.Idx].Reset();
+}
+
+FStructSchemaId FSchemaBindings::GetDeclId(FStructSchemaId BindId) const
+{
+	return GetStruct(BindId).DeclId;
 }
 
 //////////////////////////////////////////////////////////////////////////

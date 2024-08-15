@@ -8,6 +8,7 @@
 
 namespace PlainProps
 {
+
 struct FBuiltSchemas;
 struct FBuiltStruct;
 class FDebugIds;
@@ -15,13 +16,14 @@ class FIdIndexerBase;
 class FNestedScopeIndexer;
 class FParametricTypeIndexer;
 struct FWriteIds;
+struct IStructBindIds;
 
 enum class ESchemaFormat { StableNames, InMemoryNames };
 
 class FWriter
 {
 public:
-	PLAINPROPS_API FWriter(const FIdIndexerBase& DeclaredIds, const FBuiltSchemas& InSchemas, ESchemaFormat Format);
+	PLAINPROPS_API FWriter(const FIdIndexerBase& DeclaredIds, const IStructBindIds& BindIds, const FBuiltSchemas& InSchemas, ESchemaFormat Format);
 	PLAINPROPS_API ~FWriter();
 	
 	PLAINPROPS_API bool								Uses(FNameId BuiltId) const;

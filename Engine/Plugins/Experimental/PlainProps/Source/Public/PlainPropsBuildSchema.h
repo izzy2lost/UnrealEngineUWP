@@ -46,13 +46,13 @@ public:
 	using FStructDeclarations = TConstArrayView<TUniquePtr<FStructDeclaration>>;
 	using FEnumDeclarations = TConstArrayView<TUniquePtr<FEnumDeclaration>>;
 
-	PLAINPROPS_API explicit FSchemasBuilder(const FDeclarations& Declarations, FScratchAllocator& Scratch);
-	PLAINPROPS_API FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const FDebugIds& InDebug, FScratchAllocator& Scratch);
+	PLAINPROPS_API FSchemasBuilder(const FDeclarations& Declarations, const IStructBindIds& BindIds, FScratchAllocator& Scratch);
+	PLAINPROPS_API FSchemasBuilder(FStructDeclarations InStructs, FEnumDeclarations InEnums, const IStructBindIds& BindIds, const FDebugIds& InDebug, FScratchAllocator& Scratch);
 	PLAINPROPS_API ~FSchemasBuilder();
 
 	PLAINPROPS_API FEnumSchemaBuilder&			NoteEnum(FEnumSchemaId Id);
-	PLAINPROPS_API FStructSchemaBuilder&		NoteStruct(FStructSchemaId Id);
-	PLAINPROPS_API void							NoteStructAndMembers(FStructSchemaId Id, const FBuiltStruct& Struct);
+	PLAINPROPS_API FStructSchemaBuilder&		NoteStruct(FStructSchemaId BindId);
+	PLAINPROPS_API void							NoteStructAndMembers(FStructSchemaId BindId, const FBuiltStruct& Struct);
 	PLAINPROPS_API FBuiltSchemas				Build();
 	
 	FScratchAllocator&							GetScratch() const { return Scratch; }
@@ -63,6 +63,7 @@ private:
 	FEnumDeclarations							DeclaredEnums;
 	TArray<int32>								StructIndices;
 	TArray<int32>								EnumIndices;
+	const IStructBindIds&						BindIds;
 	TPagedArray<FStructSchemaBuilder, 4096>		Structs;		// TPagedArray for stable references
 	TPagedArray<FEnumSchemaBuilder, 4096>		Enums;			// TPagedArray for stable references
 	FScratchAllocator&							Scratch;

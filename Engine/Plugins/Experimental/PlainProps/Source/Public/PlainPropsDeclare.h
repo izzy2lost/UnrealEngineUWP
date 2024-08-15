@@ -9,6 +9,7 @@
 
 namespace PlainProps
 {
+
 struct FEnumerator
 {
 	FNameId					Name;
@@ -35,6 +36,7 @@ enum class EMemberPresence { RequireAll, AllowSparse };
 
 struct FStructDeclaration
 {
+	uint32					RefCount;
 	FStructSchemaId			Id;				// Could be removed, might allow declaration dedup among templated types
 	FTypeId					Type;			// Could be removed, might allow declaration dedup among templated types
 	FOptionalStructSchemaId	Super;
@@ -54,14 +56,15 @@ public:
 	UE_NONCOPYABLE(FDeclarations);
 	explicit FDeclarations(const FDebugIds& In) : Debug(In) {}
 
-	PLAINPROPS_API void								DeclareEnum(FEnumSchemaId Id, FTypeId Type, EEnumMode Mode, ELeafWidth Width, TConstArrayView<FEnumerator> Enumerators);
-	PLAINPROPS_API void								DeclareStruct(FStructSchemaId Id, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
+	PLAINPROPS_API void								DeclareEnum(FEnumSchemaId DeclId, FTypeId Type, EEnumMode Mode, ELeafWidth Width, TConstArrayView<FEnumerator> Enumerators);
+	// Declare struct with ref count 1 or increment it and check that previous declaration matches
+	PLAINPROPS_API void								DeclareStruct(FStructSchemaId DeclId, FTypeId Type, TConstArrayView<FMemberId> MemberOrder, EMemberPresence Occupancy, FOptionalStructSchemaId Super = {});
 	
-	void											DropEnum(FEnumSchemaId Id)		{ Check(Id); DeclaredEnums[Id.Idx].Reset(); }
-	void											DropStruct(FStructSchemaId Id)	{ Check(Id); DeclaredStructs[Id.Idx].Reset(); }
+	void											DropEnum(FEnumSchemaId DeclId)			{ Check(DeclId); DeclaredEnums[DeclId.Idx].Reset(); }
+	void											DropStructRef(FStructSchemaId DeclId);
 
-	const FEnumDeclaration&							Get(FEnumSchemaId Id) const		{ Check(Id); return *DeclaredEnums[Id.Idx]; }
-	const FStructDeclaration&						Get(FStructSchemaId Id) const	{ Check(Id); return *DeclaredStructs[Id.Idx]; }
+	const FEnumDeclaration&							Get(FEnumSchemaId DeclId) const			{ Check(DeclId); return *DeclaredEnums[DeclId.Idx]; }
+	const FStructDeclaration&						Get(FStructSchemaId DeclId) const		{ Check(DeclId); return *DeclaredStructs[DeclId.Idx]; }
 	
 	TConstArrayView<TUniquePtr<FEnumDeclaration>>	GetEnums() const				{ return DeclaredEnums; }
 	TConstArrayView<TUniquePtr<FStructDeclaration>>	GetStructs() const				{ return DeclaredStructs; }
@@ -78,6 +81,12 @@ protected:
 #else
 	void											Check(...) const {}
 #endif
+};
+
+struct IStructBindIds
+{
+	virtual ~IStructBindIds() = default;
+	virtual FStructSchemaId GetDeclId(FStructSchemaId BindId) const = 0;
 };
 
 } // namespace PlainProps
