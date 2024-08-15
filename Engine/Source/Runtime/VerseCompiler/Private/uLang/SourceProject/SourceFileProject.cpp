@@ -381,16 +381,8 @@ void CSourceFilePackage::GatherPackageSourceFiles(const CUTF8String& PackageFile
                 {
                     bool bIsVNIPackage = _Settings._VniDestDir.IsSet();
                     bool bHasNativeFileExtension = Snippet->GetFilePath().EndsWith(".native.verse");
-
-                    // Ignore files containing '.' in the stem of the file
-                    // name.  This is currently redundant for files gathered via
-                    // the asset registry, as those files are currently ignored.
-                    // However, this is required for backwards compat constraint
-                    // packages and any other packages that don't have a set
-                    // `_FilePaths`.
-                    // TODO: Make this conditional on the uploaded-in-FN-version
-                    // of the package.
-                    if (!bHasNativeFileExtension)
+                    if (!VerseFN::UploadedAtFNVersion::AllowPeriodsInVerseSnippetFilenames(_Settings._UploadedAtFNVersion.Get(VerseFN::UploadedAtFNVersion::Latest))
+                        && !bHasNativeFileExtension)
                     {
                         CUTF8StringView Dir;
                         CUTF8StringView FileName;
@@ -756,21 +748,20 @@ bool CSourceFileProject::IsValidSnippetFileName(const CUTF8StringView& FileName)
     {
         return false;
     }
-    
+
     for (const UTF8Char* Ch = FileName._Begin; Ch < FileName._End; ++Ch)
     {
-        if (*Ch == '.')
-        {
-            return CUTF8StringView(Ch, FileName._End) == SnippetExt;
-        }
-
-        if (!CUnicode::IsAlphaASCII(*Ch) && !CUnicode::IsDigitASCII(*Ch) && *Ch != '_')
+        if (!CUnicode::IsAlphaASCII(*Ch) && !CUnicode::IsDigitASCII(*Ch) && *Ch != '_' && *Ch != '.')
         {
             return false;
         }
     }
+    if (FileName.EndsWith(SnippetExt))
+    {
+        return true;
+    }
 
-    return false;
+	return false;
 }
 
 }
