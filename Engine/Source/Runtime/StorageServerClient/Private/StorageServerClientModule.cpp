@@ -44,11 +44,6 @@ IPlatformFile* FStorageServerClientModule::GetPlatformFile()
 	if (!CachedDefaultPlatformFileInstance)
 	{
 		CachedDefaultPlatformFileInstance = DefaultPlatformFileInstance.Get();
-		// Load optional modules.
-		if (FModuleManager::Get().ModuleExists(TEXT("StorageServerClientDebug")))
-		{
-			FModuleManager::Get().LoadModule("StorageServerClientDebug");
-		}
 	}
 	return DefaultPlatformFileInstance.Get();
 }

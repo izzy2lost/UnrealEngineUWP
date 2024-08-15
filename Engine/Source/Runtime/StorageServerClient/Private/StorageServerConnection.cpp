@@ -25,7 +25,8 @@
 
 DEFINE_LOG_CATEGORY(LogStorageServerConnection);
 
-TRACE_DECLARE_MEMORY_COUNTER(ZenHttpClientSerializedBytes, TEXT("ZenClient/SerializedBytes"));
+TRACE_DECLARE_INT_COUNTER(ZenHttpClientSerializedBytes, TEXT("ZenClient/SerializedBytes (compressed)"));
+TRACE_DECLARE_INT_COUNTER(ZenHttpClientThroughputBytes, TEXT("ZenClient/ThroughputBytes (decompressed)"));
 
 bool FStorageServerConnection::Initialize(TArrayView<const FString> HostAddresses, const int32 Port, const FAnsiStringView& InBaseURI)
 {
@@ -557,6 +558,8 @@ void FStorageServerConnection::AddTimingInstance(const double Duration, const ui
 			MaxTemp = MaxRequestThroughput.load(std::memory_order_relaxed);
 		}
 	}
+
+	TRACE_COUNTER_ADD(ZenHttpClientThroughputBytes, Bytes);
 }
 
 // TODO revive FStorageServerChunkBatchRequest

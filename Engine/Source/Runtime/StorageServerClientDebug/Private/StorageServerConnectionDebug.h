@@ -4,38 +4,28 @@
 
 #include "CoreMinimal.h"
 #include "Engine/Canvas.h"
+#include "HAL/CriticalSection.h"
 #include <vector>
 #include "IStorageServerPlatformFile.h"
 
-#include "StorageServerConnectionDebug.generated.h"
-
-UCLASS()
-class UStorageServerConnectionDebug : public UObject
+#if !UE_BUILD_SHIPPING
+class FStorageServerConnectionDebug
 {
-	GENERATED_BODY()
-
 public:
-	void StartDrawing();
-	void StopDrawing();
-
-	void SetPlatformFile(IStorageServerPlatformFile* InStorageServerPlatformFile)
+	FStorageServerConnectionDebug( IStorageServerPlatformFile* InStorageServerPlatformFile )
+		: StorageServerPlatformFile(InStorageServerPlatformFile)
+		, HostAddress(InStorageServerPlatformFile->GetHostAddr())
 	{
-		StorageServerPlatformFile = InStorageServerPlatformFile;
-		if (StorageServerPlatformFile != nullptr)
-		{
-			HostAddress = InStorageServerPlatformFile->GetHostAddr();
-		}
-		else
-		{
-			HostAddress.Reset();
-		}
 	}
 
-	static void ShowGraph(FOutputDevice&);
-	static void HideGraph(FOutputDevice&);
+	bool OnTick(float); // FTickerDelegate
+	void OnDraw(UCanvas*, APlayerController*); // FDebugDrawDelegate
 
 private:
-	void Draw(UCanvas* Canvas, class APlayerController* PC);
+	double MaxReqThroughput = 0.0;
+	double MinReqThroughput = 0.0;
+	uint32 ReqCount = 0;
+	double Throughput = 0.0;
 
 	struct HistoryItem
 	{
@@ -48,14 +38,12 @@ private:
 
 	std::vector<HistoryItem> History = {{0, 0, 0, 0, 0}};
 
-	FDelegateHandle DrawHandle;
-
 	static constexpr float UpdateStatsTimer = 1.0;
 	double UpdateStatsTime = 0.0;
 
 	IStorageServerPlatformFile* StorageServerPlatformFile = nullptr;
 	FString HostAddress;
 
-	static bool ShowGraphs;
-
+	FCriticalSection CS;
 };
+#endif // !UE_BUILD_SHIPPING

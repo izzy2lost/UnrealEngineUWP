@@ -18,6 +18,7 @@
 #include "Serialization/CompactBinarySerialization.h"
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
+#include "ProfilingDebugging/PlatformFileTrace.h"
 #include "StorageServerConnection.h"
 #include "StorageServerIoDispatcherBackend.h"
 #include "StorageServerPackageStore.h"
@@ -182,10 +183,14 @@ public:
 		, Filename(InFilename)
 		, FileSize(InFileSize)
 	{
+		TRACE_PLATFORMFILE_BEGIN_OPEN(*FString::Printf(TEXT("zen:%s"), InFilename));
+		TRACE_PLATFORMFILE_END_OPEN(this);
 	}
 
 	~FStorageServerFileHandle()
 	{
+		TRACE_PLATFORMFILE_BEGIN_CLOSE(this);
+		TRACE_PLATFORMFILE_END_CLOSE(this);
 	}
 
 	virtual int64 Size() override
@@ -224,8 +229,10 @@ public:
 
 	virtual bool Read(uint8* Destination, int64 BytesToRead) override
 	{
+		TRACE_PLATFORMFILE_BEGIN_READ(Destination, this, FilePos, BytesToRead);
 		if (BytesToRead == 0)
 		{
+			TRACE_PLATFORMFILE_END_READ(Destination, 0);
 			return true;
 		}
 
@@ -235,8 +242,10 @@ public:
 			if (BytesRead == BytesToRead)
 			{
 				FilePos += BytesRead;
+				TRACE_PLATFORMFILE_END_READ(Destination, BytesRead);
 				return true;
 			}
+			TRACE_PLATFORMFILE_END_READ(Destination, 0);
 			return false;
 		}
 
@@ -250,6 +259,7 @@ public:
 			if (BytesReadFromBuffer == BytesToRead)
 			{
 				FilePos += BytesReadFromBuffer;
+				TRACE_PLATFORMFILE_END_READ(this, BytesReadFromBuffer);
 				return true;
 			}
 		}
@@ -264,9 +274,11 @@ public:
 		if (BytesReadFromBuffer == BytesToRead)
 		{
 			FilePos += BytesReadFromBuffer;
+			TRACE_PLATFORMFILE_END_READ(Destination, BytesReadFromBuffer);
 			return true;
 		}
 		
+		TRACE_PLATFORMFILE_END_READ(Destination, 0);
 		return false;
 	}
 
@@ -538,6 +550,12 @@ void FStorageServerPlatformFile::InitializeAfterProjectFilePath()
 		{
 			FStringView HostAddr = Connection->GetHostAddr();
 			UE_LOG(LogStorageServerPlatformFile, Fatal, TEXT("Failed to get file list from Zen at '%.*s'"), HostAddr.Len(), HostAddr.GetData());
+		}
+
+		// optional debugging module depends on a valid Connection
+		if (FModuleManager::Get().ModuleExists(TEXT("StorageServerClientDebug")))
+		{
+			FModuleManager::Get().LoadModule("StorageServerClientDebug");
 		}
 	}
 	else

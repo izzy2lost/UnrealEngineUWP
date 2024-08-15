@@ -7,8 +7,18 @@
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
 #include "ProfilingDebugging/CsvProfiler.h"
+#include "ProfilingDebugging/CountersTrace.h"
 #include "Templates/UniquePtr.h"
 #include "StorageServerClientModule.h"
+#include "HAL/IConsoleManager.h"
+#include "HAL/Runnable.h"
+#include "HAL/RunnableThread.h"
+#include "HAL/Event.h"
+#include "HAL/PlatformProcess.h"
+#include "Misc/ScopeLock.h"
+#include "Misc/CoreDelegates.h"
+
+#if !UE_BUILD_SHIPPING
 
 CSV_DEFINE_CATEGORY(ZenServerStats, true);
 
@@ -17,54 +27,47 @@ CSV_DEFINE_STAT(ZenServerStats, MaxReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, MinReqThroughputMbps);
 CSV_DEFINE_STAT(ZenServerStats, RequestCountPerSec);
 
-bool UStorageServerConnectionDebug::ShowGraphs = false;
+TRACE_DECLARE_UNCHECKED_FLOAT_COUNTER(ZenClient_ThroughputMbps,       TEXT("ZenClient/ThroughputMbps (decompressed)"));
+TRACE_DECLARE_UNCHECKED_FLOAT_COUNTER(ZenClient_MaxReqThroughputMbps, TEXT("ZenClient/MaxReqThroughputMbps (decompressed)"));
+TRACE_DECLARE_UNCHECKED_FLOAT_COUNTER(ZenClient_MinReqThroughputMbps, TEXT("ZenClient/MinReqThroughputMbps (decompressed)"));
+TRACE_DECLARE_UNCHECKED_INT_COUNTER(  ZenClient_RequestCountPerSec,   TEXT("ZenClient/RequestCountPerSec"));
 
-void UStorageServerConnectionDebug::StartDrawing()
+
+static bool GZenShowGraphs = false;
+static FAutoConsoleVariableRef CVarZenShowGraphs(
+	TEXT("zen.showgraphs"),
+	GZenShowGraphs,
+	TEXT("Show ZenServer Stats Graph"),
+	ECVF_Default
+);
+
+static bool GZenShowStats = true;
+static FAutoConsoleVariableRef CVarZenShowStats(
+	TEXT("zen.showstats"),
+	GZenShowStats,
+	TEXT("Show ZenServer Stats"),
+	ECVF_Default
+);
+
+
+namespace
 {
-	if (DrawHandle.IsValid())
-	{
-		return;
-	}
-	DrawHandle = UDebugDrawService::Register(TEXT("Game"),FDebugDrawDelegate::CreateUObject(this, &UStorageServerConnectionDebug::Draw));
-}
-
-void UStorageServerConnectionDebug::StopDrawing()
-{
-	if (!DrawHandle.IsValid())
-	{
-		return;
-	}
-
-	UDebugDrawService::Unregister(DrawHandle);
-	DrawHandle.Reset();
-}
-
-void UStorageServerConnectionDebug::Draw(UCanvas* Canvas, APlayerController*)
-{
-	static constexpr double FrameSeconds = 1.0;
-	static constexpr float  ViewXRel = 0.2f;
-	static constexpr float  ViewYRel = 0.12f;
-	static constexpr float  ViewWidthRel = 0.4f;
-	static constexpr float  ViewHeightRel = 0.18f;
-	static constexpr double TextHeight = 16.0;
 	static constexpr int    OneMinuteSeconds = 60;
 	static constexpr double WidthSeconds = OneMinuteSeconds * 0.25;
-	static constexpr double MaxHeightScaleThroughput = 6000;
-	static constexpr double MaxHeightScaleRequest = 5000;
-	static constexpr int	LineThickness = 3;
-	static double			HeightScaleThroughput = MaxHeightScaleThroughput;
-	static double			HeightScaleRequest = MaxHeightScaleRequest;
+}
+
+
+bool FStorageServerConnectionDebug::OnTick(float)
+{
+	FScopeLock Lock(&CS);
+
+	static constexpr double FrameSeconds = 1.0;
 	
 	double StatsTimeNow = FPlatformTime::Seconds();
 	double Duration = StatsTimeNow - UpdateStatsTime;
 
-	static double MaxReqThroughput = 0.0;
-	static double MinReqThroughput = 0.0;
-	static uint32 ReqCount = 0;
-	static double Throughput = 0.0;
-
 	//Persistent debug message and CSV stats
-	if ((Duration > UpdateStatsTimer) && (GEngine) && StorageServerPlatformFile)
+	if (Duration > UpdateStatsTimer)
 	{
 		UpdateStatsTime = StatsTimeNow;
 
@@ -79,11 +82,19 @@ void UStorageServerConnectionDebug::Draw(UCanvas* Canvas, APlayerController*)
 			ReqCount = ceil((double)Stats.RequestCount / Duration);
 		}
 
-		FString ZenConnectionDebugMsg;
-		ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s [%.2fMbps]"), *HostAddress, Throughput);
-		GEngine->AddOnScreenDebugMessage((uint64)this, 86400.0f, FColor::White, ZenConnectionDebugMsg, false);
+		if (GZenShowStats && GEngine)
+		{
+			FString ZenConnectionDebugMsg;
+			ZenConnectionDebugMsg = FString::Printf(TEXT("ZenServer streaming from %s [%.2fMbps]"), *HostAddress, Throughput);
+			GEngine->AddOnScreenDebugMessage((uint64)this, 86400.0f, FColor::White, ZenConnectionDebugMsg, false);
+		}
 		
 		History.push_back({ StatsTimeNow, MaxReqThroughput, MinReqThroughput, Throughput, ReqCount });
+
+		TRACE_COUNTER_SET(ZenClient_ThroughputMbps,       Throughput);
+		TRACE_COUNTER_SET(ZenClient_MaxReqThroughputMbps, MaxReqThroughput);
+		TRACE_COUNTER_SET(ZenClient_MinReqThroughputMbps, MinReqThroughput);
+		TRACE_COUNTER_SET(ZenClient_RequestCountPerSec,   ReqCount);
 	}
 
 	while (!History.empty() && StatsTimeNow - History.front().Time > WidthSeconds)
@@ -91,14 +102,39 @@ void UStorageServerConnectionDebug::Draw(UCanvas* Canvas, APlayerController*)
 		History.erase(History.begin());
 	}
 
-	//CSV stats need to be written per frame
-	CSV_CUSTOM_STAT_DEFINED(ThroughputMbps, Throughput, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(MaxReqThroughputMbps, MaxReqThroughput, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(MinReqThroughputMbps, MinReqThroughput, ECsvCustomStatOp::Set);
-	CSV_CUSTOM_STAT_DEFINED(RequestCountPerSec, (int32)ReqCount, ECsvCustomStatOp::Set);
-
-	if (ShowGraphs)
+	//CSV stats need to be written per frame (only send if we're running from the gamethread ticker, not the startup debug thread)
+	if (IsInGameThread())
 	{
+		CSV_CUSTOM_STAT_DEFINED(ThroughputMbps, Throughput, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(MaxReqThroughputMbps, MaxReqThroughput, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(MinReqThroughputMbps, MinReqThroughput, ECsvCustomStatOp::Set);
+		CSV_CUSTOM_STAT_DEFINED(RequestCountPerSec, (int32)ReqCount, ECsvCustomStatOp::Set);
+	}
+
+	return true;
+}
+
+
+
+void FStorageServerConnectionDebug::OnDraw(UCanvas* Canvas, APlayerController*)
+{
+	FScopeLock Lock(&CS);
+
+	static constexpr float  ViewXRel = 0.2f;
+	static constexpr float  ViewYRel = 0.12f;
+	static constexpr float  ViewWidthRel = 0.4f;
+	static constexpr float  ViewHeightRel = 0.18f;
+	static constexpr double TextHeight = 16.0;
+	static constexpr double MaxHeightScaleThroughput = 6000;
+	static constexpr double MaxHeightScaleRequest = 5000;
+	static constexpr int	LineThickness = 3;
+	static double			HeightScaleThroughput = MaxHeightScaleThroughput;
+	static double			HeightScaleRequest = MaxHeightScaleRequest;
+
+	if (GZenShowGraphs)
+	{
+		double StatsTimeNow = FPlatformTime::Seconds();
+
 		int ViewX = (int)(ViewXRel * Canvas->ClipX);
 		int ViewY = (int)(ViewYRel * Canvas->ClipY);
 		int ViewWidth = (int)(ViewWidthRel * Canvas->ClipX);;
@@ -192,56 +228,109 @@ void UStorageServerConnectionDebug::Draw(UCanvas* Canvas, APlayerController*)
 	}
 }
 
-void UStorageServerConnectionDebug::ShowGraph(FOutputDevice&)
-{
-	ShowGraphs = true;
-}
-
-void UStorageServerConnectionDebug::HideGraph(FOutputDevice&)
-{
-	ShowGraphs = false;
-}
-
-static FAutoConsoleCommandWithOutputDevice
-	GShowDebugConnectionStatsCmd(
-		TEXT("r.ZenServerStatsShow"),
-		TEXT("Show ZenServer Stats Graph."),
-		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UStorageServerConnectionDebug::ShowGraph));
-
-static FAutoConsoleCommandWithOutputDevice
-	GHideDebugConnectionStatsCmd(
-		TEXT("r.ZenServerStatsHide"),
-		TEXT("Hide ZenServer Stats Graph."),
-		FConsoleCommandWithOutputDeviceDelegate::CreateStatic(&UStorageServerConnectionDebug::HideGraph));
-
 
 class FStorageServerClientDebugModule
 	: public IModuleInterface
+	, public FRunnable
 {
 public:
-#if !UE_BUILD_SHIPPING
 	virtual void StartupModule() override
 	{
-		FCoreDelegates::OnPostEngineInit.AddLambda([this]
+		if (IStorageServerPlatformFile* StorageServerPlatformFile = IStorageServerClientModule::FindStorageServerPlatformFile())
 		{
-			if (IStorageServerPlatformFile* StorageServerPlatformFile = IStorageServerClientModule::FindStorageServerPlatformFile())
+			ConnectionDebug.Reset( new FStorageServerConnectionDebug(StorageServerPlatformFile) );
+			OnDrawDebugHandle = UDebugDrawService::Register(TEXT("Game"), FDebugDrawDelegate::CreateRaw(ConnectionDebug.Get(), &FStorageServerConnectionDebug::OnDraw) );
+
+			// start by capturing engine initialization stats on a background thread
+			StartThread();
+
+			// once the engine has initialized, switch to a more lightweight gamethread ticker
+			FCoreDelegates::OnPostEngineInit.AddLambda([this]
 			{
-				ConnectionDebug = NewObject<UStorageServerConnectionDebug>();
-				ConnectionDebug->SetPlatformFile(StorageServerPlatformFile);
-				ConnectionDebug->AddToRoot();
-				ConnectionDebug->StartDrawing();
-			}
-		});
+				StopThread();
+				StartTick();
+			});
+		}
 	}
 
 	virtual void ShutdownModule() override
 	{
-		//Since ConnectionDebug is an UObject it's already been freed during shutdown at this point
-		ConnectionDebug = nullptr;
+		if (ConnectionDebug.IsValid())
+		{
+			StopThread();
+			StopTick();
+			UDebugDrawService::Unregister(OnDrawDebugHandle);
+			ConnectionDebug.Reset();
+		}
 	}
-#endif // !UE_BUILD_SHIPPING
 
-	UStorageServerConnectionDebug* ConnectionDebug = nullptr;
+	void StartThread()
+	{
+		check(!Thread.IsValid());
+		ThreadStopEvent = FPlatformProcess::GetSynchEventFromPool(true);
+		Thread.Reset( FRunnableThread::Create(this, TEXT("StorageServerStartupDebug"), 0, TPri_Lowest) );
+	}
+
+	void StopThread()
+	{
+		if (Thread.IsValid())
+		{
+			Thread.Reset();
+			FPlatformProcess::ReturnSynchEventToPool(ThreadStopEvent);
+			ThreadStopEvent = nullptr;
+		}
+	}
+
+	void StartTick()
+	{
+		check(!TickHandle.IsValid());
+		TickHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateRaw(ConnectionDebug.Get(), &FStorageServerConnectionDebug::OnTick));
+	}
+
+	void StopTick()
+	{
+		if (TickHandle.IsValid())
+		{
+			FTSTicker::GetCoreTicker().RemoveTicker(TickHandle);
+			TickHandle.Reset();
+		}
+	}
+
+	// FRunnable interface
+	virtual uint32 Run() override
+	{
+		while(!ThreadStopEvent->Wait(10))
+		{
+			ConnectionDebug->OnTick(0);
+		}
+		return 0;
+	}
+
+	virtual void Stop() override
+	{
+		ThreadStopEvent->Trigger();
+	}
+	// end of FRunnable interface
+
+
+	TUniquePtr<FStorageServerConnectionDebug> ConnectionDebug;
+	FDelegateHandle OnDrawDebugHandle;
+
+	TUniquePtr<FRunnableThread> Thread;
+	FEvent* ThreadStopEvent = nullptr;
+
+	FTSTicker::FDelegateHandle TickHandle;
+
 };
 
 IMPLEMENT_MODULE(FStorageServerClientDebugModule, StorageServerClientDebug);
+
+#else
+
+// shipping stub
+IMPLEMENT_MODULE(FDefaultModuleImpl, StorageServerClientDebug);
+
+#endif // !UE_BUILD_SHIPPING
+
+
+
