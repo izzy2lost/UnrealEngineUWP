@@ -33,7 +33,7 @@ public:
 	USkeleton* GetSkeleton();
 
 	/** Update Data*/
-	void SetSkeleton(USkeleton* Skeleton);
+	void UpdateSkeleton();
 
 	/** Update the view */
 	virtual void UpdateViewData() override;
@@ -47,12 +47,16 @@ public:
 	/** Selection View Callbacks */
 	void SkeletonViewSelectionChanged(const TArrayView<TSharedPtr<ISkeletonTreeItem>>& InSelectedItems, ESelectInfo::Type InSelectInfo);
 
+	static const FName SkeletonName;
 
 private:
 	TSharedPtr<ISkeletonTree> SkeletonEditor;
 
 	/* Skeletal Mesh in the SkeletalViewer*/
-	TObjectPtr<USkeletalMesh> SkeletalMesh = nullptr;
+	TObjectPtr<USkeletalMesh> SkeletalMesh;
+
+	/* Visualized Skeleton*/
+	TObjectPtr<USkeleton> Skeleton;
 
 	/* Rempping from the selected node to the SkeletalMesh*/
 	TArray<int32> CollectionIndexRemap;

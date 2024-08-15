@@ -1307,7 +1307,7 @@ TSharedRef<SDockTab> FDataflowEditorToolkit::SpawnTab_SkeletonView(const FSpawnT
 
 	TSharedPtr<ISkeletonTree> SkeletonEditor = SkeletonEditorView->CreateEditor(SkeletonTreeArgs);
 	return SNew(SDockTab)
-		.Label(LOCTEXT("DataflowEditor_Skeleton_TabTitle", "Skeleton View"))
+		.Label(LOCTEXT("DataflowEditor_Outliner_TabTitle", "Outliner"))
 		[
 			SkeletonEditor.ToSharedRef()
 		];
@@ -1501,7 +1501,7 @@ void FDataflowEditorToolkit::RegisterTabSpawners(const TSharedRef<FTabManager>& 
 	if (bDataflowEnableSkeletonView)
 	{
 		InTabManager->RegisterTabSpawner(SkeletonViewTabId, FOnSpawnTab::CreateSP(this, &FDataflowEditorToolkit::SpawnTab_SkeletonView))
-			.SetDisplayName(LOCTEXT("DataflowSkeletonTab", "Skeleton View"))
+			.SetDisplayName(LOCTEXT("OutlinerTab", "Outliner"))
 			.SetGroup(EditorMenuCategory.ToSharedRef())
 			.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.SkeletonHierarchy"));
 	}
