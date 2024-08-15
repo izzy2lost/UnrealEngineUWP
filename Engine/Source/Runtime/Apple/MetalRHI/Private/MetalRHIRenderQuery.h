@@ -84,6 +84,7 @@ public:
 	FMetalQueryResult() = default;
 	~FMetalQueryResult() = default;
 
+	void Reset();
 	bool Wait(uint64 Millis);
 	uint64 GetResult();
 
@@ -106,6 +107,9 @@ public:
 	FMetalRHIRenderQuery(FMetalDevice& MetalDevice, ERenderQueryType InQueryType);
 	virtual ~FMetalRHIRenderQuery();
 
+	void Begin_TopOfPipe();
+	void End_TopOfPipe();
+	
 	/**
 	 * Kick off an occlusion test
 	 */
@@ -134,7 +138,7 @@ private:
 	volatile uint64 Result;
 
 	// Result availability - if not set the first call to acquire it will read the buffer & cache
-	volatile bool bAvailable;
+	std::atomic<bool> bAvailable;
 
 	// Timer event completion signal
 	FEvent* QueryWrittenEvent;

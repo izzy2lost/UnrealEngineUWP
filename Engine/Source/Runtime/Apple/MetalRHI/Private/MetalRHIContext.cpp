@@ -7,6 +7,7 @@
 #include "MetalBindlessDescriptors.h"
 #include "MetalDevice.h"
 #include "MetalCommandBuffer.h"
+#include "MetalDynamicRHI.h"
 
 #if PLATFORM_VISIONOS
 #import <CompositorServices/CompositorServices.h>
@@ -306,6 +307,22 @@ void FMetalRHICommandContext::RHICalibrateTimers(FRHITimestampCalibrationQuery* 
 
     CalibrationQuery->CPUMicroseconds[0] = uint64(CPUTimeStamp / 1000.0);
     CalibrationQuery->GPUMicroseconds[0] = uint64(GPUTimestamp / 1000.0);
+}
+
+void FMetalDynamicRHI::RHIBeginRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery)
+{
+	FMetalRHIRenderQuery* Query = ResourceCast(RenderQuery);
+	Query->Begin_TopOfPipe();
+
+	FDynamicRHI::RHIBeginRenderQuery_TopOfPipe(RHICmdList, RenderQuery);
+}
+
+void FMetalDynamicRHI::RHIEndRenderQuery_TopOfPipe(FRHICommandListBase& RHICmdList, FRHIRenderQuery* RenderQuery)
+{
+	FMetalRHIRenderQuery* Query = ResourceCast(RenderQuery);
+	Query->End_TopOfPipe();
+
+	FDynamicRHI::RHIEndRenderQuery_TopOfPipe(RHICmdList, RenderQuery);
 }
 
 void FMetalRHICommandContext::RHIBeginRenderQuery(FRHIRenderQuery* QueryRHI)

@@ -145,6 +145,11 @@ void FMetalQueryBufferPool::ReleaseQueryBuffer(FMetalBufferPtr Buffer)
 
 #pragma mark - Metal RHI Private Query Result Class -
 
+void FMetalQueryResult::Reset()
+{
+	CommandBufferFence.Reset();
+	bCompleted = false;
+}
 
 bool FMetalQueryResult::Wait(uint64 Millis)
 {
@@ -192,6 +197,25 @@ FMetalRHIRenderQuery::~FMetalRHIRenderQuery()
 		FPlatformProcess::ReturnSynchEventToPool(QueryWrittenEvent);
 		QueryWrittenEvent = nullptr;
 	}
+}
+
+void FMetalRHIRenderQuery::Begin_TopOfPipe()
+{
+	Buffer.Reset();
+	bAvailable = false;
+}
+
+void FMetalRHIRenderQuery::End_TopOfPipe()
+{
+	if (Type == RQT_AbsoluteTime)
+	{
+		Buffer.Reset();
+		if(QueryWrittenEvent)
+		{
+			QueryWrittenEvent->Reset();
+		}
+	}
+	bAvailable = false;
 }
 
 void FMetalRHIRenderQuery::Begin(FMetalRHICommandContext* Context, TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> const& BatchFence)
@@ -269,8 +293,7 @@ void FMetalRHIRenderQuery::End(FMetalRHICommandContext* Context)
 			Buffer.Offset = 0;
 			Buffer.bCompleted = false;
 			Buffer.bBatchFence = false;
-			Buffer.CommandBufferFence = MakeShareable(new FMetalCommandBufferFence);
-			check(Buffer.CommandBufferFence.IsValid());
+			TSharedPtr<FMetalCommandBufferFence, ESPMode::ThreadSafe> CommandBufferFence = MakeShareable(new FMetalCommandBufferFence);
 
 			Result = 0;
 			bAvailable = false;
@@ -316,7 +339,8 @@ void FMetalRHIRenderQuery::End(FMetalRHICommandContext* Context)
 				this->Release();
 			});
 
-            Context->InsertCommandBufferFence(Buffer.CommandBufferFence, Handler);
+            Context->InsertCommandBufferFence(CommandBufferFence, Handler);
+			Buffer.CommandBufferFence = CommandBufferFence;
 			break;
 		}
 		default:
@@ -344,10 +368,8 @@ bool FMetalRHIRenderQuery::GetResult(uint64& OutNumPixels, bool bWait, uint32 GP
 			FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
 			
 			// RHI thread *must* be flushed at this point if the internal handles we rely upon are not yet valid.
-			// We *CANNOT* have one event per query as it consumes too many pthread objects.
-			if (!RHICmdList.Bypass() && IsRunningRHIInSeparateThread() && !Buffer.CommandBufferFence.IsValid())
+			if (!Buffer.CommandBufferFence.IsValid())
 			{
-				RHICmdList.RHIThreadFence(true);
 				RHICmdList.ImmediateFlush(EImmediateFlushType::FlushRHIThread);
 			}
 
@@ -369,7 +391,10 @@ bool FMetalRHIRenderQuery::GetResult(uint64& OutNumPixels, bool bWait, uint32 GP
 		}
 		else
 		{
-			bOK = Buffer.Wait(0);
+			if(Buffer.CommandBufferFence.IsValid())
+			{
+				bOK = Buffer.Wait(0);
+			}
 		}
 
 		if (bOK == false)
