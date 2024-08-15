@@ -162,6 +162,11 @@ public:
 	}
 
 	/**
+	 * Returns true if the event currently running is considered a construction event
+	 */
+	bool IsRunningConstructionEvent() const;
+
+	/**
 	 * Add the namespace from a given name
 	 */
 	FName AddRigModuleNameSpace(const FName& InName) const;

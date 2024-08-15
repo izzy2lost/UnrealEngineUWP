@@ -749,6 +749,8 @@ bool UControlRig::Execute(const FName& InEventName)
 	const bool bIsEventFirstInQueue = !LocalEventQueueToRun.IsEmpty() && LocalEventQueueToRun[0] == InEventName; 
 	const bool bIsEventLastInQueue = !LocalEventQueueToRun.IsEmpty() && LocalEventQueueToRun.Last() == InEventName;
 	const bool bIsConstructionEvent = InEventName == FRigUnit_PrepareForExecution::EventName;
+	const bool bIsPostConstructionEvent = InEventName == FRigUnit_PostPrepareForExecution::EventName;
+	const bool bPostConstructionEventInQueue = LocalEventQueueToRun.Contains(FRigUnit_PostPrepareForExecution::EventName) && SupportsEvent(FRigUnit_PostPrepareForExecution::EventName);
 	const bool bPreForwardSolveInQueue = LocalEventQueueToRun.Contains(FRigUnit_PreBeginExecution::EventName);
 	const bool bPostForwardSolveInQueue = LocalEventQueueToRun.Contains(FRigUnit_PostBeginExecution::EventName);
 	const bool bIsPreForwardSolve = InEventName == FRigUnit_PreBeginExecution::EventName;
@@ -880,7 +882,7 @@ bool UControlRig::Execute(const FName& InEventName)
 	}
 
 	// disable any controller access outside of the construction event
-	FRigHierarchyEnableControllerBracket DisableHierarchyController(PublicContext.Hierarchy, bIsConstructionEvent);
+	FRigHierarchyEnableControllerBracket DisableHierarchyController(PublicContext.Hierarchy, bIsConstructionEvent || bIsPostConstructionEvent);
 
 	// given the outer scene component configure
 	// the transform lookups to map transforms from rig space to world space
@@ -958,7 +960,7 @@ bool UControlRig::Execute(const FName& InEventName)
 		UE_LOG(LogControlRig, Warning, TEXT("%s: Execute is being called recursively."), *GetPathName());
 		return false;
 	}
-	if(bIsConstructionEvent)
+	if(bIsConstructionEvent || bIsPostConstructionEvent)
 	{
 		if(IsRunningPreConstruction() || IsRunningPostConstruction())
 		{
@@ -1052,8 +1054,11 @@ bool UControlRig::Execute(const FName& InEventName)
 					bSuccess = Execute_Internal(FRigUnit_PrepareForExecution::EventName);
 					
 				} // destroy FTransientControlScope
-				
-				RunPostConstructionEvent();
+
+				if(!bPostConstructionEventInQueue)
+				{
+					RunPostConstructionEvent();
+				}
 
 				// Reset the input pose after construction
 				if (CurrentPose.Num() > 0)
@@ -1067,6 +1072,11 @@ bool UControlRig::Execute(const FName& InEventName)
 			GetHierarchy()->GetController()->SetSelection(PreviousSelection);
 			
 		} // destroy DisableSelectionNotifications
+
+		if (bIsPostConstructionEvent || (bIsConstructionEvent && !bPostConstructionEventInQueue))
+		{
+			RunPostConstructionEvent();
+		}
 
 		if (bConstructionModeEnabled)
 		{
@@ -1444,6 +1454,10 @@ bool UControlRig::Execute(const FName& InEventName)
 	{
 		RemoveRunOnceEvent(FRigUnit_PrepareForExecution::EventName);
 	}
+	if(bIsPostConstructionEvent)
+	{
+		RemoveRunOnceEvent(FRigUnit_PostPrepareForExecution::EventName);
+	}
 
 	return bSuccess;
 }
@@ -1586,6 +1600,7 @@ void UControlRig::RequestInit()
 void UControlRig::RequestConstruction()
 {
 	RequestRunOnceEvent(FRigUnit_PrepareForExecution::EventName, 0);
+	RequestRunOnceEvent(FRigUnit_PostPrepareForExecution::EventName, 1);
 }
 
 bool UControlRig::IsConstructionRequired() const
@@ -1606,11 +1621,6 @@ void UControlRig::AdaptEventQueueForEvaluate(TArray<FName>& InOutEventQueueToRun
 	{
 		if (InOutEventQueueToRun[i] == FRigUnit_PrepareForExecution::EventName)
 		{
-			if (SupportsEvent(FRigUnit_PrePrepareForExecution::EventName))
-			{
-				InOutEventQueueToRun.Insert(FRigUnit_PrePrepareForExecution::EventName, i);
-				i++; // skip preconstruction 
-			}
 			if (SupportsEvent(FRigUnit_PostPrepareForExecution::EventName))
 			{
 				i++; // skip construction

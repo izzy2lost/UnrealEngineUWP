@@ -11,12 +11,6 @@ FRigUnit_PrepareForExecution_Execute()
 	ExecuteContext.SetEventName(FRigUnit_PrepareForExecution::EventName);
 }
 
-FRigUnit_PrePrepareForExecution_Execute()
-{
-	DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()
-	ExecuteContext.SetEventName(FRigUnit_PrePrepareForExecution::EventName);
-}
-
 FRigUnit_PostPrepareForExecution_Execute()
 {
 	DECLARE_SCOPE_HIERARCHICAL_COUNTER_RIGUNIT()

@@ -52,7 +52,6 @@ bool UControlRigGraphSchema::IsRigVMDefaultEvent(const FName& InEventName) const
 		InEventName == FRigUnit_PreBeginExecution::EventName ||
 		InEventName == FRigUnit_PostBeginExecution::EventName ||
 		InEventName == FRigUnit_InverseExecution::EventName ||
-		InEventName == FRigUnit_PrePrepareForExecution::EventName ||
 		InEventName == FRigUnit_PrepareForExecution::EventName ||
 		InEventName == FRigUnit_PostPrepareForExecution::EventName ||
 		InEventName == FRigUnit_InteractionExecution::EventName ||

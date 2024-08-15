@@ -22,12 +22,12 @@ bool FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(
 
 	if(bAllowOnlyConstructionEvent)
 	{
-		if(InExecuteContext.GetEventName() != FRigUnit_PrepareForExecution::EventName)
+		if(!InExecuteContext.IsRunningConstructionEvent())
 		{
 			if(OutErrorMessage)
 			{
-				static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node can only run in %s Event");
-				*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString());
+				static constexpr TCHAR ErrorMessageFormat[] = TEXT("Node can only run in %s or %s Event");
+				*OutErrorMessage = FString::Printf(ErrorMessageFormat, *FRigUnit_PrepareForExecution::EventName.ToString(), *FRigUnit_PostPrepareForExecution::EventName.ToString());
 			}
 			return false;
 		}
@@ -177,7 +177,7 @@ FRigUnit_SwitchParent_Execute()
 			}
 
 			// during construction event also change the initial weights
-			if(ExecuteContext.GetEventName() == FRigUnit_PrepareForExecution::EventName)
+			if(ExecuteContext.IsRunningConstructionEvent())
 			{
 				if(!ExecuteContext.Hierarchy->SwitchToParent(ChildElement, ParentElement, true, true, EmptyDependencyMap, &FailureReason))
 				{
@@ -251,7 +251,7 @@ FRigUnit_HierarchySetParentWeights_Execute()
 	ExecuteContext.Hierarchy->SetParentWeightArray(ChildElement, Weights, false, true);
 
 	// during construction event also change the initial weights
-	if(ExecuteContext.GetEventName() == FRigUnit_PrepareForExecution::EventName)
+	if(ExecuteContext.IsRunningConstructionEvent())
 	{
 		ExecuteContext.Hierarchy->SetParentWeightArray(ChildElement, Weights, true, true);
 	}
