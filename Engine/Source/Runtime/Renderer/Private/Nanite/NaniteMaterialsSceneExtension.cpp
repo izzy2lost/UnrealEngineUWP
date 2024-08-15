@@ -196,6 +196,17 @@ void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 		return;
 	}
 
+	// Sync on dependent tasks
+	UE::Tasks::Wait(
+		MakeArrayView(
+			{
+				TaskHandles[AllocMaterialBufferTask],
+				TaskHandles[UploadPrimitiveDataTask],
+				TaskHandles[UploadMaterialDataTask]
+			}
+		)
+	);
+
 	FRDGBufferRef PrimitiveBuffer = nullptr;
 	FRDGBufferRef MaterialBuffer = nullptr;
 
@@ -204,15 +215,6 @@ void FMaterialsSceneExtension::FinishMaterialBufferUpload(
 
 	if (MaterialUploader.IsValid())
 	{
-		// Sync on upload tasks
-		UE::Tasks::Wait(
-			MakeArrayView(
-				{
-					TaskHandles[UploadPrimitiveDataTask],
-					TaskHandles[UploadMaterialDataTask]
-				}
-			)
-		);
 		PrimitiveBuffer = MaterialUploader->PrimitiveDataUploader.ResizeAndUploadTo(
 			GraphBuilder,
 			MaterialBuffers->PrimitiveDataBuffer,
