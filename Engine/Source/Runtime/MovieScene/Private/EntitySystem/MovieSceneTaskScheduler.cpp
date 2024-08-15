@@ -56,8 +56,8 @@ FScheduledTask::FScheduledTask(FScheduledTask&& InTask)
 	, WriteContextOffset(InTask.WriteContextOffset)
 	, LockedComponentData(InTask.LockedComponentData)
 	, NumPrerequisites(InTask.NumPrerequisites)
-	, WaitCount(InTask.WaitCount.load())
-	, ChildCompleteCount(InTask.ChildCompleteCount.load())
+	, WaitCount(InTask.WaitCount.Load(EEntityThreadingModel::NoThreading))
+	, ChildCompleteCount(InTask.ChildCompleteCount.Load(EEntityThreadingModel::NoThreading))
 	, Parent(InTask.Parent)
 	, TaskFunctionType(InTask.TaskFunctionType)
 {
@@ -138,7 +138,7 @@ void FScheduledTask::Run(const FEntitySystemScheduler* Scheduler, FTaskExecution
 		// and destroy or  otherwise mutate the contents of FEntitySystemScheduler resulting in a crash.
 		//
 		// Once our loop has finished we check the child complete count to see if this was the last one
-		ChildCompleteCount.fetch_add(1);
+		ChildCompleteCount.Add(Scheduler->GetEntityManager()->GetThreadingModel(), 1);
 
 		for (int32 Index : ChildTasks)
 		{
@@ -146,7 +146,7 @@ void FScheduledTask::Run(const FEntitySystemScheduler* Scheduler, FTaskExecution
 		}
 
 		// Subtract our count added on ln 205. If this is the last count, complete this task (all children have completed)
-		const int32 PreviousCompleteCount = ChildCompleteCount.fetch_sub(1);
+		const int32 PreviousCompleteCount = ChildCompleteCount.Sub(Scheduler->GetEntityManager()->GetThreadingModel(), 1);
 		if (PreviousCompleteCount == 1)
 		{
 			Scheduler->CompleteTask(this, InFlags);
@@ -154,7 +154,7 @@ void FScheduledTask::Run(const FEntitySystemScheduler* Scheduler, FTaskExecution
 	}
 	else
 	{
-		checkSlow(ChildCompleteCount.load() == 0);
+		checkSlow(ChildCompleteCount.Load(Scheduler->GetEntityManager()->GetThreadingModel()) == 0);
 		Scheduler->CompleteTask(this, InFlags);
 	}
 }
@@ -484,10 +484,15 @@ void FEntitySystemScheduler::ExecuteTasks()
 		return;
 	}
 
-	const int32 PreviousNumRemaining = NumTasksRemaining.exchange(Tasks.Num());
+	const EEntityThreadingModel ThreadingModelToUse = EntityManager->GetThreadingModel();
+
+	const int32 PreviousNumRemaining = NumTasksRemaining.Exchange(ThreadingModelToUse, Tasks.Num());
 	check(PreviousNumRemaining == 0);
 
-	ThreadingModel = EntityManager->GetThreadingModel();
+	ThreadingModel = ThreadingModelToUse;
+	// In a transaction we can only support the no-threading mode.
+	check(!AutoRTFM::IsTransactional() || (EEntityThreadingModel::NoThreading == ThreadingModel));
+
 	WriteContextBase = FEntityAllocationWriteContext(*EntityManager);
 
 	// Condition 1: No threading
@@ -500,7 +505,7 @@ void FEntitySystemScheduler::ExecuteTasks()
 			Tasks[Index].Run(this, FTaskExecutionFlags());
 		}
 
-		check(NumTasksRemaining.load() == 0);
+		check(NumTasksRemaining.Load(ThreadingModel) == 0);
 		EntityManager->IncrementSystemSerial(SystemSerialIncrement);
 		return;
 	}
@@ -545,7 +550,7 @@ void FEntitySystemScheduler::ExecuteTasks()
 			Task->Run(this, FTaskExecutionFlags());
 		}
 
-		if (NumTasksRemaining.load() == 0)
+		if (NumTasksRemaining.Load(ThreadingModel) == 0)
 		{
 			break;
 		}
@@ -553,15 +558,15 @@ void FEntitySystemScheduler::ExecuteTasks()
 		GameThreadSignal->Wait();
 	}
 
-	check(NumTasksRemaining.load() == 0);
+	check(NumTasksRemaining.Load(ThreadingModel) == 0);
 	EntityManager->IncrementSystemSerial(SystemSerialIncrement);
 }
 
 void FEntitySystemScheduler::CompleteTask(const FScheduledTask* Task, FTaskExecutionFlags InFlags) const
 {
 	// Reset the WaitCount ready for the next run
-	const int32 PreviousWaitCount = Task->WaitCount.exchange(Task->NumPrerequisites);
-	const int32 PreviousChildCount = Task->ChildCompleteCount.exchange(Task->ChildTasks.CountSetBits());
+	const int32 PreviousWaitCount = Task->WaitCount.Exchange(ThreadingModel, Task->NumPrerequisites);
+	const int32 PreviousChildCount = Task->ChildCompleteCount.Exchange(ThreadingModel, Task->ChildTasks.CountSetBits());
 
 	checkSlow(PreviousWaitCount == 0 && PreviousChildCount == 0);
 
@@ -575,7 +580,7 @@ void FEntitySystemScheduler::CompleteTask(const FScheduledTask* Task, FTaskExecu
 	if (Task->Parent)
 	{
 		const FScheduledTask* Parent = &Tasks[Task->Parent.Index];
-		const int32 PreviousCompleteCount = Parent->ChildCompleteCount.fetch_sub(1);
+		const int32 PreviousCompleteCount = Parent->ChildCompleteCount.Sub(ThreadingModel, 1);
 		if (PreviousCompleteCount == 1)
 		{
 			CompleteTask(Parent, InFlags);
@@ -587,7 +592,7 @@ void FEntitySystemScheduler::CompleteTask(const FScheduledTask* Task, FTaskExecu
 		Tasks[FirstInlineIndex].Run(this, FTaskExecutionFlags());
 	}
 
-	const int32 PreviousNumRemaining = NumTasksRemaining.fetch_sub(1);
+	const int32 PreviousNumRemaining = NumTasksRemaining.Sub(ThreadingModel, 1);
 	if (PreviousNumRemaining == 1)
 	{
 		OnAllTasksFinished();
@@ -596,7 +601,7 @@ void FEntitySystemScheduler::CompleteTask(const FScheduledTask* Task, FTaskExecu
 
 void FEntitySystemScheduler::PrerequisiteCompleted(FTaskID TaskID, int32* OptRunInlineIndex) const
 {
-	int32 PreviousWaitCount = Tasks[TaskID.Index].WaitCount.fetch_sub(1);
+	int32 PreviousWaitCount = Tasks[TaskID.Index].WaitCount.Sub(ThreadingModel, 1);
 	checkSlow(PreviousWaitCount >= 1);
 	if (PreviousWaitCount <= 1)
 	{
@@ -707,8 +712,8 @@ void FEntitySystemScheduler::EndConstruction()
 	for (int32 Index = 0; Index < Tasks.Num(); ++Index)
 	{
 		FScheduledTask& Task = Tasks[Index];
-		Task.WaitCount.exchange(Task.NumPrerequisites);
-		Task.ChildCompleteCount.exchange(Task.ChildTasks.CountSetBits());
+		Task.WaitCount.Exchange(ThreadingModel, Task.NumPrerequisites);
+		Task.ChildCompleteCount.Exchange(ThreadingModel, Task.ChildTasks.CountSetBits());
 
 		if (Task.NumPrerequisites == 0)
 		{

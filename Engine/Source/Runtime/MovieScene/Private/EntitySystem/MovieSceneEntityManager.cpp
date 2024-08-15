@@ -1048,19 +1048,13 @@ void FEntityManager::AccumulateMask(const FEntityComponentFilter& InFilter, FCom
 
 void FEntityManager::EnterIteration() const
 {
-	UE_AUTORTFM_OPEN2 { ++IterationCount; };
-
-	AutoRTFM::PushOnAbortHandler(this, [this] { --(this->IterationCount); });
+	IterationCount.Increment(ThreadingModel);
 }
 
 void FEntityManager::ExitIteration() const
 {
-	checkSlow(static_cast<uint16>(IterationCount) > 0);
-
-	// We only ever call the exit after an enter so we should not have to handle the case where exit is called first in order to ++ on the iterator
-	AutoRTFM::PopOnAbortHandler(this);
-
-	UE_AUTORTFM_OPEN2 { --IterationCount; };
+	checkSlow(IterationCount.Load(ThreadingModel) > 0);
+	IterationCount.Decrement(ThreadingModel);
 }
 
 FEntityAllocation* FEntityManager::CreateEntityAllocation(const FComponentMask& EntityComponentMask, uint16 InitialCapacity, uint16 MaxCapacity, FEntityAllocation* MigrateComponentDataFrom)

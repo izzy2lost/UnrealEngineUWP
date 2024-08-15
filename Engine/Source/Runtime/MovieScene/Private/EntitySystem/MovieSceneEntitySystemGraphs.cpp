@@ -424,6 +424,9 @@ void FMovieSceneEntitySystemGraph::ExecutePhase(UE::MovieScene::ESystemPhase Pha
 
 	const EEntityThreadingModel ThreadingModel = Linker->EntityManager.GetThreadingModel();
 
+	// In a transaction we can only support the no-threading mode.
+	check(!AutoRTFM::IsTransactional() || (EEntityThreadingModel::NoThreading == ThreadingModel));
+
 	FSystemSubsequentTasks DownstreamTasks(this, &OutTasks, ThreadingModel);
 
 	FSystemTaskPrerequisites NoPrerequisites;
@@ -437,7 +440,7 @@ void FMovieSceneEntitySystemGraph::ExecutePhase(UE::MovieScene::ESystemPhase Pha
 		UMovieSceneEntitySystem* System = Nodes.Array[NodeID].System;
 		checkSlow(System);
 
-		// Initilaize downstream task structure for this system
+		// Initialize downstream task structure for this system
 		DownstreamTasks.ResetNode(NodeID);
 
 		TSharedPtr<FSystemTaskPrerequisites> Prerequisites = Nodes.Array[NodeID].Prerequisites;
