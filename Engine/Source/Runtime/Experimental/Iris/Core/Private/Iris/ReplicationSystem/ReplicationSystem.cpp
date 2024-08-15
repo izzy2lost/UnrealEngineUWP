@@ -1026,6 +1026,16 @@ UE::Net::FStringTokenStore* UReplicationSystem::GetStringTokenStore()
 	return &Impl->ReplicationSystemInternal.GetStringTokenStore();
 }
 
+const UE::Net::FNameTokenStore* UReplicationSystem::GetNameTokenStore() const
+{
+	return &Impl->ReplicationSystemInternal.GetNameTokenStore();
+}
+
+UE::Net::FNameTokenStore* UReplicationSystem::GetNameTokenStore()
+{
+	return &Impl->ReplicationSystemInternal.GetNameTokenStore();
+}
+
 bool UReplicationSystem::RegisterNetBlobHandler(UNetBlobHandler* Handler)
 {
 	UE::Net::Private::FNetBlobManager& NetBlobManager = Impl->ReplicationSystemInternal.GetNetBlobManager();

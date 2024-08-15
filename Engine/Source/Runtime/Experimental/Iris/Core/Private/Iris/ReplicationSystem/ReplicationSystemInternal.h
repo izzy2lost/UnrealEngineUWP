@@ -22,6 +22,7 @@
 #include "Iris/ReplicationSystem/NetBlob/NetBlobManager.h"
 #include "Iris/ReplicationSystem/NetTokenStore.h"
 #include "Iris/ReplicationSystem/StringTokenStore.h"
+#include "Iris/ReplicationSystem/NameTokenStore.h"
 #include "Iris/ReplicationSystem/WorldLocations.h"
 #include "Iris/ReplicationState/ReplicationStateDescriptorRegistry.h"
 #include "Iris/Stats/NetStats.h"
@@ -49,6 +50,7 @@ public:
 	, ReplicationBridge(nullptr)
 	, IrisObjectReferencePackageMap(nullptr)
 	, StringTokenStore(NetTokenStore)
+	, NameTokenStore(NetTokenStore)
 	, Id(Params.ReplicationSystemId)
 	{}
 
@@ -93,6 +95,9 @@ public:
 
 	const FStringTokenStore& GetStringTokenStore() const { return StringTokenStore; }
 	FStringTokenStore& GetStringTokenStore() { return StringTokenStore; }
+
+	const FNameTokenStore& GetNameTokenStore() const { return NameTokenStore; }
+	FNameTokenStore& GetNameTokenStore() { return NameTokenStore; }
 
 	FNetTokenStore& GetNetTokenStore() { return NetTokenStore; }
 
@@ -140,6 +145,7 @@ private:
 	FNetBlobManager NetBlobManager;
 	FNetTokenStore NetTokenStore;
 	FStringTokenStore StringTokenStore;
+	FNameTokenStore NameTokenStore;
 	FNetCullDistanceOverrides NetCullDistanceOverrides;
 	FWorldLocations WorldLocations;
 	FDeltaCompressionBaselineManager DeltaCompressionBaselineManager;

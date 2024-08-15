@@ -37,7 +37,7 @@ FNetToken FStringTokenStore::GetOrCreateToken(const TCHAR* Name, uint32 Length)
 		}
 		else
 		{
-			const FNetToken NewToken = CreateToken(MakeNetTokenStoreKey(GetTypeId(), StringIndex), *TokenStore.GetLocalNetTokenStoreState());
+			const FNetToken NewToken = CreateToken(Key, *TokenStore.GetLocalNetTokenStoreState());
 			StoredTokens[StringIndex] = NewToken;
 
 			UE_LOG_STRINGTOKEN(TEXT("FStringTokenStore::GetOrCreateToken - Created new token %u for %s"), NewToken.GetIndex(), Name);

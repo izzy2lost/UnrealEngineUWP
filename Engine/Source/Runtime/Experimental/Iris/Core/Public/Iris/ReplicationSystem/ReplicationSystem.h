@@ -33,6 +33,7 @@ namespace UE::Net
 	class FNetObjectReference;
 	class FReplicationSystemFactory;
 	class FStringTokenStore;
+	class FNameTokenStore;
 	class FWorldLocations;
 
 	struct FReplicationSystemUtil;
@@ -339,6 +340,19 @@ public:
 	 * @see UE::Net::FStringTokenStore
 	 */
 	IRISCORE_API UE::Net::FStringTokenStore* GetStringTokenStore();
+
+	/**
+	 * @return A const version of the FName token store.
+	 * @see UE::Net::FFNameTokenStore
+	 */
+	IRISCORE_API const UE::Net::FNameTokenStore* GetNameTokenStore() const;
+
+	/**
+	 * @return The string token store.
+	 * @see UE::Net::FNameTokenStore
+	 */
+	IRISCORE_API UE::Net::FNameTokenStore* GetNameTokenStore();
+
 
 	/**
 	 * Check whether a FNetRefHandle is still associated with a replicated object.
