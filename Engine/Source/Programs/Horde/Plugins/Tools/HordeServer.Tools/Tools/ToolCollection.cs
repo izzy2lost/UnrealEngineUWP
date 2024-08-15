@@ -62,7 +62,7 @@ namespace HordeServer.Tools
 			public TimeSpan Duration { get; set; }
 
 			[BsonElement("ns")]
-			public NamespaceId NamespaceId { get; set; } = Namespace.Tools;
+			public NamespaceId NamespaceId { get; set; } = ToolConfig.DefaultNamespaceId;
 
 			[BsonElement("ref")]
 			public RefName RefName { get; set; }
@@ -467,7 +467,7 @@ namespace HordeServer.Tools
 			}
 			else
 			{
-				return _storageService.CreateClient(Namespace.Tools);
+				return _storageService.CreateClient(toolConfig.NamespaceId);
 			}
 		}
 
@@ -484,7 +484,7 @@ namespace HordeServer.Tools
 			}
 			else
 			{
-				return _storageService.CreateBackend(Namespace.Tools);
+				return _storageService.CreateBackend(toolConfig.NamespaceId);
 			}
 		}
 

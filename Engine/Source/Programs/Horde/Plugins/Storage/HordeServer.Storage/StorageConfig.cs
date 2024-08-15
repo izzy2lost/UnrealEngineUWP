@@ -34,11 +34,6 @@ namespace HordeServer.Storage
 		/// Log data
 		/// </summary>
 		public static NamespaceId Logs { get; } = new NamespaceId("horde-logs");
-
-		/// <summary>
-		/// Storage of tool data
-		/// </summary>
-		public static NamespaceId Tools { get; } = new NamespaceId("horde-tools");
 	}
 
 	/// <summary>

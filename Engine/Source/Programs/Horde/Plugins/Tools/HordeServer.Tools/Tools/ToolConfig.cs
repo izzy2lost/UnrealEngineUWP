@@ -20,6 +20,11 @@ namespace HordeServer.Tools
 	public class ToolConfig
 	{
 		/// <summary>
+		/// The default namespace for tool data
+		/// </summary>
+		public static NamespaceId DefaultNamespaceId { get; } = new NamespaceId("horde-tools");
+
+		/// <summary>
 		/// Unique identifier for the tool
 		/// </summary>
 		[Required]
@@ -69,7 +74,7 @@ namespace HordeServer.Tools
 		/// <summary>
 		/// Default namespace for new deployments of this tool
 		/// </summary>
-		public NamespaceId NamespaceId { get; set; } = Namespace.Tools;
+		public NamespaceId NamespaceId { get; set; } = DefaultNamespaceId;
 
 		/// <summary>
 		/// Permissions for the tool

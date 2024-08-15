@@ -25,7 +25,7 @@ namespace HordeServer.Tests.Tools
 			storageConfig.Backends.Clear();
 			storageConfig.Backends.Add(new BackendConfig { Id = new BackendId("tools-backend"), Type = StorageBackendType.Memory });
 			storageConfig.Namespaces.Clear();
-			storageConfig.Namespaces.Add(new NamespaceConfig { Id = Namespace.Tools, Backend = new BackendId("tools-backend") });
+			storageConfig.Namespaces.Add(new NamespaceConfig { Id = ToolConfig.DefaultNamespaceId, Backend = new BackendId("tools-backend") });
 
 			ToolsConfig toolsConfig = new ToolsConfig();
 			toolsConfig.Tools.Add(new ToolConfig(_toolId) { Name = "UnrealGameSync", Description = "Tool for syncing content from source control" });
