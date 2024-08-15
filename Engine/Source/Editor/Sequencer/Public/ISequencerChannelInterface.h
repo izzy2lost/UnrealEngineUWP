@@ -67,7 +67,7 @@ struct FExtendKeyMenuParams
 
 class ISidebarChannelExtension
 {
-	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) = 0;
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = false) = 0;
 };
 
 /**
