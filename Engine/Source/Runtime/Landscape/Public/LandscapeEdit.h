@@ -311,9 +311,9 @@ private:
 
 	// Only for Missing Data interpolation... only internal usage
 	template<typename TData, typename TStoreData, typename FType>
-	FORCEINLINE void CalcMissingValues(const int32& X1, const int32& X2, const int32& Y1, const int32& Y2,
-		const int32& ComponentIndexX1, const int32& ComponentIndexX2, const int32& ComponentIndexY1, const int32& ComponentIndexY2,
-		const int32& ComponentSizeX, const int32& ComponentSizeY, TData* CornerValues,
+	FORCEINLINE void CalcMissingValues(const int32 X1, const int32 X2, const int32 Y1, const int32 Y2,
+		const int32 ComponentIndexX1, const int32 ComponentIndexX2, const int32 ComponentIndexY1, const int32 ComponentIndexY2,
+		const int32 ComponentSizeX, const int32 ComponentSizeY, TData* CornerValues,
 		TArray<bool>& NoBorderY1, TArray<bool>& NoBorderY2, TArray<bool>& ComponentDataExist, TStoreData& StoreData);
 
 	// Generic Height Data access
@@ -362,9 +362,9 @@ struct FLandscapeDoNotDirtyScope
 template<typename T>
 void FLandscapeEditDataInterface::ShrinkData(TArray<T>& Data, int32 OldMinX, int32 OldMinY, int32 OldMaxX, int32 OldMaxY, int32 NewMinX, int32 NewMinY, int32 NewMaxX, int32 NewMaxY)
 {
-	checkSlow(OldMinX <= OldMaxX && OldMinY <= OldMaxY);
-	checkSlow(NewMinX >= OldMinX && NewMaxX <= OldMaxX);
-	checkSlow(NewMinY >= OldMinY && NewMaxY <= OldMaxY);
+	check(OldMinX <= OldMaxX && OldMinY <= OldMaxY);
+	check(NewMinX >= OldMinX && NewMaxX <= OldMaxX);
+	check(NewMinY >= OldMinY && NewMaxY <= OldMaxY);
 
 	if (NewMinX != OldMinX || NewMinY != OldMinY ||
 		NewMaxX != OldMaxX || NewMaxY != OldMaxY)
