@@ -18,8 +18,14 @@ class ULandscapeInfoMap : public UObject
 	GENERATED_UCLASS_BODY()
 
 public:
-	UPROPERTY()
+	void BeginDestroy() override;
+	void PostDuplicate(bool bDuplicateForPIE) override;
+	void Serialize(FArchive& Ar) override;
+
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
 	TMap<FGuid, TObjectPtr<ULandscapeInfo>> Map;
+	TWeakObjectPtr<UWorld> World;
 
 	/**
 	* Gets landscape-specific data for given world.

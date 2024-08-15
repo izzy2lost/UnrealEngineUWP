@@ -1762,14 +1762,14 @@ void ALandscape::MarkAllLandscapeRenderStateDirty()
 
 ULandscapeInfo* ALandscapeProxy::CreateLandscapeInfo(bool bMapCheck, bool bUpdateAllAddCollisions)
 {
-	ULandscapeInfo* LandscapeInfo = ULandscapeInfo::FindOrCreate(GetTypedOuter<UWorld>(), LandscapeGuid);
+	ULandscapeInfo* LandscapeInfo = ULandscapeInfo::FindOrCreate(GetWorld(), LandscapeGuid);
 	LandscapeInfo->RegisterActor(this, bMapCheck, bUpdateAllAddCollisions);
 	return LandscapeInfo;
 }
 
 ULandscapeInfo* ALandscapeProxy::GetLandscapeInfo() const
 {
-	return ULandscapeInfo::Find(GetTypedOuter<UWorld>(), LandscapeGuid);
+	return ULandscapeInfo::Find(GetWorld(), LandscapeGuid);
 }
 
 FTransform ALandscapeProxy::LandscapeActorToWorld() const
@@ -5345,8 +5345,7 @@ ULandscapeInfo* ULandscapeInfo::FindOrCreate(UWorld* InWorld, const FGuid& Lands
 
 	if (!LandscapeInfo)
 	{
-		const FName LandscapeInfoName = MakeUniqueObjectName(InWorld, ULandscapeInfo::StaticClass(), TEXT("LandscapeInfo"));
-		LandscapeInfo = NewObject<ULandscapeInfo>(InWorld, LandscapeInfoName, RF_Transactional | RF_Transient);
+		LandscapeInfo = NewObject<ULandscapeInfo>(GetTransientPackage(), NAME_None, RF_Transactional | RF_Transient);
 		LandscapeInfoMap.Modify(false);
 		LandscapeInfo->Initialize(InWorld, LandscapeGuid);
 		LandscapeInfoMap.Map.Add(LandscapeGuid, LandscapeInfo);

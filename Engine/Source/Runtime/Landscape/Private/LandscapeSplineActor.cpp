@@ -114,14 +114,15 @@ void ALandscapeSplineActor::PostRegisterAllComponents()
 		}
 #endif // WITH_EDITORONLY_DATA
 
+		UWorld* World = GetWorld();
 		if (LandscapeGuid.IsValid())
 		{
-			ULandscapeInfo* LandscapeInfo = ULandscapeInfo::FindOrCreate(GetTypedOuter<UWorld>(), LandscapeGuid);
+			ULandscapeInfo* LandscapeInfo = ULandscapeInfo::FindOrCreate(World, LandscapeGuid);
 			LandscapeInfo->RegisterSplineActor(this);
 		}
 
 		// If Landscape uses generated LandscapeSplineMeshesActors, ensure SplineMeshComponents & ControlPointMeshComponents are hidden in PIE
-		if (GetWorld()->IsGameWorld() && HasGeneratedLandscapeSplineMeshesActors())
+		if (World->IsGameWorld() && HasGeneratedLandscapeSplineMeshesActors())
 		{
 			ForEachComponent<UStaticMeshComponent>(true, [](UStaticMeshComponent* Component)
 			{
