@@ -21,6 +21,19 @@ namespace HordeServer
 		/// Whether to enable Amazon Web Services (AWS) specific features
 		/// </summary>
 		public bool WithAws { get; set; } = false;
+		
+		/// <summary>
+		/// List of AWS regions for Horde to be aware of (e.g. us-east-1 or eu-central-1)
+		/// Right now, this is only used for replicating CloudWatch metrics to multiple regions
+		/// <see cref="Amazon.RegionEndpoint" />
+		/// </summary>
+		public string[] AwsRegions { get; set; } = [];
+		
+		/// <summary>
+		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
+		/// <see cref="AwsAutoScalingLifecycleService" />
+		/// </summary>
+		public string[] AwsAutoScalingQueueUrls { get; set; } = Array.Empty<string>();
 
 		/// <summary>
 		/// Default fleet manager to use (when not specified by pool)
@@ -32,12 +45,6 @@ namespace HordeServer
 		/// </summary>
 		[JsonConverter(typeof(JsonObjectOrStringConverter))]
 		public JsonObject? FleetManagerV2Config { get; set; }
-
-		/// <summary>
-		/// AWS SQS queue URLs where lifecycle events from EC2 auto-scaling are received
-		/// <see cref="AwsAutoScalingLifecycleService" />
-		/// </summary>
-		public string[] AwsAutoScalingQueueUrls { get; set; } = Array.Empty<string>();
 
 		/// <summary>
 		/// Whether to automatically enroll agents in the farm

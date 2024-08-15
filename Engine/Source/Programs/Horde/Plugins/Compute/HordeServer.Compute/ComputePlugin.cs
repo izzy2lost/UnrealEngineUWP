@@ -131,12 +131,27 @@ namespace HordeServer
 				{
 					awsOptions.Region = RegionEndpoint.USEast1;
 				}
-
-				services.AddAWSService<IAmazonCloudWatch>();
+				
+				HashSet<RegionEndpoint> regions = [];
+				if (awsOptions.Region != null)
+				{
+					regions.Add(awsOptions.Region);	
+				}
+				foreach (string awsRegionStr in _staticComputeConfig.AwsRegions)
+				{
+					regions.Add(RegionEndpoint.GetBySystemName(awsRegionStr));
+				}
+				
 				services.AddAWSService<IAmazonAutoScaling>();
 				services.AddAWSService<IAmazonSQS>();
 				services.AddAWSService<IAmazonEC2>();
-
+				
+				// Combine each CloudWatch client (one per region) under one that replicates requests to all
+				services.AddSingleton<IAmazonCloudWatch>(_ =>
+				{
+					return new AwsCloudWatchMultiplexer(regions.Select(x => new AmazonCloudWatchClient(x)).ToList<IAmazonCloudWatch>());
+				});
+				
 				services.AddSingleton<AwsCloudWatchMetricExporter>();
 
 				services.AddSingleton<IPoolSizeStrategyFactory, LeaseUtilizationAwsMetricStrategyFactory>();
