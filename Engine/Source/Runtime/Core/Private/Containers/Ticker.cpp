@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Containers/Ticker.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Stats/Stats.h"
 #include "Misc/TimeGuard.h"
 
@@ -13,14 +14,20 @@ FTSTicker& FTSTicker::GetCoreTicker()
 FTSTicker::FDelegateHandle FTSTicker::AddTicker(const FTickerDelegate& InDelegate, float InDelay)
 {
 	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, InDelegate } };
-	AddedElements.Enqueue(NewElement);
+	AutoRTFM::OnCommit([this, NewElement]
+	{
+		AddedElements.Enqueue(NewElement); 
+	});
 	return NewElement;
 }
 
 FTSTicker::FDelegateHandle FTSTicker::AddTicker(const TCHAR* InName, float InDelay, TUniqueFunction<bool(float)>&& InFunction)
 {
 	FElementPtr NewElement{ new FElement{ CurrentTime.load(std::memory_order_relaxed) + InDelay, InDelay, MoveTemp(InFunction) } };
-	AddedElements.Enqueue(NewElement);
+	AutoRTFM::OnCommit([this, NewElement]
+	{
+		AddedElements.Enqueue(NewElement); 
+	});
 	return NewElement;
 }
 
@@ -31,20 +38,23 @@ uint32 GetThreadId(uint64 State)
 
 void FTSTicker::RemoveTicker(FDelegateHandle Handle)
 {
-	if (FElementPtr Element = Handle.Pin())
+	AutoRTFM::OnCommit([Handle]
 	{
-		// mark the element as removed and if it's being ticked atm, spin-wait until its execution is finished
-		uint64 PrevState = Element->State.fetch_or(FElement::RemovedState, std::memory_order_acquire); // "acquire" to prevent potential 
-		// resource release after RemoveTicker() to be reordered before it
-		uint32 ExecutingThreadId = GetThreadId(PrevState);
-		
-		while (ExecutingThreadId != 0 && // is being executed right now
-			FPlatformTLS::GetCurrentThreadId() != ExecutingThreadId) // and is not removed from inside its execution
+		if (FElementPtr Element = Handle.Pin())
 		{
-			FPlatformProcess::Yield();
-			ExecutingThreadId = GetThreadId(Element->State.load(std::memory_order_relaxed));
+			// mark the element as removed and if it's being ticked atm, spin-wait until its execution is finished
+			uint64 PrevState = Element->State.fetch_or(FElement::RemovedState, std::memory_order_acquire); // "acquire" to prevent potential 
+			// resource release after RemoveTicker() to be reordered before it
+			uint32 ExecutingThreadId = GetThreadId(PrevState);
+			
+			while (ExecutingThreadId != 0 && // is being executed right now
+				FPlatformTLS::GetCurrentThreadId() != ExecutingThreadId) // and is not removed from inside its execution
+			{
+				FPlatformProcess::Yield();
+				ExecutingThreadId = GetThreadId(Element->State.load(std::memory_order_relaxed));
+			}
 		}
-	}
+	});
 }
 
 void FTSTicker::Tick(float DeltaTime)
