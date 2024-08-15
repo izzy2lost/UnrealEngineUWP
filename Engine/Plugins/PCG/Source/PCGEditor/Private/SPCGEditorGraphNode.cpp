@@ -423,7 +423,7 @@ bool SPCGEditorGraphNodePin::ShouldDisplayAsRequiredForExecution() const
 		// as required, because it effectively is. So return false if there are other pins which are not advanced.
 		return !Algo::AnyOf(PCGNode->GetInputPins(), [PCGPin](UPCGPin* InOtherPin)
 		{
-			return InOtherPin && InOtherPin != PCGPin && InOtherPin->Properties.PinStatus != EPCGPinStatus::Advanced;
+			return InOtherPin && InOtherPin != PCGPin && !InOtherPin->Properties.IsAdvancedPin();
 		});
 	}
 

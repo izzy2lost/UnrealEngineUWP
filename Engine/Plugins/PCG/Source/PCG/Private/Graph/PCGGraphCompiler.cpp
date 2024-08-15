@@ -126,7 +126,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 			{
 				check(InputPin);
 				// Params have to be funneled in the subgraph element (so we can pass down user parameters)
-				const bool bIsParamPin = SubgraphSettings->HasOverridableParam(InputPin->Properties.Label);
+				const bool bIsOverrideOrUserParamPin = InputPin->Properties.IsOverrideOrUserParamPin();
 
 				for (const UPCGEdge* InboundEdge : InputPin->Edges)
 				{
@@ -134,7 +134,7 @@ TArray<FPCGGraphTask> FPCGGraphCompiler::CompileGraph(UPCGGraph* InGraph, FPCGTa
 					{
 						// Implementation note: conceptually, the non-param inputs need to be connected only to the input node task.
 						// However, because of the static/dynamic culling which happen on the subgraph node, we need to have the connections on the pretask too (e.g. the subgraph node) even if they don't provide data.
-						if (bIsParamPin || !InputNodeTask)
+						if (bIsOverrideOrUserParamPin || !InputNodeTask)
 						{
 							PreTask.Inputs.Emplace(IdMapping[InboundEdge->InputPin->Node], InboundEdge->InputPin->Properties, InboundEdge->OutputPin->Properties, /*bInProvideData=*/true);
 						}

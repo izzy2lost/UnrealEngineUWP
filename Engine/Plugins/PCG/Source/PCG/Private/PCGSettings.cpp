@@ -40,6 +40,11 @@ namespace PCGSettings
 	static constexpr int DeprecationAliasIndex = -2;
 	// For property path concatenation
 	static constexpr const TCHAR* PropertyPathSeparator = TEXT("/");
+
+	static TAutoConsoleVariable<bool> CVarWarnOverridePinsCollideWithInputPins(
+		TEXT("pcg.Graph.WarnPinNameCollisions"),
+		false,
+		TEXT("Enables warnings when there are name collision between pin names and overrides/user parameters."));
 }
 
 /** Custom Crc computation that ignores properties that will not affect the computed result of a node. */
@@ -495,7 +500,7 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 	else
 	{
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(PCGPinConstants::DefaultParamsLabel, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ true, /*bAllowMultipleData=*/ true);
-		ParamPin.SetAdvancedPin();
+		ParamPin.SetOverrideOrUserParamPin();
 
 #if WITH_EDITOR
 		ParamPin.Tooltip = LOCTEXT("GlobalParamPinTooltip", "Atribute Set containing multiple parameters to override. Names must match perfectly.");
@@ -508,17 +513,20 @@ void UPCGSettings::FillOverridableParamsPins(TArray<FPCGPinProperties>& OutPins)
 	{
 		if (InputPinsLabelsAndTypes.Contains(OverridableParam.Label))
 		{
-			//const FString ParamsName = OverridableParam.Label.ToString();
-			//UE_LOG(LogPCG, Warning, TEXT("[%s-%s] While automatically adding override pins, an existing pin was found with conflicting name '%s'. "
-			//	"Rename or remove this pin to allow the automatic override pin to be added. Automatic override pin '%s' skipped."),
-			//	*GraphName, *NodeName, *ParamsName, *ParamsName);
+			if (PCGSettings::CVarWarnOverridePinsCollideWithInputPins.GetValueOnAnyThread())
+			{
+				const FString ParamsName = OverridableParam.Label.ToString();
+				UE_LOG(LogPCG, Warning, TEXT("[%s-%s] While automatically adding override pins, an existing pin was found with conflicting name '%s'. "
+					"Rename or remove this pin to allow the automatic override pin to be added. Automatic override pin '%s' skipped."),
+					*GraphName, *NodeName, *ParamsName, *ParamsName);
+			}
 			continue;
 		}
 
 		InputPinsLabelsAndTypes.Emplace(OverridableParam.Label, EPCGDataType::Param);
 
 		FPCGPinProperties& ParamPin = OutPins.Emplace_GetRef(OverridableParam.Label, EPCGDataType::Param, /*bInAllowMultipleConnections=*/ false, /*bAllowMultipleData=*/ false);
-		ParamPin.SetAdvancedPin();
+		ParamPin.SetOverrideOrUserParamPin();
 #if WITH_EDITOR
 
 		if (!OverridableParam.Properties.IsEmpty())
