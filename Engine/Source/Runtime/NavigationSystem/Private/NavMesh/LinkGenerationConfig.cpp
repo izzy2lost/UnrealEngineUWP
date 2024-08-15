@@ -2,9 +2,15 @@
 
 #include "NavMesh/LinkGenerationConfig.h"
 #include "BaseGeneratedNavLinksProxy.h"
+#include "NavAreas/NavArea_Default.h"
 
 #if WITH_RECAST
 #include "Detour/DetourNavLinkBuilderConfig.h"
+
+FNavLinkGenerationJumpDownConfig::FNavLinkGenerationJumpDownConfig()
+{
+	AreaClass = UNavArea_Default::StaticClass();
+}
 
 void FNavLinkGenerationJumpDownConfig::CopyToDetourConfig(dtNavLinkBuilderJumpDownConfig& OutDetourConfig) const
 {

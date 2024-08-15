@@ -41,6 +41,12 @@ struct dtNavLinkBuilderJumpDownConfig
 	/// User id used to handle links made from this configuration.
 	unsigned long long linkUserId = 0;
 
+	/// User defined flags assigned to the off-mesh connections
+	unsigned short polyFlag = 0;
+
+	/// User defined area id assigned to the off-mesh connections
+	unsigned char area = 0;
+
 	/// Initialize the configuration by computing cached values.
 	NAVMESH_API void init();
 };
@@ -49,7 +55,7 @@ struct dtNavLinkBuilderJumpDownConfig
 struct dtNavLinkBuilderJumpOverConfig
 {
 	/// Should this config be used to generate links.
-	bool enabled = true;
+	bool enabled = false;	// @todo: Disabled for now since this configuration not currently exposed.
 
 	/// Maximum jumpable gap size used when matching edges to jump over. [Limit: > 0] [Units: wu]
 	float jumpGapWidth = 200.f;

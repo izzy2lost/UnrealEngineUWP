@@ -347,6 +347,15 @@ struct FRecastTileTimeSliceSettings
 	int32 FilterLedgeSpansMaxYProcess = 13;
 };
 
+struct FGeneratedNavigationLink : public FNavigationLink
+{
+	/// User defined flags assigned to the polys of off-mesh connections
+	unsigned short generatedLinkPolyFlag = 0;
+
+	/// User defined area ids assigned to the off-mesh connections
+	unsigned char generatedLinkArea = 0;
+};
+
 /**
  * Class handling generation of a single tile, caching data that can speed up subsequent tile generations
  */
@@ -500,7 +509,7 @@ protected:
 
 	/** Builds navigation links */
 	dtStatus BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, struct dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
-		const struct dtTileCacheContourSet& lcset, TArray<FNavigationLink>& OutGeneratedLinks) const;
+		const struct dtTileCacheContourSet& lcset, TArray<FGeneratedNavigationLink>& OutGeneratedLinks) const;
 	
 	NAVIGATIONSYSTEM_API virtual void ApplyVoxelFilter(struct rcHeightfield* SolidHF, FVector::FReal WalkableRadius);
 
@@ -1023,6 +1032,10 @@ public:
 	bool IsGeneratingLinks() const;
 
 protected:
+	/** Resolve area class from link generation config into recast areaIds and flags.
+	 * Must be called after AdditionalCachedData is constructed. */
+	void ResolveGeneratedLinkAreas(FRecastBuildConfig& OutConfig);
+	
 	NAVIGATIONSYSTEM_API virtual void RestrictBuildingToActiveTiles(bool InRestrictBuildingToActiveTiles);
 	
 	/** Blocks until build for specified list of tiles is complete and discard results */

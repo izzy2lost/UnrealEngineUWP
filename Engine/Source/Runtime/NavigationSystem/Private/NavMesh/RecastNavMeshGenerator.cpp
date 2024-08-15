@@ -1332,6 +1332,31 @@ struct FOffMeshData
 		LinkParams.Reserve(ElementsCount);
 	}
 
+	void AddLink(const FNavigationLink& Link, const FTransform& LocalToWorld, float DefaultSnapHeight, TFunctionRef<void(dtOffMeshLinkCreateParams&)> AddAreaID)
+	{
+		dtOffMeshLinkCreateParams NewInfo;
+		FMemory::Memzero(NewInfo);
+
+		// not doing anything to link's points order - should be already ordered properly by link processor
+		StoreUnrealPoint(NewInfo.vertsA0, LocalToWorld.TransformPosition(Link.Left));
+		StoreUnrealPoint(NewInfo.vertsB0, LocalToWorld.TransformPosition(Link.Right));
+
+		NewInfo.type = DT_OFFMESH_CON_POINT | 
+			(Link.Direction == ENavLinkDirection::BothWays ? DT_OFFMESH_CON_BIDIR : 0) |
+			(Link.bSnapToCheapestArea ? DT_OFFMESH_CON_CHEAPAREA : 0) |
+			(Link.bIsGenerated ? DT_OFFMESH_CON_GENERATED : 0);
+
+		NewInfo.snapRadius = Link.SnapRadius;
+		NewInfo.snapHeight = Link.bUseSnapHeight ? Link.SnapHeight : DefaultSnapHeight;
+		NewInfo.userID = Link.NavLinkId.GetId();
+
+		AddAreaID(NewInfo);
+
+		// snap area is currently not supported for regular (point-point) offmesh links
+
+		LinkParams.Add(NewInfo);
+	}
+	
 	void AddLinks(const TArray<FNavigationLink>& Links, const FTransform& LocalToWorld, int32 AgentIndex, float DefaultSnapHeight)
 	{
 		for (int32 LinkIndex = 0; LinkIndex < Links.Num(); ++LinkIndex)
@@ -1341,40 +1366,43 @@ struct FOffMeshData
 			{
 				continue;
 			}
-
-			dtOffMeshLinkCreateParams NewInfo;
-			FMemory::Memzero(NewInfo);
-
-			// not doing anything to link's points order - should be already ordered properly by link processor
-			StoreUnrealPoint(NewInfo.vertsA0, LocalToWorld.TransformPosition(Link.Left));
-			StoreUnrealPoint(NewInfo.vertsB0, LocalToWorld.TransformPosition(Link.Right));
-
-			NewInfo.type = DT_OFFMESH_CON_POINT | 
-				(Link.Direction == ENavLinkDirection::BothWays ? DT_OFFMESH_CON_BIDIR : 0) |
-				(Link.bSnapToCheapestArea ? DT_OFFMESH_CON_CHEAPAREA : 0) |
-				(Link.bIsGenerated ? DT_OFFMESH_CON_GENERATED : 0);
-
-			NewInfo.snapRadius = Link.SnapRadius;
-			NewInfo.snapHeight = Link.bUseSnapHeight ? Link.SnapHeight : DefaultSnapHeight;
-			NewInfo.userID = Link.NavLinkId.GetId();
-
-			UClass* AreaClass = Link.GetAreaClass();
-			const int32* AreaID = AreaClassToIdMap->Find(AreaClass);
-			if (AreaID != NULL)
+			
+			AddLink(Link, LocalToWorld, DefaultSnapHeight, [&] (dtOffMeshLinkCreateParams& NewInfo)
 			{
-				NewInfo.area = IntCastChecked<unsigned char>(*AreaID);
-				NewInfo.polyFlag = FlagsPerArea[*AreaID];
-			}
-			else
-			{
-				UE_LOG(LogNavigation, Warning, TEXT("FRecastTileGenerator: Trying to use undefined area class while defining Off-Mesh links! (%s)"), *GetNameSafe(AreaClass));
-			}
-
-			// snap area is currently not supported for regular (point-point) offmesh links
-
-			LinkParams.Add(NewInfo);
+				UClass* AreaClass = Link.GetAreaClass();
+				const int32* AreaID = AreaClassToIdMap->Find(AreaClass);
+				if (AreaID != nullptr)
+				{
+					NewInfo.area = IntCastChecked<unsigned char>(*AreaID);
+					NewInfo.polyFlag = FlagsPerArea[*AreaID];
+				}
+				else
+				{
+					UE_LOG(LogNavigation, Warning, TEXT("FRecastTileGenerator: Trying to use undefined area class while defining Off-Mesh links! (%s)"), *GetNameSafe(AreaClass));
+				}
+			});
 		}
 	}
+	
+	void AddLinks(const TArray<FGeneratedNavigationLink>& Links, const FTransform& LocalToWorld, int32 AgentIndex, float DefaultSnapHeight)
+	{
+		for (int32 LinkIndex = 0; LinkIndex < Links.Num(); ++LinkIndex)
+		{
+			const FGeneratedNavigationLink& Link = Links[LinkIndex];
+			if (!Link.SupportedAgents.Contains(AgentIndex))
+			{
+				continue;
+			}
+
+			AddLink(Link, LocalToWorld, DefaultSnapHeight, [&] (dtOffMeshLinkCreateParams& NewInfo)
+			{
+				// area and polyFlag have already been resolved for generated links, jut copy them
+				NewInfo.area = Link.generatedLinkArea;
+				NewInfo.polyFlag = Link.generatedLinkPolyFlag;
+			});
+		}
+	}
+	
 	void AddSegmentLinks(const TArray<FNavigationSegmentLink>& Links, const FTransform& LocalToWorld, int32 AgentIndex, float DefaultSnapHeight)
 	{
 		for (int32 LinkIndex = 0; LinkIndex < Links.Num(); ++LinkIndex)
@@ -3729,7 +3757,7 @@ struct FTileGenerationContext
 };
 
 dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildContext, dtTileCacheAlloc* alloc, const dtTileCacheLayer& layer,
-	const dtTileCacheContourSet& lcset, TArray<FNavigationLink>& OutGeneratedLinks) const
+	const dtTileCacheContourSet& lcset, TArray<FGeneratedNavigationLink>& OutGeneratedLinks) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FRecastTileGenerator::BuildTileCacheLinks);
 	BuildContext.log(RC_LOG_PROGRESS, "Building Links:");
@@ -3833,7 +3861,7 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 #endif // RECAST_INTERNAL_DEBUG_DATA		
 	}
 
-	// Make FNavigationLinks
+	// Make FGeneratedNavigationLinks
 	for (const dtNavLinkBuilder::JumpLink& link : linkBuilder.m_links)
 	{
 		if (link.flags == dtNavLinkBuilder::FILTERED)
@@ -3848,11 +3876,13 @@ dtStatus FRecastTileGenerator::BuildTileCacheLinks(FNavMeshBuildContext& BuildCo
 		midA[1] -= linkBuilderConfig.agentClimb;
 		midB[1] -= linkBuilderConfig.agentClimb;
 
-		FNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
+		FGeneratedNavigationLink& NewLink = OutGeneratedLinks.Emplace_GetRef();
 		NewLink.bIsGenerated = true;
 		if (link.action == DT_LINK_ACTION_JUMP_DOWN)
 		{
-			NewLink.NavLinkId = FNavLinkId(linkBuilderConfig.jumpDownConfig.linkUserId);	
+			NewLink.NavLinkId = FNavLinkId(linkBuilderConfig.jumpDownConfig.linkUserId);
+			NewLink.generatedLinkArea = linkBuilderConfig.jumpDownConfig.area;
+			NewLink.generatedLinkPolyFlag = linkBuilderConfig.jumpDownConfig.polyFlag;
 		}
 		// @todo: Set NavLinkId for jump over links if we keep them.
 		NewLink.Left = Recast2UnrealPoint(midA);
@@ -4060,7 +4090,7 @@ bool FRecastTileGenerator::GenerateNavigationDataLayer(FNavMeshBuildContext& Bui
 	}
 
 	// Build Links
-	TArray<FNavigationLink> GeneratedLinks;
+	TArray<FGeneratedNavigationLink> GeneratedLinks;
 	if (InLinkBuilderData.generatingLinks)
 	{
 		SCOPE_CYCLE_COUNTER(STAT_Navigation_RecastBuildLinks);
@@ -5077,6 +5107,9 @@ void FRecastNavMeshGenerator::Init()
 	
 	AdditionalCachedData = FRecastNavMeshCachedData::Construct(DestNavMesh);
 
+	// Must be called after AdditionalCachedData is set.
+	ResolveGeneratedLinkAreas(Config);
+
 	if (Config.MaxPolysPerTile <= 0 && DestNavMesh->HasValidNavmesh())
 	{
 		const dtNavMeshParams* SavedNavParams = DestNavMesh->GetRecastNavMeshImpl()->DetourNavMesh->getParams();
@@ -5300,6 +5333,27 @@ void FRecastNavMeshGenerator::CalcPolyRefBits(ARecastNavMesh* NavMeshOwner, int3
 bool FRecastNavMeshGenerator::IsGeneratingLinks() const
 {
 	return DestNavMesh && DestNavMesh->bGenerateNavLinks && UE::NavMesh::Private::bAllowLinkGeneration; 
+}
+
+void FRecastNavMeshGenerator::ResolveGeneratedLinkAreas(FRecastBuildConfig& OutConfig)
+{
+	if (IsGeneratingLinks())
+	{
+		const FNavLinkGenerationJumpDownConfig& JumpDown = DestNavMesh->NavLinkJumpDownConfig;
+		if (JumpDown.AreaClass)
+		{
+			const int32* AreaIDPtr = AdditionalCachedData.AreaClassToIdMap.Find(JumpDown.AreaClass);
+			if (AreaIDPtr != nullptr)
+			{
+				OutConfig.JumpDownConfig.area = IntCastChecked<unsigned char>(*AreaIDPtr);
+				OutConfig.JumpDownConfig.polyFlag = AdditionalCachedData.FlagsPerArea[*AreaIDPtr];
+			}
+			else
+			{
+				UE_LOG(LogNavigation, Warning, TEXT("FRecastTileGenerator: Trying to use undefined area class while resolving generated links areas. (%s)"), *GetNameSafe(JumpDown.AreaClass));
+			}
+		}
+	}
 }
 
 void FRecastNavMeshGenerator::CalcNavMeshProperties(int32& MaxTiles, int32& MaxPolys)
