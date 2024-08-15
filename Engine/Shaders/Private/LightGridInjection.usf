@@ -474,9 +474,9 @@ void DebugLightGridPS(
 		const float SceneDepth = ConvertFromDeviceZ(DepthTexture.Load(int3(PixelPosDynRes, 0)).r);
 
 		const uint GridIndex = ComputeLightGridCellIndex(LocalPixelPosDynRes, SceneDepth, EyeIndex);
-		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
-		DebugNumLightsInGridCell = CulledLightsGrid.NumLights;
+		DebugNumLightsInGridCell = CulledLightsGridHeader.NumLights;
 	}
 	else
 	{
@@ -488,9 +488,9 @@ void DebugLightGridPS(
 		for (int SliceIt = StartGridIndexZ; SliceIt < EndGridIndexZ; SliceIt++)
 		{
 			const uint GridIndex = ComputeLightGridCellIndex(uint3(LocalPixelPosDynRes >> GridData.LightGridPixelSizeShift, SliceIt), EyeIndex);
-			const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+			const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 		
-			DebugNumLightsInGridCell = max(DebugNumLightsInGridCell, CulledLightsGrid.NumLights);
+			DebugNumLightsInGridCell = max(DebugNumLightsInGridCell, CulledLightsGridHeader.NumLights);
 		}
 	}
 

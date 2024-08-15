@@ -169,9 +169,9 @@ void MobileDirectionalLightPS(
 #if ENABLE_CLUSTERED_LIGHTS
 	{
 		const uint EyeIndex = 0;
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 		half4 LocalLightDynamicShadowFactors = 1.0f;
-		AccumulateLightGridLocalLighting(CulledLightGridData, GBuffer, TranslatedWorldPosition, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, DirectLighting);
+		AccumulateLightGridLocalLighting(CulledLightGridHeader, GBuffer, TranslatedWorldPosition, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, DirectLighting);
 	}
 #endif
 

@@ -926,13 +926,13 @@ void Main(
 		const uint EyeIndex = 0;
 #endif
 
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 		float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
 		float3 MergedLightL = float3(0,0,0);
 		float MergedSpecularScale = 0.f;
 		float MergedTotalWeight = 0;
-		MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, GBuffer.WorldNormal);
+		MergeLocalLights(CulledLightGridHeader, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, GBuffer.WorldNormal);
 
 		if(MergedTotalWeight > 0.f)
 		{
@@ -968,7 +968,7 @@ void Main(
 		const uint EyeIndex = 0;
 #endif
 
-		const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+		const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 		half4 LocalLightDynamicShadowFactors = 1.0f;
 
@@ -977,7 +977,7 @@ void Main(
 		#endif
 		
 		uint LightingChannelMask = GetPrimitive_LightingChannelMask(MaterialParameters.PrimitiveId);
-		AccumulateLightGridLocalLighting(CulledLightGridData, GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, LightingChannelMask, DirectLighting);
+		AccumulateLightGridLocalLighting(CulledLightGridHeader, GBuffer, MaterialParameters.WorldPosition_CamRelative, CameraVector, EyeIndex, 0, LocalLightDynamicShadowFactors, LightingChannelMask, DirectLighting);
 	}
 #endif
 

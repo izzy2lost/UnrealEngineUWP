@@ -356,7 +356,7 @@ half3 GetImageBasedReflectionLighting_Mobile(
 	half3 SpecularIBL = (half3)0.0f;
 
 #if ENABLE_CLUSTERED_REFLECTION
-	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
+	FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGridHeader(GridIndex, 0);
 
 	SpecularIBL = CompositeReflectionCapturesAndSkylightTWS(
 		CompositeAlpha,
@@ -561,7 +561,7 @@ void AccumulateReflection(
  */
 #if ENABLE_CLUSTERED_LIGHTS
 
-void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridData
+void AccumulateLightGridLocalLighting(const FCulledLightsGridHeader InLightGridHeader
 	, FGBufferData GBuffer
 	, float3 TranslatedWorldPosition
 	, half3 CameraVector
@@ -575,12 +575,12 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 {
 	// Limit max to ForwardLightData.NumLocalLights.
 	// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-	const uint NumLightsInGridCell = min(InLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
+	const uint NumLightsInGridCell = min(InLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = FirstNonSimpleLightIndex; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 
 #if MOBILE_DEFERRED_LIGHTING
 		// The lights are sorted such that all that support clustered deferred are at the beginning, there might be others
@@ -642,7 +642,7 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridData InLightGridDat
 #endif
 
 #if ENABLE_CLUSTERED_LIGHTS || MERGED_LOCAL_LIGHTS_MOBILE
-void MergeLocalLights(const FCulledLightsGridData InLightGridData
+void MergeLocalLights(const FCulledLightsGridHeader InLightGridHeader
 	, float3 TranslatedWorldPosition
 	, uint EyeIndex
 	, float bSupportLightFunctions
@@ -660,12 +660,12 @@ void MergeLocalLights(const FCulledLightsGridData InLightGridData
 	MergedTotalWeight = 0;
 	MergedSpecularScale = 0.f;
 	
-	uint NumLightsInGridCell = min(InLightGridData.NumLights, GetMaxLightsPerCell(EyeIndex));
+	uint NumLightsInGridCell = min(InLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 	LOOP
 	for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 	{
-		const FLocalLightData LocalLight = GetLocalLightData(InLightGridData.DataStartIndex + GridLightListIndex, EyeIndex);
+		const FLocalLightData LocalLight = GetLocalLightData(InLightGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 
 		// extra-early out since we know light grid is sloppy and all lights in list are radial (have a range)
 		// appears useless

@@ -843,7 +843,7 @@ void LightScatteringCS(
 #endif
 
 		uint GridIndex = ComputeLightGridCellIndex(GridCoordinate.xy * VolumetricFog.FogGridToPixelXY, SceneDepth, 0);
-		const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, 0);
+		const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, 0);
 
 		float CellRadius = length(TranslatedWorldPosition - ComputeCellTranslatedWorldPosition(GridCoordinate + uint3(1, 1, 1), CellOffset));
 		// Bias the inverse squared light falloff based on voxel size to prevent aliasing near the light source
@@ -852,9 +852,9 @@ void LightScatteringCS(
 
 		// Forward lighting of unshadowed point and spot lights
 		LOOP
-		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGrid.NumLights; GridLightListIndex++)
+		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGridHeader.NumLights; GridLightListIndex++)
 		{
-			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, 0);
+			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, 0);
 
 			const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLight);
 

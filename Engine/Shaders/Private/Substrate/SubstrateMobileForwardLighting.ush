@@ -336,13 +336,13 @@ float3 SubstrateMobileForwardLighting(
 				}
 				#elif  MERGED_LOCAL_LIGHTS_MOBILE == 2
 				{
-					const FCulledLightsGridData CulledLightGridData = GetCulledLightsGrid(GridIndex, EyeIndex);
+					const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 					float3 MergedLightColor = uint3(0.f, 0.f , 0.f);
 					float3 MergedLightL = float3(0,0,0);
 					float MergedSpecularScale = 0.f;
 					float MergedTotalWeight = 0;
-					MergeLocalLights(CulledLightGridData, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false/*bSupportLightFunctions*/, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, SubstrateBSDFContext.N);
+					MergeLocalLights(CulledLightsGridHeader, MaterialParameters.WorldPosition_CamRelative, EyeIndex, false/*bSupportLightFunctions*/, MergedLightColor, MergedLightL, MergedSpecularScale, MergedTotalWeight, SubstrateBSDFContext.N);
 
 					if (MergedTotalWeight > 0.f)
 					{
@@ -409,11 +409,11 @@ float3 SubstrateMobileForwardLighting(
 				#elif ENABLE_CLUSTERED_LIGHTS && !DISABLE_FORWARD_LOCAL_LIGHTS && (FORWARD_SHADING || TRANSLUCENCY_LIGHTING_SURFACE_FORWARDSHADING) // Forbidden for Single Layer Water
 				{
 					// Basic implementation for FORWARD_LOCAL_LIGHTS where local lights are reloaded per BSDF layer. It is fast by default when layer==1.
-					const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, EyeIndex);
+					const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 
 					// Limit max to ForwardLightData.NumLocalLights.
 					// This prevents GPU hangs when the PS tries to read from uninitialized NumCulledLightsGrid buffer
-					const uint NumLightsInGridCell = min(CulledLightsGrid.NumLights, GetMaxLightsPerCell(EyeIndex));
+					const uint NumLightsInGridCell = min(CulledLightsGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 
 				#if SUBSTRATE_FORCE_SINGLE_LOCAL_LIGHT
 					#define LOCAL_LIGHT_EARLY_OUT return Color;
@@ -425,7 +425,7 @@ float3 SubstrateMobileForwardLighting(
 					for (uint GridLightListIndex = 0; GridLightListIndex < NumLightsInGridCell; GridLightListIndex++)
 				#endif
 					{
-						const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGrid.DataStartIndex + GridLightListIndex, EyeIndex);
+						const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, EyeIndex);
 		
 					#if MATERIALBLENDING_ANY_TRANSLUCENT && !SUBSTRATE_FORCE_SINGLE_LOCAL_LIGHT
 						if(UnpackAffectsTranslucentLighting(LocalLight) == 0)

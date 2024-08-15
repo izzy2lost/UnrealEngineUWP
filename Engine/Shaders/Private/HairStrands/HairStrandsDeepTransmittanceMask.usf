@@ -380,8 +380,8 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 
 	// Use VSM light grid index remapping to ensure we compute transmittance value only for shadowed light
 	// The logic to compute light index needs to be identical as in DeferredLightPixelShader.usf / ClusteredDeferredShadingPixelShader.usf
-	const FCulledLightsGridData CulledLightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
-	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridData.NumLights);
+	const FCulledLightsGridHeader CulledLightGridHeader = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);
+	const uint LightCount = min(GetPackedShadowMaskMaxLightCount(), CulledLightGridHeader.NumLights);
 
 	LOOP
 	for (uint LightIndex = 0; LightIndex < LightCount; ++LightIndex)
@@ -389,7 +389,7 @@ void MainCS(uint2 DispatchThreadId : SV_DispatchThreadID)
 		const uint OutputIndex = SampleIndex + MaxVisibilityNodeCount * LightIndex;
 
 		// The Virtual Shadow Remap stores directional lights first
-		const FLocalLightData LightData 	 = VirtualShadowMapGetLocalLightData(CulledLightGridData, LightIndex);
+		const FLocalLightData LightData 	 = VirtualShadowMapGetLocalLightData(CulledLightGridHeader, LightIndex);
 		const float3 TranslatedLightPosition = LightData.LightPositionAndInvRadius.xyz; // LightPositionAndInvRadius is already in translated world space
 
 		// Early out when the shadow mask bits are zero

@@ -126,15 +126,15 @@ uint GetMaxLightsPerCell(uint EyeIndex)
 #endif
 }
 
-struct FCulledLightsGridData
+struct FCulledLightsGridHeader
 {
 	uint NumLights;
 	uint DataStartIndex;
 };
 
-FCulledLightsGridData GetCulledLightsGrid(uint GridIndex, uint EyeIndex)
+FCulledLightsGridHeader GetCulledLightsGridHeader(uint GridIndex, uint EyeIndex)
 {
-	FCulledLightsGridData Result;
+	FCulledLightsGridHeader Result;
 
 #if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
 	BRANCH
@@ -163,7 +163,7 @@ struct FCulledReflectionCapturesGridHeader
 	uint DataStartIndex;
 };
 
-FCulledReflectionCapturesGridHeader GetCulledReflectionCapturesGrid(uint GridIndex, uint EyeIndex)
+FCulledReflectionCapturesGridHeader GetCulledReflectionCapturesGridHeader(uint GridIndex, uint EyeIndex)
 {
 	FCulledReflectionCapturesGridHeader Result;
 

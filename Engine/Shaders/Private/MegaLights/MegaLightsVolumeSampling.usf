@@ -61,7 +61,7 @@ void VolumeGenerateLightSamplesCS(
 			DistanceBiasSqr *= DistanceBiasSqr;
 
 			uint GridIndex = ComputeLightGridCellIndex(VolumeCoord.xy * MegaLightsVolumePixelSize, SceneDepth, 0);
-			const FCulledLightsGridData CulledLightsGrid = GetCulledLightsGrid(GridIndex, 0);
+			const FCulledLightsGridHeader CulledLightsGridHeader = GetCulledLightsGridHeader(GridIndex, 0);
 
 			#if DEBUG_MODE
 			if (Debug.bActive)
@@ -120,9 +120,9 @@ void VolumeGenerateLightSamplesCS(
 			float WeightSum = 0.0f;
 
 			LOOP
-			for (uint GridLightIndex = 0; GridLightIndex < CulledLightsGrid.NumLights; ++GridLightIndex)
+			for (uint GridLightIndex = 0; GridLightIndex < CulledLightsGridHeader.NumLights; ++GridLightIndex)
 			{
-				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGrid.DataStartIndex + GridLightIndex);
+				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.DataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
 		

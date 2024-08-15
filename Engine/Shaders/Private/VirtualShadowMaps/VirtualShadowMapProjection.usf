@@ -638,16 +638,16 @@ void VirtualShadowMapProjection(
 	FVirtualShadowMapSampleResult VisualizeResult = InitVirtualShadowMapSampleResult();
 
 #if ONE_PASS_PROJECTION
-	const FCulledLightsGridData LightGridData = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);	
+	const FCulledLightsGridHeader LightGridHeader = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);	
 	// We can only handle so many lights in our output encoding right now, so no purpose in computing more
-	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridData.NumLights);
+	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridHeader.NumLights);
 
 	uint4 ShadowMask = InitializePackedShadowMask();
 
 	LOOP
 	for (uint Index = 0; Index < LightCount; ++Index)
 	{
-		const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridData, Index);
+		const FLocalLightData LightData = VirtualShadowMapGetLocalLightData(LightGridHeader, Index);
 		int VirtualShadowMapId = LightData.VirtualShadowMapId;
 
 		if (VirtualShadowMapId != INDEX_NONE)
