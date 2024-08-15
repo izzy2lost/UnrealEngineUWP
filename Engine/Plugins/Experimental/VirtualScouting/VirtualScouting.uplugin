@@ -70,6 +70,10 @@
 			"Enabled": true
 		},
 		{
+			"Name": "MultiUserClient",
+			"Enabled": true
+		},
+		{
 			"Name": "LiveLink",
 			"Enabled": true
 		},
@@ -95,10 +99,6 @@
 		},
 		{
 			"Name": "LevelSnapshots",
-			"Enabled": true
-		},
-		{
-			"Name": "MultiUserClient",
 			"Enabled": true
 		},
 		{
