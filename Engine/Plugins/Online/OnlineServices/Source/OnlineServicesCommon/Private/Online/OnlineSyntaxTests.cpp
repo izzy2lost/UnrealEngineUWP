@@ -256,7 +256,7 @@ class FOnlineServicesTest : public UE::Online::FOnlineServicesCommon
 public:
 	using Super = UE::Online::FOnlineServicesCommon;
 
-	FOnlineServicesTest(FName InInstanceName, FName InInstanceConfigName) : Super(TEXT("Test"), InInstanceName, InInstanceConfigName) {}
+	FOnlineServicesTest(FName InInstanceName) : Super(TEXT("Test"), InInstanceName) {}
 
 	virtual UE::Online::EOnlineServices GetServicesProvider() const override { return UE::Online::EOnlineServices::Null; }
 
@@ -300,7 +300,7 @@ inline void DelegateTest()
 	const UMyObject* ConstUObject = UObject;
 #endif // TEST_CONSTRUCT_DELEGATE_SYNTAX_UOBJECT
 
-	TSharedRef<FOnlineServicesTest> ServicesTest = MakeShared<FOnlineServicesTest>(NAME_None, NAME_None);
+	TSharedRef<FOnlineServicesTest> ServicesTest = MakeShared<FOnlineServicesTest>(NAME_None);
 	FOnlineComponentTest* TestComponent = ServicesTest->Get<FOnlineComponentTest>();
 	const FOnlineComponentTest* ConstTestComponent = ServicesTest->Get<FOnlineComponentTest>();
 

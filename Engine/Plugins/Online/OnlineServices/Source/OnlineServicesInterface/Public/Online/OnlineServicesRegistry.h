@@ -26,9 +26,7 @@ public:
 	 *
 	 * @return Initialized IOnlineServices instance
 	 */
-	UE_DEPRECATED(5.5, "Please use the new Create taking an additional InstanceConfigName param")
-	virtual TSharedPtr<IOnlineServices> Create(FName InstanceName) final { return Create(InstanceName, NAME_None); }
-	virtual TSharedPtr<IOnlineServices> Create(FName InstanceName, FName InstanceConfigName) = 0;
+	virtual TSharedPtr<IOnlineServices> Create(FName InstanceName) = 0;
 };
 
 class FOnlineServicesRegistry
@@ -68,35 +66,28 @@ public:
 	 *
 	 * @param OnlineServices Type of online services for the IOnlineServices instance
 	 * @param InstanceName Name of the instance
-	 * @param InstanceConfigName Name of the config
 	 *
 	 * @return true if the instance is loaded
 	 */
-	ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName = NAME_None) const;
+	ONLINESERVICESINTERFACE_API bool IsLoaded(EOnlineServices OnlineServices, FName InstanceName) const;
 
 	/**
 	 * Get a named instance of a specific IOnlineServices
 	 * 
 	 * @param OnlineServices Type of online services for the IOnlineServices instance
 	 * @param InstanceName Name of the instance
-	 * @param InstanceConfigName Name of the config to use
 	 * 
 	 * @return The services instance, or an invalid pointer if the OnlineServices is unavailable
 	 */
-	UE_DEPRECATED(5.5, "Please call the new GetNamedServicesInstance which takes an additional InstanceConfigName param")
-	TSharedPtr<IOnlineServices> GetNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName) { return GetNamedServicesInstance(OnlineServices, InstanceName, NAME_None); }
-	ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> GetNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName);
+	ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> GetNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName);
 
 	/**
 	 * Destroy a named instance of a specific OnlineServices
 	 *
-	 * @param OnlineServices Type of online services for the IOnlineServices instance
+	 * @param OnlineServices  Type of online services for the IOnlineServices instance
 	 * @param InstanceName Name of the instance
-	 * @param InstanceConfigName Name of the config
 	 */
-	UE_DEPRECATED(5.5, "Please call the new DestroyNamedServicesInstance which takes an additional InstanceConfigName param")
-	void DestroyNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName) { return DestroyNamedServicesInstance(OnlineServices, InstanceName, NAME_None); }
-	ONLINESERVICESINTERFACE_API void DestroyNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName);
+	ONLINESERVICESINTERFACE_API void DestroyNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName);
 
 	/**
 	 * Destroy all instances of a specific OnlineServices
@@ -116,14 +107,10 @@ public:
 	 * Create and initialize a new IOnlineServices instance
 	 *
 	 * @param OnlineServices Type of online services for the IOnlineServices instance
-	 * @param InstanceName Name of the instance
-	 * @param InstanceConfigName Name of the config
 	 * 
 	 * @return The initialized IOnlineServices instance, or an invalid pointer if the OnlineServices is unavailable
 	 */
-	UE_DEPRECATED(5.5, "Please call the new CreateServices which takes an additional InstanceConfigName param")
-	TSharedPtr<IOnlineServices> CreateServices(EOnlineServices OnlineServices, FName InstanceName) { return CreateServices(OnlineServices, InstanceName, NAME_None); }
-	ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> CreateServices(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName);
+	ONLINESERVICESINTERFACE_API TSharedPtr<IOnlineServices> CreateServices(EOnlineServices OnlineServices, FName InstanceName);
 
 	/**
 	 * Get list of all instantiated OnlineServices
@@ -149,8 +136,8 @@ private:
 	struct FFactoryAndPriority
 	{
 		FFactoryAndPriority(TUniquePtr<IOnlineServicesFactory>&& InFactory, int32 InPriority)
-		: Factory(MoveTemp(InFactory))
-		, Priority(InPriority)
+			: Factory(MoveTemp(InFactory))
+			, Priority(InPriority)
 		{
 		}
 
@@ -159,9 +146,7 @@ private:
 	};
 
 	TMap<EOnlineServices, FFactoryAndPriority> ServicesFactories;
-
-	using FInstanceNameInstanceConfigNamePair = TPair<FName, FName>;
-	TMap<EOnlineServices, TMap<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>> NamedServiceInstances;
+	TMap<EOnlineServices, TMap<FName, TSharedRef<IOnlineServices>>> NamedServiceInstances;
 	EOnlineServices DefaultServiceOverride = EOnlineServices::Default;
 
 	FOnlineServicesRegistry() {}

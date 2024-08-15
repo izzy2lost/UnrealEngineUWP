@@ -102,7 +102,7 @@ public:
 		TArray<FString> SectionHeiarchy;
 		FString SectionName = TEXT("OnlineServices");
 		SectionHeiarchy.Add(SectionName);
-		SectionName += TEXT(".") + GetServices().GetServiceConfigName();
+		SectionName += TEXT(".") + GetServices().GetConfigName();
 		SectionHeiarchy.Add(SectionName);
 		SectionName += TEXT(".") + GetConfigName();
 		SectionHeiarchy.Add(SectionName);
