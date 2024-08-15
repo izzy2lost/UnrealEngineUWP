@@ -441,6 +441,16 @@ public:
 		FGeometryScriptSetStaticMeshCollisionOptions StaticMeshCollisionOptions = FGeometryScriptSetStaticMeshCollisionOptions(),
 		UGeometryScriptDebug* Debug = nullptr);
 
+	/**
+	* Generate Simple Collision shapes for an input Dynamic Mesh shape
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static UPARAM(DisplayName = "Simple Collision") FGeometryScriptSimpleCollision
+	GenerateCollisionFromMesh(
+		UDynamicMesh* FromDynamicMesh,
+		FGeometryScriptCollisionFromMeshOptions Options,
+		UGeometryScriptDebug* Debug = nullptr);
+
 	/*
 	 * Count of number of simple collision shapes
 	 */

@@ -527,6 +527,29 @@ void UGeometryScriptLibrary_CollisionFunctions::ResetDynamicMeshCollision(
 
 
 FGeometryScriptSimpleCollision
+UGeometryScriptLibrary_CollisionFunctions::GenerateCollisionFromMesh(
+	UDynamicMesh* FromDynamicMesh,
+	FGeometryScriptCollisionFromMeshOptions Options,
+	UGeometryScriptDebug* Debug)
+{
+	FGeometryScriptSimpleCollision ToRet;
+	
+	if (FromDynamicMesh == nullptr)
+	{
+		UE::Geometry::AppendError(Debug, EGeometryScriptErrorType::InvalidInputs, LOCTEXT("GenerateCollisionFromMesh_InvalidInput", "GenerateCollisionFromMesh: FromDynamicMesh is Null"));
+		return ToRet;
+	}
+
+	FromDynamicMesh->ProcessMesh([&ToRet, &Options](const FDynamicMesh3& ReadMesh)
+	{
+		UELocal::ComputeCollisionFromMesh(ReadMesh, ToRet.AggGeom, Options);
+	});
+
+	return ToRet;
+}
+
+
+FGeometryScriptSimpleCollision
 UGeometryScriptLibrary_CollisionFunctions::GetSimpleCollisionFromComponent(
 	UPrimitiveComponent* Component,
 	UGeometryScriptDebug* Debug)
