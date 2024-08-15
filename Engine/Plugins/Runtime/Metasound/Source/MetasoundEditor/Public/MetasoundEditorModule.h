@@ -124,6 +124,12 @@ namespace Metasound
 
 			// For the given node class, register a delegate that can be used for creating in-graph node visualizations.
 			virtual void RegisterGraphNodeVisualization(FName InNodeClassName, FOnCreateGraphNodeVisualizationWidget OnCreateGraphNodeVisualizationWidget) = 0;
+
+			// Queries if the MetaSound Editor is in "restricted mode" (i.e. can only make new presets and not make new assets or edit asset graphs)
+			virtual bool IsRestrictedMode() const = 0;
+
+			// Sets if the MetaSound editor is in "restricted mode" (i.e. can only make new presets and not make new assets or edit asset graphs)
+			virtual void SetRestrictedMode(bool bInRestricted) = 0;
 		};
 	} // namespace Editor
 } // namespace Metasound

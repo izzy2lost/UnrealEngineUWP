@@ -2557,10 +2557,14 @@ namespace Metasound
 						// ensure when generating asset key.
 						if (Class->Metadata.GetType() == EMetasoundFrontendClassType::External)
 						{
-							const FAssetKey AssetKey(Class->Metadata);
-							if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(AssetKey))
+							IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
+							if (!MetaSoundEditorModule.IsRestrictedMode())
 							{
-								AssetSubsystem->OpenEditorForAsset(Asset->GetOwningAsset());
+								const FAssetKey AssetKey(Class->Metadata);
+								if (const FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(AssetKey))
+								{
+									AssetSubsystem->OpenEditorForAsset(Asset->GetOwningAsset());
+								}
 							}
 						}
 					}

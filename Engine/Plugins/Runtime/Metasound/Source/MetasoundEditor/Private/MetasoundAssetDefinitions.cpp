@@ -115,10 +115,14 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_MetaSoundPatch::GetAssetCat
 
 EAssetCommandResult UAssetDefinition_MetaSoundPatch::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
-	for (UMetaSoundPatch* Metasound : OpenArgs.LoadObjects<UMetaSoundPatch>())
+	Metasound::Editor::IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<Metasound::Editor::IMetasoundEditorModule>("MetaSoundEditor");
+	if (!MetaSoundEditorModule.IsRestrictedMode())
 	{
-		TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
-		NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		for (UMetaSoundPatch* Metasound : OpenArgs.LoadObjects<UMetaSoundPatch>())
+		{
+			TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
+			NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		}
 	}
 	return EAssetCommandResult::Handled;
 }
@@ -164,10 +168,15 @@ TConstArrayView<FAssetCategoryPath> UAssetDefinition_MetaSoundSource::GetAssetCa
 
 EAssetCommandResult UAssetDefinition_MetaSoundSource::OpenAssets(const FAssetOpenArgs& OpenArgs) const
 {
+	Metasound::Editor::IMetasoundEditorModule& MetaSoundEditorModule = FModuleManager::GetModuleChecked<Metasound::Editor::IMetasoundEditorModule>("MetaSoundEditor");
 	for (UMetaSoundSource* Metasound : OpenArgs.LoadObjects<UMetaSoundSource>())
 	{
-		TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
-		NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		// In restricted mode, we only want to open up the editor if we're preset otherwise, we don't want to open the editor
+		if (Metasound->bIsPreset || !MetaSoundEditorModule.IsRestrictedMode())
+		{
+			TSharedRef<Metasound::Editor::FEditor> NewEditor = MakeShared<Metasound::Editor::FEditor>();
+			NewEditor->InitMetasoundEditor(OpenArgs.GetToolkitMode(), OpenArgs.ToolkitHost, Metasound);
+		}
 	}
 
 	return EAssetCommandResult::Handled;

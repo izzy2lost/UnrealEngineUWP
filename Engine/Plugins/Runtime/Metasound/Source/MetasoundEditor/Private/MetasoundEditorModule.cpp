@@ -406,6 +406,16 @@ namespace Metasound
 				FGraphNodeVisualizationRegistry::Get().RegisterVisualization(InNodeClassName, OnCreateGraphNodeVisualizationWidget);
 			}
 
+			virtual bool IsRestrictedMode() const override
+			{
+				return bIsRestrictedMode;
+			}
+
+			virtual void SetRestrictedMode(bool bInRestrictedMode) override
+			{
+				bIsRestrictedMode = bInRestrictedMode;
+			}
+
 			void RegisterSettingsDelegates()
 			{
 				using namespace Engine;
@@ -778,6 +788,9 @@ namespace Metasound
 			TSharedPtr<FSlateStyleSet> StyleSet;
 
 			TSet<const UClass*> ExplicitProxyClasses;
+
+			// Whether or not the editor is in restricted mode: can only make new presets and not modify graphs
+			bool bIsRestrictedMode = false;
 		};
 	} // namespace Editor
 } // namespace Metasound
