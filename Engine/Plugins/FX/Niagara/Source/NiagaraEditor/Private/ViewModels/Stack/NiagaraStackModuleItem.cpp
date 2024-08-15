@@ -855,32 +855,36 @@ UNiagaraStackEntry::FStackIssueFixDelegate UNiagaraStackModuleItem::GetUpgradeVe
 	{
 		return FStackIssueFixDelegate();
 	}
-	return FStackIssueFixDelegate::CreateLambda([this]()
+	return FStackIssueFixDelegate::CreateLambda([WeakModule=MakeWeakObjectPtr(this)]()
     {
-        FScopedTransaction ScopedTransaction(LOCTEXT("UpgradeVersionFix", "Change module version"));
+	    UNiagaraStackModuleItem* Item = WeakModule.Get();
+		if (!Item)
+		{
+			return;
+		}
+		
+	    FScopedTransaction ScopedTransaction(LOCTEXT("UpgradeVersionFix", "Change module version"));
+		TStrongObjectPtr ModuleItem(Item); // gc lock
         FNiagaraScriptVersionUpgradeContext UpgradeContext;
-		UpgradeContext.CreateClipboardCallback = [this](UNiagaraClipboardContent* ClipboardContent)
+		UpgradeContext.CreateClipboardCallback = [ModuleItem](UNiagaraClipboardContent* ClipboardContent)
 	    {
-	        RefreshChildren();
-	        Copy(ClipboardContent);
+	        ModuleItem->RefreshChildren();
+	        ModuleItem->Copy(ClipboardContent);
 	        if (ClipboardContent->Functions.Num() > 0)
 	        {
 	            ClipboardContent->FunctionInputs = ClipboardContent->Functions[0]->Inputs;
 	            ClipboardContent->Functions.Empty();
 	        }
 	    };
-        UpgradeContext.ApplyClipboardCallback = [this](UNiagaraClipboardContent* ClipboardContent, FText& OutWarning) { Paste(ClipboardContent, OutWarning); };
-		UpgradeContext.ConstantResolver = GetEmitterViewModel().IsValid() ?
-	        FCompileConstantResolver(GetEmitterViewModel()->GetEmitter(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*FunctionCallNode)) :
-	        FCompileConstantResolver(&GetSystemViewModel()->GetSystem(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*FunctionCallNode));
-        FunctionCallNode->ChangeScriptVersion(FunctionCallNode->FunctionScript->GetExposedVersion().VersionGuid, UpgradeContext, true);
-        if (FunctionCallNode->RefreshFromExternalChanges())
-        {
-            FunctionCallNode->GetNiagaraGraph()->NotifyGraphNeedsRecompile();
-            GetSystemViewModel()->ResetSystem();
-        }
+        UpgradeContext.ApplyClipboardCallback = [ModuleItem](UNiagaraClipboardContent* ClipboardContent, FText& OutWarning) { ModuleItem->Paste(ClipboardContent, OutWarning); };
+		UpgradeContext.ConstantResolver = ModuleItem->GetEmitterViewModel().IsValid() ?
+	        FCompileConstantResolver(ModuleItem->GetEmitterViewModel()->GetEmitter(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*ModuleItem->FunctionCallNode)) :
+	        FCompileConstantResolver(&ModuleItem->GetSystemViewModel()->GetSystem(), FNiagaraStackGraphUtilities::GetOutputNodeUsage(*ModuleItem->FunctionCallNode));
+        FGuid NewScriptVersion = ModuleItem->FunctionCallNode->FunctionScript->GetExposedVersion().VersionGuid;
+        ModuleItem->FunctionCallNode->ChangeScriptVersion(NewScriptVersion, UpgradeContext, true);
+        ModuleItem->Refresh();
 
-		ReportScriptVersionChange();
+		ModuleItem->ReportScriptVersionChange();
     });
 }
 

@@ -1551,16 +1551,25 @@ void UNiagaraNodeFunctionCall::UpdateOverridePins(const FNiagaraScriptVersionUpg
 	if (FunctionScript)
 	{
 		// Automatically remove old inputs so it does not show a bunch of warnings to the user
-		TMap<FName, FNiagaraTypeDefinition> FunctionInputNames;
-		FPinCollectorArray OverridePins;
+		FPinCollectorArray InputPins;
+		GetInputPins(InputPins);
+		for (UEdGraphPin* Pin : InputPins)
+		{
+			if (Pin->bOrphanedPin)
+			{
+				RemovePin(Pin);
+			}
+		}
 		UNiagaraNodeParameterMapSet* OverrideNode = FNiagaraStackGraphUtilities::GetStackFunctionOverrideNode(*this);
 		if (OverrideNode != nullptr)
 		{
+			FPinCollectorArray OverridePins;
 			OverrideNode->Modify();
 			OverrideNode->GetInputPins(OverridePins);
 
 			if (!OverridePins.IsEmpty())
 			{
+				TMap<FName, FNiagaraTypeDefinition> FunctionInputNames;
 				TArray<FNiagaraVariable> ModuleInputVariables;
 				FNiagaraStackGraphUtilities::GetStackFunctionInputs(*this, ModuleInputVariables, UpgradeContext.ConstantResolver, FNiagaraStackGraphUtilities::ENiagaraGetStackFunctionInputPinsOptions::ModuleInputsOnly);
 				for (const FNiagaraVariable& InputVariable : ModuleInputVariables)

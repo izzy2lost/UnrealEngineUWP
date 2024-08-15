@@ -232,7 +232,7 @@ void UUpgradeNiagaraScriptResults::SetBoolInput(const FString& InputName, bool V
 	UNiagaraPythonScriptModuleInput* ModuleInput = GetNewInput(FName(InputName));
 	if (ModuleInput && ModuleInput->Input->InputType == FNiagaraTypeDefinition::GetBoolDef())
 	{
-		NiagaraScriptResults::SetValue(ModuleInput, Value);
+		ModuleInput->Input = UNiagaraClipboardEditorScriptingUtilities::CreateBoolLocalValueInput(ModuleInput, FName(InputName), false, false, Value);
 	}
 }
 
