@@ -3753,7 +3753,15 @@ void CheckLazyName(const CharType(&Literal)[N])
 	CharType Literal2[N];
 	FMemory::Memcpy(Literal2, Literal);
 	check(FLazyName(Literal) == FLazyName(Literal2));
-	check(WriteToString<64>(FLazyName(Literal).Resolve()).ToView().Equals(WriteToString<64>(Literal).ToView(), ESearchCase::CaseSensitive));
+
+	constexpr ESearchCase::Type ComparisonMode =
+#if WITH_CASE_PRESERVING_NAME
+		ESearchCase::CaseSensitive;
+#else
+		ESearchCase::IgnoreCase;
+#endif
+
+	check(WriteToString<64>(FLazyName(Literal).Resolve()).ToView().Equals(WriteToString<64>(Literal).ToView(), ComparisonMode));
 }
 
 static void TestNameBatch();
