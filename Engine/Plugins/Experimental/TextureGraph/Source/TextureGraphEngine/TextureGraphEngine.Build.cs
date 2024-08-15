@@ -77,6 +77,7 @@ public class TextureGraphEngine : ModuleRules
 			PublicDependencyModuleNames.AddRange(new string[]
             {
                 "UnrealEd",
+                "AssetTools"
 			});
 		}
 

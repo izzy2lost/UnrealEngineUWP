@@ -4,20 +4,18 @@
 
 #include "CoreMinimal.h"
 #include "Job/JobBatch.h"
-#include "TextureGraph.h"
 #include "Export/TextureExporter.h"
 #include "Data/Blob.h"
 #include "TG_Graph.h"
 #include "TG_Node.h"
 #include "2D/TextureHelper.h"
 
+class UTextureGraph;
+
 class TEXTUREGRAPH_API FTG_HelperFunctions
 {
 
 public:
-	static bool IsFileNameValid(FName FileName, FText& Reason);
-	static bool IsFolderPathValid(FString FolderPath, FText& Reason);
-
 	static void	InitTargets(UTextureGraph* InTextureGraph);
 	static TArray<BlobPtr> GetTexturedOutputs(const UTG_Node* Node, FTG_EvaluationContext* TextureConversionContext = nullptr);
 

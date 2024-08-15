@@ -10,32 +10,10 @@
 #include "Expressions/Output/TG_Expression_Output.h"
 #include "Expressions/TG_Expression.h"
 #include "Model/Mix/MixManager.h"
-#include "Expressions/TG_Expression.h"
 #include "Transform/Expressions/T_FlatColorTexture.h"
 #include "Logging/MessageLog.h"
-#include "Misc/UObjectToken.h"
 #include "Misc/FileHelper.h"
-
-bool FTG_HelperFunctions::IsFileNameValid(FName FileName, FText& Reason)
-{
-	FileName.IsValidObjectName(Reason);
-	FFileHelper::IsFilenameValidForSaving(FileName.ToString(), Reason);
-
-	return Reason.IsEmpty();
-}
-
-bool FTG_HelperFunctions::IsFolderPathValid(FString FolderPath, FText& Reason)
-{
-	FName::IsValidXName(FolderPath, INVALID_OBJECTPATH_CHARACTERS INVALID_LONGPACKAGE_CHARACTERS, &Reason);
-	
-	if (!Reason.IsEmpty())
-	{
-		Reason = FText::FromString(Reason.ToString().Replace(TEXT("Name"), TEXT("Path")));
-	}
-
-	FPaths::ValidatePath(FolderPath, &Reason);
-	return Reason.IsEmpty();
-}
+#include "TextureGraph.h"
 
 TArray<BlobPtr> FTG_HelperFunctions::GetTexturedOutputs(const UTG_Node* Node, FTG_EvaluationContext* TextureConversionContext /*= nullptr*/)
 
@@ -137,7 +115,7 @@ JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, 
 			UTG_Expression_Output* TargetExpression = Cast<UTG_Expression_Output>(Node->GetExpression());
 			if (TargetExpression)
 			{
-				FTG_OutputSettings& OutputSetting = TargetExpression->OutputSettings;
+				FTG_OutputSettings& OutputSettings = TargetExpression->OutputSettings;
 
 				if (TargetExpression->GetShouldExport() || ExportAllOutputs)
 				{
@@ -146,25 +124,21 @@ JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, 
 
 					auto ExportBlobs = FTG_HelperFunctions::GetTexturedOutputs(Node, &EvaluationContext);
 
-					FString Path = OutputSetting.FolderPath.ToString();
+					FString Path = OutputSettings.FolderPath.ToString();
 					if (OverrideExportPath)
 					{
 						Path = ExportPath;
 					}
 
-					FString FileName = AssetName.IsEmpty() ? OutputSetting.GetFullOutputName() : AssetName;
+					FString FileName = AssetName.IsEmpty() ? OutputSettings.GetFullOutputName() : AssetName;
 
-					FText Reason;
-					bool IsNameValid = IsFileNameValid(FName(*FileName), Reason);
-
-					FText PathReason;
-					bool IsPathValid = TextureExporter::IsPackageNameValid(Path, FileName);
-					IsFolderPathValid(Path, PathReason);
-					IsPathValid &= PathReason.IsEmpty();
-
+					FString PathErrors;
+					bool IsPathValid = TextureExporter::IsFilePathValid(FName(*FileName), FName(*Path), PathErrors);
+					bool IsPackageValid = TextureExporter::IsPackageNameValid(Path, FileName);
+					
 					bool HasOutputs = ExportBlobs.Num() > 0;
 
-					if (HasOutputs && IsNameValid && IsPathValid)
+					if (HasOutputs && IsPathValid && IsPackageValid)
 					{
 						TiledBlobPtr Output = std::static_pointer_cast<TiledBlob>(ExportBlobs[0]);//Dealing with one output per Node for now
 						FExportMapSettings MapSettings = TextureExporter::GetExportSettingsForTarget(TargetExportSettings, std::static_pointer_cast<TiledBlob>(Output), *FileName);
@@ -172,11 +146,11 @@ JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, 
 						MapSettings.Path = Path;
 						MapSettings.UseOverridePath = OverrideExportPath;
 						MapSettings.OverwriteTextures = OverwriteTextures;
-						MapSettings.LODGroup = OutputSetting.LODGroup;
-						MapSettings.Compression = OutputSetting.Compression;
-						MapSettings.IsSRGB = OutputSetting.bSRGB;
-						MapSettings.Width = (int32)OutputSetting.Width;
-						MapSettings.Height = (int32)OutputSetting.Height;
+						MapSettings.LODGroup = OutputSettings.LODGroup;
+						MapSettings.Compression = OutputSettings.Compression;
+						MapSettings.IsSRGB = OutputSettings.bSRGB;
+						MapSettings.Width = (int32)OutputSettings.Width;
+						MapSettings.Height = (int32)OutputSettings.Height;
 						MapSettings.bSave = bSave;
 						TargetExportSettings.ExportPreset.push_back(std::pair<FName, FExportMapSettings>{ MapSettings.Name, MapSettings });
 						AnyValidExport = true;
@@ -186,21 +160,18 @@ JobBatchPtr FTG_HelperFunctions::InitExportBatch(UTextureGraph* InTextureGraph, 
 						//Log Error to Error System
 						if (!HasOutputs)
 						{
-							ErrorMessage += FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSetting.OutputName.ToString() });
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : No valid output found for OutputSetting {0}"), { OutputSettings.OutputName.ToString() });
 							ErrorMessage += "\n";
 						}
 						if (!IsPathValid)
 						{
-							FString InvalidFolderPath = "Invalid folder path. ";
-							FString PathReasonString = PathReason.IsEmpty() ? InvalidFolderPath : InvalidFolderPath + PathReason.ToString();
-							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} for OutputSetting {1}"), { PathReasonString, OutputSetting.OutputName.ToString() });
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} OutputSettings Node: {1}"), { PathErrors, OutputSettings.OutputName.ToString() });
 							ErrorMessage += "\n";
 						}
-						if (!IsNameValid)
+						if (!IsPackageValid)
 						{
-							FString InvalidFileName = "Invalid File Name. ";
-							FString ReasonString = Reason.IsEmpty() ? InvalidFileName : InvalidFileName + Reason.ToString();
-							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} for OutputSetting {1}"), { ReasonString , OutputSetting.OutputName.ToString()});
+							FString Error = "Invalid Package name";
+							ErrorMessage += FString::Format(TEXT("Texture Export Error : {0} OutputSettings Node: {1}"), { Error, OutputSettings.OutputName.ToString() });
 							ErrorMessage += "\n";
 						}
 					}

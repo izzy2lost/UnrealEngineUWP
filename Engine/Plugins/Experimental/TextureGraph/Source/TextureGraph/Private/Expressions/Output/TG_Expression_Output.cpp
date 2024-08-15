@@ -97,26 +97,15 @@ void UTG_Expression_Output::Evaluate(FTG_EvaluationContext* InContext)
 
 bool UTG_Expression_Output::Validate(MixUpdateCyclePtr	Cycle)
 {
-	FText Reason;
-	FTG_HelperFunctions::IsFileNameValid(OutputSettings.BaseName, Reason);
-	auto OutputSettingsPin = GetParentNode()->GetPin("OutputSettings");
-	if (!OutputSettingsPin->IsConnected() && !Reason.IsEmpty())
+	FString Errors;
+	
+	const UTG_Pin* OutputSettingsPin = GetParentNode()->GetPin("OutputSettings");
+
+	if(!OutputSettingsPin->IsConnected() && !OutputSettings.Validate(Errors))
 	{
-		FString Message = "Invalid file name. " + Reason.ToString();
 		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
 		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
-		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Message, GetParentNode());
-	}
-
-	FText PathReason;
-	FTG_HelperFunctions::IsFolderPathValid(OutputSettings.FolderPath.ToString(), PathReason);
-
-	if (!OutputSettingsPin->IsConnected() && !PathReason.IsEmpty())
-	{
-		FString Message = "Invalid folder path. " + PathReason.ToString();
-		UMixInterface* ParentMix = Cast<UMixInterface>(GetOutermostObject());
-		auto ErrorType = static_cast<int32>(ETextureGraphErrorType::NODE_WARNING);
-		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Message, GetParentNode());
+		TextureGraphEngine::GetErrorReporter(ParentMix)->ReportWarning(ErrorType, Errors, GetParentNode());
 	}
 
 	return Super::Validate(Cycle);
