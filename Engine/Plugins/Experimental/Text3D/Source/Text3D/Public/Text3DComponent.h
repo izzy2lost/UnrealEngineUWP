@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Components/SceneComponent.h"
-#include "CoreMinimal.h"
 #include "BevelType.h"
 #include "Mesh.h"
 #include "UObject/ObjectMacros.h"
@@ -31,6 +30,15 @@ enum class EText3DHorizontalTextAlignment : uint8
 	Left			UMETA(DisplayName = "Left"),
 	Center			UMETA(DisplayName = "Center"),
 	Right			UMETA(DisplayName = "Right"),
+};
+
+UENUM()
+enum class EText3DMaxWidthHandling : uint8
+{
+	/** Scales the text to meet the max width */
+	Scale			UMETA(DisplayName = "Scale"),
+	/** First wraps the text (if possible) and then scales to meet the max width */
+	WrapAndScale	UMETA(DisplayName = "Wrap and Scale"),
 };
 
 UENUM()
@@ -213,6 +221,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D", meta = (DeprecatedFunction, DeprecationMessage = "Set the property directly"))
 	void SetMaxWidth(const float Value);
 
+	/** Get the Maximum Width Handling - Whether to wrap before scaling when the text size reaches the max width */
+	EText3DMaxWidthHandling GetMaxWidthHandling() const;
+
+	/** Set the Maximum Width Handling - Whether to wrap before scaling when the text size reaches the max width */
+	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D", meta = (DeprecatedFunction, DeprecationMessage = "Set the property directly"))
+	void SetMaxWidthHandling(const EText3DMaxWidthHandling Value);
+
 	/** Whether a maximum height is specified */
 	bool HasMaxHeight() const;
 
@@ -274,7 +289,6 @@ public:
 	/** Gets the scale of actual text geometry, taking into account MaxWidth and MaxHeight constraints. This function will NOT return the component scale*/
 	UFUNCTION(BlueprintCallable, Category = "Rendering|Components|Text3D")
 	FVector GetTextScale();
-
 
 	/** Get the typeface */
 	FName GetTypeface() const { return  Typeface; }
@@ -373,6 +387,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter = "HasMaxHeight", Setter = "SetHasMaxHeight", Category = "Layout", meta = (InlineEditConditionToggle, AllowPrivateAccess = "true"))
 	bool bHasMaxHeight;
 
+	/** Dictates how to handle the text if it exceeds the max width */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Layout", meta = (HideEditConditionToggle, EditCondition="bHasMaxWidth", AllowPrivateAccess = "true"))
+	EText3DMaxWidthHandling MaxWidthHandling;
+
 	/** Sets a maximum height to the 3D Text */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Getter, Setter, Category = "Layout", meta = (EditCondition = "bHasMaxHeight", ClampMin = 1, AllowPrivateAccess = "true"))
 	float MaxHeight;
@@ -394,7 +412,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "Text3D")
 	FText GetFormattedText() const;
 
-protected:
 	UFUNCTION()
 	TArray<FName> GetTypefaceNames() const;
 
@@ -477,7 +494,6 @@ private:
 	void BuildTextMeshInternal(const bool& bCleanCache);
 
 	/** Layout functionality. */
-	void CalculateTextWidth();
 	float GetTextHeight() const;
 	void CalculateTextScale();
 	FVector GetLineLocation(int32 LineIndex);
