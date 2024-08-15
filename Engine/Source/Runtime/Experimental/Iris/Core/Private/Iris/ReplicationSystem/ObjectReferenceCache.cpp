@@ -1196,43 +1196,6 @@ FNetObjectReference FObjectReferenceCache::GetOrCreateObjectReference(const FStr
 	return OutReference;
 }
 
-void FObjectReferenceCache::ConditionalWriteNetTokenData(FNetSerializationContext& Context, FNetExportContext* ExportContext, const FNetToken& NetToken) const
-{
-	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
-
-	if (ExportContext)
-	{
-		if (Writer->WriteBool(!ExportContext->IsExported(NetToken)))
-		{
-			NetTokenStore->WriteTokenData(Context, NetToken);
-			ExportContext->AddExported(NetToken);			
-		}
-	}
-	else
-	{
-		Writer->WriteBool(true);
-		NetTokenStore->WriteTokenData(Context, NetToken);
-	}
-}
-
-void FObjectReferenceCache::ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) const
-{
-	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
-
-	const bool bIsExportToken = Reader->ReadBool();
-	if (bIsExportToken)
-	{
-		if (Reader->IsOverflown())
-		{
-			return;
-		}
-
-		FNetObjectResolveContext& ResolveContext = Context.GetInternalContext()->ResolveContext;
-	
-		NetTokenStore->ReadTokenData(Context, NetToken, *ResolveContext.RemoteNetTokenStoreState);
-	}
-}
-
 void FObjectReferenceCache::WriteFullReferenceInternal(FNetSerializationContext& Context, const FNetObjectReference& Ref) const
 {
 	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
@@ -1271,7 +1234,7 @@ void FObjectReferenceCache::WriteFullReferenceInternal(FNetSerializationContext&
 		if (Writer->WriteBool(bHasPath))
 		{
 			WriteNetToken(Writer, CachedObject->RelativePath);
-			ConditionalWriteNetTokenData(Context, ExportContext, CachedObject->RelativePath);
+			NetTokenStore->ConditionalWriteNetTokenData(Context, ExportContext, CachedObject->RelativePath);
 			WriteFullReferenceInternal(Context, FNetObjectReference(CachedObject->OuterNetRefHandle));
 		}
 	
@@ -1338,7 +1301,7 @@ void FObjectReferenceCache::ReadFullReferenceInternal(FNetSerializationContext& 
 		if (Reader->ReadBool())
 		{
 			RelativePath = ReadNetToken(Reader);
-			ConditionalReadNetTokenData(Context, RelativePath);
+			NetTokenStore->ConditionalReadNetTokenData(Context, RelativePath);
 			ReadFullReferenceInternal(Context, OuterRef, RecursionCount + 1U);
 		}
 	}
@@ -1424,7 +1387,7 @@ void FObjectReferenceCache::ReadFullReference(FNetSerializationContext& Context,
 
 		const FNetRefHandle NetRefHandle = ReadNetRefHandle(Context);
 		FNetToken RelativePath = ReadNetToken(Reader);
-		ConditionalReadNetTokenData(Context, RelativePath);
+		NetTokenStore->ConditionalReadNetTokenData(Context, RelativePath);
 
 		OutRef.RefHandle = NetRefHandle;
 		OutRef.PathToken = RelativePath;
@@ -1463,7 +1426,7 @@ void FObjectReferenceCache::WriteFullReference(FNetSerializationContext& Context
 
 		WriteNetRefHandle(Context, Ref.GetRefHandle());
 		WriteNetToken(Writer, Ref.PathToken);
-		ConditionalWriteNetTokenData(Context, Context.GetExportContext(), Ref.PathToken);
+		NetTokenStore->ConditionalWriteNetTokenData(Context, Context.GetExportContext(), Ref.PathToken);
 		return;
 	}
 
@@ -1595,7 +1558,7 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 	FNetBitStreamWriter& Writer = *Context.GetBitStreamWriter();
 
 	FNetExportContext* ExportContext = Context.GetExportContext();
-	if (!ExportContext || ExportContext->GetBatchExports().ReferencesPendingExportInCurrentBatch.IsEmpty())
+	if (!ExportContext || !ExportContext->GetBatchExports().HasPendingExports())
 	{
 		return EWriteExportsResult::NoExports;
 	}
@@ -1604,17 +1567,39 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 	FNetBitStreamRollbackScope Rollback(*Context.GetBitStreamWriter());
 	const uint32 ExportsStartBitPos = Writer.GetPosBits();
 
-	TArrayView<const FNetObjectReference> ExportsView = MakeArrayView(ExportContext->GetBatchExports().ReferencesPendingExportInCurrentBatch);
+#if UE_NET_IRIS_CSV_STATS
+		uint32 CountExports = 0;
+#endif
+
+	// Export NetObjectReference pending export
+	TArrayView<const FNetObjectReference> NetObjectReferenceExportsView = MakeArrayView(ExportContext->GetBatchExports().ReferencesPendingExportInCurrentBatch);
 
 	// Force exports to be written
 	{
 		FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
 
-#if UE_NET_IRIS_CSV_STATS
-		uint32 CountExports = 0;
-#endif
+		// For now we export NetTokens here
+		{
+			UE_NET_TRACE_SCOPE(NetTokenExports, Writer, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
 
-		for (const FNetObjectReference& Reference : ExportsView)
+			TArrayView<const FNetToken> NetTokenExportsView = MakeArrayView(ExportContext->GetBatchExports().NetTokensPendingExportInCurrentBatch);
+
+			for (const FNetToken& NetToken : NetTokenExportsView)
+			{
+				if (!ExportContext->IsExported(NetToken))
+				{
+					//UE_NET_TRACE_DYNAMIC_NAME_SCOPE(*FString::Printf(TEXT("%u"), NetToken.GetIndex()), *Context.GetBitStreamWriter(), Context.GetTraceCollector(), ENetTraceVerbosity::VeryVerbose);
+					Writer.WriteBool(true);
+					WriteNetToken(&Writer, NetToken);
+					NetTokenStore->WriteTokenData(Context, NetToken);
+					ExportContext->AddExported(NetToken);			
+				}
+			}
+			// Write stop bit
+			Writer.WriteBool(false);
+		}
+
+		for (const FNetObjectReference& Reference : NetObjectReferenceExportsView)
 		{
 			const bool bIsClientAssigned = Reference.PathToken.IsValid();
 			const FNetRefHandle Handle = Reference.GetRefHandle();
@@ -1636,7 +1621,7 @@ FObjectReferenceCache::EWriteExportsResult FObjectReferenceCache::WritePendingEx
 	}
 
 	// We also write any must be mapped exports
-	WriteMustBeMappedExports(Context, ObjectIndex, ExportsView);
+	WriteMustBeMappedExports(Context, ObjectIndex, NetObjectReferenceExportsView);
 
 	// Reset state of pending exports
 	ExportContext->ClearPendingExports();
@@ -1659,17 +1644,39 @@ bool FObjectReferenceCache::ReadExports(FNetSerializationContext& Context, TArra
 {
 	FNetBitStreamReader& Reader = *Context.GetBitStreamReader();
 
-	bool bHasExportsToRead = Reader.ReadBool(); 
-	UE_NET_TRACE_SCOPE(Exports, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
-
-	// Force inlined exports
+	// Read NetToken exports
 	{
-		FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
-		while (bHasExportsToRead && !Context.HasErrorOrOverflow())
+		bool bHasExportsToRead = Reader.ReadBool(); 
+		UE_NET_TRACE_SCOPE(NetTokenExports, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+
+		// Force inlined exports
 		{
-			FNetObjectReference Import;
-			ReadFullReference(Context, Import);
-			bHasExportsToRead = Reader.ReadBool();
+			FNetObjectResolveContext& ResolveContext = Context.GetInternalContext()->ResolveContext;
+
+			FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
+			while (bHasExportsToRead && !Context.HasErrorOrOverflow())
+			{
+				FNetToken ImportedNetToken = ReadNetToken(&Reader);
+				NetTokenStore->ReadTokenData(Context, ImportedNetToken, *ResolveContext.RemoteNetTokenStoreState);
+				bHasExportsToRead = Reader.ReadBool();
+			}
+		}
+	}
+
+	// Read NetObjectReference exports
+	{
+		bool bHasExportsToRead = Reader.ReadBool(); 
+		UE_NET_TRACE_SCOPE(NetObjectReferenceExports, Reader, Context.GetTraceCollector(), ENetTraceVerbosity::Verbose);
+
+		// Force inlined exports
+		{
+			FForceInlineExportScope ForceInlineExportScope(Context.GetInternalContext());
+			while (bHasExportsToRead && !Context.HasErrorOrOverflow())
+			{
+				FNetObjectReference Import;
+				ReadFullReference(Context, Import);
+				bHasExportsToRead = Reader.ReadBool();
+			}
 		}
 	}
 
@@ -1710,6 +1717,7 @@ bool FObjectReferenceCache::WriteMustBeMappedExports(FNetSerializationContext& C
 			}
 		}
 
+		// $TODO: This should be a separate state, as MustBeMapped is not really an export, just a list of important exports
 		UE_NET_IRIS_STATS_ADD_COUNT_FOR_OBJECT(Context.GetNetStatsContext(), WriteExports, ObjectIndex, CountExports);
 	}
 

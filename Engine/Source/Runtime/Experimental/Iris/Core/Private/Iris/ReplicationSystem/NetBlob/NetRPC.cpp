@@ -57,7 +57,7 @@ FNetRPC::~FNetRPC()
 {
 }
 
-TArrayView<const FNetObjectReference> FNetRPC::GetExports() const
+TArrayView<const FNetObjectReference> FNetRPC::GetNetObjectReferenceExports() const
 {
 	return ReferencesToExport.IsValid() ? MakeArrayView(*ReferencesToExport) : MakeArrayView<const FNetObjectReference>(nullptr, 0);
 }

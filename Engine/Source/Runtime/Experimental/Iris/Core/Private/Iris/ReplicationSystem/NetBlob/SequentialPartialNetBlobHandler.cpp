@@ -19,14 +19,9 @@ void USequentialPartialNetBlobHandler::Init(const FSequentialPartialNetBlobHandl
 	Config = InitParams.Config;
 }
 
-bool USequentialPartialNetBlobHandler::SplitNetBlob(const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName) const
+bool USequentialPartialNetBlobHandler::SplitNetBlob(UE::Net::FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName) const
 {
 	using namespace UE::Net;
-
-	FNetSerializationContext Context;
-	Private::FInternalNetSerializationContext InternalContext(ReplicationSystem);
-	Context.SetLocalConnectionId(0U);
-	Context.SetInternalContext(&InternalContext);
 
 	FNetBlobCreationInfo CreationInfo = {};
 	CreationInfo.Type = GetNetBlobType();
@@ -50,14 +45,9 @@ bool USequentialPartialNetBlobHandler::SplitNetBlob(const TRefCountPtr<FNetBlob>
 	return FPartialNetBlob::SplitNetBlob(Context, CreationInfo, SplitParams, Blob, OutPartialBlobs);
 }
 
-bool USequentialPartialNetBlobHandler::SplitNetBlob(const UE::Net::FNetObjectReference& NetObjectReference, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName) const
+bool USequentialPartialNetBlobHandler::SplitNetBlob(UE::Net::FNetSerializationContext& Context, const UE::Net::FNetObjectReference& NetObjectReference, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs, const UE::Net::FNetDebugName* InDebugName) const
 {
 	using namespace UE::Net;
-
-	FNetSerializationContext Context;
-	Private::FInternalNetSerializationContext InternalContext(ReplicationSystem);
-	Context.SetLocalConnectionId(0U);
-	Context.SetInternalContext(&InternalContext);
 
 	FNetBlobCreationInfo CreationInfo = {};
 	CreationInfo.Type = GetNetBlobType();

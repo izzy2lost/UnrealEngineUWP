@@ -383,7 +383,12 @@ uint32 FNetObjectAttachmentSendQueue::SerializeUnreliable(FNetSerializationConte
 		const TRefCountPtr<FNetBlob>& Attachment = UnreliableQueue.PeekAtOffsetNoCheck(AttachmentIt);
 
 		// If we have exports, append them, if attachment is rolled back we will roll back any appended exports as well.
-		ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetExports());
+		FNetExportContext* ExportContext = Attachment->HasExports() ? Context.GetExportContext() : nullptr;
+		if (ExportContext)
+		{
+			ObjectReferenceCache->AddPendingExports(Context, Attachment->CallGetNetObjectReferenceExports());
+			ExportContext->AddPendingExports(Attachment->CallGetNetTokenExports());
+		}
 
 		Attachment->SerializeCreationInfo(Context, Attachment->GetCreationInfo());
 		if (bSerializeWithObject)

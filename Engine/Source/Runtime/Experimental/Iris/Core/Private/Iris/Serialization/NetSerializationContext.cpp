@@ -71,6 +71,11 @@ UObject* FNetSerializationContext::GetLocalConnectionUserData(uint32 ConnectionI
 		return nullptr;
 	}
 
+	if (ConnectionId == UE::Net::InvalidConnectionId)
+	{
+		return nullptr;
+	}
+
 	UObject* UserData = ReplicationSystem->GetConnectionUserData(ConnectionId);
 	return UserData;
 }

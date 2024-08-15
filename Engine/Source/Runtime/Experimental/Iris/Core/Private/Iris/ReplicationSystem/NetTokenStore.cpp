@@ -2,10 +2,13 @@
 
 #include "Iris/ReplicationSystem/NetTokenStore.h"
 #include "Iris/ReplicationSystem/NetTokenStoreState.h"
+#include "Iris/ReplicationSystem/ObjectReferenceCacheFwd.h"
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
 #include "Iris/Serialization/NetSerializationContext.h"
+#include "Iris/Serialization/InternalNetSerializationContext.h"
+#include "Iris/Serialization/NetExportContext.h"
 
 namespace UE::Net
 {
@@ -170,6 +173,43 @@ void FNetTokenStore::ReadTokenDataForIndex(FNetSerializationContext& Context, ui
 	
 	// Store
 	TokenStoreState.TokenInfos[TokenIndex] = StoreKey;
+}
+
+void FNetTokenStore::ConditionalWriteNetTokenData(FNetSerializationContext& Context, Private::FNetExportContext* ExportContext, const FNetToken& NetToken) const
+{
+	FNetBitStreamWriter* Writer = Context.GetBitStreamWriter();
+
+	if (ExportContext)
+	{
+		if (Writer->WriteBool(!ExportContext->IsExported(NetToken)))
+		{
+			WriteTokenData(Context, NetToken);
+			ExportContext->AddExported(NetToken);			
+		}
+	}
+	else
+	{
+		Writer->WriteBool(true);
+		WriteTokenData(Context, NetToken);
+	}
+}
+
+void FNetTokenStore::ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken& NetToken)
+{
+	FNetBitStreamReader* Reader = Context.GetBitStreamReader();
+
+	const bool bIsExportToken = Reader->ReadBool();
+	if (bIsExportToken)
+	{
+		if (Reader->IsOverflown())
+		{
+			return;
+		}
+
+		FNetObjectResolveContext& ResolveContext = Context.GetInternalContext()->ResolveContext;
+	
+		ReadTokenData(Context, NetToken, *ResolveContext.RemoteNetTokenStoreState);
+	}
 }
 
 }

@@ -4,6 +4,7 @@
 #include "Iris/Serialization/NetBitStreamReader.h"
 #include "Iris/Serialization/NetBitStreamWriter.h"
 #include "Iris/Serialization/NetBitStreamUtil.h"
+#include "Iris/Serialization/NetExportContext.h"
 #include "Iris/Serialization/InternalNetSerializationContext.h"
 #include "Iris/Serialization/NetSerializationContext.h"
 #include "Net/Core/Trace/NetTrace.h"
@@ -29,16 +30,21 @@ FPartialNetBlob::FPartialNetBlob(const FNetBlobCreationInfo& CreationInfo)
 {
 }
 
-TArrayView<const FNetObjectReference> FPartialNetBlob::GetExports() const
+TArrayView<const FNetObjectReference> FPartialNetBlob::GetNetObjectReferenceExports() const
 {
 	if (IsFirstPart() && OriginalBlob.IsValid())
 	{
-		return OriginalBlob->CallGetExports();
+		return OriginalBlob->CallGetNetObjectReferenceExports();
 	}
 	else
 	{
 		return MakeArrayView<const FNetObjectReference>(nullptr, 0);			
 	}
+}
+
+TArrayView<const FNetToken> FPartialNetBlob::GetNetTokenExports() const
+{
+	return MakeConstArrayView<>(NetTokenExportsArray);
 }
 
 void FPartialNetBlob::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const
@@ -156,7 +162,7 @@ void FPartialNetBlob::InternalDeserializeBlob(FNetSerializationContext& Context)
 	Reader->ReadBitStream(Payload.GetData(), PayloadBitCount);
 }
 
-bool FPartialNetBlob::SplitNetBlob(const FNetSerializationContext& Context, const FNetBlobCreationInfo& CreationInfo, const FPartialNetBlob::FSplitParams& SplitParams, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs)
+bool FPartialNetBlob::SplitNetBlob(FNetSerializationContext& Context, const FNetBlobCreationInfo& CreationInfo, const FPartialNetBlob::FSplitParams& SplitParams, const TRefCountPtr<FNetBlob>& Blob, TArray<TRefCountPtr<FNetBlob>>& OutPartialBlobs)
 {
 	check(SplitParams.MaxPartBitCount > 31U && SplitParams.MaxPartBitCount < 65536U && SplitParams.MaxPartCount > 0 && SplitParams.MaxPartCount < 65536U);
 	if (!Blob.IsValid())
@@ -186,6 +192,8 @@ bool FPartialNetBlob::SplitNetBlob(const FNetSerializationContext& Context, cons
 		Writer.InitBytes(Payload.GetData(), static_cast<uint32>(Payload.Num())*4U);
 
 		FNetSerializationContext SubContext = Context.MakeSubContext(&Writer);
+		Private::FNetExportRollbackScope ExportRollBack(SubContext);
+
 		if (SplitParams.bSerializeWithObject)
 		{
 			Blob->SerializeWithObject(SubContext, SplitParams.NetObjectReference.GetRefHandle());
@@ -232,6 +240,10 @@ bool FPartialNetBlob::SplitNetBlob(const FNetSerializationContext& Context, cons
 		PayloadSplitParams.Payload = Payload.GetData();
 		PayloadSplitParams.PayloadBitCount = CurrentPayloadBitCount;
 		PayloadSplitParams.PartBitCount = MaxPartBitCount;
+		if (Private::FNetExportContext* ExportContext = Context.GetExportContext())
+		{			
+			PayloadSplitParams.NetTokensPendingExport = MakeConstArrayView<>(ExportContext->GetBatchExports().NetTokensPendingExportInCurrentBatch);
+		}
 
 		SplitPayload(PayloadSplitParams, OutPartialBlobs);
 	}
@@ -247,7 +259,7 @@ bool FPartialNetBlob::SplitNetBlob(const FNetBlobCreationInfo& CreationInfo, con
 		return false;
 	}
 
-	FPayloadSplitParams PayloadSplitParams;
+	FPayloadSplitParams PayloadSplitParams = {};
 	PayloadSplitParams.DebugName = SplitParams.DebugName;
 	PayloadSplitParams.CreationInfo = CreationInfo;
 	PayloadSplitParams.OriginalBlob = Blob.GetReference();
@@ -269,6 +281,8 @@ void FPartialNetBlob::SplitPayload(const FPartialNetBlob::FPayloadSplitParams& S
 	uint32 SequenceNumber = Private::PartialNetBlobGlobalSequenceNumber.fetch_add(PartialBlobCount, std::memory_order_relaxed);
 
 	uint32 PayloadBitOffset = 0U;
+
+	// Do we have exports	
 	for (uint32 PartIt = 0, PartEndIt = PartialBlobCount; PartIt != PartEndIt; ++PartIt)
 	{
 		const bool bIsFirstPart = PartIt == 0U;
@@ -279,10 +293,11 @@ void FPartialNetBlob::SplitPayload(const FPartialNetBlob::FPayloadSplitParams& S
 		PartialBlob->PartCount = static_cast<uint16>(PartialBlobCount);
 		PartialBlob->SequenceFlags = (bIsFirstPart ? ESequenceFlags::IsFirstPart : ESequenceFlags::None);
 		PartialBlob->SequenceNumber = SequenceNumber++;
-		if (bIsFirstPart && EnumHasAnyFlags(SplitParams.OriginalCreationInfo.Flags, ENetBlobFlags::HasExports))
+		if (bIsFirstPart && (SplitParams.NetTokensPendingExport.Num() || EnumHasAnyFlags(SplitParams.OriginalCreationInfo.Flags, ENetBlobFlags::HasExports)))
 		{
 			PartialBlob->OriginalBlob = SplitParams.OriginalBlob;
 			PartialBlob->CreationInfo.Flags |= ENetBlobFlags::HasExports;
+			PartialBlob->NetTokenExportsArray.Append(SplitParams.NetTokensPendingExport);
 		}
 
 		// Copy relevant data from our temporary buffer.

@@ -12,6 +12,11 @@ namespace UE::Net
 	class FNetTokenStore;
 	class FNetTokenStoreState;
 	class FNetSerializationContext;
+
+	namespace Private
+	{
+		class FNetExportContext;
+	}
 }
 
 namespace UE::Net
@@ -63,6 +68,12 @@ public:
 
 	// Read data associated with the NetToken
 	void ReadTokenData(FNetSerializationContext& Context, const FNetToken& NetToken, FNetTokenStoreState& RemoteNetTokenStoreState);
+
+	// Conditionally write NetTokenData unless already exported
+	void ConditionalWriteNetTokenData(FNetSerializationContext& Context, Private::FNetExportContext* ExportContext, const FNetToken& NetToken) const;
+
+	// Conditionally read NetTokenData if exported
+	void ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken& NetToken);
 
 private:
 

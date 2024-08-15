@@ -126,9 +126,14 @@ void FNetBlob::Release() const
 	}
 }
 
-TArrayView<const FNetObjectReference> FNetBlob::GetExports() const
+TArrayView<const FNetObjectReference> FNetBlob::GetNetObjectReferenceExports() const
 {
 	return MakeArrayView<const FNetObjectReference>(nullptr, 0);
+};
+
+TArrayView<const FNetToken> FNetBlob::GetNetTokenExports() const
+{
+	return MakeArrayView<const FNetToken>(nullptr, 0);
 };
 
 // NetObjectAttachment

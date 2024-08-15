@@ -182,8 +182,6 @@ private:
 
 	bool CreateObjectReferenceInternal(const UObject* Object, FNetObjectReference& OutReference);
 
-	void ConditionalWriteNetTokenData(FNetSerializationContext& Context, Private::FNetExportContext* ExportContext, const FNetToken& NetToken) const;
-	void ConditionalReadNetTokenData(FNetSerializationContext& Context, const FNetToken& NetToken) const;
 
 	void ReadFullReferenceInternal(FNetSerializationContext& Context, FNetObjectReference& OutRef, uint32 RecursionCount);
 	void WriteFullReferenceInternal(FNetSerializationContext& Context, const FNetObjectReference& Ref) const;

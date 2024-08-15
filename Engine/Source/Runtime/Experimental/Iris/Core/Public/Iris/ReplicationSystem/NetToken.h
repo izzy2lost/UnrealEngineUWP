@@ -90,3 +90,5 @@ IRISCORE_API FNetToken ReadNetToken(FNetBitStreamReader* Reader);
 IRISCORE_API void WriteNetToken(FNetBitStreamWriter* Writer, FNetToken Token);
 
 }
+
+template <> struct TIsPODType<UE::Net::FNetToken> { enum { Value = true }; };

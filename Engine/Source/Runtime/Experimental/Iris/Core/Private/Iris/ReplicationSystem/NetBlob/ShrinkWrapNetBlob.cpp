@@ -11,17 +11,24 @@
 namespace UE::Net
 {
 
-FShrinkWrapNetBlob::FShrinkWrapNetBlob(const TRefCountPtr<FNetBlob>& InOriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount)
+FShrinkWrapNetBlob::FShrinkWrapNetBlob(FNetSerializationContext& Context, const TRefCountPtr<FNetBlob>& InOriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount)
 : FNetBlob(InOriginalBlob->GetCreationInfo())
 , OriginalBlob(InOriginalBlob)
 , SerializedBlob(MoveTemp(Payload))
 , SerializedBlobBitCount(PayloadBitCount)
 {
+	NetTokenExportsArray = Context.GetExportContext()->GetBatchExports().NetTokensPendingExportInCurrentBatch;
+	CreationInfo.Flags |= NetTokenExportsArray.Num() ? ENetBlobFlags::HasExports : ENetBlobFlags::None;
 }
 
-TArrayView<const FNetObjectReference> FShrinkWrapNetBlob::GetExports() const
+TArrayView<const FNetObjectReference> FShrinkWrapNetBlob::GetNetObjectReferenceExports() const
 {
-	return OriginalBlob->CallGetExports();
+	return OriginalBlob->CallGetNetObjectReferenceExports();
+}
+
+TArrayView<const FNetToken> FShrinkWrapNetBlob::GetNetTokenExports() const
+{
+	return MakeArrayView<const FNetToken>(NetTokenExportsArray.GetData(), NetTokenExportsArray.Num());
 }
 
 void FShrinkWrapNetBlob::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const
@@ -69,17 +76,24 @@ void FShrinkWrapNetBlob::InternalSerialize(FNetSerializationContext& Context) co
 }
 
 
-FShrinkWrapNetObjectAttachment::FShrinkWrapNetObjectAttachment(const TRefCountPtr<FNetObjectAttachment>& InOriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount)
+FShrinkWrapNetObjectAttachment::FShrinkWrapNetObjectAttachment(FNetSerializationContext& Context, const TRefCountPtr<FNetObjectAttachment>& InOriginalBlob, TArray<uint32>&& Payload, uint32 PayloadBitCount)
 : FNetBlob(InOriginalBlob->GetCreationInfo())
 , OriginalBlob(InOriginalBlob)
 , SerializedBlob(MoveTemp(Payload))
 , SerializedBlobBitCount(PayloadBitCount)
 {
+	NetTokenExportsArray = Context.GetExportContext()->GetBatchExports().NetTokensPendingExportInCurrentBatch;
+	CreationInfo.Flags |= NetTokenExportsArray.Num() ? ENetBlobFlags::HasExports : ENetBlobFlags::None;
 }
 
-TArrayView<const FNetObjectReference> FShrinkWrapNetObjectAttachment::GetExports() const
+TArrayView<const FNetObjectReference> FShrinkWrapNetObjectAttachment::GetNetObjectReferenceExports() const
 {
-	return OriginalBlob->CallGetExports();
+	return OriginalBlob->CallGetNetObjectReferenceExports();
+}
+
+TArrayView<const FNetToken> FShrinkWrapNetObjectAttachment::GetNetTokenExports() const
+{
+	return MakeArrayView<const FNetToken>(NetTokenExportsArray.GetData(), NetTokenExportsArray.Num());
 }
 
 void FShrinkWrapNetObjectAttachment::SerializeWithObject(FNetSerializationContext& Context, FNetRefHandle RefHandle) const

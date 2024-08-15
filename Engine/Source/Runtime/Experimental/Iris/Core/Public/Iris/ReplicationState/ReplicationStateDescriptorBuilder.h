@@ -8,6 +8,7 @@
 #include "UObject/CoreNet.h"
 
 class IConsoleVariable;
+class UReplicationSystem;
 namespace UE::Net::Private
 {
 	class FReplicationStateDescriptorRegistry;
@@ -24,6 +25,7 @@ public:
 		IRISCORE_API FParameters();
 
 		Private::FReplicationStateDescriptorRegistry* DescriptorRegistry;
+		UReplicationSystem* ReplicationSystem;
 		// If provided we use this to source our default state, if not provided we source default state from the CDO instead
 		UObject* DefaultStateSource;
 		 // Include super class when building descriptor.
