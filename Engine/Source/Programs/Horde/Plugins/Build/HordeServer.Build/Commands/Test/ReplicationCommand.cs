@@ -64,6 +64,13 @@ namespace HordeServer.Commands.Test
 			IReplicatorCollection replicatorCollection = serviceProvider.GetRequiredService<IReplicatorCollection>();
 
 			ReplicatorId id = new ReplicatorId(new StreamId(StreamId), new StreamReplicatorId(ReplicatorId));
+
+			ReplicatorConfig? replicatorConfig;
+			if (!streamConfig.TryGetReplicator(new StreamReplicatorId(ReplicatorId), out replicatorConfig))
+			{
+				throw new FatalErrorException($"Replicator '{ReplicatorId}' not found");
+			}
+
 			IReplicator replicator = await replicatorCollection.GetOrAddAsync(id);
 
 			while (replicator.Pause || replicator.Reset != Reset || replicator.Clean != Clean || replicator.NextChange != Change)
@@ -80,9 +87,7 @@ namespace HordeServer.Commands.Test
 				replicator = await replicatorCollection.GetOrAddAsync(id);
 			}
 
-			PerforceReplicationOptions options = new PerforceReplicationOptions();
-			await perforceReplicator.RunOnceAsync(replicator, buildConfig, streamConfig, options, default);
-
+			await perforceReplicator.RunOnceAsync(replicator, buildConfig, streamConfig, replicatorConfig, default);
 			return 0;
 		}
 	}

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Replicators;
+using EpicGames.Horde.Storage;
 
 namespace HordeServer.Replicators
 {
@@ -28,5 +29,15 @@ namespace HordeServer.Replicators
 		/// Maximum change number to replicate
 		/// </summary>
 		public int? MaxChange { get; set; }
+
+		/// <summary>
+		/// Whether to include content in the replication, or just metadata
+		/// </summary>
+		public bool IncludeContent { get; set; } = true;
+
+		/// <summary>
+		/// Namespace to replicate data to
+		/// </summary>
+		public NamespaceId NamespaceId { get; set; } = new NamespaceId("horde-perforce");
 	}
 }

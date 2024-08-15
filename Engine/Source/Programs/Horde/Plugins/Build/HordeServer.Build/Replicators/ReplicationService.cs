@@ -84,7 +84,7 @@ namespace HordeServer.Replicators
 								if (replicatorConfig.Enabled)
 								{
 									ReplicatorId replicatorId = new ReplicatorId(streamConfig.Id, replicatorConfig.Id);
-									replicatorIdToTask.Add(replicatorId, BackgroundTask.StartNew(ctx => RunReplicationGuardedAsync(replicatorId, buildConfig, streamConfig, ctx)));
+									replicatorIdToTask.Add(replicatorId, BackgroundTask.StartNew(ctx => RunReplicationGuardedAsync(replicatorId, buildConfig, streamConfig, replicatorConfig, ctx)));
 									removeReplicators.Remove(replicatorId);
 								}
 							}
@@ -107,7 +107,7 @@ namespace HordeServer.Replicators
 			}
 		}
 
-		async Task RunReplicationGuardedAsync(ReplicatorId replicatorId, BuildConfig buildConfig, StreamConfig streamConfig, CancellationToken cancellationToken)
+		async Task RunReplicationGuardedAsync(ReplicatorId replicatorId, BuildConfig buildConfig, StreamConfig streamConfig, ReplicatorConfig replicatorConfig, CancellationToken cancellationToken)
 		{
 			_logger.LogInformation("Started background task for replication of {ReplicatorId}", replicatorId);
 
@@ -121,8 +121,7 @@ namespace HordeServer.Replicators
 				.AddRetry(new RetryStrategyOptions { MaxRetryAttempts = int.MaxValue, OnRetry = OnRetry })
 				.Build();
 
-			PerforceReplicationOptions replicationOptions = new PerforceReplicationOptions();
-			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, buildConfig, streamConfig, replicationOptions, ctx), cancellationToken);
+			await pipeline.ExecuteAsync(async ctx => await _replicator.RunAsync(replicatorId, buildConfig, streamConfig, replicatorConfig, ctx), cancellationToken);
 		}
 	}
 }
