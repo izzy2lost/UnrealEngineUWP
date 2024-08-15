@@ -1018,10 +1018,6 @@ FPrimitiveViewRelevance FSceneProxy::GetViewRelevance(const FSceneView* View) co
 			View->Family->EngineShowFlags.VisualizeInstanceUpdates
 		);
 	#endif
-	#if WITH_EDITOR
-		// Nanite doesn't render debug vertex colors.
-		//bSetDynamicRelevance |= (IsSelected() && View->Family->EngineShowFlags.VertexColors);
-	#endif
 	#if NANITE_ENABLE_DEBUG_RENDERING
 		bSetDynamicRelevance |= bDrawMeshCollisionIfComplex || bDrawMeshCollisionIfSimple;
 	#endif
@@ -1334,24 +1330,6 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 
 	Collector.RegisterOneFrameMaterialProxy(SimpleCollisionMaterialInstance);
 
-#if STATICMESH_ENABLE_DEBUG_RENDERING
-#if WITH_EDITORONLY_DATA
-	FMaterialRenderProxy* ColorVisualizationMaterialInstance = nullptr;
-	if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
-	{
-		// Only support texture painting color path here.
-		if (GVertexViewModeOverrideTexture.IsValid())
-		{
-			ColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, IsHovered());
-		}
-	}
-	if (ColorVisualizationMaterialInstance != nullptr)
-	{
-		Collector.RegisterOneFrameMaterialProxy(ColorVisualizationMaterialInstance);
-	}
-#endif
-#endif // STATICMESH_ENABLE_DEBUG_RENDERING
-
 	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
 	{
 		if (VisibilityMap & (1 << ViewIndex))
@@ -1452,16 +1430,6 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 						}
 					}
 				}
-
-#if STATICMESH_ENABLE_DEBUG_RENDERING
-#if WITH_EDITORONLY_DATA
-				if (ColorVisualizationMaterialInstance != nullptr)
-				{
-					FTransform GeomTransform(InstanceToWorld);
-					BodySetup->AggGeom.GetAggGeom(GeomTransform, FColor::White, ColorVisualizationMaterialInstance, false, true, DrawsVelocity(), ViewIndex, Collector);
-				}
-#endif
-#endif // STATICMESH_ENABLE_DEBUG_RENDERING
 
 				if (EngineShowFlags.MassProperties && DebugMassData.Num() > 0)
 				{
@@ -2346,7 +2314,6 @@ FPrimitiveViewRelevance	FSkinnedSceneProxy::GetViewRelevance(const FSceneView* V
 			|| EngineShowFlags.Bones
 			|| EngineShowFlags.Collision
 			|| EngineShowFlags.Bounds
-			|| EngineShowFlags.VertexColors
 			|| IsSelected()
 		#if WITH_EDITORONLY_DATA
 			|| MeshObject->SelectedEditorMaterial != -1
