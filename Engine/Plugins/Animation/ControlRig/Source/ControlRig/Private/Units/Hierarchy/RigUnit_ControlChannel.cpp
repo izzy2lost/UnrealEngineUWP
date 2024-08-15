@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Units/Hierarchy/RigUnit_ControlChannel.h"
+#include "Units/Hierarchy/RigUnit_ControlChannelFromItem.h"
 #include "Units/RigUnitContext.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigUnit_ControlChannel)
@@ -56,19 +57,7 @@ FRigUnit_GetBoolAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Bool)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = StoredValue.Get<bool>();
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Bool."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetBoolAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetFloatAnimationChannel_Execute()
@@ -79,19 +68,7 @@ FRigUnit_GetFloatAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Float || ChannelElement->Settings.ControlType == ERigControlType::ScaleFloat)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = StoredValue.Get<float>();
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Float."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetFloatAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetIntAnimationChannel_Execute()
@@ -102,19 +79,7 @@ FRigUnit_GetIntAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Integer)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = StoredValue.Get<int32>();
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not an Integer (or Enum)."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetIntAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetVector2DAnimationChannel_Execute()
@@ -125,19 +90,7 @@ FRigUnit_GetVector2DAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Vector2D)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = FVector2D(StoredValue.Get<FVector2f>());
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Vector2D."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetVector2DAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetVectorAnimationChannel_Execute()
@@ -148,19 +101,7 @@ FRigUnit_GetVectorAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Position || ChannelElement->Settings.ControlType == ERigControlType::Scale)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = FVector(StoredValue.Get<FVector3f>());
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Vector (Position or Scale)."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetVectorAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetRotatorAnimationChannel_Execute()
@@ -171,19 +112,7 @@ FRigUnit_GetRotatorAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Rotator)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = FRotator::MakeFromEuler(FVector(StoredValue.Get<FVector3f>()));
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Rotator."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetRotatorAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_GetTransformAnimationChannel_Execute()
@@ -194,24 +123,7 @@ FRigUnit_GetTransformAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Transform)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = StoredValue.Get<FRigControlValue::FTransform_Float>().ToTransform();
-		}
-		else if(ChannelElement->Settings.ControlType == ERigControlType::EulerTransform)
-		{
-			const FRigControlValue StoredValue = ExecuteContext.Hierarchy->GetControlValueByIndex(ChannelElement->GetIndex(), bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-			Value = StoredValue.Get<FRigControlValue::FEulerTransform_Float>().ToTransform().ToFTransform();
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a EulerTransform / Transform."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_GetTransformAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetBoolAnimationChannel_Execute()
@@ -220,19 +132,7 @@ FRigUnit_SetBoolAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Bool)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<bool>(Value);
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Bool."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetBoolAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetFloatAnimationChannel_Execute()
@@ -241,19 +141,7 @@ FRigUnit_SetFloatAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Float || ChannelElement->Settings.ControlType == ERigControlType::ScaleFloat)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<float>(Value);
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Float."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetFloatAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetIntAnimationChannel_Execute()
@@ -262,19 +150,7 @@ FRigUnit_SetIntAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Integer)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<int32>(Value);
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not an Integer (or Enum)."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetIntAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetVector2DAnimationChannel_Execute()
@@ -283,19 +159,7 @@ FRigUnit_SetVector2DAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Vector2D)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<FVector2f>(FVector2f(Value));
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Vector2D."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetVector2DAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetVectorAnimationChannel_Execute()
@@ -304,19 +168,7 @@ FRigUnit_SetVectorAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Position || ChannelElement->Settings.ControlType == ERigControlType::Scale)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<FVector3f>(FVector3f(Value));
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Vector (Position or Scale)."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetVectorAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetRotatorAnimationChannel_Execute()
@@ -325,19 +177,7 @@ FRigUnit_SetRotatorAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Rotator)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<FVector3f>(FVector3f(Value.Euler()));
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a Rotator."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetRotatorAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
 
 FRigUnit_SetTransformAnimationChannel_Execute()
@@ -346,22 +186,5 @@ FRigUnit_SetTransformAnimationChannel_Execute()
 	{
 		return;
 	}
-
-	if(const FRigControlElement* ChannelElement = ExecuteContext.Hierarchy->Find<FRigControlElement>(CachedChannelKey))
-	{
-		if(ChannelElement->Settings.ControlType == ERigControlType::Transform)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<FRigControlValue::FTransform_Float>(Value);
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else if(ChannelElement->Settings.ControlType == ERigControlType::EulerTransform)
-		{
-			const FRigControlValue ValueToStore = FRigControlValue::Make<FRigControlValue::FEulerTransform_Float>(FEulerTransform(Value));
-			ExecuteContext.Hierarchy->SetControlValueByIndex(ChannelElement->GetIndex(), ValueToStore, bInitial ? ERigControlValueType::Initial : ERigControlValueType::Current);
-		}
-		else
-		{
-			UE_CONTROLRIG_RIGUNIT_REPORT_ERROR(TEXT("Animation Channel %s is not a EulerTransform / Transform."), *CachedChannelKey.ToString());
-		}
-	}
+	FRigUnit_SetTransformAnimationChannelFromItem::StaticExecute(ExecuteContext, Value, CachedChannelKey, bInitial);
 }
