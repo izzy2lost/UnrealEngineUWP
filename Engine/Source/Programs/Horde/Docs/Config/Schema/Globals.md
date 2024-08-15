@@ -171,10 +171,10 @@ Configuration for an artifact
 Name | Description
 ---- | -----------
 `name` | `string`<br>Legacy 'Name' property
-`keepCount` | `integer`<br>Number of artifacts to retain
-`keepDays` | `integer`<br>Number of days to retain artifacts of this type
 `type` | `string`<br>Name of the artifact type
 `acl` | [AclConfig](#aclconfig)<br>Acl for the artifact type
+`keepCount` | `integer`<br>Number of artifacts to retain
+`keepDays` | `integer`<br>Number of days to retain artifacts of this type
 
 ## AclConfig
 

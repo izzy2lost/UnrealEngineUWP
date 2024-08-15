@@ -34,7 +34,7 @@ Name | Description
 `replicators` | [ReplicatorConfig](#replicatorconfig)`[]`<br>Configuration for workers to replicate commit data into Horde Storage.
 `workflows` | [WorkflowConfig](#workflowconfig)`[]`<br>Workflows for dealing with new issues
 `tokens` | [TokenConfig](#tokenconfig)`[]`<br>Tokens to create for each job step
-`artifactTypes` | [ArtifactTypeAclConfig](#artifacttypeaclconfig)`[]`<br>Permissions for artifact types
+`artifactTypes` | [ArtifactTypeConfig](#artifacttypeconfig)`[]`<br>Permissions for artifact types
 
 ## ConfigInclude
 
@@ -488,11 +488,14 @@ Name | Description
 `defaultComponentId` | `string`<br>Default component id for issues using workflow
 `defaultIssueTypeId` | `string`<br>Default issue type id for issues using workflow
 
-## ArtifactTypeAclConfig
+## ArtifactTypeConfig
 
-ACL configuration for an artifact type
+Configuration for an artifact
 
 Name | Description
 ---- | -----------
+`name` | `string`<br>Legacy 'Name' property
 `type` | `string`<br>Name of the artifact type
 `acl` | [AclConfig](#aclconfig)<br>Acl for the artifact type
+`keepCount` | `integer`<br>Number of artifacts to retain
+`keepDays` | `integer`<br>Number of days to retain artifacts of this type
