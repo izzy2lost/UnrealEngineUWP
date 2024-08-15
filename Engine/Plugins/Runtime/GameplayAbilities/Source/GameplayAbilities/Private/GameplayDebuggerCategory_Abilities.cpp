@@ -85,7 +85,7 @@ void FGameplayDebuggerCategory_Abilities::OnShowGameplayAttributesToggle()
 void FGameplayDebuggerCategory_Abilities::FRepData::Serialize(FArchive& Ar)
 {
 	bool bSuccess;
-	OwnedTags.NetSerialize(Ar, ClientPackageMap.Get(), bSuccess);
+	OwnedTags.NetSerialize(Ar, nullptr, bSuccess);
 
 	Ar << TagCounts;
 
@@ -143,10 +143,6 @@ void FGameplayDebuggerCategory_Abilities::CollectData(APlayerController* OwnerPC
 {
 	if (const UAbilitySystemComponent* AbilityComp = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(DebugActor))
 	{
-		// Save off the package map for serialization over the network
-		UNetConnection* NetConnection = OwnerPC->GetNetConnection();
-		DataPack.ClientPackageMap = NetConnection ? NetConnection->PackageMap : nullptr;
-
 		AbilityComp->GetOwnedGameplayTags(DataPack.OwnedTags);
 
 		// Copy over the tag counts

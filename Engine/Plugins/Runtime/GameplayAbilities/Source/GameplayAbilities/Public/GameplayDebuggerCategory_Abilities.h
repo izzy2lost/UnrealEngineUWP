@@ -49,9 +49,6 @@ protected:
 
 	struct FRepData
 	{
-		// to aid in NetSerialize
-		TWeakObjectPtr<UPackageMap>	ClientPackageMap;
-
 		FGameplayTagContainer OwnedTags;
 		TArray<int32> TagCounts;
 
