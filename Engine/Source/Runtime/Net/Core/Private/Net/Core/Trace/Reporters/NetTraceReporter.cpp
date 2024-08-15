@@ -13,6 +13,7 @@
 
 uint32 FNetTraceReporter::NetTraceReporterVersion = 1;
 
+NETCORE_API UE_TRACE_CHANNEL_EXTERN(NetChannel)
 UE_TRACE_CHANNEL_DEFINE(NetChannel)
 
 // We always output this event first to make sure we have a version number for backwards compatibility
