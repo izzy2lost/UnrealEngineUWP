@@ -352,6 +352,12 @@ float AVSM_Sampler4_Eval(inout FAVSM_Sampler4 Sampler4, float X)
 	return Tau;
 }
 
+float AVSM_Sampler4_Eval_NoInterpolation(inout FAVSM_Sampler4 Sampler4, float X)
+{
+	float Tau = AVSM_Sampler4_Eval_Internal(Sampler4, 0, X);
+	return Tau;
+}
+
 FAVSMSampleData AVSM_Sampler4_EvalInverse_Internal(inout FAVSM_Sampler4 Sampler4, int Index, float Tau)
 {
 	FAVSMSampleData SampleData[] = {

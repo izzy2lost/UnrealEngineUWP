@@ -262,7 +262,7 @@ float EvalAmbientOcclusion(float3 WorldPosition)
 		AmbientOcclusionTexture,
 		View.SharedTrilinearClampedSampler,
 		UVW,
-		MipLevel);
+		MipLevel).r;
 }
 
 #include "HeterogeneousVolumesRayMarchingUtils.ush"
@@ -462,8 +462,8 @@ void RenderSingleScatteringWithLiveShading(
 		return;
 	}
 	uint LinearIndex = DispatchThreadId.y * GroupCount.x * THREADGROUP_SIZE_2D + DispatchThreadId.x;
-	uint2 PixelCoord = DispatchThreadId.xy + View.ViewRectMin.xy / DownsampleFactor;
-	uint2 ViewPixelCoord = PixelCoord * DownsampleFactor + View.ViewRectMin.xy;
+	uint2 PixelCoord = DispatchThreadId.xy;
+	uint2 ViewPixelCoord = PixelCoord * DownsampleFactor + View.ViewRectMin.xy / DownsampleFactor;
 
 	float3 Radiance = 0.0;
 	float3 PrevTransmittance = RWLightingTexture[PixelCoord].a;
@@ -543,13 +543,12 @@ void RenderSingleScatteringWithLiveShading(
 
 		int Face = 0;
 		float2 Pixel = 0;
-		float Depth = 0;
-		if (!AVSM_PixelAndDepth(GlobalTransmittanceMap, Face, TranslatedWorldPosition, Pixel, Depth))
+		float DepthOffset = 0;
+		if (!AVSM_PixelAndDepth(GlobalTransmittanceMap, Face, TranslatedWorldPosition, Pixel, DepthOffset))
 		{
 			return;
 		}
 
-		float DepthOffset = WorldRayTMin - Depth;
 		FAVSM_Sampler4 TransmittanceSampler = AVSM_Sampler4_Create(GlobalTransmittanceMap, Face, Pixel, DepthOffset);
 
 #if ADAPTIVE_MARCH
@@ -582,7 +581,8 @@ void RenderSingleScatteringWithLiveShading(
 		);
 #endif
 		// Replace transmittance at WorldRayTMax with global transmittance at MaxTraceDistance
-		Transmittance = AVSM_Sampler4_Last(TransmittanceSampler).Tau;
+		//Transmittance = AVSM_Sampler4_Eval_NoInterpolation(TransmittanceSampler, WorldRayLength);
+		Transmittance = AVSM_Sampler4_Eval(TransmittanceSampler, WorldRayLength);
 
 #else
 		RayMarchSingleScattering(

@@ -38,7 +38,7 @@ bool AVSM_PixelAndDepth(
 	inout float Depth
 )
 {
-	Depth = -65535.0;
+	Depth = 0.0;
 	Pixel = -1;
 	float4 ShadowPositionAsFloat4 = mul(float4(TranslatedWorldPosition, 1), ShadowMap.TranslatedWorldToShadow[Face]);
 	if (ShadowPositionAsFloat4.w > 0)
@@ -47,7 +47,6 @@ bool AVSM_PixelAndDepth(
 		if (all(ShadowPosition.xyz > 0) || all(ShadowPosition.xy < 1))
 		{
 			Pixel = clamp(ShadowPosition.xy * ShadowMap.Resolution - 0.5, 0, ShadowMap.Resolution - 1);
-			Depth = length(TranslatedWorldPosition - ShadowMap.TranslatedWorldOrigin);
 			if (ShadowMap.bIsDirectionalLight)
 			{
 				Depth = dot(ShadowMap.TranslatedWorldPlane.xyz, TranslatedWorldPosition) + ShadowMap.TranslatedWorldPlane.w;
@@ -361,7 +360,14 @@ float AVSM_Sample(
 	float WorldHitT
 )
 {
-	return AVSM_Sample_TwoLevel_Vectorized(ShadowMap, Face, Pixel, WorldHitT);
+	return
+		//AVSM_Sample_Reference(
+		AVSM_Sample_TwoLevel_Vectorized(
+			ShadowMap,
+			Face,
+			Pixel,
+			WorldHitT
+		);
 }
 
 float AVSM_SampleTransmittance(

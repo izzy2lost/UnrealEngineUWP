@@ -433,6 +433,7 @@ void RayMarchSingleScattering(
 		}
 
 #if USE_CAMERA_AVSM
+		//Transmittance = AVSM_Sampler4_Eval_NoInterpolation(TransmittanceSampler, WorldHitT);
 		Transmittance = AVSM_Sampler4_Eval(TransmittanceSampler, WorldHitT);
 #else
 		// Accumulate transmittance for the next evaluation

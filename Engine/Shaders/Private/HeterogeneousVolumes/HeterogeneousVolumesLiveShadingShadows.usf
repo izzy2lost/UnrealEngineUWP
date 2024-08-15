@@ -310,23 +310,24 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 	uint Face = DispatchThreadId.z;
 	uint2 PixelCoord = DispatchThreadId.xy;
 	uint LinearIndex = GetLinearIndex(Face, PixelCoord);
-	//int PixelIndex = LinearIndex * MaxSampleCount;
 	int PixelIndex = LinearIndex * MaxSampleCount;
 
 	// Generate a light ray
 	float2 ShadowUV = float2(PixelCoord + 0.5f) / float2(ShadowResolution);
+	//float2 ShadowUV = float2(PixelCoord + View.TemporalAAJitter.xy) / float2(ShadowResolution);
 
 	float WorldRayLength = GetMaxTraceDistance();
 #if USE_CAMERA_SCENE_DEPTH
-	float DeviceZ = SampleDeviceZFromSceneTextures(ShadowUV);
+	float2 ViewPixelCoord = (PixelCoord + View.TemporalAAJitter.xy) * CameraDownsampleFactor + View.ViewRectMin.xy / CameraDownsampleFactor;
+	float DeviceZ = SceneDepthTexture.Load(int3(ViewPixelCoord, 0)).r;
+
 	#if HAS_INVERTED_Z_BUFFER
 		DeviceZ = max(0.000000000001, DeviceZ);
 	#endif // HAS_INVERTED_Z_BUFFER
 
 	// Project ray through view transform to trim ray-length by opaque depth
-	uint2 ViewPixelCoord = PixelCoord * CameraDownsampleFactor + View.ViewRectMin.xy;
-	FDFVector3 WorldViewRayOrigin = DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord + View.TemporalAAJitter.xy), PrimaryView.PreViewTranslation);
-	FDFVector3 WorldViewRayEnd = SvPositionToWorld(float4(ViewPixelCoord + View.TemporalAAJitter.xy, DeviceZ, 1));
+	FDFVector3 WorldViewRayOrigin = DFFastSubtract(GetTranslatedWorldCameraPosFromView(ViewPixelCoord), PrimaryView.PreViewTranslation);
+	FDFVector3 WorldViewRayEnd = SvPositionToWorld(float4(ViewPixelCoord, DeviceZ, 1));
 	float3 WorldViewRayDirection = DFFastSubtractDemote(WorldViewRayEnd, WorldViewRayOrigin);
 	float WorldViewRayLength = length(WorldViewRayDirection);
 
@@ -396,21 +397,30 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 		int PrevElementIndex = AVSM_NULL_PTR;
 		int ElementIndex = 0;
 
+		float StepSize = RayMarchingContext.StepSize;
+		float JitterSize = StepSize * RayMarchingContext.Jitter;
+
 		float LocalHitT = HitT.x;
 		float WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 		for (uint StepIndex = 0; StepIndex < StepCount; ++StepIndex)
 		{
-			LocalHitT = min(RayMarchingContext.LocalRayTMin + RayMarchingContext.StepSize * (RayMarchingContext.Jitter + StepIndex), RayMarchingContext.LocalRayTMax);
+			LocalHitT = min(RayMarchingContext.LocalRayTMin + StepSize * (RayMarchingContext.Jitter + StepIndex), RayMarchingContext.LocalRayTMax);
+			if (StepIndex == StepCount - 1)
+			{
+				float UnjitteredLocalHitT = LocalHitT - JitterSize;
+				StepSize = RayMarchingContext.LocalRayTMax - UnjitteredLocalHitT;
+			}
+
 			WorldHitT = LocalHitT * RayMarchingContext.LocalToWorldScale;
 			float3 LocalPosition = RayMarchingContext.LocalRayOrigin + RayMarchingContext.LocalRayDirection * LocalHitT;
 			float3 WorldPosition = RayMarchingContext.WorldRayOrigin + RayMarchingContext.WorldRayDirection * WorldHitT;
 
 			FVolumeSampleContext SampleContext = CreateVolumeSampleContext(LocalPosition, WorldPosition, RayMarchingContext.MipLevel);
 			float3 Extinction = SampleExtinction(SampleContext);
-			Transmittance *= exp(-Extinction * RayMarchingContext.StepSize);
+			Transmittance *= exp(-Extinction * StepSize);
 
 			bool bFirstEntry = (ElementIndex == 0);
-			if (bFirstEntry && any(Extinction > 0.0))
+			if (bFirstEntry)
 			{
 				FAVSMSampleData SampleData = AVSM_CreateSampleData(WorldHitT, Luminance(Transmittance));
 				AddSample(SampleData, PixelIndex, PrevElementIndex, ElementIndex);
@@ -419,10 +429,10 @@ void RenderVolumetricShadowMapForLightWithLiveShadingCS(
 				ExpectedExtinction = Extinction;
 				ExpectedTransmittance = Transmittance;
 			}
-			else if (ElementIndex > 0 && any(Extinction > 0.0))
+			else
 			{
 				// If extrapolated transmittance is beyond relative error tolerance
-				ExpectedTransmittance *= exp(-ExpectedExtinction * RayMarchingContext.StepSize);
+				ExpectedTransmittance *= exp(-ExpectedExtinction * StepSize);
 				float AbsoluteError = length(Transmittance - ExpectedTransmittance);
 				float RelativeError = length((Transmittance - ExpectedTransmittance) / ExpectedTransmittance);
 				if ((AbsoluteError > AbsoluteErrorThreshold) && (RelativeError > RelativeErrorThreshold))
