@@ -79,6 +79,7 @@ private:
 	{
 		bool bIsAppGame = false;
 		bool bImportedCustomCollision = false;
+		bool bImportCollision = false;
 		EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
 		TArray<FMeshDescription> LodMeshDescriptions;
 	};

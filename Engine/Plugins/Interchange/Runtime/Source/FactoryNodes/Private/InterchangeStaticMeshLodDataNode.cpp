@@ -322,24 +322,24 @@ bool UInterchangeStaticMeshLodDataNode::SetOneConvexHullPerUCX(bool AttributeVal
 	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(OneConvexHullPerUCX, bool)
 }
 
-bool UInterchangeStaticMeshLodDataNode::GetImportCollision(EInterchangeMeshCollision& AttributeValue) const
+bool UInterchangeStaticMeshLodDataNode::GetImportCollisionType(EInterchangeMeshCollision& AttributeValue) const
 {
-	IMPLEMENT_NODE_ATTRIBUTE_GETTER(ImportCollision, EInterchangeMeshCollision);
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(ImportCollisionType, EInterchangeMeshCollision);
 }
 
-bool UInterchangeStaticMeshLodDataNode::SetImportCollision(EInterchangeMeshCollision AttributeValue)
+bool UInterchangeStaticMeshLodDataNode::SetImportCollisionType(EInterchangeMeshCollision AttributeValue)
 {
-	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportCollision, EInterchangeMeshCollision)
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportCollisionType, EInterchangeMeshCollision)
 }
 
 bool UInterchangeStaticMeshLodDataNode::GetImportCollision(bool& AttributeValue) const
 {
-	return false;
+	IMPLEMENT_NODE_ATTRIBUTE_GETTER(ImportCollision, bool);
 }
 
 bool UInterchangeStaticMeshLodDataNode::SetImportCollision(bool AttributeValue)
 {
-	return false;
+	IMPLEMENT_NODE_ATTRIBUTE_SETTER_NODELEGATE(ImportCollision, bool);
 }
 
 bool UInterchangeStaticMeshLodDataNode::IsEditorOnlyDataDefined()

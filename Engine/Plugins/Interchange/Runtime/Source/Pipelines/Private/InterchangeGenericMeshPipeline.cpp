@@ -106,6 +106,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 			bCombineStaticMeshes = true;
 			bBuildNanite = false;
 			LodGroup = NAME_None;
+			bCollision = false;
 			Collision = EInterchangeMeshCollision::None;
 			bImportCollisionAccordingToMeshName = false;
 			bGenerateLightmapUVs = false;
@@ -128,6 +129,7 @@ void UInterchangeGenericMeshPipeline::AdjustSettingsForContext(const FInterchang
 					bCombineStaticMeshes = true;
 					LodGroup = NAME_None;
 					bSupportFaceRemap = false;
+					bCollision = false;
 					Collision = EInterchangeMeshCollision::None;
 					bImportCollisionAccordingToMeshName = false;
 					bGenerateLightmapUVs = false;
@@ -353,10 +355,9 @@ void UInterchangeGenericMeshPipeline::GetMeshesInformationFromTranslatedData(con
 void UInterchangeGenericMeshPipeline::PostLoad()
 {
 	Super::PostLoad();
-
 	if(!bImportCollision_DEPRECATED)
 	{
-		Collision = EInterchangeMeshCollision::None;
+		bCollision = bImportCollision_DEPRECATED;
 	}
 }
 

@@ -302,6 +302,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	TArray<FMeshDescription>& LodMeshDescriptions = ImportAssetObjectData.LodMeshDescriptions;
 	LodMeshDescriptions.SetNum(LodCount);
 
+	bool bImportCollision = false;
 	EInterchangeMeshCollision Collision = EInterchangeMeshCollision::None;
 	bool bImportedCustomCollision = false;
 	int32 CurrentLodIndex = 0;
@@ -427,8 +428,9 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 		// Import collision geometry
 		if (CurrentLodIndex == 0)
 		{
-			LodDataNode->GetImportCollision(Collision);
-			if(Collision != EInterchangeMeshCollision::None)
+			LodDataNode->GetImportCollision(bImportCollision);
+			LodDataNode->GetImportCollisionType(Collision);
+			if(bImportCollision && Collision != EInterchangeMeshCollision::None)
 			{
 				if (bReimport)
 				{
@@ -471,6 +473,7 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 	}
 #endif // WITH_EDITOR
 
+	ImportAssetObjectData.bImportCollision = bImportCollision;
 	ImportAssetObjectData.Collision = Collision;
 	ImportAssetObjectData.bImportedCustomCollision = bImportedCustomCollision;
 
@@ -674,44 +677,79 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::EndIm
 #endif // WITH_EDITOR
 
 #if WITH_EDITOR
-	if(!ImportAssetObjectData.bImportedCustomCollision)
+	if(ImportAssetObjectData.bImportCollision)
 	{
-		constexpr bool bUpdateRendering = false;
-		switch(ImportAssetObjectData.Collision)
+		if(!ImportAssetObjectData.bImportedCustomCollision)
 		{
-		case EInterchangeMeshCollision::Box:
-			GenerateBoxAsSimpleCollision(StaticMesh, bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Sphere:
-			GenerateSphereAsSimpleCollision(StaticMesh, bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Capsule:
-			GenerateSphylAsSimpleCollision(StaticMesh, bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Convex10DOP_X:
-			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10X, sizeof(KDopDir10X) / sizeof(FVector)), bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Convex10DOP_Y:
-			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Y, sizeof(KDopDir10Y) / sizeof(FVector)), bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Convex10DOP_Z:
-			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Z, sizeof(KDopDir10Z) / sizeof(FVector)), bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Convex18DOP:
-			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir18, sizeof(KDopDir18) / sizeof(FVector)), bUpdateRendering);
-			break;
-		case EInterchangeMeshCollision::Convex26DOP:
-			GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir26, sizeof(KDopDir26) / sizeof(FVector)), bUpdateRendering);
-			break;
-		default:
-			break;
+			// Don't generate collisions if the mesh already has one of the requested type, otherwise it will continue to create collisions,
+			// it can happen in the case of an import, and then importing the same file without deleting the asset in the content browser (different from a reimport)
+			bool bHasBoxCollision = !StaticMesh->GetBodySetup()->AggGeom.BoxElems.IsEmpty();
+			bool bHasSphereCollision = !StaticMesh->GetBodySetup()->AggGeom.SphereElems.IsEmpty();
+			bool bHasCapsuleCollision = !StaticMesh->GetBodySetup()->AggGeom.SphylElems.IsEmpty();
+			bool bHasConvexCollision = !StaticMesh->GetBodySetup()->AggGeom.ConvexElems.IsEmpty();
+
+			constexpr bool bUpdateRendering = false;
+			switch(ImportAssetObjectData.Collision)
+			{
+			case EInterchangeMeshCollision::Box:
+				if(!bHasBoxCollision)
+				{
+					GenerateBoxAsSimpleCollision(StaticMesh, bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Sphere:
+				if(!bHasSphereCollision)
+				{
+					GenerateSphereAsSimpleCollision(StaticMesh, bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Capsule:
+				if(!bHasCapsuleCollision)
+				{
+					GenerateSphylAsSimpleCollision(StaticMesh, bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Convex10DOP_X:
+				if(!bHasConvexCollision)
+				{
+					GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10X, sizeof(KDopDir10X) / sizeof(FVector)), bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Convex10DOP_Y:
+				if(!bHasConvexCollision)
+				{
+					GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Y, sizeof(KDopDir10Y) / sizeof(FVector)), bUpdateRendering);
+
+				}
+				break;
+			case EInterchangeMeshCollision::Convex10DOP_Z:
+				if(!bHasConvexCollision)
+				{
+					GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir10Z, sizeof(KDopDir10Z) / sizeof(FVector)), bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Convex18DOP:
+				if(!bHasConvexCollision)
+				{
+					GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir18, sizeof(KDopDir18) / sizeof(FVector)), bUpdateRendering);
+				}
+				break;
+			case EInterchangeMeshCollision::Convex26DOP:
+				if(!bHasConvexCollision)
+				{
+					GenerateKDopAsSimpleCollision(StaticMesh, TArray<FVector>(KDopDir26, sizeof(KDopDir26) / sizeof(FVector)), bUpdateRendering);
+				}
+				break;
+			default:
+				break;
+			}
 		}
-	}
 #endif
 #if WITH_EDITORONLY_DATA
-	else
-	{
-		StaticMesh->bCustomizedCollision = true;
+		else
+		{
+			StaticMesh->bCustomizedCollision = true;
+		}
 	}
 #endif // WITH_EDITORONLY_DATA
 #if WITH_EDITOR

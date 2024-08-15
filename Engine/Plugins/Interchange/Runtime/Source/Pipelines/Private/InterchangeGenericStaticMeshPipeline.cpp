@@ -270,7 +270,7 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 
 					if (MeshUidsPerLodIndex.Num() > 0)
 					{
-						if (Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
+						if (bCollision && Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
 						{
 							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
 							{
@@ -314,7 +314,7 @@ void UInterchangeGenericMeshPipeline::ExecutePreImportPipelineStaticMesh()
 
 					if (MeshUidsPerLodIndex.Num() > 0)
 					{
-						if (Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
+						if (bCollision && Collision != EInterchangeMeshCollision::None && bImportCollisionAccordingToMeshName)
 						{
 							if (const TArray<FString>* CorrespondingCollisionMeshes = MeshToCollisionMeshMap.Find(MeshUid))
 							{
@@ -500,7 +500,8 @@ UInterchangeStaticMeshLodDataNode* UInterchangeGenericMeshPipeline::CreateStatic
 
 	StaticMeshLodDataNode->InitializeNode(NodeUID, DisplayLabel, EInterchangeNodeContainerType::FactoryData);
 	StaticMeshLodDataNode->SetOneConvexHullPerUCX(bOneConvexHullPerUCX);
-	StaticMeshLodDataNode->SetImportCollision(Collision);
+	StaticMeshLodDataNode->SetImportCollision(bCollision);
+	StaticMeshLodDataNode->SetImportCollisionType(Collision);
 	BaseNodeContainer->AddNode(StaticMeshLodDataNode);
 	return StaticMeshLodDataNode;
 }

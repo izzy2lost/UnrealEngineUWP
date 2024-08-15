@@ -129,15 +129,15 @@ public:
 	bool SetOneConvexHullPerUCX(bool AttributeValue);
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
-	bool GetImportCollision(EInterchangeMeshCollision& AttributeValue) const;
+	bool GetImportCollisionType(EInterchangeMeshCollision& AttributeValue) const;
 
 	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
-	bool SetImportCollision(EInterchangeMeshCollision AttributeValue);
+	bool SetImportCollisionType(EInterchangeMeshCollision AttributeValue);
 
-	UE_DEPRECATED(5.5, "GetImportCollision using a bool has been deprecated, please use the function with the enum instead.")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
 	bool GetImportCollision(bool& AttributeValue) const;
 
-	UE_DEPRECATED(5.5, "SetImportCollision using a bool has been deprecated, please use the function with the enum instead.")
+	UFUNCTION(BlueprintCallable, Category = "Interchange | Node | StaticMeshLodData")
 	bool SetImportCollision(bool AttributeValue);
 
 
@@ -150,7 +150,8 @@ private:
 	UE::Interchange::TArrayAttributeHelper<FString> CapsuleCollisionMeshUids;
 	UE::Interchange::TArrayAttributeHelper<FString> SphereCollisionMeshUids;
 	UE::Interchange::TArrayAttributeHelper<FString> ConvexCollisionMeshUids;
-
-	const UE::Interchange::FAttributeKey Macro_CustomOneConvexHullPerUCXKey = UE::Interchange::FAttributeKey(TEXT("__OneConvexHullPerUCX__Key"));
-	const UE::Interchange::FAttributeKey Macro_CustomImportCollisionKey = UE::Interchange::FAttributeKey(TEXT("__ImportCollision__Key"));
+		
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(OneConvexHullPerUCX)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ImportCollision)
+	IMPLEMENT_NODE_ATTRIBUTE_KEY(ImportCollisionType)
 };
