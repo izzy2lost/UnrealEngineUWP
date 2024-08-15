@@ -44,11 +44,16 @@ private:
  * Collection of all available conversion functions.
  * The collection rebuild when a new object is loaded and when the WidgetBlueprint is compiled.
  */
-class FCollection
+class FCollection : public FGCObject
 {
 public:
 	FCollection();
 	~FCollection();
+
+	//~ Begin FGCObject
+	virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
+	virtual FString GetReferencerName() const override;
+	//~ End FGCObject
 
 public:
 	[[nodiscard]] TArray<::UE::MVVM::FConversionFunctionValue> GetFunctions(const UWidgetBlueprint* Blueprint) const;
@@ -90,6 +95,7 @@ private:
 		bool bIsNode = false;
 	};
 	TMap<FObjectKey, FFunctionContainer> ClassOrBlueprintToFunctions;
+	TArray<TObjectPtr<UK2Node>> ConversionFunctionNodes;
 
 	TSet<FObjectKey> ObjectToRefresh; // can only be GeneratedClass or Blueprint
 	TSet<FName> ModuleToRefresh;

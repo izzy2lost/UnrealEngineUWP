@@ -143,6 +143,16 @@ FCollection::~FCollection()
 	}
 }
 
+void FCollection::AddReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddReferencedObjects(ConversionFunctionNodes);
+}
+
+FString FCollection::GetReferencerName() const
+{
+	return TEXT("MVVMConversionFunctionLibrary::FCollection");
+}
+
 void FCollection::RefreshIfNeeded()
 {
 	if (bRefreshAll)
@@ -257,6 +267,8 @@ bool FCollection::IsClassSupported(const TArray<const UClass*>& AllowClasses, co
 void FCollection::Build()
 {
 	FScopedSlowTask SlowTask = FScopedSlowTask(0, LOCTEXT("BuildingConversionFunctionLibrary", "Loading Conversion function library"));
+
+	ConversionFunctionNodes.Reset();
 
 	TArray<const UClass*> AllSupportedClass;
 	AllSupportedClass.Reserve(128);
@@ -411,10 +423,10 @@ void FCollection::AddClassFunctions(const UClass* Class)
 
 void FCollection::AddNode(TSubclassOf<UK2Node> Function)
 {
-	UEdGraph* OwnerOfTemporaries = NewObject<UEdGraph>(GetTransientPackage());
-	UK2Node* NewNode = NewObject<UK2Node>(OwnerOfTemporaries, Function.Get(), NAME_None, RF_Transient);
+	UK2Node* NewNode = NewObject<UK2Node>(GetTransientPackage(), Function.Get());
 	NewNode->AllocateDefaultPins();
 	NewNode->PostPlacedNewNode();
+	ConversionFunctionNodes.Add(NewNode);
 
  	TArray<UEdGraphPin*> InputPins = UE::MVVM::ConversionFunctionHelper::FindInputPins(NewNode);
 	if (InputPins.Num() == 0)
