@@ -569,12 +569,6 @@ public:
 	/** Copies files after the flattened map of sources and destinations was confirmed */
 	virtual bool AdvancedCopyPackages(const TMap<FString, FString>& SourceAndDestPackages, const bool bForceAutosave = false, const bool bCopyOverAllDestinationOverlaps = true, FDuplicatedObjects* OutDuplicatedObjects = nullptr, EMessageSeverity::Type NotificationSeverityFilter = EMessageSeverity::Info) const = 0;
 
-	/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
-	virtual bool PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const = 0;
-
-	/** Generates the SearchAndReplace map for a PatchCopyPackageFile if all you are doing is changing the root and not the name. */
-	virtual TMap<FString, FString> GetMappingsForRootPackageRename(const FString& SrcRoot, const FString& DstRoot, const FString& SrcBaseDir, const TArray<TPair<FString, FString>>& SourceAndDestFiles, const TMap<FString, FString>& MountPointReplacements) const = 0;
-
 	/* Given a set of packages to copy, generate the map of those packages to destination filenames */
 	virtual void GenerateAdvancedCopyDestinations(FAdvancedCopyParams& InParams, const TArray<FName>& InPackageNamesToCopy, const UAdvancedCopyCustomization* CopyCustomization, TMap<FString, FString>& OutPackagesAndDestinations) const = 0;
 
@@ -589,6 +583,15 @@ public:
 
 	/* Given a complete set of copy parameters, which includes the selected package set, start the advanced copy process */
 	virtual void InitAdvancedCopyFromCopyParams(FAdvancedCopyParams CopyParams) const = 0;
+
+	/** Copies a file, patching internal references without performing a de-serialization. This is a blocking operation. returns true on successful copy */
+	UE_INTERNAL virtual bool PatchCopyPackageFile(const FString& SrcFile, const FString& DstFile, const TMap<FString, FString>& SearchForAndReplace) const = 0;
+
+	/** Generates the PatchCopyPackageFile SearchForAndReplace parameter if all you are doing is changing the root and not the relative path of assets */
+	UE_INTERNAL virtual TMap<FString, FString> GetPatchCopyMappingsForRootRename(const FString& SrcRoot, const FString& DstRoot, const FString& SrcBaseDir, const TArray<TPair<FString, FString>>& SourceAndDestFiles, const TMap<FString, FString>& MountPointReplacements) const = 0;
+
+	/** Generates additional entries for the PatchCopyPackageFile SearchForAndReplace parameter based on the specified package paths mapping */
+	UE_INTERNAL virtual TMap<FString, FString> GetAdditionalPatchCopyMappings(const TMap<FString, FString>& SourceAndDestPackages) const = 0;
 
 	/** Opens editor for assets */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Asset Tools", meta = (DeprecatedFunction, DeprecationMessage = "Please use UAssetEditorSubsystem::OpenEditorForAssets instead."))
