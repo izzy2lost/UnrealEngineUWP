@@ -102,3 +102,60 @@ TEST_CASE("Open.Atomics")
         }));
     REQUIRE(bDidRun);
 }
+
+TEST_CASE("Open.ReturnValue")
+{
+    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<int>::value);
+    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<float>::value);
+    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<int*>::value);
+    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<void>::value);
+    static_assert(AutoRTFM::TIsSafeToReturnFromOpen<std::tuple<int, float>>::value);
+    static_assert(!AutoRTFM::TIsSafeToReturnFromOpen<std::string>::value);
+    static_assert(!AutoRTFM::TIsSafeToReturnFromOpen<std::tuple<int, std::string>>::value);
+
+    SECTION("int")
+    {
+        int Value = 10;
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                int Got = AutoRTFM::Open([] { return 42; });
+                AutoRTFM::Open([&] { Value = Got; });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE(42 == Value);
+    }
+
+    SECTION("char*")
+    {
+        std::string Value = "<unassigned>";
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                // Note: AutoRTFM::Open() is returning a const char*
+                std::string Got = AutoRTFM::Open([] { return "meow"; });
+                AutoRTFM::Open([&] { Value = Got; });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE("meow" == Value);
+    }
+    
+    SECTION("tuple")
+    {
+        int Int = 0;
+        std::string String = "<unassigned>";
+        AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&] ()
+            {
+                auto [I, S] = AutoRTFM::Open([] 
+                    { 
+                        return std::make_tuple(42, "woof"); 
+                    });
+                AutoRTFM::Open([&]
+                    { 
+                        Int = I; 
+                        String = S; 
+                    });
+            });
+        REQUIRE(AutoRTFM::ETransactionResult::Committed == Result);
+        REQUIRE(42 == Int);
+        REQUIRE("woof" == String);
+    }
+}

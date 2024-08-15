@@ -373,6 +373,8 @@ static UE_AUTORTFM_FORCEINLINE void autortfm_check_abi(void* ptr, size_t size)
 #ifdef __cplusplus
 }
 
+#include <tuple>
+
 namespace AutoRTFM
 {
 
@@ -559,13 +561,55 @@ static UE_AUTORTFM_FORCEINLINE void AbortIfClosed()
     autortfm_abort_if_closed();
 }
 
+// Traits helper that is used to determine whether type T can be used as the 
+// return type of a function called by Open().
+template<typename T, typename = void>
+class TIsSafeToReturnFromOpen : public std::false_type {};
+
+// Specializations of TIsSafeToReturnFromOpen for fundamental types.
+template <typename T>
+class TIsSafeToReturnFromOpen<T, std::enable_if_t<std::is_fundamental_v<T>>> : public std::true_type {};
+
+// Specializations of TIsSafeToReturnFromOpen for raw pointer types.
+template <typename T>
+class TIsSafeToReturnFromOpen<T*, void> : public std::true_type {};
+
+// Specializations of TIsSafeToReturnFromOpen for std::tuple.
+template <typename ... TYPES>
+class TIsSafeToReturnFromOpen<std::tuple<TYPES...>, void> : public std::conditional_t<
+	(TIsSafeToReturnFromOpen<TYPES>::value && ...), std::true_type, std::false_type> {};
+
 // Executes the given code non-transactionally regardless of whether we are in
-// a transaction or not.
-template<typename TFunctor> static UE_AUTORTFM_FORCEINLINE void Open(const TFunctor& Functor)
+// a transaction or not. Returns the value returned by Functor.
+template<typename TFunctor, typename TReturn = decltype(std::declval<TFunctor>()())> 
+static UE_AUTORTFM_FORCEINLINE TReturn Open(const TFunctor& Functor)
 {
-    autortfm_open(
-        [] (void* Arg) { UE_AUTORTFM_CALLSITE_FORCEINLINE (*static_cast<const TFunctor*>(Arg))(); },
-        const_cast<void*>(static_cast<const void*>(&Functor)));
+	static_assert(TIsSafeToReturnFromOpen<TReturn>::value,
+		"function return type is not safe to return from Open()");
+
+	if constexpr (std::is_same_v<void, TReturn>)
+	{
+		autortfm_open(
+			[] (void* Arg) { UE_AUTORTFM_CALLSITE_FORCEINLINE (*static_cast<const TFunctor*>(Arg))(); },
+			const_cast<void*>(static_cast<const void*>(&Functor)));
+	}
+	else
+	{
+		TReturn ReturnValue;
+		struct FData
+		{
+			const TFunctor& Functor;
+			TReturn& ReturnValue;
+		};
+		FData Data{Functor, ReturnValue};
+		autortfm_open([](void* Arg)
+			{
+				FData& Data = *reinterpret_cast<FData*>(Arg);
+				UE_AUTORTFM_CALLSITE_FORCEINLINE Data.ReturnValue = Data.Functor();
+			},
+			reinterpret_cast<void*>(&Data));
+		return Data.ReturnValue;
+	}
 }
 
 // Always executes the given code transactionally when called from a transaction nest
