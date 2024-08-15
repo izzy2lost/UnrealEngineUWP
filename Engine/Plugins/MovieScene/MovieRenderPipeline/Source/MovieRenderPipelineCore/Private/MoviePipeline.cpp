@@ -122,7 +122,7 @@ void UMoviePipeline::ValidateSequenceAndSettings() const
 
 		if (bAnyOutputWantsAlpha && TonemapAlphaCVar->GetBool() == false)
 		{
-			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("An output requested Alpha Support but the required project setting is not enabled! Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Channel Support in Post Processing' and set it to 'True'."));
+			UE_LOG(LogMovieRenderPipeline, Warning, TEXT("An output requested Alpha Support but the required project setting is not enabled! Go to Project Settings > Rendering > PostProcessing > 'Enable Alpha Output' and set it to 'True'."));
 		}
 	}
 }

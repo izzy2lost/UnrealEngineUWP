@@ -117,7 +117,7 @@ static bool GPostProcessingPropagateAlpha = false;
 FAutoConsoleVariableRef CVarPostProcessingPropagateAlpha(
 	TEXT("r.PostProcessing.PropagateAlpha"),
 	GPostProcessingPropagateAlpha,
-	TEXT("Whether to propagate alpha through post-processing, default: false"),
+	TEXT("Enforce alpha in scene color (overriding r.SceneColorFormat if necessary) and propagate it through the renderer's post-processing chain, default: false"),
 	ECVF_ReadOnly | ECVF_RenderThreadSafe);
 
 TAutoConsoleVariable<int32> CVarPostProcessingPreferCompute(

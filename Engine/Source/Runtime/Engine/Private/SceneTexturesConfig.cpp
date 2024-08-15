@@ -11,6 +11,7 @@
 
 FSceneTexturesConfig FSceneTexturesConfig::GlobalInstance;
 
+DEFINE_LOG_CATEGORY_STATIC(LogSceneTextures, Log, All);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(SceneTextures);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FSceneTextureUniformParameters, "SceneTexturesStruct", SceneTextures);
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FMobileSceneTextureUniformParameters, "MobileSceneTextures", SceneTextures);
@@ -123,8 +124,13 @@ static EPixelFormat GetSceneColorFormat(bool bRequiresAlphaChannel)
 		Format = PF_FloatRGBA;
 	}
 
-	if (bRequiresAlphaChannel)
+	if (bRequiresAlphaChannel && Format != PF_FloatRGBA)
 	{
+		UE_CALL_ONCE([]()
+			{
+				UE_LOG(LogSceneTextures, Warning, TEXT("Enforcing FloatRGBA scene color format due to alpha channel requirement."));
+			}
+		);
 		Format = PF_FloatRGBA;
 	}
 

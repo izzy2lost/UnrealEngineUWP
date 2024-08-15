@@ -726,8 +726,8 @@ class URendererSettings : public UDeveloperSettings
 	uint32 bCustomDepthTaaJitter : 1;
 
 	UPROPERTY(config, EditAnywhere, Category = Postprocessing, meta = (
-		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable alpha channel support in post processing",
-		ToolTip = "Propagates the alpha channel through the renderer's post-processing chain.",
+		ConsoleVariable = "r.PostProcessing.PropagateAlpha", DisplayName = "Enable Alpha Output",
+		ToolTip = "Enable r.PostProcessing.PropagateAlpha to enforce alpha in scene color (overriding r.SceneColorFormat if necessary) and propagate it through the renderer's post-processing chain.  The legacy \"Linear color space only\" and \"Allow through tonemapper\" options now map to true and the engine keeps full alpha precision throughout post-processing.",
 		ConfigRestartRequired = true))
 	bool bEnableAlphaChannelInPostProcessing;
 
