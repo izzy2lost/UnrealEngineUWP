@@ -164,13 +164,18 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 			InstanceDataObjectToOwner.Remove(OldBagData.InstanceDataObject);
 			if (Pair.Value != nullptr) // Pair.Value can be nullptr when an object was destroyed like for example a UClass when it's deleted
 			{
-				FPropertyBagAssociationData& NewBagData = AssociatedData.FindChecked(Pair.Value);
-				
-				InstanceDataObjectToOwner.Add(NewBagData.InstanceDataObject, Pair.Value);
-				
-				CopyPropertyValueSerializedData(
-					OldBagData.InstanceDataObject->GetClass(), OldBagData.InstanceDataObject,
-					NewBagData.InstanceDataObject->GetClass(), NewBagData.InstanceDataObject);
+				if (const FPropertyBagAssociationData* NewBagData = AssociatedData.Find(Pair.Value))
+				{
+					InstanceDataObjectToOwner.Add(NewBagData->InstanceDataObject, Pair.Value);
+
+					CopyPropertyValueSerializedData(
+						OldBagData.InstanceDataObject->GetClass(), OldBagData.InstanceDataObject,
+						NewBagData->InstanceDataObject->GetClass(), NewBagData->InstanceDataObject);
+				}
+				else
+				{
+					UE_LOG(LogPropertyBagRepository, Log, TEXT("No associated data entry found for replaced object: %s"), *Pair.Value->GetPathName());
+				}
 			}
 			OldBagData.Destroy();
 		}
