@@ -261,15 +261,23 @@ FControlRigParameterTrackEditor::FControlRigParameterTrackEditor(TSharedRef<ISeq
 	{
 		GEditor->RegisterForUndo(this);
 	}
+}
 
-	UMovieScene* MovieScene = InSequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+void FControlRigParameterTrackEditor::OnInitialize()
+{
+	if (GetSequencer().IsValid() == false)
+	{
+		return;
+	}
+	ISequencer* SequencerPtr = GetSequencer().Get();
 
-	SelectionChangedHandle = InSequencer->GetSelectionChangedTracks().AddRaw(this, &FControlRigParameterTrackEditor::OnSelectionChanged);
-	SequencerChangedHandle = InSequencer->OnMovieSceneDataChanged().AddRaw(this, &FControlRigParameterTrackEditor::OnSequencerDataChanged);
-	OnActivateSequenceChangedHandle = InSequencer->OnActivateSequence().AddRaw(this, &FControlRigParameterTrackEditor::OnActivateSequenceChanged);
-	OnChannelChangedHandle = InSequencer->OnChannelChanged().AddRaw(this, &FControlRigParameterTrackEditor::OnChannelChanged);
+	UMovieScene* MovieScene = SequencerPtr->GetFocusedMovieSceneSequence()->GetMovieScene();
+	SelectionChangedHandle = SequencerPtr->GetSelectionChangedTracks().AddRaw(this, &FControlRigParameterTrackEditor::OnSelectionChanged);
+	SequencerChangedHandle = SequencerPtr->OnMovieSceneDataChanged().AddRaw(this, &FControlRigParameterTrackEditor::OnSequencerDataChanged);
+	OnActivateSequenceChangedHandle = SequencerPtr->OnActivateSequence().AddRaw(this, &FControlRigParameterTrackEditor::OnActivateSequenceChanged);
+	OnChannelChangedHandle = SequencerPtr->OnChannelChanged().AddRaw(this, &FControlRigParameterTrackEditor::OnChannelChanged);
 	OnMovieSceneChannelChangedHandle = MovieScene->OnChannelChanged().AddRaw(this, &FControlRigParameterTrackEditor::OnChannelChanged);
-	OnActorAddedToSequencerHandle = InSequencer->OnActorAddedToSequencer().AddRaw(this, &FControlRigParameterTrackEditor::HandleActorAdded);
+	OnActorAddedToSequencerHandle = SequencerPtr->OnActorAddedToSequencer().AddRaw(this, &FControlRigParameterTrackEditor::HandleActorAdded);
 
 	{
 		//we check for two things, one if the control rig has been replaced if so we need to switch.
@@ -466,12 +474,6 @@ FControlRigParameterTrackEditor::~FControlRigParameterTrackEditor()
 		GEditor->UnregisterForUndo(this);
 	}
 
-	UnbindAllControlRigs();
-	if (GetSequencer().IsValid())
-	{
-		//REMOVE ME IN UE5
-		GetSequencer()->GetObjectChangeListener().GetOnPropagateObjectChanges().RemoveAll(this);
-	}
 	FMovieSceneToolsModule::Get().UnregisterAnimationBakeHelper(this);
 }
 
@@ -659,6 +661,17 @@ TSharedRef<ISequencerTrackEditor> FControlRigParameterTrackEditor::CreateTrackEd
 	return MakeShareable(new FControlRigParameterTrackEditor(InSequencer));
 }
 
+bool FControlRigParameterTrackEditor::SupportsSequence(UMovieSceneSequence* InSequence) const
+{
+	ETrackSupport TrackSupported = InSequence ? InSequence->IsTrackSupported(UMovieSceneControlRigParameterTrack::StaticClass()) : ETrackSupport::Default;
+
+	if (TrackSupported == ETrackSupport::NotSupported)
+	{
+		return false;
+	}
+
+	return (InSequence && InSequence->IsA(ULevelSequence::StaticClass())) || TrackSupported == ETrackSupport::Supported;
+}
 
 bool FControlRigParameterTrackEditor::SupportsType(TSubclassOf<UMovieSceneTrack> Type) const
 {
