@@ -1173,6 +1173,12 @@ void FMVVMViewBlueprintCompiler::CreatePublicFunctionsDeclaration(const FWidgetB
 					FText::FromString(Setter.BlueprintSetter)
 				).ToString()
 				);
+
+				if (Setter.SetterGraph != nullptr)
+				{ 
+					RenameObjectToTransientPackage(Setter.SetterGraph);
+					Setter.SetterGraph = nullptr;
+				}
 				bIsCreateVariableStepValid = false;
 				continue;
 			}

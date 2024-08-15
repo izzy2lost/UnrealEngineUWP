@@ -175,7 +175,7 @@ public:
 	FOnViewModelsUpdated OnViewModelsUpdated;
 
 	// Use during compilation to clean the automatically generated graph.
-	UPROPERTY(Transient)
+	UPROPERTY(Transient, NonTransactional)
 	TArray<TObjectPtr<UEdGraph>> TemporaryGraph;
 
 private:
