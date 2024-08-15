@@ -53,8 +53,10 @@ enum class EBakeMapType
 	One                    = 1 << 12,
 	/* Constant value of Zero */
 	Zero                   = 1 << 13,
+	/* UV shell */
+	UVShell                = 1 << 14 UMETA(DisplayName = "UV Shell"),
 
-	All                    = 0x1FFF UMETA(Hidden)
+	All                    = 0x3FFF UMETA(Hidden)
 };
 ENUM_CLASS_FLAGS(EBakeMapType);
 
@@ -76,7 +78,8 @@ static constexpr EBakeMapType ENUM_EBAKEMAPTYPE_ALL[] =
 	EBakeMapType::MultiTexture,
 	EBakeMapType::VertexColor,
 	EBakeMapType::MaterialID,
-	EBakeMapType::PolyGroupID
+	EBakeMapType::PolyGroupID,
+	EBakeMapType::UVShell
 };
 
 

@@ -409,10 +409,10 @@ namespace VectorUtil
 		RealType fR0 = kV02.Dot(kPV2);
 		RealType fR1 = kV12.Dot(kPV2);
 		RealType fDet = fM00 * fM11 - fM01 * fM01;
-		RealType fInvDet = 1.0 / fDet;
+		RealType fInvDet = (RealType)1.0 / fDet;
 		RealType fBary1 = (fM11 * fR0 - fM01 * fR1) * fInvDet;
 		RealType fBary2 = (fM00 * fR1 - fM01 * fR0) * fInvDet;
-		RealType fBary3 = 1.0 - fBary1 - fBary2;
+		RealType fBary3 = (RealType)1.0 - fBary1 - fBary2;
 		return TVector<RealType>(fBary1, fBary2, fBary3);
 	}
 

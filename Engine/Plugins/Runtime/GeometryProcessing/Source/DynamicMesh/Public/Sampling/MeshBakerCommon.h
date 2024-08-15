@@ -231,6 +231,17 @@ public:
 	virtual FVector3d GetTriNormal(const void* Mesh, const int TriId) const = 0;
 
 	/**
+	 * @param Mesh pointer to mesh to query 
+	 * @param TriId the triangle index to test
+	 * @param UVLayer the UVLayer index to query
+	 * @param UV0 the output UV for triangle vertex 0
+	 * @param UV1 the output UV for triangle vertex 1
+	 * @param UV2 the output UV for triangle vertex 2
+	 * @return true if a valid UV was returned, false otherwise.
+	 */
+	virtual bool GetTriUVs(const void* Mesh, int TriId, int UVLayer, FVector2f& UV0, FVector2f& UV1, FVector2f& UV2) const = 0;
+
+	/**
 	 * @param Mesh pointer to mesh to query
 	 * @param TriId the triangle index to test
 	 * @return the material ID for the given triangle.
@@ -471,6 +482,23 @@ public:
 	{
 		const FDynamicMesh3* DynamicMesh = static_cast<const FDynamicMesh3*>(Mesh);
 		return DynamicMesh->GetTriNormal(TriId);
+	}
+
+	virtual bool GetTriUVs(const void* Mesh, int TriId, int UVLayer, FVector2f& UV0, FVector2f& UV1, FVector2f& UV2) const override
+	{
+		const FDynamicMesh3* DynamicMesh = static_cast<const FDynamicMesh3*>(Mesh);
+		if (const FDynamicMeshAttributeSet* Attributes = DynamicMesh->Attributes())
+		{
+			if (const FDynamicMeshUVOverlay* UVOverlay = Attributes->GetUVLayer(UVLayer))
+			{
+				if (UVOverlay->IsSetTriangle(TriId))
+				{
+					UVOverlay->GetTriElements(TriId, UV0, UV1, UV2);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 
 	virtual int32 GetMaterialID(const void* Mesh, const int TriId) const override

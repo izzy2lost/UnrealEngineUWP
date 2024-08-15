@@ -224,6 +224,12 @@ public:
 		return FVector3d::Zero();
 	}
 
+	virtual bool GetTriUVs(const void* Mesh, int TriId, int UVLayer, FVector2f& UV0, FVector2f& UV1, FVector2f& UV2) const override
+	{
+		checkSlow(false);
+		return false;
+	}
+
 	virtual int32 GetMaterialID(const void* Mesh, const int TriId) const override
 	{
 		// TODO

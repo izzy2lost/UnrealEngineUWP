@@ -20,7 +20,8 @@ enum class EMeshMapEvaluatorType
 	Property,
 	ResampleImage,
 	MultiResampleImage,
-	RenderCapture
+	RenderCapture,
+	UVShell
 };
 
 class FMeshMapEvaluator

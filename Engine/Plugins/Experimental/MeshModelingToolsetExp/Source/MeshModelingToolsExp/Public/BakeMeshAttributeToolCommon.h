@@ -235,6 +235,33 @@ public:
 
 
 UCLASS()
+class MESHMODELINGTOOLSEXP_API UBakeUVShellMapToolProperties : public UInteractiveToolPropertySet
+{
+	GENERATED_BODY()
+public:
+	/** The source mesh UV Layer to sample. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	int UVLayer = 0;
+
+	/** The thickness of the wireframe in pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	float WireframeThickness = 1.0f;
+
+	/** The color of wireframe pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor WireframeColor = FLinearColor::Blue;
+
+	/** The color of the UV shell interior pixels. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor ShellColor = FLinearColor::Gray;
+
+	/** The color of pixels external to UV shells. */
+	UPROPERTY(EditAnywhere, Category = "UV Shell Output")
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+};
+
+
+UCLASS()
 class MESHMODELINGTOOLSEXP_API UBakeTexture2DProperties : public UInteractiveToolPropertySet
 {
 	GENERATED_BODY()
@@ -361,8 +388,8 @@ struct FCurvatureMapSettings
 {
 	FImageDimensions Dimensions;
 	int32 CurvatureType = 0;
-	float RangeMultiplier = 1.0;
-	float MinRangeMultiplier = 0.0;
+	float RangeMultiplier = 1.0f;
+	float MinRangeMultiplier = 0.0f;
 	int32 ColorMode = 0;
 	int32 ClampMode = 0;
 
@@ -379,6 +406,26 @@ struct FMeshPropertyMapSettings
 	bool operator==(const FMeshPropertyMapSettings& Other) const
 	{
 		return Dimensions == Other.Dimensions;
+	}
+};
+
+struct FUVShellMapSettings
+{
+	FImageDimensions Dimensions;
+	int UVLayer = 0;
+	float WireframeThickness = 1.0f;
+	FLinearColor WireframeColor = FLinearColor::Blue;
+	FLinearColor ShellColor = FLinearColor::Gray;
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+	bool operator==(const FUVShellMapSettings& Other) const
+	{
+		return Dimensions == Other.Dimensions &&
+			UVLayer == Other.UVLayer &&
+			WireframeThickness == Other.WireframeThickness &&
+			WireframeColor == Other.WireframeColor &&
+			ShellColor == Other.ShellColor &&
+			BackgroundColor == Other.BackgroundColor;
 	}
 };
 

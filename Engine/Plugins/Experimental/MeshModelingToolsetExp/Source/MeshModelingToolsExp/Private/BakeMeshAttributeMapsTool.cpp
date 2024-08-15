@@ -13,6 +13,7 @@
 #include "Sampling/MeshOcclusionMapEvaluator.h"
 #include "Sampling/MeshCurvatureMapEvaluator.h"
 #include "Sampling/MeshPropertyMapEvaluator.h"
+#include "Sampling/MeshUVShellMapEvaluator.h"
 #include "Sampling/MeshResampleImageEvaluator.h"
 
 #include "ImageUtils.h"
@@ -115,6 +116,7 @@ public:
 	FOcclusionMapSettings OcclusionSettings;
 	FCurvatureMapSettings CurvatureSettings;
 	FMeshPropertyMapSettings PropertySettings;
+	FUVShellMapSettings UVShellSettings;
 	FTexture2DSettings TextureSettings;
 	FTexture2DSettings MultiTextureSettings;
 
@@ -190,7 +192,7 @@ public:
 			{
 			case EBakeMapType::TangentSpaceNormal:
 			{
-				TSharedPtr<FMeshNormalMapEvaluator, ESPMode::ThreadSafe> NormalEval = MakeShared<FMeshNormalMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshNormalMapEvaluator> NormalEval = MakeShared<FMeshNormalMapEvaluator>();
 				DetailSampler.SetNormalTextureMap(DetailMesh.Get(), IMeshBakerDetailSampler::FBakeDetailNormalTexture(DetailMeshNormalMap.Get(), DetailMeshNormalUVLayer, DetailMeshNormalSpace));
 				Baker->AddEvaluator(NormalEval);
 				break;
@@ -209,7 +211,7 @@ public:
 			}
 			case EBakeMapType::Curvature:
 			{
-				TSharedPtr<FMeshCurvatureMapEvaluator, ESPMode::ThreadSafe> CurvatureEval = MakeShared<FMeshCurvatureMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshCurvatureMapEvaluator> CurvatureEval = MakeShared<FMeshCurvatureMapEvaluator>();
 				CurvatureEval->RangeScale = FMathd::Clamp(CurvatureSettings.RangeMultiplier, 0.0001, 1000.0);
 				CurvatureEval->MinRangeScale = FMathd::Clamp(CurvatureSettings.MinRangeMultiplier, 0.0, 1.0);
 				CurvatureEval->UseCurvatureType = (FMeshCurvatureMapEvaluator::ECurvatureType)CurvatureSettings.CurvatureType;
@@ -220,7 +222,7 @@ public:
 			}
 			case EBakeMapType::ObjectSpaceNormal:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::Normal;
 				DetailSampler.SetNormalTextureMap(DetailMesh.Get(), IMeshBakerDetailSampler::FBakeDetailNormalTexture(DetailMeshNormalMap.Get(), DetailMeshNormalUVLayer, DetailMeshNormalSpace));
 				Baker->AddEvaluator(PropertyEval);
@@ -228,49 +230,61 @@ public:
 			}
 			case EBakeMapType::FaceNormal:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::FacetNormal;
 				Baker->AddEvaluator(PropertyEval);
 				break;
 			}
 			case EBakeMapType::Position:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::Position;
 				Baker->AddEvaluator(PropertyEval);
 				break;
 			}
 			case EBakeMapType::MaterialID:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::MaterialID;
 				Baker->AddEvaluator(PropertyEval);
 				break;
 			}
 			case EBakeMapType::PolyGroupID:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::PolyGroupID;
 				Baker->AddEvaluator(PropertyEval);
 				break;
 			}
+			case EBakeMapType::UVShell:
+			{
+				TSharedPtr<FMeshUVShellMapEvaluator> UVShellEval = MakeShared<FMeshUVShellMapEvaluator>();
+				UVShellEval->TexelSize = BakeSettings.Dimensions.GetTexelSize();
+				UVShellEval->UVLayer = UVShellSettings.UVLayer;
+				UVShellEval->WireframeThickness = UVShellSettings.WireframeThickness;
+				UVShellEval->WireframeColor = UVShellSettings.WireframeColor;
+				UVShellEval->ShellColor = UVShellSettings.ShellColor;
+				UVShellEval->BackgroundColor = UVShellSettings.BackgroundColor;
+				Baker->AddEvaluator(UVShellEval);
+				break;
+			}
 			case EBakeMapType::VertexColor:
 			{
-				TSharedPtr<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe> PropertyEval = MakeShared<FMeshPropertyMapEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshPropertyMapEvaluator> PropertyEval = MakeShared<FMeshPropertyMapEvaluator>();
 				PropertyEval->Property = EMeshPropertyMapType::VertexColor;
 				Baker->AddEvaluator(PropertyEval);
 				break;
 			}
 			case EBakeMapType::Texture:
 			{
-				TSharedPtr<FMeshResampleImageEvaluator, ESPMode::ThreadSafe> TextureEval = MakeShared<FMeshResampleImageEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshResampleImageEvaluator> TextureEval = MakeShared<FMeshResampleImageEvaluator>();
 				DetailSampler.SetTextureMap(DetailMesh.Get(), IMeshBakerDetailSampler::FBakeDetailTexture(TextureImage.Get(), TextureSettings.UVLayer));
 				Baker->AddEvaluator(TextureEval);
 				break;
 			}
 			case EBakeMapType::MultiTexture:
 			{
-				TSharedPtr<FMeshMultiResampleImageEvaluator, ESPMode::ThreadSafe> TextureEval = MakeShared<FMeshMultiResampleImageEvaluator, ESPMode::ThreadSafe>();
+				TSharedPtr<FMeshMultiResampleImageEvaluator> TextureEval = MakeShared<FMeshMultiResampleImageEvaluator>();
 				TextureEval->DetailUVLayer = MultiTextureSettings.UVLayer;
 				TextureEval->MultiTextures = MaterialIDTextures;
 				Baker->AddEvaluator(TextureEval);
@@ -392,6 +406,17 @@ void UBakeMeshAttributeMapsTool::Setup()
 	CurvatureSettings->WatchProperty(CurvatureSettings->Clamping, [this](EBakeCurvatureClampMode) { OpState |= EBakeOpState::Evaluate; });
 
 
+	UVShellSettings = NewObject<UBakeUVShellMapToolProperties>(this);
+	UVShellSettings->RestoreProperties(this);
+	AddToolPropertySource(UVShellSettings);
+	SetToolPropertySourceEnabled(UVShellSettings, false);
+	UVShellSettings->WatchProperty(UVShellSettings->UVLayer, [this](int) { OpState |= EBakeOpState::Evaluate; });
+	UVShellSettings->WatchProperty(UVShellSettings->WireframeThickness, [this](float) { OpState |= EBakeOpState::Evaluate; });
+	UVShellSettings->WatchProperty(UVShellSettings->WireframeColor, [this](FLinearColor) { OpState |= EBakeOpState::Evaluate; });
+	UVShellSettings->WatchProperty(UVShellSettings->ShellColor, [this](FLinearColor) { OpState |= EBakeOpState::Evaluate; });
+	UVShellSettings->WatchProperty(UVShellSettings->BackgroundColor, [this](FLinearColor) { OpState |= EBakeOpState::Evaluate; });
+
+
 	TextureSettings = NewObject<UBakeTexture2DProperties>(this);
 	TextureSettings->RestoreProperties(this);
 	AddToolPropertySource(TextureSettings);
@@ -490,6 +515,11 @@ TUniquePtr<UE::Geometry::TGenericDataOperator<FMeshMapBaker>> UBakeMeshAttribute
 		(bool)(CachedBakeSettings.BakeMapTypes & EBakeMapType::VertexColor))
 	{
 		Op->PropertySettings = CachedMeshPropertyMapSettings;
+	}
+
+	if ((bool)(CachedBakeSettings.BakeMapTypes & EBakeMapType::UVShell))
+	{
+		Op->UVShellSettings = CachedUVShellMapSettings;
 	}
 
 	if ((bool)(CachedBakeSettings.BakeMapTypes & EBakeMapType::Texture))
@@ -679,6 +709,10 @@ void UBakeMeshAttributeMapsTool::UpdateResult()
 	{
 		OpState |= UpdateResult_MeshProperty(CachedBakeSettings.Dimensions);
 	}
+	if ((bool)(CachedBakeSettings.BakeMapTypes & EBakeMapType::UVShell))
+	{
+		OpState |= UpdateResult_UVShellMap(CachedBakeSettings.Dimensions);
+	}
 	if ((bool)(CachedBakeSettings.BakeMapTypes & EBakeMapType::Texture))
 	{
 		OpState |= UpdateResult_Texture2DImage(CachedBakeSettings.Dimensions, DetailMesh.Get());
@@ -756,6 +790,25 @@ EBakeOpState UBakeMeshAttributeMapsTool::UpdateResult_DetailNormalMap()
 }
 
 
+EBakeOpState UBakeMeshAttributeMapsTool::UpdateResult_UVShellMap(const FImageDimensions& Dimensions)
+{
+	EBakeOpState ResultState = EBakeOpState::Clean;
+
+	FUVShellMapSettings UVShellMapSettings;
+	UVShellMapSettings.UVLayer = UVShellSettings->UVLayer;
+	UVShellMapSettings.WireframeThickness = UVShellSettings->WireframeThickness;
+	UVShellMapSettings.WireframeColor = UVShellSettings->WireframeColor;
+	UVShellMapSettings.ShellColor = UVShellSettings->ShellColor;
+	UVShellMapSettings.BackgroundColor = UVShellSettings->BackgroundColor;
+
+	if (!(CachedUVShellMapSettings == UVShellMapSettings))
+	{
+		CachedUVShellMapSettings = UVShellMapSettings;
+		ResultState |= EBakeOpState::Evaluate;
+	}
+	return ResultState;
+}
+
 void UBakeMeshAttributeMapsTool::UpdateVisualization()
 {
 	PreviewMesh->SetOverrideRenderMaterial(PreviewMaterial);
@@ -785,6 +838,7 @@ void UBakeMeshAttributeMapsTool::UpdateOnModeChange()
 	// Update tool property sets.
 	SetToolPropertySourceEnabled(OcclusionSettings, false);
 	SetToolPropertySourceEnabled(CurvatureSettings, false);
+	SetToolPropertySourceEnabled(UVShellSettings, false);
 	SetToolPropertySourceEnabled(TextureSettings, false);
 	SetToolPropertySourceEnabled(MultiTextureSettings, false);
 
@@ -807,6 +861,9 @@ void UBakeMeshAttributeMapsTool::UpdateOnModeChange()
 		case EBakeMapType::MaterialID:
 		case EBakeMapType::PolyGroupID:
 		case EBakeMapType::VertexColor:
+			break;
+		case EBakeMapType::UVShell:
+			SetToolPropertySourceEnabled(UVShellSettings, true);
 			break;
 		case EBakeMapType::Texture:
 			SetToolPropertySourceEnabled(TextureSettings, true);
