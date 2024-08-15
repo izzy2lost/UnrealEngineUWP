@@ -122,7 +122,7 @@ public:
 	/** @return const references to the instance data in use, or nullptr if the context is not valid. */
 	const FStateTreeInstanceData* GetInstanceData() const { return &InstanceData; }
 
-	/** @retuen mutable references to the instance data in use, or nullptr if the context is not valid. */
+	/** @return mutable references to the instance data in use, or nullptr if the context is not valid. */
 	FStateTreeInstanceData* GetMutableInstanceData() const { return &InstanceData; }
 
 	/** @return mutable references to the instance data in use. */

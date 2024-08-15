@@ -26,15 +26,15 @@ class GAMEPLAYSTATETREEMODULE_API UStateTreeComponent : public UBrainComponent, 
 public:
 	UStateTreeComponent(const FObjectInitializer& ObjectInitializer = FObjectInitializer::Get());
 
-	// BEGIN UActorComponent overrides
+	//~ BEGIN UActorComponent overrides
 	virtual void InitializeComponent() override;
 	virtual void UninitializeComponent() override;
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction) override;
-	// END UActorComponent overrides
+	//~ END UActorComponent overrides
 
-	// BEGIN UBrainComponent overrides
+	//~ BEGIN UBrainComponent overrides
 	virtual void StartLogic() override;
 	virtual void RestartLogic() override;
 	virtual void StopLogic(const FString& Reason)  override;
@@ -43,19 +43,19 @@ public:
 	virtual EAILogicResuming::Type ResumeLogic(const FString& Reason)  override;
 	virtual bool IsRunning() const override;
 	virtual bool IsPaused() const override;
-	// END UBrainComponent overrides
+	//~ END UBrainComponent overrides
 
-	// BEGIN IGameplayTaskOwnerInterface
+	//~ BEGIN IGameplayTaskOwnerInterface
 	virtual UGameplayTasksComponent* GetGameplayTasksComponent(const UGameplayTask& Task) const override;
 	virtual AActor* GetGameplayTaskOwner(const UGameplayTask* Task) const override;
 	virtual AActor* GetGameplayTaskAvatar(const UGameplayTask* Task) const override;
 	virtual uint8 GetGameplayTaskDefaultPriority() const override;
 	virtual void OnGameplayTaskInitialized(UGameplayTask& Task) override;
-	// END IGameplayTaskOwnerInterface
+	//~ END IGameplayTaskOwnerInterface
 
-	// BEGIN IStateTreeSchemaProvider
+	//~ BEGIN IStateTreeSchemaProvider
 	TSubclassOf<UStateTreeSchema> GetSchema() const override;
-	// END
+	//~ END
 
 	/**
 	 * Sets whether the State Tree is started automatically on being play.

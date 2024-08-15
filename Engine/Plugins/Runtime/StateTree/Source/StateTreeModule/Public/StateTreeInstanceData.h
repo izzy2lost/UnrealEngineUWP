@@ -185,13 +185,13 @@ struct STATETREEMODULE_API FStateTreeInstanceStorage
 		return Wrapper.InstanceObject;
 	}
 
-	/** @return reference to StateTree execution state, or null if the instance data is not initialized. */
+	/** @return reference to StateTree execution state. */
 	const FStateTreeExecutionState& GetExecutionState() const
 	{
 		return ExecutionState;
 	}
 
-	/** @return reference to StateTree execution state, or null if the instance data is not initialized. */
+	/** @return reference to StateTree execution state. */
 	FStateTreeExecutionState& GetMutableExecutionState()
 	{
 		return ExecutionState;

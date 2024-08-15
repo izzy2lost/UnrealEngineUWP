@@ -15,9 +15,9 @@ class GAMEPLAYSTATETREEMODULE_API UStateTreeAIComponent : public UStateTreeCompo
 {
 	GENERATED_BODY()
 public:
-	// BEGIN IStateTreeSchemaProvider
+	//~ BEGIN IStateTreeSchemaProvider
 	TSubclassOf<UStateTreeSchema> GetSchema() const override;
-	// END
+	//~ END
 
 	virtual bool SetContextRequirements(FStateTreeExecutionContext& Context, bool bLogErrors = false) override;
 };
