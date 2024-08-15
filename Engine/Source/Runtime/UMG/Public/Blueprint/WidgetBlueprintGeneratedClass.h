@@ -88,7 +88,7 @@ public:
 private:
 
 	/** A tree of the widget templates to be created */
-	UPROPERTY()
+	UPROPERTY(DuplicateTransient)
 	TObjectPtr<UWidgetTree> WidgetTree;
 	
 	/** The extension that are considered static to the class */
