@@ -306,8 +306,7 @@ void FNiagaraEditorStyle::InitParameters()
 		.SetTextStyle(InlineEditableTextBlockReadOnly)
 		.SetEditableTextBoxStyle(InlineEditableTextBlockEditable);
 	Set("NiagaraEditor.Graph.Node.InlineEditablePinName", InlineEditableTextBlockStyle);
-
-
+	
 	Set("NiagaraEditor.StaticIcon", new IMAGE_BRUSH("Icons/staticpill_16x", Icon16x16));
 	Set("NiagaraEditor.Pins.StaticConnected", new IMAGE_BRUSH("Icons/StaticPin_Connected", Icon16x16));
 	Set("NiagaraEditor.Pins.StaticDisconnected", new IMAGE_BRUSH("Icons/StaticPin_Disconnected", Icon16x16));
@@ -861,6 +860,31 @@ void FNiagaraEditorStyle::InitHierarchyEditor()
 		.SetPressedPadding(FMargin(8.f, 3.f, 8.f, 1.f));
 
 	Set("NiagaraEditor.HierarchyEditor.ButtonStyle", ButtonStyle);
+
+	const FSlateColor SelectorColor = FAppStyle::GetSlateColor("SelectorColor");
+	const FSlateColor SelectionColor = FAppStyle::GetSlateColor("SelectionColor");
+	const FSlateColor SelectionColor_Inactive = FAppStyle::GetSlateColor("SelectionColor_Inactive");
+	FLinearColor HighlightColor = FLinearColor(0.068f, 0.068f, 0.068f);
+	
+	Set("NiagaraEditor.Color.Highlight", HighlightColor);
+	
+	FTableRowStyle HierarchyEditorCategoryRowStyle = FTableRowStyle()
+		.SetEvenRowBackgroundBrush(*FAppStyle::GetBrush("DetailsView.CategoryTop"))
+		.SetOddRowBackgroundBrush(*FAppStyle::GetBrush("DetailsView.CategoryTop"))
+		.SetEvenRowBackgroundHoveredBrush(*FAppStyle::GetBrush("DetailsView.CategoryTop_Hovered"))
+		.SetOddRowBackgroundHoveredBrush(*FAppStyle::GetBrush("DetailsView.CategoryTop_Hovered"))
+		.SetSelectorFocusedBrush( CORE_BORDER_BRUSH( "Common/Selector", FMargin(4.f/16.f), SelectorColor))
+		.SetActiveBrush( CORE_IMAGE_BRUSH( "Common/Selection", Icon8x8, SelectionColor))
+		.SetActiveHoveredBrush( CORE_IMAGE_BRUSH( "Common/Selection", Icon8x8, SelectionColor))
+		.SetInactiveBrush( CORE_IMAGE_BRUSH( "Common/Selection", Icon8x8, SelectionColor_Inactive))
+		.SetInactiveHoveredBrush( CORE_IMAGE_BRUSH( "Common/Selection", Icon8x8, SelectionColor_Inactive))
+		.SetActiveHighlightedBrush( CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, HighlightColor))
+		.SetInactiveHighlightedBrush( CORE_IMAGE_BRUSH("Common/Selection", Icon8x8, HighlightColor))
+		.SetDropIndicator_Above(CORE_BOX_BRUSH("Common/DropZoneIndicator_Above", FMargin(10.0f / 16.0f, 10.0f / 16.0f, 0, 0), FStarshipCoreStyle::GetCoreStyle().GetSlateColor("SelectorColor")))
+		.SetDropIndicator_Onto(CORE_BOX_BRUSH("Common/DropZoneIndicator_Onto", FMargin(4.0f / 16.0f), FStarshipCoreStyle::GetCoreStyle().GetSlateColor("SelectorColor")))
+		.SetDropIndicator_Below(CORE_BOX_BRUSH("Common/DropZoneIndicator_Below", FMargin(10.0f / 16.0f, 0, 0, 10.0f / 16.0f), FStarshipCoreStyle::GetCoreStyle().GetSlateColor("SelectorColor")));
+	
+	Set("NiagaraEditor.HierarchyEditor.Row.Category", HierarchyEditorCategoryRowStyle);
 }
 
 void FNiagaraEditorStyle::InitSimCacheEditor()

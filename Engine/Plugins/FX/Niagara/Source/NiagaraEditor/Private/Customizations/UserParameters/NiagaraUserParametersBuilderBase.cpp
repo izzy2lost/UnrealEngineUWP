@@ -15,6 +15,7 @@
 #include "Widgets/SNiagaraSystemUserParameters.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "NiagaraEditorDataBase.h"
+#include "NiagaraEditorUtilities.h"
 #include "PropertyEditorClipboard.h"
 #include "Customizations/NiagaraComponentDetails.h"
 

@@ -11,12 +11,12 @@
 class UNiagaraScript;
 class UNiagaraNodeFunctionCall;
 class UNiagaraClipboardContent;
-class UNiagaraStackFunctionInputCollection;
+class UNiagaraStackScriptHierarchyRoot;
 
 UCLASS(Abstract, MinimalAPI)
 class UNiagaraConvertInPlaceUtilityBase : public UObject
 {
 	GENERATED_BODY()
 public:
-	virtual bool Convert(UNiagaraScript* InOldScript, UNiagaraClipboardContent* InOldClipboardContent, UNiagaraScript* InNewScript, UNiagaraStackFunctionInputCollection* InInputCollection, UNiagaraClipboardContent* InNewClipboardContent, UNiagaraNodeFunctionCall* InCallingNode, FText& OutMessage) { return true; };
+	virtual bool Convert(UNiagaraScript* InOldScript, UNiagaraClipboardContent* InOldClipboardContent, UNiagaraScript* InNewScript, UNiagaraStackScriptHierarchyRoot* InHierarchyRoot, UNiagaraClipboardContent* InNewClipboardContent, UNiagaraNodeFunctionCall* InCallingNode, FText& OutMessage) { return true; };
 };

@@ -2,13 +2,13 @@
 
 #pragma once
 
+#include "NiagaraStackScriptHierarchyRoot.h"
 #include "ViewModels/Stack/NiagaraStackItem.h"
 #include "NiagaraTypes.h"
 #include "NiagaraStackModuleItem.generated.h"
 
 class UNiagaraNodeFunctionCall;
 class UNiagaraStackModuleItemLinkedInputCollection;
-class UNiagaraStackFunctionInputCollection;
 class UNiagaraStackModuleItemOutputCollection;
 class UNiagaraScript;
 class INiagaraStackItemGroupAddUtilities;
@@ -152,10 +152,10 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackModuleItemLinkedInputCollection> LinkedInputCollection;
-
+	
 	UPROPERTY()
-	TObjectPtr<UNiagaraStackFunctionInputCollection> InputCollection;
-
+	TObjectPtr<UNiagaraStackScriptHierarchyRoot> InputRoot;
+	
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackModuleItemOutputCollection> OutputCollection;
 

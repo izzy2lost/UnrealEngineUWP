@@ -4,6 +4,8 @@
 
 #include "ViewModels/NiagaraScriptViewModel.h"
 #include "GraphEditAction.h"
+#include "HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
+#include "HierarchyEditor/NiagaraSummaryViewViewModel.h"
 
 class INiagaraParameterPanelViewModel;
 class FNiagaraScriptToolkitParameterPanelViewModel;
@@ -25,7 +27,7 @@ public:
 
 	NIAGARAEDITOR_API ~FNiagaraScratchPadScriptViewModel();
 
-	NIAGARAEDITOR_API void Initialize(UNiagaraScript* Script, UNiagaraScript* InEditScript, TWeakPtr<class FNiagaraSystemViewModel> InSystemViewModel);
+	void Initialize(UNiagaraScript* Script, UNiagaraScript* InEditScript, TWeakPtr<class FNiagaraSystemViewModel> InSystemViewModel);
 
 	NIAGARAEDITOR_API bool IsValid() const;
 	
@@ -38,6 +40,8 @@ public:
 	//~ End FGCObject
 
 	NIAGARAEDITOR_API TArray<UNiagaraGraph*> GetEditableGraphs();
+
+	NIAGARAEDITOR_API UNiagaraHierarchyScriptParametersViewModel* GetHierarchyViewModel();
 
 	//~ Begin NiagaraParameterDefinitionsSubscriberViewModel Interface
 protected:
@@ -94,6 +98,9 @@ public:
 
 	NIAGARAEDITOR_API FSimpleDelegate& OnRequestDiscardChanges();
 
+	NIAGARAEDITOR_API void OnHierarchyChanged();
+	NIAGARAEDITOR_API void OnHierarchyPropertiesChanged();
+
 	NIAGARAEDITOR_API FOnNodeIDFocusRequested& OnNodeIDFocusRequested();
 	NIAGARAEDITOR_API FOnPinIDFocusRequested& OnPinIDFocusRequested();
 
@@ -126,6 +133,8 @@ private:
 	TSharedPtr<FUICommandList> ParameterPanelCommands;
 	TSharedPtr<FNiagaraScriptToolkitParameterPanelViewModel> ParameterPaneViewModel;
 
+	TObjectPtr<UNiagaraHierarchyScriptParametersViewModel> ScriptHierarchyViewModel;
+	
 	FDelegateHandle OnGraphNeedsRecompileHandle;
 
 	FOnRenamed OnRenamedDelegate;

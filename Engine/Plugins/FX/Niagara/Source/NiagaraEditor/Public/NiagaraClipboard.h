@@ -11,6 +11,7 @@
 #include "UObject/SoftObjectPtr.h"
 #include "NiagaraClipboard.generated.h"
 
+class UNiagaraHierarchyCategory;
 class IPropertyHandle;
 class UNiagaraDataInterface;
 class UNiagaraScript;
@@ -84,6 +85,9 @@ public:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraClipboardFunction> Dynamic;
+
+	UPROPERTY()
+	TArray<TObjectPtr<const UNiagaraClipboardFunctionInput>> ChildrenInputs;
 
 	NIAGARAEDITOR_API bool CopyValuesFrom(const UNiagaraClipboardFunctionInput* InOther);
 
@@ -252,7 +256,7 @@ public:
 
 	UPROPERTY()
 	TArray<TObjectPtr<const UNiagaraClipboardFunctionInput>> FunctionInputs;
-
+	
 	UPROPERTY()
 	TArray<TObjectPtr<const UNiagaraClipboardRenderer>> Renderers;
 

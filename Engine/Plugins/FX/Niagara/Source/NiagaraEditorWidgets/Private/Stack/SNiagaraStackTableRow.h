@@ -9,6 +9,7 @@
 #include "Widgets/Views/STreeView.h"
 #include "Styling/SlateTypes.h"
 #include "Layout/Visibility.h"
+#include "Animation/CurveSequence.h"
 
 class UNiagaraHierarchyItemBase;
 class UNiagaraStackViewModel;
@@ -43,6 +44,8 @@ public:
 		SLATE_EVENT(FOnAcceptDrop, OnAcceptDrop);
 	SLATE_END_ARGS();
 
+	virtual ~SNiagaraStackTableRow() override;
+	
 	void Construct(const FArguments& InArgs, UNiagaraStackViewModel* InStackViewModel, UNiagaraStackEntry* InStackEntry, TSharedRef<FNiagaraStackCommandContext> InStackCommandContext, const TSharedRef<STreeView<UNiagaraStackEntry*>>& InOwnerTree);
 
 	void Reset();
@@ -65,11 +68,13 @@ public:
 
 	virtual FReply OnMouseButtonDoubleClick(const FGeometry& InMyGeometry, const FPointerEvent& InMouseEvent) override;
 
-	FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent);
+	virtual FReply OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 private:
-	void CollapseChildren();
+	void Pulse();
 
+	void CollapseChildren();
 	void ExpandChildren();
 
 	void AddStackNote() const;
@@ -95,6 +100,8 @@ private:
 	void OnValueColumnWidthChanged(float Width);
 
 	EVisibility GetSearchResultBorderVisibility() const;
+	
+	FSlateColor GetInnerBackgroundColor() const;
 
 	void NavigateTo(UNiagaraStackEntry* Item);
 
@@ -147,4 +154,6 @@ private:
 	TArray<FOnFillRowContextMenu> OnFillRowContextMenuHanders;
 
 	TSharedPtr<FNiagaraStackCommandContext> StackCommandContext;
+
+	FCurveSequence PulseAnimation;
 };

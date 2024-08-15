@@ -28,7 +28,7 @@
 #include "Widgets/SNiagaraSelectedObjectsDetails.h"
 #include "Widgets/SNiagaraSpreadsheetView.h"
 #include "Widgets/SNiagaraGeneratedCodeView.h"
-#include "Widgets/SNiagaraHierarchy.h"
+#include "Widgets/SNiagaraHierarchyEditor.h"
 #include "Widgets/Layout/SWidgetSwitcher.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Input/SButton.h"
@@ -44,6 +44,7 @@
 #include "Widgets/SNiagaraSystemUserParameters.h"
 #include "Customizations/NiagaraComponentDetails.h"
 #include "Styling/StyleColors.h"
+#include "ViewModels/NiagaraScratchPadViewModel.h"
 #include "ViewModels/NiagaraSystemEditorDocumentsViewModel.h"
 #include "ViewModels/HierarchyEditor/NiagaraSummaryViewViewModel.h"
 #include "ViewModels/HierarchyEditor/NiagaraUserParametersHierarchyViewModel.h"
@@ -72,6 +73,7 @@ const FName FNiagaraSystemToolkitModeBase::ScratchPadScriptsTabID(TEXT("NiagaraS
 const FName FNiagaraSystemToolkitModeBase::UserParametersTabID(TEXT("NiagaraSystemEditor_UserParameters"));
 const FName FNiagaraSystemToolkitModeBase::UserParametersHierarchyTabID(TEXT("NiagaraSystemEditor_UserParametersHierarchy"));
 const FName FNiagaraSystemToolkitModeBase::EmitterSummaryViewEditorTabID(TEXT("NiagaraSystemEditor_SummaryViewHierarchyEditor"));
+const FName FNiagaraSystemToolkitModeBase::ScratchPadHierarchyEditorTabID(TEXT("NiagaraSystemEditor_ScratchPadHierarchyEditor"));
 
 FNiagaraSystemToolkitModeBase::FNiagaraSystemToolkitModeBase(FName InModeName, TWeakPtr<FNiagaraSystemToolkit> InSystemToolkit) : FApplicationMode(InModeName), SystemToolkit(InSystemToolkit), SwitcherIdx(0)
 {
@@ -84,15 +86,15 @@ FNiagaraSystemToolkitModeBase::~FNiagaraSystemToolkitModeBase()
 	if (SystemToolkit.Pin().IsValid())
 	{
 		SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->OnActiveDocumentChanged().Remove(DocChangedHandle);
-		if (LastActiveDocumentModel.IsValid())
-		{
-			TSharedPtr<FNiagaraScratchPadScriptViewModel> OldScratchScriptVM = LastActiveDocumentModel.Pin();
-			OldScratchScriptVM->GetGraphViewModel()->GetNodeSelection()->OnSelectedObjectsChanged().Remove(LastSelectionUpdateDelegate);
-		}
 		
 		if(UpdateSummaryViewHandle.IsValid())
 		{
 			SystemToolkit.Pin()->GetSystemViewModel()->GetSelectionViewModel()->OnEmitterHandleIdSelectionChanged().Remove(UpdateSummaryViewHandle);
+		}
+
+		if(UpdateScratchPadScriptHierarchyHandle.IsValid())
+		{
+			SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->OnActiveDocumentChanged().Remove(UpdateScratchPadScriptHierarchyHandle);
 		}
 	}
 }
@@ -100,22 +102,6 @@ FNiagaraSystemToolkitModeBase::~FNiagaraSystemToolkitModeBase()
 void FNiagaraSystemToolkitModeBase::OnActiveDocumentChanged(TSharedPtr<SDockTab> NewActiveTab)
 {
 	TSharedPtr<FNiagaraSystemToolkit> Toolkit = StaticCastSharedPtr<FNiagaraSystemToolkit>(SystemToolkit.Pin());
-	if (LastActiveDocumentModel.IsValid())
-	{
-		TSharedPtr<FNiagaraScratchPadScriptViewModel> OldScratchScriptVM = LastActiveDocumentModel.Pin();
-		OldScratchScriptVM->GetGraphViewModel()->GetNodeSelection()->OnSelectedObjectsChanged().Remove(LastSelectionUpdateDelegate);
-
-		TArray<UNiagaraGraph*> EdGraphs = OldScratchScriptVM->GetEditableGraphs();
-		check(EdGraphs.Num() <= 1);
-		if (EdGraphs.Num() == 1)
-		{
-			EdGraphs[0]->OnSubObjectSelectionChanged().Remove(LastParamPanelSelectionUpdateDelegate);
-		}
-
-		Toolkit->GetSystemViewModel()->GetSelectionViewModel()->OnEntrySelectionChanged().Remove(LastSystemSelectionUpdateDelegate);
-		OldScratchScriptVM->GetGraphViewModel()->GetGraph()->RemoveOnGraphNeedsRecompileHandler(LastGraphEditDelegate);
-
-	}
 
 	SwitcherIdx = 0;
 	TSharedPtr<SDockTab>  ActiveTab = Toolkit->GetSystemViewModel()->GetDocumentViewModel()->GetActiveDocumentTab().Pin();
@@ -185,12 +171,17 @@ void FNiagaraSystemToolkitModeBase::OnSystemSelectionChanged()
 
 void FNiagaraSystemToolkitModeBase::PostActivateMode()
 {
-	// by default we want to close the user parameters hierarchy tab if it has been open before. T
-	// his fixes the issue of an empty tab being summoned from a system's cached layout when applied to an emitter.
+	// by default we want to close the user parameters hierarchy tab if it has been open before.
+	// This fixes the issue of an empty tab being summoned from a system's cached layout when applied to an emitter.
 	// for consistency, we close it not only for emitters but for systems too
 	if(TSharedPtr<SDockTab> UserParametersHierarchyDockTab = SystemToolkit.Pin()->GetTabManager()->FindExistingLiveTab(UserParametersHierarchyTabID))
 	{
 		UserParametersHierarchyDockTab->RequestCloseTab();
+	}
+
+	if(TSharedPtr<SDockTab> ScratchPadScriptHierarchyDockTab = SystemToolkit.Pin()->GetTabManager()->FindExistingLiveTab(ScratchPadHierarchyEditorTabID))
+	{
+		ScratchPadScriptHierarchyDockTab->RequestCloseTab();
 	}
 }
 
@@ -345,6 +336,11 @@ void FNiagaraSystemToolkitModeBase::RegisterTabFactories(TSharedPtr<FTabManager>
 		
 	InTabManager->RegisterTabSpawner(EmitterSummaryViewEditorTabID, FOnSpawnTab::CreateSP(this, &FNiagaraSystemToolkitModeBase::SpawnTab_SummaryViewEditor))
 		.SetDisplayName(LOCTEXT("SummaryViewEditorTitle", "Edit Summary View"))
+		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
+		.SetIcon(FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "Tab.UserParameterHierarchy"));
+
+	InTabManager->RegisterTabSpawner(ScratchPadHierarchyEditorTabID, FOnSpawnTab::CreateSP(this, &FNiagaraSystemToolkitModeBase::SpawnTab_ScratchPadHierarchyEditor))
+		.SetDisplayName(LOCTEXT("SummaryViewEditorTitle", "Edit Scratch Pad Hierarchy"))
 		.SetGroup(WorkspaceMenuCategory.ToSharedRef())
 		.SetIcon(FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "Tab.UserParameterHierarchy"));
 }
@@ -580,6 +576,17 @@ TSharedRef<SDockTab> FNiagaraSystemToolkitModeBase::SpawnTab_SystemParameters(co
 		[
 			SAssignNew(SystemToolkit.Pin()->ParameterPanel, SNiagaraParameterPanel, SystemToolkit.Pin()->ParameterPanelViewModel, SystemToolkit.Pin()->GetToolkitCommands())
 			.ShowParameterSynchronizingWithLibraryIconExternallyReferenced(false)
+			.SearchAdjacentWidget()
+			[
+				SNew(SButton)
+				.OnClicked(this, &FNiagaraSystemToolkitModeBase::SummonScratchPadScriptHierarchyEditor)
+				.ButtonStyle(FAppStyle::Get(), "RoundButton")
+				.Visibility(this, &FNiagaraSystemToolkitModeBase::GetSummonScratchPadHierarchyEditorButtonVisibility)
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("EditHierarchy_ScriptInputs", "Edit Input Hierarchy"))
+				]
+			]
 		];
 	SystemToolkit.Pin()->RefreshParameters();
 
@@ -946,7 +953,7 @@ TSharedRef<SDockTab> FNiagaraSystemToolkitModeBase::SpawnTab_UserParametersHiera
 			SNew(SBox)
 			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("UserParameters")))
 			[
-				SNew(SNiagaraHierarchy, SystemToolkit.Pin()->GetSystemViewModel()->GetUserParametersHierarchyViewModel())
+				SNew(SNiagaraHierarchyEditor, SystemToolkit.Pin()->GetSystemViewModel()->GetUserParametersHierarchyViewModel())
 				.OnGenerateRowContentWidget_Static(&GenerateRowContentForUserParameterHierarchyEditor, SystemToolkit.Pin()->GetSystemViewModel())
 				.OnGenerateCustomDetailsPanelNameWidget_Static(&GenerateCustomDetailsPanelNameWidgetForUserParameterEditor)
 			]
@@ -1094,7 +1101,7 @@ TSharedRef<SWidget> FNiagaraSystemToolkitModeBase::CreateSummaryViewWidget() con
 		TSharedPtr<FNiagaraEmitterViewModel> EmitterViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetEmitterHandleViewModels()[0]->GetEmitterViewModel();
 		UNiagaraSummaryViewViewModel* SummaryViewHierarchyViewModel = EmitterViewModel->GetSummaryHierarchyViewModel();
 		
-		ContentWidget = SNew(SNiagaraHierarchy, SummaryViewHierarchyViewModel)
+		ContentWidget = SNew(SNiagaraHierarchyEditor, SummaryViewHierarchyViewModel)
 		.OnGenerateRowContentWidget_Static(&GenerateRowContentForSummaryViewHierarchyEditor, EmitterViewModel)
 		.OnGenerateCustomDetailsPanelNameWidget_Static(&GenerateCustomDetailsPanelNameWidgetForSummaryViewEditor);
 	}
@@ -1114,7 +1121,7 @@ TSharedRef<SWidget> FNiagaraSystemToolkitModeBase::CreateSummaryViewWidget() con
 			TSharedPtr<FNiagaraEmitterViewModel> EmitterViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetEmitterHandleViewModelById(SelectedEmitterHandleGuids[0])->GetEmitterViewModel();
 			UNiagaraSummaryViewViewModel* SummaryViewHierarchyViewModel = EmitterViewModel->GetSummaryHierarchyViewModel();
 		
-			ContentWidget = SNew(SNiagaraHierarchy, SummaryViewHierarchyViewModel)
+			ContentWidget = SNew(SNiagaraHierarchyEditor, SummaryViewHierarchyViewModel)
 			.OnGenerateRowContentWidget_Static(&GenerateRowContentForSummaryViewHierarchyEditor, EmitterViewModel)
 			.OnGenerateCustomDetailsPanelNameWidget_Static(&GenerateCustomDetailsPanelNameWidgetForSummaryViewEditor);
 		}
@@ -1134,6 +1141,64 @@ void FNiagaraSystemToolkitModeBase::UpdateSummaryViewOnSelectionChanged() const
 void FNiagaraSystemToolkitModeBase::OnSummaryViewEditorClosed(TSharedRef<SDockTab> DockTab) const
 {
 	SummaryViewContainer->SetContent(SNullWidget::NullWidget);
+}
+
+FReply FNiagaraSystemToolkitModeBase::SummonScratchPadScriptHierarchyEditor()
+{
+	SystemToolkit.Pin()->GetTabManager()->TryInvokeTab(ScratchPadHierarchyEditorTabID);
+	return FReply::Handled();
+}
+
+TSharedRef<SWidget> FNiagaraSystemToolkitModeBase::CreateScratchPadHierarchyWidget()
+{
+	TSharedPtr<FNiagaraScratchPadScriptViewModel> ActiveScratchPadViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetScriptScratchPadViewModel()->GetActiveScriptViewModel();
+
+	ActiveScratchPadViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->GetActiveScratchPadViewModelIfSet();
+	
+	TSharedPtr<SWidget> ContentWidget = SNullWidget::NullWidget;
+	if(ActiveScratchPadViewModel.IsValid())
+	{
+		UNiagaraHierarchyScriptParametersViewModel* ScriptHierarchyViewModel = ActiveScratchPadViewModel->GetHierarchyViewModel();
+		
+		ContentWidget = SNew(SNiagaraHierarchyEditor, ScriptHierarchyViewModel)
+		.OnGenerateRowContentWidget_Static(&FNiagaraEditorUtilities::HierarchyEditor::Scripts::GenerateRowContentForScriptParameterHierarchyEditor);
+		//.OnGenerateCustomDetailsPanelNameWidget_Static(&GenerateCustomDetailsPanelNameWidgetForSummaryViewEditor);
+	}
+	else
+	{
+		ContentWidget = SNew(SBox)
+		.HAlign(HAlign_Center)
+		.VAlign(VAlign_Center)
+		[
+			SNew(STextBlock).Text(LOCTEXT("ScratchPadHierarchyEditorInvalidSelection", "Please select a scratch pad."))
+		];		
+	}
+
+	return ContentWidget.ToSharedRef();
+}
+
+void FNiagaraSystemToolkitModeBase::UpdateScratchPadActiveScriptChanged(TSharedPtr<SDockTab> DockTab)
+{
+	if(SystemToolkit.Pin()->GetTabManager()->FindExistingLiveTab(ScratchPadHierarchyEditorTabID).IsValid() && ScratchPadHierarchyContainer.IsValid())
+	{
+		TSharedPtr<FNiagaraScratchPadScriptViewModel> ActiveScratchPadViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->GetActiveScratchPadViewModelIfSet();
+		if(LastActiveScratchPadViewModel != ActiveScratchPadViewModel)
+		{
+			ScratchPadHierarchyContainer->SetContent(CreateScratchPadHierarchyWidget());
+		}
+			
+		LastActiveScratchPadViewModel = ActiveScratchPadViewModel;
+	}
+}
+
+void FNiagaraSystemToolkitModeBase::OnScratchPadHierarchyEditorClosed(TSharedRef<SDockTab> DockTab)
+{
+	ScratchPadHierarchyContainer->SetContent(SNullWidget::NullWidget);
+}
+
+EVisibility FNiagaraSystemToolkitModeBase::GetSummonScratchPadHierarchyEditorButtonVisibility() const
+{
+	return SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->GetActiveScratchPadViewModelIfSet() != nullptr ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 TSharedRef<SDockTab> FNiagaraSystemToolkitModeBase::SpawnTab_SummaryViewEditor(const FSpawnTabArgs& Args)
@@ -1159,6 +1224,33 @@ TSharedRef<SDockTab> FNiagaraSystemToolkitModeBase::SpawnTab_SummaryViewEditor(c
 		];
 
 	SummaryViewContainer->SetContent(CreateSummaryViewWidget());
+	
+	return SpawnedTab;
+}
+
+TSharedRef<SDockTab> FNiagaraSystemToolkitModeBase::SpawnTab_ScratchPadHierarchyEditor(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId().TabType == ScratchPadHierarchyEditorTabID);
+
+	if(UpdateScratchPadScriptHierarchyHandle.IsValid())
+	{
+		SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->OnActiveDocumentChanged().Remove(UpdateScratchPadScriptHierarchyHandle);
+	}
+	
+	UpdateScratchPadScriptHierarchyHandle = SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->OnActiveDocumentChanged().AddSP(this, &FNiagaraSystemToolkitModeBase::UpdateScratchPadActiveScriptChanged);
+	
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.OnTabClosed(this, &FNiagaraSystemToolkitModeBase::OnScratchPadHierarchyEditorClosed)
+		.Label(LOCTEXT("ScratchPadHierarchyTitle", "Edit Hierarchy"))
+		[
+			SAssignNew(ScratchPadHierarchyContainer, SBox)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("ScratchPadHierarchy")))
+		];
+
+	TSharedPtr<FNiagaraScratchPadScriptViewModel> ActiveScratchPadViewModel = SystemToolkit.Pin()->GetSystemViewModel()->GetDocumentViewModel()->GetActiveScratchPadViewModelIfSet();
+	LastActiveScratchPadViewModel = ActiveScratchPadViewModel;
+	
+	ScratchPadHierarchyContainer->SetContent(CreateScratchPadHierarchyWidget());
 	
 	return SpawnedTab;
 }

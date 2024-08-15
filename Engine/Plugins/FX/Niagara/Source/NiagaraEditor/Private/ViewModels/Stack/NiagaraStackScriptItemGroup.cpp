@@ -543,6 +543,8 @@ void UNiagaraStackScriptItemGroup::Paste(const UNiagaraClipboardContent* Clipboa
 		GetUnfilteredChildrenOfType(ModuleItems);
 		int32 PasteIndex = ModuleItems.Num() > 0 ? ModuleItems.Last()->GetModuleIndex() + 1 : 0;
 		PasteModules(ClipboardContent, PasteIndex, OutPasteWarning);
+
+		OnCopyPasteDelegate.ExecuteIfBound();
 	}
 }
 

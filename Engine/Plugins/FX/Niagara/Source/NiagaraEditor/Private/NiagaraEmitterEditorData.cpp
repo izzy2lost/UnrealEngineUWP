@@ -159,16 +159,16 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 						if(MatchingScriptVariable != nullptr)
 						{
 							ScriptVariable = *MatchingScriptVariable;
-							OriginalCategoryName = FName(ScriptVariable->Metadata.CategoryName.ToString());
+							OriginalCategoryName = FName(ScriptVariable->Metadata.GetCategoryName_DEPRECATED().ToString());
 							ParentInputIdentity.Guids.Add(ScriptVariable->Metadata.GetVariableGuid());
 							AssetVariableMetadata.Add(ParentInputIdentity, ScriptVariable->Metadata);
 
 							// now that we found the matching parent input, we look for child inputs
 							for(UNiagaraScriptVariable* CandidateChildScriptVariable : ScriptVariables)
 							{
-								if(CandidateChildScriptVariable != nullptr && !CandidateChildScriptVariable->Metadata.ParentAttribute.IsNone())
+								if(CandidateChildScriptVariable != nullptr && !CandidateChildScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsNone())
 								{
-									if(CandidateChildScriptVariable->Metadata.ParentAttribute.IsEqual(ScriptVariable->Variable.GetName()))
+									if(CandidateChildScriptVariable->Metadata.GetParentAttribute_DEPRECATED().IsEqual(ScriptVariable->Variable.GetName()))
 									{
 										FNiagaraHierarchyIdentity ChildIdentity;
 										ChildIdentity.Guids.Add(FunctionCall->NodeGuid);
@@ -298,13 +298,13 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 			int32 SortOrderA = SummarySortOrder[&ItemA];
 			if(SortOrderA == INDEX_NONE)
 			{
-				SortOrderA = MetaDataA.EditorSortPriority;
+				SortOrderA = MetaDataA.GetEditorSortPriority_DEPRECATED();
 			}
 
 			int32 SortOrderB = SummarySortOrder[&ItemB];
 			if(SortOrderB == INDEX_NONE)
 			{
-				SortOrderB = MetaDataB.EditorSortPriority;
+				SortOrderB = MetaDataB.GetEditorSortPriority_DEPRECATED();
 			}
 				
 			return SortOrderA < SortOrderB;
@@ -333,7 +333,7 @@ void UNiagaraEmitterEditorData::PostLoad_TransferSummaryDataToNewFormat()
 				{
 					if(AssetVariableMetadata.Contains(MinimumItem->GetPersistentIdentity()))
 					{
-						MinimumCategorySortOrder = AssetVariableMetadata[MinimumItem->GetPersistentIdentity()].EditorSortPriority;
+						MinimumCategorySortOrder = AssetVariableMetadata[MinimumItem->GetPersistentIdentity()].GetEditorSortPriority_DEPRECATED();
 					}
 				}
 				

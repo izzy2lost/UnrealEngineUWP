@@ -27,6 +27,7 @@ class UNiagaraDataInterface;
 class FNiagaraCompileRequestDataBase;
 class FNiagaraCompileRequestDuplicateDataBase;
 class UNiagaraConvertInPlaceUtilityBase;
+class UNiagaraHierarchyRoot;
 
 #define NIAGARA_INVALID_MEMORY (0xBA)
 
@@ -793,9 +794,6 @@ public:
 
 	UPROPERTY(EditAnywhere, Category = Script, DisplayName = "Script Metadata", meta = (ToolTip = "Script Metadata"))
 	TMap<FName, FString> ScriptMetaData;
-	
-	UPROPERTY(EditAnywhere, Category = Script)
-	TArray<FNiagaraStackSection> InputSections;
 
 	/** Adjusted every time ComputeVMCompilationId is called.*/
 	UPROPERTY()
@@ -817,7 +815,11 @@ public:
 	UPROPERTY()
 	TArray<FParameterDefinitionsSubscription> ParameterDefinitionsSubscriptions;
 	NIAGARA_API TArray<ENiagaraScriptUsage> GetSupportedUsageContexts() const;
+	
+	NIAGARA_API class UNiagaraScriptSourceBase* GetSource() { return Source; }
 
+	UPROPERTY()
+	TArray<FNiagaraStackSection> InputSections_DEPRECATED;
 private:
 	friend class UNiagaraScript;
 
@@ -1126,6 +1128,8 @@ public:
 	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	virtual void Serialize(FArchive& Ar)override;
 	virtual void PostLoad() override;
+	
+
 #if WITH_EDITOR
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 	virtual void PostEditChangeVersionedProperty(FPropertyChangedEvent& PropertyChangedEvent, const FGuid& Version);

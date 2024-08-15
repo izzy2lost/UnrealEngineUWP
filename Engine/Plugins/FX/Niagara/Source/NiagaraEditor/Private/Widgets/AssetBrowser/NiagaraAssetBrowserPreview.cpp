@@ -5,6 +5,7 @@
 #include "CanvasItem.h"
 #include "CanvasTypes.h"
 #include "NiagaraCommon.h"
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraSystemEditorData.h"
 #include "NiagaraSystemFactoryNew.h"
 #include "NiagaraSystemInstanceController.h"

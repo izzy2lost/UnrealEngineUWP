@@ -77,6 +77,12 @@ void FNiagaraScratchPadScriptViewModel::Initialize(UNiagaraScript* Script, UNiag
 		FSimpleDelegate::CreateSP(GetVariableSelection(), &FNiagaraObjectSelection::Refresh)
 	);
 	ParameterPaneViewModel->Init(UIContext);
+
+	ScriptHierarchyViewModel = NewObject<UNiagaraHierarchyScriptParametersViewModel>();
+	ScriptHierarchyViewModel->Initialize(AsShared());
+
+	ScriptHierarchyViewModel->OnHierarchyChanged().AddSP(this, &FNiagaraScratchPadScriptViewModel::OnHierarchyChanged);
+	ScriptHierarchyViewModel->OnHierarchyPropertiesChanged().AddSP(this, &FNiagaraScratchPadScriptViewModel::OnHierarchyPropertiesChanged);
 }
 
 bool FNiagaraScratchPadScriptViewModel::IsValid() const
@@ -97,11 +103,18 @@ void FNiagaraScratchPadScriptViewModel::Finalize()
 		ParameterPaneViewModel->GetOnExternalSelectionChangedDelegate().Remove(ExternalSelectionChangedDelegate);
 		ParameterPaneViewModel.Reset();
 	}
+
+	if(ScriptHierarchyViewModel != nullptr)
+	{
+		ScriptHierarchyViewModel->Finalize();
+		ScriptHierarchyViewModel = nullptr;
+	}
 }
 
 void FNiagaraScratchPadScriptViewModel::AddReferencedObjects(FReferenceCollector& Collector)
 {
 	Collector.AddReferencedObject(EditScript.Script);
+	Collector.AddReferencedObject(ScriptHierarchyViewModel);
 }
 
 UNiagaraScript* FNiagaraScratchPadScriptViewModel::GetOriginalScript() const
@@ -122,6 +135,11 @@ TArray<UNiagaraGraph*> FNiagaraScratchPadScriptViewModel::GetEditableGraphs()
 		EditableGraphs.Add(Graph);
 	}
 	return EditableGraphs;
+}
+
+UNiagaraHierarchyScriptParametersViewModel* FNiagaraScratchPadScriptViewModel::GetHierarchyViewModel()
+{
+	return ScriptHierarchyViewModel;
 }
 
 TSharedPtr<INiagaraParameterPanelViewModel> FNiagaraScratchPadScriptViewModel::GetParameterPanelViewModel() const
@@ -271,6 +289,24 @@ FNiagaraScratchPadScriptViewModel::FOnChangesApplied& FNiagaraScratchPadScriptVi
 FSimpleDelegate& FNiagaraScratchPadScriptViewModel::OnRequestDiscardChanges()
 {
 	return OnRequestDiscardChangesDelegate;
+}
+
+void FNiagaraScratchPadScriptViewModel::OnHierarchyChanged()
+{
+	if (bHasPendingChanges == false)
+	{
+		bHasPendingChanges = true;
+		OnHasUnappliedChangesChangedDelegate.Broadcast();
+	}
+}
+
+void FNiagaraScratchPadScriptViewModel::OnHierarchyPropertiesChanged()
+{
+	if (bHasPendingChanges == false)
+	{
+		bHasPendingChanges = true;
+		OnHasUnappliedChangesChangedDelegate.Broadcast();
+	}
 }
 
 FText FNiagaraScratchPadScriptViewModel::GetDisplayNameInternal() const

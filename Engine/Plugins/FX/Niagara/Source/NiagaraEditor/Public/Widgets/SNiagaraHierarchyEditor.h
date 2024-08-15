@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "SDropTarget.h"
 #include "IDetailsView.h"
+#include "NiagaraEditorStyle.h"
 #include "Widgets/Views/STreeView.h"
 #include "Widgets/Views/STableRow.h"
 #include "Widgets/Text/SInlineEditableTextBlock.h"
@@ -12,6 +14,8 @@
 #include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
 #include "Widgets/Input/SSearchBox.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Misc/NotifyHook.h"
+#include "UObject/GCObject.h"
 
 class UNiagaraHierarchyViewModelBase;
 class UNiagaraHierarchySection;
@@ -77,22 +81,26 @@ private:
 	mutable bool bDraggedOn = false;
 };
 
-class SNiagaraHierarchy : public SCompoundWidget, public FGCObject, public FNotifyHook
+class SNiagaraHierarchyEditor : public SCompoundWidget, public FGCObject, public FNotifyHook
 {
 	DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FOnGenerateRowContentWidget, TSharedRef<FNiagaraHierarchyItemViewModelBase> HierarchyItem);
 	DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FOnGenerateCustomDetailsPanelNameWidget, TSharedPtr<FNiagaraHierarchyItemViewModelBase> HierarchyItem);
 
-	SLATE_BEGIN_ARGS(SNiagaraHierarchy)
+	SLATE_BEGIN_ARGS(SNiagaraHierarchyEditor)
 		: _bReadOnly(true)
+		, _ItemRowStyle(&FAppStyle::Get().GetWidgetStyle<FTableRowStyle>("TableView.Row"))
+		, _CategoryRowStyle(&FNiagaraEditorStyle::Get().GetWidgetStyle<FTableRowStyle>("NiagaraEditor.HierarchyEditor.Row.Category"))
 	{}
 		SLATE_ARGUMENT(bool, bReadOnly)
 		SLATE_EVENT(FOnGenerateRowContentWidget, OnGenerateRowContentWidget)
 		SLATE_EVENT(FOnGenerateCustomDetailsPanelNameWidget, OnGenerateCustomDetailsPanelNameWidget)
+		SLATE_STYLE_ARGUMENT(FTableRowStyle, ItemRowStyle)
+		SLATE_STYLE_ARGUMENT(FTableRowStyle, CategoryRowStyle)
 	SLATE_END_ARGS()
 
 public:
 	void Construct(const FArguments& InArgs, TObjectPtr<UNiagaraHierarchyViewModelBase> InHierarchyViewModel);
-	virtual ~SNiagaraHierarchy() override;
+	virtual ~SNiagaraHierarchyEditor() override;
 
 	void RefreshSourceItems();
 	void RefreshAllViews(bool bFullRefresh = false);
@@ -205,6 +213,9 @@ private:
 	TArray<FSearchItem> SourceSearchResults;
 	TOptional<FSearchItem> FocusedSearchResult;
 
+	const FTableRowStyle* CategoryRowStyle = nullptr;
+	const FTableRowStyle* ItemRowStyle = nullptr;
+	
 	mutable TWeakPtr<FNiagaraHierarchyItemViewModelBase> SelectedDetailsPanelItemViewModel;
 
 private:

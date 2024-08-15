@@ -179,6 +179,11 @@ void UNiagaraStackEditorData::SetStackEntryActiveSection(const FString& StackEnt
 	}
 }
 
+void UNiagaraStackEditorData::ClearStackEntryActiveSection(const FString& StackEntryKey)
+{
+	StackEntryKeyToActiveSectionMap.Remove(StackEntryKey);
+}
+
 const FText* UNiagaraStackEditorData::GetStackEntryDisplayName(const FString& StackEntryKey) const
 {
 	return StackEntryKeyToDisplayName.Find(StackEntryKey);

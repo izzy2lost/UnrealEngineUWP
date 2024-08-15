@@ -32,7 +32,7 @@
 #include "ViewModels/NiagaraScratchPadViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "ViewModels/Stack/NiagaraStackModuleItemLinkedInputCollection.h"
 #include "ViewModels/Stack/NiagaraStackModuleItemOutputCollection.h"
@@ -59,7 +59,6 @@ TArray<ENiagaraScriptUsage> UsagePriority = { // Ordered such as the highest pri
 UNiagaraStackModuleItem::UNiagaraStackModuleItem()
 	: FunctionCallNode(nullptr)
 	, bCanRefresh(false)
-	, InputCollection(nullptr)
 	, bIsModuleScriptReassignmentPending(false)
 {
 }
@@ -153,17 +152,15 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 			bCanRefresh = true;
 		}
 		
-		if (InputCollection == nullptr)
+		if(InputRoot == nullptr)
 		{
-			TArray<FString> InputParameterHandlePath;
-			InputCollection = NewObject<UNiagaraStackFunctionInputCollection>(this);
-			InputCollection->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode, *FunctionCallNode, GetStackEditorDataKey());
+			InputRoot = NewObject<UNiagaraStackScriptHierarchyRoot>(this);
+			InputRoot->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode, *FunctionCallNode, GetStackEditorDataKey());
 		}
 
 		// NiagaraNodeAssignments should not display OutputCollection and LinkedInputCollection as they effectively handle this through their InputCollection 
 		if (!FunctionCallNode->IsA<UNiagaraNodeAssignment>())
 		{
-
 			if (LinkedInputCollection == nullptr)
 			{
 				LinkedInputCollection = NewObject<UNiagaraStackModuleItemLinkedInputCollection>(this);
@@ -177,20 +174,17 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 				OutputCollection->Initialize(CreateDefaultChildRequiredData(), *FunctionCallNode);
 				OutputCollection->AddChildFilter(FOnFilterChild::CreateUObject(this, &UNiagaraStackModuleItem::FilterOutputCollectionChild));
 			}
-
-			InputCollection->SetShouldDisplayLabel(GetStackEditorData().GetShowOutputs() || GetStackEditorData().GetShowLinkedInputs());
-
-			NewChildren.Add(InputCollection);
+			
+			InputRoot->SetShouldDisplayLabel(GetStackEditorData().GetShowOutputs() || GetStackEditorData().GetShowLinkedInputs());
+			NewChildren.Add(InputRoot);
+			
 			NewChildren.Add(LinkedInputCollection);
 			NewChildren.Add(OutputCollection);
 		
 		}
 		else
 		{
-			// We do not show the expander arrow for InputCollections of NiagaraNodeAssignments as they only have this one collection
-			InputCollection->SetShouldDisplayLabel(false);
-
-			NewChildren.Add(InputCollection);
+			NewChildren.Add(InputRoot);
 
 			UNiagaraNodeAssignment* AssignmentNode = CastChecked<UNiagaraNodeAssignment>(FunctionCallNode);
 			if (AssignmentNode->GetAssignmentTargets().Num() == 0)
@@ -253,13 +247,6 @@ const UNiagaraStackModuleItem::FCollectedUsageData& UNiagaraStackModuleItem::Get
 		}
 
 
-		if (InputCollection)
-		{
-			if (InputCollection->GetCollectedUsageData().bHasReferencedParameterRead)
-				CachedCollectedUsageData.GetValue().bHasReferencedParameterRead = true;
-			if (InputCollection->GetCollectedUsageData().bHasReferencedParameterWrite)
-				CachedCollectedUsageData.GetValue().bHasReferencedParameterWrite = true;
-		}
 
 		if (OutputCollection)
 		{
@@ -1435,7 +1422,7 @@ void UNiagaraStackModuleItem::ReassignModuleScript(UNiagaraScript* ModuleScript)
 			if (ConversionUtility )
 			{
 				FText ConvertMessage;
-				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, ModuleScript, InputCollection, NewClipboardContent, FunctionCallNode, ConvertMessage);
+				bool bConverted = ConversionUtility->Convert(OldScript, OldClipboardContent, ModuleScript, InputRoot, NewClipboardContent, FunctionCallNode, ConvertMessage);
 				if (!ConvertMessage.IsEmptyOrWhitespace())
 				{
 					// Notify the end-user about the convert message, but continue the process as they could always undo.
@@ -1535,17 +1522,17 @@ void UNiagaraStackModuleItem::ChangeScriptVersion(FGuid NewScriptVersion)
 
 void UNiagaraStackModuleItem::SetInputValuesFromClipboardFunctionInputs(const TArray<const UNiagaraClipboardFunctionInput*>& ClipboardFunctionInputs)
 {
-	InputCollection->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInputs);
+	InputRoot->SetValuesFromClipboardFunctionInputs(ClipboardFunctionInputs);
 }
 
 void UNiagaraStackModuleItem::GetParameterInputs(TArray<UNiagaraStackFunctionInput*>& OutResult) const
 {
-	return InputCollection->GetChildInputs(OutResult);
+	InputRoot->GetChildInputs(OutResult);
 }
 
 TArray<UNiagaraStackFunctionInput*> UNiagaraStackModuleItem::GetInlineParameterInputs() const
 {
-	return InputCollection->GetInlineParameterInputs();
+	return InputRoot->GetInlineParameters();
 }
 
 bool UNiagaraStackModuleItem::TestCanCutWithMessage(FText& OutMessage) const
@@ -1613,8 +1600,10 @@ void UNiagaraStackModuleItem::Copy(UNiagaraClipboardContent* ClipboardContent) c
 
 	ClipboardFunction->DisplayName = GetAlternateDisplayName().Get(FText::GetEmpty());
 
-	InputCollection->ToClipboardFunctionInputs(ClipboardFunction, MutableView(ClipboardFunction->Inputs));
+	InputRoot->ToClipboardFunctionInputs(ClipboardFunction, MutableView(ClipboardFunction->Inputs));
 	ClipboardContent->Functions.Add(ClipboardFunction);
+
+	OnCopyPasteDelegate.ExecuteIfBound();
 }
 
 bool UNiagaraStackModuleItem::TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const

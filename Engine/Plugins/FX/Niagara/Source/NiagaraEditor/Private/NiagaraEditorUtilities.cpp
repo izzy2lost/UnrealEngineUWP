@@ -79,6 +79,8 @@
 #include "ViewModels/NiagaraEmitterHandleViewModel.h"
 #include "ViewModels/NiagaraEmitterViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
+#include "Widgets/SNiagaraHierarchyEditor.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 #include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "FNiagaraEditorUtilities"
@@ -4636,6 +4638,34 @@ UNiagaraDataInterface* FNiagaraEditorUtilities::GetResolvedRuntimeInstanceForEdi
 
 	}
 	return nullptr;
+}
+
+TSharedRef<SWidget> FNiagaraEditorUtilities::HierarchyEditor::Scripts::GenerateRowContentForScriptParameterHierarchyEditor(TSharedRef<FNiagaraHierarchyItemViewModelBase> HierarchyItem)
+{
+	if(HierarchyItem->GetDataMutable()->IsA<UNiagaraHierarchyCategory>())
+	{
+		TSharedRef<FNiagaraHierarchyCategoryViewModel> TreeViewCategory = StaticCastSharedRef<FNiagaraHierarchyCategoryViewModel>(HierarchyItem);
+		return SNew(SNiagaraHierarchyCategory, TreeViewCategory);
+	}
+	else if(const UNiagaraHierarchyScriptParameter* ScriptParameter = Cast<UNiagaraHierarchyScriptParameter>(HierarchyItem->GetData()))
+	{
+		FNiagaraParameterUtilities::FNiagaraParameterWidgetOptions WidgetOptions;
+		WidgetOptions.bAddTypeIcon = true;
+		WidgetOptions.bShowEditConditionIcon = true;
+		WidgetOptions.bShowVisibilityConditionIcon = true;
+		WidgetOptions.bShowAdvanced = true;
+		TSharedRef<SWidget> ParameterWidget = FNiagaraParameterUtilities::GetParameterWidget(ScriptParameter->GetVariable(), ScriptParameter->GetScriptVariable()->Metadata, WidgetOptions);
+		const UNiagaraScriptVariable* ScriptVariable = ScriptParameter->GetScriptVariable();
+
+		ParameterWidget->SetToolTipText(TAttribute<FText>::CreateLambda([ScriptVariable]()
+		{
+			return ScriptVariable->Metadata.Description;
+		}));
+		
+		return ParameterWidget;
+	}
+
+	return SNullWidget::NullWidget;
 }
 
 TSharedRef<SToolTip> FNiagaraEditorUtilities::Tooltips::CreateStackNoteTooltip(UNiagaraStackNote& StackNote)

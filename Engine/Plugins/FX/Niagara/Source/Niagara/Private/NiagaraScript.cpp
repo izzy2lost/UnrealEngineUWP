@@ -2341,14 +2341,16 @@ void UNiagaraScript::PostLoad()
 			UsageBitmask |= (1 << SimulationStageIndex);
 		}
 	}
-
+	
 	VersionedScriptAdapters.Reserve(VersionData.Num());
 	for (FVersionedNiagaraScriptData& Data : VersionData)
-	{
+	{		
 		UNiagaraScriptSourceBase* Source = Data.Source;
 		if (Source != nullptr)
 		{
 			Source->ConditionalPostLoad();
+
+			Source->PostLoadFromOwner(Data);
 
 			// Synchronize with Definitions after source scripts have been postloaded.
 			FVersionedNiagaraScript& VersionedScriptAdapter = VersionedScriptAdapters.Emplace_GetRef(this, Data.Version.VersionGuid);
@@ -2404,17 +2406,6 @@ void UNiagaraScript::PostLoad()
 			if (NiagaraVer < FNiagaraCustomVersion::AddLibraryAssetProperty || (NiagaraVer < FNiagaraCustomVersion::AddLibraryVisibilityProperty && bExposeToLibrary_DEPRECATED))
 			{
 				ScriptData->LibraryVisibility = ENiagaraScriptLibraryVisibility::Library;
-			}
-		}
-
-		if (Data.InputSections.Num() > 0)
-		{
-			for (FNiagaraStackSection& InputSection : Data.InputSections)
-			{
-				if (InputSection.SectionIdentifier == NAME_None)
-				{
-					InputSection.SectionIdentifier = *InputSection.SectionDisplayName.ToString();
-				}
 			}
 		}
 	}

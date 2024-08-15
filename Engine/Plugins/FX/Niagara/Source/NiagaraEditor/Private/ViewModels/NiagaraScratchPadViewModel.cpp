@@ -602,7 +602,6 @@ void UNiagaraScratchPadViewModel::OpenEditorForActive()
 	}
 }
 
-
 bool UNiagaraScratchPadViewModel::CanSelectNextUsageForActiveScript()
 {
 	if (ActiveScriptViewModel.IsValid())

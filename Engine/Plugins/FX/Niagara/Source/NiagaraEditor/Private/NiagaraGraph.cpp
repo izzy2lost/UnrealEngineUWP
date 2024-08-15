@@ -37,6 +37,7 @@
 #include "Modules/ModuleManager.h"
 #include "String/ParseTokens.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(NiagaraGraph)
 
@@ -205,16 +206,6 @@ bool FNiagaraGraphScriptUsageInfo::IsValid() const
 	}
 
 	return true;
-}
-
-UNiagaraGraph::UNiagaraGraph(const FObjectInitializer& ObjectInitializer)
-	: Super(ObjectInitializer)
-	, bNeedNumericCacheRebuilt(true)
-	, bIsRenamingParameter(false)
-	, bParameterReferenceRefreshPending(true)
-{
-	Schema = UEdGraphSchema_Niagara::StaticClass();
-	ChangeId = FGuid::NewGuid();
 }
 
 FDelegateHandle UNiagaraGraph::AddOnGraphNeedsRecompileHandler(const FOnGraphChanged::FDelegate& InHandler)
@@ -439,6 +430,17 @@ void UNiagaraGraph::PostLoad_ManageScriptVariables(int32 NiagaraVersion)
 			CreateScriptVariableInternal(Variable, FNiagaraVariableMetaData(), false);
 		}
 	}
+}
+
+UNiagaraGraph::UNiagaraGraph()
+	: bNeedNumericCacheRebuilt(true)
+	, bIsRenamingParameter(false)
+	, bParameterReferenceRefreshPending(true)
+{
+	Schema = UEdGraphSchema_Niagara::StaticClass();
+	ChangeId = FGuid::NewGuid();
+	
+	ParameterHierarchyRoot = CreateDefaultSubobject<UNiagaraHierarchyRoot>("ParameterHierarchyRoot");
 }
 
 void UNiagaraGraph::PostLoad()
@@ -1006,6 +1008,7 @@ void UNiagaraGraph::ChangeParameterType(const TArray<FNiagaraVariable>& Paramete
 	}
 	
 	InvalidateCachedParameterData();
+	OnParametersChangedDelegate.Broadcast(TOptional<FParametersChangedData>());
 }
 
 void UNiagaraGraph::ReplaceScriptReferences(UNiagaraScript* OldScript, UNiagaraScript* NewScript)
@@ -1025,6 +1028,11 @@ void UNiagaraGraph::ReplaceScriptReferences(UNiagaraScript* OldScript, UNiagaraS
 	{
 		MarkGraphRequiresSynchronization(TEXT("Script references updated"));
 	}
+}
+
+UNiagaraGraph::FOnParametersChanged& UNiagaraGraph::OnParametersChanged()
+{
+	return OnParametersChangedDelegate;
 }
 
 TArray<UEdGraphPin*> UNiagaraGraph::FindParameterMapDefaultValuePins(const FName VariableName) const
@@ -2221,6 +2229,21 @@ void UNiagaraGraph::GetParameters(TArray<FNiagaraVariable>& Inputs, TArray<FNiag
 // 	Outputs.Sort(SortVars);
 }
 
+void UNiagaraGraph::GetAllInputScriptVariables(TArray<UNiagaraScriptVariable*>& OutScriptVariables) const
+{
+	TArray<UNiagaraScriptVariable*> AllInputScriptVariables;
+
+	for(const auto& VariablePair : GetAllMetaData())
+	{
+		if(VariablePair.Key.IsInNameSpace(FNiagaraConstants::ModuleNamespace) || VariablePair.Value->GetIsStaticSwitch())
+		{
+			AllInputScriptVariables.Add(VariablePair.Value);
+		}
+	}
+
+	OutScriptVariables.Append(AllInputScriptVariables);
+}
+
 const UNiagaraGraph::FScriptVariableMap& UNiagaraGraph::GetAllMetaData() const
 {
 	check(!bIsForCompilationOnly);
@@ -2292,7 +2315,7 @@ UNiagaraScriptVariable* UNiagaraGraph::GetScriptVariable(FGuid VariableGuid) con
 	return nullptr;
 }
 
-TArray<UNiagaraScriptVariable*> UNiagaraGraph::GetChildScriptVariablesForInput(FGuid VariableGuid) const
+TArray<UNiagaraScriptVariable*> UNiagaraGraph::GetChildScriptVariablesForInput_Deprecated(FGuid VariableGuid) const
 {
 	check(!bIsForCompilationOnly);
 
@@ -2311,7 +2334,7 @@ TArray<UNiagaraScriptVariable*> UNiagaraGraph::GetChildScriptVariablesForInput(F
 	{
 		for (auto& VariableToScriptVariableItem : VariableToScriptVariable)
 		{
-			if(VariableToScriptVariableItem.Value->Metadata.ParentAttribute == FoundVariable->GetName())
+			if(VariableToScriptVariableItem.Value->Metadata.GetParentAttribute_DEPRECATED() == FoundVariable->GetName())
 			{
 				ChildrenVariables.Add(VariableToScriptVariableItem.Value);
 			}
@@ -2320,7 +2343,7 @@ TArray<UNiagaraScriptVariable*> UNiagaraGraph::GetChildScriptVariablesForInput(F
 
 	ChildrenVariables.Sort([&](const UNiagaraScriptVariable& VariableA, const UNiagaraScriptVariable& VariableB)
 	{
-		return VariableA.Metadata.EditorSortPriority < VariableB.Metadata.EditorSortPriority;
+		return VariableA.Metadata.GetEditorSortPriority_DEPRECATED() < VariableB.Metadata.GetEditorSortPriority_DEPRECATED();
 	});
 	
 	return ChildrenVariables;
@@ -2331,7 +2354,7 @@ TArray<FGuid> UNiagaraGraph::GetChildScriptVariableGuidsForInput(FGuid VariableG
 	check(!bIsForCompilationOnly);
 
 	TArray<FGuid> ChildrenVariableGuids;
-	TMap<FGuid, int32> SortOrderMap;
+	
 	TOptional<FNiagaraVariable> FoundVariable;
 	for (auto& VariableToScriptVariableItem : VariableToScriptVariable)
 	{
@@ -2342,21 +2365,35 @@ TArray<FGuid> UNiagaraGraph::GetChildScriptVariableGuidsForInput(FGuid VariableG
 	}
 
 	if(FoundVariable.IsSet())
-	{
-		for (auto& VariableToScriptVariableItem : VariableToScriptVariable)
+	{	
+		TArray<FNiagaraVariable> Variables;
+		GetAllVariables(Variables);
+	
+		for(FNiagaraVariable& Variable : Variables)
 		{
-			if(VariableToScriptVariableItem.Value->Metadata.ParentAttribute == FoundVariable->GetName())
+			TOptional<FNiagaraVariableMetaData> MetaData = GetMetaData(Variable);
+
+			if(MetaData.IsSet())
 			{
-				ChildrenVariableGuids.Add(VariableToScriptVariableItem.Value->Metadata.GetVariableGuid());
-				SortOrderMap.Add(VariableToScriptVariableItem.Value->Metadata.GetVariableGuid(), VariableToScriptVariableItem.Value->Metadata.EditorSortPriority);
+				FNiagaraHierarchyIdentity Identity({MetaData.GetValue().GetVariableGuid()}, {});
+				if(UNiagaraHierarchyItemBase* FoundHierarchyParameter = ParameterHierarchyRoot->FindChildWithIdentity(Identity, true))
+				{
+					TArray<UNiagaraHierarchyScriptParameter*> ChildrenScriptParameters;
+					FoundHierarchyParameter->GetChildrenOfType(ChildrenScriptParameters, false);
+
+					for(UNiagaraHierarchyScriptParameter* ChildrenScriptParameter : ChildrenScriptParameters)
+					{
+						ChildrenVariableGuids.Add(ChildrenScriptParameter->GetScriptVariable()->Metadata.GetVariableGuid());
+					}
+				}
+			
+			}
+			else
+			{
+				UE_LOG(LogNiagaraEditor, Log, TEXT("Couldn't find metadata for variable"));
 			}
 		}
 	}
-
-	ChildrenVariableGuids.Sort([&](const FGuid& GuidA, const FGuid& GuidB)
-	{
-		return SortOrderMap[GuidA] < SortOrderMap[GuidB];
-	});
 	
 	return ChildrenVariableGuids;
 }
@@ -2419,6 +2456,7 @@ UNiagaraScriptVariable* UNiagaraGraph::AddParameter(const UNiagaraScriptVariable
 		}
  		ParameterToReferencesMap.Emplace(NewScriptVariable->Variable, {true /*bInCreated*/});
 		VariableToScriptVariable.Add(NewScriptVariable->Variable, NewScriptVariable);
+		OnParametersChangedDelegate.Broadcast(FParametersChangedData{NewScriptVariable});
 		NotifyGraphChanged();
 		return NewScriptVariable;
 	}
@@ -2445,6 +2483,7 @@ UNiagaraScriptVariable* UNiagaraGraph::CreateScriptVariableInternal(const FNiaga
 	}
 
 	VariableToScriptVariable.Add(Parameter, NewScriptVariable);
+	OnParametersChangedDelegate.Broadcast(FParametersChangedData{NewScriptVariable});
 
 	return NewScriptVariable;
 }
@@ -2529,6 +2568,7 @@ void UNiagaraGraph::RemoveParameter(const FNiagaraVariable& Parameter, bool bAll
 	for (FNiagaraVariable& Var : VarsToRemove)
 	{
 		VariableToScriptVariable.Remove(Var);
+		OnParametersChangedDelegate.Broadcast(TOptional<FParametersChangedData>());
 	}
 }
 
@@ -2802,6 +2842,8 @@ bool UNiagaraGraph::RenameParameter(const FNiagaraVariable& Parameter, FName New
 	{
 		*bOutMerged = bParameterMerged;
 	}
+
+	OnParametersChangedDelegate.Broadcast(TOptional<FParametersChangedData>());
 
 	return true;
 }

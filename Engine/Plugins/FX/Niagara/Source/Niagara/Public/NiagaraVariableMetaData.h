@@ -222,17 +222,14 @@ struct FNiagaraVariableMetaData
 		, bOverrideColor(false)
 		, InlineParameterColorOverride(FLinearColor(ForceInit))
 		, bEnableBoolOverride(false)
-		, EditorSortPriority(0)
 		, bInlineEditConditionToggle(false)
 		, bIsStaticSwitch_DEPRECATED(false)
 		, StaticSwitchDefaultValue_DEPRECATED(0)
+		, EditorSortPriority_DEPRECATED(0)
 	{};
 
 	UPROPERTY(EditAnywhere, Category = "Variable", DisplayName="Tooltip", meta = (MultiLine = true, SkipForCompileHash = "true"))
 	FText Description;
-
-	UPROPERTY(EditAnywhere, Category = "Variable", meta = (SkipForCompileHash = "true"))
-	FText CategoryName;
 	
 	/** The unit to display next to input fields for this parameter - note that this is only a visual indicator and does not change any of the calculations. */
 	UPROPERTY(EditAnywhere, Category = "Variable", meta = (SkipForCompileHash = "true"))
@@ -263,9 +260,6 @@ struct FNiagaraVariableMetaData
 	
 	UPROPERTY(EditAnywhere, Category = "Variable", meta = (EditCondition="bEnableBoolOverride", ToolTip = "Useful to override inline bool visualization in the overview.", SkipForCompileHash = "true"))
 	FNiagaraBoolParameterMetaData InlineParameterBoolOverride;
-	
-	UPROPERTY(EditAnywhere, Category = "Variable", meta = (ToolTip = "Affects the sort order in the editor stacks. Use a smaller number to push it to the top. Defaults to zero.", SkipForCompileHash = "true"))
-	int32 EditorSortPriority;
 
 	/** Declares the associated input is used as an inline edit condition toggle, so it should be hidden and edited as a 
 	checkbox inline with the input which was designated as its edit condition. */
@@ -283,9 +277,6 @@ struct FNiagaraVariableMetaData
 	UPROPERTY(EditAnywhere, Category = "Variable", DisplayName = "Property Metadata", meta = (ToolTip = "Property Metadata", SkipForCompileHash = "true"))
 	TMap<FName, FString> PropertyMetaData;
 
-	UPROPERTY(EditAnywhere, Category = "Variable", meta = (ToolTip = "If set, this attribute is visually displayed as a child under the given parent attribute. Currently, only static switches are supported as parent attributes!", SkipForCompileHash = "true"))
-	FName ParentAttribute;
-
 	UPROPERTY(EditAnywhere, Category = "Variable", DisplayName = "Alternate Aliases For Variable", AdvancedDisplay, meta = (ToolTip = "List of alternate/previous names for this variable. Note that this is not normally needed if you rename through the UX. However, if you delete and then add a different variable, intending for it to match, you will likely want to add the prior name here.\n\nYou may need to restart and reload assets after making this change to have it take effect on already loaded assets."))
 	TArray<FName> AlternateAliases;
 
@@ -297,6 +288,12 @@ struct FNiagaraVariableMetaData
 
 	int32 GetStaticSwitchDefaultValue_DEPRECATED() const { return StaticSwitchDefaultValue_DEPRECATED; };
 
+	int32 GetEditorSortPriority_DEPRECATED() const { return EditorSortPriority_DEPRECATED; }
+	
+	FText GetCategoryName_DEPRECATED() const { return CategoryName_DEPRECATED; }
+
+	FName GetParentAttribute_DEPRECATED() const { return ParentAttribute_DEPRECATED; }
+	
 	/** Copies all the properties that are marked as editable for the user (e.g. EditAnywhere). */
 	NIAGARA_API void CopyUserEditableMetaData(const FNiagaraVariableMetaData& OtherMetaData);
 
@@ -322,4 +319,13 @@ private:
 	 */
 	UPROPERTY()
 	int32 StaticSwitchDefaultValue_DEPRECATED;  // TODO: This should be moved to the UNiagaraScriptVariable in the future
+
+	UPROPERTY()
+	FText CategoryName_DEPRECATED;
+
+	UPROPERTY()
+	FName ParentAttribute_DEPRECATED;
+
+	UPROPERTY()
+	int32 EditorSortPriority_DEPRECATED;
 };

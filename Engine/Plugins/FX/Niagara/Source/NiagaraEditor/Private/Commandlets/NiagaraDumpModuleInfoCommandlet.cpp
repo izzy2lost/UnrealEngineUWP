@@ -295,7 +295,6 @@ void UNiagaraDumpModuleInfoCommandlet::ProcessNiagaraScripts()
 						OutputStream->Logf(TEXT("\t\t<Type>%s</Type>"), *ScriptVar->Variable.GetType().GetName());
 						OutputStream->Logf(TEXT("\t<Guid>%s</Guid>"), *ScriptVar->Metadata.GetVariableGuid().ToString());
 						OutputStream->Logf(TEXT("\t\t<Description>%s</Description>"), *ScriptVar->Metadata.Description.ToString());
-						OutputStream->Logf(TEXT("\t\t<Category>%s</Category>"), *ScriptVar->Metadata.CategoryName.ToString());
 
 						OutputStream->Logf(TEXT("\t\t<Advanced>%s</Advanced>"), ScriptVar->Metadata.bAdvancedDisplay ? TEXT("true") : TEXT("false"));
 						OutputStream->Logf(TEXT("\t\t<DisplayInOverviewStack>%s</DisplayInOverviewStack>"), ScriptVar->Metadata.bDisplayInOverviewStack ? TEXT("true") : TEXT("false"));

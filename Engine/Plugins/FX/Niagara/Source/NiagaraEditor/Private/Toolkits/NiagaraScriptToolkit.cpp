@@ -40,11 +40,15 @@
 #include "ViewModels/NiagaraParameterDefinitionsPanelViewModel.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
 #include "ViewModels/NiagaraScriptViewModel.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
+#include "Widgets/SNiagaraHierarchyEditor.h"
 #include "Widgets/Docking/SDockTab.h"
 #include "Widgets/SNiagaraParameterDefinitionsPanel.h"
 #include "Widgets/SNiagaraParameterPanel.h"
 #include "Widgets/SNiagaraScriptGraph.h"
+#include "Widgets/SNiagaraScriptInputPreviewPanel.h"
 #include "Widgets/SNiagaraSelectedObjectsDetails.h"
+#include "WIdgets/Input/SButton.h"
 #include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraScriptToolkit"
@@ -55,7 +59,8 @@ const FName FNiagaraScriptToolkit::NodeGraphTabId(TEXT("NiagaraEditor_NodeGraph"
 const FName FNiagaraScriptToolkit::ScriptDetailsTabId(TEXT("NiagaraEditor_ScriptDetails"));
 const FName FNiagaraScriptToolkit::SelectedDetailsTabId(TEXT("NiagaraEditor_SelectedDetails"));
 const FName FNiagaraScriptToolkit::ParametersTabId(TEXT("NiagaraEditor_Parameters"));
-const FName FNiagaraScriptToolkit::ParametersTabId2(TEXT("NiagaraEditor_Paramters2"));
+const FName FNiagaraScriptToolkit::InputPreviewTabId(TEXT("NiagaraEditor_InputPreview"));
+const FName FNiagaraScriptToolkit::HierarchyEditor_ParametersTabId(TEXT("NiagaraEditor_HierarchyEditor_Parameters"));
 const FName FNiagaraScriptToolkit::ParameterDefinitionsTabId(TEXT("NiagaraEditor_ParameterDefinitions"));
 const FName FNiagaraScriptToolkit::StatsTabId(TEXT("NiagaraEditor_Stats"));
 const FName FNiagaraScriptToolkit::MessageLogTabID(TEXT("NiagaraEditor_MessageLog"));
@@ -76,6 +81,9 @@ FNiagaraScriptToolkit::~FNiagaraScriptToolkit()
 	{
 		ParameterDefinitionsPanelViewModel->Cleanup();
 	}
+
+	ParametersHierarchyViewModel->Finalize();
+	ParametersHierarchyViewModel = nullptr;
 
 	EditedNiagaraScript.Script->OnVMScriptCompiled().RemoveAll(this);
 	ScriptViewModel->GetGraphViewModel()->GetGraph()->RemoveOnGraphNeedsRecompileHandler(OnEditedScriptGraphChangedHandle);
@@ -113,7 +121,16 @@ void FNiagaraScriptToolkit::RegisterTabSpawners(const TSharedRef<class FTabManag
 		.SetDisplayName(LOCTEXT("ParametersTab", "Parameters"))
 		.SetGroup(WorkspaceMenuCategoryRef)
 		.SetIcon(FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "Tab.Parameters"));
-		
+
+	InTabManager->RegisterTabSpawner(InputPreviewTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabInputsPreview))
+		.SetDisplayName(LOCTEXT("InputPreviewParametersTab", "Input Preview"))
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetIcon(FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "Tab.Parameters"));
+
+	InTabManager->RegisterTabSpawner(HierarchyEditor_ParametersTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabHierarchyEditor))
+		.SetDisplayName(LOCTEXT("HierarchyEditorTab", "Hierarchy Editor"))
+		.SetGroup(WorkspaceMenuCategoryRef)
+		.SetIcon(FSlateIcon(FNiagaraEditorStyle::Get().GetStyleSetName(), "Tab.Parameters"));
 	//@todo(ng) disable parameter definitions panel pending bug fixes
 // 	InTabManager->RegisterTabSpawner(ParameterDefinitionsTabId, FOnSpawnTab::CreateSP(this, &FNiagaraScriptToolkit::SpawnTabParameterDefinitions))
 // 		.SetDisplayName(LOCTEXT("ParameterDefinitions", "Parameter Definitions"))
@@ -143,7 +160,7 @@ void FNiagaraScriptToolkit::UnregisterTabSpawners(const TSharedRef<class FTabMan
 	InTabManager->UnregisterTabSpawner(ScriptDetailsTabId);
 	InTabManager->UnregisterTabSpawner(SelectedDetailsTabId);
 	InTabManager->UnregisterTabSpawner(ParametersTabId);
-	InTabManager->UnregisterTabSpawner(ParametersTabId2);
+	InTabManager->UnregisterTabSpawner(InputPreviewTabId);
 	//@todo(ng) disable parameter definitions panel pending bug fixes
 	//InTabManager->UnregisterTabSpawner(ParameterDefinitionsTabId);
 	InTabManager->UnregisterTabSpawner(StatsTabId);
@@ -188,11 +205,16 @@ void FNiagaraScriptToolkit::Initialize( const EToolkitMode::Type Mode, const TSh
 
 	const FGuid MessageLogGuidKey = FGuid::NewGuid();
 	NiagaraMessageLogViewModel = MakeShared<FNiagaraMessageLogViewModel>(GetNiagaraScriptMessageLogName(EditedNiagaraScript), MessageLogGuidKey, NiagaraMessageLog);
-
+	
 	bool bIsForDataProcessingOnly = false;
 	ScriptViewModel = MakeShareable(new FNiagaraStandaloneScriptViewModel(GetGraphEditorDisplayName(), ENiagaraParameterEditMode::EditAll, NiagaraMessageLogViewModel, MessageLogGuidKey, bIsForDataProcessingOnly));
 	ScriptViewModel->Initialize(EditedNiagaraScript, OriginalNiagaraScript);
 
+	ParametersHierarchyViewModel = NewObject<UNiagaraHierarchyScriptParametersViewModel>();
+	ParametersHierarchyViewModel->Initialize(ScriptViewModel.ToSharedRef());
+	ParametersHierarchyViewModel->OnHierarchyChanged().AddSP(this, &FNiagaraScriptToolkit::OnHierarchyChanged);
+	ParametersHierarchyViewModel->OnHierarchyPropertiesChanged().AddSP(this, &FNiagaraScriptToolkit::OnHierarchyPropertiesChanged);
+	
 	ParameterPanelViewModel = MakeShareable(new FNiagaraScriptToolkitParameterPanelViewModel(ScriptViewModel));
 	ParameterDefinitionsPanelViewModel = MakeShareable(new FNiagaraScriptToolkitParameterDefinitionsPanelViewModel(ScriptViewModel));
 
@@ -235,7 +257,7 @@ void FNiagaraScriptToolkit::Initialize( const EToolkitMode::Type Mode, const TSh
 			EditedNiagaraScript.Script->PostEditChangeVersionedProperty(ChangeEvent, SelectedVersion);
 		});
 
-	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_Niagara_Layout_v12")
+	TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout("Standalone_Niagara_Layout_v13")
 	->AddArea
 	(
 		FTabManager::NewPrimaryArea()->SetOrientation(Orient_Vertical)
@@ -258,7 +280,8 @@ void FNiagaraScriptToolkit::Initialize( const EToolkitMode::Type Mode, const TSh
 					FTabManager::NewStack()
 					->SetSizeCoefficient(0.4f)
 					->AddTab(ParametersTabId, ETabState::OpenedTab)
-					->SetForegroundTab(ParametersTabId)
+					->AddTab(InputPreviewTabId, ETabState::OpenedTab)
+					->SetForegroundTab(InputPreviewTabId)
 				)
 				->Split
 				(
@@ -456,6 +479,16 @@ void FNiagaraScriptToolkit::OnVMScriptCompiled(UNiagaraScript*, const FGuid&)
 	}
 }
 
+void FNiagaraScriptToolkit::OnHierarchyChanged()
+{
+	ScriptViewModel->GetStandaloneScript().GetScriptData()->GetSource()->MarkNotSynchronized("Input Hierarchy Changed");
+}
+
+void FNiagaraScriptToolkit::OnHierarchyPropertiesChanged()
+{
+	ScriptViewModel->GetStandaloneScript().GetScriptData()->GetSource()->MarkNotSynchronized("Input Hierarchy Properties Changed");
+}
+
 TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabScriptDetails(const FSpawnTabArgs& Args)
 {
 	checkf(Args.GetTabId().TabType == ScriptDetailsTabId, TEXT("Wrong tab ID in NiagaraScriptToolkit"));
@@ -506,6 +539,39 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabScriptParameters(const FSpaw
 		SNew(SDockTab)
 		[
 			SNew(SNiagaraParameterPanel, ParameterPanelViewModel, GetToolkitCommands())
+			.SearchAdjacentWidget()
+			[
+				SNew(SButton)
+				.OnClicked(this, &FNiagaraScriptToolkit::SummonHierarchyEditor)
+				.ButtonStyle(FAppStyle::Get(), "RoundButton")
+				[
+					SNew(STextBlock)
+					.Text(LOCTEXT("EditHierarchy_ScriptInputs", "Edit Input Hierarchy"))
+				]
+			]
+		];
+
+	return SpawnedTab;
+}
+
+TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabInputsPreview(const FSpawnTabArgs& Args)
+{
+	checkf(Args.GetTabId().TabType == InputPreviewTabId, TEXT("Wrong tab ID in NiagaraScriptToolkit"));
+
+	TSharedRef<SDockTab> SpawnedTab =
+		SNew(SDockTab)
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SButton)
+				.OnClicked(this, &FNiagaraScriptToolkit::SummonParametersEditor)
+			]
+			+ SVerticalBox::Slot()
+			[
+				SNew(SNiagaraScriptInputPreviewPanel, *Cast<UNiagaraScriptSource>(EditedNiagaraScript.GetScriptData()->GetSource())->NodeGraph->GetScriptParameterHierarchyRoot(), FNiagaraScriptToolkit::SharedThis(this), ScriptViewModel->GetVariableSelection())
+			]
 		];
 
 	return SpawnedTab;
@@ -541,6 +607,25 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabStats(const FSpawnTabArgs& A
 	return SpawnedTab;
 }
 
+TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabHierarchyEditor(const FSpawnTabArgs& Args)
+{
+	check(Args.GetTabId().TabType == HierarchyEditor_ParametersTabId);
+	
+	TSharedRef<SDockTab> SpawnedTab = SNew(SDockTab)
+		.Label(LOCTEXT("UserParametersHierarchyTitle", "Parameters Editor"))
+		[
+			SNew(SBox)
+			.AddMetaData<FTagMetaData>(FTagMetaData(TEXT("UserParameters")))
+			[
+				SNew(SNiagaraHierarchyEditor, ParametersHierarchyViewModel)
+				.OnGenerateRowContentWidget_Static(&FNiagaraEditorUtilities::HierarchyEditor::Scripts::GenerateRowContentForScriptParameterHierarchyEditor)
+				//.OnGenerateCustomDetailsPanelNameWidget_Static(&GenerateCustomDetailsPanelNameWidgetForUserParameterEditor)
+			]
+		];
+	
+	return SpawnedTab;
+}
+
 TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabVersioning(const FSpawnTabArgs& Args)
 {
 	check(Args.GetTabId() == VersioningTabID);
@@ -573,6 +658,18 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabMessageLog(const FSpawnTabAr
 		];
 
 	return SpawnedTab;
+}
+
+FReply FNiagaraScriptToolkit::SummonParametersEditor()
+{
+	TSharedPtr<SDockTab> DockTab = TabManager->TryInvokeTab(HierarchyEditor_ParametersTabId);
+
+	if(DockTab)
+	{
+		DockTab->FlashTab();
+	}
+	
+	return FReply::Handled();
 }
 
 TSharedRef<SWidget> FNiagaraScriptToolkit::GenerateVersioningDropdownMenu(TSharedRef<FUICommandList> InCommandList)
@@ -853,6 +950,12 @@ void FNiagaraScriptToolkit::AddReferencedObjects(FReferenceCollector& Collector)
 	Collector.AddReferencedObject(OriginalNiagaraScript.Script);
 	Collector.AddReferencedObject(EditedNiagaraScript.Script);
 	Collector.AddReferencedObject(VersionMetadata);
+	Collector.AddReferencedObject(ParametersHierarchyViewModel);
+}
+
+UNiagaraHierarchyScriptParametersViewModel* FNiagaraScriptToolkit::GetHierarchyViewModel() const
+{
+	return ParametersHierarchyViewModel;
 }
 
 void FNiagaraScriptToolkit::UpdateModuleStats()
@@ -1034,6 +1137,12 @@ void FNiagaraScriptToolkit::FocusGraphElementIfSameScriptID(const FNiagaraScript
 	{
 		NiagaraScriptGraphWidget->FocusGraphElement(FocusInfo->GetScriptGraphFocusInfo().Get());
 	}
+}
+
+FReply FNiagaraScriptToolkit::SummonHierarchyEditor() const
+{
+	TabManager->TryInvokeTab(HierarchyEditor_ParametersTabId);
+	return FReply::Handled();
 }
 
 void FNiagaraScriptToolkit::RefreshDetailsPanel()

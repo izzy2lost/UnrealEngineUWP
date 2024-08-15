@@ -3,19 +3,18 @@
 #pragma once
 
 #include "NiagaraEditorCommon.h"
-#include "ViewModels/Stack/NiagaraStackFunctionInputCollection.h"
+#include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "Widgets/SCompoundWidget.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Views/SExpanderArrow.h"
 
-class UNiagaraStackFunctionInputCollectionBase;
 class SWrapBox;
 enum class ECheckBoxState : uint8;
 
-class SNiagaraStackFunctionInputCollection : public SCompoundWidget
+class SNiagaraStackValueCollection : public SCompoundWidget
 {
 public:
-	SLATE_BEGIN_ARGS(SNiagaraStackFunctionInputCollection) {}
+	SLATE_BEGIN_ARGS(SNiagaraStackValueCollection) {}
 	SLATE_END_ARGS();
 
 	void Construct(const FArguments& InArgs, UNiagaraStackValueCollection* PropertyCollectionBase);
@@ -34,7 +33,7 @@ private:
 	FText GetTooltipText(FText Section) const;
 
 private:
-	UNiagaraStackValueCollection* PropertyCollection;
+	UNiagaraStackValueCollection* PropertyCollection = nullptr;
 
 	TSharedPtr<SWrapBox> SectionSelectorBox;
 };

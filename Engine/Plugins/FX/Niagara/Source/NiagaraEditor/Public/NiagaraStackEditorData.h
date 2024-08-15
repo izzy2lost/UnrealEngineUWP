@@ -138,6 +138,8 @@ public:
 	*/
 	void SetStackEntryActiveSection(const FString& StackEntryKey, FText ActiveSection);
 
+	void ClearStackEntryActiveSection(const FString& StackEntryKey);
+	
 	/*
 	* Gets a stack entry's display name. Returns null if none is found.
 	* @param StackEntryKey A unique key for the stack entry.

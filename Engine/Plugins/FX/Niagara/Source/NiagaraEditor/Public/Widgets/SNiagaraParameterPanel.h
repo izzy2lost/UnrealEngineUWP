@@ -48,6 +48,7 @@ public:
 		SLATE_ARGUMENT(bool, ShowParameterSynchronizingWithLibraryIcon)
 		SLATE_ARGUMENT(bool, ShowParameterSynchronizingWithLibraryIconExternallyReferenced)
 		SLATE_ARGUMENT(bool, ShowParameterReferenceCounter)
+		SLATE_NAMED_SLOT(FArguments, SearchAdjacentWidget)
 	SLATE_END_ARGS();
 
 	NIAGARAEDITOR_API ~SNiagaraParameterPanel();
@@ -134,7 +135,6 @@ private:
 	void OnSectionChecked(ECheckBoxState CheckState, FText Section);
 
 	FText GetTooltipForSection(FText Section);
-
 private:
 	mutable bool bPendingRefresh;
 	mutable bool bPendingSelectionRestore;

@@ -12,6 +12,7 @@
 #include "NiagaraEditorSettings.h"
 #include "ViewModels/NiagaraSystemScalabilityViewModel.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyViewModelBase.h"
 
 class UNiagaraClipboardContent;
 class UNiagaraNodeInput;
@@ -470,6 +471,14 @@ namespace FNiagaraEditorUtilities
 		/* Expects a UNiagaraAssetTagDefinition asset */
 		EAssetTagSectionSource GetAssetTagDefinitionSource(const FAssetData& AssetData);
 		FText GetAssetTagSectionNameFromSource(EAssetTagSectionSource Source);
+	}
+
+	namespace HierarchyEditor
+	{		
+		namespace Scripts
+		{
+			TSharedRef<SWidget> GenerateRowContentForScriptParameterHierarchyEditor(TSharedRef<FNiagaraHierarchyItemViewModelBase> HierarchyItem);
+		}
 	}
 }
 

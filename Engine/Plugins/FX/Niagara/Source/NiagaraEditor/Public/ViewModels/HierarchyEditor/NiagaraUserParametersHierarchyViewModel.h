@@ -6,6 +6,8 @@
 #include "NiagaraScriptVariable.h"
 #include "NiagaraUserParametersHierarchyViewModel.generated.h"
 
+class FNiagaraSystemViewModel;
+
 UCLASS()
 class UNiagaraHierarchyUserParameterRefreshContext : public UNiagaraHierarchyDataRefreshContext
 {
@@ -47,6 +49,8 @@ struct FNiagaraHierarchyUserParameterViewModel : public FNiagaraHierarchyItemVie
 	
 	/** For editing in the details panel we want to handle the script variable that is represented by the hierarchy item, not the hierarchy item itself. */
 	virtual UObject* GetDataForEditing() override;
+	/** We want to be able to edit in the details panel regardless of source or hierarchy item. */
+	virtual bool AllowEditingInDetailsPanel() const override { return true; }
 
 	virtual bool RepresentsExternalData() const override { return true; }
 	virtual bool DoesExternalDataStillExist(const UNiagaraHierarchyDataRefreshContext* Context) const override;
@@ -85,7 +89,7 @@ private:
 class FNiagaraUserParameterHierarchyDragDropOp : public FNiagaraHierarchyDragDropOp
 {
 public:
-	DRAG_DROP_OPERATOR_TYPE(FNiagaraUserParameterDragDropOp, FNiagaraHierarchyDragDropOp)
+	DRAG_DROP_OPERATOR_TYPE(FNiagaraUserParameterHierarchyDragDropOp, FNiagaraHierarchyDragDropOp)
 
 	FNiagaraUserParameterHierarchyDragDropOp(TSharedPtr<FNiagaraHierarchyItemViewModelBase> UserParameterItem) : FNiagaraHierarchyDragDropOp(UserParameterItem) {}
 

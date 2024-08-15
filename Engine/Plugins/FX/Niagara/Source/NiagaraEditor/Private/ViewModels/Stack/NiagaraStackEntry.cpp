@@ -278,6 +278,11 @@ bool UNiagaraStackEntry::IsExpandedByDefault() const
 	return true;
 }
 
+bool UNiagaraStackEntry::KeepExpanderIndentation() const
+{
+	return false;
+}
+
 bool UNiagaraStackEntry::GetIsExpanded() const
 {
 	if (GetShouldShowInStack() == false || GetCanExpand() == false)

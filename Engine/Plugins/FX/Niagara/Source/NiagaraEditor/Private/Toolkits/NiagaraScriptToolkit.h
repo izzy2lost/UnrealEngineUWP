@@ -11,7 +11,9 @@
 #include "EditorUndoClient.h"
 #include "NiagaraEditorCommon.h"
 #include "NiagaraScript.h"
+#include "ViewModels/HierarchyEditor/NiagaraHierarchyScriptParametersViewModel.h"
 
+class UNiagaraHierarchyScriptParametersViewModel;
 class UNiagaraVersionMetaData;
 struct FCustomExpanderData;
 class IDetailsView;
@@ -36,13 +38,13 @@ public:
 
 	virtual void RegisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
 	virtual void UnregisterTabSpawners(const TSharedRef<class FTabManager>& TabManager) override;
-
+	
 	/** Edits the specified Niagara Script */
 	void Initialize( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UNiagaraScript* Script );
 
 	/** Destructor */
-	virtual ~FNiagaraScriptToolkit();
-
+	virtual ~FNiagaraScriptToolkit() override;
+	
 	//~ Begin IToolkit Interface
 	virtual FName GetToolkitFName() const override;
 	virtual FText GetBaseToolkitName() const override;
@@ -62,7 +64,9 @@ public:
 	{
 		return TEXT("FNiagaraScriptToolkit");
 	}
-
+	
+	UNiagaraHierarchyScriptParametersViewModel* GetHierarchyViewModel() const;
+	
 	/**
 	* Updates list of module info used to show stats
 	*/
@@ -91,6 +95,9 @@ private:
 
 	void OnVMScriptCompiled(UNiagaraScript* InScript, const FGuid& ScriptVersion);
 
+	void OnHierarchyChanged();
+	void OnHierarchyPropertiesChanged();
+	
 	/** Spawns the tab with the update graph inside */
 	TSharedRef<SDockTab> SpawnTabNodeGraph(const FSpawnTabArgs& Args);
 
@@ -102,8 +109,10 @@ private:
 
 	/** Spawns the tab with the parameter view. */
 	TSharedRef<SDockTab> SpawnTabScriptParameters(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTabInputsPreview(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTabParameterDefinitions(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTabStats(const FSpawnTabArgs& Args);
+	TSharedRef<SDockTab> SpawnTabHierarchyEditor(const FSpawnTabArgs& Args);
 
 	/** Spawns the tab with the version management. */
 	TSharedRef<SDockTab> SpawnTabVersioning(const FSpawnTabArgs& Args);
@@ -112,6 +121,7 @@ private:
 
 	TSharedRef<SDockTab> SpawnTabMessageLog(const FSpawnTabArgs& Args);
 
+	FReply SummonParametersEditor();
 	TSharedRef<SWidget> GenerateVersioningDropdownMenu(TSharedRef<FUICommandList> InCommandList);
 
 	/** Sets up commands for the toolkit toolbar. */
@@ -161,10 +171,12 @@ private:
 	*/
 	void FocusGraphElementIfSameScriptID(const FNiagaraScriptIDAndGraphFocusInfo* ElementToFocus);
 
+	FReply SummonHierarchyEditor() const;
 private:
-
 	/** The Script being edited */
 	TSharedPtr<FNiagaraStandaloneScriptViewModel> ScriptViewModel;
+
+	TObjectPtr<UNiagaraHierarchyScriptParametersViewModel> ParametersHierarchyViewModel;
 
 	/** The Parameter Panel displaying graph variables */
 	TSharedPtr<FNiagaraScriptToolkitParameterPanelViewModel> ParameterPanelViewModel;
@@ -178,17 +190,6 @@ private:
 	/** Message log, with the log listing that it reflects */
 	TSharedPtr<FNiagaraMessageLogViewModel> NiagaraMessageLogViewModel;
 	TSharedPtr<class SWidget> NiagaraMessageLog;
-
-	/**	The tab ids for the Niagara editor */
-	static const FName NodeGraphTabId; 
-	static const FName ScriptDetailsTabId;
-	static const FName SelectedDetailsTabId;
-	static const FName ParametersTabId;
-	static const FName ParametersTabId2;
-	static const FName ParameterDefinitionsTabId;
-	static const FName StatsTabId;
-	static const FName MessageLogTabID;
-	static const FName VersioningTabID;
 
 	/** Stats log, with the log listing that it reflects */
 	TSharedPtr<class SWidget> Stats;
@@ -207,8 +208,19 @@ private:
 	TSharedPtr<class IDetailsView> DetailsView;
 	TObjectPtr<UNiagaraVersionMetaData> VersionMetadata = nullptr;
 	FText GetGraphEditorDisplayName() const;
-
-private:
+	
 	void RefreshDetailsPanel();
 
+public:
+	/**	The tab ids for the Niagara editor */
+	static const FName NodeGraphTabId; 
+	static const FName ScriptDetailsTabId;
+	static const FName SelectedDetailsTabId;
+	static const FName ParametersTabId;
+	static const FName InputPreviewTabId;
+	static const FName HierarchyEditor_ParametersTabId;
+	static const FName ParameterDefinitionsTabId;
+	static const FName StatsTabId;
+	static const FName MessageLogTabID;
+	static const FName VersioningTabID;
 };

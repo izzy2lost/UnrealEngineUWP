@@ -7,15 +7,16 @@
 #include "ViewModels/Stack/NiagaraParameterHandle.h"
 #include "ViewModels/Stack/NiagaraStackFunctionInputCondition.h"
 #include "NiagaraStackEditorData.h"
+#include "NiagaraStackScriptHierarchyRoot.h"
 #include "NiagaraStackFunctionInput.generated.h"
 
+class UNiagaraHierarchyScriptParameter;
 class UNiagaraNodeFunctionCall;
 class UNiagaraNodeCustomHlsl;
 class UNiagaraNodeAssignment;
 class UNiagaraNodeInput;
 class UNiagaraNodeParameterMapSet;
 class FStructOnScope;
-class UNiagaraStackFunctionInputCollection;
 class UNiagaraStackObject;
 class UNiagaraScript;
 class UEdGraphPin;
@@ -74,7 +75,7 @@ public:
 	 * @param InParameterBehavior Determines how the parameter should behave in the stack
 	 * @param InOwnerStackItemEditorDataKey The editor data key of the item that owns this input.
 	 */
-	NIAGARAEDITOR_API void Initialize(
+	void Initialize(
 		FRequiredEntryData InRequiredEntryData,
 		UNiagaraNodeFunctionCall& InModuleNode,
 		UNiagaraNodeFunctionCall& InInputFunctionCallNode,
@@ -94,6 +95,8 @@ public:
 
 	/** Gets the type of this input. */
 	NIAGARAEDITOR_API const FNiagaraTypeDefinition& GetInputType() const;
+
+	void SetScriptInstanceData(FNiagaraScriptInstanceData InScriptInstanceData) { ScriptInstanceData = InScriptInstanceData; }
 
 	/** Gets the unit of this input. */
 	NIAGARAEDITOR_API EUnit GetInputDisplayUnit() const;
@@ -117,11 +120,14 @@ public:
 	virtual bool SupportsPaste() const override { return true; }
 	NIAGARAEDITOR_API virtual bool TestCanPasteWithMessage(const UNiagaraClipboardContent* ClipboardContent, FText& OutMessage) const override;
 	NIAGARAEDITOR_API virtual FText GetPasteTransactionText(const UNiagaraClipboardContent* ClipboardContent) const override;
+	void PasteFunctionInput(const UNiagaraClipboardFunctionInput* ClipboardInput);
 	NIAGARAEDITOR_API virtual void Paste(const UNiagaraClipboardContent* ClipboardContent, FText& OutPasteWarning) override;
 	NIAGARAEDITOR_API virtual bool HasOverridenContent() const override;
 	NIAGARAEDITOR_API virtual bool SupportsSummaryView() const override;
 	NIAGARAEDITOR_API virtual FNiagaraHierarchyIdentity DetermineSummaryIdentity() const override;
-	
+	virtual bool GetCanExpand() const override;
+	virtual bool KeepExpanderIndentation() const override { return true; }
+
 	/** Gets the tooltip that should be shown for the value of this input. */
 	NIAGARAEDITOR_API FText GetValueToolTip() const;
 
@@ -407,6 +413,8 @@ private:
 	NIAGARAEDITOR_API UNiagaraScript* FindConversionScript(const FNiagaraTypeDefinition& FromType, TMap<FNiagaraTypeDefinition, UNiagaraScript*>& ConversionScriptCache, bool bIncludeConversionScripts) const;
 
 	NIAGARAEDITOR_API bool FilterInlineChildren(const UNiagaraStackEntry& Child) const;
+	NIAGARAEDITOR_API bool FilterForVisibleCondition(const UNiagaraStackEntry& NiagaraStackEntry) const;
+	bool FilterForIsInlineEditConditionToggle(const UNiagaraStackEntry& NiagaraStackEntry) const;
 
 	void ReportScriptVersionChange() const;
 
@@ -421,6 +429,9 @@ private:
 	/** The script which the owning function call is referencing. */
 	TWeakObjectPtr<UNiagaraScript> OwningFunctionCallInitialScript;
 
+	/** An optionally set hierarchy object that gives us information on child inputs etc. */
+	TWeakObjectPtr<UNiagaraHierarchyScriptParameter> HierarchyScriptParameter;
+	
 	/** The assignment node which owns this input.  This is only valid for inputs of assignment modules. */
 	TWeakObjectPtr<UNiagaraNodeAssignment> OwningAssignmentNode;
 
@@ -454,7 +465,7 @@ private:
 
 	/** The name of this input for display in the UI. */
 	FText DisplayName;
-
+	
 	/** Optional override for the display name*/
 	TOptional<FText> DisplayNameOverride;
 	TOptional<TAttribute<FText>> SummaryViewDisplayNameOverride;
@@ -507,7 +518,10 @@ private:
 	/** A multicast delegate which is called when the value of this input is changed. */
 	FOnValueChanged ValueChangedDelegate;
 
-	/** The script which owns the function which owns this input.  This is also the autoritative version of the rapid iteration parameters. */
+	/** Script instance data passed in from the parent to determine additional instance data, such as whether inputs are currently visible or not. */
+	FNiagaraScriptInstanceData ScriptInstanceData;
+	
+	/** The script which owns the function which owns this input.  This is also the authoritative version of the rapid iteration parameters. */
 	TWeakObjectPtr<UNiagaraScript> SourceScript;
 
 	/** An array of scripts which this input affects. */
