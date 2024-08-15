@@ -590,7 +590,7 @@ bool ULensFile::EvaluateDistortionForSTMaps(float InFocus, float InZoom, FVector
 			if (const FSTMapZoomPoint* ZoomPoint = FocusPoint.GetZoomPoint(FocusCurve.Zoom))
 			{
 				OutUndistortedMap = ZoomPoint->DerivedDistortionData.UndistortionDisplacementMap;
-				OutDistortedMap = ZoomPoint->DerivedDistortionData.UndistortionDisplacementMap;
+				OutDistortedMap = ZoomPoint->DerivedDistortionData.DistortionDisplacementMap;
 			}
 		});
 
