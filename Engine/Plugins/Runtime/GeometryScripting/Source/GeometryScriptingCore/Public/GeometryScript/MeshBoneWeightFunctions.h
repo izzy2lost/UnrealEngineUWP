@@ -43,6 +43,26 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBoneWeightProfile
 	FName GetProfileName() const { return ProfileName; }
 };
 
+UENUM(BlueprintType)
+enum class EGeometryScriptPruneBoneWeightsAssignmentType : uint8
+{
+	RenormalizeRemaining = 0,	/** Remove the bone from the bone weights and renormalize the remaining weights. */
+	ReassignToParent = 1,		/** Re-assign the removed bone's weight to the parent bone. */
+};
+
+USTRUCT(BlueprintType)
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptPruneBoneWeightsOptions
+{
+	GENERATED_BODY()
+
+	/** Specifies how the weight of the removed bone from a vertex's bone weights list gets reassigned. */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	EGeometryScriptPruneBoneWeightsAssignmentType ReassignmentType = EGeometryScriptPruneBoneWeightsAssignmentType::RenormalizeRemaining;
+
+	/** Ignore invalid bones. Otherwise, if invalid bones are given, the operation terminates with an error */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	bool bIgnoredInvalidBones = true;
+};
 
 UENUM(BlueprintType)
 enum class EGeometryScriptSmoothBoneWeightsType : uint8
@@ -374,6 +394,28 @@ public:
 		const TArray<FGeometryScriptBoneWeight>& BoneWeights,
 		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
 		UGeometryScriptDebug* Debug = nullptr);
+
+
+	/**
+	 *  Prunes the given bones from any bone weight assignment on the given profile. 
+	 *  The bone weights are re-assigned based on the type of re-assignment specified in the options,
+	 *  although in the case where the bone(s) being pruned are the sole bone weight on a vertex, then
+	 *  the parent bone will be assigned as the sole bone weight for that vertex.
+	 *  Bones are pruned iteratively from leaf to root, to ensure that weighs are progressively re-assigned
+	 *  in case multiple bones along the same branch are being pruned.
+	 *  @param BonesToPrune The list of bones to remove.
+	 *  @param Options The options to set for the pruning algorithm.
+	 *  @param Profile The skin weight profile to prune the bones from.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|MeshQueries|BoneWeights", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	PruneBoneWeights( 
+		UDynamicMesh* TargetMesh,
+		const TArray<FName>& BonesToPrune,
+		FGeometryScriptPruneBoneWeightsOptions Options,
+		FGeometryScriptBoneWeightProfile Profile = FGeometryScriptBoneWeightProfile(),
+		UGeometryScriptDebug* Debug = nullptr);
+	
 	
 	/** 
 	 *  Computes a smooth skin binding for the given mesh to the skeleton provided.
