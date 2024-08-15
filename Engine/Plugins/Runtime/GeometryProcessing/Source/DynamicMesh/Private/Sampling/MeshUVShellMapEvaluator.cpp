@@ -61,9 +61,6 @@ FVector4f FMeshUVShellMapEvaluator::SampleFunction(const FCorrespondenceSample& 
 	if (DetailSampler->IsTriangle(DetailMesh, DetailTriID))
 	{
 		// Compute barycentric/areal coords in UV space.
-		FVector2f UV = FVector2f::Zero();
-		DetailSampler->TriBaryInterpolateUV(DetailMesh, DetailTriID, DetailBaryCoords, UVLayer, UV);
-
 		FVector2f UV0, UV1, UV2;
 		DetailSampler->GetTriUVs(DetailMesh, DetailTriID, UVLayer, UV0, UV1, UV2);
 
