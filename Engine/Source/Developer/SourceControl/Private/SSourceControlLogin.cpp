@@ -1,26 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "SSourceControlLogin.h"
+
+#if SOURCE_CONTROL_WITH_SLATE
+
+#include "Framework/Application/SlateApplication.h"
+#include "Framework/Notifications/NotificationManager.h"
+#include "Logging/MessageLog.h"
+#include "Misc/ConfigCacheIni.h"
+#include "SSourceControlPicker.h"
+#include "SourceControlHelpers.h"
 #include "SourceControlModule.h"
 #include "SourceControlOperations.h"
-
-#if SOURCE_CONTROL_WITH_SLATE
-#include "Widgets/SBoxPanel.h"
-#include "Framework/Application/SlateApplication.h"
-#include "Widgets/Text/STextBlock.h"
-#include "Widgets/Layout/SBox.h"
-#include "Widgets/Layout/SUniformGridPanel.h"
-#include "Widgets/Input/SButton.h"
 #include "Widgets/Images/SThrobber.h"
+#include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SExpandableArea.h"
-#include "Framework/Notifications/NotificationManager.h"
+#include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Notifications/SNotificationList.h"
-#endif
-
-#include "SSourceControlPicker.h"
-#include "Logging/MessageLog.h"
-
-#if SOURCE_CONTROL_WITH_SLATE
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 
 #if WITH_UNREAL_DEVELOPER_TOOLS
 	#include "MessageLogModule.h"
@@ -181,7 +180,12 @@ FReply SSourceControlLogin::OnAcceptSettings()
 	}
 
 	FSourceControlModule& SourceControlModule = FSourceControlModule::Get();
-	if(SourceControlModule.GetProvider().Login(FString(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SSourceControlLogin::SourceControlOperationComplete)) == ECommandResult::Type::Failed)
+	ECommandResult::Type Result = SourceControlModule.GetProvider().Login(FString(), EConcurrency::Asynchronous, FSourceControlOperationComplete::CreateSP(this, &SSourceControlLogin::SourceControlOperationComplete));
+	if (Result == ECommandResult::Succeeded)
+	{
+		SaveSettingsToDisk();
+	}
+	else if(Result == ECommandResult::Failed)
 	{
 		DisplayConnectionError();
 		ConnectionState = ELoginConnectionState::Disconnected;
@@ -214,6 +218,9 @@ FReply SSourceControlLogin::OnDisableSourceControl()
 		ParentWindowPtr.Pin()->RequestDestroyWindow();
 	}
 	SourceControlLoginClosed.ExecuteIfBound(false);
+
+	SaveSettingsToDisk();
+
 	return FReply::Handled();
 }
 
@@ -303,6 +310,12 @@ EActiveTimerReturnType SSourceControlLogin::TickSourceControlModule( double InCu
 {
 	FSourceControlModule::Get().Tick();
 	return EActiveTimerReturnType::Continue;
+}
+
+void SSourceControlLogin::SaveSettingsToDisk() const
+{
+	check(::IsInGameThread());
+	GConfig->Flush(false, USourceControlHelpers::GetSettingsIni());
 }
 
 #undef LOCTEXT_NAMESPACE
