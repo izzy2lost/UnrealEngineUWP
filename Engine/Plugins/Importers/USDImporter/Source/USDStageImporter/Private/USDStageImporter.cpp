@@ -294,7 +294,7 @@ namespace UE::USDStageImporter::Private
 	{
 		// It's better to always rebuild the info cache because our import options may have changed
 		// from the options used when the cache was first built, which could change collapsing states, etc.
-		TranslationContext.UsdInfoCache->RebuildCacheForSubtree(TranslationContext.Stage.GetPseudoRoot(), TranslationContext);
+		TranslationContext.UsdInfoCache->RebuildCacheForSubtrees({UE::FSdfPath::AbsoluteRootPath()}, TranslationContext);
 	}
 
 	void ImportMaterials(FUsdStageImportContext& ImportContext, FUsdSchemaTranslationContext& TranslationContext)

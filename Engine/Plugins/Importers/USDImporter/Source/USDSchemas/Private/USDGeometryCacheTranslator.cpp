@@ -1260,7 +1260,7 @@ TSet<UE::FSdfPath> FUsdGeometryCacheTranslator::CollectAuxiliaryPrims() const
 bool FUsdGeometryCacheTranslator::IsPotentialGeometryCacheRoot() const
 {
 	// The logic to check for GeometryCache is completely in the UsdInfoCache
-	return Context->UsdInfoCache->IsPotentialGeometryCacheRoot(PrimPath);
+	return Context->UsdInfoCache->IsPotentialGeometryCacheRoot(GetPrim());
 }
 
 #endif	  // #if USE_USD_SDK

@@ -9,6 +9,8 @@
 
 UUsdPrimTwin& UUsdPrimTwin::AddChild(const FString& InPrimPath)
 {
+	TRACE_CPUPROFILER_EVENT_SCOPE(UUsdPrimTwin::AddChild);
+
 	FScopedUnrealAllocs UnrealAllocs;	 // Make sure the call to new is done with the UE allocator
 
 	FString Dummy;

@@ -44,10 +44,15 @@ public:
 	// Returns whether we contain any info about prim at 'Path' at all
 	bool ContainsInfoAboutPrim(const UE::FSdfPath& Path) const;
 
+	// Retrieves the children of a prim from the cached information
+	TArray<UE::FSdfPath> GetChildren(const UE::FSdfPath& ParentPath) const;
+
 	// Returns a list of all prims we have generic info about
+	UE_DEPRECATED(5.5, "No longer used")
 	TSet<UE::FSdfPath> GetKnownPrims() const;
 
 	void RebuildCacheForSubtree(const UE::FUsdPrim& Prim, FUsdSchemaTranslationContext& Context);
+	void RebuildCacheForSubtrees(const TArray<UE::FSdfPath>& SubtreeRoots, FUsdSchemaTranslationContext& Context);
 
 	void Clear();
 	bool IsEmpty();
@@ -70,9 +75,6 @@ public:
 	TSet<UE::FSdfPath> GetAuxiliaryPrims(const UE::FSdfPath& MainPrimPath) const;
 
 public:
-	// Returns the set of paths to all prims that have a material:binding relationship to the particular material at
-	// 'Path', if any.
-	// Returns a copy for thread safety.
 	TSet<UE::FSdfPath> GetMaterialUsers(const UE::FSdfPath& Path) const;
 	bool IsMaterialUsed(const UE::FSdfPath& Path) const;
 
@@ -86,6 +88,7 @@ public:
 	TOptional<TArray<UsdUtils::FUsdPrimMaterialSlot>> GetSubtreeMaterialSlots(const UE::FSdfPath& Path);
 
 	// Returns true if Path could potentially be collapsed as a Geometry Cache asset
+	UE_DEPRECATED(5.5, "No longer used")
 	bool IsPotentialGeometryCacheRoot(const UE::FSdfPath& Path) const;
 
 public:
@@ -137,6 +140,8 @@ public:
 
 private:
 	friend class FUsdGeomXformableTranslator;
+	friend class FUsdGeometryCacheTranslator;
+
 	// Returns true if every prim on the subtree below RootPath (including the RootPath prim itself) returns true for
 	// CanBeCollapsed(), according to their own schema translators.
 	//
@@ -146,6 +151,10 @@ private:
 	//
 	// In general, you shouldn't call this, but just use "IsPathCollapsed" or "DoesPathCollapseChildren" instead.
 	TOptional<bool> CanXformableSubtreeBeCollapsed(const UE::FSdfPath& RootPath, FUsdSchemaTranslationContext& Context) const;
+
+	// Analogous to the function above, this overload of IsPotentialGeometryCacheRoot is meant for internal use, and exists because
+	// during the info cache build (in some contexts) we can fill in this geometry cache information on-demand, for better performance.
+	bool IsPotentialGeometryCacheRoot(const UE::FUsdPrim& Prim) const;
 
 private:
 	TUniquePtr<FUsdInfoCacheImpl> Impl;

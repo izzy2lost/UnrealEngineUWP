@@ -8,7 +8,6 @@
 #include "USDAssetCache2.h"
 #include "USDAssetCache3.h"
 #include "USDInfoCache.h"
-#include "USDInfoCache.h"
 #include "USDMemory.h"
 #include "USDMetadataImportOptions.h"
 #include "USDPrimLinkCache.h"
@@ -324,6 +323,12 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 
 	/** Skip the import of materials that aren't being used by any prim on the stage */
 	bool bTranslateOnlyUsedMaterials = false;
+
+	/**
+	 * We set material overrides within UsdGeomXformableTranslator::UpdateComponents when this flag is set. Since that is a non-trivial
+	 * amount of computation, this flag can be disabled for situations where material overrides shouldn't change (e.g. animating components)
+	 */
+	bool bAllowRecomputingMaterialOverrides = true;
 
 	/** Groom group interpolation settings */
 	TArray<FHairGroupsInterpolation> GroomInterpolationSettings;

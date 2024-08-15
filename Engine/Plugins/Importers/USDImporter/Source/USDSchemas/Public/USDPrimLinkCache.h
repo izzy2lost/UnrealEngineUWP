@@ -28,9 +28,6 @@ public:
 	// Returns whether we contain any info about prim at 'Path' at all
 	bool ContainsInfoAboutPrim(const UE::FSdfPath& Path) const;
 
-	// Returns a list of all prims we have generic info about
-	TSet<UE::FSdfPath> GetKnownPrims() const;
-
 	void Clear();
 	bool IsEmpty();
 

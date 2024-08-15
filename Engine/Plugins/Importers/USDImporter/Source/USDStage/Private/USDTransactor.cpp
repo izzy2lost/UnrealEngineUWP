@@ -703,12 +703,7 @@ namespace UsdUtils
 	}
 
 	/** Applies the field value pairs to all prims on the stage, and returns a list of prim paths for modified prims */
-	TSet<FString> ApplyFieldMapToStage(
-		const FTransactorEditStorage& EditStorage,
-		EApplicationDirection Direction,
-		UE::FUsdStage& Stage,
-		double Time
-	)
+	TSet<FString> ApplyFieldMapToStage(const FTransactorEditStorage& EditStorage, EApplicationDirection Direction, UE::FUsdStage& Stage, double Time)
 	{
 		if (!Stage)
 		{
@@ -992,8 +987,15 @@ namespace UsdUtils
 
 			UE::FUsdStage& Stage = StageActor->GetOrOpenUsdStage();
 
-			TSet<FString>
-				PrimsChanged = UsdUtils::ApplyFieldMapToStage(Values, UsdUtils::EApplicationDirection::Reverse, Stage, StageActor->GetTime());
+			TSet<FString> PrimsChanged = UsdUtils::ApplyFieldMapToStage(	//
+				Values,
+				UsdUtils::EApplicationDirection::Reverse,
+				Stage,
+				StageActor->GetTime()
+			);
+
+			// Partial rebuild of the info cache after we have undone the USD stage changes for this transaction
+			StageActor->RebuildInfoCacheFromStoredChanges();
 
 			if (PrimsChanged.Num() > 0)
 			{
@@ -1055,6 +1057,9 @@ namespace UsdUtils
 			{
 				// Just a common Redo operation or any other type of ConcertSync transaction, so just apply the new values
 				PrimsChanged = UsdUtils::ApplyFieldMapToStage(Values, UsdUtils::EApplicationDirection::Forward, Stage, StageActor->GetTime());
+
+				// Partial rebuild of the info cache after we have redone the USD stage changes for this transaction
+				StageActor->RebuildInfoCacheFromStoredChanges();
 			}
 
 			// If we're redoing or applying ConcertSync we don't want to end up with these values when the transaction finalizes as it could be

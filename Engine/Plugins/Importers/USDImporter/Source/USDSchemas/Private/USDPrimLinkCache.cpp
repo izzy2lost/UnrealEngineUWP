@@ -58,20 +58,6 @@ bool FUsdPrimLinkCache::ContainsInfoAboutPrim(const UE::FSdfPath& Path) const
 	return false;
 }
 
-TSet<UE::FSdfPath> FUsdPrimLinkCache::GetKnownPrims() const
-{
-	TSet<UE::FSdfPath> Result;
-
-	if (FUsdPrimLinkCacheImpl* ImplPtr = Impl.Get())
-	{
-		FReadScopeLock ScopeLock(ImplPtr->PrimPathToAssetsLock);
-		ImplPtr->PrimPathToAssets.GetKeys(Result);
-		return Result;
-	}
-
-	return Result;
-}
-
 void FUsdPrimLinkCache::LinkAssetToPrim(const UE::FSdfPath& Path, UObject* Asset)
 {
 	FUsdPrimLinkCacheImpl* ImplPtr = Impl.Get();

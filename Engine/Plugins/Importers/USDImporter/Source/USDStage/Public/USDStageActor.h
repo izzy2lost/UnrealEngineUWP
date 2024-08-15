@@ -31,6 +31,10 @@ namespace UE
 	class FUsdGeomBBoxCache;
 	class FUsdPrim;
 }
+namespace UsdUtils
+{
+	class FUsdTransactorImpl;
+}
 
 UENUM()
 enum class EUsdStageState : uint8
@@ -403,6 +407,8 @@ protected:
 	void SetupAssetCacheIfNeeded();
 	void SetupBBoxCacheIfNeeded();
 
+	void RebuildInfoCacheFromStoredChanges();
+
 	bool HasAuthorityOverStage() const;
 
 	void UpdateSpawnedObjectsTransientFlag(bool bTransient);
@@ -429,6 +435,7 @@ protected:
 protected:
 	friend struct FUsdStageActorImpl;
 	friend class FUsdLevelSequenceHelperImpl;
+	friend class UsdUtils::FUsdTransactorImpl;
 
 	UPROPERTY(
 		Category = UsdStageActor,
@@ -464,6 +471,7 @@ protected:
 	 */
 	UsdUtils::FObjectChangesByPath AccumulatedInfoChanges;
 	UsdUtils::FObjectChangesByPath AccumulatedResyncChanges;
+	TArray<UE::FSdfPath> ResyncedPrimsForThisTransaction;
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	/** Caches various information about prims that are expensive to query */

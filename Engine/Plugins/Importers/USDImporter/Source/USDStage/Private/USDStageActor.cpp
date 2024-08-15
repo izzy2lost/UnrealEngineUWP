@@ -15,7 +15,6 @@
 #include "USDGeomMeshConversion.h"
 #include "USDGeomXformableTranslator.h"
 #include "USDInfoCache.h"
-#include "USDInfoCache.h"
 #include "USDIntegrationUtils.h"
 #include "USDLayerUtils.h"
 #include "USDLightConversion.h"
@@ -949,8 +948,10 @@ AUsdStageActor::AUsdStageActor()
 	IUsdSchemasModule& UsdSchemasModule = FModuleManager::Get().LoadModuleChecked<IUsdSchemasModule>(TEXT("USDSchemas"));
 	RenderContext = UsdSchemasModule.GetRenderContextRegistry().GetUnrealRenderContext();
 
+	// This is marked as a subobject now or else instances of blueprints that derive the AUsdStageActor don't get new transactors created
+	// for them
 	const FName UniqueName = MakeUniqueObjectName(this, UUsdTransactor::StaticClass(), TEXT("Transactor"));
-	Transactor = NewObject<UUsdTransactor>(this, UniqueName, EObjectFlags::RF_Transactional);
+	Transactor = CreateDefaultSubobject<UUsdTransactor>(UniqueName);
 	Transactor->Initialize(this);
 
 	// We never want to be without a valid BBoxCache or else we'll silently fail to compute bounds for all
@@ -1535,43 +1536,19 @@ void AUsdStageActor::HandleAccumulatedNotices()
 
 	FScopedUsdMessageLog ScopedMessageLog;
 
-	TStrongObjectPtr<UUsdInfoCache> OldInfoCache{UsdInfoCache};
-	if (UsdInfoCache && bHasResync)
-	{
-		// Take a copy of the info cache here: We want to keep the old one for this function call as it helps us cleanup the old assets and components
-		// For now we don't need to do this for info changes, only for resync changes
-		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(CopyingOldInfoCache);
-			UObject* OwnerObject = this;
-			UsdInfoCache = NewObject<UUsdInfoCache>(OwnerObject, NAME_None, UsdInfoCache->GetFlags());
-
-			// Use this instead of DuplicateObject as this is a single Serialize() call (due to the Modify()), while the DuplicateObject means 3
-			// Serialize() calls
-			UsdInfoCache->Modify();
-			UsdInfoCache->GetInner().CopyImpl(OldInfoCache->GetInner());
-
-		}
-
-		// TODO: Selective rebuild of only the required parts of the cache.
-		// If a prim changes from CanBeCollapsed to not (or vice-versa), that means its parent may change, and its grandparent, etc. so we'd need
-		// to check a large part of the tree (here we're just rebuilding the whole thing for now). However, if we know that only Prim resynced, we
-		// can traverse the tree root down and if we reach Prim and its collapsing state hasn't updated from before, we don't have to update its
-		// subtree at all, or sibling subtrees. Note that whenver we do a selective rebuild of the info cache we'll need to be very careful when
-		// to update certain info cache maps: For example whenever we delete a prim we need to make sure it's removed from MaterialUsers, etc.
-		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
-		UsdInfoCache->GetInner().RebuildCacheForSubtree(Stage.GetPseudoRoot(), TranslationContext.Get());
-
-		// Need to update the LevelSequenceHelper with our new cache too, as it will need the new cache to find any
-		// assets we end up creating in this update (e.g. USoundWave assets)
-		LevelSequenceHelper.SetPrimLinkCache(PrimLinkCache);
-	}
-
 	if (BBoxCache.IsValid() && bHasResync)
 	{
 		BBoxCache->Clear();
 	}
 
-	TFunction<void(TMap<UE::FSdfPath, bool>&)> SortAndCleanPrimsToUpdate = [](TMap<UE::FSdfPath, bool>& InOutMap)
+	enum class EPrimUpdateType : uint8
+	{
+		MaterialBind,	 // "Weaker" than an info change: We just need to make sure we update material overrides for this prim's component
+		Info,			 // An attribute/metadata value changed. We may need to regenerate assets, but at most update components for that one prim
+		Resync,			 // Drastic change. We need to regenerate all assets and components for the prim's entire subtree
+	};
+
+	TFunction<void(TMap<UE::FSdfPath, EPrimUpdateType>&)> SortAndCleanPrimsToUpdate = [](TMap<UE::FSdfPath, EPrimUpdateType>& InOutMap)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(SortAndCleanPrimsToUpdate);
 
@@ -1586,14 +1563,14 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		// Strip child paths for resyncs as processing a parent means we already process the children anyway.
 		// This is not the same for info changes: We may have an info change for a parent and child component
 		// in the same change block, and we really want to call UpdateComponents for both then
-		TMap<UE::FSdfPath, bool> CleanedPairs;
+		TMap<UE::FSdfPath, EPrimUpdateType> CleanedPairs;
 		CleanedPairs.Reserve(InOutMap.Num());
 		TSet<UE::FSdfPath> ResyncedPaths;
 		ResyncedPaths.Reserve(InOutMap.Num());
-		for (const TPair<UE::FSdfPath, bool>& Pair : InOutMap)
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& Pair : InOutMap)
 		{
 			const UE::FSdfPath& ThisPrim = Pair.Key;
-			bool bIsResync = Pair.Value;
+			bool bIsResync = Pair.Value == EPrimUpdateType::Resync;
 
 			bool bRemoveThisPath = false;
 
@@ -1631,16 +1608,15 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		Swap(CleanedPairs, InOutMap);
 	};
 
-	TSet<UE::FSdfPath> KnownOldPrims;
-
 	// Traverses the info caches to find out which prims we need to update
-	TFunction<void(const UE::FSdfPath&, bool, TMap<UE::FSdfPath, bool>&, TSet<UE::FSdfPath>&)> RecursiveCollectPrimsToUpdate;
-	RecursiveCollectPrimsToUpdate =
-		[this,
-		 &OldInfoCache,
-		 &RecursiveCollectPrimsToUpdate,
-		 &KnownOldPrims,
-		 &Stage](const UE::FSdfPath& PrimPath, bool bIsResync, TMap<UE::FSdfPath, bool>& OutPrimsToUpdate, TSet<UE::FSdfPath>& InOutVisitedPaths)
+	TFunction<void(const UE::FSdfPath&, EPrimUpdateType, TMap<UE::FSdfPath, EPrimUpdateType>&, TMap<UE::FSdfPath, EPrimUpdateType>&)>
+		RecursiveCollectPrimsToUpdate;
+	RecursiveCollectPrimsToUpdate = [this, &RecursiveCollectPrimsToUpdate, &Stage](
+										const UE::FSdfPath& PrimPath,
+										EPrimUpdateType UpdateType,
+										TMap<UE::FSdfPath, EPrimUpdateType>& OutPrimsToUpdate,
+										TMap<UE::FSdfPath, EPrimUpdateType>& InOutVisitedPaths
+									)
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RecursiveCollectPrimsToUpdate);
 
@@ -1649,11 +1625,12 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		// mark them as visited, and because we always recurse with resync=false we'd assume those aren't resyncs.
 		// By that same reason this shouldn't be that expensive, as we'll only ever potentially revisit the prims
 		// that are the actual roots of the resyncs
-		if (InOutVisitedPaths.Contains(PrimPath) && !bIsResync)
+		EPrimUpdateType* LastVisitedUpdateType = InOutVisitedPaths.Find(PrimPath);
+		if (LastVisitedUpdateType && (uint8)*LastVisitedUpdateType >= (uint8)UpdateType)
 		{
 			return;
 		}
-		InOutVisitedPaths.Add(PrimPath);
+		InOutVisitedPaths.Add(PrimPath, UpdateType);
 
 		// In some cases USD sends us notices about prims that don't exist anymore: If you rename X to Y,
 		// both X and Y will be on the notice change list, even though X doesn't exist on the stage anymore.
@@ -1668,25 +1645,16 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			// we'd only get that prim itself, and assume we need to spawn assets/components for it (which we
 			// really don't if it's collapsed)
 			UE::FSdfPath UnwoundPath = UsdInfoCache->GetInner().UnwindToNonCollapsedPath(PrimPath, ECollapsingType::Assets);
-			OutPrimsToUpdate.FindOrAdd(UnwoundPath) |= bIsResync;
+			EPrimUpdateType& UnwoundUpdateType = OutPrimsToUpdate.FindOrAdd(UnwoundPath);
+			UnwoundUpdateType = (EPrimUpdateType)FMath::Max((uint8)UnwoundUpdateType, (uint8)UpdateType);
 		}
 
-		// If we're going to cleanup assets/components for a prim according to an old dependency (that doesn't
-		// necessarily exist anymore), we need to make sure we try recreating assets/components for it now, even if
-		// it wasn't part of the actual change, so we'll visit both the new and old info caches.
-		// Even if this was just an info change we still need to do this: We may need to regeneate an asset from it
-		if (OldInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
+		// We don't need to recurse via material bind links: Nothing else is affected by a mesh component refreshing
+		// its material overrides in response to an original material prim update
+		if (UpdateType == EPrimUpdateType::MaterialBind)
 		{
-			UE::FSdfPath UnwoundPath = OldInfoCache->GetInner().UnwindToNonCollapsedPath(PrimPath, ECollapsingType::Assets);
-			OutPrimsToUpdate.FindOrAdd(UnwoundPath) |= bIsResync;
+			return;
 		}
-
-		// If our original USD notice resyncs PrimPath, its subtree will need to be rebuilt, yes,
-		// but external prims that depend on prim path (its "main prims") won't need to be *recursively* resynced.
-		// Their hierarchies are fine, they just need to be updated to the fact that PrimPath changed. That is
-		// at most a component update, or regenerating the asset for that particular main prim, but it's entire
-		// hierarchy doesn't need to be rebuilt
-		const bool bRecursiveResync = false;
 
 		// Imagine we have a stage like this:
 		// 		/parent/child1
@@ -1697,56 +1665,44 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		// We have to do this on both the stage and old info cache because the change may also have meant that aux/main links
 		// have been modified (i.e. "other" could depend on "child" only now, or only on the old state of the stage, but
 		// we'll still have those assets on the UE level either way, so we need to refresh them)
-		if (bIsResync)
+		if (UpdateType == EPrimUpdateType::Resync)
 		{
-			if (KnownOldPrims.Num() == 0)
+			const TArray<UE::FSdfPath>& NewChildren = UsdInfoCache->GetInner().GetChildren(PrimPath);
+			for (const UE::FSdfPath& Child : NewChildren)
 			{
-				KnownOldPrims = OldInfoCache->GetInner().GetKnownPrims();
-			}
-
-			if (UE::FUsdPrim Prim = Stage.GetPrimAtPath(PrimPath))
-			{
-				for (const UE::FUsdPrim& ChildPrim : Prim.GetChildren())
-				{
-					UE::FSdfPath ChildPrimPath = ChildPrim.GetPrimPath();
-					if (ChildPrimPath.HasPrefix(PrimPath))
-					{
-						RecursiveCollectPrimsToUpdate(ChildPrimPath, bRecursiveResync, OutPrimsToUpdate, InOutVisitedPaths);
-					}
-				}
-			}
-			// TODO: Find a better way of doing this, as this is extremely expensive
-			for (const UE::FSdfPath& KnownOldPrim : KnownOldPrims)
-			{
-				if (KnownOldPrim.HasPrefix(PrimPath))
-				{
-					RecursiveCollectPrimsToUpdate(KnownOldPrim, bRecursiveResync, OutPrimsToUpdate, InOutVisitedPaths);
-				}
+				RecursiveCollectPrimsToUpdate(Child, EPrimUpdateType::Info, OutPrimsToUpdate, InOutVisitedPaths);
 			}
 		}
 
 		TSet<UE::FSdfPath> NewMainPrims = UsdInfoCache->GetInner().GetMainPrims(PrimPath);
-		TSet<UE::FSdfPath> OldMainPrims = OldInfoCache->GetInner().GetMainPrims(PrimPath);
-		OutPrimsToUpdate.Reserve(OutPrimsToUpdate.Num() + NewMainPrims.Num() + OldMainPrims.Num());
+		TSet<UE::FSdfPath> NewMaterialUsers = UsdInfoCache->GetInner().GetMaterialUsers(PrimPath);
+
+		OutPrimsToUpdate.Reserve(OutPrimsToUpdate.Num() + NewMainPrims.Num() + NewMaterialUsers.Num());
+
 		for (const UE::FSdfPath& NewPrimPath : NewMainPrims)
 		{
-			RecursiveCollectPrimsToUpdate(NewPrimPath, bRecursiveResync, OutPrimsToUpdate, InOutVisitedPaths);
+			// If our original USD notice resyncs PrimPath, its subtree will need to be rebuilt, yes,
+			// but external prims that depend on prim path (its "main prims") won't need to be *recursively* resynced.
+			// Their hierarchies are fine, they just need to be updated to the fact that PrimPath changed. That is
+			// at most a component update, or regenerating the asset for that particular main prim, but it's entire
+			// hierarchy doesn't need to be rebuilt
+			RecursiveCollectPrimsToUpdate(NewPrimPath, EPrimUpdateType::Info, OutPrimsToUpdate, InOutVisitedPaths);
 		}
-		for (const UE::FSdfPath& OldPrimPath : OldMainPrims)
+		for (const UE::FSdfPath& NewPrimPath : NewMaterialUsers)
 		{
-			RecursiveCollectPrimsToUpdate(OldPrimPath, bRecursiveResync, OutPrimsToUpdate, InOutVisitedPaths);
+			RecursiveCollectPrimsToUpdate(NewPrimPath, EPrimUpdateType::MaterialBind, OutPrimsToUpdate, InOutVisitedPaths);
 		}
 	};
 
-	// Collect all the paths to update
-	TMap<UE::FSdfPath, bool> PrimsToUpdate;
+	// Collect all the paths to update from the old info cache
+	TMap<UE::FSdfPath, EPrimUpdateType> PrimsToUpdate;
 	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(CollectPathsToUpdate);
+		TRACE_CPUPROFILER_EVENT_SCOPE(CollectOldPathsToUpdate);
 
 		PrimsToUpdate.Reserve(SortedPrimsChangedList.Num());
 
 		// Recursively append main prims to the list of PrimsToUpdate
-		TSet<UE::FSdfPath> VisitedPaths;
+		TMap<UE::FSdfPath, EPrimUpdateType> VisitedPaths;
 		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : SortedPrimsChangedList)
 		{
 			const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
@@ -1755,10 +1711,51 @@ void AUsdStageActor::HandleAccumulatedNotices()
 			// Note how we're not modifying SortedPrimsChangedList in-place and are instead adding to a new PrimsToUpdate list.
 			// The intent is that we really only want to process uncollapsed/collapse root main prims, but what is actually on these notices is up to
 			// USD, and could have anything
-			RecursiveCollectPrimsToUpdate(PrimPath, bIsResync, PrimsToUpdate, VisitedPaths);
+			RecursiveCollectPrimsToUpdate(PrimPath, bIsResync ? EPrimUpdateType::Resync : EPrimUpdateType::Info, PrimsToUpdate, VisitedPaths);
 		}
 
 		SortAndCleanPrimsToUpdate(PrimsToUpdate);
+	}
+
+	// Rebuild info cache if needed
+	if (UsdInfoCache && bHasResync)
+	{
+		// The prim path doesn't matter here, it's only used for fetching the parent component (not used on the info cache rebuild)
+		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
+
+		TArray<UE::FSdfPath> ResyncPaths;
+		ResyncPaths.Reserve(SortedPrimsChangedList.Num());
+		for (const TPair<UE::FSdfPath, bool>& Pair : SortedPrimsChangedList)
+		{
+			if (Pair.Value)
+			{
+				ResyncPaths.Add(Pair.Key);
+			}
+		}
+
+		ResyncedPrimsForThisTransaction = ResyncPaths;
+		UsdInfoCache->GetInner().RebuildCacheForSubtrees(ResyncPaths, TranslationContext.Get());
+
+		// Append the paths to update from the rebuilt info cache
+		//
+		// Note: We don't *reset* prims to update, because whatever assets/components we cleaned up we may also need to
+		// regenerate. Alternatively, any *new* asset/component that we may end up generating also requires
+		// that we cleanup the old asset/component in order to display it.
+		//
+		// The fact that it's a TMap and SortAndCleanPrimsToUpdate will prevent us from doing any extra
+		// work anyway
+		{
+			TRACE_CPUPROFILER_EVENT_SCOPE(CollectNewPathsToUpdate);
+
+			TMap<UE::FSdfPath, EPrimUpdateType> VisitedPaths;
+			for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : SortedPrimsChangedList)
+			{
+				const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
+				const bool bIsResync = PrimChangedInfo.Value;
+				RecursiveCollectPrimsToUpdate(PrimPath, bIsResync ? EPrimUpdateType::Resync : EPrimUpdateType::Info, PrimsToUpdate, VisitedPaths);
+			}
+			SortAndCleanPrimsToUpdate(PrimsToUpdate);
+		}
 	}
 
 	if (bHasResync)
@@ -1773,15 +1770,15 @@ void AUsdStageActor::HandleAccumulatedNotices()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(CleaningUpAssets);
 
-		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& PrimChangedInfo : PrimsToUpdate)
 		{
 			CleanUpAssetsTask.EnterProgressFrame();
 
 			const UE::FSdfPath& PrimPath = PrimChangedInfo.Key;
-			const bool bIsResync = PrimChangedInfo.Value;
+			const bool bIsResync = PrimChangedInfo.Value == EPrimUpdateType::Resync;
 
 			// If it's a new prim, we may not have old info about it
-			if (!OldInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
+			if (!UsdInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
 			{
 				continue;
 			}
@@ -1793,20 +1790,54 @@ void AUsdStageActor::HandleAccumulatedNotices()
 		}
 	}
 
-	// Regenerate assets before cleaning up components because if material assignments change, we may
-	// discover we need to clear and regenerate additional mesh components to update material overrides
-	TSet<UE::FSdfPath> MaterialUserPrims;
+	RefreshStageTask.EnterProgressFrame();
+	FScopedSlowTask CleanUpComponentsTask(PrimsToUpdate.Num(), LOCTEXT("CleaningUpComponents", "Cleaning up actors and components"));
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(CleaningUpComponents);
+
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& PrimChangedInfo : PrimsToUpdate)
+		{
+			CleanUpComponentsTask.EnterProgressFrame();
+
+			const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
+			const bool bIsResync = PrimChangedInfo.Value == EPrimUpdateType::Resync;
+
+			// If it's a new prim, we may not have old info about it
+			if (!UsdInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
+			{
+				continue;
+			}
+
+			UE_LOG(LogUsd, Verbose, TEXT("Cleaning up actors and components for prim path '%s'"), *PrimPath.GetString());
+
+			if (bIsResync && PrimPath.IsAbsoluteRootOrPrimPath())
+			{
+				if (UUsdPrimTwin* UsdPrimTwin = GetRootPrimTwin()->Find(PrimPath.GetString()))
+				{
+					UsdPrimTwin->Clear();
+				}
+			}
+		}
+	}
+
+	// Recreate our LevelSequences before we regenerate components and want to add bindings/tracks
+	// back onto it
+	if (bNeedsAnimationReload)
+	{
+		RegenerateLevelSequence();
+	}
+
 	RefreshStageTask.EnterProgressFrame();
 	FScopedSlowTask RegenerateAssetsTask(PrimsToUpdate.Num(), LOCTEXT("RegeneratingAssets", "Regenerating assets"));
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RegeneratingAssets);
 
-		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& PrimChangedInfo : PrimsToUpdate)
 		{
 			RegenerateAssetsTask.EnterProgressFrame();
 
 			const UE::FSdfPath& PrimPath = PrimChangedInfo.Key;
-			const bool bIsResync = PrimChangedInfo.Value;
+			const bool bIsResync = PrimChangedInfo.Value == EPrimUpdateType::Resync;
 
 			UE::FUsdPrim PrimToUpdate = Stage.GetPrimAtPath(PrimPath);
 
@@ -1836,73 +1867,7 @@ void AUsdStageActor::HandleAccumulatedNotices()
 				bThisPrimLoadedAssets |= LoadAsset(*TranslationContext, PrimToUpdate);
 			}
 			bHasLoadedOrAbandonedAssets |= bThisPrimLoadedAssets;
-
-			// For UE-120185: If we recreated a material for a prim path we also need to update all components that were using it.
-			// This could be fleshed out further if other asset types require this refresh of "consumer components" but materials
-			// seem to be the only ones that do at the moment.
-			// Note that even after UE-157644 this is still useful: Material prims are not marked as a dependency
-			// of Mesh prims, otherwise we'd have to regenerate the StaticMesh itself when material info changed.
-			// Ideally we'd just set a new material override on the component, which is what this does
-			const bool bPrimGeneratesMaterials = PrimLinkCache->GetInner().GetSingleAssetForPrim<UMaterialInterface>(PrimPath) != nullptr;
-			if (bThisPrimLoadedAssets && bPrimGeneratesMaterials)
-			{
-				MaterialUserPrims.Append(UsdInfoCache->GetInner().GetMaterialUsers(PrimPath));
-			}
 		}
-	}
-
-	if (MaterialUserPrims.Num())
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(MaterialUserPrimsPass);
-
-		TSet<UE::FSdfPath> VisitedPaths;
-		PrimsToUpdate.Reserve(PrimsToUpdate.Num() + MaterialUserPrims.Num());
-		for (const UE::FSdfPath& MaterialUserPrim : MaterialUserPrims)
-		{
-			// This also needs to be done recursivly because our "material user prim" may be just something
-			// like a UsdGeomSubset. If we're going to resync its component, we actually need to resync whatever
-			// component it was collapsed into instead
-			const bool bIsResync = true;
-			RecursiveCollectPrimsToUpdate(MaterialUserPrim, bIsResync, PrimsToUpdate, VisitedPaths);
-		}
-		SortAndCleanPrimsToUpdate(PrimsToUpdate);
-	}
-
-	RefreshStageTask.EnterProgressFrame();
-	FScopedSlowTask CleanUpComponentsTask(PrimsToUpdate.Num(), LOCTEXT("CleaningUpComponents", "Cleaning up actors and components"));
-	{
-		TRACE_CPUPROFILER_EVENT_SCOPE(CleaningUpComponents);
-
-		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
-		{
-			CleanUpComponentsTask.EnterProgressFrame();
-
-			const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
-			const bool bIsResync = PrimChangedInfo.Value;
-
-			// If it's a new prim, we may not have old info about it
-			if (!OldInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
-			{
-				continue;
-			}
-
-			UE_LOG(LogUsd, Verbose, TEXT("Cleaning up actors and components for prim path '%s'"), *PrimPath.GetString());
-
-			if (bIsResync && PrimPath.IsAbsoluteRootOrPrimPath())
-			{
-				if (UUsdPrimTwin* UsdPrimTwin = GetRootPrimTwin()->Find(PrimPath.GetString()))
-				{
-					UsdPrimTwin->Clear();
-				}
-			}
-		}
-	}
-
-	// Recreate our LevelSequences before we regenerate components and want to add bindings/tracks
-	// back onto it
-	if (bNeedsAnimationReload)
-	{
-		RegenerateLevelSequence();
 	}
 
 	RefreshStageTask.EnterProgressFrame();
@@ -1910,12 +1875,12 @@ void AUsdStageActor::HandleAccumulatedNotices()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(RegeneratingComponents);
 
-		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& PrimChangedInfo : PrimsToUpdate)
 		{
 			RegenerateComponentsTask.EnterProgressFrame();
 
 			const UE::FSdfPath PrimPath = PrimChangedInfo.Key;
-			const bool bIsResync = PrimChangedInfo.Value;
+			const bool bIsResync = PrimChangedInfo.Value == EPrimUpdateType::Resync;
 
 			if (!UsdInfoCache->GetInner().ContainsInfoAboutPrim(PrimPath))
 			{
@@ -1939,9 +1904,10 @@ void AUsdStageActor::HandleAccumulatedNotices()
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(OnPrimChangedBroadcast);
 
-		for (const TPair<UE::FSdfPath, bool>& PrimChangedInfo : PrimsToUpdate)
+		for (const TPair<UE::FSdfPath, EPrimUpdateType>& PrimChangedInfo : PrimsToUpdate)
 		{
-			OnPrimChanged.Broadcast(PrimChangedInfo.Key.GetString(), PrimChangedInfo.Value);
+			const bool bIsResync = PrimChangedInfo.Value == EPrimUpdateType::Resync;
+			OnPrimChanged.Broadcast(PrimChangedInfo.Key.GetString(), bIsResync);
 		}
 	}
 
@@ -3212,6 +3178,8 @@ void AUsdStageActor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ObjectRep
 			NewActor->BBoxCache = BBoxCache;
 			BBoxCache = nullptr;
 
+			NewActor->ResyncedPrimsForThisTransaction = ResyncedPrimsForThisTransaction;
+
 			// It could be that we're automatically recompiling when going into PIE because our blueprint was dirty.
 			// In that case we also need bIsTransitioningIntoPIE to be true to prevent us from calling LoadUsdStage from PostRegisterAllComponents
 			NewActor->bIsTransitioningIntoPIE = bIsTransitioningIntoPIE;
@@ -3309,7 +3277,7 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	if (!UsdInfoCache)
 	{
 		UObject* Outer = this;
-		UsdInfoCache = NewObject<UUsdInfoCache>(Outer, NAME_None, EObjectFlags::RF_Transient | EObjectFlags::RF_Transactional);
+		UsdInfoCache = NewObject<UUsdInfoCache>(Outer, NAME_None, EObjectFlags::RF_Transient);
 	}
 
 	if (!PrimLinkCache)
@@ -3326,7 +3294,7 @@ void AUsdStageActor::LoadUsdStage(bool bOpenIfNeeded)
 	PrimLinkCache->Modify();
 	PrimLinkCache->GetInner().RemoveAllAssetPrimLinks();
 	UsdInfoCache->Modify();
-	UsdInfoCache->GetInner().RebuildCacheForSubtree(StageToLoad.GetPseudoRoot(), TranslationContext.Get());
+	UsdInfoCache->GetInner().RebuildCacheForSubtrees({UE::FSdfPath::AbsoluteRootPath()}, TranslationContext.Get());
 
 	SlowTask.EnterProgressFrame(0.7f);
 	const bool bLoadedOrAbandonedAssets = LoadAssets(*TranslationContext, StageToLoad.GetPseudoRoot());
@@ -3525,6 +3493,17 @@ void AUsdStageActor::SetupBBoxCacheIfNeeded()
 	const bool bUseExtentsHint = true;
 	const bool bIgnoreVisibility = false;
 	BBoxCache = MakeShared<UE::FUsdGeomBBoxCache>(Time, static_cast<EUsdPurpose>(PurposesToLoad), bUseExtentsHint, bIgnoreVisibility);
+}
+
+void AUsdStageActor::RebuildInfoCacheFromStoredChanges()
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(AUsdStageActor::RebuildInfoCacheFromStoredChanges);
+
+	if (UsdInfoCache)
+	{
+		TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
+		UsdInfoCache->GetInner().RebuildCacheForSubtrees(ResyncedPrimsForThisTransaction, TranslationContext.Get());
+	}
 }
 
 UUsdPrimTwin* AUsdStageActor::GetRootPrimTwin()
@@ -3728,6 +3707,15 @@ void AUsdStageActor::PostTransacted(const FTransactionObjectEvent& TransactionEv
 			const bool bUnloadIfNeeded = false;
 			CloseUsdStage(bUnloadIfNeeded);
 			OpenUsdStage();
+
+			// Keep the info cache up to date whenever we undo/redo opening/closing/changing the root layer,
+			// as we don't put the filled in cache into the transaction anymore
+			if (StageState != EUsdStageState::Closed && UsdInfoCache)
+			{
+				TSharedRef<FUsdSchemaTranslationContext> TranslationContext = FUsdStageActorImpl::CreateUsdSchemaTranslationContext(this, TEXT("/"));
+				UsdInfoCache->GetInner().RebuildCacheForSubtrees({UE::FSdfPath::AbsoluteRootPath()}, TranslationContext.Get());
+			}
+
 			RegenerateLevelSequence();
 			RepopulateLevelSequence();
 		}
@@ -3967,11 +3955,29 @@ void AUsdStageActor::Serialize(FArchive& Ar)
 		Ar << BlendShapesByPath;
 		Ar << MaterialToPrimvarToUVIndex;
 		Ar << bIsTransitioningIntoPIE;
+
+		if (!UsdInfoCache)
+		{
+			UObject* Outer = this;
+			UsdInfoCache = NewObject<UUsdInfoCache>(Outer, NAME_None, EObjectFlags::RF_Transient);
+		}
+		Ar << UsdInfoCache;
+
+		if (!PrimLinkCache)
+		{
+			UObject* Outer = this;
+			PrimLinkCache = NewObject<UUsdPrimLinkCache>(Outer, NAME_None, EObjectFlags::RF_Transient | EObjectFlags::RF_Transactional);
+		}
+		Ar << PrimLinkCache;
 	}
 
 	if ((Ar.GetPortFlags() & PPF_DuplicateForPIE) || Ar.IsTransacting())
 	{
 		LevelSequenceHelper.Serialize(Ar);
+
+		// For regular transactions we don't need to serialize the info cache: We'll do partial builds
+		// after the change and when undo/redoing it
+		Ar << ResyncedPrimsForThisTransaction;
 	}
 }
 
@@ -5027,6 +5033,10 @@ void AUsdStageActor::AnimatePrims()
 		this,
 		GetRootPrimTwin()->PrimPath
 	);
+
+	// For performance reasons we don't want to try computing material overrides on every animation frame.
+	// Material bindings don't change with time code anyway
+	TranslationContext->bAllowRecomputingMaterialOverrides = false;
 
 	// c.f. comment on bSequencerIsAnimating's declaration
 #if WITH_EDITOR

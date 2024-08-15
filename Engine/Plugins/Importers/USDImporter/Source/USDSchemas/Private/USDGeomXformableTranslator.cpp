@@ -325,42 +325,6 @@ USceneComponent* FUsdGeomXformableTranslator::CreateComponents()
 	// right away (like on FUsdGeomPointInstancerTranslator::CreateComponents)
 	UpdateComponents(SceneComponent);
 
-	// Handle material overrides for collapsed meshes. This can happen if we have two separate subtrees that collapse
-	// the same: A single static mesh will be shared between them and one of the task chains will manage to put their
-	// material assignments on the mesh directly. To ensure the correct materials for the second subtree, we need to
-	// set overrides.
-	// Note how we don't have to handle geometry caches in here as they're handled by the geometry cache translator now
-	if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
-	{
-		if (Context->PrimLinkCache)
-		{
-			UE::FSdfPath PrototypePath = GetPrototypePrimPath();
-			if (UStaticMesh* StaticMesh = Context->PrimLinkCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath))
-			{
-				TArray<UMaterialInterface*> ExistingAssignments;
-				for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
-				{
-					ExistingAssignments.Add(StaticMaterial.MaterialInterface);
-				}
-
-				MeshTranslationImpl::SetMaterialOverrides(
-					GetPrim(),
-					ExistingAssignments,
-					*StaticMeshComponent,
-					*Context->UsdAssetCache,
-					*Context->UsdInfoCache,
-					*Context->PrimLinkCache,
-					Context->Time,
-					Context->ObjectFlags,
-					Context->bAllowInterpretingLODs,
-					Context->RenderContext,
-					Context->MaterialPurpose,
-					Context->bShareAssetsForIdenticalPrims
-				);
-			}
-		}
-	}
-
 	return SceneComponent;
 }
 
@@ -785,6 +749,42 @@ void FUsdGeomXformableTranslator::UpdateComponents(USceneComponent* SceneCompone
 		if (!SceneComponent->IsRegistered())
 		{
 			SceneComponent->RegisterComponent();
+		}
+
+		// Handle material overrides for all kinds of meshes, even collapsed meshes.
+		// This can happen if we have two separate subtrees that collapse the same: A single static mesh will be shared between
+		// them and one of the task chains will manage to put their material assignments on the mesh directly. To ensure the
+		// correct materials for the second subtree, we need to set overrides.
+		// Note how we don't have to handle geometry caches in here as they're handled by the geometry cache translator now
+		if (Context->bAllowRecomputingMaterialOverrides)
+		{
+			if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(SceneComponent))
+			{
+				UE::FSdfPath PrototypePath = GetPrototypePrimPath();
+				if (UStaticMesh* StaticMesh = Context->PrimLinkCache->GetSingleAssetForPrim<UStaticMesh>(PrototypePath))
+				{
+					TArray<UMaterialInterface*> ExistingAssignments;
+					for (FStaticMaterial& StaticMaterial : StaticMesh->GetStaticMaterials())
+					{
+						ExistingAssignments.Add(StaticMaterial.MaterialInterface);
+					}
+
+					MeshTranslationImpl::SetMaterialOverrides(
+						GetPrim(),
+						ExistingAssignments,
+						*StaticMeshComponent,
+						*Context->UsdAssetCache,
+						*Context->UsdInfoCache,
+						*Context->PrimLinkCache,
+						Context->Time,
+						Context->ObjectFlags,
+						Context->bAllowInterpretingLODs,
+						Context->RenderContext,
+						Context->MaterialPurpose,
+						Context->bShareAssetsForIdenticalPrims
+					);
+				}
+			}
 		}
 	}
 }
