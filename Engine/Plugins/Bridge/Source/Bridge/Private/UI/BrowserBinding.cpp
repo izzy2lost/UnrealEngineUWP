@@ -351,116 +351,118 @@ void UBrowserBinding::SwitchDragDropOp(TArray<FString> URLs, TSharedRef<FAssetDr
 			0,
 			ModifierKeyState);
 
-	// Tell slate to enter drag and drop mode.
-	// Make a fake mouse event for slate, so we can initiate a drag and drop.
-	FDragDropEvent DragDropEvent(FakePointerEvent, DragDropOperation);
+	if (TSharedPtr<SWindow> TopLevelWindow = FSlateApplication::Get().GetActiveTopLevelWindow(); TopLevelWindow.IsValid())
+	{
+		// Tell slate to enter drag and drop mode.
+		// Make a fake mouse event for slate, so we can initiate a drag and drop.
+		FDragDropEvent DragDropEvent(FakePointerEvent, DragDropOperation);
 
-	FSlateApplication::Get().ProcessDragEnterEvent(FSlateApplication::Get().GetActiveTopLevelWindow().ToSharedRef(), DragDropEvent);
+		FSlateApplication::Get().ProcessDragEnterEvent(TopLevelWindow.ToSharedRef(), DragDropEvent);
+	}
 }
 
-void SetupOnActorsDroppedEvent()
+void UBrowserBinding::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, const TArray<AActor*>& DroppedActors)
 {
-	FEditorDelegates::OnNewActorsDropped.AddLambda([](TArray<UObject*> DroppedObjects, TArray<AActor*> DroppedActors)
+	if (bIsDragging)
 	{
-		if (FBridgeUIManager::BrowserBinding->bIsDragging)
+		// Take out 3d from the list of DroppedObjects
+		TArray<UObject*> Filtered3dObjects;
+		TArray<AActor*> Filtered3dActors;
+		TArray<FString> Filtered3dIDs;
+
+		for (int32 i = 0; i < DroppedObjects.Num(); i++)
 		{
-			// Take out 3d from the list of DroppedObjects
-			TArray<UObject*> Filtered3dObjects;
-			TArray<AActor*> Filtered3dActors;
-			TArray<FString> Filtered3dIDs;
+			if (DroppedObjects[i]->IsA(UStaticMesh::StaticClass()) || DroppedObjects[i]->IsA(UMaterialInstanceConstant::StaticClass()))
+			{
+				Filtered3dObjects.Add(DroppedObjects[i]);
+			}
+		}
 
-			for (int32 i = 0; i < DroppedObjects.Num(); i++)
-			{	
-				if (DroppedObjects[i]->IsA(UStaticMesh::StaticClass()) || DroppedObjects[i]->IsA(UMaterialInstanceConstant::StaticClass()))
+		// Take out actors other than decals from the list of DroppedActors
+		for (int32 i = 0; i < DroppedActors.Num(); i++)
+		{
+			if (DroppedActors[i]->IsA(AStaticMeshActor::StaticClass()) || DroppedActors[i]->IsA(ADecalActor::StaticClass()))
+			{
+				Filtered3dActors.Add(DroppedActors[i]);
+			}
+		}
+
+		for (int32 i = 0; i < DragDropTypes.Num(); i++)
+		{
+			FString Type = DragDropTypes[i];
+			FString ID = DragDropIDs[i];
+			if (Type == "surface" || Type == "imperfection") continue;
+			Filtered3dIDs.Add(ID);
+		}
+
+		if (Filtered3dActors.Num() != Filtered3dObjects.Num())
+		{
+			return;
+		}
+
+		// Search for the ID against filtered objects (specific case for decals)
+		for (int32 i = 0; i < Filtered3dIDs.Num(); i++)
+		{
+			FString ID = Filtered3dIDs[i];
+			for (int32 j = 0; j < Filtered3dObjects.Num(); j++)
+			{
+				UObject* Object = Filtered3dObjects[j];
+				AActor* Actor = Filtered3dActors[j];
+				if (Object != nullptr && Object->GetName().Find(ID) != -1)
 				{
-					Filtered3dObjects.Add(DroppedObjects[i]);
-				}
-			}
-
-			// Take out actors other than decals from the list of DroppedActors
-			for (int32 i = 0; i < DroppedActors.Num(); i++)
-			{	
-				if (DroppedActors[i]->IsA(AStaticMeshActor::StaticClass()) || DroppedActors[i]->IsA(ADecalActor::StaticClass()))
-				{
-					Filtered3dActors.Add(DroppedActors[i]);
-				}
-			}
-
-			for (int32 i = 0; i < FBridgeUIManager::BrowserBinding->DragDropTypes.Num(); i++)
-			{
-				FString Type = FBridgeUIManager::BrowserBinding->DragDropTypes[i];
-				FString ID = FBridgeUIManager::BrowserBinding->DragDropIDs[i];
-				if (Type == "surface" || Type == "imperfection") continue;
-				Filtered3dIDs.Add(ID);
-			}
-
-			if (Filtered3dActors.Num() != Filtered3dObjects.Num())
-			{
-				return;
-			}
-
-			// Search for the ID against filtered objects (specific case for decals)
-			for (int32 i = 0; i < Filtered3dIDs.Num(); i++)
-			{
-				FString ID = Filtered3dIDs[i];
-				for (int32 j = 0; j < Filtered3dObjects.Num(); j++)
-				{
-					UObject* Object = Filtered3dObjects[j];
-					AActor* Actor = Filtered3dActors[j];
-					if (Object != nullptr && Object->GetName().Find(ID) != -1)
-					{
-						FBridgeUIManager::BrowserBinding->AssetToSphereMap.Add(ID, Actor);
-						Filtered3dIDs[i] = "-1";
-						Filtered3dObjects[j] = nullptr;
-						Filtered3dActors[j] = nullptr;
-					}
-				}
-			}
-
-			Filtered3dIDs = Filtered3dIDs.FilterByPredicate([](FString ID) { return ID != "-1"; });
-			Filtered3dObjects = Filtered3dObjects.FilterByPredicate([](UObject* Object) { return Object != nullptr; });
-			Filtered3dActors = Filtered3dActors.FilterByPredicate([](AActor* Actor) { return Actor != nullptr; });
-
-			if (Filtered3dIDs.Num() != Filtered3dObjects.Num() || Filtered3dObjects.Num() != Filtered3dActors.Num())
-			{
-				return;
-			}
-			
-			for (int32 i = 0; i < Filtered3dObjects.Num(); i++)
-			{
-				UObject* Object = Filtered3dObjects[i];
-				AActor* Actor = Filtered3dActors[i];
-				FString ID = Filtered3dIDs[i];
-
-				if (Object->GetName().Find("Sphere") != -1)
-				{
-					FBridgeUIManager::BrowserBinding->AssetToSphereMap.Add(ID, Actor);
+					AssetToSphereMap.Add(ID, Actor);
+					Filtered3dIDs[i] = "-1";
+					Filtered3dObjects[j] = nullptr;
+					Filtered3dActors[j] = nullptr;
 				}
 			}
 		}
-	});
-}
 
-void SetupOnObjectAppliedToActorEvent()
-{
-	FEditorDelegates::OnApplyObjectToActor.AddLambda([](UObject* TheObject, AActor* Actor)
-	{
-		if (!FBridgeUIManager::BrowserBinding->bIsDragging) return;
-		for (int32 i = 0; i < FBridgeUIManager::BrowserBinding->DragDropTypes.Num(); i++)
+		Filtered3dIDs = Filtered3dIDs.FilterByPredicate([](FString ID) { return ID != "-1"; });
+		Filtered3dObjects = Filtered3dObjects.FilterByPredicate([](UObject* Object) { return Object != nullptr; });
+		Filtered3dActors = Filtered3dActors.FilterByPredicate([](AActor* Actor) { return Actor != nullptr; });
+
+		if (Filtered3dIDs.Num() != Filtered3dObjects.Num() || Filtered3dObjects.Num() != Filtered3dActors.Num())
 		{
-			FString Type = FBridgeUIManager::BrowserBinding->DragDropTypes[i];
-			if (Type == "surface" || Type == "imperfection")
-			{
-				if (FBridgeDragDropHelper::Instance->SurfaceToActorMap.Contains(FBridgeUIManager::BrowserBinding->DragDropIDs[i]))
-				{
-					FBridgeDragDropHelper::Instance->SurfaceToActorMap.Remove(FBridgeUIManager::BrowserBinding->DragDropIDs[i]);
-				}
+			return;
+		}
 
-				FBridgeDragDropHelper::Instance->SurfaceToActorMap.Add(FBridgeUIManager::BrowserBinding->DragDropIDs[i], Actor);
+		for (int32 i = 0; i < Filtered3dObjects.Num(); i++)
+		{
+			UObject* Object = Filtered3dObjects[i];
+			AActor* Actor = Filtered3dActors[i];
+			FString ID = Filtered3dIDs[i];
+
+			if (Object->GetName().Find("Sphere") != -1)
+			{
+				AssetToSphereMap.Add(ID, Actor);
 			}
 		}
-	});
+	}
 }
+
+void UBrowserBinding::OnApplyObjectToActor(UObject* DroppedObj, AActor* TargetActor)
+{
+	if (!bIsDragging)
+	{
+		return;
+	}
+
+	for (int32 i = 0; i < DragDropTypes.Num(); i++)
+	{
+		FString Type = DragDropTypes[i];
+		if (Type == "surface" || Type == "imperfection")
+		{
+			if (FBridgeDragDropHelper::Instance->SurfaceToActorMap.Contains(DragDropIDs[i]))
+			{
+				FBridgeDragDropHelper::Instance->SurfaceToActorMap.Remove(DragDropIDs[i]);
+			}
+
+			FBridgeDragDropHelper::Instance->SurfaceToActorMap.Add(DragDropIDs[i], TargetActor);
+		}
+	}
+}
+
 
 void PopuplateInAssetData()
 {
@@ -563,8 +565,9 @@ void UBrowserBinding::DragStarted(TArray<FString> ImageUrls, TArray<FString> IDs
 
 	if (!bIsDropEventBound)
 	{
-		SetupOnActorsDroppedEvent();
-		SetupOnObjectAppliedToActorEvent();
+		FEditorDelegates::OnNewActorsDropped.AddUObject(FBridgeUIManager::BrowserBinding, &UBrowserBinding::OnNewActorsDropped);
+		FEditorDelegates::OnApplyObjectToActor.AddUObject(FBridgeUIManager::BrowserBinding, &UBrowserBinding::OnApplyObjectToActor);
+
 		FBridgeUIManager::BrowserBinding->bIsDropEventBound = true;
 	}
 
