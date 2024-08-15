@@ -3709,7 +3709,8 @@ void UNavigationSystemV1::UpdateActorAndComponentsInNavOctree(AActor& Actor, con
 
 			for (UActorComponent* Component : ActorToUpdate.GetComponents())
 			{
-				if (Component->CanEverAffectNavigation()
+				if (Component != nullptr
+					&& Component->CanEverAffectNavigation()
 					&& ActorToUpdate.IsComponentRelevantForNavigation(Component))
 				{
 					const INavRelevantInterface* ComponentNavRelevantInterface = Cast<INavRelevantInterface>(Component);
