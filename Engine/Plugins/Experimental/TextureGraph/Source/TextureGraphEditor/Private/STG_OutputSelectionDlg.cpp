@@ -10,6 +10,7 @@
 #include "Editor.h"
 #include "EDGraph/STG_NodeThumbnail.h"
 #include "STG_OutputSelector.h"
+#include "TextureGraph.h"
 #include "TG_HelperFunctions.h"
 #include "EdGraph/TG_EdGraphNode.h"
 #include "Widgets/Colors/SColorBlock.h"
