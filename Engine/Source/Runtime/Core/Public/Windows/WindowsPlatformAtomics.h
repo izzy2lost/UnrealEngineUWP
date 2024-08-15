@@ -441,6 +441,10 @@ protected:
 	static CORE_API void HandleAtomicsFailure( const TCHAR* InFormat, ... );
 };
 
+#ifdef __clang__
+#include "Clang/ClangPlatformAtomics.h"
 
-
+typedef FClangPlatformAtomics FPlatformAtomics;
+#else
 typedef FWindowsPlatformAtomics FPlatformAtomics;
+#endif // __clang__
