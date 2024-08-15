@@ -254,6 +254,15 @@ private:
 	friend struct FBodyInstance;
 };
 
+template<>
+struct TStructOpsTypeTraits<FCollisionResponse> : public TStructOpsTypeTraitsBase2<FCollisionResponse>
+{
+	enum
+	{
+		WithIdenticalViaEquality = true
+	};
+};
+
 enum class BodyInstanceSceneState : uint8
 {
 	NotAdded,
