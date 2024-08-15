@@ -30,29 +30,28 @@
 
 #define LOCTEXT_NAMESPACE "CurveChannelSectionSidebarExtension"
 
-FCurveChannelSectionSidebarExtension::FCurveChannelSectionSidebarExtension(const TWeakPtr<ISequencer>& InSequencerWeak)
-	: SequencerWeak(InSequencerWeak)
+FCurveChannelSectionSidebarExtension::FCurveChannelSectionSidebarExtension(const TWeakPtr<ISequencer>& InWeakSequencer)
+	: WeakSequencer(InWeakSequencer)
 {
 }
 
-void FCurveChannelSectionSidebarExtension::AddSections(TArrayView<UMovieSceneSection* const> InSections)
+void FCurveChannelSectionSidebarExtension::AddSections(const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections)
 {
-	for (UMovieSceneSection* const Section : InSections)
-	{
-		Sections.Add(Section);
-	}
+	WeakSections = TSet(InWeakSections);
 }
 
-void FCurveChannelSectionSidebarExtension::ExtendMenu(FMenuBuilder& MenuBuilder)
+TSharedPtr<ISidebarChannelExtension> FCurveChannelSectionSidebarExtension::ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu)
 {
 	AddExtrapolationMenu(MenuBuilder, true);
 	AddExtrapolationMenu(MenuBuilder, false);
 	AddDisplayOptionsMenu(MenuBuilder);
+
+	return SharedThis(this);
 }
 
 void FCurveChannelSectionSidebarExtension::AddDisplayOptionsMenu(FMenuBuilder& MenuBuilder)
 {
-	const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin();
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer)
 	{
 		return;
@@ -110,7 +109,7 @@ void FCurveChannelSectionSidebarExtension::AddDisplayOptionsMenu(FMenuBuilder& M
 			.WidthOverride(50.f)
 			.IsEnabled_Lambda([this, KeyAreaName]()
 				{
-					if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+					if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 					{
 						return IsAnyShowCurve() && Sequencer->GetSequencerSettings()->HasKeyAreaCurveExtents(KeyAreaName);
 					}
@@ -134,7 +133,7 @@ void FCurveChannelSectionSidebarExtension::AddDisplayOptionsMenu(FMenuBuilder& M
 			.WidthOverride(50.f)
 			.IsEnabled_Lambda([this, KeyAreaName]()
 				{
-					if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+					if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 					{
 						return IsAnyShowCurve() && Sequencer->GetSequencerSettings()->HasKeyAreaCurveExtents(KeyAreaName);
 					}
@@ -250,7 +249,7 @@ void FCurveChannelSectionSidebarExtension::AddExtrapolationMenu(FMenuBuilder& Me
 void FCurveChannelSectionSidebarExtension::GetChannels(TArray<FMovieSceneFloatChannel*>& FloatChannels, TArray<FMovieSceneDoubleChannel*>& DoubleChannels,
 	TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels) const
 {
-	ISequencer* const Sequencer = SequencerWeak.Pin().Get();
+	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer)
 	{
 		return;
@@ -287,7 +286,7 @@ void FCurveChannelSectionSidebarExtension::GetChannels(TArray<FMovieSceneFloatCh
 	// Otherwise, the channels of all the sections
 	if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() == 0)
 	{
-		for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : Sections)
+		for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 		{
 			if (const UMovieSceneSection* const Section = WeakSection.Get())
 			{
@@ -332,7 +331,7 @@ void FCurveChannelSectionSidebarExtension::SetExtrapolationMode(const ERichCurve
 	bool bAnythingChanged = false;
 
 	// Modify all sections
-	for (TWeakObjectPtr<UMovieSceneSection> WeakSection : Sections)
+	for (TWeakObjectPtr<UMovieSceneSection> WeakSection : WeakSections)
 	{
 		UMovieSceneSection* const Section = WeakSection.Get();
 		if (IsValid(Section))
@@ -369,7 +368,7 @@ void FCurveChannelSectionSidebarExtension::SetExtrapolationMode(const ERichCurve
 
 	if (bAnythingChanged)
 	{
-		if (ISequencer* const Sequencer = SequencerWeak.Pin().Get())
+		if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 		{
 			Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::TrackValueChanged);
 		}
@@ -435,7 +434,7 @@ void FCurveChannelSectionSidebarExtension::ToggleShowCurve()
 	bool bAnythingChanged = false;
 
 	// Modify all sections
-	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 	{
 		UMovieSceneSection* const Section = WeakSection.Get();
 		if (IsValid(Section))
@@ -445,7 +444,7 @@ void FCurveChannelSectionSidebarExtension::ToggleShowCurve()
 	}
 
 	// Apply to all channels
-	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 	{
 		if (const UMovieSceneSection* const Section = WeakSection.Get())
 		{
@@ -480,7 +479,7 @@ void FCurveChannelSectionSidebarExtension::ToggleShowCurve()
 ECheckBoxState FCurveChannelSectionSidebarExtension::IsShowCurve() const
 {
 	int32 NumShowedAndHidden[2] = { 0, 0 };
-	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 	{
 		if (const UMovieSceneSection* const Section = WeakSection.Get())
 		{
@@ -517,7 +516,7 @@ ECheckBoxState FCurveChannelSectionSidebarExtension::IsShowCurve() const
 
 bool FCurveChannelSectionSidebarExtension::IsAnyShowCurve() const
 {
-	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 	{
 		const UMovieSceneSection* const Section = WeakSection.Get();
 		if (IsValid(Section))
@@ -547,7 +546,7 @@ bool FCurveChannelSectionSidebarExtension::IsAnyShowCurve() const
 
 int32 FCurveChannelSectionSidebarExtension::GetKeyAreaHeight() const
 {
-	if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+	if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 	{
 		return (int32)Sequencer->GetSequencerSettings()->GetKeyAreaHeightWithCurves();
 	}
@@ -654,7 +653,7 @@ void FCurveChannelSectionSidebarExtension::OnKeyAreaCurveMaxChanged(const double
 
 USequencerSettings* FCurveChannelSectionSidebarExtension::GetSequencerSettings() const
 {
-	if (const TSharedPtr<ISequencer> Sequencer = SequencerWeak.Pin())
+	if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
 	{
 		return Sequencer->GetSequencerSettings();
 	}

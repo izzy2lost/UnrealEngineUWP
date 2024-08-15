@@ -71,7 +71,7 @@ public:
 	/*
 	 * Build a sub menu for adding a new track section
 	 */
-	static void BuildNewSectionMenu(FSequencer& Sequencer
+	static void BuildNewSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 		, const int32 InRowIndex
 		, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
 		, FMenuBuilder& MenuBuilder);
@@ -79,7 +79,7 @@ public:
 	/*
 	 * Build an inline menu or sub menu for editing track section(s)
 	 */
-	static void BuildEditSectionMenu(FSequencer& Sequencer
+	static void BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 		, const TArray<TWeakObjectPtr<>>& InWeakSections
 		, FMenuBuilder& MenuBuilder
 		, const bool bInSubMenu);
@@ -87,7 +87,7 @@ public:
 	/*
 	 * Build a menu for selection the blend algorithm
 	 */
-	static void BuildBlendingMenu(FSequencer& Sequencer
+	static void BuildBlendingMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 		, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
 		, FMenuBuilder& MenuBuilder);
 

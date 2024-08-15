@@ -289,7 +289,12 @@ void FSectionContextMenu::PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FEx
 		ISequencerChannelInterface* ChannelInterface = SequencerModule.FindChannelEditorInterface(Pair.Key);
 		if (ChannelInterface)
 		{
-			ChannelInterface->ExtendSectionMenu_Raw(MenuBuilder, MenuExtender, Pair.Value, Sections, WeakSequencer);
+			TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSections;
+			Algo::Transform(Sections, WeakSections, [](UMovieSceneSection* const InSection)
+				{
+					return InSection;
+				});
+			ChannelInterface->ExtendSectionMenu_Raw(MenuBuilder, MenuExtender, Pair.Value, WeakSections, WeakSequencer);
 		}
 	}
 
@@ -313,7 +318,7 @@ void FSectionContextMenu::PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FEx
 				}
 			}
 
-			SequencerHelpers::BuildEditSectionMenu(*Sequencer.Get(), Sections, SubMenuBuilder, /*bInSubMenu=*/true);
+			SequencerHelpers::BuildEditSectionMenu(Sequencer, Sections, SubMenuBuilder, /*bInSubMenu=*/true);
 		})
 	);
 

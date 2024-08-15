@@ -129,7 +129,7 @@ TSharedRef<SWidget> FSequencerSelectionDrawer::CreateContentWidget()
 		if (const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get()))
 		{
 			SequencerSelection->OnChanged.AddSP(this, &FSequencerSelectionDrawer::OnSequencerSelectionChanged);
-			
+
 			OnSequencerSelectionChanged();
 		}
 	}
@@ -153,8 +153,30 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 	{
 		return;
 	}
+
+	if (bWaitingToHandleSelectionChanged)
+	{
+		return;
+	}
+
+	bWaitingToHandleSelectionChanged = true;
+
+	GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+		{
+			UpdateFromSelectionNextFrame();
+		});
+}
+
+void FSequencerSelectionDrawer::UpdateFromSelectionNextFrame()
+{
+	bWaitingToHandleSelectionChanged = false;
+
+	ContentBox->ClearChildren();
+
+	CurveChannelExtension.Reset();
+
 	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-	if (!WeakSequencer.IsValid())
+	if (!Sequencer.IsValid())
 	{
 		return;
 	}
@@ -164,88 +186,59 @@ void FSequencerSelectionDrawer::OnSequencerSelectionChanged()
 	{
 		return;
 	}
-	static bool bWaitingToHandleSelectionChanged = false;
 
-	if (bWaitingToHandleSelectionChanged == false)
-	{
-		bWaitingToHandleSelectionChanged = true;
-		GEditor->GetTimerManager()->SetTimerForNextTick([this]()
+	const TSharedRef<FSequencerSelection> SelectionRef = SequencerSelection.ToSharedRef();
+
+	auto AddToContent = [this](const TSharedRef<SWidget>& InWidget)
 		{
-			bWaitingToHandleSelectionChanged = false;
-			if (!ContentBox.IsValid())
-			{
-				return;
-			}
-			ContentBox->ClearChildren();
+			ContentBox->AddSlot()
+				.AutoHeight()
+				[
+					InWidget
+				];
+		};
 
-			CurveChannelExtension.Reset();
+	const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
 
-			const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-			if (!WeakSequencer.IsValid())
-			{
-				return;
-			}
+	FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/false
+		, Sequencer->GetCommandBindings()
+		, SidebarExtensibilityManager->GetAllExtenders()
+		, /*bInCloseSelfOnly=*/true, &FCoreStyle::Get(), /*bInSearchable=*/true, TEXT("Sequencer.Sidebar"));
 
-			const TSharedPtr<FSequencerSelection> SequencerSelection = Private::GetSelection(*Sequencer.Get());
-			if (!SequencerSelection.IsValid())
-			{
-				return;
-			}
+	/**
+	 * Selection details display order preference:
+	 *  1) Key items
+	 *  2) Track area items (if no key selected)
+	 *  3) Outliner items (if no key or track area selected)
+	 *  4) Marked frames
+	 */
 
-			const TSharedRef<FSequencerSelection> SelectionRef = SequencerSelection.ToSharedRef();
+	// 1) Key items
+	BuildKeySelectionDetails(SelectionRef, MenuBuilder);
 
-			auto AddToContent = [this](const TSharedRef<SWidget>& InWidget)
-				{
-					ContentBox->AddSlot()
-						.AutoHeight()
-						[
-							InWidget
-						];
-				};
-
-			const ISequencerModule& SequencerModule = FModuleManager::Get().LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
-			const TSharedPtr<FExtensibilityManager> SidebarExtensibilityManager = SequencerModule.GetSidebarExtensibilityManager();
-
-			FMenuBuilder MenuBuilder(/*bInShouldCloseWindowAfterMenuSelection=*/false
-				, Sequencer->GetCommandBindings()
-				, SidebarExtensibilityManager->GetAllExtenders()
-				, /*bInCloseSelfOnly=*/true, &FCoreStyle::Get(), /*bInSearchable=*/true, TEXT("Sequencer.Sidebar"));
-
-			/**
-				* Selection details display order preference:
-				*  1) Key items
-				*  2) Track area items (if no key selected)
-				*  3) Outliner items (if no key or track area selected)
-				*  4) Marked frames
-				*/
-
-				// 1) Key items
-			BuildKeySelectionDetails(SelectionRef, MenuBuilder);
-
-			// Early out for key selections
-			const bool bIsKeySelected = SequencerSelection->KeySelection.Num() > 0;
-			if (bIsKeySelected)
-			{
-				AddToContent(MenuBuilder.MakeWidget());
-				return;
-			}
-
-			// 2) Track area items
-			BuildTrackAreaDetails(*Sequencer, SelectionRef, MenuBuilder);
-
-			// 3) Outliner items
-			const bool bIsTrackAreaSelected = SequencerSelection->TrackArea.Num() > 0;
-			if (!bIsTrackAreaSelected)
-			{
-				BuildOutlinerDetails(*Sequencer, SelectionRef, MenuBuilder);
-			}
-
-			// 4) Marked frames
-			BuildMarkedFrameDetails(SelectionRef, MenuBuilder);
-
-			AddToContent(MenuBuilder.MakeWidget());
-		});
+	// Early out for key selections
+	const bool bIsKeySelected = SequencerSelection->KeySelection.Num() > 0;
+	if (bIsKeySelected)
+	{
+		AddToContent(MenuBuilder.MakeWidget());
+		return;
 	}
+
+	// 2) Track area items
+	BuildTrackAreaDetails(SelectionRef, MenuBuilder);
+
+	// 3) Outliner items
+	const bool bIsTrackAreaSelected = SequencerSelection->TrackArea.Num() > 0;
+	if (!bIsTrackAreaSelected)
+	{
+		BuildOutlinerDetails(SelectionRef, MenuBuilder);
+	}
+
+	// 4) Marked frames
+	BuildMarkedFrameDetails(SelectionRef, MenuBuilder);
+
+	AddToContent(MenuBuilder.MakeWidget());
 }
 
 void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
@@ -276,11 +269,11 @@ void FSequencerSelectionDrawer::BuildKeySelectionDetails(const TSharedRef<FSeque
 	}
 	if (Channels.Num() == 1)
 	{
-		FSectionContextMenu::BuildKeyEditMenu(MenuBuilder, WeakSequencer, Sequencer->GetLastEvaluatedLocalTime());
+		FSectionContextMenu::BuildKeyEditMenu(MenuBuilder, Sequencer, Sequencer->GetLastEvaluatedLocalTime());
 	}
 }
 
-void FSequencerSelectionDrawer::BuildTrackAreaDetails(FSequencer& InSequencer, const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildTrackAreaDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
 	TArray<TWeakObjectPtr<>> AllSectionObjects;
 
@@ -299,8 +292,6 @@ void FSequencerSelectionDrawer::BuildTrackAreaDetails(FSequencer& InSequencer, c
 		{
 			if (InSelection->TrackArea.Num() == 1)
 			{
-				const TViewModelPtr<IOutlinerExtension> LinkedOutlinerItem = SectionModel->GetLinkedOutlinerItem();
-
 				if (const TSharedPtr<ISequencerSection> SectionInterface = SectionModel->GetSectionInterface())
 				{
 					const TSharedPtr<IObjectBindingExtension> ObjectBinding = SectionModel->FindAncestorOfType<IObjectBindingExtension>();
@@ -314,13 +305,19 @@ void FSequencerSelectionDrawer::BuildTrackAreaDetails(FSequencer& InSequencer, c
 
 	if (!AllSectionObjects.IsEmpty())
 	{
-		SequencerHelpers::BuildEditSectionMenu(InSequencer, AllSectionObjects, MenuBuilder, false);
+		SequencerHelpers::BuildEditSectionMenu(WeakSequencer, AllSectionObjects, MenuBuilder, false);
 	}
 }
 
-void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
+void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder)
 {
 	if (InSelection->Outliner.Num() == 0)
+	{
+		return;
+	}
+
+	const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+	if (!Sequencer.IsValid())
 	{
 		return;
 	}
@@ -350,7 +347,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 		TArray<FName> ChannelTypeNames;
 		TArray<ISequencerChannelInterface*> ChannelInterfaces;
 		TArray<FMovieSceneChannelHandle> ChannelHandles;
-		TArray<UMovieSceneSection*> SceneSections;
+		TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSceneSections;
 
 		for (const TViewModelPtr<FChannelGroupOutlinerModel>& ChannelModel : ChannelGroups)
 		{
@@ -363,7 +360,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 					ChannelTypeNames.Add(Channel.GetChannelTypeName());
 					ChannelInterfaces.Add(SequencerChannelIterface);
 					ChannelHandles.Add(Channel);
-					SceneSections.Add(KeyArea->GetOwningSection());
+					WeakSceneSections.Add(KeyArea->GetOwningSection());
 				}
 			}
 		}
@@ -385,23 +382,31 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(FSequencer& InSequencer, co
 		// Channel Interface Extensions (Perlin Noise, Easing, Wave)
 		if (ChannelInterfaces.Num() > 0)
 		{
+			ChannelExtensions.Empty();
+
 			if (bAllChannelNamesEqual)
 			{
-				ChannelInterfaces[0]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, SceneSections, WeakSequencer);
+				if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[0]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, ChannelHandles, WeakSceneSections, Sequencer))
+				{
+					ChannelExtensions.Add(ChannelExtension);
+				}
 			}
 			else
 			{
 				// Display different channels separately and don't allow to edit "all-in-one"
 				for (int32 Index = 0; Index < ChannelInterfaces.Num(); ++Index)
 				{
-					ChannelInterfaces[Index]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, { ChannelHandles[Index] }, { SceneSections[Index] }, WeakSequencer);
+					if (const TSharedPtr<ISidebarChannelExtension> ChannelExtension = ChannelInterfaces[Index]->ExtendSidebarMenu_Raw(MenuBuilder, Extender, { ChannelHandles[Index] }, { WeakSceneSections[Index] }, Sequencer))
+					{
+						ChannelExtensions.Add(ChannelExtension);
+					}
 				}
 			}
 		}
 
 		// Curve Channel Options (Pre-Finity, Post-Finity, etc.)
-		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(WeakSequencer);
-		CurveChannelExtension->AddSections(SceneSections);
+		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(Sequencer);
+		CurveChannelExtension->AddSections(WeakSceneSections);
 		CurveChannelExtension->ExtendMenu(MenuBuilder);
 	}
 }

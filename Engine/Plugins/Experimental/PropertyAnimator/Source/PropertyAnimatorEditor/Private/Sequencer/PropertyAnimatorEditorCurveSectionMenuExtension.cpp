@@ -38,14 +38,14 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::FChannelNotifyHook::Notif
 	}
 }
 
-FPropertyAnimatorEditorCurveSectionMenuExtension::FPropertyAnimatorEditorCurveSectionMenuExtension(TConstArrayView<FMovieSceneChannelHandle> InChannelHandles, TConstArrayView<UMovieSceneSection*> InSections)
+FPropertyAnimatorEditorCurveSectionMenuExtension::FPropertyAnimatorEditorCurveSectionMenuExtension(TConstArrayView<FMovieSceneChannelHandle> InChannelHandles, const TConstArrayView<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections)
 	: ChannelHandles(InChannelHandles)
-	, Sections(InSections)
+	, WeakSections(InWeakSections)
 {
 	Initialize();
 }
 
-void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& InMenuBuilder, const bool bSubMenu)
+TSharedPtr<ISidebarChannelExtension> FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& InMenuBuilder, const bool bInSubMenu)
 {
 	TSharedRef<FPropertyAnimatorEditorCurveSectionMenuExtension> This = SharedThis(this);
 
@@ -54,7 +54,7 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& 
 
 	if (ChannelHandles.Num() > 1)
 	{
-		if (bSubMenu)
+		if (bInSubMenu)
 		{
 			InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
 				{
@@ -68,7 +68,7 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& 
 	}
 	else if (ChannelHandles.Num() == 1)
 	{
-		if (bSubMenu)
+		if (bInSubMenu)
 		{
 			InMenuBuilder.AddSubMenu(MenuTitle, MenuTooltip, FNewMenuDelegate::CreateLambda([This](FMenuBuilder& InInnerMenuBuilder)
 				{
@@ -80,6 +80,8 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::ExtendMenu(FMenuBuilder& 
 			This->BuildParametersMenu(InMenuBuilder, 0);
 		}
 	}
+
+	return This;
 }
 
 void FPropertyAnimatorEditorCurveSectionMenuExtension::Initialize()
@@ -88,9 +90,9 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::Initialize()
 	// Also, create the notify hooks. Normal channels need to modify the section, but overriden channels
 	// need to modify their override channel container.
 	TArray<FMovieSceneChannelProxy*> ChannelProxies;
-	for (UMovieSceneSection* Section : Sections)
+	for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 	{
-		ChannelProxies.Add(&Section->GetChannelProxy());
+		ChannelProxies.Add(&WeakSection->GetChannelProxy());
 	}
 
 	for (const FMovieSceneChannelHandle& ChannelHandle : ChannelHandles)
@@ -98,11 +100,15 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::Initialize()
 		int32 SectionIndex = ChannelProxies.Find(ChannelHandle.GetChannelProxy());
 		ChannelHandleSectionIndexes.Add(SectionIndex);
 
-		UMovieSceneSection* Section = Sections[SectionIndex];
+		TWeakObjectPtr<UMovieSceneSection> WeakSection = WeakSections[SectionIndex];
+		if (!WeakSection.IsValid())
+		{
+			continue;
+		}
 
-		UObject* ObjectToModify = Section;
+		UObject* ObjectToModify = WeakSection.Get();
 
-		IMovieSceneChannelOverrideProvider* ChannelOverrideProvider = Cast<IMovieSceneChannelOverrideProvider>(Section);
+		IMovieSceneChannelOverrideProvider* ChannelOverrideProvider = Cast<IMovieSceneChannelOverrideProvider>(WeakSection);
 
 		UMovieSceneSectionChannelOverrideRegistry* ChannelOverrideRegistry = ChannelOverrideProvider
 			? ChannelOverrideProvider->GetChannelOverrideRegistry(false)
@@ -125,7 +131,7 @@ void FPropertyAnimatorEditorCurveSectionMenuExtension::Initialize()
 
 void FPropertyAnimatorEditorCurveSectionMenuExtension::BuildChannelsMenu(FMenuBuilder& InMenuBuilder)
 {
-	const bool bMultipleSections = Sections.Num() > 1;
+	const bool bMultipleSections = WeakSections.Num() > 1;
 
 	TSharedRef<FPropertyAnimatorEditorCurveSectionMenuExtension> This = SharedThis(this);
 

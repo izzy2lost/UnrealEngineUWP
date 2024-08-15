@@ -65,6 +65,11 @@ struct FExtendKeyMenuParams
 	TArray<FKeyHandle> Handles;
 };
 
+class ISidebarChannelExtension
+{
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) = 0;
+};
+
 /**
  * Abstract interface that defines all sequencer interactions for any channel type
  * Channels are stored internally as FMovieSceneChannel*, with this interface providing a common set of operations for all channels through a safe cast from the FMovieSceneChannel*.
@@ -153,20 +158,28 @@ struct ISequencerChannelInterface
 	 * @param MenuExtender          The menu extender to use
 	 * @param Channels              Array of type specific channels that exist in the selected sections
 	 * @param Sections              Array of sections being shown on the context menu
-	 * @param InSequencer           The currently active sequencer
+	 * @param InWeakSequencer       The currently active sequencer
 	 */
-	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const = 0;
+	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> MenuExtender
+		, TArrayView<const FMovieSceneChannelHandle> InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer) const = 0;
 
 	/**
 	 * Extend the section sidebar menu
 	 *
 	 * @param MenuBuilder           The menu builder used to create this context menu
-	 * @param MenuExtender          The menu extender to use
-	 * @param Channels              Array of type specific channels that exist in the selected sections
-	 * @param Sections              Array of sections being shown on the context menu
-	 * @param InSequencer           The currently active sequencer
+	 * @param InMenuExtender        The menu extender to use
+	 * @param InChannels            Array of type specific channels that exist in the selected sections
+	 * @param InWeakSections        Array of sections being shown on the context menu
+	 * @param InWeakSequencer       The currently active sequencer
 	 */
-	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const = 0;
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> InMenuExtender
+		, TArrayView<const FMovieSceneChannelHandle> InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer) const = 0;
 
 	/**
 	 * Gather information on how to draw the specified keys

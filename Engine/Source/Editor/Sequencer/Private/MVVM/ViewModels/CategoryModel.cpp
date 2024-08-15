@@ -316,12 +316,12 @@ void FCategoryGroupModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 			{
 				return InSection;
 			});
-		SequencerHelpers::BuildEditSectionMenu(*Sequencer.Get(), WeakSectionObjects, MenuBuilder, false);
+		SequencerHelpers::BuildEditSectionMenu(Sequencer, WeakSectionObjects, MenuBuilder, false);
 	}
 
 	FOutlinerItemModel::BuildSidebarMenu(MenuBuilder);
 }
-	
+
 } // namespace UE::Sequencer
 
 #undef LOCTEXT_NAMESPACE

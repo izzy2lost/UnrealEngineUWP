@@ -44,11 +44,12 @@ class SNumericTextBlockKeyEditor : public SCompoundWidget
 	}
 };
 
-struct FPerlinNoiseChannelSectionMenuExtension : TSharedFromThis<FPerlinNoiseChannelSectionMenuExtension>
+struct FPerlinNoiseChannelSectionMenuExtension : TSharedFromThis<FPerlinNoiseChannelSectionMenuExtension>, ISidebarChannelExtension
 {
-	FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, TArrayView<UMovieSceneSection* const> InSections);
+	FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
+	virtual ~FPerlinNoiseChannelSectionMenuExtension() {}
 
-	void ExtendMenu(FMenuBuilder& MenuBuilder, const bool bSubMenu = true);
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) override;
 
 private:
 
@@ -61,9 +62,9 @@ private:
 
 	struct FChannelNotifyHook : FNotifyHook
 	{
-		UObject* ObjectToModify = nullptr;
+		TWeakObjectPtr<UObject> WeakObjectToModify;
 
-		FChannelNotifyHook(UObject* InObjectToModify) : ObjectToModify(InObjectToModify) {}
+		FChannelNotifyHook(UObject* InObjectToModify) : WeakObjectToModify(InObjectToModify) {}
 
 		virtual void NotifyPreChange(FProperty* PropertyAboutToChange) override;
 		virtual void NotifyPostChange(const FPropertyChangedEvent& PropertyChangedEvent, FProperty* PropertyThatChanged) override;
@@ -71,7 +72,7 @@ private:
 
 	TArray<FMovieSceneChannelHandle> ChannelHandles;
 	TArray<int32> ChannelHandleSectionIndexes;
-	TArray<UMovieSceneSection*> Sections;
+	TArray<TWeakObjectPtr<UMovieSceneSection>> WeakSections;
 	TArray<FChannelNotifyHook> NotifyHooks;
 };
 
@@ -124,21 +125,22 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 	{
 	}
 
-	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const override
+	virtual void ExtendSectionMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArrayView<const FMovieSceneChannelHandle> InChannels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer) const override
 	{
-		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(Channels, Sections);
+		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(InChannels, InWeakSections);
 
-		MenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
+		InMenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
 			, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder)
 				{
 					Extension->ExtendMenu(MenuBuilder);
 				}));
 	}
 
-	virtual void ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArrayView<const FMovieSceneChannelHandle> Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer) const override
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu_Raw(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArrayView<const FMovieSceneChannelHandle> InChannels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer) const override
 	{
-		TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(Channels, Sections);
+		const TSharedRef<FPerlinNoiseChannelSectionMenuExtension> Extension = MakeShared<FPerlinNoiseChannelSectionMenuExtension>(InChannels, InWeakSections);
 		Extension->ExtendMenu(MenuBuilder, false);
+		return Extension;
 	}
 
 	virtual void DrawKeys_Raw(FMovieSceneChannel* Channel, TArrayView<const FKeyHandle> InKeyHandles, const UMovieSceneSection* InOwner, TArrayView<FKeyDrawParams> OutKeyDrawParams) const override

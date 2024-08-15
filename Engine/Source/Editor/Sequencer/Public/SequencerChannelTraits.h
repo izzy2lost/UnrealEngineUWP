@@ -103,20 +103,31 @@ namespace Sequencer
 	 * @param InSequencer    The sequencer that is currently active
 	 */
 	template<typename ChannelType>
-	void ExtendSectionMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArray<TMovieSceneChannelHandle<ChannelType>>&& Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer)
+	void ExtendSectionMenu(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> InMenuExtender
+		, TArray<TMovieSceneChannelHandle<ChannelType>>&& InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer)
 	{}
 
 	/**
 	 * Extend the specified selected sidebar menu
 	 *
-	 * @param MenuBuilder    The menu builder that will construct the section context menu
-	 * @param Channels       An array of all channels that are currently selected, in no particular order
-	 * @param Sections       An array of all sections that the selected channels reside in
-	 * @param InSequencer    The sequencer that is currently active
+	 * @param MenuBuilder     The menu builder that will construct the section context menu
+	 * @param InMenuExtender  The extender for the menu
+	 * @param InChannels      An array of all channels that are currently selected, in no particular order
+	 * @param InWeakSections  An array of all sections that the selected channels reside in
+	 * @param InWeakSequencer The sequencer that is currently active
 	 */
 	template<typename ChannelType>
-	void ExtendSidebarMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtender> MenuExtender, TArray<TMovieSceneChannelHandle<ChannelType>>&& Channels, TArrayView<UMovieSceneSection* const> Sections, TWeakPtr<ISequencer> InSequencer)
-	{}
+	TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu(FMenuBuilder& MenuBuilder
+		, TSharedPtr<FExtender> InMenuExtender
+		, TArray<TMovieSceneChannelHandle<ChannelType>>&& InChannels
+		, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections
+		, TWeakPtr<ISequencer> InWeakSequencer)
+	{
+		return nullptr;
+	}
 
 	/**
 	 * Extend the specified selected key context menu

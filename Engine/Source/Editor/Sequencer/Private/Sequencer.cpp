@@ -670,8 +670,6 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 	OnActivateSequenceEvent.Broadcast(ActiveTemplateIDs[0]);
 
 	{ // Selection Details Drawer
-		FSequencerSelectionDrawer SelectionDrawer(SharedThis(this));
-
 		FSidebarDrawerConfig DetailsDrawer;
 		DetailsDrawer.UniqueId = SelectionDrawerId;
 		DetailsDrawer.ButtonText = LOCTEXT("SelectionDetailsPanelLabel", "Selection");

@@ -323,8 +323,6 @@ void FTrackRowModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 		return;
 	}
 
-	FSequencer& SequencerRef = *Sequencer.Get();
-
 	if (TrackEditor)
 	{
 		TrackEditor->BuildTrackContextMenu(MenuBuilder, Track);
@@ -332,13 +330,13 @@ void FTrackRowModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 
 	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{
-		SequencerHelpers::BuildNewSectionMenu(SequencerRef, GetRowIndex() + 1, GetTrack(), MenuBuilder);
+		SequencerHelpers::BuildNewSectionMenu(Sequencer, GetRowIndex() + 1, GetTrack(), MenuBuilder);
 	}
 
-	SequencerHelpers::BuildBlendingMenu(SequencerRef, Track, MenuBuilder);
+	SequencerHelpers::BuildBlendingMenu(Sequencer, Track, MenuBuilder);
 
 	const TArray<TWeakObjectPtr<>> TrackAreaModels = SequencerHelpers::GetSectionObjectsFromTrackAreaModels(GetTrackAreaModelList());
-	SequencerHelpers::BuildEditSectionMenu(SequencerRef, TrackAreaModels, MenuBuilder, true);
+	SequencerHelpers::BuildEditSectionMenu(Sequencer, TrackAreaModels, MenuBuilder, true);
 
 	if (const TViewModelPtr<FChannelGroupModel> ChannelGroup = TopLevelChannelList.GetHead().ImplicitCast())
 	{
@@ -368,8 +366,6 @@ void FTrackRowModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 		return;
 	}
 
-	FSequencer& SequencerRef = *Sequencer.Get();
-
 	if (TrackEditor)
 	{
 		TrackEditor->BuildTrackSidebarMenu(MenuBuilder, Track);
@@ -377,13 +373,13 @@ void FTrackRowModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 
 	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{
-		SequencerHelpers::BuildNewSectionMenu(SequencerRef, GetRowIndex() + 1, GetTrack(), MenuBuilder);
+		SequencerHelpers::BuildNewSectionMenu(Sequencer, GetRowIndex() + 1, GetTrack(), MenuBuilder);
 	}
 
-	SequencerHelpers::BuildBlendingMenu(SequencerRef, Track, MenuBuilder);
+	SequencerHelpers::BuildBlendingMenu(Sequencer, Track, MenuBuilder);
 
 	const TArray<TWeakObjectPtr<>> TrackAreaModels = SequencerHelpers::GetSectionObjectsFromTrackAreaModels(GetTrackAreaModelList());
-	SequencerHelpers::BuildEditSectionMenu(SequencerRef, TrackAreaModels, MenuBuilder, false);
+	SequencerHelpers::BuildEditSectionMenu(Sequencer, TrackAreaModels, MenuBuilder, false);
 
 	if (const TViewModelPtr<FChannelGroupModel> ChannelGroup = TopLevelChannelList.GetHead().ImplicitCast())
 	{

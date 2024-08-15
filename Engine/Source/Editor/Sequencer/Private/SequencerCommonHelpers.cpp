@@ -311,28 +311,26 @@ private:
 	TWeakPtr<ISequencer> WeakSequencer;
 };
 
-void SequencerHelpers::BuildNewSectionMenu(FSequencer& Sequencer
+void SequencerHelpers::BuildNewSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 	, const int32 InRowIndex
 	, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
 	, FMenuBuilder& MenuBuilder)
 {
 	using namespace UE::Sequencer;
 
-	const TWeakPtr<ISequencer> WeakSequencer = Sequencer.AsWeak();
-
 	MenuBuilder.AddSubMenu(
 		NSLOCTEXT("Sequencer", "AddSection", "Add Section"),
 		FText(),
-		FNewMenuDelegate::CreateLambda([WeakSequencer, InRowIndex, InTrackWeak](FMenuBuilder& SubMenuBuilder)
+		FNewMenuDelegate::CreateLambda([InWeakSequencer, InRowIndex, InTrackWeak](FMenuBuilder& SubMenuBuilder)
 		{
-			if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+			if (const TSharedPtr<ISequencer> Sequencer = InWeakSequencer.Pin())
 			{
 				FSequencerUtilities::PopulateMenu_CreateNewSection(SubMenuBuilder, InRowIndex, InTrackWeak.Get(), Sequencer);
 			}
 		}));
 }
 
-void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
+void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 	, const TArray<TWeakObjectPtr<>>& InWeakSections
 	, FMenuBuilder& MenuBuilder
 	, const bool bInSubMenu)
@@ -344,15 +342,16 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 		return;
 	}
 
-	const TWeakPtr<FSequencer> WeakSequencer = StaticCastWeakPtr<FSequencer>(Sequencer.AsWeak());
-
-	auto BuildSection = [WeakSequencer, InWeakSections](FMenuBuilder& LambdaMenuBuilder)
+	auto BuildSection = [InWeakSequencer, InWeakSections](FMenuBuilder& LambdaMenuBuilder)
 	{
-		const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
+		const TSharedPtr<FSequencer> Sequencer = InWeakSequencer.Pin();
 		if (!Sequencer)
 		{
 			return;
 		}
+
+		const TWeakObjectPtr<UMovieScene> CurrentScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+		const TWeakPtr<INumericTypeInterface<double>> NumericTypeInterfafce = Sequencer->GetNumericTypeInterface();
 
 		TSharedRef<SSectionDetailsNotifyHookWrapper> DetailsNotifyWrapper = SNew(SSectionDetailsNotifyHookWrapper);
 		FDetailsViewArgs DetailsViewArgs;
@@ -373,21 +372,14 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 
 		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 		DetailsView->RegisterInstancedCustomPropertyTypeLayout("FrameNumber",
-			FOnGetPropertyTypeCustomizationInstance::CreateLambda([WeakSequencer]()
+			FOnGetPropertyTypeCustomizationInstance::CreateLambda([NumericTypeInterfafce]()
 			{
-				const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-				check(Sequencer);
-				return MakeShared<FFrameNumberDetailsCustomization>(Sequencer->GetNumericTypeInterface());
+				return MakeShared<FFrameNumberDetailsCustomization>(NumericTypeInterfafce.Pin());
 			}));
 		DetailsView->RegisterInstancedCustomPropertyLayout(UMovieSceneSection::StaticClass(),
-			FOnGetDetailCustomizationInstance::CreateLambda([WeakSequencer]()
+			FOnGetDetailCustomizationInstance::CreateLambda([NumericTypeInterfafce, CurrentScene]()
 			{
-				const TSharedPtr<FSequencer> Sequencer = WeakSequencer.Pin();
-				check(Sequencer);
-				// We pass the current scene to the UMovieSceneSection customization so we can get the overall bounds of the section when we change a section from infinite->bounded.
-				UMovieScene* const CurrentScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
-				check(CurrentScene);
-				return MakeShared<FMovieSceneSectionDetailsCustomization>(Sequencer->GetNumericTypeInterface(), CurrentScene);
+				return MakeShared<FMovieSceneSectionDetailsCustomization>(NumericTypeInterfafce.Pin(), CurrentScene.Get());
 			}));
 	
 		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda([](const FPropertyAndParent& PropertyAndParent)
@@ -407,7 +399,7 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 				{
 					TSharedPtr<ISequencerSection> SectionInterface = SectionHandle->GetSectionInterface();
 					FSequencerSectionPropertyDetailsViewCustomizationParams CustomizationDetails(
-						SectionInterface.ToSharedRef(), WeakSequencer, *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
+						SectionInterface.ToSharedRef(), InWeakSequencer, *SectionHandle->GetParentTrackExtension()->GetTrackEditor().Get());
 					TSharedPtr<FObjectBindingModel> ParentObjectBindingNode = SectionHandle->FindAncestorOfType<FObjectBindingModel>();
 					if (ParentObjectBindingNode.IsValid())
 					{
@@ -421,7 +413,7 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 		Sequencer->OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.ToSharedRef());
 		DetailsView->SetObjects(InWeakSections);
 
-		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, WeakSequencer);
+		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, InWeakSequencer);
 		DetailsNotifyWrapper->SetEnabled(!Sequencer->IsReadOnly());
 
 		LambdaMenuBuilder.BeginSection(TEXT("TrackSection"), NSLOCTEXT("Sequencer", "TrackSectionMenuSection", "Track Section"));
@@ -451,7 +443,7 @@ void SequencerHelpers::BuildEditSectionMenu(FSequencer& Sequencer
 	}
 }
 
-void SequencerHelpers::BuildBlendingMenu(FSequencer& Sequencer
+void SequencerHelpers::BuildBlendingMenu(const TWeakPtr<FSequencer>& InWeakSequencer
 	, const TWeakObjectPtr<UMovieSceneTrack>& InTrackWeak
 	, FMenuBuilder& MenuBuilder)
 {
@@ -473,14 +465,12 @@ void SequencerHelpers::BuildBlendingMenu(FSequencer& Sequencer
 		return;
 	}
 
-	const TWeakPtr<ISequencer> WeakSequencer = Sequencer.AsWeak();
-
 	MenuBuilder.AddSubMenu(
 		NSLOCTEXT("Sequencer", "BlendingAlgorithmSubMenu", "Blending Algorithm"),
 		FText(),
-		FNewMenuDelegate::CreateLambda([WeakSequencer, InTrackWeak](FMenuBuilder& SubMenuBuilder)
+		FNewMenuDelegate::CreateLambda([InWeakSequencer, InTrackWeak](FMenuBuilder& SubMenuBuilder)
 		{
-			if (const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin())
+			if (const TSharedPtr<ISequencer> Sequencer = InWeakSequencer.Pin())
 			{
 				FSequencerUtilities::PopulateMenu_BlenderSubMenu(SubMenuBuilder, InTrackWeak.Get(), Sequencer);
 			}

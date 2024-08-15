@@ -9,6 +9,7 @@ class FMenuBuilder;
 class FName;
 class FSequencer;
 class FText;
+class ISidebarChannelExtension;
 class SVerticalBox;
 class SWidget;
 struct FCurveChannelSectionSidebarExtension;
@@ -35,10 +36,11 @@ public:
 
 protected:
 	void OnSequencerSelectionChanged();
+	void UpdateFromSelectionNextFrame();
 
 	void BuildKeySelectionDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
-	void BuildTrackAreaDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
-	void BuildOutlinerDetails(FSequencer& InSequencer, const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
+	void BuildTrackAreaDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
+	void BuildOutlinerDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 	void BuildMarkedFrameDetails(const TSharedRef<UE::Sequencer::FSequencerSelection>& InSelection, FMenuBuilder& MenuBuilder);
 
 	TSharedRef<SWidget> CreateHintText(const FText& InMessage);
@@ -54,4 +56,8 @@ protected:
 	TSharedPtr<SVerticalBox> ContentBox;
 
 	TSharedPtr<FCurveChannelSectionSidebarExtension> CurveChannelExtension;
+
+	TArray<TSharedPtr<ISidebarChannelExtension>> ChannelExtensions;
+
+	bool bWaitingToHandleSelectionChanged = false;
 };

@@ -12,13 +12,14 @@ struct FMovieSceneIntegerChannel;
 enum class ECheckBoxState : uint8;
 enum ERichCurveExtrapolation : int;
 
-struct FCurveChannelSectionSidebarExtension : TSharedFromThis<FCurveChannelSectionSidebarExtension>
+struct FCurveChannelSectionSidebarExtension : TSharedFromThis<FCurveChannelSectionSidebarExtension>, ISidebarChannelExtension
 {
-	FCurveChannelSectionSidebarExtension(const TWeakPtr<ISequencer>& InSequencerWeak);
+	FCurveChannelSectionSidebarExtension(const TWeakPtr<ISequencer>& InWeakSequencer);
+	virtual ~FCurveChannelSectionSidebarExtension() {}
 
-	void AddSections(TArrayView<UMovieSceneSection* const> InSections);
+	void AddSections(const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
 
-	void ExtendMenu(FMenuBuilder& MenuBuilder);
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) override;
 
 private:
 	void AddDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
@@ -48,7 +49,7 @@ private:
 
 	USequencerSettings* GetSequencerSettings() const;
 
-	TWeakPtr<ISequencer> SequencerWeak;
+	TWeakPtr<ISequencer> WeakSequencer;
 
-	TSet<TWeakObjectPtr<UMovieSceneSection>> Sections;
+	TSet<TWeakObjectPtr<UMovieSceneSection>> WeakSections;
 };
