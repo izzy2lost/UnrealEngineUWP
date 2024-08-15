@@ -21,6 +21,7 @@ class FGeometryCollectionRemoveOnBreakDynamicFacade
 {
 public:
 	static constexpr float DisabledBreakTimer = -1;
+	static constexpr float BreakTimerStartValue = 0;
 	static constexpr float DisabledPostBreakDuration = -1;
 	static constexpr float CrumblingRemovalTimer = -1;
 	

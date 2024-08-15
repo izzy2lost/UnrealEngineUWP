@@ -44,7 +44,7 @@ bool FGeometryCollectionRemoveOnBreakDynamicFacade::IsConst() const
 void FGeometryCollectionRemoveOnBreakDynamicFacade::DefineSchema()
 {
 	check(!IsConst());
-	BreakTimerAttribute.AddAndFill(DisabledBreakTimer);
+	BreakTimerAttribute.AddAndFill(BreakTimerStartValue);
 	PostBreakDurationAttribute.Add();
 	BreakRemovalDurationAttribute.Add();
 }
@@ -54,7 +54,7 @@ void FGeometryCollectionRemoveOnBreakDynamicFacade::SetAttributeValues(const Geo
 	check(!IsConst());
 	if (IsValid())
 	{
-		BreakTimerAttribute.Fill(DisabledBreakTimer);
+		BreakTimerAttribute.Fill(BreakTimerStartValue);
 
 		// make sure we generate random value consistently between client and server 
 		// we can use the length of the transform group for that
