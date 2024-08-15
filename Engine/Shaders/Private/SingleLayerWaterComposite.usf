@@ -118,7 +118,7 @@ SingleLayerWaterCompositeOutput SingleLayerWaterComposite(float2 BufferUV, float
 
 				FCulledReflectionCapturesGridHeader CulledReflectionCapturesGridHeader = GetCulledReflectionCapturesGrid(GridIndex, 0);
 				uint NumCulledReflectionCaptures = CulledReflectionCapturesGridHeader.NumReflectionCaptures;
-				uint DataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
+				uint CaptureDataStartIndex = CulledReflectionCapturesGridHeader.DataStartIndex;
 			#else
 				uint NumCulledReflectionCaptures = 0;
 				uint CaptureDataStartIndex = 0;
