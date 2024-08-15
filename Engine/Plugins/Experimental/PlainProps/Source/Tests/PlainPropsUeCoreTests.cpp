@@ -33,12 +33,9 @@ struct FIds
 	static FNameId			IndexName(FAnsiStringView Name)				{ return GNames.MakeName(FName(Name)); }
 	static FMemberId		IndexMember(FAnsiStringView Name)			{ return GNames.NameMember(FName(Name)); }
 	static FTypenameId		IndexTypename(FAnsiStringView Name)			{ return GNames.MakeTypename(FName(Name)); }
-	static FScopeId			IndexNativeScope()							{ return GNames.MakeScope(FName(UE_MODULE_NAME)); }
-	static FTypeId			IndexNativeType(FAnsiStringView Typename)	{ return {IndexNativeScope(), IndexTypename(Typename)}; }
+	static FScopeId			IndexScope(FAnsiStringView Name)			{ return GNames.MakeScope(FName(Name)); }
 	static FEnumSchemaId	IndexEnum(FTypeId Type)						{ return GNames.IndexEnum(Type); }
-	static FEnumSchemaId	IndexEnum(FAnsiStringView Name)				{ return IndexEnum(IndexNativeType(Name)); }
 	static FStructSchemaId	IndexStruct(FTypeId Type)					{ return GNames.IndexStruct(Type); }
-	static FStructSchemaId	IndexStruct(FAnsiStringView Name)			{ return IndexStruct(IndexNativeType(Name)); }
 	static FIdIndexerBase&	GetIndexer()								{ return GNames; }
 	static const FDebugIds& GetDebug()									{ return GNames; }
 };
@@ -147,7 +144,7 @@ struct FNameDeclaration
 	FStructSchemaId		Id;
 	FMemberId			Idx;
 
-	FNameDeclaration(FTypeId Type = IndexTypename<FIds, ETypename::Decl, TTypename<FName>>())
+	FNameDeclaration(FTypeId Type = IndexStructName<FIds, ETypename::Decl, TTypename<FName>>())
 	: Id(FIds::IndexStruct(Type))
 	, Idx(FIds::IndexMember("Idx"))
 	{
@@ -567,16 +564,19 @@ template <> struct TTypename<PlainProps::UE::Test::FIntAlias>
 {
 	inline static constexpr std::string_view DeclName = "FInt";
 	inline static constexpr std::string_view BindName = "IntAlias";
+	inline static constexpr std::string_view Namespace;
 };
 template <> struct TTypename<PlainProps::UE::Test::FSame1>
 {
 	inline static constexpr std::string_view DeclName = "Same";
 	inline static constexpr std::string_view BindName = "Same1";
+	inline static constexpr std::string_view Namespace;
 };
 template <> struct TTypename<PlainProps::UE::Test::FSame2>
 {
 	inline static constexpr std::string_view DeclName = "Same";
 	inline static constexpr std::string_view BindName = "Same2";
+	inline static constexpr std::string_view Namespace;
 };
 
 } namespace PlainProps::UE::Test {

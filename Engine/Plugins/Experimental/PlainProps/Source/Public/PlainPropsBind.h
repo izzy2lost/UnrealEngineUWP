@@ -569,30 +569,55 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-template<class Ids, ETypename Kind, typename Typename>
-FTypeId IndexBaseName()
-{	
-	if constexpr (Kind == ETypename::Bind && ExplicitBindName<Typename>)
+// Cached by function static
+template<class Ids, const char* Scope>
+FScopeId GetScopeId()
+{
+	static FScopeId Id = Ids::IndexScope(Scope);
+	return Id;
+}
+
+// Cached by function static
+template<class Ids, typename Typename>
+FScopeId GetNamespaceId()
+{
+	if constexpr (Typename::Namespace.size())
 	{
-		return Ids::IndexNativeType(ToAnsiView(Typename::BindName));
+		return GetScopeId<Ids, Typename::Namespace.data()>();
 	}
 	else
 	{
-		return Ids::IndexNativeType(ToAnsiView(Typename::DeclName));	
+		return NoId;
+	}
+}
+
+template<ETypename Kind, typename Typename>
+constexpr std::string_view SelectStructName()
+{	
+	if constexpr (Kind == ETypename::Bind && ExplicitBindName<Typename>)
+	{
+		return Typename::BindName;
+	}
+	else
+	{
+		return Typename::DeclName;	
 	}
 }
 
 template<class Ids, ETypename Kind, typename Typename>
-FTypeId IndexTypename()
+FTypeId IndexStructName()
 {
-	return IndexBaseName<Ids, Kind, Typename>();
-}
-
-template<class Ids, ETypename Kind, ParametricName Typename>
-FTypeId IndexTypename()
-{
-	FTypeId BaseName = IndexBaseName<Ids, Kind, Typename>();
-	return IndexParametricType<Ids, Kind>(BaseName, (typename Typename::Parameters*)nullptr);
+	FTypeId BaseName = { GetNamespaceId<Ids, Typename>(), 
+						 Ids::IndexTypename(ToAnsiView(SelectStructName<Kind, Typename>())) };
+	
+	if constexpr (ParametricName<Typename>)
+	{
+		return IndexParametricType<Ids, Kind>(BaseName, (typename Typename::Parameters*)nullptr);
+	}
+	else
+	{
+		return BaseName;
+	}
 }
 
 template<typename Struct, class Ids>
@@ -602,7 +627,7 @@ FStructSchemaId IndexStructBindIdIfNeeded(FStructSchemaId DeclId)
 
 	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
 	{
-		return Ids::IndexStruct(IndexTypename<Ids, ETypename::Bind, Typename>());
+		return Ids::IndexStruct(IndexStructName<Ids, ETypename::Bind, Typename>());
 	}
 	else
 	{
@@ -616,13 +641,13 @@ FDualStructSchemaId IndexStructDualId()
 	using Typename = TTypename<Struct>;
 	
 	FDualStructSchemaId Out;
-	FTypeId DeclName = IndexTypename<Ids, ETypename::Decl, Typename>();
+	FTypeId DeclName = IndexStructName<Ids, ETypename::Decl, Typename>();
 	Out.Decl = Ids::IndexStruct(DeclName);
 	Out.Bind = Out.Decl;
 
 	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
 	{
-		FTypeId BindName = IndexTypename<Ids, ETypename::Bind, Typename>();
+		FTypeId BindName = IndexStructName<Ids, ETypename::Bind, Typename>();
 		Out.Bind = BindName != DeclName ? Ids::IndexStruct(BindName) : Out.Decl;
 	}
 
@@ -633,7 +658,7 @@ FDualStructSchemaId IndexStructDualId()
 template<class Ids, typename Struct>
 FStructSchemaId GetStructDeclId()
 {
-	static FStructSchemaId Id = Ids::IndexStruct(IndexTypename<Ids, ETypename::Decl, TTypename<Struct>>());
+	static FStructSchemaId Id = Ids::IndexStruct(IndexStructName<Ids, ETypename::Decl, TTypename<Struct>>());
 	return Id;
 }
 
@@ -641,15 +666,27 @@ FStructSchemaId GetStructDeclId()
 template<class Ids, typename Struct>
 FStructSchemaId GetStructBindId()
 {
-	static FStructSchemaId Id = Ids::IndexStruct(IndexTypename<Ids, ETypename::Bind, TTypename<Struct>>());
+	static FStructSchemaId Id = Ids::IndexStruct(IndexStructName<Ids, ETypename::Bind, TTypename<Struct>>());
 	return Id;
+}
+
+template<class Ids, typename Ctti>
+FTypeId IndexCttiName()
+{
+	FTypenameId Name = Ids::IndexTypename(Ctti::Name);
+	FScopeId Namespace = NoId;
+	if constexpr (Ctti::Namespace[0] != '\0')
+	{
+		Namespace = GetScopeId<Ids, Ctti::Namespace>();
+	}
+	return { Namespace, Name };
 }
 
 // Cached by function static
 template<class Ids, typename Enum>
 FEnumSchemaId GetEnumId()
 {
-	static FEnumSchemaId Id = Ids::IndexEnum(CttiOf<Enum>::Name);
+	static FEnumSchemaId Id = Ids::IndexEnum(IndexCttiName<Ids, CttiOf<Enum>>());
 	return Id;
 }
 
@@ -666,10 +703,10 @@ FTypeId IndexParameterName()
 	return IndexArithmeticName<Ids, Leaf>();
 }
 
-template<class Ids, ETypename, Enumeration Leaf>
+template<class Ids, ETypename, Enumeration Enum>
 FTypeId IndexParameterName()
 {
-	return Ids::IndexEnum(CttiOf<Leaf>::Name);
+	return GetEnumId<Ids, Enum>();
 }
 
 template<class Ids, ETypename Kind, typename T>
@@ -678,7 +715,7 @@ FTypeId IndexParameterName()
 	using RangeBinding = RangeBind<T>;
 	if constexpr (std::is_void_v<RangeBinding>)
 	{
-		return IndexTypename<Ids, Kind, TTypename<T>>();
+		return IndexStructName<Ids, Kind, TTypename<T>>();
 	}
 	else
 	{
@@ -692,7 +729,8 @@ FTypeId IndexParameterName()
 		}
 		else
 		{
-			FTypeId RangeBindName = Ids::IndexNativeType(ToAnsiView(TTypename<T>::RangeBindName));
+			using Typename = TTypename<T>;
+			FTypeId RangeBindName = { GetNamespaceId<Ids, Typename>(), Ids::IndexTypename(ToAnsiView(Typename::RangeBindName)) };
 			return Ids::GetIndexer().MakeParametricType(RangeBindName, {ItemTypename, SizeTypename});
 		}
 	}
@@ -717,7 +755,7 @@ FStructSchemaId BindCustomStructOnce()
 
 		FBinding()
 		{
-			FTypeId DeclType = IndexTypename<Ids, ETypename::Decl, TTypename<Type>>();
+			FTypeId DeclType = IndexStructName<Ids, ETypename::Decl, TTypename<Type>>();
 			DeclId = Ids::IndexStruct(DeclType);
 			BindId = IndexStructBindIdIfNeeded<Type, Ids>(DeclId);
 			
@@ -903,7 +941,7 @@ FEnumSchemaId DeclareNativeEnum(FDeclarations& Out, EEnumMode Mode)
 {
 	using UnderlyingType = std::underlying_type_t<typename Ctti::Type>;
 
-	FTypeId Type = Ids::IndexNativeType(Ctti::Name);
+	FTypeId Type = IndexCttiName<Ids, Ctti>();
 	FEnumSchemaId Id = Ids::IndexEnum(Type);
 	FEnumerator Enumerators[Ctti::NumEnumerators];
 	for (FEnumerator& Enumerator : Enumerators)
@@ -922,7 +960,7 @@ FStructSchemaId DeclareNativeStruct(FDeclarations& Out, EMemberPresence Occupanc
 	using Typename = TTypename<typename Ctti::Type>;
 	using SuperType = typename Ctti::Super;
 
-	FTypeId Type = IndexTypename<Ids, ETypename::Decl, Typename>();
+	FTypeId Type = IndexStructName<Ids, ETypename::Decl, Typename>();
 	FStructSchemaId Id = Ids::IndexStruct(Type);
 	FOptionalStructSchemaId SuperId;
 	if constexpr (!std::is_void_v<SuperType>)

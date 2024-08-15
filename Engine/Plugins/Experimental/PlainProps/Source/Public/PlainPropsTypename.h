@@ -35,6 +35,7 @@ template<typename T>
 struct TTypename
 {
 	inline static constexpr std::string_view DeclName = CttiOf<T>::Name;
+	inline static constexpr std::string_view Namespace = CttiOf<T>::Namespace;
 };
 
 template<class Typename>
@@ -90,6 +91,7 @@ struct TTypename<T>
 {
 	inline static constexpr FUnpackedLeafType Leaf = ReflectArithmetic<T>;
 	inline static constexpr std::string_view DeclName = ArithmeticName<Leaf.Type, Leaf.Width>;
+	inline static constexpr std::string_view Namespace;
 };
 
 } // namespace PlainProps

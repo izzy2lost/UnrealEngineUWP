@@ -686,18 +686,21 @@ template <>
 struct TTypename<FName>
 {
 	inline static constexpr std::string_view DeclName = "Name";
+	inline static constexpr std::string_view Namespace;
 };
 
 template <>
 struct TTypename<FTransform>
 {
 	inline static constexpr std::string_view DeclName = "Transform";
+	inline static constexpr std::string_view Namespace;
 };
 
 template <typename K, typename V>
 struct TTypename<TPair<K,V>>
 {
 	inline static constexpr std::string_view DeclName = "Pair";
+	inline static constexpr std::string_view Namespace;
 	using Parameters = std::tuple<K, V>;
 };
 
@@ -705,6 +708,7 @@ template <>
 struct TTypename<FString>
 {
 	inline static constexpr std::string_view RangeBindName = "String";
+	inline static constexpr std::string_view Namespace;
 };
 
 inline static constexpr std::string_view UeArrayName = "Array";
@@ -715,6 +719,7 @@ template<typename T, typename Allocator>
 struct TTypename<TArray<T, Allocator>>
 {
 	inline static constexpr std::string_view RangeBindName = Concat<UeArrayName, ShortTypename<Allocator>>;
+	inline static constexpr std::string_view Namespace;
 };
 
 template<>
@@ -740,12 +745,14 @@ template <typename T, typename KeyFuncs, typename SetAllocator>
 struct TTypename<TSet<T, KeyFuncs, SetAllocator>>
 {
 	inline static constexpr std::string_view RangeBindName = Concat<UeSetName, ShortTypename<KeyFuncs>, ShortTypename<SetAllocator>>;
+	inline static constexpr std::string_view Namespace;
 };
 
 template <typename K, typename V, typename SetAllocator, typename KeyFuncs>
 struct TTypename<TMap<K, V, SetAllocator, KeyFuncs>>
 {
 	inline static constexpr std::string_view RangeBindName = Concat<UeMapName, ShortTypename<SetAllocator>, ShortTypename<KeyFuncs>>;
+	inline static constexpr std::string_view Namespace;
 };
 
 template<>
