@@ -668,9 +668,11 @@ bool FPoseSearchDatabaseMultiAnimAsset::IsRootMotionEnabled() const
 
 //////////////////////////////////////////////////////////////////////////
 // UPoseSearchDatabase
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 UPoseSearchDatabase::~UPoseSearchDatabase()
 {
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void UPoseSearchDatabase::SetSearchIndex(const UE::PoseSearch::FSearchIndex& SearchIndex)
 {
@@ -692,36 +694,55 @@ int32 UPoseSearchDatabase::GetPoseIndexFromTime(float Time, const UE::PoseSearch
 
 void UPoseSearchDatabase::AddAnimationAsset(FInstancedStruct AnimationAsset)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AnimationAssets.Add(AnimationAsset);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 void UPoseSearchDatabase::RemoveAnimationAssetAt(int32 AnimationAssetIndex)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	AnimationAssets.RemoveAt(AnimationAssetIndex);
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+}
+
+const TArray<FInstancedStruct>& UPoseSearchDatabase::GetAnimationAssets() const
+{
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	return AnimationAssets;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(int32 AnimationAssetIndex) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(AnimationAssetIndex));
 	return AnimationAssets[AnimationAssetIndex];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 const FInstancedStruct& UPoseSearchDatabase::GetAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
 	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(int32 AnimationAssetIndex)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(AnimationAssetIndex));
 	return AnimationAssets[AnimationAssetIndex];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FInstancedStruct& UPoseSearchDatabase::GetMutableAnimationAssetStruct(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	check(AnimationAssets.IsValidIndex(SearchIndexAsset.GetSourceAssetIdx()));
 	return AnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 #if WITH_EDITOR
@@ -748,7 +769,9 @@ void UPoseSearchDatabase::PostLoad()
 	using namespace UE::PoseSearch;
 
 	bool bRequiresSynchronization = false;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	for (FInstancedStruct& AnimationAsset : AnimationAssets)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
@@ -765,7 +788,9 @@ void UPoseSearchDatabase::PostLoad()
 	{
 		SynchronizeWithExternalDependencies();
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		for (FInstancedStruct& AnimationAsset : AnimationAssets)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>())
 			{
@@ -791,7 +816,9 @@ void UPoseSearchDatabase::PostLoad()
 
 bool UPoseSearchDatabase::Contains(const UObject* Object) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	for (const FInstancedStruct& AnimationAsset : AnimationAssets)
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	{
 		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
 		{
@@ -806,11 +833,14 @@ bool UPoseSearchDatabase::Contains(const UObject* Object) const
 
 int32 UPoseSearchDatabase::GetNumAnimationAssets() const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	return AnimationAssets.Num();
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 UObject* UPoseSearchDatabase::GetAnimationAsset(int32 Index) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (AnimationAssets.IsValidIndex(Index))
 	{
 		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAssets[Index].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
@@ -818,6 +848,7 @@ UObject* UPoseSearchDatabase::GetAnimationAsset(int32 Index) const
 			return AnimationAssetBase->GetAnimationAsset();
 		}
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 
@@ -872,6 +903,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 
 	// collecting all the database AnimationAsset(s) that don't require synchronization
 	TArray<bool> DisableReselection;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	DisableReselection.Reserve(AnimationAssets.Num());
 	for (FInstancedStruct& AnimationAsset : AnimationAssets)
 	{
@@ -962,6 +994,8 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 		bModified = true;
 	}
 
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 	if (bModified)
 	{
 		Modify();
@@ -987,6 +1021,7 @@ bool UPoseSearchDatabase::IsCachedCookedPlatformDataLoaded(const ITargetPlatform
 #if WITH_EDITOR && ENABLE_ANIM_DEBUG
 void UPoseSearchDatabase::TestSynchronizeWithExternalDependencies()
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	TArray<FInstancedStruct> AnimationAssetsCopy = AnimationAssets;
 	SynchronizeWithExternalDependencies();
 
@@ -995,6 +1030,7 @@ void UPoseSearchDatabase::TestSynchronizeWithExternalDependencies()
 		UE_LOG(LogPoseSearch, Error, TEXT("TestSynchronizeWithExternalDependencies failed"));
 		AnimationAssets = AnimationAssetsCopy;
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG
 
@@ -1045,7 +1081,7 @@ float UPoseSearchDatabase::GetNormalizedAssetTime(int32 PoseIdx) const
 {
 	check(Schema);
 	const UE::PoseSearch::FSearchIndexAsset& Asset = GetSearchIndex().GetAssetForPose(PoseIdx);
-	const bool bIsBlendSpace = AnimationAssets[Asset.GetSourceAssetIdx()].GetPtr<FPoseSearchDatabaseBlendSpace>() != nullptr;
+	const bool bIsBlendSpace = GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(Asset.GetSourceAssetIdx()) != nullptr;
 
 	// sequences or anim composites
 	float AssetTime = Asset.GetTimeFromPoseIndex(PoseIdx, Schema->SampleRate);

@@ -558,16 +558,12 @@ namespace UE::PoseSearch
 		{
 			for (TSharedPtr<FDatabaseAssetTreeNode>& SelectedItem : SelectedItems)
 			{
-				if (!SelectedItem.IsValid() || !PoseSearchDatabase->GetAnimationAssets().IsValidIndex(SelectedItem->SourceAssetIdx))
+				if (!SelectedItem.IsValid() || !PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SelectedItem->SourceAssetIdx))
 				{
 					continue;
 				}
 
-				const FInstancedStruct& DatabaseAsset = PoseSearchDatabase->GetAnimationAssets()[SelectedItem->SourceAssetIdx];
-				const UScriptStruct* ScriptStruct = DatabaseAsset.GetScriptStruct();
-				FSelectionWidget& SelectionWidget = FindOrAddSelectionWidget(ScriptStruct);
-
-				if (const FPoseSearchDatabaseSequence* DatabaseSequence = DatabaseAsset.GetPtr<FPoseSearchDatabaseSequence>())
+				if (const FPoseSearchDatabaseSequence* DatabaseSequence = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseSequence>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseSequenceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseSequenceReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -576,10 +572,10 @@ namespace UE::PoseSearch
 					NewSelectionReflection->Sequence.bHasRootMotion = DatabaseSequence->IsRootMotionEnabled();
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
-
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					
+					FindOrAddSelectionWidget(FPoseSearchDatabaseSequence::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimComposite>())
+				else if (const FPoseSearchDatabaseAnimComposite* DatabaseAnimComposite = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimComposite>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseAnimCompositeReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseAnimCompositeReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -589,9 +585,9 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 					
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseAnimComposite::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAsset.GetPtr<FPoseSearchDatabaseBlendSpace>())
+				else if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseBlendSpaceReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseBlendSpaceReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -601,9 +597,9 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 					
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseBlendSpace::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = DatabaseAsset.GetPtr<FPoseSearchDatabaseAnimMontage>())
+				else if (const FPoseSearchDatabaseAnimMontage* DatabaseAnimMontage = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimMontage>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseAnimMontageReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseAnimMontageReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -613,9 +609,9 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseAnimMontage::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
-				else if (const FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = DatabaseAsset.GetPtr<FPoseSearchDatabaseMultiAnimAsset>())
+				else if (const FPoseSearchDatabaseMultiAnimAsset* DatabaseMultiAnimAsset = PoseSearchDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseMultiAnimAsset>(SelectedItem->SourceAssetIdx))
 				{
 					UPoseSearchDatabaseMultiAnimAssetReflection* NewSelectionReflection = NewObject<UPoseSearchDatabaseMultiAnimAssetReflection>();
 					NewSelectionReflection->AddToRoot();
@@ -625,7 +621,7 @@ namespace UE::PoseSearch
 					NewSelectionReflection->SetSourceLink(SelectedItem, AssetTreeWidget);
 					NewSelectionReflection->SetFlags(RF_Transactional);
 
-					SelectionWidget.SelectedReflections.Add(NewSelectionReflection);
+					FindOrAddSelectionWidget(FPoseSearchDatabaseMultiAnimAsset::StaticStruct()).SelectedReflections.Add(NewSelectionReflection);
 				}
 				else
 				{

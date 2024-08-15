@@ -360,7 +360,7 @@ static void FindValidSequenceIntervals(const FPoseSearchDatabaseAnimationAssetBa
 }
 
 // returns false in case of errors
-static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
+static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const UPoseSearchDatabase* DatabaseToLookForAssets, const UPoseSearchSchema* Schema, const FFloatInterval& ExcludeFromDatabaseParameters)
 {
 	using namespace UE::PoseSearch;
 
@@ -373,10 +373,9 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 	bool bAnyErrors = false;
 
 	int32 TotalPoses = 0;
-	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseToLookForAssets->GetNumAnimationAssets(); ++AnimationAssetIndex)
 	{
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[AnimationAssetIndex];
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 		{
 			if (!DatabaseAsset->IsEnabled() || !DatabaseAsset->GetAnimationAsset())
 			{
@@ -411,7 +410,7 @@ static bool InitSearchIndexAssets(FSearchIndexBase& SearchIndex, const TArray<FI
 			const bool bIsLooping = DatabaseAsset->IsLooping();
 			const bool bDisableReselection = DatabaseAsset->IsDisableReselection();
 
-			if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseBlendSpace>())
+			if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(AnimationAssetIndex))
 			{
 				int32 HorizontalBlendNum, VerticalBlendNum;
 				DatabaseBlendSpace->GetBlendSpaceParameterSampleRanges(HorizontalBlendNum, VerticalBlendNum);
@@ -909,7 +908,7 @@ struct FSamplerMapKey
 	FVector BlendParameters = FVector::ZeroVector;
 };
 
-static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInstancedStruct>& DatabaseAnimationAssets, const UPoseSearchSchema* Schema, const FAssetSamplingContext& SamplingContext, const FFloatInterval& AdditionalExtrapolationTime, UE::DerivedData::FRequestOwner& Owner)
+static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDatabase* DatabaseToLookForAssets, const UPoseSearchSchema* Schema, const FAssetSamplingContext& SamplingContext, const FFloatInterval& AdditionalExtrapolationTime, UE::DerivedData::FRequestOwner& Owner)
 {
 	if (!ensure(Schema))
 	{
@@ -923,10 +922,9 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 	TMap<FSamplerMapKey, int32> SamplerMap;
 	SamplerMap.Reserve(256);
 
-	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DatabaseToLookForAssets->GetNumAnimationAssets(); ++AnimationAssetIndex)
 	{
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[AnimationAssetIndex];
-		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseBlendSpace>())
+		if (const FPoseSearchDatabaseBlendSpace* DatabaseBlendSpace = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseBlendSpace>(AnimationAssetIndex))
 		{
 			if (DatabaseBlendSpace->BlendSpace)
 			{
@@ -951,7 +949,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 				}
 			}
 		}
-		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 		{
 			if (const UObject* AnimationAssetObject = DatabaseAnimationAssetBase->GetAnimationAsset())
 			{
@@ -1003,8 +1001,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const TArray<FInsta
 		FSearchIndexAsset& SearchIndexAsset = SearchIndexBase.Assets[AssetIdx];
 		check(SearchIndexAsset.GetFirstPoseIdx() == TotalPoses);
 
-		const FInstancedStruct& DatabaseAssetStruct = DatabaseAnimationAssets[SearchIndexAsset.GetSourceAssetIdx()];
-		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseAssetStruct.GetPtr<FPoseSearchDatabaseAnimationAssetBase>();
+		const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = DatabaseToLookForAssets->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset.GetSourceAssetIdx());
 		check(DatabaseAnimationAssetBase);
 
 		TempAssetSamplers.Reset();
@@ -1634,7 +1631,6 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					FSearchIndexBase& SearchIndexBase = SearchIndexBases[IndexBaseIdx];
 
 					Schemas[IndexBaseIdx] = DependentDatabaseSchema;
-					const TArray<FInstancedStruct>& DependentDatabaseAnimationAssets = DependentDatabase->GetAnimationAssets();
 					const FAssetSamplingContext DependentSamplingContext(*DependentDatabase);
 					const FFloatInterval& DependentExcludeFromDatabaseParameters = DependentDatabase->ExcludeFromDatabaseParameters;
 					const FFloatInterval& DependentAdditionalExtrapolationTime = DependentDatabase->AdditionalExtrapolationTime;
@@ -1657,9 +1653,9 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					// validating that the missing MirrorDataTable(s) are not necessary 
 					if (!DependentDatabaseSchema->AllRoledSkeletonHaveMirrorDataTable())
 					{
-						for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DependentDatabaseAnimationAssets.Num(); ++AnimationAssetIndex)
+						for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < DependentDatabase->GetNumAnimationAssets(); ++AnimationAssetIndex)
 						{
-							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DependentDatabaseAnimationAssets[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+							if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = DependentDatabase->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 							{
 								if (DatabaseAsset->GetMirrorOption() == EPoseSearchMirrorOption::MirroredOnly || DatabaseAsset->GetMirrorOption() == EPoseSearchMirrorOption::UnmirroredAndMirrored)
 								{
@@ -1680,7 +1676,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 					}
 
 					// Building all the related FPoseSearchBaseIndex first
-					if (!InitSearchIndexAssets(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters))
+					if (!InitSearchIndexAssets(SearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentExcludeFromDatabaseParameters))
 					{
 						UE_LOG(LogPoseSearch, Error, TEXT("%s - %s BuildIndex Failed becasue of invalid assets"), *LexToString(FullIndexKey.Hash), *MainDatabaseName);
 						ResetSearchIndex();
@@ -1694,7 +1690,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						return;
 					}
 
-					if (!IndexDatabase(SearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
+					if (!IndexDatabase(SearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
 					{
 						UE_LOG(LogPoseSearch, Log, TEXT("%s - %s BuildIndex Cancelled"), *LexToString(FullIndexKey.Hash), *MainDatabaseName);
 						ResetSearchIndex();
@@ -1708,7 +1704,7 @@ void FPoseSearchDatabaseAsyncCacheTask::OnGetComplete(UE::DerivedData::FCacheGet
 						for (int32 Iteration = 0; Iteration < NumIterations; ++Iteration)
 						{
 							FSearchIndexBase TestSearchIndexBase = SearchIndexBase;
-							if (IndexDatabase(TestSearchIndexBase, DependentDatabaseAnimationAssets, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
+							if (IndexDatabase(TestSearchIndexBase, DependentDatabase, DependentDatabaseSchema, DependentSamplingContext, DependentAdditionalExtrapolationTime, Owner))
 							{
 								if (TestSearchIndexBase != SearchIndexBase)
 								{
@@ -2178,9 +2174,9 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 					TMap<FRole, FBoneContainer> RoledBoneContainers;
 					Database->Schema->InitBoneContainersFromRoledSkeleton(RoledBoneContainers);
 
-					for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < Database->GetAnimationAssets().Num(); ++AnimationAssetIndex)
+					for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < Database->GetNumAnimationAssets(); ++AnimationAssetIndex)
 					{
-						if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetAnimationAssets()[AnimationAssetIndex].GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
+						if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAsset = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 						{
 							for (int32 RoleIndex = 0; RoleIndex < DatabaseAsset->GetNumRoles(); ++RoleIndex)
 							{

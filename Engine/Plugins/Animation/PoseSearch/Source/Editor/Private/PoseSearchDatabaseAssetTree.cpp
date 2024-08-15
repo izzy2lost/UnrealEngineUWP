@@ -238,8 +238,8 @@ namespace UE::PoseSearch
 		{
 			// Build an index based off of alphabetical order than iterate the index instead
 			TArray<uint32> IndexArray;
-			IndexArray.SetNumUninitialized(Database->GetAnimationAssets().Num());
-			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetAnimationAssets().Num(); ++AnimationAssetIdx)
+			IndexArray.SetNumUninitialized(Database->GetNumAnimationAssets());
+			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetNumAnimationAssets(); ++AnimationAssetIdx)
 			{
 				IndexArray[AnimationAssetIdx] = AnimationAssetIdx;
 			}
@@ -274,7 +274,7 @@ namespace UE::PoseSearch
 			});
 
 			// create all nodes
-			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetAnimationAssets().Num(); ++AnimationAssetIdx)
+			for (int32 AnimationAssetIdx = 0; AnimationAssetIdx < Database->GetNumAnimationAssets(); ++AnimationAssetIdx)
 			{
 				const int32 MappedId = IndexArray[AnimationAssetIdx];
 

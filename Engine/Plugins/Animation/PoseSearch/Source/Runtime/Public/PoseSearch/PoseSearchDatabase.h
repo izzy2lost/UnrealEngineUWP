@@ -425,7 +425,9 @@ public:
 	FFloatInterval AdditionalExtrapolationTime = FFloatInterval(-100.f, 100.f);
 #endif // WITH_EDITORONLY_DATA
 
-	UPROPERTY(EditAnywhere, Category = "Database")
+	// use GetNumAnimationAssets() and GetDatabaseAnimationAsset(...) APIs to query for AnimationAssets
+	UE_DEPRECATED(5.4, "This property will be made private")
+	UPROPERTY()
 	TArray<FInstancedStruct> AnimationAssets;
 
 	/** Array of tags that can be used as metadata. */
@@ -510,9 +512,8 @@ public:
 	template<typename TDatabaseAnimationAsset> TDatabaseAnimationAsset* GetMutableDatabaseAnimationAsset(int32 AnimationAssetIndex);
 	template<typename TDatabaseAnimationAsset> TDatabaseAnimationAsset* GetMutableDatabaseAnimationAsset(const UE::PoseSearch::FSearchIndexAsset& SearchIndexAsset);
 
-	// @todo: deprecate GetAnimationAssets
-	// UE_DEPRECATED(5.4, "Use GetNumAnimationAssets to iterate over GetDatabaseAnimationAsset instead")
-	const TArray<FInstancedStruct>& GetAnimationAssets() const { return AnimationAssets; }
+	UE_DEPRECATED(5.4, "Use GetNumAnimationAssets to iterate over GetDatabaseAnimationAsset instead")
+	const TArray<FInstancedStruct>& GetAnimationAssets() const;
 
 	UE_DEPRECATED(5.4, "Use GetDatabaseAnimationAsset instead")
 	const FInstancedStruct& GetAnimationAssetStruct(int32 AnimationAssetIndex) const;
@@ -586,10 +587,12 @@ private:
 template<typename TDatabaseAnimationAsset>
 inline const TDatabaseAnimationAsset* UPoseSearchDatabase::GetDatabaseAnimationAsset(int32 AnimationAssetIndex) const
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
 	{
 		return AnimationAssets[AnimationAssetIndex].GetPtr<TDatabaseAnimationAsset>();
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 
@@ -602,10 +605,12 @@ inline const TDatabaseAnimationAsset* UPoseSearchDatabase::GetDatabaseAnimationA
 template<typename TDatabaseAnimationAsset>
 inline TDatabaseAnimationAsset* UPoseSearchDatabase::GetMutableDatabaseAnimationAsset(int32 AnimationAssetIndex)
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	if (AnimationAssets.IsValidIndex(AnimationAssetIndex))
 	{
 		return AnimationAssets[AnimationAssetIndex].GetMutablePtr<TDatabaseAnimationAsset>();
 	}
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	return nullptr;
 }
 

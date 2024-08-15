@@ -43,7 +43,6 @@ private:
 	
 private:
 	void RegisterPropertyTypeCustomizations();
-	void RegisterObjectCustomizations();
 	void UnregisterCustomizations();
 	void RegisterCustomClassLayout(FName ClassName, FOnGetDetailCustomizationInstance DetailLayoutDelegate);
 	void RegisterCustomPropertyTypeLayout(FName PropertyTypeName, FOnGetPropertyTypeCustomizationInstance PropertyTypeLayoutDelegate);
@@ -73,7 +72,6 @@ void FEditorModule::StartupModule()
 	}
 
 	RegisterPropertyTypeCustomizations();
-	RegisterObjectCustomizations();
 
 	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 	PropertyModule.NotifyCustomizationModuleChanged();
@@ -124,11 +122,6 @@ void FEditorModule::RegisterCustomPropertyTypeLayout(FName PropertyTypeName, FOn
 void FEditorModule::RegisterPropertyTypeCustomizations()
 {
 	RegisterCustomPropertyTypeLayout("PoseSearchDatabaseSequence", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FPoseSearchDatabaseSequenceCustomization::MakeInstance));
-}
-
-void FEditorModule::RegisterObjectCustomizations()
-{
-	RegisterCustomClassLayout("PoseSearchDatabase", FOnGetDetailCustomizationInstance::CreateStatic(&FPoseSearchDatabaseDetails::MakeInstance));
 }
 
 void FEditorModule::UnregisterCustomizations()

@@ -80,25 +80,5 @@ void FPoseSearchDatabaseSequenceCustomization::CustomizeChildren(TSharedRef<IPro
 	}
 }
 
-
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// FPoseSearchDatabaseDetails
-
-TSharedRef<IDetailCustomization> FPoseSearchDatabaseDetails::MakeInstance()
-{
-	return MakeShareable(new FPoseSearchDatabaseDetails);
-}
-
-void FPoseSearchDatabaseDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilder)
-{
-	TArray<TSharedPtr<IPropertyHandle>> HiddenHandles;
-	HiddenHandles.Add(DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UPoseSearchDatabase, AnimationAssets)));
-
-	for (TSharedPtr<IPropertyHandle> PropertyHandle : HiddenHandles)
-	{
-		DetailBuilder.HideProperty(PropertyHandle);
-	}
-}
-
 #undef LOCTEXT_NAMESPACE
 
