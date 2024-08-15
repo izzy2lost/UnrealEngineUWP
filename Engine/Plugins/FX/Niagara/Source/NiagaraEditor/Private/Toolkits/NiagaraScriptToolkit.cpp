@@ -48,7 +48,7 @@
 #include "Widgets/SNiagaraScriptGraph.h"
 #include "Widgets/SNiagaraScriptInputPreviewPanel.h"
 #include "Widgets/SNiagaraSelectedObjectsDetails.h"
-#include "WIdgets/Input/SButton.h"
+#include "Widgets/Input/SButton.h"
 #include "ToolMenus.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraScriptToolkit"
