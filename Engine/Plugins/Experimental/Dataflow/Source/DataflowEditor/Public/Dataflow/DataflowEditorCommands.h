@@ -44,7 +44,8 @@ public:
 	 virtual void RegisterCommands() override;
 
 	// TInteractiveToolCommands<>
-	 virtual void GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) override;
+	// Each tool will have its own TInteractiveToolCommands<> object stored in the DataflowToolRegistry, so this should not return anything
+	virtual void GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) override {}
 
 	/**
 	* Add or remove commands relevant to Tool to the given UICommandList.

@@ -24,6 +24,49 @@ const FColor FDataflowEditorModule::SurfaceColor = FLinearColor(0.6, 0.6, 0.6).T
 static const FName ScalarVertexPropertyGroupName = TEXT("ScalarVertexPropertyGroup");
 static const FName DataflowFunctionPropertyName = TEXT("DataflowFunctionProperty");
 
+class FDataflowEditorWeightMapPaintToolActionCommands : public TInteractiveToolCommands<FDataflowEditorWeightMapPaintToolActionCommands>
+{
+public:
+	FDataflowEditorWeightMapPaintToolActionCommands() : 
+		TInteractiveToolCommands<FDataflowEditorWeightMapPaintToolActionCommands>(
+			TEXT("DataflowEditorWeightMapPaintToolContext"),
+			LOCTEXT("DataflowEditorWeightMapPaintToolContext", "Dataflow Weight Map Paint Tool Context"),
+			NAME_None,
+			FAppStyle::GetAppStyleSetName())
+	{}
+
+	virtual void GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs) override
+	{
+		ToolCDOs.Add(GetMutableDefault<UDataflowEditorWeightMapPaintTool>());
+	}
+};
+
+
+class FDataflowToolActionCommandBindings : public Dataflow::FDataflowToolRegistry::IDataflowToolActionCommands
+{
+public:
+	FDataflowToolActionCommandBindings()
+	{
+		FDataflowEditorWeightMapPaintToolActionCommands::Register();
+	}
+
+	virtual void UnbindActiveCommands(const TSharedPtr<FUICommandList>& UICommandList) const override
+	{
+		checkf(FDataflowEditorWeightMapPaintToolActionCommands::IsRegistered(), TEXT("Expected WeightMapPaintTool actions to have been registered"));
+		FDataflowEditorWeightMapPaintToolActionCommands::Get().UnbindActiveCommands(UICommandList);
+	}
+
+	virtual void BindCommandsForCurrentTool(const TSharedPtr<FUICommandList>& UICommandList, UInteractiveTool* Tool) const override
+	{
+		if (ExactCast<UDataflowEditorWeightMapPaintTool>(Tool))
+		{
+			checkf(FDataflowEditorWeightMapPaintToolActionCommands::IsRegistered(), TEXT("Expected WeightMapPaintTool actions to have been registered"));
+			FDataflowEditorWeightMapPaintToolActionCommands::Get().BindCommandsForCurrentTool(UICommandList, Tool);
+		}
+	}
+};
+
+
 void FDataflowEditorModule::StartupModule()
 {
 	FDataflowEditorStyle::Get();
@@ -40,7 +83,10 @@ void FDataflowEditorModule::StartupModule()
 	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
 
 	UDataflowEditorWeightMapPaintToolBuilder* const ToolBuilder = NewObject<UDataflowEditorWeightMapPaintToolBuilder>();
-	ToolRegistry.AddNodeToToolMapping(FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), ToolBuilder);
+	TSharedRef<const FDataflowToolActionCommandBindings> Actions = MakeShared<FDataflowToolActionCommandBindings>();
+	ToolRegistry.AddNodeToToolMapping(FDataflowCollectionAddScalarVertexPropertyNode::StaticType(), ToolBuilder, Actions);
+
+	FDataflowEditorCommands::Register();
 }
 
 void FDataflowEditorModule::ShutdownModule()
@@ -53,6 +99,8 @@ void FDataflowEditorModule::ShutdownModule()
 		PropertyModule->UnregisterCustomPropertyTypeLayout(ScalarVertexPropertyGroupName);
 		PropertyModule->UnregisterCustomPropertyTypeLayout(DataflowFunctionPropertyName);
 	}
+
+	FDataflowEditorCommands::Unregister();
 
 	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
 	ToolRegistry.RemoveNodeToToolMapping(FDataflowCollectionAddScalarVertexPropertyNode::StaticType());

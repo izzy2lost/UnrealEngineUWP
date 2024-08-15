@@ -130,23 +130,17 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 
 }
 
-void FDataflowEditorCommandsImpl::GetToolDefaultObjectList(TArray<UInteractiveTool*>& ToolCDOs)
-{
-	ToolCDOs.Add(GetMutableDefault<UDataflowEditorWeightMapPaintTool>());
-}
 
 void FDataflowEditorCommandsImpl::UpdateToolCommandBinding(UInteractiveTool* Tool, TSharedPtr<FUICommandList> UICommandList, bool bUnbind)
 {
-	if (FDataflowEditorCommandsImpl::IsRegistered())
+	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
+	if (bUnbind)
 	{
-		if (bUnbind)
-		{
-			FDataflowEditorCommandsImpl::Get().UnbindActiveCommands(UICommandList);
-		}
-		else
-		{
-			FDataflowEditorCommandsImpl::Get().BindCommandsForCurrentTool(UICommandList, Tool);
-		}
+		ToolRegistry.UnbindActiveCommands(UICommandList);
+	}
+	else
+	{
+		ToolRegistry.BindCommandsForCurrentTool(UICommandList, Tool);
 	}
 }
 

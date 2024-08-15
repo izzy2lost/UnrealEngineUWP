@@ -17,10 +17,10 @@ namespace Dataflow
 		TLazySingleton<FDataflowToolRegistry>::TearDown();
 	}
 
-	void FDataflowToolRegistry::AddNodeToToolMapping(const FName& NodeName, TObjectPtr<UInteractiveToolBuilder> ToolBuilder)
+	void FDataflowToolRegistry::AddNodeToToolMapping(const FName& NodeName, TObjectPtr<UInteractiveToolBuilder> ToolBuilder, const TSharedRef<const IDataflowToolActionCommands>& ToolActionRegistry)
 	{
 		// FUICommandInfo is uninitialized, it will be created later in FDataflowEditorCommandsImpl::RegisterCommands
-		NodeTypeToToolMap.Add(NodeName, { ToolBuilder, nullptr });
+		NodeTypeToToolMap.Add(NodeName, { ToolBuilder, ToolActionRegistry, nullptr });
 	}
 
 	void FDataflowToolRegistry::RemoveNodeToToolMapping(const FName& NodeName)
@@ -51,6 +51,22 @@ namespace Dataflow
 	{
 		check(NodeTypeToToolMap.Contains(NodeName));
 		return NodeTypeToToolMap[NodeName].ToolBuilder;
+	}
+
+	void FDataflowToolRegistry::UnbindActiveCommands(const TSharedPtr<FUICommandList>& UICommandList) const
+	{
+		for (const TPair<FName, FToolInfo>& Entry : NodeTypeToToolMap)
+		{
+			Entry.Value.ToolActionCommands->UnbindActiveCommands(UICommandList);
+		}
+	}
+
+	void FDataflowToolRegistry::BindCommandsForCurrentTool(const TSharedPtr<FUICommandList>& UICommandList, UInteractiveTool* Tool) const
+	{
+		for (const TPair<FName, FToolInfo>& Entry : NodeTypeToToolMap)
+		{
+			Entry.Value.ToolActionCommands->BindCommandsForCurrentTool(UICommandList, Tool);
+		}
 	}
 
 }

@@ -58,6 +58,7 @@ private:
 
 	// FEditorViewportClient interface
 	virtual void Tick(float DeltaSeconds) override;
+	virtual bool InputKey(const FInputKeyEventArgs& EventArgs) override;
 	virtual void ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY) override;
 
 	/** Toolkit used to create the viewport client */

@@ -65,6 +65,22 @@ USelection* FDataflowConstructionViewportClient::GetSelectedComponents()
 	return ModeTools->GetSelectedComponents(); 
 }
 
+bool FDataflowConstructionViewportClient::InputKey(const FInputKeyEventArgs& EventArgs)
+{
+	// See if any tool commands want to handle the key event
+	const TSharedPtr<FUICommandList> PinnedToolCommandList = ToolCommandList.Pin();
+	if (EventArgs.Event != IE_Released && PinnedToolCommandList.IsValid())
+	{
+		const FModifierKeysState KeyState = FSlateApplication::Get().GetModifierKeys();
+		if (PinnedToolCommandList->ProcessCommandBindings(EventArgs.Key, KeyState, (EventArgs.Event == IE_Repeat)))
+		{
+			return true;
+		}
+	}
+
+	return FEditorViewportClient::InputKey(EventArgs);
+}
+
 
 void FDataflowConstructionViewportClient::ProcessClick(FSceneView& View, HHitProxy* HitProxy, FKey Key, EInputEvent Event, uint32 HitX, uint32 HitY)
 {
