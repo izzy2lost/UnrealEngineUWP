@@ -632,7 +632,7 @@ namespace JobDriver.Utility
 
 				logger.LogInformation("Reading tag \"{NodeName}\":\"{TagName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, localFile: {LocalFile})", nodeName, tagName, artifact.Id, artifactName, artifactType, namespaceId, refName, localFileListLocation);
 
-				using IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
+				IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
 				DirectoryNode node = await storageClient.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
 
 				FileEntry fileEntry = node.GetFileEntry(localFileListLocation.GetFileName());
@@ -770,7 +770,7 @@ namespace JobDriver.Utility
 
 				logger.LogInformation("Reading block \"{NodeName}\":\"{BlockName}\" from temp storage (artifact: {ArtifactId} '{ArtifactName}' ({ArtifactType}), ns: {NamespaceId}, ref: {RefName}, local: {LocalFile}, blockdir: {BlockDir})", nodeName, blockName, artifact.Id, artifactName, artifactType, namespaceId, refName, localManifestFile, blockDirectoryName);
 
-				using IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
+				IStorageClient storageClient = hordeClient.CreateStorageClient(namespaceId, artifact.Token);
 				DirectoryNode node = await storageClient.ReadRefTargetAsync<DirectoryNode>(refName, cancellationToken: cancellationToken);
 
 				DirectoryEntry? rootDirEntry;

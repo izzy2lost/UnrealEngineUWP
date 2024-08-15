@@ -343,7 +343,7 @@ namespace HordeServer.Replicators
 			RefName refName = GetRefName(replicator.Id);
 			RefName incRefName = GetIncrementalRefName(replicator.Id);
 
-			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
+			IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
 			ICommitCollection commits = _perforceService.GetCommits(streamConfig);
 
@@ -422,7 +422,7 @@ namespace HordeServer.Replicators
 
 		async Task<IReplicator> WriteInternalAsync(IReplicator replicator, int change, BuildConfig buildConfig, StreamConfig streamConfig, PerforceReplicationOptions options, BlobSerializerOptions blobOptions, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
+			IStorageClient store = _storageService.CreateClient(Namespace.Perforce);
 
 			// Find the parent node
 			RefName refName = GetRefName(replicator.Id);

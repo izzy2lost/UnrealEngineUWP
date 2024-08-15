@@ -124,8 +124,6 @@ namespace UnrealBuildTool
 
 			await _serviceProvider.DisposeAsync();
 			_cancellationTokenSource.Dispose();
-
-			_storage.Dispose();
 		}
 
 		public async Task InitAsync(bool useSentry, CancellationToken cancellationToken)

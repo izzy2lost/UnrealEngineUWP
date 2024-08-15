@@ -30,7 +30,6 @@ namespace HordeServer.Tests.Logs
 		public async ValueTask DisposeAsync()
 		{
 			await _blobWriter.DisposeAsync();
-			_storageClient.Dispose();
 		}
 
 		public async Task<ILog> WriteDataAsync(ReadOnlyMemory<byte> data)

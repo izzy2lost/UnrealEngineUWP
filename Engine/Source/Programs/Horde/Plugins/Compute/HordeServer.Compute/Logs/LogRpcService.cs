@@ -51,7 +51,7 @@ namespace HordeServer.Logs
 				throw new StructuredRpcException(StatusCode.PermissionDenied, "Access denied");
 			}
 
-			using IStorageClient store = _storageService.CreateClient(Namespace.Logs);
+			IStorageClient store = _storageService.CreateClient(Namespace.Logs);
 
 			_logger.LogInformation("Updating {LogId} to node {RefTarget} (lines: {LineCount}, complete: {Complete})", request.LogId, request.TargetLocator, request.LineCount, request.Complete);
 

@@ -202,7 +202,6 @@ namespace UnrealBuildTool.Artifacts
 		/// <inheritdoc/>
 		public void Dispose()
 		{
-			_store?.Dispose();
 			_pendingWritesFlushTask?.Dispose();
 			_pendingWritesFlushTask = null;
 			_semaphore.Dispose();
@@ -225,13 +224,14 @@ namespace UnrealBuildTool.Artifacts
 		/// Create a file based cache
 		/// </summary>
 		/// <param name="directory">Destination directory</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logging object</param>
 		/// <param name="cleanDirectory">If true, clean the directory</param>
 		/// <returns>Storage client instance</returns>
-		public static IArtifactCache CreateFileCache(DirectoryReference directory, ILogger logger, bool cleanDirectory)
+		public static IArtifactCache CreateFileCache(DirectoryReference directory, MemoryMappedFileCache memoryMappedFileCache, ILogger logger, bool cleanDirectory)
 		{
 			HordeStorageArtifactCache cache = new(null);
-			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, logger, cleanDirectory));
+			cache._readyTask = Task.Run(() => cache.InitFileCache(directory, memoryMappedFileCache, logger, cleanDirectory));
 			return cache;
 		}
 
@@ -492,10 +492,11 @@ namespace UnrealBuildTool.Artifacts
 		/// Initialize a file based cache
 		/// </summary>
 		/// <param name="directory">Destination directory</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logger</param>
 		/// <param name="cleanDirectory">If true, clean the directory</param>
 		/// <returns>Cache state</returns>
-		private ArtifactCacheState InitFileCache(DirectoryReference directory, ILogger logger, bool cleanDirectory)
+		private ArtifactCacheState InitFileCache(DirectoryReference directory, MemoryMappedFileCache memoryMappedFileCache, ILogger logger, bool cleanDirectory)
 		{
 			try
 			{
@@ -511,7 +512,7 @@ namespace UnrealBuildTool.Artifacts
 				}
 				Directory.CreateDirectory(directory.FullName);
 
-				_store = BundleStorageClient.CreateFromDirectory(directory, BundleCache.None, logger);
+				_store = BundleStorageClient.CreateFromDirectory(directory, BundleCache.None, memoryMappedFileCache, logger);
 
 				State = ArtifactCacheState.Available;
 				return State;

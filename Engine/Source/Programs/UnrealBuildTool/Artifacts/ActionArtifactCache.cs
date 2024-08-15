@@ -164,11 +164,12 @@ namespace UnrealBuildTool.Artifacts
 		/// </summary>
 		/// <param name="directory">Directory for the cache</param>
 		/// <param name="cppDependencyCache">Previously created dependency cache</param>
+		/// <param name="memoryMappedFileCache">Cache for memory mapped files</param>
 		/// <param name="logger">Logging device</param>
 		/// <returns>Action artifact cache object</returns>
-		public static IActionArtifactCache CreateHordeFileCache(DirectoryReference directory, CppDependencyCache cppDependencyCache, ILogger logger)
+		public static IActionArtifactCache CreateHordeFileCache(DirectoryReference directory, CppDependencyCache cppDependencyCache, MemoryMappedFileCache memoryMappedFileCache, ILogger logger)
 		{
-			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, NullLogger.Instance, false);
+			IArtifactCache artifactCache = HordeStorageArtifactCache.CreateFileCache(directory, memoryMappedFileCache, NullLogger.Instance, false);
 			return new ActionArtifactCache(artifactCache, cppDependencyCache, logger);
 		}
 

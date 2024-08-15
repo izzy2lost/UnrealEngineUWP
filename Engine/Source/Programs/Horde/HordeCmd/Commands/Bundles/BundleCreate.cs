@@ -49,12 +49,13 @@ namespace Horde.Commands.Bundles
 
 			if (File != null)
 			{
-				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
+				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
+				IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else if (!String.IsNullOrEmpty(Ref))
 			{
-				using IStorageClient store = CreateStorageClient();
+				IStorageClient store = CreateStorageClient();
 				return await ExecuteInternalAsync(store, logger);
 			}
 			else

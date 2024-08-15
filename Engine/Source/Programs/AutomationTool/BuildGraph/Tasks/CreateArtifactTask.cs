@@ -127,21 +127,20 @@ namespace AutomationTool.Tasks
 			Stopwatch timer = Stopwatch.StartNew();
 
 			HttpStorageClientFactory httpStorageClientFactory = serviceProvider.GetRequiredService<HttpStorageClientFactory>();
-			using (IStorageClient client = httpStorageClientFactory.CreateClient(response.NamespaceId, response.Token))
+			IStorageClient client = httpStorageClientFactory.CreateClient(response.NamespaceId, response.Token);
+
+			await using (IBlobWriter writer = client.CreateBlobWriter(response.RefName))
 			{
-				await using (IBlobWriter writer = client.CreateBlobWriter(response.RefName))
-				{
-					DirectoryReference baseDir = ResolveDirectory(_parameters.BaseDir);
-					List<FileInfo> files = ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).Select(x => x.ToFileInfo()).ToList();
+				DirectoryReference baseDir = ResolveDirectory(_parameters.BaseDir);
+				List<FileInfo> files = ResolveFilespec(baseDir, _parameters.Files, tagNameToFileSet).Select(x => x.ToFileInfo()).ToList();
 
-					int totalCount = files.Count;
-					long totalSize = files.Sum(x => x.Length);
+				int totalCount = files.Count;
+				long totalSize = files.Sum(x => x.Length);
 
-					IHashedBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new UpdateStatsLogger(totalCount, totalSize, Logger));
-					await writer.FlushAsync();
+				IHashedBlobRef<DirectoryNode> outputNodeRef = await writer.WriteFilesAsync(baseDir.ToDirectoryInfo(), files, progress: new UpdateStatsLogger(totalCount, totalSize, Logger));
+				await writer.FlushAsync();
 
-					await client.WriteRefAsync(response.RefName, outputNodeRef);
-				}
+				await client.WriteRefAsync(response.RefName, outputNodeRef);
 			}
 
 			Logger.LogInformation("Completed in {Time:n1}s", timer.Elapsed.TotalSeconds);

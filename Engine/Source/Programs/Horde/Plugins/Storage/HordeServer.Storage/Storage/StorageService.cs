@@ -674,70 +674,61 @@ namespace HordeServer.Storage
 			State state = CreateState(_storageConfig.CurrentValue);
 
 			Dictionary<NamespaceId, BundleStorageClient> cachedClients = new();
-			try
+
+			long ingestedCount = 0;
+
+			// Compute missing import info, by searching for blobs with an ObjectId timestamp after the last import compute cycle
+			ObjectId latestInfoId = ObjectId.GenerateNewId(ingestTimeUtc);
+			while (!gcState.Reset)
 			{
-				long ingestedCount = 0;
-
-				// Compute missing import info, by searching for blobs with an ObjectId timestamp after the last import compute cycle
-				ObjectId latestInfoId = ObjectId.GenerateNewId(ingestTimeUtc);
-				while (!gcState.Reset)
+				// Fetch the next batch of blobs
+				List<BlobInfo> current = await _blobCollection.Find(x => x.Id > gcState.LastImportBlobInfoId && x.Id < latestInfoId).SortBy(x => x.Id).Limit(500).ToListAsync(cancellationToken);
+				if (current.Count == 0)
 				{
-					// Fetch the next batch of blobs
-					List<BlobInfo> current = await _blobCollection.Find(x => x.Id > gcState.LastImportBlobInfoId && x.Id < latestInfoId).SortBy(x => x.Id).Limit(500).ToListAsync(cancellationToken);
-					if (current.Count == 0)
+					break;
+				}
+
+				// Find imports, and add a check record for each new blob
+				using TelemetrySpan innerSpan = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickBlobsAsync)}.Batch");
+				innerSpan.SetAttribute("First", current[0].Id.ToString());
+				innerSpan.SetAttribute("Last", current[^1].Id.ToString());
+				innerSpan.SetAttribute("Count", current.Count);
+
+				_logger.LogDebug("Ticking {NumBlobs} blobs from {FirstId} to {LastId}", current.Count, current[0].Id, current[^1].Id);
+
+				foreach (BlobInfo blobInfo in current)
+				{
+					NamespaceInfo? namespaceInfo;
+					if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
 					{
-						break;
-					}
-
-					// Find imports, and add a check record for each new blob
-					using TelemetrySpan innerSpan = _tracer.StartActiveSpan($"{nameof(StorageService)}.{nameof(TickBlobsAsync)}.Batch");
-					innerSpan.SetAttribute("First", current[0].Id.ToString());
-					innerSpan.SetAttribute("Last", current[^1].Id.ToString());
-					innerSpan.SetAttribute("Count", current.Count);
-
-					_logger.LogDebug("Ticking {NumBlobs} blobs from {FirstId} to {LastId}", current.Count, current[0].Id, current[^1].Id);
-
-					foreach (BlobInfo blobInfo in current)
-					{
-						NamespaceInfo? namespaceInfo;
-						if (state.Namespaces.TryGetValue(blobInfo.NamespaceId, out namespaceInfo))
+						BundleStorageClient? storageClient;
+						if (!cachedClients.TryGetValue(namespaceInfo.Id, out storageClient))
 						{
-							BundleStorageClient? storageClient;
-							if (!cachedClients.TryGetValue(namespaceInfo.Id, out storageClient))
-							{
-								storageClient = new BundleStorageClient(namespaceInfo.Backend, _bundleCache, null, _logger);
-								cachedClients.Add(namespaceInfo.Id, storageClient);
-							}
+							storageClient = new BundleStorageClient(namespaceInfo.Backend, _bundleCache, null, _logger);
+							cachedClients.Add(namespaceInfo.Id, storageClient);
+						}
 
-							try
-							{
-								await TickBlobAsync(storageClient, blobInfo, cancellationToken);
-							}
-							catch (ObjectNotFoundException ex)
-							{
-								_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, ex.Message);
-							}
-							catch (Exception ex)
-							{
-								_logger.LogWarning(ex, "Unable to read references for {NamespaceId} blob {BlobId} (key: {ObjectKey}): {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
-							}
+						try
+						{
+							await TickBlobAsync(storageClient, blobInfo, cancellationToken);
+						}
+						catch (ObjectNotFoundException ex)
+						{
+							_logger.LogInformation(ex, "Unable to read references for {NamespaceId} blob {BlobId}: {Message}", blobInfo.NamespaceId, blobInfo.Id, ex.Message);
+						}
+						catch (Exception ex)
+						{
+							_logger.LogWarning(ex, "Unable to read references for {NamespaceId} blob {BlobId} (key: {ObjectKey}): {Message}", blobInfo.NamespaceId, blobInfo.Id, GetObjectKey(blobInfo.Locator), ex.Message);
 						}
 					}
-
-					// Update the last imported blob id
-					gcState = await _gcState.UpdateAsync(state => state.LastImportBlobInfoId = current[^1].Id, cancellationToken);
-					ingestedCount += current.Count;
 				}
 
-				_logger.LogInformation("Added {NumBlobs} blobs for GC (upper time: {Time})", ingestedCount, ingestTimeUtc);
+				// Update the last imported blob id
+				gcState = await _gcState.UpdateAsync(state => state.LastImportBlobInfoId = current[^1].Id, cancellationToken);
+				ingestedCount += current.Count;
 			}
-			finally
-			{
-				foreach (BundleStorageClient client in cachedClients.Values)
-				{
-					client.Dispose();
-				}
-			}
+
+			_logger.LogInformation("Added {NumBlobs} blobs for GC (upper time: {Time})", ingestedCount, ingestTimeUtc);
 		}
 
 		async Task TickBlobAsync(BundleStorageClient storageClient, BlobInfo blobInfo, CancellationToken cancellationToken)
@@ -1109,7 +1100,7 @@ namespace HordeServer.Storage
 
 		async Task TickGcForNamespaceAsync(NamespaceInfo namespaceInfo, ObjectId lastImportBlobInfoId, DateTime utcNow, bool deleteObjects, CancellationToken cancellationToken)
 		{
-			using IStorageClient client = this.CreateClient(namespaceInfo.Id);
+			IStorageClient client = this.CreateClient(namespaceInfo.Id);
 
 			Stopwatch timer = Stopwatch.StartNew();
 			_logger.LogInformation("Running garbage collection for namespace {NamespaceId}...", namespaceInfo.Id);

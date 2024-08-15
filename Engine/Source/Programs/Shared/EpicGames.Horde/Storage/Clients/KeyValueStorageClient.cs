@@ -127,11 +127,6 @@ namespace EpicGames.Horde.Storage.Clients
 			_backend = backend;
 		}
 
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-		}
-
 		/// <summary>
 		/// Create an in-memory storage client
 		/// </summary>

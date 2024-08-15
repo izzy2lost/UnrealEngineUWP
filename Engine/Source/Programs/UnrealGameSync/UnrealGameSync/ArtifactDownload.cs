@@ -55,7 +55,7 @@ namespace UnrealGameSync
 				await using ServiceProvider serviceProvider = services.BuildServiceProvider();
 
 				IHordeClient hordeClient = serviceProvider.GetRequiredService<IHordeClient>();
-				using IStorageClient storageClient = hordeClient.CreateStorageClient(baseUri.AbsolutePath);
+				IStorageClient storageClient = hordeClient.CreateStorageClient(baseUri.AbsolutePath);
 
 				progress.Report("Connecting to server...");
 

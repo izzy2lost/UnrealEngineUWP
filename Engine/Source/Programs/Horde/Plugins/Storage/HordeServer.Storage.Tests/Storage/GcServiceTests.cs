@@ -31,7 +31,7 @@ namespace HordeServer.Tests.Storage
 			globalConfig.Plugins.Add(new PluginName("storage"), storageConfig);
 			SetConfig(globalConfig);
 
-			using IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
+			IStorageClient store = StorageService.CreateClient(new NamespaceId("default"));
 
 			Random random = new Random(0);
 			IHashedBlobRef[] blobs = await CreateTestDataAsync(store, 30, 50, 30, 5, random);

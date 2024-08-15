@@ -25,7 +25,6 @@ namespace EpicGames.Horde.Storage.Bundles
 		readonly BundleOptions _options;
 		readonly PacketReaderStats _packetReaderStats = new PacketReaderStats();
 		readonly Bundles.V1.BundleReader _bundleReader;
-		readonly IDisposable? _ownedResources;
 
 		internal Bundles.V1.BundleReader BundleReader => _bundleReader;
 
@@ -52,19 +51,12 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public BundleStorageClient(IStorageBackend backend, BundleCache cache, BundleOptions? options, ILogger logger, IDisposable? ownedResources = null)
+		public BundleStorageClient(IStorageBackend backend, BundleCache cache, BundleOptions? options, ILogger logger)
 		{
 			_backend = backend;
 			_cache = cache;
 			_options = options ?? BundleOptions.Default;
 			_bundleReader = new Bundles.V1.BundleReader(this, cache, logger);
-			_ownedResources = ownedResources;
-		}
-
-		/// <inheritdoc/>
-		public void Dispose()
-		{
-			_ownedResources?.Dispose();
 		}
 
 		/// <summary>
@@ -85,17 +77,16 @@ namespace EpicGames.Horde.Storage.Bundles
 		/// <summary>
 		/// Creates a bundle storage client around a directory on the filesystem
 		/// </summary>
-		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, ILogger logger)
-			=> CreateFromDirectory(rootDir, cache, null, logger);
+		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, MemoryMappedFileCache memoryMappedFileCache, ILogger logger)
+			=> CreateFromDirectory(rootDir, cache, memoryMappedFileCache, null, logger);
 
 		/// <summary>
 		/// Creates a bundle storage client around a directory on the filesystem
 		/// </summary>
-		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, BundleOptions? options, ILogger logger)
+		public static BundleStorageClient CreateFromDirectory(DirectoryReference rootDir, BundleCache cache, MemoryMappedFileCache memoryMappedFileCache, BundleOptions? options, ILogger logger)
 		{
-			MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
 			FileStorageBackend backend = new FileStorageBackend(new FileObjectStore(rootDir, memoryMappedFileCache), logger);
-			return new BundleStorageClient(backend, cache, options, logger, memoryMappedFileCache);
+			return new BundleStorageClient(backend, cache, options, logger);
 		}
 
 		/// <summary>

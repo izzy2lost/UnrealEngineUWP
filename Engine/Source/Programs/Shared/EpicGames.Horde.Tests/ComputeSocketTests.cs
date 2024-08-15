@@ -175,7 +175,7 @@ namespace EpicGames.Horde.Tests
 						await channel2.CloseAsync(cancellationToken);
 					}
 
-					using BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+					BundleStorageClient storage = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 					await using (IBlobWriter blobWriter = storage.CreateBlobWriter())
 					{
 						FileReference file = FileReference.Combine(tempDir, "subdir/hello.txt");

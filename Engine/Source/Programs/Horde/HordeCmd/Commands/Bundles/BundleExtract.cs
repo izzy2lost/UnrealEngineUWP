@@ -54,19 +54,20 @@ namespace Horde.Commands.Bundles
 
 			if (File != null)
 			{
-				using IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, logger);
+				using MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache();
+				IStorageClient store = BundleStorageClient.CreateFromDirectory(File.Directory, BundleCache, memoryMappedFileCache, logger);
 				IBlobRef<DirectoryNode> handle = store.CreateBlobRef<DirectoryNode>(await FileStorageBackend.ReadRefAsync(File));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Ref != null)
 			{
-				using IStorageClient store = CreateStorageClient();
+				IStorageClient store = CreateStorageClient();
 				IBlobRef<DirectoryNode> handle = await store.ReadRefAsync<DirectoryNode>(new RefName(Ref));
 				await ExecuteInternalAsync(store, handle, logger);
 			}
 			else if (Node != null)
 			{
-				using IStorageClient store = CreateStorageClient();
+				IStorageClient store = CreateStorageClient();
 				IBlobRef<DirectoryNode> handle = store.CreateBlobRef<DirectoryNode>(new BlobLocator(Node));
 				await ExecuteInternalAsync(store, handle, logger);
 			}

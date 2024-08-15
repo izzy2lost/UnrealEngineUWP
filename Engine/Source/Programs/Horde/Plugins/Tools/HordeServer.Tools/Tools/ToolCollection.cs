@@ -194,7 +194,8 @@ namespace HordeServer.Tools
 		private readonly StorageService _storageService;
 		private readonly FileObjectStoreFactory _fileObjectStoreFactory;
 		private readonly IClock _clock;
-		private readonly BundleCache _cache;
+		private readonly BundleCache _bundleCache;
+		private readonly MemoryMappedFileCache _memoryMappedFileCache;
 		private readonly IOptionsMonitor<ToolsConfig> _toolsConfig;
 		private readonly IOptions<ToolsServerConfig> _toolsServerConfig;
 		private readonly ILogger _logger;
@@ -202,7 +203,7 @@ namespace HordeServer.Tools
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public ToolCollection(IMongoService mongoService, IServerInfo serverInfo, StorageService storageService, BundleCache cache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<ToolsConfig> toolsConfig, IOptions<ToolsServerConfig> toolsServerConfig, ILogger<ToolCollection> logger)
+		public ToolCollection(IMongoService mongoService, IServerInfo serverInfo, StorageService storageService, BundleCache bundleCache, MemoryMappedFileCache memoryMappedFileCache, FileObjectStoreFactory fileObjectStoreFactory, IClock clock, IOptionsMonitor<ToolsConfig> toolsConfig, IOptions<ToolsServerConfig> toolsServerConfig, ILogger<ToolCollection> logger)
 		{
 			_serverInfo = serverInfo;
 			_tools = mongoService.GetCollection<ToolDocument>("Tools");
@@ -211,7 +212,8 @@ namespace HordeServer.Tools
 			_clock = clock;
 			_toolsConfig = toolsConfig;
 			_toolsServerConfig = toolsServerConfig;
-			_cache = cache;
+			_bundleCache = bundleCache;
+			_memoryMappedFileCache = memoryMappedFileCache;
 			_logger = logger;
 		}
 
@@ -326,7 +328,7 @@ namespace HordeServer.Tools
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			using IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
+			IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
 
 			IHashedBlobRef<DirectoryNode> nodeRef;
 			await using (IBlobWriter writer = client.CreateBlobWriter($"{tool.Id}/{deploymentId}"))
@@ -343,7 +345,7 @@ namespace HordeServer.Tools
 		{
 			ToolDeploymentId deploymentId = new ToolDeploymentId(BinaryIdUtils.CreateNew());
 
-			using IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
+			IStorageClient client = _storageService.CreateClient(toolConfig.NamespaceId);
 			return await CreateDeploymentInternalAsync(tool, toolConfig, deploymentId, options, client, client.CreateBlobRef(target), cancellationToken);
 		}
 
@@ -401,7 +403,7 @@ namespace HordeServer.Tools
 				}
 
 				ToolDeploymentDocument removeDeployment = tool.Deployments[0];
-				using IStorageClient client = _storageService.CreateClient(removeDeployment.NamespaceId);
+				IStorageClient client = _storageService.CreateClient(removeDeployment.NamespaceId);
 				await client.DeleteRefAsync(removeDeployment.RefName, cancellationToken);
 			}
 
@@ -461,7 +463,7 @@ namespace HordeServer.Tools
 		{
 			if (toolConfig is BundledToolConfig bundledConfig)
 			{
-				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools"), _cache, _logger);
+				return BundleStorageClient.CreateFromDirectory(DirectoryReference.Combine(_serverInfo.AppDir, bundledConfig.DataDir ?? "Tools"), _bundleCache, _memoryMappedFileCache, _logger);
 			}
 			else
 			{
@@ -497,16 +499,9 @@ namespace HordeServer.Tools
 		{
 #pragma warning disable CA2000
 			IStorageClient client = CreateStorageClient(tool);
-			try
-			{
-				IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
-				return nodeRef.AsZipStream().WrapOwnership(client);
-			}
-			catch
-			{
-				client.Dispose();
-				throw;
-			}
+
+			IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+			return nodeRef.AsZipStream();
 #pragma warning restore CA2000
 		}
 

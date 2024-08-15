@@ -70,8 +70,6 @@ namespace HordeServer.Tests.Issues
 					IHashedBlobRef<LogNode> handle = await _builder.FlushAsync(writer, true, CancellationToken.None);
 					await _storageClient.WriteRefAsync(_log.RefName, handle);
 				}
-
-				_storageClient.Dispose();
 			}
 
 			public IDisposable? BeginScope<TState>(TState state) where TState : notnull => _scopeCollection.BeginScope(state);
@@ -349,16 +347,14 @@ namespace HordeServer.Tests.Issues
 
 			ILog log = (await LogCollection.GetAsync(logId, CancellationToken.None))!;
 
-			using (IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs))
+			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			await using (IBlobWriter writer = storageClient.CreateBlobWriter())
 			{
-				await using (IBlobWriter writer = storageClient.CreateBlobWriter())
-				{
-					LogBuilder builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
-					builder.WriteData(data);
+				LogBuilder builder = new LogBuilder(LogFormat.Json, NullLogger.Instance);
+				builder.WriteData(data);
 
-					IHashedBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
-					await storageClient.WriteRefAsync(log!.RefName, handle);
-				}
+				IHashedBlobRef<LogNode> handle = await builder.FlushAsync(writer, true, CancellationToken.None);
+				await storageClient.WriteRefAsync(log!.RefName, handle);
 			}
 
 			await log.AddEventsAsync(new List<NewLogEventData> { new NewLogEventData { LineIndex = 0, LineCount = 1, Severity = severity } }, CancellationToken.None);
@@ -394,7 +390,7 @@ namespace HordeServer.Tests.Issues
 			LogId logId = job.Batches[batchIdx].Steps[stepIdx].LogId!.Value;
 			ILog log = (await LogCollection.GetAsync(logId))!;
 
-			using IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
+			IStorageClient storageClient = StorageService.CreateClient(Namespace.Logs);
 			await using (TestJsonLogger logger = new TestJsonLogger(log, storageClient))
 			{
 				PerforceMetadataLogger perforceLogger = new PerforceMetadataLogger(logger);

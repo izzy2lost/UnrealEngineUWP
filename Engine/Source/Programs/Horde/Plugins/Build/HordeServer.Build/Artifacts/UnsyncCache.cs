@@ -44,23 +44,18 @@ namespace HordeServer.Artifacts
 	/// </summary>
 	public sealed class UnsyncCache : IDisposable
 	{
-		class ArtifactInfo : IDisposable
+		class ArtifactInfo
 		{
-			public IStorageClient StorageClient { get; }
 			public UnsyncManifest Manifest { get; }
 			public ReadOnlyMemory<byte> ManifestData { get; }
 			public FrozenDictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> Blobs { get; }
 
-			public ArtifactInfo(IStorageClient storageClient, UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, FrozenDictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blobs)
+			public ArtifactInfo(UnsyncManifest manifest, ReadOnlyMemory<byte> manifestData, FrozenDictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blobs)
 			{
-				StorageClient = storageClient;
 				Manifest = manifest;
 				ManifestData = manifestData;
 				Blobs = blobs;
 			}
-
-			public void Dispose()
-				=> StorageClient.Dispose();
 		}
 
 		readonly IStorageService _storageService;
@@ -211,40 +206,30 @@ namespace HordeServer.Artifacts
 
 		async Task<ArtifactInfo?> ReadArtifactAsync(IArtifact artifact, CancellationToken cancellationToken)
 		{
-			IStorageClient? storageClient = null;
-			try
+			Stopwatch timer = Stopwatch.StartNew();
+			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+
+			IHashedBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
+			if (target == null)
 			{
-				Stopwatch timer = Stopwatch.StartNew();
-				storageClient = _storageService.CreateClient(artifact.NamespaceId);
-
-				IHashedBlobRef<DirectoryNode>? target = await storageClient.TryReadRefAsync<DirectoryNode>(artifact.RefName, cancellationToken: cancellationToken);
-				if (target == null)
-				{
-					return null;
-				}
-
-				List<UnsyncFile> files = new List<UnsyncFile>();
-				await FindFilesAsync(new Utf8StringBuilder(), target, files, cancellationToken);
-
-				Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blocks = new Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>>();
-				foreach (UnsyncBlock block in files.SelectMany(x => x.Blocks))
-				{
-					blocks[block.Blob.Hash] = block.Blob;
-				}
-
-				_logger.LogDebug("Generated Unsync manifest for artifact {ArtifactId} in {Time:n1}ms", artifact.Id, timer.ElapsedMilliseconds);
-
-				UnsyncManifest manifest = new UnsyncManifest(files);
-				ReadOnlyMemory<byte> manifestData = SerializeManifest(manifest);
-
-				ArtifactInfo artifactInfo = new ArtifactInfo(storageClient, manifest, manifestData, blocks.ToFrozenDictionary());
-				storageClient = null;
-				return artifactInfo;
+				return null;
 			}
-			finally
+
+			List<UnsyncFile> files = new List<UnsyncFile>();
+			await FindFilesAsync(new Utf8StringBuilder(), target, files, cancellationToken);
+
+			Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>> blocks = new Dictionary<IoHash, IHashedBlobRef<LeafChunkedDataNode>>();
+			foreach (UnsyncBlock block in files.SelectMany(x => x.Blocks))
 			{
-				storageClient?.Dispose();
+				blocks[block.Blob.Hash] = block.Blob;
 			}
+
+			_logger.LogDebug("Generated Unsync manifest for artifact {ArtifactId} in {Time:n1}ms", artifact.Id, timer.ElapsedMilliseconds);
+
+			UnsyncManifest manifest = new UnsyncManifest(files);
+			ReadOnlyMemory<byte> manifestData = SerializeManifest(manifest);
+
+			return new ArtifactInfo(manifest, manifestData, blocks.ToFrozenDictionary());
 		}
 
 		static async Task FindFilesAsync(Utf8StringBuilder path, IHashedBlobRef<DirectoryNode> directoryNodeRef, List<UnsyncFile> files, CancellationToken cancellationToken)

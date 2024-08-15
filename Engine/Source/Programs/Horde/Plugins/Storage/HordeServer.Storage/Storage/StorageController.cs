@@ -270,7 +270,7 @@ namespace HordeServer.Storage
 		/// </summary>
 		public static async Task<ActionResult<ReadRefResponse>> ReadRefInternalAsync(IStorageClientFactory storageService, NamespaceId namespaceId, RefName refName, IHeaderDictionary headers, CancellationToken cancellationToken)
 		{
-			using IStorageClient client = storageService.CreateClient(namespaceId);
+			IStorageClient client = storageService.CreateClient(namespaceId);
 
 			RefCacheTime cacheTime = new RefCacheTime();
 			foreach (string? entry in headers.CacheControl)
@@ -393,7 +393,7 @@ namespace HordeServer.Storage
 				locator = new BlobLocator(locator, String.Join("&", fragments));
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(namespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(namespaceId);
 
 			object content;
 

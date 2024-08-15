@@ -23,19 +23,19 @@ namespace HordeServer.Ddc
 
 		public async Task<bool> DeleteAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			return await storageClient.DeleteRefAsync(GetRefName(bucket, key), cancellationToken);
 		}
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			return await storageClient.RefExistsAsync(GetRefName(bucket, key), cancellationToken: cancellationToken);
 		}
 
 		public async Task<(ContentId[], BlobId[])> FinalizeAsync(NamespaceId ns, BucketId bucket, RefId key, BlobId blobHash, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? blobAlias = await storageClient.FindAliasAsync(BlobService.GetAlias(blobHash), cancellationToken);
 			if (blobAlias == null)
@@ -125,7 +125,7 @@ namespace HordeServer.Ddc
 
 		public async Task<(RefRecord, BlobContents?)> GetAsync(NamespaceId ns, BucketId bucket, RefId key, string[] fields, bool doLastAccessTracking, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)
@@ -142,7 +142,7 @@ namespace HordeServer.Ddc
 
 		public async Task<List<BlobId>> GetReferencedBlobsAsync(NamespaceId ns, BucketId bucket, RefId key, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			DdcRefNode? node = await storageClient.TryReadRefTargetAsync<DdcRefNode>(GetRefName(bucket, key), cancellationToken: cancellationToken);
 			if (node == null)

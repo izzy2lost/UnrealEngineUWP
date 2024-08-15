@@ -28,7 +28,7 @@ namespace HordeServer.Ddc
 
 		public Task<ActionResult?> HasAccessToNamespaceAsync(ClaimsPrincipal user, HttpRequest request, NamespaceId ns, AclAction[] aclActions)
 		{
-			using IStorageClient? storageClient = _storageClientFactory.TryCreateClient(ns);
+			IStorageClient? storageClient = _storageClientFactory.TryCreateClient(ns);
 			if (storageClient == null)
 			{
 				return Task.FromResult<ActionResult?>(new ForbidResult());

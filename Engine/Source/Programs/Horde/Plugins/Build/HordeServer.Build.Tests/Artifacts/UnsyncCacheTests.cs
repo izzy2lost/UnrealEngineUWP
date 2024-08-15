@@ -21,7 +21,7 @@ namespace HordeServer.Tests.Artifacts
 			NamespaceId ns = new NamespaceId("test");
 			byte[] source = Enumerable.Range(0, 1024 * 1024).Select(x => (byte)(x % 257)).ToArray();
 
-			using BundleStorageClient storageClient = BundleStorageClient.CreateInMemory(NullLogger.Instance);
+			BundleStorageClient storageClient = BundleStorageClient.CreateInMemory(NullLogger.Instance);
 
 			Dictionary<IoHash, ReadOnlyMemory<byte>> chunks = new Dictionary<IoHash, ReadOnlyMemory<byte>>();
 

@@ -71,22 +71,22 @@ namespace HordeServer.Commands.Generate
 
 			RefName refName = new RefName(Id);
 			await using (BundleCache bundleCache = new BundleCache())
+			using (MemoryMappedFileCache memoryMappedFileCache = new MemoryMappedFileCache())
 			{
-				using (IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, logger))
-				{
-					IHashedBlobRef<DirectoryNode> dirNodeRef;
-					await using (IBlobWriter writer = client.CreateBlobWriter(refName))
-					{
-						logger.LogInformation("");
-						logger.LogInformation("Writing tool data for {ToolId}", refName);
-						DirectoryNode dirNode = new DirectoryNode();
-						await dirNode.AddFilesAsync(InputDir.ToDirectoryInfo(), writer);
-						dirNodeRef = await writer.WriteBlobAsync(dirNode);
+				IStorageClient client = BundleStorageClient.CreateFromDirectory(bundleDir, bundleCache, memoryMappedFileCache, logger);
 
-						logger.LogInformation("");
-					}
-					await client.WriteRefAsync(refName, dirNodeRef);
+				IHashedBlobRef<DirectoryNode> dirNodeRef;
+				await using (IBlobWriter writer = client.CreateBlobWriter(refName))
+				{
+					logger.LogInformation("");
+					logger.LogInformation("Writing tool data for {ToolId}", refName);
+					DirectoryNode dirNode = new DirectoryNode();
+					await dirNode.AddFilesAsync(InputDir.ToDirectoryInfo(), writer);
+					dirNodeRef = await writer.WriteBlobAsync(dirNode);
+
+					logger.LogInformation("");
 				}
+				await client.WriteRefAsync(refName, dirNodeRef);
 			}
 
 			// Update the server config to include the bundled tool

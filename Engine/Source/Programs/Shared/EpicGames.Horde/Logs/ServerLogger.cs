@@ -122,11 +122,6 @@ namespace EpicGames.Horde.Logs
 			{
 				await _writer.DisposeAsync();
 			}
-
-			if (_store != null)
-			{
-				_store.Dispose();
-			}
 		}
 
 		/// <summary>

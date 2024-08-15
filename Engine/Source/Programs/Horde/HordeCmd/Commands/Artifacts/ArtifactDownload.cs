@@ -50,7 +50,7 @@ namespace Horde.Commands.Artifacts
 				FileUtils.ForceDeleteDirectoryContents(OutputDir);
 			}
 
-			using IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
+			IStorageClient store = _hordeClient.CreateStorageClient(artifact.Id);
 
 			Stopwatch timer = Stopwatch.StartNew();
 

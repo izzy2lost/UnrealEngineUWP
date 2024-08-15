@@ -309,7 +309,7 @@ namespace HordeServer.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 
 			DirectoryNode directoryNode;
 			try
@@ -476,7 +476,7 @@ namespace HordeServer.Artifacts
 				return Forbid(ArtifactAclAction.ReadArtifact, artifact.StreamId);
 			}
 
-			using IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
 			DirectoryNode directory = await storageClient.ReadRefTargetAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
 			FileEntry? fileEntry = await directory.GetFileEntryByPathAsync(path, cancellationToken: cancellationToken);
@@ -572,18 +572,10 @@ namespace HordeServer.Artifacts
 
 #pragma warning disable CA2000
 			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
-			try
-			{
-				IHashedBlobRef<DirectoryNode> directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
+			IHashedBlobRef<DirectoryNode> directory = await storageClient.ReadRefAsync<DirectoryNode>(artifact.RefName, DateTime.UtcNow.AddHours(1.0), cancellationToken: cancellationToken);
 
-				Stream stream = directory.AsZipStream(filter).WrapOwnership(storageClient);
-				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };
-			}
-			catch
-			{
-				storageClient.Dispose();
-				throw;
-			}
+			Stream stream = directory.AsZipStream(filter);
+			return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{artifact.RefName}.zip" };
 #pragma warning restore CA2000
 		}
 

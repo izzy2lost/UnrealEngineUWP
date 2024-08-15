@@ -110,7 +110,7 @@ namespace RemoteClient
 				await channel.ForkAsync(BackgroundChannelId, 4 * 1024 * 1024, default);
 
 				// Upload the sandbox to the primary channel.
-				using BundleStorageClient storage =  BundleStorageClient.CreateInMemory(logger);
+				BundleStorageClient storage = BundleStorageClient.CreateInMemory(logger);
 
 				await using (IBlobWriter writer = storage.CreateBlobWriter())
 				{

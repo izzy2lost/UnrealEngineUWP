@@ -318,44 +318,36 @@ namespace HordeServer.Tools
 			}
 
 			IStorageClient client = tool.CreateStorageClient();
-			try
-			{
-				IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
+			IHashedBlobRef<DirectoryNode> nodeRef = await client.ReadRefAsync<DirectoryNode>(deployment.RefName, DateTime.UtcNow - TimeSpan.FromDays(2.0), cancellationToken: cancellationToken);
 
-				// If we weren't specifically asked for a zip, see if this download is a single file. If it is, allow downloading it directory.
-				if (action != GetToolAction.Zip)
+			// If we weren't specifically asked for a zip, see if this download is a single file. If it is, allow downloading it directory.
+			if (action != GetToolAction.Zip)
+			{
+				DirectoryNode node = await nodeRef.ReadBlobAsync(cancellationToken);
+				if (node.Directories.Count == 0 && node.Files.Count == 1)
 				{
-					DirectoryNode node = await nodeRef.ReadBlobAsync(cancellationToken);
-					if (node.Directories.Count == 0 && node.Files.Count == 1)
+					FileEntry entry = node.Files.First();
+
+					string? contentType;
+					if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
 					{
-						FileEntry entry = node.Files.First();
-
-						string? contentType;
-						if (!new FileExtensionContentTypeProvider().TryGetContentType(entry.Name.ToString(), out contentType))
-						{
-							contentType = "application/octet-stream";
-						}
-
-						Response.Headers.ContentLength = entry.Length;
-
-						Stream fileStream = entry.OpenAsStream().WrapOwnership(client);
-						return new FileStreamResult(fileStream, contentType) { FileDownloadName = entry.Name.ToString() };
+						contentType = "application/octet-stream";
 					}
-				}
 
-				Stream stream = nodeRef.AsZipStream().WrapOwnership(client);
-				return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
+					Response.Headers.ContentLength = entry.Length;
+
+					Stream fileStream = entry.OpenAsStream();
+					return new FileStreamResult(fileStream, contentType) { FileDownloadName = entry.Name.ToString() };
+				}
 			}
-			catch
-			{
-				client.Dispose();
-				throw;
-			}
+
+			Stream stream = nodeRef.AsZipStream();
+			return new FileStreamResult(stream, "application/zip") { FileDownloadName = $"{tool.Id}-{deployment.Version}.zip" };
 		}
 
 		static async Task<GetToolDeploymentResponse> GetDeploymentInfoResponseAsync(ITool tool, IToolDeployment deployment, CancellationToken cancellationToken)
 		{
-			using IStorageClient client = tool.CreateStorageClient();
+			IStorageClient client = tool.CreateStorageClient();
 			IBlobRef rootHandle = await client.ReadRefAsync(deployment.RefName, cancellationToken: cancellationToken);
 
 			return new GetToolDeploymentResponse(deployment.Id, deployment.Version, deployment.State, deployment.Progress, deployment.StartedAt, deployment.Duration, deployment.RefName, rootHandle.GetLocator());

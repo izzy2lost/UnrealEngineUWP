@@ -306,7 +306,7 @@ namespace HordeServer.Logs
 
 			if (logDocument.UseNewStorageBackend)
 			{
-				using IStorageClient storageClient = _storageService.CreateClient(logDocument.NamespaceId);
+				IStorageClient storageClient = _storageService.CreateClient(logDocument.NamespaceId);
 				await storageClient.DeleteRefAsync(logDocument.RefName, cancellationToken);
 			}
 		}
@@ -327,7 +327,7 @@ namespace HordeServer.Logs
 		{
 			List<Utf8String> lines = new List<Utf8String>();
 
-			using IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
 
 			int maxIndex = index + count;
 			bool complete = log.Complete;
@@ -392,7 +392,7 @@ namespace HordeServer.Logs
 		/// <inheritdoc/>
 		async Task<(int, long)> GetLineOffsetAsync(LogDocument log, int lineIdx, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
 
 			LogNode? root = await storageClient.TryReadRefTargetAsync<LogNode>(log.RefName, cancellationToken: cancellationToken);
 			if (root == null)
@@ -422,7 +422,7 @@ namespace HordeServer.Logs
 		/// <inheritdoc/>
 		async Task<Stream> OpenRawStreamAsync(LogDocument log, long offset, long length, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
 
 			LogNode? root = await storageClient.TryReadRefTargetAsync<LogNode>(log.RefName, cancellationToken: cancellationToken);
 			if (root == null || root.TextChunkRefs.Count == 0)
@@ -480,7 +480,7 @@ namespace HordeServer.Logs
 		async IAsyncEnumerable<int> SearchLogDataInternalNewAsync(LogDocument log, string text, int firstLine, SearchStats searchStats, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			SearchTerm searchText = new SearchTerm(text);
-			using IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
+			IStorageClient storageClient = _storageService.CreateClient(log.NamespaceId);
 
 			// Search the index
 			if (log.LineCount > 0)

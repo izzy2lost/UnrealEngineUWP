@@ -365,7 +365,7 @@ namespace HordeServer.Artifacts
 		{
 			foreach (IGrouping<NamespaceId, ArtifactDocument> artifactGroup in deleteArtifacts.GroupBy(x => x.NamespaceId))
 			{
-				using IStorageClient storageClient = _storageService.CreateClient(artifactGroup.Key);
+				IStorageClient storageClient = _storageService.CreateClient(artifactGroup.Key);
 				foreach (ArtifactDocument artifact in artifactGroup)
 				{
 					// Delete the ref allowing the storage service to expire this data

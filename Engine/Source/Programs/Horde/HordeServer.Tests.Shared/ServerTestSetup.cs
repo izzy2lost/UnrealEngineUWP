@@ -98,6 +98,8 @@ namespace HordeServer.Tests
 			services.AddSingleton<IServerInfo>(serverInfo);
 			services.AddSingleton<IPluginCollection>(_pluginCollection);
 
+			services.AddSingleton<MemoryMappedFileCache>();
+
 			services.AddSingleton<IAccountCollection, AccountCollection>();
 
 			services.AddLogging(builder => { builder.AddConsole().SetMinimumLevel(LogLevel.Debug); });

@@ -191,7 +191,7 @@ namespace EpicGames.Horde.Compute
 			await using BundleCache cache = new BundleCache(new BundleCacheOptions { HeaderCacheSize = 10 * 1024 * 1024, PacketCacheSize = 128 * 1024 * 1024 });
 
 			BundleOptions bundleOptions = ComputeProtocolUtilities.GetBundleOptions(channel.Protocol);
-			using BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
+			BundleStorageClient store = new BundleStorageClient(innerStore, cache, bundleOptions, _logger);
 
 			IBlobRef<DirectoryNode> directoryRef = store.CreateBlobRef<DirectoryNode>(locator, options);
 

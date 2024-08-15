@@ -415,6 +415,8 @@ namespace UnrealBuildTool
 			await BuildAsync(TargetMakefiles.ToArray(), TargetDescriptors, BuildConfiguration, Options, WriteOutdatedActionsFile, Logger, ActionTypeFilter);
 		}
 
+		static Lazy<MemoryMappedFileCache> s_memoryMappedFileCache = new Lazy<MemoryMappedFileCache>(() => new MemoryMappedFileCache());
+
 		/// <summary>
 		/// Build a list of targets with a given set of makefiles.
 		/// </summary>
@@ -553,7 +555,7 @@ namespace UnrealBuildTool
 
 					Logger.LogInformation("Experimental artifact system using '{Directory}' in {Mode} mode", artifactDirectory.FullName, mode);
 
-					actionArtifactCache = ActionArtifactCache.CreateHordeFileCache(artifactDirectory, CppDependencies, Logger);
+					actionArtifactCache = ActionArtifactCache.CreateHordeFileCache(artifactDirectory, CppDependencies, s_memoryMappedFileCache.Value, Logger);
 					actionArtifactCache.EnableReads = BuildConfiguration.bArtifactRead;
 					actionArtifactCache.EnableWrites = BuildConfiguration.bArtifactWrites;
 					actionArtifactCache.LogCacheMisses = BuildConfiguration.bLogArtifactCacheMisses;

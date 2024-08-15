@@ -38,7 +38,7 @@ namespace Horde.Commands
 		/// <inheritdoc/>
 		public override async Task<int> ExecuteAsync(ILogger logger)
 		{
-			using IStorageClient storageClient = _httpStorageClientFactory.CreateClientWithPath($"api/v1/tools/{ToolId}");
+			IStorageClient storageClient = _httpStorageClientFactory.CreateClientWithPath($"api/v1/tools/{ToolId}");
 
 			IHashedBlobRef<DirectoryNode> target;
 			await using (IBlobWriter writer = storageClient.CreateBlobWriter())

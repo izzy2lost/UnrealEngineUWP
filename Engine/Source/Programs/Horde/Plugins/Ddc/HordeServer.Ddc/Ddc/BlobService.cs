@@ -60,13 +60,13 @@ namespace HordeServer.Ddc
 
 		public async Task<bool> ExistsAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers = null, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			return await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken) != null;
 		}
 
 		public async Task DeleteObjectAsync(NamespaceId ns, BlobId blob, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 			string aliasName = GetAlias(blob);
 
 			BlobAlias[] aliases = await storageClient.FindAliasesAsync(aliasName, cancellationToken: cancellationToken);
@@ -78,7 +78,7 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobId[]> FilterOutKnownBlobsAsync(NamespaceId ns, IEnumerable<BlobId> blobIds, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			List<BlobId> unknownBlobIds = new List<BlobId>();
 			foreach (BlobId blobId in blobIds)
@@ -123,7 +123,7 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobContents> GetObjectAsync(NamespaceId ns, BlobId blob, List<string>? storageLayers, bool supportsRedirectUri, bool allowOndemandReplication = true, CancellationToken cancellationToken = default)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			BlobAlias? alias = await storageClient.FindAliasAsync(GetAlias(blob), cancellationToken);
 			if (alias == null)
@@ -174,7 +174,7 @@ namespace HordeServer.Ddc
 
 		public async Task<BlobId> PutObjectKnownHashAsync(NamespaceId ns, IBufferedPayload content, BlobId identifier, CancellationToken cancellationToken)
 		{
-			using IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
+			IStorageClient storageClient = _storageClientFactory.CreateClient(ns);
 
 			IHashedBlobRef blobRef;
 			await using (IBlobWriter writer = storageClient.CreateBlobWriter())

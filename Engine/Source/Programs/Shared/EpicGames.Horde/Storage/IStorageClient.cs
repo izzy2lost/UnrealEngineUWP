@@ -21,7 +21,7 @@ namespace EpicGames.Horde.Storage
 	/// <summary>
 	/// Interface for the storage system.
 	/// </summary>
-	public interface IStorageClient : IDisposable
+	public interface IStorageClient
 	{
 		#region Blobs
 

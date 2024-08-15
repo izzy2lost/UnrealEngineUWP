@@ -94,7 +94,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task LeafTestAsync()
 		{
-			using IStorageClient store = CreateStorageClient();
+			IStorageClient store = CreateStorageClient();
 
 			byte[] input = CreateTestData(256, 0);
 
@@ -109,7 +109,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task ReferenceTestAsync()
 		{
-			using IStorageClient store = CreateStorageClient();
+			IStorageClient store = CreateStorageClient();
 
 			byte[] input1 = CreateTestData(256, 1);
 			HashedBlobRefValue locator1 = await WriteBlobAsync(store, new Blob(input1, Array.Empty<HashedBlobRefValue>()));
@@ -141,7 +141,7 @@ namespace HordeServer.Tests.Storage
 		[TestMethod]
 		public async Task RefExpiryTestAsync()
 		{
-			using IStorageClient store = CreateStorageClient();
+			IStorageClient store = CreateStorageClient();
 
 			Blob blob1 = new Blob(new byte[] { 1, 2, 3 }, Array.Empty<HashedBlobRefValue>());
 			HashedBlobRefValue target = await WriteBlobAsync(store, blob1);

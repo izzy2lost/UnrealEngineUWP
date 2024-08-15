@@ -239,10 +239,6 @@ namespace EpicGames.Horde.Tests
 
 			public ValueTask DisposeAsync()
 			{
-				foreach (BundleStorageClient storageClient in StorageClients.Values)
-				{
-					storageClient.Dispose();
-				}
 				StorageClients.Clear();
 				return default;
 			}
@@ -287,7 +283,7 @@ namespace EpicGames.Horde.Tests
 			}
 
 			// Read the log
-			using IStorageClient storageClient = hordeClient.CreateStorageClient(logId);
+			IStorageClient storageClient = hordeClient.CreateStorageClient(logId);
 			LogNode file = await storageClient.CreateBlobRef(hordeClient.LogRpc.Logs[logId]).ReadBlobAsync<LogNode>();
 
 			// Check the index text
