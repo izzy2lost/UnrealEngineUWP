@@ -138,7 +138,7 @@ export class Dashboard {
     get authMethod(): AuthMethod | undefined {
         return this.config?.authMethod;
     }
- 
+
     get p4user(): string {
         const claims = this.claims;
         const user = claims.filter(c => c.type.endsWith("/perforce-user"));
@@ -199,7 +199,11 @@ export class Dashboard {
     }
 
     get poolCategories(): GetDashboardPoolCategoryResponse[] {
-        return this.config?.poolCategories ?? [];        
+        return this.config?.poolCategories ?? [];
+    }
+
+    get artifactTypes(): string[] {
+        return this.config?.artifactTypes ?? [];
     }
 
     get deviceProblemCooldownMinutes(): number {
@@ -305,18 +309,18 @@ export class Dashboard {
         return this.preferences.get(DashboardPreference.DisplayUTC) === 'true';
 
     }
-    
+
     static get userPrefersDarkTheme(): boolean {
-        
+
         try {
             if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
                 return true;
-            }    
+            }
         } catch (reason) {
             if (!Dashboard.hasLoggedDarkThemePref) {
                 Dashboard.hasLoggedDarkThemePref = true;
                 console.error(reason);
-            }            
+            }
         }
 
         return false;
@@ -326,16 +330,16 @@ export class Dashboard {
 
     get darktheme(): boolean {
 
-        if (!this.available) {            
+        if (!this.available) {
 
             let local = localStorage.getItem("horde_darktheme");
             if (local === "true") {
                 return true;
-            } 
+            }
             if (local === "false") {
                 return false;
-            } 
-    
+            }
+
             return Dashboard.userPrefersDarkTheme;
         }
 
@@ -546,7 +550,7 @@ export class Dashboard {
                     this.config = await backend.getDashboardConfig();
                 } catch (reason) {
                     console.error("Error getting dashboard config, defaults used: " + reason);
-                    this.config = { agentCategories: [], poolCategories: [],telemetryViews: []};
+                    this.config = { agentCategories: [], poolCategories: [], telemetryViews: [], artifactTypes: [] };
                 }
             }
 

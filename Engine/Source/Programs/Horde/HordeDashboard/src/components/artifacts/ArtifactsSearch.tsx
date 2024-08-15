@@ -33,7 +33,7 @@ export class ArtifactQueryState {
 
       if (state.minChange || state.maxChange || state.name || state.typeKey) {
          this.autoLoad = true;
-      }   
+      }
    }
 
    fromSearch(search: URLSearchParams): ArtifactSearchState {
@@ -362,29 +362,6 @@ const ArtifactsList: React.FC<{ state: ArtifactQueryState, artifacts?: GetArtifa
 
 }
 
-const artifactTypes: IComboBoxOption[] = [
-   {
-      key: `step-all`,
-      text: `All`
-   }, {
-      key: `packaged-build`,
-      text: `Packaged Build`
-   }, {
-      key: `step-saved`,
-      text: `step-saved`
-   }, {
-      key: `step-output`,
-      text: `step-output`
-   }, {
-      key: `step-trace`,
-      text: `step-trace`
-   },
-   {
-      key: `step-testdata`,
-      text: `step-testdata`
-   }
-]
-
 const sortOptions: IComboBoxOption[] = [
    {
       key: `sort-name`,
@@ -415,6 +392,18 @@ export const FindArtifactsModal: React.FC<{ onClose: () => void }> = ({ onClose 
          }
       }
    }
+
+   const artifactTypes: IComboBoxOption[] = [
+      {
+         key: `step-all`,
+         text: `All`
+      }
+   ]
+
+   dashboard.artifactTypes.sort((a, b) => a.localeCompare(b)).forEach(t => {
+      artifactTypes.push({ key: t, text: t });
+   });
+
 
    const queryArtifacts = async () => {
 
