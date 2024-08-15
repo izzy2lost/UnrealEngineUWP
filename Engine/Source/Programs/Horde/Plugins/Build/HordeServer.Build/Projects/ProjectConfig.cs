@@ -11,6 +11,7 @@ using EpicGames.Horde.Projects;
 using EpicGames.Horde.Telemetry;
 using HordeServer.Acls;
 using HordeServer.Agents.Pools;
+using HordeServer.Artifacts;
 using HordeServer.Configuration;
 using HordeServer.Streams;
 using HordeServer.Utilities;

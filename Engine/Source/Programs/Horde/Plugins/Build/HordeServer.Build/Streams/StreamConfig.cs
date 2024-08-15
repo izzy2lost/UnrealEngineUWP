@@ -22,6 +22,7 @@ using EpicGames.Horde.Telemetry;
 using EpicGames.Perforce;
 using Horde.Common.Rpc;
 using HordeServer.Acls;
+using HordeServer.Artifacts;
 using HordeServer.Configuration;
 using HordeServer.Issues;
 using HordeServer.Jobs.Graphs;
