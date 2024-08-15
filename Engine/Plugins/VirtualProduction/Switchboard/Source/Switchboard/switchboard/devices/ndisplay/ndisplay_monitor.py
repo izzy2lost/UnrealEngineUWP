@@ -7,13 +7,14 @@ import threading
 import traceback
 
 from PySide6 import QtCore
-from PySide6.QtCore import QModelIndex, Qt, QTimer, Q_ARG
+from PySide6.QtCore import Qt, QTimer, Q_ARG
 from PySide6.QtGui import QColor, QIcon, QStandardItemModel, QStandardItem
 
 from switchboard import message_protocol
 from switchboard.message_protocol import SyncStatusRequestFlags
 from switchboard.switchboard_logging import LOGGER
 from switchboard.devices.device_base import Device
+from switchboard.devices.unreal.plugin_unreal import UnrealJobs
 
 
 class nDisplayMonitor(QStandardItemModel):
@@ -356,7 +357,7 @@ class nDisplayMonitor(QStandardItemModel):
     def program_id_from_device(self, device: Device):
         ''' Returns the program id of the running nDisplay unreal instance '''
         try:
-            program_id = device.program_start_queue.running_puuids_named('unreal')[-1]
+            program_id = device.program_start_queue.running_puuids_named(UnrealJobs.Unreal.value)[-1]
         except IndexError:
             program_id = self.default_program_id()
 
@@ -626,7 +627,7 @@ class nDisplayMonitor(QStandardItemModel):
         # Window in focus or not
         if SyncStatusRequestFlags.PidInFocus in request_flags:
             data['InFocus'] = 'no'
-            for prg in device.program_start_queue.running_programs_named('unreal'):
+            for prg in device.program_start_queue.running_programs_named(UnrealJobs.Unreal.value):
                 if prg.pid and prg.pid == sync_status['pidInFocus']:
                     data['InFocus'] = 'yes'
                     break
@@ -636,7 +637,7 @@ class nDisplayMonitor(QStandardItemModel):
             layers = '\n'.join([layer for layer in sync_status['programLayers'][1:]])
             if 'DISABLEDXMAXIMIZEDWINDOWEDMODE' in layers:
                 data['FSO'] = 'no'
-            elif len(device.program_start_queue.running_programs_named('unreal')):
+            elif len(device.program_start_queue.running_programs_named(UnrealJobs.Unreal.value)):
                 data['FSO'] = 'yes'
             else:
                 data['FSO'] = 'n/a'

@@ -757,6 +757,18 @@ class SwitchboardDialog(QtCore.QObject):
                 )
                 return
 
+            # Make sure we won't try to send the package command to the same client multiple times.
+
+            unique_addresses = {device.address for device in ndisplay_devices}
+
+            if len(ndisplay_devices) > len(unique_addresses):
+                QtWidgets.QMessageBox.information(
+                    self.window,
+                    "Unable to start packaging",
+                    "Please only try to package devices with unique addresses."
+                )
+                return
+
             # Validate all the devices before starting to package
             for device in ndisplay_devices:
                 try:
@@ -771,7 +783,7 @@ class SwitchboardDialog(QtCore.QObject):
 
             # Ok, we should be good to go.
             for device in ndisplay_devices:
-                device.package_game(clientconfig)
+                device.package_game(clientconfig=clientconfig)
 
         actionname = "Package nDisplay Game"
 
@@ -1440,6 +1452,7 @@ class SwitchboardDialog(QtCore.QObject):
         device.device_qt_handler.signal_device_is_recording_device_changed.connect(self.device_is_recording_device_changed, QtCore.Qt.QueuedConnection)
         device.device_qt_handler.signal_device_build_update.connect(self.device_build_update, QtCore.Qt.QueuedConnection)
         device.device_qt_handler.signal_device_sync_update.connect(self.device_sync_update, QtCore.Qt.QueuedConnection)
+        device.device_qt_handler.signal_device_package_update.connect(self.device_package_update, QtCore.Qt.QueuedConnection)
 
         # Add the view
         self.device_list_widget.add_device_widget(device)
@@ -1838,6 +1851,11 @@ class SwitchboardDialog(QtCore.QObject):
     def device_sync_update(self, device, progress):
         device_widget = self.device_list_widget.device_widget_by_hash(device.device_hash)
         device_widget.update_sync_status(device, progress)
+
+    @QtCore.Slot(object)
+    def device_package_update(self, device, step, percent):
+        device_widget = self.device_list_widget.device_widget_by_hash(device.device_hash)
+        device_widget.update_package_status(device, step, percent)
 
     @QtCore.Slot(object)
     def device_project_changelist_changed(self, device):

@@ -8,7 +8,7 @@ import socket
 import struct
 import traceback
 import uuid
-from typing import Optional, Dict, OrderedDict
+from typing import Optional
 from enum import Enum
 
 from PySide6 import QtCore
@@ -28,7 +28,7 @@ from switchboard.devices.unreal.uassetparser import UassetParser
 from switchboard.devices.device_base import DeviceStatus
 from switchboard.switchboard_logging import LOGGER
 from switchboard.sbcache import SBCache, Asset
-from switchboard.devices.unreal.plugin_unreal import ProgramStartQueueItem
+from switchboard.devices.unreal.plugin_unreal import ProgramStartQueueItem, UnrealJobs
 
 from .ndisplay_monitor_ui import nDisplayMonitorUI
 from .ndisplay_monitor import nDisplayMonitor
@@ -153,7 +153,7 @@ class AddnDisplayDialog(AddDeviceDialog):
         ''' Called when the user changes the state of the LaunchAs dropdown
         It updates the editability of the packaged game path selection accordingly.
         '''
-        is_packaged = self.cmbLaunchAs.currentText() == LaunchMode.Packaged.value
+        is_packaged = self.is_packaged_game()
 
         self.lblPath.setEnabled(is_packaged)
         self.pathField.setEnabled(is_packaged)
@@ -217,7 +217,7 @@ class AddnDisplayDialog(AddDeviceDialog):
 
     def is_packaged_game(self):
         ''' Returns true if this is a packaged game'''
-        return self.chkPackagedGame.checkState() == QtCore.Qt.Checked
+        return self.cmbLaunchAs.currentText() == LaunchMode.Packaged.value
 
     def packaged_game_path(self):
         ''' Returns the path to the packaged game'''
@@ -1360,16 +1360,30 @@ class DevicenDisplay(DeviceUnreal):
             dryrun: bool = False) -> uuid.UUID:
         ''' Packages the game using default settings '''
 
-        outdir = Path(self.get_packaged_game_path()).parent
+        # Determine the folder where to package the game.
+
+        outdir = Path(self.get_packaged_game_path())
+
+        # Note: is_file() can't work reliably if the file doesn't exist yet.
+        if outdir.exists():
+            if outdir.is_file():
+                outdir = outdir.parent
+        else:
+            # if it ends with a separator, we know it is a directory
+            is_surely_dir = str(outdir).endswith(Path().anchor)
+            could_be_file = not is_surely_dir
+            if could_be_file:
+                outdir = outdir.parent
 
         if outdir == Path(""):
             raise FileNotFoundError("Invalid Packaged Game Path")
 
-        program_name = "unreal_packagegame"
+        program_name = UnrealJobs.PackageGame.value
 
-        # Make sure there isn't a packaging program already running.
-        if len(self.program_start_queue.running_programs_named(program_name)):
-            raise PermissionError("Packaging task already running")
+        # Make sure there isn't any other program already running.
+        # @todo Should include un-started programs
+        if self.program_start_queue.running_programs_count():
+            raise PermissionError("Another task is already running. Please try again later.")
 
         # @todo using the remote platform would be more correct.
 

@@ -21,6 +21,7 @@ import threading
 from typing import Callable, Dict, Generator, Optional, Union
 import uuid
 import time
+from enum import Enum
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
@@ -43,6 +44,23 @@ from . import version_helpers
 from .listener_watcher import ListenerWatcher
 from .redeploy_dialog import RedeployListenerDialog
 from switchboard.sbcache import SBCache, Asset
+
+
+class UnrealJobs(Enum):
+    ''' Used to specify the type of job sent to the unreal client '''
+
+    BuildPrefix = 'build_'
+    BuildProject = 'build_project'
+
+    CstatPrefix = 'cstat'
+    CstatProject = 'cstat_project'
+    CstatEngine = 'cstat_engine'
+
+    Sync = 'sync'
+    BuildDDC = 'unreal_ddc'
+    Unreal = 'unreal'
+    Retrieve = 'retrieve'
+    PackageGame = 'package_game'
 
 
 class ProgramStartQueueItem:
@@ -319,6 +337,10 @@ class ProgramStartQueue:
         guaranteed to do so.
         '''
         return self.rd_puuid_by_name[name]
+
+    def running_programs_count(self) -> int:
+        ''' Returns number of running programs '''
+        return sum(len(program_list) for program_list in self.rd_running_progs_by_name.values())
 
 
 class LiveLinkPresetSetting(Setting):
@@ -1494,7 +1516,7 @@ class DeviceUnreal(Device):
         formatstring = "%change%"
         args = f'-F "{formatstring}" -c {client_name} cstat {p4_path}/...#have'
 
-        program_name = "cstat_project"
+        program_name = UnrealJobs.CstatProject.value
 
         working_dir = os.path.dirname(
             CONFIG.UPROJECT_PATH.get_value(self.name))
@@ -1541,7 +1563,7 @@ class DeviceUnreal(Device):
         formatstring = "%change%"
         args = f'-F "{formatstring}" -c {client_name} cstat {p4_path}/...#have'
 
-        program_name = "cstat_engine"
+        program_name = UnrealJobs.CstatEngine.value
 
         working_dir = os.path.dirname(
             CONFIG.UPROJECT_PATH.get_value(self.name))
@@ -1611,7 +1633,7 @@ class DeviceUnreal(Device):
                                'workspace is already running.')
                 return
 
-        program_name = 'sync'
+        program_name = UnrealJobs.Sync.value
 
         # check if it is already on its way:
         try:
@@ -1760,7 +1782,7 @@ class DeviceUnreal(Device):
                                'same workspace is already running.')
                 return
 
-        program_name = 'build_project'
+        program_name = UnrealJobs.BuildProject.value
 
         # check if it is already on its way:
         try:
@@ -1776,7 +1798,7 @@ class DeviceUnreal(Device):
         sync_puuid = None
 
         try:
-            sync_puuid = self.program_start_queue.puuid_from_name('sync')
+            sync_puuid = self.program_start_queue.puuid_from_name(UnrealJobs.Sync.value)
         except KeyError:
             pass
 
@@ -1866,7 +1888,7 @@ class DeviceUnreal(Device):
     def _queue_build(
             self, program_name_suffix: str, ubt_args: str,
             puuid_dependency: Optional[uuid.UUID] = None):
-        program_name = f"build_{program_name_suffix}"
+        program_name = f"{UnrealJobs.BuildPrefix.value}{program_name_suffix}"
 
         engine_path = CONFIG.ENGINE_DIR.get_value(self.name)
         if self.target_platform.lower().startswith('win'):
@@ -1909,7 +1931,7 @@ class DeviceUnreal(Device):
 
     def close(self, force=False):
         # This call only refers to "unreal" programs.
-        unreal_puuids = self.program_start_queue.running_puuids_named('unreal')
+        unreal_puuids = self.program_start_queue.running_puuids_named(UnrealJobs.Unreal.value)
 
         for unreal_puuid in unreal_puuids:
             _, msg = message_protocol.create_kill_process_message(unreal_puuid)
@@ -1922,7 +1944,7 @@ class DeviceUnreal(Device):
 
     def disable_fso(self):
         ''' Tries to disable Full Screen Optimizations on the remote UnrealEditor.exe executable '''
-        unreals = self.program_start_queue.running_programs_named('unreal')
+        unreals = self.program_start_queue.running_programs_named(UnrealJobs.Unreal.value)
 
         if not len(unreals):
             return
@@ -2194,7 +2216,7 @@ class DeviceUnreal(Device):
             self.generate_unreal_exe_path(),
             self.generate_unreal_command_line_args(map_name))
 
-    def fill_derived_data_cache(self, current_level_only=False, program_name="unreal_ddc"):
+    def fill_derived_data_cache(self, current_level_only=False, program_name=UnrealJobs.BuildDDC.value):
         platforms: list[str] = self.setting_ddc_build_platforms.get_value(self.name)
         if (len(platforms) == 0):
             LOGGER.error("No platforms selected for fill_derived_data_cache, canceling...")
@@ -2235,7 +2257,7 @@ class DeviceUnreal(Device):
 
         return puuid
 
-    def launch(self, map_name, program_name="unreal"):
+    def launch(self, map_name, program_name=UnrealJobs.Unreal.value):
         if map_name == DEFAULT_MAP_TEXT:
             map_name = ''
 
@@ -2308,15 +2330,17 @@ class DeviceUnreal(Device):
             self.device_qt_handler.signal_device_client_disconnected.emit(self)
 
     def do_program_running_update(self, prog):
-        if prog.name == 'unreal':
+        if prog.name == UnrealJobs.Unreal.value:
             self.status = DeviceStatus.OPEN
             self.unreal_started_signal.emit()
-        elif prog.name.startswith('build_'):
+        elif prog.name.startswith(UnrealJobs.BuildPrefix.value):
             for device in self.devices_sharing_workspace():
                 device.status = DeviceStatus.BUILDING
-        elif prog.name == 'sync':
+        elif prog.name == UnrealJobs.Sync.value:
             for device in self.devices_sharing_workspace():
                 device.status = DeviceStatus.SYNCING
+        elif prog.name == UnrealJobs.PackageGame.value:
+            self.status = DeviceStatus.PACKAGING
 
         self.program_start_queue.update_running_program(prog=prog)
 
@@ -2335,15 +2359,15 @@ class DeviceUnreal(Device):
             # log this
             LOGGER.error(f"Could not start {program_name}: {message['error']}")
 
-            if program_name == 'sync' or program_name.startswith('build_'):
+            if program_name == UnrealJobs.Sync.value or program_name.startswith(UnrealJobs.BuildPrefix.value):
                 for device in self.devices_sharing_workspace():
                     device.status = DeviceStatus.CLOSED
 
                     # This has the effect of hiding building/syncing status.
                     device.project_changelist = device.project_changelist
-            elif program_name == 'unreal':
+            elif program_name == UnrealJobs.Unreal.value:
                 self.status = DeviceStatus.CLOSED
-            elif program_name == 'retrieve':
+            elif program_name == UnrealJobs.Retrieve.value:
                 self.status = DeviceStatus.CLOSED
 
             return
@@ -2419,13 +2443,13 @@ class DeviceUnreal(Device):
         remaining_homonyms = self.program_start_queue.running_puuids_named(
             program_name)
         for prog_id in remaining_homonyms:
-            if program_name != 'retrieve':
+            if program_name != UnrealJobs.Retrieve.value:
                 LOGGER.warning(
                     f'{self.name}: But ({prog_id}) with the same name '
                     f'"{program_name}" is still in the list, which is unusual')
 
-        if program_name == 'unreal' and not len(remaining_homonyms):
-            
+        if program_name == UnrealJobs.Unreal.value and not len(remaining_homonyms):
+
             if DeviceUnreal.csettings["retrieve_logs"].get_value():
                 log_success = self.start_retrieve_log(unreal_exit_code=returncode)
                 utrace_success = self.start_retrieve_utrace(unreal_exit_code=returncode)
@@ -2434,10 +2458,10 @@ class DeviceUnreal(Device):
             else:
                 self.status = DeviceStatus.CLOSED
 
-        elif program_name == 'retrieve' and not self.transfer_in_progress:
+        elif program_name == UnrealJobs.Retrieve.value and not self.transfer_in_progress:
             self.status = DeviceStatus.CLOSED
 
-        elif program_name == 'sync':
+        elif program_name == UnrealJobs.Sync.value:
             if returncode == 0:
                 LOGGER.info(f"{self.name}: Sync successful")
                 self.last_sync_filter_hash.update_value(
@@ -2478,7 +2502,7 @@ class DeviceUnreal(Device):
                 other.project_changelist = self.project_changelist
                 other.status = DeviceStatus.CLOSED
 
-        elif program_name.startswith('build_'):
+        elif program_name.startswith(UnrealJobs.BuildPrefix.value):
             if returncode == 0:
                 LOGGER.info(f"{self.name}: {program_name} successful!")
             else:
@@ -2491,7 +2515,7 @@ class DeviceUnreal(Device):
                     if error_pattern.search(line):
                         LOGGER.error(f"{self.name}: {line}")
 
-            if 'build_project' == program_name:
+            if UnrealJobs.BuildProject.value == program_name:
                 for device in self.devices_sharing_workspace():
                     device.status = DeviceStatus.CLOSED
 
@@ -2502,7 +2526,7 @@ class DeviceUnreal(Device):
                     self._request_engine_changelist_number()
                     self._request_unreal_editor_version_file()
 
-        elif "cstat" in program_name:
+        elif UnrealJobs.CstatPrefix.value in program_name:
             output = get_stdout_str()
             changelists = [line.strip() for line in output.split()]
 
@@ -2539,6 +2563,12 @@ class DeviceUnreal(Device):
                     f"{project_name} is on revision {current_changelist}")
                 for device in self.devices_sharing_workspace():
                     device.engine_changelist = current_changelist
+        elif program_name == UnrealJobs.PackageGame.value:
+            self.status = DeviceStatus.CLOSED
+            percentstr = '100%'
+            if returncode != 0:
+                percentstr = 'fail'
+            self.widget.update_package_status(device=self, step='', percentstr=percentstr)
 
     def on_program_killed(self, message):
         '''
@@ -2621,7 +2651,7 @@ class DeviceUnreal(Device):
         #    @progress 'Generating code...' 100%
         #    @progress pop
         #
-        if process['name'].startswith('build_'):
+        if process['name'].startswith(UnrealJobs.BuildPrefix.value):
             for line in lines:
                 if '@progress' not in line:
                     continue
@@ -2641,7 +2671,7 @@ class DeviceUnreal(Device):
                     device.device_qt_handler.signal_device_build_update.emit(
                             device, step, percent)
 
-        elif process['name'] == 'sync':
+        elif process['name'] == UnrealJobs.Sync.value:
             for line in lines:
                 if 'Progress:' not in line:
                     continue
@@ -2654,6 +2684,12 @@ class DeviceUnreal(Device):
                 for device in self.devices_sharing_workspace():
                     device.device_qt_handler.signal_device_sync_update.emit(
                         device, sync_progress)
+
+        elif process['name'] == UnrealJobs.PackageGame.value:
+            step = ''
+            sync_progress = ''
+            self.device_qt_handler.signal_device_package_update.emit(
+                        self, step, sync_progress)
 
         for line in lines:
             LOGGER.debug(f"{self.name} {process['name']}: {line}")
@@ -2844,7 +2880,7 @@ class DeviceUnreal(Device):
             return 'rsync'
 
     def fetch_file(self, remote_path):
-        program_name = 'retrieve'
+        program_name = UnrealJobs.Retrieve.value
 
         rsync_path = self.get_rsync_path()
 
@@ -2928,7 +2964,7 @@ class DeviceUnreal(Device):
     @property
     def transfer_in_progress(self) -> bool:
         return len(
-            self.program_start_queue.running_puuids_named('retrieve')) > 0
+            self.program_start_queue.running_puuids_named(UnrealJobs.Retrieve.value)) > 0
 
     def get_widget_classes(self):
         widget_classes = list(self._widget_classes)
@@ -3448,6 +3484,12 @@ class DeviceWidgetUnreal(DeviceWidget):
             self.open_button.setChecked(True)
             self.sync_button.setDisabled(True)
             self.build_button.setDisabled(True)
+        elif status == DeviceStatus.PACKAGING:
+            self.open_button.setDisabled(True)
+            self.sync_button.setDisabled(True)
+            self.build_button.setDisabled(True)
+            self.engine_changelist_label.hide()
+            self.project_changelist_label.setText('Packaging...')
 
         if self.open_button.isChecked():
             if self.open_button.isEnabled():
@@ -3478,6 +3520,24 @@ class DeviceWidgetUnreal(DeviceWidget):
         self.project_changelist_label.setText(f'Syncing...{percent}')
         self.project_changelist_label.setToolTip(
             'Syncing from Version Control')
+
+        self.project_changelist_label.show()
+
+    @QtCore.Slot(Device, str, str)
+    def update_package_status(self, device: Device, step: str, percentstr: str):
+        if threading.current_thread() is not threading.main_thread():
+            QtCore.QMetaObject.invokeMethod(
+                self,
+                'update_package_status',
+                QtCore.Qt.QueuedConnection,
+                QtCore.Q_ARG(Device, device),
+                QtCore.Q_ARG(str, step),
+                QtCore.Q_ARG(str, percentstr)
+            )
+            return
+
+        self.project_changelist_label.setText(f'Packaging...{percentstr}')
+        self.project_changelist_label.setToolTip(step)
 
         self.project_changelist_label.show()
 

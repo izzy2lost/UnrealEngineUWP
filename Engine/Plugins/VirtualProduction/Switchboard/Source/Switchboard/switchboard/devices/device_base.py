@@ -36,6 +36,7 @@ class DeviceStatus(IntEnum):
     OPEN = auto()
     READY = auto()
     RECORDING = auto()
+    PACKAGING = auto()
 
 
 @unique
@@ -56,10 +57,14 @@ class DeviceQtHandler(QtCore.QObject):
     signal_device_sync_failed = QtCore.Signal(object)
     signal_device_is_recording_device_changed = QtCore.Signal(object, int)
 
-    # Signal parameters are device, step, percent
+    # Signal parameters are: device, step, percent
     signal_device_build_update = QtCore.Signal(object, str, str)
-    # Signal parameters are device, percent
+
+    # Signal parameters are: device, percent
     signal_device_sync_update = QtCore.Signal(object, str)
+
+    # Signal parameters are: device, step, percentstr
+    signal_device_package_update = QtCore.Signal(object, str, str)
 
 
 class Device(QtCore.QObject):
