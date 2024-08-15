@@ -6,10 +6,7 @@
 
 
  // Change this to force recompilation of all volumetric cloud material shaders
-#pragma message("UESHADERMETADATA_VERSION BFF66DE1-56ED-4BFA-AE26-D7FCF6E790CE")
-
-// Change this to force recompilation of all shaders referencing this file.
-#pragma message("UESHADERMETADATA_VERSION 58372ED6-B830-41C4-829E-A21186A68401")
+#pragma message("UESHADERMETADATA_VERSION 89190FC1-44B2-474A-8CB6-05332B45FE36")
 
 #include "Common.ush"
 #include "ColorMap.ush"
@@ -2042,9 +2039,9 @@ void MainPS(
 	ResolvedView = ResolveView();
 
 	CloudShadowTraceContext TraceContext;
-	if (RenderVolumetricCloudParameters.TraceShadowmap>=1)
+	if (RenderVolumetricCloudParameters.TraceShadowmapMode >=1)
 	{
-		const uint LightIndex = RenderVolumetricCloudParameters.TraceShadowmap - 1;
+		const uint LightIndex = clamp(RenderVolumetricCloudParameters.TraceShadowmapMode - 1, 0, 1);
 		TraceContext.FarDepthKm					= RenderVolumetricCloudParameters.CloudShadowmapFarDepthKm[LightIndex].x;
 		TraceContext.Strength					= RenderVolumetricCloudParameters.CloudShadowmapStrength[LightIndex].x;
 		TraceContext.DepthBias					= RenderVolumetricCloudParameters.CloudShadowmapDepthBias[LightIndex].x;
