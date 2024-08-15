@@ -74,7 +74,7 @@ void UStateTreeComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	
-	if (AIOwner == nullptr && bStartLogicAutomatically)
+	if (bStartLogicAutomatically)
 	{
 		StartLogic();
 	}
