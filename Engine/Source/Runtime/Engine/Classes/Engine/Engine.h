@@ -1057,6 +1057,14 @@ public:
 	UPROPERTY(globalconfig)
 	FString VertexColorViewModeMaterialName_BlueOnly;
 
+	/** Material for visualizing mesh paint texture colors on meshes in the scene */
+	UPROPERTY()
+	TObjectPtr<class UMaterial> TextureColorViewModeMaterial;
+
+	/** Path of the material for visualizing mesh paint texture colors on meshes in the scene */
+	UPROPERTY(globalconfig)
+	FString TextureColorViewModeMaterialName;
+
 #if WITH_EDITORONLY_DATA
 	/** Material used to render bone weights on skeletal meshes */
 	UPROPERTY()

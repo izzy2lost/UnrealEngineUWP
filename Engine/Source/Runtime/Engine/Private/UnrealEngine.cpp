@@ -3140,6 +3140,7 @@ void UEngine::InitializeObjectReferences()
 		LoadSpecialMaterial(TEXT("VertexColorViewModeMaterialName_RedOnly"), VertexColorViewModeMaterialName_RedOnly, VertexColorViewModeMaterial_RedOnly, false);
 		LoadSpecialMaterial(TEXT("VertexColorViewModeMaterialName_GreenOnly"), VertexColorViewModeMaterialName_GreenOnly, VertexColorViewModeMaterial_GreenOnly, false);
 		LoadSpecialMaterial(TEXT("VertexColorViewModeMaterialName_BlueOnly"), VertexColorViewModeMaterialName_BlueOnly, VertexColorViewModeMaterial_BlueOnly, false);
+		LoadSpecialMaterial(TEXT("TextureColorViewModeMaterialName"), TextureColorViewModeMaterialName, TextureColorViewModeMaterial, false);
 	}
 
 	// Nanite materials
