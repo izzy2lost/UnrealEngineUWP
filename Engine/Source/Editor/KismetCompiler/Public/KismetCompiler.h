@@ -88,6 +88,9 @@ protected:
 	// Map from node class to a handler functor
 	TMap< TSubclassOf<class UEdGraphNode>, FNodeHandlingFunctor*> NodeHandlers;
 
+	// Array of function refs to run after the CDO has been compiled in FKismetCompilerContext::PostCDOCompiled	
+	TArray<TFunctionRef<void(const UObject::FPostCDOCompiledContext&, UObject*)>> PostCDOCompileSteps;
+
 	// Map of properties created for timelines; to aid in debug data generation
 	TMap<class UTimelineTemplate*, class FProperty*> TimelineToMemberVariableMap;
 
@@ -204,6 +207,11 @@ public:
 
 	/** Called after the CDO has been generated, allows assignment of cached/derived data: */
 	void PostCDOCompiled(const UObject::FPostCDOCompiledContext& Context);
+
+	/**
+	* Adds the given "StepFunction" to be run after the CDO has been compiled in FKismetCompilerContext::PostCDOCompiled.
+	*/
+	void AddPostCDOCompiledStep(TFunctionRef<void (const UObject::FPostCDOCompiledContext&, UObject*)> StepFunction);
 
 	/** Compile a blueprint into a class and a set of functions */
 	void Compile();

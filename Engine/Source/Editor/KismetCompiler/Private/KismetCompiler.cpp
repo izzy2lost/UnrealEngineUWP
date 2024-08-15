@@ -5437,11 +5437,22 @@ void FKismetCompilerContext::PostCDOCompiled(const UObject::FPostCDOCompiledCont
 		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 		NewClass->ClassDefaultObject->PostCDOCompiled();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+		
+		for (const TFunctionRef<void(const UObject::FPostCDOCompiledContext&, UObject*)>& Step : PostCDOCompileSteps)
+		{
+			Step(Context, NewClass->ClassDefaultObject);
+		}
 	}
+	
 	FCoreUObjectDelegates::OnObjectPostCDOCompiled.Broadcast(NewClass->ClassDefaultObject, Context);
 
 	// Allow children to customize PostCDOCompile:
 	OnPostCDOCompiled(Context);
+}
+
+void FKismetCompilerContext::AddPostCDOCompiledStep(TFunctionRef<void(const UObject::FPostCDOCompiledContext&, UObject*)> StepFunction)
+{
+	PostCDOCompileSteps.Add(StepFunction);
 }
 
 void FKismetCompilerContext::Compile()

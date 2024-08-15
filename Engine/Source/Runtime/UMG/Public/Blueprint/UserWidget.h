@@ -1000,8 +1000,10 @@ public:
 	/**
 	 * If true, this widget will automatically register its own input component upon construction.
 	 * This will allow the use of binding input delegates in the event graph.
+	 * 
+	 * This is set during the compilation of the widget blueprint. 
 	 */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Input")
+	UPROPERTY()
 	uint8 bAutomaticallyRegisterInputOnConstruction : 1;
 
 public:
