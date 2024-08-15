@@ -75,7 +75,9 @@ enum class EGeometryScriptBakeTypes : uint8
 	/* Material IDs as unique colors */
 	MaterialID             UMETA(DisplayName = "Material ID"),
 	/* Constant value */
-	Constant
+	Constant,
+	/* UV Shell */
+	UVShell                UMETA(DisplayName = "UV Shell")
 };
 
 UENUM(BlueprintType)
@@ -129,7 +131,6 @@ enum class EGeometryScriptBakeCurvatureTypeMode : uint8
 	Gaussian
 };
 
-
 UENUM(BlueprintType)
 enum class EGeometryScriptBakeCurvatureColorMode : uint8
 {
@@ -140,7 +141,6 @@ enum class EGeometryScriptBakeCurvatureColorMode : uint8
 	/** Map curvature values to red, green, blue such that red is negative, green is zero, and blue is positive */
 	RedGreenBlue
 };
-
 
 UENUM(BlueprintType)
 enum class EGeometryScriptBakeCurvatureClampMode : uint8
@@ -169,6 +169,24 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Curvature : public FGeo
 
 	/** Clamping applied to curvature values before color mapping */
 	EGeometryScriptBakeCurvatureClampMode Clamping = EGeometryScriptBakeCurvatureClampMode::None;
+};
+
+struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_UVShell : public FGeometryScriptBakeTypes
+{
+	/** The source UV layer to sample. */
+	int SourceUVLayer = 0;
+	
+	/** The pixel thickness of the wireframes. */
+	float WireframeThickness = 1.0f;
+
+	/** The color for wireframe samples. */
+	FLinearColor WireframeColor = FLinearColor::Blue;
+
+	/** The color for UV shell triangle fill samples. */
+	FLinearColor ShellColor = FLinearColor::Gray;
+
+	/** The color for samples external to UV shells. */
+	FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f);
 };
 
 struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptBakeType_Texture : public FGeometryScriptBakeTypes
@@ -538,6 +556,14 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeMaterialID();
+
+	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
+	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeUVShell(
+		int SourceUVLayer = 0,
+		float WireframeThickness = 1.0f,
+		FLinearColor WireframeColor = FLinearColor::Blue,
+		FLinearColor ShellColor = FLinearColor::Gray,
+		FLinearColor BackgroundColor = FLinearColor(0.0f, 0.0f, 0.0f, 0.0f));
 
 	UFUNCTION(BlueprintPure, Category = "GeometryScript|Bake")
 	static UPARAM(DisplayName="Bake Type Out") FGeometryScriptBakeTypeOptions MakeBakeTypeConstant(

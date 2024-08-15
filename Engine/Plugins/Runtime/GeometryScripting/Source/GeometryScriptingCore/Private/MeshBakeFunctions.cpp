@@ -15,6 +15,7 @@
 #include "Sampling/MeshOcclusionMapEvaluator.h"
 #include "Sampling/MeshNormalMapEvaluator.h"
 #include "Sampling/MeshPropertyMapEvaluator.h"
+#include "Sampling/MeshUVShellMapEvaluator.h"
 #include "Sampling/MeshResampleImageEvaluator.h"
 
 #include "DynamicMesh/MeshTransforms.h"
@@ -147,9 +148,15 @@ namespace GeometryScriptBakeLocals
 				break;
 			case EMeshPropertyMapType::VertexColor:
 			case EMeshPropertyMapType::MaterialID:
+			case EMeshPropertyMapType::PolyGroupID:
 				TexType = FTexture2DBuilder::ETextureType::Color;
 				break;
 			}
+			break;
+		}
+		case EMeshMapEvaluatorType::UVShell:
+		{
+			TexType = FTexture2DBuilder::ETextureType::Color;
 			break;
 		}
 		case EMeshMapEvaluatorType::Curvature:
@@ -483,6 +490,18 @@ namespace GeometryScriptBakeLocals
 			Result = PropertyEval;
 			break;
 		}
+		case EGeometryScriptBakeTypes::UVShell:
+		{
+			FGeometryScriptBakeType_UVShell* UVShellOptions = static_cast<FGeometryScriptBakeType_UVShell*>(Options.Options.Get());
+			TSharedPtr<FMeshUVShellMapEvaluator> UVShellEval = MakeShared<FMeshUVShellMapEvaluator>();
+			UVShellEval->UVLayer = UVShellOptions->SourceUVLayer;
+			UVShellEval->WireframeThickness = UVShellOptions->WireframeThickness;
+			UVShellEval->WireframeColor = UVShellOptions->WireframeColor;
+			UVShellEval->ShellColor = UVShellOptions->ShellColor;
+			UVShellEval->BackgroundColor = UVShellOptions->BackgroundColor;
+			Result = UVShellEval;
+			break;
+		}
 		case EGeometryScriptBakeTypes::Constant:
 		{
 			FGeometryScriptBakeType_Constant* ConstantOptions = static_cast<FGeometryScriptBakeType_Constant*>(Options.Options.Get());
@@ -592,6 +611,20 @@ namespace GeometryScriptBakeLocals
 				// Abort if any evaluators failed to build.
 				return nullptr;
 			}
+
+			// Post evaluator construction handling
+			switch (Options.BakeType)
+			{
+			case EGeometryScriptBakeTypes::UVShell:
+			{
+				FMeshUVShellMapEvaluator* UVShellEval = static_cast<FMeshUVShellMapEvaluator*>(Eval.Get());
+				UVShellEval->TexelSize = BakeDimensions.GetTexelSize();
+				break;
+			}
+			default:
+				break;
+			}
+			
 			Baker.AddEvaluator(Eval);
 		}
 
@@ -759,7 +792,7 @@ namespace GeometryScriptBakeLocals
 		{
 			auto IsValidBakeType = [&BakeVertexPrefix](EGeometryScriptBakeTypes BakeType, TArray<FGeometryScriptDebugMessage>* Debug)
 			{
-				const bool bIsValid = BakeType != EGeometryScriptBakeTypes::None;
+				const bool bIsValid = (BakeType != EGeometryScriptBakeTypes::None && BakeType != EGeometryScriptBakeTypes::UVShell);
 				if (!bIsValid)
 				{
 					const FText BakeTypeName = FText::FromName(StaticEnum<EGeometryScriptBakeTypes>()->GetNameByIndex(static_cast<int32>(BakeType)));
@@ -1077,6 +1110,25 @@ FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBak
 {
 	FGeometryScriptBakeTypeOptions Output;
 	Output.BakeType = EGeometryScriptBakeTypes::MaterialID;
+	return Output;
+}
+
+FGeometryScriptBakeTypeOptions UGeometryScriptLibrary_MeshBakeFunctions::MakeBakeTypeUVShell(
+	int SourceUVLayer,
+	float WireframeThickness,
+	FLinearColor WireframeColor,
+	FLinearColor ShellColor,
+	FLinearColor BackgroundColor)
+{
+	FGeometryScriptBakeTypeOptions Output;
+	Output.BakeType = EGeometryScriptBakeTypes::UVShell;
+	const TSharedPtr<FGeometryScriptBakeType_UVShell> UVShellOptions = MakeShared<FGeometryScriptBakeType_UVShell>();
+	UVShellOptions->SourceUVLayer = SourceUVLayer;
+	UVShellOptions->WireframeThickness = WireframeThickness;
+	UVShellOptions->WireframeColor = WireframeColor;
+	UVShellOptions->ShellColor = ShellColor;
+	UVShellOptions->BackgroundColor = BackgroundColor;
+	Output.Options = UVShellOptions;
 	return Output;
 }
 
