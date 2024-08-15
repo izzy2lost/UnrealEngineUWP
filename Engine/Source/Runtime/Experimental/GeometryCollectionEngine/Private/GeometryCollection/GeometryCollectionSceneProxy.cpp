@@ -673,45 +673,13 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 
 		if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 		{
-			// Override the mesh's material with our material that draws the vertex colors
-			UMaterial* VertexColorVisualizationMaterial = NULL;
-			switch (GVertexColorViewMode)
+			// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
+			if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, IsHovered()))
 			{
-			case EVertexColorViewMode::Color:
-				VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
-				break;
-
-			case EVertexColorViewMode::Alpha:
-				VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_AlphaAsColor;
-				break;
-
-			case EVertexColorViewMode::Red:
-				VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_RedOnly;
-				break;
-
-			case EVertexColorViewMode::Green:
-				VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_GreenOnly;
-				break;
-
-			case EVertexColorViewMode::Blue:
-				VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_BlueOnly;
-				break;
+				Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
+				Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;
+				bDebugMaterialRenderProxySet = true;
 			}
-			check(VertexColorVisualizationMaterial != NULL);
-
-			// Note: static mesh renderer does something more complicated involving per-section selection,
-			// but whole component selection seems ok for now
-			bool bSectionIsSelected = bProxyIsSelected;
-
-			FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
-				VertexColorVisualizationMaterial->GetRenderProxy(),
-				GetSelectionColor(FLinearColor::White, bSectionIsSelected, IsHovered())
-			);
-
-			Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
-			Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;
-
-			bDebugMaterialRenderProxySet = true;
 		}
 #endif
 	};

@@ -2772,6 +2772,7 @@ extern ENGINE_API TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture;
 extern ENGINE_API float GVertexViewModeOverrideUVChannel;
 extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
 extern ENGINE_API bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
+extern ENGINE_API FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovered);
 
 /**
  * Returns true if the given view is "rich", and all primitives should be forced down the dynamic drawing path so that ApplyViewModeOverrides can implement the rich view feature.

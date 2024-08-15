@@ -18,6 +18,7 @@
 #include "Engine/TextureCube.h"
 #include "Engine/RendererSettings.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Materials/MaterialRenderProxy.h"
 #include "HighResScreenshot.h"
 #include "Slate/SceneViewport.h"
 #include "RenderUtils.h"
@@ -393,10 +394,92 @@ EVertexColorViewMode::Type GVertexColorViewMode = EVertexColorViewMode::Color;
 TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture = nullptr;
 float GVertexViewModeOverrideUVChannel = 0.0f; // Scalar parameter, so keep as float
 FString GVertexViewModeOverrideOwnerName;
+
 bool ShouldProxyUseVertexColorVisualization(FName OwnerName)
 {
 	bool bUsingTextureOverride = GVertexViewModeOverrideTexture.Get() != nullptr;
 	return !bUsingTextureOverride || OwnerName.ToString().Compare(GVertexViewModeOverrideOwnerName) == 0;
+}
+
+FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovered)
+{
+	UMaterial* VertexColorVisualizationMaterial = nullptr;
+	switch (GVertexColorViewMode)
+	{
+	case EVertexColorViewMode::Color:
+		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
+		break;
+
+	case EVertexColorViewMode::Alpha:
+		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_AlphaAsColor;
+		break;
+
+	case EVertexColorViewMode::Red:
+		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_RedOnly;
+		break;
+
+	case EVertexColorViewMode::Green:
+		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_GreenOnly;
+		break;
+
+	case EVertexColorViewMode::Blue:
+		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_BlueOnly;
+		break;
+	default:
+		return nullptr;
+	}
+
+	FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = nullptr;
+
+#if WITH_EDITORONLY_DATA
+	if (GVertexViewModeOverrideTexture.IsValid())
+	{
+		FLinearColor MaterialColor = FLinearColor::White;
+
+		switch (GVertexColorViewMode)
+		{
+		case EVertexColorViewMode::Color:
+			MaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
+			break;
+
+		case EVertexColorViewMode::Alpha:
+			MaterialColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			break;
+
+		case EVertexColorViewMode::Red:
+			MaterialColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
+			break;
+
+		case EVertexColorViewMode::Green:
+			MaterialColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
+			break;
+
+		case EVertexColorViewMode::Blue:
+			MaterialColor = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
+			break;
+		}
+		
+		FColoredTexturedMaterialRenderProxy* NewVertexColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
+			GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),
+			MaterialColor,
+			NAME_Color,
+			GVertexViewModeOverrideTexture.Get(),
+			NAME_LinearColor);
+
+		NewVertexColorVisualizationMaterialInstance->UVChannel = GVertexViewModeOverrideUVChannel;
+		NewVertexColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
+
+		VertexColorVisualizationMaterialInstance = NewVertexColorVisualizationMaterialInstance;
+	}
+	else
+#endif
+	{
+		VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
+			VertexColorVisualizationMaterial->GetRenderProxy(),
+			GetSelectionColor(FLinearColor::White, bIsSelected, bIsHovered));
+	}
+	
+	return VertexColorVisualizationMaterialInstance;
 }
 
 /** Global primitive uniform buffer resource containing identity transformations. */

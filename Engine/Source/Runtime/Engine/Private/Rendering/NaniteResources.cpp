@@ -1336,41 +1336,19 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 #if WITH_EDITORONLY_DATA
-	FLinearColor NewVertexMaterialColor = FLinearColor::White;
-	// Override the mesh's material with our material that draws the vertex colors
-	switch (GVertexColorViewMode)
+	FMaterialRenderProxy* ColorVisualizationMaterialInstance = nullptr;
+	if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
 	{
-	case EVertexColorViewMode::Color:
-		NewVertexMaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
-		break;
-
-	case EVertexColorViewMode::Alpha:
-		NewVertexMaterialColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		break;
-
-	case EVertexColorViewMode::Red:
-		NewVertexMaterialColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
-		break;
-
-	case EVertexColorViewMode::Green:
-		NewVertexMaterialColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
-		break;
-
-	case EVertexColorViewMode::Blue:
-		NewVertexMaterialColor = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
-		break;
+		// Only support texture painting color path here.
+		if (GVertexViewModeOverrideTexture.IsValid())
+		{
+			ColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, IsHovered());
+		}
 	}
-	FColoredTexturedMaterialRenderProxy* NewVertexColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
-		GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),
-		NewVertexMaterialColor,
-		NAME_Color,
-		GVertexViewModeOverrideTexture.Get(),
-		NAME_LinearColor);
-
-	NewVertexColorVisualizationMaterialInstance->UVChannel = GVertexViewModeOverrideUVChannel;
-	NewVertexColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
-
-	Collector.RegisterOneFrameMaterialProxy(NewVertexColorVisualizationMaterialInstance);
+	if (ColorVisualizationMaterialInstance != nullptr)
+	{
+		Collector.RegisterOneFrameMaterialProxy(ColorVisualizationMaterialInstance);
+	}
 #endif
 #endif // STATICMESH_ENABLE_DEBUG_RENDERING
 
@@ -1477,11 +1455,10 @@ void FSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views,
 
 #if STATICMESH_ENABLE_DEBUG_RENDERING
 #if WITH_EDITORONLY_DATA
-				// Only render for texture painting; vertex painting is not supported for Nanite meshes
-				if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes() && GVertexViewModeOverrideTexture.IsValid() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
+				if (ColorVisualizationMaterialInstance != nullptr)
 				{
 					FTransform GeomTransform(InstanceToWorld);
-					BodySetup->AggGeom.GetAggGeom(GeomTransform, NewVertexMaterialColor.ToFColor(false), NewVertexColorVisualizationMaterialInstance, false, true, DrawsVelocity(), ViewIndex, Collector);
+					BodySetup->AggGeom.GetAggGeom(GeomTransform, FColor::White, ColorVisualizationMaterialInstance, false, true, DrawsVelocity(), ViewIndex, Collector);
 				}
 #endif
 #endif // STATICMESH_ENABLE_DEBUG_RENDERING

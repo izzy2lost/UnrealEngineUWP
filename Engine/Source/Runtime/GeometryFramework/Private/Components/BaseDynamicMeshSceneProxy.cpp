@@ -155,43 +155,12 @@ FMaterialRenderProxy* FBaseDynamicMeshSceneProxy::GetEngineVertexColorMaterialPr
 #if UE_ENABLE_DEBUG_DRAWING
 	if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 	{
-		// Override the mesh's material with our material that draws the vertex colors
-		UMaterial* VertexColorVisualizationMaterial = NULL;
-		switch (GVertexColorViewMode)
+		// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
+		if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, bIsHovered))
 		{
-		case EVertexColorViewMode::Color:
-			VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
-			break;
-
-		case EVertexColorViewMode::Alpha:
-			VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_AlphaAsColor;
-			break;
-
-		case EVertexColorViewMode::Red:
-			VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_RedOnly;
-			break;
-
-		case EVertexColorViewMode::Green:
-			VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_GreenOnly;
-			break;
-
-		case EVertexColorViewMode::Blue:
-			VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_BlueOnly;
-			break;
+			Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
+			ForceOverrideMaterialProxy = VertexColorVisualizationMaterialInstance;
 		}
-		check(VertexColorVisualizationMaterial != NULL);
-
-		// Note: static mesh renderer does something more complicated involving per-section selection,
-		// but whole component selection seems ok for now
-		bool bSectionIsSelected = bProxyIsSelected;
-
-		FColoredMaterialRenderProxy* VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
-			VertexColorVisualizationMaterial->GetRenderProxy(),
-			GetSelectionColor(FLinearColor::White, bSectionIsSelected, bIsHovered)
-		);
-
-		Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
-		ForceOverrideMaterialProxy = VertexColorVisualizationMaterialInstance;
 	}
 #endif
 	return ForceOverrideMaterialProxy;

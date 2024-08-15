@@ -1603,87 +1603,15 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 										}
 
 	#endif // WITH_EDITOR
-
+										// Override the mesh's material with our material that draws vertex color
 										if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
 										{
-											// Override the mesh's material with our material that draws the vertex colors
-											UMaterial* VertexColorVisualizationMaterial = NULL;
-											switch( GVertexColorViewMode )
+											if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bSectionIsSelected, IsHovered()))
 											{
-											case EVertexColorViewMode::Color:
-												VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
-												break;
-
-											case EVertexColorViewMode::Alpha:
-												VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_AlphaAsColor;
-												break;
-
-											case EVertexColorViewMode::Red:
-												VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_RedOnly;
-												break;
-
-											case EVertexColorViewMode::Green:
-												VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_GreenOnly;
-												break;
-
-											case EVertexColorViewMode::Blue:
-												VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_BlueOnly;
-												break;
+												Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
+												MeshElement.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;
+												bDebugMaterialRenderProxySet = true;
 											}
-											check( VertexColorVisualizationMaterial != NULL );
-											FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = nullptr;
-#if WITH_EDITORONLY_DATA
-											if (!GVertexViewModeOverrideTexture.IsValid())
-#endif
-											{
-												VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
-													VertexColorVisualizationMaterial->GetRenderProxy(),
-													GetSelectionColor(FLinearColor::White, bSectionIsSelected, IsHovered()));
-											}
-#if WITH_EDITORONLY_DATA
-											else
-											{
-												FLinearColor MaterialColor = FLinearColor::White;
-
-												switch (GVertexColorViewMode)
-												{
-												case EVertexColorViewMode::Color:
-													MaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
-													break;
-
-												case EVertexColorViewMode::Alpha:
-													MaterialColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
-													break;
-
-												case EVertexColorViewMode::Red:
-													MaterialColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
-													break;
-
-												case EVertexColorViewMode::Green:
-													MaterialColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
-													break;
-
-												case EVertexColorViewMode::Blue:
-													MaterialColor = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
-													break;
-												}
-												FColoredTexturedMaterialRenderProxy* NewVertexColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
-													GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),
-													MaterialColor,
-													NAME_Color,
-													GVertexViewModeOverrideTexture.Get(),
-													NAME_LinearColor);
-													
-												NewVertexColorVisualizationMaterialInstance->UVChannel = GVertexViewModeOverrideUVChannel;
-												NewVertexColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
-
-												VertexColorVisualizationMaterialInstance = NewVertexColorVisualizationMaterialInstance;
-											}
-#endif
-											Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
-											MeshElement.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;
-
-											bDebugMaterialRenderProxySet = true;
 										}
 
 	#endif // STATICMESH_ENABLE_DEBUG_RENDERING
