@@ -12,7 +12,7 @@ template<class ElementType, class KeyType, class HashTraits, class AllocatorType
 class TSetG
 {
 public:
-    TSetG(AllocatorArgsType&&... AllocatorArgs) : _HashTable(ForwardArg<AllocatorArgsType>(AllocatorArgs)...) {}
+    explicit TSetG(AllocatorArgsType&&... AllocatorArgs) : _HashTable(Move(AllocatorArgs)...) {}
 
     ULANG_FORCEINLINE uint32_t Num() const { return _HashTable.Num(); }
     ULANG_FORCEINLINE bool Contains(const ElementType& Element) const { return _HashTable.Contains(Element); }
@@ -31,9 +31,18 @@ public:
         return _HashTable.FindByPredicate(Pred);
     }
 
-    ULANG_FORCEINLINE ElementType& Insert(ElementType&& Element) { return _HashTable.Insert(ForwardArg<ElementType>(Element)); }
+    template <typename ArgType>
+    ULANG_FORCEINLINE ElementType& Insert(ArgType&& Arg)
+    {
+        return _HashTable.Insert(ForwardArg<ArgType>(Arg));
+    }
+
     ULANG_FORCEINLINE ElementType& FindOrInsert(ElementType&& Element) { return _HashTable.FindOrInsert(ForwardArg<ElementType>(Element)); }
     ULANG_FORCEINLINE bool Remove(const ElementType& Element) { return _HashTable.Remove(Element); }
+
+    ULANG_FORCEINLINE bool IsEmpty() const { return _HashTable.IsEmpty(); }
+
+    ULANG_FORCEINLINE void Empty() { _HashTable.Empty(); }
 
     using HashTableType = THashTable<ElementType, ElementType, HashTraits, AllocatorType, AllocatorArgsType...>;
     using ConstIterator = typename HashTableType::template Iterator<true>;

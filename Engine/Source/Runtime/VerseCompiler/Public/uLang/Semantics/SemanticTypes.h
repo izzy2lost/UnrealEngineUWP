@@ -4,9 +4,10 @@
 #pragma once
 
 #include "uLang/Common/Algo/Cases.h"
+#include "uLang/Common/Containers/Array.h"
 #include "uLang/Common/Containers/Function.h"
 #include "uLang/Common/Containers/RangeView.h"
-#include "uLang/Common/Containers/Array.h"
+#include "uLang/Common/Containers/Set.h"
 #include "uLang/Common/Containers/UniquePointerArray.h"
 #include "uLang/Common/Text/Named.h"
 #include "uLang/Common/Text/UTF8StringBuilder.h"
@@ -895,7 +896,7 @@ public:
 
     void SetChild(const CTypeBase*) const;
 
-    TArray<const CFlowType*>& FlowEdges() const
+    TSet<const CFlowType*>& FlowEdges() const
     {
         return _FlowEdges;
     }
@@ -917,7 +918,7 @@ public:
 private:
     ETypePolarity _Polarity;
     mutable const CTypeBase* _Child;
-    mutable TArray<const CFlowType*> _FlowEdges;
+    mutable TSet<const CFlowType*> _FlowEdges;
 };
 
 struct VERSECOMPILER_API STypeVariableSubstitution

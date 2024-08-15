@@ -33,10 +33,10 @@ public:
         return _HashTable.FindByPredicate(Pred);
     }
 
-    ULANG_FORCEINLINE PairType& Insert(const KeyType& Key, ValueType&& Value) { return _HashTable.Insert({ Key, ForwardArg<ValueType>(Value) }); }
-    ULANG_FORCEINLINE PairType& Insert(KeyType&& Key, const ValueType& Value) { return _HashTable.Insert({ ForwardArg<KeyType>(Key), ValueType(Value) }); }
+    ULANG_FORCEINLINE PairType& Insert(const KeyType& Key, ValueType&& Value) { return _HashTable.Insert({ Key, Move(Value) }); }
+    ULANG_FORCEINLINE PairType& Insert(KeyType&& Key, const ValueType& Value) { return _HashTable.Insert({ Move(Key), Value }); }
     ULANG_FORCEINLINE PairType& Insert(const KeyType& Key, const ValueType& Value) { return _HashTable.Insert({ Key, ValueType(Value) }); }
-    ULANG_FORCEINLINE PairType& Insert(KeyType&& Key, ValueType&& Value) { return _HashTable.Insert({ ForwardArg<KeyType>(Key), ForwardArg<ValueType>(Value) }); }
+    ULANG_FORCEINLINE PairType& Insert(KeyType&& Key, ValueType&& Value) { return _HashTable.Insert({ Move(Key), Move(Value) }); }
     ULANG_FORCEINLINE PairType& FindOrInsert(KeyType&& Key)
     {
         return _HashTable.FindOrInsert({ForwardArg<KeyType>(Key), ForwardArg<ValueType>(ValueType{})});

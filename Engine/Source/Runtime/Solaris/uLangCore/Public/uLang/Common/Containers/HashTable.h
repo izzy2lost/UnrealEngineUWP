@@ -131,19 +131,14 @@ public:
         return nullptr;
     }
 
+    KeyValueType& Insert(const KeyValueType& KeyValue)
+    {
+        return InsertInternal(KeyValueType(KeyValue));
+    }
+
     KeyValueType& Insert(KeyValueType&& KeyValue)
     {
-        if ((_NumOccupied + 1) * MaxLoadFactorDenominator >= _NumEntries * MaxLoadFactorNumerator)
-        {
-            Grow();
-        }
-        bool bAlreadyExists{};
-        const uint32_t NewPos = InsertInternal(ComputeNonZeroHash(KeyValue), ForwardArg<KeyValueType>(KeyValue), &bAlreadyExists);
-        if (!bAlreadyExists)
-        {
-            ++_NumOccupied;
-        }
-        return _Entries[NewPos]._KeyValue;
+        return InsertInternal(Move(KeyValue));
     }
 
     KeyValueType& FindOrInsert(KeyValueType&& KeyValue)
@@ -226,6 +221,11 @@ public:
         --_NumOccupied;
 
         return true;
+    }
+
+    bool IsEmpty() const
+    {
+        return _NumOccupied == 0;
     }
 
     void Empty()
@@ -406,6 +406,21 @@ protected:
         return (Pos + _NumEntries - Hash) & (_NumEntries - 1);
     }
 
+    KeyValueType& InsertInternal(KeyValueType&& KeyValue)
+    {
+        if ((_NumOccupied + 1) * MaxLoadFactorDenominator >= _NumEntries * MaxLoadFactorNumerator)
+        {
+            Grow();
+        }
+        bool bAlreadyExists{};
+        const uint32_t NewPos = InsertInternal(ComputeNonZeroHash(KeyValue), Move(KeyValue), &bAlreadyExists);
+        if (!bAlreadyExists)
+        {
+            ++_NumOccupied;
+        }
+        return _Entries[NewPos]._KeyValue;
+    }
+
     // Create a new entry
     // Use Robin Hood mechanism to rearrange entries to minimize probe distance
     // Returns position of new entry
@@ -428,7 +443,7 @@ protected:
                     }
                     if (!TAreTypesEqual<KeyType, KeyValueType>::Value)    // Equality could be stored in the template as constexpr bool bIsSet
                     {
-                        Entry._KeyValue = ForwardArg<KeyValueType>(Value);    // Update value as it might be different
+                        Entry._KeyValue = Move(Value);    // Update value as it might be different
                     }
                     return Pos;
                 }
@@ -437,7 +452,7 @@ protected:
             if (Entry._Hash == 0)
             {
                 Entry._Hash = Hash;
-                new (&Entry._KeyValue) KeyValueType(ForwardArg<KeyValueType>(Value));
+                new (&Entry._KeyValue) KeyValueType(Move(Value));
                 return Pos;
             }
 

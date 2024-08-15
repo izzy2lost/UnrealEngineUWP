@@ -7,6 +7,7 @@
 #include "uLang/Common/Algo/Cases.h"
 #include "uLang/Common/Algo/Contains.h"
 #include "uLang/Common/Algo/FindIf.h"
+#include "uLang/Common/Containers/Set.h"
 #include "uLang/Common/Containers/ValueRange.h"
 #include "uLang/Common/Misc/MathUtils.h"
 #include "uLang/Common/Templates/References.h"
@@ -430,17 +431,14 @@ void CFlowType::AddFlowEdge(const CFlowType* FlowType) const
     {
         return;
     }
-    _FlowEdges.Add(FlowType);
+    _FlowEdges.Insert(FlowType);
 }
 
 void CFlowType::EmptyFlowEdges() const
 {
     for (const CFlowType* NegativeFlowType : _FlowEdges)
     {
-        TArray<const CFlowType*>& PositiveFlowTypes = NegativeFlowType->_FlowEdges;
-        auto First = PositiveFlowTypes.begin();
-        auto I = uLang::Find(First, PositiveFlowTypes.end(), this);
-        PositiveFlowTypes.RemoveAt(static_cast<int32_t>(I - First));
+        NegativeFlowType->_FlowEdges.Remove(this);
     }
     _FlowEdges.Empty();
 }
@@ -2452,11 +2450,11 @@ void RemoveAdmissableFlowEdges(const CFlowType& FlowType, ETypePolarity Polarity
 {
     TArrayG<SAdmissableTypes, TInlineElementAllocator<16>> Visited;
     const CTypeBase* Child = FlowType.GetChild();
-    TArray<const CFlowType*>& NegativeFlowTypes = FlowType.FlowEdges();
+    TSet<const CFlowType*>& NegativeFlowTypes = FlowType.FlowEdges();
     auto Last = NegativeFlowTypes.end();
     for (auto I = NegativeFlowTypes.begin(); I != Last;)
     {
-        const CFlowType*& NegativeFlowType = *I;
+        const CFlowType* NegativeFlowType = *I;
         const CTypeBase* NegativeChild = NegativeFlowType->GetChild();
         bool bAdmissable;
         switch (Polarity)
@@ -2472,21 +2470,15 @@ void RemoveAdmissableFlowEdges(const CFlowType& FlowType, ETypePolarity Polarity
         }
         if (bAdmissable)
         {
-            TArray<const CFlowType*>& PositiveFlowTypes = NegativeFlowType->FlowEdges();
-            auto First = PositiveFlowTypes.begin();
-            auto J = uLang::Find(First, PositiveFlowTypes.end(), &FlowType);
-            PositiveFlowTypes.RemoveAt(static_cast<int32_t>(J - First));
-            --Last;
-            uLang::Swap(NegativeFlowType, *Last);
+            NegativeFlowType->FlowEdges().Remove(&FlowType);
+            NegativeFlowTypes.Remove(NegativeFlowType);
+            // Rely on backwards shifting of elements in `TSet`.
         }
         else
         {
             ++I;
         }
     }
-    NegativeFlowTypes.RemoveAt(
-        static_cast<int32_t>(Last - NegativeFlowTypes.begin()),
-        static_cast<int32_t>(NegativeFlowTypes.end() - Last));
 }
 
 const CTypeBase* SkipIdentityFlowType(const CTypeBase&, ETypePolarity);
@@ -3979,7 +3971,7 @@ bool SemanticTypeUtils::AreDomainsDistinct(const CTypeBase* DomainType1, const C
 
 namespace
 {
-bool IsUnknownTypeImpl(const CTypeBase* Type, TArray<const CFlowType*>& VisitedFlowTypes)
+bool IsUnknownTypeImpl(const CTypeBase* Type, TSet<const CFlowType*>& VisitedFlowTypes)
 {
     ULANG_ASSERTF(Type, "Queried for types should never be null -- we should be using CUnknownType instead.");
     if (const CFlowType* FlowType = Type->AsFlowType())
@@ -3988,18 +3980,10 @@ bool IsUnknownTypeImpl(const CTypeBase* Type, TArray<const CFlowType*>& VisitedF
         {
             return false;
         }
-        VisitedFlowTypes.Add(FlowType);
-
+        VisitedFlowTypes.Insert(FlowType);
         if (IsUnknownTypeImpl(FlowType->GetChild(), VisitedFlowTypes))
         {
             return true;
-        }
-        for (const CFlowType* FlowEdge : FlowType->FlowEdges())
-        {
-            if (IsUnknownTypeImpl(FlowEdge, VisitedFlowTypes))
-            {
-                return true;
-            }
         }
         return false;
     }
@@ -4059,7 +4043,7 @@ bool IsUnknownTypeImpl(const CTypeBase* Type, TArray<const CFlowType*>& VisitedF
 
 bool SemanticTypeUtils::IsUnknownType(const CTypeBase* Type)
 {
-    TArray<const CFlowType*> VisitedFlowTypes;
+    TSet<const CFlowType*> VisitedFlowTypes;
     return IsUnknownTypeImpl(Type, VisitedFlowTypes);
 }
 
