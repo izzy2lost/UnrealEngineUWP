@@ -205,7 +205,7 @@ namespace HordeServer.Artifacts
 			}
 
 			StreamConfig streamConfig = _buildConfig.CurrentValue.GetStream(streamId);
-			if (!streamConfig.TryGetArtifactType(type, out _))
+			if (!streamConfig.TryGetArtifactType(type, out ArtifactTypeConfig? artifactTypeConfig))
 			{
 				throw new ArtifactTypeNotFoundException(streamId, type);
 			}
@@ -217,7 +217,7 @@ namespace HordeServer.Artifacts
 			// Create the artifact
 			ObjectId id = ObjectId.GenerateNewId();
 
-			NamespaceId namespaceId = Namespace.Artifacts;
+			NamespaceId namespaceId = artifactTypeConfig.NamespaceId;
 			RefName refName = new RefName($"{GetArtifactPath(streamId, type)}/{commitId}/{name}/{id}");
 
 			CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, commitId, cancellationToken);

@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Artifacts;
+using EpicGames.Horde.Storage;
 using HordeServer.Acls;
 
 namespace HordeServer.Artifacts
@@ -39,5 +40,10 @@ namespace HordeServer.Artifacts
 		/// Number of days to retain artifacts of this type
 		/// </summary>
 		public int? KeepDays { get; set; }
+
+		/// <summary>
+		/// Storage namespace to use for this artifact types
+		/// </summary>
+		public NamespaceId NamespaceId { get; set; } = new NamespaceId("horde-artifacts");
 	}
 }

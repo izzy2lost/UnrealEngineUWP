@@ -26,11 +26,6 @@ namespace HordeServer.Storage
 	public static class Namespace
 	{
 		/// <summary>
-		/// Storage of artifacts 
-		/// </summary>
-		public static NamespaceId Artifacts { get; } = new NamespaceId("horde-artifacts");
-
-		/// <summary>
 		/// Replicated Perforce data
 		/// </summary>
 		public static NamespaceId Perforce { get; } = new NamespaceId("horde-perforce");

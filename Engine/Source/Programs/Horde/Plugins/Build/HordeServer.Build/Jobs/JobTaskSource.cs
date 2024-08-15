@@ -11,7 +11,6 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Common;
 using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Logs;
-using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using HordeCommon;
 using HordeCommon.Rpc.Messages;
@@ -23,7 +22,6 @@ using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
 using HordeServer.Perforce;
-using HordeServer.Storage;
 using HordeServer.Streams;
 using HordeServer.Tasks;
 using HordeServer.Ugs;
@@ -883,17 +881,11 @@ namespace HordeServer.Jobs
 
 			// Get the global settings
 			BuildConfig buildConfig = _buildConfig.CurrentValue;
-			NamespaceId namespaceId = Namespace.Artifacts;
 
 			// Create a bearer token for the job executor
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
 			claims.Add(HordeClaims.AgentRoleClaim);
 			claims.Add(new AclClaimConfig(HordeClaimTypes.Lease, leaseId.ToString()));
-
-			string storagePrefix = $"{job.StreamId}/{job.CommitId}-{job.Id}";
-			claims.Add(new AclClaimConfig(HordeClaimTypes.ReadNamespace, $"{namespaceId}:{storagePrefix}"));
-			claims.Add(new AclClaimConfig(HordeClaimTypes.WriteNamespace, $"{namespaceId}:{storagePrefix}"));
-
 			claims.AddRange(job.Claims);
 
 			// Encode the payload
@@ -903,8 +895,6 @@ namespace HordeServer.Jobs
 			task.LogId = logId.ToString();
 			task.JobName = leaseName.ToString();
 			task.JobOptions = (job.JobOptions != null) ? GetRpcJobOptions(job.JobOptions) : null;
-			task.NamespaceId = namespaceId.ToString();
-			task.StoragePrefix = storagePrefix;
 			task.Token = await _aclService.IssueBearerTokenAsync(claims, null, cancellationToken);
 
 			List<RpcAgentWorkspace> workspaces = new();
