@@ -453,6 +453,9 @@ export type GetDashboardConfigResponse = {
 	/** Categories to display on the pools page */
 	poolCategories: GetDashboardPoolCategoryResponse[];
 
+	/** Categories to display on the pools page */
+	artifactTypes: string[];
+
 	/** Telemetry views */
 	telemetryViews: GetTelemetryViewResponse[];
 }

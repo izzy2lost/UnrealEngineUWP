@@ -60,6 +60,11 @@ namespace EpicGames.Horde.Dashboard
 		/// </summary>
 		public List<GetDashboardPoolCategoryResponse> PoolCategories { get; set; } = new List<GetDashboardPoolCategoryResponse>();
 
+		/// <summary>
+		/// Configured artifact types
+		/// </summary>
+		public List<string> ArtifactTypes { get; set; } = new List<string>();
+
 	}
 
 	/// <summary>

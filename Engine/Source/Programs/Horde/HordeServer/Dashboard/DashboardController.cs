@@ -158,6 +158,8 @@ namespace HordeServer.Dashboard
 				dashboardConfigResponse.PoolCategories.Add(new GetDashboardPoolCategoryResponse { Name = category.Name, Condition = category.Condition });
 			}
 
+			dashboardConfigResponse.ArtifactTypes = _globalConfig.Value.Plugins.GetBuildConfig().ArtifactTypes.Select(a => a.Type.ToString()).ToList();
+
 			foreach (IPluginResponseFilter responseFilter in _responseFilters)
 			{
 				responseFilter.Apply(HttpContext, dashboardConfigResponse);
