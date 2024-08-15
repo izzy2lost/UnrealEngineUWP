@@ -28,11 +28,18 @@ struct STATETREEMODULE_API FStateTreeTaskBase : public FStateTreeNodeBase
 	{
 	}
 	
+	UE_DEPRECATED(5.5, "Use EnterState without the EStateTreeStateChangeType.")
 	/**
 	 * Note: The API has been deprecated. ChangeType is moved into FStateTreeTransitionResult.
 	 * You can configure the task to be only called on state changes (that is, never call sustained changes) by setting bShouldStateChangeOnReselect to true.
 	 */
 	virtual EStateTreeRunStatus EnterState(FStateTreeExecutionContext& Context, const EStateTreeStateChangeType ChangeType, const FStateTreeTransitionResult& Transition) const final { return EStateTreeRunStatus::Running; }
+
+	UE_DEPRECATED(5.5, "Use ExitState without the EStateTreeStateChangeType.")
+	/**
+	 * Note: The API has been deprecated. ChangeType is moved into FStateTreeTransitionResult.
+	 * You can configure the task to be only called on state changes (that is, never call sustained changes) by setting bShouldStateChangeOnReselect to true.
+	 */
 	virtual void ExitState(FStateTreeExecutionContext& Context, const EStateTreeStateChangeType ChangeType, const FStateTreeTransitionResult& Transition) const final {}
 
 	/**
