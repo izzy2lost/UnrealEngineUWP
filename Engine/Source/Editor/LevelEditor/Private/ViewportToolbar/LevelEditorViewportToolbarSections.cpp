@@ -1740,7 +1740,7 @@ FToolMenuEntry CreateLevelEditorViewportToolbarSettingsSubmenu()
 											}
 										}
 										return LOCTEXT(
-											"MaximizeRestoreLabel_Restore", "Restores the layout to show all viewports"
+											"MaximizeRestoreTooltip_Restore", "Restores the layout to show all viewports"
 										);
 									}
 								);
