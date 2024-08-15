@@ -226,4 +226,66 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
 	static ACTORMODIFIERCORE_API bool GetAvailableModifiers(TSet<TSubclassOf<UActorModifierCoreBase>>& OutAvailableModifierClasses);
+
+	/**
+	 * Sets the modifier metadata name
+	 * @param InMetadata The modifier metadata to use
+	 * @param InName The modifier name to set
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataName(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, FName InName);
+
+	/**
+	 * Sets the modifier metadata category
+	 * @param InMetadata The modifier metadata to use
+	 * @param InCategory The modifier category to set
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataCategory(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, FName InCategory);
+
+	/**
+	 * Sets the modifier metadata display name (EDITOR-ONLY)
+	 * @param InMetadata The modifier metadata to use
+	 * @param InName The modifier name to set
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataDisplayName(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, const FText& InName);
+
+	/**
+	 * Sets the modifier metadata color (EDITOR-ONLY)
+	 * @param InMetadata The modifier metadata to use
+	 * @param InColor The modifier color to set
+	 * @return The modifier metadata to chain operations
+	 */
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataColor(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, const FLinearColor& InColor);
+
+	/**
+	 * Sets the modifier metadata description (EDITOR-ONLY)
+	 * @param InMetadata The modifier metadata to use
+	 * @param InDescription The modifier description to set
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataDescription(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, const FText& InDescription);
+
+	/**
+	 * Adds a modifier metadata dependency for this modifier
+	 * @param InMetadata The modifier metadata to use
+	 * @param InModifierClass The modifier dependency to add
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& AddModifierMetadataDependency(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, TSubclassOf<UActorModifierCoreBase> InModifierClass);
+
+	/**
+	 * Sets the modifier metadata compatibility rule
+	 * @param InMetadata The modifier metadata to use
+	 * @param InDelegate The modifier rule to set
+	 * @return The modifier metadata to chain operations
+	 */
+	UFUNCTION(BlueprintCallable, Category="Motion Design|Modifiers|Utility")
+	static ACTORMODIFIERCORE_API FActorModifierCoreMetadata& SetModifierMetadataCompatibilityRule(UPARAM(Ref) FActorModifierCoreMetadata& InMetadata, const FModifierCompatibilityRule& InDelegate);
 };

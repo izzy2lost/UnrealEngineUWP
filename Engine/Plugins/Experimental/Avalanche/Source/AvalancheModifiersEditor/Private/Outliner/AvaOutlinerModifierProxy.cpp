@@ -134,16 +134,18 @@ void FAvaOutlinerModifierProxy::GetProxiedItems(const TSharedRef<IAvaOutlinerIte
 void FAvaOutlinerModifierProxy::BindDelegates()
 {
 	UnbindDelegates();
-	UActorModifierCoreStack::OnModifierAddedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
-	UActorModifierCoreStack::OnModifierMovedDelegate.AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierAdded().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierRemoved().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierMoved().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
+	UActorModifierCoreStack::OnModifierReplaced().AddSP(this, &FAvaOutlinerModifierProxy::OnModifierStackUpdated);
 }
 
 void FAvaOutlinerModifierProxy::UnbindDelegates()
 {
-	UActorModifierCoreStack::OnModifierAddedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierMovedDelegate.RemoveAll(this);
+	UActorModifierCoreStack::OnModifierAdded().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierRemoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierMoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierReplaced().RemoveAll(this);
 }
 
 void FAvaOutlinerModifierProxy::OnModifierStackUpdated(UActorModifierCoreBase* ItemChanged)

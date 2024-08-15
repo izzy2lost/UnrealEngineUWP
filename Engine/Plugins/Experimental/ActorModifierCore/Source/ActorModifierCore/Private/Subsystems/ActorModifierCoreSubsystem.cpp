@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Subsystems/ActorModifierCoreSubsystem.h"
+
+#include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/Engine.h"
 #include "EngineUtils.h"
 #include "GameFramework/Actor.h"
@@ -8,6 +11,7 @@
 #include "Modifiers/ActorModifierCoreComponent.h"
 #include "Modifiers/ActorModifierCoreSharedActor.h"
 #include "Modifiers/ActorModifierCoreStack.h"
+#include "Modifiers/Blueprints/ActorModifierCoreBlueprintBase.h"
 #include "UObject/Class.h"
 #include "UObject/UObjectIterator.h"
 
@@ -24,6 +28,7 @@ UActorModifierCoreSubsystem::FOnModifierClassRegistered UActorModifierCoreSubsys
 UActorModifierCoreSubsystem::FOnModifierClassRegistered UActorModifierCoreSubsystem::OnModifierClassUnregisteredDelegate;
 UActorModifierCoreSubsystem::FOnModifierStackRegistered UActorModifierCoreSubsystem::OnModifierStackRegisteredDelegate;
 UActorModifierCoreSubsystem::FOnModifierStackRegistered UActorModifierCoreSubsystem::OnModifierStackUnregisteredDelegate;
+UActorModifierCoreSubsystem::FOnModifierReplaced UActorModifierCoreSubsystem::OnModifierReplacedDelegate;
 
 UActorModifierCoreSubsystem::UActorModifierCoreSubsystem()
 	: UEngineSubsystem()
@@ -44,6 +49,18 @@ void UActorModifierCoreSubsystem::Initialize(FSubsystemCollectionBase& Collectio
 	Super::Initialize(Collection);
 
 	ScanForModifiers();
+
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	IAssetRegistry& AssetRegistry = AssetRegistryModule.Get();
+	AssetRegistry.OnFilesLoaded().AddUObject(this, &UActorModifierCoreSubsystem::OnAssetRegistryFilesLoaded);
+	AssetRegistry.OnAssetAdded().AddUObject(this, &UActorModifierCoreSubsystem::OnAssetRegistryAssetAdded);
+	AssetRegistry.OnAssetRemoved().AddUObject(this, &UActorModifierCoreSubsystem::OnAssetRegistryAssetRemoved);
+	AssetRegistry.OnAssetUpdatedOnDisk().AddUObject(this, &UActorModifierCoreSubsystem::OnAssetRegistryAssetUpdated);
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReplaced.AddUObject(this, &UActorModifierCoreSubsystem::OnBlueprintObjectsReplaced);
+#endif
 }
 
 void UActorModifierCoreSubsystem::Deinitialize()
@@ -55,6 +72,19 @@ void UActorModifierCoreSubsystem::Deinitialize()
 	{
 		UnregisterModifierClass(ModifierName);
 	}
+
+	if (const FAssetRegistryModule* AssetRegistryModule = FModuleManager::GetModulePtr<FAssetRegistryModule>("AssetRegistry"))
+	{
+		IAssetRegistry& AssetRegistry = AssetRegistryModule->Get();
+		AssetRegistry.OnFilesLoaded().RemoveAll(this);
+		AssetRegistry.OnAssetAdded().RemoveAll(this);
+		AssetRegistry.OnAssetRemoved().RemoveAll(this);
+		AssetRegistry.OnInMemoryAssetDeleted().RemoveAll(this);
+	}
+
+#if WITH_EDITOR
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
+#endif
 
 	Super::Deinitialize();
 }
@@ -129,6 +159,19 @@ bool UActorModifierCoreSubsystem::UnregisterModifierClass(const FName& InName)
 	{
 		UActorModifierCoreSubsystem::OnModifierClassUnregisteredDelegate.Broadcast(**ModifierMetadata);
 		return ModifiersMetadata.Remove(InName) != 0;
+	}
+
+	return false;
+}
+
+bool UActorModifierCoreSubsystem::UnregisterModifierClass(const UClass* InModifierClass)
+{
+	for (const TPair<FName, TSharedRef<FActorModifierCoreMetadata>>& ModifierMetadataPair : ModifiersMetadata)
+	{
+		if (ModifierMetadataPair.Value->GetClass() == InModifierClass)
+		{
+			return UnregisterModifierClass(ModifierMetadataPair.Key);
+		}
 	}
 
 	return false;
@@ -1423,6 +1466,77 @@ void UActorModifierCoreSubsystem::ScanForModifiers()
 	for (const UClass* const Class : TObjectRange<UClass>())
 	{
 		RegisterModifierClass(Class);
+	}
+}
+
+void UActorModifierCoreSubsystem::OnAssetRegistryFilesLoaded()
+{
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	TArray<FAssetData> Assets;
+	const FTopLevelAssetPath BlueprintPath(TEXT("/Script/ActorModifierCoreBlueprint.ActorModifierCoreBlueprint"));
+	AssetRegistryModule.Get().GetAssetsByClass(BlueprintPath, Assets, /** Subclass */true);
+
+	for (const FAssetData& Asset : Assets)
+	{
+		RegisterModifierAsset(Asset);
+	}
+}
+
+void UActorModifierCoreSubsystem::OnAssetRegistryAssetAdded(const FAssetData& InAssetData)
+{
+	RegisterModifierAsset(InAssetData);
+}
+
+void UActorModifierCoreSubsystem::OnAssetRegistryAssetUpdated(const FAssetData& InAssetData)
+{
+	RegisterModifierAsset(InAssetData);
+}
+
+void UActorModifierCoreSubsystem::OnAssetRegistryAssetRemoved(const FAssetData& InAssetData)
+{
+	UnregisterModifierAsset(InAssetData);
+}
+
+void UActorModifierCoreSubsystem::OnBlueprintObjectsReplaced(const TMap<UObject*, UObject*>& InReplacements)
+{
+	for (const TPair<UObject*, UObject*>& Replacement : InReplacements)
+	{
+		if (!Replacement.Key || !Replacement.Value || Replacement.Value->IsTemplate())
+		{
+			continue;
+		}
+
+		UActorModifierCoreBlueprintBase* ReplacedModifier = Cast<UActorModifierCoreBlueprintBase>(Replacement.Key);
+		UActorModifierCoreBlueprintBase* ReplacementModifier = Cast<UActorModifierCoreBlueprintBase>(Replacement.Value);
+
+		if (ReplacedModifier && ReplacementModifier)
+		{
+			UnregisterModifierClass(ReplacedModifier->GetClass());
+			RegisterModifierClass(ReplacementModifier->GetClass(), true);
+
+			OnModifierReplacedDelegate.Broadcast(ReplacedModifier, ReplacementModifier);
+		}
+	}
+}
+
+void UActorModifierCoreSubsystem::RegisterModifierAsset(const FAssetData& InAssetData)
+{
+	FString GeneratedClassPath;
+	if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+	{
+		const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+		RegisterModifierClass(GeneratedClass);
+	}
+}
+
+void UActorModifierCoreSubsystem::UnregisterModifierAsset(const FAssetData& InAssetData)
+{
+	FString GeneratedClassPath;
+	if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+	{
+		const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
+		UnregisterModifierClass(GeneratedClass);
 	}
 }
 

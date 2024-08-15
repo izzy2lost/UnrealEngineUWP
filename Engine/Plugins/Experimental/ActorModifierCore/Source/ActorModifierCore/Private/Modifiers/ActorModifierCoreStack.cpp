@@ -5,6 +5,7 @@
 #include "Algo/RemoveIf.h"
 #include "Components/SceneComponent.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
+#include "Modifiers/Blueprints/ActorModifierCoreBlueprintBase.h"
 #include "Subsystems/ActorModifierCoreSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "ActorModifierCoreStack"
@@ -14,6 +15,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogActorModifierCoreStack, Log, All);
 UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierAddedDelegate;
 UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierRemovedDelegate;
 UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierMovedDelegate;
+UActorModifierCoreStack::FOnModifierUpdated UActorModifierCoreStack::OnModifierReplacedDelegate;
 
 UActorModifierCoreStack* UActorModifierCoreStack::Create(UActorModifierCoreComponent* InComponent, UActorModifierCoreStack* InParentStack)
 {
@@ -101,25 +103,31 @@ void UActorModifierCoreStack::OnModifierAdded(EActorModifierCoreEnableReason InR
 {
 	Super::OnModifierAdded(InReason);
 
-	// initialize only root stack
-	if (IsRootStack())
+	if (UActorModifierCoreSubsystem* ModifierSubsystem = UActorModifierCoreSubsystem::Get())
 	{
-		// register with subsystem for fast query
-		if (UActorModifierCoreSubsystem::Get()->RegisterActorModifierStack(this))
+		// initialize only root stack
+		if (IsRootStack())
 		{
-			// initialize events when actor changes
-			if (AActor* Actor = GetModifiedActor())
+			// register with subsystem for fast query
+			if (ModifierSubsystem->RegisterActorModifierStack(this))
 			{
-				Actor->OnDestroyed.AddUniqueDynamic(this, &UActorModifierCoreStack::OnActorDestroyed);
-				if (USceneComponent* RootComponent = ModifiedActor->GetRootComponent())
+				// initialize events when actor changes
+				if (AActor* Actor = GetModifiedActor())
 				{
-					if (!RootComponent->TransformUpdated.IsBoundToObject(this))
+					Actor->OnDestroyed.AddUniqueDynamic(this, &UActorModifierCoreStack::OnActorDestroyed);
+
+					if (USceneComponent* RootComponent = ModifiedActor->GetRootComponent())
 					{
-						RootComponent->TransformUpdated.AddUObject(this, &UActorModifierCoreStack::OnActorTransformUpdated);
+						if (!RootComponent->TransformUpdated.IsBoundToObject(this))
+						{
+							RootComponent->TransformUpdated.AddUObject(this, &UActorModifierCoreStack::OnActorTransformUpdated);
+						}
 					}
 				}
 			}
 		}
+
+		ModifierSubsystem->OnModifierReplaced().AddUObject(this, &UActorModifierCoreStack::OnBlueprintModifierReplaced);
 	}
 
 	// initialize inner modifiers if they are not initialized
@@ -1588,6 +1596,59 @@ void UActorModifierCoreStack::CheckModifierOptimization(bool bInInvalidateAll)
 	bModifierOptimized = UnoptimizedModifiers.IsEmpty();
 }
 
+void UActorModifierCoreStack::OnBlueprintModifierReplaced(UActorModifierCoreBlueprintBase* InOldModifier, UActorModifierCoreBlueprintBase* InNewModifier)
+{
+	const int32 ModifierIndex = Modifiers.Find(InOldModifier);
+
+	if (ModifierIndex == INDEX_NONE)
+	{
+		return;
+	}
+
+	// Init metadata for new modifier
+	InNewModifier->PostModifierCreation(this);
+
+	// Copy non uproperty var
+	InNewModifier->bModifierApplied = InOldModifier->bModifierApplied;
+	InNewModifier->bModifierInitialized = InOldModifier->bModifierInitialized;
+	InNewModifier->bModifierOptimized = InOldModifier->bModifierOptimized;
+
+	AActor* TargetActor = GetModifiedActor();
+
+	// Check if support rule has changed
+	const bool bActorSupported = InNewModifier->GetModifierMetadata().IsCompatibleWith(TargetActor);
+
+	if (bActorSupported)
+	{
+		Modifiers[ModifierIndex] = InNewModifier;
+	}
+	else
+	{
+		Modifiers.RemoveAt(ModifierIndex);
+	}
+
+	// Replace old modifier by new modifier in stack
+	const int32 ExecuteIndex = ExecuteModifiers.Find(InOldModifier);
+
+	if (ExecuteModifiers.IsValidIndex(ExecuteIndex))
+	{
+		ExecuteModifiers[ExecuteIndex] = InNewModifier;
+	}
+
+	const int32 CurrentIndex = CurrentModifiers.Find(InOldModifier);
+
+	if (CurrentModifiers.IsValidIndex(CurrentIndex))
+	{
+		CurrentModifiers[CurrentIndex] = InNewModifier;
+	}
+
+	InNewModifier->OnModifierReplacedEvent(TargetActor);
+
+	OnModifierReplacedDelegate.Broadcast(InNewModifier);
+
+	InNewModifier->MarkModifierDirty();
+}
+
 void UActorModifierCoreStack::RestorePreState()
 {
 	TArray<TObjectPtr<UActorModifierCoreBase>> ModifiersRestoreChain;
@@ -1645,24 +1706,26 @@ void UActorModifierCoreStack::Apply()
 
 void UActorModifierCoreStack::OnModifierRemoved(EActorModifierCoreDisableReason InReason)
 {
-	if (IsRootStack())
+	if (UActorModifierCoreSubsystem* Subsystem = UActorModifierCoreSubsystem::Get())
 	{
-		if (UActorModifierCoreSubsystem* Subsystem = UActorModifierCoreSubsystem::Get())
+		if (IsRootStack())
 		{
-			if (const AActor* ConstStackActor = Subsystem->GetModifierStackActor(this))
+			if (AActor* TargetActor = GetModifiedActor())
 			{
 				// unregister stack from actor in subsystem
-				AActor* StackActor = const_cast<AActor*>(ConstStackActor);
-				Subsystem->UnregisterActorModifierStack(StackActor);
+				Subsystem->UnregisterActorModifierStack(TargetActor);
 
 				// unbind actor event
-				StackActor->OnDestroyed.RemoveAll(this);
-				if (USceneComponent* RootComponent = StackActor->GetRootComponent())
+				TargetActor->OnDestroyed.RemoveAll(this);
+
+				if (USceneComponent* RootComponent = TargetActor->GetRootComponent())
 				{
 					RootComponent->TransformUpdated.RemoveAll(this);
 				}
 			}
 		}
+
+		Subsystem->OnModifierReplaced().RemoveAll(this);
 	}
 
 	// un-initialize inner modifiers if they are not un-initialized

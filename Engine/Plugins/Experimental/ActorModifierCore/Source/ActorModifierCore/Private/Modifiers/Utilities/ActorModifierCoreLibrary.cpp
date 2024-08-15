@@ -497,3 +497,55 @@ bool UActorModifierCoreLibrary::GetAvailableModifiers(TSet<TSubclassOf<UActorMod
 
 	return true;
 }
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataName(FActorModifierCoreMetadata& InMetadata, FName InName)
+{
+	InMetadata.SetName(InName);
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataCategory(FActorModifierCoreMetadata& InMetadata, FName InCategory)
+{
+	InMetadata.SetCategory(InCategory);
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataDisplayName(FActorModifierCoreMetadata& InMetadata, const FText& InName)
+{
+#if WITH_EDITOR
+	InMetadata.SetDisplayName(InName);
+#endif
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataColor(FActorModifierCoreMetadata& InMetadata, const FLinearColor& InColor)
+{
+#if WITH_EDITOR
+	InMetadata.SetColor(InColor);
+#endif
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataDescription(FActorModifierCoreMetadata& InMetadata, const FText& InDescription)
+{
+#if WITH_EDITOR
+	InMetadata.SetDescription(InDescription);
+#endif
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::AddModifierMetadataDependency(FActorModifierCoreMetadata& InMetadata, TSubclassOf<UActorModifierCoreBase> InModifierClass)
+{
+	if (const UActorModifierCoreBase* Modifier = InModifierClass.GetDefaultObject())
+	{
+		InMetadata.AddDependency(Modifier->GetModifierName());
+	}
+
+	return InMetadata;
+}
+
+FActorModifierCoreMetadata& UActorModifierCoreLibrary::SetModifierMetadataCompatibilityRule(FActorModifierCoreMetadata& InMetadata, const FModifierCompatibilityRule& InDelegate)
+{
+	InMetadata.SetCompatibilityRule(InDelegate);
+	return InMetadata;
+}

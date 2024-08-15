@@ -65,6 +65,11 @@ bool FActorModifierCoreMetadata::IsAllowedBefore(const FName& InModifierName) co
 
 bool FActorModifierCoreMetadata::IsCompatibleWith(const AActor* InActor) const
 {
+	if (CompatibilityRuleDelegate.IsBound())
+	{
+		return CompatibilityRuleDelegate.Execute(InActor);
+	}
+
 	return CompatibilityRuleFunction(InActor);
 }
 
@@ -131,6 +136,7 @@ bool FActorModifierCoreMetadata::ResetDefault()
 		bTickAllowed = CDOMetadata.bTickAllowed;
 		bMultipleAllowed = CDOMetadata.bMultipleAllowed;
 		CompatibilityRuleFunction = CDOMetadata.CompatibilityRuleFunction;
+		CompatibilityRuleDelegate = CDOMetadata.CompatibilityRuleDelegate;
 		ProfilerFunction = CDOMetadata.ProfilerFunction;
 
 		return true;
@@ -243,6 +249,12 @@ FActorModifierCoreMetadata& FActorModifierCoreMetadata::AvoidAfterCategory(const
 FActorModifierCoreMetadata& FActorModifierCoreMetadata::SetCompatibilityRule(const TFunction<bool(const AActor*)>& InModifierRule)
 {
 	CompatibilityRuleFunction = InModifierRule;
+	return *this;
+}
+
+FActorModifierCoreMetadata& FActorModifierCoreMetadata::SetCompatibilityRule(const FModifierCompatibilityRule& InModifierRule)
+{
+	CompatibilityRuleDelegate = InModifierRule;
 	return *this;
 }
 

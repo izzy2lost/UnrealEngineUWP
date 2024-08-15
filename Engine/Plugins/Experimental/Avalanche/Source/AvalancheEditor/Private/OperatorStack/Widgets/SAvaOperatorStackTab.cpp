@@ -28,9 +28,10 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	USelection::SelectionChangedEvent.AddSP(this, &SAvaOperatorStackTab::RefreshSelection);
 
 	// Modifiers delegates
-	UActorModifierCoreStack::OnModifierAddedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
-	UActorModifierCoreStack::OnModifierMovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierAdded().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierMoved().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierRemoved().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
+	UActorModifierCoreStack::OnModifierReplaced().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
 
 	// Property controllers delegates
 	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
@@ -55,9 +56,10 @@ SAvaOperatorStackTab::~SAvaOperatorStackTab()
 {
 	USelection::SelectionChangedEvent.RemoveAll(this);
 
-	UActorModifierCoreStack::OnModifierAddedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierMovedDelegate.RemoveAll(this);
-	UActorModifierCoreStack::OnModifierRemovedDelegate.RemoveAll(this);
+	UActorModifierCoreStack::OnModifierAdded().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierMoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierRemoved().RemoveAll(this);
+	UActorModifierCoreStack::OnModifierReplaced().RemoveAll(this);
 
 	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.RemoveAll(this);
 	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.RemoveAll(this);

@@ -7,6 +7,7 @@
 #include "ActorModifierCoreDefs.h"
 #include "ActorModifierCoreStack.generated.h"
 
+class UActorModifierCoreBlueprintBase;
 class UActorModifierCoreComponent;
 class USceneComponent;
 
@@ -25,14 +26,25 @@ class UActorModifierCoreStack : public UActorModifierCoreBase
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierUpdated, UActorModifierCoreBase* /** UpdatedItem */)
 
-	/** Called when a modifier is added to the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierAddedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierAdded()
+	{
+		return OnModifierAddedDelegate;
+	}
 
-	/** Called when a modifier is removed from the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierRemovedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierRemoved()
+	{
+		return OnModifierRemovedDelegate;
+	}
 
-	/** Called when a modifier is moved in the stack */
-	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
+	static FOnModifierUpdated::RegistrationType& OnModifierMoved()
+	{
+		return OnModifierMovedDelegate;
+	}
+
+	static FOnModifierUpdated::RegistrationType& OnModifierReplaced()
+	{
+		return OnModifierReplacedDelegate;
+	}
 
 	/** Create a new stack by passing the actor and the parent stack if there is one */
 	static UActorModifierCoreStack* Create(UActorModifierCoreComponent* InComponent, UActorModifierCoreStack* InParentStack = nullptr);
@@ -165,6 +177,18 @@ protected:
 	virtual void OnModifierDirty(UActorModifierCoreBase* DirtyModifier, bool bExecute) override;
 
 private:
+	/** Called when a modifier is added to the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierAddedDelegate;
+
+	/** Called when a modifier is removed from the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierRemovedDelegate;
+
+	/** Called when a modifier is moved in the stack */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierMovedDelegate;
+
+	/** Called when a modifier is replaced in the stack (blueprint) */
+	ACTORMODIFIERCORE_API static FOnModifierUpdated OnModifierReplacedDelegate;
+
 	/** Sets the stack to receive tick events */
 	virtual void OnModifierCDOSetup(FActorModifierCoreMetadata& InMetadata) override;
 
@@ -189,6 +213,9 @@ private:
 
 	/** Checks for any possible modifier optimization within the stack */
 	void CheckModifierOptimization(bool bInInvalidateAll);
+
+	/** Replaces blueprint modifier by their new object */
+	void OnBlueprintModifierReplaced(UActorModifierCoreBlueprintBase* InOldModifier, UActorModifierCoreBlueprintBase* InNewModifier);
 
 	/** Contains actual modifiers in the stack */
 	UPROPERTY(VisibleInstanceOnly, NoClear, Export, Instanced, Category = "Modifiers")

@@ -103,6 +103,11 @@ bool UActorModifierCoreEditorStackCustomization::GetChildrenItem(const FOperator
 			{
 				for (UActorModifierCoreBase* Modifier : ModifierStack->GetModifiers())
 				{
+					if (!IsValid(Modifier))
+					{
+						continue;
+					}
+
 					if (const int32* Index = ClassToIndex.Find(Modifier->GetClass()))
 					{
 						Modifiers[*Index].Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
@@ -127,7 +132,10 @@ bool UActorModifierCoreEditorStackCustomization::GetChildrenItem(const FOperator
 		{
 			for (UActorModifierCoreBase* Modifier : InItem->Get<UActorModifierCoreStack>(0)->GetModifiers())
 			{
-				OutChildrenItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+				if (IsValid(Modifier))
+				{
+					OutChildrenItems.Add(MakeShared<FOperatorStackEditorObjectItem>(Modifier));
+				}
 			}
 		}
 	}

@@ -2,6 +2,7 @@
 
 #include "Modifiers/ActorModifierCoreBase.h"
 
+#include "Async/TaskGraphInterfaces.h"
 #include "Modifiers/ActorModifierCoreComponent.h"
 #include "Modifiers/ActorModifierCoreSharedObject.h"
 #include "Modifiers/ActorModifierCoreStack.h"
@@ -110,17 +111,39 @@ void UActorModifierCoreBase::Apply()
 
 void UActorModifierCoreBase::Next()
 {
-	if (!bModifierIdle && ApplyPromise.IsValid())
+	auto ExecuteNext = [this]()
 	{
-		// Success
-		Status = FActorModifierCoreStatus(EActorModifierCoreStatus::Success, FText::GetEmpty());
+		if (!bModifierIdle && ApplyPromise.IsValid())
+		{
+			// Success
+			Status = FActorModifierCoreStatus(EActorModifierCoreStatus::Success, FText::GetEmpty());
+			ApplyPromise->SetValue(true);
+		}
+		else
+		{
+			LogModifier(TEXT("Next is called again after execution is done"), true);
+			checkNoEntry()
+		}
+	};
 
-		ApplyPromise->SetValue(true);
+	if (!IsInGameThread())
+	{
+		TWeakObjectPtr<UActorModifierCoreBase> ThisWeak(this);
+		FFunctionGraphTask::CreateAndDispatchWhenReady([ThisWeak, ExecuteNext]()
+		{
+			const UActorModifierCoreBase* This = ThisWeak.Get();
+
+			if (!This)
+			{
+				return;
+			}
+
+			ExecuteNext();
+		}, {}, nullptr, ENamedThreads::GameThread);
 	}
 	else
 	{
-		LogModifier(TEXT("Next is called again after execution is done"), true);
-		checkNoEntry()
+		ExecuteNext();
 	}
 }
 
@@ -151,6 +174,7 @@ void UActorModifierCoreBase::Unapply()
 	if (bModifierApplied)
 	{
 		RestorePreState();
+
 		bModifierApplied = false;
 	}
 }
@@ -436,6 +460,12 @@ void UActorModifierCoreBase::DeferInitializeModifier()
 
 	// Begin batch operation to avoid updating every time a modifier is loaded
 	UActorModifierCoreStack* Stack = GetRootModifierStack();
+
+	if (!Stack)
+	{
+		return;
+	}
+
 	if (!Stack->IsModifierExecutionLocked() && !Stack->IsModifierStackInitialized())
 	{
 		Stack->LockModifierExecution();
@@ -611,8 +641,9 @@ void UActorModifierCoreBase::LogModifier(const FString& InLog, bool bInForce) co
 	{
 		const FString ActorLabel = GetModifiedActor() ? *GetModifiedActor()->GetActorNameOrLabel() : TEXT("Invalid actor");
 		const FString ModifierLabel = GetModifierName().ToString();
+		const FString ClassLabel = GetClass()->GetName();
 
-		UE_LOG(LogActorModifierCoreBase, Log, TEXT("[%s][%s] %s"), *ActorLabel, *ModifierLabel, *InLog);
+		UE_LOG(LogActorModifierCoreBase, Log, TEXT("[%s][%s][%s] %s"), *ActorLabel, *ClassLabel, *ModifierLabel, *InLog);
 	}
 }
 
@@ -745,6 +776,12 @@ void UActorModifierCoreBase::InitializeModifier(EActorModifierCoreEnableReason I
 
 		// set new actor
 		ModifiedActor = GetModifiedActor();
+
+		// if the metadata is not initialized, reload it from CDO
+		if (!Metadata.IsValid())
+		{
+			PostModifierCreation(GetModifierStack());
+		}
 
 		// Initialize profiler
 		if (!Profiler.IsValid())

@@ -26,6 +26,11 @@
 			"LoadingPhase": "Default"
 		},
 		{
+			"Name": "ActorModifierCoreBlueprint",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "ActorModifierCoreEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"
