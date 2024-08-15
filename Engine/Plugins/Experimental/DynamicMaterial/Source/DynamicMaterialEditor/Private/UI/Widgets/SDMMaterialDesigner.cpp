@@ -442,17 +442,16 @@ void SDMMaterialDesigner::OnLayoutChanged()
 
 	UDynamicMaterialModelBase* MaterialModelBase = CurrentEditor->GetMaterialModelBase();
 	const FDMObjectMaterialProperty* MaterialObjectProperty = CurrentEditor->GetMaterialObjectProperty();
-	UDMMaterialSlot* EditedSlot = nullptr;
+	EDMMaterialEditorMode EditorMode = CurrentEditor->GetEditMode();
+	EDMMaterialPropertyType SelectedProperty = CurrentEditor->GetSelectedPropertyType();
 	UDMMaterialComponent* EditedComponent = nullptr;
 
-	if (TSharedPtr<SDMMaterialSlotEditor> SlotEditorWidget = CurrentEditor->GetSlotEditorWidget())
+	if (EditorMode == EDMMaterialEditorMode::EditSlot)
 	{
-		EditedSlot = SlotEditorWidget->GetSlot();
-	}
-
-	if (TSharedPtr<SDMMaterialComponentEditor> ComponentEditorWidget = CurrentEditor->GetComponentEditorWidget())
-	{
-		EditedComponent = ComponentEditorWidget->GetComponent();
+		if (TSharedPtr<SDMMaterialComponentEditor> ComponentEditorWidget = CurrentEditor->GetComponentEditorWidget())
+		{
+			EditedComponent = ComponentEditorWidget->GetComponent();
+		}
 	}
 
 	if (MaterialObjectProperty)
@@ -472,14 +471,25 @@ void SDMMaterialDesigner::OnLayoutChanged()
 
 	TSharedRef<SDMMaterialEditor> NewEditor = StaticCastSharedRef<SDMMaterialEditor>(Content.ToSharedRef());
 
-	if (EditedSlot)
+	switch (EditorMode)
 	{
-		NewEditor->EditSlot(EditedSlot);
-	}
+		case EDMMaterialEditorMode::GlobalSettings:
+			NewEditor->EditGlobalSettings();
+			break;
 
-	if (EditedComponent)
-	{
-		NewEditor->EditComponent(EditedComponent);
+		case EDMMaterialEditorMode::PropertyPreviews:
+			NewEditor->ShowPropertyPreviews();
+			break;
+
+		case EDMMaterialEditorMode::EditSlot:
+			NewEditor->SelectProperty(SelectedProperty);
+
+			if (EditedComponent)
+			{
+				NewEditor->EditComponent(EditedComponent);
+			}
+
+			break;
 	}
 }
 

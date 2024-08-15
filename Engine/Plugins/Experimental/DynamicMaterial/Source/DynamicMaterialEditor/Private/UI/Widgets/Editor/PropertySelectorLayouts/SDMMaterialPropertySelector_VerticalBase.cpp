@@ -4,6 +4,7 @@
 
 #include "DMDefs.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "UI/Widgets/SDMMaterialEditor.h"
 #include "Utils/DMPrivate.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SGridPanel.h"
@@ -37,14 +38,14 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 		[
-			CreateSlot_SelectButton(EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
 		];
 
 	++Row;
 
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 		[
-			CreateSlot_SelectButton(EDMMaterialPropertyType::Any)
+			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
 		];
 
 	++Row;
@@ -63,7 +64,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 
 		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
 			[
-				CreateSlot_SelectButton(PropertyPair.Key)
+				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
 			];
 
 		++Row;

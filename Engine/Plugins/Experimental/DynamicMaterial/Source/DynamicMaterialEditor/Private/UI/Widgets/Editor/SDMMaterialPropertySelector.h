@@ -14,6 +14,7 @@ class UDMMaterialProperty;
 class UDMMaterialSlot;
 class UDynamicMaterialModelEditorOnlyData;
 enum class ECheckBoxState : uint8;
+enum class EDMMaterialEditorMode : uint8;
 enum class EDMMaterialPropertyType : uint8;
 
 namespace UE::DynamicMaterialEditor::Private
@@ -33,9 +34,9 @@ class SDMMaterialPropertySelector : public SCompoundWidget
 	SLATE_END_ARGS()
 
 public:
-	static FText GetSelectButtonText(EDMMaterialPropertyType InMaterialProperty, bool bInShortName);
+	static FText GetSelectButtonText(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty, bool bInShortName);
 
-	static FText GetButtonToolTip(EDMMaterialPropertyType InMaterialProperty);
+	static FText GetButtonToolTip(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
 
 	virtual ~SDMMaterialPropertySelector() override = default;
 
@@ -43,17 +44,8 @@ public:
 
 	TSharedPtr<SDMMaterialEditor> GetEditorWidget() const;
 
-	EDMMaterialPropertyType GetSelectedProperty() const;
-
-	void SetGlobalSettings();
-
-	void SetPropertyPreviews();
-
-	void SetSelectedProperty(EDMMaterialPropertyType InMaterialProperty);
-
 protected:
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
-	EDMMaterialPropertyType SelectedProperty;
 
 	UDynamicMaterialModelEditorOnlyData* GetEditorOnlyData() const;
 
@@ -63,7 +55,7 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 
-	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty) = 0;
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) = 0;
 
 	bool IsPropertyEnabled(EDMMaterialPropertyType InMaterialProperty) const;
 
@@ -75,10 +67,10 @@ protected:
 	ECheckBoxState GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const;
 	void OnPropertyEnabledStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
 
-	bool GetPropertySelectEnabled(EDMMaterialPropertyType InMaterialProperty) const;
-	ECheckBoxState GetPropertySelectState(EDMMaterialPropertyType InMaterialProperty) const;
-	void OnPropertySelectStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
-	FSlateColor GetPropertySelectButtonChipColor(EDMMaterialPropertyType InMaterialProperty) const;
+	bool GetPropertySelectEnabled(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
+	ECheckBoxState GetPropertySelectState(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
+	void OnPropertySelectStateChanged(ECheckBoxState InState, EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
+	FSlateColor GetPropertySelectButtonChipColor(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
 
-	void OnSelectedPropertyChanged();
+	void SetSelectedProperty(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
 };

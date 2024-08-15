@@ -32,11 +32,13 @@ struct FDMWidgetSlot
 	bool operator==(const TSharedRef<SWidget>& InWidget) const;
 
 protected:
+	TWeakPtr<SWidget> Owner;
 	FSlotBase* Slot = nullptr;
-	TSharedPtr<SWidget> Widget = nullptr;
+	TSharedPtr<SWidget> Widget;
 	bool bInvalidated = true;
 
 	FDMWidgetSlot() = default;
+	FDMWidgetSlot(FSlotBase* InSlot, const TSharedRef<SWidget>& InWidget);
 
 	FSlotBase* FindSlot(const TSharedRef<SWidget>& InParentWidget, int32 InChildSlot) const;
 
@@ -51,17 +53,13 @@ struct TDMWidgetSlot : public FDMWidgetSlot
 	TDMWidgetSlot() = default;
 
 	TDMWidgetSlot(FSlotBase* InSlot, const TSharedRef<FWidgetType>& InWidget)
+		: FDMWidgetSlot(InSlot, InWidget)
 	{
-		Slot = InSlot;
-
-		AssignWidget(InWidget);
 	}
 
 	TDMWidgetSlot(const TSharedRef<SWidget>& InParentWidget, int32 InChildSlot, const TSharedRef<FWidgetType>& InWidget)
+		: FDMWidgetSlot(FindSlot(InParentWidget, InChildSlot), InWidget)
 	{
-		Slot = FindSlot(InParentWidget, InChildSlot);
-
-		AssignWidget(InWidget);
 	}
 
 	void operator<<(const TSharedRef<FWidgetType>& InWidget)

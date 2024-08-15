@@ -654,6 +654,13 @@ void UDynamicMaterialModelEditorOnlyData::OnValueListUpdate()
 	OnValueListUpdateDelegate.Broadcast(MaterialModel);
 }
 
+void UDynamicMaterialModelEditorOnlyData::OnPropertyUpdate(UDMMaterialProperty* InProperty)
+{
+	RequestMaterialBuild();
+
+	OnPropertyUpdateDelegate.Broadcast(MaterialModel);
+}
+
 TSharedRef<FDMMaterialBuildState> UDynamicMaterialModelEditorOnlyData::CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets) const
 {
 	check(MaterialModel);

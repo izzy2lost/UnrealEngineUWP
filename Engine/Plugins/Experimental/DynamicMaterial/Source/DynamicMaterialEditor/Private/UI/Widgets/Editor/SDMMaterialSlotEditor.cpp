@@ -727,18 +727,31 @@ TSharedRef<SDMMaterialSlotLayerView> SDMMaterialSlotEditor::CreateSlot_LayerView
 
 	if (UDMMaterialSlot* Slot = GetSlot())
 	{
-		const TArray<UDMMaterialLayerObject*>& Layers = Slot->GetLayers();
-
-		if (!Layers.IsEmpty())
+		if (TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget())
 		{
-			UDMMaterialLayerObject* LastLayer = Layers.Last();
-			NewLayerView->SetSelectedLayer(LastLayer);
+			bool bHasValidComponentToEdit = false;
 
-			if (UDMMaterialStage* Stage = LastLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
+			if (UDMMaterialComponent* ComponentToEdit = EditorWidget->GetComponentToEdit())
 			{
-				if (TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget())
+				if (ComponentToEdit->GetTypedParent<UDMMaterialSlot>(/* Allow Subclasses */ true) == Slot)
 				{
-					EditorWidget->EditComponent(Stage);
+					bHasValidComponentToEdit = true;
+				}
+			}
+
+			if (!bHasValidComponentToEdit)
+			{
+				const TArray<UDMMaterialLayerObject*>& Layers = Slot->GetLayers();
+
+				if (!Layers.IsEmpty())
+				{
+					UDMMaterialLayerObject* LastLayer = Layers.Last();
+					NewLayerView->SetSelectedLayer(LastLayer);
+
+					if (UDMMaterialStage* Stage = LastLayer->GetFirstEnabledStage(EDMMaterialLayerStage::All))
+					{
+						EditorWidget->EditComponent(Stage);
+					}
 				}
 			}
 		}

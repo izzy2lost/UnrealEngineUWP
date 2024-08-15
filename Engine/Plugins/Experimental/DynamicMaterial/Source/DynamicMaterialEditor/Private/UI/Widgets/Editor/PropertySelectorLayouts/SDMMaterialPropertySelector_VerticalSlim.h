@@ -16,6 +16,6 @@ public:
 
 protected:
 	//~ Begin SDMMaterialPropertySelector
-	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty) override;
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) override;
 	//~ End SDMMaterialPropertySelector
 };

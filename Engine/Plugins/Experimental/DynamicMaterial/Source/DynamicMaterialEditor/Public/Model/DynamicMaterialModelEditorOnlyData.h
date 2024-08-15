@@ -34,6 +34,7 @@ struct FDMMaterialChannelListPreset;
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnMaterialBuilt, UDynamicMaterialModelBase*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnValueListUpdated, UDynamicMaterialModelBase*);
 DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnSlotListUpdated, UDynamicMaterialModelBase*);
+DECLARE_MULTICAST_DELEGATE_OneParam(FDMOnPropertyUpdated, UDynamicMaterialModelBase*);
 
 UENUM(BlueprintType)
 enum class EDMState : uint8
@@ -206,6 +207,9 @@ public:
 	FDMOnMaterialBuilt::RegistrationType& GetOnMaterialBuiltDelegate() { return OnMaterialBuiltDelegate; }
 	FDMOnValueListUpdated::RegistrationType& GetOnValueListUpdateDelegate() { return OnValueListUpdateDelegate; }
 	FDMOnSlotListUpdated::RegistrationType& GetOnSlotListUpdateDelegate() { return OnSlotListUpdateDelegate; }
+	FDMOnPropertyUpdated::RegistrationType& GetOnPropertyUpdateDelegate() { return OnPropertyUpdateDelegate; }
+
+	void OnPropertyUpdate(UDMMaterialProperty* InProperty);
 
 	DYNAMICMATERIALEDITOR_API TSharedRef<FDMMaterialBuildState> CreateBuildState(UMaterial* InMaterialToBuild, bool bInDirtyAssets = true) const;
 
@@ -320,6 +324,7 @@ protected:
 	FDMOnMaterialBuilt OnMaterialBuiltDelegate;
 	FDMOnValueListUpdated OnValueListUpdateDelegate;
 	FDMOnSlotListUpdated OnSlotListUpdateDelegate;
+	FDMOnPropertyUpdated OnPropertyUpdateDelegate;
 
 	UPROPERTY(BlueprintReadOnly, Instanced, Category = "Material Designer")
 	TObjectPtr<UDMMaterialProperty> BaseColor;

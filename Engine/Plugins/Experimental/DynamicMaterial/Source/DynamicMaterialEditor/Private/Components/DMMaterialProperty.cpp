@@ -617,7 +617,7 @@ void UDMMaterialProperty::Update(UDMMaterialComponent* InSource, EDMUpdateType I
 		UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = GetMaterialModelEditorOnlyData();
 		check(ModelEditorOnlyData);
 
-		ModelEditorOnlyData->RequestMaterialBuild();
+		ModelEditorOnlyData->OnPropertyUpdate(this);
 	}
 }
 

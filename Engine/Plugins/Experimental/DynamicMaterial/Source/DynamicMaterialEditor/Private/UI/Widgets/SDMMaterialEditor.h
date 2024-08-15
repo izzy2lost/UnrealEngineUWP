@@ -5,6 +5,8 @@
 #include "EditorUndoClient.h"
 #include "Widgets/SCompoundWidget.h"
 
+#include "Delegates/Delegate.h"
+#include "Delegates/DelegateCombinations.h"
 #include "DMObjectMaterialProperty.h"
 #include "Misc/Optional.h"
 #include "UI/Utils/DMWidgetSlot.h"
@@ -26,6 +28,7 @@ class UDMMaterialComponent;
 class UDMMaterialSlot;
 class UDMTextureSet;
 class UDynamicMaterialModelBase;
+class UDynamicMaterialModelEditorOnlyData;
 enum class EDMMaterialPropertyType : uint8;
 enum class EDMUpdateType : uint8;
 
@@ -77,6 +80,8 @@ public:
 	/** Widget Components */
 	EDMMaterialEditorMode GetEditMode() const;
 
+	EDMMaterialPropertyType GetSelectedPropertyType() const;
+
 	const TSharedRef<FUICommandList>& GetCommandList() const;
 
 	TSharedRef<FDMPreviewMaterialManager> GetPreviewMaterialManager() const;
@@ -84,6 +89,10 @@ public:
 	TSharedPtr<SDMMaterialSlotEditor> GetSlotEditorWidget() const;
 
 	TSharedPtr<SDMMaterialComponentEditor> GetComponentEditorWidget() const;
+
+	UDMMaterialSlot* GetSlotToEdit() const;
+
+	UDMMaterialComponent* GetComponentToEdit() const;
 
 	/** Actions */
 	void SelectProperty(EDMMaterialPropertyType InProperty, bool bInForceRefresh = false);
@@ -135,13 +144,15 @@ protected:
 	TSharedRef<FUICommandList> CommandList;
 	TSharedRef<FDMPreviewMaterialManager> PreviewMaterialManager;
 
-	TOptional<EDMMaterialPropertyType> PropertyToSelect;
+	EDMMaterialEditorMode EditMode;
+	EDMMaterialPropertyType SelectedMaterialProperty;
 	TWeakObjectPtr<UDMMaterialSlot> SlotToEdit;
 	TWeakObjectPtr<UDMMaterialComponent> ComponentToEdit;
-	EDMMaterialEditorMode EditMode;
 
 	FOnEditedSlotChanged OnEditedSlotChanged;
 	FOnEditedComponentChanged OnEditedComponentChanged;
+
+	TWeakObjectPtr<UDynamicMaterialModelEditorOnlyData> EditorOnlyDataUpdateObject;
 
 	/** Operations */
 	void SetMaterialModelBase(UDynamicMaterialModelBase* InMaterialModelBase);
@@ -196,4 +207,10 @@ protected:
 	void OnEnginePreExit();
 
 	void OnEditorSplitterResized();
+
+	void BindEditorOnlyDataUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	void OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	void OnSlotListUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
 };

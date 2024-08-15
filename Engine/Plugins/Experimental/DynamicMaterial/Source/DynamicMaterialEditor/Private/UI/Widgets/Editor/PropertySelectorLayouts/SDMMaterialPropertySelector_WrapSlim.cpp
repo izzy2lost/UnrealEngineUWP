@@ -4,6 +4,7 @@
 
 #include "Components/DMMaterialProperty.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "UI/Widgets/SDMMaterialEditor.h"
 #include "Widgets/Layout/SWrapBox.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialPropertySelector_WrapSlim"
@@ -33,12 +34,12 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 
 	NewSlotList->AddSlot()
 		[
-			CreateSlot_SelectButton(EDMMaterialPropertyType::None)
+			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
 		];
 
 	NewSlotList->AddSlot()
 		[
-			CreateSlot_SelectButton(EDMMaterialPropertyType::Any)
+			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
 		];
 
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
@@ -55,7 +56,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_WrapSlim::CreateSlot_PropertyLis
 
 		NewSlotList->AddSlot()
 			[
-				CreateSlot_SelectButton(PropertyPair.Key)
+				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
 			];
 	}
 

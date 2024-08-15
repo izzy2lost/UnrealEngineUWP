@@ -7,23 +7,48 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/SNullWidget.h"
 
+FDMWidgetSlot::FDMWidgetSlot(FSlotBase* InSlot, const TSharedRef<SWidget>& InWidget)
+{
+	if (InSlot)
+	{
+		SetSlot(InSlot);
+	}
+
+	AssignWidget(InWidget);
+}
+
 FSlotBase* FDMWidgetSlot::GetSlot() const
 {
-	return Slot;
+	if (Owner.IsValid())
+	{
+		return Slot;
+	}
+
+	return nullptr;
 }
 
 void FDMWidgetSlot::SetSlot(FSlotBase* InSlot)
 {
-	if (Slot)
+	if (FSlotBase* ValidSlot = GetSlot())
 	{
-		Slot->DetachWidget();
+		ValidSlot->DetachWidget();
 	}
+
+	Owner.Reset();
 
 	Slot = InSlot;
 
-	if (Slot && Widget.IsValid())
+	if (InSlot)
 	{
-		Slot->AttachWidget(Widget.ToSharedRef());
+		if (SWidget* SlotOwner = Slot->GetOwnerWidget())
+		{
+			Owner = SlotOwner->AsShared();
+		}
+
+		if (Widget.IsValid())
+		{
+			Slot->AttachWidget(Widget.ToSharedRef());
+		}
 	}
 }
 
@@ -52,9 +77,9 @@ void FDMWidgetSlot::ClearWidget()
 	Widget.Reset();
 	bInvalidated = true;
 
-	if (Slot)
+	if (FSlotBase* ValidSlot = GetSlot())
 	{
-		Slot->DetachWidget();
+		ValidSlot->DetachWidget();
 	}
 }
 
@@ -73,9 +98,9 @@ void FDMWidgetSlot::AssignWidget(const TSharedRef<SWidget>& InWidget)
 	Widget = InWidget;
 	bInvalidated = InWidget == SNullWidget::NullWidget;
 
-	if (Slot)
+	if (FSlotBase* ValidSlot = GetSlot())
 	{
-		Slot->AttachWidget(InWidget);
+		ValidSlot->AttachWidget(InWidget);
 	}
 }
 

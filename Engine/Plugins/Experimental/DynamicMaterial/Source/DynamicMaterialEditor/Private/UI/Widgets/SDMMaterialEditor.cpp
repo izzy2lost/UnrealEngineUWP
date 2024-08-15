@@ -12,6 +12,7 @@
 #include "Engine/Texture.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Materials/MaterialFunctionInterface.h"
+#include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
@@ -47,13 +48,23 @@ SDMMaterialEditor::SDMMaterialEditor()
 SDMMaterialEditor::~SDMMaterialEditor()
 {
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+
+	if (!FDynamicMaterialModule::AreUObjectsSafe())
+	{
+		return;
+	}
+
+	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = EditorOnlyDataUpdateObject.Get())
+	{
+		EditorOnlyData->GetOnSlotListUpdateDelegate().RemoveAll(this);
+	}
 }
 
 void SDMMaterialEditor::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialDesigner>& InDesignerWidget)
 {
 	DesignerWidgetWeak = InDesignerWidget;
 	EditMode = EDMMaterialEditorMode::GlobalSettings;
-	PropertyToSelect.Reset();
+	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	SetCanTick(false);
 
@@ -97,6 +108,8 @@ void SDMMaterialEditor::SetMaterialModelBase(UDynamicMaterialModelBase* InMateri
 	EditGlobalSettings();
 
 	CreateLayout();
+
+	BindEditorOnlyDataUpdate(InMaterialModelBase);
 }
 
 UDynamicMaterialModel* SDMMaterialEditor::GetMaterialModel() const
@@ -136,6 +149,8 @@ void SDMMaterialEditor::SetObjectMaterialProperty(const FDMObjectMaterialPropert
 
 	ObjectMaterialPropertyOpt = InObjectProperty;
 	SetMaterialModelBase(MaterialModelBase);
+
+	BindEditorOnlyDataUpdate(MaterialModelBase);
 }
 
 AActor* SDMMaterialEditor::GetMaterialActor() const
@@ -175,21 +190,46 @@ TSharedPtr<SDMMaterialComponentEditor> SDMMaterialEditor::GetComponentEditorWidg
 	return &ComponentEditorSlot;
 }
 
+UDMMaterialSlot* SDMMaterialEditor::GetSlotToEdit() const
+{
+	return SlotToEdit.Get();
+}
+
+UDMMaterialComponent* SDMMaterialEditor::GetComponentToEdit() const
+{
+	return ComponentToEdit.Get();
+}
+
+EDMMaterialPropertyType SDMMaterialEditor::GetSelectedPropertyType() const
+{
+	return SelectedMaterialProperty;
+}
+
 void SDMMaterialEditor::SelectProperty(EDMMaterialPropertyType InProperty, bool bInForceRefresh)
 {
-	if (bInForceRefresh || !PropertySelectorSlot.IsValid())
+	if (EditMode == EDMMaterialEditorMode::EditSlot && SelectedMaterialProperty == InProperty && !bInForceRefresh)
 	{
-		PropertyToSelect = InProperty;
-		PropertySelectorSlot.Invalidate();
 		return;
 	}
 
-	if (PropertySelectorSlot->GetSelectedProperty() != InProperty)
+	EditMode = EDMMaterialEditorMode::EditSlot;
+	SelectedMaterialProperty = InProperty;
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak);
+
+	if (!EditorOnlyData)
 	{
-		PropertySelectorSlot->SetSelectedProperty(InProperty);
+		return;
 	}
-	
-	PropertyToSelect.Reset();
+
+	UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(InProperty);
+
+	if (!Slot)
+	{
+		return;
+	}
+
+	EditSlot(Slot);
 }
 
 const TSharedRef<FUICommandList>& SDMMaterialEditor::GetCommandList() const
@@ -216,7 +256,7 @@ void SDMMaterialEditor::EditSlot(UDMMaterialSlot* InSlot, bool bInForceRefresh)
 	ComponentEditorSlot.Invalidate();
 	ComponentToEdit.Reset();
 
-	EditMode = InSlot ? EDMMaterialEditorMode::EditSlot : EDMMaterialEditorMode::GlobalSettings;
+	EditMode = EDMMaterialEditorMode::EditSlot;
 
 	if (InSlot)
 	{
@@ -268,6 +308,7 @@ void SDMMaterialEditor::EditGlobalSettings(bool bInForceRefresh)
 	}
 
 	EditMode = EDMMaterialEditorMode::GlobalSettings;
+	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	GlobalSettingsEditorSlot.Invalidate();
 }
@@ -288,6 +329,7 @@ void SDMMaterialEditor::ShowPropertyPreviews(bool bInForceRefresh)
 	}
 
 	EditMode = EDMMaterialEditorMode::PropertyPreviews;
+	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	MaterialPropertyPreviewsSlot.Invalidate();
 }
@@ -637,7 +679,7 @@ TSharedRef<SDMMaterialPropertySelector> SDMMaterialEditor::CreateSlot_PropertySe
 {
 	TSharedRef<SDMMaterialPropertySelector> NewPropertySelector = CreateSlot_PropertySelector_Impl();
 
-	if (!PropertyToSelect.IsSet())
+	if (EditMode == EDMMaterialEditorMode::EditSlot && SelectedMaterialProperty != EDMMaterialPropertyType::None)
 	{
 		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 		{
@@ -647,18 +689,12 @@ TSharedRef<SDMMaterialPropertySelector> SDMMaterialEditor::CreateSlot_PropertySe
 				{
 					if (PropertyPair.Value->IsEnabled() && PropertyPair.Value->IsValidForModel(*EditorOnlyData))
 					{
-						PropertyToSelect = PropertyPair.Key;
+						SelectedMaterialProperty = PropertyPair.Key;
 						break;
 					}
 				}
 			}
 		}
-	}
-
-	if (PropertyToSelect.IsSet())
-	{
-		NewPropertySelector->SetSelectedProperty(PropertyToSelect.GetValue());
-		PropertyToSelect.Reset();
 	}
 
 	return NewPropertySelector;
@@ -705,13 +741,17 @@ void SDMMaterialEditor::OnUndo()
 		return;
 	}
 
-	if (UDynamicMaterialModelEditorOnlyData* ModelEditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
+	if (EditMode == EDMMaterialEditorMode::EditSlot)
 	{
-		for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : ModelEditorOnlyData->GetMaterialProperties())
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModelBaseWeak))
 		{
-			if (PropertyPair.Value->IsEnabled())
+			for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
 			{
-				PropertySelectorSlot->SetSelectedProperty(PropertyPair.Key);
+				if (PropertyPair.Value->IsEnabled() && PropertyPair.Value->IsValidForModel(*EditorOnlyData))
+				{
+					SelectProperty(PropertyPair.Key);
+					break;
+				}
 			}
 		}
 	}
@@ -732,6 +772,29 @@ void SDMMaterialEditor::OnEditorSplitterResized()
 		Settings->SplitterLocation = SplitterLocation;
 		Settings->SaveConfig();
 	}
+}
+
+void SDMMaterialEditor::BindEditorOnlyDataUpdate(UDynamicMaterialModelBase* InMaterialModelBase)
+{
+	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(InMaterialModelBase))
+	{
+		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
+		{
+			EditorOnlyDataUpdateObject = EditorOnlyData;
+			EditorOnlyData->GetOnPropertyUpdateDelegate().AddSP(this, &SDMMaterialEditor::OnPropertyUpdate);
+			EditorOnlyData->GetOnSlotListUpdateDelegate().AddSP(this, &SDMMaterialEditor::OnSlotListUpdate);
+		}
+	}
+}
+
+void SDMMaterialEditor::OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialModelBase)
+{
+	PropertySelectorSlot.Invalidate();
+}
+
+void SDMMaterialEditor::OnSlotListUpdate(UDynamicMaterialModelBase* InMaterialModelBase)
+{
+	PropertySelectorSlot.Invalidate();
 }
 
 #undef LOCTEXT_NAMESPACE

@@ -120,7 +120,7 @@ void FDMMaterialModelPropertyRowGenerator::AddGlobalMaterialParameterValue(EDMMa
 						AlphaValue,
 						FText::Format(
 							LOCTEXT("PropertyFormat", "Global {0}"),
-							UE::DynamicMaterialEditor::Private::GetMaterialPropertyShortDisplayName(InProperty)
+							UE::DynamicMaterialEditor::Private::GetMaterialPropertyLongDisplayName(InProperty)
 						)
 					);
 				}

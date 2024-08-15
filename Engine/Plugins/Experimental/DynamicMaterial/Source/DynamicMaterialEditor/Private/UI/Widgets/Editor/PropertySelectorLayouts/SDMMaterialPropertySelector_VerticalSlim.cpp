@@ -22,18 +22,19 @@ void SDMMaterialPropertySelector_VerticalSlim::Construct(const FArguments& InArg
 	);
 }
 
-TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectButton(EDMMaterialPropertyType InMaterialProperty)
+TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, 
+	EDMMaterialPropertyType InMaterialProperty)
 {
-	const FText ButtonText = GetSelectButtonText(InMaterialProperty, /* Short Name */ true);
-	const FText ToolTip = GetButtonToolTip(InMaterialProperty);
+	const FText ButtonText = GetSelectButtonText(InEditMode, InMaterialProperty, /* Short Name */ true);
+	const FText ToolTip = GetButtonToolTip(InEditMode, InMaterialProperty);
 
 	return SNew(SCheckBox)
 		.Style(FAppStyle::Get(), "DetailsView.SectionButton")
 		.HAlign(EHorizontalAlignment::HAlign_Center)
 		.Padding(0.f)
-		.IsEnabled(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectEnabled, InMaterialProperty)
-		.IsChecked(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectState, InMaterialProperty)
-		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_VerticalSlim::OnPropertySelectStateChanged, InMaterialProperty)
+		.IsEnabled(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectEnabled, InEditMode, InMaterialProperty)
+		.IsChecked(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectState, InEditMode, InMaterialProperty)
+		.OnCheckStateChanged(this, &SDMMaterialPropertySelector_VerticalSlim::OnPropertySelectStateChanged, InEditMode, InMaterialProperty)
 		.ToolTipText(ToolTip)
 		.Content()
 		[
@@ -48,7 +49,7 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalSlim::CreateSlot_SelectB
 				[
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
-					.ColorAndOpacity(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectButtonChipColor, InMaterialProperty)
+					.ColorAndOpacity(this, &SDMMaterialPropertySelector_VerticalSlim::GetPropertySelectButtonChipColor, InEditMode, InMaterialProperty)
 				]
 				+SHorizontalBox::Slot()
 				.Padding(2.f, 6.f)

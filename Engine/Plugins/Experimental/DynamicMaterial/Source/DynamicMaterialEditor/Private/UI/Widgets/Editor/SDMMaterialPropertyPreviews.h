@@ -43,4 +43,6 @@ protected:
 	bool GetPropertyEnabledEnabled(EDMMaterialPropertyType InMaterialProperty) const;
 	ECheckBoxState GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const;
 	void OnPropertyEnabledStateChanged(ECheckBoxState InState, EDMMaterialPropertyType InMaterialProperty);
+
+	FReply OnPreviewClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, EDMMaterialPropertyType InMaterialProperty);
 };

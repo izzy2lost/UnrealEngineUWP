@@ -165,6 +165,9 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 	{
 		PreviewWidget = SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InSlot)
 			.PreviewSize(FVector2D(60.f, 60.f));
+
+		PreviewWidget->SetCursor(EMouseCursor::Hand);
+		PreviewWidget->SetOnMouseButtonUp(FPointerEventHandler::CreateSP(this, &SDMMaterialPropertyPreviews::OnPreviewClicked, InMaterialProperty));
 	}
 	else
 	{
@@ -209,7 +212,7 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty)
 {
 	const FText Format = LOCTEXT("PropertyEnableFormat", "Toggle the {0} property.\n\nProperty must be valid for the Material Type.");
-	const FText ToolTip = FText::Format(Format, SDMMaterialPropertySelector::GetSelectButtonText(InMaterialProperty, /* Short Name */ false));
+	const FText ToolTip = FText::Format(Format, SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ false));
 
 	return SNew(SCheckBox)
 		.IsEnabled(this, &SDMMaterialPropertyPreviews::GetPropertyEnabledEnabled, InMaterialProperty)
@@ -222,7 +225,8 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_PropertyName(EDMMate
 {
 	return SNew(STextBlock)
 		.Font(IDetailLayoutBuilder::GetDetailFont())
-		.Text(SDMMaterialPropertySelector::GetSelectButtonText(InMaterialProperty, /* Short Name */ true));
+		.Text(SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ true))
+		.ToolTipText(SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode::EditSlot, InMaterialProperty, /* Short Name */ false));
 }
 
 bool SDMMaterialPropertyPreviews::GetPropertyEnabledEnabled(EDMMaterialPropertyType InMaterialProperty) const
@@ -338,6 +342,45 @@ void SDMMaterialPropertyPreviews::OnPropertyEnabledStateChanged(ECheckBoxState I
 	}
 
 	Content.Invalidate();
+
+	// Make sure we go back to the property previews
+	EditorWidget->ShowPropertyPreviews();
+}
+
+FReply SDMMaterialPropertyPreviews::OnPreviewClicked(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, 
+	EDMMaterialPropertyType InMaterialProperty)
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
+
+	if (!MaterialModel)
+	{
+		return FReply::Handled();
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return FReply::Handled();
+	}
+
+	UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(InMaterialProperty);
+
+	if (!Slot)
+	{
+		return FReply::Handled();
+	}
+
+	EditorWidget->SelectProperty(InMaterialProperty);
+
+	return FReply::Handled();
 }
 
 #undef LOCTEXT_NAMESPACE
