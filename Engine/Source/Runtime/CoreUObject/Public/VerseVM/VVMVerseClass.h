@@ -120,40 +120,40 @@ struct FVerseFunctionDescriptor
 	}
 };
 
-UCLASS(within = Package, Config = Engine)
-class COREUOBJECT_API UVerseClass : public UClass
+UCLASS(MinimalAPI, within = Package, Config = Engine)
+class UVerseClass : public UClass
 {
 	GENERATED_BODY()
 
 public:
 	//~ Begin UObjectBaseUtility interface
-	virtual UE::Core::FVersePath GetVersePath() const override;
+	COREUOBJECT_API virtual UE::Core::FVersePath GetVersePath() const override;
 	//~ End UObjectBaseUtility interface
 
 private:
 	//~ Begin UObject interface
-	virtual bool IsAsset() const override { return true; }
-	virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
-	virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
-	virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
+	COREUOBJECT_API virtual bool IsAsset() const override { return true; }
+	COREUOBJECT_API virtual void GetPreloadDependencies(TArray<UObject*>& OutDeps) override;
+	COREUOBJECT_API virtual void GetAssetRegistryTags(FAssetRegistryTagsContext Context) const override;
+	COREUOBJECT_API virtual void PreSave(FObjectPreSaveContext ObjectSaveContext) override;
 	//~ End UObject interface
 
 	//~ Begin UStruct interface
-	virtual void Link(FArchive& Ar, bool bRelinkExistingProperties) override;
-	virtual void PreloadChildren(FArchive& Ar) override;
-	virtual FProperty* CustomFindProperty(const FName InName) const override;
-	virtual FString GetAuthoredNameForField(const FField* Field) const override;
+	COREUOBJECT_API virtual void Link(FArchive& Ar, bool bRelinkExistingProperties) override;
+	COREUOBJECT_API virtual void PreloadChildren(FArchive& Ar) override;
+	COREUOBJECT_API virtual FProperty* CustomFindProperty(const FName InName) const override;
+	COREUOBJECT_API virtual FString GetAuthoredNameForField(const FField* Field) const override;
 	//~ End UStruct interface
 
 	//~ Begin UClass interface
-	virtual void PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph) override;
-	virtual void PostLoadInstance(UObject* InObj) override;
-	virtual bool CanCreateAssetOfClass() const override
+	COREUOBJECT_API virtual void PostInitInstance(UObject* InObj, FObjectInstancingGraph* InstanceGraph) override;
+	COREUOBJECT_API virtual void PostLoadInstance(UObject* InObj) override;
+	COREUOBJECT_API virtual bool CanCreateAssetOfClass() const override
 	{
 		return false;
 	}
 #if WITH_EDITOR
-	virtual FTopLevelAssetPath GetReinstancedClassPathName_Impl() const;
+	COREUOBJECT_API virtual FTopLevelAssetPath GetReinstancedClassPathName_Impl() const;
 #endif
 	//~ End UClass interface
 
@@ -196,12 +196,12 @@ public:
 #endif // WITH_VERSE_COMPILER && WITH_EDITORONLY_DATA
 
 	// Name of the CDO init function
-	static const FName InitCDOFunctionName;
-	static const FName StructPaddingDummyName;
+	COREUOBJECT_API static const FName InitCDOFunctionName;
+	COREUOBJECT_API static const FName StructPaddingDummyName;
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
-	static Verse::VValue LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName);
-	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+	COREUOBJECT_API static Verse::VValue LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName);
+	COREUOBJECT_API static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
 
 	Verse::TWriteBarrier<Verse::VShape> Shape;
 	Verse::TWriteBarrier<Verse::VClass> Class;
@@ -211,22 +211,22 @@ public:
 	 * Renames default subobjects on a CDO so that they're unique (named after properties they are assigned to)
 	 * @param  InObject Object (usually a CDO) whose default sobjects are to be renamed
 	 */
-	static void RenameDefaultSubobjects(UObject* InObject);
+	COREUOBJECT_API static void RenameDefaultSubobjects(UObject* InObject);
 
 	// Delegate for detecting unresolved properties during reinstancing
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnPropertyRemoved, const UVerseClass* Class, FName PropertyName);
-	static FOnPropertyRemoved OnPropertyRemoved;
+	COREUOBJECT_API static FOnPropertyRemoved OnPropertyRemoved;
 
-	void SetNeedsSubobjectInstancingForLoadedInstances(bool bNeedsInstancing)
+	COREUOBJECT_API void SetNeedsSubobjectInstancingForLoadedInstances(bool bNeedsInstancing)
 	{
 		bNeedsSubobjectInstancingForLoadedInstances = bNeedsInstancing;
 	}
 
-	bool IsUniversallyAccessible() const { return (SolClassFlags & VCLASS_UniversallyAccessible) != VCLASS_None; }
-	bool IsVerseModule() const { return (SolClassFlags & VCLASS_Module) != VCLASS_None; }
-	bool IsConcrete() const { return (SolClassFlags & VCLASS_Concrete) != VCLASS_None; }
+	COREUOBJECT_API bool IsUniversallyAccessible() const { return (SolClassFlags & VCLASS_UniversallyAccessible) != VCLASS_None; }
+	COREUOBJECT_API bool IsVerseModule() const { return (SolClassFlags & VCLASS_Module) != VCLASS_None; }
+	COREUOBJECT_API bool IsConcrete() const { return (SolClassFlags & VCLASS_Concrete) != VCLASS_None; }
 
-	const FVerseClassVarAccessors* FindAccessors(FName VarName) const
+	COREUOBJECT_API const FVerseClassVarAccessors* FindAccessors(FName VarName) const
 	{
 		const UVerseClass* VerseClass = this;
 		while (VerseClass)
@@ -247,7 +247,7 @@ public:
 	 * @param Operation callback for each of the found Verse Functions. When the callback returns false, iteration is stopped.
 	 * @param IterationFlags Additional options used when iterating over Verse Function properties
 	 */
-	void ForEachVerseFunction(UObject* Object, TFunctionRef<bool(FVerseFunctionDescriptor)> Operation, EFieldIterationFlags IterationFlags = EFieldIterationFlags::None);
+	COREUOBJECT_API void ForEachVerseFunction(UObject* Object, TFunctionRef<bool(FVerseFunctionDescriptor)> Operation, EFieldIterationFlags IterationFlags = EFieldIterationFlags::None);
 
 	/**
 	 * Returns a VerseFunction value given its display name (Unmangled and undecorated)
@@ -257,22 +257,22 @@ public:
 	 * @return VerseFunction value acquired from the provided Object instance or invalid function value if none was found.
 	 */
 #if WITH_VERSE_BPVM
-	FVerseFunctionDescriptor FindVerseFunctionByDisplayName(UObject* Object, FName FunctionName, EFieldIterationFlags SearchFlags = EFieldIterationFlags::None);
+	COREUOBJECT_API FVerseFunctionDescriptor FindVerseFunctionByDisplayName(UObject* Object, FName FunctionName, EFieldIterationFlags SearchFlags = EFieldIterationFlags::None);
 #endif // WITH_VERSE_BPVM
 
 	/**
 	 * Returns the number of parameters a verse function takes
 	 */
-	static int32 GetVerseFunctionParameterCount(UFunction* Func);
+	COREUOBJECT_API static int32 GetVerseFunctionParameterCount(UFunction* Func);
 
 private:
-	void CallInitInstanceFunctions(UObject* InObj, FObjectInstancingGraph* InstanceGraph);
-	void CallPropertyInitInstanceFunctions(UObject* InObj, FObjectInstancingGraph* InstanceGraph);
-	void InstanceNewSubobjects(UObject* InObj);
+	COREUOBJECT_API void CallInitInstanceFunctions(UObject* InObj, FObjectInstancingGraph* InstanceGraph);
+	COREUOBJECT_API void CallPropertyInitInstanceFunctions(UObject* InObj, FObjectInstancingGraph* InstanceGraph);
+	COREUOBJECT_API void InstanceNewSubobjects(UObject* InObj);
 
-	void AddPersistentVars(UObject*);
+	COREUOBJECT_API void AddPersistentVars(UObject*);
 
-	void AddSessionVars(UObject*);
+	COREUOBJECT_API void AddSessionVars(UObject*);
 
 	/** True if this class needs to run subobject instancing on loaded instances of classes (by default the engine does not run subobject instancing on instances that are being loaded) */
 	bool bNeedsSubobjectInstancingForLoadedInstances = false;
