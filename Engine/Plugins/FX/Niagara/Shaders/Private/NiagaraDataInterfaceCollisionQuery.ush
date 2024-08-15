@@ -4,6 +4,8 @@
 
 #include "/Engine/Private/Common.ush"
 
+#define NEEDS_SCENE_TEXTURES 1
+#define SCENE_TEXTURES_DISABLED 0
 #define SubstratePublicStruct SubstratePublic
 #include "/Engine/Public/SubstratePublic.ush"
 

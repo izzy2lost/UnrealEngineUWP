@@ -8,7 +8,9 @@
 
 #include "/Engine/Private/Substrate/Substrate.ush"
 
-#if SUBSTRATE_ENABLED
+#if SUBSTRATE_ENABLED 
+
+#define SUBSTRATE_ALLOWS_GBUFFER_SAMPLING  ((NEEDS_SCENE_TEXTURES && !SCENE_TEXTURES_DISABLED) && SUBSTRATE_MATERIALCONTAINER_IS_VIEWRESOURCE)
 
 /** Public facing functions allowing external users access to some Substrate data. */
 
@@ -42,7 +44,9 @@ FSubstrateGBuffer SubstratePublic_GetSubstrateGBufferFromFirstBSDF(uint2 PixelCo
 {
 	FSubstrateGBuffer SGBuffer = (FSubstrateGBuffer)0; 
 	SGBuffer.bIsValid = false;
+	SGBuffer.WorldNormal = float3(0.0, 0.0, 1.0);
 
+#if SUBSTRATE_ALLOWS_GBUFFER_SAMPLING
 	FSubstrateAddressing SubstrateAddressing   = GetSubstratePixelDataByteOffset(PixelCoord, uint2(View.BufferSizeAndInvSize.xy), SubstratePublicStruct.MaxBytesPerPixel);
 	FSubstratePixelHeader SubstratePixelHeader = UnpackSubstrateHeaderIn(SubstratePublicStruct.MaterialTextureArray, SubstrateAddressing, SubstratePublicStruct.TopLayerTexture);
 	
@@ -101,6 +105,7 @@ FSubstrateGBuffer SubstratePublic_GetSubstrateGBufferFromFirstBSDF(uint2 PixelCo
 			SGBuffer.Opacity = HAIR_BACKLIT(BSDF);			// BackLit
 		}
 	}
+#endif
 
 	return SGBuffer;
 }
@@ -108,11 +113,19 @@ FSubstrateGBuffer SubstratePublic_GetSubstrateGBufferFromFirstBSDF(uint2 PixelCo
 // Optimised data fetch from the TopLayer texture
 float3 SubstratePublic_GetWorldNormal(uint2 PixelCoord)
 {
+#if SUBSTRATE_ALLOWS_GBUFFER_SAMPLING
   return SubstrateUnpackTopLayerData(SubstratePublicStruct.TopLayerTexture.Load(uint3(PixelCoord, 0))).WorldNormal;
+#else
+	return float3(0, 0, 1);
+#endif
 }
 float SubstratePublic_GetRoughness(uint2 PixelCoord)
 {
+#if SUBSTRATE_ALLOWS_GBUFFER_SAMPLING
   return SubstrateUnpackTopLayerData(SubstratePublicStruct.TopLayerTexture.Load(uint3(PixelCoord, 0))).Roughness;
+#else
+	return 0.0;
+#endif
 }
 
 #endif
