@@ -8,10 +8,7 @@
 #include "Animation/AnimData/IAnimationDataModel.h"
 #include "AnimationModifier.h"
 #include "Animation/AnimCompress.h"
-#include "Animation/MirrorDataTable.h"
-#include "Animation/Skeleton.h"
 #include "Engine/SkeletalMesh.h"
-#include "Engine/SkeletalMeshSocket.h"
 #include "Engine/SkinnedAsset.h"
 #include "Engine/StreamableRenderAsset.h"
 #include "Factories/FbxAnimSequenceImportData.h"
@@ -149,7 +146,13 @@ FArchive& FKeyBuilder::operator<<(class UObject*& Object)
 				bAnyAssetNotReady = true;
 			}
 		}
-		
+
+		// @todo: should we WaitOnExistingCompression?
+		//if (UAnimSequence* AnimSequence = Cast<UAnimSequence>(Object))
+		//{
+		//	AnimSequence->WaitOnExistingCompression();
+		//}
+
 		if (!bAnyAssetNotReady)
 		{
 			#if UE_POSE_SEARCH_DERIVED_DATA_LOGGING
@@ -257,10 +260,7 @@ bool FKeyBuilder::IsAddNameOnlyType(class UObject* Object)
 		nullptr != Cast<UAnimCurveCompressionSettings>(Object) ||
 		nullptr != Cast<UAssetImportData>(Object) ||
 		nullptr != Cast<UFunction>(Object) ||
-		nullptr != Cast<UMirrorDataTable>(Object) ||
 		nullptr != Cast<USkeletalMesh>(Object) ||
-		nullptr != Cast<USkeletalMeshSocket>(Object) ||
-		nullptr != Cast<USkeleton>(Object) ||
 		nullptr != Cast<UStreamableRenderAsset>(Object);
 }
 

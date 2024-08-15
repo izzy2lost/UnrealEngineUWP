@@ -2278,7 +2278,11 @@ void FAsyncPoseSearchDatabasesManagement::Tick(float DeltaTime)
 					{
 						UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - Loaded the wrong amount of data!"));
 					}
-					else if (TestSample.SerializedData.Num() != LoadedData.Num() || FMemory::Memcmp(TestSample.SerializedData.GetData(), LoadedData.GetData(), TestSample.SerializedData.Num()) != 0)
+					else if (TestSample.SerializedData.Num() != LoadedData.Num())
+					{
+						UE_LOG(LogPoseSearch, Error, TEXT("FAnimationAssetSampler - Loaded data mismatch expected amount of data!"));
+					}
+					else if (FMemory::Memcmp(TestSample.SerializedData.GetData(), LoadedData.GetData(), TestSample.SerializedData.Num()) != 0)
 					{
 						const int32 NumTransforms = LoadedData.Num() / sizeof(FTransform);
 
