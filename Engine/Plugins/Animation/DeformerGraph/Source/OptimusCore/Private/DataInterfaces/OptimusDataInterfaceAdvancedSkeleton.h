@@ -192,6 +192,7 @@ struct FOptimusBoneTransformBuffer
 	TArray<int32> NumBones;
 
 	void SetData(FSkeletalMeshLODRenderData const* InLodRenderData, const TArray<FTransform>& InBoneTransforms);
+	bool HasData() const;
 
 	void AllocateResources(FRDGBuilder& GraphBuilder);
 };
