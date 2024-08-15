@@ -123,5 +123,28 @@ namespace EpicGames.Horde
 		public static IStorageClient CreateStorageClient(this IHordeClient hordeClient, ToolId toolId)
 			=> hordeClient.CreateStorageClient($"api/v1/tools/{toolId}");
 
+		/// <summary>
+		/// Reads a blob storage ref from a path
+		/// </summary>
+		public static async Task<IBlobRef?> TryReadRefAsync(this IHordeClient hordeClient, string path, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			ReadRefResponse? response = await hordeClient.CreateHttpClient().TryReadRefAsync(path, cacheTime, cancellationToken);
+			if (response == null)
+			{
+				return null;
+			}
+
+			IStorageClient storageClient = hordeClient.CreateStorageClient(response.BasePath);
+			return storageClient.CreateBlobRef(response.Target);
+		}
+
+		/// <summary>
+		/// Reads a typed blob storage ref from a path
+		/// </summary>
+		public static async Task<IBlobRef<T>?> TryReadRefAsync<T>(this IHordeClient hordeClient, string path, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			IBlobRef? blobRef = await hordeClient.TryReadRefAsync(path, cacheTime, cancellationToken);
+			return blobRef?.ForType<T>();
+		}
 	}
 }

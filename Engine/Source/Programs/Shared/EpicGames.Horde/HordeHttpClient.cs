@@ -3,7 +3,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Net;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -344,6 +346,43 @@ namespace EpicGames.Horde
 		public Task<GetServerInfoResponse> GetServerInfoAsync(CancellationToken cancellationToken = default)
 		{
 			return GetAsync<GetServerInfoResponse>(_httpClient, "api/v1/server/info", cancellationToken);
+		}
+
+		#endregion
+
+		#region Storage
+
+		/// <summary>
+		/// Attempts to read a named storage ref from the server
+		/// </summary>
+		/// <param name="path">Path to the ref</param>
+		/// <param name="cacheTime">Max allowed age for a cached value to be returned</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task<ReadRefResponse?> TryReadRefAsync(string path, RefCacheTime cacheTime = default, CancellationToken cancellationToken = default)
+		{
+			using (HttpRequestMessage request = new HttpRequestMessage(HttpMethod.Get, path))
+			{
+				if (cacheTime.IsSet())
+				{
+					request.Headers.CacheControl = new CacheControlHeaderValue { MaxAge = cacheTime.MaxAge };
+				}
+
+				using (HttpResponseMessage response = await _httpClient.SendAsync(request, cancellationToken))
+				{
+					if (response.StatusCode == HttpStatusCode.NotFound)
+					{
+						return null;
+					}
+					else if (!response.IsSuccessStatusCode)
+					{
+						throw new StorageException($"Unable to read ref '{path}' (status: {response.StatusCode}, body: {await response.Content.ReadAsStringAsync(cancellationToken)}");
+					}
+					else
+					{
+						return await response.Content.ReadFromJsonAsync<ReadRefResponse>(cancellationToken: cancellationToken);
+					}
+				}
+			}
 		}
 
 		#endregion

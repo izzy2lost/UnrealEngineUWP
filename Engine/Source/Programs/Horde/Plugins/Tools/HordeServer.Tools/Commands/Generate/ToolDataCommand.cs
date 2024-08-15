@@ -131,7 +131,7 @@ namespace HordeServer.Commands.Generate
 
 			return 0;
 		}
-
+		/*
 		static async Task PopulateCacheAsync(IStorageClient client, DedupeBlobWriter writer, DirectoryReference searchDir, CancellationToken cancellationToken)
 		{
 			foreach (RefName refName in FileStorageBackend.EnumerateRefs(searchDir))
@@ -148,5 +148,6 @@ namespace HordeServer.Commands.Generate
 				}
 			}
 		}
+		*/
 	}
 }
