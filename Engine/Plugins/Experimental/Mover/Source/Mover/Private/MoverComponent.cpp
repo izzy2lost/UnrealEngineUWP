@@ -196,8 +196,10 @@ void UMoverComponent::BeginPlay()
 		// If no primary visual component is already set, fall back to searching for any kind of mesh
 		if (!PrimaryVisualComponent)
 		{
-			PrimaryVisualComponent = MyActor->FindComponentByClass<UMeshComponent>();
+			SetPrimaryVisualComponent(MyActor->FindComponentByClass<UMeshComponent>());
 		}
+
+		ensureMsgf(UpdatedComponent && (PrimaryVisualComponent != UpdatedComponent), TEXT("A Mover actor must have an UpdatedComponent and cannot have a PrimaryVisualComponent that is the same as UpdatedComponent"));
 
 		// Optional motion warping support
 		if (UMotionWarpingComponent* WarpingComp = MyActor->FindComponentByClass<UMotionWarpingComponent>())
@@ -1401,6 +1403,13 @@ USceneComponent* UMoverComponent::GetPrimaryVisualComponent() const
 	return PrimaryVisualComponent.Get();
 }
 
+void UMoverComponent::SetPrimaryVisualComponent(USceneComponent* SceneComponent)
+{
+	if (ensure(SceneComponent->GetOwner() == GetOwner()))
+	{
+		PrimaryVisualComponent = SceneComponent;
+	}
+}
 
 FVector UMoverComponent::GetVelocity() const
 { 

@@ -272,6 +272,10 @@ public:	// Queries
 		return Cast<T>(GetPrimaryVisualComponent());
 	}
 
+	// Sets this Mover actor's primary visual component. Must be a descendant of the updated component that acts as our movement root. 
+	UFUNCTION(BlueprintCallable, Category=Mover)
+	void SetPrimaryVisualComponent(USceneComponent* SceneComponent);
+
 	// Get the current velocity (units per second, worldspace)
 	UFUNCTION(BlueprintPure, Category = Mover)
 	FVector GetVelocity() const;
