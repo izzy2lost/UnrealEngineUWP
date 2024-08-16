@@ -54,6 +54,14 @@ void UMoverNetworkPredictionLiaisonComponent::RestoreFrame(const FMoverSyncState
 void UMoverNetworkPredictionLiaisonComponent::FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
 {
 	check(MoverComp);
+
+	const FNetworkPredictionSettings NetworkPredictionSettings = UNetworkPredictionWorldManager::ActiveInstance->GetSettings();
+	if (MoverComp->GetOwnerRole() == ROLE_SimulatedProxy && NetworkPredictionSettings.SimulatedProxyNetworkLOD == ENetworkLOD::Interpolated)
+	{
+		FMoverInputCmdContext InputCmd;
+		MoverComp->TickInterpolatedSimProxy(MoverComp->GetLastTimeStep(), InputCmd, MoverComp, MoverComp->GetSyncState(), *SyncState, *AuxState);
+	}
+	
 	MoverComp->FinalizeFrame(SyncState, AuxState);
 }
 

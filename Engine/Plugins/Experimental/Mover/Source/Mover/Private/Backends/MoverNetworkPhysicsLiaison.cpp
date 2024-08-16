@@ -833,7 +833,9 @@ void UMoverNetworkPhysicsLiaisonComponent::ProcessInputs_Internal(int32 PhysicsS
 				// Rollback mover state if on the first resimulation frame
 				if (bLocalPlayer && bIsSolverResim && bIsFirstResimFrame)
 				{
+					FMoverAuxStateContext UnusedInvalidAuxState;
 					FMoverAuxStateContext UnusedAuxState;
+					MoverComp->OnSimulationPreRollback(&NetSyncState, &Input.SyncState, &UnusedInvalidAuxState, &UnusedAuxState);
 					MoverComp->OnSimulationRollback(&Input.SyncState, &UnusedAuxState);
 				}
 			}

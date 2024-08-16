@@ -8,6 +8,7 @@
 #include "MoverTypes.h"
 #include "MoveLibrary/MovementRecord.h"
 #include "LayeredMove.h"
+#include "MovementModifier.h"
 #include "MoverDataModelTypes.h"
 #include "UObject/Interface.h"
 #include "MoverSimulationTypes.generated.h"
@@ -107,12 +108,16 @@ struct MOVER_API FMoverSyncState
 public:
 
 	// The mode we ended up in from the prior frame, and which we'll start in during the next frame
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Mover)
 	FName MovementMode;
 
 	// Additional moves influencing our proposed motion
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Mover)
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Mover)
 	FLayeredMoveGroup LayeredMoves;
+
+	// Additional modifiers influencing our simulation
+	UPROPERTY(BlueprintReadOnly, VisibleAnywhere, Category = Mover)
+	FMovementModifierGroup MovementModifiers;
 
 	UPROPERTY(BlueprintReadWrite, Category = Mover)
 	FMoverDataCollection SyncStateCollection;
@@ -129,6 +134,7 @@ public:
 	{
 		P.Ar << MovementMode;
 		LayeredMoves.NetSerialize(P.Ar);
+		MovementModifiers.NetSerialize(P.Ar);
 
 		bool bIgnoredResult(false);
 		SyncStateCollection.NetSerialize(P.Ar, nullptr, bIgnoredResult);
@@ -138,6 +144,7 @@ public:
 	{
 		Out.Appendf("MovementMode: %s\n", TCHAR_TO_ANSI(*MovementMode.ToString()));
 		Out.Appendf("Layered Moves: %s\n", TCHAR_TO_ANSI(*LayeredMoves.ToSimpleString()));
+		Out.Appendf("Movement Modifiers: %s\n", TCHAR_TO_ANSI(*MovementModifiers.ToSimpleString()));
 		SyncStateCollection.ToString(Out);
 	}
 
@@ -151,6 +158,7 @@ public:
 	{
 		MovementMode = To->MovementMode;
 		LayeredMoves = To->LayeredMoves;
+		MovementModifiers = To->MovementModifiers;
 
 		SyncStateCollection.Interpolate(From->SyncStateCollection, To->SyncStateCollection, Pct);
 	}

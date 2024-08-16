@@ -15,6 +15,7 @@
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
 #include "Engine/HitResult.h"
 #endif // UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_4
+#include "MovementModifier.h"
 #include "Backends/MoverBackendLiaison.h"
 #include "UObject/WeakInterfacePtr.h"
 #include "MoverComponent.generated.h"
@@ -119,6 +120,9 @@ public:
 	// Take output for simulation. Called by Network Prediction system.
 	void FinalizeFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 
+	// This is an opportunity to run code on the code on the simproxy in interpolated mode - currently used to help activate and deactivate modifiers on the simproxy in interpolated mode
+	void TickInterpolatedSimProxy(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, UMoverComponent* MoverComp, const FMoverSyncState& CachedSyncState, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState);
+	
 	// Seed initial values based on component's state. Called by Network Prediction system.
 	void InitializeSimulationState(FMoverSyncState* OutSync, FMoverAuxStateContext* OutAux);
 
@@ -162,6 +166,24 @@ public:
 
 	// Queue a layered move to start during the next simulation frame
 	void QueueLayeredMove(TSharedPtr<FLayeredMoveBase> Move);
+	
+	/**
+ 	 * Queue a Movement Modifier to start during the next simulation frame. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
+ 	 * @param MovementModifier The modifier to queue, which must be a LayeredMoveBase sub-type.
+ 	 * @return Returns a Modifier handle that can be used to query or cancel the movement modifier
+ 	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "MoveAsRawData", AllowAbstract = "false", DisplayName = "Queue Movement Modifier"))
+	FMovementModifierHandle K2_QueueMovementModifier(UPARAM(DisplayName="Movement Modifier") const int32& MoveAsRawData);
+	DECLARE_FUNCTION(execK2_QueueMovementModifier);
+
+	// Queue a Movement Modifier to start during the next simulation frame.
+	FMovementModifierHandle QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier);
+	
+	/**
+	 * Cancel any active or queued Modifiers with the handle passed in.
+	 */
+	UFUNCTION(BlueprintCallable, Category = Mover)
+	void CancelModifierFromHandle(FMovementModifierHandle ModifierHandle);
 	
 	/**
 	 * Queue a Instant Movement Effect to start at the end of this frame or start of the next subtick - whichever happens first. This will clone whatever move you pass in, so you'll need to fully set it up before queuing.
@@ -303,6 +325,10 @@ public:	// Queries
 	UFUNCTION(BlueprintPure, Category = Mover)
 	const FMoverInputCmdContext& GetLastInputCmd() const;
 
+	// Get the most recent TimeStep
+	UFUNCTION(BlueprintPure, Category = Mover)
+	const FMoverTimeStep& GetLastTimeStep() const;
+
 	// Access the most recent floor check hit result.
 	UFUNCTION(BlueprintPure, Category = Mover)
 	bool TryGetFloorCheckHitResult(FHitResult& OutHitResult) const;
@@ -363,6 +389,24 @@ public:	// Queries
 		return nullptr;
 	}
 
+	
+	/**
+	 * Retrieves Movement modifier by writing to a target instance if it is the matching type. Note: Writing to the struct returned will not modify the active struct.
+	 * @param ModifierHandle		Handle of the modifier we're trying to cancel
+	 * @param bFoundModifier		Flag indicating whether modifier was found and data was actually written to target struct instance
+	 * @param TargetAsRawBytes		The data struct instance to write to, which must be a FMovementModifierBase sub-type
+	 */
+	UFUNCTION(BlueprintCallable, CustomThunk, Category = Mover, meta = (CustomStructureParam = "TargetAsRawBytes", AllowAbstract = "false", DisplayName = "Find Movement Modifier"))
+	void K2_FindMovementModifier(FMovementModifierHandle ModifierHandle, bool& bFoundModifier, UPARAM(DisplayName = "Out Movement Modifier") int32& TargetAsRawBytes) const;
+	DECLARE_FUNCTION(execK2_FindMovementModifier);
+
+	// Checks if the modifier handle passed in is active or queued on this mover component
+	UFUNCTION(BlueprintPure, Category = Mover)
+	bool IsModifierActiveOrQueued(const FMovementModifierHandle& ModifierHandle) const;
+	
+	// Find movement modifier by it's handle. Returns nullptr if the modifier couldn't be found
+	const FMovementModifierBase* FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const;
+	
 protected:
 
 	/** Makes this component and owner actor reflect the state of a particular frame snapshot. This occurs after simulation ticking, as well as during a rollback before we resimulate forward.
@@ -382,6 +426,9 @@ protected:
 	void SetUpdatedComponent(USceneComponent* NewUpdatedComponent);
 	void UpdateTickRegistration();
 
+	/** Called when a rollback occurs, before the simulation state has been restored */
+	void OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState);
+	
 	/** Called when a rollback occurs, after the simulation state has been restored */
 	void OnSimulationRollback(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState);
 

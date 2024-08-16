@@ -261,6 +261,9 @@ void UMoverComponent::ProduceInput(const int32 DeltaTimeMS, FMoverInputCmdContex
 
 void UMoverComponent::RestoreFrame(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState)
 {
+	const FMoverSyncState& InvalidSyncState = GetSyncState();
+	const FMoverAuxStateContext& InvalidAuxState = CachedLastAuxState;
+	OnSimulationPreRollback(&InvalidSyncState, SyncState, &InvalidAuxState, AuxState);
 	SetFrameStateFromContext(SyncState, AuxState, /* rebase? */ true);
 	OnSimulationRollback(SyncState, AuxState);
 }
@@ -285,6 +288,76 @@ void UMoverComponent::FinalizeFrame(const FMoverSyncState* SyncState, const FMov
 		CachedLastSimTickTimeStep.BaseSimTimeMs = BackendLiaisonComp->GetCurrentSimTimeMs();
 		CachedLastSimTickTimeStep.ServerFrame = BackendLiaisonComp->GetCurrentSimFrame();
 		bHasValidCachedState = true;
+	}
+}
+
+void UMoverComponent::TickInterpolatedSimProxy(const FMoverTimeStep& TimeStep, const FMoverInputCmdContext& InputCmd, UMoverComponent* MoverComp, const FMoverSyncState& CachedSyncState, const FMoverSyncState& SyncState, const FMoverAuxStateContext& AuxState)
+{
+	TArray<TSharedPtr<FMovementModifierBase>> ModifiersToStart;
+	TArray<TSharedPtr<FMovementModifierBase>> ModifiersToEnd;
+
+	for (auto ModifierFromSyncStateIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+	{
+		const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+		
+		bool bContainsModifier = false;
+		for (auto ModifierFromCacheIt = CachedSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromCache = *ModifierFromCacheIt;
+			
+			if (ModifierFromSyncState->Matches(ModifierFromCache.Get()))
+			{
+				bContainsModifier = true;
+				break;
+			}
+		}
+
+		if (!bContainsModifier)
+		{
+			ModifiersToStart.Add(ModifierFromSyncState);
+		}
+	}
+
+	for (auto ModifierFromCacheIt = CachedSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromCacheIt; ++ModifierFromCacheIt)
+	{
+		const TSharedPtr<FMovementModifierBase> ModifierFromCache = *ModifierFromCacheIt;
+		
+		bool bContainsModifier = false;
+		for (auto ModifierFromSyncStateIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+			
+			if (ModifierFromSyncState->Matches(ModifierFromCache.Get()))
+			{
+				bContainsModifier = true;
+				break;
+			}
+		}
+
+		if (!bContainsModifier)
+		{
+			ModifiersToEnd.Add(ModifierFromCache);
+		}
+	}
+
+	for (TSharedPtr<FMovementModifierBase> Modifier : ModifiersToStart)
+	{
+		Modifier->GenerateHandle();
+		Modifier->OnStart(MoverComp, TimeStep, SyncState, AuxState);
+	}
+
+	for (auto ModifierIt = SyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierIt; ++ModifierIt)
+	{
+		if (ModifierIt->IsValid())
+		{
+			ModifierIt->Get()->OnPreMovement(this, TimeStep);
+			ModifierIt->Get()->OnPostMovement(this, TimeStep, SyncState, AuxState);
+		}
+	}
+
+	for (TSharedPtr<FMovementModifierBase> Modifier : ModifiersToEnd)
+	{
+		Modifier->OnEnd(MoverComp, TimeStep, SyncState, AuxState);
 	}
 }
 
@@ -432,6 +505,104 @@ void UMoverComponent::SimulationTick(const FMoverTimeStep& InTimeStep, const FMo
 UBaseMovementMode* UMoverComponent::FindMovementMode(TSubclassOf<UBaseMovementMode> MovementMode) const
 {
 	return FindMode_Mutable(MovementMode);
+}
+
+void UMoverComponent::K2_FindMovementModifier(FMovementModifierHandle ModifierHandle, bool& bFoundModifier, int32& TargetAsRawBytes) const
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_FindMovementModifier)
+{
+	P_GET_STRUCT(FMovementModifierHandle, ModifierHandle);
+	P_GET_UBOOL_REF(bFoundModifier);
+
+	Stack.MostRecentPropertyAddress = nullptr;
+	Stack.MostRecentPropertyContainer = nullptr;
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	
+	void* ModifierPtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	bFoundModifier = false;
+	
+	if (!ModifierPtr)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_UnresolvedTarget", "Failed to resolve the OutLayeredMove for GetActiveLayeredMove")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp)
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_TargetNotStruct", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. It must be a Struct and a child of FLayeredMoveBase.")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else if (!StructProp->Struct || !StructProp->Struct->IsChildOf(FMovementModifierBase::StaticStruct()))
+	{
+		FBlueprintExceptionInfo ExceptionInfo(
+			EBlueprintExceptionType::AbortExecution,
+			LOCTEXT("MoverComponent_GetActiveLayeredMove_BadType", "GetActiveLayeredMove: Target for OutLayeredMove is not a valid type. Must be a child of FLayeredMoveBase.")
+		);
+	
+		FBlueprintCoreDelegates::ThrowScriptException(P_THIS, Stack, ExceptionInfo);
+	}
+	else
+	{
+		P_NATIVE_BEGIN;
+		
+		if (const FMovementModifierBase* FoundActiveMove = P_THIS->FindMovementModifier(ModifierHandle))
+		{
+			StructProp->Struct->CopyScriptStruct(ModifierPtr, FoundActiveMove);
+			bFoundModifier = true;
+		}
+
+		P_NATIVE_END;
+	}
+}
+
+bool UMoverComponent::IsModifierActiveOrQueued(const FMovementModifierHandle& ModifierHandle) const
+{
+	return FindMovementModifier(ModifierHandle) ? true : false;
+}
+
+const FMovementModifierBase* UMoverComponent::FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const
+{
+	if (bHasValidCachedState)
+	{
+		// Check active modifiers for modifier handle
+		for (auto ActiveModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ActiveModifierFromSyncStateIt; ++ActiveModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ActiveModifierFromSyncState = *ActiveModifierFromSyncStateIt;
+
+			if (ModifierHandle == ActiveModifierFromSyncState->GetHandle())
+			{
+				return ActiveModifierFromSyncState.Get();
+			}
+		}
+
+		// Check queued modifiers for modifier handle
+		for (auto QueuedModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); QueuedModifierFromSyncStateIt; ++QueuedModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> QueuedModifierFromSyncState = *QueuedModifierFromSyncStateIt;
+
+			if (ModifierHandle == QueuedModifierFromSyncState->GetHandle())
+			{
+				return QueuedModifierFromSyncState.Get();
+			}
+		}
+	}
+	
+	return nullptr;
 }
 
 void UMoverComponent::SetFrameStateFromContext(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState, bool bRebaseBasedState)
@@ -624,6 +795,11 @@ void UMoverComponent::UpdateTickRegistration()
 {
 	const bool bHasUpdatedComponent = (UpdatedComponent != NULL);
 	SetComponentTickEnabled(bHasUpdatedComponent && bAutoActivate);
+}
+
+void UMoverComponent::OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState)
+{
+	ModeFSM->OnSimulationPreRollback(InvalidSyncState, SyncState, InvalidAuxState, AuxState);
 }
 
 
@@ -916,6 +1092,49 @@ DEFINE_FUNCTION(UMoverComponent::execK2_QueueLayeredMove)
 void UMoverComponent::QueueLayeredMove(TSharedPtr<FLayeredMoveBase> LayeredMove)
 {	
 	ModeFSM->QueueLayeredMove(LayeredMove);
+}
+
+FMovementModifierHandle UMoverComponent::K2_QueueMovementModifier(const int32& MoveAsRawData)
+{
+	// This will never be called, the exec version below will be hit instead
+	checkNoEntry();
+	return 0;
+}
+
+DEFINE_FUNCTION(UMoverComponent::execK2_QueueMovementModifier)
+{
+	Stack.StepCompiledIn<FStructProperty>(nullptr);
+	void* MovePtr = Stack.MostRecentPropertyAddress;
+	FStructProperty* StructProp = CastField<FStructProperty>(Stack.MostRecentProperty);
+
+	P_FINISH;
+
+	P_NATIVE_BEGIN;
+
+	const bool bHasValidStructProp = StructProp && StructProp->Struct && StructProp->Struct->IsChildOf(FMovementModifierBase::StaticStruct());
+
+	if (ensureMsgf((bHasValidStructProp && MovePtr), TEXT("An invalid type (%s) was sent to a QueueMovementModifier node. A struct derived from FMovementModifierBase is required. No modifier will be queued."),
+		StructProp ? *GetNameSafe(StructProp->Struct) : *Stack.MostRecentProperty->GetClass()->GetName()))
+	{
+		// Could we steal this instead of cloning? (move semantics)
+		FMovementModifierBase* MoveAsBasePtr = reinterpret_cast<FMovementModifierBase*>(MovePtr);
+		FMovementModifierBase* ClonedMove = MoveAsBasePtr->Clone();
+
+		FMovementModifierHandle ModifierID = P_THIS->QueueMovementModifier(TSharedPtr<FMovementModifierBase>(ClonedMove));
+		*static_cast<FMovementModifierHandle*>(RESULT_PARAM) = ModifierID;
+	}
+
+	P_NATIVE_END;
+}
+
+FMovementModifierHandle UMoverComponent::QueueMovementModifier(TSharedPtr<FMovementModifierBase> Modifier)
+{
+	return ModeFSM->QueueMovementModifier(Modifier);
+}
+
+void UMoverComponent::CancelModifierFromHandle(FMovementModifierHandle ModifierHandle)
+{
+	ModeFSM->CancelModifierFromHandle(ModifierHandle);
 }
 
 void UMoverComponent::K2_QueueInstantMovementEffect(const int32& EffectAsRawData)
@@ -1497,6 +1716,11 @@ const FMoverInputCmdContext& UMoverComponent::GetLastInputCmd() const
 	}
 
 	return CachedLastUsedInputCmd;
+}
+
+const FMoverTimeStep& UMoverComponent::GetLastTimeStep() const
+{
+	return CachedLastSimTickTimeStep;
 }
 
 IMovementSettingsInterface* UMoverComponent::FindSharedSettings_Mutable(const UClass* ByType) const
