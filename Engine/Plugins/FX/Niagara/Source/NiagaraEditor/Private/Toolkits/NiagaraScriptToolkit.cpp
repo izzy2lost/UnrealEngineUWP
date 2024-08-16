@@ -357,6 +357,12 @@ void FNiagaraScriptToolkit::InitViewWithVersionedData()
 		RefreshDetailsPanelDelegate
 	);
 
+	// As the input preview panel is bound to the previously edited niagara script, make sure to remove delegates before the script view model points to the new version
+	if(InputPreviewPanel)
+	{
+		InputPreviewPanel->RemoveDelegates();
+	}
+	
 	ScriptViewModel->Initialize(EditedNiagaraScript, OriginalNiagaraScript);
 	ScriptViewModel->GetGraphViewModel()->SetDisplayName(GetGraphEditorDisplayName());
 	if (ParameterPanelViewModel)
@@ -379,6 +385,18 @@ void FNiagaraScriptToolkit::InitViewWithVersionedData()
 	{
 		DetailsView->SetObjects(DetailsScriptSelection->GetSelectedObjectsResolved().Array(), true);
 	}
+	
+	if(ParametersHierarchyViewModel)
+	{
+		ParametersHierarchyViewModel->Finalize();
+		ParametersHierarchyViewModel->Initialize(ScriptViewModel.ToSharedRef());
+	}
+
+	if(InputPreviewPanel)
+	{
+		InputPreviewPanel->SetupDelegates();
+		InputPreviewPanel->Refresh();
+	}	
 
 	// add listeners
 	OnEditedScriptGraphChangedHandle = ScriptViewModel->GetGraphViewModel()->GetGraph()->AddOnGraphNeedsRecompileHandler(
@@ -570,7 +588,7 @@ TSharedRef<SDockTab> FNiagaraScriptToolkit::SpawnTabInputsPreview(const FSpawnTa
 			]
 			+ SVerticalBox::Slot()
 			[
-				SNew(SNiagaraScriptInputPreviewPanel, *Cast<UNiagaraScriptSource>(EditedNiagaraScript.GetScriptData()->GetSource())->NodeGraph->GetScriptParameterHierarchyRoot(), FNiagaraScriptToolkit::SharedThis(this), ScriptViewModel->GetVariableSelection())
+				SAssignNew(InputPreviewPanel, SNiagaraScriptInputPreviewPanel, FNiagaraScriptToolkit::SharedThis(this), ScriptViewModel->GetVariableSelection())
 			]
 		];
 

@@ -29,6 +29,7 @@ class FNiagaraStandaloneScriptViewModel;
 class FNiagaraScriptToolkitParameterPanelViewModel;
 class FNiagaraScriptToolkitParameterDefinitionsPanelViewModel;
 class SNiagaraSelectedObjectsDetails;
+class SNiagaraScriptInputPreviewPanel;
 
 /** Viewer/editor for a DataTable */
 class FNiagaraScriptToolkit : public FAssetEditorToolkit, public FGCObject, public FTickableEditorObject, public FEditorUndoClient
@@ -205,6 +206,7 @@ private:
 	bool bShowedEditingVersionWarning = false;
 
 	TSharedPtr<class SNiagaraScriptGraph> NiagaraScriptGraphWidget;
+	TSharedPtr<SNiagaraScriptInputPreviewPanel> InputPreviewPanel;
 	TSharedPtr<class IDetailsView> DetailsView;
 	TObjectPtr<UNiagaraVersionMetaData> VersionMetadata = nullptr;
 	FText GetGraphEditorDisplayName() const;

@@ -21,9 +21,8 @@ BEGIN_SLATE_FUNCTION_BUILD_OPTIMIZATION
 
 #define LOCTEXT_NAMESPACE "NiagaraEditor"
 
-void SNiagaraScriptInputPreviewPanel::Construct(const FArguments& InArgs, UNiagaraHierarchyRoot& InRoot, TSharedRef<FNiagaraScriptToolkit> InScriptToolkit, TSharedRef<FNiagaraObjectSelection> InVariableObjectSelection)
+void SNiagaraScriptInputPreviewPanel::Construct(const FArguments& InArgs, TSharedRef<FNiagaraScriptToolkit> InScriptToolkit, TSharedRef<FNiagaraObjectSelection> InVariableObjectSelection)
 {
-	Root = &InRoot;
 	ScriptToolkit = InScriptToolkit;
 	VariableObjectSelection = InVariableObjectSelection;
 
@@ -74,6 +73,12 @@ SNiagaraScriptInputPreviewPanel::~SNiagaraScriptInputPreviewPanel()
 
 void SNiagaraScriptInputPreviewPanel::Refresh()
 {
+	if(ScriptToolkit.IsValid() == false || ScriptToolkit.Pin()->GetHierarchyViewModel() == nullptr || ScriptToolkit.Pin()->GetHierarchyViewModel()->GetHierarchyRoot() == nullptr)
+	{
+		return;
+	}
+	
+	TWeakObjectPtr<UNiagaraHierarchyRoot> Root = ScriptToolkit.Pin()->GetHierarchyViewModel()->GetHierarchyRoot();
 	if(Root.IsValid())
 	{
 		TransientLeftoverParameters.Empty();
@@ -130,7 +135,7 @@ TSharedRef<ITableRow> SNiagaraScriptInputPreviewPanel::OnGenerateRow(UNiagaraHie
 		.Padding(FMargin(0.f, 6.f))
 		[
 			SNew(SRichTextBlock)
-			.Text(FText::FromString(Item->ToString()))
+			.Text_UObject(Item, &UNiagaraHierarchyItemBase::ToText)
 			.TextStyle(&FNiagaraEditorStyle::Get().GetWidgetStyle<FTextBlockStyle>("NiagaraEditor.Parameters.HeaderText"))
 		];
 	}

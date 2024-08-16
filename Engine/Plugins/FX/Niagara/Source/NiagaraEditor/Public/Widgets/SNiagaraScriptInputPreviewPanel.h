@@ -24,14 +24,13 @@ public:
 
 	SLATE_END_ARGS()
 	
-	void Construct(const FArguments& InArgs, UNiagaraHierarchyRoot& InRoot, TSharedRef<FNiagaraScriptToolkit> InScriptToolkit, TSharedRef<FNiagaraObjectSelection> InVariableObjectSelection);
+	void Construct(const FArguments& InArgs, TSharedRef<FNiagaraScriptToolkit> InScriptToolkit, TSharedRef<FNiagaraObjectSelection> InVariableObjectSelection);
 	virtual ~SNiagaraScriptInputPreviewPanel() override;
 	
 	void Refresh();
-private:
 	void SetupDelegates();
 	void RemoveDelegates();
-		
+private:
 	TSharedRef<ITableRow> OnGenerateRow(UNiagaraHierarchyItemBase* Item, const TSharedRef<STableViewBase>& TableViewBase) const;
 	void OnGetChildren(UNiagaraHierarchyItemBase* Item, TArray<UNiagaraHierarchyItemBase*>& OutChildren) const;
 	void OnParametersChanged(TOptional<UNiagaraGraph::FParametersChangedData> ParametersChangedData);
@@ -72,7 +71,6 @@ private:
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
 private:
-	TWeakObjectPtr<UNiagaraHierarchyRoot> Root;
 	TArray<UNiagaraHierarchyItemBase*> RootArray;
 	TWeakPtr<FNiagaraScriptToolkit> ScriptToolkit;
 	TWeakPtr<FNiagaraObjectSelection> VariableObjectSelection;

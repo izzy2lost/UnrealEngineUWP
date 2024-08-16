@@ -127,7 +127,8 @@ public:
 	void SortChildren(const PREDICATE_CLASS& Predicate, bool bRecursive = false);
 	
 	virtual FString ToString() const { return GetName(); }
-
+	FText ToText() const { return FText::FromString(ToString()); }
+	
 	/** An identity can be optionally set to create a mapping from previously existing guids or names to hierarchy items that represent them. */
 	void SetIdentity(FNiagaraHierarchyIdentity InIdentity) { Identity = InIdentity; }
 	FNiagaraHierarchyIdentity GetPersistentIdentity() const { return Identity; }
