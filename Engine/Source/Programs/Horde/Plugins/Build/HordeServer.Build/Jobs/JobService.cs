@@ -15,7 +15,6 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Users;
 using HordeServer.Agents;
 using HordeServer.Commits;
-using HordeServer.Issues;
 using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
@@ -81,7 +80,6 @@ namespace HordeServer.Jobs
 		readonly JobTaskSource _jobTaskSource;
 		readonly IStreamCollection _streamCollection;
 		readonly ITemplateCollection _templateCollection;
-		readonly IssueService? _issueService;
 		readonly IPerforceService _perforceService;
 		readonly IOptionsMonitor<BuildConfig> _buildConfig;
 		readonly Tracer _tracer;
@@ -117,7 +115,7 @@ namespace HordeServer.Jobs
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IssueService issueService, IPerforceService perforceService, Tracer tracer, IOptionsMonitor<BuildConfig> buildConfig, ILogger<JobService> logger)
+		public JobService(IJobCollection jobs, IGraphCollection graphs, IAgentCollection agents, IJobStepRefCollection jobStepRefs, IBisectTaskCollection bisectTasks, IJobTimingCollection jobTimings, IUserCollection userCollection, INotificationTriggerCollection triggerCollection, JobTaskSource jobTaskSource, IStreamCollection streamCollection, ITemplateCollection templateCollection, IPerforceService perforceService, Tracer tracer, IOptionsMonitor<BuildConfig> buildConfig, ILogger<JobService> logger)
 		{
 			_jobs = jobs;
 			_graphs = graphs;
@@ -130,7 +128,6 @@ namespace HordeServer.Jobs
 			_jobTaskSource = jobTaskSource;
 			_streamCollection = streamCollection;
 			_templateCollection = templateCollection;
-			_issueService = issueService;
 			_perforceService = perforceService;
 			_buildConfig = buildConfig;
 			_tracer = tracer;
@@ -976,6 +973,17 @@ namespace HordeServer.Jobs
 						}
 					}
 
+					// Update the jobstep ref if it completed
+					if (newState == JobStepState.Running || newState == JobStepState.Completed || newState == JobStepState.Aborted)
+					{
+						using TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateStepAsync)}.UpdateJobStepRef");
+						if (job.TryGetBatch(batchId, out IJobStepBatch? batch) && batch.TryGetStep(stepId, out IJobStep? step) && step.StartTimeUtc != null)
+						{
+							await _jobStepRefs.UpdateAsync(job, batch, step, graph);
+							await _bisectTasks.UpdateAsync(job, batch, step, graph, cancellationToken: cancellationToken);
+						}
+					}
+
 					// Notify subscribers
 					if (newState == JobStepState.Completed)
 					{
@@ -1002,34 +1010,6 @@ namespace HordeServer.Jobs
 										job = await FireJobTriggerAsync(job, graph, jobTrigger, streamConfig) ?? job;
 									}
 								}
-							}
-						}
-					}
-
-					// Update the jobstep ref if it completed
-					if (newState == JobStepState.Running || newState == JobStepState.Completed || newState == JobStepState.Aborted)
-					{
-						using TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateStepAsync)}.UpdateJobStepRef");
-						if (job.TryGetBatch(batchId, out IJobStepBatch? batch) && batch.TryGetStep(stepId, out IJobStep? step) && step.StartTimeUtc != null)
-						{
-							await _jobStepRefs.UpdateAsync(job, batch, step, graph);
-							await _bisectTasks.UpdateAsync(job, batch, step, graph, cancellationToken: cancellationToken);
-						}
-					}
-
-					// Update any issues that depend on this step
-					if (newState == JobStepState.Completed && job.UpdateIssues)
-					{
-						if (_issueService != null)
-						{
-							using TelemetrySpan _ = _tracer.StartActiveSpan($"{nameof(JobService)}.{nameof(TryUpdateStepAsync)}.UpdateIssuesV2");
-							try
-							{
-								await _issueService.UpdateCompleteStepAsync(job, graph, batchId, stepId, cancellationToken);
-							}
-							catch (Exception ex)
-							{
-								_logger.LogError(ex, "Exception while updating issue service for job {JobId}:{BatchId}:{StepId}: {Message}", job.Id, batchId, stepId, ex.Message);
 							}
 						}
 					}

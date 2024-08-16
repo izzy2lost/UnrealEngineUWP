@@ -18,9 +18,10 @@ namespace EpicGames.Redis.Utility
 		/// <param name="multiplexer">Multiplexer for the connection</param>
 		/// <param name="queueKey">Key for the queue</param>
 		/// <param name="eventChannel">Channel to use for posting update notifications</param>
-		public static async Task<RedisQueue<T>> CreateAsync<T>(IConnectionMultiplexer multiplexer, RedisKey queueKey, RedisChannel eventChannel)
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public static async Task<RedisQueue<T>> CreateAsync<T>(IConnectionMultiplexer multiplexer, RedisKey queueKey, RedisChannel eventChannel, CancellationToken cancellationToken = default)
 		{
-			RedisEvent asyncEvent = await RedisEvent.CreateAsync(multiplexer, eventChannel);
+			RedisEvent asyncEvent = await RedisEvent.CreateAsync(multiplexer, eventChannel, cancellationToken);
 			return new RedisQueue<T>(multiplexer, asyncEvent, new RedisListKey<T>(queueKey));
 		}
 	}
@@ -61,8 +62,10 @@ namespace EpicGames.Redis.Utility
 		/// <summary>
 		/// Attempt to pop an item from the front of the queue. Returns the default value for the item if the queue is empty.
 		/// </summary>
-		public async Task<T> TryPopAsync()
+		public async Task<T> TryPopAsync(CancellationToken cancellationToken = default)
 		{
+			_ = cancellationToken; // Don't currently support cancellation due to potential of items being dropped
+
 			IDatabase database = _multiplexer.GetDatabase();
 			return await database.ListLeftPopAsync(_listKey);
 		}

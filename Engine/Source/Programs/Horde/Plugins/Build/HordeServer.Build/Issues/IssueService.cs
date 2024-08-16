@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using EpicGames.Core;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Issues;
@@ -16,6 +17,7 @@ using HordeServer.Commits;
 using HordeServer.Jobs;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Logs;
+using HordeServer.Server;
 using HordeServer.Streams;
 using HordeServer.Users;
 using Microsoft.Extensions.DependencyInjection;
@@ -192,6 +194,9 @@ namespace HordeServer.Issues
 		/// </summary>
 		const int MaxChanges = 1000;
 
+		record class CompleteStep(JobId JobId, JobStepBatchId BatchId, JobStepId StepId);
+
+		readonly JobService _jobService;
 		readonly IJobStepRefCollection _jobStepRefs;
 		readonly IIssueCollection _issueCollection;
 		readonly ICommitService _commitService;
@@ -200,6 +205,8 @@ namespace HordeServer.Issues
 		readonly ILogCollection _logCollection;
 		readonly IClock _clock;
 		readonly ITicker _ticker;
+		readonly Channel<CompleteStep> _completeSteps;
+		readonly BackgroundTask _completeStepUpdateTask;
 
 		/// <summary>
 		/// Accessor for the issue collection
@@ -249,7 +256,7 @@ namespace HordeServer.Issues
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public IssueService(IIssueCollection issueCollection, ICommitService commitService, IJobStepRefCollection jobStepRefs, IStreamCollection streams, IUserCollection userCollection, ILogCollection logCollection, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<IssueService> logger)
+		public IssueService(JobService jobService, IIssueCollection issueCollection, ICommitService commitService, IJobStepRefCollection jobStepRefs, IStreamCollection streams, IUserCollection userCollection, ILogCollection logCollection, IClock clock, IOptionsMonitor<BuildConfig> buildConfig, Tracer tracer, ILogger<IssueService> logger)
 		{
 			Type[] issueTypes = Assembly.GetExecutingAssembly().GetTypes().Where(x => !x.IsAbstract && typeof(IIssue).IsAssignableFrom(x)).ToArray();
 			foreach (Type issueType in issueTypes)
@@ -258,6 +265,7 @@ namespace HordeServer.Issues
 			}
 
 			// Get all the collections
+			_jobService = jobService;
 			_issueCollection = issueCollection;
 			_commitService = commitService;
 			_jobStepRefs = jobStepRefs;
@@ -266,6 +274,8 @@ namespace HordeServer.Issues
 			_logCollection = logCollection;
 			_clock = clock;
 			_ticker = clock.AddTicker<IssueService>(TimeSpan.FromMinutes(1.0), TickAsync, logger);
+			_completeSteps = Channel.CreateUnbounded<CompleteStep>(new UnboundedChannelOptions { SingleReader = true });
+			_completeStepUpdateTask = new BackgroundTask(UpdateCompleteStepsAsync);
 			_buildConfig = buildConfig;
 			_tracer = tracer;
 			_logger = logger;
@@ -284,15 +294,38 @@ namespace HordeServer.Issues
 		}
 
 		/// <inheritdoc/>
-		public Task StartAsync(CancellationToken cancellationToken) => _ticker.StartAsync();
+		public async Task StartAsync(CancellationToken cancellationToken)
+		{
+			_jobService.OnJobStepComplete += OnJobStepComplete;
+
+			_completeStepUpdateTask.Start();
+			await _ticker.StartAsync();
+		}
 
 		/// <inheritdoc/>
-		public Task StopAsync(CancellationToken cancellationToken) => _ticker.StopAsync();
+		public async Task StopAsync(CancellationToken cancellationToken)
+		{
+			await _ticker.StopAsync();
+
+			_completeSteps.Writer.TryComplete();
+			await _completeStepUpdateTask.WaitAsync(cancellationToken);
+
+			_jobService.OnJobStepComplete -= OnJobStepComplete;
+		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
 			await _ticker.DisposeAsync();
+			await _completeStepUpdateTask.DisposeAsync();
+		}
+
+		void OnJobStepComplete(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId)
+		{
+			if (job.UpdateIssues)
+			{
+				_completeSteps.Writer.TryWrite(new CompleteStep(job.Id, batchId, stepId));
+			}
 		}
 
 		/// <summary>
@@ -537,16 +570,30 @@ namespace HordeServer.Issues
 			return true;
 		}
 
-		/// <summary>
-		/// Marks a step as complete
-		/// </summary>
-		/// <param name="job">The job to update</param>
-		/// <param name="graph">Graph for the job</param>
-		/// <param name="batchId">Unique id of the batch</param>
-		/// <param name="stepId">Unique id of the step</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		public async Task UpdateCompleteStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, CancellationToken cancellationToken = default)
+		async Task UpdateCompleteStepsAsync(CancellationToken cancellationToken)
+		{
+			while (await _completeSteps.Reader.WaitToReadAsync(cancellationToken))
+			{
+				CompleteStep? completeStep;
+				if (_completeSteps.Reader.TryRead(out completeStep))
+				{
+					IJob? job = await _jobService.GetJobAsync(completeStep.JobId, cancellationToken);
+					if (job != null)
+					{
+						try
+						{
+							await UpdateCompleteStepAsync(job, job.Graph, completeStep.BatchId, completeStep.StepId, CancellationToken.None);
+						}
+						catch (Exception ex)
+						{
+							_logger.LogError(ex, "Exception while updating issues for {JobId}:{BatchId}:{StepId} - {Message}", completeStep.JobId, completeStep.BatchId, completeStep.StepId, ex.Message);
+						}
+					}
+				}
+			}
+		}
+
+		internal async Task UpdateCompleteStepAsync(IJob job, IGraph graph, JobStepBatchId batchId, JobStepId stepId, CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(IssueService)}.{nameof(UpdateCompleteStepAsync)}");
 			span.SetAttribute("jobId", job.Id.ToString());
@@ -1128,7 +1175,7 @@ namespace HordeServer.Issues
 				// If a fix changelist has been specified and it's not valid, clear it out
 				if (newVerifiedAt == null && newResolvedAt != null)
 				{
-					if(await HasFixFailedAsync(spans, issue.FixCommitId, newResolvedAt.Value, newStreams, cancellationToken))
+					if (await HasFixFailedAsync(spans, issue.FixCommitId, newResolvedAt.Value, newStreams, cancellationToken))
 					{
 						newStreams.ForEach(x => x.ContainsFix = null);
 						newResolvedAt = null;

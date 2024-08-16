@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Core;
 using StackExchange.Redis;
@@ -38,12 +39,20 @@ namespace EpicGames.Redis
 		/// Create a new async event using the given channel name
 		/// </summary>
 		/// <param name="multiplexer">Multiplexer for the </param>
-		/// <param name="channel"></param>
+		/// <param name="channel">Channel for posting event updates</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns></returns>
-		public static async Task<RedisEvent> CreateAsync(IConnectionMultiplexer multiplexer, RedisChannel channel)
+		public static async Task<RedisEvent> CreateAsync(IConnectionMultiplexer multiplexer, RedisChannel channel, CancellationToken cancellationToken = default)
 		{
 			AsyncEvent asyncEvent = new AsyncEvent();
+
 			RedisSubscription subscription = await multiplexer.SubscribeAsync(channel, x => asyncEvent.Pulse());
+			if (cancellationToken.IsCancellationRequested)
+			{
+				await subscription.DisposeAsync();
+				cancellationToken.ThrowIfCancellationRequested();
+			}
+
 			return new RedisEvent(multiplexer, channel, asyncEvent, subscription);
 		}
 
