@@ -524,7 +524,8 @@ const TCHAR* FPropertyReplicationState::ToString(FStringBuilderBase& StringBuild
 
 			if (bIncludeAll || IsDirty(MemberIt))
 			{
-				Property->ExportTextItem_Direct(TempString, StateBuffer + Descriptor->MemberDescriptors[MemberIt].ExternalMemberOffset, nullptr, nullptr, PPF_SimpleObjectText);
+				void* PropertyData = StateBuffer + Descriptor->MemberDescriptors[MemberIt].ExternalMemberOffset;
+				Property->ExportTextItem_Direct(TempString, PropertyData, PropertyData, nullptr, PPF_SimpleObjectText|PPF_IncludeTransient|PPF_UseDeprecatedProperties);
 				StringBuilder.Appendf(TEXT("%u - %s : %s\n"), MemberIt, *Property->GetName(), ToCStr(TempString));
 				TempString.Reset();
 			}
