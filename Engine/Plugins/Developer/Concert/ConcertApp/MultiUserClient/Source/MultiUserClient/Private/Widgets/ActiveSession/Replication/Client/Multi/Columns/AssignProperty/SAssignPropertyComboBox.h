@@ -23,6 +23,11 @@ namespace UE::MultiUserClient::Replication
 {
 	class FOnlineClient;
 	class FOnlineClientManager;
+}
+
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
+{
+	class FAssignPropertyModel;
 	
 	/**
 	 * Placed in every property row column to assign properties to clients.
@@ -56,12 +61,15 @@ namespace UE::MultiUserClient::Replication
 		void Construct(const FArguments& InArgs,
            TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
            TSharedRef<IConcertClient> InConcertClient,
-           FOnlineClientManager& InClientManager
+           FOnlineClientManager& InClientManager,
+           FAssignPropertyModel& InModel UE_LIFETIMEBOUND
 		);
 
 	private:
 
 		FOnlineClientManager* ClientManager = nullptr;
+		/** The model this view is displaying. */
+		FAssignPropertyModel* Model = nullptr;
 		
 		/** Used to obtain info about the streams */
 		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor;
@@ -98,9 +106,6 @@ namespace UE::MultiUserClient::Replication
 		void OnClickClear();
 		/** Whether the property is assigned to any client */
 		bool CanClickClear() const;
-
-		/** Unassigns this widget's property from all clients passing the predicate and removes the object from the model if it is a subobject. */
-		void UnassignPropertyFromClients(TFunctionRef<bool(const FOnlineClient& Client)> ShouldRemoveFromClient) const;
 
 		/** Resubscribes to all clients changing. */
 		void RebuildSubscriptions();

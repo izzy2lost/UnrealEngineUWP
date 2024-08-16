@@ -11,6 +11,8 @@
 #include "Algo/AnyOf.h"
 #include "Async/Async.h"
 
+#include <type_traits>
+
 #define LOCTEXT_NAMESPACE "FReassignObjectPropertiesLogic"
 
 namespace UE::MultiUserClient::Replication::ReassignObjectProperties

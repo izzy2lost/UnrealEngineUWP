@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "MultiStreamColumns.h"
+#include "AssignPropertyModel.h"
 
 #include "IConcertClient.h"
 #include "MultiUserReplicationStyle.h"
@@ -96,6 +96,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 				: MultiStreamEditor(MoveTemp(MultiStreamEditor))
 				, ConcertClient(MoveTemp(ConcertClient))
 				, ClientManager(ClientManager)
+				, Model(ClientManager)
 			{}
 			
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
@@ -109,7 +110,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				const TArray<TSoftObjectPtr<>> DisplayedObjects = InArgs.RowItem.RowData.GetContextObjects();
-				return SNew(SAssignPropertyComboBox, MultiStreamEditor.Get().ToSharedRef(), ConcertClient, ClientManager)
+				return SNew(SAssignPropertyComboBox, MultiStreamEditor.Get().ToSharedRef(), ConcertClient, ClientManager, Model)
 					.DisplayedProperty(InArgs.RowItem.RowData.GetProperty())
 					.EditedObjects(DisplayedObjects)
 					.HighlightText(InArgs.HighlightText)
@@ -153,6 +154,9 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			const TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor;
 			const TSharedRef<IConcertClient> ConcertClient;
 			FOnlineClientManager& ClientManager;
+
+			/** The model the view displays. */
+			FAssignPropertyModel Model;
 		};
 		
 		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());

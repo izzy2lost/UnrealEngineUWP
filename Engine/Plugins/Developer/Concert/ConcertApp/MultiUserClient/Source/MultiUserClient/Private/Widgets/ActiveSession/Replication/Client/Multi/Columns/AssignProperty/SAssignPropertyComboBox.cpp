@@ -2,11 +2,10 @@
 
 #include "SAssignPropertyComboBox.h"
 
-#include "ConcertLogGlobal.h"
+#include "AssignPropertyModel.h"
 #include "IConcertClient.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
@@ -15,18 +14,14 @@
 #include "Widgets/Client/SLocalClientName.h"
 #include "Widgets/Client/SRemoteClientName.h"
 
-#include "Algo/AnyOf.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "GameFramework/Actor.h"
-#include "UObject/Class.h"
-#include "ScopedTransaction.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SComboButton.h"
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
-namespace UE::MultiUserClient::Replication
+namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	namespace AssignPropertyComboBox
 	{
@@ -78,12 +73,14 @@ namespace UE::MultiUserClient::Replication
 	void SAssignPropertyComboBox::Construct(const FArguments& InArgs,
 	    TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
 	    TSharedRef<IConcertClient> InConcertClient,
-	    FOnlineClientManager& InClientManager
+	    FOnlineClientManager& InClientManager,
+	    FAssignPropertyModel& InModel
 	)
 	{
 		Editor = MoveTemp(InEditor);
 		ConcertClient = MoveTemp(InConcertClient);
 		ClientManager = &InClientManager;
+		Model = &InModel;
 		
 		Property = InArgs._DisplayedProperty;
 		EditedObjects = InArgs._EditedObjects;
@@ -108,7 +105,7 @@ namespace UE::MultiUserClient::Replication
 			.OnGetMenuContent(this, &SAssignPropertyComboBox::GetMenuContent)
 		];
 
-		ClientManager->OnRemoteClientsChanged().AddSP(this, &SAssignPropertyComboBox::RebuildSubscriptionsAndRefresh);
+		Model->OnOwnershipChanged().AddSP(this, &SAssignPropertyComboBox::RebuildSubscriptionsAndRefresh);
 		RebuildSubscriptions();
 		RefreshContentBoxContent();
 	}
@@ -193,168 +190,35 @@ namespace UE::MultiUserClient::Replication
 	
 	void SAssignPropertyComboBox::OnClickOption(const FGuid EndpointId) const
 	{
-		// Remote clients can disconnect after the combo-box is opened.
-		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
-		if (!Client)
-		{
-			return;
-		}
-		
-		const FText TransactionText = FText::Format(LOCTEXT("AllClientsAssignFmt", "Assign {0} property"), FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty)));
-		FScopedTransaction Transaction(TransactionText);
-
-		const ECheckBoxState CheckBoxState = GetOptionCheckState(EndpointId);
-		const bool bRemovePropertyFromEditedClient = CheckBoxState == ECheckBoxState::Checked;
-		
-		// To make it simpler for the user, at most one client is supposed to be assigned to the object at any given time so ...
-		if (bRemovePropertyFromEditedClient)
-		{
-			// ... remove property from all clients
-			UnassignPropertyFromClients([](const FOnlineClient& ClientToRemoveFrom){ return true; });
-		}
-		else
-		{
-			// ... remove the property from all clients but the one we'll assign to ...
-			UnassignPropertyFromClients([Client](const FOnlineClient& ClientToRemoveFrom){ return *Client != ClientToRemoveFrom; });
-
-			// ... and then assign the property
-			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
-			for (const TSoftObjectPtr<>& Object : EditedObjects)
-			{
-				const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
-				if (!EditModel->ContainsObjects({ ObjectPath }))
-				{
-					EditModel->AddObjects({ Object.Get() });
-				}
-
-				const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
-				TArray AddedProperties { Property };
-				ConcertClientSharedSlate::PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, AddedProperties);
-				EditModel->AddProperties(ObjectPath, AddedProperties);
-			}
-		}
-		
+		Model->TogglePropertyFor(EndpointId, EditedObjects, Property);
 		OnOptionClickedDelegate.ExecuteIfBound();
 	}
 
-#define SET_REASON(Text) if (Reason) { *Reason = Text; }
 	bool SAssignPropertyComboBox::CanClickOptionWithReason(const FGuid& EndpointId, FText* Reason) const
 	{
-		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
-		// Remote clients can disconnect after the combo-box is opened.
-		if (!Client)
-		{
-			SET_REASON(LOCTEXT("ClientDisconnected", "Client disconnected."));
-			return false;
-		}
-		
-		return true;
+		return Model->CanChangePropertyFor(EndpointId, Reason);
 	}
-#undef SET_REASON
 	
 	ECheckBoxState SAssignPropertyComboBox::GetOptionCheckState(const FGuid EndpointId) const
 	{
-		const FOnlineClient* Client = ClientManager->FindClient(EndpointId);
-		// Remote clients can disconnect after the combo-box is opened.
-		if (!Client)
+		switch (Model->GetPropertyOwnershipState(EndpointId,EditedObjects, Property))
 		{
-			return ECheckBoxState::Unchecked;
+		case EPropertyOnObjectsOwnershipState::OwnedOnAllObjects: return ECheckBoxState::Checked;
+		case EPropertyOnObjectsOwnershipState::NotOwnedOnAllObjects: return ECheckBoxState::Unchecked;
+		case EPropertyOnObjectsOwnershipState::Mixed: return ECheckBoxState::Undetermined;
+		default: return ECheckBoxState::Undetermined;
 		}
-
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client->GetClientEditModel();
-		ECheckBoxState CheckBoxState = ECheckBoxState::Undetermined;
-		for (const TSoftObjectPtr<>& ObjectPath : EditedObjects)
-		{
-			const bool bHasProperty = Model->HasProperty(ObjectPath.GetUniqueID(), Property);
-			switch (CheckBoxState)
-			{
-			case ECheckBoxState::Unchecked:
-				if (bHasProperty)
-				{
-					return ECheckBoxState::Undetermined;
-				}
-				break;
-			case ECheckBoxState::Checked:
-				if (!bHasProperty)
-				{
-					return ECheckBoxState::Undetermined;
-				}
-				break;
-			case ECheckBoxState::Undetermined:
-				CheckBoxState = bHasProperty ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-				break;
-			default: ;
-			}
-		}
-
-		return CheckBoxState;
 	}
 
 	void SAssignPropertyComboBox::OnClickClear()
 	{
-		const FText TransactionText = FText::Format(LOCTEXT("ClearAllClientsFmt", "Clear {0} property"), FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty)));
-		FScopedTransaction Transaction(TransactionText);
-
-		UnassignPropertyFromClients([](const FOnlineClient& ClientToRemoveFrom){ return true; });
+		Model->ClearProperty(EditedObjects, Property);
 		OnOptionClickedDelegate.ExecuteIfBound();
 	}
 
 	bool SAssignPropertyComboBox::CanClickClear() const
 	{
-		bool bIsAssignedToAnyClient = false;
-		ClientManager->ForEachClient([this, &bIsAssignedToAnyClient](const FOnlineClient& Client)
-		{
-			for (const TSoftObjectPtr<>& EditedObject : EditedObjects)
-			{
-				if (bIsAssignedToAnyClient)
-				{
-					break;
-				}
-				
-				const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client.GetClientEditModel();
-				const bool bHasProperty = Model->HasProperty(EditedObject.GetUniqueID(), Property);
-				bIsAssignedToAnyClient |= bHasProperty;
-			}
-			
-			return bIsAssignedToAnyClient ? EBreakBehavior::Break : EBreakBehavior::Continue;
-		});
-		return bIsAssignedToAnyClient;
-	}
-
-	void SAssignPropertyComboBox::UnassignPropertyFromClients(TFunctionRef<bool(const FOnlineClient& Client)> ShouldRemoveFromClient) const
-	{
-		ClientManager->ForEachClient([this, &ShouldRemoveFromClient](const FOnlineClient& ClientToRemoveFrom)
-		{
-			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
-			if (ShouldRemoveFromClient(ClientToRemoveFrom))
-			{
-				for (const TSoftObjectPtr<>& Object : EditedObjects)
-				{
-					const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
-					const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
-					EditModel->RemoveProperties(ObjectPath, { Property });
-					
-					if (EditModel->HasAnyPropertyAssigned(ObjectPath))
-					{
-						continue;
-					}
-
-					// We want to remove subobjects that have no properties. Retain actors because they cause their entire component / subobject hierarchy to be displayed.
-					// Skipping this check would close the entire property tree view and remove the actor hierarchy from the view.
-					// That would feel very unnatural / unexpected for the user. 
-					// If the user does not want the actor anymore, they should click it and delete it.
-					const UClass* ObjectClass = ClassPath.IsValid() ? ClassPath.TryLoadClass<UObject>() : nullptr;
-					UE_CLOG(ClassPath.IsValid() && !ObjectClass, LogConcert, Warning, TEXT("SAssignPropertyComboBox: Failed to resolve class %s"), *ClassPath.ToString());
-					const bool bIsTopLevelObject = ObjectClass && !ObjectClass->IsChildOf<AActor>();
-					if (bIsTopLevelObject)
-					{
-						EditModel->RemoveObjects({ ObjectPath });
-					}
-				}
-			}
-			
-			return EBreakBehavior::Continue;
-		});
+		return Model->CanClear(EditedObjects, Property);
 	}
 
 	void SAssignPropertyComboBox::RebuildSubscriptions()

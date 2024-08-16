@@ -9,6 +9,8 @@
 #include "Containers/Array.h"
 #include "Misc/Guid.h"
 
+#include <type_traits>
+
 namespace UE::MultiUserClient::Replication::MultiStreamColumns::Private
 {
 	template<typename TCallback> requires std::is_invocable_v<TCallback, const FGuid&>
