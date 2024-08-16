@@ -980,8 +980,6 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	 * @return true if any of the elements in the property bindings contains any of the structs in the set.
 	 */
 	bool ContainsAnyStruct(const TSet<const UStruct*>& Structs);
-	
-	void DebugPrintInternalLayout(FString& OutString) const;
 
 	/** @return how properties are compatible for copying. */
 	static EStateTreePropertyAccessCompatibility GetPropertyCompatibility(const FProperty* FromProperty, const FProperty* ToProperty);
@@ -1006,6 +1004,13 @@ struct STATETREEMODULE_API FStateTreePropertyBindings
 	{
 		return false;
 	}
+
+	UE_DEPRECATED(5.5, "DebugPrintInternalLayout is deprecated. Use GetDebugInfo instead.")
+	void DebugPrintInternalLayout(FString& OutString) const;
+
+#if WITH_EDITOR || WITH_STATETREE_DEBUG
+	[[nodiscard]] FString DebugInternalLayoutAsString() const;
+#endif
 
 private:
 	[[nodiscard]] bool ResolvePath(const UStruct* Struct, const FStateTreePropertyPath& Path, FStateTreePropertyIndirection& OutFirstIndirection, FStateTreePropertyPathIndirection& OutLeafIndirection);

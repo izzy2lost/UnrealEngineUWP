@@ -2057,7 +2057,7 @@ void FStateTreeExecutionContext::StateCompleted()
 							STATETREE_LOG(VeryVerbose, TEXT("%*sSkipped 'StateCompleted' for disabled Task: '%s'"), UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
 							continue;
 						}
-						
+
 						STATETREE_LOG(Verbose, TEXT("%*s  Task '%s'"), Index*UE::StateTree::DebugIndentSize, TEXT(""), *Task.Name.ToString());
 						Task.StateCompleted(*this, Exec.LastTickStatus, CurrentFrame.ActiveStates);
 					}
@@ -2915,8 +2915,8 @@ void FStateTreeExecutionContext::EvaluatePropertyFunctionsWithValidation(const F
 
 FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 {
-	FStringBuilderBase StrBuilder;
-	
+	TStringBuilder<512> StrBuilder;
+
 	if (EventQueue)
 	{
 		for (const FStateTreeSharedEvent& Event : EventQueue->GetEventsView())
@@ -2925,7 +2925,7 @@ FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 			{
 				if (StrBuilder.Len() > 0)
 				{
-					StrBuilder += TEXT(", ");
+					StrBuilder << TEXT(", ");
 				}
 
 				const bool bHasTag = Event->Tag.IsValid();
@@ -2933,26 +2933,30 @@ FString FStateTreeExecutionContext::DebugGetEventsAsString() const
 			
 				if (bHasTag || bHasPayload)
 				{
-					StrBuilder.Appendf(TEXT("("));
+					StrBuilder << (TEXT('('));
 				
 					if (bHasTag)
 					{
-						StrBuilder.Appendf(TEXT("Tag: '%s'"), *Event->Tag.ToString()); 
+						StrBuilder << TEXT("Tag: '");
+						StrBuilder << Event->Tag.GetTagName();
+						StrBuilder << TEXT('\'');
 					}
 					if (bHasTag && bHasPayload)
 					{
-						StrBuilder.Appendf(TEXT(", "));
+						StrBuilder << TEXT(", ");
 					}
 					if (bHasPayload)
 					{
-						StrBuilder.Appendf(TEXT(" Payload: '%s'"), *Event->Payload.GetScriptStruct()->GetName()); 
+						StrBuilder << TEXT(" Payload: '");
+						StrBuilder << Event->Payload.GetScriptStruct()->GetFName();
+						StrBuilder << TEXT('\'');
 					}
-					StrBuilder.Appendf(TEXT(") "));
+					StrBuilder << TEXT(") ");
 				}
 			}
 		}
 	}
-	
+
 	return StrBuilder.ToString();
 }
 
@@ -4470,53 +4474,46 @@ TConstArrayView<FStateTreeExecutionFrame> FStateTreeExecutionContext::GetActiveF
 
 FString FStateTreeExecutionContext::GetDebugInfoString() const
 {
-
-	FString DebugString = FString::Printf(TEXT("StateTree (asset: '%s')\n"), *GetFullNameSafe(&RootStateTree));
+	TStringBuilder<2048> DebugString;
+	DebugString << TEXT("StateTree (asset: '");
+	RootStateTree.GetFullName(DebugString);
+	DebugString << TEXT("')");
 
 	if (IsValid())
 	{
 		const FStateTreeExecutionState& Exec = GetExecState();
 
-		DebugString += TEXT("Status: ");
-		switch (Exec.TreeRunStatus)
-		{
-		case EStateTreeRunStatus::Failed:
-			DebugString += TEXT("Failed\n");
-			break;
-		case EStateTreeRunStatus::Succeeded:
-			DebugString += TEXT("Succeeded\n");
-			break;
-		case EStateTreeRunStatus::Running:
-			DebugString += TEXT("Running\n");
-			break;
-		default:
-			DebugString += TEXT("--\n");
-		}
+		DebugString << TEXT("Status: ");
+		DebugString << UEnum::GetDisplayValueAsText(Exec.TreeRunStatus).ToString();
+		DebugString << TEXT("\n");
 
 		// Active States
-		DebugString += TEXT("Current State:\n");
+		DebugString << TEXT("Current State:\n");
 		for (const FStateTreeExecutionFrame& CurrentFrame : Exec.ActiveFrames)
 		{
 			const UStateTree* CurrentStateTree = CurrentFrame.StateTree;
 
 			if (CurrentFrame.bIsGlobalFrame)
 			{
-				DebugString += FString::Printf(TEXT("\nEvaluators\n  [ %-30s | %8s | %15s ]\n"),
+				DebugString.Appendf(TEXT("\nEvaluators\n  [ %-30s | %8s | %15s ]\n"),
 					TEXT("Name"), TEXT("Bindings"), TEXT("Data Handle"));
 				for (int32 EvalIndex = CurrentStateTree->EvaluatorsBegin; EvalIndex < (CurrentStateTree->EvaluatorsBegin + CurrentStateTree->EvaluatorsNum); EvalIndex++)
 				{
 					const FStateTreeEvaluatorBase& Eval = CurrentStateTree->Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
-					DebugString += FString::Printf(TEXT("| %-30s | %8d | %15s |\n"),
+					DebugString.Appendf(TEXT("| %-30s | %8d | %15s |\n"),
 						*Eval.Name.ToString(), Eval.BindingsBatch.Get(), *Eval.InstanceDataHandle.Describe());
 				}
 
-				DebugString += FString::Printf(TEXT("\nGlobal Tasks\n"));
+				DebugString << TEXT("\nGlobal Tasks\n");
 				for (int32 TaskIndex = CurrentStateTree->GlobalTasksBegin; TaskIndex < (CurrentStateTree->GlobalTasksBegin + CurrentStateTree->GlobalTasksNum); TaskIndex++)
 				{
 					const FStateTreeTaskBase& Task = CurrentStateTree->Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
 					if (Task.bTaskEnabled)
 					{
-						Task.AppendDebugInfoString(DebugString, *this);
+						FString TempString;
+						Task.AppendDebugInfoString(TempString, *this);
+						DebugString << TempString;
+
 					}
 				}
 			}
@@ -4527,7 +4524,9 @@ FString FStateTreeExecutionContext::GetDebugInfoString() const
 				if (Handle.IsValid())
 				{
 					const FCompactStateTreeState& State = RootStateTree.States[Handle.Index];
-					DebugString += FString::Printf(TEXT("[%s]\n"), *State.Name.ToString());
+					DebugString << TEXT('[');
+					DebugString << State.Name;
+					DebugString << TEXT("]\n");
 
 					if (State.TasksNum > 0)
 					{
@@ -4537,7 +4536,9 @@ FString FStateTreeExecutionContext::GetDebugInfoString() const
 							const FStateTreeTaskBase& Task = RootStateTree.Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
 							if (Task.bTaskEnabled)
 							{
-								Task.AppendDebugInfoString(DebugString, *this);
+								FString TempString;
+								Task.AppendDebugInfoString(TempString, *this);
+								DebugString << TempString;
 							}
 						}
 					}
@@ -4547,10 +4548,10 @@ FString FStateTreeExecutionContext::GetDebugInfoString() const
 	}
 	else
 	{
-		DebugString += TEXT("StateTree context is not initialized properly.");
+		DebugString << TEXT("StateTree context is not initialized properly.");
 	}
 
-	return DebugString;
+	return DebugString.ToString();
 }
 #endif // WITH_GAMEPLAY_DEBUGGER
 
@@ -4558,106 +4559,7 @@ FString FStateTreeExecutionContext::GetDebugInfoString() const
 void FStateTreeExecutionContext::DebugPrintInternalLayout()
 {
 	LOG_SCOPE_VERBOSITY_OVERRIDE(LogStateTree, ELogVerbosity::Log);
-
-	// @todo: this looks like more a UStateTree thing...
-	
-	FString DebugString = FString::Printf(TEXT("StateTree (asset: '%s')\n"), *GetFullNameSafe(&RootStateTree));
-
-	// Tree items (e.g. tasks, evaluators, conditions)
-	DebugString += FString::Printf(TEXT("\nItems(%d)\n"), RootStateTree.Nodes.Num());
-	for (int32 Index = 0; Index < RootStateTree.Nodes.Num(); Index++)
-	{
-		const FConstStructView Node = RootStateTree.Nodes[Index];
-		DebugString += FString::Printf(TEXT("  %s\n"), Node.IsValid() ? *Node.GetScriptStruct()->GetName() : TEXT("null"));
-	}
-
-	// Instance InstanceData data (e.g. tasks)
-	DebugString += FString::Printf(TEXT("\nInstance Data(%d)\n"), RootStateTree.DefaultInstanceData.Num());
-	for (int32 Index = 0; Index < RootStateTree.DefaultInstanceData.Num(); Index++)
-	{
-		if (RootStateTree.DefaultInstanceData.IsObject(Index))
-		{
-			const UObject* Data = RootStateTree.DefaultInstanceData.GetObject(Index);
-			DebugString += FString::Printf(TEXT("  %s\n"), *GetNameSafe(Data));
-		}
-		else
-		{
-			const FConstStructView Data = RootStateTree.DefaultInstanceData.GetStruct(Index);
-			DebugString += FString::Printf(TEXT("  %s\n"), Data.IsValid() ? *Data.GetScriptStruct()->GetName() : TEXT("null"));
-		}
-	}
-
-	// External data (e.g. fragments, subsystems)
-	DebugString += FString::Printf(TEXT("\nExternal Data(%d)\n  [ %-40s | %-8s | %15s ]\n"), RootStateTree.ExternalDataDescs.Num(), TEXT("Name"), TEXT("Optional"), TEXT("Handle"));
-	for (const FStateTreeExternalDataDesc& Desc : RootStateTree.ExternalDataDescs)
-	{
-		DebugString += FString::Printf(TEXT("  | %-40s | %8s | %15s |\n"), Desc.Struct ? *Desc.Struct->GetName() : TEXT("null"), *UEnum::GetDisplayValueAsText(Desc.Requirement).ToString(), *Desc.Handle.DataHandle.Describe());
-	}
-
-	// Bindings
-	RootStateTree.PropertyBindings.DebugPrintInternalLayout(DebugString);
-
-	// Transitions
-	DebugString += FString::Printf(TEXT("\nTransitions(%d)\n  [ %-3s | %15s | %-20s | %-40s | %-40s | %-8s ]\n"), RootStateTree.Transitions.Num()
-		, TEXT("Idx"), TEXT("State"), TEXT("Transition Trigger"), TEXT("Transition Event Tag"), TEXT("Transition Event Payload"), TEXT("Num Cond"));
-	for (const FCompactStateTransition& Transition : RootStateTree.Transitions)
-	{
-		DebugString += FString::Printf(TEXT("  | %3d | %15s | %-20s | %-40s | %-40s | %8d |\n"),
-									Transition.ConditionsBegin, *Transition.State.Describe(),
-									*UEnum::GetDisplayValueAsText(Transition.Trigger).ToString(),
-									*Transition.RequiredEvent.Tag.ToString(),
-									Transition.RequiredEvent.PayloadStruct ? *Transition.RequiredEvent.PayloadStruct->GetName() : TEXT("None"),
-									Transition.ConditionsNum);
-	}
-
-	// States
-	DebugString += FString::Printf(TEXT("\nStates(%d)\n"
-		"  [ %-30s | %15s | %5s [%3s:%-3s[ | Begin Idx : %4s %4s %4s %4s | Num : %4s %4s %4s %4s | Transitions : %-16s %-40s %-16s %-40s ]\n"),
-		RootStateTree.States.Num(),
-		TEXT("Name"), TEXT("Parent"), TEXT("Child"), TEXT("Beg"), TEXT("End"),
-		TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Evt"), TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Evt"),
-		TEXT("Done State"), TEXT("Done Type"), TEXT("Failed State"), TEXT("Failed Type")
-		);
-	for (const FCompactStateTreeState& State : RootStateTree.States)
-	{
-		DebugString += FString::Printf(TEXT("  | %-30s | %15s | %5s [%3d:%-3d[ | %9s   %4d %4d %4d | %3s   %4d %4d %4d\n"),
-									*State.Name.ToString(), *State.Parent.Describe(),
-									TEXT(""), State.ChildrenBegin, State.ChildrenEnd,
-									TEXT(""), State.EnterConditionsBegin, State.TransitionsBegin, State.TasksBegin,
-									TEXT(""), State.EnterConditionsNum, State.TransitionsNum, State.TasksNum);
-	}
-
-	// Evaluators
-	if (RootStateTree.EvaluatorsNum)
-	{
-		DebugString += FString::Printf(TEXT("\nEvaluators\n  [ %-30s | %8s | %10s ]\n"),
-			TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
-		for (int32 EvalIndex = RootStateTree.EvaluatorsBegin; EvalIndex < (RootStateTree.EvaluatorsBegin + RootStateTree.EvaluatorsNum); EvalIndex++)
-		{
-			const FStateTreeEvaluatorBase& Eval = RootStateTree.Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
-			DebugString += FString::Printf(TEXT("| %-30s | %8d | %10s |\n"),
-				*Eval.Name.ToString(), Eval.BindingsBatch.Get(), *Eval.InstanceDataHandle.Describe());
-		}
-	}
-
-
-	DebugString += FString::Printf(TEXT("\nTasks\n  [ %-30s | %-30s | %8s | %10s ]\n"),
-		TEXT("State"), TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
-	for (const FCompactStateTreeState& State : RootStateTree.States)
-	{
-		// Tasks
-		if (State.TasksNum)
-		{
-			for (int32 TaskIndex = State.TasksBegin; TaskIndex < (State.TasksBegin + State.TasksNum); TaskIndex++)
-			{
-				const FStateTreeTaskBase& Task = RootStateTree.Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
-				DebugString += FString::Printf(TEXT("  | %-30s | %-30s | %8d | %10s |\n"), *State.Name.ToString(),
-					*Task.Name.ToString(), Task.BindingsBatch.Get(), *Task.InstanceDataHandle.Describe());
-			}
-		}
-	}
-
-	UE_LOG(LogStateTree, Log, TEXT("%s"), *DebugString);
+	UE_LOG(LogStateTree, Log, TEXT("%s"), *RootStateTree.DebugInternalLayoutAsString());
 }
 
 int32 FStateTreeExecutionContext::GetStateChangeCount() const
@@ -4686,7 +4588,7 @@ FString FStateTreeExecutionContext::GetActiveStateName() const
 
 	const FStateTreeExecutionState& Exec = GetExecState();
 
-	FString FullStateName;
+	TStringBuilder<1024> FullStateName;
 	
 	const UStateTree* LastStateTree = &RootStateTree;
 	int32 Indent = 0;
@@ -4699,12 +4601,15 @@ FString FStateTreeExecutionContext::GetActiveStateName() const
 		// Append linked state marker at the end of the previous line.
 		if (Indent > 0)
 		{
-			FullStateName += TEXT(" >");
+			FullStateName << TEXT(" >");
 		}
 		// If tree has changed, append that too.
 		if (CurrentFrame.StateTree != LastStateTree)
 		{
-			FullStateName.Appendf(TEXT(" [%s]"), *GetNameSafe(CurrentFrame.StateTree));
+			FullStateName << TEXT(" [");
+			FullStateName << CurrentFrame.StateTree.GetFName();
+			FullStateName << TEXT(']');
+
 			LastStateTree = CurrentFrame.StateTree;
 		}
 
@@ -4718,8 +4623,8 @@ FString FStateTreeExecutionContext::GetActiveStateName() const
 				{
 					FullStateName += TEXT("\n");
 				}
-				FullStateName += FString::Printf(TEXT("%*s-"), Indent * 3, TEXT("")); // Indent
-				FullStateName += *State.Name.ToString();
+				FullStateName.Appendf(TEXT("%*s-"), Indent * 3, TEXT("")); // Indent
+				FullStateName << State.Name;
 				Indent++;
 			}
 		}
@@ -4728,19 +4633,19 @@ FString FStateTreeExecutionContext::GetActiveStateName() const
 	switch (Exec.TreeRunStatus)
 	{
 	case EStateTreeRunStatus::Failed:
-		FullStateName += TEXT(" FAILED\n");
+		FullStateName << TEXT(" FAILED\n");
 		break;
 	case EStateTreeRunStatus::Succeeded:
-		FullStateName += TEXT(" SUCCEEDED\n");
+		FullStateName << TEXT(" SUCCEEDED\n");
 		break;
 	case EStateTreeRunStatus::Running:
 		// Empty
 		break;
 	default:
-		FullStateName += TEXT("--\n");
+		FullStateName << TEXT("--\n");
 	}
 
-	return FullStateName;
+	return FullStateName.ToString();
 }
 
 TArray<FName> FStateTreeExecutionContext::GetActiveStateNames() const

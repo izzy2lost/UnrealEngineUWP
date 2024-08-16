@@ -5,6 +5,7 @@
 #include "StateTreeAnyEnum.h"
 #include "StateTreeCompilerLog.h"
 #include "StateTreeEditorData.h"
+#include "StateTreeEditorModule.h"
 #include "StateTreeEvaluatorBase.h"
 #include "StateTreeTaskBase.h"
 #include "StateTreeConditionBase.h"
@@ -19,6 +20,12 @@
 
 namespace UE::StateTree::Compiler
 {
+	FAutoConsoleVariable CVarLogCompiledStateTree(
+		TEXT("StateTree.LogCompiledResult"),
+		false,
+		TEXT("After a StateTree compiles, log the internal content of the StateTree.")
+	);
+
 	// Helper archive that checks that the all instanced sub-objects have correct outer. 
 	class FCheckOutersArchive : public FArchiveUObject
 	{
@@ -347,7 +354,11 @@ bool FStateTreeCompiler::Compile(UStateTree& InStateTree)
 
 	UE::StateTree::Compiler::FCheckOutersArchive CheckOuters(*StateTree, *EditorData, Log);
 	StateTree->Serialize(CheckOuters);
-	
+
+	if (UE::StateTree::Compiler::CVarLogCompiledStateTree->GetBool())
+	{
+		UE_LOG(LogStateTreeEditor, Log, TEXT("%s"), *StateTree->DebugInternalLayoutAsString());
+	}
 
 	return true;
 }

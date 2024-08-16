@@ -1069,5 +1069,168 @@ void UStateTree::CompileIfChanged()
 		}
 	}
 }
-#endif // WITH_EDITOR
+#endif //WITH_EDITOR
+
+#if WITH_EDITOR || WITH_STATETREE_DEBUG
+FString UStateTree::DebugInternalLayoutAsString() const
+{
+	FStringBuilderBase DebugString;
+	DebugString << TEXT("StateTree (asset: '");
+	GetFullName(DebugString);
+	DebugString << TEXT("')\n");
+
+	auto PrintObjectNameSafe = [&DebugString](const UObject* Obj)
+		{
+			DebugString << TEXT("  ");
+			if (Obj)
+			{
+				DebugString << Obj->GetFName();
+			}
+			else
+			{
+				DebugString << TEXT("null");
+			}
+			DebugString << TEXT('\n');
+		};
+	auto PrintViewNameSafe = [&DebugString](const FConstStructView& View)
+		{
+			DebugString << TEXT("  ");
+			if (View.IsValid())
+			{
+				DebugString << View.GetScriptStruct()->GetFName();
+			}
+			else
+			{
+				DebugString << TEXT("null");
+			}
+			DebugString << TEXT('\n');
+		};
+
+	// Tree items (e.g. tasks, evaluators, conditions)
+	DebugString.Appendf(TEXT("\nNodes(%d)\n"), Nodes.Num());
+	for (int32 Index = 0; Index < Nodes.Num(); Index++)
+	{
+		const FConstStructView Node = Nodes[Index];
+		PrintViewNameSafe(Node);
+	}
+
+	// Instance InstanceData data (e.g. tasks)
+	DebugString.Appendf(TEXT("\nInstance Data(%d)\n"), DefaultInstanceData.Num());
+	for (int32 Index = 0; Index < DefaultInstanceData.Num(); Index++)
+	{
+		if (DefaultInstanceData.IsObject(Index))
+		{
+			const UObject* Data = DefaultInstanceData.GetObject(Index);
+			PrintObjectNameSafe(Data);
+		}
+		else
+		{
+			const FConstStructView Data = DefaultInstanceData.GetStruct(Index);
+			PrintViewNameSafe(Data);
+		}
+	}
+
+	// External data (e.g. fragments, subsystems)
+	DebugString.Appendf(TEXT("\nExternal Data(%d)\n"), ExternalDataDescs.Num());
+	if (ExternalDataDescs.Num())
+	{
+		DebugString.Appendf(TEXT("  [% -40s | % -8s | % 15s]\n"), TEXT("Name"), TEXT("Optional"), TEXT("Handle"));
+		for (const FStateTreeExternalDataDesc& Desc : ExternalDataDescs)
+		{
+			DebugString.Appendf(TEXT("  | %-40s | %8s | %15s |\n"), Desc.Struct ? *Desc.Struct->GetName() : TEXT("null"), *UEnum::GetDisplayValueAsText(Desc.Requirement).ToString(), *Desc.Handle.DataHandle.Describe());
+		}
+	}
+
+	// Bindings
+	DebugString << PropertyBindings.DebugInternalLayoutAsString();
+
+	// States
+	DebugString.Appendf(TEXT("\nStates(%d)\n"), States.Num());
+	if (States.Num())
+	{
+		DebugString.Appendf(TEXT("  [ %-30s | %15s | %5s [%3s:%-3s[ | Begin Idx : %4s %4s %4s %4s | Num : %4s %4s %4s %4s ]\n"),
+			TEXT("Name"), TEXT("Parent"), TEXT("Child"), TEXT("Beg"), TEXT("End"),
+			TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Uti"), TEXT("Cond"), TEXT("Tr"), TEXT("Tsk"), TEXT("Uti"));
+		for (const FCompactStateTreeState& State : States)
+		{
+			DebugString.Appendf(TEXT("  | %-30s | %15s | %5s [%3d:%-3d[ | %9s   %4d %4d %4d %4d | %3s   %4d %4d %4d %4d |\n"),
+				*State.Name.ToString(), *State.Parent.Describe(),
+				TEXT(""), State.ChildrenBegin, State.ChildrenEnd,
+				TEXT(""), State.EnterConditionsBegin, State.TransitionsBegin, State.TasksBegin, State.UtilityConsiderationsBegin,
+				TEXT(""), State.EnterConditionsNum, State.TransitionsNum, State.TasksNum, State.UtilityConsiderationsNum);
+		}
+	}
+
+	// Transitions
+	DebugString.Appendf(TEXT("\nTransitions(%d)\n"), Transitions.Num());
+	if (Transitions.Num())
+	{
+		DebugString.Appendf(TEXT("  [ %-3s | %15s | %-20s | %-40s | %-40s | %-8s ]\n")
+			, TEXT("Idx"), TEXT("State"), TEXT("Transition Trigger"), TEXT("Transition Event Tag"), TEXT("Transition Event Payload"), TEXT("Cond:Num"));
+		for (const FCompactStateTransition& Transition : Transitions)
+		{
+			DebugString.Appendf(TEXT("  | %3d | %15s | %-20s | %-40s | %-40s | %4d:%3d |\n"),
+				Transition.ConditionsBegin, *Transition.State.Describe(),
+				*UEnum::GetDisplayValueAsText(Transition.Trigger).ToString(),
+				*Transition.RequiredEvent.Tag.ToString(),
+				Transition.RequiredEvent.PayloadStruct ? *Transition.RequiredEvent.PayloadStruct->GetName() : TEXT("None"),
+				Transition.ConditionsBegin, Transition.ConditionsNum);
+		}
+	}
+
+	// Evaluators
+	DebugString.Appendf(TEXT("\nEvaluators(%d)\n"), EvaluatorsNum);
+	if (EvaluatorsNum)
+	{
+		DebugString.Appendf(TEXT("  [ %-30s | %8s | %10s ]\n"),
+			TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
+		for (int32 EvalIndex = EvaluatorsBegin; EvalIndex < (EvaluatorsBegin + EvaluatorsNum); EvalIndex++)
+		{
+			const FStateTreeEvaluatorBase& Eval = Nodes[EvalIndex].Get<const FStateTreeEvaluatorBase>();
+			DebugString.Appendf(TEXT("  | %-30s | %8d | %10s |\n"),
+				*Eval.Name.ToString(), Eval.BindingsBatch.Get(), *Eval.InstanceDataHandle.Describe());
+		}
+	}
+
+	// Tasks
+	DebugString.Appendf(TEXT("\nTasks\n  [ %-30s | %-30s | %8s | %10s ]\n"),
+		TEXT("State"), TEXT("Name"), TEXT("Bindings"), TEXT("Struct Idx"));
+	for (const FCompactStateTreeState& State : States)
+	{
+		if (State.TasksNum)
+		{
+			for (int32 TaskIndex = State.TasksBegin; TaskIndex < (State.TasksBegin + State.TasksNum); TaskIndex++)
+			{
+				const FStateTreeTaskBase& Task = Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+				DebugString.Appendf(TEXT("  | %-30s | %-30s | %8d | %10s |\n"),
+					*State.Name.ToString(), *Task.Name.ToString(), Task.BindingsBatch.Get(), *Task.InstanceDataHandle.Describe());
+			}
+		}
+	}
+	for (int32 TaskIndex = GlobalTasksBegin; TaskIndex < (GlobalTasksBegin + GlobalTasksNum); TaskIndex++)
+	{
+		const FStateTreeTaskBase& Task = Nodes[TaskIndex].Get<const FStateTreeTaskBase>();
+		DebugString.Appendf(TEXT("  | %-30s | %-30s | %8d | %10s |\n"),
+			TEXT("Global"), *Task.Name.ToString(), Task.BindingsBatch.Get(), *Task.InstanceDataHandle.Describe());
+	}
+
+	// Conditions
+	DebugString.Appendf(TEXT("\nCondition\n  [ %-30s | %-30s | %8s | %12s | %10s ]\n"),
+		TEXT("State"), TEXT("Name"), TEXT("Operand"), TEXT("Evaluation"), TEXT("Struct Idx"));
+	for (const FCompactStateTreeState& State : States)
+	{
+		if (State.EnterConditionsNum)
+		{
+			for (int32 CondIndex = State.EnterConditionsBegin; CondIndex < (State.EnterConditionsBegin + State.EnterConditionsNum); CondIndex++)
+			{
+				const FStateTreeConditionBase& Cond = Nodes[CondIndex].Get<const FStateTreeConditionBase>();
+				DebugString.Appendf(TEXT("  | %-30s | %-30s | %8s | %12s | %10s |\n"),
+					*State.Name.ToString(), *Cond.Name.ToString(), *UEnum::GetDisplayValueAsText(Cond.Operand).ToString(), *UEnum::GetDisplayValueAsText(Cond.EvaluationMode).ToString(), *Cond.InstanceDataHandle.Describe());
+			}
+		}
+	}
+
+	return DebugString.ToString();
+}
+#endif // WITH_EDITOR || WITH_STATETREE_DEBUG
 

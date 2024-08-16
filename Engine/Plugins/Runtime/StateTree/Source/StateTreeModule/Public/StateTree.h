@@ -178,6 +178,12 @@ public:
 
 	/** Compile the state trees if the editor hash data as changed since the last compilation. */
 	void CompileIfChanged();
+
+#endif
+
+#if WITH_EDITOR || WITH_STATETREE_DEBUG
+	/** @return the internal content of the state tree compiled asset. */
+	[[nodiscard]] FString DebugInternalLayoutAsString() const;
 #endif
 
 #if WITH_EDITORONLY_DATA
@@ -293,7 +299,6 @@ private:
 	 */
 	UPROPERTY()
 	FInstancedPropertyBag Parameters;
-
 
 	/** Number of context data, include parameters and all context data. */
 	UPROPERTY()
