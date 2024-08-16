@@ -598,9 +598,12 @@ void FCustomizableObjectInstanceEditor::OnInstancePropertySelectionChanged(FProp
 void FCustomizableObjectInstanceEditor::OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance)
 {
 	check(CustomizableObjectInstance)
+	
+	if (Instance->GetPrivate()->SkeletalMeshStatus != ESkeletalMeshStatus::Success)
+	{
+		Actor->GetRootComponent()->SetVisibility(false, true);
+	}
 
-	const bool bVisible = CustomizableObjectInstance->GetPrivate()->SkeletalMeshStatus == ESkeletalMeshStatus::Success;
-	Actor->GetRootComponent()->SetVisibility(bVisible, true);
 	Actor->GetRootComponent()->UpdateBounds();
 	
 	// Sets which UV material to draw
