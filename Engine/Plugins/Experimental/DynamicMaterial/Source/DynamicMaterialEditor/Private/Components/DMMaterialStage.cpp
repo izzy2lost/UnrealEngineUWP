@@ -417,7 +417,7 @@ void UDMMaterialStage::InputUpdated(UDMMaterialStageInput* InInput, EDMUpdateTyp
 
 		if (bIsUsedInInput)
 		{
-			Throughput->InputUpdated(InputMapIdx, InUpdateType);
+			Throughput->OnInputUpdated(InputMapIdx, InUpdateType);
 		}
 	}
 }
@@ -692,6 +692,8 @@ UDMMaterialStageInput* UDMMaterialStage::ChangeInput(TSubclassOf<UDMMaterialStag
 		InOutputChannel,
 		EDMMaterialPropertyType::None
 	);
+
+	Throughput->OnPostInputAdded(InInputIdx);
 
 	return NewInput;
 }

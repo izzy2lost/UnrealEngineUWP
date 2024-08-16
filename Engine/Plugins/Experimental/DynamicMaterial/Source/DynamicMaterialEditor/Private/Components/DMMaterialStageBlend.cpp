@@ -395,6 +395,13 @@ bool UDMMaterialStageBlend::GenerateStagePreviewMaterial(UDMMaterialStage* InSta
 	return true;
 }
 
+void UDMMaterialStageBlend::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
+{
+	Super::Update(InSource, InUpdateType);
+
+	PullBaseChannelOverride();
+}
+
 void UDMMaterialStageBlend::NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, FEditPropertyChain* InPropertyThatChanged)
 {
 	if (!IsComponentValid())
@@ -563,6 +570,16 @@ int32 UDMMaterialStageBlend::ResolveInput(const TSharedRef<FDMMaterialBuildState
 	}
 
 	return NodeOutputIndex;
+}
+
+void UDMMaterialStageBlend::OnPostInputAdded(int32 InInputIdx)
+{
+	Super::OnPostInputAdded(InInputIdx);
+
+	if (BaseChannelOverride != EAvaColorChannel::None)
+	{
+		PushBaseChannelOverride();
+	}
 }
 
 FText UDMMaterialStageBlend::GetStageDescription() const

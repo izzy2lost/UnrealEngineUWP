@@ -229,7 +229,7 @@ bool UDMMaterialStageExpressionTextureSampleBase::CanChangeInputType(int32 InInp
 	return Super::CanChangeInputType(InInputIndex);
 }
 
-void UDMMaterialStageExpressionTextureSampleBase::InputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType)
+void UDMMaterialStageExpressionTextureSampleBase::OnInputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType)
 {
 	// If the texture changes, update the mask!
 	if (InInputIndex == 0)

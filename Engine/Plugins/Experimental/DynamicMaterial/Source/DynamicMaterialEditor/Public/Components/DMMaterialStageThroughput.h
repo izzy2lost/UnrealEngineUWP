@@ -116,7 +116,9 @@ public:
 		int32 InThroughputInputIndex, FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const;
 
 	/** This is called when the input value of this node's stage is updated. */
-	virtual void InputUpdated(int32 InThroughputInputIndex, EDMUpdateType InUpdateType) {}
+	virtual void OnInputUpdated(int32 InThroughputInputIndex, EDMUpdateType InUpdateType) {}
+
+	virtual void OnPostInputAdded(int32 InInputIdx) {}
 
 	//~ Begin UDMMaterialComponent
 	virtual FText GetComponentDescription() const override { return GetDescription(); }

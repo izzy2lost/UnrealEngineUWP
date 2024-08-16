@@ -97,6 +97,8 @@ void UDMMaterialStageThroughputLayerBlend::OnComponentAdded()
 	{
 		UpdateAlphaOnlyMasks(EDMUpdateType::Structure);
 	}
+
+	PushMaskChannelOverride();
 }
  
 void UDMMaterialStageThroughputLayerBlend::AddDefaultInput(int32 InInputIndex) const
@@ -214,7 +216,7 @@ void UDMMaterialStageThroughputLayerBlend::Update(UDMMaterialComponent* InSource
 			}
 		}
 	}
- 
+
 	UpdateLinkedInputStage(InUpdateType);
  
 	UpdateAlphaOnlyMasks(InUpdateType);
@@ -764,7 +766,17 @@ void UDMMaterialStageThroughputLayerBlend::ConnectOutputToInput(const TSharedRef
 			break;
 	}
 }
- 
+
+void UDMMaterialStageThroughputLayerBlend::OnPostInputAdded(int32 InInputIdx)
+{
+	Super::OnPostInputAdded(InInputIdx);
+
+	if (MaskChannelOverride != EAvaColorChannel::None)
+	{
+		PushMaskChannelOverride();
+	}
+}
+
 void UDMMaterialStageThroughputLayerBlend::GetMaskOutput(const TSharedRef<FDMMaterialBuildState>& InBuildState, UMaterialExpression*& OutExpression,
 	int32& OutOutputIndex, int32& OutOutputChannel) const
 {

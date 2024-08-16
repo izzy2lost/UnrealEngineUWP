@@ -35,7 +35,7 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual bool CanChangeInputType(int32 InInputIndex) const override;
 	virtual bool SupportsLayerMaskTextureUVLink() const override { return true; }
 	virtual int32 GetLayerMaskTextureUVLinkInputIndex() const override { return 1; }
-	DYNAMICMATERIALEDITOR_API virtual void InputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType) override;
+	DYNAMICMATERIALEDITOR_API virtual void OnInputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialStageThroughput
 
 	//~ Begin UObject

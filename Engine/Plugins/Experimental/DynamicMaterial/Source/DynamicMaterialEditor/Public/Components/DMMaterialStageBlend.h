@@ -50,6 +50,7 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual bool IsInputVisible(int32 InputIndex) const override;
 	DYNAMICMATERIALEDITOR_API virtual int32 ResolveInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InputIndex, 
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const override;
+	virtual void OnPostInputAdded(int32 InInputIdx) override;
 	//~ End UDMMaterialStageThroughput
 
 	//~ Begin UDMMaterialStageSource
@@ -62,6 +63,10 @@ public:
 		UMaterialExpression*& OutMaterialExpression, int32& OutputIndex) override;
 	//~ End UDMMaterialStageSource
 
+	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
+	//~ End UDMMaterialComponent
+
 	//~ Begin FNotifyHook
 	DYNAMICMATERIALEDITOR_API virtual void NotifyPostChange(const FPropertyChangedEvent& InPropertyChangedEvent, class FEditPropertyChain* InPropertyThatChanged) override;
 	//~ End FNotifyHook
@@ -69,12 +74,12 @@ public:
 protected:
 	static TArray<TStrongObjectPtr<UClass>> Blends;
 
+	static void GenerateBlendList();
+
 	UPROPERTY(EditInstanceOnly, BlueprintReadOnly, Getter, Setter, BlueprintGetter = GetBaseChannelOverride,
 		Category = "Material Designer", DisplayName = "Channel Mask",
 		meta = (NotKeyframeable, ToolTip = "Changes the output channel of the base input."))
 	mutable EAvaColorChannel BaseChannelOverride;
-
-	static void GenerateBlendList();
 
 	DYNAMICMATERIALEDITOR_API UDMMaterialStageBlend(const FText& InName);
 

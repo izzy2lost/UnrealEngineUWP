@@ -39,7 +39,6 @@ public:
 	DYNAMICMATERIALEDITOR_API void SetMaskChannelOverride(EAvaColorChannel InMaskChannel);
 
 	//~ Begin UDMMaterialComponent
-	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;
 	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	DYNAMICMATERIALEDITOR_API virtual void GenerateExpressions(const TSharedRef<FDMMaterialBuildState>& InBuildState) const override;
 	DYNAMICMATERIALEDITOR_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
@@ -64,6 +63,7 @@ public:
 		FDMMaterialStageConnectorChannel& OutChannel, TArray<UMaterialExpression*>& OutExpressions) const override;
 	DYNAMICMATERIALEDITOR_API virtual void ConnectOutputToInput(const TSharedRef<FDMMaterialBuildState>& InBuildState, int32 InInputIdx, 
 		int32 InExpressionInputIndex, UMaterialExpression* InSourceExpression, int32 InSourceOutputIndex, int32 InSourceOutputChannel) override;
+	virtual void OnPostInputAdded(int32 InInputIdx) override;
 	//~ End UDMMaterialStageThroughput
 
 	/** Resolves the Mask input. */
@@ -137,4 +137,8 @@ protected:
 	//~ Begin UDMMaterialStageThroughput
 	DYNAMICMATERIALEDITOR_API virtual void GeneratePreviewMaterial(UMaterial* InPreviewMaterial) override;
 	//~ End UDMMaterialStageThroughput
+
+	//~ Begin UDMMaterialComponent
+	virtual void OnComponentAdded() override;
+	//~ End UDMMaterialComponent
 };
