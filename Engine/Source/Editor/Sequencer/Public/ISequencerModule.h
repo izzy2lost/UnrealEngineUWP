@@ -153,6 +153,9 @@ struct FSequencerHostCapabilities
 	/** Do we support the sidebar widget */
 	bool bSupportsSidebar;
 
+	/** Do we support selectability options in the viewport */
+	bool bSupportsViewportSelectability;
+
 	FSequencerHostCapabilities()
 		: bSupportsSaveMovieSceneAsset(false)
 		, bSupportsCurveEditor(false)
@@ -160,6 +163,7 @@ struct FSequencerHostCapabilities
 		, bSupportsRenderMovie(false)
 		, bSupportsAddFromContentBrowser(false)
 		, bSupportsSidebar(false)
+		, bSupportsViewportSelectability(false)
 	{}
 };
 

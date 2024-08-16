@@ -1456,6 +1456,7 @@ TSharedPtr<ISequencer> FWidgetBlueprintEditor::CreateSequencerWidgetInternal()
 		SequencerInitParams.HostCapabilities.bSupportsCurveEditor = true;
 		SequencerInitParams.HostCapabilities.bSupportsAddFromContentBrowser = true;
 		SequencerInitParams.HostCapabilities.bSupportsSidebar = true;
+		SequencerInitParams.HostCapabilities.bSupportsViewportSelectability = true;
 	};
 
 	TSharedPtr<ISequencer> Sequencer = FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer").CreateSequencer(SequencerInitParams);
