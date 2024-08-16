@@ -49,9 +49,8 @@ protected:
 				bool bIsClient = Type == 1;
 
 				// flavorless must come first
-				// "flavorless" (aka "vanilla") Android is not well defined and not actually usable
-				//  but Editor wants to see it in the platform list
-				SinglePlatforms.Add(new FAndroidTargetPlatformControls(bIsClient, OutMap[EAndroidTextureFormatCategory::Count], nullptr));
+				// "flavorless" (aka "vanilla") Android defaults to ASTC
+				SinglePlatforms.Add(new FAndroid_DefaultTargetPlatformControls(bIsClient, OutMap[EAndroidTextureFormatCategory::Count]));
 				SinglePlatforms.Add(new FAndroid_ASTCTargetPlatformControls(bIsClient, OutMap[EAndroidTextureFormatCategory::ASTC]));
 				SinglePlatforms.Add(new FAndroid_DXTTargetPlatformControls(bIsClient, OutMap[EAndroidTextureFormatCategory::DXT]));
 				SinglePlatforms.Add(new FAndroid_ETC2TargetPlatformControls(bIsClient, OutMap[EAndroidTextureFormatCategory::ETC2]));
