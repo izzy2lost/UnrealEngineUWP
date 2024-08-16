@@ -2668,7 +2668,6 @@ bool UAssetToolsImpl::AdvancedCopyPackages(
 							{
 								if (UWorldPartition* WorldPartition = World->GetWorldPartition())
 								{
-									check(!WorldPartition->IsStreamingEnabled());
 									if (!WorldPartition->IsInitialized())
 									{
 										WorldPartition->Initialize(World, FTransform::Identity);
