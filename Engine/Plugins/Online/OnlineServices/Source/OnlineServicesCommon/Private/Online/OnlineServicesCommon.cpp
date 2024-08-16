@@ -23,13 +23,12 @@ END_ONLINE_STRUCT_META()
 
 uint32 FOnlineServicesCommon::NextInstanceIndex = 0;
 
-FOnlineServicesCommon::FOnlineServicesCommon(const FString& InServiceConfigName, FName InInstanceName, FName InInstanceConfigName)
-	: OpCache(InServiceConfigName, *this)
+FOnlineServicesCommon::FOnlineServicesCommon(const FString& InConfigName, FName InInstanceName)
+	: OpCache(InConfigName, *this)
 	, InstanceIndex(NextInstanceIndex++)
 	, InstanceName(InInstanceName)
-	, InstanceConfigName(InInstanceConfigName)
 	, ConfigProvider(MakeUnique<FOnlineConfigProviderGConfig>(GEngineIni))
-	, ServiceConfigName(InServiceConfigName)
+	, ConfigName(InConfigName)
 	, SerialQueue(ParallelQueue)
 {
 }
@@ -141,11 +140,6 @@ FName FOnlineServicesCommon::GetInstanceName() const
 	return InstanceName;
 }
 
-FName FOnlineServicesCommon::GetInstanceConfigName() const
-{
-	return InstanceConfigName;
-}
-
 void FOnlineServicesCommon::AssignBaseInterfaceSharedPtr(const FOnlineTypeName& TypeName, void* OutBaseInterfaceSP)
 {
 	Components.AssignBaseSharedPtr(TypeName, OutBaseInterfaceSP);
@@ -240,8 +234,7 @@ bool FOnlineServicesCommon::Exec(UWorld* World, const TCHAR* Cmd, FOutputDevice&
 		}
 		else if (FParse::Command(&Cmd, TEXT("List")))
 		{
-			Ar.Logf(TEXT("%u: ServiceConfigName=[%s] InstanceName=[%s] InstanceConfigName=[%s]"),
-				InstanceIndex, *GetServiceConfigName(), *GetInstanceName().ToString(), *GetInstanceConfigName().ToString());
+			Ar.Logf(TEXT("%u: %s"), InstanceIndex, *GetConfigName());
 		}
 	}
 	return false;

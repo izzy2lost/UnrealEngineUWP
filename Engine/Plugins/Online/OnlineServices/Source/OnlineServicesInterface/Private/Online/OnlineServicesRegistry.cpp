@@ -74,19 +74,19 @@ void FOnlineServicesRegistry::UnregisterServicesFactory(EOnlineServices OnlineSe
 	DestroyAllNamedServicesInstances(OnlineServices);
 }
 
-bool FOnlineServicesRegistry::IsLoaded(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName) const
+bool FOnlineServicesRegistry::IsLoaded(EOnlineServices OnlineServices, FName InstanceName) const
 {
 	OnlineServices = ResolveServiceName(OnlineServices);
 
 	bool bExists = false;
-	if (const TMap<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>* OnlineServicesInstances = NamedServiceInstances.Find(OnlineServices))
+	if (const TMap<FName, TSharedRef<IOnlineServices>>* OnlineServicesInstances = NamedServiceInstances.Find(OnlineServices))
 	{
-		bExists = OnlineServicesInstances->Find({ InstanceName, InstanceConfigName }) != nullptr;
+		bExists = OnlineServicesInstances->Find(InstanceName) != nullptr;
 	}
 	return bExists;
 }
 
-TSharedPtr<IOnlineServices> FOnlineServicesRegistry::GetNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
+TSharedPtr<IOnlineServices> FOnlineServicesRegistry::GetNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName)
 {
 	OnlineServices = ResolveServiceName(OnlineServices);
 
@@ -94,16 +94,16 @@ TSharedPtr<IOnlineServices> FOnlineServicesRegistry::GetNamedServicesInstance(EO
 
 	if (OnlineServices < EOnlineServices::None)
 	{
-		if (TSharedRef<IOnlineServices>* ServicesPtr = NamedServiceInstances.FindOrAdd(OnlineServices).Find({ InstanceName, InstanceConfigName }))
+		if (TSharedRef<IOnlineServices>* ServicesPtr = NamedServiceInstances.FindOrAdd(OnlineServices).Find(InstanceName))
 		{
 			Services = *ServicesPtr;
 		}
 		else
 		{
-			Services = CreateServices(OnlineServices, InstanceName, InstanceConfigName);
+			Services = CreateServices(OnlineServices, InstanceName);
 			if (Services.IsValid())
 			{
-				NamedServiceInstances.FindOrAdd(OnlineServices).Add({ InstanceName, InstanceConfigName }, Services.ToSharedRef());
+				NamedServiceInstances.FindOrAdd(OnlineServices).Add(InstanceName, Services.ToSharedRef());
 				OnOnlineServicesCreated.Broadcast(Services.ToSharedRef());
 			}
 		}
@@ -125,15 +125,15 @@ void FOnlineServicesRegistry::ClearDefaultServiceOverride()
 }
 #endif //WITH_DEV_AUTOMATION_TESTS
 
-void FOnlineServicesRegistry::DestroyNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
+void FOnlineServicesRegistry::DestroyNamedServicesInstance(EOnlineServices OnlineServices, FName InstanceName)
 {
 	OnlineServices = ResolveServiceName(OnlineServices);
 
-	if (TSharedRef<IOnlineServices>* ServicesPtr = NamedServiceInstances.FindOrAdd(OnlineServices).Find({ InstanceName, InstanceConfigName }))
+	if (TSharedRef<IOnlineServices>* ServicesPtr = NamedServiceInstances.FindOrAdd(OnlineServices).Find(InstanceName))
 	{
 		(*ServicesPtr)->Destroy();
 
-		NamedServiceInstances.FindOrAdd(OnlineServices).Remove({ InstanceName, InstanceConfigName });
+		NamedServiceInstances.FindOrAdd(OnlineServices).Remove(InstanceName);
 	}
 }
 
@@ -141,9 +141,9 @@ void FOnlineServicesRegistry::DestroyAllNamedServicesInstances(EOnlineServices O
 {
 	OnlineServices = ResolveServiceName(OnlineServices);
 
-	if (TMap<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>* ServicesMapPtr = NamedServiceInstances.Find(OnlineServices))
+	if (TMap<FName, TSharedRef<IOnlineServices>>* ServicesMapPtr = NamedServiceInstances.Find(OnlineServices))
 	{
-		for (const TPair<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>& ServicesEntryRef : *ServicesMapPtr)
+		for (const TPair<FName, TSharedRef<IOnlineServices>>& ServicesEntryRef : *ServicesMapPtr)
 		{
 			ServicesEntryRef.Value->Destroy();
 		}
@@ -154,26 +154,22 @@ void FOnlineServicesRegistry::DestroyAllNamedServicesInstances(EOnlineServices O
 
 void FOnlineServicesRegistry::DestroyAllServicesInstancesWithName(FName InstanceName)
 {
-	for (auto NamedServiceIterator = NamedServiceInstances.CreateIterator(); NamedServiceIterator; ++NamedServiceIterator)
+	for (auto It = NamedServiceInstances.CreateIterator(); It; ++It)
 	{
-		for (auto InstanceIterator = NamedServiceIterator->Value.CreateIterator(); InstanceIterator; ++InstanceIterator)
+		if (TSharedRef<IOnlineServices>* Service = It->Value.Find(InstanceName))
 		{
-			if (InstanceIterator->Key.Key == InstanceName)
-			{
-				TSharedRef<IOnlineServices> Service = InstanceIterator->Value;
-				Service->Destroy();
-				InstanceIterator.RemoveCurrent();
-			}
+			(*Service)->Destroy();
+			It->Value.Remove(InstanceName);
 		}
 
-		if (NamedServiceIterator->Value.IsEmpty())
+		if (It->Value.IsEmpty())
 		{
-			NamedServiceIterator.RemoveCurrent();
+			It.RemoveCurrent();
 		}
 	}
 }
 
-TSharedPtr<IOnlineServices> FOnlineServicesRegistry::CreateServices(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
+TSharedPtr<IOnlineServices> FOnlineServicesRegistry::CreateServices(EOnlineServices OnlineServices, FName InstanceName)
 {
 	OnlineServices = ResolveServiceName(OnlineServices);
 
@@ -182,7 +178,7 @@ TSharedPtr<IOnlineServices> FOnlineServicesRegistry::CreateServices(EOnlineServi
 	FFactoryAndPriority* FactoryAndPriority = ServicesFactories.Find(OnlineServices);
 	if (FactoryAndPriority != nullptr)
 	{
-		Services = FactoryAndPriority->Factory->Create(InstanceName, InstanceConfigName);
+		Services = FactoryAndPriority->Factory->Create(InstanceName);
 		Services->Init();
 	}
 
@@ -191,9 +187,9 @@ TSharedPtr<IOnlineServices> FOnlineServicesRegistry::CreateServices(EOnlineServi
 
 void FOnlineServicesRegistry::GetAllServicesInstances(TArray<TSharedRef<IOnlineServices>>& OutOnlineServices) const
 {
-	for (const TPair<EOnlineServices, TMap<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>>& OnlineServiceTypesMaps : NamedServiceInstances)
+	for (const TPair<EOnlineServices, TMap<FName, TSharedRef<IOnlineServices>>>& OnlineServiceTypesMaps : NamedServiceInstances)
 	{
-		for (const TPair<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>& NamedInstance : OnlineServiceTypesMaps.Value)
+		for (const TPair<FName, TSharedRef<IOnlineServices>>& NamedInstance : OnlineServiceTypesMaps.Value)
 		{
 			OutOnlineServices.Emplace(NamedInstance.Value);
 		}
@@ -202,9 +198,9 @@ void FOnlineServicesRegistry::GetAllServicesInstances(TArray<TSharedRef<IOnlineS
 
 FOnlineServicesRegistry::~FOnlineServicesRegistry()
 {
-	for (TPair<EOnlineServices, TMap<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>>& ServiceInstances : NamedServiceInstances)
+	for (TPair<EOnlineServices, TMap<FName, TSharedRef<IOnlineServices>>>& ServiceInstances : NamedServiceInstances)
 	{
-		for (TPair<FInstanceNameInstanceConfigNamePair, TSharedRef<IOnlineServices>>& ServiceInstance : ServiceInstances.Value)
+		for (TPair<FName, TSharedRef<IOnlineServices>>& ServiceInstance : ServiceInstances.Value)
 		{
 			ServiceInstance.Value->Destroy();
 		}

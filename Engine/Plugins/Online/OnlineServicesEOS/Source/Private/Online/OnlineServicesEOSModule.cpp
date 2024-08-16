@@ -16,9 +16,9 @@ class FOnlineServicesFactoryEOS : public IOnlineServicesFactory
 {
 public:
 	virtual ~FOnlineServicesFactoryEOS() {}
-	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName, FName InInstanceConfigName) override
+	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName) override
 	{
-		return MakeShared<FOnlineServicesEOS>(InInstanceName, InInstanceConfigName);
+		return MakeShared<FOnlineServicesEOS>(InInstanceName);
 	}
 };
 
