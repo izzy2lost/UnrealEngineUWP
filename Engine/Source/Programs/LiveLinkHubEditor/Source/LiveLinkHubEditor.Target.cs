@@ -32,6 +32,7 @@ public class LiveLinkHubEditorTarget : TargetRules
 		// They may be a direct dependency or a dependency of another plugin.
 		EnablePlugins.AddRange(new string[]
 		{
+			"ACLPlugin",
 			"LiveLink",
 			"LiveLinkHub",
 			"LiveLinkCamera",

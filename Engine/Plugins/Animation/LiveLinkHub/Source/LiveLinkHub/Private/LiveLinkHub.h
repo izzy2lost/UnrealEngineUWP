@@ -51,8 +51,11 @@ public:
 public:
 	/** First phase initialization; must precede FEngineLoop::Init(). */
 	void Preinitialize();
-	/** Launch the slate application and initialize its components. */
-	void Initialize();
+	/** 
+	 * Launch the slate application and initialize its components. 
+	 * @param bLauncherDistribution Whether the hub should be initialized as a launcher distributed LiveLinkHub.
+	 */
+	void Initialize(bool bLauncherDistribution);
 	/** Tick the hub. */
 	void Tick();
 	/** Get the root window that hosts the hub's slate application. */

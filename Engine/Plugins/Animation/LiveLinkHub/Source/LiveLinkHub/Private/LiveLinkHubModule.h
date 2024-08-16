@@ -19,7 +19,7 @@ class FLiveLinkHubModule : public ILiveLinkHubModule
 public:
 	//~ Begin ILiveLinkHubModule interface
 	virtual void PreinitializeLiveLinkHub() override;
-	virtual void StartLiveLinkHub() override;
+	virtual void StartLiveLinkHub(bool bLauncherDistribution = false) override;
 	virtual void ShutdownLiveLinkHub() override;
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;

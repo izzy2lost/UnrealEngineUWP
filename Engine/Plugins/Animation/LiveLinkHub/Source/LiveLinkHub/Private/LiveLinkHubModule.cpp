@@ -26,12 +26,12 @@ void FLiveLinkHubModule::PreinitializeLiveLinkHub()
 	LiveLinkHub->Preinitialize();
 }
 
-void FLiveLinkHubModule::StartLiveLinkHub()
+void FLiveLinkHubModule::StartLiveLinkHub(bool bLauncherDistribution)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StartLiveLinkHub);
 	checkf(LiveLinkHub, TEXT("Ensure PreinitializeLiveLinkHub was called first"));
 
-	LiveLinkHub->Initialize();
+	LiveLinkHub->Initialize(bLauncherDistribution);
 
 	// Disable throttling for the hub
 	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;

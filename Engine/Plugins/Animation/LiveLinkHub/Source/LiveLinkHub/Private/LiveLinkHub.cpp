@@ -36,7 +36,7 @@ void FLiveLinkHub::Preinitialize()
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
 }
 
-void FLiveLinkHub::Initialize()
+void FLiveLinkHub::Initialize(bool bLauncherDistribution)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHub::Initialize);
 
@@ -50,9 +50,12 @@ void FLiveLinkHub::Initialize()
 
 	FModuleManager::Get().LoadModule("Settings");
 
-	IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName).Get();
-	const FString FilePath = FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("LiveLinkHub"), TEXT("Content"));
-	AssetRegistry.ScanPathsSynchronous({ FilePath }, /*bForceRescan=*/ true);
+	if (bLauncherDistribution)
+	{
+		IAssetRegistry& AssetRegistry = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(AssetRegistryConstants::ModuleName).Get();
+		const FString FilePath = FPaths::Combine(FPlatformProcess::UserSettingsDir(), *FApp::GetEpicProductIdentifier(), TEXT("LiveLinkHub"), TEXT("Content"));
+		AssetRegistry.ScanPathsSynchronous({ FilePath }, /*bForceRescan=*/ true);
+	}
 
 	CommandExecutor = MakeUnique<FConsoleCommandExecutor>();
 	IModularFeatures::Get().RegisterModularFeature(IConsoleCommandExecutor::ModularFeatureName(), CommandExecutor.Get());
