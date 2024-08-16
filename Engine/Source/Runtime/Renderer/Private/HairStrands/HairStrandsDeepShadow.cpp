@@ -213,6 +213,8 @@ float GetDeepShadowRasterizationScale();
 float GetDeepShadowAABBScale();
 FVector4f ComputeDeepShadowLayerDepths(float LayerDistribution);
 
+DECLARE_GPU_STAT(HairStrandsDeepShadow);
+
 void RenderHairStrandsDeepShadows(
 	FRDGBuilder& GraphBuilder,
 	const FScene* Scene,
@@ -220,7 +222,6 @@ void RenderHairStrandsDeepShadows(
 	FInstanceCullingManager& InstanceCullingManager)
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_CLM_RenderDeepShadow);
-	DECLARE_GPU_STAT(HairStrandsDeepShadow);
 	RDG_EVENT_SCOPE(GraphBuilder, "HairStrandsDeepShadow");
 	RDG_GPU_STAT_SCOPE(GraphBuilder, HairStrandsDeepShadow);
 
