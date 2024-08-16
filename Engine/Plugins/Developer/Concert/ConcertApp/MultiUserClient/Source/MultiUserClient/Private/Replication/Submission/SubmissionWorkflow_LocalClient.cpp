@@ -5,7 +5,7 @@
 #include "IConcertSyncClient.h"
 #include "Replication/IConcertClientReplicationManager.h"
 #include "Replication/Misc/Util/StreamRequestUtils.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+#include "Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient::Replication
 {

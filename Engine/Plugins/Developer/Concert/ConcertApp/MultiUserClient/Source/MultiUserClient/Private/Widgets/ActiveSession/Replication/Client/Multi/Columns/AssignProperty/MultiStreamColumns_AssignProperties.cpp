@@ -13,7 +13,7 @@
 #include "SAssignPropertyComboBox.h"
 #include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Replication/Editor/View/Column/ReplicationColumnDelegates.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
+#include "Replication/Client/ClientUtils.h"
 
 #define LOCTEXT_NAMESPACE "AssignPropertyColumn"
 

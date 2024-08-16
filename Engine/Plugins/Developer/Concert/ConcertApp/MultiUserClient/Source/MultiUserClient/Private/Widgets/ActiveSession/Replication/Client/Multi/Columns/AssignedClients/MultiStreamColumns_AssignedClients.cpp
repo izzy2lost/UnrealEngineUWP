@@ -4,9 +4,9 @@
 
 #include "IConcertClient.h"
 #include "MultiUserReplicationStyle.h"
+#include "Replication/Client/ClientUtils.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "SAssignedClientsWidget.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/Client/ClientInfoHelpers.h"
 #include "Widgets/Client/SHorizontalClientList.h"

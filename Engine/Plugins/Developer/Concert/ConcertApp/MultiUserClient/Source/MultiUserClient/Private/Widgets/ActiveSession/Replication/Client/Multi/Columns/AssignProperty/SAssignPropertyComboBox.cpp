@@ -4,11 +4,11 @@
 
 #include "AssignPropertyModel.h"
 #include "IConcertClient.h"
+#include "Replication/Client/ClientUtils.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/Client/ClientInfoHelpers.h"
 #include "Widgets/Client/SHorizontalClientList.h"
 #include "Widgets/Client/SLocalClientName.h"

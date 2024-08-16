@@ -2,12 +2,12 @@
 
 #include "ContextMenuUtils.h"
 
+#include "Replication/Client/ClientUtils.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Editor/Model/Object/IObjectHierarchyModel.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Submission/MultiEdit/ReassignObjectPropertiesLogic.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 
 #include "Framework/Commands/UIAction.h"

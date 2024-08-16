@@ -5,11 +5,11 @@
 #include "ConcertLogGlobal.h"
 #include "IConcertSession.h"
 #include "RemoteSubmissionMessages.h"
+#include "Replication/Client/ClientUtils.h"
 #include "Replication/Stream/IClientStreamSynchronizer.h"
 #include "Replication/Submission/ISubmissionOperation.h"
 #include "Replication/Submission/ISubmissionWorkflow.h"
 #include "Replication/Submission/Queue/DeferredSubmitter.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 namespace UE::MultiUserClient::Replication
 {

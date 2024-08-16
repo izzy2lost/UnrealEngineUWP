@@ -7,12 +7,12 @@
 #include "Assets/MultiUserReplicationStream.h"
 #include "ConcertLogGlobal.h"
 #include "IConcertSyncClient.h"
+#include "Replication/Client/ClientUtils.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Misc/ActorLabelRemappingEditor.h"
 #include "Replication/Misc/ReplicationStreamUtils.h"
 #include "Replication/Muting/MuteStateManager.h"
 #include "Replication/Stream/MultiUserStreamId.h"
-#include "Widgets/ActiveSession/Replication/Client/ClientUtils.h"
 
 #include "Engine/World.h"
 #include "FileHelpers.h"
