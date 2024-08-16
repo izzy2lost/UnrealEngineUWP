@@ -107,9 +107,9 @@ void UTG_Expression_MaterialBase::GenerateMaterialAttributeOptions()
 	// Detect the set of available material properties for rendering
 	AvailableMaterialAttributeIds.Empty();
 	AvailableMaterialAttributeNames.Empty();
-	if (MaterialInstance)
+	if (GetMaterial())
 	{
-		UMaterial* RefMaterial = MaterialInstance->GetMaterial();
+		UMaterial* RefMaterial = GetMaterial()->GetMaterial();
 		for (int i = MP_EmissiveColor; i < MP_MAX; ++i)
 		{
 			if (RefMaterial->IsPropertyConnected(EMaterialProperty(i)))
@@ -139,7 +139,7 @@ void UTG_Expression_MaterialBase::Evaluate(FTG_EvaluationContext* InContext)
 	/// Set it to false always
 	TiledMode = true;
 
-	if (GetMaterial() && MaterialInstance)
+	if (GetMaterial())
 	{
 		FString AssetName = GetMaterial()->GetName();
 		const auto RenderMaterial = std::make_shared<RenderMaterial_BP>(AssetName, GetMaterial(), nullptr);
@@ -303,6 +303,7 @@ void UTG_Expression_MaterialBase::LinkMaterialParameters(FTG_EvaluationContext* 
 			{
 				auto ParamValue = Var->EditAs<bool>();
 				InMaterialJob->AddArg(ARG_INT(ParamValue, TCHAR_TO_UTF8(*ParameterInfo.Name.ToString())));
+
 			}
 		}
 #endif
@@ -449,5 +450,4 @@ void UTG_Expression_MaterialBase::CopyVarGeneric(const FTG_Argument& Arg, FTG_Va
 				}*/
 		}
 	}
-	
 }
