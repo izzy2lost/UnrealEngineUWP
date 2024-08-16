@@ -949,16 +949,10 @@ EMovieSceneKeyInterpolation TMovieSceneCurveChannelImpl<ChannelType>::GetInterpo
 				return EMovieSceneKeyInterpolation::SmartAuto;
 				break;
 			case RCTM_Break:
+				return EMovieSceneKeyInterpolation::Break;
+				break;
 			case RCTM_User:
-				if (DefaultInterpolationMode == EMovieSceneKeyInterpolation::Auto ||
-					DefaultInterpolationMode == EMovieSceneKeyInterpolation::SmartAuto)
-				{
-					return DefaultInterpolationMode;
-				}
-				else
-				{
-					return EMovieSceneKeyInterpolation::SmartAuto;
-				}
+				return EMovieSceneKeyInterpolation::User;
 				break;
 			}
 			break;
@@ -1029,21 +1023,27 @@ FKeyHandle TMovieSceneCurveChannelImpl<ChannelType>::AddKeyToChannel(ChannelType
 		if ((Interpolation == EMovieSceneKeyInterpolation::User || Interpolation == EMovieSceneKeyInterpolation::Break)
 			&& ChannelData.GetTimes().Num() >= 2)
 		{
-			const double DeltaTime = 0.1;
+			//if we are within the range of existing keys set the tangent to be that of the slope of the curve, otherwise
+			//just set it as flat(leave as default)
+			TRange<FFrameNumber> Range = ChannelData.GetTotalRange();
+			if (Range.Contains(InFrameNumber))
+			{
+				const double DeltaTime = 0.1;
+				// Left
+				TangentData.ArriveTangent = -GetTangentValue(InChannel, InFrameNumber, InValue, -DeltaTime);
 
-			// Left
-			TangentData.ArriveTangent = -GetTangentValue(InChannel, InFrameNumber, InValue, -DeltaTime);
-
-			// Right
-			TangentData.LeaveTangent = GetTangentValue(InChannel, InFrameNumber, InValue, DeltaTime);
+				// Right
+				TangentData.LeaveTangent = GetTangentValue(InChannel, InFrameNumber, InValue, DeltaTime);
+			}
+			
 
 		}
 		switch (Interpolation)
 		{
 			case EMovieSceneKeyInterpolation::SmartAuto:     ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_SmartAuto);  break;
 			case EMovieSceneKeyInterpolation::Auto:     ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_Auto);  break;
-			case EMovieSceneKeyInterpolation::User:     ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_User);  break;
-			case EMovieSceneKeyInterpolation::Break:    ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_Break); break;
+			case EMovieSceneKeyInterpolation::User:     ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_User,TangentData);  break;
+			case EMovieSceneKeyInterpolation::Break:    ExistingIndex = InChannel->AddCubicKey(InFrameNumber, InValue, RCTM_Break,TangentData); break;
 			case EMovieSceneKeyInterpolation::Linear:   ExistingIndex = InChannel->AddLinearKey(InFrameNumber, InValue);            break;
 			case EMovieSceneKeyInterpolation::Constant: ExistingIndex = InChannel->AddConstantKey(InFrameNumber, InValue);          break;
 		}

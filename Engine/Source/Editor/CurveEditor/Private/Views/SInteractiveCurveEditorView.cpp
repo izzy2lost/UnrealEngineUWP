@@ -1961,8 +1961,34 @@ void SInteractiveCurveEditorView::AddKeyAtTime(const TSet<FCurveModelID>& ToCurv
 			}
 			else
 			{
-				const FKeyAttributes& KeyAttributes = GetDefaultKeyAttributesForCurveTime(*CurveEditor, *CurveModel, EvalTime);
+				FKeyAttributes KeyAttributes = GetDefaultKeyAttributesForCurveTime(*CurveEditor, *CurveModel, EvalTime);
+				if (KeyAttributes.HasInterpMode() && 
+					KeyAttributes.GetInterpMode() == ERichCurveInterpMode::RCIM_Cubic&& 
+					KeyAttributes.HasTangentMode() && 
+					(KeyAttributes.GetTangentMode() == RCTM_User || KeyAttributes.GetTangentMode() == RCTM_Break))
+				{
+					//if we are within the range of existing keys set the tangent to be that of the slope of the curve, otherwise
+					//just set it as flat
+					double MinTime = 0., MaxTime = 0.;
+					CurveModel->GetTimeRange(MinTime, MaxTime);
+					if (EvalTime > MinTime && EvalTime < MaxTime)
+					{
+						const double DeltaTime = 0.1;
 
+						// Compute right tangent
+						double RightTangent = GetTangentValue(EvalTime, CurveValue, CurveModel, DeltaTime);
+						KeyAttributes.SetLeaveTangent(RightTangent);
+
+						// Left
+						double LeftTangent = GetTangentValue(EvalTime, CurveValue, CurveModel, -DeltaTime);
+						KeyAttributes.SetArriveTangent(LeftTangent);
+					}
+					else
+					{
+						KeyAttributes.SetLeaveTangent(0.0);
+						KeyAttributes.SetArriveTangent(0.0);
+					}
+				}
 				// Add a key on this curve
 				NewKey = CurveModel->AddKey(FKeyPosition(EvalTime, CurveValue), KeyAttributes);
 			}
