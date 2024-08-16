@@ -900,7 +900,32 @@ FChannelGroupOutlinerModel::~FChannelGroupOutlinerModel()
 
 void FChannelGroupOutlinerModel::OnUpdated()
 {
-	const bool bShouldBeMutable = Algo::AnyOf(Channels, 
+	WeakCommonChannelModel = nullptr;
+
+	// If all channels are the same type, assign the common channel
+	//    model for edit interactions and context menus
+	{
+		TViewModelPtr<FChannelModel> CommonChannel;
+		for (TWeakViewModelPtr<FChannelModel> WeakChannel : Channels)
+		{
+			if (TViewModelPtr<FChannelModel> Channel = WeakChannel.Pin())
+			{
+				if (!CommonChannel)
+				{
+					CommonChannel = Channel;
+				}
+				else if (CommonChannel->GetTypeTable().GetTypeID() != Channel->GetTypeTable().GetTypeID())
+				{
+					CommonChannel = nullptr;
+					break;
+				}
+			}
+		}
+		WeakCommonChannelModel = CommonChannel;
+	}
+
+
+	const bool bShouldBeMutable = Algo::AnyOf(Channels,
 		[](TWeakViewModelPtr<FChannelModel> In)
 		{
 			TViewModelPtr<IMutableExtension> Mutable = In.ImplicitPin();
@@ -971,6 +996,16 @@ TSharedPtr<SWidget> FChannelGroupOutlinerModel::CreateOutlinerViewForColumn(cons
 	if (!Editor)
 	{
 		return SNullWidget::NullWidget;
+	}
+
+	// Ask a common channel to populate the outliner column view first
+	if (TViewModelPtr<FChannelModel> CommonChannel = WeakCommonChannelModel.Pin())
+	{
+		TSharedPtr<SWidget> Widget = CommonChannel->CreateOutlinerViewForColumn(InParams, InColumnName);
+		if (Widget)
+		{
+			return Widget;
+		}
 	}
 
 	if (InColumnName == FCommonOutlinerNames::Label)
@@ -1069,6 +1104,11 @@ void FChannelGroupOutlinerModel::CreateCurveModels(TArray<TUniquePtr<FCurveModel
 
 void FChannelGroupOutlinerModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 {
+	if (TViewModelPtr<FChannelModel> CommonChannel = WeakCommonChannelModel.Pin())
+	{
+		CommonChannel->BuildContextMenu(MenuBuilder, TViewModelPtr<FChannelGroupOutlinerModel>(this));
+	}
+
 	FOutlinerItemModelMixin::BuildContextMenu(MenuBuilder);
 
 	BuildChannelOverrideMenu(MenuBuilder);

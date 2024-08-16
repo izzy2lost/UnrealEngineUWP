@@ -46,6 +46,7 @@ namespace Sequencer
 
 class FSectionModel;
 class FSequenceModel;
+class FChannelGroupOutlinerModel;
 
 /**
  * Model for a single channel inside a section.
@@ -105,6 +106,10 @@ public:
 	void DrawKeys(TArrayView<const FKeyHandle> InKeyHandles, TArrayView<FKeyDrawParams> OutKeyDrawParams) override;
 	TUniquePtr<FCurveModel> CreateCurveModel() override;
 
+	/*~ Begin virtual interface */
+	virtual void BuildContextMenu(FMenuBuilder& MenuBuilder, TViewModelPtr<FChannelGroupOutlinerModel> GroupOwner) {}
+	virtual TSharedPtr<SWidget> CreateOutlinerViewForColumn(const FCreateOutlinerViewParams& InParams, const FName& InColumnName) { return nullptr; }
+	/*~ End virtual interface */
 private:
 
 	FLinearColor GetKeyBarColor() const;
@@ -255,6 +260,7 @@ private:
 private:
 
 	FOutlinerSizing ComputedSizing;
+	TWeakViewModelPtr<FChannelModel> WeakCommonChannelModel;
 };
 
 
