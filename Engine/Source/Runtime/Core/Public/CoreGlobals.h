@@ -822,8 +822,10 @@ namespace UE::CoreUObject::Private
 	/** Array to help visualize object handles in the debugger */
 	struct FObjectHandlePackageDebugData;
 }
+namespace UE::Core { struct FVisualizerDebuggingState; }
 extern CORE_API UE::CoreUObject::Private::FStoredObjectPathDebug* GCoreComplexObjectPathDebug;
 extern CORE_API UE::CoreUObject::Private::FObjectHandlePackageDebugData* GCoreObjectHandlePackageDebug;
+extern CORE_API UE::Core::FVisualizerDebuggingState* GCoreDebuggingState;
 
 /** @return True if running cook-on-the-fly. */
 bool CORE_API IsRunningCookOnTheFly();

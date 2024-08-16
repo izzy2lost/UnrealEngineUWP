@@ -5,6 +5,10 @@
 #include "CoreTypes.h"
 #include "HAL/UnrealMemory.h"
 #include "UObject/NameTypes.h"
+// Include the full definition of FVisualizerDebuggingState so visualizers can see the full type information
+//   Without this include (and just a fwd decl), visualizers in some modules will not be able to resolve
+//   FVisualizerDebuggingState::Ptrs or FVisualizerDebuggingState::GuidString
+#include "Modules/VisualizerDebuggingState.h"
 
 class FChunkedFixedUObjectArray;
 
@@ -93,7 +97,8 @@ class FChunkedFixedUObjectArray;
 		uint8** GNameBlocksDebug = FNameDebugVisualizer::GetBlocks(); \
 		FChunkedFixedUObjectArray*& GObjectArrayForDebugVisualizers = GCoreObjectArrayForDebugVisualizers; \
 		UE::CoreUObject::Private::FStoredObjectPathDebug*& GComplexObjectPathDebug = GCoreComplexObjectPathDebug; \
-		UE::CoreUObject::Private::FObjectHandlePackageDebugData*& GObjectHandlePackageDebug = GCoreObjectHandlePackageDebug;
+		UE::CoreUObject::Private::FObjectHandlePackageDebugData*& GObjectHandlePackageDebug = GCoreObjectHandlePackageDebug; \
+		UE::Core::FVisualizerDebuggingState*& GDebuggingState = GCoreDebuggingState;
 #endif
 
 // in DLL builds, these are done per-module, otherwise we just need one in the application

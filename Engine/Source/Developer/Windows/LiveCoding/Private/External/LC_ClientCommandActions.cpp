@@ -104,6 +104,9 @@ extern uint8** GNameBlocksDebug;
 
 class FChunkedFixedUObjectArray;
 extern FChunkedFixedUObjectArray*& GObjectArrayForDebugVisualizers;
+
+namespace UE::Core{ struct FVisualizerDebuggingState; }
+extern UE::Core::FVisualizerDebuggingState*& GDebuggingState;
 // END EPIC MOD
 
 // BEGIN EPIC MOD - Support for object reinstancing. We need to call a global post-patch handler, rather than just getting individual callbacks for modified modules.
@@ -128,12 +131,12 @@ bool actions::LoadPatch::Execute(const CommandType* command, const DuplexPipe* p
 	// BEGIN EPIC MOD - Support for UE debug visualizers
 	if (module != nullptr)
 	{
-		typedef void InitNatvisHelpersFunc(uint8** NameTable, FChunkedFixedUObjectArray* ObjectArray);
+		typedef void InitNatvisHelpersFunc(uint8** NameTable, FChunkedFixedUObjectArray* ObjectArray, UE::Core::FVisualizerDebuggingState* DebuggingState);
 
 		InitNatvisHelpersFunc* InitNatvisHelpers = (InitNatvisHelpersFunc*)(void*)GetProcAddress(module, "InitNatvisHelpers");
 		if (InitNatvisHelpers != nullptr)
 		{
-			(*InitNatvisHelpers)(GNameBlocksDebug, GObjectArrayForDebugVisualizers);
+			(*InitNatvisHelpers)(GNameBlocksDebug, GObjectArrayForDebugVisualizers, GDebuggingState);
 		}
 	}
 	// END EPIC MOD
