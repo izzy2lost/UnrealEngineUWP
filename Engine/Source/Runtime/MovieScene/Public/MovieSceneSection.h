@@ -634,6 +634,11 @@ public:
 	 */
 	MOVIESCENE_API FMovieSceneChannelProxy& GetChannelProxy() const;
 
+	/**
+	 * Invalidate this section's channel proxy, causing it to be re-constructed when it is next used
+	 */
+	MOVIESCENE_API void InvalidateChannelProxy();
+
 	/** Does this movie section support infinite ranges for evaluation */
 	bool GetSupportsInfiniteRange() const { return bSupportsInfiniteRange; }
 

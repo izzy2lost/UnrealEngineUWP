@@ -192,6 +192,12 @@ void UMovieSceneSection::SetEndFrame(TRangeBound<FFrameNumber> NewEndFrame)
 	}
 }
 
+void UMovieSceneSection::InvalidateChannelProxy()
+{
+	ChannelProxyType = EMovieSceneChannelProxyType::Dynamic;
+	ChannelProxy = nullptr;
+}
+
 FMovieSceneChannelProxy& UMovieSceneSection::GetChannelProxy() const
 {
 	if (!ChannelProxy.IsValid())
