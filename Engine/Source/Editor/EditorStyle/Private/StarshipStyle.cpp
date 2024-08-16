@@ -2408,6 +2408,64 @@ void FStarshipEditorStyle::FStyle::SetupSequencerStyles()
 
 void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 {
+	// New viewport toolbar.
+	{
+		FButtonStyle ButtonStyle;
+		{
+			FLinearColor ToolbarBackgroundColor = FStyleColors::Dropdown.GetSpecifiedColor();
+			ToolbarBackgroundColor.A = .90f;
+			FSlateRoundedBoxBrush* BackgroundBrush =
+				new FSlateRoundedBoxBrush(ToolbarBackgroundColor, 5.f, ToolbarBackgroundColor, 1.0);
+
+			FLinearColor ToolbarHoveredColor = FStyleColors::Dropdown.GetSpecifiedColor();
+			ToolbarHoveredColor.A = 1;
+			FSlateRoundedBoxBrush* HoveredBrush =
+				new FSlateRoundedBoxBrush(ToolbarHoveredColor, 5.f, ToolbarHoveredColor, 1.0);
+
+			FLinearColor ToolbarPressedColor = FStyleColors::Recessed.GetSpecifiedColor();
+			ToolbarPressedColor.A = .50f;
+			FSlateRoundedBoxBrush* PressedBrush =
+				new FSlateRoundedBoxBrush(ToolbarPressedColor, 5.f, ToolbarPressedColor, 1.0);
+
+			ButtonStyle.SetNormal(*BackgroundBrush)
+				.SetHovered(*HoveredBrush)
+				.SetPressed(*PressedBrush)
+				.SetNormalForeground(FStyleColors::ForegroundHeader)
+				.SetHoveredForeground(FStyleColors::ForegroundHover)
+				.SetPressedForeground(FStyleColors::ForegroundHover)
+				.SetDisabledForeground(FStyleColors::Foreground)
+				.SetNormalPadding(FMargin(4.0f, 4.0f, 3.0f, 4.0f))
+				.SetPressedPadding(FMargin(4.0f, 4.0f, 3.0f, 4.0f));
+		}
+
+		FToolBarStyle ToolBarStyle = FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
+		{
+			ToolBarStyle.SetIconSize(Icon16x16).SetButtonStyle(ButtonStyle).SetComboButtonPadding(FMargin(4.f, 0.0f));
+
+			Set("ViewportToolbar", ToolBarStyle);
+		}
+
+		// Special styling for top-level raised buttons.
+		{
+			FButtonStyle ButtonStyleRaised = ButtonStyle;
+			{
+				FLinearColor BackgroundColorRaised = FStyleColors::Dropdown.GetSpecifiedColor();
+				BackgroundColorRaised.A = .0f;
+				FSlateRoundedBoxBrush* BackgroundBrushRaised =
+					new FSlateRoundedBoxBrush(BackgroundColorRaised, 5.f, BackgroundColorRaised, 1.0);
+
+				ButtonStyleRaised.SetNormal(*BackgroundBrushRaised).SetNormalForeground(FStyleColors::Foreground);
+			}
+
+			FToolBarStyle NewViewportToolbarTopLevelRaisedStyle = ToolBarStyle;
+			{
+				NewViewportToolbarTopLevelRaisedStyle.SetButtonStyle(ButtonStyleRaised);
+
+				Set("ViewportToolbar.Raised", NewViewportToolbarTopLevelRaisedStyle);
+			}
+		}
+	}
+
 	{
 		FToolBarStyle ViewportToolbarStyle = FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
 

@@ -164,6 +164,9 @@ struct TOOLMENUS_API FToolMenuEntry
 	 *
 	 * This flag only effects entries within submenus of toolbar-type ToolMenus.
 	 *
+	 * THIS AFFECTS STYLING. When an entry is raised to the top level of a toolbar, the ".Raised" suffix is added to
+	 * the style name that would otherwise have been applied.
+	 *
 	 * @param InTopLevel True shows the entry in the top-level next to its submenu, false (default) only displays it in
 	 * the submenu itself. Pass a delegate to drive the top-level state from code.
 	 */

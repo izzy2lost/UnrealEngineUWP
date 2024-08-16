@@ -1492,7 +1492,38 @@ void UToolMenus::PopulateToolBarBuilderWithEntry(
 		return;
 	}
 
-	ToolBarBuilder.BeginStyleOverride(Block.StyleNameOverride);
+	// Override the style name.
+	{
+		FName OverrideStyleName = Block.StyleNameOverride;
+
+		// Add the .Raised suffix for menu entries raised to the top level.
+		if (bIsRaisingToTopLevel)
+		{
+			if (Block.StyleNameOverride != NAME_None)
+			{
+				OverrideStyleName = ISlateStyle::Join(Block.StyleNameOverride, ".Raised");
+			}
+			else
+			{
+				// We have to search up the submenu parent chain here because the immediate menu we're a part of might
+				// not have a style set while a parent could.
+				const UToolMenu* CurrentMenu = MenuData;
+				FName MenuStyleName = NAME_None;
+				while (MenuStyleName == NAME_None && CurrentMenu->SubMenuParent)
+				{
+					CurrentMenu = CurrentMenu->SubMenuParent.Get();
+					MenuStyleName = CurrentMenu->StyleName;
+				}
+
+				if (MenuStyleName != NAME_None)
+				{
+					OverrideStyleName = ISlateStyle::Join(MenuStyleName, ".Raised");
+				}
+			}
+		}
+
+		ToolBarBuilder.BeginStyleOverride(OverrideStyleName);
+	}
 
 	FUIAction UIAction = UToolMenus::ConvertUIAction(Block, MenuData->Context);
 	if (bIsRaisingToTopLevel && Block.ShowInToolbarTopLevel.IsBound())
