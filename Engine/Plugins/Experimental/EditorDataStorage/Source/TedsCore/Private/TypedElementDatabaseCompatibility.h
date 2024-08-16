@@ -48,20 +48,20 @@ public:
 
 	void RegisterRegistrationFilter(ObjectRegistrationFilter Filter) override;
 	void RegisterDealiaserCallback(ObjectToRowDealiaser Dealiaser) override;
-	void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) override;
+	void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, UE::Editor::DataStorage::TableHandle Table) override;
 	FDelegateHandle RegisterObjectAddedCallback(UE::Editor::DataStorage::ObjectAddedCallback&& OnObjectAdded);
 	void UnregisterObjectAddedCallback(FDelegateHandle Handle);
 	FDelegateHandle RegisterObjectRemovedCallback(UE::Editor::DataStorage::ObjectRemovedCallback&& OnObjectRemoved);
 	void UnregisterObjectRemovedCallback(FDelegateHandle Handle);
 	
-	TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) override;
-	TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) override;
+	UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(UObject* Object) override;
+	UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) override;
 	
 	void RemoveCompatibleObjectExplicit(UObject* Object) override;
 	void RemoveCompatibleObjectExplicit(void* Object) override;
 
-	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
-	TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
+	UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const override;
+	UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const override;
 
 	bool SupportsExtension(FName Extension) const override;
 	void ListExtensions(TFunctionRef<void(FName)> Callback) const override;
@@ -83,7 +83,7 @@ private:
 	private:
 		TWeakObjectPtr<UEditorDataStorageCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
-		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
+		UE::Editor::DataStorage::RowHandle MementoRow = UE::Editor::DataStorage::InvalidRowHandle;
 	};
 	class FDeregistrationCommandChange final : public FCommandChange
 	{
@@ -98,7 +98,7 @@ private:
 	private:
 		TWeakObjectPtr<UEditorDataStorageCompatibility> Owner;
 		TWeakObjectPtr<UObject> TargetObject;
-		TypedElementDataStorage::RowHandle MementoRow = TypedElementDataStorage::InvalidRowHandle;
+		UE::Editor::DataStorage::RowHandle MementoRow = UE::Editor::DataStorage::InvalidRowHandle;
 	};
 
 	void Prepare();
@@ -107,14 +107,14 @@ private:
 	void RegisterTypeInformationQueries();
 	
 	bool ShouldAddObject(const UObject* Object) const;
-	TypedElementDataStorage::TableHandle FindBestMatchingTable(const UStruct* TypeInfo) const;
+	UE::Editor::DataStorage::TableHandle FindBestMatchingTable(const UStruct* TypeInfo) const;
 	template<bool bEnableTransactions>
-	TypedElementRowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object);
+	UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicitTransactionable(UObject* Object);
 	template<bool bEnableTransactions>
 	void RemoveCompatibleObjectExplicitTransactionable(const UObject* Object);
 	template<bool bEnableTransactions>
-	void RemoveCompatibleObjectExplicitTransactionable(const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow);
-	TypedElementRowHandle DealiasObject(const UObject* Object) const;
+	void RemoveCompatibleObjectExplicitTransactionable(const UObject* Object, UE::Editor::DataStorage::RowHandle ObjectRow);
+	UE::Editor::DataStorage::RowHandle DealiasObject(const UObject* Object) const;
 
 	void Tick();
 	void TickPendingCommands();
@@ -125,8 +125,8 @@ private:
 	void OnPrePropertyChanged(UObject* Object, const FEditPropertyChain& PropertyChain);
 	void OnPostEditChangeProperty(UObject* Object, FPropertyChangedEvent& PropertyChangedEvent);
 	void OnObjectModified(UObject* Object);
-	void TriggerOnObjectAdded(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
-	void TriggerOnPreObjectRemoved(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const;
+	void TriggerOnObjectAdded(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, UE::Editor::DataStorage::RowHandle Row) const;
+	void TriggerOnPreObjectRemoved(const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, UE::Editor::DataStorage::RowHandle Row) const;
 	void OnObjectReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ReplacedObjects);
 
 	void OnPostGcUnreachableAnalysis();
@@ -156,7 +156,7 @@ private:
 		PendingTypeInformationMap PendingTypeInformationUpdates[2];
 		PendingTypeInformationMap* PendingTypeInformationUpdatesActive;
 		PendingTypeInformationMap* PendingTypeInformationUpdatesSwapped;
-		TArray<TTuple<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>> UpdatedTypeInfoScratchBuffer;
+		TArray<TTuple<TWeakObjectPtr<UStruct>, UE::Editor::DataStorage::TableHandle>> UpdatedTypeInfoScratchBuffer;
 		UE::FMutex Safeguard;
 		std::atomic<bool> bHasPendingUpdate = false;
 	};
@@ -175,19 +175,19 @@ private:
 		struct FEntry
 		{
 			AddressType Address;
-			TypedElementDataStorage::RowHandle Row;
-			TypedElementDataStorage::TableHandle Table;
+			UE::Editor::DataStorage::RowHandle Row;
+			UE::Editor::DataStorage::TableHandle Table;
 		};
 		TArray<FEntry> Entries;
 
 	public:
-		void Add(TypedElementRowHandle ReservedRowHandle, AddressType Address);
+		void Add(UE::Editor::DataStorage::RowHandle ReservedRowHandle, AddressType Address);
 		bool IsEmpty() const;
 		int32 Num() const;
 		
 		void ForEachAddress(const TFunctionRef<void(AddressType&)>& Callback);
 		void ProcessEntries(ITypedElementDataStorageInterface& Storage, UEditorDataStorageCompatibility& Compatibility,
-			const TFunctionRef<void(TypedElementRowHandle, const AddressType&)>& SetupRowCallback);
+			const TFunctionRef<void(UE::Editor::DataStorage::RowHandle, const AddressType&)>& SetupRowCallback);
 		void Reset();
 	};
 
@@ -195,11 +195,11 @@ private:
 	UE::Editor::DataStorage::CompatibilityCommandBuffer::FCollection PendingCommands;
 	PendingRegistration<TWeakObjectPtr<UObject>> UObjectsPendingRegistration;
 	PendingRegistration<ExternalObjectRegistration> ExternalObjectsPendingRegistration;
-	TArray<TypedElementDataStorage::RowHandle> RowScratchBuffer;
+	TArray<UE::Editor::DataStorage::RowHandle> RowScratchBuffer;
 	
 	TArray<ObjectRegistrationFilter> ObjectRegistrationFilters;
 	TArray<ObjectToRowDealiaser> ObjectToRowDialiasers;
-	using TypeToTableMapType = TMap<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>;
+	using TypeToTableMapType = TMap<TWeakObjectPtr<UStruct>, UE::Editor::DataStorage::TableHandle>;
 	TypeToTableMapType TypeToTableMap;
 	TArray<TPair<UE::Editor::DataStorage::ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
 	TArray<TPair<UE::Editor::DataStorage::ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
@@ -239,9 +239,9 @@ private:
 	FDelegateHandle PostGcUnreachableAnalysisHandle;
 	
 	TSharedPtr<UE::Editor::DataStorage::FEnvironment> Environment;
-	TypedElementDataStorage::QueryHandle ClassTypeInfoQuery;
-	TypedElementDataStorage::QueryHandle ScriptStructTypeInfoQuery;
-	TypedElementDataStorage::QueryHandle UObjectQuery;
+	UE::Editor::DataStorage::QueryHandle ClassTypeInfoQuery;
+	UE::Editor::DataStorage::QueryHandle ScriptStructTypeInfoQuery;
+	UE::Editor::DataStorage::QueryHandle UObjectQuery;
 };
 
 SIZE_T GetTypeHash(const UEditorDataStorageCompatibility::FSyncTagInfo& Column);

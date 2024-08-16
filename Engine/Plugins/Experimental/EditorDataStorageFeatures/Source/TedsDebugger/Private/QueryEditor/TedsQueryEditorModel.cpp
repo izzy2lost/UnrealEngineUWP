@@ -6,7 +6,7 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "UObject/UObjectIterator.h"
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	bool FConditionEntryHandle::operator==(const FConditionEntryHandle& Rhs) const
 	{

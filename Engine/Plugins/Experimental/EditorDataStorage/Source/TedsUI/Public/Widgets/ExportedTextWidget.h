@@ -37,14 +37,14 @@ public:
 	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 	virtual const TypedElementDataStorage::FQueryConditions* GetQueryConditions() const override;
 	virtual FString CreateWidgetDisplayName(
-		ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle Row) const override;
+		ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) const override;
 
 protected:
 	virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	virtual bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row,
+		UE::Editor::DataStorage::RowHandle Row,
 		const TSharedPtr<SWidget>& Widget) override;
 
 protected:

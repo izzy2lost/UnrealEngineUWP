@@ -14,7 +14,7 @@
 
 #define LOCTEXT_NAMESPACE "TedsAlertWidget"
 
-namespace UE::EditorDataStorage::Widgets::Private
+namespace UE::Editor::DataStorage::Widgets::Private
 {
 	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount,
 		TypedElementDataStorage::RowHandle RowWithAlertAction)
@@ -117,7 +117,7 @@ namespace UE::EditorDataStorage::Widgets::Private
 				}
 
 				// If there's an action to call, enable the invisible button, otherwise turn it off.
-				if (RowWithAlertAction != TypedElementDataStorage::InvalidRowHandle)
+				if (RowWithAlertAction != UE::Editor::DataStorage::InvalidRowHandle)
 				{
 					Background.SetVisibility(EVisibility::HitTestInvisible);
 					ActionButton.SetVisibility(EVisibility::Visible);
@@ -151,13 +151,11 @@ void UAlertWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementDataStorage;
-
 	DataStorageUi.RegisterWidgetFactory<FAlertWidgetConstructor>(FName(TEXT("General.Cell")),
-		FColumn<FTypedElementAlertColumn>() || FColumn<FTypedElementChildAlertColumn>());
+		TypedElementDataStorage::FColumn<FTypedElementAlertColumn>() || TypedElementDataStorage::FColumn<FTypedElementChildAlertColumn>());
 	
 	DataStorageUi.RegisterWidgetFactory<FAlertHeaderWidgetConstructor>(FName(TEXT("General.Header")),
-		FColumn<FTypedElementAlertColumn>() || FColumn<FTypedElementChildAlertColumn>());
+		TypedElementDataStorage::FColumn<FTypedElementAlertColumn>() || TypedElementDataStorage::FColumn<FTypedElementChildAlertColumn>());
 }
 
 void UAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
@@ -170,8 +168,9 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
-	TypedElementQueryHandle UpdateWidget_OnlyAlert = DataStorage.RegisterQuery(
+	QueryHandle UpdateWidget_OnlyAlert = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementAlertColumn>()
 		.Where()
@@ -179,7 +178,7 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 			.None<FTypedElementChildAlertColumn>()
 		.Compile());
 
-	TypedElementQueryHandle UpdateWidget_OnlyChildAlert = DataStorage.RegisterQuery(
+	QueryHandle UpdateWidget_OnlyChildAlert = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementChildAlertColumn>()
 		.Where()
@@ -187,7 +186,7 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 			.None<FTypedElementAlertColumn>()
 		.Compile());
 
-	TypedElementQueryHandle UpdateWidget_Both = DataStorage.RegisterQuery(
+	QueryHandle UpdateWidget_Both = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
 		.Where()
@@ -209,14 +208,14 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
 							Alert.AlertType == FTypedElementAlertColumnType::Error,
 							TEXT("Alert column has unsupported type %i"), static_cast<int>(Alert.AlertType));
-						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
+						Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
 							Alert.AlertType == FTypedElementAlertColumnType::Warning, 0, 0,
 							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
 					}));
 				Context.RunSubquery(1, ReferenceColumn.Row, CreateSubqueryCallbackBinding(
 					[&Widget](ISubqueryContext& Context, RowHandle Row, const FTypedElementChildAlertColumn& ChildAlert)
 					{
-						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), FText::GetEmpty(), false,
+						Widgets::Private::UpdateWidget(Widget.Widget.Pin(), FText::GetEmpty(), false,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
 							Context.HasColumn<FTypedElementAlertActionColumn>() ? Row : InvalidRowHandle);
@@ -231,7 +230,7 @@ void UAlertWidgetFactory::RegisterAlertQueries(ITypedElementDataStorageInterface
 							Alert.AlertType == FTypedElementAlertColumnType::Warning ||
 							Alert.AlertType == FTypedElementAlertColumnType::Error,
 							TEXT("Alert column has unsupported type %i"), static_cast<int>(Alert.AlertType));
-						UE::EditorDataStorage::Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
+						Widgets::Private::UpdateWidget(Widget.Widget.Pin(), Alert.Message,
 							Alert.AlertType == FTypedElementAlertColumnType::Warning,
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)],
 							ChildAlert.Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)],
@@ -252,8 +251,9 @@ void UAlertWidgetFactory::RegisterAlertHeaderQueries(ITypedElementDataStorageInt
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
-	TypedElementQueryHandle AlertCount = DataStorage.RegisterQuery(
+	QueryHandle AlertCount = DataStorage.RegisterQuery(
 		Count()
 		.Where()
 			.Any<FTypedElementAlertColumn>()
@@ -377,7 +377,7 @@ bool FAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* 
 	uint16 ErrorCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)] : 0;
 	uint16 WarningCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)] : 0;
 
-	UE::EditorDataStorage::Widgets::Private::UpdateWidget(
+	UE::Editor::DataStorage::Widgets::Private::UpdateWidget(
 		Widget, 
 		Alert ? Alert->Message : FText::GetEmpty(), 
 		Alert ? (Alert->AlertType == FTypedElementAlertColumnType::Warning) : false, 
@@ -415,7 +415,7 @@ TConstArrayView<const UScriptStruct*> FAlertHeaderWidgetConstructor::GetAddition
 }
 
 bool FAlertHeaderWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, 
-	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	DataStorage->AddColumn(Row, FUIHeaderPropertiesColumn
 		{

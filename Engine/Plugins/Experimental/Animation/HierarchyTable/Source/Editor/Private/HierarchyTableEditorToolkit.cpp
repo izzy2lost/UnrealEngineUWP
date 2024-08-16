@@ -87,7 +87,7 @@ void FHierarchyTableEditorToolkit::OnClose()
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
 
-	for (const TTuple<int32, TypedElementDataStorage::RowHandle>& Row : EntryIndexToHandleMap)
+	for (const TTuple<int32, UE::Editor::DataStorage::RowHandle>& Row : EntryIndexToHandleMap)
 	{
 		DSI->RemoveRow(Row.Value);
 	}
@@ -112,6 +112,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	}
 
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 
 	if (!ensure(HierarchyTable->TableType))
 	{
@@ -156,7 +157,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
 
 	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
-	static TypedElementDataStorage::TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
+	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 	
 	TArray<UScriptStruct*> BaseHierarchyTableTypeColumns = Handler->GetColumns();
 
@@ -164,7 +165,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	{
 		FHierarchyTableEntryData* Entry = &HierarchyTable->TableData[EntryIndex];
 
-		TypedElementRowHandle Row = DSI->AddRow(Table);
+		RowHandle Row = DSI->AddRow(Table);
 
 		FTypedElementOverrideColumn OverrideEntry;
 		OverrideEntry.OwnerEntry = Entry;
@@ -173,7 +174,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 		DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = Entry->Identifier.ToString() });
 
-		TypedElementRowHandle* ParentRow = EntryIndexToHandleMap.Find(Entry->Parent);
+		RowHandle* ParentRow = EntryIndexToHandleMap.Find(Entry->Parent);
 		if (ParentRow)
 		{
 			DSI->AddColumn<FTableRowParentColumn>(Row, { .Parent = *ParentRow });
@@ -229,6 +230,7 @@ void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
 	// TODO: Reimplement
 
 	/*
+	using namespace UE::Editor::DataStorage;
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
 	static TypedElementDataStorage::TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
@@ -239,7 +241,7 @@ void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
 		return;
 	}
 
-	TypedElementRowHandle Row = DSI->AddRow(Table);
+	RowHandle Row = DSI->AddRow(Table);
 	DSI->AddColumn<FTypedElementOverrideColumn>(Row, { .bIsOverridden = false });
 	DSI->AddColumn<FTypedElementLabelColumn>(Row, { .Label = CurveName.ToString() });
 	DSI->AddColumn<FTypedElementMetadataColumn>(Row,

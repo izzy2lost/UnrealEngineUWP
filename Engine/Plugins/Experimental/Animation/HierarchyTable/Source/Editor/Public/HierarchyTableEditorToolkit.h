@@ -30,9 +30,9 @@ private:
 
 	UHierarchyTable* HierarchyTable;
 
-	TMap<int32, TypedElementDataStorage::RowHandle> EntryIndexToHandleMap;
+	TMap<int32, UE::Editor::DataStorage::RowHandle> EntryIndexToHandleMap;
 
-	TypedElementDataStorage::QueryHandle InitialColumnQuery;
+	UE::Editor::DataStorage::QueryHandle InitialColumnQuery;
 
-	//TypedElementDataStorage::QueryHandle CollectDataQuery;
+	//UE::Editor::DataStorage::QueryHandle CollectDataQuery;
 };

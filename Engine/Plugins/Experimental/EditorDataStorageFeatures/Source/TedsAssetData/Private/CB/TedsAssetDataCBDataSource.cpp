@@ -16,14 +16,14 @@
 #include "Settings/ContentBrowserSettings.h"
 #include "UObject/NameTypes.h"
 
-namespace UE::EditorDataStorage::AssetData::Private
+namespace UE::Editor::AssetData::Private
 {
 
 FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase)
 	: Database(InDatabase)
 {
 	using namespace TypedElementQueryBuilder;
-	using namespace EditorDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	InitVirtualPathProcessor();
 
@@ -42,7 +42,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		Select(
 			TEXT("FTedsAssetDataCBDataSource: Process Path updates"),
 			FProcessor(TypedElementDataStorage::EQueryTickPhase::DuringPhysics, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Update)),
-			[GenerateVirtualPaths](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows, const FAssetPathColumn_Experimental* PathColumn)
+			[GenerateVirtualPaths](TypedElementDataStorage::IQueryContext& Context, const RowHandle* Rows, const FAssetPathColumn_Experimental* PathColumn)
 			{
 				int32 NumOfRowToProcess = Context.GetRowCount();
 
@@ -72,7 +72,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		Select(
 			TEXT("FTedsAssetDataCBDataSource:: Process Asset Data Path Update"),
 			FProcessor(TypedElementDataStorage::EQueryTickPhase::DuringPhysics, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Update)),
-			[GenerateVirtualPaths](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle Row, const FAssetDataColumn_Experimental& AssetDataColumn)
+			[GenerateVirtualPaths](TypedElementDataStorage::IQueryContext& Context, const RowHandle Row, const FAssetDataColumn_Experimental& AssetDataColumn)
 			{
 				int32 NumOfRowToProcess = Context.GetRowCount();
 
@@ -98,7 +98,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 
 
 	// For now just add the columns one by one but this should be rework to work in batch
-	auto AddAssetDataColumns = [](TypedElementDataStorage::IQueryContext& InContext, TypedElementDataStorage::RowHandle Row, const FAssetData& InAssetData, const FAssetPackageData* PackageData)
+	auto AddAssetDataColumns = [](TypedElementDataStorage::IQueryContext& InContext, RowHandle Row, const FAssetData& InAssetData, const FAssetPackageData* PackageData)
 	{
 		// Not optimized at all but we would like to have the data in sooner for testing purposes.
 		
@@ -128,12 +128,12 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		Select(
 			TEXT("FTedsAssetDataCBDataSource: Process Asset Data and Path Updates"),
 			FProcessor(TypedElementDataStorage::EQueryTickPhase::DuringPhysics, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Update)),
-			[GenerateVirtualPaths, AddAssetDataColumns, AssetRegistry = static_cast<const IAssetRegistry*>(&IAssetRegistry::GetChecked())](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows, const FAssetDataColumn_Experimental* AssetDataColumn)
+			[GenerateVirtualPaths, AddAssetDataColumns, AssetRegistry = static_cast<const IAssetRegistry*>(&IAssetRegistry::GetChecked())](TypedElementDataStorage::IQueryContext& Context, const RowHandle* Rows, const FAssetDataColumn_Experimental* AssetDataColumn)
 			{
 				const int32 RowCount = Context.GetRowCount();
 
 				TArray<FName, TInlineAllocator<32>> PackageNames;
-				TArray<TPair<TypedElementDataStorage::RowHandle, const FAssetData*>, TInlineAllocator<32>> RowsAndAssetData;
+				TArray<TPair<RowHandle, const FAssetData*>, TInlineAllocator<32>> RowsAndAssetData;
 				PackageNames.Reserve(RowCount);
 				RowsAndAssetData.Reserve(RowCount);
 
@@ -145,7 +145,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 					if (GenerateVirtualPaths(InternalPath, VirtualPath))
 					{
 						const FAssetData& AssetData = AssetDataColumn[Index].AssetData;
-						const TypedElementDataStorage::RowHandle Row = Rows[Index];
+						const RowHandle Row = Rows[Index];
 
 						InternalPath.Reset();
 						AssetData.AppendObjectPath(InternalPath);
@@ -163,7 +163,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 
 				for (int32 Index = 0; Index < AssetPackageDatas.Num(); ++Index)
 				{
-					const TPair<TypedElementDataStorage::RowHandle, const FAssetData*>& Pair = RowsAndAssetData[Index];
+					const TPair<RowHandle, const FAssetData*>& Pair = RowsAndAssetData[Index];
 					const TOptional<FAssetPackageData>& AssetPackageData = AssetPackageDatas[Index];
 					AddAssetDataColumns(Context, Pair.Key, *Pair.Value, AssetPackageData.GetPtrOrNull());
 				}
@@ -178,7 +178,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 		Select(
 			TEXT("FTedsAssetDataCBDataSource: Process Asset Data updates"),
 			FProcessor(TypedElementDataStorage::EQueryTickPhase::DuringPhysics, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Update)),
-			[AddAssetDataColumns,  AssetRegistry = static_cast<const IAssetRegistry*>(&IAssetRegistry::GetChecked())](TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows, const FAssetDataColumn_Experimental* AssetDataColumn)
+			[AddAssetDataColumns,  AssetRegistry = static_cast<const IAssetRegistry*>(&IAssetRegistry::GetChecked())](TypedElementDataStorage::IQueryContext& Context, const RowHandle* Rows, const FAssetDataColumn_Experimental* AssetDataColumn)
 			{
 				const int32 RowCount = Context.GetRowCount();
 				TArray<FName, TInlineAllocator<32>> PackageNames;
@@ -314,4 +314,4 @@ void FTedsAssetDataCBDataSource::FVirtualPathProcessor::ConvertInternalPathToVir
 	OutVirtualPath.Append(InternalPath.GetData(), InternalPath.Len());
 }
 
-} // End of Namespace UE::TypedElementDataStorageAssetData::Private
+} // End of Namespace UE::Editor::AssetData::Private

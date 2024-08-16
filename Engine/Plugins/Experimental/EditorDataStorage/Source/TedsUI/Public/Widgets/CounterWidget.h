@@ -57,11 +57,11 @@ public:
 
 	FText ToolTipText{ NSLOCTEXT("TypedElementUI_CounterWidget", "Tooltip", "Shows the total number found in the editor.") };
 	FText LabelText{ NSLOCTEXT("TypedElementUI_CounterWidget", "Label", "Counted") };
-	TypedElementQueryHandle Query;
+	UE::Editor::DataStorage::QueryHandle Query;
 
 protected:
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
-	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row) override;
+	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) override;
 };
 
 USTRUCT(meta = (DisplayName = "Counter widget"))
@@ -70,5 +70,5 @@ struct TEDSUI_API FCounterWidgetColumn : public FEditorDataStorageColumn
 	GENERATED_BODY()
 
 	FTextFormat LabelTextFormatter;
-	TypedElementQueryHandle Query;
+	UE::Editor::DataStorage::QueryHandle Query;
 };

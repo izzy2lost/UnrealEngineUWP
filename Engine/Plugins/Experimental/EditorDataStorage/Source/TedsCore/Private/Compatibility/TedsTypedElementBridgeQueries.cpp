@@ -77,7 +77,7 @@ void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedEle
 
 	// Remove any TEv1 handles
 	{
-		TArray<TypedElementRowHandle> Handles;
+		TArray<UE::Editor::DataStorage::RowHandle> Handles;
 		using namespace TypedElementQueryBuilder;
 		DataStorage.RunQuery(
 			RemoveTypedElementRowHandleQuery,
@@ -87,7 +87,7 @@ void UTypedElementBridgeDataStorageFactory::CleanupTypedElementColumns(ITypedEle
 					Handles.Append(Context.GetRowHandles());
 				}));
 		
-		DataStorage.BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle>(Handles), {}, {UE::Editor::DataStorage::Compatibility::FTypedElementColumn::StaticStruct()});
+		DataStorage.BatchAddRemoveColumns(TConstArrayView<UE::Editor::DataStorage::RowHandle>(Handles), {}, {UE::Editor::DataStorage::Compatibility::FTypedElementColumn::StaticStruct()});
 	}
 }
 

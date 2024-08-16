@@ -29,8 +29,8 @@ private:
 	void HandleBridgeEnabled(bool bEnabled);
 
 	FDelegateHandle BridgeEnableDelegateHandle;
-	TypedElementQueryHandle ActorHandlePopulateQuery = TypedElementInvalidQueryHandle;
-	TypedElementQueryHandle GetAllActorsQuery = TypedElementInvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle ActorHandlePopulateQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle GetAllActorsQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 };
 
 

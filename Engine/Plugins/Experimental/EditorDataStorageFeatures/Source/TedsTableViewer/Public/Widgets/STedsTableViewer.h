@@ -12,7 +12,7 @@ class ITableRow;
 class STableViewBase;
 class SHeaderRow;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	class FTedsTableViewerColumn;
 
@@ -30,7 +30,7 @@ namespace UE::EditorDataStorage
 	public:
 		
 		// Delegate fired when the selection in the table viewer changes
-		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, TypedElementDataStorage::RowHandle)
+		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, RowHandle)
 
 		SLATE_BEGIN_ARGS(STedsTableViewer)
 			: _CellWidgetPurposes({TEXT("General.Cell")})
@@ -91,4 +91,4 @@ namespace UE::EditorDataStorage
 		// Delegate fired when the selection changes
 		FOnSelectionChanged OnSelectionChanged;
 	};
-}
+} // namespace UE::Editor::DataStorage

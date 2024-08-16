@@ -11,44 +11,47 @@
 class IPlugin;
 class ITypedElementDataStorageInterface;
 
-namespace UE::EditorDataStorage::AssetData::Private
+namespace UE::Editor
 {
-
-class FTedsAssetDataCBDataSource
-{
-public:
-	explicit FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase);
-	~FTedsAssetDataCBDataSource();
-		
-private:
-	ITypedElementDataStorageInterface& Database;
-	TypedElementDataStorage::QueryHandle ProcessPathQuery;
-	TypedElementDataStorage::QueryHandle ProcessAssetDataPathUpdateQuery;
-	TypedElementDataStorage::QueryHandle ProcessAssetDataAndPathUpdateQuery;
-	TypedElementDataStorage::QueryHandle ProcessAssetDataUpdateQuery;
-
-	struct FVirtualPathProcessor
+	namespace AssetData::Private
 	{
-		struct FCachedPluginData
+
+		class FTedsAssetDataCBDataSource
 		{
-			EPluginLoadedFrom LoadedFrom;
-			FString EditorCustomVirtualPath;
+		public:
+			explicit FTedsAssetDataCBDataSource(ITypedElementDataStorageInterface& InDatabase);
+			~FTedsAssetDataCBDataSource();
+
+		private:
+			ITypedElementDataStorageInterface& Database;
+			DataStorage::QueryHandle ProcessPathQuery;
+			DataStorage::QueryHandle ProcessAssetDataPathUpdateQuery;
+			DataStorage::QueryHandle ProcessAssetDataAndPathUpdateQuery;
+			DataStorage::QueryHandle ProcessAssetDataUpdateQuery;
+
+			struct FVirtualPathProcessor
+			{
+				struct FCachedPluginData
+				{
+					EPluginLoadedFrom LoadedFrom;
+					FString EditorCustomVirtualPath;
+				};
+
+				TMap<FString, FCachedPluginData> PluginNameToCachedData;
+
+				bool bShowAllFolder = false;
+				bool bOrganizeFolders = false;
+
+				void ConvertInternalPathToVirtualPath(const FStringView InternalPath, FStringBuilderBase& OutVirtualPath) const;
+			};
+
+			FVirtualPathProcessor VirtualPathProcessor;
+
+			void InitVirtualPathProcessor();
+
+			void OnPluginContentMounted(IPlugin& InPlugin);
+			void OnPluginUnmounted(IPlugin& InPlugin);
 		};
 
-		TMap<FString, FCachedPluginData> PluginNameToCachedData;
-
-		bool bShowAllFolder = false;
-		bool bOrganizeFolders = false;
-
-		void ConvertInternalPathToVirtualPath(const FStringView InternalPath, FStringBuilderBase& OutVirtualPath) const;
-	};
-
-	FVirtualPathProcessor VirtualPathProcessor; 
-
-	void InitVirtualPathProcessor();
-
-	void OnPluginContentMounted(IPlugin& InPlugin);
-	void OnPluginUnmounted(IPlugin& InPlugin);
-};
-
-} // End of namespace UE::TypedElementsDataStorageAssetData::Private
+	} // namespace AssetData::Private
+} // End of namespace UE::Editor

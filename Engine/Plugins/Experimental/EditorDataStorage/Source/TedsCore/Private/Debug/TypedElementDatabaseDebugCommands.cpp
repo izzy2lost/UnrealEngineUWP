@@ -68,11 +68,12 @@ namespace UE::Editor::DataStorage::Private
 	void PrintObjectLabels(FOutputDevice& Output)
 	{
 		using namespace TypedElementQueryBuilder;
+		using namespace UE::Editor::DataStorage;
 		using DSI = ITypedElementDataStorageInterface;
 
 		if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 		{
-			static TypedElementQueryHandle LabelQuery = [DataStorage]
+			static QueryHandle LabelQuery = [DataStorage]
 			{
 				if constexpr (sizeof...(Conditions) > 0)
 				{
@@ -92,7 +93,7 @@ namespace UE::Editor::DataStorage::Private
 				}
 			}();
 
-			if (LabelQuery != TypedElementInvalidQueryHandle)
+			if (LabelQuery != InvalidQueryHandle)
 			{
 				FString Message;
 				DataStorage->RunQuery(LabelQuery, CreateDirectQueryCallbackBinding(
@@ -424,7 +425,7 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 		
 		const FName Identifier(*Args[0]);
 
-		const TypedElementQueryHandle Query = DataStorage->RegisterQuery(
+		const QueryHandle Query = DataStorage->RegisterQuery(
 			Select().
 				// Specify ReadOnly access to a dynamic column of type FTestDynamicColumn specified by the Identifier
 				ReadOnly<FTestDynamicColumn>(Identifier).
@@ -432,9 +433,9 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 
 		TStringBuilder<1024> StringBuilder;
 		TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query,CreateDirectQueryCallbackBinding(
-			[Identifier, &StringBuilder](TypedElementDataStorage::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+			[Identifier, &StringBuilder](TypedElementDataStorage::IDirectQueryContext& Context, const RowHandle* Rows)
 			{
-				const TArrayView<const TypedElementDataStorage::RowHandle> RowView = MakeConstArrayView(Rows, Context.GetRowCount());
+				const TArrayView<const RowHandle> RowView = MakeConstArrayView(Rows, Context.GetRowCount());
 				// Get pointer to the start of the range of columns to process
 				const FTestDynamicColumn* DynamicColumnsRangeStart = Context.GetColumn<FTestDynamicColumn>(Identifier);
 				const TArrayView<const FTestDynamicColumn> DynamicColumnView = MakeConstArrayView(DynamicColumnsRangeStart, Context.GetRowCount());
@@ -486,7 +487,7 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 				
 		const FName Identifier(*Args[0]);
 
-		const TypedElementQueryHandle Query = DataStorage->RegisterQuery(
+		const QueryHandle Query = DataStorage->RegisterQuery(
 			Select().
 				// Specify Any access to a dynamically created tag
 				Where().
@@ -494,7 +495,7 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 			Compile());
 
 		int32 Count = 0;
-		DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding([Identifier, &Count](TypedElementDataStorage::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+		DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding([Identifier, &Count](TypedElementDataStorage::IDirectQueryContext& Context, const RowHandle* Rows)
 		{
 			Count += Context.GetRowCount();
 		}));
@@ -658,7 +659,7 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 			return;
 		}			
 
-		const TypedElementQueryHandle Query = [&Args, DataStorage]() -> TypedElementQueryHandle
+		const QueryHandle Query = [&Args, DataStorage]() -> QueryHandle
 		{
 			const FName Tag(*Args[0]);
 			if (Args.Num() == 1)
@@ -688,7 +689,7 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 		uint64 Count = 0;
 		
 		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
-			[&Count](const DSI::IDirectQueryContext& Context, const TypedElementRowHandle*)
+			[&Count](const DSI::IDirectQueryContext& Context, const RowHandle*)
 			{
 				Count += Context.GetRowCount();
 			}));
@@ -703,6 +704,8 @@ static FAutoConsoleCommand CVarAddDynamicTagFromEnum(
 	TEXT("Argument: Row, EnumValue\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
+		using namespace UE::Editor::DataStorage;
+
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() < 1 || Args.Num() > 2)
@@ -711,7 +714,7 @@ static FAutoConsoleCommand CVarAddDynamicTagFromEnum(
 		}
 		
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const RowHandle Row = RowAsU64;
 
 		if (Args.Num() == 1)
 		{
@@ -740,6 +743,7 @@ static FAutoConsoleCommand CVarRemoveDynamicTagFromEnum(
 	TEXT("Argument: Row\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
+		using namespace UE::Editor::DataStorage;
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 
 		if (Args.Num() != 1)
@@ -748,7 +752,7 @@ static FAutoConsoleCommand CVarRemoveDynamicTagFromEnum(
 		}
 		
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const RowHandle Row = RowAsU64;
 		
 		DataStorage->RemoveColumn<ETedsDebugEnum>(Row);
 	}),
@@ -783,7 +787,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 			}
 		}
 
-		const TypedElementQueryHandle Query = [&Args, DataStorage]() -> TypedElementQueryHandle
+		const QueryHandle Query = [&Args, DataStorage]() -> QueryHandle
 		{
 			if (Args.Num() == 0)
 			{
@@ -812,10 +816,10 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 			}
 			else
 			{
-				return TypedElementDataStorage::InvalidQueryHandle;
+				return InvalidQueryHandle;
 			}
 		}();
-		if (Query == TypedElementDataStorage::InvalidQueryHandle)
+		if (Query == InvalidQueryHandle)
 		{
 			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments"));
 			return;
@@ -824,7 +828,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 		uint64 Count = 0;
 		
 		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
-			[&Count](const DSI::IDirectQueryContext& Context, const TypedElementRowHandle*)
+			[&Count](const DSI::IDirectQueryContext& Context, const RowHandle*)
 			{
 				Count += Context.GetRowCount();
 			}));

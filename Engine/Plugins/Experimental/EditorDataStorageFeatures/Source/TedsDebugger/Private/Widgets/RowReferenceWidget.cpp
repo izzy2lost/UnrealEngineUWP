@@ -17,9 +17,11 @@
 
 #define LOCTEXT_NAMESPACE "RowReferenceWidget"
 
-namespace UE::EditorDataStorage::Debug::Private
+namespace UE::Editor::DataStorage::Debug::Private
 {
-	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle TargetRowHandle, TypedElementDataStorage::RowHandle UiRowHandle)
+	using namespace UE::Editor::DataStorage;
+
+	void OnNavigateHyperlink(const ITypedElementDataStorageInterface* DataStorage,  RowHandle TargetRowHandle, RowHandle UiRowHandle)
 	{
 		const FTedsOutlinerColumn* TedsOutlinerColumn = DataStorage->GetColumn<FTedsOutlinerColumn>(UiRowHandle);
 
@@ -49,11 +51,11 @@ namespace UE::EditorDataStorage::Debug::Private
 		}
 
 		// If it wasn't found in the table viewer owning this widget, navigate to it in the global TEDS debugger
-		UE::EditorDataStorage::Debug::FTedsDebuggerModule& TedsDebuggerModule = FModuleManager::GetModuleChecked<UE::EditorDataStorage::Debug::FTedsDebuggerModule>("TedsDebugger");
+		Debug::FTedsDebuggerModule& TedsDebuggerModule = FModuleManager::GetModuleChecked<Debug::FTedsDebuggerModule>("TedsDebugger");
 		TedsDebuggerModule.NavigateToRow(TargetRowHandle);
 	}
 	
-	void CreateInternalWidget(const TWeakPtr<SWidget>& InWidget, TypedElementDataStorage::RowHandle UiRow, TypedElementDataStorage::RowHandle TargetRow)
+	void CreateInternalWidget(const TWeakPtr<SWidget>& InWidget, RowHandle UiRow, RowHandle TargetRow)
 	{
 		const TSharedPtr<SWidget> Widget = InWidget.Pin();
 
@@ -86,14 +88,14 @@ namespace UE::EditorDataStorage::Debug::Private
 					.Text(Text)
 					.Style(FAppStyle::Get(), "Common.GotoBlueprintHyperlink")
 					.ToolTipText(TooltipText)
-					.OnNavigate(FSimpleDelegate::CreateStatic(&UE::EditorDataStorage::Debug::Private::OnNavigateHyperlink, DataStorage, TargetRow, UiRow));
+					.OnNavigate(FSimpleDelegate::CreateStatic(&OnNavigateHyperlink, DataStorage, TargetRow, UiRow));
 			
 			WidgetInstance->SetContent(HyperlinkWidget);
 		}
 	}
 
 
-}
+} // namespace UE::Editor::DataStorage::Debug::Private
 
 URowReferenceWidgetFactory::~URowReferenceWidgetFactory()
 {
@@ -110,8 +112,9 @@ void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterfa
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
-	const TypedElementQueryHandle UpdateRowReferenceWidget = DataStorage.RegisterQuery(
+	const QueryHandle UpdateRowReferenceWidget = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementRowReferenceColumn>()
 		.Where()
@@ -132,7 +135,7 @@ void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterfa
 				Context.RunSubquery(0, Target.Row, CreateSubqueryCallbackBinding(
 					[&Widget, UiRowHandle](const FTypedElementRowReferenceColumn& Target)
 					{
-						UE::EditorDataStorage::Debug::Private::CreateInternalWidget(Widget.Widget, UiRowHandle, Target.Row);
+						Debug::Private::CreateInternalWidget(Widget.Widget, UiRowHandle, Target.Row);
 					}));
 			})
 		.DependsOn()
@@ -153,17 +156,18 @@ TSharedPtr<SWidget> FRowReferenceWidgetConstructor::CreateWidget(const TypedElem
 			.VAlign(VAlign_Center);
 }
 
-bool FRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
+	using namespace UE::Editor::DataStorage;
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
 		"references."));
 
 	// The actual row we want to view in the widget
-	TypedElementRowHandle TargetRowReference = TypedElementInvalidRowHandle;
+	RowHandle TargetRowReference = InvalidRowHandle;
 
 	// The target row for which this widget was created
-	const TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	const RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 
 	// Check if the target row has a row reference column, if so we want to view the row in there.
 	if(const FTypedElementRowReferenceColumn* RowReferenceColumn = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(TargetRow))
@@ -171,7 +175,7 @@ bool FRowReferenceWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInte
 		TargetRowReference = RowReferenceColumn->Row;
 	}
 	
-	UE::EditorDataStorage::Debug::Private::CreateInternalWidget(Widget, Row, TargetRowReference);
+	Debug::Private::CreateInternalWidget(Widget, Row, TargetRowReference);
 
 	return true;
 }

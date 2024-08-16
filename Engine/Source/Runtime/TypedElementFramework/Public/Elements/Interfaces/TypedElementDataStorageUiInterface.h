@@ -25,6 +25,8 @@ struct FTypedElementWidgetConstructor
 {
 	GENERATED_BODY()
 
+	using RowHandle = UE::Editor::DataStorage::RowHandle;
+
 public:
 	TYPEDELEMENTFRAMEWORK_API explicit FTypedElementWidgetConstructor(const UScriptStruct* InTypeInfo);
 	explicit FTypedElementWidgetConstructor(EForceInit) {} //< For compatibility and shouldn't be directly used.
@@ -63,7 +65,7 @@ public:
 	 *	@see Construct
 	 */
 	TYPEDELEMENTFRAMEWORK_API TSharedPtr<SWidget> ConstructFinalWidget(
-		TypedElementRowHandle Row, /** The row the widget will be stored in. */
+		RowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		const TypedElementDataStorage::FMetaDataView& Arguments);
@@ -76,7 +78,7 @@ public:
 	 * In most cases, you want to call ConstructFinalWidget to create the actual widget.
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> Construct(
-		TypedElementRowHandle Row, /** The row the widget will be stored in. */
+		RowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		const TypedElementDataStorage::FMetaDataView& Arguments);
@@ -85,7 +87,7 @@ protected:
 	/** Create a new instance of the target widget. This is a required function. */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments);
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
-	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row);
+	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row);
 	
 	/** Creates a (friendly) name for the provided column type. */
 	TYPEDELEMENTFRAMEWORK_API virtual FString DescribeColumnType(const UScriptStruct* ColumnType) const;
@@ -97,11 +99,11 @@ protected:
 	TYPEDELEMENTFRAMEWORK_API virtual bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row,
+		RowHandle Row,
 		const TSharedPtr<SWidget>& Widget);
 
 	/** Add the default misc columns we want a widget row to have. */
-	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage) const;
+	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(RowHandle Row, ITypedElementDataStorageInterface* DataStorage) const;
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
@@ -128,6 +130,8 @@ class UTypedElementDataStorageUiInterface : public UInterface
 class ITypedElementDataStorageUiInterface
 {
 	GENERATED_BODY()
+
+	using RowHandle = UE::Editor::DataStorage::RowHandle;
 
 public:
 	enum class EPurposeType : uint8
@@ -159,7 +163,7 @@ public:
 		SingleMatch
 	};
 
-	using WidgetCreatedCallback = TFunctionRef<void(const TSharedRef<SWidget>& NewWidget, TypedElementRowHandle Row)>;
+	using WidgetCreatedCallback = TFunctionRef<void(const TSharedRef<SWidget>& NewWidget, RowHandle Row)>;
 	using WidgetConstructorCallback = TFunctionRef<bool(TUniquePtr<FTypedElementWidgetConstructor>, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)>;
 	using WidgetPurposeCallback = TFunctionRef<void(FName, EPurposeType, const FText&)>;
 
@@ -258,7 +262,7 @@ public:
 	 * The provided row will be used to store the widget information on. If columns have already been added to the row, the 
 	 * constructor is free to use that to configure the widget. Arguments are used by the constructor to configure the widget.
 	 */
-	virtual TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
+	virtual TSharedPtr<SWidget> ConstructWidget(RowHandle Row, FTypedElementWidgetConstructor& Constructor,
 		const TypedElementDataStorage::FMetaDataView& Arguments) = 0;
 
 	/** Calls the provided callback for all known registered widget purposes. */

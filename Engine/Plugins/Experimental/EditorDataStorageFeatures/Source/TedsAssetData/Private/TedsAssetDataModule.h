@@ -5,14 +5,14 @@
 #include "Modules/ModuleInterface.h"
 #include "Templates/UniquePtr.h"
 
-namespace UE::EditorDataStorage::AssetData
+namespace UE::Editor::AssetData
 { 
 
 namespace Private
 {
 	class FTedsAssetData;
 	class FTedsAssetDataCBDataSource;
-}
+} // namespace Private
 
 class FTedsAssetDataModule : public IModuleInterface
 {
@@ -41,4 +41,4 @@ private:
 	TUniquePtr<Private::FTedsAssetData> AssetRegistryStorage;
 };
 
-}
+} // namespace UE::Editor::AssetData

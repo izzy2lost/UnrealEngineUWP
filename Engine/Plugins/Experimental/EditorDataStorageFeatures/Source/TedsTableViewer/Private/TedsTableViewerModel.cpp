@@ -9,7 +9,7 @@
 #include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	FTedsTableViewerModel::FTedsTableViewerModel(const TSharedPtr<IQueryStackNode_Row>& InRowQueryStack,
 		const TArray<TWeakObjectPtr<const UScriptStruct>>& InRequestedColumns, const TArray<FName>& InCellWidgetPurposes,
@@ -271,6 +271,4 @@ namespace UE::EditorDataStorage
 
 		return true;
 	}
-
-
-}
+} // namespace UE::Editor::DataStorage

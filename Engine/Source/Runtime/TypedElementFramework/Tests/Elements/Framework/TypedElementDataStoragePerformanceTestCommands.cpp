@@ -7,9 +7,12 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "HAL/IConsoleManager.h"
 
-namespace Private
+namespace UE::Editor::DataStorage
 {
-	TypedElementTableHandle PerformanceTestCommandTable = TypedElementInvalidTableHandle;
+	namespace Private
+	{
+		TableHandle PerformanceTestCommandTable = InvalidTableHandle;
+	}
 }
 
 FAutoConsoleCommand CVarAddDebugRows = FAutoConsoleCommand(
@@ -24,7 +27,7 @@ FAutoConsoleCommand CVarAddDebugRows = FAutoConsoleCommand(
 
 			ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 			
-			DataStorageInterface->BatchAddRow(Private::PerformanceTestCommandTable, EntitiesToAdd, [DataStorageInterface](TypedElementDataStorage::RowHandle Row)
+			DataStorageInterface->BatchAddRow(UE::Editor::DataStorage::Private::PerformanceTestCommandTable, EntitiesToAdd, [DataStorageInterface](TypedElementDataStorage::RowHandle Row)
 				{
 					FTest_PingPongPrePhys* Column = DataStorageInterface->GetColumn<FTest_PingPongPrePhys>(Row);
 					Column->Value = 0;
@@ -67,7 +70,7 @@ FAutoConsoleCommand CVarResetDebugEntities = FAutoConsoleCommand(
 
 void UTest_PingPongBetweenPhaseFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
-	Private::PerformanceTestCommandTable = DataStorage.RegisterTable({FTest_PingPongPrePhys::StaticStruct()}, TEXT("Test_PingPongPrePhys"));
+	UE::Editor::DataStorage::Private::PerformanceTestCommandTable = DataStorage.RegisterTable({FTest_PingPongPrePhys::StaticStruct()}, TEXT("Test_PingPongPrePhys"));
 }
 
 // Performance test is a small benchmark to better characterize the performance of adding and removing columns during the processor phases
@@ -86,10 +89,10 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 		Select(TEXT("PingPong PrePhysics->DurPhysics"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPrePhys* PingPongAPtr)
+			[](IQueryContext& Context, const RowHandle* RowPtr, FTest_PingPongPrePhys* PingPongAPtr)
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(PingPong_Pre_During);
-				TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());
+				TArrayView<const RowHandle> Rows(RowPtr, Context.GetRowCount());
 				TArrayView<FTest_PingPongPrePhys> PingPongAs(PingPongAPtr, Context.GetRowCount());
 
 				UScriptStruct* RemovedColumnStruct = FTest_PingPongPrePhys::StaticStruct();
@@ -108,10 +111,10 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 	Select(TEXT("PingPong DurPhysics->PostPhysics"),
 		FProcessor(EQueryTickPhase::DuringPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
 			.SetExecutionMode(EExecutionMode::GameThread),
-		[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongDurPhys* PingPongBPtr)
+		[](IQueryContext& Context, const RowHandle* RowPtr, FTest_PingPongDurPhys* PingPongBPtr)
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(PingPong_During_Post);
-			TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());
+			TArrayView<const RowHandle> Rows(RowPtr, Context.GetRowCount());
 			TArrayView<FTest_PingPongDurPhys> PingPongAs(PingPongBPtr, Context.GetRowCount());
 
 			UScriptStruct* RemovedColumnStruct = FTest_PingPongDurPhys::StaticStruct();
@@ -130,10 +133,10 @@ void UTest_PingPongBetweenPhaseFactory::RegisterQueries(ITypedElementDataStorage
 	Select(TEXT("PingPong PostPhysics->PrePhysics"),
 	FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::Default))
 		.SetExecutionMode(EExecutionMode::GameThread),
-	[](IQueryContext& Context, const TypedElementRowHandle* RowPtr, FTest_PingPongPostPhys* PingPongBPtr)
+	[](IQueryContext& Context, const RowHandle* RowPtr, FTest_PingPongPostPhys* PingPongBPtr)
 	{
 		QUICK_SCOPE_CYCLE_COUNTER(PingPong_Post_Pre);
-		TArrayView<const TypedElementRowHandle> Rows(RowPtr, Context.GetRowCount());
+		TArrayView<const RowHandle> Rows(RowPtr, Context.GetRowCount());
 		TArrayView<FTest_PingPongPostPhys> PingPongAs(PingPongBPtr, Context.GetRowCount());
 
 		UScriptStruct* RemovedColumnStruct = FTest_PingPongPostPhys::StaticStruct();

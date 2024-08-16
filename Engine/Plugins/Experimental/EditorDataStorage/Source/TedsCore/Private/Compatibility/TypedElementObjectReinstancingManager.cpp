@@ -12,7 +12,7 @@
 DECLARE_LOG_CATEGORY_CLASS(LogTedsObjectReinstancing, Log, Log)
 
 UTedsObjectReinstancingManager::UTedsObjectReinstancingManager()
-	: MementoRowBaseTable(TypedElementInvalidTableHandle)
+	: MementoRowBaseTable(UE::Editor::DataStorage::InvalidTableHandle)
 {
 }
 
@@ -71,13 +71,15 @@ void UTedsObjectReinstancingManager::HandleOnObjectPreRemoved(
 void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 	const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap)
 {
+	using namespace UE::Editor::DataStorage;
+
 	ITypedElementDataStorageInterface* Interface = DataStorage;
 	for (FCoreUObjectDelegates::FReplacementObjectMap::TConstIterator Iter = ObjectReplacementMap.CreateConstIterator(); Iter; ++Iter)
 	{
 		const void* PreDeleteObject = Iter->Key;
-		if (const TypedElementRowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject))
+		if (const RowHandle* MementoRowPtr = OldObjectToMementoMap.Find(PreDeleteObject))
 		{
-			TypedElementRowHandle Memento = *MementoRowPtr;
+			RowHandle Memento = *MementoRowPtr;
 			
 			UObject* NewInstanceObject = Iter->Value;
 			if (NewInstanceObject == nullptr)
@@ -85,7 +87,7 @@ void UTedsObjectReinstancingManager::HandleOnObjectsReinstanced(
 				continue;
 			}
 			
-			TypedElementRowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
+			RowHandle NewObjectRow = DataStorageCompatibility->FindRowWithCompatibleObjectExplicit(NewInstanceObject);
 			// Do the addition only if there's a recorded memento. Having a memento implies the object was previously registered and there's
 			// still an interest in it. Any other objects can therefore be ignored.
 			if (!Interface->IsRowAvailable(NewObjectRow))

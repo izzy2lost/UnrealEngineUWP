@@ -13,7 +13,7 @@
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	FTedsTableViewerColumn::FTedsTableViewerColumn(const FName& InColumnName, const TSharedPtr<FTypedElementWidgetConstructor>& InCellWidgetConstructor,
 		const TArray<TWeakObjectPtr<const UScriptStruct>>& InMatchedColumns, const TSharedPtr<FTypedElementWidgetConstructor>& InHeaderWidgetConstructor,
@@ -43,13 +43,13 @@ namespace UE::EditorDataStorage
 		UnRegisterQueries();
 	}
 
-	TSharedPtr<SWidget> FTedsTableViewerColumn::ConstructRowWidget(TypedElementDataStorage::RowHandle RowHandle) const
+	TSharedPtr<SWidget> FTedsTableViewerColumn::ConstructRowWidget(RowHandle InRowHandle) const
 	{
 		TSharedPtr<SWidget> RowWidget;
 		
-		if(Storage->IsRowAssigned(RowHandle))
+		if(Storage->IsRowAssigned(InRowHandle))
 		{
-			const TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(TableViewerUtils::GetWidgetTableName()));
+			const RowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(TableViewerUtils::GetWidgetTableName()));
 
 			const TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = GetMatchedColumns();
 			if (ColumnTypes.Num() == 1)
@@ -59,7 +59,7 @@ namespace UE::EditorDataStorage
 			
 			if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
 			{
-				RowReference->Row = RowHandle;
+				RowReference->Row = InRowHandle;
 			}
 
 			if(FTypedElementSlateWidgetReferenceColumn* WidgetReferenceColumn = Storage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(UiRowHandle))
@@ -88,7 +88,7 @@ namespace UE::EditorDataStorage
 		}
 
 		TSharedPtr<SWidget> Widget;
-		TypedElementDataStorage::RowHandle UiRowHandle = TypedElementDataStorage::InvalidRowHandle;
+		RowHandle UiRowHandle = InvalidRowHandle;
 		if (HeaderWidgetConstructor)
 		{
 			UiRowHandle = Storage->AddRow(Storage->FindTable(FName(TEXT("Editor_WidgetTable"))));
@@ -170,13 +170,13 @@ namespace UE::EditorDataStorage
 
 			// TEDS-Outliner TODO: Long term if we move this into TypedElementOutlinerMode or similar we can get access to the exact
 			// types the Outliner is looking at and specify them on .Where() to cut down on the things we are observing
-			TypedElementDataStorage::QueryHandle AddQueryHandle = Storage->RegisterQuery(
+			QueryHandle AddQueryHandle = Storage->RegisterQuery(
 				Select(
 					ColumnAddObserverName,
 					AddObserver,
-					[this](IQueryContext& Context, TypedElementRowHandle Row)
+					[this](IQueryContext& Context, RowHandle Row)
 						{
-							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, true));
+							RowsToUpdate.Add(TPair<RowHandle, bool>(Row, true));
 						})
 				.Where()
 					.All(ColumnType.Get())
@@ -191,13 +191,13 @@ namespace UE::EditorDataStorage
 
 			// Table Viewer TODO: We might be able to cut down on the rows we are querying for in the future by getting the rows from the query stack
 			// but we currently have to use a generic query so we can support the TEDS-Outliner as well
-			TypedElementDataStorage::QueryHandle RemoveQueryHandle = Storage->RegisterQuery(
+			QueryHandle RemoveQueryHandle = Storage->RegisterQuery(
 				Select(
 					ColumnRemoveObserverName,
 					RemoveObserver,
-					[this](IQueryContext& Context, TypedElementRowHandle Row)
+					[this](IQueryContext& Context, RowHandle Row)
 						{
-							RowsToUpdate.Add(TPair<TypedElementRowHandle, bool>(Row, false));
+							RowsToUpdate.Add(TPair<RowHandle, bool>(Row, false));
 						})
 				.Where()
 					.All(ColumnType.Get())
@@ -227,7 +227,7 @@ namespace UE::EditorDataStorage
 
 	void FTedsTableViewerColumn::UnRegisterQueries()
 	{
-		for(const TypedElementDataStorage::QueryHandle Query : InternalObserverQueries)
+		for(const QueryHandle Query : InternalObserverQueries)
 		{
 			Storage->UnregisterQuery(Query);
 		}
@@ -236,7 +236,7 @@ namespace UE::EditorDataStorage
 
 	}
 
-	bool FTedsTableViewerColumn::IsRowVisible(const TypedElementDataStorage::RowHandle InRowHandle) const
+	bool FTedsTableViewerColumn::IsRowVisible(const RowHandle InRowHandle) const
 	{
 		if(IsRowVisibleDelegate.IsBound())
 		{
@@ -251,7 +251,7 @@ namespace UE::EditorDataStorage
 	void FTedsTableViewerColumn::UpdateWidgets()
 	{
 		// Remove any widget rows that don't actually need an update
-		RowsToUpdate = RowsToUpdate.FilterByPredicate([this](const TPair<TypedElementDataStorage::RowHandle, bool>& Pair) -> bool
+		RowsToUpdate = RowsToUpdate.FilterByPredicate([this](const TPair<RowHandle, bool>& Pair) -> bool
 		{
 			// We don't have a widget for this item visible, so there is nothing to update
 			if(!IsRowVisible(Pair.Key))
@@ -276,7 +276,7 @@ namespace UE::EditorDataStorage
 		{
 			const FTypedElementSlateWidgetReferenceColumn* WidgetsIt = ContainerWidgetReferenceColumns;
 			const FTypedElementRowReferenceColumn* RowRefsIt = RowReferenceColumns;
-			const TConstArrayView<TypedElementRowHandle> Rows = Context.GetRowHandles();
+			const TConstArrayView<RowHandle> Rows = Context.GetRowHandles();
 
 			for(unsigned RowIndex = 0; RowIndex < Context.GetRowCount(); ++RowIndex, ++WidgetsIt, ++RowRefsIt)
 			{

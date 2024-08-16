@@ -47,7 +47,7 @@ public:
 
 	void ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) override;
-	TSharedPtr<SWidget> ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
+	TSharedPtr<SWidget> ConstructWidget(UE::Editor::DataStorage::RowHandle Row, FTypedElementWidgetConstructor& Constructor,
 		const TypedElementDataStorage::FMetaDataView& Arguments) override;
 
 	void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const override;
@@ -108,7 +108,7 @@ private:
 		const TypedElementDataStorage::FMetaDataView& Arguments,
 		const WidgetConstructorCallback& Callback);
 
-	TypedElementTableHandle WidgetTable{ TypedElementInvalidTableHandle };
+	UE::Editor::DataStorage::TableHandle WidgetTable{ UE::Editor::DataStorage::InvalidTableHandle };
 	
 	TMap<FName, FPurposeInfo> WidgetPurposes;
 	

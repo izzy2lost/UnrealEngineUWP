@@ -48,7 +48,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopula
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
 	using DSI = ITypedElementDataStorageInterface;
-	if (!ensureMsgf(ActorHandlePopulateQuery == TypedElementInvalidQueryHandle, TEXT("Already registered query")))
+	if (!ensureMsgf(ActorHandlePopulateQuery == UE::Editor::DataStorage::InvalidQueryHandle, TEXT("Already registered query")))
 	{
 		return;
 	}
@@ -56,7 +56,7 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopula
 	ActorHandlePopulateQuery = DataStorage.RegisterQuery(
 	Select(TEXT("Populate actor typed element handles"),
 		FObserver::OnAdd<FTypedElementUObjectColumn>(),
-		[](DSI::IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& ObjectColumn)
+		[](DSI::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, const FTypedElementUObjectColumn& ObjectColumn)
 		{
 			if (UObject* Object = ObjectColumn.Object.Get())
 			{
@@ -76,8 +76,10 @@ void UTypedElementActorHandleDataStorageFactory::RegisterQuery_ActorHandlePopula
 
 void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabled)
 {
+	using namespace UE::Editor::DataStorage;
+
 	ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
-	
+
 	if (bEnabled)
 	{
 		using namespace TypedElementQueryBuilder;
@@ -109,7 +111,7 @@ void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabl
 			if (const AActor* Actor = Actors[Index].Get())
 			{
 				FTypedElementHandle Handle = UEngineElementsLibrary::AcquireEditorActorElementHandle(Actor);
-				DataStorage->AddColumn(CollatedRowHandles[Index], UE::Editor::DataStorage::Compatibility::FTypedElementColumn
+				DataStorage->AddColumn(CollatedRowHandles[Index], Compatibility::FTypedElementColumn
 				{
 					.Handle = Handle
 				});
@@ -121,7 +123,7 @@ void UTypedElementActorHandleDataStorageFactory::HandleBridgeEnabled(bool bEnabl
 	else
 	{
 		DataStorage->UnregisterQuery(ActorHandlePopulateQuery);
-		ActorHandlePopulateQuery = TypedElementInvalidQueryHandle;
+		ActorHandlePopulateQuery = InvalidQueryHandle;
 	}
 }
 

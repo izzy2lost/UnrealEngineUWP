@@ -30,13 +30,13 @@ namespace UE::Editor::DataStorage
 				return Context.GetNumEntities();
 			}
 
-			TConstArrayView<TypedElementRowHandle> GetRowHandles() const
+			TConstArrayView<RowHandle> GetRowHandles() const
 			{
 				static_assert(
-					sizeof(TypedElementRowHandle) == sizeof(FMassEntityHandle) && alignof(TypedElementRowHandle) == alignof(FMassEntityHandle),
-					"TypedElementRowHandle and FMassEntityHandle need to by layout compatible to support TEDS.");
+					sizeof(RowHandle) == sizeof(FMassEntityHandle) && alignof(RowHandle) == alignof(FMassEntityHandle),
+					"UE::Editor::DataStorage::RowHandle and FMassEntityHandle must be layout compatible.");
 				TConstArrayView<FMassEntityHandle> Entities = Context.GetEntities();
-				return TConstArrayView<TypedElementRowHandle>(reinterpret_cast<const TypedElementRowHandle*>(Entities.GetData()), Entities.Num());
+				return TConstArrayView<RowHandle>(reinterpret_cast<const RowHandle*>(Entities.GetData()), Entities.Num());
 			}
 	
 			const void* GetColumn(const UScriptStruct* ColumnType) const
@@ -95,7 +95,7 @@ namespace UE::Editor::DataStorage
 				return false;
 			}
 
-			bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const
+			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const
 			{
 				FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 				FMassEntityManager& Manager = Context.GetEntityManagerChecked();
@@ -183,12 +183,12 @@ namespace UE::Editor::DataStorage
 				return Environment.GetUpdateCycleId();
 			}
 
-			bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const
+			bool IsRowAvailable(RowHandle Row) const
 			{
 				return Environment.GetMassEntityManager().IsEntityValid(FMassEntityHandle::FromNumber(Row));
 			}
 
-			bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const
+			bool IsRowAssigned(RowHandle Row) const
 			{
 				return Environment.GetMassEntityManager().IsEntityActive(FMassEntityHandle::FromNumber(Row));
 			}
@@ -268,7 +268,7 @@ namespace UE::Editor::DataStorage
 					});
 			}
 
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType) 
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType) 
 			{
 				return AddColumnUninitialized(Row, ObjectType,
 					[](const UScriptStruct& TypeInfo, void* Destination, void* Source)
@@ -277,7 +277,7 @@ namespace UE::Editor::DataStorage
 					});
 			}
 
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator)
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator)
 			{
 				checkf(ObjectType->IsChildOf(FMassFragment::StaticStruct()), TEXT("Column [%s] can not be a tag"), *ObjectType->GetName());
 		
@@ -411,7 +411,7 @@ namespace UE::Editor::DataStorage
 				return ColumnData;
 			}
 	
-			void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
+			void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 			{
 				struct FAddedColumns
 				{
@@ -433,7 +433,7 @@ namespace UE::Editor::DataStorage
 					});
 			}
 
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 			{
 				struct FAddedColumns
 				{
@@ -448,7 +448,7 @@ namespace UE::Editor::DataStorage
 		
 				FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
 				AddedColumns->Entities = Entities;
-				for (TypedElementRowHandle Row : Rows)
+				for (RowHandle Row : Rows)
 				{
 					*Entities = FMassEntityHandle::FromNumber(Row);
 					Entities++;
@@ -470,7 +470,7 @@ namespace UE::Editor::DataStorage
 					});
 			}
 
-			void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
+			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 			{
 				struct FRemovedColumns
 				{
@@ -495,7 +495,7 @@ namespace UE::Editor::DataStorage
 				}
 			}
 
-			void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
+			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) 
 			{
 				struct FRemovedColumns
 				{
@@ -510,7 +510,7 @@ namespace UE::Editor::DataStorage
 
 				FMassEntityHandle* Entities = ScratchBuffer.EmplaceArray<FMassEntityHandle>(Rows.Num());
 				RemovedColumns->Entities = Entities;
-				for (TypedElementRowHandle Row : Rows)
+				for (RowHandle Row : Rows)
 				{
 					*Entities = FMassEntityHandle::FromNumber(Row);
 					Entities++;
@@ -562,14 +562,14 @@ namespace UE::Editor::DataStorage
 					});
 			}
 	
-			TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) 
+			RowHandle AddRow(TableHandle Table) 
 			{
 				FMassEntityHandle EntityHandle = Environment.GetMassEntityManager().ReserveEntity();
 				FMassArchetypeHandle ArchetypeHandle = Environment.LookupMassArchetype(Table);
 
 				if (!ArchetypeHandle.IsValid())
 				{
-					return TypedElementDataStorage::InvalidRowHandle;
+					return InvalidRowHandle;
 				}
 		
 				struct CommandInfo
@@ -594,19 +594,19 @@ namespace UE::Editor::DataStorage
 				return TedsRowHandle;
 			}
 
-			void RemoveRow(TypedElementRowHandle Row) 
+			void RemoveRow(RowHandle Row) 
 			{
 				this->Context.Defer().DestroyEntity(FMassEntityHandle::FromNumber(Row));
 			}
 
-			void RemoveRows(TConstArrayView<TypedElementRowHandle> Rows) 
+			void RemoveRows(TConstArrayView<RowHandle> Rows) 
 			{
 				// Row handles and entities map 1:1 for data, so a reintpret_cast can be safely done to avoid
 				// having to allocate memory and iterating over the rows.
 
-				static_assert(sizeof(FMassEntityHandle) == sizeof(TypedElementRowHandle), 
+				static_assert(sizeof(FMassEntityHandle) == sizeof(RowHandle), 
 					"Sizes of mass entity and data storage row have gone out of sync.");
-				static_assert(alignof(FMassEntityHandle) == alignof(TypedElementRowHandle),
+				static_assert(alignof(FMassEntityHandle) == alignof(RowHandle),
 					"Alignment of mass entity and data storage row have gone out of sync.");
 
 				this->Context.Defer().DestroyEntities(
@@ -621,13 +621,13 @@ namespace UE::Editor::DataStorage
 			{}
 	
 			uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
-			TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
 			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
 			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
-			bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
+			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			virtual const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
 
 			FMassContextCommon Implementation;
@@ -641,29 +641,29 @@ namespace UE::Editor::DataStorage
 
 			~FMassSubqueryContextForwarder() override = default;
 			uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
-			TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
 			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
 			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
-			bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
+			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
-			bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
-			bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
+			bool IsRowAvailable(RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
+			bool IsRowAssigned(RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
 			void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
-			TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
-			void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }
-			void RemoveRows(TConstArrayView<TypedElementDataStorage::RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
-			void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
+			RowHandle AddRow(TableHandle Table) override  { return Implementation.AddRow(Table); }
+			void RemoveRow(RowHandle Row) override { return Implementation.RemoveRow(Row); }
+			void RemoveRows(TConstArrayView<RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
+			void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
 			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
 			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); }
 			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
-			void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
-			void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
+			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
+			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
 			
 
@@ -721,17 +721,15 @@ namespace UE::Editor::DataStorage
 				}
 			}
 	
-			TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
+			RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
 			{
-				using namespace UE::Editor::DataStorage;
-
 				EGlobalLockScope Scope = FGlobalLock::GetLockStatus(EGlobalLockScope::Internal) == EGlobalLockStatus::Unlocked
 					? EGlobalLockScope::Public // There's no internal lock so use a public lock instead.
 					: EGlobalLockScope::Internal; // There's an internal lock set so use that.
 				return Environment.GetIndexTable().FindIndexedRow(Scope, Index);
 			}
 
-			TypedElementDataStorage::FQueryResult RunQuery(TypedElementQueryHandle Query)
+			TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query)
 			{
 				const FExtendedQueryStore::Handle Handle(Query);
 				// This can be safely called because there's not callback, which means no columns are accessed, even for select queries.
@@ -749,7 +747,7 @@ namespace UE::Editor::DataStorage
 			{
 				if (SubqueryIndex < QueryDescription.Subqueries.Num())
 				{
-					const TypedElementQueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
+					const QueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
 					const FExtendedQueryStore::Handle StorageHandle(SubqueryHandle);
 					return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Environment, Context, StorageHandle, Callback);
 				}
@@ -764,7 +762,7 @@ namespace UE::Editor::DataStorage
 			{
 				if (SubqueryIndex < QueryDescription.Subqueries.Num())
 				{
-					const TypedElementQueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
+					const QueryHandle SubqueryHandle = QueryDescription.Subqueries[SubqueryIndex];
 					const FExtendedQueryStore::Handle StorageHandle(SubqueryHandle);
 					return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Environment, Context, StorageHandle, Row, Callback);
 				}
@@ -789,41 +787,40 @@ namespace UE::Editor::DataStorage
 			{}
 	
 			uint32 GetRowCount() const override { return Implementation.GetRowCount(); }
-			TConstArrayView<TypedElementDataStorage::RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
+			TConstArrayView<RowHandle> GetRowHandles() const override { return Implementation.GetRowHandles(); }
 			const void* GetColumn(const UScriptStruct* ColumnType) const override { return Implementation.GetColumn(ColumnType); }
 			void* GetMutableColumn(const UScriptStruct* ColumnType) override { return Implementation.GetMutableColumn(ColumnType); }
 			void GetColumns(TArrayView<char*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetColumns(RetrievedAddresses, ColumnTypes, AccessTypes); }
 			void GetColumnsUnguarded(int32 TypeCount, char** RetrievedAddresses, const TWeakObjectPtr<const UScriptStruct>* ColumnTypes, const TypedElementDataStorage::EQueryAccessType* AccessTypes) override { return Implementation.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes); }
 			bool HasColumn(const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(ColumnType); }
-			bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
+			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const override { return Implementation.HasColumn(Row, ColumnType); }
 			uint64 GetUpdateCycleId() const override { return Implementation.GetUpdateCycleId(); }
-			bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
-			bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
+			bool IsRowAvailable(RowHandle Row) const override { return Implementation.IsRowAvailable(Row); }
+			bool IsRowAssigned(RowHandle Row) const override { return Implementation.IsRowAssigned(Row); }
 			void ActivateQueries(FName ActivationName) override  { return Implementation.ActivateQueries(ActivationName); }
-			TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override  { return Implementation.AddRow(Table); }
-			void RemoveRow(TypedElementDataStorage::RowHandle Row) override { return Implementation.RemoveRow(Row); }
-			void RemoveRows(TConstArrayView<TypedElementDataStorage::RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
-			void AddColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
+			RowHandle AddRow(TableHandle Table) override  { return Implementation.AddRow(Table); }
+			void RemoveRow(RowHandle Row) override { return Implementation.RemoveRow(Row); }
+			void RemoveRows(TConstArrayView<RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
+			void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
 			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { return Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
+			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
 			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
 			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); };
-			void RemoveColumns(TypedElementDataStorage::RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
-			void RemoveColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
+			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
+			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
 
 			const UObject* GetDependency(const UClass* DependencyClass) override { return Implementation.GetDependency(DependencyClass); }
 			UObject* GetMutableDependency(const UClass* DependencyClass) override { return Implementation.GetMutableDependency(DependencyClass); }
 			void GetDependencies(TArrayView<UObject*> RetrievedAddresses, TConstArrayView<TWeakObjectPtr<const UClass>> DependencyTypes, TConstArrayView<TypedElementDataStorage::EQueryAccessType> AccessTypes) override { return Implementation.GetDependencies(RetrievedAddresses, DependencyTypes, AccessTypes); }
-			TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
-			TypedElementDataStorage::FQueryResult RunQuery(TypedElementDataStorage::QueryHandle Query) override { return Implementation.RunQuery(Query); }
+			RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
+			TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query) override { return Implementation.RunQuery(Query); }
 			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override { return Implementation.RunSubquery(SubqueryIndex); }
 			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
+			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
 	
-
 			FMassQueryContextImplementation Implementation;
 		};
 	} // namespace Processors::Private
@@ -882,6 +879,8 @@ bool FTypedElementQueryProcessorData::CommonQueryConfiguration(
 	FEnvironment& InEnvironment,
 	TArrayView<FMassEntityQuery> Subqueries)
 {
+	using namespace UE::Editor::DataStorage;
+
 	ParentQuery = InQueryHandle;
 	QueryStore = &InQueryStore;
 	Environment = &InEnvironment;
@@ -891,7 +890,7 @@ bool FTypedElementQueryProcessorData::CommonQueryConfiguration(
 	{
 		bool Result = true;
 		int32 CurrentSubqueryIndex = 0;
-		for (TypedElementQueryHandle SubqueryHandle : InQuery.Description.Subqueries)
+		for (QueryHandle SubqueryHandle : InQuery.Description.Subqueries)
 		{
 			const FExtendedQueryStore::Handle SubqueryStoreHandle(SubqueryHandle);
 			if (const FExtendedQuery* Subquery = InQueryStore.Get(SubqueryStoreHandle))

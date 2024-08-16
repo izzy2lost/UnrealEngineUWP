@@ -16,10 +16,10 @@ class SWidget;
 struct FTedsOutlinerHierarchyData
 {
 	/** A delegate used to get the parent row handle for a given row */
-	DECLARE_DELEGATE_RetVal_OneParam(TypedElementDataStorage::RowHandle, FGetParentRowHandle, void* /* InColumnData */);
+	DECLARE_DELEGATE_RetVal_OneParam(UE::Editor::DataStorage::RowHandle, FGetParentRowHandle, void* /* InColumnData */);
 	
 	/** A delegate used to set the parent row handle for a given row */
-	DECLARE_DELEGATE_TwoParams(FSetParentRowHandle, void* /* InColumnData */, TypedElementDataStorage::RowHandle /* InParentRowHandle */);
+	DECLARE_DELEGATE_TwoParams(FSetParentRowHandle, void* /* InColumnData */, UE::Editor::DataStorage::RowHandle /* InParentRowHandle */);
 
 	FTedsOutlinerHierarchyData(const UScriptStruct* InHierarchyColumn, const FGetParentRowHandle& InGetParent, const FSetParentRowHandle& InSetParent)
 		: HierarchyColumn(InHierarchyColumn)
@@ -135,7 +135,7 @@ public:
 	void SetSelection(const TArray<TypedElementDataStorage::RowHandle>& InSelectedRows);
 
 	// Helper function to create a label widget for a given row
-	TSharedRef<SWidget> CreateLabelWidgetForItem(TypedElementRowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const;
+	TSharedRef<SWidget> CreateLabelWidgetForItem(UE::Editor::DataStorage::RowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const;
 
 	// Get the hierarchy data associated with this table viewer
 	const TOptional<FTedsOutlinerHierarchyData>& GetHierarchyData();
@@ -152,23 +152,23 @@ public:
 	static void AppendQuery(TypedElementDataStorage::FQueryDescription& Query1, const TypedElementDataStorage::FQueryDescription& Query2);
 
 	// Check if the given item's parent has changed (i.e ParentRowHandle does not match what the Outliner reports as the parent)
-	bool HasItemParentChanged(TypedElementDataStorage::RowHandle ItemRowHandle, TypedElementDataStorage::RowHandle ParentRowHandle) const;
+	bool HasItemParentChanged(UE::Editor::DataStorage::RowHandle ItemRowHandle, UE::Editor::DataStorage::RowHandle ParentRowHandle) const;
 
 	// Outliner specific functionality
 	void CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& OutItems, ISceneOutlinerMode* InMode) const;
 	void CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TArray<FSceneOutlinerTreeItemPtr>& OutChildren) const;
 
 	// Get the parent row for a given row
-	TypedElementDataStorage::RowHandle GetParentRow(TypedElementDataStorage::RowHandle InRowHandle);
+	UE::Editor::DataStorage::RowHandle GetParentRow(UE::Editor::DataStorage::RowHandle InRowHandle);
 
 	// Recompile all queries used by this table viewer
 	void RecompileQueries();
 
 protected:
 	
-	void OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHandle);
-	void OnItemRemoved(TypedElementDataStorage::RowHandle ItemRowHandle);
-	void OnItemMoved(TypedElementDataStorage::RowHandle ItemRowHandle);
+	void OnItemAdded(UE::Editor::DataStorage::RowHandle ItemRowHandle);
+	void OnItemRemoved(UE::Editor::DataStorage::RowHandle ItemRowHandle);
+	void OnItemMoved(UE::Editor::DataStorage::RowHandle ItemRowHandle);
 
 	void UnregisterQueries() const;
 	void ClearSelection() const;
@@ -178,7 +178,7 @@ protected:
 	void CreateFilterQueries();
 
 	// Check if this row can be displayed in this table viewer
-	bool CanDisplayRow(TypedElementDataStorage::RowHandle ItemRowHandle) const;
+	bool CanDisplayRow(UE::Editor::DataStorage::RowHandle ItemRowHandle) const;
 	
 protected:
 	// TEDS Storage Constructs
@@ -189,7 +189,7 @@ protected:
 	FTedsOutlinerParams CreationParams;
 
 	// Widget constructor to create the label widget
-	TArray<TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
+	TArray<TPair<UE::Editor::DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>> QueryToWidgetConstructorMap;
 
 	// Widget purposes this table viewer supports
 	TArray<FName> CellWidgetPurposes;
@@ -204,20 +204,20 @@ protected:
 	TOptional<FTedsOutlinerHierarchyData> HierarchyData;
 
 	// Querys to track row handle collection, addition and removal
-	TypedElementDataStorage::QueryHandle RowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
-	TypedElementDataStorage::QueryHandle RowAdditionQuery = TypedElementDataStorage::InvalidQueryHandle;
-	TypedElementDataStorage::QueryHandle RowRemovalQuery = TypedElementDataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle RowHandleQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle RowAdditionQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle RowRemovalQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 
 	// Query to get all child rows
-	TypedElementDataStorage::QueryHandle ChildRowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle ChildRowHandleQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 
 	// Query to track when a row's parent gets changed
-	TypedElementDataStorage::QueryHandle UpdateParentQuery = TypedElementDataStorage::InvalidQueryHandle;
-	
+	UE::Editor::DataStorage::QueryHandle UpdateParentQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+
 	// Query to get all selected rows, track selection added, track selection removed
-	TypedElementDataStorage::QueryHandle SelectedRowsQuery = TypedElementDataStorage::InvalidQueryHandle;
-	TypedElementDataStorage::QueryHandle SelectionAddedQuery = TypedElementDataStorage::InvalidQueryHandle;
-	TypedElementDataStorage::QueryHandle SelectionRemovedQuery = TypedElementDataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle SelectedRowsQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle SelectionAddedQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle SelectionRemovedQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 	
 	TOptional<FName> SelectionSetName;
 	bool bSelectionDirty = false;

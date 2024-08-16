@@ -11,39 +11,45 @@
 #include "Misc/Paths.h"
 #include "UObject/Package.h"
 
-static bool bAutoPopulateRevisionControlState = false;
-FAutoConsoleVariableRef CVarAutoPopulateState(
-	TEXT("TEDS.RevisionControl.AutoPopulateState"),
-	bAutoPopulateRevisionControlState,
-	TEXT("Automatically query revision control provider and fill information into TEDS")
-);
-
-static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryContext& Context, const UPackage* Package, TypedElementRowHandle Row, TypedElementRowHandle PackageRow)
+namespace UE::Editor::RevisionControl::Private
 {
-	FTypedElementPackageReference PackageReference;
-	PackageReference.Row = PackageRow;
-	Context.AddColumn(Row, MoveTemp(PackageReference));
-				
-	FTypedElementPackagePathColumn PathColumn;
-	FTypedElementPackageLoadedPathColumn LoadedPathColumn;
-		
-	Package->GetPathName(nullptr, PathColumn.Path);
-	LoadedPathColumn.LoadedPath = Package->GetLoadedPath();
-				
-	Context.AddColumn(PackageRow, MoveTemp(PathColumn));
-	Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));
+	using namespace UE::Editor::DataStorage;
 
-	FTypedElementPackageReference PackageBackReference;
-	PackageBackReference.Row = Row;
-	Context.AddColumn(PackageRow, MoveTemp(PackageBackReference));
-};
+	static bool bAutoPopulateRevisionControlState = false;
+	FAutoConsoleVariableRef CVarAutoPopulateState(
+		TEXT("TEDS.RevisionControl.AutoPopulateState"),
+		bAutoPopulateRevisionControlState,
+		TEXT("Automatically query revision control provider and fill information into TEDS")
+	);
+
+	static void ResolvePackageReference(ITypedElementDataStorageInterface::IQueryContext& Context, const UPackage* Package, RowHandle Row, RowHandle PackageRow)
+	{
+		FTypedElementPackageReference PackageReference;
+		PackageReference.Row = PackageRow;
+		Context.AddColumn(Row, MoveTemp(PackageReference));
+
+		FTypedElementPackagePathColumn PathColumn;
+		FTypedElementPackageLoadedPathColumn LoadedPathColumn;
+
+		Package->GetPathName(nullptr, PathColumn.Path);
+		LoadedPathColumn.LoadedPath = Package->GetLoadedPath();
+
+		Context.AddColumn(PackageRow, MoveTemp(PathColumn));
+		Context.AddColumn(PackageRow, MoveTemp(LoadedPathColumn));
+
+		FTypedElementPackageReference PackageBackReference;
+		PackageBackReference.Row = Row;
+		Context.AddColumn(PackageRow, MoveTemp(PackageBackReference));
+	};
+} // namespace UE::Editor::DataStorage
 
 void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
-	CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
+	UE::Editor::RevisionControl::Private::CVarAutoPopulateState->AsVariable()->OnChangedDelegate().AddLambda(
 		[this, &DataStorage](IConsoleVariable* AutoPopulate)
 		{
 			if (AutoPopulate->GetBool())
@@ -60,9 +66,9 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 		Select(
 			TEXT("Resolve package references"),
 			FProcessor(EQueryTickPhase::FrameEnd, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage)),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, const FTypedElementPackageUnresolvedReference& UnresolvedPackageReference)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object, const FTypedElementPackageUnresolvedReference& UnresolvedPackageReference)
 			{
-				TypedElementRowHandle PackageRow = Context.FindIndexedRow(UnresolvedPackageReference.Index);
+				RowHandle PackageRow = Context.FindIndexedRow(UnresolvedPackageReference.Index);
 				if (!Context.IsRowAvailable(PackageRow))
 				{
 					return;
@@ -75,13 +81,13 @@ void UTypedElementUObjectPackagePathFactory::RegisterQueries(ITypedElementDataSt
 				const UPackage* Package = ObjectInstance->GetPackage();
 				Context.RemoveColumns(Row, { FTypedElementPackageUnresolvedReference::StaticStruct() });
 
-				ResolvePackageReference(Context, Package, Row, PackageRow);
+				UE::Editor::RevisionControl::Private::ResolvePackageReference(Context, Package, Row, PackageRow);
 			}
 		)
 		.Compile()
 	);
 
-	if (CVarAutoPopulateState->GetBool())
+	if (UE::Editor::RevisionControl::Private::CVarAutoPopulateState->GetBool())
 	{
 		RegisterTryAddPackageRef(DataStorage);
 	}
@@ -91,13 +97,14 @@ void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElem
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	TryAddPackageRef = DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync UObject package info to columns"),
 			FObserver::OnAdd<FTypedElementUObjectColumn>()
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				if (const UObject* ObjectInstance = Object.Object.Get(); ObjectInstance != nullptr)
 				{
@@ -109,11 +116,11 @@ void UTypedElementUObjectPackagePathFactory::RegisterTryAddPackageRef(ITypedElem
 						FPaths::NormalizeFilename(PackageFilename);
 						FString FullPackageFilename = FPaths::ConvertRelativePathToFull(PackageFilename);
 						TypedElementDataStorage::IndexHash Index = TypedElementDataStorage::GenerateIndexHash(FullPackageFilename);
-						TypedElementRowHandle PackageRow = Context.FindIndexedRow(Index);
+						RowHandle PackageRow = Context.FindIndexedRow(Index);
 						if (Context.IsRowAvailable(PackageRow))
 						{
 							const UPackage* Package = ObjectInstance->GetPackage();
-							ResolvePackageReference(Context, Package, Row, PackageRow);
+							UE::Editor::RevisionControl::Private::ResolvePackageReference(Context, Package, Row, PackageRow);
 						}
 						else
 						{

@@ -36,6 +36,9 @@ class TEDSCORE_API UEditorDataStorage
 	using ColumnListCallbackRef = UE::Editor::DataStorage::ColumnListCallbackRef;
 	using ColumnListWithDataCallbackRef = UE::Editor::DataStorage::ColumnListWithDataCallbackRef;
 	using ColumnCopyOrMoveCallback = UE::Editor::DataStorage::ColumnCopyOrMoveCallback;
+	using RowHandle = UE::Editor::DataStorage::RowHandle;
+	using TableHandle = UE::Editor::DataStorage::TableHandle;
+	using QueryHandle = UE::Editor::DataStorage::QueryHandle;
 
 public:
 	template<typename FactoryType, typename DatabaseType>
@@ -90,48 +93,48 @@ public:
 	TSharedPtr<FMassEntityManager> GetActiveMutableEditorEntityManager();
 	TSharedPtr<const FMassEntityManager> GetActiveEditorEntityManager() const;
 
-	virtual TypedElementDataStorage::TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
-	virtual TypedElementDataStorage::TableHandle RegisterTable(
-		TypedElementDataStorage::TableHandle SourceTable, TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
-	virtual TypedElementDataStorage::TableHandle FindTable(const FName Name) override;
+	virtual TableHandle RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
+	virtual TableHandle RegisterTable(
+		TableHandle SourceTable, TConstArrayView<const UScriptStruct*> ColumnList, const FName Name) override;
+	virtual TableHandle FindTable(const FName Name) override;
 
-	virtual TypedElementDataStorage::RowHandle ReserveRow() override;
-	virtual void BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback) override;
-	virtual void BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows) override;
-	virtual TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table, 
+	virtual RowHandle ReserveRow() override;
+	virtual void BatchReserveRows(int32 Count, TFunctionRef<void(RowHandle)> ReservationCallback) override;
+	virtual void BatchReserveRows(TArrayView<RowHandle> ReservedRows) override;
+	virtual RowHandle AddRow(TableHandle Table, 
 		RowCreationCallbackRef OnCreated) override;
-	TypedElementDataStorage::RowHandle AddRow(TypedElementDataStorage::TableHandle Table) override;
-	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table) override;
-	virtual bool AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
+	RowHandle AddRow(TableHandle Table) override;
+	virtual bool AddRow(RowHandle ReservedRow, TableHandle Table) override;
+	virtual bool AddRow(RowHandle ReservedRow, TableHandle Table,
 		RowCreationCallbackRef OnCreated) override;
-	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, int32 Count,
+	virtual bool BatchAddRow(TableHandle Table, int32 Count,
 		RowCreationCallbackRef OnCreated) override;
-	virtual bool BatchAddRow(TypedElementDataStorage::TableHandle Table, TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles,
+	virtual bool BatchAddRow(TableHandle Table, TConstArrayView<RowHandle> ReservedHandles,
 		RowCreationCallbackRef OnCreated) override;
-	virtual void RemoveRow(TypedElementDataStorage::RowHandle Row) override;
-	virtual bool IsRowAvailable(TypedElementDataStorage::RowHandle Row) const override;
-	virtual bool IsRowAssigned(TypedElementDataStorage::RowHandle Row) const override;
+	virtual void RemoveRow(RowHandle Row) override;
+	virtual bool IsRowAvailable(RowHandle Row) const override;
+	virtual bool IsRowAssigned(RowHandle Row) const override;
 
-	virtual void AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	virtual void AddColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue) override;
-	virtual void AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+	virtual void AddColumn(RowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual void AddColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue) override;
+	virtual void AddColumnData(RowHandle Row, const UScriptStruct* ColumnType,
 		const ColumnCreationCallbackRef& Initializer,
 		ColumnCopyOrMoveCallback Relocator) override;
-	virtual void RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	virtual void RemoveColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag) override;
-	virtual void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) override;
-	virtual const void* GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const override;
-	virtual void AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
-	virtual void RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
-	virtual void AddRemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	virtual void RemoveColumn(RowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual void RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag) override;
+	virtual void* GetColumnData(RowHandle Row, const UScriptStruct* ColumnType) override;
+	virtual const void* GetColumnData(RowHandle Row, const UScriptStruct* ColumnType) const override;
+	virtual void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
+	virtual void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;
+	virtual void AddRemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	virtual void BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
+	virtual void BatchAddRemoveColumns(TConstArrayView<RowHandle> Rows,TConstArrayView<const UScriptStruct*> ColumnsToAdd,
 		TConstArrayView<const UScriptStruct*> ColumnsToRemove) override;
-	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
-	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListCallbackRef Callback) const;
-	virtual void ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListWithDataCallbackRef Callback);
-	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
+	virtual bool HasColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const override;
+	virtual bool HasColumns(RowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
+	virtual void ListColumns(RowHandle Row, ColumnListCallbackRef Callback) const;
+	virtual void ListColumns(RowHandle Row, ColumnListWithDataCallbackRef Callback);
+	virtual bool MatchesColumns(RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
 
 	const UScriptStruct* FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override;
 	const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) override;
@@ -139,24 +142,24 @@ public:
 	void RegisterTickGroup(FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode);
 	void UnregisterTickGroup(FName GroupName, EQueryTickPhase Phase);
 
-	TypedElementQueryHandle RegisterQuery(FQueryDescription&& Query) override;
-	virtual void UnregisterQuery(TypedElementQueryHandle Query) override;
-	virtual const FQueryDescription& GetQueryDescription(TypedElementQueryHandle Query) const override;
+	QueryHandle RegisterQuery(FQueryDescription&& Query) override;
+	virtual void UnregisterQuery(QueryHandle Query) override;
+	virtual const FQueryDescription& GetQueryDescription(QueryHandle Query) const override;
 	virtual FName GetQueryTickGroupName(EQueryTickGroups Group) const override;
-	virtual FQueryResult RunQuery(TypedElementQueryHandle Query) override;
-	virtual FQueryResult RunQuery(TypedElementQueryHandle Query, DirectQueryCallbackRef Callback) override;
-	virtual FQueryResult RunQuery(TypedElementQueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags, 
+	virtual FQueryResult RunQuery(QueryHandle Query) override;
+	virtual FQueryResult RunQuery(QueryHandle Query, DirectQueryCallbackRef Callback) override;
+	virtual FQueryResult RunQuery(QueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags, 
 		DirectQueryCallbackRef Callback) override;
 	virtual void ActivateQueries(FName ActivationName) override;
 
-	virtual TypedElementDataStorage::RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
-	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row) override;
+	virtual RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override;
+	virtual void IndexRow(TypedElementDataStorage::IndexHash Index, RowHandle Row) override;
 	virtual void BatchIndexRows(
-		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs) override;
+		TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs) override;
 	virtual void ReindexRow(
 		TypedElementDataStorage::IndexHash OriginalIndex, 
 		TypedElementDataStorage::IndexHash NewIndex, 
-		TypedElementDataStorage::RowHandle Row) override;
+		RowHandle Row) override;
 	virtual void RemoveIndex(TypedElementDataStorage::IndexHash Index) override;
 
 	virtual FTypedElementOnDataStorageUpdate& OnUpdate() override;
@@ -170,7 +173,7 @@ public:
 	TSharedPtr<UE::Editor::DataStorage::FEnvironment> GetEnvironment();
 	TSharedPtr<const UE::Editor::DataStorage::FEnvironment> GetEnvironment() const;
 
-	FMassArchetypeHandle LookupArchetype(TypedElementDataStorage::TableHandle InTableHandle) const;
+	FMassArchetypeHandle LookupArchetype(TableHandle InTableHandle) const;
 
 	void DebugPrintQueryCallbacks(FOutputDevice& Output);
 
@@ -200,7 +203,7 @@ private:
 	static const FName TickGroupName_SyncDataStorageToExternal;
 	
 	TArray<FMassArchetypeHandle> Tables;
-	TMap<FName, TypedElementDataStorage::TableHandle> TableNameLookup;
+	TMap<FName, TableHandle> TableNameLookup;
 
 	// Ordered array of factories by the return value of GetOrder()
 	TArray<FFactoryTypePair> Factories;

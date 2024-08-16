@@ -33,7 +33,7 @@ struct FTypedElementPackageReference final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TypedElementDataStorage::RowHandle Row;
+	UE::Editor::DataStorage::RowHandle Row;
 };
 
 /**
@@ -53,8 +53,8 @@ struct FTypedElementPackageUpdateColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TypedElementDataStorage::RowHandle ObjectRow;
-	TypedElementDataStorage::RowHandle PackageRow;
+	UE::Editor::DataStorage::RowHandle ObjectRow;
+	UE::Editor::DataStorage::RowHandle PackageRow;
 };
 
 /**

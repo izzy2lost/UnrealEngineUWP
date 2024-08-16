@@ -16,30 +16,33 @@
 #include "TedsSettingsEditorSubsystem.h"
 #include "TestSettings.h"
 
-BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "TedsSettings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
-
-ISettingsModule* SettingsModule = nullptr;
-UTypedElementRegistry* TypedElementRegistry = nullptr;
-ITypedElementDataStorageInterface* DataStorage = nullptr;
-ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = nullptr;
-TypedElementQueryHandle CountAllSettingsQuery = TypedElementDataStorage::InvalidQueryHandle;
-
-uint32 BeforeRowCount = 0;
-TArray<TypedElementDataStorage::RowHandle> TestRowHandles{};
-
-uint32 CountSettingsRowsInDataStorage()
+namespace UE::Editor::Settings::Tests
 {
-	using DSI = ITypedElementDataStorageInterface;
+	using namespace UE::Editor;
 
-	DSI::FQueryResult Result = DataStorage->RunQuery(CountAllSettingsQuery);
+	BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "TedsSettings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	ISettingsModule* SettingsModule = nullptr;
+	UTypedElementRegistry* TypedElementRegistry = nullptr;
+	ITypedElementDataStorageInterface* DataStorage = nullptr;
+	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = nullptr;
+	DataStorage::QueryHandle CountAllSettingsQuery = DataStorage::InvalidQueryHandle;
 
-	return Result.Count;
-}
+	uint32 BeforeRowCount = 0;
+	TArray<DataStorage::RowHandle> TestRowHandles{};
 
-template<typename Func>
-void AwaitRowHandleThenVerify(TypedElementDataStorage::RowHandle RowHandle, const FDoneDelegate& Done, Func&& OnVerify)
-{
-	auto OnTick = [this, RowHandle, Done, OnVerify = Forward<Func>(OnVerify)](float FrameTime)
+	uint32 CountSettingsRowsInDataStorage()
+	{
+		using DSI = ITypedElementDataStorageInterface;
+
+		DSI::FQueryResult Result = DataStorage->RunQuery(CountAllSettingsQuery);
+
+		return Result.Count;
+	}
+
+	template<typename Func>
+	void AwaitRowHandleThenVerify(DataStorage::RowHandle RowHandle, const FDoneDelegate& Done, Func&& OnVerify)
+	{
+		auto OnTick = [this, RowHandle, Done, OnVerify = Forward<Func>(OnVerify)](float FrameTime)
 		{
 			if (DataStorage->IsRowAssigned(RowHandle))
 			{
@@ -52,141 +55,142 @@ void AwaitRowHandleThenVerify(TypedElementDataStorage::RowHandle RowHandle, cons
 			return true;
 		};
 
-	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(OnTick));
-}
-
-END_DEFINE_SPEC(FTedsSettingsTestFixture)
-
-void FTedsSettingsTestFixture::Define()
-{
-	check(GEditor);
-	UTedsSettingsEditorSubsystem* SettingsEditorSubsystem = GEditor->GetEditorSubsystem<UTedsSettingsEditorSubsystem>();
-
-	SettingsEditorSubsystem->OnEnabledChanged().RemoveAll(this);
-	SettingsEditorSubsystem->OnEnabledChanged().AddRaw(this, &FTedsSettingsTestFixture::Redefine);
-
-	if (!SettingsEditorSubsystem->IsEnabled())
-	{
-		return;
+		FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda(OnTick));
 	}
 
-	BeforeEach([this]()
-	{
-		SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
-		check(SettingsModule != nullptr);
-	
-		TypedElementRegistry = UTypedElementRegistry::GetInstance();
-		check(TypedElementRegistry != nullptr);
-	
-		DataStorage = TypedElementRegistry->GetMutableDataStorage();
-		check(DataStorage != nullptr);
-	
-		DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
-		check(DataStorageCompatibility != nullptr);
+	END_DEFINE_SPEC(FTedsSettingsTestFixture)
 
+	void FTedsSettingsTestFixture::Define()
+	{
+		check(GEditor);
+		UTedsSettingsEditorSubsystem* SettingsEditorSubsystem = GEditor->GetEditorSubsystem<UTedsSettingsEditorSubsystem>();
+
+		SettingsEditorSubsystem->OnEnabledChanged().RemoveAll(this);
+		SettingsEditorSubsystem->OnEnabledChanged().AddRaw(this, &FTedsSettingsTestFixture::Redefine);
+
+		if (!SettingsEditorSubsystem->IsEnabled())
 		{
-			using namespace TypedElementQueryBuilder;
-			CountAllSettingsQuery = DataStorage->RegisterQuery(
-				Count()
-				.Where()
+			return;
+		}
+
+		BeforeEach([this]()
+		{
+			SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
+			check(SettingsModule != nullptr);
+
+			TypedElementRegistry = UTypedElementRegistry::GetInstance();
+			check(TypedElementRegistry != nullptr);
+
+			DataStorage = TypedElementRegistry->GetMutableDataStorage();
+			check(DataStorage != nullptr);
+
+			DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
+			check(DataStorageCompatibility != nullptr);
+
+			{
+				using namespace TypedElementQueryBuilder;
+				CountAllSettingsQuery = DataStorage->RegisterQuery(
+					Count()
+					.Where()
 					.All<FTypedElementUObjectColumn, FSettingsContainerColumn, FSettingsCategoryColumn, FSettingsSectionColumn>()
-				.Compile());
-		}
-
-		BeforeRowCount = CountSettingsRowsInDataStorage();
-	});
-
-	AfterEach([this]()
-	{
-		for (TypedElementDataStorage::RowHandle RowHandle : TestRowHandles)
-		{
-			DataStorage->RemoveRow(RowHandle);
-		}
-		TestRowHandles.Empty();
-		CountAllSettingsQuery = TypedElementDataStorage::InvalidQueryHandle;
-		SettingsModule = nullptr;
-		TypedElementRegistry = nullptr;
-		DataStorage = nullptr;
-		DataStorageCompatibility = nullptr;
-	});
-
-	Describe("RegisterSettings", [this]()
-	{
-		LatentIt("Should add a row to editor data storage", [this](const FDoneDelegate& Done)
-		{
-			const FName& ContainerName = FName(TEXT("TestContainer"));
-			const FName& CategoryName = FName(TEXT("TestCategory"));
-			const FName& SectionName = FName(TEXT("TestSection"));
-				
-			TObjectPtr<UTestSettings> TestSettingsObject = NewObject<UTestSettings>();
-			
-			SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject);
-
-			TypedElementDataStorage::RowHandle RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
-			TestNotEqual(TEXT("RowHandle"), RowHandle, TypedElementDataStorage::InvalidRowHandle);
-
-			if (RowHandle == TypedElementDataStorage::InvalidRowHandle)
-			{
-				Done.Execute();
-				return;
+					.Compile());
 			}
 
-			TestRowHandles.Push(RowHandle);
-
-			AwaitRowHandleThenVerify(RowHandle, Done, [this, RowHandle, ContainerName, CategoryName, SectionName]()
-			{
-				uint32 AfterRowCount = CountSettingsRowsInDataStorage();
-
-				TestEqual(TEXT("RowCount"), AfterRowCount, BeforeRowCount + 1);
-				
-				TestEqual(TEXT("ContainerName"), DataStorage->GetColumn<FSettingsContainerColumn>(RowHandle)->ContainerName, ContainerName);
-				TestEqual(TEXT("CategoryName"), DataStorage->GetColumn<FSettingsCategoryColumn>(RowHandle)->CategoryName, CategoryName);
-				TestEqual(TEXT("SectionName"), DataStorage->GetColumn<FSettingsSectionColumn>(RowHandle)->SectionName, SectionName);
-			});
+			BeforeRowCount = CountSettingsRowsInDataStorage();
 		});
-	});
 
-	Describe("UnregisterSettings", [this]()
-	{
-		LatentIt("Should remove a row from editor data storage", [this](const FDoneDelegate& Done)
+		AfterEach([this]()
 		{
-			const FName& ContainerName = FName(TEXT("TestContainer"));
-			const FName& CategoryName = FName(TEXT("TestCategory"));
-			const FName& SectionName = FName(TEXT("TestSection"));
-
-			TObjectPtr<UTestSettings> TestSettingsObject = NewObject<UTestSettings>();
-
-			SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject);
-
-			TypedElementDataStorage::RowHandle RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
-			TestNotEqual(TEXT("RowHandle"), RowHandle, TypedElementDataStorage::InvalidRowHandle);
-
-			if (RowHandle == TypedElementDataStorage::InvalidRowHandle)
+			for (DataStorage::RowHandle RowHandle : TestRowHandles)
 			{
-				Done.Execute();
-				return;
+				DataStorage->RemoveRow(RowHandle);
 			}
+			TestRowHandles.Empty();
+			CountAllSettingsQuery = DataStorage::InvalidQueryHandle;
+			SettingsModule = nullptr;
+			TypedElementRegistry = nullptr;
+			DataStorage = nullptr;
+			DataStorageCompatibility = nullptr;
+		});
 
-			TestRowHandles.Push(RowHandle);
-
-			AwaitRowHandleThenVerify(RowHandle, Done, [this, RowHandle, TestSettingsObject, ContainerName, CategoryName, SectionName]()
+		Describe("RegisterSettings", [this]()
+		{
+			LatentIt("Should add a row to editor data storage", [this](const FDoneDelegate& Done)
 			{
-				uint32 AfterRegisterRowCount = CountSettingsRowsInDataStorage();
+				const FName& ContainerName = FName(TEXT("TestContainer"));
+				const FName& CategoryName = FName(TEXT("TestCategory"));
+				const FName& SectionName = FName(TEXT("TestSection"));
 
-				TestEqual(TEXT("RowCount"), AfterRegisterRowCount, BeforeRowCount + 1);
+				TObjectPtr<UTestSettings> TestSettingsObject = NewObject<UTestSettings>();
 
-				SettingsModule->UnregisterSettings(ContainerName, CategoryName, SectionName);
+				SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject);
 
-				uint32 AfterUnregisterRowCount = CountSettingsRowsInDataStorage();
-				TestEqual(TEXT("RowCount"), AfterUnregisterRowCount, BeforeRowCount);
+				DataStorage::RowHandle RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
+				TestNotEqual(TEXT("RowHandle"), RowHandle, DataStorage::InvalidRowHandle);
 
-				TestFalse(TEXT("IsRowAssigned"), DataStorage->IsRowAssigned(RowHandle));
+				if (RowHandle == DataStorage::InvalidRowHandle)
+				{
+					Done.Execute();
+					return;
+				}
 
-				TypedElementDataStorage::RowHandle InvalidRowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
-				TestEqual(TEXT("InvalidRowHandle"), InvalidRowHandle, TypedElementDataStorage::InvalidRowHandle);
+				TestRowHandles.Push(RowHandle);
+
+				AwaitRowHandleThenVerify(RowHandle, Done, [this, RowHandle, ContainerName, CategoryName, SectionName]()
+				{
+					uint32 AfterRowCount = CountSettingsRowsInDataStorage();
+
+					TestEqual(TEXT("RowCount"), AfterRowCount, BeforeRowCount + 1);
+
+					TestEqual(TEXT("ContainerName"), DataStorage->GetColumn<FSettingsContainerColumn>(RowHandle)->ContainerName, ContainerName);
+					TestEqual(TEXT("CategoryName"), DataStorage->GetColumn<FSettingsCategoryColumn>(RowHandle)->CategoryName, CategoryName);
+					TestEqual(TEXT("SectionName"), DataStorage->GetColumn<FSettingsSectionColumn>(RowHandle)->SectionName, SectionName);
+				});
 			});
 		});
-	});
-}
+
+		Describe("UnregisterSettings", [this]()
+		{
+			LatentIt("Should remove a row from editor data storage", [this](const FDoneDelegate& Done)
+			{
+				const FName& ContainerName = FName(TEXT("TestContainer"));
+				const FName& CategoryName = FName(TEXT("TestCategory"));
+				const FName& SectionName = FName(TEXT("TestSection"));
+
+				TObjectPtr<UTestSettings> TestSettingsObject = NewObject<UTestSettings>();
+
+				SettingsModule->RegisterSettings(ContainerName, CategoryName, SectionName, FText(), FText(), TestSettingsObject);
+
+				DataStorage::RowHandle RowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
+				TestNotEqual(TEXT("RowHandle"), RowHandle, DataStorage::InvalidRowHandle);
+
+				if (RowHandle == DataStorage::InvalidRowHandle)
+				{
+					Done.Execute();
+					return;
+				}
+
+				TestRowHandles.Push(RowHandle);
+
+				AwaitRowHandleThenVerify(RowHandle, Done, [this, RowHandle, TestSettingsObject, ContainerName, CategoryName, SectionName]()
+				{
+					uint32 AfterRegisterRowCount = CountSettingsRowsInDataStorage();
+
+					TestEqual(TEXT("RowCount"), AfterRegisterRowCount, BeforeRowCount + 1);
+
+					SettingsModule->UnregisterSettings(ContainerName, CategoryName, SectionName);
+
+					uint32 AfterUnregisterRowCount = CountSettingsRowsInDataStorage();
+					TestEqual(TEXT("RowCount"), AfterUnregisterRowCount, BeforeRowCount);
+
+					TestFalse(TEXT("IsRowAssigned"), DataStorage->IsRowAssigned(RowHandle));
+
+					DataStorage::RowHandle TestInvalidRowHandle = DataStorageCompatibility->FindRowWithCompatibleObject(TestSettingsObject);
+					TestEqual(TEXT("InvalidRowHandle"), TestInvalidRowHandle, DataStorage::InvalidRowHandle);
+				});
+			});
+		});
+	}
+} // namespace UE::Editor::Settings::Tests
 
 #endif // WITH_AUTOMATION_TESTS

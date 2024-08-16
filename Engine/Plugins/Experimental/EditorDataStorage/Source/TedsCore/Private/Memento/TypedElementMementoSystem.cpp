@@ -38,10 +38,8 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	TypedElementRowHandle FMementoSystem::CreateMemento(TypedElementDataStorage::RowHandle SourceRow)
+	RowHandle FMementoSystem::CreateMemento(RowHandle SourceRow)
 	{
-		using namespace TypedElementDataStorage;
-
 		FScopedSharedLock Lock(EGlobalLockScope::Public);
 
 		RowHandle MementoRow = DataStorage.AddRow(MementoRowBaseTable);
@@ -49,7 +47,7 @@ namespace UE::Editor::DataStorage
 		return MementoRow;
 	}
 
-	void FMementoSystem::CreateMemento(TypedElementDataStorage::RowHandle ReservedMementoRow, TypedElementDataStorage::RowHandle SourceRow)
+	void FMementoSystem::CreateMemento(RowHandle ReservedMementoRow, RowHandle SourceRow)
 	{
 		FScopedSharedLock Lock(EGlobalLockScope::Public);
 	
@@ -57,10 +55,8 @@ namespace UE::Editor::DataStorage
 		CreateMementoInternal(ReservedMementoRow, SourceRow);
 	}
 
-	void FMementoSystem::CreateMementoInternal(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle SourceRow)
-	{
-		using namespace TypedElementDataStorage;
-	
+	void FMementoSystem::CreateMementoInternal(RowHandle MementoRow, RowHandle SourceRow)
+	{	
 		for (const UTedsMementoTranslatorBase* Translator : MementoTranslators)
 		{
 			if (void* SourceColumn = DataStorage.GetColumnData(SourceRow, Translator->GetColumnType()))
@@ -84,7 +80,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FMementoSystem::RestoreMemento(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle TargetRow)
+	void FMementoSystem::RestoreMemento(RowHandle MementoRow, RowHandle TargetRow)
 	{
 		FScopedSharedLock Lock(EGlobalLockScope::Public);
 
@@ -111,7 +107,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	void FMementoSystem::DestroyMemento(TypedElementDataStorage::RowHandle MementoRow)
+	void FMementoSystem::DestroyMemento(RowHandle MementoRow)
 	{
 		// No need to lock this as no internal data is used.
 

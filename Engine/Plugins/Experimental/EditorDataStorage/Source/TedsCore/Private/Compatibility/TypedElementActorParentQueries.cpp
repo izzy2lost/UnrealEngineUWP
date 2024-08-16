@@ -9,7 +9,7 @@
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "GameFramework/Actor.h"
 
-namespace UE::TypedElementActorParentQueries::Local
+namespace UE::Editor::DataStorage::Queries::Private
 {
 	static bool bAddParentColumnToActors = false;
 	
@@ -22,7 +22,7 @@ namespace UE::TypedElementActorParentQueries::Local
 
 void UActorParentDataStorageFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
-	if(UE::TypedElementActorParentQueries::Local::bAddParentColumnToActors)
+	if(UE::Editor::DataStorage::Queries::Private::bAddParentColumnToActors)
 	{
 		RegisterAddParentColumn(DataStorage);
 		RegisterUpdateOrRemoveParentColumn(DataStorage);
@@ -33,13 +33,14 @@ void UActorParentDataStorageFactory::RegisterAddParentColumn(ITypedElementDataSt
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add parent column to actor"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Actor)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object))
 				{
@@ -70,13 +71,14 @@ void UActorParentDataStorageFactory::RegisterUpdateOrRemoveParentColumn(ITypedEl
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync actor's parent to column"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Actor, FTableRowParentColumn& Parent)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Actor, FTableRowParentColumn& Parent)
 			{
 				if (const AActor* ActorInstance = Cast<AActor>(Actor.Object))
 				{

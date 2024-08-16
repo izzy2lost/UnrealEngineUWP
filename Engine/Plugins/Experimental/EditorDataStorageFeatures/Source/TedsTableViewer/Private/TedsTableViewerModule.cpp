@@ -86,19 +86,19 @@ public:
 		Rows.Empty();
 		
 		TypedElementDataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
-			CreateDirectQueryCallbackBinding([this](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* RowHandles)
+			CreateDirectQueryCallbackBinding([this](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
 		{
 			Rows.Append(RowHandles, Context.GetRowCount());
 		}));
 
-		return SNew(UE::EditorDataStorage::STedsTableViewer)
-				.QueryStack(MakeShared<UE::EditorDataStorage::FQueryStackNode_RowView>(&Rows))
+		return SNew(UE::Editor::DataStorage::STedsTableViewer)
+				.QueryStack(MakeShared<UE::Editor::DataStorage::FQueryStackNode_RowView>(&Rows))
 				.Columns({FTypedElementLabelColumn::StaticStruct(), FTypedElementSelectionColumn::StaticStruct(),
 					FTypedElementAlertColumn::StaticStruct(), FTypedElementChildAlertColumn::StaticStruct()});
 	}
 	
 	FDelegateHandle LevelEditorTabManagerChangedHandle;
-	TArray<TypedElementDataStorage::RowHandle> Rows;
+	TArray<UE::Editor::DataStorage::RowHandle> Rows;
 };
 
 // CVar to summon a test table viewer that views a snapshot of all actors at the moment when the Cvar is used

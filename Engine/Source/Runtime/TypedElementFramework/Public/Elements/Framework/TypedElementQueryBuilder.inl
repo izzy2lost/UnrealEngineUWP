@@ -170,42 +170,42 @@ namespace TypedElementQueryBuilder
 		return ParentContext.GetRowCount();
 	}
 
-	TConstArrayView<TypedElementRowHandle> FQueryContextForwarder::GetRowHandles() const
+	TConstArrayView<RowHandle> FQueryContextForwarder::GetRowHandles() const
 	{
 		return ParentContext.GetRowHandles();
 	}
 
-	void FQueryContextForwarder::RemoveRow(TypedElementRowHandle Row)
+	void FQueryContextForwarder::RemoveRow(RowHandle Row)
 	{
 		ParentContext.RemoveRow(Row);
 	}
 
-	void FQueryContextForwarder::RemoveRows(TConstArrayView<TypedElementRowHandle> Rows)
+	void FQueryContextForwarder::RemoveRows(TConstArrayView<RowHandle> Rows)
 	{
 		ParentContext.RemoveRows(Rows);
 	}
 
-	void FQueryContextForwarder::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	void FQueryContextForwarder::AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		ParentContext.AddColumns(Row, ColumnTypes);
 	}
 
-	void FQueryContextForwarder::AddColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	void FQueryContextForwarder::AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		ParentContext.AddColumns(Rows, ColumnTypes);
 	}
 
-	void FQueryContextForwarder::RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	void FQueryContextForwarder::RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		ParentContext.RemoveColumns(Row, ColumnTypes);
 	}
 
-	void FQueryContextForwarder::RemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes)
+	void FQueryContextForwarder::RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes)
 	{
 		ParentContext.RemoveColumns(Rows, ColumnTypes);
 	}
 
-	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunQuery(TypedElementQueryHandle Query)
+	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunQuery(QueryHandle Query)
 	{
 		return ParentContext.RunQuery(Query);
 	}
@@ -222,7 +222,7 @@ namespace TypedElementQueryBuilder
 	}
 
 	TypedElementDataStorage::FQueryResult FQueryContextForwarder::RunSubquery(int32 SubqueryIndex,
-		TypedElementDataStorage::RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback)
+		RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback)
 	{
 		return ParentContext.RunSubquery(SubqueryIndex, Row, Callback);
 	}
@@ -294,7 +294,7 @@ namespace TypedElementQueryBuilder
 			const TWeakObjectPtr<const UScriptStruct>*ColumnTypes, const TypedElementDataStorage::EQueryAccessType * AccessTypes)
 		{
 			{ Ctx.GetColumnsUnguarded(TypeCount, RetrievedAddresses, ColumnTypes, AccessTypes) };
-			{ Ctx.GetRowHandles() } -> UE::convertible_to<TConstArrayView<TypedElementRowHandle>>;
+			{ Ctx.GetRowHandles() } -> UE::convertible_to<TConstArrayView<RowHandle>>;
 			{ Ctx.GetRowCount() } -> UE::convertible_to<uint32>;
 		};
 
@@ -362,7 +362,7 @@ namespace TypedElementQueryBuilder
 		}
 
 		template<typename RowType>
-		concept IsRowHandleType = std::is_same_v<std::remove_cv_t<std::remove_pointer_t<RowType>>, TypedElementRowHandle>;
+		concept IsRowHandleType = std::is_same_v<std::remove_cv_t<std::remove_pointer_t<RowType>>, RowHandle>;
 
 		template<typename RowType, typename... Columns>
 		constexpr bool IsRowTypeCompatibleWithColumns()
@@ -501,7 +501,7 @@ namespace TypedElementQueryBuilder
 			template<typename CallerType>
 			void Call(SourceContext& Context, const CallerType& Caller)
 			{
-				TConstArrayView<TypedElementRowHandle> Rows = Context.GetRowHandles();
+				TConstArrayView<RowHandle> Rows = Context.GetRowHandles();
 				if constexpr (SuperColumn::bArePointerColumns || std::is_pointer_v<RowHandleType>)
 				{
 					if constexpr (sizeof...(Args) > 0)
@@ -518,7 +518,7 @@ namespace TypedElementQueryBuilder
 				}
 				else
 				{
-					for (TypedElementRowHandle Row : Rows)
+					for (RowHandle Row : Rows)
 					{
 						if constexpr (sizeof...(Args) > 0)
 						{
@@ -601,7 +601,7 @@ namespace TypedElementQueryBuilder
 			template<typename CallerType>
 			void Call(SourceContext& Context, const CallerType& Caller)
 			{
-				TConstArrayView<TypedElementRowHandle> Rows = Context.GetRowHandles();
+				TConstArrayView<RowHandle> Rows = Context.GetRowHandles();
 				if constexpr (Super::bArePointerColumns || std::is_pointer_v<RowHandleType>)
 				{
 					if constexpr (sizeof...(Columns) > 0)
@@ -618,7 +618,7 @@ namespace TypedElementQueryBuilder
 				}
 				else
 				{
-					for (TypedElementRowHandle Row : Rows)
+					for (RowHandle Row : Rows)
 					{
 						if constexpr (sizeof...(Columns) > 0)
 						{
@@ -1087,13 +1087,13 @@ namespace TypedElementQueryBuilder
 				R"(The function provided to the Query Builder's Select call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
-- void(TypedElementRowHandle, [const]Column&...) 
+- void(RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column&...) 
-- void(<Context>&, TypedElementRowHandle, [const]Column&...) 
+- void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
-- void(<Context>&, const TypedElementRowHandle*, [const]Column*...) 
+- void(<Context>&, const RowHandle*, [const]Column*...) 
 Where <Context> is TypedElementDataStorage::IQueryContext or FCachedQueryContext<...>
-e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedElementRowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
+e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
 			RegisterFunctionArguments<TypedElementDataStorage::IQueryContext>(Query, Target, Callback);
 			PrepareForQueryBinding(Query, Type);
@@ -1258,13 +1258,13 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 			R"(The function provided to the Query Builder's CreateDirectQueryCallbackBinding call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
-- void(TypedElementRowHandle, [const]Column&...) 
+- void(RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column&...) 
-- void(<Context>&, TypedElementRowHandle, [const]Column&...) 
+- void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
-- void(<Context>&, const TypedElementRowHandle*, [const]Column*...) 
+- void(<Context>&, const RowHandle*, [const]Column*...) 
 Where <Context> is TypedElementDataStorage::IDirectQueryContext
-e.g. void(IDirectQueryContext& Context, TypedElementRowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
+e.g. void(IDirectQueryContext& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
 
 		return [Callback = Forward<Function>(Callback)](
@@ -1283,13 +1283,13 @@ e.g. void(IDirectQueryContext& Context, TypedElementRowHandle Row, ColumnType0& 
 			R"(The function provided to the Query Builder's CreateSubqueryCallbackBinding call wasn't invocable or doesn't contain a supported combination of arguments.
 The following options are supported:
 - void([const]Column&...) 
-- void(TypedElementRowHandle, [const]Column&...) 
+- void(RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column&...) 
-- void(<Context>&, TypedElementRowHandle, [const]Column&...) 
+- void(<Context>&, RowHandle, [const]Column&...) 
 - void(<Context>&, [const]Column*...) 
-- void(<Context>&, const TypedElementRowHandle*, [const]Column*...) 
+- void(<Context>&, const RowHandle*, [const]Column*...) 
 Where <Context> is TypedElementDataStorage::ISubqueryContext
-e.g. void(ISubqueryContext& Context, TypedElementRowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
+e.g. void(ISubqueryContext& Context, RowHandle Row, ColumnType0& ColumnA, const ColumnType1& ColumnB) {...}
 )");
 
 		return [Callback = Forward<Function>(Callback)](

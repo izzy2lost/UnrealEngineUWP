@@ -10,34 +10,38 @@ class SDockTab;
 class SWidget;
 class FSpawnTabArgs;
 class ISceneOutliner;
-class STedsDebugger;
 
-namespace UE::EditorDataStorage::Debug
+namespace UE::Editor::DataStorage
 {
-/**
- * Implements the Teds Debugger module.
- */
-class FTedsDebuggerModule
-	: public IModuleInterface
-{
-public:
+	namespace Debug
+	{
+		class STedsDebugger;
 
-	FTedsDebuggerModule() = default;
+		/**
+		 * Implements the Teds Debugger module.
+		 */
+		class FTedsDebuggerModule
+			: public IModuleInterface
+		{
+		public:
 
-	// IModuleInterface interface
-	virtual void StartupModule() override;
-	virtual void ShutdownModule() override;
+			FTedsDebuggerModule() = default;
 
-	// Open the TEDS Debugger if not already open, and navigate to the given row in the table viewer tab
-	void NavigateToRow(TypedElementDataStorage::RowHandle InRow) const;
+			// IModuleInterface interface
+			virtual void StartupModule() override;
+			virtual void ShutdownModule() override;
 
-private:
-	void RegisterTabSpawners();
-	void UnregisterTabSpawners() const;
+			// Open the TEDS Debugger if not already open, and navigate to the given row in the table viewer tab
+			void NavigateToRow(RowHandle InRow) const;
+
+		private:
+			void RegisterTabSpawners();
+			void UnregisterTabSpawners() const;
 	
-	TSharedRef<SDockTab> OpenTedsDebuggerTab(const FSpawnTabArgs& SpawnTabArgs);
+			TSharedRef<SDockTab> OpenTedsDebuggerTab(const FSpawnTabArgs& SpawnTabArgs);
 
-private:
-	TWeakPtr<STedsDebugger> TedsDebuggerInstance;
-};
-}
+		private:
+			TWeakPtr<STedsDebugger> TedsDebuggerInstance;
+		};
+	} // namespace Debug
+} // namespace UE::Editor::DataStorage

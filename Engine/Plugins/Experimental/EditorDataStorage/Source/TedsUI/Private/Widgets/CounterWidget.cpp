@@ -125,7 +125,7 @@ void UCounterWidgetFactory::SetupMainWindowIntegrations(TSharedPtr<SWindow> Pare
 
 		TArray<TSharedRef<SWidget>> Widgets;
 		UiInterface->ConstructWidgets(WigetPurpose, {},
-			[&Widgets](const TSharedRef<SWidget>& NewWidget, TypedElementRowHandle Row)
+			[&Widgets](const TSharedRef<SWidget>& NewWidget, UE::Editor::DataStorage::RowHandle Row)
 			{
 				Widgets.Add(NewWidget);
 			});
@@ -174,7 +174,7 @@ TSharedPtr<SWidget> FCounterWidgetConstructor::CreateWidget(const TypedElementDa
 		.Justification(ETextJustify::Center);
 }
 
-bool FCounterWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
+bool FCounterWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row)
 {
 	FCounterWidgetColumn* CounterColumn = DataStorage->GetColumn<FCounterWidgetColumn>(Row);
 	checkf(CounterColumn, TEXT("Added a new FCounterWidgetColumn to the Typed Elements Data Storage, but didn't get a valid pointer back."));

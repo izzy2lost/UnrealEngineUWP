@@ -5,35 +5,35 @@
 #include "Elements/Common/TypedElementHandles.h"
 #include "Framework/Views/TableViewTypeTraits.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
-	// Wrapper struct around TypedElementDataStorage::RowHandle so we can template speicalize for it without also specializing for uint64
+	// Wrapper struct around RowHandle so we can template specialize for it without also specializing for uint64
 	struct UIRowType
 	{
-		TypedElementDataStorage::RowHandle RowHandle;
+		RowHandle Row;
 		
 		UIRowType()
-			: RowHandle(TypedElementDataStorage::InvalidRowHandle)
+			: Row(InvalidRowHandle)
 		{}
 
-		UIRowType(TypedElementDataStorage::RowHandle InRowHandle)
-			: RowHandle(InRowHandle)
+		UIRowType(RowHandle InRowHandle)
+			: Row(InRowHandle)
 		{}
 
-		operator TypedElementDataStorage::RowHandle () const
+		operator RowHandle() const
 		{
-			return RowHandle;
+			return Row;
 		}
 
-		UIRowType& operator=(TypedElementDataStorage::RowHandle InRowHandle)
+		UIRowType& operator=(RowHandle InRowHandle)
 		{
-			RowHandle = InRowHandle;
+			Row = InRowHandle;
 			return *this;
 		}
 		
 		friend uint32 GetTypeHash(const UIRowType& Key)
 		{
-			return GetTypeHash(Key.RowHandle);
+			return GetTypeHash(Key.Row);
 		}
 
 	};
@@ -44,45 +44,45 @@ namespace UE::EditorDataStorage
  * SListView<UE::EditorDataStorage::UIRowType>
  */
 template <>
-struct TListTypeTraits<UE::EditorDataStorage::UIRowType>
+struct TListTypeTraits<UE::Editor::DataStorage::UIRowType>
 {
-	typedef UE::EditorDataStorage::UIRowType NullableType;
+	using NullableType = UE::Editor::DataStorage::UIRowType;
 
-	using MapKeyFuncs = TDefaultMapHashableKeyFuncs<UE::EditorDataStorage::UIRowType, TSharedRef<ITableRow>, false>;
-	using MapKeyFuncsSparse = TDefaultMapHashableKeyFuncs<UE::EditorDataStorage::UIRowType, FSparseItemInfo, false>;
-	using SetKeyFuncs = DefaultKeyFuncs<UE::EditorDataStorage::UIRowType>;
+	using MapKeyFuncs = TDefaultMapHashableKeyFuncs<UE::Editor::DataStorage::UIRowType, TSharedRef<ITableRow>, false>;
+	using MapKeyFuncsSparse = TDefaultMapHashableKeyFuncs<UE::Editor::DataStorage::UIRowType, FSparseItemInfo, false>;
+	using SetKeyFuncs = DefaultKeyFuncs<UE::Editor::DataStorage::UIRowType>;
 
 	template<typename U>
 	static void AddReferencedObjects(FReferenceCollector&,
-		TArray<UE::EditorDataStorage::UIRowType>&,
-		TSet<UE::EditorDataStorage::UIRowType>&,
-		TMap<const U*, UE::EditorDataStorage::UIRowType>&)
+		TArray<UE::Editor::DataStorage::UIRowType>&,
+		TSet<UE::Editor::DataStorage::UIRowType>&,
+		TMap<const U*, UE::Editor::DataStorage::UIRowType>&)
 	{
 	}
 
-	static bool IsPtrValid(const UE::EditorDataStorage::UIRowType& InPtr)
+	static bool IsPtrValid(const UE::Editor::DataStorage::UIRowType& InPtr)
 	{
-		return InPtr != TypedElementDataStorage::InvalidRowHandle;
+		return InPtr != UE::Editor::DataStorage::InvalidRowHandle;
 	}
 
-	static void ResetPtr(UE::EditorDataStorage::UIRowType& InPtr)
+	static void ResetPtr(UE::Editor::DataStorage::UIRowType& InPtr)
 	{
-		InPtr = TypedElementDataStorage::InvalidRowHandle;
+		InPtr = UE::Editor::DataStorage::InvalidRowHandle;
 	}
 
-	static UE::EditorDataStorage::UIRowType MakeNullPtr()
+	static UE::Editor::DataStorage::UIRowType MakeNullPtr()
 	{
-		return TypedElementDataStorage::InvalidRowHandle;
+		return UE::Editor::DataStorage::InvalidRowHandle;
 	}
 
-	static UE::EditorDataStorage::UIRowType NullableItemTypeConvertToItemType(const UE::EditorDataStorage::UIRowType& InPtr)
+	static UE::Editor::DataStorage::UIRowType NullableItemTypeConvertToItemType(const UE::Editor::DataStorage::UIRowType& InPtr)
 	{
 		return InPtr;
 	}
 
-	static FString DebugDump(UE::EditorDataStorage::UIRowType InPtr)
+	static FString DebugDump(UE::Editor::DataStorage::UIRowType InPtr)
 	{
-		return FString::Printf(TEXT("%llu"), InPtr.RowHandle);
+		return FString::Printf(TEXT("%llu"), InPtr.Row);
 	}
 
 	class SerializerType {};
@@ -90,7 +90,7 @@ struct TListTypeTraits<UE::EditorDataStorage::UIRowType>
 
 // Template declaration to enable using row handles inside of slate widgets like SListView
 template <>
-struct TIsValidListItem<UE::EditorDataStorage::UIRowType>
+struct TIsValidListItem<UE::Editor::DataStorage::UIRowType>
 {
 	enum
 	{

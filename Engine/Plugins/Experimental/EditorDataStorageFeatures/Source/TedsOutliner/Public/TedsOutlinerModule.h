@@ -34,14 +34,14 @@ public:
 	 * @return	New scene outliner widget
 	 */
 	virtual TSharedRef<ISceneOutliner> CreateTedsOutliner(
-		const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const;
+		const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, UE::Editor::DataStorage::QueryHandle ColumnQuery) const;
 
 	// IModuleInterface interface
 	virtual void StartupModule() override;
 	virtual void ShutdownModule() override;
 
 	// Get the column query the default table viewer uses
-	virtual TypedElementDataStorage::QueryHandle GetLevelEditorTedsOutlinerColumnQuery();
+	virtual UE::Editor::DataStorage::QueryHandle GetLevelEditorTedsOutlinerColumnQuery();
 
 	// The name of the tab the default table viewer is opened in
 	FName GetTedsOutlinerTabName();

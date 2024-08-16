@@ -217,9 +217,9 @@ void FTedsOutlinerImpl::SetSelection(const TArray<TypedElementDataStorage::RowHa
 	}
 }
 
-TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const
+TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(UE::Editor::DataStorage::RowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const
 {
-	auto CreateWidgetForQuery = [InRowHandle, this, &InRow](const TPair<TypedElementDataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
+	auto CreateWidgetForQuery = [InRowHandle, this, &InRow](const TPair<UE::Editor::DataStorage::QueryHandle, TSharedPtr<FTypedElementWidgetConstructor>>& QueryConstructorPair) -> TSharedPtr<SWidget>
 	{
 		TypedElementDataStorage::FQueryDescription QueryDescription = Storage->GetQueryDescription(QueryConstructorPair.Key);
 		
@@ -237,7 +237,7 @@ TSharedRef<SWidget> FTedsOutlinerImpl::CreateLabelWidgetForItem(TypedElementRowH
 		TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes(QueryDescription.SelectionTypes);
 		TSharedPtr<FTypedElementWidgetConstructor> CellWidgetConstructor = QueryConstructorPair.Value;
 
-		TypedElementRowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(UE::EditorDataStorage::TableViewerUtils::GetWidgetTableName()));
+		UE::Editor::DataStorage::RowHandle UiRowHandle = Storage->AddRow(Storage->FindTable(UE::Editor::DataStorage::TableViewerUtils::GetWidgetTableName()));
 
 		if (FTypedElementRowReferenceColumn* RowReference = Storage->GetColumn<FTypedElementRowReferenceColumn>(UiRowHandle))
 		{
@@ -382,13 +382,13 @@ void FTedsOutlinerImpl::CreateItemsFromQuery(TArray<FSceneOutlinerTreeItemPtr>& 
 	TypedElementDataStorage::DirectQueryCallback RowCollector = CreateDirectQueryCallbackBinding(
 		[&Rows](DSI::IDirectQueryContext& Context)
 		{
-			TConstArrayView<TypedElementRowHandle> ContextRows = Context.GetRowHandles();
+			TConstArrayView<UE::Editor::DataStorage::RowHandle> ContextRows = Context.GetRowHandles();
 			Rows.Append(ContextRows);
 		});
 
 	Storage->RunQuery(RowHandleQuery, RowCollector);
 	
-	for (const TypedElementRowHandle& Row : Rows)
+	for (const UE::Editor::DataStorage::RowHandle& Row : Rows)
 	{
 		if (!CanDisplayRow(Row))
 		{
@@ -430,7 +430,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 		return;
 	}
 		
-	TypedElementRowHandle ItemRowHandle = TedsTreeItem->GetRowHandle();
+	UE::Editor::DataStorage::RowHandle ItemRowHandle = TedsTreeItem->GetRowHandle();
 
 	if(!Storage->IsRowAssigned(ItemRowHandle))
 	{
@@ -438,7 +438,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 
 
-	TSet<TypedElementDataStorage::RowHandle> MatchedRowsWithParentColumn;
+	TSet<UE::Editor::DataStorage::RowHandle> MatchedRowsWithParentColumn;
 	
 	// Collect all entities that are owned by our entity
 	TypedElementDataStorage::DirectQueryCallback ChildRowCollector = CreateDirectQueryCallbackBinding(
@@ -449,20 +449,20 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 
 	Storage->RunQuery(ChildRowHandleQuery, ChildRowCollector);
 
-	TArray<TypedElementDataStorage::RowHandle> ChildItems;
+	TArray<UE::Editor::DataStorage::RowHandle> ChildItems;
 
 	// Recursively get the children for each entity
-	TFunction<void(TypedElementRowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage = Storage, &GetChildrenRecursive, InHierarchyData = HierarchyData]
-	(TypedElementRowHandle EntityRowHandle) -> void
+	TFunction<void(UE::Editor::DataStorage::RowHandle)> GetChildrenRecursive = [&ChildItems, &MatchedRowsWithParentColumn, DataStorage = Storage, &GetChildrenRecursive, InHierarchyData = HierarchyData]
+	(UE::Editor::DataStorage::RowHandle EntityRowHandle) -> void
 	{
-		for(TypedElementRowHandle ChildEntityRowHandle : MatchedRowsWithParentColumn)
+		for(UE::Editor::DataStorage::RowHandle ChildEntityRowHandle : MatchedRowsWithParentColumn)
 		{
 			void* ParentColumnData = DataStorage->GetColumnData(ChildEntityRowHandle, InHierarchyData.GetValue().HierarchyColumn);
 
 			if (ensureMsgf(ParentColumnData, TEXT("We should always the a parent column since we only grabbed rows with those ")))
 			{
 				// Get the parent row handle
-				const TypedElementDataStorage::RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+				const UE::Editor::DataStorage::RowHandle ParentRowHandle = InHierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 				
 				// Check if this entity is owned by the entity we are looking children for
 				if (ParentRowHandle == EntityRowHandle)
@@ -481,7 +481,7 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	GetChildrenRecursive(ItemRowHandle);
 
 	// Actually create the items for the child entities 
-	for (TypedElementRowHandle ChildItemRowHandle : ChildItems)
+	for (UE::Editor::DataStorage::RowHandle ChildItemRowHandle : ChildItems)
 	{
 		if (!CanDisplayRow(ChildItemRowHandle))
 		{
@@ -495,12 +495,12 @@ void FTedsOutlinerImpl::CreateChildren(const FSceneOutlinerTreeItemPtr& Item, TA
 	}
 }
 
-TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementDataStorage::RowHandle InRowHandle)
+UE::Editor::DataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(UE::Editor::DataStorage::RowHandle InRowHandle)
 {
 	// No parent if there is no hierarchy data specified
 	if (!HierarchyData.IsSet())
 	{
-		return TypedElementDataStorage::InvalidRowHandle;
+		return UE::Editor::DataStorage::InvalidRowHandle;
 	}
 	
 	// If this entity does not have a parent entity, return InvalidRowHandle
@@ -508,26 +508,26 @@ TypedElementDataStorage::RowHandle FTedsOutlinerImpl::GetParentRow(TypedElementD
 	
 	if (!ParentColumnData)
 	{
-		return TypedElementDataStorage::InvalidRowHandle;
+		return UE::Editor::DataStorage::InvalidRowHandle;
 	}
 
 	// If the parent is invalid for some reason, return InvalidRowHandle
-	const TypedElementRowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
+	const UE::Editor::DataStorage::RowHandle ParentRowHandle = HierarchyData.GetValue().GetParent.Execute(ParentColumnData);
 	
 	if (!Storage->IsRowAvailable(ParentRowHandle))
 	{
-		return TypedElementDataStorage::InvalidRowHandle;
+		return UE::Editor::DataStorage::InvalidRowHandle;
 	}
 	
 	if (!CanDisplayRow(ParentRowHandle))
 	{
-		return TypedElementDataStorage::InvalidRowHandle;
+		return UE::Editor::DataStorage::InvalidRowHandle;
 	}
 
 	return ParentRowHandle;
 }
 
-void FTedsOutlinerImpl::OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemAdded(UE::Editor::DataStorage::RowHandle ItemRowHandle)
 {
 	if (!CanDisplayRow(ItemRowHandle))
 	{
@@ -540,7 +540,7 @@ void FTedsOutlinerImpl::OnItemAdded(TypedElementDataStorage::RowHandle ItemRowHa
 	HierarchyChangedEvent.Broadcast(EventData);
 }
 
-void FTedsOutlinerImpl::OnItemRemoved(TypedElementDataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemRemoved(UE::Editor::DataStorage::RowHandle ItemRowHandle)
 {
 	FSceneOutlinerHierarchyChangedData EventData;
 	EventData.Type = FSceneOutlinerHierarchyChangedData::Removed;
@@ -548,7 +548,7 @@ void FTedsOutlinerImpl::OnItemRemoved(TypedElementDataStorage::RowHandle ItemRow
 	HierarchyChangedEvent.Broadcast(EventData);
 }
 
-void FTedsOutlinerImpl::OnItemMoved(TypedElementDataStorage::RowHandle ItemRowHandle)
+void FTedsOutlinerImpl::OnItemMoved(UE::Editor::DataStorage::RowHandle ItemRowHandle)
 {
 	if (!CanDisplayRow(ItemRowHandle))
 	{
@@ -584,7 +584,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		Select(
 				TEXT("Add Row to Outliner"),
 				FObserver::OnAdd<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
-				[this](IQueryContext& Context, TypedElementRowHandle Row)
+				[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
 				{
 					OnItemAdded(Row);
 				})
@@ -598,7 +598,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 		Select(
 				TEXT("Remove Row from Outliner"),
 				FObserver::OnRemove<FTypedElementLabelColumn>().SetExecutionMode(EExecutionMode::GameThread),
-				[this](IQueryContext& Context, TypedElementRowHandle Row)
+				[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
 				{
 					OnItemRemoved(Row);
 				})
@@ -667,7 +667,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 							Select(
 							TEXT("Row selected"),
 							FObserver::OnAdd<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
-							[this](IQueryContext& Context, TypedElementRowHandle Row)
+							[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
 							{
 								bSelectionDirty = true;
 							})
@@ -681,7 +681,7 @@ void FTedsOutlinerImpl::RecompileQueries()
 							Select(
 							TEXT("Row deselected"),
 							FObserver::OnRemove<FTypedElementSelectionColumn>().SetExecutionMode(EExecutionMode::GameThread),
-							[this](IQueryContext& Context, TypedElementRowHandle Row)
+							[this](IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row)
 							{
 								bSelectionDirty = true;
 							})

@@ -37,17 +37,17 @@ public:
 	TEDSUI_API TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
 
 	TEDSUI_API TSharedPtr<SWidget> Construct(
-		TypedElementRowHandle Row, 
+		UE::Editor::DataStorage::RowHandle Row,
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		const TypedElementDataStorage::FMetaDataView& Arguments) override;
 
 protected:
 	explicit FLabelWidgetConstructor(const UScriptStruct* InTypeInfo);
-	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row) override;
+	bool SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
-	static bool IsWidgetSelected(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle UiRow);
+		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
+	static bool IsWidgetSelected(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle UiRow);
 };
 
 USTRUCT(meta = (DisplayName = "Label widget"))

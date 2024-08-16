@@ -2,9 +2,9 @@
 
 #include "QueryStack/FQueryStackNode_RowView.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
-	TConstArrayView<TypedElementDataStorage::RowHandle> FQueryStackNode_RowView::GetOrderedRowList()
+	TConstArrayView<RowHandle> FQueryStackNode_RowView::GetOrderedRowList()
 	{
 		return *Rows;
 	}
@@ -14,7 +14,7 @@ namespace UE::EditorDataStorage
 		return RevisionId;
 	}
 
-	FQueryStackNode_RowView::FQueryStackNode_RowView(TArray<TypedElementDataStorage::RowHandle>* InRows)
+	FQueryStackNode_RowView::FQueryStackNode_RowView(TArray<RowHandle>* InRows)
 		: Rows(InRows)
 	{
 		
@@ -24,6 +24,4 @@ namespace UE::EditorDataStorage
 	{
 		++RevisionId;
 	}
-}
-
-
+} // namespace UE::Editor::DataStorage

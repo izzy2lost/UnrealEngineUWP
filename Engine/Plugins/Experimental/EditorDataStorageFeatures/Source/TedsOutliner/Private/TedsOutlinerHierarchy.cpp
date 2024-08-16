@@ -55,7 +55,7 @@ FSceneOutlinerTreeItemPtr FTedsOutlinerHierarchy::FindOrCreateParentItem(const I
 		return nullptr;
 	}
 	
-	const TypedElementRowHandle ParentRowHandle = TedsOutlinerImpl->GetParentRow(TedsTreeItem->GetRowHandle());
+	const UE::Editor::DataStorage::RowHandle ParentRowHandle = TedsOutlinerImpl->GetParentRow(TedsTreeItem->GetRowHandle());
 
 	if(!Storage->IsRowAvailable(ParentRowHandle))
 	{

@@ -8,7 +8,7 @@
 class SWrapBox;
 class SHorizontalBox;
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	enum class EOperatorType : uint32;
 	class FTedsQueryEditorModel;
@@ -20,7 +20,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 		SLATE_END_ARGS()
 
 		~SConditionCollectionViewWidget() override;
-		void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel, QueryEditor::EOperatorType InOperatorType);
+		void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel, EOperatorType InOperatorType);
 		void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 		
 	private:
@@ -28,7 +28,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 		void OnModelChanged();
 
 		FTedsQueryEditorModel* Model = nullptr;
-		QueryEditor::EOperatorType OperatorType = EOperatorType::Unset;
+		EOperatorType OperatorType = EOperatorType::Unset;
 		FDelegateHandle OnModelChangedDelegate;
 
 		TSharedPtr<SWrapBox> ColumnButtonWrap;

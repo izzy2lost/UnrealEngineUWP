@@ -89,7 +89,7 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FDependency& FDependency::SubQuery(TypedElementQueryHandle Handle)
+	FDependency& FDependency::SubQuery(QueryHandle Handle)
 	{
 		checkf(Query->Callback.ExecutionMode != TypedElementDataStorage::EExecutionMode::ThreadedChunks,
 			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));
@@ -97,7 +97,7 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 	
-	FDependency& FDependency::SubQuery(TConstArrayView<TypedElementQueryHandle> Handles)
+	FDependency& FDependency::SubQuery(TConstArrayView<QueryHandle> Handles)
 	{
 		checkf(Query->Callback.ExecutionMode != TypedElementDataStorage::EExecutionMode::ThreadedChunks,
 			TEXT("TEDS sub-queries can not be added to queries with a callback that process chunks in parallel."));

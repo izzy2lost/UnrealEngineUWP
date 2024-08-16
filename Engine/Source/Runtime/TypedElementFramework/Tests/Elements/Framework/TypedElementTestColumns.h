@@ -98,7 +98,7 @@ struct FTEDSProcessorTestsReferenceColumn final : public FEditorDataStorageColum
 	GENERATED_BODY()
 
 	// UPROPERTY()
-	TypedElementDataStorage::RowHandle Reference = TypedElementDataStorage::InvalidRowHandle;
+	UE::Editor::DataStorage::RowHandle Reference = UE::Editor::DataStorage::InvalidRowHandle;
 
 	bool IsReferenced = false;
 };

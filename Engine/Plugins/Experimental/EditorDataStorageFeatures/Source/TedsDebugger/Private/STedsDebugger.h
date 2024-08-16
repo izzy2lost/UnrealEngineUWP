@@ -8,47 +8,53 @@
 
 class ISceneOutliner;
 
-class STedsDebugger : public SCompoundWidget
+namespace UE::Editor::DataStorage
 {
-public:
-
-	SLATE_BEGIN_ARGS(STedsDebugger) 
+	namespace Debug
 	{
-	}
-	SLATE_END_ARGS()
+		class STedsDebugger : public SCompoundWidget
+		{
+		public:
 
-public:
-	STedsDebugger() = default;
-	virtual ~STedsDebugger() override;
+			SLATE_BEGIN_ARGS(STedsDebugger) 
+			{
+			}
+			SLATE_END_ARGS()
 
-	/**
-	* Constructs the debugger.
-	*
-	* @param InArgs The Slate argument list.
-	* @param ConstructUnderMajorTab The major tab which will contain the session front-end.
-	* @param ConstructUnderWindow The window in which this widget is being constructed.
-	*/
-	void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
+		public:
+			STedsDebugger() = default;
+			virtual ~STedsDebugger() override;
 
-	void NavigateToRow(TypedElementDataStorage::RowHandle InRow) const;
+			/**
+			* Constructs the debugger.
+			*
+			* @param InArgs The Slate argument list.
+			* @param ConstructUnderMajorTab The major tab which will contain the session front-end.
+			* @param ConstructUnderWindow The window in which this widget is being constructed.
+			*/
+			void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
+
+			void NavigateToRow(RowHandle InRow) const;
 	
-private:
-	TSharedRef<SDockTab> SpawnToolbar(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnQueryEditorTab(const FSpawnTabArgs& Args);
-	TSharedRef<SDockTab> SpawnTableViewerTab(const FSpawnTabArgs& Args);
-	void FillWindowMenu( FMenuBuilder& MenuBuilder);
+		private:
+			TSharedRef<SDockTab> SpawnToolbar(const FSpawnTabArgs& Args);
+			TSharedRef<SDockTab> SpawnQueryEditorTab(const FSpawnTabArgs& Args);
+			TSharedRef<SDockTab> SpawnTableViewerTab(const FSpawnTabArgs& Args);
+			void FillWindowMenu( FMenuBuilder& MenuBuilder);
 
-	void RegisterTabSpawners();
+			void RegisterTabSpawners();
 
-private:
+		private:
 	
-	// Holds the tab manager that manages the front-end's tabs.
-	TSharedPtr<FTabManager> TabManager;
+			// Holds the tab manager that manages the front-end's tabs.
+			TSharedPtr<FTabManager> TabManager;
 
-	// Table Viewer
-	TypedElementDataStorage::QueryHandle TableViewerQuery;
-	TWeakPtr<ISceneOutliner> TableViewerInstance;
+			// Table Viewer
+			QueryHandle TableViewerQuery;
+			TWeakPtr<ISceneOutliner> TableViewerInstance;
 
-	// Query Editor
-	TUniquePtr<UE::EditorDataStorage::Debug::QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
-};
+			// Query Editor
+			TUniquePtr<QueryEditor::FTedsQueryEditorModel> QueryEditorModel;
+		};
+	} // namespace Debug
+} // namespace UE::Editor::DataStorage

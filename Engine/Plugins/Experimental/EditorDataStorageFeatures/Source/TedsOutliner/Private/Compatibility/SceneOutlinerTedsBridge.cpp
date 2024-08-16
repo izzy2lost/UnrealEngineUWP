@@ -42,7 +42,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 			if (ITypedElementDataStorageInterface* DataStorage = Registry->GetMutableDataStorage())
 			{
-				static TypedElementQueryHandle Queries[] =
+				static UE::Editor::DataStorage::QueryHandle Queries[] =
 				{
 					DataStorage->RegisterQuery(Select().ReadWrite<FTypedElementLabelColumn>().Compile()),
 					DataStorage->RegisterQuery(Select().ReadOnly<FTypedElementLocalTransformColumn>().Compile()),
@@ -69,7 +69,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 						if (Args[0].IsNumeric())
 						{
 							int32 QueryIndex = FCString::Atoi(*Args[0]);
-							if (QueryIndex < sizeof(Queries) / sizeof(TypedElementQueryHandle))
+							if (QueryIndex < sizeof(Queries) / sizeof(UE::Editor::DataStorage::QueryHandle))
 							{
 								Binder.AssignQuery(Queries[QueryIndex], SceneOutliner, WidgetPurposes);
 								return;
@@ -96,8 +96,8 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 							}
 							if (AdditionCount > 0)
 							{
-								static TypedElementQueryHandle CustomQuery = InvalidQueryHandle;
-								if (CustomQuery != InvalidQueryHandle)
+								static UE::Editor::DataStorage::QueryHandle CustomQuery = UE::Editor::DataStorage::InvalidQueryHandle;
+								if (CustomQuery != UE::Editor::DataStorage::InvalidQueryHandle)
 								{
 									DataStorage->UnregisterQuery(CustomQuery);
 								}
@@ -107,7 +107,7 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 							}
 						}
 					}
-					Binder.AssignQuery(TypedElementInvalidQueryHandle, SceneOutliner, WidgetPurposes);
+					Binder.AssignQuery(UE::Editor::DataStorage::InvalidQueryHandle, SceneOutliner, WidgetPurposes);
 				}
 			}
 		}));
@@ -123,9 +123,10 @@ public:
 		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
 		const TSharedPtr<ISceneOutliner>& InOutliner);
 
-	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
+	void AssignQuery(UE::Editor::DataStorage::QueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
 	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
 	FTreeItemIDDealiaser GetDealiaser();
+	
 private:
 	void ClearColumns(ISceneOutliner& InOutliner);
 
@@ -165,11 +166,11 @@ public:
 
 		using namespace TypedElementDataStorage;
 
-		TableViewerColumnImpl = MakeUnique<UE::EditorDataStorage::FTedsTableViewerColumn>(NameId, InCellWidgetConstructor, InColumnTypes,
+		TableViewerColumnImpl = MakeUnique<UE::Editor::DataStorage::FTedsTableViewerColumn>(NameId, InCellWidgetConstructor, InColumnTypes,
 			InHeaderWidgetConstructor, FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
 
 		TableViewerColumnImpl->SetIsRowVisibleDelegate(
-		UE::EditorDataStorage::FTedsTableViewerColumn::FIsRowVisible::CreateRaw(this, &FOutlinerColumn::IsRowVisible)
+		UE::Editor::DataStorage::FTedsTableViewerColumn::FIsRowVisible::CreateRaw(this, &FOutlinerColumn::IsRowVisible)
 		);
 		
 		// Try to find a fallback column from the regular item, for handling cases like folders which are not in TEDS but want to use TEDS columns
@@ -308,7 +309,7 @@ public:
 	}
 
 	// The table viewer implementation that we internally use to create our widgets
-	TUniquePtr<UE::EditorDataStorage::FTedsTableViewerColumn> TableViewerColumnImpl;
+	TUniquePtr<UE::Editor::DataStorage::FTedsTableViewerColumn> TableViewerColumnImpl;
 	
 	ITypedElementDataStorageInterface& Storage;
 	ITypedElementDataStorageUiInterface& StorageUi;
@@ -421,7 +422,7 @@ TSharedPtr<FSceneOutlinerTedsBridge>* FSceneOutlinerTedsQueryBinder::FindQueryMa
 	return SceneOutliners.Find(Outliner);
 }
 
-void FSceneOutlinerTedsQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
+void FSceneOutlinerTedsQueryBinder::AssignQuery(UE::Editor::DataStorage::QueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
 {
 	CleanupStaleOutliners();
 
@@ -495,7 +496,7 @@ FTreeItemIDDealiaser FSceneOutlinerTedsBridge::GetDealiaser()
 }
 
 
-void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
+void FSceneOutlinerTedsBridge::AssignQuery(UE::Editor::DataStorage::QueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
 {
 	using MatchApproach = ITypedElementDataStorageUiInterface::EMatchApproach;
 	constexpr int32 DefaultPriorityIndex = 100;
@@ -515,7 +516,7 @@ void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const 
 			int32 SelectionCount = Description.SelectionTypes.Num();
 			AddedColumns.Reset(SelectionCount);
 
-			TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = UE::EditorDataStorage::TableViewerUtils::CreateVerifiedColumnTypeArray(Description.SelectionTypes);
+			TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypes = UE::Editor::DataStorage::TableViewerUtils::CreateVerifiedColumnTypeArray(Description.SelectionTypes);
 
 			int32 IndexOffset = 0;
 			auto ColumnConstructor = [this, Query, MetaDataView, &IndexOffset, &OutlinerPinned, Binder](
@@ -533,7 +534,7 @@ void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const 
 
 					OutlinerPinned->RemoveColumn(FallbackColumn);
 
-					FName NameId = UE::EditorDataStorage::TableViewerUtils::FindLongestMatchingName(ColumnTypes, IndexOffset);
+					FName NameId = UE::Editor::DataStorage::TableViewerUtils::FindLongestMatchingName(ColumnTypes, IndexOffset);
 					AddedColumns.Add(NameId);
 					OutlinerPinned->AddColumn(NameId,
 						FSceneOutlinerColumnInfo(ESceneOutlinerColumnVisibility::Visible, ColumnPriority,
@@ -541,7 +542,7 @@ void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const 
 								[this, Query, MetaDataView, NameId, &ColumnTypes, CellConstructor, &OutlinerPinned, FallbackColumn](ISceneOutliner&)
 								{
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor = 
-										UE::EditorDataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, ColumnTypes, CellWidgetPurposes);
+										UE::Editor::DataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, ColumnTypes, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId,
 										TArray<TWeakObjectPtr<const UScriptStruct>>(ColumnTypes.GetData(), ColumnTypes.Num()), 
@@ -578,7 +579,7 @@ void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const 
 									TArray<TWeakObjectPtr<const UScriptStruct>> ColumnTypesStored;
 									ColumnTypesStored.Add(ColumnType);
 									TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor =
-										UE::EditorDataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, { ColumnType }, CellWidgetPurposes);
+										UE::Editor::DataStorage::TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, MetaDataView, { ColumnType }, CellWidgetPurposes);
 									return MakeShared<FOutlinerColumn>(
 										Query, *Storage, *StorageUi, *StorageCompatibility, NameId, MoveTemp(ColumnTypesStored),
 										HeaderConstructor, CellConstructor, FallbackColumn, OutlinerPinned, Dealiaser);

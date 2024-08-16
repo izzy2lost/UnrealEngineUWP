@@ -15,16 +15,16 @@ namespace UE::Editor::DataStorage
 	public:
 		explicit FMementoSystem(ITypedElementDataStorageInterface& InDataStorage);
 
-		TypedElementDataStorage::RowHandle CreateMemento(TypedElementDataStorage::RowHandle SourceRow);
-		void CreateMemento(TypedElementDataStorage::RowHandle ReservedMementoRow, TypedElementDataStorage::RowHandle SourceRow);
-		void RestoreMemento(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle TargetRow);
-		void DestroyMemento(TypedElementDataStorage::RowHandle MementoRow);
+		RowHandle CreateMemento(RowHandle SourceRow);
+		void CreateMemento(RowHandle ReservedMementoRow, RowHandle SourceRow);
+		void RestoreMemento(RowHandle MementoRow, RowHandle TargetRow);
+		void DestroyMemento(RowHandle MementoRow);
 
 	private:
-		void CreateMementoInternal(TypedElementDataStorage::RowHandle MementoRow, TypedElementDataStorage::RowHandle SourceRow);
+		void CreateMementoInternal(RowHandle MementoRow, RowHandle SourceRow);
 
 		TArray<const UTedsMementoTranslatorBase*> MementoTranslators;
-		TypedElementDataStorage::TableHandle MementoRowBaseTable;
+		TableHandle MementoRowBaseTable;
 		ITypedElementDataStorageInterface& DataStorage;
 	};
 } // namespace UE::Editor::DataStorage

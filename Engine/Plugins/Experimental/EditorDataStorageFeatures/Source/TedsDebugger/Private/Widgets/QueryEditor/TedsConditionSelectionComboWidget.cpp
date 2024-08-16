@@ -9,7 +9,7 @@
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Input/SComboBox.h"
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	struct SConditionComboWidget::FComboItem
 	{

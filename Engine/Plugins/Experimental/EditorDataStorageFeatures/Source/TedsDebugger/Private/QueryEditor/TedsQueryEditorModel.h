@@ -6,10 +6,12 @@
 
 class ITypedElementDataStorageInterface;
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage
+{
+namespace Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
-	
+
 	enum class EOperatorType : uint32
 	{
 		Invalid, // Not initialized
@@ -114,6 +116,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 
 		uint64 CurrentVersion = 0;
 		uint64 GeneratedVersion = 0;
-		TypedElementDataStorage::QueryHandle QueryHandle;
+		QueryHandle QueryHandle;
 	};
-}
+} // namespace Debug::QueryEditor
+} // namespace UE::Editor::DataStorage

@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "TedsQueryEditor"
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	struct SQueryEditorWidget::ColumnComboItem
 	{
@@ -25,9 +25,7 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 	};
 
 	void SQueryEditorWidget::Construct(const FArguments& InArgs, FTedsQueryEditorModel& QueryEditorModel)
-	{
-		using namespace UE::EditorDataStorage::Debug;
-	
+	{	
 		ComboItems.Reset();
 		Model = &QueryEditorModel;
 	
@@ -43,12 +41,12 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-						SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::Select)
+						SNew(SConditionCollectionViewWidget, *Model, EOperatorType::Select)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::Select)
+						SNew(SConditionComboWidget, *Model, EOperatorType::Select)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -57,12 +55,12 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-						SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::All)
+						SNew(SConditionCollectionViewWidget, *Model, EOperatorType::All)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-						SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::All)
+						SNew(SConditionComboWidget, *Model, EOperatorType::All)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -71,12 +69,12 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-					SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::Any)
+					SNew(SConditionCollectionViewWidget, *Model, EOperatorType::Any)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-					SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::Any)
+					SNew(SConditionComboWidget, *Model, EOperatorType::Any)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -85,12 +83,12 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 					SNew(SHorizontalBox)
 					+SHorizontalBox::Slot()
 					[
-					SNew(SConditionCollectionViewWidget, *Model, QueryEditor::EOperatorType::None)
+					SNew(SConditionCollectionViewWidget, *Model, EOperatorType::None)
 					]
 					+SHorizontalBox::Slot()
 					.AutoWidth()
 					[
-					SNew(SConditionComboWidget, *Model, QueryEditor::EOperatorType::None)
+					SNew(SConditionComboWidget, *Model, EOperatorType::None)
 					]
 				]
 				+SVerticalBox::Slot()
@@ -101,6 +99,6 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 			
 		];
 	}
-}
+} // namespace UE::Editor::DataStorage::Debug::QueryEditor
 
 #undef LOCTEXT_NAMESPACE

@@ -21,11 +21,9 @@
 void UOverrideWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementDataStorage;
-
 	// The  widget is a specific widget for the Scene Outliner's item label column
 	DataStorageUi.RegisterWidgetFactory<FOverrideWidgetConstructor>(FSceneOutlinerTedsQueryBinder::ItemLabelCellWidgetPurpose,
-		FColumn<FTypedElementClassTypeInfoColumn>() || FColumn<FObjectOverrideColumn>() );
+		TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>() || TypedElementDataStorage::FColumn<FObjectOverrideColumn>() );
 }
 
 void UOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
@@ -33,7 +31,7 @@ void UOverrideWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& 
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
 	
-	const TypedElementQueryHandle UpdateWidget = DataStorage.RegisterQuery(
+	const UE::Editor::DataStorage::QueryHandle UpdateWidget = DataStorage.RegisterQuery(
 		Select()
 		.Where()
 			.Any<FTypedElementSyncFromWorldTag, FTypedElementSyncBackToWorldTag>()
@@ -77,9 +75,9 @@ TSharedPtr<SWidget> FOverrideWidgetConstructor::CreateWidget(const TypedElementD
 }
 
 bool FOverrideWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
-	const TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	const UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 
 	if (const FTypedElementClassTypeInfoColumn* TypeInfoColumn = DataStorage->GetColumn<FTypedElementClassTypeInfoColumn>(TargetRow))
 	{
@@ -165,7 +163,7 @@ void FOverrideWidgetConstructor::RemoveOverrideBadge(const TWeakPtr<SWidget>& Wi
 	}
 }
 
-void FOverrideWidgetConstructor::UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const TypedElementRowHandle TargetRow)
+void FOverrideWidgetConstructor::UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const UE::Editor::DataStorage::RowHandle TargetRow)
 {
 	const ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetDataStorage();
 

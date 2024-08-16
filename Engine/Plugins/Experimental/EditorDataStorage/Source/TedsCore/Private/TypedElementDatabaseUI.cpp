@@ -421,7 +421,7 @@ void UEditorDataStorageUi::CreateWidgetInstance(
 	const TypedElementDataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
-	TypedElementRowHandle Row = Storage->AddRow(WidgetTable);
+	UE::Editor::DataStorage::RowHandle Row = Storage->AddRow(WidgetTable);
 	Storage->AddColumns(Row, Constructor.GetAdditionalColumnsList());
 	TSharedPtr<SWidget> Widget = Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 	if (Widget)
@@ -434,7 +434,7 @@ void UEditorDataStorageUi::CreateWidgetInstance(
 	}
 }
 
-TSharedPtr<SWidget> UEditorDataStorageUi::ConstructWidget(TypedElementRowHandle Row, FTypedElementWidgetConstructor& Constructor,
+TSharedPtr<SWidget> UEditorDataStorageUi::ConstructWidget(UE::Editor::DataStorage::RowHandle Row, FTypedElementWidgetConstructor& Constructor,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);

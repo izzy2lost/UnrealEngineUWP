@@ -94,7 +94,7 @@ FString FTypedElementWidgetConstructor::CreateWidgetDisplayName(
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
-	TypedElementRowHandle Row,
+	RowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
@@ -136,7 +136,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::ConstructFinalWidget(
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
-	TypedElementRowHandle Row,
+	RowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
@@ -162,7 +162,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const TypedElem
 	return nullptr;
 }
 
-bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
+bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
 {
 	return true;
 }
@@ -187,13 +187,13 @@ FString FTypedElementWidgetConstructor::DescribeColumnType(const UScriptStruct* 
 bool FTypedElementWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementRowHandle Row,
+	RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
 	return true;
 }
 
-void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(TypedElementRowHandle Row, ITypedElementDataStorageInterface* DataStorage) const
+void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, ITypedElementDataStorageInterface* DataStorage) const
 {
 	const FString WidgetLabel(CreateWidgetDisplayName(DataStorage, Row));
 	DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );

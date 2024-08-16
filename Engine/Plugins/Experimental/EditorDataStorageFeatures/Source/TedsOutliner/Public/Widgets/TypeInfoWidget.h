@@ -36,12 +36,12 @@ protected:
 	explicit FTypeInfoWidgetConstructor(const UScriptStruct* InTypeInfo);
 	TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
+		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 
 protected:
 
 	// Get the icon for a given row, checking the cache to see if we already have one
-	static const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn);
+	static const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn);
 	
 protected:
 

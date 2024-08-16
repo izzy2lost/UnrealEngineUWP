@@ -9,7 +9,7 @@
 
 #define LOCTEXT_NAMESPACE "STedsTableViewer"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	void STedsTableViewer::Construct(const FArguments& InArgs)
 	{
@@ -122,7 +122,7 @@ namespace UE::EditorDataStorage
 		return SNew(STedsTableViewerRow, OwnerTable, Model.ToSharedRef())
 				.Item(InItem);
 	}
-}
+} // namespace UE::Editor::DataStorage
 
 #undef LOCTEXT_NAMESPACE //"STedsTableViewer"
 

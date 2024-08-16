@@ -6,7 +6,7 @@
 #include "ISceneOutliner.h"
 #include "ISceneOutlinerColumn.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	class FTedsTableViewerColumn;
 }
@@ -39,5 +39,5 @@ private:
 	TWeakPtr<ISceneOutliner> WeakSceneOutliner;
 
 	// The Table Viewer column we are going to use internally to create the widget
-	TSharedPtr<UE::EditorDataStorage::FTedsTableViewerColumn> TableViewerColumn;
+	TSharedPtr<UE::Editor::DataStorage::FTedsTableViewerColumn> TableViewerColumn;
 };

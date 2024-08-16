@@ -48,10 +48,10 @@ public:
 	static void AddOverrideBadge(const TWeakPtr<SWidget>& Widget, EOverriddenState OverriddenState);
 	static void RemoveOverrideBadge(const TWeakPtr<SWidget>& Widget);
 
-	static void UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const TypedElementRowHandle TargetRow);
+	static void UpdateOverrideWidget(const TWeakPtr<SWidget>& Widget, const UE::Editor::DataStorage::RowHandle TargetRow);
 
 protected:
 	TEDSOUTLINER_API TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
 	TEDSOUTLINER_API bool FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget) override;
+		UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget) override;
 };

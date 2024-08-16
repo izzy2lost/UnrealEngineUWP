@@ -108,17 +108,17 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 
 void SPropertyMenuTedsRowPicker::OnClear()
 {
-	SetValue(TypedElementInvalidRowHandle);
+	SetValue(UE::Editor::DataStorage::InvalidRowHandle);
 	OnClose.ExecuteIfBound();
 }
 
-void SPropertyMenuTedsRowPicker::OnElementSelected(TypedElementDataStorage::RowHandle RowHandle)
+void SPropertyMenuTedsRowPicker::OnElementSelected(UE::Editor::DataStorage::RowHandle RowHandle)
 {
 	SetValue(RowHandle);
 	OnClose.ExecuteIfBound();
 }
 
-void SPropertyMenuTedsRowPicker::SetValue(TypedElementDataStorage::RowHandle RowHandle)
+void SPropertyMenuTedsRowPicker::SetValue(UE::Editor::DataStorage::RowHandle RowHandle)
 {
 	OnSet.ExecuteIfBound(RowHandle);
 }

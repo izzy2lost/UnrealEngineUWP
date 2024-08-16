@@ -6,7 +6,7 @@
 #include "TedsTableViewerColumn.h"
 #include "Widgets/STedsTableViewer.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	void STedsTableViewerRow::Construct(const FArguments& InArgs, const TSharedRef<STableViewBase>& OwnerTableView, const TSharedRef<FTedsTableViewerModel>& InTableViewerModel)
 	{
@@ -36,4 +36,4 @@ namespace UE::EditorDataStorage
 
 		return SNullWidget::NullWidget;
 	}
-}
+} // namespace UE::Editor::DataStorage

@@ -12,7 +12,7 @@
 
 #define LOCTEXT_NAMESPACE "TedsDebuggerModule"
 
-namespace UE::EditorDataStorage::Debug
+namespace UE::Editor::DataStorage::Debug
 {
 namespace Private
 {
@@ -37,10 +37,8 @@ void FTedsDebuggerModule::ShutdownModule()
 
 void FTedsDebuggerModule::RegisterTabSpawners()
 {
-	using namespace UE::EditorDataStorage::Debug::Private;
-
 	FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
-		TedsDebuggerTableName,
+		Private::TedsDebuggerTableName,
 		FOnSpawnTab::CreateRaw(this, &FTedsDebuggerModule::OpenTedsDebuggerTab))
 		.SetGroup(WorkspaceMenu::GetMenuStructure().GetDeveloperToolsDebugCategory())
 		.SetDisplayName(LOCTEXT("TedsDebugger_QueryEditorDisplayName", "TEDS Debugger"))
@@ -52,7 +50,7 @@ void FTedsDebuggerModule::UnregisterTabSpawners() const
 {
 	if (FSlateApplication::IsInitialized())
 	{
-		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(UE::EditorDataStorage::Debug::Private::TedsDebuggerTableName);
+		FGlobalTabmanager::Get()->UnregisterNomadTabSpawner(Private::TedsDebuggerTableName);
 	}
 }
 
@@ -70,7 +68,7 @@ TSharedRef<SDockTab> FTedsDebuggerModule::OpenTedsDebuggerTab(const FSpawnTabArg
 	return MajorTab;
 }
 
-void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow) const
+void FTedsDebuggerModule::NavigateToRow(RowHandle InRow) const
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
@@ -82,7 +80,7 @@ void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow
 	// If the debugger isn't already open, open it
 	if(!TedsDebuggerInstance.IsValid())
 	{
-		FGlobalTabmanager::Get()->TryInvokeTab(UE::EditorDataStorage::Debug::Private::TedsDebuggerTableName);
+		FGlobalTabmanager::Get()->TryInvokeTab(Private::TedsDebuggerTableName);
 	}
 
 	TSharedPtr<STedsDebugger> TedsDebuggerPinned = TedsDebuggerInstance.Pin();
@@ -93,8 +91,8 @@ void FTedsDebuggerModule::NavigateToRow(TypedElementDataStorage::RowHandle InRow
 
 	TedsDebuggerPinned->NavigateToRow(InRow);
 }
-}
+} // namespace UE::Editor::DataStorage::Debug
 
-IMPLEMENT_MODULE(UE::EditorDataStorage::Debug::FTedsDebuggerModule, TedsDebugger);
+IMPLEMENT_MODULE(UE::Editor::DataStorage::Debug::FTedsDebuggerModule, TedsDebugger);
 
 #undef LOCTEXT_NAMESPACE

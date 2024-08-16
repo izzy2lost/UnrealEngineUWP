@@ -17,7 +17,7 @@ class ITypedElementDataStorageUiInterface;
 struct FTypedElementWidgetConstructor;
 
 // Util library for functions shared by the Teds Table Viewer and the Teds Outliner
-namespace UE::EditorDataStorage::TableViewerUtils
+namespace UE::Editor::DataStorage::TableViewerUtils
 {
 	TEDSTABLEVIEWER_API FName GetWidgetTableName();
 	
@@ -31,7 +31,7 @@ namespace UE::EditorDataStorage::TableViewerUtils
 
 	// Create a copy of the provided column types array after discarding invalid entries
 	TEDSTABLEVIEWER_API TArray<TWeakObjectPtr<const UScriptStruct>> CreateVerifiedColumnTypeArray(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes);
-}
+} // namespace UE::Editor::DataStorage::TableViewerUtils
 
 UCLASS()
 class UTypedElementTableViewerFactory : public UTypedElementDataStorageFactory

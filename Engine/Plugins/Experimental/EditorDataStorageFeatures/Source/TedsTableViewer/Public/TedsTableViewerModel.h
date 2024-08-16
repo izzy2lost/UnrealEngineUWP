@@ -13,7 +13,7 @@ class ITypedElementDataStorageCompatibilityInterface;
 class ITypedElementDataStorageUiInterface;
 class ITypedElementDataStorageInterface;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	class FTedsTableViewerColumn;
 	class IQueryStackNode_Row;
@@ -21,7 +21,7 @@ namespace UE::EditorDataStorage
 	// Typedef for an item in the table viewer
 	using TableViewerItemPtr = UIRowType;
 
-	// Model class for the Teds Table Viewer that can be plugged into any widget that is a UI representation of data in Teds
+	// Model class for the TEDS Table Viewer that can be plugged into any widget that is a UI representation of data in TEDS
 	// @see STedsTableViewer
 	class FTedsTableViewerModel
 	{
@@ -65,14 +65,14 @@ namespace UE::EditorDataStorage
 		void GenerateColumns();
 
 		// Check if the given row is currently visible in the UI
-		bool IsRowVisible(TypedElementDataStorage::RowHandle InRowHandle) const;
+		bool IsRowVisible(RowHandle InRowHandle) const;
 
 		bool Tick(float DeltaTime);
 
 		void Refresh();
 
 		// Check whether a row is allowed to be displayed in the table viewer
-		bool IsRowDisplayable(TypedElementDataStorage::RowHandle InRowHandle) const;
+		bool IsRowDisplayable(RowHandle InRowHandle) const;
 
 	private:
 
@@ -107,4 +107,4 @@ namespace UE::EditorDataStorage
 		ITypedElementDataStorageUiInterface* StorageUi = nullptr;
 		ITypedElementDataStorageCompatibilityInterface* StorageCompatibility = nullptr;
 	};
-}
+} // namespace UE::Editor::DataStorage

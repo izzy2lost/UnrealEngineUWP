@@ -15,14 +15,14 @@ FSceneOutlinerRowHandleColumn::FSceneOutlinerRowHandleColumn(ISceneOutliner& Sce
 	auto AssignWidgetToColumn = [this](TUniquePtr<FTypedElementWidgetConstructor> Constructor, TConstArrayView<TWeakObjectPtr<const UScriptStruct>>)
 	{
 		TSharedPtr<FTypedElementWidgetConstructor> WidgetConstructor(Constructor.Release());
-		TableViewerColumn = MakeShared<UE::EditorDataStorage::FTedsTableViewerColumn>(TEXT("Row Handle"), WidgetConstructor);
+		TableViewerColumn = MakeShared<UE::Editor::DataStorage::FTedsTableViewerColumn>(TEXT("Row Handle"), WidgetConstructor);
 		return false;
 	};
 	
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	checkf(Registry, TEXT("FTedsOutlinerRowHandleColumn created before UTypedElementRegistry is available."));
+	checkf(Registry, TEXT("FSceneOutlinerRowHandleColumn created before UTypedElementRegistry is available."));
 	ITypedElementDataStorageUiInterface* StorageUi = Registry->GetMutableDataStorageUi();
-	checkf(StorageUi, TEXT("FTedsOutlinerRowHandleColumn created before data storage interfaces were initialized."))
+	checkf(StorageUi, TEXT("FSceneOutlinerRowHandleColumn created before data storage interfaces were initialized."))
 
 	StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), TypedElementDataStorage::FMetaDataView(), AssignWidgetToColumn);
 }
@@ -53,7 +53,7 @@ const TSharedRef<SWidget> FSceneOutlinerRowHandleColumn::ConstructRowWidget(FSce
 
 	if (const FTedsOutlinerTreeItem* OutlinerTreeItem = TreeItem->CastTo<FTedsOutlinerTreeItem>())
 	{
-		const TypedElementDataStorage::RowHandle RowHandle = OutlinerTreeItem->GetRowHandle();
+		const UE::Editor::DataStorage::RowHandle RowHandle = OutlinerTreeItem->GetRowHandle();
 
 		if(TSharedPtr<SWidget> Widget = TableViewerColumn->ConstructRowWidget(RowHandle))
 		{
@@ -74,7 +74,7 @@ void FSceneOutlinerRowHandleColumn::PopulateSearchStrings(const ISceneOutlinerTr
 
 void FSceneOutlinerRowHandleColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>& OutItems, const EColumnSortMode::Type SortMode) const
 {
-	FSceneOutlinerSortHelper<TypedElementDataStorage::RowHandle>()
+	FSceneOutlinerSortHelper<UE::Editor::DataStorage::RowHandle>()
 		/** Sort by type first */
 		.Primary([this](const ISceneOutlinerTreeItem& Item)
 		{
@@ -83,7 +83,7 @@ void FSceneOutlinerRowHandleColumn::SortItems(TArray<FSceneOutlinerTreeItemPtr>&
 				return OutlinerTreeItem->GetRowHandle();
 			}
 
-			return TypedElementDataStorage::InvalidRowHandle;
+			return UE::Editor::DataStorage::InvalidRowHandle;
 		}, SortMode)
 		.Sort(OutItems);
 }

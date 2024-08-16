@@ -62,13 +62,13 @@ TSharedPtr<SWidget> FTypeInfoWidgetConstructor::CreateWidget(
 }
 
 bool FTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
 		"references."));
 
-	TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 
 	if (const FTypedElementClassTypeInfoColumn* TypeInfoColumn = DataStorage->GetColumn<FTypedElementClassTypeInfoColumn>(TargetRow))
 	{
@@ -124,7 +124,7 @@ bool FTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterfac
 	return true;
 }
 
-const FSlateBrush* FTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
+const FSlateBrush* FTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
 {
 	/* The logic here is very similar to SActorTreeLabel::GetIcon in ActorTreeItem.cpp which allows the actor to specify
 	 * an override for the icon, and has a fallback to the class icon if not.

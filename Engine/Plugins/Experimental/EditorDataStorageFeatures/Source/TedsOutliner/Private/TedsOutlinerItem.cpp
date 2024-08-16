@@ -10,7 +10,7 @@
 
 const FSceneOutlinerTreeItemType FTedsOutlinerTreeItem::Type(&ISceneOutlinerTreeItem::Type);
 
-FTedsOutlinerTreeItem::FTedsOutlinerTreeItem(const TypedElementRowHandle& InRowHandle,
+FTedsOutlinerTreeItem::FTedsOutlinerTreeItem(const UE::Editor::DataStorage::RowHandle& InRowHandle,
 	const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl)
 	: ISceneOutlinerTreeItem(Type)
 	, RowHandle(InRowHandle)
@@ -65,7 +65,7 @@ void FTedsOutlinerTreeItem::GenerateContextMenu(UToolMenu* Menu, SSceneOutliner&
 	);
 }
 
-TypedElementRowHandle FTedsOutlinerTreeItem::GetRowHandle() const
+UE::Editor::DataStorage::RowHandle FTedsOutlinerTreeItem::GetRowHandle() const
 {
 	return RowHandle;
 }

@@ -23,62 +23,69 @@
 // ULabelWidgetFactory
 //
 
-static void UpdateTextWidget(const TWeakPtr<SWidget>& Widget, const FTypedElementLabelColumn& Label, const uint64* HashValue)
+namespace UE::Editor::DataStorage
 {
-	TSharedPtr<SWidget> WidgetPointer = Widget.Pin();
-	if (ensureMsgf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
-		"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
-		"references.")))
+	namespace UI::Private
 	{
-		if (TSharedPtr<ITypedElementUiTextCapability> Text = WidgetPointer->GetMetaData<ITypedElementUiTextCapability>())
+		static void UpdateTextWidget(const TWeakPtr<SWidget>& Widget, const FTypedElementLabelColumn& Label, const uint64* HashValue)
 		{
-			Text->SetText(FText::FromString(Label.Label));
+			TSharedPtr<SWidget> WidgetPointer = Widget.Pin();
+			if (ensureMsgf(WidgetPointer, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
+				"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
+				"references.")))
+			{
+				if (TSharedPtr<ITypedElementUiTextCapability> Text = WidgetPointer->GetMetaData<ITypedElementUiTextCapability>())
+				{
+					Text->SetText(FText::FromString(Label.Label));
+				}
+
+				if (TSharedPtr<ITypedElementUiTooltipCapability> ToolTip = WidgetPointer->GetMetaData<ITypedElementUiTooltipCapability>())
+				{
+					if (!HashValue)
+					{
+						ToolTip->SetToolTipText(FText::FromString(Label.Label));
+					}
+					else
+					{
+						ToolTip->SetToolTipText(FText::FromString(FString::Format(TEXT("{0}\nHash: {1}"), { Label.Label, *HashValue })));
+					}
+				}
+			}
 		}
 
-		if (TSharedPtr<ITypedElementUiTooltipCapability> ToolTip = WidgetPointer->GetMetaData<ITypedElementUiTooltipCapability>())
+		static void SyncColumnsToWidget(
+			ITypedElementDataStorageInterface* DataStorage,
+			RowHandle TargetRow,
+			FTypedElementU64IntValueCacheColumn& TextHash,
+			const TWeakPtr<SWidget>& Widget,
+			bool bShowHashInToolTip)
 		{
-			if (!HashValue)
+			if (const FTypedElementLabelColumn* LabelColumn = DataStorage->GetColumn<FTypedElementLabelColumn>(TargetRow))
 			{
-				ToolTip->SetToolTipText(FText::FromString(Label.Label));
-			}
-			else
-			{
-				ToolTip->SetToolTipText(FText::FromString(FString::Format(TEXT("{0}\nHash: {1}"), { Label.Label, *HashValue })));
-			}
-		}
-	}
-}
-
-static void SyncColumnsToWidget(
-	ITypedElementDataStorageInterface* DataStorage, 
-	TypedElementRowHandle TargetRow, 
-	FTypedElementU64IntValueCacheColumn& TextHash,
-	const TWeakPtr<SWidget>& Widget,
-	bool bShowHashInToolTip)
-{
-	if (const FTypedElementLabelColumn* LabelColumn = DataStorage->GetColumn<FTypedElementLabelColumn>(TargetRow))
-	{
-		if (const FTypedElementLabelHashColumn* LabelHashColumn = DataStorage->GetColumn<FTypedElementLabelHashColumn>(TargetRow))
-		{
-			if (LabelHashColumn->LabelHash != TextHash.Value)
-			{
-				UpdateTextWidget(Widget, *LabelColumn, bShowHashInToolTip ? &LabelHashColumn->LabelHash : nullptr);
-				TextHash.Value = LabelHashColumn->LabelHash;
+				if (const FTypedElementLabelHashColumn* LabelHashColumn = DataStorage->GetColumn<FTypedElementLabelHashColumn>(TargetRow))
+				{
+					if (LabelHashColumn->LabelHash != TextHash.Value)
+					{
+						UpdateTextWidget(Widget, *LabelColumn, bShowHashInToolTip ? &LabelHashColumn->LabelHash : nullptr);
+						TextHash.Value = LabelHashColumn->LabelHash;
+					}
+				}
+				else
+				{
+					UpdateTextWidget(Widget, *LabelColumn, nullptr);
+				}
 			}
 		}
-		else
-		{
-			UpdateTextWidget(Widget, *LabelColumn, nullptr);
-		}
-	}
-}
+	} // namespace UI::Private
+} // namespace UE::Editor::DataStorage
 
 void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor;
 	
-	TypedElementQueryHandle UpdateLabelWidget = DataStorage.RegisterQuery(
+	DataStorage::QueryHandle UpdateLabelWidget = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementLabelColumn>()
 		.Where()
@@ -86,7 +93,7 @@ void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& Dat
 			.None<FTypedElementLabelHashColumn>()
 		.Compile());
 
-	TypedElementQueryHandle UpdateLabelAndHashWidget = DataStorage.RegisterQuery(
+	DataStorage::QueryHandle UpdateLabelAndHashWidget = DataStorage.RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementLabelColumn, FTypedElementLabelHashColumn>()
 		.Where()
@@ -108,14 +115,14 @@ void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& Dat
 				Context.RunSubquery(0, Target.Row, CreateSubqueryCallbackBinding(
 					[&Widget](const FTypedElementLabelColumn& Label)
 					{
-						UpdateTextWidget(Widget.Widget, Label, nullptr);
+						DataStorage::UI::Private::UpdateTextWidget(Widget.Widget, Label, nullptr);
 					}));
 				Context.RunSubquery(1, Target.Row, CreateSubqueryCallbackBinding(
 					[&Widget, &TextHash, &Config](const FTypedElementLabelColumn& Label, const FTypedElementLabelHashColumn& Hash)
 					{
 						if (Hash.LabelHash != TextHash.Value)
 						{
-							UpdateTextWidget(Widget.Widget, Label, Config.bShowHashInTooltip ? &Hash.LabelHash : nullptr);
+							DataStorage::UI::Private::UpdateTextWidget(Widget.Widget, Label, Config.bShowHashInTooltip ? &Hash.LabelHash : nullptr);
 							TextHash.Value = Hash.LabelHash;
 						}
 					}));
@@ -129,10 +136,8 @@ void ULabelWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& Dat
 void ULabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementDataStorage;
-
 	DataStorageUi.RegisterWidgetFactory<FLabelWidgetConstructor>(FName(TEXT("General.Cell")), 
-		FColumn<FTypedElementLabelColumn>() || (FColumn<FTypedElementLabelColumn>() && FColumn<FTypedElementLabelHashColumn>()));
+		TypedElementDataStorage::FColumn<FTypedElementLabelColumn>() || (TypedElementDataStorage::FColumn<FTypedElementLabelColumn>() && TypedElementDataStorage::FColumn<FTypedElementLabelHashColumn>()));
 }
 
 
@@ -162,7 +167,7 @@ TConstArrayView<const UScriptStruct*> FLabelWidgetConstructor::GetAdditionalColu
 }
 
 TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
-	TypedElementRowHandle Row,
+	UE::Editor::DataStorage::RowHandle Row,
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
@@ -228,7 +233,7 @@ TSharedPtr<SWidget> FLabelWidgetConstructor::Construct(
 	return nullptr;
 }
 
-bool FLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle Row)
+bool FLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row)
 {
 	DataStorage->AddColumn(Row, FLabelWidgetColumn{ .bShowHashInTooltip = (MatchedColumnTypes.Num() == 2) });
 	return true;
@@ -237,10 +242,10 @@ bool FLabelWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* Data
 bool FLabelWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementRowHandle Row,
+	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
-	SyncColumnsToWidget(
+	UE::Editor::DataStorage::UI::Private::SyncColumnsToWidget(
 		DataStorage, 
 		DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row,
 		*DataStorage->GetColumn<FTypedElementU64IntValueCacheColumn>(Row),
@@ -248,7 +253,7 @@ bool FLabelWidgetConstructor::FinalizeWidget(
 	return true;
 }
 
-bool FLabelWidgetConstructor::IsWidgetSelected(ITypedElementDataStorageInterface* DataStorage, TypedElementRowHandle UiRow)
+bool FLabelWidgetConstructor::IsWidgetSelected(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle UiRow)
 {
 	if (const FExternalWidgetSelectionColumn* ExternalWidgetSelectionColumn = DataStorage->GetColumn<FExternalWidgetSelectionColumn>(UiRow))
 	{

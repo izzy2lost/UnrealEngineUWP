@@ -26,13 +26,13 @@ TSharedPtr<SWidget> FSlateVisualizationWidgetConstructor::CreateWidget(const Typ
 	return SNew(SHorizontalBox);
 }
 
-bool FSlateVisualizationWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementRowHandle Row, const TSharedPtr<SWidget>& Widget)
+bool FSlateVisualizationWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	checkf(Widget, TEXT("Referenced widget is not valid. A constructed widget may not have been cleaned up. This can "
 	"also happen if this processor is running in the same phase as the processors responsible for cleaning up old "
 	"references."));
 
-	TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 
 	if (const FTypedElementSlateWidgetReferenceColumn* SlateWidgetReferenceColumn = DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(TargetRow))
 	{

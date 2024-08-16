@@ -13,7 +13,7 @@ class ITypedElementDataStorageInterface;
 struct FTypedElementWidgetConstructor;
 class SWidget;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	/*
 	 * Class representing a column in the UI of the table viewer. Can be constructed using a NameID and a WidgetConstructor to create the actual
@@ -24,7 +24,7 @@ namespace UE::EditorDataStorage
 	public:
 
 		// Delegate to check if a row is currently visible in the owning table viewer's UI
-		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsRowVisible, const TypedElementDataStorage::RowHandle);
+		DECLARE_DELEGATE_RetVal_OneParam(bool, FIsRowVisible, const RowHandle);
 
 		TEDSTABLEVIEWER_API FTedsTableViewerColumn(
 			const FName& ColumnName, // The unique ID of this column
@@ -35,7 +35,7 @@ namespace UE::EditorDataStorage
 
 		TEDSTABLEVIEWER_API ~FTedsTableViewerColumn();
 		
-		TEDSTABLEVIEWER_API	TSharedPtr<SWidget> ConstructRowWidget(TypedElementDataStorage::RowHandle RowHandle) const;
+		TEDSTABLEVIEWER_API	TSharedPtr<SWidget> ConstructRowWidget(RowHandle InRowHandle) const;
 		
 		TEDSTABLEVIEWER_API SHeaderRow::FColumn::FArguments ConstructHeaderRowColumn() const;
 		
@@ -52,7 +52,7 @@ namespace UE::EditorDataStorage
 
 		void RegisterQueries();
 		void UnRegisterQueries();
-		bool IsRowVisible(const TypedElementDataStorage::RowHandle InRowHandle) const;
+		bool IsRowVisible(const RowHandle InRowHandle) const;
 		void UpdateWidgets();
 		
 	private:
@@ -75,11 +75,11 @@ namespace UE::EditorDataStorage
 		ITypedElementDataStorageCompatibilityInterface* StorageCompatibility;
 
 		// Queries used to virtualize widgets when a column is added to/remove from a row
-		TArray<TypedElementDataStorage::QueryHandle> InternalObserverQueries;
-		TypedElementDataStorage::QueryHandle WidgetQuery;
-		TMap<TypedElementDataStorage::RowHandle, bool> RowsToUpdate;
+		TArray<QueryHandle> InternalObserverQueries;
+		QueryHandle WidgetQuery;
+		TMap<RowHandle, bool> RowsToUpdate;
 
 		// Delegate to check if a row is visible in the owning table viewer
 		FIsRowVisible IsRowVisibleDelegate;
 	};
-}
+} // namespace UE::Editor::DataStorage

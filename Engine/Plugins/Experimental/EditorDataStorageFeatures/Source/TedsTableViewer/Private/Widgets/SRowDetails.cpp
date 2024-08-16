@@ -12,16 +12,16 @@
 
 #define LOCTEXT_NAMESPACE "SRowDetails"
 
-namespace UE::SRowDetails::Local
+namespace UE::Editor::DataStorage
 {
-	static const FName NameColumn(TEXT("Name"));
-	static const FName DataColumn(TEXT("Data"));
-	static TArray<FName> DefaultWidgetPurposes = { FName(TEXT("RowDetails.Cell.Large")),
-		FName(TEXT("RowDetails.Cell")), FName(TEXT("General.Cell.Large")), FName(TEXT("General.Cell")) };
-}
+	namespace Widgets::Private
+	{
+		static const FName NameColumn(TEXT("Name"));
+		static const FName DataColumn(TEXT("Data"));
+		static TArray<FName> DefaultWidgetPurposes = { FName(TEXT("RowDetails.Cell.Large")),
+			FName(TEXT("RowDetails.Cell")), FName(TEXT("General.Cell.Large")), FName(TEXT("General.Cell")) };
+	} // namespace Widgets::Private
 
-namespace UE::EditorDataStorage
-{
 	//
 	// SRowDetails
 	//
@@ -33,7 +33,7 @@ namespace UE::EditorDataStorage
 
 		if(WidgetPurposes.IsEmpty())
 		{
-			WidgetPurposes = UE::SRowDetails::Local::DefaultWidgetPurposes;
+			WidgetPurposes = Widgets::Private::DefaultWidgetPurposes;
 		}
 
 		UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -56,17 +56,17 @@ namespace UE::EditorDataStorage
 				.HeaderRow
 				(
 					SNew(SHeaderRow)
-					+SHeaderRow::Column(UE::SRowDetails::Local::NameColumn)
+					+SHeaderRow::Column(Widgets::Private::NameColumn)
 						.DefaultLabel(FText::FromString(TEXT("Name")))
 						.FillWidth(0.3f)
-					+SHeaderRow::Column(UE::SRowDetails::Local::DataColumn)
+					+SHeaderRow::Column(Widgets::Private::DataColumn)
 						.DefaultLabel(FText::FromString(TEXT("Value")))
 						.FillWidth(0.7f)
 				)
 		];
 	}
 	
-	void SRowDetails::SetRow(TypedElementDataStorage::RowHandle Row)
+	void SRowDetails::SetRow(RowHandle Row)
 	{
 		if (DataStorage->IsRowAssigned(Row))
 		{
@@ -142,9 +142,7 @@ namespace UE::EditorDataStorage
 	}
 	
 	TSharedRef<SWidget> SRowDetailsRow::GenerateWidgetForColumn(const FName& ColumnName)
-	{
-		using namespace TypedElementDataStorage;
-		
+	{		
 		if (!DataStorage->IsRowAvailable(Item->WidgetRow))
 		{
 			Item->WidgetRow = DataStorage->AddRow(DataStorage->FindTable(FName("Editor_WidgetTable")));
@@ -163,13 +161,13 @@ namespace UE::EditorDataStorage
 					});
 			}
 		}
-		if (ColumnName == UE::SRowDetails::Local::NameColumn)
+		if (ColumnName == Widgets::Private::NameColumn)
 		{
 			return SNew(STextBlock)
 					.Text(FText::FromString(Item->WidgetConstructor->CreateWidgetDisplayName(
 							DataStorage, Item->WidgetRow)));
 		}
-		else if (ColumnName == UE::SRowDetails::Local::DataColumn)
+		else if (ColumnName == Widgets::Private::DataColumn)
 		{
 			return DataStorageUi->ConstructWidget(Item->WidgetRow, *(Item->WidgetConstructor), {}).ToSharedRef();
 		}
@@ -182,7 +180,7 @@ namespace UE::EditorDataStorage
 
 	// FRowDetailsItem
 	FRowDetailsItem::FRowDetailsItem(const TWeakObjectPtr<const UScriptStruct>& InColumnType,
-		TUniquePtr<FTypedElementWidgetConstructor> InWidgetConstructor, TypedElementDataStorage::RowHandle InRow)
+		TUniquePtr<FTypedElementWidgetConstructor> InWidgetConstructor, RowHandle InRow)
 		: ColumnType(InColumnType)
 		, WidgetConstructor(MoveTemp(InWidgetConstructor))
 		, Row(InRow)

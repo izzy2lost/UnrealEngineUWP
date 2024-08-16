@@ -20,12 +20,13 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElement
 	using namespace UE;
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add fix-up tool to serialization placeholder alerts"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage)),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				Context.AddColumn(Row, FTypedElementAlertActionColumn{ .Action = ShowFixUpToolForPlaceholders });
 			}
@@ -39,7 +40,7 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElement
 		Select(
 			TEXT("Add fix-up tool to serialization loose property alerts"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage)),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				Context.AddColumn(Row, FTypedElementAlertActionColumn{ .Action = ShowFixUpToolForLooseProperties });
 			}
@@ -50,7 +51,7 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::RegisterQueries(ITypedElement
 		.Compile());
 }
 
-void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpToolForPlaceholders(TypedElementDataStorage::RowHandle Row)
+void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpToolForPlaceholders(UE::Editor::DataStorage::RowHandle Row)
 {
 	FNotificationInfo Info(LOCTEXT("PlaceholderResolutionSuggestion", "Please fix your Verse code and/or rename the Verse class back to the original name."));
 	
@@ -58,12 +59,12 @@ void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpToolForPlaceholders(
 	FSlateNotificationManager::Get().AddNotification(Info);
 }
 
-void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpToolForLooseProperties(TypedElementDataStorage::RowHandle Row)
+void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpToolForLooseProperties(UE::Editor::DataStorage::RowHandle Row)
 {
 	ShowFixUpTool(Row, true);
 }
 
-void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpTool(TypedElementDataStorage::RowHandle Row, bool bRecurseIntoObject)
+void UInstanceDataObjectFixupToolTedsQueryFactory::ShowFixUpTool(UE::Editor::DataStorage::RowHandle Row, bool bRecurseIntoObject)
 {
 	ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 	if (FTypedElementUObjectColumn* ObjectColumn = DataStorage->GetColumn<FTypedElementUObjectColumn>(Row))

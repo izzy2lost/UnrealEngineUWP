@@ -10,7 +10,7 @@ class ITypedElementDataStorageInterface;
 class ITypedElementDataStorageUiInterface;
 struct FTypedElementWidgetConstructor;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	// A row in the SRowDetails widget that represents a column on the TEDS row we are viewing
 	struct FRowDetailsItem
@@ -21,11 +21,11 @@ namespace UE::EditorDataStorage
 		// Widget for the column
 		TUniquePtr<FTypedElementWidgetConstructor> WidgetConstructor;
 		
-		TypedElementDataStorage::RowHandle Row = TypedElementDataStorage::InvalidRowHandle;
-		TypedElementDataStorage::RowHandle WidgetRow = TypedElementDataStorage::InvalidRowHandle;
+		RowHandle Row = InvalidRowHandle;
+		RowHandle WidgetRow = InvalidRowHandle;
 
 		FRowDetailsItem(const TWeakObjectPtr<const UScriptStruct>& InColumnType, TUniquePtr<FTypedElementWidgetConstructor> InWidgetConstructor,
-			TypedElementDataStorage::RowHandle InRow);
+			RowHandle InRow);
 	};
 	
 	using RowDetailsItemPtr = TSharedPtr<FRowDetailsItem>;
@@ -53,7 +53,7 @@ namespace UE::EditorDataStorage
 		void Construct(const FArguments& InArgs);
 
 		// Set the row to view
-		void SetRow(TypedElementDataStorage::RowHandle Row);
+		void SetRow(RowHandle Row);
 
 		// Clear the row to view
 		void ClearRow();
@@ -95,4 +95,4 @@ namespace UE::EditorDataStorage
 		ITypedElementDataStorageInterface* DataStorage = nullptr;
 		ITypedElementDataStorageUiInterface* DataStorageUi = nullptr;
 	};
-} // namespace UE::EditorDataStorage
+} // namespace UE::Editor::DataStorage

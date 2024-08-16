@@ -171,18 +171,18 @@ namespace UE::Editor::DataStorage::Legacy
 	// Execute section
 	//
 
-	bool FCommandBuffer::Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
+	bool FCommandBuffer::Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, RowHandle Row)
 	{
-		if (Row == TypedElementInvalidRowHandle)
+		if (Row == InvalidRowHandle)
 		{
 			return false;
 		}
 		return MassEntityManager.IsEntityValid(FMassEntityHandle::FromNumber(Row));
 	}
 
-	bool FCommandBuffer::Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row)
+	bool FCommandBuffer::Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, RowHandle Row)
 	{
-		if (Row == TypedElementInvalidRowHandle)
+		if (Row == InvalidRowHandle)
 		{
 			return false;
 		}
@@ -214,7 +214,7 @@ namespace UE::Editor::DataStorage::Legacy
 	}
 
 	void FCommandBuffer::Execute_AddDataColumnCommand(
-		FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
+		FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct* ColumnType,
 		void* Data, ColumnCopyOrMoveCallback Relocator)
 	{
 		if (ColumnType)
@@ -240,7 +240,7 @@ namespace UE::Editor::DataStorage::Legacy
 		}
 	}
 
-	void FCommandBuffer::Execute_AddSharedColumnCommand(FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const FConstSharedStruct& SharedColumn)
+	void FCommandBuffer::Execute_AddSharedColumnCommand(FMassEntityManager& MassEntityManager, RowHandle Row, const FConstSharedStruct& SharedColumn)
 	{
 		if (SharedColumn.IsValid())
 		{
@@ -249,7 +249,7 @@ namespace UE::Editor::DataStorage::Legacy
 		}
 	}
 
-	void FCommandBuffer::Execute_RemoveSharedColumnCommand(FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct& ColumnType)
+	void FCommandBuffer::Execute_RemoveSharedColumnCommand(FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct& ColumnType)
 	{
 		if (ColumnType.IsChildOf(FTedsSharedColumn::StaticStruct()))
 		{
@@ -290,7 +290,7 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::Execute_RemoveColumnsCommand(
 		FMassEntityManager& MassEntityManager,
-		TypedElementDataStorage::RowHandle Row,
+		RowHandle Row,
 		FMassFragmentBitSet FragmentsToRemove,
 		FMassTagBitSet TagsToRemove)
 	{

@@ -8,7 +8,7 @@
 class FTedsOutlinerImpl;
 
 /*
- * A generic item in the TEDS driven Outliner, that uses a TypedElementRowHandle to uniquely identify the object it is
+ * A generic item in the TEDS driven Outliner, that uses a UE::Editor::DataStorage::RowHandle to uniquely identify the object it is
  * looking at. Functionality should be added through TEDS queries instead of having a different TreeItem type for each
  * type of object you are looking at (i.e. Actor vs Folder)
  * Inherits from ISceneOutlinerItem - which determines what type of item you are looking at. E.G FActorTreeItem for actors
@@ -24,7 +24,7 @@ public:
 		return Pred.Execute(RowHandle);
 	}
 
-	TEDSOUTLINER_API FTedsOutlinerTreeItem(const TypedElementRowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
+	TEDSOUTLINER_API FTedsOutlinerTreeItem(const UE::Editor::DataStorage::RowHandle& InRowHandle, const TSharedRef<const FTedsOutlinerImpl>& InTedsOutlinerImpl);
 
 	/* Begin ISceneOutlinerTreeItem Implementation */
 	TEDSOUTLINER_API virtual bool IsValid() const override;
@@ -38,9 +38,9 @@ public:
 
 	TEDSOUTLINER_API static const FSceneOutlinerTreeItemType Type;
 
-	TEDSOUTLINER_API TypedElementRowHandle GetRowHandle() const;
+	TEDSOUTLINER_API UE::Editor::DataStorage::RowHandle GetRowHandle() const;
 
 private:
-	const TypedElementRowHandle RowHandle;
+	const UE::Editor::DataStorage::RowHandle RowHandle;
 	const TSharedRef<const FTedsOutlinerImpl> TedsOutlinerImpl;
 };

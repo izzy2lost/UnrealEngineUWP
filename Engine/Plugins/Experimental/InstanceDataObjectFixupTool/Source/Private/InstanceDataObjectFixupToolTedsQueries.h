@@ -19,7 +19,7 @@ public:
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage) override;
 
 private:
-	static void ShowFixUpToolForPlaceholders(TypedElementDataStorage::RowHandle Row);
-	static void ShowFixUpToolForLooseProperties(TypedElementDataStorage::RowHandle Row);
-	static void ShowFixUpTool(TypedElementDataStorage::RowHandle Row, bool bRecurseIntoObject);
+	static void ShowFixUpToolForPlaceholders(UE::Editor::DataStorage::RowHandle Row);
+	static void ShowFixUpToolForLooseProperties(UE::Editor::DataStorage::RowHandle Row);
+	static void ShowFixUpTool(UE::Editor::DataStorage::RowHandle Row, bool bRecurseIntoObject);
 };

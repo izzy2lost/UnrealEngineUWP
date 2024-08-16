@@ -4,7 +4,7 @@
 
 #include "Math/NumericLimits.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	using TableHandle = uint64;
 	static constexpr TableHandle InvalidTableHandle = TNumericLimits<TableHandle>::Max();

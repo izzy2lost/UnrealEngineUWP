@@ -17,13 +17,14 @@ void UObjectWorldDataStorageFactory::RegisterAddWorldColumn(ITypedElementDataSto
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Add world column to UObject"),
 			FProcessor(EQueryTickPhase::PrePhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object)
 			{
 				// Not all objects, in particular actors, are always correctly cleaned up, resulting in dangling
 				// pointers in TEDS.
@@ -47,13 +48,14 @@ void UObjectWorldDataStorageFactory::RegisterUpdateOrRemoveWorldColumn(ITypedEle
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Sync UObject's world to column"),
 			FProcessor(EQueryTickPhase::PostPhysics, DataStorage.GetQueryTickGroupName(EQueryTickGroups::SyncExternalToDataStorage))
 				.SetExecutionMode(EExecutionMode::GameThread),
-			[](IQueryContext& Context, TypedElementRowHandle Row, const FTypedElementUObjectColumn& Object, FTypedElementWorldColumn& World)
+			[](IQueryContext& Context, RowHandle Row, const FTypedElementUObjectColumn& Object, FTypedElementWorldColumn& World)
 			{
 				// Not all objects, in particular actors, are always correctly cleaned up, resulting in dangling
 				// pointers in TEDS.

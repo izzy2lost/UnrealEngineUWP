@@ -20,7 +20,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTedsAssetDataTest, "TEDS.AssetRegistry.Validat
  
 bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 {
-	UE::EditorDataStorage::AssetData::FTedsAssetDataModule& TedsAssetRegistry = UE::EditorDataStorage::AssetData::FTedsAssetDataModule::GetChecked();
+	UE::Editor::AssetData::FTedsAssetDataModule& TedsAssetRegistry = UE::Editor::AssetData::FTedsAssetDataModule::GetChecked();
 
 	const bool bIsEnabled = TedsAssetRegistry.IsTedsAssetRegistryStorageEnabled();
 	ON_SCOPE_EXIT

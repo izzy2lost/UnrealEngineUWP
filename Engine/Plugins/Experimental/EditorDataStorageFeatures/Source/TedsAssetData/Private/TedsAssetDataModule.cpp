@@ -8,9 +8,9 @@
 #include "Modules/ModuleManager.h"
 #include "TedsAssetData.h"
 
-IMPLEMENT_MODULE(UE::EditorDataStorage::AssetData::FTedsAssetDataModule, TedsAssetData);
+IMPLEMENT_MODULE(UE::Editor::AssetData::FTedsAssetDataModule, TedsAssetData);
 
-namespace UE::EditorDataStorage::AssetData
+namespace UE::Editor::AssetData
 {
 
 namespace Private
@@ -30,7 +30,7 @@ TAutoConsoleVariable<bool> CVarTEDSAssetDataStorage(TEXT("TEDS.AssetDataStorage"
 			Module.DisableTedsAssetRegistryStorage();
 		}
 	}));
-}
+} // namespace Private
 
 void FTedsAssetDataModule::StartupModule()
 {
@@ -114,4 +114,4 @@ void FTedsAssetDataModule::InitAssetRegistryStorage()
 	AssetRegistryStorage = MakeUnique<Private::FTedsAssetData>(MutableDataStorage);
 }
 
-}
+} // namespace UE::Editor::AssetData

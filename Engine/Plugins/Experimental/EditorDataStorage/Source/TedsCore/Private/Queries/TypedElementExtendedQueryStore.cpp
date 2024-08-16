@@ -283,7 +283,7 @@ namespace UE::Editor::DataStorage
 	}
 
 	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, TypedElementRowHandle Row,
+		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, RowHandle Row,
 		TypedElementDataStorage::SubqueryCallbackRef Callback)
 	{
 		using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;

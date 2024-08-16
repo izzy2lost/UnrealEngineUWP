@@ -6,7 +6,7 @@
 class SDockTab;
 class SWindow;
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	class SQueryEditorWidget : public SCompoundWidget

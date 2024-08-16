@@ -286,14 +286,14 @@ TypedElementDataStorage::TableHandle UEditorDataStorage::RegisterTable(TConstArr
 	return InvalidTableHandle;
 }
 
-TypedElementDataStorage::TableHandle UEditorDataStorage::RegisterTable(TypedElementDataStorage::TableHandle SourceTable,
+UE::Editor::DataStorage::TableHandle UEditorDataStorage::RegisterTable(TypedElementDataStorage::TableHandle SourceTable,
 	TConstArrayView<const UScriptStruct*> ColumnList, const FName Name)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (ActiveEditorEntityManager && SourceTable < Tables.Num() && !TableNameLookup.Contains(Name))
 	{
-		TypedElementDataStorage::TableHandle Result = Tables.Num();
+		TableHandle Result = Tables.Num();
 		FMassArchetypeCreationParams ArchetypeCreationParams;
 		ArchetypeCreationParams.DebugName = Name;
 		ArchetypeCreationParams.ChunkMemorySize = GetTableChunkSize(Name);
@@ -307,22 +307,22 @@ TypedElementDataStorage::TableHandle UEditorDataStorage::RegisterTable(TypedElem
 	return InvalidTableHandle;
 }
 
-TypedElementDataStorage::TableHandle UEditorDataStorage::FindTable(const FName Name)
+UE::Editor::DataStorage::TableHandle UEditorDataStorage::FindTable(const FName Name)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	TableHandle* TableHandle = TableNameLookup.Find(Name);
 	return TableHandle ? *TableHandle : InvalidTableHandle;
 }
 
-TypedElementDataStorage::RowHandle UEditorDataStorage::ReserveRow()
+UE::Editor::DataStorage::RowHandle UEditorDataStorage::ReserveRow()
 {
 	return ActiveEditorEntityManager 
 		? ActiveEditorEntityManager->ReserveEntity().AsNumber()
-		: TypedElementDataStorage::InvalidRowHandle;
+		: UE::Editor::DataStorage::InvalidRowHandle;
 }
 
-void UEditorDataStorage::BatchReserveRows(int32 Count, TFunctionRef<void(TypedElementDataStorage::RowHandle)> ReservationCallback)
+void UEditorDataStorage::BatchReserveRows(int32 Count, TFunctionRef<void(RowHandle)> ReservationCallback)
 {
 	using namespace TypedElementDataStorage;
 
@@ -338,7 +338,7 @@ void UEditorDataStorage::BatchReserveRows(int32 Count, TFunctionRef<void(TypedEl
 	}
 }
 
-void UEditorDataStorage::BatchReserveRows(TArrayView<TypedElementDataStorage::RowHandle> ReservedRows)
+void UEditorDataStorage::BatchReserveRows(TArrayView<RowHandle> ReservedRows)
 {
 	using namespace TypedElementDataStorage;
 
@@ -354,18 +354,18 @@ void UEditorDataStorage::BatchReserveRows(TArrayView<TypedElementDataStorage::Ro
 	}
 }
 
-TypedElementDataStorage::RowHandle UEditorDataStorage::AddRow(TypedElementDataStorage::TableHandle Table)
+UE::Editor::DataStorage::RowHandle UEditorDataStorage::AddRow(TableHandle Table)
 {
 	checkf(Table < Tables.Num(), TEXT("Attempting to add a row to a non-existing table."));
 	return ActiveEditorEntityManager 
 		? ActiveEditorEntityManager->CreateEntity(Tables[Table]).AsNumber() 
-		: TypedElementDataStorage::InvalidRowHandle;
+		: UE::Editor::DataStorage::InvalidRowHandle;
 }
 
-TypedElementDataStorage::RowHandle UEditorDataStorage::AddRow(TypedElementDataStorage::TableHandle Table,
+UE::Editor::DataStorage::RowHandle UEditorDataStorage::AddRow(TableHandle Table,
 	RowCreationCallbackRef OnCreated)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
@@ -385,7 +385,7 @@ TypedElementDataStorage::RowHandle UEditorDataStorage::AddRow(TypedElementDataSt
 	return InvalidRowHandle;
 }
 
-bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table)
+bool UEditorDataStorage::AddRow(RowHandle ReservedRow, TableHandle Table)
 {
 	checkf(!IsRowAssigned(ReservedRow), TEXT("Attempting to assign a table to row that already has a table assigned."));
 	checkf(Table < Tables.Num(), TEXT("Attempting to add a row to a non-existing table."));
@@ -400,7 +400,7 @@ bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, 
 	}
 }
 
-bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, TypedElementDataStorage::TableHandle Table,
+bool UEditorDataStorage::AddRow(RowHandle ReservedRow, TableHandle Table,
 	RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
@@ -418,7 +418,7 @@ bool UEditorDataStorage::AddRow(TypedElementDataStorage::RowHandle ReservedRow, 
 }
 
 bool UEditorDataStorage::BatchAddRow(
-	TypedElementDataStorage::TableHandle Table, int32 Count, RowCreationCallbackRef OnCreated)
+	TableHandle Table, int32 Count, RowCreationCallbackRef OnCreated)
 {
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
@@ -440,9 +440,10 @@ bool UEditorDataStorage::BatchAddRow(
 	return false;
 }
 
-bool UEditorDataStorage::BatchAddRow(TypedElementDataStorage::TableHandle Table, 
-	TConstArrayView<TypedElementDataStorage::RowHandle> ReservedHandles, RowCreationCallbackRef OnCreated)
+bool UEditorDataStorage::BatchAddRow(TableHandle Table, 
+	TConstArrayView<RowHandle> ReservedHandles, RowCreationCallbackRef OnCreated)
 {
+	using namespace UE::Editor;
 	OnCreated.CheckCallable();
 	if (ActiveEditorEntityManager)
 	{
@@ -450,7 +451,7 @@ bool UEditorDataStorage::BatchAddRow(TypedElementDataStorage::TableHandle Table,
 	
 		// Depend on the fact that a row handle is an alias for an entity within the Mass powered backend. This
 		// avoids the need for copying to a temporary array;
-		static_assert(sizeof(TypedElementRowHandle) == sizeof(FMassEntityHandle), 
+		static_assert(sizeof(RowHandle) == sizeof(FMassEntityHandle), 
 			"BatchAddRow in TEDS requires the row handle and the Mass entity handle to be the same size.");
 		
 		TConstArrayView<FMassEntityHandle> Entities(
@@ -458,7 +459,7 @@ bool UEditorDataStorage::BatchAddRow(TypedElementDataStorage::TableHandle Table,
 		TSharedRef<FMassEntityManager::FEntityCreationContext> Context =
 			ActiveEditorEntityManager->BatchCreateReservedEntities(Tables[Table], Entities);
 
-		for (TypedElementRowHandle Entity : ReservedHandles)
+		for (RowHandle Entity : ReservedHandles)
 		{
 			OnCreated(Entity);
 		}
@@ -469,7 +470,7 @@ bool UEditorDataStorage::BatchAddRow(TypedElementDataStorage::TableHandle Table,
 }
 
 
-void UEditorDataStorage::RemoveRow(TypedElementDataStorage::RowHandle Row)
+void UEditorDataStorage::RemoveRow(RowHandle Row)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager && ActiveEditorEntityManager->IsEntityValid(Entity))
@@ -487,17 +488,17 @@ void UEditorDataStorage::RemoveRow(TypedElementDataStorage::RowHandle Row)
 	}
 }
 
-bool UEditorDataStorage::IsRowAvailable(TypedElementDataStorage::RowHandle Row) const
+bool UEditorDataStorage::IsRowAvailable(RowHandle Row) const
 {
 	return ActiveEditorEntityManager ? UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_IsRowAvailable(*ActiveEditorEntityManager, Row) : false;
 }
 
-bool UEditorDataStorage::IsRowAssigned(TypedElementDataStorage::RowHandle Row) const
+bool UEditorDataStorage::IsRowAssigned(RowHandle Row) const
 {
 	return ActiveEditorEntityManager ? UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_IsRowAssigned(*ActiveEditorEntityManager, Row) : false;
 }
 
-void UEditorDataStorage::AddColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
+void UEditorDataStorage::AddColumn(RowHandle Row, const UScriptStruct* ColumnType)
 {
 	if (ColumnType && ActiveEditorEntityManager)
 	{
@@ -512,7 +513,7 @@ void UEditorDataStorage::AddColumn(TypedElementRowHandle Row, const UScriptStruc
 	}
 }
 
-void UEditorDataStorage::AddColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType,
+void UEditorDataStorage::AddColumnData(RowHandle Row, const UScriptStruct* ColumnType,
 	const ColumnCreationCallbackRef& Initializer,
 	ColumnCopyOrMoveCallback Relocator)
 {
@@ -539,7 +540,7 @@ void UEditorDataStorage::AddColumnData(TypedElementRowHandle Row, const UScriptS
 	}
 }
 
-void UEditorDataStorage::RemoveColumn(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
+void UEditorDataStorage::RemoveColumn(RowHandle Row, const UScriptStruct* ColumnType)
 {
 	if (ColumnType && ActiveEditorEntityManager)
 	{
@@ -554,7 +555,7 @@ void UEditorDataStorage::RemoveColumn(TypedElementRowHandle Row, const UScriptSt
 	}
 }
 
-const void* UEditorDataStorage::GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType) const
+const void* UEditorDataStorage::GetColumnData(RowHandle Row, const UScriptStruct* ColumnType) const
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager &&
@@ -576,12 +577,12 @@ const void* UEditorDataStorage::GetColumnData(TypedElementRowHandle Row, const U
 	return nullptr;
 }
 
-void* UEditorDataStorage::GetColumnData(TypedElementRowHandle Row, const UScriptStruct* ColumnType)
+void* UEditorDataStorage::GetColumnData(RowHandle Row, const UScriptStruct* ColumnType)
 {
 	return const_cast<void*>(static_cast<const UEditorDataStorage*>(this)->GetColumnData(Row, ColumnType));
 }
 
-void UEditorDataStorage::AddColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
+void UEditorDataStorage::AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -604,7 +605,7 @@ void UEditorDataStorage::AddColumns(TypedElementRowHandle Row, TConstArrayView<c
 	}
 }
 
-void UEditorDataStorage::AddColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue)
+void UEditorDataStorage::AddColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue)
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -618,7 +619,7 @@ void UEditorDataStorage::AddColumn(TypedElementRowHandle Row, const UE::Editor::
 	}
 }
 
-void UEditorDataStorage::RemoveColumn(TypedElementRowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag)
+void UEditorDataStorage::RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag)
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -631,7 +632,7 @@ void UEditorDataStorage::RemoveColumn(TypedElementRowHandle Row, const UE::Edito
 	}
 }
 
-void UEditorDataStorage::RemoveColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
+void UEditorDataStorage::RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns)
 {
 	FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 	if (ActiveEditorEntityManager)
@@ -654,7 +655,7 @@ void UEditorDataStorage::RemoveColumns(TypedElementRowHandle Row, TConstArrayVie
 	}
 }
 
-void UEditorDataStorage::AddRemoveColumns(TypedElementRowHandle Row,
+void UEditorDataStorage::AddRemoveColumns(RowHandle Row,
 	TConstArrayView<const UScriptStruct*> ColumnsToAdd, TConstArrayView<const UScriptStruct*> ColumnsToRemove)
 {
 	if (ActiveEditorEntityManager)
@@ -695,7 +696,7 @@ void UEditorDataStorage::AddRemoveColumns(TypedElementRowHandle Row,
 	}
 }
 
-void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<TypedElementRowHandle> Rows, 
+void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<RowHandle> Rows, 
 	TConstArrayView<const UScriptStruct*> ColumnsToAdd, TConstArrayView<const UScriptStruct*> ColumnsToRemove)
 {	
 	if (ActiveEditorEntityManager)
@@ -721,7 +722,7 @@ void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<TypedElementRowHa
 			
 			// Sort rows (entities) into to matching table (archetype) bucket.
 			EntityArchetypeLookup LookupTable;
-			for (TypedElementRowHandle EntityId : Rows)
+			for (RowHandle EntityId : Rows)
 			{
 				FMassEntityHandle Entity = FMassEntityHandle::FromNumber(EntityId);
 				if (ActiveEditorEntityManager->IsEntityActive(Entity))
@@ -764,7 +765,7 @@ void UEditorDataStorage::BatchAddRemoveColumns(TConstArrayView<TypedElementRowHa
 	}
 }
 
-bool UEditorDataStorage::HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const
+bool UEditorDataStorage::HasColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -808,7 +809,7 @@ bool UEditorDataStorage::HasColumns(TypedElementRowHandle Row, TConstArrayView<c
 	return false;
 }
 
-bool UEditorDataStorage::HasColumns(TypedElementRowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const
+bool UEditorDataStorage::HasColumns(RowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -854,7 +855,7 @@ bool UEditorDataStorage::HasColumns(TypedElementRowHandle Row, TConstArrayView<T
 	return false;
 }
 
-void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListCallbackRef Callback) const
+void UEditorDataStorage::ListColumns(RowHandle Row, ColumnListCallbackRef Callback) const
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -879,7 +880,7 @@ void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, Col
 	}
 }
 
-void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, ColumnListWithDataCallbackRef Callback)
+void UEditorDataStorage::ListColumns(RowHandle Row, ColumnListWithDataCallbackRef Callback)
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -912,7 +913,7 @@ void UEditorDataStorage::ListColumns(TypedElementDataStorage::RowHandle Row, Col
 	}
 }
 
-bool UEditorDataStorage::MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
+bool UEditorDataStorage::MatchesColumns(RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
 {
 	if (ActiveEditorEntityManager)
 	{
@@ -977,14 +978,14 @@ void UEditorDataStorage::UnregisterTickGroup(FName GroupName, EQueryTickPhase Ph
 	Environment->GetQueryStore().UnregisterTickGroup(GroupName, Phase);
 }
 
-TypedElementQueryHandle UEditorDataStorage::RegisterQuery(FQueryDescription&& Query)
+UE::Editor::DataStorage::QueryHandle UEditorDataStorage::RegisterQuery(FQueryDescription&& Query)
 {
 	return (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 		? Environment->GetQueryStore().RegisterQuery(MoveTemp(Query), *Environment, *ActiveEditorEntityManager, *ActiveEditorPhaseManager).Packed()
-		: TypedElementInvalidQueryHandle;
+		: UE::Editor::DataStorage::InvalidQueryHandle;
 }
 
-void UEditorDataStorage::UnregisterQuery(TypedElementQueryHandle Query)
+void UEditorDataStorage::UnregisterQuery(QueryHandle Query)
 {
 	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
@@ -993,7 +994,7 @@ void UEditorDataStorage::UnregisterQuery(TypedElementQueryHandle Query)
 	}
 }
 
-const ITypedElementDataStorageInterface::FQueryDescription& UEditorDataStorage::GetQueryDescription(TypedElementQueryHandle Query) const
+const ITypedElementDataStorageInterface::FQueryDescription& UEditorDataStorage::GetQueryDescription(QueryHandle Query) const
 {
 	const UE::Editor::DataStorage::FExtendedQueryStore::Handle StorageHandle(Query);
 	return Environment->GetQueryStore().GetQueryDescription(StorageHandle);
@@ -1023,7 +1024,7 @@ FName UEditorDataStorage::GetQueryTickGroupName(EQueryTickGroups Group) const
 	}
 }
 
-ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(TypedElementQueryHandle Query)
+ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(QueryHandle Query)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
 
@@ -1039,7 +1040,7 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(Typ
 }
 
 ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
-	TypedElementQueryHandle Query, ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
+	QueryHandle Query, ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
 
@@ -1056,7 +1057,7 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
 }
 
 ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
-	TypedElementQueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags,
+	QueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags,
 	ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
@@ -1080,24 +1081,24 @@ void UEditorDataStorage::ActivateQueries(FName ActivationName)
 	}
 }
 
-TypedElementDataStorage::RowHandle UEditorDataStorage::FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
+UE::Editor::DataStorage::RowHandle UEditorDataStorage::FindIndexedRow(TypedElementDataStorage::IndexHash Index) const
 {
 	return Environment->GetIndexTable().FindIndexedRow(UE::Editor::DataStorage::EGlobalLockScope::Public, Index);
 }
 
-void UEditorDataStorage::IndexRow(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row)
+void UEditorDataStorage::IndexRow(TypedElementDataStorage::IndexHash Index, RowHandle Row)
 {
 	Environment->GetIndexTable().IndexRow(UE::Editor::DataStorage::EGlobalLockScope::Public, Index, Row);
 }
 
 void UEditorDataStorage::BatchIndexRows(
-	TConstArrayView<TPair<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle>> IndexRowPairs)
+	TConstArrayView<TPair<TypedElementDataStorage::IndexHash, RowHandle>> IndexRowPairs)
 {
 	Environment->GetIndexTable().BatchIndexRows(UE::Editor::DataStorage::EGlobalLockScope::Public, IndexRowPairs);
 }
 
 void UEditorDataStorage::ReindexRow(TypedElementDataStorage::IndexHash OriginalIndex, TypedElementDataStorage::IndexHash NewIndex, 
-	TypedElementDataStorage::RowHandle RowHandle)
+	RowHandle RowHandle)
 {
 	Environment->GetIndexTable().ReindexRow(UE::Editor::DataStorage::EGlobalLockScope::Public, OriginalIndex, NewIndex, RowHandle);
 }

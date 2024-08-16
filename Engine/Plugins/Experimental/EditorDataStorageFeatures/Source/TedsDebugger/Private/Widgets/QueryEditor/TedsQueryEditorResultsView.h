@@ -4,63 +4,57 @@
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "Widgets/SCompoundWidget.h"
 
-namespace UE::EditorDataStorage
-{
-	class SRowDetails;
-}
-
 class ISceneOutliner;
 class SSceneOutliner;
 class SHorizontalBox;
 struct FTypedElementWidgetConstructor;
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	class STedsTableViewer;
 	class FQueryStackNode_RowView;
 	class FTedsTableViewerColumn;
-}
+	class SRowDetails;
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
-{
-	class FTedsQueryEditorModel;
-
-	class SResultsView : public SCompoundWidget
+	namespace Debug::QueryEditor
 	{
-	public:
-		SLATE_BEGIN_ARGS( SResultsView ){}
-		SLATE_END_ARGS()
+		class FTedsQueryEditorModel;
 
-		~SResultsView() override;
-		void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel);
-		void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
+		class SResultsView : public SCompoundWidget
+		{
+		public:
+			SLATE_BEGIN_ARGS( SResultsView ){}
+			SLATE_END_ARGS()
 
-	private:
+			~SResultsView() override;
+			void Construct(const FArguments& InArgs, FTedsQueryEditorModel& InModel);
+			void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-		void OnModelChanged();
-		void CreateRowHandleColumn();
+		private:
+
+			void OnModelChanged();
+			void CreateRowHandleColumn();
 		
-		FTedsQueryEditorModel* Model = nullptr;
-		FDelegateHandle ModelChangedDelegateHandle;
-		bool bModelDirty = true;
+			FTedsQueryEditorModel* Model = nullptr;
+			FDelegateHandle ModelChangedDelegateHandle;
+			bool bModelDirty = true;
 
 
-		TypedElementQueryHandle CountQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
-		TypedElementQueryHandle TableViewerQueryHandle = TypedElementDataStorage::InvalidQueryHandle;
+			QueryHandle CountQueryHandle = InvalidQueryHandle;
+			QueryHandle TableViewerQueryHandle = InvalidQueryHandle;
 
-		TArray<TypedElementDataStorage::RowHandle> TableViewerRows;
-		// We have to keep a TSet copy because queries return duplicate rows sometimes and to have some form of sorted order for the rows for now
-		TSet<TypedElementDataStorage::RowHandle> TableViewerRows_Set;
-		TSharedPtr<UE::EditorDataStorage::STedsTableViewer> TableViewer;
-		TSharedPtr<UE::EditorDataStorage::FQueryStackNode_RowView> RowQueryStack;
+			TArray<RowHandle> TableViewerRows;
+			// We have to keep a TSet copy because queries return duplicate rows sometimes and to have some form of sorted order for the rows for now
+			TSet<RowHandle> TableViewerRows_Set;
+			TSharedPtr<STedsTableViewer> TableViewer;
+			TSharedPtr<FQueryStackNode_RowView> RowQueryStack;
 
-		// Custom column for the table viewer to display row handles
-		TSharedPtr<UE::EditorDataStorage::FTedsTableViewerColumn> RowHandleColumn;
+			// Custom column for the table viewer to display row handles
+			TSharedPtr<FTedsTableViewerColumn> RowHandleColumn;
 
-		// Widget that displays details of a row
-		TSharedPtr<UE::EditorDataStorage::SRowDetails> RowDetailsWidget;
+			// Widget that displays details of a row
+			TSharedPtr<SRowDetails> RowDetailsWidget;
+		};
 
-	};
-
-	
-}
+	} // namespace Debug::QueryEditor
+} // namespace UE::Editor::DataStorage

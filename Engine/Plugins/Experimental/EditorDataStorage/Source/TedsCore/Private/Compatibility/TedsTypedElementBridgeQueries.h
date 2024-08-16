@@ -34,6 +34,6 @@ private:
 	void CleanupTypedElementColumns(ITypedElementDataStorageInterface& DataStorage);
 	void HandleOnEnabled(IConsoleVariable* CVar);
 	
-	TypedElementQueryHandle RemoveTypedElementRowHandleQuery = TypedElementDataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle RemoveTypedElementRowHandleQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 	FDelegateHandle DebugEnabledDelegateHandle;
 };

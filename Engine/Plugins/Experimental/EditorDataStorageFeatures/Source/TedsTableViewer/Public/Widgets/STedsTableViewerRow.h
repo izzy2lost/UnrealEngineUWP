@@ -6,7 +6,7 @@
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Views/STableRow.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
 	class STedsTableViewer;
 	
@@ -35,4 +35,4 @@ namespace UE::EditorDataStorage
 		TSharedPtr<FTedsTableViewerModel> TableViewerModel;
 		TableViewerItemPtr Item;
 	};
-}
+} // namespace UE::Editor::DataStorage

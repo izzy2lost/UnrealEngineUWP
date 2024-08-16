@@ -119,7 +119,7 @@ namespace UE::Editor::DataStorage
 			FEnvironment& Environment,
 			FMassExecutionContext& ParentContext,
 			Handle Query,
-			TypedElementRowHandle Row,
+			DataStorage::RowHandle Row,
 			TypedElementDataStorage::SubqueryCallbackRef Callback);
 		void RunPhasePreambleQueries(
 			FMassEntityManager& EntityManager,

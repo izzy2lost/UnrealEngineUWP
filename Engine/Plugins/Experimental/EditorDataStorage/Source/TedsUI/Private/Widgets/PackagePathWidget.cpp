@@ -14,12 +14,10 @@
 void UPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
-	using namespace TypedElementDataStorage;
-
 	DataStorageUi.RegisterWidgetFactory<FPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
-		FColumn<FTypedElementPackagePathColumn>());
+		TypedElementDataStorage::FColumn<FTypedElementPackagePathColumn>());
 	DataStorageUi.RegisterWidgetFactory<FLoadedPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
-		FColumn<FTypedElementPackageLoadedPathColumn>());
+		TypedElementDataStorage::FColumn<FTypedElementPackageLoadedPathColumn>());
 }
 
 
@@ -48,10 +46,10 @@ TSharedPtr<SWidget> FPackagePathWidgetConstructor::CreateWidget(const TypedEleme
 bool FPackagePathWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementRowHandle Row,
+	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
-	TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	if (const FTypedElementPackagePathColumn* Path = DataStorage->GetColumn<FTypedElementPackagePathColumn>(TargetRow))
 	{
 		STextBlock* TextWidget = static_cast<STextBlock*>(Widget.Get());
@@ -80,10 +78,10 @@ FLoadedPackagePathWidgetConstructor::FLoadedPackagePathWidgetConstructor()
 bool FLoadedPackagePathWidgetConstructor::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementRowHandle Row,
+	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
-	TypedElementRowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	if (const FTypedElementPackageLoadedPathColumn* Path = DataStorage->GetColumn<FTypedElementPackageLoadedPathColumn>(TargetRow))
 	{
 		STextBlock* TextWidget = static_cast<STextBlock*>(Widget.Get());

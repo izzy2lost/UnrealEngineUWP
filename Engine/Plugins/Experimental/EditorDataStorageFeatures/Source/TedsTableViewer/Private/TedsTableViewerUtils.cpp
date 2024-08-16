@@ -6,7 +6,7 @@
 #include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
 
-namespace UE::EditorDataStorage::TableViewerUtils
+namespace UE::Editor::DataStorage::TableViewerUtils
 {
 	static FName TableViewerWidgetTableName("Editor_TableViewerWidgetTable");
 
@@ -143,13 +143,14 @@ namespace UE::EditorDataStorage::TableViewerUtils
 
 void UTypedElementTableViewerFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
-	const TypedElementTableHandle BaseWidgetTable = DataStorage.FindTable(FName(TEXT("Editor_WidgetTable")));
-	if (BaseWidgetTable != TypedElementInvalidTableHandle)
+	using namespace UE::Editor::DataStorage;
+	const TableHandle BaseWidgetTable = DataStorage.FindTable(FName(TEXT("Editor_WidgetTable")));
+	if (BaseWidgetTable != InvalidTableHandle)
 	{
 		DataStorage.RegisterTable(
 			BaseWidgetTable,
 			{
 				FTypedElementRowReferenceColumn::StaticStruct()
-			}, UE::EditorDataStorage::TableViewerUtils::TableViewerWidgetTableName);
+			}, TableViewerUtils::TableViewerWidgetTableName);
 	}
 }

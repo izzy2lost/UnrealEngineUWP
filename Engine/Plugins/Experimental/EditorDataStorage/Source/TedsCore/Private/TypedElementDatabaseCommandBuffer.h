@@ -25,47 +25,47 @@ namespace UE::Editor::DataStorage
 			explicit FCommandBuffer(FEnvironment& InEnvironment);
 	
 			/** Returns a pointer to the queued data column, if it exists and hasn't been processed yet. Otherwise null is returned. */
-			void* GetQueuedDataColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
+			void* GetQueuedDataColumn(RowHandle Row, const UScriptStruct* ColumnType);
 			/** Returns if the column on the provided row is pending processing. */
-			bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const;
+			bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const;
 			/** Clears all entries in the internal cache for the provided row. */
-			void Clear(TypedElementDataStorage::RowHandle Row);
+			void Clear(RowHandle Row);
 	
 			/**
 			 * @section Queue_* functions create a command that can be stored for later execution in the provided command buffer.
 			 * Typically the Execute_* counter part will be called for execution.
 			 */
-			void Queue_AddColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
-			void* Queue_AddDataColumnCommandUnitialized(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
+			void Queue_AddColumnCommand(RowHandle Row, const UScriptStruct* ColumnType);
+			void* Queue_AddDataColumnCommandUnitialized(RowHandle Row, const UScriptStruct* ColumnType,
 				ColumnCopyOrMoveCallback Relocator);
-			void Queue_AddColumnsCommand(TypedElementDataStorage::RowHandle Row, FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
+			void Queue_AddColumnsCommand(RowHandle Row, FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
 	
-			void Queue_RemoveColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
-			void Queue_RemoveColumnsCommand(TypedElementDataStorage::RowHandle Row, FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove);
+			void Queue_RemoveColumnCommand(RowHandle Row, const UScriptStruct* ColumnType);
+			void Queue_RemoveColumnsCommand(RowHandle Row, FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove);
 	
 			/**
 			 * @section Execute_* functions directly execute a command with limited validation checks.
 			 */
 	
-			static bool Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row);
-			static bool Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row);
+			static bool Execute_IsRowAvailable(const FMassEntityManager& MassEntityManager, RowHandle Row);
+			static bool Execute_IsRowAssigned(const FMassEntityManager& MassEntityManager, RowHandle Row);
 	
 			static void Execute_AddColumnCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
+				FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct* ColumnType);
 			static void Execute_AddDataColumnCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType,
+				FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct* ColumnType,
 				void* Data, ColumnCopyOrMoveCallback Relocator);
 			static void Execute_AddSharedColumnCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const FConstSharedStruct& SharedColumn);
+				FMassEntityManager& MassEntityManager, RowHandle Row, const FConstSharedStruct& SharedColumn);
 			static void Execute_RemoveSharedColumnCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct& ColumnType);
+				FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct& ColumnType);
 			static void Execute_AddColumnsCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row,
+				FMassEntityManager& MassEntityManager, RowHandle Row,
 				FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd);
 			static void Execute_RemoveColumnCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType);
+				FMassEntityManager& MassEntityManager, RowHandle Row, const UScriptStruct* ColumnType);
 			static void Execute_RemoveColumnsCommand(
-				FMassEntityManager& MassEntityManager, TypedElementDataStorage::RowHandle Row,
+				FMassEntityManager& MassEntityManager, RowHandle Row,
 				FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove);
 	
 			void ProcessCommands();
@@ -106,14 +106,14 @@ namespace UE::Editor::DataStorage
 	
 			struct FCommand
 			{
-				TypedElementDataStorage::RowHandle Row;
+				RowHandle Row;
 				CommandData Data;
 			};
 	
 			template<typename T>
-			void AddCommand(TypedElementDataStorage::RowHandle Row, T&& Args);
+			void AddCommand(RowHandle Row, T&& Args);
 	
-			using PendingColumnMappingKey = TPair<TypedElementDataStorage::RowHandle, TWeakObjectPtr<const UScriptStruct>>;
+			using PendingColumnMappingKey = TPair<RowHandle, TWeakObjectPtr<const UScriptStruct>>;
 			TMap<PendingColumnMappingKey, void*> PendingColumns;
 			TArray<FCommand> Commands;
 			FEnvironment& Environment;

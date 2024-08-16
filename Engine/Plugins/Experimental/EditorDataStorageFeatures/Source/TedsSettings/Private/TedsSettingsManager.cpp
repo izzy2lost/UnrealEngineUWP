@@ -195,6 +195,8 @@ void FTedsSettingsManager::UnregisterSettings()
 
 void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, const FName& ContainerName, const bool bQueryExistingRows)
 {
+	using namespace UE::Editor::DataStorage;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.UpdateSettingsCategory);
 
 	const FName& CategoryName = SettingsCategory->GetName();
@@ -210,7 +212,7 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
 
-	TArray<TypedElementDataStorage::RowHandle> OldRowHandles;
+	TArray<RowHandle> OldRowHandles;
 	TArray<FName> OldSectionNames;
 
 	// Gather all existing rows for the given { ContainerName, CategoryName } pair.
@@ -265,7 +267,7 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 				continue;
 			}
 
-			TypedElementDataStorage::RowHandle NewRow = DataStorageCompatibility->AddCompatibleObject(SettingsObjectPtr);
+			RowHandle NewRow = DataStorageCompatibility->AddCompatibleObject(SettingsObjectPtr);
 
 			DataStorage->AddColumn<FSettingsContainerColumn>(NewRow, { .ContainerName = ContainerName });
 			DataStorage->AddColumn<FSettingsCategoryColumn>(NewRow, { .CategoryName = CategoryName });
@@ -286,8 +288,8 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 			continue;
 		}
 
-		TypedElementDataStorage::RowHandle OldRowHandle = OldRowHandles[RowIndex];
-		check(OldRowHandle != TypedElementInvalidRowHandle);
+		RowHandle OldRowHandle = OldRowHandles[RowIndex];
+		check(OldRowHandle != InvalidRowHandle);
 
 		DataStorage->RemoveRow(OldRowHandle);
 

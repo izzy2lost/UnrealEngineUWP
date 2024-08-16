@@ -53,5 +53,5 @@ struct FTypedElementRowReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	TypedElementDataStorage::RowHandle Row;
+	UE::Editor::DataStorage::RowHandle Row;
 };

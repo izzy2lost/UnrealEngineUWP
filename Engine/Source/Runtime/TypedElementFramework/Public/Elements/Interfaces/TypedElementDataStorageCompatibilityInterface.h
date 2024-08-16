@@ -29,7 +29,7 @@ class ITypedElementDataStorageCompatibilityInterface
 
 public:
 	using ObjectRegistrationFilter = TFunction<bool(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
-	using ObjectToRowDealiaser = TFunction<TypedElementRowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
+	using ObjectToRowDealiaser = TFunction<UE::Editor::DataStorage::RowHandle(const ITypedElementDataStorageCompatibilityInterface&, const UObject*)>;
 	
 	/**
 	 * @section Type-agnostic functions
@@ -44,14 +44,14 @@ public:
 	 * with a row and to setup the initial row data.
 	 */
 	template<typename ObjectType>
-	TypedElementRowHandle AddCompatibleObject(ObjectType&& Object);
+	UE::Editor::DataStorage::RowHandle AddCompatibleObject(ObjectType&& Object);
 	
 	/** Removes a previously registered object from the data storage. */
 	template<typename ObjectType>
 	void RemoveCompatibleObject(ObjectType&& Object);
 
 	template<typename ObjectType>
-	TypedElementRowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
+	UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObject(ObjectType&& Object) const;
 
 	/**
 	 * @section Callback registration
@@ -76,7 +76,7 @@ public:
 	 * will be used to find the closest match in the registered types and use the associated table. E.g. actors derive from uobjects so
 	 * if the type information of an actor is registered the actor table will be used instead of the uobject table.
 	 */
-	virtual void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table) = 0;
+	virtual void RegisterTypeTableAssociation(TObjectPtr<UStruct> TypeInfo, UE::Editor::DataStorage::TableHandle Table) = 0;
 
 	/**
 	 * @section Explicit functions
@@ -84,9 +84,9 @@ public:
 	 */
 
 	/** Adds a UObject to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
+	virtual UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(UObject* Object) = 0;
 	/** Adds an FStruct to the data storage. */
-	virtual TypedElementRowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) = 0;
+	virtual UE::Editor::DataStorage::RowHandle AddCompatibleObjectExplicit(void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo) = 0;
 	
 	/** Removes a UObject from the data storage. */
 	virtual void RemoveCompatibleObjectExplicit(UObject* Object) = 0;
@@ -94,9 +94,9 @@ public:
 	virtual void RemoveCompatibleObjectExplicit(void* Object) = 0;
 
 	/** Finds a previously stored UObject. If not found an invalid row handle will be returned. */
-	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
+	virtual UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const UObject* Object) const = 0;
 	/** Finds a previously stored FStruct. If not found an invalid row handle will be returned. */
-	virtual TypedElementRowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
+	virtual UE::Editor::DataStorage::RowHandle FindRowWithCompatibleObjectExplicit(const void* Object) const = 0;
 
 	/**
 	 * @section Miscellaneous functions
@@ -118,7 +118,7 @@ template<typename Type> Type* GetRawPointer(Type* Object)						{ return Object; 
 template<typename Type> Type* GetRawPointer(Type& Object)						{ return &Object; }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object)
+UE::Editor::DataStorage::RowHandle ITypedElementDataStorageCompatibilityInterface::AddCompatibleObject(ObjectType&& Object)
 {
 	auto RawPointer = GetRawPointer(Forward<ObjectType>(Object));
 	using BaseType = std::remove_cv_t<std::remove_pointer_t<decltype(RawPointer)>>;
@@ -140,7 +140,7 @@ void ITypedElementDataStorageCompatibilityInterface::RemoveCompatibleObject(Obje
 }
 
 template<typename ObjectType>
-TypedElementRowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(ObjectType&& Object) const
+UE::Editor::DataStorage::RowHandle ITypedElementDataStorageCompatibilityInterface::FindRowWithCompatibleObject(ObjectType&& Object) const
 {
 	return FindRowWithCompatibleObjectExplicit(GetRawPointer(Forward<ObjectType>(Object)));
 }

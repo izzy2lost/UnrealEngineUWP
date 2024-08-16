@@ -8,7 +8,7 @@
 template<typename>
 class SComboBox;
 
-namespace UE::EditorDataStorage::Debug::QueryEditor
+namespace UE::Editor::DataStorage::Debug::QueryEditor
 {
 	class FTedsQueryEditorModel;
 	struct FConditionEntry;
@@ -40,4 +40,4 @@ namespace UE::EditorDataStorage::Debug::QueryEditor
 
 		TSharedPtr<SFilterBar<TSharedPtr<FComboItem>>> FilterThing;
 	};
-}
+} // namespace UE::Editor::DataStorage::Debug::QueryEditor

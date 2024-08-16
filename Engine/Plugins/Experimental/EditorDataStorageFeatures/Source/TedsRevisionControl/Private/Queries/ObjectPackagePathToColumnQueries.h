@@ -21,5 +21,5 @@ public:
 
 private:
 	void RegisterTryAddPackageRef(ITypedElementDataStorageInterface& DataStorage);
-	TypedElementDataStorage::QueryHandle TryAddPackageRef = TypedElementDataStorage::InvalidQueryHandle;
+	UE::Editor::DataStorage::QueryHandle TryAddPackageRef = UE::Editor::DataStorage::InvalidQueryHandle;
 };

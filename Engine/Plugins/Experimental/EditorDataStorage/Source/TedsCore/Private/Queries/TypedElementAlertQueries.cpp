@@ -19,12 +19,13 @@ FAutoConsoleCommand AddRandomAlertToRowConsoleCommand(
 		{
 			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
+			using namespace UE::Editor::DataStorage;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddRandomAlertToSelectedRows);
 
 			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
-				static TypedElementQueryHandle Query = [DataStorage]
+				static QueryHandle Query = [DataStorage]
 				{
 					return DataStorage->RegisterQuery(
 						Select()
@@ -78,6 +79,7 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 		{
 			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
+			using namespace UE::Editor::DataStorage;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearAllAlertInfo);
 
@@ -86,7 +88,7 @@ FAutoConsoleCommand ClearAllAlertsConsoleCommand(
 
 			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
-				static TypedElementQueryHandle AlertInfoQuery = [DataStorage]
+				static QueryHandle AlertInfoQuery = [DataStorage]
 				{
 					return DataStorage->RegisterQuery(
 						Select()
@@ -118,12 +120,13 @@ FAutoConsoleCommand ClearSelectedAlertsConsoleCommand(
 		{
 			using namespace TypedElementDataStorage;
 			using namespace TypedElementQueryBuilder;
+			using namespace UE::Editor::DataStorage;
 
 			TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.ClearSelectedAlerts);
 
 			if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 			{
-				static TypedElementQueryHandle AlertQuery = [DataStorage]
+				static QueryHandle AlertQuery = [DataStorage]
 				{
 					return DataStorage->RegisterQuery(
 						Select()
@@ -275,6 +278,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnAddQueries(ITypedElementDataSto
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
@@ -305,12 +309,13 @@ void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementData
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	DataStorage.RegisterQuery(
 		Select(
 			TEXT("Remove alert"),
 			FObserver::OnRemove<FTypedElementAlertColumn>(),
-			[](IQueryContext& Context, TypedElementDataStorage::RowHandle Row, FTypedElementAlertColumn& Alert)
+			[](IQueryContext& Context, RowHandle Row, FTypedElementAlertColumn& Alert)
 			{
 				Context.ActivateQueries(AlertConditionName);
 			})
@@ -320,7 +325,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementData
 		Select(
 			TEXT("Update alert upon parent removal"),
 			FObserver::OnRemove<FTableRowParentColumn>(),
-			[](IQueryContext& Context, TypedElementDataStorage::RowHandle Row)
+			[](IQueryContext& Context, RowHandle Row)
 			{
 				Context.ActivateQueries(AlertConditionName);
 			})
@@ -330,7 +335,7 @@ void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementData
 }
 
 void UTypedElementAlertQueriesFactory::AddChildAlertsToHierarchy(
-	TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Parent, int32 ParentQueryIndex)
+	TypedElementDataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Parent, int32 ParentQueryIndex)
 {
 	using namespace TypedElementDataStorage;
 
@@ -353,11 +358,12 @@ void UTypedElementAlertQueriesFactory::AddChildAlertsToHierarchy(
 }
 
 void UTypedElementAlertQueriesFactory::IncrementParents(
-	TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
+	TypedElementDataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
 	int32 ChildAlertQueryIndex)
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
+	using namespace UE::Editor::DataStorage;
 	
 	while (Context.IsRowAvailable(Row))
 	{

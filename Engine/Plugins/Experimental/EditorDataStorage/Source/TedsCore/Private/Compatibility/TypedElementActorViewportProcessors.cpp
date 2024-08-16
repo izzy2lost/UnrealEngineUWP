@@ -21,13 +21,14 @@ namespace UE::Editor::DataStorage::Private
 			{
 				using namespace TypedElementQueryBuilder;
 				using DSI = ITypedElementDataStorageInterface;
+				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
 				if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 				{
-					static TypedElementQueryHandle OverlayQuery = TypedElementInvalidQueryHandle;
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					static QueryHandle OverlayQuery = InvalidQueryHandle;
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						OverlayQuery = DataStorage->RegisterQuery(
 							Select()
@@ -36,7 +37,7 @@ namespace UE::Editor::DataStorage::Private
 							.Compile());
 					}
 				
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						return;
 					}
@@ -57,14 +58,14 @@ namespace UE::Editor::DataStorage::Private
 						return;
 					}
 
-					TArray<TypedElementRowHandle> RowHandles;
+					TArray<RowHandle> RowHandles;
 				
 					DataStorage->RunQuery(OverlayQuery, [ColorIndex, &RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
 
-					for (TypedElementRowHandle Row : RowHandles)
+					for (RowHandle Row : RowHandles)
 					{
 						DataStorage->AddColumn(Row, 
 							FTypedElementViewportOutlineColorColumn{ .SelectionOutlineColorIndex = static_cast<uint8>(ColorIndex) });
@@ -80,13 +81,14 @@ namespace UE::Editor::DataStorage::Private
 			{
 				using namespace TypedElementQueryBuilder;
 				using DSI = ITypedElementDataStorageInterface;
+				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
 				if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 				{
-					static TypedElementQueryHandle OverlayQuery = TypedElementInvalidQueryHandle;
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					static QueryHandle OverlayQuery = InvalidQueryHandle;
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						OverlayQuery = DataStorage->RegisterQuery(
 							Select()
@@ -95,7 +97,7 @@ namespace UE::Editor::DataStorage::Private
 							.Compile());
 					}
 				
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						return;
 					}
@@ -110,14 +112,14 @@ namespace UE::Editor::DataStorage::Private
 					FColor Color = FColor::FromHex(Args[0]);
 					Color.A = FMath::Clamp(Color.A, 0, 128);
 
-					TArray<TypedElementRowHandle> RowHandles;
+					TArray<RowHandle> RowHandles;
 				
 					DataStorage->RunQuery(OverlayQuery, [Color, &RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
 
-					for (TypedElementRowHandle Row : RowHandles)
+					for (RowHandle Row : RowHandles)
 					{
 						DataStorage->RemoveColumn<FTypedElementViewportOverlayColorColumn>(Row);
 						DataStorage->AddColumn(Row, FTypedElementViewportOverlayColorColumn{ .OverlayColor = Color });
@@ -132,13 +134,14 @@ namespace UE::Editor::DataStorage::Private
 			{
 				using namespace TypedElementQueryBuilder;
 				using DSI = ITypedElementDataStorageInterface;
+				using namespace UE::Editor::DataStorage;
 
 				TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.Debug.AddOverlayColorToSelectionCommand);
 
 				if (ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage())
 				{
-					static TypedElementQueryHandle OverlayQuery = TypedElementInvalidQueryHandle;
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					static QueryHandle OverlayQuery = InvalidQueryHandle;
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						OverlayQuery = DataStorage->RegisterQuery(
 							Select()
@@ -147,19 +150,19 @@ namespace UE::Editor::DataStorage::Private
 							.Compile());
 					}
 				
-					if (OverlayQuery == TypedElementInvalidQueryHandle)
+					if (OverlayQuery == InvalidQueryHandle)
 					{
 						return;
 					}
 
-					TArray<TypedElementRowHandle> RowHandles;
+					TArray<RowHandle> RowHandles;
 				
 					DataStorage->RunQuery(OverlayQuery, [&RowHandles](const DSI::FQueryDescription&, DSI::IDirectQueryContext& Context)
 					{
 						RowHandles = Context.GetRowHandles();
 					});
 
-					for (TypedElementRowHandle Row : RowHandles)
+					for (RowHandle Row : RowHandles)
 					{
 						DataStorage->RemoveColumn<FTypedElementViewportOverlayColorColumn>(Row);
 					}
