@@ -99,9 +99,12 @@ namespace FPCGAsync
 
 			double EndTime = AsyncState.EndTime;
 			
-			if (AsyncState.bIsRunningOutOfTick && bEnableTimeSlicing && OutOfTickBudgetInSeconds > 0.f)
+			if (AsyncState.bIsRunningOutOfTick && !AsyncState.bIsOutOfTickBudgetSet && bEnableTimeSlicing && OutOfTickBudgetInSeconds > 0.f)
 			{
 				EndTime = FPlatformTime::Seconds() + OutOfTickBudgetInSeconds;
+
+				// Prevent multiple AsyncProcessing calls in the same node execute to reset the budget
+				AsyncState.bIsOutOfTickBudgetSet = true;
 			}
 
 			AsyncState.SetStarted(EndTime);

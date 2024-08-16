@@ -56,6 +56,9 @@ struct FPCGAsyncState
 	/** True if we can run out of tick */
 	bool bIsRunningOutOfTick = false;
 
+	/** True if out of tick buddget was set */
+	bool bIsOutOfTickBudgetSet = false;
+
 	/** Returns true if we reached end time. */
 	PCG_API bool ShouldStop() const;
 

@@ -1525,6 +1525,7 @@ bool FPCGGraphExecutor::ExecuteScheduling(double EndTime, TSharedPtr<FPCGGraphAc
 						ActiveTask->Context->AsyncState.EndTime = EndTime;
 						ActiveTask->Context->AsyncState.bIsRunningOnMainThread = false;
 						ActiveTask->Context->AsyncState.bIsRunningOutOfTick = true;
+						ActiveTask->Context->AsyncState.bIsOutOfTickBudgetSet = false;
 
 						// Capture copy of SharedPtr so task stays valid while Async task is alive
 						ActiveTask->StartExecuting();
