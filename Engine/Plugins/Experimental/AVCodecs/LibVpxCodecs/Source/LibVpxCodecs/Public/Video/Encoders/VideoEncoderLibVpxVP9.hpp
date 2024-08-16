@@ -185,6 +185,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::ApplyConfig()
 				else
 				{
 					NumSpatialLayers = PendingConfig.NumberOfSpatialLayers;
+					check(NumSpatialLayers > 0);
 					NumTemporalLayers = PendingConfig.NumberOfTemporalLayers;
 					if (NumTemporalLayers == 0)
 					{
@@ -489,6 +490,9 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::SendFrame(TSharedPtr<FVideoResource
 			bVpxConfigChanged = false;
 		}
 
+		check(Resource->GetWidth() == RawImage->d_w);
+		check(Resource->GetHeight() == RawImage->d_h);
+
 		InputImage = MakeUnique<FInputImage>(InTimestamp);
 
 		switch (Profile)
@@ -720,11 +724,11 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 			SvcParams->scaling_factor_den[i] = ScaleFactor;
 
 			check(Config.SpatialLayers[i].Framerate > 0);
-			check(Config.SpatialLayers[i].Framerate < Config.Framerate);
+			check(Config.SpatialLayers[i].Framerate <= Config.Framerate);
 			if (i > 0)
 			{
 				// Frame rate of high spatial Layer is supposed to be equal or higher than frame rate of low spatial Layer.
-				check(Config.SpatialLayers[i].Framerate > Config.SpatialLayers[i - 1].Framerate);
+				check(Config.SpatialLayers[i].Framerate >= Config.SpatialLayers[i - 1].Framerate);
 			}
 		}
 	}

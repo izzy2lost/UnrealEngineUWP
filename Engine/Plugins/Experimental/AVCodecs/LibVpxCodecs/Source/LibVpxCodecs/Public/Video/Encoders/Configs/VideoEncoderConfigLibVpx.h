@@ -25,19 +25,19 @@ public:
 	int32			 MinQuality;
 	int32			 MaxQuality;
 
-	int32					 NumberOfCores = 0;
-	bool					 bDenoisingOn = false;
-	bool					 bAdaptiveQpMode = false;
-	bool					 bAutomaticResizeOn = false;
-	bool					 bFlexibleMode = false;
+	int32				  NumberOfCores = 0;
+	bool				  bDenoisingOn = false;
+	bool				  bAdaptiveQpMode = false;
+	bool				  bAutomaticResizeOn = false;
+	bool				  bFlexibleMode = false;
 	EInterLayerPrediction InterLayerPrediction = EInterLayerPrediction::Off;
 
-	uint8				  NumberOfSpatialLayers = 1;
-	uint8				  NumberOfTemporalLayers = 1;
-	TArray<FSpatialLayer> SpatialLayers;
+	uint8		  NumberOfSpatialLayers = 1;
+	uint8		  NumberOfTemporalLayers = 1;
+	FSpatialLayer SpatialLayers[Video::MaxSpatialLayers];
 
-	uint8				  NumberOfSimulcastStreams;
-	TArray<FSpatialLayer> SimulcastStreams;
+	uint8		  NumberOfSimulcastStreams;
+	FSpatialLayer SimulcastStreams[Video::MaxSimulcastStreams];
 
 	EScalabilityMode ScalabilityMode = EScalabilityMode::None;
 
@@ -78,11 +78,11 @@ public:
 			&& this->InterLayerPrediction == Other.InterLayerPrediction
 			&& this->NumberOfSpatialLayers == Other.NumberOfSpatialLayers
 			&& this->NumberOfTemporalLayers == Other.NumberOfTemporalLayers
-			&& this->SpatialLayers == Other.SpatialLayers
 			&& this->NumberOfSimulcastStreams == Other.NumberOfSimulcastStreams
-			&& this->SimulcastStreams == Other.SimulcastStreams
 			&& this->ScalabilityMode == Other.ScalabilityMode
-			&& this->SameBitrates(Other.Bitrates);
+			&& this->SameBitrates(Other.Bitrates)
+			&& this->SameSpatialLayers(Other.SpatialLayers)
+			&& this->SameSimulcastStreams(Other.SimulcastStreams);
 	}
 
 	bool operator!=(FVideoEncoderConfigLibVpx const& Other) const
@@ -100,6 +100,32 @@ public:
 				{
 					return false;
 				}
+			}
+		}
+
+		return true;
+	}
+
+	bool SameSpatialLayers(const FSpatialLayer OtherSpatialLayers[Video::MaxSpatialLayers]) const
+	{
+		for (size_t si = 0; si < Video::MaxSpatialLayers; si++)
+		{
+			if (SpatialLayers[si] != OtherSpatialLayers[si])
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	bool SameSimulcastStreams(const FSpatialLayer OtherSimulcastStreams[Video::MaxSimulcastStreams]) const
+	{
+		for (size_t si = 0; si < Video::MaxSimulcastStreams; si++)
+		{
+			if (SimulcastStreams[si] != OtherSimulcastStreams[si])
+			{
+				return false;
 			}
 		}
 

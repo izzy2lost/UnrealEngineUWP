@@ -169,12 +169,12 @@ public:
 
 	EScalabilityMode ScalabilityMode = EScalabilityMode::None;
 
-	uint8				  NumberOfSpatialLayers = 1;
-	uint8				  NumberOfTemporalLayers = 1;
-	TArray<FSpatialLayer> SpatialLayers;
+	uint8		  NumberOfSpatialLayers = 1;
+	uint8		  NumberOfTemporalLayers = 1;
+	FSpatialLayer SpatialLayers[Video::MaxSpatialLayers];
 
-	uint8				  NumberOfSimulcastStreams;
-	TArray<FSpatialLayer> SimulcastStreams;
+	uint8		  NumberOfSimulcastStreams;
+	FSpatialLayer SimulcastStreams[Video::MaxSimulcastStreams];
 
 	// TODO (Remove and derive from latency mode)
 	uint32		   KeyframeInterval = 0;
@@ -186,56 +186,56 @@ public:
 	{
 		switch (Preset)
 		{
-		case EAVPreset::UltraLowQuality:
-			TargetBitrate = 500000;
-			MaxBitrate = 1000000;
+			case EAVPreset::UltraLowQuality:
+				TargetBitrate = 500000;
+				MaxBitrate = 1000000;
 
-			MinQuality = 0;
-			MaxQuality = 33;
+				MinQuality = 0;
+				MaxQuality = 33;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::LowQuality:
-			TargetBitrate = 3000000;
-			MaxBitrate = 4500000;
+				break;
+			case EAVPreset::LowQuality:
+				TargetBitrate = 3000000;
+				MaxBitrate = 4500000;
 
-			MinQuality = 0;
-			MaxQuality = 50;
+				MinQuality = 0;
+				MaxQuality = 50;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::Default:
-			TargetBitrate = 5000000;
-			MaxBitrate = 12500000;
+				break;
+			case EAVPreset::Default:
+				TargetBitrate = 5000000;
+				MaxBitrate = 12500000;
 
-			MinQuality = 25;
-			MaxQuality = 75;
+				MinQuality = 25;
+				MaxQuality = 75;
 
-			RateControlMode = ERateControlMode::CBR;
+				RateControlMode = ERateControlMode::CBR;
 
-			break;
-		case EAVPreset::HighQuality:
-			TargetBitrate = 10000000;
-			MaxBitrate = 20000000;
+				break;
+			case EAVPreset::HighQuality:
+				TargetBitrate = 10000000;
+				MaxBitrate = 20000000;
 
-			MinQuality = 50;
-			MaxQuality = 100;
+				MinQuality = 50;
+				MaxQuality = 100;
 
-			RateControlMode = ERateControlMode::VBR;
+				RateControlMode = ERateControlMode::VBR;
 
-			break;
-		case EAVPreset::Lossless:
-			TargetBitrate = 0;
-			MaxBitrate = 0;
+				break;
+			case EAVPreset::Lossless:
+				TargetBitrate = 0;
+				MaxBitrate = 0;
 
-			MinQuality = -1;
-			MaxQuality = -1;
+				MinQuality = -1;
+				MaxQuality = -1;
 
-			RateControlMode = ERateControlMode::ConstQP;
+				RateControlMode = ERateControlMode::ConstQP;
 
-			break;
+				break;
 		}
 	}
 };

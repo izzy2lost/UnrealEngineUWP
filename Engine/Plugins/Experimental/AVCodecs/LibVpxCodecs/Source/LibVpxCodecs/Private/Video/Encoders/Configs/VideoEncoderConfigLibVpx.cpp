@@ -27,10 +27,9 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfigLibVpx& Out
 	OutConfig.ScalabilityMode = InConfig.ScalabilityMode;
 	OutConfig.NumberOfSpatialLayers = InConfig.NumberOfSpatialLayers;
 	OutConfig.NumberOfTemporalLayers = InConfig.NumberOfTemporalLayers;
-	OutConfig.SpatialLayers = InConfig.SpatialLayers;
+	FMemory::Memcpy(OutConfig.SpatialLayers, InConfig.SpatialLayers, sizeof(FSpatialLayer) * Video::MaxSpatialLayers);
 	OutConfig.NumberOfSimulcastStreams = InConfig.NumberOfSimulcastStreams;
-	OutConfig.SimulcastStreams = InConfig.SimulcastStreams;
-
+	FMemory::Memcpy(OutConfig.SimulcastStreams, InConfig.SimulcastStreams, sizeof(FSpatialLayer) * Video::MaxSimulcastStreams);
 	for (size_t si = 0; si < Video::MaxSpatialLayers; si++)
 	{
 		for (size_t ti = 0; ti < Video::MaxTemporalStreams; ti++)
@@ -61,9 +60,9 @@ DLLEXPORT FAVResult FAVExtension::TransformConfig(FVideoEncoderConfig& OutConfig
 	OutConfig.ScalabilityMode = InConfig.ScalabilityMode;
 	OutConfig.NumberOfSpatialLayers = InConfig.NumberOfSpatialLayers;
 	OutConfig.NumberOfTemporalLayers = InConfig.NumberOfTemporalLayers;
-	OutConfig.SpatialLayers = InConfig.SpatialLayers;
+	FMemory::Memcpy(OutConfig.SpatialLayers, InConfig.SpatialLayers, sizeof(FSpatialLayer) * Video::MaxSpatialLayers);
 	OutConfig.NumberOfSimulcastStreams = InConfig.NumberOfSimulcastStreams;
-	OutConfig.SimulcastStreams = InConfig.SimulcastStreams;
+	FMemory::Memcpy(OutConfig.SimulcastStreams, InConfig.SimulcastStreams, sizeof(FSpatialLayer) * Video::MaxSimulcastStreams);
 
 	for (size_t si = 0; si < Video::MaxSpatialLayers; si++)
 	{
