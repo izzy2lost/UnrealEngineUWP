@@ -351,8 +351,7 @@ void FRedirectCollector::RemoveAssetPathRedirection(const FSoftObjectPath& Origi
 {
 	FScopeLock ScopeLock(&CriticalSection);
 
-	bool bDidRemove = TryRemoveObjectPathRedirectionInternal(OriginalPath);
-	ensureMsgf(bDidRemove, TEXT("Cannot remove redirection from %s, it was not registered"), *OriginalPath.ToString());
+	TryRemoveObjectPathRedirectionInternal(OriginalPath);
 }
 
 void FRedirectCollector::RemoveAssetPathRedirection(FName OriginalPath)

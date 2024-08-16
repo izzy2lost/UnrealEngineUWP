@@ -1522,13 +1522,7 @@ namespace UE::USDStageImporter::Private
 		SoftObjectsToRemap.GetKeys(OriginalPaths);
 		for (const FSoftObjectPath& OriginalPath : OriginalPaths)
 		{
-			// We check first here because if we query RemoveAssetPathRedirection with a path that doesn't
-			// have a remapping it will ensure...
-			FSoftObjectPath RedirectedPath = GRedirectCollector.GetAssetPathRedirection(OriginalPath);
-			if (RedirectedPath.IsValid())
-			{
-				GRedirectCollector.RemoveAssetPathRedirection(OriginalPath);
-			}
+			GRedirectCollector.RemoveAssetPathRedirection(OriginalPath);
 		}
 	}
 
