@@ -53,7 +53,7 @@ void TPropertyAnimatorEditorCurveChannelInterface<InChannelType, InMenuExtension
 	InMenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
 		, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& InInnerMenuBuilder)
 			{
-				Extension->ExtendMenu(InInnerMenuBuilder);
+				Extension->ExtendMenu(InInnerMenuBuilder, true);
 			}));
 }
 

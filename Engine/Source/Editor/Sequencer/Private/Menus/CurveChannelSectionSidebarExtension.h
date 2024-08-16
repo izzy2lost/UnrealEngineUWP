@@ -19,7 +19,7 @@ struct FCurveChannelSectionSidebarExtension : TSharedFromThis<FCurveChannelSecti
 
 	void AddSections(const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
 
-	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) override;
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu) override;
 
 private:
 	void AddDisplayOptionsMenu(FMenuBuilder& MenuBuilder);

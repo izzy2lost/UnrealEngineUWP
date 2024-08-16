@@ -49,7 +49,7 @@ struct FPerlinNoiseChannelSectionMenuExtension : TSharedFromThis<FPerlinNoiseCha
 	FPerlinNoiseChannelSectionMenuExtension(TArrayView<const FMovieSceneChannelHandle> InChannelHandles, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections);
 	virtual ~FPerlinNoiseChannelSectionMenuExtension() {}
 
-	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu = true) override;
+	virtual TSharedPtr<ISidebarChannelExtension> ExtendMenu(FMenuBuilder& MenuBuilder, const bool bInSubMenu) override;
 
 private:
 
@@ -132,7 +132,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		InMenuExtender->AddMenuExtension(TEXT("SequencerChannels"), EExtensionHook::First, nullptr
 			, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder)
 				{
-					Extension->ExtendMenu(MenuBuilder);
+					Extension->ExtendMenu(MenuBuilder, true);
 				}));
 	}
 

@@ -407,7 +407,7 @@ void FSequencerSelectionDrawer::BuildOutlinerDetails(const TSharedRef<FSequencer
 		// Curve Channel Options (Pre-Finity, Post-Finity, etc.)
 		CurveChannelExtension = MakeShared<FCurveChannelSectionSidebarExtension>(Sequencer);
 		CurveChannelExtension->AddSections(WeakSceneSections);
-		CurveChannelExtension->ExtendMenu(MenuBuilder);
+		CurveChannelExtension->ExtendMenu(MenuBuilder, false);
 	}
 }
 
