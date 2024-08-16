@@ -123,7 +123,9 @@ namespace Chaos
 
 	private:
 		// Visualization object
-		FClothVisualization Visualization;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+		FClothVisualization Visualization;  // TODO: Replace with FClothVisualizationNoGC in 5.7
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Simulation objects
 		TUniquePtr<FClothingSimulationSolver> Solver;  // Default solver

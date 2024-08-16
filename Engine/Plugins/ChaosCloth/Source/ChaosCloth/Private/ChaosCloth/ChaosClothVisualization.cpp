@@ -35,101 +35,150 @@
 #include "Chaos/WeightedLatticeImplicitObject.h"
 #include "DynamicMeshBuilder.h"
 #include "Engine/EngineTypes.h"
+#include "Misc/LazySingleton.h"
 #include "SceneManagement.h"
 #include "SceneView.h"
 #if WITH_EDITOR
-#include "Materials/Material.h"
-#include "Engine/Canvas.h"  // For draw text
 #include "CanvasItem.h"     //
+#include "Engine/Canvas.h"  // For draw text
 #include "Engine/Engine.h"  //
+#include "Materials/Material.h"
 #include "UObject/ICookInfo.h"
 #endif  // #if WITH_EDITOR
 
 namespace Chaos
 {
-
-namespace Private
-{
-static int DrawSkinnedLattice = 0;
-static FAutoConsoleVariableRef CVarClothVizDrawSkinnedLattice(TEXT("p.ChaosClothVisualization.DrawSkinnedLattice"), DrawSkinnedLattice, TEXT("Draw skinned lattice, 0 = none, 1 = filled, 2 = empty, 3 = both"));
-
-// TODO: move these options to be somewhere the new cloth editor visualization can use.
-enum class EBendingDrawMode : int
-{
-	BuckleStatus = 0,
-	ParallelGraphColor = 1,
-	Anisotropy = 2,
-	RestAngle = 3
-};
-static int32 BendingDrawMode = (int32)EBendingDrawMode::BuckleStatus;
-static FAutoConsoleVariableRef CVarClothVizBendDrawMode(TEXT("p.ChaosClothVisualization.BendingDrawMode"), BendingDrawMode, TEXT("Bending draw mode, 0 = BuckleStatus, 1 = Parallel graph color, 2 = Anisotropy, 3 = RestAngle"));
-
-enum class EStretchBiasDrawMode : int
-{
-	ParallelGraphColor = 0,
-	WarpStretch = 1,
-	WeftStretch = 2,
-	BiasStretch = 3
-};
-static int32 StretchBiasDrawMode = (int32)EStretchBiasDrawMode::ParallelGraphColor;
-static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawMode(TEXT("p.ChaosClothVisualization.StretchBiasDrawMode"), StretchBiasDrawMode, TEXT("Stretch draw mode, 0 = Parallel graph color, 1 = Warp Stretch, 2 = Weft Stretch, 3 = BiasStretch"));
-static float StretchBiasDrawRangeMin = -1.f;
-static float StretchBiasDrawRangeMax = 1.f;
-static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMin(TEXT("p.ChaosClothVisualization.StretchBiasDrawRangeMin"), StretchBiasDrawRangeMin, TEXT("Min stretch in draw color range. Negative = compressed, 0 = undeformed, positive = stretched. (When drawing warp/weft stretch)"));
-static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMax(TEXT("p.ChaosClothVisualization.StretchBiasDrawRangeMax"), StretchBiasDrawRangeMax, TEXT("Max stretch in draw color range. Negative = compressed, 0 = undeformed, positive = stretched. (When drawing warp/weft stretch)"));
-static bool bStretchBiasDrawOutOfRange = true;
-static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawOutOfRange(TEXT("p.ChaosClothVisualization.StretchBiasDrawOutOfRange"), bStretchBiasDrawOutOfRange, TEXT("Draw out of range elements (When drawing warp/weft stretch)"));
-
-enum class EAnisoSpringDrawMode : int
-{
-	ParallelGraphColor = 0,
-	Anisotropy = 1,
-};
-static int32 AnisoSpringDrawMode = (int32)EAnisoSpringDrawMode::ParallelGraphColor;
-static FAutoConsoleVariableRef CVarClothVizAnisoSpringDrawMode(TEXT("p.ChaosClothVisualization.AnisoSpringDrawMode"), AnisoSpringDrawMode, TEXT("Stretch draw mode, 0 = Parallel graph color, 1 = Anisotropy"));
-
-static FString WeightMapName = "";
-static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisualization.WeightMapName"), WeightMapName, TEXT("Weight map name to be visualized"));
-
-static bool bDrawInForeground = true;
-static FAutoConsoleVariableRef CVarClothVizDrawInForeground(TEXT("p.ChaosClothVisualization.DrawInForeground"), bDrawInForeground, TEXT("Draw in foreground when outside the cloth/SKM editor"));
-
-// copied from ClothEditorMode
-FLinearColor PseudoRandomColor(int32 NumColorRotations)
-{
-	constexpr uint8 Spread = 157;  // Prime number that gives a good spread of colors without getting too similar as a rand might do.
-	uint8 Seed = Spread;
-	NumColorRotations = FMath::Abs(NumColorRotations);
-	for (int32 Rotation = 0; Rotation < NumColorRotations; ++Rotation)
+	namespace Private
 	{
-		Seed += Spread;
-	}
-	return FLinearColor::MakeFromHSV8(Seed, 180, 140);
-}
+		static int DrawSkinnedLattice = 0;
+		static FAutoConsoleVariableRef CVarClothVizDrawSkinnedLattice(TEXT("p.ChaosClothVisualization.DrawSkinnedLattice"), DrawSkinnedLattice, TEXT("Draw skinned lattice, 0 = none, 1 = filled, 2 = empty, 3 = both"));
 
-static uint8 GetDepthPriority()
-{
-	// set depth to SDPG_MAX not SDPG_Foreground when drawing in foreground.
-	// SDPG_Foreground does not draw when PIE is paused (its buffer is flushed).
-	return bDrawInForeground ? SDPG_MAX : SDPG_World; 
-}
-}// namespace Private
+		// TODO: move these options to be somewhere the new cloth editor visualization can use.
+		enum class EBendingDrawMode : int
+		{
+			BuckleStatus = 0,
+			ParallelGraphColor = 1,
+			Anisotropy = 2,
+			RestAngle = 3
+		};
+		static int32 BendingDrawMode = (int32)EBendingDrawMode::BuckleStatus;
+		static FAutoConsoleVariableRef CVarClothVizBendDrawMode(TEXT("p.ChaosClothVisualization.BendingDrawMode"), BendingDrawMode, TEXT("Bending draw mode, 0 = BuckleStatus, 1 = Parallel graph color, 2 = Anisotropy, 3 = RestAngle"));
 
-	FClothVisualization::FClothVisualization(const ::Chaos::FClothingSimulationSolver* InSolver)
+		enum class EStretchBiasDrawMode : int
+		{
+			ParallelGraphColor = 0,
+			WarpStretch = 1,
+			WeftStretch = 2,
+			BiasStretch = 3
+		};
+		static int32 StretchBiasDrawMode = (int32)EStretchBiasDrawMode::ParallelGraphColor;
+		static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawMode(TEXT("p.ChaosClothVisualization.StretchBiasDrawMode"), StretchBiasDrawMode, TEXT("Stretch draw mode, 0 = Parallel graph color, 1 = Warp Stretch, 2 = Weft Stretch, 3 = BiasStretch"));
+		static float StretchBiasDrawRangeMin = -1.f;
+		static float StretchBiasDrawRangeMax = 1.f;
+		static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMin(TEXT("p.ChaosClothVisualization.StretchBiasDrawRangeMin"), StretchBiasDrawRangeMin, TEXT("Min stretch in draw color range. Negative = compressed, 0 = undeformed, positive = stretched. (When drawing warp/weft stretch)"));
+		static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawRangeMax(TEXT("p.ChaosClothVisualization.StretchBiasDrawRangeMax"), StretchBiasDrawRangeMax, TEXT("Max stretch in draw color range. Negative = compressed, 0 = undeformed, positive = stretched. (When drawing warp/weft stretch)"));
+		static bool bStretchBiasDrawOutOfRange = true;
+		static FAutoConsoleVariableRef CVarClothVizStretchBiasDrawOutOfRange(TEXT("p.ChaosClothVisualization.StretchBiasDrawOutOfRange"), bStretchBiasDrawOutOfRange, TEXT("Draw out of range elements (When drawing warp/weft stretch)"));
+
+		enum class EAnisoSpringDrawMode : int
+		{
+			ParallelGraphColor = 0,
+			Anisotropy = 1,
+		};
+		static int32 AnisoSpringDrawMode = (int32)EAnisoSpringDrawMode::ParallelGraphColor;
+		static FAutoConsoleVariableRef CVarClothVizAnisoSpringDrawMode(TEXT("p.ChaosClothVisualization.AnisoSpringDrawMode"), AnisoSpringDrawMode, TEXT("Stretch draw mode, 0 = Parallel graph color, 1 = Anisotropy"));
+
+		static FString WeightMapName = "";
+		static FAutoConsoleVariableRef CVarClothVizWeightMapName(TEXT("p.ChaosClothVisualization.WeightMapName"), WeightMapName, TEXT("Weight map name to be visualized"));
+
+		static bool bDrawInForeground = true;
+		static FAutoConsoleVariableRef CVarClothVizDrawInForeground(TEXT("p.ChaosClothVisualization.DrawInForeground"), bDrawInForeground, TEXT("Draw in foreground when outside the cloth/SKM editor"));
+
+		// copied from ClothEditorMode
+		FLinearColor PseudoRandomColor(int32 NumColorRotations)
+		{
+			constexpr uint8 Spread = 157;  // Prime number that gives a good spread of colors without getting too similar as a rand might do.
+			uint8 Seed = Spread;
+			NumColorRotations = FMath::Abs(NumColorRotations);
+			for (int32 Rotation = 0; Rotation < NumColorRotations; ++Rotation)
+			{
+				Seed += Spread;
+			}
+			return FLinearColor::MakeFromHSV8(Seed, 180, 140);
+		}
+
+		static uint8 GetDepthPriority()
+		{
+			// set depth to SDPG_MAX not SDPG_Foreground when drawing in foreground.
+			// SDPG_Foreground does not draw when PIE is paused (its buffer is flushed).
+			return bDrawInForeground ? SDPG_MAX : SDPG_World; 
+		}
+	}  // namespace Private
+
+	// Delay loading materials to their first point of use to avoid causing sync flush issues and slow loading when starting PIE
+	class FClothVisualizationNoGC::FMaterials
+#if WITH_EDITOR && CHAOS_DEBUG_DRAW
+		: public FGCObject
+	{
+	private:
+		FMaterials()
+			: ClothMaterial(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/Cloth/CameraLitDoubleSided.CameraLitDoubleSided"), nullptr, LOAD_None, nullptr))
+			, ClothMaterialColor(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/Cloth/CameraLitVertexColor.CameraLitVertexColor"), nullptr, LOAD_None, nullptr))
+			, ClothMaterialVertex(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/WidgetVertexColorMaterial"), nullptr, LOAD_None, nullptr))
+			, CollisionMaterial(LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/PhAT_UnselectedMaterial"), nullptr, LOAD_None, nullptr))
+		{}
+
+		~FMaterials() = default;
+
+		//~ Begin FGCObject interface
+		virtual void AddReferencedObjects(FReferenceCollector& Collector) override
+		{
+			Collector.AddReferencedObject(ClothMaterial);
+			Collector.AddReferencedObject(ClothMaterialColor);
+			Collector.AddReferencedObject(ClothMaterialVertex);
+			Collector.AddReferencedObject(CollisionMaterial);
+		}
+
+		virtual FString GetReferencerName() const override { return TEXT("Chaos::Private::FClothVisualizationMaterials"); }
+		//~ End FGCObject interface
+
+		// Visualization material
+		TObjectPtr<const UMaterial> ClothMaterial;
+		TObjectPtr<const UMaterial> ClothMaterialColor;
+		TObjectPtr<const UMaterial> ClothMaterialVertex;
+		TObjectPtr<const UMaterial> CollisionMaterial;
+
+	public:
+		TObjectPtr<const UMaterial> GetClothMaterial() const { return ClothMaterial; }
+		TObjectPtr<const UMaterial> GetClothMaterialColor() const { return ClothMaterialColor; }
+		TObjectPtr<const UMaterial> GetClothMaterialVertex() const { return ClothMaterialVertex; }
+		TObjectPtr<const UMaterial> GetCollisionMaterial() const { return CollisionMaterial; }
+#else
+	{
+	private:
+		FMaterials() = default;
+		~FMaterials() = default;
+
+	public:
+		TObjectPtr<const UMaterial> GetClothMaterial() const { return nullptr; }
+		TObjectPtr<const UMaterial> GetClothMaterialColor() const { return nullptr; }
+		TObjectPtr<const UMaterial> GetClothMaterialVertex() const { return nullptr; }
+		TObjectPtr<const UMaterial> GetCollisionMaterial() const { return nullptr; }
+#endif  // #if WITH_EDITOR && CHAOS_DEBUG_DRAW
+
+		friend class ::FLazySingleton;
+		static FMaterials& GetInstance() { return TLazySingleton<FMaterials>::Get(); }  // Don't move the implementation outside of the cpp file
+		static void TearDown() { TLazySingleton<FMaterials>::TearDown(); }  // Don't move the implementation outside of the cpp file
+	};
+
+	FClothVisualizationNoGC::FClothVisualizationNoGC(const ::Chaos::FClothingSimulationSolver* InSolver)
 		: Solver(InSolver)
 	{
-#if WITH_EDITOR
-		FCookLoadScope CookLoadScope(ECookLoadType::EditorOnly);
-		ClothMaterial = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/Cloth/CameraLitDoubleSided.CameraLitDoubleSided"), nullptr, LOAD_None, nullptr);  // LOAD_EditorOnly
-		ClothMaterialColor = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/Cloth/CameraLitVertexColor.CameraLitVertexColor"), nullptr, LOAD_None, nullptr);  // LOAD_EditorOnly
-		ClothMaterialVertex = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/WidgetVertexColorMaterial"), nullptr, LOAD_None, nullptr);  // LOAD_EditorOnly
-		CollisionMaterial = LoadObject<UMaterial>(nullptr, TEXT("/Engine/EditorMaterials/PhAT_UnselectedMaterial"), nullptr, LOAD_None, nullptr);
-#endif  // #if WITH_EDITOR
 	}
 
-	FClothVisualization::~FClothVisualization() = default;
+	FClothVisualizationNoGC::~FClothVisualizationNoGC() = default;
 
-	void FClothVisualization::SetSolver(const ::Chaos::FClothingSimulationSolver* InSolver)
+	void FClothVisualizationNoGC::SetSolver(const ::Chaos::FClothingSimulationSolver* InSolver)
 	{
 		Solver = InSolver;
 	}
@@ -156,17 +205,9 @@ static uint8 GetDepthPriority()
 	}
 
 #if WITH_EDITOR
-	void FClothVisualization::AddReferencedObjects(FReferenceCollector& Collector)
+	void FClothVisualizationNoGC::DrawPhysMeshShaded(FPrimitiveDrawInterface* PDI) const
 	{
-		Collector.AddReferencedObject(ClothMaterial);
-		Collector.AddReferencedObject(ClothMaterialColor);
-		Collector.AddReferencedObject(ClothMaterialVertex);
-		Collector.AddReferencedObject(CollisionMaterial);
-	}
-
-	void FClothVisualization::DrawPhysMeshShaded(FPrimitiveDrawInterface* PDI) const
-	{
-		if (!Solver || !ClothMaterial)
+		if (!Solver || !FMaterials::GetInstance().GetClothMaterial())
 		{
 			return;
 		}
@@ -213,12 +254,12 @@ static uint8 GetDepthPriority()
 
 		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
-		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterial->GetRenderProxy(), SDPG_World, false, false);
+		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, FMaterials::GetInstance().GetClothMaterial()->GetRenderProxy(), SDPG_World, false, false);
 	}
 
-	void FClothVisualization::DrawWeightMapWithName(FPrimitiveDrawInterface* PDI, const FString& Name) const
+	void FClothVisualizationNoGC::DrawWeightMapWithName(FPrimitiveDrawInterface* PDI, const FString& Name) const
 	{
-		if (!Solver || !ClothMaterialColor)
+		if (!Solver || !FMaterials::GetInstance().GetClothMaterialColor())
 		{
 			return;
 		}
@@ -274,23 +315,23 @@ static uint8 GetDepthPriority()
 		
 		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
-		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterialColor->GetRenderProxy(), SDPG_World, false, false);
+		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, FMaterials::GetInstance().GetClothMaterialColor()->GetRenderProxy(), SDPG_World, false, false);
 	}
 
-	void FClothVisualization::DrawWeightMap(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawWeightMap(FPrimitiveDrawInterface* PDI) const
 	{
 		DrawWeightMapWithName(PDI, Private::WeightMapName);
 	}
 
-	void FClothVisualization::DrawInpaintWeightsMatched(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawInpaintWeightsMatched(FPrimitiveDrawInterface* PDI) const
 	{
 		DrawWeightMapWithName(PDI, TEXT("_InpaintWeightMask"));
 	}
 
-	void FClothVisualization::DrawSelfCollisionLayers(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawSelfCollisionLayers(FPrimitiveDrawInterface* PDI) const
 	{
 
-		if (!Solver || !ClothMaterialColor)
+		if (!Solver || !FMaterials::GetInstance().GetClothMaterialColor())
 		{
 			return;
 		}
@@ -341,11 +382,11 @@ static uint8 GetDepthPriority()
 
 		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
-		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterialColor->GetRenderProxy(), SDPG_World, false, false);
+		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, FMaterials::GetInstance().GetClothMaterialColor()->GetRenderProxy(), SDPG_World, false, false);
 	}
 #endif  // #if WITH_EDITOR
 
-	void FClothVisualization::DrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const
+	void FClothVisualizationNoGC::DrawParticleIndices(FCanvas* Canvas, const FSceneView* SceneView) const
 	{
 		if (!Solver)
 		{
@@ -380,7 +421,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const
+	void FClothVisualizationNoGC::DrawElementIndices(FCanvas* Canvas, const FSceneView* SceneView) const
 	{
 		if (!Solver)
 		{
@@ -425,7 +466,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const
+	void FClothVisualizationNoGC::DrawMaxDistanceValues(FCanvas* Canvas, const FSceneView* SceneView) const
 	{
 		if (!Solver)
 		{
@@ -798,7 +839,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawBounds(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawBounds(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -827,7 +868,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawGravity(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawGravity(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -879,7 +920,7 @@ static uint8 GetDepthPriority()
 	}
 
 
-	void FClothVisualization::DrawFictitiousAngularForces(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawFictitiousAngularForces(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -916,7 +957,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawPhysMeshWired(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawPhysMeshWired(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -961,7 +1002,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawAnimMeshWired(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawAnimMeshWired(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1000,7 +1041,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawOpenEdges(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawOpenEdges(FPrimitiveDrawInterface* PDI) const
 	{
 		auto MakeSortedUintVector2 = [](uint32 Index0, uint32 Index1) -> FUintVector2
 			{
@@ -1068,7 +1109,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawMultiResConstraint(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawMultiResConstraint(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1134,7 +1175,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawAnimNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
+	void FClothVisualizationNoGC::DrawAnimNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
 	{
 		if (!Solver)
 		{
@@ -1166,7 +1207,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawPointNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
+	void FClothVisualizationNoGC::DrawPointNormals(FPrimitiveDrawInterface* PDI, const FReal NormalLength) const
 	{
 		if (!Solver)
 		{
@@ -1202,7 +1243,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawPointVelocities(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawPointVelocities(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1238,7 +1279,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawCollision(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawCollision(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1335,7 +1376,7 @@ static uint8 GetDepthPriority()
 								const FLevelSet& LevelSet = Object->GetObjectChecked<TImplicitObjectTransformed<FReal, 3>>().GetGeometry()->GetObjectChecked<FLevelSet>();
 								const FMaterialRenderProxy* MaterialRenderProxy =
 #if WITH_EDITOR
-									CollisionMaterial->GetRenderProxy();
+									FMaterials::GetInstance().GetCollisionMaterial() ? FMaterials::GetInstance().GetCollisionMaterial()->GetRenderProxy() : nullptr;
 #else
 									nullptr;
 #endif
@@ -1347,7 +1388,7 @@ static uint8 GetDepthPriority()
 								const TWeightedLatticeImplicitObject<FLevelSet>& WeightedLevelset = Object->GetObjectChecked< TWeightedLatticeImplicitObject<FLevelSet> >();
 								const FMaterialRenderProxy* MaterialRenderProxy =
 #if WITH_EDITOR
-									CollisionMaterial->GetRenderProxy();
+									FMaterials::GetInstance().GetCollisionMaterial() ? FMaterials::GetInstance().GetCollisionMaterial()->GetRenderProxy() : nullptr;
 #else
 									nullptr;
 #endif
@@ -1408,7 +1449,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawBackstops(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawBackstops(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1477,7 +1518,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawBackstopDistances(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawBackstopDistances(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1523,7 +1564,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawMaxDistances(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawMaxDistances(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1561,7 +1602,7 @@ static uint8 GetDepthPriority()
 				if (InvMasses[Index] == (Softs::FSolverReal)0.)
 				{
 #if WITH_EDITOR
-					DrawPoint(PDI, Position, FLinearColor::Red, ClothMaterialVertex);
+					DrawPoint(PDI, Position, FLinearColor::Red, FMaterials::GetInstance().GetClothMaterialVertex());
 #else
 					DrawPoint(nullptr, Position, FLinearColor::Red, nullptr);
 #endif
@@ -1574,7 +1615,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawAnimDrive(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawAnimDrive(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1911,7 +1952,7 @@ static uint8 GetDepthPriority()
 		});
 	}
 
-	void FClothVisualization::DrawEdgeConstraint(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawEdgeConstraint(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -1963,7 +2004,7 @@ static uint8 GetDepthPriority()
 			{
 				const FMaterialRenderProxy* MaterialRenderProxy =
 #if WITH_EDITOR
-					ClothMaterialColor->GetRenderProxy();
+					FMaterials::GetInstance().GetClothMaterialColor()->GetRenderProxy();
 #else
 					nullptr;
 #endif
@@ -2023,7 +2064,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawBendingConstraint(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawBendingConstraint(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2112,7 +2153,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawLongRangeConstraint(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawLongRangeConstraint(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2177,7 +2218,7 @@ static uint8 GetDepthPriority()
 
 						DrawLine(PDI, Pos0, Pos1, Color);
 #if WITH_EDITOR
-						DrawPoint(PDI, Pos1, Color, ClothMaterialVertex);
+						DrawPoint(PDI, Pos1, Color, FMaterials::GetInstance().GetClothMaterialVertex());
 #else
 						DrawPoint(nullptr, Pos1, Color, nullptr);
 #endif
@@ -2197,7 +2238,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawWindAndPressureForces(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawWindAndPressureForces(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2257,7 +2298,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawLocalSpace(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawLocalSpace(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2282,7 +2323,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawSelfCollision(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawSelfCollision(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2402,7 +2443,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawSelfIntersection(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawSelfIntersection(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2544,7 +2585,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawSelfCollisionThickness(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawSelfCollisionThickness(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2554,7 +2595,7 @@ static uint8 GetDepthPriority()
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 
 #if WITH_EDITOR
-		if (ClothMaterialColor)
+		if (FMaterials::GetInstance().GetClothMaterialColor())
 		{
 			FDynamicMeshBuilder MeshBuilder(PDI->View->GetFeatureLevel());
 
@@ -2603,7 +2644,7 @@ static uint8 GetDepthPriority()
 			}
 			FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 			LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
-			MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, ClothMaterialColor->GetRenderProxy(), SDPG_World, false, false);
+			MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, FMaterials::GetInstance().GetClothMaterialColor()->GetRenderProxy(), SDPG_World, false, false);
 		}
 		else
 #endif
@@ -2660,7 +2701,7 @@ static uint8 GetDepthPriority()
 		}
 	}
 
-	void FClothVisualization::DrawKinematicColliderWired(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawKinematicColliderWired(FPrimitiveDrawInterface* PDI) const
 	{
 		if (!Solver)
 		{
@@ -2703,7 +2744,7 @@ static uint8 GetDepthPriority()
 	}
 
 #if WITH_EDITOR
-	TArray<FString> FClothVisualization::GetAllWeightMapNames() const
+	TArray<FString> FClothVisualizationNoGC::GetAllWeightMapNames() const
 	{
 		TSet<FString> AllNames;
 		for (const FClothingSimulationCloth* const Cloth : Solver->GetCloths())
@@ -2713,9 +2754,9 @@ static uint8 GetDepthPriority()
 		return AllNames.Array();
 	}
 
-	void FClothVisualization::DrawKinematicColliderShaded(FPrimitiveDrawInterface* PDI) const
+	void FClothVisualizationNoGC::DrawKinematicColliderShaded(FPrimitiveDrawInterface* PDI) const
 	{
-		if (!Solver || !CollisionMaterial)
+		if (!Solver || !FMaterials::GetInstance().GetCollisionMaterial())
 		{
 			return;
 		}
@@ -2760,15 +2801,21 @@ static uint8 GetDepthPriority()
 		const FVec3& LocalSpaceLocation = Solver->GetLocalSpaceLocation();
 		FMatrix LocalSimSpaceToWorld(FMatrix::Identity);
 		LocalSimSpaceToWorld.SetOrigin(Solver->GetLocalSpaceLocation());
-		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, CollisionMaterial->GetRenderProxy(), SDPG_World, false, false);
+		MeshBuilder.Draw(PDI, LocalSimSpaceToWorld, FMaterials::GetInstance().GetCollisionMaterial()->GetRenderProxy(), SDPG_World, false, false);
 	}
 #endif // #if WITH_EDITOR
-}  // End namespace Chaos
 #else  // #if CHAOS_DEBUG_DRAW
 namespace Chaos
 {
-	FClothVisualization::FClothVisualization(const ::Chaos::FClothingSimulationSolver* /*InSolver*/) {}
+	FClothVisualizationNoGC::FClothVisualizationNoGC(const ::Chaos::FClothingSimulationSolver* /*InSolver*/)
+	{}
+
+	FClothVisualizationNoGC::~FClothVisualizationNoGC() = default;
+#endif  // #else #if CHAOS_DEBUG_DRAW
+
+	FClothVisualization::FClothVisualization(const ::Chaos::FClothingSimulationSolver* InSolver)
+		: FClothVisualizationNoGC(InSolver)
+	{}
 
 	FClothVisualization::~FClothVisualization() = default;
-}  // End namespace UE::Chaos::Cloth
-#endif  // #if CHAOS_DEBUG_DRAW
+}  // End namespace Chaos

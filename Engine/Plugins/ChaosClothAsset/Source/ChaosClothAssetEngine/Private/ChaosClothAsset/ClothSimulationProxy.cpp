@@ -111,7 +111,9 @@ namespace UE::Chaos::ClothAsset
 		// Use new SoftsEvolution, not PBDEvolution.
 		constexpr bool bUseLegacySolver = false;
 		Solver = MakeUnique<::Chaos::FClothingSimulationSolver>(Configs[SolverConfigIndex].Get(), bUseLegacySolver);
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		Visualization = MakeUnique<::Chaos::FClothVisualization>(Solver.Get());
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Need a valid context to initialize the mesh
 		constexpr bool bIsInitialization = true;
@@ -611,6 +613,11 @@ namespace UE::Chaos::ClothAsset
 			return Bounds;
 		}
 		return FBoxSphereBounds(ForceInit);
+	}
+
+	const::Chaos::FClothVisualizationNoGC* FClothSimulationProxy::GetClothVisualization() const
+	{
+		return Visualization.Get();
 	}
 
 	void FClothSimulationProxy::InitializeConfigs()

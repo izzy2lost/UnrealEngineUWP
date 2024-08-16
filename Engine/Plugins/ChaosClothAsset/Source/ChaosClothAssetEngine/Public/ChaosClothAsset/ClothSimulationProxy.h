@@ -17,6 +17,7 @@ namespace Chaos
 	class FClothingSimulationConfig;
 	class FClothingSimulationCollider;
 	class FClothVisualization;
+	class FClothVisualizationNoGC;
 }
 
 class UChaosClothComponent;
@@ -67,7 +68,9 @@ namespace UE::Chaos::ClothAsset
 
 		FBoxSphereBounds CalculateBounds_AnyThread() const;
 
+		UE_DEPRECATED(5.5, "Use GetClothVisualization instead.")
 		const ::Chaos::FClothVisualization* GetVisualization() const { return Visualization.Get(); }
+		const ::Chaos::FClothVisualizationNoGC* GetClothVisualization() const;
 
 		int32 GetNumCloths() const { return NumCloths; }
 		int32 GetNumKinematicParticles() const { return NumKinematicParticles; }
@@ -121,7 +124,9 @@ namespace UE::Chaos::ClothAsset
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCloth>> Cloths;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationConfig>> Configs;
 		TArray<TUniquePtr<::Chaos::FClothingSimulationCollider>> Colliders;
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		TUniquePtr<::Chaos::FClothVisualization> Visualization;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		// Chaos Cache needs to have access to the solver.
 		friend class FClothComponentCacheAdapter;

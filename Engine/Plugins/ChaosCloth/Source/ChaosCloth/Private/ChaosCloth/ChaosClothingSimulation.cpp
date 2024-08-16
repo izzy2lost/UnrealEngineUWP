@@ -262,6 +262,7 @@ namespace ChaosClothingSimulationDefault
 	static const FReal MaxDistancesMultipliers = (FReal)1.;
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS  // For Visualization
 FClothingSimulation::FClothingSimulation()
 	: ClothSharedSimConfig(nullptr)
 	, bUseLocalSpaceSimulation(true)
@@ -284,6 +285,7 @@ FClothingSimulation::FClothingSimulation()
 
 FClothingSimulation::~FClothingSimulation()
 {}
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FClothingSimulation::Initialize()
 {
