@@ -308,7 +308,7 @@ void MainPS(
 	float3 EmissiveColor = 0.0f;
 #if SUBSTRATE_ENABLED
 
-	// Post process node forces a single unlit BSDF. We get the raw data from light function node from the raw BSDF on the tree.
+	// Post process node forces a single unlit BSDF. We get the raw data from the Substrate post process node from the raw BSDF on the tree.
 	FSubstratePixelHeader SubstratePixelHeader = Parameters.GetFrontSubstrateHeader();
 	FSubstrateBSDF UnlitBSDF = SubstratePixelHeader.SubstrateTree.BSDFs[0];
 	UnlitBSDF.SubstrateSanitizeBSDF(); // required wehen not calling SubstrateUpdateTreeUnlit

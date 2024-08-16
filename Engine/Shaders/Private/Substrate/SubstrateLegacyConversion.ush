@@ -595,7 +595,8 @@ FSubstrateData SubstrateCreateUIMaterial(
 	FSubstrateData Out = GetInitialisedSubstrateData();
 
 	const float3 RawNormal = float3(0, 0, 1);	// Unused in this case.
-	const float GreyTransmittance = saturate(1.0f - Opacity);
+	Opacity = saturate(Opacity);
+	const float GreyTransmittance = 1.0f - Opacity;
 
 #if MATERIALBLENDING_SOLID || MATERIALBLENDING_MASKED
 	// Opaque materials only write emissive.
