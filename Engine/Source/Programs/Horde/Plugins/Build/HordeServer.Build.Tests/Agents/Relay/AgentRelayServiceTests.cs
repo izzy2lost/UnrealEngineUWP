@@ -51,6 +51,7 @@ public class AgentRelayServiceTests : BuildTestSetup
 	public AgentRelayServiceTests()
 	{
 		_service = new AgentRelayService(GetRedisServiceSingleton(), Clock, Tracer, NullLogger<AgentRelayService>.Instance);
+		_service.SetRandomSeed(1);
 	}
 
 	public override async ValueTask DisposeAsync()
@@ -244,19 +245,21 @@ public class AgentRelayServiceTests : BuildTestSetup
 	{
 		PortMapping newPm = await AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports);
 		Assert.AreEqual(2, newPm.Ports.Count);
-		Assert.AreEqual(10000, newPm.Ports[0].RelayPort);
-		Assert.AreEqual(10001, newPm.Ports[1].RelayPort);
+		Assert.AreEqual(12214, newPm.Ports[0].RelayPort);
+		Assert.AreEqual(14973, newPm.Ports[1].RelayPort);
 	}
+	
+	// TODO: add a test checking for exception "Unable to find an available port range"
 
 	[TestMethod]
 	public async Task PortAssignment_TwoMappings_Async()
 	{
-		_service.SetMinMaxPorts(1000, 1003);
+		_service.SetMinMaxPorts(1000, 1020);
 		PortMapping newPm1 = await AddPortMappingAsync("cluster1", _pm1.LeaseId, null, _pm1.AgentIp, _pm1.Ports);
 		PortMapping newPm2 = await AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports);
-		Assert.AreEqual(1000, newPm1.Ports[0].RelayPort);
-		Assert.AreEqual(1001, newPm2.Ports[0].RelayPort);
-		Assert.AreEqual(1002, newPm2.Ports[1].RelayPort);
+		Assert.AreEqual(1005, newPm1.Ports[0].RelayPort);
+		Assert.AreEqual(1002, newPm2.Ports[0].RelayPort);
+		Assert.AreEqual(1009, newPm2.Ports[1].RelayPort);
 	}
 
 	[TestMethod]
@@ -265,7 +268,7 @@ public class AgentRelayServiceTests : BuildTestSetup
 		_service.SetMinMaxPorts(1000, 1003);
 		await AddPortMappingAsync("cluster1", _pm1.LeaseId, null, _pm1.AgentIp, _pm1.Ports);
 		await AddPortMappingAsync("cluster1", _pm3.LeaseId, null, _pm3.AgentIp, _pm3.Ports);
-		await Assert.ThrowsExceptionAsync<Exception>(() => AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports));
+		await Assert.ThrowsExceptionAsync<ArgumentException>(() => AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports));
 	}
 
 	[TestMethod]
@@ -274,7 +277,7 @@ public class AgentRelayServiceTests : BuildTestSetup
 		_service.SetMinMaxPorts(1000, 1003);
 		await AddPortMappingAsync("cluster1", _pm1.LeaseId, null, _pm1.AgentIp, _pm1.Ports);
 		await AddPortMappingAsync("cluster1", _pm3.LeaseId, null, _pm3.AgentIp, _pm3.Ports);
-		await Assert.ThrowsExceptionAsync<Exception>(() => AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports));
+		await Assert.ThrowsExceptionAsync<ArgumentException>(() => AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports));
 		Assert.IsTrue(await _service.RemovePortMappingAsync(_cluster1, LeaseId.Parse(_pm3.LeaseId)));
 		await AddPortMappingAsync("cluster1", _pm2.LeaseId, null, _pm2.AgentIp, _pm2.Ports);
 	}
@@ -306,7 +309,39 @@ public class AgentRelayServiceTests : BuildTestSetup
 		CollectionAssert.AreEquivalent(Expected(), Actual(2, 0, 1, 2, 3, 4, 5));
 		CollectionAssert.AreEquivalent(Expected(1, 2), Actual(2, 0, 3, 4, 5));
 	}
-
+	
+	[TestMethod]
+	public void FindAvailablePorts()
+	{
+		List<int> Actual(int numPorts, params int[] usedPorts)
+		{
+			Random random = new (1);
+			return AgentRelayService.FindAvailablePorts(random, usedPorts.ToHashSet(), numPorts, 0, 9).ToList();
+		}
+		
+		List<int> Expected(params int[] ports)
+		{
+			return ports.ToHashSet().ToList();
+		}
+		
+		void AssertPorts(List<int> expected, List<int> actual)
+		{
+			// Console.WriteLine("{0,-25} {1,-25}", "Expected:", "Actual:");
+			// Console.WriteLine("{0,-25} {1,-25}", String.Join(' ', expected), String.Join(' ', actual));
+			CollectionAssert.AreEquivalent(expected, actual);
+		}
+		
+		AssertPorts(Expected(), Actual(0));
+		AssertPorts(Expected(2, 1, 4), Actual(3));
+		AssertPorts(Expected(2, 1, 4, 7, 6, 3, 9, 0, 8, 5), Actual(10));
+		AssertPorts(Expected(4, 7, 6, 3), Actual(4, [2, 1, 9]));
+		AssertPorts(Expected(4, 7, 6, 3, 0, 8, 5), Actual(7, [2, 1, 9]));
+		Assert.ThrowsException<ArgumentException>(() => Actual(8, [2, 1, 9]));
+		
+		Exception e1 = Assert.ThrowsException<ArgumentException>(() => Actual(11));
+		Assert.IsTrue(e1.Message.Contains("exceeds", StringComparison.InvariantCulture));
+	}
+	
 	private Task<PortMapping> AddPortMappingAsync(string clusterId, string leaseId, string? clientIp, string agentIp, IList<Port> ports, int numRetries = 10)
 	{
 		IPAddress? clientIpObj = clientIp == null ? null : IPAddress.Parse(clientIp);

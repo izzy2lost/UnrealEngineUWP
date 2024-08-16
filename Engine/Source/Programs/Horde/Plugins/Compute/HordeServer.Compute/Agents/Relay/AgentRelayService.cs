@@ -91,7 +91,8 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 	private readonly AsyncTaskQueue _updateTaskQueue;
 	private IAsyncDisposable? _redisSubscription;
 	private int _minPort = 10000;
-	private int _maxPort = 50000;
+	private int _maxPort = 30000; // Linux ephemeral port range is usually 32768-60999 so staying below 30000 seems like a sane default
+	private Random _random = new ();
 
 	/// <summary>
 	/// Constructor
@@ -197,7 +198,6 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 		span.SetAttribute("leaseId", leaseId.ToString());
 		IDatabase redis = _redis.GetDatabase();
 
-		// TODO: Randomize start position to spread out port use
 		// TODO: Add pinging to and do not consider stale agent relays
 		// TODO: Check failed deserialization from Redis
 
@@ -205,7 +205,7 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 		{
 			HashSet<int> usedPorts = (await redis.SetMembersAsync(KeyUsedPorts(clusterId))).Select(x => (int)x).ToHashSet();
 			int numPorts = ports.Count;
-			IReadOnlySet<int> portRange = FindAvailablePortRange(usedPorts, numPorts, _minPort, _maxPort);
+			IReadOnlySet<int> portRange = FindAvailablePorts(_random, usedPorts, numPorts, _minPort, _maxPort);
 			if (portRange.Count == 0)
 			{
 				throw new Exception("No ports are available");
@@ -403,6 +403,53 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 
 		return ImmutableSortedSet<int>.Empty;
 	}
+	
+	/// <summary>
+	/// Find random ports available
+	/// </summary>
+	/// <param name="random">Random generator</param>
+	/// <param name="usedPorts">Ports already in use</param>
+	/// <param name="numPorts">Number of ports to find</param>
+	/// <param name="minPort">Min port number</param>
+	/// <param name="maxPort">Max port number</param>
+	/// <returns>A list of random but available ports</returns>
+	/// <exception cref="Exception">If port assignment does not complete within max attempts</exception>
+	internal static IReadOnlySet<int> FindAvailablePorts(Random random, IReadOnlySet<int> usedPorts, int numPorts, int minPort, int maxPort)
+	{
+		const int MaxAttempts = 10000;
+		
+		if (minPort > maxPort)
+		{
+			throw new ArgumentException("minPort must be less than or equal to maxPort");
+		}
+		
+		int availablePortRange = maxPort - minPort + 1;
+		if (numPorts > availablePortRange - usedPorts.Count)
+		{
+			throw new ArgumentException("The number of requested ports exceeds the available port range");
+		}
+		
+		HashSet<int> acquiredPorts = new(numPorts);
+		int numAttempts = 0;
+		while (acquiredPorts.Count < numPorts)
+		{
+			numAttempts++;
+			if (numAttempts >= MaxAttempts)
+			{
+				throw new Exception($"Failed to acquire {numPorts} random ports after {numAttempts} attempts. Acquired ports: {acquiredPorts.Count}");
+			}
+			
+			int port = random.Next(minPort, maxPort + 1);
+			if (usedPorts.Contains(port) || acquiredPorts.Contains(port))
+			{
+				continue; // Try assigning a new random port
+			}
+			
+			acquiredPorts.Add(port);
+		}
+		
+		return acquiredPorts;
+	}
 
 	internal void SetMinMaxPorts(int minPort, int maxPort)
 	{
@@ -414,6 +461,11 @@ public sealed class AgentRelayService : RelayRpc.RelayRpcBase, IHostedService, I
 	{
 		_longPollTimeout = TimeSpan.FromMilliseconds(longPollMs);
 		_agentExpirationTimeout = TimeSpan.FromMilliseconds(expirationMs);
+	}
+	
+	internal void SetRandomSeed(int seed)
+	{
+		_random = new Random(seed);
 	}
 	
 	private static void AddPortMappingMetadataToSpan(TelemetrySpan span, PortMapping portMapping)
