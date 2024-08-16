@@ -75,7 +75,7 @@ struct FOperatorStackEditorItem
 	{
 		check(InIndex < GetValueCount())
 
-		if (!GetValuePtr(InIndex))
+		if (!HasValue(InIndex))
 		{
 			return nullptr;
 		}
@@ -118,7 +118,10 @@ struct FOperatorStackEditorItem
 
 		for (uint32 Index = 0; Index < ValueCount; Index++)
 		{
-			Values.Add(Get<InValueType>(Index));
+			if (InValueType* Value = Get<InValueType>(Index))
+			{
+				Values.Add(Value);
+			}
 		}
 
 		return Values;
@@ -136,14 +139,27 @@ struct FOperatorStackEditorItem
 		return 0;
 	}
 
+	/** Checks if this item has at least one value and that it is usable */
+	bool HasValue() const
+	{
+		bool bHasValue = false;
+
+		for (uint32 Index = 0; Index < GetValueCount(); Index++)
+		{
+			bHasValue |= HasValue(Index);
+		}
+
+		return bHasValue;
+	}
+
 	/** Checks if this item has a value and that it is usable */
-	virtual bool HasValue() const
+	virtual bool HasValue(uint32 InIndex) const
 	{
 		return false;
 	}
 
 	/** Get raw ptr to value, prefer using Get<>() instead */
-	virtual void* GetValuePtr(int32 InIndex) const
+	virtual void* GetValuePtr(uint32 InIndex) const
 	{
 		return nullptr;
 	}

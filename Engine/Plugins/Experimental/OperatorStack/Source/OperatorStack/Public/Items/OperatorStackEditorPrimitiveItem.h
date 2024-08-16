@@ -30,7 +30,7 @@ struct FOperatorStackEditorPrimitiveItem : FOperatorStackEditorItem
 		return 1;
 	}
 
-	virtual bool HasValue() const override
+	virtual bool HasValue(uint32 InIndex) const override
 	{
 		return MemoryPtr != nullptr;
 	}
@@ -40,7 +40,7 @@ struct FOperatorStackEditorPrimitiveItem : FOperatorStackEditorItem
 		return CachedHash;
 	}
 
-	virtual void* GetValuePtr(int32 InIndex) const override
+	virtual void* GetValuePtr(uint32 InIndex) const override
 	{
 		return MemoryPtr;
 	}

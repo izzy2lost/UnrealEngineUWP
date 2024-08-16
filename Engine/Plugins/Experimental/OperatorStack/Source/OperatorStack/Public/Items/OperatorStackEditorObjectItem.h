@@ -30,7 +30,7 @@ struct FOperatorStackEditorObjectItem : FOperatorStackEditorItem
 		return 1;
 	}
 
-	virtual bool HasValue() const override
+	virtual bool HasValue(uint32 InIndex) const override
 	{
 		return ObjectWeak.IsValid();
 	}
@@ -40,7 +40,7 @@ struct FOperatorStackEditorObjectItem : FOperatorStackEditorItem
 		return CachedHash;
 	}
 
-	virtual void* GetValuePtr(int32 InIndex) const override
+	virtual void* GetValuePtr(uint32 InIndex) const override
 	{
 		return ObjectWeak.Get();
 	}

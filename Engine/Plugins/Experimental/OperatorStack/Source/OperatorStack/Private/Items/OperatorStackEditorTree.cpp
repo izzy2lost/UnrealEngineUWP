@@ -21,7 +21,9 @@ FOperatorStackEditorTree::FOperatorStackEditorTree(UOperatorStackEditorStackCust
 
 	// Get root items
 	TSharedPtr<FOperatorStackEditorItem> RootItem;
-	if (InCustomization->GetRootItem(*InContext.Get(), RootItem))
+	if (InCustomization->GetRootItem(*InContext.Get(), RootItem)
+		&& RootItem.IsValid()
+		&& RootItem->HasValue())
 	{
 		check(InCustomization->IsCustomizationSupportedFor(RootItem))
 

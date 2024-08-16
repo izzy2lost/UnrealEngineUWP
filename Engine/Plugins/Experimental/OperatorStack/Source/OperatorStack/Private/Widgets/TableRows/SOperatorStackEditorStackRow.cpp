@@ -27,10 +27,7 @@ void SOperatorStackEditorStackRow::Construct(const FArguments& InArgs
 	ChildSlot
 	[
 		SNew(SVerticalBox)
-		.Visibility(MakeAttributeLambda([this]()->EVisibility
-		{
-			return InnerStack->GetVisibility();
-		}))
+		.Visibility(InnerStack.Get(), &SOperatorStackEditorStack::GetVisibility)
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[

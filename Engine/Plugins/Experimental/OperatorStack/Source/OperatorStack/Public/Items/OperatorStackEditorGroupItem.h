@@ -35,17 +35,15 @@ struct FOperatorStackEditorGroupItem : FOperatorStackEditorItem
 		return Items.Num();
 	}
 
-	virtual bool HasValue() const override
+	virtual bool HasValue(uint32 InIndex) const override
 	{
-		for (const FOperatorStackEditorItemPtr& Item : Items)
+		if (Items.IsValidIndex(InIndex) && Items[InIndex].IsValid())
 		{
-			if (Item.IsValid() && Item->HasValue())
-			{
-				return true;
-			}
+			// No groups allowed so pick first item
+			return Items[InIndex]->HasValue(0);
 		}
 
-		return FOperatorStackEditorItem::HasValue();
+		return FOperatorStackEditorItem::HasValue(InIndex);
 	}
 
 	virtual uint32 GetHash() const override
@@ -53,7 +51,7 @@ struct FOperatorStackEditorGroupItem : FOperatorStackEditorItem
 		return CachedHash;
 	}
 
-	virtual void* GetValuePtr(int32 InIndex) const override
+	virtual void* GetValuePtr(uint32 InIndex) const override
 	{
 		if (Items.IsValidIndex(InIndex) && Items[InIndex].IsValid())
 		{
