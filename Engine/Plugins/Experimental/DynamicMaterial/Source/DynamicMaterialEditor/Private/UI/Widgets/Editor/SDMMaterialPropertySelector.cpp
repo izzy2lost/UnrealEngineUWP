@@ -58,21 +58,56 @@ void SDMMaterialPropertySelector::SetSelectedProperty(EDMMaterialEditorMode InEd
 
 	switch (InEditMode)
 	{
-	case EDMMaterialEditorMode::GlobalSettings:
-		EditorWidget->EditGlobalSettings();
-		break;
+		case EDMMaterialEditorMode::MaterialPreview:
+			OpenMaterialPreviewTab();
+			break;
 
-	case EDMMaterialEditorMode::PropertyPreviews:
-		EditorWidget->ShowPropertyPreviews();
-		break;
+		case EDMMaterialEditorMode::GlobalSettings:
+			EditorWidget->EditGlobalSettings();
+			break;
 
-	case EDMMaterialEditorMode::EditSlot:
-		EditorWidget->SelectProperty(InMaterialProperty);
-		break;
+		case EDMMaterialEditorMode::PropertyPreviews:
+			EditorWidget->ShowPropertyPreviews();
+			break;
 
-	default:
-		break;
+		case EDMMaterialEditorMode::EditSlot:
+			EditorWidget->SelectProperty(InMaterialProperty);
+			break;
+
+		default:
+			break;
 	}
+}
+
+void SDMMaterialPropertySelector::SetupMaterialPreviewButton(const TSharedRef<SWidget>& InSelectButton)
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	TSharedPtr<IToolTip> PreviewToolTip = EditorWidget->GetMaterialPreviewToolTip();
+
+	if (!PreviewToolTip.IsValid())
+	{
+		return;
+	}
+
+	InSelectButton->SetToolTip(PreviewToolTip);
+}
+
+void SDMMaterialPropertySelector::OpenMaterialPreviewTab()
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = GetEditorWidget();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	EditorWidget->OpenMaterialPreviewTab();
 }
 
 UDynamicMaterialModelEditorOnlyData* SDMMaterialPropertySelector::GetEditorOnlyData() const
@@ -123,6 +158,11 @@ FText SDMMaterialPropertySelector::GetSelectButtonText(EDMMaterialEditorMode InE
 {
 	switch (InEditMode)
 	{
+		case EDMMaterialEditorMode::MaterialPreview:
+			return bInShortName
+				? LOCTEXT("MaterialPreviewShort", "Prev")
+				: LOCTEXT("MaterialPreview", "Material Preview");
+
 		case EDMMaterialEditorMode::GlobalSettings:
 			return bInShortName
 				? LOCTEXT("GlobalSettingsShort", "Global")
@@ -147,6 +187,9 @@ FText SDMMaterialPropertySelector::GetButtonToolTip(EDMMaterialEditorMode InEdit
 {
 	switch (InEditMode)
 	{
+		case EDMMaterialEditorMode::MaterialPreview:
+			return LOCTEXT("MaterialPreviewToolTip", "Show a preview of the Material.");
+
 		case EDMMaterialEditorMode::GlobalSettings:
 			return LOCTEXT("GeneralSettingsToolTip", "Edit the Material Global Settings.");
 
@@ -261,7 +304,7 @@ bool SDMMaterialPropertySelector::GetPropertyEnabledEnabled(EDMMaterialPropertyT
 
 ECheckBoxState SDMMaterialPropertySelector::GetPropertyEnabledState(EDMMaterialPropertyType InMaterialProperty) const
 {
-	return DoesPropertySlotExist(InMaterialProperty)
+	return (GetPropertyEnabledEnabled(InMaterialProperty) && DoesPropertySlotExist(InMaterialProperty))
 		? ECheckBoxState::Checked
 		: ECheckBoxState::Unchecked;
 }
@@ -284,7 +327,7 @@ bool SDMMaterialPropertySelector::GetPropertySelectEnabled(EDMMaterialEditorMode
 	switch (InEditMode)
 	{
 		case EDMMaterialEditorMode::EditSlot:
-			return DoesPropertySlotExist(InMaterialProperty);
+			return GetPropertyEnabledEnabled(InMaterialProperty) && DoesPropertySlotExist(InMaterialProperty);
 
 		default:
 			return true;
@@ -307,6 +350,9 @@ ECheckBoxState SDMMaterialPropertySelector::GetPropertySelectState(EDMMaterialEd
 			return EditorWidget->GetEditMode() == InEditMode
 				? ECheckBoxState::Checked
 				: ECheckBoxState::Unchecked;
+
+		case EDMMaterialEditorMode::MaterialPreview:
+			return ECheckBoxState::Unchecked;
 
 		case EDMMaterialEditorMode::EditSlot:
 			return InMaterialProperty == EditorWidget->GetSelectedPropertyType()
@@ -331,6 +377,7 @@ FSlateColor SDMMaterialPropertySelector::GetPropertySelectButtonChipColor(EDMMat
 {
 	switch (InEditMode)
 	{
+		case EDMMaterialEditorMode::MaterialPreview:
 		case EDMMaterialEditorMode::GlobalSettings:
 		case EDMMaterialEditorMode::PropertyPreviews:
 			return FStyleColors::AccentGreen;

@@ -18,7 +18,7 @@ enum class EDMMaterialPropertyType : uint8
 	None = 0,
 	BaseColor           UMETA(ShortName = "Base"),
 	EmissiveColor       UMETA(ShortName = "Emis"),
-	Opacity,
+	Opacity             UMETA(ShortName = "Opac"),
 	OpacityMask         UMETA(ShortName = "Mask"),
 	Roughness           UMETA(ShortName = "Rough"),
 	Specular            UMETA(ShortName = "Spec"),

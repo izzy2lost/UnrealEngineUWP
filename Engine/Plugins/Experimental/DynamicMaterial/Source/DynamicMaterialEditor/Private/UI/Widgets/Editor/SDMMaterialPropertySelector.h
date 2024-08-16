@@ -73,4 +73,8 @@ protected:
 	FSlateColor GetPropertySelectButtonChipColor(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) const;
 
 	void SetSelectedProperty(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty);
+
+	void SetupMaterialPreviewButton(const TSharedRef<SWidget>& InSelectButton);
+
+	void OpenMaterialPreviewTab();
 };

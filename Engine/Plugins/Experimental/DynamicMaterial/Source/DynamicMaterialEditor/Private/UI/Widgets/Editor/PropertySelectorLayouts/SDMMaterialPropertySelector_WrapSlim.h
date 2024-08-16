@@ -15,7 +15,8 @@ public:
 	void Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor> InEditorWidget);
 
 protected:
-	//~ Begin SDMMaterialPropertySelector_WrapBase
+	//~ Begin SDMMaterialPropertySelector
 	virtual TSharedRef<SWidget> CreateSlot_PropertyList() override;
-	//~ End SDMMaterialPropertySelector_WrapBase
+	virtual TSharedRef<SWidget> CreateSlot_SelectButton(EDMMaterialEditorMode InEditMode, EDMMaterialPropertyType InMaterialProperty) override;
+	//~ End SDMMaterialPropertySelector
 };

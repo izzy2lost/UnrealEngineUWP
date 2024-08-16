@@ -10,12 +10,15 @@
 #include "DynamicMaterialEditorSettings.h"
 #include "DynamicMaterialModule.h"
 #include "Engine/Texture.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/GenericCommands.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialFunctionInterface.h"
 #include "Model/DynamicMaterialModel.h"
 #include "Model/DynamicMaterialModelBase.h"
 #include "Model/DynamicMaterialModelDynamic.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
+#include "Styling/SlateIconFinder.h"
 #include "UI/Utils/DMPreviewMaterialManager.h"
 #include "UI/Widgets/Editor/SDMMaterialComponentEditor.h"
 #include "UI/Widgets/Editor/SDMMaterialGlobalSettingsEditor.h"
@@ -27,10 +30,13 @@
 #include "UI/Widgets/Editor/SDMToolBar.h"
 #include "UI/Widgets/SDMMaterialDesigner.h"
 #include "Utils/DMMaterialModelFunctionLibrary.h"
+#include "Widgets/Docking/SDockTab.h"
+#include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SScrollBox.h"
 #include "Widgets/Layout/SSplitter.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/SNullWidget.h"
+#include "Widgets/SToolTip.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialEditor"
 
@@ -48,6 +54,8 @@ SDMMaterialEditor::SDMMaterialEditor()
 SDMMaterialEditor::~SDMMaterialEditor()
 {
 	FCoreDelegates::OnEnginePreExit.RemoveAll(this);
+	CloseMaterialPreviewTab();
+	DestroyMaterialPreviewToolTip();
 
 	if (!FDynamicMaterialModule::AreUObjectsSafe())
 	{
@@ -56,6 +64,8 @@ SDMMaterialEditor::~SDMMaterialEditor()
 
 	if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = EditorOnlyDataUpdateObject.Get())
 	{
+		EditorOnlyData->GetOnMaterialBuiltDelegate().RemoveAll(this);
+		EditorOnlyData->GetOnPropertyUpdateDelegate().RemoveAll(this);
 		EditorOnlyData->GetOnSlotListUpdateDelegate().RemoveAll(this);
 	}
 }
@@ -332,6 +342,131 @@ void SDMMaterialEditor::ShowPropertyPreviews(bool bInForceRefresh)
 	SelectedMaterialProperty = EDMMaterialPropertyType::None;
 
 	MaterialPropertyPreviewsSlot.Invalidate();
+}
+
+void SDMMaterialEditor::OpenMaterialPreviewTab()
+{
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
+
+	if (!MaterialModelBase)
+	{
+		return;
+	}
+
+	CloseMaterialPreviewTab();
+
+	FSlateApplication::Get().CloseToolTip();
+
+	const FName TabId = TEXT("MaterialPreviewTab");
+
+	if (!FGlobalTabmanager::Get()->HasTabSpawner(TabId))
+	{
+		FGlobalTabmanager::Get()->RegisterNomadTabSpawner(
+			TabId,
+			FOnSpawnTab::CreateLambda(
+				[TabId](const FSpawnTabArgs& InArgs)
+				{
+					TSharedRef<SDockTab> DockTab = SNew(SDockTab)
+						.Label(FText::FromName(TabId))
+						.LabelSuffix(LOCTEXT("TabSuffix", "Material Preview"));
+
+					DockTab->SetTabIcon(FSlateIconFinder::FindIconForClass(UMaterial::StaticClass()).GetIcon());
+
+					return DockTab;
+				}
+			)
+		);
+	}
+
+	MaterialPreviewTab = FGlobalTabmanager::Get()->TryInvokeTab(TabId);
+	MaterialPreviewTab->ActivateInParent(ETabActivationCause::SetDirectly);
+	MaterialPreviewTab->SetLabel(FText::FromString(MaterialModelBase->GetPathName()));
+	MaterialPreviewTab->SetOnTabClosed(SDockTab::FOnTabClosedCallback::CreateSPLambda(
+		this,
+		[this](TSharedRef<SDockTab> InDockTab)
+		{
+			MaterialPreviewTabSlot.ClearWidget();
+		}));
+
+	TSharedRef<SBox> Wrapper = SNew(SBox);
+
+	MaterialPreviewTabSlot = TDMWidgetSlot<SDMMaterialPreview>(
+		Wrapper, 
+		0, 
+		SNew(SDMMaterialPreview, SharedThis(this), MaterialModelBase)
+	);
+
+	MaterialPreviewTab->SetContent(Wrapper);
+}
+
+void SDMMaterialEditor::CloseMaterialPreviewTab()
+{
+	if (MaterialPreviewTab.IsValid())
+	{
+		MaterialPreviewTabSlot.ClearWidget();
+		MaterialPreviewTab->RequestCloseTab();
+		MaterialPreviewTab.Reset();
+	}
+}
+
+TSharedPtr<IToolTip> SDMMaterialEditor::GetMaterialPreviewToolTip()
+{
+	UDynamicMaterialModelBase* MaterialModelBase = GetMaterialModelBase();
+
+	if (!MaterialModelBase)
+	{
+		return nullptr;
+	}
+
+	UDynamicMaterialEditorSettings* Settings = UDynamicMaterialEditorSettings::Get();
+
+	if (!Settings)
+	{
+		return nullptr;
+	}
+
+	DestroyMaterialPreviewToolTip();
+
+	TSharedRef<SBox> Wrapper = SNew(SBox)
+		.WidthOverride(TAttribute<FOptionalSize>::CreateWeakLambda(
+			Settings,
+			[Settings]
+			{
+				return Settings->ThumbnailSize;
+			}
+		))
+		.HeightOverride(TAttribute<FOptionalSize>::CreateWeakLambda(
+			Settings,
+			[Settings]
+			{
+				return Settings->ThumbnailSize;
+			}
+		));
+
+	MaterialPreviewToolTipSlot = TDMWidgetSlot<SDMMaterialPreview>(
+		Wrapper,
+		0,
+		SNew(SDMMaterialPreview, SharedThis(this), MaterialModelBase)
+		.ShowMenu(false)
+	);
+
+	MaterialPreviewToolTip = SNew(SToolTip)
+		.IsInteractive(false)
+		.BorderImage(FCoreStyle::Get().GetBrush("ToolTip.Background"))
+		[
+			Wrapper
+		];
+
+	return MaterialPreviewToolTip.ToSharedRef();
+}
+
+void SDMMaterialEditor::DestroyMaterialPreviewToolTip()
+{
+	if (MaterialPreviewToolTip.IsValid())
+	{
+		MaterialPreviewToolTipSlot.ClearWidget();
+		MaterialPreviewToolTip.Reset();
+	}
 }
 
 void SDMMaterialEditor::Validate()
@@ -760,6 +895,8 @@ void SDMMaterialEditor::OnUndo()
 void SDMMaterialEditor::OnEnginePreExit()
 {
 	MaterialPreviewSlot.ClearWidget();
+	CloseMaterialPreviewTab();
+	DestroyMaterialPreviewToolTip();
 }
 
 void SDMMaterialEditor::OnEditorSplitterResized()
@@ -781,10 +918,16 @@ void SDMMaterialEditor::BindEditorOnlyDataUpdate(UDynamicMaterialModelBase* InMa
 		if (UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel))
 		{
 			EditorOnlyDataUpdateObject = EditorOnlyData;
+			EditorOnlyData->GetOnMaterialBuiltDelegate().AddSP(this, &SDMMaterialEditor::OnMaterialBuilt);
 			EditorOnlyData->GetOnPropertyUpdateDelegate().AddSP(this, &SDMMaterialEditor::OnPropertyUpdate);
 			EditorOnlyData->GetOnSlotListUpdateDelegate().AddSP(this, &SDMMaterialEditor::OnSlotListUpdate);
 		}
 	}
+}
+
+void SDMMaterialEditor::OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModelBase)
+{
+	PropertySelectorSlot.Invalidate();
 }
 
 void SDMMaterialEditor::OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialModelBase)

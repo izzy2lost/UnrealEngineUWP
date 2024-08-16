@@ -473,6 +473,7 @@ void SDMMaterialDesigner::OnLayoutChanged()
 
 	switch (EditorMode)
 	{
+		default:
 		case EDMMaterialEditorMode::GlobalSettings:
 			NewEditor->EditGlobalSettings();
 			break;

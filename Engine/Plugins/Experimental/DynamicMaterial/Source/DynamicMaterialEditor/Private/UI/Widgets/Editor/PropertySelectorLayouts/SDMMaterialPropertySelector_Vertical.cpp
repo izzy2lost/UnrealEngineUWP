@@ -49,9 +49,10 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_Vertical::CreateSlot_SelectButto
 					SNew(SImage)
 					.Image(FAppStyle::Get().GetBrush("FilterBar.FilterImage"))
 					.ColorAndOpacity(this, &SDMMaterialPropertySelector_Vertical::GetPropertySelectButtonChipColor, InEditMode, InMaterialProperty)
+						.DesiredSizeOverride(FVector2D(8, 17))
 				]
 				+SHorizontalBox::Slot()
-				.Padding(10.f, 6.f)
+				.Padding(5.f, 4.f)
 				.VAlign(VAlign_Center)
 				.FillWidth(1.f)
 				[

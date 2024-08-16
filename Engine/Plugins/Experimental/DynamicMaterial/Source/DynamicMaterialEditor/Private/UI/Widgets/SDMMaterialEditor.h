@@ -14,6 +14,7 @@
 class FDMPreviewMaterialManager;
 class FSlotBase;
 class FUICommandList;
+class IToolTip;
 class SDMMaterialComponentEditor;
 class SDMMaterialDesigner;
 class SDMMaterialGlobalSettingsEditor;
@@ -23,6 +24,7 @@ class SDMMaterialPropertySelector;
 class SDMMaterialSlotEditor;
 class SDMStatusBar;
 class SDMToolBar;
+class SDockTab;
 class SSplitter;
 class UDMMaterialComponent;
 class UDMMaterialSlot;
@@ -42,7 +44,8 @@ enum class EDMMaterialEditorMode : uint8
 {
 	GlobalSettings,
 	PropertyPreviews,
-	EditSlot
+	EditSlot,
+	MaterialPreview
 };
 
 class SDMMaterialEditor : public SCompoundWidget, public FSelfRegisteringEditorUndoClient
@@ -105,6 +108,14 @@ public:
 
 	virtual void ShowPropertyPreviews(bool bInForceRefresh = false);
 
+	void OpenMaterialPreviewTab();
+
+	void CloseMaterialPreviewTab();
+
+	TSharedPtr<IToolTip> GetMaterialPreviewToolTip();
+
+	void DestroyMaterialPreviewToolTip();
+
 	void Validate();
 
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnEditedSlotChanged, const TSharedRef<SDMMaterialSlotEditor>&, UDMMaterialSlot*);
@@ -143,6 +154,10 @@ protected:
 
 	TSharedRef<FUICommandList> CommandList;
 	TSharedRef<FDMPreviewMaterialManager> PreviewMaterialManager;
+	TSharedPtr<SDockTab> MaterialPreviewTab;
+	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewTabSlot;
+	TSharedPtr<IToolTip> MaterialPreviewToolTip;
+	TDMWidgetSlot<SDMMaterialPreview> MaterialPreviewToolTipSlot;
 
 	EDMMaterialEditorMode EditMode;
 	EDMMaterialPropertyType SelectedMaterialProperty;
@@ -209,6 +224,8 @@ protected:
 	void OnEditorSplitterResized();
 
 	void BindEditorOnlyDataUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
+
+	void OnMaterialBuilt(UDynamicMaterialModelBase* InMaterialModelBase);
 
 	void OnPropertyUpdate(UDynamicMaterialModelBase* InMaterialModelBase);
 

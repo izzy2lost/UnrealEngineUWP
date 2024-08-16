@@ -26,6 +26,7 @@
 #include "UI/Widgets/Editor/DMMaterialPreviewViewportClient.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
 #include "UnrealEdGlobals.h"
+#include "Widgets/SNullWidget.h"
 
 #define LOCTEXT_NAMESPACE "SDMMaterialPreview"
 
@@ -81,6 +82,7 @@ void SDMMaterialPreview::Construct(const FArguments& InArgs, const TSharedRef<SD
 	UDynamicMaterialModelBase* InMaterialModelBase)
 {
 	EditorWidgetWeak = InEditorWidget;
+	bShowMenu = InArgs._ShowMenu;
 	PreviewScene = MakeShareable(new FAdvancedPreviewScene(FPreviewScene::ConstructionValues()));
 
 	PreviewMaterial = nullptr;
@@ -139,6 +141,11 @@ void SDMMaterialPreview::Construct(const FArguments& InArgs, const TSharedRef<SD
 
 TSharedPtr<SWidget> SDMMaterialPreview::MakeViewportToolbar()
 {
+	if (!bShowMenu)
+	{
+		return SNullWidget::NullWidget;
+	}
+
 	FSlimHorizontalToolBarBuilder ToolbarBuilder(CommandList, FMultiBoxCustomization::None, {});
 
 	const FName ToolBarStyle = TEXT("EditorViewportToolBar");
@@ -469,6 +476,19 @@ TSharedRef<SWidget> SDMMaterialPreview::GenerateToolbarMenu()
 
 		FToolMenuSection& SettingsSection = Menu->AddSection(TEXT("Settings"), LOCTEXT("Settings", "Settings"));
 		SettingsSection.AddEntry(FToolMenuEntry::InitMenuEntry(MaterialEditorCommands.TogglePreviewBackground));
+
+		FToolMenuSection& ActionsSection = Menu->AddSection(TEXT("Actions"), LOCTEXT("Actions", "Actions"));
+
+		FUIAction OpenPreviewTabAction;
+		OpenPreviewTabAction.ExecuteAction.BindSP(this, &SDMMaterialPreview::OpenMaterialPreviewTab);
+
+		ActionsSection.AddEntry(FToolMenuEntry::InitMenuEntry(
+			TEXT("PopoutMaterialPreviewTab"),
+			LOCTEXT("OpenPreview", "Open Preview"),
+			LOCTEXT("OpenPreviewToolTip", "Open a tab with a preview of the material."),
+			TAttribute<FSlateIcon>(),
+			OpenPreviewTabAction
+		));		
 	}
 
 	FToolMenuContext Context;
@@ -496,6 +516,18 @@ void SDMMaterialPreview::OnEditorSettingsChanged(const FPropertyChangedEvent& In
 	{
 		SetShowPreviewBackground(Settings->bShowPreviewBackground);
 	}
+}
+
+void SDMMaterialPreview::OpenMaterialPreviewTab()
+{
+	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
+
+	if (!EditorWidget.IsValid())
+	{
+		return;
+	}
+
+	EditorWidget->OpenMaterialPreviewTab();
 }
 
 TSharedRef<FEditorViewportClient> SDMMaterialPreview::MakeEditorViewportClient()

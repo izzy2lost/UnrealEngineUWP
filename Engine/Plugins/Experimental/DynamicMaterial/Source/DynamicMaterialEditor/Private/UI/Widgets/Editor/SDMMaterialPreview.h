@@ -25,7 +25,10 @@ class SDMMaterialPreview : public SEditorViewport, public FGCObject
 {
 	SLATE_DECLARE_WIDGET(SDMMaterialPreview, SCompoundWidget)
 
-	SLATE_BEGIN_ARGS(SDMMaterialPreview) {}
+	SLATE_BEGIN_ARGS(SDMMaterialPreview)
+		: _ShowMenu(true)
+		{}
+		SLATE_ARGUMENT(bool, ShowMenu)
 	SLATE_END_ARGS()
 
 public:
@@ -44,6 +47,7 @@ public:
 
 protected:
 	TWeakPtr<SDMMaterialEditor> EditorWidgetWeak;
+	bool bShowMenu;
 
 	TSharedPtr<FDMMaterialPreviewViewportClient> EditorViewportClient;
 	TSharedPtr<FAdvancedPreviewScene> PreviewScene;
@@ -82,6 +86,8 @@ protected:
 	TSharedRef<SWidget> GenerateToolbarMenu();
 
 	void OnEditorSettingsChanged(const FPropertyChangedEvent& InPropertyChangedEvent);
+
+	void OpenMaterialPreviewTab();
 
 	//~ Begin SEditorViewport
 	virtual TSharedRef<FEditorViewportClient> MakeEditorViewportClient() override;

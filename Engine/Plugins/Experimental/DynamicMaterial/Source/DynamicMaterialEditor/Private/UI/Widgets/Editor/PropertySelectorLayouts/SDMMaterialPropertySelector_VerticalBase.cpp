@@ -2,6 +2,7 @@
 
 #include "UI/Widgets/Editor/PropertySelectorLayouts/SDMMaterialPropertySelector_VerticalBase.h"
 
+#include "Components/DMMaterialProperty.h"
 #include "DMDefs.h"
 #include "Model/DynamicMaterialModelEditorOnlyData.h"
 #include "UI/Widgets/SDMMaterialEditor.h"
@@ -34,9 +35,12 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 		return NewSlotList;
 	}
 
+	const FMargin Padding = FMargin(0.f, 1.f);
+
 	int32 Row = 0;
 
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+		.Padding(Padding)
 		[
 			CreateSlot_SelectButton(EDMMaterialEditorMode::GlobalSettings, EDMMaterialPropertyType::None)
 		];
@@ -44,15 +48,29 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 	++Row;
 
 	NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+		.Padding(Padding)
 		[
 			CreateSlot_SelectButton(EDMMaterialEditorMode::PropertyPreviews, EDMMaterialPropertyType::None)
 		];
 
 	++Row;
 
+	// Valid model properties
 	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
 	{
-		if (IsCustomMaterialProperty(PropertyPair.Key))
+		if (!PropertyPair.Value || IsCustomMaterialProperty(PropertyPair.Key))
+		{
+			continue;
+		}
+
+		// Skip invalid
+		if (!PropertyPair.Value->IsValidForModel(*EditorOnlyData))
+		{
+			continue;
+		}
+
+		// Skip inactive
+		if (!PropertyPair.Value->IsEnabled() || !EditorOnlyData->GetSlotForMaterialProperty(PropertyPair.Value->GetMaterialProperty()))
 		{
 			continue;
 		}
@@ -63,6 +81,69 @@ TSharedRef<SWidget> SDMMaterialPropertySelector_VerticalBase::CreateSlot_Propert
 			];
 
 		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+			.Padding(Padding)
+			[
+				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+			];
+
+		++Row;
+	}
+
+	// Disabled model properties
+	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
+	{
+		if (!PropertyPair.Value || IsCustomMaterialProperty(PropertyPair.Key))
+		{
+			continue;
+		}
+
+		// Skip invalid
+		if (!PropertyPair.Value->IsValidForModel(*EditorOnlyData))
+		{
+			continue;
+		}
+
+		// Skip active
+		if (PropertyPair.Value->IsEnabled() && EditorOnlyData->GetSlotForMaterialProperty(PropertyPair.Value->GetMaterialProperty()))
+		{
+			continue;
+		}
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Enable, Row)
+			[
+				CreateSlot_EnabledButton(PropertyPair.Key)
+			];
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+			.Padding(Padding)
+			[
+				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
+			];
+
+		++Row;
+	}
+
+	// Invalid model properties
+	for (const TPair<EDMMaterialPropertyType, UDMMaterialProperty*>& PropertyPair : EditorOnlyData->GetMaterialProperties())
+	{
+		if (!PropertyPair.Value || IsCustomMaterialProperty(PropertyPair.Key))
+		{
+			continue;
+		}
+
+		// Skip valid
+		if (PropertyPair.Value->IsValidForModel(*EditorOnlyData))
+		{
+			continue;
+		}
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Enable, Row)
+			[
+				CreateSlot_EnabledButton(PropertyPair.Key)
+			];
+
+		NewSlotList->AddSlot(PropertySelectorColumns::Select, Row)
+			.Padding(Padding)
 			[
 				CreateSlot_SelectButton(EDMMaterialEditorMode::EditSlot, PropertyPair.Key)
 			];
