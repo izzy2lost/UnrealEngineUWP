@@ -54,6 +54,7 @@ struct FMovieSceneSequenceHierarchy;
 struct FMovieSceneSequenceID;
 struct FPropertyChangedEvent;
 struct FQualifiedFrameTime;
+struct FMovieSceneTimeWarpVariant;
 
 namespace UE::MovieScene
 {
@@ -482,6 +483,14 @@ public:
 	 * @return The keys' data structure representation, or nullptr if key not found or no structure available.
 	 */
 	MOVIESCENE_API virtual TSharedPtr<FStructOnScope> GetKeyStruct(TArrayView<const FKeyHandle> KeyHandles);
+
+	/**
+	 * Retrieve the time warp variant for this section, if it has one
+	 */
+	virtual FMovieSceneTimeWarpVariant* GetTimeWarp()
+	{
+		return nullptr;
+	}
 
 	/**
 	 * Gets all snap times for this section

@@ -123,6 +123,7 @@ public:
 	virtual void SetRange(const TRange<FFrameNumber>& NewRange) override;
 	virtual void SetStartFrame(TRangeBound<FFrameNumber> NewStartFrame) override;
 	virtual void SetEndFrame(TRangeBound<FFrameNumber> NewEndFrame)override;
+	virtual FMovieSceneTimeWarpVariant* GetTimeWarp() override;
 
 	MOVIESCENETRACKS_API void DeleteChannels(TArrayView<const FName> ChannelNames);
 

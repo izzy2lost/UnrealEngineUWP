@@ -41,6 +41,11 @@ EMovieSceneChannelProxyType UMovieSceneTimeWarpSection::CacheChannelProxy()
 	return EMovieSceneChannelProxyType::Dynamic;
 }
 
+FMovieSceneTimeWarpVariant* UMovieSceneTimeWarpSection::GetTimeWarp()
+{
+	return &TimeWarp;
+}
+
 #if WITH_EDITOR
 
 bool UMovieSceneTimeWarpSection::Modify(bool bAlwaysMarkDirty)

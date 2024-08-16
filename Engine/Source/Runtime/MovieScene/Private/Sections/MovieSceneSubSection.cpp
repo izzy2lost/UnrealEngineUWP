@@ -299,6 +299,11 @@ UMovieSceneSequence* UMovieSceneSubSection::GetSequence() const
 	return SubSequence;
 }
 
+FMovieSceneTimeWarpVariant* UMovieSceneSubSection::GetTimeWarp()
+{
+	return &Parameters.TimeScale;
+}
+
 #if WITH_EDITOR
 void UMovieSceneSubSection::PreEditChange(FProperty* PropertyAboutToChange)
 {

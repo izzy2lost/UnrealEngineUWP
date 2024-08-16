@@ -481,6 +481,11 @@ void UMovieSceneSkeletalAnimationSection::SetEndFrame(TRangeBound<FFrameNumber> 
 	}
 }
 
+FMovieSceneTimeWarpVariant* UMovieSceneSkeletalAnimationSection::GetTimeWarp()
+{
+	return &Params.PlayRate;
+}
+
 void UMovieSceneSkeletalAnimationSection::ImportEntityImpl(UMovieSceneEntitySystemLinker* EntityLinker, const FEntityImportParams& InParams, FImportedEntity* OutImportedEntity)
 {
 	using namespace UE::MovieScene;

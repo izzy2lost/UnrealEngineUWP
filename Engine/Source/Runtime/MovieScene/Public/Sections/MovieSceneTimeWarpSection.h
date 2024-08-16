@@ -34,4 +34,5 @@ private:
 	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
 #endif
 	virtual EMovieSceneChannelProxyType CacheChannelProxy() override;
+	virtual FMovieSceneTimeWarpVariant* GetTimeWarp() override;
 };
