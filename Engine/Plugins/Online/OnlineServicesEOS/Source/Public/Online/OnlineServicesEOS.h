@@ -22,7 +22,7 @@ class ONLINESERVICESEOS_API FOnlineServicesEOS : public FOnlineServicesEOSGS
 public:
 	using Super = FOnlineServicesEOSGS;
 
-	FOnlineServicesEOS(FName InInstanceName);
+	FOnlineServicesEOS(FName InInstanceName, FName InInstanceConfigName);
 	virtual ~FOnlineServicesEOS() = default;
 
 	virtual void RegisterComponents() override;
