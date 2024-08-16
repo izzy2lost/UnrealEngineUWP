@@ -750,7 +750,7 @@ namespace Gauntlet
 			catch (Exception e)
 			{
 				Log.SuspendECErrorParsing();
-				Log.Info(String.Format("CallRpc failed with following exception: {0}", e.Message));
+				Log.Info($"CallRpc failed with the following exception: {e}");
 				Log.ResumeECErrorParsing();
 				return null;
 			}
