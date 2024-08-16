@@ -264,9 +264,11 @@ void ScreenSpaceRayTraceLightSamplesCS(
 
 		const float RayT = sqrt(ComputeRayHitSqrDistance(TranslatedWorldPosition, HitUVz));
 
-		if (bHit)
+		const bool bCompleted = bHit || (RayT >= LightSampleTrace.Distance * 0.999f);
+
+		if (bCompleted)
 		{
-			LightSample.bVisible = false;
+			LightSample.bVisible = !bHit;
 			LightSample.bCompleted = true;
 			RWLightSamples[SampleCoord] = PackLightSample(LightSample);
 		}
@@ -286,8 +288,8 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			float3 RayEnd = TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
-			AddLineTWS(Context, RayStart, RayEnd, RayColor, 1.0f);
-			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
+			AddLineTWS(Context, RayStart, RayEnd, RayColor, RayColor);
+			AddCrossTWS(Context, RayEnd, 2.0f, bCompleted ? RayColor : ColorRed);
 		}
 		#endif
 	}
