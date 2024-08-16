@@ -212,6 +212,7 @@ public:
 		SHADER_PARAMETER(uint32, NumGridCells)
 		SHADER_PARAMETER(uint32, MaxCulledLightsPerCell)
 		SHADER_PARAMETER(uint32, LightGridPixelSizeShift)
+		SHADER_PARAMETER(uint32, MegaLightsSupportedStartIndex)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -251,6 +252,7 @@ public:
 		SHADER_PARAMETER(uint32, NumReflectionCaptures)
 		SHADER_PARAMETER(uint32, NumLocalLights)
 		SHADER_PARAMETER(uint32, NumGridCells)
+		SHADER_PARAMETER(uint32, MegaLightsSupportedStartIndex)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
@@ -895,6 +897,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 			PassParameters->MaxCulledLightsPerCell  = GMaxCulledLightsPerCell;
 			PassParameters->NumGridCells            = ForwardLightData->NumGridCells;
 			PassParameters->LightGridPixelSizeShift = ForwardLightData->LightGridPixelSizeShift;
+			PassParameters->MegaLightsSupportedStartIndex = ForwardLightData->MegaLightsSupportedStartIndex;
 
 #if ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA
 			check(ViewSpacePosAndRadiusData.Num() == ForwardLocalLightData.Num());
@@ -935,6 +938,7 @@ FComputeLightGridOutput FSceneRenderer::ComputeLightGrid(FRDGBuilder& GraphBuild
 					PassParametersCompact->NumReflectionCaptures = ForwardLightData->NumReflectionCaptures;
 					PassParametersCompact->NumLocalLights = ForwardLightData->NumLocalLights;
 					PassParametersCompact->NumGridCells = ForwardLightData->NumGridCells;
+					PassParametersCompact->MegaLightsSupportedStartIndex = ForwardLightData->MegaLightsSupportedStartIndex;
 
 					Result.CompactLinksPass = FComputeShaderUtils::AddPass(GraphBuilder, RDG_EVENT_NAME("CompactLinks"), ComputeShaderCompact, PassParametersCompact, NumGroups);
 				}

@@ -852,13 +852,14 @@ void LightScatteringCS(
 
 		// Forward lighting of unshadowed point and spot lights
 		LOOP
-		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGridHeader.NumLights; GridLightListIndex++)
+		for (uint GridLightListIndex = 0; GridLightListIndex < CulledLightsGridHeader.NumLights - CulledLightsGridHeader.NumMegaLights; GridLightListIndex++)
 		{
 			const FLocalLightData LocalLight = GetLocalLightData(CulledLightsGridHeader.DataStartIndex + GridLightListIndex, 0);
+			checkSlow(!LocalLight.bMegaLightsSupported);
 
 			const float VolumetricScatteringIntensity = UnpackVolumetricScatteringIntensity(LocalLight);
 
-			if (!LocalLight.bMegaLightsSupported && VolumetricScatteringIntensity > 0)
+			if (VolumetricScatteringIntensity > 0)
 			{
 				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLight);
 

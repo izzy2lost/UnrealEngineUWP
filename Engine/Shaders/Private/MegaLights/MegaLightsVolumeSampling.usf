@@ -120,48 +120,46 @@ void VolumeGenerateLightSamplesCS(
 			float WeightSum = 0.0f;
 
 			LOOP
-			for (uint GridLightIndex = 0; GridLightIndex < CulledLightsGridHeader.NumLights; ++GridLightIndex)
+			for (uint GridLightIndex = 0; GridLightIndex < CulledLightsGridHeader.NumMegaLights; ++GridLightIndex)
 			{
-				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.DataStartIndex + GridLightIndex);
+				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightsGridHeader.MegaLightsDataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
 				const FDeferredLightData LightData = ConvertToDeferredLight(LocalLightData);
+
+				checkSlow(LocalLightData.bMegaLightsSupported);
 		
 				float3 LightScattering = GetMegaLightsVolumeLighting(TranslatedWorldPosition, CameraVector, DistanceBiasSqr, LocalLightData, LightData) * View.PreExposure;
 				float SampleWeight = log2(Luminance(LightScattering) + 1.0f);
-
-				// #ml_todo: don't loop through non !MegaLights
-				if (LocalLightData.bMegaLightsSupported)
+				
+				#if DEBUG_MODE
+				if (Debug.bActive)
 				{
-					#if DEBUG_MODE
-					if (Debug.bActive)
-					{
-						Newline(Debug.Context);
-						Print(Debug.Context, LocalLightIndex);
-						Print(Debug.Context, SampleWeight);
-					}
-					#endif
+					Newline(Debug.Context);
+					Print(Debug.Context, LocalLightIndex);
+					Print(Debug.Context, SampleWeight);
+				}
+				#endif
 
-					if (SampleWeight > VolumeMinSampleWeight)
-					{
-						float Tau = WeightSum / (WeightSum + SampleWeight);
-						WeightSum += SampleWeight;
+				if (SampleWeight > VolumeMinSampleWeight)
+				{
+					float Tau = WeightSum / (WeightSum + SampleWeight);
+					WeightSum += SampleWeight;
 
-						for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
+					for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
+					{
+						if (LightIndexRandom[LightSampleIndex] < Tau)
 						{
-							if (LightIndexRandom[LightSampleIndex] < Tau)
-							{
-								LightIndexRandom[LightSampleIndex] /= Tau;
-							}
-							else
-							{
-								// Select this sample
-								LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
-								LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
-								LightSamples[LightSampleIndex].Weight = SampleWeight;
-							}
-
-							LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
+							LightIndexRandom[LightSampleIndex] /= Tau;
 						}
+						else
+						{
+							// Select this sample
+							LightIndexRandom[LightSampleIndex] = (LightIndexRandom[LightSampleIndex] - Tau) / (1.0f - Tau);
+							LightSamples[LightSampleIndex].LocalLightIndex = LocalLightIndex;
+							LightSamples[LightSampleIndex].Weight = SampleWeight;
+						}
+
+						LightIndexRandom[LightSampleIndex] = clamp(LightIndexRandom[LightSampleIndex], 0, 0.9999f);
 					}
 				}
 			}

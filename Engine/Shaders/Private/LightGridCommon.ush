@@ -129,7 +129,9 @@ uint GetMaxLightsPerCell(uint EyeIndex)
 struct FCulledLightsGridHeader
 {
 	uint NumLights;
+	uint NumMegaLights;
 	uint DataStartIndex;
+	uint MegaLightsDataStartIndex;
 };
 
 FCulledLightsGridHeader GetCulledLightsGridHeader(uint GridIndex, uint EyeIndex)
@@ -142,15 +144,21 @@ FCulledLightsGridHeader GetCulledLightsGridHeader(uint GridIndex, uint EyeIndex)
 	{
 #endif
 
-		Result.NumLights = min(ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightData.NumLocalLights);
+		const uint PackedNums = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+		Result.NumLights = min(PackedNums & 0xFFFF, ForwardLightData.NumLocalLights);
+		Result.NumMegaLights = min((PackedNums >> 16) & 0xFFFF, ForwardLightData.NumLocalLights);
 		Result.DataStartIndex = ForwardLightData.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		Result.MegaLightsDataStartIndex = Result.DataStartIndex + Result.NumLights - Result.NumMegaLights;
 
 #if (INSTANCED_STEREO || MOBILE_MULTI_VIEW)
 	}
 	else
 	{
-		Result.NumLights = min(ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0], ForwardLightDataISR.NumLocalLights);
+		const uint PackedNums = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 0];
+		Result.NumLights = min(PackedNums & 0xFFFF, ForwardLightDataISR.NumLocalLights);
+		Result.NumMegaLights = min((PackedNums >> 16) & 0xFFFF, ForwardLightDataISR.NumLocalLights);
 		Result.DataStartIndex = ForwardLightDataISR.NumCulledLightsGrid[GridIndex * NUM_CULLED_LIGHTS_GRID_STRIDE + 1];
+		Result.MegaLightsDataStartIndex = Result.DataStartIndex + Result.NumLights - Result.NumMegaLights;
 	}
 #endif
 

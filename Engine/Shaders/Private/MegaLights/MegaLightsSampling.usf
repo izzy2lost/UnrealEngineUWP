@@ -142,14 +142,15 @@ void GenerateLightSamplesCS(
 			const uint EyeIndex = 0;
 			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
 			const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
-			const uint NumLightsInGridCell = min(CulledLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
+			const uint NumLightsInGridCell = min(CulledLightGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 
 			for (uint GridLightIndex = 0; GridLightIndex < NumLightsInGridCell; ++GridLightIndex)
 			{
-				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridHeader.DataStartIndex + GridLightIndex);
+				const uint LocalLightIndex = GetCulledLightDataGrid(CulledLightGridHeader.MegaLightsDataStartIndex + GridLightIndex);
 				const FLocalLightData LocalLightData = GetLocalLightDataNonStereo(LocalLightIndex);
+				checkSlow(LocalLightData.bMegaLightsSupported);
 
-				if (LocalLightData.bMegaLightsSupported && LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
+				if (LocalLightIndex < MAX_LOCAL_LIGHT_INDEX)
 				{
 					uint DWORDIndex = LocalLightIndex / 32;
 					uint BitMask = 1u << (LocalLightIndex % 32);
