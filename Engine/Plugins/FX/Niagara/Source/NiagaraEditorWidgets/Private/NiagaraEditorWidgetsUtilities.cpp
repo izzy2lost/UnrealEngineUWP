@@ -11,6 +11,7 @@
 #include "NiagaraEditorCommon.h"
 #include "NiagaraClipboard.h"
 #include "NiagaraEditorModule.h"
+#include "NiagaraEditorUtilities.h"
 #include "NiagaraNodeFunctionCall.h"
 
 #include "Framework/Application/SlateApplication.h"

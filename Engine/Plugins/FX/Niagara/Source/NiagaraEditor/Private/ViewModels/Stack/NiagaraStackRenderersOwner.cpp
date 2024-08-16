@@ -6,6 +6,7 @@
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorStyle.h"
 #include "NiagaraEmitter.h"
+#include "NiagaraEmitterHandle.h"
 #include "NiagaraRendererProperties.h"
 #include "NiagaraScriptMergeManager.h"
 #include "Stateless/NiagaraStatelessEmitter.h"

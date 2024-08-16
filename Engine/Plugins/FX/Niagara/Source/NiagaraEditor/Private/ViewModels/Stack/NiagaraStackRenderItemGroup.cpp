@@ -13,6 +13,7 @@
 #include "NiagaraClipboard.h"
 #include "NiagaraEditorModule.h"
 #include "NiagaraEditorSettings.h"
+#include "NiagaraStackEditorData.h"
 
 #include "ScopedTransaction.h"
 #include "Widgets/Notifications/SNotificationList.h"
