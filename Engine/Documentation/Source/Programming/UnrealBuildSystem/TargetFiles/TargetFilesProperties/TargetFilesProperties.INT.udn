@@ -168,6 +168,8 @@ $ bUseAutoRTFMCompiler (Boolean): Whether to use the AutoRTFM Clang compiler.
 
 $ bForceNoAutoRTFMCompiler (Boolean): Whether to use force AutoRTFM Clang compiler off.
 
+$ bUseAutoRTFMVerifier (Boolean): Whether to enable emitting AutoRTFM verification metadata
+
 $ bCompileChaos (Boolean): Whether to compile the Chaos physics plugin.
 
 $ bUseChaos (Boolean): Whether to use the Chaos physics interface. This overrides the physx flags to disable APEX and NvCloth

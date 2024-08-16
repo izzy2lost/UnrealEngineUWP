@@ -66,6 +66,8 @@ $ bUseVerseBPVM : Whether to use the BPVM to run Verse.
 
 $ bForceNoAutoRTFMCompiler : Whether to use force AutoRTFM Clang compiler off.
 
+$ bUseAutoRTFMVerifier : Whether to enable emitting AutoRTFM verification metadata
+
 $ bUseInlining : Enable inlining for all modules.
 
 $ bUseDebugLiveCodingConsole : Whether to enable support for live coding
