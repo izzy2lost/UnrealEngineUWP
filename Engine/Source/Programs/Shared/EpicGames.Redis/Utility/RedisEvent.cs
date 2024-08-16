@@ -8,9 +8,9 @@ using StackExchange.Redis;
 namespace EpicGames.Redis
 {
 	/// <summary>
-	/// Asynchronous version of <see cref="AsyncEvent"/>. The event will be pulsed via a pub/sub channel in Redis.
+	/// Distributed version of <see cref="AsyncEvent"/>. The event will be pulsed via a pub/sub channel in Redis.
 	/// </summary>
-	public class RedisAsyncEvent : IAsyncDisposable
+	public sealed class RedisEvent : IAsyncDisposable
 	{
 		readonly IConnectionMultiplexer _multiplexer;
 		readonly RedisChannel _channel;
@@ -22,7 +22,7 @@ namespace EpicGames.Redis
 		/// </summary>
 		public Task Task => _asyncEvent.Task;
 
-		RedisAsyncEvent(IConnectionMultiplexer multiplexer, RedisChannel channel, AsyncEvent asyncEvent, RedisSubscription subscription)
+		RedisEvent(IConnectionMultiplexer multiplexer, RedisChannel channel, AsyncEvent asyncEvent, RedisSubscription subscription)
 		{
 			_multiplexer = multiplexer;
 			_channel = channel;
@@ -40,11 +40,11 @@ namespace EpicGames.Redis
 		/// <param name="multiplexer">Multiplexer for the </param>
 		/// <param name="channel"></param>
 		/// <returns></returns>
-		public static async Task<RedisAsyncEvent> CreateAsync(IConnectionMultiplexer multiplexer, RedisChannel channel)
+		public static async Task<RedisEvent> CreateAsync(IConnectionMultiplexer multiplexer, RedisChannel channel)
 		{
 			AsyncEvent asyncEvent = new AsyncEvent();
 			RedisSubscription subscription = await multiplexer.SubscribeAsync(channel, x => asyncEvent.Pulse());
-			return new RedisAsyncEvent(multiplexer, channel, asyncEvent, subscription);
+			return new RedisEvent(multiplexer, channel, asyncEvent, subscription);
 		}
 
 		/// <summary>

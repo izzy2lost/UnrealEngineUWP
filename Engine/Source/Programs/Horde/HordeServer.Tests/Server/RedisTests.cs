@@ -4,6 +4,7 @@ using System;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using EpicGames.Redis;
+using EpicGames.Redis.Utility;
 using HordeServer.Server;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using StackExchange.Redis;
@@ -45,13 +46,45 @@ namespace HordeServer.Tests.Server
 		{
 			IRedisService redisService = GetRedisServiceSingleton();
 
-			await using RedisAsyncEvent asyncEvent = await RedisAsyncEvent.CreateAsync(redisService.GetConnection(), RedisChannel.Literal("hello-world"));
+			await using RedisEvent asyncEvent = await RedisEvent.CreateAsync(redisService.GetConnection(), RedisChannel.Literal("hello-world"));
 
 			Task task = asyncEvent.Task;
 			Assert.IsFalse(task.IsCompleted);
 
 			asyncEvent.Pulse();
 			await task;
+		}
+
+		[TestMethod]
+		public async Task QueueTestAsync()
+		{
+			IRedisService redisService = GetRedisServiceSingleton();
+
+			await using RedisQueue<int> queue = await RedisQueue.CreateAsync<int>(redisService.GetConnection(), "queue", RedisChannel.Literal("queue-events"));
+			await queue.PushAsync(1);
+			await queue.PushAsync(2);
+			await queue.PushAsync(3);
+
+			int value = await queue.TryPopAsync();
+			Assert.AreEqual(1, value);
+
+			value = await queue.TryPopAsync();
+			Assert.AreEqual(2, value);
+
+			value = await queue.TryPopAsync();
+			Assert.AreEqual(3, value);
+
+			value = await queue.TryPopAsync();
+			Assert.AreEqual(0, value);
+
+			Task task = queue.WaitForDataAsync();
+			Assert.IsFalse(task.IsCompleted);
+
+			await queue.PushAsync(4);
+			await task.WaitAsync(TimeSpan.FromSeconds(5.0));
+
+			value = await queue.TryPopAsync();
+			Assert.AreEqual(4, value);
 		}
 	}
 }
