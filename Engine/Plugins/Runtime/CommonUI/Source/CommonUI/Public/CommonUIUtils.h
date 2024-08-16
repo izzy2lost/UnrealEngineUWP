@@ -81,13 +81,13 @@ namespace CommonUIUtils
 	 *	}
 	 *
 	 */
+	COMMONUI_API void ValidateBoundWidgetHierarchy(const UWidgetTree& WidgetTree, IWidgetCompilerLog& CompileLog, ECollisionPolicy CollisionPolicy, FName ParentWidgetName, TArray<FName>&& ChildNames);
+
 	template <typename... ChildNameArgs>
 	void ValidateBoundWidgetHierarchy(const UWidgetTree& WidgetTree, IWidgetCompilerLog& CompileLog, ECollisionPolicy CollisionPolicy, FName ParentWidgetName, ChildNameArgs&&... ChildNames)
 	{
 		ValidateBoundWidgetHierarchy(WidgetTree, CompileLog, CollisionPolicy, ParentWidgetName, TArray<FName>{ChildNames...});
 	}
-
-	COMMONUI_API void ValidateBoundWidgetHierarchy(const UWidgetTree& WidgetTree, IWidgetCompilerLog& CompileLog, ECollisionPolicy CollisionPolicy, FName ParentWidgetName, TArray<FName>&& ChildNames);
 #endif
 };
 
