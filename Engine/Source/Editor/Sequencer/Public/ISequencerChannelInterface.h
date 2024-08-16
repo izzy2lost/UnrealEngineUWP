@@ -31,6 +31,7 @@ class FTrackInstancePropertyBindings;
 namespace UE::Sequencer
 {
 	class FChannelModel;
+	class FSectionModel;
 	class STrackAreaLaneView;
 	struct FCreateTrackLaneViewParams;
 
@@ -219,10 +220,11 @@ struct ISequencerChannelInterface
 	 * Create a new channel model for this type of channel
 	 *
 	 * @param InChannelHandle    The channel handle to create a model for
+	 * @param InSectionModel     The section that owns this channel model
 	 * @param InChannelName      The identifying name of this channel
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName) const = 0;
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName) const = 0;
 
 	/**
 	 * Create a new channel view for this type of channel

@@ -275,13 +275,14 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 	 * Create a new channel model for this type of channel
 	 *
 	 * @param InChannelHandle    The channel handle to create a model for
+	 * @param InSectionModel     The section that owns this channel model
 	 * @param InChannelName      The identifying name of this channel
 	 * @return (Optional) A new model to be added to a curve editor
 	 */
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName) const override
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName) const override
 	{
 		using namespace Sequencer;
-		return CreateChannelModel(InChannelHandle.Cast<ChannelType>(), InChannelName);
+		return CreateChannelModel(InChannelHandle.Cast<ChannelType>(), InSection, InChannelName);
 	}
 
 	/**

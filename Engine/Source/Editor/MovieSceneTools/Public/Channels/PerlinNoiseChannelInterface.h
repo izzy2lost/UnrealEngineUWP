@@ -195,7 +195,7 @@ struct TPerlinNoiseChannelInterface : ISequencerChannelInterface
 		return LayerId + 1;
 	}
 
-	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName) const override
+	virtual TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel_Raw(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName) const override
 	{
 		return nullptr;
 	}

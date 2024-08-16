@@ -114,7 +114,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 
 	ISequencerModule* SequencerModule = &FModuleManager::LoadModuleChecked<ISequencerModule>("Sequencer");
 
-	auto ChannelFactory = [this, SequencerModule](FName InChannelName, const FMovieSceneChannelHandle& InChannel)
+	auto ChannelFactory = [this, SequencerModule](FName InChannelName, const FSectionModel& InSection, const FMovieSceneChannelHandle& InChannel)
 	{
 		TSharedPtr<FChannelModel> ChannelModel = this->ConstructChannelModel(InChannelName, InChannel);
 		if (!ChannelModel)
@@ -122,7 +122,7 @@ void ISequencerSection::GenerateSectionLayout( ISectionLayoutBuilder& LayoutBuil
 			ISequencerChannelInterface* EditorInterface = SequencerModule->FindChannelEditorInterface(InChannel.GetChannelTypeName());
 			if (EditorInterface)
 			{
-				ChannelModel = EditorInterface->CreateChannelModel_Raw(InChannel, InChannelName);
+				ChannelModel = EditorInterface->CreateChannelModel_Raw(InChannel, InSection, InChannelName);
 			}
 		}
 

@@ -429,10 +429,11 @@ namespace Sequencer
 	 * Create a new channel model for this type of channel
 	 *
 	 * @param InChannelHandle    The channel handle to create a model for
+	 * @param InSectionModel     The section that owns this channel model
 	 * @param InChannelName      The identifying name of this channel
 	 * @return (Optional) A new model to be used as part of the Sequencer MVVM framework
 	 */
-	inline TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel(const FMovieSceneChannelHandle& InChannelHandle, FName InChannelName)
+	inline TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel(const FMovieSceneChannelHandle& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName)
 	{
 		return nullptr;
 	}
