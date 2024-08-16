@@ -204,25 +204,27 @@ void UMeshPaintMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime
 
 	// Make sure that correct tab is visible for the current tool
 	// Note that currently Color and Weight mode share the same Select tool
-	FString ActiveTool = GetToolManager()->GetActiveToolName(EToolSide::Mouse);
+	UInteractiveTool const* ActiveTool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
+	const FString ActiveToolName = GetToolManager()->GetActiveToolName(EToolSide::Mouse);
+
 	FName ActiveTab = Toolkit->GetCurrentPalette();
 	FName TargetTab = ActiveTab;
-	if (ActiveTool == VertexColorPaintToolName)
+	if (ActiveToolName == VertexColorPaintToolName)
 	{
 		TargetTab = MeshPaintMode_VertexColor;
 		CurrentActiveMode = EMeshPaintActiveMode::VertexColor;
 	}
-	else if (ActiveTool == VertexWeightPaintToolName)
+	else if (ActiveToolName == VertexWeightPaintToolName)
 	{
 		TargetTab = MeshPaintMode_VertexWeights;
 		CurrentActiveMode = EMeshPaintActiveMode::VertexWeights;
 	}
-	else if (ActiveTool == TextureColorPaintToolName)
+	else if (ActiveToolName == TextureColorPaintToolName || ActiveToolName == TextureColorSelectToolName)
 	{
 		TargetTab = MeshPaintMode_TextureColor;
 		CurrentActiveMode = EMeshPaintActiveMode::TextureColor;
 	}
-	else if (ActiveTool == TextureAssetPaintToolName)
+	else if (ActiveToolName == TextureAssetPaintToolName || ActiveToolName == TextureAssetSelectToolName)
 	{
 		TargetTab = MeshPaintMode_TextureAsset;
 		CurrentActiveMode = EMeshPaintActiveMode::Texture;
@@ -237,7 +239,7 @@ void UMeshPaintMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime
 		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->SetRealtimeViewport(true);
 
 		// Set viewport show flags
-		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->SetViewportColorMode(CurrentActiveMode, ModeSettings->ColorViewMode, ViewportClient);
+		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->SetViewportColorMode(CurrentActiveMode, ModeSettings->ColorViewMode, ViewportClient, ActiveTool);
 	}
 }
 
@@ -1003,7 +1005,7 @@ void UMeshPaintMode::OnResetViewMode()
 			continue;
 		}
 
-		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->SetViewportColorMode(EMeshPaintActiveMode::VertexColor, EMeshPaintDataColorViewMode::Normal, ViewportClient);
+		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->SetViewportColorMode(EMeshPaintActiveMode::VertexColor, EMeshPaintDataColorViewMode::Normal, ViewportClient, nullptr);
 	}
 }
 

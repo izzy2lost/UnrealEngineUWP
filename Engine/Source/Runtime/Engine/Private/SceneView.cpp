@@ -400,6 +400,11 @@ bool ShouldProxyUseVertexColorVisualization(FName OwnerName) { return false; }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** Global mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
+static EMeshPaintVisualizeMode::Type GMeshPaintVisualizeMode = EMeshPaintVisualizeMode::VertexColor;
+void SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::Type VisualizeMode)
+{
+	GMeshPaintVisualizeMode = VisualizeMode;
+}
 static EVertexColorViewMode::Type GMeshPaintVisualizeChannels = EVertexColorViewMode::Color;
 void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type VisualizeChannels)
 {
@@ -419,82 +424,64 @@ void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index)
 FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected, bool bIsHovered)
 {
 	UMaterial* VertexColorVisualizationMaterial = nullptr;
+	FLinearColor MaterialColor = FLinearColor::White;
+
 	switch (GMeshPaintVisualizeChannels)
 	{
 	case EVertexColorViewMode::Color:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
+		MaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
 		break;
-
 	case EVertexColorViewMode::Alpha:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_AlphaAsColor;
+		MaterialColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		break;
-
 	case EVertexColorViewMode::Red:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_RedOnly;
+		MaterialColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
 		break;
-
 	case EVertexColorViewMode::Green:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_GreenOnly;
+		MaterialColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
 		break;
-
 	case EVertexColorViewMode::Blue:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_BlueOnly;
+		MaterialColor = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
 		break;
-	default:
-		return nullptr;
 	}
 
-	FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = nullptr;
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::VertexColor && VertexColorVisualizationMaterial != nullptr)
+	{
+		return new FColoredMaterialRenderProxy(
+			VertexColorVisualizationMaterial->GetRenderProxy(),
+			GetSelectionColor(FLinearColor::White, bIsSelected, bIsHovered));
+	}
+
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::TextureColor)
+	{
+ 		return new FColoredMaterialRenderProxy(
+ 			GEngine->TextureColorViewModeMaterial->GetRenderProxy(),
+ 			MaterialColor);
+	}
 
 #if WITH_EDITORONLY_DATA
-	if (GMeshPaintVisualizeTexture.IsValid())
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::TextureAsset && GMeshPaintVisualizeTexture.IsValid())
 	{
-		FLinearColor MaterialColor = FLinearColor::White;
-
-		switch (GMeshPaintVisualizeChannels)
-		{
-		case EVertexColorViewMode::Color:
-			MaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
-			break;
-
-		case EVertexColorViewMode::Alpha:
-			MaterialColor = FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
-			break;
-
-		case EVertexColorViewMode::Red:
-			MaterialColor = FLinearColor(1.0f, 0.0f, 0.0f, 0.0f);
-			break;
-
-		case EVertexColorViewMode::Green:
-			MaterialColor = FLinearColor(0.0f, 1.0f, 0.0f, 0.0f);
-			break;
-
-		case EVertexColorViewMode::Blue:
-			MaterialColor = FLinearColor(0.0f, 0.0f, 1.0f, 0.0f);
-			break;
-		}
-		
-		FColoredTexturedMaterialRenderProxy* NewVertexColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
+		FColoredTexturedMaterialRenderProxy* TextureColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
 			GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),
 			MaterialColor,
 			NAME_Color,
 			GMeshPaintVisualizeTexture.Get(),
 			NAME_LinearColor);
 
-		NewVertexColorVisualizationMaterialInstance->UVChannel = GMeshPaintVisualizeUVChannel;
-		NewVertexColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
+		TextureColorVisualizationMaterialInstance->UVChannel = (float)GMeshPaintVisualizeUVChannel;
+		TextureColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
 
-		VertexColorVisualizationMaterialInstance = NewVertexColorVisualizationMaterialInstance;
+		return TextureColorVisualizationMaterialInstance;
 	}
-	else
 #endif
-	{
-		VertexColorVisualizationMaterialInstance = new FColoredMaterialRenderProxy(
-			VertexColorVisualizationMaterial->GetRenderProxy(),
-			GetSelectionColor(FLinearColor::White, bIsSelected, bIsHovered));
-	}
-	
-	return VertexColorVisualizationMaterialInstance;
+
+	return nullptr;
 }
 
 /** Global primitive uniform buffer resource containing identity transformations. */

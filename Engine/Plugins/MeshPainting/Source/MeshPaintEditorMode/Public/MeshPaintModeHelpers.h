@@ -20,6 +20,7 @@ class UViewportInteractor;
 class FViewport;
 class FPrimitiveDrawInterface;
 class FSceneView;
+class UInteractiveTool;
 
 struct FStaticMeshComponentLODInfo;
 struct FPerComponentVertexColorData;
@@ -39,7 +40,7 @@ class MESHPAINTEDITORMODE_API UMeshPaintModeSubsystem : public UEditorSubsystem
 {
 public:
 	/** Forces the Viewport Client to render using the given Viewport Color ViewMode */
-	void SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient);
+	void SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient, UInteractiveTool const* ActiveTool);
 
 	/** Sets whether or not the level viewport should be real time rendered move or viewport as parameter? */
 	void SetRealtimeViewport(bool bRealtime);

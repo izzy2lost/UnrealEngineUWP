@@ -274,10 +274,10 @@ public:
 
 public:
 	bool bNeedsRecache;
-	UPROPERTY(Transient)
-	TWeakObjectPtr<UTexture> OverridePaintTexture;
 
-	const UMeshComponent* LastPaintedComponent = nullptr;
+	UPROPERTY(Transient)
+	TObjectPtr<UMeshComponent> LastPaintedComponent;
+
 protected:
 	bool bSelectionHasMaterialValidForTexturePaint;
 

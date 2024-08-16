@@ -361,15 +361,6 @@ void UMeshTexturePaintingTool::OnTick(float DeltaTime)
 			// if any overrides are necessary, they will re-register later
 			ClearAllTextureOverrides();
 		}
-		
-		if (PaintingTexture2D)
-		{
-			FPaintTexture2DData* TextureData = GetPaintTargetData(PaintingTexture2D);
-			if (TextureData && TextureData->PaintRenderTargetTexture)
-			{
-				MeshPaintingSubsystem->OverridePaintTexture = TextureData->PaintRenderTargetTexture;
-			}
-		}
 	}
 
 	if (bStampPending)
@@ -1878,5 +1869,18 @@ void UMeshTextureAssetPaintingTool::CacheTexturePaintData()
 	}
 }
 
-#undef LOCTEXT_NAMESPACE
+UTexture* UMeshTextureAssetPaintingTool::GetSelectedPaintTextureWithOverride() const
+{
+	UTexture* SelectedTexture = AssetProperties->PaintTexture;
+	if (AssetProperties->PaintTexture != nullptr)
+	{
+		FPaintTexture2DData const* TextureData = PaintTargetData.Find(AssetProperties->PaintTexture);
+		if (TextureData != nullptr && TextureData->PaintRenderTargetTexture)
+		{
+			SelectedTexture = TextureData->PaintRenderTargetTexture;
+		}
+	}
+	return SelectedTexture;
+}
 
+#undef LOCTEXT_NAMESPACE

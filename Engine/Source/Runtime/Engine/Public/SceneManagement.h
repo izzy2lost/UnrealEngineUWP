@@ -2770,7 +2770,19 @@ extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
 UE_DEPRECATED(5.5, "We no longer use names to enable visualization.")
 extern bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
 
+/** Mesh painting visualization modes. */
+namespace EMeshPaintVisualizeMode
+{
+	enum Type
+	{
+		VertexColor,
+		TextureColor,
+		TextureAsset,
+	};
+}
+
 /** Interface to set mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
+extern ENGINE_API void SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::Type VisualizeMode);
 extern ENGINE_API void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type VisualizeChannels);
 extern ENGINE_API void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture);
 extern ENGINE_API void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index);

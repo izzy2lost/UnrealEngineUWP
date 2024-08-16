@@ -48,7 +48,7 @@
 #include "VT/MeshPaintVirtualTexture.h"
 
 
-void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient)
+void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMode, EMeshPaintDataColorViewMode ColorViewMode, FEditorViewportClient* ViewportClient, UInteractiveTool const* ActiveTool)
 {
 	if (ViewportClient->IsPerspective())
 	{
@@ -70,6 +70,7 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::VertexColor);
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
 			}
@@ -82,56 +83,49 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				ViewportClient->EngineShowFlags.SetPostProcessing(false);
 				ViewportClient->EngineShowFlags.SetHMDDistortion(false);
 
+				switch (ActiveMode)
+				{
+				case EMeshPaintActiveMode::VertexColor:
+				case EMeshPaintActiveMode::VertexWeights:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::VertexColor);
+					break;
+				case EMeshPaintActiveMode::TextureColor:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::TextureColor);
+					break;
+				case EMeshPaintActiveMode::Texture:
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::TextureAsset);
+					break;
+				}
+
 				switch (ColorViewMode)
 				{
 				case EMeshPaintDataColorViewMode::RGB:
-				{
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
-				}
-				break;
-
+					break;
 				case EMeshPaintDataColorViewMode::Alpha:
-				{
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Alpha);
-				}
-				break;
-
+					break;
 				case EMeshPaintDataColorViewMode::Red:
-				{
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Red);
-				}
-				break;
-
+					break;
 				case EMeshPaintDataColorViewMode::Green:
-				{
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Green);
-				}
-				break;
-
+					break;
 				case EMeshPaintDataColorViewMode::Blue:
-				{
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Blue);
+					break;
 				}
-				break;
-				}
+
 				UTexture* SelectedTexture = nullptr;
 				int32 UVChannel = 0;
+
 				if (ActiveMode == EMeshPaintActiveMode::Texture)
 				{
-					UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
-					UMeshTextureAssetPaintingToolProperties* Settings = UMeshPaintMode::GetTextureAssetToolProperties();
-					if (MeshPaintingSubsystem && MeshPaintingSubsystem->OverridePaintTexture.IsValid())
+					UMeshTextureAssetPaintingTool const* TextureTool = Cast<UMeshTextureAssetPaintingTool>(ActiveTool);
+					if (TextureTool != nullptr)
 					{
-						SelectedTexture = MeshPaintingSubsystem->OverridePaintTexture.Get();
-					}
-					
-					if (Settings)
-					{
-						if (!SelectedTexture)
-						{
-							SelectedTexture = Settings->PaintTexture;
-						}
-						UVChannel = Settings->UVChannel;
+						SelectedTexture = TextureTool->GetSelectedPaintTextureWithOverride();
+						UVChannel = TextureTool->GetSelectedUVChannel(nullptr);
 					}
 				}
 

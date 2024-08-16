@@ -317,6 +317,9 @@ public:
 	virtual void CacheTexturePaintData() override;
 	// End UMeshTexturePaintingTool Interface.
 
+	/** Get the selected paint texture, and return the modified overriden texture if currently painting. */
+	UTexture* GetSelectedPaintTextureWithOverride() const;
+
 	/** Change selected texture to previous or next available. */
 	void CycleTextures(int32 Direction);
 	/** Returns true if asset shouldn't be shown in UI because it is not in our paintable texture array. */
