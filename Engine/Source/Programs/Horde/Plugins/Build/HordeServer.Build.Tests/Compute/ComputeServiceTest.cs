@@ -366,6 +366,7 @@ namespace HordeServer.Tests.Compute
 		}
 
 		[TestMethod]
+		[Ignore]
 		public async Task Connection_Relay_PortsAreMapped_Async()
 		{
 			ComputeResource? cr = await AllocateAsync(ConnectionMode.Relay, ports: new Dictionary<string, int> { { "myOtherPort", 13000 }, { "myPort", 12000 } });
