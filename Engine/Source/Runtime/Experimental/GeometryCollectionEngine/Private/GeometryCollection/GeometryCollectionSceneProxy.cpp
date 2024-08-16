@@ -674,7 +674,7 @@ void FGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FS
 		if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 		{
 			// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-			if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, IsHovered()))
+			if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bProxyIsSelected, IsHovered()))
 			{
 				Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 				Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

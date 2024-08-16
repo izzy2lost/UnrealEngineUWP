@@ -2739,40 +2739,43 @@ void BuildCylinderVerts(const FVector& Base, const FVector& XAxis, const FVector
 extern ENGINE_API FLinearColor GetSelectionColor(const FLinearColor& BaseColor,bool bSelected,bool bHovered, bool bUseOverlayIntensity = true);
 extern ENGINE_API FLinearColor GetViewSelectionColor(const FLinearColor& BaseColor, const FSceneView& View, bool bSelected, bool bHovered, bool bUseOverlayIntensity, bool bIndividuallySelected);
 
-
-/** Vertex Color view modes */
+/** Mesh painting visualization channels. (Used for all mesh painting modes not just vertex color.) */
 namespace EVertexColorViewMode
 {
 	enum Type
 	{
 		/** Invalid or undefined */
 		Invalid,
-
 		/** Color only */
 		Color,
-		
 		/** Alpha only */
 		Alpha,
-
 		/** Red only */
 		Red,
-
 		/** Green only */
 		Green,
-
 		/** Blue only */
 		Blue,
 	};
 }
 
-
-/** Global vertex color view mode setting when SHOW_VertexColors show flag is set */
+UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeChannels() instead.")
 extern ENGINE_API EVertexColorViewMode::Type GVertexColorViewMode;
+UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeTexture() instead.")
 extern ENGINE_API TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture;
+UE_DEPRECATED(5.5, "Use SetMeshPaintVisualizeTextureCoordinateIndex() instead.")
 extern ENGINE_API float GVertexViewModeOverrideUVChannel;
+UE_DEPRECATED(5.5, "We no longer use names to enable visualization.")
 extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
-extern ENGINE_API bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
-extern ENGINE_API FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovered);
+UE_DEPRECATED(5.5, "We no longer use names to enable visualization.")
+extern bool ShouldProxyUseVertexColorVisualization(FName OwnerName);
+
+/** Interface to set mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
+extern ENGINE_API void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type VisualizeChannels);
+extern ENGINE_API void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture);
+extern ENGINE_API void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index);
+/** Get the mesh paint visualization material proxy based on the current global settings. */
+extern ENGINE_API FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected, bool bIsHovered);
 
 /**
  * Returns true if the given view is "rich", and all primitives should be forced down the dynamic drawing path so that ApplyViewModeOverrides can implement the rich view feature.

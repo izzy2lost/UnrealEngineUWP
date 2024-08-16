@@ -7103,10 +7103,10 @@ void FSkeletalMeshSceneProxy::GetDynamicElementsSection(const TArray<const FScen
 
 #if WITH_EDITORONLY_DATA
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-			if (bIsSelected && ViewFamily.EngineShowFlags.VertexColors && AllowDebugViewmodes() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
+			if (bIsSelected && ViewFamily.EngineShowFlags.VertexColors && AllowDebugViewmodes())
 			{
 				// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-				if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bIsSelected, IsHovered()))
+				if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bIsSelected, IsHovered()))
 				{
 					Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 					Mesh.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

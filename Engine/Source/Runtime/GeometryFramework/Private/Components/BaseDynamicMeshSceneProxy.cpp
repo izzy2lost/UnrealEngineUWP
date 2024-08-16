@@ -156,7 +156,7 @@ FMaterialRenderProxy* FBaseDynamicMeshSceneProxy::GetEngineVertexColorMaterialPr
 	if (bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 	{
 		// Note: static mesh renderer does something more complicated involving per-section selection, but whole component selection seems ok for now.
-		if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bProxyIsSelected, bIsHovered))
+		if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bProxyIsSelected, bIsHovered))
 		{
 			Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 			ForceOverrideMaterialProxy = VertexColorVisualizationMaterialInstance;

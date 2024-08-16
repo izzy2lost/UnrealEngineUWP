@@ -70,7 +70,7 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					GVertexColorViewMode = EVertexColorViewMode::Color;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
 			}
 			else
@@ -86,36 +86,36 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				{
 				case EMeshPaintDataColorViewMode::RGB:
 				{
-					GVertexColorViewMode = EVertexColorViewMode::Color;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
 				break;
 
 				case EMeshPaintDataColorViewMode::Alpha:
 				{
-					GVertexColorViewMode = EVertexColorViewMode::Alpha;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Alpha);
 				}
 				break;
 
 				case EMeshPaintDataColorViewMode::Red:
 				{
-					GVertexColorViewMode = EVertexColorViewMode::Red;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Red);
 				}
 				break;
 
 				case EMeshPaintDataColorViewMode::Green:
 				{
-					GVertexColorViewMode = EVertexColorViewMode::Green;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Green);
 				}
 				break;
 
 				case EMeshPaintDataColorViewMode::Blue:
 				{
-					GVertexColorViewMode = EVertexColorViewMode::Blue;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Blue);
 				}
 				break;
 				}
 				UTexture* SelectedTexture = nullptr;
-				float UVChannel = 0.0f; // Keep as float since it must be a fed to the material as a scalar parameter
+				int32 UVChannel = 0;
 				if (ActiveMode == EMeshPaintActiveMode::Texture)
 				{
 					UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
@@ -133,16 +133,10 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 						}
 						UVChannel = Settings->UVChannel;
 					}
-
-					const UMeshComponent* LastPaintedComponent = MeshPaintingSubsystem ? MeshPaintingSubsystem->LastPaintedComponent : nullptr;
-					if (LastPaintedComponent)
-					{
-						GVertexViewModeOverrideOwnerName = *LastPaintedComponent->GetOwner()->GetName();
-					}
 				}
 
-				GVertexViewModeOverrideTexture = SelectedTexture;
-				GVertexViewModeOverrideUVChannel = UVChannel;
+				SetMeshPaintVisualizeTexture(SelectedTexture);
+				SetMeshPaintVisualizeTextureCoordinateIndex(UVChannel);
 			}
 		}
 	}

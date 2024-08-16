@@ -27,7 +27,6 @@
 
 #include "Editor/EditorEngine.h"
 extern UNREALED_API class UEditorEngine* GEditor;
-extern ENGINE_API FString GVertexViewModeOverrideOwnerName;
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshTexturePaintingTool)
 
@@ -719,7 +718,6 @@ FInputRayHit UMeshTexturePaintingTool::CanBeginClickDragSequence(const FInputDev
 	if (MeshPaintingSubsystem && LastBestHitResult.Component != nullptr && MeshPaintingSubsystem->LastPaintedComponent != LastBestHitResult.Component)
 	{
 		MeshPaintingSubsystem->LastPaintedComponent = (UMeshComponent*)LastBestHitResult.Component.Get();
-		GVertexViewModeOverrideOwnerName = *LastBestHitResult.Component->GetOwner()->GetName();
 		//ApplyAllPaintedTextures();
 		//MeshPaintingSubsystem->bNeedsRecache = true;
 	}

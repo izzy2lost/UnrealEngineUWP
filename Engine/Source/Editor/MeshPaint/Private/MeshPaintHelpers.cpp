@@ -1047,7 +1047,7 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					GVertexColorViewMode = EVertexColorViewMode::Color;
+					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
 			}
 			else
@@ -1063,31 +1063,31 @@ void MeshPaintHelpers::SetViewportColorMode(EMeshPaintColorViewMode ColorViewMod
 				{
 					case EMeshPaintColorViewMode::RGB:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Color;
+						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Alpha:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Alpha;
+						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Alpha);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Red:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Red;
+						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Red);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Green:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Green;
+						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Green);
 					}
 					break;
 
 					case EMeshPaintColorViewMode::Blue:
 					{
-						GVertexColorViewMode = EVertexColorViewMode::Blue;
+						SetMeshPaintVisualizeChannels(EVertexColorViewMode::Blue);
 					}
 					break;
 				}

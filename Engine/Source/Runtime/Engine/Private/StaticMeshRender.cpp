@@ -1604,9 +1604,9 @@ void FStaticMeshSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView
 
 	#endif // WITH_EDITOR
 										// Override the mesh's material with our material that draws vertex color
-										if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes() && ShouldProxyUseVertexColorVisualization(GetOwnerName()))
+										if (!bDebugMaterialRenderProxySet && bProxyIsSelected && EngineShowFlags.VertexColors && AllowDebugViewmodes())
 										{
-											if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetVertexColorRenderProxy(bSectionIsSelected, IsHovered()))
+											if (FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = GetMeshPaintVisualizeMaterialRenderProxy(bSectionIsSelected, IsHovered()))
 											{
 												Collector.RegisterOneFrameMaterialProxy(VertexColorVisualizationMaterialInstance);
 												MeshElement.MaterialRenderProxy = VertexColorVisualizationMaterialInstance;

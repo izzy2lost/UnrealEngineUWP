@@ -389,22 +389,37 @@ static TAutoConsoleVariable<float> CVarOverrideTimeMaterialExpressions(
 
 #endif
 
-/** Global vertex color view mode setting when SHOW_VertexColors show flag is set */
-EVertexColorViewMode::Type GVertexColorViewMode = EVertexColorViewMode::Color;
-TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture = nullptr;
-float GVertexViewModeOverrideUVChannel = 0.0f; // Scalar parameter, so keep as float
-FString GVertexViewModeOverrideOwnerName;
 
-bool ShouldProxyUseVertexColorVisualization(FName OwnerName)
+/** Deprecated vertex color global settings. */
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+EVertexColorViewMode::Type GVertexColorViewMode = EVertexColorViewMode::Color;
+TWeakObjectPtr<UTexture> GVertexViewModeOverrideTexture;
+float GVertexViewModeOverrideUVChannel = 0.0f;
+FString GVertexViewModeOverrideOwnerName;
+bool ShouldProxyUseVertexColorVisualization(FName OwnerName) { return false; }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+/** Global mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
+static EVertexColorViewMode::Type GMeshPaintVisualizeChannels = EVertexColorViewMode::Color;
+void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type VisualizeChannels)
 {
-	bool bUsingTextureOverride = GVertexViewModeOverrideTexture.Get() != nullptr;
-	return !bUsingTextureOverride || OwnerName.ToString().Compare(GVertexViewModeOverrideOwnerName) == 0;
+	GMeshPaintVisualizeChannels = VisualizeChannels;
+}
+static TWeakObjectPtr<UTexture> GMeshPaintVisualizeTexture = nullptr;
+void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture)
+{
+	GMeshPaintVisualizeTexture = Texture;
+}
+static int32 GMeshPaintVisualizeUVChannel = 0;
+void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index)
+{
+	GMeshPaintVisualizeUVChannel = Index;
 }
 
-FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovered)
+FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected, bool bIsHovered)
 {
 	UMaterial* VertexColorVisualizationMaterial = nullptr;
-	switch (GVertexColorViewMode)
+	switch (GMeshPaintVisualizeChannels)
 	{
 	case EVertexColorViewMode::Color:
 		VertexColorVisualizationMaterial = GEngine->VertexColorViewModeMaterial_ColorOnly;
@@ -432,11 +447,11 @@ FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovere
 	FMaterialRenderProxy* VertexColorVisualizationMaterialInstance = nullptr;
 
 #if WITH_EDITORONLY_DATA
-	if (GVertexViewModeOverrideTexture.IsValid())
+	if (GMeshPaintVisualizeTexture.IsValid())
 	{
 		FLinearColor MaterialColor = FLinearColor::White;
 
-		switch (GVertexColorViewMode)
+		switch (GMeshPaintVisualizeChannels)
 		{
 		case EVertexColorViewMode::Color:
 			MaterialColor = FLinearColor(1.0f, 1.0f, 1.0f, 0.0f);
@@ -463,10 +478,10 @@ FMaterialRenderProxy* GetVertexColorRenderProxy(bool bIsSelected, bool bIsHovere
 			GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),
 			MaterialColor,
 			NAME_Color,
-			GVertexViewModeOverrideTexture.Get(),
+			GMeshPaintVisualizeTexture.Get(),
 			NAME_LinearColor);
 
-		NewVertexColorVisualizationMaterialInstance->UVChannel = GVertexViewModeOverrideUVChannel;
+		NewVertexColorVisualizationMaterialInstance->UVChannel = GMeshPaintVisualizeUVChannel;
 		NewVertexColorVisualizationMaterialInstance->UVChannelParamName = FName(TEXT("UVChannel"));
 
 		VertexColorVisualizationMaterialInstance = NewVertexColorVisualizationMaterialInstance;
