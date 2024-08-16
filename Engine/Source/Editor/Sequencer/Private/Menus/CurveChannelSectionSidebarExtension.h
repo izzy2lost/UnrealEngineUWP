@@ -6,6 +6,7 @@
 #include "MovieSceneSection.h"
 
 struct FMovieSceneBoolChannel;
+struct FMovieSceneByteChannel;
 struct FMovieSceneDoubleChannel;
 struct FMovieSceneFloatChannel;
 struct FMovieSceneIntegerChannel;
@@ -26,7 +27,8 @@ private:
 	void AddExtrapolationMenu(FMenuBuilder& MenuBuilder, const bool bInPreInfinity);
 
 	void GetChannels(TArray<FMovieSceneFloatChannel*>& FloatChannels, TArray<FMovieSceneDoubleChannel*>& DoubleChannels,
-		TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels) const;
+		TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels, 
+		TArray<FMovieSceneByteChannel*>& ByteChannels) const;
 
 	void SetExtrapolationMode(const ERichCurveExtrapolation InExtrapolation, const bool bInPreInfinity);
 	bool IsExtrapolationModeSelected(const ERichCurveExtrapolation InExtrapolation, const bool bInPreInfinity) const;

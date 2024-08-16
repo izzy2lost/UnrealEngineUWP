@@ -48,8 +48,62 @@ bool FMovieSceneByteChannel::Evaluate(FFrameTime InTime, uint8& OutValue) const
 {
 	if (Times.Num())
 	{
-		const int32 Index = FMath::Max(0, Algo::UpperBound(Times, InTime.FrameNumber)-1);
-		OutValue = Values[Index];
+		const FFrameNumber MinFrame = Times[0];
+		const FFrameNumber MaxFrame = Times.Last();
+		//we do None, Constant, and Linear first there is no cycling and so we just exit
+		if (InTime < FFrameTime(MinFrame))
+		{
+			if (PreInfinityExtrap == RCCE_None)
+			{
+				return false;
+			}
+
+			if (PreInfinityExtrap == RCCE_Constant || PreInfinityExtrap == RCCE_Linear)
+			{
+				OutValue = Values[0];
+				return true;
+			}
+		}
+		else if (InTime > FFrameTime(MaxFrame))
+		{
+			if (PostInfinityExtrap == RCCE_None)
+			{
+				return false;
+			}
+
+			if (PostInfinityExtrap == RCCE_Constant || PostInfinityExtrap == RCCE_Linear)
+			{
+				OutValue = Values.Last();
+				return true;
+			}
+		}
+
+		// Compute the cycled time based on extrapolation
+		UE::MovieScene::FCycleParams Params = UE::MovieScene::CycleTime(MinFrame, MaxFrame, InTime);
+
+		// Deal with offset cycles and oscillation
+		// Move int over to double then we will convert back to int if doing an offset
+		const double FirstValue = double(Values[0]);
+		const double LastValue = double(Values.Last());
+		if (InTime < FFrameTime(MinFrame))
+		{
+			switch (PreInfinityExtrap)
+			{
+			case RCCE_CycleWithOffset: Params.ComputePreValueOffset(FirstValue, LastValue); break;
+			case RCCE_Oscillate:       Params.Oscillate(MinFrame.Value, MaxFrame.Value);                       break;
+			}
+		}
+		else if (InTime > FFrameTime(MaxFrame))
+		{
+			switch (PostInfinityExtrap)
+			{
+			case RCCE_CycleWithOffset: Params.ComputePostValueOffset(FirstValue, LastValue); break;
+			case RCCE_Oscillate:       Params.Oscillate(MinFrame.Value, MaxFrame.Value);    break;
+			}
+		}
+
+		const int32 Index = FMath::Max(0, Algo::UpperBound(Times, Params.Time)-1);
+		OutValue = Values[Index] + (uint8)(Params.ValueOffset + 0.5);
 		return true;
 	}
 	else if (bHasDefaultValue)

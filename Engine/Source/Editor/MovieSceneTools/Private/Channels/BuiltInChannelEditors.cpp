@@ -32,11 +32,13 @@
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Channels/MovieSceneDoubleChannel.h"
 #include "Channels/MovieSceneBoolChannel.h"
+#include "Channels/MovieSceneByteChannel.h"
 #include "Channels/MovieSceneIntegerChannel.h"
 #include "Channels/DoubleChannelCurveModel.h"
 #include "Channels/FloatChannelCurveModel.h"
 #include "Channels/IntegerChannelCurveModel.h"
 #include "Channels/BoolChannelCurveModel.h"
+#include "Channels/ByteChannelCurveModel.h"
 #include "Channels/TimeWarpChannelCurveModel.h"
 #include "Channels/PiecewiseCurveModel.h"
 #include "Variants/MovieScenePlayRateCurve.h"
@@ -1584,7 +1586,8 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 	}
 
 	void GetChannels(TArray<FMovieSceneFloatChannel*>& FloatChannels, TArray<FMovieSceneDoubleChannel*>& DoubleChannels,
-		TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels) const
+		TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels,
+		TArray<FMovieSceneByteChannel*>& ByteChannels) const
 	{
 		ISequencer* Sequencer = WeakSequencer.Pin().Get();
 		if (!Sequencer)
@@ -1618,10 +1621,15 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 				FMovieSceneBoolChannel* Channel = static_cast<FMovieSceneBoolChannel*>(Handle.Get());
 				BoolChannels.Add(Channel);
 			}
+			else if (Handle.GetChannelTypeName() == FMovieSceneByteChannel::StaticStruct()->GetFName())
+			{
+				FMovieSceneByteChannel* Channel = static_cast<FMovieSceneByteChannel*>(Handle.Get());
+				ByteChannels.Add(Channel);
+			}
 		}
 
 		// Otherwise, the channels of all the sections
-		if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() == 0)
+		if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() + ByteChannels.Num() == 0)
 		{
 			for (TWeakObjectPtr<UMovieSceneSection> WeakSection : WeakSections)
 			{
@@ -1644,6 +1652,10 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 					{
 						BoolChannels.Add(Channel);
 					}
+					for (FMovieSceneByteChannel* Channel : ChannelProxy.GetChannels<FMovieSceneByteChannel>())
+					{
+						ByteChannels.Add(Channel);
+					}
 				}
 			}
 		}
@@ -1655,10 +1667,11 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 		TArray<FMovieSceneDoubleChannel*> DoubleChannels;
 		TArray<FMovieSceneIntegerChannel*> IntegerChannels;
 		TArray<FMovieSceneBoolChannel*> BoolChannels;
+		TArray<FMovieSceneByteChannel*> ByteChannels;
 
-		GetChannels(FloatChannels, DoubleChannels,IntegerChannels,BoolChannels);
+		GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels, ByteChannels);
 
-		if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() == 0)
+		if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() + ByteChannels.Num() == 0)
 		{
 			return;
 		}
@@ -1701,6 +1714,12 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 			DestExtrap = ExtrapMode;
 			bAnythingChanged = true;
 		}
+		for (FMovieSceneByteChannel* Channel : ByteChannels)
+		{
+			TEnumAsByte<ERichCurveExtrapolation>& DestExtrap = bPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
+			DestExtrap = ExtrapMode;
+			bAnythingChanged = true;
+		}
 
 		if (bAnythingChanged)
 		{
@@ -1721,8 +1740,9 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 		TArray<FMovieSceneDoubleChannel*> DoubleChannels;
 		TArray<FMovieSceneIntegerChannel*> IntegerChannels;
 		TArray<FMovieSceneBoolChannel*> BoolChannels;
+		TArray<FMovieSceneByteChannel*> ByteChannels;
 
-		GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels);
+		GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels, ByteChannels);
 
 		for (FMovieSceneFloatChannel* Channel : FloatChannels)
 		{
@@ -1749,6 +1769,14 @@ struct FCurveChannelSectionMenuExtension : TSharedFromThis<FCurveChannelSectionM
 			}
 		}
 		for (FMovieSceneBoolChannel* Channel : BoolChannels)
+		{
+			ERichCurveExtrapolation SourceExtrap = bPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
+			if (SourceExtrap != ExtrapMode)
+			{
+				return false;
+			}
+		}
+		for (FMovieSceneByteChannel* Channel : ByteChannels)
 		{
 			ERichCurveExtrapolation SourceExtrap = bPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
 			if (SourceExtrap != ExtrapMode)
@@ -1920,6 +1948,14 @@ void ExtendSectionMenu(FMenuBuilder& OuterMenuBuilder, TSharedPtr<FExtender> Men
 	MenuExtender->AddMenuExtension("SequencerChannels", EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder) { Extension->ExtendMenu(MenuBuilder, true); }));
 }
 
+void ExtendSectionMenu(FMenuBuilder& OuterMenuBuilder, TSharedPtr<FExtender> MenuExtender, TArray<TMovieSceneChannelHandle<FMovieSceneByteChannel>>&& Channels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer)
+{
+	TSharedRef<FCurveChannelSectionMenuExtension> Extension = FCurveChannelSectionMenuExtension::GetOrCreate(InWeakSequencer);
+	Extension->AddSections(InWeakSections);
+
+	MenuExtender->AddMenuExtension("SequencerChannels", EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder) { Extension->ExtendMenu(MenuBuilder, true); }));
+}
+
 TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu(FMenuBuilder& OuterMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArray<TMovieSceneChannelHandle<FMovieSceneFloatChannel>>&& Channels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer)
 {
 	TSharedRef<FCurveChannelSectionMenuExtension> Extension = FCurveChannelSectionMenuExtension::GetOrCreate(InWeakSequencer);
@@ -1951,6 +1987,16 @@ TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu(FMenuBuilder& OuterMenuBu
 }
 
 TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu(FMenuBuilder& OuterMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArray<TMovieSceneChannelHandle<FMovieSceneBoolChannel>>&& Channels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer)
+{
+	TSharedRef<FCurveChannelSectionMenuExtension> Extension = FCurveChannelSectionMenuExtension::GetOrCreate(InWeakSequencer);
+	Extension->AddSections(InWeakSections);
+
+	InMenuExtender->AddMenuExtension("SequencerChannels", EExtensionHook::First, nullptr, FMenuExtensionDelegate::CreateLambda([Extension](FMenuBuilder& MenuBuilder) { Extension->ExtendMenu(MenuBuilder, false); }));
+
+	return Extension;
+}
+
+TSharedPtr<ISidebarChannelExtension> ExtendSidebarMenu(FMenuBuilder& OuterMenuBuilder, TSharedPtr<FExtender> InMenuExtender, TArray<TMovieSceneChannelHandle<FMovieSceneByteChannel>>&& Channels, const TArray<TWeakObjectPtr<UMovieSceneSection>>& InWeakSections, TWeakPtr<ISequencer> InWeakSequencer)
 {
 	TSharedRef<FCurveChannelSectionMenuExtension> Extension = FCurveChannelSectionMenuExtension::GetOrCreate(InWeakSequencer);
 	Extension->AddSections(InWeakSections);
@@ -2002,6 +2048,11 @@ TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FM
 TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneBoolChannel>& BoolChannel, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
 {
 	return MakeUnique<FBoolChannelCurveModel>(BoolChannel, Params.OwningSection, Params.Sequencer);
+}
+
+TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneByteChannel>& ByteChannel, const UE::Sequencer::FCreateCurveEditorModelParams& Params)
+{
+	return MakeUnique<FByteChannelCurveModel>(ByteChannel, Params.OwningSection, Params.Sequencer);
 }
 
 TUniquePtr<FCurveModel> CreateCurveEditorModel(const TMovieSceneChannelHandle<FMovieSceneEventChannel>& EventChannel, const UE::Sequencer::FCreateCurveEditorModelParams& Params)

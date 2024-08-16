@@ -7,6 +7,7 @@
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Channels/MovieSceneIntegerChannel.h"
+#include "Channels/MovieSceneByteChannel.h"
 #include "Containers/UnrealString.h"
 #include "CurveDataAbstraction.h"
 #include "CurveDrawInfo.h"
@@ -605,3 +606,4 @@ template class FChannelCurveModel<FMovieSceneDoubleChannel, FMovieSceneDoubleVal
 template class FChannelCurveModel<FMovieSceneFloatChannel, FMovieSceneFloatValue, float>;
 template class FChannelCurveModel<FMovieSceneIntegerChannel, int32, int32>;
 template class FChannelCurveModel<FMovieSceneBoolChannel, bool, bool>;
+template class FChannelCurveModel<FMovieSceneByteChannel, uint8, uint8>;

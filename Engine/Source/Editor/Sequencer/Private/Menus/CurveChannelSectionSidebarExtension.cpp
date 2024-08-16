@@ -17,6 +17,7 @@
 #include "Channels/MovieSceneFloatChannel.h"
 #include "Channels/MovieSceneDoubleChannel.h"
 #include "Channels/MovieSceneBoolChannel.h"
+#include "Channels/MovieSceneByteChannel.h"
 #include "Channels/MovieSceneIntegerChannel.h"
 #include "Curves/RealCurve.h"
 #include "Modules/ModuleManager.h"
@@ -247,7 +248,8 @@ void FCurveChannelSectionSidebarExtension::AddExtrapolationMenu(FMenuBuilder& Me
 }
 
 void FCurveChannelSectionSidebarExtension::GetChannels(TArray<FMovieSceneFloatChannel*>& FloatChannels, TArray<FMovieSceneDoubleChannel*>& DoubleChannels,
-	TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels) const
+	TArray<FMovieSceneIntegerChannel*>& IntegerChannels, TArray<FMovieSceneBoolChannel*>& BoolChannels,
+	TArray<FMovieSceneByteChannel*>& ByteChannels) const
 {
 	const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
 	if (!Sequencer)
@@ -281,10 +283,15 @@ void FCurveChannelSectionSidebarExtension::GetChannels(TArray<FMovieSceneFloatCh
 			FMovieSceneBoolChannel* const Channel = static_cast<FMovieSceneBoolChannel*>(Handle.Get());
 			BoolChannels.Add(Channel);
 		}
+		else if (Handle.GetChannelTypeName() == FMovieSceneByteChannel::StaticStruct()->GetFName())
+		{
+			FMovieSceneByteChannel* const Channel = static_cast<FMovieSceneByteChannel*>(Handle.Get());
+			ByteChannels.Add(Channel);
+		}
 	}
 
 	// Otherwise, the channels of all the sections
-	if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() == 0)
+	if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() + ByteChannels.Num() == 0)
 	{
 		for (const TWeakObjectPtr<UMovieSceneSection>& WeakSection : WeakSections)
 		{
@@ -307,6 +314,10 @@ void FCurveChannelSectionSidebarExtension::GetChannels(TArray<FMovieSceneFloatCh
 				{
 					BoolChannels.Add(Channel);
 				}
+				for (FMovieSceneByteChannel* const Channel : ChannelProxy.GetChannels<FMovieSceneByteChannel>())
+				{
+					ByteChannels.Add(Channel);
+				}
 			}
 		}
 	}
@@ -318,10 +329,11 @@ void FCurveChannelSectionSidebarExtension::SetExtrapolationMode(const ERichCurve
 	TArray<FMovieSceneDoubleChannel*> DoubleChannels;
 	TArray<FMovieSceneIntegerChannel*> IntegerChannels;
 	TArray<FMovieSceneBoolChannel*> BoolChannels;
-	
-	GetChannels(FloatChannels, DoubleChannels,IntegerChannels,BoolChannels);
+	TArray<FMovieSceneByteChannel*> ByteChannels;
 
-	if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() == 0)
+	GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels, ByteChannels);
+
+	if (FloatChannels.Num() + DoubleChannels.Num() + IntegerChannels.Num() + BoolChannels.Num() + ByteChannels.Num() == 0)
 	{
 		return;
 	}
@@ -365,6 +377,12 @@ void FCurveChannelSectionSidebarExtension::SetExtrapolationMode(const ERichCurve
 		DestExtrap = InExtrapolation;
 		bAnythingChanged = true;
 	}
+	for (FMovieSceneByteChannel* const Channel : ByteChannels)
+	{
+		TEnumAsByte<ERichCurveExtrapolation>& DestExtrap = bInPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
+		DestExtrap = InExtrapolation;
+		bAnythingChanged = true;
+	}
 
 	if (bAnythingChanged)
 	{
@@ -385,8 +403,9 @@ bool FCurveChannelSectionSidebarExtension::IsExtrapolationModeSelected(const ERi
 	TArray<FMovieSceneDoubleChannel*> DoubleChannels;
 	TArray<FMovieSceneIntegerChannel*> IntegerChannels;
 	TArray<FMovieSceneBoolChannel*> BoolChannels;
-	
-	GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels);
+	TArray<FMovieSceneByteChannel*> ByteChannels;
+
+	GetChannels(FloatChannels, DoubleChannels, IntegerChannels, BoolChannels, ByteChannels);
 
 	for (FMovieSceneFloatChannel* const Channel : FloatChannels)
 	{
@@ -413,6 +432,14 @@ bool FCurveChannelSectionSidebarExtension::IsExtrapolationModeSelected(const ERi
 		}
 	}
 	for (FMovieSceneBoolChannel* const Channel : BoolChannels)
+	{
+		const ERichCurveExtrapolation SourceExtrapolation = bInPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
+		if (SourceExtrapolation != InExtrapolation)
+		{
+			return false;
+		}
+	}
+	for (FMovieSceneByteChannel* const Channel : ByteChannels)
 	{
 		const ERichCurveExtrapolation SourceExtrapolation = bInPreInfinity ? Channel->PreInfinityExtrap : Channel->PostInfinityExtrap;
 		if (SourceExtrapolation != InExtrapolation)
