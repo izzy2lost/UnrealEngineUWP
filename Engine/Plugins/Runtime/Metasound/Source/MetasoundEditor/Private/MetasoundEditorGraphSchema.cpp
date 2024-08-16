@@ -327,7 +327,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 							if (ensure(SchemaPrivate::TryConnectNewNodeToMatchingDataTypePin(*EdGraphNode, &FromPin)))
 							{
 								FGraphBuilder::RegisterGraphWithFrontend(ParentMetaSound);
-								SelectNodeInEditorForRename(*MetaSoundGraph, *NewGraphNode);
+								if (bSelectNode)
+								{
+									SchemaPrivate::SelectNodeInEditorForRename(*MetaSoundGraph, *NewGraphNode);
+								}
+								else
+								{
+									SchemaPrivate::SelectNodeInEditor(*MetaSoundGraph, *NewGraphNode);
+								}
 								return EdGraphNode;
 							}
 						}
