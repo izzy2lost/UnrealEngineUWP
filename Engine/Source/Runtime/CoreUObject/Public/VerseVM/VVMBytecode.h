@@ -163,7 +163,30 @@ inline void Visit(FMarkStackVisitor&, const FOpLocation&, FMarkStackVisitor::Con
 {
 }
 
-// Mapping from register index to name.  VProcedures holds an array of such mappings.
+// Mapping of a named parameter to its corresponding register. VProcedures hold an array of such mappings.
+struct FNamedParam
+{
+	FNamedParam() = default;
+	FNamedParam(FRegisterIndex InIndex, FAccessContext InContext, VUniqueString& InName)
+		: Index(InIndex)
+		, Name(InContext, InName)
+	{
+	}
+
+	FRegisterIndex Index;
+	TWriteBarrier<VUniqueString> Name;
+};
+
+template <>
+void Visit(FAbstractVisitor&, FNamedParam&, const TCHAR* ElementName);
+
+template <>
+inline void Visit(FMarkStackVisitor& Visitor, const FNamedParam& Value, FMarkStackVisitor::ConsumeElementName)
+{
+	Visit(Visitor, Value.Name, TEXT(""));
+}
+
+// Mapping from register index to name. VProcedures hold an array of such mappings.
 struct FRegisterName
 {
 	FRegisterName(FRegisterIndex InIndex, FAccessContext InContext, VUniqueString& InName)
@@ -182,7 +205,6 @@ void Visit(FAbstractVisitor&, FRegisterName&, const TCHAR* ElementName);
 template <>
 inline void Visit(FMarkStackVisitor& Visitor, const FRegisterName& Value, FMarkStackVisitor::ConsumeElementName)
 {
-	Visit(Visitor, Value.Index, TEXT(""));
 	Visit(Visitor, Value.Name, TEXT(""));
 }
 } // namespace Verse

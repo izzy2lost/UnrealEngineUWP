@@ -135,105 +135,62 @@ struct FExecutionState
 // In Verse, all functions conceptually take a single argument tuple
 // To avoid unnecessary boxing and unboxing of VValues, we add an optimization where we try to avoid boxing/unboxing as much as possible
 // This function reconciles the number of expected parameters with the number of provided arguments and boxes/unboxes only as needed
-template <typename ArgFunction, typename StoreFunction>
-static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumNamedParams, uint32 NumArgs, TWriteBarrier<VUniqueString>* NamedParams, TArrayView<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg, StoreFunction StoreArg)
+template <typename ArgFunction, typename StoreFunction, typename NamedArgFunction, typename NamedStoreFunction>
+static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumNamedParams, uint32 NumArgs, FNamedParam* NamedParams, TArrayView<TWriteBarrier<VUniqueString>>* NamedArgs, ArgFunction GetArg, StoreFunction StoreArg, NamedArgFunction GetNamedArg, NamedStoreFunction StoreNamedArg)
 {
-	if (NumNamedParams == 0)
+	// --- Unnamed parameters -------------------------------
+	if (NumArgs < NumParams)
 	{
-		if (NumParams == NumArgs)
-		{
-			// Calling conventions match - no boxing/unboxing is necessary
-			for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
-			{
-				StoreArg(Arg, GetArg(Arg));
-			}
-		}
-		else if (NumParams)
-		{
-			if (NumArgs > NumParams)
-			{
-				// Function wants arguments in a 4 - box them up
-				VArray& ArgArray = VArray::New(Context, NumArgs, GetArg);
-				StoreArg(0, ArgArray);
-			}
-			else
-			{
-				V_DIE_UNLESS(NumArgs < NumParams);
-				V_DIE_UNLESS(NumArgs == 1);
+		V_DIE_UNLESS(NumArgs == 1);
 
-				// Function wants loose arguments but a tuple is provided - unbox them
-				VValue IncomingArg = GetArg(0);
-				VArrayBase* Args = IncomingArg.DynamicCast<VArrayBase>();
+		// Function wants loose arguments but a tuple is provided - unbox them
+		VValue IncomingArg = GetArg(0);
+		VArrayBase& Args = IncomingArg.StaticCast<VArrayBase>();
 
-				V_DIE_UNLESS(Args->Num() == NumParams);
-				for (uint32 Param = 0; Param < NumParams; ++Param)
-				{
-					StoreArg(Param, Args->GetValue(Param));
-				}
-			}
-		}
-		else
+		V_DIE_UNLESS(NumParams == Args.Num());
+		for (uint32 Param = 0; Param < NumParams; ++Param)
 		{
-			V_DIE_UNLESS(false);
+			StoreArg(Param, Args.GetValue(Param));
 		}
 	}
-	else // there are named params
+	else if (NumArgs > NumParams)
 	{
-		check(NumNamedParams > 0);
-		uint32 NumNamedArgs = ArgNames ? ArgNames->Num() : 0;
-		uint32 NumUnnamedArgs = NumArgs - NumNamedArgs;
-		uint32 NumUnnamedArgsStored = 0;
-		V_DIE_IF(NumNamedArgs > NumArgs);
-		if (NumUnnamedArgs > 0)
-		{
-			if (NumUnnamedArgs < NumParams)
-			{
-				V_DIE_UNLESS(NumUnnamedArgs == 1);
-				// Function wants loose arguments but a tuple is provided - unbox them
-				VValue IncomingArg = GetArg(0);
-				VArrayBase* Args = IncomingArg.DynamicCast<VArrayBase>();
+		V_DIE_UNLESS(NumParams == 1);
 
-				V_DIE_UNLESS(Args->Num() == NumParams);
-				for (uint32 Param = 0; Param < NumParams; ++Param)
-				{
-					StoreArg(Param, Args->GetValue(Param));
-				}
-				NumUnnamedArgsStored = NumParams;
-			}
-			else
-			{
-				for (uint32 ArgIdx = 0; ArgIdx < NumUnnamedArgs; ++ArgIdx)
-				{
-					VValue Arg = GetArg(ArgIdx);
-					StoreArg(ArgIdx, Arg);
-				}
-				NumUnnamedArgsStored = NumUnnamedArgs;
-			}
-		}
-		for (uint32 NamedParamIdx = 0; NamedParamIdx < NumNamedParams; ++NamedParamIdx)
+		// Function wants loose arguments in a box, ie:
+		// F(X:tuple(int, int)):int = X(0) + X(1)
+		// F(3, 5) = 8 <-- we need to box these
+		VArray& ArgArray = VArray::New(Context, NumArgs, GetArg);
+		StoreArg(0, ArgArray);
+	}
+	else
+	{
+		/* direct passing */
+		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
 		{
-			// If the procedure's named parameter does not have a matching argument we use the default
-			// VValue which is VValue::UninitializedValue, aka 0.  The bytecode contains a JumpIfInitialized
-			// instruction at the start of the function.  The uninitialized value indicates to the
-			// JumpIfInitialized instruction that we cannot jump past the default initilization of the variable.
-			// Any other value causes the JumpIfInitialized instruction to jump past the default initialization
-			// code, as a value was provided here.
-			VValue ValueToStore;
-			for (uint32 ArgIdx = 0; ArgIdx < NumNamedArgs; ++ArgIdx)
-			{
-				if (NamedParams[NamedParamIdx].Get() == (*ArgNames)[ArgIdx].Get())
-				{
-					ValueToStore = GetArg(NumUnnamedArgs + ArgIdx);
-					break;
-				}
-			}
-			StoreArg(NumUnnamedArgsStored + NamedParamIdx, ValueToStore);
+			StoreArg(Arg, GetArg(Arg));
 		}
+	}
+
+	// --- Named parameters ---------------------------------
+	const uint32 NumNamedArgs = NamedArgs ? NamedArgs->Num() : 0;
+	for (uint32 NamedParamIdx = 0; NamedParamIdx < NumNamedParams; ++NamedParamIdx)
+	{
+		VValue ValueToStore;
+		for (uint32 NamedArgIdx = 0; NamedArgIdx < NumNamedArgs; ++NamedArgIdx)
+		{
+			if (NamedParams[NamedParamIdx].Name.Get() == (*NamedArgs)[NamedArgIdx].Get())
+			{
+				ValueToStore = GetNamedArg(NamedArgIdx);
+				break;
+			}
+		}
+		StoreNamedArg(NamedParamIdx, ValueToStore);
 	}
 }
 
-template <typename ArgFunction, typename ReturnSlotType>
-static VFrame& MakeFrameForCallee(FAllocationContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, TArrayView<TWriteBarrier<VUniqueString>>* ArgNames, ArgFunction GetArg)
+template <typename ReturnSlotType, typename ArgFunction, typename NamedArgFunction>
+static VFrame& MakeFrameForCallee(FRunningContext Context, FOp* CallerPC, VFrame* CallerFrame, ReturnSlotType ReturnSlot, VFunction& Function, uint32 NumArgs, TArrayView<TWriteBarrier<VUniqueString>>* NamedArgs, ArgFunction GetArg, NamedArgFunction GetNamedArg)
 {
 	VProcedure& Procedure = Function.GetProcedure();
 	VFrame& Frame = VFrame::New(Context, CallerPC, CallerFrame, ReturnSlot, Procedure);
@@ -246,9 +203,15 @@ static VFrame& MakeFrameForCallee(FAllocationContext Context, FOp* CallerPC, VFr
 		Frame.Registers[FRegisterIndex::SCOPE].Set(Context, *LexicalScope);
 	}
 
-	UnboxArguments(Context, Procedure.NumPositionalParameters, Procedure.NumNamedParameters, NumArgs, Procedure.GetNamedParamsBegin(), ArgNames, GetArg,
+	UnboxArguments(
+		Context, Procedure.NumPositionalParameters, Procedure.NumNamedParameters, NumArgs, Procedure.GetNamedParamsBegin(), NamedArgs,
+		GetArg,
 		[&](uint32 Param, VValue Value) {
 			Frame.Registers[FRegisterIndex::PARAMETER_START + Param].Set(Context, Value);
+		},
+		GetNamedArg,
+		[&](uint32 NamedParam, VValue Value) {
+			Frame.Registers[Procedure.GetNamedParamsBegin()[NamedParam].Index.Index].Set(Context, Value);
 		});
 
 	return Frame;
@@ -1454,7 +1417,9 @@ class FInterpreter
 				},
 				[&](uint32 Param, VValue Value) {
 					Args[Param] = Value;
-				});
+				},
+				[](uint32 NamedArg) -> VValue { VERSE_UNREACHABLE(); }, // Named params not supported for native functions yet - #JIRA SOL-5954
+				[](uint32 NamedParam, VValue Value) -> VValue { VERSE_UNREACHABLE(); });
 			FNativeCallResult Result{FNativeCallResult::Error};
 			Context.RunInNativeContext(Failure, TaskContext, [&] {
 				Result = (*NativeFunction->Thunk)(Context, NativeFunction->Self.Get(), Args);
@@ -2487,10 +2452,12 @@ class FInterpreter
 					{
 						VRestValue* ReturnSlot = MakeReturnSlot(Op);
 						TArrayView<FValueOperand> Arguments = GetOperands(Op.Arguments);
-						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, Arguments.Num(), nullptr,
+						VFrame& NewFrame = MakeFrameForCallee(
+							Context, NextPC, State.Frame, ReturnSlot, *Function, Arguments.Num(), nullptr,
 							[&](uint32 Arg) {
 								return GetOperand(Arguments[Arg]);
-							});
+							},
+							[](uint32 NamedArg) -> VValue { VERSE_UNREACHABLE(); });
 						UpdateExecutionState(Function->GetProcedure().GetOpsBegin(), &NewFrame);
 					}
 					else
@@ -2510,9 +2477,14 @@ class FInterpreter
 						VRestValue* ReturnSlot = &State.Frame->Registers[Op.Dest.Index];
 						TArrayView<FValueOperand> Arguments = GetOperands(Op.Arguments);
 						TArrayView<TWriteBarrier<VUniqueString>> NamedArguments = GetOperands(Op.NamedArguments);
-						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, Arguments.Num(), &NamedArguments,
-							[&](uint32 Arg) {
+						TArrayView<FValueOperand> NamedArgumentVals = GetOperands(Op.NamedArgumentVals);
+						VFrame& NewFrame = MakeFrameForCallee(
+							Context, NextPC, State.Frame, ReturnSlot, *Function, Arguments.Num(), &NamedArguments,
+							[&](uint32 Arg, uint32* NamedArg = nullptr) {
 								return GetOperand(Arguments[Arg]);
+							},
+							[&](uint32 NamedArg) {
+								return GetOperand(NamedArgumentVals[NamedArg]);
 							});
 						UpdateExecutionState(Function->GetProcedure().GetOpsBegin(), &NewFrame);
 					}
@@ -2570,8 +2542,10 @@ class FInterpreter
 						VFunction* Function = Initializers.Pop();
 						Function = &Function->Bind(Context, Object);
 						VRestValue* ReturnSlot = nullptr;
-						VFrame& NewFrame = MakeFrameForCallee(Context, NextPC, State.Frame, ReturnSlot, *Function, 0, nullptr,
-							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); });
+						VFrame& NewFrame = MakeFrameForCallee(
+							Context, NextPC, State.Frame, ReturnSlot, *Function, 0, nullptr,
+							[](uint32 Arg) -> VValue { VERSE_UNREACHABLE(); },
+							[](uint32 NamedArg) -> VValue { VERSE_UNREACHABLE(); });
 						UpdateExecutionState(Function->Procedure.Get()->GetOpsBegin(), &NewFrame);
 					}
 				}
@@ -2724,10 +2698,12 @@ class FInterpreter
 
 								VValue ReturnSlot = MakeReturnSlot(Op);
 								TArrayView<TWriteBarrier<VValue>> Arguments = GetOperands(Op.Arguments);
-								VFrame& NewFrame = MakeFrameForCallee(Context, CallerPC, CallerFrame, ReturnSlot, *Function, Arguments.Num(), nullptr,
-									[&](uint32 Arg) {
+								VFrame& NewFrame = MakeFrameForCallee(
+									Context, CallerPC, CallerFrame, ReturnSlot, *Function, Arguments.Num(), nullptr,
+									[&](uint32 Arg, uint32* NamedArg = nullptr) {
 										return GetOperand(Arguments[Arg]);
-									});
+									},
+									[](uint32 NamedArg) -> VValue { VERSE_UNREACHABLE(); });
 								NewFrame.ReturnSlot.EffectToken.Set(Context, GetOperand(Op.ReturnEffectToken));
 								// TODO SOL-4435: Enact some recursion limit here since we're using the machine stack.
 								VFailureContext& FailureContext = *CurrentSuspension->FailureContext;
@@ -2770,11 +2746,16 @@ class FInterpreter
 								FOp* CallerPC = nullptr;
 								VFrame* CallerFrame = nullptr;
 								VValue ReturnSlot = MakeReturnSlot(Op);
-
+								TArrayView<TWriteBarrier<VValue>> Arguments = GetOperands(Op.Arguments);
 								TArrayView<TWriteBarrier<VUniqueString>> NamedArguments(Op.NamedArguments);
-								VFrame& NewFrame = MakeFrameForCallee(Context, CallerPC, CallerFrame, ReturnSlot, *Function, Op.Arguments.Num(), &NamedArguments,
+								TArrayView<TWriteBarrier<VValue>> NamedArgumentVals = GetOperands(Op.NamedArgumentVals);
+								VFrame& NewFrame = MakeFrameForCallee(
+									Context, CallerPC, CallerFrame, ReturnSlot, *Function, Arguments.Num(), &NamedArguments,
 									[&](uint32 Arg) {
-										return GetOperand(Op.Arguments[Arg]);
+										return GetOperand(Arguments[Arg]);
+									},
+									[&](uint32 NamedArg) {
+										return GetOperand(NamedArgumentVals[NamedArg]);
 									});
 								NewFrame.ReturnSlot.EffectToken.Set(Context, GetOperand(Op.ReturnEffectToken));
 								// TODO SOL-4435: Enact some recursion limit here since we're using the machine stack.
@@ -2875,7 +2856,7 @@ public:
 	}
 
 	// Upon failure, returns an uninitialized VValue
-	static FOpResult Invoke(FRunningContext Context, VFunction::Args&& IncomingArguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, VFunction& Function)
+	static FOpResult Invoke(FRunningContext Context, VFunction::Args&& IncomingArguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, VFunction::Args* NamedArgVals, VFunction& Function)
 	{
 		// This function expects to be run in the open
 		check(!AutoRTFM::IsClosed());
@@ -2893,9 +2874,13 @@ public:
 			NamedArgsViewStorage = *NamedArgs;
 			NamedArgsView = &NamedArgsViewStorage;
 		}
-		VFrame& Frame = MakeFrameForCallee(Context, CallerPC, CallerFrame, &ReturnSlot, Function, Arguments.Num(), NamedArgsView,
+		VFrame& Frame = MakeFrameForCallee(
+			Context, CallerPC, CallerFrame, &ReturnSlot, Function, Arguments.Num(), NamedArgsView,
 			[&](uint32 Arg) {
 				return Arguments[Arg];
+			},
+			[&](uint32 NamedArg) {
+				return (*NamedArgVals)[NamedArg];
 			});
 
 		// Check if we're inside native C++ code that was invoked by Verse
@@ -3012,21 +2997,23 @@ public:
 	}
 };
 
-FOpResult VFunction::Invoke(FRunningContext Context, VFunction::Args&& Args, TArray<TWriteBarrier<VUniqueString>>* NamedArgs)
+FOpResult VFunction::Invoke(FRunningContext Context, Args&& Arguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs, Args* NamedArgVals)
 {
-	FOpResult Result = FInterpreter::Invoke(Context, MoveTemp(Args), NamedArgs, *this);
+	FOpResult Result = FInterpreter::Invoke(Context, MoveTemp(Arguments), NamedArgs, NamedArgVals, *this);
 	check(Result.Kind != FOpResult::Return || !Result.Value.IsPlaceholder());
 	return Result;
 }
 
-FOpResult VFunction::Invoke(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* ArgName)
+FOpResult VFunction::Invoke(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* NamedArg)
 {
-	TArray<TWriteBarrier<VUniqueString>> NamedArgs;
-	if (ArgName)
+	if (NamedArg)
 	{
-		NamedArgs.Add(*ArgName);
+		TArray<TWriteBarrier<VUniqueString>> NamedArgs{*NamedArg};
+		Args NamedArgVals{Argument};
+		FOpResult Result = FInterpreter::Invoke(Context, VFunction::Args{Argument}, &NamedArgs, &NamedArgVals, *this);
+		return Result;
 	}
-	FOpResult Result = FInterpreter::Invoke(Context, VFunction::Args{Argument}, ArgName ? &NamedArgs : nullptr, *this);
+	FOpResult Result = FInterpreter::Invoke(Context, VFunction::Args{Argument}, nullptr, nullptr, *this);
 	check(Result.Kind != FOpResult::Return || !Result.Value.IsPlaceholder());
 	return Result;
 }

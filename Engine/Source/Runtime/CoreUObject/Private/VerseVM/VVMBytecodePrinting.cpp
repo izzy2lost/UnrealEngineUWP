@@ -102,16 +102,20 @@ struct FBytecodePrinter
 				Procedure.NumRegisters,
 				Procedure.NumRegisters - 1);
 		}
-		int32 NumParameters = Procedure.NumPositionalParameters + Procedure.NumNamedParameters;
-		if (NumParameters)
+
+		String += FString::Printf(TEXT("    # Frame contains %u positional parameters\n"), Procedure.NumPositionalParameters);
+		String += FString::Printf(TEXT("    # Frame contains %u named parameters\n"), Procedure.NumNamedParameters);
+
+		if (Procedure.NumRegisterNames)
 		{
-			String += FString::Printf(TEXT("    # Frame contains %u parameters: r1..r%u\n"),
-				NumParameters,
-				NumParameters);
-		}
-		else
-		{
-			String += FString::Printf(TEXT("    # Frame contains 0 parameters\n"));
+			FRegisterName* RegisterNames = Procedure.GetRegisterNamesBegin();
+			String += FString::Printf(TEXT("    # Frame contains %u named registers:\n"), Procedure.NumRegisterNames);
+			for (uint32 i = 0; i < Procedure.NumRegisterNames; ++i)
+			{
+				String += FString::Printf(TEXT("r%u, '%s'"),
+					RegisterNames[i].Index.Index,
+					*RegisterNames[i].Name->AsString());
+			}
 		}
 
 		// Print the procedure's ops.

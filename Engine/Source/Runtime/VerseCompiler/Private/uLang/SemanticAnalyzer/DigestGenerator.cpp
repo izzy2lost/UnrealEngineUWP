@@ -662,8 +662,6 @@ private:
             DotCall->AppendChild(LhsParameter);
             DotCall->AppendChild(FunctionName);
 
-            ParameterList->TakeChildAt(0); // Drop extra tuple() argument
-
             Call->AppendChild(DotCall);
             Call->AppendChild(AsClause(ParameterList->TakeChildAt(0)));
             break;

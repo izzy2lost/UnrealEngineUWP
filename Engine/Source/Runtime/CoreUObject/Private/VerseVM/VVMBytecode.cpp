@@ -70,4 +70,13 @@ void Verse::Visit(FAbstractVisitor& Visitor, FRegisterName& Value, const TCHAR* 
 	Visitor.EndObject();
 }
 
+template <>
+void Verse::Visit(FAbstractVisitor& Visitor, FNamedParam& Value, const TCHAR* ElementName)
+{
+	Visitor.BeginObject(ElementName);
+	Visit(Visitor, Value.Index, TEXT("Index"));
+	Visit(Visitor, Value.Name, TEXT("Name"));
+	Visitor.EndObject();
+}
+
 #endif // WITH_VERSE_VM || defined(__INTELLISENSE__)

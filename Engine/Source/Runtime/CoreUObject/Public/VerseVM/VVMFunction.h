@@ -32,8 +32,8 @@ struct VFunction : VHeapValue
 	TWriteBarrier<VScope> ParentScope;
 
 	// Upon failure, returns an uninitialized VValue
-	COREUOBJECT_API FOpResult Invoke(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* ArgName = nullptr);
-	COREUOBJECT_API FOpResult Invoke(FRunningContext Context, Args&& Args, TArray<TWriteBarrier<VUniqueString>>* NamedArgs = nullptr);
+	COREUOBJECT_API FOpResult Invoke(FRunningContext Context, VValue Argument, TWriteBarrier<VUniqueString>* NamedArg = nullptr);
+	COREUOBJECT_API FOpResult Invoke(FRunningContext Context, Args&& Arguments, TArray<TWriteBarrier<VUniqueString>>* NamedArgs = nullptr, Args* NamedArgVals = nullptr);
 
 	static VFunction& New(FAllocationContext Context, VProcedure& Procedure, VValue Self)
 	{

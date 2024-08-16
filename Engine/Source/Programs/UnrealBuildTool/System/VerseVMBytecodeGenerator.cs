@@ -861,6 +861,7 @@ namespace UnrealBuildTool
 				.Arg("Callee", Role.Use)
 				.Arg("Arguments", Role.Use, Arity.Variadic)
 				.Arg("NamedArguments", Role.Immediate, Arity.Variadic, "VUniqueString")
+				.Arg("NamedArgumentVals", Role.Use, Arity.Variadic)
 				.CapturesEffectToken()
 				.CreatesNewReturnEffectToken()
 				.Suspends();

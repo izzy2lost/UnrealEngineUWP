@@ -3590,10 +3590,6 @@ private:
                             // ... and its parameter type.
                             CTupleType::ElementArray ExtensionParamTypes;
                             ExtensionParamTypes.Add(Function->GetParentScope()->ScopeAsType());
-                            TSPtr<CExprMakeTuple> DummyTuple = TSRef<CExprMakeTuple>::New(0);
-                            DummyTuple->SetNonReciprocalMappedVstNode(Definition.GetAstNode()->GetMappedVstNode());
-                            SetMakeTupleResultType(*DummyTuple);
-                            ExtensionParamTypes.Add(DummyTuple->GetResultType(*_Program));
                             ExtensionParamTypes.Add(&FunctionOfType->GetParamsType());
                             const CTypeBase* ExtensionParamType = CFunctionType::GetOrCreateParamType(*_Program, Move(ExtensionParamTypes));
                             CollectConflictingDefinitions(ConflictingDefinitions, Definition, ExtensionSymbol.GetValue(), ExtensionParamType);
@@ -11876,22 +11872,20 @@ private:
 
     TSPtr<CExpressionBase> CreateExtensionArguments(CExprInvocation& Invocation, TSPtr<CExpressionBase> ExtensionArgument)
     {
-        // a0.callee(a1, a2, ..) => callee(a0, (), (a1, a2, ..))
+        // a0.callee(a1, a2, ..) => callee(a0, (a1, a2, ..))
+        TSPtr<CExpressionBase> Argument = Invocation.GetArgument();
+
         TSPtr<CExprMakeTuple> NewArgument = TSRef<CExprMakeTuple>::New();
         NewArgument->SetNonReciprocalMappedVstNode(Invocation.GetMappedVstNode());
-        TSPtr<CExprMakeTuple> DummyArgument = TSRef<CExprMakeTuple>::New();
-        DummyArgument->SetNonReciprocalMappedVstNode(Invocation.GetMappedVstNode());
-        SetMakeTupleResultType(*DummyArgument);
         NewArgument->AppendSubExpr(Move(ExtensionArgument));
-        NewArgument->AppendSubExpr(Move(DummyArgument));
-        NewArgument->AppendSubExpr(Invocation.GetArgument());
+        NewArgument->AppendSubExpr(Argument); // this may be an empty CExprMakeTuple... we append this still to accomodate named args - JIRA #SOL-6937
         SetMakeTupleResultType(*NewArgument);
         return NewArgument;
     }
 
     //-------------------------------------------------------------------------------------------------
     
-    // Create extension method argument, if possible, i.e, from a0.callee(a1 ..) create callee(a0, (), a1, ..). 
+    // Create extension method argument, if possible, i.e, from a0.callee(a1 ..) create callee(a0, (a1, ...))
     // If not return nullptr
     TSPtr <CExpressionBase> CreateExtensionArgument(CExprInvocation& Invocation)
     {
@@ -16013,28 +16007,17 @@ private:
                             // Change node from
                             // (lhs).Name(rhs) : T = E
                             // to
-                            // operator'.Name'(lhs, :tuple(), rhs) : T = E 
+                            // operator'.Name'(lhs, (...rhs)) : T = E 
 
                             TSPtr<CExpressionBase> Context = ResidualIdentifier->TakeContext();
                             TSPtr<CExpressionBase> Argument = Invocation->TakeArgument();
 
-
-                            TSRef<CExprIdentifierUnresolved> DummyTuple = TSRef<CExprIdentifierUnresolved>::New(_Symbol_tuple);
-                            DummyTuple->SetNonReciprocalMappedVstNode(DefinitionAst.GetMappedVstNode());
-                            TSRef<CExprMakeTuple> DummyArgument = TSRef<CExprMakeTuple>::New(0);
-                            DummyArgument->SetNonReciprocalMappedVstNode(DefinitionAst.GetMappedVstNode());
-                            TSRef<CExprInvocation> DummyInvocation = TSRef<CExprInvocation>::New(CExprInvocation::EBracketingStyle::Parentheses, DummyTuple, Move(DummyArgument));
-                            DummyInvocation->SetNonReciprocalMappedVstNode(DefinitionAst.GetMappedVstNode());
-
-                            TSPtr<CExprDefinition> DummyDefinition = TSRef<CExprDefinition>::New(TSPtr<CExpressionBase>(), Move(DummyInvocation), TSPtr<CExpressionBase>());
-                            DummyDefinition->SetNonReciprocalMappedVstNode(DefinitionAst.GetMappedVstNode());
-
                             ULANG_ASSERTF(DefinitionAst.GetMappedVstNode(), "Cannot process extension method due to missing VstNode (will fail later).");
-                            TSPtr<CExprMakeTuple> NewArgument = TSRef<CExprMakeTuple>::New(3);
+
+                            TSPtr<CExprMakeTuple> NewArgument = TSRef<CExprMakeTuple>::New();
                             NewArgument->SetNonReciprocalMappedVstNode(Argument->GetMappedVstNode());
                             NewArgument->AppendSubExpr(Move(Context));
-                            NewArgument->AppendSubExpr(Move(DummyDefinition));
-                            NewArgument->AppendSubExpr(Move(Argument));
+                            NewArgument->AppendSubExpr(Move(Argument)); // this may be an empty CExprMakeTuple... we append this still to accomodate named args - JIRA #SOL-6937
                             Invocation->SetArgument(Move(NewArgument));
                         }
                         else if (ContextCore->GetNodeType() == EAstNodeType::Invoke_MakeTuple)

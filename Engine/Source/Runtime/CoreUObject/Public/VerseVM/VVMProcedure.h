@@ -16,10 +16,10 @@ struct FAbstractVisitor;
 /*
 This is laid out in memory with (64-bit) pointers followed by (8-byte aligned) instructions followed by (32-bit) integers:
 VProcedure
-TWriteBarrier<VUniqueString>   NamedParam[0]
-TWriteBarrier<VUniqueString>   NamedParam[1]
+FNamedParam                    NamedParam[0]
+FNamedParam                    NamedParam[1]
 ...
-TWriteBarrier<VUniqueString>   NamedParam[NumNamedParameters - 1]
+FNamedParam                    NamedParam[NumNamedParameters - 1]
 TWriteBarrier<VValue>          Constant  [0]
 TWriteBarrier<VValue>          Constant  [1]
 ...
@@ -74,8 +74,8 @@ struct VProcedure : VCell
 
 	// Trailing array layout computation
 
-	TWriteBarrier<VUniqueString>* GetNamedParamsBegin() { return BitCast<TWriteBarrier<VUniqueString>*>(&Trailing); }
-	TWriteBarrier<VUniqueString>* GetNamedParamsEnd() { return GetNamedParamsBegin() + NumNamedParameters; }
+	FNamedParam* GetNamedParamsBegin() { return BitCast<FNamedParam*>(&Trailing); }
+	FNamedParam* GetNamedParamsEnd() { return GetNamedParamsBegin() + NumNamedParameters; }
 
 	TWriteBarrier<VValue>* GetConstantsBegin() { return BitCast<TWriteBarrier<VValue>*>(GetNamedParamsEnd()); }
 	TWriteBarrier<VValue>* GetConstantsEnd() { return GetConstantsBegin() + NumConstants; }
@@ -148,7 +148,7 @@ struct VProcedure : VCell
 		uint32 NumRegisterNames)
 	{
 		const size_t NumBytes = offsetof(VProcedure, Trailing)
-							  + sizeof(TWriteBarrier<VUniqueString>) * NumNamedParameters
+							  + sizeof(FNamedParam) * NumNamedParameters
 							  + sizeof(TWriteBarrier<VValue>) * NumConstants
 							  + NumOpBytes
 							  + sizeof(FValueOperand) * NumOperands
@@ -203,9 +203,9 @@ private:
 		, NumOpLocations(InNumOpLocations)
 		, NumRegisterNames(InNumRegisterNames)
 	{
-		for (TWriteBarrier<VUniqueString>* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
+		for (FNamedParam* NamedParam = GetNamedParamsBegin(); NamedParam != GetNamedParamsEnd(); ++NamedParam)
 		{
-			new (NamedParam) TWriteBarrier<VUniqueString>{};
+			new (NamedParam) FNamedParam{};
 		}
 		for (TWriteBarrier<VValue>* Constant = GetConstantsBegin(); Constant != GetConstantsEnd(); ++Constant)
 		{
