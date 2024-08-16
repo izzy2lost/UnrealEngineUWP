@@ -376,15 +376,22 @@ namespace uba
 		return out != 0 || Equals(TC("0"));
 	}
 
-	#if PLATFORM_WINDOWS
 	u32 StringBufferBase::Parse(char* out, u64 outCapacity)
 	{
+		#if PLATFORM_WINDOWS
 		size_t destLen;
 		if (wcstombs_s(&destLen, out, outCapacity, data, outCapacity-1) != 0)
 			return 0;
 		return (u32)destLen;
+		#else
+		if (outCapacity == 0)
+			return 0;
+		u32 toCopy = Min(u32(outCapacity - 1), count);
+		memcpy(out, data, toCopy);
+		out[toCopy] = 0;
+		return toCopy;
+		#endif
 	}
-	#endif
 
 	StringView ToView(const tchar* s)
 	{
