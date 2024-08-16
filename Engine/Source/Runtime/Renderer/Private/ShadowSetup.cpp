@@ -815,7 +815,7 @@ bool FProjectedShadowInfo::SetupPerObjectProjection(
 	MaxScreenPercent = InMaxScreenPercent;
 	bDirectionalLight = InLightSceneInfo->Proxy->GetLightType() == LightType_Directional;
 	const EShaderPlatform ShaderPlatform = LightSceneInfo->Scene->GetShaderPlatform();
-	bCapsuleShadow = InParentSceneInfo->Proxy->CastsCapsuleDirectShadow() && !bInPreShadow && SupportsCapsuleDirectShadows(ShaderPlatform);
+	bCapsuleShadow = InParentSceneInfo->Proxy->CastsCapsuleDirectShadow() && !bInPreShadow && IsCapsuleDirectShadowsEnabled(ShaderPlatform);
 	bTranslucentShadow = bInTranslucentShadow;
 	bPreShadow = bInPreShadow;
 	bSelfShadowOnly = InParentSceneInfo->Proxy->CastsSelfShadowOnly();
@@ -6215,7 +6215,7 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 #endif
 							bGMobileInsetShadows = CVarMobileInsetShadows.GetValueOnRenderThread();
 
-							if (!bMobile || bGMobileInsetShadows || (LightSceneInfo->Proxy->CastsModulatedShadows() && !LightSceneInfo->Proxy->UseCSMForDynamicObjects() && LightSceneInfo->Proxy->HasStaticShadowing()))
+							if (!bMobile || bGMobileInsetShadows || IsMobileCapsuleShadowsEnabled(ShaderPlatform) || (LightSceneInfo->Proxy->CastsModulatedShadows() && !LightSceneInfo->Proxy->UseCSMForDynamicObjects() && LightSceneInfo->Proxy->HasStaticShadowing()))
 							{
 								const TArray<FLightPrimitiveInteraction*>* InteractionShadowPrimitives = LightSceneInfo->GetInteractionShadowPrimitives();
 
@@ -6419,8 +6419,8 @@ void FSceneRenderer::FilterDynamicShadows(FDynamicShadowsTaskData& TaskData)
 				}
 
 				bool bNeedsProjection = ProjectedShadowInfo->CacheMode != SDCM_StaticPrimitivesOnly
-					//// Filter out everything but PerObjectOpaqueShadows & Distance field shadows for ES31
-					&& (!bMobile || ProjectedShadowInfo->bPerObjectOpaqueShadow || ProjectedShadowInfo->bRayTracedDistanceField || ProjectedShadowInfo->bWholeSceneShadow);
+					//// Filter out everything but PerObjectOpaqueShadows, Distance field shadows and capsule shadows for ES31
+					&& (!bMobile || ProjectedShadowInfo->bPerObjectOpaqueShadow || ProjectedShadowInfo->bRayTracedDistanceField || ProjectedShadowInfo->bWholeSceneShadow || ProjectedShadowInfo->bCapsuleShadow);
 
 				if (bNeedsProjection)
 				{

@@ -963,7 +963,8 @@ void CapsuleShadowingCS(
 	float2 ScreenUV = float2((DispatchThreadId.xy * DownsampleFactor + ScissorRectMinAndSize.xy + .5f) * View.BufferSizeAndInvSize.zw);
 	float2 ScreenPosition = (ScreenUV.xy - View.ScreenPositionScaleBias.wz) / View.ScreenPositionScaleBias.xy;
 
-#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER
+// Mobile does not support bent normals
+#if LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER && !SHADING_PATH_MOBILE
 	float4 ReceiverTextureValue = ReceiverBentNormalTexture.Load(DispatchThreadId.xyz);
 	float3 ReceiverBentNormal = ReceiverTextureValue.xyz;
 	float SceneDepth = ReceiverTextureValue.w;
@@ -1016,7 +1017,7 @@ void CapsuleShadowingCS(
 				float LightAngle = LightAngleAndNormalThreshold.x;
 
 			#endif
-		#elif LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER
+		#elif LIGHT_SOURCE_MODE == LIGHT_SOURCE_FROM_RECEIVER && !SHADING_PATH_MOBILE
 			float3 TranslatedWorldRayStart = OpaqueTranslatedWorldPosition;
 			float BentNormalLength = length(ReceiverBentNormal);
 			float3 UnitRayDirection = ReceiverBentNormal / max(BentNormalLength, .00001f);

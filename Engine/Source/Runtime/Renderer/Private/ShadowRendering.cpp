@@ -2314,7 +2314,7 @@ void FDeferredShadingSceneRenderer::RenderDeferredShadowProjections(
 	RenderShadowProjections(GraphBuilder, SceneTextures, ScreenShadowMaskTexture, ScreenShadowMaskSubPixelTexture, LightSceneInfo, bProjectingForForwardShading);
 	ShadowSceneRenderer->ApplyVirtualShadowMapProjectionForLight(GraphBuilder, SceneTextures, LightSceneInfo, ScreenShadowMaskTexture, ScreenShadowMaskSubPixelTexture);
 
-	RenderCapsuleDirectShadows(GraphBuilder, SceneTextures.UniformBuffer, *LightSceneInfo, ScreenShadowMaskTexture, VisibleLightInfo.CapsuleShadowsToProject, bProjectingForForwardShading);
+	RenderCapsuleDirectShadows(GraphBuilder, *LightSceneInfo, ScreenShadowMaskTexture, VisibleLightInfo.CapsuleShadowsToProject, bProjectingForForwardShading);
 
 	// Inject deep shadow mask for regular shadow map. When using virtual shadow map, it is directly handled in the shadow kernel.
 	if (HairStrands::HasViewHairStrandsData(Views))
@@ -2422,7 +2422,8 @@ void FMobileSceneRenderer::RenderMobileShadowProjections(
 				LightSceneInfo,
 				bProjectingForForwardShading);
 		}
-		
+		RenderCapsuleDirectShadows(GraphBuilder, *LightSceneInfo, ScreenShadowMaskTexture, VisibleLightInfo.CapsuleShadowsToProject, bProjectingForForwardShading);
+
 		if (LightSceneProxy->GetLightType() == LightType_Directional && LightSceneInfo->GetDynamicShadowMapChannel() != -1)
 		{
 			// Dynamic shadows are projected into channels of the light attenuation texture based on their assigned DynamicShadowMapChannel
