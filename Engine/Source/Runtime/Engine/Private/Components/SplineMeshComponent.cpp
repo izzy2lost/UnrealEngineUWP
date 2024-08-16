@@ -892,7 +892,7 @@ FBoxSphereBounds USplineMeshComponent::CalcBounds(const FTransform& LocalToWorld
 	const UStaticMesh* Mesh = GetStaticMesh();
 	if (Mesh == nullptr)
 	{
-		return FBox();
+		return FBoxSphereBounds(LocalToWorld.GetLocation(), FVector::ZeroVector, 0.f);;
 	}
 
 	const FBox ComputedBounds = ComputeDistortedBounds(LocalToWorld, Mesh->GetBounds());
