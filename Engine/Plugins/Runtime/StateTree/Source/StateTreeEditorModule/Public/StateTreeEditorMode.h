@@ -69,6 +69,7 @@ protected:
 protected:
 	uint32 EditorDataHash = 0;
 	bool bLastCompileSucceeded = true;
+	bool bForceAssetDetailViewToRefresh = false;
 
 	TWeakObjectPtr<UStateTree> CachedStateTree = nullptr;
 
