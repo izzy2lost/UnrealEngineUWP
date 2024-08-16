@@ -868,6 +868,7 @@ void FSkeletalAnimationSection::SlipSection(FFrameNumber SlipTime)
 
 bool FSkeletalAnimationSection::RequestDeleteKeyArea(const TArray<FName>& KeyAreaNamePath)
 {
+	Section.Modify();
 	Section.DeleteChannels(KeyAreaNamePath);
 	return true;
 }

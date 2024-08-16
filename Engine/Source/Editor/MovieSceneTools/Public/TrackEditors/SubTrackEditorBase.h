@@ -381,6 +381,7 @@ void TSubSectionMixin<ParentSectionClass>::DilateSection(const TRange<FFrameNumb
 template<typename ParentSectionClass>
 bool TSubSectionMixin<ParentSectionClass>::RequestDeleteKeyArea( const TArray<FName>& KeyAreaNamePath )
 {
+	SubSectionObject.Modify();
 	SubSectionObject.DeleteChannels(KeyAreaNamePath);
 	return true;
 }
