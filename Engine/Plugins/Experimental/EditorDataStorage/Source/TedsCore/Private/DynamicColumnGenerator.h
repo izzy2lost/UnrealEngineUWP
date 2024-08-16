@@ -18,7 +18,7 @@ class UScriptStruct;
 // The template struct that is used to generate the DynamicTag column
 // It is safe to reinterpret a DynamicTag column to this template to access the Value
 USTRUCT()
-struct FTedsDynamicTagColumn : public FTedsSharedColumn
+struct FTedsValueTagColumn : public FTedsSharedColumn
 {
 	GENERATED_BODY()
 	
@@ -28,7 +28,7 @@ struct FTedsDynamicTagColumn : public FTedsSharedColumn
 
 namespace UE::Editor::DataStorage
 {
-	using FDynamicTagColumn = FTedsDynamicTagColumn;
+	using FValueTagColumn = FTedsValueTagColumn;
 
 	struct FDynamicColumnInfo
 	{
@@ -47,48 +47,46 @@ namespace UE::Editor::DataStorage
 	class FDynamicColumnGenerator
 	{
 	public:
+		~FDynamicColumnGenerator();
 		/**
 		 * Generates a dynamic TEDS column type based on a Template type (if it hasn't been generated before)
 		 */
-		FDynamicColumnGeneratorInfo GenerateColumn(const FName& ColumnName, const UScriptStruct& Template);
+		FDynamicColumnGeneratorInfo GenerateColumn(const UScriptStruct& Template, const FName& Identifier);
 
-		/**
-		 * Looks up a column based on the name given 
-		 */
-		const UScriptStruct* LookupColumn(const FName& ColumnName) const;
+		const UScriptStruct* FindColumn(const UScriptStruct& Template, const FName& Identifier) const;
 	private:
 
 		struct FGeneratedColumnRecord
 		{
-			FName Name;
+			FName Identifier;
 			const UScriptStruct* Template;
 			const UScriptStruct* Type;
+			FTopLevelAssetPath AssetPath;
+		};
+
+		struct FGeneratedColumnKey
+		{
+			const UScriptStruct& Template;
+			FName Identifier;
+
+			friend bool operator==(const FGeneratedColumnKey& Lhs, const FGeneratedColumnKey& Rhs)
+			{
+				return Lhs.Identifier == Rhs.Identifier && &Lhs.Template == &Rhs.Template;
+			}
+
+			friend uint32 GetTypeHash(const FGeneratedColumnKey& Key)
+			{
+				return HashCombineFast(GetTypeHash(Key.Identifier), PointerHash(&Key.Template));
+			}
 		};
 
 		UE_MT_DECLARE_RW_ACCESS_DETECTOR(AccessDetector);
 
 		TArray<FGeneratedColumnRecord> GeneratedColumnData;
-
-		struct FGeneratedColumnKey
-		{
-			FName Name;
-			const UScriptStruct& Template;
-
-			friend bool operator==(const FGeneratedColumnKey& Lhs, const FGeneratedColumnKey& Rhs)
-			{
-				return Lhs.Name == Rhs.Name && &Lhs.Template == &Rhs.Template;
-			}
-
-			friend uint32 GetTypeHash(const FGeneratedColumnKey& Key)
-			{
-				return HashCombineFast(GetTypeHash(Key.Name), PointerHash(&Key.Template));
-			}
-		};
+		
 		// Looks up generated column index by the parameters used to generate it
 		// Used to de-duplicate
-		TMap<FGeneratedColumnKey, int32> GenerationParamsLookup;
-		// Looks up generated column index by name
-		TMap<FName, int32> NameLookup;
+		TMap<FGeneratedColumnKey, int32> GeneratedColumnLookup;
 	};
 
 	class FDynamicTagManager

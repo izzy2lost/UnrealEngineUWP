@@ -230,6 +230,353 @@ static FAutoConsoleCommand CVarCreateRow(
 		UE_LOG(LogEditorDataStorage, Warning, TEXT("Added Row %llu"), static_cast<uint64>(RowHandle));
 	}));
 
+static FAutoConsoleCommand CVarAddDynamicColumnTag(
+	TEXT("TEDS.Debug.DynamicColumn.AddTag"),
+	TEXT("Argument: Row, Identifier\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		if (Args.Num() != 2)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Must be 2"));
+			return;
+		}
+
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const FName Identifier = FName(*Args[1]);
+
+		DataStorage->AddColumn<FTestDynamicTag>(Row, Identifier);
+		
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarAddDynamicColumn(
+	TEXT("TEDS.Debug.DynamicColumn.AddColumn"),
+	TEXT("Argument: Row, Identifier\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		if (Args.Num() != 2)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Row, TagId"));
+			return;
+		}
+
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const FName Identifier = FName(*Args[1]);
+		
+		bool bUseDefaultApi = false;
+
+		if (bUseDefaultApi)
+		{
+			DataStorage->AddColumn<FTestDynamicColumn>(Row, Identifier);
+		}
+		else
+		{
+			FTestDynamicColumn TemplateColumn;
+			DataStorage->AddColumn(Row, Identifier, MoveTemp(TemplateColumn));
+		}		
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarRemoveDynamicColumn(
+	TEXT("TEDS.Debug.DynamicColumn.RemoveColumn"),
+	TEXT("Argument: Row, Identifier\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		if (Args.Num() != 2)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Row, TagId, [optional] default=true/false"));
+			return;
+		}
+
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const FName Identifier = FName(*Args[1]);
+		
+		DataStorage->RemoveColumn<FTestDynamicColumn>(Row, Identifier);
+	}),
+	ECVF_Default);
+
+// Adds a value array stored in the dynamic column denoted with the given TagId
+static FAutoConsoleCommand CVarAddToDynamicColumn(
+	TEXT("TEDS.Debug.DynamicColumn.AddToColumn"),
+	TEXT("Argument: Row, TagId, Value, [optional] MethodId\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		if (Args.Num() < 3 || Args.Num() > 4)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Row, TagId, Value"));
+			return;
+		}
+
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const FName TagId = FName(*Args[1]);
+		const uint64 Value = FCString::Strtoui64(*Args[2], nullptr, 10);
+		const uint64 MethodId = Args.Num() >= 4 ? FCString::Strtoui64(*Args[3], nullptr, 10) : 0;
+
+		// Two methods
+		// 0
+		if (MethodId == 0)
+		{
+			FTestDynamicColumn* Column = DataStorage->GetColumn<FTestDynamicColumn>(Row, TagId);
+			if (!Column)
+			{
+				UE_LOG(LogEditorDataStorage, Warning, TEXT("Row does not contain dynamic column"));
+				return;
+			}
+			Column->IntArray.Add(Value);
+		}
+		else if (MethodId == 1)
+		{
+			FTestDynamicColumn* Column = DataStorage->GetColumn<FTestDynamicColumn>(Row, TagId);
+			if (!Column)
+			{
+				UE_LOG(LogEditorDataStorage, Warning, TEXT("Row does not contain dynamic column. Creating one."));
+				FTestDynamicColumn TemplateColumn;
+				TemplateColumn.IntArray.Add(Value);
+				DataStorage->AddColumn(Row, TagId, MoveTemp(TemplateColumn));
+			}
+			else
+			{
+				// Move the column to a temporary... then mutate it, then move it back
+				FTestDynamicColumn TemplateColumn = MoveTemp(*Column);
+				TemplateColumn.IntArray.Add(Value);
+				DataStorage->AddColumn(Row, TagId, MoveTemp(TemplateColumn));
+			}
+		}
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarPrintDynamicColumn(
+	TEXT("TEDS.Debug.DynamicColumn.PrintColumn"),
+	TEXT("Argument: Row, TagId\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		if (Args.Num() != 2)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Row, TagId"));
+			return;
+		}
+		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
+		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const FName TagId = FName(*Args[1]);
+
+		FTestDynamicColumn* Column = DataStorage->GetColumn<FTestDynamicColumn>(Row, TagId);
+		if (!Column)
+		{
+			UE_LOG(LogEditorDataStorage, Warning, TEXT("Row does not contain dynamic column"));
+			return;
+		}
+
+		TStringBuilder<512> StringBuilder;
+		StringBuilder.Append(TEXT("Array: \n"));
+		const int32 EndIndex = Column->IntArray.Num();
+		for (int32 Index = 0; Index < EndIndex - 1; ++Index)
+		{
+			StringBuilder.Appendf(TEXT("[%d] %llu\n"), Index, Column->IntArray[Index]);
+		}
+		if (const int32 LastIndex = EndIndex - 1; LastIndex >= 0)
+		{
+			StringBuilder.Appendf(TEXT("[%d] %llu\n"), LastIndex, Column->IntArray[LastIndex]);
+		}
+		else
+		{
+			StringBuilder.Append(TEXT("Empty"));
+		}
+
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("%s"), StringBuilder.ToString());
+		
+	}),
+	ECVF_Default);
+
+/**
+ * A Command to illustrate building a query and callback to read a dynamic column
+ */
+static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
+	TEXT("TEDS.Debug.DynamicColumn.PrintColumnWithQuery"),
+	TEXT("Argument: Identifier\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::Editor::DataStorage;
+		
+		// Print column using query
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Identifier"));
+			return;
+		}
+		
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		const FName Identifier(*Args[0]);
+
+		const TypedElementQueryHandle Query = DataStorage->RegisterQuery(
+			Select().
+				// Specify ReadOnly access to a dynamic column of type FTestDynamicColumn specified by the Identifier
+				ReadOnly<FTestDynamicColumn>(Identifier).
+			Compile());
+
+		TStringBuilder<1024> StringBuilder;
+		TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query,CreateDirectQueryCallbackBinding(
+			[Identifier, &StringBuilder](TypedElementDataStorage::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+			{
+				const TArrayView<const TypedElementDataStorage::RowHandle> RowView = MakeConstArrayView(Rows, Context.GetRowCount());
+				// Get pointer to the start of the range of columns to process
+				const FTestDynamicColumn* DynamicColumnsRangeStart = Context.GetColumn<FTestDynamicColumn>(Identifier);
+				const TArrayView<const FTestDynamicColumn> DynamicColumnView = MakeConstArrayView(DynamicColumnsRangeStart, Context.GetRowCount());
+				
+				for (int32 Index = 0, End = RowView.Num(); Index < End; ++Index)
+				{
+					StringBuilder.Appendf(TEXT("%llu: {"), static_cast<uint64>(RowView[Index]));
+					const FTestDynamicColumn& DynamicColumn = DynamicColumnView[Index];
+					if (!DynamicColumn.IntArray.IsEmpty())
+					{
+						for (int32 Value : DynamicColumn.IntArray)
+						{
+							StringBuilder.Appendf(TEXT("%d, "), Value);
+						}
+						// Trim the last ', '
+						StringBuilder.RemoveSuffix(2);
+					}
+					StringBuilder.Append(TEXT("}\n"));
+				}
+			}));
+
+		const int32 RowCount = Result.Count;
+		StringBuilder.Appendf(TEXT("Processed '%d' items."), RowCount);
+		
+		DataStorage->UnregisterQuery(Query);
+
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("%s"), StringBuilder.ToString());
+		
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
+	TEXT("TEDS.Debug.DynamicColumn.CountDynamicTagWithQuery"),
+	TEXT("Argument: Identifier\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::Editor::DataStorage;
+				
+		// Print column using query
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Identifier"));
+			return;
+		}
+				
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				
+		const FName Identifier(*Args[0]);
+
+		const TypedElementQueryHandle Query = DataStorage->RegisterQuery(
+			Select().
+				// Specify Any access to a dynamically created tag
+				Where().
+					Any<FTestDynamicTag>(Identifier).
+			Compile());
+
+		int32 Count = 0;
+		DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding([Identifier, &Count](TypedElementDataStorage::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* Rows)
+		{
+			Count += Context.GetRowCount();
+		}));
+
+		DataStorage->UnregisterQuery(Query);
+		
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("Processed '%d' items."), Count);
+		
+	}),
+	ECVF_Default);
+
+/**
+ * Registers an activatable query which will run against rows that have the FTestDynamicTag::<Identifier> column
+ */
+static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
+	TEXT("TEDS.Debug.DynamicColumn.RegisterListDynamicColumnQuery"),
+	TEXT("Argument: Identifier ActivationGroup\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::Editor::DataStorage;
+				
+		// Print column using query
+		if (Args.Num() != 2)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. Identifier ActivationGroup"));
+			return;
+		}
+				
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+				
+		const FName Identifier(*Args[0]);
+		const FName ActivationGroup(*Args[1]);
+		
+		using namespace TypedElementQueryBuilder;
+		using DSI = ITypedElementDataStorageInterface;
+		using namespace UE::Editor::DataStorage;
+		using namespace TypedElementDataStorage;
+
+		// Lists the rows processed that have 
+		DataStorage->RegisterQuery(
+				Select(
+					TEXT("ProcessDynamicTagColumns"),
+					FProcessor(EQueryTickPhase::FrameEnd, DataStorage->GetQueryTickGroupName(EQueryTickGroups::Default))
+						.MakeActivatable(ActivationGroup),
+					[](IQueryContext& Context, const RowHandle* Rows)
+					{
+						auto RowView = MakeConstArrayView(Rows, Context.GetRowCount());
+						for (RowHandle Row : RowView)
+						{
+							UE_LOG(LogEditorDataStorage, Warning, TEXT("- '%llu'\n"), Row);
+						}
+					})
+					.Where()
+						.All<FTestDynamicTag>(Identifier)
+				.Compile());
+
+		UE_LOG(LogEditorDataStorage, Warning, TEXT("Query registered for Dynamic Column FTestDynamicTag::%s with activation group '%s'"), *Identifier.ToString(), *ActivationGroup.ToString());
+	}),
+	ECVF_Default);
+
+static FAutoConsoleCommand CVarActivateListDynamicColumnQuery(
+	TEXT("TEDS.Debug.DynamicColumn.ActivateListDynamicColumnQuery"),
+	TEXT("Argument: ActivationGroup\n"),
+	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+	{
+		// Print column using query
+		if (Args.Num() != 1)
+		{
+			UE_LOG(LogEditorDataStorage, Error, TEXT("Invalid number of arguments. ActivationGroup"));
+			return;
+		}
+						
+		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+		
+		const FName ActivationGroup(*Args[0]);
+
+		DataStorage->ActivateQueries(ActivationGroup);
+	}),
+	ECVF_Default);
+
 static FAutoConsoleCommand CVarAddDynamicTag(
 	TEXT("TEDS.Debug.DynamicTag.AddColumn"),
 	TEXT("Argument: Row, Tag, Value\n"),

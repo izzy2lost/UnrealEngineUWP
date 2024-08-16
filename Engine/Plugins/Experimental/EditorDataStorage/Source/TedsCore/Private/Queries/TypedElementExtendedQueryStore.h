@@ -165,6 +165,7 @@ namespace UE::Editor::DataStorage
 			CallbackReference Callback);
 
 		FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery);
+		bool SetupDynamicColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment);
 		bool SetupSelectedColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
 		bool SetupConditions(ITypedElementDataStorageInterface::FQueryDescription& Query, FMassEntityQuery& NativeQuery);
 		bool SetupChunkFilters(Handle QueryHandle, ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment, FMassEntityQuery& NativeQuery);

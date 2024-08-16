@@ -204,6 +204,9 @@ public:
 	virtual void AddColumn(TypedElementDataStorage::RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& Value) = 0;
 
 	template<typename T>
+	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag) = delete;
+	
+	template<typename T>
 	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag, const FName& Value) = delete;
 	
 	template<>
@@ -214,6 +217,12 @@ public:
 	
 	template<auto Value, UE::Editor::DataStorage::TEnumType EnumT = decltype(Value)>
 	void AddColumn(TypedElementDataStorage::RowHandle Row);
+
+	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
+	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier);
+	
+	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
+	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance);
 
 	/**
 	 * Adds multiple columns from a row. This is typically more efficient than adding columns one 
@@ -239,6 +248,9 @@ public:
 
 	template<typename T>
 	void RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag) = delete;
+
+	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplateType>
+	void RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier);
 	
 	template<>
 	void RemoveColumn<UE::Editor::DataStorage::FDynamicTag>(TypedElementDataStorage::RowHandle Row, const FName& Tag);
@@ -273,6 +285,11 @@ public:
 	ColumnType* GetColumn(TypedElementRowHandle Row);
 	template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 	const ColumnType* GetColumn(TypedElementRowHandle Row) const;
+	// Gets a dynamic column identified by the ColumnTypeTemplate and Identifier
+	template<UE::Editor::DataStorage::TDataColumnType ColumnTypeTemplate>
+	ColumnTypeTemplate* GetColumn(TypedElementRowHandle Row, const FName& Identifer);
+	template<UE::Editor::DataStorage::TDataColumnType ColumnTypeTemplate>
+	const ColumnTypeTemplate* GetColumn(TypedElementRowHandle Row, const FName& Identifer) const;
 	
 	/** Determines if the provided row contains the collection of columns and tags. */
 	virtual bool HasColumns(TypedElementRowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) const = 0;
@@ -291,6 +308,20 @@ public:
 
 	/** Determines if the columns in the row match the query conditions. */
 	virtual bool MatchesColumns(TypedElementDataStorage::RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
+
+	/**
+	 * Finds the type information for a dynamic column.
+	 * If the dynamic column has not been generated, then return nullptr
+	 * The TemplateType may be a typed derived from either FTypedElementDataStorageColumn or FTypedElementDataStorageTag, anything else will return nullptr
+	 */
+	virtual const UScriptStruct* FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const = 0;
+
+	/**
+	 * Generates a new dynamic column from a Template.  A dynamic column is uniquely identified using the given template and an Identifier
+	 * This function is idempotent - multiple calls with the same parameters will result in subsequent calls returning the same type
+	 * The TemplateType may be a typed derived from either FTypedElementDataStorageColumn or FTypedElementDataStorageTag
+	 */
+	virtual const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) = 0;
 	
 	/**
 	 * @section Query
@@ -468,6 +499,18 @@ inline void ITypedElementDataStorageInterface::RemoveColumn<UE::Editor::DataStor
 	RemoveColumn(Row, FDynamicTag(Tag));
 }
 
+template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
+void ITypedElementDataStorageInterface::RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier)
+{
+	const UE::Editor::DataStorage::FDynamicColumnDescription Description
+	{
+		.TemplateType = DynamicColumnTemplate::StaticStruct(),
+		.Identifier = Identifier
+	};
+	const UScriptStruct* StructInfo = FindDynamicColumn(Description);
+	RemoveColumn(Row, StructInfo);
+}
+
 template<UE::Editor::DataStorage::TEnumType EnumT>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, EnumT Value)
 {
@@ -483,6 +526,57 @@ template<auto Value, UE::Editor::DataStorage::TEnumType EnumT>
 void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row)
 {
 	AddColumn<EnumT>(Row, Value);
+}
+
+template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier)
+{
+	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
+		"DynamicColumnTemplate must be derived from either a Tag or Column");
+	const UE::Editor::DataStorage::FDynamicColumnDescription Description
+	{
+		.TemplateType = DynamicColumnTemplate::StaticStruct(),
+		.Identifier = Identifier
+	};
+	const UScriptStruct* StructInfo = GenerateDynamicColumn(Description);
+	AddColumn(Row, StructInfo);
+}
+
+template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
+void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance)
+{
+	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
+		"DynamicColumnTemplate must be derived from either a Tag or Column");
+	const UE::Editor::DataStorage::FDynamicColumnDescription Description
+	{
+		.TemplateType = DynamicColumnTemplate::StaticStruct(),
+		.Identifier = Identifier
+	};
+	const UScriptStruct* StructInfo = GenerateDynamicColumn(Description);
+	AddColumnData(Row, StructInfo,
+		[&TemplateInstance](void* ColumnData, const UScriptStruct&)
+		{
+			if constexpr (std::is_move_constructible_v<DynamicColumnTemplate>)
+			{
+				new(ColumnData) DynamicColumnTemplate(MoveTemp(TemplateInstance));
+			}
+			else
+			{
+				new(ColumnData) DynamicColumnTemplate(TemplateInstance);
+			}
+		},
+		[](const UScriptStruct&, void* Destination, void* Source)
+		{
+			if constexpr (std::is_move_assignable_v<DynamicColumnTemplate>)
+			{
+				*static_cast<DynamicColumnTemplate*>(Destination) = MoveTemp(*static_cast<DynamicColumnTemplate*>(Source));
+			}
+			else
+			{
+				*static_cast<DynamicColumnTemplate*>(Destination) = *static_cast<DynamicColumnTemplate*>(Source);
+			}
+		});
+	
 }
 
 template<UE::Editor::DataStorage::TEnumType EnumT>
@@ -536,6 +630,38 @@ template<UE::Editor::DataStorage::TDataColumnType ColumnType>
 const ColumnType* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row) const
 {
 	return reinterpret_cast<const ColumnType*>(GetColumnData(Row, ColumnType::StaticStruct()));
+}
+
+template <UE::Editor::DataStorage::TDataColumnType DynamicColumnTemplate>
+DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row, const FName& Identifier)
+{
+	const UE::Editor::DataStorage::FDynamicColumnDescription Description
+	{
+		.TemplateType = DynamicColumnTemplate::StaticStruct(),
+		.Identifier = Identifier
+	};
+	const UScriptStruct* StructInfo = GenerateDynamicColumn(Description);
+	if (StructInfo)
+	{
+		return static_cast<DynamicColumnTemplate*>(GetColumnData(Row, StructInfo));
+	}
+	return nullptr;
+}
+
+template <UE::Editor::DataStorage::TDataColumnType DynamicColumnTemplate>
+const DynamicColumnTemplate* ITypedElementDataStorageInterface::GetColumn(TypedElementRowHandle Row, const FName& Identifier) const
+{
+	const UE::Editor::DataStorage::FDynamicColumnDescription Description
+	{
+		.TemplateType = DynamicColumnTemplate::StaticStruct(),
+		.Identifier = Identifier
+	};
+	const UScriptStruct* StructInfo = FindDynamicColumn(Description);
+	if (StructInfo)
+	{
+		return static_cast<DynamicColumnTemplate*>(GetColumnData(Row, StructInfo));
+	}
+	return nullptr;
 }
 
 template<UE::Editor::DataStorage::TColumnType... ColumnType>

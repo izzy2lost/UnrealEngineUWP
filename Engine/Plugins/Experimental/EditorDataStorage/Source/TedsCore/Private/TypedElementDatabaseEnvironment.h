@@ -44,8 +44,18 @@ namespace UE::Editor::DataStorage
 		FMassProcessingPhaseManager& GetMassPhaseManager();
 		const FMassProcessingPhaseManager& GetMassPhaseManager() const;
 
-		FConstSharedStruct GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value);
+		// Finds the type information for the dynamic column
+		// Dynamic columns are specified by a template layout and a FName Identifier
+		const UScriptStruct* FindDynamicColumn(const UScriptStruct& Template, const FName& Identifier);
+		// Generates or returns an existing type for the dynamic column
+		// Dynamic columns are specified by a template layout and a FName Identifier
+		const UScriptStruct* GenerateDynamicColumn(const UScriptStruct& Template, const FName& Identifier);
+		
+		// Creates or Finds the column type associated with the value tag
 		const UScriptStruct* GenerateColumnType(const FDynamicTag& Tag);
+		
+		// Creates an instance of a value tag
+		FConstSharedStruct GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value);
 
 		void NextUpdateCycle();
 		uint64 GetUpdateCycleId() const;

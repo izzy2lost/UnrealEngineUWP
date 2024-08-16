@@ -1,26 +1,39 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "DynamicColumnGenerator.h"
 
 #include "AssetDefinitionDefault.h"
 #include "TypedElementDataStorageSharedColumn.h"
 #include "Elements/Common/TypedElementCommonTypes.h"
+#include "Kismet2/ReloadUtilities.h"
 
 namespace UE::Editor::DataStorage
 {
-	FDynamicColumnGeneratorInfo FDynamicColumnGenerator::GenerateColumn(const FName& ColumnName, const UScriptStruct& Template)
+	FDynamicColumnGenerator::~FDynamicColumnGenerator()
+	{
+		FReload ReloadContext(EActiveReloadType::Reinstancing, TEXT("REINSTANCING"), *GLog);
+		ReloadContext.SetEnableReinstancing(true);
+		ReloadContext.SetSendReloadCompleteNotification(false);
+		
+		for (FGeneratedColumnRecord& GeneratedColumnRecord : GeneratedColumnData)
+		{
+			GeneratedColumnRecord.Type->DeferCppStructOps(GeneratedColumnRecord.AssetPath, nullptr);
+		}
+	}
+
+	FDynamicColumnGeneratorInfo FDynamicColumnGenerator::GenerateColumn(const UScriptStruct& Template, const FName& Identifier)
 	{
 		const FGeneratedColumnKey Key
 		{
-			.Name = ColumnName,
-			.Template = Template
+			.Template = Template,
+			.Identifier = Identifier,
 		};
 	
 		FDynamicColumnGeneratorInfo GeneratedColumnInfo;
 		UE_MT_SCOPED_WRITE_ACCESS(AccessDetector);
 		
 		{
-			const int32* GeneratedColumnIndex = GenerationParamsLookup.Find(Key);
+			const int32* GeneratedColumnIndex = GeneratedColumnLookup.Find(Key);
 			if (GeneratedColumnIndex != nullptr)
 			{
 				const FGeneratedColumnRecord& GeneratedColumnRecord = GeneratedColumnData[*GeneratedColumnIndex];
@@ -30,49 +43,73 @@ namespace UE::Editor::DataStorage
 			}		
 		}
 		
-		checkf(
-			Template.IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()) ||
-			Template.IsChildOf(UE::Editor::DataStorage::FTag::StaticStruct()) ||
-			Template.IsChildOf(FTedsSharedColumn::StaticStruct()),
-			TEXT("Template struct must derive from Column, Tag or SharedColumn"));
+		auto IsValidType = [](const UScriptStruct& Template)
+		{
+			return
+				Template.IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()) ||
+				Template.IsChildOf(UE::Editor::DataStorage::FTag::StaticStruct()) ||
+				Template.IsChildOf(FTedsSharedColumn::StaticStruct());
+		};
+		if (!ensureMsgf(IsValidType(Template), TEXT("Template struct [%s] must derive from Column, Tag or SharedColumn"), *Template.GetName()))
+		{
+			return FDynamicColumnGeneratorInfo
+			{
+				.Type = nullptr,
+				.bNewlyGenerated = false
+			};
+		}
 	
 		{
 			checkf(Template.GetCppStructOps() != nullptr && Template.IsNative(), TEXT("Can only create column from native struct"));
+
+			TStringBuilder<256> ObjectNameBuilder;
+			ObjectNameBuilder.Append(Template.GetName());
+			ObjectNameBuilder.Append(TEXT("::"));
+			ObjectNameBuilder.Append(Identifier.ToString());
+
+			const FName ObjectName = FName(ObjectNameBuilder);
+			const FTopLevelAssetPath AssetPath(GetTransientPackage()->GetFName(), ObjectName);
 			
-			UScriptStruct* NewScriptStruct = NewObject<UScriptStruct>(GetTransientPackage(), ColumnName);
+			UScriptStruct* NewScriptStruct = NewObject<UScriptStruct>(GetTransientPackage(), ObjectName);
+			// Ensure it is not garbage collected
+			// FDynamicColumnGenerator is not a UObject and thus does not participate in GC
 			NewScriptStruct->AddToRoot();
 	
+			// New struct subclasses the template to allow for casting back to template and usage of CppStructOps
+			// for copy/move.
 			NewScriptStruct->SetSuperStruct(&const_cast<UScriptStruct&>(Template));
 			
-			NewScriptStruct->DeferCppStructOps(FTopLevelAssetPath(GetTransientPackage()->GetFName(), ColumnName), Template.GetCppStructOps());
+			NewScriptStruct->DeferCppStructOps(AssetPath, Template.GetCppStructOps());
 			NewScriptStruct->Bind();
 			NewScriptStruct->PrepareCppStructOps();
-			NewScriptStruct->StaticLink(true);
-	
-			
+			NewScriptStruct->StaticLink(true);			
 			const int32 Index = GeneratedColumnData.Emplace(FGeneratedColumnRecord
 			{
-				.Name = ColumnName,
+				.Identifier = Identifier,
 				.Template = &Template,
-				.Type = NewScriptStruct
+				.Type = NewScriptStruct,
+				.AssetPath = AssetPath
 			});
 			
-			GenerationParamsLookup.Add(Key, Index);
-			NameLookup.Add(ColumnName, Index);
-			
+			GeneratedColumnLookup.Add(Key, Index);
+						
 			GeneratedColumnInfo.Type = NewScriptStruct;
 			GeneratedColumnInfo.bNewlyGenerated = true;
 			return GeneratedColumnInfo;
 		}
 	}
 	
-	const UScriptStruct* FDynamicColumnGenerator::LookupColumn(const FName& ColumnName) const
+	const UScriptStruct* FDynamicColumnGenerator::FindColumn(const UScriptStruct& Template, const FName& Identifier) const
 	{
 		UE_MT_SCOPED_READ_ACCESS(AccessDetector);
-		
-		if (const int32* Index = NameLookup.Find(ColumnName))
+	
+		const int32* IndexPtr = GeneratedColumnLookup.Find(FGeneratedColumnKey{
+			.Template = Template,
+			.Identifier = Identifier
+			});
+		if (IndexPtr)
 		{
-			return GeneratedColumnData[*Index].Type;
+			return GeneratedColumnData[*IndexPtr].Type;
 		}
 		return nullptr;
 	}
@@ -100,7 +137,7 @@ namespace UE::Editor::DataStorage
 		{
 			const UScriptStruct* ColumnType = GenerateColumnType(InTag);
 	
-			const UE::Editor::DataStorage::FDynamicTagColumn Overlay
+			const FTedsValueTagColumn Overlay
 			{
 				.Value = InValue
 			};
@@ -115,7 +152,7 @@ namespace UE::Editor::DataStorage
 	
 	const UScriptStruct* FDynamicTagManager::GenerateColumnType(const FDynamicTag& Tag)
 	{
-		const FDynamicColumnGeneratorInfo GeneratedColumnType = ColumnGenerator.GenerateColumn(Tag.GetName(), *FDynamicTagColumn::StaticStruct());
+		const FDynamicColumnGeneratorInfo GeneratedColumnType = ColumnGenerator.GenerateColumn(*FTedsValueTagColumn::StaticStruct(), Tag.GetName());
 		
 		return GeneratedColumnType.Type;
 	}

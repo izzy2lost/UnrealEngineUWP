@@ -56,32 +56,26 @@ namespace UE
 		class FDynamicTag
 		{
 		public:
-			explicit FDynamicTag(const FName& InName);
+			TYPEDELEMENTFRAMEWORK_API explicit FDynamicTag(const FName& InName);
 			
-			const FName& GetName() const;
-			bool operator==(const FDynamicTag& Other) const;
+			TYPEDELEMENTFRAMEWORK_API const FName& GetName() const;
+			TYPEDELEMENTFRAMEWORK_API bool operator==(const FDynamicTag& Other) const = default;
 		private:
-			friend uint32 GetTypeHash(const FDynamicTag& InName)
-			{
-				return GetTypeHash(InName.Name);
-			}
+			TYPEDELEMENTFRAMEWORK_API friend uint32 GetTypeHash(const FDynamicTag& InName);
 			FName Name;
 		};
 
-		inline FDynamicTag::FDynamicTag(const FName& InTypeName)
-			: Name(InTypeName)
-		{}
+		template<typename T>
+		concept TValueTagType = std::is_same_v<T, FDynamicTag>;
 
-		inline const FName& FDynamicTag::GetName() const
+		struct FDynamicColumnDescription
 		{
-			return Name;
-		}
+			const UScriptStruct* TemplateType;
+			FName Identifier;
 
-		inline bool FDynamicTag::operator==(const FDynamicTag& Other) const
-		{
-			return Other.Name == Name;
-		}
-
+			TYPEDELEMENTFRAMEWORK_API friend uint32 GetTypeHash(const FDynamicColumnDescription& Descriptor);
+			TYPEDELEMENTFRAMEWORK_API bool operator==(const FDynamicColumnDescription&) const = default;
+		};
 		// Standard callbacks.
 
 		using RowCreationCallbackRef = TFunctionRef<void(TypedElementDataStorage::RowHandle Row)>;

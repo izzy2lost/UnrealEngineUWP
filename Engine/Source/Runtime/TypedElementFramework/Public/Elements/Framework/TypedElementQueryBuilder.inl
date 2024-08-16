@@ -1133,10 +1133,32 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		return *this;
 	}
 
+	template<UE::Editor::DataStorage::TDataColumnType Target>
+	Select& Select::ReadOnly(const FName& Identifier)
+	{
+		ReadOnly(UE::Editor::DataStorage::FDynamicColumnDescription
+			{
+				.TemplateType = Target::StaticStruct(),
+				.Identifier = Identifier
+			});
+		return *this;
+	}
+
 	template<TDataColumnType... TargetTypes>
 	Select& Select::ReadWrite()
 	{
 		ReadWrite({ TargetTypes::StaticStruct()... });
+		return *this;
+	}
+
+	template<TDataColumnType Target>
+	Select& Select::ReadWrite(const FName& Identifier)
+	{
+		ReadWrite(UE::Editor::DataStorage::FDynamicColumnDescription
+			{
+				.TemplateType = Target::StaticStruct(),
+				.Identifier = Identifier
+			});
 		return *this;
 	}
 
@@ -1159,13 +1181,55 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, TypedEleme
 		return *this;
 	}
 
+	template <TColumnType DynamicColumnTemplate>
+	FSimpleQuery& FSimpleQuery::Any(const FName& Identifier)
+	{
+		return Any(UE::Editor::DataStorage::FDynamicColumnDescription
+		{
+			.TemplateType = DynamicColumnTemplate::StaticStruct(),
+			.Identifier = Identifier
+		});
+	}
+
 	template<TColumnType... TargetTypes>
 	FSimpleQuery& FSimpleQuery::None()
 	{
 		None({ TargetTypes::StaticStruct()... });
 		return *this;
 	}
+
+	template<UE::Editor::DataStorage::TValueTagType>
+	FSimpleQuery& FSimpleQuery::All(const FName& Tag)
+	{
+		return All(UE::Editor::DataStorage::FDynamicTag(Tag));
+	}
+
+	template<UE::Editor::DataStorage::TValueTagType>
+	FSimpleQuery& FSimpleQuery::All(const FName& Tag, const FName& Value)
+	{
+		return All(UE::Editor::DataStorage::FDynamicTag(Tag), Value);
+	}
 	
+	template <TColumnType DynamicColumnTemplate>
+	FSimpleQuery& FSimpleQuery::None(const FName& Identifier)
+	{
+		return None(UE::Editor::DataStorage::FDynamicColumnDescription
+			{
+				.TemplateType = DynamicColumnTemplate::StaticStruct(),
+				.Identifier = Identifier
+			});
+	}
+
+	template <TColumnType DynamicColumnTemplate>
+	FSimpleQuery& FSimpleQuery::All(const FName& Identifier)
+	{
+		return All(UE::Editor::DataStorage::FDynamicColumnDescription
+			{
+				.TemplateType = DynamicColumnTemplate::StaticStruct(),
+				.Identifier = Identifier
+			});
+	}
+
 	template <TEnumType EnumT>
     FSimpleQuery& FSimpleQuery::All()
     {

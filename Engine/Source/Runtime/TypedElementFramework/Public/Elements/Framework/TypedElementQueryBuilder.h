@@ -161,10 +161,34 @@ namespace TypedElementQueryBuilder
 		FSimpleQuery& Any();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(TConstArrayView<const UScriptStruct*> Targets);
+
+		// Dynamic Column Support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& Any(const UE::Editor::DataStorage::FDynamicColumnDescription& Description);
+		template<UE::Editor::DataStorage::TColumnType T>
+		FSimpleQuery& Any(const FName&);
+
+		// Dynamic Tags not yet supported for Any
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& Any(const FName&) = delete;
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& Any(const FName&, const FName&) = delete;
+		
 		template<UE::Editor::DataStorage::TColumnType... TargetTypes>
 		FSimpleQuery& None();
+		
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
+		
+		// Dynamic Tags not yet supported for None
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& None(const FName& Tag) = delete;
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& None(const FName& Tag, const FName& Value) = delete;
+
+		// Dynamic Column Support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UE::Editor::DataStorage::FDynamicColumnDescription& Description);
+		template<UE::Editor::DataStorage::TColumnType T>
+		FSimpleQuery& None(const FName&);
 		
 		// Dynamic Tags
 		// ============
@@ -177,20 +201,18 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum, int64 Value);
 
-		// Disabled generic template for DynamicTags
-		template<typename... T>
-		FSimpleQuery& All(const FName&) = delete;
-		// Disabled generic template for DynamicTags
-		template<typename... T>
-		FSimpleQuery& All(const FName&, const FName&) = delete;
+		// Dynamic Column support
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UE::Editor::DataStorage::FDynamicColumnDescription& Description);
+		template<UE::Editor::DataStorage::TColumnType T>
+		FSimpleQuery& All(const FName&);
 
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
-		template<>
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag);
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& All(const FName& Tag);
 		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
 		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
-		template<>
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All<UE::Editor::DataStorage::FDynamicTag>(const FName& Tag, const FName& Value);
+		template<UE::Editor::DataStorage::TValueTagType>
+		FSimpleQuery& All(const FName& Tag, const FName& Value);
 		
 		template<UE::Editor::DataStorage::TEnumType EnumT>
 		FSimpleQuery& All();
@@ -353,6 +375,7 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UScriptStruct* Target);
 		/** Request read-only access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(const UE::Editor::DataStorage::FDynamicColumnDescription& Description);
 		/** 
 		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
 		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
@@ -368,7 +391,9 @@ namespace TypedElementQueryBuilder
 		 * Request read-only access to the listed columns. If optional is true read access will be given if the column is in the table but
 		 * it will not be used for finding matching tables. Columns bound with optional can not be bound to a query callback argument.
 		 */
-		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optionall);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadOnly(TConstArrayView<const UScriptStruct*> Targets, EOptional Optional);
+		template<UE::Editor::DataStorage::TDataColumnType Target>
+		Select& ReadOnly(const FName& Identifier);
 		/** Request read and write access to the listed columns. */
 		template<UE::Editor::DataStorage::TDataColumnType... TargetTypes>
 		Select& ReadWrite();
@@ -376,6 +401,9 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UScriptStruct* Target);
 		/** Request read and write access to the listed columns. */
 		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(TConstArrayView<const UScriptStruct*> Targets);
+		TYPEDELEMENTFRAMEWORK_API Select& ReadWrite(const UE::Editor::DataStorage::FDynamicColumnDescription& Description);
+		template<UE::Editor::DataStorage::TDataColumnType Target>
+		Select& ReadWrite(const FName& Identifier);
 
 		TYPEDELEMENTFRAMEWORK_API ITypedElementDataStorageInterface::FQueryDescription&& Compile();
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery Where();

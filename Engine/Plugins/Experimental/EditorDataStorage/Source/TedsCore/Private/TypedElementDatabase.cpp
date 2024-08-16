@@ -956,6 +956,16 @@ bool UEditorDataStorage::MatchesColumns(TypedElementDataStorage::RowHandle Row, 
 	return false;
 }
 
+const UScriptStruct* UEditorDataStorage::FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const
+{
+	return Environment->FindDynamicColumn(*Description.TemplateType, Description.Identifier);
+}
+
+const UScriptStruct* UEditorDataStorage::GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
+{
+	return Environment->GenerateDynamicColumn(*Description.TemplateType, Description.Identifier);
+}
+
 void UEditorDataStorage::RegisterTickGroup(
 	FName GroupName, EQueryTickPhase Phase, FName BeforeGroup, FName AfterGroup, TypedElementDataStorage::EExecutionMode ExecutionMode)
 {

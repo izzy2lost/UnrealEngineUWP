@@ -24,7 +24,8 @@ namespace UE::Editor::DataStorage
 		StoredQuery.Description = MoveTemp(Query);
 
 		FMassEntityQuery& NativeQuery = SetupNativeQuery(StoredQuery.Description, StoredQuery);
-		bool bContinueSetup = SetupSelectedColumns(StoredQuery.Description, NativeQuery);
+		bool bContinueSetup =               SetupDynamicColumns(StoredQuery.Description, Environment);
+		bContinueSetup = bContinueSetup &&	SetupSelectedColumns(StoredQuery.Description, NativeQuery);
 		bContinueSetup = bContinueSetup && SetupChunkFilters(Result, StoredQuery.Description, Environment, NativeQuery);
 		bContinueSetup = bContinueSetup && SetupConditions(StoredQuery.Description, NativeQuery);
 		bContinueSetup = bContinueSetup && SetupDependencies(StoredQuery.Description, NativeQuery);
@@ -370,6 +371,51 @@ namespace UE::Editor::DataStorage
 		Output.Log(TEXT("End of Typed Elements Data Storage query callback list."));
 	}
 
+	bool FExtendedQueryStore::SetupDynamicColumns(ITypedElementDataStorageInterface::FQueryDescription& Query, FEnvironment& Environment)
+	{
+		using namespace TypedElementDataStorage;
+	
+		const int32 SelectionCount = Query.DynamicSelectionTypes.Num();
+
+		for (int32 Index = 0, End = SelectionCount; Index < End; ++Index)
+		{
+			// Convert the dynamic elements into concrete types
+			const FDynamicColumnDescription& Description = Query.DynamicSelectionTypes[Index];
+			if (!ensureMsgf(Description.TemplateType, TEXT("Null template type for dynamic column")))
+			{
+				continue;
+			}
+			const UScriptStruct* DynamicColumnType = Environment.GenerateDynamicColumn(*Description.TemplateType, Description.Identifier);
+
+			const EQueryAccessType AccessType = Query.DynamicSelectionAccessTypes[Index];
+			const FColumnMetaData::EFlags MetadataFlags = Query.DynamicSelectionMetaData[Index];
+			if (ensureMsgf(DynamicColumnType, TEXT("Provided query selection type can not be null.")))
+			{
+				Query.SelectionTypes.Emplace(DynamicColumnType);
+				Query.SelectionAccessTypes.Emplace(AccessType);
+				Query.SelectionMetaData.Emplace(TypedElementDataStorage::FColumnMetaData(DynamicColumnType, MetadataFlags));
+			}
+		}
+
+		for (int32 Index = 0, End = Query.DynamicConditionDescriptions.Num(); Index < End; ++Index)
+		{
+			const UE::Editor::DataStorage::FDynamicColumnDescription& Description = Query.DynamicConditionDescriptions[Index];
+			if (!ensureMsgf(Description.TemplateType, TEXT("Null template type for dynamic column")))
+			{
+				continue;
+			}
+			const UScriptStruct* DynamicColumnType = Environment.GenerateDynamicColumn(*Description.TemplateType, Description.Identifier);
+			TypedElementDataStorage::FQueryDescription::EOperatorType Operation = Query.DynamicConditionOperations[Index];
+			Query.ConditionTypes.Add(Operation);
+			Query.ConditionOperators.Add(TypedElementDataStorage::FQueryDescription::FOperator
+			{
+				.Type = DynamicColumnType
+			});
+		}
+
+		return true;
+	}
+
 	FMassEntityQuery& FExtendedQueryStore::SetupNativeQuery(
 		ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery)
 	{
@@ -583,32 +629,30 @@ namespace UE::Editor::DataStorage
 		return false;
 	}
 
-	static const FName DynamicTagDataParamName = TEXT("TagName");
-
 	bool FExtendedQueryStore::SetupChunkFilters(
 		Handle QueryHandle,
 		ITypedElementDataStorageInterface::FQueryDescription& Query,
 		FEnvironment& Environment,
 		FMassEntityQuery& NativeQuery)
 	{
-		if (Query.DynamicTags.IsEmpty())
+		if (Query.ValueTags.IsEmpty())
 		{
 			return true;
 		}
 
-		Algo::SortBy(Query.DynamicTags, [](const TypedElementDataStorage::FQueryDescription::FDynamicTagData& DynamicTagData)
+		Algo::SortBy(Query.ValueTags, [](const TypedElementDataStorage::FQueryDescription::FDynamicTagData& DynamicTagData)
 			{
 				return DynamicTagData.Tag.GetName();
 			}, FNameFastLess());
 		// Check if there are any duplicate groups. Not yet supported until we can match multiple MatchTags
-		UE::Editor::DataStorage::FDynamicTag PreviousTag = Query.DynamicTags[0].Tag;
-		for (int32 Index = 1, End = Query.DynamicTags.Num(); Index < End; ++Index)
+		UE::Editor::DataStorage::FDynamicTag PreviousTag = Query.ValueTags[0].Tag;
+		for (int32 Index = 1, End = Query.ValueTags.Num(); Index < End; ++Index)
 		{
-			if (Query.DynamicTags[Index].Tag == PreviousTag)
+			if (Query.ValueTags[Index].Tag == PreviousTag)
 			{
 				return false;
 			}
-			PreviousTag = Query.DynamicTags[Index].Tag;
+			PreviousTag = Query.ValueTags[Index].Tag;
 		}
 
 		struct FGroupTagPair
@@ -618,14 +662,14 @@ namespace UE::Editor::DataStorage
 		};
 
 		TArray<FGroupTagPair> GroupTagPairsTemp;
-		GroupTagPairsTemp.Reserve(Query.DynamicTags.Num());
-		for (int32 Index = 0, End = Query.DynamicTags.Num(); Index < End; ++Index)
+		GroupTagPairsTemp.Reserve(Query.ValueTags.Num());
+		for (int32 Index = 0, End = Query.ValueTags.Num(); Index < End; ++Index)
 		{
-			const UScriptStruct* ColumnType = Environment.GenerateColumnType(Query.DynamicTags[Index].Tag);
+			const UScriptStruct* ColumnType = Environment.GenerateColumnType(Query.ValueTags[Index].Tag);
 			GroupTagPairsTemp.Emplace(FGroupTagPair
 				{
 					.ColumnType = ColumnType,
-					.Value = Query.DynamicTags[Index].MatchValue
+					.Value = Query.ValueTags[Index].MatchValue
 				});
 		}
 
@@ -644,9 +688,7 @@ namespace UE::Editor::DataStorage
 
 				if (SharedFragmentData)
 				{
-					// TODO: Use reflection / knowledge of key offset to read the tag and compare it
-					// For now... we know it is at offset 0
-					const FDynamicTagColumn* TagOverlay = static_cast<const FDynamicTagColumn*>(SharedFragmentData);
+					const FValueTagColumn* TagOverlay = static_cast<const FValueTagColumn*>(SharedFragmentData);
 					// NAME_None will match any presence of the shared fragment
 					// otherwise, match the specific tag only
 					if (GroupTagPair.Value != NAME_None && TagOverlay->Value != GroupTagPair.Value)

@@ -97,7 +97,14 @@ namespace TypedElementDataStorage
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> ConditionTypes;
 		TArray<FOperator, TInlineAllocator<NumInlineConditions>> ConditionOperators;
 
-		TArray<FDynamicTagData> DynamicTags;
+		TArray<UE::Editor::DataStorage::FDynamicColumnDescription, TInlineAllocator<NumInlineSelections>> DynamicSelectionTypes;
+		TArray<EQueryAccessType, TInlineAllocator<NumInlineSelections>> DynamicSelectionAccessTypes;
+		TArray<FColumnMetaData::EFlags, TInlineAllocator<NumInlineSelections>> DynamicSelectionMetaData;
+		
+		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> DynamicConditionOperations;
+		TArray<UE::Editor::DataStorage::FDynamicColumnDescription, TInlineAllocator<NumInlineConditions>> DynamicConditionDescriptions;
+
+		TArray<FDynamicTagData> ValueTags;
 
 		TArray<TWeakObjectPtr<const UClass>, TInlineAllocator<NumInlineDependencies>> DependencyTypes;
 		TArray<EQueryDependencyFlags, TInlineAllocator<NumInlineDependencies>> DependencyFlags;
