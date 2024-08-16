@@ -138,11 +138,22 @@ namespace UE::AnimNext
 					continue;	// Nothing to do
 				}
 
-				FLatentPropertiesHeader& LatentHeader = TraitTemplate.GetTraitLatentPropertiesHeader(*NodeDesc);
+				const uint32 BaseTraitIndex = TraitIndex - TraitTemplate.GetTraitIndex();
+				const FTraitTemplate& BaseTraitTemplate = TraitTemplates[BaseTraitIndex];
+
+				// Latent header is looked up using the base trait
+				FLatentPropertiesHeader& LatentHeader = BaseTraitTemplate.GetTraitLatentPropertiesHeader(*NodeDesc);
 				FLatentPropertyHandle* LatentHandles = TraitTemplate.GetTraitLatentPropertyHandles(*NodeDesc);
 
-				bool bHasValidLatentProperties = false;
-				bool bCanAllPropertiesFreeze = true;
+				// If we are a base trait, reset our header
+				if (TraitTemplate.GetMode() == ETraitMode::Base)
+				{
+					LatentHeader.bHasValidLatentProperties = false;
+					LatentHeader.bCanAllPropertiesFreeze = true;
+				}
+
+				bool bHasValidLatentProperties = !!LatentHeader.bHasValidLatentProperties;
+				bool bCanAllPropertiesFreeze = !!LatentHeader.bCanAllPropertiesFreeze;
 
 				const FTraitRegistryHandle TraitHandle = TraitTemplate.GetRegistryHandle();
 				const FTrait* Trait = TraitRegistry.Find(TraitHandle);

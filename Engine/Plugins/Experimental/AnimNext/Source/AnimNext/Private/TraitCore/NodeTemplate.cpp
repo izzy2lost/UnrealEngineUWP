@@ -121,11 +121,10 @@ namespace UE::AnimNext
 
 				// Save our latent pins offset (if we have any)
 				NumLatentProperties = Trait->GetNumLatentTraitProperties();
-				if (NumLatentProperties != 0)
-				{
-					TraitSharedLatentPropertyHandlesOffset = SharedLatentPropertyHandlesOffset;
-					SharedLatentPropertyHandlesOffset += NumLatentProperties * sizeof(FLatentPropertyHandle);
-				}
+
+				// The handle offset points to the first handle, if we are a base trait, our header precedes it
+				TraitSharedLatentPropertyHandlesOffset = SharedLatentPropertyHandlesOffset;
+				SharedLatentPropertyHandlesOffset += NumLatentProperties * sizeof(FLatentPropertyHandle);
 			}
 
 			check(NumSubStackLatentProperties <= MAX_uint16);
