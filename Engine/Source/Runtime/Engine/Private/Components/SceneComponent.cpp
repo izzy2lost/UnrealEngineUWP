@@ -1422,13 +1422,6 @@ void USceneComponent::UpdateBounds()
 		}
 	}
 
-	// Refresh navigation data if component is relevant to navigation.
-	// Note that 'UpdateNavigationData' will ignore unregistered components.
-	if (bNavigationRelevant)
-	{
-		UpdateNavigationData();
-	}
-
 #if ENABLE_NAN_DIAGNOSTIC
 	if (Bounds.ContainsNaN())
 	{
