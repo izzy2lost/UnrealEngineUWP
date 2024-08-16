@@ -214,26 +214,9 @@ void FCinematicShotTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBuilder,
 	MenuBuilder.EndSection();
 }
 
-void FCinematicShotTrackEditor::InsertShot()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	FSubTrackEditor::InsertSection(CinematicShotTrack);
-}
-
-void FCinematicShotTrackEditor::DuplicateShot(UMovieSceneCinematicShotSection* Section)
-{
-	FSubTrackEditor::DuplicateSection(Section);
-}
-
 void FCinematicShotTrackEditor::RenderShots(const TArray<UMovieSceneCinematicShotSection*>& Sections)
 {
 	GetSequencer()->RenderMovie(Sections);
-}
-
-void FCinematicShotTrackEditor::NewTake(UMovieSceneCinematicShotSection* Section)
-{
-	FSubTrackEditor::CreateNewTake(Section);
 }
 
 /* FSubTrackEditor
@@ -274,20 +257,6 @@ FString FCinematicShotTrackEditor::GetDefaultSubsequenceDirectory() const
 TSubclassOf<UMovieSceneSubTrack> FCinematicShotTrackEditor::GetSubTrackClass() const
 {
 	return UMovieSceneCinematicShotTrack::StaticClass();
-}
-
-TSharedRef<SWidget> FCinematicShotTrackEditor::HandleAddCinematicShotComboButtonGetMenuContent()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	return HandleAddSubSequenceComboButtonGetMenuContent(CinematicShotTrack);
-}
-
-UMovieSceneCinematicShotTrack* FCinematicShotTrackEditor::FindOrCreateCinematicShotTrack()
-{
-	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
-	UMovieSceneCinematicShotTrack* CinematicShotTrack = FocusedMovieScene ? FocusedMovieScene->FindTrack<UMovieSceneCinematicShotTrack>() : nullptr;
-	return Cast<UMovieSceneCinematicShotTrack>(FindOrCreateSubTrack(FocusedMovieScene, CinematicShotTrack));
 }
 
 bool FCinematicShotTrackEditor::HandleAddSubTrackMenuEntryCanExecute() const

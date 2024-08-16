@@ -57,17 +57,6 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void BuildTrackContextMenu(FMenuBuilder& MenuBuilder, UMovieSceneTrack* Track) override;
 
-	UE_DEPRECATED(5.3, "InsertShot has been deprecated in favor of FSubTrackEditor::InsertSection(UMovieSceneTrack*)")
-	void InsertShot();
-	UE_DEPRECATED(5.3, "DuplicateShot has been deprecated in favor of FSubTrackEditor::DuplicateSection(UMovieSceneSubSection*)")
-	void DuplicateShot(UMovieSceneCinematicShotSection* Section);
-	UE_DEPRECATED(5.3, "RenameShot has been removed because it was unused")
-	void RenameShot(UMovieSceneCinematicShotSection* Section) {}
-	UE_DEPRECATED(5.3, "NewTake has been deprecated in favor of FSubTrackEditor::CreateNewTake(UMovieSceneSubSection*)")
-	void NewTake(UMovieSceneCinematicShotSection* Section);
-	UE_DEPRECATED(5.3, "InsertFiller has been removed because it is obsolete")
-	void InsertFiller() {}
-
 	/*
 	 * Render shots. 
 	 *
@@ -87,11 +76,6 @@ public:
 	virtual TSubclassOf<UMovieSceneSubTrack> GetSubTrackClass() const;
 
 protected:
-
-	UE_DEPRECATED(5.3, "HandleAddCinematicShotComboButtonGetMenuContent has been deprecated. Please implement FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent(UMovieSceneTrack*) instead")
-	virtual TSharedRef<SWidget> HandleAddCinematicShotComboButtonGetMenuContent();
-	UE_DEPRECATED(5.3, "FindOrCreateCinematicShotTrack has been deprecated in favor of FSubTrackEditor::FindOrCreateSubTrack(UMovieScene* MovieScene, UMovieSceneTrack*)")
-	virtual UMovieSceneCinematicShotTrack* FindOrCreateCinematicShotTrack();
 
 	virtual bool HandleAddSubTrackMenuEntryCanExecute() const override;
 	virtual bool CanHandleAssetAdded(UMovieSceneSequence* Sequence) const override;
