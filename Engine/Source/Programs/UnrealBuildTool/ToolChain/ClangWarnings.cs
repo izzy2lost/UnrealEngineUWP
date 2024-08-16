@@ -158,6 +158,12 @@ namespace UnrealBuildTool
 					Arguments.Add("-Wno-" + Warning);
 				}
 			}
+
+			if (CompileEnvironment.bIsBuildingDLL)
+			{
+				// The code base contains lots of places where we do "extern template X_API class ..." and we want to keep doing that to reduce compile times.
+				Arguments.Add("-Wno-dllexport-explicit-instantiation-decl");
+			}
 		}
 
 		internal static void GetHeaderDisabledWarnings(List<string> Arguments)

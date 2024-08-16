@@ -62,7 +62,8 @@ struct FBase64
 	 *
 	 * @return The length of the encoded data
 	 */
-	template<typename CharType> static uint32 Encode(const uint8* Source, uint32 Length, CharType* Dest, EBase64Mode Mode = EBase64Mode::Standard);
+	template<typename CharType>
+	CORE_API static uint32 Encode(const uint8* Source, uint32 Length, CharType* Dest, EBase64Mode Mode = EBase64Mode::Standard);
 
 	/**
 	* Get the encoded data size for the given number of bytes.
@@ -108,7 +109,8 @@ struct FBase64
 	 *
 	 * @return true if the buffer was decoded, false if it was invalid.
 	 */
-	template<typename CharType> static bool Decode(const CharType* Source, uint32 Length, uint8* Dest, EBase64Mode Mode = EBase64Mode::Standard);
+	template<typename CharType>
+	CORE_API static bool Decode(const CharType* Source, uint32 Length, uint8* Dest, EBase64Mode Mode = EBase64Mode::Standard);
 
 	/**
 	* Determine the decoded data size for the incoming base64 encoded string
@@ -127,7 +129,8 @@ struct FBase64
 	*
 	* @return The size in bytes of the decoded data
 	*/
-	template<typename CharType> static uint32 GetDecodedDataSize(const CharType* Source, uint32 Length);
+	template<typename CharType>
+	CORE_API static uint32 GetDecodedDataSize(const CharType* Source, uint32 Length);
 
 	/**
 	* Get the maximum decoded data size for the given number of input characters.

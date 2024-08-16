@@ -168,7 +168,7 @@ class FHazardPointerCollection
 	CORE_API void Delete(const HazardPointer_Impl::FHazardDeleter& Deleter, int32 CollectLimit);
 
 	template<bool Cached>
-	FHazardRecord* Grow();
+	CORE_API FHazardRecord* Grow();
 
 public:
 	FHazardPointerCollection()

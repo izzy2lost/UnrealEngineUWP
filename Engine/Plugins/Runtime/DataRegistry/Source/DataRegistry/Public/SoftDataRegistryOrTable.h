@@ -13,26 +13,26 @@
  * Defines a DataRegistry or a DataTable with a common interface to both
  */
 USTRUCT()
-struct DATAREGISTRY_API FSoftDataRegistryOrTable
+struct FSoftDataRegistryOrTable
 {
 	GENERATED_BODY()
 
-	FSoftDataRegistryOrTable();
-	FSoftDataRegistryOrTable(const UDataTable* InDataTable, const FDataRegistryType& InRegistryType);
+	DATAREGISTRY_API FSoftDataRegistryOrTable();
+	DATAREGISTRY_API FSoftDataRegistryOrTable(const UDataTable* InDataTable, const FDataRegistryType& InRegistryType);
 
-	bool Serialize(FArchive& Ar);
+	DATAREGISTRY_API bool Serialize(FArchive& Ar);
 
 	/* Method to check if the given table matches the value in this struct */
-	bool Matches(const UDataTable* InTable) const;
+	DATAREGISTRY_API bool Matches(const UDataTable* InTable) const;
 
 	/* Method to check if the given registry matches the value in this struct */
-	bool Matches(const UDataRegistry* InRegistry) const;
+	DATAREGISTRY_API bool Matches(const UDataRegistry* InRegistry) const;
 
 	/* Method to check if the given FDataRegistryOrTableRow matches the value in this struct */
-	bool Matches(const FDataRegistryOrTableRow& RegistryOrTableId) const;
+	DATAREGISTRY_API bool Matches(const FDataRegistryOrTableRow& RegistryOrTableId) const;
 
 	/* Method to check validity of this struct (Checks that the registry or data table is set)*/
-	bool IsValid() const;
+	DATAREGISTRY_API bool IsValid() const;
 
 	template <class T>
 	void ForEachItem(const FString& ContextString, TFunctionRef<void(const FName& Name, const T& Item)> Predicate) const
@@ -140,20 +140,20 @@ struct DATAREGISTRY_API FSoftDataRegistryOrTable
 	}
 
 	/** Used to upgrade a SoftObjectPtr to a FSoftDataRegistryOrTable */
-	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+	DATAREGISTRY_API bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 
 	/** Returns whether or not the registry or table is loaded */
-	bool IsLoaded() const;
+	DATAREGISTRY_API bool IsLoaded() const;
 
 	/**
 	 * Requests an async load of a data table using the StreamableManager and then execute the callback, which will happen even if the load fails.
 	 * NOTE: Data registries cannot be loaded this way because they must be registered with the data registry subsystem.
 	 * @param DelegateToCall		Delegate to call when load finishes. Will be called on the next tick if asset is already loaded, or many seconds later
 	 */
-	void LoadAsync(FStreamableDelegate DelegateToCall);	
+	DATAREGISTRY_API void LoadAsync(FStreamableDelegate DelegateToCall);	
 
 	/** Method to get a FDataRegistryOrTableRow from the given row name */
-	FDataRegistryOrTableRow GetRegistryOrTableRow(FName RowName) const;
+	DATAREGISTRY_API FDataRegistryOrTableRow GetRegistryOrTableRow(FName RowName) const;
 
 	UPROPERTY(EditAnywhere, Category = DataRegistryOrTable)
 	bool bUseDataRegistry = false;
@@ -169,7 +169,7 @@ struct DATAREGISTRY_API FSoftDataRegistryOrTable
 private:
 
 	/* Method to get the Data Registry */
-	const UDataRegistry* GetDataRegistry() const;
+	DATAREGISTRY_API const UDataRegistry* GetDataRegistry() const;
 
 };
 
@@ -185,19 +185,19 @@ struct TStructOpsTypeTraits<FSoftDataRegistryOrTable> : public TStructOpsTypeTra
 
 /** Defines a DataRegistryId or DataTableRowHandle with a common interface to both */
 USTRUCT(BlueprintType)
-struct DATAREGISTRY_API FDataRegistryOrTableRow
+struct FDataRegistryOrTableRow
 {
 	GENERATED_BODY()
 
-	FDataRegistryOrTableRow();
-	FDataRegistryOrTableRow(const FDataTableRowHandle& RowHandle);
-	FDataRegistryOrTableRow(const FDataRegistryId& RegistryId);
+	DATAREGISTRY_API FDataRegistryOrTableRow();
+	DATAREGISTRY_API FDataRegistryOrTableRow(const FDataTableRowHandle& RowHandle);
+	DATAREGISTRY_API FDataRegistryOrTableRow(const FDataRegistryId& RegistryId);
 
 	/** Used to upgrade a FDataTableHandle to a FDataRegistryOrTableRow */
-	bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
+	DATAREGISTRY_API bool SerializeFromMismatchedTag(const FPropertyTag& Tag, FStructuredArchive::FSlot Slot);
 
 	/* Method to get the Data Registry for the given registry id */
-	const UDataRegistry* GetDataRegistry() const;
+	DATAREGISTRY_API const UDataRegistry* GetDataRegistry() const;
 
 	template <class T>
 	const T* GetItem(const TCHAR* ContextString) const
@@ -221,12 +221,12 @@ struct DATAREGISTRY_API FDataRegistryOrTableRow
 	 * Returns the script struct used for the data registry item or data table row. Only works for data registries that
 	 * are registered
 	 */
-	const UScriptStruct* GetStruct() const;
+	DATAREGISTRY_API const UScriptStruct* GetStruct() const;
 
-	FString ToString() const;
+	DATAREGISTRY_API FString ToString() const;
 
 	// method to check validity of this row
-	bool IsValid() const;
+	DATAREGISTRY_API bool IsValid() const;
 
 	UPROPERTY(EditAnywhere, Category = DataRegistryOrTable)
 	bool bUseDataRegistryId = false;

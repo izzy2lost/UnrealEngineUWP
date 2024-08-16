@@ -8,15 +8,15 @@
  *
  * Defines asset actions for derived UAudioSynthesiaSettings subclasses.
  */
-UCLASS(Abstract, Blueprintable)
-class AUDIOSYNESTHESIA_API UAudioSynesthesiaSettings : public UAudioAnalyzerSettings
+UCLASS(Abstract, Blueprintable, MinimalAPI)
+class UAudioSynesthesiaSettings : public UAudioAnalyzerSettings
 {
 	GENERATED_BODY()
 
 public:
 
 #if WITH_EDITOR
-	const TArray<FText>& GetAssetActionSubmenus() const;
-	FColor GetTypeColor() const override;
+	AUDIOSYNESTHESIA_API const TArray<FText>& GetAssetActionSubmenus() const;
+	AUDIOSYNESTHESIA_API FColor GetTypeColor() const override;
 #endif
 };

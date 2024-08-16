@@ -1376,7 +1376,7 @@ FArchive& operator<<(FChaosArchive& Ar, TBoundingVolume<TPayloadType, T, d>& Bou
 	return Ar;
 }
 
-#if PLATFORM_MAC || PLATFORM_LINUX
+#if PLATFORM_COMPILER_CLANG
 extern template class CHAOS_API Chaos::TBoundingVolume<int32, Chaos::FReal, 3>;
 extern template class CHAOS_API Chaos::TBoundingVolume<Chaos::FAccelerationStructureHandle, Chaos::FReal, 3>;
 #else

@@ -8,17 +8,17 @@
  *
  * Defines asset actions for derived UAudioSynthesiaNRTSettings subclasses.
  */
-UCLASS(Abstract, Blueprintable)
-class AUDIOSYNESTHESIA_API UAudioSynesthesiaNRTSettings : public UAudioAnalyzerNRTSettings
+UCLASS(Abstract, Blueprintable, MinimalApi)
+class UAudioSynesthesiaNRTSettings : public UAudioAnalyzerNRTSettings
 {
 	GENERATED_BODY()
 
 	public:
 
-		const TArray<FText>& GetAssetActionSubmenus() const;
+		AUDIOSYNESTHESIA_API const TArray<FText>& GetAssetActionSubmenus() const;
 
 #if WITH_EDITOR
-		FColor GetTypeColor() const override;
+		AUDIOSYNESTHESIA_API FColor GetTypeColor() const override;
 #endif
 };
 
@@ -26,17 +26,17 @@ class AUDIOSYNESTHESIA_API UAudioSynesthesiaNRTSettings : public UAudioAnalyzerN
  *
  * Defines asset actions for derived UAudioSynthesiaNRT subclasses.
  */
-UCLASS(Abstract, Blueprintable)
-class AUDIOSYNESTHESIA_API UAudioSynesthesiaNRT : public UAudioAnalyzerNRT
+UCLASS(Abstract, Blueprintable, MinimalApi)
+class UAudioSynesthesiaNRT : public UAudioAnalyzerNRT
 {
 	GENERATED_BODY()
 
 	public:
 
-		const TArray<FText>& GetAssetActionSubmenus() const;
+		AUDIOSYNESTHESIA_API const TArray<FText>& GetAssetActionSubmenus() const;
 
 #if WITH_EDITOR
-		FColor GetTypeColor() const override;
+		AUDIOSYNESTHESIA_API FColor GetTypeColor() const override;
 #endif
 };
 

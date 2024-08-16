@@ -600,8 +600,8 @@ void FPBDCollisionSpringConstraintsBase::Apply(SolverParticlesOrRange& InParticl
 	ApplyDynamicConstraints(InParticles, Dt);
 	ApplyKinematicConstraints(InParticles, Dt);
 }
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
-template void CHAOS_API FPBDCollisionSpringConstraintsBase::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FPBDCollisionSpringConstraintsBase::Apply(FSolverParticles& Particles, const FSolverReal Dt) const;
+template CHAOS_API void FPBDCollisionSpringConstraintsBase::Apply(FSolverParticlesRange& Particles, const FSolverReal Dt) const;
 
 template<typename SolverParticlesOrRange>
 void FPBDCollisionSpringConstraintsBase::ApplyDynamicConstraints(SolverParticlesOrRange& Particles, const FSolverReal Dt) const

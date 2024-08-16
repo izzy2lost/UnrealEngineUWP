@@ -248,7 +248,7 @@ public:
 	}
 
 	/** Discard all elements. */
-	void ClearElements();
+	GEOMETRYCORE_API void ClearElements();
 
 	/** Discard elements for given triangles. */
 	template <typename EnumerableIntType>
@@ -278,9 +278,9 @@ public:
 
 
 	/** Allocate a new element with the given constant value */
-	int AppendElement(RealType ConstantValue);
+	GEOMETRYCORE_API int AppendElement(RealType ConstantValue);
 	/** Allocate a new element with the given value */
-	int AppendElement(const RealType* Value);
+	GEOMETRYCORE_API int AppendElement(const RealType* Value);
 
 	void SetParentVertex(int ElementIndex, int ParentVertexIndex)
 	{
@@ -288,7 +288,7 @@ public:
 	}
 
 	/** Initialize the triangle list to the given size, and set all triangles to InvalidID */
-	void InitializeTriangles(int MaxTriangleID);
+	GEOMETRYCORE_API void InitializeTriangles(int MaxTriangleID);
 
 	/**
 	 * Set the triangle to the given Element index tuple, and increment element reference counts 
@@ -298,7 +298,7 @@ public:
 	 *  when remeshing across existing elements to avoid them being freed while temporarily unreferenced,
 	 *  but then it should eventually be followed by a call to FreeUnusedElements().
 	 */
-	EMeshResult SetTriangle(int TriangleID, const FIndex3i& TriElements, bool bAllowElementFreeing = true);
+	GEOMETRYCORE_API EMeshResult SetTriangle(int TriangleID, const FIndex3i& TriElements, bool bAllowElementFreeing = true);
 
 	/**
 	 * Goes through elements and frees any whose reference counts indicate that they are not being used. This
@@ -307,7 +307,7 @@ public:
 	 * 
 	 * @param ElementsToCheck If provided, only these element ID's will be checked.
 	 */
-	void FreeUnusedElements(const TSet<int>* ElementsToCheck = nullptr);
+	GEOMETRYCORE_API void FreeUnusedElements(const TSet<int>* ElementsToCheck = nullptr);
 
 	/**
 	 * Set the triangle to have InvalidID element IDs, decrementing element reference counts if needed.
@@ -316,7 +316,7 @@ public:
 	 *  become immediately unallocated. This can be set to false as part of a remeshing, but then it 
 	 *  should eventually be followed by a call to FreeUnusedElements().
 	 */
-	void UnsetTriangle(int TriangleID, bool bAllowElementFreeing = true);
+	GEOMETRYCORE_API void UnsetTriangle(int TriangleID, bool bAllowElementFreeing = true);
 
 	/** @return true if this triangle was set */
 	bool IsSetTriangle(int TID) const
@@ -336,7 +336,7 @@ public:
 	 *									  Note if a vertex can be shared between tris A and B, and B and C, it will be shared between all three
 	 * @param InitElementValue Initial element value, copied into all created elements
 	 */
-	void CreateFromPredicate(TFunctionRef<bool(int ParentVertexIdx, int TriIDA, int TriIDB)> TrisCanShareVertexPredicate, RealType InitElementValue);
+	GEOMETRYCORE_API void CreateFromPredicate(TFunctionRef<bool(int ParentVertexIdx, int TriIDA, int TriIDB)> TrisCanShareVertexPredicate, RealType InitElementValue);
 
 	/**
 	 * Refine an existing overlay topology.  For any element on a given triangle, if the predicate returns true, it gets topologically split out so it isn't shared by any other triangle.
@@ -345,7 +345,7 @@ public:
 	 * @param ShouldSplitOutVertex predicate returns true of the element should be split out and not shared w/ any other triangle
 	 * @param GetNewElementValue function to assign a new value to any element that is split out
 	 */
-	void SplitVerticesWithPredicate(TFunctionRef<bool(int ElementIdx, int TriID)> ShouldSplitOutVertex, TFunctionRef<void(int ElementIdx, int TriID, RealType* FillVect)> GetNewElementValue);
+	GEOMETRYCORE_API void SplitVerticesWithPredicate(TFunctionRef<bool(int ElementIdx, int TriID)> ShouldSplitOutVertex, TFunctionRef<void(int ElementIdx, int TriID, RealType* FillVect)> GetNewElementValue);
 
 	/**
 	 * Collapse SourceElementID into TargetElementID, resulting in connecting any containing triangles and reducing the total elements in the overlay.
@@ -354,7 +354,7 @@ public:
 	 * @param TargetElementID the element to merge into
 	 * @return If the operation completed successfully, returns true
 	 */
-	bool MergeElement(int SourceElementID, int TargetElementID);
+	GEOMETRYCORE_API bool MergeElement(int SourceElementID, int TargetElementID);
 
 	/**
 	 * Create a new copy of ElementID, and update connected triangles in the TrianglesToUpdate array to reference the copy of ElementID where they used to reference ElementID
@@ -364,7 +364,7 @@ public:
 	 * @param TrianglesToUpdate the triangles that should now reference the new element
 	 * @return the ID of the newly created element
 	 */
-	int SplitElement(int ElementID, const TArrayView<const int>& TrianglesToUpdate);
+	GEOMETRYCORE_API int SplitElement(int ElementID, const TArrayView<const int>& TrianglesToUpdate);
 
 	/**
 	* Create a new copy of ElementID, and update connected triangles in the TrianglesToUpdate array to reference the copy of ElementID where they used to reference ElementID.  The new element will have the given parent vertex ID.
@@ -375,7 +375,7 @@ public:
 	* @param TrianglesToUpdate the triangles that should now reference the new element.  Note: this is allowed to include triangles that do not have the element at all; sometimes you may want to do so to avoid creating a new array for each call.
 	* @return the ID of the newly created element
 	*/
-	int SplitElementWithNewParent(int ElementID, int SplitParentVertexID, const TArrayView<const int>& TrianglesToUpdate);
+	GEOMETRYCORE_API int SplitElementWithNewParent(int ElementID, int SplitParentVertexID, const TArrayView<const int>& TrianglesToUpdate);
 
 	/**
 	 * Split any bowties at given vertex.
@@ -383,12 +383,12 @@ public:
 	 * @param NewElementIDs If not null, newly created element IDs are placed here. Note that this array is
 	 *   intentionally not cleared before appending to it.
 	 */
-	void SplitBowtiesAtVertex(int32 Vid, TArray<int32>* NewElementIDs = nullptr);
+	GEOMETRYCORE_API void SplitBowtiesAtVertex(int32 Vid, TArray<int32>* NewElementIDs = nullptr);
 
 	/**
 	* Refine an existing overlay topology by splitting any bow ties
 	*/
-	void SplitBowties();
+	GEOMETRYCORE_API void SplitBowties();
 
 
 	//
@@ -416,7 +416,7 @@ public:
 	 * If bUnsafe, we use fast id allocation that does not update free list.
 	 * You should only be using this between BeginUnsafeElementsInsert() / EndUnsafeElementsInsert() calls
 	 */
-	EMeshResult InsertElement(int ElementID, const RealType* Value, bool bUnsafe = false);
+	GEOMETRYCORE_API EMeshResult InsertElement(int ElementID, const RealType* Value, bool bUnsafe = false);
 
 
 	//
@@ -525,39 +525,39 @@ public:
 	*   If present, bIsNonIntersectingOut will be true only if this is a seam edge 
 	*   that does not intersect with another seam or the end of the seam. 
 	*/
-	bool IsSeamEdge(int EdgeID, bool* bIsNonIntersectingOut = nullptr) const;
+	GEOMETRYCORE_API bool IsSeamEdge(int EdgeID, bool* bIsNonIntersectingOut = nullptr) const;
 	/** Returns true if the parent-mesh edge is a "Seam End" in this overlay, meaning the adjacent element triangles share one element, not two */
-	bool IsSeamEndEdge(int EdgeID) const;
+	GEOMETRYCORE_API bool IsSeamEndEdge(int EdgeID) const;
 	/** Returns true if the parent-mesh vertex is connected to any seam edges */
-	bool IsSeamVertex(int VertexID, bool bBoundaryIsSeam = true) const;
+	GEOMETRYCORE_API bool IsSeamVertex(int VertexID, bool bBoundaryIsSeam = true) const;
 
 	/**
 	 * Determines whether the base-mesh vertex has "bowtie" topology in the Overlay.
 	 * Bowtie topology means that one or more elements at the vertex are shared across disconnected UV-components.
 	 * @return true if the base-mesh vertex has "bowtie" topology in the overlay
 	 */
-	bool IsBowtieInOverlay(int32 VertexID) const;
+	GEOMETRYCORE_API bool IsBowtieInOverlay(int32 VertexID) const;
 
 	/** @return true if the two triangles are connected, ie shared edge exists and is not a seam edge */
-	bool AreTrianglesConnected(int TriangleID0, int TriangleID1) const;
+	GEOMETRYCORE_API bool AreTrianglesConnected(int TriangleID0, int TriangleID1) const;
 
 	/** find the elements associated with a given parent-mesh vertex */
-	void GetVertexElements(int VertexID, TArray<int>& OutElements) const;
+	GEOMETRYCORE_API void GetVertexElements(int VertexID, TArray<int>& OutElements) const;
 	/** Count the number of unique elements for a given parent-mesh vertex */
-	int CountVertexElements(int VertexID, bool bBruteForce = false) const;
+	GEOMETRYCORE_API int CountVertexElements(int VertexID, bool bBruteForce = false) const;
 
 	/** find the triangles connected to an element */
-	void GetElementTriangles(int ElementID, TArray<int>& OutTriangles) const;
+	GEOMETRYCORE_API void GetElementTriangles(int ElementID, TArray<int>& OutTriangles) const;
 
 	/** 
 	 * Find the element ID at a vertex of a triangle. 
 	 * 
 	 * @return Returns the element ID or FDynamicMesh3::InvalidID if the vertex is not a parent of any element contained in the triangle. 
 	 */
-	int GetElementIDAtVertex(int TriangleID, int VertexID) const;
+	GEOMETRYCORE_API int GetElementIDAtVertex(int TriangleID, int VertexID) const;
 
 	/** @return true if overlay has any interior seam edges. This requires an O(N) search unless it early-outs. */
-	bool HasInteriorSeamEdges() const;
+	GEOMETRYCORE_API bool HasInteriorSeamEdges() const;
 
 	/**
 	 * Compute interpolated parameter value inside triangle using barycentric coordinates
@@ -582,12 +582,12 @@ public:
 	/**
 	 * Checks that the overlay mesh is well-formed, ie all internal data structures are consistent
 	 */
-	bool CheckValidity(bool bAllowNonManifoldVertices = true, EValidityCheckFailMode FailMode = EValidityCheckFailMode::Check) const;
+	GEOMETRYCORE_API bool CheckValidity(bool bAllowNonManifoldVertices = true, EValidityCheckFailMode FailMode = EValidityCheckFailMode::Check) const;
 
 	/**
 	 * Returns true if this overlay is the same as Other.
 	 */
-	bool IsSameAs(const TDynamicMeshOverlay<RealType, ElementSize>& Other, bool bIgnoreDataLayout) const;
+	GEOMETRYCORE_API bool IsSameAs(const TDynamicMeshOverlay<RealType, ElementSize>& Other, bool bIgnoreDataLayout) const;
 
 	/**
 	 * Serialization operator for FDynamicMeshOverlay.
@@ -609,7 +609,7 @@ public:
 	 * @param CompactMaps If this is not a null pointer, the mesh serialization compacted the vertex and/or triangle data using the provided mapping. 
 	 * @param bUseCompression Use compression for serializing bulk data.
 	 */
-	void Serialize(FArchive& Ar, const FCompactMaps* CompactMaps, bool bUseCompression);
+	GEOMETRYCORE_API void Serialize(FArchive& Ar, const FCompactMaps* CompactMaps, bool bUseCompression);
 
 public:
 	/** Set a triangle's element indices to InvalidID */
@@ -760,7 +760,7 @@ public:
 	 * @param bFindUniqueElements if true, ProcessFunc is only called once for each ElementID, otherwise it is called once for each Triangle
 	 * @return true if at least one valid Element was found, ie if ProcessFunc was called at least one time
 	 */
-	bool EnumerateVertexElements(
+	GEOMETRYCORE_API bool EnumerateVertexElements(
 		int VertexID,
 		TFunctionRef<bool(int TriangleID, int ElementID, const VectorType& Value)> ProcessFunc,
 		bool bFindUniqueElements = true) const;

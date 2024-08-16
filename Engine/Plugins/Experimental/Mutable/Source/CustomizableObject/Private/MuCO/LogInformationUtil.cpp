@@ -1,14 +1,13 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MuCO/LogInformationUtil.h"
-
 #include "MuCO/CustomizableObjectSystemPrivate.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/World.h"
 #include "GameFramework/PlayerController.h"
+#include "MuCO/CustomizableObject.h"
 #include "MuCO/CustomizableObjectInstancePrivate.h"
 #include "TextureResource.h"
-#include "MuCO/CustomizableObject.h"
 
 int LogInformationUtil::CountLOD0 = 0;
 int LogInformationUtil::CountLOD1 = 0;
@@ -299,7 +298,7 @@ void LogInformationUtil::PrintImageToPlatformDataMap(const TMap<uint32, FTexture
 		Log = FString::Printf(TEXT("key=%d, "), Elem.Key);
 		Log = FString::Printf(TEXT("value: SizeX=%d, "), Elem.Value->SizeX);
 		Log = FString::Printf(TEXT("SizeY=%d, "), Elem.Value->SizeY);
-		Log = FString::Printf(TEXT("PixelFormat=%d, "), *UEnum::GetValueAsString(Elem.Value->PixelFormat));
+		Log = FString::Printf(TEXT("PixelFormat=%d, "), GetPixelFormatString(Elem.Value->PixelFormat));
 		int i;
 		const int Max = Elem.Value->Mips.Num();
 		for (i = 0; i < Max; ++i)

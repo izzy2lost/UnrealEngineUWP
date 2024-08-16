@@ -673,8 +673,16 @@ namespace UE
 namespace Geometry
 {
 
-template class GEOMETRYCORE_API TMeshTangents<float>;
-template class GEOMETRYCORE_API TMeshTangents<double>;
+#if PLATFORM_COMPILER_CLANG
+#define UE_EXTERN_TEMPLATE_API GEOMETRYCORE_API
+#else
+#define UE_EXTERN_TEMPLATE_API
+#endif
+
+template class UE_EXTERN_TEMPLATE_API TMeshTangents<float>;
+template class UE_EXTERN_TEMPLATE_API TMeshTangents<double>;
+
+#undef UE_EXTERN_TEMPLATE_API
 
 } // end namespace UE::Geometry
 } // end namespace UE

@@ -205,10 +205,10 @@ namespace Chaos::Softs
 		}
 
 		template<typename T, typename ElementType>
-		T GetValue(int32 KeyIndex, const TConstArrayView<ElementType>& ValueArray) const;
+		CHAOS_API T GetValue(int32 KeyIndex, const TConstArrayView<ElementType>& ValueArray) const;
 
 		template <typename T>
-		TConstArrayView<T> GetArray(const FName& Name) const;
+		CHAOS_API TConstArrayView<T> GetArray(const FName& Name) const;
 
 		bool HasAnyFlags(int32 KeyIndex, ECollectionPropertyFlags Flags) const { return EnumHasAnyFlags(GetValue<ECollectionPropertyFlags, uint8>(KeyIndex, FlagsArray), Flags); }
 
