@@ -28005,7 +28005,7 @@ UMaterialExpressionSubstratePostProcess::UMaterialExpressionSubstratePostProcess
 #if WITH_EDITOR
 int32 UMaterialExpressionSubstratePostProcess::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 0.0f);
+	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 1.0f);
 	int TransmittanceCodeChunk = Compiler->Saturate(Compiler->Sub(Compiler->Constant(1.0f), OpacityCodeChunk));
 
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
@@ -28082,7 +28082,7 @@ UMaterialExpressionSubstrateUI::UMaterialExpressionSubstrateUI(const FObjectInit
 #if WITH_EDITOR
 int32 UMaterialExpressionSubstrateUI::Compile(class FMaterialCompiler* Compiler, int32 OutputIndex)
 {
-	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 0.0f);
+	int OpacityCodeChunk = CompileWithDefaultFloat1(Compiler, Opacity, 1.0f);
 
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationGetOperator(Compiler->SubstrateTreeStackGetPathUniqueId());
 	int32 OutputCodeChunk = Compiler->SubstrateUIBSDF(
