@@ -41,8 +41,11 @@ public:
 
 	void AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Widget, TConstArrayView<FName> InCellWidgetPurposes);
 
-	// Register a dealiser for a specific TEDS-Outliner to convert a row handle to an FSceneOutlinerTreeItemID
+	// Register a dealiaser for a specific TEDS-Outliner to convert a row handle to an FSceneOutlinerTreeItemID
 	void RegisterTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Widget, const FTreeItemIDDealiaser& InDealiaser);
+
+	// Get the dealiaser for a specific outliner instance
+	FTreeItemIDDealiaser GetTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Widget);
 
 	// Get the name of the Outliner column corresponding to the given TEDS column (if any)
 	FName FindOutlinerColumnFromTEDSColumns(TConstArrayView<TWeakObjectPtr<const UScriptStruct>> TEDSColumns) const;
@@ -53,6 +56,8 @@ private:
 	void CleanupStaleOutliners();
 	
 	TSharedPtr<FSceneOutlinerTedsBridge>* FindOrAddQueryMapping(const TSharedPtr<ISceneOutliner>& Widget);
+	TSharedPtr<FSceneOutlinerTedsBridge>* FindQueryMapping(const TSharedPtr<ISceneOutliner>& Widget);
+
 	
 	TMap<TWeakPtr<ISceneOutliner>, TSharedPtr<FSceneOutlinerTedsBridge>> SceneOutliners;
 

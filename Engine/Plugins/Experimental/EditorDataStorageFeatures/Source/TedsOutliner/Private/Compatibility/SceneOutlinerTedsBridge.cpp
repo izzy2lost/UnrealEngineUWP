@@ -35,8 +35,8 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 		{
 			using namespace TypedElementQueryBuilder;
-			using DSI = ITypedElementDataStorageInterface;
-
+			using namespace TypedElementDataStorage;
+			
 		    const FName WidgetPurposes[] = {TEXT("SceneOutliner.Cell"), TEXT("General.Cell")};
 
 			UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
@@ -96,8 +96,8 @@ FAutoConsoleCommand BindColumnsToSceneOutlinerConsoleCommand(
 							}
 							if (AdditionCount > 0)
 							{
-								static TypedElementQueryHandle CustomQuery = TypedElementInvalidQueryHandle;
-								if (CustomQuery != TypedElementInvalidQueryHandle)
+								static TypedElementQueryHandle CustomQuery = InvalidQueryHandle;
+								if (CustomQuery != InvalidQueryHandle)
 								{
 									DataStorage->UnregisterQuery(CustomQuery);
 								}
@@ -125,6 +125,7 @@ public:
 
 	void AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> CellWidgetPurposes);
 	void RegisterDealiaser(const FTreeItemIDDealiaser& InDealiaser);
+	FTreeItemIDDealiaser GetDealiaser();
 private:
 	void ClearColumns(ISceneOutliner& InOutliner);
 
@@ -415,6 +416,11 @@ TSharedPtr<FSceneOutlinerTedsBridge>* FSceneOutlinerTedsQueryBinder::FindOrAddQu
 	return QueryMapping;
 }
 
+TSharedPtr<FSceneOutlinerTedsBridge>* FSceneOutlinerTedsQueryBinder::FindQueryMapping(const TSharedPtr<ISceneOutliner>& Outliner)
+{
+	return SceneOutliners.Find(Outliner);
+}
+
 void FSceneOutlinerTedsQueryBinder::AssignQuery(TypedElementQueryHandle Query, const TSharedPtr<ISceneOutliner>& Outliner, TConstArrayView<FName> CellWidgetPurposes)
 {
 	CleanupStaleOutliners();
@@ -427,6 +433,18 @@ void FSceneOutlinerTedsQueryBinder::RegisterTreeItemIDDealiaser(const TSharedPtr
 {
 	TSharedPtr<FSceneOutlinerTedsBridge>* QueryMapping = FindOrAddQueryMapping(Outliner);
 	(*QueryMapping)->RegisterDealiaser(InDealiaser);
+}
+
+FTreeItemIDDealiaser FSceneOutlinerTedsQueryBinder::GetTreeItemIDDealiaser(const TSharedPtr<ISceneOutliner>& Widget)
+{
+	TSharedPtr<FSceneOutlinerTedsBridge>* QueryMapping = FindQueryMapping(Widget);
+
+	if(QueryMapping)
+	{
+		return (*QueryMapping)->GetDealiaser();
+	}
+
+	return FTreeItemIDDealiaser();
 }
 
 void FSceneOutlinerTedsQueryBinder::CleanupStaleOutliners()
@@ -470,6 +488,12 @@ void FSceneOutlinerTedsBridge::RegisterDealiaser(const FTreeItemIDDealiaser& InD
 {
 	Dealiaser = InDealiaser;
 }
+
+FTreeItemIDDealiaser FSceneOutlinerTedsBridge::GetDealiaser()
+{
+	return Dealiaser;
+}
+
 
 void FSceneOutlinerTedsBridge::AssignQuery(TypedElementQueryHandle Query, const TConstArrayView<FName> InCellWidgetPurposes)
 {
