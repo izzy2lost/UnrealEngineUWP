@@ -154,7 +154,7 @@ namespace SkinPaintTool
 		void MergeSingleEdit(const int32 BoneIndex, const int32 VertexID, const float OldWeight, const float NewWeight);
 		void MergeEdits(const FSingleBoneWeightEdits& BoneWeightEdits);
 		float GetVertexDeltaFromEdits(const int32 BoneIndex, const int32 VertexIndex);
-		void AddEditedVerticesToSet(TSet<int32>& OutEditedVertexSet) const;
+		void GetEditedVertexIndices(TSet<int32>& OutVerticesToEdit) const;
 		void AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
 
 		// map of bone indices to weight edits made to that bone
@@ -182,17 +182,14 @@ namespace SkinPaintTool
 
 		virtual void Revert(UObject* Object) override;
 
-		void StoreBoneWeightEdit(const FSingleBoneWeightEdits& BoneWeightEdit, const TFunction<int32(int32)>& VertexIndexConverter);
+		void AddBoneWeightEdit(const FSingleBoneWeightEdits& BoneWeightEdit);
 
-		void StorePruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
-
-		void StoreMultipleWeightEdits(const FMultiBoneWeightEdits& WeightEdits, const TFunction<int32(int32)>& VertexIndexConverter);
+		void AddPruneBoneEdit(const VertexIndex VertexToPruneFrom, const BoneIndex BoneToPrune);
 
 	private:
 		FMultiBoneWeightEdits AllWeightEdits;
 		EMeshLODIdentifier LOD = EMeshLODIdentifier::Default;
 		FName SkinWeightProfile = FSkeletalMeshAttributesShared::DefaultSkinWeightProfileName;
-		
 	};
 
 	// intermediate storage of the weight maps for duration of tool
@@ -205,7 +202,7 @@ namespace SkinPaintTool
 
 		// applies an edit to a single vertex weight on a single bone, then normalizes the remaining weights while
 		// keeping the edited weight intact (ie, adapts OTHER influences to achieve normalization)
-		void CreateWeightEditForVertex(
+		void EditVertexWeightAndNormalize(
 			const int32 BoneIndex,
 			const int32 VertexId,
 			float NewWeightValue,
@@ -235,10 +232,7 @@ namespace SkinPaintTool
 			const float Weight,
 			TArray<VertexWeights>& InOutVertexWeights);
 
-		// some weight editing operations are RELATIVE to existing weights before the change started (Multiply, Add etc)
-		// these "existing weights" are stored in the PreChangeWeights buffer
-		// PreChange and Current buffers must be synchronized after a transaction
-		void SyncWeightBuffers();
+		void SwapAfterChange();
 
 		float SetCurrentFalloffAndGetMaxFalloffThisStroke(int32 VertexID, float CurrentStrength);
 
@@ -272,8 +266,7 @@ namespace SkinPaintTool
 
 	struct FSkinMirrorData
 	{
-		// lazily updates the mirror data tables for the current skeleton/mesh/mirror plane
-		void EnsureMirrorDataIsUpdated(
+		void RegenerateMirrorData(
 			const TArray<FName>& BoneNames,
 			const TMap<FName, BoneIndex>& BoneNameToIndexMap,
 			const FReferenceSkeleton& RefSkeleton,
@@ -281,18 +274,14 @@ namespace SkinPaintTool
 			EAxis::Type InMirrorAxis,
 			EMirrorDirection InMirrorDirection);
 
-		// get a map of Target > Source bone ids across the current mirror plane
 		const TMap<int32, int32>& GetBoneMap() const { return BoneMap; };
-		// get the map of Target > Source vertex ids across the current mirror plane
-		const TMap<int32, int32>& GetVertexMap() const;
-		// return true if the point lies on the TARGET side of the mirror plane
-		bool IsPointOnTargetMirrorSide(const FVector& InPoint) const;
-		// forces mirror tables to be re-generated (do this after any mesh change operation)
-		void SetNeedsReinitialized() {bIsInitialized = false;};
+		const TMap<int32, int32>& GetVertexMap() const { return VertexMap; };
+		bool GetAllVerticesMirrored() const {return bAllVerticesMirrored; };
 		
 	private:
 		
 		bool bIsInitialized = false;
+		bool bAllVerticesMirrored = false;
 		TEnumAsByte<EAxis::Type> Axis;
 		EMirrorDirection Direction; 
 		TMap<int32, int32> BoneMap;
@@ -502,11 +491,6 @@ public:
 	void NormalizeWeights();
 	void HammerWeights();
 	void TransferWeights();
-
-	// copy paste
-	void CopyWeights();
-	void PasteWeights();
-	static const FString CopyPasteWeightsIdentifier;
 	
 	// method to set weights directly (numeric input, for example)
 	void EditWeightsOnVertices(
@@ -533,8 +517,7 @@ public:
 	void SetIsolateSelected(const bool bIsolateSelection);
 
 	// get a list of currently selected vertices (converting edges and faces to vertices)
-	const TArray<int32>& GetSelectedVertices();
-	bool HasSelectedVertices() const { return !SelectedVerticesInternal.IsEmpty(); };
+	const TArray<int32>& GetSelectedVertices() const;
 	void GetVerticesAffectedByBone(BoneIndex IndexOfBone, TSet<int32>& OutVertexIndices) const;
 	void GetSelectedTriangles(TArray<int32>& OutTriangleIndices) const;
 
@@ -564,7 +547,7 @@ public:
 	// Deformations and vertex colors will be updated throughout the duration of the change.
 	void BeginChange();
 	void EndChange(const FText& TransactionLabel);
-	void ApplyWeightEditsWithoutTransaction(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits);
+	void ApplyWeightEditsToMeshMidChange(const SkinPaintTool::FMultiBoneWeightEdits& WeightEdits);
 	// "One-off" Edits:
 	// For all one-and-done edits, you can call ApplyWeightEditsAsTransaction().
 	// It will Begin/End the change and create a transaction for it.
@@ -607,18 +590,18 @@ protected:
 	bool bStampPending;
 	int32 TriangleUnderStamp;
 	FVector StampLocalPos;
-	
+
+	// modify vertex weights according to the specified operation,
 	// generating bone weight edits to be stored in a transaction
-	// does not actually change the weight buffers
-	void CreateWeightEditsForVertices(
+	void EditWeightOfBoneOnVertices(
 		EWeightEditOperation EditOperation,
 		const BoneIndex Bone,
 		const TArray<int32>& VerticesToEdit,
 		const TArray<float>& VertexFalloffs,
 		const float InValue,
 		SkinPaintTool::FMultiBoneWeightEdits& InOutWeightEdits);
-	// same as CreateWeightEditsForVertices() but specific to relaxation (topology aware operation)
-	void CreateWeightEditsToRelaxVertices(
+	// same as EditWeightOfVertices() but specific to relaxation (topology aware operation)
+	void RelaxWeightOnVertices(
 		TArray<int32> VerticesToEdit,
 		TArray<float> VertexFalloffs,
 		const float Strength,
@@ -644,18 +627,12 @@ protected:
 	FMeshDescription* EditedMesh = nullptr;
 	// when selection is isolated, we hide the full mesh and show a submesh
 	// when islated selection is unhidden, we remap all changes from the submesh back to the full mesh
-	TSharedPtr<FMeshDescription> PartialMeshDescription = nullptr; // only non-null during isolated selection
+	TSharedPtr<FMeshDescription> PartialMeshDescription = nullptr; // during isolated selection
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreVertices;
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreEdges;
 	UE::Geometry::FGeometrySelection IsolatedSelectionToRestoreFaces;
 	bool bPendingUpdateFromPartialMesh = false;
 	void FinishIsolatedSelection();
-	// isolate selection sub-meshes
-	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
-	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
-	//
-	int32 PartialToFullMeshVertexIndex(int32 PartialMeshVertexIndex) const;
-	int32 FullToPartialMeshVertexIndex(int32 FullMeshVertexIndex) const;
 
 	// storage of vertex weights per bone 
 	SkinPaintTool::FSkinToolWeights Weights;
@@ -677,27 +654,20 @@ protected:
 	// vertex colors updated when make sparse edits to subset of vertices
 	void UpdateVertexColorForSubsetOfVertices();
 	TSet<int32> VerticesToUpdateColor;
+	
 	FVector4f GetColorOfVertex(VertexIndex InVertexIndex, BoneIndex InBoneIndex) const;
 
 	// which bone are we currently painting?
 	void UpdateCurrentBone(const FName &BoneName);
-	BoneIndex GetBoneIndexFromName(const FName BoneName) const;
 	FName CurrentBone = NAME_None;
 	TOptional<FName> PendingCurrentBone;
 	TArray<FName> SelectedBoneNames;
 	TArray<BoneIndex> SelectedBoneIndices;
 
-	// HELPER functions for modifying weights
-	//
-	// given a map of BoneIndex > Weight values for a single vertex, modify the map by removing the smallest weights to fit in Max Influences
-	void TruncateWeightMap(TMap<BoneIndex, float>& InOutWeights);
-	// given a map of BoneIndex > Weight values for a single vertex, modify the weights to sum to 1
-	void NormalizeWeightMap(TMap<BoneIndex, float>& InOutWeights);
-	// sum all the weights on all bones for a given list of vertices (results we not be normalized!)
-	void AccumulateWeights(
-		const TArray<SkinPaintTool::VertexWeights>& AllWeights,
-		const TArray<VertexIndex>& VerticesToAccumulate,
-		TMap<BoneIndex, float>& OutWeights);
+	// determines the set of vertices to operate on, using selection as the priority
+	void UpdateSelectedVertices();
+	
+	BoneIndex GetBoneIndexFromName(const FName BoneName) const;
 
 	// ISkeletalMeshEditionInterface
 	virtual void HandleSkeletalMeshModified(const TArray<FName>& InBoneNames, const ESkeletalMeshNotifyType InNotifyType) override;
@@ -708,7 +678,11 @@ protected:
 	TUniquePtr<UE::Geometry::FDynamicMeshAABBTree3> MeshSpatial = nullptr;
 	TUniquePtr<UE::Geometry::FTriangleGroupTopology> SelectionTopology = nullptr;
 	void InitializeSelectionMechanic();
-	TArray<VertexIndex> SelectedVerticesInternal;
+	TArray<VertexIndex> SelectedVertices;
+
+	// isolate selection sub-meshes
+	UE::Geometry::FDynamicSubmesh3 PartialSubMesh;
+	UE::Geometry::FDynamicMesh3 FullDynamicMesh;
 
 	// skin weight layer
 	void OnActiveLODChanged();
