@@ -400,15 +400,20 @@ bool ShouldProxyUseVertexColorVisualization(FName OwnerName) { return false; }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 /** Global mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
-static EMeshPaintVisualizeMode::Type GMeshPaintVisualizeMode = EMeshPaintVisualizeMode::VertexColor;
-void SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::Type VisualizeMode)
+static EMeshPaintVisualizePaintMode::Type GMeshPaintVisualizeMode = EMeshPaintVisualizePaintMode::VertexColor;
+void SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::Type PaintMode)
 {
-	GMeshPaintVisualizeMode = VisualizeMode;
+	GMeshPaintVisualizeMode = PaintMode;
+}
+static EMeshPaintVisualizeShowMode::Type GMeshPaintVisualizeShowMode = EMeshPaintVisualizeShowMode::ShowAll;
+extern ENGINE_API void SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::Type ShowMode)
+{
+	GMeshPaintVisualizeShowMode = ShowMode;
 }
 static EVertexColorViewMode::Type GMeshPaintVisualizeChannels = EVertexColorViewMode::Color;
-void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type VisualizeChannels)
+void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type Channels)
 {
-	GMeshPaintVisualizeChannels = VisualizeChannels;
+	GMeshPaintVisualizeChannels = Channels;
 }
 static TWeakObjectPtr<UTexture> GMeshPaintVisualizeTexture = nullptr;
 void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture)
@@ -450,14 +455,14 @@ FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected,
 		break;
 	}
 
-	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::VertexColor && VertexColorVisualizationMaterial != nullptr)
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizePaintMode::VertexColor && VertexColorVisualizationMaterial != nullptr)
 	{
 		return new FColoredMaterialRenderProxy(
 			VertexColorVisualizationMaterial->GetRenderProxy(),
 			GetSelectionColor(FLinearColor::White, bIsSelected, bIsHovered));
 	}
 
-	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::TextureColor)
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizePaintMode::TextureColor)
 	{
  		return new FColoredMaterialRenderProxy(
  			GEngine->TextureColorViewModeMaterial->GetRenderProxy(),
@@ -465,7 +470,7 @@ FMaterialRenderProxy* GetMeshPaintVisualizeMaterialRenderProxy(bool bIsSelected,
 	}
 
 #if WITH_EDITORONLY_DATA
-	if (GMeshPaintVisualizeMode == EMeshPaintVisualizeMode::TextureAsset && GMeshPaintVisualizeTexture.IsValid())
+	if (GMeshPaintVisualizeMode == EMeshPaintVisualizePaintMode::TextureAsset && GMeshPaintVisualizeTexture.IsValid())
 	{
 		FColoredTexturedMaterialRenderProxy* TextureColorVisualizationMaterialInstance = new FColoredTexturedMaterialRenderProxy(
 			GEngine->TexturePaintingMaskMaterial->GetRenderProxy(),

@@ -70,7 +70,7 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::VertexColor);
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
 			}
@@ -87,13 +87,13 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				{
 				case EMeshPaintActiveMode::VertexColor:
 				case EMeshPaintActiveMode::VertexWeights:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::VertexColor);
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
 					break;
 				case EMeshPaintActiveMode::TextureColor:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::TextureColor);
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureColor);
 					break;
 				case EMeshPaintActiveMode::Texture:
-					SetMeshPaintVisualizeMode(EMeshPaintVisualizeMode::TextureAsset);
+					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureAsset);
 					break;
 				}
 
