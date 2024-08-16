@@ -769,7 +769,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 			SvcParams->loopfilter_ctrl[si] = PerformanceFlagsBySpatialIndex[si].DeblockMode;
 		}
 		bool bDenoiserOn = Config.bDenoisingOn && PerformanceFlagsBySpatialIndex[NumSpatialLayers - 1].bAllowDenoising;
-		SAFECONTROLVP9(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, bDenoiserOn ? 1 : 0);
+		::vpx_codec_control(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, bDenoiserOn ? 1 : 0);
 	}
 
 	SAFECONTROLVP9(Encoder.Get(), VP8E_SET_MAX_INTRA_BITRATE_PCT, RCMaxIntraTarget);
@@ -847,7 +847,7 @@ FAVResult TVideoEncoderLibVpxVP9<TResource>::InitAndSetControlSettings(FVideoEnc
 
 	if (!PerformanceFlags.bUsePerLayerSpeed)
 	{
-		SAFECONTROLVP9(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, Config.bDenoisingOn ? 1 : 0);
+		::vpx_codec_control(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, Config.bDenoisingOn ? 1 : 0);
 	}
 
 	// Enable encoder skip of static/low content blocks.
@@ -1685,7 +1685,7 @@ bool TVideoEncoderLibVpxVP9<TResource>::SetSvcRates(FVideoEncoderConfigLibVpx co
 	if (bSeenActiveLayer && PerformanceFlags.bUsePerLayerSpeed)
 	{
 		bool bDenoiserOn = this->AppliedConfig.bDenoisingOn && PerformanceFlagsBySpatialIndex[NumActiveSpatialLayers - 1].bAllowDenoising;
-		SAFECONTROLVP9(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, bDenoiserOn ? 1 : 0);
+		::vpx_codec_control(Encoder.Get(), VP9E_SET_NOISE_SENSITIVITY, bDenoiserOn ? 1 : 0);
 	}
 
 	if (bHigherLayersEnabled && !bForceKeyFrame)

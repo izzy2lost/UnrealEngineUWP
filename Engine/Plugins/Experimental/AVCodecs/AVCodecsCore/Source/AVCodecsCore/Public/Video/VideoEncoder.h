@@ -155,9 +155,10 @@ public:
 
 	uint32 TargetFramerate = 60;
 
-	int32 TargetBitrate = 0;
-	int32 MaxBitrate = 0;
-	int32 MinBitrate = 0;
+	// Individual coder implementations check for -1 bitrate and assign value
+	int32 TargetBitrate = -1;
+	int32 MaxBitrate = -1;
+	int32 MinBitrate = -1;
 	// Advanced bitrate settings. Used for situations such as simulcast / SVC
 	TOptional<int32> Bitrates[Video::MaxSpatialLayers][Video::MaxTemporalStreams];
 
