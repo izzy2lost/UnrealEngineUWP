@@ -311,6 +311,18 @@ TSharedRef<SWidget> FUVEditorModeToolkit::CreateGridSettingsWidget()
 	return CreateDisplaySettingsWidget(Mode->GetGridSettingsObject());
 }
 
+TSharedRef<SWidget> FUVEditorModeToolkit::CreateUnwrappedUXSettingsWidget()
+{
+	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());
+	return CreateDisplaySettingsWidget(Mode->GetUnwrappedUXSettingsObject());
+}
+
+TSharedRef<SWidget> FUVEditorModeToolkit::CreateLivePreviewUXSettingsWidget()
+{
+	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());
+	return CreateDisplaySettingsWidget(Mode->GetLivePreviewUXSettingsObject());
+}
+
 TSharedRef<SWidget> FUVEditorModeToolkit::CreateUDIMSettingsWidget()
 {
 	UUVEditorMode* Mode = Cast<UUVEditorMode>(GetScriptableEditorMode());

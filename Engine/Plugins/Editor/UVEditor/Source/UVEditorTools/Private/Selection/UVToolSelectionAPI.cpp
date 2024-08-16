@@ -147,6 +147,24 @@ void UUVToolSelectionAPI::OnToolEnded(UInteractiveTool* DeadTool)
 	
 }
 
+void UUVToolSelectionAPI::SetLivePreviewSelectionUXSettings(const FLivePreviewSelectionUXSettings& Settings) const
+{
+	if (Settings.SelectionColor)
+	{
+		HighlightMechanic->SetColor(Settings.SelectionColor.GetValue());
+	}
+
+	if (Settings.LineThickness)
+	{
+		HighlightMechanic->SetLineThickness(Settings.LineThickness.GetValue());
+	}
+
+	if (Settings.PointSize)
+	{
+		HighlightMechanic->SetPointSize(Settings.PointSize.GetValue());
+	}
+}
+
 void UUVToolSelectionAPI::SetSelections(const TArray<FUVToolSelection>& SelectionsIn, bool bBroadcast, bool bEmitChange)
 {
 	using namespace UVToolSelectionAPILocals;

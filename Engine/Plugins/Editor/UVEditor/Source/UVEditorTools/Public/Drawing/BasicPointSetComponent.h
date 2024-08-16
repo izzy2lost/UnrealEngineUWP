@@ -44,6 +44,12 @@ public:
 	/** Set per point material parameters that are uniform for all points. */
 	void SetPointSetParameters(FColor InColor, float InSize, float InDepthBias);
 
+	/** Set per point material Color parameter that is uniform for all points. */
+	void SetColor(const FColor InColor);
+
+	/** Set per point material Size parameter tat is uniform for all points. */
+	void SetPointSize(const float InSize);
+
 protected:
 
 	//~ UMeshComponent Interface.

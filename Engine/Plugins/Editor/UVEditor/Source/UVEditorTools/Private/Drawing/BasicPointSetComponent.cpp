@@ -234,6 +234,17 @@ void UBasicPointSetComponentBase::SetPointSetParameters(FColor InColor, float In
 	bBoundsDirty = true;
 }
 
+void UBasicPointSetComponentBase::SetColor(const FColor InColor)
+{
+	Color = InColor;
+}
+
+void UBasicPointSetComponentBase::SetPointSize(const float InSize)
+{
+	Size = InSize;
+	bBoundsDirty = true;
+}
+
 
 FPrimitiveSceneProxy* UBasic2DPointSetComponent::CreateSceneProxy()
 {

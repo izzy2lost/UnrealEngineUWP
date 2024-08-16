@@ -340,6 +340,18 @@ public:
 	// UUVToolContextObject
 	virtual void Shutdown() override;
 	virtual void OnToolEnded(UInteractiveTool* DeadTool) override;
+
+	// Holds the properties of the UV Live Preview Selection (in 3d viewport) for customization
+	struct FLivePreviewSelectionUXSettings
+	{
+		TOptional<FColor> SelectionColor;
+		TOptional<float> LineThickness;
+		TOptional<float> PointSize;
+	};
+
+	// Sets the UV Live Preview Selection settings
+	void SetLivePreviewSelectionUXSettings(const FLivePreviewSelectionUXSettings& Settings) const;
+
 protected:
 	TArray<FUVToolSelection> CurrentSelections;
 	TArray<FUVToolSelection> CurrentUnsetSelections;

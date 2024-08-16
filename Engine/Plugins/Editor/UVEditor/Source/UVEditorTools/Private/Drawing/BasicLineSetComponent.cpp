@@ -243,6 +243,17 @@ void UBasicLineSetComponentBase::SetLineSetParameters(FColor InColor, float InSi
 	bBoundsDirty = true;
 }
 
+void UBasicLineSetComponentBase::SetColor(const FColor InColor)
+{
+	Color = InColor;
+}
+
+void UBasicLineSetComponentBase::SetLineThickness(const float InSize)
+{
+	Size = InSize;
+	bBoundsDirty = true;
+}
+
 
 FPrimitiveSceneProxy* UBasic2DLineSetComponent::CreateSceneProxy()
 {

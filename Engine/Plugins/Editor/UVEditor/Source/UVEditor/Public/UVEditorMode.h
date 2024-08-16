@@ -33,6 +33,8 @@ class UUVToolViewportButtonsAPI;
 class UUVTool2DViewportAPI;
 class UUVEditorMode;
 class UWorld;
+class UUVEditorUnwrappedUXProperties;
+class UUVEditorLivePreviewUXProperties;
 
 /**
  * Visualization settings for the UUVEditorMode's Grid
@@ -220,6 +222,12 @@ public:
 	/** @return A settings object suitable for display in a details panel to control the grid. */
 	UObject* GetGridSettingsObject();
 
+	/** @return A settings object suitable for display in a details panel to control the unwrapped viewport visualization. */
+	UObject* GetUnwrappedUXSettingsObject() const;
+
+	/** @return A settings object suitable for display in a details panel to control the visualization in the live preview (3d) viewport. */
+	UObject* GetLivePreviewUXSettingsObject() const;
+
 	/** @return A settings object suitable for display in a details panel to control UDIM configuration. */
 	UObject* GetUDIMSettingsObject();
 
@@ -387,5 +395,14 @@ protected:
 	// Holds references to Save callbacks to handle logic when the autosave triggers and shuts down active tools. 
 	// We need to recover from this, so we restart the select tool after the save is over.
 	FDelegateHandle PostSaveWorldDelegateHandle;
+private:
+	// Hold a settings object to configure the unwrapped visualization
+	UPROPERTY()
+	TObjectPtr<UUVEditorUnwrappedUXProperties> UVEditorUnwrappedUXProperties = nullptr;
+
+	// Hold a settings object to configure the visualization in the live preview (3d) viewport
+	UPROPERTY()
+	TObjectPtr<UUVEditorLivePreviewUXProperties> UVEditorLivePreviewUXProperties = nullptr;
+
 };
 

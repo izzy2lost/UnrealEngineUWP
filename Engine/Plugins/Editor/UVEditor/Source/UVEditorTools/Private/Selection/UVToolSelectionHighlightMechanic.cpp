@@ -609,4 +609,20 @@ void UUVToolSelectionHighlightMechanic::SetEnablePairedEdgeHighlights(bool bEnab
 	SewEdgeUnselectedPairingLineSet->SetVisibility(bEnable);
 }
 
+void UUVToolSelectionHighlightMechanic::SetColor(const FColor Color) const
+{
+	LivePreviewLineSet->SetColor(Color);
+	LivePreviewPointSet->SetColor(Color);
+}
+
+void UUVToolSelectionHighlightMechanic::SetLineThickness(const float LineSize) const
+{
+	LivePreviewLineSet->SetLineThickness(LineSize);
+}
+
+void UUVToolSelectionHighlightMechanic::SetPointSize(const float PointSize) const
+{
+	LivePreviewPointSet->SetPointSize(PointSize);
+}
+
 #undef LOCTEXT_NAMESPACE

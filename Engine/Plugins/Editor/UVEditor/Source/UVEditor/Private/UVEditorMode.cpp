@@ -54,6 +54,7 @@
 #include "UVEditorLogging.h"
 #include "UObject/ObjectSaveContext.h"
 #include "Materials/Material.h"
+#include "UVEditorUXPropertySets.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(UVEditorMode)
 
@@ -441,6 +442,82 @@ void UUVEditorMode::Enter()
 		});
 
 	PropertyObjectsToTick.Add(UVEditorGridProperties);
+	
+	UVEditorUnwrappedUXProperties = NewObject<UUVEditorUnwrappedUXProperties>(this);
+	
+	UVEditorUnwrappedUXProperties->BoundaryLineColors.Reserve(ToolInputObjects.Num());
+	// initialize display menu properties
+	for (int ObjIndex = 0; ObjIndex < ToolInputObjects.Num(); ObjIndex++)
+	{
+		UVEditorUnwrappedUXProperties->BoundaryLineColors.Add(ToolInputObjects[ObjIndex]->WireframeDisplay->Settings->BoundaryEdgeColor);
+	}
+	UVEditorUnwrappedUXProperties->BoundaryLineThickness = FUVEditorUXSettings::BoundaryEdgeThickness;
+	UVEditorUnwrappedUXProperties->WireframeThickness = FUVEditorUXSettings::WireframeThickness;
+
+	UVEditorUnwrappedUXProperties->WatchProperty(UVEditorUnwrappedUXProperties->BoundaryLineColors,
+		[this](const TArray<FColor>& EdgeColors)
+		{
+			for (int32 AssetID = 0; AssetID < ToolInputObjects.Num(); ++AssetID)
+			{
+				ToolInputObjects[AssetID]->WireframeDisplay->Settings->BoundaryEdgeColor = EdgeColors[AssetID];
+			}
+		});
+	UVEditorUnwrappedUXProperties->WatchProperty(UVEditorUnwrappedUXProperties->BoundaryLineThickness,
+		[this](const float Thickness)
+		{
+			for (int32 AssetID = 0; AssetID < ToolInputObjects.Num(); ++AssetID)
+			{
+				ToolInputObjects[AssetID]->WireframeDisplay->WireframeComponent->BoundaryEdgeThickness = Thickness;
+				ToolInputObjects[AssetID]->WireframeDisplay->WireframeComponent->UpdateWireframe();
+			}
+		});
+	UVEditorUnwrappedUXProperties->WatchProperty(UVEditorUnwrappedUXProperties->WireframeThickness,
+		[this](const float WireframeThickness)
+		{
+			for (int32 AssetID = 0; AssetID < ToolInputObjects.Num(); ++AssetID)
+			{
+				ToolInputObjects[AssetID]->WireframeDisplay->WireframeComponent->WireframeThickness = WireframeThickness;
+				ToolInputObjects[AssetID]->WireframeDisplay->WireframeComponent->UpdateWireframe();
+			}
+		});
+	PropertyObjectsToTick.Add(UVEditorUnwrappedUXProperties);
+
+	UVEditorLivePreviewUXProperties = NewObject<UUVEditorLivePreviewUXProperties>(this);
+
+	// initialize display menu properties
+	UVEditorLivePreviewUXProperties->SelectionColor = FUVEditorUXSettings::SelectionTriangleWireframeColor;
+	UVEditorLivePreviewUXProperties->SelectionLineThickness = FUVEditorUXSettings::LivePreviewHighlightThickness;
+	UVEditorLivePreviewUXProperties->SelectionPointSize = FUVEditorUXSettings::LivePreviewHighlightPointSize;
+	
+	UVEditorLivePreviewUXProperties->WatchProperty(UVEditorLivePreviewUXProperties->SelectionColor,
+		[this](const FColor InSelectionLineColor)
+		{
+			UUVToolSelectionAPI::FLivePreviewSelectionUXSettings Settings = UUVToolSelectionAPI::FLivePreviewSelectionUXSettings();
+			Settings.SelectionColor = InSelectionLineColor;
+
+			SelectionAPI->SetLivePreviewSelectionUXSettings(Settings);
+			SelectionAPI->RebuildAppliedPreviewHighlight();
+		});
+	UVEditorLivePreviewUXProperties->WatchProperty(UVEditorLivePreviewUXProperties->SelectionLineThickness,
+		[this](const float InLineThickness)
+		{
+			UUVToolSelectionAPI::FLivePreviewSelectionUXSettings Settings = UUVToolSelectionAPI::FLivePreviewSelectionUXSettings();
+			Settings.LineThickness = InLineThickness;
+			
+			SelectionAPI->SetLivePreviewSelectionUXSettings(Settings);
+			SelectionAPI->RebuildAppliedPreviewHighlight();
+		});
+	UVEditorLivePreviewUXProperties->WatchProperty(UVEditorLivePreviewUXProperties->SelectionPointSize,
+		[this](const float InPointSize)
+		{
+			UUVToolSelectionAPI::FLivePreviewSelectionUXSettings Settings = UUVToolSelectionAPI::FLivePreviewSelectionUXSettings();
+			Settings.PointSize = InPointSize;
+			
+			SelectionAPI->SetLivePreviewSelectionUXSettings(Settings);
+			SelectionAPI->RebuildAppliedPreviewHighlight();
+		});
+
+	PropertyObjectsToTick.Add(UVEditorLivePreviewUXProperties);
 
 	UVEditorUDIMProperties = NewObject< UUVEditorUDIMProperties >(this);
 	UVEditorUDIMProperties->Initialize(this);
@@ -692,6 +769,16 @@ UObject* UUVEditorMode::GetGridSettingsObject()
 		return UVEditorGridProperties;
 	}
 	return nullptr;
+}
+
+UObject* UUVEditorMode::GetUnwrappedUXSettingsObject() const
+{
+	return UVEditorUnwrappedUXProperties.Get();
+}
+
+UObject* UUVEditorMode::GetLivePreviewUXSettingsObject() const
+{
+	return UVEditorLivePreviewUXProperties.Get();
 }
 
 UObject* UUVEditorMode::GetUDIMSettingsObject()
