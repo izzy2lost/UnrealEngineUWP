@@ -5438,7 +5438,7 @@ void FKismetCompilerContext::PostCDOCompiled(const UObject::FPostCDOCompiledCont
 		NewClass->ClassDefaultObject->PostCDOCompiled();
 		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
 		
-		for (const TFunctionRef<void(const UObject::FPostCDOCompiledContext&, UObject*)>& Step : PostCDOCompileSteps)
+		for (const TFunction<void(const UObject::FPostCDOCompiledContext&, UObject*)>& Step : PostCDOCompileSteps)
 		{
 			Step(Context, NewClass->ClassDefaultObject);
 		}
@@ -5450,9 +5450,9 @@ void FKismetCompilerContext::PostCDOCompiled(const UObject::FPostCDOCompiledCont
 	OnPostCDOCompiled(Context);
 }
 
-void FKismetCompilerContext::AddPostCDOCompiledStep(TFunctionRef<void(const UObject::FPostCDOCompiledContext&, UObject*)> StepFunction)
+void FKismetCompilerContext::AddPostCDOCompiledStep(TFunction<void(const UObject::FPostCDOCompiledContext&, UObject*)>&& StepFunction)
 {
-	PostCDOCompileSteps.Add(StepFunction);
+	PostCDOCompileSteps.Emplace(StepFunction);
 }
 
 void FKismetCompilerContext::Compile()
