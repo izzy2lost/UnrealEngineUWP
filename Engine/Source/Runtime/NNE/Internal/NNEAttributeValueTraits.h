@@ -3,6 +3,7 @@
 #pragma once
 
 #include "NNEAttributeDataType.h"
+#include "NNEAttributeTensor.h"
 
 template<typename T> struct TNNEAttributeValueTraits
 {
@@ -29,6 +30,11 @@ template<> struct TNNEAttributeValueTraits<FString>
 	static constexpr ENNEAttributeDataType GetType() { return ENNEAttributeDataType::String; }
 };
 
+template<> struct TNNEAttributeValueTraits<UE::NNE::Internal::FAttributeTensor>
+{
+	static constexpr ENNEAttributeDataType GetType() { return ENNEAttributeDataType::Tensor; }
+};
+
 template<> struct TNNEAttributeValueTraits<TArray<int32>>
 {
 	static constexpr ENNEAttributeDataType GetType() { return ENNEAttributeDataType::Int32Array; }
@@ -42,4 +48,9 @@ template<> struct TNNEAttributeValueTraits<TArray<float>>
 template<> struct TNNEAttributeValueTraits<TArray<FString>>
 {
 	static constexpr ENNEAttributeDataType GetType() { return ENNEAttributeDataType::StringArray; }
+};
+
+template<> struct TNNEAttributeValueTraits<TArray<UE::NNE::Internal::FAttributeTensor>>
+{
+	static constexpr ENNEAttributeDataType GetType() { return ENNEAttributeDataType::TensorArray; }
 };

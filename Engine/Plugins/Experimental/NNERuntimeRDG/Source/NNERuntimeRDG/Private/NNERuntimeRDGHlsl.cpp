@@ -20,6 +20,7 @@
 #include "Hlsl/NNERuntimeRDGCast.h"
 #include "Hlsl/NNERuntimeRDGConv.h"
 #include "Hlsl/NNERuntimeRDGConcat.h"
+#include "Hlsl/NNERuntimeRDGConstant.h"
 #include "Hlsl/NNERuntimeRDGConvTranspose.h"
 #include "Hlsl/NNERuntimeRDGCumSum.h"
 #include "Hlsl/NNERuntimeRDGDepthToSpace.h"
@@ -66,6 +67,7 @@ bool UNNERuntimeRDGHlslImpl::Init()
 	RegisterCastOperator(*Registry);
 	RegisterConvOperator(*Registry);
 	RegisterConcatOperator(*Registry);
+	RegisterConstantOperator(*Registry);
 	RegisterConvTransposeOperator(*Registry);
 	RegisterCumSumOperator(*Registry);
 	RegisterDepthToSpaceOperator(*Registry);

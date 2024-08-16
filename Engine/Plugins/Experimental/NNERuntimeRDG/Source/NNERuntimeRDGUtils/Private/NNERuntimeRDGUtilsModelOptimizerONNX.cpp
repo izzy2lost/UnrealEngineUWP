@@ -41,8 +41,24 @@ public:
 			return false;
 		}
 
+		onnx::ModelProto ModelProto;
+		const bool result = ModelProto.ParseFromArray(Model.Data.GetData(), Model.Data.Num());
+		if (!result)
+		{
+			UE_LOG(LogNNE, Warning, TEXT("%s could not parse the input model as a ModelProto."), *(GetName()));
+			return false;
+		}
+
 		static const auto CVarHlslModelOptimization = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("nne.hlsl.ModelOptimization"));
 		if (CVarHlslModelOptimization && CVarHlslModelOptimization->GetValueOnAnyThread() == 0)
+		{
+			return true;
+		}
+		
+		// We disable ONNX Runtime optimizations if a model uses FP16 Tensors 
+		// since these optimizations would add cast operators from and to FP16
+		// at the beginning and end of the network and convert all other operators to FP32.
+		if (HasFP16Tensor(ModelProto))
 		{
 			return true;
 		}
@@ -86,6 +102,45 @@ public:
 
 		return true;
 	}
+private:
+	bool HasFP16Tensor(const onnx::ModelProto& Model) const
+	{
+		const onnx::GraphProto& Graph = Model.graph();
+		for (const onnx::TensorProto& Tensor : Graph.initializer())
+		{
+			if (Tensor.data_type() == ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+			{
+				return true;
+			}
+		}
+
+		for (onnx::ValueInfoList Tensors : {Graph.input(), Graph.output()})
+		{
+			for (const onnx::ValueInfoProto& Tensor : Tensors)
+			{
+				if (!Tensor.has_type())
+				{
+					continue;
+				}
+				const onnx::TypeProto Type = Tensor.type();
+				if (!Type.has_tensor_type())
+				{
+					continue;
+				}
+				const onnx::TypeProto_Tensor TensorType = Type.tensor_type();
+				if (!TensorType.has_elem_type())
+				{
+					continue;
+				}
+				if (TensorType.elem_type() == ONNXTensorElementDataType::ONNX_TENSOR_ELEMENT_DATA_TYPE_FLOAT16)
+				{
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
 
 };
 
@@ -128,7 +183,9 @@ public:
 			const char* DomainPtr = OpSet.domain().c_str();
 			FString Domain = DomainPtr;
 			bool IsUsed = UsedDomains.Contains(Domain);
-			if (IsUsed)
+			// We additionally add the OpSet from models that don't have any UsedDomains/Nodes
+			// since we otherwise would get an invalid model
+			if (IsUsed || UsedDomains.IsEmpty())
 			{
 				UsedOperatorSet.Add()->CopyFrom(OpSet);
 			}
