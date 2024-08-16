@@ -64,21 +64,6 @@ static TAutoConsoleVariable<int32> CVarMobileTonemapSubpass(
 	TEXT(" 1 = On"),
 	ECVF_Scalability | ECVF_RenderThreadSafe);
 
-static TAutoConsoleVariable<int32> CVarMobileEnableCapsuleShadows(
-	TEXT("r.Mobile.EnableCapsuleShadows"),
-	0,
-	TEXT("0: Capsule shadows are disabled in the mobile renderer")
-	TEXT("1: Enables capsule shadowing on skinned components with bCastCapsuleDirectShadow or bCastCapsuleIndirectShadow enabled with the mobile renderer"),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
-
-static TAutoConsoleVariable<int32> CVarMobileEnableCapsuleDirectShadows(
-	TEXT("r.Mobile.EnableCapsuleDirectShadows"),
-	0,
-	TEXT("0: Capsule direct shadows are disabled in the mobile renderer")
-	TEXT("1: Enables capsule direct shadowing on skinned components with bCastCapsuleDirectShadow enabled with the mobile renderer"),
-	ECVF_ReadOnly | ECVF_RenderThreadSafe);
-
-
 IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FMobileBasePassUniformParameters, "MobileBasePass", SceneTextures);
 
 static TAutoConsoleVariable<int32> CVarMobileUseHWsRGBEncoding(

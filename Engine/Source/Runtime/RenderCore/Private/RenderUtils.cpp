@@ -558,18 +558,6 @@ RENDERCORE_API bool IsMobileMovableSpotlightShadowsEnabled(const FStaticShaderPl
 	return FReadOnlyCVARCache::MobileEnableMovableSpotlightsShadow(Platform);
 }
 
-RENDERCORE_API bool IsMobileCapsuleShadowsEnabled(const FStaticShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<bool> MobileCapsuleShadowsIniValue(TEXT("r.Mobile.EnableCapsuleShadows"));
-	return IsMobilePlatform(Platform) && MobileCapsuleShadowsIniValue.Get(Platform);
-}
-
-RENDERCORE_API bool IsMobileCapsuleDirectShadowsEnabled(const FStaticShaderPlatform Platform)
-{
-	static FShaderPlatformCachedIniValue<bool> MobileCapsuleDirectShadowsIniValue(TEXT("r.Mobile.EnableCapsuleDirectShadows"));
-	return IsMobilePlatform(Platform) && IsMobileCapsuleShadowsEnabled(Platform) && MobileCapsuleDirectShadowsIniValue.Get(Platform);
-}
-
 RENDERCORE_API bool MobileForwardEnableClusteredReflections(const FStaticShaderPlatform Platform)
 {
 	static FShaderPlatformCachedIniValue<bool> MobileForwardEnableClusteredReflectionsIniValue(TEXT("r.Mobile.Forward.EnableClusteredReflections"));
@@ -580,9 +568,7 @@ RENDERCORE_API bool MobileUsesShadowMaskTexture(const FStaticShaderPlatform Plat
 {
 	// Only distance field shadow needs to render shadow mask texture on mobile deferred, normal shadows need to be rendered separately because of handling lighting channels.
 	// Besides distance field shadow, with clustered lighting and shadow of local light enabled, shadows will render to shadow mask texture on mobile forward, lighting channels are handled in base pass shader.
-	const bool bMobileCapsuleShadowsEnabled = IsMobileCapsuleDirectShadowsEnabled(Platform);
-	const bool bMovableSpotlightShadowsEnabled = (IsMobileMovableSpotlightShadowsEnabled(Platform) && MobileForwardEnableLocalLights(Platform));
-	return IsMobileDistanceFieldEnabled(Platform) || (!IsMobileDeferredShadingEnabled(Platform) && (bMobileCapsuleShadowsEnabled || bMovableSpotlightShadowsEnabled));
+	return IsMobileDistanceFieldEnabled(Platform) || (!IsMobileDeferredShadingEnabled(Platform) && IsMobileMovableSpotlightShadowsEnabled(Platform) && MobileForwardEnableLocalLights(Platform));
 }
 
 // Whether to support more than 4 color attachments for GBuffer 

@@ -8,23 +8,23 @@
 
 #include "CoreMinimal.h"
 #include "DataDrivenShaderPlatformInfo.h"
-#include "RenderUtils.h"
 
 extern int32 GCapsuleShadows;
 extern int32 GCapsuleDirectShadows;
 extern int32 GCapsuleIndirectShadows;
 
-inline bool IsCapsuleShadowsEnabled(FStaticShaderPlatform ShaderPlatform)
+inline bool SupportsCapsuleShadows(FStaticShaderPlatform ShaderPlatform)
 {
-	return GCapsuleShadows && (!IsMobilePlatform(ShaderPlatform) || IsMobileCapsuleShadowsEnabled(ShaderPlatform));
+	return GCapsuleShadows
+		&& FDataDrivenShaderPlatformInfo::GetSupportsCapsuleShadows(ShaderPlatform);
 }
 
-inline bool IsCapsuleDirectShadowsEnabled(FStaticShaderPlatform ShaderPlatform)
+inline bool SupportsCapsuleDirectShadows(FStaticShaderPlatform ShaderPlatform)
 {
-	return GCapsuleDirectShadows && IsCapsuleShadowsEnabled(ShaderPlatform) && (!IsMobilePlatform(ShaderPlatform) || IsMobileCapsuleDirectShadowsEnabled(ShaderPlatform));
+	return GCapsuleDirectShadows && SupportsCapsuleShadows(ShaderPlatform);
 }
 
 inline bool SupportsCapsuleIndirectShadows(FStaticShaderPlatform ShaderPlatform)
 {
-	return GCapsuleIndirectShadows && IsCapsuleShadowsEnabled(ShaderPlatform);
+	return GCapsuleIndirectShadows && SupportsCapsuleShadows(ShaderPlatform);
 }

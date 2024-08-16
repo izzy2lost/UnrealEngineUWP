@@ -910,6 +910,15 @@ private:
 		bool bSupportShadowMaps,
 		FTranslucentLightInjectionCollector& Collector);
 
+	/** Renders capsule shadows for all per-object shadows using it for the given light. */
+	bool RenderCapsuleDirectShadows(
+		FRDGBuilder& GraphBuilder,
+		TRDGUniformBufferRef<FSceneTextureUniformParameters> SceneTexturesUniformBuffer,
+		const FLightSceneInfo& LightSceneInfo,
+		FRDGTextureRef ScreenShadowMaskTexture,
+		TArrayView<const FProjectedShadowInfo* const> CapsuleShadows,
+		bool bProjectingForForwardShading) const;
+
 	/** Renders indirect shadows from capsules modulated onto scene color. */
 	void RenderIndirectCapsuleShadows(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures) const;
 
