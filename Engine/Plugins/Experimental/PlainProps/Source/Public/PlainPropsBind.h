@@ -569,21 +569,14 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
-// Cached by function static
-template<class Ids, const char* Scope>
-FScopeId GetScopeId()
-{
-	static FScopeId Id = Ids::IndexScope(Scope);
-	return Id;
-}
-
-// Cached by function static
 template<class Ids, typename Typename>
-FScopeId GetNamespaceId()
+FScopeId IndexNamespaceId()
 {
+	// Opt: Make cached GetNamespaceId(), either via new namespace CTTI types (maybe PP_REFLECT_NAMESPACE)
+	//		or some compile time string template parameters, perhaps a variadic template taking any number of chars
 	if constexpr (Typename::Namespace.size())
 	{
-		return GetScopeId<Ids, Typename::Namespace.data()>();
+		return Ids::IndexScope(ToAnsiView(Typename::Namespace));
 	}
 	else
 	{
@@ -607,7 +600,7 @@ constexpr std::string_view SelectStructName()
 template<class Ids, ETypename Kind, typename Typename>
 FTypeId IndexStructName()
 {
-	FTypeId BaseName = { GetNamespaceId<Ids, Typename>(), 
+	FTypeId BaseName = { IndexNamespaceId<Ids, Typename>(), 
 						 Ids::IndexTypename(ToAnsiView(SelectStructName<Kind, Typename>())) };
 	
 	if constexpr (ParametricName<Typename>)
@@ -620,13 +613,12 @@ FTypeId IndexStructName()
 	}
 }
 
-template<typename Struct, class Ids>
+template<typename Typename, class Ids>
 FStructSchemaId IndexStructBindIdIfNeeded(FStructSchemaId DeclId)
 {
-	using Typename = TTypename<Struct>;
-
 	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
 	{
+		// Note could pass in and reuse declared namespace here
 		return Ids::IndexStruct(IndexStructName<Ids, ETypename::Bind, Typename>());
 	}
 	else
@@ -677,7 +669,7 @@ FTypeId IndexCttiName()
 	FScopeId Namespace = NoId;
 	if constexpr (Ctti::Namespace[0] != '\0')
 	{
-		Namespace = GetScopeId<Ids, Ctti::Namespace>();
+		Namespace = Ids::IndexScope(ToAnsiView(Ctti::Namespace));
 	}
 	return { Namespace, Name };
 }
@@ -730,7 +722,7 @@ FTypeId IndexParameterName()
 		else
 		{
 			using Typename = TTypename<T>;
-			FTypeId RangeBindName = { GetNamespaceId<Ids, Typename>(), Ids::IndexTypename(ToAnsiView(Typename::RangeBindName)) };
+			FTypeId RangeBindName = { IndexNamespaceId<Ids, Typename>(), Ids::IndexTypename(ToAnsiView(Typename::RangeBindName)) };
 			return Ids::GetIndexer().MakeParametricType(RangeBindName, {ItemTypename, SizeTypename});
 		}
 	}
@@ -751,13 +743,14 @@ FStructSchemaId BindCustomStructOnce()
 	struct FBinding : CustomBinding
 	{
 		using Type = typename CustomBinding::Type;
+		using Typename = TCustomTypename<CustomBinding>;
 		using Ids = typename Runtime::Ids;
 
 		FBinding()
 		{
-			FTypeId DeclType = IndexStructName<Ids, ETypename::Decl, TTypename<Type>>();
+			FTypeId DeclType = IndexStructName<Ids, ETypename::Decl, Typename>();
 			DeclId = Ids::IndexStruct(DeclType);
-			BindId = IndexStructBindIdIfNeeded<Type, Ids>(DeclId);
+			BindId = IndexStructBindIdIfNeeded<Typename, Ids>(DeclId);
 			
 			CustomBinding::template InitIds<Ids>();
 			Runtime::GetTypes().DeclareStruct(DeclId, DeclType, CustomBinding::MemberIds, CustomBinding::Occupancy);

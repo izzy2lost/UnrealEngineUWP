@@ -94,4 +94,17 @@ struct TTypename<T>
 	inline static constexpr std::string_view Namespace;
 };
 
+//////////////////////////////////////////////////////////////////////////
+
+template<class CustomBinding>
+concept WithCustomTypename = requires { typename CustomBinding::FCustomTypename; };
+
+template<class CustomBinding>
+struct TCustomTypename : TTypename<typename CustomBinding::Type>
+{};
+
+template<WithCustomTypename CustomBinding>
+struct TCustomTypename<CustomBinding> : CustomBinding::FCustomTypename
+{};
+
 } // namespace PlainProps

@@ -449,20 +449,16 @@ struct FTransformBinding : ICustomBinding
 
 struct FSetDeltaOps
 {
-	union
-	{
-		FMemberId MemberIds[3] = {};
-		struct { FMemberId Add, Del, Set; } Ops;
-	};
+	enum class EMember : uint8 { Del, Add };
+	FMemberId MemberIds[2];
 	
 	template<class Ids>	
 	void InitIds()
 	{
-		static FSetDeltaOps Cache = {.MemberIds = {Ids::IndexMember("Add"), Ids::IndexMember("Del"), Ids::IndexMember("Set")}};
+		static FSetDeltaOps Cache = {.MemberIds = {Ids::IndexMember("Del"), Ids::IndexMember("Add")}};
 		*this = Cache;
 	}
 };
-
 
 template <typename T, typename KeyFuncs, typename SetAllocator>
 struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
@@ -470,25 +466,27 @@ struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 	using Type = TSet<T, KeyFuncs, SetAllocator>;
 	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
 
+	struct FCustomTypename
+	{
+		inline static constexpr std::string_view DeclName = "SetDelta";
+		inline static constexpr std::string_view BindName = Concat<DeclName, ShortTypename<KeyFuncs>, ShortTypename<SetAllocator>>;
+		inline static constexpr std::string_view Namespace = "PlainProps::UE::";
+		using Parameters = std::tuple<T>;
+	};
+
 	void Save(FMemberBuilder& Dst, const Type& Src, const Type* Default, const FSaveContext& Context) const
 	{
-		if (Default)
+		if (!Default || Default->IsEmpty())
 		{
-			if (Default->IsEmpty())
-			{
-				// Todo: Add everything
-			}
-			else
-			{
-				// TODO: Range builder for missing items, iterate over defaults elements and check existence in Src
-				// Dst.AddRange(Ops.Del, MissingItems) if non-empty;
+			// Todo: Add everything
 
-				// TODO: Range builder for added items, iterate over defaults elements and check existence in Src
-			}
 		}
 		else
 		{
-			// Dst.AddRange(Ops.Set, );
+			// TODO: Range builder for missing items, iterate over defaults elements and check existence in Src
+			// Dst.AddRange(Ops.Del, MissingItems) if non-empty;
+
+			// TODO: Range builder for added items, iterate over defaults elements and check existence in Src
 		}
 	}
 
@@ -509,23 +507,19 @@ struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 		FMemberId Name = Members.PeekName().Get();
 		FRangeView Items = Members.GrabRange();
 		int32 NumItems = static_cast<int32>(Items.Num());
-		if (Name == Ops.Set)
-		{
-			Dst.Empty(NumItems);
-			AddItems(Dst, Items, Batch);
-		}
-		else if (Name == Ops.Add)
+		if (Name == MemberIds[(uint8)EMember::Add])
 		{
 			Dst.Reserve(Dst.Num() + NumItems);
 			AddItems(Dst, Items, Batch);
 		}
-		else if (Name == Ops.Del)
+		else
 		{
+			check(Members.PeekName() == MemberIds[(uint8)EMember::Del]);
 			RemoveItems(Dst, Items);
 		
 			if (Members.HasMore())
 			{
-				check(Members.PeekName() == Ops.Add);
+				check(Members.PeekName() == MemberIds[(uint8)EMember::Add]);
 				Items = Members.GrabRange();
 				Dst.Reserve(Dst.Num() + static_cast<int32>(Items.Num()));
 				AddItems(Dst, Items, Batch);

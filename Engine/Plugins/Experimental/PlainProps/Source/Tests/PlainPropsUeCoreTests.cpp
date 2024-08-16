@@ -125,7 +125,7 @@ struct TScopedStructBinding : TScopedStructDeclaration<T, Occupancy, Runtime>
 	FStructSchemaId BindId;
 
 	TScopedStructBinding()
-	: BindId(IndexStructBindIdIfNeeded<T, Ids>(Super::DeclId))
+	: BindId(IndexStructBindIdIfNeeded<Typename, Ids>(Super::DeclId))
 	{
 		BindNativeStruct<CttiOf<T>, Runtime>(Runtime::GetSchemas(), BindId, Super::DeclId);
 	}
@@ -1007,7 +1007,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	SECTION("TSetDelta")
 	{
 		TScopedStructBinding<FInt> Int;
-		//TScopedStructBinding<FSets, EMemberPresence::AllowSparse, FDeltaRuntime> Sets;
+		TScopedStructBinding<FSets, EMemberPresence::AllowSparse, FDeltaRuntime> Sets;
 	}
 
 	SECTION("Transform")
