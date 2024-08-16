@@ -936,26 +936,6 @@ namespace HordeServer.Agents
 		/// <returns>Async task</returns>
 		private async Task RemoveLeaseAsync(IAgent agent, IAgentLease lease, DateTime utcNow, LeaseOutcome outcome, byte[]? output, CancellationToken cancellationToken = default)
 		{
-			// Make sure the lease is terminated correctly
-			if (lease.Payload == null)
-			{
-				_logger.LogWarning("Removing lease {LeaseId} (no payload)", lease.Id);
-			}
-			else
-			{
-				Any any = lease.Payload;
-				_logger.LogInformation("Removing lease {LeaseId} ({LeaseType})", lease.Id, any.TypeUrl);
-
-				foreach (ITaskSource taskSource in _taskSources)
-				{
-					if (any.Is(taskSource.Descriptor))
-					{
-						await taskSource.OnLeaseFinishedAsync(agent, lease.Id, any, outcome, output, Agents.GetLogger(agent.Id), cancellationToken);
-						break;
-					}
-				}
-			}
-
 			// Figure out what time the lease finished
 			DateTime finishTime = utcNow;
 			if (agent.SessionExpiresAt.HasValue && agent.SessionExpiresAt.Value < finishTime)

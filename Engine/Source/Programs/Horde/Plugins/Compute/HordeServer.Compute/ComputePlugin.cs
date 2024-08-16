@@ -63,7 +63,10 @@ namespace HordeServer
 			services.AddSingleton<IPluginResponseFilter, ComputeResponseFilter>();
 
 			services.AddSingleton<IAgentCollection, AgentCollection>();
-			services.AddSingleton<ILeaseCollection, LeaseCollection>();
+
+			services.AddSingleton<LeaseCollection>();
+			services.AddSingleton<ILeaseCollection>(sp => sp.GetRequiredService<LeaseCollection>());
+
 			services.AddSingleton<ILogCollection, LogCollection>();
 			services.AddSingleton<IPoolCollection, PoolCollection>();
 
@@ -100,6 +103,9 @@ namespace HordeServer
 
 			// Always run agent service too; need to be able to listen to Redis for events on any server.
 			services.AddHostedService(provider => provider.GetRequiredService<AgentService>());
+
+			// Notifications to task sources about lease completion events
+			services.AddHostedService<TaskSourceNotificationService>();
 
 			// Create the agent telemetry collection, and register the hosted service so we can flush from any server.
 			services.AddSingleton<AgentTelemetryCollection>();

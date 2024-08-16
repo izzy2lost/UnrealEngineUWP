@@ -10,6 +10,8 @@ using Google.Protobuf;
 using Google.Protobuf.Reflection;
 using Google.Protobuf.WellKnownTypes;
 using HordeServer.Agents;
+using HordeServer.Agents.Leases;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
 namespace HordeServer.Tasks
@@ -258,6 +260,71 @@ namespace HordeServer.Tasks
 		protected static Task<CreateLeaseOptions?> LeaseAsync(CreateLeaseOptions lease)
 		{
 			return Task.FromResult<CreateLeaseOptions?>(lease);
+		}
+	}
+
+	/// <summary>
+	/// Service which dispatches lease complete notifications to task sources
+	/// </summary>
+	class TaskSourceNotificationService : IHostedService, IAsyncDisposable
+	{
+		readonly IAgentCollection _agentCollection;
+		readonly LeaseCollection _leaseCollection;
+		readonly ITaskSource[] _taskSources;
+		readonly AsyncQueue _asyncQueue;
+		readonly ILogger _logger;
+
+		public TaskSourceNotificationService(IAgentCollection agentCollection, LeaseCollection leaseCollection, IEnumerable<ITaskSource> taskSources, ILogger<TaskSourceNotificationService> logger)
+		{
+			_agentCollection = agentCollection;
+			_leaseCollection = leaseCollection;
+			_taskSources = taskSources.ToArray();
+			_asyncQueue = new AsyncQueue(1);
+			_logger = logger;
+		}
+
+		/// <inheritdoc/>
+		public Task StartAsync(CancellationToken cancellationToken)
+		{
+			_leaseCollection.OnLeaseComplete += OnLeaseComplete;
+			return Task.CompletedTask;
+		}
+
+		/// <inheritdoc/>
+		public async Task StopAsync(CancellationToken cancellationToken)
+		{
+			_leaseCollection.OnLeaseComplete -= OnLeaseComplete;
+			await _asyncQueue.StopAsync(cancellationToken);
+		}
+
+		/// <inheritdoc/>
+		public async ValueTask DisposeAsync()
+			=> await _asyncQueue.DisposeAsync();
+
+		void OnLeaseComplete(ILease lease)
+		{
+			if(lease.Payload.Length > 0)
+			{
+				Any payload = Any.Parser.ParseFrom(lease.Payload.Span);
+				foreach (ITaskSource taskSource in _taskSources)
+				{
+					if (payload.Is(taskSource.Descriptor))
+					{
+						_asyncQueue.Enqueue(ctx => HandleCompleteLeaseAsync(taskSource, lease, payload, ctx));
+						break;
+					}
+				}
+			}
+		}
+
+		async Task HandleCompleteLeaseAsync(ITaskSource taskSource, ILease lease, Any payload, CancellationToken cancellationToken)
+		{
+			IAgent? agent = await _agentCollection.GetAsync(lease.AgentId, cancellationToken);
+			if (agent != null)
+			{
+				_logger.LogInformation("Removing lease {LeaseId} ({LeaseType})", lease.Id, payload.TypeUrl);
+				await taskSource.OnLeaseFinishedAsync(agent, lease.Id, payload, lease.Outcome, lease.Output, _agentCollection.GetLogger(agent.Id), cancellationToken);
+			}
 		}
 	}
 }

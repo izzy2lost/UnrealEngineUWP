@@ -15,6 +15,11 @@ using OpenTelemetry.Trace;
 namespace HordeServer.Agents.Leases
 {
 	/// <summary>
+	/// Notification that a lease has been updated
+	/// </summary>
+	public delegate void OnLeaseCompleteDelegate(ILease lease);
+
+	/// <summary>
 	/// Collection of lease documents
 	/// </summary>
 	public class LeaseCollection : ILeaseCollection
@@ -71,6 +76,9 @@ namespace HordeServer.Agents.Leases
 		readonly IMongoCollection<LeaseDocument> _leases;
 		readonly Tracer _tracer;
 		readonly MongoIndex<LeaseDocument> _finishTimeStartTimeCompoundIndex;
+
+		/// <inheritdoc/>
+		public event OnLeaseCompleteDelegate? OnLeaseComplete;
 
 		/// <summary>
 		/// Constructor
@@ -198,8 +206,10 @@ namespace HordeServer.Agents.Leases
 				update = update.Set(x => x.Output, output);
 			}
 
-			UpdateResult result = await _leases.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
-			return result.ModifiedCount > 0;
+			LeaseDocument? document = await _leases.FindOneAndUpdateAsync(filter, update, new FindOneAndUpdateOptions<LeaseDocument, LeaseDocument> { ReturnDocument = ReturnDocument.After }, cancellationToken: cancellationToken);
+			OnLeaseComplete?.Invoke(document);
+
+			return document != null;
 		}
 	}
 }
