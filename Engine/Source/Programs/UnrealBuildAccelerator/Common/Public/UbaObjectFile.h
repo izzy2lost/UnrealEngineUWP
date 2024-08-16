@@ -25,13 +25,14 @@ namespace uba
 	class ObjectFile
 	{
 	public:
-		static ObjectFile* OpenAndParse(Logger& logger, const tchar* filename);
+		static ObjectFile* OpenAndParse(Logger& logger, const tchar* hint);
 		static ObjectFile* Parse(Logger& logger, u8* data, u64 dataSize, const tchar* hint);
 
 		virtual bool CopyMemoryAndClose();
 		virtual bool StripExports(Logger& logger);
 		virtual bool WriteImportsAndExports(Logger& logger, MemoryBlock& memoryBlock);
 		virtual bool WriteImportsAndExports(Logger& logger, const tchar* exportsFilename);
+		virtual const char* GetLibName();
 
 		const tchar* GetFileName() const;
 		const UnorderedSymbols& GetImports() const;
@@ -42,11 +43,12 @@ namespace uba
 
 		virtual ~ObjectFile();
 
+		void RemoveExportedSymbol(const char* symbol);
 		u8* GetData() { return m_data; }
 		u64 GetDataSize() { return m_dataSize; }
 
 	protected:
-		virtual bool Parse(Logger& logger, const tchar* filename) = 0;
+		virtual bool Parse(Logger& logger, const tchar* hint) = 0;
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports) = 0;
 		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile) = 0;
 

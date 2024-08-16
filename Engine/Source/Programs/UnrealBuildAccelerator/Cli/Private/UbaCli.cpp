@@ -101,6 +101,9 @@ namespace uba
 		logger.Info(TC("   -oidc=<name>            Name of oidc"));
 		logger.Info(TC("   -maxcores=<number>      Max number of cores that will be asked for from coordinator"));
 		logger.Info(TC(""));
+		logger.Info(TC("  If <executable> is a .yaml-file UbaCli creates a scheduler to execute commands from the yaml file instead"));
+		
+		logger.Info(TC(""));
 		return false;
 	}
 

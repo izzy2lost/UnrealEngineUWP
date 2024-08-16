@@ -2,10 +2,13 @@
 
 #include "UbaObjectFile.h"
 #include "UbaBinaryReaderWriter.h"
+#include "UbaCompressedObjFileHeader.h"
 #include "UbaFileAccessor.h"
 #include "UbaObjectFileCoff.h"
 #include "UbaObjectFileElf.h"
+#include "UbaObjectFileImportLib.h"
 #include "UbaObjectFileLLVMIR.h"
+#include <oodle2.h>
 
 namespace uba
 {
@@ -32,24 +35,70 @@ namespace uba
 	{
 		ObjectFile* objectFile = nullptr;
 
+		bool ownsData = false;
+		if (dataSize >= sizeof(CompressedObjFileHeader) && ((CompressedObjFileHeader*)data)->IsValid())
+		{
+			u64 decompressedSize = *(u64*)(data + sizeof(CompressedObjFileHeader));
+			u8* readPos = data + sizeof(CompressedObjFileHeader) + 8;
+
+			u8* decompressedData = (u8*)malloc(decompressedSize);
+			u8* writePos = decompressedData;
+
+			OO_SINTa decoredMemSize = OodleLZDecoder_MemorySizeNeeded(OodleLZ_Compressor_Kraken);
+			void* decoderMem = malloc(decoredMemSize);
+			auto mg = MakeGuard([decoderMem]() { free(decoderMem); });
+
+			u64 left = decompressedSize;
+			while (left)
+			{
+				u32 compressedBlockSize = *(u32*)readPos;
+				readPos += 4;
+				u32 decompressedBlockSize = *(u32*)readPos;
+				readPos += 4;
+
+				OO_SINTa decompLen = OodleLZ_Decompress(readPos, (OO_SINTa)compressedBlockSize, writePos, (OO_SINTa)decompressedBlockSize,
+					OodleLZ_FuzzSafe_Yes, OodleLZ_CheckCRC_No, OodleLZ_Verbosity_None, NULL, 0, NULL, NULL, decoderMem, decoredMemSize);
+				if (decompLen != decompressedBlockSize)
+				{
+					logger.Error(TC("Failed to decompress file %s"), hint);
+					return nullptr;
+				}
+
+				readPos += compressedBlockSize;
+				writePos += decompressedBlockSize;
+				left -= decompressedBlockSize;
+			}
+
+			data = decompressedData;
+			dataSize = decompressedSize;
+			ownsData = true;
+		}
+
 		if (IsElfFile(data, dataSize))
 			objectFile = new ObjectFileElf();
 		else if (IsLLVMIRFile(data, dataSize))
 			objectFile = new ObjectFileLLVMIR();
 		else if (IsCoffFile(data, dataSize))
 			objectFile = new ObjectFileCoff();
+		else if (IsImportLib(data, dataSize))
+			objectFile = new ObjectFileImportLib();
 		else
 		{
+			if (ownsData)
+				free(data);
 			logger.Error(TC("Unknown object file format. Maybe msvc FE IL? (%s)"), hint);
 			return nullptr;
 		}
 
 		objectFile->m_data = data;
 		objectFile->m_dataSize = dataSize;
+		objectFile->m_ownsData = ownsData;
 
 		if (objectFile->Parse(logger, hint))
 			return objectFile;
 
+		if (ownsData)
+			free(data);
 		delete objectFile;
 		return nullptr;
 	}
@@ -58,6 +107,8 @@ namespace uba
 	{
 		u8* data = (u8*)malloc(m_dataSize);
 		memcpy(data, m_data, m_dataSize);
+		if (m_ownsData)
+			free(m_data);
 		m_data = data;
 		m_ownsData = true;
 		delete m_file;
@@ -129,11 +180,22 @@ namespace uba
 		return exportsFile.Close();
 	}
 
+	const char* ObjectFile::GetLibName()
+	{
+		UBA_ASSERT(false);
+		return "";
+	}
+
 	ObjectFile::~ObjectFile()
 	{
 		if (m_ownsData)
 			free(m_data);
 		delete m_file;
+	}
+
+	void ObjectFile::RemoveExportedSymbol(const char* symbol)
+	{
+		m_exports.erase(symbol);
 	}
 
 	const tchar* ObjectFile::GetFileName() const

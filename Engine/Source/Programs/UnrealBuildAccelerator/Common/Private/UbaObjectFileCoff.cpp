@@ -228,7 +228,7 @@ namespace uba
 		m_type = ObjectFileType_Coff;
 	}
 
-	bool ObjectFileCoff::Parse(Logger& logger, const tchar* filename)
+	bool ObjectFileCoff::Parse(Logger& logger, const tchar* hint)
 	{
 		m_isBigObj = IsBigObj(m_data, m_dataSize);
 		

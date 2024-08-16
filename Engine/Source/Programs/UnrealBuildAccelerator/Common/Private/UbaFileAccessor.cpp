@@ -346,7 +346,7 @@ namespace uba
 			m_mappingHandle = uba::CreateFileMappingW(InvalidFileHandle, PAGE_READONLY, 1, m_fileName);
 
 		if (!m_mappingHandle.IsValid())
-			return m_logger.Error(TC("Failed to create mapping handle for %s (%s)"), m_fileName, LastErrorToText().data);
+			return m_logger.Error(TC("Failed to create mapping handle for %s with size %llu (%s)"), m_fileName, m_size, LastErrorToText().data);
 #else
 		m_mappingHandle = { asFileDescriptor(m_fileHandle) };
 		if (offset == m_size)
@@ -380,69 +380,74 @@ namespace uba
 			m_mappingHandle = {};
 		}
 
-		if (m_fileHandle != InvalidFileHandle)
-		{
-			const tchar* realFileName = m_fileName;
-			StringBuffer<> tempFile;
+		if (m_fileHandle == InvalidFileHandle)
+			return true;
+		const tchar* realFileName = m_fileName;
+		StringBuffer<> tempFile;
 
-			if (m_isWrite)
+		auto closeFile = MakeGuard([&]()
 			{
-				#if !PLATFORM_WINDOWS
-				if (m_tempPath)
-					realFileName = tempFile.Append(m_tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
+				if (!CloseFile(realFileName, m_fileHandle))
+					return m_logger.Error(TC("Failed to close file %s (%s)"), realFileName, LastErrorToText().data);
+				m_fileHandle = InvalidFileHandle;
+				return true;
+			});
+
+
+		if (!m_isWrite)
+			return closeFile.Execute();
+
+		#if !PLATFORM_WINDOWS
+		if (m_tempPath)
+			realFileName = tempFile.Append(m_tempPath).Append("Temp_").AppendValue(m_tempFileIndex).data;
+		#endif
+
+		if (success)
+		{
+			#if PLATFORM_WINDOWS
+			if (!SetDeleteOnClose(m_logger, realFileName, m_fileHandle, false))
+				return m_logger.Error(TC("Failed to remove delete on close for file %s (%s)"), realFileName, LastErrorToText().data);
+			#else
+			if (m_tempPath && rename(realFileName, m_fileName) == -1)
+			{
+				if (errno != EXDEV)
+					return m_logger.Error(TC("Failed to rename temporary file %s to %s (%s)"), realFileName, m_fileName, strerror(errno));
+
+				// Need to copy, can't rename over devices
+				int targetFd = open(m_fileName, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, m_flagsAndAttributes);
+				auto g = MakeGuard([targetFd]() { close(targetFd); });
+				if (targetFd == -1)
+					return m_logger.Error(TC("Failed to create file %s for move from temporary file %s (%s)"), m_fileName, realFileName, strerror(errno));
+						
+				#if PLATFORM_MAC
+				if (fcopyfile(asFileDescriptor(m_fileHandle), targetFd, 0, COPYFILE_ALL) == -1)
+					return m_logger.Error(TC("Failed to do fcopyfile from temporary %s to file %s (%s)"), realFileName, m_fileName, strerror(errno));
+				#else
+				int sourceFd = asFileDescriptor(m_fileHandle);
+				if (lseek(sourceFd, 0, SEEK_SET) == -1)
+					return m_logger.Error(TC("Failed to do lseek to beginning for sendfile (%s)"), strerror(errno));
+				if (sendfile(targetFd, sourceFd, NULL, m_size) != m_size)
+					return m_logger.Error(TC("Failed to do sendfile from temporary %s to file %s (%s)"), realFileName, m_fileName, strerror(errno));
 				#endif
 
-				if (success)
-				{
-					#if PLATFORM_WINDOWS
-					if (!SetDeleteOnClose(m_logger, realFileName, m_fileHandle, false))
-						return m_logger.Error(TC("Failed to remove delete on close for file %s (%s)"), realFileName, LastErrorToText().data);
-					#else
-					if (m_tempPath && rename(realFileName, m_fileName) == -1)
-					{
-						if (errno != EXDEV)
-							return m_logger.Error(TC("Failed to rename temporary file %s to %s (%s)"), realFileName, m_fileName, strerror(errno));
-
-						// Need to copy, can't rename over devices
-						int targetFd = open(m_fileName, O_CREAT | O_TRUNC | O_WRONLY | O_CLOEXEC, m_flagsAndAttributes);
-						auto g = MakeGuard([targetFd]() { close(targetFd); });
-						if (targetFd == -1)
-							return m_logger.Error(TC("Failed to create file %s for move from temporary file %s (%s)"), m_fileName, realFileName, strerror(errno));
-						
-						#if PLATFORM_MAC
-						if (fcopyfile(asFileDescriptor(m_fileHandle), targetFd, 0, COPYFILE_ALL) == -1)
-							return m_logger.Error(TC("Failed to do fcopyfile from temporary %s to file %s (%s)"), realFileName, m_fileName, strerror(errno));
-						#else
-						int sourceFd = asFileDescriptor(m_fileHandle);
-						if (lseek(sourceFd, 0, SEEK_SET) == -1)
-							return m_logger.Error(TC("Failed to do lseek to beginning for sendfile (%s)"), strerror(errno));
-						if (sendfile(targetFd, sourceFd, NULL, m_size) != m_size)
-							return m_logger.Error(TC("Failed to do sendfile from temporary %s to file %s (%s)"), realFileName, m_fileName, strerror(errno));
-						#endif
-
-						remove(realFileName); // Remove real file now when we have copied it over
-					}
-					#endif
-
-					if (lastWriteTime)
-					{
-						*lastWriteTime = 0;
-						if (!GetFileLastWriteTime(*lastWriteTime, m_fileHandle))
-							m_logger.Warning(TC("Failed to get file time for %s (%s)"), realFileName, LastErrorToText().data);
-					}
-				}
-				else
-				{
-					#if !PLATFORM_WINDOWS
-					if (m_tempPath && remove(realFileName) == -1)
-						return m_logger.Error(TC("Failed to remove temporary file %s (%s)"), realFileName, strerror(errno));
-					#endif
-				}
+				remove(realFileName); // Remove real file now when we have copied it over
 			}
-			if (!CloseFile(realFileName, m_fileHandle))
-				return m_logger.Error(TC("Failed to close file %s (%s)"), realFileName, LastErrorToText().data);
-			m_fileHandle = InvalidFileHandle;
+			#endif
+
+			if (lastWriteTime)
+			{
+				*lastWriteTime = 0;
+				if (!GetFileLastWriteTime(*lastWriteTime, m_fileHandle))
+					m_logger.Warning(TC("Failed to get file time for %s (%s)"), realFileName, LastErrorToText().data);
+			}
 		}
-		return true;
+		else
+		{
+			#if !PLATFORM_WINDOWS
+			if (m_tempPath && remove(realFileName) == -1)
+				return m_logger.Error(TC("Failed to remove temporary file %s (%s)"), realFileName, strerror(errno));
+			#endif
+		}
+		return closeFile.Execute();
 	}
 }

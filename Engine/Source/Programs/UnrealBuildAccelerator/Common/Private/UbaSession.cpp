@@ -2204,7 +2204,8 @@ namespace uba
 
 					if (!m_storage.WriteCompressed(res, TC("MemoryMap"), InvalidFileHandle, mem, fileSize, file.name.c_str(), &header, sizeof(header), file.lastWriteTime))
 						return false;
-					shouldEvictFromMemory = true;
+
+					shouldEvictFromMemory = false; // Can't evict without properly update filemappingtable.. the file on disk does now not match what was registered for write
 				}
 				else
 				{

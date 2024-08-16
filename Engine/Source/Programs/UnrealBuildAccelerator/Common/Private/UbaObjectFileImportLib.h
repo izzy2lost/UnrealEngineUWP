@@ -6,20 +6,19 @@
 
 namespace uba
 {
-	class ObjectFileElf : public ObjectFile
+	class ObjectFileImportLib : public ObjectFile
 	{
 	public:
-		ObjectFileElf();
 		virtual bool Parse(Logger& logger, const tchar* hint) override;
+		virtual const char* GetLibName() override;
 
 	private:
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports) override;
 		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile) override;
 
-		UnorderedSymbols m_toRemove;
-
-		static UnorderedSymbols PotentiallyDuplicatedSymbols;
+		std::string m_libName;
 	};
 
-	bool IsElfFile(const u8* data, u64 dataSize);
+
+	bool IsImportLib(const u8* data, u64 dataSize);
 }

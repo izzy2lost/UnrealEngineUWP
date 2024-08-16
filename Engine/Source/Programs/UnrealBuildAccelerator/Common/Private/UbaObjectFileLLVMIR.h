@@ -12,7 +12,7 @@ namespace uba
 		ObjectFileLLVMIR();
 		~ObjectFileLLVMIR();
 
-		virtual bool Parse(Logger& logger, const tchar* filename) override;
+		virtual bool Parse(Logger& logger, const tchar* hint) override;
 
 	private:
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports) override;

@@ -33,11 +33,12 @@ namespace uba
 		logger.Info(TC("   UbaObjTool v%s%s"), Version, dbgStr);
 		logger.Info(TC("-------------------------------------------"));
 		logger.Info(TC(""));
-		logger.Info(TC("  UbaObjTool.exe [options...] <objfile>"));
+		logger.Info(TC("  UbaObjTool.exe [options...] <objfile/libfile>"));
 		logger.Info(TC(""));
 		logger.Info(TC("   Options:"));
 		logger.Info(TC("    -printsymbols            Print the symbols found in obj file"));
 		logger.Info(TC("    -stripexports            Will strip exports and write them out in a .exp file"));
+		logger.Info(TC("    -writeimplib=<file>      Will create a import library from symbols collected from obj/lib files"));
 		logger.Info(TC(""));
 		logger.Info(TC("  --- OR ---"));
 		logger.Info(TC(""));
@@ -69,6 +70,7 @@ namespace uba
 		bool printSymbols = false;
 		bool stripExports = false;
 		bool writeImpLib = false;
+		bool allowLibInputs = false;
 		bool isImpLibRsp = false;
 
 		Vector<TString> objFilesToStrip;
@@ -173,6 +175,9 @@ namespace uba
 				}
 				else if (name.Equals(TC("-writeimplib")))
 				{
+					impLibFile = value.data;
+					writeImpLib = true;
+					allowLibInputs = true;
 				}
 				else if (name.Equals(TC("-stripexports")))
 				{
@@ -314,22 +319,28 @@ namespace uba
 				auto& o = *it;
 				StringBuffer<> fixedPath;
 				FixPath(o.c_str(), currentDir.data, currentDir.count, fixedPath);
-				if (fixedPath.EndsWith(TC(".res")) || fixedPath.EndsWith(TC(".lib")))
+				if (fixedPath.EndsWith(TC(".res")) || (fixedPath.EndsWith(TC(".lib")) && !allowLibInputs))
 					return;
 				if (ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, fixedPath.data))
+				{
+					objectFile->RemoveExportedSymbol("DllMain");
 					objFiles[it - objFilesForImpLib.begin()] = objectFile;
+				}
 				else
 					success = false;
 			});
 			if (!success)
 				return -1;
 
+			if (impLibName.empty() && objFiles.size() == 1)
+				impLibName = objFiles[0]->GetLibName();
+
 			writer.Write(logger, objFiles, impLibName.c_str(), impLibFile.c_str());
 		}
 		else
 		{
 			if (objFile.empty())
-				return PrintHelp(TC("No obj or rsp file provided"));
+				return PrintHelp(TC("No obj, lib or rsp file provided"));
 
 			ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, objFile.c_str());
 			if (!objectFile)

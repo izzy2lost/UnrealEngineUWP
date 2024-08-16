@@ -804,7 +804,7 @@ namespace uba
 		return ~0u;
 	}
 
-	bool ObjectFileLLVMIR::Parse(Logger& logger, const tchar* filename)
+	bool ObjectFileLLVMIR::Parse(Logger& logger, const tchar* hint)
 	{
 		//BinaryReader reader(m_data, 0, m_dataSize);
 		BitStreamReader reader(*this, logger, m_data, m_dataSize);

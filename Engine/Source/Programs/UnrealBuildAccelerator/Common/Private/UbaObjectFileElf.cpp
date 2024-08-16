@@ -125,7 +125,7 @@ namespace uba
 	}
 
 
-	bool ObjectFileElf::Parse(Logger& logger, const tchar* filename)
+	bool ObjectFileElf::Parse(Logger& logger, const tchar* hint)
 	{
 		auto& header = *(Elf64Header*)m_data;
 		if (header.e_ident[4] != 2) // 64-bit

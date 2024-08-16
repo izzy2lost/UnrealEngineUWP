@@ -11,7 +11,7 @@ namespace uba
 	{
 	public:
 		ObjectFileCoff();
-		virtual bool Parse(Logger& logger, const tchar* filename) override;
+		virtual bool Parse(Logger& logger, const tchar* hint) override;
 
 		static bool CreateExtraFile2(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
 
