@@ -7,7 +7,6 @@ using EpicGames.Horde.Acls;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Tools;
 using HordeServer.Acls;
-using HordeServer.Storage;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
 

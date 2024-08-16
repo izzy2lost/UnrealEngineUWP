@@ -2,7 +2,6 @@
 
 using System.Globalization;
 using System.Net;
-using System.Runtime.CompilerServices;
 using Amazon;
 using Amazon.Extensions.NETCore.Setup;
 using Amazon.Runtime;
