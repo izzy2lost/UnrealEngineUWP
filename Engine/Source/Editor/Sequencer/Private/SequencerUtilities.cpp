@@ -2753,6 +2753,14 @@ FGuid CreateGenericBinding(TSharedPtr<ISequencer> Sequencer, UMovieSceneSequence
 		UWorld* World = GCurrentLevelEditingViewportClient ? GCurrentLevelEditingViewportClient->GetWorld() : nullptr;
 		if (InObject && !InObject->IsA<AActor>())
 		{
+			// Workaround for a bug in UActorFactoryBlueprint- the actor factory will claim it can create an actor for a blueprint generated class, but then fail to do so
+			// This pattern of redirecting to the UBlueprint asset is present also in FAssetData constructor.
+			const UClass* InClass = Cast<UClass>(InObject);
+			if (InClass && InClass->ClassGeneratedBy)
+			{
+				InObject = InClass->ClassGeneratedBy;
+			}
+
 			// If the passed in object is not an actor, see if we can create an Actor from it, and if so, if that Actor type has a custom binding that supports it
 			UActorFactory* FactoryToUse = InParams.ActorFactory ? InParams.ActorFactory.Get() : FActorFactoryAssetProxy::GetFactoryForAssetObject(InObject);
 
