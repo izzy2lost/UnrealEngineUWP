@@ -135,7 +135,7 @@ void URuntimePartitionLHGrid::PostEditChangeProperty(FPropertyChangedEvent& InPr
 			WorldGridPreviewer = MakeUnique<FWorldGridPreviewer>(GetTypedOuter<UWorld>(), bIs2D);
 		}
 
-		if (!GPackageWasDirty)
+		if ((PropertyName == GET_MEMBER_NAME_CHECKED(URuntimePartitionLHGrid, bShowGridPreview)) && !GPackageWasDirty)
 		{
 			GetPackage()->ClearDirtyFlag();
 		}
