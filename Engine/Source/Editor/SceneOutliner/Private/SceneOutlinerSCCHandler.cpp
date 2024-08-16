@@ -356,10 +356,15 @@ void FSceneOutlinerSCCHandler::GetSelectedPackages(TArray<UPackage*>& OutPackage
 			continue;
 		}
 
-		UPackage* Package = SourceControl->LoadPackage();
-		if (Package != nullptr)
+		if (UPackage* Package = SourceControl->GetPackage())
 		{
 			OutPackages.Add(Package);
+			continue;
+		}
+		if (UPackage* Package = SourceControl->LoadPackage())
+		{
+			OutPackages.Add(Package);
+			continue;
 		}
 	}
 }
