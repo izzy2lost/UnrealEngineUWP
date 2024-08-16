@@ -739,7 +739,7 @@ namespace HordeServer.Issues
 				{
 					if (timer.Elapsed > nextNotifyTime)
 					{
-						_logger.LogWarning("Waiting on lock over issue collection for {TimeSpan}", timer.Elapsed);
+						_logger.LogWarning("Waiting on lock over issue collection for {TimeSpan} ms", timer.ElapsedMilliseconds);
 						nextNotifyTime *= 2;
 					}
 					await Task.Delay(TimeSpan.FromMilliseconds(100));
