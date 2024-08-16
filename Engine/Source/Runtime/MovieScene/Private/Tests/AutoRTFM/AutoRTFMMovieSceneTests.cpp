@@ -109,6 +109,19 @@ bool FAutoRTFMMovieSceneTests::RunTest(const FString & Parameters)
 		TEST_CHECK_TRUE(1 == FMyTask::WasHit);//-V547
 	}
 
+	{
+		FComponentHeader Header;
+		FEntityManager EntityManager;
+		FEntityAllocationWriteContext Context(EntityManager);
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				TComponentLock<UE::MovieScene::FWriteErased> Lock(&Header, EComponentHeaderLockMode::Mutex, Context);
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
 	return true;
 }
 
