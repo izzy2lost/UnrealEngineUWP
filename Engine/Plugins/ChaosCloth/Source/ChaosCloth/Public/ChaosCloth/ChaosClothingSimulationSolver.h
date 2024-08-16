@@ -4,6 +4,7 @@
 #include "ChaosCloth/ChaosClothConstraints.h"
 #include "Chaos/PBDSoftsEvolutionFwd.h"
 #include "Chaos/ArrayCollectionArray.h"
+#include "Chaos/SoftsSimulationSpace.h"
 #include "Chaos/Transform.h"
 #include "Chaos/Framework/PhysicsSolverBase.h"
 #include "Chaos/ImplicitObject.h"
@@ -136,6 +137,7 @@ namespace Chaos
 			const FRigidTransform3& ReferenceSpaceTransform,
 			TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
 			TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+			const EChaosSoftsSimulationSpace VelocityScaleSpace, // the space the following linear velocity properties are in.
 			const TVec3<FRealSingle>& LinearVelocityScale,
 			const TVec3<FRealSingle>& MaxLinearVelocity,
 			const TVec3<FRealSingle>& MaxLinearAcceleration,
@@ -158,8 +160,9 @@ namespace Chaos
 			// Acceleration clamps are disabled, so it doesn't matter what the old velocities were.
 			TVec3<FReal> ReferenceVelocity(0.);
 			TVec3<FReal> ReferenceAngularVelocity(0.);
-			SetReferenceVelocityScale(GroupId, OldReferenceSpaceTransform, ReferenceSpaceTransform, ReferenceVelocity, ReferenceAngularVelocity, LinearVelocityScale,
-				TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), AngularVelocityScale, FictitiousAngularScale,
+			SetReferenceVelocityScale(GroupId, OldReferenceSpaceTransform, ReferenceSpaceTransform, ReferenceVelocity, ReferenceAngularVelocity,
+				EChaosSoftsSimulationSpace::ReferenceBoneSpace, LinearVelocityScale, TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()),
+				TVec3<FRealSingle>(TNumericLimits<FRealSingle>::Max()), AngularVelocityScale, FictitiousAngularScale,
 				MaxVelocityScale, TNumericLimits<FRealSingle>::Max(), TNumericLimits<FRealSingle>::Max(), bDisableFictitiousForces);
 		}
 

@@ -4,6 +4,7 @@
 
 #include "ChaosClothAsset/SimulationBaseConfigNode.h"
 #include "ChaosClothAsset/WeightedValue.h"
+#include "Chaos/SoftsSimulationSpace.h"
 #include "SimulationVelocityScaleConfigNode.generated.h"
 
 /** Velocity scale properties configuration node. */
@@ -14,6 +15,13 @@ struct FChaosClothAssetSimulationVelocityScaleConfigNode : public FChaosClothAss
 	DATAFLOW_NODE_DEFINE_INTERNAL(FChaosClothAssetSimulationVelocityScaleConfigNode, "SimulationVelocityScaleConfig", "Cloth", "Cloth Simulation Velocity Scale Config")
 
 public:
+
+	/**
+	 * All vector properties on this node (e.g., Linear Velocity Scale, Max Linear Acceleration)
+	 * will be evaluated in this space. 
+	 */
+	UPROPERTY(EditAnywhere, Category = "Velocity Scale Properties")
+	EChaosSoftsSimulationSpace VelocityScaleSpace = EChaosSoftsSimulationSpace::ReferenceBoneSpace;
 
 	/**
 	 * The amount of linear velocities sent to the local cloth space from the reference bone

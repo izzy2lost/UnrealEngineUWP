@@ -1084,6 +1084,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
 	const FRigidTransform3& ReferenceSpaceTransform,
 	TVec3<FReal>& InOutReferenceVelocity, // Old reference velocity is passed in. New reference velocity is returned.
 	TVec3<FReal>& InOutReferenceAngularVelocity, // Old reference velocity is passed in. New reference velocity is returned.
+	const EChaosSoftsSimulationSpace VelocityScaleSpace, // the space the following linear velocity properties are in.
 	const TVec3<FRealSingle>& LinearVelocityScale,
 	const TVec3<FRealSingle>& MaxLinearVelocity,
 	const TVec3<FRealSingle>& MaxLinearAcceleration,
@@ -1127,8 +1128,25 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
 	}	
 	const FVec3 FullDeltaRotation = FullDeltaAngle * FullAxis;
 
-	// Do all linear velocity changes in old reference space.
-	const FVec3 ReferenceSpaceDeltaTranslation= OldReferenceSpaceRotationInverse * LocalDeltaTranslation;
+	// Choose which space to do linear velocity scale and clamp calculations based on VelocityScaleSpace
+	FRotation3 VelocityScaleSpaceToOldRefSpace;
+	FVec3 VelocityScaleSpaceDeltaTranslation;
+	switch (VelocityScaleSpace)
+	{
+	case EChaosSoftsSimulationSpace::WorldSpace:
+		VelocityScaleSpaceToOldRefSpace = OldReferenceSpaceRotationInverse;
+		VelocityScaleSpaceDeltaTranslation = LocalDeltaTranslation;
+		break;
+	case EChaosSoftsSimulationSpace::ComponentSpace:
+		VelocityScaleSpaceToOldRefSpace = OldReferenceSpaceRotationInverse * LocalSpaceRotation;
+		VelocityScaleSpaceDeltaTranslation = LocalSpaceRotation.UnrotateVector(LocalDeltaTranslation);
+		break;
+	case EChaosSoftsSimulationSpace::ReferenceBoneSpace:
+	default:
+		VelocityScaleSpaceToOldRefSpace = FRotation3::Identity;
+		VelocityScaleSpaceDeltaTranslation = OldReferenceSpaceRotationInverse * LocalDeltaTranslation;
+		break;
+	}
 
 	// Apply linear velocity scale.
 	const FVec3 LinearRatio = FVec3(
@@ -1136,7 +1154,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
 		CalculateClampedVelocityScale(LinearVelocityScale[1]),
 		CalculateClampedVelocityScale(LinearVelocityScale[2]));
 
-	FVec3 AppliedDeltaTranslation = LinearRatio * ReferenceSpaceDeltaTranslation;
+	FVec3 AppliedDeltaTranslation = LinearRatio * VelocityScaleSpaceDeltaTranslation;
 
 	// Apply angular velocity scale
 	const FReal AngularRatio = CalculateClampedVelocityScale(AngularVelocityScale);
@@ -1194,7 +1212,7 @@ void FClothingSimulationSolver::SetReferenceVelocityScale(uint32 GroupId,
 
 		AppliedDeltaRotation = AppliedAngularVelocity * DeltaTime;
 	}
-	const FVec3 DeltaPosition = ReferenceSpaceDeltaTranslation - AppliedDeltaTranslation;
+	const FVec3 DeltaPosition = VelocityScaleSpaceToOldRefSpace * (VelocityScaleSpaceDeltaTranslation - AppliedDeltaTranslation);
 	const FVec3 DeltaRotation = FullDeltaRotation - AppliedDeltaRotation;
 	const FReal DeltaAngle = DeltaRotation.Length();
 	const FVec3 Axis = DeltaAngle > UE_KINDA_SMALL_NUMBER ? DeltaRotation / DeltaAngle : FVec3::XAxisVector;

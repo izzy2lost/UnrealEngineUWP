@@ -12,6 +12,7 @@
 #include "Chaos/PBDFlatWeightMap.h"
 #include "Chaos/PBDSoftBodyCollisionConstraint.h"
 #include "Chaos/SoftsExternalForces.h"
+#include "Chaos/SoftsSimulationSpace.h"
 #include "Containers/ArrayView.h"
 #include "GeometryCollection/ManagedArrayCollection.h"
 #include "HAL/IConsoleManager.h"
@@ -35,6 +36,7 @@ namespace ClothingSimulationClothDefault
 	constexpr float AirDensity = 1.225f;  // Air density in kg/m^3
 	constexpr float GravityScale = Softs::FExternalForces::DefaultGravityScale; // 1.f;
 	constexpr float GravityZOverride = Softs::FExternalForces::DefaultGravityZOverride; // -980.665f;
+	constexpr EChaosSoftsSimulationSpace VelocityScaleSpace = EChaosSoftsSimulationSpace::ReferenceBoneSpace;
 	constexpr float VelocityScale = 0.75f;
 	constexpr float MaxVelocityScale = 1.f;
 	constexpr float MaxVelocity = TNumericLimits<float>::Max();
@@ -367,7 +369,7 @@ void FClothingSimulationCloth::FLODData::Update(FClothingSimulationSolver* Solve
 	check(Cloth->Config);
 	const Softs::FSolverReal MeshScale = Cloth->Mesh->GetScale();
 	const Softs::FSolverReal MaxDistancesScale = (Softs::FSolverReal)Cloth->MaxDistancesMultiplier;
-	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, FaceSets, FaceIntMaps, MeshScale, MaxDistancesScale);
+	ClothConstraints.Update(Cloth->Config->GetProperties(SolverDatum.LODIndex), WeightMaps, VertexSets, FaceSets, FaceIntMaps, MeshScale, MaxDistancesScale, Solver->GetLocalSpaceRotation(), Cloth->ReferenceSpaceTransform.GetRotation());
 }
 
 void FClothingSimulationCloth::FLODData::Enable(FClothingSimulationSolver* Solver, bool bEnable) const
@@ -894,6 +896,7 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 		// TODO: Move all groupID updates out of the cloth update to allow to use of the same GroupId with different cloths
 
 		// Set the reference input velocity and deal with teleport & reset; external forces depends on these values, so they must be initialized before then
+		EChaosSoftsSimulationSpace VelocityScaleSpace = ClothingSimulationClothDefault::VelocityScaleSpace;
 		FVec3f OutLinearVelocityScale;
 		FRealSingle OutAngularVelocityScale;
 		FRealSingle OutMaxVelocityScale;
@@ -939,6 +942,7 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 		else
 		{
 			// Use the cloth config parameters
+			VelocityScaleSpace = (EChaosSoftsSimulationSpace)ConfigProperties.GetValue<int32>(TEXT("VelocityScaleSpace"), (int32)ClothingSimulationClothDefault::VelocityScaleSpace);
 			OutLinearVelocityScale = ConfigProperties.GetValue<FVector3f>(TEXT("LinearVelocityScale"), FVector3f(ClothingSimulationClothDefault::VelocityScale));
 			OutAngularVelocityScale = ConfigProperties.GetValue<float>(TEXT("AngularVelocityScale"), ClothingSimulationClothDefault::VelocityScale);
 			OutMaxVelocityScale = ConfigProperties.GetValue<float>(TEXT("MaxVelocityScale"), ClothingSimulationClothDefault::MaxVelocityScale);
@@ -956,6 +960,7 @@ void FClothingSimulationCloth::Update(FClothingSimulationSolver* Solver)
 			ReferenceSpaceTransform,
 			ReferenceSpaceVelocity,
 			ReferenceSpaceAngularVelocity,
+			VelocityScaleSpace,
 			OutLinearVelocityScale,
 			MaxLinearVelocity,
 			MaxLinearAcceleration,
