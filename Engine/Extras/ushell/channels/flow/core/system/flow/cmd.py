@@ -6,6 +6,7 @@ import marshal
 from enum import Enum
 
 from . import _backtrace
+from ._noticeboard import Noticeboard
 from .text import *
 
 #-------------------------------------------------------------------------------
@@ -134,40 +135,6 @@ class _Channel(object):
 
 
 #-------------------------------------------------------------------------------
-class _Noticeboard(object):
-    def __init__(self, path):
-        self._path = path
-        self._inner = None
-        self._modified = False
-
-    def __del__(self):
-        if self._modified:
-            with open(self._path, "wb") as x:
-                marshal.dump(self._inner, x)
-
-    def _get_inner(self):
-        if not self._inner:
-            try:
-                with open(self._path, "rb") as x:
-                    self._inner = marshal.load(x)
-            except:
-                self._inner = {}
-        return self._inner
-
-    def __getitem__(self, name):
-        return self._get_inner().get(name)
-
-    def __setitem__(self, name, value):
-        self._modified = True
-        self._get_inner()[name] = value
-
-    def copy_from(self, other):
-        self._modified = True
-        self._inner = other._get_inner().copy()
-
-
-
-#-------------------------------------------------------------------------------
 from . import _flick
 Arg = _flick.Arg
 Opt = _flick.Opt
@@ -222,11 +189,11 @@ class Cmd(_flick.Cmd, _Channel):
 
     def get_noticeboard(self, board_type):
         temp_dir = self._channel.get_system().get_temp_dir()
+        flow_sid = -1
         if board_type == Cmd.Noticeboard.SESSION:
             flow_sid = os.getenv("FLOW_SID", "x")
-            return _Noticeboard(temp_dir + "session_" + flow_sid)
-        elif board_type == Cmd.Noticeboard.PERSISTENT:
-            return _Noticeboard(temp_dir + "noticeboard_p")
+            flow_sid = int(flow_sid) if flow_sid.isdecimal() else "-493"
+        return Noticeboard(temp_dir + "noticeboard", int(flow_sid))
 
     def edit_file(self, path):
         if editor := os.getenv("GIT_EDITOR") or os.getenv("P4EDITOR"):

@@ -229,7 +229,7 @@ class System(object):
         return self._working_dir
 
     def get_temp_dir(self):
-        ret = self.get_working_dir() + "temp/"
+        ret = self.get_working_dir() + "../temp/"
         try: os.mkdir(ret)
         except FileExistsError: pass
         return ret

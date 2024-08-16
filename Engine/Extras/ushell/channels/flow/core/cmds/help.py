@@ -49,8 +49,11 @@ class Help(flow.cmd.Cmd):
         for name, cmd_class in output:
             dots = lead_dot[len(name):]
             leader = flow.cmd.text.light_cyan(name) + " " + flow.cmd.text.grey(dots)
-            desc = cmd_class.get_desc(pretty=desc_width)
-            desc = desc.replace("\n", "\n" + lead_spc)
+            if isinstance(cmd_class, str):
+                desc = cmd_class
+            else:
+                desc = cmd_class.get_desc(pretty=desc_width)
+                desc = desc.replace("\n", "\n" + lead_spc)
             print(" ", leader, sep="", end="")
             print(desc)
             print()

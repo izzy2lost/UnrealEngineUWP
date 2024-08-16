@@ -55,7 +55,7 @@ class Debug(flow.cmd.Cmd):
 
         print()
         session = self.get_noticeboard(self.Noticeboard.SESSION)
-        pprint.pprint(session._get_inner())
+        session.debug(pprint.pprint)
 
 #-------------------------------------------------------------------------------
 class Invalidate(flow.cmd.Cmd):

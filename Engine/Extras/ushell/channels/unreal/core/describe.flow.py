@@ -184,6 +184,10 @@ sln_10x = flow.describe.Command()
 sln_10x.source("cmds/sln.py", "Open10x")
 sln_10x.invoke("sln", "open", "10x")
 
+sln_tiny = flow.describe.Command()
+sln_tiny.source("cmds/sln.py", "Tiny")
+sln_tiny.invoke("sln", "open", "tiny")
+
 #-------------------------------------------------------------------------------
 uat = flow.describe.Command()
 uat.source("cmds/uat.py", "Uat")

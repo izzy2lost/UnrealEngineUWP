@@ -9,9 +9,12 @@ class _Impl(unrealcmd.Cmd):
     target   = unrealcmd.Arg(str, "Cooked target to stage")
     platform = unrealcmd.Arg("", "Platform whose cook should be staged")
     variant  = unrealcmd.Arg("development", "Build variant to stage binaries to copy")
+    style    = unrealcmd.Arg("auto", "Type of result to stage ('auto' makes the best choice for common use)")
     uatargs  = unrealcmd.Arg([str], "Additional arguments to pass to UAT")
 
     complete_target = ("game", "client", "server")
+
+    complete_style = ("pak", "nopak", "zen","auto")
 
     def _build(self, build_editor, ubt_args=None):
         self.print_info("Building")
@@ -109,13 +112,23 @@ class _Impl(unrealcmd.Cmd):
 
         platform = self.get_platform(platform)
 
-        if self.args.zen:
-            cook_form = platform.get_cook_form(target_type.name.lower())
-            projectstore_file = project.get_dir() / f"Saved/Cooked/{cook_form}/" / "ue.projectstore"
-            if not projectstore_file.is_file():
-                self.print_error(f"'{projectstore_file}' missing, cannot use --zen for '{self.args.target}' target")
+        cook_form = platform.get_cook_form(target_type.name.lower())
+        projectstore_file = project.get_dir() / f"Saved/Cooked/{cook_form}/" / "ue.projectstore"
+        cooked_to_zen = projectstore_file.is_file()
+
+        uat_packaging_args = "-pak"
+
+        if cooked_to_zen and not (self.args.style == 'pak'):
+            uat_packaging_args = None
+
+        if self.args.style == 'zen':
+            if not cooked_to_zen:
+                self.print_error(f"'{projectstore_file}' missing, cannot use zen output style for '{self.args.target}' target")
                 return 1
-            self.args.nopak = True
+            uat_packaging_args = None
+
+        if self.args.style == 'nopak':
+            uat_packaging_args = None
 
         cook_flavor = platform.get_cook_flavor()
 
@@ -132,7 +145,7 @@ class _Impl(unrealcmd.Cmd):
             "-config=" + self.args.variant,
             "-platform=" + platform.get_name(),
             ("-cookflavor=" + cook_flavor) if cook_flavor else None,
-            None if self.args.nopak else "-pak",
+            uat_packaging_args,
             *self.args.uatargs,
         )
 
@@ -155,8 +168,6 @@ class Stage(_Impl):
     build  = unrealcmd.Opt((False, ""), "Build code prior to staging")
     cook   = unrealcmd.Opt((False, ""), "Run a cook before running the stage step")
     deploy = unrealcmd.Opt(False, "Deploy to devkit/device after staging")
-    nopak  = unrealcmd.Opt(False, "Staged result should be loose files")
-    zen    = unrealcmd.Opt(False, "Staged result should use data streaming from zenserver")
 
 
 

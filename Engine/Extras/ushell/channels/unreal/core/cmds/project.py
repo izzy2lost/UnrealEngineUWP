@@ -246,7 +246,7 @@ class Change(flow.cmd.Cmd):
         # Work out what the candidate should be
         if candidate.lower() == "cwd":
             return self._set_cwd()
-        elif candidate.lower() == "none" or candidate.lower() == "branch":
+        elif candidate.lower() in ("none", "branch"):
             candidate = self._set_branch()
         elif "/" in candidate or "\\" in candidate or os.path.exists(candidate):
             candidate = self._set_qualified(candidate)
