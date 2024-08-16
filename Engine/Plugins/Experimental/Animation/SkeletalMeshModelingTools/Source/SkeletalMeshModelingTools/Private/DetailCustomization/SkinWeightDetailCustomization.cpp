@@ -452,6 +452,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
+				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("GrowSelectionButtonLabel", "Grow"))
@@ -468,6 +469,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
+				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("ShrinkSelectionButtonLabel", "Shrink"))
@@ -484,6 +486,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
+				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("FloodSelectionButtonLabel", "Flood"))
@@ -522,6 +525,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 			.Padding(2.f, WeightEditVerticalPadding)
 			[
 				SNew(SButton)
+				.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 				.HAlign(HAlign_Center)
 				.VAlign(VAlign_Center)
 				.Text(LOCTEXT("BorderSelectionButtonLabel", "Convert to Border"))
@@ -560,6 +564,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+SHorizontalBox::Slot()
 		[
@@ -694,6 +699,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -751,6 +757,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -809,6 +816,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -859,6 +867,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -924,6 +933,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SVerticalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 		
 		+ SVerticalBox::Slot()
 		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
@@ -1012,6 +1022,7 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	.WholeRowContent()
 	[
 		SNew(SHorizontalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
 		+SHorizontalBox::Slot()
 		.Padding(2.f, WeightEditVerticalPadding)
@@ -1060,51 +1071,88 @@ void FSkinWeightDetailCustomization::AddSelectionUI(IDetailLayoutBuilder& Detail
 	EditWeightsCategory.AddCustomRow(LOCTEXT("PruneWeightsRow", "Prune"), false)
 	.WholeRowContent()
 	[
-		SNew(SVerticalBox)
+		SNew(SHorizontalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
 
-		+ SVerticalBox::Slot()
-		.Padding(WeightEditHorizontalPadding, WeightEditVerticalPadding)
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
 		[
-			SNew(SHorizontalBox)
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.Text(LOCTEXT("PruneWeightsButtonLabel", "Prune"))
+			.ToolTipText(LOCTEXT("PruneButtonTooltip",
+				"Removes influences with weights below the given threshold value.\n"
+				"Pruned bones are removed from the list of bones affecting the given vertex.\n"
+				"Pruned bones will no longer recieve weight when a vertex is normalized.\n"
+				"This command operates on the selected vertices."))
+			.OnClicked_Lambda([this]()
+			{
+				ToolSettings->WeightTool->PruneWeights(ToolSettings->PruneValue, TArray<BoneIndex>());
+				return FReply::Handled();
+			})
+		]
 
-			+SHorizontalBox::Slot()
-			[
-				SNew(SBox)
-				[
-					SNew(SButton)
-					.HAlign(HAlign_Center)
-					.Text(LOCTEXT("PruneWeightsButtonLabel", "Prune"))
-					.ToolTipText(LOCTEXT("PruneButtonTooltip",
-						"Removes influences with weights below the given threshold value.\n"
-						"Pruned bones are removed from the list of bones affecting the given vertex.\n"
-						"Pruned bones will no longer recieve weight when a vertex is normalized.\n"
-						"This command operates on the selected vertices."))
-					.OnClicked_Lambda([this]()
-					{
-						ToolSettings->WeightTool->PruneWeights(ToolSettings->PruneValue, TArray<BoneIndex>());
-						return FReply::Handled();
-					})
-				]
-			]
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SSpinBox<float>)
+			.MinValue(0.f)
+			.MaxValue(1.f)
+			.Value_Lambda([this]()
+			{
+				return ToolSettings->PruneValue;
+			})
+			.OnValueChanged_Lambda([this](float NewValue)
+			{
+				ToolSettings->PruneValue = NewValue;
+			})
+			.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
+			{
+				ToolSettings->SaveConfig();
+			})
+		]
+	];
 
-			+SHorizontalBox::Slot()
+	// COPY/PASTE WEIGHTS category
+	EditWeightsCategory.AddCustomRow(LOCTEXT("CopyPasteWeightsRow", "Copy Paste"), false)
+	.WholeRowContent()
+	[
+		SNew(SHorizontalBox)
+		.IsEnabled_Lambda([this]{ return ToolSettings->WeightTool->HasSelectedVertices(); })
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SBox)
 			[
-				SNew(SSpinBox<float>)
-				.MinValue(0.f)
-				.MaxValue(1.f)
-				.Value_Lambda([this]()
+				SNew(SButton)
+				.HAlign(HAlign_Center)
+				.Text(LOCTEXT("CopyWeightsButtonLabel", "Copy"))
+				.ToolTipText(LOCTEXT("CopyButtonTooltip",
+					"Copy the average weights of the selected vertices to the clipboard. \n"
+					"This is designed to work with the Paste command."))
+				.OnClicked_Lambda([this]()
 				{
-					return ToolSettings->PruneValue;
-				})
-				.OnValueChanged_Lambda([this](float NewValue)
-				{
-					ToolSettings->PruneValue = NewValue;
-				})
-				.OnValueCommitted_Lambda([this](float NewValue, ETextCommit::Type CommitType)
-				{
-					ToolSettings->SaveConfig();
+					ToolSettings->WeightTool->CopyWeights();
+					return FReply::Handled();
 				})
 			]
+		]
+
+		+SHorizontalBox::Slot()
+		.Padding(2.f, WeightEditVerticalPadding)
+		[
+			SNew(SButton)
+			.HAlign(HAlign_Center)
+			.Text(LOCTEXT("PasteWeightsButtonLabel", "Paste"))
+			.ToolTipText(LOCTEXT("PasteButtonTooltip",
+				"Paste the weights on the selected vertices.\n"
+				"This command requires the clipboard contain weights from the Copy command."))
+			.OnClicked_Lambda([this]()
+			{
+				ToolSettings->WeightTool->PasteWeights();
+				return FReply::Handled();
+			})
 		]
 	];
 }
