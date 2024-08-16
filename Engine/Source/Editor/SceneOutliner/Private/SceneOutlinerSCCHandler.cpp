@@ -382,8 +382,8 @@ void FSceneOutlinerSCCHandler::ExecuteSCCRefresh()
 
 void FSceneOutlinerSCCHandler::ExecuteSCCCheckOut()
 {
-	TArray<UPackage*> PackagesToCheckOut;
-	GetSelectedPackages(PackagesToCheckOut);
+	TArray<FString> PackagesToCheckOut;
+	GetSelectedPackageNames(PackagesToCheckOut);
 
 	if ( PackagesToCheckOut.Num() > 0 )
 	{
