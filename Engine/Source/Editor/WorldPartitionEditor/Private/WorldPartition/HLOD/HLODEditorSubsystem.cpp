@@ -245,17 +245,20 @@ void UWorldPartitionHLODEditorSubsystem::Tick(float DeltaTime)
 			{
 				FVector CameraLocation;
 				FRotator CameraRotation;
-				UnrealEditorSubsystem->GetLevelViewportCameraInfo(CameraLocation, CameraRotation);
+				bool bCameraMoved = false;
 
-				// Camera was moved ?
-				const bool bCameraMoved = CameraLocation != CachedCameraLocation;
-				if (bCameraMoved)
+				if (FWorldPartitionEditorModule::GetActiveLevelViewportCameraInfo(CameraLocation, CameraRotation))
 				{
-					CachedCameraLocation = CameraLocation;
+					// Camera was moved ?
+					bCameraMoved = CameraLocation != CachedCameraLocation;
+					if (bCameraMoved)
+					{
+						CachedCameraLocation = CameraLocation;
+					}
 				}
 
 				if (bForceHLODVisibilityUpdate || bCameraMoved)
-				{					
+				{
 					HLODEditorData->UpdateVisibility(CameraLocation, CachedHLODMinDrawDistance, CachedHLODMaxDrawDistance, bForceHLODVisibilityUpdate);
 				}
 			}

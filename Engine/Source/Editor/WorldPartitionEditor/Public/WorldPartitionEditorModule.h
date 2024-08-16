@@ -135,6 +135,11 @@ public:
 	 */
 	bool IsEditingContentBundle(const FGuid& ContentBundleGuid) const;
 
+	/**
+	 * Get the camera location & rotation from the active level viewport.
+	 */
+	static bool GetActiveLevelViewportCameraInfo(FVector& CameraLocation, FRotator& CameraRotation);
+
 private:
 	/** Register menus */
 	void RegisterMenus();

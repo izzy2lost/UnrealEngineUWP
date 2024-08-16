@@ -27,6 +27,7 @@
 
 #include "LevelEditor.h"
 #include "LevelEditorViewport.h"
+#include "SLevelViewport.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
@@ -357,6 +358,25 @@ bool FWorldPartitionEditorModule::IsEditingContentBundle(const FGuid& ContentBun
 {
 	UContentBundleEditorSubsystem* ContentBundleEditorSubsystem = UContentBundleEditorSubsystem::Get();
 	return ContentBundleEditorSubsystem && ContentBundleEditorSubsystem->IsEditingContentBundle(ContentBundleGuid);
+}
+
+bool FWorldPartitionEditorModule::GetActiveLevelViewportCameraInfo(FVector& CameraLocation, FRotator& CameraRotation)
+{
+	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>("LevelEditor");
+	TSharedPtr<ILevelEditor> LevelEditor = LevelEditorModule.GetFirstLevelEditor();
+	if (LevelEditor.IsValid())
+	{
+		TSharedPtr<SLevelViewport> LevelViewport = LevelEditor->GetActiveViewportInterface();
+		if (LevelViewport.IsValid())
+		{
+			const FLevelEditorViewportClient& LevelViewportClient = LevelViewport->GetLevelViewportClient();
+			CameraLocation = LevelViewportClient.GetViewLocation();
+			CameraRotation = LevelViewportClient.GetViewRotation();			
+			return true;
+		}
+	}
+
+	return false;
 }
 
 int32 FWorldPartitionEditorModule::GetPlacementGridSize() const

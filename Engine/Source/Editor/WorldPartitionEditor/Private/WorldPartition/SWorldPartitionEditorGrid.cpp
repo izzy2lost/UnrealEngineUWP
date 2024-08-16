@@ -9,6 +9,7 @@
 #include "Editor.h"
 #include "Modules/ModuleManager.h"
 #include "Widgets/Text/STextBlock.h"
+#include "WorldPartitionEditorModule.h"
 
 TMap<FName, SWorldPartitionEditorGrid::PartitionEditorGridCreateInstanceFunc> SWorldPartitionEditorGrid::PartitionEditorGridCreateInstanceFactory;
 
@@ -76,14 +77,9 @@ bool SWorldPartitionEditorGrid::GetObserverView(FVector& Location, FRotator& Rot
 	// We are in the editor world
 	if (!GEditor->PlayWorld)
 	{
-		for (const FLevelEditorViewportClient* ViewportClient : GEditor->GetLevelViewportClients())
+		if (FWorldPartitionEditorModule::GetActiveLevelViewportCameraInfo(Location, Rotation))
 		{
-			if (ViewportClient && ViewportClient->IsPerspective())
-			{
-				Rotation = ViewportClient->GetViewRotation();
-				Location = ViewportClient->GetViewLocation();
-				return true;
-			}
+			return true;
 		}
 	}
 
