@@ -39,5 +39,19 @@ namespace HordeServer.Tests.Server
 			Assert.AreEqual(456, value2.Bar);
 			Assert.AreEqual(0, value2.Baz);
 		}
+
+		[TestMethod]
+		public async Task AsyncEventTestAsync()
+		{
+			IRedisService redisService = GetRedisServiceSingleton();
+
+			await using RedisAsyncEvent asyncEvent = await RedisAsyncEvent.CreateAsync(redisService.GetConnection(), RedisChannel.Literal("hello-world"));
+
+			Task task = asyncEvent.Task;
+			Assert.IsFalse(task.IsCompleted);
+
+			asyncEvent.Pulse();
+			await task;
+		}
 	}
 }
