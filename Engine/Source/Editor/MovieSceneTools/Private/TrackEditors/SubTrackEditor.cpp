@@ -19,6 +19,7 @@
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
 #include "MVVM/Views/ViewUtilities.h"
+#include "MVVM/Extensions/ITrackExtension.h"
 #include "SequencerSectionPainter.h"
 #include "TrackEditors/SubTrackEditorBase.h"
 #include "DragAndDrop/AssetDragDropOp.h"
@@ -31,6 +32,7 @@
 #include "EngineAnalytics.h"
 #include "Interfaces/IAnalyticsProvider.h"
 #include "Algo/Accumulate.h"
+#include "SequencerUtilities.h"
 #include "AssetToolsModule.h"
 #include "Interfaces/IMainFrameModule.h"
 #include "IDetailsView.h"
@@ -215,7 +217,7 @@ void FSubTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBuilder)
 
 TSharedPtr<SWidget> FSubTrackEditor::BuildOutlinerEditWidget(const FGuid& ObjectBinding, UMovieSceneTrack* Track, const FBuildEditWidgetParams& Params)
 {
-	return UE::Sequencer::MakeAddButton(GetSubTrackName(), FOnGetContent::CreateSP(this, &FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Track), Params.ViewModel);
+	return UE::Sequencer::MakeAddButton(GetSubTrackName(), FOnGetContent::CreateSP(this, &FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent, Params.TrackModel.AsWeak()), Params.ViewModel);
 }
 
 
@@ -852,25 +854,40 @@ UMovieSceneSubTrack* FSubTrackEditor::FindOrCreateSubTrack(UMovieScene* MovieSce
 	return SubTrack;
 }
 
-TSharedRef<SWidget> FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent(UMovieSceneTrack* InTrack)
+TSharedRef<SWidget> FSubTrackEditor::HandleAddSubSequenceComboButtonGetMenuContent(UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> WeakTrackModel)
 {
+	using namespace UE::Sequencer;
+
+	TViewModelPtr<ITrackExtension> TrackModel = WeakTrackModel.Pin();
+	if (!TrackModel)
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	UMovieSceneTrack* Track = TrackModel->GetTrack();
+
 	FMenuBuilder MenuBuilder(true, nullptr);
 
-	MenuBuilder.AddMenuEntry(
-		FText::Join(FText::FromString(" "), LOCTEXT("InsertText", "Insert"), GetSubTrackName()),
-		LOCTEXT("InsertSectionTooltip", "Insert new sequence at current time"),
-		FSlateIcon(),
-		FUIAction(FExecuteAction::CreateSP(this, &FSubTrackEditor::InsertSection, InTrack))
-	);
-
-	MenuBuilder.BeginSection(TEXT("ChooseSequence"), LOCTEXT("ChooseSequence", "Choose Sequence"));
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("TimeWarpCategory", "Time Warp"));
 	{
-		UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
+		FSequencerUtilities::MakeTimeWarpMenuEntry(MenuBuilder, WeakTrackModel);
+	}
 
+	MenuBuilder.BeginSection(TEXT("ChooseSequence"), LOCTEXT("InsertSequence", "Insert Sequence"));
+	{
+		MenuBuilder.AddMenuEntry(
+			FText::Format(LOCTEXT("CreateNewText", "Create New {0} Asset"), GetSubTrackName()),
+			FText::Format(LOCTEXT("CreateNewSectionTooltip", "Create new {0} asset and insert it at current time"), GetSubTrackName()),
+			FSlateIcon(),
+			FUIAction(FExecuteAction::CreateSP(this, &FSubTrackEditor::InsertSection, Track))
+		);
+
+
+		UMovieSceneSequence* Sequence = GetSequencer() ? GetSequencer()->GetFocusedMovieSceneSequence() : nullptr;
 		FAssetPickerConfig AssetPickerConfig;
 		{
-			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateRaw( this, &FSubTrackEditor::HandleAddSubSequenceComboButtonMenuEntryExecute, InTrack);
-			AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateRaw( this, &FSubTrackEditor::HandleAddSubSequenceComboButtonMenuEntryEnterPressed, InTrack);
+			AssetPickerConfig.OnAssetSelected = FOnAssetSelected::CreateRaw( this, &FSubTrackEditor::HandleAddSubSequenceComboButtonMenuEntryExecute, Track);
+			AssetPickerConfig.OnAssetEnterPressed = FOnAssetEnterPressed::CreateRaw( this, &FSubTrackEditor::HandleAddSubSequenceComboButtonMenuEntryEnterPressed, Track);
 			AssetPickerConfig.bAllowNullSelection = false;
 			AssetPickerConfig.bAddFilterUI = true;
 			AssetPickerConfig.InitialAssetViewType = EAssetViewType::List;

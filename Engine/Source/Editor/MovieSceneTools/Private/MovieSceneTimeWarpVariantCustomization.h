@@ -5,6 +5,8 @@
 #include "IPropertyTypeCustomization.h"
 #include "Types/SlateEnums.h"
 
+struct EVisibility;
+
 class FText;
 class UClass;
 class SWidget;
@@ -29,6 +31,8 @@ private:
 	double GetFixedPlayRate() const;
 
 	FText GetTypeComboLabel() const;
+
+	EVisibility GetFixedVisibility() const;
 
 	TSharedRef<SWidget> BuildTypePickerMenu();
 

@@ -3,13 +3,12 @@
 #include "MovieSceneTimeWarpVariantCustomization.h"
 #include "Variants/MovieSceneTimeWarpVariant.h"
 #include "Variants/MovieSceneTimeWarpGetter.h"
+#include "SequencerUtilities.h"
 
-#include "AssetRegistry/AssetRegistryModule.h"
-#include "ClassViewerModule.h"
-#include "ClassViewerFilter.h"
 #include "ScopedTransaction.h"
 
 #include "UObject/Class.h"
+#include "Templates/SubclassOf.h"
 
 #include "DetailWidgetRow.h"
 #include "IDetailChildrenBuilder.h"
@@ -65,28 +64,32 @@ void FMovieSceneTimeWarpVariantCustomization::CustomizeHeader(TSharedRef<IProper
 		StructPropertyHandle->CreatePropertyNameWidget()
 	]
 	.ValueContent()
+	.HAlign(HAlign_Fill)
+	.MinDesiredWidth(TOptional<float>())
 	.MaxDesiredWidth(TOptional<float>())
 	[
-		SNew(SComboButton)
-		.ForegroundColor(FSlateColor::UseForeground())
-		.ComboButtonStyle(FAppStyle::Get(), "SimpleComboButton")
-		.OnGetMenuContent(this, &FMovieSceneTimeWarpVariantCustomization::BuildTypePickerMenu)
-		.ButtonContent()
-		[
-			SNew(STextBlock)
-			.Text(this, &FMovieSceneTimeWarpVariantCustomization::GetTypeComboLabel)
-		]
-	];
-}
+		SNew(SHorizontalBox)
 
-void FMovieSceneTimeWarpVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
-{
-	if (bIsFixed)
-	{
-		ChildBuilder.AddCustomRow(FText())
-		.ValueContent()
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Left)
+		.Padding(FMargin(0.0f, 0.0f, 6.0f, 0.0f))
+		[
+			SNew(SComboButton)
+			.ForegroundColor(FSlateColor::UseForeground())
+			.OnGetMenuContent(this, &FMovieSceneTimeWarpVariantCustomization::BuildTypePickerMenu)
+			.ButtonContent()
+			[
+				SNew(STextBlock)
+				.Text(this, &FMovieSceneTimeWarpVariantCustomization::GetTypeComboLabel)
+			]
+		]
+
+		+ SHorizontalBox::Slot()
+		.HAlign(HAlign_Left)
+		.Padding(FMargin(6.0f, 0.0f, 2.0f, 0.0f))
 		[
 			SNew(SSpinBox<double>)
+			.Visibility(this, &FMovieSceneTimeWarpVariantCustomization::GetFixedVisibility)
 			.Style(FAppStyle::Get(), "Sequencer.HyperlinkSpinBox")
 			.Font(FAppStyle::GetFontStyle("Sequencer.FixedFont"))
 			.OnValueCommitted(this, &FMovieSceneTimeWarpVariantCustomization::OnCommitFixedPlayRate)
@@ -95,16 +98,17 @@ void FMovieSceneTimeWarpVariantCustomization::CustomizeChildren(TSharedRef<IProp
 			.MaxValue(TOptional<double>())
 			.OnEndSliderMovement(this, &FMovieSceneTimeWarpVariantCustomization::SetFixedPlayRate)
 			.Value(this, &FMovieSceneTimeWarpVariantCustomization::GetFixedPlayRate)
-		];
-	}
-	else if (Class.IsSet())
-	{
-		// All same external type
-	}
-	else
-	{
-	}
+		]
+	];
+}
 
+void FMovieSceneTimeWarpVariantCustomization::CustomizeChildren(TSharedRef<IPropertyHandle> StructPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& StructCustomizationUtils)
+{
+}
+
+EVisibility FMovieSceneTimeWarpVariantCustomization::GetFixedVisibility() const
+{
+	return IsFixed() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 void FMovieSceneTimeWarpVariantCustomization::OnCommitFixedPlayRate(double InValue, ETextCommit::Type Type)
@@ -239,23 +243,6 @@ void FMovieSceneTimeWarpVariantCustomization::SetFixed()
 
 TSharedRef<SWidget> FMovieSceneTimeWarpVariantCustomization::BuildTypePickerMenu()
 {
-	class FMovieSceneTimeWarpGetterFilter : public IClassViewerFilter
-	{
-	public:
-		bool IsClassAllowed(const FClassViewerInitializationOptions&, const UClass* InClass, TSharedRef<FClassViewerFilterFuncs>) override
-		{
-			return !InClass->HasAnyClassFlags(CLASS_Abstract) && InClass->IsChildOf(UMovieSceneTimeWarpGetter::StaticClass());
-		}
-		
-		bool IsUnloadedClassAllowed(
-			const FClassViewerInitializationOptions&,
-			const TSharedRef<const IUnloadedBlueprintData> InUnloadedClassData,
-			TSharedRef<FClassViewerFilterFuncs>) override
-		{
-			return !InUnloadedClassData->HasAnyClassFlags(CLASS_Abstract) && InUnloadedClassData->IsChildOf(UMovieSceneTimeWarpGetter::StaticClass());
-		}
-	};
-
 	bool bShouldCloseWindowAfterMenuSelection = false;
 	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, nullptr);
 
@@ -274,15 +261,9 @@ TSharedRef<SWidget> FMovieSceneTimeWarpVariantCustomization::BuildTypePickerMenu
 
 		MenuBuilder.AddSeparator();
 
-		FClassViewerInitializationOptions ClassViewerOptions;
-		ClassViewerOptions.Mode        = EClassViewerMode::ClassPicker;
-		ClassViewerOptions.DisplayMode = EClassViewerDisplayMode::ListView;
-		ClassViewerOptions.ClassFilters.Add(MakeShared<FMovieSceneTimeWarpGetterFilter>());
-
-		FClassViewerModule& ClassViewerModule = FModuleManager::LoadModuleChecked<FClassViewerModule>("ClassViewer");
-		TSharedRef<SWidget> ClassViewer = ClassViewerModule.CreateClassViewer(ClassViewerOptions, FOnClassPicked::CreateSP(this, &FMovieSceneTimeWarpVariantCustomization::ChangeClassType));
-
-		MenuBuilder.AddWidget(ClassViewer, FText(), true, false);
+		FSequencerUtilities::PopulateTimeWarpSubMenu(MenuBuilder, [this](TSubclassOf<UMovieSceneTimeWarpGetter> NewClass){
+			this->ChangeClassType(NewClass.Get());
+		});
 	}
 	MenuBuilder.EndSection();
 

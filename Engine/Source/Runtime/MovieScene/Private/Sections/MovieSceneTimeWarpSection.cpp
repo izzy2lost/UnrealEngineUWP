@@ -10,13 +10,6 @@ UMovieSceneTimeWarpSection::UMovieSceneTimeWarpSection(const FObjectInitializer&
 {
 	bSupportsInfiniteRange = true;
 	SetRange(TRange<FFrameNumber>::All());
-
-	if (!HasAnyFlags(RF_ClassDefaultObject))
-	{
-		UMovieScenePlayRateCurve* PlayRateCurve = ObjectInitializer.CreateDefaultSubobject<UMovieScenePlayRateCurve>(this, "PlayRateCurve");
-		PlayRateCurve->InitializeDefaults();
-		TimeWarp.Set(PlayRateCurve);
-	}
 }
 
 FMovieSceneNestedSequenceTransform UMovieSceneTimeWarpSection::GenerateTransform() const

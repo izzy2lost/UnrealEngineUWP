@@ -13,6 +13,12 @@
 #include "ISequencerTrackEditor.h"
 #include "MovieSceneTrackEditor.h"
 #include "EditModes/SkeletalAnimationTrackEditMode.h"
+#include "SequencerCoreFwd.h"
+
+namespace UE::Sequencer
+{
+	class ITrackExtension;
+}
 
 struct FAssetData;
 struct FMovieSceneTimeWarpChannel;
@@ -80,6 +86,7 @@ public:
 private:
 
 	/** Animation sub menu */
+	TSharedRef<SWidget> BuildAddAnimationSubMenu(FGuid ObjectBinding, USkeleton* Skeleton, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> TrackModel);
 	TSharedRef<SWidget> BuildAnimationSubMenu(FGuid ObjectBinding, USkeleton* Skeleton, UMovieSceneTrack* Track);
 	void AddAnimationSubMenu(FMenuBuilder& MenuBuilder, TArray<FGuid> ObjectBindings, USkeleton* Skeleton, UMovieSceneTrack* Track);
 

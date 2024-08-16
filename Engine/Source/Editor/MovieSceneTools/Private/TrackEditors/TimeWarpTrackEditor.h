@@ -5,6 +5,9 @@
 #include "KeyframeTrackEditor.h"
 #include "Tracks/MovieSceneTimeWarpTrack.h"
 
+class UMovieSceneTimeWarpGetter;
+
+template <typename T> class TSubclassOf;
 
 class FTimeWarpTrackEditor
 	: public FKeyframeTrackEditor<UMovieSceneTimeWarpTrack>
@@ -24,5 +27,5 @@ private:
 	virtual void BuildAddTrackMenu(FMenuBuilder& MenuBuilder) override;
 	virtual TSharedRef<ISequencerSection> MakeSectionInterface(UMovieSceneSection& SectionObject, UMovieSceneTrack& Track, FGuid ObjectBinding) override;
 
-	void HandleAddTimeWarpTrack();
+	void HandleAddTimeWarpTrack(TSubclassOf<UMovieSceneTimeWarpGetter> ClassType);
 };

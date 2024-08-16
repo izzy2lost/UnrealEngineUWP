@@ -4,6 +4,8 @@
 #include "ISequencer.h"
 #include "ISequencerSection.h"
 #include "SequencerSectionPainter.h"
+#include "SequencerUtilities.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 
 #include "Sections/MovieSceneTimeWarpSection.h"
@@ -89,13 +91,17 @@ struct FTimeWarpSection : FSequencerSection
 
 void FTimeWarpTrackEditor::BuildAddTrackMenu(FMenuBuilder& MenuBuilder)
 {
-	MenuBuilder.AddMenuEntry(
+	auto HandleAddTimeWarp = [this](TSubclassOf<UMovieSceneTimeWarpGetter> InClass)
+	{
+		this->HandleAddTimeWarpTrack(InClass);
+	};
+
+	MenuBuilder.AddSubMenu(
 		LOCTEXT("AddTimeWarpTrack", "Time Warp"),
 		LOCTEXT("AddTimeWarpTrackTooltip", "Adds a new track that manipulates the time of the current sequence."),
-		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.Tracks.Slomo"),
-		FUIAction(
-			FExecuteAction::CreateRaw(this, &FTimeWarpTrackEditor::HandleAddTimeWarpTrack)
-		)
+		FNewMenuDelegate::CreateStatic(FSequencerUtilities::PopulateTimeWarpSubMenu, TFunction<void(TSubclassOf<UMovieSceneTimeWarpGetter>)>(HandleAddTimeWarp)),
+		false,
+		FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.Tracks.Slomo")
 	);
 }
 
@@ -104,7 +110,7 @@ TSharedRef<ISequencerSection> FTimeWarpTrackEditor::MakeSectionInterface(UMovieS
 	return MakeShared<UE::Sequencer::FTimeWarpSection>(SectionObject);
 }
 
-void FTimeWarpTrackEditor::HandleAddTimeWarpTrack()
+void FTimeWarpTrackEditor::HandleAddTimeWarpTrack(TSubclassOf<UMovieSceneTimeWarpGetter> ClassType)
 {
 	UMovieScene* FocusedMovieScene = GetFocusedMovieScene();
 	if (FocusedMovieScene == nullptr)
@@ -127,8 +133,17 @@ void FTimeWarpTrackEditor::HandleAddTimeWarpTrack()
 
 	FocusedMovieScene->Modify();
 
-	UMovieSceneTimeWarpTrack* NewTrack = NewObject<UMovieSceneTimeWarpTrack>(FocusedMovieScene, NAME_None, RF_Transactional);
-	NewTrack->AddSection(*NewTrack->CreateNewSection());
+	UMovieSceneTimeWarpTrack*   NewTrack   = NewObject<UMovieSceneTimeWarpTrack>(FocusedMovieScene, NAME_None, RF_Transactional);
+	UMovieSceneSection*         NewSection = NewTrack->CreateNewSection();
+	FMovieSceneTimeWarpVariant* TimeWarp   = NewSection->GetTimeWarp();
+
+	check(TimeWarp);
+
+	UMovieSceneTimeWarpGetter* NewGetter = NewObject<UMovieSceneTimeWarpGetter>(NewSection, ClassType.Get(), NAME_None, RF_Transactional);
+	NewGetter->InitializeDefaults();
+	TimeWarp->Set(NewGetter);
+
+	NewTrack->AddSection(*NewSection);
 
 	FocusedMovieScene->AddGivenTrack(NewTrack);
 	SequencerPtr->OnAddTrack(NewTrack, FGuid());

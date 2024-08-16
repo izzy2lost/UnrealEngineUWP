@@ -58,7 +58,9 @@
 #include "HAL/PlatformApplicationMisc.h"
 #include "LevelSequence.h"
 #include "MVVM/Extensions/IObjectBindingExtension.h"
+#include "MVVM/Extensions/IOutlinerExtension.h"
 #include "MVVM/ViewModels/TrackModel.h"
+#include "MVVM/ViewModels/SectionModel.h"
 #include "MVVM/Views/ViewUtilities.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "Widgets/Notifications/SNotificationList.h"
@@ -69,11 +71,15 @@
 #include "Tracks/MovieSceneBindingLifetimeTrack.h"
 #include "ClassViewerModule.h"
 #include "ClassViewerFilter.h"
+#include "ClassIconFinder.h"
+#include "Styling/SlateIconFinder.h"
 #include "Framework/Application/SlateApplication.h"
 #include "SequencerCommands.h"
 #include "MVVM/Selection/Selection.h"
 #include "UnrealEdGlobals.h"
 #include "Misc/FeedbackContext.h"
+#include "Variants/MovieSceneTimeWarpVariant.h"
+#include "Variants/MovieSceneTimeWarpGetter.h"
 #include "UObject/UObjectIterator.h"
 #include "ObjectTools.h"
 
@@ -103,6 +109,147 @@ TSharedRef<SWidget> FSequencerUtilities::MakeAddButton(FText HoverText, FOnClick
 {
 	TAttribute<bool> IsEnabled = MakeAttributeLambda([InSequencer]() -> bool { return InSequencer.IsValid() ? !InSequencer.Pin()->IsReadOnly() : false; });
 	return UE::Sequencer::MakeAddButton(HoverText, OnClicked, HoverState, IsEnabled);
+}
+
+void FSequencerUtilities::MakeTimeWarpMenuEntry(FMenuBuilder& MenuBuilder, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> WeakTrackModel)
+{
+	using namespace UE::Sequencer;
+
+	TViewModelPtr<ITrackExtension> TrackModel = WeakTrackModel.Pin();
+	if (!TrackModel)
+	{
+		return;
+	}
+
+	TOptional<UClass*> CommonClass;
+	for (const TViewModelPtr<FSectionModel>& SectionModel : TrackModel->GetSectionModels().IterateSubList<FSectionModel>())
+	{
+		UMovieSceneSection* Section = SectionModel->GetSection();
+		if (!Section)
+		{
+			continue;
+		}
+
+		FMovieSceneTimeWarpVariant* Variant = Section->GetTimeWarp();
+		UMovieSceneTimeWarpGetter*  Getter  = Variant && Variant->GetType() == EMovieSceneTimeWarpType::Custom 
+			? Variant->AsCustom()
+			: nullptr;
+
+		if (Getter)
+		{
+			if (!CommonClass)
+			{
+				CommonClass = Getter->GetClass();
+			}
+			else if (CommonClass.GetValue() != Getter->GetClass())
+			{
+				CommonClass = nullptr;
+			}
+		}
+	}
+
+	FText TimeWarpLabel = CommonClass.IsSet()
+		? LOCTEXT("ReplaceTimeWarp_Label", "Replace Time Warp")
+		: LOCTEXT("AddTimeWarp_Label", "Add Time Warp");
+	FText TimeWarpToolTip = CommonClass.IsSet()
+		? LOCTEXT("ReplaceTimeWarp_ToolTip", "Replaces the Time Warp implementation with a different kind")
+		: LOCTEXT("AddTimeWarp_ToolTip", "Add Time Warp");
+
+	MenuBuilder.AddSubMenu(
+		TimeWarpLabel,
+		TimeWarpToolTip,
+		FNewMenuDelegate::CreateStatic(PopulateTimeWarpChannelSubMenu, WeakTrackModel)
+	);
+}
+
+void FSequencerUtilities::PopulateTimeWarpSubMenu(FMenuBuilder& MenuBuilder, TFunction<void(TSubclassOf<UMovieSceneTimeWarpGetter>)> OnTimeWarpPicked)
+{
+	using namespace UE::Sequencer;
+
+	FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+
+	TSet<FTopLevelAssetPath> AllTimeWarpClasses;
+	{
+		FTopLevelAssetPath TargetClassPath(UMovieSceneTimeWarpGetter::StaticClass());
+		AssetRegistryModule.Get().GetDerivedClassNames({ TargetClassPath }, TSet<FTopLevelAssetPath>(), AllTimeWarpClasses);
+		AllTimeWarpClasses.Remove(TargetClassPath);
+	}
+
+	if (AllTimeWarpClasses.Num() == 0)
+	{
+		MenuBuilder.AddWidget(SNew(STextBlock).Text(LOCTEXT("NoTimeWarpTypesError", "No Time Warp implementations found")), FText(), true);
+		return;
+	}
+
+	auto HandleTimeWarpSelection = [OnTimeWarpPicked](FTopLevelAssetPath ClassPath)
+	{
+		UClass* Class = FSoftClassPath(ClassPath.ToString()).TryLoadClass<UMovieSceneTimeWarpGetter>();
+		if (Class)
+		{
+			OnTimeWarpPicked(Class);
+		}
+	};
+
+	MenuBuilder.BeginSection(NAME_None, LOCTEXT("TimeWarpCategoryLabel", "Time Warp Types:"));
+
+	for (const FTopLevelAssetPath& ClassPath : AllTimeWarpClasses)
+	{
+		FAssetData AssetData = AssetRegistryModule.Get().GetAssetByObjectPath(FSoftObjectPath(ClassPath.ToString()));
+
+		const UClass* IconClass = FClassIconFinder::GetIconClassForAssetData(AssetData);
+		const UClass* Class     = Cast<const UClass>(AssetData.FastGetAsset());
+
+		MenuBuilder.AddMenuEntry(
+			Class ? Class->GetDisplayNameText() : FText::FromName(ClassPath.GetAssetName()),
+			Class ? Class->GetToolTipText()     : FText(),
+			FSlateIconFinder::FindIconForClass(IconClass),
+			FUIAction(FExecuteAction::CreateLambda(HandleTimeWarpSelection, ClassPath))
+		);
+	}
+
+	MenuBuilder.EndSection();
+}
+
+void FSequencerUtilities::PopulateTimeWarpChannelSubMenu(FMenuBuilder& MenuBuilder, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> WeakTrackModel)
+{
+	using namespace UE::Sequencer;
+
+	auto HandleTimeWarpSelection = [WeakTrackModel](TSubclassOf<UMovieSceneTimeWarpGetter> Class)
+	{
+		TViewModelPtr<ITrackExtension> TrackModel = WeakTrackModel.Pin();
+		if (!TrackModel)
+		{
+			return;
+		}
+
+		FScopedTransaction Transaction(LOCTEXT("ChangeTimeWarpType", "Changed Time Warp type"));
+
+		for (const TViewModelPtr<FSectionModel>& SectionModel : TrackModel->GetSectionModels().IterateSubList<FSectionModel>())
+		{
+			UMovieSceneSection*         Section = SectionModel->GetSection();
+			FMovieSceneTimeWarpVariant* Variant = Section ? Section->GetTimeWarp() : nullptr;
+
+			if (Variant)
+			{
+				Section->Modify();
+
+				UMovieSceneTimeWarpGetter* Getter = NewObject<UMovieSceneTimeWarpGetter>(Section, Class.Get(), NAME_None, RF_Transactional);
+				Getter->InitializeDefaults();
+
+				Variant->Set(Getter);
+
+				Section->InvalidateChannelProxy();
+
+				TViewModelPtr<IOutlinerExtension> Outliner = TrackModel.ImplicitCast();
+				if (Outliner && !Outliner->IsExpanded())
+				{
+					Outliner->SetExpansion(true);
+				}
+			}
+		}
+	};
+
+	PopulateTimeWarpSubMenu(MenuBuilder, HandleTimeWarpSelection);
 }
 
 void FSequencerUtilities::CreateNewSection(UMovieSceneTrack* InTrack, TWeakPtr<ISequencer> InSequencer, int32 InRowIndex, EMovieSceneBlendType InBlendType)

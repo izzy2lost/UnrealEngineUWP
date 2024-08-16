@@ -24,6 +24,8 @@
 #include "CurveKeyEditors/SEnumKeyEditor.h"
 #include "UObject/StructOnScope.h"
 #include "MVVM/Views/KeyDrawParams.h"
+#include "MVVM/ViewModels/TimeWarpChannelModel.h"
+#include "MVVM/ViewModels/SectionModel.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Channels/MovieSceneChannelProxy.h"
 #include "Channels/MovieSceneChannelEditorData.h"
@@ -2020,5 +2022,11 @@ bool ShouldShowCurve(const FMovieSceneDoubleChannel* Channel, UMovieSceneSection
 {
 	return Channel->GetShowCurve();
 }
+
+TSharedPtr<UE::Sequencer::FChannelModel> CreateChannelModel(const TMovieSceneChannelHandle<FMovieSceneTimeWarpChannel>& InChannelHandle, const UE::Sequencer::FSectionModel& InSection, FName InChannelName)
+{
+	return MakeShared<UE::Sequencer::FTimeWarpChannelModel>(InChannelName, InSection.GetSectionInterface(), InChannelHandle);
+}
+
 
 #undef LOCTEXT_NAMESPACE

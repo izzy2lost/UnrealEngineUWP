@@ -7,15 +7,18 @@
 #include "Framework/SlateDelegates.h"
 #include "Misc/FrameTime.h"
 #include "MovieSceneBindingProxy.h"
+#include "SequencerCoreFwd.h"
 #include "SequencerUtilities.generated.h"
 
 class ACineCameraActor;
-template< typename ObjectType > class TAttribute;
+template <typename> class TAttribute;
+template <typename> class TSubclassOf;
 class UActorFactory;
 class UMovieSceneFolder;
 class UMovieSceneTrack;
 class UMovieSceneSection;
 class UMovieSceneSequence;
+class UMovieSceneTimeWarpGetter;
 class ISequencer;
 class FMenuBuilder;
 struct FMovieSceneBinding;
@@ -28,6 +31,8 @@ enum class EMovieSceneBlendType : uint8;
 
 namespace UE::Sequencer
 {
+
+class ITrackExtension;
 
 struct FCreateBindingParams
 {
@@ -194,6 +199,12 @@ struct SEQUENCER_API FSequencerUtilities
 	
 	/* Creates a button (used for +Section) that fires a user-defined OnClick response with no sub-menu. */
 	static TSharedRef<SWidget> MakeAddButton(FText HoverText, FOnClicked OnClicked, const TAttribute<bool>& HoverState, TWeakPtr<ISequencer> InSequencer);
+
+	static void MakeTimeWarpMenuEntry(FMenuBuilder& MenuBuilder, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> TrackModel);
+
+	static void PopulateTimeWarpSubMenu(FMenuBuilder& MenuBuilder, TFunction<void(TSubclassOf<UMovieSceneTimeWarpGetter>)> OnTimeWarpPicked);
+
+	static void PopulateTimeWarpChannelSubMenu(FMenuBuilder& MenuBuilder, UE::Sequencer::TWeakViewModelPtr<UE::Sequencer::ITrackExtension> TrackModel);
 
 	static void CreateNewSection(UMovieSceneTrack* InTrack, TWeakPtr<ISequencer> InSequencer, int32 InRowIndex, EMovieSceneBlendType InBlendType);
 
