@@ -171,4 +171,6 @@ private:
 	TArray<FStackIssue> MessageManagerIssues;
 
 	FGuid MessageLogGuid;
+
+	FGuid LastRefreshVersionCache;
 };

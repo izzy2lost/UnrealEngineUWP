@@ -146,10 +146,18 @@ void UNiagaraStackModuleItem::RefreshChildrenInternal(const TArray<UNiagaraStack
 		FunctionCallNode->GetGraph() != nullptr && 
 		FunctionCallNode->GetGraph()->Nodes.Contains(FunctionCallNode))
 	{
+		bool bDiscardInputRoot = LastRefreshVersionCache != FunctionCallNode->SelectedScriptVersion;
+		LastRefreshVersionCache = FunctionCallNode->SelectedScriptVersion; 
+
 		// Determine if meta-data requires that we add our own refresh button here.
 		if (FunctionCallNode->HasValidScriptAndGraph())
 		{
 			bCanRefresh = true;
+		}
+
+		if(bDiscardInputRoot)
+		{
+			InputRoot = nullptr;
 		}
 		
 		if(InputRoot == nullptr)
