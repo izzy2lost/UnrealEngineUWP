@@ -10,13 +10,16 @@ namespace uba
 	class FileAccessor;
 	
 	using UnorderedSymbols = UnorderedSet<std::string>;
-	using UnorderedExports = UnorderedMap<std::string, std::string>;
+
+	struct ExportInfo { std::string extra; u32 index = 0; };
+	using UnorderedExports = UnorderedMap<std::string, ExportInfo>;
 
 	enum ObjectFileType : u8
 	{
 		ObjectFileType_Unknown,
 		ObjectFileType_Coff,
 		ObjectFileType_Elf,
+		ObjectFileType_LLVMIR,
 	};
 
 	class ObjectFile
@@ -39,9 +42,12 @@ namespace uba
 
 		virtual ~ObjectFile();
 
+		u8* GetData() { return m_data; }
+		u64 GetDataSize() { return m_dataSize; }
+
 	protected:
 		virtual bool Parse(Logger& logger, const tchar* filename) = 0;
-		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount) = 0;
+		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports) = 0;
 		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile) = 0;
 
 		FileAccessor* m_file = nullptr;

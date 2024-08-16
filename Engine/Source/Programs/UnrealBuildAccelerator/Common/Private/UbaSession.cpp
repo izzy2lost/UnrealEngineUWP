@@ -2787,7 +2787,7 @@ namespace uba
 		StringBuffer<> exportsFile;
 		exportsFile.Append(fileName, lastDot - fileName).Append(TC(".exi"));
 
-		MemoryBlock memoryBlock(1*1024*1024);
+		MemoryBlock memoryBlock(8*1024*1024);
 		if (!objectFile->WriteImportsAndExports(m_logger, memoryBlock))
 			return false;
 

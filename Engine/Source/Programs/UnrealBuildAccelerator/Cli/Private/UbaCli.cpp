@@ -730,7 +730,8 @@ namespace uba
 		//info.shouldWriteToDisk = shouldWriteToDisk;
 		info.rootDir = g_rootDir.data;
 		//info.traceName.Append(TC("TESTTRACE"));
-		info.storeObjFilesCompressed = true;
+		//info.storeObjFilesCompressed = true;
+		//info.extractObjFilesSymbols = true;
 		#if UBA_DEBUG_LOG_ENABLED
 		info.remoteLogEnabled = true;
 		#endif

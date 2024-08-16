@@ -1,8 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#define Local_GetLongPathNameW uba::GetLongPathNameW
+
 #include "UbaObjectFile.h"
 #include "UbaDirectoryIterator.h"
 #include "UbaFileAccessor.h"
+#include "UbaImportLibWriter.h"
+#include "UbaPathUtils.h"
 #include "UbaVersion.h"
 #include "UbaWorkManager.h"
 
@@ -64,12 +68,17 @@ namespace uba
 		TString objFile;
 		bool printSymbols = false;
 		bool stripExports = false;
+		bool writeImpLib = false;
+		bool isImpLibRsp = false;
 
 		Vector<TString> objFilesToStrip;
 		Vector<TString> objFilesDependencies;
 		TString extraObjFile;
+		Vector<TString> objFilesForImpLib;
+		std::string impLibName;
+		TString impLibFile;
 
-		auto parseArg = [&](const tchar* arg)
+		auto parseArg = [&](const tchar* arg, bool isRsp)
 			{
 				StringBuffer<> name;
 				StringBuffer<> value;
@@ -81,28 +90,98 @@ namespace uba
 				}
 				else
 				{
-					name.Append(arg);
+					const tchar* colon = TStrchr(arg,':');
+					if (colon && colon[1] != '\\')
+					{
+						name.Append(arg, colon - arg);
+						const tchar* valueStart = colon+1;
+						if (*valueStart == '\"')
+							++valueStart;
+						value.Append(valueStart);
+						if (value.data[value.count-1] == '\"')
+							value.Resize(value.count-1);
+
+					}
+					else
+					{
+						name.Append(arg);
+					}
 				}
 
-				if (name.StartsWith(TC("/D:")))
+				if (isImpLibRsp)
 				{
-					objFilesDependencies.push_back(name.data + 3);
+					if (name.Equals(TC("/NOLOGO")))
+					{
+					}
+					else if (name.Equals(TC("/errorReport")))
+					{
+					}
+					else if (name.Equals(TC("/MACHINE")))
+					{
+						//if (!value.Equals(TC("x64")))
+						//{
+						//	logger.Error(TC("only x64 supported"));
+						//	return 0;
+						//}
+					}
+					else if (name.Equals(TC("/SUBSYSTEM")))
+					{
+					}
+					else if (name.Equals(TC("/DEF")))
+					{
+						writeImpLib = true;
+					}
+					else if (name.Equals(TC("/NAME")))
+					{
+						char buffer[256];
+						value.Parse(buffer, sizeof(buffer));
+						impLibName = buffer;
+					}
+					else if (name.Equals(TC("/OUT")))
+					{
+						impLibFile = value.data;
+					}
+					else if (name.Equals(TC("/IGNORE")))
+					{
+					}
+					else if (name.Equals(TC("/NODEFAULTLIB")))
+					{
+					}
+					else if (name.Equals(TC("/LTCG")))
+					{
+					}
+					else
+					{
+						objFilesForImpLib.push_back(name.data);
+					}
 				}
-				else if (name.StartsWith(TC("/S:")))
+				else if (name.StartsWith(TC("/D")))
 				{
-					objFilesToStrip.push_back(name.data + 3);
+					objFilesDependencies.push_back(value.data);
 				}
-				else if (name.StartsWith(TC("/O:")))
+				else if (name.StartsWith(TC("/S")))
 				{
-					extraObjFile = name.data + 3;
+					objFilesToStrip.push_back(value.data);
+				}
+				else if (name.StartsWith(TC("/O")))
+				{
+					extraObjFile = value.data;
 				}
 				else if (name.Equals(TC("-printsymbols")))
 				{
 					printSymbols = true;
 				}
+				else if (name.Equals(TC("-writeimplib")))
+				{
+				}
 				else if (name.Equals(TC("-stripexports")))
 				{
 					stripExports = true;
+				}
+				else if (name.Equals(TC("/LIB")))
+				{
+					isImpLibRsp = true;
+					writeImpLib = true;
 				}
 				else if (name.Equals(TC("-?")))
 				{
@@ -139,7 +218,7 @@ namespace uba
 				LoggerWithWriter logger(g_consoleLogWriter, TC(""));
 				if (!ReadLines(logger, arg, [&](const TString& line)
 					{
-						res = parseArg(line.c_str());
+						res = parseArg(line.c_str(), true);
 						return res == 0;
 					}))
 					return -1;
@@ -147,7 +226,7 @@ namespace uba
 					return res;
 				continue;
 			}
-			int res = parseArg(arg);
+			int res = parseArg(arg, false);
 			if (res != 0)
 				return res;
 		}
@@ -179,7 +258,6 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					UBA_ASSERT(type == ObjectFileType_Unknown || type == symbolFile.type);
 					if (type == ObjectFileType_Unknown)
 						type = symbolFile.type;
 					allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
@@ -203,7 +281,6 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					UBA_ASSERT(type == ObjectFileType_Unknown || type == symbolFile.type);
 					if (type == ObjectFileType_Unknown)
 						type = symbolFile.type;
 					allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
@@ -217,6 +294,37 @@ namespace uba
 					return -1;
 
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
+		}
+		else if (writeImpLib)
+		{
+			StringBuffer<> currentDir;
+			GetCurrentDirectoryW(currentDir);
+			currentDir.EnsureEndsWithSlash();
+			ImportLibWriter writer;
+			if (objFilesForImpLib.empty() && !objFile.empty())
+				objFilesForImpLib.push_back(objFile);
+
+			Atomic<bool> success = true;
+			Vector<ObjectFile*> objFiles;
+			objFiles.resize(objFilesForImpLib.size());
+			u32 workerCount = DefaultProcessorCount;
+			WorkManagerImpl workManager(workerCount);
+			workManager.ParallelFor(workerCount, objFilesForImpLib, [&](auto& it)
+			{
+				auto& o = *it;
+				StringBuffer<> fixedPath;
+				FixPath(o.c_str(), currentDir.data, currentDir.count, fixedPath);
+				if (fixedPath.EndsWith(TC(".res")) || fixedPath.EndsWith(TC(".lib")))
+					return;
+				if (ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, fixedPath.data))
+					objFiles[it - objFilesForImpLib.begin()] = objectFile;
+				else
+					success = false;
+			});
+			if (!success)
+				return -1;
+
+			writer.Write(logger, objFiles, impLibName.c_str(), impLibFile.c_str());
 		}
 		else
 		{
@@ -234,7 +342,7 @@ namespace uba
 					logger.Info(TC("I %S"), symbol.c_str());
 
 				for (auto& kv : objectFile->GetExports())
-					logger.Info(TC("E %S%S"), kv.first.c_str(), kv.second.c_str());
+					logger.Info(TC("E %S%S"), kv.first.c_str(), kv.second.extra.c_str());
 			}
 
 			if (stripExports)
@@ -251,11 +359,16 @@ namespace uba
 				if (!objectFile->WriteImportsAndExports(logger, exportsFile.data))
 					return false;
 
-				//u32 keptExportCount = 0;
-				//StringBuffer<> newFilename;
-				//newFilename.Append(fileName, lastDot - fileName).Append(TC(".TEST")).Append(lastDot);
-				//if (!objectFile->CreateStripped(logger, newFilename.data, {}, keptExportCount))
-				//	return false;
+#if 0
+				objectFile->StripExports(logger);
+				StringBuffer<> newFilename;
+				newFilename.Append(fileName, lastDot - fileName).Append(TC(".TEST")).Append(lastDot);
+				FileAccessor fa(logger, newFilename.data);
+				fa.CreateWrite();
+				fa.Write(objectFile->GetData(), objectFile->GetDataSize());
+				fa.Close();
+
+#endif
 			}
 		}
 		return 0;

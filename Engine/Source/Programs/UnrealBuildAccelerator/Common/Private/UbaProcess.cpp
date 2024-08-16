@@ -1525,6 +1525,7 @@ namespace uba
 			WaitForParent();
 			if (m_nativeProcessHandle == InvalidProcHandle) // Failed to create the child process
 				return UBA_EXIT_CODE(7);
+			m_extractExports = m_parentProcess->m_extractExports;
 		}
 
 		auto closeThreadHandle = MakeGuard([&]() { CloseHandle(m_nativeThreadHandle); m_nativeThreadHandle = 0; });

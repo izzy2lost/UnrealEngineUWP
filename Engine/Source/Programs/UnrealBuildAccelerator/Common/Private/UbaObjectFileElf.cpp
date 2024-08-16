@@ -230,14 +230,15 @@ namespace uba
 		return newFile.Close();
 	}
 	*/
-	bool ObjectFileElf::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
+	bool ObjectFileElf::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports)
 	{
 		return true;
 	}
 
 	bool ObjectFileElf::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
-		auto& header = *(Elf64Header*)memoryBlock.Allocate(sizeof(Elf64Header), 1, TC(""));
+		u8* data = (u8*)memoryBlock.Allocate(sizeof(Elf64Header) + sizeof(Elf64SectionHeader) + 1, 1, TC(""));
+		auto& header = *(Elf64Header*)data;
 
 		header.e_ident[0] = 0x7f;
 		header.e_ident[1] = 'E';
@@ -248,7 +249,21 @@ namespace uba
 		header.e_ident[6] = 1;
 		header.e_type = 1;
 		header.e_machine = EM_X86_64;
+		header.e_version = 1;
 		header.e_ehsize = sizeof(Elf64Header);
+		header.e_flags = 0;//0x04000000;
+		header.e_shoff = sizeof(Elf64Header);
+		header.e_shentsize = sizeof(Elf64SectionHeader);
+		header.e_shnum = 1;
+		header.e_shstrndx = 0;
+
+		auto& section = *(Elf64SectionHeader*)(data + sizeof(Elf64Header));
+		section.sh_name = 0;
+		section.sh_type = 3;
+		section.sh_flags = 0;//0xC35d00;
+		section.sh_addralign = 1;
+		section.sh_offset = sizeof(Elf64Header) + sizeof(Elf64SectionHeader);
+		section.sh_size = 1;
 		return true;
 	}
 }

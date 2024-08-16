@@ -284,6 +284,8 @@ namespace uba
 		std::string tmp;
 		std::string extra;
 
+		u32 index = 0;
+
 		auto str = (char*)directiveData;
 		while (str)
 		{
@@ -291,12 +293,22 @@ namespace uba
 			if (!exportStr)
 				break;
 			exportStr += 8;
-			char* exportEnd = strchr(exportStr, ' ');
-			str = exportEnd;
-			if (!exportEnd)
-				exportEnd = exportStr + strlen(exportStr);
+			char* exportEnd;
+			if (*exportStr == '\"')
+			{
+				++exportStr;
+				exportEnd = strchr(exportStr, '\"');
+				str = exportEnd + 1;
+			}
 			else
-				++str;
+			{
+				exportEnd = strchr(exportStr, ' ');
+				str = exportEnd;
+				if (!exportEnd)
+					exportEnd = exportStr + strlen(exportStr);
+				else
+					++str;
+			}
 
 			tmp.assign(exportStr, exportEnd);
 			extra.clear();
@@ -306,7 +318,7 @@ namespace uba
 				tmp = tmp.substr(0, comma - tmp.data());
 			}
 					
-			m_exports.emplace(tmp, extra);
+			m_exports.emplace(tmp, ExportInfo{extra, index++});
 		}
 		return true;
 	}
@@ -340,7 +352,7 @@ namespace uba
 		}
 	}
 
-	bool ObjectFileCoff::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports, u32& outKeptExportCount)
+	bool ObjectFileCoff::StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports)
 	{
 		if (!m_info.directiveSectionMemOffset)
 			return true;
@@ -363,7 +375,6 @@ namespace uba
 		auto readEnd = readPos + directiveSection->SizeOfRawData;
 		auto readLastPossiblePos = readEnd - 9;
 
-		u32 exportCount = 0;
 		while (true)
 		{
 			const char* exportStr = nullptr;
@@ -383,22 +394,32 @@ namespace uba
 
 			if (!exportStr)
 			{
-				readPos = readEnd - 1;
+				readPos = readEnd;
 				break;
 			}
 
-			++exportCount;
-
 			const char* startPos = exportStr;
 			exportStr += 8;
-			const char* exportEnd = strchr(exportStr, ' ');
-			if (!exportEnd)
-				readPos = exportEnd = exportStr + strlen(exportStr);
+			const char* exportEnd;
+			if (*exportStr == '\"')
+			{
+				++exportStr;
+				exportEnd = strchr(exportStr, '\"');
+				readPos = exportEnd + 1;
+				if (strncmp(readPos, ",DATA", 5) == 0)
+					readPos += 5;
+				readPos = Min(readPos, readEnd);
+			}
 			else
-				readPos = exportEnd;
-
-			if (strncmp(exportEnd-5, ",DATA", 5) == 0)
-				exportEnd -= 5;
+			{
+				exportEnd = strchr(exportStr, ' ');
+				if (!exportEnd)
+					readPos = exportEnd = exportStr + strlen(exportStr);
+				else
+					readPos = exportEnd;
+				if (strncmp(exportEnd-5, ",DATA", 5) == 0)
+					exportEnd -= 5;
+			}
 
 			tmp.assign(exportStr, exportEnd - exportStr);
 			if (allNeededImports.find(tmp) != allNeededImports.end())
@@ -407,8 +428,6 @@ namespace uba
 			if (allNeededImports.find(tmp) != allNeededImports.end())
 				continue;
 			
-			--exportCount;
-
 			u64 toCopy = startPos - lastCopyPos - 1;
 			memcpy(writePos, lastCopyPos, toCopy);
 			writePos += toCopy;
@@ -420,7 +439,6 @@ namespace uba
 		u64 toCopy = readPos - lastCopyPos;
 		memcpy(writePos, lastCopyPos, toCopy);
 		writePos += toCopy;
-		*writePos = 0;
 
 		u32 sizeOfRawData = directiveSection->SizeOfRawData;
 		newDirectiveSection->SizeOfRawData = u32((u8*)writePos - newDirectiveData);
@@ -428,12 +446,15 @@ namespace uba
 
 		memset(writePos, 0, sizeOfRawData - newDirectiveSection->SizeOfRawData);
 
-		outKeptExportCount = exportCount;
-
 		return true;
 	}
 
 	bool ObjectFileCoff::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	{
+		return CreateExtraFile2(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
+	}
+
+	bool ObjectFileCoff::CreateExtraFile2(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
 		std::string tmp;
 
@@ -459,6 +480,7 @@ namespace uba
 
 		// Header
 		auto& header = *(ImageFileHeader*)allocate(sizeof(ImageFileHeader));
+		header.Machine = 0x8664;
 
 		// Session for loopbacks
 		auto& textSection = *(ImageSectionHeader*)allocate(sizeof(ImageSectionHeader));
@@ -492,7 +514,7 @@ namespace uba
 
 				write(slashExport, sizeof(slashExport) - 1);
 				write(symbol.data(), symbol.size());
-				write(kv.second.data(), kv.second.size());
+				write(kv.second.extra.data(), kv.second.extra.size());
 				write(" ", 1);
 			}
 			write("", 1);

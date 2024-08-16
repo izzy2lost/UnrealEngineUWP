@@ -67,14 +67,12 @@ namespace uba
 
 	bool ObjectFile::StripExports(Logger& logger)
 	{
-		u32 keptExportCount = 0;
-		return StripExports(logger, m_data, {}, keptExportCount);
-		return true;
+		return StripExports(logger, m_data, {});
 	}
 
 	bool ObjectFile::WriteImportsAndExports(Logger& logger, MemoryBlock& memoryBlock)
 	{
-		auto write = [&](const void* data, u64 dataSize) { memcpy(memoryBlock.Allocate(dataSize, 1, TC("")), data, dataSize); };
+		auto write = [&](const void* data, u64 dataSize) { memcpy(memoryBlock.Allocate(dataSize, 1, TC("ObjectFile::WriteImportsAndExports")), data, dataSize); };
 
 		write(&SymbolFileVersion, 1);
 		write(&m_type, 1);
@@ -91,7 +89,7 @@ namespace uba
 		for (auto& kv : m_exports)
 		{
 			write(kv.first.c_str(), kv.first.size());
-			write(kv.second.c_str(), kv.second.size());
+			write(kv.second.extra.c_str(), kv.second.extra.size());
 			write("", 1);
 		}
 		write("", 1);
@@ -121,7 +119,7 @@ namespace uba
 		for (auto& kv : m_exports)
 		{
 			write(kv.first.c_str(), kv.first.size());
-			write(kv.second.c_str(), kv.second.size());
+			write(kv.second.extra.c_str(), kv.second.extra.size());
 			write("", 1);
 		}
 		write("", 1);
@@ -162,8 +160,23 @@ namespace uba
 	{
 		ObjectFileCoff objectFileCoff;
 		ObjectFileElf objectFileElf;
+		ObjectFileLLVMIR objectFileLLVMIR;
 		
-		ObjectFile& objectFile = type == ObjectFileType_Coff ? (ObjectFile&)objectFileCoff : (ObjectFile&)objectFileElf;
+		ObjectFile& objectFile = [&]() -> ObjectFile&
+			{
+				switch (type)
+				{
+				case ObjectFileType_Coff:
+					return objectFileCoff;
+				case ObjectFileType_Elf:
+					return objectFileCoff;
+				case ObjectFileType_LLVMIR:
+					return objectFileLLVMIR;
+				default:
+					UBA_ASSERT(false);
+					return objectFileCoff;
+				}
+			}();
 
 
 		MemoryBlock memoryBlock(16*1024*1024);
