@@ -1511,6 +1511,12 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 					SkyPassPassParameters->View = View.GetShaderParameters();
 					SkyPassPassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
 
+					// Remove all but the SceneColor
+					for (uint32 i = 1; i < MaxSimultaneousRenderTargets; ++i)
+					{
+						SkyPassPassParameters->RenderTargets[i] = FRenderTargetBinding();
+					}
+
 					View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, SkyPassPassParameters->InstanceCullingDrawParams);
 
 					GraphBuilder.AddPass(
@@ -1581,6 +1587,12 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 					SkyPassParameters->RenderTargets = BasePassRenderTargets;
 					SkyPassParameters->View = View.GetShaderParameters();
 					SkyPassParameters->ReflectionCapture = View.ReflectionCaptureUniformBuffer;
+
+					// Remove all but the SceneColor
+					for (uint32 i = 1; i < MaxSimultaneousRenderTargets; ++i)
+					{
+						SkyPassParameters->RenderTargets[i] = FRenderTargetBinding();
+					}
 
 					View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, SkyPassParameters->InstanceCullingDrawParams);
 
