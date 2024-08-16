@@ -86,7 +86,7 @@ public:
 		TOptional<ElementType> LocalElement = Dequeue();
 		if (LocalElement.IsSet())
 		{
-			OutElem = LocalElement.GetValue();
+			OutElem = MoveTempIfPossible(LocalElement.GetValue());
 			return true;
 		}
 		
