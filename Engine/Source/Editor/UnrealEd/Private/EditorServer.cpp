@@ -3726,7 +3726,7 @@ void UEditorEngine::SetPropertyColorationTarget(UWorld* InWorld, const FString& 
 		if (PropertyChain)
 		{
 			GPropertyColorationChain = new TSharedRef<FEditPropertyChain>(*PropertyChain);
-			GbColorationClassIsActor = GPropertyColorationClass->IsChildOf( AActor::StaticClass() );
+			GbColorationClassIsActor = GPropertyColorationClass && GPropertyColorationClass->IsChildOf(AActor::StaticClass());
 			GbColorationPropertyIsObjectProperty = CastField<FObjectPropertyBase>(GPropertyColorationProperty) != NULL;
 			
 			FActorPrimitiveColorHandler::Get().RefreshPrimitiveColorHandler(TEXT("PropertyColor"), InWorld);
