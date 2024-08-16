@@ -74,7 +74,7 @@ namespace Gauntlet
 					ResponseReader.Close();
 				}
 				
-				Log.Info($"{TargetName} received new list of {AvailableRPCs.Count} available RPCs.");
+				Log.Verbose($"{TargetName} received new list of {AvailableRPCs.Count} available RPCs.");
 			}
 			catch (Exception e)
 			{

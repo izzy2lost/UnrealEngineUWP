@@ -196,7 +196,7 @@ namespace Gauntlet
 				{
 					IncomingMessageQueue.Enqueue(IncomingMessage);
 					CallResponse.ResponseBody = String.Format("New message enqueued! Source: {0} \n Category: {1} \n Payload: {2} \n", IncomingMessage.SenderId, IncomingMessage.Category, IncomingMessage.Payload);
-					Log.Info(CallResponse.ResponseBody);
+					Log.Verbose(CallResponse.ResponseBody);
 				}
 			}
 			else
