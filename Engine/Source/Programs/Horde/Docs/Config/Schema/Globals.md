@@ -175,6 +175,7 @@ Name | Description
 `acl` | [AclConfig](#aclconfig)<br>Acl for the artifact type
 `keepCount` | `integer`<br>Number of artifacts to retain
 `keepDays` | `integer`<br>Number of days to retain artifacts of this type
+`namespaceId` | `string`<br>Storage namespace to use for this artifact types
 
 ## AclConfig
 
