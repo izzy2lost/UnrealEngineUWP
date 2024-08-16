@@ -1752,9 +1752,10 @@ namespace uba
 
 			logger.AddSpace(2);
 			logger.Info(L"  %ls", process.description.c_str());
-			logger.Info(L"  ProcessId: %6u", process.id);
-			logger.Info(L"  Start:    %7ls", TimeToText(process.start, true).str);
-			logger.Info(L"  Duration: %7ls", TimeToText(duration, true).str);
+			logger.Info(L"  Host:        %ls", m_processSelectedLocation.sessionIndex == 0 ? TC("local") : m_traceView.GetSession(m_processSelectedLocation).name.c_str());
+			logger.Info(L"  ProcessId:  %6u", process.id);
+			logger.Info(L"  Start:     %7ls", TimeToText(process.start, true).str);
+			logger.Info(L"  Duration:  %7ls", TimeToText(duration, true).str);
 			if (!process.returnedReason.empty())
 				logger.Info(L"  Returned: %7s", process.returnedReason.data());
 			if (hasExited && process.exitCode != 0)

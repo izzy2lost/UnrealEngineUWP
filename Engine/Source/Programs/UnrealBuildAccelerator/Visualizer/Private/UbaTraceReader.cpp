@@ -22,6 +22,14 @@ namespace uba
 		return processor.processes[loc.processIndex];
 	}
 
+	const TraceView::Session& TraceView::GetSession(const ProcessLocation& loc)
+	{
+		if (loc.sessionIndex < sessions.size())
+			return sessions[loc.sessionIndex];
+		static TraceView::Session emptySession;
+		return emptySession;
+	}
+
 	void TraceView::Clear()
 	{
 		sessions.clear();
