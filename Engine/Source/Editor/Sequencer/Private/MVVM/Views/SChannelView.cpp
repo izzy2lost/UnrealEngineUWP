@@ -7,6 +7,7 @@
 #include "MVVM/ViewModels/TrackAreaViewModel.h"
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/Views/STrackAreaView.h"
+#include "MVVM/Extensions/IMutableExtension.h"
 #include "MVVM/Selection/Selection.h"
 
 #include "IKeyArea.h"
@@ -446,7 +447,6 @@ int32 SChannelView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 {
 	static const FName SelectionColorName("SelectionColor");
 
-	LayerId = DrawLane(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
 	TSharedPtr<FSequencer> Sequencer = LegacyGetSequencer();
 	FViewModelPtr Model = WeakModel.Pin();
@@ -454,6 +454,13 @@ int32 SChannelView::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeo
 	{
 		return LayerId;
 	}
+
+	{
+		IMutableExtension* Mutable = Model->CastThis<IMutableExtension>();
+		bParentEnabled = bParentEnabled && (!Mutable || !Mutable->IsMuted());
+	}
+
+	LayerId = DrawLane(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
 
 	const bool bIncludeThis = true;
 

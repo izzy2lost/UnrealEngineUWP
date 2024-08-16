@@ -27,6 +27,12 @@ public:
 
 	/** Set this item's mute state */
 	virtual void SetIsMuted(bool bIsMuted) = 0;
+
+	/** Returns whether this mutable can be muted by a parent, and should report its mute state to a parent */
+	virtual bool IsInheritable() const
+	{
+		return true;
+	}
 };
 
 enum class ECachedMuteState
@@ -38,10 +44,12 @@ enum class ECachedMuteState
 	Muted                    = 1 << 2,
 	PartiallyMutedChildren   = 1 << 3,
 	ImplicitlyMutedByParent  = 1 << 4,
+	Inheritable              = 1 << 5,
 
 	InheritedFromChildren = MutableChildren | PartiallyMutedChildren,
 };
 ENUM_CLASS_FLAGS(ECachedMuteState)
+SEQUENCERCORE_API ECachedMuteState CombinePropagatedChildFlags(ECachedMuteState ParentFlags, ECachedMuteState CombinedChildFlags);
 
 class SEQUENCERCORE_API FMuteStateCacheExtension
 	: public TFlagStateCacheExtension<ECachedMuteState>

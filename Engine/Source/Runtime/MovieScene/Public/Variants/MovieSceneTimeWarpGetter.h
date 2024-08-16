@@ -7,6 +7,7 @@
 #include "Math/Range.h"
 #include "Misc/FrameTime.h"
 #include "Misc/Optional.h"
+#include "Channels/IMovieSceneChannelOwner.h"
 #include "Variants/MovieSceneNumericVariantGetter.h"
 #include "MovieSceneTimeWarpGetter.generated.h"
 
@@ -29,7 +30,9 @@ namespace UE::MovieScene
  * Base class for all dynamic getter implementations of a FMovieSceneTimeWarpVariant
  */
 UCLASS(Abstract, MinimalAPI)
-class UMovieSceneTimeWarpGetter : public UMovieSceneNumericVariantGetter
+class UMovieSceneTimeWarpGetter
+	: public UMovieSceneNumericVariantGetter
+	, public IMovieSceneChannelOwner
 {
 public:
 
@@ -116,6 +119,13 @@ public:
 	 *            End abstract API
 	  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~*/
 
+	MOVIESCENE_API virtual UE::MovieScene::FChannelOwnerCapabilities GetCapabilities(FName ChannelName) const override;
+	MOVIESCENE_API virtual bool IsMuted(FName ChannelName) const override;
+	MOVIESCENE_API virtual void SetIsMuted(FName ChannelName, bool bIsMuted) override;
+
+	MOVIESCENE_API bool IsMuted() const;
+	MOVIESCENE_API void SetIsMuted(bool bIsMuted);
+
 public:
 
 	/**
@@ -137,4 +147,12 @@ public:
 	 * Attempt to delete this time-warp from a channel proxy if it matches the specified name
 	 */
 	MOVIESCENE_API virtual bool DeleteChannel(FMovieSceneTimeWarpVariant& OutVariant, FName ChannelName);
+
+protected:
+
+	/**
+	 * Whether this getter is muted or not. Default: false.
+	 */
+	UPROPERTY()
+	uint8 bMuted : 1;
 };

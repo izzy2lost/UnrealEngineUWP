@@ -100,6 +100,7 @@ public:
 	}
 
 	SEQUENCERCORE_API const void* CastDynamic(FViewModelTypeID Type) const;
+	SEQUENCERCORE_API void RemoveDynamicExtension(FViewModelTypeID Type);
 
 	const void* CastDynamicChecked(FViewModelTypeID Type) const
 	{
@@ -135,6 +136,12 @@ protected:
 		DynamicExtensions.Emplace(FDynamicExtensionInfo{ T::ID.GetTypeTable(), NewExtension });
 		NewExtension->OnCreated(InOwner);
 		return NewExtension.Get();
+	}
+
+	template<typename T>
+	void RemoveDynamicExtension()
+	{
+		RemoveDynamicExtension(T::ID);
 	}
 
 	void PostInitializeExtensions()

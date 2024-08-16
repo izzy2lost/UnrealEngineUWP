@@ -845,6 +845,15 @@ void FMovieSceneSequenceTransform::Add(FFrameTime InOffset, FMovieSceneTimeWarpV
 	}
 	else
 	{
+		if (InTimeWarp.GetType() == EMovieSceneTimeWarpType::Custom)
+		{
+			UMovieSceneTimeWarpGetter* Getter = InTimeWarp.AsCustom();
+			if (Getter && Getter->IsMuted())
+			{
+				return;
+			}
+		}
+
 		NestedTransforms.Emplace(InOffset, MoveTemp(InTimeWarp));
 	}
 }

@@ -193,6 +193,10 @@ public:
 
 protected:
 
+	void UpdateMutability();
+
+protected:
+
 	TArray<TWeakViewModelPtr<FChannelModel>> Channels;
 	uint32 ChannelsSerialNumber;
 	FName ChannelName;
@@ -239,6 +243,9 @@ public:
 	/*~ ICurveEditorTreeItemExtension */
 	bool HasCurves() const override;
 	void BuildContextMenu(FMenuBuilder& MenuBuilder) override;
+	
+	void OnUpdated();
+	
 	TOptional<FString> GetUniquePathName() const override;
 
 private:

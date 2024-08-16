@@ -145,6 +145,10 @@ FTrackModelLayoutBuilder::~FTrackModelLayoutBuilder()
 	{
 		CompoundItem->RecomputeSizing();
 	}
+	for (TSharedPtr<FChannelGroupOutlinerModel> OutlinerChannelGroup : Root->GetDescendantsOfType<FChannelGroupOutlinerModel>())
+	{
+		OutlinerChannelGroup->OnUpdated();
+	}
 }
 
 void FTrackModelLayoutBuilder::RefreshLayout(TSharedPtr<FSectionModel> InSection)
