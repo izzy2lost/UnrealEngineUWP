@@ -139,9 +139,10 @@ void FKeyContextMenu::PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FExtend
 		for (FSelectedChannelInfo& ChannelInfo : SelectedKeysByChannel.SelectedChannels)
 		{
 			FExtendKeyMenuParams ExtendKeyMenuParams;
-			ExtendKeyMenuParams.Section = ChannelInfo.OwningSection;
-			ExtendKeyMenuParams.Channel = ChannelInfo.Channel;
-			ExtendKeyMenuParams.Handles = MoveTemp(ChannelInfo.KeyHandles);
+			ExtendKeyMenuParams.Section   = ChannelInfo.OwningSection;
+			ExtendKeyMenuParams.WeakOwner = ChannelInfo.OwningObject;
+			ExtendKeyMenuParams.Channel   = ChannelInfo.Channel;
+			ExtendKeyMenuParams.Handles   = MoveTemp(ChannelInfo.KeyHandles);
 
 			ChannelAndHandlesByType.FindOrAdd(ChannelInfo.Channel.GetChannelTypeName()).Add(MoveTemp(ExtendKeyMenuParams));
 		}
@@ -1010,42 +1011,41 @@ void FSectionContextMenu::SetInterpTangentMode(ERichCurveInterpMode InterpMode, 
 	{
 		if (KeyArea.IsValid())
 		{
-			UMovieSceneSection* Section = KeyArea->GetOwningSection();
-			if (Section)
+			if (UMovieSceneSignedObject* OwningObject = Cast<UMovieSceneSignedObject>(KeyArea->GetOwningObject()))
 			{
-				Section->Modify();
+				OwningObject->Modify();
+			}
 
-				FMovieSceneChannelHandle Handle = KeyArea->GetChannel();
-				if (Handle.GetChannelTypeName() == FMovieSceneFloatChannel::StaticStruct()->GetFName())
+			FMovieSceneChannelHandle Handle = KeyArea->GetChannel();
+			if (Handle.GetChannelTypeName() == FMovieSceneFloatChannel::StaticStruct()->GetFName())
+			{
+				FMovieSceneFloatChannel* FloatChannel = static_cast<FMovieSceneFloatChannel*>(Handle.Get());
+				TMovieSceneChannelData<FMovieSceneFloatValue> ChannelData = FloatChannel->GetData();
+				TArrayView<FMovieSceneFloatValue> Values = ChannelData.GetValues();
+
+				for (int32 KeyIndex = 0; KeyIndex < FloatChannel->GetNumKeys(); ++KeyIndex)
 				{
-					FMovieSceneFloatChannel* FloatChannel = static_cast<FMovieSceneFloatChannel*>(Handle.Get());
-					TMovieSceneChannelData<FMovieSceneFloatValue> ChannelData = FloatChannel->GetData();
-					TArrayView<FMovieSceneFloatValue> Values = ChannelData.GetValues();
-
-					for (int32 KeyIndex = 0; KeyIndex < FloatChannel->GetNumKeys(); ++KeyIndex)
-					{
-						Values[KeyIndex].InterpMode = InterpMode;
-						Values[KeyIndex].TangentMode = TangentMode;
-						bAnythingChanged = true;
-					}
-
-					FloatChannel->AutoSetTangents();
+					Values[KeyIndex].InterpMode = InterpMode;
+					Values[KeyIndex].TangentMode = TangentMode;
+					bAnythingChanged = true;
 				}
-				else if (Handle.GetChannelTypeName() == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+
+				FloatChannel->AutoSetTangents();
+			}
+			else if (Handle.GetChannelTypeName() == FMovieSceneDoubleChannel::StaticStruct()->GetFName())
+			{
+				FMovieSceneDoubleChannel* DoubleChannel = static_cast<FMovieSceneDoubleChannel*>(Handle.Get());
+				TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = DoubleChannel->GetData();
+				TArrayView<FMovieSceneDoubleValue> Values = ChannelData.GetValues();
+
+				for (int32 KeyIndex = 0; KeyIndex < DoubleChannel->GetNumKeys(); ++KeyIndex)
 				{
-					FMovieSceneDoubleChannel* DoubleChannel = static_cast<FMovieSceneDoubleChannel*>(Handle.Get());
-					TMovieSceneChannelData<FMovieSceneDoubleValue> ChannelData = DoubleChannel->GetData();
-					TArrayView<FMovieSceneDoubleValue> Values = ChannelData.GetValues();
-
-					for (int32 KeyIndex = 0; KeyIndex < DoubleChannel->GetNumKeys(); ++KeyIndex)
-					{
-						Values[KeyIndex].InterpMode = InterpMode;
-						Values[KeyIndex].TangentMode = TangentMode;
-						bAnythingChanged = true;
-					}
-
-					DoubleChannel->AutoSetTangents();
+					Values[KeyIndex].InterpMode = InterpMode;
+					Values[KeyIndex].TangentMode = TangentMode;
+					bAnythingChanged = true;
 				}
+
+				DoubleChannel->AutoSetTangents();
 			}
 		}
 	}

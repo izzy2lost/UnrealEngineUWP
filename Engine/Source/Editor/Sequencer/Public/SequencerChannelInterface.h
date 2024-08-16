@@ -131,9 +131,10 @@ struct TSequencerChannelInterfaceCommon : ISequencerChannelInterface
 		for (const FExtendKeyMenuParams& Ptr : ChannelsAndHandles)
 		{
 			TExtendKeyMenuParams<ChannelType> TypedChannelAndHandles;
-			TypedChannelAndHandles.Section = Ptr.Section;
-			TypedChannelAndHandles.Handles = Ptr.Handles;
-			TypedChannelAndHandles.Channel = Ptr.Channel.Cast<ChannelType>();
+			TypedChannelAndHandles.Section   = Ptr.Section;
+			TypedChannelAndHandles.WeakOwner = Ptr.WeakOwner;
+			TypedChannelAndHandles.Handles   = Ptr.Handles;
+			TypedChannelAndHandles.Channel   = Ptr.Channel.Cast<ChannelType>();
 
 			TypedChannels.Add(MoveTemp(TypedChannelAndHandles));
 		}

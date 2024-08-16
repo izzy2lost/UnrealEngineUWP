@@ -41,7 +41,7 @@ FSelectedKeysByChannel::FSelectedKeysByChannel(const UE::Sequencer::FKeySelectio
 			const int32* ChannelArrayIndex = KeyAreaToChannelIndex.Find(Channel->GetKeyArea().Get());
 			if (!ChannelArrayIndex)
 			{
-				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection()));
+				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection(), Channel->GetOwningObject()));
 				ChannelArrayIndex = &KeyAreaToChannelIndex.Add(Channel->GetKeyArea().Get(), NewIndex);
 			}
 
@@ -70,7 +70,7 @@ FSelectedKeysByChannel::FSelectedKeysByChannel(TArrayView<const FSequencerSelect
 			const int32* ChannelArrayIndex = KeyAreaToChannelIndex.Find(Channel->GetKeyArea().Get());
 			if (!ChannelArrayIndex)
 			{
-				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection()));
+				int32 NewIndex = SelectedChannels.Add(FSelectedChannelInfo(Channel->GetKeyArea()->GetChannel(), Channel->GetSection(), Channel->GetOwningObject()));
 				ChannelArrayIndex = &KeyAreaToChannelIndex.Add(Channel->GetKeyArea().Get(), NewIndex);
 			}
 

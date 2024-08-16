@@ -1225,13 +1225,13 @@ struct TCurveChannelKeyMenuExtension : TSharedFromThis<TCurveChannelKeyMenuExten
 
 		for (const TExtendKeyMenuParams<ChannelType>& Channel : ChannelAndHandles)
 		{
-			UMovieSceneSection* Section = Channel.Section.Get();
-			ChannelType* ChannelPtr = Channel.Channel.Get();
-
-			if (Section && ChannelPtr)
+			if (UMovieSceneSignedObject* OwningObject = Cast<UMovieSceneSignedObject>(Channel.WeakOwner.Get()))
 			{
-				Section->Modify();
+				OwningObject->Modify();
+			}
 
+			if (ChannelType* ChannelPtr = Channel.Channel.Get())
+			{
 				TMovieSceneChannelData<ChannelValueType> ChannelData = ChannelPtr->GetData();
 				TArrayView<ChannelValueType> Values = ChannelData.GetValues();
 

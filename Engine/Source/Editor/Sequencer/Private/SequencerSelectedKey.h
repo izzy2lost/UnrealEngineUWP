@@ -83,8 +83,8 @@ public:
  */
 struct FSelectedChannelInfo
 {
-	explicit FSelectedChannelInfo(FMovieSceneChannelHandle InChannel, UMovieSceneSection* InOwningSection)
-		: Channel(InChannel), OwningSection(InOwningSection)
+	explicit FSelectedChannelInfo(FMovieSceneChannelHandle InChannel, UMovieSceneSection* InOwningSection, UObject* InOwningObject)
+		: Channel(InChannel), OwningSection(InOwningSection), OwningObject(InOwningObject)
 	{}
 
 	/** The channel on which the keys are selected */
@@ -92,6 +92,9 @@ struct FSelectedChannelInfo
 
 	/** The section that owns this channel */
 	UMovieSceneSection* OwningSection;
+
+	/** The object that owns this channel. Maybe the same as OwningSection, maybe not. */
+	UObject* OwningObject;
 
 	/** The key handles that are selected on this channel */
 	TArray<FKeyHandle> KeyHandles;

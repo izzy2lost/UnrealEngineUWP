@@ -53,6 +53,9 @@ struct TExtendKeyMenuParams
 	/** The section on which the channel resides */
 	TWeakObjectPtr<UMovieSceneSection> Section;
 
+	/** The owning object. Probably the same as Section, but can be different. */
+	TWeakObjectPtr<UObject> WeakOwner;
+
 	/** The channel on which the keys reside */
 	TMovieSceneChannelHandle<ChannelType> Channel;
 
