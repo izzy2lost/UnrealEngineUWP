@@ -11,7 +11,7 @@ class FChooserTableEditor;
 class FChooserRowDragDropOp : public FDecoratedDragDropOp
 {
 public:
-	DRAG_DROP_OPERATOR_TYPE(FWidgetTemplateDragDropOp, FDecoratedDragDropOp)
+	DRAG_DROP_OPERATOR_TYPE(FChooserRowDragDropOp, FDecoratedDragDropOp)
 
 	FChooserTableEditor* ChooserEditor;
 	uint32 RowIndex;

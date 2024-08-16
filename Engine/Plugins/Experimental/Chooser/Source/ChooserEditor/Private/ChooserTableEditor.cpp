@@ -24,6 +24,7 @@
 #include "PropertyEditorModule.h"
 #include "RandomizeColumn.h"
 #include "SAssetDropTarget.h"
+#include "SChooserColumnHandle.h"
 #include "SClassViewer.h"
 #include "ScopedTransaction.h"
 #include "SNestedChooserTree.h"
@@ -385,7 +386,7 @@ void FChooserTableEditor::RegisterMenus()
 
 	if (ToolMenu)
 	{
-		FToolMenuSection& Section = ToolMenu->AddSection("ChooserTableRow", TAttribute<FText>());
+		FToolMenuSection& Section = ToolMenu->AddSection("ChooserEditorContext", TAttribute<FText>());
 	
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(FGenericCommands::Get().Copy));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(FGenericCommands::Get().Cut));
@@ -393,6 +394,47 @@ void FChooserTableEditor::RegisterMenus()
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(FGenericCommands::Get().Delete));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.Disable));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.AutoPopulateSelection));
+		
+
+		Section.AddDynamicEntry("ColumnInputType", FNewToolMenuSectionDelegate::CreateLambda([this] (FToolMenuSection& Section)
+		{
+			if (CurrentSelectionType == ESelectionType::Column && SelectedColumn)
+			{
+				Section.AddSubMenu("ParameterType", LOCTEXT("Parameter Type", "Parameter Type"),
+					LOCTEXT("Parameter Type Tooltip", "Change the type of input/output parameter for this column"),
+					FNewToolMenuChoice(FOnGetContent::CreateLambda([this]()
+					{
+						int ColumnIndex = SelectedColumn->Column;
+						UChooserTable* Chooser = SelectedColumn->Chooser;
+						FStructViewerInitializationOptions Options;
+						Options.StructFilter = MakeShared<FStructFilter>(Chooser->ColumnsStructs[ColumnIndex].Get<FChooserColumnBase>().GetInputBaseType());
+						Options.bAllowViewOptions = false;
+						Options.bShowNoneOption = false;
+						Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
+					
+						// Add class filter for columns here
+						TSharedRef<SWidget> Widget = FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer").CreateStructViewer(Options, FOnStructPicked::CreateLambda([this, ColumnIndex](const UScriptStruct* ChosenStruct)
+						{
+							const FScopedTransaction Transaction(LOCTEXT("SetColumnInputType", "Set Column Input Type"));
+							UChooserTable* ChooserTable = GetChooser();
+							ChooserTable->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>().SetInputType(ChosenStruct);
+							ChooserTable->Modify(true);
+							UpdateTableColumns();
+							UpdateTableRows();
+							
+							if (SelectedColumn && SelectedColumn->Column == ColumnIndex)
+							{
+								// if this column was selected, reselect to refresh the details widgets
+								SelectColumn(ChooserTable, ColumnIndex);
+							}
+														
+						}));
+				
+						return Widget;
+					}))
+					);
+			}
+		}));
 	}
 
 	
@@ -461,14 +503,16 @@ void FChooserTableEditor::BindCommands()
 	ToolkitCommands->MapAction(
 		Commands.AutoPopulateSelection,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::AutoPopulateSelection),
-		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanAutoPopulateSelection)
+		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanAutoPopulateSelection),
+		FGetActionCheckState(),FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasSelection)
 		);
 	
 	ToolkitCommands->MapAction(
 		Commands.Disable,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::ToggleDisableSelection),
 		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::HasSelection),
-		FIsActionChecked::CreateSP(this, &FChooserTableEditor::IsSelectionDisabled)
+		FIsActionChecked::CreateSP(this, &FChooserTableEditor::IsSelectionDisabled),
+		FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasSelection)
 		);
 	
 	ToolkitCommands->MapAction(
@@ -831,11 +875,48 @@ void FChooserTableEditor::SelectRootProperties()
 void FChooserTableEditor::RemoveDisabledData()
 {
 	UChooserTable* Chooser = GetChooser();
-	const FScopedTransaction Transaction(LOCTEXT("Move Row", "Move Row"));
+	const FScopedTransaction Transaction(LOCTEXT("Remove Disabled Data", "Remove Disabled Data"));
 
 	Chooser->Modify(true);
 	Chooser->RemoveDisabledData();
 	RefreshAll();
+}
+
+int FChooserTableEditor::MoveColumn(int SourceIndex, int TargetIndex)
+{
+	UChooserTable* Chooser = GetChooser();
+	TargetIndex = FMath::Clamp(TargetIndex, 0, Chooser->ResultsStructs.Num());
+	
+	if (SourceIndex < 0 || SourceIndex == TargetIndex)
+	{
+		return TargetIndex;
+	}
+
+	const FScopedTransaction Transaction(LOCTEXT("Move Row", "Move Row"));
+
+	Chooser->Modify(true);
+
+	FInstancedStruct ColumnData = Chooser->ColumnsStructs[SourceIndex];
+	Chooser->ColumnsStructs.RemoveAt(SourceIndex);
+	if (SourceIndex < TargetIndex)
+	{
+		TargetIndex--;
+	}
+
+	if (TargetIndex == Chooser->ColumnsStructs.Num())
+	{
+		if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
+		{
+			// never drop after a Randomize Column;
+			TargetIndex--;
+		}
+	}
+
+	Chooser->ColumnsStructs.Insert(ColumnData, TargetIndex);
+
+	RefreshAll();
+
+	return TargetIndex;
 }
 
 int FChooserTableEditor::MoveRow(int SourceRowIndex, int TargetRowIndex)
@@ -901,6 +982,11 @@ bool FChooserTableEditor::IsRowSelected(int32 RowIndex)
  	}
 	return false;
 }
+	
+bool FChooserTableEditor::IsColumnSelected(int32 ColumnIndex)
+{
+	return  (CurrentSelectionType == ESelectionType::Column && SelectedColumn);
+}
 
 void FChooserTableEditor::UpdateTableColumns()
 {
@@ -931,132 +1017,25 @@ void FChooserTableEditor::UpdateTableColumns()
 		HeaderRow->AddColumn(SHeaderRow::FColumn::FArguments()
 			.ColumnId(ColumnId)
 			.ManualWidth(200)
-			.OnGetMenuContent_Lambda([this, &Column, Chooser, ColumnIndex, ColumnId]()
-			{
-				UChooserColumnMenuContext* MenuContext = NewObject<UChooserColumnMenuContext>();
-				MenuContext->Editor = this;
-				MenuContext->Chooser = Chooser;
-				MenuContext->ColumnIndex = ColumnIndex;
-
-				FMenuBuilder MenuBuilder(true,nullptr);
-
-				MenuBuilder.AddMenuEntry(LOCTEXT("Column Properties","Properties"),LOCTEXT("Select Column ToolTip", "Select this Column, and show its properties in the Details panel"),FSlateIcon(),
-					FUIAction(
-						FExecuteAction::CreateLambda([this,Chooser,ColumnIndex, ColumnId, &Column]()
-						{
-							SelectColumn(Chooser, ColumnId.GetNumber() - 1);
-						})
-						)
-					);
-
-				if (ColumnIndex > 0 && !Chooser->ColumnsStructs[ColumnIndex].Get<FChooserColumnBase>().IsRandomizeColumn())
-				{
-					MenuBuilder.AddMenuEntry(LOCTEXT("Move Left","Move Left"),LOCTEXT("Move Left ToolTip", "Move this column to the left."),FSlateIcon(),
-						FUIAction(
-							FExecuteAction::CreateLambda([this,Chooser,ColumnIndex, &Column]()
-							{
-								const FScopedTransaction Transaction(LOCTEXT("Move Column Left Transaction", "Move Column Left"));
-								Chooser->Modify(true);
-								Chooser->ColumnsStructs.Swap(ColumnIndex, ColumnIndex - 1);
-								UpdateTableColumns();
-								if (SelectedColumn)
-								{
-									SelectColumn(Chooser, ColumnIndex - 1);
-								}
-							})
-							));
-				}
-				if (ColumnIndex < Chooser->ColumnsStructs.Num() - 1 && !Chooser->ColumnsStructs[ColumnIndex+1].Get<FChooserColumnBase>().IsRandomizeColumn())
-				{
-					MenuBuilder.AddMenuEntry(LOCTEXT("Move Right","Move Right"),LOCTEXT("Move Right ToolTip", "Move this column to the right."),FSlateIcon(),
-						FUIAction(
-							FExecuteAction::CreateLambda([this,Chooser,ColumnIndex, &Column]()
-							{
-								const FScopedTransaction Transaction(LOCTEXT("Move Column Right Transaction", "Move Column Right"));
-								Chooser->Modify(true);
-								Chooser->ColumnsStructs.Swap(ColumnIndex, ColumnIndex + 1);
-								UpdateTableColumns();
-								if (SelectedColumn)
-								{
-									SelectColumn(Chooser, ColumnIndex + 1);
-								}
-							})
-							));
-				}
-
-				MenuBuilder.AddMenuEntry(LOCTEXT("Delete Column", "Delete"), LOCTEXT("Delete Column ToolTip", "Remove this column and all its data from the table"), FSlateIcon(),
-					FUIAction(
-						FExecuteAction::CreateLambda([this, Chooser, ColumnIndex, &Column]()
-						{
-							DeleteColumn(ColumnIndex);
-						})
-						));
-
-				if(Column.AutoPopulates())
-				{
-					MenuBuilder.AddMenuEntry(LOCTEXT("Auto Populate", "Auto Populate"), LOCTEXT("Auto Populate ToolTip", "Auto populate cell values for this colun"), FSlateIcon(),
-						FUIAction(
-							FExecuteAction::CreateLambda([this, &Column]()
-							{
-								const FScopedTransaction Transaction(LOCTEXT("Auto Populate Column", "Auto Populate Column"));
-								AutoPopulateColumn(Column);
-							})
-							));
-				}
-			
-				MenuBuilder.AddSubMenu(LOCTEXT("Input Type", "Input Type"),
-					LOCTEXT("InputTypeToolTip", "Change input parameter type"),
-					FNewMenuDelegate::CreateLambda([this, Chooser, &ColumnIndex](FMenuBuilder& Builder)
-					{
-						FStructViewerInitializationOptions Options;
-						Options.StructFilter = MakeShared<FStructFilter>(Chooser->ColumnsStructs[ColumnIndex].Get<FChooserColumnBase>().GetInputBaseType());
-						Options.bAllowViewOptions = false;
-						Options.bShowNoneOption = false;
-						Options.NameTypeToDisplay = EStructViewerNameTypeToDisplay::DisplayName;
-					
-						// Add class filter for columns here
-						TSharedRef<SWidget> Widget = FModuleManager::LoadModuleChecked<FStructViewerModule>("StructViewer").CreateStructViewer(Options, FOnStructPicked::CreateLambda([this, ColumnIndex](const UScriptStruct* ChosenStruct)
-						{
-							const FScopedTransaction Transaction(LOCTEXT("SetColumnInputType", "Set Column Input Type"));
-							UChooserTable* ChooserTable = GetChooser();
-							ChooserTable->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>().SetInputType(ChosenStruct);
-							ChooserTable->Modify(true);
-							UpdateTableColumns();
-							UpdateTableRows();
-							
-							if (SelectedColumn && SelectedColumn->Column == ColumnIndex)
-							{
-								// if this column was selected, reselect to refresh the details widgets
-								SelectColumn(ChooserTable, ColumnIndex);
-							}
-                            							
-						}));
-				
-						Builder.AddWidget(Widget, FText());
-					}));
-			
-				return MenuBuilder.MakeWidget();
-			})
 			.HeaderComboVisibility(EHeaderComboVisibility::Ghosted)
 			.HeaderContent()
 			[
-				SNew(SBorder)
-				.VAlign(VAlign_Center)
-				.Padding(3)
-				.BorderBackgroundColor_Lambda([this, ColumnId] ()
-				{
-					// unclear why this color is coming out much darker
-					return (SelectedColumn && SelectedColumn->Column == ColumnId.GetNumber() - 1) ? FSlateColor(FColor(0x00, 0x70, 0xe0, 0xFF)) : FSlateColor(FLinearColor(0.05f,0.05f,0.05f));
-				})
-				.OnMouseButtonDown_Lambda([this, Chooser, ColumnIndex, ColumnId](	const FGeometry&, const FPointerEvent& PointerEvent)
-				{
-					TableView->ClearSelection();
-				
-					SelectColumn(Chooser, ColumnId.GetNumber() - 1);
-					return FReply::Handled();
-				})
+				SNew(SChooserColumnHandle)
+					.ChooserEditor(this)
+					.ColumnIndex(ColumnIndex)
+					.NoDropAfter(Chooser->ColumnsStructs[ColumnIndex].GetPtr<FRandomizeColumn>() != nullptr)
 				[
-					HeaderWidget.ToSharedRef()
+					SNew(SBorder)
+					.VAlign(VAlign_Center)
+					.Padding(3)
+					.BorderBackgroundColor_Lambda([this, ColumnIndex] ()
+					{
+						// unclear why this color is coming out much darker
+						return (SelectedColumn && SelectedColumn->Column == ColumnIndex) ? FSlateColor(FColor(0x00, 0x70, 0xe0, 0xFF)) : FSlateColor(FLinearColor(0.05f,0.05f,0.05f));
+					})
+					[
+						HeaderWidget.ToSharedRef()
+					]
 				]
 			
 			]);
@@ -1452,6 +1431,8 @@ TSharedRef<FChooserTableEditor> FChooserTableEditor::CreateEditor( const EToolki
 	
 void FChooserTableEditor::SelectColumn(UChooserTable* ChooserEditor, int Index)
 {
+	ClearSelectedRows();
+	
 	UChooserTable* Chooser = GetChooser();
    	if (Index < Chooser->ColumnsStructs.Num())
    	{
@@ -1574,8 +1555,9 @@ bool FChooserTableEditor::CanAutoPopulateSelection()
 {
 	if (UChooserTable* Chooser = GetChooser())
 	{
-		if (SelectedColumn)
+		if (CurrentSelectionType == ESelectionType::Column && SelectedColumn)
 		{
+			// when a column is selected, return true if that column supports auto populate
 			if (Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
 			{
 				return Chooser->ColumnsStructs[SelectedColumn->Column].Get<FChooserColumnBase>().AutoPopulates();
@@ -1583,7 +1565,20 @@ bool FChooserTableEditor::CanAutoPopulateSelection()
 		}
 		else
 		{
-			return !SelectedRows.IsEmpty();
+			if (SelectedRows.IsEmpty())
+			{
+				return false;
+			}
+			
+			// when rows are selected, return true if any column supports auto populate
+			for (FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+			{
+				const FChooserColumnBase& Column = ColumnData.Get<FChooserColumnBase>();
+				if (Column.AutoPopulates())
+				{
+					return true;
+				}
+			}
 		}
 	}
 	
@@ -1962,7 +1957,7 @@ void FChooserTableEditor::Paste()
 				ClearSelectedRows();
 				for (int i = 0; i < RowsToPaste; i++)
 				{
-					SelectRow(InsertIndex + i);
+					SelectRow(InsertIndex + i, false);
 				}
 			}
 			

@@ -124,9 +124,11 @@ namespace UE::ChooserEditor
 		void MakeChoosersMenuRecursive(UObject* Outer, FMenuBuilder& MenuBuilder, const FString& Indent);
 		void DeleteSelectedRows();
 		int MoveRow(int SourceRowIndex, int TargetIndex);
+		int MoveColumn(int SourceIndex, int TargetIndex);
 		void SelectRow(int32 RowIndex, bool bClear = true);
 		void ClearSelectedRows(); 
 		bool IsRowSelected(int32 RowIndex);
+		bool IsColumnSelected(int32 ColumnIndex);
 		
 		void SetChooserTableToEdit(UChooserTable* Chooser, bool bApplyToHistory = true);
 

@@ -36,27 +36,28 @@ namespace UE::ChooserEditor
 		);
 
 		if (RowIndex->RowIndex >=0)
-		SetContent(
-				SNew(SOverlay)
-						+ SOverlay::Slot()
-						[
-							Content.Pin().ToSharedRef()
-						]
-						+ SOverlay::Slot().VAlign(VAlign_Bottom)
-						[
-							SNew(SSeparator)
-							.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
-							.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); })
-							.Visibility_Lambda([this]() { return bDragActive && !bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
-						]
-						+ SOverlay::Slot().VAlign(VAlign_Top)
-						[
-							SNew(SSeparator)
-							.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
-							.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); }) 
-							.Visibility_Lambda([this]() { return bDragActive && bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
-						]
-			);
+		{
+			SetContent(SNew(SOverlay)
+					+ SOverlay::Slot()
+					[
+						Content.Pin().ToSharedRef()
+					]
+					+ SOverlay::Slot().VAlign(VAlign_Bottom)
+					[
+						SNew(SSeparator)
+						.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
+						.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); })
+						.Visibility_Lambda([this]() { return bDragActive && !bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
+					]
+					+ SOverlay::Slot().VAlign(VAlign_Top)
+					[
+						SNew(SSeparator)
+						.SeparatorImage(FAppStyle::GetBrush("PropertyEditor.HorizontalDottedLine"))
+						.ColorAndOpacity_Lambda([this]() { return FSlateColor(bDropSupported ? EStyleColor::Select : EStyleColor::Error); }) 
+						.Visibility_Lambda([this]() { return bDragActive && bDropAbove ? EVisibility::Visible : EVisibility::Hidden; })
+					]
+				);
+		}
 		else if (RowIndex->RowIndex == SpecialIndex_Fallback)
 		{
 			SetContent(
@@ -337,18 +338,11 @@ namespace UE::ChooserEditor
 
 	FReply SChooserTableRow::OnDragOver(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 	{
-		if (bDropSupported)
-		{
-			DragActiveCounter = 2;
-			bDragActive = true;
-			float Center = MyGeometry.AbsolutePosition.Y + MyGeometry.Size.Y/2;
-			bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
-			return FReply::Handled();
-		}
-		else
-		{
-			return FReply::Unhandled();
-		}
+		DragActiveCounter = 2;
+		bDragActive = true;
+		float Center = MyGeometry.AbsolutePosition.Y + MyGeometry.Size.Y/2;
+		bDropAbove = DragDropEvent.GetScreenSpacePosition().Y < Center;
+		return FReply::Handled();
 	}
 
 	FReply SChooserTableRow::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
