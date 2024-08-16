@@ -325,16 +325,6 @@ public:
 };
 
 
-struct FAssetActionThumbnailOverlayInfo
-{
-public:
-	/** Image widget displayed in the top left border */
-	TSharedPtr<SWidget> ActionImageWidget;
-
-	/** Button widget displayed in the center when hovering the thumbnail */
-	TSharedPtr<SWidget> ActionButtonWidget;
-};
-
 /**
  * Asset Definitions represent top level assets that are known to the editor.
  *
@@ -575,17 +565,11 @@ public:
 	{
 		return nullptr;
 	}
-
-	UE_DEPRECATED(5.5, "Please use the new GetThumbnailActionOverlay function")
+	
 	/** Optionally returns a custom widget to overlay on top of this assets' thumbnail */
 	virtual TSharedPtr<SWidget> GetThumbnailOverlay(const FAssetData& InAssetData) const
 	{
 		return TSharedPtr<SWidget>();
-	}
-
-	virtual bool GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const
-	{
-		return false;
 	}
 
 	/** Whether this asset has external packages associated with it (impacts saving and dirty-state behavior) */

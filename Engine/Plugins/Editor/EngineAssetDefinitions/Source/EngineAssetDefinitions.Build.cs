@@ -23,7 +23,6 @@ public class EngineAssetDefinitions : ModuleRules
 		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
-				"ApplicationCore",
 				"ContentBrowser",
 				"ContentBrowserData",
 				"AssetDefinition",
