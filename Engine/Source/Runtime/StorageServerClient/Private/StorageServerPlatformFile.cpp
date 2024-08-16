@@ -259,7 +259,7 @@ public:
 			if (BytesReadFromBuffer == BytesToRead)
 			{
 				FilePos += BytesReadFromBuffer;
-				TRACE_PLATFORMFILE_END_READ(this, BytesReadFromBuffer);
+				TRACE_PLATFORMFILE_END_READ(Destination, BytesReadFromBuffer);
 				return true;
 			}
 		}
