@@ -317,7 +317,7 @@ FCapsuleLight GetCapsule( float3 ToLight, FDeferredLightData LightData )
 }
 
 FLightAccumulator AccumulateDynamicLighting(
-	float3 TranslatedWorldPosition, half3 CameraVector, FGBufferData GBuffer, half AmbientOcclusion, uint ShadingModelID,
+	float3 TranslatedWorldPosition, half3 CameraVector, FGBufferData GBuffer, half AmbientOcclusion,
 	FDeferredLightData LightData, half4 LightAttenuation, float Dither, uint2 SVPos, 
 	inout float SurfaceShadow)
 {
@@ -462,21 +462,21 @@ FLightAccumulator AccumulateDynamicLighting(
 
 /** Calculates lighting for a given position, normal, etc with a fully featured lighting model designed for quality. */
 FDeferredLightingSplit GetDynamicLightingSplit(
-	float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, uint ShadingModelID, 
+	float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, 
 	FDeferredLightData LightData, float4 LightAttenuation, float Dither, uint2 SVPos, 
 	inout float SurfaceShadow)
 {
-	FLightAccumulator LightAccumulator = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, ShadingModelID, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow);
+	FLightAccumulator LightAccumulator = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, LightData, LightAttenuation, Dither, SVPos, SurfaceShadow);
 	return LightAccumulator_GetResultSplit(LightAccumulator);
 }
 
 float4 GetDynamicLighting(
-	float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, uint ShadingModelID, 
+	float3 TranslatedWorldPosition, float3 CameraVector, FGBufferData GBuffer, float AmbientOcclusion, 
 	FDeferredLightData LightData, float4 LightAttenuation, float Dither, uint2 SVPos, 
 	inout float SurfaceShadow)
 {
 	FDeferredLightingSplit SplitLighting = GetDynamicLightingSplit(
-		TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, ShadingModelID, 
+		TranslatedWorldPosition, CameraVector, GBuffer, AmbientOcclusion, 
 		LightData, LightAttenuation, Dither, SVPos, 
 		SurfaceShadow);
 

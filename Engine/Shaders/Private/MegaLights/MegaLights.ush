@@ -370,7 +370,7 @@ FDeferredLightingSplit GetMegaLightsSplitLighting(
 #else // SUBSTRATE_ENABLED
 {
 	return GetDynamicLightingSplit(
-		TranslatedWorldPosition, CameraVector, Material.GBuffer, AmbientOcclusion, Material.GBuffer.ShadingModelID, 
+		TranslatedWorldPosition, CameraVector, Material.GBuffer, AmbientOcclusion, 
 		LightData, LightAttenuation, Dither, ScreenCoord, 
 		SurfaceShadow);
 }

@@ -213,7 +213,6 @@ void MainPS(
 						CameraVector, 
 						ScreenSpaceData.GBuffer, 
 						ScreenSpaceData.AmbientOcclusion, 
-						ScreenSpaceData.GBuffer.ShadingModelID, 
 						LightData, 
 						PixelLightAttenuation,
 						Dither, 

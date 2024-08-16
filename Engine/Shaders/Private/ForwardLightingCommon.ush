@@ -229,7 +229,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 			float4 LightAttenuation = float4(DynamicShadowFactor.x, DynamicShadowFactor.x, 1, 1);
 		#endif
 
-		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0,0), OutDirectionalLightShadow);
+		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), OutDirectionalLightShadow);
 
 		FLATTEN
 		if (DirLightingChannelMask & LightingChannelMask)
@@ -295,7 +295,7 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 		float DynamicShadowing = dot(PreviewShadowMapChannelMask, DynamicShadowFactors);
 		float4 LightAttenuation = float4(1, 1, DynamicShadowing.x, DynamicShadowing.x);
 		float SurfaceShadow = 1.0f;
-		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0,0), SurfaceShadow);
+		FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0,0), SurfaceShadow);
 
 		FLATTEN
 		if (LocalLightingChannelMask & LightingChannelMask)

@@ -915,7 +915,7 @@ void Main(
 
 		MergedLightData.Direction = OctahedronToUnitVector(Pack888To1212(LocalLightB.rgb) * 2 - 1);
 
-		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+		FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 	}
 #elif  MERGED_LOCAL_LIGHTS_MOBILE == 2
@@ -956,7 +956,7 @@ void Main(
 
 			MergedLightData.Direction = MergedLightL;
 
-			FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+			FLightAccumulator NewLighting = AccumulateDynamicLighting(MaterialParameters.WorldPosition_CamRelative, CameraVector, GBuffer, 1, MergedLightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 			DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 		}
 	}

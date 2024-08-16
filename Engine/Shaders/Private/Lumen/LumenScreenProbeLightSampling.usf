@@ -159,7 +159,7 @@ void ScreenProbeGenerateLightSamplesCS(
 						float4 LightAttenuation = 1;
 						float Dither = 1;
 						float UnusedSurfaceShadow = 1;
-						FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, GBufferData.ShadingModelID, LightData, LightAttenuation, Dither, uint2(0, 0), UnusedSurfaceShadow);
+						FDeferredLightingSplit NewLighting = GetDynamicLightingSplit(TranslatedWorldPosition, -CameraVector, GBufferData, 1, LightData, LightAttenuation, Dither, uint2(0, 0), UnusedSurfaceShadow);
 
 #else
 						{						

@@ -317,7 +317,7 @@ void AccumulateDirectionalLighting(FGBufferData GBuffer, float3 TranslatedWorldP
 #if TRANSLUCENCY_SH_LIGHTING
 	FLightAccumulator NewLighting = GetTranslucencySHLighting(GBuffer, LightData, TranslatedWorldPosition);
 #else
-	FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, LightData, LightAttenuation, 0, uint2(0, 0), OutDirectionalLightShadow);
+	FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, LightData, LightAttenuation, 0, uint2(0, 0), OutDirectionalLightShadow);
 #endif
 	DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 }
@@ -634,7 +634,7 @@ void AccumulateLightGridLocalLighting(const FCulledLightsGridHeader InLightGridH
 #if TRANSLUCENCY_SH_LIGHTING
 		FLightAccumulator NewLighting = GetTranslucencySHLighting(GBuffer, LightData, TranslatedWorldPosition);
 #else
-		FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, GBuffer.ShadingModelID, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
+		FLightAccumulator NewLighting = AccumulateDynamicLighting(TranslatedWorldPosition, CameraVector, GBuffer, 1, LightData, LightAttenuation, 0, uint2(0, 0), SurfaceShadow);
 #endif
 		DirectLighting = LightAccumulator_Add(DirectLighting, NewLighting);
 	}
