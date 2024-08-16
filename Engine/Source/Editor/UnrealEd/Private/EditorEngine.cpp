@@ -618,7 +618,7 @@ UEditorEngine::UEditorEngine(const FObjectInitializer& ObjectInitializer)
 				{
 					if (GetPropertyColorationMatch(Actor))
 					{
-						PropertyColor = FColor::Red;
+						PropertyColor = GetDefault<ULevelEditorViewportSettings>()->PropertyColorationColorForMatchingObjects;
 					}
 				}
 				return PropertyColor;

@@ -597,6 +597,10 @@ public:
 	UPROPERTY(config)
 	TMap<TSoftObjectPtr<UWorld>, FLevelEditorViewporEditorViews> EditorViews;
 
+	/** Property coloration color for matching objects */
+	UPROPERTY(EditAnywhere, config, Category = LookAndFeel)
+	FColor PropertyColorationColorForMatchingObjects = FColor::Red;
+
 private:
 
 	// Per-instance viewport settings.
