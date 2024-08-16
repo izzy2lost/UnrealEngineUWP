@@ -131,9 +131,46 @@ bool FTrackRowModel::IsDimmed() const
 {
 	UMovieSceneTrack* Track = GetTrack();
 
-	if (Track && Track->IsRowEvalDisabled(GetRowIndex()))
+	if (Track)
 	{
-		return true;
+		if (Track->IsRowEvalDisabled(GetRowIndex()))
+		{
+			return true;
+		}
+
+		FGuid BindingID;
+		FMovieSceneSequenceID SequenceID = MovieSceneSequenceID::Root;
+		if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+		{
+			BindingID = ObjectBindingModel->GetObjectGuid();
+		}
+
+		if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+		{
+			SequenceID = SequenceModel->GetSequenceID();
+
+			if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+			{
+				if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(GetRowIndex()))
+				{
+					if (TrackRowMetadata->ConditionContainer.Condition)
+					{
+						if (!MovieSceneHelpers::EvaluateSequenceCondition(BindingID, SequenceID, TrackRowMetadata->ConditionContainer.Condition, Track, SequencerModel->GetSequencer()->GetSharedPlaybackState()))
+						{
+							return true;
+						}
+					}
+				}
+
+				if (Track->ConditionContainer.Condition)
+				{
+					if (!MovieSceneHelpers::EvaluateSequenceCondition(BindingID, SequenceID, Track->ConditionContainer.Condition, Track, SequencerModel->GetSequencer()->GetSharedPlaybackState()))
+					{
+						return true;
+					}
+				}
+			}
+		}
 	}
 
 	return FOutlinerItemModel::IsDimmed();
@@ -335,6 +372,10 @@ void FTrackRowModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 
 	SequencerHelpers::BuildBlendingMenu(Sequencer, Track, MenuBuilder);
 
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, true);
+
 	const TArray<TWeakObjectPtr<>> TrackAreaModels = SequencerHelpers::GetSectionObjectsFromTrackAreaModels(GetTrackAreaModelList());
 	SequencerHelpers::BuildEditSectionMenu(Sequencer, TrackAreaModels, MenuBuilder, true);
 
@@ -370,6 +411,10 @@ void FTrackRowModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 	{
 		TrackEditor->BuildTrackSidebarMenu(MenuBuilder, Track);
 	}
+
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, false);
 
 	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{

@@ -472,9 +472,33 @@ bool FTrackModel::IsDimmed() const
 {
 	UMovieSceneTrack* Track = GetTrack();
 
-	if (Track && Track->IsEvalDisabled())
+	if (Track)
 	{
-		return true;
+		if (Track->IsEvalDisabled())
+		{
+			return true;
+		}
+		if (Track->ConditionContainer.Condition)
+		{
+			FGuid BindingID;
+			FMovieSceneSequenceID SequenceID = MovieSceneSequenceID::Root;
+			if (TViewModelPtr<FObjectBindingModel> ObjectBindingModel = FindAncestorOfType<FObjectBindingModel>())
+			{
+				BindingID = ObjectBindingModel->GetObjectGuid();
+			}
+			if (TViewModelPtr<FSequenceModel> SequenceModel = FindAncestorOfType<FSequenceModel>())
+			{
+				SequenceID = SequenceModel->GetSequenceID();
+
+				if (TSharedPtr<FSequencerEditorViewModel> SequencerModel = SequenceModel->GetEditor())
+				{
+					if (!MovieSceneHelpers::EvaluateSequenceCondition(BindingID, SequenceID, Track->ConditionContainer.Condition, Track, SequencerModel->GetSequencer()->GetSharedPlaybackState()))
+					{
+						return true;
+					}
+				}
+			}
+		} 
 	}
 
 	return FOutlinerItemModel::IsDimmed();
@@ -674,6 +698,10 @@ void FTrackModel::BuildContextMenu(FMenuBuilder& MenuBuilder)
 		TrackEditor->BuildTrackContextMenu(MenuBuilder, Track);
 	}
 
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, true);
+
 	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{
 		SequencerHelpers::BuildNewSectionMenu(Sequencer, GetRowIndex() + 1, GetTrack(), MenuBuilder);
@@ -716,6 +744,11 @@ void FTrackModel::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 	{
 		TrackEditor->BuildTrackSidebarMenu(MenuBuilder, Track);
 	}
+
+	TArray<TWeakObjectPtr<>> WeakTracks;
+	WeakTracks.Add(Track);
+	SequencerHelpers::BuildEditTrackMenu(Sequencer, WeakTracks, MenuBuilder, false);
+
 
 	if (Track->GetSupportedBlendTypes().Num() > 0)
 	{

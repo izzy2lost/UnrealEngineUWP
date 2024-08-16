@@ -28,6 +28,7 @@
 #include "UserInterface/PropertyEditor/SPropertyEditorStruct.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorInteractiveActorPicker.h"
 #include "UserInterface/PropertyEditor/SPropertyEditorSceneDepthPicker.h"
+#include "UserInterface/PropertyEditor/SPropertyEditorEditInline.h"
 #include "Widgets/Input/SHyperlink.h"
 #include "IDocumentation.h"
 #include "EditorFontGlyphs.h"
@@ -1194,6 +1195,24 @@ TArray<const UClass*> PropertyCustomizationHelpers::GetClassesFromMetadataString
 	}
 
 	return Classes;
+}
+
+
+
+TSharedRef<SWidget> PropertyCustomizationHelpers::MakeEditInlineObjectClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnClassPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter)
+{
+	return SPropertyEditorEditInline::GenerateClassPicker(PropertyHandle, 
+	FOnClassPicked::CreateLambda([OnClassPicked, PropertyHandle](UClass* ClassPicked)
+		{
+			SPropertyEditorEditInline::OnClassPicked(ClassPicked, PropertyHandle);
+			OnClassPicked.ExecuteIfBound(ClassPicked);
+		}),
+		AdditionalClassFilter);
+}
+
+void PropertyCustomizationHelpers::CreateNewInstanceOfEditInlineObjectClass(TSharedRef<IPropertyHandle> PropertyHandle, UClass* Class, EPropertyValueSetFlags::Type Flags)
+{
+	SPropertyEditorEditInline::OnClassPicked(Class, PropertyHandle, Flags);
 }
 
 namespace PropertyCustomizationHelpers

@@ -327,6 +327,11 @@ public:
 	 */
 	MOVIESCENE_API void OverrideRootSequence(FMovieSceneSequenceID NewRootSequenceID);
 
+	/*
+	* Evaluate a condition on this sequence instance hierarchy, utilizing any cache as relevant.
+	*/
+	MOVIESCENE_API bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject) const;
+
 public:
 
 	/** Constructor for top level sequences */

@@ -460,6 +460,15 @@ void FSequenceInstance::OverrideRootSequence(FMovieSceneSequenceID NewRootSequen
 	RootOverrideSequenceID = NewRootSequenceID;
 }
 
+bool FSequenceInstance::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& InSequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject) const
+{
+	if (SequenceUpdater)
+	{
+		return SequenceUpdater->EvaluateCondition(BindingID, InSequenceID, Condition, ConditionOwnerObject, SharedPlaybackState);
+	}
+	return true;
+}
+
 FInstanceHandle FSequenceInstance::FindSubInstance(FMovieSceneSequenceID SubSequenceID) const
 {
 	return SequenceUpdater ? SequenceUpdater->FindSubInstance(SubSequenceID) : FInstanceHandle();

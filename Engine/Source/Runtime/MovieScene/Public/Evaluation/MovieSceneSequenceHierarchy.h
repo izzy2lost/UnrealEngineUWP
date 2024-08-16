@@ -31,6 +31,7 @@
 
 class UMovieSceneSequence;
 class UMovieSceneSubSection;
+class UMovieSceneCondition;
 struct FMovieSceneSequenceID;
 template <typename ElementType> class TRange;
 
@@ -147,11 +148,11 @@ struct FMovieSceneSubSequenceData
 	UPROPERTY()
 	FMovieSceneSequenceInstanceDataPtr InstanceData;
 
-#if WITH_EDITORONLY_DATA
-
 	/** This sequence's path within its movie scene */
 	UPROPERTY()
 	FName SectionPath;
+
+#if WITH_EDITORONLY_DATA
 
 	/** The sub-sequence's full playback range, in its own local time space. */
 	UE_DEPRECATED(5.5, "Please use GetSequence()->GetMovieScene()->GetPlaybackRange().")
@@ -166,6 +167,11 @@ struct FMovieSceneSubSequenceData
 	FMovieSceneFrameRange UnwarpedPlayRange;
 
 #endif
+	
+	/* Optional condition pulled off of the UMovieSceneSubSection or UMovieSceneSubTrack */
+	UPROPERTY()
+	TObjectPtr<const UMovieSceneCondition> Condition;
+
 
 private:
 

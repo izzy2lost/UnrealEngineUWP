@@ -24,6 +24,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/Package.h"
 #include "UObject/PackageReload.h"
+#include "MovieSceneCommonHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneCompiledDataManager)
 
@@ -1447,6 +1448,7 @@ void UMovieSceneCompiledDataManager::GatherTrack(const FMovieSceneBinding* Objec
 			FMovieSceneEvaluationFieldEntityMetaData MetaData(PreCompileResult.DefaultMetaData);
 			MetaData.bEvaluateInSequencePreRoll  = Track->EvalOptions.bEvaluateInPreroll;
 			MetaData.bEvaluateInSequencePostRoll = Track->EvalOptions.bEvaluateInPostroll;
+			MetaData.Condition = Track->ConditionContainer.Condition;
 
 			TrackEntityProvider->PopulateEvaluationField(Params.LocalClampRange, MetaData, &FieldBuilder);
 		}
@@ -1473,6 +1475,8 @@ void UMovieSceneCompiledDataManager::GatherTrack(const FMovieSceneBinding* Objec
 				MetaData.Flags      = Entry.Flags;
 				MetaData.bEvaluateInSequencePreRoll  = Track->EvalOptions.bEvaluateInPreroll;
 				MetaData.bEvaluateInSequencePostRoll = Track->EvalOptions.bEvaluateInPostroll;
+				
+				MetaData.Condition = MovieSceneHelpers::GetSequenceCondition(Track, Entry.Section);
 
 				if (!EntityProvider->PopulateEvaluationField(EffectiveRange, MetaData, &FieldBuilder))
 				{

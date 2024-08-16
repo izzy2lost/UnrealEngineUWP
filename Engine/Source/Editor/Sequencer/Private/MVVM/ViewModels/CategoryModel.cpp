@@ -50,7 +50,7 @@ bool FCategoryModel::IsAnimated() const
 {
 	for (TSharedPtr<FChannelModel> ChannelModel : GetDescendantsOfType<FChannelModel>())
 	{
-		if (ChannelModel->IsAnimated())
+		if (ChannelModel.IsValid() && ChannelModel->IsAnimated())
 		{
 			return true;
 		}

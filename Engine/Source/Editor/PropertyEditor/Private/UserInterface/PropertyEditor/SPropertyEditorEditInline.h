@@ -10,6 +10,7 @@
 #include "Presentation/PropertyEditor/PropertyEditor.h"
 #include "UserInterface/PropertyEditor/PropertyEditorConstants.h"
 #include "Widgets/Input/SComboButton.h"
+#include "ClassViewerModule.h"
 
 class SPropertyEditorEditInline : public SCompoundWidget
 {
@@ -28,6 +29,23 @@ public:
 
 	void GetDesiredWidth( float& OutMinDesiredWidth, float& OutMaxDesiredWidth );
 
+	/**
+	* Generates a class picker with a filter to show only classes allowed to be selected.
+	*
+	* @param PropertyHandle			The Property Handle for the instanced UObject whose class is being picked
+	* @param OnPicked				The callback to fire when a class is picked.
+	* 
+	* @return The Class Picker widget.
+	*/
+	static TSharedRef<SWidget> GenerateClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter);
+
+	/**
+	 * Callback function from the Class Picker for when a Class is picked.
+	 *
+	 * @param InClass			The class picked in the Class Picker
+	 * @param PropertyHandle	The Property Handle for the instanced UObject whose class is being picked
+	 */
+	static void OnClassPicked(UClass* InClass, TSharedRef<IPropertyHandle> PropertyHandle, EPropertyValueSetFlags::Type Flags=EPropertyValueSetFlags::DefaultFlags);
 
 private:
 	/**
@@ -49,30 +67,10 @@ private:
 	 */
 	const FSlateBrush* GetDisplayValueIcon() const;
 
-	/**
-	 * Wrapper method for determining whether a class is valid for use by this property item input proxy.
-	 *
-	 * @param	InItem			the property window item that contains this proxy.
-	 * @param	CheckClass		the class to verify
-	 * @param	bAllowAbstract	true if abstract classes are allowed
-	 *
-	 * @return	true if CheckClass is valid to be used by this input proxy
-	 */
-	bool IsClassAllowed( UClass* CheckClass, bool bAllowAbstract ) const;
-	
-        /** 
-	 * Generates a class picker with a filter to show only classes allowed to be selected. 
-	 *
-	 * @return The Class Picker widget.
-	 */
-	TSharedRef<SWidget> GenerateClassPicker();
-
-	/** 
-	 * Callback function from the Class Picker for when a Class is picked.
-	 *
-	 * @param InClass			The class picked in the Class Picker
-	 */
-	void OnClassPicked(UClass* InClass);
+	/*
+	* Internal delegate called when a class is picked, used to close the combo box after a class is picked 
+	*/
+	void OnClassPickedInternal(UClass* InClass, TSharedRef<IPropertyHandle> PropertyHandle);
 
 
 private:

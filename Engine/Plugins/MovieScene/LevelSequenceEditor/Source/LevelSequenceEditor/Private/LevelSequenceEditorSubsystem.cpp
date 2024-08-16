@@ -68,6 +68,8 @@
 #include "IPropertyTypeCustomization.h"
 #include "IPropertyUtilities.h"
 #include "MovieSceneDynamicBindingCustomization.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(LevelSequenceEditorSubsystem)
 
@@ -588,6 +590,12 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 				AddBindingPropertiesMenu(MenuBuilder);
 			}));
 
+	SidebarMenuExtender->AddMenuExtension(TEXT("TrackRowMetadata"), EExtensionHook::First, CommandList,
+		FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder)
+			{
+				AddTrackRowMetadataMenu(MenuBuilder);
+			}));
+
 	SequencerModule.GetSidebarExtensibilityManager()->AddExtender(SidebarMenuExtender);
 }
 
@@ -602,6 +610,7 @@ void ULevelSequenceEditorSubsystem::Deinitialize()
 	}
 
 	BindingPropertyInfoList = nullptr;
+	TrackRowMetadataHelperList.Empty();
 	if (FSlateApplication::IsInitialized())
 	{
 		FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
@@ -620,6 +629,7 @@ void ULevelSequenceEditorSubsystem::OnSequencerCreated(TSharedRef<ISequencer> In
 void ULevelSequenceEditorSubsystem::OnSequencerClosed(TSharedRef<ISequencer> InSequencer)
 {
 	BindingPropertyInfoList = nullptr;
+	TrackRowMetadataHelperList.Empty();
 }
 
 void ULevelSequenceEditorSubsystem::AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid)
@@ -647,7 +657,25 @@ void ULevelSequenceEditorSubsystem::AddBindingDetailCustomizations(TSharedRef<ID
 	}
 }
 
-void ULevelSequenceEditorSubsystem::OnMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView)
+void ULevelSequenceEditorSubsystem::AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer)
+{
+	if (ActiveSequencer.IsValid())
+	{
+		UMovieSceneSequence* Sequence = ActiveSequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* MovieScene = Sequence ? Sequence->GetMovieScene() : nullptr;
+		if (MovieScene)
+		{
+			// Although we normally customize this type, we need to do it instanced here to pass in the sequence information, as it won't be part of an outer sequence UObject
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+				return FMovieSceneConditionCustomization::MakeInstance(Sequence); }));
+
+			DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+				return FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance(MovieScene); }));
+		}
+	}
+}
+
+void ULevelSequenceEditorSubsystem::OnBindingPropertyMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView)
 {
 	TSharedPtr<SWidget> ContentWidget = Menu->GetContent();
 	TSharedPtr<SWidget> ParentWidget = DetailsView;
@@ -657,6 +685,23 @@ void ULevelSequenceEditorSubsystem::OnMenuBeingDestroyed(const TSharedRef<IMenu>
 		{
 			// Binding Properties Menu has closed, clear the binding property list
 			BindingPropertyInfoList = nullptr;
+			FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
+			break;
+		}
+		ParentWidget = ParentWidget->GetParentWidget();
+	}
+}
+
+void ULevelSequenceEditorSubsystem::OnTrackRowMetadataMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView)
+{
+	TSharedPtr<SWidget> ContentWidget = Menu->GetContent();
+	TSharedPtr<SWidget> ParentWidget = DetailsView;
+	while (ParentWidget)
+	{
+		if (ParentWidget == ContentWidget)
+		{
+			// Track Row Metadata menu has closed, clear the metadata helper list
+			TrackRowMetadataHelperList.Empty();
 			FSlateApplication::Get().OnMenuBeingDestroyed().RemoveAll(this);
 			break;
 		}
@@ -2470,7 +2515,7 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 
 		if (FSlateApplication::IsInitialized())
 		{
-			FSlateApplication::Get().OnMenuBeingDestroyed().AddUObject(this, &ULevelSequenceEditorSubsystem::OnMenuBeingDestroyed, DetailsView);
+			FSlateApplication::Get().OnMenuBeingDestroyed().AddUObject(this, &ULevelSequenceEditorSubsystem::OnBindingPropertyMenuBeingDestroyed, DetailsView);
 		}
 		MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true);
 	}
@@ -2479,6 +2524,63 @@ void ULevelSequenceEditorSubsystem::AddBindingPropertiesMenu(FMenuBuilder& MenuB
 void ULevelSequenceEditorSubsystem::AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder)
 {
 	AddBindingPropertiesMenu(MenuBuilder);
+}
+
+void ULevelSequenceEditorSubsystem::AddTrackRowMetadataMenu(FMenuBuilder& MenuBuilder)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	if (SelectedTrackRows.IsEmpty())
+	{
+		return;
+	}
+
+	NotifyHook = FBindingPropertiesNotifyHook(Sequence);
+
+	// Set up a details panel for the list of selected track row metadata
+	FDetailsViewArgs DetailsViewArgs;
+	{
+		DetailsViewArgs.bAllowSearch = false;
+		DetailsViewArgs.bCustomFilterAreaLocation = false;
+		DetailsViewArgs.bCustomNameAreaLocation = false;
+		DetailsViewArgs.bHideSelectionTip = true;
+		DetailsViewArgs.bLockable = false;
+		DetailsViewArgs.bSearchInitialKeyFocus = true;
+		DetailsViewArgs.bUpdatesFromSelection = false;
+		DetailsViewArgs.bShowOptions = false;
+		DetailsViewArgs.bShowModifiedPropertiesOption = false;
+		DetailsViewArgs.bShowScrollBar = false;
+		DetailsViewArgs.bAllowMultipleTopLevelObjects = false;
+		DetailsViewArgs.NotifyHook = &NotifyHook;
+	}
+
+	TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
+
+	AddTrackRowMetadataCustomizations(DetailsView, Sequencer);
+
+	RefreshTrackRowMetadataDetails(&DetailsView.Get());
+	DetailsView->OnFinishedChangingProperties().AddUObject(this, &ULevelSequenceEditorSubsystem::OnFinishedChangingTrackRowMetadata, DetailsView);
+
+	if (FSlateApplication::IsInitialized())
+	{
+		FSlateApplication::Get().OnMenuBeingDestroyed().AddUObject(this, &ULevelSequenceEditorSubsystem::OnTrackRowMetadataMenuBeingDestroyed, DetailsView);
+	}
+	MenuBuilder.AddWidget(DetailsView, FText::GetEmpty(), true);
 }
 
 void ULevelSequenceEditorSubsystem::FBindingPropertiesNotifyHook::NotifyPreChange(FProperty* PropertyAboutToChange)
@@ -2631,6 +2733,66 @@ void ULevelSequenceEditorSubsystem::OnFinishedChangingLocators(const FPropertyCh
 		// Force the struct details view to refresh
 		DetailsView->InvalidateCachedState();
 	}
+}
+
+void ULevelSequenceEditorSubsystem::OnFinishedChangingTrackRowMetadata(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView)
+{
+	const FScopedTransaction Transaction(LOCTEXT("ChangeTrackRowMetadata", "Change Track Row Metadata"));
+
+	if (TrackRowMetadataHelperList.IsEmpty())
+	{
+		return;
+	}
+
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	UMovieScene* MovieScene = Sequence->GetMovieScene();
+	if (!MovieScene)
+	{
+		return;
+	}
+
+	MovieScene->Modify();
+	Sequence->Modify();
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	ensure(SelectedTrackRows.Num() == TrackRowMetadataHelperList.Num());
+	
+	// Copy over the new metadata, but duplicate any condition trees over to new ownership in the sequence
+	for (int32 Index = 0; Index < TrackRowMetadataHelperList.Num(); ++Index)
+	{
+		UMovieSceneTrack* Track = SelectedTrackRows[Index].Key;
+		UMovieSceneTrackRowMetadataHelper* Helper = TrackRowMetadataHelperList[Index];
+		if (Track && Helper)
+		{
+			FMovieSceneTrackRowMetadata& Metadata = Track->FindOrAddTrackRowMetadata(SelectedTrackRows[Index].Value);
+			Metadata = Helper->TrackRowMetadata;
+			if (Helper->TrackRowMetadata.ConditionContainer.Condition)
+			{
+				Metadata.ConditionContainer.Condition = Cast<UMovieSceneCondition>(StaticDuplicateObject(Helper->TrackRowMetadata.ConditionContainer.Condition, MovieScene));
+			}
+		}
+	}
+
+	Sequencer->NotifyMovieSceneDataChanged(EMovieSceneDataChangeType::MovieSceneStructureItemsChanged);
+
+	// Re-copy the metadata info back into the struct details
+	RefreshTrackRowMetadataDetails(&DetailsView.Get());
+
+	// Force the struct details view to refresh
+	DetailsView->InvalidateCachedState();
 }
 
 void ULevelSequenceEditorSubsystem::GetRebindComponentNames(TArray<FName>& OutComponentNames)
@@ -2880,6 +3042,53 @@ void ULevelSequenceEditorSubsystem::RefreshBindingDetails(IDetailsView* DetailsV
 
 		DetailsView->SetObject(BindingPropertyInfoList.Get(), true);
 	}
+}
+
+void ULevelSequenceEditorSubsystem::RefreshTrackRowMetadataDetails(IDetailsView* DetailsView)
+{
+	if (DetailsView == nullptr)
+	{
+		return;
+	}
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+
+	TArray<TPair<UMovieSceneTrack*, int32>> SelectedTrackRows;
+
+	Sequencer->GetSelectedTrackRows(SelectedTrackRows);
+
+	TrackRowMetadataHelperList.Empty();
+
+	// Copy over the metadata, but duplicate any condition trees over to new ownership
+	for (int32 Index = 0; Index < SelectedTrackRows.Num(); ++Index)
+	{
+		UMovieSceneTrack* Track = SelectedTrackRows[Index].Key;
+		UMovieSceneTrackRowMetadataHelper* Helper = TrackRowMetadataHelperList.Add_GetRef(NewObject<UMovieSceneTrackRowMetadataHelper>(this));
+		if (Track && Helper)
+		{
+			if (const FMovieSceneTrackRowMetadata* Metadata = Track->FindTrackRowMetadata(SelectedTrackRows[Index].Value))
+			{
+				Helper->TrackRowMetadata = *Metadata;
+				if (Metadata->ConditionContainer.Condition)
+				{
+					Helper->TrackRowMetadata.ConditionContainer.Condition = Cast<UMovieSceneCondition>(StaticDuplicateObject(Metadata->ConditionContainer.Condition, this));
+				}
+			}
+		}
+	}
+	TArray<TWeakObjectPtr<UObject>> WeakHelpers;
+	Algo::Transform(TrackRowMetadataHelperList, WeakHelpers, [](TObjectPtr<UMovieSceneTrackRowMetadataHelper> HelperPtr) { return HelperPtr;});
+	DetailsView->SetObjects(WeakHelpers, true);
 }
 
 #undef LOCTEXT_NAMESPACE

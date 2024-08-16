@@ -299,6 +299,28 @@ bool UMovieSceneTrack::FixRowIndices()
 	return bFixesMade;
 }
 
+void UMovieSceneTrack::OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices)
+{
+	// Patch track row metadata
+	
+	TMap<int32, FMovieSceneTrackRowMetadata> NewTrackRowMetadata;
+
+	for (int32 NewRowIndex = 0; NewRowIndex <= GetMaxRowIndex(); ++NewRowIndex)
+	{
+		int32 IndexToCopy = NewRowIndex;
+		if (const int32* OldRowIndex = NewToOldRowIndices.Find(NewRowIndex))
+		{
+			IndexToCopy = *OldRowIndex;
+		}
+
+		if (const FMovieSceneTrackRowMetadata* Metadata = TrackRowMetadata.Find(IndexToCopy))
+		{
+			NewTrackRowMetadata.Add(NewRowIndex, *Metadata);
+		}
+	}
+	TrackRowMetadata = NewTrackRowMetadata;
+}
+
 #if WITH_EDITOR
 
 ECookOptimizationFlags UMovieSceneTrack::GetCookOptimizationFlags() const
@@ -329,6 +351,32 @@ bool UMovieSceneTrack::RemoveMutedTracksOnCook()
 	return CVarMovieSceneRemoveMutedTracksOnCook->GetInt() != 0;
 }
 
+TArray<UMovieSceneCondition*> UMovieSceneTrack::GetAllConditions()
+{
+	TArray<UMovieSceneCondition*> Conditions;
+	if (ConditionContainer.Condition)
+	{
+		Conditions.Add(ConditionContainer.Condition);
+	}
+
+	for (TPair<int32, FMovieSceneTrackRowMetadata>& TrackRowMetadataPair : TrackRowMetadata)
+	{
+		if (TrackRowMetadataPair.Value.ConditionContainer.Condition)
+		{
+			Conditions.Add(TrackRowMetadataPair.Value.ConditionContainer.Condition);
+		}
+	}
+
+	for (UMovieSceneSection* Section : GetAllSections())
+	{
+		if (Section->ConditionContainer.Condition)
+		{
+			Conditions.Add(Section->ConditionContainer.Condition);
+		}
+	}
+	return Conditions;
+}
+
 #endif
 
 bool UMovieSceneTrack::IsRowEvalDisabled(int32 RowIndex) const
@@ -346,6 +394,21 @@ void UMovieSceneTrack::SetRowEvalDisabled(bool bEvalDisabled, int32 RowIndex)
 	{
 		RowsDisabled.Remove(RowIndex);
 	}
+}
+
+const FMovieSceneTrackRowMetadata* UMovieSceneTrack::FindTrackRowMetadata(int32 RowIndex) const
+{
+	return TrackRowMetadata.Find(RowIndex);
+}
+
+FMovieSceneTrackRowMetadata* UMovieSceneTrack::FindTrackRowMetadata(int32 RowIndex) 
+{
+	return TrackRowMetadata.Find(RowIndex);
+}
+
+FMovieSceneTrackRowMetadata& UMovieSceneTrack::FindOrAddTrackRowMetadata(int32 RowIndex)
+{
+	return TrackRowMetadata.FindOrAdd(RowIndex);
 }
 
 FGuid UMovieSceneTrack::FindObjectBindingGuid() const

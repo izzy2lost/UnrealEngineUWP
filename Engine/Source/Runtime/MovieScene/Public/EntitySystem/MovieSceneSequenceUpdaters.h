@@ -11,6 +11,8 @@
 
 class UMovieSceneCompiledDataManager;
 class UMovieSceneEntitySystemLinker;
+class UMovieSceneCondition;
+class UMovieSceneSequence;
 struct FFrameTime;
 struct FMovieSceneCompiledDataID;
 struct FMovieSceneContext;
@@ -151,6 +153,11 @@ public:
 	 * Find a sub sequence instance from its ID (if it exists)
 	 */
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const = 0;
+
+	/*
+	* Evaluate a condition on this sequence instance hierarchy, utilizing any cache as relevant.
+	*/
+	virtual bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const = 0;
 
 public:
 

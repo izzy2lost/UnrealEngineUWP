@@ -70,6 +70,7 @@
 #include "MovieSceneDynamicBindingCustomization.h"
 #include "MovieSceneEventCustomization.h"
 #include "MovieSceneTimeWarpVariantCustomization.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
 #include "SequencerClipboardReconciler.h"
 #include "ClipboardTypes.h"
 #include "ISettingsModule.h"
@@ -126,6 +127,10 @@
 #include "EntitySystem/MovieSceneSharedPlaybackState.h"
 #include "MovieSceneDynamicBindingUtils.h"
 #include "Kismet2/KismetEditorUtilities.h"
+
+#include "Conditions/MovieSceneDirectorBlueprintCondition.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionUtils.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
 
 #define LOCTEXT_NAMESPACE "FMovieSceneToolsModule"
 
@@ -212,9 +217,12 @@ void FMovieSceneToolsModule::StartupModule()
 		PropertyModule.RegisterCustomClassLayout("MovieSceneDoublePerlinNoiseChannelContainer", FOnGetDetailCustomizationInstance::CreateStatic(&FMovieSceneDoublePerlinNoiseChannelDetailsCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneObjectBindingID", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<FMovieSceneObjectBindingIDCustomization>));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneDynamicBinding", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneEvent", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneEventCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneCVarOverrides", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&UE::MovieScene::FCVarOverridesPropertyTypeCustomization::MakeInstance));
 		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneTimeWarpVariant", FOnGetPropertyTypeCustomizationInstance::CreateLambda(&MakeShared<UE::MovieScene::FMovieSceneTimeWarpVariantCustomization>));
+		PropertyModule.RegisterCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneConditionCustomization::MakeInstance));
+
 
 		SequencerModule.RegisterChannelInterface<FMovieSceneBoolChannel>();
 		SequencerModule.RegisterChannelInterface<FMovieSceneByteChannel>();
@@ -263,8 +271,11 @@ void FMovieSceneToolsModule::StartupModule()
 	UMovieSceneEventSectionBase::RemoveForCookEvent.BindStatic(RemoveForCookEventSection);
 	UMovieScene::IsTrackClassAllowedEvent.BindStatic(IsTrackClassAllowed);
 	UMovieScene::IsCustomBindingClassAllowedEvent.BindStatic(IsCustomBindingClassAllowed);
+	UMovieScene::IsConditionClassAllowedEvent.BindStatic(IsConditionClassAllowed);
 	ULevelSequence::PostDuplicateEvent.BindStatic(PostDuplicateEvent);
-	FixupDynamicBindingsHandle = ULevelSequence::FixupDynamicBindingsEvent.AddStatic(FixupDynamicBindingsEvent);
+	FixupDynamicBindingsHandle = ULevelSequence::FixupDynamicBindingsEvent.AddStatic(FixupDynamicBindingsEvent); 
+	FixupDirectorBlueprintConditionPayloadParameterNameHandle = UMovieScene::FixupDirectorBlueprintConditionPayloadParameterNameEvent.AddStatic(FixupPayloadParameterNameForDirectorBlueprintCondition);
+
 
 
 	auto OnObjectsReplaced = [](const TMap<UObject*, UObject*>& ReplacedObjects)
@@ -303,8 +314,10 @@ void FMovieSceneToolsModule::ShutdownModule()
 	UMovieSceneEventSectionBase::RemoveForCookEvent = UMovieSceneEventSectionBase::FRemoveForCookEvent();
 	UMovieScene::IsTrackClassAllowedEvent = UMovieScene::FIsTrackClassAllowedEvent();
 	UMovieScene::IsCustomBindingClassAllowedEvent = UMovieScene::FIsCustomBindingClassAllowedEvent();
+	UMovieScene::IsConditionClassAllowedEvent = UMovieScene::FIsConditionClassAllowedEvent();
 	ULevelSequence::PostDuplicateEvent = ULevelSequence::FPostDuplicateEvent();
 	ULevelSequence::FixupDynamicBindingsEvent.Remove(FixupDynamicBindingsHandle);
+	UMovieScene::FixupDirectorBlueprintConditionPayloadParameterNameEvent.Remove(FixupDirectorBlueprintConditionPayloadParameterNameHandle);
 
 	if (ICurveEditorModule* CurveEditorModule = FModuleManager::GetModulePtr<ICurveEditorModule>("CurveEditor"))
 	{
@@ -382,6 +395,9 @@ void FMovieSceneToolsModule::ShutdownModule()
 		PropertyModule.UnregisterCustomPropertyTypeLayout("EAlphaBlendOption");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneObjectBindingID");
 		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneEvent");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDynamicBinding");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData");
+		PropertyModule.UnregisterCustomPropertyTypeLayout("MovieSceneConditionContainer");
 	}
 
 	FEditorModeRegistry::Get().UnregisterMode(FSkeletalAnimationTrackEditMode::ModeName);
@@ -570,7 +586,7 @@ bool FMovieSceneToolsModule::UpgradeLegacyEventEndpointForSection(UMovieSceneEve
 	return true;
 }
 
-bool IsMovieSceneClassAllowed(UClass* InClass)
+bool IsMovieSceneClassAllowed(const UClass* InClass)
 {
 	if (!InClass)
 	{
@@ -596,6 +612,15 @@ bool FMovieSceneToolsModule::IsTrackClassAllowed(UClass* InClass)
 }
 
 bool FMovieSceneToolsModule::IsCustomBindingClassAllowed(UClass* InClass)
+{
+	// For now this has the same implementation as IsTrackClassAllowed, but has been kept a separate function and event in the case we want
+	// different behavior here.
+
+	return IsMovieSceneClassAllowed(InClass);
+}
+
+
+bool FMovieSceneToolsModule::IsConditionClassAllowed(const UClass* InClass)
 {
 	// For now this has the same implementation as IsTrackClassAllowed, but has been kept a separate function and event in the case we want
 	// different behavior here.
@@ -666,6 +691,27 @@ void FMovieSceneToolsModule::FixupPayloadParameterNameForDynamicBinding(UMovieSc
 			}
 		}
 	}
+}
+
+void FMovieSceneToolsModule::FixupPayloadParameterNameForDirectorBlueprintCondition(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName)
+{
+	using namespace UE::MovieScene;
+
+	check(MovieScene);
+
+	auto FixupPayloadParameterName = [InNode, OldPinName, NewPinName](FMovieSceneDirectorBlueprintConditionData& DirectorBlueprintConditionData)
+	{
+		if (DirectorBlueprintConditionData.WeakEndpoint.Get() == InNode)
+		{
+			if (FMovieSceneDirectorBlueprintConditionPayloadVariable* Variable = DirectorBlueprintConditionData.PayloadVariables.Find(OldPinName))
+			{
+				DirectorBlueprintConditionData.PayloadVariables.Add(NewPinName, MoveTemp(*Variable));
+				DirectorBlueprintConditionData.PayloadVariables.Remove(OldPinName);
+			}
+		}
+	};
+
+	FMovieSceneDirectorBlueprintConditionUtils::IterateDirectorBlueprintConditions(MovieScene, FixupPayloadParameterName);
 }
 
 void FMovieSceneToolsModule::RegisterClipboardConversions()

@@ -32,6 +32,8 @@
 #include "SequencerSelectedKey.h"
 #include "SequencerUtilities.h"
 #include "Styling/CoreStyle.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
 
 void SequencerHelpers::GetAllChannels(TSharedPtr<FViewModel> DataModel, TSet<TSharedPtr<UE::Sequencer::FChannelModel>>& Channels)
 {
@@ -350,7 +352,8 @@ void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSe
 			return;
 		}
 
-		const TWeakObjectPtr<UMovieScene> CurrentScene = Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene();
+		UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+		const TWeakObjectPtr<UMovieScene> CurrentScene = Sequence->GetMovieScene();
 		const TWeakPtr<INumericTypeInterface<double>> NumericTypeInterfafce = Sequencer->GetNumericTypeInterface();
 
 		TSharedRef<SSectionDetailsNotifyHookWrapper> DetailsNotifyWrapper = SNew(SSectionDetailsNotifyHookWrapper);
@@ -370,6 +373,8 @@ void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSe
 			DetailsViewArgs.ColumnWidth = 0.45f;
 		}
 
+		// We pass the current scene to the UMovieSceneSection customization so we can get the overall bounds of the section when we change a section from infinite->bounded.
+
 		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
 		DetailsView->RegisterInstancedCustomPropertyTypeLayout("FrameNumber",
 			FOnGetPropertyTypeCustomizationInstance::CreateLambda([NumericTypeInterfafce]()
@@ -381,6 +386,12 @@ void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSe
 			{
 				return MakeShared<FMovieSceneSectionDetailsCustomization>(NumericTypeInterfafce.Pin(), CurrentScene.Get());
 			}));
+
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+		return FMovieSceneConditionCustomization::MakeInstance(Sequence); }));
+
+	DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+		return FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance(CurrentScene.Get());}));
 	
 		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda([](const FPropertyAndParent& PropertyAndParent)
 			{			
@@ -440,6 +451,94 @@ void SequencerHelpers::BuildEditSectionMenu(const TWeakPtr<FSequencer>& InWeakSe
 	else
 	{
 		BuildSection(MenuBuilder);
+	}
+}
+
+void SequencerHelpers::BuildEditTrackMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+	, const TArray<TWeakObjectPtr<>>& InWeakTracks
+	, FMenuBuilder& MenuBuilder
+	, const bool bInSubMenu)
+{
+	using namespace UE::Sequencer;
+
+	if (InWeakTracks.Num() == 0)
+	{
+		return;
+	}
+
+	auto BuildTrack = [InWeakSequencer, InWeakTracks](FMenuBuilder& LambdaMenuBuilder)
+	{
+		const TSharedPtr<FSequencer> Sequencer = InWeakSequencer.Pin();
+		if (!Sequencer)
+		{
+			return;
+		}
+
+		TSharedRef<SSectionDetailsNotifyHookWrapper> DetailsNotifyWrapper = SNew(SSectionDetailsNotifyHookWrapper);
+		FDetailsViewArgs DetailsViewArgs;
+		{
+			DetailsViewArgs.bAllowSearch = false;
+			DetailsViewArgs.bCustomFilterAreaLocation = true;
+			DetailsViewArgs.bCustomNameAreaLocation = true;
+			DetailsViewArgs.bHideSelectionTip = true;
+			DetailsViewArgs.bLockable = false;
+			DetailsViewArgs.bSearchInitialKeyFocus = true;
+			DetailsViewArgs.bUpdatesFromSelection = false;
+			DetailsViewArgs.bShowOptions = false;
+			DetailsViewArgs.bShowModifiedPropertiesOption = false;
+			DetailsViewArgs.bShowScrollBar = false;
+			DetailsViewArgs.NotifyHook = &DetailsNotifyWrapper.Get();
+			DetailsViewArgs.ColumnWidth = 0.45f;
+		}
+
+		// We pass the current scene to the UMovieSceneSection customization so we can get the overall bounds of the section when we change a section from infinite->bounded.
+		UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+		UMovieScene* CurrentScene = Sequence->GetMovieScene();
+
+		TSharedRef<IDetailsView> DetailsView = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor").CreateDetailView(DetailsViewArgs);
+
+		DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneConditionContainer", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+			return FMovieSceneConditionCustomization::MakeInstance(Sequence); }));
+
+		DetailsView->RegisterInstancedCustomPropertyTypeLayout("MovieSceneDirectorBlueprintConditionData", FOnGetPropertyTypeCustomizationInstance::CreateLambda([=]() {
+			return FMovieSceneDirectorBlueprintConditionCustomization::MakeInstance(CurrentScene); }));
+
+		DetailsView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateLambda([](const FPropertyAndParent& PropertyAndParent)
+			{
+				return FPropertyEditorPermissionList::Get().DoesPropertyPassFilter(PropertyAndParent.Property.GetOwnerStruct(), PropertyAndParent.Property.GetFName());
+			})
+		);
+
+		Sequencer->OnInitializeDetailsPanel().Broadcast(DetailsView, Sequencer.ToSharedRef());
+		DetailsView->SetObjects(InWeakTracks);
+
+		DetailsNotifyWrapper->SetDetailsAndSequencer(DetailsView, Sequencer);
+		DetailsNotifyWrapper->SetEnabled(!Sequencer->IsReadOnly());
+
+		LambdaMenuBuilder.BeginSection(TEXT("Track"), NSLOCTEXT("Sequencer", "TrackMenuSection", "Track"));
+		{
+			LambdaMenuBuilder.AddWidget(DetailsNotifyWrapper, FText::GetEmpty(), true);
+		}
+		LambdaMenuBuilder.EndSection();
+	};
+
+	if (bInSubMenu)
+	{
+		const FText MenuLabel = InWeakTracks.Num() > 1
+			? NSLOCTEXT("Sequencer", "BatchEditTracks", "Batch Edit Tracks")
+			: NSLOCTEXT("Sequencer", "EditTrack", "Edit Track");
+
+		MenuBuilder.AddSubMenu(
+			MenuLabel,
+			FText(),
+			FNewMenuDelegate::CreateLambda([BuildTrack](FMenuBuilder& SubMenuBuilder)
+				{
+					BuildTrack(SubMenuBuilder);
+				}));
+	}
+	else
+	{
+		BuildTrack(MenuBuilder);
 	}
 }
 

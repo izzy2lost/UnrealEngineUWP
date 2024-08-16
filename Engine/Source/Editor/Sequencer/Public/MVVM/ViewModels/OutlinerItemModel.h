@@ -21,6 +21,7 @@ class UMovieSceneSequence;
 class UMovieSceneTrack;
 class FBoolProperty;
 class FSequencer;
+class IDetailsView;
 
 namespace UE
 {
@@ -90,6 +91,7 @@ protected:
 	virtual void BuildOrganizeContextMenu(FMenuBuilder& MenuBuilder);
 	virtual void BuildDisplayOptionsMenu(FMenuBuilder& MenuBuilder);
 	virtual void BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder, const TArray<UMovieSceneTrack*>& InTracks);
+	virtual void BuildTrackRowOptionsMenu(FMenuBuilder& MenuBuilder);
 
 private:
 
@@ -112,6 +114,7 @@ private:
 
 	TArray<UMovieSceneSection*> GetSelectedSections() const;
 	TArray<UMovieSceneTrack*> GetSelectedTracks() const;
+	TArray<TPair<UMovieSceneTrack*, int32>> GetSelectedTrackRows() const;
 
 	void AddEvalOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);
 	void AddDisplayOptionsPropertyMenuItem(FMenuBuilder& InMenuBuilder, const FBoolProperty* InProperty, TFunction<bool(UMovieSceneTrack*)> InValidator = nullptr);

@@ -85,6 +85,16 @@ public:
 		, const bool bInSubMenu);
 
 	/*
+	* Build an inline menu or sub menu for editing track(s)
+	*/
+	static void BuildEditTrackMenu(const TWeakPtr<FSequencer>& InWeakSequencer
+		, const TArray<TWeakObjectPtr<>>& InWeakTracks
+		, FMenuBuilder& MenuBuilder
+		, const bool bInSubMenu);
+
+
+
+	/*
 	 * Build a menu for selection the blend algorithm
 	 */
 	static void BuildBlendingMenu(const TWeakPtr<FSequencer>& InWeakSequencer

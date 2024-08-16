@@ -591,6 +591,13 @@ public:
 
 	static MOVIESCENE_API bool IsCustomBindingClassAllowed(UClass* InClass);
 
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FIsConditionClassAllowedEvent, const UClass*);
+
+	static MOVIESCENE_API FIsConditionClassAllowedEvent IsConditionClassAllowedEvent;
+
+	static MOVIESCENE_API bool IsConditionClassAllowed(const UClass* InClass);
+
+
 	void OnDynamicBindingUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
 	{
 		FixupDynamicBindingPayloadParameterNameEvent.Broadcast(this, InNode, OldPinName, NewPinName);
@@ -599,6 +606,15 @@ public:
 	DECLARE_MULTICAST_DELEGATE_FourParams(FFixupDynamicBindingPayloadParameterNameEvent, UMovieScene*, UK2Node*, FName, FName);
 
 	static MOVIESCENE_API FFixupDynamicBindingPayloadParameterNameEvent FixupDynamicBindingPayloadParameterNameEvent;
+
+	void OnDirectorBlueprintConditionUserDefinedPinRenamed(UK2Node* InNode, FName OldPinName, FName NewPinName)
+	{
+		FixupDirectorBlueprintConditionPayloadParameterNameEvent.Broadcast(this, InNode, OldPinName, NewPinName);
+	}
+
+	DECLARE_MULTICAST_DELEGATE_FourParams(FFixupDirectorBlueprintConditionPayloadParameterNameEvent, UMovieScene*, UK2Node*, FName, FName);
+
+	static MOVIESCENE_API FFixupDirectorBlueprintConditionPayloadParameterNameEvent FixupDirectorBlueprintConditionPayloadParameterNameEvent;
 
 #endif
 
@@ -739,6 +755,14 @@ public:
 	 * @return All object bindings.
 	 */
 	const TArray<FMovieSceneBinding>& GetBindings() const
+	{
+		return ObjectBindings;
+	}
+
+	/**
+	* @return All object bindings.
+	*/
+	TArray<FMovieSceneBinding>& GetBindings()
 	{
 		return ObjectBindings;
 	}

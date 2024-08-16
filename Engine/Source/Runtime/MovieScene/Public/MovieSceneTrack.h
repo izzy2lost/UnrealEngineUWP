@@ -24,6 +24,7 @@
 #include "UObject/UObjectGlobals.h"
 #include "UObject/UnrealNames.h"
 #include "UObject/UnrealType.h"
+#include "Conditions/MovieSceneCondition.h"
 
 #if WITH_EDITOR
 #include "Styling/SlateColor.h"
@@ -37,6 +38,7 @@ struct FMovieSceneEvaluationTrack;
 struct FMovieSceneTrackRowSegmentBlender;
 struct FMovieSceneTrackSegmentBlender;
 struct IMovieSceneTemplateGenerator;
+struct FMovieSceneConditionContainer;
 template<typename> struct TMovieSceneEvaluationTree;
 
 /** Flags used to perform cook-time optimization of movie scene data */
@@ -167,6 +169,17 @@ struct FMovieSceneLabelParams
 };
 #endif
 
+/* Metadata tied to a track row. */
+USTRUCT()
+struct MOVIESCENE_API FMovieSceneTrackRowMetadata
+{
+	GENERATED_BODY()
+	
+	/* Optional dynamic conditions tied to specific track rows. */
+	UPROPERTY(EditAnywhere, Category="Track Row Metadata", meta=(ShowOnlyInnerProperties))
+	FMovieSceneConditionContainer ConditionContainer;
+};
+
 /**
  * Base class for a track in a Movie Scene
  */
@@ -192,6 +205,10 @@ public:
 	UPROPERTY(EditAnywhere, Category = "General", meta = (ShowOnlyInnerProperties))
 	FMovieSceneTrackDisplayOptions DisplayOptions;
 #endif
+
+	/** Optional dynamic condition for whether this track/any of the sections on this track evaluates at runtime. */
+	UPROPERTY(EditAnywhere, Category = "General")
+	FMovieSceneConditionContainer ConditionContainer;
 
 	/**
 	 * Gets what kind of blending is supported by this section
@@ -310,6 +327,10 @@ private:
 	UPROPERTY()
 	FMovieSceneTrackEvaluationField EvaluationField;
 
+	/* Optional extra metadata tied to specific track rows. */
+	UPROPERTY()
+	TMap<int32, FMovieSceneTrackRowMetadata> TrackRowMetadata;
+
 public:
 
 	/**
@@ -360,7 +381,7 @@ public:
 	MOVIESCENE_API bool FixRowIndices();
 
 	/** Called when row indices have been fixed up */
-	virtual void OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices) {}
+	MOVIESCENE_API virtual void OnRowIndicesChanged(const TMap<int32, int32>& NewToOldRowIndices);
 
 	/**
 	* @return Whether evaluation of this track should be disabled due to mute/solo settings
@@ -373,6 +394,21 @@ public:
 	*/
 	void SetEvalDisabled(bool bEvalDisabled) { bIsEvalDisabled = bEvalDisabled; }
 	MOVIESCENE_API void SetRowEvalDisabled(bool bEvalDisabled, int32 RowIndex);
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists.
+	*/
+	MOVIESCENE_API const FMovieSceneTrackRowMetadata* FindTrackRowMetadata(int32 RowIndex) const;
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists;
+	*/
+	MOVIESCENE_API FMovieSceneTrackRowMetadata* FindTrackRowMetadata(int32 RowIndex);
+
+	/*
+	* Returns a pointer to optional track row metadata at the given RowIndex, or nullptr if none exists;
+	*/
+	MOVIESCENE_API FMovieSceneTrackRowMetadata& FindOrAddTrackRowMetadata(int32 RowIndex);
 
 public:
 
@@ -519,6 +555,11 @@ public:
 	{
 		return bSupportsDefaultSections;
 	}
+
+	/*
+	* Returns an array of all conditions on track, track row, or section
+	*/
+	MOVIESCENE_API TArray<UMovieSceneCondition*> GetAllConditions();
 
 protected:
 

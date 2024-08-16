@@ -726,6 +726,8 @@ void FSystemInterrogator::ImportTrack(UMovieSceneTrack* Track, const FGuid& Obje
 		MetaData.bEvaluateInSequencePreRoll  = Track->EvalOptions.bEvaluateInPreroll;
 		MetaData.bEvaluateInSequencePostRoll = Track->EvalOptions.bEvaluateInPostroll;
 
+		MetaData.Condition = MovieSceneHelpers::GetSequenceCondition(Track, Entry.Section);
+
 		if (!EntityProvider->PopulateEvaluationField(Entry.Range, MetaData, &FieldBuilder))
 		{
 			const int32 EntityIndex   = FieldBuilder.FindOrAddEntity(Entry.Section, 0);

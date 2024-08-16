@@ -37,6 +37,9 @@ enum class EAutoCreatePayload : uint8
 };
 ENUM_CLASS_FLAGS(EAutoCreatePayload)
 
+DECLARE_DELEGATE_TwoParams(FOnActionSelected, const TArray< TSharedPtr<FEdGraphSchemaAction> >&, ESelectInfo::Type);
+DECLARE_DELEGATE_FourParams(FOnQuickBindActionSelected, const TArray<TSharedPtr<FEdGraphSchemaAction>>&, ESelectInfo::Type, UBlueprint*, FMovieSceneDirectorBlueprintEndpointDefinition);
+
 /**
  * Base class for details view customizations that operate on sequence director blueprint endpoints.
  */
@@ -47,6 +50,27 @@ public:
 	// IPropertyTypeCustomization interface
 	virtual void CustomizeHeader(TSharedRef<IPropertyHandle> InPropertyHandle, FDetailWidgetRow& HeaderRow, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
+
+
+	// These functions exposed below so this customization can act as a helper to another
+
+	/**
+	 * Creates a single new endpoint represented by this property handle.
+	 */
+	void CreateEndpoint();
+
+	/**
+	 * Generate the content of the quick bind sub-menu dropdown (shown if the endpoint is not already bound)
+	 */
+	void PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence, FOnQuickBindActionSelected InOnQuickBindActionSelected);
+
+	/*
+	* Called when a quick bind action has been selected
+	*/
+	void HandleQuickBindActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedAction, ESelectInfo::Type InSelectionType, UBlueprint* Blueprint, FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition);
+
+	/* Set the property handle to use for customization. Used when using the customization class as a helper. */
+	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle) { PropertyHandle = InPropertyHandle;}
 
 protected:
 
@@ -179,10 +203,6 @@ protected:
 	 */
 	void ClearEndpoint();
 
-	/**
-	 * Creates a single new endpoint represented by this property handle.
-	 */
-	void CreateEndpoint();
 
 	/**
 	 * Find the endpoint node in the director blueprint.
@@ -203,11 +223,6 @@ protected:
 	 * Generate the content of the main combo button menu dropdown
 	 */
 	TSharedRef<SWidget> GetMenuContent();
-
-	/**
-	 * Generate the content of the quick bind sub-menu dropdown (shown if the endpoint is not already bound)
-	 */
-	void PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence);
 
 	/**
 	 * Generate the content of the rebind sub-menu dropdown (shown if the endpoint is already bound)
@@ -264,6 +279,13 @@ protected:
 	 */
 	void IterateEndpoints(TFunctionRef<bool(UK2Node*)> Callback) const;
 
+
+	/** The property handle we're reflecting */
+	TSharedPtr<IPropertyHandle> PropertyHandle;
+
+	/** Property utilities for the property we're editing */
+	TSharedPtr<IPropertyUtilities> PropertyUtilities;
+
 private:
 
 	void CollectQuickBindActions(FGraphActionListBuilderBase& OutAllActions, UBlueprint* Blueprint, FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition);
@@ -277,8 +299,7 @@ private:
 	const FSlateBrush* GetEndpointIcon() const;
 
 	void HandleRebindActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedAction, ESelectInfo::Type InSelectionType, UBlueprint* Blueprint, FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition);
-	void HandleQuickBindActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedAction, ESelectInfo::Type InSelectionType, UBlueprint* Blueprint, FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition);
-
+	
 	void OnBlueprintCompiled(UBlueprint*);
 
 	ECheckBoxState GetCallInEditorCheckState() const;
@@ -294,10 +315,4 @@ private:
 
 	/** A cache of the common endpoint that is only used when the menu is open to avoid re-computing it every frame. */
 	TWeakObjectPtr<UK2Node_FunctionEntry> CachedCommonEndpoint;
-
-	/** The property handle we're reflecting */
-	TSharedPtr<IPropertyHandle> PropertyHandle;
-
-	/** Property utilities for the property we're editing */
-	TSharedPtr<IPropertyUtilities> PropertyUtilities;
 };

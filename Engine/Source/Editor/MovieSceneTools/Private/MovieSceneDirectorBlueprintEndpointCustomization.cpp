@@ -59,6 +59,7 @@ TFunction<bool(const FBlueprintActionFilter& Filter, FBlueprintActionInfo& Bluep
 
 	FStructProperty* ReturnStructProperty = CastField<FStructProperty>(ReturnProperty);
 	FObjectPropertyBase* ReturnObjectProperty = CastField<FObjectPropertyBase>(ReturnProperty);
+	FBoolProperty* ReturnBoolProperty = CastField<FBoolProperty>(ReturnProperty);
 	auto RejectAnyIncompatibleReturnValues = [=](const FBlueprintActionFilter& Filter, FBlueprintActionInfo& BlueprintAction)
 	{
 		const UFunction* Function = BlueprintAction.GetAssociatedFunction();
@@ -70,6 +71,10 @@ TFunction<bool(const FBlueprintActionFilter& Filter, FBlueprintActionInfo& Bluep
 				return false;
 			}
 			else if (ReturnObjectProperty && ReturnObjectProperty->PropertyClass == CastField<FObjectPropertyBase>(FunctionReturnProperty)->PropertyClass)
+			{
+				return false;
+			}
+			else if (ReturnBoolProperty)
 			{
 				return false;
 			}
@@ -633,7 +638,7 @@ TSharedRef<SWidget> FMovieSceneDirectorBlueprintEndpointCustomization::GetMenuCo
 		MenuBuilder.AddSubMenu(
 			LOCTEXT("CreateQuickBinding_Text",    "Quick Bind"),
 			LOCTEXT("CreateQuickBinding_Tooltip", "Shows a list of functions on this object binding that can be bound directly to this endpoint."),
-			FNewMenuDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu, Sequence),
+			FNewMenuDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu, Sequence, FOnQuickBindActionSelected::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSelected)),
 			false /* bInOpenSubMenuOnClick */,
 			FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.CreateQuickBinding"),
 			false /* bInShouldWindowAfterMenuSelection */
@@ -813,7 +818,7 @@ FText FMovieSceneDirectorBlueprintEndpointCustomization::GetWellKnownParameterPi
 	return FText::FromName(CommonPinName);
 }
 
-void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence)
+void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, UMovieSceneSequence* Sequence, FOnQuickBindActionSelected InOnQuickBindActionSelected)
 {
 	FMovieSceneSequenceEditor* SequenceEditor = FMovieSceneSequenceEditor::Find(Sequence);
 	if (!SequenceEditor)
@@ -832,7 +837,11 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::PopulateQuickBindSubMenu
 	TSharedRef<SGraphActionMenu> ActionMenu = SNew(SGraphActionMenu)
 		.OnCreateCustomRowExpander_Static([](const FCustomExpanderData& Data) -> TSharedRef<SExpanderArrow> { return SNew(SExpanderArrow, Data.TableRow); })
 		.OnCollectAllActions(this, &FMovieSceneDirectorBlueprintEndpointCustomization::CollectQuickBindActions, Blueprint, EndpointDefinition)
-		.OnActionSelected(this, &FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSelected, Blueprint, EndpointDefinition);
+		.OnActionSelected(FOnActionSelected::CreateLambda([this, Blueprint, EndpointDefinition, InOnQuickBindActionSelected](const TArray< TSharedPtr<FEdGraphSchemaAction> >& Actions, ESelectInfo::Type Type)
+			{
+				// We call the passed in delegate first as we may need to set something up before running the action
+				InOnQuickBindActionSelected.ExecuteIfBound(Actions, Type, Blueprint, EndpointDefinition);
+			}));
 
 	ActionMenu->RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateLambda(
 		[FilterTextBox = ActionMenu->GetFilterTextBox()](double, float)

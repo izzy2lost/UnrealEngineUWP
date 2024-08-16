@@ -642,6 +642,9 @@ public:
 	/** Gets the currently selected tracks. */
 	virtual void GetSelectedTracks(TArray<UMovieSceneTrack*>& OutSelectedTracks) = 0;
 
+	/** Gets the currently selected track rows */
+	virtual void GetSelectedTrackRows(TArray<TPair<UMovieSceneTrack*, int32>>& OutSelectedTrackRows) = 0;
+
 	/** Gets the currently selected sections. */
 	virtual void GetSelectedSections(TArray<UMovieSceneSection*>& OutSelectedSections) = 0;
 

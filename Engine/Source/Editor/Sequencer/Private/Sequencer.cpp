@@ -7011,6 +7011,11 @@ void FSequencer::GetSelectedTracks(TArray<UMovieSceneTrack*>& OutSelectedTracks)
 	OutSelectedTracks.Append(ViewModel->GetSelection()->GetSelectedTracks().Array());
 }
 
+void FSequencer::GetSelectedTrackRows(TArray<TPair<UMovieSceneTrack*, int32>>& OutSelectedTrackRows)
+{
+	OutSelectedTrackRows.Append(ViewModel->GetSelection()->GetSelectedTrackRows().Array());
+}
+
 void FSequencer::GetSelectedSections(TArray<UMovieSceneSection*>& OutSelectedSections)
 {
 	for (TWeakObjectPtr<UMovieSceneSection> WeakSection : ViewModel->GetSelection()->GetSelectedSections())

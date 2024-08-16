@@ -20,6 +20,9 @@
 #include "Bindings/MovieSceneSpawnableBinding.h"
 #include "Evaluation/MovieSceneEvaluationState.h"
 #include "UObject/UObjectIterator.h"
+#include "EntitySystem/MovieSceneSequenceInstance.h"
+#include "EntitySystem/MovieSceneEntitySystemLinker.h"
+#include "Conditions/MovieSceneGroupCondition.h"
 
 bool MovieSceneHelpers::IsSectionKeyable(const UMovieSceneSection* Section)
 {
@@ -1040,6 +1043,74 @@ UObject* MovieSceneHelpers::GetResolutionContext(UMovieSceneSequence* Sequence, 
 		}
 	}
 	return ResolutionContext;
+}
+
+const UMovieSceneCondition* MovieSceneHelpers::GetSequenceCondition(const UMovieSceneTrack* Track, const UMovieSceneSection* Section)
+{
+	TArray<UMovieSceneCondition*, TInlineAllocator<1>> Conditions;
+
+	if (Track)
+	{
+		// Track Condition
+		if (Track->ConditionContainer.Condition)
+		{
+			Conditions.Add(Track->ConditionContainer.Condition);
+		}
+
+		// Track Row Condition
+		if (Section)
+		{
+			if (const FMovieSceneTrackRowMetadata* TrackRowMetadata = Track->FindTrackRowMetadata(Section->GetRowIndex()))
+			{
+				if (TrackRowMetadata->ConditionContainer.Condition)
+				{
+					Conditions.Add(TrackRowMetadata->ConditionContainer.Condition);
+				}
+			}
+		}
+	}
+	
+	// Section Condition
+	if (Section && Section->ConditionContainer.Condition)
+	{
+		Conditions.Add(Section->ConditionContainer.Condition);
+	}
+
+	if (Conditions.IsEmpty())
+	{
+		return nullptr;
+	}
+	else if (Conditions.Num() == 1)
+	{
+		return Conditions[0];
+	}
+	else
+	{
+		// Generate a group condition. During compilation this will get referenced by the entity metadata, otherwise this is considered a temporary and the caller
+		// is responsible for holding a reference to this condition.
+		UObject* Outer = Section ? Section->GetTypedOuter<UMovieScene>() : Track ? Track->GetTypedOuter<UMovieScene>() : nullptr;
+		check(Outer);
+		UMovieSceneGroupCondition* GroupCondition = NewObject<UMovieSceneGroupCondition>(Outer);
+		for (UMovieSceneCondition* Condition : Conditions)
+		{
+			FMovieSceneConditionContainer& ConditionContainer = GroupCondition->SubConditions.AddDefaulted_GetRef();
+			ConditionContainer.Condition = Condition;
+		}
+		return GroupCondition;
+	}
+}
+
+
+bool MovieSceneHelpers::EvaluateSequenceCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState)
+{
+	using namespace UE::MovieScene;
+	if (!Condition)
+	{
+		return true;
+	}
+
+	const FSequenceInstance& SequenceInstance = SharedPlaybackState->GetLinker()->GetInstanceRegistry()->GetInstance(SharedPlaybackState->GetRootInstanceHandle());
+	return SequenceInstance.EvaluateCondition(BindingID, SequenceID, Condition, ConditionOwnerObject);
 }
 
 MovieSceneHelpers::FMovieSceneScopedPackageDirtyGuard::FMovieSceneScopedPackageDirtyGuard(USceneComponent* InComponent)

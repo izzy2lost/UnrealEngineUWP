@@ -11,6 +11,7 @@
 #include "UniversalObjectLocator.h"
 #include "UniversalObjectLocatorResolveParams.h"
 #include "Misc/NotifyHook.h"
+#include "MovieSceneTrack.h"
 #include "LevelSequenceEditorSubsystem.generated.h"
 
 class FUICommandList;
@@ -77,6 +78,20 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Binding Properties")
 	TArray<FMovieSceneBindingPropertyInfo> Bindings;
 };
+
+
+// Helper UObject for editing optional track row metadata not in-place. A UObject instead of a UStruct because we need to support instanced sub objects (conditions)
+UCLASS(CollapseCategories)
+class LEVELSEQUENCEEDITOR_API UMovieSceneTrackRowMetadataHelper : public UObject
+{
+	GENERATED_BODY()
+
+public:
+
+	UPROPERTY(EditAnywhere, Category = "General", meta=(ShowOnlyInnerProperties))
+	FMovieSceneTrackRowMetadata TrackRowMetadata;
+};
+
 
 /**
 * ULevelSequenceEditorSubsystem
@@ -258,6 +273,9 @@ public:
 	// Refreshes the binding details when the bindings change in the menu
 	void RefreshBindingDetails(IDetailsView* DetailsView, FGuid ObjectBindingID);
 
+	// Refreshes the track row metadata details when the track row metadata changes in the menu
+	void RefreshTrackRowMetadataDetails(IDetailsView* DetailsView);
+
 private:
 	/** Used by Baking transforms*/
 	struct FBakeData
@@ -284,13 +302,18 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UMovieSceneBindingPropertyInfoList> BindingPropertyInfoList = nullptr;
+
+	UPROPERTY()
+	TArray<TObjectPtr<UMovieSceneTrackRowMetadataHelper>> TrackRowMetadataHelperList;
 	
 	FBindingPropertiesNotifyHook NotifyHook;
 
 private:
 
 	void AddBindingDetailCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer, FGuid BindingGuid);
-	void OnMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
+	void AddTrackRowMetadataCustomizations(TSharedRef<IDetailsView> DetailsView, TSharedPtr<ISequencer> ActiveSequencer);
+	void OnBindingPropertyMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
+	void OnTrackRowMetadataMenuBeingDestroyed(const TSharedRef<IMenu>& Menu, TSharedRef<IDetailsView> DetailsView);
 
 	TSharedPtr<ISequencer> GetActiveSequencer();
 	
@@ -306,10 +329,14 @@ private:
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
 	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
+
+	void AddTrackRowMetadataMenu(FMenuBuilder& MenuBuilder);
 public:
 	void AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder);
 private:
 	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID);
+
+	void OnFinishedChangingTrackRowMetadata(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView);
 
 	void GetRebindComponentNames(TArray<FName>& OutComponentNames);
 	void RebindComponentMenu(FMenuBuilder& MenuBuilder);

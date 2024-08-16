@@ -10,6 +10,7 @@
 #include "MovieSceneTransformTypes.h"
 #include "UObject/ReleaseObjectVersion.h"
 #include "UObject/FortniteMainBranchObjectVersion.h"
+#include "MovieSceneCommonHelpers.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovieSceneSequenceHierarchy)
 
@@ -92,6 +93,8 @@ FMovieSceneSubSequenceData::FMovieSceneSubSequenceData(const UMovieSceneSubSecti
 
 		PostRollRange = TRange<FFrameNumber>(PostRollStart, PostRollEnd);
 	}
+
+	Condition = MovieSceneHelpers::GetSequenceCondition(InSubSection.GetTypedOuter<UMovieSceneTrack>(), &InSubSection);
 }
 
 UMovieSceneSequence* FMovieSceneSubSequenceData::GetSequence() const

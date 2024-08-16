@@ -11,7 +11,6 @@
 #include "MVVM/ViewModels/SequencerEditorViewModel.h"
 #include "MVVM/SharedViewModelData.h"
 #include "MVVM/Selection/Selection.h"
-
 #include "CurveEditor.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "Framework/Commands/UIAction.h"
@@ -29,6 +28,13 @@
 #include "Tree/SCurveEditorTreeSelect.h"
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "SequencerCommonHelpers.h"
+#include "MVVM/ViewModels/TrackRowModel.h"
+#include "PropertyEditorModule.h"
+#include "IStructureDetailsView.h"
+#include "IStructureDataProvider.h"
+#include "Conditions/MovieSceneConditionCustomization.h"
+#include "Conditions/MovieSceneDirectorBlueprintConditionCustomization.h"
 
 #define LOCTEXT_NAMESPACE "OutlinerItemModel"
 
@@ -576,6 +582,7 @@ void FOutlinerItemModelMixin::BuildContextMenu(FMenuBuilder& MenuBuilder)
 	if (AllTracks.Num())
 	{
 		BuildTrackOptionsMenu(MenuBuilder, AllTracks);
+		BuildTrackRowOptionsMenu(MenuBuilder);
 		BuildDisplayOptionsMenu(MenuBuilder);
 	}
 }
@@ -724,6 +731,44 @@ void FOutlinerItemModelMixin::BuildTrackOptionsMenu(FMenuBuilder& MenuBuilder, c
 	MenuBuilder.EndSection();
 }
 
+void FOutlinerItemModelMixin::BuildTrackRowOptionsMenu(FMenuBuilder& MenuBuilder)
+{
+	// Don't show track row metadata if we don't allow conditions, as for now this is the only item in track row metadata
+	FViewModel* ViewModel = AsViewModel();
+	TSharedPtr<FSequenceModel> SequenceModel = ViewModel ? ViewModel->FindAncestorOfType<FSequenceModel>() : nullptr;
+
+	if (SequenceModel)
+	{
+		if (UMovieScene* MovieScene = SequenceModel->GetMovieScene())
+		{
+			if (!MovieScene->IsConditionClassAllowed(UMovieSceneCondition::StaticClass()))
+			{
+				return;	
+			}
+		}
+	}
+	
+	TArray<TPair<UMovieSceneTrack*, int32>> AllTrackRows = GetSelectedTrackRows();
+	if (AllTrackRows.IsEmpty())
+	{
+		return;
+	}
+
+	// Only show track row options for tracks that allow multiple rows
+	if (Algo::AnyOf(AllTrackRows, [](const TPair<UMovieSceneTrack*, int32> TrackRow) {
+		return TrackRow.Key && !TrackRow.Key->SupportsMultipleRows();
+		}))
+	{
+		return;
+	}
+
+	MenuBuilder.BeginSection(TEXT("TrackRowMetadata"), LOCTEXT("TrackRowMetadata", "Track Row Metadata"));
+	{
+		// Empty here, will be implemented by extension.
+	}
+	MenuBuilder.EndSection();
+}
+
 void FOutlinerItemModelMixin::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 {
 	MenuBuilder.BeginSection(TEXT("Organize"), LOCTEXT("OrganizeContextMenuSectionName", "Organize"));
@@ -731,6 +776,7 @@ void FOutlinerItemModelMixin::BuildSidebarMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.EndSection();
 
 	BuildTrackOptionsMenu(MenuBuilder, GetSelectedTracks());
+	BuildTrackRowOptionsMenu(MenuBuilder);
 	BuildDisplayOptionsMenu(MenuBuilder);
 }
 
@@ -801,6 +847,34 @@ TArray<UMovieSceneTrack*> FOutlinerItemModelMixin::GetSelectedTracks() const
 	}
 
 	return Selection->GetSelectedTracks().Array();
+}
+
+TArray<TPair<UMovieSceneTrack*, int32>> FOutlinerItemModelMixin::GetSelectedTrackRows() const
+{
+	TArray<TPair<UMovieSceneTrack*, int32>> AllTrackRows;
+
+	const TSharedPtr<FSequencerEditorViewModel> EditorViewModel = GetEditor();
+	if (!EditorViewModel.IsValid())
+	{
+		return AllTrackRows;
+	}
+
+	const TSharedPtr<FSequencerSelection> Selection = EditorViewModel->GetSelection();
+	if (!Selection.IsValid())
+	{
+		return AllTrackRows;
+	}
+
+	for (const TViewModelPtr<ITrackExtension> TrackExtension : Selection->Outliner.Filter<ITrackExtension>())
+	{
+		UMovieSceneTrack* const Track = TrackExtension->GetTrack();
+		if (IsValid(Track))
+		{
+			AllTrackRows.Add(TPair<UMovieSceneTrack*, int32>(Track, TrackExtension->GetRowIndex()));
+		}
+	}
+
+	return AllTrackRows;
 }
 
 void FOutlinerItemModelMixin::BuildSectionColorTintsMenu(FMenuBuilder& MenuBuilder)

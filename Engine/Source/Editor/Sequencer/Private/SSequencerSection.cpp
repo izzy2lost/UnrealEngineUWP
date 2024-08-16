@@ -1382,8 +1382,17 @@ int32 SSequencerSection::OnPaint( const FPaintArgs& Args, const FGeometry& Allot
 	}
 
 	UMovieSceneTrack* Track = SectionObject->GetTypedOuter<UMovieSceneTrack>();
+
+	FGuid BindingID;
+	if (TSharedPtr<IObjectBindingExtension> ObjectBindingExtension = SectionModel->FindAncestorOfType<IObjectBindingExtension>())
+	{
+		BindingID = ObjectBindingExtension->GetObjectGuid();
+	}
+	const UMovieSceneCondition* Condition = MovieSceneHelpers::GetSequenceCondition(Track, SectionObject);
+
+	const bool bConditionPasses = !Condition || MovieSceneHelpers::EvaluateSequenceCondition(BindingID, GetSequencer().GetFocusedTemplateID(), Condition, Track, GetSequencer().GetSharedPlaybackState());
 	const bool bTrackDisabled = Track && (Track->IsEvalDisabled() || Track->IsRowEvalDisabled(SectionObject->GetRowIndex()));
-	const bool bEnabled = bParentEnabled && SectionObject->IsActive() && !(bTrackDisabled);
+	const bool bEnabled = bParentEnabled && SectionObject->IsActive() && bConditionPasses && !(bTrackDisabled);
 
 	const ESlateDrawEffect DrawEffects = bEnabled ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
 

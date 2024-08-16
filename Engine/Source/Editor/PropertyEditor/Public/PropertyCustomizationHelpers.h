@@ -21,6 +21,7 @@
 #include "ActorPickerMode.h"
 #include "SceneDepthPickerMode.h"
 #include "IDetailPropertyRow.h"
+#include "ClassViewerModule.h"
 
 class AActor;
 class FAssetThumbnailPool;
@@ -235,6 +236,17 @@ namespace PropertyCustomizationHelpers
 	 *	@param InFunctionFilter	A filter to select candidate UFunctions
 	 */
 	PROPERTYEDITOR_API void GetCallInEditorFunctionsForClass(const UClass* InClass, const TFunctionRef<bool(const UFunction*)>& InFunctionFilter, TArray<UFunction*>& OutCallInEditorFunctions, EFieldIterationFlags InIterationFlags = EFieldIterationFlags::IncludeSuper);
+
+	/*
+	*	Makes a class picker widget for the given instanced editinline UObject property handle. Shares code with SPropertyEditorInline, but doesn't create a combo button, just the class picker.
+	*/
+	PROPERTYEDITOR_API TSharedRef<SWidget> MakeEditInlineObjectClassPicker(TSharedRef<IPropertyHandle> PropertyHandle, FOnClassPicked OnClassPicked, TSharedPtr<IClassViewerFilter> AdditionalClassFilter=nullptr);
+
+	/*
+	* Creates a new instance of the given object class inside the given property handle, mimicking what the SPropertyEditorEditInline widget does on class selection
+	*/
+	PROPERTYEDITOR_API void CreateNewInstanceOfEditInlineObjectClass(TSharedRef<IPropertyHandle> PropertyHandle, UClass* Class, EPropertyValueSetFlags::Type Flags = EPropertyValueSetFlags::DefaultFlags);
+
 }
 
 

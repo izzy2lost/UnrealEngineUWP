@@ -96,8 +96,10 @@ private:
 	static void RemoveForCookEventSection(UMovieSceneEventSectionBase* Section);
 	static bool IsTrackClassAllowed(UClass* InClass);
 	static bool IsCustomBindingClassAllowed(UClass* InClass);
+	static bool IsConditionClassAllowed(const UClass* InClass);
 	static void PostDuplicateEvent(ULevelSequence* LevelSequence);
 	static void FixupDynamicBindingsEvent(ULevelSequence* LevelSequence);
+	static void FixupPayloadParameterNameForDirectorBlueprintCondition(UMovieScene* MovieScene, UK2Node* InNode, FName OldPinName, FName NewPinName);
 
 private:
 
@@ -153,6 +155,7 @@ private:
 	FDelegateHandle FixupEventSectionPayloadParameterNameHandle;
 	FDelegateHandle UpgradeLegacyEventEndpointHandle;
 	FDelegateHandle FixupDynamicBindingsHandle;
+	FDelegateHandle FixupDirectorBlueprintConditionPayloadParameterNameHandle;
 
 	FDelegateHandle OnObjectsReplacedHandle;
 

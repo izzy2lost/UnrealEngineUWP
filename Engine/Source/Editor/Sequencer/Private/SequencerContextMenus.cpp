@@ -318,7 +318,7 @@ void FSectionContextMenu::PopulateMenu(FMenuBuilder& MenuBuilder, TSharedPtr<FEx
 				}
 			}
 
-			SequencerHelpers::BuildEditSectionMenu(Sequencer, Sections, SubMenuBuilder, /*bInSubMenu=*/true);
+			SequencerHelpers::BuildEditSectionMenu(Sequencer, Sections, SubMenuBuilder, false);
 		})
 	);
 

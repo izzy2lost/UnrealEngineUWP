@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Conditions/MovieSceneCondition.h"
 #include "Containers/Array.h"
 #include "Containers/ArrayView.h"
 #include "Containers/ContainersFwd.h"
@@ -726,6 +727,10 @@ public:
 	UPROPERTY(EditAnywhere, Category="Section")
 	FMovieSceneTimecodeSource TimecodeSource;
 #endif
+
+	/** Optional dynamic condition for whether this section evaluates at runtime. */
+	UPROPERTY(EditAnywhere, Category="Section")
+	FMovieSceneConditionContainer ConditionContainer;
 
 private:
 

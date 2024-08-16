@@ -25,6 +25,7 @@
 #include "Algo/IndexOf.h"
 #include "Algo/Transform.h"
 #include "Algo/Unique.h"
+#include "Sections/MovieSceneSubSection.h"
 
 namespace UE
 {
@@ -54,6 +55,7 @@ struct FSequenceUpdater_Flat : ISequenceUpdater
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override;
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return FInstanceHandle(); }
 	virtual void OverrideRootSequence(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID NewRootOverrideSequenceID) override {}
+	virtual bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 
 private:
 
@@ -63,6 +65,12 @@ private:
 	FMovieSceneCompiledDataID CompiledDataID;
 
 	TOptional<bool> bDynamicWeighting;
+
+	// Conditional entities that need to be re-checked in between entity ranges.
+	FMovieSceneEvaluationFieldEntitySet CachedPerTickConditionalEntities;
+
+	// Cached results for conditions that only need to be checked once, stored by the cache key returned by the condition itself.
+	mutable TMap<uint32, bool> CachedConditionResults;
 };
 
 /** Hierarchical sequence updater */
@@ -83,6 +91,7 @@ struct FSequenceUpdater_Hierarchical : ISequenceUpdater
 	virtual TUniquePtr<ISequenceUpdater> MigrateToHierarchical() override { return nullptr; }
 	virtual FInstanceHandle FindSubInstance(FMovieSceneSequenceID SubSequenceID) const override { return SequenceInstances.FindRef(SubSequenceID).Handle; }
 	virtual void OverrideRootSequence(TSharedRef<const FSharedPlaybackState> SharedPlaybackState, FMovieSceneSequenceID NewRootOverrideSequenceID) override;
+	virtual bool EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const override;
 
 private:
 
@@ -106,6 +115,12 @@ private:
 	FMovieSceneSequenceID RootOverrideSequenceID;
 
 	TOptional<bool> bDynamicWeighting;
+
+	// Conditional entities per sequence ID in the hierarchy that need to be re-checked in between entity ranges.
+	TMap<FMovieSceneSequenceID, FMovieSceneEvaluationFieldEntitySet> CachedPerTickConditionalEntities;
+
+	// Cached results for conditions that only need to be checked once, stored by the cache key returned by the condition itself.
+	mutable TMap<uint32, bool> CachedConditionResults;
 };
 
 void DissectRange(TArrayView<const FMovieSceneDeterminismFenceWithSubframe> InDissectionTimes, const TRange<FFrameTime>& Bounds, TArray<TRange<FFrameTime>>& OutDissections)
@@ -346,6 +361,8 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 	const bool bOutsideCachedRange = !CachedEntityRange.Contains(ImportTime);
 	if (bOutsideCachedRange)
 	{
+		CachedPerTickConditionalEntities.Reset();
+
 		if (ComponentField)
 		{
 			ComponentField->QueryPersistentEntities(ImportTime, CachedEntityRange, EntitiesScratch);
@@ -363,7 +380,19 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 		Params.HierarchicalBias = 0;
 		Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-		SequenceInstance.Ledger.UpdateEntities(Linker, Params, ComponentField, EntitiesScratch);
+		SequenceInstance.Ledger.UpdateEntities(Linker, Params, ComponentField, EntitiesScratch, CachedPerTickConditionalEntities, CachedConditionResults);
+	}
+	else if (CachedPerTickConditionalEntities.Num() != 0)
+	{
+		FEntityImportSequenceParams Params;
+		Params.SequenceID = MovieSceneSequenceID::Root;
+		Params.InstanceHandle = InstanceHandle;
+		Params.RootInstanceHandle = InstanceHandle;
+		Params.DefaultCompletionMode = Sequence->DefaultCompletionMode;
+		Params.HierarchicalBias = 0;
+		Params.bDynamicWeighting = bDynamicWeighting.Get(false);
+
+		SequenceInstance.Ledger.UpdateConditionalEntities(Linker, Params, ComponentField, CachedPerTickConditionalEntities);
 	}
 
 	// Update any one-shot entities for the current frame
@@ -382,7 +411,7 @@ void FSequenceUpdater_Flat::Update(TSharedRef<const FSharedPlaybackState> Shared
 			Params.HierarchicalBias = 0;
 			Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-			SequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, ComponentField, EntitiesScratch);
+			SequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, ComponentField, EntitiesScratch, CachedConditionResults);
 		}
 	}
 }
@@ -408,11 +437,31 @@ void FSequenceUpdater_Flat::InvalidateCachedData(TSharedRef<const FSharedPlaybac
 {
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
 	CachedDeterminismFences.Reset();
+	CachedPerTickConditionalEntities.Reset();
+	CachedConditionResults.Reset();
 	bDynamicWeighting.Reset();
 }
 
 
+bool FSequenceUpdater_Flat::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (Condition)
+	{
+		if (Condition->CanCacheResult())
+		{
+			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
+			{
+				return *ConditionResult;
+			}
 
+			// We specifically don't cache the result of a condition check in this path, since this path is called by UI contexts.
+			// The main evaluation path in MovieSceneEntityLedger caches its results.
+		}
+
+		return Condition->EvaluateCondition(BindingID, SequenceID, SharedPlaybackState);
+	}
+	return true;
+}
 
 
 FSequenceUpdater_Hierarchical::FSequenceUpdater_Hierarchical(FMovieSceneCompiledDataID InCompiledDataID)
@@ -714,6 +763,8 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 			// Update entities if necessary
 			if (bGatherEntities)
 			{
+				CachedPerTickConditionalEntities.Reset();
+
 				CachedEntityRange = UpdateEntitiesForSequence(RootComponentField, ImportTime, EntitiesScratch);
 
 				FEntityImportSequenceParams Params;
@@ -724,7 +775,24 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 				Params.HierarchicalBias = 0;
 				Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-				RootInstance.Ledger.UpdateEntities(Linker, Params, RootComponentField, EntitiesScratch);
+				FMovieSceneEvaluationFieldEntitySet& RootSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Add(MovieSceneSequenceID::Root);
+
+				RootInstance.Ledger.UpdateEntities(Linker, Params, RootComponentField, EntitiesScratch, RootSequenceCachedConditionalEntries, CachedConditionResults);
+			}
+			else if (FMovieSceneEvaluationFieldEntitySet* RootSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Find(MovieSceneSequenceID::Root))
+			{
+				if (RootSequenceCachedConditionalEntries->Num() != 0)
+				{
+					FEntityImportSequenceParams Params;
+					Params.SequenceID = MovieSceneSequenceID::Root;
+					Params.InstanceHandle = RootInstanceHandle;
+					Params.RootInstanceHandle = RootInstanceHandle;
+					Params.DefaultCompletionMode = RootSequence->DefaultCompletionMode;
+					Params.HierarchicalBias = 0;
+					Params.bDynamicWeighting = bDynamicWeighting.Get(false);
+
+					RootInstance.Ledger.UpdateConditionalEntities(Linker, Params, RootComponentField, *RootSequenceCachedConditionalEntries);
+				}
 			}
 
 			// Update any one-shot entities for the current root frame
@@ -743,7 +811,7 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 					Params.HierarchicalBias = 0;
 					Params.bDynamicWeighting = bDynamicWeighting.Get(false);
 
-					RootInstance.Ledger.UpdateOneShotEntities(Linker, Params, RootComponentField, EntitiesScratch);
+					RootInstance.Ledger.UpdateOneShotEntities(Linker, Params, RootComponentField, EntitiesScratch, CachedConditionResults);
 				}
 			}
 		}
@@ -766,19 +834,46 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 			// When a root override path is specified, we always remap the 'local' sequence IDs to their equivalents from the root sequence.
 			FMovieSceneSequenceID SequenceIDFromRoot = RootOverridePath.ResolveChildSequenceID(Entry.SequenceID);
 
-			ActiveSequences.Add(SequenceIDFromRoot);
-
 			const FMovieSceneSubSequenceData* SubData = RootOverrideHierarchy->FindSubData(Entry.SequenceID);
+
+			ActiveSequences.Add(SequenceIDFromRoot);
 			checkf(SubData, TEXT("Sub data does not exist for a SequenceID that exists in the hierarchical tree - this indicates a corrupt compilation product."));
 
+			bool bSubSequenceConditionFailed = false;
+			if (SubData->Condition)
+			{
+				// If we're able to cache the condition result, then it should be cached above when its entity got processed- retrieve that value.
+				// Otherwise, test it again.
+				if (SubData->Condition->CanCacheResult())
+				{
+					if (bool* ConditionResult = CachedConditionResults.Find(SubData->Condition->ComputeCacheKey(FGuid(), RootOverrideSequenceID, SharedPlaybackState, FindObject<UMovieSceneSubSection>(CompiledDataManager->GetEntryRef(RootCompiledDataID).GetSequence(), *SubData->SectionPath.ToString()))))
+					{
+						if (*ConditionResult == false)
+						{
+							bSubSequenceConditionFailed = true;
+						}
+					}
+					else if (!SubData->Condition->EvaluateCondition(FGuid(), RootOverrideSequenceID, SharedPlaybackState))
+					{
+						bSubSequenceConditionFailed = true;
+					}
+				}
+				else if (!SubData->Condition->EvaluateCondition(FGuid(), RootOverrideSequenceID, SharedPlaybackState))
+				{
+					bSubSequenceConditionFailed = true;
+				}
+			}
+			
 			UMovieSceneSequence* SubSequence = SubData->GetSequence();
-			if (SubSequence == nullptr)
+			if (SubSequence == nullptr || bSubSequenceConditionFailed)
 			{
 				FInstanceHandle SubSequenceHandle = SequenceInstances.FindRef(SequenceIDFromRoot).Handle;
 				if (SubSequenceHandle.IsValid())
 				{
 					FSequenceInstance& SubSequenceInstance = InstanceRegistry->MutateInstance(SubSequenceHandle);
 					SubSequenceInstance.Ledger.UnlinkEverything(Linker);
+					// Also invalidate the ledge to ensure that if the condition changes, we can detect it and force gather entities
+					SubSequenceInstance.Ledger.Invalidate();
 				}
 			}
 			else
@@ -831,14 +926,15 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 				Params.bPostRoll = bIsPostRoll;
 				Params.bDynamicWeighting = bDynamicWeighting.Get(false); // Always inherit dynamic weighting flags
 
-				if (bGatherEntities)
+				if (bGatherEntities || SubSequenceInstance.Ledger.IsInvalidated())
 				{
 					EntitiesScratch.Reset();
 
 					TRange<FFrameNumber> SubEntityRange = UpdateEntitiesForSequence(SubComponentField, SubSequenceTime, EntitiesScratch);
 					SubEntityRange = TRange<FFrameNumber>::Intersection(SubEntityRange, SubData->PlayRange.Value);
 
-					SubSequenceInstance.Ledger.UpdateEntities(Linker, Params, SubComponentField, EntitiesScratch);
+					FMovieSceneEvaluationFieldEntitySet& SubSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Add(SequenceIDFromRoot);
+					SubSequenceInstance.Ledger.UpdateEntities(Linker, Params, SubComponentField, EntitiesScratch, SubSequenceCachedConditionalEntries, CachedConditionResults);
 
 					// Convert sub entity range into root space
 					// 
@@ -867,6 +963,13 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 
 					CachedEntityRange = TRange<FFrameNumber>::Intersection(CachedEntityRange, SubCachedRange);
 				}
+				else if (FMovieSceneEvaluationFieldEntitySet* SubSequenceCachedConditionalEntries = CachedPerTickConditionalEntities.Find(SequenceIDFromRoot))
+				{
+					if (SubSequenceCachedConditionalEntries->Num() != 0)
+					{
+						SubSequenceInstance.Ledger.UpdateConditionalEntities(Linker, Params, SubComponentField, *SubSequenceCachedConditionalEntries);
+					}
+				}
 
 				// Update any one-shot entities for the sub sequence
 				if (SubComponentField && SubComponentField->HasAnyOneShotEntities())
@@ -876,7 +979,7 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 
 					if (EntitiesScratch.Num() != 0)
 					{
-						SubSequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, SubComponentField, EntitiesScratch);
+						SubSequenceInstance.Ledger.UpdateOneShotEntities(Linker, Params, SubComponentField, EntitiesScratch, CachedConditionResults);
 					}
 				}
 			}
@@ -954,6 +1057,8 @@ void FSequenceUpdater_Hierarchical::InvalidateCachedData(TSharedRef<const FShare
 {
 	bDynamicWeighting.Reset();
 	CachedEntityRange = TRange<FFrameNumber>::Empty();
+	CachedPerTickConditionalEntities.Reset();
+	CachedConditionResults.Reset();
 
 	UMovieSceneEntitySystemLinker* Linker = SharedPlaybackState->GetLinker();
 	FInstanceRegistry* InstanceRegistry = Linker->GetInstanceRegistry();
@@ -999,6 +1104,26 @@ TRange<FFrameNumber> FSequenceUpdater_Hierarchical::UpdateEntitiesForSequence(co
 	}
 
 	return CachedRange;
+}
+
+bool FSequenceUpdater_Hierarchical::EvaluateCondition(const FGuid& BindingID, const FMovieSceneSequenceID& SequenceID, const UMovieSceneCondition* Condition, UObject* ConditionOwnerObject, TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{
+	if (Condition)
+	{
+		if (Condition->CanCacheResult())
+		{
+			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
+			{
+				return *ConditionResult;
+			}
+
+			// We specifically don't cache the result of a condition check in this path, since this path is called by UI contexts.
+			// The main evaluation path in MovieSceneEntityLedger caches its results.
+		}
+
+		return Condition->EvaluateCondition(BindingID, SequenceID, SharedPlaybackState);
+	}
+	return true;
 }
 
 void ISequenceUpdater::InvalidateCachedData(TSharedRef<const FSharedPlaybackState> SharedPlaybackState)

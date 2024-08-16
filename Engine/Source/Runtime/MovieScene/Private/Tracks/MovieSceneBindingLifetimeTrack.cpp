@@ -171,6 +171,10 @@ bool UMovieSceneBindingLifetimeTrack::PopulateEvaluationFieldImpl(const TRange<F
 			{
 				FMovieSceneEvaluationFieldEntityMetaData SectionMetaData = InMetaData;
 				SectionMetaData.Flags = Entry.Flags;
+				if (Entry.Section)
+				{
+					SectionMetaData.Condition = MovieSceneHelpers::GetSequenceCondition(this, Entry.Section);
+				}
 				BindingLifetimeSection->ExternalPopulateEvaluationField(SectionEffectiveRange, SectionMetaData, OutFieldBuilder);
 			}
 		}
