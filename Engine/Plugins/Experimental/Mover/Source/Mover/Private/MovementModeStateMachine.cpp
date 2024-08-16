@@ -417,14 +417,24 @@ FMovementModifierHandle UMovementModeStateMachine::QueueMovementModifier(TShared
 
 void UMovementModeStateMachine::CancelModifierFromHandle(FMovementModifierHandle ModifierHandle)
 {
-	for (TSharedPtr<FMovementModifierBase> Modifier : QueuedMovementModifiers)
+	QueuedMovementModifiers.RemoveAll([ModifierHandle, this]
+	(const TSharedPtr<FMovementModifierBase>& Modifier)
 	{
-		if (Modifier->GetHandle() == ModifierHandle)
+		if (Modifier.IsValid())
 		{
-			QueuedMovementModifiers.Remove(Modifier);
+			if (Modifier->GetHandle() == ModifierHandle)
+			{
+				return true;
+			}
 		}
-	}
+		else
+		{
+			return true;	
+		}
 
+		return false;
+	});
+	
 	ModifiersToCancel.Add(ModifierHandle);
 }
 
