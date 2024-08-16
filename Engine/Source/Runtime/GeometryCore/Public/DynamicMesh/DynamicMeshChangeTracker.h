@@ -93,7 +93,25 @@ protected:
 		const TArray<FChangeTriangle>& InsertTris) const;
 };
 
+#if PLATFORM_COMPILER_CLANG
+#define UE_EXTERN_TEMPLATE_API GEOMETRYCORE_API
+#else
+#define UE_EXTERN_TEMPLATE_API
+#endif
 
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<float, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<double, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<int, 1>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<float, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<double, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<int, 2>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<float, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<double, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<int, 3>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<float, 4>;
+extern template class UE_EXTERN_TEMPLATE_API TDynamicMeshAttributeChange<double, 4>;
+
+#undef UE_EXTERN_TEMPLATE_API
 
 /** Standard UV overlay change type - 2-element float */
 typedef TDynamicMeshAttributeChange<float,2> FDynamicMeshUVChange;

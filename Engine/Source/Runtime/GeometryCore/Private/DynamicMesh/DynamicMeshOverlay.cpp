@@ -1859,37 +1859,29 @@ namespace UE
 namespace Geometry
 {
 
-#if PLATFORM_COMPILER_CLANG
-#define UE_EXTERN_TEMPLATE_API GEOMETRYCORE_API
-#else
-#define UE_EXTERN_TEMPLATE_API
-#endif
-
 // These are explicit instantiations of the templates that are exported from the shared lib.
 // Only these instantiations of the template can be used.
 // This is necessary because we have placed most of the templated functions in this .cpp file, instead of the header.
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 1>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 1>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 1>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 2>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 2>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 2>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 3>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 3>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<int, 3>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<float, 4>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshOverlay<double, 4>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<float, 1>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<double, 1>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<int, 1>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<float, 2>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<double, 2>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<int, 2>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<float, 3>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<double, 3>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<int, 3>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<float, 4>;
+template class GEOMETRYCORE_API TDynamicMeshOverlay<double, 4>;
 
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 2, FVector2f>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 2, FVector2d>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<int, 2, FVector2i>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 3, FVector3f>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 3, FVector3d>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<int, 3, FVector3i>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<float, 4, FVector4f>;
-template class UE_EXTERN_TEMPLATE_API TDynamicMeshVectorOverlay<double, 4, FVector4d>;
-
-#undef UE_EXTERN_TEMPLATE_API
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<float, 2, FVector2f>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<double, 2, FVector2d>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<int, 2, FVector2i>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<float, 3, FVector3f>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<double, 3, FVector3d>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<int, 3, FVector3i>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<float, 4, FVector4f>;
+template class GEOMETRYCORE_API TDynamicMeshVectorOverlay<double, 4, FVector4d>;
 
 } // end namespace UE::Geometry
 } // end namespace UE
