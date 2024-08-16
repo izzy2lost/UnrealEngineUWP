@@ -112,8 +112,8 @@ private:
 	const UAutomatedSequencePerfTestProjectSettings* Settings;
 
 	FName SequenceTestName;
-	FAutomatedPerfTestMapSequenceCombo CurrentMapSequenceCombo;
-	TArray<FAutomatedPerfTestMapSequenceCombo*> MapSequenceCombos;
+	TOptional<FAutomatedPerfTestMapSequenceCombo> CurrentMapSequenceCombo;
+	TArray<FAutomatedPerfTestMapSequenceCombo> MapSequenceCombos;
 
 	ALevelSequenceActor* SequenceActor;
 	ULevelSequencePlayer* SequencePlayer;
