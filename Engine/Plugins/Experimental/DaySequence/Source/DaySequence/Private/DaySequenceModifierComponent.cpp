@@ -1358,7 +1358,7 @@ bool UDaySequenceModifierComponent::GetBlendPosition(FVector& InPosition) const
 	}
 	else
 #endif
-	if (const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get())
+	if (const APlayerController* BlendTarget = ExternalVolumeBlendTarget.Get(); BlendTarget && BlendTarget->PlayerCameraManager)
 	{
 		CSV_SCOPED_TIMING_STAT(DaySequence, GetPlayerViewPoint);
 		InPosition = BlendTarget->PlayerCameraManager->GetCameraLocation();
