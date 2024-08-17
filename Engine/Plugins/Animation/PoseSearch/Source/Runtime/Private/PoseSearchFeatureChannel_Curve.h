@@ -12,7 +12,7 @@ class POSESEARCH_API UPoseSearchFeatureChannel_Curve : public UPoseSearchFeature
 
 public:
 
-	UPROPERTY(EditAnywhere, Category = "Settings")
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Settings")
 	FName CurveName = NAME_None;
 
 	UPROPERTY(EditAnywhere, Category = "Settings")
