@@ -8,6 +8,9 @@
 
 class UPoseSearchDatabase;
 
+/**
+* Data asset used to allow multiple Pose Search Databases to be normalized together.
+*/
 UCLASS(BlueprintType, Category = "Animation|Pose Search", meta = (DisplayName = "Pose Search Normalization Set"))
 class POSESEARCH_API UPoseSearchNormalizationSet : public UDataAsset
 {
