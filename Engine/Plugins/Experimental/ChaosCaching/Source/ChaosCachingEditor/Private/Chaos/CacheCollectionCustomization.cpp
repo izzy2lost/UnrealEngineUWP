@@ -132,14 +132,17 @@ void FCacheCollectionDetails::OnChangeCacheName(const FText& InNewName, int32 In
 		return;
 	}
 
-	TSharedPtr<SEditableTextBox> TextBox = NameEditBoxes[InIndex];
-	if(!IsValidName(Collection, FName(InNewName.ToString())))
+
+	if (TSharedPtr<SEditableTextBox> TextBox = NameEditBoxes[InIndex])
 	{
-		TextBox->SetError(LOCTEXT("InvalidNameError", "Invalid Cache Name"));
-	}
-	else
-	{
-		TextBox->SetError(TEXT(""));
+		if (!IsValidName(Collection, FName(InNewName.ToString())))
+		{
+			TextBox->SetError(LOCTEXT("InvalidNameError", "Invalid Cache Name"));
+		}
+		else
+		{
+			TextBox->SetError(TEXT(""));
+		}
 	}
 }
 
