@@ -280,13 +280,13 @@ namespace uba
 		while (*readPos)
 		{
 			auto strEnd = strlen(readPos);
-			std::string extra;
+			ExportInfo info;
 			if (const char* comma = strchr(readPos, ','))
 			{
 				strEnd = comma - readPos;
-				extra = comma;
+				info.extra = comma;
 			}
-			exports.emplace(std::string(readPos, readPos + strEnd), extra);
+			exports.emplace(std::string(readPos, readPos + strEnd), info);
 			readPos = readPos + strEnd + 1;
 		}
 		return true;
