@@ -4276,7 +4276,7 @@ void FControlRigParameterTrackEditor::BuildTrackContextMenu(FMenuBuilder& MenuBu
 				SNew(SSpinBox<int32>)
 				.MinValue(0)
 				.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
-				.ToolTipText(LOCTEXT("OrderTooltip", "Order for this Control Rig to evaluate compared to others on the same binding"))
+				.ToolTipText(LOCTEXT("OrderTooltip", "Order for this Control Rig to evaluate compared to others on the same binding, higher number means earlier evaluation"))
 				.Value_Lambda([Track]() { return Track->GetPriorityOrder(); })
 				.OnValueChanged_Lambda([Track](int32 InValue) { Track->SetPriorityOrder(InValue); })
 				,
