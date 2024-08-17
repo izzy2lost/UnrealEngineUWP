@@ -356,7 +356,7 @@ namespace Private
     CUTF8String GetSnippetRelativeDirectory(const CSourceModule& Module, const TSRef<ISourceSnippet>& Snippet)
     {
         const CUTF8String& ModulePath = Module.GetFilePath();
-        if (ModulePath.IsFilled())
+        if (ModulePath.IsFilled() && ModulePath != "/")
         {
             return FilePathUtils::ConvertFullPathToRelative(Snippet->GetPath(), FilePathUtils::GetDirectory(ModulePath));
         }
