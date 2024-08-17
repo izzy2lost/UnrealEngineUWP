@@ -134,7 +134,7 @@ public:
 	UPROPERTY()
 	TArray<FInstancedStruct> ChooserContextDefinition;
 
-	// Use pose matching to choose the start position. Requires experimental PoseSearch plugin.
+	// Use pose matching to choose the start position. Requires PoseSearch plugin.
 	UPROPERTY(EditAnywhere, Category = PoseMatching, meta = (PinHiddenByDefault))
 	bool bStartFromMatchingPose = false;
 

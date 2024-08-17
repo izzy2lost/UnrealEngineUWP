@@ -13,7 +13,9 @@
 
 #include "Chooser.generated.h"
 
-
+/**
+* Data table used to choose an asset based on input parameters
+*/
 UCLASS(BlueprintType)
 class CHOOSER_API UChooserTable : public UObject, public IHasContextClass
 {

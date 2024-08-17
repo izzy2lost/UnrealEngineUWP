@@ -66,7 +66,10 @@ struct PROXYTABLE_API FRuntimeProxyValue
 	TArray<FProxyStructOutput> OutputStructData;
 };
 
-UCLASS(BlueprintType)
+/**
+* EXPERIMENTAL: Table mapping of proxy assets to a specific asset.
+*/
+UCLASS(BlueprintType, Experimental)
 class PROXYTABLE_API UProxyTable : public UObject
 {
 	GENERATED_UCLASS_BODY()

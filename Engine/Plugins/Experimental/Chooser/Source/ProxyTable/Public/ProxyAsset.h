@@ -11,8 +11,10 @@
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FProxyTypeChanged, const UClass* OutputObjectType);
 
-
-UCLASS(MinimalAPI,BlueprintType)
+/**
+* EXPERIMENTAL: An indirect mapping to an asset. The direct mapping is defined in a Proxy Table.
+*/
+UCLASS(MinimalAPI,BlueprintType,Experimental)
 class UProxyAsset : public UObject, public IHasContextClass
 {
 	GENERATED_UCLASS_BODY()
