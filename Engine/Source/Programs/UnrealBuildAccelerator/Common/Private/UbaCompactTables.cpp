@@ -255,30 +255,82 @@ namespace uba
 			m_offsets.reserve(reserveOffsetsCount);
 	}
 
+	CompactCasKeyTable::~CompactCasKeyTable()
+	{
+		for (auto& kv : m_offsets)
+			if (kv.second.count > 1)
+				delete[] kv.second.stringAndCasKeyOffsets;
+
+	}
+
 	u32 CompactCasKeyTable::Add(const CasKey& casKey, u64 stringOffset, u32* outRequiredCasTableSize)
 	{
 		SCOPED_WRITE_LOCK(m_lock, lock2)
 		if (!m_mem.memory)
 			m_mem.Init(m_reserveSize);
-		auto insres = m_offsets.try_emplace({ casKey, u32(stringOffset)});
-		if (insres.second)
+
+		bool added = false;
+		u32* casKeyOffset = InternalAdd(casKey, stringOffset, added);
+
+		if (added)
 		{
 			u8 bytesForStringOffset = Get7BitEncodedCount(stringOffset);
 			u8* mem = (u8*)m_mem.AllocateNoLock(bytesForStringOffset + sizeof(CasKey), 1, TC(""));
 			BinaryWriter writer(mem, 0, 1000);
 			writer.Write7BitEncoded(stringOffset);
 			writer.WriteCasKey(casKey);
-			insres.first->second = u32(mem - m_mem.memory);
+			*casKeyOffset = u32(mem - m_mem.memory);
 			if (outRequiredCasTableSize)
 				*outRequiredCasTableSize = (u32)m_mem.writtenSize;
 		}
 		else if (outRequiredCasTableSize)
 		{
-			BinaryReader reader(m_mem.memory, insres.first->second, ~0u);
+			BinaryReader reader(m_mem.memory, *casKeyOffset, ~0u);
 			reader.Read7BitEncoded();
 			*outRequiredCasTableSize = Max(*outRequiredCasTableSize, u32(reader.GetPosition() + sizeof(CasKey)));
 		}
-		return insres.first->second;
+		return *casKeyOffset;
+	}
+
+	u32* CompactCasKeyTable::InternalAdd(const CasKey& casKey, u64 stringOffset, bool& outAdded)
+	{
+		auto insres = m_offsets.try_emplace(casKey);
+		Value& value = insres.first->second;
+		if (insres.second)
+		{
+			value.count = 1;
+			value.single.stringOffset = u32(stringOffset);
+			outAdded = true;
+			return &value.single.casKeyOffset;
+		}
+		
+		if (value.count == 1)
+		{
+			if (value.single.stringOffset == stringOffset)
+				return &value.single.casKeyOffset;
+
+			u32* newOffsets = new u32[4];
+			newOffsets[0] = value.single.stringOffset;
+			newOffsets[1] = value.single.casKeyOffset;
+			newOffsets[2] = u32(stringOffset);
+			value.stringAndCasKeyOffsets = newOffsets;
+			value.count = 2;
+			outAdded = true;
+			return &newOffsets[3];
+		}
+
+		for (u32 i=0, e=value.count*2; i!=e; i+=2)
+			if (value.stringAndCasKeyOffsets[i] == stringOffset)
+				return &value.stringAndCasKeyOffsets[i + 1];
+
+		u32* newOffsets = new u32[(value.count+1)*2];
+		memcpy(newOffsets, value.stringAndCasKeyOffsets, value.count*2*sizeof(u32));
+		newOffsets[value.count*2] = u32(stringOffset);
+		delete[] value.stringAndCasKeyOffsets;
+		value.stringAndCasKeyOffsets = newOffsets;
+		++value.count;
+		outAdded = true;
+		return &newOffsets[value.count*2 - 1];
 	}
 
 	void CompactCasKeyTable::GetKey(CasKey& outKey, u64 offset) const
@@ -334,7 +386,10 @@ namespace uba
 			u32 offset = u32(reader2.GetPosition());
 			u64 stringOffset = reader2.Read7BitEncoded();
 			CasKey casKey = reader2.ReadCasKey();
-			m_offsets.try_emplace({casKey, u32(stringOffset)}, offset);
+			bool added = false;
+			u32* casKeyOffset = InternalAdd(casKey, stringOffset, added);
+			UBA_ASSERT(added);
+			*casKeyOffset = offset;
 		}
 	}
 
