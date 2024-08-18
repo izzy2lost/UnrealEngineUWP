@@ -111,9 +111,12 @@ public:
 
 	virtual void ValidateUVPoints(TArray<FPoint2D>& UVPoints) const
 	{
-		auto ValidateValue = [](double& Value, const double& Reference)
+		const double ToleranceU = GetIsoTolerance(EIso::IsoU);
+		const double ToleranceV = GetIsoTolerance(EIso::IsoV);
+
+		auto ValidateValue = [](double& Value, const double& Reference, const double& Tolerance)
 			{
-				if (FMath::IsNearlyEqual(Value, Reference, UE_DOUBLE_KINDA_SMALL_NUMBER))
+				if (FMath::IsNearlyEqual(Value, Reference, Tolerance))
 				{
 					Value = Reference;
 					return true;
@@ -126,7 +129,7 @@ public:
 		{
 			for (const double& NodalValue : UNodalVector)
 			{
-				if (ValidateValue(UVPoint.U, NodalValue))
+				if (ValidateValue(UVPoint.U, NodalValue, ToleranceU))
 				{
 					break;
 				}
@@ -134,7 +137,7 @@ public:
 
 			for (const double& NodalValue : VNodalVector)
 			{
-				if (ValidateValue(UVPoint.V, NodalValue))
+				if (ValidateValue(UVPoint.V, NodalValue, ToleranceV))
 				{
 					break;
 				}

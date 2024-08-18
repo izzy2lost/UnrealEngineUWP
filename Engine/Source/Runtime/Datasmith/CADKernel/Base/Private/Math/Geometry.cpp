@@ -145,6 +145,7 @@ void FindLoopIntersectionsWithIso(const EIso Iso, const double IsoParameter, con
 
 	if (LocalIntersections.Num() == 0)
 	{
+		OutIntersections.Empty();
 		return;
 	}
 
