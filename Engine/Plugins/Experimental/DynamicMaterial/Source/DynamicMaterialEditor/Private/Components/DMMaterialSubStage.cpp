@@ -78,6 +78,42 @@ bool UDMMaterialSubStage::IsCompatibleWithNextStage(const UDMMaterialStage* Next
 	return false;
 }
 
+void UDMMaterialSubStage::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
+{
+	if (!FDMUpdateGuard::CanUpdate())
+	{
+		return;
+	}
+
+	if (!IsComponentValid())
+	{
+		return;
+	}
+
+	if (HasComponentBeenRemoved())
+	{
+		return;
+	}
+
+	if (EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	{
+		MarkComponentDirty();
+		VerifyAllInputMaps();
+	}
+
+	// Skip UDMMaterialStage* update because we don't want to update other stages or layers.
+	Super::Super::Update(InSource, InUpdateType);
+
+	if (IsValid(ParentComponent))
+	{
+		ParentComponent->Update(InSource, InUpdateType);
+	}
+	else if (IsValid(ParentStage))
+	{
+		ParentStage->Update(InSource, InUpdateType);
+	}
+}
+
 FString UDMMaterialSubStage::GetComponentPathComponent() const
 {
 	// Skip stage renaming

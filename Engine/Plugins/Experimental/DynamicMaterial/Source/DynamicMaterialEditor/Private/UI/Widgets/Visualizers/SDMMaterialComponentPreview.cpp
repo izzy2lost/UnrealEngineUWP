@@ -37,20 +37,6 @@ SDMMaterialComponentPreview::~SDMMaterialComponentPreview()
 			EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Component);
 		}
 	}
-
-	if (UDynamicMaterialModelBase* MaterialModelBase = MaterialModelBaseWeak.Get())
-	{
-		if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
-		{
-			MaterialModel->GetOnValueUpdateDelegate().RemoveAll(this);
-			MaterialModel->GetOnTextureUVUpdateDelegate().RemoveAll(this);
-		}
-		else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
-		{
-			MaterialModelDynamic->GetOnValueDynamicUpdateDelegate().RemoveAll(this);
-			MaterialModelDynamic->GetOnTextureUVDynamicUpdateDelegate().RemoveAll(this);
-		}
-	}
 }
 
 void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSharedRef<SDMMaterialEditor>& InEditorWidget, UDMMaterialComponent* InComponent)
@@ -64,14 +50,10 @@ void SDMMaterialComponentPreview::Construct(const FArguments& InArgs, const TSha
 
 	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBaseWeak.Get()))
 	{
-		MaterialModel->GetOnValueUpdateDelegate().AddSP(this, &SDMMaterialComponentPreview::OnValueUpdated);
-		MaterialModel->GetOnTextureUVUpdateDelegate().AddSP(this, &SDMMaterialComponentPreview::OnTextureUVUpdated);
 		MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
 	}
 	else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBaseWeak.Get()))
 	{
-		MaterialModelDynamic->GetOnValueDynamicUpdateDelegate().AddSP(this, &SDMMaterialComponentPreview::OnValueDynamicUpdated);
-		MaterialModelDynamic->GetOnTextureUVDynamicUpdateDelegate().AddSP(this, &SDMMaterialComponentPreview::OnTextureUVDynamicUpdated);
 		MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
 	}
 	else
@@ -133,58 +115,45 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Stage);
 	}
 
-	if (!EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
+	UMaterialInstanceDynamic* MID = PreviewMaterialDynamicWeak.Get();
+
+	if (!MID || !EnumHasAnyFlags(InUpdateType, EDMUpdateType::Structure))
 	{
-		return;
+		if (UDMMaterialValue* Value = Cast<UDMMaterialValue>(InSource))
+		{
+			Value->SetMIDParameter(MID);
+		}
+		else if (UDMMaterialValueDynamic* ValueDynamic = Cast<UDMMaterialValueDynamic>(InSource))
+		{
+			ValueDynamic->SetMIDParameter(MID);
+		}
+		else if (UDMTextureUV* TextureUV = Cast<UDMTextureUV>(InSource))
+		{
+			TextureUV->SetMIDParameters(MID);
+		}
+		else if (UDMTextureUVDynamic* TextureUVDynamic = Cast<UDMTextureUVDynamic>(InSource))
+		{
+			TextureUVDynamic->SetMIDParameters(MID);
+		}
 	}
-
-	Stage->GeneratePreviewMaterial(PreviewMaterialBase);
-
-	EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
-	PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);
-
-	UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
-
-	if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
+	else
 	{
-		MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-	}
-	else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
-	{
-		MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
-	}
+		Stage->GeneratePreviewMaterial(PreviewMaterialBase);
 
-	Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
-}
+		EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
+		PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);
 
-void SDMMaterialComponentPreview::OnValueUpdated(UDynamicMaterialModel* InMaterialModel, UDMMaterialValue* InValue)
-{
-	if (UMaterialInstanceDynamic* PreviewMaterialDynamic = PreviewMaterialDynamicWeak.Get())
-	{
-		InValue->SetMIDParameter(PreviewMaterialDynamic);
-	}
-}
+		UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
 
-void SDMMaterialComponentPreview::OnTextureUVUpdated(UDynamicMaterialModel* InMaterialModel, UDMTextureUV* InTextureUV)
-{
-	if (UMaterialInstanceDynamic* PreviewMaterialDynamic = PreviewMaterialDynamicWeak.Get())
-	{
-		InTextureUV->SetMIDParameters(PreviewMaterialDynamic);
-	}
-}
+		if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
+		{
+			MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+		}
+		else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
+		{
+			MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+		}
 
-void SDMMaterialComponentPreview::OnValueDynamicUpdated(UDynamicMaterialModelDynamic* InMaterialModel, UDMMaterialValueDynamic* InValueDynamic)
-{
-	if (UMaterialInstanceDynamic* PreviewMaterialDynamic = PreviewMaterialDynamicWeak.Get())
-	{
-		InValueDynamic->SetMIDParameter(PreviewMaterialDynamic);
-	}
-}
-
-void SDMMaterialComponentPreview::OnTextureUVDynamicUpdated(UDynamicMaterialModelDynamic* InMaterialModel, UDMTextureUVDynamic* InTextureUVDynamic)
-{
-	if (UMaterialInstanceDynamic* PreviewMaterialDynamic = PreviewMaterialDynamicWeak.Get())
-	{
-		InTextureUVDynamic->SetMIDParameters(PreviewMaterialDynamic);
+		Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
 	}
 }
