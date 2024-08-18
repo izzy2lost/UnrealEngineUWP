@@ -757,8 +757,9 @@ public:
 	/** Cached array of material PSO requests which can be used to boost the priority */
 	TArray<FMaterialPSOPrecacheRequestID> MaterialPSOPrecacheRequestIDs;
 
-	/** Atomic bool used to track all the PSO precache events */
-	std::atomic<bool> bPSOPrecacheFinished = true;
+	/** Atomic int used to track the last PSO precache events */
+	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
+	int32 LatestPSOPrecacheJobSet = 0;
 #endif
 
 	/**

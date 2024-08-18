@@ -126,8 +126,9 @@ public:
 
 public:
 #if UE_WITH_PSO_PRECACHING
-	/** Atomic bool to track all the PSO precache events - used for delayed proxy creation */
-	std::atomic<bool> bPSOPrecacheFinished = true;
+	/** Atomic int used to track the last PSO precache events */
+	std::atomic<int> LatestPSOPrecacheJobSetCompleted = 0;
+	int32 LatestPSOPrecacheJobSet = 0;
 #endif
 
 	/** The decal proxy. */

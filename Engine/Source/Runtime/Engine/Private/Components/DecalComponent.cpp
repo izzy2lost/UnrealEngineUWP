@@ -330,9 +330,6 @@ void UDecalComponent::PrecachePSOs()
 		return;
 	}
 
-	// clear the current request data
-	bPSOPrecacheFinished = true;
-
 	if (DecalMaterial && !DecalMaterial->HasAnyFlags(RF_NeedPostLoad))
 	{
 		FPSOPrecacheParams PSOPrecacheParams;		
@@ -344,12 +341,13 @@ void UDecalComponent::PrecachePSOs()
 		FGraphEventArray GraphEvents = DecalMaterial->PrecachePSOs(VertexFactoryDataList, PSOPrecacheParams, EPSOPrecachePriority::High, MaterialPSOPrecacheRequestIDs);
 
 		// Request recreate of the render state when the PSO compilation is ready (if we want to delay proxy creation)
-		if (GraphEvents.Num() > 0 && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
+		if (GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 		{
 			struct FPSODecalPrecacheFinishedTask
 			{
-				explicit FPSODecalPrecacheFinishedTask(UDecalComponent* InDecalComponent)
-					: WeakDecalComponent(InDecalComponent)
+				explicit FPSODecalPrecacheFinishedTask(UDecalComponent* InDecalComponent, int32 InJobSetThatJustCompleted)
+					: WeakDecalComponent(InDecalComponent),
+					JobSetThatJustCompleted(InJobSetThatJustCompleted)
 				{
 				}
 
@@ -361,16 +359,26 @@ void UDecalComponent::PrecachePSOs()
 				{
 					if (UDecalComponent* DC = WeakDecalComponent.Get())
 					{
-						DC->bPSOPrecacheFinished = true;
+						int32 CurrJobSetCompleted = DC->LatestPSOPrecacheJobSetCompleted.load();
+						while (CurrJobSetCompleted < JobSetThatJustCompleted && !DC->LatestPSOPrecacheJobSetCompleted.compare_exchange_weak(CurrJobSetCompleted, JobSetThatJustCompleted)) {}
 						DC->MarkRenderStateDirty();
 					}
 				}
 
 				TWeakObjectPtr<UDecalComponent> WeakDecalComponent;
+				int32 JobSetThatJustCompleted;
 			};
 
-			bPSOPrecacheFinished = false;
-			TGraphTask<FPSODecalPrecacheFinishedTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this);
+			LatestPSOPrecacheJobSet++;
+			if (GraphEvents.Num() > 0)
+			{
+				TGraphTask<FPSODecalPrecacheFinishedTask>::CreateTask(&GraphEvents).ConstructAndDispatchWhenReady(this, LatestPSOPrecacheJobSet);
+			}
+			else
+			{ 
+				// No graph events to wait on, the job set can be considered complete.
+				LatestPSOPrecacheJobSetCompleted = LatestPSOPrecacheJobSet;
+			}
 		}
 	}
 #endif
@@ -417,7 +425,7 @@ FDeferredDecalProxy* UDecalComponent::CreateSceneProxy()
 	LLM_SCOPE(ELLMTag::SceneRender);
 
 #if UE_WITH_PSO_PRECACHING
-	if (!bPSOPrecacheFinished && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
+	if (LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet && GetPSOPrecacheProxyCreationStrategy() == EPSOPrecacheProxyCreationStrategy::DelayUntilPSOPrecached)
 	{
 		return nullptr;
 	}

@@ -3566,20 +3566,19 @@ void UFXSystemComponent::PrecacheAssetPSOs(UFXSystemAsset* FXSystemAsset)
 	check(IsInGameThread() || IsInParallelGameThread());
 
 	MaterialPSOPrecacheRequestIDs.Empty();
-	bPSOPrecacheFinished = true;
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// The asset will keep the Precache events alive, but these might be over. Avoid delaying scene proxy creation if everything is finished
 	bool bAllEventsDone = GraphEvent == nullptr || GraphEvent->IsComplete();
+
+	FGraphEventArray Events;
 	if (!bAllEventsDone)
 	{
 		MaterialPSOPrecacheRequestIDs.Append(FXSystemAsset->GetMaterialPSOPrecacheRequestIDs());
-
-		FGraphEventArray Events;
 		Events.Add(GraphEvent);
-		RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	}
 
+	RequestRecreateRenderStateWhenPSOPrecacheFinished(Events);
 	bPSOPrecacheCalled = true;
 #endif // UE_WITH_PSO_PRECACHING
 }

@@ -4780,7 +4780,6 @@ void UPrimitiveComponent::PrecachePSOs()
 
 	// clear the current request data
 	MaterialPSOPrecacheRequestIDs.Empty();
-	bPSOPrecacheFinished = true;
 	PSOPrecacheRequestPriority = EPSOPrecachePriority::Medium;
 
 	// Collect the data from the derived classes
@@ -4799,8 +4798,10 @@ void UPrimitiveComponent::PrecachePSOs()
 #if UE_WITH_PSO_PRECACHING
 struct FPSOPrecacheFinishedTask
 {
-	explicit FPSOPrecacheFinishedTask(UPrimitiveComponent* InPrimitiveComponent)
-		: WeakPrimitiveComponent(InPrimitiveComponent)
+	explicit FPSOPrecacheFinishedTask(UPrimitiveComponent* InPrimitiveComponent, int32 InJobSetThatJustCompleted)
+		: WeakPrimitiveComponent(InPrimitiveComponent),
+		JobSetThatJustCompleted(InJobSetThatJustCompleted)
+
 	{
 	}
 
@@ -4813,12 +4814,14 @@ struct FPSOPrecacheFinishedTask
 		if (UPrimitiveComponent* PC = WeakPrimitiveComponent.Get())
 		{
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_PSOPrecacheFinishedTask);
-			PC->bPSOPrecacheFinished = true;
+			int32 CurrJobSetCompleted = PC->LatestPSOPrecacheJobSetCompleted.load();
+			while (CurrJobSetCompleted < JobSetThatJustCompleted && !PC->LatestPSOPrecacheJobSetCompleted.compare_exchange_weak(CurrJobSetCompleted, JobSetThatJustCompleted)){}
 			PC->MarkRenderStateDirty();
 		}
 	}
 
 	TWeakObjectPtr<UPrimitiveComponent> WeakPrimitiveComponent;
+	int32 JobSetThatJustCompleted;
 };
 #endif
 
@@ -4827,10 +4830,18 @@ void UPrimitiveComponent::RequestRecreateRenderStateWhenPSOPrecacheFinished(cons
 #if UE_WITH_PSO_PRECACHING
 	// If the proxy creation strategy relies on knowing when the precached PSO has been compiled,
 	// schedule a task to mark the render state dirty when all PSOs are compiled so the proxy gets recreated.
-	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate && !PSOPrecacheCompileEvents.IsEmpty())
+	if (UsePSOPrecacheRenderProxyDelay() && GetPSOPrecacheProxyCreationStrategy() != EPSOPrecacheProxyCreationStrategy::AlwaysCreate)
 	{
-		bPSOPrecacheFinished = false;
-		TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this);
+		LatestPSOPrecacheJobSet++;
+		if(!PSOPrecacheCompileEvents.IsEmpty())
+		{
+			TGraphTask<FPSOPrecacheFinishedTask>::CreateTask(&PSOPrecacheCompileEvents).ConstructAndDispatchWhenReady(this, LatestPSOPrecacheJobSet);
+		}
+		else
+		{
+			// No graph events to wait on, the job set can be considered complete.
+			LatestPSOPrecacheJobSetCompleted = LatestPSOPrecacheJobSet;
+		}
 	}
 
 	bPSOPrecacheCalled = true;
@@ -4849,7 +4860,7 @@ bool UPrimitiveComponent::UsePSOPrecacheRenderProxyDelay() const
 bool UPrimitiveComponent::IsPSOPrecaching() const
 {
 #if UE_WITH_PSO_PRECACHING
-	return !bPSOPrecacheFinished;
+	return LatestPSOPrecacheJobSetCompleted != LatestPSOPrecacheJobSet;
 #else
 	return false;
 #endif // UE_WITH_PSO_PRECACHING
