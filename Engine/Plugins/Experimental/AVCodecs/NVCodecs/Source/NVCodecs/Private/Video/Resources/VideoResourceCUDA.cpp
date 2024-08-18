@@ -134,6 +134,15 @@ FVideoResourceCUDA::~FVideoResourceCUDA()
 			FAVResult::Log(EAVResult::ErrorUnmapping, TEXT("Failed to clean up external memory"), TEXT("CUDA"), Result);
 		}
 	}
+
+	if (ExternalSemaphore != nullptr)
+	{
+		CUresult const Result = FCUDAModule::CUDA().cuDestroyExternalSemaphore(ExternalSemaphore);
+		if (Result != CUDA_SUCCESS)
+		{
+			FAVResult::Log(EAVResult::ErrorUnmapping, TEXT("Failed to destroy external semaphore"), TEXT("CUDA"), Result);
+		}
+	}
 }
 
 FAVResult FVideoResourceCUDA::Validate() const
