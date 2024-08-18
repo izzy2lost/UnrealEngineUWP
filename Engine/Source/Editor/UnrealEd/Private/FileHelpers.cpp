@@ -242,7 +242,15 @@ namespace FileDialogHelpers
 */
 static bool UseAlternateCheckoutWorkflow()
 {
-	return ISourceControlModule::Get().GetProvider().GetName() == TEXT("Unreal Revision Control");
+	if (ISourceControlModule::Get().GetProvider().GetName() == TEXT("Unreal Revision Control"))
+	{
+		if (const UEditorLoadingSavingSettings* Settings = GetDefault<UEditorLoadingSavingSettings>())
+		{
+			return Settings->GetAutomaticallyCheckoutOnAssetModification();
+		}
+	}
+	
+	return false;
 }
 
 /**
