@@ -578,7 +578,11 @@ void FSubobjectData::SetSocketName(FName InNewName)
 void FSubobjectData::SetupAttachment(FName SocketName, const FSubobjectDataHandle& AttachParentHandle)
 {
 	USceneComponent* SceneComponentTemplate = Cast<USceneComponent>(GetMutableComponentTemplate());
-
+	if (!SceneComponentTemplate)
+	{
+		return;
+	}
+	
 	FSubobjectData* AttachParentData = AttachParentHandle.GetData();
 	USceneComponent* AttachParent = AttachParentData ?
 		Cast<USceneComponent>(AttachParentData->GetMutableComponentTemplate()) :
