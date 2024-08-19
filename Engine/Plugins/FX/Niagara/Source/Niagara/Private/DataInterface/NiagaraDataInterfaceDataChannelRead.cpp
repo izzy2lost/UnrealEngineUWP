@@ -2041,7 +2041,7 @@ void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDa
 		{
 			Ret = HashCombine(Ret, GetTypeHash(Input));
 		}
-		for (const FNiagaraVariable& Output : Sig.Outputs)
+		for (const FNiagaraVariableBase& Output : Sig.Outputs)
 		{
 			Ret = HashCombine(Ret, GetTypeHash(Output));
 		}
@@ -2063,7 +2063,7 @@ void UNiagaraDataInterfaceDataChannelRead::GetParameterDefinitionHLSL(FNiagaraDa
 
 		for (int32 OutputIdx = Signature.NumRequiredOutputs(); OutputIdx < Signature.Outputs.Num(); ++OutputIdx)
 		{
-			const FNiagaraVariable& OutputParam = Signature.Outputs[OutputIdx];
+			const FNiagaraVariableBase& OutputParam = Signature.Outputs[OutputIdx];
 			ParametersAccessed.AddUnique(OutputParam);
 		}
 	}

@@ -1777,7 +1777,7 @@ void UNiagaraNodeFunctionCall::RefreshSignature()
 				for (int32 i = 0; i < FoundPins.Num(); ++i)
 				{
 					UEdGraphPin* OutputPin = FoundPins[i];
-					FNiagaraVariable InputVariable = UEdGraphSchema_Niagara::PinToNiagaraVariable(OutputPin);
+					FNiagaraVariableBase InputVariable = UEdGraphSchema_Niagara::PinToNiagaraVariable(OutputPin);
 
 					if(!BaseSig->Outputs.Contains(InputVariable) && IsAddPin(OutputPin) == false && IsExecPin(OutputPin) == false)
 					{

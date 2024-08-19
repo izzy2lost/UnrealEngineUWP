@@ -9452,7 +9452,7 @@ FString FNiagaraHlslTranslator::GetFunctionSignature(const FNiagaraFunctionSigna
 
 	for (int32 i = 0; i < Sig.Outputs.Num(); ++i)
 	{
-		const FNiagaraVariable& Output = Sig.Outputs[i];
+		const FNiagaraVariableBase& Output = Sig.Outputs[i];
 		//We don't write class types as real params in the hlsl
 		if (Output.GetType().GetClass() == nullptr)
 		{

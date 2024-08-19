@@ -93,7 +93,7 @@ FORCEINLINE uint32 GetTypeHash(const FNiagaraFunctionSignature& Sig)
 	{
 		Hash = HashCombine(Hash, GetTypeHash(Var));
 	}
-	for (const FNiagaraVariable& Var : Sig.Outputs)
+	for (const FNiagaraVariableBase& Var : Sig.Outputs)
 	{
 		Hash = HashCombine(Hash, GetTypeHash(Var));
 	}
