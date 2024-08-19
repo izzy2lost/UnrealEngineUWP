@@ -7,6 +7,8 @@
 #include "XRCreativeGizmos.generated.h"
 
 
+class AXRCreativeAvatar;
+
 namespace UE::GizmoUtil
 {
 	struct FTransformSubGizmoCommonParams;
@@ -73,6 +75,12 @@ public:
 	TObjectPtr<USceneComponent> WorldAligned;
 
 	TWeakObjectPtr<UInteractiveGizmoManager> WeakGizmoManager;
+
+	TWeakObjectPtr<AXRCreativeAvatar> OwnerAvatar;
+	
+	/* Get the XRCreative Avatar that spawned this Gizmo */
+	UFUNCTION(BlueprintCallable, Category="XRCreative|Gizmo")
+	AXRCreativeAvatar* GetOwnerAvatar() { return OwnerAvatar.Get(); }
 
 public:
 	// NOTE: These properties alias ones inherited from ACombinedTransformGizmoActor
@@ -165,7 +173,7 @@ public:
 
 	/** XY Plane Scale Component */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Gizmo")
-	TObjectPtr<UXRCreativeGizmoMeshComponent> XRPlaneScaleXY;
+	TObjectPtr<UXRCreativeGizmoMeshComponent> XRPlaneScaleXY;	
 };
 
 

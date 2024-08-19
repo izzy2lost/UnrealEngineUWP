@@ -391,6 +391,10 @@ public:
 			GizmoMesh->Initialize();
 		}
 
+		ITFComponent->GizmoActor = Gizmo;
+
+		Gizmo->OwnerAvatar = Cast<AXRCreativeAvatar>(ITFComponent->GetOwner());
+		
 		return Gizmo;
 	}
 

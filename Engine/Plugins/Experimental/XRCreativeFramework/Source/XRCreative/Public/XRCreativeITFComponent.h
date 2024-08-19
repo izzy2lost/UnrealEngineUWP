@@ -93,7 +93,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
 	void SetCurrentTransformGizmoMode(EToolContextTransformGizmoMode GizmoMode);
 
+	UPROPERTY()
+	TWeakObjectPtr<AXRCreativeCombinedTransformGizmoActor> GizmoActor;
 
+	UFUNCTION(BlueprintCallable, Category="XR Creative|Tools")
+	AXRCreativeCombinedTransformGizmoActor* GetGizmoActor() const { return GizmoActor.Get(); }
+	
 	TSubclassOf<AXRCreativeCombinedTransformGizmoActor> GetCombinedGizmoActorClass() const { return CombinedGizmoActorClass; }
 
 protected:
