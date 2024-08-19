@@ -503,6 +503,12 @@ TAutoConsoleVariable<float> CVarPathTracingBackgroundAlpha(
 	ECVF_RenderThreadSafe
 );
 
+TAutoConsoleVariable<int32> CVarPathTracingDebug(
+	TEXT("r.PathTracing.Debug"),
+	0,
+	TEXT("Enable debug rendering for path tracer. Used for only development and needs to be enabled before starting the engine.\n"),
+	ECVF_RenderThreadSafe | ECVF_ReadOnly
+);
 
 BEGIN_SHADER_PARAMETER_STRUCT(FPathTracingData, )
 	SHADER_PARAMETER(float, BlendFactor)
@@ -1113,6 +1119,7 @@ class FPathTracingRG : public FGlobalShader
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("USE_RECT_LIGHT_TEXTURES"), 1);
+		OutEnvironment.SetDefine(TEXT("DEBUG_ENABLE"), CVarPathTracingDebug.GetValueOnAnyThread() > 0 ? 1u : 0u);
 		OutEnvironment.CompilerFlags.Add(CFLAG_WarningsAsErrors);
 	}
 
@@ -1132,6 +1139,7 @@ class FPathTracingRG : public FGlobalShader
 
 		SHADER_PARAMETER_STRUCT_REF(FViewUniformShaderParameters, ViewUniformBuffer)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FPathTracingData, PathTracingData)
+		SHADER_PARAMETER_STRUCT_INCLUDE(ShaderPrint::FShaderParameters, ShaderPrint)
 
 		// scene lights
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FPathTracingLight>, SceneLights)
@@ -3622,6 +3630,15 @@ void FDeferredShadingSceneRenderer::RenderPathTracing(
 								PassParameters->ActivePaths = GraphBuilder.CreateUAV(ActivePaths[0], PF_R32_UINT);
 								PassParameters->NumPathStates = GraphBuilder.CreateUAV(NumActivePaths, PF_R32_UINT);
 							}
+							const bool bEnableDebug = CVarPathTracingDebug.GetValueOnRenderThread() > 0;
+							if (bEnableDebug)
+							{
+								ShaderPrint::SetEnabled(true);
+								ShaderPrint::RequestSpaceForCharacters(1024);
+								ShaderPrint::RequestSpaceForLines(1024);
+								ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrint);
+							}
+
 							ClearUnusedGraphResources(RayGenShader, PassParameters);
 							const bool bFlushRenderingCommands = FlushRenderingCommands == 1 || (FlushRenderingCommands == 2 && Bounce == MaxBounces);
 							const bool bUse1DDispatch = Config.UseAdaptiveSampling || (bUseCompaction && Bounce > 0);
