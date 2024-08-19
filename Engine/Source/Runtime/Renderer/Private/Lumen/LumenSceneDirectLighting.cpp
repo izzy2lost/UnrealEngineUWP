@@ -7,6 +7,7 @@
 #include "SceneUtils.h"
 #include "PipelineStateCache.h"
 #include "ShaderParameterStruct.h"
+#include "ShaderPermutationUtils.h"
 #include "VolumeLighting.h"
 #include "DistanceFieldLightingShared.h"
 #include "VolumetricCloudRendering.h"
@@ -620,17 +621,44 @@ class FLumenCardBatchDirectLightingCS : public FGlobalShader
 
 	class FMultiView : SHADER_PERMUTATION_BOOL("HAS_MULTIPLE_VIEWS");
 	class FHasRectLights : SHADER_PERMUTATION_BOOL("HAS_RECT_LIGHTS");
-	using FPermutationDomain = TShaderPermutationDomain<FMultiView, FHasRectLights>;
+	class FWaveOpWaveSize : SHADER_PERMUTATION_SPARSE_INT("WAVE_OP_WAVE_SIZE", 0, 64); // TODO: wave32 support
+	using FPermutationDomain = TShaderPermutationDomain<FMultiView, FHasRectLights, FWaveOpWaveSize>;
 
 	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters)
 	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!UE::ShaderPermutationUtils::ShouldCompileWithWaveSize(Parameters, PermutationVector.Get<FWaveOpWaveSize>()))
+		{
+			return false;
+		}
+
 		return DoesPlatformSupportLumenGI(Parameters.Platform);
+	}
+
+	static EShaderPermutationPrecacheRequest ShouldPrecachePermutation(const FShaderPermutationParameters& Parameters)
+	{
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (!UE::ShaderPermutationUtils::ShouldPrecacheWithWaveSize(Parameters, PermutationVector.Get<FWaveOpWaveSize>()))
+		{
+			return EShaderPermutationPrecacheRequest::NotUsed;
+		}
+
+		return FGlobalShader::ShouldPrecachePermutation(Parameters);
 	}
 
 	static void ModifyCompilationEnvironment(const FGlobalShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 	{
 		FGlobalShader::ModifyCompilationEnvironment(Parameters, OutEnvironment);
 		OutEnvironment.SetDefine(TEXT("USE_LIGHT_UNIFORM_BUFFER"), 0);
+
+		FPermutationDomain PermutationVector(Parameters.PermutationId);
+
+		if (PermutationVector.Get<FWaveOpWaveSize>() > 0)
+		{
+			OutEnvironment.CompilerFlags.Add(CFLAG_WaveOperations);
+		}
 	}
 };
 
@@ -1071,9 +1099,26 @@ static void RenderDirectLightIntoLumenCardsBatched(
 		PassParameters->ViewExposure[OriginIndex] = ViewOrigin.LastEyeAdaptationExposure;
 	}
 
+	int32 WaveOpWaveSize = 0;
+
+	if (GRHISupportsWaveOperations && RHISupportsWaveOperations(Views[0].GetShaderPlatform()))
+	{
+		// 64 wave size is preferred for FLumenCardBatchDirectLightingCS
+		if (GRHIMinimumWaveSize <= 64 && GRHIMaximumWaveSize >= 64)
+		{
+			WaveOpWaveSize = 64;
+		}
+		else if (GRHIMinimumWaveSize <= 32 && GRHIMaximumWaveSize >= 32)
+		{
+			// TODO: wave32 support
+			// WaveOpWaveSize = 32;
+		}
+	}
+
 	FLumenCardBatchDirectLightingCS::FPermutationDomain PermutationVector;
 	PermutationVector.Set<FLumenCardBatchDirectLightingCS::FMultiView>(NumViewOrigins > 1);
 	PermutationVector.Set<FLumenCardBatchDirectLightingCS::FHasRectLights>(bHasRectLights);
+	PermutationVector.Set<FLumenCardBatchDirectLightingCS::FWaveOpWaveSize>(WaveOpWaveSize);
 	auto ComputeShader = Views[0].ShaderMap->GetShader<FLumenCardBatchDirectLightingCS>(PermutationVector);
 
 	FComputeShaderUtils::AddPass(

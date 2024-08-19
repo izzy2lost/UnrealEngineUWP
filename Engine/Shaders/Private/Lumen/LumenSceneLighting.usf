@@ -517,6 +517,8 @@ void ClearLumenCardCapturePS(
 
 #ifdef ResampleLightingHistoryToCardCaptureAtlasCS
 
+#define RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR (FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS)
+
 Buffer<uint> NewCardTileResampleData;
 Buffer<uint4> NewCardPageResampleData;
 Buffer<uint4> RectCoordBuffer;
@@ -568,9 +570,11 @@ void ResampleLightingHistoryToCardCaptureAtlasCS(uint3 GroupId : SV_GroupID, uin
 			OutRadiosityCardCaptureAtlas = Texture2DSampleLevel(IndirectLightingAtlas, GlobalBilinearClampedSampler, CardSample.IndirectLightingPhysicalAtlasUV, 0.0f).xyz;
 			OutRadiosityNumFramesAccumulatedCardCaptureAtlas = Texture2DSampleLevel(RadiosityNumFramesAccumulatedAtlas, GlobalBilinearClampedSampler, CardSample.IndirectLightingPhysicalAtlasUV, 0.0f).x;
 			
+		#if RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR
 			const uint2 TileCoord = CardSample.PhysicalAtlasUV * LumenCardScene.PhysicalAtlasSize / CARD_TILE_SIZE;
 			const uint PhysicalAtlasWidthInTiles = LumenCardScene.PhysicalAtlasSize.x / CARD_TILE_SIZE;
 			LoadLumenCardTileShadowDownsampleFactor(ShadowDownsampleFactorLow, ShadowDownsampleFactorHigh, TileCoord, PhysicalAtlasWidthInTiles);
+		#endif
 		}
 	}
 
@@ -581,8 +585,10 @@ void ResampleLightingHistoryToCardCaptureAtlasCS(uint3 GroupId : SV_GroupID, uin
 	RWRadiosityCardCaptureAtlas[WriteTexelCoord] = float4(OutRadiosityCardCaptureAtlas, 0.f);
 	RWRadiosityNumFramesAccumulatedCardCaptureAtlas[WriteTexelCoord] = OutRadiosityNumFramesAccumulatedCardCaptureAtlas;
 
+#if RESAMPLE_TILE_SHADOW_DOWNSAMPLE_FACTOR
 	ShadowDownsampleFactorLow = WaveActiveBitAnd(ShadowDownsampleFactorLow);
 	ShadowDownsampleFactorHigh = WaveActiveBitAnd(ShadowDownsampleFactorHigh);
+#endif
 	
 	if (GroupThreadIndex == 0)
 	{

@@ -49,6 +49,9 @@ StructuredBuffer<uint> CardTiles;
 StructuredBuffer<uint> LightTileOffsetNumPerCardTile;
 StructuredBuffer<uint2> LightTilesPerCardTile;
 
+#if WAVE_OP_WAVE_SIZE > 0 && COMPILER_SUPPORTS_WAVE_SIZE
+WAVESIZE(WAVE_OP_WAVE_SIZE)
+#endif
 [numthreads(CARD_TILE_SIZE, CARD_TILE_SIZE, 1)]
 void LumenCardBatchDirectLightingCS(
 	uint3 GroupId : SV_GroupID,
@@ -105,11 +108,15 @@ void LumenCardBatchDirectLightingCS(
 			//Irradiance += bShadowFactorValid ? float3(0, 1, 0) : float3(0.2f, 0.0f, 0.0f);
 		}
 
+	#if WAVE_OP_WAVE_SIZE == 64
 		if (WaveActiveAllTrue(!IsVisibleToLight(ShadowMaskRay.ShadowFactor)) || WaveActiveAllTrue(IsVisibleToLight(ShadowMaskRay.ShadowFactor)))
 		{
 			FLumenLight LumenLight = LoadLumenLight(LightTile.LightIndex, float3(0, 0, 0), 0);
 			SetLumenCardTileShadowDownsampleFactorForLight(TileShadowDownsampleFactorLow, TileShadowDownsampleFactorHigh, LumenLight.PersistentId);
 		}
+	#elif WAVE_OP_WAVE_SIZE == 32
+		// TODO: add wave32 support
+	#endif
 	}
 
 	if (all(AtlasCoord % CARD_TILE_SIZE == 0))

@@ -26,6 +26,8 @@
 	#include "../VolumetricCloudCommon.ush"
 #endif
 
+#define SUPPORT_ADAPTIVE_SHADOW_TRACING (FEATURE_LEVEL >= FEATURE_LEVEL_SM6 || PLATFORM_SUPPORTS_SM6_0_WAVE_OPERATIONS)
+
 RWStructuredBuffer<uint> RWShadowTraces;
 RWStructuredBuffer<uint> RWShadowTraceAllocator;
 
@@ -77,6 +79,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 
 	FLumenCardPageData CardPage = GetLumenCardPageData(LightTile.CardPageIndex + DummyZeroForFixingShaderCompilerBug);
 
+#if SUPPORT_ADAPTIVE_SHADOW_TRACING
 	bool bTileHasUniformlyVisibility = false;
 	if (bAdaptiveShadowTracing != 0)
 	{
@@ -84,6 +87,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 		uint PhysicalAtlasWidthInTiles = LumenCardScene.PhysicalAtlasSize.x / CARD_TILE_SIZE;
 		bTileHasUniformlyVisibility = LumenCardTileHasUniformVisibilityToLight(TilePhysicalAtlasCoord, PhysicalAtlasWidthInTiles, LightPersistentId);
 	}
+#endif
 
 	uint2 CoordInCardTile = Unflatten2D(LinearGroupThreadId, uint2(THREADGROUP_SIZE_X, THREADGROUP_SIZE_Y)) + uint2(0, ShadowMaskOffset ? 4 : 0);
 	uint2 TexelInCardPageCoord = LightTile.TileCoord * CARD_TILE_SIZE + CoordInCardTile;
@@ -184,6 +188,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 		bool bWriteTrace = !ShadowMaskRay.bShadowFactorComplete;
 		uint DownSampleLevel = 0;
 
+	#if SUPPORT_ADAPTIVE_SHADOW_TRACING
 		if (bAdaptiveShadowTracing != 0)
 		{
 			if (bTileHasUniformlyVisibility)
@@ -202,6 +207,7 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 				bWriteTrace = SubQuadIndex == CardPage.DirectLightingTemporalIndex % 4;
 			}
 		}
+	#endif
 
 		if (bWriteTrace)
 		{
