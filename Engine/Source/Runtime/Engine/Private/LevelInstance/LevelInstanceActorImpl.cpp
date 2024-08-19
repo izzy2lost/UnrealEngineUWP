@@ -51,6 +51,10 @@ void FLevelInstanceActorImpl::UnregisterLevelInstance()
 	if (ULevelInstanceSubsystem* LevelInstanceSubsystem = LevelInstance->GetLevelInstanceSubsystem())
 	{
 		LevelInstanceSubsystem->UnregisterLevelInstance(LevelInstance);
+		if (ULevel* LoadedLevel = LevelInstance->GetLoadedLevel())
+		{
+			FActorInstanceGuid::ReleaseLevelInstanceGuid(LoadedLevel);
+		}
 
 		LevelInstance->UnloadLevelInstance();
 

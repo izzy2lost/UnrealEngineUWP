@@ -18,6 +18,7 @@ struct FActorInstanceGuid
 	void InitializeFrom(AActor& InActor);
 #endif
 
+	ENGINE_API static void ReleaseLevelInstanceGuid(ULevel* Level);
 	ENGINE_API static void SetLevelInstanceGuid(ULevel* Level, ULevel* OwnerLevel, const FGuid& Guid, const FGuid& ResolvedGuid = FGuid());
 	ENGINE_API static FGuid GetLevelInstanceGuid(ULevel* Level);
 

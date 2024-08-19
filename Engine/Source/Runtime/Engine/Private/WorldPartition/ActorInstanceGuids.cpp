@@ -23,6 +23,11 @@ struct FLevelInstanceGuid
 FUObjectAnnotationSparse<FActorInstanceGuid, true>	GActorGuids;
 FUObjectAnnotationSparse<FLevelInstanceGuid, true>	GLevelInstanceGuids;
 
+void FActorInstanceGuid::ReleaseLevelInstanceGuid(ULevel* Level)
+{
+	GLevelInstanceGuids.RemoveAnnotation(Level);
+}
+
 void FActorInstanceGuid::SetLevelInstanceGuid(ULevel* Level, ULevel* OwnerLevel, const FGuid& Guid, const FGuid& ResolvedGuid)
 {
 	// double registration is often an order issue (LevelInstance GUID tried to be accessed before FLevelInstanceActorImpl::OnLevelInstanceLoaded was called)
