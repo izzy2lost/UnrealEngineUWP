@@ -434,8 +434,6 @@ namespace HordeServer.Compute
 							IAgent? newAgent = await agent.TryCreateLeaseAsync(createLeaseOptions, cancellationToken);
 							if (newAgent != null)
 							{
-								await _agentCollection.PublishUpdateEventAsync(agent.Id);
-								await _agentService.CreateLeaseAsync(newAgent, createLeaseOptions, cancellationToken);
 								span.SetAttribute("allocatedLeaseId", leaseId.ToString());
 								span.SetAttribute("allocatedAgentId", newAgent.Id.ToString());
 								span.SetAttribute("allocatedConnectionAddress", resource.ConnectionAddress);

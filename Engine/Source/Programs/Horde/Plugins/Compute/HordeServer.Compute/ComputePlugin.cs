@@ -6,6 +6,7 @@ using Amazon.CloudWatch;
 using Amazon.EC2;
 using Amazon.Extensions.NETCore.Setup;
 using Amazon.SQS;
+using EpicGames.Horde.Agents;
 using HordeServer.Acls;
 using HordeServer.Agents;
 using HordeServer.Agents.Enrollment;
@@ -14,6 +15,7 @@ using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
 using HordeServer.Agents.Relay;
 using HordeServer.Agents.Telemetry;
+using HordeServer.Auditing;
 using HordeServer.Aws;
 using HordeServer.Compute;
 using HordeServer.Logs;
@@ -59,6 +61,8 @@ namespace HordeServer
 		/// <inheritdoc/>
 		public void ConfigureServices(IServiceCollection services)
 		{
+			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
+
 			services.AddSingleton<IDefaultAclModifier, ComputeAclModifier>();
 			services.AddSingleton<IPluginResponseFilter, ComputeResponseFilter>();
 

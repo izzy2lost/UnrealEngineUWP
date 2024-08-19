@@ -10,7 +10,7 @@ using HordeServer.Agents;
 namespace HordeServer.Tests.Agents;
 
 [TestClass]
-public class AgentCollectionTests : BuildTestSetup
+public class AgentCollectionTests : ComputeTestSetup
 {
 	private IAgent _agent;
 	private readonly CreateLeaseOptions _lease1;
@@ -20,7 +20,7 @@ public class AgentCollectionTests : BuildTestSetup
 
 	public AgentCollectionTests()
 	{
-		_agent = CreateAgentAsync(new PoolId("pool1"), ephemeral: true).Result;
+		_agent = AgentCollection.AddAsync(new AgentId("test"), ephemeral: true, enrollmentKey: "").Result;
 		_lease1 = new CreateLeaseOptions(LeaseId.Parse("aaaaaaaaaaaaaaaaaaaaaaaa"), null, "lease", null, null, null, null, false, new Empty());
 		_lease2 = new CreateLeaseOptions(LeaseId.Parse("bbbbbbbbbbbbbbbbbbbbbbbb"), null, "lease", null, null, null, null, false, new Empty());
 		_leaseWithParent3 = new CreateLeaseOptions(LeaseId.Parse("cccccccccccccccccccccccc"), _lease1.Id, "leaseWithParent3", null, null, null, null, false, new Empty());
@@ -73,7 +73,7 @@ public class AgentCollectionTests : BuildTestSetup
 		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease>() });
+		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<RpcLease>() });
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 
@@ -86,7 +86,11 @@ public class AgentCollectionTests : BuildTestSetup
 		await _agent.TryCreateLeaseAsync(_lease1);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { new AgentLease(_lease1), new AgentLease(_lease2) } });
+		IAgent? newAgent = await _agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(newAgent);
+
+		newAgent = await _agent.TryCreateLeaseAsync(_lease2);
+		Assert.IsNotNull(newAgent);
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 
@@ -104,7 +108,7 @@ public class AgentCollectionTests : BuildTestSetup
 		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<AgentLease> { new AgentLease(_lease1) } });
+		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<RpcLease> { new RpcLease { Id = _lease1.Id } } });
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
 
@@ -166,6 +170,6 @@ public class AgentCollectionTests : BuildTestSetup
 
 	private async Task UpdateAgentAsync()
 	{
-		_agent = (await AgentService.GetAgentAsync(_agent.Id))!;
+		_agent = (await AgentCollection.GetAsync(_agent.Id))!;
 	}
 }
