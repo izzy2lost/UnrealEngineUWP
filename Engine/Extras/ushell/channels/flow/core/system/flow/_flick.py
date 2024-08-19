@@ -102,7 +102,8 @@ def Opt(type_value, *args):
 
 #-------------------------------------------------------------------------------
 class _ArgOptBox(object):
-    def __init__(self, items):
+    def __init__(self, parent, items):
+        super().__setattr__("_parent", parent)
         super().__setattr__("_items", items)
 
     def __iter__(self):
@@ -117,6 +118,11 @@ class _ArgOptBox(object):
 
     def is_default(self, name):
         return self._items[name][1]
+
+    def get_type(self, name):
+        arg_info = getattr(self._parent, name, None)
+        if isinstance(arg_info, _ArgOptBase):
+            return arg_info.get_type()
 
 
 
@@ -322,7 +328,7 @@ class Cmd(object):
 
         return "\n".join(paras[:-1])
 
-    def invoke(self, in_args):
+    def invoke(self, in_args, *, invoke_path=""):
         self.validate()
 
         def read_in_args():
@@ -356,7 +362,8 @@ class Cmd(object):
             out_type = argopt.get_type().__name__
             on_error(f"Unable to convert '{value}' to type '{out_type}'")
 
-        self.args = _ArgOptBox(args_out)
+        self.args = _ArgOptBox(self, args_out)
+        self._invoke_path = invoke_path
 
         return self._call_main()
 
@@ -390,7 +397,7 @@ class Cmd(object):
             return
 
         if hasattr(completer, "__call__"):
-            self.args = _ArgOptBox(args_out)
+            self.args = _ArgOptBox(self, args_out)
             completer = completer(prefix)
 
         if completer:

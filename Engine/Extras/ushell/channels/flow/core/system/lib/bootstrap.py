@@ -225,8 +225,16 @@ def _manifest_tool(name, tool):
 #-------------------------------------------------------------------------------
 def _install_tool(name, tool, channel_dir):
     manifest = _manifest_tool(name, tool)
-    if tool._platform and tool._platform != sys.platform:
-        return manifest
+
+    if req_platform := tool._platform:
+        this_platform = sys.platform
+        if "-" in req_platform:
+            import platform
+            arch = platform.machine()
+            arch = "amd64" if arch in ("x86_64", "AMD64") else "arm64"
+            this_platform += "-" + arch
+        if req_platform != this_platform:
+            return manifest
 
     tool_double = f"{name}-{tool._version}/"
     _log.write("Installing tool", tool_double)

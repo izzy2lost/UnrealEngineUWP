@@ -113,24 +113,46 @@ class _ExecContext(object):
 
 
 #-------------------------------------------------------------------------------
-class _Channel(object):
-    def read_extensions(self, mount):
-        extendable = self.get_channel().get_extendable(mount)
-        yield from (x for x,_ in extendable.read_extensions())
+class _ArgOverrider(object):
+    def _apply_arg_overrides(self):
+        try:
+            self._apply_guarded()
+        except Exception as e:
+            print("ArgOverrider:", "ERROR:", str(e))
 
-    def get_extension_type(self, mount, name):
-        extendable = self.get_channel().get_extendable(mount)
-        extension = extendable.get_extension_class(name)
-        return extension.get_class_type()
+    def _apply_guarded(self):
+        if not self._invoke_path:
+            return
 
-    def read_extension_types(self, mount):
-        extendable = self.get_channel().get_extendable(mount)
-        return extendable.read_extensions()
+        header = "Argument overrides"
+        for arg_name, arg_value in self.args:
+            if not self.args.is_default(arg_name):
+                continue
 
-    def create_extension(self, mount, name, *ctor_args, **ctor_kwargs):
-        extendable = self.get_channel().get_extendable(mount)
-        extension = extendable.get_extension_class(name)
-        return extension.construct(*ctor_args, **ctor_kwargs)
+            over_value = os.getenv(f"ushell{self._invoke_path}:{arg_name}")
+            if over_value is None:
+                continue
+
+            if header:
+                self.print_info(header)
+                header = None
+
+            print(arg_name + ": ", end="")
+            try:
+                arg_type = self.args.get_type(arg_name)
+                if isinstance(arg_value, tuple):
+                    import shlex
+                    over_value = (arg_type(x) for x in shlex.split(over_value))
+                    over_value = (*arg_value, *over_value)
+                    print(*over_value, end="")
+                else:
+                    over_value = arg_type(over_value)
+                    print(over_value, end="")
+            except Exception as e:
+                print("[ERROR:", str(e))
+            print(" (env)")
+
+            setattr(self.args, arg_name, over_value)
 
 
 
@@ -138,7 +160,7 @@ class _Channel(object):
 from . import _flick
 Arg = _flick.Arg
 Opt = _flick.Opt
-class Cmd(_flick.Cmd, _Channel):
+class Cmd(_flick.Cmd, _ArgOverrider):
     Arg = _flick.Arg
     Opt = _flick.Opt
 
@@ -161,6 +183,8 @@ class Cmd(_flick.Cmd, _Channel):
         # 'os.chdir(x); subprocess.run("p4 set")'. Unset PWD.
         if "PWD" in os.environ:
             del os.environ["PWD"]
+
+        self._apply_arg_overrides()
 
         try:
             return super()._call_main()

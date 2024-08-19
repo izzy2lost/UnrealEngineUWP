@@ -21,9 +21,9 @@ fd.source("https://github.com/sharkdp/fd/releases/latest", "fd-v([0-9.]+)-x86_64
 
 #-------------------------------------------------------------------------------
 fzf_win32 = flow.describe.Tool()
-fzf_win32.version("0.44.1")
-fzf_win32.payload("https://github.com/junegunn/fzf/releases/download/$VERSION/fzf-$VERSION-windows_amd64.zip")
-fzf_win32.sha1("463f064d0403714ab5bf68ebf9fdea4c0159f6c3")
+fzf_win32.version("0.54.3")
+fzf_win32.payload("https://github.com/junegunn/fzf/releases/download/v$VERSION/fzf-$VERSION-windows_amd64.zip")
+fzf_win32.sha1("2c3ceab1a099ad3ab30eaffb6edaaa8f1a8ce2b4")
 fzf_win32.platform("win32")
 fzf_win32.bin("fzf.exe")
 fzf_win32.source("https://github.com/junegunn/fzf/releases/latest", r"fzf-(\d+\.\d+\.\d+)-windows")

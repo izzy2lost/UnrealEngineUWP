@@ -169,7 +169,7 @@ class Sha1s(_Channels):
             self._impl(name, manifest)
 
 #-------------------------------------------------------------------------------
-class Argumentss(flow.cmd.Cmd):
+class Arguments(flow.cmd.Cmd):
     """ Prints the given arguments as they would be received by commands """
     arguments = flow.cmd.Arg([str], "Arguments to print")
 

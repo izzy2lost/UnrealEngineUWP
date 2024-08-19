@@ -35,7 +35,7 @@ debug_sha1s.invoke("debug", "tools", "sha1s")
 debug_sha1s.prefix("$")
 
 debug_args = flow.describe.Command()
-debug_args.source("cmds/debug.py", "Argumentss")
+debug_args.source("cmds/debug.py", "Arguments")
 debug_args.invoke("debug", "args")
 debug_args.prefix("$")
 
