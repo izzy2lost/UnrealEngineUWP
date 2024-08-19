@@ -898,6 +898,8 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 	const int32 ReferenceViewIndex = 0;
 	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
 	
+	SetupLumenHardwareRayTracingUniformBuffer(ReferenceView);
+
 	// Send ray tracing resources from reference view to all others.
 	for (int32 ViewIndex = 0; ViewIndex < AllFamilyViews.Num(); ++ViewIndex)
 	{
@@ -906,10 +908,9 @@ void FDeferredShadingSceneRenderer::WaitForRayTracingScene(FRDGBuilder& GraphBui
 		if (View->bHasAnyRayTracingPass && View != &ReferenceView)
 		{
 			View->LumenHardwareRayTracingMaterialPipeline = ReferenceView.LumenHardwareRayTracingMaterialPipeline;
+			View->LumenHardwareRayTracingUniformBuffer = ReferenceView.LumenHardwareRayTracingUniformBuffer;
 		}
 	}
-
-	SetupLumenHardwareRayTracingUniformBuffer(ReferenceView);
 
 	SetupRayTracingPipelineStates(GraphBuilder);
 
