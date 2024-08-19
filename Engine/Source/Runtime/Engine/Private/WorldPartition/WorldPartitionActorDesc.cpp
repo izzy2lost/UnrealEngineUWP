@@ -520,6 +520,7 @@ FString FWorldPartitionActorDesc::ToString(EToStringMode Mode) const
 		AppendToString(TEXT("RuntimeGrid"), RuntimeGrid);
 		AppendFromBool(TEXT("EditorOnly"), bActorIsEditorOnly);
 		AppendFromBool(TEXT("RuntimeOnly"), bActorIsRuntimeOnly);
+		AppendFromBool(TEXT("HLODRelevant"), bActorIsHLODRelevant);
 		AppendFromBool(TEXT("ListedInSceneOutliner"), bActorIsListedInSceneOutliner);
 		AppendFromBool(TEXT("IsMainWorldOnly"), IsMainWorldOnly());
 
