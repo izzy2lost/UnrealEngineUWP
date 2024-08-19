@@ -140,26 +140,9 @@ void UDMMaterialValueTexture::PostEditChangeProperty(FPropertyChangedEvent& InPr
 		return;
 	}
 
-	for (const FName& EditableProperty : EditableProperties)
+	if (MemberPropertyName == ValueName)
 	{
-		if (EditableProperty == MemberPropertyName)
-		{
-			if (EditableProperty == ValueName)
-			{
-				const TextureCompressionSettings CurrentCompression = OldValue ? OldValue->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-				const TextureCompressionSettings NewCompression = Value ? Value->CompressionSettings.GetValue() : TextureCompressionSettings::TC_MAX;
-
-				const EDMUpdateType UpdateType = CurrentCompression == NewCompression
-					? EDMUpdateType::Structure
-					: EDMUpdateType::Value;
-
-				OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
-				return;
-			}
-
-			OnValueChanged(EDMUpdateType::Structure | EDMUpdateType::AllowParentUpdate);
-			return;
-		}
+		OnValueChanged(EDMUpdateType::Value | EDMUpdateType::AllowParentUpdate);
 	}
 }
 #endif
