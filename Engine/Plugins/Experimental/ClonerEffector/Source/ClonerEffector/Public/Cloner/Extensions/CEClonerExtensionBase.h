@@ -46,7 +46,7 @@ public:
 #endif
 
 	/** Get the cloner component using this extension */
-	UCEClonerComponent* GetClonerComponent() const;
+	CLONEREFFECTOR_API UCEClonerComponent* GetClonerComponent() const;
 
 	/** Get the cloner component using this extension checked version */
 	UCEClonerComponent* GetClonerComponentChecked() const;

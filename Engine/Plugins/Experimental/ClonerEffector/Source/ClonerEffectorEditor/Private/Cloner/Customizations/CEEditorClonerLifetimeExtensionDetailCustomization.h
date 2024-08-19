@@ -4,7 +4,9 @@
 
 #include "IDetailCustomization.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/WeakObjectPtrTemplatesFwd.h"
 
+class FReply;
 class IDetailCategoryBuilder;
 class IPropertyHandle;
 class UCEClonerLifetimeExtension;
@@ -25,6 +27,9 @@ public:
 
 protected:
 	EVisibility GetCurveVisibility(TWeakObjectPtr<UCEClonerLifetimeExtension> InExtensionWeak) const;
+
+	bool CanAddSequencerTracks(TWeakObjectPtr<UCEClonerLifetimeExtension> InClonerLifetimeExtension) const;
+	FReply OnAddSequencerTracks(TWeakObjectPtr<UCEClonerLifetimeExtension> InClonerLifetimeExtension);
 
 	TSharedPtr<IPropertyHandle> LifetimeEnabledPropertyHandle;
 	TSharedPtr<IPropertyHandle> LifetimeScaleEnabledPropertyHandle;

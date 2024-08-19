@@ -14,22 +14,24 @@
 #include "Cloner/Extensions/CEClonerLifetimeExtension.h"
 #include "Cloner/Layouts/CEClonerMeshLayout.h"
 #include "Cloner/Layouts/CEClonerSplineLayout.h"
+#include "Cloner/Sequencer/MovieSceneClonerTrackEditor.h"
 #include "Effector/Customizations/CEEditorEffectorComponentDetailCustomization.h"
 #include "Effector/Customizations/CEEditorEffectorTypeDetailCustomization.h"
 #include "Effector/CEEffectorActor.h"
 #include "Effector/CEEffectorComponent.h"
 #include "Effector/Customizations/CEEditorEffectorActorDetailCustomization.h"
 #include "Effector/Types/CEEffectorBoundType.h"
+#include "ISequencerModule.h"
 #include "Modules/ModuleManager.h"
 #include "PropertyEditorModule.h"
 #include "Styles/CEEditorStyle.h"
 
 void FCEEditorModule::StartupModule()
 {
-	FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorName);
-
 	// Load styles
 	FCEEditorStyle::Get();
+
+	FPropertyEditorModule& PropertyModule = FModuleManager::LoadModuleChecked<FPropertyEditorModule>(TEXT("PropertyEditor"));
 
 	// Cloner customization
 	PropertyModule.RegisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorClonerActorDetailCustomization::MakeInstance));
@@ -43,13 +45,17 @@ void FCEEditorModule::StartupModule()
 	PropertyModule.RegisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorActorDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorComponentDetailCustomization::MakeInstance));
 	PropertyModule.RegisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName(), FOnGetDetailCustomizationInstance::CreateStatic(&FCEEditorEffectorTypeDetailCustomization::MakeInstance));
+
+	// Custom cloner track
+	ISequencerModule& SequencerModule = FModuleManager::LoadModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+	ClonerTrackCreateEditorHandle = SequencerModule.RegisterTrackEditor(FOnCreateTrackEditor::CreateStatic(&FMovieSceneClonerTrackEditor::CreateTrackEditor));
 }
 
 void FCEEditorModule::ShutdownModule()
 {
-	if (FModuleManager::Get().IsModuleLoaded(PropertyEditorName) && UObjectInitialized())
+	if (FModuleManager::Get().IsModuleLoaded("PropertyEditor") && UObjectInitialized())
 	{
-		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>(PropertyEditorName);
+		FPropertyEditorModule& PropertyModule = FModuleManager::GetModuleChecked<FPropertyEditorModule>("PropertyEditor");
 
 		// Cloner customization
 		PropertyModule.UnregisterCustomClassLayout(ACEClonerActor::StaticClass()->GetFName());
@@ -63,6 +69,14 @@ void FCEEditorModule::ShutdownModule()
 		PropertyModule.UnregisterCustomClassLayout(ACEEffectorActor::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEEffectorComponent::StaticClass()->GetFName());
 		PropertyModule.UnregisterCustomClassLayout(UCEEffectorBoundType::StaticClass()->GetFName());
+	}
+
+	// Custom cloner track
+	if (FModuleManager::Get().IsModuleLoaded("Sequencer"))
+	{
+		ISequencerModule& SequencerModule = FModuleManager::GetModuleChecked<ISequencerModule>(TEXT("Sequencer"));
+		SequencerModule.UnRegisterTrackEditor(ClonerTrackCreateEditorHandle);
+		ClonerTrackCreateEditorHandle.Reset();
 	}
 }
 

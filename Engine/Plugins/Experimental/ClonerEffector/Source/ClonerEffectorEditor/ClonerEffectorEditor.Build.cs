@@ -17,7 +17,7 @@ public class ClonerEffectorEditor : ModuleRules
 		        "Engine",
 		        "Slate",
 		        "SlateCore",
-		        "UnrealEd",
+		        "UnrealEd"
 	        }
         );
 
@@ -26,8 +26,13 @@ public class ClonerEffectorEditor : ModuleRules
 	        {
 		        "ClonerEffector",
 		        "InputCore",
+				"MovieScene",
+				"Niagara",
+		        "NiagaraEditor",
+		        "NiagaraSimCaching",
 		        "Projects",
 				"PropertyEditor",
+				"Sequencer",
 				"ToolMenus"
 	        }
         );
