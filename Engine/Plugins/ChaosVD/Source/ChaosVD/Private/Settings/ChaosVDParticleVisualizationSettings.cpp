@@ -165,7 +165,7 @@ FColor FChaosDebugDrawColorsByClientServer::GetColorFromState(bool bIsServer, EC
 	if (State == EChaosVDObjectStateType::Static)
 	{
 
-		constexpr float StaticStateIntensity = IntensityFactor * (static_cast<float>(EChaosVDObjectStateType::Sleeping) * 0.2f);
+		constexpr float StaticStateIntensity = IntensityFactor * (static_cast<float>(EChaosVDObjectStateType::Sleeping) * 0.6f);
 		return GetColorAtIntensity(bIsServer ? ServerBaseColor : ClientBaseColor, StaticStateIntensity);
 	}
 
