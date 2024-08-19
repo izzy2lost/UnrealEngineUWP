@@ -5,6 +5,8 @@
 
 FInstallBundleManagerInitCompleteMultiDelegate IInstallBundleManager::InitCompleteDelegate;
 
+FInstallBundleChunkDownloadMetricsMultiDelegate IInstallBundleManager::InstallBundleChunkDownloadMetricsDelegate;
+
 FInstallBundleCompleteMultiDelegate IInstallBundleManager::InstallBundleCompleteDelegate;
 
 FInstallBundlePausedMultiDelegate IInstallBundleManager::PausedBundleDelegate;

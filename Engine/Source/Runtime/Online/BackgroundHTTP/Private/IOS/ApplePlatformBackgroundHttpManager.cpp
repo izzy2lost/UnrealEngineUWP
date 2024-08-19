@@ -24,11 +24,13 @@ FApplePlatformBackgroundHttpManager::FApplePlatformBackgroundHttpManager()
 	, PendingRemoveRequestLock()
 {
 	OnDownloadCompletedHandle = FBackgroundURLSessionHandler::OnDownloadCompleted.AddRaw(this, &FApplePlatformBackgroundHttpManager::OnDownloadCompleted);
+	OnDownloadMetricsHandle = FBackgroundURLSessionHandler::OnDownloadMetrics.AddRaw(this, &FApplePlatformBackgroundHttpManager::OnDownloadMetrics);
 }
 
 FApplePlatformBackgroundHttpManager::~FApplePlatformBackgroundHttpManager()
 {
 	FBackgroundURLSessionHandler::OnDownloadCompleted.Remove(OnDownloadCompletedHandle);
+	FBackgroundURLSessionHandler::OnDownloadMetrics.Remove(OnDownloadMetricsHandle);
 }
 
 void FApplePlatformBackgroundHttpManager::AddRequest(const FBackgroundHttpRequestPtr GenericRequest)
@@ -130,6 +132,23 @@ void FApplePlatformBackgroundHttpManager::OnDownloadCompleted(const uint64 Downl
 			if (Request->GetInternalDownloadId() == DownloadId)
 			{
 				Request->NotifyNotificationObjectOfComplete(bSuccess);
+				return;
+			}
+		}
+	}
+}
+
+void FApplePlatformBackgroundHttpManager::OnDownloadMetrics(const uint64 DownloadId, const int32 TotalBytesDownloaded, const float DownloadDuration)
+{
+	FRWScopeLock ScopeLock(ActiveRequestLock, SLT_ReadOnly);
+	for (FBackgroundHttpRequestPtr& GenericRequest : ActiveRequests)
+	{
+		FAppleBackgroundHttpRequestPtr Request = StaticCastSharedPtr<FApplePlatformBackgroundHttpRequest>(GenericRequest);
+		if (ensureAlwaysMsgf(Request.IsValid(), TEXT("Invalid Request Pointer in ActiveRequests list!")))
+		{
+			if (Request->GetInternalDownloadId() == DownloadId)
+			{
+				Request->NotifyRequestMetricsAvailable(TotalBytesDownloaded, DownloadDuration);
 				return;
 			}
 		}

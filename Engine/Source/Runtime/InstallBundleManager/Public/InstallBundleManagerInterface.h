@@ -88,11 +88,19 @@ enum class EInstallBundleManagerInitErrorHandlerResult
 	StopInitialization, // Stop trying to initialize
 };
 
+struct FInstallBundleChunkDownloadInfo
+{
+	FString ChunkName;
+	int32 ChunkFileSize;
+	float ChunkDownloadDuration;
+};
+
 using FInstallBundleSourceOrCache = TUnion<FInstallBundleSourceType, FName>;
 
 DECLARE_DELEGATE_RetVal_OneParam(EInstallBundleManagerInitErrorHandlerResult, FInstallBundleManagerInitErrorHandler, EInstallBundleManagerInitResult);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleManagerInitCompleteMultiDelegate, EInstallBundleManagerInitResult);
 
+DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleChunkDownloadMetricsMultiDelegate, FInstallBundleChunkDownloadInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleCompleteMultiDelegate, FInstallBundleRequestResultInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundlePausedMultiDelegate, FInstallBundlePauseInfo);
 DECLARE_MULTICAST_DELEGATE_OneParam(FInstallBundleReleasedMultiDelegate, FInstallBundleReleaseRequestResultInfo);
@@ -110,6 +118,7 @@ class IInstallBundleManager : public TSharedFromThis<IInstallBundleManager>
 public:
 	static INSTALLBUNDLEMANAGER_API FInstallBundleManagerInitCompleteMultiDelegate InitCompleteDelegate;
 
+	static INSTALLBUNDLEMANAGER_API FInstallBundleChunkDownloadMetricsMultiDelegate InstallBundleChunkDownloadMetricsDelegate; // Called when a content request metrics is available
 	static INSTALLBUNDLEMANAGER_API FInstallBundleCompleteMultiDelegate InstallBundleCompleteDelegate; // Called when a content request is complete
 	static INSTALLBUNDLEMANAGER_API FInstallBundlePausedMultiDelegate PausedBundleDelegate;
 	static INSTALLBUNDLEMANAGER_API FInstallBundleReleasedMultiDelegate ReleasedDelegate; // Called when content release request is complete

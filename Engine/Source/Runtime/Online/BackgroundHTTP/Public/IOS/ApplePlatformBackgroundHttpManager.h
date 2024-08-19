@@ -35,5 +35,7 @@ private:
 	TArray<FBackgroundHttpRequestPtr> PendingRemoveRequests;
 	FRWLock PendingRemoveRequestLock;
 	FDelegateHandle OnDownloadCompletedHandle;
+	FDelegateHandle OnDownloadMetricsHandle;
 	void OnDownloadCompleted(const uint64 DownloadId, const bool bSuccess);
+	void OnDownloadMetrics(const uint64 DownloadId, const int32 TotalBytesDownloaded, const float DownloadDuration);
 };

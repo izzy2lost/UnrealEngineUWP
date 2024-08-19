@@ -936,8 +936,8 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 	}
 }
 
-#if !UE_BUILD_SHIPPING
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didFinishCollectingMetrics:(NSURLSessionTaskMetrics *)metrics {
+#if !UE_BUILD_SHIPPING
 	NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
     [formatter setDateFormat:@"yyyy-MM-dd'T'HH:mm:ss.SSSZZZZZ"];
     [formatter setLocale:[NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"]];
@@ -954,9 +954,10 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
     // Get redirect count
     NSInteger redirectCount = metrics.transactionMetrics.count - 1; // The first metric is the initial request, redirects are additional metrics
     UE_DNLD_LOG(@"Redirect Count: %ld", (long)redirectCount);
-
+#endif
 
 	for (NSURLSessionTaskTransactionMetrics *metric in metrics.transactionMetrics) {
+#if !UE_BUILD_SHIPPING
 		UE_DNLD_LOG(@"Network Protocol Name: %@", metric.networkProtocolName);
 		UE_DNLD_LOG(@"Reused Connection: %@", metric.reusedConnection ? @"Yes" : @"No");
 		UE_DNLD_LOG(@"Proxy Connection: %@", metric.proxyConnection ? @"Yes": @"No");
@@ -966,28 +967,42 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
         UE_DNLD_LOG(@"Response Start Date: %@", [formatter stringFromDate:metric.responseStartDate]);
         UE_DNLD_LOG(@"Request End Date: %@", [formatter stringFromDate:metric.requestEndDate]);
         UE_DNLD_LOG(@"Response End Date: %@", [formatter stringFromDate:metric.responseEndDate]);
+#endif
 
 		// Calculate and log response duration
         if (metric.responseStartDate && metric.responseEndDate) {
             NSTimeInterval responseDuration = [metric.responseEndDate timeIntervalSinceDate:metric.responseStartDate];
+#if !UE_BUILD_SHIPPING
             UE_DNLD_LOG(@"Response Duration: %f seconds", responseDuration);
+#endif
 
 			// Calculate and log download speed
             if (responseDuration > 0 && metric.countOfResponseBodyBytesReceived > 0) {
+				
+				FBackgroundURLSessionHandler::OnDownloadMetrics.Broadcast((uint64)task.taskIdentifier, (int32)metric.countOfResponseBodyBytesReceived, (float)responseDuration);
+				
+#if !UE_BUILD_SHIPPING
 				// bytes per second
-                double downloadSpeed = (double)metric.countOfResponseBodyBytesReceived / responseDuration;
-                NSString *formattedSpeed = [self formattedSpeed:downloadSpeed];
-                UE_DNLD_LOG(@"Download Speed: %@", formattedSpeed);
+				double downloadSpeed = (double)metric.countOfResponseBodyBytesReceived / responseDuration;
+				NSString *formattedSpeed = [self formattedSpeed:downloadSpeed];
+				UE_DNLD_LOG(@"Download Speed: %@", formattedSpeed);
             } else {
                 UE_DNLD_LOG(@"Download Speed: Not Available");
+#endif
             }
-        } else {
+        }
+#if !UE_BUILD_SHIPPING
+		else {
             UE_DNLD_LOG(@"Response Duration: Not Available");
         }
+#endif
     }
+#if !UE_BUILD_SHIPPING
 	UE_DNLD_LOG(@"-------------------------");
+#endif
 }
 
+#if !UE_BUILD_SHIPPING
 - (NSString *)formattedSpeed:(double)speedInBytesPerSecond {
     NSArray *units = @[@"bytes/second", @"KB/s", @"MB/s", @"GB/s"];
     double speed = speedInBytesPerSecond;
@@ -1534,6 +1549,7 @@ static constexpr NSInteger HTTPStatusCodeErrorServer = 500;
 const uint64 FBackgroundURLSessionHandler::InvalidDownloadId = [FBackgroundNSURLSession GetInvalidDownloadId];
 
 FBackgroundURLSessionHandler::FOnDownloadCompleted FBackgroundURLSessionHandler::OnDownloadCompleted;
+FBackgroundURLSessionHandler::FOnDownloadMetrics FBackgroundURLSessionHandler::OnDownloadMetrics;
 
 FBackgroundURLSessionHandler::FOnDownloadsCompletedWhileAppWasNotRunning FBackgroundURLSessionHandler::OnDownloadsCompletedWhileAppWasNotRunning;
 

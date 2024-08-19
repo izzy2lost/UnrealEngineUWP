@@ -552,6 +552,12 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 		boolean bWasSuccess = (CompleteReason == EDownloadCompleteReason.Success);
 		nativeAndroidBackgroundDownloadOnComplete(RequestID, CompleteLocation, bWasSuccess);
 	}
+
+	@Override
+	public void OnDownloadMetrics(String RequestID, long TotalBytesDownloaded, long DownloadDuration)
+	{
+		nativeAndroidBackgroundDownloadOnMetrics(RequestID, TotalBytesDownloaded, DownloadDuration);
+	}
 	
 	@Override
 	public void OnAllDownloadsComplete(boolean bDidAllRequestsSucceed)
@@ -658,6 +664,7 @@ public class UEDownloadWorker extends UEWorker implements DownloadProgressListen
 	public native void nativeAndroidBackgroundDownloadOnWorkerStop(String WorkID);
 	public native void nativeAndroidBackgroundDownloadOnProgress(String TaskID, long BytesWrittenSinceLastCall, long TotalBytesWritten);
 	public native void nativeAndroidBackgroundDownloadOnComplete(String TaskID, String CompleteLocation, boolean bWasSuccess);
+	public native void nativeAndroidBackgroundDownloadOnMetrics(String TaskID, long TotalBytesDownloaded, long DownloadDuration);
 	public native void nativeAndroidBackgroundDownloadOnAllComplete(boolean bDidAllRequestsSucceed);
 	public native void nativeAndroidBackgroundDownloadOnTick();
 	

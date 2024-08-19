@@ -55,6 +55,12 @@ public class DownloadDescription
 	public long TotalBytesNeeded = 0;
 	public long TotalDownloadedBytes = 0;
 	public DownloadProgressListener ProgressListener = null;
+
+	// Fields used to calculate the total download time
+	public long DownloadStartTime = 0;
+	public long DownloadPauseTime = 0;
+	public long TotalPausedTime = 0;
+
 	public DownloadDescription()
 	{
 		URLs = new ArrayList<String>();

@@ -73,6 +73,12 @@ void FBackgroundHttpRequestImpl::OnBackgroundDownloadComplete()
 	
 	//Now that we have called our completion delegates and done everything else for this request, allow us to clean up data for it
 	FBackgroundHttpModule::Get().GetBackgroundHttpManager()->CleanUpDataAfterCompletingRequest(SharedThis(this));
+	
+	if (OptionalMetricsInfo.IsSet())
+	{
+		OnRequestMetrics().ExecuteIfBound(SharedThis(this), OptionalMetricsInfo->TotalBytesDownloaded, OptionalMetricsInfo->DownloadDuration);
+		OptionalMetricsInfo.Reset();
+	}
 }
 
 void FBackgroundHttpRequestImpl::NotifyNotificationObjectOfComplete(bool bWasSuccess)
@@ -90,6 +96,14 @@ void FBackgroundHttpRequestImpl::NotifyNotificationObjectOfComplete(bool bWasSuc
 		DownloadCompleteNotificationObject->NotifyOfDownloadResult(bWasSuccess);
 		DownloadCompleteNotificationObject.Reset();
 	}
+}
+
+void FBackgroundHttpRequestImpl::NotifyRequestMetricsAvailable(const int32 TotalBytesDownloaded, const float DownloadDuration)
+{
+	OptionalMetricsInfo = {
+		.TotalBytesDownloaded = TotalBytesDownloaded,
+		.DownloadDuration = DownloadDuration
+	};
 }
 
 void FBackgroundHttpRequestImpl::SetURLAsList(const TArray<FString>& URLs, int NumRetriesIn)
@@ -131,6 +145,11 @@ FBackgroundHttpRequestCompleteDelegate& FBackgroundHttpRequestImpl::OnProcessReq
 FBackgroundHttpProgressUpdateDelegate& FBackgroundHttpRequestImpl::OnProgressUpdated()
 {
 	return HttpProgressUpdateDelegate;
+}
+
+FBackgroundHttpRequestMetricsDelegate& FBackgroundHttpRequestImpl::OnRequestMetrics()
+{
+	return HttpRequestMetricsDelegate;
 }
 
 const FBackgroundHttpResponsePtr FBackgroundHttpRequestImpl::GetResponse() const

@@ -647,6 +647,25 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 	}
 
 	@Override
+	public void OnDownloadStarted(@NonNull Download download)
+	{
+		String DownloadRequestID = GetRequestID(download);
+		Log.verbose("OnDownloadStarted: " + DownloadRequestID);
+
+		DownloadDescription MatchedDownload = RequestedDownloads.get(DownloadRequestID);
+		if (null == MatchedDownload)
+		{
+			Log.error("OnDownloadStarted called from DownloadProgressOwner implementation with a download that doesn't match any DownloadDesc! Download's Tag: " + DownloadRequestID);
+			return;
+		}
+
+		if (MatchedDownload.DownloadStartTime == 0)
+		{
+			MatchedDownload.DownloadStartTime = System.currentTimeMillis();
+		}
+	}
+
+	@Override
 	public void OnDownloadProgress(@NonNull Download download, boolean indeterminate, long downloadedBytesPerSecond, long etaInMilliSeconds)
 	{
 		String DownloadRequestID = GetRequestID(download);
@@ -714,10 +733,21 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 			
 			if (MatchedDownload.bIsPaused)
 			{
+				MatchedDownload.DownloadPauseTime = System.currentTimeMillis();
+
 				FetchInstance.pause(download.getId());
 			}
 			else
 			{
+				if (MatchedDownload.DownloadPauseTime != 0)
+				{
+					long ElapsedPauseTime = System.currentTimeMillis() - MatchedDownload.DownloadPauseTime;
+
+					MatchedDownload.TotalPausedTime += ElapsedPauseTime;
+
+					MatchedDownload.DownloadPauseTime = 0;
+				}
+
 				FetchInstance.resume(download.getId());
 			}
 		}
@@ -1143,7 +1173,18 @@ public class FetchManager implements FetchDownloadProgressOwner, FetchEnqueueRes
 			FailedDownloads.put(DownloadDesc.RequestID, DownloadDesc);
 		}
 
-		DownloadDesc.ProgressListener.OnDownloadComplete(DownloadDesc.RequestID, DownloadDesc.DestinationLocation, CompleteReasonToSend);	
+		long DownloadDuration = -1;
+		if (DownloadDesc.DownloadStartTime > 0)
+		{
+			long ElapsedDownloadTime = System.currentTimeMillis() - DownloadDesc.DownloadStartTime;
+
+			DownloadDuration = ElapsedDownloadTime - DownloadDesc.TotalPausedTime;
+		}
+
+		DownloadDesc.ProgressListener.OnDownloadMetrics(DownloadDesc.RequestID, DownloadDesc.TotalDownloadedBytes, DownloadDuration);
+
+		DownloadDesc.ProgressListener.OnDownloadComplete(DownloadDesc.RequestID, DownloadDesc.DestinationLocation, CompleteReasonToSend);
+		
 		if (CheckForAllCompleted)
 		{
 			CheckForAllDownloadsComplete(DownloadDesc.ProgressListener);

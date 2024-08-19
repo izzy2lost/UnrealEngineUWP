@@ -59,6 +59,10 @@ public:
 	// Will be invoked from didFinishDownloadingToURL or didCompleteWithError.
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnDownloadCompleted, const uint64 /*DownloadId*/, const bool /*bSuccess*/);
 	static FOnDownloadCompleted OnDownloadCompleted;
+	
+	// Will be invoked from didFinishCollectingMetrics
+	DECLARE_MULTICAST_DELEGATE_ThreeParams(FOnDownloadMetrics, const uint64 /*DownloadId*/, const int32 /*TotalBytesDownloaded*/, const float /*DownloadDuration*/)
+	static FOnDownloadMetrics OnDownloadMetrics;
 
 	// Will be invoked from handleEventsForBackgroundURLSession application delegate. Needs to be registered very early, e.g. from static constructor.
 	// handleEventsForBackgroundURLSession is only invoked if app was killed by OS while in background and then relaunched to notify that downloads were completed.
