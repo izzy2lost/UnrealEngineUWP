@@ -84,6 +84,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 	const TSharedPtr<IPropertyHandle> SelectionBehaviorProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, SelectionBehavior));
 	const TSharedPtr<IPropertyHandle> RequiredEventToEnterProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, RequiredEventToEnter));
 	const TSharedPtr<IPropertyHandle> CheckPrerequisitesProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, bCheckPrerequisitesWhenActivatingChildDirectly));
+	const TSharedPtr<IPropertyHandle> WeightProperty = DetailBuilder.GetProperty(GET_MEMBER_NAME_CHECKED(UStateTreeState, Weight));
 
 	PropUtils = DetailBuilder.GetPropertyUtilities();
 	
@@ -286,6 +287,7 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 		DetailBuilder.EditCategory(EnterConditionsCategoryName).SetCategoryVisibility(false);
 	}
 
+	// Utility
 	ConsiderationsProperty->MarkHiddenByCustomization();
 	if (Schema && Schema->AllowUtilityConsiderations())
 	{
@@ -300,6 +302,10 @@ void FStateTreeStateDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuilde
 			UE::StateTree::Colors::Orange.WithAlpha(192),
 			LOCTEXT("UtilityAddTooltip", "Add new Utility Consideration"),
 			/*SortOrder*/3);
+
+		// Weight
+		WeightProperty->MarkHiddenByCustomization();
+		UtilityConsiderationsCategory.AddProperty(WeightProperty);
 	}
 
 	// Tasks

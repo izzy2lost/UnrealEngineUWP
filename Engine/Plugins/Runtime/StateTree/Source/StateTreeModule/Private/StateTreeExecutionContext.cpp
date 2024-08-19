@@ -2783,7 +2783,7 @@ bool FStateTreeExecutionContext::TestAllConditions(const FStateTreeExecutionFram
 	return Values[0];
 }
 
-float FStateTreeExecutionContext::EvaluateUtility(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const int32 ConsiderationsOffset, const int32 ConsiderationsNum)
+float FStateTreeExecutionContext::EvaluateUtility(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, const int32 ConsiderationsOffset, const int32 ConsiderationsNum, const float StateWeight)
 {
 	// @todo: Tracing support
 	CSV_SCOPED_TIMING_STAT_EXCLUSIVE(StateTree_EvaluateUtility);
@@ -2860,7 +2860,7 @@ float FStateTreeExecutionContext::EvaluateUtility(const FStateTreeExecutionFrame
 		}
 	}
 
-	return Values[0];
+	return StateWeight * Values[0];
 }
 
 void FStateTreeExecutionContext::EvaluatePropertyFunctionsOnActiveInstances(const FStateTreeExecutionFrame* CurrentParentFrame, const FStateTreeExecutionFrame& CurrentFrame, FStateTreeIndex16 FuncsBegin, uint16 FuncsNum)
@@ -4247,7 +4247,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 					{
 						const uint16 CurrentStateIndex = NextLevelChildStates[Index];
 						const FCompactStateTreeState& CurrentState = CurrentStateTree->States[CurrentStateIndex];
-						const float Score = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum);
+						const float Score = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum, CurrentState.Weight);
 						if (Score > HighestScore)
 						{
 							HighestScore = Score;
@@ -4297,7 +4297,7 @@ bool FStateTreeExecutionContext::SelectStateInternal(
 				for (uint16 CurrentStateIndex = NextState.ChildrenBegin; CurrentStateIndex < NextState.ChildrenEnd; CurrentStateIndex = CurrentStateTree->States[CurrentStateIndex].GetNextSibling())
 				{
 					const FCompactStateTreeState& CurrentState = CurrentStateTree->States[CurrentStateIndex];
-					const float CurrentStateScore = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum);
+					const float CurrentStateScore = EvaluateUtility(CurrentParentFrame, CurrentFrame, CurrentState.UtilityConsiderationsBegin, CurrentState.UtilityConsiderationsNum, CurrentState.Weight);
 					NextLevelChildStates.Emplace(CurrentStateIndex, CurrentStateScore);
 					TotalScore += CurrentStateScore;
 				}

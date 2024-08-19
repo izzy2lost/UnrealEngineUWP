@@ -366,6 +366,10 @@ public:
 	/** Defines the event required to be present during state selection for the state to be selected. */
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (EditCondition = "bHasRequiredEventToEnter"))
 	FStateTreeEventDesc RequiredEventToEnter;
+	
+	/** Weight used to scale the normalized final utility score for this state */
+	UPROPERTY(EditDefaultsOnly, Category = "Utility", meta=(ClampMin=0))
+	float Weight = 1.f;
 
 	/** Expression of enter conditions that needs to evaluate true to allow the state to be selected. */
 	UPROPERTY(EditDefaultsOnly, Category = "Enter Conditions", meta = (BaseStruct = "/Script/StateTreeModule.StateTreeConditionBase", BaseClass = "/Script/StateTreeModule.StateTreeConditionBlueprintBase"))

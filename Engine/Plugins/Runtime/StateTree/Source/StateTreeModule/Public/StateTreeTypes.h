@@ -763,6 +763,10 @@ struct STATETREEMODULE_API FCompactStateTreeState
 	/** Should state's required event and enter conditions be evaluated when transition leads directly to it's child. */
 	UPROPERTY()
 	uint8 bCheckPrerequisitesWhenActivatingChildDirectly : 1 = false;
+	
+	/** Weight used to scale the normalized final utility score for this state */
+	UPROPERTY()
+	float Weight = 1.f;
 
 	/** True if the state is Enabled (i.e. not explicitly marked as disabled). */
 	UPROPERTY()
