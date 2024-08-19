@@ -407,11 +407,20 @@ namespace HordeAgent.Services
 			{
 				logger.LogWarning(ex, "Unable to get local IP addresses");
 			}
-
-			IPAddress? ip = await GetLocalIpAddressAsync(_settings.GetCurrentServerProfile().Url.Host);
+			
+			IPAddress? ip;
+			if (_settings.ComputeIp != null)
+			{
+				ip = IPAddress.Parse(_settings.ComputeIp);
+			}
+			else
+			{
+				ip = await GetLocalIpAddressAsync(_settings.GetCurrentServerProfile().Url.Host);
+			}
+			 
 			if (ip == null)
 			{
-				logger.LogWarning("Unable to get local IP address");
+				logger.LogWarning("Unable to get IP address for incoming compute requests");
 			}
 
 			// Add the compute configuration

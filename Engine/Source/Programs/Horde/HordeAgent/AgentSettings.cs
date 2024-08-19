@@ -167,9 +167,14 @@ namespace HordeAgent
 		/// Option to use a local storage client rather than connecting through the server. Primarily for convenience when debugging / iterating locally.
 		/// </summary>
 		public bool UseLocalStorageClient { get; set; }
-
+		
 		/// <summary>
-		/// Incoming port for listening for compute work. Needs to be tied with a lease.
+		/// Incoming IP for listening for compute work. If not set, it will be automatically resolved.
+		/// </summary>
+		public string? ComputeIp { get; set; } = null;
+		
+		/// <summary>
+		/// Incoming port for listening for compute work. Needs to be tied with a lease. Set port to 0 to disable incoming compute requests.
 		/// </summary>
 		public int ComputePort { get; set; } = 7000;
 
