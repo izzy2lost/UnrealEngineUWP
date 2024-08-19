@@ -873,7 +873,7 @@ FEdGraphPinType UBlueprintEditorLibrary::GetBasicTypeByName(FName TypeName)
 	Result.PinCategory = TypeName;
 	if(TypeName == UEdGraphSchema_K2::PC_Real)
 	{
-		Result.PinSubCategory == UEdGraphSchema_K2::PC_Double;
+		Result.PinSubCategory = UEdGraphSchema_K2::PC_Double;
 	}
 	return Result;
 }
