@@ -141,6 +141,7 @@ protected:
 	void SendUserDataUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendAvaInstanceSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
+	void SendPlayableSettingsUpdate(const TArray<FMessageAddress>& InRecipients);
 	void SendBroadcastChannelSettingsUpdate(const TArray<FMessageAddress>& InRecipients, const FAvaBroadcastOutputChannel& InChannel);
 	void SendPackageEvent(const TArray<FMessageAddress>& InRecipients, const FName& InPackageName, EAvaPlaybackPackageEvent InEvent);
 	void SendStatCommand(const FString& InCommand, bool bInBroadcastLocalState, const TArray<FMessageAddress>& InRecipients);

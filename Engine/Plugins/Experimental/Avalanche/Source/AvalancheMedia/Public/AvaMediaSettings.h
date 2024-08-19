@@ -10,6 +10,7 @@
 #include "Logging/LogVerbosity.h"
 #include "Math/MathFwd.h"
 #include "PixelFormat.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "UObject/SoftObjectPtr.h"
 
 #include "AvaMediaSettings.generated.h"
@@ -192,6 +193,9 @@ public:
 
 	UPROPERTY(Config, EditAnywhere, Category = "Playback Manager")
 	FAvaInstanceSettings AvaInstanceSettings;
+
+	UPROPERTY(Config, EditAnywhere, Category = "Playback Manager")
+	FAvaPlayableSettings PlayableSettings;
 
 	/**
 	 * Maximum cached Managed Motion Design assets used for rundown editor's page details.

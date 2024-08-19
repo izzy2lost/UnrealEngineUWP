@@ -7,6 +7,7 @@
 #include "Playback/IAvaPlaybackServer.h"
 #include "IMessageContext.h"
 #include "MessageEndpoint.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackMessages.h"
 #include "Templates/SharedPointer.h"
@@ -79,6 +80,8 @@ public:
 	virtual const IAvaBroadcastSettings* GetBroadcastSettings() const override;
 
 	virtual const FAvaInstanceSettings* GetAvaInstanceSettings() const override;
+
+	virtual const FAvaPlayableSettings* GetPlayableSettings() const override;
 	
 	virtual const FAvaPlaybackManager& GetPlaybackManager() const override { check(Manager); return *Manager; }
 	virtual FAvaPlaybackManager& GetPlaybackManager() override { check(Manager); return *Manager; }
@@ -110,6 +113,7 @@ public:
 	void HandleDeviceProviderDataRequest(const FAvaPlaybackDeviceProviderDataRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleUpdateClientInfo(const FAvaPlaybackUpdateClientInfo& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandleAvaInstanceSettingsUpdate(const FAvaPlaybackInstanceSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
+	void HandlePlayableSettingsUpdate(const FAvaPlaybackPlayableSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePackageEvent(const FAvaPlaybackPackageEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackAssetStatusRequest(const FAvaPlaybackAssetStatusRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
 	void HandlePlaybackRequest(const FAvaPlaybackRequest& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext);
@@ -298,6 +302,7 @@ private:
 		TMap<FString, FString> UserDataEntries;
 		FClientBroadcastSettings BroadcastSettings;
 		FAvaInstanceSettings AvaInstanceSettings;
+		FAvaPlayableSettings PlayableSettings;
 
 		bool bClientInfoReceived = false;
 	

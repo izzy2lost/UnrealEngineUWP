@@ -3,14 +3,18 @@
 #include "Playable/AvaPlayableGroup.h"
 
 #include "AvaPlayableGroupSubsystem.h"
+#include "AvaPlayableUtils.h"
 #include "Engine/GameInstance.h"
 #include "Engine/Level.h"
 #include "Engine/ViewportStatsSubsystem.h"
 #include "Engine/World.h"
+#include "EngineUtils.h"
+#include "GameFramework/Pawn.h"
 #include "IAvaMediaModule.h"
 #include "Playable/AvaPlayable.h"
 #include "Playable/AvaPlayableGroupAssetUserData.h"
 #include "Playable/AvaPlayableGroupManager.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "Playable/PlayableGroups/AvaGameInstancePlayableGroup.h"
 #include "Playable/PlayableGroups/AvaGameViewportPlayableGroup.h"
 #include "Playable/PlayableGroups/AvaRemoteProxyPlayableGroup.h"
@@ -18,6 +22,7 @@
 #include "Playback/AvaPlaybackManager.h"
 #include "Playback/AvaPlaybackUtils.h"
 #include "Playback/IAvaPlaybackServer.h"
+#include "SceneView.h"
 #include "UObject/Package.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlayableGroup"
@@ -397,6 +402,12 @@ void UAvaPlayableGroup::RequestSetVisibility(UAvaPlayable* InPlayable, bool bInS
 
 void UAvaPlayableGroup::SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView)
 {
+	const FAvaPlayableSettings& PlayableSettings = IAvaMediaModule::Get().GetPlayableSettings();
+	if (PlayableSettings.bHidePawnActors)
+	{
+		HidePawnsForView(GetPlayWorld(), InView);
+	}
+
 	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables)
 	{
 		UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr();
@@ -648,6 +659,20 @@ bool UAvaPlayableGroup::DisplayTransitions(FText& OutText, FLinearColor& OutColo
 		return true;
 	}
 	return false;
+}
+
+void UAvaPlayableGroup::HidePawnsForView(const UWorld* InPlayWorld, FSceneView& InView) const
+{
+	if (!InPlayWorld)
+	{
+		return;
+	}
+
+	for (const APawn* Pawn : TActorRange<APawn>(InPlayWorld))
+	{
+		using namespace UE::AvaMedia::PlayableUtils;
+		AddPrimitiveComponentIds(Pawn, InView.HiddenPrimitives);
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

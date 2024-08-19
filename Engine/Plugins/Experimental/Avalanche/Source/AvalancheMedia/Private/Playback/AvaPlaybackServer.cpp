@@ -162,6 +162,7 @@ void FAvaPlaybackServer::Init(const FString& InAssignedServerName)
 	.Handling<FAvaPlaybackDeviceProviderDataRequest>(this, &FAvaPlaybackServer::HandleDeviceProviderDataRequest)
 	.Handling<FAvaPlaybackUpdateClientInfo>(this, &FAvaPlaybackServer::HandleUpdateClientInfo)
 	.Handling<FAvaPlaybackInstanceSettingsUpdate>(this, &FAvaPlaybackServer::HandleAvaInstanceSettingsUpdate)
+	.Handling<FAvaPlaybackPlayableSettingsUpdate>(this, &FAvaPlaybackServer::HandlePlayableSettingsUpdate)
 	.Handling<FAvaPlaybackPackageEvent>(this, &FAvaPlaybackServer::HandlePackageEvent)
 	.Handling<FAvaPlaybackAssetStatusRequest>(this, &FAvaPlaybackServer::HandlePlaybackAssetStatusRequest)
 	.Handling<FAvaPlaybackRequest>(this, &FAvaPlaybackServer::HandlePlaybackRequest)
@@ -416,6 +417,17 @@ const FAvaInstanceSettings* FAvaPlaybackServer::GetAvaInstanceSettings() const
 	return nullptr;
 }
 
+const FAvaPlayableSettings* FAvaPlaybackServer::GetPlayableSettings() const
+{
+	// Returns the first client we have.
+	// Todo: In case we have multiple clients, we will need a smarter way to handle this.
+	for (const TPair<FString, TSharedPtr<FClientInfo>>& Client : Clients)
+	{
+		return &Client.Value->PlayableSettings;
+	}
+	return nullptr;
+}
+
 bool FAvaPlaybackServer::RemovePlaybackInstanceTransition(const FGuid& InTransitionId)
 {
 	if (PlaybackInstanceTransitions)
@@ -529,6 +541,14 @@ void FAvaPlaybackServer::HandleAvaInstanceSettingsUpdate(const FAvaPlaybackInsta
 	ClientInfo.AvaInstanceSettings = InMessage.InstanceSettings;
 	
 	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Received new instance settings from client \"%s\"."), *InMessage.ClientName);
+}
+
+void FAvaPlaybackServer::HandlePlayableSettingsUpdate(const FAvaPlaybackPlayableSettingsUpdate& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)
+{
+	FClientInfo& ClientInfo = GetOrCreateClientInfo(InMessage.ClientName, InContext->GetSender());
+	ClientInfo.PlayableSettings = InMessage.PlayableSettings;
+	
+	UE_LOG(LogAvaPlaybackServer, Verbose, TEXT("Received new playable settings from client \"%s\"."), *InMessage.ClientName);
 }
 
 void FAvaPlaybackServer::HandlePackageEvent(const FAvaPlaybackPackageEvent& InMessage, const TSharedRef<IMessageContext, ESPMode::ThreadSafe>& InContext)

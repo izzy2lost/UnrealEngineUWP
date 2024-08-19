@@ -21,6 +21,7 @@ class IAvaRundownServer;
 class IMediaIOCoreDeviceProvider;
 class UWorld;
 struct FAvaInstanceSettings;
+struct FAvaPlayableSettings;
 struct FMediaIOOutputConfiguration;
 
 /** Maps one to one with the editor's map changed type (for now). */
@@ -117,6 +118,12 @@ public:
 	 */
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const = 0;
 
+	/**
+	 * Access global Playable Settings.
+	 * @remark These settings a replicated from connected the playback client (if connected).
+	 */
+	virtual const FAvaPlayableSettings& GetPlayableSettings() const = 0;
+	
 	/**
 	 *	Returns true if the local playback manager is (still) available.
 	 */

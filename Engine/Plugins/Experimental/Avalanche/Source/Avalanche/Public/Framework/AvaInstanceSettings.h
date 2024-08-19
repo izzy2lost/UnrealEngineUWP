@@ -4,19 +4,6 @@
 
 #include "AvaInstanceSettings.generated.h"
 
-USTRUCT()
-struct FAvaSynchronizedEventsFeatureSelection
-{
-	GENERATED_BODY()
-	
-	/**
-	 * Select the implementation for synchronizing events.
-	 * "Default" will select the most appropriate implementation available.
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = Settings)
-	FString Implementation;
-};
-
 /**
  * Settings applied when instancing a Motion Design Asset for playback.
  */
@@ -35,10 +22,4 @@ struct FAvaInstanceSettings
 	 */
 	UPROPERTY(config, EditAnywhere, Category = Settings)
 	bool bDefaultPlayableTransitionWaitForSequences = false;
-
-	/**
-	 * Select the implementation for synchronizing events.
-	 */
-	UPROPERTY(Config, EditAnywhere, Category = Settings)
-	FAvaSynchronizedEventsFeatureSelection SynchronizedEventsFeature;
 };

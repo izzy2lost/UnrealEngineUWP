@@ -11,7 +11,6 @@
 #include "Editor.h"
 #include "Engine/GameViewportClient.h"
 #include "Framework/Application/SlateApplication.h"
-#include "Framework/AvaInstanceSettings.h"
 #include "IAvaMediaModule.h"
 #include "LevelEditor.h"
 #include "LevelEditorViewport.h"

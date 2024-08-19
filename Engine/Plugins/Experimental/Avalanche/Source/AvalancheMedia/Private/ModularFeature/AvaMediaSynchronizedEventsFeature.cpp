@@ -4,7 +4,6 @@
 
 #include "AvaMediaSettings.h"
 #include "Features/IModularFeatures.h"
-#include "Framework/AvaInstanceSettings.h"
 #include "HAL/IConsoleManager.h"
 #include "IAvaMediaModule.h"
 #include "ModularFeature/AvaMediaSynchronizedEvent.h"
@@ -116,7 +115,7 @@ void FAvaMediaSynchronizedEventsFeature::Shutdown()
 
 IAvaMediaSynchronizedEventsFeature* FAvaMediaSynchronizedEventsFeature::Get()
 {
-	const FName SelectedImplementation(IAvaMediaModule::Get().GetAvaInstanceSettings().SynchronizedEventsFeature.Implementation);
+	const FName SelectedImplementation(IAvaMediaModule::Get().GetPlayableSettings().SynchronizedEventsFeature.Implementation);
 	
 	IModularFeatures::FScopedLockModularFeatureList ScopedLockModularFeatureList;
 	return FindImplementation(SelectedImplementation);

@@ -44,6 +44,7 @@ public:
 	virtual bool IsGameModeLocalPlaybackServerLaunched() const override;
 	virtual const IAvaBroadcastSettings& GetBroadcastSettings() const override;
 	virtual const FAvaInstanceSettings& GetAvaInstanceSettings() const override;
+	virtual const FAvaPlayableSettings& GetPlayableSettings() const override;
 	virtual bool IsLocalPlaybackManagerAvailable() const override;
 	virtual FAvaPlaybackManager& GetLocalPlaybackManager() const override;
 	virtual bool IsManagedInstanceCacheAvailable() const override;

@@ -1586,6 +1586,7 @@ void FAvaPlaybackClient::OnAvaMediaSettingsChanged(UObject*, struct FPropertyCha
 	ApplyAvaMediaSettings();
 	SendBroadcastSettingsUpdate(AllServerAddresses);
 	SendAvaInstanceSettingsUpdate(AllServerAddresses);
+	SendPlayableSettingsUpdate(AllServerAddresses);
 }
 
 void FAvaPlaybackClient::OnPreSavePackage(UPackage* InPackage, FObjectPreSaveContext InObjectSaveContext)
@@ -1723,6 +1724,13 @@ void FAvaPlaybackClient::SendAvaInstanceSettingsUpdate(const TArray<FMessageAddr
 	SendRequest(InstanceSettingsUpdate, InRecipients, EMessageFlags::Reliable);
 }
 
+void FAvaPlaybackClient::SendPlayableSettingsUpdate(const TArray<FMessageAddress>& InRecipients)
+{
+	FAvaPlaybackPlayableSettingsUpdate* PlayableSettingsUpdate = FMessageEndpoint::MakeMessage<FAvaPlaybackPlayableSettingsUpdate>();
+	PlayableSettingsUpdate->PlayableSettings = UAvaMediaSettings::Get().PlayableSettings;
+	SendRequest(PlayableSettingsUpdate, InRecipients, EMessageFlags::Reliable);
+}
+
 void FAvaPlaybackClient::SendBroadcastChannelSettingsUpdate(const TArray<FMessageAddress>& InRecipients, const FAvaBroadcastOutputChannel& InChannel)
 {
 	FAvaBroadcastChannelSettingsUpdate* ChannelSettingsUpdate = FMessageEndpoint::MakeMessage<FAvaBroadcastChannelSettingsUpdate>();
@@ -1756,11 +1764,13 @@ void FAvaPlaybackClient::SendClientInfo(const FMessageAddress& InRecipient)
 	ClientInfo->ProcessId = ProcessId;
 	ClientInfo->ProjectContentPath = ProjectContentPath;
 	SendRequest(ClientInfo, InRecipient);
-	
-	SendUserDataUpdate({InRecipient});
-	SendBroadcastSettingsUpdate({InRecipient});
-	SendAvaInstanceSettingsUpdate({InRecipient});
-	SendStatCommand(FString(), true, {InRecipient});	// Send empty stat command, will just send current states.
+
+	const TArray<FMessageAddress> Recipients = {InRecipient}; 
+	SendUserDataUpdate(Recipients);
+	SendBroadcastSettingsUpdate(Recipients);
+	SendAvaInstanceSettingsUpdate(Recipients);
+	SendPlayableSettingsUpdate(Recipients);
+	SendStatCommand(FString(), true, Recipients);	// Send empty stat command, will just send current states.
 }
 
 void FAvaPlaybackClient::RemoveDeadServers(const FDateTime& InCurrentTime)

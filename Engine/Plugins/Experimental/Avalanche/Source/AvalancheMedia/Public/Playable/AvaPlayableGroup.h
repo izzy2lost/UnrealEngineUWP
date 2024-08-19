@@ -201,6 +201,8 @@ protected:
 	bool DisplayPlayingAssets(FText& OutText, FLinearColor& OutColor);
 	bool DisplayTransitions(FText& OutText, FLinearColor& OutColor);
 
+	void HidePawnsForView(const UWorld* InPlayWorld, FSceneView& InView) const;
+	
 protected:
 	/**
 	 * Managed Render Target for this playable group.

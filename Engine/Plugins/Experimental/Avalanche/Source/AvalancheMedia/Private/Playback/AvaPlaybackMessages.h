@@ -8,6 +8,7 @@
 #include "Framework/AvaInstanceSettings.h"
 #include "PixelFormat.h"
 #include "Playable/AvaPlayableRemoteControlValues.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "Playback/Nodes/Events/Actions/AvaPlaybackAnimations.h"
 #include "Viewport/AvaViewportQualitySettings.h"
 #include "AvaPlaybackMessages.generated.h"
@@ -213,6 +214,18 @@ struct FAvaPlaybackInstanceSettingsUpdate : public FAvaPlaybackClientMessageBase
 
 	UPROPERTY()
 	FAvaInstanceSettings InstanceSettings;
+};
+
+/**
+ *	Request for the client to replicate it's Motion Design instance settings to the server.
+ **/
+USTRUCT()
+struct FAvaPlaybackPlayableSettingsUpdate : public FAvaPlaybackClientMessageBase
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FAvaPlayableSettings PlayableSettings;
 };
 
 UENUM()

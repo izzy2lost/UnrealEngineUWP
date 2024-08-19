@@ -18,6 +18,7 @@
 #include "Playable/AvaPlayableAssetUserData.h"
 #include "Playable/AvaPlayableGroup.h"
 #include "Playable/AvaPlayableGroupManager.h"
+#include "Playable/AvaPlayableUtils.h"
 #include "Playback/AvaPlaybackUtils.h"
 #include "SceneView.h"
 #include "Streaming/LevelStreamingDelegates.h"
@@ -223,29 +224,6 @@ namespace UE::AvaMedia::LevelStreamingPlayable::Private
 		
 		return GetPlayableStatusRelevanceShouldBeUnloaded(InStatus);
 	}
-
-	void BuildPrimitiveComponentIdList(const AActor* InActor, TSet<FPrimitiveComponentId>& OutComponentIds)
-	{
-		TInlineComponentArray<UPrimitiveComponent*> Components;
-		InActor->GetComponents(Components);
-		for (int32 ComponentIndex = 0; ComponentIndex < Components.Num(); ComponentIndex++)
-		{
-			const UPrimitiveComponent* PrimitiveComponent = Components[ComponentIndex];
-			if (PrimitiveComponent->IsRegistered())
-			{
-				OutComponentIds.Add(PrimitiveComponent->GetPrimitiveSceneId());
-
-				for (USceneComponent* AttachedChild : PrimitiveComponent->GetAttachChildren())
-				{						
-					const UPrimitiveComponent* AttachChildPC = Cast<UPrimitiveComponent>(AttachedChild);
-					if (AttachChildPC && AttachChildPC->IsRegistered())
-					{
-						OutComponentIds.Add(AttachChildPC->GetPrimitiveSceneId());
-					}
-				}
-			}
-		}
-	}
 }
 
 bool UAvaPlayableLevelStreaming::LoadAsset(const FAvaSoftAssetPtr& InSourceAsset, bool bInInitiallyVisible)
@@ -444,13 +422,13 @@ void UAvaPlayableLevelStreaming::SetupView(FSceneViewFamily& InViewFamily, FScen
 	{
 		TSet<FPrimitiveComponentId> HiddenPrimitives;	// Todo(opt): cache this?
 
-		using namespace UE::AvaMedia::LevelStreamingPlayable::Private;
+		using namespace UE::AvaMedia::PlayableUtils;
 
 		for (TObjectPtr<AActor> Actor : Level->Actors)
 		{
 			if (IsValid(Actor))
 			{
-				BuildPrimitiveComponentIdList(Actor, HiddenPrimitives);
+				AddPrimitiveComponentIds(Actor, HiddenPrimitives);
 			}
 		}
 

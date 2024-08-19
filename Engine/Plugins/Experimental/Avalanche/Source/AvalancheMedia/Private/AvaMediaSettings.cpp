@@ -12,7 +12,7 @@ UAvaMediaSettings::UAvaMediaSettings()
 {
 	CategoryName = TEXT("Motion Design");
 	SectionName  = TEXT("Playback & Broadcast");
-	AvaInstanceSettings.SynchronizedEventsFeature.Implementation = SynchronizedEventsFeatureSelection_Default.ToString();
+	PlayableSettings.SynchronizedEventsFeature.Implementation = SynchronizedEventsFeatureSelection_Default.ToString();
 }
 
 UAvaMediaSettings* UAvaMediaSettings::GetSingletonInstance()

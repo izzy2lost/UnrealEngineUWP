@@ -3,8 +3,8 @@
 #include "AvaSynchronizedEventsFeatureSelectionCustomization.h"
 
 #include "DetailWidgetRow.h"
-#include "Framework/AvaInstanceSettings.h"
 #include "IDetailChildrenBuilder.h"
+#include "Playable/AvaPlayableSettings.h"
 #include "SAvaSynchronizedEventsImplementationSelector.h"
 
 TSharedRef<IPropertyTypeCustomization> FAvaSynchronizedEventsFeatureSelectionCustomization::MakeInstance()

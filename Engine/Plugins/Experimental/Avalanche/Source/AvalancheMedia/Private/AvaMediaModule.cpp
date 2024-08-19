@@ -400,6 +400,20 @@ const FAvaInstanceSettings& FAvaMediaModule::GetAvaInstanceSettings() const
 	return UAvaMediaSettings::Get().AvaInstanceSettings;
 }
 
+const FAvaPlayableSettings& FAvaMediaModule::GetPlayableSettings() const
+{
+	// if the server is enabled, fetch the settings from the currently connected client.
+	if (AvaPlaybackServer.IsValid())
+	{
+		if (const FAvaPlayableSettings* SettingsFromClient = AvaPlaybackServer->GetPlayableSettings())
+		{
+			return *SettingsFromClient;
+		}
+	}
+	// Return the local settings.
+	return UAvaMediaSettings::Get().PlayableSettings;
+}
+
 bool FAvaMediaModule::IsLocalPlaybackManagerAvailable() const
 {
 	return LocalPlaybackManager.IsValid(); 
