@@ -1054,7 +1054,7 @@ const TextParameter: React.FC<{ param: TextParameterData, disabled?: boolean }> 
          spellCheck={false}
          autoComplete="off"
          value={value}
-         disabled={options.readOnly || disabled}
+         readOnly={options.readOnly || disabled}
          onChange={(ev, value) => {
             options.onTextChanged(param.id, value ?? "");
          }}
