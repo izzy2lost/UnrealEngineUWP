@@ -7,6 +7,7 @@
 #include "Templates/SubclassOf.h"
 #include "Sound/SoundAttenuation.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundModulationDestination.h"
 #include "Sound/SoundNode.h"
 #include "Sound/SoundWave.h"
 
@@ -101,6 +102,16 @@ class USoundCue : public USoundBase
 	/* Base pitch multiplier */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Sound, AssetRegistrySearchable)
 	float PitchMultiplier;
+
+	/* 
+	 * Enables Modulation on this SoundCue. Setting this to true will override all modulation settings on any SoundWaves played through this SoundCue.
+	 * In the inheritance path, Audio Components will inherit Modulation Settings from this sound cue, which inherits Modulation Settings from its own Sound Class.
+	 */
+	UPROPERTY(EditAnywhere, Category = Modulation)
+	bool bUseModulation;
+
+	UPROPERTY(EditAnywhere, Category = Modulation, meta = (EditCondition = "bUseModulation"))
+	FSoundModulationDefaultRoutingSettings ModulationSettings;
 
 	/* Attenuation settings to use if Override Attenuation is set to true */
 	UPROPERTY(EditAnywhere, Category = Attenuation)
