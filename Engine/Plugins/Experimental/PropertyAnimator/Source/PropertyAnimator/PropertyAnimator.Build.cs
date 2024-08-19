@@ -22,6 +22,7 @@ public class PropertyAnimator : ModuleRules
 				"ApplicationCore",
 				"AudioSynesthesia",
 				"CoreUObject",
+				"DeveloperSettings",
 				"Engine",
 				"MovieSceneTracks",
 				"Text3D"
