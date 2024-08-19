@@ -102,6 +102,23 @@ FRigUnit_SetDefaultParent_Execute()
 	}
 }
 
+FRigUnit_SetChannelHosts_Execute()
+{
+	if(!FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(ExecuteContext, true))
+	{
+		return;
+	}
+	
+	for(const FRigElementKey& Host : Hosts)
+	{
+		FRigHierarchyEnableControllerBracket EnableController(ExecuteContext.Hierarchy, true);
+		if(URigHierarchyController* Controller = ExecuteContext.Hierarchy->GetController(true))
+		{
+			(void)Controller->AddChannelHost(Channel, Host);
+		}
+	}
+}
+
 FRigUnit_SwitchParent_Execute()
 {
 	if(!FRigUnit_DynamicHierarchyBase::IsValidToRunInContext(ExecuteContext, false))

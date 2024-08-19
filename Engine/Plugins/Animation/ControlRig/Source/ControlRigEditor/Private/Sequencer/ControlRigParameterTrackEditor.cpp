@@ -3393,9 +3393,15 @@ void FControlRigParameterTrackEditor::HandleControlSelected(UControlRig* Subject
 							if (ParentConstraint.ParentElement == ControlElement)
 							{
 								Controller->SelectElement(OtherControlElement->GetKey(), bSelected);
-								break;
+								return true;
 							}
 						}
+					}
+
+					if(OtherControlElement->IsAnimationChannel() && OtherControlElement->Settings.Customization.AvailableSpaces.Contains(ControlElement->GetKey()))
+					{
+						Controller->SelectElement(OtherControlElement->GetKey(), bSelected);
+						return true;
 					}
 
 					return true;

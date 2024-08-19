@@ -1176,13 +1176,35 @@ void FControlRigEditor::SetDetailViewForRigElements(const TArray<FRigElementKey>
 		return;
 	}
 
+	TArray<FRigElementKey> Keys = InKeys;
+	if(Keys.IsEmpty())
+	{
+		TArray< TWeakObjectPtr<UObject> > SelectedObjects = GetSelectedObjects();
+		for (TWeakObjectPtr<UObject> SelectedObject : SelectedObjects)
+		{
+			if (SelectedObject.IsValid())
+			{
+				if(const URigVMDetailsViewWrapperObject* WrapperObject = Cast<URigVMDetailsViewWrapperObject>(SelectedObject.Get()))
+				{
+					if(const UScriptStruct* WrappedStruct = WrapperObject->GetWrappedStruct())
+					{
+						if (WrappedStruct->IsChildOf(FRigBaseElement::StaticStruct()))
+						{
+							Keys.Add(WrapperObject->GetContent<FRigBaseElement>().Key);
+						}
+					}
+				}
+			}
+		}
+	}
+
 	ClearDetailObject();
 
 	UControlRigBlueprint* RigBlueprint = Cast<UControlRigBlueprint>(GetBlueprintObj());
 	URigHierarchy* HierarchyBeingDebugged = GetHierarchyBeingDebugged();
 	TArray<UObject*> Objects;
 
-	for(const FRigElementKey& Key : InKeys)
+	for(const FRigElementKey& Key : Keys)
 	{
 		FRigBaseElement* Element = HierarchyBeingDebugged->Find(Key);
 		if (Element == nullptr)

@@ -4509,7 +4509,13 @@ void FControlRigEditMode::OnHierarchyModified(ERigHierarchyNotification InNotif,
 														ParentControlElement->GetKey() == ControlElement->GetKey())
 													{
 														ControlProxy->SelectProxy(ControlRig, AnimationChannelControl, bSelected);
+														return true;
 													}
+												}
+												if(AnimationChannelControl->Settings.Customization.AvailableSpaces.Contains(ControlElement->GetKey()))
+												{
+													ControlProxy->SelectProxy(ControlRig, AnimationChannelControl, bSelected);
+													return true;
 												}
 											}
 											return true;

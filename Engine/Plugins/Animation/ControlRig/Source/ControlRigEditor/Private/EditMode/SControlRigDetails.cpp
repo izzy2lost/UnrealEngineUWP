@@ -143,36 +143,47 @@ void SControlRigDetails::HandleControlSelected(UControlRig* Subject, FRigControl
 	UpdateProxies();
 }
 
-static UControlRigControlsProxy* GetParentProxy(UControlRigControlsProxy* ChildProxy, const TArray<UControlRigControlsProxy*>& Proxies)
+static TArray<UControlRigControlsProxy*> GetParentProxies(UControlRigControlsProxy* ChildProxy, const TArray<UControlRigControlsProxy*>& Proxies)
 {
 	if (!ChildProxy || !ChildProxy->OwnerControlRig.IsValid())
 	{
-		return nullptr;
+		return {};
 	}
 	if (!ChildProxy->OwnerControlElement.UpdateCache(ChildProxy->OwnerControlRig->GetHierarchy()))
 	{
-		return nullptr;
+		return {};
 	}
-	FRigBaseElement* ChildParent = (ChildProxy && ChildProxy->OwnerControlRig.IsValid()) ?
-		ChildProxy->OwnerControlRig->GetHierarchy()->GetFirstParent(ChildProxy->OwnerControlElement.GetElement()) : nullptr;
-	if (ChildParent == nullptr)
+	TArray<FRigBaseElement*> Parents;
+	if(ChildProxy && ChildProxy->OwnerControlRig.IsValid())
 	{
-		return nullptr;
+		Parents = ChildProxy->OwnerControlRig->GetHierarchy()->GetParents(ChildProxy->OwnerControlElement.GetElement()); 
 	}
+
+	TArray<UControlRigControlsProxy*> ParentProxies;
 	for (UControlRigControlsProxy* Proxy : Proxies)
 	{
 		if (Proxy && Proxy->OwnerControlRig.IsValid())
 		{
 			if (Proxy->OwnerControlElement.UpdateCache(Proxy->OwnerControlRig->GetHierarchy()))
 			{
-				if (ChildParent == Proxy->OwnerControlElement.GetElement())
+				if(const FRigControlElement* OwnerControlElement = Cast<FRigControlElement>(Proxy->OwnerControlElement.GetElement()))
 				{
-					return Proxy;
+					if (Parents.Contains(OwnerControlElement))
+					{
+						ParentProxies.AddUnique(Proxy);
+					}
+					if(const FRigControlElement* ChildControlElement = Cast<FRigControlElement>(ChildProxy->OwnerControlElement.GetElement()))
+					{
+						if(ChildControlElement->Settings.Customization.AvailableSpaces.Contains(OwnerControlElement->GetKey()))
+						{
+							ParentProxies.AddUnique(Proxy);
+						}
+					}
 				}
 			}
 		}
 	}
-	return nullptr;
+	return ParentProxies;
 }
 static UControlRigControlsProxy* GetProxyWithSameType(TArray<TWeakObjectPtr<>>& AllProxies, ERigControlType ControlType, bool bIsEnum)
 {
@@ -381,7 +392,8 @@ void SControlRigDetails::UpdateProxies()
 					//now add child proxies to parents if parents also selected...
 					for (UControlRigControlsProxy* Proxy : ChildProxies)
 					{
-						if (UControlRigControlsProxy* ParentProxy = GetParentProxy(Proxy, Proxies))
+						TArray<UControlRigControlsProxy*> ParentProxies = GetParentProxies(Proxy, Proxies);
+						for (UControlRigControlsProxy* ParentProxy : ParentProxies)
 						{
 							TObjectPtr<UEnum> EnumPtr = nullptr;
 							if (ParentProxy->OwnerControlRig.IsValid())
@@ -399,7 +411,8 @@ void SControlRigDetails::UpdateProxies()
 								ExistingProxy->AddChildProxy(Proxy);
 							}
 						}
-						else
+
+						if(ParentProxies.IsEmpty())
 						{
 							AllProxies.Add(Proxy);
 						}

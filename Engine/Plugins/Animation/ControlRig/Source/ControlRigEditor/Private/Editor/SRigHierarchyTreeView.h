@@ -288,9 +288,11 @@ public:
 
 	SLATE_BEGIN_ARGS(SRigHierarchyTreeView)
 		: _AutoScrollEnabled(false)
+		, _PopulateOnConstruct(false)
 	{}
 		SLATE_ARGUMENT(FRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(bool, AutoScrollEnabled)
+		SLATE_ARGUMENT(bool, PopulateOnConstruct)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);

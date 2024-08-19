@@ -2304,6 +2304,16 @@ bool URigHierarchy::SetParentWeight(FRigBaseElement* InChild, int32 InParentInde
 	{
 		if(MultiParentElement->ParentConstraints.IsValidIndex(InParentIndex))
 		{
+			if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(MultiParentElement))
+			{
+				// animation channels cannot change their parent weights, 
+				// they are not 3d things - so multi parenting doesn't matter for transforms.
+				if(ControlElement->IsAnimationChannel())
+				{
+					return false;
+				}
+			}
+			
 			InWeight.Location = FMath::Max(InWeight.Location, 0.f);
 			InWeight.Rotation = FMath::Max(InWeight.Rotation, 0.f);
 			InWeight.Scale = FMath::Max(InWeight.Scale, 0.f);
@@ -2410,6 +2420,16 @@ bool URigHierarchy::SetParentWeightArray(FRigBaseElement* InChild,  const TArray
 
 	if(FRigMultiParentElement* MultiParentElement = Cast<FRigMultiParentElement>(InChild))
 	{
+		if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(MultiParentElement))
+		{
+			// animation channels cannot change their parent weights, 
+			// they are not 3d things - so multi parenting doesn't matter for transforms.
+			if(ControlElement->IsAnimationChannel())
+			{
+				return false;
+			}
+		}
+
 		if(MultiParentElement->ParentConstraints.Num() == InWeights.Num())
 		{
 			TArray<FRigElementWeight> InputWeights;

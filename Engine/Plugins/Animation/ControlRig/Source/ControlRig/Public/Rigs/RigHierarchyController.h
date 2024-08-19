@@ -526,6 +526,64 @@ public:
 	bool SetParent(FRigElementKey InChild, FRigElementKey InParent, bool bMaintainGlobalTransform = true, bool bSetupUndo = false, bool bPrintPythonCommand = false);
 
 	/**
+	 * Adds a new available space to the given control
+	 * @param InControl The control to add the available space for
+	 * @param InSpace The space to add to the available spaces list
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool AddAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Removes an available space from the given control
+	 * @param InControl The control to remove the available space from
+	 * @param InSpace The space to remove from the available spaces list
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool RemoveAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Reorders an available space for the given control
+	 * @param InControl The control to reorder the host for
+	 * @param InSpace The space to set the new index for
+	 * @param InIndex The new index of the available space
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool SetAvailableSpaceIndex(FRigElementKey InControl, FRigElementKey InSpace, int32 InIndex, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Adds a new channel host to the animation channel
+	 * @note This is just an overload of AddAvailableSpace for readability
+	 * @param InChannel The animation channel to add the channel host for
+	 * @param InHost The host to add to the channel to
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool AddChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
+	 * Removes an channel host from the animation channel
+	 * @note This is just an overload of RemoveAvailableSpace for readability
+	 * @param InChannel The animation channel to remove the channel host from
+	 * @param InHost The host to remove from the channel from
+	 * @param bSetupUndo If set to true the stack will record the change for undo / redo
+	 * @param bPrintPythonCommand If set to true a python command equivalent to this call will be printed out
+	 * @return Returns true if successful.
+	 */
+	UFUNCTION(BlueprintCallable, Category = URigHierarchyController)
+	bool RemoveChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo = false, bool bPrintPythonCommand = false);
+
+	/**
 	 * Duplicate the given elements
 	 * @param InKeys The keys of the elements to duplicate
 	 * @param bSelectNewElements If set to true the new elements will be selected
@@ -719,6 +777,31 @@ private:
 	 * @return Returns true if successful.
  	 */
 	bool SetParent(FRigBaseElement* InChild, FRigBaseElement* InParent, bool bMaintainGlobalTransform = true);
+
+	/**
+	 * Adds a new available space to the given control
+	 * @param InControlElement The control element to add the available space for
+	 * @param InSpaceElement The space element to add to the available spaces list
+	 * @return Returns true if successful.
+	 */
+	bool AddAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement);
+
+	/**
+	 * Removes an available space from the given control
+	 * @param InControlElement The control element to remove the available space from
+	 * @param InSpaceElement The space element to remove from the available spaces list
+	 * @return Returns true if successful.
+	 */
+	bool RemoveAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement);
+
+	/**
+	 * Reorders an available space for the given control
+	 * @param InControlElement The control element to remove the available space from
+	 * @param InSpaceElement The space element to remove from the available spaces list
+	 * @param InIndex The new index of the available space
+	 * @return Returns true if successful.
+	 */
+	bool SetAvailableSpaceIndex(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement, int32 InIndex);
 
 	/**
 	 * Adds a new element to the dirty list of the given parent.

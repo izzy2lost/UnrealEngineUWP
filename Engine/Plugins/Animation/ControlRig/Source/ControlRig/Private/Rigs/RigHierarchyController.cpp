@@ -2735,16 +2735,8 @@ bool URigHierarchyController::AddParent(FRigBaseElement* InChild, FRigBaseElemen
 	{
 		if(ChildControlElement->IsAnimationChannel())
 		{
-			if(!bRemoveAllParents)
-			{
-				if (ChildControlElement->ParentConstraints.Num() > 0)
-				{
-					ReportErrorf(TEXT("Cannot add multiple parents to animation channel '%s'."), *InChild->Key.ToString());
-					return false;
-				}
-			}
-
 			bMaintainGlobalTransform = false;
+			InWeight = 0.f;
 		}
 
 		if(ChildControlElement->Settings.bRestrictSpaceSwitching)
@@ -3222,6 +3214,399 @@ bool URigHierarchyController::SetParent(FRigElementKey InChild, FRigElementKey I
 	return bParentSet;
 }
 
+bool URigHierarchyController::AddAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return false;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+
+	FRigBaseElement* ControlBase = Hierarchy->Find(InControl);
+	if(ControlBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Available Space, Control '%s' not found."), *InControl.ToString());
+		return false;
+	}
+
+	FRigControlElement* Control = Cast<FRigControlElement>(ControlBase);
+	if(Control == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Available Space, '%s' is not a Control."), *InControl.ToString());
+		return false;
+	}
+
+	const FRigBaseElement* SpaceBase = Hierarchy->Find(InSpace);
+	if(SpaceBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Available Space, Space '%s' not found."), *InSpace.ToString());
+		return false;
+	}
+
+	const FRigTransformElement* Space = Cast<FRigTransformElement>(SpaceBase);
+	if(Space == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Available Space, '%s' is not a Transform."), *InSpace.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "AddAvailableSpace", "Add Available Space"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	const bool bSuccess = AddAvailableSpace(Control, Space);
+
+#if WITH_EDITOR
+	if(!bSuccess && TransactionPtr.IsValid())
+	{
+		TransactionPtr->Cancel();
+	}
+	TransactionPtr.Reset();
+
+	if (bSuccess && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		if (const UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.add_available_space(%s, %s)"),
+				*InControl.ToPythonString(),
+				*InSpace.ToPythonString()));
+		}
+	}
+#endif
+
+	return bSuccess;
+}
+
+bool URigHierarchyController::RemoveAvailableSpace(FRigElementKey InControl, FRigElementKey InSpace, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return false;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+
+	FRigBaseElement* ControlBase = Hierarchy->Find(InControl);
+	if(ControlBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Available Space, Control '%s' not found."), *InControl.ToString());
+		return false;
+	}
+
+	FRigControlElement* Control = Cast<FRigControlElement>(ControlBase);
+	if(Control == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Available Space, '%s' is not a Control."), *InControl.ToString());
+		return false;
+	}
+
+	const FRigBaseElement* SpaceBase = Hierarchy->Find(InSpace);
+	if(SpaceBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Available Space, Space '%s' not found."), *InSpace.ToString());
+		return false;
+	}
+
+	const FRigTransformElement* Space = Cast<FRigTransformElement>(SpaceBase);
+	if(Space == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Available Space, '%s' is not a Transform."), *InSpace.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "RemoveAvailableSpace", "Remove Available Space"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	const bool bSuccess = RemoveAvailableSpace(Control, Space);
+
+#if WITH_EDITOR
+	if(!bSuccess && TransactionPtr.IsValid())
+	{
+		TransactionPtr->Cancel();
+	}
+	TransactionPtr.Reset();
+
+	if (bSuccess && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		if (const UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.remove_available_space(%s, %s)"),
+				*InControl.ToPythonString(),
+				*InSpace.ToPythonString()));
+		}
+	}
+#endif
+
+	return bSuccess;
+}
+
+bool URigHierarchyController::SetAvailableSpaceIndex(FRigElementKey InControl, FRigElementKey InSpace, int32 InIndex, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return false;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+
+	FRigBaseElement* ControlBase = Hierarchy->Find(InControl);
+	if(ControlBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Set Available Space Index, Control '%s' not found."), *InControl.ToString());
+		return false;
+	}
+
+	FRigControlElement* Control = Cast<FRigControlElement>(ControlBase);
+	if(Control == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Set Available Space Index, '%s' is not a Control."), *InControl.ToString());
+		return false;
+	}
+
+	const FRigBaseElement* SpaceBase = Hierarchy->Find(InSpace);
+	if(SpaceBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Set Available Space Index, Space '%s' not found."), *InSpace.ToString());
+		return false;
+	}
+
+	const FRigTransformElement* Space = Cast<FRigTransformElement>(SpaceBase);
+	if(Space == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Set Available Space Index, '%s' is not a Transform."), *InSpace.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "RemoveAvailableSpace", "Remove Available Space"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	const bool bSuccess = SetAvailableSpaceIndex(Control, Space, InIndex);
+
+#if WITH_EDITOR
+	if(!bSuccess && TransactionPtr.IsValid())
+	{
+		TransactionPtr->Cancel();
+	}
+	TransactionPtr.Reset();
+
+	if (bSuccess && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		if (const UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.set_available_space_index(%s, %s)"),
+				*InControl.ToPythonString(),
+				*InSpace.ToPythonString()));
+		}
+	}
+#endif
+
+	return bSuccess;
+}
+
+bool URigHierarchyController::AddChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return false;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+
+	FRigBaseElement* ChannelBase = Hierarchy->Find(InChannel);
+	if(ChannelBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, Channel '%s' not found."), *InChannel.ToString());
+		return false;
+	}
+
+	FRigControlElement* Channel = Cast<FRigControlElement>(ChannelBase);
+	if(Channel == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is not a Control."), *InChannel.ToString());
+		return false;
+	}
+
+	if(!Channel->IsAnimationChannel())
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is not an animation channel."), *InChannel.ToString());
+		return false;
+	}
+
+	const FRigBaseElement* HostBase = Hierarchy->Find(InHost);
+	if(HostBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, Host '%s' not found."), *InHost.ToString());
+		return false;
+	}
+
+	const FRigControlElement* Host = Cast<FRigControlElement>(HostBase);
+	if(Host == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is not a Control."), *InHost.ToString());
+		return false;
+	}
+
+	if(Host->IsAnimationChannel())
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is also an animation channel."), *InHost.ToString());
+		return false;
+	}
+
+	// the default parent cannot be added to the channel host list
+	if(Hierarchy->GetParents(InChannel).Contains(InHost))
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is the parent of channel '%s'."), *InHost.ToString(), *InChannel.ToString());
+		return false;
+	}
+
+	if(Channel->Settings.Customization.AvailableSpaces.Contains(Host->GetKey()))
+	{
+		ReportWarningf(TEXT("Cannot Add Channel Host, '%s' is already a host for channel '%s'."), *InHost.ToString(), *InChannel.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "AddChannelHost", "Add Channel Host"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	const bool bSuccess = AddAvailableSpace(Channel, Host);
+
+#if WITH_EDITOR
+	if(!bSuccess && TransactionPtr.IsValid())
+	{
+		TransactionPtr->Cancel();
+	}
+	TransactionPtr.Reset();
+
+	if (bSuccess && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		if (const UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.add_channel_host(%s, %s)"),
+				*InChannel.ToPythonString(),
+				*InHost.ToPythonString()));
+		}
+	}
+#endif
+
+	return bSuccess;
+}
+
+bool URigHierarchyController::RemoveChannelHost(FRigElementKey InChannel, FRigElementKey InHost, bool bSetupUndo, bool bPrintPythonCommand)
+{
+	if(!IsValid())
+	{
+		return false;
+	}
+
+	URigHierarchy* Hierarchy = GetHierarchy();
+
+	FRigBaseElement* ChannelBase = Hierarchy->Find(InChannel);
+	if(ChannelBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, Channel '%s' not found."), *InChannel.ToString());
+		return false;
+	}
+
+	FRigControlElement* Channel = Cast<FRigControlElement>(ChannelBase);
+	if(Channel == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, '%s' is not a Control."), *InChannel.ToString());
+		return false;
+	}
+
+	if(!Channel->IsAnimationChannel())
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, '%s' is not an animation channel."), *InChannel.ToString());
+		return false;
+	}
+
+	const FRigBaseElement* HostBase = Hierarchy->Find(InHost);
+	if(HostBase == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, Host '%s' not found."), *InHost.ToString());
+		return false;
+	}
+
+	const FRigControlElement* Host = Cast<FRigControlElement>(HostBase);
+	if(Host == nullptr)
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, '%s' is not a Control."), *InHost.ToString());
+		return false;
+	}
+
+	if(Host->IsAnimationChannel())
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, '%s' is also an animation channel."), *InHost.ToString());
+		return false;
+	}
+
+	if(!Channel->Settings.Customization.AvailableSpaces.Contains(Host->GetKey()))
+	{
+		ReportWarningf(TEXT("Cannot Remove Channel Host, '%s' is not a host for channel '%s'."), *InHost.ToString(), *InChannel.ToString());
+		return false;
+	}
+
+#if WITH_EDITOR
+	TSharedPtr<FScopedTransaction> TransactionPtr;
+	if(bSetupUndo)
+	{
+		TransactionPtr = MakeShared<FScopedTransaction>(NSLOCTEXT("RigHierarchyController", "RemoveChannelHost", "Remove Channel Host"));
+		Hierarchy->Modify();
+	}
+#endif
+
+	const bool bSuccess = RemoveAvailableSpace(Channel, Host);
+
+#if WITH_EDITOR
+	if(!bSuccess && TransactionPtr.IsValid())
+	{
+		TransactionPtr->Cancel();
+	}
+	TransactionPtr.Reset();
+
+	if (bSuccess && bPrintPythonCommand && !bSuspendPythonPrinting)
+	{
+		if (const UBlueprint* Blueprint = GetTypedOuter<UBlueprint>())
+		{
+			RigVMPythonUtils::Print(Blueprint->GetFName().ToString(),
+				FString::Printf(TEXT("hierarchy_controller.remove_channel_host(%s, %s)"),
+				*InChannel.ToPythonString(),
+				*InHost.ToPythonString()));
+		}
+	}
+#endif
+
+	return bSuccess;
+}
+
 TArray<FRigElementKey> URigHierarchyController::DuplicateElements(TArray<FRigElementKey> InKeys, bool bSelectNewElements, bool bSetupUndo, bool bPrintPythonCommands)
 {
 	const FString Content = ExportToText(InKeys);
@@ -3391,6 +3776,110 @@ bool URigHierarchyController::SetParent(FRigBaseElement* InChild, FRigBaseElemen
 		return false;
 	}
 	return AddParent(InChild, InParent, 1.f, bMaintainGlobalTransform, true);
+}
+
+bool URigHierarchyController::AddAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement)
+{
+	if(InControlElement == nullptr || InSpaceElement == nullptr)
+	{
+		return false;
+	}
+
+	// we cannot use animation channels as spaces / channel hosts
+	if(const FRigControlElement* SpaceControlElement = Cast<FRigControlElement>(InSpaceElement))
+	{
+		if(SpaceControlElement->IsAnimationChannel())
+		{
+			return false;
+		}
+	}
+
+	// in case of animation channels - we can only relate them to controls
+	if(InControlElement->IsAnimationChannel())
+	{
+		if(!InSpaceElement->IsA<FRigControlElement>())
+		{
+			return false;
+		}
+	}
+
+	// the default parent cannot be added to the available spaces list
+	if(GetHierarchy()->GetParents(InControlElement).Contains(InSpaceElement))
+	{
+		return false;
+	}
+
+	FRigControlSettings Settings = InControlElement->Settings;
+	TArray<FRigElementKey>& AvailableSpaces = Settings.Customization.AvailableSpaces;
+	if(AvailableSpaces.Contains(InSpaceElement->GetKey()))
+	{
+		return false;
+	}
+
+	AvailableSpaces.Add(InSpaceElement->GetKey());
+
+	GetHierarchy()->SetControlSettings(InControlElement, Settings, false, false, false);
+	return true;
+}
+
+bool URigHierarchyController::RemoveAvailableSpace(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement)
+{
+	if(InControlElement == nullptr || InSpaceElement == nullptr)
+	{
+		return false;
+	}
+
+	FRigControlSettings Settings = InControlElement->Settings;
+	TArray<FRigElementKey>& AvailableSpaces =Settings.Customization.AvailableSpaces;
+	const int32 NumRemoved = AvailableSpaces.Remove(InSpaceElement->GetKey());
+	if(NumRemoved == 0)
+	{
+		return false;
+	}
+	
+	GetHierarchy()->SetControlSettings(InControlElement, Settings, false, false, false);
+	return true;
+}
+
+bool URigHierarchyController::SetAvailableSpaceIndex(FRigControlElement* InControlElement, const FRigTransformElement* InSpaceElement, int32 InIndex)
+{
+	if(InControlElement == nullptr || InSpaceElement == nullptr)
+	{
+		return false;
+	}
+
+	FRigControlSettings Settings = InControlElement->Settings;
+	TArray<FRigElementKey>& AvailableSpaces = Settings.Customization.AvailableSpaces;
+
+	bool bAddedAvailableSpace = false;
+	if(!AvailableSpaces.Contains(InSpaceElement->GetKey()))
+	{
+		bAddedAvailableSpace = AddAvailableSpace(InControlElement, InSpaceElement);
+		if(!bAddedAvailableSpace)
+		{
+			return false;
+		}
+	}
+
+	if(AvailableSpaces.Find(InSpaceElement->GetKey()) == InIndex)
+	{
+		return bAddedAvailableSpace;
+	}
+
+	(void)AvailableSpaces.Remove(InSpaceElement->GetKey());
+	InIndex = FMath::Max(InIndex, 0);
+
+	if(InIndex >= AvailableSpaces.Num())
+	{
+		AvailableSpaces.Add(InSpaceElement->GetKey());
+	}
+	else
+	{
+		AvailableSpaces.Insert(InSpaceElement->GetKey(), InIndex);
+	}
+
+	GetHierarchy()->SetControlSettings(InControlElement, Settings, false, false, false);
+	return true;
 }
 
 void URigHierarchyController::AddElementToDirty(FRigBaseElement* InParent, FRigBaseElement* InElementToAdd, int32 InHierarchyDistance) const

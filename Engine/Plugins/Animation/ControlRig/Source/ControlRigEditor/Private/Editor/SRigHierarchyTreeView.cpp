@@ -319,6 +319,11 @@ void SRigHierarchyTreeView::Construct(const FArguments& InArgs)
 
 	LastMousePosition = FVector2D::ZeroVector;
 	TimeAtMousePosition = 0.0;
+
+	if(InArgs._PopulateOnConstruct)
+	{
+		RefreshTreeView(true);
+	}
 }
 
 void SRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)

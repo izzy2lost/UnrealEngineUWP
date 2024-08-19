@@ -9,6 +9,7 @@
 #include "Widgets/Input/SVectorInputBox.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SButton.h"
+#include "Widgets/Layout/SExpandableArea.h"
 #include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Colors/SColorPicker.h"
 #include "ControlRigBlueprint.h"
@@ -22,7 +23,6 @@
 #include "Widgets/SRigVMGraphPinVariableBinding.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "Styling/AppStyle.h"
-#include "Editor/SRigHierarchyTreeView.h"
 #include "StructViewerFilter.h"
 #include "StructViewerModule.h"
 #include "Widgets/SRigVMGraphPinEnumPicker.h"
@@ -2812,6 +2812,7 @@ void FRigControlElementDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBui
 	CustomizeValue(DetailBuilder);
 	CustomizeTransform(DetailBuilder);
 	CustomizeShape(DetailBuilder);
+	CustomizeAvailableSpaces(DetailBuilder);
 	CustomizeAnimationChannels(DetailBuilder);
 	CustomizeMetadata(DetailBuilder);
 }
@@ -3259,8 +3260,6 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 		];
 	}
 
-	const TSharedPtr<IPropertyHandle> CustomizationHandle = SettingsHandle->GetChildHandle(TEXT("Customization"));
-
 	if(bSupportsShape)
 	{
 		const TSharedPtr<IPropertyHandle> RestrictSpaceSwitchingHandle = SettingsHandle->GetChildHandle(TEXT("bRestrictSpaceSwitching"));
@@ -3268,10 +3267,12 @@ void FRigControlElementDetails::CustomizeControl(IDetailLayoutBuilder& DetailBui
 		.AddProperty(RestrictSpaceSwitchingHandle.ToSharedRef())
 		.DisplayName(FText::FromString(TEXT("Restrict Switching")))
 		.IsEnabled(bIsEnabled);
-		
-		const TSharedPtr<IPropertyHandle> AvailableSpacesHandle = CustomizationHandle->GetChildHandle(TEXT("AvailableSpaces"));
-		ControlCategory.AddProperty(AvailableSpacesHandle.ToSharedRef())
-		.IsEnabled(bIsEnabled);
+
+		// Available Spaces is now handled by its own category (CustomizeAvailableSpaces)
+		//const TSharedPtr<IPropertyHandle> CustomizationHandle = SettingsHandle->GetChildHandle(TEXT("Customization"));
+		//const TSharedPtr<IPropertyHandle> AvailableSpacesHandle = CustomizationHandle->GetChildHandle(TEXT("AvailableSpaces"));
+		//ControlCategory.AddProperty(AvailableSpacesHandle.ToSharedRef())
+		//.IsEnabled(bIsEnabled);
 	}
 
 	TArray<FRigElementKey> Keys = GetElementKeys();
@@ -3447,6 +3448,7 @@ void FRigControlElementDetails::CustomizeAnimationChannels(IDetailLayoutBuilder&
 				}
 
 				TSharedPtr<SButton> SelectAnimationChannelButton;
+				TSharedPtr<SImage> SelectAnimationChannelImage;
 				TSharedPtr<SWidget> NameContent;
 
 				SAssignNew(NameContent, SHorizontalBox)
@@ -3506,19 +3508,19 @@ void FRigControlElementDetails::CustomizeAnimationChannels(IDetailLayoutBuilder&
 				[
 					SAssignNew(SelectAnimationChannelButton, SButton)
 					.ButtonStyle( FAppStyle::Get(), "NoBorder" )
-					.ButtonColorAndOpacity_Lambda([SelectAnimationChannelButton]() { return FRigElementKeyDetails::OnGetWidgetBackground(SelectAnimationChannelButton); })
 					.OnClicked_Lambda([this, ChildElementKey]() -> FReply
 					{
 						return OnSelectElementClicked(ChildElementKey);
 					})
 					.ContentPadding(0)
-					.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "SelectParentInHierarchyToolTip", "Select Parent in hierarchy"))
+					.ToolTipText(NSLOCTEXT("ControlRigElementDetails", "SelectAnimationChannelInHierarchyToolTip", "Select Animation Channel"))
 					[
-						SNew(SImage)
-						.ColorAndOpacity_Lambda( [SelectAnimationChannelButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(SelectAnimationChannelButton); })
+						SAssignNew(SelectAnimationChannelImage, SImage)
 						.Image(FAppStyle::GetBrush("Icons.Search"))
 					]
 				];
+
+				SelectAnimationChannelImage->SetColorAndOpacity(TAttribute<FSlateColor>::CreateLambda([this, SelectAnimationChannelButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(SelectAnimationChannelButton); }));
 
 				const FText Label = FText::FromString(FString::Printf(TEXT("Channel%s"), *ChildControlElement->GetDisplayName().ToString()));
 				const TArray<FRigElementKey> ChildElementKeys = {ChildElementKey};
@@ -3697,6 +3699,323 @@ void FRigControlElementDetails::CustomizeAnimationChannels(IDetailLayoutBuilder&
 	}
 }
 
+void FRigControlElementDetails::CustomizeAvailableSpaces(IDetailLayoutBuilder& DetailBuilder)
+{
+	// only show this if only one control / animation channel is selected
+	if(PerElementInfos.Num() != 1)
+	{
+		return;
+	}
+
+	const FRigControlElement* ControlElement = PerElementInfos[0].GetElement<FRigControlElement>();
+	if(ControlElement == nullptr)
+	{
+		return;
+	}
+
+	const bool bIsAnimationChannel = IsAnyControlOfAnimationType(ERigControlAnimationType::AnimationChannel);
+	const bool bIsProcedural = IsAnyElementProcedural();
+	const bool bIsEnabled = !bIsProcedural;
+
+	URigHierarchy* Hierarchy = PerElementInfos[0].GetHierarchy();
+	URigHierarchy* HierarchyToChange = PerElementInfos[0].GetDefaultHierarchy();
+
+	static const FText ControlSpaces = LOCTEXT("AvailableSpaces", "Available Spaces"); 
+	static const FText ChannelHosts = LOCTEXT("ChannelHosts", "Channel Hosts"); 
+	static const FText ControlSpacesToolTip = LOCTEXT("AvailableSpacesToolTip", "Spaces available for this Control"); 
+	static const FText ChannelHostsToolTip = LOCTEXT("ChannelHostsToolTip", "A list of controls this channel is listed under"); 
+	IDetailCategoryBuilder& Category = DetailBuilder.EditCategory(TEXT("MultiParents"), bIsAnimationChannel ? ChannelHosts : ControlSpaces);
+	Category.SetToolTip(bIsAnimationChannel ? ChannelHostsToolTip : ControlSpaces);
+	
+	const TSharedRef<IPropertyUtilities> PropertyUtilities = DetailBuilder.GetPropertyUtilities();
+
+	DisplaySettings.bShowBones = true;
+	DisplaySettings.bShowControls = true;
+	DisplaySettings.bShowNulls = true;
+	DisplaySettings.bShowReferences = false;
+	DisplaySettings.bShowSockets = false;
+	DisplaySettings.bShowPhysics = false;
+	DisplaySettings.bHideParentsOnFilter = true;
+	DisplaySettings.bFlattenHierarchyOnFilter = true;
+	DisplaySettings.bShowIconColors = true;
+
+	const TSharedRef<SHorizontalBox> HeaderContentWidget = SNew(SHorizontalBox);
+	HeaderContentWidget->AddSlot()
+	.HAlign(HAlign_Right)
+	[
+		SAssignNew(AddSpaceMenuAnchor, SMenuAnchor)
+		.Placement( MenuPlacement_BelowAnchor )
+		.OnGetMenuContent( this, &FRigControlElementDetails::GetAddSpaceContent, PropertyUtilities)
+		.Content()
+		[
+			SNew(SImage)
+			.OnMouseButtonDown(this, &FRigControlElementDetails::OnAddSpaceMouseDown, PropertyUtilities)
+			.Image(FAppStyle::Get().GetBrush("Icons.PlusCircle"))
+			.ColorAndOpacity(FSlateColor::UseForeground())
+		]	
+	];
+	Category.HeaderContent(HeaderContentWidget);
+
+	TArray<FRigElementKey> AvailableSpaces = { Hierarchy->GetDefaultParent(ControlElement->GetKey()) };
+	for(const FRigElementKey& AvailableSpace : ControlElement->Settings.Customization.AvailableSpaces)
+	{
+		AvailableSpaces.AddUnique(AvailableSpace);
+	}
+
+	static const FText RemoveSpaceText = LOCTEXT("RemoveSpace", "Remove Space");
+	static const FText RemoveChannelHostText = LOCTEXT("RemoveChannelHost", "Remove Channel Host");
+	static const FText RemoveSpaceToolTipText = LOCTEXT("RemoveSpaceToolTip", "Removes this space from the list of available spaces");
+	static const FText RemoveChannelHostToolTipText = LOCTEXT("RemoveChannelHostToolTip", "Remove the channel from this hosting control");
+
+	for(int32 Index = 0; Index < AvailableSpaces.Num(); Index++)
+	{
+		const FRigElementKey ControlKey = ControlElement->GetKey();
+		const FRigElementKey AvailableSpace = AvailableSpaces[Index];
+		const bool bIsParentSpace = Index == 0;
+		const TPair<const FSlateBrush*, FSlateColor> BrushAndColor = SRigHierarchyItem::GetBrushForElementType(Hierarchy, AvailableSpace);
+
+		TSharedPtr<SButton> SelectSpaceButton, RemoveSpaceButton, MoveSpaceUpButton, MoveSpaceDownButton;
+		TSharedPtr<SImage> SelectSpaceImage, RemoveSpaceImage, MoveSpaceUpImage, MoveSpaceDownImage;
+
+		FDetailWidgetRow& WidgetRow = Category.AddCustomRow(FText::FromString(AvailableSpace.ToString()))
+		.NameContent()
+		.MinDesiredWidth(200.f)
+		.MaxDesiredWidth(800.f)
+		[
+			SNew(SHorizontalBox)
+			.IsEnabled(bIsEnabled)
+
+			+ SHorizontalBox::Slot()
+			.MaxWidth(32)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 3.f, 0.f))
+			[
+				SNew(SImage)
+				.Image(BrushAndColor.Key)
+				.ColorAndOpacity(BrushAndColor.Value)
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 8.f, 0.f))
+			[
+				SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text_Lambda([this, AvailableSpace]() -> FText
+				{
+					return GetDisplayNameForElement(AvailableSpace);
+				})
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Right)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 0.f, 0.f))
+			[
+				SAssignNew(SelectSpaceButton, SButton)
+				.ButtonStyle( FAppStyle::Get(), "NoBorder" )
+				.OnClicked_Lambda([this, AvailableSpace]() -> FReply
+				{
+					return OnSelectElementClicked(AvailableSpace);
+				})
+				.ContentPadding(0)
+				.ToolTipText(LOCTEXT("SelectElementInHierarchy", "Select Element in hierarchy"))
+				[
+					SAssignNew(SelectSpaceImage, SImage)
+					.Image(FAppStyle::GetBrush("Icons.Search"))
+				]
+			]
+		]
+		.ValueContent()
+		[
+			SNew(SHorizontalBox)
+			.IsEnabled(bIsEnabled)
+			
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SAssignNew(MoveSpaceUpButton, SButton)
+				.Visibility((Index > 0 && !bIsAnimationChannel) ? EVisibility::Visible : EVisibility::Collapsed)
+				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+				.ContentPadding(0)
+				.IsEnabled(Index > 1)
+				.OnClicked_Lambda([this, ControlKey, AvailableSpace, HierarchyToChange, Index, PropertyUtilities]
+				{
+					if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+					{
+						FScopedTransaction Transaction(LOCTEXT("MoveAvailableSpaceUp", "Move Available Space Up"));
+						HierarchyToChange->Modify();
+						Controller->SetAvailableSpaceIndex(ControlKey, AvailableSpace, Index - 2);
+						PropertyUtilities->ForceRefresh();
+					}
+					return FReply::Handled();
+				})
+				.ToolTipText(LOCTEXT("MoveUp", "Move up"))
+				[
+					SAssignNew(MoveSpaceUpImage, SImage)
+					.Image(FAppStyle::GetBrush("Icons.ChevronUp"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SAssignNew(MoveSpaceDownButton, SButton)
+				.Visibility((Index > 0 && !bIsAnimationChannel) ? EVisibility::Visible : EVisibility::Collapsed)
+				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+				.ContentPadding(0)
+				.IsEnabled(Index > 0 && Index < AvailableSpaces.Num() - 1)
+				.OnClicked_Lambda([this, ControlKey, AvailableSpace, HierarchyToChange, Index, PropertyUtilities]
+				{
+					if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+					{
+						FScopedTransaction Transaction(LOCTEXT("MoveAvailableSpaceDown", "Move Available Space Down"));
+						HierarchyToChange->Modify();
+						Controller->SetAvailableSpaceIndex(ControlKey, AvailableSpace, Index);
+						PropertyUtilities->ForceRefresh();
+					}
+					return FReply::Handled();
+				})
+				.ToolTipText(LOCTEXT("MoveDown", "Move down"))
+				[
+					SAssignNew(MoveSpaceDownImage, SImage)
+					.Image(FAppStyle::GetBrush("Icons.ChevronDown"))
+				]
+			]
+
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SAssignNew(RemoveSpaceButton, SButton)
+				.Visibility(Index > 0 ? EVisibility::Visible : EVisibility::Collapsed)
+				.ButtonStyle(FAppStyle::Get(), TEXT("SimpleButton"))
+				.ContentPadding(0)
+				.IsEnabled(Index > 0)
+				.OnClicked_Lambda([this, ControlKey, AvailableSpace, HierarchyToChange, Index, PropertyUtilities]
+				{
+					if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+					{
+						const bool bIsAnimationChannel = IsAnyControlOfAnimationType(ERigControlAnimationType::AnimationChannel);
+						FScopedTransaction Transaction(bIsAnimationChannel ? RemoveChannelHostText : RemoveSpaceText);
+						HierarchyToChange->Modify();
+						if(bIsAnimationChannel)
+						{
+							Controller->RemoveChannelHost(ControlKey, AvailableSpace);
+						}
+						else
+						{
+							Controller->RemoveAvailableSpace(ControlKey, AvailableSpace);
+						}
+						PropertyUtilities->ForceRefresh();
+					}
+					return FReply::Handled();
+				})
+				.ToolTipText(LOCTEXT("Remove", "Remove"))
+				[
+					SAssignNew(RemoveSpaceImage, SImage)
+					.Image(FAppStyle::GetBrush("Icons.Delete"))
+				]
+			]
+		];
+
+		SelectSpaceImage->SetColorAndOpacity(TAttribute<FSlateColor>::CreateLambda([this, SelectSpaceButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(SelectSpaceButton); }));
+		MoveSpaceUpImage->SetColorAndOpacity(TAttribute<FSlateColor>::CreateLambda([this, MoveSpaceUpButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(MoveSpaceUpButton); }));
+		MoveSpaceDownImage->SetColorAndOpacity(TAttribute<FSlateColor>::CreateLambda([this, MoveSpaceDownButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(MoveSpaceDownButton); }));
+		RemoveSpaceImage->SetColorAndOpacity(TAttribute<FSlateColor>::CreateLambda([this, RemoveSpaceButton]() { return FRigElementKeyDetails::OnGetWidgetForeground(RemoveSpaceButton); }));
+
+		if(!bIsProcedural)
+		{
+			if(!bIsAnimationChannel)
+			{
+				WidgetRow.AddCustomContextMenuAction(FUIAction(
+					FExecuteAction::CreateLambda([this, ControlKey, AvailableSpace, HierarchyToChange, Index, PropertyUtilities]()
+					{
+						if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+						{
+							FScopedTransaction Transaction(LOCTEXT("MoveAvailableSpaceUp", "Move Available Space Up"));
+							HierarchyToChange->Modify();
+							Controller->SetAvailableSpaceIndex(ControlKey, AvailableSpace, Index - 2);
+							PropertyUtilities->ForceRefresh();
+						}
+					}),
+					FCanExecuteAction::CreateLambda([Index](){ return Index > 1; })),
+					LOCTEXT("MoveUp", "Move Up"),
+					LOCTEXT("MoveAvailableSpaceUpToolTip", "Moves this available space up in the list of spaces"),
+					FSlateIcon());
+
+				const int32 NumSpaces = AvailableSpaces.Num();
+				WidgetRow.AddCustomContextMenuAction(FUIAction(
+					FExecuteAction::CreateLambda([this, ControlKey, AvailableSpace, HierarchyToChange, Index, PropertyUtilities]()
+					{
+						if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+						{
+							FScopedTransaction Transaction(LOCTEXT("MoveAvailableSpaceDown", "Move Available Space Down"));
+							HierarchyToChange->Modify();
+							Controller->SetAvailableSpaceIndex(ControlKey, AvailableSpace, Index);
+							PropertyUtilities->ForceRefresh();
+						}
+					}),
+					FCanExecuteAction::CreateLambda([Index, NumSpaces](){ return Index > 0 && Index < NumSpaces - 1; })),
+					LOCTEXT("MoveDown", "Move Down"),
+					LOCTEXT("MoveAvailableSpaceDownToolTip", "Moves this available space down in the list of spaces"),
+					FSlateIcon());
+			}
+
+			WidgetRow.AddCustomContextMenuAction(FUIAction(
+				FExecuteAction::CreateLambda([this, ControlKey, AvailableSpace, HierarchyToChange, PropertyUtilities]()
+				{
+					if(URigHierarchyController* Controller = HierarchyToChange->GetController(true))
+					{
+						const bool bIsAnimationChannel = IsAnyControlOfAnimationType(ERigControlAnimationType::AnimationChannel);
+						FScopedTransaction Transaction(bIsAnimationChannel ? RemoveChannelHostText : RemoveSpaceText);
+						HierarchyToChange->Modify();
+						if(bIsAnimationChannel)
+						{
+							Controller->RemoveChannelHost(ControlKey, AvailableSpace);
+						}
+						else
+						{
+							Controller->RemoveAvailableSpace(ControlKey, AvailableSpace);
+						}
+						PropertyUtilities->ForceRefresh();
+					}
+				}),
+				FCanExecuteAction::CreateLambda([bIsParentSpace](){ return !bIsParentSpace; })),
+				bIsAnimationChannel ? RemoveChannelHostText : RemoveSpaceText,
+				bIsAnimationChannel ? RemoveChannelHostToolTipText : RemoveSpaceToolTipText,
+				FSlateIcon());
+		}
+	}
+
+	Category.InitiallyCollapsed(AvailableSpaces.Num() < 2);
+	if(AvailableSpaces.IsEmpty())
+	{
+		static const FText NoSpacesText = LOCTEXT("NoSpacesSet", "No Available Spaces set");
+		static const FText NoChannelHostsText = LOCTEXT("NoChannelHostsSet", "No Channel Hosts set");
+
+		Category.AddCustomRow(FText()).WholeRowContent()
+		[
+			SNew(SHorizontalBox)
+	
+			+ SHorizontalBox::Slot()
+			.AutoWidth()
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.Padding(FMargin(0.f, 0.f, 0.f, 0.f))
+			[
+				SNew(STextBlock)
+				.IsEnabled(bIsEnabled)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(bIsAnimationChannel ? NoChannelHostsText : NoSpacesText)
+			]
+		];
+	}
+}
+
 FReply FRigControlElementDetails::OnAddAnimationChannelClicked()
 {
 	if(IsAnyElementNotOfType(ERigElementType::Control) || IsAnyElementProcedural())
@@ -3754,6 +4073,65 @@ TSharedRef<ITableRow> FRigControlElementDetails::HandleGenerateAnimationChannelT
 			.Text(StaticEnum<ERigControlType>()->GetDisplayNameTextByValue((int64)*ControlType.Get()))
 		]
 	];
+}
+
+TSharedRef<SWidget> FRigControlElementDetails::GetAddSpaceContent(const TSharedRef<IPropertyUtilities> PropertyUtilities)
+{
+	if(PerElementInfos.IsEmpty())
+	{
+		return SNullWidget::NullWidget;
+	}
+
+	FRigTreeDelegates RigTreeDelegates;
+	RigTreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateLambda([this]()
+	{
+		return PerElementInfos[0].GetHierarchy();
+	});
+	RigTreeDelegates.OnGetDisplaySettings = FOnGetRigTreeDisplaySettings::CreateSP(this, &FRigControlElementDetails::GetDisplaySettings);
+	RigTreeDelegates.OnGetSelection = FOnRigTreeGetSelection::CreateLambda([]() -> TArray<FRigElementKey> { return {}; });
+	RigTreeDelegates.OnSelectionChanged = FOnRigTreeSelectionChanged::CreateSP(this, &FRigControlElementDetails::OnAddSpaceSelection, PropertyUtilities);
+
+	return SNew(SBox)
+		.Padding(2.5)
+		.MinDesiredWidth(200)
+		.MinDesiredHeight(300)
+		[
+			SNew(SRigHierarchyTreeView)
+			.RigTreeDelegates(RigTreeDelegates)
+			.PopulateOnConstruct(true)
+		];
+}
+
+FReply FRigControlElementDetails::OnAddSpaceMouseDown(const FGeometry& InGeometry, const FPointerEvent& InPointerEvent, const TSharedRef<IPropertyUtilities> PropertyUtilities)
+{
+	AddSpaceMenuAnchor->SetIsOpen(true);
+	return FReply::Handled();
+}
+
+void FRigControlElementDetails::OnAddSpaceSelection(TSharedPtr<FRigTreeElement> Selection, ESelectInfo::Type SelectInfo, const TSharedRef<IPropertyUtilities> PropertyUtilities)
+{
+	if(Selection)
+	{
+		const FRigElementKey ChildKey = PerElementInfos[0].GetElement()->GetKey();
+		const FRigElementKey NewParentKey = Selection->Key;
+		URigHierarchy* HierarchyToChange = PerElementInfos[0].GetDefaultHierarchy();
+		AddSpaceMenuAnchor->SetIsOpen(false);
+
+		const bool bIsAnimationChannel = IsAnyControlOfAnimationType(ERigControlAnimationType::AnimationChannel);
+		static const FText AddSpaceText = LOCTEXT("AddSpace", "Add Space");
+		static const FText AddChannelHostText = LOCTEXT("AddChannelHost", "Add Channel Host");
+		FScopedTransaction Transaction(bIsAnimationChannel ? AddChannelHostText : AddSpaceText);
+		HierarchyToChange->Modify();
+		if(bIsAnimationChannel)
+		{
+			HierarchyToChange->GetController(true)->AddChannelHost(ChildKey, NewParentKey);
+		}
+		else
+		{
+			HierarchyToChange->GetController(true)->AddAvailableSpace(ChildKey, NewParentKey);
+		}
+		PropertyUtilities->ForceRefresh();
+	}
 }
 
 void FRigControlElementDetails::HandleControlTypeChanged(TSharedPtr<ERigControlType> ControlType, ESelectInfo::Type SelectInfo, FRigElementKey ControlKey, const TSharedRef<IPropertyUtilities> PropertyUtilities)
@@ -4528,7 +4906,7 @@ FText FRigControlElementDetails::GetDisplayNameForElement(const FRigElementKey& 
 	const FRigControlElement* ControlElement = Hierarchy->Find<FRigControlElement>(InKey);
 	if(ControlElement == nullptr)
 	{
-		return FText();
+		return FText::FromName(InKey.Name);
 	}
 
 	return FText::FromName(ControlElement->GetDisplayName());

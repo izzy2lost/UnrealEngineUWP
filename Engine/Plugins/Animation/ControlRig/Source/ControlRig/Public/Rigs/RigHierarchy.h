@@ -4889,7 +4889,9 @@ private:
 
 	// certain units are allowed to use this
 	friend struct FRigUnit_AddParent;
+	friend struct FRigUnit_AddParents;
 	friend struct FRigUnit_SetDefaultParent;
+	friend struct FRigUnit_SetChannelHosts;
 
 private:
 	TGuardValue<bool> GuardIsControllerAvailable;

@@ -950,7 +950,7 @@ void FAnimDetailProxyDetails::CustomizeDetails(IDetailLayoutBuilder& DetailBuild
 	}
 	else
 	{
-		AttributesCategory.SetCategoryVisibility(true);
+		AttributesCategory.SetCategoryVisibility(false);
 	}
 }
 

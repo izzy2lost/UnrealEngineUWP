@@ -82,6 +82,35 @@ struct CONTROLRIG_API FRigUnit_SetDefaultParent : public FRigUnit_DynamicHierarc
 	FRigElementKey Parent;
 };
 
+/**
+ * Allows an animation channel to be hosted by multiple controls
+ */
+USTRUCT(meta=(DisplayName="Set Channel Hosts", Keywords="Children,Parent,Constraint,Space,SetParent,AddParent,Channel", Varying))
+struct CONTROLRIG_API FRigUnit_SetChannelHosts : public FRigUnit_DynamicHierarchyBaseMutable
+{
+	GENERATED_BODY()
+
+	FRigUnit_SetChannelHosts()
+	{
+		Channel = FRigElementKey(NAME_None, ERigElementType::Control);
+	}
+
+	RIGVM_METHOD()
+	virtual void Execute() override;
+
+	/*
+	 * The channel to receive more hosts
+	 */
+	UPROPERTY(meta = (Input, ExpandByDefault))
+	FRigElementKey Channel;
+
+	/*
+	 * The hosts to add to the channel
+	 */
+	UPROPERTY(meta = (Input, ExpandByDefault))
+	TArray<FRigElementKey> Hosts;
+};
+
 UENUM(meta = (RigVMTypeAllowed))
 enum class ERigSwitchParentMode : uint8
 {
