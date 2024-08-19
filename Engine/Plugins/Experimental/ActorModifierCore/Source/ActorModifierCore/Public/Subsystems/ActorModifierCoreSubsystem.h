@@ -27,6 +27,8 @@ class UActorModifierCoreSubsystem : public UEngineSubsystem
 	friend struct FActorModifierCoreMetadata;
 
 public:
+	static constexpr const TCHAR* BlueprintClass = TEXT("/Script/ActorModifierCoreBlueprint.ActorModifierCoreBlueprint");
+
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierClassRegistered, const FActorModifierCoreMetadata& /** ModifierMetadata */)
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnModifierStackRegistered, const UActorModifierCoreStack* /** ActorRootStack */)
 	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnModifierReplaced, UActorModifierCoreBlueprintBase* /** PreviousModifier */, UActorModifierCoreBlueprintBase* /** ReplacementModifier */)

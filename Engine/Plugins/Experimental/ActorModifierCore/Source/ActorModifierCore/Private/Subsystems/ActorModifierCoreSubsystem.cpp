@@ -1476,7 +1476,7 @@ void UActorModifierCoreSubsystem::OnAssetRegistryFilesLoaded()
 	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
 
 	TArray<FAssetData> Assets;
-	const FTopLevelAssetPath BlueprintPath(TEXT("/Script/ActorModifierCoreBlueprint.ActorModifierCoreBlueprint"));
+	const FTopLevelAssetPath BlueprintPath(BlueprintClass);
 	AssetRegistryModule.Get().GetAssetsByClass(BlueprintPath, Assets, /** Subclass */true);
 
 	for (const FAssetData& Asset : Assets)
@@ -1527,22 +1527,32 @@ void UActorModifierCoreSubsystem::OnBlueprintObjectsReplaced(const TMap<UObject*
 
 void UActorModifierCoreSubsystem::RegisterModifierAsset(const FAssetData& InAssetData)
 {
-	FString GeneratedClassPath;
-	if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+	if (InAssetData.AssetClassPath.ToString().Equals(BlueprintClass))
 	{
-		const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
-		UnregisterModifierClass(GeneratedClass);
-		RegisterModifierClass(GeneratedClass);
+		FString GeneratedClassPath;
+		if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+		{
+			if (const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath))
+			{
+				UnregisterModifierClass(GeneratedClass);
+				RegisterModifierClass(GeneratedClass);
+			}
+		}
 	}
 }
 
 void UActorModifierCoreSubsystem::UnregisterModifierAsset(const FAssetData& InAssetData)
 {
-	FString GeneratedClassPath;
-	if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+	if (InAssetData.AssetClassPath.ToString().Equals(BlueprintClass))
 	{
-		const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath);
-		UnregisterModifierClass(GeneratedClass);
+		FString GeneratedClassPath;
+		if (InAssetData.GetTagValue(TEXT("GeneratedClass"), GeneratedClassPath))
+		{
+			if (const UClass* GeneratedClass = LoadObject<UClass>(nullptr, *GeneratedClassPath))
+			{
+				UnregisterModifierClass(GeneratedClass);
+			}
+		}
 	}
 }
 
