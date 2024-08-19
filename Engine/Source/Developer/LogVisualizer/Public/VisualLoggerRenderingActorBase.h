@@ -53,6 +53,10 @@ public:
 	virtual void IterateDebugShapes(TFunction<void(const FTimelineDebugShapes&) > Callback) { };
 	virtual bool MatchCategoryFilters(const FName& CategoryName, ELogVerbosity::Type Verbosity) const { return true; };
 
+#if WITH_EDITOR
+	virtual bool IsSelectable() const override { return false; }
+#endif // WITH_EDITOR
+
 protected:
 #if ENABLE_VISUAL_LOG
 	void GetDebugShapes(const FVisualLogEntry& EntryItem, bool bAddEntryLocationPointer, FTimelineDebugShapes& OutDebugShapes);

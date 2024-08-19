@@ -471,6 +471,11 @@ AActor* FVisualLoggerEditorInterface::GetHelperActor(UWorld* InWorld) const
 	// The helper actor is created on demand and only once per world so we can allow it to spawn during construction script.
 	SpawnInfo.bAllowDuringConstructionScript = true;
 
+#if WITH_EDITOR
+	// Nothing to set on this actor, se we just hide it from the outliner : 
+	SpawnInfo.bHideFromSceneOutliner = true;
+#endif //WITH_EDITOR
+
 	return World->SpawnActor<AVisualLoggerRenderingActor>(SpawnInfo);
 }
 
