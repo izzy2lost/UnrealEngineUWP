@@ -234,6 +234,12 @@ enum class EOnDemandInitResult
 	Disabled,
 	/** The module was unable to start up correctly due to an unexpected error */
 	Error,
+
+	/**
+	 * The use of the module has been suspended, if possible calling systems should activate alternative ways
+	 * to access the OnDemand data. This option is temporary and not intended for general use.
+	 */
+	Suspended
 };
 
 #endif // UE_IAS_CUSTOM_INITIALIZATION
