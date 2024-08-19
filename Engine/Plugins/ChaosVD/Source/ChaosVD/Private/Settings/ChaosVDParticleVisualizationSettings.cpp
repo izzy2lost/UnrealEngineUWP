@@ -154,17 +154,26 @@ FColor FChaosDebugDrawColorsByShapeType::GetColorFromShapeType(Chaos::EImplicitO
 
 FColor FChaosDebugDrawColorsByClientServer::GetColorFromState(bool bIsServer, EChaosVDObjectStateType State) const
 {
-	switch (State)
+	if (State == EChaosVDObjectStateType::Uninitialized)
 	{
-	case EChaosVDObjectStateType::Sleeping:
-		return bIsServer ? ServerSleepingColor : ClientSleepingColor;
-	case EChaosVDObjectStateType::Kinematic:
-		return bIsServer ? ServerColor : ClientColor;
-	case EChaosVDObjectStateType::Static:
-		return bIsServer ? ServerColor : ClientColor;
-	case EChaosVDObjectStateType::Dynamic:
-		return bIsServer ? ServerDynamicColor : ClientDynamicColor;
-	default:
 		return FColor::Purple;
 	}
+
+	constexpr float IntensityFactor = 1.0f / static_cast<float>(EChaosVDObjectStateType::Count);
+
+	// Make sure static is always darker than sleeping
+	if (State == EChaosVDObjectStateType::Static)
+	{
+
+		constexpr float StaticStateIntensity = IntensityFactor * (static_cast<float>(EChaosVDObjectStateType::Sleeping) * 0.2f);
+		return GetColorAtIntensity(bIsServer ? ServerBaseColor : ClientBaseColor, StaticStateIntensity);
+	}
+
+	const float Intensity = IntensityFactor * static_cast<int32>(State);
+	return GetColorAtIntensity(bIsServer ? ServerBaseColor : ClientBaseColor, Intensity);
+}
+
+FColor FChaosDebugDrawColorsByClientServer::GetColorAtIntensity(const FColor& InColor, float Intensity) const
+{
+	return (FLinearColor(InColor) * Intensity).ToFColor(true);
 }

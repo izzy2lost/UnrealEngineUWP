@@ -80,32 +80,17 @@ USTRUCT()
 struct FChaosDebugDrawColorsByClientServer
 {
 	GENERATED_BODY()
+	
+	/** Color used for server shapes that are not awake or sleeping dynamic */
+    UPROPERTY(config, EditAnywhere, Category=DebugDraw)
+    FColor ServerBaseColor = FColor(50, 0, 0);
 
 	/** Color used for server shapes that are not awake or sleeping dynamic */
 	UPROPERTY(config, EditAnywhere, Category=DebugDraw)
-	FColor ServerColor = FColor(50, 0, 0); 
-
-	/** Color used for server shapes that are awake dynamic */
-	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
-	FColor ServerDynamicColor = FColor(150, 0, 0);
-
-	/** Color used for server shapes that are sleeping dynamics */
-	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
-	FColor ServerSleepingColor = FColor(10, 0, 0);
-
-	/** Color used for client shapes that are not awake or sleeping dynamic */
-	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
-	FColor ClientColor = FColor(0, 0, 50);
-
-	/** Color used for server shapes that are awake dynamic */
-	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
-	FColor ClientDynamicColor = FColor(0, 0, 150);
-
-	/** Color used for client shapes that are sleeping dynamics */
-	UPROPERTY(config, EditAnywhere, Category = DebugDraw)
-	FColor ClientSleepingColor = FColor(0, 0, 100);
+	FColor ClientBaseColor = FColor(0, 0, 50); 
 
 	FColor GetColorFromState(bool bIsServer, EChaosVDObjectStateType State) const;
+	FColor GetColorAtIntensity(const FColor& InColor, float Intensity) const;
 };
 
 UENUM()

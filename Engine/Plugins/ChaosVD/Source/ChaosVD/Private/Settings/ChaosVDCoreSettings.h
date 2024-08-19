@@ -11,6 +11,7 @@
 
 class UChaosVDCoreSettings;
 class UMaterial;
+class UTextureCube;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(FChaosVDSettingChanged, UObject* SettingsObject)
 
@@ -84,4 +85,7 @@ public:
 
 	UPROPERTY(Config)
 	FSoftClassPath SkySphereActorClass;
+
+	UPROPERTY(Config)
+	TSoftObjectPtr<UTextureCube> AmbientCubeMapTexture;
 };

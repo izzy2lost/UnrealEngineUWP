@@ -31,6 +31,9 @@
 #include "Settings/ChaosVDCoreSettings.h"
 #include "UObject/Package.h"
 #include "Actors/ChaosVDGeometryContainer.h"
+#include "Components/LightComponent.h"
+#include "Engine/PostProcessVolume.h"
+#include "Engine/TextureCube.h"
 
 #define LOCTEXT_NAMESPACE "ChaosVisualDebugger"
 
@@ -63,8 +66,6 @@ void FChaosVDScene::Initialize()
 
 	InitializeSelectionSets();
 	
-	PhysicsVDWorld = CreatePhysicsVDWorld();
-	
 	StreamableManager = MakeShared<FStreamableManager>();
 
 	if (UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
@@ -75,7 +76,10 @@ void FChaosVDScene::Initialize()
 		StreamableManager->RequestSyncLoad(Settings->SimOnlyMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesMaterial.ToSoftObjectPath());
 		StreamableManager->RequestSyncLoad(Settings->InstancedMeshesQueryOnlyMaterial.ToSoftObjectPath());
+		StreamableManager->RequestSyncLoad(Settings->AmbientCubeMapTexture.ToSoftObjectPath());
 	}
+	
+	PhysicsVDWorld = CreatePhysicsVDWorld();
 
 	GeometryGenerator = MakeShared<FChaosVDGeometryBuilder>();
 
@@ -558,6 +562,8 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 			DirectionalLightActor->SetCastShadows(false);
 			DirectionalLightActor->SetMobility(EComponentMobility::Movable);
 			DirectionalLightActor->SetActorLocation(SpawnPosition);
+			
+			DirectionalLightActor->SetBrightness(4.0f);
 
 			DirectionalLightActor->SetFolderPath(LightingFolderPath);
 
@@ -573,6 +579,32 @@ void FChaosVDScene::CreateBaseLights(UWorld* TargetWorld) const
 					IChaosVDSkySphereInterface::Execute_SetDirectionalLightSource(SkySphere, DirectionalLightActor);
 				}
 			}
+		}
+	}
+}
+
+void FChaosVDScene::CreatePostProcessingVolumes(UWorld* TargetWorld)
+{
+	const FName LightingFolderPath("ChaosVisualDebugger/Lighting");
+
+	if (const UChaosVDCoreSettings* Settings = FChaosVDSettingsManager::Get().GetSettingsObject<UChaosVDCoreSettings>())
+	{
+		APostProcessVolume* PostProcessingVolume = TargetWorld->SpawnActor<APostProcessVolume>();
+		if (ensure(PostProcessingVolume))
+		{
+			PostProcessingVolume->SetFolderPath(LightingFolderPath);
+			PostProcessingVolume->Settings.bOverride_AmbientCubemapIntensity = true;
+			PostProcessingVolume->Settings.AmbientCubemapIntensity = 0.3f;
+			PostProcessingVolume->bUnbound = true;
+			PostProcessingVolume->bEnabled = true;
+
+			UTextureCube* AmbientCubemap = Settings->AmbientCubeMapTexture.Get();
+			if (ensure(AmbientCubemap))
+			{
+				PostProcessingVolume->Settings.AmbientCubemap = AmbientCubemap;
+			}
+			
+			PostProcessingVolume->MarkComponentsRenderStateDirty();
 		}
 	}
 }
@@ -614,6 +646,7 @@ UWorld* FChaosVDScene::CreatePhysicsVDWorld()
 
 	CreateBaseLights(NewWorld);
 	CreateMeshComponentsContainer(NewWorld);
+	CreatePostProcessingVolumes(NewWorld);
 
 	ActorDestroyedHandle = NewWorld->AddOnActorDestroyedHandler(FOnActorDestroyed::FDelegate::CreateRaw(this, &FChaosVDScene::HandleActorDestroyed));
 	

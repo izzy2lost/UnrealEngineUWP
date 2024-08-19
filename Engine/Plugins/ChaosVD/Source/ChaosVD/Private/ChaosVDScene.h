@@ -162,6 +162,8 @@ private:
 
 	void CreateBaseLights(UWorld* TargetWorld) const;
 
+	void CreatePostProcessingVolumes(UWorld* TargetWorld);
+
 	/** Creates an actor that will contain all solver data for the provided Solver ID*/
 	AChaosVDSolverInfoActor* GetOrCreateSolverInfoActor(int32 SolverID);
 
