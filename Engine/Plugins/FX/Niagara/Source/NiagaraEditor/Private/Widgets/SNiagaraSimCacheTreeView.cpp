@@ -183,7 +183,7 @@ void SNiagaraSimCacheTreeView::Construct(const FArguments& InArgs)
 	ViewModel->BuildEntries(SharedThis(this));
 	
 	TreeView = SNew(STreeView<TSharedRef<FNiagaraSimCacheTreeItem>>)
-	.SelectionMode(ESelectionMode::Multi)
+	.SelectionMode(ESelectionMode::Single)
 	.TreeItemsSource(ViewModel->GetSelectedRootEntries())
 	.OnGenerateRow(this, &SNiagaraSimCacheTreeView::OnGenerateRow)
 	.OnGeneratePinnedRow(this, &SNiagaraSimCacheTreeView::OnGenerateRow)

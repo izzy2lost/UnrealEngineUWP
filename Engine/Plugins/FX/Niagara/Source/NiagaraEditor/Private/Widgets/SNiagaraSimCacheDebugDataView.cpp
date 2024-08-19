@@ -148,7 +148,10 @@ void SNiagaraSimCacheDebugDataView::Construct(const FArguments& InArgs)
 
 	if (const FNiagaraSimCacheDebugDataFrame* FrameData = GetCurrentFrameData())
 	{
-		SelectedParameterStoreName = FrameData->DebugParameterStores.CreateConstIterator().Key();
+		if (FrameData->DebugParameterStores.Num() > 0)
+		{
+			SelectedParameterStoreName = FrameData->DebugParameterStores.CreateConstIterator().Key();
+		}
 	}
 
 	ChildSlot

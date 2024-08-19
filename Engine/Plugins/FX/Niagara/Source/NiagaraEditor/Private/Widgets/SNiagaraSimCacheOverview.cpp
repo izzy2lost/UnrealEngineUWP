@@ -51,7 +51,8 @@ void SNiagaraSimCacheOverview::Construct(const FArguments& InArgs)
 	SAssignNew(BufferListView, SListView<TSharedRef<FNiagaraSimCacheOverviewItem>>)
 	.ListItemsSource(ViewModel->GetBufferEntries())
 	.OnGenerateRow(this, &SNiagaraSimCacheOverview::OnGenerateRowForItem)
-	.OnSelectionChanged(this, &SNiagaraSimCacheOverview::OnListSelectionChanged);
+	.OnSelectionChanged(this, &SNiagaraSimCacheOverview::OnListSelectionChanged)
+	.SelectionMode(ESelectionMode::Single);
 
 	ViewModel.Get()->OnSimCacheChanged().AddSP(this, &SNiagaraSimCacheOverview::OnSimCacheChanged);
 
