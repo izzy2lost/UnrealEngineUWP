@@ -198,7 +198,6 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 				{
 					const FLightShaderParameters DirectionalLight = ConvertToLightShaderParameters(LightData);
 
-					const bool bBackfaceCull = !IsSubsurfaceModel(GBufferData.ShadingModelID);
 					const float ScreenRayLengthWorld = VirtualShadowMap.ScreenRayLength * View.ClipToView[1][1] * GBufferData.Depth;
 					float SMRTRayOffset = ScreenRayLengthWorld;
 
@@ -210,7 +209,6 @@ FDeferredLightingSplit GetForwardDirectLightingSplit(
 						TranslatedWorldPosition,
 						SMRTRayOffset,
 						Dither,
-						bBackfaceCull,
 						GBufferData.WorldNormal);
 
 					FilterVirtualShadowMapSampleResult(PixelPos, VirtualShadowMapSample);
