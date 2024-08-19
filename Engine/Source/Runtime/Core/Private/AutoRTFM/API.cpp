@@ -145,6 +145,15 @@ namespace AutoRTFM
 #endif
 		}
 
+		EAutoRTFMRetryTransactionState GetRetryTransaction()
+		{
+#if UE_AUTORTFM
+			return static_cast<EAutoRTFMRetryTransactionState>(GAutoRTFMRetryTransactions);
+#else
+			return NoRetry;
+#endif
+		}
+
 		bool ShouldRetryNonNestedTransactions()
 		{
 #if UE_AUTORTFM

@@ -8,6 +8,7 @@
 
 #include "HAL/ThreadSafeCounter.h"
 #include "Containers/LockFreeList.h"
+#include "Misc/TransactionallySafeCriticalSection.h"
 #include "UObject/GarbageCollectionGlobals.h"
 #include "UObject/UObjectBase.h"
 
@@ -1316,7 +1317,7 @@ private:
 	 */
 	TArray<FUObjectDeleteListener* > UObjectDeleteListeners;
 #if THREADSAFE_UOBJECTS
-	mutable FCriticalSection UObjectDeleteListenersCritical;
+	mutable FTransactionallySafeCriticalSection UObjectDeleteListenersCritical;
 #endif
 
 	/** Current primary serial number **/
@@ -1342,7 +1343,7 @@ public:
     {
 		FScopeLock ObjListLock(&ObjObjectsCritical);
 #if THREADSAFE_UOBJECTS
-		FScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+		FTransactionallySafeScopeLock ListenersLock(&UObjectDeleteListenersCritical);
 #endif
         return ObjObjects.GetAllocatedSize() + ObjAvailableList.GetAllocatedSize() + UObjectCreateListeners.GetAllocatedSize() + UObjectDeleteListeners.GetAllocatedSize();
     }
@@ -1350,7 +1351,7 @@ public:
 	SIZE_T GetDeleteListenersAllocatedSize(int32* OutNumListeners = nullptr) const
 	{
 #if THREADSAFE_UOBJECTS
-		FScopeLock ListenersLock(&UObjectDeleteListenersCritical);
+		FTransactionallySafeScopeLock ListenersLock(&UObjectDeleteListenersCritical);
 #endif
 		SIZE_T AllocatedSize = 0;
 		for (FUObjectDeleteListener* Listener : UObjectDeleteListeners)

@@ -794,6 +794,9 @@ namespace ForTheRuntime
 	// Set whether we should retry transactions.
 	UE_AUTORTFM_API void SetRetryTransaction(EAutoRTFMRetryTransactionState State);
 
+	// Returns whether we should retry transactions.
+	UE_AUTORTFM_API EAutoRTFMRetryTransactionState GetRetryTransaction();
+
 	// Returns true if we should retry non-nested transactions.
 	UE_AUTORTFM_API bool ShouldRetryNonNestedTransactions();
 

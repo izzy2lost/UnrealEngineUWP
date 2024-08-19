@@ -8,6 +8,7 @@
 #include "HAL/IConsoleManager.h"
 #include "HAL/LowLevelMemStats.h"
 #include "Misc/ScopeLock.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "UObject/UObjectAllocator.h"
 #include "UObject/Class.h"
@@ -313,7 +314,7 @@ void FUObjectArray::ResetSerialNumber(UObjectBase* Object)
 void FUObjectArray::RemoveObjectFromDeleteListeners(UObjectBase* Object)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	int32 Index = Object->InternalIndex;
 	check(Index >= 0);
@@ -400,7 +401,7 @@ void FUObjectArray::RemoveUObjectCreateListener(FUObjectCreateListener* Listener
 void FUObjectArray::AddUObjectDeleteListener(FUObjectDeleteListener* Listener)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	check(!UObjectDeleteListeners.Contains(Listener));
 	UObjectDeleteListeners.Add(Listener);
@@ -414,7 +415,7 @@ void FUObjectArray::AddUObjectDeleteListener(FUObjectDeleteListener* Listener)
 void FUObjectArray::RemoveUObjectDeleteListener(FUObjectDeleteListener* Listener)
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+	FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 	UObjectDeleteListeners.RemoveSingleSwap(Listener);
 }
@@ -486,7 +487,7 @@ void FUObjectArray::ShutdownUObjectArray()
 {
 	{
 #if THREADSAFE_UOBJECTS
-		FScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
+		FTransactionallySafeScopeLock UObjectDeleteListenersLock(&UObjectDeleteListenersCritical);
 #endif
 		for (int32 Index = UObjectDeleteListeners.Num() - 1; Index >= 0; --Index)
 		{

@@ -6,7 +6,7 @@
 #include "UObject/ObjectMacros.h"
 #include "GenericTeamAgentInterface.h"
 #include "WorldCollision.h"
-#include "Misc/MTAccessDetector.h"
+#include "Misc/MTTransactionallySafeAccessDetector.h"
 #include "Perception/AISense.h"
 #include "AISense_Sight.generated.h"
 
@@ -278,7 +278,7 @@ protected:
 	FOnPendingVisibilityQueryProcessedDelegate OnPendingCanBeSeenQueryProcessedDelegate;
 	FTraceDelegate OnPendingTraceQueryProcessedDelegate;
 
-	UE_MT_DECLARE_RW_ACCESS_DETECTOR(QueriesListAccessDetector);
+	UE_MT_DECLARE_TS_RW_ACCESS_DETECTOR(QueriesListAccessDetector);
 
 public:
 
