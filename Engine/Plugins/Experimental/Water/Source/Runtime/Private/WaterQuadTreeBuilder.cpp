@@ -15,6 +15,10 @@ void FWaterQuadTreeBuilder::Init(const FBox2D& InWaterZoneBounds2D, const FIntPo
 	FarDistanceMeshExtent = InFarDistanceMeshExtent;
 	bUseFarMeshWithoutOcean = bInUseFarMeshWithoutOcean;
 	bIsGPUQuadTree = bInIsGPUQuadTree;
+
+	const int32 MaxDim = (int32)FMath::Max(InExtentInTiles.X * 2, InExtentInTiles.Y * 2);
+	const float RootDim = (float)FMath::RoundUpToPowerOfTwo(MaxDim);
+	TreeDepth = (int32)FMath::Log2(RootDim);
 }
 
 void FWaterQuadTreeBuilder::AddWaterBody(const FWaterBody& WaterBody)
@@ -177,6 +181,8 @@ bool FWaterQuadTreeBuilder::BuildWaterQuadTree(FWaterQuadTree& WaterQuadTree, co
 
 	WaterQuadTree.Unlock(true);
 
+	WaterQuadTree.BuildMaterialIndices();
+
 	return true;
 }
 
@@ -203,6 +209,11 @@ float FWaterQuadTreeBuilder::GetLeafSize() const
 int32 FWaterQuadTreeBuilder::GetMaxLeafCount() const
 {
 	return ExtentInTiles.X * ExtentInTiles.Y * 4;
+}
+
+int32 FWaterQuadTreeBuilder::GetTreeDepth() const
+{
+	return TreeDepth;
 }
 
 FIntPoint FWaterQuadTreeBuilder::GetResolution() const

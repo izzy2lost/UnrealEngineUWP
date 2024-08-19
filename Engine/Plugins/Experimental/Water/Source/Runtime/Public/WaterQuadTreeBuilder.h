@@ -44,6 +44,7 @@ public:
 	bool IsGPUQuadTree() const;
 	float GetLeafSize() const;
 	int32 GetMaxLeafCount() const;
+	int32 GetTreeDepth() const;
 	FIntPoint GetResolution() const;
 
 private:
@@ -51,6 +52,7 @@ private:
 	FBox2D WaterZoneBounds2D = FBox2D();
 	FIntPoint ExtentInTiles = FIntPoint::ZeroValue;
 	float TileSize = 0.0f;
+	int32 TreeDepth = 0;
 	FMaterialRenderProxy* FarDistanceMaterial = nullptr;
 	float FarDistanceMeshExtent = 0.0f;
 	bool bUseFarMeshWithoutOcean = false;

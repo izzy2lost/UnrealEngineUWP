@@ -50,9 +50,7 @@ public:
 	/** Use this instead of GetMaterialRelevance, since this one will go over all materials from all tiles */
 	FMaterialRelevance GetWaterMaterialRelevance(ERHIFeatureLevel::Type InFeatureLevel) const;
 
-	bool ShouldBuildQuadTreeInSceneProxy() const;
 	const FWaterQuadTreeBuilder& GetWaterQuadTreeBuilder() const { return WaterQuadTreeBuilder; }
-	const FWaterQuadTree& GetWaterQuadTree() const;
 
 	const TSet<TObjectPtr<UMaterialInterface>>& GetUsedMaterialsSet() const { return UsedMaterials; }
 
@@ -66,6 +64,9 @@ public:
 
 	void SetDynamicWaterMeshCenter(const FVector2D& NewCenter);
 	FVector2D GetDynamicWaterMeshCenter() const { return DynamicWaterMeshCenter; }
+	FVector2D GetGlobalWaterMeshCenter() const;
+
+	bool IsLocalOnlyTessellationEnabled() const;
 
 	void SetTileSize(float NewTileSize);
 	float GetTileSize() const { return TileSize; }
