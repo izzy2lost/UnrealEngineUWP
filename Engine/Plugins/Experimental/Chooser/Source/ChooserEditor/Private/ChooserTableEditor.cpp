@@ -138,7 +138,7 @@ void FChooserTableEditor::SetChooserTableToEdit(UChooserTable* Chooser, bool bAp
 	
 	RefreshAll();
 }
-	
+
 void FChooserTableEditor::PushChooserTableToEdit(UChooserTable* Chooser)
 {
 	BreadcrumbTrail->PushCrumb(FText::FromString(Chooser->GetName()), Chooser);
@@ -393,6 +393,10 @@ void FChooserTableEditor::RegisterMenus()
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(FGenericCommands::Get().Paste));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(FGenericCommands::Get().Delete));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.Disable));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.MoveUp));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.MoveDown));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.MoveLeft));
+		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.MoveRight));
 		Section.AddEntry(FToolMenuEntry::InitMenuEntry(Commands.AutoPopulateSelection));
 		
 
@@ -529,6 +533,37 @@ void FChooserTableEditor::BindCommands()
 		FGenericCommands::Get().Paste,
 		FExecuteAction::CreateSP(this, &FChooserTableEditor::Paste),
 		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanPaste));
+	
+	ToolkitCommands->MapAction(
+		Commands.MoveUp,
+		FExecuteAction::CreateSP(this, &FChooserTableEditor::MoveRowsUp),
+		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanMoveRowsUp),
+		FIsActionChecked(),
+		FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasRowsSelected)
+		);
+	ToolkitCommands->MapAction(
+    		Commands.MoveDown,
+    		FExecuteAction::CreateSP(this, &FChooserTableEditor::MoveRowsDown),
+    		FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanMoveRowsDown),
+    		FIsActionChecked(),
+    		FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasRowsSelected)
+    		);
+	
+	ToolkitCommands->MapAction(
+			Commands.MoveLeft,
+			FExecuteAction::CreateSP(this, &FChooserTableEditor::MoveColumnLeft),
+			FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanMoveColumnLeft),
+			FIsActionChecked(),
+			FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasColumnSelected)
+			);
+
+	ToolkitCommands->MapAction(
+			Commands.MoveRight,
+			FExecuteAction::CreateSP(this, &FChooserTableEditor::MoveColumnRight),
+			FCanExecuteAction::CreateSP(this, &FChooserTableEditor::CanMoveColumnRight),
+			FIsActionChecked(),
+			FIsActionButtonVisible::CreateSP(this, &FChooserTableEditor::HasColumnSelected)
+			);
 }
 
 void FChooserTableEditor::OnObjectsTransacted(UObject* Object, const FTransactionObjectEvent& Event)
@@ -1481,9 +1516,14 @@ void FChooserTableEditor::DeleteColumn(int Index)
 	}
 }
 	
-void FChooserTableEditor::DeleteSelectedRows()
+int32 FChooserTableEditor::DeleteSelectedRows(int32 RowIndexToRemember)
 {
 	const FScopedTransaction Transaction(LOCTEXT("Delete Row Transaction", "Delete Row"));
+	return DeleteSelectedRowsInternal(RowIndexToRemember);
+}
+	
+int32 FChooserTableEditor::DeleteSelectedRowsInternal(int32 RowIndexToRemember)
+{
 	UChooserTable* Chooser = GetChooser();
 	Chooser->Modify(true);
 	// delete selected rows.
@@ -1498,8 +1538,12 @@ void FChooserTableEditor::DeleteSelectedRows()
 
 	// sort indices in reverse
 	RowsToDelete.Sort([](int32 A, int32 B){ return A>B; });
-	for(uint32 RowIndex : RowsToDelete)
+	for(int32 RowIndex : RowsToDelete)
 	{
+		if (RowIndex <= RowIndexToRemember)
+		{
+			RowIndexToRemember--;
+		}
 		Chooser->ResultsStructs.RemoveAt(RowIndex);
 		Chooser->DisabledRows.RemoveAt(RowIndex);
 	}
@@ -1510,8 +1554,18 @@ void FChooserTableEditor::DeleteSelectedRows()
 		Column.DeleteRows(RowsToDelete);
 	}
 	UpdateTableRows();
+
+	return RowIndexToRemember;
 }
-	
+
+void FChooserTableEditor::MoveRows(int TargetIndex)
+{
+	const FScopedTransaction Transaction(LOCTEXT("Move Row(s)", "Move Row(s)"));
+	UChooserTable* RowCopy = CopySelectionInternal();
+	TargetIndex = DeleteSelectedRowsInternal(TargetIndex);
+	PasteInternal(RowCopy, TargetIndex);
+}
+
 void FChooserTableEditor::AutoPopulateColumn(FChooserColumnBase& Column)
 {
 	if (UChooserTable* Chooser = GetChooser())
@@ -1622,39 +1676,36 @@ void FChooserTableEditor::AutoPopulateAll()
 	}
 }
 
-	
-inline bool FChooserTableEditor::HasSelection()
+bool FChooserTableEditor::HasSelection() const
 {
-	if (CurrentSelectionType == ESelectionType::Column)
-	{
-		return true;
-	}
-	else if (CurrentSelectionType == ESelectionType::Rows)
-	{
-		return !SelectedRows.IsEmpty();
-	}
-	return false;
+	return HasRowsSelected() || HasColumnSelected();
+}
+
+bool FChooserTableEditor::HasRowsSelected() const
+{
+	return CurrentSelectionType == ESelectionType::Rows && !SelectedRows.IsEmpty();
 }
 	
-inline bool FChooserTableEditor::IsSelectionDisabled()
+bool FChooserTableEditor::HasColumnSelected() const
 {
-	if (UChooserTable* Chooser = GetChooser())
+	const UChooserTable* Chooser = GetChooser();
+	return CurrentSelectionType == ESelectionType::Column && SelectedColumn && Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column);
+}
+
+bool FChooserTableEditor::IsSelectionDisabled() const
+{
+	if (const UChooserTable* Chooser = GetChooser())
 	{
-		if (CurrentSelectionType == ESelectionType::Column)
+		if (HasColumnSelected())
 		{
-			if (SelectedColumn && Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
+			if ( Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
 			{
-				FChooserColumnBase& Column = Chooser->ColumnsStructs[SelectedColumn->Column].GetMutable<FChooserColumnBase>();
+				const FChooserColumnBase& Column = Chooser->ColumnsStructs[SelectedColumn->Column].Get<FChooserColumnBase>();
 				return Column.bDisabled;
 			}
 		}
-		else if (CurrentSelectionType == ESelectionType::Rows)
+		else if (HasRowsSelected())
 		{
-			if (SelectedRows.IsEmpty())
-			{
-				return false;
-			}
-
 			bool bSomethingEnabled = false;
 			for(auto& Row : SelectedRows)
 			{
@@ -1675,15 +1726,15 @@ void FChooserTableEditor::ToggleDisableSelection()
 	bool bDisabled = IsSelectionDisabled();
 	if (UChooserTable* Chooser = GetChooser())
 	{
-		if (CurrentSelectionType == ESelectionType::Column)
+		if (HasColumnSelected())
 		{
-			if (SelectedColumn && Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
+			if (Chooser->ColumnsStructs.IsValidIndex(SelectedColumn->Column))
 			{
 				FChooserColumnBase& Column = Chooser->ColumnsStructs[SelectedColumn->Column].GetMutable<FChooserColumnBase>();
 				Column.bDisabled = !Column.bDisabled;
 			}
 		}
-		else if (CurrentSelectionType == ESelectionType::Rows)
+		else if (HasRowsSelected())
 		{
 			for (auto& Row : SelectedRows)
 			{
@@ -1696,18 +1747,131 @@ void FChooserTableEditor::ToggleDisableSelection()
 
 void FChooserTableEditor::DeleteSelection()
 {
-	if (CurrentSelectionType == ESelectionType::Column)
+	if (HasColumnSelected())
 	{
 		DeleteColumn(SelectedColumn->Column);
 	}
-	else if (CurrentSelectionType == ESelectionType::Rows)
+	else if (HasRowsSelected())
 	{
 		DeleteSelectedRows();
 	}
 }
+
+bool FChooserTableEditor::CanMoveRowsUp()
+{
+	if (HasRowsSelected())
+	{
+		UChooserTable* Chooser = GetChooser();
+		
+		int MinSelectedRow = Chooser->ResultsStructs.Num();
+		for(UChooserRowDetails* SelectedRow : SelectedRows)
+		{
+			MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+		}
+
+		return MinSelectedRow > 0;
+	}
+	return false;
+}
+
+void FChooserTableEditor::MoveRowsUp()
+{
+	if (HasRowsSelected())
+	{
+		UChooserTable* Chooser = GetChooser();
+		int MinSelectedRow = Chooser->ResultsStructs.Num();
+		for(UChooserRowDetails* SelectedRow : SelectedRows)
+		{
+			MinSelectedRow = FMath::Min(SelectedRow->Row, MinSelectedRow);
+		}
+		MoveRows(MinSelectedRow - 1);
+	}
+}
+
+bool FChooserTableEditor::CanMoveRowsDown()
+{
+	if (HasRowsSelected())
+	{
+		UChooserTable* Chooser = GetChooser();
+		
+		int MaxSelectedRow = -1;
+		for(UChooserRowDetails* SelectedRow : SelectedRows)
+		{
+			MaxSelectedRow = FMath::Max(SelectedRow->Row, MaxSelectedRow);
+		}
+
+		return MaxSelectedRow < Chooser->ResultsStructs.Num() - 1;
+	}
+	return false;
+}
+
+void FChooserTableEditor::MoveRowsDown()
+{
+	if (HasRowsSelected())
+   	{
+   		UChooserTable* Chooser = GetChooser();
+   		int MaxSelectedRow = -1;
+   		for(UChooserRowDetails* SelectedRow : SelectedRows)
+   		{
+   			MaxSelectedRow = FMath::Max(SelectedRow->Row, MaxSelectedRow);
+   		}
+   		MoveRows(MaxSelectedRow + 2);
+   	}
+}
+
+bool FChooserTableEditor::CanMoveColumnLeft()
+{
+	if (HasColumnSelected())
+	{
+		UChooserTable* Chooser = GetChooser();
+		
+		if (Chooser->ColumnsStructs[SelectedColumn->Column].GetPtr<FRandomizeColumn>())
+		{
+			return false;
+		}
+		
+		return SelectedColumn->Column > 0;
+	}
+	return false;
+}
+
+void FChooserTableEditor::MoveColumnLeft()
+{
+	if (CanMoveColumnLeft())
+	{
+		SelectColumn(GetChooser(), MoveColumn(SelectedColumn->Column, SelectedColumn->Column - 1));
+	}
+}
+
+bool FChooserTableEditor::CanMoveColumnRight()
+{
+	if (HasColumnSelected())
+   	{
+		UChooserTable* Chooser = GetChooser();
+		
+		if (Chooser->ColumnsStructs[SelectedColumn->Column].GetPtr<FRandomizeColumn>())
+		{
+			return false;
+		}
+		int NumColumns = Chooser->ColumnsStructs.Num();
+		if (NumColumns > 0 && Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
+		{
+			NumColumns--;
+		}
+   		return (SelectedColumn->Column < NumColumns-1);
+   	}
+   	return false;
+}
+
+void FChooserTableEditor::MoveColumnRight()
+{
+	if (CanMoveColumnRight())
+	{
+		SelectColumn(GetChooser(), MoveColumn(SelectedColumn->Column, SelectedColumn->Column + 2));
+	}
+}
 	
-	
-void FChooserTableEditor::CopySelection()
+UChooserTable* FChooserTableEditor::CopySelectionInternal()
 {
 	UChooserTable* CopyData = NewObject<UChooserTable>(GetTransientPackage());
 
@@ -1725,6 +1889,10 @@ void FChooserTableEditor::CopySelection()
 	}
 	else if (CurrentSelectionType == ESelectionType::Rows)
 	{
+
+		TArray<UChooserRowDetails*> SelectedRowsCopy = SelectedRows;
+		Algo::Sort(SelectedRowsCopy, [](UChooserRowDetails *A, UChooserRowDetails *B) { return A->Row<B->Row;});
+		
 		// copy all columns
 		CopyData->ColumnsStructs = Chooser->ColumnsStructs;
 		
@@ -1733,26 +1901,32 @@ void FChooserTableEditor::CopySelection()
 		{
 			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
 			Column.SetNumRows(0);
-			Column.SetNumRows(SelectedRows.Num());
+			Column.SetNumRows(SelectedRowsCopy.Num());
 		}
 
-		CopyData->ResultsStructs.SetNum(SelectedRows.Num());
+		CopyData->ResultsStructs.SetNum(SelectedRowsCopy.Num());
 
 		// add the selected results and column data
 		
-		for (int RowIndex = 0; RowIndex < SelectedRows.Num(); RowIndex++)
+		for (int RowIndex = 0; RowIndex < SelectedRowsCopy.Num(); RowIndex++)
 		{
-			CopyData->ResultsStructs[RowIndex] = Chooser->ResultsStructs[SelectedRows[RowIndex]->Row];
+			CopyData->ResultsStructs[RowIndex] = Chooser->ResultsStructs[SelectedRowsCopy[RowIndex]->Row];
 
 			for (int ColumnIndex = 0; ColumnIndex < CopyData->ColumnsStructs.Num(); ColumnIndex++)
 			{
 				FChooserColumnBase& SourceColumn = Chooser->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
 				FChooserColumnBase& TargetColumn = CopyData->ColumnsStructs[ColumnIndex].GetMutable<FChooserColumnBase>();
-				TargetColumn.CopyRow(SourceColumn, SelectedRows[RowIndex]->Row, RowIndex);
+				TargetColumn.CopyRow(SourceColumn, SelectedRowsCopy[RowIndex]->Row, RowIndex);
 			}
-
 		}
 	}
+	
+	return CopyData;
+}
+
+void FChooserTableEditor::CopySelection()
+{
+	UChooserTable* CopyData = CopySelectionInternal();
 
 	// Clear the mark state for saving.
 	UnMarkAllObjects(EObjectMark(OBJECTMARK_TagExp | OBJECTMARK_TagImp));
@@ -1811,6 +1985,156 @@ static FString GetColumnName(FChooserColumnBase& Column)
 	return FString();
 }
 	
+void FChooserTableEditor::PasteInternal(UChooserTable* PastedContent, int PasteRowIndex)
+{
+	UChooserTable* Chooser = GetChooser();
+	Chooser->Modify();
+	
+	if (PastedContent->ResultsStructs.IsEmpty())
+	{
+		// pasting a column
+		int InsertColumnIndex = Chooser->ColumnsStructs.Num();
+		if (CurrentSelectionType == ESelectionType::Column && SelectedColumn)
+		{
+			InsertColumnIndex = FMath::Min(InsertColumnIndex, SelectedColumn->Column + 1);
+		}
+		
+		if (Chooser->ColumnsStructs.Num() > 0 && Chooser->ColumnsStructs.Num() == InsertColumnIndex)
+		{
+			// if were inserting at the end, there is a randomize column, insert new columns before it
+			if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
+			{
+				InsertColumnIndex--;
+			}
+		}
+		Chooser->ColumnsStructs.Insert(PastedContent->ColumnsStructs, InsertColumnIndex);
+		SelectColumn(Chooser, InsertColumnIndex);
+	}
+	else
+	{
+		// pasting rows
+		int RowsToPaste = PastedContent->ResultsStructs.Num();
+
+		// figure out where to start inserting
+		int InsertIndex = Chooser->ResultsStructs.Num();
+
+		if (PasteRowIndex >=0)
+		{
+			InsertIndex = PasteRowIndex;
+		}
+		else
+		{
+			if (SelectedRows.Num() > 0)
+			{
+				InsertIndex = SelectedRows[0]->Row;
+				for(int SelectedRowIndex = 1; SelectedRowIndex < SelectedRows.Num(); SelectedRowIndex ++)
+				{
+					InsertIndex = FMath::Max(InsertIndex, SelectedRows[SelectedRowIndex]->Row);
+				}
+				InsertIndex++;
+			}
+		}
+
+		Chooser->ResultsStructs.Insert(PastedContent->ResultsStructs, InsertIndex);
+		
+		// Make sure each column has the same number of row datas as there are results
+		for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
+		{
+			FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+			Column.InsertRows(InsertIndex, RowsToPaste);
+		}
+
+
+		// try to also paste column data from columns in the paste buffer which match the columns in the current chooser
+		// -- matching by column type and input value name
+
+		// keep track of target columns that have already been matched, to avoid matching multiple source columns with the same target column
+		TArray<bool> MatchedTargetColumns;
+		MatchedTargetColumns.SetNum(Chooser->ColumnsStructs.Num());
+
+		// keep track of which source columns were matched, so we can add new columns for the unmatched ones after
+		TArray<bool> MatchedSourceColumns;
+		MatchedSourceColumns.SetNum(PastedContent->ColumnsStructs.Num());
+		
+		for(int SourceColumnIndex = 0; SourceColumnIndex < PastedContent->ColumnsStructs.Num(); SourceColumnIndex++)
+		{
+			FInstancedStruct& PastedColumnData = PastedContent->ColumnsStructs[SourceColumnIndex];
+			FChooserColumnBase& PastedColumn = PastedColumnData.GetMutable<FChooserColumnBase>();
+			FString PastedColumnName = GetColumnName(PastedColumn);
+			if (FChooserParameterBase* PastedColumnInput = PastedColumn.GetInputValue())
+			{
+				for(int TargetColumnIndex = 0; TargetColumnIndex < Chooser->ColumnsStructs.Num(); TargetColumnIndex++)
+				{
+					if (!MatchedTargetColumns[TargetColumnIndex])
+					{
+						FInstancedStruct& ColumnData = Chooser->ColumnsStructs[TargetColumnIndex];
+						if (ColumnData.GetScriptStruct() == PastedColumnData.GetScriptStruct())
+						{
+							FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
+							FString ColumnName = GetColumnName(Column);
+
+							if (ColumnName == PastedColumnName)
+							{
+								MatchedTargetColumns[TargetColumnIndex] = true;
+								MatchedSourceColumns[SourceColumnIndex] = true;
+
+								// found a match, copy the data over
+								for (int i = 0; i < RowsToPaste; i++)
+								{
+									Column.CopyRow(PastedColumn, i, InsertIndex + i);
+								}
+								break;
+							}
+						}
+					}
+				}
+			}
+		}
+		
+		// add new columns for any source columns that were unmatched
+		
+		int InsertColumnIndex = Chooser->ColumnsStructs.Num();
+		if (Chooser->ColumnsStructs.Num() > 0)
+		{
+			// if there is a randomize column, insert new columns before it
+			if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
+			{
+				InsertColumnIndex--;
+			}
+		}
+
+		
+		for(int SourceColumnIndex = 0; SourceColumnIndex < PastedContent->ColumnsStructs.Num(); SourceColumnIndex++)
+		{
+			if (!MatchedSourceColumns[SourceColumnIndex])
+			{
+				FInstancedStruct& PastedColumnData = PastedContent->ColumnsStructs[SourceColumnIndex];
+				FChooserColumnBase& PastedColumn = PastedColumnData.GetMutable<FChooserColumnBase>();
+				// if we couldn't find a match, paste a new column
+				Chooser->ColumnsStructs.Insert(PastedColumnData, InsertColumnIndex);
+				FChooserColumnBase& Column = Chooser->ColumnsStructs[InsertColumnIndex].GetMutable<FChooserColumnBase>();
+				InsertColumnIndex++;
+				Column.SetNumRows(0);
+				Column.SetNumRows(Chooser->ResultsStructs.Num());
+				for (int i = 0; i < RowsToPaste; i++)
+				{
+					Column.CopyRow(PastedColumn, i, InsertIndex + i);
+				}
+			}
+		}
+
+		RefreshAll();
+		// select the inserted rows
+		ClearSelectedRows();
+		for (int i = 0; i < RowsToPaste; i++)
+		{
+			SelectRow(InsertIndex + i, false);
+		}
+	}
+	
+	RefreshAll();
+}
+	
 void FChooserTableEditor::Paste()
 {
 	// Get the text from the clipboard.
@@ -1826,142 +2150,7 @@ void FChooserTableEditor::Paste()
 		if (UChooserTable* PastedContent = Factory.ClipboardContent)
 		{
 			FScopedTransaction Transaction(LOCTEXT("Paste Chooser Data", "Paste Chooser Data"));
-			Chooser->Modify();
-			
-			if (PastedContent->ResultsStructs.IsEmpty())
-			{
-				// pasting a column
-				int InsertColumnIndex = Chooser->ColumnsStructs.Num();
-				if (CurrentSelectionType == ESelectionType::Column && SelectedColumn)
-				{
-					InsertColumnIndex = FMath::Min(InsertColumnIndex, SelectedColumn->Column + 1);
-				}
-				
-				if (Chooser->ColumnsStructs.Num() > 0 && Chooser->ColumnsStructs.Num() == InsertColumnIndex)
-				{
-					// if were inserting at the end, there is a randomize column, insert new columns before it
-					if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
-					{
-						InsertColumnIndex--;
-					}
-				}
-				Chooser->ColumnsStructs.Insert(PastedContent->ColumnsStructs, InsertColumnIndex);
-				SelectColumn(Chooser, InsertColumnIndex);
-			}
-			else
-			{
-				// pasting rows
-				int RowsToPaste = PastedContent->ResultsStructs.Num();
-
-				// figure out where to start inserting
-				int InsertIndex = Chooser->ResultsStructs.Num();
-				if (SelectedRows.Num() > 0)
-				{
-					InsertIndex = SelectedRows[0]->Row;
-					for(int SelectedRowIndex = 1; SelectedRowIndex < SelectedRows.Num(); SelectedRowIndex ++)
-					{
-						InsertIndex = FMath::Max(InsertIndex, SelectedRows[SelectedRowIndex]->Row);
-					}
-					InsertIndex++;
-				}
-
-				Chooser->ResultsStructs.Insert(PastedContent->ResultsStructs, InsertIndex);
-				
-				// Make sure each column has the same number of row datas as there are results
-				for(FInstancedStruct& ColumnData : Chooser->ColumnsStructs)
-				{
-					FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-					Column.InsertRows(InsertIndex, RowsToPaste);
-				}
-
-
-				// try to also paste column data from columns in the paste buffer which match the columns in the current chooser
-				// -- matching by column type and input value name
-
-				// keep track of target columns that have already been matched, to avoid matching multiple source columns with the same target column
-				TArray<bool> MatchedTargetColumns;
-				MatchedTargetColumns.SetNum(Chooser->ColumnsStructs.Num());
-
-				// keep track of which source columns were matched, so we can add new columns for the unmatched ones after
-				TArray<bool> MatchedSourceColumns;
-				MatchedSourceColumns.SetNum(PastedContent->ColumnsStructs.Num());
-				
-				for(int SourceColumnIndex = 0; SourceColumnIndex < PastedContent->ColumnsStructs.Num(); SourceColumnIndex++)
-				{
-					FInstancedStruct& PastedColumnData = PastedContent->ColumnsStructs[SourceColumnIndex];
-					FChooserColumnBase& PastedColumn = PastedColumnData.GetMutable<FChooserColumnBase>();
-					FString PastedColumnName = GetColumnName(PastedColumn);
-					if (FChooserParameterBase* PastedColumnInput = PastedColumn.GetInputValue())
-					{
-						for(int TargetColumnIndex = 0; TargetColumnIndex < Chooser->ColumnsStructs.Num(); TargetColumnIndex++)
-						{
-							if (!MatchedTargetColumns[TargetColumnIndex])
-							{
-								FInstancedStruct& ColumnData = Chooser->ColumnsStructs[TargetColumnIndex];
-								if (ColumnData.GetScriptStruct() == PastedColumnData.GetScriptStruct())
-								{
-									FChooserColumnBase& Column = ColumnData.GetMutable<FChooserColumnBase>();
-									FString ColumnName = GetColumnName(Column);
-
-									if (ColumnName == PastedColumnName)
-									{
-										MatchedTargetColumns[TargetColumnIndex] = true;
-										MatchedSourceColumns[SourceColumnIndex] = true;
-
-										// found a match, copy the data over
-										for (int i = 0; i < RowsToPaste; i++)
-										{
-											Column.CopyRow(PastedColumn, i, InsertIndex + i);
-										}
-										break;
-									}
-								}
-							}
-						}
-					}
-				}
-				
-				// add new columns for any source columns that were unmatched
-				
-				int InsertColumnIndex = Chooser->ColumnsStructs.Num();
-				if (Chooser->ColumnsStructs.Num() > 0)
-				{
-					// if there is a randomize column, insert new columns before it
-					if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
-					{
-						InsertColumnIndex--;
-					}
-				}
-
-				
-				for(int SourceColumnIndex = 0; SourceColumnIndex < PastedContent->ColumnsStructs.Num(); SourceColumnIndex++)
-				{
-					if (!MatchedSourceColumns[SourceColumnIndex])
-					{
-						FInstancedStruct& PastedColumnData = PastedContent->ColumnsStructs[SourceColumnIndex];
-						FChooserColumnBase& PastedColumn = PastedColumnData.GetMutable<FChooserColumnBase>();
-						// if we couldn't find a match, paste a new column
-						Chooser->ColumnsStructs.Insert(PastedColumnData, InsertColumnIndex);
-						FChooserColumnBase& Column = Chooser->ColumnsStructs[InsertColumnIndex].GetMutable<FChooserColumnBase>();
-						InsertColumnIndex++;
-						Column.SetNumRows(0);
-						Column.SetNumRows(Chooser->ResultsStructs.Num());
-						for (int i = 0; i < RowsToPaste; i++)
-						{
-							Column.CopyRow(PastedColumn, i, InsertIndex + i);
-						}
-					}
-				}
-
-				// select the inserted rows
-				ClearSelectedRows();
-				for (int i = 0; i < RowsToPaste; i++)
-				{
-					SelectRow(InsertIndex + i, false);
-				}
-			}
-			
-			RefreshAll();
+			PasteInternal(PastedContent);
 		}
 	}
 }

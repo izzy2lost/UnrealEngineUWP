@@ -356,24 +356,22 @@ namespace UE::ChooserEditor
 		
 		if (TSharedPtr<FChooserRowDragDropOp> Operation = DragDropEvent.GetOperationAs<FChooserRowDragDropOp>())
 		{
-			if (Chooser == Operation->ChooserEditor->GetChooser())
+			int NewRowIndex;
+			if (!Chooser->ResultsStructs.IsValidIndex(RowIndex->RowIndex))
 			{
-				int NewRowIndex;
-				if (!Chooser->ResultsStructs.IsValidIndex(RowIndex->RowIndex))
-				{
-					// for special (negative) indices, move to the end
-					NewRowIndex = Editor->MoveRow(Operation->RowIndex, Chooser->ResultsStructs.Num());
-				}
-				else if (bDropAbove)
-				{
-					NewRowIndex = Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex);
-				}
-				else
-				{
-					NewRowIndex = Editor->MoveRow(Operation->RowIndex, RowIndex->RowIndex+1);
-				}
-				Editor->SelectRow(NewRowIndex);
+				// for special (negative) indices, move to the end
+				NewRowIndex = Chooser->ResultsStructs.Num();
 			}
+			else if (bDropAbove)
+			{
+				NewRowIndex = RowIndex->RowIndex;
+			}
+			else
+			{
+				NewRowIndex = RowIndex->RowIndex+1;
+			}
+			Editor->PasteInternal(Operation->RowData, NewRowIndex);
+			GEditor->EndTransaction();
 		}
 		else if (TSharedPtr<FAssetDragDropOp> ContentDragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>())
 		{

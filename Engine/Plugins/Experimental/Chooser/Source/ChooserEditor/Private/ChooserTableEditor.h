@@ -99,10 +99,21 @@ namespace UE::ChooserEditor
 		/** Can be used to disable the details view making it read-only */
 		void SetPropertyEditingEnabledDelegate(FIsPropertyEditingEnabled InPropertyEditingDelegate);
 
-		bool HasSelection();
-		bool IsSelectionDisabled();
+		bool HasSelection() const;
+		bool HasRowsSelected() const;
+		bool HasColumnSelected() const;
+		bool IsSelectionDisabled() const;
 		void ToggleDisableSelection();
 		void DeleteSelection();
+
+		bool CanMoveRowsUp();
+		void MoveRowsUp();
+		bool CanMoveRowsDown();
+		void MoveRowsDown();
+		bool CanMoveColumnLeft();
+		void MoveColumnLeft();
+		bool CanMoveColumnRight();
+		void MoveColumnRight();
 		
 		void CopySelection();
         void CutSelection();
@@ -122,7 +133,9 @@ namespace UE::ChooserEditor
 		void RefreshRowSelectionDetails();
 		TSharedRef<SWidget> MakeChoosersMenu(UObject* RootObject);
 		void MakeChoosersMenuRecursive(UObject* Outer, FMenuBuilder& MenuBuilder, const FString& Indent);
-		void DeleteSelectedRows();
+		int32 DeleteSelectedRows(int32 RowIndexToRemember = 0);
+		int32 DeleteSelectedRowsInternal(int32 RowIndexToRemember = 0);
+		void MoveRows(int TargetIndex);
 		int MoveRow(int SourceRowIndex, int TargetIndex);
 		int MoveColumn(int SourceIndex, int TargetIndex);
 		void SelectRow(int32 RowIndex, bool bClear = true);
@@ -138,8 +151,11 @@ namespace UE::ChooserEditor
 		};
 		
 		ESelectionType GetCurrentSelectionType() const { return CurrentSelectionType; }
-	private:
 
+		UChooserTable* CopySelectionInternal();
+		void PasteInternal(UChooserTable* PasteObject, int PasteRowIndex=-1);
+	private:
+		
 		void SelectRootProperties();
 		void RemoveDisabledData();
 		void RegisterToolbar();

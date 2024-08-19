@@ -3,6 +3,8 @@
 
 #include "DragAndDrop/DecoratedDragDropOp.h"
 
+class UChooserTable;
+
 namespace UE::ChooserEditor
 {
 
@@ -13,11 +15,12 @@ class FChooserRowDragDropOp : public FDecoratedDragDropOp
 public:
 	DRAG_DROP_OPERATOR_TYPE(FChooserRowDragDropOp, FDecoratedDragDropOp)
 
-	FChooserTableEditor* ChooserEditor;
-	uint32 RowIndex;
+	UChooserTable* RowData = nullptr;
 
 	/** Constructs the drag drop operation */
 	static TSharedRef<FChooserRowDragDropOp> New(FChooserTableEditor* InEditor, uint32 InRowIndex);
+
+	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;
 };
 
 class SChooserRowHandle : public SCompoundWidget

@@ -11,16 +11,29 @@ namespace UE::ChooserEditor
 	TSharedRef<FChooserRowDragDropOp> FChooserRowDragDropOp::New(FChooserTableEditor* InEditor, uint32 InRowIndex)
 	{
 		TSharedRef<FChooserRowDragDropOp> Operation = MakeShareable(new FChooserRowDragDropOp());
-		Operation->ChooserEditor = InEditor;
-		Operation->RowIndex = InRowIndex;
 		Operation->DefaultHoverText = LOCTEXT("Chooser Row", "Chooser Row");
 		Operation->CurrentHoverText = Operation->DefaultHoverText;
+
+		GEditor->BeginTransaction(LOCTEXT("Drag Chooser Table Rows", "Drag Chooser Table Rows"));
+		
+		Operation->RowData = InEditor->CopySelectionInternal();
+		InEditor->DeleteSelectedRowsInternal();
 		
 		Operation->Construct();
 
 		return Operation;
 	}
-	
+
+	void FChooserRowDragDropOp::OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent)
+	{
+		if (!bDropWasHandled)
+		{
+			GEditor->EndTransaction();
+			GEditor->UndoTransaction(false);
+		}
+		FDecoratedDragDropOp::OnDrop(bDropWasHandled, MouseEvent);
+	}
+
 	void SChooserRowHandle::Construct(const FArguments& InArgs, bool bShowImage)
 	{
 		ChooserEditor = InArgs._ChooserEditor;
@@ -85,9 +98,6 @@ namespace UE::ChooserEditor
 
 	FReply SChooserRowHandle::OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
 	{
-		// clear row selection so that delete key can't cause the selected row to be deleted
-		ChooserEditor->ClearSelectedRows();
-		
 		TSharedRef<FChooserRowDragDropOp> DragDropOp = FChooserRowDragDropOp::New(ChooserEditor, RowIndex);
 		return FReply::Handled().BeginDragDrop(DragDropOp);
 	}
