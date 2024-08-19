@@ -6,6 +6,8 @@
 #include "MoverSimulationTypes.h"
 #include "MoverBackendLiaison.generated.h"
 
+class FDataValidationContext;
+class UMoverComponent;
 
 /**
  * MoverBackendLiaisonInterface: any object or system wanting to be the driver of Mover actors must implement this. The intent is to act as a
@@ -29,4 +31,9 @@ public:
 
 	virtual bool ReadPendingSyncState(OUT FMoverSyncState& OutSyncState) { return false; }
 	virtual bool WritePendingSyncState(const FMoverSyncState& SyncStateToWrite) { return false; }
+
+#if WITH_EDITOR
+	virtual EDataValidationResult ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const { return EDataValidationResult::Valid; }
+#endif // WITH_EDITOR
+
 };

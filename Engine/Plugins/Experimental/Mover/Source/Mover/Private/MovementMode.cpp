@@ -3,7 +3,11 @@
 #include "MovementMode.h"
 #include "MoverComponent.h"
 #include "Engine/BlueprintGeneratedClass.h"
+
+#if WITH_EDITOR
 #include "Misc/DataValidation.h"
+#endif
+
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MovementMode)
 

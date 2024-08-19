@@ -19,6 +19,12 @@
 #include "PhysicsMover/PhysicsMoverManager.h"
 #include "PhysicsProxy/CharacterGroundConstraintProxy.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+#define LOCTEXT_NAMESPACE "Mover"
+
 //////////////////////////////////////////////////////////////////////////
 
 extern FPhysicsDrivenMotionDebugParams GPhysicsDrivenMotionDebugParams;
@@ -284,6 +290,24 @@ int32 UMoverNetworkPhysicsLiaisonComponent::GetCurrentSimFrame()
 
 	return 0;
 }
+
+#if WITH_EDITOR
+EDataValidationResult UMoverNetworkPhysicsLiaisonComponent::ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const
+{
+	if (const AActor* OwnerActor = ValidationMoverComp.GetOwner())
+	{
+		if (!OwnerActor->IsReplicatingMovement())
+		{
+			Context.AddError(FText::Format(LOCTEXT("RequiresReplicateMovementProperty", "The owning actor ({0}) does not have the ReplicateMovement property enabled. This is required for use with Chaos Networked Physics and poor quality movement with occur without it. Please enable it."),
+				FText::FromString(GetNameSafe(OwnerActor))));
+
+			return EDataValidationResult::Invalid;
+		}
+	}
+
+	return EDataValidationResult::Valid;
+}
+#endif // WITH_EDITOR
 
 //////////////////////////////////////////////////////////////////////////
 // UMoverNetworkPhysicsLiaisonComponent UObject interface
@@ -1121,3 +1145,5 @@ void UMoverNetworkPhysicsLiaisonComponent::OnContactModification_Internal(const 
 		}
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -49,6 +49,9 @@ public:
 	virtual int32 GetCurrentSimFrame() override;
 	virtual bool ReadPendingSyncState(OUT FMoverSyncState& OutSyncState) override;
 	virtual bool WritePendingSyncState(const FMoverSyncState& SyncStateToWrite) override;
+#if WITH_EDITOR
+	virtual EDataValidationResult ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const override;
+#endif
 	// End IMoverBackendLiaisonInterface
 
 	virtual void BeginPlay() override;

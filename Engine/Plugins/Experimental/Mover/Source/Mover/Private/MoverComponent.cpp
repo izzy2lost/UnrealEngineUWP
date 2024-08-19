@@ -966,6 +966,14 @@ bool UMoverComponent::ValidateSetup(FDataValidationContext& Context) const
 
 		bDidFindAnyProblems = true;
 	}
+	else
+	{
+		IMoverBackendLiaisonInterface* BackendCDOAsInterface = Cast<IMoverBackendLiaisonInterface>(BackendClass->GetDefaultObject());
+		if (BackendCDOAsInterface && (BackendCDOAsInterface->ValidateData(Context, *this) == EDataValidationResult::Invalid))
+		{
+			bDidFindAnyProblems = true;
+		}
+	}
 
 	// Verify persistent types
 	for (const FMoverDataPersistence& PersistentSyncEntry : PersistentSyncStateDataTypes)

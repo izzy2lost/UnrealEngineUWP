@@ -7,6 +7,13 @@
 #include "GameFramework/Actor.h"
 #include "MoverComponent.h"
 
+#if WITH_EDITOR
+#include "Misc/DataValidation.h"
+#endif
+
+
+#define LOCTEXT_NAMESPACE "Mover"
+
 // ----------------------------------------------------------------------------------------------------------
 //	FMoverActorModelDef: the piece that ties everything together that we use to register with the NP system.
 // ----------------------------------------------------------------------------------------------------------
@@ -123,16 +130,27 @@ bool UMoverNetworkPredictionLiaisonComponent::WritePendingSyncState(const FMover
 	return true;
 }
 
+#if WITH_EDITOR
+EDataValidationResult UMoverNetworkPredictionLiaisonComponent::ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const
+{
+	if (const AActor* OwnerActor = ValidationMoverComp.GetOwner())
+	{
+		if (OwnerActor->IsReplicatingMovement())
+		{
+			Context.AddError(FText::Format(LOCTEXT("ConflictingReplicateMovementProperty", "The owning actor ({0}) has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
+				FText::FromString(GetNameSafe(OwnerActor))));
+
+			return EDataValidationResult::Invalid;
+		}
+	}
+
+	return EDataValidationResult::Valid;
+}
+#endif // WITH_EDITOR
+
 void UMoverNetworkPredictionLiaisonComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (const AActor* OwnerActor = GetOwner())
-	{
-		ensureMsgf(!OwnerActor->IsReplicatingMovement(),
-			TEXT("MoverComponent owning actor %s has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
-			*GetNameSafe(GetOwner()));
-	}
 
 	if (StartingOutSync && StartingOutAux)
 	{
@@ -179,3 +197,5 @@ void UMoverNetworkPredictionLiaisonComponent::InitializeNetworkPredictionProxy()
 		NetworkPredictionProxy.Init<FMoverActorModelDef>(GetWorld(), GetReplicationProxies(), this, this);
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

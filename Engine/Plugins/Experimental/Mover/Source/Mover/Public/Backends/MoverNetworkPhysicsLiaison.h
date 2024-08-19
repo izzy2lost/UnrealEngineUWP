@@ -112,6 +112,9 @@ public:
 	// IMoverBackendLiaisonInterface
 	virtual float GetCurrentSimTimeMs() override;
 	virtual int32 GetCurrentSimFrame() override;
+#if WITH_EDITOR
+	virtual EDataValidationResult ValidateData(FDataValidationContext& Context, const UMoverComponent& ValidationMoverComp) const override;
+#endif
 
 	// UObject interface
 	virtual void OnRegister() override;

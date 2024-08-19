@@ -55,10 +55,6 @@ void UMoverStandaloneLiaisonComponent::BeginPlay()
 	{
 		ensureMsgf(OwnerActor->GetNetMode() == NM_Standalone, TEXT("UMoverStandaloneLiaisonComponent is only valid for use in Standalone projects. Movement will not work properly in networked play."));
 
-		ensureMsgf(!OwnerActor->IsReplicatingMovement(),
-			TEXT("MoverComponent owning actor %s has the ReplicateMovement property enabled. This will conflict with Network Prediction and cause poor quality movement. Please disable it."),
-			*GetNameSafe(GetOwner()));
-
 		if (UMoverComponent* FoundMoverComp = OwnerActor->FindComponentByClass<UMoverComponent>())
 		{
 			MoverComp = FoundMoverComp;
