@@ -1,19 +1,19 @@
 import { ComboBox, DefaultButton, DirectionalHint, FontIcon, IComboBox, IComboBoxOption, IComboBoxStyles, ITooltipHostStyles, ITooltipProps, Icon, Pivot, PivotItem, SelectableOptionMenuItemType, Spinner, SpinnerSize, Stack, Text, TooltipHost, mergeStyleSets, mergeStyles } from "@fluentui/react";
 import { useConst } from '@fluentui/react-hooks';
+import dashboard, { StatusColor } from "horde/backend/Dashboard";
+import { useWindowSize } from "horde/base/utilities/hooks";
+import { displayTimeZone, msecToElapsed } from "horde/base/utilities/timeUtils";
+import { Breadcrumbs } from "horde/components/Breadcrumbs";
+import { TopNav } from "horde/components/TopNav";
+import { getHordeStyling } from "horde/styles/Styles";
 import { action, makeObservable, observable } from "mobx";
 import { observer } from "mobx-react-lite";
 import moment from "moment";
 import React, { useEffect, useId, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { GetTelemetryChartResponse, GetTelemetryMetricResponse, GetTelemetryMetricsResponse, GetTelemetryVariableResponse, GetTelemetryViewResponse } from "../../backend/Api";
-import dashboard, { StatusColor } from "../../backend/Dashboard";
-import { useWindowSize } from "../../base/utilities/hooks";
-import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
-import { getHordeStyling } from "../../styles/Styles";
-import { Breadcrumbs } from "../Breadcrumbs";
-import { TopNav } from "../TopNav";
-import { TelemetryViewData, clearTelemetryViewMetrics, getTelemetryViewData, graphColors } from "./TelemetryData";
-import { TelemetryLineRenderer } from "./TelemetryLineGraph";
+import { GetTelemetryChartResponse, GetTelemetryMetricResponse, GetTelemetryMetricsResponse, GetTelemetryVariableResponse, GetTelemetryViewResponse, getViews } from "./api";
+import { TelemetryViewData, clearTelemetryViewMetrics, getTelemetryViewData, graphColors } from "./telemetryData";
+import { TelemetryLineRenderer } from "./telemetryLineGraph";
 
 const timeSelections: TimeSelection[] = [
    {
@@ -345,6 +345,7 @@ class MetricsHandler {
       this.search = new URLSearchParams();
       this.searchState = {};
       this.view = undefined;
+      this.telemetryViews = undefined;
       this.metrics = undefined;
       this.filteredKeys.clear();
       this.zoomHandler.clear();
@@ -375,6 +376,8 @@ class MetricsHandler {
       }
 
       this.initialized = true;
+
+      this.telemetryViews = await getViews();
 
       this.view = undefined;
 
@@ -658,7 +661,9 @@ class MetricsHandler {
 
    search: URLSearchParams = new URLSearchParams();
 
-   private get allViews() { return dashboard.telemetryViews }
+   get allViews() { return this.telemetryViews ?? []}
+
+   private telemetryViews?: GetTelemetryViewResponse[];
 
    private metrics?: TelemetryViewData;
 
@@ -684,7 +689,7 @@ const ViewChooser: React.FC = observer(() => {
 
    handler.subscribe();
 
-   const options: IComboBoxOption[] = dashboard.telemetryViews.map(v => {
+   const options: IComboBoxOption[] = handler.allViews.map(v => {
       return {
          key: `view_option_${v.id}`,
          text: v.name,
@@ -1417,11 +1422,11 @@ export const TelemetryView: React.FC = () => {
       <Breadcrumbs items={[{ text: 'Analytics' }]} />
       <Stack horizontal styles={{ root: { backgroundColor: modeColors.background } }}>
          <Stack styles={{ root: { width: "100%" } }}>
-            {!dashboard.telemetryViews.length && <Stack horizontal tokens={{ childrenGap: 6 }} horizontalAlign="center" style={{ paddingTop: 30 }}>
+            {!handler.allViews.length && <Stack horizontal tokens={{ childrenGap: 6 }} horizontalAlign="center" style={{ paddingTop: 30 }}>
                <Text variant="mediumPlus">No analytic views found, for more information please see</Text>
                <a href={telemetrybDocs} style={{ fontSize: "18px", "cursor": "pointer" }} onClick={(ev) => { ev.preventDefault(); ev.stopPropagation(); navigate(telemetrybDocs) }}> Horde analytics documentation.</a>
             </Stack>}
-            {!!dashboard.telemetryViews.length && <Stack>
+            {!!handler.allViews.length && <Stack>
                <Stack horizontal>
                   <Stack key={`${key}_1`} style={{ paddingLeft: centerAlign }} />
                   <Stack style={{ width: rootWidth - 8, maxWidth: windowSize.width - 12, paddingLeft: 0, paddingTop: 24, paddingBottom: 24, paddingRight: 0 }} >

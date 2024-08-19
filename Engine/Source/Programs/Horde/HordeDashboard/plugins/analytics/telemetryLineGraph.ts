@@ -1,9 +1,9 @@
 import * as d3 from "d3";
 import moment from "moment";
-import { GetTelemetryMetricResponse, GetTelemetryMetricsResponse, GetTelemetryChartResponse } from "../../backend/Api";
-import dashboard from "../../backend/Dashboard";
-import { displayTimeZone, msecToElapsed } from "../../base/utilities/timeUtils";
-import { graphColors } from "./TelemetryData";
+import { GetTelemetryMetricResponse, GetTelemetryMetricsResponse, GetTelemetryChartResponse } from "./api";
+import dashboard from "horde/backend/Dashboard";
+import { displayTimeZone, msecToElapsed } from "horde/base/utilities/timeUtils";
+import { graphColors } from "./telemetryData";
 
 // Handle bad "@types/d3" types, fix if addressed upstream
 const _d3 = d3 as any;

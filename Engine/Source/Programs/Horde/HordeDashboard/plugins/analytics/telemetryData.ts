@@ -1,6 +1,4 @@
-import backend from "../../backend";
-import { GetTelemetryMetricsResponse, GetTelemetryViewResponse } from "../../backend/Api";
-import dashboard from "../../backend/Dashboard";
+import { getMetrics, GetTelemetryMetricsResponse, GetTelemetryViewResponse } from "./api";
 
 export type MetricId = string;
 export type TelemetryViewId = string;
@@ -46,15 +44,9 @@ export const clearTelemetryViewMetrics = () => {
     loadedMetrics.clear();
 }
 
-const getTelemetryViewMetrics = async (viewId: string, categoryName: string, minTime: string, maxTime: string): Promise<GetTelemetryMetricsResponse[] | undefined> => {
+const getTelemetryViewMetrics = async (view: GetTelemetryViewResponse, categoryName: string, minTime: string, maxTime: string): Promise<GetTelemetryMetricsResponse[] | undefined> => {
 
     return new Promise<GetTelemetryMetricsResponse[] | undefined>(async (resolve, reject) => {
-
-        const view = dashboard.telemetryViews.find(v => v.id === viewId);
-        if (!view) {
-            reject("View now found");
-            return;
-        }
 
         const category = view.categories.find(c => c.name === categoryName);
         if (!category) {
@@ -71,7 +63,7 @@ const getTelemetryViewMetrics = async (viewId: string, categoryName: string, min
         if (needMetrics.size) {
 
             const need: string[] = Array.from(needMetrics);
-            const allMetrics = await backend.getMetrics(view.telemetryStoreId, { id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 32 });
+            const allMetrics = await getMetrics(view.telemetryStoreId, { id: need, minTime: minTime, maxTime: maxTime, results: 4096 * 32 });
 
             for (let i = 0; i < need.length; i++) {
                 const metricId = need[i];
@@ -164,7 +156,7 @@ export const getTelemetryViewData = async (view: GetTelemetryViewResponse, categ
             return;
         }
 
-        const viewMetrics: GetTelemetryMetricsResponse[] = await getTelemetryViewMetrics(view.id, categoryName, minDate.toISOString(), maxDate.toISOString()) as GetTelemetryMetricsResponse[];
+        const viewMetrics: GetTelemetryMetricsResponse[] = await getTelemetryViewMetrics(view, categoryName, minDate.toISOString(), maxDate.toISOString()) as GetTelemetryMetricsResponse[];
 
         if (!viewMetrics?.length) {
             reject("Unable to get view metrics");

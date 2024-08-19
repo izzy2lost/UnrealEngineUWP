@@ -19,7 +19,7 @@ export class Plugins {
 
    loadPlugins(pluginList: string[] | undefined): void {
 
-      console.log("loading plugins...");
+      console.log("Loading Legacy Plugins");
 
       this.plugins.push(...[AutomatedTestSessionPlugin, SimpleTestReportPlugin, UnrealAutomatedTestsPlugin]);
 

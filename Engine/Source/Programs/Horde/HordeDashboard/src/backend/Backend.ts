@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 import templateCache from '../backend/TemplateCache';
-import { AccountClaimMessage, AgentData, AgentQuery, ApproveAgentsRequest, AuditLogEntry, AuditLogQuery, BatchUpdatePoolRequest, ChangeSummaryData, CreateAccountRequest, CreateBisectTaskRequest, CreateBisectTaskResponse, CreateDeviceRequest, CreateDeviceResponse, CreateExternalIssueRequest, CreateExternalIssueResponse, CreateJobRequest, CreateJobResponse, CreateNoticeRequest, CreatePoolRequest, CreateServiceAccountRequest, CreateServiceAccountResponse, CreateSoftwareResponse, CreateSubscriptionRequest, CreateSubscriptionResponse, CreateZipRequest, DashboardPreference, DevicePoolTelemetryQuery, DeviceTelemetryQuery, EventData, FindArtifactsResponse, FindIssueResponse, FindJobTimingsResponse, GetAccountResponse, GetAgentLeaseResponse, GetAgentSessionResponse, GetAgentTelemetrySampleResponse, GetArtifactDirectoryResponse, GetArtifactResponse, GetArtifactZipRequest, GetBisectTaskResponse, GetDashboardConfigResponse, GetDevicePlatformResponse, GetDevicePoolResponse, GetDevicePoolTelemetryResponse, GetDeviceReservationResponse, GetDeviceResponse, GetDeviceTelemetryResponse, GetExternalIssueProjectResponse, GetExternalIssueResponse, GetIssueStreamResponse, GetJobsTabResponse, GetJobStepRefResponse, GetJobStepTraceResponse, GetJobTimingResponse, GetLogEventResponse, GetLogFileResponse, GetNoticeResponse, GetNotificationResponse, GetPendingAgentsResponse, GetPerforceServerStatusResponse, GetPoolResponse, GetPoolSummaryResponse, GetServerInfoResponse, GetServerSettingsResponse, GetServiceAccountResponse, GetSoftwareResponse, GetSubscriptionResponse, GetTelemetryMetricsResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestsRequest, GetTestStreamResponse, GetToolResponse, GetToolSummaryResponse, GetUserResponse, GetUtilizationTelemetryResponse, GlobalConfig, IssueData, IssueQuery, IssueQueryV2, JobData, JobQuery, JobsTabColumnType, JobStepOutcome, JobStreamQuery, JobTimingsQuery, LeaseData, LogData, LogEventQuery, LogLineData, MetricsQuery, PoolData, PoolQuery, PreflightConfigResponse, ProjectData, ScheduleData, ScheduleQuery, SearchLogFileResponse, ServerStatusResponse, ServerUpdateResponse, SessionData, StreamData, TabType, TestData, UpdateAccountRequest, UpdateAgentRequest, UpdateBisectTaskRequest, UpdateCurrentAccountRequest, UpdateDeploymentRequest, UpdateDeviceRequest, UpdateGlobalConfigRequest, UpdateIssueRequest, UpdateJobRequest, UpdateLeaseRequest, UpdateNoticeRequest, UpdateNotificationsRequest, UpdatePoolRequest, UpdateServerSettingsRequest, UpdateServiceAccountRequest, UpdateServiceAccountResponse, UpdateStepRequest, UpdateStepResponse, UpdateTemplateRefRequest, UpdateUserRequest, UsersQuery } from './Api';
+import { AccountClaimMessage, AgentData, AgentQuery, ApproveAgentsRequest, AuditLogEntry, AuditLogQuery, BatchUpdatePoolRequest, ChangeSummaryData, CreateAccountRequest, CreateBisectTaskRequest, CreateBisectTaskResponse, CreateDeviceRequest, CreateDeviceResponse, CreateExternalIssueRequest, CreateExternalIssueResponse, CreateJobRequest, CreateJobResponse, CreateNoticeRequest, CreatePoolRequest, CreateServiceAccountRequest, CreateServiceAccountResponse, CreateSoftwareResponse, CreateSubscriptionRequest, CreateSubscriptionResponse, CreateZipRequest, DashboardPreference, DevicePoolTelemetryQuery, DeviceTelemetryQuery, EventData, FindArtifactsResponse, FindIssueResponse, FindJobTimingsResponse, GetAccountResponse, GetAgentLeaseResponse, GetAgentTelemetrySampleResponse, GetArtifactDirectoryResponse, GetArtifactResponse, GetBisectTaskResponse, GetDashboardConfigResponse, GetDevicePlatformResponse, GetDevicePoolResponse, GetDevicePoolTelemetryResponse, GetDeviceReservationResponse, GetDeviceResponse, GetDeviceTelemetryResponse, GetExternalIssueProjectResponse, GetExternalIssueResponse, GetIssueStreamResponse, GetJobsTabResponse, GetJobStepRefResponse, GetJobStepTraceResponse, GetJobTimingResponse, GetLogEventResponse, GetLogFileResponse, GetNoticeResponse, GetNotificationResponse, GetPendingAgentsResponse, GetPerforceServerStatusResponse, GetPoolResponse, GetPoolSummaryResponse, GetServerInfoResponse, GetServerSettingsResponse, GetServiceAccountResponse, GetSoftwareResponse, GetSubscriptionResponse, GetTestDataDetailsResponse, GetTestDataRefResponse, GetTestMetaResponse, GetTestResponse, GetTestsRequest, GetTestStreamResponse, GetToolResponse, GetToolSummaryResponse, GetUserResponse, GetUtilizationTelemetryResponse, GlobalConfig, IssueData, IssueQuery, IssueQueryV2, JobData, JobQuery, JobsTabColumnType, JobStepOutcome, JobStreamQuery, JobTimingsQuery, LeaseData, LogData, LogEventQuery, LogLineData, PoolData, PoolQuery, PreflightConfigResponse, ProjectData, ScheduleData, ScheduleQuery, SearchLogFileResponse, ServerPluginInfoResponse, ServerStatusResponse, ServerUpdateResponse, SessionData, StreamData, TabType, TestData, UpdateAccountRequest, UpdateAgentRequest, UpdateBisectTaskRequest, UpdateCurrentAccountRequest, UpdateDeploymentRequest, UpdateDeviceRequest, UpdateGlobalConfigRequest, UpdateIssueRequest, UpdateJobRequest, UpdateLeaseRequest, UpdateNoticeRequest, UpdateNotificationsRequest, UpdatePoolRequest, UpdateServerSettingsRequest, UpdateServiceAccountRequest, UpdateServiceAccountResponse, UpdateStepRequest, UpdateStepResponse, UpdateTemplateRefRequest, UpdateUserRequest, UsersQuery } from './Api';
 import dashboard, { Dashboard } from './Dashboard';
 import { ChallengeStatus, Fetch } from './Fetch';
 import { projectStore } from './ProjectStore';
@@ -15,7 +15,7 @@ export class Backend {
 
     getDashboardConfig(): Promise<GetDashboardConfigResponse> {
         return new Promise<GetDashboardConfigResponse>((resolve, reject) => {
-            this.backend.get("/api/v1/dashboard/config").then((response) => {
+            this._fetch.get("/api/v1/dashboard/config").then((response) => {
                 resolve(response.data as GetDashboardConfigResponse);
             }).catch(reason => {
                 reject(reason);
@@ -27,11 +27,11 @@ export class Backend {
 
         return new Promise<ProjectData[]>((resolve, reject) => {
 
-            this.backend.get("/api/v1/projects", { params: { categories: true } }).then(async (response) => {
+            this._fetch.get("/api/v1/projects", { params: { categories: true } }).then(async (response) => {
 
                 const projects = response.data as ProjectData[];
 
-                await this.backend.get("/api/v1/streams").then(response => {
+                await this._fetch.get("/api/v1/streams").then(response => {
 
                     const streams = (response.data as StreamData[]);
 
@@ -72,7 +72,7 @@ export class Backend {
 
         return new Promise<ProjectData>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/projects/${project.id}`).then((response) => {
+            this._fetch.get(`/api/v1/projects/${project.id}`).then((response) => {
 
                 const project = response.data as ProjectData;
                 resolve(project);
@@ -86,7 +86,7 @@ export class Backend {
     updateTemplateRef(streamId: string, templateRefId: string, request: UpdateTemplateRefRequest): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`/api/v1/streams/${streamId}/templates/${templateRefId}`, request).then((value) => {
+            this._fetch.put(`/api/v1/streams/${streamId}/templates/${templateRefId}`, request).then((value) => {
                 resolve(true);
             }).catch(reason => {
                 reject(reason);
@@ -96,7 +96,7 @@ export class Backend {
 
     getPool(poolId: string): Promise<GetPoolResponse> {
         return new Promise<GetPoolResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/pools/${poolId}`).then((response) => {
+            this._fetch.get(`/api/v1/pools/${poolId}`).then((response) => {
                 resolve(response.data as GetPoolResponse);
             }).catch(reason => { reject(reason); });
         });
@@ -109,7 +109,7 @@ export class Backend {
         };
 
         return new Promise<PoolData[]>((resolve, reject) => {
-            this.backend.get("/api/v1/pools", { params: params }).then((response) => {
+            this._fetch.get("/api/v1/pools", { params: params }).then((response) => {
                 const pools = response.data as PoolData[];
                 resolve(pools);
             }).catch(reason => { reject(reason); });
@@ -119,7 +119,7 @@ export class Backend {
     getPoolsV2(query: PoolQuery): Promise<GetPoolSummaryResponse[]> {
 
         return new Promise<GetPoolSummaryResponse[]>((resolve, reject) => {
-            this.backend.get("/api/v2/pools", { params: query }).then((response) => {
+            this._fetch.get("/api/v2/pools", { params: query }).then((response) => {
                 const pools = response.data as GetPoolSummaryResponse[];
                 resolve(pools);
             }).catch(reason => { reject(reason); });
@@ -128,7 +128,7 @@ export class Backend {
 
     getAgentRegistrationRequests(): Promise<GetPendingAgentsResponse> {
         return new Promise<GetPendingAgentsResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/enrollment`).then((response) => {
+            this._fetch.get(`/api/v1/enrollment`).then((response) => {
                 const agent = response.data as GetPendingAgentsResponse;
                 resolve(agent);
             }).catch(reason => { reject(reason); });
@@ -138,7 +138,7 @@ export class Backend {
     // create a new account
     registerAgents(request: ApproveAgentsRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.post(`/api/v1/enrollment`, request).then(() => {
+            this._fetch.post(`/api/v1/enrollment`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -149,7 +149,7 @@ export class Backend {
 
     getAgent(id: string): Promise<AgentData> {
         return new Promise<AgentData>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${id}`).then((response) => {
+            this._fetch.get(`/api/v1/agents/${id}`).then((response) => {
                 const agent = response.data as AgentData;
                 resolve(agent);
             }).catch(reason => { reject(reason); });
@@ -158,7 +158,7 @@ export class Backend {
 
     getAgentHistory(id: string, query: AuditLogQuery): Promise<AuditLogEntry[]> {
         return new Promise<AuditLogEntry[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${encodeURIComponent(id)}/history`, { params: query }).then((response) => {
+            this._fetch.get(`/api/v1/agents/${encodeURIComponent(id)}/history`, { params: query }).then((response) => {
                 const history = (response.data?.entries ?? []) as AuditLogEntry[];
                 resolve(history);
             }).catch(reason => { reject(reason); });
@@ -168,7 +168,7 @@ export class Backend {
     getAgents(query: AgentQuery): Promise<AgentData[]> {
         return new Promise<AgentData[]>((resolve, reject) => {
             // for whenever we bring back modifiedDate, swap to this line
-            this.backend.get(`/api/v1/agents`, { params: query }).then((response) => {
+            this._fetch.get(`/api/v1/agents`, { params: query }).then((response) => {
                 //this.backend.get(`/api/v1/agents`).then((response) => {
                 const agents = response.data as AgentData[];
                 resolve(agents);
@@ -178,7 +178,7 @@ export class Backend {
 
     async getLeaseLog(leaseId: string): Promise<GetLogFileResponse> {
         return new Promise<GetLogFileResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/leases/${leaseId}/log`).then((response) => {
+            this._fetch.get(`/api/v1/leases/${leaseId}/log`).then((response) => {
                 resolve(response.data as GetLogFileResponse);
             }).catch(reason => { reject(reason); });
         });
@@ -188,14 +188,14 @@ export class Backend {
 
         if (agentId) {
             return new Promise<LeaseData>((resolve, reject) => {
-                this.backend.get(`/api/v1/agents/${agentId}/leases/${leaseId}`).then((response) => {
+                this._fetch.get(`/api/v1/agents/${agentId}/leases/${leaseId}`).then((response) => {
                     resolve(response.data as LeaseData);
                 }).catch(reason => { reject(reason); });
             });
         }
 
         return new Promise<LeaseData>((resolve, reject) => {
-            this.backend.get(`/api/v1/leases/${leaseId}`).then((response) => {
+            this._fetch.get(`/api/v1/leases/${leaseId}`).then((response) => {
                 resolve(response.data as LeaseData);
             }).catch(reason => { reject(reason); });
         });
@@ -208,7 +208,7 @@ export class Backend {
         params.push("Count=" + count);
         const paramString = params.join("&");
         return new Promise<LeaseData[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${agentId}/leases?${paramString}`).then(async (response) => {
+            this._fetch.get(`/api/v1/agents/${agentId}/leases?${paramString}`).then(async (response) => {
                 const leases = response.data as LeaseData[];
                 leases.forEach(function (lease) {
                     lease.startTime = new Date(Date.parse(lease.startTime as string));
@@ -250,7 +250,7 @@ export class Backend {
         params.push("Count=" + count);
         const paramString = params.join("&");
         return new Promise<SessionData[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${agentId}/sessions?${paramString}`).then((response) => {
+            this._fetch.get(`/api/v1/agents/${agentId}/sessions?${paramString}`).then((response) => {
                 const sessions = response.data as SessionData[];
                 sessions.forEach(function (session) {
                     session.startTime = new Date(Date.parse(session.startTime as string));
@@ -269,7 +269,7 @@ export class Backend {
         params.push("finishime=" + maxTime.toISOString());
         const paramString = params.join("&");
         return new Promise<GetAgentLeaseResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${agentId}/leases?${paramString}`).then((response) => {
+            this._fetch.get(`/api/v1/agents/${agentId}/leases?${paramString}`).then((response) => {
                 (response.data as GetAgentLeaseResponse[]).forEach(s => {
                     s.startTime = s.startTime ? new Date(s.startTime) : new Date();
                     s.finishTime = s.finishTime ? new Date(s.finishTime) : undefined;
@@ -286,7 +286,7 @@ export class Backend {
         params.push("maxTime=" + maxTime.toISOString());
         const paramString = params.join("&");
         return new Promise<GetAgentTelemetrySampleResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/agents/${agentId}/telemetry?${paramString}`).then((response) => {
+            this._fetch.get(`/api/v1/agents/${agentId}/telemetry?${paramString}`).then((response) => {
                 const data = response.data.samples as GetAgentTelemetrySampleResponse[];
                 data.forEach((d) => {
                     d.time = new Date(d.time);
@@ -299,7 +299,7 @@ export class Backend {
     retryJobStep(jobId: string, batchId: string, stepId: string): Promise<any> {
 
         return new Promise<any>((resolve, reject) => {
-            this.backend.put(`/api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, {
+            this._fetch.put(`/api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, {
                 Retry: true
             }).then((value) => {
                 resolve(value.data as JobData[]);
@@ -314,7 +314,7 @@ export class Backend {
 
         return new Promise<JobData>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/jobs/${id}`, {
+            this._fetch.get(`/api/v1/jobs/${id}`, {
                 params: query,
                 show404Error: show404Error
             }).then((value) => {
@@ -341,7 +341,7 @@ export class Backend {
 
         return new Promise<JobData[]>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/jobs`, {
+            this._fetch.get(`/api/v1/jobs`, {
                 params: query
             }).then((value) => {
 
@@ -368,7 +368,7 @@ export class Backend {
 
         return new Promise<JobData[]>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/jobs/streams/${streamId}`, {
+            this._fetch.get(`/api/v1/jobs/streams/${streamId}`, {
                 params: query
             }).then((value) => {
                 const jobs = value.data as JobData[];
@@ -394,7 +394,7 @@ export class Backend {
 
         return new Promise<JobData[]>((resolve, reject) => {
 
-            this.backend.get("/api/v1/jobs", {
+            this._fetch.get("/api/v1/jobs", {
                 params: query
             }).then((value) => {
                 const jobs = value.data as JobData[];
@@ -412,7 +412,7 @@ export class Backend {
     getJobTiming(jobId: string): Promise<GetJobTimingResponse> {
 
         return new Promise<GetJobTimingResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/jobs/${jobId}/timing`).then((value) => {
+            this._fetch.get(`/api/v1/jobs/${jobId}/timing`).then((value) => {
                 resolve(value.data as GetJobTimingResponse);
             }).catch(reason => {
                 reject(reason);
@@ -424,7 +424,7 @@ export class Backend {
     getBatchJobTiming(query: JobTimingsQuery): Promise<FindJobTimingsResponse> {
 
         return new Promise<FindJobTimingsResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/jobs/timing`, {
+            this._fetch.get(`/api/v1/jobs/timing`, {
                 params: query
             }).then((response) => {
                 let timingsWrapper = response.data as FindJobTimingsResponse;
@@ -440,7 +440,7 @@ export class Backend {
 
         return new Promise<EventData[]>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/logs/${logId}/events`, { params: query }).then((value) => {
+            this._fetch.get(`/api/v1/logs/${logId}/events`, { params: query }).then((value) => {
                 resolve(value.data as EventData[]);
             }).catch(reason => {
                 reject(reason);
@@ -458,7 +458,7 @@ export class Backend {
                 count: count
             };
 
-            this.backend.get(`/api/v1/logs/${logId}/search`, {
+            this._fetch.get(`/api/v1/logs/${logId}/search`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as SearchLogFileResponse);
@@ -478,7 +478,7 @@ export class Backend {
                 templateId: templateId
             };
 
-            this.backend.get(`/api/v1/streams/${streamId}/history`, {
+            this._fetch.get(`/api/v1/streams/${streamId}/history`, {
                 params: params
             }).then((value) => {
                 let results = (value.data ?? []) as GetJobStepRefResponse[];
@@ -492,7 +492,7 @@ export class Backend {
 
     getJobStepTrace(jobId: string, batchId: string, stepId: string) {
         return new Promise<GetJobStepTraceResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}/trace`, {
+            this._fetch.get(`/api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}/trace`, {
                 suppress404: true
             }).then((value) => {
                 resolve(value.data as GetJobStepTraceResponse);
@@ -505,8 +505,7 @@ export class Backend {
     getArtifacts(streamId?: string, minChange?: number, maxChange?: number, name?: string, type?: string): Promise<FindArtifactsResponse> {
 
         return new Promise<FindArtifactsResponse>((resolve, reject) => {
-
-            this.backend.get(`/api/v2/artifacts`, { params: { streamId: streamId, minChange: minChange, maxChange: maxChange, name: name, type: type, maxResults: 512 } })
+            this._fetch.get(`/api/v2/artifacts`, { params: { streamId: streamId, minChange: minChange, maxChange: maxChange, name: name, type: type, maxResults: 512 } })
                 .then(response => { resolve(response.data); })
                 .catch(reason => reject(reason));
         })
@@ -524,7 +523,7 @@ export class Backend {
 
         return new Promise<FindArtifactsResponse>((resolve, reject) => {
 
-            this.backend.get(`/api/v2/artifacts`, { params: { id: uniqueIds, key: uniqueKeys } })
+            this._fetch.get(`/api/v2/artifacts`, { params: { id: uniqueIds, key: uniqueKeys } })
                 .then(response => { resolve(response.data); })
                 .catch(reason => reject(reason));
         })
@@ -535,7 +534,7 @@ export class Backend {
 
         return new Promise<GetArtifactDirectoryResponse>((resolve, reject) => {
 
-            this.backend.get(`/api/v2/artifacts/${id}/browse`, { params: { path: path } })
+            this._fetch.get(`/api/v2/artifacts/${id}/browse`, { params: { path: path } })
                 .then(response => { resolve(response.data); })
                 .catch(reason => reject(reason));
         })
@@ -544,7 +543,7 @@ export class Backend {
     getArtifactData(artifactId: string): Promise<GetArtifactResponse> {
         const url = `/api/v2/artifacts/${artifactId}`;
         return new Promise<GetArtifactResponse>((resolve, reject) => {
-            this.backend.get(url).then((value) => {
+            this._fetch.get(url).then((value) => {
                 resolve(value.data as GetArtifactResponse);
             }).catch(reason => {
                 reject(reason);
@@ -555,7 +554,7 @@ export class Backend {
     getArtifactV2(artifactId: string, path: string): Promise<object> {
         const url = `/api/v2/artifacts/${artifactId}/file?path=${encodeURIComponent(path)}`;
         return new Promise<object>((resolve, reject) => {
-            this.backend.get(url).then((value) => {
+            this._fetch.get(url).then((value) => {
                 resolve(value.data as object);
             }).catch(reason => {
                 resolve([]);
@@ -589,7 +588,7 @@ export class Backend {
 
         return new Promise<LogData>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/logs/${logId}`).then((value) => {
+            this._fetch.get(`/api/v1/logs/${logId}`).then((value) => {
                 resolve(value.data as LogData);
             }).catch(reason => {
                 reject(reason);
@@ -612,7 +611,7 @@ export class Backend {
 
         return new Promise<LogLineData>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/logs/${logId}/lines`, {
+            this._fetch.get(`/api/v1/logs/${logId}/lines`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as LogLineData);
@@ -627,7 +626,7 @@ export class Backend {
 
         return new Promise<void>((resolve, reject) => {
 
-            this.backend.get("/api/v1/debug/exception").then(() => {
+            this._fetch.get("/api/v1/debug/exception").then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -640,7 +639,7 @@ export class Backend {
 
         return new Promise<CreateJobResponse>((resolve, reject) => {
 
-            this.backend.post("/api/v1/jobs", request).then((value) => {
+            this._fetch.post("/api/v1/jobs", request).then((value) => {
                 resolve(value.data as CreateJobResponse);
             }).catch(reason => {
                 reject(reason);
@@ -651,7 +650,7 @@ export class Backend {
     updateJob(jobId: string, request: UpdateJobRequest): Promise<boolean> {
 
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`/api/v1/jobs/${jobId}`, request).then((value) => {
+            this._fetch.put(`/api/v1/jobs/${jobId}`, request).then((value) => {
                 resolve(true);
             }).catch(reason => {
                 reject(reason);
@@ -661,7 +660,7 @@ export class Backend {
 
     updateAgent(agentId: string, request: UpdateAgentRequest): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`api/v1/agents/${agentId}`, request).then((value) => {
+            this._fetch.put(`api/v1/agents/${agentId}`, request).then((value) => {
                 resolve(value.data as boolean);
             }).catch(reason => {
                 reject(reason);
@@ -671,7 +670,7 @@ export class Backend {
 
     deleteAgent(agentId: string): Promise<any> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.delete(`api/v1/agents/${agentId}`).then((value) => {
+            this._fetch.delete(`api/v1/agents/${agentId}`).then((value) => {
                 resolve(value.data);
             }).catch(reason => {
                 reject(reason);
@@ -681,7 +680,7 @@ export class Backend {
 
     createPool(request: CreatePoolRequest): Promise<string> {
         return new Promise<string>((resolve, reject) => {
-            this.backend.post(`api/v1/pools`, request).then((value) => {
+            this._fetch.post(`api/v1/pools`, request).then((value) => {
                 resolve(value.data as string);
             }).catch(reason => {
                 reject(reason);
@@ -691,7 +690,7 @@ export class Backend {
 
     updatePool(poolId: string, request: UpdatePoolRequest): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`api/v1/pools/${poolId}`, request).then((value) => {
+            this._fetch.put(`api/v1/pools/${poolId}`, request).then((value) => {
                 resolve(value.data as boolean);
             }).catch(reason => {
                 reject(reason);
@@ -701,7 +700,7 @@ export class Backend {
 
     deletePool(poolId: string): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.delete(`api/v1/pools/${poolId}`).then((value) => {
+            this._fetch.delete(`api/v1/pools/${poolId}`).then((value) => {
                 resolve(value.data as boolean);
             }).catch(reason => {
                 reject(reason);
@@ -711,7 +710,7 @@ export class Backend {
 
     batchUpdatePools(request: BatchUpdatePoolRequest[]): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`api/v1/pools`, request).then((value) => {
+            this._fetch.put(`api/v1/pools`, request).then((value) => {
                 resolve(value.data as boolean);
             }).catch(reason => {
                 reject(reason);
@@ -723,7 +722,7 @@ export class Backend {
 
         return new Promise<CreateSoftwareResponse>((resolve, reject) => {
 
-            this.backend.post("/api/v1/software", formData, { formData: true }).then((value) => {
+            this._fetch.post("/api/v1/software", formData, { formData: true }).then((value) => {
                 resolve(value.data as CreateSoftwareResponse);
             }).catch(reason => {
                 reject(reason);
@@ -735,7 +734,7 @@ export class Backend {
     updateSoftware(id: string, isDefault: boolean): Promise<any> {
 
         return new Promise<any>((resolve, reject) => {
-            this.backend.put(`/api/v1/software/${id}`, {
+            this._fetch.put(`/api/v1/software/${id}`, {
                 Default: isDefault
             }).then((value) => {
                 resolve(value.data as any);
@@ -751,7 +750,7 @@ export class Backend {
 
         return new Promise<ScheduleData>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/schedules/${id}`).then((value) => {
+            this._fetch.get(`/api/v1/schedules/${id}`).then((value) => {
                 const data = value.data as ScheduleData;
                 data.nextTriggerTimesUTC.forEach((d, index) => {
                     data.nextTriggerTimesUTC[index] = new Date(d as any as string);
@@ -767,7 +766,7 @@ export class Backend {
     getSchedules(query: ScheduleQuery): Promise<ScheduleData[]> {
 
         return new Promise<ScheduleData[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/schedules`, {
+            this._fetch.get(`/api/v1/schedules`, {
                 params: query
             }).then((value) => {
                 resolve(value.data as ScheduleData[]);
@@ -783,7 +782,7 @@ export class Backend {
 
         return new Promise<GetSoftwareResponse[]>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/software`).then((value) => {
+            this._fetch.get(`/api/v1/software`).then((value) => {
                 resolve(value.data as GetSoftwareResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -796,7 +795,7 @@ export class Backend {
 
         return new Promise<any>((resolve, reject) => {
 
-            this.backend.delete(`/api/v1/software/${id}`).then((value) => {
+            this._fetch.delete(`/api/v1/software/${id}`).then((value) => {
                 resolve(value.data);
             }).catch(reason => {
                 reject(reason);
@@ -814,7 +813,7 @@ export class Backend {
                 return;
             }
 
-            this.backend.get(`/api/v1/streams/${streamId}/changes/${changelist}`).then((value) => {
+            this._fetch.get(`/api/v1/streams/${streamId}/changes/${changelist}`).then((value) => {
                 resolve(value.data as ChangeSummaryData);
             }).catch(reason => {
                 console.error(reason);
@@ -839,7 +838,7 @@ export class Backend {
                 params.max = maxChange;
             }
 
-            this.backend.get(`/api/v1/streams/${streamId}/changes`, {
+            this._fetch.get(`/api/v1/streams/${streamId}/changes`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as ChangeSummaryData[]);
@@ -855,7 +854,7 @@ export class Backend {
 
         return new Promise<string>((resolve, reject) => {
 
-            this.backend.get("/api/v1/admin/token").then((response) => {
+            this._fetch.get("/api/v1/admin/token").then((response) => {
                 resolve(response.data as string);
             }).catch(reason => reject(reason));
 
@@ -866,7 +865,7 @@ export class Backend {
     updateUser(request: UpdateUserRequest): Promise<void> {
 
         return new Promise<void>((resolve, reject) => {
-            this.backend.put("/api/v1/user", request).then((response) => {
+            this._fetch.put("/api/v1/user", request).then((response) => {
                 resolve();
             }).catch(reason => reject(reason));
 
@@ -879,7 +878,7 @@ export class Backend {
         query = query ?? {};
 
         return new Promise<GetUserResponse[]>((resolve, reject) => {
-            this.backend.get("/api/v1/users", {
+            this._fetch.get("/api/v1/users", {
                 params: query as any
             }).then((response) => {
                 resolve(response.data as GetUserResponse[]);
@@ -892,7 +891,7 @@ export class Backend {
 
         return new Promise<GetUserResponse>((resolve, reject) => {
 
-            this.backend.get("/api/v1/user", { suppress404: true }).then((response) => {
+            this._fetch.get("/api/v1/user", { suppress404: true }).then((response) => {
 
                 let data = response.data as GetUserResponse;
 
@@ -941,7 +940,7 @@ export class Backend {
     getIssue(issueId: number): Promise<IssueData> {
 
         return new Promise<IssueData>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/${issueId}`).then((value) => {
+            this._fetch.get(`/api/v1/issues/${issueId}`).then((value) => {
                 resolve(value.data as IssueData);
             }).catch((reason) => {
                 reject(reason);
@@ -952,7 +951,7 @@ export class Backend {
 
     getIssueHistory(id: string, query: AuditLogQuery): Promise<AuditLogEntry[]> {
         return new Promise<AuditLogEntry[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/${encodeURIComponent(id)}/history`, { params: query }).then((response) => {
+            this._fetch.get(`/api/v1/issues/${encodeURIComponent(id)}/history`, { params: query }).then((response) => {
                 const history = (response.data?.entries ?? []) as AuditLogEntry[];
                 resolve(history);
             }).catch(reason => { reject(reason); });
@@ -966,7 +965,7 @@ export class Backend {
 
         return new Promise<FindIssueResponse[]>((resolve, reject) => {
 
-            this.backend.get("/api/v2/issues", {
+            this._fetch.get("/api/v2/issues", {
                 params: query
             }).then((value) => {
                 resolve(value.data as FindIssueResponse[]);
@@ -983,7 +982,7 @@ export class Backend {
 
         return new Promise<IssueData[]>((resolve, reject) => {
 
-            this.backend.get("/api/v1/issues", {
+            this._fetch.get("/api/v1/issues", {
                 params: query
             }).then((value) => {
                 resolve(value.data as IssueData[]);
@@ -1000,7 +999,7 @@ export class Backend {
 
         return new Promise<IssueData[]>((resolve, reject) => {
 
-            this.backend.get(`/api/v1/issues`, { params: { id: unique.map(id => id.toString()) } })
+            this._fetch.get(`/api/v1/issues`, { params: { id: unique.map(id => id.toString()) } })
                 .then(response => { resolve(response.data); })
                 .catch(reason => reject(reason));
         })
@@ -1008,7 +1007,7 @@ export class Backend {
 
     getIssueStreams(issueId: number): Promise<GetIssueStreamResponse[]> {
         return new Promise<GetIssueStreamResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/${issueId}/streams`).then((value) => {
+            this._fetch.get(`/api/v1/issues/${issueId}/streams`).then((value) => {
                 resolve(value.data as GetIssueStreamResponse[]);
             }).catch((reason) => {
                 reject(reason);
@@ -1030,7 +1029,7 @@ export class Backend {
         };
 
         return new Promise<GetLogEventResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/${issueId}/events`, { params: params }).then((value) => {
+            this._fetch.get(`/api/v1/issues/${issueId}/events`, { params: params }).then((value) => {
                 resolve(value.data as GetLogEventResponse[]);
             }).catch((reason) => {
                 reject(reason);
@@ -1041,7 +1040,7 @@ export class Backend {
 
     updateIssue(id: number, request: UpdateIssueRequest): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`/api/v1/issues/${id}`, request).then((value) => {
+            this._fetch.put(`/api/v1/issues/${id}`, request).then((value) => {
                 resolve(true);
             }).catch((reason) => {
                 reject(reason);
@@ -1057,7 +1056,7 @@ export class Backend {
         };
 
         return new Promise<GetExternalIssueResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/external`, { params: params }).then((value) => {
+            this._fetch.get(`/api/v1/issues/external`, { params: params }).then((value) => {
                 resolve(value.data as GetExternalIssueResponse[]);
             }).catch((reason) => {
                 reject(reason);
@@ -1072,7 +1071,7 @@ export class Backend {
         };
 
         return new Promise<GetExternalIssueProjectResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/issues/external/projects`, { params: params }).then((value) => {
+            this._fetch.get(`/api/v1/issues/external/projects`, { params: params }).then((value) => {
                 resolve(value.data as GetExternalIssueProjectResponse[]);
             }).catch((reason) => {
                 reject(reason);
@@ -1083,7 +1082,7 @@ export class Backend {
 
     createExternalIssue(request: CreateExternalIssueRequest): Promise<CreateExternalIssueResponse> {
         return new Promise<CreateExternalIssueResponse>((resolve, reject) => {
-            this.backend.post(`/api/v1/issues/external`, request).then((value) => {
+            this._fetch.post(`/api/v1/issues/external`, request).then((value) => {
                 resolve(value.data as CreateExternalIssueResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1097,7 +1096,7 @@ export class Backend {
                 filter: 'id,key,change,jobId,stepId,streamId,' + (filter ? filter : 'data')
             };
 
-            this.backend.get(`/api/v1/testdata/${id}`, {
+            this._fetch.get(`/api/v1/testdata/${id}`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as TestData);
@@ -1109,7 +1108,7 @@ export class Backend {
 
     getTestMetadata(automationProjects?: string[], platforms?: string[], targets?: string[], configurations?: string[]): Promise<GetTestMetaResponse[]> {
         return new Promise<GetTestMetaResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/testdata/metadata`, {
+            this._fetch.get(`/api/v2/testdata/metadata`, {
                 params: { project: automationProjects, platform: platforms, target: targets, configuration: configurations }
             }).then((value) => {
                 resolve(value.data as GetTestMetaResponse[]);
@@ -1121,7 +1120,7 @@ export class Backend {
 
     getTestRefs(streamIds: string[], metaIds: string[], minCreateTime?: string, maxCreateTime?: string, minChange?: number, maxChange?: number, testIds?: string[], suiteIds?: string[]): Promise<GetTestDataRefResponse[]> {
         return new Promise<GetTestDataRefResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/testdata/refs`, {
+            this._fetch.get(`/api/v2/testdata/refs`, {
                 params: { id: streamIds, mid: metaIds, tid: testIds, sid: suiteIds, minCreateTime: minCreateTime, maxCreateTime: maxCreateTime, minChange: minChange, maxChange: maxChange }
             }).then((value) => {
                 resolve(value.data as GetTestDataRefResponse[]);
@@ -1133,7 +1132,7 @@ export class Backend {
 
     getTestDetails(refIds: string[]): Promise<GetTestDataDetailsResponse[]> {
         return new Promise<GetTestDataDetailsResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/testdata/details`, {
+            this._fetch.get(`/api/v2/testdata/details`, {
                 params: { id: refIds }
             }).then((value) => {
                 resolve(value.data as GetTestDataDetailsResponse[]);
@@ -1146,7 +1145,7 @@ export class Backend {
     getTests(testIds: string[]): Promise<GetTestResponse[]> {
         const request: GetTestsRequest = { testIds: testIds };
         return new Promise<GetTestResponse[]>((resolve, reject) => {
-            this.backend.post(`/api/v2/testdata/tests`, request).then((value) => {
+            this._fetch.post(`/api/v2/testdata/tests`, request).then((value) => {
                 resolve(value.data as GetTestResponse[]);
             }).catch((reason) => {
                 reject(reason);
@@ -1156,7 +1155,7 @@ export class Backend {
 
     getTestStreams(streamIds: string[]): Promise<GetTestStreamResponse[]> {
         return new Promise<GetTestStreamResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/testdata/streams`, {
+            this._fetch.get(`/api/v2/testdata/streams`, {
                 params: { id: streamIds }
             }).then((value) => {
                 resolve(value.data as GetTestStreamResponse[]);
@@ -1178,7 +1177,7 @@ export class Backend {
                 params.jobStepId = stepId;
             }
 
-            this.backend.get(`/api/v1/testdata`, {
+            this._fetch.get(`/api/v1/testdata`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as TestData[]);
@@ -1204,7 +1203,7 @@ export class Backend {
                 params.index = index;
             }
 
-            this.backend.get(`/api/v1/testdata`, {
+            this._fetch.get(`/api/v1/testdata`, {
                 params: params
             }).then((value) => {
                 resolve(value.data as TestData[]);
@@ -1230,7 +1229,7 @@ export class Backend {
 
     updateJobStep(jobId: string, batchId: string, stepId: string, request: UpdateStepRequest): Promise<UpdateStepResponse> {
         return new Promise<UpdateStepResponse>((resolve, reject) => {
-            this.backend.put(`api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, request).then((value) => {
+            this._fetch.put(`api/v1/jobs/${jobId}/batches/${batchId}/steps/${stepId}`, request).then((value) => {
                 resolve(value.data as UpdateStepResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1248,7 +1247,7 @@ export class Backend {
             url = `${url}/batches/${batchId}/steps/${stepId}`;
         }
         return new Promise<GetNotificationResponse>((resolve, reject) => {
-            this.backend.get(`${url}/notifications`).then((value) => {
+            this._fetch.get(`${url}/notifications`).then((value) => {
                 resolve(value.data as GetNotificationResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1267,7 +1266,7 @@ export class Backend {
             url = `${url}/batches/${batchId}/steps/${stepId}`;
         }
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`${url}/notifications`, request).then((value) => {
+            this._fetch.put(`${url}/notifications`, request).then((value) => {
                 resolve(true);
             }).catch(reason => {
                 reject(reason);
@@ -1281,7 +1280,7 @@ export class Backend {
         });
         let url = `api/v1/subscriptions`;
         return new Promise<CreateSubscriptionResponse[]>((resolve, reject) => {
-            this.backend.post(`${url}`, requests).then((value) => {
+            this._fetch.post(`${url}`, requests).then((value) => {
                 let created = value.data as CreateSubscriptionResponse[];
                 resolve(created);
             }).catch(reason => {
@@ -1293,7 +1292,7 @@ export class Backend {
     getSubscriptions(): Promise<GetSubscriptionResponse[]> {
         let url = `api/v1/subscriptions?userId=${dashboard.userId}`;
         return new Promise<GetSubscriptionResponse[]>((resolve, reject) => {
-            this.backend.get(`${url}`, { suppress404: true }).then((value) => {
+            this._fetch.get(`${url}`, { suppress404: true }).then((value) => {
                 resolve(value.data as GetSubscriptionResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1304,7 +1303,7 @@ export class Backend {
     deleteSubscription(id: string): Promise<boolean> {
         let url = `api/v1/subscriptions/${id}`;
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.delete(`${url}`).then((value) => {
+            this._fetch.delete(`${url}`).then((value) => {
                 resolve(true);
             }).catch(reason => {
                 reject(reason);
@@ -1315,7 +1314,7 @@ export class Backend {
     getUtilizationData(endDate: string, range: number, tzOffset: number): Promise<GetUtilizationTelemetryResponse[]> {
         let url = `api/v1/reports/utilization/${endDate}?range=${range}&tzOffset=${tzOffset}`;
         return new Promise<GetUtilizationTelemetryResponse[]>((resolve, reject) => {
-            this.backend.get(`${url}`).then((value) => {
+            this._fetch.get(`${url}`).then((value) => {
                 resolve(value.data as GetUtilizationTelemetryResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1323,30 +1322,10 @@ export class Backend {
         });
     }
 
-    getMetrics(telemetryStoreId: string, query: MetricsQuery): Promise<GetTelemetryMetricsResponse[]> {
-        query.id = query.id.map(id => encodeURIComponent(id));
-        return new Promise<GetTelemetryMetricsResponse[]>((resolve, reject) => {
-            this.backend.get(`api/v1/telemetry/${telemetryStoreId}/metrics`, { params: query }).then((response) => {
-                const result = response.data as GetTelemetryMetricsResponse[];
-                result?.forEach(r => {
-                    r?.metrics.forEach(m => {
-                        if (m.time) {
-                            m.time = new Date(m.time);
-                        } else {
-                            console.warn("Metrics missing time property");
-                            m.time = new Date();
-                        }
-                    })
-                })
-                resolve(result);
-            }).catch(reason => { reject(reason); });
-        });
-    }
-
     getPerforceServerStatus(): Promise<GetPerforceServerStatusResponse[]> {
 
         return new Promise<GetPerforceServerStatusResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/perforce/status`).then((value) => {
+            this._fetch.get(`/api/v1/perforce/status`).then((value) => {
                 resolve(value.data as GetPerforceServerStatusResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1357,7 +1336,7 @@ export class Backend {
     getServerStatus(): Promise<ServerStatusResponse> {
 
         return new Promise<ServerStatusResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/server/status`).then((value) => {
+            this._fetch.get(`/api/v1/server/status`).then((value) => {
                 const result = value.data as ServerStatusResponse;
                 // convert from string date to Date
                 result.statuses.forEach(s => s.updates.forEach(u => u.updatedAt = new Date(u.updatedAt)))
@@ -1371,7 +1350,7 @@ export class Backend {
     getDevices(): Promise<GetDeviceResponse[]> {
 
         return new Promise<GetDeviceResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices`).then((value) => {
+            this._fetch.get(`/api/v2/devices`).then((value) => {
                 resolve(value.data as GetDeviceResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1382,7 +1361,7 @@ export class Backend {
     getDevicePoolTelemetry(query?: DevicePoolTelemetryQuery): Promise<GetDevicePoolTelemetryResponse[]> {
 
         return new Promise<GetDevicePoolTelemetryResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices/pools/telemetry`, { params: query }).then((value) => {
+            this._fetch.get(`/api/v2/devices/pools/telemetry`, { params: query }).then((value) => {
                 resolve(value.data as GetDevicePoolTelemetryResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1393,7 +1372,7 @@ export class Backend {
     getDeviceTelemetry(query?: DeviceTelemetryQuery): Promise<GetDeviceTelemetryResponse[]> {
 
         return new Promise<GetDeviceTelemetryResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices/telemetry`, { params: query }).then((value) => {
+            this._fetch.get(`/api/v2/devices/telemetry`, { params: query }).then((value) => {
                 resolve(value.data as GetDeviceTelemetryResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1403,7 +1382,7 @@ export class Backend {
 
     addDevice(request: CreateDeviceRequest): Promise<CreateDeviceResponse> {
         return new Promise<CreateDeviceResponse>((resolve, reject) => {
-            this.backend.post(`/api/v2/devices`, request).then((value) => {
+            this._fetch.post(`/api/v2/devices`, request).then((value) => {
                 resolve(value.data as CreateDeviceResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1413,7 +1392,7 @@ export class Backend {
 
     checkoutDevice(deviceId: string, checkout: boolean): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v2/devices/${deviceId}/checkout`, { checkout: checkout }).then(() => {
+            this._fetch.put(`/api/v2/devices/${deviceId}/checkout`, { checkout: checkout }).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1424,7 +1403,7 @@ export class Backend {
 
     modifyDevice(deviceId: string, request: UpdateDeviceRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v2/devices/${deviceId}`, request).then((value) => {
+            this._fetch.put(`/api/v2/devices/${deviceId}`, request).then((value) => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1434,7 +1413,7 @@ export class Backend {
 
     updateLease(leaseId: string, update: UpdateLeaseRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v1/leases/${leaseId}`, update).then(() => {
+            this._fetch.put(`/api/v1/leases/${leaseId}`, update).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1445,7 +1424,7 @@ export class Backend {
 
     deleteDevice(deviceId: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.delete(`/api/v2/devices/${deviceId}`).then((response) => {
+            this._fetch.delete(`/api/v2/devices/${deviceId}`).then((response) => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1456,7 +1435,7 @@ export class Backend {
     getDevicePlatforms(): Promise<GetDevicePlatformResponse[]> {
 
         return new Promise<GetDevicePlatformResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices/platforms`).then((value) => {
+            this._fetch.get(`/api/v2/devices/platforms`).then((value) => {
                 resolve(value.data as GetDevicePlatformResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1468,7 +1447,7 @@ export class Backend {
     getDevicePools(): Promise<GetDevicePoolResponse[]> {
 
         return new Promise<GetDevicePoolResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices/pools`).then((value) => {
+            this._fetch.get(`/api/v2/devices/pools`).then((value) => {
                 resolve(value.data as GetDevicePoolResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1480,7 +1459,7 @@ export class Backend {
     getDeviceReservations(): Promise<GetDeviceReservationResponse[]> {
 
         return new Promise<GetDeviceReservationResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v2/devices/reservations`).then((value) => {
+            this._fetch.get(`/api/v2/devices/reservations`).then((value) => {
                 resolve(value.data as GetDeviceReservationResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1491,7 +1470,7 @@ export class Backend {
 
     getServerSettings(): Promise<GetServerSettingsResponse> {
         return new Promise<GetServerSettingsResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/config/serversettings`).then((value) => {
+            this._fetch.get(`/api/v1/config/serversettings`).then((value) => {
                 resolve(value.data as GetServerSettingsResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1501,7 +1480,7 @@ export class Backend {
 
     updateServerSettings(request: UpdateServerSettingsRequest): Promise<ServerUpdateResponse> {
         return new Promise<ServerUpdateResponse>((resolve, reject) => {
-            this.backend.put(`/api/v1/config/serversettings`, request).then((value) => {
+            this._fetch.put(`/api/v1/config/serversettings`, request).then((value) => {
                 resolve(value.data as ServerUpdateResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1511,7 +1490,7 @@ export class Backend {
 
     getGlobalConfig(): Promise<GlobalConfig> {
         return new Promise<GlobalConfig>((resolve, reject) => {
-            this.backend.get(`/api/v1/config/global`).then((value) => {
+            this._fetch.get(`/api/v1/config/global`).then((value) => {
                 resolve(value.data as GlobalConfig);
             }).catch(reason => {
                 reject(reason);
@@ -1522,7 +1501,7 @@ export class Backend {
     // updates global configuation
     updateGlobalConfig(request: UpdateGlobalConfigRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v1/config/global`, request).then(() => {
+            this._fetch.put(`/api/v1/config/global`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1532,7 +1511,7 @@ export class Backend {
 
     getServerInfo(): Promise<GetServerInfoResponse> {
         return new Promise<GetServerInfoResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/server/info`).then((value) => {
+            this._fetch.get(`/api/v1/server/info`).then((value) => {
                 resolve(value.data as GetServerInfoResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1543,7 +1522,7 @@ export class Backend {
     // create a new notice
     createNotice(request: CreateNoticeRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.post(`/api/v1/notices`, request).then(() => {
+            this._fetch.post(`/api/v1/notices`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1554,7 +1533,7 @@ export class Backend {
     // get all notices
     getNotices(): Promise<GetNoticeResponse[]> {
         return new Promise<GetNoticeResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/notices`).then((value) => {
+            this._fetch.get(`/api/v1/notices`).then((value) => {
                 resolve((value.data as GetNoticeResponse[]).map(notice => {
                     notice.startTime = notice.startTime ? new Date(notice.startTime as string) : undefined;
                     notice.finishTime = notice.finishTime ? new Date(notice.finishTime as string) : undefined;
@@ -1569,7 +1548,7 @@ export class Backend {
     // get tools
     getTools(): Promise<GetToolSummaryResponse[]> {
         return new Promise<GetToolSummaryResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/tools`).then((value) => {
+            this._fetch.get(`/api/v1/tools`).then((value) => {
                 resolve(value.data?.tools as GetToolSummaryResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1579,7 +1558,7 @@ export class Backend {
 
     getTool(toolId: string): Promise<GetToolResponse> {
         return new Promise<GetToolResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/tools/${toolId}`).then((value) => {
+            this._fetch.get(`/api/v1/tools/${toolId}`).then((value) => {
                 resolve(value.data as GetToolResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1590,7 +1569,7 @@ export class Backend {
     /// Updates the state of an active deployment.
     updateDeployment(toolId: string, deploymentId: string, update: UpdateDeploymentRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.patch(`/api/v1/tools/${toolId}/deployments/${deploymentId}`, update).then(() => {
+            this._fetch.patch(`/api/v1/tools/${toolId}/deployments/${deploymentId}`, update).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1600,7 +1579,7 @@ export class Backend {
     // update a notice
     updateNotice(request: UpdateNoticeRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v1/notices`, request).then(() => {
+            this._fetch.put(`/api/v1/notices`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1611,7 +1590,7 @@ export class Backend {
     // delete a notice
     deleteNotice(id: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.delete(`/api/v1/notices/${id}`).then(() => {
+            this._fetch.delete(`/api/v1/notices/${id}`).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1622,7 +1601,7 @@ export class Backend {
     // create job bisection
     createBisectTask(create: CreateBisectTaskRequest): Promise<CreateBisectTaskResponse> {
         return new Promise<CreateBisectTaskResponse>((resolve, reject) => {
-            this.backend.post(`/api/v1/bisect`, create).then((response) => {
+            this._fetch.post(`/api/v1/bisect`, create).then((response) => {
                 resolve(response.data);
             }).catch(reason => {
                 reject(reason);
@@ -1633,7 +1612,7 @@ export class Backend {
     // get a bisection task
     getBisectTask(id: string): Promise<GetBisectTaskResponse> {
         return new Promise<GetBisectTaskResponse>((resolve, reject) => {
-            this.backend.get(`/api/v1/bisect/${id}`).then((value) => {
+            this._fetch.get(`/api/v1/bisect/${id}`).then((value) => {
                 resolve(value.data as GetBisectTaskResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1644,7 +1623,7 @@ export class Backend {
     getBisections(query: { id?: string[], ownerId?: string, jobId?: string, minCreateTime?: string, maxCreateTime?: string, index?: number, count?: number }) {
 
         return new Promise<GetBisectTaskResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/bisect`, { params: query }).then((value) => {
+            this._fetch.get(`/api/v1/bisect`, { params: query }).then((value) => {
                 resolve(value.data as GetBisectTaskResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1655,7 +1634,7 @@ export class Backend {
     // update a visection task
     updateBisectTask(id: string, request: UpdateBisectTaskRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.patch(`/api/v1/bisect/${id}`, request).then(() => {
+            this._fetch.patch(`/api/v1/bisect/${id}`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1666,7 +1645,7 @@ export class Backend {
     // get a job's bisection tasks
     getJobBisectTasks(jobId: string): Promise<GetBisectTaskResponse[]> {
         return new Promise<GetBisectTaskResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/bisect/job/${jobId}`).then((value) => {
+            this._fetch.get(`/api/v1/bisect/job/${jobId}`).then((value) => {
                 resolve(value.data as GetBisectTaskResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1677,7 +1656,7 @@ export class Backend {
     checkPreflightConfig(shelvedChange: number): Promise<PreflightConfigResponse> {
 
         return new Promise<PreflightConfigResponse>((resolve, reject) => {
-            this.backend.post(`/api/v1/server/preflightconfig`, { shelvedChange: shelvedChange }).then((value) => {
+            this._fetch.post(`/api/v1/server/preflightconfig`, { shelvedChange: shelvedChange }).then((value) => {
                 resolve(value.data as PreflightConfigResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1690,7 +1669,7 @@ export class Backend {
 
     getAccountEntitlements(): Promise<any> {
         return new Promise<any>((resolve, reject) => {
-            this.backend.get(`/account/entitlements`).then((value) => {
+            this._fetch.get(`/account/entitlements`).then((value) => {
                 resolve(value.data as any);
             }).catch(reason => {
                 reject(reason);
@@ -1701,7 +1680,7 @@ export class Backend {
     // update current account 
     updateCurrentAccount(request: UpdateCurrentAccountRequest): Promise<boolean> {
         return new Promise<boolean>((resolve, reject) => {
-            this.backend.put(`/api/v1/accounts/current`, request).then(() => {
+            this._fetch.put(`/api/v1/accounts/current`, request).then(() => {
                 resolve(true);
             }).catch((reason) => {
                 reject(reason);
@@ -1711,7 +1690,7 @@ export class Backend {
 
     getAccounts(): Promise<GetAccountResponse[]> {
         return new Promise<GetAccountResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/accounts`).then((value) => {
+            this._fetch.get(`/api/v1/accounts`).then((value) => {
                 resolve(value.data as GetAccountResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1721,7 +1700,7 @@ export class Backend {
 
     getAccountGroups(): Promise<AccountClaimMessage[]> {
         return new Promise<AccountClaimMessage[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/dashboard/accountgroups`).then((value) => {
+            this._fetch.get(`/api/v1/dashboard/accountgroups`).then((value) => {
                 resolve(value.data as AccountClaimMessage[]);
             }).catch(reason => {
                 reject(reason);
@@ -1732,7 +1711,7 @@ export class Backend {
     // create a new account
     createAccount(request: CreateAccountRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.post(`/api/v1/accounts`, request).then(() => {
+            this._fetch.post(`/api/v1/accounts`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1743,7 +1722,7 @@ export class Backend {
     // delete an account
     deleteAccount(id: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.delete(`/api/v1/accounts/${id}`).then(() => {
+            this._fetch.delete(`/api/v1/accounts/${id}`).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1754,7 +1733,7 @@ export class Backend {
     // update an account
     updateAccount(id: string, request: UpdateAccountRequest): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.put(`/api/v1/accounts/${id}`, request).then(() => {
+            this._fetch.put(`/api/v1/accounts/${id}`, request).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1766,7 +1745,7 @@ export class Backend {
 
     getServiceAccounts(): Promise<GetServiceAccountResponse[]> {
         return new Promise<GetServiceAccountResponse[]>((resolve, reject) => {
-            this.backend.get(`/api/v1/serviceaccounts`).then((value) => {
+            this._fetch.get(`/api/v1/serviceaccounts`).then((value) => {
                 resolve(value.data as GetServiceAccountResponse[]);
             }).catch(reason => {
                 reject(reason);
@@ -1777,7 +1756,7 @@ export class Backend {
     // create a new account
     createServiceAccount(request: CreateServiceAccountRequest): Promise<CreateServiceAccountResponse> {
         return new Promise<CreateServiceAccountResponse>((resolve, reject) => {
-            this.backend.post(`/api/v1/serviceaccounts`, request).then((value) => {
+            this._fetch.post(`/api/v1/serviceaccounts`, request).then((value) => {
                 resolve(value.data as CreateServiceAccountResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1788,7 +1767,7 @@ export class Backend {
     // delete an account
     deleteServiceAccount(id: string): Promise<void> {
         return new Promise<void>((resolve, reject) => {
-            this.backend.delete(`/api/v1/serviceaccounts/${id}`).then(() => {
+            this._fetch.delete(`/api/v1/serviceaccounts/${id}`).then(() => {
                 resolve();
             }).catch(reason => {
                 reject(reason);
@@ -1799,7 +1778,7 @@ export class Backend {
     // update an account
     updateServiceAccount(id: string, request: UpdateServiceAccountRequest): Promise<UpdateServiceAccountResponse> {
         return new Promise<UpdateServiceAccountResponse>((resolve, reject) => {
-            this.backend.put(`/api/v1/serviceaccounts/${id}`, request).then((value) => {
+            this._fetch.put(`/api/v1/serviceaccounts/${id}`, request).then((value) => {
                 resolve(value.data as UpdateServiceAccountResponse);
             }).catch(reason => {
                 reject(reason);
@@ -1827,8 +1806,8 @@ export class Backend {
 
     async serverLogout(redirect: string) {
         try {
-            this.backend.logout = true;
-            await this.backend.get("/api/v1/dashboard/logout", { params: { dashboard: true } });
+            this._fetch.logout = true;
+            await this._fetch.get("/api/v1/dashboard/logout", { params: { dashboard: true } });
             window.location.assign(redirect);
 
         } catch (err) {
@@ -1860,21 +1839,26 @@ export class Backend {
 
     }
 
+    get enabledPlugins(): ServerPluginInfoResponse[] {
+        return this.serverInfo?.plugins?.filter(p => p.loaded) ?? [];
+    }
 
     init() {
 
 
         return new Promise<boolean>(async (resolve, reject) => {
 
-            this.backend.setBaseUrl(this.serverUrl);
-            this.backend.setDebugToken(this.debugToken);
+            this._fetch.setBaseUrl(this.serverUrl);
+            this._fetch.setDebugToken(this.debugToken);
 
-            const challenge = await this.backend.challenge();
+            const challenge = await this._fetch.challenge();
 
             if (challenge === ChallengeStatus.Unauthorized) {
-                this.backend.login(window.location.toString());
+                this._fetch.login(window.location.toString());
                 return;
             }
+
+            this.serverInfo = await this.getServerInfo();
 
             await dashboard.update();
 
@@ -1891,14 +1875,20 @@ export class Backend {
         });
     }
 
+    get fetch() {
+        return this._fetch;
+    }
+
     constructor() {
 
-        this.backend = new Fetch();
+        this._fetch = new Fetch();
     }
+
+    serverInfo?: GetServerInfoResponse;
 
     updateID?: any;
     logout: boolean = false;
 
-    private backend: Fetch;
+    private _fetch: Fetch;
 
 }

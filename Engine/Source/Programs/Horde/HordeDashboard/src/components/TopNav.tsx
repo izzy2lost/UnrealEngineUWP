@@ -13,7 +13,7 @@ import { VersionModal } from './VersionModal';
 import { getHordeTheme } from '../styles/theme';
 import { getHordeStyling } from '../styles/Styles';
 import { ArtifactQueryState, FindArtifactsModal } from './artifacts/ArtifactsSearch';
-
+import { getHordePlugins, MountType } from 'hordePlugins';
 
 const getStyles = () => {
 
@@ -438,13 +438,18 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
 
       const features = dashboard.user?.dashboardFeatures;
 
-      const serviceItems: IContextualMenuItem[] = [];
+      let serviceItems: IContextualMenuItem[] = [];
 
-      serviceItems.push({
-         key: "admin_analytics",
-         text: "Analytics",
-         link: `/analytics`
-      });
+      // get the plugins which mount into the tools bar
+      const plugins = getHordePlugins().filter(p => p.mount?.type === MountType.TopNav);
+
+      plugins.forEach(p => {
+         serviceItems.push({
+            key: `admin_plugin_${p.mount!.text}`,
+            text: p.mount!.text,
+            link: p.mount!.route
+         });   
+      })
 
       if (features?.showTests !== false) {
          serviceItems.push({
@@ -468,6 +473,11 @@ export const TopNav: React.FC<{ suppressServer?: boolean }> = observer(({ suppre
          },
       });
 
+      serviceItems = serviceItems.sort((a, b) => {
+         return (a.text ?? "").localeCompare(b.text ?? "")
+      })
+
+      // Always put downloads at the button for easy navigation
       serviceItems.push({
          key: "software_tools",
          text: "Downloads",

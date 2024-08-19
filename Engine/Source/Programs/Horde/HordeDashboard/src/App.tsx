@@ -3,7 +3,8 @@
 import { Image, Spinner, SpinnerSize, Stack, Text, ThemeProvider } from '@fluentui/react';
 import React, { useState } from 'react';
 import { Navigate, Outlet, RouteObject, RouterProvider, createBrowserRouter } from 'react-router-dom';
-import hordePlugins from './legacyPlugins';
+import { enableHordePlugins, getHordePlugins } from '../plugins';
+import "hordePlugins/registry";
 import backend from './backend';
 import { getSiteConfig } from './backend/Config';
 import dashboard from './backend/Dashboard';
@@ -32,17 +33,17 @@ import { AccountsView } from './components/accounts/AccountsView';
 import { HordeLoginView } from './components/accounts/HordeLoginView';
 import { ServiceAccountsView } from './components/accounts/ServiceAccountsView';
 import { AgentRequestsView } from './components/agents/AgentRequestsView';
+import { ArtifactRedirector } from './components/artifacts/ArtifactsRedirector';
 import { DocView } from './components/docs/DocView';
 import { JobDetailViewV2 } from './components/jobDetailsV2/JobDetailViewV2';
 import { PreflightConfigRedirector } from './components/preflights/PreflightConfigCheckRedirector';
 import { ServerStatusView } from './components/server/ServerStatus';
 import { HordeSetupView } from './components/setup/HordeSetupView';
-import { TelemetryView } from './components/telemetry/TelemetryView';
 import { StepIssueReportTest } from './components/test/IssueStepReport';
+import hordePlugins from './legacyPlugins';
 import { preloadFonts } from './styles/Styles';
 import { darkTheme } from './styles/darkTheme';
 import { lightTheme } from './styles/lightTheme';
-import { ArtifactRedirector } from './components/artifacts/ArtifactsRedirector';
 
 let router: any;
 
@@ -52,14 +53,14 @@ const RouteError: React.FC = () => {
 
 const Main: React.FC = () => {
 
-   const [init, setInit] = useState(false);   
+   const [init, setInit] = useState(false);
 
    if (window.location.pathname === "/login") {
-      return <HordeLoginView/>
+      return <HordeLoginView />
    }
 
    if (window.location.pathname === "/setup") {
-      return <HordeSetupView/>
+      return <HordeSetupView />
    }
 
    const config = getSiteConfig();
@@ -107,7 +108,27 @@ const Main: React.FC = () => {
       </ThemeProvider>);
    }
 
+   // legacy plugins
    hordePlugins.loadPlugins(config.plugins);
+
+   const enabledPlugins = backend.enabledPlugins;
+   if (enabledPlugins.length) {
+      console.log("Enabled Server Plugins:")
+      enabledPlugins.forEach(p => {
+         console.log(`    ${p.name} : ${p.version ?? ""}`)
+      })         
+   } else {
+      console.log("No Enabled Plugins")
+   }
+
+   enableHordePlugins(enabledPlugins.map(p => p.name));
+   const plugins = getHordePlugins();
+
+   plugins.forEach(p => {
+      if (!!enabledPlugins.find(plugin => p.id === plugin.name)) {
+         console.log(`Loading Dashboard Plugin: ${p.id}`);
+      }
+   })
 
    if (!router) {
 
@@ -141,7 +162,6 @@ const Main: React.FC = () => {
                { path: "lease/:leaseId", element: <DebugView /> },
                { path: "docs", element: <DocView /> },
                { path: "docs/*", element: <DocView /> },
-               { path: "analytics", element: <TelemetryView /> },
                { path: "accounts", element: <AccountsView /> },
                { path: "accounts/service", element: <ServiceAccountsView /> },
                { path: "test/stepissuereport", element: <StepIssueReportTest /> },
@@ -150,12 +170,15 @@ const Main: React.FC = () => {
          }
       ];
 
+      const pluginRoutes = plugins.map(p => p.routes).flat();
+      routes[0].children!.push(...pluginRoutes);
+
       // mount plugins
-      const pluginRoutes = hordePlugins.routes.map((route) => {
+      const legacyPluginRoutes = hordePlugins.routes.map((route) => {
          return { path: route.path, element: <route.component /> };
       })
 
-      routes[0].children!.push(...pluginRoutes);
+      routes[0].children!.push(...legacyPluginRoutes);
 
       router = createBrowserRouter(routes);
    }

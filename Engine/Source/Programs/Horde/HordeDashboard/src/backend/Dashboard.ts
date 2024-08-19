@@ -2,7 +2,7 @@
 
 import { action, makeObservable, observable } from 'mobx';
 import backend from '.';
-import { AuthMethod, DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetTelemetryViewResponse, GetUserResponse, UserClaim } from './Api';
+import { AuthMethod, DashboardPreference, GetDashboardAgentCategoryResponse, GetDashboardConfigResponse, GetDashboardPoolCategoryResponse, GetJobTemplateSettingsResponse, GetUserResponse, UserClaim } from './Api';
 import { getSiteConfig } from './Config';
 
 export enum StatusColor {
@@ -654,13 +654,6 @@ export class Dashboard {
 
     get user(): GetUserResponse {
         return this.data;
-    }
-
-    get telemetryViews(): GetTelemetryViewResponse[] {
-        if (!this.config?.telemetryViews) {
-            return [];
-        }
-        return this.config?.telemetryViews;
     }
 
     private async postPreferences(reload?: boolean): Promise<boolean> {

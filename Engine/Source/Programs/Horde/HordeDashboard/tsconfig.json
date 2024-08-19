@@ -17,7 +17,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
-    "jsx": "react-jsx",    
+    "jsx": "react-jsx",
+    
+    "paths": {
+      "horde/*" : ["./src/*"],
+      "hordePlugins": ["./plugins"],
+      "hordePlugins/*": ["./plugins/*"]
+    },
 
     /* Linting */
     "strict": false,
@@ -28,6 +34,6 @@
     "noUnusedParameters": true,    
     */
   },
-  "include": ["src"],
+  "include": ["src", "plugins"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
