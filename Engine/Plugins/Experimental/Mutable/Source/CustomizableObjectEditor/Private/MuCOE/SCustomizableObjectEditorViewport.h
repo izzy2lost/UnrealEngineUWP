@@ -6,6 +6,7 @@
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
 #include "UObject/GCObject.h"
 
+class SMutableScrubPanel;
 class FCustomizableObjectPreviewScene;
 class SCustomizableObjectEditorViewportTabBody;
 enum ERotationGridMode : int;
@@ -97,9 +98,7 @@ public:
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
-
-	void SetAnimation(class UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
-
+	
 	virtual FReply OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent) override;
 	
 	// SWidget interface
@@ -223,7 +222,11 @@ public:
 private:
 	/** Determines the visibility of the viewport. */
 	bool IsVisible() const;
+
+	void OnSetPlaybackSpeed(int32 PlaybackSpeedMode);
 	
+	bool IsPlaybackSpeedSelected(int32 PlaybackSpeedMode);
+
 	// Components for the preview mesh.
 	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>> PreviewSkeletalMeshComponents;
 
@@ -263,6 +266,8 @@ private:
 
 	// Combo box for UV channel selection
 	TSharedPtr<STextComboBox> UVChannelOptionCombo;
+
+	TSharedPtr<SMutableScrubPanel> ScrubPanel;
 
 	// Generates the Combobox options for each UV Channel
 	void GenerateUVSectionOptions();

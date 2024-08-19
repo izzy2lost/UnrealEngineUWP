@@ -3,6 +3,7 @@
 #include "MuCOE/CustomizableObjectEditorActions.h"
 
 #include "MuCOE/CustomizableObjectEditorStyle.h"
+#include "MuCOE/SCustomizableObjectEditorViewport.h"
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor"
 
@@ -45,6 +46,7 @@ FCustomizableObjectEditorViewportCommands::FCustomizableObjectEditorViewportComm
 	FCustomizableObjectEditorStyle::GetStyleSetName()
 	)
 {
+	PlaybackSpeedCommands.AddZeroed(EMutableAnimationPlaybackSpeeds::NumPlaybackSpeeds);
 }
 
 
@@ -61,6 +63,16 @@ void FCustomizableObjectEditorViewportCommands::RegisterCommands()
 	UI_COMMAND(BakeInstance, "Bake Instance", "Create baked unreal resources for the current preview instance.", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(StateChangeShowData, "Show or hide test results", "Show or hide test results", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(StateChangeShowGeometryData, "Show instance geometry data", "Show instance geometry data", EUserInterfaceActionType::ToggleButton, FInputChord());
+	
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::OneTenth],	"x0.1", "Set the animation playback speed to a tenth of normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::Quarter],		"x0.25", "Set the animation playback speed to a quarter of normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::Half],		"x0.5", "Set the animation playback speed to a half of normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::ThreeQuarters],		"x0.75", "Set the animation playback speed to three quarters of normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::Normal],		"x1.0", "Set the animation playback speed to normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::Double],		"x2.0", "Set the animation playback speed to double the speed of normal", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::FiveTimes],	"x5.0", "Set the animation playback speed to five times the normal speed", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::TenTimes],	"x10.0", "Set the animation playback speed to ten times the normal speed", EUserInterfaceActionType::RadioButton, FInputChord() );
+	UI_COMMAND( PlaybackSpeedCommands[EMutableAnimationPlaybackSpeeds::Custom],	"xCustom", "Set the animation playback speed to assigned custom speed", EUserInterfaceActionType::RadioButton, FInputChord() );
 
 	UI_COMMAND(ShowDisplayInfo, "Mesh Info", "Display mesh info in the viewport", EUserInterfaceActionType::ToggleButton, FInputChord());
 	UI_COMMAND(EnableClothSimulation, "Enable Cloth Simulation", "Show simulated cloth mesh", EUserInterfaceActionType::ToggleButton, FInputChord());

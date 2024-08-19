@@ -213,6 +213,9 @@ public:
 	virtual void ShowGizmoLight(ULightComponent& SelectedLight) override;
 	virtual void HideGizmoLight() override;
 	virtual UCustomizableObjectEditorProperties* GetEditorProperties() override;
+	virtual TSharedPtr< SCustomizableObjectEditorAdvancedPreviewSettings> GetAdvancedPreviewSettings() override;
+	virtual bool ShowLightingSettings() override;
+	virtual bool ShowProfileManagementOptions() override;
 
 	/** Select only this node only. Do nothing if already was only selected. */
 	void SelectSingleNode(UCustomizableObjectNode& Node);
@@ -257,9 +260,6 @@ public:
 
 	/** Called when the Object Properties needs to be updated */
 	virtual void UpdateObjectProperties() override;
-
-	/** Getter of CustomizableObjectEditorAdvancedPreviewSettings */
-	TSharedPtr<class SCustomizableObjectEditorAdvancedPreviewSettings> GetCustomizableObjectEditorAdvancedPreviewSettings();
 
 	/** Debug the object as a raw mutable data in the internal tools. */
 	void DebugObject() const;

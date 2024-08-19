@@ -27,6 +27,7 @@
 #include "MuCOE/SCustomizableObjectEditorTextureAnalyzer.h"
 #include "MuCOE/UnrealEditorPortabilityHelpers.h"
 #include "PropertyEditorModule.h"
+#include "SCustomizableObjectEditorAdvancedPreviewSettings.h"
 #include "SCustomizableObjectEditorViewport.h"
 #include "Selection.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -158,6 +159,28 @@ void FCustomizableObjectInstanceEditor::UnregisterTabSpawners(const TSharedRef<c
 }
 
 
+void UCustomSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	UObject::PostEditChangeProperty(PropertyChangedEvent);
+	
+	if (!PropertyChangedEvent.MemberProperty)
+	{
+		return;
+	}
+	
+	if (PropertyChangedEvent.MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UCustomSettings, Animation))
+	{
+		TSharedPtr<ICustomizableObjectInstanceEditor> Editor = WeakEditor.Pin();
+		if (!Editor)
+		{
+			return;
+		}
+		
+		Editor->GetViewport()->GetViewportClient()->SetAnimation(Animation);
+	}
+}
+
+
 ULightComponent* UCustomSettings::GetSelectedLight() const
 {
 	return SelectedLight;
@@ -184,13 +207,13 @@ void UCustomSettings::SetLightsPreset(UCustomizableObjectEditorViewportLights& I
 
 TWeakPtr<ICustomizableObjectInstanceEditor> UCustomSettings::GetEditor() const
 {
-	return Editor;
+	return WeakEditor;
 }
 
 
 void UCustomSettings::SetEditor(TSharedPtr<ICustomizableObjectInstanceEditor> InEditor)
 {
-	Editor = InEditor;
+	WeakEditor = InEditor;
 }
 
 
@@ -263,7 +286,12 @@ void FCustomizableObjectInstanceEditor::InitCustomizableObjectInstanceEditor( co
 	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
 
 	TSharedPtr<FAdvancedPreviewScene> AdvancedPreviewScene = StaticCastSharedPtr<FAdvancedPreviewScene>(Viewport->GetPreviewScene());
-	AdvancedPreviewSettingsWidget = AdvancedPreviewSceneModule.CreateAdvancedPreviewSceneSettingsWidget(AdvancedPreviewScene.ToSharedRef());
+
+	CustomizableObjectEditorAdvancedPreviewSettings = SNew(SCustomizableObjectEditorAdvancedPreviewSettings, AdvancedPreviewScene.ToSharedRef())
+		.CustomSettings(CustomSettings)
+		.CustomizableObjectEditor(SharedThis(this).ToWeakPtr());
+	
+	AdvancedPreviewSettingsWidget = CustomizableObjectEditorAdvancedPreviewSettings;
 
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_CustomizableObjectInstanceEditor_Layout_v2.1" )
 	->AddArea
@@ -523,34 +551,6 @@ TSharedPtr<SCustomizableObjectEditorViewportTabBody> FCustomizableObjectInstance
 }
 
 
-void FCustomizableObjectInstanceEditor::SetPoseAsset(class UPoseAsset* PoseAssetParameter)
-{
-	PoseAsset = PoseAssetParameter;
-
-	if (PoseAsset != nullptr)
-	{
-		Viewport->SetAnimation(nullptr, EAnimationMode::AnimationBlueprint);
-
-		for (TWeakObjectPtr<UDebugSkelMeshComponent> PreviewSkeletalMeshComponent : PreviewSkeletalMeshComponents)
-		{
-			PreviewSkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-			PreviewSkeletalMeshComponent->InitAnim(false);
-			PreviewSkeletalMeshComponent->SetAnimation(PoseAsset);
-
-			UAnimSingleNodeInstance* SingleNodeInstance = Cast<UAnimSingleNodeInstance>(PreviewSkeletalMeshComponent->GetAnimInstance());
-			if (SingleNodeInstance)
-			{
-				const TArray<FName>& ArrayPoseSmartNames = PoseAsset->GetPoseFNames();
-				for (int32 i = 0; i < ArrayPoseSmartNames.Num(); ++i)
-				{
-					SingleNodeInstance->SetPreviewCurveOverride(ArrayPoseSmartNames[i], 1.0f, false);
-				}
-			}
-		}
-	}
-}
-
-
 UProjectorParameter* FCustomizableObjectInstanceEditor::GetProjectorParameter()
 {
 	return ProjectorParameter;
@@ -586,6 +586,24 @@ void FCustomizableObjectInstanceEditor::HideGizmoProjectorParameter()
 UCustomizableObjectEditorProperties* FCustomizableObjectInstanceEditor::GetEditorProperties()
 {
 	return EditorProperties;
+}
+
+
+TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> FCustomizableObjectInstanceEditor::GetAdvancedPreviewSettings()
+{
+	return CustomizableObjectEditorAdvancedPreviewSettings;
+}
+
+
+bool FCustomizableObjectInstanceEditor::ShowLightingSettings()
+{
+	return false;
+}
+
+
+bool FCustomizableObjectInstanceEditor::ShowProfileManagementOptions()
+{
+	return false;
 }
 
 

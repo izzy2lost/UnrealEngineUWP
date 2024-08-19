@@ -60,10 +60,12 @@ public:
 	TSharedPtr<FUICommandInfo> SetShowNormals;
 	TSharedPtr<FUICommandInfo> SetShowTangents;
 	TSharedPtr<FUICommandInfo> SetShowBinormals;
-
+	
+	/** Command list for playback speed, indexed by EPlaybackSpeeds*/
+	TArray<TSharedPtr< FUICommandInfo >> PlaybackSpeedCommands;
+	
 	/**
 	 * Initialize commands
 	 */
 	virtual void RegisterCommands() override;
-
 };

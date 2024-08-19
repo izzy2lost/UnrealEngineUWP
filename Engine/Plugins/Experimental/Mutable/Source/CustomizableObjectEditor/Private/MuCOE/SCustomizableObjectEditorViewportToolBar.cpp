@@ -34,6 +34,7 @@
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Input/SSlider.h"
+#include "MuCOE/CustomizableObjectEditorActions.h"
 
 class SWidget;
 struct FSlateBrush;
@@ -117,6 +118,19 @@ void SCustomizableObjectEditorViewportToolBar::Construct(const FArguments& InArg
 			.ParentToolBar(SharedThis(this))
 			.Label(LOCTEXT("CharacterMenuLabel","Character"))
 			.OnGetMenuContent(this, &SCustomizableObjectEditorViewportToolBar::GenerateCharacterMenu)
+		]
+
+	// Playback Menu
+	+ SHorizontalBox::Slot()
+		.AutoWidth()
+		.Padding(2.0f, 2.0f)
+		[
+			SNew(SEditorViewportToolbarMenu)
+			.ToolTipText(LOCTEXT("PlaybackSpeedMenuTooltip", "Playback Speed Options. Control the time dilation of the scene's update."))
+			.ParentToolBar(SharedThis(this))
+			.Label(this, &SCustomizableObjectEditorViewportToolBar::GetPlaybackMenuLabel)
+			.LabelIcon(FAppStyle::GetBrush("AnimViewportMenu.PlayBackSpeed"))
+			.OnGetMenuContent(this, &SCustomizableObjectEditorViewportToolBar::GeneratePlaybackMenu)
 		];
 	
 	TSharedRef<SWidget> RTSButtons = GenerateRTSButtons();
@@ -331,14 +345,77 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportTy
 	return CameraMenuBuilder.MakeWidget();
 }
 
+
+class SCusttomAnimationSpeedSetting : public SCompoundWidget
+{
+public:
+	DECLARE_DELEGATE_OneParam(FOnCustomSpeedChanged, float);
+
+	SLATE_BEGIN_ARGS(SCusttomAnimationSpeedSetting) {}
+		SLATE_ATTRIBUTE(float, CustomSpeed)
+		SLATE_EVENT(FOnCustomSpeedChanged, OnCustomSpeedChanged)
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments& InArgs )
+	{
+		CustomSpeed = InArgs._CustomSpeed;
+		OnCustomSpeedChanged = InArgs._OnCustomSpeedChanged;
+
+		this->ChildSlot
+		[
+			SNew(SBox)
+			.HAlign(HAlign_Right)
+			[
+				SNew(SBox)
+				.Padding(FMargin(4.0f, 0.0f, 0.0f, 0.0f))
+				.WidthOverride(100.0f)
+				[
+					SNew(SSpinBox<float>)
+					.Font(FAppStyle::GetFontStyle(TEXT("MenuItem.Font")))
+					.ToolTipText(LOCTEXT("AnimationCustomSpeed", "Set Custom Speed."))
+					.MinValue(0.f)
+					.MaxSliderValue(10.f)
+					.SupportDynamicSliderMaxValue(true)
+					.Value(CustomSpeed)
+					.OnValueChanged(OnCustomSpeedChanged)
+				]
+			]
+		];
+	}
+
+private:
+    TAttribute<float> CustomSpeed = 1.0f;
+	FOnCustomSpeedChanged OnCustomSpeedChanged;
+};
+
+
 TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GeneratePlaybackMenu() const
 {
-	const bool bInShouldCloseWindowAfterMenuSelection = true;
-
-	FMenuBuilder PlaybackMenuBuilder(bInShouldCloseWindowAfterMenuSelection, Viewport.Pin()->GetCommandList());
+	const FCustomizableObjectEditorViewportCommands& Actions = FCustomizableObjectEditorViewportCommands::Get();
 	
-	return PlaybackMenuBuilder.MakeWidget();
+	FMenuBuilder InMenuBuilder(true, Viewport.Pin()->GetCommandList());
 
+	InMenuBuilder.BeginSection("AnimViewportPlaybackSpeed", LOCTEXT("PlaybackMenu_SpeedLabel", "Playback Speed") );
+
+	for(int32 PlaybackSpeedIndex = 0; PlaybackSpeedIndex < EMutableAnimationPlaybackSpeeds::NumPlaybackSpeeds; ++PlaybackSpeedIndex)
+	{
+		InMenuBuilder.AddMenuEntry( Actions.PlaybackSpeedCommands[PlaybackSpeedIndex] );
+	}
+	
+	TSharedPtr<SWidget> AnimSpeedWidget = SNew(SCusttomAnimationSpeedSetting)
+		.CustomSpeed_Lambda([Viewport = Viewport]()
+			{
+				return Viewport.Pin()->GetViewportClient()->GetCustomAnimationSpeed();
+			})
+		.OnCustomSpeedChanged_Lambda([Viewport = Viewport](float CustomSpeed)
+			{
+				return Viewport.Pin()->GetViewportClient()->SetCustomAnimationSpeed(CustomSpeed);
+			});
+	
+	InMenuBuilder.AddWidget(AnimSpeedWidget.ToSharedRef(), LOCTEXT("PlaybackMenu_Speed_Custom", "Custom Speed:"));
+	InMenuBuilder.EndSection();
+
+	return InMenuBuilder.MakeWidget();
 }
 
 
@@ -395,8 +472,27 @@ TSharedRef<SWidget> SCustomizableObjectEditorViewportToolBar::GenerateViewportOp
 
 FText SCustomizableObjectEditorViewportToolBar::GetPlaybackMenuLabel() const
 {
-	return LOCTEXT("PlaybackError", "Error");
+	FText Label = LOCTEXT("PlaybackError", "Error");
+	if (Viewport.IsValid())
+	{
+		for(int Index = 0; Index < EMutableAnimationPlaybackSpeeds::NumPlaybackSpeeds; ++Index)
+		{
+			if (Viewport.Pin()->GetViewportClient()->GetPlaybackSpeedMode() == Index)
+			{
+				const int32 NumFractionalDigits = (Index == EMutableAnimationPlaybackSpeeds::Quarter || Index == EMutableAnimationPlaybackSpeeds::ThreeQuarters) ? 2 : 1;
+
+				const FNumberFormattingOptions FormatOptions = FNumberFormattingOptions()
+					.SetMinimumFractionalDigits(NumFractionalDigits)
+					.SetMaximumFractionalDigits(NumFractionalDigits);
+
+				Label = FText::Format(LOCTEXT("AnimViewportPlaybackMenuLabel", "x{0}"), FText::AsNumber(EMutableAnimationPlaybackSpeeds::Values[Index], &FormatOptions));
+			}
+		}
+	}
+	
+	return Label;
 }
+
 
 FText SCustomizableObjectEditorViewportToolBar::GetCameraMenuLabel() const
 {

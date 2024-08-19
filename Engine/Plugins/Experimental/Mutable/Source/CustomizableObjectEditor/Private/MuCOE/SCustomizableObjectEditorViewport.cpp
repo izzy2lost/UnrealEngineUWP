@@ -2,10 +2,13 @@
 
 #include "MuCOE/SCustomizableObjectEditorViewport.h"
 
+#include "CustomizableObjectInstanceEditor.h"
 #include "Animation/AnimationAsset.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Editor/UnrealEdEngine.h"
 #include "EditorViewportCommands.h"
+#include "ObjectEditorUtils.h"
+#include "SMutableScrubPanel.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "MuCO/CustomizableObjectInstance.h"
@@ -272,6 +275,8 @@ void SCustomizableObjectEditorViewportTabBody::Construct(const FArguments& InArg
 	
 	ViewportWidget = SNew(SCustomizableObjectEditorViewport, PreviewScenePtr.ToSharedRef(), SharedThis(this), WeakEditor);
 
+	LevelViewportClient = StaticCastSharedPtr<FCustomizableObjectEditorViewportClient>(ViewportWidget->GetViewportClient());
+
 	this->ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -285,9 +290,12 @@ void SCustomizableObjectEditorViewportTabBody::Construct(const FArguments& InArg
 			[
 				ViewportWidget.ToSharedRef()
 			]
+			+SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SAssignNew(ScrubPanel, SMutableScrubPanel, LevelViewportClient.ToSharedRef())
+			]
 		];
-
-	LevelViewportClient = StaticCastSharedPtr<FCustomizableObjectEditorViewportClient>(ViewportWidget->GetViewportClient());
 	
 	BindCommands();
 }
@@ -449,6 +457,18 @@ bool SCustomizableObjectEditorViewportTabBody::IsVisible() const
 }
 
 
+void SCustomizableObjectEditorViewportTabBody::OnSetPlaybackSpeed(int32 PlaybackSpeedMode)
+{
+	LevelViewportClient->SetPlaybackSpeedMode(static_cast<EMutableAnimationPlaybackSpeeds::Type>(PlaybackSpeedMode));
+}
+
+
+bool SCustomizableObjectEditorViewportTabBody::IsPlaybackSpeedSelected(int32 PlaybackSpeedMode)
+{
+	return PlaybackSpeedMode == LevelViewportClient->GetPlaybackSpeedMode();
+}
+
+
 void SCustomizableObjectEditorViewportTabBody::BindCommands()
 {
 	FUICommandList& CommandList = *UICommandList;
@@ -500,7 +520,17 @@ void SCustomizableObjectEditorViewportTabBody::BindCommands()
 		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::BakeInstance),
 		FCanExecuteAction(),
 		FIsActionChecked());
-
+	
+	//Create a menu item for each playback speed in EMutableAnimationPlaybackSpeeds
+	for (int32 Index = 0; Index < static_cast<int32>(EMutableAnimationPlaybackSpeeds::NumPlaybackSpeeds); ++Index)
+	{
+		CommandList.MapAction( 
+			Commands.PlaybackSpeedCommands[Index],
+			FExecuteAction::CreateSP(this, &SCustomizableObjectEditorViewportTabBody::OnSetPlaybackSpeed, Index),
+			FCanExecuteAction(),
+			FIsActionChecked::CreateSP(this, &SCustomizableObjectEditorViewportTabBody::IsPlaybackSpeedSelected, Index));
+	}
+	
 	//Bind LOD preview menu commands
 	const FCustomizableObjectEditorViewportLODCommands& ViewportLODMenuCommands = FCustomizableObjectEditorViewportLODCommands::Get();
 
@@ -617,7 +647,6 @@ void SCustomizableObjectEditorViewportTabBody::BindCommands()
 		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::SetViewportType, LVT_OrthoNegativeXY),
 		FCanExecuteAction(),
 		FIsActionChecked::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::IsActiveViewportType, LVT_OrthoNegativeXY));
-
 	CommandList.MapAction( 
 		Commands.ShowDisplayInfo,
 		FExecuteAction::CreateSP(EditorViewportClientRef, &FCustomizableObjectEditorViewportClient::OnShowDisplayInfo),
@@ -981,12 +1010,6 @@ void SCustomizableObjectEditorViewportTabBody::OnUVChannelChanged(TSharedPtr<FSt
 }
 
 
-void SCustomizableObjectEditorViewportTabBody::SetAnimation(UAnimationAsset* Animation, EAnimationMode::Type AnimationType)
-{
-	LevelViewportClient->SetAnimation(Animation, AnimationType);
-}
-
-
 FReply SCustomizableObjectEditorViewportTabBody::OnDrop(const FGeometry& MyGeometry, const FDragDropEvent& DragDropEvent)
 {
 	if (FAssetDragDropOp* DragDropOp = DragDropEvent.GetOperationAs<FAssetDragDropOp>().Get())
@@ -997,7 +1020,7 @@ FReply SCustomizableObjectEditorViewportTabBody::OnDrop(const FGeometry& MyGeome
 			UAnimationAsset* AnimationAsset = Cast<UAnimationAsset>(DragDropOp->GetAssets()[0].GetAsset());
 			if (AnimationAsset)
 			{
-				LevelViewportClient->SetAnimation(AnimationAsset, EAnimationMode::AnimationSingleNode);
+				FObjectEditorUtils::SetPropertyValue(WeakEditor.Pin()->GetCustomSettings(), GET_MEMBER_NAME_CHECKED(UCustomSettings, Animation), AnimationAsset);
 
 				return FReply::Handled();
 			}

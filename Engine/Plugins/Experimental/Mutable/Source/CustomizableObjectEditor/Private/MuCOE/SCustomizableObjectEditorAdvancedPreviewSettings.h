@@ -5,6 +5,7 @@
 #include "CustomizableObjectInstanceEditor.h"
 #include "AssetRegistry/AssetData.h"
 #include "SAdvancedPreviewDetailsTab.h"
+#include "MuCOE/ICustomizableObjectEditor.h"
 #include "Widgets/SWindow.h"
 
 class FAdvancedPreviewScene;
@@ -22,7 +23,7 @@ class SLevelSelectWindow : public SWindow
 {
 public:
 	SLATE_BEGIN_ARGS(SLevelSelectWindow) {}
-		SLATE_ATTRIBUTE(FCustomizableObjectEditor*, CustomizableObjectEditor)
+		SLATE_ATTRIBUTE(TWeakPtr<ICustomizableObjectInstanceEditor>, CustomizableObjectEditor)
 		SLATE_ATTRIBUTE(UAssetViewerSettings*, DefaultSettings)
 	SLATE_END_ARGS()
 
@@ -52,7 +53,7 @@ private:
 	TArray<FString> ArraySkyLightName;
 	FString LevelAssetPath;
 	bool ProfileAddedSuccessfully;
-	FCustomizableObjectEditor* CustomizableObjectEditor; // Pointer to editor instance
+	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditor;
 	UAssetViewerSettings* DefaultSettings;
 };
 
@@ -65,7 +66,7 @@ public:
 	SLATE_BEGIN_ARGS(SUObjectSelecWindow) {}
 		SLATE_ATTRIBUTE(FString, LevelAssetPath)
 		SLATE_ATTRIBUTE(SLevelSelectWindow*, LevelSelectWindow)
-		SLATE_ATTRIBUTE(FCustomizableObjectEditor*, CustomizableObjectEditor)
+		SLATE_ATTRIBUTE(TWeakPtr<ICustomizableObjectInstanceEditor>, CustomizableObjectEditor)
 		SLATE_ATTRIBUTE(UAssetViewerSettings*, DefaultSettings)
 	SLATE_END_ARGS()
 
@@ -84,7 +85,7 @@ private:
 	TSharedPtr<STextComboBox> SkyLight;
 	FString LevelAssetPath;
 	SLevelSelectWindow* LevelSelectWindow; // Pointer to parent window, needed to close it if new profile added successfully
-	FCustomizableObjectEditor* CustomizableObjectEditor; // Pointer to editor instance
+	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditor;
 	TArray<TSharedPtr<FString>> ArrayDirectionalLightName;
 	TArray<TSharedPtr<FString>> ArrayPostProcessName;
 	TArray<TSharedPtr<FString>> ArraySkyLightName;
@@ -100,7 +101,7 @@ class SCustomizableObjectEditorAdvancedPreviewSettings : public SAdvancedPreview
 public:
 	SLATE_BEGIN_ARGS(SCustomizableObjectEditorAdvancedPreviewSettings) {}
 		SLATE_ARGUMENT(UCustomSettings*, CustomSettings) // From SAdvancedPreviewDetailsTab
-		SLATE_ATTRIBUTE(FCustomizableObjectEditor*, CustomizableObjectEditor)
+		SLATE_ATTRIBUTE(TWeakPtr<ICustomizableObjectInstanceEditor>, CustomizableObjectEditor)
 	SLATE_END_ARGS()
 
 	SCustomizableObjectEditorAdvancedPreviewSettings();
@@ -115,7 +116,6 @@ public:
 	/** Load the environment map of each prodile in DefaultSettings::Profiles since default constructor loads a predetermined environment */
 	void LoadProfileEnvironment();
 
-	FCustomizableObjectEditor* CustomizableObjectEditor; // Pointer to editor instance
-
+	TWeakPtr<ICustomizableObjectInstanceEditor> CustomizableObjectEditor; // Pointer to editor instance
 };
 

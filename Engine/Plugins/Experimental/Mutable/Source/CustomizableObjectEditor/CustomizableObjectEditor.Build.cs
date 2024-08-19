@@ -20,7 +20,6 @@ public class CustomizableObjectEditor : ModuleRules
 				"SkeletonEditor",
 				"WorkspaceMenuStructure",
 				"MessageLog",
-				"KismetWidgets",
 			}
 		);
 
@@ -70,6 +69,7 @@ public class CustomizableObjectEditor : ModuleRules
 				"TextureCompressor",
 				"TextureBuildUtilities",
 				"ImageCore",
+				"KismetWidgets"
 			}
 		);
 

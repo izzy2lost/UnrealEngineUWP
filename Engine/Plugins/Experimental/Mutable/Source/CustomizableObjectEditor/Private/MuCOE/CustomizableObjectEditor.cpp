@@ -2,6 +2,8 @@
 
 #include "MuCOE/CustomizableObjectEditor.h"
 
+#include "AssetViewerSettings.h"
+#include "ContentBrowserModule.h"
 #include "CustomizableObjectEditorPerformanceAnalyzer.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "AssetRegistry/ARFilter.h"
@@ -14,6 +16,7 @@
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
 #include "GraphEditorActions.h"
+#include "IContentBrowserSingleton.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "IDetailsView.h"
 #include "MaterialGraph/MaterialGraphNode.h"
@@ -236,17 +239,14 @@ void FCustomizableObjectEditor::InitCustomizableObjectEditor(const EToolkitMode:
 	// \TODO: Create only when needed?
 	TagExplorer = SNew(SCustomizableObjectEditorTagExplorer).CustomizableObjectEditor(this);
 	
-	FAdvancedPreviewSceneModule& AdvancedPreviewSceneModule = FModuleManager::LoadModuleChecked<FAdvancedPreviewSceneModule>("AdvancedPreviewScene");
-
 	TSharedPtr<FAdvancedPreviewScene> AdvancedPreviewScene = StaticCastSharedPtr<FAdvancedPreviewScene>(Viewport->GetPreviewScene());
 
 	CustomizableObjectEditorAdvancedPreviewSettings =
 		SNew(SCustomizableObjectEditorAdvancedPreviewSettings, AdvancedPreviewScene.ToSharedRef())
 		.CustomSettings(CustomSettings)
-		.CustomizableObjectEditor(this);
+		.CustomizableObjectEditor(SharedThis(this).ToWeakPtr());
 	CustomizableObjectEditorAdvancedPreviewSettings->LoadProfileEnvironment();
 	AdvancedPreviewSettingsWidget = CustomizableObjectEditorAdvancedPreviewSettings;
-
 
 	const TSharedRef<FTabManager::FLayout> StandaloneDefaultLayout = FTabManager::NewLayout( "Standalone_CustomizableObjectEditor_Layout_v1.4" )
 	->AddArea
@@ -1999,9 +1999,21 @@ UEdGraphNode* FCustomizableObjectEditor::CreateCommentBox(const FVector2D& InTar
 }
 
 
-TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> FCustomizableObjectEditor::GetCustomizableObjectEditorAdvancedPreviewSettings()
+TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> FCustomizableObjectEditor::GetAdvancedPreviewSettings()
 {
 	return CustomizableObjectEditorAdvancedPreviewSettings;
+}
+
+
+bool FCustomizableObjectEditor::ShowLightingSettings()
+{
+	return true;
+}
+
+
+bool FCustomizableObjectEditor::ShowProfileManagementOptions()
+{
+	return true;
 }
 
 

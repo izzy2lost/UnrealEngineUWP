@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "DetailCategoryBuilder.h"
 #include "MuCO/CustomizableObjectPrivate.h"
 #include "MuCOE/ICustomizableObjectInstanceEditor.h"
 #include "MuCOE/CustomizableObjectEditorViewportLights.h"
@@ -18,6 +19,7 @@ class SWidget;
 class UCustomizableObject;
 class UCustomizableObjectInstance;
 class UPoseAsset;
+class UAnimationAsset;
 class SLevelOfDetailSettings;
 class SCustomizableObjectEditorViewportTabBody;
 class SCustomizableObjecEditorTextureAnalyzer;
@@ -107,6 +109,9 @@ class UCustomSettings : public UObject
 	GENERATED_BODY()
 
 public:
+	// UObject interface
+	virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+
 	ULightComponent* GetSelectedLight() const;
 
 	void SetSelectedLight(ULightComponent* Light);
@@ -118,7 +123,10 @@ public:
 	TWeakPtr<ICustomizableObjectInstanceEditor> GetEditor() const;
 
 	void SetEditor(TSharedPtr<ICustomizableObjectInstanceEditor> Editor);
-
+	
+	UPROPERTY(Category = Animation, EditAnywhere)
+	TObjectPtr<UAnimationAsset> Animation;
+	
 private:
 	UPROPERTY()
 	TObjectPtr<ULightComponent> SelectedLight = nullptr;
@@ -126,7 +134,7 @@ private:
 	UPROPERTY()
 	TObjectPtr<UCustomizableObjectEditorViewportLights> LightsPreset;
 
-	TWeakPtr<ICustomizableObjectInstanceEditor> Editor;
+	TWeakPtr<ICustomizableObjectInstanceEditor> WeakEditor;
 };
 
 USTRUCT()
@@ -199,17 +207,19 @@ public:
 	virtual FLinearColor GetWorldCentricTabColorScale() const override;
 
 	/** ICustomizableObjectInstanceEditor interface */
-	UCustomizableObjectInstance* GetPreviewInstance() override;
+	virtual UCustomizableObjectInstance* GetPreviewInstance() override;
 	virtual void RefreshTool() override;
 	virtual TSharedPtr<SCustomizableObjectEditorViewportTabBody> GetViewport() override;
-	virtual void SetPoseAsset(UPoseAsset* PoseAssetParameter) override;
 	virtual UProjectorParameter* GetProjectorParameter() override;
 	virtual UCustomSettings* GetCustomSettings() override;
 	virtual void HideGizmo() override;
 	virtual void ShowGizmoProjectorParameter(const FString& ParamName, int32 RangeIndex) override;
 	virtual void HideGizmoProjectorParameter() override;
 	virtual UCustomizableObjectEditorProperties* GetEditorProperties() override;
-	
+	virtual TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> GetAdvancedPreviewSettings() override;
+	virtual bool ShowLightingSettings() override;
+	virtual bool ShowProfileManagementOptions() override;
+
 	/** Callback to notify the editor when the PreviewInstance has been updated */
 	void OnUpdatePreviewInstance(UCustomizableObjectInstance* Instance);
 
@@ -285,6 +295,8 @@ private:
 	TSharedPtr<SCustomizableObjectEditorViewportTabBody> Viewport;
 	TSharedPtr<IDetailsView> CustomizableInstanceDetailsView;
 
+	TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> CustomizableObjectEditorAdvancedPreviewSettings;
+	
 	/** Level of Details Settings widget. */
 	TSharedPtr<SLevelOfDetailSettings> LevelOfDetailSettings;
 

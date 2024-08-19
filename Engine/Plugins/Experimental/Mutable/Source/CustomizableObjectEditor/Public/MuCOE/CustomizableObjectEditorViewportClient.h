@@ -64,6 +64,26 @@ enum class EWidgetType : uint8
 };
 
 
+namespace EMutableAnimationPlaybackSpeeds
+{
+	enum Type
+	{
+		OneTenth = 0,
+		Quarter,
+		Half,
+		ThreeQuarters,
+		Normal,
+		Double,
+		FiveTimes,
+		TenTimes,
+		Custom,
+		NumPlaybackSpeeds
+	};
+
+	extern float Values[NumPlaybackSpeeds];
+}
+
+
 /** Viewport which shows the scene with the generated Instance. */
 class FCustomizableObjectEditorViewportClient : public FEditorViewportClient, public TSharedFromThis<FCustomizableObjectEditorViewportClient>
 {
@@ -93,7 +113,11 @@ public:
 	// End of FEditorViewportClient
 	
 	void SetPreviewActor(const TWeakObjectPtr<AActor>& InActor, const TWeakObjectPtr<UCustomizableObjectInstance>& InInstance, const TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& InSkeletalMeshComponents);
-	
+
+	TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& GetPreviewMeshComponents();
+
+	void SetPreviewAnimationAsset(UAnimationAsset* AnimAsset);
+
 	/**
 	 *	Draws the UV overlay for the current LOD.
 	 *
@@ -188,11 +212,9 @@ public:
 
 	/** Do not call directly. Use ICustomizableObjectEditor functions instead. */
 	void HideGizmoLight();
-	
-	void SetAnimation(UAnimationAsset* Animation, EAnimationMode::Type AnimationType);
 
-	/** Set again the animation saved in AnimationBeingPlayed (if any) */
-	void ReSetAnimation();
+	/** Play the animation. */
+	void SetAnimation(UAnimationAsset* Animation);
 
 	/** Add Light Component to the scene. */
 	void AddLightToScene(ULightComponent* AddedLight);
@@ -284,6 +306,14 @@ public:
 
 	bool IsSetShowBinormalsChecked() const;
 	
+	void SetPlaybackSpeedMode(EMutableAnimationPlaybackSpeeds::Type InMode);
+
+	void SetCustomAnimationSpeed(float Speed);
+	
+	float GetCustomAnimationSpeed() const;
+
+	EMutableAnimationPlaybackSpeeds::Type GetPlaybackSpeedMode() const;
+
 private:
 	/** Draws Mesh Bones in foreground (From: FAnimationViewportClient) */
 	void DrawMeshBones(UDebugSkelMeshComponent* MeshComponent, FPrimitiveDrawInterface* PDI);
@@ -339,15 +369,12 @@ private:
 	/** Spawned light components. */
 	TArray<ULightComponent*> LightComponents;
 	
-	/** To know if an animation ia being played by the Customizable Object and restre it after compilation */
-	bool IsPlayingAnimation;
-
 	/** true if the camera has already being setup. */
 	bool bIsCameraSetup = false;
 
-	/** Animation being played by the Customizable Object, if any */
-	TObjectPtr<UAnimationAsset> AnimationBeingPlayed;
-
+	/** true if if has been updated after changing the actor. */
+	bool bUpdated = false;
+	
 	/** Customizable object being used */
 	UCustomizableObject* CustomizableObject;
 
@@ -411,6 +438,12 @@ private:
 	FWidgetTrackingStartedDelegate WidgetTrackingStartedDelegate;
 	
 	EWidgetType WidgetType = EWidgetType::Hidden;
+
+	/** Selected playback speed mode, used for deciding scale */
+	EMutableAnimationPlaybackSpeeds::Type AnimationPlaybackSpeedMode = EMutableAnimationPlaybackSpeeds::Normal;
+
+	/** Custom Animation speed in the viewport. Transient setting. */
+	float CustomAnimationSpeed = 1.0f;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

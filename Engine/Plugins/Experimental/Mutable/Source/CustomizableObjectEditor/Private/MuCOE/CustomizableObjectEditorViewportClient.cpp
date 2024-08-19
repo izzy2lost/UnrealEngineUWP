@@ -2,6 +2,7 @@
 
 #include "MuCOE/CustomizableObjectEditorViewportClient.h"
 
+#include "AnimPreviewInstance.h"
 #include "MuCOE/CustomizableObjectInstanceBakingUtils.h"
 #include "Animation/DebugSkelMeshComponent.h"
 #include "Animation/PoseAsset.h"
@@ -18,6 +19,7 @@
 #include "Editor/EditorPerProjectUserSettings.h"
 #include "Editor/UnrealEdTypes.h"
 #include "EditorModeManager.h"
+#include "GameFramework/WorldSettings.h"
 #include "FileHelpers.h"
 #include "IContentBrowserSingleton.h"
 #include "InputKeyEventArgs.h"
@@ -57,6 +59,13 @@ class UMaterialExpression;
 class UTextureMipDataProviderFactory;
 
 #define LOCTEXT_NAMESPACE "CustomizableObjectEditor" 
+
+
+namespace EMutableAnimationPlaybackSpeeds
+{
+	// Speed scales for animation playback, must match EMutableAnimationPlaybackSpeeds::Type
+	float Values[EMutableAnimationPlaybackSpeeds::NumPlaybackSpeeds] = { 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 2.0f, 5.0f, 10.0f, 0.f };
+}
 
 
 FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient(TWeakPtr<ICustomizableObjectInstanceEditor> InCustomizableObjectEditor, FPreviewScene* InPreviewScene, const TSharedPtr<SEditorViewport>& EditorViewportWidget)
@@ -161,10 +170,7 @@ FCustomizableObjectEditorViewportClient::FCustomizableObjectEditorViewportClient
 	{
 		AddRealtimeOverride(false, LOCTEXT("RealtimeOverrideMessage_InstanceViewport", "Instance Viewport")); // We are PIE, don't start in realtime mode
 	}
-
-	IsPlayingAnimation = false;
-	AnimationBeingPlayed = nullptr;
-
+	
 	// Lighting 
 	SelectedLightComponent = nullptr;
 	
@@ -704,6 +710,8 @@ void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectP
 			SkeletalMeshComponent->bDrawBinormals = bDrawBinormals;
 		}
 	}
+
+	bUpdated = false;
 	
 	InInstance->UpdatedNativeDelegate.AddSP(SharedThis(this), &FCustomizableObjectEditorViewportClient::OnInstanceUpdate);
 	
@@ -711,10 +719,54 @@ void FCustomizableObjectEditorViewportClient::SetPreviewActor(const TWeakObjectP
 }
 
 
+TArray<TWeakObjectPtr<UDebugSkelMeshComponent>>& FCustomizableObjectEditorViewportClient::GetPreviewMeshComponents()
+{
+	return SkeletalMeshComponents;
+}
+
+
+void FCustomizableObjectEditorViewportClient::SetPreviewAnimationAsset(UAnimationAsset* AnimAsset)
+{
+	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakSkeletalMeshComponent : SkeletalMeshComponents)
+	{
+		UDebugSkelMeshComponent* SkeletalMeshComponent = WeakSkeletalMeshComponent.Get();
+		if (!SkeletalMeshComponent)
+		{
+			continue;
+		}
+			
+		if (AnimAsset)
+		{
+			// Early out if the new preview asset is the same as the current one, to avoid replaying from the beginning, etc...
+			if (SkeletalMeshComponent->PreviewInstance &&
+				AnimAsset == SkeletalMeshComponent->PreviewInstance->GetCurrentAsset() &&
+				SkeletalMeshComponent->IsPreviewOn())
+			{
+				return;
+			}
+
+			// Treat it as invalid if it's got a bogus skeleton pointer
+			if (AnimAsset->GetSkeleton() == nullptr)
+			{
+				return;
+			}
+		}
+
+		SkeletalMeshComponent->EnablePreview(true, AnimAsset);
+	}
+}
+
+
 void FCustomizableObjectEditorViewportClient::OnInstanceUpdate(UCustomizableObjectInstance* Instance)
 {
+	if (!bUpdated)
+	{
+		bUpdated = true;
+		
+		SetAnimation(CustomizableObjectEditorPtr.Pin()->GetCustomSettings()->Animation);
+	}
+	
 	Invalidate();
-	ReSetAnimation();
 	
 	// Configure the initial orbital position of the camera
 	if (!bIsCameraSetup)
@@ -1308,68 +1360,17 @@ bool FCustomizableObjectEditorViewportClient::CanSetWidgetMode(UE::Widget::EWidg
 }
 
 
-void FCustomizableObjectEditorViewportClient::SetAnimation(UAnimationAsset* Animation, EAnimationMode::Type AnimationType)
+void FCustomizableObjectEditorViewportClient::SetAnimation(UAnimationAsset* Animation)
 {
-	bool bFoundComponent = false;
-
-	for (TWeakObjectPtr<USkeletalMeshComponent> SkeletalMeshComponent : SkeletalMeshComponents)
+	for (TWeakObjectPtr<UDebugSkelMeshComponent>& WeakPreviewMeshComponent : SkeletalMeshComponents)
 	{
-		if (SkeletalMeshComponent.IsValid() && Animation != nullptr
-			&& UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent) != nullptr
-			&& UE_MUTABLE_GETSKINNEDASSET(SkeletalMeshComponent)->GetSkeleton() == Animation->GetSkeleton()
-			)
+		UDebugSkelMeshComponent* PreviewMeshComponent = WeakPreviewMeshComponent.Get();
+		if (!PreviewMeshComponent)
 		{
-			SetRealtime(true);
-			IsPlayingAnimation = true;
-			AnimationBeingPlayed = Animation;
-
-			if (UPoseAsset* PoseAsset = Cast<UPoseAsset>(Animation))
-			{
-				SkeletalMeshComponent->SetAnimationMode(EAnimationMode::AnimationBlueprint);
-				SkeletalMeshComponent->InitAnim(false);
-				SkeletalMeshComponent->SetAnimation(PoseAsset);
-
-				UAnimSingleNodeInstance* SingleNodeInstance = Cast<UAnimSingleNodeInstance>(SkeletalMeshComponent->GetAnimInstance());
-				if (SingleNodeInstance)
-				{
-					TArray<FName> ArrayPoseNames = PoseAsset->GetPoseFNames();
-					for (int32 i = 0; i < ArrayPoseNames.Num(); ++i)
-					{
-						SingleNodeInstance->SetPreviewCurveOverride(ArrayPoseNames[i], 1.0f, false);
-					}
-				}
-			}
-			else
-			{
-				SkeletalMeshComponent->SetAnimationMode(AnimationType);
-				SkeletalMeshComponent->PlayAnimation(Animation, true);
-				SkeletalMeshComponent->SetPlayRate(1.f);
-			}
-
-			bFoundComponent = true;
+			continue;
 		}
-	}
-	
-	if(!bFoundComponent)
-	{
-		IsPlayingAnimation = false;
-		AnimationBeingPlayed = nullptr;
-	}
-}
 
-
-void FCustomizableObjectEditorViewportClient::ReSetAnimation()
-{
-	if ((IsPlayingAnimation == true) && (AnimationBeingPlayed != nullptr))
-	{
-		if (Cast<UPoseAsset>(AnimationBeingPlayed))
-		{
-			SetAnimation(AnimationBeingPlayed, EAnimationMode::AnimationBlueprint);
-		}
-		else
-		{
-			SetAnimation(AnimationBeingPlayed, EAnimationMode::AnimationSingleNode);
-		}
+		PreviewMeshComponent->EnablePreview(true, Animation);
 	}
 }
 
@@ -1610,7 +1611,6 @@ void FCustomizableObjectEditorViewportClient::AddReferencedObjects(FReferenceCol
 	Collector.AddReferencedObject(ClipMorphMaterial);
 	Collector.AddReferencedObject(ClipMeshMaterial);
 	Collector.AddReferencedObject(TransparentPlaneMaterialXY);
-	Collector.AddReferencedObject(AnimationBeingPlayed);
 
 	if (BakeTempInstance)
 	{
@@ -1831,6 +1831,37 @@ bool FCustomizableObjectEditorViewportClient::IsShowingBones() const
 const TArray<ULightComponent*>& FCustomizableObjectEditorViewportClient::GetLightComponents() const
 {
 	return LightComponents;
+}
+
+
+void FCustomizableObjectEditorViewportClient::SetPlaybackSpeedMode(EMutableAnimationPlaybackSpeeds::Type InMode)
+{
+	AnimationPlaybackSpeedMode = InMode;
+
+	if (const UWorld* World = GetWorld())
+	{
+		const float AnimationSpeed = (InMode == EMutableAnimationPlaybackSpeeds::Custom) ? GetCustomAnimationSpeed() : EMutableAnimationPlaybackSpeeds::Values[AnimationPlaybackSpeedMode];
+		World->GetWorldSettings()->TimeDilation = AnimationSpeed;
+	}
+}
+
+
+void FCustomizableObjectEditorViewportClient::SetCustomAnimationSpeed(float Speed)
+{
+	CustomAnimationSpeed = Speed;
+	SetPlaybackSpeedMode(EMutableAnimationPlaybackSpeeds::Custom);
+}
+
+
+float FCustomizableObjectEditorViewportClient::GetCustomAnimationSpeed() const
+{
+	return CustomAnimationSpeed;
+}
+
+
+EMutableAnimationPlaybackSpeeds::Type FCustomizableObjectEditorViewportClient::GetPlaybackSpeedMode() const
+{
+	return AnimationPlaybackSpeedMode;
 }
 
 

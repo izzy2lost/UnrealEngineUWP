@@ -386,7 +386,7 @@ FReply SUObjectSelecWindow::OnButtonClick(EAppReturnType::Type ButtonID)
 																 SkyLightNameValue,
 																 PreviewSceneProfile);
 			// Make new entry in profile
-			CustomizableObjectEditor->GetCustomizableObjectEditorAdvancedPreviewSettings()->AddProfileToEditor(PreviewSceneProfile);
+			CustomizableObjectEditor.Pin()->GetAdvancedPreviewSettings()->AddProfileToEditor(PreviewSceneProfile);
 
 			if (LevelSelectWindow != nullptr)
 			{
@@ -417,50 +417,49 @@ void SCustomizableObjectEditorAdvancedPreviewSettings::Construct(const FArgument
 	SAdvancedPreviewDetailsTab::FArguments ParentArgs;
 	ParentArgs.AdditionalSettings( InArgs._CustomSettings );
 	SAdvancedPreviewDetailsTab::Construct(ParentArgs, InPreviewScene);
-
-	//SkyMaterial = nullptr;
-	//InstancedSkyMaterial = nullptr;
-	//DefaultTexture = nullptr;
-
+	
 	CustomizableObjectEditor = InArgs._CustomizableObjectEditor.Get();
 
-	TSharedRef< SWidget > ActualContent = ChildSlot.GetWidget();
-	ChildSlot
-	[
-		SNew(SVerticalBox)
-		+ SVerticalBox::Slot()
-		.FillHeight(1.0f)
+	if (CustomizableObjectEditor.Pin()->ShowProfileManagementOptions())
+	{
+		TSharedRef< SWidget > ActualContent = ChildSlot.GetWidget();
+		ChildSlot
 		[
-			ActualContent
-		]
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		[
-			SNew(SBorder)
-			.HAlign(HAlign_Fill)
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
 			[
-				SNew(SUniformGridPanel)
-				.SlotPadding(UE_MUTABLE_GET_MARGIN("StandardDialog.SlotPadding"))
-				.MinDesiredSlotWidth(UE_MUTABLE_GET_FLOAT("StandardDialog.MinDesiredSlotWidth"))
-				.MinDesiredSlotHeight(UE_MUTABLE_GET_FLOAT("StandardDialog.MinDesiredSlotHeight"))
-				+ SUniformGridPanel::Slot(0, 0)
+				ActualContent
+			]
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			[
+				SNew(SBorder)
+				.HAlign(HAlign_Fill)
 				[
-					SNew(STextBlock)
-					.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Bold.ttf"), 12))
-					.Text(LOCTEXT("LevelPreviewSettings", "Profile from Level Asset"))
-				]
-				+ SUniformGridPanel::Slot(1, 0)
-				[
-					SNew(SButton)
-					.VAlign(VAlign_Center)
-					.HAlign(HAlign_Center)
-					.OnClicked(this, &SCustomizableObjectEditorAdvancedPreviewSettings::ShowAddProfileWindow)
-					.Text(LOCTEXT("AddProfile", "Add new Profile"))
-					.ToolTipText(LOCTEXT("AddProfileToolTip", "Add new Profile reading information from an existing level"))
+					SNew(SUniformGridPanel)
+					.SlotPadding(UE_MUTABLE_GET_MARGIN("StandardDialog.SlotPadding"))
+					.MinDesiredSlotWidth(UE_MUTABLE_GET_FLOAT("StandardDialog.MinDesiredSlotWidth"))
+					.MinDesiredSlotHeight(UE_MUTABLE_GET_FLOAT("StandardDialog.MinDesiredSlotHeight"))
+					+ SUniformGridPanel::Slot(0, 0)
+					[
+						SNew(STextBlock)
+						.Font(FSlateFontInfo(FPaths::EngineContentDir() / TEXT("Slate/Fonts/Roboto-Bold.ttf"), 12))
+						.Text(LOCTEXT("LevelPreviewSettings", "Profile from Level Asset"))
+					]
+					+ SUniformGridPanel::Slot(1, 0)
+					[
+						SNew(SButton)
+						.VAlign(VAlign_Center)
+						.HAlign(HAlign_Center)
+						.OnClicked(this, &SCustomizableObjectEditorAdvancedPreviewSettings::ShowAddProfileWindow)
+						.Text(LOCTEXT("AddProfile", "Add new Profile"))
+						.ToolTipText(LOCTEXT("AddProfileToolTip", "Add new Profile reading information from an existing level"))
+					]
 				]
 			]
-		]
-	];
+		];	
+	}
 }
 
 
@@ -470,11 +469,7 @@ FReply SCustomizableObjectEditorAdvancedPreviewSettings::ShowAddProfileWindow()
 		SNew(SLevelSelectWindow)
 		.CustomizableObjectEditor(CustomizableObjectEditor)
 		.DefaultSettings(DefaultSettings);
-
-	if (LevelSelectWindow->ShowModal() != EAppReturnType::Cancel)
-	{
-	}
-
+	
 	return FReply::Handled();
 }
 

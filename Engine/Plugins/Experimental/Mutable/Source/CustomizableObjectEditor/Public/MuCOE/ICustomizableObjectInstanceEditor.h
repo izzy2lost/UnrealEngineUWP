@@ -18,6 +18,8 @@ class UCustomizableObjectNodeMeshClipWithMesh;
 class ULightComponent;
 class UPoseAsset;
 class UCustomizableObjectEditorProperties;
+class SCustomizableObjectEditorAdvancedPreviewSettings;
+
 
 /**
  * Public interface to Customizable Object Instance Editor
@@ -33,8 +35,6 @@ public:
 	/** Refreshes everything in the Customizable Object Instance Editor. */
 	virtual void RefreshTool() = 0;
 	
-	virtual void SetPoseAsset(UPoseAsset* PoseAssetParameter) {}
-
 	/** Return the selected projector in the viewport/editor. */
 	virtual UProjectorParameter* GetProjectorParameter() = 0;
 
@@ -94,6 +94,12 @@ public:
 
 	/** @return Editor properties. */
 	virtual UCustomizableObjectEditorProperties* GetEditorProperties() = 0;
+	
+	virtual TSharedPtr<SCustomizableObjectEditorAdvancedPreviewSettings> GetAdvancedPreviewSettings() = 0;
+
+	virtual bool ShowLightingSettings() = 0;
+
+	virtual bool ShowProfileManagementOptions() = 0;
 };
 
 
