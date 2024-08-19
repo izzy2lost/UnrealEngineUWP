@@ -2330,7 +2330,7 @@ namespace Audio
 							StatSoundInfo.Distance = AudioDevice.GetDistanceToNearestListener(ActiveSound->Transform.GetTranslation());
 						}
 						StatSoundInfo.PlaybackTime = ActiveSound->PlaybackTime;
-						StatSoundInfo.Priority = ActiveSound->GetHighestPriority();
+						StatSoundInfo.Priority = ActiveSound->GetConcurrencyPriority();
 						StatSoundInfo.PlaybackTimeNonVirtualized = ActiveSound->PlaybackTimeNonVirtualized;
 					
 						StatSoundInfo.Volume = 0.0f;

@@ -365,6 +365,18 @@ bool FActiveSound::IsPlayWhenSilent() const
 	return Sound && Sound->IsPlayWhenSilent();
 }
 
+float FActiveSound::GetConcurrencyPriority() const
+{
+	if (GetAlwaysPlay())
+	{
+		return GetHighestPriority(true) * Priority + MAX_SOUND_PRIORITY + 1.0f;
+	}
+	else
+	{
+		return GetHighestPriority() * Priority;
+	}
+}
+
 void FActiveSound::ClearAudioComponent()
 {
 	AudioComponentID = 0;

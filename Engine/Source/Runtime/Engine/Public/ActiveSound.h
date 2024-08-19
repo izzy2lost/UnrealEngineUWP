@@ -374,6 +374,9 @@ public:
 	/** Whether or not sound reference is valid and set to play when silent. */
 	ENGINE_API bool IsPlayWhenSilent() const;
 
+	/** The priority used for concurrency calculations */
+	float GetConcurrencyPriority() const;
+
 	FAudioDevice* AudioDevice;
 
 	/** The concurrent groups that this sound is actively playing in. */

@@ -267,19 +267,8 @@ void FConcurrencyGroup::UpdateGeneration(FActiveSound* NewActiveSound)
 				case EConcurrencyVolumeScaleMode::Priority:
 				{
 					// Ensures sounds set to always play are sorted above those that aren't, but are sorted appropriately between one another
-					auto GetPriority = [](const FActiveSound& InActiveSound)
-					{
-						if (InActiveSound.GetAlwaysPlay())
-						{
-							return InActiveSound.GetHighestPriority(true) * InActiveSound.Priority + MAX_SOUND_PRIORITY + 1.0f;
-						}
-						else
-						{
-							return InActiveSound.GetHighestPriority() * InActiveSound.Priority;
-						}
-					};
-					const float APriority = GetPriority(A);
-					const float BPriority = GetPriority(B);
+					const float APriority = A.GetConcurrencyPriority();
+					const float BPriority = B.GetConcurrencyPriority();
 
 					// If sounds share the same priority, newer sounds will be sorted last to avoid volume ping-ponging 
 					if (FMath::IsNearlyEqual(APriority, BPriority, UE_KINDA_SMALL_NUMBER))
@@ -357,19 +346,8 @@ void FConcurrencyGroup::CullSoundsDueToMaxConcurrency()
 				case EMaxConcurrentResolutionRule::StopLowestPriorityThenPreventNew:
 				{
 					// Ensures sounds set to always play are sorted above those that aren't, but are sorted appropriately between one another
-					auto GetPriority = [](const FActiveSound& InActiveSound)
-					{
-						if (InActiveSound.GetAlwaysPlay())
-						{
-							return InActiveSound.GetHighestPriority(true) * InActiveSound.Priority + MAX_SOUND_PRIORITY + 1.0f;
-						}
-						else
-						{
-							return InActiveSound.GetHighestPriority() * InActiveSound.Priority;
-						}
-					};
-					const float APriority = GetPriority(A);
-					const float BPriority = GetPriority(B);
+					const float APriority = A.GetConcurrencyPriority();
+					const float BPriority = B.GetConcurrencyPriority();
 
 					if (!FMath::IsNearlyEqual(APriority, BPriority, UE_KINDA_SMALL_NUMBER))
 					{
