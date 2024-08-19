@@ -38,8 +38,8 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -165,8 +165,8 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -241,8 +241,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&RandomSeed);
 		RegisterInputConnection(&RandomThreshold);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -274,8 +274,8 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -313,8 +313,8 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&BoneIndicies);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -351,8 +351,8 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&BoneIndices);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -385,8 +385,8 @@ public:
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -462,8 +462,8 @@ public:
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -496,8 +496,8 @@ public:
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -530,8 +530,8 @@ public:
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -572,8 +572,8 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&TargetLevel);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -611,8 +611,8 @@ public:
 	{
 		RegisterInputConnection(&TransformSelection);
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -644,8 +644,8 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -677,8 +677,8 @@ public:
 		: FDataflowNode(InParam, InGuid)
 	{
 		RegisterInputConnection(&Collection);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -795,8 +795,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&SizeMin);
 		RegisterInputConnection(&SizeMax);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -846,8 +846,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&VolumeMin);
 		RegisterInputConnection(&VolumeMax);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -911,8 +911,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Box);
 		RegisterInputConnection(&Transform);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -962,8 +962,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Sphere);
 		RegisterInputConnection(&Transform);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1021,8 +1021,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Min);
 		RegisterInputConnection(&Max);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1080,8 +1080,8 @@ public:
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&Min);
 		RegisterInputConnection(&Max);
-		RegisterOutputConnection(&TransformSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&TransformSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1119,8 +1119,8 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&VertexIndicies);
-		RegisterOutputConnection(&VertexSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&VertexSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1158,8 +1158,8 @@ public:
 	{
 		RegisterInputConnection(&Collection);
 		RegisterInputConnection(&FaceIndicies);
-		RegisterOutputConnection(&FaceSelection);
 		RegisterOutputConnection(&Collection, &Collection);
+		RegisterOutputConnection(&FaceSelection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
@@ -1206,10 +1206,10 @@ public:
 		RegisterInputConnection(&VertexSelection);
 		RegisterInputConnection(&FaceSelection);
 		RegisterInputConnection(&TransformSelection);
+		RegisterOutputConnection(&Collection, &Collection);
 		RegisterOutputConnection(&TransformSelection, &TransformSelection);
 		RegisterOutputConnection(&FaceSelection, &FaceSelection);
 		RegisterOutputConnection(&VertexSelection, &VertexSelection);
-		RegisterOutputConnection(&Collection, &Collection);
 	}
 
 	virtual void Evaluate(Dataflow::FContext& Context, const FDataflowOutput* Out) const override;
