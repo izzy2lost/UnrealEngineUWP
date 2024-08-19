@@ -123,12 +123,6 @@ public:
 	 */
 	COREUOBJECT_API void ReassociateObjects(const TMap<UObject*, UObject*>& ReplacedObjects);
 
-	/**
-	 * CleanupLevel - Removes all IDOs for objects outered to the level
-	 * @param Level - The level being cleaned up
-	 */
-	COREUOBJECT_API void CleanupLevel(const UObject* Level);
-
 	static void PostEditChangeChainProperty(const UObject* Object, FPropertyChangedChainEvent& PropertyChangedEvent);
 
 	/**
@@ -146,6 +140,7 @@ public:
 	COREUOBJECT_API UObject* FindInstanceDataObject(const UObject* Owner);
 	COREUOBJECT_API const UObject* FindInstanceDataObject(const UObject* Owner) const;
 	COREUOBJECT_API void FindNestedInstanceDataObject(const UObject* Owner, bool bRequiresFixupOnly, TFunctionRef<void(UObject*)> Callback);
+	UE_INTERNAL void AddReferencedInstanceDataObject(const UObject* Owner, FReferenceCollector& Collector);
 
 	COREUOBJECT_API const UObject* FindInstanceForDataObject(const UObject* InstanceDataObject) const;
 

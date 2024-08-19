@@ -584,10 +584,24 @@ FORCEINLINE_DEBUGGABLE void VisitDynamicallyTypedValue(DispatcherType& Dispatche
 	}
 }
 
+#if WITH_EDITORONLY_DATA
+COREUOBJECT_API bool& CalledSuperARO();
+#endif
+
 template<class DispatcherType>
 FORCEINLINE_DEBUGGABLE void CallARO(DispatcherType& Dispatcher, UObject* Instance, FMemberWord Word)
 {
+#if WITH_EDITORONLY_DATA
+	bool& bCalledSuperARO = CalledSuperARO();
+	TGuardValue<bool> CalledSuperAROScope(bCalledSuperARO, false);
 	Word.ObjectARO(Instance, Dispatcher.Collector);
+	if (!bCalledSuperARO)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Class %s or a super class did not call Super::AddReferencedObjects"), *Instance->GetClass()->GetName());
+	}
+#else
+	Word.ObjectARO(Instance, Dispatcher.Collector);
+#endif
 }
 
 template<class DispatcherType>

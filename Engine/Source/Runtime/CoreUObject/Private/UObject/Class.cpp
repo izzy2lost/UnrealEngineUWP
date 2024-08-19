@@ -6962,6 +6962,12 @@ bool UClass::IsClassGroupName(const TCHAR* InGroupName) const
 
 #endif // WITH_EDITOR
 
+#if WITH_EDITORONLY_DATA
+bool UClass::CanCreateInstanceDataObject() const
+{
+	return false;
+}
+#endif
 
 #if WITH_EDITORONLY_DATA
 #define UCLASS_EDITOR_GC_MEMBERS UE_GC_MEMBER(UClass, ClassGeneratedBy)

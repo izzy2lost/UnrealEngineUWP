@@ -152,6 +152,9 @@ private:
 	{
 		return false;
 	}
+#if WITH_EDITORONLY_DATA
+	COREUOBJECT_API virtual bool CanCreateInstanceDataObject() const override;
+#endif
 #if WITH_EDITOR
 	COREUOBJECT_API virtual FTopLevelAssetPath GetReinstancedClassPathName_Impl() const;
 #endif

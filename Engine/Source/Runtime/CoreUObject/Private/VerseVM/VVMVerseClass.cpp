@@ -265,6 +265,13 @@ void UVerseClass::PostLoadInstance(UObject* InObj)
 	AddSessionVars(InObj);
 }
 
+#if WITH_EDITORONLY_DATA
+bool UVerseClass::CanCreateInstanceDataObject() const
+{
+	return true;
+}
+#endif
+
 #if WITH_EDITOR
 FTopLevelAssetPath UVerseClass::GetReinstancedClassPathName_Impl() const
 {

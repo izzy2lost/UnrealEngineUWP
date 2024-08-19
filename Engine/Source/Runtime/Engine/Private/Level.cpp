@@ -511,10 +511,6 @@ void ULevel::CleanupLevel(bool bCleanupResources, bool bUnloadFromEditor)
 {
 	OnCleanupLevel.Broadcast();
 
-#if WITH_EDITORONLY_DATA
-	UE::FPropertyBagRepository::Get().CleanupLevel(this);
-#endif
-
 	if (bCleanupResources)
 	{
 		if (UWorldPartition* WorldPartition = GetWorldPartition(); WorldPartition && WorldPartition->IsInitialized())

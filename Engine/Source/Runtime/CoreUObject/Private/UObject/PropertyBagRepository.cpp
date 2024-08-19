@@ -190,17 +190,6 @@ void FPropertyBagRepository::ReassociateObjects(const TMap<UObject*, UObject*>& 
 	}
 }
 
-void FPropertyBagRepository::CleanupLevel(const UObject* Level)
-{
-	FPropertyBagRepositoryLock LockRepo(this);
-	TArray<UObject*> Instances = {const_cast<UObject*>(Level)};
-	GetObjectsWithOuter(Level, Instances, true);
-	for (const UObject* Instance : Instances)
-	{
-		RemoveAssociationUnsafe(Instance);
-	}
-}
-
 static FProperty* FindPropertyByNameAndType(const UStruct* Struct, FName InName, FName Type)
 {
 	for (FProperty* Property = Struct->PropertyLink; Property != nullptr; Property = Property->PropertyLinkNext)
@@ -805,6 +794,21 @@ void FPropertyBagRepository::FindNestedInstanceDataObject(const UObject* Owner, 
 		}, true);
 }
 
+void FPropertyBagRepository::AddReferencedInstanceDataObject(const UObject* Object, FReferenceCollector& Collector)
+{
+	TObjectPtr<UObject> InstanceDataObject;
+	{
+		FPropertyBagRepositoryLock LockRepo(this);
+		FPropertyBagAssociationData* BagData = AssociatedData.Find(Object);
+		if (!BagData || !BagData->InstanceDataObject)
+		{
+			return;
+		}
+		InstanceDataObject = BagData->InstanceDataObject;
+	}
+	Collector.AddReferencedObject(InstanceDataObject, Object);
+}
+
 const UObject* FPropertyBagRepository::FindInstanceForDataObject(const UObject* InstanceDataObject) const
 {
 	FPropertyBagRepositoryLock LockRepo(this);
@@ -819,10 +823,6 @@ bool FPropertyBagRepository::WasPropertyValueSerialized(const UStruct* Struct, c
 
 void FPropertyBagRepository::AddReferencedObjects(FReferenceCollector& Collector)
 {
-	for (TPair<const UObject*, FPropertyBagAssociationData>& Element : AssociatedData)
-	{
-		Collector.AddReferencedObject(Element.Value.InstanceDataObject);
-	}
 	for (TPair<const UObject*, TObjectPtr<UObject>>& Element : Namespaces)
 	{
 		Collector.AddReferencedObject(Element.Value);

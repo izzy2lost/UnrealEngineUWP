@@ -39,6 +39,7 @@
 #include "UObject/GarbageCollectionHistory.h"
 #include "UObject/GarbageCollectionInternalFlags.h"
 #include "UObject/GarbageCollectionTesting.h"
+#include "UObject/PropertyBagRepository.h"
 #include "UObject/PropertyOptional.h"
 #include "UObject/ExpandingChunkedList.h"
 #include "UObject/ReachabilityAnalysisState.h"
@@ -6119,14 +6120,37 @@ void PurgeAllUObjectsOnExit()
 	ReleaseGCLock();
 }
 
+#if WITH_EDITORONLY_DATA
+bool& UE::GC::Private::CalledSuperARO()
+{
+	static thread_local bool bCalledSuperARO = false;
+	return bCalledSuperARO;
+}
+#endif
+
 void UObject::CallAddReferencedObjects(FReferenceCollector& Collector)
 {
+#if WITH_EDITORONLY_DATA
+	bool& bCalledSuperARO = UE::GC::Private::CalledSuperARO();
+	TGuardValue<bool> CalledSuperAROScope(bCalledSuperARO, false);
 	GetClass()->CallAddReferencedObjects(this, Collector);
+	if (!bCalledSuperARO)
+	{
+		UE_LOG(LogGarbage, Warning, TEXT("Class %s or a super class did not call Super::AddReferencedObjects"), *GetClass()->GetName());
+	}
+#else
+	GetClass()->CallAddReferencedObjects(this, Collector);
+#endif
 }
 
-void UObject::AddReferencedObjects(UObject*, FReferenceCollector&)
+void UObject::AddReferencedObjects(UObject* This, FReferenceCollector& Collector)
 {
+#if WITH_EDITORONLY_DATA
+	UE::GC::Private::CalledSuperARO() = true;
+	UE::FPropertyBagRepository::Get().AddReferencedInstanceDataObject(This, Collector);
+#else
 	// This function exists to compare against in GetAROFunc()
+#endif
 }
 
 bool UObject::IsDestructionThreadSafe() const
@@ -6548,7 +6572,11 @@ static UE::GC::ObjectAROFn GetARO(UClass* Class)
 {
 	UE::GC::ObjectAROFn ARO = Class->CppClassStaticFunctions.GetAddReferencedObjects();
 	check(ARO != nullptr);
+#if WITH_EDITORONLY_DATA
+	return ARO != &UObject::AddReferencedObjects || Class->CanCreateInstanceDataObject() ? ARO : nullptr;
+#else
 	return ARO != &UObject::AddReferencedObjects ? ARO : nullptr;
+#endif
 }
 
 void UClass::AssembleReferenceTokenStreamInternal(bool bForce)

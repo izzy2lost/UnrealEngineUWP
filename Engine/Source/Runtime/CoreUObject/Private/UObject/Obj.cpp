@@ -5425,6 +5425,10 @@ void InitUObject()
 
 	// Object initialization.
 	StaticUObjectInit();
+
+#if WITH_EDITORONLY_DATA
+	UE::FPropertyBagRepository::Get();
+#endif
 }
 
 //

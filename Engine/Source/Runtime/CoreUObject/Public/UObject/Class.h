@@ -3662,6 +3662,11 @@ public:
 	 */
 	static COREUOBJECT_API bool IsSafeToSerializeToStructuredArchives(UClass* InClass);
 
+#if WITH_EDITORONLY_DATA
+	/** Returns true if an InstanceDataObject be created from an instance of this type. */
+	UE_INTERNAL COREUOBJECT_API virtual bool CanCreateInstanceDataObject() const;
+#endif
+
 #if WITH_EDITOR
 	/**
 	 * If this class was recompiled, returns the path to where we should find the new (i.e. reinstanced) class.

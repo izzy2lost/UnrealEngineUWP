@@ -178,11 +178,17 @@ namespace UE
 
 		//@todo FH: change to check trait when available or use config object
 		const UClass* ObjClass = InObject->GetClass();
+		if (!ObjClass->CanCreateInstanceDataObject())
+		{
+			return false;
+		}
+
+		// TODO: Temp! Remove with the conditions below.
 		while (ObjClass && ObjClass->GetClass()->GetFName() != NAME_VerseClass)
 		{
 			ObjClass = ObjClass->GetSuperClass();
 		}
-		
+
 		if (ObjClass)
 		{
 			// TODO: Temp! Don't generate IDOs for anything within a creative device
@@ -205,15 +211,14 @@ namespace UE
 			}
 		}
 
-		return !!ObjClass;
+		return true;
 	}
 
 	bool CanCreatePropertyBagPlaceholderTypeForImportClass(const UClass* ImportClass)
 	{
 		// @todo - Expand to other import types (e.g. prefab BPs) later; for now restricted to Verse class objects only.
-		return ImportClass && ImportClass->GetFName() == NAME_VerseClass;
+		return ImportClass && ImportClass->CanCreateInstanceDataObject();
 	}
-
 
 	bool IsClassOfInstanceDataObjectClass(UStruct* Class)
 	{
