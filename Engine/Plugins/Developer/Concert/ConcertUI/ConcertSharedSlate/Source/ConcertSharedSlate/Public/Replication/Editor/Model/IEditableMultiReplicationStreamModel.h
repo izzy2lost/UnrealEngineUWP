@@ -32,7 +32,7 @@ namespace UE::ConcertSharedSlate
 		 */
 		virtual TSet<TSharedRef<IEditableReplicationStreamModel>> GetEditableStreams() const = 0;
 
-		/** Util for iterating through both read-only and  */
+		/** Util for iterating through both read-only and editable streams. */
 		void ForEachStream(TFunctionRef<EBreakBehavior(const TSharedRef<IReplicationStreamModel>& Model)> Callback) const
 		{
 			const TSet<TSharedRef<IReplicationStreamModel>> ReadableModels = GetReadOnlyStreams();

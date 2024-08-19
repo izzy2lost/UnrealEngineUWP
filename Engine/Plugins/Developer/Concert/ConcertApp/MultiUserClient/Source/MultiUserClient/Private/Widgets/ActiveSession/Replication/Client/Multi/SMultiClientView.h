@@ -9,16 +9,6 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-namespace UE::MultiUserClient::Replication
-{
-	class FOfflineClientManager;
-}
-
-namespace UE::MultiUserClient::Replication
-{
-	class FUserPropertySelector;
-}
-
 class IConcertClient;
 class FMenuBuilder;
 
@@ -35,8 +25,10 @@ namespace UE::MultiUserClient::Replication
 	class FGlobalAuthorityCache;
 	class FMultiStreamModel;
 	class FMultiUserReplicationManager;
+	class FOfflineClientManager;
 	class FOnlineClient;
 	class FOnlineClientManager;
+	class FUserPropertySelector;
 	class SPropertySelectionComboButton;
 
 	/** Displays a selection of clients. */
@@ -102,11 +94,9 @@ namespace UE::MultiUserClient::Replication
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects) const;
 		/** Decides whether the object should be displayed: do not show it if it's not in the editor world. */
 		bool ShouldDisplayObject(const FSoftObjectPath& Object) const;
-		
+
 		/** Creates the widget that overlays actor rows. */
-		TSharedRef<SWidget> MakeObjectRowOverlayWidget(const ConcertSharedSlate::FReplicatedObjectData& ReplicatedObjectData);
-		/** Called when the delete icon over an actor is pressed. Clears the entire hierarchy. */
-		void OnPressBinIcon(const FSoftObjectPath& RootObject) const;
+		TSharedRef<SWidget> MakeObjectRowOverlayWidget(const ConcertSharedSlate::FReplicatedObjectData& ReplicatedObjectData) const;
 		
 		void OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;
 		void OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;
