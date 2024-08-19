@@ -8,6 +8,9 @@ AsyncTextureStreaming.cpp: Definitions of classes used for texture streaming asy
 #include "RHI.h"
 #include "Streaming/StreamingManagerTexture.h"
 #include "Engine/Level.h"
+#include "ProfilingDebugging/CsvProfiler.h"
+
+CSV_DECLARE_CATEGORY_EXTERN(TextureStreaming);
 
 void FAsyncRenderAssetStreamingData::Init(
 	TArray<FStreamingViewInfo> InViewInfos,
@@ -909,14 +912,24 @@ void FRenderAssetStreamingMipCalcTask::DoWork()
 	
 	ApplyPakStateChanges_Async();
 
-	for (FStreamingRenderAsset& StreamingRenderAsset : StreamingRenderAssets)
 	{
-		if (IsAborted()) break;
+		uint64 StartTime = FPlatformTime::Cycles64();
 
-		StreamingRenderAsset.UpdateOptionalMipsState_Async();
-		
-		StreamingData.UpdatePerfectWantedMips_Async(StreamingRenderAsset, Settings);
-		StreamingRenderAsset.DynamicBoostFactor = 1.f; // Reset after every computation.
+		for (FStreamingRenderAsset& StreamingRenderAsset : StreamingRenderAssets)
+		{
+			if (IsAborted()) break;
+
+			StreamingRenderAsset.UpdateOptionalMipsState_Async();
+
+			StreamingData.UpdatePerfectWantedMips_Async(StreamingRenderAsset, Settings);
+			StreamingRenderAsset.DynamicBoostFactor = 1.f; // Reset after every computation.
+		}
+
+		uint64 LenghtCycles64 = (FPlatformTime::Cycles64() - StartTime);
+		double ElapsedMSTime = FPlatformTime::ToMilliseconds64(LenghtCycles64);
+
+		// use of a custom stat to have the elapsed time as a global stat and not a stat split accross multiple threads
+		CSV_CUSTOM_STAT(TextureStreaming, RenderAssetStreamingUpdate, float(ElapsedMSTime), ECsvCustomStatOp::Set);
 	}
 
 	// According to budget, make relevant sacrifices and keep possible unwanted mips

@@ -83,6 +83,13 @@ static TAutoConsoleVariable<int32> CVarFlushDeferredMipLevelChangeCallbacksBefor
 	TEXT("Whether to flush deferred mip level change callbacks before GC."),
 	ECVF_Default);
 
+static int32 GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent = 1;
+static FAutoConsoleVariableRef CVarStreamingEnableStrippingDuplicatePrimitiveComponent(
+	TEXT("r.Streaming.EnableStrippingDuplicatePrimitiveComponent"),
+	GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent,
+	TEXT("Move UPrimitiveComponent from static instances to dynamic component manager when primitive is updated."),
+	ECVF_Default);
+
 // TODO: Remove once these calls have been proven safe in production
 static TAutoConsoleVariable<int32> CVarProcessAddedRenderAssetsAfterAsyncWork(
 	TEXT("r.Streaming.ProcessAddedRenderAssetsAfterAsyncWork"),
@@ -1180,7 +1187,13 @@ void FRenderAssetStreamingManager::NotifyPrimitiveUpdated_Concurrent( const UPri
 	{
 		FScopeLock ScopeLock(&CriticalSection);
 		FStreamingTextureLevelContext LevelContext(EMaterialQualityLevel::Num);
-		DynamicComponentManager.Add(Primitive, LevelContext);
+		if (DynamicComponentManager.Add(Primitive, LevelContext) == EAddComponentResult::Success)
+		{
+			if (GRenderAssetStreamingEnableStrippingDuplicatePrimitiveComponent>0)
+			{
+				RemoveStaticReferences(Primitive);
+			}
+		}
 	}
 
 	STAT(CallbackCycle += (int32)FPlatformTime::Cycles();)
