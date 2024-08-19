@@ -69,6 +69,7 @@ private:
 	TSharedRef<SDockTab> SpawnTab_AssetDetails(const FSpawnTabArgs& Args);
 	TSharedRef<SDockTab> SpawnTab_CompilerResults(const FSpawnTabArgs& Args) const;
 
+	void RegisterMenu();
 	void RegisterToolbar();
 	
 	/** State Tree being edited */

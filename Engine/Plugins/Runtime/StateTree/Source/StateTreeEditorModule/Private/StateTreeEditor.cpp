@@ -17,6 +17,8 @@
 #include "EdModeInteractiveToolsContext.h"
 #include "IDetailsView.h"
 #include "IContentBrowserSingleton.h"
+#include "ISourceCodeAccessModule.h"
+#include "ISourceCodeAccessor.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Framework/Commands/UICommandList.h"
 #include "IMessageLogListing.h"
@@ -193,6 +195,7 @@ void FStateTreeEditor::InitEditor( const EToolkitMode::Type Mode, const TSharedP
 	constexpr bool bCreateDefaultToolbar = true;
 	FAssetEditorToolkit::InitAssetEditor(Mode, InitToolkitHost, StateTreeEditorAppName, StandaloneDefaultLayout, bCreateDefaultStandaloneMenu, bCreateDefaultToolbar, StateTree);
 
+	RegisterMenu();
 	RegisterToolbar();
 	
 	AddMenuExtender(StateTreeEditorModule.GetMenuExtensibilityManager()->GetAllExtenders(GetToolkitCommands(), GetEditingObjects()));
@@ -344,6 +347,62 @@ void FStateTreeEditor::SaveAsset_Execute()
 
 	// save it
 	FAssetEditorToolkit::SaveAsset_Execute();
+}
+
+namespace UE::StateTree::Editor::Private
+{
+void FillDeveloperMenu(UToolMenu* InMenu)
+{
+	const FStateTreeEditorCommands& Commands = FStateTreeEditorCommands::Get();
+	{
+		FToolMenuSection& Section = InMenu->AddSection("FileDeveloperCompilerSettings", LOCTEXT("CompileOptionsHeading", "Compiler Settings"));
+		Section.AddMenuEntry(Commands.LogResultOnCompileSuccess);
+	}
+}
+void FillDynamicDeveloperMenu(FToolMenuSection& Section)
+{
+	// Only show the developer menu on machines with the solution (assuming they can build it)
+	ISourceCodeAccessModule* SourceCodeAccessModule = FModuleManager::GetModulePtr<ISourceCodeAccessModule>("SourceCodeAccess");
+	if (SourceCodeAccessModule != nullptr && SourceCodeAccessModule->GetAccessor().CanAccessSourceCode())
+	{
+		Section.AddSubMenu(
+			"DeveloperMenu",
+			LOCTEXT("DeveloperMenu", "Developer"),
+			LOCTEXT("DeveloperMenu_ToolTip", "Open the developer menu"),
+			FNewToolMenuDelegate::CreateStatic(FillDeveloperMenu),
+			false);
+	}
+}
+}
+
+void FStateTreeEditor::RegisterMenu()
+{
+	UToolMenus* ToolMenus = UToolMenus::Get();
+	const FName FileMenuName = *(GetToolMenuName().ToString() + TEXT(".File"));
+	if (!ToolMenus->IsMenuRegistered(FileMenuName))
+	{
+		const FName ParentFileMenuName = TEXT("MainFrame.MainMenu.File");
+		UToolMenus::Get()->RegisterMenu(FileMenuName, ParentFileMenuName, EMultiBoxType::ToolBar);
+		{
+			UToolMenu* FileMenu = UToolMenus::Get()->RegisterMenu(FileMenuName, ParentFileMenuName);
+			const FName FileStateTreeSection = "FileStateTree";
+			FToolMenuSection& Section = FileMenu->AddSection("StateTree", LOCTEXT("StateTreeHeading", "State Tree"));
+			FToolMenuInsert InsertPosition("FileLoadAndSave", EToolMenuInsertType::After);
+			Section.InsertPosition = InsertPosition;
+
+			Section.AddDynamicEntry("FileDeveloper", FNewToolMenuSectionDelegate::CreateStatic(UE::StateTree::Editor::Private::FillDynamicDeveloperMenu));
+		}
+	}
+
+	const FName EditMenuName = *(GetToolMenuName().ToString() + TEXT(".Edit"));
+	if (!UToolMenus::Get()->IsMenuRegistered(EditMenuName))
+	{
+		const FName ParentEditMenuName = TEXT("MainFrame.MainMenu.Edit");
+		UToolMenu* EditMenu = UToolMenus::Get()->RegisterMenu(EditMenuName, ParentEditMenuName);
+		FToolMenuSection& Section = EditMenu->AddSection("StateTree", LOCTEXT("StateTreeHeading", "State Tree"));
+		FToolMenuInsert InsertPosition("Configuration", EToolMenuInsertType::After);
+		Section.InsertPosition = InsertPosition;
+	}
 }
 
 void FStateTreeEditor::RegisterToolbar()

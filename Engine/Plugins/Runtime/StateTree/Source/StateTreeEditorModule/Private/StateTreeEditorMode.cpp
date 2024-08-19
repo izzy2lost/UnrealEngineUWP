@@ -5,6 +5,7 @@
 #include "ContextObjectStore.h"
 #include "EditorModeManager.h"
 #include "FileHelpers.h"
+#include "HAL/IConsoleManager.h"
 
 #include "StateTreeEditorModeToolkit.h"
 #include "StateTreeEditorSettings.h"
@@ -301,6 +302,27 @@ static bool IsSaveOnCompileOptionSet(const EStateTreeSaveOnCompile Option)
 	const UStateTreeEditorSettings* Settings = GetDefault<UStateTreeEditorSettings>();
 	return (Settings->SaveOnCompile == Option);
 }
+
+static IConsoleVariable* GetLogResultOnSuccessCVar()
+{
+	static IConsoleVariable* FoundVariable = IConsoleManager::Get().FindConsoleVariable(TEXT("StateTree.Compiler.LogResultOnSuccess"));
+	return FoundVariable;
+}
+
+static void ToggleLogResultOnCompileSuccess()
+{
+	IConsoleVariable* LogResultCVar = GetLogResultOnSuccessCVar();
+	if (ensure(LogResultCVar))
+	{
+		LogResultCVar->Set(!LogResultCVar->GetBool(), ECVF_SetByConsole);
+	}
+}
+
+static bool IsLogResultOnCompileSuccess()
+{
+	IConsoleVariable* LogResultCVar = GetLogResultOnSuccessCVar();
+	return LogResultCVar ? LogResultCVar->GetBool() : false;
+}
 }
 
 void UStateTreeEditorMode::BindToolkitCommands(const TSharedRef<FUICommandList>& ToolkitCommands)
@@ -335,6 +357,12 @@ void UStateTreeEditorMode::BindToolkitCommands(const TSharedRef<FUICommandList>&
 		FCanExecuteAction(),
 		FIsActionChecked::CreateStatic(&UE::StateTree::Editor::Internal::IsSaveOnCompileOptionSet,  EStateTreeSaveOnCompile::Always),
 		FIsActionButtonVisible::CreateUObject(this, &UStateTreeEditorMode::HasValidStateTree)
+	);
+	ToolkitCommands->MapAction(
+		FStateTreeEditorCommands::Get().LogResultOnCompileSuccess,
+		FExecuteAction::CreateStatic(&UE::StateTree::Editor::Internal::ToggleLogResultOnCompileSuccess),
+		FCanExecuteAction(),
+		FIsActionChecked::CreateStatic(&UE::StateTree::Editor::Internal::IsLogResultOnCompileSuccess)
 	);
 }
 

@@ -21,7 +21,7 @@
 namespace UE::StateTree::Compiler
 {
 	FAutoConsoleVariable CVarLogCompiledStateTree(
-		TEXT("StateTree.LogCompiledResult"),
+		TEXT("StateTree.Compiler.LogResultOnSuccess"),
 		false,
 		TEXT("After a StateTree compiles, log the internal content of the StateTree.")
 	);
