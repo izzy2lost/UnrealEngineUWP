@@ -277,9 +277,7 @@ FAutoConsoleCommand FlushFilterStateCommand(TEXT("TraceFilter.FlushState"), TEXT
 template<bool bForceThreadSafe>
 bool FTraceFilter::IsObjectTraceable(const UObject* InObject)
 {
-	bool bResult = false;
-
-	AutoRTFM::Open([&]
+	return AutoRTFM::Open([&]
 		{
 			if constexpr (!bForceThreadSafe)
 			{
@@ -287,10 +285,8 @@ bool FTraceFilter::IsObjectTraceable(const UObject* InObject)
 			}
 
 			// Object not found in the AnnotationMap means that it is at the default value, which is bIsTraceable == true
-			bResult = GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
+			return GObjectFilterAnnotations.GetAnnotationMap().Find(InObject) == nullptr;
 		});
-
-	return bResult;
 }
 
 template bool FTraceFilter::IsObjectTraceable</*bForceThreadSafe = */ false>(const UObject* InObject);

@@ -1238,11 +1238,9 @@ void FKAggregateGeom::FreeRenderInfo()
 {
 	// See if we have rendering resources to free. We do this in the open (non-transactionally) because of
 	// the threaded nature of this operation.
-	FKConvexGeomRenderInfo* RenderInfo = nullptr;
-
-	AutoRTFM::Open([&]
+	FKConvexGeomRenderInfo* RenderInfo = AutoRTFM::Open([&]
 		{
-			RenderInfo = RenderInfoPtr.exchange(nullptr, std::memory_order_acq_rel);
+			return RenderInfoPtr.exchange(nullptr, std::memory_order_acq_rel);
 		});
 
 	if (RenderInfo)
