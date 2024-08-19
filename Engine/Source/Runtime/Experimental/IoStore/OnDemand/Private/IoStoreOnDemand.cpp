@@ -49,14 +49,6 @@ FString GIasOnDemandTocExt = TEXT(".uondemandtoc");
 
 static const TCHAR* NotInitializedError = TEXT("I/O store on-demand not initialized");
 
-bool GIasSuspendSystem = false;
-static FAutoConsoleVariableRef CVar_SuspendSystemEnabled(
-	TEXT("ias.SuspendSystem"),
-	GIasSuspendSystem,
-	TEXT("Suspends the use of the OnDemand system"),
-	ECVF_ReadOnly
-);
-
 /** Temp cvar to allow the fallback url to be hotfixed in case of problems */
 static FString GDistributedEndpointFallbackUrl;
 static FAutoConsoleVariableRef CVar_DistributedEndpointFallbackUrl(
@@ -1319,16 +1311,7 @@ void FIoStoreOnDemandModule::StartupModule()
 #endif //PLATFORM_WINDOWS
 
 #if !UE_IAS_CUSTOM_INITIALIZATION
-
-	if (!GIasSuspendSystem)
-	{
-		InitializeInternal();
-	}
-	else
-	{
-		UE_LOG(LogIas, Display, TEXT("The IoStoreOnDemand module has been remotely disabled by the 'ias.SuspendSystemEnabled' cvar"));
-	}
-
+	InitializeInternal();
 #endif // !UE_IAS_CUSTOM_INITIALIZATION
 }
 
@@ -1356,12 +1339,6 @@ void FIoStoreOnDemandModule::ShutdownModule()
 
 EOnDemandInitResult FIoStoreOnDemandModule::Initialize()
 {
-	if (GIasSuspendSystem)
-	{
-		UE_LOG(LogIas, Display, TEXT("The IoStoreOnDemand module has been remotely disabled by the 'ias.SuspendSystemEnabled' cvar"));
-		return EOnDemandInitResult::Suspended;
-	}
-
 	InitializeInternal();
 
 	return HttpIoDispatcherBackend.IsValid() ? EOnDemandInitResult::Success : EOnDemandInitResult::Disabled;
