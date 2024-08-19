@@ -16,7 +16,7 @@ class IRigVMGraphFunctionHost;
 struct FRigVMGraphFunctionData;
 
 USTRUCT()
-struct FRigVMFunctionCompilationPropertyDescription
+struct RIGVM_API FRigVMFunctionCompilationPropertyDescription
 {
 	GENERATED_BODY()
 
@@ -54,6 +54,9 @@ struct FRigVMFunctionCompilationPropertyDescription
 		Ar << Data.DefaultValue;
 		return Ar;
 	}
+
+	FRigVMPropertyDescription ToPropertyDescription() const;
+	static TArray<FRigVMPropertyDescription> ToPropertyDescription(const TArray<FRigVMFunctionCompilationPropertyDescription>& InDescriptions);
 };
 
 USTRUCT()

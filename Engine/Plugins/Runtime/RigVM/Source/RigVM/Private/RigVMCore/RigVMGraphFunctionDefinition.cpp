@@ -6,6 +6,23 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(RigVMGraphFunctionDefinition)
 
+FRigVMPropertyDescription FRigVMFunctionCompilationPropertyDescription::ToPropertyDescription() const
+{
+	return FRigVMPropertyDescription(Name, CPPType, CPPTypeObject.LoadSynchronous(), DefaultValue);
+}
+
+TArray<FRigVMPropertyDescription> FRigVMFunctionCompilationPropertyDescription::ToPropertyDescription(
+	const TArray<FRigVMFunctionCompilationPropertyDescription>& InDescriptions)
+{
+	TArray<FRigVMPropertyDescription> Result;
+	Result.Reserve(InDescriptions.Num());
+	for(const FRigVMFunctionCompilationPropertyDescription& Description : InDescriptions)
+	{
+		Result.Add(Description.ToPropertyDescription());
+	}
+	return Result;
+}
+
 FRigVMExternalVariable FRigVMGraphFunctionArgument::GetExternalVariable() const
 {
 	FRigVMExternalVariable Variable;

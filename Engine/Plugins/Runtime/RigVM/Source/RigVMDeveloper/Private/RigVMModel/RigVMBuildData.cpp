@@ -130,9 +130,27 @@ void URigVMBuildData::SetupRigVMGraphFunctionPointers()
 	};
 	FRigVMGraphFunctionData::GetFunctionHostFromObjectFunc = [this](UObject* InObject) -> IRigVMGraphFunctionHost*
 	{
-		if(IRigVMGraphFunctionHost* Host = InObject->GetImplementingOuter<IRigVMGraphFunctionHost>())
+		if(IRigVMGraphFunctionHost* FunctionHost = Cast<IRigVMGraphFunctionHost>(InObject))
 		{
-			return Host;
+			return FunctionHost;
+		}
+		if(IRigVMGraphFunctionHost* OuterFunctionHost = InObject->GetImplementingOuter<IRigVMGraphFunctionHost>())
+		{
+			return OuterFunctionHost;
+		}
+		if(IRigVMClientHost* ClientHost = Cast<IRigVMClientHost>(InObject))
+		{
+			if(IRigVMGraphFunctionHost* FunctionHost = ClientHost->GetRigVMGraphFunctionHost())
+			{
+				return FunctionHost;
+			}
+		}
+		if(IRigVMClientHost* OuterClientHost = InObject->GetImplementingOuter<IRigVMClientHost>())
+		{
+			if(IRigVMGraphFunctionHost* FunctionHost = OuterClientHost->GetRigVMGraphFunctionHost())
+			{
+				return FunctionHost;
+			}
 		}
 		if(URigVMBlueprint* Blueprint = Cast<URigVMBlueprint>(InObject))
 		{
