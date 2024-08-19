@@ -14,6 +14,8 @@ namespace UE::ConcertSharedSlate::ParenthesesClientNameContent
 {
 	/** The client corresponds to the local user. "You" is appended to name, e.g. "ClientName(You)". */
 	CONCERTSHAREDSLATE_API extern const FText LocalClient;
+	/** The client corresponds to a client that is not connected to the session. */
+	CONCERTSHAREDSLATE_API extern const FText OfflineClient;
 }
 
 namespace UE::ConcertSharedSlate

@@ -32,18 +32,23 @@ namespace UE::MultiUserClient::Replication
 {
 	void SMultiClientView::Construct(
 		const FArguments&,
-		TSharedRef<IConcertClient> InConcertClient,
+		const TSharedRef<IConcertClient>& InConcertClient,
 		FMultiUserReplicationManager& InMultiUserReplicationManager,
-		IOnlineClientSelectionModel& InOnlineClientSelectionModel
+		IOnlineClientSelectionModel& InOnlineClientSelectionModel,
+		IOfflineClientSelectionModel& InOfflineClientSelectionModel
 		)
 	{
-		ClientManager = InMultiUserReplicationManager.GetOnlineClientManager();
+		ConcertClient = InConcertClient;
 		UserSelectedProperties = InMultiUserReplicationManager.GetUserPropertySelector();
-		StreamModel = MakeShared<FMultiStreamModel>(InOnlineClientSelectionModel, *ClientManager);
+		OnlineClientManager = InMultiUserReplicationManager.GetOnlineClientManager();
+		OfflineClientManager = InMultiUserReplicationManager.GetOfflineClientManager();
 		OnlineClientSelectionModel = &InOnlineClientSelectionModel;
-		ConcertClient = MoveTemp(InConcertClient);
+		OfflineClientSelectionModel = &InOfflineClientSelectionModel;
+		StreamModel = MakeShared<FMultiStreamModel>(
+			InOnlineClientSelectionModel, InOfflineClientSelectionModel, *OnlineClientManager, *OfflineClientManager
+			);
 		
-		ClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
+		OnlineClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		OnlineClientSelectionModel->OnSelectionChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
 		UserSelectedProperties->OnPropertySelectionChanged().AddRaw(this, &SMultiClientView::RefreshUI);
 
@@ -60,10 +65,10 @@ namespace UE::MultiUserClient::Replication
 			]
 		];
 		
-		SReplicationStatus::AppendReplicationStatus(*Content, ClientManager->GetAuthorityCache(),
+		SReplicationStatus::AppendReplicationStatus(*Content, OnlineClientManager->GetAuthorityCache(),
 			SReplicationStatus::FArguments()
 			.ReplicatableClients(this, &SMultiClientView::GetReplicatableClientIds)
-			.ForEachObjectInStream(this, &SMultiClientView::EnumerateObjectsInStreams)
+			.ForEachObjectInStream(this, &SMultiClientView::EnumerateReplicatedObjectsInStreams)
 			);
 
 		RebuildClientSubscriptions();
@@ -77,12 +82,15 @@ namespace UE::MultiUserClient::Replication
 
 	SMultiClientView::~SMultiClientView()
 	{
-		ClientManager->OnRemoteClientsChanged().RemoveAll(this);
+		OnlineClientManager->OnRemoteClientsChanged().RemoveAll(this);
 		CleanClientSubscriptions();
 		UserSelectedProperties->OnPropertySelectionChanged().RemoveAll(this);
 	}
 
-	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
+	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(
+		const TSharedRef<IConcertClient>& InConcertClient,
+		FMultiUserReplicationManager& InMultiUserReplicationManager
+		)
 	{
 		using namespace UE::ConcertSharedSlate;
 
@@ -99,7 +107,7 @@ namespace UE::MultiUserClient::Replication
 		   });
 		FGetAutoAssignTarget GetAutoAssignTargetDelegate = FGetAutoAssignTarget::CreateLambda([this](TConstArrayView<UObject*>)
 		{
-			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = ClientManager->GetLocalClient().GetClientEditModel();
+			const TSharedRef<IEditableReplicationStreamModel>& LocalStream = OnlineClientManager->GetLocalClient().GetClientEditModel();
 			return StreamModel->GetEditableStreams().Contains(LocalStream) ? LocalStream.ToSharedPtr() : nullptr;
 		});
 		
@@ -108,7 +116,9 @@ namespace UE::MultiUserClient::Replication
 			.PropertyColumns =
 			{
 				ReplicationColumns::Property::LabelColumn(),
-				MultiStreamColumns::AssignPropertyColumn(MultiStreamEditorAttribute, InConcertClient, *ClientManager)
+				MultiStreamColumns::AssignPropertyColumn(
+					MultiStreamEditorAttribute, *InMultiUserReplicationManager.GetUnifiedClientView()
+					)
 			},
 			.CreateCategoryRow = CreateDefaultCategoryGenerator(NameModel),
 		};
@@ -146,7 +156,9 @@ namespace UE::MultiUserClient::Replication
 			.ObjectColumns =
 			{
 				MultiStreamColumns::MuteToggleColumn(MuteManager.GetChangeTracker()),
-				MultiStreamColumns::AssignedClientsColumn(InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, *ClientManager)
+				MultiStreamColumns::AssignedClientsColumn(
+					InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, *InMultiUserReplicationManager.GetUnifiedClientView()
+					)
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject),
 		};
@@ -171,7 +183,7 @@ namespace UE::MultiUserClient::Replication
 	TSet<FGuid> SMultiClientView::GetReplicatableClientIds() const
 	{
 		TSet<FGuid> ClientIds;
-		StreamModel->ForEachClient([&ClientIds](const FOnlineClient* Client)
+		StreamModel->ForEachDisplayedOnlineClient([&ClientIds](const FOnlineClient* Client)
 		{
 			ClientIds.Add(Client->GetEndpointId());
 			return EBreakBehavior::Continue;
@@ -179,9 +191,9 @@ namespace UE::MultiUserClient::Replication
 		return ClientIds;
 	}
 
-	void SMultiClientView::EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const
+	void SMultiClientView::EnumerateReplicatedObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const
 	{
-		StreamModel->ForEachClient([&Consumer](const FOnlineClient* Client)
+		StreamModel->ForEachDisplayedOnlineClient([&Consumer](const FOnlineClient* Client)
 		{
 			Client->GetClientEditModel()->ForEachReplicatedObject([&Consumer](const FSoftObjectPath& Object)
 			{
@@ -208,7 +220,7 @@ namespace UE::MultiUserClient::Replication
 
 	void SMultiClientView::CleanClientSubscriptions() const
 	{
-		ClientManager->ForEachClient([this](FOnlineClient& Client)
+		OnlineClientManager->ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.OnModelChanged().RemoveAll(this);
 			Client.OnHierarchyNeedsRefresh().RemoveAll(this);
@@ -223,7 +235,7 @@ namespace UE::MultiUserClient::Replication
 
 	void SMultiClientView::ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects) const
 	{
-		ContextMenuUtils::AddFrequencyOptionsIfOneContextObject_MultiClient(MenuBuilder, ContextObjects, *ClientManager);
+		ContextMenuUtils::AddFrequencyOptionsIfOneContextObject_MultiClient(MenuBuilder, ContextObjects, *OnlineClientManager);
 
 		if (ContextObjects.Num() == 1)
 		{
@@ -231,9 +243,9 @@ namespace UE::MultiUserClient::Replication
 				MenuBuilder,
 				ContextObjects[0],
 				*ConcertClient,
-				*ClientManager,
+				*OnlineClientManager,
 				*ObjectHierarchy,
-				ClientManager->GetReassignmentLogic(),
+				OnlineClientManager->GetReassignmentLogic(),
 				*StreamEditor
 				);
 		}
@@ -244,16 +256,16 @@ namespace UE::MultiUserClient::Replication
 		return HideObjectsNotInEditorWorld.ShouldShowObject(Object);
 	}
 
-	void SMultiClientView::OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>)
+	void SMultiClientView::OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const
 	{
 		// When the user adds using the combo button, automatically add discover relevant objects and properties
-		ClientManager->GetLocalClient().GetStreamExtender()
+		OnlineClientManager->GetLocalClient().GetStreamExtender()
 			.SetShouldExtend(true);
 	}
 
-	void SMultiClientView::OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>)
+	void SMultiClientView::OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const
 	{
-		ClientManager->GetLocalClient().GetStreamExtender()
+		OnlineClientManager->GetLocalClient().GetStreamExtender()
 			.SetShouldExtend(false);
 	}
 }

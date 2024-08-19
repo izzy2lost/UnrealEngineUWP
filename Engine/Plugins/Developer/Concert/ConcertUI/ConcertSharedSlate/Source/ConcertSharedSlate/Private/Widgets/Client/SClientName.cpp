@@ -13,6 +13,7 @@
 namespace UE::ConcertSharedSlate::ParenthesesClientNameContent
 {
 	const FText LocalClient = LOCTEXT("ParenthesesClientNameContent.LocalClient", "You");
+	const FText OfflineClient = LOCTEXT("ParenthesesClientNameContent.OfflineClient", "Offline");
 }
 
 namespace UE::ConcertSharedSlate

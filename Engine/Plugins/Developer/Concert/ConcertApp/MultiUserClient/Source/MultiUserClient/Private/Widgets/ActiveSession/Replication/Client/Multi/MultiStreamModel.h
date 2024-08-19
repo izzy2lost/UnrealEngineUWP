@@ -10,6 +10,11 @@
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
+namespace UE::MultiUserClient::Replication
+{
+	class FOfflineClientManager;
+}
+
 enum class EBreakBehavior : uint8;
 
 namespace UE::MultiUserClient::Replication
@@ -17,19 +22,31 @@ namespace UE::MultiUserClient::Replication
 	class FOnlineClient;
 	class FOnlineClientManager;
 
-	/** Checks whether clients accept remote changes and categorizes them into read-only and writable. */
+	/**
+	 * Decides the client streams that are displayed in the multi-view.
+	 * 
+	 * This model, in turn, uses IOnlineClientSelectionModel and IOfflineClientSelectionModel to decide which online and offline clients are to be
+	 * displayed.
+	 */
 	class FMultiStreamModel : public ConcertSharedSlate::IEditableMultiReplicationStreamModel
 	{
 	public:
 		
-		FMultiStreamModel(IOnlineClientSelectionModel& InOnlineClientSelectionModel, FOnlineClientManager& InClientManager);
-		
-		void ForEachClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const;
+		FMultiStreamModel(
+			IOnlineClientSelectionModel& InOnlineClientSelectionModel UE_LIFETIMEBOUND,
+			IOfflineClientSelectionModel& InOfflineClientSelectionModel UE_LIFETIMEBOUND,
+			FOnlineClientManager& InOnlineClientManager UE_LIFETIMEBOUND,
+			FOfflineClientManager& InOfflineClientManager UE_LIFETIMEBOUND
+			);
+		~FMultiStreamModel();
+
+		/** Enumerates every displayed online client. */
+		void ForEachDisplayedOnlineClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const;
 
 		//~ Begin IEditableMultiReplicationStreamModel Interface
-		virtual TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override { return {}; }
+		virtual TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> GetReadOnlyStreams() const override;
 		virtual TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> GetEditableStreams() const override;
-		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() override { return OnReadOnlyStreamChangedDelegate; }
+		virtual FOnStreamExternallyChanged& OnStreamExternallyChanged() override { return OnStreamsExternallyChanged; }
 		virtual FOnStreamSetChanged& OnStreamSetChanged() override { return OnStreamSetChangedDelegate; }
 		//~ End IEditableMultiReplicationStreamModel Interface
 
@@ -37,18 +54,29 @@ namespace UE::MultiUserClient::Replication
 		
 		/** Gets all online clients that are supposed to be displayed. */
 		IOnlineClientSelectionModel& OnlineClientSelectionModel;
-		/** Used to obtain a list of clients for unsubscribing. */
-		FOnlineClientManager& ClientManager;
+		/** Gets all offline clients that are supposed to be displayed. */
+		IOfflineClientSelectionModel& OfflineClientSelectionModel;
+		
+		/** Used to clean up subscriptions when client list changes. */
+		FOnlineClientManager& OnlineClientManager;
+		/** Used to clean up subscriptions when client list changes. */
+		FOfflineClientManager& OfflineClientManager;
 
-		TSet<const FOnlineClient*> CachedWritableClients;
+		TSet<const FOnlineClient*> CachedOnlineClients;
+		TSet<const FOfflineClient*> CachedOfflineClients;
 
-		FOnStreamExternallyChanged OnReadOnlyStreamChangedDelegate;
+		FOnStreamExternallyChanged OnStreamsExternallyChanged;
 		FOnStreamSetChanged OnStreamSetChangedDelegate;
 		
-		void RebuildStreamsSets();
+		void RebuildOnlineClients();
+		void RebuildOfflineClients();
+		
+		void UnsubscribeFromOnlineClients() const;
+		void UnsubscribeFromOfflineClients() const;
 
 		/** Handle read-only streams changing */
-		void OnStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream);
+		void HandleOnlineClientStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream);
+		void HandleOfflineClientStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IReplicationStreamModel> ChangedStream);
 	};
 }
 

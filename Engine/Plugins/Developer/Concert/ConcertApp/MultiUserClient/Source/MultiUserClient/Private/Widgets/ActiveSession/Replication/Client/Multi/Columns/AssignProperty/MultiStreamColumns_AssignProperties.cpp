@@ -2,84 +2,60 @@
 
 #include "AssignPropertyModel.h"
 
-#include "IConcertClient.h"
 #include "MultiUserReplicationStyle.h"
-#include "Replication/Client/Online/OnlineClient.h"
-#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableMultiReplicationStreamModel.h"
-#include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
+#include "Replication/Client/UnifiedClientViewExtensions.h"
 #include "Replication/Editor/View/IMultiReplicationStreamEditor.h"
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
-#include "SAssignPropertyComboBox.h"
 #include "Replication/Editor/View/Column/IPropertyTreeColumn.h"
 #include "Replication/Editor/View/Column/ReplicationColumnDelegates.h"
-#include "Replication/Client/ClientUtils.h"
+#include "SAssignPropertyComboBox.h"
+
+#include <type_traits>
 
 #define LOCTEXT_NAMESPACE "AssignPropertyColumn"
+
+namespace UE::MultiUserClient::Replication::MultiStreamColumns::AssignPropertyColumnUtils
+{
+	template<typename TLambda> requires std::is_invocable_v<TLambda, const FGuid&>
+	static void ForEachClientAssignedToProperty(
+		const TArray<TSoftObjectPtr<>>& Objects,
+		const FConcertPropertyChain& Property,
+		const FUnifiedClientView& ClientView,
+		const ConcertSharedSlate::IMultiReplicationStreamEditor& MultiEditor,
+		TLambda&& Callback
+	)
+	{
+		MultiEditor.GetMultiStreamModel().ForEachStream(
+			[&Objects, &Property,  &ClientView, &Callback](const TSharedRef<ConcertSharedSlate::IReplicationStreamModel>& Stream)
+			{
+				for (const TSoftObjectPtr<>& Object : Objects)
+				{
+					if (!Stream->HasProperty(Object.ToSoftObjectPath() , Property))
+					{
+						continue;
+					}
+				
+					const TOptional<FGuid> ClientEndpointId = FindClientIdByStream(ClientView, *Stream);
+					if (ensure(ClientEndpointId))
+					{
+						Callback(*ClientEndpointId);
+						return EBreakBehavior::Continue;
+					}
+				}
+				return EBreakBehavior::Continue;
+			}
+		);
+	}
+}
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	const FName AssignPropertyColumnId(TEXT("AssignPropertyColumn"));
-
-	namespace AssignPropertyColumnUtils
-	{
-		static void ForEachStreamAssignedTo(
-			const ConcertSharedSlate::IMultiReplicationStreamEditor& MultiEditor,
-			const ConcertSharedSlate::FPropertyTreeRowContext& InItem,
-			TFunctionRef<void(const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream)> Consume
-		)
-		{
-			const FConcertPropertyChain& Property = InItem.RowData.GetProperty();
-		
-			for (const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>& Stream : MultiEditor.GetMultiStreamModel().GetEditableStreams())
-			{
-				for (const TSoftObjectPtr<>& ContextObject : InItem.RowData.GetContextObjects())
-				{
-					const bool bStreamAssignedToProperty = Stream->HasProperty(ContextObject.GetUniqueID(), Property);
-					if (bStreamAssignedToProperty)
-					{
-						Consume(Stream);
-						// Each IEditableReplicationStreamModel should only be visited at most once.
-						break;
-					}
-				}
-			}
-		}
-
-		const FOnlineClient* FindClientByStream(const FOnlineClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
-		{
-			if (&ClientManager.GetLocalClient().GetClientEditModel().Get() == &StreamModel)
-			{
-				return &ClientManager.GetLocalClient();
-			}
-
-			for (const TNonNullPtr<const FRemoteClient> Client : ClientManager.GetRemoteClients())
-			{
-				if (&Client->GetClientEditModel().Get() == &StreamModel)
-				{
-					return Client;
-				}
-			}
-			
-			return nullptr;
-		}
-		
-		static FString GetClientDisplayText(const IConcertClient& InConcertClient, const FOnlineClientManager& ClientManager, const ConcertSharedSlate::IReplicationStreamModel& StreamModel)
-		{
-			if (const FOnlineClient* Client = FindClientByStream(ClientManager, StreamModel))
-			{
-				return ClientUtils::GetClientDisplayName(InConcertClient, Client->GetEndpointId());
-			}
-
-			ensure(false);
-			return {};
-		}
-	}
 	
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
 		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
-		TSharedRef<IConcertClient> ConcertClient,
-		FOnlineClientManager& ClientManager,
+		FUnifiedClientView& ClientView,
 		const int32 ColumnsSortPriority
 		)
 	{
@@ -90,13 +66,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 			FPropertyColumn_AssignPropertyColumn(
 				TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor,
-				TSharedRef<IConcertClient> ConcertClient,
-				FOnlineClientManager& ClientManager
+				FUnifiedClientView& ClientView UE_LIFETIMEBOUND
 				)
 				: MultiStreamEditor(MoveTemp(MultiStreamEditor))
-				, ConcertClient(MoveTemp(ConcertClient))
-				, ClientManager(ClientManager)
-				, Model(ClientManager)
+				, Model(ClientView)
+				, ClientView(ClientView)
 			{}
 			
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
@@ -110,7 +84,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			virtual TSharedRef<SWidget> GenerateColumnWidget(const FBuildArgs& InArgs) override
 			{
 				const TArray<TSoftObjectPtr<>> DisplayedObjects = InArgs.RowItem.RowData.GetContextObjects();
-				return SNew(SAssignPropertyComboBox, MultiStreamEditor.Get().ToSharedRef(), ConcertClient, ClientManager, Model)
+				return SNew(SAssignPropertyComboBox, Model, ClientView)
 					.DisplayedProperty(InArgs.RowItem.RowData.GetProperty())
 					.EditedObjects(DisplayedObjects)
 					.HighlightText(InArgs.HighlightText)
@@ -125,21 +99,22 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			
 			virtual void PopulateSearchString(const FPropertyTreeRowContext& InItem, TArray<FString>& InOutSearchStrings) const override
 			{
-				AssignPropertyColumnUtils::ForEachStreamAssignedTo(
+				AssignPropertyColumnUtils::ForEachClientAssignedToProperty(
+					InItem.RowData.GetContextObjects(),
+					InItem.RowData.GetProperty(),
+					ClientView,
 					*MultiStreamEditor.Get(),
-					InItem,
-					[this, &InOutSearchStrings](const TSharedRef<IEditableReplicationStreamModel>& Stream)
+					[this, &InOutSearchStrings](const FGuid& ClientId)
 					{
-						InOutSearchStrings.Add(AssignPropertyColumnUtils::GetClientDisplayText(*ConcertClient, ClientManager, *Stream));
+						InOutSearchStrings.Add(GetClientDisplayString(ClientView, ClientId));
 					});
 			}
 
 			virtual bool CanBeSorted() const override { return true; }
 			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
 			{
-				const TArray<TSoftObjectPtr<>> DisplayedObjects = MultiStreamEditor.Get()->GetEditorBase().GetSelectedObjects();
-				const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Left.RowData.GetProperty(), DisplayedObjects);
-				const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ConcertClient, ClientManager, Right.RowData.GetProperty(), DisplayedObjects);
+				const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ClientView, Left.RowData.GetProperty(), Left.RowData.GetContextObjects());
+				const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ClientView, Right.RowData.GetProperty(), Right.RowData.GetContextObjects());
 			
 				if (LeftClientDisplayString && RightClientDisplayString)
 				{
@@ -151,20 +126,21 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		private:
 
+			/** Used to refresh the sort state of the editor, if sorting by this column. */
 			const TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor;
-			const TSharedRef<IConcertClient> ConcertClient;
-			FOnlineClientManager& ClientManager;
 
 			/** The model the view displays. */
 			FAssignPropertyModel Model;
+			/** Used to get display information about clients. */
+			FUnifiedClientView& ClientView;
 		};
 		
 		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());
 		return {
 			TReplicationColumnDelegates<FPropertyTreeRowContext>::FCreateColumn::CreateLambda(
-				[MultiStreamEditor = MoveTemp(MultiStreamEditor), ConcertClient = MoveTemp(ConcertClient), &ClientManager]()
+				[MultiStreamEditor = MoveTemp(MultiStreamEditor), &ClientView]()
 				{
-					return MakeShared<FPropertyColumn_AssignPropertyColumn>(MultiStreamEditor, ConcertClient, ClientManager);
+					return MakeShared<FPropertyColumn_AssignPropertyColumn>(MultiStreamEditor, ClientView);
 				}),
 			AssignPropertyColumnId,
 			{ ColumnsSortPriority }

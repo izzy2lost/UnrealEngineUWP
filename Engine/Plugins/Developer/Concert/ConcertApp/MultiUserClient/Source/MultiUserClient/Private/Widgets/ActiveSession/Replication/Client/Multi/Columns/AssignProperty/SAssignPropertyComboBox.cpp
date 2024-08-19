@@ -4,20 +4,21 @@
 
 #include "AssignPropertyModel.h"
 #include "IConcertClient.h"
-#include "Replication/Client/ClientUtils.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
+#include "Replication/Client/UnifiedClientViewExtensions.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
 #include "Widgets/ActiveSession/Replication/Misc/SNoClients.h"
 #include "Widgets/Client/ClientInfoHelpers.h"
 #include "Widgets/Client/SHorizontalClientList.h"
-#include "Widgets/Client/SLocalClientName.h"
-#include "Widgets/Client/SRemoteClientName.h"
+#include "Widgets/Client/SClientName.h"
 
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Styling/AppStyle.h"
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SComboButton.h"
+
+#include <type_traits>
 
 #define LOCTEXT_NAMESPACE "SAssignPropertyComboBox"
 
@@ -25,38 +26,48 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	namespace AssignPropertyComboBox
 	{
-		TArray<FGuid> GetDisplayedClients(const FOnlineClientManager& ClientManager, const FConcertPropertyChain& DisplayedProperty, const TArray<TSoftObjectPtr<>>& EditedObjects)
+		template<typename TLambda> requires std::is_invocable_r_v<EBreakBehavior, TLambda, const FGuid&>
+		static void ForEachDisplayedClient(
+			const FUnifiedClientView& ClientView,
+			const FConcertPropertyChain& DisplayedProperty,
+			const TArray<TSoftObjectPtr<>>& EditedObjects,
+			TLambda&& Callback
+			)
+		{
+			for (const TSoftObjectPtr<>& Object : EditedObjects)
+			{
+				ClientView.GetStreamCache().EnumerateClientsWithObjectAndProperty(
+					Object.ToSoftObjectPath(),
+					DisplayedProperty,
+					[&Callback](const FGuid& ClientId){ return Callback(ClientId); }
+				);
+			}
+		}
+		
+		static TArray<FGuid> GetDisplayedClients(
+			const FUnifiedClientView& ClientView,
+			const FConcertPropertyChain& DisplayedProperty,
+			const TArray<TSoftObjectPtr<>>& EditedObjects
+			)
 		{
 			TArray<FGuid> Clients;
-			ClientManager.ForEachClient([&DisplayedProperty, &EditedObjects, &Clients](const FOnlineClient& Client)
-			{
-				const TMap<FSoftObjectPath, FConcertReplicatedObjectInfo>& ObjectInfoMap = Client.GetStreamSynchronizer().GetServerState().ReplicatedObjects;
-				for (const TSoftObjectPtr<>& ObjectPath : EditedObjects)
-				{
-					if (const FConcertReplicatedObjectInfo* ObjectInfo = ObjectInfoMap.Find(ObjectPath.GetUniqueID())
-						; ObjectInfo && ObjectInfo->PropertySelection.ReplicatedProperties.Contains(DisplayedProperty))
-					{
-						Clients.Add(Client.GetEndpointId());
-						return EBreakBehavior::Continue;
-					}
-				}
-				return EBreakBehavior::Continue;
-			});
+			ForEachDisplayedClient(ClientView, DisplayedProperty, EditedObjects,
+				[&Clients](const FGuid& ClientId){ Clients.AddUnique(ClientId); return EBreakBehavior::Continue; }
+				);
 			return Clients;
 		}
 	}
 	
 	TOptional<FString> SAssignPropertyComboBox::GetDisplayString(
-		const TSharedRef<IConcertClient>& LocalConcertClient,
-		const FOnlineClientManager& ClientManager,
+		const FUnifiedClientView& ClientView,
 		const FConcertPropertyChain& DisplayedProperty,
 		const TArray<TSoftObjectPtr<>>& EditedObjects)
 	{
 		using SWidgetType = ConcertSharedSlate::SHorizontalClientList;
-		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientManager, DisplayedProperty, EditedObjects);
+		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientView, DisplayedProperty, EditedObjects);
 		
 		const ConcertSharedSlate::FGetClientParenthesesContent GetParenthesesContent =
-			ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(LocalConcertClient);
+			MakeLocalAndOfflineParenthesesContentGetter(ClientView);
 		const auto SortPredicate = [&GetParenthesesContent](const FConcertSessionClientInfo& Left, const FConcertSessionClientInfo& Right)
 		{
 			return ConcertSharedSlate::SortLocalClientParenthesesFirstThenThenAlphabetical(Left, Right, GetParenthesesContent);
@@ -64,23 +75,20 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		
 		return SWidgetType::GetDisplayString(
 			Clients,
-			ConcertClientSharedSlate::MakeClientInfoGetter(LocalConcertClient),
+			MakeOnlineThenOfflineClientInfoGetter(ClientView),
 			ConcertSharedSlate::FClientSortPredicate::CreateLambda(SortPredicate),
 			GetParenthesesContent
 			);
 	}
 
-	void SAssignPropertyComboBox::Construct(const FArguments& InArgs,
-	    TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
-	    TSharedRef<IConcertClient> InConcertClient,
-	    FOnlineClientManager& InClientManager,
-	    FAssignPropertyModel& InModel
+	void SAssignPropertyComboBox::Construct(
+		const FArguments& InArgs,
+	    FAssignPropertyModel& InModel,
+	    FUnifiedClientView& InClientView
 	)
 	{
-		Editor = MoveTemp(InEditor);
-		ConcertClient = MoveTemp(InConcertClient);
-		ClientManager = &InClientManager;
 		Model = &InModel;
+		ClientView = &InClientView;
 		
 		Property = InArgs._DisplayedProperty;
 		EditedObjects = InArgs._EditedObjects;
@@ -96,46 +104,30 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			.ButtonContent()
 			[
 				SAssignNew(ClientListWidget, ConcertSharedSlate::SHorizontalClientList)
-				.GetClientParenthesesContent(ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(ConcertClient.ToSharedRef()))
-				.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(ConcertClient.ToSharedRef()))
+				.GetClientParenthesesContent(MakeLocalAndOfflineParenthesesContentGetter(InClientView))
+				.GetClientInfo(MakeOnlineThenOfflineClientInfoGetter(InClientView))
 				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
 				.EmptyListSlot() [ SNew(SNoClients) ]
 			]
 			.OnGetMenuContent(this, &SAssignPropertyComboBox::GetMenuContent)
+			.ToolTipText_Raw(this, &SAssignPropertyComboBox::GetComboBoxToolTipText)
 		];
 
-		Model->OnOwnershipChanged().AddSP(this, &SAssignPropertyComboBox::RebuildSubscriptionsAndRefresh);
-		RebuildSubscriptions();
+		Model->OnOwnershipChanged().AddSP(this, &SAssignPropertyComboBox::RefreshContentBoxContent);
 		RefreshContentBoxContent();
 	}
 	
 	void SAssignPropertyComboBox::RefreshContentBoxContent() const
 	{
 		ClientListWidget->RefreshList(
-			AssignPropertyComboBox::GetDisplayedClients(*ClientManager, Property, EditedObjects)
+			AssignPropertyComboBox::GetDisplayedClients(*ClientView, Property, EditedObjects)
 			);
 	}
 
 	TSharedRef<SWidget> SAssignPropertyComboBox::GetMenuContent()
 	{
 		using namespace ConcertSharedSlate;
-
-		const auto MakeWidget = [this](const FGuid& EndpointId) -> TSharedRef<SWidget>
-		{
-			const bool bIsLocalClient = EndpointId == ConcertClient->GetCurrentSession()->GetSessionClientEndpointId();
-			if (bIsLocalClient)
-			{
-				return SNew(SLocalClientName)
-					.DisplayInfo(ConcertClientSharedSlate::MakeLocalClientInfoAttribute(ConcertClient.ToSharedRef()))
-					.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-					.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
-			}
-			return SNew(SRemoteClientName)
-				.DisplayInfo(ConcertClientSharedSlate::MakeClientInfoAttribute(ConcertClient.ToSharedRef(), EndpointId))
-				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
-				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); });
-		};
 		
 		FMenuBuilder MenuBuilder(true, nullptr);
 		MenuBuilder.AddMenuEntry(
@@ -150,10 +142,19 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			EUserInterfaceActionType::Button
 		);
 		
-		MenuBuilder.BeginSection(TEXT("AssignTo"), LOCTEXT("AssignTo", "Assign to"));
-		for (const FOnlineClient* Client : ClientUtils::GetSortedClientList(*ConcertClient, *ClientManager))
+		const auto MakeWidget = [this](const FGuid& EndpointId) -> TSharedRef<SWidget>
 		{
-			TAttribute<FText> Tooltip = TAttribute<FText>::CreateLambda([this, EndpointId = Client->GetEndpointId()]()
+			return SNew(SClientName)
+				.ClientInfo_Lambda([this, EndpointId]{ return ClientView->GetClientInfoByEndpoint(EndpointId); })
+				.ParenthesisContent_Lambda([this, EndpointId]{ return GetParenthesesContent(*ClientView, EndpointId); })
+				.HighlightText_Lambda([this](){ return HighlightText ? *HighlightText : FText::GetEmpty(); })
+				.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"));
+		};
+		
+		MenuBuilder.BeginSection(TEXT("AssignTo"), LOCTEXT("AssignTo", "Assign to online client"));
+		for (const FGuid& EndpointId : GetSortedOnlineClients(*ClientView))
+		{
+			TAttribute<FText> Tooltip = TAttribute<FText>::CreateLambda([this, EndpointId]()
 			{
 				FText Reason;
 				const bool bCanClick = CanClickOptionWithReason(EndpointId, &Reason);
@@ -173,11 +174,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			
 			MenuBuilder.AddMenuEntry(
 				FUIAction(
-					FExecuteAction::CreateSP(this, &SAssignPropertyComboBox::OnClickOption, Client->GetEndpointId()),
-					FCanExecuteAction::CreateSP(this, &SAssignPropertyComboBox::CanClickOption, Client->GetEndpointId()),
-					FGetActionCheckState::CreateSP(this, &SAssignPropertyComboBox::GetOptionCheckState, Client->GetEndpointId())
+					FExecuteAction::CreateSP(this, &SAssignPropertyComboBox::OnClickOption, EndpointId),
+					FCanExecuteAction::CreateSP(this, &SAssignPropertyComboBox::CanClickOption, EndpointId),
+					FGetActionCheckState::CreateSP(this, &SAssignPropertyComboBox::GetOptionCheckState, EndpointId)
 					),
-				MakeWidget(Client->GetEndpointId()),
+				MakeWidget(EndpointId),
 				NAME_None,
 				Tooltip,
 				EUserInterfaceActionType::Check
@@ -221,14 +222,31 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		return Model->CanClear(EditedObjects, Property);
 	}
 
-	void SAssignPropertyComboBox::RebuildSubscriptions()
+	FText SAssignPropertyComboBox::GetComboBoxToolTipText() const
 	{
-		ClientManager->ForEachClient([this](FOnlineClient& Client)
+		bool bHasOfflineClients = false;
+		int32 NumClients = 0;
+		AssignPropertyComboBox::ForEachDisplayedClient(*ClientView, Property, EditedObjects,
+			[this, &bHasOfflineClients, &NumClients](const FGuid& ClientId)
+			{
+				++NumClients;
+				const TOptional<EClientType> ClientType = ClientView->GetClientType(ClientId);
+				bHasOfflineClients |= ClientType && IsOfflineClient(*ClientType);
+				return NumClients > 1 ? EBreakBehavior::Break : EBreakBehavior::Continue;
+			});
+
+		if (bHasOfflineClients)
 		{
-			Client.OnModelChanged().RemoveAll(this);
-			Client.OnModelChanged().AddSP(this, &SAssignPropertyComboBox::RefreshContentBoxContent);
-			return EBreakBehavior::Continue;
-		});
+			return FText::Format(
+				LOCTEXT("AssignProperty.ToolTip.HasOfflineClients", "The assigned offline {0}|plural(one=client,other=clients) will replicate this property upon rejoining."),
+				NumClients
+				);
+		}
+
+		return FText::Format(
+			LOCTEXT("AssignProperty.ToolTip.Normal", "The {0}|plural(one=client,other=clients) that {0}|plural(one=is,other=are) have registered to replicate this property."),
+			NumClients
+			);
 	}
 }
 

@@ -10,6 +10,11 @@
 
 namespace UE::MultiUserClient::Replication
 {
+	class FOfflineClientManager;
+}
+
+namespace UE::MultiUserClient::Replication
+{
 	class FUserPropertySelector;
 }
 
@@ -41,19 +46,24 @@ namespace UE::MultiUserClient::Replication
 		SLATE_END_ARGS()
 
 		void Construct(
-			const FArguments& InArgs,
-			TSharedRef<IConcertClient> InConcertClient,
+			const FArguments& InArgs, const TSharedRef<IConcertClient>& InConcertClient,
 			FMultiUserReplicationManager& InMultiUserReplicationManager UE_LIFETIMEBOUND,
-			IOnlineClientSelectionModel& InOnlineClientSelectionModel UE_LIFETIMEBOUND
+			IOnlineClientSelectionModel& InOnlineClientSelectionModel UE_LIFETIMEBOUND,
+			IOfflineClientSelectionModel& InOfflineClientSelectionModel UE_LIFETIMEBOUND
 			);
 		virtual ~SMultiClientView() override;
 
 	private:
 
 		TSharedPtr<IConcertClient> ConcertClient;
-		FOnlineClientManager* ClientManager = nullptr;
+		/** Keeps track of the properties that the user has selected to iterate on. */
 		FUserPropertySelector* UserSelectedProperties = nullptr;
+
+		// These are used to know when to refresh the UI.
+		FOnlineClientManager* OnlineClientManager = nullptr;
+		FOfflineClientManager* OfflineClientManager = nullptr;
 		IOnlineClientSelectionModel* OnlineClientSelectionModel = nullptr;
+		IOfflineClientSelectionModel* OfflineClientSelectionModel = nullptr;
 		
 		/** Combines the clients */
 		TSharedPtr<FMultiStreamModel> StreamModel;
@@ -81,7 +91,7 @@ namespace UE::MultiUserClient::Replication
 		/** @return Gets the clients that may be replicating */
 		TSet<FGuid> GetReplicatableClientIds() const;
 		/** Calls Consumer for each object path that is in a stream - independent of whether it is being replicated or not. */
-		void EnumerateObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;
+		void EnumerateReplicatedObjectsInStreams(TFunctionRef<void(const FSoftObjectPath&)> Consumer) const;
 		
 		void RebuildClientSubscriptions();
 		void CleanClientSubscriptions() const;
@@ -92,7 +102,7 @@ namespace UE::MultiUserClient::Replication
 		/** Decides whether the object should be displayed: do not show it if it's not in the editor world. */
 		bool ShouldDisplayObject(const FSoftObjectPath& Object) const;
 		
-		void OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>);
-		void OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>);
+		void OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;
+		void OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;
 	};
 }

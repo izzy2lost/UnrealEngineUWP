@@ -8,6 +8,7 @@
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 
 #include "ScopedTransaction.h"
+#include "Replication/Client/Offline/OfflineClientManager.h"
 #include "UObject/Package.h"
 #include "UObject/UObjectGlobals.h"
 
@@ -15,25 +16,49 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FUserPropertySelector::FUserPropertySelector(FOnlineClientManager& InClientManager)
-		: ClientManager(InClientManager)
+	FUserPropertySelector::FUserPropertySelector(
+		FOnlineClientManager& InOnlineClientManager,
+		FOfflineClientManager& InOfflineClientManger
+		)
+		: OnlineClientManager(InOnlineClientManager)
+		, OfflineClientManager(InOfflineClientManger)
 		, PropertySelection(NewObject<UMultiUserReplicationStream>(GetTransientPackage(), NAME_None, RF_Transient | RF_Transactional))
 		, SelectionEditModel(ConcertSharedSlate::CreateBaseStreamModel(PropertySelection->MakeReplicationMapGetterAttribute()))
-		, PropertyProcessor(MakeShared<FUserPropertySelectionSource>(*SelectionEditModel, InClientManager))
+		, PropertyProcessor(MakeShared<FUserPropertySelectionSource>(*SelectionEditModel, InOnlineClientManager))
 	{
-		RegisterClient(ClientManager.GetLocalClient());
-		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FUserPropertySelector::OnClientAdded);
+		OnlineClientManager.OnPostRemoteClientAdded().AddRaw(this, &FUserPropertySelector::OnClientAdded);
+		OnlineClientManager.ForEachClient([this](FOnlineClient& Client)
+		{
+			RegisterOnlineClient(Client);
+			return EBreakBehavior::Continue;
+		});
+
+		OfflineClientManager.OnPostClientAdded().AddRaw(this, &FUserPropertySelector::RegisterOfflineClient);
+		OfflineClientManager.ForEachClient([this](FOfflineClient& Client)
+		{
+			RegisterOfflineClient(Client);
+			return EBreakBehavior::Continue;
+		});
+		
 		FCoreUObjectDelegates::OnObjectTransacted.AddRaw(this, &FUserPropertySelector::OnObjectTransacted);
 	}
 
 	FUserPropertySelector::~FUserPropertySelector()
 	{
-		ClientManager.OnPostRemoteClientAdded().RemoveAll(this);
-		ClientManager.ForEachClient([this](FOnlineClient& Client)
+		OnlineClientManager.OnPostRemoteClientAdded().RemoveAll(this);
+		OnlineClientManager.ForEachClient([this](FOnlineClient& Client)
 		{
 			Client.GetStreamSynchronizer().OnServerStreamChanged().RemoveAll(this);
 			return EBreakBehavior::Continue;
 		});
+
+		OfflineClientManager.OnPostClientAdded().RemoveAll(this);
+		OfflineClientManager.ForEachClient([this](FOfflineClient& Client)
+		{
+			Client.OnStreamPredictionChanged().RemoveAll(this);
+			return EBreakBehavior::Continue;
+		});
+		
 		FCoreUObjectDelegates::OnObjectTransacted.RemoveAll(this);
 	}
 
@@ -55,7 +80,7 @@ namespace UE::MultiUserClient::Replication
 
 	bool FUserPropertySelector::IsPropertySelected(const FSoftObjectPath& Object, const FConcertPropertyChain& Property) const
 	{
-		return ClientManager.GetAuthorityCache().IsPropertyReferencedByAnyClientStream(Object, Property)
+		return OnlineClientManager.GetAuthorityCache().IsPropertyReferencedByAnyClientStream(Object, Property)
 			|| SelectionEditModel->HasProperty(Object, Property);
 	}
 
@@ -69,20 +94,39 @@ namespace UE::MultiUserClient::Replication
 		Collector.AddReferencedObject(PropertySelection);
 	}
 
-	void FUserPropertySelector::RegisterClient(FOnlineClient& Client)
+	void FUserPropertySelector::OnClientAdded(FRemoteClient& Client)
+	{
+		RegisterOnlineClient(Client);
+	}
+
+	void FUserPropertySelector::RegisterOnlineClient(FOnlineClient& Client)
 	{
 		IClientStreamSynchronizer& StreamSynchronizer = Client.GetStreamSynchronizer();
 		TrackProperties(StreamSynchronizer.GetServerState());
-		StreamSynchronizer.OnServerStreamChanged().AddRaw(this, &FUserPropertySelector::OnServerStateChanged, Client.GetEndpointId());
+		
+		StreamSynchronizer.OnServerStreamChanged().AddRaw(this, &FUserPropertySelector::OnOnlineClientContentChanged, Client.GetEndpointId());
 	}
 
-	void FUserPropertySelector::OnServerStateChanged(const FGuid ClientId)
+	void FUserPropertySelector::RegisterOfflineClient(FOfflineClient& Client)
 	{
-		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
+		TrackProperties(Client.GetPredictedStream().ReplicationMap);
+		
+		const TNonNullPtr<const FOfflineClient>& NonNullClient = &Client;
+		Client.OnStreamPredictionChanged().AddRaw(this, &FUserPropertySelector::OnOfflineClientContentChanged, NonNullClient);
+	}
+
+	void FUserPropertySelector::OnOnlineClientContentChanged(const FGuid ClientId)
+	{
+		const FOnlineClient* Client = OnlineClientManager.FindClient(ClientId);
 		if (ensure(Client))
 		{
 			TrackProperties(Client->GetStreamSynchronizer().GetServerState());
 		}
+	}
+
+	void FUserPropertySelector::OnOfflineClientContentChanged(const TNonNullPtr<const FOfflineClient> Client)
+	{
+		TrackProperties(Client->GetPredictedStream().ReplicationMap);
 	}
 
 	void FUserPropertySelector::TrackProperties(const FConcertObjectReplicationMap& ReplicationMap)
@@ -129,7 +173,7 @@ namespace UE::MultiUserClient::Replication
 			SelectionEditModel->RemoveObjects({ Object });
 		}
 
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> ClientEditModel = ClientManager.GetLocalClient().GetClientEditModel();
+		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> ClientEditModel = OnlineClientManager.GetLocalClient().GetClientEditModel();
 		ClientEditModel->RemoveProperties({ Object }, Properties);
 		
 		OnPropertySelectionChangedDelegate.Broadcast();

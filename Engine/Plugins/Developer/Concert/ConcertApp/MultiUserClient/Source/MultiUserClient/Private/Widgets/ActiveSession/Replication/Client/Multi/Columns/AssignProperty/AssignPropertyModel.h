@@ -13,6 +13,7 @@ namespace UE::MultiUserClient::Replication
 {
 	class FOnlineClient;
 	class FOnlineClientManager;
+	class FUnifiedClientView;
 }
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
@@ -32,7 +33,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	{
 	public:
 		
-		FAssignPropertyModel(FOnlineClientManager& InClientManager UE_LIFETIMEBOUND);
+		FAssignPropertyModel(FUnifiedClientView& InClientView UE_LIFETIMEBOUND);
 		~FAssignPropertyModel();
 
 		/** @return Whether property ownership can be changed for the given client. */
@@ -41,7 +42,6 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		bool CanClear(TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const;
 		/** @return How the property is owned by ClientId */
 		EPropertyOnObjectsOwnershipState GetPropertyOwnershipState(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const;
-		void AssignPropertyTo(const FOnlineClient* Client, TConstArrayView<TSoftObjectPtr<>, signed int> Objects, const FConcertPropertyChain& Property);
 
 		/** Assigns the property to ClientId or unassigns it. Removes the property from all other clients in both cases. */
 		void TogglePropertyFor(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property);
@@ -53,8 +53,12 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 	private:
 
-		/** Used to get all clients that can be assigned / reassigned to. */
-		FOnlineClientManager& ClientManager;
+		/**
+		 * Used to
+		 * - get all online clients that can be assigned / reassigned to,
+		 * - detect changes made to client content for broadcasting OnOwnershipChangedDelegate
+		 */
+		FUnifiedClientView& ClientView;
 
 		/** Broadcasts when property ownership may have changed. */
 		FSimpleMulticastDelegate OnOwnershipChangedDelegate;

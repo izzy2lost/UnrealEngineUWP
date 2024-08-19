@@ -13,17 +13,8 @@ class IConcertClient;
 enum class ECheckBoxState : uint8;
 struct FGuid;
 
-namespace UE::ConcertSharedSlate
-{
-	class IMultiReplicationStreamEditor;
-	class SHorizontalClientList;
-}
-
-namespace UE::MultiUserClient::Replication
-{
-	class FOnlineClient;
-	class FOnlineClientManager;
-}
+namespace UE::ConcertSharedSlate { class SHorizontalClientList; }
+namespace UE::MultiUserClient::Replication { class FUnifiedClientView; }
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
@@ -43,8 +34,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		/** @return The display string this widget would have with the given state. If unset, no clients are displayed in the combobox.*/
 		static TOptional<FString> GetDisplayString(
-			const TSharedRef<IConcertClient>& LocalConcertClient,
-			const FOnlineClientManager& ClientManager,
+			const FUnifiedClientView& ClientView,
 			const FConcertPropertyChain& DisplayedProperty,
 			const TArray<TSoftObjectPtr<>>& EditedObjects
 			);
@@ -59,21 +49,16 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		SLATE_END_ARGS()
 
 		void Construct(const FArguments& InArgs,
-           TSharedRef<ConcertSharedSlate::IMultiReplicationStreamEditor> InEditor,
-           TSharedRef<IConcertClient> InConcertClient,
-           FOnlineClientManager& InClientManager,
-           FAssignPropertyModel& InModel UE_LIFETIMEBOUND
+           FAssignPropertyModel& InModel UE_LIFETIMEBOUND,
+           FUnifiedClientView& InClientView UE_LIFETIMEBOUND
 		);
 
 	private:
 
-		FOnlineClientManager* ClientManager = nullptr;
 		/** The model this view is displaying. */
 		FAssignPropertyModel* Model = nullptr;
-		
-		/** Used to obtain info about the streams */
-		TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor> Editor;
-		TSharedPtr<IConcertClient> ConcertClient;
+		/** Used to obtain display information about clients. */
+		FUnifiedClientView* ClientView = nullptr;
 
 		/** The objects for which the property is being displayed. */
 		TArray<TSoftObjectPtr<>> EditedObjects;
@@ -106,10 +91,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		void OnClickClear();
 		/** Whether the property is assigned to any client */
 		bool CanClickClear() const;
-
-		/** Resubscribes to all clients changing. */
-		void RebuildSubscriptions();
-		void RebuildSubscriptionsAndRefresh() { RebuildSubscriptions(); RefreshContentBoxContent(); }
+		
+		FText GetComboBoxToolTipText() const;
 	};
 }
 

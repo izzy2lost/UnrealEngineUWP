@@ -5,32 +5,17 @@
 #include "Selection/AllOnlineClientsSelectionModel.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "SMultiClientView.h"
-#include "Replication/Client/Online/OnlineClientManager.h"
-
-#include "Algo/Transform.h"
 
 namespace UE::MultiUserClient::Replication
 {
 	void SAllClientsView::Construct(const FArguments&, TSharedRef<IConcertClient> InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager)
 	{
-		ClientManager = InMultiUserReplicationManager.GetOnlineClientManager();
-		check(ClientManager);
-		AllClientsModel = MakeUnique<FAllOnlineClientsSelectionModel>(*ClientManager);
+		AllOnlineClientsModel = MakeUnique<FAllOnlineClientsSelectionModel>(*InMultiUserReplicationManager.GetOnlineClientManager());
+		AllOfflineClientsModel = MakeUnique<FAllOfflineClientsSelectionModel>(*InMultiUserReplicationManager.GetOfflineClientManager());
 		
 		ChildSlot
 		[
-			SNew(SMultiClientView, InConcertClient, InMultiUserReplicationManager, *AllClientsModel)
+			SNew(SMultiClientView, InConcertClient, InMultiUserReplicationManager, *AllOnlineClientsModel, *AllOfflineClientsModel)
 		];
-	}
-
-	TSet<const FOnlineClient*> SAllClientsView::GetAllClients() const
-	{
-		TSet<const FOnlineClient*> Result;
-		Algo::Transform(ClientManager->GetRemoteClients(), Result, [](const TNonNullPtr<FRemoteClient>& Client)
-		{
-			return Client.Get();
-		});
-		Result.Add(&ClientManager->GetLocalClient());
-		return Result;
 	}
 }

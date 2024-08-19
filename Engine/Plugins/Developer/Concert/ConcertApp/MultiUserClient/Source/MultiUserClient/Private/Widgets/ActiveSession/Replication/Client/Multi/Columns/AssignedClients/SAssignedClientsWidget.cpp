@@ -3,6 +3,7 @@
 #include "SAssignedClientsWidget.h"
 
 #include "AssignedClientsModel.h"
+#include "Replication/Client/UnifiedClientViewExtensions.h"
 #include "Widgets/Client/ClientInfoHelpers.h"
 #include "Widgets/Client/SHorizontalClientList.h"
 
@@ -14,8 +15,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	void SAssignedClientsWidget::Construct(
 		const FArguments& InArgs,
-		const TSharedRef<IConcertClient>& InConcertClient,
-		FAssignedClientsModel& InModel
+		FAssignedClientsModel& InModel,
+		const FUnifiedClientView& InClientView
 		)
 	{
 		Model = &InModel;
@@ -24,8 +25,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		ChildSlot
 		[
 			SAssignNew(ClientList, ConcertSharedSlate::SHorizontalClientList)
-			.GetClientParenthesesContent(ConcertClientSharedSlate::MakeGetLocalClientParenthesesContent(InConcertClient))
-			.GetClientInfo(ConcertClientSharedSlate::MakeClientInfoGetter(InConcertClient))
+			.GetClientParenthesesContent(MakeLocalAndOfflineParenthesesContentGetter(InClientView))
+			.GetClientInfo(MakeOnlineThenOfflineClientInfoGetter(InClientView))
 			.Font(FAppStyle::GetFontStyle("PropertyWindow.NormalFont"))
 			.HighlightText(InArgs._HighlightText)
 			.ListToolTipText(LOCTEXT("Clients.ToolTip", "These clients will replicate their assigned properties when replication is active.\nYou can pause & resume replication at the beginnig of this row."))

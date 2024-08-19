@@ -7,7 +7,7 @@
 #include "HAL//Platform.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::ConcertSharedSlate { class IEditableReplicationStreamModel; }
+namespace UE::ConcertSharedSlate { class IReplicationStreamModel; }
 
 namespace UE::MultiUserClient::Replication
 {
@@ -25,7 +25,7 @@ namespace UE::MultiUserClient::Replication
 	public:
 
 		FUserPropertySelectionSource(
-			const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
+			const ConcertSharedSlate::IReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
 			const FOnlineClientManager& InClientManager UE_LIFETIMEBOUND
 			);
 
@@ -38,8 +38,8 @@ namespace UE::MultiUserClient::Replication
 
 	private:
 
-		/** Used to get the properties the user has selected. */
-		const ConcertSharedSlate::IEditableReplicationStreamModel& UserSelection;
+		/** This is used to read the properties the user has selected, which is represented by a stream. */
+		const ConcertSharedSlate::IReplicationStreamModel& UserSelection;
 		/** Used to get client stream content and subscribe to changes. */
 		const FOnlineClientManager& ClientManager;
 	};

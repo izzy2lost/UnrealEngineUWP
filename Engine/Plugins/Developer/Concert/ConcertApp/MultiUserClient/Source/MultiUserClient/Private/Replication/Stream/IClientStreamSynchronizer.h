@@ -39,7 +39,6 @@ namespace UE::MultiUserClient::Replication
 	/** Util base class for implementing the events */
 	class FStreamSynchronizer_Base
 		: public IClientStreamSynchronizer
-		, public FNoncopyable
 	{
 	public:
 

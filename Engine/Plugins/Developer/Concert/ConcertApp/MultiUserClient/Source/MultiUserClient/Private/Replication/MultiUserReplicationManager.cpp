@@ -142,7 +142,7 @@ namespace UE::MultiUserClient::Replication
 
 	void FMultiUserReplicationManager::SetupClientConnectionEvents()
 	{
-		FOnlineClientManager& ClientManager = ConnectedState->ClientManager;
+		FOnlineClientManager& ClientManager = ConnectedState->OnlineClientManager;
 		ClientManager.ForEachClient([this](FOnlineClient& InClient){ SetupClientDelegates(InClient); return EBreakBehavior::Continue; });
 		ClientManager.OnPostRemoteClientAdded().AddRaw(this, &FMultiUserReplicationManager::OnReplicationClientConnected);
 	}
@@ -169,7 +169,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? &ReplicationClient->GetStreamSynchronizer().GetServerState()
 				: nullptr;
@@ -181,7 +181,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? &ReplicationClient->GetStreamSynchronizer().GetFrequencySettings()
 				: nullptr;
@@ -193,7 +193,7 @@ namespace UE::MultiUserClient::Replication
 	{
 		if (ConnectedState && ensureMsgf(IsInGameThread(), TEXT("To simplify implementation, only calls from game thread are allowed.")))
 		{
-			const FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			const FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient && ReplicationClient->GetAuthoritySynchronizer().HasAuthorityOver(ObjectPath);
 		}
 		return false;
@@ -224,7 +224,7 @@ namespace UE::MultiUserClient::Replication
 		
 		if (ConnectedState)
 		{
-			FOnlineClient* ReplicationClient = ConnectedState->ClientManager.FindClient(ClientId);
+			FOnlineClient* ReplicationClient = ConnectedState->OnlineClientManager.FindClient(ClientId);
 			return ReplicationClient
 				? ReplicationClient->GetExternalRequestHandler().HandleRequest(MoveTemp(SubmissionParams))
 				: FExternalClientChangeRequestHandler::MakeFailedOperation(EChangeStreamOperationResult::UnknownClient, EChangeAuthorityOperationResult::UnknownClient);
@@ -235,13 +235,15 @@ namespace UE::MultiUserClient::Replication
 	FMultiUserReplicationManager::FConnectedState::FConnectedState(TSharedRef<IConcertSyncClient> InClient, FReplicationDiscoveryContainer& InDiscoveryContainer)
 		: Client(InClient)
 		, QueryService(*InClient)
-		, ClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
-		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), ClientManager.GetAuthorityCache())
-		, PresetManager(*InClient, ClientManager, MuteManager.GetSynchronizer())
-		, PropertySelector(ClientManager)
-		, ChangeLevelHandler(ClientManager.GetLocalClient().GetClientEditModel().Get())
-		, PreventReplicatedPropertyTransaction(*InClient, ClientManager, MuteManager)
-		, UserNotifier(ClientManager, MuteManager)
+		, OnlineClientManager(InClient, InClient->GetConcertClient()->GetCurrentSession().ToSharedRef(), InDiscoveryContainer, QueryService.GetStreamAndAuthorityQueryService())
+		, OfflineClientManager(*InClient, OnlineClientManager)
+		, UnifiedClientView(*InClient, OnlineClientManager, OfflineClientManager)
+		, MuteManager(*InClient, QueryService.GetMuteStateQueryService(), OnlineClientManager.GetAuthorityCache())
+		, PresetManager(*InClient, OnlineClientManager, MuteManager.GetSynchronizer())
+		, PropertySelector(OnlineClientManager, OfflineClientManager)
+		, ChangeLevelHandler(OnlineClientManager.GetLocalClient().GetClientEditModel().Get())
+		, PreventReplicatedPropertyTransaction(*InClient, OnlineClientManager, MuteManager)
+		, UserNotifier(OnlineClientManager, MuteManager)
 	{}
 }
 

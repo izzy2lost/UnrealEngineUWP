@@ -13,7 +13,11 @@ namespace UE::ConcertSharedSlate
 	class SHorizontalClientList;
 }
 
-namespace UE::MultiUserClient::Replication { class FReassignObjectPropertiesLogic; }
+namespace UE::MultiUserClient::Replication
+{
+	class FReassignObjectPropertiesLogic;
+	class FUnifiedClientView;
+}
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
@@ -32,8 +36,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		void Construct(
 			const FArguments& InArgs,
-			const TSharedRef<IConcertClient>& InConcertClient,
-			FAssignedClientsModel& InModel UE_LIFETIMEBOUND
+			FAssignedClientsModel& InModel UE_LIFETIMEBOUND,
+			const FUnifiedClientView& InClientView UE_LIFETIMEBOUND
 			);
 	
 		virtual ~SAssignedClientsWidget() override;

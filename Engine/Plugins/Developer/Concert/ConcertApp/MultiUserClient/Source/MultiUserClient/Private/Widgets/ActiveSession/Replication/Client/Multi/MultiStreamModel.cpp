@@ -2,6 +2,7 @@
 
 #include "MultiStreamModel.h"
 
+#include "Replication/Client/Offline/OfflineClientManager.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
@@ -9,17 +10,33 @@
 
 namespace UE::MultiUserClient::Replication
 {
-	FMultiStreamModel::FMultiStreamModel(IOnlineClientSelectionModel& InOnlineClientSelectionModel, FOnlineClientManager& InClientManager)
+	FMultiStreamModel::FMultiStreamModel(
+		IOnlineClientSelectionModel& InOnlineClientSelectionModel,
+		IOfflineClientSelectionModel& InOfflineClientSelectionModel,
+		FOnlineClientManager& InOnlineClientManager,
+		FOfflineClientManager& InOfflineClientManager
+		)
 		: OnlineClientSelectionModel(InOnlineClientSelectionModel)
-		, ClientManager(InClientManager)
+		, OfflineClientSelectionModel(InOfflineClientSelectionModel)
+		, OnlineClientManager(InOnlineClientManager)
+		, OfflineClientManager(InOfflineClientManager)
 	{
-		OnlineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildStreamsSets);
-		RebuildStreamsSets();
+		OnlineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildOnlineClients);
+		OfflineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildOfflineClients);
+		
+		RebuildOnlineClients();
+		RebuildOfflineClients();
 	}
 
-	void FMultiStreamModel::ForEachClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const
+	FMultiStreamModel::~FMultiStreamModel()
 	{
-		for (const FOnlineClient* WritableClient : CachedWritableClients)
+		UnsubscribeFromOnlineClients();
+		UnsubscribeFromOfflineClients();
+	}
+
+	void FMultiStreamModel::ForEachDisplayedOnlineClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const
+	{
+		for (const FOnlineClient* WritableClient : CachedOnlineClients)
 		{
 			if (ProcessClient(WritableClient) == EBreakBehavior::Break)
 			{
@@ -28,45 +45,99 @@ namespace UE::MultiUserClient::Replication
 		}
 	}
 
-	TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> FMultiStreamModel::GetEditableStreams() const
+	TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> FMultiStreamModel::GetReadOnlyStreams() const
 	{
-		TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> Result;
-		Algo::Transform(CachedWritableClients, Result, [](const FOnlineClient* Client){ return Client->GetClientEditModel(); });
+		TSet<TSharedRef<ConcertSharedSlate::IReplicationStreamModel>> Result;
+		Algo::Transform(CachedOfflineClients, Result, [](const FOfflineClient* Client){ return Client->GetStreamModel(); });
 		return Result;
 	}
 
-	void FMultiStreamModel::RebuildStreamsSets()
+	TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> FMultiStreamModel::GetEditableStreams() const
+	{
+		TSet<TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel>> Result;
+		Algo::Transform(CachedOnlineClients, Result, [](const FOnlineClient* Client){ return Client->GetClientEditModel(); });
+		return Result;
+	}
+
+	void FMultiStreamModel::RebuildOnlineClients()
 	{
 		// It is not safe to iterate through our cached client array because it may contain stale clients that were just removed.
-		ClientManager.ForEachClient([this](FOnlineClient& Client)
-		{
-			Client.OnModelChanged().RemoveAll(this);
-			return EBreakBehavior::Continue;
-		});
+		UnsubscribeFromOnlineClients();
 		
-		TSet<const FOnlineClient*> WritableStreams;
-		OnlineClientSelectionModel.ForEachItem([this, &WritableStreams](FOnlineClient& Client)
+		TSet<const FOnlineClient*> OnlineClients;
+		OnlineClientSelectionModel.ForEachItem([this, &OnlineClients](FOnlineClient& Client)
 		{
 			const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Stream = Client.GetClientEditModel();
-			Client.OnModelChanged().AddRaw(this, &FMultiStreamModel::OnStreamExternallyChanged, Stream.ToWeakPtr());
+			Client.OnModelChanged().AddRaw(
+				this, &FMultiStreamModel::HandleOnlineClientStreamExternallyChanged, Stream.ToWeakPtr()
+				);
 			
-			WritableStreams.Add(&Client);
+			OnlineClients.Add(&Client);
 			return EBreakBehavior::Continue;
 		});
 
-		const bool bWritableStayedSame = CachedWritableClients.Num() == WritableStreams.Num() && CachedWritableClients.Includes(WritableStreams);
-		if (!bWritableStayedSame)
+		const bool bClientsStayedSame = CachedOnlineClients.Num() == OnlineClients.Num() && CachedOnlineClients.Includes(OnlineClients);
+		if (!bClientsStayedSame)
 		{
-			CachedWritableClients = MoveTemp(WritableStreams);
+			CachedOnlineClients = MoveTemp(OnlineClients);
 			OnStreamSetChangedDelegate.Broadcast();
 		}
 	}
 
-	void FMultiStreamModel::OnStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream)
+	void FMultiStreamModel::RebuildOfflineClients()
+	{
+		// It is not safe to iterate through our cached client array because it may contain stale clients that were just removed.
+		UnsubscribeFromOfflineClients();
+		
+		TSet<const FOfflineClient*> OfflineClients;
+		OfflineClientSelectionModel.ForEachItem([this, &OfflineClients](FOfflineClient& Client)
+		{
+			Client.OnStreamPredictionChanged().AddRaw(
+				this, &FMultiStreamModel::HandleOfflineClientStreamExternallyChanged, Client.GetStreamModel().ToWeakPtr()
+				);
+			OfflineClients.Add(&Client);
+			return EBreakBehavior::Continue;
+		});
+
+		const bool bClientsStayedSame = CachedOfflineClients.Num() == OfflineClients.Num() && CachedOfflineClients.Includes(OfflineClients);
+		if (!bClientsStayedSame)
+		{
+			CachedOfflineClients = MoveTemp(OfflineClients);
+			OnStreamSetChangedDelegate.Broadcast();
+		}
+	}
+
+	void FMultiStreamModel::UnsubscribeFromOnlineClients() const
+	{
+		OnlineClientManager.ForEachClient([this](FOnlineClient& Client)
+		{
+			Client.OnModelChanged().RemoveAll(this);
+			return EBreakBehavior::Continue;
+		});
+	}
+
+	void FMultiStreamModel::UnsubscribeFromOfflineClients() const
+	{
+		OfflineClientManager.ForEachClient([this](FOfflineClient& Client)
+		{
+			Client.OnStreamPredictionChanged().RemoveAll(this);
+			return EBreakBehavior::Continue;
+		});
+	}
+
+	void FMultiStreamModel::HandleOnlineClientStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStream)
 	{
 		if (const TSharedPtr<ConcertSharedSlate::IEditableReplicationStreamModel> ChangedStreamPin = ChangedStream.Pin())
 		{
-			OnReadOnlyStreamChangedDelegate.Broadcast(ChangedStreamPin.ToSharedRef());
+			OnStreamsExternallyChanged.Broadcast(ChangedStreamPin.ToSharedRef());
+		}
+	}
+
+	void FMultiStreamModel::HandleOfflineClientStreamExternallyChanged(TWeakPtr<ConcertSharedSlate::IReplicationStreamModel> ChangedStream)
+	{
+		if (const TSharedPtr<ConcertSharedSlate::IReplicationStreamModel> ChangedStreamPin = ChangedStream.Pin())
+		{
+			OnStreamsExternallyChanged.Broadcast(ChangedStreamPin.ToSharedRef());
 		}
 	}
 }

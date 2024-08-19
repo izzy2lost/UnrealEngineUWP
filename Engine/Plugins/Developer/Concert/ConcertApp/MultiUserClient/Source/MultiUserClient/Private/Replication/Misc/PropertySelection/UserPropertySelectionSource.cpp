@@ -18,7 +18,7 @@ namespace UE::MultiUserClient::Replication
 			
 			FUserPropertySource(
 				FSoftObjectPath Object,
-				const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
+				const ConcertSharedSlate::IReplicationStreamModel& InUserSelection UE_LIFETIMEBOUND,
 				const FOnlineClientManager& InClientManager UE_LIFETIMEBOUND
 				)
 				: Object(MoveTemp(Object))
@@ -89,14 +89,14 @@ namespace UE::MultiUserClient::Replication
 			const FSoftObjectPath Object;
 
 			/** Used to get the properties the user has selected. */
-			const ConcertSharedSlate::IEditableReplicationStreamModel& UserSelection;
+			const ConcertSharedSlate::IReplicationStreamModel& UserSelection;
 			/** Used to get client stream content. */
 			const FOnlineClientManager& ClientManager;
 		};
 	}
 	
 	FUserPropertySelectionSource::FUserPropertySelectionSource(
-		const ConcertSharedSlate::IEditableReplicationStreamModel& InUserSelection,
+		const ConcertSharedSlate::IReplicationStreamModel& InUserSelection,
 		const FOnlineClientManager& InClientManager
 		)
 		: UserSelection(InUserSelection)

@@ -3,8 +3,6 @@
 #include "AssignPropertyModel.h"
 
 #include "ConcertLogGlobal.h"
-#include "Replication/Client/Online/OnlineClient.h"
-#include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
 
 #include "GameFramework/Actor.h"
@@ -12,24 +10,46 @@
 
 #include <type_traits>
 
+#include "Replication/Client/UnifiedClientView.h"
+
 #define LOCTEXT_NAMESPACE "FAssignPropertyModel"
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns::AssignPropertyModel
 {
-	static void RemovePropertiesFromClient(
-		const FOnlineClient& ClientToRemoveFrom,
+	static void AssignPropertyTo(
+		ConcertSharedSlate::IEditableReplicationStreamModel& ClientEditModel,
 		TConstArrayView<TSoftObjectPtr<>> Objects,
 		const FConcertPropertyChain& Property
 		)
 	{
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = ClientToRemoveFrom.GetClientEditModel();
 		for (const TSoftObjectPtr<>& Object : Objects)
 		{
 			const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
-			const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
-			EditModel->RemoveProperties(ObjectPath, { Property });
+			if (!ClientEditModel.ContainsObjects({ ObjectPath }))
+			{
+				ClientEditModel.AddObjects({ Object.Get() });
+			}
+
+			const FSoftClassPath ClassPath = ClientEditModel.GetObjectClass(ObjectPath);
+			TArray AddedProperties { Property };
+			ConcertClientSharedSlate::PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, AddedProperties);
+			ClientEditModel.AddProperties(ObjectPath, AddedProperties);
+		}
+	}
+	
+	static void RemovePropertiesFromClient(
+		ConcertSharedSlate::IEditableReplicationStreamModel& ClientEditModel,
+		TConstArrayView<TSoftObjectPtr<>> Objects,
+		const FConcertPropertyChain& Property
+		)
+	{
+		for (const TSoftObjectPtr<>& Object : Objects)
+		{
+			const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
+			const FSoftClassPath ClassPath = ClientEditModel.GetObjectClass(ObjectPath);
+			ClientEditModel.RemoveProperties(ObjectPath, { Property });
 					
-			if (EditModel->HasAnyPropertyAssigned(ObjectPath))
+			if (ClientEditModel.HasAnyPropertyAssigned(ObjectPath))
 			{
 				continue;
 			}
@@ -43,25 +63,26 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns::AssignPropertyMo
 			const bool bIsTopLevelObject = ObjectClass && !ObjectClass->IsChildOf<AActor>();
 			if (bIsTopLevelObject)
 			{
-				EditModel->RemoveObjects({ ObjectPath });
+				ClientEditModel.RemoveObjects({ ObjectPath });
 			}
 		}
 	}
 	
 	template<typename TShouldRemove>
-	requires std::is_invocable_r_v<bool, TShouldRemove, const FOnlineClient&>
+	requires std::is_invocable_r_v<bool, TShouldRemove, const FGuid&>
 	static void UnassignPropertyFromClients(
-		const FOnlineClientManager& ClientManager,
+		const FUnifiedClientView& ClientView,
 		TConstArrayView<TSoftObjectPtr<>> Objects,
 		const FConcertPropertyChain& Property,
 		TShouldRemove&& ShouldRemoveFromClient
 		)
 	{
-		ClientManager.ForEachClient([Objects, Property, &ShouldRemoveFromClient](const FOnlineClient& ClientToRemoveFrom)
+		ClientView.ForEachOnlineClient([&ClientView, &Objects, &Property, &ShouldRemoveFromClient](const FGuid& EndpointId)
 		{
-			if (ShouldRemoveFromClient(ClientToRemoveFrom))
+			const TSharedPtr<ConcertSharedSlate::IEditableReplicationStreamModel> Stream = ClientView.GetEditableClientStreamById(EndpointId);
+			if (Stream && ShouldRemoveFromClient(EndpointId))
 			{
-				RemovePropertiesFromClient(ClientToRemoveFrom, Objects, Property);
+				RemovePropertiesFromClient(*Stream, Objects, Property);
 			}
 			return EBreakBehavior::Continue;
 		});
@@ -70,25 +91,26 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns::AssignPropertyMo
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
-	FAssignPropertyModel::FAssignPropertyModel(FOnlineClientManager& InClientManager)
-		: ClientManager(InClientManager)
+	FAssignPropertyModel::FAssignPropertyModel(FUnifiedClientView& InClientView)
+		: ClientView(InClientView)
 	{
-		ClientManager.OnRemoteClientsChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
+		ClientView.OnClientsChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
+		ClientView.GetStreamCache().OnCacheChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
 	}
 
 	FAssignPropertyModel::~FAssignPropertyModel()
 	{
-		ClientManager.OnRemoteClientsChanged().RemoveAll(this);
+		ClientView.OnClientsChanged().RemoveAll(this);
+		ClientView.GetStreamCache().OnCacheChanged().RemoveAll(this);
 	}
 
 #define SET_REASON(Text) if (Reason) { *Reason = Text; }
 	bool FAssignPropertyModel::CanChangePropertyFor(const FGuid& ClientId, FText* Reason) const
 	{
-		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
-		// Remote clients can disconnect after the combo-box is opened.
-		if (!Client)
+		const TOptional<EClientType> ClientType = ClientView.GetClientType(ClientId);
+		if (!ClientType || !IsOnlineClient(*ClientType))
 		{
-			SET_REASON(LOCTEXT("ClientDisconnected", "Client disconnected."));
+			SET_REASON(LOCTEXT("ClientDisconnected", "Client is not online."));
 			return false;
 		}
 		
@@ -99,8 +121,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	bool FAssignPropertyModel::CanClear(TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const
 	{
 		bool bIsAssignedToAnyClient = false;
-		ClientManager.ForEachClient([this, &Objects, &Property, &bIsAssignedToAnyClient](const FOnlineClient& Client)
+		ClientView.ForEachOnlineClient([this, &Objects, &Property, &bIsAssignedToAnyClient](const FGuid& EndpointId)
 		{
+			const TSharedPtr<const ConcertSharedSlate::IReplicationStreamModel> StreamModel = ClientView.GetClientStreamById(EndpointId);
+			check(StreamModel);
+			
 			for (const TSoftObjectPtr<>& EditedObject : Objects)
 			{
 				if (bIsAssignedToAnyClient)
@@ -108,8 +133,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 					break;
 				}
 				
-				const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client.GetClientEditModel();
-				const bool bHasProperty = Model->HasProperty(EditedObject.GetUniqueID(), Property);
+				const bool bHasProperty = StreamModel->HasProperty(EditedObject.GetUniqueID(), Property);
 				bIsAssignedToAnyClient |= bHasProperty;
 			}
 			
@@ -120,18 +144,18 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 	EPropertyOnObjectsOwnershipState FAssignPropertyModel::GetPropertyOwnershipState(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const
 	{
-		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
+		const TSharedPtr<const ConcertSharedSlate::IReplicationStreamModel> StreamModel = ClientView.GetClientStreamById(ClientId);
+		const TOptional<EClientType> ClientType = ClientView.GetClientType(ClientId);
 		// Remote clients can disconnect after the combo-box is opened.
-		if (!Client)
+		if (!ClientType || !IsOnlineClient(*ClientType) || !StreamModel)
 		{
-			return {};
+			return EPropertyOnObjectsOwnershipState::NotOwnedOnAllObjects;
 		}
 
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> Model = Client->GetClientEditModel();
 		EPropertyOnObjectsOwnershipState Result = EPropertyOnObjectsOwnershipState::Mixed;
 		for (const TSoftObjectPtr<>& ObjectPath : Objects)
 		{
-			const bool bHasProperty = Model->HasProperty(ObjectPath.GetUniqueID(), Property);
+			const bool bHasProperty = StreamModel->HasProperty(ObjectPath.GetUniqueID(), Property);
 			const EPropertyOnObjectsOwnershipState ExpectedState = bHasProperty
 				? EPropertyOnObjectsOwnershipState::OwnedOnAllObjects
 				: EPropertyOnObjectsOwnershipState::NotOwnedOnAllObjects;
@@ -150,32 +174,15 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		return Result;
 	}
 
-	void FAssignPropertyModel::AssignPropertyTo(const FOnlineClient* Client, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property)
-	{
-		const TSharedRef<ConcertSharedSlate::IEditableReplicationStreamModel> EditModel = Client->GetClientEditModel();
-		for (const TSoftObjectPtr<>& Object : Objects)
-		{
-			const FSoftObjectPath& ObjectPath = Object.GetUniqueID();
-			if (!EditModel->ContainsObjects({ ObjectPath }))
-			{
-				EditModel->AddObjects({ Object.Get() });
-			}
-
-			const FSoftClassPath ClassPath = EditModel->GetObjectClass(ObjectPath);
-			TArray AddedProperties { Property };
-			ConcertClientSharedSlate::PropertyUtils::AppendAdditionalPropertiesToAdd(ClassPath, AddedProperties);
-			EditModel->AddProperties(ObjectPath, AddedProperties);
-		}
-	}
-
 	void FAssignPropertyModel::TogglePropertyFor(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property)
 	{
 		// Remote clients can disconnect after the combo-box is opened.
-		const FOnlineClient* Client = ClientManager.FindClient(ClientId);
-		if (!Client)
+		const TSharedPtr<ConcertSharedSlate::IEditableReplicationStreamModel> StreamModel = ClientView.GetEditableClientStreamById(ClientId);
+		if (!StreamModel)
 		{
 			return;
 		}
+		
 		const FText TransactionText = FText::Format(
 			LOCTEXT("AllClientsAssignFmt", "Assign {0} property"),
 			FText::FromString(Property.ToString(FConcertPropertyChain::EToStringMethod::LeafProperty))
@@ -194,12 +201,12 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		else
 		{
 			// ... remove the property from all clients but the one we'll assign to ...
-			AssignPropertyModel::UnassignPropertyFromClients(ClientManager, Objects, Property,
-				[Client](const FOnlineClient& ClientToRemoveFrom){ return *Client != ClientToRemoveFrom; }
+			AssignPropertyModel::UnassignPropertyFromClients(ClientView, Objects, Property,
+				[ClientId](const FGuid& ClientToRemoveFrom){ return ClientId != ClientToRemoveFrom; }
 				);
 
 			// ... and then assign the property
-			AssignPropertyTo(Client, Objects, Property);
+			AssignPropertyModel::AssignPropertyTo(*StreamModel, Objects, Property);
 		}
 	}
 
@@ -213,7 +220,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 				);
 			FScopedTransaction Transaction(TransactionText);
 			
-			AssignPropertyModel::UnassignPropertyFromClients(ClientManager, Objects, Property, [](auto&){ return true; });
+			AssignPropertyModel::UnassignPropertyFromClients(ClientView, Objects, Property, [](auto&){ return true; });
 		}
 	}
 }

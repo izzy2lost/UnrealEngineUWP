@@ -3,7 +3,6 @@
 #pragma once
 
 #include "Delegates/Delegate.h"
-#include "Templates/UnrealTemplate.h"
 
 struct FSoftObjectPath;
 
@@ -30,7 +29,6 @@ namespace UE::MultiUserClient::Replication
 	/** Util base class for implementing the events */
 	class FAuthoritySynchronizer_Base
 		: public IClientAuthoritySynchronizer
-		, public FNoncopyable
 	{
 	public:
 

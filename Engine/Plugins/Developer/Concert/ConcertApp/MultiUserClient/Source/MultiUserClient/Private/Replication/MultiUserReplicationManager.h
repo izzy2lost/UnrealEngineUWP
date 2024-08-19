@@ -4,6 +4,8 @@
 
 #include "Client/Online/OnlineClientManager.h"
 #include "IConcertSession.h"
+#include "Client/UnifiedClientView.h"
+#include "Client/Offline/OfflineClientManager.h"
 #include "Misc/ChangeLevelHandler.h"
 #include "Misc/Notification/ReplicationUserNotifier.h"
 #include "Misc/PreventReplicatedPropertyTransaction.h"
@@ -61,19 +63,27 @@ namespace UE::MultiUserClient::Replication
 		 */
 		void JoinReplicationSession();
 
-		/** @note You're not supposed to keep any reference to the ClientManager since it can become invalid depending on connection state. */
-		FOnlineClientManager* GetOnlineClientManager() { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
-		const FOnlineClientManager* GetOnlineClientManager() const { return ConnectedState ? &ConnectedState->ClientManager : nullptr; }
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
+		FOnlineClientManager* GetOnlineClientManager() { return ConnectedState ? &ConnectedState->OnlineClientManager : nullptr; }
+		const FOnlineClientManager* GetOnlineClientManager() const { return ConnectedState ? &ConnectedState->OnlineClientManager : nullptr; }
 		
-		/** @note You're not supposed to keep any reference to the MuteManager since it can become invalid depending on connection state. */
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
+		FOfflineClientManager* GetOfflineClientManager() { return ConnectedState ? &ConnectedState->OfflineClientManager : nullptr; }
+		const FOfflineClientManager* GetOfflineClientManager() const { return ConnectedState ? &ConnectedState->OfflineClientManager : nullptr; }
+		
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
+		FUnifiedClientView* GetUnifiedClientView() { return ConnectedState ? &ConnectedState->UnifiedClientView : nullptr; }
+		const FUnifiedClientView* GetUnifiedClientView() const { return ConnectedState ? &ConnectedState->UnifiedClientView : nullptr; }
+		
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
 		FMuteStateManager* GetMuteManager() { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 		const FMuteStateManager* GetMuteManager() const { return ConnectedState ? &ConnectedState->MuteManager : nullptr; }
 
-		/** @note You're not supposed to keep any reference to the PresetManager since it can become invalid depending on connection state. */
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
 		FPresetManager* GetPresetManager() { return ConnectedState ? &ConnectedState->PresetManager : nullptr; }
 		const FPresetManager* GetPresetManager() const { return ConnectedState ? &ConnectedState->PresetManager : nullptr; }
 
-		/** @note You're not supposed to keep any reference to the PropertySelector since it can become invalid depending on connection state. */
+		/** @note This pointer is only valid while connected and can become stale. Listen for OnReplicationConnectionStateChanged. */
 		FUserPropertySelector* GetUserPropertySelector() { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
 		const FUserPropertySelector* GetUserPropertySelector() const { return ConnectedState ? &ConnectedState->PropertySelector : nullptr; }
 
@@ -116,12 +126,18 @@ namespace UE::MultiUserClient::Replication
 			FRegularQueryService QueryService;
 			
 			/**
-			 * Creates UMultiUserReplicationSessionPreset which is displayed by UI.
+			 * Synchronizes replication settings of clients connected to the session.
+			 * Creates UMultiUserReplicationSessionPreset, which is displayed by UI.
 			 * Keeps the preset in sync with the state on the server.
 			 *
 			 * Only valid when ConnectionState == EMultiUserReplicationConnectionState::Connected.
 			 */
-			FOnlineClientManager ClientManager;
+			FOnlineClientManager OnlineClientManager;
+			/** Keeps track of clients that were once in the session but are no longer to be able to display their old settings in the UI. */
+			FOfflineClientManager OfflineClientManager;
+			/** Adapter abstraction that allows systems to query online and offline clients with an unified interface. */
+			FUnifiedClientView UnifiedClientView;
+			
 			/** Interacts with the mute global server mute system. */
 			FMuteStateManager MuteManager;
 			/** Saves and loads presets for the session. Accessed by UI. */

@@ -6,8 +6,10 @@
 
 namespace UE::MultiUserClient::Replication
 {
+	class FOfflineClient;
 	class FOnlineClient;
 	struct FClientItem;
 	
+	using IOfflineClientSelectionModel = ISelectionModel<FOfflineClient>;
 	using IOnlineClientSelectionModel = ISelectionModel<FOnlineClient>;
 }

@@ -7,6 +7,16 @@
 #include "HAL/Platform.h"
 #include "Templates/UnrealTemplate.h"
 
+namespace UE::MultiUserClient::Replication
+{
+	class FUnifiedStreamCache;
+}
+
+namespace UE::MultiUserClient::Replication
+{
+	class FUnifiedClientView;
+}
+
 struct FGuid;
 
 namespace UE::ConcertSharedSlate { class IObjectHierarchyModel; }
@@ -25,10 +35,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		
 		FAssignedClientsModel(
 			const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
-			FOnlineClientManager& InClientManager UE_LIFETIMEBOUND
+			FUnifiedStreamCache& InStreamCache UE_LIFETIMEBOUND
 			);
 		~FAssignedClientsModel();
 
+		/** @return The endpoint IDs of clients that have properties assigned to ObjecPath. */
 		TArray<FGuid> GetAssignedClients(const FSoftObjectPath& ObjectPath) const;
 		
 		/** Broadcast when the result of GetAssignedClients may have changed. */
@@ -38,13 +49,14 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		/** Used to compute clients's recursive ownership of subobjects for a managed object. */
 		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy;
-		FOnlineClientManager& ClientManager;
+		/** Holds the stream content of both online and offline clients. */
+		FUnifiedStreamCache& StreamCache;
 		
 		/** Broadcast when the result of GetAssignedClients may have changed. */
 		FSimpleMulticastDelegate OnOwnershipChangedDelegate;
 		
-		void OnClientChanged(const FGuid&) const { BroadcastOwnershipChanged(); }
-		void BroadcastOwnershipChanged() const { OnOwnershipChangedDelegate.Broadcast(); }
+		void OnClientChanged(const FGuid&) const;
+		void BroadcastOwnershipChanged() const;
 	};
 }
 
