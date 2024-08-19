@@ -6,11 +6,6 @@
 #include "Misc/CoreDelegates.h"
 #include "Modules/ModuleInterface.h"
 
-#ifndef DETECT_LIVELINKHUB
-#define DETECT_LIVELINKHUB PLATFORM_WINDOWS
-#endif
-
-
 /**
  * Editor module responsible for creating the hub's status bar.
  */

@@ -2,15 +2,19 @@
 
 #include "LiveLinkHubEditorModule.h"
 
+#include "DesktopPlatformModule.h"
 #include "HAL/FileManager.h"
 #include "ILauncherPlatform.h"
 #include "LauncherPlatformModule.h"
+#include "LiveLinkHubLauncherUtils.h"
 #include "LiveLinkHubEditorSettings.h"
 #include "Misc/App.h"
 #include "Misc/AsyncTaskNotification.h"
+#include "Misc/MessageDialog.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "SLiveLinkHubEditorStatusBar.h"
 #include "ToolMenus.h"
+
 
 static TAutoConsoleVariable<int32> CVarLiveLinkHubEnableStatusBar(
 	TEXT("LiveLinkHub.EnableStatusBar"), 1,
@@ -20,99 +24,6 @@ static TAutoConsoleVariable<int32> CVarLiveLinkHubEnableStatusBar(
 DECLARE_LOG_CATEGORY_CLASS(LogLiveLinkHubEditor, Log, Log)
 
 #define LOCTEXT_NAMESPACE "LiveLinkHubEditor"
-
-#if PLATFORM_WINDOWS
-#include "Windows/AllowWindowsPlatformTypes.h"
-THIRD_PARTY_INCLUDES_START
-#include <winreg.h>
-THIRD_PARTY_INCLUDES_END
-#include "Windows/HideWindowsPlatformTypes.h"
-#endif
-
-#if DETECT_LIVELINKHUB
-static const FString LiveLinkHubRegistryPath = TEXT("Software\\Epic Games\\LiveLinkHub\\") VERSION_STRINGIFY(ENGINE_MAJOR_VERSION) TEXT(".") VERSION_STRINGIFY(ENGINE_MINOR_VERSION);
-static const FString LiveLinkHubExecutablePath = TEXT("ExecutablePath");
-
-namespace LiveLinkHubUtils
-{
-	/** Attempt to open the livelinkhub registry key that contains the path to the executable. */
-	HKEY OpenLiveLinkHubKey()
-	{
-		HKEY HkcuRunKey = nullptr;
-
-		const LSTATUS OpenResult = RegCreateKeyEx(HKEY_CURRENT_USER, *LiveLinkHubRegistryPath, 0, NULL, REG_OPTION_NON_VOLATILE, KEY_ALL_ACCESS, NULL, &HkcuRunKey, NULL);
-		if (OpenResult != ERROR_SUCCESS)
-		{
-			UE_LOG(LogLiveLinkHubEditor, Log, TEXT("Error opening registry key %s (%08X)"), *LiveLinkHubRegistryPath, OpenResult);
-			return nullptr;
-		}
-		return HkcuRunKey;
-	}
-
-	/** Set the livelinkhub registry key to the livelinkhub executable path. */
-	bool SaveExecutablePathToRegistry()
-	{
-		HKEY HkcuRunKey = OpenLiveLinkHubKey();
-		if (!HkcuRunKey)
-		{
-			return false;
-		}
-
-		ON_SCOPE_EXIT
-		{
-			RegCloseKey(HkcuRunKey);
-		};
-
-		TCHAR ExeFilePath[MAX_PATH + 1];
-		int32 PathLength = ::GetModuleFileNameW(NULL, ExeFilePath, MAX_PATH + 1);
-		if (PathLength > 0)
-		{
-			const LSTATUS SetResult = RegSetValueEx(HkcuRunKey, *LiveLinkHubExecutablePath, 0, REG_SZ, reinterpret_cast<const BYTE*>(ExeFilePath), (PathLength + 1) * sizeof(TCHAR));
-			if (SetResult != ERROR_SUCCESS)
-			{
-				UE_LOG(LogLiveLinkHubEditor, Error, TEXT("Error setting registry value %s (%08X)"), *LiveLinkHubExecutablePath, SetResult);
-				return false;
-			}
-		}
-		else
-		{
-			UE_LOG(LogLiveLinkHubEditor, Error, TEXT("Error setting getting the executable path while setting the registry key for livelink hub."));
-			return false;
-		}
-
-		return true;
-	}
-
-	/** Get the executable path from the registry. */
-	bool GetExecutablePathFromRegistry(FString& OutExecutablePath)
-	{
-		HKEY HkcuRunKey = OpenLiveLinkHubKey();
-		if (!HkcuRunKey)
-		{
-			return false;
-		}
-
-		ON_SCOPE_EXIT
-		{
-			RegCloseKey(HkcuRunKey);
-		};
-
-		wchar_t InstallPathStr[MAX_PATH];
-		DWORD InstallPathSize = sizeof(InstallPathStr);
-
-		LSTATUS GetResult = RegGetValue(HkcuRunKey, NULL, *LiveLinkHubExecutablePath, RRF_RT_REG_SZ, NULL, &InstallPathStr, &InstallPathSize);
-		if (GetResult != ERROR_SUCCESS)
-		{
-			UE_LOG(LogLiveLinkHubEditor, Error, TEXT("Error getting registry value %s:\"%s\" (%08X)"), *LiveLinkHubRegistryPath, *LiveLinkHubExecutablePath, GetResult);
-			return false;
-		}
-
-		OutExecutablePath = WCHAR_TO_TCHAR(InstallPathStr);
-
-		return true;
-	}
-}
-#endif
 
 void FLiveLinkHubEditorModule::StartupModule()
 {
@@ -126,7 +37,7 @@ void FLiveLinkHubEditorModule::ShutdownModule()
 {
 	UToolMenus::UnregisterOwner(this);
 
-	if (!IsRunningCommandlet() && CVarLiveLinkHubEnableStatusBar.GetValueOnAnyThread())
+	if (!IsRunningCommandlet() && CVarLiveLinkHubEnableStatusBar.GetValueOnAnyThread()) 
 	{
 		FCoreDelegates::OnPostEngineInit.RemoveAll(this);
 		UnregisterLiveLinkHubStatusBar();
@@ -139,14 +50,6 @@ void FLiveLinkHubEditorModule::OnPostEngineInit()
 	{
 		RegisterLiveLinkHubStatusBar();
 		
-#if DETECT_LIVELINKHUB
-		if (GetDefault<ULiveLinkHubEditorSettings>()->bWriteLiveLinkHubRegistryKey)
-		{
-			// Set the executable path registry key if it hasn't been set.
-			LiveLinkHubUtils::SaveExecutablePathToRegistry();
-		}
-#endif
-
 		FToolMenuOwnerScoped OwnerScoped(this);
 		UToolMenu* Menu = UToolMenus::Get()->ExtendMenu("LevelEditor.MainMenu.Tools");
 		FToolMenuSection& Section = Menu->AddSection("VirtualProductionSection", LOCTEXT("VirtualProductionSection", "Virtual Production"));
@@ -169,46 +72,86 @@ void FLiveLinkHubEditorModule::OpenLiveLinkHub()
 	FAsyncTaskNotification Notification(NotificationConfig);
 	const FText LaunchLiveLinkHubErrorTitle = LOCTEXT("LaunchLiveLinkHubErrorTitle", "Failed to Launch LiveLinkhub.");
 
-#if DETECT_LIVELINKHUB
 	// Try getting the livelinkhub app location by reading a registry key.
 	if (GetDefault<ULiveLinkHubEditorSettings>()->bDetectLiveLinkHubExecutable)
 	{
-		LiveLinkHubUtils::GetExecutablePathFromRegistry(LiveLinkHubExecutablePath);
-	}
-#endif
-
-	if (GetDefault<ULiveLinkHubEditorSettings>()->bDetectLiveLinkHubExecutable && LiveLinkHubExecutablePath.IsEmpty())
-	{
-		// LiveLinkHub executable was not successfully detected, so open the launcher page instead.
 		ILauncherPlatform* LauncherPlatform = FLauncherPlatformModule::Get();
-		if (!GetDefault<ULiveLinkHubEditorSettings>()->LiveLinkHubStorePage.IsEmpty())
+
+		UE::LiveLinkHubLauncherUtils::FInstalledApp LiveLinkHubApp;
+		if (UE::LiveLinkHubLauncherUtils::FindLiveLinkHubInstallation(LiveLinkHubApp))
 		{
-			FOpenLauncherOptions OpenOptions(GetDefault<ULiveLinkHubEditorSettings>()->LiveLinkHubStorePage);
+			// Found a LiveLinkHub installation from the launcher, so launch it that way.
+			
+			const FString LaunchLink = TEXT("apps") / LiveLinkHubApp.NamespaceId + TEXT("%3A") + LiveLinkHubApp.ItemId + TEXT("%3A") + LiveLinkHubApp.AppName + TEXT("?action=launch&silent=true");
+			FOpenLauncherOptions OpenOptions(LaunchLink);
 			if (!LauncherPlatform->OpenLauncher(OpenOptions))
 			{
 				Notification.SetComplete(
 					LaunchLiveLinkHubErrorTitle,
-					LOCTEXT("LaunchLiveLinkHubError_CouldNotOpenLauncher", "Could not find the LiveLink Hub page on the epic games store."),
+					LOCTEXT("LaunchLiveLinkHubError_CouldNotOpenLauncher", "Could not launch LiveLinkHub throug the epic games store."),
 					false
 				);
 
-				return;
 			}
-
-			Notification.SetComplete(
-				LaunchLiveLinkHubErrorTitle,
-				LOCTEXT("LaunchLiveLinkHub_LaunchFromStore", "Please download and launch LiveLinkHub from the Epic Games Store."),
-				true
-			);
-
-			// Store page was launched successfully, but we're not currently launching LiveLinkHub through the launcher, so the user will have to launch it once to write the registry key.
-			// Todo: Detect if livelinkhub is present in library and launch it through there.
-			return;
+			else
+			{
+				Notification.SetComplete(
+					LOCTEXT("LiveLinkHubLaunchSuccessTitle", "Launched LiveLinkHub."),
+					LOCTEXT("LaunchLiveLinkHubError_LaunchSuccess", "Launching LiveLinkHub through the Epic Games Store."),
+					true
+				);
+			}
 		}
 		else
 		{
-			UE_LOG(LogLiveLinkHubEditor, Error, TEXT("Could not open LiveLinkHub store page, config was empty."));
+			const EAppReturnType::Type Choice = FMessageDialog::Open(EAppMsgType::YesNo, LOCTEXT("InstallThroughEGS", "LiveLinkHub is not currently installed, do you want to install it through the Epic Games Store?"));
+
+			if (Choice == EAppReturnType::Yes)
+			{
+				// Could not find LiveLinkHub from the launcher. Prompt the user to open the EGS and install it.
+				if (!GetDefault<ULiveLinkHubEditorSettings>()->LiveLinkHubStorePage.IsEmpty())
+				{
+					FOpenLauncherOptions OpenOptions(GetDefault<ULiveLinkHubEditorSettings>()->LiveLinkHubStorePage);
+					if (!LauncherPlatform->OpenLauncher(OpenOptions))
+					{
+						Notification.SetComplete(
+							LaunchLiveLinkHubErrorTitle,
+							LOCTEXT("LaunchLiveLinkHubError_CouldNotOpenLauncher", "Could not find the LiveLink Hub page on the epic games store."),
+							false
+						);
+					}
+					else
+					{
+						Notification.SetComplete(
+							LaunchLiveLinkHubErrorTitle,
+							LOCTEXT("LaunchLiveLinkHub_LaunchFromStore", "Opening Epic Games Store to the LiveLinkHub page."),
+							true
+						);
+					}
+
+				}
+				else
+				{
+					Notification.SetComplete(
+						LaunchLiveLinkHubErrorTitle,
+						LOCTEXT("LaunchLiveLinkHubError_EmptyConfig", "Could not find the LiveLink Hub page on the epic games store, missing configuration for the store page."),
+						false
+					);
+				
+				}
+			}
+			else
+			{
+				Notification.SetComplete(
+					LaunchLiveLinkHubErrorTitle,
+					LOCTEXT("LaunchLiveLinkHub_DidNotLaunchFromStore", "LiveLinkHub could not be launched since it wasn't installed."),
+					false
+				);
+			}
+
 		}
+
+		return;
 	}
 
 	// Find livelink hub executable location for our build configuration
@@ -235,11 +178,6 @@ void FLiveLinkHubEditorModule::OpenLiveLinkHub()
 		);
 
 		return;
-	}
-
-	if (GetDefault<ULiveLinkHubEditorSettings>()->bDetectLiveLinkHubExecutable)
-	{
-		LiveLinkHubPath = LiveLinkHubExecutablePath;
 	}
 
 	// Validate we do not have it running locally
