@@ -69,17 +69,30 @@ enum class ERDGBarrierLocation : uint8
 
 struct FRDGTransitionInfo
 {
-	FRDGTransitionInfo() = default;
+	static_assert((int32)ERHIAccess::Last <= (1 << 20) && (int32)ERDGViewableResourceType::MAX <= 3 && (int32)EResourceTransitionFlags::Last == (1 << 2), "FRDGTransitionInfo packing is no longer correct.");
 
-	ERHIAccess AccessBefore;
-	ERHIAccess AccessAfter;
-	uint16 Handle;
-	ERDGViewableResourceType Type;
-	EResourceTransitionFlags Flags;
-	uint32 ArraySlice : 16;
-	uint32 MipIndex   : 8;
-	uint32 PlaneSlice : 2;
-	uint32 bReservedCommit : 1;
+	uint64 AccessBefore            : 21; // 21
+	uint64 AccessAfter             : 21; // 42
+	uint64 ResourceHandle          : 16; // 58
+	uint64 ResourceType            : 3;  // 61
+	uint64 ResourceTransitionFlags : 3;  // 64
+
+	union
+	{
+		struct
+		{
+			uint16 ArraySlice;
+			uint8  MipIndex;
+			uint8  PlaneSlice;
+
+		} Texture;
+
+		struct
+		{
+			uint64 CommitSize;
+
+		} Buffer;
+	};
 };
 
 struct FRDGBarrierBatchEndId

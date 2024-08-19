@@ -859,38 +859,56 @@ private:
 
 	struct FAsyncSetupOp
 	{
-		enum class EType
+		enum class EType : uint8
 		{
 			SetupPassResources,
 			CullRootBuffer,
-			CullRootTexture
+			CullRootTexture,
+			ReservedBufferCommit
 		};
 
 		static FAsyncSetupOp SetupPassResources(FRDGPass* Pass)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::SetupPassResources;
+			FAsyncSetupOp Op(EType::SetupPassResources);
 			Op.Pass = Pass;
 			return Op;
 		}
 
 		static FAsyncSetupOp CullRootBuffer(FRDGBuffer* Buffer)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::CullRootBuffer;
+			FAsyncSetupOp Op(EType::CullRootBuffer);
 			Op.Buffer = Buffer;
 			return Op;
 		}
 
 		static FAsyncSetupOp CullRootTexture(FRDGTexture* Texture)
 		{
-			FAsyncSetupOp Op;
-			Op.Type = EType::CullRootTexture;
+			FAsyncSetupOp Op(EType::CullRootTexture);
 			Op.Texture = Texture;
 			return Op;
 		}
 
-		EType Type;
+		static FAsyncSetupOp ReservedBufferCommit(FRDGBuffer* Buffer, uint64 CommitSizeInBytes)
+		{
+			FAsyncSetupOp Op(EType::ReservedBufferCommit, CommitSizeInBytes);
+			Op.Buffer = Buffer;
+			return Op;
+		}
+
+		EType GetType() const
+		{
+			return (EType)Type;
+		}
+
+		uint64 Type : 8;
+		uint64 Payload : 48;
+
+		FAsyncSetupOp(EType InType, uint64 InPayload = 0)
+			: Type((uint8)InType)
+			, Payload(InPayload)
+		{
+			check(InPayload < (1ull << 48ull));
+		}
 
 		union
 		{
@@ -917,6 +935,30 @@ private:
 
 	void LaunchAsyncSetupQueueTask();
 	void ProcessAsyncSetupQueue();
+
+	//////////////////////////////////////////////////////////////////////////////
+	// Reserved Buffer Commits
+
+	FRDGBufferReservedCommitHandle AcquireReservedCommitHandle(FRDGBuffer* Buffer)
+	{
+		FRDGBufferReservedCommitHandle Handle;
+
+		if (Buffer->PendingCommitSize > 0)
+		{
+			Handle = FRDGBufferReservedCommitHandle(ReservedBufferCommitSizes.Num());
+			ReservedBufferCommitSizes.Emplace(Buffer->PendingCommitSize);
+			Buffer->PendingCommitSize = 0;
+		}
+
+		return Handle;
+	}
+
+	uint64 GetReservedCommitSize(FRDGBufferReservedCommitHandle Handle)
+	{
+		return Handle.IsValid() ? ReservedBufferCommitSizes[Handle.GetIndex()] : 0;
+	}
+
+	TArray<uint64, FRDGArrayAllocator> ReservedBufferCommitSizes;
 
 	//////////////////////////////////////////////////////////////////////////////
 	// Culling

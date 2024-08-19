@@ -1594,7 +1594,7 @@ void FRDGBuilder::ProcessAsyncSetupQueue()
 
 		for (FAsyncSetupOp Op : PoppedOps)
 		{
-			switch (Op.Type)
+			switch (Op.GetType())
 			{
 			case FAsyncSetupOp::EType::SetupPassResources:
 				SetupPassResources(Op.Pass);
@@ -1606,6 +1606,11 @@ void FRDGBuilder::ProcessAsyncSetupQueue()
 
 			case FAsyncSetupOp::EType::CullRootTexture:
 				AddCullRootTexture(Op.Texture);
+				break;
+
+			case FAsyncSetupOp::EType::ReservedBufferCommit:
+				ensureMsgf(!Op.Buffer->AccessModeState.IsExternalAccess(), TEXT("Buffer %s has a pending reserved commit of %u bytes but is marked for external access! The commit will be ignored!"), Op.Buffer->Name, Op.Payload);
+				Op.Buffer->PendingCommitSize = Op.Payload;
 				break;
 			}
 		}
@@ -2306,6 +2311,8 @@ void FRDGBuilder::SetupPassResources(FRDGPass* Pass)
 			Buffer->PassStateIndex = Pass->BufferStates.Num();
 
 			PassState = &Pass->BufferStates.Emplace_GetRef(Buffer);
+			PassState->State.ReservedCommitHandle = AcquireReservedCommitHandle(Buffer);
+			PassState->State.SetPass(PassPipeline, PassHandle);
 		}
 		else
 		{
@@ -2317,7 +2324,6 @@ void FRDGBuilder::SetupPassResources(FRDGPass* Pass)
 		PassState->ReferenceCount++;
 		PassState->State.Access = MakeValidAccess(PassState->State.Access, Access);
 		PassState->State.NoUAVBarrierFilter.AddHandle(NoUAVBarrierHandle);
-		PassState->State.SetPass(PassPipeline, PassHandle);
 
 		if (IsWritableAccess(Access))
 		{
@@ -3382,6 +3388,12 @@ void FRDGBuilder::CompilePassBarriers()
 				// Merge the pass state into the merged state.
 				ResourceMergeState->Access |= PassState->Access;
 
+				// If multiple reserved commits were requested, take the latest.
+				if (PassState->ReservedCommitHandle.IsValid())
+				{
+					ResourceMergeState->ReservedCommitHandle = PassState->ReservedCommitHandle;
+				}
+
 				FRDGPassHandle& FirstPassHandle = ResourceMergeState->FirstPass[PassPipeline];
 
 				if (FirstPassHandle.IsNull())
@@ -3478,7 +3490,6 @@ void FRDGBuilder::CollectPassBarriers(FRDGPassHandle PassHandle)
 			if (!Buffer->FirstState)
 			{
 				Buffer->FirstState = StateAfter;
-				Buffer->FirstState->bReservedCommit = Buffer->PendingCommitSize > 0;
 				return IsImmediateMode();
 			}
 			return true;
@@ -3502,28 +3513,28 @@ void FRDGBuilder::CreatePassBarriers()
 		for (FRDGTransitionInfo InfoRDG : BeginBatch->Transitions)
 		{
 			FRHITransitionInfo& InfoRHI = Context.Transitions.Emplace_GetRef();
-			InfoRHI.AccessBefore = InfoRDG.AccessBefore;
-			InfoRHI.AccessAfter  = InfoRDG.AccessAfter;
-			InfoRHI.ArraySlice   = InfoRDG.ArraySlice;
-			InfoRHI.MipIndex     = InfoRDG.MipIndex;
-			InfoRHI.PlaneSlice   = InfoRDG.PlaneSlice;
-			InfoRHI.Flags        = InfoRDG.Flags;
+			InfoRHI.AccessBefore = (ERHIAccess)InfoRDG.AccessBefore;
+			InfoRHI.AccessAfter  = (ERHIAccess)InfoRDG.AccessAfter;
+			InfoRHI.Flags        = (EResourceTransitionFlags)InfoRDG.ResourceTransitionFlags;
 
-			if (InfoRDG.Type == ERDGViewableResourceType::Texture)
+			if ((ERDGViewableResourceType)InfoRDG.ResourceType == ERDGViewableResourceType::Texture)
 			{
-				InfoRHI.Resource = Textures[FRDGTextureHandle(InfoRDG.Handle)]->ResourceRHI;
-				InfoRHI.Type = FRHITransitionInfo::EType::Texture;
+				InfoRHI.Resource   = Textures[FRDGTextureHandle(InfoRDG.ResourceHandle)]->ResourceRHI;
+				InfoRHI.Type       = FRHITransitionInfo::EType::Texture;
+				InfoRHI.ArraySlice = InfoRDG.Texture.ArraySlice;
+				InfoRHI.MipIndex   = InfoRDG.Texture.MipIndex;
+				InfoRHI.PlaneSlice = InfoRDG.Texture.PlaneSlice;
 			}
 			else
 			{
-				FRDGBuffer* Buffer = Buffers[FRDGBufferHandle(InfoRDG.Handle)];
+				FRDGBuffer* Buffer = Buffers[FRDGBufferHandle(InfoRDG.ResourceHandle)];
 
 				InfoRHI.Resource = Buffer->ResourceRHI;
 				InfoRHI.Type = FRHITransitionInfo::EType::Buffer;
 
-				if (InfoRDG.bReservedCommit)
+				if (InfoRDG.Buffer.CommitSize > 0)
 				{
-					InfoRHI.CommitInfo.Emplace(Buffer->PendingCommitSize);
+					InfoRHI.CommitInfo.Emplace(InfoRDG.Buffer.CommitSize);
 				}
 			}
 		}
@@ -3742,7 +3753,7 @@ void FRDGBuilder::AddLastBufferTransition(FRDGBuffer* Buffer)
 	check(IsImmediateMode() || Buffer->bExtracted || Buffer->ReferenceCount == FRDGViewableResource::DeallocatedReferenceCount);
 	check(Buffer->HasRHI());
 
-	if (Buffer->AccessModeState.ActiveMode == FRDGViewableResource::EAccessMode::External)
+	if (Buffer->AccessModeState.IsExternalAccess())
 	{
 		// Assign the final state that was enqueued by the external access pass, which may include merged states.
 		EpilogueResourceAccesses.Emplace(Buffer->GetRHI(), Buffer->State->Access);
@@ -3764,6 +3775,7 @@ void FRDGBuilder::AddLastBufferTransition(FRDGBuffer* Buffer)
 	{
 		StateAfter->SetPass(ERHIPipeline::Graphics, EpiloguePassHandle);
 		StateAfter->Access = Buffer->EpilogueAccess;
+		StateAfter->ReservedCommitHandle = AcquireReservedCommitHandle(Buffer);
 
 		EpilogueResourceAccesses.Emplace(Buffer->GetRHI(), StateAfter->Access);
 	}
@@ -3866,21 +3878,22 @@ void FRDGBuilder::AddTextureTransition(FRDGTexture* Texture, FRDGTextureSubresou
 			{
 				const FRDGTextureSubresource Subresource = Layout.GetSubresource(SubresourceIndex);
 
-				FRDGTransitionInfo Info;
-				Info.AccessBefore = SubresourceStateBefore->Access;
-				Info.AccessAfter = SubresourceStateAfter->Access;
-				Info.Handle = Texture->Handle.GetIndex();
-				Info.Type = ERDGViewableResourceType::Texture;
-				Info.Flags = SubresourceStateAfter->Flags;
-				Info.ArraySlice = Subresource.ArraySlice;
-				Info.MipIndex = Subresource.MipIndex;
-				Info.PlaneSlice = Subresource.PlaneSlice;
-				Info.bReservedCommit = 0;
+				EResourceTransitionFlags Flags = SubresourceStateAfter->Flags;
 
-				if (Info.AccessBefore == ERHIAccess::Discard)
+				if (SubresourceStateBefore->Access == ERHIAccess::Discard)
 				{
-					Info.Flags |= EResourceTransitionFlags::Discard;
+					Flags |= EResourceTransitionFlags::Discard;
 				}
+
+				FRDGTransitionInfo Info;
+				Info.AccessBefore            = (uint64)SubresourceStateBefore->Access;
+				Info.AccessAfter             = (uint64)SubresourceStateAfter->Access;
+				Info.ResourceHandle          = (uint64)Texture->Handle.GetIndex();
+				Info.ResourceType            = (uint64)ERDGViewableResourceType::Texture;
+				Info.ResourceTransitionFlags = (uint64)Flags;
+				Info.Texture.ArraySlice      = Subresource.ArraySlice;
+				Info.Texture.MipIndex        = Subresource.MipIndex;
+				Info.Texture.PlaneSlice      = Subresource.PlaneSlice;
 
 				AddTransition(Texture, *SubresourceStateBefore, *SubresourceStateAfter, Info);
 			}
@@ -3903,15 +3916,12 @@ void FRDGBuilder::AddBufferTransition(FRDGBufferRef Buffer, FRDGSubresourceState
 		if (FRDGSubresourceState::IsTransitionRequired(*StateBefore, *StateAfter))
 		{
 			FRDGTransitionInfo Info;
-			Info.AccessBefore = StateBefore->Access;
-			Info.AccessAfter = StateAfter->Access;
-			Info.Handle = Buffer->Handle.GetIndex();
-			Info.Type = ERDGViewableResourceType::Buffer;
-			Info.Flags = StateAfter->Flags;
-			Info.ArraySlice = 0;
-			Info.MipIndex = 0;
-			Info.PlaneSlice = 0;
-			Info.bReservedCommit = StateAfter->bReservedCommit;
+			Info.AccessBefore            = (uint64)StateBefore->Access;
+			Info.AccessAfter             = (uint64)StateAfter->Access;
+			Info.ResourceHandle          = (uint64)Buffer->Handle.GetIndex();
+			Info.ResourceType            = (uint64)ERDGViewableResourceType::Buffer;
+			Info.ResourceTransitionFlags = (uint64)StateAfter->Flags;
+			Info.Buffer.CommitSize       = GetReservedCommitSize(StateAfter->ReservedCommitHandle);
 
 			AddTransition(Buffer, *StateBefore, *StateAfter, Info);
 		}

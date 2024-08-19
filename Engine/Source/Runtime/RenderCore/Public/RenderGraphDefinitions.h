@@ -554,30 +554,33 @@ public:
 	void Reset()
 	{
 		Handle = HandleType::Null;
-		bUnique = false;
 	}
 
 	void AddHandle(HandleType InHandle)
 	{
+		checkf(InHandle != NotUniqueHandle, TEXT("Overflowed TRDGHandleUniqueFilter"));
+
 		if (Handle != InHandle && InHandle.IsValid())
 		{
-			bUnique = Handle.IsNull();
-			Handle = InHandle;
+			Handle = Handle.IsNull() ? InHandle : NotUniqueHandle;
 		}
 	}
 
 	HandleType GetUniqueHandle() const
 	{
-		return bUnique ? Handle : HandleType::Null;
+		return Handle != NotUniqueHandle ? Handle : HandleType::Null;
 	}
 
 private:
+	static const HandleType NotUniqueHandle;
 	HandleType Handle;
-	bool bUnique = false;
 };
 
 template <typename ObjectType, typename IndexType>
 const TRDGHandle<ObjectType, IndexType> TRDGHandle<ObjectType, IndexType>::Null;
+
+template <typename HandleType>
+const HandleType TRDGHandleUniqueFilter<HandleType>::NotUniqueHandle(TNumericLimits<typename HandleType::IndexType>::Max() - 1);
 
 struct FRDGTextureDesc : public FRHITextureDesc
 {
@@ -716,6 +719,7 @@ using FRDGTextureRegistry = TRDGHandleRegistry<FRDGTextureHandle, ERDGHandleRegi
 using FRDGTextureBitArray = TRDGHandleBitArray<FRDGTextureHandle>;
 
 using FRDGBufferHandle = TRDGHandle<FRDGBuffer, uint32>;
+using FRDGBufferReservedCommitHandle = TRDGHandle<FRDGBuffer, uint16>;
 using FRDGBufferRegistry = TRDGHandleRegistry<FRDGBufferHandle, ERDGHandleRegistryDestructPolicy::Registry>;
 using FRDGBufferBitArray = TRDGHandleBitArray<FRDGBufferHandle>;
 

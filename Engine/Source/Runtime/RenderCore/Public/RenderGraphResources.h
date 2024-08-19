@@ -63,17 +63,13 @@ struct FRDGSubresourceState
 	/** Given a before and after state, returns whether they can be merged into a single state. */
 	static bool IsMergeAllowed(ERDGViewableResourceType ResourceType, const FRDGSubresourceState& Previous, const FRDGSubresourceState& Next);
 
-	FRDGSubresourceState()
-		: bReservedCommit(0)
-	{}
+	FRDGSubresourceState() = default;
 
 	explicit FRDGSubresourceState(ERHIAccess InAccess)
 		: Access(InAccess)
-		, bReservedCommit(0)
 	{}
 
 	explicit FRDGSubresourceState(ERHIPipeline Pipeline, FRDGPassHandle PassHandle)
-		: bReservedCommit(0)
 	{
 		SetPass(Pipeline, PassHandle);
 	}
@@ -108,11 +104,11 @@ struct FRDGSubresourceState
 	/** The last no-UAV barrier to be used by this subresource. */
 	FRDGViewUniqueFilter NoUAVBarrierFilter;
 
+	/** Whether this subresource state represents a commit operation for a reserved resource. */
+	FRDGBufferReservedCommitHandle ReservedCommitHandle;
+
 	/** The last used transition flags on the pass. */
 	EResourceTransitionFlags Flags = EResourceTransitionFlags::None;
-
-	/** Whether this subresource state represents a commit operation for a reserved resource. */
-	uint8 bReservedCommit : 1;
 };
 
 using FRDGTextureSubresourceState = TRDGTextureSubresourceArray<FRDGSubresourceState*, FRDGArrayAllocator>;
@@ -411,9 +407,6 @@ protected:
 
 	/** If false, the resource needs to be collected. */
 	uint8 bCollectForAllocate : 1;
-
-	/** If true, the reserved resource is having tiles committed. */
-	uint8 bQueuedForReservedCommit : 1;
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	/** If true, the debug name passed to the constructor was heap allocated, and needs to be freed in the destructor. */

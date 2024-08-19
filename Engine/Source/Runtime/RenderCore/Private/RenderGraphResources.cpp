@@ -45,7 +45,6 @@ FRDGViewableResource::FRDGViewableResource(const TCHAR* InName, const ERDGViewab
 	, bSplitFirstTransition(bInSplitFirstTransition)
 	, bQueuedForUpload(0)
 	, bCollectForAllocate(1)
-	, bQueuedForReservedCommit(0)
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 	, bHeapAllocatedDebugName(0)
 #endif
