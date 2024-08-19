@@ -781,23 +781,27 @@ class FWorldPartitionStreamingGenerator
 				{
 					*OutActor = Actor;
 				}
-				return !Actor->IsEditorOnly();
 			}
 
-			return !InActorDescInstance->GetActorIsEditorOnly();
+			return true;
 		};
 
 		// Register the actor descriptor view
-		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](FStreamingGenerationActorDescView&& InActorDescView)
+		auto RegisterActorDescView = [this, &OutActorDescViewMap, &OutContainerInstances](FStreamingGenerationActorDescView&& InActorDescView, TSet<FGuid>* OutEditorOnlyActorDescSet = nullptr, AActor* InActor = nullptr)
 		{
 			if (InActorDescView.IsChildContainerInstance())
 			{
 				OutContainerInstances.Add(InActorDescView);
 			}
-			else
+
+			if (!InActorDescView.GetActorIsEditorOnly() || (InActor && !InActor->IsEditorOnly()))
 			{
 				const FGuid ActorGuid = InActorDescView.GetGuid();
 				OutActorDescViewMap.Emplace(ActorGuid, MoveTemp(InActorDescView));
+			}
+			else if (OutEditorOnlyActorDescSet)
+			{
+				OutEditorOnlyActorDescSet->Add(InActorDescView.GetGuid());
 			}
 		};
 
@@ -832,17 +836,13 @@ class FWorldPartitionStreamingGenerator
 					{
 						// Dirty, unsaved actor for PIE
 						TUniquePtr<FStreamingGenerationUnsavedDirtyActorDescInstance>& UnsavedDirtyRef = OutUnsavedDirtyInstances.Add_GetRef(FStreamingGenerationUnsavedDirtyActorDescInstance::Create(Actor, InActorDescCollection));
-						RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, UnsavedDirtyRef.Get(), true));
+						RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, UnsavedDirtyRef.Get(), true), &OutEditorOnlyActorDescSet, Actor);
 						continue;
 					}
 				}
 
 				// Non-dirty actor
-				RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, *Iterator));
-			}
-			else
-			{
-				OutEditorOnlyActorDescSet.Add(Iterator->GetGuid());
+				RegisterActorDescView(FStreamingGenerationActorDescView(OutActorDescViewMap, *Iterator), &OutEditorOnlyActorDescSet);
 			}
 		}
 

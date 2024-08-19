@@ -27,6 +27,7 @@ ALevelInstance::ALevelInstance()
 	RootComponent->Mobility = EComponentMobility::Static;
 
 #if WITH_EDITORONLY_DATA
+	bIsEditorOnlyActor = true;
 	DesiredRuntimeBehavior = ELevelInstanceRuntimeBehavior::Partitioned;
 #endif
 }
@@ -361,6 +362,16 @@ bool ALevelInstance::EditorCanAttachFrom(const AActor* InChild, FText& OutReason
 	if (IsEditing())
 	{
 		return true;
+	}
+
+	return false;
+}
+
+bool ALevelInstance::IsEditorOnly() const
+{
+	if (DesiredRuntimeBehavior == ELevelInstanceRuntimeBehavior::Partitioned)
+	{
+		return Super::IsEditorOnly();
 	}
 
 	return false;

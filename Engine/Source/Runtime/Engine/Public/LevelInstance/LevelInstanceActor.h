@@ -110,6 +110,7 @@ public:
 	ENGINE_API virtual bool GetSoftReferencedContentObjects(TArray<FSoftObjectPath>& SoftObjects) const override;
 	ENGINE_API virtual bool OpenAssetEditor() override;
 	ENGINE_API virtual bool EditorCanAttachFrom(const AActor* InChild, FText& OutReason) const override;	
+	ENGINE_API virtual bool IsEditorOnly() const override;
 	ENGINE_API virtual bool IsUserManaged() const override;
 	ENGINE_API virtual bool ShouldExport() override;
 	ENGINE_API virtual bool SupportsSubRootSelection() const override { return true; }

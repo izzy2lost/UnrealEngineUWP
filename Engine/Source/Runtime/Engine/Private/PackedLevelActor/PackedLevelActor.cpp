@@ -22,6 +22,7 @@ APackedLevelActor::APackedLevelActor()
 #if WITH_EDITORONLY_DATA
 	// Packed Level Instances don't support level streaming or sub actors
 	DesiredRuntimeBehavior = ELevelInstanceRuntimeBehavior::None;
+	bIsEditorOnlyActor = false;
 #endif
 }
 
