@@ -1729,7 +1729,7 @@ void FMediaPlayerFacade::Flush(bool bExcludePlayer, bool bOnSeek)
 			}
 		}
 
-		// Invalidate next video time to fetch (none-audio case)
+		// Invalidate next video time to fetch (non-audio case)
 		NextEstVideoTimeAtFrameStart.Invalidate();
 		// ...and seek target
 		SeekTargetTime.Invalidate();
@@ -3168,41 +3168,55 @@ bool FMediaPlayerFacade::ProcessVideoSamples(IMediaSamples& Samples, const TRang
 			return true;
 		}
 
-		switch (Samples.FetchBestVideoSampleForTimeRange(TimeRange, Sample, bReverse, BlockOnRange.IsSet()))
+		switch(Samples.FetchBestVideoSampleForTimeRange(TimeRange, Sample, bReverse, BlockOnRange.IsSet()))
 		{
-		case IMediaSamples::EFetchBestSampleResult::Ok:
-			break;
-
-		case IMediaSamples::EFetchBestSampleResult::NoSample:
-		{
-			break;
-		}
-
-		case IMediaSamples::EFetchBestSampleResult::NotSupported:
-		{
-			//
-			// Fallback for players supporting V2 timing, but do not supply FetchBestVideoSampleForTimeRange() due to some
-			// custom implementation of IMediaSamples (here to ease adoption of the new timing code - eventually should go away)
-			//
-
-			// Find newest sample that satisfies the time range
-			// (the FetchXYZ() code does not work well with a lower range limit at all - we ask for a "up to" type range instead
-			//  and limit the other side of the range in code here to not change the older logic & possibly cause trouble in old code)
-			TRange<FMediaTimeStamp> TempRange = bReverse ? TRange<FMediaTimeStamp>::AtLeast(TimeRange.GetUpperBoundValue()) : TRange<FMediaTimeStamp>::AtMost(TimeRange.GetUpperBoundValue());
-			while (Samples.FetchVideo(TempRange, Sample))
-				;
-			if (Sample.IsValid() &&
-				((!bReverse && ((Sample->GetTime() + Sample->GetDuration()) > TimeRange.GetLowerBoundValue())) ||
-					(bReverse && ((Sample->GetTime() - Sample->GetDuration()) < TimeRange.GetLowerBoundValue()))))
+			case IMediaSamples::EFetchBestSampleResult::Ok:
 			{
-				// Sample is good - nothing more to do here
+				break;
 			}
-			else
+
+			case IMediaSamples::EFetchBestSampleResult::NoSample:
 			{
-				Sample.Reset();
+				break;
 			}
-			break;
-		}
+
+			case IMediaSamples::EFetchBestSampleResult::PurgedToEmpty:
+			{
+				// When there is no audio to sync to then we are extrapolating the next expected video timestamp
+				// from the last plus the elapsed deltatime, which may overshoot the next decoder output.
+				// In this case we resynchronize the timestamp to the next available video frame.
+				if (!HaveAudioPlayback())
+				{
+					NextEstVideoTimeAtFrameStart.Invalidate();
+				}
+				break;
+			}
+
+			case IMediaSamples::EFetchBestSampleResult::NotSupported:
+			{
+				//
+				// Fallback for players supporting V2 timing, but do not supply FetchBestVideoSampleForTimeRange() due to some
+				// custom implementation of IMediaSamples (here to ease adoption of the new timing code - eventually should go away)
+				//
+
+				// Find newest sample that satisfies the time range
+				// (the FetchXYZ() code does not work well with a lower range limit at all - we ask for a "up to" type range instead
+				//  and limit the other side of the range in code here to not change the older logic & possibly cause trouble in old code)
+				TRange<FMediaTimeStamp> TempRange = bReverse ? TRange<FMediaTimeStamp>::AtLeast(TimeRange.GetUpperBoundValue()) : TRange<FMediaTimeStamp>::AtMost(TimeRange.GetUpperBoundValue());
+				while (Samples.FetchVideo(TempRange, Sample))
+				{ }
+				if (Sample.IsValid() &&
+					((!bReverse && ((Sample->GetTime() + Sample->GetDuration()) > TimeRange.GetLowerBoundValue())) ||
+						(bReverse && ((Sample->GetTime() - Sample->GetDuration()) < TimeRange.GetLowerBoundValue()))))
+				{
+					// Sample is good - nothing more to do here
+				}
+				else
+				{
+					Sample.Reset();
+				}
+				break;
+			}
 		}
 	}
 	else
@@ -3212,7 +3226,7 @@ bool FMediaPlayerFacade::ProcessVideoSamples(IMediaSamples& Samples, const TRang
 		//
 		TRange<FMediaTimeStamp> TempRange; // fully open range
 		while (Samples.FetchVideo(TempRange, Sample))
-			;
+		{ }
 	}
 
 	// Any sample?

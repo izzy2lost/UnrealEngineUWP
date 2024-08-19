@@ -21,6 +21,14 @@
 #include "IMediaBinarySample.h"
 #include "IMediaOverlaySample.h"
 
+
+enum class EMediaSampleQueueFetchResult
+{
+	Found,
+	None,
+	PurgedToEmpty
+};
+
 /**
  * Template for media sample queues.
  */
@@ -179,7 +187,7 @@ public:
 		return false;
 	}
 
-	bool FetchBestSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
+	EMediaSampleQueueFetchResult FetchBestSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<SampleType, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
 	{
 		// Notes:
 		// - Reverse playback still works with increasing indices in the queue. PTS values will be going down in it, rather than up,
@@ -284,7 +292,7 @@ public:
 		}
 
 		// Return true if we got a sample...
-		return (OutSample.IsValid());
+		return OutSample.IsValid() ? EMediaSampleQueueFetchResult::Found : (NumOldSamplesAtBegin && Samples.IsEmpty() ? EMediaSampleQueueFetchResult::PurgedToEmpty : EMediaSampleQueueFetchResult::None);
 	}
 
 

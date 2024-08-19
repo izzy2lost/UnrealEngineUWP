@@ -120,6 +120,7 @@ public:
 	{
 		Ok = 0,
 		NoSample,
+		PurgedToEmpty,
 		NotSupported,
 	};
 	virtual EFetchBestSampleResult FetchBestVideoSampleForTimeRange(const TRange<FMediaTimeStamp>& TimeRange, TSharedPtr<IMediaTextureSample, ESPMode::ThreadSafe>& OutSample, bool bReverse, bool bConsistentResult)
