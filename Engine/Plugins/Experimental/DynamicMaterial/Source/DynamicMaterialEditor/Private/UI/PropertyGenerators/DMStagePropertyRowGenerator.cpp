@@ -57,26 +57,23 @@ void FDMStagePropertyRowGenerator::AddComponentProperties(const TSharedRef<SDMMa
 		return;
 	}
 
-	if (Stage->CanChangeSource())
+	bool bIsDynamic = false;
+
+	if (TSharedPtr<SDMMaterialEditor> EditorWidget = InComponentEditorWidget->GetEditorWidget())
 	{
-		bool bIsDynamic = false;
-
-		if (TSharedPtr<SDMMaterialEditor> EditorWidget = InComponentEditorWidget->GetEditorWidget())
+		if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
 		{
-			if (UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase())
-			{
-				bIsDynamic = !MaterialModelBase->IsA<UDynamicMaterialModel>();
-			}
+			bIsDynamic = !MaterialModelBase->IsA<UDynamicMaterialModel>();
 		}
-
-		FDMPropertyHandle& SourceHandle = InOutPropertyRows.AddDefaulted_GetRef();
-		SourceHandle.ValueName = TEXT("SourceType");
-		SourceHandle.NameOverride = LOCTEXT("SourceType", "Source Type");
-		SourceHandle.bEnabled = !bIsDynamic;
-		SourceHandle.ValueWidget = CreateSourceTypeEditWidget(InComponentEditorWidget, Stage);
-		SourceHandle.ResetToDefaultOverride = FResetToDefaultOverride::Hide(true);
-		SourceHandle.Priority = EDMPropertyHandlePriority::High;
 	}
+
+	FDMPropertyHandle& SourceHandle = InOutPropertyRows.AddDefaulted_GetRef();
+	SourceHandle.ValueName = TEXT("SourceType");
+	SourceHandle.NameOverride = LOCTEXT("SourceType", "Source Type");
+	SourceHandle.bEnabled = !bIsDynamic;
+	SourceHandle.ValueWidget = CreateSourceTypeEditWidget(InComponentEditorWidget, Stage);
+	SourceHandle.ResetToDefaultOverride = FResetToDefaultOverride::Hide(true);
+	SourceHandle.Priority = EDMPropertyHandlePriority::High;
 
 	FDynamicMaterialEditorModule::GeneratorComponentPropertyRows(InComponentEditorWidget, Source, InOutPropertyRows, InOutProcessedObjects);
 	FDMComponentPropertyRowGenerator::AddComponentProperties(InComponentEditorWidget, Stage, InOutPropertyRows, InOutProcessedObjects);
