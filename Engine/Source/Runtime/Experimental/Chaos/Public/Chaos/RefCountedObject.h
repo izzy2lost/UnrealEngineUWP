@@ -17,7 +17,10 @@ public:
 	FChaosRefCountedObject() : NumRefs(0) {}
 	virtual ~FChaosRefCountedObject()
 	{
-		check(NumRefs.GetValue() == 0);
+		UE_AUTORTFM_ONCOMMIT2(this)
+		{
+			check(NumRefs.GetValue() == 0);
+		};
 	}
 	FChaosRefCountedObject(const FChaosRefCountedObject& Rhs) = delete;
 	FChaosRefCountedObject& operator=(const FChaosRefCountedObject& Rhs) = delete;
