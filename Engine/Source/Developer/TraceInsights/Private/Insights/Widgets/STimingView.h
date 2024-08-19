@@ -48,6 +48,7 @@ namespace UE::Insights
 {
 	class FFilterConfigurator;
 	enum class ETimingEventsColoringMode : uint32;
+	class SLogView;
 }
 
 namespace UE::Insights::Timing
@@ -74,6 +75,8 @@ class FFileActivitySharedState;
 class FTimeRulerTrack;
 class FTimeMarker;
 class FMarkersTimingTrack;
+
+class STimersView;
 
 enum class ESelectEventType : uint32
 {
@@ -563,7 +566,9 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	 */ 
 	void UpdateFilters();
 
-	bool IsInTimingProfiler();
+	bool IsInTimingProfiler() const;
+	TSharedPtr<STimersView> GetTimersView() const;
+	TSharedPtr<SLogView> GetLogView() const;
 
 protected:
 	/** The name of the view. */

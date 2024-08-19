@@ -481,26 +481,6 @@ void FTimeRulerTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 
 		MenuBuilder.EndSection();
 	}
-
-	MenuBuilder.BeginSection("Misc", LOCTEXT("ContextMenu_Section_Misc", "Misc"));
-
-	FUIAction Action_ScrollLogView
-	(
-		FExecuteAction::CreateSP(this, &FTimeRulerTrack::ContextMenu_ScrollLogView_Execute),
-		FCanExecuteAction::CreateSP(this, &FTimeRulerTrack::ContextMenu_ScrollLogView_CanExecute)
-	);
-	FText Label = FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Fmt", "Scroll Log View (\u2192 {0})"), CrtMousePosTimeText);
-	MenuBuilder.AddMenuEntry
-	(
-		Label,
-		FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Desc_Fmt", "Scrolls the Log View at the message with the closest timestamp to the time of the current mouse position ({0})."), CrtMousePosTimeText),
-		FSlateIcon(),
-		Action_ScrollLogView,
-		NAME_None,
-		EUserInterfaceActionType::Button
-	);
-
-	MenuBuilder.EndSection();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -508,40 +488,6 @@ void FTimeRulerTrack::BuildContextMenu(FMenuBuilder& MenuBuilder)
 void FTimeRulerTrack::ContextMenu_MoveTimeMarker_Execute(TSharedRef<FTimeMarker> InTimeMarker)
 {
 	InTimeMarker->SetTime(CrtMousePosTime);
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool FTimeRulerTrack::ContextMenu_ScrollLogView_CanExecute()
-{
-	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return false;
-	}
-	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
-	if (!LogView.IsValid())
-	{
-		return false;
-	}
-	return true;
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void FTimeRulerTrack::ContextMenu_ScrollLogView_Execute()
-{
-	TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (!TimingWindow.IsValid())
-	{
-		return;
-	}
-	TSharedPtr<SLogView> LogView = TimingWindow->GetLogView();
-	if (!LogView.IsValid())
-	{
-		return;
-	}
-	LogView->SelectLogMessageByClosestTime(CrtMousePosTime);
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

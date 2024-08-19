@@ -1881,7 +1881,7 @@ void SFrameTrack::CreateSelectedFrameMenu(FMenuBuilder& MenuBuilder)
 	(
 		Label,
 		LOCTEXT("ContextMenu_ScrollLogView_Desc", "Scrolls the Log View at the message with the closest timestamp to the start time of the selected frame."),
-		FSlateIcon(),
+		FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.LogView"),
 		Action_ScrollLogView,
 		NAME_None,
 		EUserInterfaceActionType::Button

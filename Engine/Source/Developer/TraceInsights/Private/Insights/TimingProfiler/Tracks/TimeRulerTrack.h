@@ -58,8 +58,6 @@ public:
 private:
 	void DrawTimeMarker(const ITimingTrackDrawContext& Context, const FTimeMarker& TimeMarker) const;
 	void ContextMenu_MoveTimeMarker_Execute(TSharedRef<FTimeMarker> InTimeMarker);
-	bool ContextMenu_ScrollLogView_CanExecute();
-	void ContextMenu_ScrollLogView_Execute();
 
 private:
 	// Slate resources

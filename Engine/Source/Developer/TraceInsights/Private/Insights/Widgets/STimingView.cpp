@@ -83,6 +83,7 @@
 #include "Insights/ViewModels/TimingEventSearch.h"
 #include "Insights/ViewModels/TimingGraphTrack.h"
 #include "Insights/ViewModels/TimingViewDrawHelper.h"
+#include "Insights/Widgets/SLogView.h"
 #include "Insights/Widgets/SQuickFind.h"
 #include "Insights/Widgets/STimingViewTrackList.h"
 
@@ -2991,6 +2992,30 @@ void STimingView::ShowContextMenu(const FPointerEvent& MouseEvent)
 			TAttribute<FText>(),
 			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.Find"));
 
+		TSharedPtr<SLogView> LogView = GetLogView();
+		const double MousePosTime = Viewport.SlateUnitsToTime(static_cast<float>(MousePosition.X));
+		const FText MousePosTimeText = FText::FromString(FormatTimeAuto(MousePosTime, 2));
+		const FText Label = FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Fmt", "Scroll Log View (\u2192 {0})"), MousePosTimeText);
+		MenuBuilder.AddMenuEntry(
+			Label,
+			FText::Format(LOCTEXT("ContextMenu_ScrollLogView_Desc_Fmt", "Scrolls the Log View at the message with the closest timestamp to the time of the current mouse position ({0})."), MousePosTimeText),
+			FSlateIcon(FInsightsStyle::GetStyleSetName(), "Icons.LogView"),
+			FUIAction(
+				FExecuteAction::CreateLambda([LogView, MousePosTime]()
+				{
+					if (LogView.IsValid())
+					{
+						LogView->SelectLogMessageByClosestTime(MousePosTime);
+					}
+				}),
+				FCanExecuteAction::CreateLambda([LogView]() -> bool
+				{
+					return LogView.IsValid();
+				})),
+			NAME_None,
+			EUserInterfaceActionType::Button
+		);
+
 		if (HoveredEvent)
 		{
 			double RangeStart = HoveredEvent->GetStartTime();
@@ -5513,14 +5538,10 @@ void STimingView::EnumerateFilteredTracks(TSharedPtr<UE::Insights::FFilterConfig
 
 ETraceFrameType STimingView::GetFrameTypeToSnapTo()
 {
-	TSharedPtr<STimingProfilerWindow> Window = FTimingProfilerManager::Get()->GetProfilerWindow();
-	if (Window.IsValid())
+	TSharedPtr<STimersView> TimersView = GetTimersView();
+	if (TimersView.IsValid())
 	{
-		TSharedPtr<STimersView> TimersView = Window->GetTimersView();
-		if (TimersView.IsValid())
-		{
-			return TimersView->GetFrameTypeMode();
-		}
+		return TimersView->GetFrameTypeMode();
 	}
 
 	// TraceFrameType_Count is the Instance mode.
@@ -5588,9 +5609,39 @@ void STimingView::UpdateFilters()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool STimingView::IsInTimingProfiler()
+bool STimingView::IsInTimingProfiler() const
 {
 	return GetName() == FInsightsManagerTabs::TimingProfilerTabId;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<STimersView> STimingView::GetTimersView() const
+{
+	if (IsInTimingProfiler())
+	{
+		TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+		if (TimingWindow.IsValid())
+		{
+			return TimingWindow->GetTimersView();
+		}
+	}
+	return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+TSharedPtr<SLogView> STimingView::GetLogView() const
+{
+	if (IsInTimingProfiler())
+	{
+		TSharedPtr<STimingProfilerWindow> TimingWindow = FTimingProfilerManager::Get()->GetProfilerWindow();
+		if (TimingWindow.IsValid())
+		{
+			return TimingWindow->GetLogView();
+		}
+	}
+	return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
