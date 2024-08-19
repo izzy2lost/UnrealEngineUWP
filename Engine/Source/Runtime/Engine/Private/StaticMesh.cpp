@@ -760,6 +760,13 @@ void FStaticMeshLODResources::Serialize(FArchive& Ar, UObject* Owner, int32 Inde
 		{
 			bool bHasRayTracingGeometry = (RayTracingGeometry != nullptr);
 
+#if WITH_EDITOR
+			if (Ar.IsCooking() && !Ar.CookingTarget()->UsesRayTracing())
+			{
+				bHasRayTracingGeometry = false; // strip ray tracing geometry
+			}
+#endif
+
 			Ar << bHasRayTracingGeometry;
 
 			if (bHasRayTracingGeometry && RayTracingGeometry == nullptr)
@@ -2112,6 +2119,13 @@ void FStaticMeshRenderData::Serialize(FArchive& Ar, UStaticMesh* Owner, bool bCo
 
 	{
 		bool bHasRayTracingProxy = (RayTracingProxy != nullptr);
+
+#if WITH_EDITOR
+		if (Ar.IsCooking() && !Ar.CookingTarget()->UsesRayTracing())
+		{
+			bHasRayTracingProxy = false; // strip ray tracing proxy
+		}
+#endif
 
 		Ar << bHasRayTracingProxy;
 
@@ -7687,7 +7701,21 @@ bool UStaticMesh::BuildFromMeshDescriptions(const TArray<const FMeshDescription*
 			BuildFromMeshDescription(*MeshDescriptions[LODIndex], LODResources);
 		}
 
-		GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
+		bool bInitializeRayTracingRepresentation = bSupportRayTracing;
+
+#if !WITH_EDITOR
+		// non-editor build -> only initialize ray tracing representation if ray tracing is allowed
+		// editor build -> initialize because we don't know TargetPlatform, but might be stripped later during serialization
+		if (!IsRayTracingAllowed())
+		{
+			bInitializeRayTracingRepresentation = false;
+		}
+#endif
+
+		if(bInitializeRayTracingRepresentation)
+		{
+			GetRenderData()->InitializeRayTracingRepresentationFromRenderingLODs();
+		}
 
 		InitResources();
 
