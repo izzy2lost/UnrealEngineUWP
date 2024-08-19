@@ -34,7 +34,7 @@ protected:
 
 	TSharedRef<SWidget> CreateSlot_Content();
 
-	void AddPropertyPreview(const TSharedRef<SWrapBox>& InContainer, EDMMaterialPropertyType InMaterialProperty, UDMMaterialSlot* InSlot);
+	void AddPropertyPreview(const TSharedRef<SWrapBox>& InContainer, UDMMaterialProperty* InProperty);
 
 	TSharedRef<SWidget> CreateSlot_EnabledButton(EDMMaterialPropertyType InMaterialProperty);
 

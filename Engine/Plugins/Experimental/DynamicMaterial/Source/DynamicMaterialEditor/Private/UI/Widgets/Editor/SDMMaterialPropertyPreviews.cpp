@@ -82,7 +82,7 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_Content()
 
 				if (bIsActive)
 				{
-					AddPropertyPreview(WrapBox, InMaterialProperty, Slot);
+					AddPropertyPreview(WrapBox, MaterialProperty);
 				}
 			}
 
@@ -108,7 +108,7 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_Content()
 
 				if (!bIsActive && bIsValid)
 				{
-					AddPropertyPreview(WrapBox, InMaterialProperty, Slot);
+					AddPropertyPreview(WrapBox, MaterialProperty);
 				}
 			}
 
@@ -134,7 +134,7 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_Content()
 
 				if (!bIsActive && !bIsValid)
 				{
-					AddPropertyPreview(WrapBox, InMaterialProperty, Slot);
+					AddPropertyPreview(WrapBox, MaterialProperty);
 				}
 			}
 
@@ -149,8 +149,7 @@ TSharedRef<SWidget> SDMMaterialPropertyPreviews::CreateSlot_Content()
 		];
 }
 
-void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>& InContainer, EDMMaterialPropertyType InMaterialProperty,
-	UDMMaterialSlot* InSlot)
+void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>& InContainer, UDMMaterialProperty* InProperty)
 {
 	TSharedPtr<SDMMaterialEditor> EditorWidget = EditorWidgetWeak.Pin();
 
@@ -159,15 +158,33 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 		return;
 	}
 
-	TSharedPtr<SWidget> PreviewWidget;
+	UDynamicMaterialModel* MaterialModel = EditorWidget->GetMaterialModel();
 
-	if (InSlot)
+	if (!MaterialModel)
 	{
-		PreviewWidget = SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InSlot)
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = UDynamicMaterialModelEditorOnlyData::Get(MaterialModel);
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	TSharedPtr<SWidget> PreviewWidget;
+	EDMMaterialPropertyType MaterialProperty = InProperty ? InProperty->GetMaterialProperty() : EDMMaterialPropertyType::None;
+	UDMMaterialSlot* Slot = EditorOnlyData->GetSlotForMaterialProperty(MaterialProperty);
+
+	if (InProperty && InProperty->IsEnabled() && Slot)
+	{
+		MaterialProperty = InProperty->GetMaterialProperty();
+
+		PreviewWidget = SNew(SDMMaterialComponentPreview, EditorWidget.ToSharedRef(), InProperty)
 			.PreviewSize(FVector2D(60.f, 60.f));
 
 		PreviewWidget->SetCursor(EMouseCursor::Hand);
-		PreviewWidget->SetOnMouseButtonUp(FPointerEventHandler::CreateSP(this, &SDMMaterialPropertyPreviews::OnPreviewClicked, InMaterialProperty));
+		PreviewWidget->SetOnMouseButtonUp(FPointerEventHandler::CreateSP(this, &SDMMaterialPropertyPreviews::OnPreviewClicked, MaterialProperty));
 	}
 	else
 	{
@@ -195,7 +212,7 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 				.AutoWidth()
 				.VAlign(EVerticalAlignment::VAlign_Center)
 				[
-					CreateSlot_EnabledButton(InMaterialProperty)
+					CreateSlot_EnabledButton(MaterialProperty)
 				]
 				+ SHorizontalBox::Slot()
 				.FillWidth(1.f)
@@ -203,7 +220,7 @@ void SDMMaterialPropertyPreviews::AddPropertyPreview(const TSharedRef<SWrapBox>&
 				.VAlign(EVerticalAlignment::VAlign_Center)
 				.Padding(3.f, 0.f, 0.f, 0.f)
 				[
-					CreateSlot_PropertyName(InMaterialProperty)
+					CreateSlot_PropertyName(MaterialProperty)
 				]
 			]
 		];

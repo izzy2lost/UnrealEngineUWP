@@ -16,6 +16,7 @@ class UDMMaterialSlot;
 class UDMMaterialStageInputExpression;
 class UDynamicMaterialModel;
 class UDynamicMaterialModelEditorOnlyData;
+class UMaterial;
 class UMaterialExpression;
 class UMaterialFunctionInterface;
 struct FDMMaterialBuildState;
@@ -195,6 +196,11 @@ public:
 	 * Adds the output processor to the end of the current expression chain.
 	 */
 	virtual void AddOutputProcessor(const TSharedRef<FDMMaterialBuildState>& InBuildState) const;
+
+	/**
+	 * Adds nodes to the given material based on this property's generated expressions.
+	 */
+	virtual void GeneratePreviewMaterial(UMaterial* InPreviewMaterial);
 
 	//~ Begin UDMMaterialComponent
 	DYNAMICMATERIALEDITOR_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;

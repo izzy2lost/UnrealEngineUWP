@@ -136,9 +136,6 @@ public:
 	/** Returns true if all associations have been removed */
 	bool UnreferencedBySlot(UDMMaterialSlot* InOtherSlot);
 
-	UFUNCTION(BlueprintCallable, Category = "Material Designer")
-	DYNAMICMATERIALEDITOR_API void GeneralPreviewMaterial(UMaterial* InPreviewMaterial, EDMMaterialLayerStage InLayerStage);
-
 	/** Sets the material property of the given layer and changes all other layers matching that property to a different one. */
 	UFUNCTION(BlueprintCallable, Category = "Material Designer")
 	DYNAMICMATERIALEDITOR_API bool SetLayerMaterialPropertyAndReplaceOthers(UDMMaterialLayerObject* InLayer, EDMMaterialPropertyType InPropertyFrom,
@@ -177,14 +174,6 @@ protected:
 	FDMOnMaterialSlotConnectorsUpdated OnConnectorsUpdateDelegate;
 	FDMOnMaterialSlotPropertiesUpdated OnPropertiesUpdateDelegate;
 	FDMOnMaterialSlotLayersUpdated OnLayersUpdateDelegate;
-
-	void UpdateBasePreviewMaterial(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateBasePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InBaseProperty);
-	void UpdateBasePreviewMaterialFull(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateMaskPreviewMaterial(const TSharedRef<FDMMaterialBuildState>& InBuildState);
-	void UpdateMaskPreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty);
-	void UpdateMaskPreviewMaterialMaskCombination(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InMaskProperty);
-	void UpdatePreviewMaterialProperty(const TSharedRef<FDMMaterialBuildState>& InBuildState, EDMMaterialPropertyType InProperty);
 
 	//~ Begin UDMMaterialComponent
 	DYNAMICMATERIALEDITOR_API virtual void OnComponentAdded() override;

@@ -2,6 +2,7 @@
 
 #include "UI/Widgets/Visualizers/SDMMaterialComponentPreview.h"
 
+#include "Components/DMMaterialProperty.h"
 #include "Components/DMMaterialStage.h"
 #include "Components/DMMaterialValue.h"
 #include "Components/DMTextureUV.h"
@@ -89,14 +90,7 @@ void SDMMaterialComponentPreview::Tick(const FGeometry& AllottedGeometry, const 
 
 void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InComponent, UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
-	UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent);
-
-	if (!Stage)
-	{
-		return;
-	}
-
-	if (Stage != ComponentWeak.Get() || !IsValid(Stage) || !Stage->IsComponentValid())
+	if (InComponent != ComponentWeak.Get() || !IsValid(InComponent) || !InComponent->IsComponentValid())
 	{
 		return;
 	}
@@ -112,7 +106,7 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 
 	if (!PreviewMaterialBase)
 	{
-		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(Stage);
+		PreviewMaterialBase = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterial(InComponent);
 	}
 
 	UMaterialInstanceDynamic* MID = PreviewMaterialDynamicWeak.Get();
@@ -136,9 +130,29 @@ void SDMMaterialComponentPreview::OnComponentUpdated(UDMMaterialComponent* InCom
 			TextureUVDynamic->SetMIDParameters(MID);
 		}
 	}
-	else
+	else if (UDMMaterialStage* Stage = Cast<UDMMaterialStage>(InComponent))
 	{
 		Stage->GeneratePreviewMaterial(PreviewMaterialBase);
+
+		EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
+		PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);
+
+		UDynamicMaterialModelBase* MaterialModelBase = EditorWidget->GetMaterialModelBase();
+
+		if (UDynamicMaterialModel* MaterialModel = Cast<UDynamicMaterialModel>(MaterialModelBase))
+		{
+			MaterialModel->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+		}
+		else if (UDynamicMaterialModelDynamic* MaterialModelDynamic = Cast<UDynamicMaterialModelDynamic>(MaterialModelBase))
+		{
+			MaterialModelDynamic->ApplyComponents(PreviewMaterialDynamicWeak.Get());
+		}
+
+		Brush.SetMaterial(PreviewMaterialDynamicWeak.Get());
+	}
+	else if (UDMMaterialProperty* Property = Cast<UDMMaterialProperty>(InComponent))
+	{
+		Property->GeneratePreviewMaterial(PreviewMaterialBase);
 
 		EditorWidget->GetPreviewMaterialManager()->FreePreviewMaterialDynamic(PreviewMaterialBase);
 		PreviewMaterialDynamicWeak = EditorWidget->GetPreviewMaterialManager()->CreatePreviewMaterialDynamic(PreviewMaterialBase);

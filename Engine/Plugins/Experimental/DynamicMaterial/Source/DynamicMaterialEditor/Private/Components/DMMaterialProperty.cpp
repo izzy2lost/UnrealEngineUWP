@@ -16,7 +16,9 @@
 #include "Components/MaterialValues/DMMaterialValueTexture.h"
 #include "DMComponentPath.h"
 #include "DMValueDefinition.h"
+#include "DynamicMaterialEditorModule.h"
 #include "DynamicMaterialEditorSettings.h"
+#include "Materials/Material.h"
 #include "Materials/MaterialExpressionConstant.h"
 #include "Materials/MaterialExpressionConstant2Vector.h"
 #include "Materials/MaterialExpressionConstant3Vector.h"
@@ -591,6 +593,116 @@ void UDMMaterialProperty::AddOutputProcessor(const TSharedRef<FDMMaterialBuildSt
 	MaterialFunctionCall->ConnectExpression(MaterialPropertyPtr, 0);
 
 	MaterialPropertyPtr->OutputIndex = 0;
+}
+
+void UDMMaterialProperty::GeneratePreviewMaterial(UMaterial* InPreviewMaterial)
+{
+	if (!IsComponentValid())
+	{
+		return;
+	}
+
+	UDynamicMaterialModelEditorOnlyData* EditorOnlyData = GetMaterialModelEditorOnlyData();
+
+	if (!EditorOnlyData)
+	{
+		return;
+	}
+
+	InPreviewMaterial->BlendMode = EBlendMode::BLEND_Translucent;
+
+	TSharedRef<FDMMaterialBuildState> BuildState = EditorOnlyData->CreateBuildState(InPreviewMaterial);
+	BuildState->SetPreviewMaterial();
+
+	UE_LOG(LogDynamicMaterialEditor, Display, TEXT("Building Material Designer Property Preview (%s)..."), *GetName());
+
+	UE::DynamicMaterial::ForEachMaterialPropertyType(
+		[this, &BuildState](EDMMaterialPropertyType InType)
+		{
+			if (FExpressionInput* Input = BuildState->GetMaterialProperty(InType))
+			{
+				Input->Expression = nullptr;
+			}
+
+			return EDMIterationResult::Continue;
+		});
+
+
+	if (!IsEnabled() || !EditorOnlyData->GetSlotForMaterialProperty(MaterialProperty))
+	{
+		return;
+	}
+
+	GenerateExpressions(BuildState);
+
+	AddAlphaMultiplier(BuildState);
+
+	// Move output to the emissive channel.
+	if (MaterialProperty != EDMMaterialPropertyType::EmissiveColor)
+	{
+		if (FExpressionInput* EmissiveExpressionInput = BuildState->GetMaterialProperty(EDMMaterialPropertyType::EmissiveColor))
+		{
+			FExpressionInput* MyFirstExpressionInput = nullptr;
+
+			UE::DynamicMaterial::ForEachMaterialPropertyType(
+				[this, &BuildState, &MyFirstExpressionInput](EDMMaterialPropertyType InType)
+				{
+					using namespace UE::DynamicMaterialEditor::Private;
+
+					MyFirstExpressionInput = BuildState->GetMaterialProperty(InType);
+
+					if (!MyFirstExpressionInput || MyFirstExpressionInput->Expression == nullptr)
+					{
+						MyFirstExpressionInput = nullptr;
+						return EDMIterationResult::Continue;
+					}
+
+					return EDMIterationResult::Break;
+				});
+
+			if (MyFirstExpressionInput)
+			{
+				// Swap inputs to emissive channel
+				EmissiveExpressionInput->Expression = MyFirstExpressionInput->Expression;
+				EmissiveExpressionInput->Mask = MyFirstExpressionInput->Mask;
+				EmissiveExpressionInput->MaskR = MyFirstExpressionInput->MaskR;
+				EmissiveExpressionInput->MaskG = MyFirstExpressionInput->MaskG;
+				EmissiveExpressionInput->MaskB = MyFirstExpressionInput->MaskB;
+				EmissiveExpressionInput->MaskA = MyFirstExpressionInput->MaskA;
+				EmissiveExpressionInput->OutputIndex = MyFirstExpressionInput->OutputIndex;
+
+				MyFirstExpressionInput->Expression = nullptr;
+			}
+		}
+	}
+
+	// Attempt to create an opacity channel.
+	FExpressionInput* OpacityExpression = BuildState->GetMaterialProperty(EDMMaterialPropertyType::Opacity);
+
+	if (OpacityExpression && !OpacityExpression->Expression)
+	{
+		UDMMaterialSlot* MySlot = EditorOnlyData->GetSlotForMaterialProperty(MaterialProperty);
+		UMaterialExpression* OpacityOutputNode;
+		int32 OutputIndex;
+		int32 OutputChannel;
+		GenerateOpacityExpressions(BuildState, MySlot, MaterialProperty, OpacityOutputNode, OutputIndex, OutputChannel);
+
+		if (OpacityOutputNode)
+		{
+			OpacityExpression->Expression = OpacityOutputNode;
+			OpacityExpression->OutputIndex = 0;
+			OpacityExpression->Mask = 0;
+
+			if (OutputChannel != FDMMaterialStageConnectorChannel::WHOLE_CHANNEL)
+			{
+				OpacityExpression->Mask = 1;
+				OpacityExpression->MaskR = !!(OutputChannel & FDMMaterialStageConnectorChannel::FIRST_CHANNEL);
+				OpacityExpression->MaskG = !!(OutputChannel & FDMMaterialStageConnectorChannel::SECOND_CHANNEL);
+				OpacityExpression->MaskB = !!(OutputChannel & FDMMaterialStageConnectorChannel::THIRD_CHANNEL);
+				OpacityExpression->MaskA = !!(OutputChannel & FDMMaterialStageConnectorChannel::FOURTH_CHANNEL);
+			}
+		}
+	}
 }
 
 void UDMMaterialProperty::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
