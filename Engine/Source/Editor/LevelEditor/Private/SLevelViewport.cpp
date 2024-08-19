@@ -2048,7 +2048,7 @@ TSharedPtr<SWidget> SLevelViewport::BuildViewportToolbar()
 					UE::LevelEditor::ExtendCameraSubmenu(SubmenuName);
 					UE::UnrealEd::ExtendCameraSubmenu(SubmenuName);
 
-					FToolMenuEntry CameraSubmenu = UE::UnrealEd::CreateViewportToolbarCameraSubmenu();
+					FToolMenuEntry CameraSubmenu = UE::LevelEditor::CreateLevelViewportToolbarCameraSubmenu();
 					CameraSubmenu.InsertPosition.Position = EToolMenuInsertType::First;
 					RightSection.AddEntry(CameraSubmenu);
 				}
@@ -2773,6 +2773,11 @@ void SLevelViewport::OnActorLockToggleFromMenu(AActor* Actor)
 			LockActorInternal(Actor);
 		}
 	}
+}
+
+void SLevelViewport::OnActorLockToggleFromMenu()
+{
+	OnActorUnlock();
 }
 
 bool SLevelViewport::IsActorLocked(const TWeakObjectPtr<AActor> Actor) const

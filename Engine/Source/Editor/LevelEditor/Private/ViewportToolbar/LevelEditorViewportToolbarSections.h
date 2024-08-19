@@ -17,11 +17,13 @@ namespace UE::LevelEditor
 void CreateCameraSpawnMenu(UToolMenu* InMenu);
 void CreateBookmarksMenu(UToolMenu* InMenu);
 void CreateCameraSpeedMenu(UToolMenu* InMenu);
+void AddCameraActorSelectSection(UToolMenu* InMenu);
 
 FToolMenuEntry CreateFOVMenu(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateFarViewPlaneMenu(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateCameraSpeedSlider(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateCameraSpeedScalarSlider(TWeakPtr<SLevelViewport> InLevelViewportWeak);
+FToolMenuEntry CreateLevelViewportToolbarCameraSubmenu();
 
 bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
 

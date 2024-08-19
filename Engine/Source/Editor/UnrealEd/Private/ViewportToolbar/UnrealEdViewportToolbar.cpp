@@ -2214,11 +2214,18 @@ void PopulateCameraMenu(UToolMenu* InMenu)
 		return;
 	}
 
-	FToolMenuSection& UnnamedSection = InMenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+	FToolMenuSection& PerspectiveCameraSection =
+		InMenu->FindOrAddSection("LevelViewportCameraType_Perspective", LOCTEXT("UnnamedLabel", ""));
+	PerspectiveCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Perspective);
 
-	UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
-		"CameraMenuItems", UE::UnrealEd::CreateCameraMenuWidget(EditorViewport.ToSharedRef()), FText(), true
-	));
+	FToolMenuSection& OrthographicCameraSection =
+		InMenu->FindOrAddSection("LevelViewportCameraType_Ortho", LOCTEXT("CameraTypeHeader_Ortho", "Orthographic"));
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Top);
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Bottom);
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Left);
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Right);
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Front);
+	OrthographicCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Back);
 }
 
 void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
@@ -2243,7 +2250,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 					return;
 				}
 
-				FToolMenuInsert InsertPosition("CameraOptions", EToolMenuInsertType::After);
+				FToolMenuInsert InsertPosition("LevelViewportCameraType_Ortho", EToolMenuInsertType::After);
 
 				FToolMenuSection& UnnamedSection =
 					InDynamicMenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""), InsertPosition);

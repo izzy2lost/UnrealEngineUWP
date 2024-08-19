@@ -246,6 +246,9 @@ public:
 	/** Called to lock/unlock the actor from the viewport's context menu */
 	void OnActorLockToggleFromMenu(AActor* Actor);
 
+	/** Called to unlock the actor from the viewport's context menu */
+	void OnActorLockToggleFromMenu();
+
 	/**
 	 * @return true if the actor is locked to the viewport
 	 */
