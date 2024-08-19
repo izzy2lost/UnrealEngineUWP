@@ -1404,7 +1404,7 @@ ULocalPlayer& USocialParty::GetOwningLocalPlayer() const
 ULocalPlayer* USocialParty::GetOwningLocalPlayerPtr() const
 {
 	//@todo DanH Party: This is a wee bit heavy - should be able to do this in fewer steps
-	return GetOwningLocalMember().GetSocialUser(GetOwningLocalUserId())->GetOwningToolkit().GetOwningLocalPlayerPtr();
+	return GetOwningLocalMember().GetSocialUser().GetOwningToolkit().GetOwningLocalPlayerPtr();
 }
 
 bool USocialParty::IsLocalPlayerPartyLeader() const
