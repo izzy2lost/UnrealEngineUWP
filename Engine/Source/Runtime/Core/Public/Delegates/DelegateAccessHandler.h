@@ -40,8 +40,7 @@ struct TWriteLockedDelegateAllocation;
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
-	template <typename T>
-	friend struct TWriteLockedDelegateAllocation;
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeNotCheckedDelegateMode>;
 
 protected:
 	struct FReadAccessScope {};
@@ -193,6 +192,7 @@ private:
 template<>
 class TDelegateAccessHandlerBase<FNotThreadSafeDelegateMode> : public TDelegateAccessHandlerBase<FNotThreadSafeNotCheckedDelegateMode>
 {
+	friend struct TWriteLockedDelegateAllocation<FNotThreadSafeDelegateMode>;
 };
 
 #endif // UE_DETECT_DELEGATES_RACE_CONDITIONS
