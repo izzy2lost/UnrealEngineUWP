@@ -17,6 +17,8 @@ SWidgetSwitcher::SWidgetSwitcher()
 	SetCanTick(false);
 }
 
+SWidgetSwitcher::~SWidgetSwitcher() = default;
+
 SWidgetSwitcher::FSlot::FSlotArguments SWidgetSwitcher::Slot()
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>());

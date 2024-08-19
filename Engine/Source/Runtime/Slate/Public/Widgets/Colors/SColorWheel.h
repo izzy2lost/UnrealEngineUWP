@@ -44,6 +44,7 @@ public:
 	
 public:
 	SLATE_API SColorWheel();
+	SLATE_API virtual ~SColorWheel();
 
 	/**
 	 * Construct this widget.

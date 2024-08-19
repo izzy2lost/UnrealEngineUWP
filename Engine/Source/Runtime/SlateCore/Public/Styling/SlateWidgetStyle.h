@@ -22,7 +22,7 @@ public:
 	SLATECORE_API FSlateWidgetStyle( );
 
 	/** Virtual Destructor. */
-	virtual ~FSlateWidgetStyle() { }
+	SLATECORE_API virtual ~FSlateWidgetStyle();
 
 public:
 

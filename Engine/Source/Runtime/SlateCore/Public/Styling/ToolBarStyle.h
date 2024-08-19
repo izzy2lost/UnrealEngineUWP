@@ -17,8 +17,8 @@ struct FToolBarStyle : public FSlateWidgetStyle
 	GENERATED_BODY()
 
 	SLATECORE_API FToolBarStyle();
-
-	virtual ~FToolBarStyle() {}
+	SLATECORE_API FToolBarStyle(const FToolBarStyle&);
+	SLATECORE_API virtual ~FToolBarStyle();
 
 	SLATECORE_API virtual void GetResources(TArray<const FSlateBrush*>& OutBrushes) const override;
 

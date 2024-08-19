@@ -144,6 +144,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SResponsiveGridPanel();
+	SLATE_API virtual ~SResponsiveGridPanel();
 
 	/** Removes all rows from the panel */
 	SLATE_API void ClearChildren();

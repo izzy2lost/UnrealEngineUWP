@@ -819,6 +819,8 @@ STableViewBase::STableViewBase( ETableViewMode::Type InTableViewMode )
 	FixedLineScrollOffset = 0.25f;
 }
 
+STableViewBase::~STableViewBase() = default;
+
 double STableViewBase::GetTargetScrollOffset() const
 {
 	if (FixedLineScrollOffset.IsSet() && !IsRightClickScrolling() && InertialScrollManager.GetScrollVelocity() == 0.f)

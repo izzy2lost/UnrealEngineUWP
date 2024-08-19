@@ -72,6 +72,7 @@ public:
 	};
 
 	SLATE_API SUniformGridPanel();
+	SLATE_API virtual ~SUniformGridPanel();
 
 	/**
 	 * Used by declarative syntax to create a Slot in the specified Column, Row.

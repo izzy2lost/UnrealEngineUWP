@@ -74,6 +74,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATECORE_API SOverlay();
+	SLATECORE_API ~SOverlay();
 
 	/**
 	 * Construct this widget.

@@ -39,6 +39,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SDPIScaler();
+	SLATE_API virtual ~SDPIScaler();
 
 	SLATE_API void Construct( const FArguments& InArgs );
 

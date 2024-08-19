@@ -74,7 +74,8 @@ protected:
 protected:
 
 	/** Hidden default constructor. */
-	SPanel( ) { }
+	SLATECORE_API SPanel( );
+	SLATECORE_API virtual ~SPanel( );
 
 public:
 	SLATECORE_API virtual void SetVisibility( TAttribute<EVisibility> InVisibility ) override final;

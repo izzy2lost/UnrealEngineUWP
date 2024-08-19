@@ -45,7 +45,7 @@ public:
 	 */
 	SLATE_API FMultiBoxBuilder( const EMultiBoxType InType, FMultiBoxCustomization InCustomization, const bool bInShouldCloseWindowAfterMenuSelection, const TSharedPtr< const FUICommandList >& InCommandList, TSharedPtr<FExtender> InExtender = TSharedPtr<FExtender>(), FName InTutorialHighlightName = NAME_None, FName InMenuName = NAME_None );
 
-	virtual ~FMultiBoxBuilder() {}
+	SLATE_API virtual ~FMultiBoxBuilder() {}
 
 	/**
 	 * Adds an editable text entry

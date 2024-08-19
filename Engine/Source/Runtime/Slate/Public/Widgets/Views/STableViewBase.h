@@ -255,6 +255,7 @@ public:
 protected:
 
 	SLATE_API STableViewBase( ETableViewMode::Type InTableViewMode );
+	SLATE_API virtual ~STableViewBase();
 
 	/** Returns the "true" scroll offset where the list will ultimately settle (and may already be). */
 	SLATE_API double GetTargetScrollOffset() const;

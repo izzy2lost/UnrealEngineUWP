@@ -98,6 +98,8 @@ SScrollBox::SScrollBox()
 	bClippingProxy = true;
 }
 
+SScrollBox::~SScrollBox() = default;
+
 void SScrollBox::Construct( const FArguments& InArgs )
 {
 	check(InArgs._Style);

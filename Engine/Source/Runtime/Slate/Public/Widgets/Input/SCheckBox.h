@@ -154,6 +154,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SCheckBox();
+	SLATE_API virtual ~SCheckBox();
 
 	/**
 	 * Construct this widget

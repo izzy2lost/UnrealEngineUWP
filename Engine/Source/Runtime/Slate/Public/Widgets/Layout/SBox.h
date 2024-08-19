@@ -94,6 +94,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SBox();
+	SLATE_API virtual ~SBox();
 
 	SLATE_API void Construct(const FArguments& InArgs);
 

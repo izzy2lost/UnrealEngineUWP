@@ -18,6 +18,8 @@ SExpanderArrow::SExpanderArrow()
 
 }
 
+SExpanderArrow::~SExpanderArrow() = default;
+
 void SExpanderArrow::Construct( const FArguments& InArgs, const TSharedPtr<class ITableRow>& TableRow  )
 {
 	OwnerRowPtr = TableRow;

@@ -106,6 +106,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SCanvas();
+	SLATE_API virtual ~SCanvas();
 
 	/**
 	 * Construct this widget

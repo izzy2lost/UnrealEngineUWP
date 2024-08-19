@@ -20,6 +20,8 @@ SCheckBox::SCheckBox()
 #endif
 }
 
+SCheckBox::~SCheckBox() = default;
+
 /**
  * Construct this widget
  *

@@ -20,6 +20,8 @@ SWrapBox::SWrapBox()
 {
 }
 
+SWrapBox::~SWrapBox() = default;
+
 SWrapBox::FScopedWidgetSlotArguments SWrapBox::AddSlot()
 {
 	return FScopedWidgetSlotArguments{ MakeUnique<FSlot>(), Slots, INDEX_NONE };

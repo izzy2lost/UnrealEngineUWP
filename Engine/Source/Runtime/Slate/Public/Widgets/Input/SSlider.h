@@ -101,6 +101,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SSlider();
+	SLATE_API virtual ~SSlider();
 
 	/**
 	 * Construct the widget.

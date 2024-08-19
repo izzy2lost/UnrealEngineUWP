@@ -242,6 +242,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SGridPanel();
+	SLATE_API virtual ~SGridPanel();
 
 	/** Removes all slots from the panel */
 	SLATE_API void ClearChildren();

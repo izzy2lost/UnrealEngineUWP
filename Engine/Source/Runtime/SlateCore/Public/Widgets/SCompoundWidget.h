@@ -101,6 +101,7 @@ protected:
 
 	/** Disallow public construction */
 	SLATECORE_API SCompoundWidget();
+	SLATECORE_API virtual ~SCompoundWidget();
 
 	struct FCompoundWidgetOneChildSlot : ::TSingleWidgetChildrenWithBasicLayoutSlot<EInvalidateWidgetReason::None>
 	{

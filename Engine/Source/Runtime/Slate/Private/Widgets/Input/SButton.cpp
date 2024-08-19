@@ -62,6 +62,8 @@ SButton::SButton()
 #endif
 }
 
+SButton::~SButton() = default;
+
 /**
  * Construct this widget
  *

@@ -162,6 +162,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SWrapBox();
+	SLATE_API virtual ~SWrapBox();
 
 	static FSlot::FSlotArguments Slot()
 	{

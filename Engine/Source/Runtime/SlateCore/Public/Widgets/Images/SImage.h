@@ -47,6 +47,7 @@ public:
 
 	/** Constructor */
 	SLATECORE_API SImage();
+	SLATECORE_API virtual ~SImage();
 
 	/**
 	 * Construct this widget

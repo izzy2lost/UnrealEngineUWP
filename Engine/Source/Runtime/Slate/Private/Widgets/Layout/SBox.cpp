@@ -34,6 +34,8 @@ SBox::SBox()
 	bCanSupportFocus = false;
 }
 
+SBox::~SBox() = default;
+
 void SBox::Construct( const FArguments& InArgs )
 {
 	SetWidthOverride(InArgs._WidthOverride);

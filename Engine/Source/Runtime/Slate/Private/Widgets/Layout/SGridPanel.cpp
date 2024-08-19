@@ -49,6 +49,8 @@ SGridPanel::SGridPanel()
 	SetCanTick(false);
 }
 
+SGridPanel::~SGridPanel() = default;
+
 SGridPanel::FSlot::FSlotArguments SGridPanel::Slot(int32 Column, int32 Row, SGridPanel::Layer InLayer)
 {
 	return FSlot::FSlotArguments(MakeUnique<FSlot>(Column, Row, InLayer.TheLayer));

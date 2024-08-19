@@ -71,6 +71,7 @@ public:
 
 public:
 	SLATE_API SColorBlock();
+	SLATE_API ~SColorBlock();
 
 	/**
 	 * Construct this widget

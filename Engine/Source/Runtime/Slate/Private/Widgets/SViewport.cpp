@@ -32,6 +32,7 @@ SViewport::SViewport()
 	, bEnableStereoRendering(false)
 { }
 
+SViewport::~SViewport() = default;
 
 /* SViewport interface
  *****************************************************************************/

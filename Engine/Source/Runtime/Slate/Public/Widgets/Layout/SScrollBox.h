@@ -319,6 +319,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SScrollBox();
+	SLATE_API virtual ~SScrollBox();
 
 	/** @return a new slot. Slots contain children for SScrollBox */
 	static SLATE_API FSlot::FSlotArguments Slot();

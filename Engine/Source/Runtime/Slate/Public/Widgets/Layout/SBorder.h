@@ -99,6 +99,7 @@ public:
 	 * Default constructor.
 	 */
 	SLATE_API SBorder();
+	SLATE_API virtual ~SBorder();
 
 	/**
 	 * Construct this widget

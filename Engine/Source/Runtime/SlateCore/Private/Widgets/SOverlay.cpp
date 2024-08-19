@@ -115,6 +115,8 @@ SOverlay::SOverlay()
 	bCanSupportFocus = false;
 }
 
+SOverlay::~SOverlay() = default;
+
 SOverlay::FOverlaySlot::FSlotArguments SOverlay::Slot( int32 ZOrder )
 {
 	return FOverlaySlot::FSlotArguments(MakeUnique<FOverlaySlot>(ZOrder));

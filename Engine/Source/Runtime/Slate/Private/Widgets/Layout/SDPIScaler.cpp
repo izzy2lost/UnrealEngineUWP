@@ -19,6 +19,8 @@ SDPIScaler::SDPIScaler()
 	bHasRelativeLayoutScale = true;
 }
 
+SDPIScaler::~SDPIScaler() = default;
+
 void SDPIScaler::Construct( const FArguments& InArgs )
 {
 	SetDPIScale(InArgs._DPIScale);

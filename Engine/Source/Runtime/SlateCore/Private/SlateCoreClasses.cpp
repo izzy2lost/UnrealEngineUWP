@@ -96,5 +96,6 @@ FAutoConsoleVariableRef CVarHitTestGridDebugging(
 
 #endif
 
-FSlateWidgetStyle::FSlateWidgetStyle()
-{ }
+FSlateWidgetStyle::FSlateWidgetStyle() = default;
+FSlateWidgetStyle::~FSlateWidgetStyle() = default;
+

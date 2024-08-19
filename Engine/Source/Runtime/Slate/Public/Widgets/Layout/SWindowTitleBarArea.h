@@ -52,6 +52,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SWindowTitleBarArea();
+	SLATE_API virtual ~SWindowTitleBarArea();
 
 	SLATE_API void Construct( const FArguments& InArgs );
 

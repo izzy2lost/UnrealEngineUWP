@@ -120,6 +120,8 @@ public:
 
 	SLATE_END_ARGS()
 
+		SLATE_API virtual ~SButton();
+
 protected:
 		SLATE_API SButton();
 

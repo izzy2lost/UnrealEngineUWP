@@ -29,6 +29,8 @@ SUniformWrapPanel::SUniformWrapPanel()
 {
 }
 
+SUniformWrapPanel::~SUniformWrapPanel() = default;
+
 void SUniformWrapPanel::Construct( const FArguments& InArgs )
 {
 	SlotPadding.Assign(*this, InArgs._SlotPadding);

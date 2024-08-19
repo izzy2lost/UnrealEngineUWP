@@ -23,6 +23,8 @@ SBorder::SBorder()
 {
 }
 
+SBorder::~SBorder() = default;
+
 void SBorder::Construct( const SBorder::FArguments& InArgs )
 {
 	// Only do this if we're exactly an SBorder

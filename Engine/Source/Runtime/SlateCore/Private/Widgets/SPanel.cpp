@@ -4,6 +4,9 @@
 #include "Types/PaintArgs.h"
 #include "Layout/ArrangedChildren.h"
 
+SPanel::SPanel() = default;
+SPanel::~SPanel() = default;
+
 int32 SPanel::OnPaint( const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled ) const
 {
 	FArrangedChildren ArrangedChildren(EVisibility::Visible);

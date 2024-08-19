@@ -20,6 +20,8 @@ SColorGradingWheel::SColorGradingWheel()
 {
 }
 
+SColorGradingWheel::~SColorGradingWheel() = default;
+
 /* SColorGradingWheel methods
  *****************************************************************************/
 

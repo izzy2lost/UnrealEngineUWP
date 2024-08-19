@@ -51,6 +51,7 @@ public:
 	
 public:
 	SLATE_API SColorGradingWheel();
+	SLATE_API virtual ~SColorGradingWheel();
 
 	/**
 	 * Construct this widget.

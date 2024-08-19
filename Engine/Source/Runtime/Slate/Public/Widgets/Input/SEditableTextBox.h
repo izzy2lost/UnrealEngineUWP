@@ -170,6 +170,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SEditableTextBox();
+	SLATE_API virtual ~SEditableTextBox();
 	
 	/**
 	 * Construct this widget

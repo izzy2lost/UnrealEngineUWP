@@ -32,6 +32,10 @@ FToolBarStyle::FToolBarStyle()
 	, bShowLabels(true)
 {}
 
+FToolBarStyle::FToolBarStyle(const FToolBarStyle&) = default;
+
+FToolBarStyle::~FToolBarStyle() = default;
+
 const FToolBarStyle& FToolBarStyle::GetDefault()
 {
 	static FToolBarStyle Default;

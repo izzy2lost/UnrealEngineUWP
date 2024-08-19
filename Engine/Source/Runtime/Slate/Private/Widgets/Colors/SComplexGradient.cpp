@@ -14,6 +14,8 @@ SComplexGradient::SComplexGradient()
 	SetCanTick(false);
 }
 
+SComplexGradient::~SComplexGradient() = default;
+
 /* SComplexGradient interface
  *****************************************************************************/
 

@@ -39,6 +39,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SExpanderArrow();
+	SLATE_API ~SExpanderArrow();
 	SLATE_API void Construct( const FArguments& InArgs, const TSharedPtr<class ITableRow>& TableRow );
 
 protected:

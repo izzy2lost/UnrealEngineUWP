@@ -10,6 +10,8 @@ SColorSpectrum::SColorSpectrum()
 {
 }
 
+SColorSpectrum::~SColorSpectrum() = default;
+
 /* SColorSpectrum methods
  *****************************************************************************/
 

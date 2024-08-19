@@ -132,6 +132,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SCircularThrobber();
+	SLATE_API virtual ~SCircularThrobber();
 
 	/** Constructs the widget */
 	SLATE_API void Construct(const FArguments& InArgs);
