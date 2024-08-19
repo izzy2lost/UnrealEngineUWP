@@ -196,6 +196,10 @@ public:
 	/** Sub-classes of ListViewBase that are supported to have an extension for binding their entries to viewmodels. */
 	UPROPERTY(EditAnywhere, config, Category = "Widget Extension")
 	TSet<TSoftClassPtr<UListViewBase>> SupportedListViewBaseClassesForExtension;
+
+	/** Resolver class to use as the default value when selecting resolver creation mode */
+	UPROPERTY(EditAnywhere, config, Category = "Defaults", meta = (MetaClass = "/Script/ModelViewViewModel.UMVVMViewModelContextResolver"))
+	FSoftClassPath DefaultResolverValue;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

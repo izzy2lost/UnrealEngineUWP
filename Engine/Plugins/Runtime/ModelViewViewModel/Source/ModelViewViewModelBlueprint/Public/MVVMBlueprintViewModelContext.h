@@ -97,6 +97,10 @@ public:
 		return NotifyFieldValueClass != nullptr;
 	}
 
+#if WITH_EDITOR
+	[[nodiscard]] TObjectPtr<UMVVMViewModelContextResolver> CreateDefaultResolver() const;
+#endif
+
 private:
 	/** When the view is spawn, create an instance of the viewmodel. */
 	UPROPERTY(VisibleAnywhere, AdvancedDisplay, Category = "Viewmodel", meta = (DisplayName = "Viewmodel Context Id", NoResetToDefault))

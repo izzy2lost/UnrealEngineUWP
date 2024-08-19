@@ -73,6 +73,7 @@ private:
 	TSharedPtr<IPropertyHandle> OptionalHandle;
 	TSharedPtr<IPropertyHandle> CreateSetterFunctionHandle;
 	TSharedPtr<IPropertyHandle> ForceExecuteBindingsOnSetSourceHandle;
+	TSharedPtr<IPropertyHandle> ResolverHandle;
 	TArray<EMVVMBlueprintViewModelContextCreationType> AllowedCreationTypes;
 };
 

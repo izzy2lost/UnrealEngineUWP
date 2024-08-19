@@ -207,6 +207,7 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 	OptionalHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bOptional), false);
 	CreateSetterFunctionHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bCreateSetterFunction), false);
 	ForceExecuteBindingsOnSetSourceHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, bForceExecuteBindingsOnSetSource), false);
+	ResolverHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, Resolver), false);
 
 	if (ensure(NotifyFieldValueClassHandle))
 	{
@@ -367,7 +368,6 @@ void FBlueprintViewModelContextDetailCustomization::CustomizeChildren(TSharedRef
 			}
 		}
 
-		TSharedPtr<IPropertyHandle> ResolverHandle = PropertyHandle->GetChildHandle(GET_MEMBER_NAME_CHECKED(FMVVMBlueprintViewModelContext, Resolver), false);
 		if (ensure(ResolverHandle))
 		{
 			TSharedRef<Private::FResolverClassFilter> ClassFilter = MakeShared<Private::FResolverClassFilter>();
@@ -509,7 +509,8 @@ void FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged()
 	{
 		if (FMVVMBlueprintViewModelContext* ContextPtr = Private::GetViewModelContext(ContextHandle.ToSharedRef()))
 		{
-			const bool bIsManual = (EMVVMBlueprintViewModelContextCreationType)NewValue == EMVVMBlueprintViewModelContextCreationType::Manual;
+			const EMVVMBlueprintViewModelContextCreationType CreationType = (EMVVMBlueprintViewModelContextCreationType)NewValue;
+			const bool bIsManual = CreationType == EMVVMBlueprintViewModelContextCreationType::Manual;
 			if (ContextPtr->bOptional != bIsManual)
 			{
 				OptionalHandle->SetValue(bIsManual);
@@ -517,6 +518,20 @@ void FBlueprintViewModelContextDetailCustomization::HandleCreationTypeChanged()
 			if (ContextPtr->bCreateSetterFunction != bIsManual)
 			{
 				CreateSetterFunctionHandle->SetValue(bIsManual);
+			}
+
+			// Set default resolver only if not already set to a valid value
+			if (CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver)
+			{
+				UObject* ExistingResolver = nullptr;
+				if (ResolverHandle->GetValue(ExistingResolver) == FPropertyAccess::Fail || ExistingResolver == nullptr)
+				{
+					TObjectPtr<UMVVMViewModelContextResolver> NewResolver = ContextPtr->CreateDefaultResolver();
+
+					// Bypass SetValue, Resolver is set to Instanced which will block it
+					FString PropertyText = NewResolver ? NewResolver->GetPathName() : TEXT("None");
+					ResolverHandle->SetValueFromFormattedString(PropertyText);
+				}
 			}
 		}
 	}
