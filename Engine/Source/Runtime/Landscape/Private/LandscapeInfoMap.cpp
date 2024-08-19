@@ -41,6 +41,8 @@ void ULandscapeInfoMap::BeginDestroy()
 
 void ULandscapeInfoMap::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	ULandscapeInfoMap* This = CastChecked<ULandscapeInfoMap>(InThis);
 	Collector.AddReferencedObjects(This->Map, This);
 }

@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Component/AnimNextWorldSubsystem.h"
 
@@ -54,6 +54,8 @@ UAnimNextWorldSubsystem::~UAnimNextWorldSubsystem()
 
 void UAnimNextWorldSubsystem::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
 {
+	Super::AddReferencedObjects(InThis, Collector);
+
 	UAnimNextWorldSubsystem* This = CastChecked<UAnimNextWorldSubsystem>(InThis);
 	for(FAnimNextModuleInstance& Instance : This->Instances)
 	{
