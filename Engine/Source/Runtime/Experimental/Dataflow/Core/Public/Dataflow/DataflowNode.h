@@ -43,12 +43,16 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	friend class Dataflow::FGraph;
 	friend struct FDataflowConnection;
 
+	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
 	FGuid Guid;
+	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
 	FName Name;
+	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
 	Dataflow::FTimestamp LastModifiedTimestamp;
 
 	UE_DEPRECATED(5.5, "Inputs type has changed and has been made private")
 	TMap< int, FDataflowInput* > Inputs;
+	UE_DEPRECATED(5.5, "Will be made private in 5.7, use Get/Set methods instead.")
 	TMap< int, FDataflowOutput* > Outputs;
 
 	UPROPERTY(EditAnywhere, Category = "Dataflow")
@@ -73,12 +77,12 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	// Warning: FDataflowNodes aren't actually safe to copy/move yet. These are here to disable deprecation warnings from the implicit operators that were getting created anyways.
 	// (Deleting the operators would require tagging all derived classes since this is a USTRUCT, so also not doing that here).
 	FDataflowNode& operator=(const FDataflowNode&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	FGuid GetGuid() const { return Guid; }
 	FName GetName() const { return Name; }
 	void SetName(FName InName) { Name = InName; }
 	Dataflow::FTimestamp GetTimestamp() const { return LastModifiedTimestamp;  }
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	DATAFLOWCORE_API uint32 GetValueHash();
 
 	static FName StaticType() { return FName("FDataflowNode"); }

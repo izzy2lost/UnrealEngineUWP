@@ -260,13 +260,13 @@ bool FDataflowOutput::EvaluateImpl(Dataflow::FContext& Context) const
 	}
 
 	// check if the cache has a valid version
-	if(Context.HasData(CacheKey(), OwningNode->LastModifiedTimestamp))
+	if(Context.HasData(CacheKey(), OwningNode->GetTimestamp()))
 	{
-		UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowOutput::EvaluateImpl(): Context has data, NodeTimestamp [%ul], CacheTimestamp [%lu]"), OwningNode->LastModifiedTimestamp.Value, Context.GetTimestamp(CacheKey()).Value);
+		UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowOutput::EvaluateImpl(): Context has data, NodeTimestamp [%ul], CacheTimestamp [%lu]"), OwningNode->GetTimestamp().Value, Context.GetTimestamp(CacheKey()).Value);
 		return true;
 	}
 	// if not, evaluate
-	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowNode::Evaluate(): Node [%s], Output [%s], NodeTimestamp [%lu]"), *GetOwningNode()->GetName().ToString(), *GetName().ToString(), OwningNode->LastModifiedTimestamp.Value);
+	UE_LOG(LogChaosDataflow, Verbose, TEXT("FDataflowNode::Evaluate(): Node [%s], Output [%s], NodeTimestamp [%lu]"), *GetOwningNode()->GetName().ToString(), *GetName().ToString(), OwningNode->GetTimestamp().Value);
 	OwningNode->Evaluate(Context, this);
 	// Validation
 	if (!Context.HasData(CacheKey()))
