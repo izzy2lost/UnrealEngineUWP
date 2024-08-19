@@ -202,7 +202,8 @@ struct FNiagaraSimCacheHelper
 		if (CreateParameters.bAllowInterpolation)
 		{
 			const FNiagaraVariableBase UniqueIDVariable(FNiagaraTypeDefinition::GetIntDef(), "UniqueID");
-			CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = IntCastChecked<uint16>(CompiledData.Variables.IndexOfByKey(UniqueIDVariable));
+			const int32 IDVarIndex = CompiledData.Variables.IndexOfByKey(UniqueIDVariable);
+			CacheLayout.CacheBufferWriteInfo.ComponentUniqueID = IDVarIndex == INDEX_NONE ? static_cast<uint16>(INDEX_NONE) : IntCastChecked<uint16>(IDVarIndex);
 			if (CacheLayout.CacheBufferWriteInfo.ComponentUniqueID != static_cast<uint16>(INDEX_NONE))
 			{
 				const FNiagaraVariableLayoutInfo& DataSetVariableLayout = CompiledData.VariableLayouts[CacheLayout.CacheBufferWriteInfo.ComponentUniqueID];
