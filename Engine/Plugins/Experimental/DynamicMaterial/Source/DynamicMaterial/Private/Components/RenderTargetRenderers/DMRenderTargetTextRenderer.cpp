@@ -56,16 +56,16 @@ struct FDMRenderTargetTextRenderer
 
 	static const inline TSet<FName> PropertyNames = {
 		FontInfoName, TextName, TextColorName,
+		JustifyName,
+		FlowDirectionName,
+		LineHeightName,
+		AutoWrapTextName, WrapTextAtName, WrappingPolicyName,
+		PaddingLeftName, PaddingTopName, PaddingRightName, PaddingBottomName,
 		HasHighlightName, HighlightColorName,
 		HasShadowName, ShadowColorName, ShadowOffsetName,
-		AutoWrapTextName, WrapTextAtName, WrappingPolicyName,
-		JustifyName,
 		TransformPolicyName,
-		FlowDirectionName,
 		ShapingMethodName,
 		StrikeBrushName,
-		LineHeightName,
-		PaddingLeftName, PaddingTopName, PaddingRightName, PaddingBottomName,
 		OverrideRenderTargetSizeName
 	};
 };

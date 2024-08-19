@@ -814,7 +814,7 @@ TSharedRef<SDMMaterialPropertySelector> SDMMaterialEditor::CreateSlot_PropertySe
 {
 	TSharedRef<SDMMaterialPropertySelector> NewPropertySelector = CreateSlot_PropertySelector_Impl();
 
-	if (EditMode == EDMMaterialEditorMode::EditSlot && SelectedMaterialProperty != EDMMaterialPropertyType::None)
+	if (EditMode == EDMMaterialEditorMode::EditSlot && SelectedMaterialProperty == EDMMaterialPropertyType::None)
 	{
 		if (UDynamicMaterialModel* MaterialModel = GetMaterialModel())
 		{
