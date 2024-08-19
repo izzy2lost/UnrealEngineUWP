@@ -2,6 +2,7 @@
 
 #include "RenderGraphPass.h"
 #include "RenderGraphPrivate.h"
+#include "RenderGraphBuilder.h"
 
 FUniformBufferStaticBindings FRDGParameterStruct::GetStaticUniformBuffers() const
 {
@@ -110,6 +111,58 @@ FRHIRenderPassInfo FRDGParameterStruct::GetRenderPassInfo() const
 	RenderPassInfo.ShadingRateTextureCombiner = RenderPassInfo.ShadingRateTexture.IsValid() ? VRSRB_Max : VRSRB_Passthrough;
 
 	return RenderPassInfo;
+}
+
+FRHICommandList* FRDGDispatchPassBuilder::CreateCommandList()
+{
+	FRHICommandList* RHICmdList = new FRHICommandList(Pass->GetGPUMask());
+	RHICmdList->SwitchPipeline(Pass->GetPipeline());
+	Pass->CommandLists.Emplace(RHICmdList);
+
+	// When parallel executing, the pass commands are embedded directly into the first command list.
+	if (Pass->bParallelExecute && Pass->CommandLists.IsEmpty())
+	{
+		FRDGBuilder::PushPreScopes(*RHICmdList, Pass);
+		FRDGBuilder::ExecutePassPrologue(*RHICmdList, Pass);
+	}
+
+	if (RenderPassInfo)
+	{
+		RHICmdList->BeginRenderPass(*RenderPassInfo, TEXT("DispatchPass"));
+	}
+
+	RHICmdList->SetStaticUniformBuffers(StaticUniformBuffers);
+	return RHICmdList;
+}
+
+void FRDGDispatchPassBuilder::Finish()
+{
+	// With serial execution the pass commands are embedded in the immediate command list instead.
+	if (!Pass->bParallelExecute)
+	{
+		Pass->CommandListsEvent.Trigger();
+		return;
+	}
+
+	const bool bEmptyCommandLists = Pass->CommandLists.IsEmpty();
+
+	// Create a command list to embed the epilogue (and prologue as well if no user command lists were requested).
+	FRHICommandList* RHICmdList = new FRHICommandList(Pass->GetGPUMask());
+	Pass->CommandLists.Emplace(RHICmdList);
+	Pass->CommandListsEvent.Trigger();
+
+	RHICmdList->SwitchPipeline(Pass->GetPipeline());
+
+	if (bEmptyCommandLists)
+	{
+		FRDGBuilder::PushPreScopes(*RHICmdList, Pass);
+		FRDGBuilder::ExecutePassPrologue(*RHICmdList, Pass);
+	}
+
+	FRDGBuilder::ExecutePassEpilogue(*RHICmdList, Pass);
+	FRDGBuilder::PopPreScopes(*RHICmdList, Pass);
+
+	RHICmdList->FinishRecording();
 }
 
 FRDGBarrierBatchBegin::FRDGBarrierBatchBegin(ERHIPipeline InPipelineToBegin, ERHIPipeline InPipelinesToEnd, const TCHAR* InDebugName, FRDGPass* InDebugPass)

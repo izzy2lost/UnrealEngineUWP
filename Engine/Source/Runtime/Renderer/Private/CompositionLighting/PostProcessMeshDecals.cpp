@@ -531,14 +531,13 @@ void DrawDecalMeshCommands(
 				}
 			}
 
-			GraphBuilder.AddPass(
+			GraphBuilder.AddDispatchPass(
 				RDG_EVENT_NAME("%s", GetMeshPassName(DecalMeshPassType)),
 				PassParameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-				[&View, PassParameters, DecalMeshPassType](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+				ERDGPassFlags::Raster,
+				[&View, PassParameters, DecalMeshPassType](FRDGDispatchPassBuilder& DispatchPassBuilder)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
-					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 		else

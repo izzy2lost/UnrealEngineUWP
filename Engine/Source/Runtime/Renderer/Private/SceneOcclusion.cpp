@@ -1515,7 +1515,7 @@ static uint32 GetViewStateUniqueID(const FSceneRenderer* SceneRenderer)
 	return SceneRenderer->Views.Num() && SceneRenderer->Views[0].ViewState ? SceneRenderer->Views[0].ViewState->UniqueID : 0;
 }
 
-void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandListImmediate& RHICmdList)
+void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandList& RHICmdList)
 {
 	SCOPE_CYCLE_COUNTER(STAT_OcclusionSubmittedFence_Dispatch);
 
@@ -1546,15 +1546,13 @@ void FSceneRenderer::FenceOcclusionTestsInternal(FRHICommandListImmediate& RHICm
 
 	OcclusionSubmittedFence[0].Fence = RHICmdList.RHIThreadFence();
 	OcclusionSubmittedFence[0].ViewStateUniqueID = GetViewStateUniqueID(this);
-
-	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread);
 }
 
 void FSceneRenderer::FenceOcclusionTests(FRDGBuilder& GraphBuilder)
 {
 	if (DoOcclusionQueries() && IsRunningRHIInSeparateThread())
 	{
-		AddPass(GraphBuilder, RDG_EVENT_NAME("FenceOcclusionTests"), [this](FRHICommandListImmediate& RHICmdList)
+		AddPass(GraphBuilder, RDG_EVENT_NAME("FenceOcclusionTests"), [this](FRHICommandList& RHICmdList)
 		{
 			FenceOcclusionTestsInternal(RHICmdList);
 		});

@@ -19,10 +19,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogRDG, Log, All);
 #define RDG_ASYNC_COMPUTE_ENABLED 1
 #define RDG_ASYNC_COMPUTE_FORCE_ENABLED 2
 
-#define RDG_BREAKPOINT_WARNINGS 1
-#define RDG_BREAKPOINT_PASS_COMPILE 2
-#define RDG_BREAKPOINT_PASS_EXECUTE 3
-
 #ifndef RDG_ENABLE_PARALLEL_TASKS
 #define RDG_ENABLE_PARALLEL_TASKS 1
 #endif
@@ -37,7 +33,6 @@ extern int32 GRDGDebug;
 extern int32 GRDGDebugFlushGPU;
 extern int32 GRDGDebugExtendResourceLifetimes;
 extern int32 GRDGDebugDisableTransientResources;
-extern int32 GRDGBreakpoint;
 extern int32 GRDGTransitionLog;
 extern int32 GRDGImmediateMode;
 extern int32 GRDGOverlapUAVs;
@@ -71,22 +66,6 @@ bool IsDebugAllowedForGraph(const TCHAR* GraphName);
 bool IsDebugAllowedForPass(const TCHAR* PassName);
 bool IsDebugAllowedForResource(const TCHAR* ResourceName);
 
-inline void ConditionalDebugBreak(int32 BreakpointCVarValue, const TCHAR* GraphName, const TCHAR* PassName)
-{
-	if (GRDGBreakpoint == BreakpointCVarValue && IsDebugAllowedForGraph(GraphName) && IsDebugAllowedForPass(PassName))
-	{
-		UE_DEBUG_BREAK();
-	}
-}
-
-inline void ConditionalDebugBreak(int32 BreakpointCVarValue, const TCHAR* GraphName, const TCHAR* PassName, const TCHAR* ResourceName)
-{
-	if (GRDGBreakpoint == BreakpointCVarValue && IsDebugAllowedForGraph(GraphName) && IsDebugAllowedForPass(PassName) && IsDebugAllowedForResource(ResourceName))
-	{
-		UE_DEBUG_BREAK();
-	}
-}
-
 void EmitRDGWarning(const FString& WarningMessage);
 
 #define EmitRDGWarningf(WarningMessageFormat, ...) \
@@ -100,7 +79,6 @@ const int32 GRDGDebug = 0;
 const int32 GRDGDebugFlushGPU = 0;
 const int32 GRDGDebugExtendResourceLifetimes = 0;
 const int32 GRDGDebugDisableTransientResources = 0;
-const int32 GRDGBreakpoint = 0;
 const int32 GRDGTransitionLog = 0;
 const int32 GRDGImmediateMode = 0;
 const int32 GRDGOverlapUAVs = 1;

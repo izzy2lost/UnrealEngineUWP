@@ -1117,111 +1117,6 @@ static FViewShaderParameters GetSeparateTranslucencyViewParameters(const FViewIn
 	return ViewParameters;
 }
 
-static void RenderViewTranslucencyInner(
-	FRHICommandList& RHICmdList,
-	const FSceneRenderer& SceneRenderer,
-	const FViewInfo& View,
-	const FScreenPassTextureViewport Viewport,
-	const float ViewportScale,
-	ETranslucencyPass::Type TranslucencyPass,
-	FRDGParallelCommandListSet* ParallelCommandListSet,
-	const FInstanceCullingDrawParams& InstanceCullingDrawParams)
-{
-	FMeshPassProcessorRenderState DrawRenderState;
-	if (TranslucencyPass == ETranslucencyPass::TPT_TranslucencyAfterMotionBlur)
-	{
-		// No depth test in post-motionblur translucency
-		DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_Always>::GetRHI());
-	}
-	else
-	{
-		DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
-	}
-	
-	FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-
-	if (!View.Family->UseDebugViewPS())
-	{
-		QUICK_SCOPE_CYCLE_COUNTER(RenderTranslucencyParallel_Start_FDrawSortedTransAnyThreadTask);
-
-		const EMeshPass::Type MeshPass = TranslucencyPassToMeshPass(TranslucencyPass);
-		View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(ParallelCommandListSet, RHICmdList, &InstanceCullingDrawParams);
-	}
-
-	if (IsMainTranslucencyPass(TranslucencyPass))
-	{
-		if (ParallelCommandListSet)
-		{
-			ParallelCommandListSet->SetStateOnCommandList(RHICmdList);
-		}
-
-		View.SimpleElementCollector.DrawBatchedElements(RHICmdList, DrawRenderState, View, EBlendModeFilter::Translucent, SDPG_World);
-		View.SimpleElementCollector.DrawBatchedElements(RHICmdList, DrawRenderState, View, EBlendModeFilter::Translucent, SDPG_Foreground);
-
-		// editor and debug rendering
-		if (View.bHasTranslucentViewMeshElements)
-		{
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(RenderTranslucencyParallel_SDPG_World);
-
-				DrawDynamicMeshPass(View, RHICmdList,
-					[&View, &DrawRenderState, TranslucencyPass](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-				{
-					FBasePassMeshProcessor PassMeshProcessor(
-						EMeshPass::Num,
-						View.Family->Scene->GetRenderScene(),
-						View.GetFeatureLevel(),
-						&View,
-						DrawRenderState,
-						DynamicMeshPassContext,
-						FBasePassMeshProcessor::EFlags::CanUseDepthStencil,
-						TranslucencyPass);
-
-					const uint64 DefaultBatchElementMask = ~0ull;
-
-					for (int32 MeshIndex = 0; MeshIndex < View.ViewMeshElements.Num(); MeshIndex++)
-					{
-						const FMeshBatch& MeshBatch = View.ViewMeshElements[MeshIndex];
-						PassMeshProcessor.AddMeshBatch(MeshBatch, DefaultBatchElementMask, nullptr);
-					}
-				});
-			}
-
-			if (!View.Family->EngineShowFlags.CompositeEditorPrimitives)
-			{
-				QUICK_SCOPE_CYCLE_COUNTER(RenderTranslucencyParallel_SDPG_Foreground);
-
-				DrawDynamicMeshPass(View, RHICmdList,
-					[&View, &DrawRenderState, TranslucencyPass](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
-				{
-					FBasePassMeshProcessor PassMeshProcessor(
-						EMeshPass::Num,
-						View.Family->Scene->GetRenderScene(),
-						View.GetFeatureLevel(),
-						&View,
-						DrawRenderState,
-						DynamicMeshPassContext,
-						FBasePassMeshProcessor::EFlags::CanUseDepthStencil,
-						TranslucencyPass);
-
-					const uint64 DefaultBatchElementMask = ~0ull;
-
-					for (int32 MeshIndex = 0; MeshIndex < View.TopViewMeshElements.Num(); MeshIndex++)
-					{
-						const FMeshBatch& MeshBatch = View.TopViewMeshElements[MeshIndex];
-						PassMeshProcessor.AddMeshBatch(MeshBatch, DefaultBatchElementMask, nullptr);
-					}
-				});
-			}
-		}
-
-		if (ParallelCommandListSet)
-		{
-			RHICmdList.EndRenderPass();
-		}
-	}
-}
-
 BEGIN_SHADER_PARAMETER_STRUCT(FTranslucentBasePassParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FViewShaderParameters, View)
 	SHADER_PARAMETER_STRUCT_REF(FReflectionCaptureShaderData, ReflectionCapture)
@@ -1280,33 +1175,114 @@ static void RenderTranslucencyViewInner(
 	const EMeshPass::Type MeshPass = TranslucencyPassToMeshPass(TranslucencyPass);
 	View.ParallelMeshDrawCommandPasses[MeshPass].BuildRenderingCommands(GraphBuilder, SceneRenderer.Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
-	if (bRenderInParallel)
+	if (!View.Family->UseDebugViewPS())
 	{
-		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("Translucency(%s Parallel) %dx%d",
-				TranslucencyPassToString(TranslucencyPass),
-				int32(View.ViewRect.Width() * ViewportScale),
-				int32(View.ViewRect.Height() * ViewportScale)),
-			PassParameters,
-			ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-			[&SceneRenderer, &View, PassParameters, ViewportScale, Viewport, TranslucencyPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+		if (bRenderInParallel)
 		{
-			FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters), ViewportScale);
-			RenderViewTranslucencyInner(RHICmdList, SceneRenderer, View, Viewport, ViewportScale, TranslucencyPass, &ParallelCommandListSet, PassParameters->InstanceCullingDrawParams);
-		});
+			GraphBuilder.AddDispatchPass(
+				RDG_EVENT_NAME("Translucency(%s Parallel) %dx%d",
+					TranslucencyPassToString(TranslucencyPass),
+					int32(View.ViewRect.Width() * ViewportScale),
+					int32(View.ViewRect.Height() * ViewportScale)),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[&View, PassParameters, MeshPass](FRDGDispatchPassBuilder& DispatchPassBuilder)
+			{
+				View.ParallelMeshDrawCommandPasses[MeshPass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
+			});
+		}
+		else
+		{
+			GraphBuilder.AddPass(
+				RDG_EVENT_NAME("Translucency(%s) %dx%d",
+					TranslucencyPassToString(TranslucencyPass),
+					int32(View.ViewRect.Width() * ViewportScale),
+					int32(View.ViewRect.Height() * ViewportScale)),
+				PassParameters,
+				ERDGPassFlags::Raster,
+				[&View, PassParameters, ViewportScale, TranslucencyPass, MeshPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+			{
+				FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
+				View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			});
+		}
 	}
-	else
+
+	if (IsMainTranslucencyPass(TranslucencyPass) && (View.SimpleElementCollector.HasAnyPrimitives() || View.bHasTranslucentViewMeshElements))
 	{
 		GraphBuilder.AddPass(
-			RDG_EVENT_NAME("Translucency(%s) %dx%d",
+			RDG_EVENT_NAME("TranslucencyElements(%s) %dx%d",
 				TranslucencyPassToString(TranslucencyPass),
 				int32(View.ViewRect.Width() * ViewportScale),
 				int32(View.ViewRect.Height() * ViewportScale)),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[&SceneRenderer, &View, ViewportScale, Viewport, TranslucencyPass, PassParameters](FRHICommandList& RHICmdList)
+			[&View, TranslucencyPass, ViewportScale] (FRHICommandList& RHICmdList)
 		{
-			RenderViewTranslucencyInner(RHICmdList, SceneRenderer, View, Viewport, ViewportScale, TranslucencyPass, nullptr, PassParameters->InstanceCullingDrawParams);
+			FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
+
+			FMeshPassProcessorRenderState DrawRenderState;
+			DrawRenderState.SetDepthStencilState(TStaticDepthStencilState<false, CF_DepthNearOrEqual>::GetRHI());
+
+			View.SimpleElementCollector.DrawBatchedElements(RHICmdList, DrawRenderState, View, EBlendModeFilter::Translucent, SDPG_World);
+			View.SimpleElementCollector.DrawBatchedElements(RHICmdList, DrawRenderState, View, EBlendModeFilter::Translucent, SDPG_Foreground);
+
+			// editor and debug rendering
+			if (View.bHasTranslucentViewMeshElements)
+			{
+				{
+					QUICK_SCOPE_CYCLE_COUNTER(RenderTranslucencyParallel_SDPG_World);
+
+					DrawDynamicMeshPass(View, RHICmdList,
+						[&View, &DrawRenderState, TranslucencyPass](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
+					{
+						FBasePassMeshProcessor PassMeshProcessor(
+							EMeshPass::Num,
+							View.Family->Scene->GetRenderScene(),
+							View.GetFeatureLevel(),
+							&View,
+							DrawRenderState,
+							DynamicMeshPassContext,
+							FBasePassMeshProcessor::EFlags::CanUseDepthStencil,
+							TranslucencyPass);
+
+						const uint64 DefaultBatchElementMask = ~0ull;
+
+						for (int32 MeshIndex = 0; MeshIndex < View.ViewMeshElements.Num(); MeshIndex++)
+						{
+							const FMeshBatch& MeshBatch = View.ViewMeshElements[MeshIndex];
+							PassMeshProcessor.AddMeshBatch(MeshBatch, DefaultBatchElementMask, nullptr);
+						}
+					});
+				}
+
+				if (!View.Family->EngineShowFlags.CompositeEditorPrimitives)
+				{
+					QUICK_SCOPE_CYCLE_COUNTER(RenderTranslucencyParallel_SDPG_Foreground);
+
+					DrawDynamicMeshPass(View, RHICmdList,
+						[&View, &DrawRenderState, TranslucencyPass](FDynamicPassMeshDrawListContext* DynamicMeshPassContext)
+					{
+						FBasePassMeshProcessor PassMeshProcessor(
+							EMeshPass::Num,
+							View.Family->Scene->GetRenderScene(),
+							View.GetFeatureLevel(),
+							&View,
+							DrawRenderState,
+							DynamicMeshPassContext,
+							FBasePassMeshProcessor::EFlags::CanUseDepthStencil,
+							TranslucencyPass);
+
+						const uint64 DefaultBatchElementMask = ~0ull;
+
+						for (int32 MeshIndex = 0; MeshIndex < View.TopViewMeshElements.Num(); MeshIndex++)
+						{
+							const FMeshBatch& MeshBatch = View.TopViewMeshElements[MeshIndex];
+							PassMeshProcessor.AddMeshBatch(MeshBatch, DefaultBatchElementMask, nullptr);
+						}
+					});
+				}
+			}
 		});
 	}
 

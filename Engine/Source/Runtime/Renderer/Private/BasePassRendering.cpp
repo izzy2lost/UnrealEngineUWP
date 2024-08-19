@@ -1479,14 +1479,13 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 				{
 					View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
-					GraphBuilder.AddPass(
+					GraphBuilder.AddDispatchPass(
 						RDG_EVENT_NAME("BasePassParallel"),
 						PassParameters,
-						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-						[&View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+						ERDGPassFlags::Raster,
+						[&View, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
-						View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+						View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 					});
 				}
 
@@ -1519,14 +1518,13 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 
 					View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].BuildRenderingCommands(GraphBuilder, Scene->GPUScene, SkyPassPassParameters->InstanceCullingDrawParams);
 
-					GraphBuilder.AddPass(
+					GraphBuilder.AddDispatchPass(
 						RDG_EVENT_NAME("SkyPassParallel"),
 						SkyPassPassParameters,
-						ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-						[&View, SkyPassPassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+						ERDGPassFlags::Raster,
+						[&View, SkyPassPassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 					{
-						FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(SkyPassPassParameters));
-						View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &SkyPassPassParameters->InstanceCullingDrawParams);
+						View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].Dispatch(DispatchPassBuilder, &SkyPassPassParameters->InstanceCullingDrawParams);
 					});
 				}
 			}

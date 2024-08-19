@@ -65,18 +65,6 @@ FAutoConsoleVariableRef CVarRDGDebugDisableTransientResource(
 	TEXT("Filters out transient resources from the transient allocator. Use r.rdg.debug.resourcefilter to specify the filter. Defaults to all resources if enabled."),
 	ECVF_RenderThreadSafe);
 
-int32 GRDGBreakpoint = 0;
-FAutoConsoleVariableRef CVarRDGBreakpoint(
-	TEXT("r.RDG.Breakpoint"),
-	GRDGBreakpoint,
-	TEXT("Breakpoint in debugger when certain conditions are met.\n")
-	TEXT(" 0: off (default);\n")
-	TEXT(" 1: On an RDG warning;\n")
-	TEXT(" 2: When a graph / pass matching the debug filters compiles;\n")
-	TEXT(" 3: When a graph / pass matching the debug filters executes;\n")
-	TEXT(" 4: When a graph / pass / resource matching the debug filters is created or destroyed;\n"),
-	ECVF_RenderThreadSafe);
-
 int32 GRDGClobberResources = 0;
 FAutoConsoleVariableRef CVarRDGClobberResources(
 	TEXT("r.RDG.ClobberResources"),
@@ -242,21 +230,11 @@ void EmitRDGWarning(const FString& WarningMessage)
 		{
 			GAlreadyEmittedWarnings.Add(WarningMessage);
 			UE_LOG(LogRDG, Warning, TEXT("%s"), *WarningMessage);
-
-			if (GRDGBreakpoint == RDG_BREAKPOINT_WARNINGS)
-			{
-				UE_DEBUG_BREAK();
-			}
 		}
 	}
 	else
 	{
 		UE_LOG(LogRDG, Warning, TEXT("%s"), *WarningMessage);
-
-		if (GRDGBreakpoint == RDG_BREAKPOINT_WARNINGS)
-		{
-			UE_DEBUG_BREAK();
-		}
 	}
 }
 
@@ -549,12 +527,6 @@ void InitRenderGraph()
 	{
 		// Set to -1 to specify infinite number of frames.
 		GRDGTransitionLog = -1;
-	}
-
-	int32 BreakpointValue = 0;
-	if (FParse::Value(FCommandLine::Get(), TEXT("rdgbreakpoint="), BreakpointValue))
-	{
-		GRDGBreakpoint = BreakpointValue;
 	}
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("rdgclobberresources")))

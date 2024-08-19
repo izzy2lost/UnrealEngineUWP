@@ -246,6 +246,13 @@ public:
 	template <typename ExecuteLambdaType>
 	FRDGPassRef AddPass(FRDGEventName&& Name, ERDGPassFlags Flags, ExecuteLambdaType&& ExecuteLambda);
 
+	/** Adds a pass that takes a FRDGDispatchPassBuilder instead of a RHI command list. The lambda should create command lists
+     *  and launch tasks to record commands into them. Each task should call EndRenderPass() (if raster) and FinishRecording()
+     *  to complete each command list.
+	 */
+	template <typename ParameterStructType, typename LaunchLambdaType>
+	FRDGPassRef AddDispatchPass(FRDGEventName&& Name, const ParameterStructType* ParameterStruct, ERDGPassFlags Flags, LaunchLambdaType&& LaunchLambda);
+
 	/** Sets the expected workload of the pass execution lambda. The default workload is 1 and is more or less the 'average cost' of a pass.
 	 *  Recommended usage is to set a workload equal to the number of complex draw / dispatch calls (each with its own parameters, etc), and
 	 *  only as a performance tweak if a particular pass is very expensive relative to other passes.
@@ -435,15 +442,11 @@ public:
 	static bool IsDumpingFrame() { return false; }
 #endif
 
-#if RDG_DUMP_RESOURCES_AT_EACH_DRAW
-	static RENDERCORE_API void DumpDraw(const FRDGEventName& DrawEventName);
-	static RENDERCORE_API bool IsDumpingDraws();
-#else
-	static inline bool IsDumpingDraws()
-	{
-		return false;
-	}
-#endif
+	UE_DEPRECATED(5.5, "This path is no longer supported.")
+	static void DumpDraw(const FRDGEventName& DrawEventName) {}
+
+	UE_DEPRECATED(5.5, "This path is no longer supported.")
+	static bool IsDumpingDraws() { return false; }
 
 #if WITH_MGPU
 	/** Copy all cross GPU external resources (not marked MultiGPUGraphIgnore) at the end of execution (bad for perf, but useful for debugging). */
@@ -473,9 +476,8 @@ private:
 	uint32 AsyncComputePassCount = 0;
 	uint32 RasterPassCount = 0;
 
-	/** Current scope's async compute budget. This is passed on to every pass created. */
-	EAsyncComputeBudget AsyncComputeBudgetScope = EAsyncComputeBudget::EAll_4;
-	EAsyncComputeBudget AsyncComputeBudgetState = EAsyncComputeBudget(~0u);
+	/** Tracks dispatch passes that need to launch tasks. */
+	TArray<FRDGDispatchPass*, FRDGArrayAllocator> DispatchPasses;
 
 	static RENDERCORE_API ERDGPassFlags OverridePassFlags(const TCHAR* PassName, ERDGPassFlags Flags);
 
@@ -518,15 +520,17 @@ private:
 
 	void Compile();
 	void CompilePassOps(FRDGPass* Pass);
-	void ExecutePass(FRDGPass* Pass, FRHIComputeCommandList& RHICmdListPass);
 
-	void ExecutePassPrologue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
-	void ExecutePassEpilogue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	void ExecuteSerialPass(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
 
-	void PushPreScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* FirstPass);
-	void PushPassScopes(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
-	void PopPassScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
-	void PopPreScopes  (FRHIComputeCommandList& RHICmdListPass, FRDGPass* LastPass);
+	static void ExecutePass(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void ExecutePassPrologue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void ExecutePassEpilogue(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+
+	static void PushPreScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* FirstPass);
+	static void PushPassScopes(FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void PopPassScopes (FRHIComputeCommandList& RHICmdListPass, FRDGPass* Pass);
+	static void PopPreScopes  (FRHIComputeCommandList& RHICmdListPass, FRDGPass* LastPass);
 	//////////////////////////////////////////////////////////////////////////////
 	// Resource Registries
 
@@ -1000,6 +1004,7 @@ private:
 	} ParallelExecute;
 
 	void SetupParallelExecute(TStaticArray<void*, MAX_NUM_GPUS> const& QueryBatchData);
+	void SetupDispatchPassExecute();
 
 	/////////////////////////////////////////////////////////////////////////////
 	// Buffer Uploads
@@ -1110,11 +1115,6 @@ private:
 #if RDG_DUMP_RESOURCES
 	void DumpNewGraphBuilder();
 	void DumpResourcePassOutputs(const FRDGPass* Pass);
-
-#if RDG_DUMP_RESOURCES_AT_EACH_DRAW
-	void BeginPassDump(const FRDGPass* Pass);
-	void EndPassDump(const FRDGPass* Pass);
-#endif
 #endif
 
 #if RDG_ENABLE_DEBUG
@@ -1148,6 +1148,7 @@ private:
 	friend FRDGAsyncComputeBudgetScopeGuard;
 	friend FRDGScopedCsvStatExclusive;
 	friend FRDGScopedCsvStatExclusiveConditional;
+	friend FRDGDispatchPassBuilder;
 };
 
 class FRDGAsyncComputeBudgetScopeGuard final
@@ -1155,19 +1156,17 @@ class FRDGAsyncComputeBudgetScopeGuard final
 public:
 	FRDGAsyncComputeBudgetScopeGuard(FRDGBuilder& InGraphBuilder, EAsyncComputeBudget InAsyncComputeBudget)
 		: GraphBuilder(InGraphBuilder)
-		, AsyncComputeBudgetRestore(GraphBuilder.AsyncComputeBudgetScope)
 	{
-		GraphBuilder.AsyncComputeBudgetScope = InAsyncComputeBudget;
+		// Deprecated
 	}
 
 	~FRDGAsyncComputeBudgetScopeGuard()
 	{
-		GraphBuilder.AsyncComputeBudgetScope = AsyncComputeBudgetRestore;
+		// Deprecated
 	}
 
 private:
 	FRDGBuilder& GraphBuilder;
-	const EAsyncComputeBudget AsyncComputeBudgetRestore;
 };
 
 #define RDG_ASYNC_COMPUTE_BUDGET_SCOPE(GraphBuilder, AsyncComputeBudget) \

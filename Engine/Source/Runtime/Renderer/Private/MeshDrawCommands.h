@@ -163,6 +163,7 @@ public:
 	 * Dispatch visible mesh draw command draw task.
 	 */
 	void DispatchDraw(FParallelCommandListSet* ParallelCommandListSet, FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr) const;
+	void Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams = nullptr, float ViewportScale = 1.0f) const;
 
 	void WaitForTasksAndEmpty();
 	void SetDumpInstancingStats(const FString& InPassName);

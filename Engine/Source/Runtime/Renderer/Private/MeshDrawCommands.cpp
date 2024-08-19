@@ -1736,6 +1736,52 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 	}
 }
 
+void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, float ViewportScale) const
+{
+	extern TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList;
+
+	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
+	if (MaxNumDraws <= 0)
+	{
+		return;
+	}
+
+	check(TaskContext.View);
+
+	FMeshDrawCommandOverrideArgs OverrideArgs; 
+	if (InstanceCullingDrawParams)
+	{
+		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+	}
+
+	FGraphEventArray Prereqs;
+	if (TaskEventRef.IsValid())
+	{
+		Prereqs.Add(TaskEventRef);
+	}
+
+	// Distribute work evenly to the available task graph workers based on NumEstimatedDraws.
+	// Every task will then adjust it's working range based on FVisibleMeshDrawCommandProcessTask results.
+	const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
+	const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(MaxNumDraws, CVarRHICmdMinDrawsPerParallelCmdList.GetValueOnRenderThread()));
+	const int32 NumDrawsPerTask = FMath::DivideAndRoundUp(MaxNumDraws, NumTasks);
+
+	for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
+	{
+		const int32 StartIndex = TaskIndex * NumDrawsPerTask;
+		const int32 NumDraws = FMath::Min(NumDrawsPerTask, MaxNumDraws - StartIndex);
+		checkSlow(NumDraws > 0);
+
+		FRHICommandList* RHICmdList = DispatchPassBuilder.CreateCommandList();
+		FSceneRenderer::SetStereoViewport(*RHICmdList, *TaskContext.View, ViewportScale);
+
+		TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs)
+			.ConstructAndDispatchWhenReady(*RHICmdList, TaskContext.InstanceCullingContext, TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet,
+				OverrideArgs,
+				TaskContext.InstanceFactor,
+				TaskIndex, NumTasks);
+	}
+}
 
 void FParallelMeshDrawCommandPass::DumpInstancingStats() const
 {

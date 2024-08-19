@@ -417,7 +417,7 @@ static TAutoConsoleVariable<float> CVarLensDistortionAffectScreenPercentage(
 	FParallelCommandListSet
 -----------------------------------------------------------------------------*/
 
-static TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList(
+TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList(
 	TEXT("r.RHICmdMinDrawsPerParallelCmdList"),
 	64,
 	TEXT("The minimum number of draws per cmdlist. If the total number of draws is less than this, then no parallel work will be done at all. This can't always be honored or done correctly."));
@@ -4425,7 +4425,7 @@ void FSceneRenderer::OnRenderFinish(FRDGBuilder& GraphBuilder, FRDGTextureRef Vi
 		}
 	}
 
-	AddPass(GraphBuilder, RDG_EVENT_NAME("EndScene"), [this](FRHICommandListImmediate& InRHICmdList)
+	GraphBuilder.AddPostExecuteCallback([this]
 	{
 		if (GDumpMeshDrawCommandMemoryStats)
 		{

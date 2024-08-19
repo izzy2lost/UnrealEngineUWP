@@ -26,6 +26,7 @@
 #include "RenderGraphResources.h"
 
 extern TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents;
+extern TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList;
 
 extern int32 GSkipDrawOnPSOPrecaching;
 extern int32 GNaniteShowStats;
@@ -1230,22 +1231,18 @@ void DispatchBasePass(
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
 	if (bParallelDispatch)
 	{
-		GraphBuilder.AddPass(
+		GraphBuilder.AddDispatchPass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
 			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
-			(const FRDGPass* RDGPass, FRHICommandListImmediate& RHICmdList)
+			(FRDGDispatchPassBuilder& DispatchPassBuilder)
 		{
-			FParallelCommandListBindings CmdListBindings(ShadingPassParameters);
-			FRDGParallelCommandListSet ParallelCommandListSet(RDGPass, RHICmdList, View, CmdListBindings);
-			ParallelCommandListSet.SetHighPriority();
-
 			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
 
 			if (bBundleShading)
 			{
-				FRHICommandList* RHICmdListTask = ParallelCommandListSet.NewParallelCommandList();
+				FRHICommandList* RHICmdListTask = DispatchPassBuilder.CreateCommandList();
 
 				UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, Intermediates = MoveTemp(Intermediates), &ShadingCommands, ShaderBundle, ViewRect, DataByteOffset, bBundleEmulation]
 				{
@@ -1254,15 +1251,13 @@ void DispatchBasePass(
 					DispatchComputeShaderBundle(*RHICmdListTask, ShadingCommands, ShaderBundle, *Intermediates, DataByteOffset, bBundleEmulation);
 					RHICmdListTask->FinishRecording();
 				});
-
-				ParallelCommandListSet.AddParallelCommandList(RHICmdListTask);
 			}
 			else
 			{
 				// Distribute work evenly to the available task graph workers based on NumPassCommands.
 				const int32 NumPassCommands = ShadingCommands.Commands.Num();
-				const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), ParallelCommandListSet.Width);
-				const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, ParallelCommandListSet.MinDrawsPerCommandList));
+				const int32 NumThreads = FMath::Min<int32>(FTaskGraphInterface::Get().GetNumWorkerThreads(), CVarRHICmdWidth.GetValueOnRenderThread());
+				const int32 NumTasks = FMath::Min<int32>(NumThreads, FMath::DivideAndRoundUp(NumPassCommands, CVarRHICmdMinDrawsPerParallelCmdList.GetValueOnRenderThread()));
 				const int32 NumCommandsPerTask = FMath::DivideAndRoundUp(NumPassCommands, NumTasks);
 
 				for (int32 TaskIndex = 0; TaskIndex < NumTasks; TaskIndex++)
@@ -1271,7 +1266,7 @@ void DispatchBasePass(
 					const int32 NumCommands = FMath::Min(NumCommandsPerTask, NumPassCommands - StartIndex);
 					checkSlow(NumCommands > 0);
 
-					FRHICommandList* RHICmdListTask = ParallelCommandListSet.NewParallelCommandList();
+					FRHICommandList* RHICmdListTask = DispatchPassBuilder.CreateCommandList();
 
 					UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, &ShadingCommands, Intermediates = Intermediates, IndirectArgsStride, DataByteOffset, StartIndex, NumCommands]
 					{
@@ -1306,8 +1301,6 @@ void DispatchBasePass(
 
 						RHICmdListTask->FinishRecording();
 					});
-
-					ParallelCommandListSet.AddParallelCommandList(RHICmdListTask);
 				}
 			}
 		});
@@ -1319,7 +1312,7 @@ void DispatchBasePass(
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
 			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
-			(const FRDGPass* RDGPass, FRHIComputeCommandList& RHICmdList)
+			(FRHIComputeCommandList& RHICmdList)
 		{
 			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
 

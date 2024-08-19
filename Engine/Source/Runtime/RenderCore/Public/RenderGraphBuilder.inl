@@ -326,6 +326,46 @@ FRDGPassRef FRDGBuilder::AddPass(
 #endif // !USE_NULL_RHI
 }
 
+template <typename ParameterStructType, typename LaunchLambdaType>
+FRDGPassRef FRDGBuilder::AddDispatchPass(
+	FRDGEventName&& Name,
+	const ParameterStructType* ParameterStruct,
+	ERDGPassFlags Flags,
+	LaunchLambdaType&& LaunchLambda)
+{
+#if !USE_NULL_RHI
+	using DispatchPassType = TRDGDispatchPass<ParameterStructType, LaunchLambdaType>;
+	const FShaderParametersMetadata* ParametersMetadata = ParameterStructType::FTypeInfo::GetStructMetadata();
+
+	if (EnumHasAnyFlags(Flags, ERDGPassFlags::Raster))
+	{
+		Flags |= ERDGPassFlags::SkipRenderPass;
+	}
+
+	IF_RDG_ENABLE_DEBUG(UserValidation.ValidateAddPass(ParameterStruct, ParametersMetadata, Name, Flags));
+
+	FlushAccessModeQueue();
+
+	const TCHAR* NameString = Name.GetTCHAR();
+
+	FRDGDispatchPass* Pass = Allocators.Root.AllocNoDestruct<DispatchPassType>(
+		MoveTemp(Name),
+		ParametersMetadata,
+		ParameterStruct,
+		OverridePassFlags(NameString, Flags),
+		MoveTemp(LaunchLambda));
+
+	IF_RDG_ENABLE_DEBUG(ClobberPassOutputs(Pass));
+	Passes.Insert(Pass);
+	DispatchPasses.Emplace(Pass);
+	SetupParameterPass(Pass);
+	return Pass;
+#else
+	checkNoEntry();
+	return nullptr;
+#endif // !USE_NULL_RHI
+}
+
 inline void FRDGBuilder::SetPassWorkload(FRDGPass* Pass, uint32 Workload)
 {
 	Pass->Workload = Workload;

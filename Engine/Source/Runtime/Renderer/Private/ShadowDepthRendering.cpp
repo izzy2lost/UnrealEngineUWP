@@ -1154,32 +1154,15 @@ void FProjectedShadowInfo::RenderDepth(
 
 	ShadowDepthPass.BuildRenderingCommands(GraphBuilder, Scene->GPUScene, PassParameters->InstanceCullingDrawParams);
 
-#if WITH_MGPU
-	// Need to fetch GPU mask outside "AddPass", as it's not updated during pass execution
-	FRHIGPUMask GPUMask = GraphBuilder.RHICmdList.GetGPUMask();
-#endif
-
 	if (bDoParallelDispatch)
 	{
-		GraphBuilder.AddPass(
+		GraphBuilder.AddDispatchPass(
 			RDG_EVENT_NAME("ShadowDepthPassParallel"),
 			PassParameters,
-			ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-			[this, PassParameters
-#if WITH_MGPU
-			, ShadowDepthTexture, GPUMask, bDoCrossGPUCopy
-#endif
-			](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+			ERDGPassFlags::Raster,
+			[this, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 		{
-			FShadowParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, *ShadowDepthView, *this, FParallelCommandListBindings(PassParameters));
-			ShadowDepthPass.DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
-
-#if WITH_MGPU
-			if (bDoCrossGPUCopy)
-			{
-				CopyCachedShadowMapCrossGPU(RHICmdList, ShadowDepthTexture->GetRHI(), GPUMask);
-			}
-#endif
+			ShadowDepthPass.Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 		});
 	}
 	else
@@ -1188,23 +1171,26 @@ void FProjectedShadowInfo::RenderDepth(
 			RDG_EVENT_NAME("ShadowDepthPass"),
 			PassParameters,
 			ERDGPassFlags::Raster,
-			[this, PassParameters
-#if WITH_MGPU
-			, ShadowDepthTexture, GPUMask, bDoCrossGPUCopy
-#endif
-			](FRHICommandList& RHICmdList)
+			[this, PassParameters](FRHICommandList& RHICmdList)
 		{
 			SetStateForView(RHICmdList);
 			ShadowDepthPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
-
-#if WITH_MGPU
-			if (bDoCrossGPUCopy)
-			{
-				CopyCachedShadowMapCrossGPU(RHICmdList, ShadowDepthTexture->GetRHI(), GPUMask);
-			}
-#endif
 		});
 	}
+
+#if WITH_MGPU
+	if (bDoCrossGPUCopy)
+	{
+		GraphBuilder.AddPass(
+			RDG_EVENT_NAME("CopyCachedShadowMapCrossGPU"),
+			PassParameters,
+			ERDGPassFlags::Raster,
+			[ShadowDepthTexture, GPUMask = GraphBuilder.RHICmdList.GetGPUMask()](FRHICommandList& RHICmdList)
+		{
+			CopyCachedShadowMapCrossGPU(RHICmdList, ShadowDepthTexture->GetRHI(), GPUMask);
+		});
+	}
+#endif
 }
 
 float FProjectedShadowInfo::GetLODDistanceFactor() const

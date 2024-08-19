@@ -632,14 +632,13 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 
 		if (bRenderInParallel)
 		{
-			GraphBuilder.AddPass(
+			GraphBuilder.AddDispatchPass(
 				RDG_EVENT_NAME("SingleLayerWaterDepthPrepassParallel"),
 				PassParameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+				ERDGPassFlags::Raster,
+				[&View, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
-					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 		else
@@ -1326,14 +1325,13 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 
 		if (bRenderInParallel)
 		{
-			GraphBuilder.AddPass(
+			GraphBuilder.AddDispatchPass(
 				RDG_EVENT_NAME("SingleLayerWaterParallel"),
 				PassParameters,
-				ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-				[this, &View, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+				ERDGPassFlags::Raster,
+				[&View, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 			{
-				FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
-				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 		else
@@ -1342,7 +1340,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 				RDG_EVENT_NAME("SingleLayerWater"),
 				PassParameters,
 				ERDGPassFlags::Raster,
-				[this, &View, PassParameters](FRHICommandList& RHICmdList)
+				[&View, PassParameters](FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
 				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);

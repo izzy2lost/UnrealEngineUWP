@@ -26,6 +26,8 @@
 #include "Templates/UnrealTemplate.h"
 #include "Templates/UnrealTypeTraits.h"
 
+class FRDGDispatchPassBuilder;
+
 using FRDGTransitionQueue = TArray<const FRHITransition*, TInlineAllocator<8>>;
 
 struct FRDGBarrierBatchBeginId
@@ -328,12 +330,14 @@ public:
 		return Scope;
 	}
 
-#if WITH_MGPU
 	FRHIGPUMask GetGPUMask() const
 	{
+#if WITH_MGPU
 		return GPUMask;
-	}
+#else
+		return FRHIGPUMask();
 #endif
+	}
 
 protected:
 	RENDERCORE_API FRDGBarrierBatchBegin& GetPrologueBarriersToBegin(FRDGAllocator& Allocator, FRDGTransitionCreateQueue& CreateQueue);
@@ -364,6 +368,7 @@ protected:
 	RENDERCORE_API FRDGBarrierBatchEnd& GetEpilogueBarriersToEnd(FRDGAllocator& Allocator);
 
 	virtual void Execute(FRHIComputeCommandList& RHICmdList) {}
+	virtual void LaunchDispatchPassTasks(FRDGDispatchPassBuilder& DispatchPassBuilder) {}
 
 	// When r.RDG.Debug is enabled, this will include a full namespace path with event scopes included.
 	IF_RDG_ENABLE_DEBUG(FString FullPathIfDebug);
@@ -402,6 +407,9 @@ protected:
 
 			/** If set, dispatches to the RHI thread after executing this pass. */
 			uint32 bDispatchAfterExecute : 1;
+
+			/** If set, this is a dispatch pass. */
+			uint32 bDispatchPass : 1;
 		};
 		uint32 PackedBits1 = 0;
 	};
@@ -514,8 +522,6 @@ protected:
 	TArray<FRDGBarrierBatchBegin*, FRDGArrayAllocator> SharedEpilogueBarriersToBegin;
 	FRDGBarrierBatchEnd* EpilogueBarriersToEnd = nullptr;
 
-	EAsyncComputeBudget AsyncComputeBudget = EAsyncComputeBudget::EAll_4;
-
 	uint32 ParallelPassSetIndex = 0;
 
 #if WITH_MGPU
@@ -533,6 +539,7 @@ protected:
 	friend FRDGPassRegistry;
 	friend FRDGTrace;
 	friend FRDGUserValidation;
+	friend FRDGDispatchPassBuilder;
 };
 
 /** Render graph pass with lambda execute function. */
@@ -576,7 +583,6 @@ class TRDGLambdaPass
 	using TRDGPass = typename TLambdaTraits<ExecuteLambdaType>::TRDGPass;
 
 public:
-	
 	TRDGLambdaPass(
 		FRDGEventName&& InName,
 		const FShaderParametersMetadata* InParameterMetadata,
@@ -588,7 +594,7 @@ public:
 #if RDG_ENABLE_DEBUG
 		, DebugParameterStruct(InParameterStruct)
 #endif
-	{		
+	{
 		bParallelExecuteAllowed = !std::is_same_v<TRHICommandList, FRHICommandListImmediate> && !EnumHasAnyFlags(InPassFlags, ERDGPassFlags::NeverParallel);
 	}
 
@@ -622,6 +628,88 @@ private:
 	IF_RDG_ENABLE_DEBUG(const ParameterStructType* DebugParameterStruct);
 };
 
+class FRDGDispatchPass
+	: public FRDGPass
+{
+public:
+	FRDGDispatchPass(FRDGEventName&& InName, FRDGParameterStruct InParameterStruct, ERDGPassFlags InFlags)
+		: FRDGPass(MoveTemp(InName), InParameterStruct, InFlags)
+	{
+		bDispatchPass = 1;
+		bParallelExecuteAllowed = 1;
+	}
+
+private:
+	void Execute(FRHIComputeCommandList& RHICmdList) override
+	{
+		RHICmdList.GetAsImmediate().QueueAsyncCommandListSubmit(MoveTemp(CommandLists));
+	}
+
+	TArray<FRHICommandListImmediate::FQueuedCommandList, FRDGArrayAllocator> CommandLists;
+	UE::Tasks::FTaskEvent CommandListsEvent{ UE_SOURCE_LOCATION };
+
+	friend FRDGBuilder;
+	friend FRDGDispatchPassBuilder;
+};
+
+class FRDGDispatchPassBuilder
+{
+public:
+	RENDERCORE_API FRHICommandList* CreateCommandList();
+
+private:
+	FRDGDispatchPassBuilder(FRDGDispatchPass* InPass)
+		: Pass(InPass)
+		, StaticUniformBuffers(Pass->ParameterStruct.GetStaticUniformBuffers())
+	{
+		if (Pass->ParameterStruct.HasRenderTargets())
+		{
+			RenderPassInfo.Emplace(Pass->ParameterStruct.GetRenderPassInfo());
+		}
+	}
+
+	void Finish();
+
+	FRDGDispatchPass* Pass;
+	FUniformBufferStaticBindings StaticUniformBuffers;
+	TOptional<FRHIRenderPassInfo> RenderPassInfo;
+
+	friend FRDGBuilder;
+};
+
+template <typename ParameterStructType, typename LaunchLambdaType>
+class TRDGDispatchPass
+	: public FRDGDispatchPass
+{
+	// Verify that the amount of stuff captured by the pass lambda is reasonable.
+	static constexpr int32 kMaximumLambdaCaptureSize = 1024;
+	static_assert(sizeof(LaunchLambdaType) <= kMaximumLambdaCaptureSize, "The amount of data of captured for the pass looks abnormally high.");
+
+public:
+	TRDGDispatchPass(
+		FRDGEventName&& InName,
+		const FShaderParametersMetadata* InParameterMetadata,
+		const ParameterStructType* InParameterStruct,
+		ERDGPassFlags InPassFlags,
+		LaunchLambdaType&& InLaunchLambda)
+		: FRDGDispatchPass(MoveTemp(InName), FRDGParameterStruct(InParameterStruct, InParameterMetadata), InPassFlags)
+		, LaunchLambda(MoveTemp(InLaunchLambda))
+#if RDG_ENABLE_DEBUG
+		, DebugParameterStruct(InParameterStruct)
+#endif
+	{}
+
+private:
+	LaunchLambdaType LaunchLambda;
+
+	void LaunchDispatchPassTasks(FRDGDispatchPassBuilder& DispatchPassBuilder) override
+	{
+		LaunchLambda(DispatchPassBuilder);
+	}
+
+	IF_RDG_ENABLE_DEBUG(const ParameterStructType* DebugParameterStruct);
+};
+
 template <typename ExecuteLambdaType>
 class TRDGEmptyLambdaPass
 	: public TRDGLambdaPass<FEmptyShaderParameters, ExecuteLambdaType>
@@ -645,6 +733,7 @@ public:
 		: FRDGPass(MoveTemp(Name), FRDGParameterStruct(&EmptyShaderParameters, FEmptyShaderParameters::FTypeInfo::GetStructMetadata()), ERDGPassFlags::NeverCull | InPassFlagsToAdd) //-V1050
 	{
 		bSentinel = 1;
+		bParallelExecuteAllowed = 1;
 	}
 
 private:

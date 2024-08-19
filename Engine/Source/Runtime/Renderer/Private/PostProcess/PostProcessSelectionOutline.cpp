@@ -174,7 +174,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 					RDG_EVENT_NAME("EditorSelectionDepth"),
 					PassParameters,
 					ERDGPassFlags::Raster,
-					[&View, DepthStencilViewport, PassParameters, ViewportScale](FRHICommandListImmediate& RHICmdList)
+					[&View, DepthStencilViewport, PassParameters, ViewportScale](FRHICommandList& RHICmdList)
 					{
 						if (View.bIsInstancedStereoEnabled && View.StereoPass == EStereoscopicPass::eSSP_PRIMARY)
 						{

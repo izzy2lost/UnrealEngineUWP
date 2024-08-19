@@ -34,9 +34,6 @@
 /** Allows to dump all RDG resources of a frame. */
 #define RDG_DUMP_RESOURCES (WITH_DUMPGPU)
 
-/** Allows to dump RDG resource after each draw call. */
-#define RDG_DUMP_RESOURCES_AT_EACH_DRAW (RDG_DUMP_RESOURCES)
-
 /** The type of GPU events the render graph system supports.
  *  RDG_EVENTS == 0 means there is no string processing at all.
  *  RDG_EVENTS == 1 means the format component of the event name is stored as a const TCHAR*.

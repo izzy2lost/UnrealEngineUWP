@@ -366,15 +366,13 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 
 				PassParameters->RenderTargets[0] = FRenderTargetBinding(SceneTextures.GBufferF, ERenderTargetLoadAction::ELoad);
 
-				GraphBuilder.AddPass(
+				GraphBuilder.AddDispatchPass(
 					RDG_EVENT_NAME("AnisotropyPassParallel"),
 					PassParameters,
-					ERDGPassFlags::Raster | ERDGPassFlags::SkipRenderPass,
-					[&View, &ParallelMeshPass, PassParameters](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
+					ERDGPassFlags::Raster,
+					[&View, &ParallelMeshPass, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 				{
-					FRDGParallelCommandListSet ParallelCommandListSet(InPass, RHICmdList, View, FParallelCommandListBindings(PassParameters));
-
-					ParallelMeshPass.DispatchDraw(&ParallelCommandListSet, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					ParallelMeshPass.Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
 			else

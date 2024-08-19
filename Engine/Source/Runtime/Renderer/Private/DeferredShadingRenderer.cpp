@@ -2693,9 +2693,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 
 		// End shadow and fog after base pass
 
-		// Trigger a command submit here, to avoid GPU bubbles
-		AddDispatchToRHIThreadPass(GraphBuilder);
-		
 		if (bNaniteEnabled)
 		{
 			// Needs doing after shadows such that the checks for shadow atlases etc work.
