@@ -43,6 +43,8 @@ namespace UE::ConcertSharedSlate
 			.OnPreAddSelectedObjectsDelegate(MoveTemp(EditorParams.OnPreAddSelectedObjectsDelegate))
 			.OnPostAddSelectedObjectsDelegate(MoveTemp(EditorParams.OnPostAddSelectedObjectsDelegate))
 			.ShouldDisplayObject(MoveTemp(ViewerParams.ShouldDisplayObjectDelegate))
+			.MakeObjectRowOverlayWidget(MoveTemp(ViewerParams.MakeObjectRowOverlayWidgetDelegate))
+			.ObjectOverlayAlignment(ViewerParams.OverlayWidgetAlignment)
 			.LeftOfObjectSearchBar() [ MoveTemp(ViewerParams.LeftOfObjectSearchBar.Widget) ]
 			.RightOfObjectSearchBar() [ MoveTemp(ViewerParams.RightOfObjectSearchBar.Widget) ]
 			.IsEditingEnabled(MoveTemp(EditorParams.IsEditingEnabled))

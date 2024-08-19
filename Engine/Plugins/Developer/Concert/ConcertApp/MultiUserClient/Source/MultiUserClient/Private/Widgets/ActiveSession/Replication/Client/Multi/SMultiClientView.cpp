@@ -4,6 +4,7 @@
 
 #include "Selection/ISelectionModel.h"
 #include "MultiStreamModel.h"
+#include "Misc/ObjectUtils.h"
 #include "Replication/ClientReplicationWidgetFactories.h"
 #include "Replication/MultiUserReplicationManager.h"
 #include "Replication/ReplicationWidgetFactories.h"
@@ -22,6 +23,8 @@
 #include "Widgets/ActiveSession/Replication/Client/SPresetComboButton.h"
 #include "Widgets/ActiveSession/Replication/Client/SReplicationStatus.h"
 
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SButton.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Text/STextBlock.h"
@@ -161,6 +164,7 @@ namespace UE::MultiUserClient::Replication
 					)
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject),
+			.MakeObjectRowOverlayWidgetDelegate = FMakeObjectRowOverlayWidget::CreateSP(this, &SMultiClientView::MakeObjectRowOverlayWidget)
 		};
 		ViewerParams.RightOfObjectSearchBar.Widget = SNew(SPresetComboButton, *InConcertClient, *InMultiUserReplicationManager.GetPresetManager());
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
@@ -254,6 +258,46 @@ namespace UE::MultiUserClient::Replication
 	bool SMultiClientView::ShouldDisplayObject(const FSoftObjectPath& Object) const
 	{
 		return HideObjectsNotInEditorWorld.ShouldShowObject(Object);
+	}
+
+	TSharedRef<SWidget> SMultiClientView::MakeObjectRowOverlayWidget(const ConcertSharedSlate::FReplicatedObjectData& ReplicatedObjectData)
+	{
+		if (!ConcertSyncCore::IsActor(ReplicatedObjectData.GetObjectPath()))
+		{
+			return SNullWidget::NullWidget;
+		}
+		
+		return SNew(SButton)
+			.ButtonStyle( FAppStyle::Get(), "SimpleButton")
+			.OnClicked_Lambda([this, ReplicatedObjectData]()
+			{
+				OnPressBinIcon(ReplicatedObjectData.GetObjectPath());
+				return FReply::Handled();
+			})
+			[
+				SNew(SImage)
+				.Image(FAppStyle::GetBrush("Icons.Delete"))
+			];
+	}
+
+	void SMultiClientView::OnPressBinIcon(const FSoftObjectPath& RootObject) const
+	{
+		ConcertSharedSlate::IEditableReplicationStreamModel& ConsolidatedModel = StreamEditor->GetConsolidatedModel();
+		
+		// We want to delete all children, too, i.e. the ones not listed in the outliner, such as components and other subobjects
+		TArray<FSoftObjectPath> ObjectAndChildren = { RootObject };
+		ConsolidatedModel.ForEachReplicatedObject([&RootObject, &ObjectAndChildren](const FSoftObjectPath& ReplicatedObject)
+		{
+			// ReplicatedObject is a child of a deleted object if the path before it contains one of the deleted objects
+			const bool bIsChildOfDeletedObject = ReplicatedObject.ToString().Contains(RootObject.ToString());
+			if (bIsChildOfDeletedObject)
+			{
+				ObjectAndChildren.Add(ReplicatedObject);
+			}
+			return EBreakBehavior::Continue;
+		});
+		
+		ConsolidatedModel.RemoveObjects(ObjectAndChildren);
 	}
 
 	void SMultiClientView::OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const

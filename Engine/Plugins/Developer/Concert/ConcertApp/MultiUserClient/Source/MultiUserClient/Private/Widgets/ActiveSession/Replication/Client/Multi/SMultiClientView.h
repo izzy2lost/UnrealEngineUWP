@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "Replication/Editor/Model/Data/ReplicatedObjectData.h"
 #include "Replication/Editor/Model/ObjectSource/IObjectSourceModel.h"
 #include "Replication/Editor/UnrealEditor/HideObjectsNotInWorldLogic.h"
 #include "Selection/SelectionModelFwd.h"
@@ -101,6 +102,11 @@ namespace UE::MultiUserClient::Replication
 		void ExtendObjectContextMenu(FMenuBuilder& MenuBuilder, TConstArrayView<TSoftObjectPtr<>> ContextObjects) const;
 		/** Decides whether the object should be displayed: do not show it if it's not in the editor world. */
 		bool ShouldDisplayObject(const FSoftObjectPath& Object) const;
+		
+		/** Creates the widget that overlays actor rows. */
+		TSharedRef<SWidget> MakeObjectRowOverlayWidget(const ConcertSharedSlate::FReplicatedObjectData& ReplicatedObjectData);
+		/** Called when the delete icon over an actor is pressed. Clears the entire hierarchy. */
+		void OnPressBinIcon(const FSoftObjectPath& RootObject) const;
 		
 		void OnPreAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;
 		void OnPostAddObjectsFromComboButton(TArrayView<const ConcertSharedSlate::FSelectableObjectInfo>) const;

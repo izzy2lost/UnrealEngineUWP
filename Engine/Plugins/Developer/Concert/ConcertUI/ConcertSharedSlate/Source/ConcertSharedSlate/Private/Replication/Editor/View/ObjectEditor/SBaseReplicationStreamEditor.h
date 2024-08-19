@@ -79,6 +79,11 @@ namespace UE::ConcertSharedSlate
 			/** Optional. Whether a given object should be displayed. If this returns false on an object, none of its children will be shown either. */
 			SLATE_EVENT(FShouldDisplayObject, ShouldDisplayObject)
 
+			/** Optional. A widget that should be overlayed on object rows. */
+			SLATE_EVENT(FMakeObjectRowOverlayWidget, MakeObjectRowOverlayWidget)
+			/** Optional. Controls how the widgets created by MakeObjectRowOverlayWidget are supposed to be aligned. */
+			SLATE_ARGUMENT(EHorizontalAlignment, ObjectOverlayAlignment)
+
 			/** Optional widget to add to the left of the object list search bar. */
 			SLATE_NAMED_SLOT(FArguments, LeftOfObjectSearchBar)
 			/** Optional widget to add to the right of the object list search bar. */
@@ -137,9 +142,6 @@ namespace UE::ConcertSharedSlate
 		 * Note that AutoAddObjectsAndPropertiesFromSettings must be called in OnObjectsChanged so it becomes part of the transaction.
 		 */
 		bool bIsAddingFromSelection = false;
-
-		/** Generates a widget when an object row is hovered. Adds a bin and reset button. */
-		FHoverRowContent MakeHoveredRowContent(const TSharedPtr<FReplicatedObjectData>& Data) const;
 
 		bool IsEditingDisabled() const;
 		FText GetEditingDisabledText() const;

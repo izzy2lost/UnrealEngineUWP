@@ -5,12 +5,14 @@
 #include "Containers/ContainersFwd.h"
 #include "Delegates/Delegate.h"
 #include "Delegates/DelegateCombinations.h"
-#include "Templates/Function.h"
+#include "Templates/SharedPointer.h"
 #include "UObject/SoftObjectPtr.h"
 
 class FMenuBuilder;
+class SWidget;
 enum class EBreakBehavior : uint8;
 struct FConcertPropertyChain;
+struct FReplicatedObjectData;
 struct FSoftClassPath;
 struct FSoftObjectPath;
 
@@ -36,4 +38,7 @@ namespace UE::ConcertSharedSlate
 
 	/** Delegate executed when object options are selected from the Add button to the left of the search bar in the top view of the replication panel. */
 	DECLARE_DELEGATE_OneParam(FSelectObjectsFromComboButton, TConstArrayView<FSelectableObjectInfo>);
+
+	/** Delegate executed to create a widget that overlays an object row. */
+	DECLARE_DELEGATE_RetVal_OneParam(TSharedRef<SWidget>, FMakeObjectRowOverlayWidget, const FReplicatedObjectData& ObjectData);
 }

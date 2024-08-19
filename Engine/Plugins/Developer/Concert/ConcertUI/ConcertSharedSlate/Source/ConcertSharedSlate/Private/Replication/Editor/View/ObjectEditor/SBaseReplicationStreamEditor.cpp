@@ -70,7 +70,13 @@ namespace UE::ConcertSharedSlate
 					]
 				]
 				.RightOfObjectSearchBar() [ InArgs._RightOfObjectSearchBar.Widget ]
-				.GetHoveredRowContent(this, &SBaseReplicationStreamEditor::MakeHoveredRowContent)
+				.GetHoveredRowContent_Lambda(
+					[MakeOverlay = InArgs._MakeObjectRowOverlayWidget, Alignment = InArgs._ObjectOverlayAlignment]
+					(const TSharedPtr<FReplicatedObjectData>& Data)
+					{
+						const TSharedRef<SWidget> OverlayWidget = MakeOverlay.IsBound() ? MakeOverlay.Execute(*Data) : SNullWidget::NullWidget;
+						return FHoverRowContent{ OverlayWidget, Alignment };
+					})
 				.NoOutlinerObjects(LOCTEXT("NoObjects", "Add objects to replicate"))
 		];
 	}
@@ -99,33 +105,6 @@ namespace UE::ConcertSharedSlate
 	TArray<TSoftObjectPtr<>> SBaseReplicationStreamEditor::GetSelectedObjects() const
 	{
 		return ReplicationViewer->GetSelectedObjects();
-	}
-
-	FHoverRowContent SBaseReplicationStreamEditor::MakeHoveredRowContent(const TSharedPtr<FReplicatedObjectData>& Data) const
-	{
-		const FSoftObjectPath Object = Data->GetObjectPath();
-		
-		if (ConcertSyncCore::IsActor(Object))
-		{
-			const TSharedRef<SWidget> Content =
-				SNew(SButton)
-				.ButtonStyle( FAppStyle::Get(), "SimpleButton")
-				.OnClicked_Lambda([this, WeakData = Data.ToWeakPtr()]()
-				{
-					if (const TSharedPtr<FReplicatedObjectData> DataPin = WeakData.Pin())
-					{
-						OnDeleteObjects({ DataPin });
-					}
-					return FReply::Handled();
-				})
-				[
-					SNew(SImage)
-					.Image(FAppStyle::GetBrush("Icons.Delete"))
-				];
-			return { Content, HAlign_Right };
-		}
-		
-		return { SNullWidget::NullWidget };
 	}
 
 	bool SBaseReplicationStreamEditor::IsEditingDisabled() const

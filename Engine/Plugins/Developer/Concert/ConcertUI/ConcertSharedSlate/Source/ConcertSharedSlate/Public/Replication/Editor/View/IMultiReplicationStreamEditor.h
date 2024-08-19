@@ -7,6 +7,7 @@
 namespace UE::ConcertSharedSlate
 {
 	class IEditableMultiReplicationStreamModel;
+	class IEditableReplicationStreamModel;
 	class IReplicationStreamEditor;
 	class IReplicationStreamModel;
 	
@@ -25,6 +26,6 @@ namespace UE::ConcertSharedSlate
 		virtual IEditableMultiReplicationStreamModel& GetMultiStreamModel() const = 0;
 
 		/** @return Gets a model that combines all streams into one. */
-		virtual IReplicationStreamModel& GetConsolidatedModel() const = 0;
+		virtual IEditableReplicationStreamModel& GetConsolidatedModel() const = 0;
 	};
 }

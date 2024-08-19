@@ -11,6 +11,7 @@
 
 #include "Delegates/Delegate.h"
 #include "Misc/Attribute.h"
+#include "Types/SlateEnums.h"
 #include "Templates/SharedPointer.h"
 
 class UObject;
@@ -94,6 +95,11 @@ namespace UE::ConcertSharedSlate
 		 * Child objects are determined using ObjectHierarchy.
 		 */
 		FShouldDisplayObject ShouldDisplayObjectDelegate;
+
+		/** Optional. Delegate executed to create a widget that overlays an object row. */
+		FMakeObjectRowOverlayWidget MakeObjectRowOverlayWidgetDelegate;
+		/** Optional. If MakeRowOverlayWidgetDelegate is specified, this controls how the widget is aligned in the column. */
+		EHorizontalAlignment OverlayWidgetAlignment = HAlign_Right;
 	};
 
 	/** Params for creating an IReplicationStreamEditor */
