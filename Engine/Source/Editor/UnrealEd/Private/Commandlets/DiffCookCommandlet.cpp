@@ -17,6 +17,7 @@
 #include "Misc/CoreMisc.h"
 #include "Misc/CoreMiscDefines.h"
 #include "Misc/CString.h"
+#include "Misc/FeedbackContext.h"
 #include "Misc/PackageSegment.h"
 #include "Misc/Parse.h"
 #include "Misc/Paths.h"
@@ -72,13 +73,13 @@ int32 UDiffCookCommandlet::Main(const FString& CmdLineParams)
 	if (CompDepot.bValid)
 	{
 		FDiffResult Diff = DiffDepotAsBinary();
-		if (bShowSummary)
-		{
-			PrintSummary(Diff);
-		}
 		if (bShowPackages)
 		{
 			PrintPackageDiffs(Diff);
+		}
+		if (bShowSummary)
+		{
+			PrintSummary(Diff);
 		}
 	}
 	else
@@ -172,6 +173,18 @@ bool UDiffCookCommandlet::TryParseCommandLine(const FString& CmdLineParams)
 		{
 			bSingleDepot = true;
 		}
+		else if (Key == TEXT("addedverbosity"))
+		{
+			AddedVerbosity = ParseDiffVerbosity(Value);
+		}
+		else if (Key == TEXT("removedverbosity"))
+		{
+			RemovedVerbosity = ParseDiffVerbosity(Value);
+		}
+		else if (Key == TEXT("modifiedverbosity"))
+		{
+			ModifiedVerbosity = ParseDiffVerbosity(Value);
+		}
 	}
 
 	if (Args.BasePath.IsEmpty() || (!bSingleDepot && Args.CompPath.IsEmpty()))
@@ -202,7 +215,10 @@ bool UDiffCookCommandlet::TryParseCommandLine(const FString& CmdLineParams)
 			TEXT("\n\t\t-package=<FileNameOrLongPackageNamesDelimitedBy+>: Show per-package diffs for these and only these packages.")
 			TEXT("\n\t\t-targetplatform=<CookPlatformName>: Interpret the result as for the given platform.")
 			TEXT("\n\t\t\tIf not specified, platform will be inferred from path, if that doesn't work, platform-specific data will be skipped.")
-			TEXT("\n\t\t-singledepot: Ignore -comp and display information about -base without any diff."));
+			TEXT("\n\t\t-singledepot: Ignore -comp and display information about -base without any diff.")
+			TEXT("\n\t\t-addedverbosity=error|warning|display: Specify the verbosity at which the count of added files will be reported.")
+			TEXT("\n\t\t-removedverbosity=error|warning|display: Specify the verbosity at which the count of removed files will be reported.")
+			TEXT("\n\t\t-modifiedverbosity=error|warning|display: Specify the verbosity at which the count of modified files will be reported."));
 	}
 	return bResult;
 }
@@ -922,13 +938,14 @@ UDiffCookCommandlet::FDiffResult UDiffCookCommandlet::DiffDepotAsBinary()
 
 void UDiffCookCommandlet::PrintSummary(FDiffResult& Diff)
 {
-	if (Diff.PackageDiffs.IsEmpty())
-	{
-		UE_LOG(LogCook, Display, TEXT("CookDiff Result: IDENTICAL"));
-		return;
-	}
-	UE_LOG(LogCook, Error, TEXT("CookDiff Result: DIFFERENT"));
-	UE_LOG(LogCook, Display, TEXT("%d files are added, removed, or modified."), Diff.PackageDiffs.Num());
+	UE_LOG(LogCook, Display, TEXT("CookDiff Result: %s"),
+		Diff.PackageDiffs.IsEmpty() ? TEXT("IDENTICAL") : TEXT("DIFFERENT"));
+	GWarn->CategorizedLogf(LogCook.GetCategoryName(), (NumAdded == 0 ? ELogVerbosity::Display : AddedVerbosity),
+		TEXT("%d files added."), NumAdded);
+	GWarn->CategorizedLogf(LogCook.GetCategoryName(), (NumRemoved == 0 ? ELogVerbosity::Display : RemovedVerbosity),
+		TEXT("%d files removed."), NumRemoved);
+	GWarn->CategorizedLogf(LogCook.GetCategoryName(), (NumModified == 0 ? ELogVerbosity::Display : ModifiedVerbosity),
+		TEXT("%d files modified."), NumModified);
 }
 
 void UDiffCookCommandlet::PrintPackageDiffs(FDiffResult& Diff)
@@ -965,14 +982,17 @@ void UDiffCookCommandlet::PrintPackageDiffs(FDiffResult& Diff)
 		switch (PackageDiff.Result)
 		{
 		case EPackageDiffResult::Removed:
+			++NumRemoved;
 			UE_LOG(LogCook, Display, TEXT("Removed:  %s\n\tBase: %s\n\tComp: %s (Missing)"),
 				*PackageNameStr, **BasePath, **CompPath);
 			break;
 		case EPackageDiffResult::Added:
+			++NumAdded;
 			UE_LOG(LogCook, Display, TEXT("Added:    %s\n\tBase: %s (Missing)\n\tComp: %s"),
 				*PackageNameStr, **BasePath, **CompPath);
 			break;
 		case EPackageDiffResult::Modified:
+			++NumModified;
 			bModified = true;
 			break;
 		case EPackageDiffResult::Error: [[fallthrough]];
@@ -1186,6 +1206,13 @@ FString UDiffCookCommandlet::GetNormalizedFlexPath(FStringView Path)
 void UDiffCookCommandlet::NormalizeFlexPath(FStringBuilderBase& Path)
 {
 	FPathViews::NormalizeFilename(Path);
+}
+
+ELogVerbosity::Type UDiffCookCommandlet::ParseDiffVerbosity(const FString& Text)
+{
+	ELogVerbosity::Type Result = ParseLogVerbosityFromString(Text);
+	Result = (ELogVerbosity::Type)FMath::Min((uint8)Result, (uint8)ELogVerbosity::Display);
+	return Result;
 }
 
 bool UDiffCookCommandlet::FPackageData::HasExtension(EPackageExtension Segment) const

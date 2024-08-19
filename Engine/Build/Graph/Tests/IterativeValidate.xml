@@ -24,12 +24,12 @@
 	<!-- Iterative Options -->
 	<Option Name="IterativeMode" DefaultValue="incremental" Restrict="iterative|incremental" Description="Whether to iteratively cook using Incremental or using the legacy iterative"/>
 	<Option Name="ValidateMode" DefaultValue="onephase" Restrict="onephase|twophase" Description="Whether to validate results in onephase (which reports indeterminism as an iterativefalseskip error) or two phase (which detects indeterminism and downgrades it to a display message)"/>
-	<Property Name="IterativeArgs" Value="-zenstore -ini:Editor:[CookSettings]:HybridIterativeEnabled=true" If="'$(IterativeMode)' == 'incremental'"/>
+	<Property Name="IterativeArgs" Value="-zenstore -cookincremental" If="'$(IterativeMode)' == 'incremental'"/>
 	<Property Name="IterativeArgs" Value="-iterate -ini:Editor:[CookSettings]:HybridIterativeEnabled=false -ini:Editor:[CookSettings]:IterativeUseClassFilters=true" If="'$(IterativeMode)' == 'iterative'"/>
 
 	<!-- Agent=IterativeValidate variables -->
 	<Property Name="EditorPlatform" Value="Win64"/>
-	<Property Name="CommonCookArgs" Value="-targetplatform=$(TargetPlatform) $(IterativeArgs) -skiponlyeditoronly=true"/>
+	<Property Name="CommonCookArgs" Value="-targetplatform=$(TargetPlatform) $(IterativeArgs)"/>
 
 	<Property Name="CompileNodeName" Value="Compile $(EditorPlatform) $(ProjectName)"/>
 	<Property Name="CookIterativeValidateSinglePhaseName" Value="Cook IterativeValidateSinglePhase $(ProjectName) $(TargetPlatform)"/>

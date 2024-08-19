@@ -9,6 +9,7 @@
 #include "Containers/Map.h"
 #include "Containers/StringView.h"
 #include "Containers/UnrealString.h"
+#include "Logging/LogVerbosity.h"
 #include "Misc/PackagePath.h"
 #include "Misc/StringBuilder.h"
 #include "Templates/UniquePtr.h"
@@ -19,6 +20,7 @@
 class ITargetPlatform;
 class UCookOnTheFlyServer;
 namespace UE::DiffCook::DiffDepotUtils { struct FDepotData; }
+
 
 /**
  * Compares two depots that were written out by the CookCommandlet. Similar to running the cookcommandlet
@@ -172,6 +174,8 @@ private:
 	[[nodiscard]] static FString GetNormalizedFlexPath(FStringView Path);
 	static void NormalizeFlexPath(FStringBuilderBase& Path);
 
+	static ELogVerbosity::Type ParseDiffVerbosity(const FString& Text);
+
 private:
 	FCommandLineArgs Args;
 	TArray<ITargetPlatform*> TargetPlatforms;
@@ -187,6 +191,12 @@ private:
 		MountsWithLeafFolderNameNotEqualLongPackageNameRoot;
 	FCookedDepot BaseDepot;
 	FCookedDepot CompDepot;
+	uint32 NumAdded = 0;
+	uint32 NumRemoved = 0;
+	uint32 NumModified = 0;
+	ELogVerbosity::Type AddedVerbosity = ELogVerbosity::Display;
+	ELogVerbosity::Type RemovedVerbosity = ELogVerbosity::Display;
+	ELogVerbosity::Type ModifiedVerbosity = ELogVerbosity::Display;
 	bool bShowSummary = true;
 	bool bShowPackages = true;
 	bool bShowHeaders = false; // Not yet implemented, change default to true once implemented
