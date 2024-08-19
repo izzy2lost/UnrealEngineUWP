@@ -553,6 +553,8 @@ public:
 	/** Renders shadow maps for translucent primitives. */
 	void RenderTranslucencyDepths(FRDGBuilder& GraphBuilder, class FSceneRenderer* SceneRenderer, const FRenderTargetBindingSlots& RenderTargets, FInstanceCullingManager& InstanceCullingManager);
 
+	static bool HasShadowStencilCulling(FStaticShaderPlatform ShaderPlatform);
+
 	static FRHIBlendState* GetBlendStateForProjection(
 		int32 ShadowMapChannel,
 		bool bIsWholeSceneDirectionalShadow,

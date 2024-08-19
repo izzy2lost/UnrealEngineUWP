@@ -5733,7 +5733,15 @@ void FSceneRenderer::AllocateAtlasedShadowDepthTargets(
 	const FIntPoint MaxTextureSize = GetShadowDepthTextureResolution(FeatureLevel);
 
 	TArray<FLayoutAndAssignedShadows, SceneRenderingAllocator> Layouts;
-	Layouts.Add(FLayoutAndAssignedShadows(MaxTextureSize));
+
+	// If shadow casters use stencil culling they can share a depth atlas
+	bool bCanUseShadowDepthAtlas = FProjectedShadowInfo::HasShadowStencilCulling(ShaderPlatform);
+
+	// Allocate shared atlas
+	if (bCanUseShadowDepthAtlas)
+	{
+		Layouts.Add(FLayoutAndAssignedShadows(MaxTextureSize));
+	}
 
 	for (int32 ShadowIndex = 0; ShadowIndex < Shadows.Num(); ShadowIndex++)
 	{
@@ -5753,11 +5761,9 @@ void FSceneRenderer::AllocateAtlasedShadowDepthTargets(
 		}
 		else
 		{
-			// Avoid infinite loop if texture cannot be allocated even on a fresh atlas
-			// This should not occur, but good to have a safeguard and will still trigger the check() below
-			for (int32 Attempt = 0; Attempt < 2; ++Attempt)
+			auto addCaster = [&](FLayoutAndAssignedShadows& Layout, FProjectedShadowInfo* ProjectedShadowInfo) -> bool
 			{
-				if (Layouts.Last().TextureLayout.AddElement(
+				if (Layout.TextureLayout.AddElement(
 					ProjectedShadowInfo->X,
 					ProjectedShadowInfo->Y,
 					ProjectedShadowInfo->ResolutionX + ProjectedShadowInfo->BorderSize * 2,
@@ -5765,17 +5771,41 @@ void FSceneRenderer::AllocateAtlasedShadowDepthTargets(
 					)
 				{
 					ProjectedShadowInfo->bAllocated = true;
-					Layouts.Last().Shadows.Add(ProjectedShadowInfo);
-					break;
+					Layout.Shadows.Add(ProjectedShadowInfo);
+					return true;
 				}
 
-				// Out of space, add a new atlas and try again
+				return false;
+			};
+
+			if (bCanUseShadowDepthAtlas)
+			{
+				// Avoid infinite loop if texture cannot be allocated even on a fresh atlas
+				// This should not occur, but good to have a safeguard and will still trigger the check() below
+				for (int32 Attempt = 0; Attempt < 2; ++Attempt)
+				{
+					if (!addCaster(Layouts.Last(), ProjectedShadowInfo))
+					{
+						// Out of space, add a new atlas and try again
+						Layouts.Add(FLayoutAndAssignedShadows(MaxTextureSize));
+						continue;
+					}
+
+					break;
+				}
+			}
+			else
+			{
+				// Unique shadow map per caster
 				Layouts.Add(FLayoutAndAssignedShadows(MaxTextureSize));
+				addCaster(Layouts.Last(), ProjectedShadowInfo);
 			}
 
 			check(ProjectedShadowInfo->bAllocated);
 		}
 	}
+
+	const TCHAR *ShadowMapName = bCanUseShadowDepthAtlas ? TEXT("ShadowDepthAtlas") : TEXT("ShadowDepth");
 
 	for (int32 LayoutIndex = 0; LayoutIndex < Layouts.Num(); LayoutIndex++)
 	{
@@ -5796,7 +5826,7 @@ void FSceneRenderer::AllocateAtlasedShadowDepthTargets(
 
 		FPooledRenderTargetDesc ShadowMapDesc2D = FPooledRenderTargetDesc::Create2DDesc(AtlasSize, PF_ShadowDepth, FClearValueBinding::DepthOne, TexCreate_None, TexCreate_DepthStencilTargetable | TexCreate_ShaderResource, false);
 		ShadowMapDesc2D.Flags |= GFastVRamConfig.ShadowPerObject;
-		GRenderTargetPool.FindFreeElement(RHICmdList, ShadowMapDesc2D, ShadowMapAtlas.RenderTargets.DepthTarget, TEXT("ShadowDepthAtlas"));
+		GRenderTargetPool.FindFreeElement(RHICmdList, ShadowMapDesc2D, ShadowMapAtlas.RenderTargets.DepthTarget, ShadowMapName);
 
 		for (int32 ShadowIndex = 0; ShadowIndex < CurrentLayout.Shadows.Num(); ShadowIndex++)
 		{
