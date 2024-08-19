@@ -647,6 +647,11 @@ void URigHierarchy::CopyHierarchy(URigHierarchy* InHierarchy)
 
 		PreviousNameMap.Append(InHierarchy->PreviousNameMap);
 
+		// copy the topology version from the hierarchy.
+		// for this we'll include the hash of the hierarchy to make sure we
+		// are deterministic for different hierarchies.
+		TopologyVersion = HashCombine(InHierarchy->GetTopologyVersion(), InHierarchy->GetTopologyHash());
+
 		// Increment the topology version to invalidate our cached children.
 		IncrementTopologyVersion();
 
