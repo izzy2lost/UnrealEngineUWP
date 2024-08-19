@@ -288,6 +288,11 @@ void ScreenSpaceRayTraceLightSamplesCS(
 			float3 RayEnd = TranslatedWorldPosition + LightSampleTrace.Direction * min(LightSampleTrace.Distance, RayT);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
+			if (bHit)
+			{
+				RayColor.xyz = 0.0f;
+			}
+
 			AddLineTWS(Context, RayStart, RayEnd, RayColor, RayColor);
 			AddCrossTWS(Context, RayEnd, 2.0f, bCompleted ? RayColor : ColorRed);
 		}
@@ -365,7 +370,13 @@ void SoftwareRayTraceLightSamplesCS(
 			float3 RayEnd = TraceInput.TranslatedWorldRayStart + TraceInput.WorldRayDirection * (bHit ? SDFResult.HitTime : TraceInput.MaxTraceDistance);
 			float4 RayColor = float4(LightData.Color.xyz / Luminance(LightData.Color.xyz), 1.0f);
 
+			if (bHit)
+			{
+				RayColor.xyz = 0.0f;
+			}
+
 			AddLineTWS(Context, RayStart, RayEnd, RayColor);
+			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
 		}
 		#endif
 	}

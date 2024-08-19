@@ -7,11 +7,6 @@
  */
 uint3 GetSampleVoxelCoordJitter(uint3 DownsampledVolumeCoord)
 {
-	if (View.GeneralPurposeTweak < 0.5f)
-	{
-		return 0;
-	}
-
 	uint3 CellIndex = DownsampledVolumeCoord % 2;
 	uint LinearIndex = CellIndex.x + CellIndex.y * 2 + CellIndex.z * 4;
 	LinearIndex = (LinearIndex + MegaLightsStateFrameIndex) % 8;

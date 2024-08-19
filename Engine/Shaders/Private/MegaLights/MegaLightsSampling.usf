@@ -225,6 +225,9 @@ void GenerateLightSamplesCS(
 					Print(Debug.Context, ScreenCoord.x);
 					Print(Debug.Context, ScreenCoord.y);
 					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("Roughness: "));
+					Print(Debug.Context, Material.Roughness);
+					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType: "));
 					Print(Debug.Context, uint(TILE_TYPE));
 					Newline(Debug.Context);

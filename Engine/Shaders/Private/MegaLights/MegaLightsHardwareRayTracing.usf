@@ -147,7 +147,12 @@ RAY_TRACING_ENTRY_RAYGEN_OR_INLINE(HardwareRayTraceLightSamples)
 			RayColor = ColorRed;
 #endif
 
-			AddLineTWS(Context, RayStart, RayEnd, RayColor);	
+			if (TraceResult.bHit)
+			{
+				RayColor.xyz = 0.0f;
+			}
+
+			AddLineTWS(Context, RayStart, RayEnd, RayColor);
 			AddCrossTWS(Context, RayEnd, 2.0f, RayColor);
 		}
 		#endif
