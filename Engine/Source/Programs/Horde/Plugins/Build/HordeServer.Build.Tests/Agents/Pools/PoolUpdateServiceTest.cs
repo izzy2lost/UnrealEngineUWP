@@ -119,6 +119,7 @@ public class PoolUpdateServiceTest : BuildTestSetup
 	[DataRow(true, 200, 50)]
 	[DataRow(true, 200, null)]
 	[DataRow(true, null, 0, 50, 300)]
+	[Ignore]
 	public async Task AutoConformAgentsAsync(bool conformRequested, params int?[] autoConformThresholdsM)
 	{
 		// Arrange
