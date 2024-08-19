@@ -11,7 +11,6 @@
 #include "Templates/Function.h"
 
 #define MUTABLE_OP_MAX_INTERPOLATE_COUNT	6
-#define MUTABLE_OP_MAX_ADD_COUNT			7
 #define MUTABLE_OP_MAX_SWIZZLE_CHANNELS		4
 
 namespace mu
@@ -993,8 +992,6 @@ namespace mu
 			ADDRESS source;
 		};
 
-
-        //-------------------------------------------------------------------------------------
         struct InstanceAddArgs
         {
             ADDRESS instance;
@@ -1013,11 +1010,6 @@ namespace mu
             ADDRESS relevantParametersListIndex;
         };
 
-        struct InstanceAddLODArgs
-        {
-            ADDRESS lod[ MUTABLE_OP_MAX_ADD_COUNT ];
-        };
-
 		struct InstanceAddExtensionDataArgs
 		{
 			// This is a reference to an op that produces the Instance that the ExtensionData will
@@ -1031,7 +1023,6 @@ namespace mu
 			ADDRESS ExtensionDataName;
 		};
 
-        //-------------------------------------------------------------------------------------
         struct LayoutPackArgs
         {
             ADDRESS Source;

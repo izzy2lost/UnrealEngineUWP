@@ -13,9 +13,7 @@ namespace mu
 struct FProgram;
 
 
-	//---------------------------------------------------------------------------------------------
-	//! Operations to add elements to a LOD
-	//---------------------------------------------------------------------------------------------
+	/** Operations to add elements to a LOD. */
 	class ASTOpAddLOD final : public ASTOp
 	{
 	public:

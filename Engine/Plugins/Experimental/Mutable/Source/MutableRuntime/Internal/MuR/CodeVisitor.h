@@ -530,20 +530,27 @@ namespace mu
 
             case OP_TYPE::IN_ADDLOD:
             {
-				OP::InstanceAddLODArgs args = program.GetOpArgs<OP::InstanceAddLODArgs>(at);
-
                 recurse = false;
 
-                STATE newState = PARENT::GetCurrentState();
-                for (int32 t=0;t<MUTABLE_OP_MAX_ADD_COUNT;++t)
+				const uint8* Data = program.GetOpArgsPointer(at);
+
+				uint8 LODCount;
+				FMemory::Memcpy(&LODCount, Data, sizeof(uint8));
+				Data += sizeof(uint8);
+
+                STATE NewState = PARENT::GetCurrentState();
+                for (int8 LODIndex=0; LODIndex < LODCount;++LODIndex)
                 {
-                    OP::ADDRESS lodAt = args.lod[t];
-                    if (lodAt)
+					OP::ADDRESS LODAddress;
+					FMemory::Memcpy(&LODAddress, Data, sizeof(OP::ADDRESS));
+					Data += sizeof(OP::ADDRESS);
+					
+					if (LODAddress)
                     {
-                        bool selected = ( (1<<t) & m_lodMask ) != 0;
-                        if ( selected )
+                        bool bSelected = ( (1<< LODIndex) & m_lodMask ) != 0;
+                        if (bSelected)
                         {
-                            PARENT::RecurseWithState( lodAt, newState );
+                            PARENT::RecurseWithState(LODAddress, NewState);
                         }
                     }
                 }

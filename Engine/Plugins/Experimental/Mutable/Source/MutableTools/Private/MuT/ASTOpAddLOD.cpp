@@ -73,27 +73,41 @@ namespace mu
 		// Already linked?
 		if (!linkedAddress)
 		{
-			OP::InstanceAddLODArgs args;
-			memset(&args, 0, sizeof(args));
+			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
+			program.m_opAddress.Add((uint32)program.m_byteCode.Num());
+			AppendCode(program.m_byteCode, OP_TYPE::IN_ADDLOD);
 
-			int i = 0;
-			for (auto& l : lods)
+			// Calculate LODCount mimicking previous behaviour.
+			// It may be better to leave null LODs if they are null in the AST.
+			uint8 LODCount = 0;
+			for (const ASTChild& LOD : lods)
 			{
-				if (l)
+				OP::ADDRESS LODAddress = 0;
+				if (LOD)
 				{
-					args.lod[i] = l->linkedAddress;
-					++i;
-					if (i >= MUTABLE_OP_MAX_ADD_COUNT)
+					++LODCount;
+					check(LODCount < 255);
+					if (LODCount == 255)
 					{
 						break;
 					}
 				}
 			}
 
-			linkedAddress = (OP::ADDRESS)program.m_opAddress.Num();
-			program.m_opAddress.Add((uint32_t)program.m_byteCode.Num());
-			AppendCode(program.m_byteCode, OP_TYPE::IN_ADDLOD);
-			AppendCode(program.m_byteCode, args);
+			AppendCode(program.m_byteCode, LODCount);
+			for (const ASTChild& LOD : lods)
+			{
+				OP::ADDRESS LODAddress = 0;
+				if (LOD)
+				{
+					LODAddress = LOD->linkedAddress;
+					AppendCode(program.m_byteCode, LODAddress);
+					if (LODCount == 255)
+					{
+						break;
+					}
+				}
+			}
 		}
 
 	}

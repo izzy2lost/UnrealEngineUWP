@@ -700,26 +700,35 @@ namespace mu
 
         case OP_TYPE::IN_ADDLOD:
         {
-			OP::InstanceAddLODArgs args = Program.GetOpArgs<OP::InstanceAddLODArgs>(item.At);
-            switch (item.Stage)
+			const uint8* Data = Program.GetOpArgsPointer(item.At);
+
+			uint8 LODCount;
+			FMemory::Memcpy(&LODCount, Data, sizeof(uint8));
+			Data += sizeof(uint8);
+
+			switch (item.Stage)
             {
             case 0:
             {                
                 TArray<FScheduledOp> deps;
-                for ( int i=0; i<MUTABLE_OP_MAX_ADD_COUNT; ++i )
+                for (uint8 LODIndex=0; LODIndex <LODCount; ++LODIndex)
                 {
-                    if ( args.lod[i] )
-                    {
-                        bool selectedLod = ( (1<<i) & lodMask ) != 0;
+					OP::ADDRESS LODAddress;
+					FMemory::Memcpy(&LODAddress, Data, sizeof(OP::ADDRESS));
+					Data += sizeof(OP::ADDRESS);
 
-                        if ( selectedLod )
+                    if (LODAddress)
+                    {
+                        bool bSelectedLod = ( (1<< LODIndex) & lodMask ) != 0;
+
+                        if (bSelectedLod)
                         {
-                            deps.Emplace(args.lod[i], item);
+                            deps.Emplace(LODAddress, item);
                         }
                     }
                 }
 
-                AddOp( FScheduledOp( item.At,item, 1), deps );
+                AddOp( FScheduledOp( item.At, item, 1), deps );
 
                 break;
             }
@@ -730,25 +739,29 @@ namespace mu
 				Ptr<Instance> pResult = new Instance();
 				int32 ComponentIndex = pResult->GetPrivate()->AddComponent();
 
-                for ( int32 i=0; i<MUTABLE_OP_MAX_ADD_COUNT; ++i )
+                for (uint8 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
                 {
-                    if ( args.lod[i] )
-                    {
-                        bool bIsSelectedLod = ( (1<<i) & lodMask ) != 0;
+					OP::ADDRESS LODAddress;
+					FMemory::Memcpy(&LODAddress, Data, sizeof(OP::ADDRESS));
+					Data += sizeof(OP::ADDRESS);
+					
+					if ( LODAddress )
+                    {						
+						bool bIsSelectedLod = ( (1<<LODIndex) & lodMask ) != 0;
 
 						// Add an empty LOD even if not selected.
-						int32 LODIndex = pResult->GetPrivate()->AddLOD(ComponentIndex);
+						int32 InstanceLODIndex = pResult->GetPrivate()->AddLOD(ComponentIndex);
 						
 						if (bIsSelectedLod)
                         {
-							Ptr<const Instance> pLOD = LoadInstance( FCacheAddress(args.lod[i],item) );
+							Ptr<const Instance> pLOD = LoadInstance( FCacheAddress(LODAddress,item) );
 
                             // In a degenerated case, the returned pLOD may not have an LOD inside
  							if (!pLOD->GetPrivate()->Components.IsEmpty()
 								&&
 								!pLOD->GetPrivate()->Components[0].LODs.IsEmpty())
 							{
-								pResult->GetPrivate()->Components[ComponentIndex].LODs[LODIndex] = pLOD->GetPrivate()->Components[0].LODs[0];
+								pResult->GetPrivate()->Components[ComponentIndex].LODs[InstanceLODIndex] = pLOD->GetPrivate()->Components[0].LODs[0];
 							}
 						}
                     }

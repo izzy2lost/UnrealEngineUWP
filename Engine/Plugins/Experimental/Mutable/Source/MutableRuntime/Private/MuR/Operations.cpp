@@ -428,18 +428,18 @@ namespace mu
 			FMemory::Memcpy( &DefAddress, data, sizeof(OP::ADDRESS));
 			data += sizeof(OP::ADDRESS);
 
-			uint32_t CaseCount;
-			FMemory::Memcpy( &CaseCount, data, sizeof(uint32_t));
-			data += sizeof(uint32_t);
+			uint32 CaseCount;
+			FMemory::Memcpy( &CaseCount, data, sizeof(uint32));
+			data += sizeof(uint32);
 
 			f(VarAddress);
 			f(DefAddress);
 
-			for ( uint32_t C = 0; C < CaseCount; ++C )
+			for ( uint32 C = 0; C < CaseCount; ++C )
 			{	
-				//int32_t Condition;
+				//int32 Condition;
 				//FMemory::Memcpy( &Condition, data, sizeof(int32_t));
-				data += sizeof(int32_t);
+				data += sizeof(int32);
 				
 				OP::ADDRESS At;
 				FMemory::Memcpy( &At, data, sizeof(OP::ADDRESS) );
@@ -1022,10 +1022,19 @@ namespace mu
 
         case OP_TYPE::IN_ADDLOD:
         {
-			OP::InstanceAddLODArgs args = program.GetOpArgs<OP::InstanceAddLODArgs>(at);
-            for (int t=0;t<MUTABLE_OP_MAX_ADD_COUNT;++t)
-            {
-                f(args.lod[t] );
+			const uint8* Data = program.GetOpArgsPointer(at);
+
+			uint8 LODCount;
+			FMemory::Memcpy(&LODCount, Data, sizeof(uint8));
+			Data += sizeof(uint8);
+
+			for (int8 LODIndex = 0; LODIndex < LODCount; ++LODIndex)
+			{
+				OP::ADDRESS LODAddress;
+				FMemory::Memcpy(&LODAddress, Data, sizeof(OP::ADDRESS));
+				Data += sizeof(OP::ADDRESS);
+
+				f(LODAddress);
             }
             break;
         }
