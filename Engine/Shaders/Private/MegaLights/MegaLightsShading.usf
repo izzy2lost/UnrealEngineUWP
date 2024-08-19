@@ -15,7 +15,7 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "MegaLights.ush"
+#include "MegaLightsShading.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
 RWTexture2D<float3> RWResolvedDiffuseLighting;

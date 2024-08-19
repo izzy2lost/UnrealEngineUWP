@@ -1,7 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "../Common.ush"
-#include "MegaLights.ush"
+#include "MegaLightsShading.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
 // Spatial denoise is the last pass writing to the SceneColor buffer. We allow SSS checkerboard pixel to adjust 

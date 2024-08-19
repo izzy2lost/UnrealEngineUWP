@@ -19,7 +19,7 @@
 
 #include "../Common.ush"
 #include "../BlueNoise.ush"
-#include "MegaLights.ush"
+#include "MegaLightsShading.ush"
 #include "MegaLightsRayTracing.ush"
 #include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 
