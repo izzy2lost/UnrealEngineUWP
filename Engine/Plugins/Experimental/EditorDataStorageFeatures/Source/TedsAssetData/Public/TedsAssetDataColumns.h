@@ -88,6 +88,17 @@ struct FPublicAssetTag final : public FEditorDataStorageTag
 	GENERATED_BODY()
 };
 
+// Column to store the type of an asset
+USTRUCT(meta = (DisplayName = "Type Path"))
+struct FAssetClassColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	// The path of the type
+	UPROPERTY()
+	FTopLevelAssetPath ClassPath;
+};
+
 // Column to store the disk size of an asset
 USTRUCT(meta = (DisplayName = "Disk Size"))
 struct FDiskSizeColumn final : public FEditorDataStorageColumn
@@ -98,6 +109,7 @@ struct FDiskSizeColumn final : public FEditorDataStorageColumn
 	UPROPERTY()
 	int64 DiskSize = 0;
 };
+
 
 // Column to store the verse path of an asset
 USTRUCT(meta = (DisplayName = "Verse Path"))

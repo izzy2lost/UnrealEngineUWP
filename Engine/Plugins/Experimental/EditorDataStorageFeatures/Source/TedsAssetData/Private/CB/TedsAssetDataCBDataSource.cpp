@@ -91,7 +91,7 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 			}
 		)
 		.Where()
-			.All<FUpdatedPathTag>()
+				.All<FUpdatedPathTag>()
 			.None<FUpdatedAssetDataTag>()
 		.Compile()
 		);
@@ -118,6 +118,11 @@ FTedsAssetDataCBDataSource::FTedsAssetDataCBDataSource(ITypedElementDataStorageI
 			DiskSizeColumn.DiskSize = PackageData->DiskSize;
 			InContext.AddColumn(Row, MoveTemp(DiskSizeColumn));
 		}
+
+		// Should add those or should we develop tooling to query the asset data via Teds?
+		FAssetClassColumn AssetClassColumn;
+		AssetClassColumn.ClassPath = InAssetData.AssetClassPath;
+		InContext.AddColumn(Row, MoveTemp(AssetClassColumn));
 
 		FItemNameColumn_Experimental ItemNameColumn;
 		ItemNameColumn.Name = InAssetData.AssetName;
