@@ -20,7 +20,7 @@
 
 FIOSTargetPlatformSettings::FIOSTargetPlatformSettings(bool bInIsTVOS, bool bInIsVisionOS)
 	// override the ini name up in the base classes, which will go into the FTargetPlatformInfo
-	: TTargetPlatformSettingsBase()
+	: TTargetPlatformSettingsBase(nullptr, bInIsVisionOS ? TEXT("VisionOS") : nullptr)
 	, bIsTVOS(bInIsTVOS)
 	, bIsVisionOS(bInIsVisionOS)
 	, MobileShadingPath(0)

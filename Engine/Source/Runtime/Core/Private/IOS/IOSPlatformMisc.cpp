@@ -48,9 +48,8 @@
 #if UE_WITH_STORE_KIT
 #import <StoreKit/StoreKit.h>
 #endif
-#if !PLATFORM_VISIONOS
+
 #import <UserNotifications/UserNotifications.h>
-#endif
 
 #include <sys/sysctl.h> // sysctlbyname
 
@@ -1235,7 +1234,7 @@ void FIOSPlatformMisc::RegisterForRemoteNotifications()
 	}
 
     dispatch_async(dispatch_get_main_queue(), ^{
-#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
 		UNUserNotificationCenter *Center = [UNUserNotificationCenter currentNotificationCenter];
 		[Center requestAuthorizationWithOptions:(UNAuthorizationOptionBadge | UNAuthorizationOptionSound | UNAuthorizationOptionAlert)
 							  completionHandler:^(BOOL granted, NSError * _Nullable error) {
@@ -1270,7 +1269,7 @@ bool FIOSPlatformMisc::IsRegisteredForRemoteNotifications()
 
 bool FIOSPlatformMisc::IsAllowedRemoteNotifications()
 {
-#if !PLATFORM_TVOS && !PLATFORM_VISIONOS && NOTIFICATIONS_ENABLED
+#if !PLATFORM_TVOS && NOTIFICATIONS_ENABLED
 	checkf(false, TEXT("For min iOS version >= 10 use FIOSLocalNotificationService::CheckAllowedNotifications."));
 	return true;
 #else
