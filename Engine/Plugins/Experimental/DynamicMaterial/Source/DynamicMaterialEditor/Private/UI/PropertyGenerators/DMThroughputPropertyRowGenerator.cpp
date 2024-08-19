@@ -105,7 +105,22 @@ void FDMThroughputPropertyRowGenerator::AddComponentProperties(const TSharedRef<
 					continue;
 				}
 
-				PropertyRow.NameOverride = InputConnectors[InputIdx].Name;
+				if (!PropertyRow.NameOverride.IsSet() || PropertyRow.NameOverride.GetValue().IsEmpty())
+
+				{
+					if (!PropertyRow.ValueName.IsNone())
+					{
+						PropertyRow.NameOverride = FText::FromName(PropertyRow.ValueName);
+					}
+					else if (PropertyRow.PropertyHandle.IsValid())
+					{
+						PropertyRow.NameOverride = PropertyRow.PropertyHandle->GetPropertyDisplayName();
+					}
+					else
+					{
+						PropertyRow.NameOverride = InputConnectors[InputIdx].Name;
+					}
+				}
 			}
 		}
 	}
