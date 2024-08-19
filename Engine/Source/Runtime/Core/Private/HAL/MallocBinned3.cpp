@@ -54,7 +54,7 @@ TBinned3CachedOSPageAllocator& GetCachedOSPageAllocator()
 #endif
 
 #if UE_MB3_ALLOCATOR_STATS
-	int64 Binned3AllocatedSmallPoolMemory = 0; // memory that's requested to be allocated by the game
+	std::atomic<int64> Binned3AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
 	int64 Binned3AllocatedOSSmallPoolMemory = 0;
 
 	int64 Binned3AllocatedLargePoolMemory = 0; // memory requests to the OS which don't fit in the small pool
@@ -510,6 +510,7 @@ struct FMallocBinned3::Private
 	static void FreeBundles(FMallocBinned3& Allocator, FBundleNode* BundlesToRecycle, uint32 InBinSize, uint32 InPoolIndex)
 	{
 		FPoolTable& Table = Allocator.SmallPoolTables[InPoolIndex];
+		FScopeLock Lock(&Table.Mutex);
 
 		FBundleNode* Bundle = BundlesToRecycle;
 		while (Bundle)
@@ -787,9 +788,9 @@ FMallocBinned3::FMallocBinned3()
 		SmallPoolTables[Index].UnusedAreaOffsetLow = 0;
 		SmallPoolTables[Index].NumEverUsedBlocks = 0;
 #if UE_M3_ALLOCATOR_PER_BIN_STATS
-		SmallPoolTables[Index].TotalRequestedAllocSize.Store(0);
-		SmallPoolTables[Index].TotalAllocCount.Store(0);
-		SmallPoolTables[Index].TotalFreeCount.Store(0);
+		SmallPoolTables[Index].TotalRequestedAllocSize.store(0, std::memory_order_relaxed);
+		SmallPoolTables[Index].TotalAllocCount.store(0, std::memory_order_relaxed);
+		SmallPoolTables[Index].TotalFreeCount.store(0, std::memory_order_relaxed);
 #endif
 
 		const int64 TotalNumberOfBlocks = UE_MB3_MAX_MEMORY_PER_POOL_SIZE / (SizeTable[Index].NumMemoryPagesPerBlock * OsAllocationGranularity);
@@ -965,10 +966,10 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 			}
 		}
 
-		FScopeLock Lock(&Mutex);
-
 		// Allocate from small object pool.
 		FPoolTable& Table = SmallPoolTables[PoolIndex];
+
+		FScopeLock Lock(&Table.Mutex);
 
 		uint32 BlockIndex = MAX_uint32;
 		FPoolInfoSmall* Pool = GetFrontPool(Table, PoolIndex, BlockIndex);
@@ -996,7 +997,7 @@ void* FMallocBinned3::MallocExternal(SIZE_T Size, uint32 Alignment)
 		void* Result = Pool->AllocateBin(BlockPtr, Table.BinSize);
 #if UE_MB3_ALLOCATOR_STATS
 		Table.HeadEndAlloc(Size);
-		Binned3AllocatedSmallPoolMemory += PoolIndexToBinSize(PoolIndex);
+		Binned3AllocatedSmallPoolMemory.fetch_add(PoolIndexToBinSize(PoolIndex), std::memory_order_relaxed);
 #endif
 		if (GBinned3AllocExtra)
 		{
@@ -1186,14 +1187,13 @@ void FMallocBinned3::FreeExternal(void* Ptr)
 		if (BundlesToRecycle)
 		{
 			BundlesToRecycle->NextBundle = nullptr;
-			FScopeLock Lock(&Mutex);
 			Private::FreeBundles(*this, BundlesToRecycle, BinSize, PoolIndex);
 #if UE_MB3_ALLOCATOR_STATS
 			if (!Lists)
 			{
 				SmallPoolTables[PoolIndex].HeadEndFree();
 				// lists track their own stat track them instead in the global stat if we don't have lists
-				Binned3AllocatedSmallPoolMemory -= ((int64)(BinSize));
+				Binned3AllocatedSmallPoolMemory.fetch_sub((int64)BinSize, std::memory_order_relaxed);
 			}
 #endif
 		}
@@ -1264,8 +1264,13 @@ bool FMallocBinned3::GetAllocationSizeExternal(void* Ptr, SIZE_T& SizeOut)
 	{
 		return false;
 	}
-	FScopeLock Lock(&Mutex);
-	FPoolInfoLarge* Pool = Private::FindPoolInfo(*this, Ptr);
+
+	FPoolInfoLarge* Pool;
+	{
+		FScopeLock Lock(&Mutex);
+		Pool = Private::FindPoolInfo(*this, Ptr);
+	}
+
 	if (!Pool)
 	{
 		UE_LOG(LogMemory, Fatal, TEXT("FMallocBinned3 Attempt to GetAllocationSizeExternal an unrecognized pointer %p"), Ptr);
@@ -1374,7 +1379,7 @@ int64 FMallocBinned3::GetTotalAllocatedSmallPoolMemory() const
 		FreeBlockAllocatedMemory += ConsolidatedMemory.load(std::memory_order_relaxed);
 	}
 
-	return Binned3AllocatedSmallPoolMemory + FreeBlockAllocatedMemory;
+	return Binned3AllocatedSmallPoolMemory.load(std::memory_order_relaxed) + FreeBlockAllocatedMemory;
 }
 #endif
 
@@ -1457,14 +1462,14 @@ void FMallocBinned3::DumpAllocatorStats(class FOutputDevice& Ar)
 		const uint32 FullBlocks = CommittedBlocks - PartialBlocks;
 		const int64 ComittedVM = VM - (SmallPoolTables[PoolIndex].NumEverUsedBlocks - CommittedBlocks) * SmallPoolTables[PoolIndex].NumMemoryPagesPerBlock * OsAllocationGranularity;
 
-		const int64 AveSize = SmallPoolTables[PoolIndex].TotalAllocCount.Load() ? SmallPoolTables[PoolIndex].TotalRequestedAllocSize.Load() / SmallPoolTables[PoolIndex].TotalAllocCount.Load() : 0;
-		const int64 EstPadWaste = ((SmallPoolTables[PoolIndex].TotalAllocCount.Load() - SmallPoolTables[PoolIndex].TotalFreeCount.Load()) * (PoolIndexToBinSize(PoolIndex) - AveSize));
+		const int64 AveSize = SmallPoolTables[PoolIndex].TotalAllocCount.load(std::memory_order_relaxed) ? SmallPoolTables[PoolIndex].TotalRequestedAllocSize.load(std::memory_order_relaxed) / SmallPoolTables[PoolIndex].TotalAllocCount.load(std::memory_order_relaxed) : 0;
+		const int64 EstPadWaste = ((SmallPoolTables[PoolIndex].TotalAllocCount.load(std::memory_order_relaxed) - SmallPoolTables[PoolIndex].TotalFreeCount.load(std::memory_order_relaxed)) * (PoolIndexToBinSize(PoolIndex) - AveSize));
 
 		Ar.Logf(TEXT("Pool %2d   Size %6d   Allocs %8lld  Frees %8lld  AveAllocSize %6d  EstPadWaste %4dKB  UsedVM %3dMB  CommittedVM %3dMB  HighSlabs %6d  CommittedSlabs %6d  FullSlabs %6d  PartialSlabs  %6d"), 
 			PoolIndex,
 			PoolIndexToBinSize(PoolIndex),
-			SmallPoolTables[PoolIndex].TotalAllocCount.Load(),
-			SmallPoolTables[PoolIndex].TotalFreeCount.Load(),
+			SmallPoolTables[PoolIndex].TotalAllocCount.load(std::memory_order_relaxed),
+			SmallPoolTables[PoolIndex].TotalFreeCount.load(std::memory_order_relaxed),
 			AveSize,
 			EstPadWaste / 1024,
 			VM / (1024 * 1024),

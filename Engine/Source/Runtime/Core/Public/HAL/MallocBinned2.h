@@ -66,16 +66,6 @@ struct FGenericMemoryStats;
 #define UE_MB2_ALLOCATOR_STATS				UE_MBC_ALLOCATOR_STATS
 #define UE_MB2_ALLOCATOR_STATS_VALIDATION	(UE_MB2_ALLOCATOR_STATS && 0)
 
-
-#if UE_MB2_ALLOCATOR_STATS
-	//////////////////////////////////////////////////////////////////////////
-	// the following don't need a critical section because they are covered by the critical section called Mutex
-	extern TAtomic<int64> AllocatedSmallPoolMemory; // memory that's requested to be allocated by the game
-	extern TAtomic<int64> AllocatedOSSmallPoolMemory;
-	extern TAtomic<int64> AllocatedLargePoolMemory; // memory requests to the OS which don't fit in the small pool
-	extern TAtomic<int64> AllocatedLargePoolMemoryWAlignment; // when we allocate at OS level we need to align to a size
-#endif
-
 #if UE_MB2_ALLOCATOR_STATS_VALIDATION
 #	include "Misc/ScopeLock.h"
 
@@ -191,6 +181,8 @@ class FMallocBinned2 : public TMallocBinnedCommon<FMallocBinned2, UE_MB2_MINIMUM
 		FPoolList ActivePools;
 		FPoolList ExhaustedPools;
 		uint32    BinSize = 0;
+
+		FCriticalSection Mutex;
 
 		FPoolTable() = default;
 	};
@@ -544,7 +536,6 @@ public:
 	}
 
 	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
-	FCriticalSection& GetMutex() { return Mutex; }
 };
 
 #define UE_MB2_INLINE (1)

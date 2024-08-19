@@ -40,22 +40,9 @@ public:
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FMallocBinnedCommonUtils_FlushCurrentThreadCache);
 
 				const double StartTimeInner = FPlatformTime::Seconds();
+				TrimThreadFreeBlockLists(Allocator, Lists);
+				const double WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
 
-				double WaitForMutexTime = 0.0f;
-				double WaitForMutexAndTrimTime = 0.0f;
-
-				{
-					FScopeLock Lock(&Allocator.GetMutex());
-					WaitForMutexTime = FPlatformTime::Seconds() - StartTimeInner;
-					TrimThreadFreeBlockLists(Allocator, Lists);
-					WaitForMutexAndTrimTime = FPlatformTime::Seconds() - StartTimeInner;
-				}
-
-				// These logs must happen outside the above mutex to avoid deadlocks
-				if (WaitForMutexTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
-				{
-					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex for trim."), Allocator.GetDescriptiveName(), WaitForMutexTime * 1000.0f);
-				}
 				if (WaitForMutexAndTrimTime > GMallocBinnedFlushThreadCacheMaxWaitTime)
 				{
 					UE_LOG(LogMemory, Warning, TEXT("FMalloc%s took %6.2fms to wait for mutex AND trim."), Allocator.GetDescriptiveName(), WaitForMutexAndTrimTime * 1000.0f);
@@ -76,7 +63,6 @@ public:
 		// Skip on desktop as we may have too many threads and this could cause some hitches.
 		if (!PLATFORM_DESKTOP && GMallocBinnedFlushRegisteredThreadCachesOnOneThread != 0)
 		{
-			FScopeLock Lock(&Allocator.GetMutex());
 			FScopeLock FreeBlockLock(&AllocType::GetFreeBlockListsRegistrationMutex());
 			for (typename AllocType::FPerThreadFreeBlockLists* BlockList : AllocType::GetRegisteredFreeBlockLists())
 			{

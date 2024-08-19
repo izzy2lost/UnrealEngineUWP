@@ -85,11 +85,11 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
 
 #if UE_MB2_ALLOCATOR_STATS
-	TAtomic<int64> AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
-	TAtomic<int64> AllocatedOSSmallPoolMemory(0);
+	std::atomic<int64> AllocatedSmallPoolMemory(0); // memory that's requested to be allocated by the game
+	std::atomic<int64> AllocatedOSSmallPoolMemory(0);
 
-	TAtomic<int64> AllocatedLargePoolMemory(0); // memory requests to the OS which don't fit in the small pool
-	TAtomic<int64> AllocatedLargePoolMemoryWAlignment(0); // when we allocate at OS level we need to align to a size
+	std::atomic<int64> AllocatedLargePoolMemory(0); // memory requests to the OS which don't fit in the small pool
+	std::atomic<int64> AllocatedLargePoolMemoryWAlignment(0); // when we allocate at OS level we need to align to a size
 
 	int64 Binned2PoolInfoMemory = 0;
 	int64 Binned2HashMemory = 0;
@@ -499,6 +499,8 @@ struct FMallocBinned2::Private
 	{
 		FPoolTable& Table = Allocator.SmallPoolTables[InPoolIndex];
 
+		FScopeLock Lock(&Table.Mutex);
+
 		FBundleNode* Bundle = BundlesToRecycle;
 		while (Bundle)
 		{
@@ -544,9 +546,12 @@ struct FMallocBinned2::Private
 
 					// Free the OS memory.
 					NodePool->Unlink();
-					Allocator.CachedOSPageAllocator.Free(BasePtrOfNode, Allocator.PageSize);
+					{
+						FScopeLock InnerLock(&Allocator.Mutex);
+						Allocator.CachedOSPageAllocator.Free(BasePtrOfNode, Allocator.PageSize);
+					}
 #if UE_MB2_ALLOCATOR_STATS
-					AllocatedOSSmallPoolMemory -= ((int64)Allocator.PageSize);
+					AllocatedOSSmallPoolMemory.fetch_sub((int64)Allocator.PageSize, std::memory_order_relaxed);
 #endif
 				}
 
@@ -659,10 +664,14 @@ FMallocBinned2::FPoolInfo& FMallocBinned2::FPoolList::PushNewPoolToFront(FMalloc
 
 	// Allocate memory.
 	LLM_PLATFORM_SCOPE(ELLMTag::FMalloc);
-	void* FreePtr = Allocator.CachedOSPageAllocator.Allocate(LocalPageSize, FMemory::AllocationHints::SmallPool);
+
+	void* FreePtr;
+	{
+		FScopeLock Lock(&Allocator.Mutex);
+		FreePtr = Allocator.CachedOSPageAllocator.Allocate(LocalPageSize, FMemory::AllocationHints::SmallPool);
+	}
 	if (!FreePtr)
 	{
-		FScopeUnlock TempUnlock(&Allocator.Mutex);
 		Private::OutOfMemory(LocalPageSize);
 	}
 
@@ -675,8 +684,10 @@ FMallocBinned2::FPoolInfo& FMallocBinned2::FPoolList::PushNewPoolToFront(FMalloc
 #endif
 
 #if UE_MB2_ALLOCATOR_STATS
-	AllocatedOSSmallPoolMemory += (int64)LocalPageSize;
+	AllocatedOSSmallPoolMemory.fetch_add((int64)LocalPageSize, std::memory_order_relaxed);
 #endif
+
+	FScopeLock Lock(&Allocator.Mutex);
 	// Create pool
 	FPoolInfo* Result = Private::GetOrCreatePoolInfo(Allocator, Free, FPoolInfo::ECanary::FirstFreeBlockIsPtr, false);
 	Result->Link(Front);
@@ -824,8 +835,6 @@ void FMallocBinned2::OnPostFork()
 		FMallocBinned2::Private::CheckThreadFreeBlockListsForFork();
 	}
 
-	FScopeLock Lock(&Mutex);
-
 	// This will be compared against the pool header of existing allocations to turn Free into a no-op for pages shared with the parent process
 	UE_CLOG(CurrentCanary != EBlockCanary::PreFork, LogMemory, Fatal, TEXT("FMallocBinned2 only supports forking once!"));
 
@@ -834,6 +843,7 @@ void FMallocBinned2::OnPostFork()
 
 	for (FPoolTable& Table : SmallPoolTables)
 	{
+		FScopeLock Lock(&Table.Mutex);
 		// Clear our list of partially used pages so we don't dirty them and cause them to become unshared with the parent process
 		Table.ActivePools.Clear();
 		Table.ExhaustedPools.Clear();
@@ -881,10 +891,10 @@ void* FMallocBinned2::MallocExternalSmall(SIZE_T Size, uint32 Alignment)
 
 	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_MallocExternalSmall);
 
-	FScopeLock Lock(&Mutex);
-
 	// Allocate from small object pool.
 	FPoolTable& Table = SmallPoolTables[PoolIndex];
+
+	FScopeLock Lock(&Table.Mutex);
 
 	FPoolInfo* Pool;
 	if (!Table.ActivePools.IsEmpty())
@@ -898,7 +908,7 @@ void* FMallocBinned2::MallocExternalSmall(SIZE_T Size, uint32 Alignment)
 
 	void* Result = Pool->AllocateBin();
 #if UE_MB2_ALLOCATOR_STATS
-	AllocatedSmallPoolMemory += Table.BinSize;
+	AllocatedSmallPoolMemory.fetch_add(Table.BinSize, std::memory_order_relaxed);
 #endif
 
 	if (GBinned2AllocExtra)
@@ -961,8 +971,8 @@ void* FMallocBinned2::MallocExternalLarge(SIZE_T Size, uint32 Alignment)
 	check(IsAligned(Result, PageSize) && IsOSAllocation(Result));
 
 #if UE_MB2_ALLOCATOR_STATS
-	AllocatedLargePoolMemory += Size;
-	AllocatedLargePoolMemoryWAlignment += AlignedSize;
+	AllocatedLargePoolMemory.fetch_add(Size, std::memory_order_relaxed);
+	AllocatedLargePoolMemoryWAlignment.fetch_add(AlignedSize, std::memory_order_relaxed);
 #endif
 
 	// Create pool.
@@ -1064,8 +1074,7 @@ void* FMallocBinned2::ReallocExternal(void* Ptr, SIZE_T NewSize, uint32 Alignmen
 	checkf(FMallocBinned2::FPoolInfo::IsSupportedSize(NewSize), TEXT("Invalid Realloc size: '%" SIZE_T_FMT "'"), NewSize);
 
 #if UE_MB2_ALLOCATOR_STATS
-	AllocatedLargePoolMemory += ((int64)NewSize) - ((int64)PoolOSRequestedBytes);
-	// don't need to change the AllocatedLargePoolMemoryWAlignment because we didn't reallocate so it's the same size
+	AllocatedLargePoolMemory.fetch_add((int64)NewSize - (int64)PoolOSRequestedBytes, std::memory_order_relaxed);
 #endif
 
 	Pool->SetOSAllocationSizes(NewSize, PoolOsBytes);
@@ -1113,13 +1122,12 @@ void FMallocBinned2::FreeExternal(void* Ptr)
 		if (BundlesToRecycle)
 		{
 			BundlesToRecycle->NextBundle = nullptr;
-			FScopeLock Lock(&Mutex);
 			Private::FreeBundles(*this, BundlesToRecycle, BinSize, PoolIndex);
 #if UE_MB2_ALLOCATOR_STATS
 			if (!Lists)
 			{
 				// lists track their own stat track them instead in the global stat if we don't have lists
-				AllocatedSmallPoolMemory -= ((int64)(BinSize));
+				AllocatedSmallPoolMemory.fetch_sub((int64)BinSize, std::memory_order_relaxed);
 			}
 #endif
 		}
@@ -1136,8 +1144,8 @@ void FMallocBinned2::FreeExternal(void* Ptr)
 		const SIZE_T PoolOSRequestedBytes = Pool->GetOSRequestedBytes();
 
 #if UE_MB2_ALLOCATOR_STATS
-		AllocatedLargePoolMemory -= ((int64)PoolOSRequestedBytes);
-		AllocatedLargePoolMemoryWAlignment -= ((int64)PoolOsBytes);
+		AllocatedLargePoolMemory.fetch_sub((int64)PoolOSRequestedBytes, std::memory_order_relaxed);
+		AllocatedLargePoolMemoryWAlignment.fetch_sub((int64)PoolOsBytes, std::memory_order_relaxed);
 #endif
 
 		checkf(PoolOSRequestedBytes <= PoolOsBytes, TEXT("FMallocBinned2::FreeExternal %d %d"), int32(PoolOSRequestedBytes), int32(PoolOsBytes));
@@ -1207,10 +1215,10 @@ void FMallocBinned2::FPoolList::ValidateExhaustedPools() const
 bool FMallocBinned2::ValidateHeap()
 {
 	NOALLOC_SCOPE_CYCLE_COUNTER(STAT_FMallocBinned2_ValidateHeap);
-	FScopeLock Lock(&Mutex);
-
+	
 	for (FPoolTable& Table : SmallPoolTables)
 	{
+		FScopeLock Lock(&Table.Mutex);
 		Table.ActivePools.ValidateActivePools();
 		Table.ExhaustedPools.ValidateExhaustedPools();
 	}
@@ -1329,7 +1337,7 @@ int64 FMallocBinned2::GetTotalAllocatedSmallPoolMemory() const
 		FreeBlockAllocatedMemory += ConsolidatedMemory.load(std::memory_order_relaxed);
 	}
 
-	return AllocatedSmallPoolMemory.Load(EMemoryOrder::Relaxed) + FreeBlockAllocatedMemory;
+	return AllocatedSmallPoolMemory.load(std::memory_order_relaxed) + FreeBlockAllocatedMemory;
 }
 #endif
 
@@ -1341,9 +1349,9 @@ void FMallocBinned2::GetAllocatorStats( FGenericMemoryStats& OutStats )
 
 #if UE_MB2_ALLOCATOR_STATS
 	const int64  TotalAllocatedSmallPoolMemory           = GetTotalAllocatedSmallPoolMemory();
-	const int64  LocalAllocatedOSSmallPoolMemory         = AllocatedOSSmallPoolMemory.Load(EMemoryOrder::Relaxed);
-	const int64  LocalAllocatedLargePoolMemory           = AllocatedLargePoolMemory.Load(EMemoryOrder::Relaxed);
-	const int64  LocalAllocatedLargePoolMemoryWAlignment = AllocatedLargePoolMemoryWAlignment.Load(EMemoryOrder::Relaxed);
+	const int64  LocalAllocatedOSSmallPoolMemory         = AllocatedOSSmallPoolMemory.load(std::memory_order_relaxed);
+	const int64  LocalAllocatedLargePoolMemory           = AllocatedLargePoolMemory.load(std::memory_order_relaxed);
+	const int64  LocalAllocatedLargePoolMemoryWAlignment = AllocatedLargePoolMemoryWAlignment.load(std::memory_order_relaxed);
 
 	OutStats.Add(TEXT("AllocatedSmallPoolMemory"), TotalAllocatedSmallPoolMemory);
 	OutStats.Add(TEXT("AllocatedOSSmallPoolMemory"), LocalAllocatedOSSmallPoolMemory);
@@ -1365,15 +1373,15 @@ void FMallocBinned2::DumpAllocatorStats(class FOutputDevice& Ar)
 #if UE_MB2_ALLOCATOR_STATS
 
 	const int64  TotalAllocatedSmallPoolMemory           = GetTotalAllocatedSmallPoolMemory();
-	const int64  LocalAllocatedLargePoolMemory           = AllocatedLargePoolMemory.Load(EMemoryOrder::Relaxed);
-	const int64  LocalAllocatedLargePoolMemoryWAlignment = AllocatedLargePoolMemoryWAlignment.Load(EMemoryOrder::Relaxed);
+	const int64  LocalAllocatedLargePoolMemory           = AllocatedLargePoolMemory.load(std::memory_order_relaxed);
+	const int64  LocalAllocatedLargePoolMemoryWAlignment = AllocatedLargePoolMemoryWAlignment.load(std::memory_order_relaxed);
 	const uint64 OSPageAllocatorCachedFreeSize           = CachedOSPageAllocator.GetCachedFreeTotal();
 
 	Ar.Logf(TEXT("FMallocBinned2 Mem report"));
 	Ar.Logf(TEXT("Constants.BinnedPageSize = %d"), int32(PageSize));
 	Ar.Logf(TEXT("Constants.BinnedAllocationGranularity = %d"), int32(OsAllocationGranularity));
 	Ar.Logf(TEXT("Small Pool Allocations: %fmb  (including bin size padding)"), ((double)TotalAllocatedSmallPoolMemory) / (1024.0f * 1024.0f));
-	Ar.Logf(TEXT("Small Pool OS Allocated: %fmb"), ((double)AllocatedOSSmallPoolMemory) / (1024.0f * 1024.0f));
+	Ar.Logf(TEXT("Small Pool OS Allocated: %fmb"), ((double)AllocatedOSSmallPoolMemory.load(std::memory_order_relaxed)) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Large Pool Requested Allocations: %fmb"), ((double)AllocatedLargePoolMemory) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Large Pool OS Allocated: %fmb"), ((double)AllocatedLargePoolMemoryWAlignment) / (1024.0f * 1024.0f));
 	Ar.Logf(TEXT("Requested Allocations: %fmb"), ((double)LocalAllocatedLargePoolMemory) / (1024.0f * 1024.0f));

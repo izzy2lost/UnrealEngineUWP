@@ -184,21 +184,23 @@ class CORE_API FMallocBinned3 : public TMallocBinnedCommon<FMallocBinned3, UE_MB
 
 		uint64 UnusedAreaOffsetLow;			// High watermark for allocated vm memory for this pool
 
+		FCriticalSection Mutex;
+
 #if UE_M3_ALLOCATOR_PER_BIN_STATS
 		// these are "head end" stats, above the TLS cache
-		TAtomic<int64> TotalRequestedAllocSize;
-		TAtomic<int64> TotalAllocCount;
-		TAtomic<int64> TotalFreeCount;
+		std::atomic<int64> TotalRequestedAllocSize;
+		std::atomic<int64> TotalAllocCount;
+		std::atomic<int64> TotalFreeCount;
 
 		FORCEINLINE void HeadEndAlloc(SIZE_T Size)
 		{
 			check(Size >= 0 && Size <= BinSize);
-			TotalRequestedAllocSize += Size;
-			TotalAllocCount++;
+			TotalRequestedAllocSize.fetch_add(Size, std::memory_order_relaxed);
+			TotalAllocCount.fetch_add(1, std::memory_order_relaxed);
 		}
 		FORCEINLINE void HeadEndFree()
 		{
-			TotalFreeCount++;
+			TotalFreeCount.fetch_add(1, std::memory_order_relaxed);
 		}
 #else
 		FORCEINLINE void HeadEndAlloc(SIZE_T Size)
@@ -518,7 +520,6 @@ public:
 	}
 
 	void FreeBundles(FBundleNode* Bundles, uint32 PoolIndex);
-	FCriticalSection& GetMutex() { return Mutex; }
 
 	void Commit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
 	void Decommit(uint32 InPoolIndex, void *Ptr, SIZE_T Size);
