@@ -7975,6 +7975,19 @@ void TNiagaraHlslTranslator<GraphBridge>::FunctionCall(const FFunctionCallNode* 
 		}
 	}
 
+	if (Signature.NoDefaultValueInputs.Num() > 0)
+	{
+		for (int32 i = 0; i < CallInputs.Num(); i++)
+		{
+			const FInputPin* InPin = CallInputs[i];
+			FNiagaraVariableBase Var = GraphBridge::GetPinVariable(InPin, false, ENiagaraStructConversion::Simulation);
+			if (Signature.NoDefaultValueInputs.Contains(Var) && GraphBridge::GetLinkedOutputPin(InPin) == nullptr)
+			{
+				Error(LOCTEXT("NoDefaultValueInput", "Function call input pin doesn't support default values and needs to be wired in."), FunctionNode, InPin);
+			}
+		}
+	}
+
 	if (const FCustomHlslNode* CustomFunctionHlsl = GraphBridge::AsCustomHlslNode(FunctionNode))
 	{
 		// All of the arguments here are resolved withing the HandleCustomHlsl function..
@@ -8505,8 +8518,8 @@ void TNiagaraHlslTranslator<GraphBridge>::ProcessCustomHlsl(const FString& InCus
 	OutSignature.Inputs = SigInputs;
 
 	// Resolve the names of any internal variables from the output variables.
-	TArray<FNiagaraVariable> SigOutputs;
-	for (FNiagaraVariable Output : OutSignature.Outputs)
+	TArray<FNiagaraVariableBase> SigOutputs;
+	for (FNiagaraVariableBase& Output : OutSignature.Outputs)
 	{
 		if (Output.GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
 		{
@@ -9107,18 +9120,19 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 	FString DefStr = GetFunctionSignatureSymbol(FunctionSignature) + TEXT("(");
 	for (int32 i = 0; i < FunctionSignature.Inputs.Num(); ++i)
 	{
-		FNiagaraTypeDefinition Type = FunctionSignature.Inputs[i].GetType();
+		const FNiagaraVariable& InputVar = FunctionSignature.Inputs[i];
+		FNiagaraTypeDefinition Type = InputVar.GetType();
 		if (Type.UnderlyingType != 0 && Type.ClassStructOrEnum == nullptr)
 		{
-			Error(FText::Format(LOCTEXT("InvalidTypeDefError", "Invalid data in niagara type definition, might be due to broken serialization or missing DI implementation! Variable: {0}"), FText::FromName(FunctionSignature.Inputs[i].GetName())));
+			Error(FText::Format(LOCTEXT("InvalidTypeDefError", "Invalid data in niagara type definition, might be due to broken serialization or missing DI implementation! Variable: {0}"), FText::FromName(InputVar.GetName())));
 			continue;
 		}
 
 		if (!ensure(i < Inputs.Num()))
 		{
-			Error(FText::Format(LOCTEXT("InvalidInputNum", "Functon Input of %d is out of bounds in function signature! Variable: {0}"), 
+			Error(FText::Format(LOCTEXT("InvalidInputNum", "Function Input of %d is out of bounds in function signature! Variable: {0}"), 
 			FText::AsNumber(i),
-			FText::FromName(FunctionSignature.Inputs[i].GetName())));
+			FText::FromName(InputVar.GetName())));
 			continue;
 		}
 
@@ -9127,13 +9141,13 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 		{
 			if (!AddStructToDefinitionSet(Type))
 			{
-				Error(FText::Format(LOCTEXT("GetConstantFailTypeVar2", "Cannot handle type {0}! Variable: {1}"), Type.GetNameText(), FText::FromName(FunctionSignature.Inputs[i].GetName())));
+				Error(FText::Format(LOCTEXT("GetConstantFailTypeVar2", "Cannot handle type {0}! Variable: {1}"), Type.GetNameText(), FText::FromName(InputVar.GetName())));
 			}
 
 			int32 Input = Inputs[i];
 			bool bSkip = false;
 
-			if (FunctionSignature.Inputs[i].GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
+			if (InputVar.GetType() == FNiagaraTypeDefinition::GetParameterMapDef())
 			{
 				Input = INDEX_NONE;
 				bSkip = true;
@@ -9149,7 +9163,7 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 				Params.Add(Input);
 				if (Input == INDEX_NONE)
 				{
-					MissingParameters.Add(FunctionSignature.Inputs[i].GetName().ToString());
+					MissingParameters.Add(InputVar.GetName().ToString());
 				}
 				else
 				{
@@ -9162,7 +9176,7 @@ void FNiagaraHlslTranslator::GenerateFunctionCall(ENiagaraScriptUsage ScriptUsag
 
 	for (int32 i = 0; i < FunctionSignature.Outputs.Num(); ++i)
 	{
-		FNiagaraVariable& OutVar = FunctionSignature.Outputs[i];
+		FNiagaraVariableBase& OutVar = FunctionSignature.Outputs[i];
 		FNiagaraTypeDefinition Type = ConvertToSimulationVariable(OutVar).GetType();
 
 		//We don't write class types as real params in the hlsl
