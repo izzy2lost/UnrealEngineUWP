@@ -343,6 +343,34 @@ bool ShouldRenderHeterogeneousVolumesForView(
 		&& !View.bIsReflectionCapture;
 }
 
+bool ShouldRenderHeterogeneousVolumesAsHoldoutForView(
+	const FViewInfo& View
+)
+{
+	// This query returns true if any volume is marked as a holdout; otherwise, the query returns false
+	if (ShouldRenderHeterogeneousVolumesForView(View))
+	{
+		for (int32 MeshBatchIndex = 0; MeshBatchIndex < View.HeterogeneousVolumesMeshBatches.Num(); ++MeshBatchIndex)
+		{
+			const FMeshBatch* Mesh = View.HeterogeneousVolumesMeshBatches[MeshBatchIndex].Mesh;
+			const FPrimitiveSceneProxy* PrimitiveSceneProxy = View.HeterogeneousVolumesMeshBatches[MeshBatchIndex].Proxy;
+			if (ShouldRenderMeshBatchWithHeterogeneousVolumes(Mesh, PrimitiveSceneProxy, View.GetFeatureLevel()))
+			{
+				for (int32 VolumeIndex = 0; VolumeIndex < Mesh->Elements.Num(); ++VolumeIndex)
+				{
+					const IHeterogeneousVolumeInterface* HeterogeneousVolume = (IHeterogeneousVolumeInterface*)Mesh->Elements[VolumeIndex].UserData;
+					if (HeterogeneousVolumes::IsHoldout(HeterogeneousVolume))
+					{
+						return true;
+					}
+				}
+			}
+		}
+	}
+
+	return false;
+}
+
 bool DoesMaterialShaderSupportHeterogeneousVolumes(const FMaterialShaderParameters& MaterialShaderParameters)
 {
 	return (MaterialShaderParameters.MaterialDomain == MD_Volume)
