@@ -804,11 +804,16 @@ TEST_CASE_NAMED(FJsonAutomationTest, "System::Engine::FileSystem::JSON", "[Appli
 
 	// Test Nan
 	{
+		const FString TestNanInd = FString::Printf(TEXT("%.17g"), std::numeric_limits<double>::quiet_NaN());
+		CHECK(TestNanInd == TEXT("nan")); // Make sure code will not run on standard library impl which outputs nan(ind)
+
 		const FString InputString =
 			TEXT(
 				"{"
 					"\"Value0\":nan,"
-					"\"Value1\":NaN"
+					"\"Value1\":NaN,"
+					"\"Value2\":-nan,"
+					"\"Value3\":-nan(ind)"
 				"}"
 			);
 		TSharedRef< TJsonReader<> > Reader = TJsonReaderFactory<>::Create( InputString );
@@ -820,10 +825,16 @@ TEST_CASE_NAMED(FJsonAutomationTest, "System::Engine::FileSystem::JSON", "[Appli
 
 		const TSharedPtr<FJsonValue>* Value0 = Object->Values.Find(FString::Printf(TEXT("Value%i"), 0));
 		const TSharedPtr<FJsonValue>* Value1 = Object->Values.Find(FString::Printf(TEXT("Value%i"), 1));
+		const TSharedPtr<FJsonValue>* Value2 = Object->Values.Find(FString::Printf(TEXT("Value%i"), 2));
+		const TSharedPtr<FJsonValue>* Value3 = Object->Values.Find(FString::Printf(TEXT("Value%i"), 3));
 		const double Number0 = (*Value0)->AsNumber();
 		const double Number1 = (*Value1)->AsNumber();
+		const double Number2 = (*Value2)->AsNumber();
+		const double Number3 = (*Value3)->AsNumber();
 		REQUIRE(FMath::IsNaN(Number0));
 		REQUIRE(FMath::IsNaN(Number1));
+		REQUIRE(FMath::IsNaN(Number2));
+		REQUIRE(FMath::IsNaN(Number3));
 
 		FString OutputString;
 		TSharedRef< FCondensedJsonStringWriter > Writer = FCondensedJsonStringWriterFactory::Create( &OutputString );
@@ -834,10 +845,12 @@ TEST_CASE_NAMED(FJsonAutomationTest, "System::Engine::FileSystem::JSON", "[Appli
 			TEXT(
 				"{"
 					"\"Value0\":%.17g,"
-					"\"Value1\":%.17g"
+					"\"Value1\":%.17g,"
+					"\"Value2\":%.17g,"
+					"\"Value3\":%.17g"
 				"}"
 			),
-			std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN());
+			std::numeric_limits<double>::quiet_NaN(), std::numeric_limits<double>::quiet_NaN(), -std::numeric_limits<double>::quiet_NaN(), -std::numeric_limits<double>::quiet_NaN());
 		REQUIRE(OutputString == TestOutput);
 	}
 
