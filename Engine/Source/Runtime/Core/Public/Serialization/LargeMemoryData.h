@@ -90,6 +90,7 @@ public:
 	CORE_API ~FPooledLargeMemoryData();
 	FLargeMemoryData& Get() { return *Data; }
 private:
+	static void Free(FLargeMemoryData* Data);
 	FLargeMemoryData* Data;
 	static CORE_API TLockFreePointerListUnordered<FLargeMemoryData, 0> FreeList;
 	static CORE_API std::atomic<int32> FreeListLength;
