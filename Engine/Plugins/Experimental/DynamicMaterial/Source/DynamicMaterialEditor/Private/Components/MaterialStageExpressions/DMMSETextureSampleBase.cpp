@@ -238,6 +238,27 @@ void UDMMaterialStageExpressionTextureSampleBase::OnInputUpdated(int32 InInputIn
 	}
 }
 
+FText UDMMaterialStageExpressionTextureSampleBase::GetComponentDescription() const
+{
+	if (UDMMaterialStage* Stage = GetStage())
+	{
+		const TArray<UDMMaterialStageInput*>& Inputs = Stage->GetInputs();
+
+		for (UDMMaterialStageInput* StageInput : Inputs)
+		{
+			if (UDMMaterialStageInputValue* InputValue = Cast<UDMMaterialStageInputValue>(StageInput))
+			{
+				if (UDMMaterialValue* Value = Cast<UDMMaterialValueTexture>(InputValue->GetValue()))
+				{
+					return Value->GetComponentDescription();
+				}
+			}
+		}
+	}
+
+	return Super::GetComponentDescription();
+}
+
 void UDMMaterialStageExpressionTextureSampleBase::SetClampTextureEnabled(bool bInValue)
 {
 	if (bClampTexture == bInValue)

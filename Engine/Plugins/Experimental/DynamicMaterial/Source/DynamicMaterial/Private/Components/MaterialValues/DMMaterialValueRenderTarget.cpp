@@ -10,6 +10,8 @@
 #include "Components/MaterialValuesDynamic/DMMaterialValueRenderTargetDynamic.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "DMMaterialValueRenderTarget"
+
 const FString UDMMaterialValueRenderTarget::RendererPathToken = "Renderer";
 
 UDMMaterialValueRenderTarget::UDMMaterialValueRenderTarget()
@@ -170,6 +172,16 @@ UDMMaterialValueDynamic* UDMMaterialValueRenderTarget::ToDynamic(UDynamicMateria
 FString UDMMaterialValueRenderTarget::GetComponentPathComponent() const
 {
 	return TEXT("RenderTarget");
+}
+
+FText UDMMaterialValueRenderTarget::GetComponentDescription() const
+{
+	if (IsValid(Renderer))
+	{
+		return Renderer->GetComponentDescription();
+	}
+
+	return LOCTEXT("RenderTarget", "Render Target");
 }
 
 TSharedPtr<FJsonValue> UDMMaterialValueRenderTarget::JsonSerialize() const
@@ -367,3 +379,5 @@ void UDMMaterialValueRenderTarget::OnComponentRemoved()
 	}
 }
 #endif
+
+#undef LOCTEXT_NAMESPACE

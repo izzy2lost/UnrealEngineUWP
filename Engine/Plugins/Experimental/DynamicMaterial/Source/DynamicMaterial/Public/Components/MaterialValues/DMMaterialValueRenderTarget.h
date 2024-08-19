@@ -79,6 +79,7 @@ public:
 	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 #if WITH_EDITOR
 	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
 	DYNAMICMATERIAL_API virtual void PostEditorDuplicate(UDynamicMaterialModel* InMaterialModel, UDMMaterialComponent* InParent) override;
 #endif
 	//~ End UDMMaterialComponent

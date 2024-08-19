@@ -187,6 +187,10 @@ public:
 	DYNAMICMATERIAL_API virtual bool JsonDeserialize(const TSharedPtr<FJsonValue>& InJsonValue) override;
 	//~ End IDMJsonSerializable
 
+	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
+	//~ End UDMMaterialComponent
+
 	//~ Begin UObject
 	DYNAMICMATERIAL_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject

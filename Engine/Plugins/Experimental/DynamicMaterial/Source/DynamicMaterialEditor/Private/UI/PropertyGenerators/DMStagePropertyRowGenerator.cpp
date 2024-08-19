@@ -101,7 +101,7 @@ TSharedRef<SWidget> FDMStagePropertyRowGenerator::CreateSourceTypeEditWidget(con
 			[
 				SNew(STextBlock)
 				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.Text_Static(&FDMStagePropertyRowGenerator::GetSourceTypeEditWidgetText, InStage)
+				.Text(GetSourceTypeEditWidgetText(InStage))
 			]
 			+ SHorizontalBox::Slot()
 			.AutoWidth()

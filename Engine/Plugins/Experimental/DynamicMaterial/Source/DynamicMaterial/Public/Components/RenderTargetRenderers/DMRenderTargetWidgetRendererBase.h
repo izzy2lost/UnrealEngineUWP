@@ -20,6 +20,12 @@ class UDMRenderTargetWidgetRendererBase : public UDMRenderTargetRenderer
 public:
 	DYNAMICMATERIAL_API UDMRenderTargetWidgetRendererBase();
 
+#if WITH_EDITOR
+	//~ Begin UDMMaterialComponent
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
+	//~ End UDMMaterialComponent
+#endif
+
 protected:
 	TSharedPtr<SWidget> Widget;
 	TSharedPtr<FWidgetRenderer> WidgetRenderer;

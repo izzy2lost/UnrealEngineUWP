@@ -17,6 +17,8 @@
 #include "Utils/DMUtils.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "DMMaterialValueColorAtlas"
+
 UDMMaterialValueColorAtlas::UDMMaterialValueColorAtlas()
 	: UDMMaterialValue(EDMValueType::VT_ColorAtlas)
 	, Value(0)
@@ -156,6 +158,11 @@ FString UDMMaterialValueColorAtlas::GetComponentPathComponent() const
 	return TEXT("ColorAtlasAlpha");
 }
 
+FText UDMMaterialValueColorAtlas::GetComponentDescription() const
+{
+	return LOCTEXT("ColorAtlas", "Color Atlas");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueColorAtlas::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize({
@@ -233,3 +240,5 @@ bool UDMMaterialValueColorAtlas::IsDefaultValue() const
 	return FMath::IsNearlyEqual(Value, DefaultValue);
 }
 #endif
+
+#undef LOCTEXT_NAMESPACE

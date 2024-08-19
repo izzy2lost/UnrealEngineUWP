@@ -82,6 +82,11 @@ FString UDMMaterialValueFloat4::GetComponentPathComponent() const
 	return TEXT("RGBA");
 }
 
+FText UDMMaterialValueFloat4::GetComponentDescription() const
+{
+	return LOCTEXT("ColorRGBA", "Color (RGBA)");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat4::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

@@ -38,6 +38,10 @@ public:
 	DYNAMICMATERIALEDITOR_API virtual void OnInputUpdated(int32 InInputIndex, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialStageThroughput
 
+	//~ Begin UDMMaterialComponent
+	virtual FText GetComponentDescription() const override;
+	//~ End UDMMaterialComponent;
+
 	//~ Begin UObject
 	DYNAMICMATERIALEDITOR_API virtual void PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent) override;
 	//~ End UObject

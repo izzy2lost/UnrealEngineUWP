@@ -57,6 +57,9 @@ public:
 	//~ End IDMJsonSerializable
 
 	//~ Begin UDMMaterialComponent
+#if WITH_EDITOR
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
+#endif
 	DYNAMICMATERIAL_API virtual void Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType) override;
 	//~ End UDMMaterialComponent
 

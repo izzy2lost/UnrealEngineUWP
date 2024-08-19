@@ -18,6 +18,8 @@
 #include "Utils/DMUtils.h"
 #endif
 
+#define LOCTEXT_NAMESPACE "DMMaterialValueTexture"
+
 #if WITH_EDITOR
 namespace UE::DynamicMaterial::Private
 {
@@ -183,6 +185,11 @@ FString UDMMaterialValueTexture::GetComponentPathComponent() const
 	return TEXT("Texture");
 }
 
+FText UDMMaterialValueTexture::GetComponentDescription() const
+{
+	return LOCTEXT("Texture", "Texture");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueTexture::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);
@@ -240,3 +247,5 @@ void UDMMaterialValueTexture::SetMIDParameter(UMaterialInstanceDynamic* InMID) c
 
 	InMID->SetTextureParameterValue(GetMaterialParameterName(), Value);
 }
+
+#undef LOCTEXT_NAMESPACE

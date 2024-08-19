@@ -81,6 +81,11 @@ FString UDMMaterialValueFloat3RPY::GetComponentPathComponent() const
 	return TEXT("Rotator");
 }
 
+FText UDMMaterialValueFloat3RPY::GetComponentDescription() const
+{
+	return LOCTEXT("Rotator", "Rotator");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat3RPY::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

@@ -70,6 +70,7 @@ public:
 	//~ Begin UDMMaterialComponent
 #if WITH_EDITOR
 	DYNAMICMATERIAL_API virtual FString GetComponentPathComponent() const override;
+	DYNAMICMATERIAL_API virtual FText GetComponentDescription() const override;
 #endif
 	//~ End UDMMaterialComponent
 

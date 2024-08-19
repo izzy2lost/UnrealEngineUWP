@@ -6,6 +6,8 @@
 #include "Misc/CoreDelegates.h"
 #include "Templates/SubclassOf.h"
 
+#define LOCTEXT_NAMESPACE "DMRenderTargetRenderer"
+
 UDMRenderTargetRenderer* UDMRenderTargetRenderer::CreateRenderTargetRenderer(TSubclassOf<UDMRenderTargetRenderer> InRendererClass, 
 	UDMMaterialValueRenderTarget* InRenderTargetValue)
 {
@@ -76,6 +78,13 @@ bool UDMRenderTargetRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& InJs
 	return false;
 }
 
+#if WITH_EDITOR
+FText UDMRenderTargetRenderer::GetComponentDescription() const
+{
+	return LOCTEXT("Renderer", "Renderer");
+}
+#endif
+
 void UDMRenderTargetRenderer::Update(UDMMaterialComponent* InSource, EDMUpdateType InUpdateType)
 {
 	if (!FDMUpdateGuard::CanUpdate())
@@ -114,3 +123,5 @@ void UDMRenderTargetRenderer::PostLoad()
 		RenderTargetValue->EnsureRenderTarget();
 	}
 }
+
+#undef LOCTEXT_NAMESPACE

@@ -94,6 +94,11 @@ FString UDMMaterialValueBool::GetComponentPathComponent() const
 	return TEXT("Bool");
 }
 
+FText UDMMaterialValueBool::GetComponentDescription() const
+{
+	return LOCTEXT("Bool", "Bool");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueBool::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

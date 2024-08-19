@@ -84,6 +84,11 @@ FString UDMMaterialValueFloat2::GetComponentPathComponent() const
 	return TEXT("Vector2D");
 }
 
+FText UDMMaterialValueFloat2::GetComponentDescription() const
+{
+	return LOCTEXT("Vector2", "Vector 2");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat2::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

@@ -75,6 +75,11 @@ FString UDMMaterialValueFloat1::GetComponentPathComponent() const
 	return TEXT("Scalar");
 }
 
+FText UDMMaterialValueFloat1::GetComponentDescription() const
+{
+	return LOCTEXT("Scalar", "Scalar");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat1::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

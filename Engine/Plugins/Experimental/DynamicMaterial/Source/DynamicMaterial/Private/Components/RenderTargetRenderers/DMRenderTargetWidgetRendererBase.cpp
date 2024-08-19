@@ -16,6 +16,13 @@ UDMRenderTargetWidgetRendererBase::UDMRenderTargetWidgetRendererBase()
 	WidgetRenderer->SetShouldClearTarget(true);
 }
 
+#if WITH_EDITOR
+FText UDMRenderTargetWidgetRendererBase::GetComponentDescription() const
+{
+	return LOCTEXT("Widget", "Widget");
+}
+#endif
+
 void UDMRenderTargetWidgetRendererBase::UpdateRenderTarget_Internal()
 {
 	UDMMaterialValueRenderTarget* RenderTargetValue = GetRenderTargetValue();

@@ -46,6 +46,11 @@ bool UDMRenderTargetUMGWidgetRenderer::JsonDeserialize(const TSharedPtr<FJsonVal
 	return false;
 }
 
+FText UDMRenderTargetUMGWidgetRenderer::GetComponentDescription() const
+{
+	return LOCTEXT("UMGWidget", "UMG Widget");
+}
+
 void UDMRenderTargetUMGWidgetRenderer::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);

@@ -81,6 +81,11 @@ FString UDMMaterialValueFloat3RGB::GetComponentPathComponent() const
 	return TEXT("RGB");
 }
 
+FText UDMMaterialValueFloat3RGB::GetComponentDescription() const
+{
+	return LOCTEXT("ColorRGB", "Color (RGB)");
+}
+
 TSharedPtr<FJsonValue> UDMMaterialValueFloat3RGB::JsonSerialize() const
 {
 	return FDMJsonUtils::Serialize(Value);

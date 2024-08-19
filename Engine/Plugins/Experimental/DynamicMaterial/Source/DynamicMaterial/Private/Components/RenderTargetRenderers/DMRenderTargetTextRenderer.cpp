@@ -247,6 +247,11 @@ bool UDMRenderTargetTextRenderer::JsonDeserialize(const TSharedPtr<FJsonValue>& 
 	return true;
 }
 
+FText UDMRenderTargetTextRenderer::GetComponentDescription() const
+{
+	return LOCTEXT("Text", "Text");
+}
+
 void UDMRenderTargetTextRenderer::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);
