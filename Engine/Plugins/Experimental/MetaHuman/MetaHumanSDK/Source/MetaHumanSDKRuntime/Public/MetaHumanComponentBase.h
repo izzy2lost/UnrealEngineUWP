@@ -76,7 +76,7 @@ struct FMetaHumanCustomizableBodyPart
 };
 
 UCLASS()
-class METAHUMANRUNTIME_API UMetaHumanComponentBase
+class METAHUMANSDKRUNTIME_API UMetaHumanComponentBase
 	: public UActorComponent
 {
 	GENERATED_BODY()

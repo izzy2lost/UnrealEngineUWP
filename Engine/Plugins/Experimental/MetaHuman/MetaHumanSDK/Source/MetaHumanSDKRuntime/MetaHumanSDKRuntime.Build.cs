@@ -2,9 +2,9 @@
 
 using UnrealBuildTool;
 
-public class MetaHumanRuntime : ModuleRules
+public class MetaHumanSDKRuntime : ModuleRules
 {
-	public MetaHumanRuntime(ReadOnlyTargetRules Target) : base(Target)
+	public MetaHumanSDKRuntime(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = ModuleRules.PCHUsageMode.UseExplicitOrSharedPCHs;
 		

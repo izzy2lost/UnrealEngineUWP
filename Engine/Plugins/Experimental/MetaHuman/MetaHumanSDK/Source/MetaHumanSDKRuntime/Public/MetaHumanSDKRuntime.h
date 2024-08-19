@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "Modules/ModuleManager.h"
 
-class FMetaHumanRuntimeModule : public IModuleInterface
+class FMetaHumanSDKRuntimeModule : public IModuleInterface
 {
 public:
 
