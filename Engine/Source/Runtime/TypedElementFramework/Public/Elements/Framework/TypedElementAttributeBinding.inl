@@ -134,7 +134,7 @@ namespace UE::EditorDataStorage
 		Prop.Bind(InVariable);
 
 		// We don't want any references to this in the lambda because binders are designed to be used and destructed on the stack
-		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue]()
+		return TAttribute<AttributeType>::CreateLambda([Property = MoveTemp(Prop), Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue]()
 		{
 			// Get the column from the given row and use that to return the stored property
 			if(ColumnType* Column = Storage->GetColumn<ColumnType>(Row))
@@ -157,7 +157,7 @@ namespace UE::EditorDataStorage
 		Property<AttributeType> Prop;
 		Prop.Bind(InVariable, InConverter);
 	
-		return TAttribute<AttributeType>::CreateLambda([Property = Prop, Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue, Converter = InConverter]()
+		return TAttribute<AttributeType>::CreateLambda([Property = MoveTemp(Prop), Storage = DataStorage, Row = TargetRow, DefaultValue = InDefaultValue, Converter = InConverter]()
 		{
 			if(ColumnType* Column = Storage->GetColumn<ColumnType>(Row))
 			{
@@ -176,6 +176,30 @@ namespace UE::EditorDataStorage
 		using AttributeType = decltype(InConverter(std::declval<DataType>()));
 		
 		return BindData<AttributeType, DataType>(InVariable, TFunction<AttributeType(const DataType&)>(InConverter), InDefaultValue);
+	}
+
+	template <typename InRetValType, typename... ParamTypes, typename ColumnType>
+		TDelegate<InRetValType(ParamTypes...)> FAttributeBinder::BindEvent(TDelegate<InRetValType(ParamTypes...)> ColumnType::* InVariable)
+	{
+		// Create a property for the delegate
+		Property<TDelegate<InRetValType(ParamTypes...)>> Prop;
+		Prop.Bind(InVariable);
+	
+		return TDelegate<InRetValType(ParamTypes...)>::CreateLambda([Property = MoveTemp(Prop), Storage = DataStorage, Row = TargetRow](ParamTypes&&... Params)
+		{
+			if(ColumnType* Column = Storage->GetColumn<ColumnType>(Row))
+			{
+				// Get the delegate in the bound column for the specified row
+				TDelegate<InRetValType(ParamTypes...)> Delegate = Property.Get(Column, ColumnType::StaticStruct());
+
+				// Execute the delegate if it is bound
+				if(Delegate.IsBound())
+				{
+					return Delegate.Execute(Forward<ParamTypes>(Params)...);
+				}
+			}
+			return InRetValType();
+		});
 	}
 	
 }

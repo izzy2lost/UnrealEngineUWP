@@ -3,6 +3,10 @@
 #include "Widgets/STedsTableViewer.h"
 
 #include "TedsTableViewerColumn.h"
+#include "Columns/SlateDelegateColumns.h"
+#include "Elements/Columns/TypedElementUIColumns.h"
+#include "Elements/Framework/TypedElementAttributeBinding.h"
+#include "Elements/Framework/TypedElementDataStorageWidget.h"
 #include "Widgets/STedsTableViewerRow.h"
 #include "Widgets/Views/SListView.h"
 #include "Widgets/Text/STextBlock.h"
@@ -21,13 +25,22 @@ namespace UE::Editor::DataStorage
 		HeaderRowWidget = SNew( SHeaderRow )
 							.CanSelectGeneratedColumn(true);
 
+		// Create the internal Teds Widget
+		CreateTedsWidget();
+
+		// Attribute binder to bind widget columns to attributes on the ListView
+		EditorDataStorage::FAttributeBinder Binder(TedsWidget->GetRowHandle());
+
 		ListView = SNew(SListView<TableViewerItemPtr>)
 			.HeaderRow(HeaderRowWidget)
 			.ListItemsSource(&Model->GetItems())
 			.OnGenerateRow(this, &STedsTableViewer::MakeTableRowWidget)
 			.OnSelectionChanged(this, &STedsTableViewer::OnListSelectionChanged)
-			.SelectionMode(ESelectionMode::Single); // We only support single selection for now in the table viewer
-		
+			.SelectionMode(InArgs._ListSelectionMode)
+			.OnContextMenuOpening(Binder.BindEvent(&FWidgetContextMenuColumn::OnContextMenuOpening))
+			.OnItemScrolledIntoView(Binder.BindEvent(&FWidgetRowScrolledIntoView::OnItemScrolledIntoView))
+			.OnMouseButtonDoubleClick(Binder.BindEvent(&FWidgetDoubleClickedColumn::OnMouseButtonDoubleClick));
+
 		AssignChildSlot();
 		
 		// Add each Teds column from the model to our header row widget
@@ -44,41 +57,64 @@ namespace UE::Editor::DataStorage
 		});
 	}
 
+	void STedsTableViewer::CreateTedsWidget()
+	{
+		TedsWidget = SNew(STedsWidget);
+
+		if(ITypedElementDataStorageInterface* DataStorage = Model->GetDataStorageInterface())
+		{
+			const TypedElementDataStorage::RowHandle WidgetRowHandle = TedsWidget->GetRowHandle();
+		
+			if(DataStorage->IsRowAvailable(WidgetRowHandle))
+			{
+				// The table viewer should not show up as a row in a table viewer because that will cause all sorts of recursion issues
+				DataStorage->AddColumn(WidgetRowHandle, FHideRowFromUITag::StaticStruct());
+
+				// Columns we are going to bind to attributes on SListView
+				DataStorage->AddColumn(WidgetRowHandle, FWidgetContextMenuColumn::StaticStruct());
+				DataStorage->AddColumn(WidgetRowHandle, FWidgetRowScrolledIntoView::StaticStruct());
+				DataStorage->AddColumn(WidgetRowHandle, FWidgetDoubleClickedColumn::StaticStruct());
+			}
+		}
+
+		ChildSlot
+		[
+			TedsWidget.ToSharedRef()
+		];
+	}
+
 	void STedsTableViewer::AssignChildSlot()
 	{
+		TSharedPtr<SWidget> ContentWidget;
+		
 		if(Model->GetRowCount() == 0)
 		{
-			ChildSlot
-			[
+			ContentWidget = 
 				SNew(SBox)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
 							.Text(LOCTEXT("EmptyTableViewerQueryText", "The input query has no results"))
-					]
-			];
+					];
 		}
 		else if(Model->GetColumnCount() == 0)
 		{
-			ChildSlot
-			[
+			ContentWidget =
 				SNew(SBox)
 					.HAlign(HAlign_Center)
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
 							.Text(LOCTEXT("EmptyTableViewerColumnsText", "There were no columns specified to display"))
-					]
-			];
+					];
 		}
 		else
 		{
-			ChildSlot
-			[
-				ListView.ToSharedRef()	
-			];
+			ContentWidget = ListView.ToSharedRef();
 		}
+
+		TedsWidget->SetContent(ContentWidget.ToSharedRef());
 	}
 
 	void STedsTableViewer::RefreshColumnWidgets()
@@ -110,6 +146,22 @@ namespace UE::Editor::DataStorage
 	{
 		Model->AddCustomColumn(InColumn);
 		RefreshColumnWidgets();
+	}
+
+	void STedsTableViewer::ForEachSelectedRow(TFunctionRef<void(TypedElementDataStorage::RowHandle)> InCallback) const
+	{
+		TArray<TableViewerItemPtr> SelectedRows;
+		ListView->GetSelectedItems(SelectedRows);
+
+		for(TableViewerItemPtr& Row : SelectedRows)
+		{
+			InCallback(Row);
+		}
+	}
+
+	TypedElementDataStorage::RowHandle STedsTableViewer::GetWidgetRowHandle() const
+	{
+		return TedsWidget->GetRowHandle();
 	}
 
 	bool STedsTableViewer::IsItemVisible(TableViewerItemPtr InItem) const

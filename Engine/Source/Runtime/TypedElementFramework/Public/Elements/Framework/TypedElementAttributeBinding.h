@@ -29,8 +29,11 @@ namespace UE::EditorDataStorage
 	{
 	public:
 
-		// Create an attribute binder for a given row
-		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(TypedElementDataStorage::RowHandle InTargetRow);
+		/* Create an attribute binder for a given row. */
+		TYPEDELEMENTFRAMEWORK_API explicit FAttributeBinder(TypedElementDataStorage::RowHandle InTargetRow);
+		
+		/* Create an attribute binder for a given row. */
+		TYPEDELEMENTFRAMEWORK_API FAttributeBinder(TypedElementDataStorage::RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage);
 
 		/**
 		 * Bind a specific data member inside a TEDS column to an attribute of the same type as the data
@@ -78,6 +81,14 @@ namespace UE::EditorDataStorage
 		template <typename DataType, TDataColumnType ColumnType, typename FunctionType>
 			requires AttributeBinderInvocable<FunctionType, DataType>
 		auto BindData(DataType ColumnType::* InVariable, FunctionType InConverter, const DataType& InDefaultValue = DataType());
+
+		/**
+		 * Bind a delegate inside a Teds column to a SLATE_EVENT macro on a widget
+		 * @param InVariable The delegate inside the Teds column
+		 * @return A delegate that can be provided to an event on a slate widget
+		 */
+		template <typename InRetValType, typename... ParamTypes, typename ColumnType>
+		TDelegate<InRetValType(ParamTypes...)> BindEvent(TDelegate<InRetValType(ParamTypes...)> ColumnType::* InVariable);
 		
 	private:
 
@@ -88,6 +99,5 @@ namespace UE::EditorDataStorage
 		ITypedElementDataStorageInterface* DataStorage;
 	};
 }
-
 
 #include "TypedElementAttributeBinding.inl"

@@ -19,7 +19,7 @@ namespace UE::Editor::DataStorage
 	class IQueryStackNode_Row;
 
 	// Typedef for an item in the table viewer
-	using TableViewerItemPtr = UIRowType;
+	using TableViewerItemPtr = FTedsRowHandle;
 
 	// Model class for the TEDS Table Viewer that can be plugged into any widget that is a UI representation of data in TEDS
 	// @see STedsTableViewer
@@ -58,6 +58,8 @@ namespace UE::Editor::DataStorage
 
 		// Add a custom column to display in the table viewer, that doesn't necessarily map to a Teds column
 		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
+
+		TEDSTABLEVIEWER_API ITypedElementDataStorageInterface* GetDataStorageInterface() const;
 
 	protected:
 

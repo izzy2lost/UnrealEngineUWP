@@ -11,7 +11,7 @@ FHierarchyTableWidgetConstructor::FHierarchyTableWidgetConstructor(const UScript
 {
 }
 
-TSharedRef<SWidget> FHierarchyTableWidgetConstructor::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableWidgetConstructor::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNullWidget::NullWidget;
 }
@@ -32,7 +32,7 @@ bool FHierarchyTableWidgetConstructor::FinalizeWidget(ITypedElementDataStorageIn
 	TypedElementDataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	FTypedElementOverrideColumn* OverrideColumn = DataStorage->GetColumn<FTypedElementOverrideColumn>(TargetRow);
 
-	TSharedRef<SWidget> ActualWidget = CreateWidget(OverrideColumn->OwnerEntry);
+	TSharedRef<SWidget> ActualWidget = CreateInternalWidget(OverrideColumn->OwnerEntry);
 	WidgetInstance->SetContent(ActualWidget);
 
 	return true;

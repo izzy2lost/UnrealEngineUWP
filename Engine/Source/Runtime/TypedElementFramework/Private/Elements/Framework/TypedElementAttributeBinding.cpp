@@ -10,9 +10,17 @@ namespace UE::EditorDataStorage
 		: TargetRow(InTargetRow)
 	{
 		if (ensureMsgf(UTypedElementRegistry::GetInstance()->AreDataStorageInterfacesSet(), 
-				TEXT("The TypedElementsDataStorage plugin needs to be enabled to use attribute bindings.")))
+				TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings.")))
 		{
 			DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		}
+	}
+
+	FAttributeBinder::FAttributeBinder(
+		TypedElementDataStorage::RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage)
+		: TargetRow(InTargetRow)
+		, DataStorage(InDataStorage)
+	{
+		ensureMsgf(DataStorage, TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings."));
 	}
 }

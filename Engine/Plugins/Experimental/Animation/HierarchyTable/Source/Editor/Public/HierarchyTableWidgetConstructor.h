@@ -19,7 +19,7 @@ public:
 
 	virtual ~FHierarchyTableWidgetConstructor() override = default;
 
-	virtual TSharedRef<SWidget> CreateWidget(FHierarchyTableEntryData* EntryData);
+	virtual TSharedRef<SWidget> CreateInternalWidget(FHierarchyTableEntryData* EntryData);
 
 protected:
 	// Begin FHierarchyTableWidgetConstructor

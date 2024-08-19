@@ -5,7 +5,7 @@
 #include "TimeProfile/HierarchyTableTypeTime.h"
 #include "HierarchyTable.h"
 
-TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_StartTime::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_StartTime::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNew(SSpinBox<float>)
 		.IsEnabled_Lambda([EntryData]() { return EntryData->IsOverridden(); })
@@ -22,7 +22,7 @@ TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_StartTime::CreateWidget
 			});
 }
 
-TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_EndTime::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_EndTime::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNew(SSpinBox<float>)
 		.IsEnabled_Lambda([EntryData]() { return EntryData->IsOverridden(); })
@@ -39,7 +39,7 @@ TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_EndTime::CreateWidget(F
 			});
 }
 
-TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_TimeFactor::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_TimeFactor::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNew(SSpinBox<float>)
 		.IsEnabled_Lambda([EntryData]() { return EntryData->IsOverridden(); })
@@ -56,7 +56,7 @@ TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_TimeFactor::CreateWidge
 			});
 }
 
-TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_Preview::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableTimeWidgetConstructor_Preview::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNew(STextBlock)
 		.Text(INVTEXT("PREVIEW"));

@@ -27,7 +27,8 @@ public class TedsTableViewer : ModuleRules
 					"InputCore",
 					"Slate",
 					"SlateCore",
-					"WorkspaceMenuStructure"
+					"WorkspaceMenuStructure",
+					"ToolWidgets"
 				});
 		}
 	}

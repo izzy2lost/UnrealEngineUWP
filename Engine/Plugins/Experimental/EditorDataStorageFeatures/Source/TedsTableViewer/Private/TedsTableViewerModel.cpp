@@ -2,12 +2,12 @@
 
 #include "TedsTableViewerModel.h"
 
+
+#include "Elements/Columns/TypedElementUIColumns.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "QueryStack/IQueryStackNode_Row.h"
 #include "TedsTableViewerColumn.h"
 #include "TedsTableViewerUtils.h"
-#include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 
 namespace UE::Editor::DataStorage
 {
@@ -48,7 +48,8 @@ namespace UE::Editor::DataStorage
 		{
 			if(IsRowDisplayable(RowHandle))
 			{
-				Items.Add(RowHandle);
+				FTedsRowHandle TedsRowHandle{ .RowHandle = RowHandle };
+				Items.Add(TedsRowHandle);
 			}
 		}
 
@@ -59,20 +60,7 @@ namespace UE::Editor::DataStorage
 
 	bool FTedsTableViewerModel::IsRowDisplayable(TypedElementDataStorage::RowHandle InRowHandle) const
 	{
-		// We don't want to display any second level widgets (widgets for widgets and so on...) because they will keep cause the table viewer to
-		// infinitely grow as you keep scrolling (which creates new widgets)
-		if(Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(InRowHandle))
-		{
-			if(const FTypedElementRowReferenceColumn* RowReferenceColumn = Storage->GetColumn<FTypedElementRowReferenceColumn>(InRowHandle))
-			{
-				if(Storage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(RowReferenceColumn->Row))
-				{
-					return false;
-				}
-			}
-		}
-
-		return true;
+		return !Storage->HasColumns<FHideRowFromUITag>(InRowHandle);
 	}
 
 	bool FTedsTableViewerModel::Tick(float DeltaTime)
@@ -147,6 +135,11 @@ namespace UE::Editor::DataStorage
 		// Table Viewer TODO: We should allow users to specify sort order using a TEDS column on the UI row, but for now we put any custom
 		// columns on the front
 		ColumnsView.Insert(InColumn, 0);
+	}
+
+	ITypedElementDataStorageInterface* FTedsTableViewerModel::GetDataStorageInterface() const
+	{
+		return Storage;
 	}
 
 	void FTedsTableViewerModel::GenerateColumns()

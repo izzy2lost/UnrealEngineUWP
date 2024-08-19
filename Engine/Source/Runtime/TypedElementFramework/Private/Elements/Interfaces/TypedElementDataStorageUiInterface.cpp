@@ -4,8 +4,8 @@
 
 #include "Elements/Columns/TypedElementLabelColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
-#include "Elements/Framework/TypedElementColumnUtils.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Columns/TypedElementUIColumns.h"
 #include "Elements/Framework/TypedElementDataStorageWidget.h"
 
 FTypedElementWidgetConstructor::FTypedElementWidgetConstructor(const UScriptStruct* InTypeInfo)
@@ -141,7 +141,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
-	TSharedPtr<SWidget> Widget = CreateWidget(Arguments);
+	TSharedPtr<SWidget> Widget = CreateWidget(DataStorage, DataStorageUi, Row, Arguments);
 	if (Widget)
 	{
 		DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row)->Widget = Widget;
@@ -160,6 +160,15 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
 {
 	return nullptr;
+}
+
+TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(
+	ITypedElementDataStorageInterface* DataStorage,
+	ITypedElementDataStorageUiInterface* DataStorageUi,
+	TypedElementDataStorage::RowHandle UiRow, 
+	const TypedElementDataStorage::FMetaDataView& Arguments)
+{
+	return CreateWidget(Arguments);
 }
 
 bool FTypedElementWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
@@ -197,4 +206,17 @@ void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, ITyp
 {
 	const FString WidgetLabel(CreateWidgetDisplayName(DataStorage, Row));
 	DataStorage->AddColumn(Row, FTypedElementLabelColumn{.Label = WidgetLabel} );
+
+	// We don't want to display any second level widgets (widgets for widgets and so on...) in UI because they will cause the table viewer to
+	// infinitely grow as you keep scrolling (which creates new widgets)
+	if(DataStorage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(Row))
+	{
+		if(const FTypedElementRowReferenceColumn* RowReferenceColumn = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row))
+		{
+			if(DataStorage->HasColumns<FTypedElementSlateWidgetReferenceColumn>(RowReferenceColumn->Row))
+			{
+				DataStorage->AddColumn(Row, FHideRowFromUITag::StaticStruct());
+			}
+		}
+	}
 }

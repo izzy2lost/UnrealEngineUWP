@@ -11,6 +11,7 @@
 class ITableRow;
 class STableViewBase;
 class SHeaderRow;
+class STedsWidget;
 
 namespace UE::Editor::DataStorage
 {
@@ -30,10 +31,11 @@ namespace UE::Editor::DataStorage
 	public:
 		
 		// Delegate fired when the selection in the table viewer changes
-		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, RowHandle)
+		DECLARE_DELEGATE_OneParam(FOnSelectionChanged, UE::Editor::DataStorage::RowHandle)
 
 		SLATE_BEGIN_ARGS(STedsTableViewer)
 			: _CellWidgetPurposes({TEXT("General.Cell")})
+			, _ListSelectionMode(ESelectionMode::Type::Single)
 		{
 			
 		}
@@ -50,7 +52,10 @@ namespace UE::Editor::DataStorage
 		SLATE_ARGUMENT(TArray<FName>, CellWidgetPurposes)
 		
 		// Delegate called when the selection changes
-		SLATE_ARGUMENT(FOnSelectionChanged, OnSelectionChanged)
+		SLATE_EVENT(FOnSelectionChanged, OnSelectionChanged)
+
+		// The selection mode for the table viewer (single/multi etc)
+		SLATE_ARGUMENT(ESelectionMode::Type, ListSelectionMode)
 
 		SLATE_END_ARGS()
 
@@ -64,6 +69,11 @@ namespace UE::Editor::DataStorage
 		// Add a custom column to display in the table viewer, that doesn't necessarily map to a Teds column
 		TEDSTABLEVIEWER_API void AddCustomColumn(const TSharedRef<FTedsTableViewerColumn>& InColumn);
 
+		// Execute the given callback for each row that is selected in the table viewer
+		TEDSTABLEVIEWER_API void ForEachSelectedRow(TFunctionRef<void(UE::Editor::DataStorage::RowHandle)> InCallback) const;
+
+		// Get the row handle for the widget row the table viewer's contents are stored in
+		TEDSTABLEVIEWER_API UE::Editor::DataStorage::RowHandle GetWidgetRowHandle() const;
 
 	protected:
 		
@@ -76,6 +86,8 @@ namespace UE::Editor::DataStorage
 		void RefreshColumnWidgets();
 
 		void OnListSelectionChanged(TableViewerItemPtr Item, ESelectInfo::Type SelectInfo);
+
+		void CreateTedsWidget();
 
 	private:
 
@@ -90,5 +102,8 @@ namespace UE::Editor::DataStorage
 
 		// Delegate fired when the selection changes
 		FOnSelectionChanged OnSelectionChanged;
+
+		// Wrapper Teds Widget around our contents so we can use Teds columns to specify behavior
+		TSharedPtr<STedsWidget> TedsWidget;
 	};
-} // namespace UE::Editor::DataStorage
+}

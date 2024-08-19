@@ -33,13 +33,20 @@ public:
 	
 	SLATE_END_ARGS()
 	
-	STedsWidget();
+	TYPEDELEMENTFRAMEWORK_API STedsWidget();
 
-	void Construct( const FArguments& InArgs );
+	TYPEDELEMENTFRAMEWORK_API void Construct( const FArguments& InArgs );
 	
 	TYPEDELEMENTFRAMEWORK_API void SetContent(const TSharedRef< SWidget >& InContent);
 
+	TYPEDELEMENTFRAMEWORK_API TypedElementDataStorage::RowHandle GetRowHandle() const;
+
+private:
+
+	void RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget);
 	
+	static ITypedElementDataStorageInterface* GetStorageIfAvailable();
+
 private:
 	
     TypedElementDataStorage::RowHandle UiRowHandle;

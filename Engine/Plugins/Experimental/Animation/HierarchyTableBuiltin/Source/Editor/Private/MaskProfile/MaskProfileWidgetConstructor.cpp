@@ -5,7 +5,7 @@
 #include "MaskProfile/HierarchyTableTypeMask.h"
 #include "HierarchyTable.h"
 
-TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateWidget(FHierarchyTableEntryData* EntryData)
+TSharedRef<SWidget> FHierarchyTableMaskWidgetConstructor_Value::CreateInternalWidget(FHierarchyTableEntryData* EntryData)
 {
 	return SNew(SSpinBox<float>)
 		.IsEnabled_Lambda([EntryData]() { return EntryData->IsOverridden(); })
