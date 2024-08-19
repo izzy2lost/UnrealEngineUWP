@@ -987,10 +987,7 @@ private:
 	TArray<FMetasoundFrontendClassInputDefault> Defaults;
 
 public:
-#if WITH_EDITORONLY_DATA
 	FMetasoundFrontendLiteral& AddDefault(const FGuid& InPageID);
-#endif // WITH_EDITORONLY_DATA
-
 	bool ContainsDefault(const FGuid& InPageID) const;
 	const FMetasoundFrontendLiteral* FindConstDefault(const FGuid& InPageID) const;
 	const FMetasoundFrontendLiteral& FindConstDefaultChecked(const FGuid& InPageID) const;
@@ -1001,12 +998,9 @@ public:
 	void InitDefault(FMetasoundFrontendLiteral InitLiteral);
 	void IterateDefaults(TFunctionRef<void(const FGuid&, FMetasoundFrontendLiteral&)> IterFunc);
 	void IterateDefaults(TFunctionRef<void(const FGuid&, const FMetasoundFrontendLiteral&)> IterFunc) const;
-
-#if WITH_EDITORONLY_DATA
-	void RemoveAllDefaults();
 	bool RemoveDefault(const FGuid& InPageID);
+	void ResetDefaults();
 	void SetDefaults(TArray<FMetasoundFrontendClassInputDefault> InputDefaults);
-#endif // WITH_EDITORONLY_DATA
 };
 
 // Contains info for variable vertex of a Metasound class.
@@ -1738,12 +1732,14 @@ public:
 public:
 #if WITH_EDITORONLY_DATA
 	const FMetasoundFrontendGraph& AddGraphPage(const FGuid& InPageID, bool bDuplicateLastGraph = true, bool bSetAsBuildGraph = true);
-	void RemoveAllGraphPages();
 
 	// Removes the page associated with the given PageID.  Returns true if removed, false if not.
 	// If provided an "AdjacentPageID," sets the value at the given pointer to a page ID adjacent to
 	// the removed page. If last page was removed, returns the default graph ID.
 	bool RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID = nullptr);
+
+	// Removes all graph pages except the default.  If bClearDefaultPage is true, clears the default graph page implementation.
+	void ResetGraphPages(bool bClearDefaultGraph);
 #endif // WITH_EDITORONLY_DATA
 
 	bool ContainsGraphPage(const FGuid& InPageID) const;

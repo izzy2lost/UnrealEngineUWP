@@ -857,13 +857,15 @@ FMetasoundFrontendClassInput::FMetasoundFrontendClassInput(const Audio::FParamet
 #endif // WITH_EDITOR
 }
 
-#if WITH_EDITORONLY_DATA
 FMetasoundFrontendLiteral& FMetasoundFrontendClassInput::AddDefault(const FGuid& InPageID)
 {
+#if WITH_EDITORONLY_DATA
+	checkf(InPageID == Metasound::Frontend::DefaultPageID, TEXT("Non-default page mutation is not supported without editor data loaded."));
+#endif // WITH_EDITORONLY_DATA
+
 	checkf(!ContainsDefault(InPageID), TEXT("Page default with given ID already exists"));
 	return Defaults.Add_GetRef(FMetasoundFrontendClassInputDefault { InPageID }).Literal;
 }
-#endif // WITH_EDITORONLY_DATA
 
 bool FMetasoundFrontendClassInput::ContainsDefault(const FGuid& InPageID) const
 {
@@ -940,24 +942,37 @@ void FMetasoundFrontendClassInput::IterateDefaults(TFunctionRef<void(const FGuid
 	}
 }
 
-#if WITH_EDITORONLY_DATA
-void FMetasoundFrontendClassInput::RemoveAllDefaults()
-{
-	Defaults.Reset();
-}
-
 bool FMetasoundFrontendClassInput::RemoveDefault(const FGuid& InPageID)
 {
-	auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
-	return Defaults.RemoveAllSwap(IsPage) > 0;
+	if (InPageID != Metasound::Frontend::DefaultPageID)
+	{
+		auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+		return Defaults.RemoveAllSwap(IsPage) > 0;
+	}
+
+	return false;
+}
+
+void FMetasoundFrontendClassInput::ResetDefaults()
+{
+	using namespace Metasound::Frontend;
+
+	Defaults.Reset();
+	FMetasoundFrontendLiteral TypeDefault;
+	TypeDefault.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(TypeName));
+	InitDefault(MoveTemp(TypeDefault));
+	Defaults.Shrink();
 }
 
 void FMetasoundFrontendClassInput::SetDefaults(TArray<FMetasoundFrontendClassInputDefault> InputDefaults)
 {
+#if DO_CHECK
+	auto IsDefaultPageID = [](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == Metasound::Frontend::DefaultPageID; };
+	check(InputDefaults.ContainsByPredicate(IsDefaultPageID));
+#endif // DO_CHECK
+
 	Defaults = MoveTemp(InputDefaults);
 }
-
-#endif // WITH_EDITORONLY_DATA
 
 FMetasoundFrontendClassVariable::FMetasoundFrontendClassVariable(const FMetasoundFrontendClassVertex& InOther)
 	: FMetasoundFrontendClassVertex(InOther)
@@ -1034,11 +1049,6 @@ bool FMetasoundFrontendGraphClass::ContainsGraphPage(const FGuid& InPageID) cons
 }
 
 #if WITH_EDITORONLY_DATA
-void FMetasoundFrontendGraphClass::RemoveAllGraphPages()
-{
-	PagedGraphs.Empty();
-}
-
 bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid* OutAdjacentPageID)
 {
 	if (InPageID != FGuid())
@@ -1065,6 +1075,25 @@ bool FMetasoundFrontendGraphClass::RemoveGraphPage(const FGuid& InPageID, FGuid*
 	}
 
 	return false;
+}
+
+void FMetasoundFrontendGraphClass::ResetGraphPages(bool bClearDefaultGraph)
+{
+	PagedGraphs.RemoveAllSwap([](const FMetasoundFrontendGraph& Graph)
+	{
+		return Graph.PageID != Metasound::Frontend::DefaultPageID;
+	}, EAllowShrinking::Yes);
+
+	if (bClearDefaultGraph)
+	{
+		IterateGraphPages([](FMetasoundFrontendGraph& Graph)
+		{
+			Graph.Nodes.Empty();
+			Graph.Edges.Empty();
+			Graph.Variables.Empty();
+			Graph.Style = { };
+		});
+	}
 }
 #endif // WITH_EDITORONLY_DATA
 

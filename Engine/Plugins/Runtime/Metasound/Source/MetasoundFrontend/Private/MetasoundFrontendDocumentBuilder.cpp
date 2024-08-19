@@ -1351,20 +1351,30 @@ void FMetaSoundFrontendDocumentBuilder::ClearDocument(TSharedRef<Metasound::Fron
 	GraphClass.Interface.SetOutputStyle({ });
 #endif // WITH_EDITOR
 
-	GraphClass.PresetOptions.InputsInheritingDefault.Reset();
+	GraphClass.PresetOptions.InputsInheritingDefault.Empty();
 	GraphClass.PresetOptions.bIsPreset = false;
 
 	// Removing graph pages is not necessary when editor only data is not available as graph mutation
 	// is only supported in builds with editor data loaded. Otherwise, anything calling ClearDocument
 	// should only be a transient, non serialized asset graph which does not support page mutation.
 #if WITH_EDITORONLY_DATA
-	RemoveAllGraphPages();
+	constexpr bool bClearDefaultGraph = true;
+	ResetGraphPages(bClearDefaultGraph);
 #else // !WITH_EDITORONLY_DATA
 	UObject& DocObject = CastDocumentObjectChecked<UObject>();
 	checkf(!DocObject.IsAsset(), TEXT("Cannot call clear document on asset '%s': builder API does not support document mutation on serialized objects without editor data loaded"), *GetDebugName());
+
+	GraphClass.IterateGraphPages([] (FMetasoundFrontendGraph& Graph)
+	{
+		Graph.Nodes.Empty();
+		Graph.Edges.Empty();
+		Graph.Variables.Empty();
+	});
 #endif // !WITH_EDITORONLY_DATA
 
-	GraphClass.InitDefaultGraphPage();
+	GraphClass.Interface.Inputs.Empty();
+	GraphClass.Interface.Outputs.Empty();
+	GraphClass.Interface.Environment.Empty();
 
 	Doc.Interfaces.Empty();
 	Doc.Dependencies.Empty();
@@ -1811,6 +1821,15 @@ const FMetasoundFrontendNode* FMetaSoundFrontendDocumentBuilder::FindGraphOutput
 	}
 
 	return nullptr;
+}
+
+const FMetasoundFrontendVariable* FMetaSoundFrontendDocumentBuilder::FindGraphVariable(FName VariableName, const FGuid* InPageID) const
+{
+	const FGuid& PageID = InPageID ? *InPageID : BuildPageID;
+	const FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	const FMetasoundFrontendGraph& Graph = Document.RootGraph.FindConstGraphChecked(PageID);
+	auto MatchesName = [&VariableName](const FMetasoundFrontendVariable& Variable) { return Variable.Name == VariableName; };
+	return Graph.Variables.FindByPredicate(MatchesName);
 }
 
 #if WITH_EDITOR
@@ -2773,24 +2792,6 @@ void FMetaSoundFrontendDocumentBuilder::FinishBuilding()
 	DocumentCache.Reset();
 }
 
-#if WITH_EDITORONLY_DATA
-void FMetaSoundFrontendDocumentBuilder::RemoveAllGraphPages()
-{
-	using namespace Metasound;
-
-	FMetasoundFrontendGraphClass& RootGraph = GetDocumentChecked().RootGraph;
-	RootGraph.IterateGraphPages([this](FMetasoundFrontendGraph& Graph)
-	{
-		if (Graph.PageID != Frontend::DefaultPageID)
-		{
-			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Frontend::FDocumentMutatePageArgs { Graph.PageID });
-		}
-	});
-	RootGraph.RemoveAllGraphPages();
-	SetBuildPageID(Frontend::DefaultPageID);
-}
-#endif // WITH_EDITORONLY_DATA
-
 bool FMetaSoundFrontendDocumentBuilder::RemoveDependency(const FGuid& InClassID)
 {
 	using namespace Metasound::Frontend;
@@ -3271,7 +3272,6 @@ bool FMetaSoundFrontendDocumentBuilder::RemoveGraphPage(const FGuid& InPageID)
 		{
 			ensureAlwaysMsgf(SetBuildPageID(AdjacentPageID), TEXT("AdjacentPageID returned is always expected to be valid"));
 		}
-
 	}
 
 	return bPageRemoved;
@@ -3426,6 +3426,55 @@ void FMetaSoundFrontendDocumentBuilder::ReloadCache()
 	Reload(DocumentDelegates, true);
 }
 
+#if WITH_EDITORONLY_DATA
+bool FMetaSoundFrontendDocumentBuilder::ResetGraphInputDefault(FName InputName)
+{
+	using namespace Metasound;
+
+	auto NameMatchesInput = [&InputName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InputName; };
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	TArray<FMetasoundFrontendClassInput>& Inputs = Document.RootGraph.Interface.Inputs;
+
+	const int32 Index = Inputs.IndexOfByPredicate(NameMatchesInput);
+	if (Index != INDEX_NONE)
+	{
+		FMetasoundFrontendClassInput& Input = Inputs[Index];
+		Input.ResetDefaults();
+
+		DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
+
+		// Set the input as inheriting default for presets
+		if (IsPreset())
+		{
+			constexpr bool bInputInheritsDefault = true;
+			return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
+		}
+
+		Document.Metadata.ModifyContext.AddMemberIDModified(Input.NodeID);
+		return true;
+	}
+
+	return false;
+}
+
+void FMetaSoundFrontendDocumentBuilder::ResetGraphPages(bool bClearDefaultGraph)
+{
+	using namespace Metasound;
+
+	FMetasoundFrontendGraphClass& RootGraph = GetDocumentChecked().RootGraph;
+	RootGraph.IterateGraphPages([this](FMetasoundFrontendGraph& Graph)
+	{
+		if (Graph.PageID != Frontend::DefaultPageID)
+		{
+			DocumentDelegates->PageDelegates.OnRemovingPage.Broadcast(Frontend::FDocumentMutatePageArgs{ Graph.PageID });
+		}
+	});
+
+	RootGraph.ResetGraphPages(bClearDefaultGraph);
+	SetBuildPageID(Frontend::DefaultPageID);
+}
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 void FMetaSoundFrontendDocumentBuilder::SetAuthor(const FString& InAuthor)
 {
@@ -3556,6 +3605,7 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDataType(FName InputName, F
 			DefaultLiteral.SetFromLiteral(Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(DataType));
 			GraphInput.FindDefaultChecked(Frontend::DefaultPageID) = DefaultLiteral;
 			GraphInput.TypeName = DataType;
+			GraphInput.ResetDefaults();
 
 			RootGraph.IterateGraphPages([this, &DataType, &GraphInput](FMetasoundFrontendGraph& Graph)
 			{
@@ -3606,12 +3656,13 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDataType(FName InputName, F
 	return true;
 }
 
-bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral)
+bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID)
 {
 	using namespace Metasound;
 
 	auto NameMatchesInput = [&InputName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InputName; };
-	TArray<FMetasoundFrontendClassInput>& Inputs = GetDocumentChecked().RootGraph.Interface.Inputs;
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	TArray<FMetasoundFrontendClassInput>& Inputs = Document.RootGraph.Interface.Inputs;
 
 	const int32 Index = Inputs.IndexOfByPredicate(NameMatchesInput);
 	if (Index != INDEX_NONE)
@@ -3619,7 +3670,20 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, co
 		FMetasoundFrontendClassInput& Input = Inputs[Index];
 		if (Frontend::IDataTypeRegistry::Get().IsLiteralTypeSupported(Input.TypeName, InDefaultLiteral.GetType()))
 		{
-			Input.FindDefaultChecked(Frontend::DefaultPageID) = InDefaultLiteral;
+			const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+			bool bFound = false;
+			Input.IterateDefaults([&bFound, &PageID, &InDefaultLiteral](const FGuid& InputPageID, FMetasoundFrontendLiteral& InputLiteral)
+			{
+				if (!bFound && InputPageID == PageID)
+				{
+					bFound = true;
+					InputLiteral = MoveTemp(InDefaultLiteral);
+				}
+			});
+			if (!bFound)
+			{
+				Input.AddDefault(PageID) = MoveTemp(InDefaultLiteral);
+			}
 			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
 
 			// Set the input as no longer inheriting default for presets
@@ -3632,6 +3696,43 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefault(FName InputName, co
 			return true;
 		}
 		UE_LOG(LogMetaSound, Error, TEXT("Attempting to set graph input of type '%s' with unsupported literal type"), *Input.TypeName.ToString());
+	}
+
+	return false;
+}
+
+bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefaults(FName InputName, TArray<FMetasoundFrontendClassInputDefault> Defaults)
+{
+	using namespace Metasound;
+
+	auto NameMatchesInput = [&InputName](const FMetasoundFrontendClassInput& Input) { return Input.Name == InputName; };
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	TArray<FMetasoundFrontendClassInput>& Inputs = Document.RootGraph.Interface.Inputs;
+
+	const int32 Index = Inputs.IndexOfByPredicate(NameMatchesInput);
+	if (Index != INDEX_NONE)
+	{
+		FMetasoundFrontendClassInput& Input = Inputs[Index];
+		TSet<FGuid> ValidPageIDs;
+		bool bAllSupported = Algo::AllOf(Defaults, [&Input](const FMetasoundFrontendClassInputDefault& Default)
+		{
+			return Frontend::IDataTypeRegistry::Get().IsLiteralTypeSupported(Input.TypeName, Default.Literal.GetType());
+		});
+		if (bAllSupported)
+		{
+			Input.SetDefaults(MoveTemp(Defaults));
+			DocumentDelegates->InterfaceDelegates.OnInputDefaultChanged.Broadcast(Index);
+
+			// Set the input as no longer inheriting default for presets
+			if (IsPreset())
+			{
+				constexpr bool bInputInheritsDefault = false;
+				return SetGraphInputInheritsDefault(InputName, bInputInheritsDefault);
+			}
+
+			return true;
+		}
+		UE_LOG(LogMetaSound, Error, TEXT("Attempting to set graph input of type '%s' with unsupported literal type(s)"), *Input.TypeName.ToString());
 	}
 
 	return false;
@@ -3770,6 +3871,27 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphOutputDataType(FName OutputName,
 	}
 
 	return true;
+}
+
+bool FMetaSoundFrontendDocumentBuilder::SetGraphVariableDefault(FName VariableName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID)
+{
+	using namespace Metasound;
+
+	const FGuid PageID = InPageID ? *InPageID : Frontend::DefaultPageID;
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraph& Graph = Document.RootGraph.FindGraphChecked(PageID);
+
+	auto NameMatchesVariable = [&VariableName](const FMetasoundFrontendVariable& Variable) { return Variable.Name == VariableName; };
+	if (FMetasoundFrontendVariable* Variable = Graph.Variables.FindByPredicate(NameMatchesVariable))
+	{
+		if (Frontend::IDataTypeRegistry::Get().IsLiteralTypeSupported(Variable->TypeName, InDefaultLiteral.GetType()))
+		{
+			Variable->Literal = MoveTemp(InDefaultLiteral);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 #if WITH_EDITOR

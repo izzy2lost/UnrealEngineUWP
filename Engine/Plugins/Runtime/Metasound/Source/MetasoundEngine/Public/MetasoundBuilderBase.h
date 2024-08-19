@@ -338,10 +338,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder", meta = (ExpandEnumAsExecs = "OutResult"))
 	void ConvertToPreset(const TScriptInterface<IMetaSoundDocumentInterface>& ReferencedNodeClass, EMetaSoundBuilderResult& OutResult);
 
-
 #if WITH_EDITORONLY_DATA
-	// Removes all graph pages, leaving just the default.
-	void RemoveAllGraphPages();
+	// Removes all graph pages except the default.  If bClearDefaultPage is true, clears the default graph page implementation.
+	void ResetGraphPages(bool bClearDefaultPage);
 #endif // WITH_EDITORONLY_DATA
 
 	// Removes graph input if it exists; sets result to succeeded if it was removed and failed if it was not.
@@ -466,7 +465,7 @@ public:
 	const FMetaSoundFrontendDocumentBuilder& GetConstBuilder() const;
 	int32 GetLastTransactionRegistered() const;
 
-	// Resets FrontendBuilder instance, creating a transient MetaSound document that is internal to this UObject Builder.
+	// Resets FrontendBuilder instance, creating a transient MetaSound document that is managed by this UObject Builder.
 	void Initialize();
 
 protected:

@@ -943,9 +943,9 @@ void UMetaSoundBuilderBase::ReloadCache(bool bPrimeCache)
 }
 
 #if WITH_EDITORONLY_DATA
-void UMetaSoundBuilderBase::RemoveAllGraphPages()
+void UMetaSoundBuilderBase::ResetGraphPages(bool bClearDefaultGraph)
 {
-	Builder.RemoveAllGraphPages();
+	Builder.ResetGraphPages(bClearDefaultGraph);
 	Builder.RemoveUnusedDependencies();
 }
 #endif // WITH_EDITORONLY_DATA

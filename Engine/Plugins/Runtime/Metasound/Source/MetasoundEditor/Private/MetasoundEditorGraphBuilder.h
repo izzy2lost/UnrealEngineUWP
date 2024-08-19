@@ -192,10 +192,12 @@ namespace Metasound
 			// Disconnects pin's associated frontend vertex from any linked input
 			// or output nodes, and reflects change in the Frontend graph. Does *not*
 			// disconnect the EdGraph pins.
-			static void DisconnectPinVertex(UEdGraphPin& InPin, bool bAddLiteralInputs = true);
+			static void DisconnectPinVertex(UEdGraphPin& InPin);
 
 			// Generates a unique output name for the given MetaSound object
 			static FName GenerateUniqueNameByClassType(UObject& InMetaSound, EMetasoundFrontendClassType InClassType, const FString& InBaseName);
+
+			static UMetaSoundBuilderBase& GetBuilderFromPinChecked(const UEdGraphPin& InPin);
 
 			static TArray<FString> GetDataTypeNameCategories(const FName& InDataTypeName);
 
@@ -287,7 +289,7 @@ namespace Metasound
 			static bool SynchronizeConnections(const FMetaSoundFrontendDocumentBuilder& InBuilder, UMetasoundEditorGraph& OutGraph);
 
 			// Synchronizes literal for a given input with the EdGraph's pin value.
-			static bool SynchronizePinLiteral(UEdGraphPin& InPin);
+			static bool SynchronizePinLiteral(const FMetaSoundFrontendDocumentBuilder& InBuilder, UEdGraphPin& InPin);
 
 			// Synchronizes pin type for a given pin with that registered with the MetaSound editor module provided.
 			static bool SynchronizePinType(const IMetasoundEditorModule& InEditorModule, UEdGraphPin& InPin, const FName InDataType);

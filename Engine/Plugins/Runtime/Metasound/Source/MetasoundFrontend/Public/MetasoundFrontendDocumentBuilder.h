@@ -229,6 +229,8 @@ public:
 	const FMetasoundFrontendClassOutput* FindGraphOutput(FName OutputName) const;
 	const FMetasoundFrontendNode* FindGraphOutputNode(FName OutputName, const FGuid* InPageID = nullptr) const;
 
+	const FMetasoundFrontendVariable* FindGraphVariable(FName InVariableName, const FGuid* InPageID = nullptr) const;
+
 	bool FindInterfaceInputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutInputs, const FGuid* InPageID = nullptr) const;
 	bool FindInterfaceOutputNodes(FName InterfaceName, TArray<const FMetasoundFrontendNode*>& OutOutputs, const FGuid* InPageID = nullptr) const;
 
@@ -295,9 +297,11 @@ public:
 	int32 GetTransactionCount() const;
 
 	TArray<const FMetasoundFrontendNode*> GetGraphInputTemplateNodes(FName InInputName, const FGuid* InPageID = nullptr);
+
 	EMetasoundFrontendVertexAccessType GetNodeInputAccessType(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr) const;
 	const FMetasoundFrontendLiteral* GetNodeInputClassDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr) const;
 	const FMetasoundFrontendLiteral* GetNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr) const;
+
 	EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr) const;
 
 	// Initializes the builder's document, using the (optional) provided document template, (optional) class name, and (optionally) whether or not to reset the existing class version.
@@ -331,10 +335,6 @@ public:
 	void IterateNodesByClassType(Metasound::Frontend::FConstClassAndNodeFunctionRef Func, EMetasoundFrontendClassType ClassType, const FGuid* InPageID = nullptr) const;
 
 	bool ModifyInterfaces(Metasound::Frontend::FModifyInterfaceOptions&& InOptions);
-
-#if WITH_EDITORONLY_DATA
-	void RemoveAllGraphPages();
-#endif // WITH_EDITORONLY_DATA
 
 	UE_DEPRECATED(5.5,
 		"Cache invalidation may require new copy of delegates. In addition, re-priming is discouraged. "
@@ -379,6 +379,13 @@ public:
 	UE_DEPRECATED(5.5, "Use GenerateNewClassName instead")
 	bool RenameRootGraphClass(const FMetasoundFrontendClassName& InName);
 
+#if WITH_EDITORONLY_DATA
+	bool ResetGraphInputDefault(FName InputName);
+
+	// Removes all graph pages except the default.  If bClearDefaultPage is true, clears the default graph page implementation.
+	void ResetGraphPages(bool bClearDefaultGraph);
+#endif // WITH_EDITORONLY_DATA
+
 #if WITH_EDITOR
 	void SetAuthor(const FString& InAuthor);
 
@@ -403,7 +410,8 @@ public:
 	// already the given DataType.
 	bool SetGraphInputDataType(FName InputName, FName DataType);
 
-	bool SetGraphInputDefault(FName InputName, const FMetasoundFrontendLiteral& InDefaultLiteral);
+	bool SetGraphInputDefault(FName InputName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID = nullptr);
+	bool SetGraphInputDefaults(FName InputName, TArray<FMetasoundFrontendClassInputDefault> Defaults);
 
 	// Sets the given graph output's access type. If connected to other nodes and access type is not compatible,
 	// associated edges/connections are removed.  Returns true if either DataType was successfully set to new
@@ -414,6 +422,9 @@ public:
 	// are removed.  Returns true if either DataType was successfully set to new value or if DataType is
 	// already the given DataType.
 	bool SetGraphOutputDataType(FName OutputName, FName DataType);
+
+	// Sets the given graph variable's default.
+	bool SetGraphVariableDefault(FName VariableName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID = nullptr);
 
 #if WITH_EDITOR
 	void SetDisplayName(const FText& InDisplayName);

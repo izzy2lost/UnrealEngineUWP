@@ -432,17 +432,19 @@ namespace Metasound::Editor
 					using namespace Frontend;
 					UObject& MetaSound = GetMetaSound();
 
-					const FScopedTransaction Transaction(LOCTEXT("RemoveAllPagesTransaction", "Remove All MetaSound Pages"));
+					const FScopedTransaction Transaction(LOCTEXT("ResetPagesTransaction", "Reset MetaSound Pages"));
 					MetaSound.Modify();
+
+					constexpr bool bClearDefaultGraph = false;
 
 					// Underlying DocBuilder's pageID is a property that is tracked by transaction stack, so signal as modifying behavior
 					Builder->Modify();
-					Builder->RemoveAllGraphPages();
+					Builder->ResetGraphPages(bClearDefaultGraph);
 
 					UpdateItemNames();
 					ComboBox->RefreshOptions();
 					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
-				}), LOCTEXT("RemoveImplementablePagesTooltip1", "Removes all pages from the given MetaSound."))
+				}), LOCTEXT("ResetPagesTooltip1", "Removes all pages from the given MetaSound less the default."))
 			];
 
 		Utilities->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));

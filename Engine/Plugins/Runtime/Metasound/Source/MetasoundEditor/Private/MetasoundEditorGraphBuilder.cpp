@@ -653,6 +653,13 @@ namespace Metasound
 			return Results;
 		}
 
+		UMetaSoundBuilderBase& FGraphBuilder::GetBuilderFromPinChecked(const UEdGraphPin& InPin)
+		{
+			const UMetasoundEditorGraphNode* Node = CastChecked<UMetasoundEditorGraphNode>(InPin.GetOwningNode());
+			check(Node);
+			return Node->GetBuilderChecked();
+		}
+
 		TArray<FString> FGraphBuilder::GetDataTypeNameCategories(const FName& InDataTypeName)
 		{
 			FString CategoryString = InDataTypeName.ToString();
@@ -1202,14 +1209,21 @@ namespace Metasound
 
 			IMetasoundEditorModule& EditorModule = FModuleManager::GetModuleChecked<IMetasoundEditorModule>("MetaSoundEditor");
 
-			FConstInputHandle InputHandle = GetConstInputHandleFromPin(&InInputPin);
-			if (!ensure(InputHandle->IsValid()))
+			const FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderFromPinChecked(InInputPin).GetConstBuilder();
+			FMetasoundFrontendVertexHandle InputHandle = GetPinVertexHandle(Builder, &InInputPin);
+			if (!ensure(InputHandle.IsSet()))
+			{
+				return false;
+			}
+
+			const FMetasoundFrontendVertex* Vertex = GetPinVertex(Builder, &InInputPin);
+			if (!ensure(Vertex))
 			{
 				return false;
 			}
 
 			const FString& InStringValue = InInputPin.DefaultValue;
-			const FName TypeName = InputHandle->GetDataType();
+			const FName TypeName = Vertex->TypeName;
 
 			FDataTypeRegistryInfo DataTypeInfo;
 			IDataTypeRegistry::Get().GetDataTypeInfo(TypeName, DataTypeInfo);
@@ -1287,15 +1301,29 @@ namespace Metasound
 						// However, if the class default literal is set to an object, the literal should be set to a valid, null object.
 						// This is used for reset to default behavior, where an valid object literal with a null value is a separate case
 						// from an inherited cleared default literal. 
-						const FMetasoundFrontendLiteral* ClassDefaultLiteral = InputHandle->GetClassDefaultLiteral();
-						if (ClassDefaultLiteral && ClassDefaultLiteral->GetType() == EMetasoundFrontendLiteralType::None)
+						const TArray<FMetasoundFrontendClassInputDefault>* ClassInputDefaults = Builder.FindNodeClassInputDefaults(InputHandle.NodeID, Vertex->Name);
+						if (ClassInputDefaults)
 						{
-							OutDefaultLiteral.Clear();	
+							FGuid PageID;
+							if (Engine::FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassInputDefaults, PageID))
+							{
+								auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return PageID == InputDefault.PageID; };
+								if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassInputDefaults->FindByPredicate(MatchesPageID))
+								{
+									if (ClassDefault->Literal.GetType() == EMetasoundFrontendLiteralType::None)
+									{
+										OutDefaultLiteral.Clear();
+									}
+									else
+									{
+										OutDefaultLiteral = ClassDefault->Literal;
+									}
+								}
+							}
+							return true;
 						}
-						else
-						{
-							OutDefaultLiteral.Set(static_cast<UObject*>(nullptr));
-						}
+
+						OutDefaultLiteral.Set(static_cast<UObject*>(nullptr));
 					}
 				}
 				break;
@@ -1545,65 +1573,21 @@ namespace Metasound
 			return true;
 		}
 
-		void FGraphBuilder::DisconnectPinVertex(UEdGraphPin& InPin, bool bAddLiteralInputs)
+		void FGraphBuilder::DisconnectPinVertex(UEdGraphPin& InPin)
 		{
-			using namespace Editor;
-			using namespace Frontend;
-
-			TArray<FInputHandle> InputHandles;
-			TArray<UEdGraphPin*> InputPins;
-
-			UMetasoundEditorGraphNode* Node = CastChecked<UMetasoundEditorGraphNode>(InPin.GetOwningNode());
-
-			if (InPin.Direction == EGPD_Input)
+			FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderFromPinChecked(InPin).GetBuilder();
+			const FMetasoundFrontendVertexHandle VertexHandle = GetPinVertexHandle(Builder, &InPin);
+			if (VertexHandle.IsSet())
 			{
-				const FName PinName = InPin.GetFName();
-
-				FNodeHandle NodeHandle = Node->GetNodeHandle();
-				FInputHandle InputHandle = NodeHandle->GetInputWithVertexName(PinName);
-
-				// Input can be invalid if renaming a vertex member
-				if (InputHandle->IsValid())
+				if (InPin.Direction == EGPD_Input)
 				{
-					InputHandles.Add(InputHandle);
-					InputPins.Add(&InPin);
+					Builder.RemoveEdgeToNodeInput(VertexHandle.NodeID, VertexHandle.VertexID);
+				}
+				else
+				{
+					Builder.RemoveEdgesFromNodeOutput(VertexHandle.NodeID, VertexHandle.VertexID);
 				}
 			}
-			else
-			{
-				check(InPin.Direction == EGPD_Output);
-				for (UEdGraphPin* Pin : InPin.LinkedTo)
-				{
-					check(Pin);
-					FNodeHandle NodeHandle = CastChecked<UMetasoundEditorGraphNode>(Pin->GetOwningNode())->GetNodeHandle();
-					FInputHandle InputHandle = NodeHandle->GetInputWithVertexName(Pin->GetFName());
-
-					// Input can be invalid if renaming a vertex member
-					if (InputHandle->IsValid())
-					{
-						InputHandles.Add(InputHandle);
-						InputPins.Add(Pin);
-					}
-				}
-			}
-
-			for (int32 i = 0; i < InputHandles.Num(); ++i)
-			{
-				FInputHandle InputHandle = InputHandles[i];
-				FConstOutputHandle OutputHandle = InputHandle->GetConnectedOutput();
-
-				InputHandle->Disconnect();
-
-				if (bAddLiteralInputs)
-				{
-					FNodeHandle NodeHandle = InputHandle->GetOwningNode();
-					SynchronizePinLiteral(*InputPins[i]);
-				}
-			}
-
-			UObject& MetaSound = Node->GetMetasoundChecked();
-			FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(&MetaSound);
-			MetaSoundAsset->GetModifyContext().SetDocumentModified();
 		}
 
 		bool FGraphBuilder::DeleteMemberNodes(const UMetasoundEditorGraphMember& InGraphMember)
@@ -1886,7 +1870,8 @@ namespace Metasound
 			if (ensure(NewPin))
 			{
 				RefreshPinMetadata(*NewPin, InInputHandle->GetMetadata());
-				SynchronizePinLiteral(*NewPin);
+				const FMetaSoundFrontendDocumentBuilder& Builder = InEditorNode.GetBuilderChecked().GetConstBuilder();
+				SynchronizePinLiteral(Builder, *NewPin);
 			}
 
 			return NewPin;
@@ -2139,7 +2124,7 @@ namespace Metasound
 						}
 					}
 
-					SynchronizePinLiteral(*MatchingPin);
+					SynchronizePinLiteral(InBuilder, *MatchingPin);
 				}
 
 				// Handle node outputs to break connections for the case 
@@ -2637,8 +2622,9 @@ namespace Metasound
 			return bIsNodeDirty;
 		}
 
-		bool FGraphBuilder::SynchronizePinLiteral(UEdGraphPin& InPin)
+		bool FGraphBuilder::SynchronizePinLiteral(const FMetaSoundFrontendDocumentBuilder& InBuilder, UEdGraphPin& InPin)
 		{
+			using namespace Engine;
 			using namespace Frontend;
 
 			if (!ensure(InPin.Direction == EGPD_Input))
@@ -2648,21 +2634,38 @@ namespace Metasound
 
 			const FString OldValue = InPin.DefaultValue;
 
-			FConstInputHandle InputHandle = GetConstInputHandleFromPin(&InPin);
-			if (const FMetasoundFrontendLiteral* NodeDefaultLiteral = InputHandle->GetLiteral())
+			const FMetasoundFrontendVertex* InputVertex = GetPinVertex(InBuilder, &InPin);
+			if (!ensure(InputVertex))
 			{
-				InPin.DefaultValue = NodeDefaultLiteral->ToString();
+				return false;
+			}
+
+			FMetasoundFrontendVertexHandle InputHandle = GetPinVertexHandle(InBuilder, &InPin);
+			check(InputHandle.IsSet());
+
+			if (const FMetasoundFrontendVertexLiteral* VertexLiteral = InBuilder.FindNodeInputDefault(InputHandle.NodeID, InputVertex->Name))
+			{
+				InPin.DefaultValue = VertexLiteral->Value.ToString();
 				return OldValue != InPin.DefaultValue;
 			}
 
-			if (const FMetasoundFrontendLiteral* ClassDefaultLiteral = InputHandle->GetClassDefaultLiteral())
+			const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = InBuilder.FindNodeClassInputDefaults(InputHandle.NodeID, InputVertex->Name);
+			if (ClassDefaults)
 			{
-				InPin.DefaultValue = ClassDefaultLiteral->ToString();
-				return OldValue != InPin.DefaultValue;
+				FGuid PageID;
+				if (Engine::FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassDefaults, PageID))
+				{
+					auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
+					if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
+					{
+						InPin.DefaultValue = ClassDefault->Literal.ToString();
+						return OldValue != InPin.DefaultValue;
+					}
+				}
 			}
 
 			FMetasoundFrontendLiteral DefaultLiteral;
-			DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(InputHandle->GetDataType()));
+			DefaultLiteral.SetFromLiteral(IDataTypeRegistry::Get().CreateDefaultLiteral(InputVertex->TypeName));
 
 			InPin.DefaultValue = DefaultLiteral.ToString();
 			return OldValue != InPin.DefaultValue;

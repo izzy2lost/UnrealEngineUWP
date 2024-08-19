@@ -676,20 +676,16 @@ void UMetasoundEditorGraphNode::PostEditUndo()
 
 	UEdGraphPin::ResolveAllPinReferences();
 
-	// This can trigger and the handle is no longer valid if transaction
-	// is being undone on a graph node that is orphaned.  If orphaned,
-	// bail early.
-	FConstNodeHandle NodeHandle = GetConstNodeHandle();
-	if (!NodeHandle->IsValid())
+	// Test for frontend node existence safely as it can no longer be so after rolling transactions back or forward.
+	const FMetaSoundFrontendDocumentBuilder& Builder = GetBuilderChecked().GetConstBuilder();
+	if (const FMetasoundFrontendNode* FrontendNode = Builder.FindNode(GetNodeID()))
 	{
-		return;
-	}
-
-	for (UEdGraphPin* Pin : Pins)
-	{
-		if (Pin && Pin->Direction == EGPD_Input)
+		for (UEdGraphPin* Pin : Pins)
 		{
-			FGraphBuilder::SynchronizePinLiteral(*Pin);
+			if (Pin && Pin->Direction == EGPD_Input)
+			{
+				FGraphBuilder::SynchronizePinLiteral(Builder, *Pin);
+			}
 		}
 	}
 }
