@@ -64,7 +64,10 @@ public:
 
 	void MakePersistent() const
 	{
-		bTransientFlag = false;
+		UE_AUTORTFM_ONCOMMIT2(this)
+		{
+			bTransientFlag = false;
+		};
 	}
 
 private:

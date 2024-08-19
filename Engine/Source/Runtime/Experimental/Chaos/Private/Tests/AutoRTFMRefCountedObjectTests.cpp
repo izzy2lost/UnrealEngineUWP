@@ -49,6 +49,17 @@ bool FAutoRTFMChaosRefCountedObject::RunTest(const FString& Parameters)
 			});
 	}
 
+	// It is safe to make an object persistent inside of a transaction.
+	{
+		auto PersistentObject = MakeUnique<Chaos::FChaosRefCountedObject>();
+		AutoRTFM::Transact([&]
+			{
+				PersistentObject->MakePersistent();
+				PersistentObject->AddRef();
+				PersistentObject->Release();
+			});
+	}
+
 	return true;
 }
 
