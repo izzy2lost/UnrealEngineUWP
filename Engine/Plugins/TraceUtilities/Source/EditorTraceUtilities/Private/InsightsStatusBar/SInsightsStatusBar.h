@@ -126,7 +126,17 @@ private:
 
 	bool TraceBookmark_CanExecute();
 	void TraceBookmark_Execute();
+	
+	bool bIsRegionActive = false;
+	FText GetTraceRegionName();
+	FText TraceRegionName = FText();
+	FText GetTraceRegionNameDesc();
 
+	void ToggleRegion_Execute();
+	bool RegionIsActive();
+	FText GetRegionSwitchLabelText();
+	FText GetRegionSwitchDescText();
+	
 	void PopulateRecentTracesList();
 
 	void OpenTrace(int32 Index);
@@ -140,6 +150,7 @@ private:
 	static const TCHAR* SettingsCategory;
 	static const TCHAR* OpenLiveSessionOnTraceStartSettingName;
 	static const TCHAR* OpenInsightsAfterTraceSettingName;
+	static const TCHAR* TraceRegionSettingName;
 	static const TCHAR* ShowInExplorerAfterTraceSettingName;
 
 	bool bIsTraceRecordButtonHovered = false;

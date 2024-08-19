@@ -49,6 +49,9 @@ public:
 		Set("Icons.PauseTrace.Menu", new IMAGE_BRUSH_SVG("Pause_16", Icon16x16));
 		Set("Icons.ResumeTrace.Menu", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16));
 
+		Set("Icons.BeginRegion.Menu", new CORE_IMAGE_BRUSH_SVG("Starship/Common/play", Icon16x16));
+		Set("Icons.EndRegion.Menu", new CORE_IMAGE_BRUSH_SVG("Starship/Common/stop", Icon16x16));
+
 		FSlateStyleRegistry::RegisterSlateStyle(*this);
 	}
 
