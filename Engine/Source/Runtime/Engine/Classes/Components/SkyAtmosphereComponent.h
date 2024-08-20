@@ -291,6 +291,12 @@ protected:
 	// When true, this means that this SkyAtmosphere is use as replacement for the deprecated AtmosphericFogComponent as a parent class. 
 	// This is used to adapt the serialisation.
 	bool bIsAtmosphericFog = false;
+	
+	/**
+	 * Sets a dummy, known static lighting GUID to avoid cook non-determinism
+	 * when a map contains the deprecated AtmosphericFogComponent.
+	 */
+	void SetDummyStaticLightingGUIDs();
 };
 
 

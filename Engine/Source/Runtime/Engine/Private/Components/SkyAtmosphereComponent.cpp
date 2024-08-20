@@ -206,6 +206,12 @@ void USkyAtmosphereComponent::UpdateStaticLightingGUIDs()
 	bStaticLightingBuiltGUID = FGuid::NewGuid();
 }
 
+void USkyAtmosphereComponent::SetDummyStaticLightingGUIDs()
+{
+	// Dummy GUID just to make sure the value is initialized and not random.
+	bStaticLightingBuiltGUID = FGuid(1, 0, 0, 0);
+}
+
 #if WITH_EDITOR
 
 void USkyAtmosphereComponent::CheckForErrors()
@@ -260,7 +266,7 @@ void USkyAtmosphereComponent::PostEditChangeProperty(FPropertyChangedEvent& Prop
 	{
 		if (SkyAtmosphereComponentStaticLightingBuilt(this))
 		{
-			// If we have changed an atmosphere property and the lighyting has already been built, we need to ask for a rebuild by updating the static lighting GUIDs.
+			// If we have changed an atmosphere property and the lighting has already been built, we need to ask for a rebuild by updating the static lighting GUIDs.
 			UpdateStaticLightingGUIDs();
 		}
 
