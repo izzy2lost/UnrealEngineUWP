@@ -148,8 +148,12 @@ DECLARE_DELEGATE_RetVal_TwoParams(EDataValidationResult, FValidateSourcePackage,
 struct FDelegates
 {
 public:
+	UE_DEPRECATED(5.5, "Use CookStarted, possibly restricting to the case CookInfo.GetCookType() == ECookType::ByTheBook.")
 	static COREUOBJECT_API FCookInfoEvent CookByTheBookStarted;
+	UE_DEPRECATED(5.5, "Use CookFinished, possibly restricting to the case CookInfo.GetCookType() == ECookType::ByTheBook.")
 	static COREUOBJECT_API FCookInfoEvent CookByTheBookFinished;
+	static COREUOBJECT_API FCookInfoEvent CookStarted;
+	static COREUOBJECT_API FCookInfoEvent CookFinished;
 	static COREUOBJECT_API FValidateSourcePackage ValidateSourcePackage;
 };
 

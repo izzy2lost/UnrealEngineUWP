@@ -45,8 +45,12 @@ FString FInstigator::ToString() const
 	return FString(Result);
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS;
 FCookInfoEvent FDelegates::CookByTheBookStarted;
 FCookInfoEvent FDelegates::CookByTheBookFinished;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+FCookInfoEvent FDelegates::CookStarted;
+FCookInfoEvent FDelegates::CookFinished;
 FValidateSourcePackage FDelegates::ValidateSourcePackage;
 
 }

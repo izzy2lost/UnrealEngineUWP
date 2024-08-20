@@ -10702,14 +10702,18 @@ void UCookOnTheFlyServer::ShutdownCookSession()
 		OutputHierarchyTimers();
 		PrintDetailedCookStats();
 
-		// BroadcastCookByTheBookFinished needs to be called before clearing the session data, so that subscribers
+		// BroadcastCookFinished needs to be called before clearing the session data, so that subscribers
 		// can access information about the session such as DLCName.
-		BroadcastCookByTheBookFinished();
+		BroadcastCookFinished();
+	}
+	else if (IsCookOnTheFlyMode())
+	{
+		BroadcastCookFinished();
 	}
 	else if (CookWorkerClient)
 	{
 		CookAsCookWorkerFinished();
-		// CookAsCookWorkerFinished is responsible for calling BroadcastCookByTheBookFinished.
+		// CookAsCookWorkerFinished is responsible for calling BroadcastCookFinished.
 	}
 
 	CookByTheBookOptions->ClearSessionData();
@@ -11714,7 +11718,7 @@ void UCookOnTheFlyServer::StartCookByTheBook( const FCookByTheBookStartupOptions
 	RecordDLCPackagesFromBaseGame(BeginContext);
 	RegisterCookByTheBookDelegates();
 
-	BroadcastCookByTheBookStarted();
+	BroadcastCookStarted();
 }
 
 const UCookOnTheFlyServer::FCookByTheBookStartupOptions& UCookOnTheFlyServer::BlockOnPrebootCookGate(bool& bOutAbortCook,
@@ -11891,8 +11895,8 @@ void UCookOnTheFlyServer::StartCookAsCookWorker()
 	{
 		RegisterCookByTheBookDelegates();
 		BeginCookFinishShaderCodeLibrary(BeginContext);
-		BroadcastCookByTheBookStarted();
 	}
+	BroadcastCookStarted();
 }
 
 void UCookOnTheFlyServer::LogCookWorkerStats()
@@ -11933,10 +11937,7 @@ void UCookOnTheFlyServer::CookAsCookWorkerFinished()
 		GShaderCompilingManager->SetAllowForIncompleteShaderMaps(false);
 	}
 	LogCookWorkerStats();
-	if (IsDirectorCookByTheBook())
-	{
-		BroadcastCookByTheBookFinished();
-	}
+	BroadcastCookFinished();
 	CookWorkerClient->FlushLogs();
 }
 
@@ -13718,18 +13719,22 @@ void ConditionalWaitOnCommandFile(FStringView GateName, TFunctionRef<void (FStri
 	CommandHandler(CommandContents);
 }
 
-void UCookOnTheFlyServer::BroadcastCookByTheBookStarted()
+void UCookOnTheFlyServer::BroadcastCookStarted()
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	CookByTheBookStartedEvent.Broadcast();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
+	if (IsDirectorCookByTheBook())
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		CookByTheBookStartedEvent.Broadcast();
+		UE::Cook::FDelegates::CookByTheBookStarted.Broadcast(*this);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	}
+	UE::Cook::FDelegates::CookStarted.Broadcast(*this);
 #if ENABLE_LOW_LEVEL_MEM_TRACKER
 	FLowLevelMemTracker::Get().UpdateStatsPerFrame();
 #endif
 
 	// Register collectors used internally by CookOnTheFlyServer.
-	// External systems would do this during CookByTheBookStarted.Broadcast
+	// External systems would do this during CookStarted.Broadcast
 	if (GetProcessType() != UE::Cook::EProcessType::SingleProcess)
 	{
 #if UE_WITH_CONFIG_TRACKING
@@ -13739,7 +13744,7 @@ void UCookOnTheFlyServer::BroadcastCookByTheBookStarted()
 	}
 }
 
-void UCookOnTheFlyServer::BroadcastCookByTheBookFinished()
+void UCookOnTheFlyServer::BroadcastCookFinished()
 {
 	// Unregister collectors used internally by CookOnTheFlyServer.
 	if (GetProcessType() != UE::Cook::EProcessType::SingleProcess)
@@ -13750,10 +13755,14 @@ void UCookOnTheFlyServer::BroadcastCookByTheBookFinished()
 #endif
 	}
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS;
-	CookByTheBookFinishedEvent.Broadcast();
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS;
-	UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
+	if (IsDirectorCookByTheBook())
+	{
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS;
+		CookByTheBookFinishedEvent.Broadcast();
+		UE::Cook::FDelegates::CookByTheBookFinished.Broadcast(*this);
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS;
+	}
+	UE::Cook::FDelegates::CookFinished.Broadcast(*this);
 }
 
 #undef LOCTEXT_NAMESPACE

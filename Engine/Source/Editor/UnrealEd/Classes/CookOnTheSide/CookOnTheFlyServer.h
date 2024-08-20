@@ -867,11 +867,11 @@ public:
 	UNREALED_API void OnObjectSaved( UObject *ObjectSaved, FObjectPreSaveContext SaveContext );
 
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookStarted);
-	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookStarted (CoreUObject/Public/UObject/ICookInfo.h.")
+	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookStarted, possibly restricting to the case CookInfo.GetCookType() == ECookType::ByTheBook (see CoreUObject/Public/UObject/ICookInfo.h).")
 	static FOnCookByTheBookStarted& OnCookByTheBookStarted() { return CookByTheBookStartedEvent; };
 
 	DECLARE_MULTICAST_DELEGATE(FOnCookByTheBookFinished);
-	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookByTheBookFinished (CoreUObject/Public/UObject/ICookInfo.h.")
+	UE_DEPRECATED(5.4, "Use UE::Cook::FDelegates::CookFinished, possibly restricting to the case CookInfo.GetCookType() == ECookType::ByTheBook (see CoreUObject/Public/UObject/ICookInfo.h).")
 	static FOnCookByTheBookFinished& OnCookByTheBookFinished() { return CookByTheBookFinishedEvent; };
 	/**
 	* Marks a package as dirty for cook
@@ -1456,8 +1456,8 @@ private:
 	void OnObjectHandleReadDebug(const TArrayView<const UObject*const>& ReadObjects);
 	/** Send warnings/telemetry when a discovered or read package is found to be a hidden dependency. */
 	void ReportHiddenDependency(FName Referencer, FName Dependency);
-	void BroadcastCookByTheBookStarted();
-	void BroadcastCookByTheBookFinished();
+	void BroadcastCookStarted();
+	void BroadcastCookFinished();
 
 	static UCookOnTheFlyServer* ActiveCOTFS;
 	uint32		StatLoadedPackageCount = 0;

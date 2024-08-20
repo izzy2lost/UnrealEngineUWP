@@ -663,8 +663,12 @@ void FEditorTelemetry::StartSession()
 			
 			if (GUnrealEd!=nullptr && GUnrealEd->CookServer != nullptr )
 			{
-				UE::Cook::FDelegates::CookByTheBookFinished.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
+				UE::Cook::FDelegates::CookFinished.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
 					{
+						if (CookInfo.GetCookType() != UE::Cook::ECookType::ByTheBook)
+						{
+							return;
+						}
 						TArray<FAnalyticsEventAttribute> Attributes;
 						Attributes.Emplace(TEXT("MapName"), EditorMapName);
 						
@@ -801,8 +805,12 @@ void FEditorTelemetry::StartSession()
 
 	
 	// Install Cooking Callbacks
-	UE::Cook::FDelegates::CookByTheBookStarted.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
+	UE::Cook::FDelegates::CookStarted.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
 	{
+		if (CookInfo.GetCookType() != UE::Cook::ECookType::ByTheBook)
+		{
+			return;
+		}
 		// Begin the cooking span	
 		CookingSpan = FStudioTelemetry::Get().StartSpan(TEXT("Cooking"));
 
@@ -812,8 +820,12 @@ void FEditorTelemetry::StartSession()
 		CookingSpan->AddAttributes(Attributes);
 	});
 
-	UE::Cook::FDelegates::CookByTheBookFinished.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
+	UE::Cook::FDelegates::CookFinished.AddLambda([this](UE::Cook::ICookInfo& CookInfo)
 	{
+		if (CookInfo.GetCookType() != UE::Cook::ECookType::ByTheBook)
+		{
+			return;
+		}
 		// End the cooking span
 	
 		// Suppress sending telemetry from CookWorkers for now.
