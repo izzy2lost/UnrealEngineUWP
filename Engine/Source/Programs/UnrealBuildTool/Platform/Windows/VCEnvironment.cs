@@ -152,6 +152,7 @@ namespace UnrealBuildTool
 			// Add the compiler path and directory as environment variables for the process so they may be used elsewhere.
 			Environment.SetEnvironmentVariable("VC_COMPILER_PATH", CompilerPath.FullName, EnvironmentVariableTarget.Process);
 			Environment.SetEnvironmentVariable("VC_COMPILER_DIR", CompilerPath.Directory.FullName, EnvironmentVariableTarget.Process);
+			Environment.SetEnvironmentVariable("VC_TOOLCHAIN_DIR", ToolchainCompilerPath.Directory.FullName, EnvironmentVariableTarget.Process);
 
 			DirectoryReference.AddDirectoryToPath(GetVCToolPath(ToolChainDir, Architecture));
 			if (Architecture == UnrealArch.Arm64)
