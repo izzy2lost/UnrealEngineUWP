@@ -282,7 +282,12 @@ public:
 
 	virtual bool ShouldUseSeparateSkinCacheEntryForRayTracing() const { return GetLOD() != GetRayTracingLOD() || SkinCacheEntry == nullptr; }
 	virtual FGPUSkinCacheEntry* GetSkinCacheEntryForRayTracing() const { return ShouldUseSeparateSkinCacheEntryForRayTracing() ? SkinCacheEntryForRayTracing : SkinCacheEntry; }
+
+	/** Request ray tracing geometry to be updated with specified LOD Vertex Buffers */
 	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers) {}
+
+	/** Queue ray tracing geometry update if pending */
+	virtual void QueuePendingRayTracingGeometryUpdate(FRHICommandListBase& RHICmdList) {}
 
 #endif // RHI_RAYTRACING
 
@@ -339,6 +344,7 @@ public:
 #if RHI_RAYTRACING
 	bool bSupportRayTracing;
 	bool bHiddenMaterialVisibilityDirtyForRayTracing;
+	bool bRayTracingGeometryRequiresUpdate;
 	int32 RayTracingMinLOD;
 #endif
 
