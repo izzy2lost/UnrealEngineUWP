@@ -213,4 +213,7 @@ protected:
 
 	/** Stores modifiers providers per world/level, there should be only one provider per level */
 	TMap<TWeakObjectPtr<const ULevel>, TWeakObjectPtr<AActorModifierCoreSharedActor>> ModifierSharedProviders;
+
+	/** Asset Registry files loaded */
+	bool bFilesLoaded = false;
 };
