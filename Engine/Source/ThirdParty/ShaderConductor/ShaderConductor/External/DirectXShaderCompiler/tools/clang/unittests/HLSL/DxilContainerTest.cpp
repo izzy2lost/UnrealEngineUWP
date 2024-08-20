@@ -1298,7 +1298,7 @@ TEST_F(DxilContainerTest, Compile_CheckPSV0_EntryFunctionName) {
   // See: https://github.com/microsoft/DirectXShaderCompiler/issues/6001
   // Update this code once this case is fixed.
 
-  const char ll_HSPassthrough[] = R"!!!(
+  const char ll_HSPassthrough[] = TEXT(R"!!!(
 target datalayout = "e-m:e-p:32:32-i1:32-i8:32-i16:32-i32:32-i64:64-f16:32-f32:32-f64:64-n8:16:32:64"
 target triple = "dxil-ms-dx"
 
@@ -1351,7 +1351,7 @@ attributes #1 = { nounwind }
 !19 = !{i32 1, !"SV_InsideTessFactor", i8 9, i8 26, !13, i8 0, i32 1, i8 1, i32 3, i8 0, !18}
 !20 = !{i32 3, !21}
 !21 = !{void ()* @"\01?MyPatchConstantFunc@@YAXUHSPerPatchData@@@Z", i32 3, i32 3, i32 2, i32 1, i32 3, float 6.400000e+01}
-)!!!";
+)!!!");
 
   CheckEntryFunctionNameForLL("MyHSMainPassthrough", ll_HSPassthrough);
 }
