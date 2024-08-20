@@ -154,6 +154,8 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 	FVertexPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
 
 	IDetailCategoryBuilder& ColorCategory = DetailLayout.EditCategory(TEXT("ColorPainting"));
+	ColorCategory.SetSortOrder(0);
+	IDetailCategoryBuilder& VertexCategory = DetailLayout.EditCategory(TEXT("VertexPainting"));
 
 	/** Creates a custom widget row containing all color channel flags */
 	TSharedRef<IPropertyHandle> RedChannel = DetailLayout.GetProperty("bWriteRed", UMeshVertexColorPaintingToolProperties::StaticClass());
@@ -200,7 +202,7 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 	LODPaintingIndex->MarkHiddenByCustomization();
 	TSharedPtr<SWidget> LODIndexWidget = LODPaintingIndex->CreatePropertyValueWidget();
 
-	ColorCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
+	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
 		.NameContent()
 		[
 			SNew(STextBlock)
@@ -256,7 +258,7 @@ void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBu
 		]
 		];
 
-	ColorCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
+	VertexCategory.AddCustomRow(NSLOCTEXT("LODPainting", "LODPaintingLabel", "LOD Model Painting"))
 		.WholeRowContent()
 		[
 			SNew(SWarningOrErrorBox)
@@ -298,6 +300,7 @@ void FVertexWeightPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutB
 	FVertexPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
 
 	IDetailCategoryBuilder& WeightCategory = DetailLayout.EditCategory(TEXT("WeightPainting"));
+	WeightCategory.SetSortOrder(0);
 
 	TSharedRef<IPropertyHandle> WeightTypeProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UMeshVertexWeightPaintingToolProperties, TextureWeightType));
 	TSharedRef<IPropertyHandle> PaintWeightProperty = DetailLayout.GetProperty(GET_MEMBER_NAME_CHECKED(UMeshVertexWeightPaintingToolProperties, PaintTextureWeightIndex));
@@ -350,9 +353,10 @@ void FTexturePaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilde
 {
 	FMeshPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
 
+	IDetailCategoryBuilder& ColorCategory = DetailLayout.EditCategory(TEXT("ColorPainting"));
+	ColorCategory.SetSortOrder(0);
 	IDetailCategoryBuilder& BrushCategory = DetailLayout.EditCategory(TEXT("Brush"), FText::GetEmpty(), ECategoryPriority::Important);
 	IDetailCategoryBuilder& TextureCategory = DetailLayout.EditCategory(TEXT("TexturePainting"));
-	IDetailCategoryBuilder& ColorCategory = DetailLayout.EditCategory(TEXT("ColorPainting"));
 
 	TSharedRef<IPropertyHandle> RedChannel = DetailLayout.GetProperty("bWriteRed", UMeshTexturePaintingToolProperties::StaticClass());
 	RedChannel->MarkHiddenByCustomization();
