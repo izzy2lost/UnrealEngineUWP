@@ -16098,93 +16098,79 @@ private:
         return {{InvokePtrToRef, IdentifierData}};
     }
 
-    struct SFreshVar
+    // Convert an expression written in a referenceable context to one that can be used elsewhere.
+    TSRef<CExpressionBase> ToValue(const TSRef<CExpressionBase>& ReferenceValue)
     {
-        TSPtr<CExprDataDefinition> Definition;
-        TSPtr<CExprPointerToReference> AsLhs;
-        TSPtr<CExprReferenceToValue> AsRhs;
-    };
-
-    struct SFreshVarValueType
-    {
-        const CTypeBase* Negative;
-        const CTypeBase* Positive;
-    };
-    
-    SFreshVar MakeFreshVar(
-        TSRef<CExpressionBase> Initializer,
-        const CScope& EnclosingScope,
-        TOptional<SFreshVarValueType> InValueType = {})
-    {
-        SFreshVarValueType ValueType{};
-        if (InValueType)
+        const CNormalType& Type = ReferenceValue->GetResultType(*_Program)->GetNormalType();
+        if (const CReferenceType* ReferenceType = Type.AsNullable<CReferenceType>())
         {
-            ValueType = *InValueType;
+            TSRef<CExprReferenceToValue> Value = TSRef<CExprReferenceToValue>::New(ReferenceValue);
+            Value->SetResultType(ReferenceType->PositiveValueType());
+            return Value;
         }
         else
         {
-            const CTypeBase* InitializerType = Initializer->GetResultType(*_Program);
-            const CNormalType& InitializerNType = InitializerType->GetNormalType();
-            if (const auto* RefType = InitializerNType.AsNullable<CReferenceType>())
-            {
-                ValueType.Positive = RefType->PositiveValueType();
-                ValueType.Negative = RefType->NegativeValueType();
-
-                if (AsNullable<CExprPointerToReference>(Initializer))
-                {
-                    Initializer = TSRef<CExprReferenceToValue>::New(Move(Initializer));
-                    Initializer->SetResultType(ValueType.Positive);
-                }
-            }
-            else if (const auto* Class = InitializerNType.AsNullable<CClass>())
-            {
-                const CTypeType* TypeType = Class->GetTypeType();
-                ValueType.Positive = TypeType->PositiveType();
-                ValueType.Negative = TypeType->NegativeType();
-            }
-            else
-            {
-                ULANG_ASSERTF(false,
-                              "MakeFreshVar() called with unexpected initializer type: `%s`",
-                              InitializerType->AsCode().AsCString());
-            }
+            return ReferenceValue;
         }
-
-        auto&& IsValueType = [](const CTypeBase* T)
-        {
-            const CNormalType& NormalType = T->GetNormalType();
-            return !(NormalType.AsNullable<CPointerType>() || NormalType.AsNullable<CReferenceType>());
-        };
-
-        ULANG_ASSERTF(IsValueType(ValueType.Positive), "MakeFreshVar() called with non-value positive type");
-        ULANG_ASSERTF(IsValueType(ValueType.Negative), "MakeFreshVar() called with non-value negative type");
-
-        const CPointerType* PositivePointerType = &_Program->GetOrCreatePointerType(ValueType.Negative, ValueType.Positive);
-        const CPointerType* NegativePointerType = &_Program->GetOrCreatePointerType(ValueType.Positive, ValueType.Negative);
-        const CReferenceType* PositiveReferenceType = &_Program->GetOrCreateReferenceType(ValueType.Negative, ValueType.Positive);
-
-        TSRef<CDataDefinition> FreshVar = _Context._Scope->CreateDataDefinition(GenerateUniqueName("fresh", EnclosingScope));
-        FreshVar->SetIsVar();
-        FreshVar->SetType(PositivePointerType);
-        FreshVar->_NegativeType = NegativePointerType;
-
-        SFreshVar Result;
-        Result.Definition = TSPtr<CExprDataDefinition>::New(
-            FreshVar, nullptr, nullptr, TSPtr<CExprNewPointer>::New(PositivePointerType, Move(Initializer))
-        );
-        Result.Definition->SetResultType(ValueType.Positive);
-
-        auto IdentifierData = TSRef<CExprIdentifierData>::New(*_Program, *FreshVar);
-
-        Result.AsLhs = TSPtr<CExprPointerToReference>::New(Move(IdentifierData));
-        Result.AsLhs->SetResultType(PositiveReferenceType);
-
-        Result.AsRhs = TSPtr<CExprReferenceToValue>::New(Result.AsLhs);
-        Result.AsRhs->SetResultType(ValueType.Positive);
-
-        return Result;
     }
-    
+
+    TSRef<CExprIdentifierData> MakeFreshLocal(CExprCodeBlock& Block, TSRef<CExpressionBase> Value)
+    {
+        CSymbol VarName = GenerateUniqueName("fresh", *Block._AssociatedScope);
+        TSRef<CExprIdentifierUnresolved> Element = TSRef<CExprIdentifierUnresolved>::New(VarName);
+
+        TSRef<CDataDefinition> Definition = Block._AssociatedScope->CreateDataDefinition(VarName);
+
+        TSRef<CExprDataDefinition> DefinitionAst = TSRef<CExprDataDefinition>::New(Definition, Element, nullptr, Value);
+
+        // Infer the type like AnalyzeDataDefinition without a ValueDomain.
+        const CTypeBase* DataType = Value->GetResultType(*_Program);
+        Definition->_NegativeType = &_Program->_anyType;
+        Definition->SetType(DataType);
+        DefinitionAst->SetResultType(DataType);
+        Element->SetResultType(DataType);
+
+        Block.AppendSubExpr(DefinitionAst);
+
+        // Return a resolved identifier like ResolveIdentifierToDefinition
+        return TSRef<CExprIdentifierData>::New(*_Program, *Definition);
+    }
+
+    TSRef<CExprPointerToReference> MakeFreshLocalVar(CExprCodeBlock& Block, const CTypeBase* NegativeDataType, const CTypeBase* PositiveDataType, TSRef<CExpressionBase> Value)
+    {
+        CSymbol VarName = GenerateUniqueName("fresh", *Block._AssociatedScope);
+        TSRef<CExprVar> Element = TSRef<CExprVar>::New(TSRef<CExprIdentifierUnresolved>::New(VarName));
+
+        TSRef<CDataDefinition> Definition = Block._AssociatedScope->CreateDataDefinition(VarName);
+        Definition->SetIsVar();
+
+        TSRef<CExprDataDefinition> DefinitionAst = TSRef<CExprDataDefinition>::New(Definition, Element, nullptr, nullptr);
+
+        // Record the types involved like AnalyzeDataDefinition with a ValueDomain.
+        const CPointerType& NegativePointerType = _Program->GetOrCreatePointerType(PositiveDataType, NegativeDataType);
+        const CPointerType& PositivePointerType = _Program->GetOrCreatePointerType(NegativeDataType, PositiveDataType);
+        const CReferenceType& PositiveReferenceType = _Program->GetOrCreateReferenceType(NegativeDataType, PositiveDataType);
+        Definition->_NegativeType = &NegativePointerType;
+        Definition->SetType(&PositivePointerType);
+        DefinitionAst->SetResultType(PositiveDataType);
+        Element->SetResultType(&PositiveReferenceType);
+        Element->Operand()->SetResultType(&PositivePointerType);
+
+        // Wrap the value in a CExprNewPointer like AnalyzeDataDefinition.
+        const CTypeBase* ValueType = Value->GetResultType(*_Program);
+        TSRef<CExprNewPointer> Pointer = TSRef<CExprNewPointer>::New(
+            static_cast<const CPointerType*>(ValueType),
+            Move(Value));
+        DefinitionAst->SetValue(Move(Pointer));
+
+        Block.AppendSubExpr(DefinitionAst);
+
+        // Return a reference like ResolveIdentifierToDefinition in a referenceable context.
+        // The caller may further wrap this in a CExprReferenceToValue when appropriate.
+        TSRef<CExprIdentifierData> Identifier = TSRef<CExprIdentifierData>::New(*_Program, *Definition);
+        return TSRef<CExprPointerToReference>::New(Identifier);
+    }
+
     TSPtr<CExprCodeBlock> MakeCodeBlock()
     {
         TSRef<CExprCodeBlock> Block = TSRef<CExprCodeBlock>::New(2);
@@ -16270,8 +16256,8 @@ private:
         //   set Obj.X = Y
         // =>
         //   block:
-        //     var Context:... = Obj
-        //     var R:... = set Context.X = Y
+        //     Context := Obj
+        //     R := set Context.X = Y
         //     Context.OnPropertyChangedFromVerse("X")
         //     R
 
@@ -16291,47 +16277,27 @@ private:
         TSPtr<CExprCodeBlock> Block = MakeCodeBlock();                  // block:
         MapAssignmentVSTNodeTo(Block);
         {
-            SFreshVar ContextVar = MakeFreshVar(Obj.AsRef(), *_Context._Scope); //    var Context:... = Obj
+            // Note: Obj may have a reference type, if it is itself (projected from) a var.
+            // The local Context should store the object (pointer) itself, not a reference to it.
+            // This is okay because FindParameterCollectionVarLhs only accepts classes, not structs.
+            TSRef<CExprIdentifierData> Context = MakeFreshLocal(*Block, ToValue(Obj.AsRef())); //    Context := Obj
             {
-                ParameterCollectionVarLhs->SetContext(ContextVar.AsLhs);
+                ParameterCollectionVarLhs->SetContext(Context);
             }
-            Block->AppendSubExpr(ContextVar.Definition);
 
-            SFreshVar AssignmentResultVar;                              //    var R:... = set Context.X = Y
+            TSPtr<CExprIdentifierData> Result;                          //    R := set Context.X = Y
             {
                 TSPtr<CExpressionBase> AssignmentResult = AnalyzeInPlace(
                     Assignment, &CSemanticAnalyzerImpl::AnalyzeAssignment_Internal, ExprCtx
                 );
 
-                auto&& RemovePointer = [](const CTypeBase* Type, ETypePolarity Polarity) -> const CTypeBase*
-                {
-                    if (const CPointerType* PtrType = Type->GetNormalType().AsNullable<CPointerType>())
-                    {
-                        switch (Polarity)
-                        {
-                        case ETypePolarity::Positive: return PtrType->PositiveValueType();
-                        case ETypePolarity::Negative: return PtrType->NegativeValueType();
-                        default: ULANG_UNREACHABLE();
-                        }
-                    }
-                    return Type;
-                };
-
-                AssignmentResultVar = MakeFreshVar(
-                    AssignmentResult.AsRef(),
-                    *_Context._Scope,
-                    SFreshVarValueType{
-                        RemovePointer(ParameterCollectionVarLhs->_DataDefinition._NegativeType, ETypePolarity::Negative),
-                        RemovePointer(ParameterCollectionVarLhs->_DataDefinition.GetType(), ETypePolarity::Positive)
-                    }
-                );
+                Result = MakeFreshLocal(*Block, AssignmentResult.AsRef());
             }
-            Block->AppendSubExpr(AssignmentResultVar.Definition);
 
             TSPtr<CExpressionBase> HookCall;                            //    Context.OnPropertyChangedFromVerse("X")
             {
                 HookCall = MakeParameterCollectionOnChangeFuncInvocation(
-                    ParameterCollectionVarLhs->_DataDefinition.GetName().AsString(), ContextVar.AsRhs
+                    ParameterCollectionVarLhs->_DataDefinition.GetName().AsString(), Move(Context)
                 );
                 MapAssignmentVSTNodeTo(HookCall);
 
@@ -16341,7 +16307,7 @@ private:
             }
             Block->AppendSubExpr(HookCall);
 
-            Block->AppendSubExpr(AssignmentResultVar.AsRhs);           //     R
+            Block->AppendSubExpr(Result);                               //     R
         }
 
         return Block;
@@ -16451,42 +16417,53 @@ private:
                 }
             };
 
+            // VerseVM performs a similar lowering for all AssignOp calls in its code generator.
+#if WITH_VERSE_BPVM
             TOptional<SCustomAccessorClassVarLhs> ClassVarLhs = CustomAccessorClassVarFromSetLhs(Assignment.Lhs());
             if (!ClassVarLhs)
+#endif
             {
                 return SynthesizeAssignOpCall(Assignment.Lhs(), Assignment.Rhs());
             }
 
+#if WITH_VERSE_BPVM
             // whenever the lhs of the assign op is a class var that could have custom accessors:
             //   set Context.X += Y
             // =>
             //   block:
-            //     var C:... = Context
+            //     C := Context
             //     var Fresh:t = C.X        # where t is the class var type, "Fresh" is a unique name
             //     set Fresh += Y           # "+=" in this example, but really any assign-op (eg. *=, -=, etc.)
+            //                              # Y may contain declarations that are still scoped outside the block
             //     set C.X = Fresh          # the codegen will convert this statement to a runtime-assignment
             //                              # ... to handle a potentially required setter call
 
             TSPtr<CExprCodeBlock> Block = MakeCodeBlock();
             {
+                // Evaluate the context once and cache the result in a local.
                 if (TSPtr<CExpressionBase> LhsContext = ClassVarLhs->IdentifierData->Context())
                 {
-                    // evaluate the context once and cache the result in a local
-                    // to avoid rerunning potential side-effects
-                    SFreshVar ContextVar = MakeFreshVar(LhsContext.AsRef(), *_Context._Scope);
-                    Block->AppendSubExpr(ContextVar.Definition);
-                    ClassVarLhs->IdentifierData->SetContext(ContextVar.AsLhs);
+                    // Note: The context may have a reference type, if it is itself (projected from) a var.
+                    // The local should store the object (pointer) itself, not a reference to it.
+                    // This is okay because CustomAccessorClassVarFromSetLhs only accepts classes, not structs (which cannot contain vars).
+                    TSRef<CExprIdentifierData> Context = MakeFreshLocal(*Block, ToValue(LhsContext.AsRef()));
+                    ClassVarLhs->IdentifierData->SetContext(Context);
                 }
 
-                SFreshVar AssignOpResult = MakeFreshVar(ClassVarLhs->PointerToReference.AsRef(), *_Context._Scope);
+                TSRef<CExprPointerToReference> AssignOpResult = MakeFreshLocalVar(
+                    *Block,
+                    LhsReferenceType->NegativeValueType(),
+                    LhsReferenceType->PositiveValueType(),
+                    ToValue(ClassVarLhs->PointerToReference.AsRef()));
 
-                Block->AppendSubExpr(AssignOpResult.Definition);
-
-                Block->AppendSubExpr(SynthesizeAssignOpCall(AssignOpResult.AsLhs, Assignment.Rhs()));
+                TSPtr<CExprSet> OpLhs = TSPtr<CExprSet>::New(AssignOpResult);
+                OpLhs->SetResultType(LhsReferenceType);
+                Block->AppendSubExpr(SynthesizeAssignOpCall(OpLhs, Assignment.Rhs()));
 
                 {
                     TSPtr<CExpressionBase> Lhs = Assignment.Lhs();
-                    TSPtr<CExpressionBase> Rhs = AssignOpResult.AsRhs;
+                    TSPtr<CExpressionBase> Rhs = TSRef<CExprReferenceToValue>::New(AssignOpResult);
+                    Rhs->SetResultType(LhsReferenceType->PositiveValueType());
                     auto AssignmentExpr = TSPtr<CExprAssignment>::New(CExprAssignment::EOp::assign, Move(Lhs), Move(Rhs));
                     AssignmentExpr->SetResultType(LhsReferenceType->PositiveValueType());
                     Block->AppendSubExpr(AssignmentExpr);
@@ -16500,6 +16477,7 @@ private:
             }
 
             return Block;
+#endif
         }
     }
 
