@@ -813,6 +813,16 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates);
 
+	const int32 ReferenceViewIndex = 0;
+	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
+
+	{
+		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingSceneInitTask);
+
+		FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
+		ReferenceView.RayTracingSceneInitTask = {};
+	}
+
 	const bool bRayTracingAsyncBuild = CVarRayTracingAsyncBuild.GetValueOnRenderThread() != 0 && GRHISupportsRayTracingAsyncBuildAccelerationStructure;
 	const ERDGPassFlags ComputePassFlags = bRayTracingAsyncBuild ? ERDGPassFlags::AsyncCompute : ERDGPassFlags::Compute;
 
@@ -824,22 +834,12 @@ bool FDeferredShadingSceneRenderer::DispatchRayTracingWorldUpdates(FRDGBuilder& 
 	{
 		RayTracingSkinnedGeometryUpdateQueue->Commit(GraphBuilder, ComputePassFlags);
 	}
-
-	const int32 ReferenceViewIndex = 0;
-	FViewInfo& ReferenceView = Views[ReferenceViewIndex];
 	FRayTracingScene& RayTracingScene = Scene->RayTracingScene;
 
 	if (RayTracingScene.GeometriesToBuild.Num() > 0)
 	{
 		// Force update all the collected geometries (use stack allocator?)
 		GRayTracingGeometryManager->ForceBuildIfPending(GraphBuilder.RHICmdList, RayTracingScene.GeometriesToBuild);
-	}
-
-	{
-		SCOPE_CYCLE_COUNTER(STAT_WaitRayTracingSceneInitTask);
-
-		FTaskGraphInterface::Get().WaitUntilTaskCompletes(ReferenceView.RayTracingSceneInitTask, ENamedThreads::GetRenderThread_Local());
-		ReferenceView.RayTracingSceneInitTask = {};
 	}
 
 	{
