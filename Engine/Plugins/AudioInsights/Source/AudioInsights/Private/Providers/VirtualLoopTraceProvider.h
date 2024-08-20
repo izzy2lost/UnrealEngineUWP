@@ -20,7 +20,7 @@ namespace UE::Audio::Insights
 		}
 
 		virtual ~FVirtualLoopTraceProvider() = default;
-		virtual UE::Trace::IAnalyzer* ConstructAnalyzer() override;
+		virtual UE::Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) override;
 
 		static FName GetName_Static();
 

@@ -65,13 +65,14 @@ namespace AudioModulationEditor
 		return true;
 	}
 
-	UE::Trace::IAnalyzer* FControlBusTraceProvider::ConstructAnalyzer()
+	UE::Trace::IAnalyzer* FControlBusTraceProvider::ConstructAnalyzer(TraceServices::IAnalysisSession& InSession)
 	{
 		class FControlBusTraceAnalyzer : public UE::Audio::Insights::FTraceProviderBase::FTraceAnalyzerBase
 		{
 		public:
-			FControlBusTraceAnalyzer(TSharedRef<FControlBusTraceProvider> InProvider)
+			FControlBusTraceAnalyzer(TSharedRef<FControlBusTraceProvider> InProvider, TraceServices::IAnalysisSession& InSession)
 				: UE::Audio::Insights::FTraceProviderBase::FTraceAnalyzerBase(InProvider)
+				, Session(InSession)
 			{
 			}
 
@@ -116,6 +117,13 @@ namespace AudioModulationEditor
 					}
 				}
 
+				const double Timestamp = Context.EventTime.AsSeconds(Context.EventData.GetValue<uint64>("Timestamp"));
+
+				{
+					TraceServices::FAnalysisSessionEditScope SessionEditScope(Session);
+					Session.UpdateDurationSeconds(Timestamp);
+				}
+
 				return OnEventSuccess(RouteId, Style, Context);
 			}
 
@@ -126,8 +134,10 @@ namespace AudioModulationEditor
 				RouteId_Deactivate,
 				RouteId_Update
 			};
+
+			TraceServices::IAnalysisSession& Session;
 		};
 
-		return new FControlBusTraceAnalyzer(AsShared());
+		return new FControlBusTraceAnalyzer(AsShared(), InSession);
 	}
 } // namespace AudioModulationEditor

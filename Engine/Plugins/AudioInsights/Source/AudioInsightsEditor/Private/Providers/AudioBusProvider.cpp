@@ -160,7 +160,7 @@ namespace UE::Audio::Insights
 		return true;
 	}
 
-	UE::Trace::IAnalyzer* FAudioBusProvider::ConstructAnalyzer()
+	UE::Trace::IAnalyzer* FAudioBusProvider::ConstructAnalyzer(TraceServices::IAnalysisSession& InSession)
 	{
 		return nullptr;
 	}

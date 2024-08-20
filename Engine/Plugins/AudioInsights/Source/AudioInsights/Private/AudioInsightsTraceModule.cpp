@@ -21,8 +21,8 @@ namespace UE::Audio::Insights
 			TSharedPtr<FMixerSourceTraceProvider> SourceProvider = MakeShared<FMixerSourceTraceProvider>(ChannelManager);
 			TSharedPtr<FVirtualLoopTraceProvider> VirtualLoopProvider = MakeShared<FVirtualLoopTraceProvider>(ChannelManager);
 
-			TraceProviders.Add(SourceProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(SourceProvider));
-			TraceProviders.Add(VirtualLoopProvider->GetName(), StaticCastSharedPtr<FTraceProviderBase>(VirtualLoopProvider));
+			TraceProviders.Add(SourceProvider->GetName(), SourceProvider);
+			TraceProviders.Add(VirtualLoopProvider->GetName(), VirtualLoopProvider);
 		}
 	}
 
@@ -69,10 +69,10 @@ namespace UE::Audio::Insights
 
 	void FTraceModule::OnAnalysisBegin(TraceServices::IAnalysisSession& InSession)
 	{
-		for (const TPair<FName, TSharedPtr<FTraceProviderBase>>& Pair : TraceProviders)
+		for (const auto& [ProviderName, Provider] : TraceProviders)
 		{
-			InSession.AddProvider(Pair.Key, nullptr, Pair.Value);
-			InSession.AddAnalyzer(Pair.Value->ConstructAnalyzer());
+			InSession.AddProvider(ProviderName, Provider, Provider);
+			InSession.AddAnalyzer(Provider->ConstructAnalyzer(InSession));
 		}
 
 		FirstTimeStamp = -TNumericLimits<double>::Min();

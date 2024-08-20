@@ -160,7 +160,7 @@ namespace UE::Audio::Insights
 		return true;
 	}
 
-	UE::Trace::IAnalyzer* FSoundSubmixProvider::ConstructAnalyzer()
+	UE::Trace::IAnalyzer* FSoundSubmixProvider::ConstructAnalyzer(TraceServices::IAnalysisSession& InSession)
 	{
 		return nullptr;
 	}

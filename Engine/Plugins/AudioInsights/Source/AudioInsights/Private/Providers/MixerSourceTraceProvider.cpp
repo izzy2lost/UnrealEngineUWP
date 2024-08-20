@@ -139,13 +139,14 @@ namespace UE::Audio::Insights
 		return true;
 	}
 
-	UE::Trace::IAnalyzer* FMixerSourceTraceProvider::ConstructAnalyzer()
+	UE::Trace::IAnalyzer* FMixerSourceTraceProvider::ConstructAnalyzer(TraceServices::IAnalysisSession& InSession)
 	{
 		class FMixerSourceTraceAnalyzer : public FTraceAnalyzerBase
 		{
 		public:
-			FMixerSourceTraceAnalyzer(TSharedRef<FMixerSourceTraceProvider> InProvider)
+			FMixerSourceTraceAnalyzer(TSharedRef<FMixerSourceTraceProvider> InProvider, TraceServices::IAnalysisSession& InSession)
 				: FTraceAnalyzerBase(InProvider)
+				, Session(InSession)
 			{
 			}
 
@@ -232,6 +233,13 @@ namespace UE::Audio::Insights
 					}
 				}
 
+				const double Timestamp = Context.EventTime.AsSeconds(Context.EventData.GetValue<uint64>("Timestamp"));
+
+				{
+					TraceServices::FAnalysisSessionEditScope SessionEditScope(Session);
+					Session.UpdateDurationSeconds(Timestamp);
+				}
+
 				return OnEventSuccess(RouteId, Style, Context);
 			}
 
@@ -248,8 +256,10 @@ namespace UE::Audio::Insights
 			};
 
 			bool bIsFirstTimestampSet = false;
+
+			TraceServices::IAnalysisSession& Session;
 		};
 
-		return new FMixerSourceTraceAnalyzer(AsShared());
+		return new FMixerSourceTraceAnalyzer(AsShared(), InSession);
 	}
 } // namespace UE::Audio::Insights

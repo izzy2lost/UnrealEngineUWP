@@ -16,14 +16,13 @@
 
 namespace UE::Audio::Insights
 {
-	class AUDIOINSIGHTS_API FTraceProviderBase
-		: public TraceServices::IEditableProvider
+	class AUDIOINSIGHTS_API FTraceProviderBase : public TraceServices::IProvider, public TraceServices::IEditableProvider
 	{
 	public:
-		FTraceProviderBase(FName InName);
+		explicit FTraceProviderBase(FName InName);
 		virtual ~FTraceProviderBase() = default;
 
-		virtual Trace::IAnalyzer* ConstructAnalyzer() = 0;
+		virtual Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) = 0;
 		FName GetName() const;
 
 		virtual void Reset()

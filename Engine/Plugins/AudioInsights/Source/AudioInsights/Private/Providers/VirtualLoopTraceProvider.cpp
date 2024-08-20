@@ -78,13 +78,14 @@ namespace UE::Audio::Insights
 		return true;
 	}
 
-	UE::Trace::IAnalyzer* FVirtualLoopTraceProvider::ConstructAnalyzer()
+	UE::Trace::IAnalyzer* FVirtualLoopTraceProvider::ConstructAnalyzer(TraceServices::IAnalysisSession& InSession)
 	{
 		class FVirtualLoopTraceAnalyzer : public FTraceAnalyzerBase
 		{
 		public:
-			FVirtualLoopTraceAnalyzer(TSharedRef<FVirtualLoopTraceProvider> InProvider)
+			FVirtualLoopTraceAnalyzer(TSharedRef<FVirtualLoopTraceProvider> InProvider, TraceServices::IAnalysisSession& InSession)
 				: FTraceAnalyzerBase(InProvider)
+				, Session(InSession)
 			{
 			}
 
@@ -136,6 +137,13 @@ namespace UE::Audio::Insights
 					}
 				}
 
+				const double Timestamp = Context.EventTime.AsSeconds(Context.EventData.GetValue<uint64>("Timestamp"));
+
+				{
+					TraceServices::FAnalysisSessionEditScope SessionEditScope(Session);
+					Session.UpdateDurationSeconds(Timestamp);
+				}
+
 				return OnEventSuccess(RouteId, Style, Context);
 			}
 
@@ -147,8 +155,10 @@ namespace UE::Audio::Insights
 				RouteId_Realize,
 				RouteId_Stop
 			};
+
+			TraceServices::IAnalysisSession& Session;
 		};
 
-		return new FVirtualLoopTraceAnalyzer(AsShared());
+		return new FVirtualLoopTraceAnalyzer(AsShared(), InSession);
 	}
 } // namespace UE::Audio::Insights

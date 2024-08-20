@@ -20,7 +20,7 @@ namespace AudioModulationEditor
 		}
 
 		virtual ~FControlBusTraceProvider() = default;
-		virtual UE::Trace::IAnalyzer* ConstructAnalyzer() override;
+		virtual UE::Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) override;
 
 		virtual bool ProcessMessages() override;
 		static FName GetName_Static();

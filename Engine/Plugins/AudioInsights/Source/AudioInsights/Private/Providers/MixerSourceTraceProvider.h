@@ -21,7 +21,7 @@ namespace UE::Audio::Insights
 		}
 
 		virtual ~FMixerSourceTraceProvider() = default;
-		virtual UE::Trace::IAnalyzer* ConstructAnalyzer() override;
+		virtual UE::Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) override;
 
 		virtual bool ProcessMessages() override;
 

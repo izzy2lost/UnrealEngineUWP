@@ -15,7 +15,7 @@ namespace UE::Audio::Insights
 
 		static FName GetName_Static();
 
-		virtual UE::Trace::IAnalyzer* ConstructAnalyzer() override;
+		virtual UE::Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) override;
 		
 		DECLARE_MULTICAST_DELEGATE_OneParam(FOnSubmixAssetAdded, const TWeakObjectPtr<UObject> /*Asset*/);
 		inline static FOnSubmixAssetAdded OnSubmixAssetAdded;
