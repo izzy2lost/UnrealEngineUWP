@@ -1738,6 +1738,14 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 
 void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, float ViewportScale) const
 {
+	Dispatch(DispatchPassBuilder, InstanceCullingDrawParams, [View = TaskContext.View, ViewportScale] (FRHICommandList& RHICmdList)
+	{
+		FSceneRenderer::SetStereoViewport(RHICmdList, *View, ViewportScale);
+	});
+}
+
+void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPassBuilder, const FInstanceCullingDrawParams* InstanceCullingDrawParams, TFunctionRef<void(FRHICommandList&)> SetupCommandListFunction) const
+{
 	extern TAutoConsoleVariable<int32> CVarRHICmdMinDrawsPerParallelCmdList;
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
@@ -1773,7 +1781,7 @@ void FParallelMeshDrawCommandPass::Dispatch(FRDGDispatchPassBuilder& DispatchPas
 		checkSlow(NumDraws > 0);
 
 		FRHICommandList* RHICmdList = DispatchPassBuilder.CreateCommandList();
-		FSceneRenderer::SetStereoViewport(*RHICmdList, *TaskContext.View, ViewportScale);
+		SetupCommandListFunction(*RHICmdList);
 
 		TGraphTask<FDrawVisibleMeshCommandsAnyThreadTask>::CreateTask(&Prereqs)
 			.ConstructAndDispatchWhenReady(*RHICmdList, TaskContext.InstanceCullingContext, TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet,

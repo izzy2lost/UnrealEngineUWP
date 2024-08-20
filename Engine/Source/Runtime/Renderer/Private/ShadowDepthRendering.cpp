@@ -742,37 +742,6 @@ static TAutoConsoleVariable<int32> CVarParallelShadowsNonWholeScene(
 	ECVF_RenderThreadSafe
 );
 
-class FShadowParallelCommandListSet final : public FParallelCommandListSet
-{
-public:
-	FShadowParallelCommandListSet(
-		const FRDGPass* InPass,
-		FRHICommandListImmediate& InParentCmdList,
-		const FViewInfo& InView,
-		const FProjectedShadowInfo& InProjectedShadowInfo,
-		const FParallelCommandListBindings& InBindings)
-		: FParallelCommandListSet(InPass, InView, InParentCmdList)
-		, ProjectedShadowInfo(InProjectedShadowInfo)
-		, Bindings(InBindings)
-	{}
-
-	~FShadowParallelCommandListSet() override
-	{
-		Dispatch();
-	}
-
-	void SetStateOnCommandList(FRHICommandList& RHICmdList) override
-	{
-		FParallelCommandListSet::SetStateOnCommandList(RHICmdList);
-		Bindings.SetOnCommandList(RHICmdList);
-		ProjectedShadowInfo.SetStateForView(RHICmdList);
-	}
-
-private:
-	const FProjectedShadowInfo& ProjectedShadowInfo;
-	FParallelCommandListBindings Bindings;
-};
-
 class FCopyShadowMapsCubeGS : public FGlobalShader
 {
 public:
@@ -1162,7 +1131,10 @@ void FProjectedShadowInfo::RenderDepth(
 			ERDGPassFlags::Raster,
 			[this, PassParameters](FRDGDispatchPassBuilder& DispatchPassBuilder)
 		{
-			ShadowDepthPass.Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams);
+			ShadowDepthPass.Dispatch(DispatchPassBuilder, &PassParameters->InstanceCullingDrawParams, [this] (FRHICommandList& RHICmdList)
+			{
+				SetStateForView(RHICmdList);
+			});
 		});
 	}
 	else
