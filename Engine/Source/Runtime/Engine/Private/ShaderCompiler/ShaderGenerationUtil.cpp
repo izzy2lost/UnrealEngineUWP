@@ -1821,7 +1821,10 @@ static void DetermineUsedMaterialSlots(
 	// we have to use if statements, not switch or if/else statements because we can have multiple shader model ids.
 	if (Mat.MATERIAL_SHADINGMODEL_UNLIT)
 	{
-		SetStandardGBufferSlots(Slots, true, false, bHasVelocity, bWritesVelocity, false, bIsSubstrateMaterial);
+		// With Substrate, we still need to write to the GBufferE when static lighting is used to maintain the correct offset for SubstrateFirstMRT (and match the bound render targets).
+		// Without Substrate, the buffer is always bound and written to. It is just not used and a default value was used.
+		const bool bHasStaticLightingWritten = bIsSubstrateMaterial ? bHasStaticLighting : false;
+		SetStandardGBufferSlots(Slots, true, false, bHasVelocity, bWritesVelocity, bHasStaticLightingWritten, bIsSubstrateMaterial);
 	}
 
 	if (Mat.MATERIAL_SHADINGMODEL_DEFAULT_LIT)
