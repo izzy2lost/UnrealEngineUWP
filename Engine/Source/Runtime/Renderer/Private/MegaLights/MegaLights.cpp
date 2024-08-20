@@ -1074,7 +1074,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PermutationVector.Set<FTileClassificationCS::FDownsampledClassification>(true);
 				auto ComputeShader = View.ShaderMap->GetShader<FTileClassificationCS>(PermutationVector);
 
-				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(View.ViewRect.Size(), FTileClassificationCS::GetGroupSize());
+				const FIntVector GroupCount = FComputeShaderUtils::GetGroupCount(DownsampledViewSize, FTileClassificationCS::GetGroupSize());
 
 				FComputeShaderUtils::AddPass(
 					GraphBuilder,
