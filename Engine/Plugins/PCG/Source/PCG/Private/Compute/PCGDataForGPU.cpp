@@ -1001,7 +1001,7 @@ EPCGUnpackDataCollectionResult FPCGDataCollectionDesc::UnpackDataCollection(cons
 								DataAsFloat[PackedDataElementIndex + 0],
 								DataAsFloat[PackedDataElementIndex + 1],
 								DataAsFloat[PackedDataElementIndex + 2],
-								DataAsFloat[PackedDataElementIndex + 2]
+								DataAsFloat[PackedDataElementIndex + 3]
 							);
 
 							OutPoints[ElementIndex].Color = Color;
