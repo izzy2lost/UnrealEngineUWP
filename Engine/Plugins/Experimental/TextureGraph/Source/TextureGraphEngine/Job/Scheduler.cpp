@@ -175,6 +175,9 @@ void Scheduler::Update(float dt)
 
 				ObserverSource->BatchJobsDone(PreviousBatch);
 
+				/// Mark the current batch as done
+				PreviousBatch->GetCycle()->GetDetails().BroadcastOnDone();
+
 				UE_LOG(LogBatch, Verbose, TEXT("Scheduler Observer::BatchJobsDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 			})
 			.then([this]()
@@ -185,9 +188,6 @@ void Scheduler::Update(float dt)
 					UE_LOG(LogBatch, Verbose, TEXT("Scheduler triggering Observer::BatchDone for Batch: %llu ..."), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 
 					ObserverSource->BatchDone(CurrentBatch);
-
-					/// Mark the current batch as done
-					CurrentBatch->GetCycle()->GetDetails().BroadcastOnDone();
 
 					UE_LOG(LogBatch, Verbose, TEXT("Scheduler Observer::BatchDone finished for Batch: %llu"), PreviousBatch ? PreviousBatch->GetBatchId() : -1);
 				});
