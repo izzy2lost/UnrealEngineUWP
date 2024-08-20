@@ -236,7 +236,8 @@ void FResources::Serialize(FArchive& Ar, UObject* Owner, bool bCooked)
 	FStripDataFlags StripFlags( Ar, 0 );
 	if( !StripFlags.IsAudioVisualDataStripped() )
 	{
-		if (Ar.IsSaving() && bCooked && PageStreamingStates.Num() > 0 && !DoesTargetPlatformSupportNanite(Ar.CookingTarget()))
+		const ITargetPlatform* CookingTarget = (Ar.IsSaving() && bCooked) ? Ar.CookingTarget() : nullptr;
+		if (PageStreamingStates.Num() > 0 && CookingTarget != nullptr && !DoesTargetPlatformSupportNanite(CookingTarget))
 		{
 			// Cook out the Nanite resources for platforms that don't support it.
 			FResources Dummy;
