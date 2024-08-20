@@ -67,9 +67,12 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 					// If we're transitioning to normal mode then restore the backup
 					// Clear the flags relevant to vertex color modes
 					ViewportClient->EngineShowFlags.SetVertexColors(false);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_None;
 
 					// Restore the vertex color mode flags that were set when we last entered vertex color mode
 					ApplyViewMode(ViewportClient->GetViewMode(), ViewportClient->IsPerspective(), ViewportClient->EngineShowFlags);
+					
+					SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowAll);
 					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
 					SetMeshPaintVisualizeChannels(EVertexColorViewMode::Color);
 				}
@@ -83,17 +86,26 @@ void UMeshPaintModeSubsystem::SetViewportColorMode(EMeshPaintActiveMode ActiveMo
 				ViewportClient->EngineShowFlags.SetPostProcessing(false);
 				ViewportClient->EngineShowFlags.SetHMDDistortion(false);
 
+				SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::ShowSelected);
+
 				switch (ActiveMode)
 				{
 				case EMeshPaintActiveMode::VertexColor:
 				case EMeshPaintActiveMode::VertexWeights:
 					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::VertexColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = FName("VertexColor");
 					break;
 				case EMeshPaintActiveMode::TextureColor:
 					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureColor);
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(true);
+					ViewportClient->CurrentNaniteVisualizationMode = FName("MeshPaintTexture");
 					break;
 				case EMeshPaintActiveMode::Texture:
 					SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::TextureAsset);
+					// todo: Nanite visualization support for texture asset painting.
+					ViewportClient->EngineShowFlags.SetVisualizeNanite(false);
+					ViewportClient->CurrentNaniteVisualizationMode = NAME_None;
 					break;
 				}
 

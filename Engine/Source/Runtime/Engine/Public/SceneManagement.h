@@ -2796,7 +2796,9 @@ namespace EMeshPaintVisualizeShowMode
 /** Interface to set mesh paint visualization settings used when the SHOW_VertexColors show flag is set. */
 extern ENGINE_API void SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::Type PaintMode);
 extern ENGINE_API void SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::Type ShowMode);
+extern ENGINE_API EMeshPaintVisualizeShowMode::Type GetMeshPaintVisualizeShowMode();
 extern ENGINE_API void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type Channels);
+extern ENGINE_API EVertexColorViewMode::Type GetMeshPaintVisualizeChannels();
 extern ENGINE_API void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture);
 extern ENGINE_API void SetMeshPaintVisualizeTextureCoordinateIndex(int32 Index);
 /** Get the mesh paint visualization material proxy based on the current global settings. */

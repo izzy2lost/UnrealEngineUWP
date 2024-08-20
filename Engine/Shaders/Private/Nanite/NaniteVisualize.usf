@@ -8,10 +8,15 @@
 #include "../Visualization.ush"
 #include "../VirtualShadowMaps/VirtualShadowMapPageCacheCommon.ush"
 #include "../SplineMeshCommon.ush"
+#include "../MeshPaintTextureCommon.ush"
+
+#define NUM_VIRTUALTEXTURE_SAMPLES 0
+#include "../VirtualTextureCommon.ush"
 
 #include "NaniteDataDecode.ush"
 #include "NaniteAttributeDecode.ush"
 #include "NaniteCullingCommon.ush"
+#include "NaniteEditorCommon.ush"
 
 RWTexture2D<float4>		DebugOutput;
 
@@ -26,8 +31,6 @@ Texture2D<uint>			FastClearTileVis;
 
 StructuredBuffer<FNaniteRasterBinMeta> RasterBinMeta;
 ByteAddressBuffer		ShadingBinData;
-
-ByteAddressBuffer		MaterialHitProxyTable;
 
 int4					VisualizeConfig;
 int4					VisualizeScales;
@@ -115,6 +118,37 @@ uint GetPixelProgrammableVisMode()
 		VisualizeConfig.y,
 		NANITE_PIXEL_PROG_VIS_MODE_DEFAULT
 	);
+}
+
+uint GetMeshPaintingShowMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE,
+		VisualizeConfig.y & 0x1,
+		NANITE_MESH_PAINTING_SHOW_ALL
+	);
+}
+
+uint GetMeshPaintingChannelMode()
+{
+	return select(
+		GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE,
+		(VisualizeConfig.y >> 2) & 0x7,
+		NANITE_MESH_PAINTING_CHANNELS_RGB
+	);
+}
+
+float3 ApplyMeshPaintingChannelMode(uint Mode, float4 Color)
+{
+	switch (Mode)
+	{
+	case NANITE_MESH_PAINTING_CHANNELS_R:	return float3(Color.r, 0, 0);
+	case NANITE_MESH_PAINTING_CHANNELS_G:	return float3(0, Color.g, 0);
+	case NANITE_MESH_PAINTING_CHANNELS_B:	return float3(0, 0, Color.b);
+	case NANITE_MESH_PAINTING_CHANNELS_A:	return Color.aaa;
+	case NANITE_MESH_PAINTING_CHANNELS_RGB:	
+	default:									return Color.rgb;
+	}
 }
 
 float GetOverdrawScale()
@@ -590,6 +624,38 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 
 			Result = GreenToRedTurbo(AbsDelta / 30.0f);
 		}
+		else if (VisualizeMode == NANITE_VISUALIZE_VERTEX_COLOR)
+		{
+#if USE_EDITOR_SHADERS
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED && !IsInstanceSelected(InstanceData, VisibleCluster, TriIndex))
+			{
+				Opacity = 0;
+			}
+#endif
+			Result =  ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), AttributeData.VertexColor.Value);
+		}
+		else if (VisualizeMode == NANITE_VISUALIZE_MESH_PAINT_TEXTURE)
+		{
+#if USE_EDITOR_SHADERS
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED && !IsInstanceSelected(InstanceData, VisibleCluster, TriIndex))
+			{
+				Opacity = 0;
+			}
+#endif
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_ALL && !GetMeshPaintTextureDescriptorIsValid(PrimitiveData))
+			{
+				Opacity = 0;
+			}
+			
+			if (Opacity > 0)
+			{
+				TDual<float2> UV = GetTexCoord(Cluster, TriIndices, Barycentrics, GetMeshPaintTextureCoordinateIndex(PrimitiveData));
+				float2 SVPositionXY = (float2)PixelPos + 0.5f;
+				VTPageTableResult PageTableResult = TextureLoadVirtualPageTableGrad(Scene.MeshPaint.PageTableTexture, VTPageTableUniform_Unpack(GetMeshPaintTextureDescriptor(PrimitiveData)), UV.Value, VTADDRESSMODE_CLAMP, VTADDRESSMODE_CLAMP, UV.Value_dx, UV.Value_dy, SVPositionXY);
+				float4 Color = TextureVirtualSample(Scene.MeshPaint.PhysicalTexture, View.SharedBilinearClampedSampler, PageTableResult, 0, VTUniform_Unpack(Scene.MeshPaint.PackedUniform));
+				Result = ApplyMeshPaintingChannelMode(GetMeshPaintingChannelMode(), Color);
+			}
+		}
 		else if (VisualizeMode == NANITE_VISUALIZE_PICKING)
 		{
 			bApplySobel = false;
@@ -652,6 +718,13 @@ void VisualizeCS(uint3 DTID : SV_DispatchThreadID, uint3 GID : SV_GroupID)
 			{
 				Result = float3(1, 0, 0);
 				Opacity = 0.5f;
+			}
+		}
+		else if (GetVisualizeMode() == NANITE_VISUALIZE_VERTEX_COLOR || GetVisualizeMode() == NANITE_VISUALIZE_MESH_PAINT_TEXTURE)
+		{
+			if (GetMeshPaintingShowMode() == NANITE_MESH_PAINTING_SHOW_SELECTED)
+			{
+				Opacity = 0;
 			}
 		}
 	}

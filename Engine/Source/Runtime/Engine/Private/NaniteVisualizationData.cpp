@@ -65,6 +65,8 @@ void FNaniteVisualizationData::Initialize()
 		AddVisualizationMode(TEXT("NoDerivativeOps"), LOCTEXT("NoDerivativeOps", "No Derivative Ops"), FModeType::Advanced, NANITE_VISUALIZE_NO_DERIVATIVE_OPS, true);
 		AddVisualizationMode(TEXT("FastClearTiles"), LOCTEXT("FastClearTiles", "Fast Clear Tiles"), FModeType::Advanced, NANITE_VISUALIZE_FAST_CLEAR_TILES, true);				
 		AddVisualizationMode(TEXT("DisplacementScale"), LOCTEXT("DisplacementScale", "DisplacementScale"), FModeType::Advanced, NANITE_VISUALIZE_DISPLACEMENT_SCALE, true);
+		AddVisualizationMode(TEXT("VertexColor"), LOCTEXT("VertexColor", "VertexColor"), FModeType::Advanced, NANITE_VISUALIZE_VERTEX_COLOR, false);
+		AddVisualizationMode(TEXT("MeshPaintTexture"), LOCTEXT("MeshPaintTexture", "Mesh Paint Texture"), FModeType::Advanced, NANITE_VISUALIZE_MESH_PAINT_TEXTURE, false);
 
 		ConfigureConsoleCommand();
 

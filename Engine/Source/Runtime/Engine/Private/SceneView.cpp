@@ -406,14 +406,22 @@ void SetMeshPaintVisualizeMode(EMeshPaintVisualizePaintMode::Type PaintMode)
 	GMeshPaintVisualizeMode = PaintMode;
 }
 static EMeshPaintVisualizeShowMode::Type GMeshPaintVisualizeShowMode = EMeshPaintVisualizeShowMode::ShowAll;
-extern ENGINE_API void SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::Type ShowMode)
+void SetMeshPaintVisualizeShowMode(EMeshPaintVisualizeShowMode::Type ShowMode)
 {
 	GMeshPaintVisualizeShowMode = ShowMode;
+}
+EMeshPaintVisualizeShowMode::Type GetMeshPaintVisualizeShowMode()
+{
+	return GMeshPaintVisualizeShowMode;
 }
 static EVertexColorViewMode::Type GMeshPaintVisualizeChannels = EVertexColorViewMode::Color;
 void SetMeshPaintVisualizeChannels(EVertexColorViewMode::Type Channels)
 {
 	GMeshPaintVisualizeChannels = Channels;
+}
+EVertexColorViewMode::Type GetMeshPaintVisualizeChannels()
+{
+	return GMeshPaintVisualizeChannels;
 }
 static TWeakObjectPtr<UTexture> GMeshPaintVisualizeTexture = nullptr;
 void SetMeshPaintVisualizeTexture(TWeakObjectPtr<UTexture> Texture)
