@@ -1405,7 +1405,8 @@ void FSlateUser::UpdateTooltip(const FMenuStack& MenuStack, bool bCanSpawnNewToo
 		const float SlideProgress = bAllowAnimations ? FMath::Pow(1.0f - TooltipOpacity, 3.0f) : 0.0f;
 
 		FVector2f WindowLocation = DesiredLocation + SlideProgress * SlideDistance;
-		if (WindowLocation != TooltipWindow->GetPositionInScreen())
+		if (WindowLocation != TooltipWindow->GetPositionInScreen()
+			|| TooltipWindow->GetDesiredSize() != ActiveTooltipInfo.DesiredSize)
 		{
 			// already handled
 			const bool bAutoAdjustForDPIScale = false;
@@ -1413,6 +1414,9 @@ void FSlateUser::UpdateTooltip(const FMenuStack& MenuStack, bool bCanSpawnNewToo
 			// Avoid the edges of the desktop
 			FSlateRect Anchor(WindowLocation.X, WindowLocation.Y, WindowLocation.X, WindowLocation.Y);
 			WindowLocation = SlateApp.CalculateTooltipWindowPosition(Anchor, TooltipWindow->GetDesiredSizeDesktopPixels(), bAutoAdjustForDPIScale);
+
+			// Cache the size to compare against in future frames
+			ActiveTooltipInfo.DesiredSize = TooltipWindow->GetDesiredSize();
 
 			// Update the tool tip window positioning
 			// SetCachedScreenPosition is a hack (issue tracked as TTP #347070) which is needed because code in TickWindowAndChildren()/DrawPrepass()
