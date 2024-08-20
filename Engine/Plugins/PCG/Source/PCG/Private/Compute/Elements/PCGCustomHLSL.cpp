@@ -13,6 +13,7 @@
 #include "Compute/PCGComputeGraph.h"
 #include "Compute/PCGDataBinding.h"
 #include "Data/PCGPointData.h"
+#include "Elements/Metadata/PCGMetadataElementCommon.h"
 
 #include "Internationalization/Regex.h"
 
@@ -342,6 +343,32 @@ FPCGDataCollectionDesc UPCGCustomHLSLSettings::ComputeOutputPinDataDesc(const UP
 }
 
 #if WITH_EDITOR
+TArray<FPCGPreConfiguredSettingsInfo> UPCGCustomHLSLSettings::GetPreconfiguredInfo() const
+{
+	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGKernelType>();
+}
+
+void UPCGCustomHLSLSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
+{
+	if (const UEnum* EnumPtr = StaticEnum<EPCGKernelType>())
+	{
+		if (EnumPtr->IsValidEnumValue(PreconfiguredInfo.PreconfiguredIndex))
+		{
+			KernelType = EPCGKernelType(PreconfiguredInfo.PreconfiguredIndex);
+		}
+	}
+}
+
+FString UPCGCustomHLSLSettings::GetAdditionalTitleInformation() const
+{
+	if (const UEnum* EnumPtr = StaticEnum<EPCGKernelType>())
+	{
+		return EnumPtr->GetNameStringByValue(static_cast<int>(KernelType));
+	}
+
+	return FString();
+}
+
 EPCGChangeType UPCGCustomHLSLSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
 {
 	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
