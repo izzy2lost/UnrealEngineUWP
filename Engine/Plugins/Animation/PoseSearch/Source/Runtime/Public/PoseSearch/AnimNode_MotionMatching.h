@@ -178,4 +178,5 @@ private:
 #endif // WITH_EDITORONLY_DATA
 
 	friend class UAnimGraphNode_MotionMatching;
+	friend class UMotionMatchingAnimNodeLibrary;
 };
