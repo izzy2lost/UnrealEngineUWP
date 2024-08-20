@@ -1290,15 +1290,6 @@ void UObject::ConditionalPostLoad()
 
 		ConditionalPostLoadSubobjects();
 
-#if WITH_EDITORONLY_DATA
-		// Object has been deserialized, if IDO is enabled, generate it
-		if (UE::IsInstanceDataObjectSupportEnabled(this) && !FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
-		{
-			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
-			PropertyBagRepository.PostLoadInstanceDataObject(this);
-		}
-#endif
-
 		{
 			FExclusiveLoadPackageTimeTracker::FScopedPostLoadTracker Tracker(this);
 
@@ -1323,6 +1314,17 @@ void UObject::ConditionalPostLoad()
 				LLM_PUSH_STATS_FOR_ASSET_TAGS();
 			}
 		}
+
+#if WITH_EDITORONLY_DATA
+		// Object has been deserialized, so update its associated IDO. Note that this should be done
+		// *after* PostLoad() is called, since that could mutate already-serialized fields on this object,
+		// and we need those changes to also be reflected on the IDO, which was created at serialization time.
+		if (UE::IsInstanceDataObjectSupportEnabled(this) && !FUObjectThreadContext::Get().GetSerializeContext()->bImpersonateProperties)
+		{
+			UE::FPropertyBagRepository& PropertyBagRepository = UE::FPropertyBagRepository::Get();
+			PropertyBagRepository.PostLoadInstanceDataObject(this);
+		}
+#endif
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
 		if (ThreadContext.DebugPostLoad.Contains(this))

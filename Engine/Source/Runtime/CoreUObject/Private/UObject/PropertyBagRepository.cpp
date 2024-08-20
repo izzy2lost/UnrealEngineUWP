@@ -5,6 +5,7 @@
 #if WITH_EDITORONLY_DATA
 
 #include "Containers/Queue.h"
+#include "InstancedReferenceSubobjectHelper.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/ObjectReader.h"
 #include "Serialization/ObjectWriter.h"
@@ -694,6 +695,19 @@ void FPropertyBagRepository::PostLoadInstanceDataObject(const UObject* Owner)
 		{
 			// copy data from owner to IDO
 			CopyTaggedProperties(Owner, BagData->InstanceDataObject);
+
+			// the owner's PostLoad() may have mutated its instanced subobjects as well (e.g. pointer fixup). to handle
+			// that case, we look for any instanced subobjects that have already had their PostLoad() called, as those will
+			// not have a chance to get their IDO data fixed up to match changes potentially made by its owner's PostLoad().
+			TSet<UObject*> InstancedSubObjects;
+			FFindInstancedReferenceSubobjectHelper::GetInstancedSubObjects(Owner, InstancedSubObjects);
+			for (UObject* InstancedSubObject : InstancedSubObjects)
+			{
+				if (!InstancedSubObject->HasAnyFlags(RF_NeedPostLoad) && InstancedSubObject->IsInOuter(Owner))
+				{
+					PostLoadInstanceDataObject(InstancedSubObject);
+				}
+			}
 		}
 	}
 }
