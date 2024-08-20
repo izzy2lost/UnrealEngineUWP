@@ -1545,6 +1545,13 @@ void UNiagaraHierarchyViewModelBase::AddSection() const
 	OnHierarchyChangedDelegate.Broadcast();
 }
 
+UNiagaraHierarchyItemBase* UNiagaraHierarchyViewModelBase::AddItem(TSubclassOf<UNiagaraHierarchyItemBase> NewChildClass, FNiagaraHierarchyIdentity ChildIdentity)
+{
+	FScopedTransaction Transaction(LOCTEXT("Transaction_AddItem", "Add hierarchy item"));
+	HierarchyRoot->Modify();
+	return GetHierarchyRootViewModel()->AddChild(NewChildClass, ChildIdentity);
+}
+
 void UNiagaraHierarchyViewModelBase::DeleteItemWithIdentity(FNiagaraHierarchyIdentity Identity)
 {
 	FScopedTransaction Transaction(LOCTEXT("Transaction_DeleteItem", "Deleted hierarchy item"));

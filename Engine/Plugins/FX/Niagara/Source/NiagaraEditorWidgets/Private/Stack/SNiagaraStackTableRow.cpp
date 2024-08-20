@@ -774,7 +774,7 @@ void SNiagaraStackTableRow::ToggleShowInSummaryView() const
 			{
 				UClass* HierarchyClass = DetermineHierarchyClassForSummaryView();
 				check(HierarchyClass);
-				StackEntry->GetEmitterViewModel()->GetSummaryHierarchyViewModel()->GetHierarchyRootViewModel()->AddChild(HierarchyClass, Identity);
+				StackEntry->GetEmitterViewModel()->GetSummaryHierarchyViewModel()->AddItem(HierarchyClass, Identity);
 			}
 		}
 	}
