@@ -117,7 +117,6 @@ FRHICommandList* FRDGDispatchPassBuilder::CreateCommandList()
 {
 	FRHICommandList* RHICmdList = new FRHICommandList(Pass->GetGPUMask());
 	RHICmdList->SwitchPipeline(Pass->GetPipeline());
-	Pass->CommandLists.Emplace(RHICmdList);
 
 	// When parallel executing, the pass commands are embedded directly into the first command list.
 	if (Pass->bParallelExecute && Pass->CommandLists.IsEmpty())
@@ -132,6 +131,8 @@ FRHICommandList* FRDGDispatchPassBuilder::CreateCommandList()
 	}
 
 	RHICmdList->SetStaticUniformBuffers(StaticUniformBuffers);
+
+	Pass->CommandLists.Emplace(RHICmdList);
 	return RHICmdList;
 }
 
