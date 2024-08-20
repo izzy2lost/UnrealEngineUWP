@@ -804,8 +804,10 @@ public:
 
 		RHIValidation::FStageBoundUniformBuffers& BoundUniformBuffers = State.BoundUniformBuffers.Get(Shader->GetFrequency());
 
-		ValidateShaderParameters(Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, InResourceParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
-		ValidateShaderParameters(Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, InBindlessParameters, ERHIAccess::SRVGraphics, RHIValidation::EUAVMode::Graphics);
+		ERHIAccess RequiredAccess = Shader->GetFrequency() == SF_Pixel ? ERHIAccess::SRVGraphicsPixel : ERHIAccess::SRVGraphicsNonPixel;
+
+		ValidateShaderParameters(Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, InResourceParameters, RequiredAccess, RHIValidation::EUAVMode::Graphics);
+		ValidateShaderParameters(Shader, Tracker, State.StaticUniformBuffers, BoundUniformBuffers, InBindlessParameters, RequiredAccess, RHIValidation::EUAVMode::Graphics);
 
 		RHIContext->RHISetShaderParameters(Shader, InParametersData, InParameters, InResourceParameters, InBindlessParameters);
 	}
