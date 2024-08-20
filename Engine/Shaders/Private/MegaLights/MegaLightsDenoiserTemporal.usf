@@ -157,7 +157,7 @@ void DenoiserTemporalCS(
 
 	FDebug Debug;
 #if DEBUG_MODE
-	int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+	int2 DebugScreenCoord = GetDebugScreenCoord();
 	Debug.bActive = all(ScreenCoord == DebugScreenCoord);
 	Debug.Context = InitShaderPrintContext(true, float2(0.55, 0.4));
 #endif

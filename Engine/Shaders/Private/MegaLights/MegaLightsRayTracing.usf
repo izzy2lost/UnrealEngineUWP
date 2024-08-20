@@ -214,7 +214,7 @@ void ScreenSpaceRayTraceLightSamplesCS(
 		FLightSampleTrace LightSampleTrace = GetLightSampleTrace(TranslatedWorldPosition, LightSample.LocalLightIndex, SampleCoord);
 
 		#if DEBUG_MODE
-			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+			int2 DebugScreenCoord = GetDebugScreenCoord();
 			bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
 		#endif
 
@@ -322,7 +322,7 @@ void SoftwareRayTraceLightSamplesCS(
 
 #if DEBUG_MODE
 		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.45));
-		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+		int2 DebugScreenCoord = GetDebugScreenCoord();
 		bool bDebug = all(DebugScreenCoord / DOWNSAMPLE_FACTOR == DownsampledScreenCoord);
 #endif
 

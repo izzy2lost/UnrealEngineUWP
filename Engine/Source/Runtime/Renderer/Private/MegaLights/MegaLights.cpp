@@ -980,6 +980,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			MegaLightsParameters.TemporalMaxFramesAccumulated = FMath::Max(CVarMegaLightsTemporalMaxFramesAccumulated.GetValueOnRenderThread(), 0.0f);
 			MegaLightsParameters.TemporalNeighborhoodClampScale = CVarMegaLightsTemporalNeighborhoodClampScale.GetValueOnRenderThread();
 			MegaLightsParameters.TemporalAdvanceFrame = View.ViewState && !View.bStatePrevViewInfoIsReadOnly ? 1 : 0;
+			MegaLightsParameters.bOverrideCursorPosition = GIsEditor ? 0u : 1u;
 			MegaLightsParameters.DebugMode = MegaLights::GetDebugMode();
 			MegaLightsParameters.DebugLightId = INDEX_NONE;
 

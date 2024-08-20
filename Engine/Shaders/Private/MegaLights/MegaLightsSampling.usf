@@ -137,8 +137,6 @@ void GenerateLightSamplesCS(
 			const FMegaLightsMaterial Material = LoadMaterial(ScreenUV, ScreenCoord, TILE_TYPE == TILE_MODE_SIMPLE_SHADING/*bForceSimpleShading*/);
 			const float SceneDepth = Material.Depth;
 
-			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);
-
 			const uint EyeIndex = 0;
 			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
 			const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
@@ -177,7 +175,7 @@ void GenerateLightSamplesCS(
 			FDebug Debug;
 			#if DEBUG_MODE
 			{
-				int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+				int2 DebugScreenCoord = GetDebugScreenCoord();
 				Debug.bActive = all(DownsampledScreenCoord == DebugScreenCoord / DOWNSAMPLE_FACTOR);
 				Debug.Context = InitShaderPrintContext(true, float2(0.05, 0.05));
 			}

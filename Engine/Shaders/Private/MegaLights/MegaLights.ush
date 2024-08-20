@@ -45,6 +45,15 @@ struct FDebug
 #endif
 };
 
+uint bOverrideCursorPosition;
+int2 GetDebugScreenCoord()
+{
+	const int2 OverrideCursorPosition = View.ViewRectMin.xy + View.ViewSizeAndInvSize.xy / 2;
+	const int2 CursorPosition = bOverrideCursorPosition > 0 ? OverrideCursorPosition : View.CursorPosition * View.ViewResolutionFraction;
+	const int2 DebugScreenCoord = CursorPosition.x >= 0 ? CursorPosition : -1;	
+	return DebugScreenCoord;
+}
+
 uint PackTile(uint2 TileCoord)
 {
 	return TileCoord.x | (TileCoord.y << 16);

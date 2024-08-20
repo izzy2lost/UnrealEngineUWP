@@ -30,7 +30,7 @@ void DenoiserSpatialCS(
 	uint2 ScreenCoord = DispatchThreadId.xy + View.ViewRectMinAndSize.xy;
 
 	#if DEBUG_MODE
-		int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+		int2 DebugScreenCoord = GetDebugScreenCoord();
 		bool bDebug = all(ScreenCoord == DebugScreenCoord);
 		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.7));
 	#endif

@@ -126,7 +126,7 @@ void VolumeShadeLightSamplesCS(
 		FDebug Debug;
 		#if DEBUG_MODE
 		{
-			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+			int2 DebugScreenCoord = GetDebugScreenCoord();
 			Debug.bActive = all(VolumeCoord == int3(DebugScreenCoord >> MegaLightsVolumePixelSizeShift, VolumeDebugSliceIndex));
 			Debug.Context = InitShaderPrintContext(true, float2(0.5, 0.05));
 		}

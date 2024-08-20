@@ -132,7 +132,7 @@ void ShadeLightSamplesCS(
 		if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
 		{
 	#if DEBUG_MODE
-			int2 DebugScreenCoord = View.CursorPosition.x >= 0 ? View.CursorPosition * View.ViewResolutionFraction : -1;
+			int2 DebugScreenCoord = GetDebugScreenCoord();
 			bool bDebug = all(ScreenCoord == DebugScreenCoord);
 			FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.05));
 	#endif
