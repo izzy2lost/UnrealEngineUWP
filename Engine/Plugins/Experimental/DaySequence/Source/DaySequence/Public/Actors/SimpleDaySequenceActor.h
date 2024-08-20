@@ -16,7 +16,7 @@ class UStaticMeshComponent;
 
 /**
  * A self-registering Day Sequence Actor with a simple set of lighting components (some of which are optional).
- * Can be used as-is or extended by derived classes (see AProceduralDaySequenceActor for example).
+ * Can be used as-is or extended by derived classes (see ASunPositionDaySequenceActor).
  */
 UCLASS(Blueprintable, HideCategories=(Tags, Networking, LevelInstance))
 class DAYSEQUENCE_API ASimpleDaySequenceActor
@@ -28,11 +28,13 @@ public:
 	ASimpleDaySequenceActor(const FObjectInitializer& Init);
 
 protected:
+	
 	/** BeginPlay and OnConstruction overrides auto-register this actor with the DaySequenceSubsystem. */
 	virtual void BeginPlay() override;
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 protected:
+
 	/** Standard Components **/
 	
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, Category= "Day Sequence", meta = (AllowPrivateAccess = "true"))

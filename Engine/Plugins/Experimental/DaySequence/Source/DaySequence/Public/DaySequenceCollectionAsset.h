@@ -4,6 +4,8 @@
 
 #include "DaySequenceConditionSet.h"
 #include "Engine/DataAsset.h"
+#include "ProceduralDaySequence.h"
+#include "StructUtils/InstancedStruct.h"
 
 #include "DaySequenceCollectionAsset.generated.h"
 
@@ -45,6 +47,9 @@ class UDaySequenceCollectionAsset : public UDataAsset
 public:
 	UPROPERTY(EditAnywhere, Category="Day Sequence")
 	TArray<FDaySequenceCollectionEntry> DaySequences;
+
+	UPROPERTY(EditAnywhere, Category="Day Sequence", meta = (ExcludeBaseStruct))
+	TArray<TInstancedStruct<FProceduralDaySequence>> ProceduralDaySequences;
 
 	/**
 	 * TODO [nickolas.drake]

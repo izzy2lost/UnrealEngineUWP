@@ -2,6 +2,7 @@
 
 #include "ProceduralDaySequenceBuilder.h"
 
+#include "DaySequenceActor.h"
 #include "DaySequenceTime.h"
 #include "MovieSceneCommonHelpers.h"
 
@@ -12,6 +13,7 @@
 #include "Tracks/MovieSceneBoolTrack.h"
 #include "Tracks/MovieSceneDoubleTrack.h"
 #include "Tracks/MovieSceneFloatTrack.h"
+#include "Tracks/MovieScene3DTransformTrack.h"
 
 #include "MovieScene.h"
 #include "DaySequence.h"
@@ -50,6 +52,38 @@ namespace UE::DaySequence
 		}
 
 		return true;
+	}
+
+	void AddDoubleKey(FFrameNumber Time, double Value, FMovieSceneDoubleChannel* Channel, ERichCurveInterpMode InterpMode)
+	{
+		if (!Channel)
+		{
+			return;
+		}
+		
+		switch (InterpMode)
+		{
+		case RCIM_Linear: Channel->AddLinearKey(Time, Value); break;
+		case RCIM_Constant: Channel->AddConstantKey(Time, Value); break;
+		case RCIM_Cubic: Channel->AddCubicKey(Time, Value); break;
+		case RCIM_None: break;
+		}
+	}
+
+	void AddFloatKey(FFrameNumber Time, double Value, FMovieSceneFloatChannel* Channel, ERichCurveInterpMode InterpMode)
+	{
+		if (!Channel)
+		{
+			return;
+		}
+		
+		switch (InterpMode)
+		{
+		case RCIM_Linear: Channel->AddLinearKey(Time, Value); break;
+		case RCIM_Constant: Channel->AddConstantKey(Time, Value); break;
+		case RCIM_Cubic: Channel->AddCubicKey(Time, Value); break;
+		case RCIM_None: break;
+		}
 	}
 };
 
@@ -181,24 +215,7 @@ void UProceduralDaySequenceBuilder::AddScalarKeys(FName PropertyName, const TArr
 		for (const TPair<float, double>& KeyValue : KeysAndValues)
 		{
 			const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
-
-			switch (InterpMode)
-			{
-			case RCIM_Linear:
-				FloatSection->GetChannel().AddLinearKey(FrameNumber, KeyValue.Value);
-				break;
-				
-			case RCIM_Constant:
-				FloatSection->GetChannel().AddConstantKey(FrameNumber, KeyValue.Value);
-				break;
-			
-			case RCIM_Cubic:
-				FloatSection->GetChannel().AddCubicKey(FrameNumber, KeyValue.Value);
-				break;
-				
-			case RCIM_None:
-				break;
-			}
+			UE::DaySequence::AddFloatKey(FrameNumber, KeyValue.Value, &FloatSection->GetChannel(), InterpMode);
 		}
 
 		FloatSection->MarkAsChanged();
@@ -210,24 +227,7 @@ void UProceduralDaySequenceBuilder::AddScalarKeys(FName PropertyName, const TArr
 		for (const TPair<float, double>& KeyValue : KeysAndValues)
 		{
 			const FFrameNumber FrameNumber = UE::DaySequence::GetKeyFrameNumber(KeyValue.Key, MovieScene->GetPlaybackRange());
-			
-			switch (InterpMode)
-			{
-			case RCIM_Linear:
-				DoubleSection->GetChannel().AddLinearKey(FrameNumber, KeyValue.Value);
-				break;
-				
-			case RCIM_Constant:
-				DoubleSection->GetChannel().AddConstantKey(FrameNumber, KeyValue.Value);
-				break;
-			
-			case RCIM_Cubic:
-				DoubleSection->GetChannel().AddCubicKey(FrameNumber, KeyValue.Value);
-				break;
-				
-			case RCIM_None:
-				break;
-			}
+			UE::DaySequence::AddDoubleKey(FrameNumber, KeyValue.Value, &DoubleSection->GetChannel(), InterpMode);
 		}
 
 		DoubleSection->MarkAsChanged();
@@ -319,6 +319,78 @@ void UProceduralDaySequenceBuilder::AddBoolKeys(FName PropertyName, const TArray
 	{
 		FFrame::KismetExecutionMessage(*FString::Printf(TEXT("Unable to animate a %s property as a bool."), *Property->GetClass()->GetName()), ELogVerbosity::Error);
 	}
+}
+
+void UProceduralDaySequenceBuilder::AddTransformKey(float Key, const FTransform& Value, ERichCurveInterpMode InterpMode)
+{
+	using namespace UE::DaySequence;
+	
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddTransformKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+	
+	AddTranslationKey(Key, Value.GetLocation(), InterpMode);
+	AddRotationKey(Key, Value.Rotator(), InterpMode);
+	AddScaleKey(Key, Value.GetScale3D(), InterpMode);
+}
+
+void UProceduralDaySequenceBuilder::AddTranslationKey(float Key, const FVector& Value, ERichCurveInterpMode InterpMode)
+{
+	using namespace UE::DaySequence;
+	
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddTranslationKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+	const FFrameNumber FrameNumber = GetKeyFrameNumber(Key, MovieScene->GetPlaybackRange());
+	const UMovieScene3DTransformSection* TransformSection = CreateOrAddPropertyOverrideSection<UMovieScene3DTransformTrack, UMovieScene3DTransformSection>("Transform");
+
+	AddDoubleKey(FrameNumber, Value.X, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(0), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Y, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(1), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Z, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(2), InterpMode);
+}
+
+void UProceduralDaySequenceBuilder::AddRotationKey(float Key, const FRotator& Value, ERichCurveInterpMode InterpMode)
+{
+	using namespace UE::DaySequence;
+	
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddRotationKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+	const FFrameNumber FrameNumber = GetKeyFrameNumber(Key, MovieScene->GetPlaybackRange());
+	const UMovieScene3DTransformSection* TransformSection = CreateOrAddPropertyOverrideSection<UMovieScene3DTransformTrack, UMovieScene3DTransformSection>("Transform");
+	
+	AddDoubleKey(FrameNumber, Value.Roll,  TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(3), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Pitch, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(4), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Yaw,   TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(5), InterpMode);
+}
+
+void UProceduralDaySequenceBuilder::AddScaleKey(float Key, const FVector& Value, ERichCurveInterpMode InterpMode)
+{
+	using namespace UE::DaySequence;
+	
+	if (!IsInitialized())
+	{
+		FFrame::KismetExecutionMessage(TEXT("AddScaleKey(s) called on an uninitialized Procedural Day Sequence Builder!"), ELogVerbosity::Error);
+		return;
+	}
+
+	const UMovieScene* MovieScene = ProceduralDaySequence->GetMovieScene();
+	const FFrameNumber FrameNumber = GetKeyFrameNumber(Key, MovieScene->GetPlaybackRange());
+	const UMovieScene3DTransformSection* TransformSection = CreateOrAddPropertyOverrideSection<UMovieScene3DTransformTrack, UMovieScene3DTransformSection>("Transform");
+
+	AddDoubleKey(FrameNumber, Value.X, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(6), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Y, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(7), InterpMode);
+	AddDoubleKey(FrameNumber, Value.Z, TransformSection->GetChannelProxy().GetChannel<FMovieSceneDoubleChannel>(8), InterpMode);
 }
 
 void UProceduralDaySequenceBuilder::AddStaticTime(float StaticTime)

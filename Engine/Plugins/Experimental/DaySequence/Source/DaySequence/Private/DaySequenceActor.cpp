@@ -160,7 +160,7 @@ ADaySequenceActor::ADaySequenceActor(const FObjectInitializer& Init)
 	bReplicateUsingRegisteredSubObjectList = true;
 	bReplicatePlayback = false;
 	SetHidden(false);
-
+	
 #if ENABLE_DRAW_DEBUG
 	if (!IsTemplate())
 	{
@@ -713,6 +713,16 @@ void ADaySequenceActor::InitializeDaySequences()
 		for (const FDaySequenceCollectionEntry& Entry : DaySequenceCollection->DaySequences)
 		{
 			InitializeDaySequence(Entry);
+		}
+
+		for (TInstancedStruct<FProceduralDaySequence>& ProceduralDaySequence : DaySequenceCollection->ProceduralDaySequences)
+		{
+			if (!ProceduralDaySequence.IsValid())
+			{
+				continue;
+			}
+			
+			InitializeDaySequence(ProceduralDaySequence.GetMutable<FProceduralDaySequence>().GetSequence(this));
 		}
 	}
 }

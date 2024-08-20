@@ -4,16 +4,19 @@
 
 #include "CoreMinimal.h"
 #include "DaySequence.h"
-#include "DaySequenceActor.h"
 #include "Curves/RealCurve.h"
 
 #include "ProceduralDaySequenceBuilder.generated.h"
+
+class ADaySequenceActor;
 
 /**
  * A utility class for creating procedural Day Sequences.
  * Before adding any keys, SetActiveBoundObject should be called and provided a Day Sequence Actor or a component owned by a Day Sequence Actor.
  * All time values are currently normalized to the range [0, 1], inclusive on both ends. A time of 1 is handled as a special case and maps to the final frame.
  * This class assumes the target Day Sequence Actor will stay alive and that users will keep the generated sequence alive, it manages no lifetimes.
+ *
+ * Consider using FProceduralDaySequence instead of using this class directly.
  */
 UCLASS(BlueprintType)
 class DAYSEQUENCE_API UProceduralDaySequenceBuilder
@@ -41,6 +44,8 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
 	void SetActiveBoundObject(UObject* InObject);
 
+	// todo [nickolas.drake]: Fill out this section, making sure common key types can be added in bulk and by BPs
+	
 	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
 	void ClearAllKeys();
 	
@@ -56,6 +61,18 @@ public:
 	void AddBoolKey(FName PropertyName, float Key, bool Value);
 	void AddBoolKey(FName PropertyName, const TPair<float, bool>& KeyValue);
 	void AddBoolKeys(FName PropertyName, const TArray<TPair<float, bool>>& KeysAndValues);
+
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void AddTransformKey(float Key, const FTransform& Value, ERichCurveInterpMode InterpMode = RCIM_Cubic);
+	
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void AddTranslationKey(float Key, const FVector& Value, ERichCurveInterpMode InterpMode = RCIM_Cubic);
+	
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void AddRotationKey(float Key, const FRotator& Value, ERichCurveInterpMode InterpMode = RCIM_Cubic);
+	
+	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
+	void AddScaleKey(float Key, const FVector& Value, ERichCurveInterpMode InterpMode = RCIM_Cubic);
 
 	UFUNCTION(BlueprintCallable, Category = "Day Sequence")
 	void AddStaticTime(float StaticTime);
