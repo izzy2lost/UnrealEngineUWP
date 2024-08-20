@@ -493,16 +493,22 @@ float FMinimalViewInfo::CalculateFirstPersonFOVCorrectionFactor() const
 	return FOVCorrectionFactor;
 }
 
-void FMinimalViewInfo::ApplyOverscan(float InOverscan)
+void FMinimalViewInfo::ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan, bool bCropOverscan)
 {
 	if (InOverscan > 0.0)
 	{
+		// By convention, 0.0 means no overscan, so add 1 to compute the scalar needed for altering projection values
+		const float OverscanScalar = 1.0f + InOverscan;
+		
 		// Overscan directly scales the view frustum, but can be accomplished by scaling the FOV.
 		// However, must scale the tangent of the half-FOV to accomplish the same mathematical transform.
 		const float HalfFOVInRadians = FMath::DegreesToRadians(0.5f * FOV);
-		const float OverscannedFOV = FMath::Atan((1.0f + InOverscan) * FMath::Tan(HalfFOVInRadians));
+		const float OverscannedFOV = FMath::Atan(OverscanScalar * FMath::Tan(HalfFOVInRadians));
 		FOV = 2.0f * FMath::RadiansToDegrees(OverscannedFOV);
 		
-		OrthoWidth *= 1.0f + InOverscan;
+		OrthoWidth *= OverscanScalar;
+
+		OverscanResolutionFraction *= bScaleResolutionWithOverscan ? OverscanScalar : 1.0;
+		CropFraction *= bCropOverscan ? 1.0f / OverscanScalar : 1.0f;
 	}
 }

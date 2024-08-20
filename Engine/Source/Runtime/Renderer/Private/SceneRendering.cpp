@@ -1248,8 +1248,27 @@ void SetupPhysicsFieldUniformBufferParameters(const FScene* Scene, FEngineShowFl
 FIntPoint FViewInfo::GetSecondaryViewRectSize() const
 {
 	return FIntPoint(
-		FMath::CeilToInt(UnscaledViewRect.Width() * Family->SecondaryViewFraction),
-		FMath::CeilToInt(UnscaledViewRect.Height() * Family->SecondaryViewFraction));
+		FMath::CeilToInt(UnscaledViewRect.Width() * Family->SecondaryViewFraction * SceneViewInitOptions.OverscanResolutionFraction),
+		FMath::CeilToInt(UnscaledViewRect.Height() * Family->SecondaryViewFraction * SceneViewInitOptions.OverscanResolutionFraction));
+}
+
+FIntRect FViewInfo::GetSecondaryViewCropRect() const
+{
+	const FIntPoint SecondaryVewRectSize = GetSecondaryViewRectSize();
+
+	// Clamp the crop fraction to sensible values to ensure crop rect is always a valid rectangle
+	const float CropFrac = FMath::Clamp(SceneViewInitOptions.CropFraction, 0.0f, 1.0f);
+	
+	FIntRect CropRect;
+	CropRect.Min = FIntPoint(
+			FMath::FloorToInt(0.5f * (1.0f - CropFrac) * SecondaryVewRectSize.X),
+			FMath::FloorToInt(0.5f * (1.0f - CropFrac) * SecondaryVewRectSize.Y));
+		
+	CropRect.Max = FIntPoint(
+		FMath::CeilToInt(0.5f * (1.0f + CropFrac) * SecondaryVewRectSize.X),
+		FMath::CeilToInt(0.5f * (1.0f + CropFrac) * SecondaryVewRectSize.Y));
+
+	return CropRect;
 }
 
 /** Creates the view's uniform buffers given a set of view transforms. */
@@ -3159,11 +3178,21 @@ FIntPoint FSceneRenderer::GetDesiredInternalBufferSize(const FSceneViewFamily& V
 
 	FIntPoint FamilySizeUpperBound(0, 0);
 
+	// For multiple views, use the maximum overscan fraction to ensure that enough space is allocated so that any overscanned views
+	// do not encroach into the space of other views
+	float MaxOverscanResolutionFraction = 1.0f;
+	for (const FSceneView* View : ViewFamily.AllViews)
+	{
+		MaxOverscanResolutionFraction = FMath::Max(MaxOverscanResolutionFraction, View->SceneViewInitOptions.OverscanResolutionFraction);
+	}
+
+	ResolutionFractionUpperBound *= MaxOverscanResolutionFraction;
+	
 	for (const FSceneView* View : ViewFamily.AllViews)
 	{
 		// Note: This ensures that custom passes (rendered with the main renderer) ignore screen percentage, like regular scene captures.
 		const float AdjustedResolutionFractionUpperBounds = View->CustomRenderPass ? 1.0f : (View->SceneViewInitOptions.OverridePrimaryResolutionFraction > 0.0 ? (View->SceneViewInitOptions.OverridePrimaryResolutionFraction * ViewFamily.SecondaryViewFraction)  : ResolutionFractionUpperBound);
-
+		
 		FIntPoint ViewSize = ApplyResolutionFraction(ViewFamily, View->UnconstrainedViewRect.Size(), AdjustedResolutionFractionUpperBounds);
 		FIntPoint ViewRectMin = QuantizeViewRectMin(FIntPoint(
 			FMath::CeilToInt(View->UnconstrainedViewRect.Min.X * AdjustedResolutionFractionUpperBounds),
@@ -3317,6 +3346,14 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 		LensDistortionResolutionFraction = FMath::Lerp(1.0, Views[0].LensDistortionLUT.ResolutionFraction, AffectScreenPercentage);
 	}
 
+	// For multiple views, we must find the maximum overscan resolution so that views can be offset appropriately to avoid overscanned
+	// views encroaching into other views' buffer space
+	float MaxOverscanResolutionFraction = 1.0f;
+	for (const FSceneView* View : ViewFamily.AllViews)
+	{
+		MaxOverscanResolutionFraction = FMath::Max(MaxOverscanResolutionFraction, View->SceneViewInitOptions.OverscanResolutionFraction);
+	}
+	
 	// Compute final resolution fraction.
 	float ResolutionFraction = PrimaryResolutionFraction * ViewFamily.SecondaryViewFraction * LensDistortionResolutionFraction;
 
@@ -3327,10 +3364,10 @@ void FSceneRenderer::PrepareViewRectsForRendering(FRHICommandListImmediate& RHIC
 
 		float ViewResolutionFraction = View.SceneViewInitOptions.OverridePrimaryResolutionFraction > 0.0 ? (View.SceneViewInitOptions.OverridePrimaryResolutionFraction * ViewFamily.SecondaryViewFraction) : ResolutionFraction;
 
-		FIntPoint ViewSize = ApplyResolutionFraction(ViewFamily, View.UnscaledViewRect.Size(), ViewResolutionFraction);
+		FIntPoint ViewSize = ApplyResolutionFraction(ViewFamily, View.UnscaledViewRect.Size(), ViewResolutionFraction * View.SceneViewInitOptions.OverscanResolutionFraction);
 		FIntPoint ViewRectMin = QuantizeViewRectMin(FIntPoint(
-			FMath::CeilToInt(View.UnscaledViewRect.Min.X * ViewResolutionFraction),
-			FMath::CeilToInt(View.UnscaledViewRect.Min.Y * ViewResolutionFraction)));
+			FMath::CeilToInt(View.UnscaledViewRect.Min.X * ViewResolutionFraction * MaxOverscanResolutionFraction),
+			FMath::CeilToInt(View.UnscaledViewRect.Min.Y * ViewResolutionFraction * MaxOverscanResolutionFraction)));
 
 		// Use the bottom-left view rect if requested, instead of top-left
 		if (CVarViewRectUseScreenBottom.GetValueOnRenderThread())

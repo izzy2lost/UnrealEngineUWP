@@ -131,6 +131,14 @@ struct FMinimalViewInfo
 	/** Optional transform to be considered as this view's previous transform */
 	TOptional<FTransform> PreviousViewTransform;
 
+	/** Resolution fraction that scales with the amount of overscan added to the view */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera)
+	float OverscanResolutionFraction;
+	
+	/** The fraction between 0.0 and 1.0 of the view to crop to during the final post process upscale, with 1.0 meaning no crop */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category=Camera, meta=(ClampMin=0.0, UIMin=0.0, ClampMax=1.0, UIMax=1.0))
+	float CropFraction;
+	
 private:
 	// Only used for Ortho camera auto plane calculations, tells the Near plane of the extra distance that needs to be added.
 	FVector CameraToViewTarget;
@@ -159,6 +167,8 @@ public:
 		, ProjectionMode(ECameraProjectionMode::Perspective)
 		, PostProcessBlendWeight(0.0f)
 		, OffCenterProjectionOffset(ForceInitToZero)
+		, OverscanResolutionFraction(1.0f)
+		, CropFraction(1.0f)
 		, CameraToViewTarget(FVector::ZeroVector)
 	{
 	}
@@ -218,5 +228,5 @@ public:
 	/**
 	 * Apply overscan to the view info, which scales the field of view and ortho width to simulate expanding the view frustum.
 	 */
-	ENGINE_API void ApplyOverscan(float InOverscan);
+	ENGINE_API void ApplyOverscan(float InOverscan, bool bScaleResolutionWithOverscan = false, bool bCropOverscan = false);
 };

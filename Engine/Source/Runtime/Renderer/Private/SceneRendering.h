@@ -1582,11 +1582,14 @@ public:
 
 	/** Returns the size of view rect after primary upscale ( == only with secondary screen percentage). */
 	RENDERER_API FIntPoint GetSecondaryViewRectSize() const;
+
+	/** Returns the rectangle to crop to during the secondary upscale */
+	RENDERER_API FIntRect GetSecondaryViewCropRect() const;
 	
 	/** Returns whether the view requires a secondary upscale. */
 	bool RequiresSecondaryUpscale() const
 	{
-		return UnscaledViewRect.Size() != GetSecondaryViewRectSize();
+		return UnscaledViewRect.Size() != GetSecondaryViewRectSize() || GetSecondaryViewCropRect().Size() != GetSecondaryViewRectSize();
 	}
 
 	/** Compute the pre-exposure of internal renderer resources. */

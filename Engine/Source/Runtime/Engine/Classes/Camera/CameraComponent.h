@@ -130,12 +130,43 @@ class UCameraComponent : public USceneComponent
 	uint8 bUseFieldOfViewForLOD : 1;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	void SetUseFieldOfViewForLOD(bool bInUseFieldOfViewForLOD) { bUseFieldOfViewForLOD = bInUseFieldOfViewForLOD; }
+	
 	/** Amount to increase the view frustum by, from 0.0 for no increase to 1.0 for 100% increase */
 	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions, meta = (UIMin="0.0", ClampMin="0.0", UIMax="1.0", ClampMax="1.0"))
 	float Overscan;
 	UFUNCTION(BlueprintCallable, Category = Camera)
 	void SetOverscan(float InOverscan) { Overscan = InOverscan; }
 	
+	/**
+	 * Indicates that the resolution should be scaled by the overscan amount so that the original view frustum remains the same resolution.
+	 * Note that when enabled, increasing overscan will result in increased rendering workload, potentially decreasing performance as resolution increases
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	bool bScaleResolutionWithOverscan;
+
+	/**
+	 * Sets whether to scale the resolution by the amount of overscan so that the original view frustum remains the same resolution.
+	 * Note that when enabled, increasing overscan will result in increased rendering workload, potentially decreasing performance as resolution increases
+	 */
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetScaleResolutionWithOverscan(bool bInScaleResolutionWithOverscan) { bScaleResolutionWithOverscan = bInScaleResolutionWithOverscan; }
+
+	/**
+	 * Indicates that the overscanned pixels should be cropped at the end of the rendering pipeline, allowing the overscanned pixels to be used in post process effects
+	 * that need extra pixels beyond the view frustum (e.g. lens distortion) without having to render those pixels to the screen. When bScaleResolutionWithOverscan is enabled,
+	 * the cropped image will have the same resolution as the original non-overscanned image, but when disabled, the cropped image will be a lower resolution.
+	 */
+	UPROPERTY(Interp, EditAnywhere, BlueprintReadWrite, Category = CameraOptions)
+	bool bCropOverscan;
+
+	/**
+	 * Sets whether to crop the overscanned pixels at the end of the rendering pipeline, allowing the overscanned pixels to be used in post process effects
+	 * that need extra pixels beyond the view frustum (e.g. lens distortion) without having to render those pixels to the screen. When bScaleResolutionWithOverscan is enabled,
+	 * the cropped image will have the same resolution as the original non-overscanned image, but when disabled, the cropped image will be a lower resolution.
+	 */
+	UFUNCTION(BlueprintCallable, Category = Camera)
+	void SetCropOverscan(bool bInCropOverscan) { bCropOverscan = bInCropOverscan; }
+
 #if WITH_EDITOR
 	// Returns the filmback text used for burnins on preview viewports
 	UFUNCTION()

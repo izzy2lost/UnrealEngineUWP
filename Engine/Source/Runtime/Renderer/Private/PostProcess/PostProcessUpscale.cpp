@@ -138,7 +138,8 @@ FScreenPassTexture ISpatialUpscaler::AddDefaultUpscalePass(
 		Output.UpdateVisualizeTextureExtent();
 	}
 
-	const FScreenPassTextureViewport InputViewport(Inputs.SceneColor);
+	const FIntRect InputRect = Inputs.Stage == EUpscaleStage::SecondaryToOutput ? View.GetSecondaryViewCropRect() : Inputs.SceneColor.ViewRect;
+	const FScreenPassTextureViewport InputViewport(Inputs.SceneColor.Texture, InputRect);
 	const FScreenPassTextureViewport OutputViewport(Output);
 
 	const bool bApplyLensDistortion = LensDistortionLUT.IsEnabled();

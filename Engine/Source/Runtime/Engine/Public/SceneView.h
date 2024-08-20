@@ -242,6 +242,12 @@ struct FSceneViewInitOptions : public FSceneViewProjectionData
 	/** If > 0, overrides the view's resolution fraction. */
 	float OverridePrimaryResolutionFraction;
 
+	/** Resolution fraction that scales with the amount of overscan in the view */
+	float OverscanResolutionFraction = 1.0f;
+
+	/** Fraction of the view to crop to during the secondary upscale pass, with 1.0 meaning no crop */
+	float CropFraction = 1.0f;
+	
 #if WITH_EDITOR
 	/** default to 0'th view index, which is a bitfield of 1 */
 	uint64 EditorViewBitflag;
