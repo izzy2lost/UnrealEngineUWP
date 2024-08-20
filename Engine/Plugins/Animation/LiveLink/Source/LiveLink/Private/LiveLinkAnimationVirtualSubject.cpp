@@ -117,7 +117,15 @@ bool ULiveLinkAnimationVirtualSubject::AreSubjectsValid(const TArray<FLiveLinkSu
 				return (SubjectData.SubjectName == SubjectName);
 			});
 
-		bValid = FoundPtr != nullptr && LiveLinkClient->DoesSubjectSupportsRole_AnyThread(*FoundPtr, GetRole());
+
+		bValid = false;
+
+		if (FoundPtr)
+		{
+			TSubclassOf<ULiveLinkRole> SubjectRole = LiveLinkClient->GetSubjectRole_AnyThread(*FoundPtr);
+			bValid = SubjectRole && (SubjectRole->IsChildOf(ULiveLinkAnimationRole::StaticClass()) || SubjectRole == ULiveLinkBasicRole::StaticClass());
+		}
+
 		if (!bValid)
 		{
 			break;
@@ -136,7 +144,11 @@ bool ULiveLinkAnimationVirtualSubject::BuildSubjectSnapshot(TArray<FLiveLinkSubj
 	for (const FName& SubjectName : Subjects)
 	{
 		FLiveLinkSubjectFrameData& NextSnapshot = OutSnapshot.AddDefaulted_GetRef();
-		if (!LiveLinkClient->EvaluateFrame_AnyThread(SubjectName, GetRole(), NextSnapshot))
+		TSubclassOf<ULiveLinkRole> SubjectRole = LiveLinkClient->GetSubjectRole_AnyThread(SubjectName);
+		
+		// Evaluate for basic role if that's the subject's role.
+		TSubclassOf<ULiveLinkRole> DesiredRole = SubjectRole && SubjectRole == ULiveLinkBasicRole::StaticClass() ? SubjectRole : GetRole();
+		if (!LiveLinkClient->EvaluateFrame_AnyThread(SubjectName, DesiredRole, NextSnapshot))
 		{
 			bSnapshotDone = false;
 			break;
@@ -163,23 +175,29 @@ void ULiveLinkAnimationVirtualSubject::BuildSkeleton(const TArray<FLiveLinkSubje
 
 		TMap<int32, FName> NamesToOverride;
 
+		TArray<FName> CombinedPropertyNames;
+
 		for (int32 Index = 0; Index < InSubjectSnapshots.Num(); ++Index)
 		{
 			const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[Index];
 			check(SubjectSnapShotData.StaticData.IsValid());
-			const FLiveLinkSkeletonStaticData* SubjectSkeletonData = SubjectSnapShotData.StaticData.Cast<FLiveLinkSkeletonStaticData>();
 
-			const FName BonePrefix = bAppendSubjectNameToBones ? Subjects[Index] : NAME_None;
-
-			LiveLinkAnimationVirtualSubjectUtils::AddToBoneNames(BoneNames, SubjectSkeletonData->GetBoneNames(), BonePrefix, NamesToOverride);
-			LiveLinkAnimationVirtualSubjectUtils::AddToBoneParents(BoneParents, SubjectSkeletonData->GetBoneParents());
-
-			// Cache bone names to bone index, we need to use both the subject and bone names to make sure
-			// that we can find a parent bone even if it's in a name conflict.
-			for (int32 BoneIndex = 0; BoneIndex < BoneNames.Num(); BoneIndex++)
+			if (const FLiveLinkSkeletonStaticData* SubjectSkeletonData = SubjectSnapShotData.StaticData.Cast<FLiveLinkSkeletonStaticData>())
 			{
-				BoneNameToIndex.FindOrAdd({ Subjects[Index], BoneNames[BoneIndex] }) = BoneIndex;
+				const FName BonePrefix = bAppendSubjectNameToBones ? Subjects[Index] : NAME_None;
+
+				LiveLinkAnimationVirtualSubjectUtils::AddToBoneNames(BoneNames, SubjectSkeletonData->GetBoneNames(), BonePrefix, NamesToOverride);
+				LiveLinkAnimationVirtualSubjectUtils::AddToBoneParents(BoneParents, SubjectSkeletonData->GetBoneParents());
+
+				// Cache bone names to bone index, we need to use both the subject and bone names to make sure
+				// that we can find a parent bone even if it's in a name conflict.
+				for (int32 BoneIndex = 0; BoneIndex < BoneNames.Num(); BoneIndex++)
+				{
+					BoneNameToIndex.FindOrAdd({ Subjects[Index], BoneNames[BoneIndex] }) = BoneIndex;
+				}
 			}
+
+			CombinedPropertyNames.Append(SubjectSnapShotData.StaticData.GetBaseData()->PropertyNames);
 		}
 
 		ProcessAttachmentsForStaticData(BoneParents);
@@ -191,6 +209,7 @@ void ULiveLinkAnimationVirtualSubject::BuildSkeleton(const TArray<FLiveLinkSubje
 
 		SkeletonData->SetBoneNames(BoneNames);
 		SkeletonData->SetBoneParents(BoneParents);
+		SkeletonData->PropertyNames = MoveTemp(CombinedPropertyNames);
 
 		UpdateStaticDataSnapshot(MoveTemp(StaticData));
 
@@ -213,18 +232,22 @@ void ULiveLinkAnimationVirtualSubject::BuildFrame(const TArray<FLiveLinkSubjectF
 
 	NewSnapshotFrameData->Transforms.Reset(SnapshotSkeletonData->GetBoneNames().Num());
 	NewSnapshotFrameData->MetaData.StringMetaData.Empty();
+	NewSnapshotFrameData->PropertyValues.Empty();
 
 	//Go over each subject snapshot and take transforms and curves
 	check(InSubjectSnapshots.Num() == Subjects.Num());
 	for (int32 Index = 0; Index < InSubjectSnapshots.Num(); ++Index)
 	{
 		const FLiveLinkSubjectFrameData& SubjectSnapShotData = InSubjectSnapshots[Index];
-		check(SubjectSnapShotData.FrameData.IsValid());
-		const FLiveLinkAnimationFrameData* SubjectFrameData = SubjectSnapShotData.FrameData.Cast<FLiveLinkAnimationFrameData>();
 
-		NewSnapshotFrameData->Transforms.Append(SubjectFrameData->Transforms);
-		NewSnapshotFrameData->PropertyValues.Append(SubjectFrameData->PropertyValues);
-		for (const auto& MetaDatum : SubjectFrameData->MetaData.StringMetaData)
+		check(SubjectSnapShotData.FrameData.IsValid());
+		if (const FLiveLinkAnimationFrameData* SubjectAnimationData = SubjectSnapShotData.FrameData.Cast<FLiveLinkAnimationFrameData>())
+		{
+			NewSnapshotFrameData->Transforms.Append(SubjectAnimationData->Transforms);
+		}
+
+		NewSnapshotFrameData->PropertyValues.Append(SubjectSnapShotData.FrameData.GetBaseData()->PropertyValues);
+		for (const auto& MetaDatum : SubjectSnapShotData.FrameData.GetBaseData()->MetaData.StringMetaData)
 		{
 			NewSnapshotFrameData->MetaData.StringMetaData.Emplace(Subjects[Index], MetaDatum.Value);
 		}

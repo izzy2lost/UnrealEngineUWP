@@ -23,7 +23,7 @@ enum class EBoneTransformResolution
 	Combine
 };
 
-/** A Skeleton virtual subject is an assembly of different subjects supporting the animation role */
+/** A Skeleton virtual subject is an assembly of different subjects supporting the animation or basic role */
 UCLASS(meta=(DisplayName="Animation Virtual Subject"))
 class LIVELINK_API ULiveLinkAnimationVirtualSubject : public ULiveLinkVirtualSubject
 {
