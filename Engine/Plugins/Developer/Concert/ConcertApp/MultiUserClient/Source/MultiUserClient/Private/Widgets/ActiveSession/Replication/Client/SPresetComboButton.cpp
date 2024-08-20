@@ -2,51 +2,104 @@
 
 #include "SPresetComboButton.h"
 
+#include "ConcertLogGlobal.h"
 #include "Assets/MultiUserReplicationSessionPreset.h"
 #include "Replication/Preset/PresetManager.h"
 
+#include "Containers/StringFwd.h"
 #include "Containers/Ticker.h"
 #include "ContentBrowserModule.h"
+#include "Engine/World.h"
 #include "IContentBrowserSingleton.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
 #include "Framework/Notifications/NotificationManager.h"
+#include "Misc/StringBuilder.h"
+#include "Replication/Preset/PresetUtils.h"
 #include "SSimpleComboButton.h"
 #include "Styling/AppStyle.h"
+#include "UObject/WeakObjectPtr.h"
+#include "UObject/WeakObjectPtrTemplates.h"
 #include "Widgets/Client/SClientName.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Notifications/SNotificationList.h"
 
 #define LOCTEXT_NAMESPACE "SPresetComboButton"
 
-namespace UE::MultiUserClient::Replication
+namespace UE::MultiUserClient::Replication::Private
 {
-	namespace Private
+	static void LogActorsInPreset(const UMultiUserReplicationSessionPreset& Preset)
 	{
-		static FText MakeTitle(const FReplaceSessionContentResult& Result, const FText& PresetText)
+		TStringBuilder<2048> StringBuilder;
+		ForEachSavedActorLabel(Preset,
+			[&StringBuilder](const FSoftObjectPath& ActorPath, const FString& Label)
+			{
+				StringBuilder << TEXT("\tLabel=\"") << *Label << TEXT("\", Path=\"") << *ActorPath.ToString() << TEXT("\"\n");
+				return EBreakBehavior::Continue;
+			});
+		
+		UE_LOG(LogConcert, Warning, TEXT("No actors could be mapped to world %s for preset %s. Saved actors:\n%s"),
+			GWorld ? *GWorld->GetPathName() : TEXT("none"),
+			*Preset.GetPathName(),
+			*StringBuilder
+			);
+	}
+	
+	static void LogPresetErrorsIfNeeded(
+		const TWeakObjectPtr<const UMultiUserReplicationSessionPreset>& WeakPreset,
+		EReplaceSessionContentErrorCode ErrorCode
+		)
+	{
+		const UMultiUserReplicationSessionPreset* Preset = WeakPreset.Get();
+		if (!Preset)
 		{
-			const FText Format = Result.IsSuccess()
-				? LOCTEXT("ApplyPreset.Title.SuccessFmt", "Applied {0} preset")
-				: LOCTEXT("ApplyPreset.Title.FailFmt", "Failed to apply {0} preset");
-			return FText::Format(Format, PresetText);
+			return;
 		}
 
-		static FText MakeSubText(const FReplaceSessionContentResult& Result)
+		switch (ErrorCode)
+		{
+		case EReplaceSessionContentErrorCode::NoObjectsFound:
+			LogActorsInPreset(*Preset);
+			break;
+		default: break;
+		}
+	}
+	
+	static FText MakeTitle(const FReplaceSessionContentResult& Result, const FText& PresetText)
+	{
+		const FText Format = [&Result]()
 		{
 			switch (Result.ErrorCode)
 			{
-			case EReplaceSessionContentErrorCode::Success: return FText::GetEmpty();
-			case EReplaceSessionContentErrorCode::Cancelled: return LOCTEXT("ApplyPreset.SubText.Success", "Disconnected from session.");
-			case EReplaceSessionContentErrorCode::InProgress: return LOCTEXT("ApplyPreset.SubText.InProgress", "Another operation is already in progress.");
-			case EReplaceSessionContentErrorCode::Timeout: return LOCTEXT("ApplyPreset.SubText.Timeout", "Request timed out.");
-			case EReplaceSessionContentErrorCode::FeatureDisabled: return LOCTEXT("ApplyPreset.SubText.FeatureDisabled", "This session does not support presets.");
-			case EReplaceSessionContentErrorCode::Rejected: return LOCTEXT("ApplyPreset.SubText.Rejected", "Rejected by server.");
-			default: checkNoEntry(); return FText::GetEmpty();
+			case EReplaceSessionContentErrorCode::Success: return LOCTEXT("ApplyPreset.Title.SuccessFmt", "Applied {0} preset");
+			case EReplaceSessionContentErrorCode::NoObjectsFound: return LOCTEXT("ApplyPreset.Title.NoObjectsFoundFmt", "No actors matched for {0} preset");
+			default: return LOCTEXT("ApplyPreset.Title.FailFmt", "Failed to apply {0} preset");
 			}
-		}
-
-		static FText GetSavedClientsText() { return LOCTEXT("Save.IncludedClients.Label", "Saved clients"); }
+		}();
+		
+		return FText::Format(Format, PresetText);
 	}
-	
+
+	static FText MakeSubText(const FReplaceSessionContentResult& Result)
+	{
+		switch (Result.ErrorCode)
+		{
+		case EReplaceSessionContentErrorCode::Success: return FText::GetEmpty();
+		case EReplaceSessionContentErrorCode::NoObjectsFound: return LOCTEXT("ApplyPreset.SubText.NoObjectsFound", "No actors from the preset were found in the world.\n\nCheck the output log to see the actors saved in the preset.");
+		case EReplaceSessionContentErrorCode::NoWorld: return LOCTEXT("ApplyPreset.SubText.NoWorld", "No world instance to remap preset content to.");
+		case EReplaceSessionContentErrorCode::Cancelled: return LOCTEXT("ApplyPreset.SubText.Success", "Disconnected from session.");
+		case EReplaceSessionContentErrorCode::InProgress: return LOCTEXT("ApplyPreset.SubText.InProgress", "Another operation is already in progress.");
+		case EReplaceSessionContentErrorCode::Timeout: return LOCTEXT("ApplyPreset.SubText.Timeout", "Request timed out.");
+		case EReplaceSessionContentErrorCode::FeatureDisabled: return LOCTEXT("ApplyPreset.SubText.FeatureDisabled", "This session does not support presets.");
+		case EReplaceSessionContentErrorCode::Rejected: return LOCTEXT("ApplyPreset.SubText.Rejected", "Rejected by server.");
+		default: checkNoEntry(); return FText::GetEmpty();
+		}
+	}
+
+	static FText GetSavedClientsText() { return LOCTEXT("Save.IncludedClients.Label", "Saved clients"); }
+}
+
+namespace UE::MultiUserClient::Replication
+{
 	void SPresetComboButton::Construct(const FArguments& InArgs, const IConcertClient& InClient, FPresetManager& InPresetManager)
 	{
 		Client = &InClient;
@@ -247,10 +300,16 @@ namespace UE::MultiUserClient::Replication
 			Notification->SetCompletionState(SNotificationItem::CS_Pending);
 
 			PresetManager->ReplaceSessionContentWithPreset(*Preset, BuildFlags())
-				.Next([PresetText = MoveTemp(PresetText), Notification = MoveTemp(Notification)](const FReplaceSessionContentResult& Result) mutable
+				.Next([Preset, PresetText = MoveTemp(PresetText), Notification = MoveTemp(Notification)]
+					(const FReplaceSessionContentResult& Result) mutable
 				{
-					ExecuteOnGameThread(TEXT("SPresetComboButton"), [PresetText = MoveTemp(PresetText), Notification = MoveTemp(Notification), Result]()
+					ExecuteOnGameThread(TEXT("SPresetComboButton"),
+						[Preset = TWeakObjectPtr<const UMultiUserReplicationSessionPreset>(Preset),
+							PresetText = MoveTemp(PresetText),
+							Notification = MoveTemp(Notification),
+							Result]
 					{
+						Private::LogPresetErrorsIfNeeded(Preset, Result.ErrorCode);
 						Notification->SetText(Private::MakeTitle(Result, PresetText));
 						Notification->SetSubText(Private::MakeSubText(Result));
 						Notification->SetCompletionState(Result.IsSuccess() ? SNotificationItem::CS_Success : SNotificationItem::CS_Fail);

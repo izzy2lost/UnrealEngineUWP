@@ -19,6 +19,20 @@
 
 namespace UE::MultiUserClient::Replication::Private
 {
+	enum class EPresetState : uint8
+	{
+		/** The preset is valid to apply. */
+		Valid,
+		/** Preset contains changes but none could be mapped to objects. */
+		FailedToMapObjects
+	};
+	
+	EPresetState Combine(EPresetState Base, EPresetState New)
+	{
+		return Base == EPresetState::FailedToMapObjects && New == EPresetState::FailedToMapObjects
+			? EPresetState::FailedToMapObjects : EPresetState::Valid;
+	}
+	
 	static void RemoveEmptyObjectsFromRequest(FConcertReplicationStream& Stream)
 	{
 		TMap<FSoftObjectPath, FConcertReplicatedObjectInfo>& ReplicationMap = Stream.BaseDescription.ReplicationMap.ReplicatedObjects;
@@ -50,7 +64,7 @@ namespace UE::MultiUserClient::Replication::Private
 		});
 	}
 
-	static void AddClientToRequest(
+	static EPresetState AddClientToRequest(
 		const FConcertSessionClientInfo& ClientSessionInfo,
 		FConcertReplication_PutState_Request& Request,
 		const UMultiUserReplicationSessionPreset& Preset,
@@ -69,14 +83,14 @@ namespace UE::MultiUserClient::Replication::Private
 			{
 				AddRequestToClearClient();
 			}
-			return;
+			return EPresetState::Valid;
 		}
 
 		const FConcertObjectReplicationMap& OriginalReplicationMap = ClientSessionContent->ReplicationMap;
 		if (OriginalReplicationMap.IsEmpty())
 		{
 			AddRequestToClearClient();
-			return;
+			return EPresetState::Valid;
 		}
 
 		check(GWorld);
@@ -88,14 +102,16 @@ namespace UE::MultiUserClient::Replication::Private
 		if (TranslatedReplicationMap.IsEmpty())
 		{
 			AddRequestToClearClient();
+			return EPresetState::FailedToMapObjects;
 		}
 		else
 		{
 			ProcessNonEmptyRequest(ClientSessionInfo, Request, ClientSessionContent, TranslatedReplicationMap);
+			return EPresetState::Valid;
 		}
 	}
 
-	static void FillStreamAndAuthorityRequest(
+	static TOptional<EPresetState> FillStreamAndAuthorityRequest(
 		FConcertReplication_PutState_Request& Request,
 		const UMultiUserReplicationSessionPreset& Preset,
 		const IConcertClientSession& Session,
@@ -105,12 +121,17 @@ namespace UE::MultiUserClient::Replication::Private
 		// GWorld is required by AddClientToRequest
 		if (ensure(GWorld))
 		{
-			AddClientToRequest({ Session.GetSessionClientEndpointId(), Session.GetLocalClientInfo() }, Request, Preset, bClearUnreferencedClients);
+			EPresetState PresetState = AddClientToRequest(
+				{ Session.GetSessionClientEndpointId(), Session.GetLocalClientInfo() }, Request, Preset, bClearUnreferencedClients
+				);
 			for (const FConcertSessionClientInfo& ClientSessionInfo : Session.GetSessionClients())
 			{
-				AddClientToRequest(ClientSessionInfo, Request, Preset, bClearUnreferencedClients);
+				const EPresetState RemoteClientState = AddClientToRequest(ClientSessionInfo, Request, Preset, bClearUnreferencedClients);
+				PresetState = Combine(PresetState, RemoteClientState);
 			}
+			return PresetState;
 		}
+		return {};
 	}
 
 	static void FillMuteStateRequest(
@@ -154,7 +175,7 @@ namespace UE::MultiUserClient::Replication::Private
 		}
 	}
 	
-	static FConcertReplication_PutState_Request BuildRequest(
+	static TPair<FConcertReplication_PutState_Request, TOptional<EPresetState>> BuildRequest(
 		const UMultiUserReplicationSessionPreset& Preset,
 		const IConcertClientSession& Session,
 		EApplyPresetFlags Flags
@@ -163,13 +184,13 @@ namespace UE::MultiUserClient::Replication::Private
 		FConcertReplication_PutState_Request Request;
 
 		const bool bClearUnreferencedClients = EnumHasAnyFlags(Flags, EApplyPresetFlags::ClearUnreferencedClients);
-		FillStreamAndAuthorityRequest(Request, Preset, Session, bClearUnreferencedClients);
+		const TOptional<EPresetState> PresetState = FillStreamAndAuthorityRequest(Request, Preset, Session, bClearUnreferencedClients);
 
 		// TODO UE-219829: Once the server allows sending the mute state disconnected clients should have when they rejoin,
 		// simply send over all mute state instead of doing filtering here.
 		FillMuteStateRequest(Request, Preset, Session);
 		
-		return Request;
+		return { MoveTemp(Request), PresetState };
 	}
 
 	static EReplaceSessionContentErrorCode ExtractErrorCode(const FConcertReplication_PutState_Response& Response)
@@ -270,10 +291,18 @@ namespace UE::MultiUserClient::Replication
 		{
 			return MakeFulfilledPromise<FReplaceSessionContentResult>(EReplaceSessionContentErrorCode::Timeout).GetFuture();
 		}
+
+		const auto[Request, PresetState] = Private::BuildRequest(Preset, *Session, Flags);
+		if (!PresetState || *PresetState == Private::EPresetState::FailedToMapObjects)
+		{
+			const EReplaceSessionContentErrorCode ErrorCode = PresetState
+				? EReplaceSessionContentErrorCode::NoObjectsFound : EReplaceSessionContentErrorCode::NoWorld;
+			return MakeFulfilledPromise<FReplaceSessionContentResult>(ErrorCode).GetFuture();
+		}
 		
 		InProgressSessionReplacementOp = MakeShared<TPromise<FReplaceSessionContentResult>>();
 		SyncClient.GetReplicationManager()
-			->PutClientState(Private::BuildRequest(Preset, *Session, Flags))
+			->PutClientState(Request)
 			.Next(
 				[this, WeakPromise = TWeakPtr<TPromise<FReplaceSessionContentResult>>(InProgressSessionReplacementOp)]
 				(FConcertReplication_PutState_Response&& Response)

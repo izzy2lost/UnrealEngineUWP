@@ -10,6 +10,10 @@ namespace UE::MultiUserClient::Replication
 	{
 		/** Request completed successfully. */
 		Success,
+		/** The preset did not make any changes because no objects could be found in the world. */
+		NoObjectsFound,
+		/** GWorld was not valid. */
+		NoWorld,
 		
 		/** Request cancelled because FPresetManager was destroyed - probably because the use left the session during the request. */
 		Cancelled,
