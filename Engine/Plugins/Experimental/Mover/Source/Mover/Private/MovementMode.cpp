@@ -123,6 +123,16 @@ EDataValidationResult UBaseMovementMode::IsDataValid(FDataValidationContext& Con
 #endif // WITH_EDITOR
 
 
+bool UBaseMovementMode::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+{
+	if (bExactMatch)
+	{
+		return GameplayTags.HasTagExact(TagToFind);
+	}
+
+	return GameplayTags.HasTag(TagToFind);
+}
+
 void UBaseMovementMode::OnRegistered(const FName ModeName)
 {
 }

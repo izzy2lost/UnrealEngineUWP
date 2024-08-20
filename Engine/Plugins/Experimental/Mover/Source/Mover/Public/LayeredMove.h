@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "GameplayTagContainer.h"
 #include "MoveLibrary/MovementUtilsTypes.h"
 #include "LayeredMove.generated.h"
 
@@ -91,6 +92,19 @@ struct MOVER_API FLayeredMoveBase
 	// Settings related to velocity applied to the actor after a layered move has finished
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mover)
 	FLayeredMoveFinishVelocitySettings FinishVelocitySettings;
+
+	/**
+	 * Check Layered Move for a gameplay tag.
+	 *
+	 * @param TagToFind			Tag to check on the Mover systems
+	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+	 * 
+	 * @return True if the TagToFind was found
+	 */
+	virtual bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+	{
+		return false;
+	}
 	
 	// Kicks off this move, allowing any initialization to occur.
 	void StartMove(const UMoverComponent* MoverComp, UMoverBlackboard* SimBlackboard, float CurrentSimTimeMs);

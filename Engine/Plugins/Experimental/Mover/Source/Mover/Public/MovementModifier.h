@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "GameplayTagContainer.h"
 #include "MoveLibrary/MovementUtilsTypes.h"
 #include "MovementModifier.generated.h"
 
@@ -141,7 +142,20 @@ struct MOVER_API FMovementModifierBase
 	 * This is done to avoid queueing a modifier again as a local client applies potential input
 	 */
 	void SetHandleFromExistingModifier(const FMovementModifierHandle& OtherModifierHandle);
-	
+
+	/**
+  	 * Check modifier for a gameplay tag.
+  	 *
+  	 * @param TagToFind			Tag to check on the Mover systems
+  	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+  	 * 
+  	 * @return True if the TagToFind was found
+  	 */
+	virtual bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+	{
+		return false;
+	}
+
 protected:
 	/**
 	 * Modifier handle local to this client or server instance. Used to cancel or query for a active/queued modifier.

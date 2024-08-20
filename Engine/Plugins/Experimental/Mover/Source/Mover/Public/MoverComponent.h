@@ -410,6 +410,17 @@ public:	// Queries
 	
 	// Find movement modifier by it's handle. Returns nullptr if the modifier couldn't be found
 	const FMovementModifierBase* FindMovementModifier(const FMovementModifierHandle& ModifierHandle) const;
+
+	/**
+ 	 * Check Mover systems for a gameplay tag.
+ 	 *
+ 	 * @param TagToFind			Tag to check on the Mover systems
+ 	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+ 	 * 
+ 	 * @return True if the TagToFind was found
+ 	 */
+	UFUNCTION(BlueprintPure, Category = Mover, meta = (Keywords = "HasTag"))
+	bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const;
 	
 protected:
 

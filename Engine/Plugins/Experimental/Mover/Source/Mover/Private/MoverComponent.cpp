@@ -607,6 +607,43 @@ const FMovementModifierBase* UMoverComponent::FindMovementModifier(const FMoveme
 	return nullptr;
 }
 
+bool UMoverComponent::HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const
+{
+	if (bHasValidCachedState)
+	{
+		// Search Movement Modes
+		if (const UBaseMovementMode* ActiveMovementMode = GetMovementMode())
+		{
+			if (ActiveMovementMode->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+		
+		// Search Movement Modifiers
+		for (auto ModifierFromSyncStateIt = CachedLastSyncState.MovementModifiers.GetActiveModifiersIterator(); ModifierFromSyncStateIt; ++ModifierFromSyncStateIt)
+		{
+			const TSharedPtr<FMovementModifierBase> ModifierFromSyncState = *ModifierFromSyncStateIt;
+			if (ModifierFromSyncState->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+		
+		// Search Layered Moves
+		for (auto LayeredMoveFromSyncStateIt = CachedLastSyncState.LayeredMoves.GetActiveMovesIterator(); LayeredMoveFromSyncStateIt; ++LayeredMoveFromSyncStateIt)
+		{
+			const TSharedPtr<FLayeredMoveBase> LayeredMoveFromSyncState = *LayeredMoveFromSyncStateIt;
+			if (LayeredMoveFromSyncState->HasGameplayTag(TagToFind, bExactMatch))
+			{
+				return true;
+			}
+		}
+	}
+	
+	return false;
+}
+
 void UMoverComponent::SetFrameStateFromContext(const FMoverSyncState* SyncState, const FMoverAuxStateContext* AuxState, bool bRebaseBasedState)
 {
 

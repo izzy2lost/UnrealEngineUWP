@@ -74,6 +74,16 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = Mover)
 	FGameplayTagContainer GameplayTags;
 
+	/**
+   	 * Check Movement Mode for a gameplay tag.
+   	 *
+   	 * @param TagToFind			Tag to check on the Mover systems
+   	 * @param bExactMatch		If true, the tag has to be exactly present, if false then TagToFind will include it's parent tags while matching
+   	 * 
+   	 * @return True if the TagToFind was found
+   	 */
+	virtual bool HasGameplayTag(FGameplayTag TagToFind, bool bExactMatch) const;
+	
 protected:
 
 	virtual void OnRegistered(const FName ModeName);
