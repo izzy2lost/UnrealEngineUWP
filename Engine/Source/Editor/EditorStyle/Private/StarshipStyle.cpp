@@ -2453,10 +2453,16 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 					.SetPadding(FMargin(4));
 			}
 
+			FSlateBrush SeparatorBrush;
+			SeparatorBrush.DrawAs = ESlateBrushDrawType::Box;
+			SeparatorBrush.TintColor = FStyleColors::Dropdown;
+
 			ToolBarStyle.SetIconSize(Icon16x16)
 				.SetButtonStyle(ButtonStyle)
 				.SetToggleButtonStyle(ToggleButtonStyle)
-				.SetComboButtonPadding(FMargin(4.f, 0.0f));
+				.SetComboButtonPadding(FMargin(4.f, 0.0f))
+				.SetSeparatorBrush(SeparatorBrush)
+				.SetSeparatorPadding(FMargin(0, 0.0f));
 
 			Set("ViewportToolbar", ToolBarStyle);
 		}

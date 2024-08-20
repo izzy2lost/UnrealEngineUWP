@@ -387,7 +387,8 @@ private:
 	void PopulateMenuBarBuilder(FMenuBarBuilder& MenuBarBuilder, UToolMenu* MenuData);
 
 	void ExtractChildBlocksFromSubMenu(
-		UToolMenu* ParentMenu, FToolMenuEntry& InBlock, TArray<TPair<UToolMenu*, FToolMenuEntry*>>& SubMenuBlockPairs);
+		UToolMenu* ParentMenu, FToolMenuEntry& InBlock, TArray<TTuple<UToolMenu*, FToolMenuEntry*, FName>>& SubMenuBlocks
+	);
 	void PopulateToolBarBuilderWithTopLevelChildren(
 		FToolBarBuilder& ToolBarBuilder, UToolMenu* ParentMenu, FToolMenuEntry& InBlock);
 	void PopulateToolBarBuilderWithEntry(
