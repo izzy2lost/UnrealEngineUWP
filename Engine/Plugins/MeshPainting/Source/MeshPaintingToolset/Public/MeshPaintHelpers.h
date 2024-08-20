@@ -238,16 +238,6 @@ public:
 	/** Helper function to retrieve vertex color from a UTexture given a UVCoordinate */
 	FColor PickVertexColorFromTextureData(const uint8* MipData, const FVector2D& UVCoordinate, const UTexture2D* Texture, const FColor ColorMask);	
 
-	void SetSelectionHasMaterialValidForTexturePaint(const bool InValidity)
-	{
-		bSelectionHasMaterialValidForTexturePaint = InValidity;
-	}
-
-	bool SelectionHasMaterialValidForTexturePaint()
-	{
-		return bSelectionHasMaterialValidForTexturePaint;
-	}
-
 	/** Map of geometry adapters for each selected mesh component */
 	TSharedPtr<IMeshPaintComponentAdapter> GetAdapterForComponent(const UMeshComponent* InComponent) const;
 	void AddToComponentToAdapterMap(const UMeshComponent* InComponent, const TSharedPtr<IMeshPaintComponentAdapter> InAdapter);
@@ -259,7 +249,6 @@ public:
 	TArray<UMeshComponent*> GetPaintableMeshComponents() const;
 	void AddPaintableMeshComponent(UMeshComponent* InComponent);
 	void ClearPaintableMeshComponents();
-	bool SelectionContainsValidAdapters() const;
 	TArray<FPerComponentVertexColorData> GetCopiedColorsByComponent() const;
 	void SetCopiedColorsByComponent(TArray<FPerComponentVertexColorData>& InCopiedColors);
 	void CacheSelectionData(const int32 PaintLODIndex, const int32 UVChannel);
@@ -268,6 +257,10 @@ public:
 	void Refresh();
 	bool SelectionContainsPerLODColors() const { return bSelectionContainsPerLODColors; }
 	void ClearSelectionLODColors() { bSelectionContainsPerLODColors = false; }
+	void UpdatePaintSupportState();
+	bool GetSelectionSupportsVertexPaint() const { return bSelectionSupportsVertexPaint; }
+	bool GetSelectionSupportsTextureColorPaint() const { return bSelectionSupportsTextureColorPaint; }
+	bool GetSelectionSupportsTextureAssetPaint() const { return bSelectionSupportsTextureAssetPaint; }
 
 	FImage const& GetCopiedTexture() const;
 	void SetCopiedTexture(UTexture* InTexture);
@@ -277,9 +270,6 @@ public:
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshComponent> LastPaintedComponent;
-
-protected:
-	bool bSelectionHasMaterialValidForTexturePaint;
 
 private:
 	void CleanUp();
@@ -300,6 +290,10 @@ private:
 
 	/** Contains copied texture data */
 	FImage CopiedTextureData;
+
+	bool bSelectionSupportsVertexPaint;
+	bool bSelectionSupportsTextureColorPaint;
+	bool bSelectionSupportsTextureAssetPaint;
 };
 
 template<typename T>

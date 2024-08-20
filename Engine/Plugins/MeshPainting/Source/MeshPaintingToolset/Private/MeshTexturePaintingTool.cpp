@@ -140,7 +140,7 @@ namespace UE::MeshPaintingToolset::Private::TexturePainting
 
 bool UMeshTextureColorPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SelectionHasMaterialValidForTexturePaint();
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsTextureColorPaint();
 }
 
 UInteractiveTool* UMeshTextureColorPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
@@ -150,7 +150,7 @@ UInteractiveTool* UMeshTextureColorPaintingToolBuilder::BuildTool(const FToolBui
 
 bool UMeshTextureAssetPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SelectionHasMaterialValidForTexturePaint();
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsTextureAssetPaint();
 }
 
 UInteractiveTool* UMeshTextureAssetPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const

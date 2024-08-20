@@ -1,20 +1,22 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MeshPaintHelpers.h"
+
 #include "ComponentReregisterContext.h"
-#include "IMeshPaintComponentAdapter.h"
-#include "MeshPaintAdapterFactory.h"
-#include "Components/StaticMeshComponent.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/SkinnedAssetCommon.h"
 #include "Engine/Texture2D.h"
-#include "Rendering/SkeletalMeshLODModel.h"
-#include "StaticMeshComponentLODInfo.h"
-#include "StaticMeshAttributes.h"
-#include "Rendering/SkeletalMeshRenderData.h"
-#include "Rendering/SkeletalMeshModel.h"
+#include "IMeshPaintComponentAdapter.h"
+#include "MeshPaintAdapterFactory.h"
 #include "MeshVertexPaintingTool.h"
+#include "Rendering/SkeletalMeshLODModel.h"
+#include "Rendering/SkeletalMeshModel.h"
+#include "Rendering/SkeletalMeshRenderData.h"
+#include "StaticMeshAttributes.h"
+#include "StaticMeshComponentLODInfo.h"
+#include "TexturePaintToolset.h"
 #include "VT/MeshPaintVirtualTexture.h"
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(MeshPaintHelpers)
@@ -22,8 +24,10 @@
 extern void PropagateVertexPaintToSkeletalMesh(USkeletalMesh* SkeletalMesh, int32 LODIndex);
 
 UMeshPaintingSubsystem::UMeshPaintingSubsystem()
-	:	bNeedsRecache(true),
-		bSelectionHasMaterialValidForTexturePaint(false)
+	: bNeedsRecache(true)
+	, bSelectionSupportsVertexPaint(false)
+	, bSelectionSupportsTextureColorPaint(false)
+	, bSelectionSupportsTextureAssetPaint(false)
 {
 
 }
@@ -1570,17 +1574,53 @@ bool UMeshPaintingSubsystem::FindHitResult(const FRay Ray, FHitResult& BestTrace
 	return BestTraceResult.Distance != FLT_MAX;
 }
 
-bool UMeshPaintingSubsystem::SelectionContainsValidAdapters() const
+void UMeshPaintingSubsystem::UpdatePaintSupportState()
 {
-	for (const auto& MeshAdapterPair : ComponentToAdapterMap)
+	bSelectionSupportsVertexPaint = false;
+	bSelectionSupportsTextureColorPaint = false;
+	bSelectionSupportsTextureAssetPaint = false;
+
+	for (TWeakObjectPtr<UMeshComponent> MeshComponentWeak : SelectedMeshComponents)
 	{
-		if (MeshAdapterPair.Value && MeshAdapterPair.Value->IsValid())
+		if (UMeshComponent* MeshComponent = MeshComponentWeak.Get())
 		{
-			return true;
+			TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = GetAdapterForComponent(MeshComponent);
+			if (!MeshAdapter.IsValid())
+			{
+				MeshAdapter = FMeshPaintComponentAdapterFactory::CreateAdapterForMesh(MeshComponent, 0);
+				if (MeshAdapter)
+				{
+					AddToComponentToAdapterMap(MeshComponent, MeshAdapter);
+				}
+			}
+
+			if (MeshAdapter)
+			{
+				bSelectionSupportsVertexPaint |= MeshAdapter->SupportsVertexPaint();
+
+				const bool bSupportsTextureColorPaint = MeshAdapter->SupportsTextureColorPaint();
+				const bool bSupportsTextureAssetPaint = MeshAdapter->SupportsTexturePaint();
+
+				if (bSupportsTextureColorPaint || bSupportsTextureAssetPaint)
+				{
+					// Collect PaintableTextures. This if for both TextureColor painting (MeshPaintTextures on components) and TextureAsset painting (Textures ref'd in materials).
+					int32 DummyDefaultIndex = INDEX_NONE;
+					TArray<FPaintableTexture> PaintableTextures;
+					UTexturePaintToolset::RetrieveTexturesForComponent(MeshComponent, MeshAdapter.Get(), DummyDefaultIndex, PaintableTextures);
+
+					for (FPaintableTexture const& PaintableTexture : PaintableTextures)
+					{
+						// The bIsMeshTexture tells us which mode the paintable texture works with.
+						bSelectionSupportsTextureColorPaint |= bSupportsTextureColorPaint && PaintableTexture.bIsMeshTexture;
+						bSelectionSupportsTextureAssetPaint |= bSupportsTextureAssetPaint && !PaintableTexture.bIsMeshTexture;
+					}
+				}
+			}
 		}
 	}
 
-	return false;
+	// Texture Asset painting only supports single component select.
+	bSelectionSupportsTextureAssetPaint &= SelectedMeshComponents.Num() == 1;
 }
 
 TArray<FPerComponentVertexColorData> UMeshPaintingSubsystem::GetCopiedColorsByComponent() const

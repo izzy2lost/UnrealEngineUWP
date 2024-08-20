@@ -73,20 +73,20 @@ protected:
 	virtual void OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
 	virtual void OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool) override;
 	virtual void ActorSelectionChangeNotify() override;
+	virtual void ActorPropChangeNotify() override;
 	virtual void ActivateDefaultTool() override;
 	virtual void UpdateOnPaletteChange(FName NewPalette);
 	// end UEdMode Interface
 	
+
 	void UpdateSelectedMeshes();
-
-	void UpdateToolForSelection(const TArray<UMeshComponent*>& CurrentMeshComponents);
-
 	void UpdateOnMaterialChange(bool bInvalidateHitProxies);
 	void OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstanceMap);
 	void OnResetViewMode();
 	void OnVertexPaintFinished();
 
 	void UpdateCachedVertexDataSize();
+	void EndPaintToolIfNoLongerValid();
 
 	bool IsInSelectTool() const;
 	bool IsInPaintTool() const;
@@ -144,11 +144,11 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshPaintModeSettings> ModeSettings;
 
-	// End vertex paint state
-	FGetSelectedMeshComponents MeshComponentDelegate;
-	uint32 CachedVertexDataSize;
-	bool bRecacheVertexDataSize;
+	uint32 CachedVertexDataSize = 0;
+	bool bRecacheVertexDataSize = false;
+	
+	bool bRecacheValidForPaint = false;
 
 	FDelegateHandle PaletteChangedHandle;
+	FConsoleVariableSinkHandle CVarDelegateHandle;
 };
-

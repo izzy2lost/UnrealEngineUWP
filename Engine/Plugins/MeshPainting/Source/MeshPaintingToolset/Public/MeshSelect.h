@@ -65,7 +65,7 @@ public:
  * The function ::OnClicked() implements the action that will occur when a click happens.
  * You must override this to implement any kind of useful behavior.
  */
-UCLASS()
+UCLASS(Abstract)
 class MESHPAINTINGTOOLSET_API UMeshClickTool : public USingleClickTool, public IMeshPaintSelectionInterface
 {
 	GENERATED_BODY()
@@ -78,14 +78,8 @@ public:
 	virtual void OnUpdateModifierState(int ModifierID, bool bIsOn) override;
 	virtual FInputRayHit IsHitByClick(const FInputDeviceRay& ClickPos) override;
 	virtual void OnClicked(const FInputDeviceRay& ClickPos) override;
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override
-	{
-		return true;
-	}
-	virtual bool AllowsMultiselect() const override
-	{
-		return true;
-	}
+	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual bool AllowsMultiselect() const override { return false; }
 
 protected:
 	// flags used to identify modifier keys/buttons
@@ -102,8 +96,7 @@ class MESHPAINTINGTOOLSET_API UVertexAdapterClickTool : public UMeshClickTool
 	GENERATED_BODY()
 
 public:
-	// USingleClickTool overrides
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual bool AllowsMultiselect() const override { return true; }
 };
 
 UCLASS()
@@ -112,19 +105,13 @@ class MESHPAINTINGTOOLSET_API UTextureColorAdapterClickTool : public UMeshClickT
 	GENERATED_BODY()
 
 public:
-	// USingleClickTool overrides
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
+	virtual bool AllowsMultiselect() const override { return true; }
 };
 
 UCLASS()
 class MESHPAINTINGTOOLSET_API UTextureAssetAdapterClickTool : public UMeshClickTool
 {
 	GENERATED_BODY()
-
-public:
-	// USingleClickTool overrides
-	virtual bool IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const override;
-	virtual bool AllowsMultiselect() const override { return false; }
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

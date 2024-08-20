@@ -20,7 +20,7 @@
 
 bool UMeshColorPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return true;
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsVertexPaint();
 }
 
 UInteractiveTool* UMeshColorPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const
@@ -31,7 +31,7 @@ UInteractiveTool* UMeshColorPaintingToolBuilder::BuildTool(const FToolBuilderSta
 
 bool UMeshWeightPaintingToolBuilder::CanBuildTool(const FToolBuilderState& SceneState) const
 {
-	return true;
+	return GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetSelectionSupportsVertexPaint();
 }
 
 UInteractiveTool* UMeshWeightPaintingToolBuilder::BuildTool(const FToolBuilderState& SceneState) const

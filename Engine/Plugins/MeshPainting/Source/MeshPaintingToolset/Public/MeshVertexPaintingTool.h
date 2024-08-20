@@ -48,7 +48,6 @@ enum class EMeshPaintTextureIndex : uint8
 	TextureFive
 };
 
-DECLARE_DELEGATE_RetVal(TArray<UMeshComponent*>, FGetSelectedMeshComponents);
 /**
  *
  */

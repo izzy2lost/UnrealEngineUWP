@@ -87,20 +87,9 @@ void UMeshClickTool::OnClicked(const FInputDeviceRay& ClickPos)
 	SelectionMechanic->OnClicked(ClickPos);
 }
 
-
-bool UVertexAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
+bool UMeshClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
 {
-	return MeshAdapter.IsValid() ? MeshAdapter->SupportsVertexPaint() : false;
-}
-
-bool UTextureColorAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
-{
-	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTextureColorPaint() : false;
-}
-
-bool UTextureAssetAdapterClickTool::IsMeshAdapterSupported(TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter) const
-{
-	return MeshAdapter.IsValid() ? MeshAdapter->SupportsTexturePaint() : false;
+	return MeshAdapter.IsValid();
 }
 
 #undef LOCTEXT_NAMESPACE

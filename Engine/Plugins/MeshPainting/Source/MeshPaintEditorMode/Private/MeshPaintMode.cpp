@@ -161,6 +161,9 @@ void UMeshPaintMode::Enter()
 
 	FLevelEditorModule& LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>(FName(TEXT("LevelEditor")));
 	LevelEditor.OnRedrawLevelEditingViewports().AddUObject(this, &UMeshPaintMode::UpdateOnMaterialChange);
+
+	// some global cvars can affect whether painting is valid (nanite on/off etc)
+	CVarDelegateHandle = IConsoleManager::Get().RegisterConsoleVariableSink_Handle(FConsoleCommandDelegate::CreateLambda([this]{ bRecacheValidForPaint = true; }));
 }
 
 void UMeshPaintMode::Exit()
@@ -186,6 +189,9 @@ void UMeshPaintMode::Exit()
 
 	FLevelEditorModule& LevelEditor = FModuleManager::GetModuleChecked<FLevelEditorModule>(FName(TEXT("LevelEditor")));
 	LevelEditor.OnRedrawLevelEditingViewports().RemoveAll(this);
+
+	IConsoleManager::Get().UnregisterConsoleVariableSink_Handle(CVarDelegateHandle);
+	CVarDelegateHandle = {};
 }
 
 void UMeshPaintMode::CreateToolkit()
@@ -195,20 +201,30 @@ void UMeshPaintMode::CreateToolkit()
 
 void UMeshPaintMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {
-	EMeshPaintActiveMode CurrentActiveMode = EMeshPaintActiveMode::VertexColor;
-
 	if (bRecacheVertexDataSize)
 	{
 		UpdateCachedVertexDataSize();
 	}
 
-	// Make sure that correct tab is visible for the current tool
-	// Note that currently Color and Weight mode share the same Select tool
+	if (bRecacheValidForPaint)
+	{
+		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->UpdatePaintSupportState();
+		bRecacheValidForPaint = false;
+	}
+
+	// Close the active paint tool if selection (or other state) changes mean that it's not longer valid to paint.
+	// For example if the selected component or it's materials no longer supports texture painting.
+	EndPaintToolIfNoLongerValid();
+
+	// Make sure that correct tab is visible for the current tool.
+	// Note that currently Color and Weight mode share the same Select tool.
 	UInteractiveTool const* ActiveTool = GetToolManager()->GetActiveTool(EToolSide::Mouse);
 	const FString ActiveToolName = GetToolManager()->GetActiveToolName(EToolSide::Mouse);
 
 	FName ActiveTab = Toolkit->GetCurrentPalette();
 	FName TargetTab = ActiveTab;
+	EMeshPaintActiveMode CurrentActiveMode = EMeshPaintActiveMode::VertexColor;
+	
 	if (ActiveToolName == VertexColorPaintToolName)
 	{
 		TargetTab = MeshPaintMode_VertexColor;
@@ -384,6 +400,12 @@ void UMeshPaintMode::ActorSelectionChangeNotify()
 	UpdateSelectedMeshes();
 }
 
+void UMeshPaintMode::ActorPropChangeNotify()
+{
+	// Setting change on selected components can change whether they are valid for painting.
+	bRecacheValidForPaint = true;
+}
+
 void UMeshPaintMode::UpdateSelectedMeshes()
 {
 	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
@@ -392,90 +414,47 @@ void UMeshPaintMode::UpdateSelectedMeshes()
 		TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
 		MeshPaintingSubsystem->AddSelectedMeshComponents(CurrentMeshComponents);
 		MeshPaintingSubsystem->bNeedsRecache = true;
-
-		// Check the current selection for a material that supports texture paint
-		FName PaletteName = Toolkit->GetCurrentPalette();
-		if (PaletteName == UMeshPaintMode::MeshPaintMode_TextureColor || PaletteName == UMeshPaintMode::MeshPaintMode_TextureAsset)
-		{
-			UpdateToolForSelection(CurrentMeshComponents);
-		}
 	}
 	
 	bRecacheVertexDataSize = true;
+	bRecacheValidForPaint = true;
 }
 
-void UMeshPaintMode::UpdateToolForSelection(const TArray<UMeshComponent*>& CurrentMeshComponents)
+void UMeshPaintMode::EndPaintToolIfNoLongerValid()
 {
-	FName PaletteName = Toolkit->GetCurrentPalette();
-	const bool bIsTextureColorPainting = PaletteName == UMeshPaintMode::MeshPaintMode_TextureColor;
+	bool bInvalidTool = false;
 
-	bool bCurrentSelectionSupportsTexturePaint = false;
-	
-	// Texture Color painting supports multiselect. But other modes require a single mesh selection.
-	if (CurrentMeshComponents.Num() == 1 || bIsTextureColorPainting)
+	UInteractiveToolManager* ToolManager = GetToolManager();
+	UInteractiveTool const* Tool = (ToolManager == nullptr) ? nullptr : ToolManager->GetActiveTool(EToolSide::Mouse);
+	if (Tool != nullptr)
 	{
-		TArray<FPaintableTexture> PaintableTextures;
+		UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>();
 
-		for (UMeshComponent* MeshComponent : CurrentMeshComponents)
+		if (Tool->IsA<UMeshVertexPaintingTool>())
 		{
-			if (MeshComponent)
-			{
-				TSharedPtr<IMeshPaintComponentAdapter> MeshAdapter = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetAdapterForComponent(MeshComponent);
-				if (!MeshAdapter.IsValid())
-				{
-					MeshAdapter = FMeshPaintComponentAdapterFactory::CreateAdapterForMesh(MeshComponent, 0);
-					if (MeshAdapter)
-					{
-						GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->AddToComponentToAdapterMap(MeshComponent, MeshAdapter);
-					}
-				}
-
-				int32 DummyDefaultIndex = INDEX_NONE;
-				UTexturePaintToolset::RetrieveTexturesForComponent(MeshComponent, MeshAdapter.Get(), DummyDefaultIndex, PaintableTextures);
-			}
+			bInvalidTool = !MeshPaintingSubsystem->GetSelectionSupportsVertexPaint();
 		}
-
-		// PaintableTextures are collected for both TextureColor painting (MeshPaintTextures on components) and Texture painting (Textures ref'd in materials).
-		// Filter these according to the current texture painting mode here.
- 		PaintableTextures.RemoveAll([bIsTextureColorPainting](FPaintableTexture const& PaintableTexture) { return bIsTextureColorPainting != PaintableTexture.bIsMeshTexture; });
-
-		bCurrentSelectionSupportsTexturePaint = PaintableTextures.Num() > 0;
+		else if (Tool->IsA<UMeshTextureColorPaintingTool>())
+		{
+			bInvalidTool = !MeshPaintingSubsystem->GetSelectionSupportsTextureColorPaint();
+		}
+		else if (Tool->IsA<UMeshTextureAssetPaintingTool>())
+		{
+			bInvalidTool = !MeshPaintingSubsystem->GetSelectionSupportsTextureAssetPaint();
+		}
 	}
 
-	GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->SetSelectionHasMaterialValidForTexturePaint(bCurrentSelectionSupportsTexturePaint);
-
-	if (!bCurrentSelectionSupportsTexturePaint)
+	if (bInvalidTool)
 	{
-		UInteractiveToolManager* ToolManager = GetToolManager();
-		UInteractiveTool const* Tool = (ToolManager == nullptr) ? nullptr : ToolManager->GetActiveTool(EToolSide::Mouse);
-		if (Tool != nullptr)
-		{
-			if (Tool->IsA<UMeshTexturePaintingTool>())
-			{
-				GetInteractiveToolsContext()->EndTool(EToolShutdownType::Accept);
-
-				if (Tool->IsA<UMeshTextureColorPaintingTool>())
-				{
-					GetInteractiveToolsContext()->StartTool(TextureColorSelectToolName);
-				}
-				else if (Tool->IsA<UMeshTextureAssetPaintingTool>())
-				{
-					GetInteractiveToolsContext()->StartTool(TextureAssetSelectToolName);
-				}
-			}
-		}
+		GetInteractiveToolsContext()->EndTool(EToolShutdownType::Accept);
+		ActivateDefaultTool();
 	}
 }
 
 void UMeshPaintMode::UpdateOnMaterialChange(bool bInvalidateHitProxies)
 {
-	// Check the current selection for a material that supports texture paint
-	FName PaletteName = Toolkit->GetCurrentPalette();
-	if (PaletteName == UMeshPaintMode::MeshPaintMode_TextureColor || PaletteName == UMeshPaintMode::MeshPaintMode_TextureAsset)
-	{
-		const TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
-		UpdateToolForSelection(CurrentMeshComponents);
-	}
+	// Need to recheck whether the current material supports texture paint.
+	bRecacheValidForPaint = true;
 }
 
 void UMeshPaintMode::OnObjectsReplaced(const TMap<UObject*, UObject*>& InOldToNewInstanceMap)
@@ -1073,9 +1052,8 @@ void UMeshPaintMode::AddMeshPaintTextures()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->CreateComponentMeshPaintTexture(Component);
 	}
 
-	// The selection/paint status will change after add.
-	const TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
-	UpdateToolForSelection(CurrentMeshComponents);
+	// The paint status will change after add.
+	bRecacheValidForPaint = true;
 }
 
 bool UMeshPaintMode::CanAddMeshPaintTextures() const
@@ -1103,9 +1081,8 @@ void UMeshPaintMode::RemoveMeshPaintTexture()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->RemoveComponentMeshPaintTexture(Component);
 	}
 
-	// The selection/paint status will change after removal.
-	const TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
-	UpdateToolForSelection(CurrentMeshComponents);
+	// The paint status will change after removal.
+	bRecacheValidForPaint = true;
 }
 
 bool UMeshPaintMode::CanRemoveMeshPaintTextures() const
@@ -1184,8 +1161,7 @@ void UMeshPaintMode::PasteMeshPaintTexture()
 	}
 
 	// If this adds a mesh paint texture the selection/paint status may have changed.
-	const TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
-	UpdateToolForSelection(CurrentMeshComponents);
+	bRecacheValidForPaint = true;
 }
 
 bool UMeshPaintMode::CanPasteMeshPaintTexture() const
@@ -1273,8 +1249,7 @@ void UMeshPaintMode::ImportMeshPaintTextureFromVertexColors()
 	}
 
 	// If this adds a mesh paint texture the selection/paint status may have changed.
-	const TArray<UMeshComponent*> CurrentMeshComponents = GetSelectedComponents<UMeshComponent>();
-	UpdateToolForSelection(CurrentMeshComponents);
+	bRecacheValidForPaint = true;
 }
 
 bool UMeshPaintMode::CanImportMeshPaintTextureFromVertexColors() const
