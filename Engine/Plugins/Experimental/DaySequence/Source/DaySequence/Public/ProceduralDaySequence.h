@@ -4,6 +4,8 @@
 
 #include "ProceduralDaySequenceBuilder.h"
 
+#include "GameFramework/Actor.h"
+
 #include "ProceduralDaySequence.generated.h"
 
 class ADaySequenceActor;
