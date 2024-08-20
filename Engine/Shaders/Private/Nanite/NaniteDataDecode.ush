@@ -535,34 +535,67 @@ FCluster GetCluster(uint PageIndex, uint ClusterIndex)
 	return Cluster;
 }
 
-FHierarchyNodeSlice GetHierarchyNodeSlice(uint NodeIndex, uint ChildIndex)
+FHierarchyNodeSlice UnpackHierarchyNodeSlice(uint4 RawData0, uint4 RawData1, uint4 RawData2, uint RawData3)
 {
-	const uint NodeSize = (4 + 4 + 4 + 1) * 4 * NANITE_MAX_BVH_NODE_FANOUT;
-
-	uint BaseAddress = NodeIndex * NodeSize;
+	const uint4 Misc0 = RawData1;
+	const uint4 Misc1 = RawData2;
+	const uint  Misc2 = RawData3;
 
 	FHierarchyNodeSlice Node;
-	Node.LODBounds = asfloat(HierarchyBuffer.Load4(BaseAddress + 16 * ChildIndex));
+	Node.LODBounds				= asfloat(RawData0);
 
-	uint4 Misc0 = HierarchyBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
-	uint4 Misc1 = HierarchyBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
-	uint  Misc2 = HierarchyBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) + 4 * ChildIndex);
-	Node.BoxBoundsCenter = asfloat(Misc0.xyz);
-	Node.BoxBoundsExtent = asfloat(Misc1.xyz);
+	Node.BoxBoundsCenter		= asfloat(Misc0.xyz);
+	Node.BoxBoundsExtent		= asfloat(Misc1.xyz);
 
-	Node.MinLODError = f16tof32(Misc0.w);
-	Node.MaxParentLODError = f16tof32(Misc0.w >> 16);
-	Node.ChildStartReference = Misc1.w;
-	Node.bLoaded = Misc1.w != 0xFFFFFFFFu;
+	Node.MinLODError			= f16tof32(Misc0.w);
+	Node.MaxParentLODError		= f16tof32(Misc0.w >> 16);
+	Node.ChildStartReference	= Misc1.w;						// When changing this, remember to also update StoreHierarchyNodeChildStartReference
+	Node.bLoaded				= (Misc1.w != 0xFFFFFFFFu);
 
-	uint ResourcePageIndex_NumPages_GroupPartSize = Misc2;
-	Node.NumChildren = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_CLUSTERS_PER_GROUP_BITS, 0);
-	Node.NumPages = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_GROUP_PARTS_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS);
-	Node.StartPageIndex = BitFieldExtractU32(ResourcePageIndex_NumPages_GroupPartSize, NANITE_MAX_RESOURCE_PAGES_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS + NANITE_MAX_GROUP_PARTS_BITS);
-	Node.bEnabled = ResourcePageIndex_NumPages_GroupPartSize != 0u;
-	Node.bLeaf = ResourcePageIndex_NumPages_GroupPartSize != 0xFFFFFFFFu;
+	Node.NumChildren			= BitFieldExtractU32(Misc2, NANITE_MAX_CLUSTERS_PER_GROUP_BITS, 0);
+	Node.NumPages				= BitFieldExtractU32(Misc2, NANITE_MAX_GROUP_PARTS_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS);
+	Node.StartPageIndex			= BitFieldExtractU32(Misc2, NANITE_MAX_RESOURCE_PAGES_BITS, NANITE_MAX_CLUSTERS_PER_GROUP_BITS + NANITE_MAX_GROUP_PARTS_BITS);
+	Node.bEnabled				= Misc2 != 0u;
+	Node.bLeaf					= Misc2 != 0xFFFFFFFFu;
 
 	return Node;
+}
+
+#define HIERARCHY_NODE_SLICE_SIZE	((4 + 4 + 4 + 1) * 4 * NANITE_MAX_BVH_NODE_FANOUT)
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(ByteAddressBuffer InputBuffer, uint NodeIndex, uint ChildIndex)
+{
+	const uint BaseAddress	= NodeIndex * HIERARCHY_NODE_SLICE_SIZE;
+
+	const uint4 RawData0	= InputBuffer.Load4(BaseAddress + 16 * ChildIndex);
+	const uint4 RawData1	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
+	const uint4 RawData2	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
+	const uint  RawData3	= InputBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) +  4 * ChildIndex);
+	
+	return UnpackHierarchyNodeSlice(RawData0, RawData1, RawData2, RawData3);
+}
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(RWByteAddressBuffer InputBuffer, uint NodeIndex, uint ChildIndex)
+{
+	const uint BaseAddress	= NodeIndex * HIERARCHY_NODE_SLICE_SIZE;
+
+	const uint4 RawData0	= InputBuffer.Load4(BaseAddress + 16 * ChildIndex);
+	const uint4 RawData1	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 16) + 16 * ChildIndex);
+	const uint4 RawData2	= InputBuffer.Load4(BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 32) + 16 * ChildIndex);
+	const uint  RawData3	= InputBuffer.Load( BaseAddress + (NANITE_MAX_BVH_NODE_FANOUT * 48) +  4 * ChildIndex);
+	
+	return UnpackHierarchyNodeSlice(RawData0, RawData1, RawData2, RawData3);
+}
+
+FHierarchyNodeSlice GetHierarchyNodeSlice(uint NodeIndex, uint ChildIndex)
+{
+	return GetHierarchyNodeSlice(HierarchyBuffer, NodeIndex, ChildIndex);
+}
+
+void StoreHierarchyNodeChildStartReference(RWByteAddressBuffer OutputBuffer, uint NodeIndex, uint ChildIndex, uint ChildStartReference)
+{
+	const uint Address = NodeIndex * HIERARCHY_NODE_SLICE_SIZE + NANITE_MAX_BVH_NODE_FANOUT * 32 + 16 * ChildIndex + 12;
+	OutputBuffer.Store(Address, ChildStartReference);
 }
 
 // Decode triangle that is represented by one base index and two 5-bit offsets.
