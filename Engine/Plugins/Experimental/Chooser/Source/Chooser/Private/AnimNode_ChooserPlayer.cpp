@@ -185,22 +185,11 @@ void FAnimNode_ChooserPlayer::UpdateAssetPlayer(const FAnimationUpdateContext& C
 
 	// Update blend space parameters
 	const FVector BlendParameters(BlendSpaceX, BlendSpaceY, 0);
-	if (bUpdateAllActiveBlendSpaces)
-	{
-		// apply blend space parameters to all blendspaces that are playing, including ones that are blending out
-		for (FBlendStackAnimPlayer& Player : AnimPlayers)
-		{
-			Player.SetBlendParameters(BlendParameters);
-		}
-	}
-	else
-	{
-		// apply blend space parameters only to the blendspace that is playing/blending in
-		if (!AnimPlayers.IsEmpty())
-		{
-			AnimPlayers[0].SetBlendParameters(BlendParameters);
-		}
-	}
+	const EBlendStack_BlendspaceUpdateMode BlendspaceUpdateMode = bUpdateAllActiveBlendSpaces ? 
+																EBlendStack_BlendspaceUpdateMode::UpdateAll :
+																EBlendStack_BlendspaceUpdateMode::UpdateActiveOnly;
+
+	UpdateBlendspaceParameters(BlendspaceUpdateMode, BlendParameters);
 
 	FAnimNode_BlendStack_Standalone::UpdateAssetPlayer(Context);
 

@@ -83,7 +83,7 @@ void FBlendStackAnimPlayer::Initialize(const FAnimationInitializeContext& Contex
 	else if (UBlendSpace* BlendSpace = Cast<UBlendSpace>(AnimationAsset))
 	{
 		// making sure AccumulatedTime is in normalized space
-		check(AccumulatedTime >= 0.f && AccumulatedTime <= 1.f);
+		AccumulatedTime = FMath::Clamp(AccumulatedTime, 0.f, 1.f);
 
 		BlendSpacePlayerNode.SetResetPlayTimeWhenBlendSpaceChanges(false /*!bReset*/);
 		BlendSpacePlayerNode.SetAccumulatedTime(AccumulatedTime);
@@ -446,6 +446,29 @@ void FBlendStackAnimPlayer::GetBlendInWeights(TArrayView<float> Weights) const
 
 /////////////////////////////////////////////////////
 // FAnimNode_BlendStack_Standalone
+
+
+void FAnimNode_BlendStack_Standalone::UpdateBlendspaceParameters(const EBlendStack_BlendspaceUpdateMode UpdateMode, const FVector& BlendParameters)
+{
+	// Update blend space parameters
+	if (UpdateMode == EBlendStack_BlendspaceUpdateMode::UpdateAll)
+	{
+		// apply blend space parameters to all blendspaces that are playing, including ones that are blending out
+		for (FBlendStackAnimPlayer& Player : AnimPlayers)
+		{
+			Player.SetBlendParameters(BlendParameters);
+		}
+	}
+	else if (UpdateMode == EBlendStack_BlendspaceUpdateMode::UpdateActiveOnly)
+	{
+		// apply blend space parameters only to the blendspace that is playing/blending in
+		if (!AnimPlayers.IsEmpty())
+		{
+			AnimPlayers[0].SetBlendParameters(BlendParameters);
+		}
+	}
+}
+
 void FAnimNode_BlendStack_Standalone::PopLastAnimPlayer()
 {
 	const int32 LastAnimPlayerIndex = AnimPlayers.Num() - 1;
@@ -1152,7 +1175,7 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 		{
 			bExecuteBlendTo = true;
 		}
-		else if (BlendParameters != MainAnimPlayer.GetBlendParameters())
+		else if ((BlendParameters - MainAnimPlayer.GetBlendParameters()).SizeSquared() > FMath::Square(BlendParametersDeltaThreshold))
 		{
 			bExecuteBlendTo = true;
 		}
@@ -1173,6 +1196,8 @@ void FAnimNode_BlendStack::UpdateAssetPlayer(const FAnimationUpdateContext& Cont
 	UE::Anim::TOptionalScopedGraphMessage<UE::Anim::FAnimInertializationSyncScope> InertializationSync(bDidBlendToRequestAnInertialBlend, Context);
 	
 	UpdatePlayRate(WantedPlayRate);
+	UpdateBlendspaceParameters(BlendspaceUpdateMode, BlendParameters);
+
 	Super::UpdateAssetPlayer(Context);
 }
 

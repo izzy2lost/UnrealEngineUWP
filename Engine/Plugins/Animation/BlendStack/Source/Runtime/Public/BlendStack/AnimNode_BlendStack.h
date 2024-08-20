@@ -8,6 +8,17 @@
 #include "AnimNodes/AnimNode_Mirror.h"
 #include "AnimNode_BlendStack.generated.h"
 
+UENUM()
+enum class EBlendStack_BlendspaceUpdateMode : uint8
+{
+	// Only update the blendspace xy inputs once on blend in.
+	InitialOnly,
+	// Update the active/most recent blendspace xy inputs every frame.
+	UpdateActiveOnly,
+	// Update all blendspaces xy inputs every frame.
+	UpdateAll,
+};
+
 USTRUCT()
 struct BLENDSTACK_API FBlendStackAnimPlayer
 {
@@ -168,6 +179,9 @@ protected:
 		bool bUseInertialBlend, const FVector& BlendParameters, float PlayRate, float ActivationDelay,
 		FName GroupName, EAnimGroupRole::Type GroupRole, EAnimSyncMethod Method, bool bOverridePositionWhenJoiningSyncGroupAsLeader);
 
+	// Call this to update current blendspace player xy blend parameters. By default, we only update them on initial BlendTo.
+	void UpdateBlendspaceParameters(const EBlendStack_BlendspaceUpdateMode UpdateMode, const FVector& BlendParameters);
+
 	static void BlendWithPose(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, const float InOutPoseWeight);
 	static void BlendWithPosePerBone(FAnimationPoseData& InOutPoseData, const FAnimationPoseData& OtherPoseData, TConstArrayView<float> OtherPoseWeights);
 
@@ -251,13 +265,22 @@ struct BLENDSTACK_API FAnimNode_BlendStack : public FAnimNode_BlendStack_Standal
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
 	EAlphaBlendOption BlendOption = EAlphaBlendOption::Linear;
 
+	// How we should update individual blend space parameters. See dropdown options tooltips.
+	UPROPERTY(EditAnywhere, Category = Blendspace)
+	EBlendStack_BlendspaceUpdateMode BlendspaceUpdateMode = EBlendStack_BlendspaceUpdateMode::InitialOnly;
+
 	// requested blend space blend parameters (if AnimationAsset is a blend space)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Settings, meta = (PinHiddenByDefault))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Blendspace, meta = (PinHiddenByDefault))
 	FVector BlendParameters = FVector::Zero();
 
 	// if set and bMirrored MirrorDataTable will be used for mirroring the aniamtion
 	UPROPERTY(EditAnywhere, Category = Settings, meta = (PinHiddenByDefault))
 	TObjectPtr<UMirrorDataTable> MirrorDataTable;
+
+	// Use this to define a threshold to trigger a new blend when blendspace xy input pins change.
+	// By default, any delta will trigger a blend.
+	UPROPERTY(EditAnywhere, Category = Blendspace)
+	float BlendParametersDeltaThreshold = 0.0f;
 
 	// tunable animation transition blend time 
 	UPROPERTY(EditAnywhere, Category = Settings)
