@@ -52,12 +52,25 @@ private:
 	virtual bool SetOverridePositionWhenJoiningSyncGroupAsLeader(bool InOverridePositionWhenJoiningSyncGroupAsLeader) override;
 	// End of FAnimNode_Base interface
 
+	const FVector& GetBlendspaceParameters() const;
+	float GetBlendspaceParametersDeltaThreshold() const;
+	EBlendStack_BlendspaceUpdateMode GetBlendspaceUpdateMode() const;
+
 	// FAnimNode_AssetPlayerBase interface
 	virtual void UpdateAssetPlayer(const FAnimationUpdateContext& Context) override;
 	// End of FAnimNode_AssetPlayerBase interface
 
 #if WITH_EDITORONLY_DATA
 	
+	// requested blend space blend parameters (if AnimationAsset is a blend space)
+	UPROPERTY(EditAnywhere, Category = Blendspace, meta = (PinHiddenByDefault, FoldProperty))
+	FVector BlendParameters = FVector::Zero();
+
+	// Use this to define a threshold to trigger a new blend when blendspace xy input pins change.
+	// By default, any delta will trigger a blend.
+	UPROPERTY(EditAnywhere, Category = Blendspace)
+	float BlendParametersDeltaThreshold = 0.0f;
+
 	// The group name that we synchronize with (NAME_None if it is not part of any group). Note that
 	// this is the name of the group used to sync the output of this node - it will not force
 	// syncing of animations contained by it.
@@ -73,6 +86,10 @@ private:
 	UPROPERTY(VisibleAnywhere, Category = Sync, meta = (FoldProperty, EditCondition = "GroupRole == EAnimGroupRole::AlwaysLeader || GroupRole == EAnimGroupRole::ExclusiveAlwaysLeader || GroupRole == EAnimGroupRole::TransitionLeader", EditConditionHides))
 	bool bOverridePositionWhenJoiningSyncGroupAsLeader = true;
 	
+	// How we should update individual blend space parameters. See dropdown options tooltips.
+	UPROPERTY(EditAnywhere, Category = Blendspace, meta = (FoldProperty))
+	EBlendStack_BlendspaceUpdateMode BlendspaceUpdateMode = EBlendStack_BlendspaceUpdateMode::InitialOnly;
+
 	// How this node will synchronize with other animations. Note that this determines how the output
 	// of this node is used for synchronization, not of animations contained by it.
 	UPROPERTY(EditAnywhere, Category = Sync, meta = (FoldProperty))
