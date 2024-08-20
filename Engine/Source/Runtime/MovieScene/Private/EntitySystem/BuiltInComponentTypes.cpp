@@ -58,9 +58,10 @@ FHierarchicalBlendTarget& FHierarchicalBlendTarget::operator=(const FHierarchica
 	if (RHS.Capacity != InlineCapacity)
 	{
 		int16* NewAllocation = new int16[RHS.Capacity];
-		Capacity = RHS.Capacity;
 		*reinterpret_cast<int16**>(Data) = NewAllocation;
 	}
+
+	Capacity = RHS.Capacity;
 
 	// Copy the data
 	FMemory::Memcpy(this->GetMemory(), RHS.GetMemory(), sizeof(int16)*Capacity);
@@ -106,6 +107,10 @@ void FHierarchicalBlendTarget::FreeAllocation()
 	if (Capacity != InlineCapacity)
 	{
 		delete[] GetMemory();
+		// Reset the capacity to be on the safe side.
+		// Note: this does not reinitialize the inline array to the default state
+		//       since we leave that to the caller to do if necessary
+		Capacity = InlineCapacity;
 	}
 }
 
