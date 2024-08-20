@@ -24,7 +24,7 @@
     <PackageReference Include="MSTest.TestAdapter" Version="3.1.1" />
     <PackageReference Include="MSTest.TestFramework" Version="3.1.1" />
     <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.0" />
-    <PackageReference Include="coverlet.collector" Version="6.0.0">
+    <PackageReference Include="coverlet.collector" Version="6.0.2">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
@@ -32,7 +32,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\Shared\EpicGames.Serialization\EpicGames.Serialization.csproj" />
-    <ProjectReference Include="..\HordeServer.Tests.Shared\HordeServer.Tests.Shared.csproj"/>
+    <ProjectReference Include="..\HordeServer.Tests.Shared\HordeServer.Tests.Shared.csproj" />
     <ProjectReference Include="..\HordeAgent\HordeAgent.csproj">
       <Aliases>HordeAgent</Aliases>
     </ProjectReference>
