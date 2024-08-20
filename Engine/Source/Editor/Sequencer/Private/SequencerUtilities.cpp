@@ -3691,6 +3691,12 @@ FGuid FSequencerUtilities::CreateOrReplaceBinding(TSharedPtr<ISequencer> Sequenc
 			DestinationFolder->AddChildObjectBinding(RootObjectGuid);
 		}
 	}
+
+	if (ACameraActor* NewCamera = Cast<ACameraActor>(InObject))
+	{
+		NewCameraAdded(Sequencer.ToSharedRef(), NewCamera, BindingGuid);
+	}
+
 	if (Sequencer)
 	{
 		Sequencer->OnAddBinding(BindingGuid, OwnerMovieScene);
