@@ -144,7 +144,11 @@ void FDisplayClusterMediaCaptureBase::ExportMediaData_RenderThread(FRDGBuilder& 
 		*GetMediaId(), SrcTextureSize.X, SrcTextureSize.Y, SrcRegionSize.X, SrcRegionSize.Y, GFrameCounterRenderThread);
 
 	// Capture
-	MediaCapture->CaptureImmediate_RenderThread(GraphBuilder, TextureInfo.Texture, TextureInfo.Region);
+	bool bCaptureSucceeded = MediaCapture->TryCaptureImmediate_RenderThread(GraphBuilder, TextureInfo.Texture, TextureInfo.Region);
+	if(!bCaptureSucceeded)
+	{
+		UE_LOG(LogDisplayClusterMedia, VeryVerbose, TEXT("MediaCapture '%s': failed to capture resource"), *GetMediaId());
+	}
 }
 
 void FDisplayClusterMediaCaptureBase::OnPostClusterTick()

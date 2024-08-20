@@ -323,9 +323,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Media|Output")
 	bool UpdateTextureRenderTarget2D(UTextureRenderTarget2D* RenderTarget);
 	
-	/** Captures a resource immediately from the render thread. Used in RHI_RESOURCE capture mode */
+	/** 
+	 * Captures a resource immediately from the render thread. Used in RHI_RESOURCE capture mode 
+	 * @return Return true if the capture was successfully processed.
+	 */
+	bool TryCaptureImmediate_RenderThread(FRDGBuilder& GraphBuilder, FRHITexture* InSourceTexture, FIntRect SourceViewRect = FIntRect(0,0,0,0));
+	bool TryCaptureImmediate_RenderThread(FRDGBuilder& GraphBuilder, FRDGTextureRef InSourceTextureRef, FIntRect SourceViewRect = FIntRect(0,0,0,0));
+
+	UE_DEPRECATED(5.5, "This method has been deprecated. Please use TryCaptureImmediate_RenderThread as it returns a boolean to signify that the capture was successfully processed.")
 	void CaptureImmediate_RenderThread(FRDGBuilder& GraphBuilder, FRHITexture* InSourceTexture, FIntRect SourceViewRect = FIntRect(0,0,0,0));
-	
+
+	UE_DEPRECATED(5.5, "This method has been deprecated. Please use TryCaptureImmediate_RenderThread as it returns a boolean to signify that the capture was successfully processed.")
 	void CaptureImmediate_RenderThread(FRDGBuilder& GraphBuilder, FRDGTextureRef InSourceTextureRef, FIntRect SourceViewRect = FIntRect(0,0,0,0));
 
 	/**
@@ -612,7 +620,7 @@ private:
 	void WaitForSingleExperimentalSchedulingTaskToComplete();
 	void WaitForAllExperimentalSchedulingTasksToComplete();
 	
-	void CaptureImmediate_RenderThread(const UE::MediaCaptureData::FCaptureFrameArgs& Args);
+	bool CaptureImmediate_RenderThread(const UE::MediaCaptureData::FCaptureFrameArgs& Args);
 	// Capture pipeline stuff
 	void ProcessCapture_GameThread();
 	void PrepareAndDispatchCapture_GameThread(const TSharedPtr<UE::MediaCaptureData::FCaptureFrame>& CapturingFrame);

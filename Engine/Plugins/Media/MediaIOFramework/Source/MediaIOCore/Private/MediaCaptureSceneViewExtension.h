@@ -102,7 +102,12 @@ public:
 			RDG_EVENT_SCOPE(GraphBuilder, "MediaCaptureSceneExtension");
 			if (WeakCapture.IsValid())
 			{
-				WeakCapture->CaptureImmediate_RenderThread(GraphBuilder, TextureRef, SceneColor.ViewRect);
+				bool bCaptureSucceeded = WeakCapture->TryCaptureImmediate_RenderThread(GraphBuilder, TextureRef, SceneColor.ViewRect);
+				if(!bCaptureSucceeded)
+				{
+					LastErrorMessage = TEXT("Failed to capture resource.");
+					UE_LOG(LogMediaIOCore, VeryVerbose, TEXT("%s"), *LastErrorMessage);
+				}
 			}
 		}
 
