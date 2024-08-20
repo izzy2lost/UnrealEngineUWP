@@ -2856,6 +2856,15 @@ FVector2D FControlRigEditor::ComputePersonaProjectedScreenPos(const FVector& InW
 	return FVector2D::ZeroVector;
 }
 
+void FControlRigEditor::FindReferencesOfItem(const FRigElementKey& InKey)
+{
+	static constexpr TCHAR Format[] = TEXT("Type,%s,Name,%s");
+	static const UEnum* TypeEnum = StaticEnum<ERigElementType>();
+	const FText TypeText = TypeEnum->GetDisplayNameTextByValue((int64)InKey.Type);
+	const FString Query = FString::Printf(Format, *TypeText.ToString(), *InKey.Name.ToString()); 
+	SummonSearchUI(true, Query, true);
+}
+
 void FControlRigEditor::HandlePreviewMeshChanged(USkeletalMesh* InOldSkeletalMesh, USkeletalMesh* InNewSkeletalMesh)
 {
 	RebindToSkeletalMeshComponent();

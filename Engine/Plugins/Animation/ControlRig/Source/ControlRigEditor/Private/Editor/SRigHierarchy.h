@@ -82,6 +82,12 @@ private:
 	/** Create a new item */
 	void HandleNewItem(ERigElementType InElementType, bool bIsAnimationChannel);
 
+	/** Check we can find the references of an item */
+	bool CanFindReferencesOfItem() const;
+
+	/** Find all references of an item */
+	void HandleFindReferencesOfItem();
+
 	/** Check whether we can deleting the selected item(s) */
 	bool CanDuplicateItem() const;
 

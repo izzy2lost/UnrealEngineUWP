@@ -311,6 +311,10 @@ void SRigHierarchy::BindCommands()
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleNewItem, ERigElementType::Socket, false),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanAddElement, ERigElementType::Socket));
 
+	CommandList->MapAction(Commands.FindReferencesOfItem,
+		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleFindReferencesOfItem),
+		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanFindReferencesOfItem));
+
 	CommandList->MapAction(Commands.DuplicateItem,
 		FExecuteAction::CreateSP(this, &SRigHierarchy::HandleDuplicateItem),
 		FCanExecuteAction::CreateSP(this, &SRigHierarchy::CanDuplicateItem));
@@ -1287,6 +1291,7 @@ void SRigHierarchy::CreateContextMenu()
 					
 					ElementsSection.AddMenuEntry(Commands.DeleteItem);
 					ElementsSection.AddMenuEntry(Commands.DuplicateItem);
+					ElementsSection.AddMenuEntry(Commands.FindReferencesOfItem);
 					ElementsSection.AddMenuEntry(Commands.RenameItem);
 					ElementsSection.AddMenuEntry(Commands.MirrorItem);
 
@@ -2183,6 +2188,21 @@ void SRigHierarchy::HandleNewItem(ERigElementType InElementType, bool bIsAnimati
 
 	FSlateApplication::Get().DismissAllMenus();
 	RefreshTreeView();
+}
+
+bool SRigHierarchy::CanFindReferencesOfItem() const
+{
+	return !GetSelectedKeys().IsEmpty();
+}
+
+void SRigHierarchy::HandleFindReferencesOfItem()
+{
+	if(!ControlRigEditor.IsValid() || GetSelectedKeys().IsEmpty())
+	{
+		return;
+	}
+
+	ControlRigEditor.Pin()->FindReferencesOfItem(GetSelectedKeys()[0]);
 }
 
 /** Check whether we can deleting the selected item(s) */

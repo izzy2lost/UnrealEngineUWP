@@ -36,6 +36,9 @@ public:
 	/** Add Item at origin */
 	TSharedPtr< FUICommandInfo > AddSocketItem;
 
+	/** Find all references of an item in the graphs */
+	TSharedPtr< FUICommandInfo > FindReferencesOfItem;
+	
 	/** Duplicate currently selected items */
 	TSharedPtr< FUICommandInfo > DuplicateItem;
 

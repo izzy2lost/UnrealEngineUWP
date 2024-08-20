@@ -199,6 +199,8 @@ public:
 	FSimpleMulticastDelegate& OnRequestNavigateToConnectorWarning() { return RequestNavigateToConnectorWarningDelegate; }
 
 	FVector2D ComputePersonaProjectedScreenPos(const FVector& InWorldPos, bool bClampToScreenRectangle = false);
+
+	void FindReferencesOfItem(const FRigElementKey& InKey);
 	
 protected:
 

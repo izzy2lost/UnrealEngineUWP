@@ -2137,17 +2137,13 @@ void URigVMEdGraphNode::BeginDestroy()
 void URigVMEdGraphNode::AddPinSearchMetaDataInfo(const UEdGraphPin* Pin, TArray<FSearchTagDataPair>& OutTaggedMetaData) const
 {
 	Super::AddPinSearchMetaDataInfo(Pin, OutTaggedMetaData);
-	if (const URigVMNode* Node = GetModelNode())
+	if(const URigVMPin* ModelPin = FindModelPinFromGraphPin(Pin))
 	{
-		const FString PinName = Pin->GetName();
-		FString Left, Right = PinName;
-		URigVMPin::SplitPinPathAtStart(PinName, Left, Right);
-		if (URigVMPin* ModelPin = Node->FindPin(Right))
+		OutTaggedMetaData.Emplace(FText::FromString(TEXT("Data Type")), FText::FromString(ModelPin->GetCPPType()));
+		
+		if (ModelPin->IsBoundToVariable())
 		{
-			if (ModelPin->IsBoundToVariable())
-			{
-				OutTaggedMetaData.Add(FSearchTagDataPair(FText::FromString(TEXT("Binding")), FText::FromString(ModelPin->GetBoundVariablePath())));
-			}
+			OutTaggedMetaData.Add(FSearchTagDataPair(FText::FromString(TEXT("Binding")), FText::FromString(ModelPin->GetBoundVariablePath())));
 		}
 	}
 }
