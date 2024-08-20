@@ -452,8 +452,6 @@ FTransform UXRCreativeGizmoMeshComponent::CalcViewDependent(
 
 AXRCreativeCombinedTransformGizmoActor::AXRCreativeCombinedTransformGizmoActor()
 {
-	PrimaryActorTick.bCanEverTick = true;
-
 	XRSceneRoot = RootComponent;
 
 	TranslateX = XRTranslateX = CreateOptionalDefaultSubobject<UXRCreativeGizmoMeshComponent>("TranslateX");
@@ -491,12 +489,6 @@ AXRCreativeCombinedTransformGizmoActor::AXRCreativeCombinedTransformGizmoActor()
 	PlaneScaleXZ->SetupAttachment(GetRootComponent());
 	PlaneScaleXY = XRPlaneScaleXY = CreateOptionalDefaultSubobject<UXRCreativeGizmoMeshComponent>("AxisScaleXY");
 	PlaneScaleXY->SetupAttachment(GetRootComponent());
-}
-
-
-void AXRCreativeCombinedTransformGizmoActor::Tick(float DeltaSeconds)
-{
-	Super::Tick(DeltaSeconds);
 }
 
 

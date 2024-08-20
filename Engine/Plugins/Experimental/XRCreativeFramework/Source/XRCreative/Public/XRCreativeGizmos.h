@@ -65,10 +65,7 @@ class AXRCreativeCombinedTransformGizmoActor : public ACombinedTransformGizmoAct
 
 public:
 	AXRCreativeCombinedTransformGizmoActor();
-
-	virtual void Tick(float DeltaSeconds) override;
-	virtual bool ShouldTickIfViewportsOnly() const override { return true; }
-
+	
 	void SetEnabledElements(ETransformGizmoSubElements EnableElements);
 
 	UPROPERTY(BlueprintReadOnly, Category="Gizmo")
