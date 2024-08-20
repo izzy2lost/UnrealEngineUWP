@@ -91,6 +91,28 @@ FPCGElementPtr UPCGSelectGrammarSettings::CreateElement() const
 	return MakeShared<FPCGSelectGrammarElement>();
 }
 
+void UPCGSelectGrammarSettings::PostLoad()
+{
+	Super::PostLoad();
+
+#if WITH_EDITOR
+	if (!Criteria.IsEmpty())
+	{
+		for (FPCGSelectGrammarCriterion& Criterion : Criteria)
+		{
+			if (Criterion.Comparator == EPCGSelectGrammarComparator::BinaryOps)
+			{
+				Criterion.Comparator = EPCGSelectGrammarComparator::Select;
+			}
+			else if (Criterion.Comparator == EPCGSelectGrammarComparator::TernaryOps)
+			{
+				Criterion.Comparator = EPCGSelectGrammarComparator::RangeExclusive;
+			}
+		}
+	}
+#endif // WITH_EDITOR
+}
+
 TArray<FPCGPinProperties> UPCGSelectGrammarSettings::InputPinProperties() const
 {
 	TArray<FPCGPinProperties> PinProperties;

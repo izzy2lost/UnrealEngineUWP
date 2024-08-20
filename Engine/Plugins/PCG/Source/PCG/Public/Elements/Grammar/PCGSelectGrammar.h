@@ -13,7 +13,7 @@ enum class EPCGSelectGrammarComparator : uint16
 {
 	// 32 options
 	BinaryOps = 1 << 5 UMETA(Hidden),
-	Select = BinaryOps UMETA(DisplayName = "Select", ToolTip = "Select this grammar. Always evaluates to true."),
+	Select UMETA(DisplayName = "Select", ToolTip = "Select this grammar. Always evaluates to true."),
 	LessThan UMETA(DisplayName = "<", ToolTip = "Select if 'less than' (A < B)"),
 	LessThanEqualTo UMETA(DisplayName = "<=", ToolTip = "Select if 'less than or equal to' (A <= B)"),
 	EqualTo UMETA(DisplayName = "==", ToolTip = "Select if 'equal to' (A == B)"),
@@ -22,7 +22,7 @@ enum class EPCGSelectGrammarComparator : uint16
 
 	// 64 options
 	TernaryOps = 1 << 6 UMETA(Hidden),
-	RangeExclusive = TernaryOps UMETA(DisplayName = "Range (exclusive)", ToolTip = "Select if 'within exclusive range' (B < A < C)"),
+	RangeExclusive UMETA(DisplayName = "Range (exclusive)", ToolTip = "Select if 'within exclusive range' (B < A < C)"),
 	RangeInclusive UMETA(DisplayName = "Range (inclusive)", ToolTip = "Select if 'within inclusive range' (B <= A <= C)"),
 };
 
@@ -91,6 +91,7 @@ public:
 	virtual FText GetNodeTooltipText() const override;
 	virtual EPCGSettingsType GetType() const override { return EPCGSettingsType::Generic; }
 #endif
+	virtual void PostLoad() override;
 
 protected:
 	virtual TArray<FPCGPinProperties> InputPinProperties() const override;
