@@ -44,9 +44,9 @@ void FPoseSearchDatabaseSequenceCustomization::CustomizeHeader(TSharedRef<IPrope
 		FPoseSearchDatabaseSequence* PoseSearchDatabaseSequence = (FPoseSearchDatabaseSequence*)InStructPropertyHandle->GetValueBaseAddress((uint8*)Objects[0]);
 		check(PoseSearchDatabaseSequence);
 		
-		if (PoseSearchDatabaseSequence->Sequence)
+		if (const UObject* AnimationAsset = PoseSearchDatabaseSequence->GetAnimationAsset())
 		{
-			SequenceNameText = FText::FromName(PoseSearchDatabaseSequence->Sequence->GetFName());
+			SequenceNameText = FText::FromName(AnimationAsset->GetFName());
 		}
 		else
 		{

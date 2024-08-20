@@ -40,140 +40,6 @@ static TAutoConsoleVariable<bool> CVarMotionMatchCompareAgainstBruteForce(TEXT("
 static TAutoConsoleVariable<bool> CVarMotionMatchValidateKNNSearch(TEXT("a.MotionMatch.ValidateKNNSearch"), false, TEXT("Validate KNN search"));
 #endif
 
-typedef TArray<int32, TInlineAllocator<256, TMemStackAllocator<>>> FSelectableAssetIdx;
-static void PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UObject*> AssetsToConsider, const UPoseSearchDatabase* Database)
-{
-	check(Database);
-	SelectableAssetIdx.Reset();
-	if (!AssetsToConsider.IsEmpty())
-	{
-		const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-
-		for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
-		{
-			if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndex.Assets[AssetIndex]))
-			{
-				if (AssetsToConsider.Contains(DatabaseAnimationAssetBase->GetAnimationAsset()))
-				{
-					SelectableAssetIdx.Add(AssetIndex);
-				}
-			}
-		}
-	}
-}
-
-typedef TArray<int32, TInlineAllocator<256, TMemStackAllocator<>>> FNonSelectableIdx;
-static void PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, FSearchContext& SearchContext, const UPoseSearchDatabase* Database
-#if UE_POSE_SEARCH_TRACE_ENABLED
-	, TConstArrayView<float> QueryValues
-#endif //UE_POSE_SEARCH_TRACE_ENABLED
-)
-{
-	check(Database);
-	const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-
-	NonSelectableIdx.Reset();
-	if (SearchContext.IsCurrentResultFromDatabase(Database))
-	{
-		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
-		{
-			if (CurrentIndexAsset->IsDisableReselection())
-			{
-				// excluding all the poses with CurrentIndexAsset->GetSourceAssetIdx()
-				// @todo: optimize this code!
-				for (const FSearchIndexAsset& SearchIndexAsset : SearchIndex.Assets)
-				{
-					if (SearchIndexAsset.GetSourceAssetIdx() == CurrentIndexAsset->GetSourceAssetIdx())
-					{
-						const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
-						const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
-						for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
-						{
-							// no need to AddUnique since there's no overlapping between pose indexes in the FSearchIndexAsset(s)
-							NonSelectableIdx.Add(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-							const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-							const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-							SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-						}
-					}
-				}
-			}
-			else if (!FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
-			{
-				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
-				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Database->Schema->SampleRate);
-				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Database->Schema->SampleRate);
-				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->GetFirstPoseIdx();
-				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
-				const bool bIsLooping = CurrentIndexAsset->IsLooping();
-
-				if (bIsLooping)
-				{
-					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
-					{
-						const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
-						const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
-						const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
-
-						NonSelectableIdx.AddUnique(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-					}
-				}
-				else
-				{
-					const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
-					const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
-
-					for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
-					{
-						NonSelectableIdx.AddUnique(PoseIdx);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
-						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-						SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-					}
-				}
-			}
-		}
-	}
-
-	if (SearchContext.GetPoseIndicesHistory())
-	{
-		const FObjectKey DatabaseKey(Database);
-		for (auto It = SearchContext.GetPoseIndicesHistory()->IndexToTime.CreateConstIterator(); It; ++It)
-		{
-			const FHistoricalPoseIndex& HistoricalPoseIndex = It.Key();
-			if (HistoricalPoseIndex.DatabaseKey == DatabaseKey)
-			{
-				NonSelectableIdx.AddUnique(HistoricalPoseIndex.PoseIndex);
-
-#if UE_POSE_SEARCH_TRACE_ENABLED
-				check(HistoricalPoseIndex.PoseIndex >= 0);
-
-				// if we're editing the database and removing assets it's possible that the PoseIndicesHistory contains invalid pose indexes
-				if (HistoricalPoseIndex.PoseIndex < SearchIndex.GetNumPoses())
-				{
-					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(HistoricalPoseIndex.PoseIndex, 0.f, SearchIndex.GetPoseValuesSafe(HistoricalPoseIndex.PoseIndex), QueryValues);
-					SearchContext.Track(Database, HistoricalPoseIndex.PoseIndex, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory, PoseCost);
-				}
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-			}
-		}
-	}
-
-	NonSelectableIdx.Sort();
-}
-
 struct FSearchFilters
 {
 	FSearchFilters(const UPoseSearchSchema* Schema, TConstArrayView<int32> NonSelectableIdx, TConstArrayView<int32> SelectableAssetIdx, bool bAddBlockTransitionFilter)
@@ -303,6 +169,43 @@ private:
 
 	TArray<const IPoseSearchFilter*, TInlineAllocator<64, TMemStackAllocator<>>> Filters;
 };
+
+template<bool bReconstructPoseValues, bool bAlignedAndPadded>
+static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, const UE::PoseSearch::FSearchIndex& SearchIndex, TConstArrayView<float> QueryValues, TArrayView<float> ReconstructedPoseValuesBuffer,
+	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, int32 ResultIndex = -1)
+{
+	using namespace UE::PoseSearch;
+
+	const TConstArrayView<float> PoseValues = bReconstructPoseValues ? SearchIndex.GetReconstructedPoseValues(PoseIdx, ReconstructedPoseValuesBuffer) : SearchIndex.GetPoseValues(PoseIdx);
+
+	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx
+#if UE_POSE_SEARCH_TRACE_ENABLED
+		, SearchContext, Database
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	))
+	{
+		const FPoseSearchCost PoseCost = bAlignedAndPadded ? SearchIndex.CompareAlignedPoses(PoseIdx, 0.f, PoseValues, QueryValues) : SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+		if (PoseCost < Result.PoseCost)
+		{
+			Result.PoseCost = PoseCost;
+			Result.PoseIdx = PoseIdx;
+
+#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+			if (bUpdateBestCandidates)
+			{
+				Result.BestPosePos = ResultIndex;
+			}
+#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
+		}
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+		if (bUpdateBestCandidates)
+		{
+			SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::Valid_Pose, PoseCost);
+		}
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+	}
+}
 
 } // namespace UE::PoseSearch
 
@@ -678,7 +581,56 @@ void UPoseSearchDatabase::SetSearchIndex(const UE::PoseSearch::FSearchIndex& Sea
 {
 	check(IsInGameThread());
 	SearchIndexPrivate = SearchIndex;
+
+	UpdateCachedProperties();
 }
+
+void UPoseSearchDatabase::UpdateCachedProperties()
+{
+	using namespace UE::PoseSearch;
+
+	CachedAssetMap.Reset();
+	for (int32 AssetIdx = 0; AssetIdx != SearchIndexPrivate.Assets.Num(); ++AssetIdx)
+	{
+		const FSearchIndexAsset& SearchIndexAsset = SearchIndexPrivate.Assets[AssetIdx];
+
+		if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset))
+		{
+			CachedAssetMap.FindOrAdd(DatabaseAnimationAssetBase->GetAnimationAsset()).Add(AssetIdx);
+		}
+	}
+
+	for (TPair<TObjectPtr<UObject>, TArray<int32>>& CachedAssetMapPair : CachedAssetMap)
+	{
+		CachedAssetMapPair.Value.Sort();
+	}
+}
+
+TConstArrayView<int32> UPoseSearchDatabase::GetAssetIndexesForSourceAsset(const UObject* SourceAsset) const
+{
+	using namespace UE::PoseSearch;
+
+	if (const TArray<int32>* IndexesForSourceAsset = CachedAssetMap.Find(SourceAsset))
+	{
+#if DO_CHECK
+		// validating the consistency of IndexesForSourceAsset retrieved from SourceAsset
+		const UE::PoseSearch::FSearchIndex& SearchIndex = GetSearchIndex();
+		for (int32 AssetIndex : *IndexesForSourceAsset)
+		{
+			const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
+			const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset);
+	
+			// if those checks fail the calling code hasn't been protected by FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex
+			check(DatabaseAnimationAssetBase);
+			check(DatabaseAnimationAssetBase->GetAnimationAsset() == SourceAsset);
+		}
+#endif // DO_CHECK
+
+		return *IndexesForSourceAsset;
+	}
+	return TConstArrayView<int32>();
+}
+
 
 const UE::PoseSearch::FSearchIndex& UPoseSearchDatabase::GetSearchIndex() const
 {
@@ -769,11 +721,10 @@ void UPoseSearchDatabase::PostLoad()
 	using namespace UE::PoseSearch;
 
 	bool bRequiresSynchronization = false;
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (FInstancedStruct& AnimationAsset : AnimationAssets)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < GetNumAnimationAssets(); ++AnimationAssetIndex)
 	{
-		if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>())
+		if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 		{
 			if (AnimationAssetBase->bSynchronizeWithExternalDependency_DEPRECATED)
 			{
@@ -788,11 +739,9 @@ void UPoseSearchDatabase::PostLoad()
 	{
 		SynchronizeWithExternalDependencies();
 
-		PRAGMA_DISABLE_DEPRECATION_WARNINGS
-		for (FInstancedStruct& AnimationAsset : AnimationAssets)
-		PRAGMA_ENABLE_DEPRECATION_WARNINGS
+		for (int32 AnimationAssetIndex = 0; AnimationAssetIndex < GetNumAnimationAssets(); ++AnimationAssetIndex)
 		{
-			if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetMutablePtr<FPoseSearchDatabaseAnimationAssetBase>())
+			if (FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = GetMutableDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(AnimationAssetIndex))
 			{
 				AnimationAssetBase->bSynchronizeWithExternalDependency_DEPRECATED = false;
 			}
@@ -816,19 +765,7 @@ void UPoseSearchDatabase::PostLoad()
 
 bool UPoseSearchDatabase::Contains(const UObject* Object) const
 {
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	for (const FInstancedStruct& AnimationAsset : AnimationAssets)
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
-	{
-		if (const FPoseSearchDatabaseAnimationAssetBase* AnimationAssetBase = AnimationAsset.GetPtr<FPoseSearchDatabaseAnimationAssetBase>())
-		{
-			if (AnimationAssetBase->GetAnimationAsset() == Object)
-			{
-				return true;
-			}
-		}
-	}
-	return false;
+	return !GetAssetIndexesForSourceAsset(Object).IsEmpty();
 }
 
 int32 UPoseSearchDatabase::GetNumAnimationAssets() const
@@ -904,7 +841,8 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 	// collecting all the database AnimationAsset(s) that don't require synchronization
 	TArray<bool> DisableReselection;
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	DisableReselection.Reserve(AnimationAssets.Num());
+	DisableReselection.Reserve(GetNumAnimationAssets());
+
 	for (FInstancedStruct& AnimationAsset : AnimationAssets)
 	{
 		FPoseSearchDatabaseAnimationAssetBase& AnimationAssetBase = AnimationAsset.GetMutable<FPoseSearchDatabaseAnimationAssetBase>();
@@ -971,7 +909,7 @@ void UPoseSearchDatabase::SynchronizeWithExternalDependencies(TConstArrayView<UA
 
 	// updating AnimationAssets from NewAnimationAssets preserving the original sorting
 	bool bModified = false;
-	for (int32 AnimationAssetIndex = AnimationAssets.Num() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
+	for (int32 AnimationAssetIndex = GetNumAnimationAssets() - 1; AnimationAssetIndex >= 0; --AnimationAssetIndex)
 	{
 		const int32 FoundIndex = NewAnimationAssets.Find(AnimationAssets[AnimationAssetIndex]);
 		if (FoundIndex >= 0)
@@ -1066,6 +1004,8 @@ void UPoseSearchDatabase::Serialize(FArchive& Ar)
 		if (Ar.IsLoading() || Ar.IsCooking())
 		{
 			Ar << SearchIndexPrivate;
+
+			UpdateCachedProperties();
 		}
 	}
 }
@@ -1160,40 +1100,141 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::Search(UE::PoseSearch::FSearc
 	return Result;
 }
 
-template<bool bReconstructPoseValues, bool bAlignedAndPadded>
-static inline void EvaluatePoseKernel(UE::PoseSearch::FSearchResult& Result, const UE::PoseSearch::FSearchIndex& SearchIndex, TConstArrayView<float> QueryValues, TArrayView<float> ReconstructedPoseValuesBuffer,
-	int32 PoseIdx, const UE::PoseSearch::FSearchFilters& SearchFilters, UE::PoseSearch::FSearchContext& SearchContext, const UPoseSearchDatabase* Database, bool bUpdateBestCandidates, int32 ResultIndex = -1)
+void UPoseSearchDatabase::PopulateNonSelectableIdx(FNonSelectableIdx& NonSelectableIdx, UE::PoseSearch::FSearchContext& SearchContext
+#if UE_POSE_SEARCH_TRACE_ENABLED
+	, TConstArrayView<float> QueryValues
+#endif //UE_POSE_SEARCH_TRACE_ENABLED
+) const
 {
 	using namespace UE::PoseSearch;
 
-	const TConstArrayView<float> PoseValues = bReconstructPoseValues ? SearchIndex.GetReconstructedPoseValues(PoseIdx, ReconstructedPoseValuesBuffer) : SearchIndex.GetPoseValues(PoseIdx);
+	const FSearchIndex& SearchIndex = GetSearchIndex();
 
-	if (SearchFilters.AreFiltersValid(SearchIndex, PoseValues, QueryValues, PoseIdx
-#if UE_POSE_SEARCH_TRACE_ENABLED
-		, SearchContext, Database
-#endif // UE_POSE_SEARCH_TRACE_ENABLED
-	))
+	NonSelectableIdx.Reset();
+	if (SearchContext.IsCurrentResultFromDatabase(this))
 	{
-		const FPoseSearchCost PoseCost = bAlignedAndPadded ? SearchIndex.CompareAlignedPoses(PoseIdx, 0.f, PoseValues, QueryValues) : SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
-		if (PoseCost < Result.PoseCost)
+		if (const FSearchIndexAsset* CurrentIndexAsset = SearchContext.GetCurrentResult().GetSearchIndexAsset(true))
 		{
-			Result.PoseCost = PoseCost;
-			Result.PoseIdx = PoseIdx;
-
-#if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
-			if (bUpdateBestCandidates)
+			if (CurrentIndexAsset->IsDisableReselection())
 			{
-				Result.BestPosePos = ResultIndex;
-			}
-#endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
-		}
+				// excluding all the poses with CurrentIndexAsset->GetSourceAssetIdx()
+				const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(CurrentIndexAsset->GetSourceAssetIdx());
+				check(DatabaseAnimationAssetBase);
+
+				for (int32 AssetIndex : GetAssetIndexesForSourceAsset(DatabaseAnimationAssetBase->GetAnimationAsset()))
+				{
+					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
+					const int32 FirstPoseIdx = SearchIndexAsset.GetFirstPoseIdx();
+					const int32 LastPoseIdx = FirstPoseIdx + SearchIndexAsset.GetNumPoses();
+					for (int32 PoseIdx = FirstPoseIdx; PoseIdx < LastPoseIdx; ++PoseIdx)
+					{
+						// no need to AddUnique since there's no overlapping between pose indexes in the FSearchIndexAsset(s)
+						NonSelectableIdx.Add(PoseIdx);
 
 #if UE_POSE_SEARCH_TRACE_ENABLED
-		if (bUpdateBestCandidates)
-		{
-			SearchContext.Track(Database, PoseIdx, EPoseCandidateFlags::Valid_Pose, PoseCost);
-		}
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+			}
+			else if (!FMath::IsNearlyEqual(SearchContext.GetPoseJumpThresholdTime().Min, SearchContext.GetPoseJumpThresholdTime().Max))
+			{
+				const int32 CurrentResultPoseIdx = SearchContext.GetCurrentResult().PoseIdx;
+				const int32 UnboundMinPoseIdx = CurrentResultPoseIdx + FMath::FloorToInt(SearchContext.GetPoseJumpThresholdTime().Min * Schema->SampleRate);
+				const int32 UnboundMaxPoseIdx = CurrentResultPoseIdx + FMath::CeilToInt(SearchContext.GetPoseJumpThresholdTime().Max * Schema->SampleRate);
+				const int32 CurrentIndexAssetFirstPoseIdx = CurrentIndexAsset->GetFirstPoseIdx();
+				const int32 CurrentIndexAssetNumPoses = CurrentIndexAsset->GetNumPoses();
+				const bool bIsLooping = CurrentIndexAsset->IsLooping();
+
+				if (bIsLooping)
+				{
+					for (int32 UnboundPoseIdx = UnboundMinPoseIdx; UnboundPoseIdx < UnboundMaxPoseIdx; ++UnboundPoseIdx)
+					{
+						const int32 Modulo = (UnboundPoseIdx - CurrentIndexAssetFirstPoseIdx) % CurrentIndexAssetNumPoses;
+						const int32 CurrentIndexAssetFirstPoseIdxPlusModulo = CurrentIndexAssetFirstPoseIdx + Modulo;
+						const int32 PoseIdx = Modulo >= 0 ? CurrentIndexAssetFirstPoseIdxPlusModulo : CurrentIndexAssetFirstPoseIdxPlusModulo + CurrentIndexAssetNumPoses;
+
+						NonSelectableIdx.AddUnique(PoseIdx);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+				else
+				{
+					const int32 MinPoseIdx = FMath::Max(CurrentIndexAssetFirstPoseIdx, UnboundMinPoseIdx);
+					const int32 MaxPoseIdx = FMath::Min(CurrentIndexAssetFirstPoseIdx + CurrentIndexAssetNumPoses, UnboundMaxPoseIdx);
+
+					for (int32 PoseIdx = MinPoseIdx; PoseIdx < MaxPoseIdx; ++PoseIdx)
+					{
+						NonSelectableIdx.AddUnique(PoseIdx);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+						const TArray<float> PoseValues = SearchIndex.GetPoseValuesSafe(PoseIdx);
+						const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(PoseIdx, 0.f, PoseValues, QueryValues);
+						SearchContext.Track(this, PoseIdx, EPoseCandidateFlags::DiscardedBy_PoseJumpThresholdTime, PoseCost);
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+					}
+				}
+			}
+		}
+	}
+
+	if (SearchContext.GetPoseIndicesHistory())
+	{
+		const FObjectKey DatabaseKey(this);
+		for (auto It = SearchContext.GetPoseIndicesHistory()->IndexToTime.CreateConstIterator(); It; ++It)
+		{
+			const FHistoricalPoseIndex& HistoricalPoseIndex = It.Key();
+			if (HistoricalPoseIndex.DatabaseKey == DatabaseKey)
+			{
+				NonSelectableIdx.AddUnique(HistoricalPoseIndex.PoseIndex);
+
+#if UE_POSE_SEARCH_TRACE_ENABLED
+				check(HistoricalPoseIndex.PoseIndex >= 0);
+
+				// if we're editing the database and removing assets it's possible that the PoseIndicesHistory contains invalid pose indexes
+				if (HistoricalPoseIndex.PoseIndex < SearchIndex.GetNumPoses())
+				{
+					const FPoseSearchCost PoseCost = SearchIndex.ComparePoses(HistoricalPoseIndex.PoseIndex, 0.f, SearchIndex.GetPoseValuesSafe(HistoricalPoseIndex.PoseIndex), QueryValues);
+					SearchContext.Track(this, HistoricalPoseIndex.PoseIndex, EPoseCandidateFlags::DiscardedBy_PoseReselectHistory, PoseCost);
+				}
+#endif // UE_POSE_SEARCH_TRACE_ENABLED
+			}
+		}
+	}
+
+	NonSelectableIdx.Sort();
+}
+
+void UPoseSearchDatabase::PopulateSelectableAssetIdx(FSelectableAssetIdx& SelectableAssetIdx, TConstArrayView<const UObject*> AssetsToConsider) const
+{
+	SelectableAssetIdx.Reset();
+	if (!AssetsToConsider.IsEmpty())
+	{
+		for (const UObject* AssetToConsider : AssetsToConsider)
+		{
+			SelectableAssetIdx.Append(GetAssetIndexesForSourceAsset(AssetToConsider));
+		}
+
+		if (!SelectableAssetIdx.IsEmpty())
+		{
+			if (SelectableAssetIdx.Num() != GetSearchIndex().Assets.Num())
+			{
+				SelectableAssetIdx.Sort();
+			}
+			else
+			{
+				// SelectableAssetIdx contains ALL the Database->GetSearchIndex().Assets. 
+				// We reset SelectableAssetIdx since it has the same meaning, and it'll perform better
+				SelectableAssetIdx.Reset();
+			}
+		}
 	}
 }
 
@@ -1319,10 +1360,10 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1463,7 +1504,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchPCAKDTree(UE::PoseSearc
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
@@ -1494,11 +1535,11 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		// @todo: implement filtering within the VPTree as KDTree does
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1550,7 +1591,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchVPTree(UE::PoseSearch::
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 
@@ -1581,10 +1622,10 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 
 		FSelectableAssetIdx SelectableAssetIdx;
-		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider(), this);
+		PopulateSelectableAssetIdx(SelectableAssetIdx, SearchContext.GetAssetsToConsider());
 
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext
 #if UE_POSE_SEARCH_TRACE_ENABLED
 			, QueryValues
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
@@ -1683,7 +1724,7 @@ UE::PoseSearch::FSearchResult UPoseSearchDatabase::SearchBruteForce(UE::PoseSear
 		// calling just for reporting non selectable poses
 		TConstArrayView<float> QueryValues = SearchContext.GetOrBuildQuery(Schema);
 		FNonSelectableIdx NonSelectableIdx;
-		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, this, QueryValues);
+		PopulateNonSelectableIdx(NonSelectableIdx, SearchContext, QueryValues);
 #endif // UE_POSE_SEARCH_TRACE_ENABLED
 	}
 

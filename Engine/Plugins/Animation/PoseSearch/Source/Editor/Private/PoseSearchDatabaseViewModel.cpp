@@ -139,9 +139,10 @@ bool FDatabasePreviewActor::SpawnPreviewActor(UWorld* World, const UPoseSearchDa
 
 		for (int32 Index = 1; Index < NumPoses; ++Index)
 		{
+			const float DeltaAccumulatedSeconds = FMath::Max(UE_KINDA_SMALL_NUMBER, Trajectory.Samples[Index].AccumulatedSeconds - Trajectory.Samples[Index - 1].AccumulatedSeconds);
 			const FVector& Start = Trajectory.Samples[Index - 1].Position;
 			const FVector& End = Trajectory.Samples[Index].Position;
-			TrajectorySpeed[Index] = (Start - End).Length() * PoseSearchDatabase->Schema->SampleRate;
+			TrajectorySpeed[Index] = (Start - End).Length() / DeltaAccumulatedSeconds;
 		}
 		TrajectorySpeed[0] = TrajectorySpeed[1];
 	}

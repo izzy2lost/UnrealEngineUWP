@@ -75,6 +75,12 @@ namespace UE::PoseSearch
 						continue;
 					}
 #if WITH_EDITOR
+					if (EAsyncBuildIndexResult::Success != FAsyncPoseSearchDatabasesManagement::RequestAsyncBuildIndex(PoseSearchBranchIn->Database, ERequestAsyncBuildFlag::ContinueRequest))
+					{
+						// database is still indexing.. moving on
+						continue;
+					}
+
 					if (!PoseSearchBranchIn->Database->Contains(SequenceBase))
 					{
 						UE_LOG(LogPoseSearch, Error, TEXT("improperly setup UAnimSequenceBase. Database %s doesn't contain UAnimSequenceBase %s"), *PoseSearchBranchIn->Database->GetName(), *SequenceBase->GetName());
@@ -902,47 +908,42 @@ UE::PoseSearch::FSearchResult UPoseSearchLibrary::MotionMatch(
 				check(Database);
 
 				const FSearchIndex& SearchIndex = Database->GetSearchIndex();
-				for (int32 AssetIndex = 0; AssetIndex < SearchIndex.Assets.Num(); ++AssetIndex)
+				for (int32 AssetIndex : Database->GetAssetIndexesForSourceAsset(PlayingAnimationAsset))
 				{
 					const FSearchIndexAsset& SearchIndexAsset = SearchIndex.Assets[AssetIndex];
-					if (const FPoseSearchDatabaseAnimationAssetBase* DatabaseAnimationAssetBase = Database->GetDatabaseAnimationAsset<FPoseSearchDatabaseAnimationAssetBase>(SearchIndexAsset.GetSourceAssetIdx()))
+
+					bool bCanAdvance = true;
+					if (!SearchIndexAsset.IsLooping())
 					{
-						if (PlayingAnimationAsset == DatabaseAnimationAssetBase->GetAnimationAsset())
-						{
-							bool bCanAdvance = true;
-							if (!SearchIndexAsset.IsLooping())
-							{
-								const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
-								const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
-								const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
+						const float FirstSampleTime = SearchIndexAsset.GetFirstSampleTime(Database->Schema->SampleRate);
+						const float LastSampleTime = SearchIndexAsset.GetLastSampleTime(Database->Schema->SampleRate) - DeltaSeconds;
+						const float MaxTimeToBeAbleToContinuingPlayingAnimation = LastSampleTime - DeltaSeconds;
 
-								bCanAdvance = ContinuingProperties.PlayingAssetAccumulatedTime >= FirstSampleTime && ContinuingProperties.PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
-							}
+						bCanAdvance = ContinuingProperties.PlayingAssetAccumulatedTime >= FirstSampleTime && ContinuingProperties.PlayingAssetAccumulatedTime < MaxTimeToBeAbleToContinuingPlayingAnimation;
+					}
 
-							if (bCanAdvance)
-							{
-								ReconstructedPreviousSearchResult.Database = Database;
-								ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
-								ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(ContinuingProperties.PlayingAssetAccumulatedTime, SearchIndexAsset);
-								SearchContext.UpdateCurrentResultPoseVector();
+					if (bCanAdvance)
+					{
+						ReconstructedPreviousSearchResult.Database = Database;
+						ReconstructedPreviousSearchResult.AssetTime = ContinuingProperties.PlayingAssetAccumulatedTime;
+						ReconstructedPreviousSearchResult.PoseIdx = Database->GetPoseIndexFromTime(ContinuingProperties.PlayingAssetAccumulatedTime, SearchIndexAsset);
+						SearchContext.UpdateCurrentResultPoseVector();
 
-								const FSearchResult NewSearchResult = Database->SearchContinuingPose(SearchContext);
+						const FSearchResult NewSearchResult = Database->SearchContinuingPose(SearchContext);
 
 #if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
-								const FPoseSearchCost BestBruteForcePoseCost = NewSearchResult.BruteForcePoseCost < SearchResult.BruteForcePoseCost ? NewSearchResult.BruteForcePoseCost : SearchResult.BruteForcePoseCost;
+						const FPoseSearchCost BestBruteForcePoseCost = NewSearchResult.BruteForcePoseCost < SearchResult.BruteForcePoseCost ? NewSearchResult.BruteForcePoseCost : SearchResult.BruteForcePoseCost;
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
 
-								if (NewSearchResult.PoseCost < SearchResult.PoseCost)
-								{
-									SearchResult = NewSearchResult;
-									SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
-								}
+						if (NewSearchResult.PoseCost < SearchResult.PoseCost)
+						{
+							SearchResult = NewSearchResult;
+							SearchContext.UpdateCurrentBestCost(SearchResult.PoseCost);
+						}
 								
 #if WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
-								SearchResult.BruteForcePoseCost = BestBruteForcePoseCost;
+						SearchResult.BruteForcePoseCost = BestBruteForcePoseCost;
 #endif // WITH_EDITOR && ENABLE_ANIM_DEBUG && UE_POSE_SEARCH_TRACE_ENABLED
-							}
-						}
 					}
 				}
 			}
