@@ -645,6 +645,7 @@ namespace UnrealBuildTool
 	{
 		public string? Server => HordeConfig.HordeServer;
 		public bool Enabled => !HordeConfig.bDisableHorde;
+		public string ConnectionModeString => (Enum.TryParse(HordeConfig.HordeConnectionMode, true, out ConnectionMode cm) ? cm : ConnectionMode.Direct).ToString();
 
 		public UBAAgentCoordinatorHorde(ILogger logger, UnrealBuildAcceleratorConfig ubaConfig, CommandLineArguments? additionalArguments = null, DirectoryReference? projectDir = null)
 		{

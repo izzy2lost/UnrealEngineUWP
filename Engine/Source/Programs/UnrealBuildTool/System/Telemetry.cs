@@ -158,6 +158,8 @@ namespace UnrealBuildTool
 		[JsonConverter(typeof(DurationDataRouterEventConverter))]
 		public TimeSpan DurationWaitingForRemote { get; }
 
+		public string ConnectionMode { get; }
+
 		public double RetriedLocalRate => RetriedLocalActions / (double)TotalActions;
 		public double RetriedDisabledRate => RetriedDisabledActions / (double)TotalActions;
 
@@ -168,7 +170,7 @@ namespace UnrealBuildTool
 			int localActions, int remoteActions,
 			int retriedLocalActions, int retriedDisabledActions,
 			int totalCoordinators, int succeededCoordinators, int failedCoordinators,
-			TimeSpan durationWaitingForRemote,
+			TimeSpan durationWaitingForRemote, string connectionMode,
 			DateTime timestamp)
 			: base(executor, startUTC, result, totalActions, succeededActions, failedActions, cacheHitActions, cacheMissActions, timestamp)
 		{
@@ -180,6 +182,7 @@ namespace UnrealBuildTool
 			SucceededCoordinators = succeededCoordinators;
 			FailedCoordinators = failedCoordinators;
 			DurationWaitingForRemote = durationWaitingForRemote;
+			ConnectionMode = connectionMode;
 		}
 	}
 

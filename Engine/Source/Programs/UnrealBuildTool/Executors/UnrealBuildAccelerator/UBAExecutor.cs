@@ -56,6 +56,9 @@ namespace UnrealBuildTool
 		// Tracking for all actions processed remotely
 		int _remoteProcessedActions = 0;
 
+		// Tracking for remote connection mode
+		string _remoteConnectionMode = "Local";
+
 		protected override void Dispose(bool disposing)
 		{
 			if (disposing)
@@ -122,6 +125,7 @@ namespace UnrealBuildTool
 				hordeAgentCoordinators.Add(new UBAAgentCoordinatorHorde(logger, UBAConfig, targetDescriptor.AdditionalArguments, targetDescriptor.ProjectFile?.Directory));
 			}
 			hordeAgentCoordinators.RemoveAll(x => !x.Enabled);
+			_remoteConnectionMode = hordeAgentCoordinators.FirstOrDefault()?.ConnectionModeString ?? "Local";
 			_agentCoordinators.AddRange(hordeAgentCoordinators.DistinctBy(x => x.Server));
 
 			_threadedLogger = new ThreadedLogger(logger);
@@ -579,6 +583,7 @@ namespace UnrealBuildTool
 					_localRetryActions.Count, _forcedRetryActions.Count,
 					!UBAConfig.bDisableRemote ? _agentCoordinators.Count : 0, !UBAConfig.bDisableRemote ? _successfulCoordinatorConnections : 0, !UBAConfig.bDisableRemote ? _failedCoordinatorConnections : 0,
 					!UBAConfig.bDisableRemote ? _ubaDurationWaitingForRemote : TimeSpan.Zero,
+					!UBAConfig.bDisableRemote || _agentCoordinators.Count == 0 ? "Local" : _remoteConnectionMode,
 					DateTime.UtcNow);
 
 				return res;
