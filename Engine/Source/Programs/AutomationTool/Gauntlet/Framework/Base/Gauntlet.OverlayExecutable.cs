@@ -50,7 +50,7 @@ namespace Gauntlet
 				throw new AutomationException("Overlay Error: No base executable was specified.");
 			}
 
-			if (!File.Exists(BaseExecutable))
+			if (!File.Exists(BaseExecutable) && !Directory.Exists(BaseExecutable)) // mac/ios apps can be directories
 			{
 				throw new AutomationException("Overlay Error: Could not find base executable {0}.", BaseExecutable);
 			}
@@ -61,7 +61,7 @@ namespace Gauntlet
 			string ExecutableExtension = string.IsNullOrEmpty(ExtensionOverride) ? Path.GetExtension(BaseExecutable) : ExtensionOverride;
 			string LocalExecutable = Path.Combine(PlatformBinariesDirectory, ExecutableName + ExecutableExtension);
 
-			if (!File.Exists(LocalExecutable))
+			if (!File.Exists(LocalExecutable) && !Directory.Exists(LocalExecutable))
 			{
 				Log.Verbose("No local executable for {Platform} exists. Skipping overlay for this role", Platform);
 				return false;

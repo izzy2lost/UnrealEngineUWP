@@ -22,8 +22,6 @@ namespace Gauntlet
 
 		public bool IsIPAFile;
 
-		public Dictionary<string, string> FilesToInstall;
-
 		public string PackageName;
 
 		public BuildFlags Flags { get; protected set; }
@@ -34,12 +32,11 @@ namespace Gauntlet
 
 		public bool SupportsAdditionalFileCopy { get; }
 
-		public AppleBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, Dictionary<string, string> InFilesToInstall, BuildFlags InFlags)
+		public AppleBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, BuildFlags InFlags)
 		{
 			Configuration = InConfig;
 			PackageName = InPackageName;
 			SourcePath = InSourcePath;
-			FilesToInstall = InFilesToInstall;
 			Flags = InFlags;
 			SupportsAdditionalFileCopy = true;
 			IsIPAFile = Path.GetExtension(InSourcePath).Equals(".ipa", StringComparison.OrdinalIgnoreCase);
@@ -249,17 +246,17 @@ namespace Gauntlet
 			}
 		}
 
-		public static T CreateFromPath<T>(string InProjectName, string InPath, AppleBuildSource<T> BuildSource)
+		public static T CreateFromPath<T>(string InProjectName, string InRootPath, string InBuildPath, AppleBuildSource<T> BuildSource)
 			where T : AppleBuild
 		{
 			FileSystemInfo BuildPath;
-			if (Directory.Exists(InPath))
+			if (Directory.Exists(InBuildPath))
 			{
-				BuildPath = new DirectoryInfo(InPath);
+				BuildPath = new DirectoryInfo(InBuildPath);
 			}
-			else if (File.Exists(InPath))
+			else if (File.Exists(InBuildPath))
 			{
-				BuildPath = new FileInfo(InPath);
+				BuildPath = new FileInfo(InBuildPath);
 			}
 			else
 			{
@@ -267,29 +264,31 @@ namespace Gauntlet
 				return null;
 			}
 
-			UnrealTargetConfiguration Configuration = UnrealHelpers.GetConfigurationFromExecutableName(InProjectName, InPath);
-			if (Configuration == UnrealTargetConfiguration.Unknown)
-			{
-				Log.Verbose("Could not deduce iOS build configuration from build at path {BuildPath}. Skipping.", InPath);
-				return null;
-			}
-
 			// Check there's an executable with the right name
 			string AppShortName = Regex.Replace(InProjectName, "Game", string.Empty, RegexOptions.IgnoreCase);
+			UnrealTargetConfiguration Configuration = UnrealTargetConfiguration.Unknown;
+
 			if (BuildPath is DirectoryInfo App)
 			{
+				Configuration = UnrealHelpers.GetConfigurationFromExecutableName(InProjectName, InBuildPath);
+				if (Configuration == UnrealTargetConfiguration.Unknown)
+				{
+					Log.Verbose("Could not deduce iOS build configuration from build at path {BuildPath}. Skipping.", InBuildPath);
+					return null;
+				}
+
 				if (App.GetFiles(AppShortName + '*', SearchOption.TopDirectoryOnly).FirstOrDefault() == null)
 				{
-					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InPath);
+					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InBuildPath);
 					return null;
 				}
 			}
 			else
 			{
 				// Get a list of files in the IPA
-				if (!ExecuteIPAZipCommand(string.Format("-Z1 {0}", InPath), out string Output))
+				if (!ExecuteIPAZipCommand(string.Format("-Z1 {0}", InBuildPath), out string Output))
 				{
-					Log.Info("Unable to list files for IPA {IPAPath}", InPath);
+					Log.Info("Unable to list files for IPA {IPAPath}", InBuildPath);
 					return null;
 				}
 
@@ -300,6 +299,12 @@ namespace Gauntlet
 				{
 					if(File.Contains(AppShortName, StringComparison.OrdinalIgnoreCase))
 					{
+						Configuration = UnrealHelpers.GetConfigurationFromExecutableName(InProjectName, File);
+						if (Configuration == UnrealTargetConfiguration.Unknown)
+						{
+							Log.Verbose("Could not deduce iOS build configuration from build at path {BuildPath}. Skipping.", InBuildPath);
+							return null;
+						}
 						bFoundExecutable = true;
 						break;
 					}
@@ -307,22 +312,9 @@ namespace Gauntlet
 
 				if (!bFoundExecutable)
 				{
-					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InPath);
+					Log.Verbose("Could not find an executable within build path {BuildPath}. Skipping", InBuildPath);
 					return null;
 				}
-			}
-
-			Log.Verbose("Pulling package data from {BuildPath}", BuildPath);
-
-			// IOS builds are always packaged, and can always replace the command line and executable (even as IPAs because we cache the unzipped app)
-			BuildFlags Flags = BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine | BuildFlags.CanReplaceExecutable;
-			if (BuildPath.FullName.Contains("Bulk"))
-			{
-				Flags |= BuildFlags.Bulk;
-			}
-			else
-			{
-				Flags |= BuildFlags.NotBulk;
 			}
 
 			PlistInfo Info = GetPlistInfo(BuildPath.FullName);
@@ -345,12 +337,44 @@ namespace Gauntlet
 				return null;
 			}
 
+			// IOS builds are always packaged, and can always replace the command line and executable (even as IPAs because we cache the unzipped app)
+			BuildFlags Flags = BuildFlags.Packaged | BuildFlags.CanReplaceCommandLine | BuildFlags.CanReplaceExecutable;
+			if (BuildPath.FullName.Contains("Bulk"))
+			{
+				if(BuildPath is FileInfo)
+				{
+					Log.Info("Bulk builds cannot be contained in an IPA file. Skipping.");
+					return null;
+				}
+				
+				Flags |= BuildFlags.Bulk;
+
+				int PayloadIndex = BuildPath.FullName.IndexOf("/Payload");
+				if(PayloadIndex < 0)
+				{
+					Log.Info("Could not locate the payload directory for bulk build at path {BuildPath}. Skipping.", BuildPath);
+					return null;
+				}
+				else
+				{
+					string RootBuildDirectory = BuildPath.FullName.Substring(0, PayloadIndex);
+					string BulkContentCopyCommands = Path.Combine(RootBuildDirectory, "RequiredCommands.txt");
+					if(string.IsNullOrEmpty(BulkContentCopyCommands) || !File.Exists(BulkContentCopyCommands))
+					{
+						Log.Info("Could not locate bulk content command list {CommandsFile}. Skipping.", BulkContentCopyCommands);
+						return null;
+					}
+				}
+			}
+			else
+			{
+				Flags |= BuildFlags.NotBulk;
+			}
+
 			Log.Verbose("Found bundle id: {PackageName}", PackageName);
 			Log.Verbose("Found {Configuration} {Flags} build at {BuildPath}", Configuration, ((Flags & BuildFlags.Bulk) == BuildFlags.Bulk) ? "(bulk)" : "(not bulk)", BuildPath);
 
-			// Todo: Consider handling Bulk content copies here?
-			Dictionary<string, string> FilesToInstall = new Dictionary<string, string>();
-			return Activator.CreateInstance(typeof(T), new object[] { Configuration, PackageName, BuildPath.FullName, FilesToInstall, Flags }) as T;
+			return Activator.CreateInstance(typeof(T), new object[] { Configuration, PackageName, BuildPath.FullName, Flags }) as T;
 		}
 	}
 
@@ -388,7 +412,7 @@ namespace Gauntlet
 
 			// Interface default parameters don't let us modify the default if calling from an interface cast...
 			// IOS builds are often located deeper within a client directory, so increase the depth here
-			MaxRecursion = MaxRecursion > 5 ? MaxRecursion : 5;
+			MaxRecursion = MaxRecursion > 7 ? MaxRecursion : 7;
 
 			DirectoryInfo BuildDirectory = new DirectoryInfo(InPath);
 			if (BuildDirectory.Exists)
@@ -416,11 +440,12 @@ namespace Gauntlet
 					Apps.AddRange(ValidApps);
 					Apps.AddRange(ValidIPAs);
 					SubDirectories = SubDirectories.SelectMany(Directory => Directory.GetDirectories("*", SearchOption.TopDirectoryOnly)).ToArray();
+
 				}
 
 				foreach (FileSystemInfo App in Apps)
 				{
-					AppleBuild Build = AppleBuild.CreateFromPath(InProjectName, App.FullName, this);
+					AppleBuild Build = AppleBuild.CreateFromPath(InProjectName, InPath, App.FullName, this);
 					if (Build != null)
 					{
 						Builds.Add(Build);
@@ -430,13 +455,12 @@ namespace Gauntlet
 
 			return Builds;
 		}
-
 	}
 
 	public class IOSBuild : AppleBuild
 	{
-		public IOSBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, Dictionary<string, string> InFilesToInstall, BuildFlags InFlags)
-			: base(InConfig, InPackageName, InSourcePath, InFilesToInstall, InFlags)
+		public IOSBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, BuildFlags InFlags)
+			: base(InConfig, InPackageName, InSourcePath, InFlags)
 		{ }
 
 		public override UnrealTargetPlatform Platform => UnrealTargetPlatform.IOS;
@@ -450,8 +474,8 @@ namespace Gauntlet
 
 	public class TVOSBuild : AppleBuild
 	{
-		public TVOSBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, Dictionary<string, string> InFilesToInstall, BuildFlags InFlags)
-			: base(InConfig, InPackageName, InSourcePath, InFilesToInstall, InFlags)
+		public TVOSBuild(UnrealTargetConfiguration InConfig, string InPackageName, string InSourcePath, BuildFlags InFlags)
+			: base(InConfig, InPackageName, InSourcePath, InFlags)
 		{ }
 
 		public override UnrealTargetPlatform Platform => UnrealTargetPlatform.TVOS;
