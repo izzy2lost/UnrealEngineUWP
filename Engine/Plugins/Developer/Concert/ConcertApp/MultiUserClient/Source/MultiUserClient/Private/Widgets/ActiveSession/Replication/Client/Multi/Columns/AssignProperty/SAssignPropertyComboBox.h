@@ -34,6 +34,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		/** @return The display string this widget would have with the given state. If unset, no clients are displayed in the combobox.*/
 		static TOptional<FString> GetDisplayString(
+			const FAssignPropertyModel& Model,
 			const FUnifiedClientView& ClientView,
 			const FConcertPropertyChain& DisplayedProperty,
 			const TArray<TSoftObjectPtr<>>& EditedObjects

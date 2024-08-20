@@ -4,13 +4,13 @@
 
 #include "ConcertLogGlobal.h"
 #include "Replication/Editor/Model/PropertyUtils.h"
+#include "Replication/Client/UnifiedClientView.h"
+#include "Widgets/ActiveSession/Replication/Client/Multi/ViewOptions/MultiViewOptions.h"
 
 #include "GameFramework/Actor.h"
 #include "ScopedTransaction.h"
 
 #include <type_traits>
-
-#include "Replication/Client/UnifiedClientView.h"
 
 #define LOCTEXT_NAMESPACE "FAssignPropertyModel"
 
@@ -91,17 +91,20 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns::AssignPropertyMo
 
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
-	FAssignPropertyModel::FAssignPropertyModel(FUnifiedClientView& InClientView)
+	FAssignPropertyModel::FAssignPropertyModel(FUnifiedClientView& InClientView, FMultiViewOptions& InViewOptions)
 		: ClientView(InClientView)
+		, ViewOptions(InViewOptions)
 	{
 		ClientView.OnClientsChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
 		ClientView.GetStreamCache().OnCacheChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
+		ViewOptions.OnOptionsChanged().AddRaw(this, &FAssignPropertyModel::BroadcastOnOwnershipChanged);
 	}
 
 	FAssignPropertyModel::~FAssignPropertyModel()
 	{
 		ClientView.OnClientsChanged().RemoveAll(this);
 		ClientView.GetStreamCache().OnCacheChanged().RemoveAll(this);
+		ViewOptions.OnOptionsChanged().RemoveAll(this);
 	}
 
 #define SET_REASON(Text) if (Reason) { *Reason = Text; }
@@ -174,7 +177,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		return Result;
 	}
 
-	void FAssignPropertyModel::TogglePropertyFor(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property)
+	void FAssignPropertyModel::TogglePropertyFor(
+		const FGuid& ClientId,
+		TConstArrayView<TSoftObjectPtr<>> Objects,
+		const FConcertPropertyChain& Property
+		) const
 	{
 		// Remote clients can disconnect after the combo-box is opened.
 		const TSharedPtr<ConcertSharedSlate::IEditableReplicationStreamModel> StreamModel = ClientView.GetEditableClientStreamById(ClientId);
@@ -221,6 +228,26 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			FScopedTransaction Transaction(TransactionText);
 			
 			AssignPropertyModel::UnassignPropertyFromClients(ClientView, Objects, Property, [](auto&){ return true; });
+		}
+	}
+
+	void FAssignPropertyModel::ForEachAssignedClient(
+		const FConcertPropertyChain& DisplayedProperty,
+		 const TArray<TSoftObjectPtr<>>& EditedObjects,
+		 TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback
+		 ) const
+	{
+		const EClientEnumerationMode Mode = ViewOptions.ShouldShowOfflineClients()
+			? EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients
+			: EClientEnumerationMode::SkipOfflineClients;
+		for (const TSoftObjectPtr<>& Object : EditedObjects)
+		{
+			ClientView.GetStreamCache().EnumerateClientsWithObjectAndProperty(
+				Object.ToSoftObjectPath(),
+				DisplayedProperty,
+				[&Callback](const FGuid& ClientId){ return Callback(ClientId); },
+				Mode
+			);
 		}
 	}
 }

@@ -21,11 +21,12 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	const FName AssignedClientsColumnId(TEXT("AssignedClientsColumn"));
 
 	ConcertSharedSlate::FObjectColumnEntry AssignedClientsColumn(
-		const TSharedRef<IConcertClient>& ConcertClient,
-		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
-		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
-		FUnifiedClientView& ClientView,
-		const int32 ColumnsSortPriority
+		const TSharedRef<IConcertClient>& InConcertClient,
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> InMultiStreamModelAttribute,
+		const ConcertSharedSlate::IObjectHierarchyModel& InObjectHierarchy,
+		FUnifiedClientView& InClientView,
+		FMultiViewOptions& InViewOptions,
+		const int32 InColumnsSortPriority
 		)
 	{
 		class FObjectColumn_AssignedClients : public ConcertSharedSlate::IObjectTreeColumn
@@ -33,15 +34,16 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		public:
 
 			FObjectColumn_AssignedClients(
-				const TSharedRef<IConcertClient>& ConcertClient,
-				TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
-				const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
-				FUnifiedClientView& ClientView UE_LIFETIMEBOUND
+				const TSharedRef<IConcertClient>& InConcertClient,
+				TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> InMultiStreamModelAttribute,
+				const ConcertSharedSlate::IObjectHierarchyModel& InObjectHierarchy UE_LIFETIMEBOUND,
+				FUnifiedClientView& InClientView UE_LIFETIMEBOUND,
+				FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND
 				)
-				: ConcertClient(ConcertClient)
-				, MultiStreamModelAttribute(MoveTemp(MultiStreamModelAttribute))
-				, Model(ObjectHierarchy, ClientView.GetStreamCache())
-				, ClientView(ClientView)
+				: ConcertClient(InConcertClient)
+				, MultiStreamModelAttribute(MoveTemp(InMultiStreamModelAttribute))
+				, Model(InObjectHierarchy, InClientView.GetStreamCache(), InViewOptions)
+				, ClientView(InClientView)
 			{}
 			
 			virtual SHeaderRow::FColumn::FArguments CreateHeaderRowArgs() const override
@@ -112,12 +114,14 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		return {
 			ConcertSharedSlate::TReplicationColumnDelegates<ConcertSharedSlate::FObjectTreeRowContext>::FCreateColumn::CreateLambda(
-				[ConcertClient, MultiStreamModelAttribute = MoveTemp(MultiStreamModelAttribute), &ObjectHierarchy, &ClientView]()
+				[InConcertClient, MultiStreamModelAttribute = MoveTemp(InMultiStreamModelAttribute), &InObjectHierarchy, &InClientView, &InViewOptions]
 				{
-					return MakeShared<FObjectColumn_AssignedClients>(ConcertClient, MultiStreamModelAttribute, ObjectHierarchy, ClientView);
+					return MakeShared<FObjectColumn_AssignedClients>(
+						InConcertClient, MultiStreamModelAttribute, InObjectHierarchy, InClientView, InViewOptions
+						);
 				}),
 			AssignedClientsColumnId,
-			{ ColumnsSortPriority }
+			{ InColumnsSortPriority }
 		};
 	}
 }

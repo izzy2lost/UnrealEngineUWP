@@ -18,6 +18,7 @@
 #include "Replication/Editor/View/IReplicationStreamEditor.h"
 #include "Replication/Editor/Model/ObjectSource/ActorSelectionSourceModel.h"
 #include "Replication/Stream/Discovery/MultiUserStreamExtender.h"
+#include "ViewOptions/SMultiViewOptions.h"
 #include "Widgets/ActiveSession/Replication/Client/Context/ContextMenuUtils.h"
 #include "Widgets/ActiveSession/Replication/Client/Multi/Columns/MultiStreamColumns.h"
 #include "Widgets/ActiveSession/Replication/Client/PropertySelection/SPropertySelectionComboButton.h"
@@ -47,7 +48,7 @@ namespace UE::MultiUserClient::Replication
 		OnlineClientSelectionModel = &InOnlineClientSelectionModel;
 		OfflineClientSelectionModel = &InOfflineClientSelectionModel;
 		StreamModel = MakeShared<FMultiStreamModel>(
-			InOnlineClientSelectionModel, InOfflineClientSelectionModel, *OnlineClientManager, *OfflineClientManager
+			InOnlineClientSelectionModel, InOfflineClientSelectionModel, *OnlineClientManager, *OfflineClientManager, ViewOptions
 			);
 		
 		OnlineClientManager->OnRemoteClientsChanged().AddSP(this, &SMultiClientView::RebuildClientSubscriptions);
@@ -73,20 +74,17 @@ namespace UE::MultiUserClient::Replication
 			.ForEachObjectInStream(this, &SMultiClientView::EnumerateReplicatedObjectsInStreams)
 			);
 
-		RebuildClientSubscriptions();
-
 		// Changing worlds affects what things are displayed in the editor.
-		HideObjectsNotInEditorWorld.OnRefreshObjects().AddLambda([this]()
-		{
-			StreamEditor->GetEditorBase().Refresh();
-		});
+		HideObjectsNotInEditorWorld.OnRefreshObjects().AddRaw(this, &SMultiClientView::RefreshUI);
+		ViewOptions.OnOptionsChanged().AddRaw(this, &SMultiClientView::RefreshUI);
+		RebuildClientSubscriptions();
 	}
 
 	SMultiClientView::~SMultiClientView()
 	{
 		OnlineClientManager->OnRemoteClientsChanged().RemoveAll(this);
-		CleanClientSubscriptions();
 		UserSelectedProperties->OnPropertySelectionChanged().RemoveAll(this);
+		CleanClientSubscriptions();
 	}
 
 	TSharedRef<SWidget> SMultiClientView::CreateEditorContent(
@@ -119,7 +117,7 @@ namespace UE::MultiUserClient::Replication
 			{
 				ReplicationColumns::Property::LabelColumn(),
 				MultiStreamColumns::AssignPropertyColumn(
-					MultiStreamEditorAttribute, *InMultiUserReplicationManager.GetUnifiedClientView()
+					MultiStreamEditorAttribute, *InMultiUserReplicationManager.GetUnifiedClientView(), ViewOptions
 					)
 			},
 			.CreateCategoryRow = CreateDefaultCategoryGenerator(NameModel),
@@ -159,13 +157,13 @@ namespace UE::MultiUserClient::Replication
 			{
 				MultiStreamColumns::MuteToggleColumn(MuteManager.GetChangeTracker()),
 				MultiStreamColumns::AssignedClientsColumn(
-					InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, *InMultiUserReplicationManager.GetUnifiedClientView()
+					InConcertClient, MultiStreamEditorAttribute, *ObjectHierarchy, *InMultiUserReplicationManager.GetUnifiedClientView(), ViewOptions
 					)
 			},
 			.ShouldDisplayObjectDelegate = FShouldDisplayObject::CreateSP(this, &SMultiClientView::ShouldDisplayObject),
 			.MakeObjectRowOverlayWidgetDelegate = FMakeObjectRowOverlayWidget::CreateSP(this, &SMultiClientView::MakeObjectRowOverlayWidget)
 		};
-		ViewerParams.RightOfObjectSearchBar.Widget = SNew(SPresetComboButton, *InConcertClient, *InMultiUserReplicationManager.GetPresetManager());
+		ViewerParams.RightOfObjectSearchBar.Widget = CreateRightOfSearchBarContent(InConcertClient, InMultiUserReplicationManager);
 		StreamEditor = CreateBaseMultiStreamEditor(MoveTemp(Params), MoveTemp(ViewerParams));
 		check(StreamEditor);
 		
@@ -180,6 +178,26 @@ namespace UE::MultiUserClient::Replication
 			[
 				SNew(STextBlock)
 				.Text(LOCTEXT("NoProperties", "Use Edit button to add replicated properties"))
+			];
+	}
+
+	TSharedRef<SWidget> SMultiClientView::CreateRightOfSearchBarContent(
+		const TSharedRef<IConcertClient>& InConcertClient,
+		FMultiUserReplicationManager& InMultiUserReplicationManager
+		)
+	{
+		return SNew(SHorizontalBox)
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SPresetComboButton, *InConcertClient, *InMultiUserReplicationManager.GetPresetManager())
+			]
+
+			+SHorizontalBox::Slot()
+			.AutoWidth()
+			[
+				SNew(SMultiViewOptions, ViewOptions)
 			];
 	}
 

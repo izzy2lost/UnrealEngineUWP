@@ -10,15 +10,12 @@
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
 
-namespace UE::MultiUserClient::Replication
-{
-	class FOfflineClientManager;
-}
-
 enum class EBreakBehavior : uint8;
 
 namespace UE::MultiUserClient::Replication
 {
+	class FMultiViewOptions;
+	class FOfflineClientManager;
 	class FOnlineClient;
 	class FOnlineClientManager;
 
@@ -36,7 +33,8 @@ namespace UE::MultiUserClient::Replication
 			IOnlineClientSelectionModel& InOnlineClientSelectionModel UE_LIFETIMEBOUND,
 			IOfflineClientSelectionModel& InOfflineClientSelectionModel UE_LIFETIMEBOUND,
 			FOnlineClientManager& InOnlineClientManager UE_LIFETIMEBOUND,
-			FOfflineClientManager& InOfflineClientManager UE_LIFETIMEBOUND
+			FOfflineClientManager& InOfflineClientManager UE_LIFETIMEBOUND,
+			FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND
 			);
 		~FMultiStreamModel();
 
@@ -62,14 +60,22 @@ namespace UE::MultiUserClient::Replication
 		/** Used to clean up subscriptions when client list changes. */
 		FOfflineClientManager& OfflineClientManager;
 
+		/** Determines whether offline clients should be shown. */
+		FMultiViewOptions& ViewOptions;
+
 		TSet<const FOnlineClient*> CachedOnlineClients;
 		TSet<const FOfflineClient*> CachedOfflineClients;
 
 		FOnStreamExternallyChanged OnStreamsExternallyChanged;
 		FOnStreamSetChanged OnStreamSetChangedDelegate;
-		
+
 		void RebuildOnlineClients();
 		void RebuildOfflineClients();
+		void RebuildClients()
+		{
+			RebuildOnlineClients();
+			RebuildOfflineClients();
+		}
 		
 		void UnsubscribeFromOnlineClients() const;
 		void UnsubscribeFromOfflineClients() const;

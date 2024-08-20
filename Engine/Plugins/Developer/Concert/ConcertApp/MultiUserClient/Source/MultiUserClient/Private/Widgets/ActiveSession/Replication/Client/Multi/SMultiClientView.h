@@ -6,6 +6,8 @@
 #include "Replication/Editor/Model/ObjectSource/IObjectSourceModel.h"
 #include "Replication/Editor/UnrealEditor/HideObjectsNotInWorldLogic.h"
 #include "Selection/SelectionModelFwd.h"
+#include "ViewOptions/MultiViewOptions.h"
+
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
@@ -73,12 +75,16 @@ namespace UE::MultiUserClient::Replication
 		/** Displays the properties for the objects displayed in the top view. */
 		TSharedPtr<ConcertSharedSlate::IMultiObjectPropertyAssignmentView> PropertyAssignmentView;
 
+		/** Controls the content shown in the UI. */
+		FMultiViewOptions ViewOptions;
+
 		/** This logic helps us decide whether an object should be displayed and lets us know that the object list needs to be refreshed (e.g. due to world change). */
 		ConcertClientSharedSlate::FHideObjectsNotInWorldLogic HideObjectsNotInEditorWorld;
 
 		/** Creates this widget's editor content */
 		TSharedRef<SWidget> CreateEditorContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager);
 		TSharedRef<SWidget> CreateNoPropertiesWarning() const;
+		TSharedRef<SWidget> CreateRightOfSearchBarContent(const TSharedRef<IConcertClient>& InConcertClient, FMultiUserReplicationManager& InMultiUserReplicationManager);
 
 		// SClientToolbar attributes
 		/** @return Gets the clients that may be replicating */

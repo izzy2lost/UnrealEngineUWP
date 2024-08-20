@@ -7,21 +7,15 @@
 #include "HAL/Platform.h"
 #include "Templates/UnrealTemplate.h"
 
-namespace UE::MultiUserClient::Replication
-{
-	class FUnifiedStreamCache;
-}
-
-namespace UE::MultiUserClient::Replication
-{
-	class FUnifiedClientView;
-}
 
 struct FGuid;
 
 namespace UE::ConcertSharedSlate { class IObjectHierarchyModel; }
 namespace UE::MultiUserClient::Replication
 {
+	class FMultiViewOptions;
+	class FUnifiedStreamCache;
+	class FUnifiedClientView;
 	class FOnlineClientManager;
 	class FReassignObjectPropertiesLogic;
 }
@@ -34,8 +28,9 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	public:
 		
 		FAssignedClientsModel(
-			const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
-			FUnifiedStreamCache& InStreamCache UE_LIFETIMEBOUND
+			const ConcertSharedSlate::IObjectHierarchyModel& InObjectHierarchy UE_LIFETIMEBOUND,
+			FUnifiedStreamCache& InStreamCache UE_LIFETIMEBOUND,
+			FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND
 			);
 		~FAssignedClientsModel();
 
@@ -51,6 +46,9 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy;
 		/** Holds the stream content of both online and offline clients. */
 		FUnifiedStreamCache& StreamCache;
+
+		/** Controls whether offline clients should be considered. */
+		FMultiViewOptions& ViewOptions;
 		
 		/** Broadcast when the result of GetAssignedClients may have changed. */
 		FSimpleMulticastDelegate OnOwnershipChangedDelegate;

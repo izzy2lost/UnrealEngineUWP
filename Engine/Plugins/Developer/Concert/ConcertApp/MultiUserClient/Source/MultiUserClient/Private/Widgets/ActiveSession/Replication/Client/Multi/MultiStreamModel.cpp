@@ -7,6 +7,7 @@
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Editor/Model/IEditableReplicationStreamModel.h"
 #include "Selection/ISelectionModel.h"
+#include "ViewOptions/MultiViewOptions.h"
 
 namespace UE::MultiUserClient::Replication
 {
@@ -14,24 +15,27 @@ namespace UE::MultiUserClient::Replication
 		IOnlineClientSelectionModel& InOnlineClientSelectionModel,
 		IOfflineClientSelectionModel& InOfflineClientSelectionModel,
 		FOnlineClientManager& InOnlineClientManager,
-		FOfflineClientManager& InOfflineClientManager
+		FOfflineClientManager& InOfflineClientManager,
+		FMultiViewOptions& InViewOptions
 		)
 		: OnlineClientSelectionModel(InOnlineClientSelectionModel)
 		, OfflineClientSelectionModel(InOfflineClientSelectionModel)
 		, OnlineClientManager(InOnlineClientManager)
 		, OfflineClientManager(InOfflineClientManager)
+		, ViewOptions(InViewOptions)
 	{
 		OnlineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildOnlineClients);
 		OfflineClientSelectionModel.OnSelectionChanged().AddRaw(this, &FMultiStreamModel::RebuildOfflineClients);
+		ViewOptions.OnOptionsChanged().AddRaw(this, &FMultiStreamModel::RebuildClients);
 		
-		RebuildOnlineClients();
-		RebuildOfflineClients();
+		RebuildClients();
 	}
 
 	FMultiStreamModel::~FMultiStreamModel()
 	{
 		UnsubscribeFromOnlineClients();
 		UnsubscribeFromOfflineClients();
+		ViewOptions.OnOptionsChanged().RemoveAll(this);
 	}
 
 	void FMultiStreamModel::ForEachDisplayedOnlineClient(TFunctionRef<EBreakBehavior(const FOnlineClient*)> ProcessClient) const
@@ -88,6 +92,12 @@ namespace UE::MultiUserClient::Replication
 	{
 		// It is not safe to iterate through our cached client array because it may contain stale clients that were just removed.
 		UnsubscribeFromOfflineClients();
+		if (!ViewOptions.ShouldShowOfflineClients())
+		{
+			CachedOfflineClients.Reset();
+			OnStreamSetChangedDelegate.Broadcast();
+			return;
+		}
 		
 		TSet<const FOfflineClient*> OfflineClients;
 		OfflineClientSelectionModel.ForEachItem([this, &OfflineClients](FOfflineClient& Client)

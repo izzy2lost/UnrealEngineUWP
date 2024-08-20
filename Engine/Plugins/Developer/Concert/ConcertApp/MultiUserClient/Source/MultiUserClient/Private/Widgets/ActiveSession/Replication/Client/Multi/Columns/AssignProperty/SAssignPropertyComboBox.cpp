@@ -3,7 +3,6 @@
 #include "SAssignPropertyComboBox.h"
 
 #include "AssignPropertyModel.h"
-#include "IConcertClient.h"
 #include "Replication/Client/Online/OnlineClient.h"
 #include "Replication/Client/Online/OnlineClientManager.h"
 #include "Replication/Client/UnifiedClientViewExtensions.h"
@@ -26,32 +25,14 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	namespace AssignPropertyComboBox
 	{
-		template<typename TLambda> requires std::is_invocable_r_v<EBreakBehavior, TLambda, const FGuid&>
-		static void ForEachDisplayedClient(
-			const FUnifiedClientView& ClientView,
-			const FConcertPropertyChain& DisplayedProperty,
-			const TArray<TSoftObjectPtr<>>& EditedObjects,
-			TLambda&& Callback
-			)
-		{
-			for (const TSoftObjectPtr<>& Object : EditedObjects)
-			{
-				ClientView.GetStreamCache().EnumerateClientsWithObjectAndProperty(
-					Object.ToSoftObjectPath(),
-					DisplayedProperty,
-					[&Callback](const FGuid& ClientId){ return Callback(ClientId); }
-				);
-			}
-		}
-		
 		static TArray<FGuid> GetDisplayedClients(
-			const FUnifiedClientView& ClientView,
+			const FAssignPropertyModel& Model,
 			const FConcertPropertyChain& DisplayedProperty,
 			const TArray<TSoftObjectPtr<>>& EditedObjects
 			)
 		{
 			TArray<FGuid> Clients;
-			ForEachDisplayedClient(ClientView, DisplayedProperty, EditedObjects,
+			Model.ForEachAssignedClient(DisplayedProperty, EditedObjects,
 				[&Clients](const FGuid& ClientId){ Clients.AddUnique(ClientId); return EBreakBehavior::Continue; }
 				);
 			return Clients;
@@ -59,12 +40,13 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	}
 	
 	TOptional<FString> SAssignPropertyComboBox::GetDisplayString(
+		const FAssignPropertyModel& Model,
 		const FUnifiedClientView& ClientView,
 		const FConcertPropertyChain& DisplayedProperty,
 		const TArray<TSoftObjectPtr<>>& EditedObjects)
 	{
 		using SWidgetType = ConcertSharedSlate::SHorizontalClientList;
-		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(ClientView, DisplayedProperty, EditedObjects);
+		const TArray<FGuid> Clients = AssignPropertyComboBox::GetDisplayedClients(Model, DisplayedProperty, EditedObjects);
 		
 		const ConcertSharedSlate::FGetClientParenthesesContent GetParenthesesContent =
 			MakeLocalAndOfflineParenthesesContentGetter(ClientView);
@@ -121,7 +103,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	void SAssignPropertyComboBox::RefreshContentBoxContent() const
 	{
 		ClientListWidget->RefreshList(
-			AssignPropertyComboBox::GetDisplayedClients(*ClientView, Property, EditedObjects)
+			AssignPropertyComboBox::GetDisplayedClients(*Model, Property, EditedObjects)
 			);
 	}
 
@@ -226,7 +208,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	{
 		bool bHasOfflineClients = false;
 		int32 NumClients = 0;
-		AssignPropertyComboBox::ForEachDisplayedClient(*ClientView, Property, EditedObjects,
+		Model->ForEachAssignedClient(Property, EditedObjects,
 			[this, &bHasOfflineClients, &NumClients](const FGuid& ClientId)
 			{
 				++NumClients;

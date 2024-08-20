@@ -13,6 +13,7 @@ class IConcertClient;
 
 namespace UE::MultiUserClient::Replication
 {
+	class FMultiViewOptions;
 	class FMuteChangeTracker;
 	class FReassignObjectPropertiesLogic;
 	class FOnlineClientManager;
@@ -44,44 +45,48 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	/**
 	 * Mutes and unmutes the object and its child objects.
 	 * 
-	 * @param MuteChangeTracker Tells us the mute state and changes it.
-	 * @param ColumnsSortPriority The order relative to the other columns
+	 * @param InMuteChangeTracker Tells us the mute state and changes it.
+	 * @param InColumnsSortPriority The order relative to the other columns
 	 * @return A checkbox with pause and unpause icons.
 	 */
 	ConcertSharedSlate::FObjectColumnEntry MuteToggleColumn(
-		FMuteChangeTracker& MuteChangeTracker UE_LIFETIMEBOUND,
-		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::MuteToggle)
+		FMuteChangeTracker& InMuteChangeTracker UE_LIFETIMEBOUND,
+		int32 InColumnsSortPriority = static_cast<int32>(EColumnSortOrder::MuteToggle)
 		);
 
 	/**
 	 * A combo box which displays all current owners for an object and allows bulk reassigning properties.
 	 *
-	 * @param ConcertClient Used to look up client names
-	 * @param MultiStreamModelAttribute Used for requesting resorting the column
-	 * @param ObjectHierarchy Used to display clients when a child object is replicated
-	 * @param ClientView Used to access all clients' stream content for display in the column
-	 * @param ColumnsSortPriority The order relative to the other columns
+	 * @param InConcertClient Used to look up client names
+	 * @param InMultiStreamModelAttribute Used for requesting resorting the column
+	 * @param InObjectHierarchy Used to display clients when a child object is replicated
+	 * @param InClientView Used to access all clients' stream content for display in the column
+	 * @param InViewOptions Controls whether offline clients are displayed
+	 * @param InColumnsSortPriority The order relative to the other columns
 	 */
 	ConcertSharedSlate::FObjectColumnEntry AssignedClientsColumn(
-		const TSharedRef<IConcertClient>& ConcertClient,
-		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamModelAttribute,
-		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy UE_LIFETIMEBOUND,
-		FUnifiedClientView& ClientView UE_LIFETIMEBOUND,
-		int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
+		const TSharedRef<IConcertClient>& InConcertClient,
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> InMultiStreamModelAttribute,
+		const ConcertSharedSlate::IObjectHierarchyModel& InObjectHierarchy UE_LIFETIMEBOUND,
+		FUnifiedClientView& InClientView UE_LIFETIMEBOUND,
+		FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND,
+		int32 InColumnsSortPriority = static_cast<int32>(EColumnSortOrder::ReassignOwnership)
 		);
 	
 	/**
 	 * Creates a property column which assigns the property to the stream selected in the combo box.
 	 * 
-	 * @param MultiStreamEditor Used to determine the selected objects.
-	 * @param ClientView Used to obtain the clients that can be assigned to and display them
-	 * @param ColumnsSortPriority The order relative to the other columns
+	 * @param InMultiStreamEditor Used to determine the selected objects.
+	 * @param InClientView Used to obtain the clients that can be assigned to and display them
+	 * @param InViewOptions Controls whether offline clients are displayed
+	 * @param InColumnsSortPriority The order relative to the other columns
 	 * 
 	 * @return A column that spawns a combo box for assigning properties
 	 */
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
-		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
-		FUnifiedClientView& ClientView UE_LIFETIMEBOUND,
-		const int32 ColumnsSortPriority = static_cast<int32>(EColumnSortOrder::AssignPropertyColumn)
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> InMultiStreamEditor,
+		FUnifiedClientView& InClientView UE_LIFETIMEBOUND,
+		FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND,
+		const int32 InColumnsSortPriority = static_cast<int32>(EColumnSortOrder::AssignPropertyColumn)
 		);
 }

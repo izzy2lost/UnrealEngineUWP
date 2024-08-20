@@ -10,21 +10,27 @@
 
 #include <type_traits>
 
+#include "Widgets/ActiveSession/Replication/Client/Multi/ViewOptions/MultiViewOptions.h"
+
 namespace UE::MultiUserClient::Replication::MultiStreamColumns
 {
 	FAssignedClientsModel::FAssignedClientsModel(
-		const ConcertSharedSlate::IObjectHierarchyModel& ObjectHierarchy,
-		FUnifiedStreamCache& InStreamCache
+		const ConcertSharedSlate::IObjectHierarchyModel& InObjectHierarchy,
+		FUnifiedStreamCache& InStreamCache,
+		FMultiViewOptions& InViewOptions 
 		)
-		: ObjectHierarchy(ObjectHierarchy)
+		: ObjectHierarchy(InObjectHierarchy)
 		, StreamCache(InStreamCache)
+		, ViewOptions(InViewOptions)
 	{
 		StreamCache.OnCacheChanged().AddRaw(this, &FAssignedClientsModel::BroadcastOwnershipChanged);
+		ViewOptions.OnOptionsChanged().AddRaw(this, &FAssignedClientsModel::BroadcastOwnershipChanged);
 	}
 
 	FAssignedClientsModel::~FAssignedClientsModel()
 	{
 		StreamCache.OnCacheChanged().RemoveAll(this);
+		ViewOptions.OnOptionsChanged().RemoveAll(this);
 	}
 
 	TArray<FGuid> FAssignedClientsModel::GetAssignedClients(const FSoftObjectPath& ObjectPath) const
@@ -33,11 +39,14 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 		const auto ProcessObject = [this, &ClientsWithOwnership](const FSoftObjectPath& ObjectPath)
 		{
+			const EClientEnumerationMode Mode = ViewOptions.ShouldShowOfflineClients()
+				? EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients
+				: EClientEnumerationMode::SkipOfflineClients;
 			StreamCache.EnumerateClientsWithObject(ObjectPath, [&ClientsWithOwnership](const FGuid& ClientId)
 			{
 				ClientsWithOwnership.AddUnique(ClientId);
 				return EBreakBehavior::Continue;
-			});
+			}, Mode);
 		};
 			
 		ProcessObject(ObjectPath);

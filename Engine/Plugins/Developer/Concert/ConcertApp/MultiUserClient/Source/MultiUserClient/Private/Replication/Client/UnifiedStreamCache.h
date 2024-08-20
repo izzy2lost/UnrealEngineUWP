@@ -4,18 +4,11 @@
 
 #include "Delegates/Delegate.h"
 #include "HAL/Platform.h"
-#include "Misc/EnumClassFlags.h"
 #include "Templates/FunctionFwd.h"
 
+enum class EBreakBehavior : uint8;
 struct FConcertObjectReplicationMap;
 struct FConcertPropertyChain;
-
-namespace UE::MultiUserClient::Replication
-{
-	class FUnifiedClientView;
-}
-
-enum class EBreakBehavior : uint8;
 struct FGuid;
 struct FSoftObjectPath;
 
@@ -23,13 +16,16 @@ namespace UE::MultiUserClient::Replication
 {
 	class FOfflineClientManager;
 	class FOnlineClientManager;
+	class FUnifiedClientView;
 
-	enum class EClientEnumerationFlags : uint8
+	enum class EClientEnumerationMode : uint8
 	{
-		None = 0,
-		SkipOfflineClientsThatFullyOverlapWithOnline = 1 << 0
+		All,
+		/** Skip offline clients if all their properties are also owned by online clients. */
+		SkipOfflineClientsThatFullyOverlapWithOnlineClients,
+		/** Offline clients are supposed to be skipped completely. */
+		SkipOfflineClients
 	};
-	ENUM_CLASS_FLAGS(EClientEnumerationFlags);
 	
 	/** Access point for querying stream content of both online and offline clients through a single interface. */
 	class FUnifiedStreamCache : public FNoncopyable
@@ -53,7 +49,7 @@ namespace UE::MultiUserClient::Replication
 		void EnumerateClientsWithObject(
 			const FSoftObjectPath& ObjectPath,
 			const TFunctionRef<EBreakBehavior(const FGuid& ClientId)>& Callback,
-			EClientEnumerationFlags Flags = EClientEnumerationFlags::SkipOfflineClientsThatFullyOverlapWithOnline
+			EClientEnumerationMode Option = EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients
 			) const;
 
 		/**
@@ -64,7 +60,7 @@ namespace UE::MultiUserClient::Replication
 			const FSoftObjectPath& ObjectPath,
 			const FConcertPropertyChain& Property,
 			const TFunctionRef<EBreakBehavior(const FGuid& ClientId)>& Callback,
-			EClientEnumerationFlags Option = EClientEnumerationFlags::SkipOfflineClientsThatFullyOverlapWithOnline
+			EClientEnumerationMode Option = EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients
 			) const;
 
 		/** Broadcasts when the content of a client has changed. */

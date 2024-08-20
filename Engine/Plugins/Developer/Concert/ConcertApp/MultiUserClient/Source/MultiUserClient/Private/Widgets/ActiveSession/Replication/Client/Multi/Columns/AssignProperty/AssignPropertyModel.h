@@ -7,10 +7,12 @@
 #include "Templates/UnrealTemplate.h"
 #include "UObject/SoftObjectPtr.h"
 
+enum class EBreakBehavior : uint8;
 struct FConcertPropertyChain;
 
 namespace UE::MultiUserClient::Replication
 {
+	class FMultiViewOptions;
 	class FOnlineClient;
 	class FOnlineClientManager;
 	class FUnifiedClientView;
@@ -33,7 +35,7 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	{
 	public:
 		
-		FAssignPropertyModel(FUnifiedClientView& InClientView UE_LIFETIMEBOUND);
+		FAssignPropertyModel(FUnifiedClientView& InClientView UE_LIFETIMEBOUND, FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND);
 		~FAssignPropertyModel();
 
 		/** @return Whether property ownership can be changed for the given client. */
@@ -44,9 +46,16 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		EPropertyOnObjectsOwnershipState GetPropertyOwnershipState(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const;
 
 		/** Assigns the property to ClientId or unassigns it. Removes the property from all other clients in both cases. */
-		void TogglePropertyFor(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property);
+		void TogglePropertyFor(const FGuid& ClientId, TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const;
 		/** Removes the property from all clients. */
 		void ClearProperty(TConstArrayView<TSoftObjectPtr<>> Objects, const FConcertPropertyChain& Property) const;
+
+		/** Iterates every client that has DisplayedProperty assigned for any of EditedObjects. */
+		void ForEachAssignedClient(
+			const FConcertPropertyChain& DisplayedProperty,
+			const TArray<TSoftObjectPtr<>>& EditedObjects,
+			TFunctionRef<EBreakBehavior(const FGuid& ClientId)> Callback
+			) const;
 		
 		/** Broadcasts when property ownership may have changed. */
 		FSimpleMulticastDelegate& OnOwnershipChanged() { return OnOwnershipChangedDelegate; }
@@ -59,6 +68,8 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 		 * - detect changes made to client content for broadcasting OnOwnershipChangedDelegate
 		 */
 		FUnifiedClientView& ClientView;
+		/** Controls whether offline clients should be listed by ForEachAssignedClient. */
+		FMultiViewOptions& ViewOptions;
 
 		/** Broadcasts when property ownership may have changed. */
 		FSimpleMulticastDelegate OnOwnershipChangedDelegate;

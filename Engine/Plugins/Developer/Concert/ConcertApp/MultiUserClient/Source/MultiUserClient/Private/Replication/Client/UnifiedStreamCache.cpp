@@ -76,7 +76,7 @@ namespace UE::MultiUserClient::Replication
 	void FUnifiedStreamCache::EnumerateClientsWithObject(
 		const FSoftObjectPath& ObjectPath,
 		const TFunctionRef<EBreakBehavior(const FGuid& ClientId)>& Callback,
-		EClientEnumerationFlags Flags
+		EClientEnumerationMode Option
 		) const
 	{
 		EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
@@ -87,12 +87,13 @@ namespace UE::MultiUserClient::Replication
 			return BreakBehavior;
 		});
 
-		if (BreakBehavior == EBreakBehavior::Break)
+		if (BreakBehavior == EBreakBehavior::Break
+			|| Option == EClientEnumerationMode::SkipOfflineClients)
 		{
 			return;
 		}
 
-		const bool bShouldCheckNonOverlapping = EnumHasAnyFlags(Flags, EClientEnumerationFlags::SkipOfflineClientsThatFullyOverlapWithOnline);
+		const bool bShouldCheckNonOverlapping = Option == EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients;
 		OfflineClientManager.ForEachClient(
 			[this, &ObjectPath, &Callback, bShouldCheckNonOverlapping, &OnlineCache](const FOfflineClient& Client)
 			{
@@ -109,7 +110,7 @@ namespace UE::MultiUserClient::Replication
 		const FSoftObjectPath& ObjectPath,
 		const FConcertPropertyChain& Property,
 		const TFunctionRef<EBreakBehavior(const FGuid& ClientId)>& Callback,
-		EClientEnumerationFlags Option
+		EClientEnumerationMode Option
 		) const
 	{
 		EBreakBehavior BreakBehavior = EBreakBehavior::Continue;
@@ -138,8 +139,9 @@ namespace UE::MultiUserClient::Replication
 		);
 
 		if (BreakBehavior == EBreakBehavior::Break
+			|| Option == EClientEnumerationMode::SkipOfflineClients
 			// If there is an online client, the offline clients are not supposed to be displayed because the caller requested no property overlaps.
-			|| (Option == EClientEnumerationFlags::SkipOfflineClientsThatFullyOverlapWithOnline && bEncounteredOnlineClient))
+			|| (Option == EClientEnumerationMode::SkipOfflineClientsThatFullyOverlapWithOnlineClients && bEncounteredOnlineClient))
 		{
 			return;
 		}

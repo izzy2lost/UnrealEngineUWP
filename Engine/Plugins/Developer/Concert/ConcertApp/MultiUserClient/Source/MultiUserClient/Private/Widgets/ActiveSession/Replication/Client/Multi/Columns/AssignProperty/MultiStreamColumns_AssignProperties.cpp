@@ -54,9 +54,10 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 	const FName AssignPropertyColumnId(TEXT("AssignPropertyColumn"));
 	
 	ConcertSharedSlate::FPropertyColumnEntry AssignPropertyColumn(
-		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> MultiStreamEditor,
-		FUnifiedClientView& ClientView,
-		const int32 ColumnsSortPriority
+		TAttribute<TSharedPtr<ConcertSharedSlate::IMultiReplicationStreamEditor>> InMultiStreamEditor,
+		FUnifiedClientView& InClientView,
+		FMultiViewOptions& InViewOptions,
+		const int32 InColumnsSortPriority
 		)
 	{
 		using namespace ConcertSharedSlate;
@@ -66,10 +67,11 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 
 			FPropertyColumn_AssignPropertyColumn(
 				TAttribute<TSharedPtr<IMultiReplicationStreamEditor>> MultiStreamEditor,
-				FUnifiedClientView& ClientView UE_LIFETIMEBOUND
+				FUnifiedClientView& ClientView UE_LIFETIMEBOUND,
+				FMultiViewOptions& InViewOptions UE_LIFETIMEBOUND
 				)
 				: MultiStreamEditor(MoveTemp(MultiStreamEditor))
-				, Model(ClientView)
+				, Model(ClientView, InViewOptions)
 				, ClientView(ClientView)
 			{}
 			
@@ -113,8 +115,12 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			virtual bool CanBeSorted() const override { return true; }
 			virtual bool IsLessThan(const FPropertyTreeRowContext& Left, const FPropertyTreeRowContext& Right) const override
 			{
-				const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ClientView, Left.RowData.GetProperty(), Left.RowData.GetContextObjects());
-				const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(ClientView, Right.RowData.GetProperty(), Right.RowData.GetContextObjects());
+				const TOptional<FString> LeftClientDisplayString = SAssignPropertyComboBox::GetDisplayString(
+					Model, ClientView, Left.RowData.GetProperty(), Left.RowData.GetContextObjects()
+					);
+				const TOptional<FString> RightClientDisplayString = SAssignPropertyComboBox::GetDisplayString(
+				Model, ClientView, Right.RowData.GetProperty(), Right.RowData.GetContextObjects()
+				);
 			
 				if (LeftClientDisplayString && RightClientDisplayString)
 				{
@@ -135,15 +141,15 @@ namespace UE::MultiUserClient::Replication::MultiStreamColumns
 			FUnifiedClientView& ClientView;
 		};
 		
-		check(MultiStreamEditor.IsBound() || MultiStreamEditor.IsSet());
+		check(InMultiStreamEditor.IsBound() || InMultiStreamEditor.IsSet());
 		return {
 			TReplicationColumnDelegates<FPropertyTreeRowContext>::FCreateColumn::CreateLambda(
-				[MultiStreamEditor = MoveTemp(MultiStreamEditor), &ClientView]()
+				[MultiStreamEditor = MoveTemp(InMultiStreamEditor), &InClientView, &InViewOptions]()
 				{
-					return MakeShared<FPropertyColumn_AssignPropertyColumn>(MultiStreamEditor, ClientView);
+					return MakeShared<FPropertyColumn_AssignPropertyColumn>(MultiStreamEditor, InClientView, InViewOptions);
 				}),
 			AssignPropertyColumnId,
-			{ ColumnsSortPriority }
+			{ InColumnsSortPriority }
 		};
 	}
 }
