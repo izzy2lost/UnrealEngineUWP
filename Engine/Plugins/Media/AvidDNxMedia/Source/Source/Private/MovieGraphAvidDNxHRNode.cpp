@@ -18,11 +18,6 @@ UMovieGraphAvidDNxHRNode::UMovieGraphAvidDNxHRNode()
 {
 }
 
-EMovieGraphBranchRestriction UMovieGraphAvidDNxHRNode::GetBranchRestriction() const
-{
-	return EMovieGraphBranchRestriction::Globals;
-}
-
 #if WITH_EDITOR
 FText UMovieGraphAvidDNxHRNode::GetNodeTitle(const bool bGetDescriptive) const
 {

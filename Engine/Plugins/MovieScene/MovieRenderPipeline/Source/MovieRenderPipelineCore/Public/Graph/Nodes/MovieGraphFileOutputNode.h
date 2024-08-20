@@ -87,6 +87,9 @@ protected:
 	/** Returns the number of evaluated (active) file nodes on the specified branch. */
 	static int32 GetNumFileOutputNodes(const UMovieGraphEvaluatedConfig& InEvaluatedConfig, const FName& InBranchName);
 
+	/** Updates InOutFilenameFormatString to include tokens (like {layer_name}) that will disambiguate the output if multiple outputs are attempting to write to the same file. */
+	static void DisambiguateFilename(FString& InOutFilenameFormatString, const UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData, const FName& InNodeName, const FMovieGraphPassData& InRenderData);
+
 	/** Convenience function to get the list of active composite passes from render data. */
 	static TArray<FMovieGraphPassData> GetCompositedPasses(UE::MovieGraph::FMovieGraphOutputMergerFrame* InRawFrameData);
 };

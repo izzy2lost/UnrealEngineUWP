@@ -20,11 +20,6 @@ UMovieGraphAppleProResNode::UMovieGraphAppleProResNode()
 	
 }
 
-EMovieGraphBranchRestriction UMovieGraphAppleProResNode::GetBranchRestriction() const
-{
-	return EMovieGraphBranchRestriction::Globals;
-}
-
 #if WITH_EDITOR
 FText UMovieGraphAppleProResNode::GetNodeTitle(const bool bGetDescriptive) const
 {

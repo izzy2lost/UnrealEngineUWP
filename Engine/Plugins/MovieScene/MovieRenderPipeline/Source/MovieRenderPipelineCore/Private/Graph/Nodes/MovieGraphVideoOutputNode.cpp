@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Graph/Nodes/MovieGraphVideoOutputNode.h"
 
@@ -93,23 +93,34 @@ void UMovieGraphVideoOutputNode::OnReceiveImageDataImpl(UMovieGraphPipeline* InP
 				// Match them up by camera name so multiple passes intended for different camera names work.
 				if (RenderPassData.Key.CameraName == CompositePass.Key.CameraName)
 				{
-					// Create a new composite pass (but move the actual pixel data), otherwise when the main
+					// Create a new composite pass, otherwise when the main
 					// loop tries to check if we should skip writing out this image pass in the future, it fails
 					// because we've MoveTemp'd CompositePass and thus the name checks no longer pass.
 					FMovieGraphPassData NewPassInfo;
 					NewPassInfo.Key = CompositePass.Key;
-					NewPassInfo.Value = MoveTemp(CompositePass.Value);
+
+					// Copy the pixel data if more than one node is using this composited pass
+					TUniquePtr<FImagePixelData> PixelData;
+					if (GetNumFileOutputNodes(*InRawFrameData->EvaluatedConfig, CompositePass.Key.RootBranchName) > 1)
+					{
+						NewPassInfo.Value = CompositePass.Value->CopyImageData();
+					}
+					else
+					{
+						NewPassInfo.Value = CompositePass.Value->MoveImageDataToNew();
+					}
+					
 					CompositesForThisCamera.Add(MoveTemp(NewPassInfo));
 				}
 			}
 
 			// Notify the encoder to write this frame
-			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(CompositesForThisCamera), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
+			WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(CompositesForThisCamera), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
 		}
 		else
 		{
 			TArray<FMovieGraphPassData> Dummy;
-			this->WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(Dummy), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
+			WriteFrame_EncodeThread(OutputWriter->CodecWriter.Get(), RawRenderPassData, MoveTemp(Dummy), EvaluatedConfig, RenderPassData.Key.RootBranchName.ToString());
 		}
 	}
 }
@@ -125,8 +136,11 @@ void UMovieGraphVideoOutputNode::OnAllFramesSubmittedImpl(UMovieGraphPipeline* I
 {
 	for (const FMovieGraphCodecWriterWithPromise& Writer : AllWriters)
 	{
-		MovieRenderGraph::IVideoCodecWriter* RawWriter = Writer.CodecWriter.Get();
-		this->BeginFinalize_EncodeThread(RawWriter);
+		if (Writer.NodeType == GetClass())
+		{
+			MovieRenderGraph::IVideoCodecWriter* RawWriter = Writer.CodecWriter.Get();
+			BeginFinalize_EncodeThread(RawWriter);
+		}
 	}
 }
 
@@ -134,9 +148,14 @@ void UMovieGraphVideoOutputNode::OnAllFramesFinalizedImpl(UMovieGraphPipeline* I
 {
 	for (FMovieGraphCodecWriterWithPromise& Writer : AllWriters)
 	{
+		if (Writer.NodeType != GetClass())
+		{
+			continue;
+		}
+		
 		MovieRenderGraph::IVideoCodecWriter* RawWriter = Writer.CodecWriter.Get();
 
-		this->Finalize_EncodeThread(RawWriter);
+		Finalize_EncodeThread(RawWriter);
 
 		if (!bHasError)
 		{
@@ -144,13 +163,19 @@ void UMovieGraphVideoOutputNode::OnAllFramesFinalizedImpl(UMovieGraphPipeline* I
 		}
 	}
 
-	AllWriters.Empty();
+	// AllWriters is static and shared across *all* video output node types. Only delete writers of the current node's type.
+	AllWriters.RemoveAll([this](const FMovieGraphCodecWriterWithPromise& InWriter)
+	{
+		return InWriter.NodeType == GetClass();
+	});
+	
 	bHasError = false;
 }
 
-UMovieGraphVideoOutputNode::FMovieGraphCodecWriterWithPromise::FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise)
+UMovieGraphVideoOutputNode::FMovieGraphCodecWriterWithPromise::FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise, UClass* InNodeType)
 	: CodecWriter(MoveTemp(InWriter))
 	, Promise(MoveTemp(InPromise))
+	, NodeType(InNodeType)
 {
 	
 }
@@ -181,12 +206,8 @@ void UMovieGraphVideoOutputNode::GetOutputFilePaths(const UMovieGraphPipeline* I
 	FMovieGraphResolveArgs FinalFormatArgs;
 	FString FileNameFormatString = EvaluatedNode->FileNameFormat;
 	
-	// If we're writing more than one render pass out, we need to ensure the file name has the format string in it so we don't
-	// overwrite the same file multiple times. Burn In overlays don't count because they get composited on top of an existing file.
-	const bool bIncludeRenderPass = InRawFrameData->ImageOutputData.Num() - InCompositedPasses.Num() > 1;
-	constexpr bool bTestFrameNumber = false;
-
-	UE::MoviePipeline::ValidateOutputFormatString(FileNameFormatString, bIncludeRenderPass, bTestFrameNumber);
+	// Insert tokens like {layer_name} as appropriate to make sure outputs don't clash with each other.
+	DisambiguateFilename(FileNameFormatString, InRawFrameData, EvaluatedNode->GetFName(), InRenderPassData);
 
 	// Strip any frame number tags so we don't get one video file per frame.
 	UE::MoviePipeline::RemoveFrameNumberFormatStrings(FileNameFormatString, true);
@@ -277,7 +298,7 @@ UMovieGraphVideoOutputNode::FMovieGraphCodecWriterWithPromise* UMovieGraphVideoO
 			TPromise<bool> Completed;
 			InPipeline->AddOutputFuture(Completed.GetFuture(), OutputData);
 
-			AllWriters.Add(FMovieGraphCodecWriterWithPromise(MoveTemp(NewWriter), MoveTemp(Completed)));
+			AllWriters.Add(FMovieGraphCodecWriterWithPromise(MoveTemp(NewWriter), MoveTemp(Completed), GetClass()));
 			OutputWriter = &AllWriters.Last();
 
 			// If it fails to initialize, immediately mark the promise as failed so the render queue stops.

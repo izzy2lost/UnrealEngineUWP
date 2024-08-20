@@ -65,13 +65,16 @@ protected:
 private:
 	struct FMovieGraphCodecWriterWithPromise
 	{
-		FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise);
+		FMovieGraphCodecWriterWithPromise(TUniquePtr<MovieRenderGraph::IVideoCodecWriter>&& InWriter, TPromise<bool>&& InPromise, UClass* InNodeType);
 		
 		/** The codec writer. */
 		TUniquePtr<MovieRenderGraph::IVideoCodecWriter> CodecWriter;
 
 		/** The promise that is provided to the pipeline that specifies whether or not the writer has finished. */
 		TPromise<bool> Promise;
+		
+		/** The type of node associated with this writer. */
+		UClass* NodeType;
 	};
 
 	/**

@@ -61,39 +61,8 @@ FString UMovieGraphImageSequenceOutputNode::CreateFileName(
 	// Generate one string that puts the directory combined with the filename format.
 	FString FileNameFormatString = OutputSettingNode->OutputDirectory.Path / InParentNode->FileNameFormat;
 
-	// ToDo: This is overly protective and could be relaxed later, for instance
-	// if different file write nodes have chosen a separate filepath entirely.
-	UE::MovieGraph::FMovieGraphRenderDataValidationInfo ValidationInfo = InRawFrameData->GetValidationInfo(InRenderData.Key);
-
-	// Since there can only be one layer per branch, we restrain layer/branch validation to multi-branch graphs.
-	if (ValidationInfo.BranchCount > 1)
-	{
-		// We can run into the scenario where the users have given layers the same name, so layer_name token won't help differentiate.
-		// To resolve this, we look to see if there's multiple branches with the same layer name, and if so we force the branch name into the token too.
-		if (ValidationInfo.LayerCount < ValidationInfo.BranchCount)
-		{
-			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{branch_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-		}
-		else
-		{
-			// Otherwise, we separate each branch by its unique layer name.
-			UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{layer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-		}
-	}
-
-	// We only add the renderer name token if multiple (non-composited) renderers are present on the active branch (eg, in the case of optional PPMs).
-	if (ValidationInfo.ActiveBranchRendererCount > 1)
-	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-	}
-
-	// We only add the subresource token if a (non-composited) renderer on the active branch is producing more than one subresource (eg, in the case of optional PPMs).
-	if (ValidationInfo.ActiveRendererSubresourceCount > 1)
-	{
-		UE::MoviePipeline::ConformOutputFormatStringToken(FileNameFormatString, TEXT("{renderer_sub_name}"), InParentNode->GetFName(), InRenderData.Key.RootBranchName);
-	}
-
-	// ToDo: Add {camera_name} validation once relevant
+	// Insert tokens like {layer_name} as appropriate to make sure outputs don't clash with each other.
+	DisambiguateFilename(FileNameFormatString, InRawFrameData, InParentNode->GetFName(), InRenderData);
 
 	// Previous method is preserved for output frame number validation.
 	constexpr bool bIncludeRenderPass = false;

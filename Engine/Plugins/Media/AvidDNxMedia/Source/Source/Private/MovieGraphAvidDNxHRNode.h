@@ -27,8 +27,6 @@ class UMovieGraphAvidDNxHRNode : public UMovieGraphVideoOutputNode
 public:
 	UMovieGraphAvidDNxHRNode();
 
-	virtual EMovieGraphBranchRestriction GetBranchRestriction() const override;
-
 #if WITH_EDITOR
 	virtual FText GetNodeTitle(const bool bGetDescriptive = false) const override;
 	virtual FText GetMenuCategory() const override;
