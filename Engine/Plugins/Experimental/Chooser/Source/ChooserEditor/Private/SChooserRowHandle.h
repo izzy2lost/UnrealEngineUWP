@@ -16,6 +16,8 @@ public:
 	DRAG_DROP_OPERATOR_TYPE(FChooserRowDragDropOp, FDecoratedDragDropOp)
 
 	UChooserTable* RowData = nullptr;
+	int32 TransactionIndex = -1;
+	FChooserTableEditor* Editor = nullptr;
 
 	/** Constructs the drag drop operation */
 	static TSharedRef<FChooserRowDragDropOp> New(FChooserTableEditor* InEditor, uint32 InRowIndex);
