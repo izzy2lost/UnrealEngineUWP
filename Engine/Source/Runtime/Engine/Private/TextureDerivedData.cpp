@@ -3895,7 +3895,7 @@ bool UTexture::IsCachedCookedPlatformDataLoaded(const ITargetPlatform* TargetPla
 
 	if ( ! CanBuildPlatformData(TargetPlatform) )
 	{
-		return false;
+		return true; // signify that the cook should move on without us.
 	}
 
 	// CookedPlatformData is keyed off of FetchOrBuild settings.
