@@ -221,6 +221,7 @@ const FSlateBrush* SPropertyEditorEditInline::GetDisplayValueIcon() const
 void SPropertyEditorEditInline::OnClassPickedInternal(UClass* InClass, TSharedRef<IPropertyHandle> PropertyHandle)
 {
 	SPropertyEditorEditInline::OnClassPicked(InClass, PropertyHandle);
+	PropertyEditor->ForceRefresh();
 	ComboButton->SetIsOpen(false);
 }
 
