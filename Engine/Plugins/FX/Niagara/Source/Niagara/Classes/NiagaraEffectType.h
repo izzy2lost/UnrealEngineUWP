@@ -390,7 +390,13 @@ public:
 
 //////////////////////////////////////////////////////////////////////////
 
-/** Contains settings and working data shared among many NiagaraSystems that share some commonality of type. For example ImpactFX vs EnvironmentalFX. */
+/** Contains settings and working data shared among many Niagara systems that share some commonality of type, for example ImpactFX vs EnvironmentalFX.
+ *  Main usage of effect types is to control scalability settings for a group of effects, setting visibility and cull reactions on a per-platform basis.
+ *
+ *  Effect types can also be used for validation, checking that the content passes all the configured validation rule sets.
+ *
+ *  The effect type is set in Niagara systems in the system properties.
+ */
 UCLASS(config = Niagara, perObjectConfig, MinimalAPI)
 class UNiagaraEffectType : public UObject
 {

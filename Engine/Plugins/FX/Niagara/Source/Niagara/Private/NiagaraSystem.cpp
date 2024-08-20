@@ -1793,7 +1793,7 @@ void UNiagaraSystem::GetAssetRegistryTagMetadata(TMap<FName, FAssetRegistryTagMe
 		NiagaraSystemPrivate::NAME_ActiveEmitters,
 		FAssetRegistryTagMetadata()
 		.SetDisplayName(LOCTEXT("ActiveEmitters", "Active Emitters"))
-		.SetTooltip(LOCTEXT("ActiveEmittersTooltip", "The nunmber of active emitters in the system"))
+		.SetTooltip(LOCTEXT("ActiveEmittersTooltip", "The number of active emitters in the system"))
 	);
 	OutMetadata.Add(
 		NiagaraSystemPrivate::NAME_ActiveRenderers,

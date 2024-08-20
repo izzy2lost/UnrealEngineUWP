@@ -11,6 +11,10 @@ class UMaterialParameterCollection;
 class UMaterialParameterCollectionInstance;
 class UNiagaraParameterCollection;
 
+/**
+ * Can be used to override selected parameters from a Niagara parameter collection with another value.
+ * The values in the parameter collection instance can be set from Blueprint or C++, same as the regular parameter collection. 
+ */
 UCLASS(MinimalAPI)
 class UNiagaraParameterCollectionInstance : public UObject
 {
@@ -131,7 +135,12 @@ public:
 	NIAGARA_API void SetQuatParameter(const FString& InVariableName, const FQuat& InValue);
 };
 
-/** Asset containing a collection of global parameters usable by Niagara. */
+/** Asset containing a collection of global parameters usable by Niagara. Similar to Material parameter collections,
+ *  any number of Niagara assets may reference attributes from this parameter collection and will get new values when they are changed.
+ *
+ *  A Niagara parameter collection can reference a Material parameter collection, so it is in sync with the values provided to a Material.
+ *  To use a value from a parameter collection in a Niagara system or emitter, add a reference to it from the Parameters panel (in the Niagara Parameter Collection section).
+ */
 UCLASS(MinimalAPI)
 class UNiagaraParameterCollection : public UObject
 {

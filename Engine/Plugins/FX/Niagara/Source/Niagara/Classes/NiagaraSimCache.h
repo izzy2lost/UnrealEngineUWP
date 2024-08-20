@@ -379,7 +379,17 @@ struct FNiagaraSimCacheFeedbackContext
 	TArray<FString> Warnings;
 };
 
-UCLASS(Experimental, BlueprintType, MinimalAPI)
+/**
+ * Recording of multiple frames of simulation data from a running Niagara system.
+ * Can be used to play back the captured recording or to inspect the captured data for debug purposes.
+ * Depending on the capture settings, not all attributes from the simulation are present in the cache.
+ *
+ * To capture a cache, either
+ * (1) use the baker tool in the system editor,
+ * (2) use the Niagara component cache track in sequencer or
+ * (3) manually capture a running system with the "CaptureNiagaraSimCache" Blueprint functions
+ */
+UCLASS(BlueprintType, MinimalAPI)
 class UNiagaraSimCache : public UObject
 {
 	friend struct FNiagaraSimCacheAttributeReaderHelper;

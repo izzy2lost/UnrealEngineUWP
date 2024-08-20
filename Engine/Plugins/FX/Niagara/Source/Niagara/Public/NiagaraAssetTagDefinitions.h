@@ -111,7 +111,12 @@ private:
 	FGuid AssetTagDefinitionGuid;
 };
 
-/** An asset to define multiple tag definitions; used to sort and categorize Niagara assets. */
+/** An Asset Tag Definition defines a tag that can be added to various Niagara assets for sorting & filtering purposes.
+ * For example, custom tags will show up in the Create Niagara System dialog to filter available emitters.
+ * They can also be used to filter assets in the content browser, when used with the custom filter option.
+ *
+ * You can modify asset tags in the content browser by right-clicking on a Niagara asset, then use the "Manage Tags" submenu to add or remove them.
+ */
 UCLASS()
 class NIAGARA_API UNiagaraAssetTagDefinitions : public UObject
 {

@@ -44,7 +44,9 @@ public:
 };
 
 
-/** Collection of UNiagaraScriptVariables to synchronize between UNiagaraScripts. */
+/** Collection of Niagara parameters and their metadata, which is synced to all other assets in the project.
+ *  This can be used to enforce consistent naming and default values for commonly used parameters.
+ */
 UCLASS(MinimalAPI)
 class UNiagaraParameterDefinitions : public UNiagaraParameterDefinitionsBase
 {
