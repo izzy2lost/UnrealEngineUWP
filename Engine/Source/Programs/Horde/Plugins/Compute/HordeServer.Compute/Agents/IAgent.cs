@@ -273,12 +273,6 @@ namespace HordeServer.Agents
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New agent state if it succeeded, otherwise null</returns>
 		Task<IAgent?> TryCancelLeaseAsync(int leaseIdx, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Wait for this agent to be updated
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		Task<IAgent?> WaitForUpdateAsync(CancellationToken cancellationToken = default);
 	}
 
 	/// <summary>
@@ -318,7 +312,7 @@ namespace HordeServer.Agents
 	/// <param name="Capabilities">Capbilities for the session</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Leases">New set of leases</param>
-	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, IEnumerable<RpcLease>? Leases = null);
+	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, List<AgentLease>? Leases = null);
 
 	/// <summary>
 	/// Extension methods for IAgent
