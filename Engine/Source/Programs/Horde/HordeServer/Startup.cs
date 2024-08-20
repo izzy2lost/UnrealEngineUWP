@@ -358,8 +358,6 @@ namespace HordeServer
 			services.AddHostedService(provider => provider.GetRequiredService<ConfigService>());
 
 			// Auditing
-			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
-
 			services.AddSingleton(typeof(IAuditLogFactory<>), typeof(AuditLogFactory<>));
 			services.AddSingleton(typeof(ISingletonDocument<>), typeof(SingletonDocument<>));
 

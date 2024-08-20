@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using HordeServer.Acls;
+using HordeServer.Agents;
 using HordeServer.Compute;
 using HordeServer.Logs;
 using HordeServer.Storage;
@@ -11,6 +11,7 @@ namespace HordeServer.Tests
 	public class ComputeTestSetup : ServerTestSetup
 	{
 		public ComputeService ComputeService => ServiceProvider.GetRequiredService<ComputeService>();
+		public IAgentCollection AgentCollection => ServiceProvider.GetRequiredService<IAgentCollection>();
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 		public ILogCollection LogCollection => ServiceProvider.GetRequiredService<ILogCollection>();
 
@@ -18,13 +19,6 @@ namespace HordeServer.Tests
 		{
 			AddPlugin<StoragePlugin>();
 			AddPlugin<ComputePlugin>();
-		}
-
-		protected override void ConfigureServices(IServiceCollection services)
-		{
-			base.ConfigureServices(services);
-
-			services.AddSingleton<IDefaultAclModifier, ComputeAclModifier>();
 		}
 	}
 }

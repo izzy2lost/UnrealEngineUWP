@@ -1,6 +1,5 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Diagnostics;
 using System.Diagnostics.Metrics;
 using System.Security.Claims;
 using EpicGames.Core;
@@ -10,9 +9,7 @@ using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
 using EpicGames.Redis;
 using EpicGames.Serialization;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
-using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Acls;
 using HordeServer.Agents.Leases;
@@ -97,9 +94,6 @@ namespace HordeServer.Agents
 		/// <summary>OpenTelemetry measurements (gauges)</summary>
 		IEnumerable<Measurement<int>> _measurements = new List<Measurement<int>>();
 
-		/// <summary>Subscription for update events</summary>
-		IAsyncDisposable? _subscription;
-
 		/// <summary>
 		/// Constructor
 		/// </summary>
@@ -140,17 +134,11 @@ namespace HordeServer.Agents
 		{
 			await _ticker.StartAsync();
 			await _sharedTicker.StartAsync();
-			_subscription = await Agents.SubscribeToUpdateEventsAsync(OnAgentUpdate);
 		}
 
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
-			if (_subscription != null)
-			{
-				await _subscription.DisposeAsync();
-				_subscription = null;
-			}
 			await _ticker.StopAsync();
 			await _sharedTicker.StopAsync();
 		}
@@ -357,21 +345,6 @@ namespace HordeServer.Agents
 		}
 
 		/// <summary>
-		/// Callback for an agents 
-		/// </summary>
-		/// <param name="agentId"></param>
-		void OnAgentUpdate(AgentId agentId)
-		{
-			lock (_waitingAgents)
-			{
-				if (_waitingAgents.TryGetValue(agentId, out CancellationTokenSource? cancellationSource))
-				{
-					cancellationSource.Cancel();
-				}
-			}
-		}
-
-		/// <summary>
 		/// Creates a new agent session
 		/// </summary>
 		/// <param name="agent">The agent to create a session for</param>
@@ -400,13 +373,6 @@ namespace HordeServer.Agents
 				else
 				{
 					DateTime utcNow = _clock.UtcNow;
-
-					// Remove any outstanding leases
-					foreach (AgentLease lease in agent.Leases)
-					{
-						agentLogger.LogInformation("Removing outstanding lease {LeaseId}", lease.Id);
-						await RemoveLeaseAsync(agent, lease, utcNow, LeaseOutcome.Failed, null, cancellationToken);
-					}
 
 					// Get the new pools for the agent
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
@@ -500,62 +466,48 @@ namespace HordeServer.Agents
 				using CancellationTokenSource cancellationSource = CancellationTokenSource.CreateLinkedTokenSource(_applicationLifetime.ApplicationStopping, cancellationToken);
 				cancellationSource.CancelAfter(maxWaitTime);
 
-				// Assign a new lease
-				(ITaskSource, CreateLeaseOptions)? result = null;
-				try
+				// If an agent changes, cancel the update
+				_ = agent.WaitForUpdateAsync(cancellationSource.Token).ContinueWith(x => cancellationSource.Cancel());
+
+				// Create all the tasks to wait for
+				List<Task<(ITaskSource, CreateLeaseOptions)?>> tasks = new List<Task<(ITaskSource, CreateLeaseOptions)?>>();
+				foreach (ITaskSource taskSource in _taskSources)
 				{
-					// Add the cancellation source to the set of waiting agents
-					lock (_waitingAgents)
+					if (CanUseTaskSource(agent, taskSource) && !cancellationSource.IsCancellationRequested)
 					{
-						_waitingAgents[agent.Id] = cancellationSource;
-					}
-
-					// Create all the tasks to wait for
-					List<Task<(ITaskSource, CreateLeaseOptions)?>> tasks = new List<Task<(ITaskSource, CreateLeaseOptions)?>>();
-					foreach (ITaskSource taskSource in _taskSources)
-					{
-						if (CanUseTaskSource(agent, taskSource) && !cancellationSource.IsCancellationRequested)
-						{
-							Task<(ITaskSource, CreateLeaseOptions)?> task = await GuardedAssignLeaseAsync(taskSource, agent, cancellationSource);
-							tasks.Add(task);
-						}
-					}
-
-					// If no task source is valid, just add a delay
-					if (tasks.Count == 0)
-					{
-						_logger.LogInformation("No task source valid for agent {AgentId}. Waiting {WaitTimeMs} ms", agent.Id, maxWaitTime.TotalMilliseconds);
-						await AsyncUtils.DelayNoThrow(maxWaitTime, cancellationToken);
-						break;
-					}
-
-					// Wait for all the tasks to complete. Once the first task completes it will set the cancellation source, triggering the 
-					// others to terminate.
-					await Task.WhenAll(tasks);
-
-					// Find the first result
-					foreach (Task<(ITaskSource, CreateLeaseOptions)?> task in tasks)
-					{
-						(ITaskSource, CreateLeaseOptions)? taskResult;
-						if (task.TryGetResult(out taskResult) && taskResult != null)
-						{
-							(ITaskSource taskSource, CreateLeaseOptions taskLease) = taskResult.Value;
-							if (result == null)
-							{
-								result = (taskSource, taskLease);
-							}
-							else
-							{
-								await taskSource.CancelLeaseAsync(agent, taskLease.Id, Any.Pack(taskLease.Payload), CancellationToken.None);
-							}
-						}
+						Task<(ITaskSource, CreateLeaseOptions)?> task = await GuardedAssignLeaseAsync(taskSource, agent, cancellationSource);
+						tasks.Add(task);
 					}
 				}
-				finally
+
+				// If no task source is valid, just add a delay
+				if (tasks.Count == 0)
 				{
-					lock (_waitingAgents)
+					_logger.LogInformation("No task source valid for agent {AgentId}. Waiting {WaitTimeMs} ms", agent.Id, maxWaitTime.TotalMilliseconds);
+					await AsyncUtils.DelayNoThrow(maxWaitTime, cancellationToken);
+					break;
+				}
+
+				// Wait for all the tasks to complete. Once the first task completes it will set the cancellation source, triggering the 
+				// others to terminate.
+				await Task.WhenAll(tasks);
+
+				// Find the first result
+				(ITaskSource, CreateLeaseOptions)? result = null;
+				foreach (Task<(ITaskSource, CreateLeaseOptions)?> task in tasks)
+				{
+					(ITaskSource, CreateLeaseOptions)? taskResult;
+					if (task.TryGetResult(out taskResult) && taskResult != null)
 					{
-						_waitingAgents.Remove(agent.Id);
+						(ITaskSource taskSource, CreateLeaseOptions taskLease) = taskResult.Value;
+						if (result == null)
+						{
+							result = (taskSource, taskLease);
+						}
+						else
+						{
+							await taskSource.CancelLeaseAsync(agent, taskLease.Id, Any.Pack(taskLease.Payload), CancellationToken.None);
+						}
 					}
 				}
 
@@ -577,7 +529,6 @@ namespace HordeServer.Agents
 				if (newAgent != null)
 				{
 					await source.OnLeaseStartedAsync(newAgent, lease.Id, Any.Pack(lease.Payload), Agents.GetLogger(agent.Id), CancellationToken.None);
-					await CreateLeaseAsync(agent, lease, CancellationToken.None);
 					return newAgent;
 				}
 				else
@@ -705,8 +656,6 @@ namespace HordeServer.Agents
 		{
 			DateTime utcNow = _clock.UtcNow;
 
-			Stopwatch timer = Stopwatch.StartNew();
-
 			IAgent? agent = inAgent;
 			while (agent != null)
 			{
@@ -738,62 +687,11 @@ namespace HordeServer.Agents
 					sessionExpiresAt = utcNow + SessionExpiryTime;
 				}
 
-				// Flag for whether the leases array should be updated
-				bool updateLeases = false;
-				List<AgentLease> leases = agent.Leases.ConvertAll(x => new AgentLease(x));
-
-				// Remove any completed leases from the agent
-				Dictionary<LeaseId, RpcLease> leaseIdToNewState = newLeases.ToDictionary(x => x.Id, x => x);
-				for (int idx = 0; idx < leases.Count; idx++)
-				{
-					AgentLease lease = leases[idx];
-					if (lease.State == LeaseState.Cancelled)
-					{
-						RpcLease? newLease;
-						if (!leaseIdToNewState.TryGetValue(lease.Id, out newLease) || newLease.State == RpcLeaseState.Cancelled || newLease.State == RpcLeaseState.Completed)
-						{
-							await RemoveLeaseAsync(agent, lease, utcNow, LeaseOutcome.Cancelled, null, cancellationToken);
-							leases.RemoveAt(idx--);
-							updateLeases = true;
-						}
-					}
-					else
-					{
-						RpcLease? newLease;
-						if (leaseIdToNewState.TryGetValue(lease.Id, out newLease) && (LeaseState)newLease.State != lease.State)
-						{
-							if (newLease.State == RpcLeaseState.Cancelled || newLease.State == RpcLeaseState.Completed)
-							{
-								await RemoveLeaseAsync(agent, lease, utcNow, (LeaseOutcome)newLease.Outcome, newLease.Output.ToByteArray(), cancellationToken);
-								leases.RemoveAt(idx--);
-							}
-							else if (newLease.State == RpcLeaseState.Active && lease.State == LeaseState.Pending)
-							{
-								lease.State = LeaseState.Active;
-							}
-							updateLeases = true;
-						}
-					}
-				}
-
-				// If the agent is stopping, cancel all the leases. Clear out the current session once it's complete.
-				if (status == AgentStatus.Stopping || status == AgentStatus.Busy)
-				{
-					foreach (AgentLease lease in leases)
-					{
-						if (lease.State != LeaseState.Cancelled)
-						{
-							lease.State = LeaseState.Cancelled;
-							updateLeases = true;
-						}
-					}
-				}
-
 				// Get the new dynamic pools for the agent
 				List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 				// Update the agent, and try to create new lease documents if we succeed
-				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, capabilities, dynamicPools, updateLeases ? leases : null), cancellationToken);
+				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, capabilities, dynamicPools, newLeases), cancellationToken);
 				if (newAgent != null)
 				{
 					agent = newAgent;
@@ -826,7 +724,7 @@ namespace HordeServer.Agents
 		/// <param name="agent">The agent whose current session should be terminated</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>An up-to-date IAgent if the session was terminated</returns>
-		private async Task<IAgent?> TryTerminateSessionAsync(IAgent agent, CancellationToken cancellationToken = default)
+		private static async Task<IAgent?> TryTerminateSessionAsync(IAgent agent, CancellationToken cancellationToken = default)
 		{
 			// Make sure the agent has a valid session id
 			if (agent.SessionId == null)
@@ -834,53 +732,8 @@ namespace HordeServer.Agents
 				return agent;
 			}
 
-			// Get the time that the session finishes at
-			DateTime finishTime = _clock.UtcNow;
-			if (agent.SessionExpiresAt.HasValue && agent.SessionExpiresAt.Value < finishTime)
-			{
-				finishTime = agent.SessionExpiresAt.Value;
-			}
-
-			// Save off the session id and current leases
-			IReadOnlyList<IAgentLease> leases = agent.Leases;
-
 			// Clear the current session
-			IAgent? newAgent = await agent.TryTerminateSessionAsync(cancellationToken);
-			if (newAgent != null)
-			{
-				agent = newAgent;
-
-				// Remove any outstanding leases
-				foreach (IAgentLease lease in leases)
-				{
-					Agents.GetLogger(agent.Id).LogInformation("Removing lease {LeaseId} during session terminate...", lease.Id);
-					await RemoveLeaseAsync(agent, lease, finishTime, LeaseOutcome.Failed, null, cancellationToken);
-				}
-
-				return agent;
-			}
-			return null;
-		}
-
-		/// <summary>
-		/// Creates a new lease document
-		/// </summary>
-		/// <param name="agent">Agent that will be executing the lease</param>
-		/// <param name="options">The new agent lease</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>New lease document</returns>
-		internal Task<ILease> CreateLeaseAsync(IAgent agent, CreateLeaseOptions options, CancellationToken cancellationToken = default)
-		{
-			try
-			{
-				DateTime startTime = _clock.UtcNow;
-				return _leases.AddAsync(options.Id, options.ParentId, options.Name, agent.Id, agent.SessionId!.Value, options.StreamId, options.PoolId, options.LogId, startTime, Any.Pack(options.Payload).ToByteArray(), cancellationToken);
-			}
-			catch (Exception ex)
-			{
-				_logger.LogError(ex, "Unable to create lease {LeaseId} for agent {AgentId}; lease already exists?", options.Id, agent.Id);
-				throw;
-			}
+			return await agent.TryTerminateSessionAsync(cancellationToken);
 		}
 
 		/// <summary>
@@ -922,51 +775,6 @@ namespace HordeServer.Agents
 		public Task<ILease?> GetLeaseAsync(LeaseId leaseId, CancellationToken cancellationToken = default)
 		{
 			return _leases.GetAsync(leaseId, cancellationToken);
-		}
-
-		/// <summary>
-		/// Removes a lease with the given id. Updates the lease state in the database, and removes the item from the agent's leases array.
-		/// </summary>
-		/// <param name="agent">The agent to remove a lease from</param>
-		/// <param name="lease">The lease to cancel</param>
-		/// <param name="utcNow">The current time</param>
-		/// <param name="outcome">Final status of the lease</param>
-		/// <param name="output">Output from executing the task</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		private async Task RemoveLeaseAsync(IAgent agent, IAgentLease lease, DateTime utcNow, LeaseOutcome outcome, byte[]? output, CancellationToken cancellationToken = default)
-		{
-			// Figure out what time the lease finished
-			DateTime finishTime = utcNow;
-			if (agent.SessionExpiresAt.HasValue && agent.SessionExpiresAt.Value < finishTime)
-			{
-				finishTime = agent.SessionExpiresAt.Value;
-			}
-
-			// Update the lease
-			await _leases.TrySetOutcomeAsync(lease.Id, finishTime, outcome, output, cancellationToken);
-
-			// Temporarily disabling due to gRPC timeouts.
-#if false
-			// Terminate any child leases
-			List<ILease> childLeases = await _leases.FindLeasesAsync(parentId: lease.Id);
-			foreach (ILease childLease in childLeases)
-			{
-				if (childLease.Outcome == LeaseOutcome.Unspecified)
-				{
-					IAgent? otherAgent = await GetAgentAsync(childLease.AgentId);
-					if (otherAgent != null)
-					{
-						AgentLease? otherLease = otherAgent.Leases.FirstOrDefault(x => x.Id == childLease.Id);
-						if (otherLease != null)
-						{
-							_logger.LogInformation("Terminating child lease {LeaseId} with parent {ParentLeaseId}", otherLease.Id, lease.Id);
-							await RemoveLeaseAsync(otherAgent, otherLease, utcNow, LeaseOutcome.Failed, null);
-						}
-					}
-				}
-			}
-#endif
 		}
 
 		/// <summary>
