@@ -100,18 +100,5 @@ namespace HordeServer.Agents
 		/// <param name="agentId"></param>
 		/// <returns></returns>
 		IAuditLogChannel<AgentId> GetLogger(AgentId agentId);
-
-		/// <summary>
-		/// Sends a notification that an update event has ocurred
-		/// </summary>
-		/// <param name="agentId">Agent that has been updated</param>
-		Task PublishUpdateEventAsync(AgentId agentId);
-
-		/// <summary>
-		/// Subscribe to notifications on agent states being updated
-		/// </summary>
-		/// <param name="onUpdate">Callback for updates</param>
-		/// <returns>Disposable subscription object</returns>
-		Task<IAsyncDisposable> SubscribeToUpdateEventsAsync(Action<AgentId> onUpdate);
 	}
 }
