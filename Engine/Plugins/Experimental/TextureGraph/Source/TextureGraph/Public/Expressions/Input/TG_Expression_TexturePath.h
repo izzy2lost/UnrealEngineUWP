@@ -24,6 +24,8 @@ protected:
 	// Validate the input path, returning the actual path to use
 	// empty if the input path is NOT valid
 	bool ValidateInputPath(FString& ValidatedPath) const;
+
+	void ReportError(MixUpdateCyclePtr Cycle);
 public:
 
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
