@@ -37,18 +37,22 @@ public:
 
 public:
 	/** Compute graphs use this to calculate the buffer size of output pins. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "Tooltip", EditCondition = "bDisplayBufferSizeSettings", EditConditionHides, HideEditConditionToggle))
 	EPCGPinBufferSizeMode BufferSizeMode = EPCGPinBufferSizeMode::FromFirstPin;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "(bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount) || AllowedTypes == EPCGDataType::Param", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "(bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FixedElementCount) || AllowedTypes == EPCGDataType::Param", EditConditionHides))
 	int FixedBufferElementCount = 4;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "GPU Buffer Size", meta = (EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Buffer Size Input Pins", Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "bDisplayBufferSizeSettings && BufferSizeMode == EPCGPinBufferSizeMode::FromProductOfInputPins", EditConditionHides, GetOptions = "GetInputPinNames"))
 	TArray<FName> BufferSizeInputPinLabels;
 
 	/** Select an input pin to copy attributes from. If left as 'None', this will be ignored. Note, this will copy attribute names only, not their values. */
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "GPU Buffer Size", meta = (EditCondition = "bAllowEditInitializationPin", EditConditionHides, HideEditConditionToggle))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (DisplayAfter = "BufferSizeMode", EditCondition = "bAllowEditInitializationPin", EditConditionHides, HideEditConditionToggle, GetOptions = "GetInputPinNamesAndNone"))
 	FName InitializeFromPin = NAME_None;
+
+	/** Add entries to create new attributes on data emitted by this pin. */
+	UPROPERTY(EditAnywhere, DisplayName = "Attributes to Create", Category = Settings, meta = (DisplayAfter = "BufferSizeMode"))
+	TArray<FPCGKernelAttributeKey> CreatedKernelAttributeKeys;
 
 #if WITH_EDITORONLY_DATA
 	UPROPERTY(Transient)
@@ -57,10 +61,6 @@ public:
 	UPROPERTY(Transient)
 	bool bAllowEditInitializationPin = false;
 #endif // WITH_EDITORONLY_DATA
-
-	/** Add entries to create new attributes on data emitted by this pin. */
-	UPROPERTY(EditAnywhere, DisplayName = "Attributes to Create", Category = Settings)
-	TArray<FPCGKernelAttributeKey> CreatedKernelAttributeKeys;
 };
 
 template<>
@@ -102,7 +102,6 @@ public:
 	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostLoad() override;
-	virtual void PostInitProperties() override;
 #endif
 	//~End UObject interface
 
@@ -130,17 +129,26 @@ protected:
 	virtual FPCGElementPtr CreateElement() const override;
 	//~End UPCGSettings interface
 
-protected:
 	/** Gets the GPU pin properties for the output pin with the given label. */
 	const FPCGPinPropertiesGPU* GetOutputPinPropertiesGPU(const FName& InPinLabel) const;
 
 #if WITH_EDITOR
 	void UpdateDeclarations();
+	void UpdateInputDeclarations();
+	void UpdateOutputDeclarations();
+	void UpdateHelperDeclarations();
 	void UpdatePinSettings();
 	void UpdateAttributeKeys();
+
+	/** List of all non-advanced input pin names. */
+	UFUNCTION()
+	TArray<FName> GetInputPinNames() const;
+
+	/** List of all non-advanced input pin names, prepended with 'Name_NONE'. */
+	UFUNCTION()
+	TArray<FName> GetInputPinNamesAndNone() const;
 #endif
 
-protected:
 	const UPCGPin* GetInputPin(FName Label) const;
 	const UPCGPin* GetOutputPin(FName Label) const;
 	const UPCGPin* GetFirstInputPin() const;
@@ -160,16 +168,16 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (EditCondition = "KernelType == EPCGKernelType::PointGenerator", EditConditionHides))
 	int PointCount = 256;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom", EditConditionHides))
 	EPCGDispatchThreadCount DispatchThreadCount = EPCGDispatchThreadCount::FromFirstOutputPin;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount != EPCGDispatchThreadCount::Fixed", EditConditionHides))
 	int ThreadCountMultiplier = 1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::Fixed", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings|Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::Fixed", EditConditionHides))
 	int FixedThreadCount = 1;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins", EditConditionHides))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, DisplayName = "Input Pins", Category = "Settings|Thread Count", meta = (EditCondition = "KernelType == EPCGKernelType::Custom && DispatchThreadCount == EPCGDispatchThreadCount::FromProductOfInputPins", EditConditionHides, GetOptions = "GetInputPinNames"))
 	TArray<FName> ThreadCountInputPinLabels;
 
 public:
@@ -180,17 +188,20 @@ public:
 	TArray<FPCGPinPropertiesGPU> OutputPins = { FPCGPinPropertiesGPU(PCGPinConstants::DefaultOutputLabel, EPCGDataType::Point) };
 
 protected:
-	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings|Declarations", meta = (MultiLine = true))
-	FString InputDeclarations;
-
-	UPROPERTY(Transient, VisibleAnywhere, Category = "Settings|Declarations", meta = (MultiLine = true))
-	FString OutputDeclarations;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (MultiLine = true, Tooltip = ""))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true, Tooltip = ""))
 	FString ShaderFunctions;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Settings", meta = (MultiLine = true, Tooltip = ""))
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Source", meta = (MultiLine = true, Tooltip = ""))
 	FString ShaderSource;
+
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Inputs", meta = (MultiLine = true))
+	FString InputDeclarations;
+
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Outputs", meta = (MultiLine = true))
+	FString OutputDeclarations;
+
+	UPROPERTY(Transient, VisibleAnywhere, Category = "Declarations|Helpers", meta = (MultiLine = true))
+	FString HelperDeclarations;
 };
 
 class FPCGCustomHLSLElement : public IPCGElement
