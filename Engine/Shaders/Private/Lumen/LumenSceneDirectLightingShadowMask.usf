@@ -110,27 +110,32 @@ void LumenSceneDirectLightingShadowMaskFromLightAttenuationCS(
 
 		float3 L = LightData.Direction;
 		float3 ToLight = L;
-
-		float CombinedAttenuation = saturate(dot(WorldNormal, L));
+		float CombinedAttenuation = 1.0f;
+		float Attenuation = 1.0f;
+		float LightMask = 1.0f;
 
 #if LIGHT_TYPE != LIGHT_TYPE_DIRECTIONAL
 		if (LightData.bRadialLight)
 		{
-			CombinedAttenuation *= GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
+			LightMask = GetLocalLightAttenuation(TranslatedWorldPosition, LightData, ToLight, L);
 		}
 
 		if (LightData.bRectLight)
 		{
 			FRect Rect = GetRect(ToLight, LightData);
-			CombinedAttenuation *= IntegrateLight(Rect);
+			Attenuation = IntegrateLight(Rect);
 		}
 		else
 		{
 			FCapsuleLight Capsule = GetCapsule(ToLight, LightData);
 			Capsule.DistBiasSqr = 0;
-			CombinedAttenuation *= IntegrateLight(Capsule, LightData.bInverseSquared);
+			Attenuation = IntegrateLight(Capsule, LightData.bInverseSquared);
 		}
+
+		CombinedAttenuation *= Attenuation * LightMask;
 #endif
+
+		CombinedAttenuation *= saturate(dot(WorldNormal, L));
 
 		if (CombinedAttenuation > 0)
 		{
