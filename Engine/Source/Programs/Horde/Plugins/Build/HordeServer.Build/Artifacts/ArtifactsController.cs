@@ -237,6 +237,7 @@ namespace HordeServer.Artifacts
 		/// Deletes an artifact object
 		/// </summary>
 		/// <param name="id">Identifier of the artifact to retrieve</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		[HttpDelete]
 		[Route("/api/v2/artifacts/{id}")]
 		public async Task<ActionResult> DeleteArtifactAsync(ArtifactId id, CancellationToken cancellationToken)

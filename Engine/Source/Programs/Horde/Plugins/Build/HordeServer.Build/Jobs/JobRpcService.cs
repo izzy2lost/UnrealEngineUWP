@@ -807,11 +807,6 @@ namespace HordeServer.Jobs
 			keys.Add(job.GetArtifactKey(step));
 			keys.AddRange(request.Keys);
 
-			if (!_buildConfig.Value.TryGetTemplate(job.StreamId, job.TemplateId, out TemplateRefConfig? templateConfig))
-			{
-				throw new StructuredRpcException(StatusCode.NotFound, "Couldn't find template {TemplateId} in stream {StreamId}", job.TemplateId, job.StreamId);
-			}
-
 			string? description = request.Description;
 			if (String.IsNullOrEmpty(description))
 			{

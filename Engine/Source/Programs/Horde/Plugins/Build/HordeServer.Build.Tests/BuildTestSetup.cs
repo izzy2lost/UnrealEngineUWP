@@ -18,7 +18,6 @@ using HordeServer.Agents.Relay;
 using HordeServer.Agents.Telemetry;
 using HordeServer.Agents.Utilization;
 using HordeServer.Artifacts;
-using HordeServer.Auditing;
 using HordeServer.Commits;
 using HordeServer.Compute;
 using HordeServer.Dashboard;
@@ -122,8 +121,6 @@ namespace HordeServer.Tests
 			services.AddSingleton<IConfiguration>(config);
 
 			services.AddHttpClient<RpcService>();
-
-			services.AddSingleton<IAuditLog<AgentId>>(sp => sp.GetRequiredService<IAuditLogFactory<AgentId>>().Create("Agents.Log", "AgentId"));
 
 			services.AddSingleton<IAgentCollection, AgentCollection>();
 			services.AddSingleton<IAgentTelemetryCollection, AgentTelemetryCollection>();
