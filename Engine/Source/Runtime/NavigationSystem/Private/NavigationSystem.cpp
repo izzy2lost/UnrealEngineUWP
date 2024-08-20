@@ -894,7 +894,7 @@ UNavigationSystemV1::UNavigationSystemV1(const FObjectInitializer& ObjectInitial
 			Repository = World->GetSubsystem<UNavigationObjectRepository>();
 		}
 
-		if (Repository == nullptr && !IsRunningCookCommandlet())
+		if (Repository == nullptr)
 		{
 			UE_LOG(LogNavigation, Warning, TEXT("UNavigationObjectRepository is required for navigation system operations."));
 		}
