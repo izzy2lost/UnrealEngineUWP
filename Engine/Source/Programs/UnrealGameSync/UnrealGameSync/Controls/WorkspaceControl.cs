@@ -5411,31 +5411,50 @@ namespace UnrealGameSync
 
 		private void OpenSolution()
 		{
+			FileReference? solutionFileName = null;
+
 			string primaryProjectName = "UE4";
 			if (FileReference.Exists(FileReference.Combine(BranchDirectoryName, "UE5.sln")))
 			{
 				primaryProjectName = "UE5";
 			}
 
-			FileReference primaryProjectNameFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "PrimaryProjectName.txt");
-			if (!FileReference.Exists(primaryProjectNameFileName))
-			{
-				// Old path, needs to be maintained while projects prior to UE5.1 are supported
-				primaryProjectNameFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "MasterProjectName.txt");
-			}
-			if (FileReference.Exists(primaryProjectNameFileName))
+			FileReference primaryProjectPathFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "PrimaryProjectPath.txt");
+			if (FileReference.Exists(primaryProjectPathFileName))
 			{
 				try
 				{
-					primaryProjectName = FileReference.ReadAllText(primaryProjectNameFileName).Trim();
+					solutionFileName = new FileReference(FileReference.ReadAllText(primaryProjectPathFileName).Trim() + ".sln");
 				}
 				catch (Exception ex)
 				{
-					_logger.LogError(ex, "Unable to read '{File}'", primaryProjectNameFileName);
+					_logger.LogError(ex, "Unable to read '{File}'", primaryProjectPathFileName);
 				}
 			}
+			
+			if (solutionFileName == null)
+			{
+				FileReference primaryProjectNameFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "PrimaryProjectName.txt");
+				if (!FileReference.Exists(primaryProjectNameFileName))
+				{
+					// Old path, needs to be maintained while projects prior to UE5.1 are supported
+					primaryProjectNameFileName = FileReference.Combine(BranchDirectoryName, "Engine", "Intermediate", "ProjectFiles", "MasterProjectName.txt");
+				}
+				if (FileReference.Exists(primaryProjectNameFileName))
+				{
+					try
+					{
+						primaryProjectName = FileReference.ReadAllText(primaryProjectNameFileName).Trim();
+					}
+					catch (Exception ex)
+					{
+						_logger.LogError(ex, "Unable to read '{File}'", primaryProjectNameFileName);
+					}
+				}
 
-			FileReference solutionFileName = FileReference.Combine(BranchDirectoryName, primaryProjectName + ".sln");
+				solutionFileName = FileReference.Combine(BranchDirectoryName, primaryProjectName + ".sln");
+			}
+
 			if (!FileReference.Exists(solutionFileName))
 			{
 				MessageBox.Show(String.Format("Couldn't find solution at {0}", solutionFileName));

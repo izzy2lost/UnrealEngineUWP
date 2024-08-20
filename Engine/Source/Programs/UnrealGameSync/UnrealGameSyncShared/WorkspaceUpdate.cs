@@ -127,7 +127,7 @@ namespace UnrealGameSync
 			}
 			if (workspaceSettings.Filter.AllProjects ?? globalSettings.Filter.AllProjects ?? false)
 			{
-				options |= WorkspaceUpdateOptions.SyncAllProjects | WorkspaceUpdateOptions.IncludeAllProjectsInSolution;
+				options |= WorkspaceUpdateOptions.SyncAllProjects;
 			}
 			if (workspaceSettings.Filter.AllProjectsInSln ?? globalSettings.Filter.AllProjectsInSln ?? false)
 			{
@@ -1257,11 +1257,11 @@ namespace UnrealGameSync
 
 					StringBuilder commandLine = new StringBuilder();
 					commandLine.AppendFormat("\"{0}\"", FileReference.Combine(project.LocalRootPath, $"GenerateProjectFiles.{ShellScriptExt}"));
-					if ((Context.Options & WorkspaceUpdateOptions.SyncAllProjects) == 0 && (Context.Options & WorkspaceUpdateOptions.IncludeAllProjectsInSolution) == 0)
+					if ((Context.Options & WorkspaceUpdateOptions.IncludeAllProjectsInSolution) == 0)
 					{
 						if (project.LocalFileName.HasExtension(".uproject"))
 						{
-							commandLine.AppendFormat(" \"{0}\"", project.LocalFileName);
+							commandLine.AppendFormat(" -Project=\"{0}\" -Game", project.LocalFileName);
 						}
 					}
 					commandLine.Append(" -progress");
