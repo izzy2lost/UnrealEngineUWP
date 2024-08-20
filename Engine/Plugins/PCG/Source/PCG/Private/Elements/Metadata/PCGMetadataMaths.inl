@@ -468,4 +468,40 @@ namespace PCGMetadataMaths
 	{
 		return FVector4::One() - Value;
 	}
+
+	////////////////////
+	// Inc/Dec
+	////////////////////
+	template <typename T>
+	inline T Inc(const T& Value)
+	{
+		return Value + T{1};
+	}
+
+	template <>
+	inline FVector4 Inc(const FVector4& Value)
+	{
+		return Value + FVector4::One();
+	}
+
+	template <typename T>
+	inline T Dec(const T& Value)
+	{
+		return Value - T{1};
+	}
+
+	template <>
+	inline FVector4 Dec(const FVector4& Value)
+	{
+		return Value - FVector4::One();
+	}
+
+	////////////////////
+	// Negate
+	////////////////////
+	template <typename T>
+	inline T Negate(const T& Value)
+	{
+		return -Value;
+	}
 }

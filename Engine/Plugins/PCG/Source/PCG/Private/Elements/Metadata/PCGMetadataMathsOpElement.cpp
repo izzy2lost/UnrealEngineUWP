@@ -103,6 +103,12 @@ namespace PCGMetadataMathsSettings
 			return PCGMetadataMaths::Ceil(Value);
 		case EPCGMetadataMathsOperation::OneMinus:
 			return PCGMetadataMaths::OneMinus(Value);
+		case EPCGMetadataMathsOperation::Inc:
+			return PCGMetadataMaths::Inc(Value);
+		case EPCGMetadataMathsOperation::Dec:
+			return PCGMetadataMaths::Dec(Value);
+		case EPCGMetadataMathsOperation::Negate:
+			return PCGMetadataMaths::Negate(Value);
 		default:
 			return T{};
 		}

@@ -20,6 +20,9 @@ enum class EPCGMetadataMathsOperation : uint16
 	Floor,
 	Ceil,
 	OneMinus UMETA(Tooltip = "1 - X operation"),
+	Inc UMETA(Tooltip = "X + 1 operation"),
+	Dec UMETA(Tooltip = "X - 1 operation"),
+	Negate UMETA(Tooltip = "-X operation"),
 
 	// Binary op
 	BinaryOp = 1 << 11 UMETA(Hidden),
