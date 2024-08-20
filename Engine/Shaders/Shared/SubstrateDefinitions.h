@@ -59,6 +59,13 @@
 #define SUBSTRATE_OPERATOR_BSDF							4
 #define SUBSTRATE_OPERATOR_BSDF_LEGACY					5
 
+// Sometimes, Unlit or Weight operators are used to transport data for other meaning (e.g. Light Function or ConvertToDecal)
+#define SUBSTRATE_OPERATOR_SUBUSAGE_NONE				0
+#define SUBSTRATE_OPERATOR_SUBUSAGE_UI					1
+#define SUBSTRATE_OPERATOR_SUBUSAGE_LIGHTFUNCTION		2
+#define SUBSTRATE_OPERATOR_SUBUSAGE_POSTPROCESS			3
+#define SUBSTRATE_OPERATOR_SUBUSAGE_DECAL				4
+
 // This must map directly to ESubstrateTileMaterialType
 #define SUBSTRATE_TILE_TYPE_SIMPLE						0
 #define SUBSTRATE_TILE_TYPE_SINGLE						1

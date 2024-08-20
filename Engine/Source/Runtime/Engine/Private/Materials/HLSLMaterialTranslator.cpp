@@ -12288,6 +12288,7 @@ FSubstrateOperator& FHLSLMaterialTranslator::SubstrateCompilationRegisterOperato
 	NewOperator.RightIndex   = INDEX_NONE;
 
 	NewOperator.BSDFIndex = INDEX_NONE;	// Allocated later to be able to account for inline
+	NewOperator.SubUsage = SUBSTRATE_OPERATOR_SUBUSAGE_NONE;
 
 	NewOperator.MaxDistanceFromLeaves = 0;
 	NewOperator.bIsBottom = false;
@@ -12704,6 +12705,10 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 		bool bHasEye = false;
 		bool bHasSLW = false;
 		bool bHasSlab = false;
+		bool bHasUI = false;
+		bool bHasDecal = false;
+		bool bHasPostProcess = false;
+		bool bHasLightFunction = false;
 		{
 			int VOpTopBranchCountTaken = 0;
 			int VOpBottomBranchCountTaken = 0;
@@ -12724,6 +12729,12 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 					CurrentOperator.bUseParameterBlending = bUseParameterBlending;
 					CurrentOperator.bRootOfParameterBlendingSubTree = bRootOfParameterBlendingSubTree;
 				}
+
+				// this can show up on Unlit and Weight operators for Decals.
+				bHasUI				|= CurrentOperator.SubUsage == SUBSTRATE_OPERATOR_SUBUSAGE_UI;
+				bHasDecal			|= CurrentOperator.SubUsage == SUBSTRATE_OPERATOR_SUBUSAGE_DECAL;
+				bHasPostProcess		|= CurrentOperator.SubUsage == SUBSTRATE_OPERATOR_SUBUSAGE_POSTPROCESS;
+				bHasLightFunction	|= CurrentOperator.SubUsage == SUBSTRATE_OPERATOR_SUBUSAGE_LIGHTFUNCTION;
 
 				switch (CurrentOperator.OperatorType)
 				{
@@ -12790,18 +12801,27 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			}
 			bSubstrateMaterialIsUnlitNode = bHasUnlit;
 
-			if (((bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && bOperatorEncountered)
-				|| (bHasUnlit && bOperatorEncounteredButNotWeight)
-				)
+			if ((bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && bOperatorEncountered)
 			{
-				Compiler->Errorf(TEXT("Fog/Cloud, Hair or SingleLayerWater cannot be used with operators.\r\nUnlit can only be used with coverage operators. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
-				// This is because it will results in lighting loops dedicated on slab and simply a few other isolated lighting cases.
+				Compiler->Errorf(TEXT("Fog/Cloud, Hair, Eye or SingleLayerWater cannot be used with operators. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
+				return false;
+			}
+
+			if ((bHasUI ||  bHasPostProcess || bHasLightFunction) && bOperatorEncountered)
+			{
+				Compiler->Errorf(TEXT("UI, Post Process or Light Function materials cannot be used with operators. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
+				return false;
+			}
+
+			if (bHasUnlit && bOperatorEncounteredButNotWeight)
+			{
+				Compiler->Errorf(TEXT("Unlit can only be used with coverage operators. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
 				return false;
 			}
 
 			if ((bHasUnlit || bHasVFogCloud || bHasHair || bHasEye || bHasSLW) && SubstrateMaterialEffectiveClosureCount > 1)
 			{
-				Compiler->Errorf(TEXT("Unlit, Fog/Cloud, Hair or SingleLayerWater must be used in isolation. See %s (asset: %s).\r\n"), *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
+				Compiler->Errorf(TEXT("Unlit, Fog/Cloud, Hair or SingleLayerWater must result in a single one Closure (Found %d). See %s (asset: %s).\r\n"), SubstrateMaterialEffectiveClosureCount, *CompilerMaterial->GetDebugName(), *CompilerMaterial->GetAssetPath().ToString());
 				// Even though technically we could support Unlit combined with Slab.
 				return false;
 			}

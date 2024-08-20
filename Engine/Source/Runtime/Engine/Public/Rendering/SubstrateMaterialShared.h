@@ -56,6 +56,7 @@ public:
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasAnisotropy);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasGlint);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFHasSpecularProfile);
+	LAYOUT_FIELD_EDITORONLY(uint8, SubUsage);		// Sometimes, Unlit or Weight operators are used to transport data for other meaning (e.g. Light Function or ConvertToDecal)
 
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesEmissive);
 	LAYOUT_FIELD_EDITORONLY(uint8, bBSDFWritesAmbientOcclusion);
