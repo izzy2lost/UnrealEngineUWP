@@ -198,7 +198,7 @@ public:
 	TSet<TSoftClassPtr<UListViewBase>> SupportedListViewBaseClassesForExtension;
 
 	/** Resolver class to use as the default value when selecting resolver creation mode */
-	UPROPERTY(EditAnywhere, config, Category = "Defaults", meta = (MetaClass = "/Script/ModelViewViewModel.UMVVMViewModelContextResolver"))
+	UPROPERTY(EditAnywhere, config, Category = "Defaults")
 	FSoftClassPath DefaultResolverValue;
 };
 
