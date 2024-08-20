@@ -843,6 +843,11 @@ public:
 		GetDisplayName() = InText;
 	}
 
+	void SetIsAdvancedDisplay(const bool InIsAdvancedDisplay)
+	{		
+		bIsAdvancedDisplay = InIsAdvancedDisplay;
+	}
+
 	void SetSerializeText(bool bInSerializeText)
 	{
 		if (bSerializeText)
@@ -885,6 +890,8 @@ struct METASOUNDFRONTEND_API FMetasoundFrontendClassVertex : public FMetasoundFr
 	// Metadata associated with vertex.
 	UPROPERTY(EditAnywhere, Category = CustomView)
 	FMetasoundFrontendVertexMetadata Metadata;
+
+	const bool GetIsAdvancedDisplay() const { return Metadata.bIsAdvancedDisplay; };
 #endif // WITH_EDITORONLY_DATA
 
 	UPROPERTY()

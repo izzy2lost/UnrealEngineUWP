@@ -328,7 +328,12 @@ void FMetasoundFrontendClassVertex::SplitName(FName& OutNamespace, FName& OutPar
 
 bool FMetasoundFrontendClassVertex::IsFunctionalEquivalent(const FMetasoundFrontendClassVertex& InLHS, const FMetasoundFrontendClassVertex& InRHS)
 {
-	return FMetasoundFrontendVertex::IsFunctionalEquivalent(InLHS, InRHS) && (InLHS.AccessType == InRHS.AccessType);
+	bool bEquivalentAdvancedDisplay = true;
+#if WITH_EDITORONLY_DATA
+	bEquivalentAdvancedDisplay = InLHS.Metadata.bIsAdvancedDisplay == InRHS.Metadata.bIsAdvancedDisplay;
+#endif // WITH_EDITORONLY_DATA
+
+	return FMetasoundFrontendVertex::IsFunctionalEquivalent(InLHS, InRHS) && (InLHS.AccessType == InRHS.AccessType) && bEquivalentAdvancedDisplay;
 }
 
 bool FMetasoundFrontendClassVertex::CanConnectVertexAccessTypes(EMetasoundFrontendVertexAccessType InFromType, EMetasoundFrontendVertexAccessType InToType)

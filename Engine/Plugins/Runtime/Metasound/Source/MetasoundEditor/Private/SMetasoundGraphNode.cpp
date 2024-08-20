@@ -374,6 +374,23 @@ namespace Metasound
 				FMetasoundFrontendNodeStyle Style = FrontendNode->Style;
 				InPin->SafeSetHidden(Style.bUnconnectedPinsHidden);
 			}
+			
+			if (InPin->Direction == EGPD_Input)
+			{
+				const Frontend::FConstInputHandle InputHandle = FGraphBuilder::GetConstInputHandleFromPin(InPin);
+				if (InputHandle->GetMetadata().bIsAdvancedDisplay != InPin->bAdvancedView)
+				{
+					FGraphBuilder::RefreshPinMetadata(*InPin, InputHandle->GetMetadata());
+				}
+			}
+			else if (InPin->Direction == EGPD_Output)
+			{
+				Frontend::FConstOutputHandle OutputHandle = FGraphBuilder::GetConstOutputHandleFromPin(InPin);
+				if (OutputHandle->GetMetadata().bIsAdvancedDisplay != InPin->bAdvancedView)
+				{				
+					FGraphBuilder::RefreshPinMetadata(*InPin, OutputHandle->GetMetadata());
+				}
+			}
 
 			const bool bShowPin = ShouldPinBeHidden(InPin);
 			if (bShowPin)

@@ -383,6 +383,15 @@ namespace Metasound
 			void OnConstructorPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember, ECheckBoxState InNewState);
 
 			TSharedPtr<SCheckBox> ConstructorPinCheckbox;
+
+#if WITH_EDITORONLY_DATA
+			void AddAdvancedPinRow(IDetailLayoutBuilder& InDetailLayout);
+			ECheckBoxState OnGetAdvancedPinCheckboxState(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember) const;
+			void OnAdvancedPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphMember, ECheckBoxState InNewState);
+
+			TSharedPtr<SCheckBox> AdvancedPinCheckbox;
+#endif // WITH_EDITORONLY_DATA
+
 		};
 
 		class FMetasoundInputDetailCustomization : public FMetasoundVertexDetailCustomization

@@ -2395,6 +2395,33 @@ EMetasoundFrontendVertexAccessType FMetaSoundFrontendDocumentBuilder::GetNodeOut
 	return EMetasoundFrontendVertexAccessType::Unset;
 }
 
+#if WITH_EDITORONLY_DATA
+const bool FMetaSoundFrontendDocumentBuilder::GetIsAdvancedDisplay(const FName MemberName, const EMetasoundFrontendClassType Type) const
+{
+	const FMetasoundFrontendDocument& Document = GetConstDocumentChecked();
+
+	//Input
+	if (Type == EMetasoundFrontendClassType::Input)
+	{
+		if (const int32* Index = DocumentCache->GetInterfaceCache().FindInputIndex(MemberName))
+		{
+			const FMetasoundFrontendClassInput& GraphInput = Document.RootGraph.Interface.Inputs[*Index];
+			return GraphInput.Metadata.bIsAdvancedDisplay;
+		}
+	}
+	//Output
+	else if (Type == EMetasoundFrontendClassType::Output)
+	{
+		if (const int32* Index = DocumentCache->GetInterfaceCache().FindOutputIndex(MemberName))
+		{
+			const FMetasoundFrontendClassOutput& GraphOutput = Document.RootGraph.Interface.Outputs[*Index];
+			return GraphOutput.Metadata.bIsAdvancedDisplay;
+		}
+	}
+	return false;
+}
+#endif // WITH_EDITORONLY_DATA
+
 void FMetaSoundFrontendDocumentBuilder::InitDocument(const FMetasoundFrontendDocument* InDocumentTemplate, const FMetasoundFrontendClassName* InNewClassName, bool bResetVersion)
 {
 	using namespace Metasound;
@@ -3504,6 +3531,25 @@ bool FMetaSoundFrontendDocumentBuilder::SetBuildPageID(const FGuid& InBuildPageI
 
 	return false;
 }
+
+bool FMetaSoundFrontendDocumentBuilder::SetGraphInputAdvancedDisplay(const FName InputName, const bool InAdvancedDisplay)
+{
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraphClass& RootGraph = Document.RootGraph;
+
+	if (const int32* Index = DocumentCache->GetInterfaceCache().FindInputIndex(InputName))
+	{
+		FMetasoundFrontendClassInput& GraphInput = RootGraph.Interface.Inputs[*Index];			
+		if (GraphInput.Metadata.bIsAdvancedDisplay != InAdvancedDisplay)
+		{
+			GraphInput.Metadata.SetIsAdvancedDisplay(InAdvancedDisplay);
+			Document.Metadata.ModifyContext.AddMemberIDModified(GraphInput.VertexID);
+			return true;
+		}
+	}
+
+	return false;
+}
 #endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::SetGraphInputAccessType(FName InputName, EMetasoundFrontendVertexAccessType AccessType)
@@ -3734,6 +3780,27 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDefaults(FName InputName, T
 
 	return false;
 }
+
+#if WITH_EDITORONLY_DATA
+bool FMetaSoundFrontendDocumentBuilder::SetGraphOutputAdvancedDisplay(const FName OutputName, const bool InAdvancedDisplay)
+{
+	FMetasoundFrontendDocument& Document = GetDocumentChecked();
+	FMetasoundFrontendGraphClass& RootGraph = Document.RootGraph;
+
+	if (const int32* Index = DocumentCache->GetInterfaceCache().FindOutputIndex(OutputName))
+	{
+		FMetasoundFrontendClassOutput& GraphOutput = Document.RootGraph.Interface.Outputs[*Index];
+		if (GraphOutput.Metadata.bIsAdvancedDisplay != InAdvancedDisplay)
+		{
+			GraphOutput.Metadata.SetIsAdvancedDisplay(InAdvancedDisplay);
+			Document.Metadata.ModifyContext.AddMemberIDModified(GraphOutput.VertexID);	
+			return true;
+		}
+	}
+
+	return false;
+}
+#endif // WITH_EDITORONLY_DATA
 
 bool FMetaSoundFrontendDocumentBuilder::SetGraphInputInheritsDefault(FName InName, bool bInputInheritsDefault)
 {

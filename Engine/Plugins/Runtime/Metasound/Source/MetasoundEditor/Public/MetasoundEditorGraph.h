@@ -245,6 +245,11 @@ public:
 	/** Sets the VertexAccessType assigned to this member. */
 	virtual void SetVertexAccessType(EMetasoundFrontendVertexAccessType InNewAccessType, bool bPostTransaction = true) PURE_VIRTUAL(UMetasoundEditorGraphVertex::SetVertexAccessType, )
 
+#if WITH_EDITORONLY_DATA
+	/**Sets if the Vertex is shown as Advanced Display*/
+	bool SetIsAdvancedDisplay(const bool IsAdvancedDisplay);
+#endif // WITH_EDITORONLY_DATA
+
 	/** Returns the node handle associated with the vertex. */
 	Metasound::Frontend::FNodeHandle GetNodeHandle();
 

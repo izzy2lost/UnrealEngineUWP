@@ -304,6 +304,10 @@ public:
 
 	EMetasoundFrontendVertexAccessType GetNodeOutputAccessType(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr) const;
 
+#if WITH_EDITORONLY_DATA
+	const bool GetIsAdvancedDisplay(const FName MemberName, const EMetasoundFrontendClassType Type) const;
+#endif // WITH_EDITORONLY_DATA
+
 	// Initializes the builder's document, using the (optional) provided document template, (optional) class name, and (optionally) whether or not to reset the existing class version.
 	void InitDocument(const FMetasoundFrontendDocument* InDocumentTemplate = nullptr, const FMetasoundFrontendClassName* InNewClassName = nullptr, bool bResetVersion = true);
 
@@ -398,6 +402,10 @@ public:
 	// Swapping the targeted build graph ID clears the local cache, so swapping frequently can
 	// induce cash thrashing.
 	bool SetBuildPageID(const FGuid& InBuildPageID);
+
+	// Sets the given input`s IsAdvancedDisplay state. AdvancedDisplay pins are hidden in the node by default.
+	// returns true if state was changed.
+	bool SetGraphInputAdvancedDisplay(const FName InputName, const bool InAdvancedDisplay);
 #endif // WITH_EDITORONLY_DATA
 
 	// Sets the given graph input's access type. If connected to other nodes and access type is not compatible,
@@ -412,6 +420,12 @@ public:
 
 	bool SetGraphInputDefault(FName InputName, FMetasoundFrontendLiteral InDefaultLiteral, const FGuid* InPageID = nullptr);
 	bool SetGraphInputDefaults(FName InputName, TArray<FMetasoundFrontendClassInputDefault> Defaults);
+
+#if WITH_EDITORONLY_DATA
+	// Sets the given output`s IsAdvancedDisplay state. AdvancedDisplay pins are hidden in the node by default.
+	// returns true if state was changed.
+	bool SetGraphOutputAdvancedDisplay(const FName OutputName, const bool InAdvancedDisplay);
+#endif // WITH_EDITORONLY_DATA
 
 	// Sets the given graph output's access type. If connected to other nodes and access type is not compatible,
 	// associated edges/connections are removed.  Returns true if either DataType was successfully set to new

@@ -389,6 +389,47 @@ void UMetasoundEditorGraphVertex::SetDisplayName(const FText& InNewName, bool bP
 	Graph->RegisterGraphWithFrontend();
 	FGraphBuilder::GetOutermostMetaSoundChecked(*Graph).GetModifyContext().AddMemberIDsModified({ GetMemberID() });
 }
+#if WITH_EDITORONLY_DATA
+bool UMetasoundEditorGraphVertex::SetIsAdvancedDisplay(const bool IsAdvancedDisplay)
+{
+	UMetasoundEditorGraph* Graph = GetOwningGraph();
+	if (!ensure(Graph))
+	{
+		return false;
+	}
+
+	const FText TransactionLabel = FText::Format(LOCTEXT("SetGraphVertexIsAdvancedDisplayState", "Set Metasound {0} IsAdvancedDislay"), GetGraphMemberLabel());
+	const FScopedTransaction Transaction(TransactionLabel, true);
+
+	Graph->Modify();
+	Graph->GetMetasoundChecked().Modify();
+	Modify();
+
+	bool bSucceeded = false;
+	
+	if (GetClassType() == EMetasoundFrontendClassType::Input)
+	{
+		bSucceeded = GetFrontendBuilderChecked().SetGraphInputAdvancedDisplay(GetMemberName(), IsAdvancedDisplay);
+		
+	}
+	else if(GetClassType() == EMetasoundFrontendClassType::Output)
+	{
+		bSucceeded = GetFrontendBuilderChecked().SetGraphOutputAdvancedDisplay(GetMemberName(), IsAdvancedDisplay);
+	}
+
+	const FMetaSoundFrontendDocumentBuilder& Builder = GetFrontendBuilderChecked();	
+	if (const FMetasoundFrontendNode* Node = Builder.FindNode(NodeID))
+	{
+		if (const FMetasoundFrontendClass* Class = Builder.FindDependency(Node->ClassID))
+		{
+			ClassName = Class->Metadata.GetClassName();
+		}
+	}
+
+	Graph->RegisterGraphWithFrontend();
+	return bSucceeded;
+}
+#endif // WITH_EDITORONLY_DATA
 
 Metasound::Frontend::FNodeHandle UMetasoundEditorGraphVertex::GetNodeHandle()
 {

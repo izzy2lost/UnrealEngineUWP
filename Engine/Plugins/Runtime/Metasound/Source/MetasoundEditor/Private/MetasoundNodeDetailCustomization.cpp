@@ -66,6 +66,10 @@ namespace Metasound
 			static const FText ConstructorPinText = LOCTEXT("ConstructorPinText", "Is Constructor Pin");
 			static const FText ConstructorPinTooltip = LOCTEXT("ConstructorPinTooltip",
 				"Whether this input or output is a constructor pin. Constructor values are only read on construction (on play), and are not dynamically updated at runtime.");
+			
+			static const FText AdvancedPinText = LOCTEXT("AdvancedPinText", "Is Advanced Pin");
+			static const FText AdvancedPinTooltip = LOCTEXT("AdvancedPinTooltip",
+				"Advanced Pins are hidden by default on the node when this MetaSound is used in other graphs.");
 
 
 			// Retrieves the data type info if the literal property's member is found. Returns if the associated member is found, false if not.
@@ -1414,7 +1418,42 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				];
 			}
 		}
-		
+
+#if WITH_EDITORONLY_DATA
+		void FMetasoundVertexDetailCustomization::AddAdvancedPinRow(IDetailLayoutBuilder& InDetailLayout)
+		{
+			//only add row if input or output
+			if (UMetasoundEditorGraphVertex* Vertex = Cast<UMetasoundEditorGraphVertex>(GraphMember.Get()))
+			{
+				InDetailLayout.EditCategory("General").AddCustomRow(MemberCustomizationPrivate::AdvancedPinText)
+					.IsEnabled(IsGraphEditable() && !IsInterfaceMember())
+					.NameContent()
+					[
+						SNew(STextBlock)
+							.Text(MemberCustomizationPrivate::AdvancedPinText)
+							.ToolTipText(MemberCustomizationPrivate::AdvancedPinTooltip)
+							.Font(IDetailLayoutBuilder::GetDetailFontBold())
+					]
+				.ValueContent()
+				[
+					SAssignNew(AdvancedPinCheckbox, SCheckBox)
+					.IsChecked_Lambda([this, Vertex]()
+					{
+						return OnGetAdvancedPinCheckboxState(Vertex);
+					})
+					.OnCheckStateChanged_Lambda([this, Vertex](ECheckBoxState InNewState)
+					{
+						OnAdvancedPinStateChanged(Vertex, InNewState);
+					})
+					[
+						SNew(STextBlock)
+						.Font(IDetailLayoutBuilder::GetDetailFont())
+					]
+				];
+			}
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		void FMetasoundVertexDetailCustomization::CustomizeGeneralCategory(IDetailLayoutBuilder& InDetailLayout)
 		{
 			FMetasoundMemberDetailCustomization::CustomizeGeneralCategory(InDetailLayout);
@@ -1431,6 +1470,10 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			{
 				AddConstructorPinRow(InDetailLayout);
 			}
+			
+#if WITH_EDITORONLY_DATA		
+				AddAdvancedPinRow(InDetailLayout);
+#endif // WITH_EDITORONLY_DATA
 
 			// Sort order
 			IDetailCategoryBuilder& CategoryBuilder = FMetasoundMemberDetailCustomization::GetGeneralCategoryBuilder(InDetailLayout);
@@ -1570,6 +1613,19 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 			return ECheckBoxState::Undetermined;
 		}
 
+#if WITH_EDITORONLY_DATA
+		ECheckBoxState FMetasoundVertexDetailCustomization::OnGetAdvancedPinCheckboxState(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphVertex) const
+		{
+			if (InGraphVertex.IsValid())
+			{
+				FMetaSoundFrontendDocumentBuilder& DocumentBuilder = InGraphVertex->GetFrontendBuilderChecked();
+				return DocumentBuilder.GetIsAdvancedDisplay(InGraphVertex->GetMemberName(), InGraphVertex->GetClassType()) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
+			}
+
+			return ECheckBoxState::Undetermined;
+		}
+#endif // WITH_EDITORONLY_DATA
+
 		void FMetasoundVertexDetailCustomization::OnConstructorPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphVertex, ECheckBoxState InNewState)
 		{
 			if (InGraphVertex.IsValid() && ConstructorPinCheckbox.IsValid())
@@ -1594,6 +1650,22 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 				}
 			}
 		}
+
+#if WITH_EDITORONLY_DATA
+		void FMetasoundVertexDetailCustomization::OnAdvancedPinStateChanged(TWeakObjectPtr<UMetasoundEditorGraphVertex> InGraphVertex, ECheckBoxState InNewState)
+		{
+			if (InGraphVertex.IsValid() && AdvancedPinCheckbox.IsValid())
+			{
+				bool Checked = InNewState == ECheckBoxState::Checked;		
+				InGraphVertex->SetIsAdvancedDisplay(Checked);
+
+				if (FMetasoundAssetBase* MetasoundAsset = Metasound::IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(GraphMember->GetOutermostObject()))
+				{
+					MetasoundAsset->GetModifyContext().AddMemberIDsModified({ GraphMember->GetMemberID() });
+				}				
+			}
+		}
+#endif // WITH_EDITORONLY_DATA
 
 		void FMetasoundInputDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailLayout)
 		{
