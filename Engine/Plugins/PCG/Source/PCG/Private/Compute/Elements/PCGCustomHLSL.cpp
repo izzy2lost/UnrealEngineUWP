@@ -348,6 +348,23 @@ TArray<FPCGPreConfiguredSettingsInfo> UPCGCustomHLSLSettings::GetPreconfiguredIn
 	return PCGMetadataElementCommon::FillPreconfiguredSettingsInfoFromEnum<EPCGKernelType>();
 }
 
+EPCGChangeType UPCGCustomHLSLSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
+{
+	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
+
+	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderSource)
+		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderFunctions))
+	{
+		ChangeType |= EPCGChangeType::ShaderSource;
+	}
+
+	// Any settings change to this node could change the compute graph.
+	ChangeType |= EPCGChangeType::Structural;
+
+	return ChangeType;
+}
+#endif
+
 void UPCGCustomHLSLSettings::ApplyPreconfiguredSettings(const FPCGPreConfiguredSettingsInfo& PreconfiguredInfo)
 {
 	if (const UEnum* EnumPtr = StaticEnum<EPCGKernelType>())
@@ -368,23 +385,6 @@ FString UPCGCustomHLSLSettings::GetAdditionalTitleInformation() const
 
 	return FString();
 }
-
-EPCGChangeType UPCGCustomHLSLSettings::GetChangeTypeForProperty(const FName& InPropertyName) const
-{
-	EPCGChangeType ChangeType = Super::GetChangeTypeForProperty(InPropertyName);
-
-	if (InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderSource)
-		|| InPropertyName == GET_MEMBER_NAME_CHECKED(UPCGCustomHLSLSettings, ShaderFunctions))
-	{
-		ChangeType |= EPCGChangeType::ShaderSource;
-	}
-
-	// Any settings change to this node could change the compute graph.
-	ChangeType |= EPCGChangeType::Structural;
-
-	return ChangeType;
-}
-#endif
 
 const UPCGPin* UPCGCustomHLSLSettings::GetInputPin(FName Label) const
 {
