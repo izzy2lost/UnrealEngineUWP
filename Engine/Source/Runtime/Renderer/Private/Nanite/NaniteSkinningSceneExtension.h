@@ -102,6 +102,13 @@ private:
 
 		FNaniteSkinningHeader Pack() const
 		{
+			// Verify that the buffer offsets all fit within the encoded range prior to packing
+			check(
+				HierarchyBufferOffset	<= SKINNING_BUFFER_OFFSET_MAX &&
+				TransformBufferOffset	<= SKINNING_BUFFER_OFFSET_MAX &&
+				ObjectSpaceBufferOffset	<= SKINNING_BUFFER_OFFSET_MAX
+			);
+
 			FNaniteSkinningHeader Output;
 			Output.HierarchyBufferOffset	= HierarchyBufferOffset;
 			Output.TransformBufferOffset	= TransformBufferOffset;

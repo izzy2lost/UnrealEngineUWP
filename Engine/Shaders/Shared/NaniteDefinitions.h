@@ -485,17 +485,20 @@ struct FNanitePickingFeedback
 	UINT_TYPE RuntimeResourceID;
 };
 
+#define SKINNING_BUFFER_OFFSET_BITS 20
+#define SKINNING_BUFFER_OFFSET_MAX (1 << SKINNING_BUFFER_OFFSET_BITS)
+
 #if defined(__cplusplus) || COMPILER_SUPPORTS_HLSL2021
 struct FNaniteSkinningHeader
 {
-	UINT_TYPE HierarchyBufferOffset		: 16;
-	UINT_TYPE TransformBufferOffset		: 16;
-	UINT_TYPE ObjectSpaceBufferOffset	: 16;
+	UINT_TYPE HierarchyBufferOffset		: SKINNING_BUFFER_OFFSET_BITS;
+	UINT_TYPE TransformBufferOffset		: SKINNING_BUFFER_OFFSET_BITS;
+	UINT_TYPE ObjectSpaceBufferOffset	: SKINNING_BUFFER_OFFSET_BITS;
 	UINT_TYPE MaxTransformCount			: 16;
 	UINT_TYPE MaxInfluenceCount			: 8;
 	UINT_TYPE UniqueAnimationCount		: 7;
 	UINT_TYPE bHasScale					: 1;
-	UINT_TYPE Padding					: 16;
+	UINT_TYPE Padding					: 4;
 };
 #endif
 
