@@ -15,6 +15,9 @@ SamplerState InputSampler;
 Texture2D CustomTexture;
 SamplerState CustomSampler;
 
+Texture2D<float2> DistortingDisplacementTexture;
+SamplerState DistortingDisplacementSampler;
+
 Texture2D<float2> UndistortingDisplacementTexture;
 SamplerState UndistortingDisplacementSampler;
 
@@ -36,7 +39,7 @@ void MainPS(
     const float2 CustomUV = (UndistortedViewportUV * Custom_ViewportSize + Custom_ViewportMin) * Custom_ExtentInverse;
     float4 CustomColor = Texture2DSample(CustomTexture, CustomSampler, CustomUV);
 
-#if PERMUTATION_GLOBAL_EXPOSURE
+#if USE_GLOBAL_EXPOSURE
     const float GlobalExposure = EyeAdaptationBuffer[0].x;
     CustomColor.rgb *= GlobalExposure;
 #endif

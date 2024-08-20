@@ -33,6 +33,10 @@ public:
 	UPROPERTY(config, EditAnywhere, Category = General)
 	bool bCompositeFollowsSceneExposure;
 
+	/** When enabled, the separate composited render is also used to update screen-space reflections. */
+	UPROPERTY(config, EditAnywhere, Category = General)
+	bool bCompositeSupportsSSR;
+
 	/** Composite (scene view extension) pass priority, which defaults to before OpenColorIO. */
 	UPROPERTY(config, EditAnywhere, Category = General, AdvancedDisplay)
 	int32 SceneViewExtensionPriority;

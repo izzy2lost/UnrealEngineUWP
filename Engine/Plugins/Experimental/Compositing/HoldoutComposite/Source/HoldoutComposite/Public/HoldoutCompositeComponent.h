@@ -7,7 +7,7 @@
 
 #include "HoldoutCompositeComponent.generated.h"
 
-UCLASS(ClassGroup = Rendering, editinlinenew, meta = (BlueprintSpawnableComponent), MinimalAPI)
+UCLASS(ClassGroup = Rendering, HideCategories=(Activation, Transform, Lighting, Rendering, Tags, Cooking, Physics, LOD, AssetUserData, Navigation), editinlinenew, meta = (BlueprintSpawnableComponent), MinimalAPI)
 class UHoldoutCompositeComponent : public USceneComponent
 {
 	GENERATED_UCLASS_BODY()
