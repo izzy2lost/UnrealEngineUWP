@@ -2404,11 +2404,12 @@ void ALandscapeProxy::FlushGrassComponents(const TSet<ULandscapeComponent*>* Onl
 			Component->DestroyComponent();
 		}
 
+		check(RootComponent != nullptr);
 		TArray<USceneComponent*> AttachedFoliageComponents = RootComponent->GetAttachChildren().FilterByPredicate(
 			[](USceneComponent* Component)
-		{
-			return Cast<UHierarchicalInstancedStaticMeshComponent>(Component);
-		});
+			{
+				return Cast<UHierarchicalInstancedStaticMeshComponent>(Component);
+			});
 
 		// Destroy any attached but un-owned foliage components
 		for (USceneComponent* Component : AttachedFoliageComponents)

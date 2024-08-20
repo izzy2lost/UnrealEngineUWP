@@ -295,7 +295,8 @@ void ULandscapeSubsystem::RemoveGrassInstances(const TSet<ULandscapeComponent*>*
 	TRACE_CPUPROFILER_EVENT_SCOPE(ULandscapeSubsystem::RemoveGrassInstances);
 	for (TObjectPtr<ALandscapeProxy> ProxyPtr : Proxies)
 		{
-		ALandscapeProxy* Proxy = ProxyPtr.Get();
+			ALandscapeProxy* Proxy = ProxyPtr.Get();
+			check(IsValid(Proxy)); // Validate our expectation that proxies will have Unregister() called before a Proxy is flagged as garbage.
 			Proxy->FlushGrassComponents(ComponentsToRemoveGrassInstances, /*bFlushGrassMaps = */false);
 		}
 	}
