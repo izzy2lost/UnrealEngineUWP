@@ -97,6 +97,12 @@ protected:
 		TStaticArray<uint32, (uint32)EPackageStatus::Count> Data;
 	};
 
+	struct FPackageStatusInfo
+	{
+		FTopLevelAssetPath AssetClass;
+		EPackageStatus Status;
+	};
+
 protected:
 	virtual void OnDiffWriterMessage(ELogVerbosity::Type Verbosity, FStringView Message) override;
 	void LogIterativeDifferences();
@@ -107,9 +113,10 @@ protected:
 	EPackageStatus GetPackageStatus(FName PackageName) const;
 	void SetPackageStatus(FName PackageName, EPackageStatus NewStatus);
 	FStatusCounts CountPackagesByStatus();
+	TMap<FTopLevelAssetPath, int32> GetSummaryFalsePositiveCounts();
 
 protected:
-	TMap<FName, EPackageStatus> PackageStatusMap;
+	TMap<FName, FPackageStatusInfo> PackageStatusMap;
 	TMap<FName, TArray<FMessage>> PackageMessageMap;
 	TSet<FName> PackageIgnoreList;
 	FString MetadataPath;
@@ -124,6 +131,9 @@ protected:
 	friend bool LoadFromCompactBinary(FCbFieldView Field, FMessage& Path);
 	friend FCbWriter& operator<<(FCbWriter& Writer, EPackageStatus Status);
 	friend bool LoadFromCompactBinary(FCbFieldView Field, EPackageStatus& Status);
+	friend FArchive& operator<<(FArchive& Writer, FPackageStatusInfo& Info);
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FPackageStatusInfo& Info);
+	friend bool LoadFromCompactBinary(FCbFieldView Field, FPackageStatusInfo& Info);
 };
 
 
