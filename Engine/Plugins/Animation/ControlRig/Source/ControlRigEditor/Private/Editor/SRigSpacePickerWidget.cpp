@@ -698,7 +698,12 @@ void SRigSpacePickerWidget::HandleSpaceDelete(FRigElementKey InKey)
 
 FReply SRigSpacePickerWidget::HandleAddElementClicked()
 {
+	HierarchyDisplaySettings.bShowConnectors = false;
+	HierarchyDisplaySettings.bShowSockets = false;
+	HierarchyDisplaySettings.bShowPhysics = false;
+	
 	FRigTreeDelegates TreeDelegates;
+	TreeDelegates.OnGetDisplaySettings = FOnGetRigTreeDisplaySettings::CreateSP(this, &SRigSpacePickerWidget::GetHierarchyDisplaySettings); 
 	TreeDelegates.OnGetHierarchy = FOnGetRigTreeHierarchy::CreateSP(this, &SRigSpacePickerWidget::GetHierarchyConst);
 	TreeDelegates.OnMouseButtonClick = FOnRigTreeMouseButtonClick::CreateLambda([this](TSharedPtr<FRigTreeElement> InItem)
 	{

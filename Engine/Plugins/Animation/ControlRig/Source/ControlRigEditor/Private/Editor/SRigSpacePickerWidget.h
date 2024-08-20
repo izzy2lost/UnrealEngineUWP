@@ -81,6 +81,8 @@ public:
 		}
 		return nullptr;
 	}
+
+	const FRigTreeDisplaySettings& GetHierarchyDisplaySettings() const { return HierarchyDisplaySettings; }
 	const URigHierarchy* GetHierarchyConst() const { return GetHierarchy(); }
 	
 	const TArray<FRigElementKey>& GetControls() const { return ControlKeys; }
@@ -173,6 +175,7 @@ private:
 	TWeakPtr<IMenu> ContextMenu;
 	FDelegateHandle HierarchyModifiedHandle;
 	FDelegateHandle ActiveSpaceChangedWindowHandle;
+	FRigTreeDisplaySettings HierarchyDisplaySettings;
 
 	static FRigElementKey InValidKey;
 };
