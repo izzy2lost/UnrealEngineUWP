@@ -565,6 +565,16 @@ class ONLINESUBSYSTEMUTILS_API UPartyBeaconState : public UObject
 	 */
 	virtual void DumpReservations() const;
 
+	/**
+	 * Allows child classes to add extra validation when a new reservation request comes in, 
+	 * for example to validate the new players are allowed in based on privacy settings
+	 * 
+	 * @param ReservationRequest The new reservation that will be added to the beacon's list of reservations
+	 *
+	 * @return True if the players in the reservation are allowed in the session
+	 */
+	virtual bool ValidateNewPartyReservation(const FPartyReservation& ReservationRequest) { return true; }
+
 protected:
 
 	/** Session tied to the beacon */

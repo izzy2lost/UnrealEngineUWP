@@ -676,27 +676,34 @@ EPartyReservationResult::Type APartyBeaconHost::AddPartyReservation(const FParty
 						{
 							if (State->CrossPlayAllowed(ReservationRequest))
 							{
-								if (State->AddReservation(ReservationRequest))
+								if (State->ValidateNewPartyReservation(ReservationRequest))
 								{
-									// Keep track of newly added players
-									for (const FPlayerReservation& PartyMember : ReservationRequest.PartyMembers)
+									if (State->AddReservation(ReservationRequest))
 									{
-										NewPlayerAdded(PartyMember);
+										// Keep track of newly added players
+										for (const FPlayerReservation& PartyMember : ReservationRequest.PartyMembers)
+										{
+											NewPlayerAdded(PartyMember);
+										}
+
+										SendReservationUpdates();
+
+										NotifyReservationEventNextFrame(ReservationChanged);
+										if (State->IsBeaconFull())
+										{
+											NotifyReservationEventNextFrame(ReservationsFull);
+										}
+										Result = EPartyReservationResult::ReservationAccepted;
 									}
-
-									SendReservationUpdates();
-
-									NotifyReservationEventNextFrame(ReservationChanged);
-									if (State->IsBeaconFull())
+									else
 									{
-										NotifyReservationEventNextFrame(ReservationsFull);
+										// Something wrong with team assignment
+										Result = EPartyReservationResult::IncorrectPlayerCount;
 									}
-									Result = EPartyReservationResult::ReservationAccepted;
 								}
 								else
 								{
-									// Something wrong with team assignment
-									Result = EPartyReservationResult::IncorrectPlayerCount;
+									Result = EPartyReservationResult::ReservationDenied;
 								}
 							}
 							else
