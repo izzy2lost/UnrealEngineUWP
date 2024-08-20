@@ -65,7 +65,7 @@ struct RIGVM_API FRigVMTag
 
 	friend uint32 GetTypeHash(const FRigVMTag& InTag)
 	{
-		uint32 Hash = GetTypeHash(InTag.Name);
+		uint32 Hash = GetTypeHash(InTag.Name.ToString());
 		Hash = HashCombine(Hash, GetTypeHash(InTag.Label));
 		Hash = HashCombine(Hash, GetTypeHash(InTag.ToolTip.ToString()));
 		Hash = HashCombine(Hash, GetTypeHash(InTag.Color));
@@ -158,7 +158,7 @@ struct RIGVM_API FRigVMVariantRef
 
 	friend uint32 GetTypeHash(const FRigVMVariantRef& InVariantRef)
 	{
-		return HashCombine(GetTypeHash(InVariantRef.ObjectPath), GetTypeHash(InVariantRef.Variant.Guid));
+		return HashCombine(GetTypeHash(InVariantRef.ObjectPath.ToString()), GetTypeHash(InVariantRef.Variant.Guid));
 	}
 
 	UPROPERTY(BlueprintReadOnly, Category=RigVMVariantRef)

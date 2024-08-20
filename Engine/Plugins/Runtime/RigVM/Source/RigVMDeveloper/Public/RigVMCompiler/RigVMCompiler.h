@@ -161,7 +161,7 @@ public:
 
 		friend inline uint32 GetTypeHash(const FFunctionRegisterData& Data)
 		{
-			uint32 Result = HashCombine(GetTypeHash(Data.ReferenceNode), GetTypeHash(Data.MemoryType));
+			uint32 Result = HashCombine(GetTypeHash(Data.ReferenceNode.ToSoftObjectPath().ToString()), GetTypeHash(Data.MemoryType));
 			return HashCombine(Result, GetTypeHash(Data.RegisterIndex));
 		}
 

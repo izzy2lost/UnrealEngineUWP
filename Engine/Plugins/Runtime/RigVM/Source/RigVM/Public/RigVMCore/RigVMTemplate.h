@@ -103,7 +103,7 @@ struct RIGVM_API FRigVMTemplateArgumentType
 
 	RIGVM_API friend FORCEINLINE uint32 GetTypeHash(const FRigVMTemplateArgumentType& InType)
 	{
-		return GetTypeHash(InType.CPPType);
+		return GetTypeHash(InType.CPPType.ToString());
 	}
 
 	FName GetCPPTypeObjectPath() const

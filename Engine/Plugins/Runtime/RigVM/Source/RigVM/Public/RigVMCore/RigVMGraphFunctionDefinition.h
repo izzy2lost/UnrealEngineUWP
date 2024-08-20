@@ -335,8 +335,8 @@ struct RIGVM_API FRigVMGraphFunctionArgument
 
 	friend uint32 GetTypeHash(const FRigVMGraphFunctionArgument& Argument)
 	{
-		uint32 Hash = HashCombine(GetTypeHash(Argument.Name), GetTypeHash(Argument.DisplayName));
-		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPType));
+		uint32 Hash = HashCombine(GetTypeHash(Argument.Name.ToString()), GetTypeHash(Argument.DisplayName.ToString()));
+		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPType.ToString()));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.CPPTypeObject));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.bIsArray));
 		Hash = HashCombine(Hash, GetTypeHash(Argument.Direction));
@@ -396,7 +396,7 @@ public:
 
 	friend uint32 GetTypeHash(const FRigVMGraphFunctionIdentifier& Pointer)
 	{
-		return HashCombine(GetTypeHash(Pointer.GetLibraryNodePath()), GetTypeHash(Pointer.HostObject));
+		return HashCombine(GetTypeHash(Pointer.GetLibraryNodePath()), GetTypeHash(Pointer.HostObject.ToString()));
 	}
 
 	bool operator==(const FRigVMGraphFunctionIdentifier& Other) const

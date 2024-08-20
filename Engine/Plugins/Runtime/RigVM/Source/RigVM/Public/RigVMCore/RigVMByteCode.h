@@ -65,7 +65,7 @@ struct FRigVMBranchInfoKey
 				GetTypeHash(InKey.InstructionIndex),
 				GetTypeHash(InKey.ArgumentIndex)
 			),
-			GetTypeHash(InKey.Label)
+			GetTypeHash(InKey.Label.ToString())
 		);
 	}
 
@@ -925,7 +925,7 @@ struct RIGVM_API FRigVMInvokeEntryOp : public FRigVMBaseOp
 
 	friend uint32 GetTypeHash(const FRigVMInvokeEntryOp& Op)
 	{
-		return HashCombine(GetTypeHash((const FRigVMBaseOp&)Op), GetTypeHash(Op.EntryName));
+		return HashCombine(GetTypeHash((const FRigVMBaseOp&)Op), GetTypeHash(Op.EntryName.ToString()));
 	}
 
 	void Serialize(FArchive& Ar);
