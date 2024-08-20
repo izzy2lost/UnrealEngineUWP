@@ -1562,7 +1562,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						[&View, PassParameters](FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
-							View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+							View.ParallelMeshDrawCommandPasses[EMeshPass::BasePass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 						}
 					);
 				}
@@ -1601,7 +1601,7 @@ void FDeferredShadingSceneRenderer::RenderBasePassInternal(
 						[&View, SkyPassParameters](FRHICommandList& RHICmdList)
 						{
 							SetStereoViewport(RHICmdList, View, 1.0f);
-							View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].DispatchDraw(nullptr, RHICmdList, &SkyPassParameters->InstanceCullingDrawParams);
+							View.ParallelMeshDrawCommandPasses[EMeshPass::SkyPass].Draw(RHICmdList, &SkyPassParameters->InstanceCullingDrawParams);
 						}
 					);
 				}

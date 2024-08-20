@@ -387,7 +387,7 @@ void FDeferredShadingSceneRenderer::RenderAnisotropyPass(
 				{
 					SetStereoViewport(RHICmdList, View);
 
-					ParallelMeshPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					ParallelMeshPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
 		}

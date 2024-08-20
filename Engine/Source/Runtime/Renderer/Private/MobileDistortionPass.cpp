@@ -88,7 +88,7 @@ FMobileDistortionAccumulateOutputs AddMobileDistortionAccumulatePass(FRDGBuilder
 		[&View, SceneColorViewport, PassParameters](FRHICommandList& RHICmdList)
 	{
 		RHICmdList.SetViewport(SceneColorViewport.Rect.Min.X, SceneColorViewport.Rect.Min.Y, 0.0f, SceneColorViewport.Rect.Max.X, SceneColorViewport.Rect.Max.Y, 1.0f);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 
 	FMobileDistortionAccumulateOutputs Outputs;

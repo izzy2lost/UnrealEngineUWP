@@ -613,6 +613,6 @@ void FDeferredShadingSceneRenderer::RenderDitheredLODFadingOutMask(FRDGBuilder& 
 	{
 		RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0.0f, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1.0f);
-		View.ParallelMeshDrawCommandPasses[EMeshPass::DitheredLODFadingOutMaskPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[EMeshPass::DitheredLODFadingOutMaskPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 }

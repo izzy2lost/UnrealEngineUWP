@@ -107,7 +107,7 @@ FScreenPassTexture AddVisualizeLevelInstancePass(
 					RHICmdList.SetViewport(SceneColorViewport.Rect.Min.X, SceneColorViewport.Rect.Min.Y, 0.0f, SceneColorViewport.Rect.Max.X, SceneColorViewport.Rect.Max.Y, 1.0f);
 
 					// Run LevelInstance pass on static elements
-					View.ParallelMeshDrawCommandPasses[EMeshPass::EditorLevelInstance].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[EMeshPass::EditorLevelInstance].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				}
 			);
 		}

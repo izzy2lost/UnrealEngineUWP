@@ -6,9 +6,6 @@
 #include "NaniteMaterials.h"
 #include "PrimitiveSceneInfo.h"
 
-class FParallelCommandListBindings;
-class FRDGParallelCommandListSet;
-
 class FNaniteMaterialListContext
 {
 public:

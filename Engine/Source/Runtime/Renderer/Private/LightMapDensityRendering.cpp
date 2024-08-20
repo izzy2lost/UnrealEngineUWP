@@ -108,7 +108,7 @@ void RenderLightMapDensities(
 			[&View, PassParameters](FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-			View.ParallelMeshDrawCommandPasses[EMeshPass::LightmapDensity].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			View.ParallelMeshDrawCommandPasses[EMeshPass::LightmapDensity].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 		});
 	}
 }

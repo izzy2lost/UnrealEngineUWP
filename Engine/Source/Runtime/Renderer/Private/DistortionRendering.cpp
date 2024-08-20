@@ -787,7 +787,7 @@ void FDeferredShadingSceneRenderer::RenderDistortion(
 			{
 				QUICK_SCOPE_CYCLE_COUNTER(STAT_FSceneRender_RenderDistortion_Accumulate_Meshes);
 				SetStereoViewport(RHICmdList, View);
-				View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::Distortion].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 
 			LoadAction = ERenderTargetLoadAction::ELoad;

@@ -366,11 +366,11 @@ static void DoRenderHitProxies(
 			// Adjust the visibility map for this view
 			if (View.bAllowTranslucentPrimitivesInHitProxy)
 			{
-				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxy].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxy].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			}
 			else
 			{
-				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxyOpaqueOnly].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::HitProxyOpaqueOnly].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			}
 
 			DrawDynamicMeshPass(View, RHICmdList,

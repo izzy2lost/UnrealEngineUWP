@@ -1203,7 +1203,7 @@ static void RenderTranslucencyViewInner(
 				[&View, PassParameters, ViewportScale, TranslucencyPass, MeshPass](const FRDGPass* InPass, FRHICommandListImmediate& RHICmdList)
 			{
 				FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-				View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 	}

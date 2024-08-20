@@ -500,8 +500,6 @@ static TAutoConsoleVariable<float> CVarTranslucencyAutoBeforeDOF(
 	ECVF_Default);
 
 
-static FParallelCommandListSet* GOutstandingParallelCommandListSet = nullptr;
-
 FOcclusionSubmittedFenceState FSceneRenderer::OcclusionSubmittedFence[FOcclusionQueryHelpers::MaxBufferedOcclusionFrames];
 
 // cleanup OcclusionSubmittedFence to avoid undefined order of destruction that can destroy it after its allocator
@@ -702,16 +700,6 @@ private:
 } // namespace
 #endif // !UE_BUILD_SHIPPING
 
-void FRDGParallelCommandListSet::SetStateOnCommandList(FRHICommandList& RHICmdList)
-{
-	FParallelCommandListSet::SetStateOnCommandList(RHICmdList);
-	Bindings.SetOnCommandList(RHICmdList);
-	if (bHasRenderPasses)
-	{
-		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-	}
-}
-
 FFastVramConfig::FFastVramConfig()
 {
 	FMemory::Memset(*this, 0);
@@ -807,6 +795,17 @@ bool FFastVramConfig::UpdateBufferFlagFromCVar(TAutoConsoleVariable<int32>& CVar
 
 FFastVramConfig GFastVRamConfig;
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
+void FRDGParallelCommandListSet::SetStateOnCommandList(FRHICommandList& RHICmdList)
+{
+	FParallelCommandListSet::SetStateOnCommandList(RHICmdList);
+	Bindings.SetOnCommandList(RHICmdList);
+	if (bHasRenderPasses)
+	{
+		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
+	}
+}
 
 FParallelCommandListSet::FParallelCommandListSet(const FRDGPass* InPass, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bInHasRenderPasses)
 	: Pass(InPass)
@@ -818,8 +817,6 @@ FParallelCommandListSet::FParallelCommandListSet(const FRDGPass* InPass, const F
 	Width = CVarRHICmdWidth.GetValueOnRenderThread();
 	MinDrawsPerCommandList = CVarRHICmdMinDrawsPerParallelCmdList.GetValueOnRenderThread();
 	QueuedCommandLists.Reserve(Width * 8);
-	check(!GOutstandingParallelCommandListSet);
-	GOutstandingParallelCommandListSet = this;
 }
 
 FRHICommandList* FParallelCommandListSet::AllocCommandList()
@@ -845,9 +842,6 @@ void FParallelCommandListSet::Dispatch(bool /*bHighPriority*/)
 
 FParallelCommandListSet::~FParallelCommandListSet()
 {
-	check(GOutstandingParallelCommandListSet == this);
-	GOutstandingParallelCommandListSet = nullptr;
-
 	checkf(QueuedCommandLists.Num() == 0, TEXT("Derived class of FParallelCommandListSet did not call Dispatch in virtual destructor"));
 	checkf(NumAlloc == 0, TEXT("Derived class of FParallelCommandListSet did not call Dispatch in virtual destructor"));
 }
@@ -867,6 +861,8 @@ void FParallelCommandListSet::AddParallelCommandList(FRHICommandList* CmdList)
 {
 	QueuedCommandLists.Emplace(CmdList);
 }
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 bool IsHMDHiddenAreaMaskActive()
 {

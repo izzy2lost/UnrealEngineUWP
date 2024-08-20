@@ -650,7 +650,7 @@ FSingleLayerWaterPrePassResult* FDeferredShadingSceneRenderer::RenderSingleLayer
 				[this, &View, PassParameters](FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View, 1.0f);
-					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterDepthPrepass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 	}
@@ -1343,7 +1343,7 @@ void FDeferredShadingSceneRenderer::RenderSingleLayerWaterInner(
 				[&View, PassParameters](FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
-				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::SingleLayerWaterPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 	}

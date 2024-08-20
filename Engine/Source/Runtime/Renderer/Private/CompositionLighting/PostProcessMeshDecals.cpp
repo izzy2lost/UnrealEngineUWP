@@ -549,7 +549,7 @@ void DrawDecalMeshCommands(
 				[&View, PassParameters, DecalMeshPassType](FRHICommandList& RHICmdList)
 				{
 					FSceneRenderer::SetStereoViewport(RHICmdList, View, 1.0f);
-					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 		}
 	}

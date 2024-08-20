@@ -1657,6 +1657,8 @@ void FParallelMeshDrawCommandPass::WaitForSetupTask() const
 	WaitForMeshPassSetupTask();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* ParallelCommandListSet, FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams) const
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
@@ -1665,14 +1667,14 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 		return;
 	}
 
-	FMeshDrawCommandOverrideArgs OverrideArgs; 
-	if (InstanceCullingDrawParams)
-	{
-		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
-	}
-
 	if (ParallelCommandListSet)
 	{
+		FMeshDrawCommandOverrideArgs OverrideArgs; 
+		if (InstanceCullingDrawParams)
+		{
+			OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+		}
+
 		const ENamedThreads::Type RenderThread = ENamedThreads::GetRenderThread();
 
 		FGraphEventArray Prereqs;
@@ -1710,29 +1712,48 @@ void FParallelMeshDrawCommandPass::DispatchDraw(FParallelCommandListSet* Paralle
 	}
 	else
 	{
-		QUICK_SCOPE_CYCLE_COUNTER(STAT_MeshPassDrawImmediate);
+		Draw(RHICmdList, InstanceCullingDrawParams);
+	}
+}
 
-		WaitForMeshPassSetupTask();
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
-		if (TaskContext.bUseGPUScene)
+void FParallelMeshDrawCommandPass::Draw(FRHICommandList& RHICmdList, const FInstanceCullingDrawParams* InstanceCullingDrawParams) const
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(ParallelMdcDispatchDraw);
+	if (MaxNumDraws <= 0)
+	{
+		return;
+	}
+
+	FMeshDrawCommandOverrideArgs OverrideArgs; 
+	if (InstanceCullingDrawParams)
+	{
+		OverrideArgs = GetMeshDrawCommandOverrideArgs(*InstanceCullingDrawParams);
+	}
+
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_MeshPassDrawImmediate);
+
+	WaitForMeshPassSetupTask();
+
+	if (TaskContext.bUseGPUScene)
+	{
+		if (TaskContext.MeshDrawCommands.Num() > 0)
 		{
-			if (TaskContext.MeshDrawCommands.Num() > 0)
-			{
-				TaskContext.InstanceCullingContext.SubmitDrawCommands(
-					TaskContext.MeshDrawCommands,
-					TaskContext.MinimalPipelineStatePassSet,
-					OverrideArgs,
-					0,
-					TaskContext.MeshDrawCommands.Num(),
-					TaskContext.InstanceFactor,
-					RHICmdList);
-			}
+			TaskContext.InstanceCullingContext.SubmitDrawCommands(
+				TaskContext.MeshDrawCommands,
+				TaskContext.MinimalPipelineStatePassSet,
+				OverrideArgs,
+				0,
+				TaskContext.MeshDrawCommands.Num(),
+				TaskContext.InstanceFactor,
+				RHICmdList);
 		}
-		else
-		{
-			FMeshDrawCommandSceneArgs SceneArgs;
-			SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, SceneArgs, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
-		}
+	}
+	else
+	{
+		FMeshDrawCommandSceneArgs SceneArgs;
+		SubmitMeshDrawCommandsRange(TaskContext.MeshDrawCommands, TaskContext.MinimalPipelineStatePassSet, SceneArgs, 0, TaskContext.bDynamicInstancing, 0, TaskContext.MeshDrawCommands.Num(), TaskContext.InstanceFactor, RHICmdList);
 	}
 }
 

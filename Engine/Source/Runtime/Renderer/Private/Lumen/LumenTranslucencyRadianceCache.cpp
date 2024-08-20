@@ -386,7 +386,7 @@ void LumenTranslucencyReflectionsMarkUsedProbes(
 		RHICmdList.BeginRenderPass(RPInfo, TEXT("LumenTranslucencyRadianceCacheMark"));
 
 		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-		View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 
 		RHICmdList.EndRenderPass();
 	});

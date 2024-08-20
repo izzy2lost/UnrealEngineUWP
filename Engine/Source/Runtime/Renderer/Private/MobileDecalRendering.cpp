@@ -81,7 +81,7 @@ void FMobileSceneRenderer::RenderDecals(FRHICommandList& RHICmdList, FViewInfo& 
 		};
 				
 		RHICmdList.SetViewport(View.ViewRect.Min.X, View.ViewRect.Min.Y, 0, View.ViewRect.Max.X, View.ViewRect.Max.Y, 1);
-		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].DispatchDraw(nullptr, RHICmdList, InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[DecalMeshPassType].Draw(RHICmdList, InstanceCullingDrawParams);
 	}
 }
 

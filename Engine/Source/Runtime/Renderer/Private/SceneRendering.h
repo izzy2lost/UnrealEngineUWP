@@ -428,8 +428,10 @@ private:
 	uint32 ValidFrameNumber;
 };
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 /** Helper class to marshal data from your RDG pass into the parallel command list set. */
-class FParallelCommandListBindings
+class UE_DEPRECATED(5.5, "Use GraphBuilder.AddDispatchPass instead") FParallelCommandListBindings
 {
 public:
 	template <typename ParameterStructType>
@@ -458,7 +460,7 @@ public:
 	bool bHasRenderPassInfo;
 };
 
-class FParallelCommandListSet
+class UE_DEPRECATED(5.5, "Use GraphBuilder.AddDispatchPass instead") FParallelCommandListSet
 {
 public:
 	const FRDGPass* Pass;
@@ -481,7 +483,6 @@ protected:
 public:
 	FParallelCommandListSet(const FRDGPass* InPass, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true);
 
-	UE_DEPRECATED(5.5, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
 	FParallelCommandListSet(const FRDGPass* InPass, TStatId InExecuteStat, const FViewInfo& InView, FRHICommandListImmediate& InParentCmdList, bool bHasRenderPasses = true)
 		: FParallelCommandListSet(InPass, InView, InParentCmdList, bHasRenderPasses)
 	{}
@@ -505,7 +506,7 @@ public:
 	virtual void SetStateOnCommandList(FRHICommandList& CmdList) {}
 };
 
-class FRDGParallelCommandListSet final : public FParallelCommandListSet
+class UE_DEPRECATED(5.5, "Use GraphBuilder.AddDispatchPass instead") FRDGParallelCommandListSet final : public FParallelCommandListSet
 {
 public:
 	FRDGParallelCommandListSet(
@@ -519,7 +520,6 @@ public:
 		, ViewportScale(InViewportScale)
 	{}
 
-	UE_DEPRECATED(5.5, "The 'ExecuteStat' has been removed from FParallelCommandListSet. Use the constructor that does not take a TStatId.")
 	FRDGParallelCommandListSet(const FRDGPass* InPass, FRHICommandListImmediate& InParentCmdList, TStatId InStatId, const FViewInfo& InView, const FParallelCommandListBindings& InBindings, float InViewportScale = 1.0f)
 		: FRDGParallelCommandListSet(InPass, InParentCmdList, InView, InBindings, InViewportScale)
 	{}
@@ -541,6 +541,8 @@ private:
 	float ViewportScale;
 	bool bHighPriority = false;
 };
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 enum EVolumeUpdateType
 {

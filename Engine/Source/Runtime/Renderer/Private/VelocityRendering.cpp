@@ -328,7 +328,7 @@ void FSceneRenderer::RenderVelocities(
 					[&View, &ParallelMeshPass, PassParameters](FRHICommandList& RHICmdList)
 				{
 					SetStereoViewport(RHICmdList, View);
-					ParallelMeshPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+					ParallelMeshPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 				});
 			}
 		}

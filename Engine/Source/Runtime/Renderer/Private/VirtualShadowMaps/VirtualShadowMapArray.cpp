@@ -2679,7 +2679,7 @@ static void AddRasterPass(
 
 			RHICmdList.SetViewport(ViewRect.Min.X, ViewRect.Min.Y, 0.0f, FMath::Min(ViewRect.Max.X, 32767), FMath::Min(ViewRect.Max.Y, 32767), 1.0f);
 
-			MeshCommandPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			MeshCommandPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			RHICmdList.EndRenderPass();
 		});
 }
@@ -3134,7 +3134,7 @@ void FVirtualShadowMapArray::RenderVirtualShadowMapsNonNanite(FRDGBuilder& Graph
 							}
 							SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, BatchedNonNanite, GVSMShowLightDrawEvents != 0, TEXT("%s"), LightNameWithLevel);
 #endif
-							MeshCommandPass.DispatchDraw(nullptr, RHICmdList, &InstanceCullingDrawParams);
+							MeshCommandPass.Draw(RHICmdList, &InstanceCullingDrawParams);
 						}
 
 						RHICmdList.EndRenderPass();

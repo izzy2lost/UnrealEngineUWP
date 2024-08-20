@@ -186,7 +186,7 @@ FScreenPassTexture AddSelectionOutlinePass(
 						}
 						
 						// Run selection pass on static elements
-						View.ParallelMeshDrawCommandPasses[EMeshPass::EditorSelection].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+						View.ParallelMeshDrawCommandPasses[EMeshPass::EditorSelection].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 					}
 				);
 			}

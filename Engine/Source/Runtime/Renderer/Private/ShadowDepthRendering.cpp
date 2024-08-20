@@ -1146,7 +1146,7 @@ void FProjectedShadowInfo::RenderDepth(
 			[this, PassParameters](FRHICommandList& RHICmdList)
 		{
 			SetStateForView(RHICmdList);
-			ShadowDepthPass.DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+			ShadowDepthPass.Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 		});
 	}
 

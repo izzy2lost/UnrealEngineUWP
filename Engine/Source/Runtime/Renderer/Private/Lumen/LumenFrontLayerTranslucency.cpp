@@ -399,7 +399,7 @@ void RenderFrontLayerTranslucencyGBuffer(
 		[&View, &SceneRenderer, MeshPass, PassParameters, ViewportScale, GBufferViewRect](FRHICommandList& RHICmdList)
 	{
 		FSceneRenderer::SetStereoViewport(RHICmdList, View, ViewportScale);
-		View.ParallelMeshDrawCommandPasses[MeshPass].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+		View.ParallelMeshDrawCommandPasses[MeshPass].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 	});
 
 	// Extract front layer depth depth (only needed when VSM high quality shadow on translucency is enabled)

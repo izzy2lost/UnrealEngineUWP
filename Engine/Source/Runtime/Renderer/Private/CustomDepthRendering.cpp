@@ -286,7 +286,7 @@ bool FSceneRenderer::RenderCustomDepthPass(
 				[this, &View, PassParameters](FRHICommandList& RHICmdList)
 			{
 				SetStereoViewport(RHICmdList, View, 1.0f);
-				View.ParallelMeshDrawCommandPasses[EMeshPass::CustomDepth].DispatchDraw(nullptr, RHICmdList, &PassParameters->InstanceCullingDrawParams);
+				View.ParallelMeshDrawCommandPasses[EMeshPass::CustomDepth].Draw(RHICmdList, &PassParameters->InstanceCullingDrawParams);
 			});
 		}
 	}
