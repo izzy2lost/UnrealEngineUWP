@@ -174,7 +174,7 @@ void CompactLightSampleTracesCS(
 RWTexture2D<uint> RWLightSamples;
 RWTexture2D<float> RWLightSampleRayDistance;
 
-StructuredBuffer<uint> CompactedTraceTexelData;
+Buffer<uint> CompactedTraceTexelData;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 

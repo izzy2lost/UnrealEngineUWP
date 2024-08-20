@@ -14,6 +14,7 @@
 
 Texture2D ResolvedDiffuseLighting;
 Texture2D ResolvedSpecularLighting;
+Texture2D<UNORM float> ShadingConfidenceTexture;
 Texture2D MegaLightsDepthHistory;
 Texture2D DiffuseLightingAndSecondMomentHistoryTexture;
 Texture2D SpecularLightingAndSecondMomentHistoryTexture;
@@ -159,7 +160,7 @@ void DenoiserTemporalCS(
 #if DEBUG_MODE
 	int2 DebugScreenCoord = GetDebugScreenCoord();
 	Debug.bActive = all(ScreenCoord == DebugScreenCoord);
-	Debug.Context = InitShaderPrintContext(true, float2(0.55, 0.4));
+	Debug.Context = InitShaderPrintContext(true, float2(0.55, 0.55));
 #endif
 
 	// Load resolved diffuse and specular neighborhood into shared memory
@@ -210,6 +211,8 @@ void DenoiserTemporalCS(
 		float DiffuseSecondMoment = 0.0f;
 		float SpecularSecondMoment = 0.0f;
 		float NumFramesAccumulated = 0.0f;
+
+		float ShadingConfidence = ShadingConfidenceTexture[ScreenCoord];
 
 		#if DEBUG_MODE
 		if (Debug.bActive)
@@ -280,6 +283,7 @@ void DenoiserTemporalCS(
 					#if DEBUG_MODE	
 					if (Debug.bActive)
 					{
+						Newline(Debug.Context);
 						Print(Debug.Context, TEXT("DepthWeights: "));
 						Print(Debug.Context, DepthWeights);
 						Newline(Debug.Context);
@@ -299,7 +303,9 @@ void DenoiserTemporalCS(
 						// Advance the frame counter
 						if (TemporalAdvanceFrame != 0)
 						{
-							NumFramesAccumulatedHistory += 1.0f;
+							// #ml_todo: expose as CVars
+							float MaxFrames = smoothstep(0.75f, 0.25f, ShadingConfidence) * TemporalMaxFramesAccumulated;
+							NumFramesAccumulatedHistory = min(NumFramesAccumulatedHistory, MaxFrames) + 1.0f;
 						}
 						NumFramesAccumulated = min(NumFramesAccumulatedHistory, TemporalMaxFramesAccumulated);
 

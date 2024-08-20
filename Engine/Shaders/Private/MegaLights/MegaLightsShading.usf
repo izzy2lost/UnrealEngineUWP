@@ -20,6 +20,7 @@
 
 RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
+RWTexture2D<UNORM float> RWShadingConfidence;
 
 int2 SampleViewMin;
 int2 SampleViewSize;
@@ -40,7 +41,7 @@ groupshared uint SharedSamples[SHARED_TILE_SIZE_X][SHARED_TILE_SIZE_Y];
 groupshared uint SharedLightHiMask;
 groupshared uint SharedLightMask[SHARED_LIGHT_MASK_SIZE];
 
-void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum)
+void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float UpsampleWeight, inout float SampleWeightSum, inout float WeightRatioSum)
 {
 	for (uint SampleOffsetY = 0; SampleOffsetY < NUM_SAMPLES_PER_PIXEL_2D_Y; ++SampleOffsetY)
 	{
@@ -50,7 +51,11 @@ void AccumulateLightSample(uint2 SharedSampleCoord, uint LocalLightIndex, float 
 
 			if (LightSample.LocalLightIndex == LocalLightIndex)
 			{
-				SampleWeightSum += LightSample.Weight * UpsampleWeight;
+				if (LightSample.Weight * UpsampleWeight)
+				{
+					SampleWeightSum += LightSample.Weight * UpsampleWeight;
+					WeightRatioSum += (1.0f / LightSample.Weight) * UpsampleWeight;
+				}
 			}
 		}
 	}
@@ -145,6 +150,7 @@ void ShadeLightSamplesCS(
 
 			float3 DiffuseLighting = INVALID_LIGHTING;
 			float3 SpecularLighting = INVALID_LIGHTING;
+			float WeightRatioSum = 0.0f;
 
 			if (Material.Depth > 0.0f && Material.IsValid())
 			{
@@ -193,10 +199,10 @@ void ShadeLightSamplesCS(
 						const uint2 SharedSampleCoord00 = (GroupThreadId.xy + 1) / DOWNSAMPLE_FACTOR;
 
 						float SampleWeight = 0.0f;
-						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 0), LocalLightIndex, DownsampledScreenWeights.x, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 0), LocalLightIndex, DownsampledScreenWeights.y, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 1), LocalLightIndex, DownsampledScreenWeights.z, SampleWeight);
-						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 1), LocalLightIndex, DownsampledScreenWeights.w, SampleWeight);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 0), LocalLightIndex, DownsampledScreenWeights.x, SampleWeight, WeightRatioSum);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 0), LocalLightIndex, DownsampledScreenWeights.y, SampleWeight, WeightRatioSum);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(0, 1), LocalLightIndex, DownsampledScreenWeights.z, SampleWeight, WeightRatioSum);
+						AccumulateLightSample(SharedSampleCoord00 + uint2(1, 1), LocalLightIndex, DownsampledScreenWeights.w, SampleWeight, WeightRatioSum);
 
 						if (SampleWeight > 0.01f && LightData.IESAtlasIndex >= 0)
 						{
@@ -248,6 +254,9 @@ void ShadeLightSamplesCS(
 				DemodulateLighting(Material, TranslatedWorldPosition, DiffuseLighting, SpecularLighting);
 			}
 
+			// Normalize weight by a number of samples taken
+			WeightRatioSum /= float(NUM_SAMPLES_PER_PIXEL_1D * NUM_SAMPLES_PER_PIXEL_1D);
+
 			#if DEBUG_MODE
 			if (bDebug)
 			{
@@ -257,11 +266,15 @@ void ShadeLightSamplesCS(
 				Newline(Context);
 				Print(Context, TEXT("Specular: ")); 
 				Print(Context, SpecularLighting);
+				Newline(Context);
+				Print(Context, TEXT("WeightRatioSum: ")); 
+				Print(Context, WeightRatioSum);
 			}
 			#endif
 
 			RWResolvedDiffuseLighting[ScreenCoord] = DiffuseLighting;
 			RWResolvedSpecularLighting[ScreenCoord] = SpecularLighting;
+			RWShadingConfidence[ScreenCoord] = WeightRatioSum;
 		}
 	}
 }

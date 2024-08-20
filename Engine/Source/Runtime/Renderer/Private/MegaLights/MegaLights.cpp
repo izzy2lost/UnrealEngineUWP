@@ -594,6 +594,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float3>, RWResolvedSpecularLighting)
+		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float>, RWShadingConfidence)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
@@ -741,6 +742,7 @@ class FDenoiserTemporalCS : public FGlobalShader
 		SHADER_PARAMETER_STRUCT_INCLUDE(FMegaLightsParameters, MegaLightsParameters)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedDiffuseLighting)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, ResolvedSpecularLighting)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, ShadingConfidenceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, DiffuseLightingAndSecondMomentHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float4>, SpecularLightingAndSecondMomentHistoryTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedHistoryTexture)
@@ -787,6 +789,7 @@ class FDenoiserSpatialCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float4>, RWSceneColor)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, DiffuseLightingAndSecondMomentTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float3>, SpecularLightingAndSecondMomentTexture)
+		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<float>, ShadingConfidenceTexture)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<UNORM float>, NumFramesAccumulatedTexture)
 		SHADER_PARAMETER(float, SpatialFilterDepthWeightScale)
 		SHADER_PARAMETER(float, SpatialFilterKernelRadius)
@@ -1242,10 +1245,15 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_FloatRGB, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
 			TEXT("MegaLights.ResolvedSpecularLighting"));
 
+		FRDGTextureRef ShadingConfidence = GraphBuilder.CreateTexture(
+			FRDGTextureDesc::Create2D(View.GetSceneTexturesConfig().Extent, PF_R8, FClearValueBinding::Black, TexCreate_ShaderResource | TexCreate_UAV),
+			TEXT("MegaLights.ShadingConfidence"));
+
 		// Shade light samples
 		{
 			FRDGTextureUAVRef ResolvedDiffuseLightingUAV = GraphBuilder.CreateUAV(ResolvedDiffuseLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
 			FRDGTextureUAVRef ResolvedSpecularLightingUAV = GraphBuilder.CreateUAV(ResolvedSpecularLighting, ERDGUnorderedAccessViewFlags::SkipBarrier);
+			FRDGTextureUAVRef ShadingConfidenceUAV = GraphBuilder.CreateUAV(ShadingConfidence, ERDGUnorderedAccessViewFlags::SkipBarrier);
 
 			// Clear tiles which won't be processed by FShadeLightSamplesCS
 			{
@@ -1273,6 +1281,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				FShadeLightSamplesCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FShadeLightSamplesCS::FParameters>();
 				PassParameters->RWResolvedDiffuseLighting = ResolvedDiffuseLightingUAV;
 				PassParameters->RWResolvedSpecularLighting = ResolvedSpecularLightingUAV;
+				PassParameters->RWShadingConfidence = ShadingConfidenceUAV;
 				PassParameters->IndirectArgs = TileIndirectArgs;
 				PassParameters->MegaLightsParameters = MegaLightsParameters;
 				PassParameters->TileAllocator = GraphBuilder.CreateSRV(TileAllocator);
@@ -1347,6 +1356,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->MegaLightsParameters = MegaLightsParameters;
 			PassParameters->ResolvedDiffuseLighting = ResolvedDiffuseLighting;
 			PassParameters->ResolvedSpecularLighting = ResolvedSpecularLighting;
+			PassParameters->ShadingConfidenceTexture = ShadingConfidence;
 			PassParameters->DiffuseLightingAndSecondMomentHistoryTexture = DiffuseLightingAndSecondMomentHistory;
 			PassParameters->SpecularLightingAndSecondMomentHistoryTexture = SpecularLightingAndSecondMomentHistory;
 			PassParameters->NumFramesAccumulatedHistoryTexture = NumFramesAccumulatedHistory;
@@ -1381,6 +1391,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 			PassParameters->RWSceneColor = GraphBuilder.CreateUAV(SceneTextures.Color.Target);
 			PassParameters->DiffuseLightingAndSecondMomentTexture = DiffuseLightingAndSecondMoment;
 			PassParameters->SpecularLightingAndSecondMomentTexture = SpecularLightingAndSecondMoment;
+			PassParameters->ShadingConfidenceTexture = ShadingConfidence;
 			PassParameters->NumFramesAccumulatedTexture = NumFramesAccumulated;
 			PassParameters->SpatialFilterDepthWeightScale = CVarMegaLightsSpatialDepthWeightScale.GetValueOnRenderThread();
 			PassParameters->SpatialFilterKernelRadius = CVarMegaLightsSpatialKernelRadius.GetValueOnRenderThread();

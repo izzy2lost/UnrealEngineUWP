@@ -132,7 +132,7 @@ void VolumeCompactLightSampleTracesCS(
 RWTexture3D<uint> RWVolumeLightSamples;
 RWTexture2D<float> RWLightSampleRayDistance;
 
-StructuredBuffer<uint> CompactedTraceTexelData;
+Buffer<uint> CompactedTraceTexelData;
 Buffer<uint> CompactedTraceTexelAllocator;
 uint VolumeDebugSliceIndex;
 

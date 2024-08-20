@@ -13,7 +13,7 @@
 RWTexture2D<uint> RWLightSamples;
 
 Buffer<uint> CompactedTraceTexelAllocator;
-StructuredBuffer<uint> CompactedTraceTexelData;
+Buffer<uint> CompactedTraceTexelData;
 Texture2D<float> DownsampledSceneDepth;
 Texture2D<UNORM float3> DownsampledSceneWorldNormal;
 

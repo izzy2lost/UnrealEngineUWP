@@ -11,6 +11,7 @@
 Texture2D<float4> DiffuseLightingAndSecondMomentTexture;
 Texture2D<float4> SpecularLightingAndSecondMomentTexture;
 Texture2D<UNORM float> NumFramesAccumulatedTexture;
+Texture2D<UNORM float> ShadingConfidenceTexture;
 RWTexture2D<float4> RWSceneColor;
 
 float SpatialFilterDepthWeightScale;
@@ -32,7 +33,7 @@ void DenoiserSpatialCS(
 	#if DEBUG_MODE
 		int2 DebugScreenCoord = GetDebugScreenCoord();
 		bool bDebug = all(ScreenCoord == DebugScreenCoord);
-		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.7));
+		FShaderPrintContext Context = InitShaderPrintContext(true, float2(0.55, 0.8));
 	#endif
 
 	if (all(ScreenCoord < View.ViewRectMinAndSize.xy + View.ViewRectMinAndSize.zw))
@@ -63,11 +64,20 @@ void DenoiserSpatialCS(
 			float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, Material.Depth);
 			float4 ScenePlane = float4(Material.WorldNormalForPositionBias, dot(TranslatedWorldPosition, Material.WorldNormalForPositionBias));
 
+			float ShadingConfidence = ShadingConfidenceTexture[ScreenCoord];
+			bool bFilterDiffuse = false;
+			bool bFilterSpecular = false;
+
 			// #ml_todo: expose as CVars
-			float MinStdDev = 0.1f;
+			if (ShadingConfidence <= 0.2f)
+			{
+				// Don't run any filtering if relative error isn't big enough. TSR can clean it up without adding extra blur.
+				bFilterDiffuse = CenterDiffuseStdDev / max(Luminance(CenterDiffuseLightingAndSecondMoment.xyz), 0.1f) > 0.5f;
+				bFilterSpecular = CenterSpecularStdDev / max(Luminance(CenterSpecularLightingAndSecondMoment.xyz), 0.1f) > 0.5f;
+			}
 
 			#if SPATIAL_FILTER
-			if (Material.bAllowSpatialFilter && SpatialFilterKernelRadius > 0.0f && (CenterDiffuseStdDev > MinStdDev || CenterSpecularStdDev > MinStdDev))
+			if (Material.bAllowSpatialFilter && SpatialFilterKernelRadius > 0.0f && (bFilterDiffuse || bFilterSpecular))
 			{
 				for (uint NeighborIndex = 0; NeighborIndex < SpatialFilterNumSamples; ++NeighborIndex)
 				{
@@ -91,7 +101,7 @@ void DenoiserSpatialCS(
 						float NormalWeight = 1.0f - saturate(AngleBetweenNormals);
 
 						// Diffuse
-						if (CenterDiffuseStdDev > MinStdDev)
+						if (bFilterDiffuse)
 						{
 							float4 NeighborDiffuseLightingAndSecondMoment = DiffuseLightingAndSecondMomentTexture[NeighborCoord];
 
@@ -107,7 +117,7 @@ void DenoiserSpatialCS(
 						}
 
 						// Specular
-						if (CenterSpecularStdDev > MinStdDev)
+						if (bFilterSpecular)
 						{
 							float4 NeighborSpecularLightingAndSecondMoment = SpecularLightingAndSecondMomentTexture[NeighborCoord];
 
@@ -151,8 +161,25 @@ void DenoiserSpatialCS(
 				Newline(Context);
 				Print(Context, TEXT("CenterSpecularStdDev: "));
 				Print(Context, CenterSpecularStdDev);
+				Newline(Context);
+				Print(Context, TEXT("Filter: "));
+				Print(Context, bFilterDiffuse ? 1u : 0u);
+				Print(Context, bFilterSpecular ? 1u : 0u);
 			}
 			#endif
+
+			// Visualize where spatial filter gets applied
+/*
+			if (bFilterDiffuse || bFilterSpecular)
+			{
+				float4 DebugColor = 0;
+				if (bFilterDiffuse)
+					DebugColor.x = 1.0f;
+				if (bFilterSpecular)
+					DebugColor.y = 1.0f;
+
+				AccumulatedSceneColor = DebugColor;
+			}*/
 
 			RWSceneColor[ScreenCoord] = RWSceneColor[ScreenCoord] + AccumulatedSceneColor;
 		}
