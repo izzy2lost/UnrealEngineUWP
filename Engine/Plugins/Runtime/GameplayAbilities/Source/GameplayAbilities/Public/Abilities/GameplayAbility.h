@@ -551,7 +551,7 @@ protected:
 
 	/** Sends a gameplay event, also creates a prediction window */
 	UFUNCTION(BlueprintCallable, Category = Ability)
-	virtual void SendGameplayEvent(FGameplayTag EventTag, FGameplayEventData Payload);
+	virtual void SendGameplayEvent(UPARAM(meta=(GameplayTagFilter="GameplayEventTagsCategory")) FGameplayTag EventTag, FGameplayEventData Payload);
 
 	// --------------------------------------
 	//	CanActivate

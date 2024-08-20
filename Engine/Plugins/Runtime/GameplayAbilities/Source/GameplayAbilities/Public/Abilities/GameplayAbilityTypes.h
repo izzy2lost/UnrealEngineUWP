@@ -243,7 +243,7 @@ struct GAMEPLAYABILITIES_API FGameplayEventData
 	}
 	
 	/** Tag of the event that triggered this */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = GameplayAbilityTriggerPayload)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = GameplayAbilityTriggerPayload, meta=(GameplayTagFilter="GameplayEventTagsCategory"))
 	FGameplayTag EventTag;
 
 	/** The instigator of the event */
