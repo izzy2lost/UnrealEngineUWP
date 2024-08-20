@@ -4715,7 +4715,12 @@ bool UEditorEngine::InitializePhysicsSceneForSaveIfNecessary(UWorld* World, bool
 		else
 		{
 			// If we aren't already initialized, initialize now and create a physics scene. Don't create an FX system because it uses too much video memory for bulk operations
-			World->InitWorld(GetEditorWorldInitializationValues().CreateFXSystem(false).CreatePhysicsScene(true));
+			World->InitWorld(
+				GetEditorWorldInitializationValues()
+				.CreateFXSystem(false)
+				.CreateAISystem(false)
+				.CreateNavigation(false)
+				.CreatePhysicsScene(true));
 			bOutForceInitialized = true;
 		}
 
