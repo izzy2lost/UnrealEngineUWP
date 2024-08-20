@@ -1122,6 +1122,7 @@ void FProjectedShadowInfo::SetupClipmapProjection(FLightSceneInfo* InLightSceneI
 	ResolutionY = FVirtualShadowMap::VirtualMaxResolutionXY;
 	bDirectionalLight = true;
 	bWholeSceneShadow = true;
+	bVolumetricShadow = InLightSceneInfo->Proxy->CastsVolumetricShadow();
 	BorderSize = 0;
 	MaxNonFarCascadeDistance = InMaxNonFarCascadeDistance;
 	bVSM = true;
