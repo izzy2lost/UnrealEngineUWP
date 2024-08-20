@@ -372,6 +372,11 @@ namespace UE::Learning::Observation
 		Generation++;
 	}
 
+	bool FSchema::IsEmpty() const
+	{
+		return Types.IsEmpty();
+	}
+
 	void FSchema::Reset()
 	{
 		Types.Reset();
@@ -652,6 +657,11 @@ namespace UE::Learning::Observation
 		SubElementObjects.Empty();
 
 		Generation++;
+	}
+
+	bool FObject::IsEmpty() const
+	{
+		return Types.IsEmpty();
 	}
 
 	void FObject::Reset()

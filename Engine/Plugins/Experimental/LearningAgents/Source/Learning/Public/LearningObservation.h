@@ -196,6 +196,9 @@ namespace UE::Learning::Observation
 		// Get the current generation
 		uint32 GetGeneration() const;
 
+		// Checks if the given schema is empty of elements.
+		bool IsEmpty() const;
+
 		// Empty all internal buffers of elements. This invalidates all existing elements.
 		void Empty();
 
@@ -374,6 +377,9 @@ namespace UE::Learning::Observation
 
 		// Get the current generation
 		uint32 GetGeneration() const;
+
+		// Checks if the given object is empty of elements.
+		bool IsEmpty() const;
 
 		// Empty all internal buffers of elements. This invalidates all existing elements.
 		void Empty();

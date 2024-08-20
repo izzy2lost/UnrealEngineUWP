@@ -469,6 +469,11 @@ namespace UE::Learning::Action
 		Generation++;
 	}
 
+	bool FSchema::IsEmpty() const
+	{
+		return Types.IsEmpty();
+	}
+
 	void FSchema::Reset()
 	{
 		Types.Reset();
@@ -799,6 +804,11 @@ namespace UE::Learning::Action
 		SubElementNames.Empty();
 
 		Generation++;
+	}
+
+	bool FObject::IsEmpty() const
+	{
+		return Types.IsEmpty();
 	}
 
 	void FObject::Reset()
