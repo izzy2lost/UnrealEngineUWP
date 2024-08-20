@@ -86,6 +86,7 @@ private:
 	TMap<uint32, FThreadState> TrackerThreadStates;
 	TMap<TagIdType, FTagEntry> TagMap;
 	TArray<TTuple<TagIdType, FString>> PendingTags;
+	TagIdType CustomNameTag = InvalidTagId;
 	uint32 NumErrors = 0;
 	uint32 NumWarnings = 0;
 };

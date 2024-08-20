@@ -205,6 +205,17 @@ void FTagTracker::AddTagSpec(TagIdType InTag, TagIdType InParentTag, const TCHAR
 		return;
 	}
 
+	// Identify the special "CustomName" tag.
+	if (FCString::Strcmp(InDisplay, TEXT("CustomName")) == 0)
+	{
+		CustomNameTag = InTag;
+	}
+	// Remove the parent tag if it is "CustomName".
+	if (CustomNameTag != InvalidTagId && InParentTag == CustomNameTag)
+	{
+		InParentTag = InvalidTagId;
+	}
+
 	if (!InDisplay || *InDisplay == TEXT('\0'))
 	{
 		++NumErrors;
