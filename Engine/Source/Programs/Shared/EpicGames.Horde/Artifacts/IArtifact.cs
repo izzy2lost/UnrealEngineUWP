@@ -2,6 +2,8 @@
 
 using System;
 using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
@@ -16,56 +18,62 @@ namespace EpicGames.Horde.Artifacts
 		/// <summary>
 		/// Identifier for the Artifact. Randomly generated.
 		/// </summary>
-		public ArtifactId Id { get; }
+		ArtifactId Id { get; }
 
 		/// <summary>
 		/// Name of the artifact
 		/// </summary>
-		public ArtifactName Name { get; }
+		ArtifactName Name { get; }
 
 		/// <summary>
 		/// Type of artifact
 		/// </summary>
-		public ArtifactType Type { get; }
+		ArtifactType Type { get; }
 
 		/// <summary>
 		/// Description for the artifact
 		/// </summary>
-		public string? Description { get; }
+		string? Description { get; }
 
 		/// <summary>
 		/// Identifier for the stream that produced the artifact
 		/// </summary>
-		public StreamId StreamId { get; }
+		StreamId StreamId { get; }
 
 		/// <summary>
 		/// Change that the artifact corresponds to
 		/// </summary>
-		public CommitIdWithOrder CommitId { get; }
+		CommitIdWithOrder CommitId { get; }
 
 		/// <summary>
 		/// Keys used to collate artifacts
 		/// </summary>
-		public IReadOnlyList<string> Keys { get; }
+		IReadOnlyList<string> Keys { get; }
 
 		/// <summary>
 		/// Metadata for the artifact
 		/// </summary>
-		public IReadOnlyList<string> Metadata { get; }
+		IReadOnlyList<string> Metadata { get; }
 
 		/// <summary>
 		/// Storage namespace containing the data
 		/// </summary>
-		public NamespaceId NamespaceId { get; }
+		NamespaceId NamespaceId { get; }
 
 		/// <summary>
 		/// Name of the ref containing the root data object
 		/// </summary>
-		public RefName RefName { get; }
+		RefName RefName { get; }
 
 		/// <summary>
 		/// Time at which the artifact was created
 		/// </summary>
-		public DateTime CreatedAtUtc { get; }
+		DateTime CreatedAtUtc { get; }
+
+		/// <summary>
+		/// Deletes this artifact
+		/// </summary>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		Task DeleteAsync(CancellationToken cancellationToken);
 	}
 }

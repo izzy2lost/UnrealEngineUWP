@@ -30,6 +30,7 @@ namespace HordeServer.Artifacts
 	{
 		class Artifact : IArtifact
 		{
+			readonly ArtifactCollection _collection;
 			readonly ArtifactDocument _document;
 
 			public ArtifactDocument Document => _document;
@@ -46,8 +47,14 @@ namespace HordeServer.Artifacts
 			RefName IArtifact.RefName => _document.RefName;
 			DateTime IArtifact.CreatedAtUtc => (_document.CreatedAtUtc == default) ? _document.Id.CreationTime : _document.CreatedAtUtc;
 
-			public Artifact(ArtifactDocument document)
-				=> _document = document;
+			public Artifact(ArtifactCollection collection, ArtifactDocument document)
+			{
+				_collection = collection;
+				_document = document;
+			}
+
+			public Task DeleteAsync(CancellationToken cancellationToken)
+				=> _collection.DeleteArtifactAsync(_document, cancellationToken);
 		}
 
 		class ArtifactDocument
@@ -92,9 +99,6 @@ namespace HordeServer.Artifacts
 			[BsonElement("ref")]
 			public RefName RefName { get; set; }
 
-			[BsonElement("scp")]
-			public AclScopeName AclScope { get; set; }
-
 			[BsonElement("cre")]
 			public DateTime CreatedAtUtc { get; set; }
 
@@ -106,7 +110,7 @@ namespace HordeServer.Artifacts
 			{
 			}
 
-			public ArtifactDocument(ObjectId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitIdWithOrder commitId, IEnumerable<string> keys, IEnumerable<string> metadata, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc, AclScopeName scopeName)
+			public ArtifactDocument(ObjectId id, ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitIdWithOrder commitId, IEnumerable<string> keys, IEnumerable<string> metadata, NamespaceId namespaceId, RefName refName, DateTime createdAtUtc)
 			{
 				Id = id;
 				Name = name;
@@ -119,7 +123,6 @@ namespace HordeServer.Artifacts
 				NamespaceId = namespaceId;
 				RefName = refName;
 				CreatedAtUtc = createdAtUtc;
-				AclScope = scopeName;
 			}
 		}
 
@@ -193,7 +196,7 @@ namespace HordeServer.Artifacts
 		public static string GetArtifactPath(StreamId streamId, ArtifactType type) => $"{type}/{streamId}";
 
 		/// <inheritdoc/>
-		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default)
+		public async Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
 		{
 			if (name.Id.IsEmpty)
 			{
@@ -222,10 +225,10 @@ namespace HordeServer.Artifacts
 
 			CommitIdWithOrder commitIdWithOrder = await _commitService.GetOrderedAsync(streamId, commitId, cancellationToken);
 
-			ArtifactDocument artifactDocument = new ArtifactDocument(id, name, type, description, streamId, commitIdWithOrder, keys.Select(x => NormalizeKey(x)), metadata, namespaceId, refName, _clock.UtcNow, scopeName);
+			ArtifactDocument artifactDocument = new ArtifactDocument(id, name, type, description, streamId, commitIdWithOrder, keys.Select(x => NormalizeKey(x)), metadata, namespaceId, refName, _clock.UtcNow);
 			await _artifactCollection.InsertOneAsync(artifactDocument, null, cancellationToken);
 
-			return new Artifact(artifactDocument);
+			return new Artifact(this, artifactDocument);
 		}
 
 		async Task AddExpiryRecordAsync(StreamId streamId, ArtifactType type, DateTime utcNow, CancellationToken cancellationToken = default)
@@ -271,7 +274,7 @@ namespace HordeServer.Artifacts
 				{
 					foreach (ArtifactDocument artifactDocument in cursor.Current)
 					{
-						yield return new Artifact(artifactDocument);
+						yield return new Artifact(this, artifactDocument);
 					}
 				}
 			}
@@ -361,6 +364,17 @@ namespace HordeServer.Artifacts
 			}
 		}
 
+		async Task DeleteArtifactAsync(ArtifactDocument artifact, CancellationToken cancellationToken)
+		{
+			_logger.LogInformation("Deleting {StreamId} artifact {ArtifactId}, ref {RefName} (created {CreateTime})", artifact.StreamId, artifact.Id, artifact.RefName, artifact.CreatedAtUtc);
+
+			IStorageClient storageClient = _storageService.CreateClient(artifact.NamespaceId);
+			await storageClient.DeleteRefAsync(artifact.RefName, cancellationToken);
+
+			FilterDefinition<ArtifactDocument> filter = Builders<ArtifactDocument>.Filter.Eq(x => x.Id, artifact.Id);
+			await _artifactCollection.DeleteOneAsync(filter, cancellationToken);
+		}
+
 		async Task DeleteArtifactsAsync(IEnumerable<ArtifactDocument> deleteArtifacts, CancellationToken cancellationToken)
 		{
 			foreach (IGrouping<NamespaceId, ArtifactDocument> artifactGroup in deleteArtifacts.GroupBy(x => x.NamespaceId))
@@ -389,7 +403,7 @@ namespace HordeServer.Artifacts
 				return null;
 			}
 
-			return new Artifact(document);
+			return new Artifact(this, document);
 		}
 	}
 }

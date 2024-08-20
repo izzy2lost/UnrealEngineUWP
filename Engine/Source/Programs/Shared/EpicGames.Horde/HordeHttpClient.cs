@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -139,9 +140,19 @@ namespace EpicGames.Horde
 		/// <param name="keys">Keys used to identify the artifact</param>
 		/// <param name="metadata">Metadata for the artifact</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, List<string>? keys = null, List<string>? metadata = null, CancellationToken cancellationToken = default)
+		public Task<CreateArtifactResponse> CreateArtifactAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string>? keys = null, IEnumerable<string>? metadata = null, CancellationToken cancellationToken = default)
 		{
-			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, keys ?? new List<string>(), metadata ?? new List<string>()) { CommitId = commitId }, cancellationToken);
+			return PostAsync<CreateArtifactResponse, CreateArtifactRequest>(_httpClient, $"api/v2/artifacts", new CreateArtifactRequest(name, type, description, streamId, keys?.ToList() ?? new List<string>(), metadata?.ToList() ?? new List<string>()) { CommitId = commitId }, cancellationToken);
+		}
+
+		/// <summary>
+		/// Deletes an artifact
+		/// </summary>
+		/// <param name="id">Identifier for the artifact</param>
+		/// <param name="cancellationToken">Cancellation token for the operation</param>
+		public async Task DeleteArtifactAsync(ArtifactId id, CancellationToken cancellationToken = default)
+		{
+			await DeleteAsync(_httpClient, $"api/v2/artifacts/{id}", cancellationToken);
 		}
 
 		/// <summary>
@@ -526,6 +537,18 @@ namespace EpicGames.Horde
 		#endregion
 
 		#region Utility Methods
+
+		/// <summary>
+		/// Deletes a resource from an HTTP endpoint
+		/// </summary>
+		/// <param name="httpClient">Http client instance</param>
+		/// <param name="relativePath">The url to retrieve</param>
+		/// <param name="cancellationToken">Cancels the request</param>
+		internal static async Task DeleteAsync(HttpClient httpClient, string relativePath, CancellationToken cancellationToken = default)
+		{
+			using HttpResponseMessage response = await httpClient.DeleteAsync(relativePath, cancellationToken);
+			response.EnsureSuccessStatusCode();
+		}
 
 		/// <summary>
 		/// Gets a resource from an HTTP endpoint and parses it as a JSON object

@@ -85,7 +85,7 @@ namespace HordeServer.Artifacts
 			{
 				if (streamConfig.Authorize(ArtifactAclAction.WriteArtifact, User))
 				{
-					return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, request.StreamId.Value, request.CommitId, request.Keys, request.Metadata, AclScopeName.Root, cancellationToken);
+					return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, request.StreamId.Value, request.CommitId, request.Keys, request.Metadata, cancellationToken);
 				}
 			}
 
@@ -137,15 +137,15 @@ namespace HordeServer.Artifacts
 					scopeName = templateRefConfig.Acl.ScopeName;
 				}
 
-				return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, streamId, request.CommitId ?? job.CommitId, keys, request.Metadata, scopeName, cancellationToken);
+				return await CreateArtifactInternalAsync(request.Name, request.Type, request.Description, streamId, request.CommitId ?? job.CommitId, keys, request.Metadata, cancellationToken);
 			}
 
 			return Forbid(ArtifactAclAction.WriteArtifact);
 		}
 
-		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, List<string> keys, List<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken)
+		async Task<ActionResult<CreateArtifactResponse>> CreateArtifactInternalAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, List<string> keys, List<string> metadata, CancellationToken cancellationToken)
 		{
-			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, streamId, commitId, keys, metadata, scopeName, cancellationToken);
+			IArtifact artifact = await _artifactCollection.AddAsync(name, type, description, streamId, commitId, keys, metadata, cancellationToken);
 			RefName? prevRefName = await GetPrevRefNameForArtifactAsync(artifact, cancellationToken);
 
 			List<AclClaimConfig> claims = new List<AclClaimConfig>();
@@ -231,6 +231,28 @@ namespace HordeServer.Artifacts
 			}
 
 			return PropertyFilter.Apply(new GetArtifactResponse(artifact), filter);
+		}
+
+		/// <summary>
+		/// Deletes an artifact object
+		/// </summary>
+		/// <param name="id">Identifier of the artifact to retrieve</param>
+		[HttpDelete]
+		[Route("/api/v2/artifacts/{id}")]
+		public async Task<ActionResult> DeleteArtifactAsync(ArtifactId id, CancellationToken cancellationToken)
+		{
+			IArtifact? artifact = await _artifactCollection.GetAsync(id, HttpContext.RequestAborted);
+			if (artifact == null)
+			{
+				return NotFound(id);
+			}
+			if (!_buildConfig.AuthorizeArtifact(artifact.Type, artifact.StreamId, ArtifactAclAction.DeleteArtifact, User))
+			{
+				return Forbid(ArtifactAclAction.DeleteArtifact, artifact.StreamId);
+			}
+
+			await artifact.DeleteAsync(cancellationToken);
+			return Ok();
 		}
 
 		/// <summary>

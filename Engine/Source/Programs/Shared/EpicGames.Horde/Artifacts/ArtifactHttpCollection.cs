@@ -16,10 +16,12 @@ namespace EpicGames.Horde.Artifacts
 	{
 		class Artifact : IArtifact
 		{
+			readonly ArtifactHttpCollection _collection;
 			readonly GetArtifactResponse _response;
 
-			public Artifact(GetArtifactResponse response)
+			public Artifact(ArtifactHttpCollection collection, GetArtifactResponse response)
 			{
+				_collection = collection;
 				_response = response;
 			}
 
@@ -34,6 +36,9 @@ namespace EpicGames.Horde.Artifacts
 			public NamespaceId NamespaceId => _response.NamespaceId;
 			public RefName RefName => _response.RefName;
 			public DateTime CreatedAtUtc => _response.CreatedAtUtc;
+
+			public Task DeleteAsync(CancellationToken cancellationToken)
+				=> _collection.DeleteAsync(_response.Id, cancellationToken);
 		}
 
 		readonly IHordeClient _hordeClient;
@@ -42,7 +47,7 @@ namespace EpicGames.Horde.Artifacts
 			=> _hordeClient = hordeClient;
 
 		/// <inheritdoc/>
-		public Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default)
+		public Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default)
 		{
 			throw new NotImplementedException();
 		}
@@ -55,8 +60,14 @@ namespace EpicGames.Horde.Artifacts
 			List<GetArtifactResponse> responses = await hordeHttpClient.FindArtifactsAsync(streamId, minCommitId, maxCommitId, name, type, keys, maxResults, cancellationToken);
 			foreach (GetArtifactResponse response in responses)
 			{
-				yield return new Artifact(response);
+				yield return new Artifact(this, response);
 			}
+		}
+
+		async Task DeleteAsync(ArtifactId artifactId, CancellationToken cancellationToken = default)
+		{
+			HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
+			await hordeHttpClient.DeleteArtifactAsync(artifactId, cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -64,7 +75,7 @@ namespace EpicGames.Horde.Artifacts
 		{
 			HordeHttpClient hordeHttpClient = _hordeClient.CreateHttpClient();
 			GetArtifactResponse? response = await hordeHttpClient.GetArtifactAsync(artifactId, cancellationToken);
-			return new Artifact(response);
+			return new Artifact(this, response);
 		}
 	}
 }

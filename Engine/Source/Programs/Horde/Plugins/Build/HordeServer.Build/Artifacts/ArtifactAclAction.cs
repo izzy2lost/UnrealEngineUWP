@@ -20,6 +20,11 @@ namespace HordeServer.Artifacts
 		public static AclAction WriteArtifact { get; } = new AclAction("WriteArtifact");
 
 		/// <summary>
+		/// Permission to delete to an artifact
+		/// </summary>
+		public static AclAction DeleteArtifact { get; } = new AclAction("DeleteArtifact");
+
+		/// <summary>
 		/// Ability to create an artifact. Typically just for debugging; agents have this access for a particular session.
 		/// </summary>
 		public static AclAction UploadArtifact { get; } = new AclAction("UploadArtifact");

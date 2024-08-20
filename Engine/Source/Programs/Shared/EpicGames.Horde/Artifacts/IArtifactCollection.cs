@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Commits;
+using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 
 namespace EpicGames.Horde.Artifacts
@@ -24,10 +25,9 @@ namespace EpicGames.Horde.Artifacts
 		/// <param name="commitId">Commit that the artifact was built from</param>
 		/// <param name="keys">Keys for the artifact</param>
 		/// <param name="metadata">Metadata for the artifact</param>
-		/// <param name="scopeName">Inherited scope used for permissions</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>The new log file document</returns>
-		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, AclScopeName scopeName, CancellationToken cancellationToken = default);
+		Task<IArtifact> AddAsync(ArtifactName name, ArtifactType type, string? description, StreamId streamId, CommitId commitId, IEnumerable<string> keys, IEnumerable<string> metadata, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds artifacts with the given keys.
