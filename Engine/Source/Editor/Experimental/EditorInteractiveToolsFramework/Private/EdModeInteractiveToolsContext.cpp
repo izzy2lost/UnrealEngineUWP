@@ -396,7 +396,10 @@ void UEditorInteractiveToolsContext::ShutdownContext()
 
 void UEditorInteractiveToolsContext::TerminateActiveToolsOnPIEStart()
 {
-	DeactivateAllActiveTools(EToolShutdownType::Accept);
+	if (bDeactivateOnPIEStart)
+	{
+		DeactivateAllActiveTools(EToolShutdownType::Accept);	
+	}
 }
 void UEditorInteractiveToolsContext::TerminateActiveToolsOnSaveWorld()
 {
@@ -846,6 +849,11 @@ void UEditorInteractiveToolsContext::SetForceCombinedGizmoMode(bool bEnabled)
 void UEditorInteractiveToolsContext::SetAbsoluteWorldSnappingEnabled(bool bEnabled)
 {
 	bEnableAbsoluteWorldSnapping = bEnabled;
+}
+
+void UEditorInteractiveToolsContext::SetDeactivateToolsOnPIEStart(bool bDeactivateTools)
+{
+	bDeactivateOnPIEStart = bDeactivateTools;
 }
 
 void UModeManagerInteractiveToolsContext::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)

@@ -186,6 +186,10 @@ void USkeletalMeshModelingToolsEditorMode::Enter()
 {
 	UEdMode::Enter();
 
+	UEditorInteractiveToolsContext* EditorInteractiveToolsContext = GetInteractiveToolsContext(EToolsContextScope::Editor);
+	bDeactivateOnPIEStartStateToRestore = EditorInteractiveToolsContext->GetDeactivateToolsOnPIEStart();
+	EditorInteractiveToolsContext->SetDeactivateToolsOnPIEStart(false);
+
 	UEditorInteractiveToolsContext* InteractiveToolsContext = GetInteractiveToolsContext();
 
 	if (TObjectPtr<UToolTargetManager> ToolTargetManager = InteractiveToolsContext->TargetManager)
@@ -275,6 +279,9 @@ void USkeletalMeshModelingToolsEditorMode::Exit()
 	UE::TransformGizmoUtil::DeregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshGizmoUtils::UnregisterTransformGizmoContextObject(InteractiveToolsContext);
 	UE::SkeletalMeshEditorUtils::UnregisterEditorContextObject(InteractiveToolsContext);
+	
+	UEditorInteractiveToolsContext* EditorInteractiveToolsContext = GetInteractiveToolsContext(EToolsContextScope::Editor);
+	EditorInteractiveToolsContext->SetDeactivateToolsOnPIEStart(bDeactivateOnPIEStartStateToRestore);
 
 	// restore previous tool switching behavior
 	GetInteractiveToolsContext()->ToolManager->SetToolSwitchMode(ToolSwitchModeToRestoreOnExit);
@@ -407,6 +414,13 @@ void USkeletalMeshModelingToolsEditorMode::OnToolEnded(UInteractiveToolManager* 
 	{
 		Owner->ActivateMode(FPersonaEditModes::SkeletonSelection);
 	}
+}
+
+bool USkeletalMeshModelingToolsEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const
+{
+	// in the base mode, this returns false if the level editor is in PIE or simulated
+	// we allow all skeletal mesh editing tools to be started while running in PIE / simulate
+	return true;
 }
 
 void USkeletalMeshModelingToolsEditorMode::SetEditorBinding(const TWeakPtr<ISkeletalMeshEditor>& InSkeletalMeshEditor)

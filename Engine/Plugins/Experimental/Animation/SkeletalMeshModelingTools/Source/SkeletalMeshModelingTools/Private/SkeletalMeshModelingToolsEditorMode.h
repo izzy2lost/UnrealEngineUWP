@@ -42,6 +42,7 @@ public:
 	virtual bool HandleClick(FEditorViewportClient* InViewportClient, HHitProxy *HitProxy, const FViewportClick &Click) override;
 	virtual bool ComputeBoundingBoxForViewportFocus(AActor* Actor, UPrimitiveComponent* PrimitiveComponent, FBox& InOutBox) const override;
 	virtual bool UsesToolkits() const override { return true; }
+	virtual bool ShouldToolStartBeAllowed(const FString& ToolIdentifier) const override;
 
 	// binding
 	void SetEditorBinding(const TWeakPtr<ISkeletalMeshEditor>& InSkeletalMeshEditor);
@@ -62,6 +63,8 @@ private:
 	UDebugSkelMeshComponent* GetSkelMeshComponent() const;
 
 	bool NeedsTransformGizmo() const;
+
+	bool bDeactivateOnPIEStartStateToRestore;
 
 	FDelegateHandle ToToolNotifierHandle;
 	FDelegateHandle FromToolNotifierHandle;
