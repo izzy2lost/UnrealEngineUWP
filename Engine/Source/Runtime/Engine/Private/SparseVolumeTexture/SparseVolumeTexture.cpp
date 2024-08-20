@@ -1282,6 +1282,8 @@ bool UStreamableSparseVolumeTexture::BeginInitialize(int32 NumExpectedFrames)
 		return false;
 	}
 
+	Modify();
+
 	check(Frames.IsEmpty());
 	Frames.Empty(NumExpectedFrames);
 	VolumeBoundsMin = FIntVector(INT32_MAX, INT32_MAX, INT32_MAX);
