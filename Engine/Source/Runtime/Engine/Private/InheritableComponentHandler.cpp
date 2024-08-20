@@ -262,7 +262,6 @@ void UInheritableComponentHandler::ValidateTemplates()
 						Record.ComponentTemplate->Rename(nullptr, GetTransientPackage(), REN_DoNotDirty | REN_DontCreateRedirectors | REN_NonTransactional);
 						Record.ComponentTemplate->ClearFlags(RF_Standalone);
 						Record.ComponentTemplate->RemoveFromRoot();
-						Record.ComponentTemplate->MarkAsGarbage();
 #endif // WITH_EDITOR
 						UnnecessaryComponents.AddUnique(Record.ComponentTemplate);
 					}

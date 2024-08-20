@@ -3385,7 +3385,13 @@ bool StaticAllocateObjectErrorTests( const UClass* InClass, UObject* InOuter, FN
 		}
 	}
 
-	if ( (InFlags & (RF_ClassDefaultObject|RF_ArchetypeObject)) == 0 )
+	// When reinstancing, allow any within violations as they were likely caused by users renaming
+	// objects to different outers, hopefully with intent:
+	if ( (InFlags & (RF_ClassDefaultObject|RF_ArchetypeObject)) == 0 
+#if WITH_EDITORONLY_DATA
+		&& !GIsReinstancing
+#endif
+	)
 	{
 		if ( InOuter != NULL && !InOuter->IsA(InClass->ClassWithin) )
 		{
