@@ -66,7 +66,9 @@ namespace HordeServer
 			services.AddSingleton<IDefaultAclModifier, ComputeAclModifier>();
 			services.AddSingleton<IPluginResponseFilter, ComputeResponseFilter>();
 
-			services.AddSingleton<IAgentCollection, AgentCollection>();
+			services.AddSingleton<AgentCollection>();
+			services.AddSingleton<IAgentCollection>(sp => sp.GetRequiredService<AgentCollection>());
+			services.AddHostedService(sp => sp.GetRequiredService<AgentCollection>());
 
 			services.AddSingleton<LeaseCollection>();
 			services.AddSingleton<ILeaseCollection>(sp => sp.GetRequiredService<LeaseCollection>());
