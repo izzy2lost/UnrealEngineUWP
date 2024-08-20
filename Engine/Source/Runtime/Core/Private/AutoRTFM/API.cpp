@@ -13,9 +13,9 @@ namespace
 {
 	// Move this to a local only and use functions to access this
 #if UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
-	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Enabled;
+	int GAutoRTFMRuntimeEnabled = AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Enabled;
 #else
-	int GAutoRTFMRuntimeEnabled = AutoRTFM::EAutoRTFMEnabledState::AutoRTFM_Disabled;
+	int GAutoRTFMRuntimeEnabled = AutoRTFM::ForTheRuntime::EAutoRTFMEnabledState::AutoRTFM_Disabled;
 #endif // UE_AUTORTFM_ENABLED_RUNTIME_BY_DEFAULT
 
 	void UpdateAutoRTFMRuntimeCrashData()
@@ -621,16 +621,6 @@ void ForTheRuntime::PopOnAbortHandlerInternal(const void* Key)
 	{
 		return RTFM_PopOnAbortHandlerInternal(Key);
 	}
-}
-
-void OpenCommit(TFunction<void()>&& Work)
-{
-	ForTheRuntime::OnCommitInternal(MoveTemp(Work));
-}
-
-void OpenAbort(TFunction<void()>&& Work)
-{
-	ForTheRuntime::OnAbortInternal(MoveTemp(Work));
 }
 
 extern "C" void autortfm_on_commit(void (*Work)(void*), void* Arg)

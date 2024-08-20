@@ -83,7 +83,7 @@ TEST_CASE("Abort.NestedAbortOrder")
 	REQUIRE(2 == Orderer);
 }
 
-TEST_CASE("Abort.TransactionInOpenCommit")
+TEST_CASE("Abort.TransactionInOnCommit")
 {
 	AutoRTFM::ETransactionResult InnerResult;
 
@@ -105,7 +105,7 @@ TEST_CASE("Abort.TransactionInOpenCommit")
 	REQUIRE(AutoRTFM::ETransactionResult::AbortedByTransactInOnCommit == InnerResult);
 }
 
-TEST_CASE("Abort.TransactionInOpenAbort")
+TEST_CASE("Abort.TransactionInOnAbort")
 {
 	AutoRTFM::ETransactionResult Result;
 	AutoRTFM::ETransactionResult InnerResult;

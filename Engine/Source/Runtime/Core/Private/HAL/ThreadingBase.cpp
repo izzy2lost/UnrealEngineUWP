@@ -1456,7 +1456,6 @@ FTlsAutoCleanup* FThreadSingletonInitializer::Get( TFunctionRef<FTlsAutoCleanup*
 		ThreadSingleton = (FTlsAutoCleanup*)FPlatformTLS::GetTlsValue( TlsSlot );
 		if( !ThreadSingleton )
 		{
-			// these are generally left open and only get cleaned up on thread exit so avoiding dealing with an OPENABORT here to clean this up
 			ThreadSingleton = CreateInstance();
 			ThreadSingleton->Register();
 			FPlatformTLS::SetTlsValue( TlsSlot, ThreadSingleton );

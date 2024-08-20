@@ -740,7 +740,7 @@ TEST_CASE("OpenAPI.Footgun2")
 }
 
 #if 0
-TEST_CASE("OpenAPI.StartCloseOpenCommit")
+TEST_CASE("OpenAPI.StartCloseOnCommit")
 {
 	REQUIRE(!AutoRTFM::IsTransactional());
 
