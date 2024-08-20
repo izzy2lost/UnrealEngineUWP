@@ -163,6 +163,7 @@ struct FUsdStageActorImpl
 		TranslationContext->RenderContext = StageActor->RenderContext;
 		TranslationContext->MaterialPurpose = StageActor->MaterialPurpose;
 		TranslationContext->RootMotionHandling = StageActor->RootMotionHandling;
+		TranslationContext->GeometryCacheImport = StageActor->GeometryCacheImport;
 		TranslationContext->SubdivisionLevel = StageActor->SubdivisionLevel;
 		TranslationContext->MetadataOptions = StageActor->MetadataOptions;
 		TranslationContext->BlendShapesByPath = &StageActor->BlendShapesByPath;
@@ -583,6 +584,7 @@ struct FUsdStageActorImpl
 			EventAttributes.Emplace(TEXT("RenderContext"), StageActor->RenderContext.ToString());
 			EventAttributes.Emplace(TEXT("MaterialPurpose"), StageActor->MaterialPurpose.ToString());
 			EventAttributes.Emplace(TEXT("RootMotionHandling"), LexToString((uint8)StageActor->RootMotionHandling));
+			EventAttributes.Emplace(TEXT("GeometryCacheImport"), LexToString((uint8)StageActor->GeometryCacheImport));
 			EventAttributes.Emplace(TEXT("SubdivisionLevel"), LexToString(StageActor->SubdivisionLevel));
 
 			UsdUtils::AddAnalyticsAttributes(StageActor->MetadataOptions, EventAttributes);
@@ -913,6 +915,7 @@ AUsdStageActor::AUsdStageActor()
 	: StageState(EUsdStageState::OpenedAndLoaded)
 	, InitialLoadSet(EUsdInitialLoadSet::LoadAll)
 	, InterpolationType(EUsdInterpolationType::Linear)
+	, GeometryCacheImport(EGeometryCacheImport::Never)
 	, KindsToCollapse((int32)(EUsdDefaultKind::Component | EUsdDefaultKind::Subcomponent))
 	, bMergeIdenticalMaterialSlots(true)
 	, bShareAssetsForIdenticalPrims(true)
@@ -2599,6 +2602,20 @@ void AUsdStageActor::SetInterpolationType(EUsdInterpolationType NewType)
 	Modify(bMarkDirty);
 
 	InterpolationType = NewType;
+	LoadUsdStage();
+}
+
+void AUsdStageActor::SetGeometryCacheImport(EGeometryCacheImport ImportOption)
+{
+	if (ImportOption == GeometryCacheImport)
+	{
+		return;
+	}
+
+	const bool bMarkDirty = false;
+	Modify(bMarkDirty);
+
+	GeometryCacheImport = ImportOption;
 	LoadUsdStage();
 }
 
@@ -4664,6 +4681,12 @@ void AUsdStageActor::HandlePropertyChangedEvent(FPropertyChangedEvent& PropertyC
 		const EUsdInterpolationType CorrectInterpolationType = InterpolationType;
 		InterpolationType = (EUsdInterpolationType) !((uint8)InterpolationType);
 		SetInterpolationType(CorrectInterpolationType);
+	}
+	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, GeometryCacheImport))
+	{
+		const EGeometryCacheImport CorrectImportOption = GeometryCacheImport;
+		GeometryCacheImport = (EGeometryCacheImport) !((uint8)GeometryCacheImport);
+		SetGeometryCacheImport(CorrectImportOption);
 	}
 	else if (PropertyName == GET_MEMBER_NAME_CHECKED(AUsdStageActor, KindsToCollapse))
 	{

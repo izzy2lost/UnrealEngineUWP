@@ -37,6 +37,11 @@ void UGeometryCache::PostInitProperties()
 	Super::PostInitProperties();
 }
 
+void UGeometryCache::PreSave(FObjectPreSaveContext SaveContext)
+{
+	OnPreSave.ExecuteIfBound(this);
+}
+
 void UGeometryCache::Serialize(FArchive& Ar)
 {
 	Ar.UsingCustomVersion(FAnimPhysObjectVersion::GUID);

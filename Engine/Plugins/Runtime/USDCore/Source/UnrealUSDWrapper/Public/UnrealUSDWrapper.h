@@ -148,6 +148,21 @@ enum class EUsdRootMotionHandling : uint8
 	UseMotionFromSkeleton
 };
 
+/** Stage option on how to handle geometry caches in stage workflow */
+UENUM()
+enum class EGeometryCacheImport : uint8
+{
+	// Never imported (no persistent assets); always streamed from the USD stage
+	Never,
+
+	// Imported on stage load; played back from the persistent assets
+	OnLoad,
+
+	// Imported on save; geometry caches are streamed from the stage until they are saved. 
+	// Afterwards they are played back from the persistent assets
+	OnSave
+};
+
 /** Corresponds to pxr::UsdListPosition, refer to the USD SDK documentation */
 UENUM()
 enum class EUsdListPosition : uint8

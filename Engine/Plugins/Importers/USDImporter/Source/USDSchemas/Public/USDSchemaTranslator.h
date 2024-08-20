@@ -224,6 +224,9 @@ struct USDSCHEMAS_API FUsdSchemaTranslationContext : public TSharedFromThis<FUsd
 	/** Describes what to add to the root bone animation within generated AnimSequences, if anything */
 	EUsdRootMotionHandling RootMotionHandling = EUsdRootMotionHandling::NoAdditionalRootMotion;
 
+	/** How geometry caches are handled in the stage workflow */
+	EGeometryCacheImport GeometryCacheImport = EGeometryCacheImport::Never;
+
 	/** Subdivision level to use for all subdivision meshes on the opened stage. 0 means "don't subdivide" */
 	int32 SubdivisionLevel = 0;
 

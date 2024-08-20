@@ -100,6 +100,7 @@ protected:
 	void FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder);
 	void FillSelectionSubMenu(FMenuBuilder& MenuBuilder);
 	void FillNaniteThresholdSubMenu(FMenuBuilder& MenuBuilder);
+	void FillGeometryCacheImportSubMenu(FMenuBuilder& MenuBuilder);
 
 	void OnLayerIsolated(const UE::FSdfLayer& IsolatedLayer);
 

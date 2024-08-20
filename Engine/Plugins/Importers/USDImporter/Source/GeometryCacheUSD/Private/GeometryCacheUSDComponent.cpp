@@ -34,11 +34,7 @@ void UGeometryCacheUsdComponent::OnRegister()
 		}
 	}
 
-	ClearTrackData();
-	SetupTrackData();
-
-	// Skip code for UGeometryCacheComponent::OnRegister
-	UMeshComponent::OnRegister();
+	UGeometryCacheComponent::OnRegister();
 }
 
 void UGeometryCacheUsdComponent::OnUnregister()
@@ -54,8 +50,5 @@ void UGeometryCacheUsdComponent::OnUnregister()
 		}
 	}
 
-	ClearTrackData();
-
-	// Skip code for UGeometryCacheComponent::OnUnregister
-	UMeshComponent::OnUnregister();
+	UGeometryCacheComponent::OnUnregister();
 }

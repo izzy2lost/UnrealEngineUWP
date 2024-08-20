@@ -1106,6 +1106,12 @@ void SUsdStage::FillOptionsMenu(FMenuBuilder& MenuBuilder)
 			LOCTEXT("InterpolationType_ToolTip", "Whether to interpolate between time samples linearly or with 'held' (i.e. constant) interpolation"),
 			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillInterpolationTypeSubMenu)
 		);
+
+		MenuBuilder.AddSubMenu(
+			LOCTEXT("GeometryCacheImport", "Geometry Cache Import"),
+			LOCTEXT("GeometryCacheImport_ToolTip", "When to convert geometry caches to persistent assets (in stage workflow)"),
+			FNewMenuDelegate::CreateSP(this, &SUsdStage::FillGeometryCacheImportSubMenu)
+		);
 	}
 	MenuBuilder.EndSection();
 
@@ -2096,6 +2102,142 @@ void SUsdStage::FillInterpolationTypeSubMenu(FMenuBuilder& MenuBuilder)
 					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
 					{
 						return StageActor->InterpolationType == EUsdInterpolationType::Held;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+}
+
+void SUsdStage::FillGeometryCacheImportSubMenu(FMenuBuilder& MenuBuilder)
+{
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportNever", "Never"),
+		LOCTEXT("ImportNever_ToolTip", "Geometry Caches are not imported as persistent assets and are always streamed from the stage instead."),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportNever", "Set USD stage actor '{0}' to not import geometry caches"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::Never);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::Never;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportOnLoad", "On Load"),
+		LOCTEXT(
+			"ImportOnLoad_ToolTip",
+			"Geometry Caches are imported as persistents assets on stage load and played back from them."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportOnLoad", "Set USD stage actor '{0}' to import geometry caches on stage load"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::OnLoad);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::OnLoad;
+					}
+					return false;
+				}
+			)
+		),
+		NAME_None,
+		EUserInterfaceActionType::RadioButton
+	);
+
+	MenuBuilder.AddMenuEntry(
+		LOCTEXT("ImportOnSave", "On Save"),
+		LOCTEXT(
+			"ImportOnSave_ToolTip",
+			"Geometry Caches are streamed from the stage until they are saved at which time they will be imported as persistent assets "
+			"and played back from them instead."
+		),
+		FSlateIcon(),
+		FUIAction(
+			FExecuteAction::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						FScopedTransaction Transaction(FText::Format(
+							LOCTEXT("SetGeometryCacheImportOnSave", "Set USD stage actor '{0}' to import geometry caches on save"),
+							FText::FromString(StageActor->GetActorLabel())
+						));
+
+						// c.f. comment in SUsdStage::FillCollapsingSubMenu
+						TGuardValue<bool> MaintainSelectionGuard(bUpdatingViewportSelection, true);
+
+						StageActor->SetGeometryCacheImport(EGeometryCacheImport::OnSave);
+						if (StageActor->IsTemplate())
+						{
+							StageActor->SaveConfig();
+						}
+					}
+				}
+			),
+			FCanExecuteAction{},
+			FIsActionChecked::CreateLambda(
+				[this]()
+				{
+					if (AUsdStageActor* StageActor = GetStageActorOrCDO())
+					{
+						return StageActor->GeometryCacheImport == EGeometryCacheImport::OnSave;
 					}
 					return false;
 				}

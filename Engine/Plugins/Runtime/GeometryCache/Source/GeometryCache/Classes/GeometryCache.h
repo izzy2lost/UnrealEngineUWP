@@ -3,6 +3,7 @@
 
 #include "Interfaces/Interface_AssetUserData.h"
 #include "RenderCommandFence.h"
+#include "UObject/ObjectSaveContext.h"
 
 #include "GeometryCache.generated.h"
 
@@ -22,6 +23,7 @@ class GEOMETRYCACHE_API UGeometryCache : public UObject, public IInterface_Asset
 	GENERATED_UCLASS_BODY()
 public:
 	//~ Begin UObject Interface.
+	virtual void PreSave(FObjectPreSaveContext SaveContext) override;
 	virtual void Serialize(FArchive& Ar) override;
 	virtual void PostInitProperties() override;
 	virtual FString GetDesc() override;
@@ -99,6 +101,9 @@ public:
 	virtual UAssetUserData* GetAssetUserDataOfClass(TSubclassOf<UAssetUserData> InUserDataClass) override;
 	virtual const TArray<UAssetUserData*>* GetAssetUserDataArray() const override;
 	//~ End IInterface_AssetUserData Interface
+
+	DECLARE_DELEGATE_OneParam(FOnPreSave, UGeometryCache*);
+	FOnPreSave OnPreSave;
 
 private:
 	/** A fence which is used to keep track of the rendering thread releasing the geometry cache resources. */

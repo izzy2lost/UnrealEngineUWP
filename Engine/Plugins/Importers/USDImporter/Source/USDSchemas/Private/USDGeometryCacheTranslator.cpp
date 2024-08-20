@@ -67,15 +67,6 @@ static FAutoConsoleVariableRef CVarEnableSubdiv(
 		 "StaticMeshes")
 );
 
-static bool GForceImport = true;
-static FAutoConsoleVariableRef CVarForceImport(
-	TEXT("USD.GeometryCache.ForceImport"),
-	GForceImport,
-	TEXT(
-		"Whether to immediately cache all geometry cache frames into the asset when the stage opens, acting like a fully imported Geometry Cache asset"
-	)
-);
-
 namespace UsdGeometryCacheTranslatorImpl
 {
 	bool ProcessGeometryCacheMaterials(
@@ -405,6 +396,16 @@ namespace UsdGeometryCacheTranslatorImpl
 		return StreamableTrack;
 	}
 
+	void FillGeometryCacheTracks(
+		const FString& RootPrimPath,
+		const TArray<UE::FSdfPath>& MeshPrims,
+		const TArray<int32>& MaterialOffsets,
+		TSharedRef<FUsdSchemaTranslationContext> Context,
+		UGeometryCache* GeometryCache
+	);
+
+	void FinalizeGeometryCache(UGeometryCache* GeometryCache);
+
 	UGeometryCache* CreateGeometryCache(
 		const UE::FUsdPrim& RootPrim,
 		const FMeshDescription& MeshDescription,
@@ -423,15 +424,15 @@ namespace UsdGeometryCacheTranslatorImpl
 		FSHAHash MeshHash = FStaticMeshOperations::ComputeSHAHash(MeshDescription);
 		SHA1.Update(&MeshHash.Hash[0], sizeof(MeshHash.Hash));
 
-		const bool bIsImporting = GForceImport || Context->bIsImporting;
+		const bool bIsImporting = Context->bIsImporting || Context->GeometryCacheImport == EGeometryCacheImport::OnLoad;
 
 		// Frame rate must be taken into account as well since different frame rates must produce different sampling in the tracks
 		SHA1.Update(reinterpret_cast<uint8*>(&Args.FramesPerSecond), sizeof(Args.FramesPerSecond));
 		SHA1.Update(reinterpret_cast<uint8*>(&Args.StartFrame), sizeof(Args.StartFrame));
 		SHA1.Update(reinterpret_cast<uint8*>(&Args.EndFrame), sizeof(Args.EndFrame));
 
-		// Track type depends on if it's importing or not. Import needs to generate a persistent asset with all the frames already sampled
-		SHA1.Update(reinterpret_cast<const uint8*>(&bIsImporting), sizeof(bIsImporting));
+		// Track type depends on how geometry caches are handled. Import needs to generate a persistent asset with all the frames already sampled
+		SHA1.Update(reinterpret_cast<const uint8*>(&Context->GeometryCacheImport), sizeof(Context->GeometryCacheImport));
 		SHA1.Final();
 
 		FSHAHash GeoCacheHash;
@@ -440,15 +441,69 @@ namespace UsdGeometryCacheTranslatorImpl
 
 		const FString DesiredName = FPaths::GetBaseFilename(RootPrimPath);
 
+		// In Never import mode, make the geometry cache transient so it doesn't get saved to disk. It will get recreated since it's lightweight.
+		EObjectFlags ObjectFlags = Context->ObjectFlags;
+		if (Context->GeometryCacheImport == EGeometryCacheImport::Never)
+		{
+			ObjectFlags |= RF_Transient;
+		}
+
 		UGeometryCache* GeometryCache = Context->UsdAssetCache->GetOrCreateCachedAsset<UGeometryCache>(
 			PrefixedGeoCacheHash,
 			DesiredName,
-			Context->ObjectFlags,
+			ObjectFlags,
 			&bOutIsNew
 		);
 
 		if (GeometryCache && bOutIsNew)
 		{
+			if (Context->GeometryCacheImport == EGeometryCacheImport::OnSave)
+			{
+				// In OnSave import mode, register a PreSave callback to convert the USD tracks to streamable tracks
+				GeometryCache->OnPreSave = UGeometryCache::FOnPreSave::CreateLambda(
+					[MeshPaths, RootPrimPath, MaterialOffsets, Context](UGeometryCache* GeometryCache)
+					{
+						// Convert only if there's any USD tracks
+						bool bHasUsdTracks = false;
+						for (UGeometryCacheTrack* Track : GeometryCache->Tracks)
+						{
+							if (UGeometryCacheTrackUsd* UsdTrack = Cast<UGeometryCacheTrackUsd>(Track))
+							{
+								bHasUsdTracks = true;
+								// Make sure to unregister the USD track from the streamer since it will get replaced with a streamable track
+								UsdTrack->UnregisterStream();
+							}
+						}
+
+						if (!bHasUsdTracks)
+						{
+							return;
+						}
+
+						GeometryCache->Tracks.Reset();
+
+						// Create a track for each mesh to be processed and add it to the GeometryCache
+						for (int32 Index = 0; Index < MeshPaths.Num(); ++Index)
+						{
+							const FString& PrimPath = MeshPaths[Index].GetString();
+							UGeometryCacheTrack* Track = CreateStreamableTrack(GeometryCache, PrimPath);
+							GeometryCache->AddTrack(Track);
+
+							TArray<FMatrix> Mats;
+							Mats.Add(FMatrix::Identity);
+							Mats.Add(FMatrix::Identity);
+
+							TArray<float> MatTimes;
+							MatTimes.Add(0.0f);
+							MatTimes.Add(0.0f);
+							Track->SetMatrixSamples(Mats, MatTimes);
+						}
+
+						FillGeometryCacheTracks(RootPrimPath, MeshPaths, MaterialOffsets, Context, GeometryCache);
+
+						FinalizeGeometryCache(GeometryCache);
+					});
+			}
 			if (!bIsImporting)
 			{
 				// StartOffsetTime is the offset applied to the GeometryCache section on the sequencer track, so not relevant when importing
@@ -931,7 +986,7 @@ void FGeometryCacheCreateAssetsTaskChain::SetupTasks()
 				}
 			}
 
-			const bool bIsImporting = GForceImport || Context->bIsImporting;
+			const bool bIsImporting = Context->bIsImporting || Context->GeometryCacheImport == EGeometryCacheImport::OnLoad;
 
 			// Continue with the import steps
 			return bIsImporting && GeometryCache && bIsNew;
@@ -1014,8 +1069,7 @@ USceneComponent* FUsdGeometryCacheTranslator::CreateComponents()
 			return nullptr;
 		}
 
-		const bool bIsImporting = GForceImport || Context->bIsImporting;
-		SceneComponent = CreateComponentsEx({bIsImporting ? UGeometryCacheComponent::StaticClass() : UGeometryCacheUsdComponent::StaticClass()}, {});
+		SceneComponent = CreateComponentsEx({UGeometryCacheUsdComponent::StaticClass()}, {});
 	}
 	else
 	{
@@ -1178,7 +1232,7 @@ void FUsdGeometryCacheTranslator::UpdateComponents(USceneComponent* SceneCompone
 			UsdGroomTranslatorUtils::SetGroomFromPrim(GetPrim(), *Context->PrimLinkCache, SceneComponent);
 		}
 
-		const bool bIsImporting = GForceImport || Context->bIsImporting;
+		const bool bIsImporting = Context->bIsImporting || Context->GeometryCacheImport == EGeometryCacheImport::OnLoad;
 
 		// Defer to xformable translator to set our transforms, visibility, etc. but only when opening the stage: This will be baked in for import.
 		// Don't go through FUsdGeomMeshTranslator::UpdateComponents as it will want to create a static mesh if PrimPath is an animated mesh prim
