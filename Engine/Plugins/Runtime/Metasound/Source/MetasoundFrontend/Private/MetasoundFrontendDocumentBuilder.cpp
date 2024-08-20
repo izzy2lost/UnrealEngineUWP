@@ -3601,9 +3601,6 @@ bool FMetaSoundFrontendDocumentBuilder::SetGraphInputDataType(FName InputName, F
 		FMetasoundFrontendClassInput& GraphInput = RootGraph.Interface.Inputs[*Index];
 		if (GraphInput.TypeName != DataType)
 		{
-			FMetasoundFrontendLiteral DefaultLiteral;
-			DefaultLiteral.SetFromLiteral(Frontend::IDataTypeRegistry::Get().CreateDefaultLiteral(DataType));
-			GraphInput.FindDefaultChecked(Frontend::DefaultPageID) = DefaultLiteral;
 			GraphInput.TypeName = DataType;
 			GraphInput.ResetDefaults();
 
