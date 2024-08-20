@@ -173,12 +173,49 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Appends a 3D box to the Target Mesh
+	 * Also creates matching simple collision
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendBoxWithCollision(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptSimpleCollision &SimpleCollision,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float DimensionX = 100,
+		float DimensionY = 100,
+		float DimensionZ = 100,
+		int32 StepsX = 0,
+		int32 StepsY = 0,
+		int32 StepsZ = 0,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	 * Appends a 3D box to the Target Mesh with dimensions and origin taken from the input Box
 	 */
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendBoundingBox( 
 		UDynamicMesh* TargetMesh, 
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		FBox Box,
+		int32 StepsX = 0,
+		int32 StepsY = 0,
+		int32 StepsZ = 0,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Appends a 3D box to the Target Mesh with dimensions and origin taken from the input Box
+	 * Also creates matching simple collision
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendBoundingBoxWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		FGeometryScriptPrimitiveOptions PrimitiveOptions,
 		FTransform Transform,
 		FBox Box,
@@ -195,6 +232,24 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendSphereLatLong( 
 		UDynamicMesh* TargetMesh, 
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 50,
+		int32 StepsPhi = 10,
+		int32 StepsTheta = 16,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Center,
+		UGeometryScriptDebug* Debug = nullptr);
+	
+	/**
+	* Appends a 3D Sphere triangulated using latitude/longitude topology to the Target Mesh.
+	* Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	* matching the behavior of the physics system -- specifically, it will scale the sphere radius by the smallest axis scale.
+	*/
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendSphereLatLongWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		FGeometryScriptPrimitiveOptions PrimitiveOptions,
 		FTransform Transform,
 		float Radius = 50,
@@ -220,12 +275,51 @@ public:
 		UGeometryScriptDebug* Debug = nullptr);
 
 	/**
+	 * Appends a 3D sphere triangulated using box topology to the Target Mesh.
+	 * Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	 * matching the behavior of the physics system -- specifically, it will scale the sphere radius by the smallest axis scale.
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta = (ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh*
+	AppendSphereBoxWithCollision(
+		UDynamicMesh* TargetMesh,
+		FGeometryScriptSimpleCollision& SimpleCollision,
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 50,
+		int32 StepsX = 6,
+		int32 StepsY = 6,
+		int32 StepsZ = 6,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Center,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
 	* Appends a 3D Capsule to the Target Mesh.
 	*/ 
 	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	AppendCapsule( 
 		UDynamicMesh* TargetMesh, 
+		FGeometryScriptPrimitiveOptions PrimitiveOptions,
+		FTransform Transform,
+		float Radius = 30,
+		float LineLength = 75,
+		int32 HemisphereSteps = 5,
+		int32 CircleSteps = 8,
+		int32 SegmentSteps = 0,
+		EGeometryScriptPrimitiveOriginMode Origin = EGeometryScriptPrimitiveOriginMode::Base,
+		UGeometryScriptDebug* Debug = nullptr);
+
+	/**
+	 * Appends a 3D Capsule to the Target Mesh.
+	 * Also creates matching simple collision. Note: If transform has non-uniform scale, collision shape will be a uniform-scale approximation
+	 * matching the behavior of the physics system -- specifically, it will scale the radius by the larger of the X, Y axis scales, and the length by the Z axis scale
+	*/ 
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Primitives", meta=(ScriptMethod))
+	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
+	AppendCapsuleWithCollision( 
+		UDynamicMesh* TargetMesh, 
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		FGeometryScriptPrimitiveOptions PrimitiveOptions,
 		FTransform Transform,
 		float Radius = 30,
