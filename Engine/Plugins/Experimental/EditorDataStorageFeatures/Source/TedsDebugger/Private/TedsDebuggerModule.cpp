@@ -67,30 +67,6 @@ TSharedRef<SDockTab> FTedsDebuggerModule::OpenTedsDebuggerTab(const FSpawnTabArg
 	
 	return MajorTab;
 }
-
-void FTedsDebuggerModule::NavigateToRow(RowHandle InRow) const
-{
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-
-	if (!Registry)
-	{
-		return;
-	}
-	
-	// If the debugger isn't already open, open it
-	if(!TedsDebuggerInstance.IsValid())
-	{
-		FGlobalTabmanager::Get()->TryInvokeTab(Private::TedsDebuggerTableName);
-	}
-
-	TSharedPtr<STedsDebugger> TedsDebuggerPinned = TedsDebuggerInstance.Pin();
-	if(!TedsDebuggerPinned)
-	{
-		return;
-	}
-
-	TedsDebuggerPinned->NavigateToRow(InRow);
-}
 } // namespace UE::Editor::DataStorage::Debug
 
 IMPLEMENT_MODULE(UE::Editor::DataStorage::Debug::FTedsDebuggerModule, TedsDebugger);

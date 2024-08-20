@@ -48,6 +48,7 @@ namespace UE::Editor::DataStorage
 					[
 						SAssignNew(TableViewer, STedsTableViewer)
 						.QueryStack(RowQueryStack)
+						.EmptyRowsMessage(LOCTEXT("EmptyRowsMessage", "The provided query has no results."))
 						.OnSelectionChanged(STedsTableViewer::FOnSelectionChanged::CreateLambda(
 							[this](RowHandle SelectedRow)
 								{

@@ -57,6 +57,10 @@ namespace UE::Editor::DataStorage
 		// The selection mode for the table viewer (single/multi etc)
 		SLATE_ARGUMENT(ESelectionMode::Type, ListSelectionMode)
 
+		// The message to show in place of the table viewer when there are no rows provided by the current query stack
+		// Empty = simply show the column headers instead of a message
+		SLATE_ATTRIBUTE(FText, EmptyRowsMessage)
+
 		SLATE_END_ARGS()
 
 	public:
@@ -105,5 +109,8 @@ namespace UE::Editor::DataStorage
 
 		// Wrapper Teds Widget around our contents so we can use Teds columns to specify behavior
 		TSharedPtr<STedsWidget> TedsWidget;
+
+		// The message to show in place of the table viewer when there are no rows provided by the current query stack
+		TAttribute<FText> EmptyRowsMessage;
 	};
 }

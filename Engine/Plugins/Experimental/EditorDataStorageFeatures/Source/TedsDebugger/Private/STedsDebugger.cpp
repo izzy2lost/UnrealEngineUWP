@@ -21,7 +21,6 @@ namespace UE::Editor::DataStorage::Debug
 	namespace Private
 	{
 		FName QueryEditorToolTabName = TEXT("TEDS Query Editor");
-		FName TableViewerToolTabName = TEXT("TEDS Table Viewer");
 		FName ToolbarTabName = TEXT("TEDS Debugger Toolbar");
 	}
 
@@ -64,7 +63,6 @@ void STedsDebugger::Construct(const FArguments& InArgs, const TSharedRef<SDockTa
 			(
 				FTabManager::NewStack()
 					->AddTab(Private::QueryEditorToolTabName, ETabState::OpenedTab)
-					->AddTab(Private::TableViewerToolTabName, ETabState::OpenedTab)
 			)
 		)
 	);
@@ -157,53 +155,6 @@ TSharedRef<SDockTab> STedsDebugger::SpawnQueryEditorTab(const FSpawnTabArgs& Arg
 	return DockTab;
 }
 
-TSharedRef<SDockTab> STedsDebugger::SpawnTableViewerTab(const FSpawnTabArgs& Args)
-{
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-	checkf(Registry, TEXT("Unable to initialize the table viewer before TEDS is initialized."));
-
-	using namespace TypedElementQueryBuilder;
-
-	// The TEDS-Debugger will show all rows with a label
-	TypedElementDataStorage::FQueryDescription RowQueryDescription =
-						Select()
-						.Where()
-							.All<FTypedElementLabelColumn>()
-						.Compile();
-
-	// TEDS-Debugger TODO: Currently uses a pre-determined initial set of columns, how can we drive this by the rows shown or let the user pick?
-	TypedElementDataStorage::FQueryDescription ColumnQueryDescription =
-						Select()
-							.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementSelectionColumn, FTypedElementRowReferenceColumn>()
-						.Compile();
-
-	TableViewerQuery = Registry->GetMutableDataStorage()->RegisterQuery(MoveTemp(ColumnQueryDescription));
-
-	FSceneOutlinerInitializationOptions InitOptions;
-	InitOptions.bShowHeaderRow = true;
-	InitOptions.FilterBarOptions.bHasFilterBar = true;
-	InitOptions.OutlinerIdentifier = "TedsDebugger.TableViewer";
-
-	FTedsOutlinerParams Params(nullptr);
-	Params.QueryDescription = RowQueryDescription;
-	Params.bUseDefaultTedsFilters = true;
-	Params.HierarchyData = TOptional<FTedsOutlinerHierarchyData>(); // We don't want to show hierarchies in the debugger
-	Params.CellWidgetPurposes = TArray<FName>{TEXT("General.Cell")};
-	
-	FTedsOutlinerModule& TedsOutlinerModule = FModuleManager::GetModuleChecked<FTedsOutlinerModule>("TedsOutliner");
-	
-	TSharedRef<ISceneOutliner> TedsOutliner = TedsOutlinerModule.CreateTedsOutliner(InitOptions, Params, TableViewerQuery);
-
-	// Store an instance of the table viewer
-	TableViewerInstance = TedsOutliner;
-	
-	return SNew(SDockTab)
-		.TabRole(ETabRole::NomadTab)
-		[
-			TedsOutliner
-		];
-}
-
 void STedsDebugger::RegisterTabSpawners()
 {
 	const TSharedRef<FWorkspaceItem> AppMenuGroup =
@@ -223,60 +174,8 @@ void STedsDebugger::RegisterTabSpawners()
 		.SetDisplayName(LOCTEXT("TedsDebugger_QueryEditorDisplayName", "Query Editor"))
 		.SetTooltipText(LOCTEXT("TedsDebugger_QueryEditorToolTip", "Opens the TEDS Query Editor"))
 		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "Debug"));
-	
-	TabManager->RegisterTabSpawner(
-		Private::TableViewerToolTabName,
-		FOnSpawnTab::CreateRaw(this, &STedsDebugger::SpawnTableViewerTab))
-		.SetGroup(AppMenuGroup)
-		.SetDisplayName(LOCTEXT("TedsDebugger_TableViewerDisplayName", "Table Viewer"))
-		.SetTooltipText(LOCTEXT("TedsDebugger_TableViewerToolTip", "Opens the TEDS Table Viewer"))
-		.SetIcon(FSlateIcon(FAppStyle::GetAppStyleSetName(), "LevelEditor.Tabs.Outliner"));
 }
 
-void STedsDebugger::NavigateToRow(TypedElementDataStorage::RowHandle InRow) const
-{
-	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
-
-	if (!Registry)
-	{
-		return;
-	}
-	
-	// If the debugger isn't already open, open it
-	if (!TableViewerInstance.IsValid())
-	{
-		TabManager->TryInvokeTab(Private::TableViewerToolTabName);
-	}
-
-	TSharedPtr<ISceneOutliner> TableViewerPinned = TableViewerInstance.Pin();
-	if (!TableViewerPinned)
-	{
-		return;
-	}
-
-	// If the item isn't currently present in the debugger, try disabling all filters to make it show up
-	if (!TableViewerPinned->GetTreeItem(InRow))
-	{
-		TableViewerPinned->DisableAllFilterBarFilters(/** bRemove */ false);
-	}
-
-	// Defer the actual navigation by one tick to give the outliner a chance to update its items in case any filters were disabled
-	FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([TableViewerPinned, InRow](float DeltaTime)
-	{
-		// Find the item for this row, select it and scroll to view it
-		if (FSceneOutlinerTreeItemPtr TreeItem = TableViewerPinned->GetTreeItem(InRow))
-		{
-			TableViewerPinned->SetSelection([TreeItem](ISceneOutlinerTreeItem& Item)
-			{
-				return Item.GetID() == TreeItem->GetID();
-			});
-			
-			TableViewerPinned->FrameSelectedItems();
-		}
-		
-		return false;
-	}));
-}
 } // namespace UE::Editor::DataStorage::Debug
 
 #undef LOCTEXT_NAMESPACE

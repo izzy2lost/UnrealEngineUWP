@@ -18,6 +18,7 @@ namespace UE::Editor::DataStorage
 	void STedsTableViewer::Construct(const FArguments& InArgs)
 	{
 		OnSelectionChanged = InArgs._OnSelectionChanged;
+		EmptyRowsMessage = InArgs._EmptyRowsMessage;
 		
 		Model = MakeShared<FTedsTableViewerModel>(InArgs._QueryStack, InArgs._Columns, InArgs._CellWidgetPurposes,
 			FTedsTableViewerModel::FIsItemVisible::CreateSP(this, &STedsTableViewer::IsItemVisible));
@@ -86,8 +87,9 @@ namespace UE::Editor::DataStorage
 	void STedsTableViewer::AssignChildSlot()
 	{
 		TSharedPtr<SWidget> ContentWidget;
-		
-		if(Model->GetRowCount() == 0)
+
+		// If there are no rows and the table viewer wants to show a message
+		if(Model->GetRowCount() == 0 && EmptyRowsMessage.IsSet())
 		{
 			ContentWidget = 
 				SNew(SBox)
@@ -95,7 +97,7 @@ namespace UE::Editor::DataStorage
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-							.Text(LOCTEXT("EmptyTableViewerQueryText", "The input query has no results"))
+							.Text(EmptyRowsMessage)
 					];
 		}
 		else if(Model->GetColumnCount() == 0)
@@ -106,7 +108,7 @@ namespace UE::Editor::DataStorage
 					.VAlign(VAlign_Center)
 					[
 						SNew(STextBlock)
-							.Text(LOCTEXT("EmptyTableViewerColumnsText", "There were no columns specified to display"))
+							.Text(LOCTEXT("EmptyTableViewerColumnsText", "No columns found to display."))
 					];
 		}
 		else

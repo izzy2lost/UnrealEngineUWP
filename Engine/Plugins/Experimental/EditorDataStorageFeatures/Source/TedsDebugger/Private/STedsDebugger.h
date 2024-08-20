@@ -33,13 +33,9 @@ namespace UE::Editor::DataStorage
 			* @param ConstructUnderWindow The window in which this widget is being constructed.
 			*/
 			void Construct(const FArguments& InArgs, const TSharedRef<SDockTab>& ConstructUnderMajorTab, const TSharedPtr<SWindow>& ConstructUnderWindow);
-
-			void NavigateToRow(RowHandle InRow) const;
-	
 		private:
 			TSharedRef<SDockTab> SpawnToolbar(const FSpawnTabArgs& Args);
 			TSharedRef<SDockTab> SpawnQueryEditorTab(const FSpawnTabArgs& Args);
-			TSharedRef<SDockTab> SpawnTableViewerTab(const FSpawnTabArgs& Args);
 			void FillWindowMenu( FMenuBuilder& MenuBuilder);
 
 			void RegisterTabSpawners();
@@ -51,7 +47,6 @@ namespace UE::Editor::DataStorage
 
 			// Table Viewer
 			QueryHandle TableViewerQuery;
-			TWeakPtr<ISceneOutliner> TableViewerInstance;
 
 			// Query Editor
 			TUniquePtr<QueryEditor::FTedsQueryEditorModel> QueryEditorModel;

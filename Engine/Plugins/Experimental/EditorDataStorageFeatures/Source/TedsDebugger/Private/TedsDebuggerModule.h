@@ -31,9 +31,6 @@ namespace UE::Editor::DataStorage
 			virtual void StartupModule() override;
 			virtual void ShutdownModule() override;
 
-			// Open the TEDS Debugger if not already open, and navigate to the given row in the table viewer tab
-			void NavigateToRow(RowHandle InRow) const;
-
 		private:
 			void RegisterTabSpawners();
 			void UnregisterTabSpawners() const;

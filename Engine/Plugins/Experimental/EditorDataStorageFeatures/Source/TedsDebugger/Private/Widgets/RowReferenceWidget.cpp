@@ -49,10 +49,6 @@ namespace UE::Editor::DataStorage::Debug::Private
 
 			return;
 		}
-
-		// If it wasn't found in the table viewer owning this widget, navigate to it in the global TEDS debugger
-		Debug::FTedsDebuggerModule& TedsDebuggerModule = FModuleManager::GetModuleChecked<Debug::FTedsDebuggerModule>("TedsDebugger");
-		TedsDebuggerModule.NavigateToRow(TargetRowHandle);
 	}
 	
 	void CreateInternalWidget(const TWeakPtr<SWidget>& InWidget, RowHandle UiRow, RowHandle TargetRow)
