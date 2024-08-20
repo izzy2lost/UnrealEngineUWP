@@ -14,6 +14,7 @@ class FPropertyAnimatorEditorModule : public IModuleInterface
 public:
 	//~ Begin IModuleInterface
 	virtual void StartupModule() override;
+	virtual void ShutdownModule() override;
 	//~ End IModuleInterface
 
 	template<typename InCurveChannelType>

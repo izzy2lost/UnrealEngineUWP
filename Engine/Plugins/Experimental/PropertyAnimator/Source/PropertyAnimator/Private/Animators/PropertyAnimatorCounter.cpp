@@ -206,6 +206,11 @@ FString UPropertyAnimatorCounter::FormatNumber(double InNumber) const
 }
 
 #if WITH_EDITOR
+FName UPropertyAnimatorCounter::GetUseCustomFormatPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCounter, bUseCustomFormat);
+}
+
 void UPropertyAnimatorCounter::PostEditChangeProperty(FPropertyChangedEvent& InPropertyChangedEvent)
 {
 	Super::PostEditChangeProperty(InPropertyChangedEvent);

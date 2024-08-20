@@ -99,6 +99,10 @@ class UPropertyAnimatorCounter : public UPropertyAnimatorCoreBase
 public:
 	static constexpr const TCHAR* DefaultAnimatorName = TEXT("Counter");
 
+#if WITH_EDITOR
+	PROPERTYANIMATOR_API static FName GetUseCustomFormatPropertyName();
+#endif
+
 	UPropertyAnimatorCounter();
 
 	void SetDisplayPattern(const FText& InPattern);
