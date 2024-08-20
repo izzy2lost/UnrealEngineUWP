@@ -5,16 +5,20 @@
 #include "Sound/SoundWave.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Audio.h"
+#include "AudioCompressionSettingsUtils.h"
 #include "ISoundWaveCloudStreaming.h"
+#include "Interfaces/IAudioFormat.h"
 
 namespace Audio
 {
-	bool ShouldAllowPlatformSpecificFormats()
+	static bool ShouldAllowHardwareFormats()
 	{
+		/** AudioLink allows other audio engines to take control of the hardware
+		 *  That prevents us creating hardware codecs in most cases so disable them here */
 		static bool IsAudioLinkEnabled = []() -> bool
 		{
-			bool bAvailable = IModularFeatures::Get().IsModularFeatureAvailable(TEXT("AudioLink Factory"));
-			UE_CLOG(bAvailable,LogAudio, Display, TEXT("AudioLink is enabled, disabling platform specific AudioFormats."));
+			const bool bAvailable = IModularFeatures::Get().IsModularFeatureAvailable(TEXT("AudioLink Factory"));
+			UE_CLOG(bAvailable,LogAudio, Display, TEXT("AudioLink is enabled, disabling hardware AudioFormats."));
 			return bAvailable;
 		}();
 		return !IsAudioLinkEnabled;
@@ -45,35 +49,129 @@ namespace Audio
 #endif // WITH_EDITORONLY_DATA
 		return InCurrentFormat;
 	}
-
-	FAudioFormatSettings::FAudioFormatSettings(FConfigCacheIni* InConfigSystem, const FString& InConfigFilename, const FString& InPlatformIdentifierForLogging)
+	
+	FAudioFormatSettings::FAudioFormatSettings(FConfigCacheIni* InConfigSystem, const FString& InConfigFile, const FString& InIniPlatformName)
+		: IniPlatformName(*InIniPlatformName)
 	{
-		ReadConfiguration(InConfigSystem, InConfigFilename, InPlatformIdentifierForLogging);
+		ReadConfiguration(InConfigSystem, InConfigFile); 
+	}
+
+	// Few things that the platform might define about a wave.
+	struct FAudioFormatSettings::FPlatformWaveState
+	{
+		FName FormatName;
+		FName Name;
+		int32 SampleRate = 0;
+		int32 NumChannels = 0;
+
+		// From a SoundWave.
+		FPlatformWaveState(const USoundWave* InWave,const FAudioFormatSettings* InFormatSettings)
+			: FormatName(ToName(InWave->GetSoundAssetCompressionType()))
+			, Name(InWave->GetName())
+			, SampleRate(InWave->GetImportedSampleRate())
+			, NumChannels(InWave->NumChannels)
+		{
+			// Override sample-rate?
+			if (const FPlatformAudioCookOverrides* CookOverrides = FPlatformCompressionUtilities::GetCookOverrides(*InFormatSettings->IniPlatformName.ToString()) )
+			{
+				if (const float SampleRateOverride = InWave->GetSampleRateForCompressionOverrides(CookOverrides); SampleRateOverride != -1.f)
+				{
+					SampleRate = SampleRateOverride;
+				}
+			}
+
+			// Platform Specific? (resolve to this platforms format)
+			if (FormatName == NAME_PLATFORM_SPECIFIC)
+			{
+				// Convert "PlatformSpecific" into format name, based on our config for this platform.
+				FormatName = InWave->IsStreaming() ?
+					InFormatSettings->PlatformStreamingFormat :
+					InFormatSettings->PlatformFormat;
+			}
+		}
+	};	
+
+	const IAudioFormat* FAudioFormatSettings::FindFormat(const FName& InFormatName) const
+	{
+		// In cache?
+		FScopeLock Lock(&AudioFormatCacheCs);
+		if (const IAudioFormat* const* Found = AudioFormatCache.Find(InFormatName))
+		{
+			return *Found;
+		}
+		
+		// Look it up and cache.
+		const TArray<IAudioFormat*> AllFormats = IModularFeatures::Get().GetModularFeatureImplementations<IAudioFormat>(IAudioFormat::GetModularFeatureName());
+		if (IAudioFormat* const * Found = AllFormats.FindByPredicate
+			([InFormatName](const IAudioFormat* InFormat) -> bool
+			{
+				TArray<FName> SupportedFormats;
+				InFormat->GetSupportedFormats(SupportedFormats);
+				return SupportedFormats.Contains(InFormatName);
+			}))
+		{
+			AudioFormatCache.Add(InFormatName, *Found);
+			return *Found;
+		}
+
+		// Fail.
+		return nullptr;	
+	}
+
+	bool FAudioFormatSettings::IsFormatAllowed(const FPlatformWaveState& InWave) const 
+	{
+		if (const IAudioFormat* Format = FindFormat(InWave.FormatName))
+		{
+			// Platform supported?
+			if (!Format->IsPlatformSupported(IniPlatformName))
+			{
+				UE_LOG(LogAudio, Verbose, TEXT("Wave '%s', format '%s' doesn't support platform '%s'"),
+						*InWave.Name.ToString(), *InWave.FormatName.ToString(), *IniPlatformName.ToString());
+				return false;		
+			}
+			
+			// Sample rate ok? 
+			if (!Format->IsSampleRateSupported(InWave.SampleRate))
+			{
+				UE_LOG(LogAudio, Verbose, TEXT("Wave '%s', format '%s' doesn't support sample-rate: '%d'"),
+					*InWave.Name.ToString(), *InWave.FormatName.ToString(), InWave.SampleRate);
+				return false;	
+			}
+
+			// Channel count ok?
+			if (!Format->IsChannelCountSupported(InWave.NumChannels))
+			{
+				UE_LOG(LogAudio, Verbose, TEXT("Wave '%s', format '%s' doesn't support channel count: '%d'"),
+					*InWave.Name.ToString(), *InWave.FormatName.ToString(), InWave.NumChannels);
+				return false;	
+			}
+
+			// Hardware ok?
+			if (Format->IsHardwareFormat() && !ShouldAllowHardwareFormats())
+			{
+				return false;
+			}
+
+			// Success, passed all tests.
+			return true;
+		}
+
+		// Assume no, if we can't find it registered.
+		return false;
 	}
 
 	FName FAudioFormatSettings::GetWaveFormat(const USoundWave* Wave) const
 	{
-		FName FormatName = Audio::ToName(Wave->GetSoundAssetCompressionType());
-		if (FormatName == Audio::NAME_PLATFORM_SPECIFIC)
+		FPlatformWaveState PlatformWave(Wave, this);
+		
+		// Can we use the one that's defined based on its constraints?
+		if (!IsFormatAllowed(PlatformWave))
 		{
-			if (ShouldAllowPlatformSpecificFormats())
-			{
-				if (Wave->IsStreaming())
-				{
-					FormatName = PlatformStreamingFormat;
-				}
-				else
-				{
-					FormatName = PlatformFormat;
-				}
-			}
-			else
-			{
-				FormatName = FallbackFormat;
-			}
+			PlatformWave.FormatName = FallbackFormat;
 		}
-		FormatName = GetCloudStreamingFormatOverride(FormatName, Wave);
-		return FormatName;
+		
+		PlatformWave.FormatName = GetCloudStreamingFormatOverride(PlatformWave.FormatName, Wave);
+		return PlatformWave.FormatName;
 	}
 
 	void FAudioFormatSettings::GetAllWaveFormats(TArray<FName>& OutFormats) const
@@ -86,7 +184,7 @@ namespace Audio
 		OutHints = WaveFormatModuleHints;
 	}
 
-	void FAudioFormatSettings::ReadConfiguration(FConfigCacheIni* InConfigSystem, const FString& InConfigFilename, const FString& InPlatformIdentifierForLogging)
+	void FAudioFormatSettings::ReadConfiguration(FConfigCacheIni* InConfigSystem, const FString& InConfigFilename)
 	{
 		auto MakePrettyArrayToString = [](const TArray<FName>& InNames) -> FString 
 		{
@@ -178,7 +276,8 @@ namespace Audio
 		}
 
 		UE_LOG(LogAudio, Verbose, TEXT("AudioFormatSettings: TargetName='%s', AllWaveFormats=(%s), Hints=(%s), PlatformFormat='%s', PlatformStreamingFormat='%s', FallbackFormat='%s'"),
-			*InPlatformIdentifierForLogging, *MakePrettyArrayToString(AllWaveFormats), *MakePrettyArrayToString(WaveFormatModuleHints), *PlatformFormat.ToString(), *PlatformStreamingFormat.ToString(), *FallbackFormat.ToString());	
+			*IniPlatformName.ToString(), *MakePrettyArrayToString(AllWaveFormats), *MakePrettyArrayToString(WaveFormatModuleHints), *PlatformFormat.ToString(), *PlatformStreamingFormat.ToString(), *FallbackFormat.ToString());	
 	}
+
 
 }// namespace Audio

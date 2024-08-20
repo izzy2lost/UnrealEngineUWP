@@ -1179,6 +1179,15 @@ public:
 		ImportedSampleRate = InImportedSampleRate;
 #endif
 	}
+	
+	uint32 GetImportedSampleRate() const
+	{
+#if WITH_EDITORONLY_DATA
+		return ImportedSampleRate;
+#else
+		return 0;
+#endif
+	}
 
 #if WITH_EDITORONLY_DATA
 	ENGINE_API void SetTimecodeInfo(const FSoundWaveTimecodeInfo& InTimecode);
@@ -1399,7 +1408,7 @@ public:
 	/*
 	* Returns a sample rate if there is a specific sample rate override for this platform, -1.0 otherwise.
 	*/
-	ENGINE_API float GetSampleRateForCompressionOverrides(const FPlatformAudioCookOverrides* CompressionOverrides);
+	ENGINE_API float GetSampleRateForCompressionOverrides(const FPlatformAudioCookOverrides* CompressionOverrides) const;
 
 	ENGINE_API void SetError(const TCHAR* InErrorMsg=nullptr);
 	ENGINE_API void ResetError();

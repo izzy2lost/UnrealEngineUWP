@@ -60,6 +60,12 @@ public:
 	{
 		OutFormats.Add(NAME_RADA);
 	}
+	
+	virtual TConstArrayView<int32> GetSupportedSampleRates() const override
+	{
+		static constexpr int32 Supported[] = { 48000, 44100, 32000, 24000 };
+		return Supported;
+	}
 
 	static void* RadAlloc(const size_t Bytes)
 	{
