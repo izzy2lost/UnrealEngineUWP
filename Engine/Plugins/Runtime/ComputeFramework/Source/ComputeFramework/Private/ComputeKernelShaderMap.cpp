@@ -666,12 +666,12 @@ FComputeKernelShaderMap::~FComputeKernelShaderMap()
 	AllComputeKernelShaderMaps.RemoveSwap(this);
 }
 
-bool FComputeKernelShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources)
+bool FComputeKernelShaderMap::Serialize(FArchive& Ar)
 {
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump COMPUTEKERNEL_DERIVEDDATA_VER
-	return Super::Serialize(Ar, bInlineShaderResources, false);
+	return Super::Serialize(Ar, {});
 }
 
 #if WITH_EDITOR

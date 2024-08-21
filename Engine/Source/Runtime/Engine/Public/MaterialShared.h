@@ -1539,7 +1539,14 @@ public:
 	ENGINE_API void Release();
 
 	/** Serializes the shader map. */
-	bool Serialize(FArchive& Ar, bool bInlineShaderResources=true, bool bLoadedByCookedMaterial=false, bool bInlineShaderCode=false, const FName& SerializingAsset = NAME_None);
+	UE_DEPRECATED(5.5, "Inlining of shader code into shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
+	// note: FSerializationContext param in the below overload can be defaulted once this is removed, to avoid a bunch of explicit instantiations of FSerializationContext in various callsites
+	bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadedByCookedMaterial = false, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
+	{
+		return Serialize(Ar, { bLoadedByCookedMaterial, SerializingAsset });
+	}
+
+	bool Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */
@@ -2558,7 +2565,7 @@ public:
 	/** Allows to associate the shader resources with the asset for load order. */
 	virtual FName GetAssetPath() const { return NAME_None; };
 
-	/** Some materials may be loaded early - before the shader library - and need their code inlined */
+	UE_DEPRECATED(5.5, "ShouldInlineShaderCode is no longer used when packaging shader maps. If you rely on this for some reason please reach out to the UE rendering team.")
 	virtual bool ShouldInlineShaderCode() const { return false; }
 #endif // WITH_EDITOR
 
@@ -3021,7 +3028,8 @@ public:
 	ENGINE_API virtual void NotifyCompilationFinished() override;
 	/** Allows to associate the shader resources with the asset for load order. */
 	ENGINE_API virtual FName GetAssetPath() const override;
-	ENGINE_API virtual bool ShouldInlineShaderCode() const override;
+	UE_DEPRECATED(5.5, "ShouldInlineShaderCode is no longer used when packaging shader maps. If you rely on this for some reason please reach out to the UE rendering team.")
+	ENGINE_API virtual bool ShouldInlineShaderCode() const override { return false; }
 	ENGINE_API virtual bool IsUsingControlFlow() const override;
 	ENGINE_API virtual bool IsUsingNewHLSLGenerator() const override;
 	ENGINE_API virtual bool CheckInValidStateForCompilation(FMaterialCompiler* Compiler) const override;

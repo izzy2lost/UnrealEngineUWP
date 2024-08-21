@@ -2375,7 +2375,18 @@ public:
 
 	RENDERCORE_API void FinalizeContent();
 	RENDERCORE_API void UnfreezeContent();
-	RENDERCORE_API bool Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode=false, const FName& SerializingAsset = NAME_None);
+	UE_DEPRECATED(5.5, "Inlining of shader code into shadermaps is no longer supported. If you rely on this please reach out to the UE rendering team.")
+	RENDERCORE_API bool Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode = false, const FName& SerializingAsset = NAME_None)
+	{
+		return Serialize(Ar, { bLoadedByCookedMaterial, SerializingAsset });
+	}
+
+	struct FSerializationContext
+	{
+		bool bLoadedByCookedMaterial = false;
+		FName SerializingAsset = NAME_None;
+	};
+	RENDERCORE_API bool Serialize(FArchive& Ar, const FSerializationContext& Ctx);
 
 	EShaderPermutationFlags GetPermutationFlags() const
 	{

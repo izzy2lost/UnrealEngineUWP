@@ -275,7 +275,7 @@ namespace NiagaraCompilationTasksImpl
 
 		TArray<uint8> BinaryData;
 		FMemoryWriter Ar(BinaryData, true);
-		ShaderMap->Serialize(Ar);
+		ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
 		if (!BinaryData.IsEmpty() && !Ar.IsError())
 		{
@@ -294,7 +294,7 @@ namespace NiagaraCompilationTasksImpl
 
 		FMemoryReaderView Ar(SharedBuffer.GetView(), true);
 		FNiagaraShaderMapRef ShaderMap = new FNiagaraShaderMap(FNiagaraShaderMap::WorkerThread);
-		ShaderMap->Serialize(Ar);
+		ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
 		if (Ar.IsError())
 		{

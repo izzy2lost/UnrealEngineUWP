@@ -548,7 +548,7 @@ FGlobalShaderMapSection* FGlobalShaderMapSection::CreateFromArchive(FArchive& Ar
 
 bool FGlobalShaderMapSection::Serialize(FArchive& Ar)
 {
-	return Super::Serialize(Ar, true, false);
+	return Super::Serialize(Ar, FShaderMapBase::FSerializationContext());
 }
 
 TShaderRef<FShader> FGlobalShaderMapSection::GetShader(FShaderType* ShaderType, int32 PermutationId) const

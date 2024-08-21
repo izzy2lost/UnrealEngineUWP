@@ -211,7 +211,7 @@ public:
 #endif
 
 	/** Serializes the shader map. */
-	bool Serialize(FArchive& Ar, bool bInlineShaderResources = true);
+	bool Serialize(FArchive& Ar);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */

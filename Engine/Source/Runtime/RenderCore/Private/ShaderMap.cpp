@@ -235,7 +235,7 @@ void FShaderMapBase::UnfreezeContent()
 
 #define CHECK_SHADERMAP_DEPENDENCIES (WITH_EDITOR || !(UE_BUILD_SHIPPING || UE_BUILD_TEST))
 
-bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode, const FName& SerializingAsset)
+bool FShaderMapBase::Serialize(FArchive& Ar, const FSerializationContext& Ctx)
 {
 	LLM_SCOPE(ELLMTag::Shaders);
 	if (Ar.IsSaving())
@@ -262,7 +262,7 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 
 		bool bShareCode = false;
 #if WITH_EDITOR
-		bShareCode = !bInlineShaderCode && FShaderLibraryCooker::IsShaderLibraryEnabled() && Ar.IsCooking();
+		bShareCode = FShaderLibraryCooker::IsShaderLibraryEnabled() && Ar.IsCooking();
 #endif // WITH_EDITOR
 		Ar << bShareCode;
 #if WITH_EDITOR
@@ -291,7 +291,7 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 		else
 #endif // WITH_EDITOR
 		{
-			Code->Serialize(Ar, bLoadedByCookedMaterial);
+			Code->Serialize(Ar, Ctx.bLoadedByCookedMaterial);
 		}
 	}
 	else
@@ -324,14 +324,14 @@ bool FShaderMapBase::Serialize(FArchive& Ar, bool bInlineShaderResources, bool b
 				{
 					UE_LOG(LogShaders, Error, TEXT("Missing shader resource for hash '%s' for shader platform '%s' in the shader library while serializing asset %s"), *ResourceHash.ToString(),
 						*LexToString(ShaderPlatform),
-						*SerializingAsset.ToString());
+						*Ctx.SerializingAsset.ToString());
 				}
 			}
 		}
 		else
 		{
 			Code = new FShaderMapResourceCode();
-			Code->Serialize(Ar, bLoadedByCookedMaterial);
+			Code->Serialize(Ar, Ctx.bLoadedByCookedMaterial);
 			Resource = new FShaderMapResource_InlineCode(ShaderPlatform, Code);
 		}
 

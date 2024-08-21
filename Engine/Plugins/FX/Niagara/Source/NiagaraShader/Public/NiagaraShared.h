@@ -599,7 +599,13 @@ public:
 #endif // WITH_EDITOR
 
 	/** Serializes the shader map. */
-	NIAGARASHADER_API bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadedByCookedMaterial = false);
+	UE_DEPRECATED(5.5, "Use overload taking a FShaderMapBase::FSerializationContext")
+	NIAGARASHADER_API bool Serialize(FArchive& Ar, bool bInlineShaderResources = true, bool bLoadedByCookedMaterial = false)
+	{
+		return Serialize(Ar, FShaderMapBase::FSerializationContext{ bLoadedByCookedMaterial });
+	}
+
+	NIAGARASHADER_API bool Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx);
 
 #if WITH_EDITOR
 	/** Saves this shader map to the derived data cache. */

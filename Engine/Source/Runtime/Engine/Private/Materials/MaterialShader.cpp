@@ -1867,7 +1867,7 @@ TSharedRef<FMaterialShaderMap::FAsyncLoadContext> FMaterialShaderMap::BeginLoadF
 				FMemoryReaderView Ar(CachedData, /*bIsPersistent*/ true);
 
 				// Deserialize from the cached data
-				ShaderMap->Serialize(Ar);
+				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
 				check(Material != nullptr);
 
@@ -2004,7 +2004,7 @@ void FMaterialShaderMap::SaveToDerivedDataCache(const FMaterialShaderParameters&
 	COOK_STAT(auto Timer = MaterialShaderCookStats::UsageStats.TimeSyncWork());
 	TArray64<uint8> SaveData;
 	FMemoryWriter64 Ar(SaveData, true);
-	Serialize(Ar);
+	Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
 	TRACE_COUNTER_ADD(Shaders_FMaterialShaderMapDDCBytesSent, SaveData.Num());
 	COOK_STAT(Timer.AddMiss(SaveData.Num()));
@@ -2063,7 +2063,7 @@ void FMaterialShaderMap::SaveForRemoteRecompile(FArchive& Ar, const TMap<FString
 			{
 				uint8 bIsValid = 1;
 				Ar << bIsValid;
-				ShaderMap->Serialize(Ar, false);
+				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
 			}
 			else
 			{
@@ -2115,7 +2115,7 @@ void FMaterialShaderMap::LoadForRemoteRecompile(FArchive& Ar, EShaderPlatform Sh
 				TRefCountPtr<FMaterialShaderMap> ShaderMap = new FMaterialShaderMap();
 
 				// serialize the id and the material shader map
-				ShaderMap->Serialize(Ar, false);
+				ShaderMap->Serialize(Ar, FShaderMapBase::FSerializationContext{});
 
 				LoadedShaderMapsDictionary.Add(ShaderMap->GetShaderMapId(), ShaderMap);
 				MaterialShaderMapData.LoadedShaderMapsIds.Add(ShaderMap->GetShaderMapId());
@@ -3604,14 +3604,14 @@ FMaterialShaderMap* FMaterialShaderMap::GetFinalizedClone() const
 }
 #endif // WITH_EDITOR
 
-bool FMaterialShaderMap::Serialize(FArchive& Ar, bool bInlineShaderResources, bool bLoadedByCookedMaterial, bool bInlineShaderCode, const FName& SerializingAsset)
+bool FMaterialShaderMap::Serialize(FArchive& Ar, const FShaderMapBase::FSerializationContext& Ctx)
 {
 	SCOPED_LOADTIMER(FMaterialShaderMap_Serialize);
 	// Note: This is saved to the DDC, not into packages (except when cooked)
 	// Backwards compatibility therefore will not work based on the version of Ar
 	// Instead, just bump MATERIALSHADERMAP_DERIVEDDATA_VER
-	ShaderMapId.Serialize(Ar, bLoadedByCookedMaterial);
-	bool bSerialized = Super::Serialize(Ar, bInlineShaderResources, bLoadedByCookedMaterial, bInlineShaderCode, SerializingAsset);
+	ShaderMapId.Serialize(Ar, Ctx.bLoadedByCookedMaterial);
+	bool bSerialized = Super::Serialize(Ar, Ctx);
 #if STATS
 	// This is an unsavory hack to repair STAT_Shaders_NumShadersLoaded not being calculated right in the superclass because the Content class isn't allowed to have virtual functions atm.
 	// A better way is tracked in UE-127112
