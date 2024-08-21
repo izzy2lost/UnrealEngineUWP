@@ -304,10 +304,5 @@ struct SEQUENCER_API FSequencerUtilities
 	// Functions allowing menus to be built for modifying bindings
 	static void AddChangeClassMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 	static void HandleTemplateActorClassPicked(UClass* ChosenClass, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
-	static void AddConvertBindingMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToConvert, TFunction<void()> OnBindingChanged);
 
-	static void ConvertBindings(const TSharedRef<ISequencer>& InSequencer
-		, const TArray<FSequencerChangeBindingInfo>& InBindingsToConvert
-		, TFunction<FMovieScenePossessable*(FGuid, int32)> InDoConvert
-		, TFunction<void()> InOnBindingChanged);
 };

@@ -881,6 +881,8 @@ public:
 	*/
 	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const { static TArray<TSubclassOf<UMovieSceneCustomBinding>> EmptyArray; return EmptyArray; }
 
+	virtual void RefreshSupportedCustomBindingTypes() {}
+
 	/** @return True if the Sequencer is currently limiting viewport selection to only Sequencer objects. */
 	virtual bool IsViewportSelectionLimited() const = 0;
 

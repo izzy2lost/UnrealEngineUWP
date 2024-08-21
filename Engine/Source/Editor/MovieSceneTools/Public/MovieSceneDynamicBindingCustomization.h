@@ -26,7 +26,7 @@ class MOVIESCENETOOLS_API FMovieSceneDynamicBindingCustomization : public FMovie
 public:
 
 	static TSharedRef<IPropertyTypeCustomization> MakeInstance();
-	static TSharedRef<IPropertyTypeCustomization> MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding);
+	static TSharedRef<IPropertyTypeCustomization> MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding, int32 InBindingIndex=0);
 
 	virtual void CustomizeChildren(TSharedRef<IPropertyHandle> InPropertyHandle, IDetailChildrenBuilder& ChildBuilder, IPropertyTypeCustomizationUtils& CustomizationUtils) override;
 

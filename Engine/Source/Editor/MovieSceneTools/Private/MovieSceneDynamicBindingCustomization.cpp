@@ -33,11 +33,12 @@ TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::M
 	return Instance;
 }
 
-TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding)
+TSharedRef<IPropertyTypeCustomization> FMovieSceneDynamicBindingCustomization::MakeInstance(UMovieScene* InMovieScene, FGuid InObjectBinding, int32 InBindingIndex)
 {
 	TSharedRef<FMovieSceneDynamicBindingCustomization> Instance = MakeShared<FMovieSceneDynamicBindingCustomization>();
 	Instance->EditedMovieScene = InMovieScene;
 	Instance->ObjectBinding = InObjectBinding;
+	Instance->BindingIndex = InBindingIndex;
 	return Instance;
 }
 

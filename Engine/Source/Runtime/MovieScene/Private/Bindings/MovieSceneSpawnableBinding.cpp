@@ -202,9 +202,9 @@ void UMovieSceneSpawnableBindingBase::SetupDefaults(UObject* SpawnedObject, FGui
 	}
 }
 
-const FSlateBrush* UMovieSceneSpawnableBindingBase::GetBindingTrackCustomIconOverlay() const
+FSlateIcon UMovieSceneSpawnableBindingBase::GetBindingTrackCustomIconOverlay() const
 {
-	return FAppStyle::GetBrush("Sequencer.SpawnableIconOverlay");
+	return FSlateIcon(FAppStyle::GetAppStyleSetName(), "Sequencer.SpawnableIconOverlay");
 }
 
 FText UMovieSceneSpawnableBindingBase::GetBindingTrackIconTooltip() const

@@ -139,7 +139,7 @@ const FSlateBrush* FPossessableModel::GetIconOverlayBrush() const
 		{
 			for (const FMovieSceneBindingReference& BindingReference : BindingReferences->GetReferences(ObjectBindingID))
 			{
-				if (const FSlateBrush* CustomBrush = BindingReference.CustomBinding ? BindingReference.CustomBinding->GetBindingTrackCustomIconOverlay() : nullptr)
+				if (const FSlateBrush* CustomBrush = BindingReference.CustomBinding ? BindingReference.CustomBinding->GetBindingTrackCustomIconOverlay().GetIcon() : nullptr)
 				{
 					return CustomBrush;
 				}

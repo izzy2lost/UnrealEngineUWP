@@ -13,7 +13,7 @@
  * Can be overridden in C++ or blueprint to provide an Actor class and to add custom PostSpawnObject behavior such as mesh setup based on an asset.
  * The below UMovieSceneSpawnableActorBinding class implements this base class and replicates the old FMovieSceneSpawnable behavior by using a specified Actor template to spawn an Actor and can be used out of the box.
  */
-UCLASS(Abstract, Blueprintable, MinimalAPI)
+UCLASS(Abstract, MinimalAPI)
 class UMovieSceneSpawnableActorBindingBase
 	: public UMovieSceneSpawnableBindingBase
 {
@@ -86,7 +86,7 @@ protected:
 	MOVIESCENETRACKS_API UClass* GetBoundObjectClass() const override { return GetActorClass(); }
 #if WITH_EDITOR
 	/* MovieSceneCustomBinding overrides*/
-	virtual int32 GetCustomBindingPriority() const override { return 10; }
+	virtual int32 GetCustomBindingPriority() const override { return BaseEnginePriority + 2; }
 #endif
 
 protected:

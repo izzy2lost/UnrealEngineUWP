@@ -25,7 +25,7 @@ struct FSlateBrush;
  * In doing so, they could choose to just override GetSpawnObjectClass, PostSpawnObject, and PreDestroyObject for example to do custom post-spawn setup on a character mesh,
  * or they could choose to fully override SpawnObject and DestroySpawnedObject and do their own custom logic for spawning completely.
  */
-UCLASS(abstract, BlueprintType)
+UCLASS(abstract)
 class MOVIESCENE_API UMovieSceneSpawnableBindingBase
 	: public UMovieSceneCustomBinding
 {
@@ -79,7 +79,7 @@ public:
 #if WITH_EDITOR
 	/* UMovieSceneCustomBinding overrides */
 	virtual	void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene) override;
-	virtual const FSlateBrush* GetBindingTrackCustomIconOverlay() const override;
+	virtual FSlateIcon GetBindingTrackCustomIconOverlay() const override;
 	virtual FText GetBindingTrackIconTooltip() const override;
 #endif
 protected:

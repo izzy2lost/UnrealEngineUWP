@@ -993,6 +993,11 @@ void MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(TArray<const TSubcla
 				continue;
 			}
 #endif
+			// Skip SKEL and REINST classes.
+			if (It->GetName().StartsWith(TEXT("SKEL_")) || It->GetName().StartsWith(TEXT("REINST_")))
+			{
+				continue;
+			}
 			OutCustomBindingTypes.Add(*It);
 		}
 	}// Sort by spawner priority to allow disambiguation for similar object types

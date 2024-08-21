@@ -235,37 +235,9 @@ void FLevelSequenceCustomization::ExtendObjectBindingContextMenu(FMenuBuilder& M
 	
 	if (bShowConvert)
 	{
-		// Binding conversion
-		MenuBuilder.AddSubMenu(
-			LOCTEXT("ConvertBindingLabel", "Convert Selected Binding(s) To..."),
-			LOCTEXT("ConvertBindingLabelTooltip", "Convert selected bindings into another binding type"),
-			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) 
-			{
-				const TSharedPtr<ISequencer> Sequencer = WeakSequencer.Pin();
-				if (!Sequencer.IsValid())
-				{
-					return;
-				}
-
-				UMovieSceneSequence* const Sequence = Sequencer->GetFocusedMovieSceneSequence();
-				if (!IsValid(Sequence))
-				{
-					return;
-				}
-
-				TArray<FSequencerChangeBindingInfo> Bindings;
-				const FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences();
-				for (TViewModelPtr<IObjectBindingExtension> ObjectBindingNode : Sequencer->GetViewModel()->GetSelection()->Outliner.Filter<IObjectBindingExtension>())
-				{
-					int32 BindingIndex = 0;
-					for (const FMovieSceneBindingReference& Reference : BindingReferences->GetReferences(ObjectBindingNode->GetObjectGuid()))
-					{
-						Bindings.Add({ Reference.ID, BindingIndex++ });
-					}
-				}
-
-				FSequencerUtilities::AddConvertBindingMenu(MenuBuilder, Sequencer.ToSharedRef(), Bindings, TFunction<void()>()); 
-			}));
+		// We don't add anything here, but the extension will
+		MenuBuilder.BeginSection("ConvertBinding");
+		MenuBuilder.EndSection();
 	}
 
 	MenuBuilder.BeginSection("Import/Export", LOCTEXT("ImportExportMenuSectionName", "Import/Export"));

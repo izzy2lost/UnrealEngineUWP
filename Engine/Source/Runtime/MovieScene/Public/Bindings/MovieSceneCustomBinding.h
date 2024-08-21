@@ -3,6 +3,8 @@
 #pragma once
 
 #include "MovieSceneSequenceID.h"
+#include "MovieSceneBindingProxy.h"
+#include "Textures/SlateIcon.h"
 #include "MovieSceneCustomBinding.generated.h"
 
 namespace UE
@@ -31,16 +33,42 @@ struct MOVIESCENE_API FMovieSceneBindingResolveResult
 	TObjectPtr<UObject> Object = nullptr;
 };
 
+/*
+* Blueprint-specific resolution context for custom bindings.
+*/
+USTRUCT(BlueprintType)
+struct MOVIESCENE_API FMovieSceneBindingResolveContext
+{
+	GENERATED_BODY()
+
+	/* The world context*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	TObjectPtr<UObject> WorldContext;
+	
+	/* Binding for the bound object currently evaluating this condition if applicable (BindingId will be invalid for conditions on global tracks/sections). */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Default")
+	FMovieSceneBindingProxy Binding;
+};
+
 /**
  * A custom binding. Allows users to define their own binding resolution types, including dynamic 'Replaceable' bindings with previews in editor, as well as Spawnable types.
  */
-UCLASS(abstract, BlueprintType, DefaultToInstanced, EditInlineNew)
+UCLASS(abstract, DefaultToInstanced, EditInlineNew)
 class MOVIESCENE_API UMovieSceneCustomBinding
 	: public UObject
 {
 public:
 
 	GENERATED_BODY()
+
+	static const int32 BaseEnginePriority;
+	static const int32 BaseCustomPriority;
+
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Binding")
+	static int32 GetBaseEnginePriority() { return BaseEnginePriority; }
+
+	UFUNCTION(BlueprintCallable, Category = "Sequencer|Binding")
+	static int32 GetBaseCustomPriority() { return BaseCustomPriority; }
 
 	/* Must be implemented.
 	* Resolve the custom binding based on the passed in context. May return an existing UObject or spawn a new one. 
@@ -55,7 +83,7 @@ public:
 	  * @return Custom binding priority in order to sort the list of custom binding types.
 	  * If several custom binding types support the creation of bindings from the same object types, the one with the highest priority will be picked.
 	  */
-	virtual int32 GetCustomBindingPriority() const { return 0; }
+	virtual int32 GetCustomBindingPriority() const { return BaseEnginePriority; }
 
 	/*
 	* Must be implemented. Called by Sequencer to determine whether this custom binding type supports binding the given object.
@@ -105,7 +133,7 @@ public:
 	/*
 	* Allows the custom binding to optionally provide a custom icon overlay for the object binding track.
 	*/
-	virtual const FSlateBrush* GetBindingTrackCustomIconOverlay() const { return nullptr; }
+	virtual FSlateIcon GetBindingTrackCustomIconOverlay() const { return FSlateIcon(); }
 
 	/*
 	* Allows the custom binding to optionally provide a custom tooltip to show when hovering over the icon area in the object binding track.

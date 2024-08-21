@@ -72,6 +72,9 @@ public:
 	/* Set the property handle to use for customization. Used when using the customization class as a helper. */
 	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle) { PropertyHandle = InPropertyHandle;}
 
+	/* Set the raw data to use for customization. Used when the customization class is used as a helper without a details view. */
+	void SetRawData(const TArray<void*>& InRawData) { PropertyRawData = InRawData; }
+
 protected:
 
 	using FPayloadVariableMap = TMap<FName, FMovieSceneDirectorBlueprintVariableValue, TInlineSetAllocator<8>>;
@@ -285,6 +288,9 @@ protected:
 
 	/** Property utilities for the property we're editing */
 	TSharedPtr<IPropertyUtilities> PropertyUtilities;
+
+	// RawData taken either from the PropertyHandle, or manually passed into the customization for cases this is used as a helper
+	TArray<void*> PropertyRawData;
 
 private:
 

@@ -69,8 +69,4 @@ FMovieSceneBindingResolveResult UMovieSceneReplaceableDirectorBlueprintBinding::
 	return ResolveResult;
 }
 
-UMovieSceneSpawnableBindingBase* UMovieSceneReplaceableDirectorBlueprintBinding::CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene)
-{
-	return UMovieSceneReplaceableBindingBase::CreateInnerSpawnable(SourceObject, OwnerMovieScene);
-}
 #undef LOCTEXT_NAMESPACE

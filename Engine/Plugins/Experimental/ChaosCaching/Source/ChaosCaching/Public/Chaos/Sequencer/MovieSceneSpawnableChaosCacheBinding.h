@@ -32,7 +32,7 @@ public:
 protected:
 
 	// Ensures we override priority of UMovieSceneSpawnableActorBinding
-	int32 GetCustomBindingPriority() const override { return 11; }
+	int32 GetCustomBindingPriority() const override { return BaseCustomPriority; }
 
 };
 

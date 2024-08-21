@@ -27,7 +27,7 @@ class UMovieSceneSpawnableBindingBase;
  * UMovieSceneReplaceableActorBinding as an example is the simplest type of replaceable binding and provides no method for binding at runtime and relies on the LevelSequenceActor's Binding Override 
  * mechanism to bind an actor at runtime.
  */
-UCLASS(Abstract, BlueprintType)
+UCLASS(Abstract)
 class MOVIESCENE_API UMovieSceneReplaceableBindingBase
 	: public UMovieSceneCustomBinding
 {
@@ -42,7 +42,7 @@ public:
 	virtual UClass* GetBoundObjectClass() const override;
 #if WITH_EDITOR
 	virtual	void SetupDefaults(UObject* SpawnedObject, FGuid ObjectBindingId, UMovieScene& OwnerMovieScene) override;
-	virtual const FSlateBrush* GetBindingTrackCustomIconOverlay() const override;
+	virtual FSlateIcon GetBindingTrackCustomIconOverlay() const override;
 	virtual FText GetBindingTrackIconTooltip() const override;
 
 	virtual bool SupportsConversionFromBinding(const FMovieSceneBindingReference& BindingReference, const UObject* SourceObject) const override;

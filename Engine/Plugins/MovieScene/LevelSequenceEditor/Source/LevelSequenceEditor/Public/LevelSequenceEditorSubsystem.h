@@ -23,6 +23,8 @@ struct FMovieScenePasteFoldersParams;
 struct FMovieScenePasteSectionsParams;
 struct FMovieScenePasteTracksParams;
 struct FBakingAnimationKeySettings;
+struct FSequencerChangeBindingInfo;
+struct FMovieScenePossessable;
 
 DECLARE_LOG_CATEGORY_EXTERN(LogLevelSequenceEditor, Log, All);
 
@@ -329,10 +331,25 @@ private:
 
 	void AddAssignActorMenu(FMenuBuilder& MenuBuilder);
 	void AddBindingPropertiesMenu(FMenuBuilder& MenuBuilder);
+	void AddConvertBindingsMenu(FMenuBuilder& MenuBuilder);
+
+	
+	void FillDirectorBlueprintBindingSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType);
+	void PopulateQuickBindSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TSubclassOf<UMovieSceneCustomBinding>& CustomBindingType);
+	void FillBindingClassSubMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged, const TArray<const TSubclassOf<UMovieSceneCustomBinding>>& UserCustomBindingTypes);
+	void ChangeBindingTypes(const TSharedRef<ISequencer>& InSequencer
+		, const TArray<FSequencerChangeBindingInfo>& InBindingsToChange
+		, TFunction<FMovieScenePossessable* (FGuid, int32)> InDoChangeType
+		, TFunction<void()> InOnBindingChanged);
 
 	void AddTrackRowMetadataMenu(FMenuBuilder& MenuBuilder);
 public:
-	void AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder);
+	void AddBindingPropertiesSidebar(FMenuBuilder& MenuBuilder); 
+	
+	/* Creates a menu for changing or converting a binding type. If bConvert is true, it will only show types that state they are able to be converted to from the passed in bindings
+	and will attempt to convert them. If bConvert is false, it will change the binding type and reset to a default binding of that type.*/
+	void AddChangeBindingTypeMenu(FMenuBuilder& MenuBuilder, TSharedRef<ISequencer> Sequencer, const TArray<FSequencerChangeBindingInfo>& BindingsToChange, bool bConvert, TFunction<void()> OnBindingChanged);
+
 private:
 	void OnFinishedChangingLocators(const FPropertyChangedEvent& PropertyChangedEvent, TSharedRef<IDetailsView> DetailsView, FGuid ObjectBindingID);
 

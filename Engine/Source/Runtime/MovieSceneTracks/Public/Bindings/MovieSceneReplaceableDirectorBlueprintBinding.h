@@ -35,7 +35,6 @@ public:
 	FMovieSceneDynamicBinding DynamicBinding;
 
 	// Preview Spawnable Type to use for this replaceable
-	// TODO: Do I want to consider moving this sort of thing to the base class so any replaceable type can choose any other spawnable type?
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Sequencer")
 	TSubclassOf<UMovieSceneSpawnableBindingBase> PreviewSpawnableType;
 
@@ -56,7 +55,5 @@ protected:
 	MOVIESCENETRACKS_API virtual TSubclassOf<UMovieSceneSpawnableBindingBase> GetInnerSpawnableClass() const override { return PreviewSpawnableType; }
 	
 	virtual bool SupportsBindingCreationFromObject(const UObject* SourceObject) const override { return true; }
-
-	virtual UMovieSceneSpawnableBindingBase* CreateInnerSpawnable(UObject* SourceObject, UMovieScene& OwnerMovieScene) override;
 };
 

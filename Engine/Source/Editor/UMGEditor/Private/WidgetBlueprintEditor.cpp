@@ -2378,7 +2378,7 @@ void FWidgetBlueprintEditor::AddDynamicPossessionMenu(FMenuBuilder& MenuBuilder,
 		// Register details customizations for this instance
 		StructureDetailsView->GetDetailsView()->RegisterInstancedCustomPropertyTypeLayout(
 			FMovieSceneDynamicBinding::StaticStruct()->GetFName(),
-			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance, MovieScene, ObjectId));
+			FOnGetPropertyTypeCustomizationInstance::CreateStatic(&FMovieSceneDynamicBindingCustomization::MakeInstance, MovieScene, ObjectId, 0));
 
 		// We can't just show the FMovieSceneDynamicBinding struct in the details view, because Slate only uses
 		// the above details view customization for *properties* (not for the root object). So here we put a copy of

@@ -853,6 +853,8 @@ public:
 	TRange<FFrameNumber> GetRootTimeBounds() const;
 
 	virtual TArrayView<const TSubclassOf<UMovieSceneCustomBinding>> GetSupportedCustomBindingTypes() const override { return SupportedCustomBindingTypes; }
+	
+	virtual void RefreshSupportedCustomBindingTypes() override;
 
 protected:
 

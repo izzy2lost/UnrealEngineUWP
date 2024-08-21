@@ -1602,7 +1602,7 @@ void FSequencer::UpdateSequencerCustomizations(const UMovieSceneSequence* Previo
 	// TODO: Allow customization of which custom bindings are allowed? For now just iterate over all subclasses and sort by priority
 
 	// Cache custom spawnable types
-	MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(SupportedCustomBindingTypes);
+	RefreshSupportedCustomBindingTypes();
 }
 
 void FSequencer::RerunConstructionScripts()
@@ -5250,6 +5250,10 @@ TRange<FFrameNumber> FSequencer::GetRootTimeBounds() const
 	return RootTimeBounds;
 }
 
+void FSequencer::RefreshSupportedCustomBindingTypes()
+{
+	MovieSceneHelpers::GetPrioritySortedCustomBindingTypes(SupportedCustomBindingTypes);
+}
 
 void FSequencer::SetViewRange(TRange<double> NewViewRange, EViewRangeInterpolation Interpolation)
 {
