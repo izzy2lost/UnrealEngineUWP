@@ -1324,6 +1324,8 @@ public:
 
 		RemoveLODCountLimit,
 
+		IntParameterOptionDataTablePartialBackout,
+		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion
 	};

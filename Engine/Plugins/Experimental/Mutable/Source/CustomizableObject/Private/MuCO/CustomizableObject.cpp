@@ -599,12 +599,7 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.ReferenceSkeletalMeshesData;
 
 	SerializeStreamedResources(MemoryWriter, GetPublic(), GetPublic()->StreamedResourceData, bIsCooking);
-
-	for (FCustomizableObjectStreamedResourceData Extension : GetPublic()->StreamedExtensionData)
-	{
-		Extension.GetPath()->Data.Data.Serialize(MemoryWriter);
-	}
-
+	
 	int32 NumReferencedMaterials = LocalModelResources.Materials.Num();
 	MemoryWriter << NumReferencedMaterials;
 
