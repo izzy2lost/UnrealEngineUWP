@@ -5120,6 +5120,7 @@ void USkinnedMeshComponent::SetRenderStatic(bool bNewValue)
 	if (bRenderStatic != bNewValue)
 	{
 		bRenderStatic = bNewValue;
+		PrecachePSOs();
 		MarkRenderStateDirty();
 	}
 }
