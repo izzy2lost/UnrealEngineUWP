@@ -1317,6 +1317,7 @@ FIOSPlatformMisc::EIOSAuthNotificationStatus FIOSPlatformMisc::GetNotificationAu
 
 	// wait for a result, but timeout after 1s
 	dispatch_semaphore_wait(Semaphore, dispatch_time(DISPATCH_TIME_NOW, NSEC_PER_SEC));
+    dispatch_release(Semaphore);
 	return CurrentAuthStatus;
 }
 

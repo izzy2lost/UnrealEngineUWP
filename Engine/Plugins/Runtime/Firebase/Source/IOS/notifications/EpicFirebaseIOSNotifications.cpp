@@ -109,6 +109,7 @@ NSString* KEY_FIREBASE_TOKEN = @"firebasetoken";
         }];
     });
     dispatch_semaphore_wait(updateTokenSemaphore, dispatch_time(DISPATCH_TIME_NOW, Timeout));
+    dispatch_release(updateTokenSemaphore);
 }
 @end
 

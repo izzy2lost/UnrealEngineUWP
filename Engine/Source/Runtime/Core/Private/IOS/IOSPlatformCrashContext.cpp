@@ -83,6 +83,7 @@ void FIOSCrashContext::ConvertMinidump(char const* OutputPath, char const* Input
 		{
 			NSLog(@"****UE4 %@", [Error localizedDescription]);
 		}
+        [CrashLog release];
 	}
 	else
 	{

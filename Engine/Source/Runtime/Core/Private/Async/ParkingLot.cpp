@@ -108,6 +108,8 @@ public:
 
 	static TRefCountPtr<FThread> Get()
 	{
+        // This static will appear as memory leaks when comparing AnsiMalloc and AnsiFree
+        // But since this only grows as new threads created, it won't grow indefinitely
 		static thread_local FThreadLocalData ThreadLocalData;
 		FThreadLocalData& LocalThreadLocalData = ThreadLocalData;
 		if (LIKELY(LocalThreadLocalData.Thread))

@@ -92,6 +92,7 @@ bool FIOSWebAuth::AuthSessionWithURL(const FString &UrlStr, const FString &Schem
 	});
 
 	[SavedAuthSession start];
+    [SavedAuthSession release];
 
 	return bSessionInProgress;
 }
@@ -109,7 +110,7 @@ NSMutableDictionary* MakeSearchDictionary(NSString *EnvironmentName)
 	[SearchDictionary setObject:EncodedIdentifier forKey:(id)kSecAttrAccount];
 	[SearchDictionary setObject:ServiceName forKey:(id)kSecAttrService];
 
-	return SearchDictionary;
+	return [SearchDictionary autorelease];
 }
 
 bool FIOSWebAuth::SaveCredentials(const FString& IdStr, const FString& TokenStr, const FString& EnvironmentNameStr)

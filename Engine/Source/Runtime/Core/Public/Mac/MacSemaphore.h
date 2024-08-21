@@ -18,6 +18,11 @@ public:
 	{
 		checkfSlow(InitialCount >= 0, TEXT("Semaphore's initial count must be non negative value: %d"), InitialCount);
 	}
+    
+    virtual ~FMacSemaphore()
+    {
+        dispatch_release(Semaphore);
+    }
 
 	void Acquire()
 	{
