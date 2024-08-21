@@ -15,11 +15,6 @@ namespace UE::Net
 	class FNetCullDistanceOverrides;
 	class FWorldLocations;
 	struct FRepTagFindInfo;
-
-	namespace Private
-	{
-		class FNetRefHandleManager;
-	}
 }
 
 /**
@@ -293,7 +288,6 @@ private:
 	// Cached state from UpdateCellInfoForObject().
 	FDebugUpdateCellInfo DebugUpdateCellInfo;
 
-	const UE::Net::Private::FNetRefHandleManager*  NetRefHandleManager = nullptr;
 	const UE::Net::FNetCullDistanceOverrides* NetCullDistanceOverrides = nullptr;
 };
 
@@ -302,18 +296,17 @@ private:
  * 
  * This filter is more efficient since it's run before Polling and culls out objects that are not relevant to any connection.
  */
-UCLASS()
+UCLASS(transient, MinimalAPI)
 class UNetObjectGridWorldLocFilter : public UNetObjectGridFilter
 {
 	GENERATED_BODY()
 
 protected:
-
-	virtual void OnInit(const FNetObjectFilterInitParams&) override;
-	virtual void OnDeinit() override;
-	virtual void PreFilter(FNetObjectPreFilteringParams&) override;
-	virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
-	virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
+	IRISCORE_API virtual void OnInit(const FNetObjectFilterInitParams&) override;
+	IRISCORE_API virtual void OnDeinit() override;
+	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
+	IRISCORE_API virtual void UpdateObjectInfo(FPerObjectInfo& PerObjectInfo, const UNetObjectGridFilter::FObjectLocationInfo& ObjectLocationInfo, const UE::Net::FReplicationInstanceProtocol* InstanceProtocol) override;
+	IRISCORE_API virtual bool BuildObjectInfo(uint32 ObjectIndex, FNetObjectFilterAddObjectParams& Params) override;
 
 private:
 

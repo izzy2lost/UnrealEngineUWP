@@ -5,7 +5,6 @@
 #include "Iris/ReplicationSystem/RepTag.h"
 #include "Iris/ReplicationSystem/ReplicationProtocol.h"
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
-#include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 #include "Iris/ReplicationSystem/NetRefHandleManager.h"
 #include "Iris/ReplicationSystem/WorldLocations.h"
 #include "Iris/Core/IrisCsv.h"
@@ -23,14 +22,13 @@ void UNetObjectGridFilter::OnInit(const FNetObjectFilterInitParams& Params)
 
 	PerConnectionInfos.SetNum(Params.MaxConnectionCount + 1);
 
-	NetRefHandleManager = &Params.ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
 	NetCullDistanceOverrides = &Params.ReplicationSystem->GetNetCullDistanceOverrides();
 }
 
 void UNetObjectGridFilter::OnDeinit()
 {
 	Config = nullptr;
-	NetRefHandleManager = nullptr;
+
 	NetCullDistanceOverrides = nullptr;
 
 	PerConnectionInfos.Empty();
@@ -583,6 +581,8 @@ void UNetObjectGridWorldLocFilter::OnInit(const FNetObjectFilterInitParams& Para
 void UNetObjectGridWorldLocFilter::OnDeinit()
 {
 	WorldLocations = nullptr;
+
+	Super::OnDeinit();
 }
 
 void UNetObjectGridWorldLocFilter::PreFilter(FNetObjectPreFilteringParams& Params)

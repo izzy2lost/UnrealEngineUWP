@@ -60,7 +60,6 @@ protected:
 	IRISCORE_API virtual void PreFilter(FNetObjectPreFilteringParams&) override;
 	IRISCORE_API virtual void Filter(FNetObjectFilteringParams&) override;
 
-	const UE::Net::Private::FNetRefHandleManager* NetRefHandleManager = nullptr;
 	TStrongObjectPtr<UNetObjectConnectionFilterConfig> Config;
 	TArray<uint32> LocalToNetRefIndex;
 	TArray<FPerConnectionInfo> PerConnectionInfos;

@@ -2,6 +2,8 @@
 
 #include "Iris/ReplicationSystem/Filtering/NetObjectFilter.h"
 #include "Iris/ReplicationSystem/Filtering/ReplicationFiltering.h"
+#include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/ReplicationSystem/ReplicationSystemInternal.h"
 
 UNetObjectFilter::UNetObjectFilter()
 {
@@ -15,7 +17,7 @@ void UNetObjectFilter::Init(const FNetObjectFilterInitParams& Params)
 		UE::Net::Private::FNetObjectFilteringInfoAccessor FilteringInfoAccessor;
 		FilteringInfos = FilteringInfoAccessor.GetNetObjectFilteringInfos(Params.ReplicationSystem);
 	}
-
+	NetRefHandleManager = &Params.ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
 	OnInit(Params);
 }
 
@@ -24,6 +26,7 @@ void UNetObjectFilter::Deinit()
 	OnDeinit();
 
 	FilteringInfos = TArrayView<FNetObjectFilteringInfo>();
+	NetRefHandleManager = nullptr;
 }
 
 void UNetObjectFilter::MaxInternalNetRefIndexIncreased(UE::Net::Private::FInternalNetRefIndex MaxInternalIndex, TArrayView<FNetObjectFilteringInfo> NewFilterInfoView)
@@ -72,3 +75,7 @@ FNetObjectFilteringInfo* UNetObjectFilter::GetFilteringInfo(uint32 ObjectIndex)
 	return &FilteringInfos[ObjectIndex];
 }
 
+uint32 UNetObjectFilter::GetObjectIndex(UE::Net::FNetRefHandle NetRefHandle) const
+{
+	return NetRefHandleManager->GetInternalIndex(NetRefHandle);
+}

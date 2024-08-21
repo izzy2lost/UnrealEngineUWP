@@ -15,10 +15,12 @@ namespace UE::Net
 	typedef uint32 FNetObjectFilterHandle;
 	struct FReplicationInstanceProtocol;
 	struct FReplicationProtocol;
+	class FNetRefHandle;
 
 	namespace Private
 	{
 		typedef uint32 FInternalNetRefIndex;
+		class FNetRefHandleManager;
 	}
 }
 
@@ -180,7 +182,7 @@ public:
 	/** A new connection has been added. An opportunity for the filter to allocate per connection info. */
 	IRISCORE_API virtual void AddConnection(uint32 ConnectionId);
 
-	/** A new connection has been added. An opportunity for the filter to deallocate per connection info. */
+	/** A new connection has been removed. An opportunity for the filter to deallocate per connection info. */
 	IRISCORE_API virtual void RemoveConnection(uint32 ConnectionId);
 
 	/** A new object want to use this filter. Opportunity to cache some information for it. The info struct passed has been zeroed. Must be overriden. */
@@ -245,6 +247,9 @@ protected:
 	/* Returns the filtering info for this object if it's handled by this filter, nullptr otherwise. */
 	IRISCORE_API FNetObjectFilteringInfo* GetFilteringInfo(uint32 ObjectIndex);
 
+	/* Returns the object index for the given NetRefHandle */
+	IRISCORE_API uint32 GetObjectIndex(UE::Net::FNetRefHandle NetRefHandle) const;
+
 	/* Returns true if the object is assigned to be filtered by this filter.*/
 	inline bool IsObjectFiltered(uint32 ObjectIndex) const;
 
@@ -258,6 +263,8 @@ protected:
 
 	/** The indices of the objects that have this filter set. The indices of set bits correspond to the object indices. */
 	UE::Net::FNetBitArray FilteredObjects;
+
+	const UE::Net::Private::FNetRefHandleManager* NetRefHandleManager = nullptr;
 
 private:
 	ENetFilterTraits FilterTraits = ENetFilterTraits::None;

@@ -15,7 +15,8 @@ void UNetObjectConnectionFilter::SetReplicateToConnection(UE::Net::FNetRefHandle
 		return;
 	}
 
-	const UE::Net::Private::FInternalNetRefIndex ObjectIndex = NetRefHandleManager->GetInternalIndex(RefHandle);
+	const UE::Net::Private::FInternalNetRefIndex ObjectIndex = GetObjectIndex(RefHandle);
+
 	if (ObjectIndex == UE::Net::Private::FNetRefHandleManager::InvalidInternalIndex)
 	{
 		return;
@@ -33,8 +34,6 @@ void UNetObjectConnectionFilter::SetReplicateToConnection(UE::Net::FNetRefHandle
 
 void UNetObjectConnectionFilter::OnInit(const FNetObjectFilterInitParams& Params)
 {
-	NetRefHandleManager = &Params.ReplicationSystem->GetReplicationSystemInternal()->GetNetRefHandleManager();
-
 	MaxInternalIndex = Params.CurrentMaxInternalIndex; 
 
 	Config = TStrongObjectPtr<UNetObjectConnectionFilterConfig>(CastChecked<UNetObjectConnectionFilterConfig>(Params.Config));
@@ -48,7 +47,6 @@ void UNetObjectConnectionFilter::OnInit(const FNetObjectFilterInitParams& Params
 
 void UNetObjectConnectionFilter::OnDeinit()
 {
-	NetRefHandleManager = nullptr;
 	Config = nullptr;
 
 	UsedLocalInfoIndices.Empty();
