@@ -3313,6 +3313,9 @@ export type GetDashboardFeaturesResponse = {
 	/** Show the landing page by default */
 	showLandingPage?: boolean;
 
+	/** Custom landing page route to direct users to */
+	landingPageRoute?: string;
+
 	/** Enable CI functionality */
 	showCI?: boolean;
 

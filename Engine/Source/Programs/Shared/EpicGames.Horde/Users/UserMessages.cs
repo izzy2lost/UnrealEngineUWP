@@ -177,6 +177,11 @@ namespace EpicGames.Horde.Users
 		public bool ShowLandingPage { get; set; }
 
 		/// <summary>
+		/// Custom landing page route to direct users to
+		/// </summary>
+		public string LandingPageRoute { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Enable CI functionality
 		/// </summary>
 		public bool ShowCI { get; set; }

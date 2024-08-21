@@ -116,7 +116,7 @@ const Main: React.FC = () => {
       console.log("Enabled Server Plugins:")
       enabledPlugins.forEach(p => {
          console.log(`    ${p.name} : ${p.version ?? ""}`)
-      })         
+      })
    } else {
       console.log("No Enabled Plugins")
    }
@@ -205,7 +205,11 @@ export default App;
 const HomeRedirect: React.FC = () => {
    if (window.location.pathname === "/" || !window.location.pathname) {
       if (dashboard.user?.dashboardFeatures?.showLandingPage) {
-         return <Navigate to="/docs/Landing.md" replace={true} />
+         let route = "/docs/Landing.md";
+         if (dashboard.user?.dashboardFeatures?.landingPageRoute?.length) {
+            route = dashboard.user?.dashboardFeatures?.landingPageRoute;
+         }
+         return <Navigate to={route} replace={true} />
       }
       return <Navigate to="/index" replace={true} />
    }

@@ -74,6 +74,7 @@ namespace HordeServer.Users
 		{
 			GetDashboardFeaturesResponse response = new GetDashboardFeaturesResponse();
 			response.ShowLandingPage = globalConfig.Dashboard.ShowLandingPage;
+			response.LandingPageRoute = globalConfig.Dashboard.LandingPageRoute;
 			response.ShowCI = globalConfig.Dashboard.ShowCI;
 			response.ShowAgents = globalConfig.Dashboard.ShowAgents;
 			response.ShowAgentRegistration = globalConfig.Dashboard.ShowAgentRegistration;

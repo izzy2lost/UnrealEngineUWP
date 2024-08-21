@@ -1,5 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+using System;
 using System.Collections.Generic;
 using EpicGames.Core;
 using EpicGames.Horde.Common;
@@ -22,6 +23,11 @@ namespace HordeServer.Dashboard
 		/// Navigate to the landing page by default
 		/// </summary>
 		public bool ShowLandingPage { get; set; } = false;
+
+		/// <summary>
+		/// Custom landing page route to direct users to
+		/// </summary>
+		public string LandingPageRoute { get; set; } = String.Empty;
 
 		/// <summary>
 		/// Enable CI functionality
