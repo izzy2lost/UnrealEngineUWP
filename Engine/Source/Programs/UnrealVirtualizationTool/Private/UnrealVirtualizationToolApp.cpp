@@ -135,11 +135,11 @@ public:
 	virtual void Serialize(const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category, double Time) override
 	{
 #if !NO_LOGGING
-		if (Verbosity == ELogVerbosity::Display && Category != LogVirtualizationTool.GetCategoryName())
-#endif
+		if (ShouldFilterMessage(Verbosity, Category))
 		{
 			Verbosity = ELogVerbosity::Log;
 		}
+#endif // !NO_LOGGING
 
 		FFeedbackContextAnsi::Serialize(V, Verbosity, Category, Time);
 	}
@@ -147,18 +147,38 @@ public:
 	virtual void SerializeRecord(const UE::FLogRecord& Record) override
 	{
 #if !NO_LOGGING
-		if (Record.GetVerbosity() == ELogVerbosity::Display && Record.GetCategory() != LogVirtualizationTool.GetCategoryName())
+		if (ShouldFilterMessage(Record.GetVerbosity(), Record.GetCategory()))
 		{
 			UE::FLogRecord LocalRecord = Record;
 			LocalRecord.SetVerbosity(ELogVerbosity::Log);
 			return FFeedbackContextAnsi::SerializeRecord(LocalRecord);
 		}
-#endif
+#endif // !NO_LOGGING
 
 		FFeedbackContextAnsi::SerializeRecord(Record);
 	}
 
 private:
+
+	bool ShouldFilterMessage(ELogVerbosity::Type Verbosity, const FName& Category)
+	{
+#if !NO_LOGGING
+		// We only want 'LogVirtualizationTool' messages in display
+		if (Verbosity == ELogVerbosity::Display && Category != LogVirtualizationTool.GetCategoryName())
+		{
+			return true;
+		}
+
+		// Suppress errors from our reporting systems
+		if (Verbosity == ELogVerbosity::Error && Category == LogOutputDevice.GetCategoryName())
+		{
+			return true;
+		}
+#endif //  !NO_LOGGING
+
+		return false;
+	}
+
 	FFeedbackContext* OriginalLog;
 };
 
@@ -223,15 +243,17 @@ EInitResult FUnrealVirtualizationToolApp::Initialize()
 	return EInitResult::Success;
 }
 
-bool FUnrealVirtualizationToolApp::Run()
+EProcessResult FUnrealVirtualizationToolApp::Run()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(Run);
 
 	TArray<TUniquePtr<FCommandOutput>> OutputArray;
-	if (!ProcessProjects(OutputArray))
+
+	EProcessResult Result = ProcessProjects(OutputArray);
+	if (Result != EProcessResult::Success)
 	{
 		UE_LOG(LogVirtualizationTool, Error, TEXT("Command '%s' failed!"), *CurrentCommand->GetName());
-		return false;
+		return Result;
 	}
 
 	if (!IsChildProcess())
@@ -239,7 +261,7 @@ bool FUnrealVirtualizationToolApp::Run()
 		if (!CurrentCommand->ProcessOutput(OutputArray))
 		{
 			UE_LOG(LogVirtualizationTool, Error, TEXT("Command '%s' failed!"), *CurrentCommand->GetName());
-			return false;
+			return EProcessResult::Error;
 		}
 	}
 	else
@@ -247,16 +269,16 @@ bool FUnrealVirtualizationToolApp::Run()
 		if (!TryWriteChildProcessOutputFile(ChildProcessId, OutputArray))
 		{
 			UE_LOG(LogVirtualizationTool, Error, TEXT("Command '%s' failed!"), *CurrentCommand->GetName());
-			return false;
+			return EProcessResult::Error;
 		}
 	}
 
 
 	UE_LOG(LogVirtualizationTool, Display, TEXT("Command '%s' succeeded!"), *CurrentCommand->GetName());
-	return true;
+	return EProcessResult::Success;
 }
 
-bool FUnrealVirtualizationToolApp::ProcessProjects(TArray<TUniquePtr<FCommandOutput>>& OutputArray)
+EProcessResult FUnrealVirtualizationToolApp::ProcessProjects(TArray<TUniquePtr<FCommandOutput>>& OutputArray)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(ProcessProjects);
 
@@ -276,8 +298,8 @@ bool FUnrealVirtualizationToolApp::ProcessProjects(TArray<TUniquePtr<FCommandOut
 			{
 				// If we are a child process then the correct project path should have been provided and so
 				// this check is mostly a paranoid check to make sure things are working as we expect.
-				UE_LOG(LogVirtualizationTool, Error, TEXT("The child process was create with project path '%s' but expected '%s'"), *ProjectPath, *Project.GetProjectFilePath());
-				return false;
+				UE_LOG(LogVirtualizationTool, Error, TEXT("The child process was created with project path '%s' but expected '%s'"), *ProjectPath, *Project.GetProjectFilePath());
+				return EProcessResult::Error;
 			}
 
 			check(ProjectPath == Project.GetProjectFilePath());
@@ -285,7 +307,7 @@ bool FUnrealVirtualizationToolApp::ProcessProjects(TArray<TUniquePtr<FCommandOut
 			TUniquePtr<FCommandOutput> Output;
 			if (!CurrentCommand->ProcessProject(Project, Output))
 			{
-				return false;
+				return EProcessResult::Error;
 			}
 
 			if (Output != nullptr)
@@ -295,14 +317,15 @@ bool FUnrealVirtualizationToolApp::ProcessProjects(TArray<TUniquePtr<FCommandOut
 		}
 		else
 		{
-			if (!LaunchChildProcess(*CurrentCommand, Project, GlobalCmdlineOptions, OutputArray))
+			EProcessResult Result = LaunchChildProcess(*CurrentCommand, Project, GlobalCmdlineOptions, OutputArray);
+			if (Result != EProcessResult::Success)
 			{
-				return false;
+				return Result;
 			}
 		}
 	}
 
-	return true;
+	return EProcessResult::Success;
 }
 
 void FUnrealVirtualizationToolApp::PrintCmdLineHelp() const
@@ -431,6 +454,12 @@ EInitResult FUnrealVirtualizationToolApp::TryParseGlobalOptions(const TCHAR* Cmd
 	else
 	{
 		OutputDeviceOverride.Reset();
+	}
+
+	// Now add commandline switches used in UnrealVirtualizationToolMain (probably should be doing this setup work there)
+	if (FParse::Param(CmdLine, TEXT("ReportFailures")))
+	{
+		AddGlobalOption(TEXT("-ReportFailures"));
 	}
 
 	return EInitResult::Success;
@@ -831,7 +860,7 @@ void FUnrealVirtualizationToolApp::CleanUpChildProcessFiles(const FGuid& ChildPr
 	}
 }
 
-bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray)
+EProcessResult FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, const FProject& Project, FStringView GlobalOptions, TArray<TUniquePtr<FCommandOutput>>& OutputArray)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(LaunchChildProcess);
 
@@ -843,7 +872,7 @@ bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, c
 	if (!TryWriteChildProcessInputFile(ChildProcessId, Command, Project, InputFilePath))
 	{
 		// No need to log an error here, ::TryWriteChildProcessInputFile will take care of that
-		return false;
+		return EProcessResult::Error;
 	}
 
 	ON_SCOPE_EXIT
@@ -898,23 +927,23 @@ bool FUnrealVirtualizationToolApp::LaunchChildProcess(const FCommand& Command, c
 		if (!FPlatformProcess::GetProcReturnCode(Handle, &ReturnCode))
 		{
 			UE_LOG(LogVirtualizationTool, Display, TEXT("Failed to retrieve the return value of the child process"));
-			return false;
+			return EProcessResult::Error;
 		}
 
 		if (ReturnCode != 0)
 		{
 			UE_LOG(LogVirtualizationTool, Display, TEXT("Child process failed with error code: %d"), ReturnCode);
-			return false;
+			return EProcessResult::ChildProcessError;
 		}
 	}
 
 	if (!TryReadChildProcessOutputFile(ChildProcessId, Command, OutputArray))
 	{
 		// No need to log an error here, ::TryReadChildProcessOutputFile will take care of that
-		return false;
+		return EProcessResult::Error;
 	}
 
-	return true;
+	return EProcessResult::Success;
 }
 
 } // namespace UE::Virtualization

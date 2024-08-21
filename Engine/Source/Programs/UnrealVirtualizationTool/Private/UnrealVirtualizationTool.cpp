@@ -23,6 +23,8 @@ int32 UnrealVirtualizationToolMain(int32 ArgC, TCHAR* ArgV[])
 	GEngineLoop.PreInit(ArgC, ArgV);
 	check(GConfig && GConfig->IsReadyForUse());
 
+	const bool bReportFailures = FParse::Param(FCommandLine::Get(), TEXT("ReportFailures"));
+	
 #if 0
 	while (!FPlatformMisc::IsDebuggerPresent())
 	{
@@ -34,28 +36,34 @@ int32 UnrealVirtualizationToolMain(int32 ArgC, TCHAR* ArgV[])
 
 	FModuleManager::Get().StartProcessingNewlyLoadedObjects();
 
-	bool bRanSuccessfully = true;
+	EProcessResult ProcessResult = EProcessResult::Success;
 
 	FUnrealVirtualizationToolApp App;
 
-	EInitResult Result = App.Initialize();
-	if (Result == EInitResult::Success)
+	EInitResult InitResult = App.Initialize();
+	if (InitResult == EInitResult::Success)
 	{
-		if (!App.Run())
+		ProcessResult = App.Run();
+		if (ProcessResult != EProcessResult::Success)
 		{
 			UE_LOG(LogVirtualizationTool, Error, TEXT("UnrealVirtualizationTool ran with errors"));
-			bRanSuccessfully = false;
 		}
 	}	
-	else if(Result == EInitResult::Error)
+	else if(InitResult == EInitResult::Error)
 	{
 		UE_LOG(LogVirtualizationTool, Error, TEXT("UnrealVirtualizationTool failed to initialize"));
-		bRanSuccessfully = false;
+		ProcessResult = EProcessResult::Error;
 	}
 
-	UE_CLOG(bRanSuccessfully, LogVirtualizationTool, Display, TEXT("UnrealVirtualizationTool ran successfully"));
+	UE_CLOG(ProcessResult == EProcessResult::Success, LogVirtualizationTool, Display, TEXT("UnrealVirtualizationTool ran successfully"));
 
-	const uint8 ReturnCode = bRanSuccessfully ? 0 : 1;
+	// Don't report if the error was in a child process, they will raise their own ensures
+	if (bReportFailures && ProcessResult == EProcessResult::Error)
+	{
+		ensure(false);
+	}
+
+	const uint8 ReturnCode = ProcessResult == EProcessResult::Success ? 0 : 1;
 
 	if (FParse::Param(FCommandLine::Get(), TEXT("fastexit")))
 	{
