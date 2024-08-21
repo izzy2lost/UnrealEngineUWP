@@ -64,8 +64,11 @@ private:
 	/** Determines the blend mode based on the node texture and the RGBA toggles. */
 	ESimpleElementBlendMode GetBlendMode() const;
 
-	/** Retrieves the render target texture  from a given node buffer. */
-	UTextureRenderTarget2D* GetTextureFromBuffer(const DeviceBufferPtr& Buffer) const;
+	/** Retrieves the texture  from a given node buffer. */
+	UTexture* GetTextureFromBuffer(const DeviceBufferPtr& Buffer) const;
+
+	/** Returns the num mips for node texture*/
+	int32 GetNodeTextureNumMips() const;
 
 	/** Indicates that a node is in sRGB format. */
 	bool IsSRGB() const;
@@ -73,8 +76,8 @@ private:
 	/** The Blob for this node. */
 	BlobPtr CurrentBlob;
 
-	/** The render target texture for the node. */
-	UTextureRenderTarget2D* NodeTexture = nullptr;
+	/** The texture for the node. */
+	UTexture* NodeTexture = nullptr;
 
 	/** Toggles for enabling RGBA components for drawing. */
 	bool bRGBA[4] = {true, true, true, true};
