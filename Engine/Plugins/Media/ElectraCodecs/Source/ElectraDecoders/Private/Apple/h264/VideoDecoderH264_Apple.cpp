@@ -820,7 +820,7 @@ bool FElectraVideoDecoderH264_Apple::InternalDecoderCreate(const TMap<FString, F
 
 	// Choice of: kCVPixelBufferOpenGLCompatibilityKey (all)  kCVPixelBufferOpenGLESCompatibilityKey (iOS only)   kCVPixelBufferMetalCompatibilityKey (all)
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferMetalCompatibilityKey, kCFBooleanTrue);
-#if PLATFORM_IOS || PLATFORM_TVOS
+#if UE_PLATFORM_IOS_ONLY || PLATFORM_TVOS
 	CFDictionarySetValue(OutputImageFormat, kCVPixelBufferOpenGLESCompatibilityKey, kCFBooleanFalse);
 #endif
 

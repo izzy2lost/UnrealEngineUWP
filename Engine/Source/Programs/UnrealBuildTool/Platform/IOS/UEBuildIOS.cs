@@ -1150,6 +1150,12 @@ namespace UnrealBuildTool
 			}
 
 			CompileEnvironment.Definitions.Add("PLATFORM_IOS=1");
+			// set a define that is _only_ on iPhones, and not AppleTV, etc
+			if (Target.Platform == UnrealTargetPlatform.IOS)
+			{
+				CompileEnvironment.Definitions.Add("UE_PLATFORM_IOS_ONLY=1");
+			}
+
 			CompileEnvironment.Definitions.Add("PLATFORM_APPLE=1");
 
 			CompileEnvironment.Definitions.Add("WITH_TTS=0");

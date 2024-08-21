@@ -9,27 +9,23 @@ public class OpenSSL : ModuleRules
 	{
 		Type = ModuleType.External;
 
-		string OpenSSLPath = Path.Combine(Target.UEThirdPartySourceDirectory, "OpenSSL", "1.1.1t");
-
-		string PlatformSubdir = Target.Platform.ToString();
+		string OpenSSLVersion = "1.1.1t";
+		string IncOpenSSLPath = Path.Combine(ModuleDirectory, OpenSSLVersion, "include");
+		string LibOpenSSLPath = Path.Combine(PlatformModuleDirectory, OpenSSLVersion, "lib");
+		string PlatformSubdir = PlatformSubdirectoryName;
+		
 		string ConfigFolder = (Target.Configuration == UnrealTargetConfiguration.Debug && Target.bDebugBuildsActuallyUseDebugCRT) ? "Debug" : "Release";
 
-		if (Target.Platform == UnrealTargetPlatform.Mac || Target.Platform == UnrealTargetPlatform.IOS || Target.Platform == UnrealTargetPlatform.TVOS)
+		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Apple))
 		{
-			// IOS binaries are fully compatible with TVOS
-			if (Target.Platform == UnrealTargetPlatform.TVOS)
-			{
-				PlatformSubdir = "IOS";
-			}
+			// all IOS platforms share include dir
+			string IncPlatformName = Target.IsInPlatformGroup(UnrealPlatformGroup.IOS) ? "IOS" : PlatformSubdir;
+			PublicSystemIncludePaths.Add(Path.Combine(IncOpenSSLPath, IncPlatformName));
 
-			PublicSystemIncludePaths.Add(Path.Combine(OpenSSLPath, "include", PlatformSubdir));
+			string LibPath = Path.Combine(LibOpenSSLPath, PlatformSubdir);
 
-			string LibPath = Path.Combine(OpenSSLPath, "lib", PlatformSubdir);
-
-			bool bIsIOSSimulator = Target.Platform == UnrealTargetPlatform.IOS && Target.Architecture == UnrealArch.IOSSimulator;
-			bool bIsTVOSSimulator = Target.Platform == UnrealTargetPlatform.TVOS && Target.Architecture == UnrealArch.TVOSSimulator;
-
-			string LibExt = (bIsIOSSimulator || bIsTVOSSimulator) ? ".sim.a" : ".a";
+			bool bIsSimulator = Target.Architecture == UnrealArch.IOSSimulator || Target.Architecture == UnrealArch.TVOSSimulator;
+			string LibExt = bIsSimulator ? ".sim.a" : ".a";
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libssl" + LibExt));
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libcrypto" + LibExt));
 		}
@@ -39,10 +35,10 @@ public class OpenSSL : ModuleRules
 			string VSVersion = "VS" + Target.WindowsPlatform.GetVisualStudioCompilerVersionName();
 
 			// Add includes
-			PublicSystemIncludePaths.Add(Path.Combine(OpenSSLPath, "include", PlatformSubdir, VSVersion));
+			PublicSystemIncludePaths.Add(Path.Combine(IncOpenSSLPath, PlatformSubdir, VSVersion));
 
 			// Add Libs
-			string LibPath = Path.Combine(OpenSSLPath, "lib", PlatformSubdir, VSVersion, ConfigFolder);
+			string LibPath = Path.Combine(LibOpenSSLPath, PlatformSubdir, VSVersion, ConfigFolder);
 
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libssl.lib"));
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libcrypto.lib"));
@@ -50,8 +46,8 @@ public class OpenSSL : ModuleRules
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Unix))
 		{
-			string IncludePath = Path.Combine(OpenSSLPath, "include", "Unix");
-			string LibraryPath = Path.Combine(OpenSSLPath, "lib", "Unix", Target.Architecture.LinuxName);
+			string IncludePath = Path.Combine(IncOpenSSLPath, "Unix");
+			string LibraryPath = Path.Combine(LibOpenSSLPath, "Unix", Target.Architecture.LinuxName);
 
 			PublicSystemIncludePaths.Add(IncludePath);
 			PublicAdditionalLibraries.Add(Path.Combine(LibraryPath, "libssl.a"));
@@ -59,8 +55,8 @@ public class OpenSSL : ModuleRules
 		}
 		else if (Target.Platform == UnrealTargetPlatform.Android)
 		{
-			string IncludePath = Path.Combine(OpenSSLPath, "include", "Android");
-			string LibraryPath = Path.Combine(OpenSSLPath, "lib", "Android");
+			string IncludePath = Path.Combine(IncOpenSSLPath, "Android");
+			string LibraryPath = Path.Combine(LibOpenSSLPath, "Android");
 
 			string[] Architectures = new string[] {
 				"ARM64",

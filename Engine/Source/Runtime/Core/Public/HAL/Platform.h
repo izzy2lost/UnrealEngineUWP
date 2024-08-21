@@ -20,6 +20,9 @@
 #if !defined(PLATFORM_IOS)
 	#define PLATFORM_IOS 0
 #endif
+#if !defined(UE_PLATFORM_IOS_ONLY)
+	#define UE_PLATFORM_IOS_ONLY 0
+#endif
 #if !defined(PLATFORM_TVOS)
 	#define PLATFORM_TVOS 0
 #endif
