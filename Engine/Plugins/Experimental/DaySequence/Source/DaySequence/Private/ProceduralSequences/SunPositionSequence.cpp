@@ -168,7 +168,7 @@ namespace UE::DaySequence
 	}
 }
 
-UDaySequence* FSunPositionSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
+void FSunPositionSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
 {
 	using namespace UE::DaySequence;
 
@@ -176,7 +176,7 @@ UDaySequence* FSunPositionSequence::BuildSequence(UProceduralDaySequenceBuilder*
 	
 	if (!TargetActor)
 	{
-		return nullptr;
+		return;
 	}
 
 	if (UDirectionalLightComponent* SunComponent = GetComponentByName<UDirectionalLightComponent>(TargetActor, SunComponentName))
@@ -207,6 +207,4 @@ UDaySequence* FSunPositionSequence::BuildSequence(UProceduralDaySequenceBuilder*
 			InBuilder->AddRotationKey(KeyTime, FRotator(Data.CorrectedElevation, Data.Azimuth, 0.0));
 		}
 	}
-	
-	return ProceduralSequence;
 }

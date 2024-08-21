@@ -45,10 +45,8 @@ struct DAYSEQUENCE_API FProceduralDaySequence
 	UDaySequence* GetSequence(ADaySequenceActor* InActor);
 
 protected:
-	virtual UDaySequence* BuildSequence(UProceduralDaySequenceBuilder* InBuilder) { return nullptr; }
-
-	UPROPERTY(Transient)
-	TObjectPtr<UDaySequence> ProceduralSequence = nullptr;
-
+	
+	virtual void BuildSequence(UProceduralDaySequenceBuilder* InBuilder) {}
+	
 	TWeakObjectPtr<ADaySequenceActor> WeakTargetActor = nullptr;
 };

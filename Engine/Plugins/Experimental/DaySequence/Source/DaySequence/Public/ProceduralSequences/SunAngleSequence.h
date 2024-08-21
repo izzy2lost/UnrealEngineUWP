@@ -22,5 +22,5 @@ struct DAYSEQUENCE_API FSunAngleSequence : public FProceduralDaySequence
 
 private:
 	
-	virtual UDaySequence* BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
+	virtual void BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
 };

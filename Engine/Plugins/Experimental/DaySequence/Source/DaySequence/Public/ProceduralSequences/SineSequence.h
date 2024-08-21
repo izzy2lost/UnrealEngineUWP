@@ -42,5 +42,5 @@ struct DAYSEQUENCE_API FSineSequence : public FProceduralDaySequence
 	
 private:
 	
-	virtual UDaySequence* BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
+	virtual void BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
 };

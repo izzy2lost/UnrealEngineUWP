@@ -7,7 +7,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SineSequence)
 
-UDaySequence* FSineSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
+void FSineSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
 {
 	using namespace UE::DaySequence;
 
@@ -15,7 +15,7 @@ UDaySequence* FSineSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuil
 	
 	if (!TargetActor || PropertyName.IsNone())
 	{
-		return nullptr;
+		return;
 	}
 
 	UObject* AnimatedObject = TargetActor;
@@ -37,6 +37,4 @@ UDaySequence* FSineSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuil
 			InBuilder->AddScalarKey(PropertyName, KeyTime, Amplitude * FMath::Sin(UE_DOUBLE_TWO_PI * Frequency * (KeyTime - PhaseShift)) + VerticalShift);
 		}
 	}
-	
-	return ProceduralSequence;
 }

@@ -40,5 +40,5 @@ struct DAYSEQUENCE_API FSunPositionSequence : public FProceduralDaySequence
 	
 private:
 	
-	virtual UDaySequence* BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
+	virtual void BuildSequence(UProceduralDaySequenceBuilder* InBuilder) override;
 };

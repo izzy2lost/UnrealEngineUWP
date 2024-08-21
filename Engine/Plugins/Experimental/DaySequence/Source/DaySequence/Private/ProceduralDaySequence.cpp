@@ -12,12 +12,13 @@
 UDaySequence* FProceduralDaySequence::GetSequence(ADaySequenceActor* InActor)
 {
 	WeakTargetActor = InActor;
-	ProceduralSequence = nullptr;
 	
-	if (!ProceduralSequence && InActor)
+	UDaySequence* ProceduralSequence = nullptr;
+	
+	if (InActor)
 	{
 		UProceduralDaySequenceBuilder* SequenceBuilder = NewObject<UProceduralDaySequenceBuilder>();
-		ProceduralSequence = SequenceBuilder->Initialize(InActor, ProceduralSequence);
+		ProceduralSequence = SequenceBuilder->Initialize(InActor);
 		BuildSequence(SequenceBuilder);
 	}
 	

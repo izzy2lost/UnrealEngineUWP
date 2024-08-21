@@ -9,7 +9,7 @@
 
 #include UE_INLINE_GENERATED_CPP_BY_NAME(SunAngleSequence)
 
-UDaySequence* FSunAngleSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
+void FSunAngleSequence::BuildSequence(UProceduralDaySequenceBuilder* InBuilder)
 {
 	using namespace UE::DaySequence;
 
@@ -17,7 +17,7 @@ UDaySequence* FSunAngleSequence::BuildSequence(UProceduralDaySequenceBuilder* In
 	
 	if (!TargetActor)
 	{
-		return nullptr;
+		return;
 	}
 	
 	if (UDirectionalLightComponent* SunComponent = GetComponentByName<UDirectionalLightComponent>(TargetActor, SunComponentName))
@@ -27,6 +27,4 @@ UDaySequence* FSunAngleSequence::BuildSequence(UProceduralDaySequenceBuilder* In
 		InBuilder->AddRotationKey(0.0, FRotator(90.0, 0.0, 0.0), RCIM_Linear);
 		InBuilder->AddRotationKey(1.0, FRotator(450.0, 0.0, 0.0), RCIM_Linear);
 	}
-	
-	return ProceduralSequence;
 }
