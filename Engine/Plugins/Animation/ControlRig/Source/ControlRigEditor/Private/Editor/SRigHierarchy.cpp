@@ -80,6 +80,11 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 	ControlRigBlueprint->OnRefreshEditor().AddRaw(this, &SRigHierarchy::HandleRefreshEditorFromBlueprint);
 	ControlRigBlueprint->OnSetObjectBeingDebugged().AddRaw(this, &SRigHierarchy::HandleSetObjectBeingDebugged);
 
+	if(UModularRigController* ModularRigController = ControlRigBlueprint->GetModularRigController())
+	{
+		ModularRigController->OnModified().AddSP(this, &SRigHierarchy::OnModularRigModified);
+	}
+
 	// for deleting, renaming, dragging
 	CommandList = MakeShared<FUICommandList>();
 
@@ -260,6 +265,11 @@ void SRigHierarchy::OnEditorClose(const FRigVMEditor* InEditor, URigVMBlueprint*
 		BP->Hierarchy->OnModified().RemoveAll(this);
 		InBlueprint->OnRefreshEditor().RemoveAll(this);
 		InBlueprint->OnSetObjectBeingDebugged().RemoveAll(this);
+
+		if(UModularRigController* ModularRigController = BP->GetModularRigController())
+		{
+			ModularRigController->OnModified().RemoveAll(this);
+		}
 	}
 	
 	ControlRigEditor.Reset();
@@ -590,6 +600,8 @@ void SRigHierarchy::OnSelectionChanged(TSharedPtr<FRigTreeElement> Selection, ES
 		return;
 	}
 
+	TreeView->ClearHighlightedItems();
+
 	// an element to use for the control rig editor's detail panel
 	FRigElementKey LastSelectedElement;
 
@@ -852,6 +864,57 @@ void SRigHierarchy::OnHierarchyModified_AnyThread(ERigHierarchyNotification InNo
             }
 			
         }, TStatId(), NULL, ENamedThreads::GameThread);
+	}
+}
+
+void SRigHierarchy::OnModularRigModified(EModularRigNotification InNotif, const FRigModuleReference* InModule)
+{
+	if(!ControlRigBlueprint.IsValid())
+	{
+		return;
+	}
+
+	switch(InNotif)
+	{
+		case EModularRigNotification::ModuleSelected:
+		case EModularRigNotification::ModuleDeselected:
+		{
+			const bool bSelected = InNotif == EModularRigNotification::ModuleSelected;
+			if(ControlRigEditor.IsValid())
+			{
+				if(UControlRig* ControlRig = ControlRigEditor.Pin()->GetControlRig())
+				{
+					if(URigHierarchy* Hierarchy = ControlRig->GetHierarchy())
+					{
+						const FString ModulePath = InModule->GetPath();
+						TArray<FRigElementKey> Keys = Hierarchy->GetAllKeys();
+						Keys = Keys.FilterByPredicate([Hierarchy, ModulePath](const FRigElementKey& InKey)
+						{
+							return ModulePath == Hierarchy->GetModulePath(InKey);
+						});
+
+						bool bScrollIntoView = true;
+						for(const FRigElementKey& Key : Keys)
+						{
+							if(const TSharedPtr<FRigTreeElement> TreeElement = TreeView->FindElement(Key))
+							{
+								TreeView->SetItemHighlighted(TreeElement, bSelected);
+								if(bScrollIntoView)
+								{
+									TreeView->RequestScrollIntoView(TreeElement);
+									bScrollIntoView = false;
+								}
+							}
+						}
+					}
+				}
+			}
+			break;
+		}
+		default:
+		{
+			break;
+		}
 	}
 }
 

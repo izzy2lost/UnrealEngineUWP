@@ -337,6 +337,7 @@ public:
 		}
 	}
 
+	TSharedPtr<FRigTreeElement> FindElement(const FRigElementKey& InElementKey) const;
 	static TSharedPtr<FRigTreeElement> FindElement(const FRigElementKey& InElementKey, TSharedPtr<FRigTreeElement> CurrentItem);
 	bool AddElement(FRigElementKey InKey, FRigElementKey InParentKey = FRigElementKey());
 	bool AddElement(const FRigBaseElement* InElement);

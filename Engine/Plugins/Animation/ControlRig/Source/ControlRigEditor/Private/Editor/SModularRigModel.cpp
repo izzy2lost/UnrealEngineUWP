@@ -1178,6 +1178,8 @@ void SModularRigModel::HandleSelectionChanged(TSharedPtr<FModularRigTreeElement>
 	{
 		return;
 	}
+
+	TreeView->ClearHighlightedItems();
 	
 	if (ControlRigBlueprint.IsValid())
 	{
@@ -1268,38 +1270,24 @@ void SModularRigModel::OnHierarchyModified(ERigHierarchyNotification InNotif, UR
 		case ERigHierarchyNotification::ElementSelected:
 		case ERigHierarchyNotification::ElementDeselected:
 		{
-			const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement);
-			if(Connector == nullptr)
+			FString ModulePathOrConnectorName = InHierarchy->GetModulePath(InElement->GetKey());
+
+			if(const FRigConnectorElement* Connector = Cast<FRigConnectorElement>(InElement))
 			{
-				for(const FModularRigSingleConnection& Connection : ControlRigBlueprint->ModularRigModel.Connections)
+				if(Connector->IsPrimary())
+            	{
+					ModulePathOrConnectorName = Connector->GetName();
+            	}
+			}
+
+			if(!ModulePathOrConnectorName.IsEmpty())
+			{
+				if(TSharedPtr<FModularRigTreeElement> Item = TreeView->FindElement(ModulePathOrConnectorName))
 				{
-					check(Connection.Connector.Type == ERigElementType::Connector);
-					if(Connection.Target == InElement->GetKey())
-					{
-						if(const FRigConnectorElement* TargetConnector = InHierarchy->Find<FRigConnectorElement>(Connection.Connector))
-						{
-							OnHierarchyModified(InNotif, InHierarchy, TargetConnector);
-						}
-					}
+					const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
+					TreeView->SetItemHighlighted(Item, bSelected);
+					TreeView->RequestScrollIntoView(Item);
 				}
-				return;
-			}
-
-			FString ModulePathOrConnectorName;
-			if(Connector->IsPrimary())
-			{
-				ModulePathOrConnectorName = InHierarchy->GetModulePath(Connector->GetKey());
-			}
-			else
-			{
-				ModulePathOrConnectorName = Connector->GetName();
-			}
-
-			TSharedPtr<FModularRigTreeElement> Item = TreeView->FindElement(ModulePathOrConnectorName);
-			if(Item.IsValid())
-			{
-				const bool bSelected = InNotif == ERigHierarchyNotification::ElementSelected;
-				TreeView->SetItemSelection(Item, bSelected);
 			}
 		}
 		default:

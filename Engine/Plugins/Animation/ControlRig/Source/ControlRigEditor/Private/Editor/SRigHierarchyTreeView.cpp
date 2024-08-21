@@ -380,6 +380,19 @@ void SRigHierarchyTreeView::Tick(const FGeometry& AllottedGeometry, const double
 	}
 }
 
+TSharedPtr<FRigTreeElement> SRigHierarchyTreeView::FindElement(const FRigElementKey& InElementKey) const
+{
+	for (int32 RootIndex = 0; RootIndex < RootElements.Num(); ++RootIndex)
+	{
+		TSharedPtr<FRigTreeElement> Found = FindElement(InElementKey, RootElements[RootIndex]);
+		if (Found.IsValid())
+		{
+			return Found;
+		}
+	}
+	return TSharedPtr<FRigTreeElement>();
+}
+
 TSharedPtr<FRigTreeElement> SRigHierarchyTreeView::FindElement(const FRigElementKey& InElementKey, TSharedPtr<FRigTreeElement> CurrentItem)
 {
 	if (CurrentItem->Key == InElementKey)
