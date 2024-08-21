@@ -2564,8 +2564,30 @@ void UNiagaraStackFunctionInput::OnMessageManagerRefresh(const TArray<TSharedRef
 bool UNiagaraStackFunctionInput::SupportsRename() const
 {
 	// Only module level assignment node inputs can be renamed.
-	return OwningAssignmentNode.IsValid() && InputParameterHandlePath.Num() == 1 &&
-		OwningAssignmentNode->FindAssignmentTarget(InputParameterHandle.GetName()) != INDEX_NONE;
+	if(OwningAssignmentNode.IsValid() == false || InputParameterHandlePath.Num() != 1 || OwningAssignmentNode->FindAssignmentTarget(InputParameterHandle.GetName()) == INDEX_NONE)
+	{
+		return false;
+	}
+	
+	if(bIsReferencingExternalParameter.IsSet() == false)
+	{
+		const FNiagaraParameterPanelItem* Item = GetSystemViewModel()->GetParameterPanelViewModel()->GetCachedViewedParameterItems().FindByPredicate([this](const FNiagaraParameterPanelItem& ItemCandidate)
+		{
+			if(ItemCandidate.GetVariable().GetName() == this->GetInputParameterHandle().GetName())
+			{
+				return true;
+			}
+
+			return false;
+		});
+
+		if(Item)
+		{
+			bIsReferencingExternalParameter = Item->bExternallyReferenced;
+		}
+	}
+
+	return bIsReferencingExternalParameter.Get(false) == false;
 }
 
 void UNiagaraStackFunctionInput::OnRenamed(FText NewNameText)
@@ -2573,30 +2595,13 @@ void UNiagaraStackFunctionInput::OnRenamed(FText NewNameText)
 	FName NewName(*NewNameText.ToString());
 	FNiagaraVariable OldVar = FNiagaraVariable(InputType, InputParameterHandle.GetName());
 	FNiagaraVariable NewVar = FNiagaraVariable(InputType, NewName);
-	if (InputParameterHandle.GetName() != NewName && OwningAssignmentNode.IsValid() && SourceScript.IsValid())
+
+	if(InputParameterHandle.GetName() != NewName && OwningAssignmentNode.IsValid() && SourceScript.IsValid() && bIsReferencingExternalParameter.Get(false) == false)
 	{
-		TSharedRef<FNiagaraSystemViewModel> CachedSysViewModel = GetSystemViewModel();
-		TSharedPtr<FNiagaraEmitterViewModel> CachedEmitterViewModel = GetEmitterViewModel();
-		UNiagaraSystem& System = GetSystemViewModel()->GetSystem();
-		FVersionedNiagaraEmitter Emitter = GetEmitterViewModel().IsValid() ? GetEmitterViewModel()->GetEmitter() : FVersionedNiagaraEmitter();
-
-		FScopedTransaction ScopedTransaction(LOCTEXT("RenameInput", "Rename this function's input."));
-		FNiagaraStackGraphUtilities::RenameAssignmentTarget(
-			System,
-			Emitter,
-			*SourceScript.Get(),
-			*OwningAssignmentNode.Get(),
-			OldVar,
-			NewName);
-		ensureMsgf(IsFinalized(), TEXT("Input not finalized when renamed."));
-
-
-		if (CachedSysViewModel->GetSystemStackViewModel())
-			CachedSysViewModel->GetSystemStackViewModel()->InvalidateCachedParameterUsage();
-
-		CachedSysViewModel->NotifyParameterRenamedExternally(OldVar, NewVar, Emitter.Emitter);
-
+		GetSystemViewModel()->RenameParameter(OldVar, NewName, ENiagaraGetGraphParameterReferencesMode::SelectedGraphs);
 	}
+
+	bIsReferencingExternalParameter.Reset();
 }
 
 bool UNiagaraStackFunctionInput::CanDeleteInput() const
