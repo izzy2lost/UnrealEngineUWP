@@ -17,6 +17,7 @@
 #include "UObject/ObjectKey.h"
 #include "ViewModels/TNiagaraViewModelManager.h"
 #include "ViewModels/NiagaraParameterDefinitionsSubscriberViewModel.h"
+#include "EventHandlers/ISignedObjectEventHandler.h"
 
 struct FAssetData;
 struct FEdGraphEditAction;
@@ -117,6 +118,7 @@ class FNiagaraSystemViewModel
 	, public FTickableEditorObject
 	, public TNiagaraViewModelManager<UNiagaraSystem, FNiagaraSystemViewModel>
 	, public INiagaraParameterDefinitionsSubscriberViewModel
+	, public UE::MovieScene::ISignedObjectEventHandler
 {
 public:
 	DECLARE_MULTICAST_DELEGATE(FOnEmitterHandleViewModelsChanged);
@@ -278,6 +280,10 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual bool IsTickable() const override { return true; }
 	virtual TStatId GetStatId() const override;
+
+	//~ UE::MovieScene::ISignedObjectEventHandler interface
+	virtual void OnModifiedIndirectly(UMovieSceneSignedObject* MovieSceneSignedObject) override;
+	virtual void OnModifiedDirectly(UMovieSceneSignedObject* MovieSceneSignedObject) override;
 
 	/** Resets the System instance to initial conditions. Tries to resets system simulation time. Does not reset all systems that share its emitters.
 	 * Does not reinitialize the system to pull in changes. Calls into overloaded ResetSystem(). */
@@ -552,6 +558,9 @@ private:
 	/** Called when a script is compiled */
 	void ScriptCompiled(UNiagaraScript* InScript, const FGuid& ScriptVersion);
 
+	/** Called when the sequencer movie scene object is changed. */
+	void SequencerMovieSceneModified(const UMovieScene* MovieScene);
+
 	/** Called whenever the data in the sequence is changed. */
 	void SequencerDataChanged(EMovieSceneDataChangeType DataChangeType);
 
@@ -632,6 +641,9 @@ private:
 
 	/** The view model for the System script. */
 	TSharedPtr<FNiagaraSystemScriptViewModel> SystemScriptViewModel;
+
+	/** Handles linking change events from the sequencer movie scene. */
+	UE::MovieScene::TNonIntrusiveEventHandler<UE::MovieScene::ISignedObjectEventHandler> MovieSceneEventHandler;
 
 	/** A niagara sequence for displaying this System in the sequencer timeline. */
 	TObjectPtr<UNiagaraSequence >NiagaraSequence;

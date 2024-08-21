@@ -1357,6 +1357,16 @@ TStatId FNiagaraSystemViewModel::GetStatId() const
 	RETURN_QUICK_DECLARE_CYCLE_STAT(FNiagaraSystemViewModel, STATGROUP_Tickables);
 }
 
+void FNiagaraSystemViewModel::OnModifiedIndirectly(UMovieSceneSignedObject* MovieSceneSignedObject)
+{
+	SequencerMovieSceneModified(Cast<UMovieScene>(MovieSceneSignedObject));
+}
+
+void FNiagaraSystemViewModel::OnModifiedDirectly(UMovieSceneSignedObject* MovieSceneSignedObject)
+{
+	SequencerMovieSceneModified(Cast<UMovieScene>(MovieSceneSignedObject));
+}
+
 TSharedRef<FNiagaraPlaceholderDataInterfaceManager> FNiagaraSystemViewModel::GetPlaceholderDataInterfaceManager()
 {
 	return PlaceholderDataInterfaceManager.ToSharedRef();
@@ -2346,9 +2356,15 @@ void FNiagaraSystemViewModel::SetupSequencer()
 		// we don't need a sequencer when merging emitters or if we're in a commandlet with no slate application
 		return;
 	}
+
 	NiagaraSequence = NewObject<UNiagaraSequence>(GetTransientPackage());
 	UMovieScene* MovieScene = NewObject<UMovieScene>(NiagaraSequence, FName("Niagara System MovieScene"), RF_Transactional | RF_Transient);
-	MovieScene->SetDisplayRate(FFrameRate(240, 1));
+
+	MovieScene->SetDisplayRate(GetEditorData().GetPlaybackFrameRate());
+	MovieScene->SetEvaluationType(GetEditorData().GetLockPlaybackFrameRate() ? EMovieSceneEvaluationType::FrameLocked : EMovieSceneEvaluationType::WithSubFrames);
+
+	MovieSceneEventHandler.Unlink();
+	MovieScene->UMovieSceneSignedObject::EventHandlers.Link(MovieSceneEventHandler, this);
 
 	NiagaraSequence->Initialize(this, MovieScene);
 
@@ -2784,6 +2800,26 @@ void PopulateNiagaraFoldersFromMovieSceneFolders(TArrayView<UMovieSceneFolder* c
 		{
 			ParentFolder->RemoveChildEmitterHandleId(ChildEmitterHandleId);
 		}
+	}
+}
+
+void FNiagaraSystemViewModel::SequencerMovieSceneModified(const UMovieScene* MovieScene)
+{
+	if (MovieScene == nullptr)
+	{
+		return;
+	}
+
+	UNiagaraSystemEditorData& SystemEditorData = GetEditorData();
+	if (SystemEditorData.GetPlaybackFrameRate() != MovieScene->GetDisplayRate())
+	{
+		SystemEditorData.SetPlaybackFrameRate(MovieScene->GetDisplayRate());
+	}
+
+	bool bMovieSceneIsFrameLocked = MovieScene->GetEvaluationType() == EMovieSceneEvaluationType::FrameLocked;
+	if (SystemEditorData.GetLockPlaybackFrameRate() != bMovieSceneIsFrameLocked)
+	{
+		SystemEditorData.SetLockPlaybackFrameRate(bMovieSceneIsFrameLocked);
 	}
 }
 

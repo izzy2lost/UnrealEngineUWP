@@ -181,6 +181,16 @@ void UNiagaraSystemEditorData::SetPlaybackRange(TRange<float> InPlaybackRange)
 	PlaybackRangeMax = InPlaybackRange.GetUpperBoundValue();
 }
 
+void UNiagaraSystemEditorData::SetPlaybackFrameRate(const FFrameRate InPlaybackFrameRate)
+{
+	PlaybackFrameRate = InPlaybackFrameRate;
+}
+
+void UNiagaraSystemEditorData::SetLockPlaybackFrameRate(bool bInLockPlaybackFrameRate)
+{
+	bLockPlaybackFrameRate = bInLockPlaybackFrameRate;
+}
+
 UEdGraph* UNiagaraSystemEditorData::GetSystemOverviewGraph() const
 {
 	return SystemOverviewGraph;	
