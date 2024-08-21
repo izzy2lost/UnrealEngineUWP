@@ -91,5 +91,7 @@ void UTraceUtilLibrary::TraceMarkRegionEnd(const FString& Name)
 
 void UTraceUtilLibrary::TraceScreenshot(const FString& Name, bool bShowUI)
 {
+#if UE_SCREENSHOT_TRACE_ENABLED
 	FTraceScreenshot::RequestScreenshot(Name, bShowUI);
+#endif
 }

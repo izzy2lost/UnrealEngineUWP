@@ -5,6 +5,12 @@
 #include "CoreMinimal.h"
 #include "Engine/World.h"
 
+#if !defined(UE_SCREENSHOT_TRACE_ENABLED)
+	#define UE_SCREENSHOT_TRACE_ENABLED UE_TRACE_ENABLED
+#endif
+
+#if UE_SCREENSHOT_TRACE_ENABLED
+
 class ULevel;
 
 class FTraceScreenshot
@@ -53,3 +59,5 @@ private:
 private:
 	static ENGINE_API bool bSuppressWritingToFile;
 };
+
+#endif // UE_SCREENSHOT_TRACE_ENABLED

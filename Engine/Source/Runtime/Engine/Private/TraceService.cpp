@@ -30,7 +30,9 @@ private:
 	void OnPause(const FTraceControlPause& Message, const TSharedRef<IMessageContext>& Context);
 	void OnResume(const FTraceControlResume& Message, const TSharedRef<IMessageContext>& Context);
 	void OnBookmark(const FTraceControlBookmark& Message, const TSharedRef<IMessageContext>& Context);
+#if UE_SCREENSHOT_TRACE_ENABLED
 	void OnScreenshot(const FTraceControlScreenshot& Message, const TSharedRef<IMessageContext>& Context);
+#endif
 	void OnSetStatNamedEvents(const FTraceControlSetStatNamedEvents& Message, const TSharedRef<IMessageContext>& Context);
 	
 	static void FillTraceStatusMessage(FTraceControlStatus* Message);
@@ -64,7 +66,9 @@ FTraceServiceImpl::FTraceServiceImpl(const TSharedPtr<IMessageBus>& InBus)
 			.Handling<FTraceControlPause>(this, &FTraceServiceImpl::OnPause)
 			.Handling<FTraceControlResume>(this, &FTraceServiceImpl::OnResume)
 			.Handling<FTraceControlBookmark>(this, &FTraceServiceImpl::OnBookmark)
+#if UE_SCREENSHOT_TRACE_ENABLED
 			.Handling<FTraceControlScreenshot>(this, &FTraceServiceImpl::OnScreenshot)
+#endif
 			.Handling<FTraceControlSetStatNamedEvents>(this, &FTraceServiceImpl::OnSetStatNamedEvents)
 			.Handling<FTraceControlStatusPing>(this, &FTraceServiceImpl::OnStatusPing)
 			.Handling<FTraceControlSettingsPing>(this, &FTraceServiceImpl::OnSettingsPing)
@@ -88,7 +92,9 @@ FTraceServiceImpl::FTraceServiceImpl(const TSharedPtr<IMessageBus>& InBus)
 		MessageEndpoint->Subscribe<FTraceControlPause>();
 		MessageEndpoint->Subscribe<FTraceControlResume>();
 		MessageEndpoint->Subscribe<FTraceControlBookmark>();
+#if UE_SCREENSHOT_TRACE_ENABLED
 		MessageEndpoint->Subscribe<FTraceControlScreenshot>();
+#endif
 		MessageEndpoint->Subscribe<FTraceControlSetStatNamedEvents>();
 	}
 }
@@ -177,10 +183,12 @@ void FTraceServiceImpl::OnBookmark(const FTraceControlBookmark& Message, const T
 	TRACE_BOOKMARK(TEXT("%s"), *Message.Label);
 }
 
+#if UE_SCREENSHOT_TRACE_ENABLED
 void FTraceServiceImpl::OnScreenshot(const FTraceControlScreenshot& Message, const TSharedRef<IMessageContext>& Context)
 {
 	FTraceScreenshot::RequestScreenshot(Message.Name, Message.bShowUI);
 }
+#endif // UE_SCREENSHOT_TRACE_ENABLED
 
 void FTraceServiceImpl::OnSetStatNamedEvents(const FTraceControlSetStatNamedEvents& Message, const TSharedRef<IMessageContext>& Context)
 {

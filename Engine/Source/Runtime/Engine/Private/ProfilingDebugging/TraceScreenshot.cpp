@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 #include "ProfilingDebugging/TraceScreenshot.h"
 
+#if UE_SCREENSHOT_TRACE_ENABLED
+
 #include "ImageUtils.h"
 #include "Misc/DateTime.h"
 #include "Misc/CString.h"
@@ -184,3 +186,5 @@ void FTraceScreenshot::Reset()
 {
 	bSuppressWritingToFile = false;
 }
+
+#endif // UE_SCREENSHOT_TRACE_ENABLED

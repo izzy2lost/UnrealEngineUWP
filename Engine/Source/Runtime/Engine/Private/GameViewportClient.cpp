@@ -2104,6 +2104,7 @@ bool ProcessScreenshotData(TArray<FColorType>& Bitmap, FIntVector Size, TChannel
 			ScreenShotName += ToExtension;
 		}
 
+#if UE_SCREENSHOT_TRACE_ENABLED
 		bool bSuppressWritingToFile = false;
 		if (SHOULD_TRACE_SCREENSHOT())
 		{
@@ -2117,6 +2118,7 @@ bool ProcessScreenshotData(TArray<FColorType>& Bitmap, FIntVector Size, TChannel
 			FImageView Image((const FColorType*)Bitmap.GetData(), Size.X, Size.Y);
 			bIsScreenshotSaved = FImageUtils::SaveImageByExtension(*ScreenShotName, Image);
 		}
+#endif
 	}
 
 	return bIsScreenshotSaved;
@@ -2198,7 +2200,9 @@ bool UGameViewportClient::ProcessScreenShots(FViewport* InViewport)
 		}
 
 		FScreenshotRequest::Reset();
+#if UE_SCREENSHOT_TRACE_ENABLED
 		FTraceScreenshot::Reset();
+#endif
 		FScreenshotRequest::OnScreenshotRequestProcessed().Broadcast();
 
 		// Reeanble screen messages - if we are NOT capturing a movie
