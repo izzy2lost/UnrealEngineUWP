@@ -30,7 +30,7 @@ struct FTedsRowHandle
 	GENERATED_BODY()
 
 	UPROPERTY()
-	uint64 RowHandle;
+	uint64 RowHandle = UE::Editor::DataStorage::InvalidRowHandle;
 
 	operator UE::Editor::DataStorage::RowHandle () const
 	{

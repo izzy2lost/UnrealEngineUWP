@@ -17,7 +17,7 @@ struct FTest_PingPongPrePhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	uint64 Value;
 };
 
@@ -26,7 +26,7 @@ struct FTest_PingPongDurPhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	uint64 Value;
 };
 
@@ -35,7 +35,7 @@ struct FTest_PingPongPostPhys final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	UPROPERTY()
+	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	uint64 Value;
 };
 
