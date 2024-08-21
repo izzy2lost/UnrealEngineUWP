@@ -116,8 +116,12 @@ namespace AndroidGL
 
 void FAndroidOpenGLFramePacer::InitSwappy()
 {
+
 	if (!bSwappyInit)
 	{
+		extern void LoadSwappy();
+		LoadSwappy();
+
 		if( !FParse::Param(FCommandLine::Get(), TEXT("UseSwappyThreads")) )
 		{
 			Swappy_setThreadFunctions(&SwappyThreads);

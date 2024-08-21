@@ -16,12 +16,15 @@
 
 #include "FrameStatisticsGL.h"
 
+#define LOG_TAG "FrameStatisticsGL"
+
 #include <inttypes.h>
 
 #include <cmath>
 #include <string>
 
 #include "EGL.h"
+#include "Log.h"
 #include "SwappyCommon.h"
 #include "Trace.h"
 
@@ -29,9 +32,7 @@ namespace swappy {
 
 FrameStatisticsGL::FrameStatisticsGL(const EGL& egl,
                                      const SwappyCommon& swappyCommon)
-    : mEgl(egl), mSwappyCommon(swappyCommon) {
-    mPendingFrames.reserve(MAX_FRAME_LAG + 1);
-}
+    : mEgl(egl), mSwappyCommon(swappyCommon) {}
 
 FrameStatisticsGL::ThisFrame FrameStatisticsGL::getThisFrame(
     EGLDisplay dpy, EGLSurface surface) {

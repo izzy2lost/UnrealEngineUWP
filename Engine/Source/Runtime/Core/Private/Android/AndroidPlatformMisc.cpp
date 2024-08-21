@@ -1835,6 +1835,16 @@ bool FAndroidMisc::IsSupportedAndroidDevice()
 }
 #endif
 
+enum class EDeviceVulkanSupportStatus
+{
+	Uninitialized,
+	NotSupported,
+	Supported
+};
+
+static FString VulkanVersionString;
+static EDeviceVulkanSupportStatus VulkanSupport = EDeviceVulkanSupportStatus::Uninitialized;
+
 ///////////////////////////////////////////////////////////////////////////////
 //
 // Extracted from vk_platform.h and vulkan.h with modifications just to allow
@@ -1844,7 +1854,9 @@ bool FAndroidMisc::IsSupportedAndroidDevice()
 // late) and vulkan.h header not guaranteed to be available. This part of the header
 // is unlikely to change in future so safe enough to use this truncated version.
 //
-
+// Namespace here to avoid conflicts with real headers
+namespace AndroidPlatformMisc
+{
 #if PLATFORM_ANDROID_ARM
 // On Android/ARMv7a, Vulkan functions use the armeabi-v7a-hard calling
 #define VKAPI_ATTR __attribute__((pcs("aapcs-vfp")))
@@ -2106,16 +2118,6 @@ typedef VkResult(VKAPI_PTR *PFN_vkEnumerateDeviceExtensionProperties)(VkPhysical
 
 #define UE_VK_API_VERSION	VK_MAKE_VERSION(1, 1, 0)
 
-enum class EDeviceVulkanSupportStatus
-{
-	Uninitialized,
-	NotSupported,
-	Supported
-};
-
-static FString VulkanVersionString;
-static EDeviceVulkanSupportStatus VulkanSupport = EDeviceVulkanSupportStatus::Uninitialized;
-
 static EDeviceVulkanSupportStatus AttemptVulkanInit(void* VulkanLib)
 {
 	if (VulkanLib == nullptr)
@@ -2230,6 +2232,9 @@ static EDeviceVulkanSupportStatus AttemptVulkanInit(void* VulkanLib)
 	return EDeviceVulkanSupportStatus::Supported;
 }
 
+} // Namespace
+
+
 bool FAndroidMisc::HasVulkanDriverSupport()
 {
 // @todo Lumin: this isn't really the best #define to check here - but basically, without JNI and other version checking, we can't safely do it - we'll need
@@ -2260,13 +2265,13 @@ bool FAndroidMisc::HasVulkanDriverSupport()
 				if (VulkanVersion >= UE_VK_API_VERSION)
 				{
 					// final check, try initializing the instance
-					VulkanSupport = AttemptVulkanInit(VulkanLib);
+					VulkanSupport = AndroidPlatformMisc::AttemptVulkanInit(VulkanLib);
 				}
 			}
 			else
 			{
 				// otherwise, we need to try initializing the instance
-				VulkanSupport = AttemptVulkanInit(VulkanLib);
+				VulkanSupport = AndroidPlatformMisc::AttemptVulkanInit(VulkanLib);
 			}
 
 			dlclose(VulkanLib);

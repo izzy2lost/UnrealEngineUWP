@@ -18,6 +18,7 @@
 
 #include "SwappyDisplayManager.h"
 
+#include <Log.h>
 #include <android/looper.h>
 #include <jni.h>
 
@@ -25,7 +26,6 @@
 
 #include "JNIUtil.h"
 #include "Settings.h"
-#include "SwappyLog.h"
 
 namespace swappy {
 
@@ -148,8 +148,7 @@ void SwappyDisplayManagerJNI::onRefreshPeriodChanged(jlong /*cookie*/,
                                                      long refreshPeriod,
                                                      long appOffset,
                                                      long sfOffset) {
-    SWAPPY_LOGV("onRefreshPeriodChanged: refresh rate: %.0fHz",
-                1e9f / refreshPeriod);
+    ALOGV("onRefreshPeriodChanged: refresh rate: %.0fHz", 1e9f / refreshPeriod);
     using std::chrono::nanoseconds;
     Settings::DisplayTimings displayTimings;
     displayTimings.refreshPeriod = nanoseconds(refreshPeriod);

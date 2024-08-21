@@ -41,10 +41,10 @@ extern "C" {
  * @warning This function *must* be called before the first `Swappy_swap()`
  * call. Afterwards, call this function every choreographer tick.
  */
-void SwappyGL_onChoreographer(int64_t frameTimeNanos);
+SWAPPY_EXPORT void SwappyGL_onChoreographer(int64_t frameTimeNanos);
 
 /** @brief Pass callbacks to be called each frame to trace execution. */
-void SwappyGL_injectTracer(const SwappyTracer *t);
+SWAPPY_EXPORT void SwappyGL_injectTracer(const SwappyTracer *t);
 
 /**
  * @brief Toggle auto-swap interval detection on/off
@@ -56,7 +56,7 @@ void SwappyGL_injectTracer(const SwappyTracer *t);
  * `SwappyGL_setAutoSwapInterval(false)` is called, the timings will continue to
  * be be updated dynamically, so the swap interval may change.
  */
-void SwappyGL_setAutoSwapInterval(bool enabled);
+SWAPPY_EXPORT void SwappyGL_setAutoSwapInterval(bool enabled);
 
 /**
  * @brief Sets the maximal duration for auto-swap interval in milliseconds.
@@ -65,7 +65,7 @@ void SwappyGL_setAutoSwapInterval(bool enabled);
  * than `max_swap_ns`, Swappy will not do any pacing and just submit the frame
  * as soon as possible.
  */
-void SwappyGL_setMaxAutoSwapIntervalNS(uint64_t max_swap_ns);
+SWAPPY_EXPORT void SwappyGL_setMaxAutoSwapIntervalNS(uint64_t max_swap_ns);
 
 /**
  * @brief Toggle auto-pipeline mode on/off
@@ -74,7 +74,7 @@ void SwappyGL_setMaxAutoSwapIntervalNS(uint64_t max_swap_ns);
  * will try to reduce latency by scheduling cpu and gpu work in the same
  * pipeline stage, if it fits.
  */
-void SwappyGL_setAutoPipelineMode(bool enabled);
+SWAPPY_EXPORT void SwappyGL_setAutoPipelineMode(bool enabled);
 
 /**
  * @brief Toggle statistics collection on/off
@@ -86,7 +86,7 @@ void SwappyGL_setAutoPipelineMode(bool enabled);
  * related work. Stats will be logged to logcat with a 'FrameStatistics' tag. An
  * app can get the stats by calling ::SwappyGL_getStats.
  */
-void SwappyGL_enableStats(bool enabled);
+SWAPPY_EXPORT void SwappyGL_enableStats(bool enabled);
 
 /**
  * @brief Should be called if stats have been enabled with SwappyGL_enableStats.
@@ -97,7 +97,7 @@ void SwappyGL_enableStats(bool enabled);
  *
  * @see SwappyGL_enableStats.
  */
-void SwappyGL_recordFrameStart(EGLDisplay display, EGLSurface surface);
+SWAPPY_EXPORT void SwappyGL_recordFrameStart(EGLDisplay display, EGLSurface surface);
 
 /**
  * @brief Returns the stats collected, if statistics collection was toggled on.
@@ -107,19 +107,11 @@ void SwappyGL_recordFrameStart(EGLDisplay display, EGLSurface surface);
  * @see SwappyStats
  * @see SwappyGL_enableStats
  */
-void SwappyGL_getStats(SwappyStats *swappyStats);
-
-/**
- * @brief Clears the frame statistics collected so far.
- *
- * All the frame statistics collected are reset to 0, frame statistics are
- * collected normally after this call.
- */
-void SwappyGL_clearStats();
+SWAPPY_EXPORT void SwappyGL_getStats(SwappyStats *swappyStats);
 
 /** @brief Remove callbacks that were previously added using
  * SwappyGL_injectTracer. */
-void SwappyGL_uninjectTracer(const SwappyTracer *t);
+SWAPPY_EXPORT void SwappyGL_uninjectTracer(const SwappyTracer *t);
 
 #ifdef __cplusplus
 };

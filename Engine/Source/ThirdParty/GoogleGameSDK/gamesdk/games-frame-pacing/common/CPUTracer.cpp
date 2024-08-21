@@ -18,7 +18,8 @@
 
 #include <memory>
 
-#include "Trace.h"
+#include "../../src/common/Log.h"
+#include "../../src/common/Trace.h"
 
 namespace swappy {
 

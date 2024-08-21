@@ -14,12 +14,16 @@
  * limitations under the License.
  */
 
+#define LOG_TAG "Swappy"
+
 #include "CpuInfo.h"
 
 #include <bitset>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+
+#include "Log.h"
 
 namespace {
 

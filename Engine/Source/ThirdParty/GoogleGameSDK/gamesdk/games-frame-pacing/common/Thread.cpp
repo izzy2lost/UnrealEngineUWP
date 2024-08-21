@@ -24,7 +24,7 @@
 #include "swappy/swappy_common.h"
 
 #define LOG_TAG "SwappyThread"
-#include "SwappyLog.h"
+#include "Log.h"
 
 namespace swappy {
 
@@ -90,7 +90,7 @@ struct ExtThreadImpl : public ThreadImpl {
    public:
     ExtThreadImpl(std::function<void()>&& fn) : fn_(std::move(fn)) {
         if (s_ext_thread_manager->start(&id_, startThread, this) != 0) {
-            SWAPPY_LOGE("Couldn't create thread");
+            ALOGE("Couldn't create thread");
         }
     }
     void join() { s_ext_thread_manager->join(id_); }

@@ -19,7 +19,7 @@
 #include "SwappyCommon.h"
 
 #define LOG_TAG "FrameStatistics"
-#include "SwappyLog.h"
+#include "Log.h"
 
 namespace swappy {
 
@@ -90,36 +90,36 @@ void FrameStatistics::logFrames() {
     }
 
     std::string message;
-    SWAPPY_LOGI("== Frame statistics ==");
-    SWAPPY_LOGI("total frames: %" PRIu64, mStats.totalFrames);
+    ALOGI("== Frame statistics ==");
+    ALOGI("total frames: %" PRIu64, mStats.totalFrames);
     message += "Buckets:                    ";
     for (int i = 0; i < MAX_FRAME_BUCKETS; i++)
         message += "\t[" + swappy::to_string(i) + "]";
-    SWAPPY_LOGI("%s", message.c_str());
+    ALOGI("%s", message.c_str());
 
     message = "";
     message += "idle frames:                ";
     for (int i = 0; i < MAX_FRAME_BUCKETS; i++)
         message += "\t " + swappy::to_string(mStats.idleFrames[i]);
-    SWAPPY_LOGI("%s", message.c_str());
+    ALOGI("%s", message.c_str());
 
     message = "";
     message += "late frames:                ";
     for (int i = 0; i < MAX_FRAME_BUCKETS; i++)
         message += "\t " + swappy::to_string(mStats.lateFrames[i]);
-    SWAPPY_LOGI("%s", message.c_str());
+    ALOGI("%s", message.c_str());
 
     message = "";
     message += "offset from previous frame: ";
     for (int i = 0; i < MAX_FRAME_BUCKETS; i++)
         message += "\t " + swappy::to_string(mStats.offsetFromPreviousFrame[i]);
-    SWAPPY_LOGI("%s", message.c_str());
+    ALOGI("%s", message.c_str());
 
     message = "";
     message += "frame latency:              ";
     for (int i = 0; i < MAX_FRAME_BUCKETS; i++)
         message += "\t " + swappy::to_string(mStats.latencyFrames[i]);
-    SWAPPY_LOGI("%s", message.c_str());
+    ALOGI("%s", message.c_str());
 
     previousLogTime = std::chrono::steady_clock::now();
 }

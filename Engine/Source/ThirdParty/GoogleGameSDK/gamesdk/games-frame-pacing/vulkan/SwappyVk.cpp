@@ -17,7 +17,6 @@
 #include "SwappyVk.h"
 
 #define LOG_TAG "SwappyVk"
-#include "SwappyLog.h"
 
 namespace swappy {
 
@@ -134,7 +133,7 @@ bool SwappyVk::GetRefreshCycleDuration(JNIEnv* env, jobject jactivity,
         if (doesPhysicalDeviceHaveGoogleDisplayTiming[physicalDevice]) {
             pImplementation = std::make_shared<SwappyVkGoogleDisplayTiming>(
                 env, jactivity, physicalDevice, device, pFunctionProvider);
-            SWAPPY_LOGV(
+            ALOGV(
                 "SwappyVk initialized for VkDevice %p using "
                 "VK_GOOGLE_display_timing on Android",
                 device);
@@ -143,13 +142,12 @@ bool SwappyVk::GetRefreshCycleDuration(JNIEnv* env, jobject jactivity,
         {
             pImplementation = std::make_shared<SwappyVkFallback>(
                 env, jactivity, physicalDevice, device, pFunctionProvider);
-            SWAPPY_LOGV(
-                "SwappyVk initialized for VkDevice %p using Android fallback",
-                device);
+            ALOGV("SwappyVk initialized for VkDevice %p using Android fallback",
+                  device);
         }
 
         if (!pImplementation) {  // should never happen
-            SWAPPY_LOGE(
+            ALOGE(
                 "SwappyVk could not find or create correct implementation for "
                 "the current environment: "
                 "%p, %p",
@@ -193,9 +191,8 @@ void SwappyVk::SetSwapDuration(VkDevice device, VkSwapchainKHR swapchain,
 VkResult SwappyVk::QueuePresent(VkQueue queue,
                                 const VkPresentInfoKHR* pPresentInfo) {
     if (perQueueFamilyIndex.find(queue) == perQueueFamilyIndex.end()) {
-        SWAPPY_LOGE(
-            "Unknown queue %p. Did you call SwappyVkSetQueueFamilyIndex ?",
-            queue);
+        ALOGE("Unknown queue %p. Did you call SwappyVkSetQueueFamilyIndex ?",
+              queue);
         return VK_INCOMPLETE;
     }
 

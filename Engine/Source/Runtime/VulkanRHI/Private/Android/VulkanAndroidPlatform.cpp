@@ -77,6 +77,10 @@ ENUM_VK_ENTRYPOINTS_ALL(DEFINE_VK_ENTRYPOINTS)
 
 #define VULKAN_MALI_LAYER_NAME "VK_LAYER_ARM_AGA"
 
+
+#if USE_ANDROID_SWAPPY
+bool FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit = false;
+#endif
 void* FVulkanAndroidPlatform::VulkanLib = nullptr;
 bool FVulkanAndroidPlatform::bAttemptedLoad = false;
 
@@ -368,7 +372,7 @@ void FVulkanAndroidPlatform::FreeVulkanLibrary()
 bool FVulkanAndroidPlatform::HasCustomFrameTiming()
 {
 #if USE_ANDROID_SWAPPY
-	return FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0;
+	return FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit;
 #endif
 	return false;
 }
@@ -376,7 +380,7 @@ bool FVulkanAndroidPlatform::HasCustomFrameTiming()
 void FVulkanAndroidPlatform::InitDevice(FVulkanDevice* InDevice)
 {
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		FVulkanQueue* GfxQueue = InDevice->GetGraphicsQueue();
 		check(GfxQueue);
@@ -482,7 +486,7 @@ void FVulkanAndroidPlatform::GetDeviceExtensions(FVulkanDevice* Device, FVulkanD
 #endif
 
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		// make sure any extensions swappy requires are included
 		for (const TArray<ANSICHAR>& SwappyRequiredExtension : SwappyRequiredExtensions)
@@ -528,7 +532,7 @@ void FVulkanAndroidPlatform::GetDeviceLayers(TArray<const ANSICHAR*>& OutLayers)
 void FVulkanAndroidPlatform::NotifyFoundDeviceLayersAndExtensions(VkPhysicalDevice PhysicalDevice, const TArray<const ANSICHAR*>& Layers, const TArray<const ANSICHAR*>& Extensions)
 {
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		// Determine extensions required by Swappy
 		// We need to pass in vkEnumerateDeviceExtensionProperties directly so we cannot use the Extensions array as passed in.
@@ -606,9 +610,8 @@ bool FVulkanAndroidPlatform::SupportsDynamicResolution()
 #if USE_ANDROID_SWAPPY
 	
 	static const auto CVarAndroidSupportsDynamicResolution = IConsoleManager::Get().FindConsoleVariable(TEXT("r.Android.SupportsDynamicResolution"));
-
-	bool bIsSwappyEnabled = FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() == 1;
-	return bIsSwappyEnabled && 
+	
+	return FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit &&
 		CVarAndroidSupportsDynamicResolution != nullptr &&
 		CVarAndroidSupportsDynamicResolution->GetBool(); // is supported
 
@@ -644,7 +647,7 @@ bool FVulkanAndroidPlatform::FramePace(FVulkanDevice& Device, void* WindowHandle
 	int32 CurrentFramePace = FAndroidPlatformRHIFramePacer::GetFramePace();
 
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0 && CurrentFramePace != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit && CurrentFramePace != 0)
 	{
 		// cache refresh rate and sync interval
 		if (CurrentFramePace != CachedFramePace)
@@ -687,7 +690,7 @@ bool FVulkanAndroidPlatform::FramePace(FVulkanDevice& Device, void* WindowHandle
 VkResult FVulkanAndroidPlatform::Present(VkQueue Queue, VkPresentInfoKHR& PresentInfo)
 {
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnRenderThread() != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		return SwappyVk_queuePresent(Queue, &PresentInfo);
 	}
@@ -705,7 +708,7 @@ VkResult FVulkanAndroidPlatform::CreateSwapchainKHR(void* WindowHandle, VkPhysic
 	if (Result == VK_SUCCESS)
 	{
 #if USE_ANDROID_SWAPPY
-		if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() !=0)
+		if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 		{
 			JNIEnv* Env = FAndroidApplication::GetJavaEnv();
 			if (ensure(Env))
@@ -743,7 +746,7 @@ VkResult FVulkanAndroidPlatform::CreateSwapchainKHR(void* WindowHandle, VkPhysic
 void FVulkanAndroidPlatform::DestroySwapchainKHR(VkDevice Device, VkSwapchainKHR Swapchain, const VkAllocationCallbacks* Allocator)
 {
 #if USE_ANDROID_SWAPPY
-	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0)
+	if (FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit)
 	{
 		SwappyVk_destroySwapchain(Device, Swapchain);
 		UE_LOG(LogVulkanRHI, Log, TEXT("SwappyVk_destroySwapchain"));
@@ -1692,6 +1695,24 @@ VkPipelineCache FVulkanAndroidPlatform::PrecompilePSO(
 		}
 	}
 	return ReturnPipelineCache;
+}
+
+void FAndroidVulkanFramePacer::Init()
+{
+#if USE_ANDROID_SWAPPY
+	if (FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.GetValueOnAnyThread() != 0)
+	{
+		FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit = true;
+		extern void LoadSwappy();
+		LoadSwappy();
+	}
+#if !UE_BUILD_SHIPPING
+	FAndroidPlatformRHIFramePacer::CVarUseSwappyForFramePacing.AsVariable()->SetOnChangedCallback(FConsoleVariableDelegate::CreateLambda([](IConsoleVariable* InVariable)
+	{
+		UE_LOG(LogRHI, Warning, TEXT("In Vulkan mode, changing a.UseSwappyForFramePacing after the RHI is initialized has no effect. Swappy is %s."), FVulkanAndroidPlatform::bSwappyEnabledAtRHIInit ? TEXT("Enabledd") : TEXT("Disabled"));
+	}));
+#endif
+#endif
 }
 
 bool FAndroidVulkanFramePacer::SupportsFramePace(int32 QueryFramePace)

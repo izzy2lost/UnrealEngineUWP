@@ -19,7 +19,35 @@
 #include "system_utils.h"
 
 #define LOG_TAG "SwappyVkBase"
-#include "SwappyLog.h"
+
+
+// Workaround Mali issue with VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT 
+namespace AllocatorWorkaround
+{
+VKAPI_ATTR void* Alloc(void* UserData, size_t Size, size_t Alignment, VkSystemAllocationScope AllocScope) {
+    return malloc(Size);
+}
+
+VKAPI_ATTR void Free(void* UserData, void* Mem) { 
+    free(Mem);
+}
+
+VKAPI_ATTR void* Realloc(void* UserData, void* Original, size_t Size, size_t Alignment, VkSystemAllocationScope AllocScope) {
+    return realloc(Original, Size);
+}
+
+
+VkAllocationCallbacks AllocationCallbacks = {
+    nullptr,
+    (PFN_vkAllocationFunction)&Alloc,
+    (PFN_vkReallocationFunction)&Realloc,
+    (PFN_vkFreeFunction)&Free,
+    (PFN_vkInternalAllocationNotification) nullptr,
+    (PFN_vkInternalFreeNotification) nullptr
+};
+
+} // namespace AllocatorWorkaround
+
 
 namespace swappy {
 
@@ -91,7 +119,7 @@ SwappyVkBase::SwappyVkBase(JNIEnv* env, jobject jactivity,
       mInitialized(false),
       mEnabled(false) {
     if (!mCommonBase.isValid()) {
-        SWAPPY_LOGE("SwappyCommon could not initialize correctly.");
+        ALOGE("SwappyCommon could not initialize correctly.");
         return;
     }
 
@@ -144,10 +172,11 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         .queueFamilyIndex = queueFamilyIndex,
     };
 
-    VkResult res = vkCreateCommandPool(mDevice, &cmd_pool_info, NULL,
+    VkResult res = vkCreateCommandPool(
+        mDevice, &cmd_pool_info, &AllocatorWorkaround::AllocationCallbacks,
                                        &mCommandPool[queue]);
     if (res) {
-        SWAPPY_LOGE("vkCreateCommandPool failed %d", res);
+        ALOGE("vkCreateCommandPool failed %d", res);
         return res;
     }
     const VkCommandBufferAllocateInfo present_cmd_info = {
@@ -165,7 +194,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
             .flags = VK_FENCE_CREATE_SIGNALED_BIT};
         res = vkCreateFence(mDevice, &fence_ci, NULL, &sync.fence);
         if (res) {
-            SWAPPY_LOGE("failed to create fence: %d", res);
+            ALOGE("failed to create fence: %d", res);
             return res;
         }
 
@@ -175,14 +204,14 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
             .flags = 0};
         res = vkCreateSemaphore(mDevice, &semaphore_ci, NULL, &sync.semaphore);
         if (res) {
-            SWAPPY_LOGE("failed to create semaphore: %d", res);
+            ALOGE("failed to create semaphore: %d", res);
             return res;
         }
 
         res =
             vkAllocateCommandBuffers(mDevice, &present_cmd_info, &sync.command);
         if (res) {
-            SWAPPY_LOGE("vkAllocateCommandBuffers failed %d", res);
+            ALOGE("vkAllocateCommandBuffers failed %d", res);
             return res;
         }
 
@@ -194,7 +223,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         };
         res = vkBeginCommandBuffer(sync.command, &cmd_buf_info);
         if (res) {
-            SWAPPY_LOGE("vkAllocateCommandBuffers failed %d", res);
+            ALOGE("vkAllocateCommandBuffers failed %d", res);
             return res;
         }
 
@@ -205,7 +234,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
         };
         res = vkCreateEvent(mDevice, &event_info, NULL, &sync.event);
         if (res) {
-            SWAPPY_LOGE("vkCreateEvent failed %d", res);
+            ALOGE("vkCreateEvent failed %d", res);
             return res;
         }
 
@@ -214,7 +243,7 @@ VkResult SwappyVkBase::initializeVkSyncObjects(VkQueue queue,
 
         res = vkEndCommandBuffer(sync.command);
         if (res) {
-            SWAPPY_LOGE("vkCreateEvent failed %d", res);
+            ALOGE("vkCreateEvent failed %d", res);
             return res;
         }
 
@@ -280,7 +309,8 @@ void SwappyVkBase::destroyVkSyncObjects() {
     // Free destroy the command pools
     for (auto it = mCommandPool.begin(); it != mCommandPool.end(); it++) {
         auto commandPool = it->second;
-        vkDestroyCommandPool(mDevice, commandPool, NULL);
+        vkDestroyCommandPool(mDevice, commandPool,
+                             &AllocatorWorkaround::AllocationCallbacks);
     }
 }
 
@@ -392,7 +422,7 @@ void SwappyVkBase::waitForFenceThreadMain(ThreadContext& thread) {
                 vkWaitForFences(mDevice, 1, &sync.fence, VK_TRUE,
                                 mCommonBase.getFenceTimeout().count());
             if (result) {
-                SWAPPY_LOGW_ONCE("Failed to wait for fence %d", result);
+                ALOGW_ONCE("Failed to wait for fence %d", result);
             }
             mLastFenceTime = std::chrono::steady_clock::now() - startTime;
 

@@ -315,41 +315,6 @@ class MessageDigest : public java::Object {
 
 namespace android {
 
-namespace util {
-
-class DisplayMetrics : public java::Object {
-   public:
-    DisplayMetrics(java::Object&& o) : java::Object(std::move(o)) {}
-    DisplayMetrics()
-        : java::Object("android/util/DisplayMetrics", "()V") {}
-    int heightPixels() const { return obj_.GetIntField("heightPixels"); }
-    int widthPixels() const { return obj_.GetIntField("widthPixels"); }
-};
-
-}  // namespace util
-
-namespace view {
-
-class Display : public java::Object {
-   public:
-    Display(java::Object&& o) : java::Object(std::move(o)) {}
-    void getMetrics(util::DisplayMetrics& displayMetrics) {
-        CallOVMethod("getMetrics", "android/util/DisplayMetrics",
-                     displayMetrics);
-    }
-};
-
-class WindowManager : public java::Object {
-   public:
-    WindowManager(java::Object&& o) : java::Object(std::move(o)) {}
-    Display getDefaultDisplay() {
-        return CallVOMethod("getDefaultDisplay",
-                            "android/view/Display");
-    }
-};
-
-}  // namespace view
-
 namespace content {
 
 namespace pm {
@@ -477,10 +442,6 @@ class Context : public java::Object {
     pm::PackageManager getPackageManager() {
         return CallVOMethod("getPackageManager",
                             "android/content/pm/PackageManager");
-    }
-    android::view::WindowManager getWindowManager() {
-        return CallVOMethod("getWindowManager",
-                            "android/view/WindowManager");
     }
     jni::String getPackageName() { return CallVSMethod("getPackageName"); }
     res::AssetManager getAssets() {

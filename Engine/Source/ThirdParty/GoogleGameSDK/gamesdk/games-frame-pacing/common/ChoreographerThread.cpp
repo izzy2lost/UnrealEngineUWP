@@ -33,8 +33,8 @@
 #include "ChoreographerShim.h"
 #include "CpuInfo.h"
 #include "JNIUtil.h"
+#include "Log.h"
 #include "Settings.h"
-#include "SwappyLog.h"
 #include "Thread.h"
 #include "Trace.h"
 
@@ -106,7 +106,7 @@ NDKChoreographerThread::NDKChoreographerThread(Callback onChoreographer,
       mOnRefreshRateChanged(onRefreshRateChanged) {
     mLibAndroid = dlopen("libandroid.so", RTLD_NOW | RTLD_LOCAL);
     if (mLibAndroid == nullptr) {
-        SWAPPY_LOGE("FATAL: cannot open libandroid.so: %s", strerror(errno));
+        ALOGE("FATAL: cannot open libandroid.so: %s", strerror(errno));
         return;
     }
 
@@ -132,7 +132,7 @@ NDKChoreographerThread::NDKChoreographerThread(Callback onChoreographer,
 
     if (!mAChoreographer_getInstance || !mAChoreographer_postFrameCallback ||
         !mAChoreographer_postFrameCallbackDelayed) {
-        SWAPPY_LOGE("FATAL: cannot get AChoreographer symbols");
+        ALOGE("FATAL: cannot get AChoreographer symbols");
         return;
     }
 
@@ -148,7 +148,7 @@ NDKChoreographerThread::NDKChoreographerThread(Callback onChoreographer,
 }
 
 NDKChoreographerThread::~NDKChoreographerThread() {
-    SWAPPY_LOGI("Destroying NDKChoreographerThread");
+    ALOGI("Destroying NDKChoreographerThread");
     if (mLibAndroid != nullptr) dlclose(mLibAndroid);
     {
         std::lock_guard<std::mutex> lock(mWaitingMutex);
@@ -170,13 +170,13 @@ void NDKChoreographerThread::looperThread() {
 
     mLooper = ALooper_prepare(0);
     if (!mLooper) {
-        SWAPPY_LOGE("ALooper_prepare failed");
+        ALOGE("ALooper_prepare failed");
         return;
     }
 
     mChoreographer = mAChoreographer_getInstance();
     if (!mChoreographer) {
-        SWAPPY_LOGE("AChoreographer_getInstance failed");
+        ALOGE("AChoreographer_getInstance failed");
         return;
     }
 
@@ -200,16 +200,16 @@ void NDKChoreographerThread::looperThread() {
     CPU_SET(0, &cpu_set);
 
     if (cpu.getNumberOfCpus() > 0) {
-        SWAPPY_LOGI("Swappy found %d CPUs [%s].", cpu.getNumberOfCpus(),
-                    cpu.getHardware().c_str());
+        ALOGI("Swappy found %d CPUs [%s].", cpu.getNumberOfCpus(),
+              cpu.getHardware().c_str());
         if (cpu.getNumberOfLittleCores() > 0) {
             cpu_set = cpu.getLittleCoresMask();
         }
     }
 
     const auto tid = gettid();
-    SWAPPY_LOGI("Setting '%s' thread [%d-0x%x] affinity mask to 0x%x.", name,
-                tid, tid, to_mask(cpu_set));
+    ALOGI("Setting '%s' thread [%d-0x%x] affinity mask to 0x%x.", name, tid,
+          tid, to_mask(cpu_set));
     sched_setaffinity(tid, sizeof(cpu_set), &cpu_set);
 
     pthread_setname_np(pthread_self(), name);
@@ -225,7 +225,7 @@ void NDKChoreographerThread::looperThread() {
         mAChoreographer_unregisterRefreshRateCallback(mChoreographer, callback,
                                                       this);
     }
-    SWAPPY_LOGI("Terminating Looper thread");
+    ALOGI("Terminating Looper thread");
 
     return;
 }
@@ -291,7 +291,7 @@ JavaChoreographerThread::JavaChoreographerThread(JavaVM *vm, jobject jactivity,
 }
 
 JavaChoreographerThread::~JavaChoreographerThread() {
-    SWAPPY_LOGI("Destroying JavaChoreographerThread");
+    ALOGI("Destroying JavaChoreographerThread");
 
     if (!mJobj) {
         return;
@@ -367,7 +367,7 @@ NoChoreographerThread::NoChoreographerThread(Callback onChoreographer)
 }
 
 NoChoreographerThread::~NoChoreographerThread() {
-    SWAPPY_LOGI("Destroying NoChoreographerThread");
+    ALOGI("Destroying NoChoreographerThread");
     {
         std::lock_guard<std::mutex> lock(mWaitingMutex);
         mThreadRunning = false;
@@ -381,8 +381,8 @@ void NoChoreographerThread::onSettingsChanged() {
         Settings::getInstance()->getDisplayTimings();
     std::lock_guard<std::mutex> lock(mWaitingMutex);
     mRefreshPeriod = displayTimings.refreshPeriod;
-    SWAPPY_LOGV("onSettingsChanged(): refreshPeriod=%lld",
-                (long long)displayTimings.refreshPeriod.count());
+    ALOGV("onSettingsChanged(): refreshPeriod=%lld",
+          (long long)displayTimings.refreshPeriod.count());
 }
 
 void NoChoreographerThread::looperThread() {
@@ -394,16 +394,16 @@ void NoChoreographerThread::looperThread() {
     CPU_SET(0, &cpu_set);
 
     if (cpu.getNumberOfCpus() > 0) {
-        SWAPPY_LOGI("Swappy found %d CPUs [%s].", cpu.getNumberOfCpus(),
-                    cpu.getHardware().c_str());
+        ALOGI("Swappy found %d CPUs [%s].", cpu.getNumberOfCpus(),
+              cpu.getHardware().c_str());
         if (cpu.getNumberOfLittleCores() > 0) {
             cpu_set = cpu.getLittleCoresMask();
         }
     }
 
     const auto tid = gettid();
-    SWAPPY_LOGI("Setting '%s' thread [%d-0x%x] affinity mask to 0x%x.", name,
-                tid, tid, to_mask(cpu_set));
+    ALOGI("Setting '%s' thread [%d-0x%x] affinity mask to 0x%x.", name, tid,
+          tid, to_mask(cpu_set));
     sched_setaffinity(tid, sizeof(cpu_set), &cpu_set);
 
     pthread_setname_np(pthread_self(), name);
@@ -430,7 +430,7 @@ void NoChoreographerThread::looperThread() {
         std::this_thread::sleep_until(wakeTime);
         mCallback();
     }
-    SWAPPY_LOGI("Terminating choreographer thread");
+    ALOGI("Terminating choreographer thread");
 }
 
 void NoChoreographerThread::postFrameCallbacks() {
@@ -488,13 +488,13 @@ ChoreographerThread::createChoreographerThread(Type type, JavaVM *vm,
                                                Callback onRefreshRateChanged,
                                                SdkVersion sdkVersion) {
     if (type == Type::App) {
-        SWAPPY_LOGI("Using Application's Choreographer");
+        ALOGI("Using Application's Choreographer");
         return std::make_unique<NoChoreographerThread>(onChoreographer);
     }
 
     if (vm == nullptr ||
         sdkVersion.sdkInt >= NDKChoreographerThread::MIN_SDK_VERSION) {
-        SWAPPY_LOGI("Using NDK Choreographer");
+        ALOGI("Using NDK Choreographer");
         const auto usingDisplayManager =
             SwappyDisplayManager::useSwappyDisplayManager(sdkVersion);
         const auto refreshRateCallback =
@@ -508,12 +508,12 @@ ChoreographerThread::createChoreographerThread(Type type, JavaVM *vm,
             std::make_unique<JavaChoreographerThread>(vm, jactivity,
                                                       onChoreographer);
         if (javaChoreographerThread->isInitialized()) {
-            SWAPPY_LOGI("Using Java Choreographer");
+            ALOGI("Using Java Choreographer");
             return javaChoreographerThread;
         }
     }
 
-    SWAPPY_LOGI("Using no Choreographer (Best Effort)");
+    ALOGI("Using no Choreographer (Best Effort)");
     return std::make_unique<NoChoreographerThread>(onChoreographer);
 }
 

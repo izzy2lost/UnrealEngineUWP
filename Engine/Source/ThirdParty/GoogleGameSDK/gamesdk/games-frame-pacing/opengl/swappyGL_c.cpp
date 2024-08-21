@@ -101,8 +101,6 @@ void SwappyGL_recordFrameStart(EGLDisplay display, EGLSurface surface) {
 
 void SwappyGL_getStats(SwappyStats *stats) { SwappyGL::getStats(stats); }
 
-void SwappyGL_clearStats() { SwappyGL::clearStats(); }
-
 bool SwappyGL_isEnabled() { return SwappyGL::isEnabled(); }
 
 void SwappyGL_setFenceTimeoutNS(uint64_t t) {

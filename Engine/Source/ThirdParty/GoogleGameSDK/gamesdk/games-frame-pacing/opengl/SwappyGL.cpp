@@ -15,16 +15,17 @@
  */
 
 #include "SwappyGL.h"
-#define LOG_TAG "SwappyGL"
 
 #include <cinttypes>
 #include <cmath>
 #include <cstdlib>
 
-#include "SwappyLog.h"
+#include "Log.h"
 #include "Thread.h"
 #include "Trace.h"
 #include "system_utils.h"
+
+#define LOG_TAG "Swappy"
 
 namespace swappy {
 
@@ -37,12 +38,12 @@ std::unique_ptr<SwappyGL> SwappyGL::sInstance;
 bool SwappyGL::init(JNIEnv *env, jobject jactivity) {
     std::lock_guard<std::mutex> lock(sInstanceMutex);
     if (sInstance) {
-        SWAPPY_LOGE("Attempted to initialize SwappyGL twice");
+        ALOGE("Attempted to initialize SwappyGL twice");
         return false;
     }
     sInstance = std::make_unique<SwappyGL>(env, jactivity, ConstructorTag{});
     if (!sInstance->mEnableSwappy) {
-        SWAPPY_LOGE("Failed to initialize SwappyGL");
+        ALOGE("Failed to initialize SwappyGL");
         return false;
     }
 
@@ -65,7 +66,7 @@ bool SwappyGL::setWindow(ANativeWindow *window) {
 
     SwappyGL *swappy = getInstance();
     if (!swappy) {
-        SWAPPY_LOGE("Failed to get SwappyGL instance in setWindow");
+        ALOGE("Failed to get SwappyGL instance in setWindow");
         return false;
     }
 
@@ -91,7 +92,7 @@ bool SwappyGL::swap(EGLDisplay display, EGLSurface surface) {
 bool SwappyGL::lastFrameIsComplete(EGLDisplay display) {
     if (!getEgl()->lastFrameIsComplete(display)) {
         gamesdk::ScopedTrace trace("lastFrameIncomplete");
-        SWAPPY_LOGV("lastFrameIncomplete");
+        ALOGV("lastFrameIncomplete");
         return false;
     }
     return true;
@@ -269,14 +270,14 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
         std::lock_guard<std::mutex> lock(mEglMutex);
         mEgl = EGL::create(mCommonBase.getFenceTimeout());
         if (!mEgl) {
-            SWAPPY_LOGE("Failed to load EGL functions");
+            ALOGE("Failed to load EGL functions");
             mEnableSwappy = false;
             return;
         }
     }
 
     if (!mCommonBase.isValid()) {
-        SWAPPY_LOGE("SwappyCommon could not initialize correctly.");
+        ALOGE("SwappyCommon could not initialize correctly.");
         mEnableSwappy = false;
         return;
     }
@@ -284,7 +285,7 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
     mEnableSwappy =
         !gamesdk::GetSystemPropAsBool(SWAPPY_SYSTEM_PROP_KEY_DISABLE, false);
     if (!enabled()) {
-        SWAPPY_LOGI("Swappy is disabled");
+        ALOGI("Swappy is disabled");
         return;
     }
 
@@ -294,9 +295,9 @@ SwappyGL::SwappyGL(JNIEnv *env, jobject jactivity, ConstructorTag)
         mCommonBase.setLastLatencyRecordedCallback(
             [this]() { return this->mFrameStatistics->lastLatencyRecorded(); });
     } else {
-        SWAPPY_LOGI("stats are not suppored on this platform");
+        ALOGI("stats are not suppored on this platform");
     }
-    SWAPPY_LOGI("SwappyGL initialized successfully");
+    ALOGI("SwappyGL initialized successfully");
 }
 
 void SwappyGL::resetSyncFence(EGLDisplay display) {

@@ -231,10 +231,6 @@ static jclass loadClass(JNIEnv* env, jobject activity, const char* name,
             env->DeleteLocalRef(imclassloaderClass);
         }
 #endif  // #ifdef ANDROIDGAMESDK_NO_BINARY_DEX_LINKAGE
-    } else {
-        // Register the native methods loaded by the classLoaderClass
-        env->RegisterNatives(targetClass, nativeMethods,
-                             nativeMethodsSize);
     }
     env->DeleteLocalRef(className);
     return targetClass;

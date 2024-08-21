@@ -23,7 +23,7 @@
 
 #define LOG_TAG "Swappy::EGL"
 
-#include "SwappyLog.h"
+#include "Log.h"
 
 using namespace std::chrono_literals;
 
@@ -32,20 +32,20 @@ namespace swappy {
 std::unique_ptr<EGL> EGL::create(std::chrono::nanoseconds fenceTimeout) {
     auto eglLib = dlopen("libEGL.so", RTLD_LAZY | RTLD_LOCAL);
     if (eglLib == nullptr) {
-        SWAPPY_LOGE("Can't load libEGL");
+        ALOGE("Can't load libEGL");
         return nullptr;
     }
     auto eglGetProcAddress = reinterpret_cast<eglGetProcAddress_type>(
         dlsym(eglLib, "eglGetProcAddress"));
     if (eglGetProcAddress == nullptr) {
-        SWAPPY_LOGE("Failed to load eglGetProcAddress");
+        ALOGE("Failed to load eglGetProcAddress");
         return nullptr;
     }
 
     auto eglSwapBuffers =
         reinterpret_cast<eglSwapBuffers_type>(dlsym(eglLib, "eglSwapBuffers"));
     if (eglSwapBuffers == nullptr) {
-        SWAPPY_LOGE("Failed to load eglSwapBuffers");
+        ALOGE("Failed to load eglSwapBuffers");
         return nullptr;
     }
 
@@ -53,42 +53,42 @@ std::unique_ptr<EGL> EGL::create(std::chrono::nanoseconds fenceTimeout) {
         reinterpret_cast<eglPresentationTimeANDROID_type>(
             eglGetProcAddress("eglPresentationTimeANDROID"));
     if (eglPresentationTimeANDROID == nullptr) {
-        SWAPPY_LOGE("Failed to load eglPresentationTimeANDROID");
+        ALOGE("Failed to load eglPresentationTimeANDROID");
         return nullptr;
     }
 
     auto eglCreateSyncKHR = reinterpret_cast<eglCreateSyncKHR_type>(
         eglGetProcAddress("eglCreateSyncKHR"));
     if (eglCreateSyncKHR == nullptr) {
-        SWAPPY_LOGE("Failed to load eglCreateSyncKHR");
+        ALOGE("Failed to load eglCreateSyncKHR");
         return nullptr;
     }
 
     auto eglDestroySyncKHR = reinterpret_cast<eglDestroySyncKHR_type>(
         eglGetProcAddress("eglDestroySyncKHR"));
     if (eglDestroySyncKHR == nullptr) {
-        SWAPPY_LOGE("Failed to load eglDestroySyncKHR");
+        ALOGE("Failed to load eglDestroySyncKHR");
         return nullptr;
     }
 
     auto eglGetSyncAttribKHR = reinterpret_cast<eglGetSyncAttribKHR_type>(
         eglGetProcAddress("eglGetSyncAttribKHR"));
     if (eglGetSyncAttribKHR == nullptr) {
-        SWAPPY_LOGE("Failed to load eglGetSyncAttribKHR");
+        ALOGE("Failed to load eglGetSyncAttribKHR");
         return nullptr;
     }
 
     auto eglGetError =
         reinterpret_cast<eglGetError_type>(eglGetProcAddress("eglGetError"));
     if (eglGetError == nullptr) {
-        SWAPPY_LOGE("Failed to load eglGetError");
+        ALOGE("Failed to load eglGetError");
         return nullptr;
     }
 
     auto eglSurfaceAttrib = reinterpret_cast<eglSurfaceAttrib_type>(
         eglGetProcAddress("eglSurfaceAttrib"));
     if (eglSurfaceAttrib == nullptr) {
-        SWAPPY_LOGE("Failed to load eglSurfaceAttrib");
+        ALOGE("Failed to load eglSurfaceAttrib");
         return nullptr;
     }
 
@@ -97,14 +97,14 @@ std::unique_ptr<EGL> EGL::create(std::chrono::nanoseconds fenceTimeout) {
         reinterpret_cast<eglGetNextFrameIdANDROID_type>(
             eglGetProcAddress("eglGetNextFrameIdANDROID"));
     if (eglGetNextFrameIdANDROID == nullptr) {
-        SWAPPY_LOGI("Failed to load eglGetNextFrameIdANDROID");
+        ALOGI("Failed to load eglGetNextFrameIdANDROID");
     }
 
     auto eglGetFrameTimestampsANDROID =
         reinterpret_cast<eglGetFrameTimestampsANDROID_type>(
             eglGetProcAddress("eglGetFrameTimestampsANDROID"));
     if (eglGetFrameTimestampsANDROID == nullptr) {
-        SWAPPY_LOGI("Failed to load eglGetFrameTimestampsANDROID");
+        ALOGI("Failed to load eglGetFrameTimestampsANDROID");
     }
 
     auto egl = std::make_unique<EGL>(fenceTimeout, eglGetProcAddress,
@@ -134,7 +134,7 @@ void EGL::resetSyncFence(EGLDisplay display) {
     if (mFenceWaiter.waitForIdle() && mSyncFence != EGL_NO_SYNC_KHR) {
         EGLBoolean result = eglDestroySyncKHR(display, mSyncFence);
         if (result == EGL_FALSE) {
-            SWAPPY_LOGE("Failed to destroy sync fence");
+            ALOGE("Failed to destroy sync fence");
         }
     }
 
@@ -144,7 +144,7 @@ void EGL::resetSyncFence(EGLDisplay display) {
         // kick of the thread work to wait for the fence and measure its time
         mFenceWaiter.onFenceCreation(display, mSyncFence);
     } else {
-        SWAPPY_LOGE("Failed to create sync fence");
+        ALOGE("Failed to create sync fence");
     }
 }
 
@@ -160,7 +160,7 @@ bool EGL::lastFrameIsComplete(EGLDisplay display) {
     EGLBoolean result =
         eglGetSyncAttribKHR(display, mSyncFence, EGL_SYNC_STATUS_KHR, &status);
     if (result == EGL_FALSE) {
-        SWAPPY_LOGE("Failed to get sync status");
+        ALOGE("Failed to get sync status");
         return true;
     }
 
@@ -169,7 +169,7 @@ bool EGL::lastFrameIsComplete(EGLDisplay display) {
     } else if (status == EGL_UNSIGNALED_KHR) {
         return false;
     } else {
-        SWAPPY_LOGE("Unexpected sync status: %d", status);
+        ALOGE("Unexpected sync status: %d", status);
         return true;
     }
 }
@@ -189,14 +189,14 @@ bool EGL::statsSupported() {
 std::pair<bool, EGLuint64KHR> EGL::getNextFrameId(EGLDisplay dpy,
                                                   EGLSurface surface) const {
     if (eglGetNextFrameIdANDROID == nullptr) {
-        SWAPPY_LOGE("stats are not supported on this platform");
+        ALOGE("stats are not supported on this platform");
         return {false, 0};
     }
 
     EGLuint64KHR frameId;
     EGLBoolean result = eglGetNextFrameIdANDROID(dpy, surface, &frameId);
     if (result == EGL_FALSE) {
-        SWAPPY_LOGE("Failed to get next frame ID");
+        ALOGE("Failed to get next frame ID");
         return {false, 0};
     }
 
@@ -207,7 +207,7 @@ std::unique_ptr<EGL::FrameTimestamps> EGL::getFrameTimestamps(
     EGLDisplay dpy, EGLSurface surface, EGLuint64KHR frameId) const {
 #if (not defined ANDROID_NDK_VERSION) || ANDROID_NDK_VERSION >= 15
     if (eglGetFrameTimestampsANDROID == nullptr) {
-        SWAPPY_LOGE("stats are not supported on this platform");
+        ALOGE("stats are not supported on this platform");
         return nullptr;
     }
     const std::vector<EGLint> timestamps = {
@@ -227,8 +227,8 @@ std::unique_ptr<EGL::FrameTimestamps> EGL::getFrameTimestamps(
         if (reason == EGL_BAD_SURFACE) {
             eglSurfaceAttrib(dpy, surface, EGL_TIMESTAMPS_ANDROID, EGL_TRUE);
         } else {
-            SWAPPY_LOGE_ONCE("Failed to get timestamps for frame %llu",
-                             (unsigned long long)frameId);
+            ALOGE_ONCE("Failed to get timestamps for frame %llu",
+                       (unsigned long long)frameId);
         }
         return nullptr;
     }
@@ -259,11 +259,10 @@ EGL::FenceWaiter::FenceWaiter(std::chrono::nanoseconds fenceTimeout,
     eglClientWaitSyncKHR = reinterpret_cast<eglClientWaitSyncKHR_type>(
         getProcAddress("eglClientWaitSyncKHR"));
     if (eglClientWaitSyncKHR == nullptr)
-        SWAPPY_LOGE("Failed to load eglClientWaitSyncKHR");
+        ALOGE("Failed to load eglClientWaitSyncKHR");
     eglDestroySyncKHR = reinterpret_cast<eglDestroySyncKHR_type>(
         getProcAddress("eglDestroySyncKHR"));
-    if (eglDestroySyncKHR == nullptr)
-        SWAPPY_LOGE("Failed to load eglDestroySyncKHR");
+    if (eglDestroySyncKHR == nullptr) ALOGE("Failed to load eglDestroySyncKHR");
 
     mFenceWaiter = Thread([this]() { threadMain(); });
 }
@@ -313,16 +312,16 @@ void EGL::FenceWaiter::threadMain() {
                                                  mFenceTimeout.count());
         switch (result) {
             case EGL_FALSE:
-                SWAPPY_LOGE("Failed to wait sync");
+                ALOGE("Failed to wait sync");
                 break;
             case EGL_TIMEOUT_EXPIRED_KHR:
-                SWAPPY_LOGE("Timeout waiting for fence");
+                ALOGE("Timeout waiting for fence");
                 break;
         }
         if (result != EGL_CONDITION_SATISFIED_KHR) {
             result = eglDestroySyncKHR(mDisplay, mSyncFence);
             if (result == EGL_FALSE) {
-                SWAPPY_LOGE("Failed to destroy sync fence");
+                ALOGE("Failed to destroy sync fence");
             }
             mSyncFence = EGL_NO_SYNC_KHR;
         }

@@ -27,6 +27,14 @@
 
 #include "common/gamesdk_common.h"
 
+#ifndef SWAPPY_EXPORT
+    #ifdef SWAPPY_EXPORT_SYMBOLS
+        #define SWAPPY_EXPORT __attribute__((visibility("default"))) 
+    #else
+        #define SWAPPY_EXPORT
+    #endif
+#endif
+
 /** @brief Swap interval for 60fps, in nanoseconds. */
 #define SWAPPY_SWAP_60FPS (16666667L)
 
@@ -47,8 +55,8 @@
 #define SWAPPY_SYSTEM_PROP_KEY_DISABLE "swappy.disable"
 
 // Internal macros to track Swappy version, do not use directly.
-#define SWAPPY_MAJOR_VERSION 2
-#define SWAPPY_MINOR_VERSION 1
+#define SWAPPY_MAJOR_VERSION 1
+#define SWAPPY_MINOR_VERSION 10
 #define SWAPPY_BUGFIX_VERSION 0
 #define SWAPPY_PACKED_VERSION                                                  \
     ANDROID_GAMESDK_PACKED_VERSION(SWAPPY_MAJOR_VERSION, SWAPPY_MINOR_VERSION, \
@@ -65,11 +73,6 @@
                           SWAPPY_MINOR_VERSION, SWAPPY_BUGFIX_VERSION, \
                           AGDK_GIT_COMMIT)
 
-// Define this to 1 to enable all logging from Swappy, by default it is
-// disabled in a release build and enabled in a debug build.
-#ifndef ENABLE_SWAPPY_LOGGING
-#define ENABLE_SWAPPY_LOGGING 0
-#endif
 /** @endcond */
 
 /** @brief Id of a thread returned by an external thread manager. */
@@ -115,7 +118,7 @@ extern "C" {
 /**
  * @brief Return the version of the Swappy library at runtime.
  */
-uint32_t Swappy_version();
+SWAPPY_EXPORT uint32_t Swappy_version();
 
 /**
  * @brief Call this before any other functions in order to use a custom thread
@@ -125,13 +128,13 @@ uint32_t Swappy_version();
  * default.
  *
  */
-void Swappy_setThreadFunctions(const SwappyThreadFunctions* thread_functions);
+SWAPPY_EXPORT void Swappy_setThreadFunctions(const SwappyThreadFunctions* thread_functions);
 
 /**
  * @brief Return the full version of the Swappy library at runtime, e.g.
  * "1.9.0_8a85ab7c46"
  */
-const char* Swappy_versionString();
+SWAPPY_EXPORT const char* Swappy_versionString();
 
 /**
  * @brief Swappy frame statistics, collected if toggled on with

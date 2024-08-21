@@ -50,7 +50,7 @@ private:
 
 struct FAndroidVulkanFramePacer : public IAndroidFramePacer
 {
-	virtual void Init() override {}
+	virtual void Init() override;
 	virtual ~FAndroidVulkanFramePacer() {}
 	virtual bool SupportsFramePace(int32 QueryFramePace) override;
 private:

@@ -9,17 +9,32 @@ public class GoogleGameSDK : ModuleRules
 	public GoogleGameSDK(ReadOnlyTargetRules Target) : base(Target)
 	{
 		Type = ModuleType.External;
-		string GoogleGameSDKPath = Target.UEThirdPartySourceDirectory + "GoogleGameSDK";
+		string GoogleGameSDKBasePath = Target.UEThirdPartySourceDirectory + "GoogleGameSDK/gamesdk";
 
 		if (Target.Platform == UnrealTargetPlatform.Android)
 		{
-			string Arm64GameSDKPath = GoogleGameSDKPath + "/gamesdk/libs/arm64-v8a_API27_NDK23_cpp_static_Release/";
-			string x86_64GameSDKPath = GoogleGameSDKPath + "/gamesdk/libs/x86_64_API27_NDK23_cpp_static_Release/";
+			string GoogleGameSDKLibPath = GoogleGameSDKBasePath + "/libs";
+			if (Target.Configuration == UnrealTargetConfiguration.Debug)
+			{
+				GoogleGameSDKLibPath = GoogleGameSDKLibPath + "/debug";
+			}
+			else
+			{
+				GoogleGameSDKLibPath = GoogleGameSDKLibPath + "/release";
+			}
+			string Arm64GameSDKPath = GoogleGameSDKLibPath + "/arm64-v8a/";
+			string x86_64GameSDKPath = GoogleGameSDKLibPath + "/x86_64/";
 
-			PublicAdditionalLibraries.Add(Arm64GameSDKPath + "libswappy_static.a");
-			PublicAdditionalLibraries.Add(x86_64GameSDKPath + "libswappy_static.a");
+			string StaticLibName = "libswappy_static.a";
 
-			PublicSystemIncludePaths.Add(GoogleGameSDKPath + "/gamesdk/include");
-        }
-    }
+			bool UseStaticLib = true;
+			if (UseStaticLib)
+			{
+				PublicAdditionalLibraries.Add(Arm64GameSDKPath + StaticLibName);
+				PublicAdditionalLibraries.Add(x86_64GameSDKPath + StaticLibName);
+			}
+
+			PublicSystemIncludePaths.Add(GoogleGameSDKBasePath + "/include");
+		}
+	}
 }

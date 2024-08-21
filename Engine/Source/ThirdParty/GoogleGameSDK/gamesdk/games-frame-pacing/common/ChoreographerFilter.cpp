@@ -25,8 +25,8 @@
 #include <string>
 #include <thread>
 
+#include "Log.h"
 #include "Settings.h"
-#include "SwappyLog.h"
 #include "Thread.h"
 #include "Trace.h"
 
@@ -175,7 +175,7 @@ void ChoreographerFilter::onSettingsChanged() {
     mUseAffinity = useAffinity;
     mRefreshPeriod = displayTimings.refreshPeriod;
     mAppToSfDelay = displayTimings.sfOffset - displayTimings.appOffset;
-    SWAPPY_LOGV(
+    ALOGV(
         "onSettingsChanged(): refreshPeriod=%lld, appOffset=%lld, "
         "sfOffset=%lld",
         (long long)displayTimings.refreshPeriod.count(),

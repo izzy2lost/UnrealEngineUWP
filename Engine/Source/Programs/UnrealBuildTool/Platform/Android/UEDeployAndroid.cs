@@ -1366,6 +1366,15 @@ namespace UnrealBuildTool
 			CopySO(FinalSOName, SourceSOName);
 		}
 
+		private void CopySwappy(string UnrealBuildPath, UnrealArch UnrealArch, string NDKArch, UnrealTargetConfiguration Configuration)
+		{
+			string BuildConfig = Configuration == UnrealTargetConfiguration.Debug ? "debug" : "release";
+			string SourceSOName = Path.Combine(Unreal.EngineDirectory.ToString(), "Source", "ThirdParty", "GoogleGameSDK", "gamesdk", "libs", BuildConfig, NDKArch) + "/libswappy.so";
+			string FinalSOName = UnrealBuildPath + "/jni/" + NDKArch + "/libswappy.so";
+
+			CopySO(FinalSOName, SourceSOName);
+		}
+
 		private void CopyGfxDebugger(string UnrealBuildPath, UnrealArch UnrealArch, string NDKArch)
 		{
 			string AndroidGraphicsDebugger;
@@ -5174,6 +5183,7 @@ popd
 					// copy libc++_shared.so to library
 					CopySTL(ToolChain, UnrealBuildPath, Arch, NDKArch, bForDistribution);
 				}
+				CopySwappy(UnrealBuildPath, Arch, NDKArch, Configuration);
 				CopyPSOService(UnrealBuildPath, UnrealPreBuiltFilesPath, Arch, NDKArch);
 				CopyGfxDebugger(UnrealBuildPath, Arch, NDKArch);
 				CopyVulkanValidationLayers(UnrealBuildPath, Arch, NDKArch, Configuration.ToString());
