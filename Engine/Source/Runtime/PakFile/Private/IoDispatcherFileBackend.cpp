@@ -334,6 +334,21 @@ TArray<FFileIoStoreReadRequest*> FFileIoStoreOffsetSortedRequestQueue::RemoveMis
 	return RequestsToReturn;
 }
 
+void FFileIoStoreOffsetSortedRequestQueue::RemoveCancelledRequests(TArray<FFileIoStoreReadRequest*>& OutCancelled)
+{
+	for (int32 Idx = Requests.Num() - 1; Idx >= 0; --Idx)
+	{
+		FFileIoStoreReadRequest* Request = Requests[Idx];
+		if (Request->bCancelled)
+		{
+			PeekRequestIndex = INDEX_NONE;
+			OutCancelled.Add(Request);
+			RequestsBySequence.Remove(Request);
+			Requests.RemoveAt(Idx, EAllowShrinking::No);
+		}
+	}
+}
+
 FFileIoStoreReadRequest* FFileIoStoreOffsetSortedRequestQueue::GetNextInternal(FFileIoStoreReadRequestSortKey LastSortKey, bool bPop)
 {
 	if (Requests.Num() == 0)
@@ -536,6 +551,48 @@ FFileIoStoreReadRequest* FFileIoStoreRequestQueue::Pop()
 	Result->QueueStatus = FFileIoStoreReadRequest::QueueStatus_Started;
 	Result->ContainerFilePartition->StartedReadRequestsCount.fetch_add(1, std::memory_order_release);
 	return Result;
+}
+
+void FFileIoStoreRequestQueue::PopCancelled(TArray<FFileIoStoreReadRequest*>& OutCancelled)
+{
+	TRACE_CPUPROFILER_EVENT_SCOPE(RequestQueuePopCancelled);
+	FScopeLock _(&CriticalSection);
+	UpdateSortRequestsByOffset();
+	
+	if (bSortRequestsByOffset)
+	{
+		for (FFileIoStoreOffsetSortedRequestQueue& PrioQueue : SortedPriorityQueues)
+		{
+			PrioQueue.RemoveCancelledRequests(OutCancelled);
+		}
+
+		// Pop/Peek rely on empty queues being culled
+		SortedPriorityQueues.RemoveAll([](FFileIoStoreOffsetSortedRequestQueue& SubQueue) { return SubQueue.IsEmpty(); });
+	}
+	else
+	{
+		for (int32 Idx = Heap.Num() - 1; Idx >= 0; --Idx)
+		{
+			FFileIoStoreReadRequest* Request = Heap[Idx];
+			if (Request->bCancelled)
+			{
+				OutCancelled.Add(Request);
+				Heap.RemoveAt(Idx, EAllowShrinking::No);
+			}
+		}
+
+		if (!OutCancelled.IsEmpty())
+		{
+			Heap.Heapify(QueueSortFunc);
+		}
+	}
+
+	for (FFileIoStoreReadRequest* Request : OutCancelled)
+	{
+		check(Request->bCancelled);
+		Request->QueueStatus = FFileIoStoreReadRequest::QueueStatus_Started;
+		Request->ContainerFilePartition->StartedReadRequestsCount.fetch_add(1, std::memory_order_release);
+	}
 }
 
 void FFileIoStoreRequestQueue::PushToPriorityQueues(FFileIoStoreReadRequest* Request)

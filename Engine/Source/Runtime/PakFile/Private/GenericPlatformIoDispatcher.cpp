@@ -11,6 +11,13 @@
 
 //PRAGMA_DISABLE_OPTIMIZATION
 
+bool GIoDispatcherCullCancelledReadRequests = false;
+static FAutoConsoleVariableRef CVar_IoDispatcherCullCancelledReadRequests(
+	TEXT("s.IoDispatcherCullCancelledReadRequests"),
+	GIoDispatcherCullCancelledReadRequests,
+	TEXT("Process cancelled file read requests before starting I/O.")
+	TEXT("This can prevent the I/O dispatcher thread to stall due to the request queue getting too big.")
+);
 
 TRACE_DECLARE_INT_COUNTER_EXTERN(IoDispatcherFileBackendSequentialReads);
 TRACE_DECLARE_INT_COUNTER_EXTERN(IoDispatcherFileBackendForwardSeeks);
@@ -75,6 +82,23 @@ void FGenericFileIoStoreImpl::CloseContainer(uint64 ContainerFileHandle)
 
 bool FGenericFileIoStoreImpl::StartRequests(FFileIoStoreRequestQueue& RequestQueue)
 {
+	if (GIoDispatcherCullCancelledReadRequests)
+	{
+		TArray<FFileIoStoreReadRequest*> Cancelled;
+		RequestQueue.PopCancelled(Cancelled);
+		if (!Cancelled.IsEmpty())
+		{
+			{
+				FScopeLock _(&CompletedRequestsCritical);
+				for (FFileIoStoreReadRequest* Request : Cancelled)
+				{
+					CompletedRequests.Add(Request);
+				}
+			}
+			WakeUpDispatcherThreadDelegate->Execute();
+		}
+	}
+
 	if (!AcquiredBuffer)
 	{
 		AcquiredBuffer = BufferAllocator->AllocBuffer();

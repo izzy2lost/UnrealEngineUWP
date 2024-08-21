@@ -639,6 +639,7 @@ public:
 	PAKFILE_API TArray<FFileIoStoreReadRequest*> StealRequests();
 	// Remove all requests whose priority has been changed to something other than the Priority of this queue
 	PAKFILE_API TArray<FFileIoStoreReadRequest*> RemoveMisprioritizedRequests();
+	PAKFILE_API void RemoveCancelledRequests(TArray<FFileIoStoreReadRequest*>& OutCancelled);
 
 	PAKFILE_API FFileIoStoreReadRequest* Pop(FFileIoStoreReadRequestSortKey LastSortKey);
 	PAKFILE_API void Push(FFileIoStoreReadRequest* Request);
@@ -665,6 +666,7 @@ class FFileIoStoreRequestQueue
 {
 public:
 	PAKFILE_API FFileIoStoreReadRequest* Pop();
+	PAKFILE_API void PopCancelled(TArray<FFileIoStoreReadRequest*>& OutCancelled);
 	PAKFILE_API void Push(FFileIoStoreReadRequest& Request);	// Takes ownership of Request and rewrites its intrustive linked list pointers
 	PAKFILE_API void Push(FFileIoStoreReadRequestList& Requests); // Consumes the request list and overwrites all intrustive linked list pointers
 	PAKFILE_API void UpdateOrder();
