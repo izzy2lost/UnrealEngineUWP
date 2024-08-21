@@ -95,6 +95,8 @@ export const SummaryPanel: React.FC<{ jobDetails: JobDetailsV2 }> = observer(({ 
       jobText += "was canceled";
       if (jobData.abortedByUserInfo) {
          jobText += ` by ${jobData.abortedByUserInfo.name}.`;
+      } else {
+         jobText += ` by Horde.`;
       }
    } else {
       jobText += `${jobData.state === JobState.Complete ? `completed ${getNiceTime(jobData.updateTime, false)}.` : "is currently running."}`;

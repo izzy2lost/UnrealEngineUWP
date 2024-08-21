@@ -703,7 +703,7 @@ export const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string)
          aborted = "The job was canceled";
          aborted += ` by ${jobData.abortedByUserInfo.name}.`;
       } else {
-         aborted = "The step was canceled";
+         aborted = "This step was canceled by Horde";
       }
       text.push(aborted);
    } else if (step.state === JobStepState.Skipped) {

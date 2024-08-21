@@ -112,7 +112,7 @@ const getStepSummaryMarkdown = (jobDetails: JobDetailsV2, stepId: string): strin
          aborted = "The job was canceled";
          aborted += ` by ${jobData?.abortedByUserInfo.name}.`;
       } else {
-         aborted = "The step was canceled";
+         aborted = "This step was canceled by Horde";
 
          if (step.error === JobStepError.TimedOut) {
             aborted = "The step was canceled due to reaching the maximum run time limit";
