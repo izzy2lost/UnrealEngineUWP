@@ -107,6 +107,8 @@ void FNiagaraStatelessEmitterInstance::Init(int32 InEmitterIndex)
 	// Prepare our parameters
 	RendererBindings = EmitterData->RendererBindings;
 
+	EmitterTransforms.InitializeTransforms(IsLocalSpace(), FTransform3f(ParentSystemInstance->GetWorldTransform()));
+
 	// Allocate and fill shader parameters
 	RenderThreadDataPtr.Reset(new NiagaraStateless::FEmitterInstance_RT());
 	RenderThreadDataPtr->EmitterData = EmitterData;
@@ -114,7 +116,7 @@ void FNiagaraStatelessEmitterInstance::Init(int32 InEmitterIndex)
 	RenderThreadDataPtr->Age = 0.0f;
 	RenderThreadDataPtr->DeltaTime = 0.0f;
 	RenderThreadDataPtr->ExecutionState = ENiagaraExecutionState::Active;
-	RenderThreadDataPtr->ShaderParameters.Reset(WeakStatelessEmitter->AllocateShaderParameters(RendererBindings));
+	RenderThreadDataPtr->ShaderParameters.Reset(WeakStatelessEmitter->AllocateShaderParameters(EmitterTransforms, RendererBindings));
 	RenderThreadDataPtr->ShaderParameters->Common_RandomSeed = RandomSeed;
 
 	ENQUEUE_RENDER_COMMAND(FInitStatelessEmitter)(
@@ -472,18 +474,27 @@ void FNiagaraStatelessEmitterInstance::SendRenderData()
 	DataForRenderThread.Age				= Age;
 	DataForRenderThread.ExecutionState	= InternalExecutionState;
 
+	bool bNeedsShaderParametersUpdate = false;
 	if (RendererBindings.GetParametersDirty())
 	{
 		RendererBindings.Tick();
+
 		if (EmitterData->bModulesHaveRendererBindings)
 		{
+			bNeedsShaderParametersUpdate = true;
 			DataForRenderThread.bHasBindingBufferData = true;
 			DataForRenderThread.BindingBufferData = RendererBindings.GetParameterDataArray();
 			check((DataForRenderThread.BindingBufferData.Num() % sizeof(uint32)) == 0);
-
-			DataForRenderThread.ShaderParameters = WeakStatelessEmitter->AllocateShaderParameters(RendererBindings);
-			DataForRenderThread.ShaderParameters->Common_RandomSeed = RandomSeed;
 		}
+	}
+
+	const FTransform3f ParentTransform = FTransform3f(ParentSystemInstance->GetWorldTransform());
+	bNeedsShaderParametersUpdate = EmitterTransforms.UpdateTransforms(ParentTransform);
+
+	if (bNeedsShaderParametersUpdate)
+	{
+		DataForRenderThread.ShaderParameters = WeakStatelessEmitter->AllocateShaderParameters(EmitterTransforms, RendererBindings);
+		DataForRenderThread.ShaderParameters->Common_RandomSeed = RandomSeed;
 	}
 
 	if (bSpawnInfosDirty)

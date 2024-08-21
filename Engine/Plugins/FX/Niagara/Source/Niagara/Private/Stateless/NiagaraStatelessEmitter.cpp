@@ -569,7 +569,7 @@ bool UNiagaraStatelessEmitter::SetUniqueEmitterName(const FString& InName)
 	return false;
 }
 
-NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateShaderParameters(const FNiagaraParameterStore& RendererBindings) const
+NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateShaderParameters(const FNiagaraStatelessSpaceTransforms& SpaceTransforms, const FNiagaraParameterStore& RendererBindings) const
 {
 	// Allocate parameters
 	const FShaderParametersMetadata* ShaderParametersMetadata = StatelessEmitterData->GetShaderParametersMetadata();
@@ -579,6 +579,7 @@ NiagaraStateless::FCommonShaderParameters* UNiagaraStatelessEmitter::AllocateSha
 
 	// Fill in all of the shader parameters
 	FNiagaraStatelessSetShaderParameterContext SetShaderParametersContext(
+		SpaceTransforms,
 		RendererBindings.GetParameterDataArray(),
 		StatelessEmitterData->BuiltData,
 		ShaderParametersMetadata,

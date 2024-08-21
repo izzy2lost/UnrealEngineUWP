@@ -27,8 +27,8 @@ public:
 		const FNiagaraStatelessRangeVector3 GravityRange = GravityDistribution.CalculateRange(GetDefaultValue());
 
 		NiagaraStateless::FPhysicsBuildData& PhysicsBuildData = BuildContext.GetTransientBuildData<NiagaraStateless::FPhysicsBuildData>();
-		PhysicsBuildData.AccelerationRange.Min += GravityRange.Min;
-		PhysicsBuildData.AccelerationRange.Max += GravityRange.Max;
+		PhysicsBuildData.GravityRange.Min = GravityRange.Min;
+		PhysicsBuildData.GravityRange.Max = GravityRange.Max;
 	}
 
 	static FVector3f GetDefaultValue() { return FVector3f(0.0f, 0.0f, -980.0f); }

@@ -88,7 +88,7 @@ public:
 	NIAGARA_API bool SetUniqueEmitterName(const FString& InName);
 
 	FNiagaraStatelessEmitterDataPtr GetEmitterData() const { return StatelessEmitterData; }
-	NiagaraStateless::FCommonShaderParameters* AllocateShaderParameters(const FNiagaraParameterStore& RendererBindings) const;
+	NiagaraStateless::FCommonShaderParameters* AllocateShaderParameters(const FNiagaraStatelessSpaceTransforms& SpaceTransforms, const FNiagaraParameterStore& RendererBindings) const;
 
 	NIAGARA_API bool IsAllowedByScalability() const;
 

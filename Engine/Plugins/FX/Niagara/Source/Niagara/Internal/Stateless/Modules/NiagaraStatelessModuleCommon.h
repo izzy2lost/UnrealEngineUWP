@@ -13,11 +13,20 @@ namespace NiagaraStateless
 
 		FNiagaraStatelessRangeFloat		MassRange = FNiagaraStatelessRangeFloat(1.0f);
 		FNiagaraStatelessRangeFloat		DragRange = FNiagaraStatelessRangeFloat(0.0f);
+
+		ENiagaraCoordinateSpace			VelocityCoordinateSpace = ENiagaraCoordinateSpace::Local;
 		FNiagaraStatelessRangeVector3	VelocityRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
+
+		ENiagaraCoordinateSpace			WindCoordinateSpace = ENiagaraCoordinateSpace::Local;
 		FNiagaraStatelessRangeVector3	WindRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
+
+		ENiagaraCoordinateSpace			AccelerationCoordinateSpace = ENiagaraCoordinateSpace::Local;
 		FNiagaraStatelessRangeVector3	AccelerationRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
 
+		FNiagaraStatelessRangeVector3	GravityRange = FNiagaraStatelessRangeVector3(FVector3f::ZeroVector);
+
 		bool							bConeVelocity = false;
+		ENiagaraCoordinateSpace			ConeCoordinateSpace = ENiagaraCoordinateSpace::Local;
 		FQuat4f							ConeQuat = FQuat4f::Identity;
 		FNiagaraStatelessRangeFloat		ConeVelocityRange = FNiagaraStatelessRangeFloat(0.0f);
 		float							ConeOuterAngle = 0.0f;
@@ -25,6 +34,7 @@ namespace NiagaraStateless
 		float							ConeVelocityFalloff = 0.0f;
 
 		bool							bPointVelocity = false;
+		ENiagaraCoordinateSpace			PointCoordinateSpace = ENiagaraCoordinateSpace::Local;
 		FNiagaraStatelessRangeFloat		PointVelocityRange = FNiagaraStatelessRangeFloat(0.0f);
 		float							PointVelocityMax = 0.0f;
 		FVector3f						PointOrigin = FVector3f::ZeroVector;

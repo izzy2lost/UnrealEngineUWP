@@ -21,14 +21,17 @@ class FNiagaraStatelessSetShaderParameterContext
 public:
 	UE_NONCOPYABLE(FNiagaraStatelessSetShaderParameterContext);
 
-	explicit FNiagaraStatelessSetShaderParameterContext(TConstArrayView<uint8> InRendererParameterData, TConstArrayView<uint8> InBuiltData, const FShaderParametersMetadata* InShaderParametersMetadata, uint8* InShaderParameters)
-		: RendererParameterData(InRendererParameterData)
+	explicit FNiagaraStatelessSetShaderParameterContext(const FNiagaraStatelessSpaceTransforms& InSpaceTransforms, TConstArrayView<uint8> InRendererParameterData, TConstArrayView<uint8> InBuiltData, const FShaderParametersMetadata* InShaderParametersMetadata, uint8* InShaderParameters)
+		: SpaceTransforms(InSpaceTransforms)
+		, RendererParameterData(InRendererParameterData)
 		, BuiltData(InBuiltData)
 		, ShaderParametersBase(InShaderParameters)
 		, ParameterOffset(0)
 		, ShaderParametersMetadata(InShaderParametersMetadata)
 	{
 	}
+
+	const FNiagaraStatelessSpaceTransforms& GetSpaceTransforms() const { return SpaceTransforms; }
 
 	template<typename T>
 	T* GetParameterNestedStruct() const
@@ -76,12 +79,13 @@ protected:
 #endif
 
 private:
-	TConstArrayView<uint8>				RendererParameterData;
-	TConstArrayView<uint8>				BuiltData;
-	mutable int32						BuiltDataOffset = 0;
-	uint8*								ShaderParametersBase = nullptr;
-	mutable uint32						ParameterOffset = 0;
-	const FShaderParametersMetadata*	ShaderParametersMetadata = nullptr;
+	const FNiagaraStatelessSpaceTransforms&	SpaceTransforms;
+	TConstArrayView<uint8>					RendererParameterData;
+	TConstArrayView<uint8>					BuiltData;
+	mutable int32							BuiltDataOffset = 0;
+	uint8*									ShaderParametersBase = nullptr;
+	mutable uint32							ParameterOffset = 0;
+	const FShaderParametersMetadata*		ShaderParametersMetadata = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

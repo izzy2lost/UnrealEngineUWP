@@ -20,6 +20,37 @@ enum class ENiagaraStatelessFeatureMask : uint32
 };
 ENUM_CLASS_FLAGS(ENiagaraStatelessFeatureMask);
 
+// Helper structure to transform in / out of various spaces
+// The transforms are all expected to be in tile relative space, i.e. not LWC space
+struct FNiagaraStatelessSpaceTransforms
+{
+	FNiagaraStatelessSpaceTransforms() { InitializeTransforms(true, FTransform3f::Identity); }
+
+	void InitializeTransforms(bool bIsLocalSpace, const FTransform3f& LocalToWorld);
+	bool UpdateTransforms(const FTransform3f& LocalToWorld);
+	
+	const FTransform3f& GetLocalToWorld() const { return Transforms[LocalToWorldIndex]; }
+	const FTransform3f& GetWorldToLocal() const { return Transforms[WorldToLocalIndex]; }
+
+	FQuat4f   TransformRotation(ENiagaraCoordinateSpace SourceSpace, ENiagaraCoordinateSpace DestinationSpace, FQuat4f Rotation) const;
+	FVector3f TransformPosition(ENiagaraCoordinateSpace SourceSpace, ENiagaraCoordinateSpace DestinationSpace, FVector3f Position) const;
+	FVector3f TransformVector(ENiagaraCoordinateSpace SourceSpace, ENiagaraCoordinateSpace DestinationSpace, FVector3f Vector) const;
+	FVector3f TransformVectorNoScale(ENiagaraCoordinateSpace SourceSpace, ENiagaraCoordinateSpace DestinationSpace, FVector3f Vector) const;
+
+	FQuat4f   TransformRotation(ENiagaraCoordinateSpace SourceSpace, FQuat4f Rotation) const { return TransformRotation(SourceSpace, ENiagaraCoordinateSpace::Simulation, Rotation); }
+	FVector3f TransformPosition(ENiagaraCoordinateSpace SourceSpace, FVector3f Position) const { return TransformPosition(SourceSpace, ENiagaraCoordinateSpace::Simulation, Position); }
+	FVector3f TransformVector(ENiagaraCoordinateSpace SourceSpace, FVector3f Vector) const { return TransformVector(SourceSpace, ENiagaraCoordinateSpace::Simulation, Vector); }
+	FVector3f TransformVectorNoScale(ENiagaraCoordinateSpace SourceSpace, FVector3f Vector) const { return TransformVectorNoScale(SourceSpace, ENiagaraCoordinateSpace::Simulation, Vector); }
+
+private:
+	static constexpr int LocalToWorldIndex = 0;
+	static constexpr int WorldToLocalIndex = 1;
+	static constexpr int TransformRemapSize = 3;	// Local / World / Simulation
+
+	int8			TransformRemap[TransformRemapSize][TransformRemapSize];	// Remaps from transforms from world / local / simulation into an index below, where INDEX_NONE is null op
+	FTransform3f	Transforms[2];			// World to Local & Local to World
+};
+
 template<typename TType>
 struct FNiagaraStatelessRange
 {

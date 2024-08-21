@@ -61,42 +61,47 @@ public:
 	virtual void SetShaderParameters(const FNiagaraStatelessSetShaderParameterContext& SetShaderParameterContext) const override
 	{
 		const FModuleBuiltData* ModuleBuiltData = SetShaderParameterContext.ReadBuiltData<FModuleBuiltData>();
+		const NiagaraStateless::FPhysicsBuildData& PhysicsData = ModuleBuiltData->PhysicsData;
+
+		const FNiagaraStatelessSpaceTransforms& SpaceTransforms = SetShaderParameterContext.GetSpaceTransforms();
 
 		FParameters* Parameters = SetShaderParameterContext.GetParameterNestedStruct<FParameters>();
-		Parameters->SolveVelocitiesAndForces_MassScale				= ModuleBuiltData->PhysicsData.MassRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_MassBias				= ModuleBuiltData->PhysicsData.MassRange.Min;
-		Parameters->SolveVelocitiesAndForces_DragScale				= ModuleBuiltData->PhysicsData.DragRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_DragBias				= ModuleBuiltData->PhysicsData.DragRange.Min;
-		Parameters->SolveVelocitiesAndForces_VelocityScale			= ModuleBuiltData->PhysicsData.VelocityRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_VelocityBias			= ModuleBuiltData->PhysicsData.VelocityRange.Min;
-		Parameters->SolveVelocitiesAndForces_WindScale				= ModuleBuiltData->PhysicsData.WindRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_WindBias				= ModuleBuiltData->PhysicsData.WindRange.Min;
-		Parameters->SolveVelocitiesAndForces_AccelerationScale		= ModuleBuiltData->PhysicsData.AccelerationRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_AccelerationBias		= ModuleBuiltData->PhysicsData.AccelerationRange.Min;
+		Parameters->SolveVelocitiesAndForces_MassScale				= PhysicsData.MassRange.GetScale();
+		Parameters->SolveVelocitiesAndForces_MassBias				= PhysicsData.MassRange.Min;
+		Parameters->SolveVelocitiesAndForces_DragScale				= PhysicsData.DragRange.GetScale();
+		Parameters->SolveVelocitiesAndForces_DragBias				= PhysicsData.DragRange.Min;
+		Parameters->SolveVelocitiesAndForces_VelocityScale			= SpaceTransforms.TransformVector(PhysicsData.VelocityCoordinateSpace, PhysicsData.VelocityRange.GetScale());
+		Parameters->SolveVelocitiesAndForces_VelocityBias			= SpaceTransforms.TransformVector(PhysicsData.VelocityCoordinateSpace, PhysicsData.VelocityRange.Min);
+		Parameters->SolveVelocitiesAndForces_WindScale				= SpaceTransforms.TransformVector(PhysicsData.WindCoordinateSpace, PhysicsData.WindRange.GetScale());
+		Parameters->SolveVelocitiesAndForces_WindBias				= SpaceTransforms.TransformVector(PhysicsData.WindCoordinateSpace, PhysicsData.WindRange.Min);
+		Parameters->SolveVelocitiesAndForces_AccelerationScale		= SpaceTransforms.TransformVector(PhysicsData.AccelerationCoordinateSpace, PhysicsData.AccelerationRange.GetScale());
+		Parameters->SolveVelocitiesAndForces_AccelerationBias		= SpaceTransforms.TransformVector(PhysicsData.AccelerationCoordinateSpace, PhysicsData.AccelerationRange.Min);
+		Parameters->SolveVelocitiesAndForces_AccelerationScale		+= SpaceTransforms.TransformVector(ENiagaraCoordinateSpace::World, PhysicsData.GravityRange.GetScale());
+		Parameters->SolveVelocitiesAndForces_AccelerationBias		+= SpaceTransforms.TransformVector(ENiagaraCoordinateSpace::World, PhysicsData.GravityRange.Min);
 
-		Parameters->SolveVelocitiesAndForces_ConeVelocityEnabled	= ModuleBuiltData->PhysicsData.bConeVelocity ? 1 : 0;
-		Parameters->SolveVelocitiesAndForces_ConeQuat				= ModuleBuiltData->PhysicsData.ConeQuat;
-		Parameters->SolveVelocitiesAndForces_ConeVelocityScale		= ModuleBuiltData->PhysicsData.ConeVelocityRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_ConeVelocityBias		= ModuleBuiltData->PhysicsData.ConeVelocityRange.Min;
-		Parameters->SolveVelocitiesAndForces_ConeAngleScale			= (ModuleBuiltData->PhysicsData.ConeOuterAngle - ModuleBuiltData->PhysicsData.ConeInnerAngle) * (UE_PI / 360.0f);
-		Parameters->SolveVelocitiesAndForces_ConeAngleBias			= ModuleBuiltData->PhysicsData.ConeInnerAngle * (UE_PI / 360.0f);
-		Parameters->SolveVelocitiesAndForces_ConeVelocityFalloff	= ModuleBuiltData->PhysicsData.ConeVelocityFalloff;
+		Parameters->SolveVelocitiesAndForces_ConeVelocityEnabled	= PhysicsData.bConeVelocity ? 1 : 0;
+		Parameters->SolveVelocitiesAndForces_ConeQuat				= SpaceTransforms.TransformRotation(PhysicsData.ConeCoordinateSpace, PhysicsData.ConeQuat);
+		Parameters->SolveVelocitiesAndForces_ConeVelocityScale		= PhysicsData.ConeVelocityRange.GetScale();
+		Parameters->SolveVelocitiesAndForces_ConeVelocityBias		= PhysicsData.ConeVelocityRange.Min;
+		Parameters->SolveVelocitiesAndForces_ConeAngleScale			= (PhysicsData.ConeOuterAngle - PhysicsData.ConeInnerAngle) * (UE_PI / 360.0f);
+		Parameters->SolveVelocitiesAndForces_ConeAngleBias			= PhysicsData.ConeInnerAngle * (UE_PI / 360.0f);
+		Parameters->SolveVelocitiesAndForces_ConeVelocityFalloff	= PhysicsData.ConeVelocityFalloff;
 
-		Parameters->SolveVelocitiesAndForces_PontVelocityEnabled	= ModuleBuiltData->PhysicsData.bPointVelocity ? 1 : 0;
-		Parameters->SolveVelocitiesAndForces_PointVelocityScale		= ModuleBuiltData->PhysicsData.PointVelocityRange.GetScale();
-		Parameters->SolveVelocitiesAndForces_PointVelocityBias		= ModuleBuiltData->PhysicsData.PointVelocityRange.Min;
-		Parameters->SolveVelocitiesAndForces_PointOrigin			= ModuleBuiltData->PhysicsData.PointOrigin;
+		Parameters->SolveVelocitiesAndForces_PontVelocityEnabled	= PhysicsData.bPointVelocity ? 1 : 0;
+		Parameters->SolveVelocitiesAndForces_PointVelocityScale		= PhysicsData.PointVelocityRange.GetScale();
+		Parameters->SolveVelocitiesAndForces_PointVelocityBias		= PhysicsData.PointVelocityRange.Min;
+		Parameters->SolveVelocitiesAndForces_PointOrigin			= SpaceTransforms.TransformPosition(PhysicsData.PointCoordinateSpace, PhysicsData.PointOrigin);
 
-		Parameters->SolveVelocitiesAndForces_NoiseEnabled			= ModuleBuiltData->PhysicsData.bNoiseEnabled ? 1 : 0;
-		Parameters->SolveVelocitiesAndForces_NoiseAmplitude			= ModuleBuiltData->PhysicsData.NoiseAmplitude;
-		Parameters->SolveVelocitiesAndForces_NoiseFrequency			= FVector3f(ModuleBuiltData->PhysicsData.NoiseFrequency, ModuleBuiltData->PhysicsData.NoiseFrequency, ModuleBuiltData->PhysicsData.NoiseFrequency);
+		Parameters->SolveVelocitiesAndForces_NoiseEnabled			= PhysicsData.bNoiseEnabled ? 1 : 0;
+		Parameters->SolveVelocitiesAndForces_NoiseAmplitude			= PhysicsData.NoiseAmplitude;
+		Parameters->SolveVelocitiesAndForces_NoiseFrequency			= FVector3f(PhysicsData.NoiseFrequency, PhysicsData.NoiseFrequency, PhysicsData.NoiseFrequency);
 		//SetShaderParameterContext.SetTextureResource(&Parameters->SolveVelocitiesAndForces_NoiseTexture, ModuleBuildData->NoiseTexture);
-		Parameters->SolveVelocitiesAndForces_NoiseMode				= ModuleBuiltData->PhysicsData.NoiseMode;
-		Parameters->SolveVelocitiesAndForces_NoiseLUTOffset			= ModuleBuiltData->PhysicsData.NoiseLUTOffset;
-		Parameters->SolveVelocitiesAndForces_NoiseLUTNumChannel		= ModuleBuiltData->PhysicsData.NoiseLUTNumChannel;
-		Parameters->SolveVelocitiesAndForces_NoiseLUTChannelWidth	= ModuleBuiltData->PhysicsData.NoiseLUTChannelWidth;
+		Parameters->SolveVelocitiesAndForces_NoiseMode				= PhysicsData.NoiseMode;
+		Parameters->SolveVelocitiesAndForces_NoiseLUTOffset			= PhysicsData.NoiseLUTOffset;
+		Parameters->SolveVelocitiesAndForces_NoiseLUTNumChannel		= PhysicsData.NoiseLUTNumChannel;
+		Parameters->SolveVelocitiesAndForces_NoiseLUTChannelWidth	= PhysicsData.NoiseLUTChannelWidth;
 
-		FVectorFieldTextureAccessor TextureAccessor(Cast<UVectorField>(ModuleBuiltData->PhysicsData.NoiseTexture));
+		FVectorFieldTextureAccessor TextureAccessor(Cast<UVectorField>(PhysicsData.NoiseTexture));
 
 		ENQUEUE_RENDER_COMMAND(FNaughtyTest)(
 			[Parameters, TextureAccessor](FRHICommandListImmediate& RHICmdList)

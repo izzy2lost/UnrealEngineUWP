@@ -117,6 +117,8 @@ private:
 	FNiagaraStatelessEmitterDataPtr				EmitterData;
 	TWeakObjectPtr<UNiagaraStatelessEmitter>	WeakStatelessEmitter;
 
+	FNiagaraStatelessSpaceTransforms			EmitterTransforms;
+
 	float										Age = 0.0f;
 
 	uint32										UniqueIndexOffset = 0;
