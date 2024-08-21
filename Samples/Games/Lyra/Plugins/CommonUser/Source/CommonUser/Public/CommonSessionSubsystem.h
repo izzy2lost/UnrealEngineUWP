@@ -331,6 +331,10 @@ public:
 	UPROPERTY(Config)
 	bool bUseLobbiesVoiceChatDefault = false;
 
+	/** Enables reservation beacon flow prior to server travel when creating or joining a game session */ 
+	UPROPERTY(Config)
+	bool bUseBeacons = true;
+
 protected:
 	// Functions called during the process of creating or joining a session, these can be overidden for game-specific behavior
 

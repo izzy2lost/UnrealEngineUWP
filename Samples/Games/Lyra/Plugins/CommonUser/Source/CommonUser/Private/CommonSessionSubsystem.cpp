@@ -656,7 +656,10 @@ void UCommonSessionSubsystem::FinishSessionCreation(bool bWasSuccessful)
 		CreateSessionResult = FOnlineResultInformation();
 		CreateSessionResult.bWasSuccessful = true;
 
-		CreateHostReservationBeacon();
+		if (bUseBeacons)
+		{
+			CreateHostReservationBeacon();
+		}
 
 		NotifyCreateSessionComplete(CreateSessionResult);
 
@@ -937,7 +940,10 @@ void UCommonSessionSubsystem::CleanUpSessions()
 	bWantToDestroyPendingSession = true;
 	HostSettings.Reset();
 
-	DestroyHostReservationBeacon();
+	if (bUseBeacons)
+	{
+		DestroyHostReservationBeacon();
+	}
 
 	NotifySessionInformationUpdated(ECommonSessionInformationState::OutOfGame);
 #if COMMONUSER_OSSV1
@@ -1196,7 +1202,6 @@ void UCommonSessionSubsystem::ConnectToHostReservationBeacon()
 		{
 			if (ReservationResponse == EPartyReservationResult::ReservationAccepted)
 			{
-				//@TODO Synchronize timing of this with create callbacks, modify both places and the comments if plan changes
 				FOnlineResultInformation JoinSessionResult;
 				JoinSessionResult.bWasSuccessful = true;
 				NotifyJoinSessionComplete(JoinSessionResult);
@@ -1223,8 +1228,20 @@ void UCommonSessionSubsystem::FinishJoinSession(EOnJoinSessionCompleteResult::Ty
 {
 	if (Result == EOnJoinSessionCompleteResult::Success)
 	{
-		// InternalTravelToSession and the notification will be called by the beacon after a successful reservation. The beacon will be destroyed during travel.
-		ConnectToHostReservationBeacon();
+		if (bUseBeacons)
+		{
+			// InternalTravelToSession and the notification will be called by the beacon after a successful reservation. The beacon will be destroyed during travel.
+			ConnectToHostReservationBeacon();
+		}
+		else
+		{
+			//@TODO Synchronize timing of this with create callbacks, modify both places and the comments if plan changes
+			FOnlineResultInformation JoinSessionResult;
+			JoinSessionResult.bWasSuccessful = true;
+			NotifyJoinSessionComplete(JoinSessionResult);
+
+			InternalTravelToSession(NAME_GameSession);
+		}
 	}
 	else
 	{
@@ -1574,7 +1591,10 @@ void UCommonSessionSubsystem::HandlePostLoadMap(UWorld* World)
 		const FName SessionName(NAME_GameSession);
 		SessionInterface->UpdateSession(SessionName, *HostSettings, true);
 
-		CreateHostReservationBeacon();
+		if (bUseBeacons)
+		{
+			CreateHostReservationBeacon();
+		}
 	}
 #endif // COMMONUSER_OSSV1
 }
