@@ -205,6 +205,16 @@ void FTagTracker::AddTagSpec(TagIdType InTag, TagIdType InParentTag, const TCHAR
 		return;
 	}
 
+	if (!InDisplay || *InDisplay == TEXT('\0'))
+	{
+		++NumErrors;
+		if (NumErrors <= MaxLogMessagesPerErrorType)
+		{
+			UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] Tag with id %u has invalid display name (ParentTag=%u)!"), InTag, InParentTag);
+		}
+		InDisplay = TEXT("Unknown");
+	}
+
 	// Identify the special "CustomName" tag.
 	if (FCString::Strcmp(InDisplay, TEXT("CustomName")) == 0)
 	{
@@ -214,16 +224,6 @@ void FTagTracker::AddTagSpec(TagIdType InTag, TagIdType InParentTag, const TCHAR
 	if (CustomNameTag != InvalidTagId && InParentTag == CustomNameTag)
 	{
 		InParentTag = InvalidTagId;
-	}
-
-	if (!InDisplay || *InDisplay == TEXT('\0'))
-	{
-		++NumErrors;
-		if (NumErrors <= MaxLogMessagesPerErrorType)
-		{
-			UE_LOG(LogTraceServices, Error, TEXT("[MemAlloc] Tag with id %u has invalid display name (ParentTag=%u)!"), InTag, InParentTag);
-		}
-		InDisplay = TEXT("Unknown");
 	}
 
 	const FTagEntry* TagEntry = TagMap.Find(InTag);
