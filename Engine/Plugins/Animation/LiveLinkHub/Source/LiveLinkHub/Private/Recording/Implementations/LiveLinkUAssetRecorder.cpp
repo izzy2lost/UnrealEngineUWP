@@ -91,11 +91,6 @@ bool FLiveLinkUAssetRecorder::IsRecording() const
 	return bIsRecording;
 }
 
-bool FLiveLinkUAssetRecorder::IsSavingRecording(ULiveLinkRecording* InRecording) const
-{
-	return AsyncSaveTasks.Contains(InRecording);
-}
-
 void FLiveLinkUAssetRecorder::RecordBaseData(FLiveLinkRecordingBaseDataContainer& StaticDataContainer, TSharedPtr<FInstancedStruct>&& DataToRecord)
 {
 	const double TimeNowInSeconds = FPlatformTime::Seconds();
@@ -237,13 +232,14 @@ void FLiveLinkUAssetRecorder::SaveRecording()
 
 		FAssetRegistryModule::AssetCreated(NewRecording);
 
+		const TStrongObjectPtr<ULiveLinkUAssetRecording> NewRecordingStrongPtr(NewRecording);
+		
 		// Create a task to run on a separate thread for saving all frame data and writing the final UAsset to disk.
 		// We use a container rather than just one task on the chance a save operation is still running when another recording is being saved.
-		FAsyncTask<FLiveLinkSaveRecordingAsyncTask>& AsyncTask = *AsyncSaveTasks.Add(NewRecording, MakeUnique<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>(NewRecording, this));
+		FAsyncTask<FLiveLinkSaveRecordingAsyncTask>& AsyncTask = *AsyncSaveTasks.Add(NewRecordingStrongPtr,
+			MakeUnique<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>(NewRecording, this));
 		AsyncTask.StartBackgroundTask();
 	}
-
-	return;
 }
 
 void FLiveLinkUAssetRecorder::RecordInitialStaticData()
@@ -261,26 +257,56 @@ void FLiveLinkUAssetRecorder::RecordInitialStaticData()
 	}
 }
 
-void FLiveLinkUAssetRecorder::OnRecordingSaved_GameThread(TWeakObjectPtr<ULiveLinkUAssetRecording> InRecording)
+void FLiveLinkUAssetRecorder::OnRecordingDataSaved_GameThread(FLiveLinkSaveRecordingAsyncTask* InTask)
 {
-	if (InRecording.IsValid())
+	const TStrongObjectPtr<ULiveLinkUAssetRecording> Recording = InTask->GetRecording().Pin();
+	if (ensure(Recording.IsValid()))
 	{
+		FSavePackageArgs SavePackageArgs;
+		SavePackageArgs.TopLevelFlags = RF_Public | RF_Standalone;
+		SavePackageArgs.Error = GLog;
+		SavePackageArgs.SaveFlags = SAVE_Async;
+
+		const FString PackageFileName = FPackageName::LongPackageNameToFilename(Recording->GetPackage()->GetName(), FPackageName::GetAssetPackageExtension());
+		if (!UPackage::SavePackage(Recording->GetPackage(), Recording.Get(), *PackageFileName, MoveTemp(SavePackageArgs)))
+		{
+			UE_LOG(LogLiveLinkHub, Error, TEXT("Package '%s' was not saved"), *PackageFileName);
+		}
+	}
+
+	InTask->NotifyPackageSaveStarted();
+}
+
+void FLiveLinkUAssetRecorder::OnRecordingSaveThreadFinished_GameThread(FLiveLinkSaveRecordingAsyncTask* InTask)
+{
+	// Make sure we see the saved file on disk in the asset registry.
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry");
+	AssetRegistryModule.Get().ScanPathsSynchronous({ TEXT("/Game") }, true);
+	
+	TStrongObjectPtr<ULiveLinkUAssetRecording> Recording = InTask->GetRecording().Pin();
+	if (ensure(Recording.IsValid()))
+	{
+		// Finish task first to make sure strong reference to the recording is cleared.
+		if (const TUniquePtr<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>* AsyncTask = AsyncSaveTasks.Find(Recording))
+		{
+			AsyncTask->Get()->EnsureCompletion();
+			ensure(AsyncSaveTasks.Remove(Recording) > 0);
+		}
+		else
+		{
+			UE_LOG(LogLiveLinkHub, Error, TEXT("Could not find save task for recording: '%s'"), *Recording->GetName());
+		}
+	
 		const FLiveLinkHubModule& LiveLinkHubModule = FModuleManager::Get().GetModuleChecked<FLiveLinkHubModule>("LiveLinkHub");
 		const TStrongObjectPtr<ULiveLinkRecording> PlaybackRecording = LiveLinkHubModule.GetPlaybackController()->GetRecording();
 
-		UPackage* PackageToUnload = InRecording->GetPackage();
-		const bool bIsPlayingThisRecording = PlaybackRecording.Get() == InRecording.Get();
+		UPackage* PackageToUnload = Recording->GetPackage();
+		const bool bIsPlayingThisRecording = PlaybackRecording.Get() == Recording.Get();
 
-		// Finish task first to make sure strong reference to the recording is cleared.
-		if (const TUniquePtr<FAsyncTask<FLiveLinkSaveRecordingAsyncTask>>* AsyncTask = AsyncSaveTasks.Find(InRecording))
-		{
-			AsyncTask->Get()->EnsureCompletion();
-			ensure(AsyncSaveTasks.Remove(InRecording) > 0);
-		}
-		
 		if (!bIsPlayingThisRecording)
 		{
 			// Unload as this is not used again until the user loads it, and allows the bulk animation data to obtain a file handle correctly.
+			Recording.Reset();
 			LiveLinkHubModule.GetPlaybackController()->UnloadRecordingPackage(PackageToUnload);
 		}
 	}
@@ -292,29 +318,31 @@ void FLiveLinkUAssetRecorder::FLiveLinkSaveRecordingAsyncTask::DoWork()
 
 	// Write to bulk data.
 	LiveLinkRecording->SaveRecordingData();
-		
-	FSavePackageArgs SavePackageArgs;
-	SavePackageArgs.TopLevelFlags = RF_Public | RF_Standalone;
-	SavePackageArgs.Error = GLog;
-	SavePackageArgs.SaveFlags = SAVE_Async;
 
-	const FString PackageFileName = FPackageName::LongPackageNameToFilename(LiveLinkRecording->GetPackage()->GetName(), FPackageName::GetAssetPackageExtension());
-	if (UPackage::SavePackage(LiveLinkRecording->GetPackage(), LiveLinkRecording.Get(), *PackageFileName, MoveTemp(SavePackageArgs)))
-	{
-		UPackage::WaitForAsyncFileWrites();
+	// Let the game thread start the actual package save. Editor targets will assert if SavePackage is called from another thread.
+	FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+		FSimpleDelegateGraphTask::FDelegate::CreateRaw(Recorder, &FLiveLinkUAssetRecorder::OnRecordingDataSaved_GameThread, this),
+	TStatId(),
+	nullptr,
+	ENamedThreads::GameThread);
 
-		// Finish on the game thread for safety.
-		TWeakObjectPtr RecordingWeakPtr(LiveLinkRecording.Get());
-		FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
-			FSimpleDelegateGraphTask::FDelegate::CreateRaw(Recorder, &FLiveLinkUAssetRecorder::OnRecordingSaved_GameThread, RecordingWeakPtr),
-		TStatId(),
-		nullptr,
-		ENamedThreads::GameThread);
-	}
-	else
+	// Wait for the game thread to signal it has started saving the package.
+	constexpr uint32 TimeoutMillis = 5000;
+	if (!PackageSaveStartedEvent->Wait(TimeoutMillis))
 	{
-		UE_LOG(LogLiveLinkHub, Error, TEXT("Package '%s' was not saved"), *PackageFileName);
+		UE_LOG(LogLiveLinkHub, Error, TEXT("Timed out waiting for package save."));
 	}
+
+	// Block the async thread until the package saves. We wait because the engine doesn't provide any proper callback
+	// when the package finishes saving async, and we still have some cleanup to do once it finishes saving.
+	UPackage::WaitForAsyncFileWrites();
+
+	// Cleanup and finish the thread.
+	FSimpleDelegateGraphTask::CreateAndDispatchWhenReady(
+	FSimpleDelegateGraphTask::FDelegate::CreateRaw(Recorder, &FLiveLinkUAssetRecorder::OnRecordingSaveThreadFinished_GameThread, this),
+	TStatId(),
+	nullptr,
+	ENamedThreads::GameThread);
 }
 
 #undef LOCTEXT_NAMESPACE

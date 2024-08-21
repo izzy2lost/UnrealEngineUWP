@@ -37,11 +37,6 @@ bool FLiveLinkHubRecordingController::IsRecording() const
 	return RecorderImplementation->IsRecording();
 }
 
-bool FLiveLinkHubRecordingController::IsSavingRecording(ULiveLinkRecording* InRecording) const
-{
-	return RecorderImplementation->IsSavingRecording(InRecording);
-}
-
 void FLiveLinkHubRecordingController::RecordStaticData(const FLiveLinkSubjectKey& SubjectKey, TSubclassOf<ULiveLinkRole> Role, const FLiveLinkStaticDataStruct& StaticData)
 {
 	RecorderImplementation->RecordStaticData(SubjectKey, Role, StaticData);
