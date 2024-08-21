@@ -27,6 +27,7 @@
 #include "UObject/EnumProperty.h"
 #if UE_WITH_IRIS
 #include "Iris/IrisConfig.h"
+#include "Iris/Core/IrisProfiler.h"
 #include "Net/Iris/ReplicationSystem/ReplicationSystemUtil.h"
 #endif // UE_WITH_IRIS
 
@@ -4654,6 +4655,10 @@ void FRepLayout::CallRepNotifies(FReceivingRepState* RepState, UObject* Object) 
 
 		const FRepParentCmd& Parent = Parents[RepProperty->RepIndex];
 		const int32 NumParms = RepNotifyFunc->NumParms;
+
+#if IRIS_CLIENT_PROFILER_ENABLE
+		UE::Net::FClientProfiler::RecordRepNotify(RepNotifyFunc->GetFName());
+#endif
 
 		switch (NumParms)
 		{

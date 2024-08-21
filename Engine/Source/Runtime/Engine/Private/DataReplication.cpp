@@ -25,6 +25,7 @@
 #include "HAL/LowLevelMemStats.h"
 #include "Net/Core/PushModel/Types/PushModelPerNetDriverState.h"
 #include "Net/RPCDoSDetection.h"
+#include "Iris/Core/IrisProfiler.h"
 
 DECLARE_LLM_MEMORY_STAT(TEXT("NetObjReplicator"), STAT_NetObjReplicatorLLM, STATGROUP_LLMFULL);
 LLM_DEFINE_TAG(NetObjReplicator, NAME_None, TEXT("Networking"), GET_STATFNAME(STAT_NetObjReplicatorLLM), GET_STATFNAME(STAT_NetworkingSummaryLLM));
@@ -1369,6 +1370,10 @@ bool FObjectReplicator::ReceivedRPC(FNetBitReader& Reader, const FReplicationFla
 
 			// Reset errors from replay driver
 			RPC_ResetLastFailedReason();
+
+#if IRIS_CLIENT_PROFILER_ENABLE
+			UE::Net::FClientProfiler::RecordRPC(Function->GetFName());
+#endif
 
 			{
 				UE::Net::FScopedNetContextRPC CallingRPC;
