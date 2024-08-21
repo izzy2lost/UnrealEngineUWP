@@ -14,18 +14,19 @@
 
 #define LOCTEXT_NAMESPACE "MovieScene"
 
-#if WITH_EDITOR
-
-FText UMovieSceneReplaceableActorBinding::GetBindingTypePrettyName() const
-{
-	return LOCTEXT("MovieSceneReplaceableActorBinding", "Replaceable Actor");
-}
 
 TSubclassOf<UMovieSceneSpawnableBindingBase> UMovieSceneReplaceableActorBinding::GetInnerSpawnableClass() const
 {
 	return UMovieSceneSpawnableActorBinding::StaticClass();
 }
 
+
+#if WITH_EDITOR
+
+FText UMovieSceneReplaceableActorBinding::GetBindingTypePrettyName() const
+{
+	return LOCTEXT("MovieSceneReplaceableActorBinding", "Replaceable Actor");
+}
 
 FText UMovieSceneReplaceableActorBinding_BPBase::GetBindingTypePrettyName() const
 {
