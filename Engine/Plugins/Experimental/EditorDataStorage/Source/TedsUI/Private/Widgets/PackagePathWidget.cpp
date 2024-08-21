@@ -14,10 +14,12 @@
 void UPackagePathWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
+
 	DataStorageUi.RegisterWidgetFactory<FPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
-		TypedElementDataStorage::FColumn<FTypedElementPackagePathColumn>());
+		TColumn<FTypedElementPackagePathColumn>());
 	DataStorageUi.RegisterWidgetFactory<FLoadedPackagePathWidgetConstructor>(FName(TEXT("General.Cell")),
-		TypedElementDataStorage::FColumn<FTypedElementPackageLoadedPathColumn>());
+		TColumn<FTypedElementPackageLoadedPathColumn>());
 }
 
 

@@ -140,7 +140,7 @@ TConstArrayView<const UScriptStruct*> FExportedTextWidgetConstructor::GetAdditio
 	return Columns;
 }
 
-const TypedElementDataStorage::FQueryConditions* FExportedTextWidgetConstructor::GetQueryConditions() const
+const UE::Editor::DataStorage::Queries::FConditions* FExportedTextWidgetConstructor::GetQueryConditions() const
 {
 	// For the exported text widget, the query condition we are matched against is the column we are exporting text for
 	return &MatchedColumn;
@@ -171,13 +171,12 @@ bool FExportedTextWidgetConstructor::FinalizeWidget(
 	const TSharedPtr<SWidget>& Widget)
 {
 	using namespace UE::Editor;
-
 	FTypedElementScriptStructTypeInfoColumn& TypeInfoColumn = *DataStorage->GetColumn<FTypedElementScriptStructTypeInfoColumn>(Row);
 
 	// NOTE: We are currently assuming that an instance of FExportedTextWidgetConstructor will only be used to show the same type info
 	// which isn't ideal but it's better than nothing since we need some sort of matched conditions for column based virtualization to work.
 	// TEDS UI TODO: We should work around it by refactoring this into an STedsWidget in the future so it can store the column conditions per instance
-	MatchedColumn = TypedElementDataStorage::FQueryConditions(TypedElementDataStorage::FColumn(TypeInfoColumn.TypeInfo));
+	MatchedColumn = DataStorage::Queries::FConditions(DataStorage::Queries::TColumn(TypeInfoColumn.TypeInfo));
 
 	if (TypeInfoColumn.TypeInfo->IsChildOf(DataStorage::FTag::StaticStruct()))
 	{

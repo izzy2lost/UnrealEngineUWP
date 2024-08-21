@@ -99,9 +99,11 @@ URowReferenceWidgetFactory::~URowReferenceWidgetFactory()
 
 void URowReferenceWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
+
 	// TEDS UI TODO: We can re-use this widget for FTypedElementParentColumn
 	DataStorageUi.RegisterWidgetFactory<FRowReferenceWidgetConstructor>(FName(TEXT("SceneOutliner.Cell")),
-	TypedElementDataStorage::FColumn<FTypedElementRowReferenceColumn>());
+		TColumn<FTypedElementRowReferenceColumn>());
 }
 
 void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)

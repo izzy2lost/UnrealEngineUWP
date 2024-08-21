@@ -11,9 +11,11 @@
 #include "Tests/TestHarnessAdapter.h"
 #include "UObject/Class.h"
 
-using namespace TypedElementDataStorage;
-
-
+namespace UE::Editor::DataStorage
+{
+	using namespace Queries;
+namespace Tests
+{
 static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct> TypeInfo)
 {
 #if WITH_EDITORONLY_DATA
@@ -27,7 +29,7 @@ static void AppendColumnName(FString& Output, TWeakObjectPtr<const UScriptStruct
 #endif
 }
 
-static bool TestMatching(const FQueryConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
+static bool TestMatching(const FConditions& TestQuery, const TArray<FColumnBase>& RequestedColumns, bool Expected, bool Sort = false)
 {
 	if (Sort)
 	{
@@ -101,173 +103,175 @@ static bool TestMatching(const FQueryConditions& TestQuery, const TArray<FColumn
 
 TEST_CASE_NAMED(FTypedElementQueryConditions_NoColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_NoColumn", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example;
+	FConditions Example;
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 0);
 	// Since there are no restrictions provided in the query, all input passes.
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions_OneColumn, "TypedElementQueryBuilder::FTypedElementQueryConditions_OneColumn", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example{ TypedElementDataStorage::FColumn<FTestColumnA>() };
+	FConditions Example{ TColumn<FTestColumnA>() };
 
 	CHECK(Example.MinimumColumnMatchRequired() == 1);
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, true));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions1, "TypedElementQueryBuilder::FTypedElementQueryConditions A && B && C", "[ApplicationContextMask][EngineFilter]")
 {
-	TypedElementDataStorage::FColumn TestA(FTestColumnA::StaticStruct());
+	TColumn<FTestColumnA> TestA;
 	
-	FQueryConditions Example = TypedElementDataStorage::FColumn<FTestColumnA>() && TypedElementDataStorage::FColumn<FTestColumnB>() && TypedElementDataStorage::FColumn<FTestColumnC>();
+	FConditions Example = TColumn<FTestColumnA>() && TColumn<FTestColumnB>() && TColumn<FTestColumnC>();
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3);
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnD>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions2, "TypedElementQueryBuilder::FTypedElementQueryConditions A || B || C", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = TypedElementDataStorage::FColumn<FTestColumnA>() || TypedElementDataStorage::FColumn<FTestColumnB>() || TypedElementDataStorage::FColumn<FTestColumnC>();
+	FConditions Example = TColumn<FTestColumnA>() || TColumn<FTestColumnB>() || TColumn<FTestColumnC>();
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 1);
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnD>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions3, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = TypedElementDataStorage::FColumn<FTestColumnA>() && (TypedElementDataStorage::FColumn<FTestColumnB>() || TypedElementDataStorage::FColumn<FTestColumnC>());
+	FConditions Example = TColumn<FTestColumnA>() && (TColumn<FTestColumnB>() || TColumn<FTestColumnC>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnD>(), TypedElementDataStorage::FColumn<FTestColumnB>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnD>(), TColumn<FTestColumnB>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions4, "TypedElementQueryBuilder::FTypedElementQueryConditions A && (B || C) && (D || E)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example = 
-		TypedElementDataStorage::FColumn<FTestColumnA>() && 
-		(TypedElementDataStorage::FColumn<FTestColumnB>() || TypedElementDataStorage::FColumn<FTestColumnC>()) &&
-		(TypedElementDataStorage::FColumn<FTestColumnD>() || TypedElementDataStorage::FColumn<FTestColumnE>());
+	FConditions Example = 
+		TColumn<FTestColumnA>() && 
+		(TColumn<FTestColumnB>() || TColumn<FTestColumnC>()) &&
+		(TColumn<FTestColumnD>() || TColumn<FTestColumnE>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3);
 	
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, false));
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnE>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>(), TColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true));
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnF>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnF>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnF>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions5, "TypedElementQueryBuilder::FTypedElementQueryConditions (A || B) && (C || D) && (E || F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(TypedElementDataStorage::FColumn<FTestColumnA>() || TypedElementDataStorage::FColumn<FTestColumnB>()) &&
-		(TypedElementDataStorage::FColumn<FTestColumnC>() || TypedElementDataStorage::FColumn<FTestColumnD>()) &&
-		(TypedElementDataStorage::FColumn<FTestColumnE>() || TypedElementDataStorage::FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+		(TColumn<FTestColumnC>() || TColumn<FTestColumnD>()) &&
+		(TColumn<FTestColumnE>() || TColumn<FTestColumnF>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 3); 
 	
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, false));
 	
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnE>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnB>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnE>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnB>(), TColumn<FTestColumnC>(), TColumn<FTestColumnE>() }, true));
 	
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnG>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnG>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnG>(), TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>(), TColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnG>(), TColumn<FTestColumnD>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>(), TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions6, "TypedElementQueryBuilder::FTypedElementQueryConditions ((A || B) && (C || D)) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
+	FConditions Example =
 		(
-			(TypedElementDataStorage::FColumn<FTestColumnA>() || TypedElementDataStorage::FColumn<FTestColumnB>()) &&
-			(TypedElementDataStorage::FColumn<FTestColumnC>() || TypedElementDataStorage::FColumn<FTestColumnD>())
+			(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+			(TColumn<FTestColumnC>() || TColumn<FTestColumnD>())
 		) ||
-		(TypedElementDataStorage::FColumn<FTestColumnE>() && TypedElementDataStorage::FColumn<FTestColumnF>());
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 	
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnC>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnC>() }, true));
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnE>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions7, "TypedElementQueryBuilder::FTypedElementQueryConditions (A && B) || (C && D) || (E && F)", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(TypedElementDataStorage::FColumn<FTestColumnA>() && TypedElementDataStorage::FColumn<FTestColumnB>()) ||
-		(TypedElementDataStorage::FColumn<FTestColumnC>() && TypedElementDataStorage::FColumn<FTestColumnD>()) ||
-		(TypedElementDataStorage::FColumn<FTestColumnE>() && TypedElementDataStorage::FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
+		(TColumn<FTestColumnC>() && TColumn<FTestColumnD>()) ||
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnE>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>(), TypedElementDataStorage::FColumn<FTestColumnE>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>(), TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true));
 
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnE>() }, false));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnG>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>() }, false));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnG>() }, false));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions_MultiMatch, "TypedElementQueryBuilder::FTypedElementQueryConditions_MultiMatch", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(TypedElementDataStorage::FColumn<FTestColumnA>() || TypedElementDataStorage::FColumn<FTestColumnB>()) &&
-		(TypedElementDataStorage::FColumn<FTestColumnC>() || TypedElementDataStorage::FColumn<FTestColumnD>()) &&
-		(TypedElementDataStorage::FColumn<FTestColumnE>() || TypedElementDataStorage::FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() || TColumn<FTestColumnB>()) &&
+		(TColumn<FTestColumnC>() || TColumn<FTestColumnD>()) &&
+		(TColumn<FTestColumnE>() || TColumn<FTestColumnF>());
 
 	CHECK(TestMatching(Example, 
 		{ 
-			TypedElementDataStorage::FColumn<FTestColumnA>(), 
-			TypedElementDataStorage::FColumn<FTestColumnB>(), 
-			TypedElementDataStorage::FColumn<FTestColumnC>(), 
-			TypedElementDataStorage::FColumn<FTestColumnD>(),
-			TypedElementDataStorage::FColumn<FTestColumnE>(),
-			TypedElementDataStorage::FColumn<FTestColumnF>()
+			TColumn<FTestColumnA>(), 
+			TColumn<FTestColumnB>(), 
+			TColumn<FTestColumnC>(), 
+			TColumn<FTestColumnD>(),
+			TColumn<FTestColumnE>(),
+			TColumn<FTestColumnF>()
 		}, true));
 
 	CHECK(TestMatching(Example,
 		{
-			TypedElementDataStorage::FColumn<FTestColumnA>(),
-			TypedElementDataStorage::FColumn<FTestColumnC>(),
-			TypedElementDataStorage::FColumn<FTestColumnE>(),
-			TypedElementDataStorage::FColumn<FTestColumnG>()
+			TColumn<FTestColumnA>(),
+			TColumn<FTestColumnC>(),
+			TColumn<FTestColumnE>(),
+			TColumn<FTestColumnG>()
 		}, true));
 }
 
 TEST_CASE_NAMED(FTypedElementQueryConditions_Sorted, "TypedElementQueryBuilder::FTypedElementQueryConditions_Sorted", "[ApplicationContextMask][EngineFilter]")
 {
-	FQueryConditions Example =
-		(TypedElementDataStorage::FColumn<FTestColumnA>() && TypedElementDataStorage::FColumn<FTestColumnB>()) ||
-		(TypedElementDataStorage::FColumn<FTestColumnC>() && TypedElementDataStorage::FColumn<FTestColumnD>()) ||
-		(TypedElementDataStorage::FColumn<FTestColumnE>() && TypedElementDataStorage::FColumn<FTestColumnF>());
+	FConditions Example =
+		(TColumn<FTestColumnA>() && TColumn<FTestColumnB>()) ||
+		(TColumn<FTestColumnC>() && TColumn<FTestColumnD>()) ||
+		(TColumn<FTestColumnE>() && TColumn<FTestColumnF>());
 
 	CHECK(Example.MinimumColumnMatchRequired() == 2);
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnA>(), TypedElementDataStorage::FColumn<FTestColumnB>() }, true, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>() }, true, true));
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnE>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnA>(), TColumn<FTestColumnB>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true, true));
 
-	CHECK(TestMatching(Example, { TypedElementDataStorage::FColumn<FTestColumnC>(), TypedElementDataStorage::FColumn<FTestColumnD>(), TypedElementDataStorage::FColumn<FTestColumnE>(), TypedElementDataStorage::FColumn<FTestColumnF>() }, true, true));
+	CHECK(TestMatching(Example, { TColumn<FTestColumnC>(), TColumn<FTestColumnD>(), TColumn<FTestColumnE>(), TColumn<FTestColumnF>() }, true, true));
 }
+} // namespace Tests
+} // namespace UE::Editor::DataStorage
 
 #endif // WITH_TESTS

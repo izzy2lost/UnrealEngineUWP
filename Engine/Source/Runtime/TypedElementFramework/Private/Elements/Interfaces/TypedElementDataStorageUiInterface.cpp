@@ -14,7 +14,7 @@ FTypedElementWidgetConstructor::FTypedElementWidgetConstructor(const UScriptStru
 }
 
 bool FTypedElementWidgetConstructor::Initialize(const UE::Editor::DataStorage::FMetaDataView& InArguments,
-	TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const TypedElementDataStorage::FQueryConditions& InQueryConditions)
+	TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const UE::Editor::DataStorage::Queries::FConditions& InQueryConditions)
 {
 	MatchedColumnTypes = MoveTemp(InMatchedColumnTypes);
 	QueryConditions = &InQueryConditions;
@@ -31,7 +31,7 @@ const TArray<TWeakObjectPtr<const UScriptStruct>>& FTypedElementWidgetConstructo
 	return MatchedColumnTypes;
 }
 
-const TypedElementDataStorage::FQueryConditions* FTypedElementWidgetConstructor::GetQueryConditions() const
+const UE::Editor::DataStorage::Queries::FConditions* FTypedElementWidgetConstructor::GetQueryConditions() const
 {
 	return QueryConditions;
 }

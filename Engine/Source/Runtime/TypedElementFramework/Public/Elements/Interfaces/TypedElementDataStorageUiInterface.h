@@ -36,14 +36,14 @@ public:
 
 	/** Initializes a new constructor based on the provided arguments.. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool Initialize(const UE::Editor::DataStorage::FMetaDataView& InArguments,
-		TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const UE::Editor::DataStorage::FQueryConditions& InQueryConditions);
+		TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const UE::Editor::DataStorage::Queries::FConditions& InQueryConditions);
 
 	/** Retrieves the type information for the constructor type. */
 	TYPEDELEMENTFRAMEWORK_API virtual const UScriptStruct* GetTypeInfo() const;
 	/** Retrieves the columns, if any, that were matched to this constructor when it was created. */
 	TYPEDELEMENTFRAMEWORK_API virtual const TArray<TWeakObjectPtr<const UScriptStruct>>& GetMatchedColumns() const;
 	/** Retrieves the query conditions that need to match for this widget constructor to produce a widget. */
-	TYPEDELEMENTFRAMEWORK_API virtual const UE::Editor::DataStorage::FQueryConditions* GetQueryConditions() const;
+	TYPEDELEMENTFRAMEWORK_API virtual const UE::Editor::DataStorage::Queries::FConditions* GetQueryConditions() const;
 
 	/** Returns a list of additional columns the widget requires to be added to its rows. */
 	TYPEDELEMENTFRAMEWORK_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const;
@@ -122,7 +122,7 @@ protected:
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
-	const UE::Editor::DataStorage::FQueryConditions* QueryConditions = nullptr;
+	const UE::Editor::DataStorage::Queries::FConditions* QueryConditions = nullptr;
 	const UScriptStruct* TypeInfo = nullptr;
 };
 
@@ -284,7 +284,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		UE::Editor::DataStorage::FQueryConditions Columns) = 0;
+		UE::Editor::DataStorage::Queries::FConditions Columns) = 0;
 	/**
 	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
 	 * This version registers a generic type. Construction using these are typically cheaper as they can avoid
@@ -294,7 +294,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	template<typename ConstructorType>
-	bool RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::FQueryConditions Columns);
+	bool RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::Queries::FConditions Columns);
 	/**
 	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
 	 * This version uses a previously created instance of the Constructor. The benefit of this is that it store
@@ -312,7 +312,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
-		UE::Editor::DataStorage::FQueryConditions Columns) = 0;
+		UE::Editor::DataStorage::Queries::FConditions Columns) = 0;
 	
 	/** 
 	 * Creates widget constructors for the requested purpose.
@@ -367,7 +367,7 @@ bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose)
 }
 
 template<typename ConstructorType>
-bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose, TypedElementDataStorage::FQueryConditions Columns)
+bool ITypedElementDataStorageUiInterface::RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::Queries::FConditions Columns)
 {
 	return this->RegisterWidgetFactory(Purpose, ConstructorType::StaticStruct(), Columns);
 }

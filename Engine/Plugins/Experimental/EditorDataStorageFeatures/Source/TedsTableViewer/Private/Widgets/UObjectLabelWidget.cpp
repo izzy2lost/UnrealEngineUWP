@@ -17,9 +17,10 @@
 void UUObjectLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FUObjectLabelWidgetConstructor>(
 		TEXT("General.RowLabel"),
-		TypedElementDataStorage::FColumn<FTypedElementLabelColumn>() && TypedElementDataStorage::FColumn<FTypedElementUObjectColumn>());
+		TColumn<FTypedElementLabelColumn>() && TColumn<FTypedElementUObjectColumn>());
 }
 
 FUObjectLabelWidgetConstructor::FUObjectLabelWidgetConstructor()

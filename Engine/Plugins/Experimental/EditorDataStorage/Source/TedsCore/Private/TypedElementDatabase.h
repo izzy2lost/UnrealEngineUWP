@@ -134,7 +134,7 @@ public:
 	virtual bool HasColumns(RowHandle Row, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes) const override;
 	virtual void ListColumns(RowHandle Row, ColumnListCallbackRef Callback) const;
 	virtual void ListColumns(RowHandle Row, ColumnListWithDataCallbackRef Callback);
-	virtual bool MatchesColumns(RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const override;
+	virtual bool MatchesColumns(RowHandle Row, const UE::Editor::DataStorage::Queries::FConditions& Conditions) const override;
 
 	const UScriptStruct* FindDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override;
 	const UScriptStruct* GenerateDynamicColumn(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) override;

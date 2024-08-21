@@ -14,9 +14,10 @@
 void UAssetDataLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
                                                               ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FAssetDataLabelWidgetConstructor>(
 		TEXT("General.RowLabel"),
-		TypedElementDataStorage::FColumn<FItemNameColumn_Experimental>() && TypedElementDataStorage::FColumn<FAssetTag>());
+		TColumn<FItemNameColumn_Experimental>() && TColumn<FAssetTag>());
 }
 
 FAssetDataLabelWidgetConstructor::FAssetDataLabelWidgetConstructor()

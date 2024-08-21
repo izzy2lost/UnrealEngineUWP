@@ -105,6 +105,7 @@ namespace TypedElementDatabasePrivate
 void UEditorDataStorage::Initialize()
 {
 	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	check(GEditor);
 	UMassEntityEditorSubsystem* Mass = GEditor->GetEditorSubsystem<UMassEntityEditorSubsystem>();
@@ -116,7 +117,7 @@ void UEditorDataStorage::Initialize()
 	ActiveEditorPhaseManager = Mass->GetMutablePhaseManager();
 	if (ActiveEditorEntityManager && ActiveEditorPhaseManager)
 	{
-		Environment = MakeShared<UE::Editor::DataStorage::FEnvironment>(*this, *ActiveEditorEntityManager, *ActiveEditorPhaseManager);
+		Environment = MakeShared<FEnvironment>(*this, *ActiveEditorEntityManager, *ActiveEditorPhaseManager);
 
 		using PhaseType = std::underlying_type_t<EQueryTickPhase>;
 		for (PhaseType PhaseId = 0; PhaseId < static_cast<PhaseType>(EQueryTickPhase::Max); ++PhaseId)
@@ -913,7 +914,7 @@ void UEditorDataStorage::ListColumns(RowHandle Row, ColumnListWithDataCallbackRe
 	}
 }
 
-bool UEditorDataStorage::MatchesColumns(RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const
+bool UEditorDataStorage::MatchesColumns(RowHandle Row, const UE::Editor::DataStorage::Queries::FConditions& Conditions) const
 {
 	if (ActiveEditorEntityManager)
 	{

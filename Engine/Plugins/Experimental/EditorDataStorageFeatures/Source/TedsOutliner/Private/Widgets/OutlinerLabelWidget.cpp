@@ -106,9 +106,10 @@ namespace UE::OutlinerLabelWidget::Local
 void UOutlinerLabelWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
 	DataStorageUi.RegisterWidgetFactory<FOutlinerLabelWidgetConstructor>(
 		TEXT("SceneOutliner.RowLabel"),
-		TypedElementDataStorage::FColumn<FTypedElementLabelColumn>() && TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>());
+		TColumn<FTypedElementLabelColumn>() && TColumn<FTypedElementClassTypeInfoColumn>());
 }
 
 FOutlinerLabelWidgetConstructor::FOutlinerLabelWidgetConstructor()

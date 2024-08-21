@@ -97,7 +97,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, const UScriptStr
 }
 
 bool UEditorDataStorageUi::RegisterWidgetFactory(
-	FName Purpose, const UScriptStruct* Constructor, TypedElementDataStorage::FQueryConditions Columns)
+	FName Purpose, const UScriptStruct* Constructor, UE::Editor::DataStorage::Queries::FConditions Columns)
 {
 	if (!Columns.IsEmpty())
 	{
@@ -202,7 +202,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 }
 
 bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
-	TypedElementDataStorage::FQueryConditions Columns)
+	UE::Editor::DataStorage::Queries::FConditions Columns)
 {
 	if (!Columns.IsEmpty())
 	{
@@ -362,14 +362,14 @@ bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
 	const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
-	const TypedElementDataStorage::FQueryConditions& QueryConditions,
+	const UE::Editor::DataStorage::Queries::FConditions& QueryConditions,
 	const WidgetConstructorCallback& Callback)
 {
 	struct Visitor
 	{
 		Visitor(
 			TArray<TWeakObjectPtr<const UScriptStruct>>&& InMatchedColumnTypes,
-			const TypedElementDataStorage::FQueryConditions& InQueryConditions,
+			const UE::Editor::DataStorage::Queries::FConditions& InQueryConditions,
 			const UE::Editor::DataStorage::FMetaDataView& InArguments,
 			const WidgetConstructorCallback& InCallback) 
 			: MatchedColumnTypes(MoveTemp(InMatchedColumnTypes))
@@ -379,7 +379,7 @@ bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 		{}
 
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
-		const TypedElementDataStorage::FQueryConditions& QueryConditions;
+		const UE::Editor::DataStorage::Queries::FConditions& QueryConditions;
 		const UE::Editor::DataStorage::FMetaDataView& Arguments;
 		const WidgetConstructorCallback& Callback;
 
@@ -602,14 +602,14 @@ UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWid
 }
 
 UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(const UScriptStruct* InConstructor, 
-	TypedElementDataStorage::FQueryConditions&& InColumns)
+	UE::Editor::DataStorage::Queries::FConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(InConstructor)
 {
 }
 
 UEditorDataStorageUi::FWidgetFactory::FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, 
-	TypedElementDataStorage::FQueryConditions&& InColumns)
+	UE::Editor::DataStorage::Queries::FConditions&& InColumns)
 	: Columns(MoveTemp(InColumns))
 	, Constructor(MoveTemp(InConstructor))
 {

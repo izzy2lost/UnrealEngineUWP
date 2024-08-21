@@ -35,10 +35,10 @@ public:
 
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		TypedElementDataStorage::FQueryConditions Columns) override;
+		UE::Editor::DataStorage::Queries::FConditions Columns) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor) override;
 	bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor,
-		TypedElementDataStorage::FQueryConditions Columns) override;
+		UE::Editor::DataStorage::Queries::FConditions Columns) override;
 
 	void CreateWidgetConstructors(FName Purpose,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
@@ -60,14 +60,14 @@ private:
 	{
 		using ConstructorType = std::variant<const UScriptStruct*, TUniquePtr<FTypedElementWidgetConstructor>>;
 
-		TypedElementDataStorage::FQueryConditions Columns;
+		UE::Editor::DataStorage::Queries::FConditions Columns;
 		ConstructorType Constructor;
 
 		FWidgetFactory() = default;
 		explicit FWidgetFactory(const UScriptStruct* InConstructor);
 		explicit FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor);
-		FWidgetFactory(const UScriptStruct* InConstructor, TypedElementDataStorage::FQueryConditions&& InColumns);
-		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, TypedElementDataStorage::FQueryConditions&& InColumns);
+		FWidgetFactory(const UScriptStruct* InConstructor, UE::Editor::DataStorage::Queries::FConditions&& InColumns);
+		FWidgetFactory(TUniquePtr<FTypedElementWidgetConstructor>&& InConstructor, UE::Editor::DataStorage::Queries::FConditions&& InColumns);
 	};
 
 	struct FPurposeInfo
@@ -84,7 +84,7 @@ private:
 		const FWidgetFactory::ConstructorType& Constructor,
 		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
-		const TypedElementDataStorage::FQueryConditions& QueryConditions,
+		const UE::Editor::DataStorage::Queries::FConditions& QueryConditions,
 		const WidgetConstructorCallback& Callback);
 
 	void CreateWidgetInstance(

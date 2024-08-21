@@ -151,11 +151,13 @@ void UAlertWidgetFactory::RegisterWidgetConstructors(
 	ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
+
 	DataStorageUi.RegisterWidgetFactory<FAlertWidgetConstructor>(FName(TEXT("General.Cell")),
-		TypedElementDataStorage::FColumn<FTypedElementAlertColumn>() || TypedElementDataStorage::FColumn<FTypedElementChildAlertColumn>());
+		TColumn<FTypedElementAlertColumn>() || TColumn<FTypedElementChildAlertColumn>());
 	
 	DataStorageUi.RegisterWidgetFactory<FAlertHeaderWidgetConstructor>(FName(TEXT("General.Header")),
-		TypedElementDataStorage::FColumn<FTypedElementAlertColumn>() || TypedElementDataStorage::FColumn<FTypedElementChildAlertColumn>());
+		TColumn<FTypedElementAlertColumn>() || TColumn<FTypedElementChildAlertColumn>());
 }
 
 void UAlertWidgetFactory::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)

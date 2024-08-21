@@ -16,8 +16,10 @@
 void UTypeInfoWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 	ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
+
 	DataStorageUi.RegisterWidgetFactory<FTypeInfoWidgetConstructor>(FName(TEXT("General.Cell")),
-		TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>());
+		TColumn<FTypedElementClassTypeInfoColumn>());
 
 }
 

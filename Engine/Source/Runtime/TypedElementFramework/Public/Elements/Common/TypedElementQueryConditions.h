@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include "CoreMinimal.h"
+#include "Elements/Common/TypedElementCommonTypes.h"
 #include "Templates/SubclassOf.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
 class UScriptStruct;
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage::Queries
 {
 	struct FColumnBase
 	{
@@ -20,37 +20,37 @@ namespace TypedElementDataStorage
 	};
 
 	template<typename T = void>
-	struct FColumn final : public FColumnBase
+	struct TColumn final : public FColumnBase
 	{
 		template <typename U = T> requires (!std::is_same_v<U, void>)
-			constexpr FColumn() : FColumnBase(T::StaticStruct()) {}
+			constexpr TColumn() : FColumnBase(T::StaticStruct()) {}
 		template <typename U = T> requires (std::is_same_v<U, void>)
-			constexpr explicit FColumn(TWeakObjectPtr<const UScriptStruct> ColumnTypeInfo) : FColumnBase(ColumnTypeInfo) {};
+			constexpr explicit TColumn(TWeakObjectPtr<const UScriptStruct> ColumnTypeInfo) : FColumnBase(ColumnTypeInfo) {};
 	};
 
 	/**
 	 * Product of boolean combination of multiple columns. This can be used to verify if a collection of columns match
 	 * the stored columns.
 	 */
-	class FQueryConditions final
+	class FConditions final
 	{
 	public:
 		using ContainsCallback = TFunctionRef<bool(uint8_t ColumnIndex, TWeakObjectPtr<const UScriptStruct> Column)>;
 
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator&&(const FQueryConditions& Lhs, FColumnBase Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator&&(const FQueryConditions& Lhs, const FQueryConditions& Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator&&(FColumnBase Lhs, FColumnBase Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator&&(FColumnBase Lhs, const FQueryConditions& Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator&&(const FConditions& Lhs, FColumnBase Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator&&(const FConditions& Lhs, const FConditions& Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator&&(FColumnBase Lhs, FColumnBase Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator&&(FColumnBase Lhs, const FConditions& Rhs);
 
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator||(const FQueryConditions& Lhs, FColumnBase Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator||(const FQueryConditions& Lhs, const FQueryConditions& Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator||(FColumnBase Lhs, FColumnBase Rhs);
-		TYPEDELEMENTFRAMEWORK_API friend FQueryConditions operator||(FColumnBase Lhs, const FQueryConditions& Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator||(const FConditions& Lhs, FColumnBase Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator||(const FConditions& Lhs, const FConditions& Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator||(FColumnBase Lhs, FColumnBase Rhs);
+		TYPEDELEMENTFRAMEWORK_API friend FConditions operator||(FColumnBase Lhs, const FConditions& Rhs);
 
-		FQueryConditions() = default;
+		FConditions() = default;
 		// Not marked as "explicit" to allow conversion from a column. This means that conditions with a single
 		// argument can be written in the same way as ones that use combinations.
-		TYPEDELEMENTFRAMEWORK_API FQueryConditions(FColumnBase Column);
+		TYPEDELEMENTFRAMEWORK_API FConditions(FColumnBase Column);
 
 		/** Convert the conditions into a string and append them to the provided string. */
 		TYPEDELEMENTFRAMEWORK_API void AppendToString(FString& Output) const;
@@ -102,7 +102,7 @@ namespace TypedElementDataStorage
 
 		uint8_t MinimumColumnMatchRequiredRange(uint8_t& Front) const;
 
-		static void AppendQuery(FQueryConditions& Target, const FQueryConditions& Source);
+		static void AppendQuery(FConditions& Target, const FConditions& Source);
 
 		static constexpr SIZE_T MaxColumnCount = 32;
 		static constexpr SIZE_T MaxTokenCount = 64;
@@ -125,13 +125,13 @@ namespace TypedElementDataStorage
 
 	};
 
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator&&(const FQueryConditions& Lhs, FColumnBase Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator&&(const FQueryConditions& Lhs, const FQueryConditions& Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator&&(FColumnBase Lhs, FColumnBase Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator&&(FColumnBase Lhs, const FQueryConditions& Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator&&(const FConditions& Lhs, FColumnBase Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator&&(const FConditions& Lhs, const FConditions& Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator&&(FColumnBase Lhs, FColumnBase Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator&&(FColumnBase Lhs, const FConditions& Rhs);
 
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator||(const FQueryConditions& Lhs, FColumnBase Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator||(const FQueryConditions& Lhs, const FQueryConditions& Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator||(FColumnBase Lhs, FColumnBase Rhs);
-	TYPEDELEMENTFRAMEWORK_API FQueryConditions operator||(FColumnBase Lhs, const FQueryConditions& Rhs);
-} // namespace TypedElementDataStorage
+	TYPEDELEMENTFRAMEWORK_API FConditions operator||(const FConditions& Lhs, FColumnBase Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator||(const FConditions& Lhs, const FConditions& Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator||(FColumnBase Lhs, FColumnBase Rhs);
+	TYPEDELEMENTFRAMEWORK_API FConditions operator||(FColumnBase Lhs, const FConditions& Rhs);
+} // namespace UE::Editor::DataStorage::Queries

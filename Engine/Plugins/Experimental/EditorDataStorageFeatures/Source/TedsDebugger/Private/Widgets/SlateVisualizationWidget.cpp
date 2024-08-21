@@ -11,8 +11,10 @@
 
 void USlateVisualizationWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage, ITypedElementDataStorageUiInterface& DataStorageUi) const
 {
+	using namespace UE::Editor::DataStorage::Queries;
+
 	DataStorageUi.RegisterWidgetFactory<FSlateVisualizationWidgetConstructor>(FName(TEXT("General.Cell")),
-	TypedElementDataStorage::FColumn<FTypedElementSlateWidgetReferenceColumn>());
+		TColumn<FTypedElementSlateWidgetReferenceColumn>());
 }
 
 FSlateVisualizationWidgetConstructor::FSlateVisualizationWidgetConstructor()

@@ -303,7 +303,7 @@ public:
 	virtual void ListColumns(RowHandle Row, ColumnListWithDataCallbackRef Callback) = 0;
 
 	/** Determines if the columns in the row match the query conditions. */
-	virtual bool MatchesColumns(RowHandle Row, const TypedElementDataStorage::FQueryConditions& Conditions) const = 0;
+	virtual bool MatchesColumns(RowHandle Row, const UE::Editor::DataStorage::Queries::FConditions& Conditions) const = 0;
 
 	/**
 	 * Finds the type information for a dynamic column.
