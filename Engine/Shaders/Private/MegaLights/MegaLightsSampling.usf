@@ -138,7 +138,7 @@ void GenerateLightSamplesCS(
 			const float SceneDepth = Material.Depth;
 
 			const uint EyeIndex = 0;
-			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
+			const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
 			const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 			const uint NumLightsInGridCell = min(CulledLightGridHeader.NumMegaLights, GetMaxLightsPerCell(EyeIndex));
 
@@ -197,7 +197,7 @@ void GenerateLightSamplesCS(
 				float3 TranslatedWorldPosition = GetTranslatedWorldPositionFromScreenUV(ScreenUV, SceneDepth);		
 
 				const uint EyeIndex = 0;
-				const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord, SceneDepth, EyeIndex);
+				const uint GridIndex = ComputeLightGridCellIndex(ScreenCoord - View.ViewRectMin.xy, SceneDepth, EyeIndex);
 				const FCulledLightsGridHeader CulledLightGridHeader = GetCulledLightsGridHeader(GridIndex, EyeIndex);
 				const uint NumLightsInGridCell = min(CulledLightGridHeader.NumLights, GetMaxLightsPerCell(EyeIndex));
 				const uint NumLocalLights = GetNumLocalLights(EyeIndex);
