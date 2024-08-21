@@ -507,7 +507,7 @@ static TIoStatusOr<FUploadResult> UploadContainerFiles(
 			FIoStatus Status = ContainerFileReader.Initialize(*FPaths::ChangeExtension(Path, TEXT("")), EncryptionKeys);
 			if (!Status.IsOk())
 			{
-				UE_LOG(LogIas, Error, TEXT("Failed to open container '%s' for reading"), *Path);
+				UE_LOG(LogIas, Error, TEXT("Failed to open container '%s' for reading due to: '%s'"), *Path, *Status.ToString());
 				continue;
 			}
 		}
