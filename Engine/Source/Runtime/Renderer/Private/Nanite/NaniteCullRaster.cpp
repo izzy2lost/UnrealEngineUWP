@@ -2790,6 +2790,31 @@ public:
 	FInstanceWorkGroupParameters DispatchCullingPass(FRDGBuilder& GraphBuilder, uint32 CullingPass, const FRenderer& Renderer);
 };
 
+template<typename TShaderType>
+inline void SetHWBundleParameters(
+	TOptional<FRHIBatchedShaderParameters>& BatchedParameters,
+	FRHIBatchedShaderParametersAllocator& ScratchAllocator,
+	const TShaderRef<TShaderType>& InShader,
+	const FHWRasterizePS::FParameters& Parameters,
+	bool bUsingSharedParameters,
+	const FViewInfo& View,
+	const FMaterialRenderProxy* MaterialProxy,
+	const FMaterial& Material)
+{
+	BatchedParameters.Emplace(ScratchAllocator);
+
+	// New Style first
+	if (!bUsingSharedParameters)
+	{
+		SetShaderParameters(*BatchedParameters, InShader, Parameters);
+	}
+
+	// Legacy second
+	InShader->SetParameters(*BatchedParameters, View, MaterialProxy, Material);
+
+	BatchedParameters->Finish();
+}
+
 class FRenderer : public FSceneRenderingAllocatorObject< FRenderer >, public IRenderer
 {
 public:
@@ -2922,7 +2947,8 @@ private:
 						FRHIBatchedShaderParametersAllocator& ScratchAllocator = RHICmdList.GetScratchShaderParameters().Allocator;
 
 						FRHIBatchedShaderParameters CommonParameters(ScratchAllocator);
-						if (GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters)
+						const bool bUsingSharedParameters = GRHIGlobals.ShaderBundles.RequiresSharedBindlessParameters;
+						if (bUsingSharedParameters)
 						{
 							SetAllShaderParametersAsBindless(CommonParameters, Parameters);
 							CommonParameters.Finish();
@@ -2953,20 +2979,16 @@ private:
 							}
 						#endif
 
-							Dispatch.Parameters_MSVS.Emplace(ScratchAllocator);
 							if (IsMeshShaderRasterPath(HardwarePath))
 							{
-								SetBatchedShaderParametersMixed(*Dispatch.Parameters_MSVS, RasterizerPass.RasterMeshShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetHWBundleParameters(Dispatch.Parameters_MSVS, ScratchAllocator, RasterizerPass.RasterMeshShader, Parameters, bUsingSharedParameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
 							else
 							{
-								SetBatchedShaderParametersMixed(*Dispatch.Parameters_MSVS, RasterizerPass.RasterVertexShader, Parameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
+								SetHWBundleParameters(Dispatch.Parameters_MSVS, ScratchAllocator, RasterizerPass.RasterVertexShader, Parameters, bUsingSharedParameters, ViewInfo, RasterizerPass.VertexMaterialProxy, *RasterizerPass.VertexMaterial);
 							}
-							Dispatch.Parameters_MSVS->Finish();
 
-							Dispatch.Parameters_PS.Emplace(ScratchAllocator);
-							SetBatchedShaderParametersMixed(*Dispatch.Parameters_PS, RasterizerPass.RasterPixelShader, Parameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
-							Dispatch.Parameters_PS->Finish();
+							SetHWBundleParameters(Dispatch.Parameters_PS, ScratchAllocator, RasterizerPass.RasterPixelShader, Parameters, bUsingSharedParameters, ViewInfo, RasterizerPass.PixelMaterialProxy, *RasterizerPass.PixelMaterial);
 
 							Dispatch.PipelineInitializer = GraphicsPSOInit;
 							Dispatch.PipelineState = FindGraphicsPipelineState(Dispatch.PipelineInitializer);
