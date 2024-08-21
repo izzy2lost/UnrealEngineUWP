@@ -462,6 +462,11 @@ EInitResult FUnrealVirtualizationToolApp::TryParseGlobalOptions(const TCHAR* Cmd
 		AddGlobalOption(TEXT("-ReportFailures"));
 	}
 
+	if (FParse::Param(CmdLine, TEXT("fastexit")))
+	{
+		AddGlobalOption(TEXT("-fastexit"));
+	}
+
 	return EInitResult::Success;
 }
 
