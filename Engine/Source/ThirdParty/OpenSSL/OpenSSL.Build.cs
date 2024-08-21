@@ -24,7 +24,8 @@ public class OpenSSL : ModuleRules
 
 			string LibPath = Path.Combine(LibOpenSSLPath, PlatformSubdir);
 
-			bool bIsSimulator = Target.Architecture == UnrealArch.IOSSimulator || Target.Architecture == UnrealArch.TVOSSimulator;
+			bool bIsSimulator = (Target.Platform != UnrealTargetPlatform.Mac) &&
+				(Target.Architecture == UnrealArch.IOSSimulator || Target.Architecture == UnrealArch.TVOSSimulator);
 			string LibExt = bIsSimulator ? ".sim.a" : ".a";
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libssl" + LibExt));
 			PublicAdditionalLibraries.Add(Path.Combine(LibPath, "libcrypto" + LibExt));
