@@ -89,8 +89,8 @@ namespace Dataflow
 							return FReply::Handled();
 						};
 
-					const FText Name = ChildProperty->HasMetaData("ButtonText") ?
-						FText::FromString(ChildProperty->GetMetaData("ButtonText")) :
+					const FText Name = ChildProperty->HasMetaData("DisplayName") ?
+						FText::FromString(ChildProperty->GetMetaData("DisplayName")) :
 						ChildProperty->GetPropertyDisplayName();
 					const FText ToolTip = ChildProperty->GetToolTipText();
 					const FName ButtonImage = *ChildProperty->GetMetaData("ButtonImage");  // e.g. FAppStyle::GetBrush("Persona.ReimportAsset") will be Meta = (ButtonImage = "Persona.ReimportAsset")
