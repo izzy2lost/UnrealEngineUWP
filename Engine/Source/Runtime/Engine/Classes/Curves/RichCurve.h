@@ -81,15 +81,15 @@ struct FRichCurveKey
 	GENERATED_USTRUCT_BODY()
 
 	/** Interpolation mode between this key and the next */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
+	UPROPERTY()
 	TEnumAsByte<ERichCurveInterpMode> InterpMode;
 
 	/** Mode for tangents at this key */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
+	UPROPERTY()
 	TEnumAsByte<ERichCurveTangentMode> TangentMode;
 
 	/** If either tangent at this key is 'weighted' */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Key")
+	UPROPERTY()
 	TEnumAsByte<ERichCurveTangentWeightMode> TangentWeightMode;
 
 	/** Time at this key */
