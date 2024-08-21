@@ -353,6 +353,9 @@ public:
 
 	NIAGARA_API virtual TArray<FNiagaraVariable> GetBoundAttributes() const;
 
+	/** returns the variable associated with the supplied binding if it should be bound given the current settings of the RendererProperties. */
+	NIAGARA_API virtual FNiagaraVariable GetBoundAttribute(const FNiagaraVariableAttributeBinding* Binding) const;
+
 	virtual const TArray<FNiagaraVariable>& GetRequiredAttributes() { static TArray<FNiagaraVariable> Vars; return Vars; };
 	virtual const TArray<FNiagaraVariable>& GetOptionalAttributes() { static TArray<FNiagaraVariable> Vars; return Vars; };
 
@@ -451,9 +454,6 @@ protected:
 	NIAGARA_API virtual void UpdateSourceModeDerivates(ENiagaraRendererSourceDataMode InSourceMode, bool bFromPropertyEdit = false);
 
 #if WITH_EDITORONLY_DATA
-	/** returns the variable associated with the supplied binding if it should be bound given the current settings of the RendererProperties. */
-	NIAGARA_API virtual FNiagaraVariable GetBoundAttribute(const FNiagaraVariableAttributeBinding* Binding) const;
-
 	/** utility function that can be used to fix up old vec3 bindings into position bindings. */
 	static NIAGARA_API void ChangeToPositionBinding(FNiagaraVariableAttributeBinding& Binding);
 

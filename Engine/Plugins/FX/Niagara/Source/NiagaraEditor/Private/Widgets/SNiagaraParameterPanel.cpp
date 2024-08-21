@@ -17,7 +17,6 @@
 #include "SDropTarget.h"
 #include "Widgets/SNiagaraPinTypeSelector.h"
 #include "ViewModels/NiagaraParameterPanelViewModel.h"
-#include "ViewModels/Stack/NiagaraStackGraphUtilities.h"
 #include "Widgets/SToolTip.h"
 #include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/Text/SRichTextBlock.h"
@@ -26,6 +25,7 @@
 #include "Styling/AppStyle.h"
 #include "Widgets/Layout/SWrapBox.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "NiagaraParameterPanel"
 
@@ -454,23 +454,70 @@ TSharedRef<SWidget> SNiagaraParameterPanel::OnGenerateWidgetForItem(const FNiaga
 
 	if (bShowParameterReferenceCounter)
 	{
+		TMap<FName, TArray<FNiagaraParameterReferencePath>> PathByParent;
+		for (const FNiagaraParameterReferencePath& Path : Item.ReferencePaths)
+		{
+			if (const UNiagaraGraph* NiagaraGraph = Path.SourceGraph.Get())
+			{
+				FName ParentName = NiagaraGraph->GetFName();
+				if (NiagaraGraph->GetOwningEmitter().Emitter)
+				{
+					ParentName = NiagaraGraph->GetOwningEmitter().Emitter.GetFName();
+				}
+				PathByParent.FindOrAdd(ParentName).Add(Path);
+			}
+		}
+
+		FString DetailReferences;
+		for (const TPair<FName, TArray<FNiagaraParameterReferencePath>>& Pair : PathByParent)
+		{
+			DetailReferences += "\n" + Pair.Key.ToString() + ":\n";
+			for (const FNiagaraParameterReferencePath& Path : Pair.Value)
+			{
+				FString Prefix = (Path.bRead && Path.bWrite) ? "R+W" : (Path.bRead ? "R" : "W");
+				DetailReferences += FString("\t") + Prefix + ": " +  Path.ModuleName.ToString() + "\n";
+			}
+		}
+		FText TooltipBaseText = LOCTEXT("ReferenceCountTooltip", "Shows the total number of references for this parameter across all selected emitters in the format 'Reads / Writes'.\nThis includes usages inside module scripts. If no emitter is selected then it only shows usages in the system script.");
+		FText FormattedTooltip = DetailReferences.IsEmpty() ? TooltipBaseText : FText::Format(LOCTEXT("DetailReferenceFmt", "{0}\nDetailed references:\n{1}"), TooltipBaseText, FText::FromString(DetailReferences));
+		
 		ItemWidgetHorizontalBox->AddSlot()
 		.VAlign(VAlign_Center)
 		.AutoWidth()
-		.Padding(3, 0)
 		[
-			SNew(SComboButton)
-			.HasDownArrow(false)
+			SNew(SButton)
 			.ButtonStyle(FAppStyle::Get(), "RoundButton")
+			.ToolTipText(FormattedTooltip)
 			.ForegroundColor(FSlateColor::UseForeground())
-			.ContentPadding(FMargin(2.0f))
 			.HAlign(HAlign_Right)
 			.VAlign(VAlign_Center)
-			.ButtonContent()
 			[
-				SNew(STextBlock)
-				.Text(FText::AsNumber(Item.ReferenceCount))
-				.Font(FCoreStyle::GetDefaultFontStyle(FName("Italic"), 10))
+				SNew(SHorizontalBox)
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.ColorAndOpacity(FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.Parameters.ReadColor"))
+					.Text(FText::AsNumber(Item.ReadReferenceCount))
+					.Font(FCoreStyle::GetDefaultFontStyle(FName("Bold"), 10))
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.Margin(FMargin(2, 0))
+					.Text(FText::FromString(TEXT("/")))
+					.Font(FCoreStyle::GetDefaultFontStyle(FName("Regular"), 10))
+				]
+				+SHorizontalBox::Slot()
+				.AutoWidth()
+				[
+					SNew(STextBlock)
+					.ColorAndOpacity(FNiagaraEditorStyle::Get().GetColor("NiagaraEditor.Parameters.WriteColor"))
+					.Text(FText::AsNumber(Item.WriteReferenceCount))
+					.Font(FCoreStyle::GetDefaultFontStyle(FName("Bold"), 10))
+				]
+				
 			]
 		];
 	}

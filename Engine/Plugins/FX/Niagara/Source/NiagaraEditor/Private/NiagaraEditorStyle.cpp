@@ -321,6 +321,8 @@ void FNiagaraEditorStyle::InitParameterMapView()
 	Set("NiagaraEditor.Stack.FlatButtonColor", FLinearColor(FColor(205, 205, 205)));
 
 	//Parameters panel
+	Set("NiagaraEditor.Parameters.ReadColor", FLinearColor(FColor(133, 108, 176)));
+	Set("NiagaraEditor.Parameters.WriteColor", FLinearColor(FColor(96, 184, 125)));
 	const FTableRowStyle TreeViewStyle = FAppStyle::GetWidgetStyle<FTableRowStyle>("DetailsView.TreeView.TableRow");
 	FTableRowStyle ParameterPanelRowStyle = FTableRowStyle(TreeViewStyle)
 		.SetTextColor(FLinearColor::White)

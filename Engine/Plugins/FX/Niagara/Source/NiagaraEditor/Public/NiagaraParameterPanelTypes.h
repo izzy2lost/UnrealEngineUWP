@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "NiagaraTypes.h"
+#include "NiagaraGraph.h"
 #include "NiagaraEditorSettings.h"
+#include "NiagaraEditorCommon.h"
 #include "Misc/Guid.h"
 #include "NiagaraScriptVariable.h"
 
@@ -35,6 +37,19 @@ public:
 	FNiagaraNamespaceMetadata NamespaceMetaData;
 };
 
+struct FNiagaraParameterReferencePath
+{
+	TWeakObjectPtr<const UNiagaraGraph> SourceGraph;
+	FName ModuleName = NAME_None;
+	bool bRead = false;
+	bool bWrite = false;
+
+	bool operator==(const FNiagaraParameterReferencePath& Other) const
+	{
+		return Other.SourceGraph == SourceGraph && Other.ModuleName == ModuleName;
+	};
+};
+
 struct FNiagaraParameterPanelItem : public FNiagaraParameterPanelItemBase
 {
 public:
@@ -52,18 +67,45 @@ public:
 
 	void RequestRenameNamespaceModifier() const { check(OnRequestRenameNamespaceModifierDelegate.IsBound()); OnRequestRenameNamespaceModifierDelegate.ExecuteIfBound(); };
 
-public:
+	void AddToReadCount(const FNiagaraParameterReferencePath& SourcePath)
+	{
+		ReadReferenceCount++;
+		FNiagaraParameterReferencePath* RefPath = ReferencePaths.FindByKey(SourcePath);
+		if (!RefPath)
+		{
+			RefPath = &ReferencePaths.Add_GetRef(SourcePath);
+		}
+		RefPath->bRead = true;
+	}
+
+	void AddToWriteCount(const FNiagaraParameterReferencePath& SourcePath)
+	{
+		WriteReferenceCount++;
+		FNiagaraParameterReferencePath* RefPath = ReferencePaths.FindByKey(SourcePath);
+		if (!RefPath)
+		{
+			RefPath = &ReferencePaths.Add_GetRef(SourcePath);
+		}
+		RefPath->bWrite = true;
+	}
+
 	/* For script variables; if true, the variable is sourced from a script that is not owned by the emitter/system the parameter panel is referencing. */
-	bool bExternallyReferenced;
+	bool bExternallyReferenced = false;
 
 	/* For script variables; if true, the variable is a member of a custom stack context for an emitter/system. */
-	bool bSourcedFromCustomStackContext;
+	bool bSourcedFromCustomStackContext = false;
 
-	/* Count of references to the variable in graphs viewed by a parameter panel view model. */
-	int32 ReferenceCount;
+	/* Count of read references to the variable in graphs viewed by a parameter panel view model. */
+	int32 ReadReferenceCount = 0;
+
+	/* Count of write references to the variable in graphs viewed by a parameter panel view model. */
+	int32 WriteReferenceCount = 0;
+
+	/* A detailed list of unique references (i.e. modules) to display in the parameters panel */
+	TArray<FNiagaraParameterReferencePath> ReferencePaths;
 
 	/* The relation of this parameter item to all parameter definitions it is matching. Whether the parameter item is subscribed to a definition is tracked by the UNiagaraScriptVariable's bSubscribedToParameterDefinitions member. */
-	EParameterDefinitionMatchState DefinitionMatchState;
+	EParameterDefinitionMatchState DefinitionMatchState = EParameterDefinitionMatchState::NoMatchingDefinitions;
 
 private:
 	mutable FOnRequestRename OnRequestRenameDelegate;
