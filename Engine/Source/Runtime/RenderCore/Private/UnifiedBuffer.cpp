@@ -411,7 +411,7 @@ void MemsetResource(FRDGBuilder& GraphBuilder, FRDGUnorderedAccessView* UAV, con
 		RDG_EVENT_NAME("MemsetResource (%s)", Resource->Name),
 		ComputeShader,
 		PassParameters,
-		FComputeShaderUtils::GetGroupCountWrapped(Params.Count / Divisor, 64));
+		FIntVector(FMath::DivideAndRoundUp(Params.Count / Divisor, 64u), 1, 1));
 }
 
 void MemsetResource(FRDGBuilder& GraphBuilder, FRDGBufferUAV* UAV, const FMemsetResourceParams& Params)

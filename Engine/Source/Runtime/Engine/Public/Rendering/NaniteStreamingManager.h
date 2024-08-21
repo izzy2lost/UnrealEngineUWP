@@ -7,7 +7,6 @@
 #include "Memory/SharedBuffer.h"
 #include "NaniteResources.h"
 #include "UnifiedBuffer.h"
-#include "SpanAllocator.h"
 
 namespace UE
 {
@@ -162,7 +161,7 @@ private:
 	struct FHeapBuffer
 	{
 		int32							TotalUpload = 0;
-		FSpanAllocator					Allocator;
+		FGrowOnlySpanAllocator			Allocator;
 		FRDGScatterUploadBuffer			UploadBuffer;
 		TRefCountPtr<FRDGPooledBuffer>	DataBuffer;
 
@@ -226,7 +225,6 @@ private:
 	uint32					MaxStreamingPages = 0;
 	uint32					MaxRootPages = 0;
 	uint32					NumInitialRootPages = 0;
-	uint32					PrevNumInitialRootPages = 0;
 	uint32					MaxPendingPages = 0;
 	uint32					MaxPageInstallsPerUpdate = 0;
 
@@ -234,15 +232,12 @@ private:
 	uint32					NumPendingPages = 0;
 	uint32					NextPendingPageIndex = 0;
 	float					QualityScaleFactor = 1.0f;
-	bool					bClusterPageDataAllocated = false;
 
 	uint32					StatNumRootPages = 0;
 	uint32					StatPeakRootPages = 0;
 	uint32					StatVisibleSetSize = 0;
 	uint32					StatPrevUpdateTime = 0;
 	uint32					StatNumAllocatedRootPages = 0;
-	uint32					StatNumHierarchyNodes = 0;
-	uint32					StatPeakHierarchyNodes = 0;
 	float					StatStreamingPoolPercentage = 0.0f;
 	
 	uint64					PrevUpdateTick = 0;
@@ -253,7 +248,7 @@ private:
 	
 	TMap<uint32, uint32>				ModifiedResources;					// Key = RuntimeResourceID, Value = NumResidentClusters
 
-	FSpanAllocator						VirtualPageAllocator;
+	FGrowOnlySpanAllocator				VirtualPageAllocator;
 	TArray<FVirtualPage>				RegisteredVirtualPages;
 
 	typedef TArray<uint32, TInlineAllocator<16>> FRegisteredPageDependencies;
@@ -321,19 +316,13 @@ private:
 
 	bool ArePageDependenciesCommitted(uint32 RuntimeResourceID, uint32 DependencyPageStart, uint32 DependencyPageNum);
 
-	void ProcessNewResources(FRDGBuilder& GraphBuilder, FRDGBuffer* ClusterPageDataBuffer);
-	FRDGBuffer* ResizePoolAllocationIfNeeded(FRDGBuilder& GraphBuilder);
+	uint32 GPUPageIndexToGPUOffset(uint32 PageIndex) const;
+
+	void ProcessNewResources(FRDGBuilder& GraphBuilder);
+	FRDGBuffer* GrowPoolAllocationIfNeeded(FRDGBuilder& GraphBuilder);
 	
 	uint32 DetermineReadyPages(uint32& TotalPageSize);
 	void InstallReadyPages(uint32 NumReadyPages);
-	void UninstallGPUPage(uint32 GPUPageIndex, bool bApplyFixup);
-
-	void AddClusterLeafFlagUpdate(uint32 MaxStreamingPages, uint32 GPUPageIndex, uint32 ClusterIndex, uint32 NumClusters, bool bReset, bool bUninstall);
-	void FlushClusterLeafFlagUpdates(FRDGBuilder& GraphBuilder, FRDGBuffer* ClusterPageDataBuffer);
-
-	void ResetStreamingStateCPU();
-	void UpdatePageConfiguration();
-	
 
 	void AsyncUpdate();
 
