@@ -1734,7 +1734,7 @@ void UPCGComponent::PostLoad()
 	{
 		CurrentEditingMode = EPCGEditorDirtyMode::Preview;
 		MarkResourcesAsTransientOnLoad();
-		bDirtyGenerated = true;
+		bDirtyGenerated = PCGSystemSwitches::CVarDirtyLoadAsPreviewOnLoad.GetValueOnAnyThread();
 	}
 #endif
 

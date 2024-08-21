@@ -193,6 +193,7 @@ namespace PCGSystemSwitches
 #if WITH_EDITOR
 	extern PCG_API TAutoConsoleVariable<bool> CVarPausePCGExecution;
 	extern TAutoConsoleVariable<bool> CVarGlobalDisableRefresh;
+	extern TAutoConsoleVariable<bool> CVarDirtyLoadAsPreviewOnLoad;
 #endif
 }
 
