@@ -493,8 +493,11 @@ public:
 	CHAOS_API void DisableCluster(FPBDRigidClusteredParticleHandle* ClusteredParticle);
 
 	bool ShouldThrottleParticleRelease() const;
-	void ThrottleReleasedParticlesIfNecessary(TSet<FPBDRigidParticleHandle*>& Particles) const;
-	void ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles) const;
+	void ThrottleReleasedParticlesIfNecessary(TSet<FPBDRigidParticleHandle*>& Particles);
+	void ThrottleReleasedParticlesIfNecessary(TArray<FPBDRigidParticleHandle*>& Particles);
+
+	/** disable a particle and make sure the related internal structure are up to date */
+	void DisableParticle(FPBDRigidParticleHandle* ParticleToDisable);
 
  protected:
 
@@ -551,6 +554,7 @@ public:
 	// Restore some percentage of momenta for objects which were involved in collisions
 	// with destroyed GCs
 	CHAOS_API void RestoreBreakingMomentum();
+	CHAOS_API void RemoveFromMomentumRestoringStructures(const FPBDRigidParticleHandle* ParticleToRemove);
 
 	CHAOS_API void SendBreakingEvent(FPBDRigidClusteredParticleHandle* ClusteredParticle, bool bFromCrumble);
 	CHAOS_API void SendCrumblingEvent(FPBDRigidClusteredParticleHandle* ClusteredParticle);
@@ -614,10 +618,14 @@ private:
 	TSet<FPBDRigidClusteredParticleHandle*> CrumbledSinceLastUpdate;
 	TMap<IPhysicsProxyBase*, TArray<FPBDRigidClusteredParticleHandle*>> EmptyInternalClustersPerProxy;
 
-	// Pairs of collision constraints and rigid particle handles of particles which collided with
-	// rigid clusters which broken. Some portion of the momentum change due to the constraint
-	// will be restored to each of the corresponding particles.
-	TSet<TPair<FPBDCollisionConstraint*, FPBDRigidParticleHandle*>> BreakingCollisions;
+	struct FMomentumRestoringData
+	{
+		FVector V = FVector::ZeroVector;
+		FVector W = FVector::ZeroVector;
+	};
+	// this map stores the momentum information a particle had when colliding with a breaking clustered particle
+	// this allow the colliding particle to keep going if the clustered particle break depsite the fact that the collision constraint resolution stopped it 
+	TMap<FPBDRigidParticleHandle*, FMomentumRestoringData> MomentumRestoringDataByParticle;
 
 	FReal MClusterConnectionFactor;
 	FClusterCreationParameters::EConnectionMethod MClusterUnionConnectionType;
