@@ -881,6 +881,10 @@ precise float4 MakePrecise(in precise float4 v) { precise float4 pv = v; return 
 #define ALLOW_NO_PS_EXPORT
 #endif
 
+#ifndef ADAPTIVE_LICM
+#define ADAPTIVE_LICM
+#endif
+
 // ---------------------------------------------------- Interpolator attribute fallbacks
 
 #ifndef COMPRESSED_16_FLOAT

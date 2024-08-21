@@ -18,6 +18,8 @@
 #include "MegaLightsShading.ush"
 #include "../Lumen/LumenReflectionDenoiserCommon.ush"
 
+ADAPTIVE_LICM
+
 RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
 RWTexture2D<UNORM float> RWShadingConfidence;

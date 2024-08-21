@@ -23,6 +23,8 @@
 #include "MegaLightsRayTracing.ush"
 #include "../LightFunctionAtlas/LightFunctionAtlasCommon.usf"
 
+ADAPTIVE_LICM
+
 struct FLightTargetPDF
 {
 	float3 Diffuse;
