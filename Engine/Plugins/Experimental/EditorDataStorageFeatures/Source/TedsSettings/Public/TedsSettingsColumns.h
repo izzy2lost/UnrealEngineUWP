@@ -7,35 +7,32 @@
 
 #include "TedsSettingsColumns.generated.h"
 
-USTRUCT(meta = (DisplayName = "Settings Container"))
-struct FSettingsContainerColumn final : public FEditorDataStorageColumn
+USTRUCT(meta = (DisplayName = "Settings Container Reference"))
+struct FSettingsContainerReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
+	// Store the name as it is frequently accessed to avoid indirection to the row.
 	UPROPERTY(meta = (Searchable))
 	FName ContainerName;
+
+	UE::Editor::DataStorage::RowHandle ContainerRow;
 };
 
-USTRUCT(meta = (DisplayName = "Settings Category"))
-struct FSettingsCategoryColumn final : public FEditorDataStorageColumn
+USTRUCT(meta = (DisplayName = "Settings Category Reference"))
+struct FSettingsCategoryReferenceColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
+	// Store the name as it is frequently accessed to avoid indirection to the row.
 	UPROPERTY(meta = (Searchable))
 	FName CategoryName;
+
+	UE::Editor::DataStorage::RowHandle CategoryRow;
 };
 
 USTRUCT(meta = (DisplayName = "Settings Section"))
-struct FSettingsSectionColumn final : public FEditorDataStorageColumn
-{
-	GENERATED_BODY()
-
-	UPROPERTY(meta = (Searchable))
-	FName SectionName;
-};
-
-USTRUCT(meta = (DisplayName = "Settings"))
-struct FSettingsTag final : public FEditorDataStorageTag
+struct FSettingsSectionTag final : public FEditorDataStorageTag
 {
 	GENERATED_BODY()
 };

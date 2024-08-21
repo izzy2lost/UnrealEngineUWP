@@ -7,6 +7,7 @@
 #include "Containers/Ticker.h"
 #include "Editor.h"
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Interfaces/TypedElementDataStorageInterface.h"
@@ -92,7 +93,7 @@ namespace UE::Editor::Settings::Tests
 				CountAllSettingsQuery = DataStorage->RegisterQuery(
 					Count()
 					.Where()
-					.All<FTypedElementUObjectColumn, FSettingsContainerColumn, FSettingsCategoryColumn, FSettingsSectionColumn>()
+					.All<FSettingsSectionTag>()
 					.Compile());
 			}
 
@@ -142,9 +143,9 @@ namespace UE::Editor::Settings::Tests
 
 					TestEqual(TEXT("RowCount"), AfterRowCount, BeforeRowCount + 1);
 
-					TestEqual(TEXT("ContainerName"), DataStorage->GetColumn<FSettingsContainerColumn>(RowHandle)->ContainerName, ContainerName);
-					TestEqual(TEXT("CategoryName"), DataStorage->GetColumn<FSettingsCategoryColumn>(RowHandle)->CategoryName, CategoryName);
-					TestEqual(TEXT("SectionName"), DataStorage->GetColumn<FSettingsSectionColumn>(RowHandle)->SectionName, SectionName);
+					TestEqual(TEXT("ContainerName"), DataStorage->GetColumn<FSettingsContainerReferenceColumn>(RowHandle)->ContainerName, ContainerName);
+					TestEqual(TEXT("CategoryName"), DataStorage->GetColumn<FSettingsCategoryReferenceColumn>(RowHandle)->CategoryName, CategoryName);
+					TestEqual(TEXT("SectionName"), DataStorage->GetColumn<FNameColumn>(RowHandle)->Name, SectionName);
 				});
 			});
 		});

@@ -42,3 +42,31 @@ struct FTypedElementSlateWidgetReferenceDeletesRowTag final : public FEditorData
 {
 	GENERATED_BODY()
 };
+
+/**
+ * A localized display name for this row.
+ * 
+ * This can be used as a dynamic column to specify display names for multiple items in a row.
+ */
+USTRUCT(meta = (DisplayName = "Display Name"))
+struct FDisplayNameColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY(meta = (Searchable))
+	FText DisplayName;
+};
+
+/**
+ * A localized description for this row.
+ * 
+ * This can be used as a dynamic column to specify descriptions for multiple items in a row.
+ */
+USTRUCT(meta = (DisplayName = "Description"))
+struct FDescriptionColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY(meta = (Searchable))
+	FText Description;
+};

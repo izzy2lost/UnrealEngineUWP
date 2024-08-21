@@ -23,6 +23,8 @@ public:
 
 private:
 
+	void RegisterTables(ITypedElementDataStorageInterface& DataStorage);
+
 	void RegisterQueries(ITypedElementDataStorageInterface& DataStorage);
 	void UnregisterQueries(ITypedElementDataStorageInterface& DataStorage);
 
@@ -31,9 +33,11 @@ private:
 
 	void RegisterSettingsContainer(const FName& ContainerName);
 
-	void UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, const FName& ContainerName, const bool bQueryExistingRows = true);
+	void UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, UE::Editor::DataStorage::RowHandle ContainerRow, const bool bQueryExistingRows = true);
 
 	bool bIsInitialized;
 	TypedElementDataStorage::QueryHandle SelectAllSettingsQuery;
+	UE::Editor::DataStorage::TableHandle SettingsContainerTable;
+	UE::Editor::DataStorage::TableHandle SettingsCategoryTable;
 
 };

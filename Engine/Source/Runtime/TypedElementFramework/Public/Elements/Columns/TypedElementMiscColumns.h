@@ -55,3 +55,17 @@ struct FTypedElementRowReferenceColumn final : public FEditorDataStorageColumn
 
 	UE::Editor::DataStorage::RowHandle Row;
 };
+
+/**
+ * A name for this row.
+ * 
+ * This can be used as a dynamic column to specify names for multiple items in a row.
+ */
+USTRUCT(meta = (DisplayName = "Name"))
+struct FNameColumn final : public FEditorDataStorageColumn
+{
+	GENERATED_BODY()
+
+	UPROPERTY(meta = (Searchable))
+	FName Name;
+};

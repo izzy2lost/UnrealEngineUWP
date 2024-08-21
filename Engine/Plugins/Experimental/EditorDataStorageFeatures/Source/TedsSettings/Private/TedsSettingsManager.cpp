@@ -3,6 +3,9 @@
 #include "TedsSettingsManager.h"
 
 #include "Elements/Columns/TypedElementCompatibilityColumns.h"
+#include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementSlateWidgetColumns.h"
+#include "Elements/Framework/TypedElementIndexHasher.h"
 #include "Elements/Framework/TypedElementQueryBuilder.h"
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "ISettingsCategory.h"
@@ -19,6 +22,8 @@
 FTedsSettingsManager::FTedsSettingsManager()
 	: bIsInitialized{ false }
 	, SelectAllSettingsQuery{ TypedElementDataStorage::InvalidQueryHandle }
+	, SettingsContainerTable{ TypedElementDataStorage::InvalidTableHandle }
+	, SettingsCategoryTable{ TypedElementDataStorage::InvalidTableHandle }
 {
 }
 
@@ -36,6 +41,7 @@ void FTedsSettingsManager::Initialize()
 				ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
 				check(DataStorage);
 
+				RegisterTables(*DataStorage);
 				RegisterQueries(*DataStorage);
 				RegisterSettings();
 			};
@@ -75,6 +81,23 @@ void FTedsSettingsManager::Shutdown()
 	}
 }
 
+void FTedsSettingsManager::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
+{
+	if (SettingsContainerTable == TypedElementDataStorage::InvalidTableHandle)
+	{
+		SettingsContainerTable = DataStorage.RegisterTable(
+			TTypedElementColumnTypeList<FNameColumn, FDisplayNameColumn, FDescriptionColumn>(),
+			FName(TEXT("Editor_SettingsContainerTable")));
+	}
+
+	if (SettingsCategoryTable == TypedElementDataStorage::InvalidTableHandle)
+	{
+		SettingsCategoryTable = DataStorage.RegisterTable(
+			TTypedElementColumnTypeList<FNameColumn, FDisplayNameColumn, FDescriptionColumn>(),
+			FName(TEXT("Editor_SettingsCategoryTable")));
+	}
+}
+
 void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	using namespace TypedElementQueryBuilder;
@@ -83,7 +106,9 @@ void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& Da
 	{
 		SelectAllSettingsQuery = DataStorage.RegisterQuery(
 			Select()
-			.ReadOnly<FTypedElementUObjectColumn, FSettingsContainerColumn, FSettingsCategoryColumn, FSettingsSectionColumn>()
+				.ReadOnly<FSettingsContainerReferenceColumn, FSettingsCategoryReferenceColumn, FNameColumn>()
+			.Where()
+				.All<FSettingsSectionTag>()
 			.Compile());
 	}
 }
@@ -114,14 +139,27 @@ void FTedsSettingsManager::RegisterSettings()
 
 void FTedsSettingsManager::RegisterSettingsContainer(const FName& ContainerName)
 {
+	using namespace UE::Editor::DataStorage;
+
 	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.RegisterSettingsContainer);
 
 	ISettingsModule* SettingsModule = FModuleManager::GetModulePtr<ISettingsModule>("Settings");
 	check(SettingsModule);
 
+	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
+	check(TypedElementRegistry);
+
+	ITypedElementDataStorageInterface* DataStorage = TypedElementRegistry->GetMutableDataStorage();
+	check(DataStorage);
+
 	UE_LOG(LogTedsSettings, Log, TEXT("Register Settings Container : '%s'"), *ContainerName.ToString());
 
 	ISettingsContainerPtr ContainerPtr = SettingsModule->GetContainer(ContainerName);
+
+	RowHandle ContainerRow = DataStorage->AddRow(SettingsContainerTable);
+	DataStorage->AddColumn<FNameColumn>(ContainerRow, { .Name = ContainerName });
+	DataStorage->AddColumn<FDisplayNameColumn>(ContainerRow, { .DisplayName = ContainerPtr->GetDisplayName() });
+	DataStorage->AddColumn<FDescriptionColumn>(ContainerRow, { .Description = ContainerPtr->GetDescription() });
 
 	TArray<ISettingsCategoryPtr> Categories;
 	ContainerPtr->GetCategories(Categories);
@@ -129,17 +167,17 @@ void FTedsSettingsManager::RegisterSettingsContainer(const FName& ContainerName)
 	for (ISettingsCategoryPtr CategoryPtr : Categories)
 	{
 		const bool bQueryExistingRows = false;
-		UpdateSettingsCategory(CategoryPtr, ContainerName, bQueryExistingRows);
+		UpdateSettingsCategory(CategoryPtr, ContainerRow, bQueryExistingRows);
 	}
 
 	// OnCategoryModified is called at the same time as OnSectionRemoved so we only bind to OnCategoryModified for add / update / remove
-	ContainerPtr->OnCategoryModified().AddSPLambda(this, [this, ContainerPtr](const FName& ModifiedCategoryName)
+	ContainerPtr->OnCategoryModified().AddSPLambda(this, [this, ContainerPtr, ContainerRow](const FName& ModifiedCategoryName)
 		{
 			UE_LOG(LogTedsSettings, Log, TEXT("Settings Category modified : '%s->%s'"), *ContainerPtr->GetName().ToString(), *ModifiedCategoryName.ToString());
 
 			ISettingsCategoryPtr CategoryPtr = ContainerPtr->GetCategory(ModifiedCategoryName);
 
-			UpdateSettingsCategory(CategoryPtr, ContainerPtr->GetName());
+			UpdateSettingsCategory(CategoryPtr, ContainerRow);
 		});
 }
 
@@ -193,15 +231,12 @@ void FTedsSettingsManager::UnregisterSettings()
 	}
 }
 
-void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, const FName& ContainerName, const bool bQueryExistingRows)
+void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, UE::Editor::DataStorage::RowHandle ContainerRow, const bool bQueryExistingRows)
 {
+	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(TedsSettingsManager.UpdateSettingsCategory);
-
-	const FName& CategoryName = SettingsCategory->GetName();
-
-	UE_LOG(LogTedsSettings, Log, TEXT("Update Settings Category: '%s->%s'"), *ContainerName.ToString(), *CategoryName.ToString());
 
 	UTypedElementRegistry* TypedElementRegistry = UTypedElementRegistry::GetInstance();
 	check(TypedElementRegistry);
@@ -211,6 +246,25 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 
 	ITypedElementDataStorageCompatibilityInterface* DataStorageCompatibility = TypedElementRegistry->GetMutableDataStorageCompatibility();
 	check(DataStorageCompatibility);
+
+	const FName& ContainerName = DataStorage->GetColumn<FNameColumn>(ContainerRow)->Name;
+	const FName& CategoryName = SettingsCategory->GetName();
+
+	UE_LOG(LogTedsSettings, Log, TEXT("Update Settings Category: '%s->%s'"), *ContainerName.ToString(), *CategoryName.ToString());
+
+	uint64 CategoryIndexHash = GenerateIndexHash(SettingsCategory.Get());
+
+	RowHandle CategoryRow = DataStorage->FindIndexedRow(CategoryIndexHash);
+	if (CategoryRow == InvalidRowHandle)
+	{
+		CategoryRow = DataStorage->AddRow(SettingsCategoryTable);
+
+		DataStorage->AddColumn<FNameColumn>(CategoryRow, { .Name = CategoryName });
+		DataStorage->AddColumn<FDisplayNameColumn>(CategoryRow, { .DisplayName = SettingsCategory->GetDisplayName() });
+		DataStorage->AddColumn<FDescriptionColumn>(CategoryRow, { .Description = SettingsCategory->GetDescription() });
+
+		DataStorage->IndexRow(CategoryIndexHash, CategoryRow);
+	}
 
 	TArray<RowHandle> OldRowHandles;
 	TArray<FName> OldSectionNames;
@@ -224,10 +278,9 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 		DataStorage->RunQuery(SelectAllSettingsQuery, CreateDirectQueryCallbackBinding(
 			[&OldRowHandles, &OldSectionNames, &ContainerName, &CategoryName](
 				DSI::IDirectQueryContext& Context,
-				const FTypedElementUObjectColumn* ObjectColumns,
-				const FSettingsContainerColumn* ContainerColumns,
-				const FSettingsCategoryColumn* CategoryColumns,
-				const FSettingsSectionColumn* SectionColumns)
+				const FSettingsContainerReferenceColumn* ContainerColumns,
+				const FSettingsCategoryReferenceColumn* CategoryColumns,
+				const FNameColumn* SectionNameColumns)
 			{
 				const uint32 RowCount = Context.GetRowCount();
 
@@ -239,7 +292,7 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 						TempCategoryName == CategoryName)
 					{
 						OldRowHandles.Emplace(Context.GetRowHandles()[RowIndex]);
-						OldSectionNames.Emplace(SectionColumns[RowIndex].SectionName);
+						OldSectionNames.Emplace(SectionNameColumns[RowIndex].Name);
 					}
 				}
 			}));
@@ -269,10 +322,12 @@ void FTedsSettingsManager::UpdateSettingsCategory(TSharedPtr<ISettingsCategory> 
 
 			RowHandle NewRow = DataStorageCompatibility->AddCompatibleObject(SettingsObjectPtr);
 
-			DataStorage->AddColumn<FSettingsContainerColumn>(NewRow, { .ContainerName = ContainerName });
-			DataStorage->AddColumn<FSettingsCategoryColumn>(NewRow, { .CategoryName = CategoryName });
-			DataStorage->AddColumn<FSettingsSectionColumn>(NewRow, { .SectionName = SectionName });
-			DataStorage->AddColumn<FSettingsTag>(NewRow);
+			DataStorage->AddColumn<FSettingsContainerReferenceColumn>(NewRow, { .ContainerName = ContainerName, .ContainerRow = ContainerRow });
+			DataStorage->AddColumn<FSettingsCategoryReferenceColumn>(NewRow, { .CategoryName = CategoryName, .CategoryRow = CategoryRow });
+			DataStorage->AddColumn<FNameColumn>(NewRow, { .Name = SectionName });
+			DataStorage->AddColumn<FDisplayNameColumn>(NewRow, { .DisplayName = SectionPtr->GetDisplayName() });
+			DataStorage->AddColumn<FDescriptionColumn>(NewRow, { .Description = SectionPtr->GetDescription() });
+			DataStorage->AddColumn<FSettingsSectionTag>(NewRow);
 
 			UE_LOG(LogTedsSettings, Log, TEXT("Added Settings Section : '%s'"), *SectionName.ToString());
 		}
