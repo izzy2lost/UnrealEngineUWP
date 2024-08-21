@@ -13,6 +13,7 @@
 #include "GameFramework/WorldSettings.h"
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
+#include "Iris/Core/IrisProfiler.h"
 #endif
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
@@ -3130,6 +3131,13 @@ void UActorChannel::ProcessBunch( FInBunch & Bunch )
 		AActor* NewChannelActor = NULL;
 		bSpawnedNewActor = Connection->PackageMap->SerializeNewActor(Bunch, this, NewChannelActor);
 
+#if UE_WITH_IRIS && IRIS_CLIENT_PROFILER_ENABLE
+		if (bSpawnedNewActor)
+		{
+			UE::Net::FClientProfiler::RecordObjectCreate(NewChannelActor->GetFName(), false);
+		}
+#endif
+
 		// We are unsynchronized. Instead of crashing, let's try to recover.
 		if (!IsValid(NewChannelActor))
 		{
@@ -4893,6 +4901,10 @@ UObject* UActorChannel::ReadContentBlockHeader(FInBunch& Bunch, bool& bObjectDel
 			LLM_SCOPE_BYTAG(GuidCache);
 			Connection->Driver->GuidCache->ImportedNetGuids.Add( NetGUID );
 		}
+
+#if UE_WITH_IRIS && IRIS_CLIENT_PROFILER_ENABLE
+		UE::Net::FClientProfiler::RecordObjectCreate(SubObj->GetFName(), true);
+#endif
 	}
 
 	return SubObj;
