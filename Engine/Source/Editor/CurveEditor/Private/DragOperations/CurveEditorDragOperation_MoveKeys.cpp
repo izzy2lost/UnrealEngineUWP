@@ -215,7 +215,7 @@ void FCurveEditorDragOperation_MoveKeys::OnEndDrag(FVector2D InitialPosition, FV
 					{
 						if (KeyInRange != MaxKeyHandle)
 						{
-							KeysToRemove.AddUnique(KeyInRange);
+							KeysToRemove.Add(KeyInRange);
 						}
 					}
 				}

@@ -208,7 +208,10 @@ void FRichCurveEditorModel::RemoveKeys(TArrayView<const FKeyHandle> InKeys)
 			FRichCurve& RichCurve = GetRichCurve();
 			for (FKeyHandle Handle : InKeys)
 			{
-				RichCurve.DeleteKey(Handle);
+				if (RichCurve.IsKeyHandleValid(Handle))
+				{
+					RichCurve.DeleteKey(Handle);
+				}
 			}
 
 			CurveModifiedDelegate.Broadcast();
