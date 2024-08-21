@@ -68,6 +68,11 @@ void FFrameNumberDetailsCustomization::CustomizeChildren(TSharedRef<IPropertyHan
 
 FText FFrameNumberDetailsCustomization::OnGetTimeText() const
 {
+	if (!NumericTypeInterface.IsValid())
+	{
+		return FText();
+	}
+
 	int32 CurrentValue = 0.0;
 	FPropertyAccess::Result Result = FrameNumberProperty->GetValue(CurrentValue);
 
@@ -98,6 +103,11 @@ FText FFrameNumberDetailsCustomization::OnGetTimeToolTipText() const
 
 void FFrameNumberDetailsCustomization::OnTimeTextCommitted(const FText& InText, ETextCommit::Type CommitInfo)
 {
+	if (!NumericTypeInterface.IsValid())
+	{
+		return;
+	}
+
 	TArray<FString> PerObjectValueStrs;
 	FrameNumberProperty->GetPerObjectValues(PerObjectValueStrs);
 
