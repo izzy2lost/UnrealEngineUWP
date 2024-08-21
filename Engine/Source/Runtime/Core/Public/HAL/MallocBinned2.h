@@ -32,7 +32,12 @@ struct FGenericMemoryStats;
 #define UE_MB2_SMALL_POOL_COUNT				51
 
 
-#define UE_DEFAULT_GBinned2PerThreadCaches						1
+#if !defined(UE_DEFAULT_GMallocBinnedPerThreadCaches)
+#	define UE_DEFAULT_GBinned2PerThreadCaches					1
+#else
+#	define UE_DEFAULT_GBinned2PerThreadCaches					UE_DEFAULT_GMallocBinnedPerThreadCaches
+#endif
+
 #define UE_DEFAULT_GBinned2AllocExtra							32
 #define UE_DEFAULT_GBinned2MaxBundlesBeforeRecycle				8
 #define UE_DEFAULT_GBinned2MoveOSFreesOffTimeCriticalThreads	1

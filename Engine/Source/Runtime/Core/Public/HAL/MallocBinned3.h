@@ -62,7 +62,12 @@ struct FGenericMemoryStats;
 #	endif
 #endif
 
-#define UE_DEFAULT_GBinned3PerThreadCaches			1
+#if !defined(UE_DEFAULT_GMallocBinnedPerThreadCaches)
+#	define UE_DEFAULT_GBinned3PerThreadCaches		1
+#else
+#	define UE_DEFAULT_GBinned3PerThreadCaches		UE_DEFAULT_GMallocBinnedPerThreadCaches
+#endif
+
 #define UE_DEFAULT_GBinned3AllocExtra				32
 #define UE_DEFAULT_GBinned3MaxBundlesBeforeRecycle	8
 
