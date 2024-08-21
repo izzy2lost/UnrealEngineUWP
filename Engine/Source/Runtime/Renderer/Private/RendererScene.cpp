@@ -4362,7 +4362,7 @@ void FScene::GetRelevantLights_RenderThread( const FPrimitiveSceneProxy* Primiti
  */
 void FScene::GetRelevantLights( UPrimitiveComponent* Primitive, TArray<const ULightComponent*>* RelevantLights ) const
 {
-	if( Primitive && RelevantLights )
+	if( Primitive && RelevantLights && Primitive->GetSceneProxy() != nullptr)
 	{
 		// Add interacting lights to the array.
 		ENQUEUE_RENDER_COMMAND(FGetRelevantLightsCommand)(
