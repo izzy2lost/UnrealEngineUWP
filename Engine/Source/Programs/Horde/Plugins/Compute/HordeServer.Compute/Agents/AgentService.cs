@@ -75,7 +75,6 @@ namespace HordeServer.Agents
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 		readonly ITicker _ticker;
-		readonly ITicker _sharedTicker;
 
 		readonly RedisStringKey<AgentRateTable> _agentRateTableData = new("agent-rates");
 
@@ -119,7 +118,6 @@ namespace HordeServer.Agents
 			_redisService = redisService;
 			_clock = clock;
 			_ticker = clock.AddTicker($"{nameof(AgentService)}.{nameof(TickAsync)}", TimeSpan.FromSeconds(30.0), TickAsync, logger);
-			_sharedTicker = clock.AddSharedTicker($"{nameof(AgentService)}.{nameof(TickSharedAsync)}", TimeSpan.FromSeconds(30.0), TickSharedAsync, logger);
 			_tracer = tracer;
 			_logger = logger;
 
@@ -130,14 +128,12 @@ namespace HordeServer.Agents
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
 			await _ticker.StartAsync();
-			await _sharedTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
 			await _ticker.StopAsync();
-			await _sharedTicker.StopAsync();
 		}
 
 		/// <inheritdoc/>
@@ -146,7 +142,6 @@ namespace HordeServer.Agents
 			await _cachedRates.DisposeAsync();
 			await _cachedPools.DisposeAsync();
 			await _ticker.DisposeAsync();
-			await _sharedTicker.DisposeAsync();
 		}
 
 		/// <summary>
@@ -841,63 +836,6 @@ namespace HordeServer.Agents
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TickAsync)}");
 			await RefreshCachedAgentsAsync(stoppingToken);
 			await CollectMetricsAsync(stoppingToken);
-		}
-
-		internal async ValueTask TickSharedAsync(CancellationToken stoppingToken)
-		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TickSharedAsync)}");
-
-			await TerminateExpiredSessionsAsync(stoppingToken);
-			await DeleteExpiredEphemeralAgentsAsync(stoppingToken);
-		}
-
-		private async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
-		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TerminateExpiredSessionsAsync)}");
-
-			int c = 0;
-			while (!cancellationToken.IsCancellationRequested)
-			{
-				// Find all the agents which are ready to be expired
-				const int MaxAgents = 100;
-				DateTime utcNow = _clock.UtcNow;
-				IReadOnlyList<IAgent> expiredAgents = await Agents.FindExpiredAsync(utcNow, MaxAgents, cancellationToken);
-
-				// Transition each agent to being offline
-				foreach (IAgent expiredAgent in expiredAgents)
-				{
-					cancellationToken.ThrowIfCancellationRequested();
-					_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", expiredAgent.SessionId, expiredAgent.Id);
-					await TryTerminateSessionAsync(expiredAgent, cancellationToken);
-				}
-				c += expiredAgents.Count;
-
-				// Try again if we didn't fetch everything
-				if (expiredAgents.Count < MaxAgents)
-				{
-					break;
-				}
-			}
-			span.SetAttribute("NumAgentsTerminated", c);
-		}
-
-		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
-		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
-			int c = 0;
-			foreach (IAgent agent in await Agents.FindDeletedAsync(cancellationToken))
-			{
-				cancellationToken.ThrowIfCancellationRequested();
-				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromHours(1);
-				if (agent is { Status: AgentStatus.Stopped, Ephemeral: true } && noStatusChangeDuringPeriod)
-				{
-					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
-					await DeleteAgentAsync(agent, true, cancellationToken);
-					c++;
-				}
-			}
-
-			span.SetAttribute("NumAgentsDeleted", c);
 		}
 
 		/// <summary>

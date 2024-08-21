@@ -64,22 +64,6 @@ namespace HordeServer.Agents
 		Task<IReadOnlyList<IAgent>> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, bool includeDeleted = false, int? index = null, int? count = null, bool consistentRead = true, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Finds all agents with an expired session
-		/// </summary>
-		/// <param name="utcNow">The current time</param>
-		/// <param name="maxAgents">Maximum number of agents to return</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of agents</returns>
-		Task<IReadOnlyList<IAgent>> FindExpiredAsync(DateTime utcNow, int maxAgents, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Finds all agents marked as deleted
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of agents</returns>
-		Task<IReadOnlyList<IAgent>> FindDeletedAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Finds all active agent lease IDs
 		/// </summary>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>

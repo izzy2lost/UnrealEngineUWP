@@ -25,6 +25,7 @@ using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
 using StackExchange.Redis;
 using Microsoft.Extensions.Hosting;
+using OpenTelemetry.Trace;
 
 namespace HordeServer.Agents
 {
@@ -277,14 +278,16 @@ namespace HordeServer.Agents
 		readonly IRedisService _redisService;
 		readonly IClock _clock;
 		readonly RedisChannel<AgentId> _updateEventChannel;
+		readonly ITicker _sharedTicker;
 		readonly ConcurrentDictionary<AgentId, TaskCompletionSource> _agentIdToTcs = new ConcurrentDictionary<AgentId, TaskCompletionSource>();
 		IAsyncDisposable? _updateEventSubscription;
+		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentCollection(IMongoService mongoService, IRedisService redisService, ILeaseCollection leaseCollection, IClock clock, IAuditLog<AgentId> auditLog, ILogger<AgentCollection> logger)
+		public AgentCollection(IMongoService mongoService, IRedisService redisService, ILeaseCollection leaseCollection, IClock clock, IAuditLog<AgentId> auditLog, Tracer tracer, ILogger<AgentCollection> logger)
 		{
 			List<MongoIndex<AgentDocument>> agentIndexes = new List<MongoIndex<AgentDocument>>();
 			agentIndexes.Add(keys => keys.Ascending(x => x.Deleted).Ascending(x => x.Id).Ascending(x => x.Pools));
@@ -300,13 +303,16 @@ namespace HordeServer.Agents
 			_leaseCollection = leaseCollection;
 			_clock = clock;
 			_updateEventChannel = new RedisChannel<AgentId>(RedisChannel.Literal("agents/notify"));
+			_sharedTicker = clock.AddSharedTicker($"{nameof(AgentCollection)}.{nameof(TickSharedAsync)}", TimeSpan.FromSeconds(30.0), TickSharedAsync, logger);
 			_auditLog = auditLog;
+			_tracer = tracer;
 			_logger = logger;
 		}
 
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
+			await _sharedTicker.DisposeAsync();
 			if (_updateEventSubscription != null)
 			{
 				await _updateEventSubscription.DisposeAsync();
@@ -318,16 +324,83 @@ namespace HordeServer.Agents
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
 			_updateEventSubscription = await _redisService.GetDatabase().Multiplexer.SubscribeAsync(_updateEventChannel, OnAgentUpdate);
+			await _sharedTicker.StartAsync();
 		}
 
 		/// <inheritdoc/>
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
+			await _sharedTicker.StopAsync();
 			if (_updateEventSubscription != null)
 			{
 				await _updateEventSubscription.DisposeAsync();
 				_updateEventSubscription = null;
 			}
+		}
+
+		internal async ValueTask TickSharedAsync(CancellationToken stoppingToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(TickSharedAsync)}");
+
+			await TerminateExpiredSessionsAsync(stoppingToken);
+			await DeleteExpiredEphemeralAgentsAsync(stoppingToken);
+		}
+
+		private async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(TerminateExpiredSessionsAsync)}");
+
+			int c = 0;
+			while (!cancellationToken.IsCancellationRequested)
+			{
+				// Find all the agents which are ready to be expired
+				const int MaxAgents = 100;
+				DateTime utcNow = _clock.UtcNow;
+
+				FilterDefinition<AgentDocument> filter = Builders<AgentDocument>.Filter.Exists(x => x.SessionExpiresAt) & Builders<AgentDocument>.Filter.Lt(x => x.SessionExpiresAt, utcNow);
+
+				List<AgentDocument> expiredAgents = await _agentCollection.Find(filter).ToListAsync(cancellationToken);
+				expiredAgents = await PostLoadAsync(expiredAgents, cancellationToken);
+
+				// Transition each agent to being offline
+				foreach (AgentDocument expiredAgent in expiredAgents)
+				{
+					cancellationToken.ThrowIfCancellationRequested();
+					_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", expiredAgent.SessionId, expiredAgent.Id);
+					await TryTerminateSessionAsync(expiredAgent, cancellationToken);
+				}
+				c += expiredAgents.Count;
+
+				// Try again if we didn't fetch everything
+				if (expiredAgents.Count < MaxAgents)
+				{
+					break;
+				}
+			}
+			span.SetAttribute("NumAgentsTerminated", c);
+		}
+
+		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
+		{
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
+			int c = 0;
+
+			List<AgentDocument> deletedDocuments = await _agentCollection.Find(x => x.Deleted).ToListAsync(cancellationToken);
+			deletedDocuments = await PostLoadAsync(deletedDocuments, cancellationToken);
+
+			foreach (AgentDocument agent in deletedDocuments)
+			{
+				cancellationToken.ThrowIfCancellationRequested();
+				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromHours(1);
+				if (agent is { Status: AgentStatus.Stopped, Ephemeral: true } && noStatusChangeDuringPeriod)
+				{
+					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
+					await ForceDeleteAsync(agent.Id, cancellationToken);
+					c++;
+				}
+			}
+
+			span.SetAttribute("NumAgentsDeleted", c);
 		}
 
 		async ValueTask<AgentDocument?> PostLoadAsync(AgentDocument? document, CancellationToken cancellationToken)
@@ -491,24 +564,6 @@ namespace HordeServer.Agents
 			}
 
 			List<AgentDocument> documents = await search.ToListAsync(cancellationToken);
-			documents = await PostLoadAsync(documents, cancellationToken);
-			return documents.ConvertAll(x => CreateAgentObject(x));
-		}
-
-		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IAgent>> FindExpiredAsync(DateTime utcNow, int maxAgents, CancellationToken cancellationToken)
-		{
-			FilterDefinition<AgentDocument> filter = Builders<AgentDocument>.Filter.Exists(x => x.SessionExpiresAt) & Builders<AgentDocument>.Filter.Lt(x => x.SessionExpiresAt, utcNow);
-
-			List<AgentDocument> documents = await _agentCollection.Find(filter).Limit(maxAgents).ToListAsync(cancellationToken);
-			documents = await PostLoadAsync(documents, cancellationToken);
-			return documents.ConvertAll(x => CreateAgentObject(x));
-		}
-
-		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IAgent>> FindDeletedAsync(CancellationToken cancellationToken)
-		{
-			List<AgentDocument> documents = await _agentCollection.Find(x => x.Deleted).ToListAsync(cancellationToken);
 			documents = await PostLoadAsync(documents, cancellationToken);
 			return documents.ConvertAll(x => CreateAgentObject(x));
 		}
