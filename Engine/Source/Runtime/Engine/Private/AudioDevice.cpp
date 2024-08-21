@@ -563,8 +563,6 @@ bool FAudioDevice::Init(Audio::FDeviceId InDeviceID, int32 InMaxSources, int32 I
 	{
 		LLM_SCOPE(ELLMTag::AudioMixerPlugins);
 
-	// Cache any plugin settings objects we have loaded
-	UpdateAudioPluginSettingsObjectCache();
 
 	//Get the requested default spatialization plugin and set it up.
 	IAudioSpatializationFactory* SpatializationPluginFactory = AudioPluginUtilities::GetDesiredSpatializationPlugin();
@@ -1047,34 +1045,6 @@ void FAudioDevice::CountBytes(FArchive& Ar)
 	SoundMixModifiers.CountBytes(Ar);
 }
 
-void FAudioDevice::UpdateAudioPluginSettingsObjectCache()
-{
-	TRACE_CPUPROFILER_EVENT_SCOPE(FAudioDevice_UpdatePluginSettingsObjectCache);
-
-	PluginSettingsObjects.Reset();
-
-	// Make sure we don't GC 3rd party plugin settings since these live on FSoundAttenuationSettings, which may not live in UObject graph due to overrides.
-	// There shouldn't be many of these objects (on the order of 10s not 100s) so if we find any loaded, don't let GC get them.
-	for (TObjectIterator<USpatializationPluginSourceSettingsBase> It; It; ++It)
-	{
-		PluginSettingsObjects.Add(*It);
-	}
-
-	for (TObjectIterator<UOcclusionPluginSourceSettingsBase> It; It; ++It)
-	{
-		PluginSettingsObjects.Add(*It);
-	}
-
-	for (TObjectIterator<UReverbPluginSourceSettingsBase> It; It; ++It)
-	{
-		PluginSettingsObjects.Add(*It);
-	}
-
-	for (TObjectIterator<USourceDataOverridePluginSourceSettingsBase> It; It; ++It)
-	{
-		PluginSettingsObjects.Add(*It);
-	}
-}
 
 void FAudioDevice::AddReferencedObjects(FReferenceCollector& Collector)
 {
@@ -1112,9 +1082,6 @@ void FAudioDevice::AddReferencedObjects(FReferenceCollector& Collector)
 
 	// Make sure we don't try to delete any sound waves which may have in-flight decodes
 	Collector.AddReferencedObjects(ReferencedSoundWaves);
-
-	// Loop through the cached plugin settings objects and add to the collector
-	Collector.AddReferencedObjects(PluginSettingsObjects);
 }
 
 void FAudioDevice::ResetInterpolation()
@@ -4667,7 +4634,6 @@ void FAudioDevice::Update(bool bGameTicking)
 		PrimaryVolume *= FApp::GetVolumeMultiplier();
 	}
 
-	UpdateAudioPluginSettingsObjectCache();
 
 	{
 		TRACE_CPUPROFILER_EVENT_SCOPE(FAudioDevice_UpdateDeviceTiming);

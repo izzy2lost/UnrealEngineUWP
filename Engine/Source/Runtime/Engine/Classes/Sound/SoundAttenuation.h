@@ -95,7 +95,19 @@ struct FSoundAttenuationPluginSettings
 	/** Settings to use with source data override audio plugin. These are defined by the plugin creator. Not all audio plugins utilize this feature. This is an array so multiple plugins can have settings. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = AttenuationSourceDataOverride, meta = (DisplayName = "Source Data Override Plugin Settings"))
 	TArray<TObjectPtr<USourceDataOverridePluginSourceSettingsBase>> SourceDataOverridePluginSettingsArray;
+
+	void AddStructReferencedObjects(FReferenceCollector& Collector);	
 };
+
+template<>
+struct TStructOpsTypeTraits<FSoundAttenuationPluginSettings> : public TStructOpsTypeTraitsBase2<FSoundAttenuationPluginSettings>
+{
+	enum
+	{
+		WithAddStructReferencedObjects = true
+	};
+};
+
 
 // Defines how to speaker map the sound when using the non-spatialized radius feature
 UENUM(BlueprintType)
@@ -406,18 +418,22 @@ struct FSoundAttenuationSettings : public FBaseAttenuationSettings
 	ENGINE_API float GetFocusPriorityScale(const struct FGlobalFocusSettings& FocusSettings, float FocusFactor) const;
 	ENGINE_API float GetFocusAttenuation(const struct FGlobalFocusSettings& FocusSettings, float FocusFactor) const;
 	ENGINE_API float GetFocusDistanceScale(const struct FGlobalFocusSettings& FocusSettings, float FocusFactor) const;
+
+	void AddStructReferencedObjects(FReferenceCollector& Collector);
 };
 
-#if WITH_EDITORONLY_DATA
 template<>
 struct TStructOpsTypeTraits<FSoundAttenuationSettings> : public TStructOpsTypeTraitsBase2<FSoundAttenuationSettings>
 {
 	enum 
 	{
+#if WITH_EDITORONLY_DATA
 		WithPostSerialize = true,
+#endif
+		WithAddStructReferencedObjects = true
 	};
 };
-#endif
+
 
 /** 
  * Defines how a sound changes volume with distance to the listener

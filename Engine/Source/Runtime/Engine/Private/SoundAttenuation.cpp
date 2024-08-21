@@ -229,6 +229,18 @@ void FSoundAttenuationSettings::CollectAttenuationShapesForVisualization(TMultiM
 		FBaseAttenuationSettings::CollectAttenuationShapesForVisualization(ShapeDetailsMap);
 	}
 }
+void FSoundAttenuationSettings::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddStableReference(&AudioLinkSettingsOverride);
+}
+
+void FSoundAttenuationPluginSettings::AddStructReferencedObjects(FReferenceCollector& Collector)
+{
+	Collector.AddStableReferenceArray(&SpatializationPluginSettingsArray);
+	Collector.AddStableReferenceArray(&OcclusionPluginSettingsArray);
+	Collector.AddStableReferenceArray(&ReverbPluginSettingsArray);
+	Collector.AddStableReferenceArray(&SourceDataOverridePluginSettingsArray);
+}
 
 USoundAttenuation::USoundAttenuation(const FObjectInitializer& ObjectInitializer)
 	: Super(ObjectInitializer)
