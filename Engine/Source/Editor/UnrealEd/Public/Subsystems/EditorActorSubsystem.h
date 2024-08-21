@@ -3,16 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "EditorSubsystem.h"
 #include "GameFramework/Actor.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
+#include "EditorSubsystem.h"
 
 #include "EditorActorSubsystem.generated.h"
 
 class AActor;
-class ABrush;
-class UActorFactory;
-class ULightComponent;
 
 /** delegate type for triggering when new actors are dropped on to the viewport via drag and drop */
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnEditNewActorsDropped, const TArray<UObject*>&, DroppedObjects, const TArray<AActor*>&, DroppedActors);
@@ -246,112 +243,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Editor Scripting | Dataprep", meta = (DeterminesOutputType = "ActorClass"))
 	UNREALED_API TArray<class AActor*> ConvertActors(const TArray<class AActor*>& Actors, TSubclassOf<class AActor> ActorClass, const FString& StaticMeshPackagePath);
-
-	/**
-	 * Converts passed in light actors into new actors of another type.
-	 * Note: This replaces the old actor with the new actor.
-	 * Most properties of the old actor that can be copied are copied to the new actor during this process.
-	 * Properties that can be copied are ones found in a common superclass between the actor to convert and the new
-	 * class. Common light component properties between the two classes are also copied
-	 *
-	 * @param	InConvertToClass	The light class we are going to convert to.
-	 */
-	UNREALED_API static void ConvertLightActors(UClass* InConvertToClass);
-
-	/**
-	 * Converts passed in brushes into a single static mesh actor.
-	 * Note: This replaces all the brushes with a single actor. This actor will not be attached to anything unless a single brush was converted.
-	 *
-	 * @param	InStaticMeshPackageName		The name to save the brushes to.
-	 * @param	InBrushesToConvert			A list of brushes being converted.
-	 *
-	 * @return							Returns the newly created actor with the newly created static mesh.
-	 */
-	UNREALED_API static AActor* ConvertBrushesToStaticMesh(
-		const FString& InStaticMeshPackageName, TArray<ABrush*>& InBrushesToConvert, const FVector& InPivotLocation
-	);
-
-	/**
-	 * Converts passed in actors into new actors of the specified type.
-	 * Note: This replaces the old actors with brand new actors while attempting to preserve as many properties as
-	 * possible. Properties of the actors components are also attempted to be copied for any component names supplied in
-	 * the third parameter. If a component name is specified, it is only copied if a component of the specified name
-	 * exists in the source and destination actors, as well as in the class default object of the class of the source
-	 * actor, and that all three of those components share a common base class. This approach is used instead of simply
-	 * accepting component classes to copy because some actors could potentially have multiple of the same component
-	 * type.
-	 *
-	 * @param	InActorsToConvert				Array of actors which should be converted to the new class type
-	 * @param	InConvertToClass				Class to convert the provided actors to
-	 * @param	InComponentsToConsider		Names of components to consider for property copying as well
-	 * @param	bInUseSpecialCases			If true, looks for classes that can be handled by hardcoded conversions
-	 * @param	InStaticMeshPackageName		The name to save the brushes to.
-	 */
-	UNREALED_API static void DoConvertActors(
-		const TArray<AActor*>& InActorsToConvert,
-		UClass* InConvertToClass,
-		const TSet<FString>& InComponentsToConsider,
-		bool bInUseSpecialCases,
-		const FString& InStaticMeshPackageName
-	);
-
-	/**
-	 * Sets up for a potentially deferred ConvertActors call, based on if any brushes are being converted to a static
-	 * mesh. If one (or more) are being converted, the user will need to put in a package before the process continues.
-	 *
-	 * @param	InActorsToConvert			Array of actors which should be converted to the new class type
-	 * @param	InConvertToClass			Class to convert the provided actors to
-	 * @param	InComponentsToConsider	Names of components to consider for property copying as well
-	 * @param	bInUseSpecialCases		If true, looks for classes that can be handled by hardcoded conversions
-	 */
-	UNREALED_API static void ConvertActors(
-		const TArray<AActor*>& InActorsToConvert,
-		UClass* InConvertToClass,
-		const TSet<FString>& InComponentsToConsider,
-		bool bInUseSpecialCases = false
-	);
-
-	/**
-	 * Function to convert selected brushes into volumes of the provided class.
-	 *
-	 * @param	InVolumeClass	Class of volume that selected brushes should be converted into
-	 */
-	UNREALED_API static void ConvertSelectedBrushesToVolumes(UClass* InVolumeClass);
-
-	/**
-	 * Called to convert actors of one class type to another
-	 *
-	 * @param InFromClass The class converting from
-	 * @param InToClass	The class converting to
-	 */
-	UNREALED_API static void ConvertActorsFromClass(const UClass* InFromClass, UClass* InToClass);
-
-	/**
-	 * Replaces the selected Actors with the same number of a different kind of Actor using the specified factory to spawn the new Actors
-	 * note that only Location, Rotation, Drawscale, Drawscale3D, Tag, and Group are copied from the old Actors
-	 *
-	 * @param InFactory - the Factory to use to create Actors
-	 */
-	UNREALED_API static void ReplaceSelectedActors(
-		UActorFactory* InFactory, const FAssetData& InAssetData, bool bInCopySourceProperties = true
-	);
-
-	/**
-	 * Replaces specified Actors with the same number of a different kind of Actor using the specified factory to spawn the new Actors
-	 * note that only Location, Rotation, Drawscale, Drawscale3D, Tag, and Group are copied from the old Actors
-	 *
-	 * @param InFactory - the Factory to use to create Actors
-	 * @param InAssetData - the asset to feed the Factory
-	 * @param InActorsToReplace - Actors to replace
-	 * @param InOutNewActors - Actors that were created
-	 */
-	UNREALED_API static void ReplaceActors(
-		UActorFactory* InFactory,
-		const FAssetData& InAssetData,
-		const TArray<AActor*>& InActorsToReplace,
-		TArray<AActor*>* InOutNewActors = nullptr,
-		bool bInCopySourceProperties = true
-	);
 
 	/**
 	 * Sets the world transform of the given actor, if possible.
