@@ -1656,7 +1656,7 @@ void UPythonGeneratedStruct::InitializeStruct(void* Dest, int32 ArrayDim) const
 			{
 				void* StructInstance = static_cast<uint8*>(Dest) + (ArrIndex * Stride);
 				FPyObjectPtr PySelf = FPyObjectPtr::StealReference((PyObject*)FPyWrapperStructFactory::Get().CreateInstance((UPythonGeneratedStruct*)this, StructInstance, FPyWrapperOwnerContext(Py_None), EPyConversionMethod::Reference));
-				if (PySelf && ensureAlways(PySelf->ob_type == PyType))
+				if (PySelf && ensureAlwaysMsgf(PySelf->ob_type == PyType, TEXT("Struct instance (struct: %s) had an unexpected PyType when calling InitializeStruct! Self is '%s' but we expected '%s'"), *GetPathName(), *PyUtil::GetFriendlyTypename(PySelf), *PyUtil::GetFriendlyTypename(PyType)))
 				{
 					FPyObjectPtr PyArgs = FPyObjectPtr::StealReference(PyTuple_New(1));
 					PyTuple_SetItem(PyArgs, 0, PySelf.Release()); // SetItem steals the reference

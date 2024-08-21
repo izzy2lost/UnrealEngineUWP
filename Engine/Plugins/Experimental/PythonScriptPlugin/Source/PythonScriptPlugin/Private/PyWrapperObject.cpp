@@ -1992,7 +1992,7 @@ void UPythonGeneratedClass::PostInitInstance(UObject* InObj, FObjectInstancingGr
 		if (PyPostInitFunction)
 		{
 			FPyObjectPtr PySelf = FPyObjectPtr::StealReference((PyObject*)FPyWrapperObjectFactory::Get().CreateInstance(InObj));
-			if (PySelf && ensureAlways(PySelf->ob_type == PyType))
+			if (PySelf && ensureAlwaysMsgf(PySelf->ob_type == PyType, TEXT("Object '%s' (class: %s) had an unexpected PyType when calling PostInitInstance! Self is '%s' but we expected '%s'"), *InObj->GetPathName(), *GetPathName(), *PyUtil::GetFriendlyTypename(PySelf), *PyUtil::GetFriendlyTypename(PyType)))
 			{
 				FPyObjectPtr PyArgs = FPyObjectPtr::StealReference(PyTuple_New(1));
 				PyTuple_SetItem(PyArgs, 0, PySelf.Release()); // SetItem steals the reference
