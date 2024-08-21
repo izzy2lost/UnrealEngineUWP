@@ -2936,7 +2936,7 @@ void FNiagaraDebugHud::DrawComponents(FNiagaraWorldManager* WorldManager, UCanva
 					DrawCanvas->DrawShadowedString(SizeAndLocation.Value.X, SizeAndLocation.Value.Y, FinalString, ParticleFont, TextColor);
 
 					++NumDisplayedParticles;
-					if (++NumDisplayedParticles >= MaxDisplayParticles)
+					if (NumDisplayedParticles >= MaxDisplayParticles)
 					{
 						break;
 					}
