@@ -211,11 +211,6 @@ namespace Metasound::Frontend
 		return *DependencyCache;
 	}
 
-	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache() const
-	{
-		return GetEdgeCache(BuildPageID);
-	}
-
 	const IDocumentGraphEdgeCache& FDocumentCache::GetEdgeCache(const FGuid& InPageID) const
 	{
 		TSharedPtr<FDocumentGraphEdgeCache> EdgeCache = EdgeCacheMap.FindRef(InPageID);
@@ -227,11 +222,6 @@ namespace Metasound::Frontend
 		}
 
 		return *EdgeCache.Get();
-	}
-
-	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache() const
-	{
-		return GetNodeCache(BuildPageID);
 	}
 
 	const IDocumentGraphNodeCache& FDocumentCache::GetNodeCache(const FGuid& InPageID) const
@@ -643,7 +633,7 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
 				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
@@ -698,7 +688,7 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteOutput = Node->Interface.Outputs.Last();
 				TArrayView<const int32> EdgeIndices = EdgeCache.FindEdgeIndicesFromNodeOutput(InNodeID, RerouteOutput.VertexID);
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
@@ -752,7 +742,7 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))
@@ -791,7 +781,7 @@ namespace Metasound::Frontend
 					*bOutIsRerouted = true;
 				}
 
-				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache();
+				const IDocumentGraphEdgeCache& EdgeCache = Parent->GetEdgeCache(PageID);
 				const FMetasoundFrontendVertex& RerouteInput = Node->Interface.Inputs.Last();
 				const FMetasoundFrontendDocument& Doc = Parent->GetDocument();
 				if (const int32* ConnectedEdgeIndex = EdgeCache.FindEdgeIndexToNodeInput(InNodeID, RerouteInput.VertexID))

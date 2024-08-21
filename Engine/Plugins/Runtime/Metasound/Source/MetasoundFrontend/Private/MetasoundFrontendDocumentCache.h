@@ -174,9 +174,7 @@ namespace Metasound::Frontend
 		virtual const int32* FindDependencyIndex(const FGuid& InClassID) const override;
 
 		virtual const FMetasoundFrontendDocument& GetDocument() const override;
-		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const override;
 		virtual const IDocumentGraphEdgeCache& GetEdgeCache(const FGuid& InPageID) const override;
-		virtual const IDocumentGraphNodeCache& GetNodeCache() const override;
 		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const override;
 		virtual const IDocumentGraphInterfaceCache& GetInterfaceCache() const override;
 

@@ -211,9 +211,9 @@ public:
 	const FMetasoundFrontendNode* DuplicateGraphOutput(const FMetasoundFrontendClassOutput& InClassOutput, const FName InName, const FGuid* InPageID = nullptr);
 
 #if WITH_EDITORONLY_DATA
-	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID) const;
-	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID);
-	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID);
+	const FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr) const;
+	FMetaSoundFrontendGraphComment* FindGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr);
+	FMetaSoundFrontendGraphComment& FindOrAddGraphComment(const FGuid& InCommentID, const FGuid* InPageID = nullptr);
 	UMetaSoundFrontendMemberMetadata* FindMemberMetadata(const FGuid& InMemberID);
 #endif // WITH_EDITORONLY_DATA
 

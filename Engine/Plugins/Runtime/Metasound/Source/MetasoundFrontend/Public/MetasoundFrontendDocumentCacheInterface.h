@@ -108,14 +108,14 @@ namespace Metasound::Frontend
 
 		virtual const FMetasoundFrontendDocument& GetDocument() const = 0;
 
-		// Returns NodeCache associated with the currently set build graph PageID
-		virtual const IDocumentGraphNodeCache& GetNodeCache() const = 0;
+		UE_DEPRECATED(5.5, "Use overload providing pageID")
+		virtual const IDocumentGraphNodeCache& GetNodeCache() const { return GetNodeCache(::Metasound::Frontend::DefaultPageID); }
 
 		// Returns NodeCache associated with the given PageID
 		virtual const IDocumentGraphNodeCache& GetNodeCache(const FGuid& InPageID) const = 0;
 
-		// Returns EdgeCache associated with the currently set build graph PageID
-		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const = 0;
+		UE_DEPRECATED(5.5, "Use overload providing pageID")
+		virtual const IDocumentGraphEdgeCache& GetEdgeCache() const { return GetEdgeCache(::Metasound::Frontend::DefaultPageID); }
 
 		// Returns EdgeCache associated with the given PageID
 		virtual const IDocumentGraphEdgeCache& GetEdgeCache(const FGuid& InPageID) const = 0;
