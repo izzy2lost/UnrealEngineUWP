@@ -309,6 +309,48 @@ FReply SModularRigModel::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent&
 	return FReply::Unhandled();
 }
 
+FReply SModularRigModel::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	const FReply Reply = SCompoundWidget::OnMouseButtonDown(MyGeometry, MouseEvent);
+	if(Reply.IsEventHandled())
+	{
+		return Reply;
+	}
+
+	if(MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+	{
+		if(const TSharedPtr<FModularRigTreeElement>* ItemPtr = TreeView->FindItemAtPosition(MouseEvent.GetScreenSpacePosition()))
+		{
+			if(const TSharedPtr<FModularRigTreeElement>& Item = *ItemPtr)
+			{
+				if (ControlRigBlueprint.IsValid())
+				{
+					UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
+					check(Controller);
+
+					if(const FRigModuleReference* Module = Controller->FindModule(Item->ModulePath))
+					{
+						TArray<const FRigModuleReference*> ModulesToSelect = {Module};
+						TArray<FString> ModulePaths;
+						for(int32 Index = 0; Index < ModulesToSelect.Num(); Index++)
+						{
+							ModulePaths.Add(ModulesToSelect[Index]->GetPath());
+							for(const FRigModuleReference* ChildModule : ModulesToSelect[Index]->CachedChildren)
+							{
+								ModulesToSelect.AddUnique(ChildModule);
+							}
+						}
+						
+						Controller->SetModuleSelection(ModulePaths);
+					}
+				}
+			}
+		}
+	}
+
+	return FReply::Unhandled();
+}
+
 void SModularRigModel::RefreshTreeView(bool bRebuildContent)
 {
 	bool bDummySuspensionFlag = false;
@@ -1186,25 +1228,9 @@ void SModularRigModel::HandleSelectionChanged(TSharedPtr<FModularRigTreeElement>
 		UModularRigController* Controller = ControlRigBlueprint->GetModularRigController();
 		check(Controller);
 
-		const TArray<FString> NewSelection = TreeView->GetSelectedKeys();
-		const TArray<FString> OldSelection = Controller->GetSelectedModules();
-
 		const TGuardValue<bool> GuardSelection(bIsPerformingSelection, true);
-
-		for(const FString& PreviouslySelectedModule : OldSelection)
-		{
-			if(!NewSelection.Contains(PreviouslySelectedModule))
-			{
-				Controller->DeselectModule(PreviouslySelectedModule);
-			}
-		}
-		for(const FString& NewModuleToSelect : NewSelection)
-		{
-			if(!OldSelection.Contains(NewModuleToSelect))
-			{
-				Controller->SelectModule(NewModuleToSelect);
-			}
-		}
+		const TArray<FString> NewSelection = TreeView->GetSelectedKeys();
+		Controller->SetModuleSelection(NewSelection);
 	}
 }
 

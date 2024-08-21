@@ -85,6 +85,9 @@ class CONTROLRIG_API UModularRigController : public UObject
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool DeselectModule(const FString& InModulePath);
 
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SetModuleSelection(const TArray<FString>& InModulePaths);
+
 	UFUNCTION(BlueprintPure, Category = "ControlRig | Modules")
 	TArray<FString> GetSelectedModules() const;
 

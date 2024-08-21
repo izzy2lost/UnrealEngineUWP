@@ -1690,6 +1690,35 @@ bool UModularRigController::DeselectModule(const FString& InModulePath)
 	return SelectModule(InModulePath, false);
 }
 
+bool UModularRigController::SetModuleSelection(const TArray<FString>& InModulePaths)
+{
+	bool bResult = false;
+	const TArray<FString> OldSelection = GetSelectedModules();
+
+	for(const FString& PreviouslySelectedModule : OldSelection)
+	{
+		if(!InModulePaths.Contains(PreviouslySelectedModule))
+		{
+			if(DeselectModule(PreviouslySelectedModule))
+			{
+				bResult = true;
+			}
+		}
+	}
+	for(const FString& NewModuleToSelect : InModulePaths)
+	{
+		if(!OldSelection.Contains(NewModuleToSelect))
+		{
+			if(SelectModule(NewModuleToSelect))
+			{
+				bResult = true;
+			}
+		}
+	}
+
+	return bResult;
+}
+
 TArray<FString> UModularRigController::GetSelectedModules() const
 {
 	return Model->SelectedModulePaths;

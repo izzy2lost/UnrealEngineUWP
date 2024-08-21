@@ -50,6 +50,7 @@ private:
 
 	/** SWidget interface */
 	virtual FReply OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& InKeyEvent);
+	virtual FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 	/** Rebuild the tree view */
 	void RefreshTreeView(bool bRebuildContent = true);

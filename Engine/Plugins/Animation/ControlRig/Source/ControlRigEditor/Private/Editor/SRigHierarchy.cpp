@@ -471,6 +471,37 @@ FReply SRigHierarchy::OnKeyDown(const FGeometry& MyGeometry, const FKeyEvent& In
 	return FReply::Unhandled();
 }
 
+FReply SRigHierarchy::OnMouseButtonUp(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)
+{
+	FReply Reply = SCompoundWidget::OnMouseButtonUp(MyGeometry, MouseEvent);
+	if(Reply.IsEventHandled())
+	{
+		return Reply;
+	}
+
+	if(MouseEvent.GetEffectingButton() == EKeys::MiddleMouseButton)
+	{
+		if(const TSharedPtr<FRigTreeElement>* ItemPtr = TreeView->FindItemAtPosition(MouseEvent.GetScreenSpacePosition()))
+		{
+			if(const TSharedPtr<FRigTreeElement>& Item = *ItemPtr)
+			{
+				if (URigHierarchy* Hierarchy = GetHierarchy())
+				{
+					TArray<FRigElementKey> KeysToSelect = {Item->Key};
+					KeysToSelect.Append(Hierarchy->GetChildren(Item->Key, true));
+
+					URigHierarchyController* Controller = Hierarchy->GetController(true);
+					check(Controller);
+		
+					Controller->SetSelection(KeysToSelect);
+				}
+			}
+		}
+	}
+
+	return FReply::Unhandled();
+}
+
 EVisibility SRigHierarchy::IsToolbarVisible() const
 {
 	if (URigHierarchy* Hierarchy = GetHierarchy())
