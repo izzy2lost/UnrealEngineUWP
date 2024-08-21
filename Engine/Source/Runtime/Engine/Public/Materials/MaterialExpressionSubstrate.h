@@ -9,6 +9,20 @@
 
 class FMaterialCompiler;
 struct FSubstrateMaterialComplexity;
+struct FSubstrateOperator;
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Functions
+
+#if WITH_EDITOR
+
+void AssignOperatorIndexIfNotNull(int32& NextOperatorPin, FSubstrateOperator* Operator);
+
+void CombineFlagForParameterBlending(FSubstrateOperator& DstOp, FSubstrateOperator* OpA, FSubstrateOperator* OpB = nullptr);
+
+#endif
 
 /**
  * Compile a special blend function for Substrate when blending material attribute
@@ -20,6 +34,7 @@ struct FSubstrateMaterialComplexity;
  * @return						Index to a new code chunk
  */
 extern int32 CompileSubstrateBlendFunction(FMaterialCompiler* Compiler, const int32 A, const int32 B, const int32 Alpha);
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -891,6 +906,8 @@ class UMaterialExpressionSubstrateConvertMaterialAttributes : public UMaterialEx
 	//~ End UMaterialExpression Interface
 };
 
+
+
 ///////////////////////////////////////////////////////////////////////////////
 // Operator nodes
 
@@ -1045,6 +1062,7 @@ class UMaterialExpressionSubstrateWeight : public UMaterialExpressionSubstrateBS
 #endif
 	//~ End UMaterialExpression Interface
 };
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
