@@ -129,7 +129,7 @@ void FUObjectArray::OpenDisregardForGC()
 void FUObjectArray::CloseDisregardForGC()
 {
 #if THREADSAFE_UOBJECTS
-	FScopeLock ObjObjectsLock(&ObjObjectsCritical);
+	FTransactionallySafeScopeLock ObjObjectsLock(&ObjObjectsCritical);
 #else
 	// Disregard from GC pool is only available from the game thread, at least for now
 	check(IsInGameThread());
