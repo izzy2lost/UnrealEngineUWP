@@ -45,6 +45,9 @@ public:
 	/** Sets the node buffer to a given node. */
 	void SetTexture(const BlobPtr& InBlob, FLinearColor InClearColor = FLinearColor(0.1, 0.1, 0.1, 1));
 
+	/** Sets the label text. */
+	void SetLabelText(FText InText);
+
 	/** Toggles RGBA components for display. */
 	void SetRGBA(bool bR, bool bG, bool bB, bool bA);
 
@@ -81,6 +84,9 @@ private:
 
 	/** Current draw settings for the viewport. */ 
 	UE::ImageWidgets::SImageViewport::FDrawSettings DrawSettings;
+
+	/** Label text for adding node description.*/
+	FText LabelText;
 };
 
 /**
@@ -114,6 +120,9 @@ public:
 	void Update() const;
 
 	bool GetOutputVariantFromNode(FTG_Variant& OutVariant) const; 
+
+	/** Get the label text for the node preview*/
+	FText GetLabelText(FTG_Variant& InVariant, bool bValidVariant) const;
 
 	// SWidget overrides - begin
 	virtual FReply OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent) override;

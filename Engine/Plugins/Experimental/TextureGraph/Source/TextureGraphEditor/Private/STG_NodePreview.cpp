@@ -84,7 +84,7 @@ FText FNodeViewer::GetFormatLabelText() const
 		                     FText::FromString(NodeDescriptor.bIsSRGB ? "(sRGB)" : "(Linear)"));
 	}
 
-	return FText();
+	return LabelText;
 }
 
 bool FNodeViewer::IsSingleChannel() const
@@ -108,6 +108,11 @@ void FNodeViewer::SetTexture(const BlobPtr& InBlob, const FLinearColor InClearCo
 			NodeDescriptor = Buffer->Descriptor();
 		}
 	}
+}
+
+void FNodeViewer::SetLabelText(FText InText)
+{
+	LabelText = InText;
 }
 
 void FNodeViewer::SetRGBA(bool bR, bool bG, bool bB, bool bA)
@@ -317,7 +322,7 @@ void STG_NodePreviewWidget::Update() const
 	auto UpdatePreview = [this]
 	{
 		FTG_Variant Variant;
-		GetOutputVariantFromNode(Variant);
+		const bool bValidVariant = GetOutputVariantFromNode(Variant);
 
 		if(Variant.IsTexture())
 		{
@@ -336,9 +341,11 @@ void STG_NodePreviewWidget::Update() const
 		}
 		else
 		{
-			NodeViewer->SetTexture(nullptr);	
+			NodeViewer->SetTexture(nullptr);
 		}
 		
+		NodeViewer->SetLabelText(GetLabelText(Variant, bValidVariant));
+
 		Viewport->ResetZoom(NodeViewer->GetCurrentImageInfo().Size);
 	};
 
@@ -403,6 +410,40 @@ bool STG_NodePreviewWidget::GetOutputVariantFromNode(FTG_Variant& OutVariant) co
 	}
 
 	return false;
+}
+
+FText STG_NodePreviewWidget::GetLabelText(FTG_Variant& InVariant, bool bValidVariant) const
+{
+	const UTG_Node* PreviewNode = LockedNode ? LockedNode : SelectedNode;
+	const bool bInValidTexture = InVariant.IsTexture() && InVariant.GetTexture() && !InVariant.GetTexture()->IsValid();
+	const FText PreviewNotAvailable = FText::FromString("Node preview is not available");
+
+	if (!PreviewNode)
+	{
+		return FText::FromString("Select a node to preview");
+	}
+	else if (!bValidVariant)
+	{
+		return PreviewNotAvailable;
+	}
+	else if (InVariant.IsColor())
+	{
+		return FText::FromString("Color " + InVariant.GetColor().ToFColor(false).ToString());
+	}
+	else if (InVariant.IsVector())
+	{
+		return FText::FromString("Vector (" + InVariant.GetVector().ToString() + ")");
+	}
+	else if (InVariant.IsScalar())
+	{
+		return FText::FromString(FString::Printf(TEXT("Scalar (%0.3f)"), InVariant.GetScalar()));
+	}
+	else if (bInValidTexture)
+	{
+		return FText::FromString("Texture is not valid");
+	}
+
+	return PreviewNotAvailable;
 }
 
 FReply STG_NodePreviewWidget::OnKeyDown(const FGeometry& InGeometry, const FKeyEvent& InKeyEvent)
