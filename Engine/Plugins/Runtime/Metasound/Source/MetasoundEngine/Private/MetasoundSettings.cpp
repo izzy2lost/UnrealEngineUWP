@@ -153,6 +153,7 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 
 	bool bContainsPageDefault = false;
 	bool bDefaultConformed = false;
+	bool bTargetFound = TargetPageName == Frontend::DefaultPageName;
 	for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
 	{
 		FMetaSoundPageSettings& Page = PageSettings[Index];
@@ -175,6 +176,7 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 				bDefaultConformed = true;
 			}
 		}
+		bTargetFound |= TargetPageName == Page.Name;
 	}
 
 	if (!bContainsPageDefault)
@@ -183,6 +185,11 @@ void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed
 		DefaultSettings.Name = Frontend::DefaultPageName;
 		PageSettings.Insert(MoveTemp(DefaultSettings), 0);
 		bDefaultConformed = true;
+	}
+
+	if (!bTargetFound)
+	{
+		TargetPageName = Frontend::DefaultPageName;
 	}
 
 	if (bNotifyDefaultConformed && bDefaultConformed)
