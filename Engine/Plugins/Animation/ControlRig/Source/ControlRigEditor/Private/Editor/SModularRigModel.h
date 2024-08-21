@@ -97,7 +97,7 @@ private:
 	void HandleConnectorDisconnect(const FRigElementKey& InConnector);
 
 	/** Set Selection Changed */
-	void OnSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
+	void HandleSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo);
 
 	TSharedPtr< SWidget > CreateContextMenuWidget();
 	void OnItemClicked(TSharedPtr<FModularRigTreeElement> InItem);
@@ -143,10 +143,22 @@ private:
 	void OnRequestDetailsInspection(const FString& InKey);
 	void HandlePreCompileModularRigs(URigVMBlueprint* InBlueprint);
 	void HandlePostCompileModularRigs(URigVMBlueprint* InBlueprint);
+	void OnModularRigModified(EModularRigNotification InNotif, const FRigModuleReference* InModule);
 	void OnHierarchyModified(ERigHierarchyNotification InNotif, URigHierarchy* InHierarchy, const FRigBaseElement* InElement);
 
 	void HandleRefreshEditorFromBlueprint(URigVMBlueprint* InBlueprint);
 	void HandleSetObjectBeingDebugged(UObject* InObject);
+
+	TSharedRef<SWidget> OnGetOptionsMenu();
+	void OnFilterTextChanged(const FText& SearchText);
+
+	bool bShowSecondaryConnectors;
+	bool bShowOptionalConnectors;
+	bool bShowUnresolvedConnectors;
+	FText FilterText;
+
+	TSharedPtr<SSearchBox> FilterBox;
+	bool bIsPerformingSelection;
 
 public:
 

@@ -20,14 +20,16 @@ DECLARE_DELEGATE_TwoParams(FOnModularRigTreeResolveConnector, const FRigElementK
 DECLARE_DELEGATE_OneParam(FOnModularRigTreeDisconnectConnector, const FRigElementKey& /*Connector*/);
 DECLARE_DELEGATE_RetVal_ThreeParams(bool, FOnModularRigTreeVerifyElementNameChanged, const FString& /*OldPath*/, const FName& /*NewName*/, FText& /*OutErrorMessage*/);
 
-
 typedef STreeView<TSharedPtr<FModularRigTreeElement>>::FOnMouseButtonClick FOnModularRigTreeMouseButtonClick;
 typedef STreeView<TSharedPtr<FModularRigTreeElement>>::FOnMouseButtonDoubleClick FOnModularRigTreeMouseButtonDoubleClick;
 typedef STableRow<TSharedPtr<FModularRigTreeElement>>::FOnCanAcceptDrop FOnModularRigTreeCanAcceptDrop;
 typedef STableRow<TSharedPtr<FModularRigTreeElement>>::FOnAcceptDrop FOnModularRigTreeAcceptDrop;
+typedef STreeView<TSharedPtr<FModularRigTreeElement>>::FOnSelectionChanged FOnModularRigTreeSelectionChanged;
 
 struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 {
+public:
+	
 	FOnGetModularRigTreeRig OnGetModularRig;
 	FOnModularRigTreeMouseButtonClick OnMouseButtonClick;
 	FOnModularRigTreeMouseButtonDoubleClick OnMouseButtonDoubleClick;
@@ -40,6 +42,7 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 	FOnModularRigTreeVerifyElementNameChanged OnVerifyModuleNameChanged;
 	FOnModularRigTreeResolveConnector OnResolveConnector;
 	FOnModularRigTreeDisconnectConnector OnDisconnectConnector;
+	FOnModularRigTreeSelectionChanged OnSelectionChanged;
 	
 	FModularRigTreeDelegates()
 	{
@@ -91,6 +94,20 @@ struct CONTROLRIGEDITOR_API FModularRigTreeDelegates
 		}
 		return false;
 	}
+
+	void HandleSelectionChanged(TSharedPtr<FModularRigTreeElement> Selection, ESelectInfo::Type SelectInfo)
+	{
+		if(bSelectionIsChanged)
+		{
+			return;
+		}
+		TGuardValue<bool> Guard(bSelectionIsChanged, true);
+		(void)OnSelectionChanged.ExecuteIfBound(Selection, SelectInfo);
+	}
+
+private:
+
+	bool bSelectionIsChanged = false;
 };
 
 
@@ -180,10 +197,18 @@ public:
 
 	SLATE_BEGIN_ARGS(SModularRigTreeView)
 		: _AutoScrollEnabled(false)
+		, _FilterText()
+		, _ShowSecondaryConnectors(false)
+		, _ShowOptionalConnectors(false)
+		, _ShowUnresolvedConnectors(true)
 	{}
 		SLATE_ARGUMENT( TSharedPtr<SHeaderRow>, HeaderRow )
 		SLATE_ARGUMENT(FModularRigTreeDelegates, RigTreeDelegates)
 		SLATE_ARGUMENT(bool, AutoScrollEnabled)
+		SLATE_ATTRIBUTE(FText, FilterText)
+		SLATE_ATTRIBUTE(bool, ShowSecondaryConnectors)
+		SLATE_ATTRIBUTE(bool, ShowOptionalConnectors)
+		SLATE_ATTRIBUTE(bool, ShowUnresolvedConnectors)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -222,8 +247,8 @@ public:
 
 	TSharedPtr<FModularRigTreeElement> FindElement(const FString& InElementKey);
 	static TSharedPtr<FModularRigTreeElement> FindElement(const FString& InElementKey, TSharedPtr<FModularRigTreeElement> CurrentItem);
-	bool AddElement(FString InKey, FString InParentKey = FString());
-	bool AddElement(const FRigModuleInstance* InElement);
+	bool AddElement(FString InKey, FString InParentKey = FString(), bool bApplyFilterText = true);
+	bool AddElement(const FRigModuleInstance* InElement, bool bApplyFilterText);
 	void AddSpacerElement();
 	bool ReparentElement(const FString InKey, const FString InParentKey);
 	void RefreshTreeView(bool bRebuildContent = true);
@@ -257,6 +282,11 @@ private:
 	bool bAutoScrollEnabled;
 	FVector2D LastMousePosition;
 	double TimeAtMousePosition;
+
+	TAttribute<FText> FilterText;
+	TAttribute<bool> ShowSecondaryConnectors;
+	TAttribute<bool> ShowOptionalConnectors;
+	TAttribute<bool> ShowUnresolvedConnectors;
 
 	friend class SModularRigModel;
 };

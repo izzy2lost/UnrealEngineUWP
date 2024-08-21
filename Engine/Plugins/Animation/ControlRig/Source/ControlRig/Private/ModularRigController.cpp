@@ -1016,6 +1016,8 @@ bool UModularRigController::DeleteModule(const FString& InModulePath, bool bSetu
 	}
 #endif
 
+	(void)DeselectModule(Module->GetPath());
+
 	// Delete children
 	TArray<FString> ChildrenPaths;
 	Algo::Transform(Module->CachedChildren, ChildrenPaths, [](const FRigModuleReference* Child){ return Child->GetPath(); });
@@ -1118,6 +1120,13 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 	
 	const FString OldPath = (Module->ParentPath.IsEmpty()) ? OldName : URigHierarchy::JoinNameSpace(Module->ParentPath, OldName);
 	const FString NewPath = (Module->ParentPath.IsEmpty()) ? *NewName :  URigHierarchy::JoinNameSpace(Module->ParentPath, NewName);
+
+	const int32 SelectionIndex = Model->SelectedModulePaths.Find(OldPath);
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Notify(EModularRigNotification::ModuleDeselected, Module);
+	}
+
 	Module->PreviousName = Module->Name;
 	Module->Name = InNewName;
 	TArray<FRigModuleReference*> Children;
@@ -1164,6 +1173,12 @@ FString UModularRigController::RenameModule(const FString& InModulePath, const F
 
 	UpdateShortNames();
 	Notify(EModularRigNotification::ModuleRenamed, Module);
+
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Model->SelectedModulePaths[SelectionIndex] = NewPath;
+		Notify(EModularRigNotification::ModuleSelected, Module);
+	}
 
 #if WITH_EDITOR
 	TransactionPtr.Reset();
@@ -1233,6 +1248,13 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 
 	// Reparent or unparent children
 	const FString OldPath = Module->GetPath();
+
+	const int32 SelectionIndex = Model->SelectedModulePaths.Find(OldPath);
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Notify(EModularRigNotification::ModuleDeselected, Module);
+	}
+	
 	Module->PreviousParentPath = Module->ParentPath;
 	Module->PreviousName = Module->Name;
 	Module->ParentPath = (NewParentModule) ? NewParentModule->GetPath() : FString();
@@ -1246,7 +1268,6 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 		SubTree[Index]->ParentPath.ReplaceInline(*OldPath, *NewPath);
 		SubTree.Append(SubTree[Index]->CachedChildren);
 	}
-
 
 	Model->UpdateCachedChildren();
 	UpdateShortNames();
@@ -1302,7 +1323,13 @@ FString UModularRigController::ReparentModule(const FString& InModulePath, const
 	(void)DisconnectCyclicConnectors(bSetupUndo);
 
 	Notify(EModularRigNotification::ModuleReparented, Module);
-	
+
+	if(SelectionIndex != INDEX_NONE)
+	{
+		Model->SelectedModulePaths[SelectionIndex] = NewPath;
+		Notify(EModularRigNotification::ModuleSelected, Module);
+	}
+
 #if WITH_EDITOR
  	TransactionPtr.Reset();
 #endif
@@ -1629,6 +1656,43 @@ bool UModularRigController::SwapModulesOfClass(TSubclassOf<UControlRig> InOldCla
 #endif
 	
 	return true;
+}
+
+bool UModularRigController::SelectModule(const FString& InModulePath, const bool InSelected)
+{
+	const bool bCurrentlySelected = Model->SelectedModulePaths.Contains(InModulePath);
+	if(bCurrentlySelected == InSelected)
+	{
+		return false;
+	}
+
+	const FRigModuleReference* Module = FindModule(InModulePath);
+	if(Module == nullptr)
+	{
+		return false;
+	}
+
+	if(InSelected)
+	{
+		Model->SelectedModulePaths.Add(InModulePath);
+	}
+	else
+	{
+		Model->SelectedModulePaths.Remove(InModulePath);
+	}
+
+	Notify(InSelected ? EModularRigNotification::ModuleSelected : EModularRigNotification::ModuleDeselected, Module);
+	return true;
+}
+
+bool UModularRigController::DeselectModule(const FString& InModulePath)
+{
+	return SelectModule(InModulePath, false);
+}
+
+TArray<FString> UModularRigController::GetSelectedModules() const
+{
+	return Model->SelectedModulePaths;
 }
 
 void UModularRigController::RefreshModuleVariables(bool bSetupUndo)

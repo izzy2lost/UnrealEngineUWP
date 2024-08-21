@@ -30,7 +30,11 @@ enum class EModularRigNotification : uint8
 	
 	InteractionBracketCanceled, // A bracket has been canceled
 
-	ModuleClassChanged, 
+	ModuleClassChanged,
+
+	ModuleSelected,
+
+	ModuleDeselected,
 
 	/** MAX - invalid */
 	Max UMETA(Hidden),
@@ -324,6 +328,7 @@ public:
 
 private:
 	TWeakObjectPtr<UObject> OuterClientHost;
+	TArray<FString> SelectedModulePaths;
 
 	friend class UModularRigController;
 	friend struct FRigModuleReference;

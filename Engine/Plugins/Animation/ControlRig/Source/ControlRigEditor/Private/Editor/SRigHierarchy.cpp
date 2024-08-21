@@ -160,32 +160,16 @@ void SRigHierarchy::Construct(const FArguments& InArgs, TSharedRef<FControlRigEd
 					[
 						SNew(SComboButton)
 						.Visibility(EVisibility::Visible)
-						.ComboButtonStyle(FAppStyle::Get(), "GenericFilters.ComboButtonStyle")
-						.ForegroundColor(FLinearColor::White)
+						.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButtonWithIcon"))
+						.ForegroundColor(FSlateColor::UseStyle())
 						.ContentPadding(0.0f)
 						.OnGetMenuContent(this, &SRigHierarchy::CreateFilterMenu)
 						.ButtonContent()
 						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.VAlign(VAlign_Center)
-							[
-								SNew(STextBlock)
-								.TextStyle(FAppStyle::Get(), "GenericFilters.TextStyle")
-								.Font(FAppStyle::Get().GetFontStyle("FontAwesome.9"))
-								.Text(FText::FromString(FString(TEXT("\xf0b0"))) /*fa-filter*/)
-							]
-							+ SHorizontalBox::Slot()
-							.AutoWidth()
-							.Padding(2, 0, 0, 0)
-							.VAlign(VAlign_Center)
-							[
-								SNew(STextBlock)
-								.TextStyle(FAppStyle::Get(), "GenericFilters.TextStyle")
-								.Text(LOCTEXT("FilterMenuLabel", "Options"))
-							]
-						]
+							SNew(SImage)
+							.Image(FAppStyle::Get().GetBrush("Icons.Filter"))
+							.ColorAndOpacity(FSlateColor::UseForeground())
+						 ]
 					]
 					+SHorizontalBox::Slot()
 					.VAlign(VAlign_Center)

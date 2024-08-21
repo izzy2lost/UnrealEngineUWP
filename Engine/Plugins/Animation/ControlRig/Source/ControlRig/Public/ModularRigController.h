@@ -79,6 +79,15 @@ class CONTROLRIG_API UModularRigController : public UObject
 	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
 	bool SwapModulesOfClass(TSubclassOf<UControlRig> InOldClass, TSubclassOf<UControlRig> InNewClass, bool bSetupUndo = true);
 
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool SelectModule(const FString& InModulePath, const bool InSelected = true);
+
+	UFUNCTION(BlueprintCallable, Category = "ControlRig | Modules")
+	bool DeselectModule(const FString& InModulePath);
+
+	UFUNCTION(BlueprintPure, Category = "ControlRig | Modules")
+	TArray<FString> GetSelectedModules() const;
+
 	void RefreshModuleVariables(bool bSetupUndo = true);
 	void RefreshModuleVariables(const FRigModuleReference* InModule, bool bSetupUndo = true);
 

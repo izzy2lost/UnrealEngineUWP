@@ -4218,11 +4218,23 @@ void FControlRigEditor::HandleRigTypeChanged(UControlRigBlueprint* InBlueprint)
 
 void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule)
 {
+	UControlRigBlueprint* RigBlueprint = GetControlRigBlueprint();
+	if(RigBlueprint == nullptr)
+	{
+		return;
+	}
+	
+	UModularRigController* ModularRigController = RigBlueprint->GetModularRigController();
+	if(ModularRigController == nullptr)
+	{
+		return;
+	}
+
 	switch(InNotification)
 	{
 		case EModularRigNotification::ModuleAdded:
 		{
-			ModulesSelected = {InModule->GetPath()};
+			ModularRigController->SelectModule(InModule->GetPath());
 			break;
 		}
 		case EModularRigNotification::ModuleRemoved:
@@ -4247,16 +4259,18 @@ void FControlRigEditor::HandleModularRigModified(EModularRigNotification InNotif
 			{
 				OldPath = URigHierarchy::JoinNameSpace(InModule->PreviousParentPath, InModule->Name.ToString());
 			}
-			ModulesSelected.Remove(OldPath);
-			ModulesSelected.Add(InModule->GetPath());
-			RefreshDetailView();
-
-			// todo: update SchematicGraph
 			break;
 		}
 		case EModularRigNotification::ConnectionChanged:
 		{
 			// todo: update SchematicGraph
+			break;
+		}
+		case EModularRigNotification::ModuleSelected:
+		case EModularRigNotification::ModuleDeselected:
+		{
+			ModulesSelected = ModularRigController->GetSelectedModules();
+			SetDetailViewForRigModules(ModulesSelected);
 			break;
 		}
 	}
