@@ -9,7 +9,7 @@ public class Expat : ModuleRules
 	protected virtual string ExpatVersion			{ get { return "expat-2.2.10"; } }
 
 	protected virtual string IncRootDirectory		{ get { return ModuleDirectory; } }
-	protected virtual string LibRootDirectory		{ get { return PlatformModuleDirectory; } }
+	protected virtual string LibRootDirectory		{ get { return ModuleDirectory; } }
 
 	protected virtual string ExpatPackagePath		{ get { return Path.Combine(LibRootDirectory, ExpatVersion); } }
 	protected virtual string ExpatIncludePath		{ get { return Path.Combine(IncRootDirectory, ExpatVersion, "lib"); } }
@@ -30,7 +30,7 @@ public class Expat : ModuleRules
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.IOS))
 		{
-			PublicAdditionalLibraries.Add(Path.Combine(ExpatPackagePath, PlatformSubdirectoryName, ConfigName, "libexpat.a"));
+			PublicAdditionalLibraries.Add(Path.Combine(PlatformModuleDirectory, ExpatVersion, PlatformSubdirectoryName, ConfigName, "libexpat.a"));
 		}
 		else if (Target.IsInPlatformGroup(UnrealPlatformGroup.Windows))
 		{
