@@ -217,6 +217,21 @@ void GenerateLightSamplesCS(
 				#if DEBUG_MODE
 				if (Debug.bActive)
 				{
+					Print(Debug.Context, TEXT("MegaLights"));
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("TileType  | Num      "));
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("Simple Shading: "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_SIMPLE_SHADING]);
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("Complex Shading: "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_COMPLEX_SHADING]);
+					Newline(Debug.Context);
+					Print(Debug.Context, TEXT("Empty: "));
+					Print(Debug.Context, DownsampledTileAllocator[TILE_MODE_EMPTY]);
+					Newline(Debug.Context);
+					Newline(Debug.Context);
+						
 					Print(Debug.Context, TEXT("GenerateSamplesCS"));
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("ScreenCoord: "));
@@ -228,9 +243,6 @@ void GenerateLightSamplesCS(
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("TileType: "));
 					Print(Debug.Context, uint(TILE_TYPE));
-					Newline(Debug.Context);
-					Print(Debug.Context, TEXT("TileNum: "));
-					Print(Debug.Context, DownsampledTileAllocator[TILE_TYPE]);
 					Newline(Debug.Context);
 					Print(Debug.Context, TEXT("View.PreExposure: "));
 					Print(Debug.Context, View.PreExposure);
