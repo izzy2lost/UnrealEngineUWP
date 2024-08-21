@@ -112,7 +112,7 @@ static TAutoConsoleVariable<int32> CVarPSOFileCacheLogPSO(
 static TAutoConsoleVariable<int32> CVarPSOFileCacheReportPSO(
 														   TEXT("r.ShaderPipelineCache.ReportPSO"),
 														   PIPELINE_CACHE_DEFAULT_ENABLED,
-														   TEXT("1 reports new PSO entries via a delegate, but does not record or modify any cache file."),
+														   TEXT("1 reports new PSO entries via a delegate, but does not record or modify any cache file. New PSOs are reported in bulk once per frame."),
 														   ECVF_Default | ECVF_RenderThreadSafe
 														   );
 
@@ -181,6 +181,7 @@ TMap<uint32, FPSOUsageData> FPipelineFileCacheManager::RunTimeToPSOUsage;
 TMap<uint32, FPSOUsageData> FPipelineFileCacheManager::NewPSOUsage;
 TMap<uint32, FPipelineStateStats*> FPipelineFileCacheManager::Stats;
 TSet<FPipelineCacheFileFormatPSO> FPipelineFileCacheManager::NewPSOs;
+TArray<FPipelineCacheFileFormatPSO> FPipelineFileCacheManager::NewPSOsToReport;
 TSet<uint32> FPipelineFileCacheManager::NewPSOHashes;
 uint32 FPipelineFileCacheManager::NumNewPSOs;
 FString FPipelineFileCacheManager::UserCacheKey;
@@ -3523,6 +3524,24 @@ void FPipelineFileCacheManager::LogNewRaytracingPSOToConsole(FPipelineCacheFileF
 	}
 }
 
+void FPipelineFileCacheManager::BroadcastNewPSOsDelegate()
+{
+	TArray<FPipelineCacheFileFormatPSO> PSOs;
+	{
+		FRWScopeLock Lock(FileCacheLock, SLT_Write);
+		PSOs = MoveTemp(NewPSOsToReport);
+		NewPSOsToReport.Empty(32);
+	}
+
+	if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
+	{
+		for (FPipelineCacheFileFormatPSO& PSO : PSOs)
+		{
+			PSOLoggedEvent.Broadcast(PSO);
+		}
+	}
+}
+
 void FPipelineFileCacheManager::CacheGraphicsPSO(uint32 RunTimeHash, FGraphicsPipelineStateInitializer const& Initializer, bool bWasPSOPrecached)
 {
 	if(IsPipelineFileCacheEnabled() && (LogPSOtoFileCache() || ReportNewPSOs()))
@@ -3584,7 +3603,7 @@ void FPipelineFileCacheManager::CacheGraphicsPSO(uint32 RunTimeHash, FGraphicsPi
 							
 						if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 						{
-							PSOLoggedEvent.Broadcast(NewEntry);
+							NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 						}
 					}
 				}
@@ -3659,7 +3678,7 @@ void FPipelineFileCacheManager::CacheComputePSO(uint32 RunTimeHash, FRHIComputeS
 
 							if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 							{
-								PSOLoggedEvent.Broadcast(NewEntry);
+								NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 							}
 						}
 					}
@@ -3740,7 +3759,7 @@ void FPipelineFileCacheManager::CacheRayTracingPSO(const FRayTracingPipelineStat
 
 						if (ReportNewPSOs() && PSOLoggedEvent.IsBound())
 						{
-							PSOLoggedEvent.Broadcast(NewEntry);
+							NewPSOsToReport.Emplace(MoveTemp(NewEntry));
 						}
 					}
 

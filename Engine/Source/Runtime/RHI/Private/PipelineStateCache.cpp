@@ -2481,6 +2481,8 @@ void PipelineStateCache::FlushResources()
 	GPrecacheGraphicsPipelineCache.ProcessDelayedCleanup();
 	GPrecacheComputePipelineCache.ProcessDelayedCleanup();
 
+	FPipelineFileCacheManager::BroadcastNewPSOsDelegate();
+
 	{
 		int32 NumMissesThisFrame = GraphicsPipelineCacheMisses.Load(EMemoryOrder::Relaxed);
 		int32 NumMissesLastFrame = GraphicsPipelineCacheMissesHistory.Num() >= 2 ? GraphicsPipelineCacheMissesHistory[1] : 0;

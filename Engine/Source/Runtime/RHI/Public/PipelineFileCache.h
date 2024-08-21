@@ -364,6 +364,11 @@ public:
 	 * Gets the event delegate to register for pipeline state logging events.
 	 */
 	RHI_API static FPipelineStateLoggedEvent& OnPipelineStateLogged();
+
+	/*
+	 * If the delegate is set, broadcasts any new PSOs that were encountered since the last time the delegate was broadcast.
+	 */
+	RHI_API static void BroadcastNewPSOsDelegate();
 	
 	RHI_API static void GetOrderedPSOHashes(const FString& PSOCacheKey, TArray<FPipelineCachePSOHeader>& PSOHashes, PSOOrder Order, int64 MinBindCount, TSet<uint32> const& AlreadyCompiledHashes);
 	RHI_API static void FetchPSODescriptors(const FString& PSOCacheKey, TDoubleLinkedList<FPipelineCacheFileFormatPSORead*>& LoadedBatch);
@@ -428,6 +433,7 @@ private:
 	static TMap<uint32, FPSOUsageData> NewPSOUsage;				// For mask or engine updates - Merged + Saved (Our internal PSO hash to latest usage data) - temp working scratch, only holds updates since last "save" so is not the authority on state
 	static TMap<uint32, FPipelineStateStats*> Stats;
 	static TSet<FPipelineCacheFileFormatPSO> NewPSOs;
+	static TArray<FPipelineCacheFileFormatPSO> NewPSOsToReport; // New PSOs that will be broadcast via a delegate (if bound). Cleared when the delegate is broadcast.
  	static TSet<uint32> NewPSOHashes;
 	static uint32 NumNewPSOs;
 	static PSOOrder RequestedOrder;
