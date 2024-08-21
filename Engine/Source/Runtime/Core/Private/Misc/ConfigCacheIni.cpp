@@ -22,6 +22,7 @@
 #include "Misc/DataDrivenPlatformInfoRegistry.h"
 #include "Misc/StringBuilder.h"
 #include "Misc/PathViews.h"
+#include "Misc/TransactionallySafeScopeLock.h"
 #include "ProfilingDebugging/CpuProfilerTrace.h"
 #include "ProfilingDebugging/AssetMetadataTrace.h"
 #include "Serialization/MemoryReader.h"
@@ -1034,7 +1035,7 @@ FConfigFile& FConfigFile::operator=(FConfigFile&& Other)
 	return *this;
 }
 
-void FConfigFile::Cleanup()
+UE_AUTORTFM_ALWAYS_OPEN void FConfigFile::Cleanup()
 {
 	Empty();
 }
@@ -6245,7 +6246,7 @@ FCriticalSection FConfigCacheIni::ConfigForPlatformLock;
 #endif
 
 TMap<FName, FConfigCacheIni::FPluginInfo*> FConfigCacheIni::RegisteredPlugins;
-FCriticalSection FConfigCacheIni::RegisteredPluginsLock;
+FTransactionallySafeCriticalSection FConfigCacheIni::RegisteredPluginsLock;
 
 FRWLock FConfigFile::ConfigFileMapLock;
 
@@ -6284,7 +6285,7 @@ void FConfigCacheIni::AddPluginToBranches(FName PluginName, FConfigModificationT
 	
 	FPluginInfo* PluginInfo = nullptr;
 	{
-		FScopeLock Lock(&RegisteredPluginsLock);
+		FTransactionallySafeScopeLock Lock(&RegisteredPluginsLock);
 		
 		PluginInfo = RegisteredPlugins.FindRef(PluginName);
 		if (PluginInfo == nullptr)
@@ -6494,7 +6495,7 @@ void FConfigCacheIni::RegisterPlugin(FName PluginName, const FString& PluginDir,
 	Info->Priority = Priority;
 	Info->bIncludePluginNameInBranchName = bIncludePluginNameInBranchName;
 
-	FScopeLock Lock(&RegisteredPluginsLock);
+	FTransactionallySafeScopeLock Lock(&RegisteredPluginsLock);
 	RegisteredPlugins.Add(PluginName, Info);
 }
 

@@ -1931,7 +1931,7 @@ private:
 	};
 	static TMap<FName, FPluginInfo*> RegisteredPlugins;
 	TArray<FName> PendingModificationPlugins;
-	static FCriticalSection RegisteredPluginsLock;
+	static FTransactionallySafeCriticalSection RegisteredPluginsLock;
 	
 #if ALLOW_OTHER_PLATFORM_CONFIG
 	static TMap<FName, FConfigCacheIni*> ConfigForPlatform;
