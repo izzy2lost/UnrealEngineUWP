@@ -1992,8 +1992,8 @@ namespace UnrealBuildTool
 					CompileAction.bShowIncludes = Target.bShowIncludes;
 				}
 
-				// Write cl errors and warnings to a file if supported
-				if (Target.WindowsPlatform.Compiler.IsMSVC() && Target.WindowsPlatform.bWriteSarif)
+				// Write cl errors and warnings to a file
+				if (Target.WindowsPlatform.Compiler.IsMSVC())
 				{
 					if (Target.StaticAnalyzer == StaticAnalyzer.Default && !CompileEnvironment.bDisableStaticAnalysis)
 					{
