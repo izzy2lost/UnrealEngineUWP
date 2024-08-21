@@ -14,7 +14,6 @@
 #if UE_WITH_IRIS
 #include "Iris/ReplicationSystem/ReplicationSystem.h"
 #endif
-#include "Iris/Core/IrisProfiler.h"
 #include "Misc/MemStack.h"
 #include "Misc/ScopeExit.h"
 #include "Net/Core/Trace/Private/NetTraceInternal.h"
@@ -3131,13 +3130,6 @@ void UActorChannel::ProcessBunch( FInBunch & Bunch )
 		AActor* NewChannelActor = NULL;
 		bSpawnedNewActor = Connection->PackageMap->SerializeNewActor(Bunch, this, NewChannelActor);
 
-#if IRIS_CLIENT_PROFILER_ENABLE
-		if (bSpawnedNewActor)
-		{
-			UE::Net::FClientProfiler::RecordObjectCreate(NewChannelActor->GetFName(), false);
-		}
-#endif
-
 		// We are unsynchronized. Instead of crashing, let's try to recover.
 		if (!IsValid(NewChannelActor))
 		{
@@ -4901,10 +4893,6 @@ UObject* UActorChannel::ReadContentBlockHeader(FInBunch& Bunch, bool& bObjectDel
 			LLM_SCOPE_BYTAG(GuidCache);
 			Connection->Driver->GuidCache->ImportedNetGuids.Add( NetGUID );
 		}
-
-#if IRIS_CLIENT_PROFILER_ENABLE
-		UE::Net::FClientProfiler::RecordObjectCreate(SubObj->GetFName(), true);
-#endif
 	}
 
 	return SubObj;
