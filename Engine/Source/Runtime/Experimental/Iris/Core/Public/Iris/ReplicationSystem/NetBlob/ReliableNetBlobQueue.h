@@ -24,15 +24,39 @@ namespace UE::Net::Private
 class FReliableNetBlobQueue
 {
 public:
+	// A single ReplicationRecord supports up to four disjoint sequences to be serialized in a packet. This allows for resends of dropped data while potentially also writing new blobs for the first time.
 	struct FReplicationRecord
 	{
+		struct FSequence
+		{
+			enum : unsigned
+			{
+				NumberBitCount = 10U,
+				CountBitCount = 6U,
+			};
+
+			FSequence() = default;
+			explicit FSequence(uint16 Value)
+			{
+				Number = Value & ((1U << NumberBitCount) - 1U);
+				Count = Value >> NumberBitCount;
+			}
+
+			uint16 ToUint16() const
+			{
+				return static_cast<uint16>((Count << NumberBitCount) | Number);
+			}
+
+			uint16 Number : NumberBitCount = 0;
+			uint16 Count : CountBitCount = 0;
+		};
+
 		FReplicationRecord() = default;
 		explicit FReplicationRecord(uint64 Value)
 		{
 			for (unsigned Index : {3U, 2U, 1U, 0U})
 			{
-				Counts[Index] = Value & 255U;
-				Sequences[Index] = (Value >> 8U) & 255U;
+				Sequences[Index] = FSequence(Value & 0xFFFFU);
 				Value >>= 16U;
 			}
 		}
@@ -42,22 +66,21 @@ public:
 			uint64 Value = 0;
 			for (unsigned Index : {0U, 1U, 2U, 3U})
 			{
-				Value = (Value << 16U) | (uint64(Sequences[Index]) << 8U) | Counts[Index];
+				Value = (Value << 16U) | Sequences[Index].ToUint16();
 			}
 
 			return Value;
 		}
 
-		bool IsValid() const { return Counts[0] | Counts[1] | Counts[2] | Counts[3]; }
+		bool IsValid() const { return (Sequences[0].Count | Sequences[1].Count | Sequences[2].Count | Sequences[3].Count) != 0U; }
 
-		uint8 Sequences[4] = {};
-		uint8 Counts[4] = {};
+		FSequence Sequences[4];
 	};
 
 	/** This represents a ReplicationRecord where nothing was serialized. */
 
-	/** How many blobs can be sent before an ACK/NAK is required to continue sending. */
-	static constexpr uint32 MaxUnackedBlobCount = 256U;
+	/** How many blobs can be sent before an ACK/NAK is required to continue sending. Changing this might require changing FReplicationRecord too. */
+	static constexpr uint32 MaxUnackedBlobCount = 1024U;
 
 	FReliableNetBlobQueue();
 	~FReliableNetBlobQueue();
@@ -140,8 +163,9 @@ public:
 private:
 	enum Constants : uint32
 	{
-		IndexBitCount = 8U,
+		IndexBitCount = 10U,
 		MaxWriteSequenceCount = UE_ARRAY_COUNT(FReplicationRecord::Sequences),
+		MaxSequenceLength = (1U << FReplicationRecord::FSequence::CountBitCount) - 1U,
 	};
 
 	uint32 SequenceToIndex(uint32 Seq) const;

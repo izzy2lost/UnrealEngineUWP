@@ -36,7 +36,7 @@ protected:
 
 	/** How many parts a NetBlob can be split into at most. If more parts are required the splitting will fail. Cannot exceed 65535. */
 	UPROPERTY(Config)
-	uint32 MaxPartCount = 1024;
+	uint32 MaxPartCount = 4096;
 };
 
 UCLASS(abstract, MinimalApi, transient)
