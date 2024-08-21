@@ -316,20 +316,28 @@ public:
 	 * If false, vertex color mesh painting is disabled on this instance. 
 	 * This may be set to false by blueprint functions that override vertex colors in construction script.
 	 */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Mesh Painting")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
 	uint8 bEnableVertexColorMeshPainting : 1;
 
 	/** If false, texture color mesh painting is disabled on this instance. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = "Mesh Painting")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
 	uint8 bEnableTextureColorMeshPainting : 1;
 
 	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
 	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
 	uint8 bOverrideMeshPaintTextureCoordinateIndex : 1;
 
-	/** The overriden coordinate index to use when texture color painting on this mesh. */
-	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
+	/** Whether to override the MeshPaintTextureCoordinateIndex set on the static mesh. */
+	UPROPERTY(EditAnywhere, Category = "Mesh Painting", meta=(InlineEditConditionToggle))
+	uint8 bOverrideMeshPaintTextureResolution : 1;
+
+	/** The overriden coordinate index to use when texture color painting on this component. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Mesh Painting", meta=(UIMin = "0", UIMax = "3", editcondition = "bOverrideMeshPaintTextureCoordinateIndex"))
 	int32 OverriddenMeshPaintTextureCoordinateIndex;
+
+	/** The overriden resolution of texture color mesh paint textures on this component. */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "Mesh Painting", meta = (UIMin = "0", UIMax = "4096", ClampMax = "4096", editcondition = "bOverrideMeshPaintTextureResolution"))
+	int32 OverriddenMeshPaintTextureResolution;
 
 	/** Light map resolution to use on this component, used if bOverrideLightMapRes is true and there is a valid StaticMesh. */
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category=Lighting, meta=(ClampMax = 4096, editcondition="bOverrideLightMapRes") )
@@ -757,6 +765,8 @@ public:
 	ENGINE_API bool CanMeshPaintVertexColors() const;
 	/* Returns true if mesh texture color painting is supported on this component. */
 	ENGINE_API bool CanMeshPaintTextureColors() const;
+	/** Returns the size to use when creating a mesh paint texture on this component. */
+	ENGINE_API int32 GetMeshPaintTextureResolution() const;
 
 private:
 	/** Initializes the resources used by the static mesh component. */

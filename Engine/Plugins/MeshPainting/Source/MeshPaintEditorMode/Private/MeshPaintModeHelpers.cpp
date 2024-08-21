@@ -326,7 +326,7 @@ void UMeshPaintModeSubsystem::ImportMeshPaintTextureFromVertexColors(UMeshCompon
 			return InstanceMeshLODInfo->OverrideVertexColors->VertexColor(Index);
 		});
 
-	const int32 TextureSize = MeshPaintVirtualTexture::GetDefaultTextureSize(DynamicMesh.VertexCount());
+	const int32 TextureSize = StaticMeshComponent->GetMeshPaintTextureResolution();
 
 	const UE::Geometry::FDynamicMeshAABBTree3 DetailSpatial(&DynamicMesh);
 	UE::Geometry::FMeshBakerDynamicMeshSampler DetailSampler(&DynamicMesh, &DetailSpatial);

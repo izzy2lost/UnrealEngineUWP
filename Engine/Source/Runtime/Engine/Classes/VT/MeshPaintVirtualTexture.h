@@ -44,6 +44,8 @@ namespace MeshPaintVirtualTexture
 	/** Returns the fallback color to use for unmapped virtual textures. Use white (same as default vertex color). */
 	inline uint32 GetDefaultFallbackColor() { return 0xFFFFFFFF; }
 
+	/** Returns the passed in size after it is rounded up meet any size constraints. */
+	ENGINE_API uint32 GetAlignedTextureSize(int32 InSize);
 	/** Returns the default texture size to use for a mesh based on the number of vertices. */
 	ENGINE_API uint32 GetDefaultTextureSize(int32 InNumVertices);
 

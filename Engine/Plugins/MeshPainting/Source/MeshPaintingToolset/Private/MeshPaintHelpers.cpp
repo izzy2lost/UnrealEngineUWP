@@ -85,7 +85,7 @@ void UMeshPaintingSubsystem::CreateComponentMeshPaintTexture(UStaticMeshComponen
 	{
 		StaticMeshComponent->Modify();
 
-		const uint32 TextureSize = MeshPaintVirtualTexture::GetDefaultTextureSize(StaticMeshComponent->GetStaticMesh()->GetNumVertices(0));
+		const uint32 TextureSize = StaticMeshComponent->GetMeshPaintTextureResolution();
 		const uint32 TextureNumMips = FMath::FloorLog2(TextureSize) + 1;
 
 		UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());

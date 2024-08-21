@@ -1022,8 +1022,16 @@ public:
 	ENGINE_API bool CanMeshPaintTextureColors() const;
 
 	/** The default coordinate index to use when texture color painting on this mesh. */
-	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta=(UIMin = "0", UIMax = "3"))
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta = (UIMin = "0", UIMax = "3"))
 	int32 MeshPaintTextureCoordinateIndex;
+
+	/** 
+	 * The resolution of texture color mesh paint textures on this mesh.
+	 * The final size will be rounded up to a power of 2 and a multiple of the "Mesh Paint Tile Size" project setting.
+	 * A default value of 0 will auto calculate the size using the "Mesh paint texels per vertex" project setting.
+	 */
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh, meta = (UIMin = "0", UIMax = "4096", ClampMax = "4096"))
+	int32 MeshPaintTextureResolution;
 
 	/** Useful for reducing self shadowing from distance field methods when using world position offset to animate the mesh's vertices. */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = StaticMesh)

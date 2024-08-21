@@ -88,12 +88,19 @@ namespace MeshPaintVirtualTexture
 		return FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(CVarMeshPaintVirtualTextureTileBorderSize.GetValueOnAnyThread());
 	}
 
+	uint32 GetAlignedTextureSize(int32 InSize)
+	{
+		// Must be power of 2 aligned.
+		const uint32 SizePow2Aligned = FMath::RoundUpToPowerOfTwo((uint32)FMath::Max(InSize, 0));
+		// Must be at least the size of a tile (which is also power of two aligned).
+		return FMath::Max(GetTileSize(), SizePow2Aligned);
+	}
+
 	uint32 GetDefaultTextureSize(int32 InNumVertices)
 	{
-		const int32 NumTexels = InNumVertices * CVarMeshPaintVirtualTextureTexelsPerVertex.GetValueOnGameThread();
-		const uint32 TextureSize = (uint32)FMath::Sqrt((float)NumTexels);
-		const uint32 TextureSizePow2Aligned = FMath::RoundUpToPowerOfTwo(TextureSize);
-		return FMath::Max(GetTileSize(), TextureSizePow2Aligned);
+		const int32 NumTexels = FMath::Max(InNumVertices * CVarMeshPaintVirtualTextureTexelsPerVertex.GetValueOnGameThread(), 0);
+		const int32 TextureSize = FMath::CeilToInt(FMath::Sqrt((float)NumTexels));
+		return GetAlignedTextureSize(TextureSize);
 	}
 
 	/** 

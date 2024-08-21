@@ -3204,6 +3204,27 @@ int32 UStaticMeshComponent::GetMeshPaintTextureCoordinateIndex() const
 	return 0;
 }
 
+int32 UStaticMeshComponent::GetMeshPaintTextureResolution() const
+{
+	int32 TextureResolution = 0;
+	if (bOverrideMeshPaintTextureResolution)
+	{
+		TextureResolution = OverriddenMeshPaintTextureResolution;
+	}
+	else if (StaticMesh != nullptr)
+	{
+		TextureResolution = StaticMesh->MeshPaintTextureResolution;
+	}
+	
+	if (TextureResolution > 0)
+	{
+		return MeshPaintVirtualTexture::GetAlignedTextureSize(TextureResolution);
+	}
+
+	const int32 NumVertices = StaticMesh != nullptr ? StaticMesh->GetNumVertices(0) : 0;
+	return MeshPaintVirtualTexture::GetDefaultTextureSize(NumVertices);
+}
+
 bool UStaticMeshComponent::CanMeshPaintVertexColors() const
 {
 	if (!bSupportMeshPainting || !bEnableVertexColorMeshPainting)
