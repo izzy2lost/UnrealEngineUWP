@@ -605,6 +605,8 @@ void FSequencer::InitSequencer(const FSequencerInitParams& InitParams, const TSh
 		TSharedPtr<FCurveEditor> CurveEditor = CurveEditorExtension->GetCurveEditor();
 
 		CurveEditor->OnCurveArrayChanged.AddRaw(this, &FSequencer::OnCurveModelDisplayChanged);
+
+		SetShowCurveEditor(GetSequencerSettings()->GetCurveEditorVisible());
 	}
 
 	// When undo occurs, get a notification so we can make sure our view is up to date
@@ -798,6 +800,12 @@ void FSequencer::Close()
 	{
 		Runner->QueueFinalUpdate(RootTemplateInstance.GetRootInstanceHandle());
 		Runner->Flush();
+	}
+
+	// Save the user's preference for curve editor visibility since it can be closed outside of Sequencer's control (ie. close tab)
+	if (GetHostCapabilities().bSupportsCurveEditor)
+	{
+		GetSequencerSettings()->SetCurveEditorVisible(GetCurveEditorIsVisible());
 	}
 
 	RestorePreAnimatedState();
@@ -5942,6 +5950,8 @@ void FSequencer::OnNewActorsDropped(const TArray<UObject*>& DroppedObjects, cons
 void FSequencer::SetShowCurveEditor(bool bInShowCurveEditor)
 {
 	SequencerWidget->OnCurveEditorVisibilityChanged(bInShowCurveEditor);
+
+	GetSequencerSettings()->SetCurveEditorVisible(bInShowCurveEditor);
 }
 
 bool FSequencer::GetCurveEditorIsVisible() const

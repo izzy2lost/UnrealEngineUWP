@@ -37,6 +37,7 @@ USequencerSettings::USequencerSettings( const FObjectInitializer& ObjectInitiali
 	bLinkCurveEditorTimeRange = false;
 	bSynchronizeCurveEditorSelection = true;
 	bIsolateCurveEditorToSelection = true;
+	bCurveEditorVisible = true;
 	LoopMode = ESequencerLoopMode::SLM_NoLoop;
 	bSnapKeysAndSectionsToPlayRange = false;
 	bResetPlayheadWhenNavigating = false;
@@ -538,6 +539,15 @@ void USequencerSettings::IsolateCurveEditorToSelection(bool bInIsolateCurveEdito
 	if (bIsolateCurveEditorToSelection != bInIsolateCurveEditorToSelection)
 	{
 		bIsolateCurveEditorToSelection = bInIsolateCurveEditorToSelection;
+		SaveConfig();
+	}
+}
+
+void USequencerSettings::SetCurveEditorVisible(bool bInCurveEditorVisible)
+{
+	if (bCurveEditorVisible != bInCurveEditorVisible)
+	{
+		bCurveEditorVisible = bInCurveEditorVisible;
 		SaveConfig();
 	}
 }

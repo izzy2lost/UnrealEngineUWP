@@ -278,6 +278,11 @@ public:
 	/** Assign whether we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
 	void IsolateCurveEditorToSelection(bool bInIsolateCurveEditorToSelection);
 
+	/** Return true if we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
+	bool GetCurveEditorVisible() const { return bCurveEditorVisible; }
+	/** Assign whether we should filter the curve editor tree to only nodes that are relevant to the current sequencer selection */
+	void SetCurveEditorVisible(bool bCurveEditorVisible);
+
 	/** Gets the loop mode. */
 	ESequencerLoopMode GetLoopMode() const;
 	/** Sets the loop mode. */
@@ -611,8 +616,12 @@ protected:
 	bool bSynchronizeCurveEditorSelection;
 
 	/** When enabled, changing the sequencer tree selection will isolate (auto-filter) the selected nodes in the curve editor. */
-	UPROPERTY( config, EditAnywhere, Category=CurveEditor )
+	UPROPERTY(config, EditAnywhere, Category=CurveEditor)
 	bool bIsolateCurveEditorToSelection;
+
+	/** Whether the curve editor is visible */
+	UPROPERTY(config, EditAnywhere, Category=CurveEditor)
+	bool bCurveEditorVisible;
 
 	/** The loop mode of the playback in timeline. */
 	UPROPERTY( config )
