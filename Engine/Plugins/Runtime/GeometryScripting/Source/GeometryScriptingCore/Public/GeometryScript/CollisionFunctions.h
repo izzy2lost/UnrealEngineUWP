@@ -402,6 +402,12 @@ public:
 		bool bEmitTransaction = false,
 		UGeometryScriptDebug* Debug = nullptr);
 
+	/**
+	 * Clears the Simple Collision shapes
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static void ResetSimpleCollision(UPARAM(ref) FGeometryScriptSimpleCollision& SimpleCollision);
+
 	/*
 	 * Get the simple collision from a Primitive Component
 	 */
@@ -480,6 +486,16 @@ public:
 	static void CombineSimpleCollision(
 		UPARAM(ref) FGeometryScriptSimpleCollision& CollisionToUpdate,
 		const FGeometryScriptSimpleCollision& AppendCollision,
+		UGeometryScriptDebug* Debug = nullptr
+	);
+
+	/*
+	 * Combine the SimpleCollisionArray collision shapes into a single SimpleCollision
+	 */
+	UFUNCTION(BlueprintCallable, Category = "GeometryScript|Collision")
+	static void CombineSimpleCollisionArray(
+		const TArray<FGeometryScriptSimpleCollision>& SimpleCollisionArray,
+		FGeometryScriptSimpleCollision& SimpleCollision,
 		UGeometryScriptDebug* Debug = nullptr
 	);
 	

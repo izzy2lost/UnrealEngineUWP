@@ -525,6 +525,11 @@ void UGeometryScriptLibrary_CollisionFunctions::ResetDynamicMeshCollision(
 
 }
 
+void UGeometryScriptLibrary_CollisionFunctions::ResetSimpleCollision(FGeometryScriptSimpleCollision & SimpleCollision)
+{
+	SimpleCollision.AggGeom.EmptyElements();
+}
+
 
 FGeometryScriptSimpleCollision
 UGeometryScriptLibrary_CollisionFunctions::GenerateCollisionFromMesh(
@@ -912,6 +917,19 @@ void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollision(
 	Collision.AggGeom.TaperedCapsuleElems.Append(AppendCollision.AggGeom.TaperedCapsuleElems);
 	Collision.AggGeom.LevelSetElems.Append(AppendCollision.AggGeom.LevelSetElems);
 	Collision.AggGeom.SkinnedLevelSetElems.Append(AppendCollision.AggGeom.SkinnedLevelSetElems);
+}
+
+
+void UGeometryScriptLibrary_CollisionFunctions::CombineSimpleCollisionArray(
+	const TArray<FGeometryScriptSimpleCollision>& SimpleCollisionArray,
+	FGeometryScriptSimpleCollision& SimpleCollision,
+	UGeometryScriptDebug* Debug
+)
+{
+	for (const FGeometryScriptSimpleCollision& Coll : SimpleCollisionArray)
+	{
+		CombineSimpleCollision(SimpleCollision, Coll, Debug);
+	}
 }
 
 void UGeometryScriptLibrary_CollisionFunctions::SimplifyConvexHulls(
