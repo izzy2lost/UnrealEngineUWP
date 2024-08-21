@@ -386,7 +386,7 @@ FTG_SignaturePtr UTG_Expression_MaterialBase::BuildSignatureDynamically() const
 
 void UTG_Expression_MaterialBase::CopyVarGeneric(const FTG_Argument& Arg, FTG_Var* InVar, bool CopyVarToArg)
 {
-	if(MaterialInstance)
+	if (MaterialInstance)
 	{
 		// Try to find the MatParam matching the arg
 		if (Arg.CPPTypeName.IsEqual(TEXT("bool")))
@@ -394,7 +394,9 @@ void UTG_Expression_MaterialBase::CopyVarGeneric(const FTG_Argument& Arg, FTG_Va
 	#if WITH_EDITORONLY_DATA
 			if (CopyVarToArg)
 			{
-				MaterialInstance->SetStaticSwitchParameterValueEditorOnly(Arg.GetName(), InVar->GetAs<bool>());
+				// Disable assigning static bool values to MID for now see UE-209533 & UE-219306
+				// We need to use a different solution for Material with Static Switch, we can't use MID for this, evetnually MIC editor only...
+				//MaterialInstance->SetStaticSwitchParameterValueEditorOnly(Arg.GetName(), InVar->GetAs<bool>());
 			} else
 			{
 				FMaterialParameterInfo ParameterInfo(Arg.GetName());

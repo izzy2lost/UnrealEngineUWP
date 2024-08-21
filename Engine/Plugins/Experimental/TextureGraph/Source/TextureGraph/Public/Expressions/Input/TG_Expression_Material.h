@@ -45,8 +45,9 @@ public:
 	virtual FText GetTooltipText() const override { return FText::FromString(TEXT("Renders a material into a quad and makes it available. It is automatically exposed as a graph input parameter.")); } 
 
 protected:
-	UPROPERTY(Transient)
-	TObjectPtr<UMaterialInterface> MaterialCopy;
+	// Transient and per instance Data, recreated on every new instance from the reference material
+	UPROPERTY(Transient, DuplicateTransient)
+	TObjectPtr<UMaterialInterface> MaterialCopy = nullptr;
 
 	virtual void SetMaterialInternal(UMaterialInterface* InMaterial) override;
 
