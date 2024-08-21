@@ -426,7 +426,7 @@ FText STraceStatistics::GetStatsCacheText() const
 {
 	if (!SessionFilterService->HasStats())
 	{
-		return FText();
+		return LOCTEXT("N/A", "N/A");
 	}
 
 	FNumberFormattingOptions FormattingOptionsMem;

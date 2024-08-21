@@ -149,12 +149,12 @@ typedef bool		ChannelIterCallback(const FChannelInfo& Info, void*/*User*/);
 
 struct FStatistics
 {
-	uint64		BytesSent;
-	uint64		BytesTraced;
-	uint64		MemoryUsed;
-	uint32		CacheAllocated;	// Total memory allocated in cache buffers
-	uint32		CacheUsed;		// Used cache memory; Important-marked events are stored in the cache.
-	uint32		CacheWaste;		// Unused memory from retired cache buffers
+	uint64		BytesSent		= 0;
+	uint64		BytesTraced		= 0;
+	uint64		MemoryUsed		= 0;
+	uint32		CacheAllocated	= 0;	// Total memory allocated in cache buffers
+	uint32		CacheUsed		= 0;	// Used cache memory; Important-marked events are stored in the cache.
+	uint32		CacheWaste		= 0;	// Unused memory from retired cache buffers
 };
 
 struct FSendFlags

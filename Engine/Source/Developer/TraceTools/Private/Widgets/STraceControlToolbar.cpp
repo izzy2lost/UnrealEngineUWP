@@ -196,7 +196,7 @@ void STraceControlToolbar::SetTraceTarget_Execute(ETraceTarget InTraceTarget)
 
 bool STraceControlToolbar::ToggleTrace_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance();
+	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable;
 }
 
 void STraceControlToolbar::ToggleTrace_Execute()
@@ -228,7 +228,7 @@ void STraceControlToolbar::ToggleTrace_Execute()
 
 bool STraceControlToolbar::TraceSnapshot_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance();
+	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable;
 }
 
 void STraceControlToolbar::TraceSnapshot_Execute()
@@ -248,7 +248,7 @@ void STraceControlToolbar::TraceSnapshot_Execute()
 
 bool STraceControlToolbar::TraceBookmark_CanExecute() const
 {
-	return TraceController->HasAvailableSelectedInstance() && bIsTracing && !bIsPaused;
+	return TraceController->HasAvailableSelectedInstance() && bIsTracingAvailable && bIsTracing && !bIsPaused;
 }
 
 void STraceControlToolbar::TraceBookmark_Execute()
@@ -322,6 +322,16 @@ void STraceControlToolbar::OnTraceStatusUpdated(const FTraceStatus& InStatus, FT
 	bIsTracing = InStatus.bIsTracing;
 	bIsPaused = InStatus.bIsPaused;
 	bAreStatNamedEventsEnabled = InStatus.bAreStatNamedEventsEnabled;
+	bIsTracingAvailable = InStatus.TraceSystemStatus != FTraceStatus::ETraceSystemStatus::NotAvailable;
+
+	if (InStatus.TraceSystemStatus == FTraceStatus::ETraceSystemStatus::TracingToServer)
+	{
+		TraceTarget = ETraceTarget::Server;
+	}
+	else if (InStatus.TraceSystemStatus == FTraceStatus::ETraceSystemStatus::TracingToFile)
+	{
+		TraceTarget = ETraceTarget::File;
+	}
 }
 
 bool STraceControlToolbar::TogglePauseResume_CanExecute() const

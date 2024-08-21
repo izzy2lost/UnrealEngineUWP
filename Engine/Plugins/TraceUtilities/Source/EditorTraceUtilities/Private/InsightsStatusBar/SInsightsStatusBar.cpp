@@ -195,6 +195,7 @@ void SInsightsStatusBarWidget::Construct(const FArguments& InArgs)
 			.HAlign(HAlign_Left)
 			.VAlign(VAlign_Bottom)
 			.OnClicked_Lambda([this]() { SaveSnapshot(); return FReply::Handled(); })
+			.IsEnabled(this, &SInsightsStatusBarWidget::SaveSnapshot_CanExecute)
 			.Content()
 			[
 				SNew(SImage)
@@ -285,7 +286,8 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			GetRegionSwitchLabelText(),
 			GetRegionSwitchDescText(),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), RegionIsActive() ? "Icons.EndRegion.Menu" : "Icons.BeginRegion.Menu"),
-			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_Execute)),
+			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_Execute),
+					  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleRegion_CanExecute)),
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
@@ -335,7 +337,8 @@ TSharedRef<SWidget> SInsightsStatusBarWidget::MakeTraceMenu()
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemText),
 			TAttribute<FText>::CreateSP(this, &SInsightsStatusBarWidget::GetTraceMenuItemTooltipText),
 			FSlateIcon(FEditorTraceUtilitiesStyle::Get().GetStyleSetName(), "Icons.StartTrace.Menu"),
-			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked)),
+			FUIAction(FExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_OnClicked),
+					  FCanExecuteAction::CreateSP(this, &SInsightsStatusBarWidget::ToggleTrace_CanExecute)),
 			NAME_None,
 			EUserInterfaceActionType::Button
 		);
@@ -538,6 +541,7 @@ void SInsightsStatusBarWidget::InitCommandList()
 
 FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 {
+#if UE_TRACE_ENABLED
 	FTextBuilder DescBuilder;
 
 	const FString Dest = FTraceAuxiliary::GetTraceDestinationString();
@@ -556,6 +560,9 @@ FText SInsightsStatusBarWidget::GetTitleToolTipText() const
 	}
 
 	return DescBuilder.ToText();
+#else
+	return LOCTEXT("TraceStatusDisabled", "Trace system is disabled at compile time. Check the UE_TRACE_ENABLED define.");
+#endif
 }
 
 void SInsightsStatusBarWidget::LogMessage(const FText& Text)
@@ -716,9 +723,13 @@ void SInsightsStatusBarWidget::SaveSnapshot()
 	LogMessage(LOCTEXT("SnapshotSavedError", "The snapshot could not be saved."));
 }
 
-bool SInsightsStatusBarWidget::SaveSnapshot_CanExecute()
+bool SInsightsStatusBarWidget::SaveSnapshot_CanExecute() const
 {
+#if UE_TRACE_ENABLED
 	return true;
+#else
+	return false;
+#endif
 }
 
 FText SInsightsStatusBarWidget::GetTraceMenuItemText() const
@@ -733,12 +744,16 @@ FText SInsightsStatusBarWidget::GetTraceMenuItemText() const
 
 FText SInsightsStatusBarWidget::GetTraceMenuItemTooltipText() const
 {
+#if UE_TRACE_ENABLED
 	if (UE::Trace::IsTracing())
 	{
 		return LOCTEXT("StopTraceButtonTooltip", "Stop tracing");
 	}
 
 	return LOCTEXT("StartTraceButtonTooltip", "Start tracing to the selected trace destination.");
+#else
+	return LOCTEXT("StartTraceDisabledButtonTooltip", "Trace system is disabled at compile time. Check the UE_TRACE_ENABLED define.");
+#endif
 }
 
 bool SInsightsStatusBarWidget::ToggleTrace_CanExecute() const
@@ -1043,6 +1058,15 @@ void SInsightsStatusBarWidget::ToggleRegion_Execute()
 		TRACE_BEGIN_REGION(*GetTraceRegionName().ToString());
 	}
 	bIsRegionActive = !bIsRegionActive;
+}
+
+bool SInsightsStatusBarWidget::ToggleRegion_CanExecute() const
+{
+#if UE_TRACE_ENABLED
+	return  true;
+#else
+	return false;
+#endif
 }
 
 bool SInsightsStatusBarWidget::RegionIsActive()

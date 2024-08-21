@@ -83,7 +83,7 @@ private:
 	bool SetTraceDestination_IsChecked(ETraceDestination InDestination);
 
 	void SaveSnapshot();
-	bool SaveSnapshot_CanExecute();
+	bool SaveSnapshot_CanExecute() const;
 
 	FText GetTraceMenuItemText() const;
 	FText GetTraceMenuItemTooltipText() const;
@@ -133,6 +133,7 @@ private:
 	FText GetTraceRegionNameDesc();
 
 	void ToggleRegion_Execute();
+	bool ToggleRegion_CanExecute() const;
 	bool RegionIsActive();
 	FText GetRegionSwitchLabelText();
 	FText GetRegionSwitchDescText();

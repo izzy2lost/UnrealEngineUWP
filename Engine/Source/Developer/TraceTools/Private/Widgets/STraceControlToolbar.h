@@ -83,6 +83,7 @@ private:
 	bool bIsTracing = false;
 	bool bIsPaused = false;
 	bool bAreStatNamedEventsEnabled = false;
+	bool bIsTracingAvailable = false;
 	FString TraceHostAddr;
 
 	FDelegateHandle OnStatusReceivedDelegate;
