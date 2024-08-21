@@ -949,11 +949,6 @@ struct FModelResources
 	UPROPERTY()
 	TMap<FString, FMutableStateData> StateUIDataMap;
 
-#if WITH_EDITORONLY_DATA
-	/** DataTable used by an int parameter and its value. */
-	TMap<TTuple<FString, FString>, TSet<TSoftObjectPtr<UDataTable>>> IntParameterOptionDataTable;
-#endif
-	
 	UPROPERTY()
 	TArray<FCustomizableObjectClothConfigData> ClothSharedConfigsData;	
 
@@ -1319,12 +1314,12 @@ public:
 		ModelStreamableBulkData,
 
 		LayoutBlocksAsInt32,
-		
-		IntParameterOptionDataTable,
 
 		RemoveLODCountLimit,
 
 		IntParameterOptionDataTablePartialBackout,
+
+		IntParameterOptionDataTableBackout,
 		
 		// -----<new versions can be added above this line>--------
 		LastCustomizableObjectVersion

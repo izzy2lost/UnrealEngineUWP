@@ -1013,7 +1013,6 @@ void FCustomizableObjectCompiler::CompileInternal(bool bAsync)
 
 		ModelResources.ParameterUIDataMap = MoveTemp(GenerationContext.ParameterUIDataMap);
 		ModelResources.StateUIDataMap = MoveTemp(GenerationContext.StateUIDataMap);
-		ModelResources.IntParameterOptionDataTable = MoveTemp(GenerationContext.IntParameterOptionDataTable);
 
 		// Create the RealTimeMorphsTargets Blocks from the per mesh Morph data.
 		uint64 RealTimeMorphDataSize = 0;

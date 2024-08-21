@@ -750,7 +750,6 @@ struct FMutableGraphGenerationContext
 	TMap<FString, FString> CustomizableObjectPathMap;
 	TMap<FString, FMutableParameterData> ParameterUIDataMap;
 	TMap<FString, FMutableStateData> StateUIDataMap;
-	TMap<TTuple<FString, FString>, TSet<TSoftObjectPtr<UDataTable>>> IntParameterOptionDataTable;
 	TMultiMap<const UCustomizableObjectNodeObjectGroup*, FGroupProjectorTempData> ProjectorGroupMap;
 	//TMap<UPhysicsAsset*, uint32> DiscartedPhysicsAssetMap;
 

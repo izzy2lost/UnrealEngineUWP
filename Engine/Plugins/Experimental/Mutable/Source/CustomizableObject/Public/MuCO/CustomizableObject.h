@@ -588,11 +588,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
 	FMutableStateUIMetadata GetStateUIMetadata(const FString& StateName) const;
 
-#if WITH_EDITOR
-	/** Return the DataTables used by the given parameter and its value (if any). */
-	UFUNCTION(BlueprintCallable, Category = CustomizableObject)
-	TSet<TSoftObjectPtr<UDataTable>> GetIntParameterOptionDataTable(FString& ParamName, const FString& OptionName);
-#endif
 	
 private:
 	/** Textures marked as low priority will generate defaulted resident mips (if texture streaming is enabled).
