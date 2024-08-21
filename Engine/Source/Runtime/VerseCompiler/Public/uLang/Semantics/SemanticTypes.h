@@ -225,8 +225,8 @@ public:
     /**
      * Look up a member in this type.
      */
-    SmallDefinitionArray FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier) const;
-    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const { return {}; }
+    SmallDefinitionArray FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage = nullptr) const;
+    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const { return {}; }
     SmallDefinitionArray FindTypeMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier) const;
     virtual SmallDefinitionArray FindTypeMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const { return {}; }
 
@@ -340,6 +340,7 @@ public:
         const CSymbol& MemberName,
         EMemberOrigin Origin,
         const SQualifier& Qualifier,
+        const CAstPackage* ContextPackage,
         VisitStampType VisitStamp) const override
     {
         return PositiveType()->GetNormalType().FindTypeMember(MemberName, Origin, Qualifier, VisitStamp);

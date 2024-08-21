@@ -68,17 +68,17 @@ CUTF8String CInterface::AsCodeRecursive(ETypeSyntaxPrecedence OuterPrecedence, T
     return Builder.MoveToString();
 }
 
-SmallDefinitionArray CInterface::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CInterface::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
-    SmallDefinitionArray Result = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    SmallDefinitionArray Result = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     if (Origin != EMemberOrigin::Original)
     {
-        Result.Append(FindInstanceMember(Name, EMemberOrigin::Inherited, Qualifier, VisitStamp));
+        Result.Append(FindInstanceMember(Name, EMemberOrigin::Inherited, Qualifier, ContextPackage, VisitStamp));
     }
     return Result;
 }
 
-SmallDefinitionArray CInterface::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CInterface::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
     SmallDefinitionArray Result;
     if (Origin == EMemberOrigin::Inherited || TryMarkVisited(VisitStamp))
@@ -86,14 +86,14 @@ SmallDefinitionArray CInterface::FindInstanceMember(const CSymbol& Name, EMember
         if (Origin != EMemberOrigin::Inherited)
         {
             // FindDefinition will filter on Qualifier
-            Result.Append(FindDefinitions(Name, EMemberOrigin::Original, Qualifier, VisitStamp));
+            Result.Append(FindDefinitions(Name, EMemberOrigin::Original, Qualifier, ContextPackage, VisitStamp));
         }
 
         if (Origin != EMemberOrigin::Original)
         {
             for (const CInterface* SuperInterface : _SuperInterfaces)
             {
-                Result.Append(SuperInterface->FindInstanceMember(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, VisitStamp));
+                Result.Append(SuperInterface->FindInstanceMember(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, ContextPackage, VisitStamp));
             }
         }
     }

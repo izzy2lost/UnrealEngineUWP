@@ -198,17 +198,17 @@ CUTF8String CClass::AsCodeRecursive(ETypeSyntaxPrecedence OuterPrecedence, TArra
     return Builder.MoveToString();
 }
 
-SmallDefinitionArray CClass::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CClass::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
-    SmallDefinitionArray Result = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    SmallDefinitionArray Result = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     if (Origin != EMemberOrigin::Original)
     {
-        Result.Append(FindInstanceMember(Name, EMemberOrigin::Inherited, Qualifier, VisitStamp));
+        Result.Append(FindInstanceMember(Name, EMemberOrigin::Inherited, Qualifier, ContextPackage, VisitStamp));
     }
     return Result;
 }
 
-SmallDefinitionArray CClass::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CClass::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
     SmallDefinitionArray Result;
     // Diamond inheritance (of interfaces) makes it neccessary to 
@@ -217,7 +217,7 @@ SmallDefinitionArray CClass::FindInstanceMember(const CSymbol& Name, EMemberOrig
     while (OriginClass && OriginClass->TryMarkVisited(VisitStamp))
     {
         // FindDefinition will filter on Qualifier
-        Result.Append(OriginClass->FindDefinitions(Name, EMemberOrigin::Original, Qualifier, VisitStamp));
+        Result.Append(OriginClass->FindDefinitions(Name, EMemberOrigin::Original, Qualifier, ContextPackage, VisitStamp));
         OriginClass = Origin == EMemberOrigin::Original ? nullptr : OriginClass->_Superclass;
     }
 
@@ -230,7 +230,7 @@ SmallDefinitionArray CClass::FindInstanceMember(const CSymbol& Name, EMemberOrig
         {
             for (CInterface* SuperInterface : OriginClass->_SuperInterfaces)
             {
-                Result.Append(SuperInterface->FindInstanceMember(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, VisitStamp));
+                Result.Append(SuperInterface->FindInstanceMember(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, ContextPackage, VisitStamp));
             }
 
             OriginClass = OriginClass->_Superclass;

@@ -44,11 +44,11 @@ bool CModule::IsExplicitDefinition() const
     return false;
 }
 
-SmallDefinitionArray CModule::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CModule::FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
     if (TryMarkVisited(VisitStamp))
     {
-        return FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+        return FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     }
     return SmallDefinitionArray();
 }
@@ -69,14 +69,14 @@ void CModule::MarkPersistenceCompatConstraint() const
     }
 }
 
-SmallDefinitionArray CModule::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CModule::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
-    SmallDefinitionArray Definitions = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    SmallDefinitionArray Definitions = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     if (GetConstrainedDefinition() && Origin != EMemberOrigin::Original)
     {
         if (const CModule* ConstrainedModule = GetConstrainedDefinition()->AsNullable<CModule>())
         {
-            Definitions.Append(ConstrainedModule->FindDefinitions(Name, Origin, Qualifier, VisitStamp));
+            Definitions.Append(ConstrainedModule->FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp));
         }
     }
     return Definitions;
@@ -206,12 +206,12 @@ bool CIntrinsicSymbols::IsPostfixOpName(CSymbol Name) const
     return View.StartsWith(_PostfixOpNamePrefix) && View.EndsWith(_OpNameSuffix);
 }
 
-SmallDefinitionArray CCompatConstraintRoot::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CCompatConstraintRoot::FindDefinitions(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
-    SmallDefinitionArray Definitions = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    SmallDefinitionArray Definitions = CLogicalScope::FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     if (Origin != EMemberOrigin::Original)
     {
-        Definitions.Append(GetProgram().FindDefinitions(Name, Origin, Qualifier, VisitStamp));
+        Definitions.Append(GetProgram().FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp));
     }
     return Definitions;
 }

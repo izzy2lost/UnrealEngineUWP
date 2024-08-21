@@ -70,7 +70,7 @@ CEnumerator& CEnumeration::CreateEnumerator(const CSymbol& EnumeratorName, int32
 
 SmallDefinitionArray CEnumeration::FindTypeMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
 {
-    return CLogicalScope::FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    return CLogicalScope::FindDefinitions(Name, Origin, Qualifier, nullptr, VisitStamp);
 }
 
 bool CEnumeration::IsPersistable() const

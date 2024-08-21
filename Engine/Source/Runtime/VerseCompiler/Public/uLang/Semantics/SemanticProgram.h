@@ -79,10 +79,11 @@ public:
         const CSymbol& Name,
         EMemberOrigin Origin = EMemberOrigin::InheritedOrOriginal,
         const SQualifier& Qualifier = SQualifier::Unknown(),
+        const CAstPackage* ContextPackage = nullptr,
         VisitStampType VisitStamp = GenerateNewVisitStamp()) const override;
 
     // CTypeBase interface.
-    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp = CScope::GenerateNewVisitStamp()) const override;
+    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage = nullptr, VisitStampType VisitStamp = CScope::GenerateNewVisitStamp()) const override;
     virtual bool CanBeCustomAccessorDataType() const override { return false; };
 
     // CNominalType interface.
@@ -222,7 +223,7 @@ public:
     // CScope interface
     virtual CSymbol GetScopeName() const override { return GetSymbols()->AddChecked("CompatConstraintRoot"); }
 
-    virtual SmallDefinitionArray FindDefinitions(const CSymbol& Name, EMemberOrigin, const SQualifier& Qualifier, VisitStampType) const override;
+    virtual SmallDefinitionArray FindDefinitions(const CSymbol& Name, EMemberOrigin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType) const override;
 };
 
 /**

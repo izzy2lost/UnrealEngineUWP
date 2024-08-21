@@ -161,7 +161,7 @@ public:
     static void ResolvedDefnsAppendWithContext(SResolvedDefinitionArray* ResolvedDefns, const SmallDefinitionArray& Definitions, const CDataDefinition* Context);
 
     /// Look for a definition in this scope and all parent scopes and aliases
-    SResolvedDefinitionArray ResolveDefinition(const CSymbol& Name, const SQualifier& Qualifier = SQualifier::Unknown()) const;
+    SResolvedDefinitionArray ResolveDefinition(const CSymbol& Name, const SQualifier& Qualifier = SQualifier::Unknown(), const CAstPackage* ContextPackage = nullptr) const;
 
     TSRef<CControlScope> CreateNestedControlScope(CSymbol Name = CSymbol());
 
@@ -237,6 +237,7 @@ public:
         const CSymbol& Name,
         EMemberOrigin Origin = EMemberOrigin::InheritedOrOriginal,
         const SQualifier& Qualifier = SQualifier::Unknown(),
+        const CAstPackage* ContextPackage = nullptr,
         VisitStampType VisitStamp = GenerateNewVisitStamp()) const;
 
     template<typename FilterClass>
@@ -244,6 +245,7 @@ public:
         const CSymbol& Name,
         EMemberOrigin Origin = EMemberOrigin::InheritedOrOriginal,
         const SQualifier& Qualifier = SQualifier::Unknown(),
+        const CAstPackage* ContextPackage = nullptr,
         VisitStampType VisitStamp = GenerateNewVisitStamp()) const;
 
     virtual void SetRevision(SemanticRevision Revision);
@@ -303,9 +305,9 @@ TFilteredDefinitionRange<FilterClass> CLogicalScope::GetDefinitionsOfKind() cons
 }
 
 template<typename FilterClass>
-FilterClass* CLogicalScope::FindFirstDefinitionOfKind(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+FilterClass* CLogicalScope::FindFirstDefinitionOfKind(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
-    SmallDefinitionArray Definitions = FindDefinitions(Name, Origin, Qualifier, VisitStamp);
+    SmallDefinitionArray Definitions = FindDefinitions(Name, Origin, Qualifier, ContextPackage, VisitStamp);
     for (CDefinition* Definition : Definitions)
     {
         if (FilterClass* Result = Definition->AsNullable<FilterClass>())

@@ -37,9 +37,9 @@ const char* TypeKindAsCString(ETypeKind Type)
 // CNormalType
 //=======================================================================================
 
-SmallDefinitionArray CNormalType::FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier) const
+SmallDefinitionArray CNormalType::FindInstanceMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier, const CAstPackage* ContextPackage) const
 {
-    return FindInstanceMember(MemberName, Origin, Qualifier, CScope::GenerateNewVisitStamp());
+    return FindInstanceMember(MemberName, Origin, Qualifier, ContextPackage, CScope::GenerateNewVisitStamp());
 }
 
 SmallDefinitionArray CNormalType::FindTypeMember(const CSymbol& MemberName, EMemberOrigin Origin, const SQualifier& Qualifier) const

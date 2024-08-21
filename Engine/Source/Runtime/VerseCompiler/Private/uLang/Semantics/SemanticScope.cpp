@@ -384,7 +384,7 @@ void CScope::ResolvedDefnsAppendWithContext(SResolvedDefinitionArray* ResolvedDe
     }
 }
 
-SResolvedDefinitionArray CScope::ResolveDefinition(const CSymbol& Name, const SQualifier& Qualifier) const
+SResolvedDefinitionArray CScope::ResolveDefinition(const CSymbol& Name, const SQualifier& Qualifier, const CAstPackage* ContextPackage) const
 {
     ULANG_ASSERTF(!Name.IsNull(), "Null names are reserved for anonymous variables");
     VisitStampType VisitStamp = GenerateNewVisitStamp();
@@ -426,7 +426,7 @@ SResolvedDefinitionArray CScope::ResolveDefinition(const CSymbol& Name, const SQ
         const CLogicalScope* LogicalScope = Scope->AsLogicalScopeNullable();
         if (LogicalScope && LogicalScope->TryMarkVisited(VisitStamp))
         {
-            SmallDefinitionArray FoundDefinitions = LogicalScope->FindDefinitions(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, VisitStamp);
+            SmallDefinitionArray FoundDefinitions = LogicalScope->FindDefinitions(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, ContextPackage, VisitStamp);
             ResolvedDefnsAppend(&Result, FoundDefinitions);
         }
 
@@ -437,7 +437,7 @@ SResolvedDefinitionArray CScope::ResolveDefinition(const CSymbol& Name, const SQ
             {
                 if (Using->TryMarkVisited(VisitStamp))
                 {
-                    ResolvedDefnsAppend(&Result, Using->FindDefinitions(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, VisitStamp));
+                    ResolvedDefnsAppend(&Result, Using->FindDefinitions(Name, EMemberOrigin::InheritedOrOriginal, Qualifier, ContextPackage, VisitStamp));
                 }
             }
         }
@@ -745,7 +745,7 @@ EIterateResult CLogicalScope::IterateRecurseLogicalScopes(TFunction<EVisitResult
     return IterateRecurseLogicalScopes(Functor);
 }
 
-SmallDefinitionArray CLogicalScope::FindDefinitions(const CSymbol& Name, EMemberOrigin /*Origin*/, const SQualifier& Qualifier, VisitStampType VisitStamp) const
+SmallDefinitionArray CLogicalScope::FindDefinitions(const CSymbol& Name, EMemberOrigin /*Origin*/, const SQualifier& Qualifier, const CAstPackage* ContextPackage, VisitStampType VisitStamp) const
 {
     SmallDefinitionArray Result;
 
@@ -757,6 +757,20 @@ SmallDefinitionArray CLogicalScope::FindDefinitions(const CSymbol& Name, EMember
         {
             if (Qualifier.IsUnspecified() || Qualifier == Definition->GetImplicitQualifier())
             {
+                if (ContextPackage && ContextPackage->_UploadedAtFNVersion < 3100)
+                {
+                    if (const CFunction* Function = Definition->AsNullable<CFunction>())
+                    {
+                        CUTF8String DecoratedName = Function->GetDecoratedName();
+                        if (DecoratedName == "(/Fortnite.com/Devices/hud_message_device:)Hide(:agent)"
+                            || DecoratedName == "(/Fortnite.com/Devices/item_granter_device:)GrantItemIndex(:agent,:int)"
+                            || DecoratedName == "(/Fortnite.com/Devices/item_granter_device:)GrantItemIndex(:int)")
+                        {
+                            continue;
+                        }
+                    }
+                }
+
                 if (Definition->TryMarkOverriddenAndConstrainedDefinitionsVisited(VisitStamp))
                 {
                     Result.Add(Definition);

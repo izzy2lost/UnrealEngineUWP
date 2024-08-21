@@ -81,7 +81,7 @@ public:
 
     // CTypeBase interface.
     virtual CUTF8String AsCodeRecursive(ETypeSyntaxPrecedence OuterPrecedence, TArray<const CFlowType*>& VisitedFlowTypes, bool bLinkable) const override;
-    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier = SQualifier::Unknown(), VisitStampType VisitStamp = CScope::GenerateNewVisitStamp()) const override;
+    virtual SmallDefinitionArray FindInstanceMember(const CSymbol& Name, EMemberOrigin Origin, const SQualifier& Qualifier = SQualifier::Unknown(), const CAstPackage* ContextPackage = nullptr, VisitStampType VisitStamp = CScope::GenerateNewVisitStamp()) const override;
     virtual EComparability GetComparability() const override;
     EComparability GetComparability(VisitStampType) const;
     virtual bool CanBeCustomAccessorDataType() const override { return true; }
@@ -97,6 +97,7 @@ public:
         const CSymbol& Name,
         EMemberOrigin Origin = EMemberOrigin::InheritedOrOriginal,
         const SQualifier& Qualifier = SQualifier::Unknown(),
+        const CAstPackage* ContextPackage = nullptr,
         VisitStampType VisitStamp = GenerateNewVisitStamp()) const override;
 
     // CNominalType interface.

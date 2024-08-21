@@ -1446,7 +1446,7 @@ public:
             return;
         }
 
-        SmallDefinitionArray OverriddenDefinitions = ContextType->FindInstanceMember(Function->GetName(), EMemberOrigin::Inherited, Function->_Qualifier);
+        SmallDefinitionArray OverriddenDefinitions = ContextType->FindInstanceMember(Function->GetName(), EMemberOrigin::Inherited, Function->_Qualifier, Function->GetPackage());
 
         // If there are multiple inherited definitions with the same name, verify that this function
         // either overrides exactly one of them, or has a distinct domain from the existing overloads.
@@ -1552,7 +1552,8 @@ public:
         // if the definition doesn't have a type, it can't be an override
         if (DefinitionType != nullptr)
         {
-            SmallDefinitionArray OverriddenDefinitions = Class->FindInstanceMember(DataDefinition->GetName(), EMemberOrigin::Inherited);
+            SQualifier DataDefinitionQualifier = SQualifier::Unknown(); // TODO: should pass in DataDefinition->_Qualifier.
+            SmallDefinitionArray OverriddenDefinitions = Class->FindInstanceMember(DataDefinition->GetName(), EMemberOrigin::Inherited, DataDefinitionQualifier, Class->GetPackage());
 
             // If there are multiple inherited definitions with the same name, verify that this definition
             // overrides exactly one of them, and is a compatible subtype with the base definition.
@@ -3483,7 +3484,7 @@ private:
     {
         // NOTE: (yiliang.siew) If it is explicitly (i.e. `(local:)Identifier`) qualified, then we just need to make sure
         // that no shadowing occurs within the function's body and enclosed scopes themselves.
-        SResolvedDefinitionArray ResolvedDefns = Definition._EnclosingScope.ResolveDefinition(Name, Definition._Qualifier);
+        SResolvedDefinitionArray ResolvedDefns = Definition._EnclosingScope.ResolveDefinition(Name, Definition._Qualifier, Definition._EnclosingScope.GetPackage());
         // Spare ourselves the iteration if there are no conflicts
         if (ResolvedDefns.IsEmpty() || (ResolvedDefns.Num() == 1 && ResolvedDefns[0]._Definition == &Definition))
         {
@@ -4351,7 +4352,8 @@ private:
                 // This must be done after the class hierarchy and data members are in place, and attributes are analyzed.
                 for (const CDataDefinition* DataMember : Class->GetDefinitionsOfKind<CDataDefinition>())
                 {
-                    SmallDefinitionArray OverriddenMembers = Class->FindInstanceMember(DataMember->GetName(), EMemberOrigin::Inherited);
+                    SQualifier DataDefinitionQualifier = SQualifier::Unknown(); // TODO: should pass in DataDefinition->_Qualifier.
+                    SmallDefinitionArray OverriddenMembers = Class->FindInstanceMember(DataMember->GetName(), EMemberOrigin::Inherited, DataDefinitionQualifier, Class->GetPackage());
 
                     if (OverriddenMembers.Num() == 0)
                     {
@@ -4446,7 +4448,7 @@ private:
                                 continue;
                             }
                             // Check if implementation is required but absent
-                            const SmallDefinitionArray Definitions = Class->FindInstanceMember(AbstractFunction->GetName(), EMemberOrigin::InheritedOrOriginal, AbstractFunction->_Qualifier);
+                            const SmallDefinitionArray Definitions = Class->FindInstanceMember(AbstractFunction->GetName(), EMemberOrigin::InheritedOrOriginal, AbstractFunction->_Qualifier, Class->GetPackage());
                             bool bHasFunctionImpl = false;
                             for (const CDefinition* Definition : Definitions)
                             {
@@ -10489,7 +10491,7 @@ private:
                 }
                 else
                 {
-                    CScope::ResolvedDefnsAppend(&Definitions, ContextNormalValueType->FindInstanceMember(Identifier._Symbol, EMemberOrigin::InheritedOrOriginal, Qualifier));
+                    CScope::ResolvedDefnsAppend(&Definitions, ContextNormalValueType->FindInstanceMember(Identifier._Symbol, EMemberOrigin::InheritedOrOriginal, Qualifier, _Context._Package));
                     for (const SResolvedDefinition& ResolvedDefn : Definitions)
                     {
                         const CTypeBase* PositiveScopeType = ResolvedDefn._Definition->_EnclosingScope.ScopeAsType();
@@ -10521,13 +10523,13 @@ private:
                     if (ExprCtx.ResultContext == ResultIsCalled)
                     {
                         const CSymbol ExtensionName = VerifyAddSymbol(Identifier, _Program->_IntrinsicSymbols.MakeExtensionFieldOpName(Identifier._Symbol));
-                        SResolvedDefinitionArray ExtensionDefinitions = _Context._Scope->ResolveDefinition(ExtensionName, Qualifier);
+                        SResolvedDefinitionArray ExtensionDefinitions = _Context._Scope->ResolveDefinition(ExtensionName, Qualifier, _Context._Package);
                         Definitions += ExtensionDefinitions;
                         FilterByPackageVisibility(Definitions);
 
                         if (Definitions.IsEmpty())
                         {
-                            _Program->IterateRecurseLogicalScopes([&OutOfScopeDefinitions, &ExtensionName, &Qualifier](const CLogicalScope& LogicalScope)
+                            _Program->IterateRecurseLogicalScopes([this, &OutOfScopeDefinitions, &ExtensionName, &Qualifier](const CLogicalScope& LogicalScope)
                                 {
                                     if (LogicalScope.GetKind() != CScope::EKind::Module)
                                     {
@@ -10535,7 +10537,7 @@ private:
                                     }
                                     else
                                     {
-                                        OutOfScopeDefinitions = LogicalScope.ResolveDefinition(ExtensionName, Qualifier);
+                                        OutOfScopeDefinitions = LogicalScope.ResolveDefinition(ExtensionName, Qualifier, _Context._Package);
                                         return OutOfScopeDefinitions.Num() ? EVisitResult::Stop : EVisitResult::Continue;
                                     }
                                 });
@@ -10809,13 +10811,13 @@ private:
             }
             else
             {
-                Definitions = _Context._Scope->ResolveDefinition(Identifier._Symbol, Qualifier);
+                Definitions = _Context._Scope->ResolveDefinition(Identifier._Symbol, Qualifier, _Context._Package);
 
                 // Create context for `ResolveIdentifierToDefinitions()` if matched with local using
                 if (_Context._Self) // Check if there are any extension methods.
                 {
                     const CSymbol ExtensionName = VerifyAddSymbol(Identifier, _Program->_IntrinsicSymbols.MakeExtensionFieldOpName(Identifier._Symbol));
-                    SResolvedDefinitionArray ExtensionDefinitions = _Context._Scope->ResolveDefinition(ExtensionName, Qualifier);
+                    SResolvedDefinitionArray ExtensionDefinitions = _Context._Scope->ResolveDefinition(ExtensionName, Qualifier, _Context._Package);
                     Definitions += ExtensionDefinitions;
                 }
 
