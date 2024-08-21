@@ -19,8 +19,10 @@ namespace UE::Audio::Insights
 	class AUDIOINSIGHTS_API FTraceProviderBase : public TraceServices::IProvider, public TraceServices::IEditableProvider
 	{
 	public:
+		FTraceProviderBase() = delete;
 		explicit FTraceProviderBase(FName InName);
-		virtual ~FTraceProviderBase() = default;
+
+		virtual ~FTraceProviderBase();
 
 		virtual Trace::IAnalyzer* ConstructAnalyzer(TraceServices::IAnalysisSession& InSession) = 0;
 		FName GetName() const;
@@ -46,6 +48,10 @@ namespace UE::Audio::Insights
 		{
 			return GetLastMessageId() == LastUpdateId;
 		}
+
+#if !WITH_EDITOR
+		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) {};
+#endif // !WITH_EDITOR
 
 	protected:
 		class AUDIOINSIGHTS_API FTraceAnalyzerBase : public Trace::IAnalyzer

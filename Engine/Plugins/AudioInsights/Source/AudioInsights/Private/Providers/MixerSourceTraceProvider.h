@@ -28,6 +28,10 @@ namespace UE::Audio::Insights
 		static FName GetName_Static();
 
 	private:
+#if !WITH_EDITOR
+		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) override;
+#endif // !WITH_EDITOR
+
 		FMixerSourceMessages TraceMessages;
 
 		TSet<FTraceChannelHandle> Channels;

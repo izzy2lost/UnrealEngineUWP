@@ -13,6 +13,13 @@ namespace UE::Audio::Insights
 		return "AudioVirtualLoopProvider";
 	}
 
+#if !WITH_EDITOR
+	void FVirtualLoopTraceProvider::OnTimingViewTimeMarkerChanged(double TimeMarker)
+	{
+		// TODO alex.perez: to simplify code review, the implementation of this method will be submitted after this CL (in part 3)
+	}
+#endif // !WITH_EDITOR
+
 	bool FVirtualLoopTraceProvider::ProcessMessages()
 	{
 		auto RemoveEntryFunc = [this](const FVirtualLoopRealizeMessage& Msg, TSharedPtr<FVirtualLoopDashboardEntry>* OutEntry)

@@ -30,13 +30,16 @@ namespace UE::Audio::Insights
 		// Don't run providers in any commandlet to avoid additional, unnecessary overhead as audio insights is dormant.
 		if (!IsRunningCommandlet())
 		{
-			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+			TraceModule = MakeUnique<FTraceModule>();
+			IModularFeatures::Get().RegisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 
 			DashboardFactory = MakeShared<FDashboardFactory>();
 			
 			FDashboardAssetCommands::Register();
 
 #if !WITH_EDITOR
+			IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &AudioInsightsTimingViewExtender);
+
 			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
@@ -70,13 +73,15 @@ namespace UE::Audio::Insights
 			UnrealInsightsModule.UnregisterComponent(AudioInsightsComponent);
 
 			AudioInsightsComponent.Reset();
+
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &AudioInsightsTimingViewExtender);
 #endif // !WITH_EDITOR
 
 			FDashboardAssetCommands::Unregister();
 
 			DashboardFactory.Reset();
 
-			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, &TraceModule);
+			IModularFeatures::Get().UnregisterModularFeature(TraceServices::ModuleFeatureName, TraceModule.Get());
 		}
 	}
 
@@ -112,7 +117,7 @@ namespace UE::Audio::Insights
 
 	IAudioInsightsTraceModule& FAudioInsightsModule::GetTraceModule()
 	{
-		return TraceModule;
+		return *TraceModule;
 	}
 
 	TSharedRef<SDockTab> FAudioInsightsModule::CreateDashboardTabWidget(const FSpawnTabArgs& Args)

@@ -14,6 +14,13 @@ namespace UE::Audio::Insights
 		return "MixerSourceProvider";
 	}
 
+#if !WITH_EDITOR
+	void FMixerSourceTraceProvider::OnTimingViewTimeMarkerChanged(double TimeMarker)
+	{
+		// TODO alex.perez: to simplify code review, the implementation of this method will be submitted after this CL (in part 3)
+	}
+#endif // !WITH_EDITOR
+
 	bool FMixerSourceTraceProvider::ProcessMessages()
 	{
 		auto BumpEntryFunc = [this](const FMixerSourceMessageBase& Msg)

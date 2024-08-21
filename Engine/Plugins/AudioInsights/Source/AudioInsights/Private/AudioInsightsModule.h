@@ -7,9 +7,13 @@
 #include "IAudioInsightsModule.h"
 #include "Insights/IUnrealInsightsModule.h"
 #include "Templates/SharedPointer.h"
+#include "Templates/UniquePtr.h"
 #include "Views/DashboardViewFactory.h"
 #include "Widgets/Docking/SDockTab.h"
 
+#if !WITH_EDITOR
+#include "AudioInsightsTimingViewExtender.h"
+#endif // !WITH_EDITOR
 
 namespace UE::Audio::Insights
 {
@@ -29,6 +33,10 @@ namespace UE::Audio::Insights
 		static FAudioInsightsModule& GetChecked();
 		virtual IAudioInsightsTraceModule& GetTraceModule() override;
 
+#if !WITH_EDITOR
+		FAudioInsightsTimingViewExtender& GetTimingViewExtender() { return AudioInsightsTimingViewExtender; };
+#endif // !WITH_EDITOR
+
 		TSharedRef<FDashboardFactory> GetDashboardFactory();
 		const TSharedRef<FDashboardFactory> GetDashboardFactory() const;
 
@@ -36,10 +44,11 @@ namespace UE::Audio::Insights
 
 	private:
 		TSharedPtr<FDashboardFactory> DashboardFactory;
-		FTraceModule TraceModule;
+		TUniquePtr<FTraceModule> TraceModule;
 
 #if !WITH_EDITOR
 		TSharedPtr<IInsightsComponent> AudioInsightsComponent;
+		FAudioInsightsTimingViewExtender AudioInsightsTimingViewExtender;
 #endif // !WITH_EDITOR
 	};
 } // namespace UE::Audio::Insights
