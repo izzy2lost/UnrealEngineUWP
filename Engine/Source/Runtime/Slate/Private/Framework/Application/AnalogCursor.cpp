@@ -23,6 +23,9 @@ FAnalogCursor::FAnalogCursor()
 	AnalogValues[ static_cast< uint8 >( EAnalogStick::Right ) ] = FVector2D::ZeroVector;
 }
 
+FAnalogCursor::FAnalogCursor(const FAnalogCursor&) = default;
+FAnalogCursor::~FAnalogCursor() = default;
+
 void FAnalogCursor::Tick(const float DeltaTime, FSlateApplication& SlateApp, TSharedRef<ICursor>)
 {
 	if (TSharedPtr<FSlateUser> SlateUser = SlateApp.GetUser(GetOwnerUserIndex()))

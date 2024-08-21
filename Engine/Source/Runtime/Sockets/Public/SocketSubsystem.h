@@ -69,7 +69,8 @@ public:
 	static SOCKETS_API void ShutdownAllSystems();
 
 
-	virtual ~ISocketSubsystem() { }
+	SOCKETS_API ISocketSubsystem();
+	SOCKETS_API virtual ~ISocketSubsystem();
 
 	/**
 	 * Does per platform initialization of the sockets library

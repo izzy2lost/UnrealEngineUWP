@@ -14,6 +14,8 @@ struct FAnimNode_MirrorBase : public FAnimNode_Base
 	GENERATED_BODY()
 public:
 	ANIMGRAPHRUNTIME_API FAnimNode_MirrorBase(); 
+	ANIMGRAPHRUNTIME_API FAnimNode_MirrorBase(const FAnimNode_MirrorBase&); 
+	ANIMGRAPHRUNTIME_API ~FAnimNode_MirrorBase(); 
 
 	ANIMGRAPHRUNTIME_API virtual void Initialize_AnyThread(const FAnimationInitializeContext& Context) override;
 	ANIMGRAPHRUNTIME_API virtual void CacheBones_AnyThread(const FAnimationCacheBonesContext& Context) override;
@@ -98,6 +100,7 @@ struct FAnimNode_Mirror : public FAnimNode_MirrorBase
 
 public:
 	ANIMGRAPHRUNTIME_API FAnimNode_Mirror();
+	ANIMGRAPHRUNTIME_API ~FAnimNode_Mirror();
 
 	ANIMGRAPHRUNTIME_API virtual UMirrorDataTable* GetMirrorDataTable() const override;
 	ANIMGRAPHRUNTIME_API virtual bool SetMirrorDataTable(UMirrorDataTable* MirrorTable) override;
@@ -153,6 +156,8 @@ struct FAnimNode_Mirror_Standalone : public FAnimNode_MirrorBase
 
 public:
 	ANIMGRAPHRUNTIME_API FAnimNode_Mirror_Standalone();
+	ANIMGRAPHRUNTIME_API FAnimNode_Mirror_Standalone(const FAnimNode_Mirror_Standalone&);
+	ANIMGRAPHRUNTIME_API ~FAnimNode_Mirror_Standalone();
 
 	ANIMGRAPHRUNTIME_API virtual UMirrorDataTable* GetMirrorDataTable() const override;
 	ANIMGRAPHRUNTIME_API virtual bool SetMirrorDataTable(UMirrorDataTable* MirrorTable) override;

@@ -277,6 +277,7 @@ struct FActiveSound : public ISoundModulatable
 public:
 
 	ENGINE_API FActiveSound();
+	ENGINE_API FActiveSound(const FActiveSound&);
 	ENGINE_API ~FActiveSound();
 
 	static ENGINE_API FActiveSound* CreateVirtualCopy(const FActiveSound& ActiveSoundToCopy, FAudioDevice& AudioDevice);

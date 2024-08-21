@@ -143,6 +143,8 @@ FActiveSound::FActiveSound()
 	}
 }
 
+FActiveSound::FActiveSound(const FActiveSound&) = default;
+
 FActiveSound::~FActiveSound()
 {
 	ensureMsgf(WaveInstances.Num() == 0, TEXT("Destroyed an active sound that had active wave instances."));

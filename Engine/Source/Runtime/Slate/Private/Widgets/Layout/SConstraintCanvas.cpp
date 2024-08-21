@@ -107,6 +107,8 @@ SConstraintCanvas::SConstraintCanvas()
 	bCanSupportFocus = false;
 }
 
+SConstraintCanvas::~SConstraintCanvas() = default;
+
 void SConstraintCanvas::Construct( const SConstraintCanvas::FArguments& InArgs )
 {
 	// Sort the children based on ZOrder.

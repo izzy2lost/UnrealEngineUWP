@@ -60,6 +60,9 @@ public:
 		return EdgeToTwinEdgeBufferSRV;
 	}
 
+	ENGINE_API FSkeletalMeshHalfEdgeBuffer();
+	ENGINE_API ~FSkeletalMeshHalfEdgeBuffer();
+
 private:
 	uint32 GetMinBufferSize() const;
 	

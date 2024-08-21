@@ -1405,6 +1405,8 @@ FMediaPlayerProxy::FMediaPlayerProxy(UMediaPlayer* Player)
 	TypeHash = GetTypeHash(Player);
 }
 
+FMediaPlayerProxy::FMediaPlayerProxy(const FMediaPlayerProxy& Other) = default;
+
 FMediaPlayerProxy::~FMediaPlayerProxy()
 {
 }

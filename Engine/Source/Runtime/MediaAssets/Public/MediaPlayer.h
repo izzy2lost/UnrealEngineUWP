@@ -145,7 +145,7 @@ public:
 
 	MEDIAASSETS_API explicit FMediaPlayerProxy(UMediaPlayer* Player);
 
-	FMediaPlayerProxy(const FMediaPlayerProxy& Other) = default;
+	MEDIAASSETS_API FMediaPlayerProxy(const FMediaPlayerProxy& Other);
 
 	MEDIAASSETS_API ~FMediaPlayerProxy();
 

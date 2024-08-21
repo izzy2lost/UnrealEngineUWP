@@ -31,11 +31,7 @@ protected:
 public:
 
 	/** Default constructor. */
-	inline FSocket() :
-		SocketType(SOCKTYPE_Unknown),
-		SocketDescription(TEXT("")),
-		SocketProtocol(NAME_None)
-	{ }
+	SOCKETS_API FSocket();
 
 	/**
 	 * Specifies the type of socket being created
@@ -76,15 +72,10 @@ public:
 	 * @param InSocketDescription The debug description of the socket
 	 * @param InSocketProtocol the protocol stack this socket should be created on.
 	 */
-	inline FSocket(ESocketType InSocketType, const FString& InSocketDescription, const FName& InSocketProtocol) :
-		SocketType(InSocketType),
-		SocketDescription(InSocketDescription),
-		SocketProtocol(InSocketProtocol)
-	{ }
+	SOCKETS_API FSocket(ESocketType InSocketType, const FString& InSocketDescription, const FName& InSocketProtocol);
 
 	/** Virtual destructor. */
-	virtual ~FSocket()
-	{ }
+	SOCKETS_API virtual ~FSocket();
 
 	/**
 	 * Shuts down the socket, making it unusable for reads and/or writes. This does not close the socket!

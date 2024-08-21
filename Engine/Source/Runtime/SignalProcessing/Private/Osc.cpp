@@ -25,9 +25,8 @@ namespace Audio
 	{
 	}
 
-	IOscBase::~IOscBase()
-	{
-	}
+	IOscBase::IOscBase(const IOscBase&) = default;
+	IOscBase::~IOscBase() = default;
 
 	void IOscBase::Init(const float InSampleRate, const int32 InVoiceId, FModulationMatrix* InMatrix, const int32 ModMatrixStage)
 	{

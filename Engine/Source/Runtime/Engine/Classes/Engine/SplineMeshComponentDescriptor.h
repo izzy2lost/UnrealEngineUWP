@@ -22,8 +22,8 @@ struct FSplineMeshComponentDescriptorBase
 	GENERATED_BODY()
 
 	ENGINE_API FSplineMeshComponentDescriptorBase();
-	explicit FSplineMeshComponentDescriptorBase(ENoInit) {}
-	virtual ~FSplineMeshComponentDescriptorBase() {}
+	ENGINE_API explicit FSplineMeshComponentDescriptorBase(ENoInit);
+	ENGINE_API virtual ~FSplineMeshComponentDescriptorBase();
 
 	ENGINE_API USplineMeshComponent* CreateComponent(UObject* Outer, FName Name = NAME_None, EObjectFlags ObjectFlags = EObjectFlags::RF_NoFlags) const;
 
@@ -204,6 +204,7 @@ struct FSplineMeshComponentDescriptor : public FSplineMeshComponentDescriptorBas
 
 	ENGINE_API FSplineMeshComponentDescriptor();
 	ENGINE_API explicit FSplineMeshComponentDescriptor(const FSoftSplineMeshComponentDescriptor& Other);
+	ENGINE_API ~FSplineMeshComponentDescriptor();
 	static ENGINE_API FSplineMeshComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
 	ENGINE_API virtual void InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance = true) override;
@@ -239,6 +240,7 @@ struct FSoftSplineMeshComponentDescriptor : public FSplineMeshComponentDescripto
 
 	ENGINE_API FSoftSplineMeshComponentDescriptor();
 	ENGINE_API explicit FSoftSplineMeshComponentDescriptor(const FSplineMeshComponentDescriptor& Other);
+	ENGINE_API ~FSoftSplineMeshComponentDescriptor();
 	static ENGINE_API FSoftSplineMeshComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
 	ENGINE_API virtual void InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance = true) override;

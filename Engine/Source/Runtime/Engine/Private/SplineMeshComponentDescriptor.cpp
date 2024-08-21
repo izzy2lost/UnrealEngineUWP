@@ -20,6 +20,9 @@ FSplineMeshComponentDescriptorBase::FSplineMeshComponentDescriptorBase()
 	InitFrom(USplineMeshComponent::StaticClass()->GetDefaultObject<USplineMeshComponent>());
 }
 
+FSplineMeshComponentDescriptorBase::FSplineMeshComponentDescriptorBase(ENoInit) {}
+FSplineMeshComponentDescriptorBase::~FSplineMeshComponentDescriptorBase() = default;
+
 FSplineMeshComponentDescriptor::FSplineMeshComponentDescriptor()
 	: FSplineMeshComponentDescriptorBase(NoInit)
 {
@@ -37,6 +40,8 @@ FSplineMeshComponentDescriptor::FSplineMeshComponentDescriptor(const FSoftSpline
 	Hash = Other.Hash;
 }
 
+FSplineMeshComponentDescriptor::~FSplineMeshComponentDescriptor() = default;
+
 FSoftSplineMeshComponentDescriptor::FSoftSplineMeshComponentDescriptor()
 	: FSplineMeshComponentDescriptorBase(NoInit)
 {
@@ -53,6 +58,8 @@ FSoftSplineMeshComponentDescriptor::FSoftSplineMeshComponentDescriptor(const FSp
 	Algo::Transform(Other.RuntimeVirtualTextures, RuntimeVirtualTextures, [](TObjectPtr<URuntimeVirtualTexture> RVT) { return RVT; });
 	Hash = Other.Hash;
 }
+
+FSoftSplineMeshComponentDescriptor::~FSoftSplineMeshComponentDescriptor() = default;
 
 FSplineMeshComponentDescriptor FSplineMeshComponentDescriptor::CreateFrom(const TSubclassOf<UStaticMeshComponent>& From)
 {

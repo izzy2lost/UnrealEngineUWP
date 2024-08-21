@@ -123,6 +123,7 @@ public:
 	SLATE_END_ARGS()
 
 	SLATE_API SConstraintCanvas();
+	SLATE_API ~SConstraintCanvas();
 
 	/**
 	 * Construct this widget

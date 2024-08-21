@@ -215,6 +215,9 @@ void SkeletalMeshHalfEdgeUtility::BuildHalfEdgeBuffers(const FSkeletalMeshLODRen
 	}	
 }
 
+FSkeletalMeshHalfEdgeBuffer::FSkeletalMeshHalfEdgeBuffer() = default;
+FSkeletalMeshHalfEdgeBuffer::~FSkeletalMeshHalfEdgeBuffer() = default;
+
 void FSkeletalMeshHalfEdgeBuffer::Init(const FSkeletalMeshLODRenderData& InLodRenderData)
 {
 	check(VertexToEdgeData.Num() == 0);

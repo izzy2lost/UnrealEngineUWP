@@ -77,6 +77,9 @@ static IModuleInterface* LoadSubsystemModule(const FString& SubsystemName)
 #endif
 }
 
+ISocketSubsystem::ISocketSubsystem() = default;
+ISocketSubsystem::~ISocketSubsystem() = default;
+
 FUniqueSocket ISocketSubsystem::CreateUniqueSocket(const FName& SocketType, const FString& SocketDescription, bool bForceUDP)
 {
 	return FUniqueSocket(CreateSocket(SocketType, SocketDescription, bForceUDP), FSocketDeleter(this));

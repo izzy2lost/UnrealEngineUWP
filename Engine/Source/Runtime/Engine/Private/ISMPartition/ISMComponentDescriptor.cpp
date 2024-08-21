@@ -21,6 +21,10 @@ FISMComponentDescriptorBase::FISMComponentDescriptorBase()
 	InitFrom(UHierarchicalInstancedStaticMeshComponent::StaticClass()->GetDefaultObject<UHierarchicalInstancedStaticMeshComponent>());
 }
 
+FISMComponentDescriptorBase::FISMComponentDescriptorBase(ENoInit) {}
+FISMComponentDescriptorBase::FISMComponentDescriptorBase(const FISMComponentDescriptorBase&) {}
+FISMComponentDescriptorBase::~FISMComponentDescriptorBase() = default;
+
 FISMComponentDescriptor::FISMComponentDescriptor()
 	: FISMComponentDescriptorBase(NoInit)
 {
@@ -38,6 +42,9 @@ FISMComponentDescriptor::FISMComponentDescriptor(const FSoftISMComponentDescript
 	Hash = Other.Hash;
 }
 
+FISMComponentDescriptor::FISMComponentDescriptor(const FISMComponentDescriptor&) = default;
+FISMComponentDescriptor::~FISMComponentDescriptor() = default;
+
 FSoftISMComponentDescriptor::FSoftISMComponentDescriptor()
 	: FISMComponentDescriptorBase(NoInit)
 {
@@ -54,6 +61,9 @@ FSoftISMComponentDescriptor::FSoftISMComponentDescriptor(const FISMComponentDesc
 	Algo::Transform(Other.RuntimeVirtualTextures, RuntimeVirtualTextures, [](TObjectPtr<URuntimeVirtualTexture> RVT) { return RVT; });
 	Hash = Other.Hash;
 }
+
+FSoftISMComponentDescriptor::FSoftISMComponentDescriptor(const FSoftISMComponentDescriptor& Other) = default;
+FSoftISMComponentDescriptor::~FSoftISMComponentDescriptor() = default;
 
 FISMComponentDescriptor FISMComponentDescriptor::CreateFrom(const TSubclassOf<UStaticMeshComponent>& From)
 {

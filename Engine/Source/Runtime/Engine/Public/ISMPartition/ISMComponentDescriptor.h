@@ -20,8 +20,9 @@ struct FISMComponentDescriptorBase
 	GENERATED_BODY()
 
 	ENGINE_API FISMComponentDescriptorBase();
-	explicit FISMComponentDescriptorBase(ENoInit) {}
-	virtual ~FISMComponentDescriptorBase() {}
+	ENGINE_API explicit FISMComponentDescriptorBase(ENoInit);
+	ENGINE_API FISMComponentDescriptorBase(const FISMComponentDescriptorBase&);
+	ENGINE_API virtual ~FISMComponentDescriptorBase();
 
 	ENGINE_API UInstancedStaticMeshComponent* CreateComponent(UObject* Outer, FName Name = NAME_None, EObjectFlags ObjectFlags = EObjectFlags::RF_NoFlags) const;
 
@@ -216,6 +217,8 @@ struct FISMComponentDescriptor : public FISMComponentDescriptorBase
 	GENERATED_BODY()
 
 	ENGINE_API FISMComponentDescriptor();
+	ENGINE_API FISMComponentDescriptor(const FISMComponentDescriptor&);
+	ENGINE_API ~FISMComponentDescriptor();
 	ENGINE_API explicit FISMComponentDescriptor(const FSoftISMComponentDescriptor& Other);
 	static ENGINE_API FISMComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
@@ -251,7 +254,9 @@ struct FSoftISMComponentDescriptor : public FISMComponentDescriptorBase
 	GENERATED_BODY()
 
 	ENGINE_API FSoftISMComponentDescriptor();
+	ENGINE_API ~FSoftISMComponentDescriptor();
 	ENGINE_API explicit FSoftISMComponentDescriptor(const FISMComponentDescriptor& Other);
+	ENGINE_API explicit FSoftISMComponentDescriptor(const FSoftISMComponentDescriptor& Other);
 	static ENGINE_API FSoftISMComponentDescriptor CreateFrom(const TSubclassOf<UStaticMeshComponent>& ComponentClass);
 
 	ENGINE_API virtual void InitFrom(const UStaticMeshComponent* Component, bool bInitBodyInstance = true) override;
