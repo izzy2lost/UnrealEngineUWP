@@ -20,10 +20,12 @@ FPixelCaptureCapturerLayered::FPixelCaptureCapturerLayered(IPixelCaptureCapturer
 TSharedPtr<IPixelCaptureOutputFrame> FPixelCaptureCapturerLayered::ReadOutput(int32 LayerIndex)
 {
 	FScopeLock LayersLock(&LayersGuard);
-	if (!LayerCapturers.IsEmpty())
+	if (!LayerCapturers.IsEmpty() && LayerCapturers.Num() > LayerIndex)
 	{
 		return LayerCapturers[LayerIndex]->ReadOutput();
 	}
+
+	UE_LOG(LogPixelCapture, Warning, TEXT("No capturer configured for LayerIndex (%d)!"), LayerIndex);
 	return nullptr;
 }
 

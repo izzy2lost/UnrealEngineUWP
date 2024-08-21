@@ -16,10 +16,12 @@ namespace UnrealBuildTool.Rules
 			// This is so for game projects using our public headers don't have to include extra modules they might not know about.
 			PublicDependencyModuleNames.AddRange(new string[] {
 				"RHI",
+				"MediaIOCore",
 			});
 
 			PrivateDependencyModuleNames.AddRange(new string[] {
 				"Core",
+				"CoreUObject",
 				"Engine",
 				"PixelCaptureShaders",
 				"RenderCore",

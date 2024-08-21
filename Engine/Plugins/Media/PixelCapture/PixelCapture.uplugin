@@ -30,5 +30,10 @@
             "TargetDenyList": [ "Server" ]
 		}
 	],
-	"Plugins": []
+	"Plugins": [
+		{
+			"Name": "MediaIOFramework",
+			"Enabled": true
+		}
+	]
 }
