@@ -20,7 +20,6 @@
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeObjectGroup.h"
 #include "MuT/NodeObjectNew.h"
-#include "MuT/NodePatchMesh.h"
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceNew.h"
 #include "MuT/NodeSurfaceVariation.h"

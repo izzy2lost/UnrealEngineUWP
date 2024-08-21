@@ -51,22 +51,22 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 	if (const UCustomizableObjectNodeMeshClipMorph* TypedNodeClip = Cast<UCustomizableObjectNodeMeshClipMorph>(Node))
 	{
-		mu::NodeModifierMeshClipMorphPlanePtr ClipNode = new mu::NodeModifierMeshClipMorphPlane();
+		mu::Ptr<mu::NodeModifierMeshClipMorphPlane> ClipNode = new mu::NodeModifierMeshClipMorphPlane();
 		Result = ClipNode;
 
 		const FVector Origin = TypedNodeClip->GetOriginWithOffset();
 		const FVector& Normal = TypedNodeClip->Normal;
 
-		ClipNode->SetPlane(Origin.X, Origin.Y, Origin.Z, Normal.X, Normal.Y, Normal.Z);
+		ClipNode->SetPlane(FVector3f(Origin), FVector3f(Normal));
 		ClipNode->SetParams(TypedNodeClip->B, TypedNodeClip->Exponent);
 		ClipNode->SetMorphEllipse(TypedNodeClip->Radius, TypedNodeClip->Radius2, TypedNodeClip->RotationAngle);
 
 		ClipNode->SetVertexSelectionBone(GenerationContext.GetBoneUnique(TypedNodeClip->BoneName), TypedNodeClip->MaxEffectRadius);
 
-		ClipNode->SetMultipleTagPolicy( TypedNodeClip->MultipleTagPolicy );
+		ClipNode->MultipleTagsPolicy = TypedNodeClip->MultipleTagPolicy;
 		for (const FString& Tag : TypedNodeClip->Tags)
 		{
-			 ClipNode->AddTag(Tag);
+			 ClipNode->RequiredTags.Add(Tag);
 		}
 	}
 
@@ -78,9 +78,9 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 		if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeClipDeform->ClipShapePin()))
 		{
 			FMutableGraphMeshGenerationData DummyMeshData;
-			mu::NodeMeshPtr ClipMesh = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
+			mu::Ptr<mu::NodeMesh> ClipMesh = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
 
-			ClipNode->SetClipMesh(ClipMesh.get());
+			ClipNode->ClipMesh = ClipMesh;
 
 			mu::EShapeBindingMethod BindingMethod = mu::EShapeBindingMethod::ClipDeformClosestProject;
 			switch(TypedNodeClipDeform->BindingMethod)
@@ -99,7 +99,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 					break;
 			}
 
-			ClipNode->SetBindingMethod(BindingMethod);
+			ClipNode->BindingMethod = BindingMethod;
 		}
 		else
 		{
@@ -108,10 +108,10 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			Result = nullptr;
 		}
 	
-		ClipNode->SetMultipleTagPolicy(TypedNodeClipDeform->MultipleTagPolicy);
+		ClipNode->MultipleTagsPolicy = TypedNodeClipDeform->MultipleTagPolicy;
 		for (const FString& Tag : TypedNodeClipDeform->Tags)
 		{
-			ClipNode->AddTag(Tag);
+			ClipNode->RequiredTags.Add(Tag);
 		}		
 	}
 
@@ -165,7 +165,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 				ClipMesh = TransformMesh;
 			}
 
-			ClipNode->SetClipMesh(ClipMesh.get());
+			ClipNode->ClipMesh = ClipMesh;
 		}
 		else
 		{
@@ -174,10 +174,10 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			Result = nullptr;
 		}
 
-		ClipNode->SetMultipleTagPolicy(TypedNodeClipMesh->MultipleTagPolicy);
+		ClipNode->MultipleTagsPolicy = TypedNodeClipMesh->MultipleTagPolicy;
 		for (const FString& Tag : TypedNodeClipMesh->Tags)
 		{
-			 ClipNode->AddTag(Tag);
+			 ClipNode->RequiredTags.Add(Tag);
 		}
 
 		if (TypedNodeClipMesh->CustomizableObjectToClipWith != nullptr)
@@ -213,7 +213,7 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 
 			mu::Ptr<mu::NodeImage> ClipMask = GenerateMutableSourceImage(ConnectedPin, GenerationContext, 0);
 
-			ClipNode->SetClipMask(ClipMask.get());
+			ClipNode->ClipMask = ClipMask;
 		}
 		else
 		{
@@ -222,12 +222,12 @@ mu::Ptr<mu::NodeModifier> GenerateMutableSourceModifier(const UEdGraphPin * Pin,
 			Result = nullptr;
 		}
 
-		ClipNode->SetLayoutIndex(TypedNodeClipUVMask->UVChannelForMask);
+		ClipNode->LayoutIndex = TypedNodeClipUVMask->UVChannelForMask;
 
-		ClipNode->SetMultipleTagPolicy(TypedNodeClipUVMask->MultipleTagPolicy);
+		ClipNode->MultipleTagsPolicy = TypedNodeClipUVMask->MultipleTagPolicy;
 		for (const FString& Tag : TypedNodeClipUVMask->Tags)
 		{
-			ClipNode->AddTag(Tag);
+			ClipNode->RequiredTags.Add(Tag);
 		}
 	}
 

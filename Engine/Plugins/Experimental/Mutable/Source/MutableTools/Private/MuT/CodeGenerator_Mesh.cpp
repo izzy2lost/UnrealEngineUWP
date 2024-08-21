@@ -44,11 +44,8 @@
 #include "MuT/NodeMeshApplyPose.h"
 #include "MuT/NodeMeshApplyPosePrivate.h"
 #include "MuT/NodeMeshClipDeform.h"
-#include "MuT/NodeMeshClipDeformPrivate.h"
 #include "MuT/NodeMeshClipMorphPlane.h"
-#include "MuT/NodeMeshClipMorphPlanePrivate.h"
 #include "MuT/NodeMeshClipWithMesh.h"
-#include "MuT/NodeMeshClipWithMeshPrivate.h"
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshConstantPrivate.h"
 #include "MuT/NodeMeshFormat.h"
@@ -1403,15 +1400,13 @@ namespace mu
     void CodeGenerator::GenerateMesh_ClipMorphPlane(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
                                                      const NodeMeshClipMorphPlane* ClipNode )
     {
-        const auto& node = *ClipNode->GetPrivate();
-
         Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 
         // Base
-        if (node.m_pSource)
+        if (ClipNode->Source)
         {
 			FMeshGenerationOptions BaseOptions = InOptions;
-            GenerateMesh(BaseOptions, OutResult, node.m_pSource);
+            GenerateMesh(BaseOptions, OutResult, ClipNode->Source);
             op->source = OutResult.MeshOp;
         }
         else
@@ -1424,9 +1419,9 @@ namespace mu
         // Morph to an ellipse
         {
             op->morphShape.type = (uint8_t)FShape::Type::Ellipse;
-            op->morphShape.position = node.m_origin;
-            op->morphShape.up = node.m_normal;
-            op->morphShape.size = FVector3f(node.m_radius1, node.m_radius2, node.m_rotation); // TODO: Move rotation to ellipse rotation reference base instead of passing it directly
+            op->morphShape.position = ClipNode->Parameters.Origin;
+            op->morphShape.up = ClipNode->Parameters.Normal;
+            op->morphShape.size = FVector3f(ClipNode->Parameters.Radius1, ClipNode->Parameters.Radius2, ClipNode->Parameters.Rotation); // TODO: Move rotation to ellipse rotation reference base instead of passing it directly
 
                                                                                       // Generate a "side" vector.
                                                                                       // \todo: make generic and move to the vector class
@@ -1434,29 +1429,29 @@ namespace mu
                 // Generate vector perpendicular to normal for ellipse rotation reference base
 				FVector3f aux_base(0.f, 1.f, 0.f);
 
-                if (fabs(FVector3f::DotProduct(node.m_normal, aux_base)) > 0.95f)
+                if (fabs(FVector3f::DotProduct(ClipNode->Parameters.Normal, aux_base)) > 0.95f)
                 {
                     aux_base = FVector3f(0.f, 0.f, 1.f);
                 }
 
-                op->morphShape.side = FVector3f::CrossProduct(node.m_normal, aux_base);
+                op->morphShape.side = FVector3f::CrossProduct(ClipNode->Parameters.Normal, aux_base);
             }
         }
 
         // Selection by shape
-        if (node.m_vertexSelectionType== NodeMeshClipMorphPlane::Private::VS_SHAPE)
+        if (ClipNode->Parameters.VertexSelectionType== FClipMorphPlaneParameters::VS_SHAPE)
         {
             op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_SHAPE;
             op->selectionShape.type = (uint8_t)FShape::Type::AABox;
-            op->selectionShape.position = node.m_selectionBoxOrigin;
-            op->selectionShape.size = node.m_selectionBoxRadius;
+            op->selectionShape.position = ClipNode->Parameters.SelectionBoxOrigin;
+            op->selectionShape.size = ClipNode->Parameters.SelectionBoxRadius;
         }
-        else if (node.m_vertexSelectionType == NodeMeshClipMorphPlane::Private::VS_BONE_HIERARCHY)
+        else if (ClipNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_BONE_HIERARCHY)
         {
             // Selection by bone hierarchy?
             op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY;
-            op->vertexSelectionBone = node.m_vertexSelectionBone;
-			op->vertexSelectionBoneMaxRadius = node.m_maxEffectRadius;
+            op->vertexSelectionBone = ClipNode->Parameters.VertexSelectionBone;
+			op->vertexSelectionBoneMaxRadius = ClipNode->Parameters.MaxEffectRadius;
         }
         else
         {
@@ -1464,8 +1459,8 @@ namespace mu
         }
 
         // Parameters
-        op->dist = node.m_dist;
-        op->factor = node.m_factor;
+        op->dist = ClipNode->Parameters.DistanceToPlane;
+        op->factor = ClipNode->Parameters.LinearityFactor;
 
         OutResult.MeshOp = op;
     }
@@ -1475,15 +1470,13 @@ namespace mu
     void CodeGenerator::GenerateMesh_ClipWithMesh(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& OutResult,
                                                    const NodeMeshClipWithMesh* ClipNode)
     {
-        const auto& node = *ClipNode->GetPrivate();
-
         Ptr<ASTOpFixed> op = new ASTOpFixed();
         op->op.type = OP_TYPE::ME_CLIPWITHMESH;
 
         // Base
-        if (node.m_pSource)
+        if (ClipNode->Source)
         {
-            GenerateMesh(InOptions, OutResult, node.m_pSource );
+            GenerateMesh(InOptions, OutResult, ClipNode->Source );
             op->SetChild( op->op.args.MeshClipWithMesh.source, OutResult.MeshOp );
         }
         else
@@ -1494,7 +1487,7 @@ namespace mu
         }
 
         // Clipping mesh
-        if (node.m_pClipMesh)
+        if (ClipNode->ClipMesh)
         {
 			FMeshGenerationOptions ClipOptions = InOptions;
 			ClipOptions.bLayouts = false;
@@ -1502,7 +1495,7 @@ namespace mu
 			ClipOptions.ActiveTags.Empty();
 
             FMeshGenerationResult clipResult;
-            GenerateMesh(ClipOptions, clipResult, node.m_pClipMesh);
+            GenerateMesh(ClipOptions, clipResult, ClipNode->ClipMesh);
             op->SetChild( op->op.args.MeshClipWithMesh.clipMesh, clipResult.MeshOp );
 		}
         else
@@ -1518,15 +1511,13 @@ namespace mu
 	//---------------------------------------------------------------------------------------------
 	void CodeGenerator::GenerateMesh_ClipDeform(const FMeshGenerationOptions& InOptions, FMeshGenerationResult& Result, const NodeMeshClipDeform* ClipDeform)
 	{
-		const auto& Node = *ClipDeform->GetPrivate();
-
 		const Ptr<ASTOpMeshBindShape> OpBind = new ASTOpMeshBindShape();
 		const Ptr<ASTOpMeshClipDeform> OpClipDeform = new ASTOpMeshClipDeform();
 
 		// Base Mesh
-		if (Node.m_pBaseMesh)
+		if (ClipDeform->BaseMesh)
 		{
-			GenerateMesh(InOptions, Result, Node.m_pBaseMesh);
+			GenerateMesh(InOptions, Result, ClipDeform->BaseMesh);
 			OpBind->Mesh = Result.MeshOp;
 		}
 		else
@@ -1536,7 +1527,7 @@ namespace mu
 		}
 
 		// Base Shape
-		if (Node.m_pClipShape)
+		if (ClipDeform->ClipShape)
 		{
 			FMeshGenerationOptions ClipOptions = InOptions;
 			ClipOptions.bLayouts = false;
@@ -1544,7 +1535,7 @@ namespace mu
 			ClipOptions.ActiveTags.Empty();
 
 			FMeshGenerationResult baseResult;
-			GenerateMesh(ClipOptions, baseResult, Node.m_pClipShape);
+			GenerateMesh(ClipOptions, baseResult, ClipDeform->ClipShape);
 			OpBind->Shape = baseResult.MeshOp;
 			OpClipDeform->ClipShape = baseResult.MeshOp;
 		}

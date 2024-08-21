@@ -6,52 +6,34 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
-
+#include "MuT/NodeMesh.h"
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeMesh;
-
-
-	//! This node makes a new component from several meshes and images.
-	//! \ingroup model
+	/** */
 	class MUTABLETOOLS_API NodeModifierMeshClipWithMesh : public NodeModifier
 	{
 	public:
 
-		NodeModifierMeshClipWithMesh();
+		//! 
+		Ptr<NodeMesh> ClipMesh;
 
-		//-----------------------------------------------------------------------------------------
-        // Node interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-        // Own interface
-		//-----------------------------------------------------------------------------------------
-
-		void SetClipMesh(NodeMesh*);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeModifierMeshClipWithMesh();
+		inline ~NodeModifierMeshClipWithMesh() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
-
 
 }

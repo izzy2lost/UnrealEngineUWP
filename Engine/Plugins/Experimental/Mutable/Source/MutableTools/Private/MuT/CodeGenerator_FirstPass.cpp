@@ -17,10 +17,10 @@
 #include "MuT/ErrorLog.h"
 #include "MuT/ErrorLogPrivate.h"
 #include "MuT/NodeComponent.h"
-#include "MuT/NodeModifierMeshClipDeformPrivate.h"
-#include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
-#include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
-#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
+#include "MuT/NodeModifierMeshClipDeform.h"
+#include "MuT/NodeModifierMeshClipMorphPlane.h"
+#include "MuT/NodeModifierMeshClipWithMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectNew.h"
@@ -97,10 +97,10 @@ namespace mu
             for (int32 e=0; e< Surfaces[s].Edits.Num(); ++e)
             {
                 const FSurface::FEdit& edit = Surfaces[s].Edits[e];
-                for (int32 t=0; t<edit.Node->Tags.Num(); ++t)
+                for (int32 t=0; t<edit.Node->EnableTags.Num(); ++t)
                 {
                     int32 tag = -1;
-					const FString& tagStr = edit.Node->Tags[t];
+					const FString& tagStr = edit.Node->EnableTags[t];
 
                     for (int32 i = 0; i<Tags.Num() && tag<0; ++i)
                     {

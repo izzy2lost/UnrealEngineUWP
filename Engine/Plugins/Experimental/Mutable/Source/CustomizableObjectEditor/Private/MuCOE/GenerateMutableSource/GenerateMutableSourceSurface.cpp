@@ -49,8 +49,6 @@
 #include "MuT/NodeMeshConstant.h"
 #include "MuT/NodeMeshFormat.h"
 #include "MuT/NodeMeshFragment.h"
-#include "MuT/NodePatchImage.h"
-#include "MuT/NodePatchMesh.h"
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeSurfaceEdit.h"
 #include "MuT/NodeSurfaceSwitch.h"
@@ -1146,11 +1144,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 
 				MeshFormat->SetSource(MeshPtr.get());
 
-				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
-				MeshPatch->SetAdd(MeshFormat.get());
-
-				SurfNode->Mesh = MeshPatch;
-				MeshPatch->SetMessageContext(Node);
+				SurfNode->MeshAdd = MeshFormat;
 			}
 			
 			const int32 NumImages = ParentMaterialNode->GetNumParameters(EMaterialParameterType::Texture);
@@ -1216,7 +1210,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		
 			for (const FString& Tag : TypedNodeExt->Tags)
 			{
-				SurfNode->Tags.Add(Tag);
+				SurfNode->EnableTags.Add(Tag);
 			}
 		}();
 	}
@@ -1234,10 +1228,10 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		else
 		{
 			// Parent, probably generated, will be retrieved from the cache
-			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
+			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
 			SurfNode->Parent = ParentNode;
 
-			mu::NodeMeshPtr RemoveMeshNode;
+			mu::Ptr<mu::NodeMesh> RemoveMeshNode;
 
 			if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeRem->RemoveMeshPin()))
 			{
@@ -1245,13 +1239,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				RemoveMeshNode = GenerateMutableSourceMesh(ConnectedPin, GenerationContext, DummyMeshData, false, true);
 			}
 
-			if (RemoveMeshNode)
-			{
-				mu::NodePatchMeshPtr MeshPatch = new mu::NodePatchMesh();
-				MeshPatch->SetRemove(RemoveMeshNode.get());
-				SurfNode->Mesh = MeshPatch;
-				MeshPatch->SetMessageContext(Node);
-			}
+			SurfNode->MeshRemove = RemoveMeshNode;
 
 			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRem);
 		}
@@ -1290,10 +1278,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				MeshFrag->LayoutIndex = TypedNodeRemBlocks->ParentLayoutIndex;
 				MeshFrag->SetMessageContext(TypedNodeRemBlocks);
 
-				mu::Ptr<mu::NodePatchMesh> MeshPatch = new mu::NodePatchMesh();
-				MeshPatch->SetRemove(MeshFrag.get());
-				MeshPatch->SetMessageContext(Node);
-				SurfNode->Mesh = MeshPatch;
+				SurfNode->MeshRemove = MeshFrag;
 			}
 
 			AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeRemBlocks);
@@ -1328,39 +1313,36 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 					
 					const UEdGraphPin* ConnectedImagePin = FollowInputPin(*TypedNodeEdit->GetUsedImagePin(ImageId));
 					
-					mu::Ptr<mu::NodePatchImage> ImagePatchNode = new mu::NodePatchImage;
-					ImagePatchNode->SetMessageContext(Node);
+					mu::NodeSurfaceEdit::FTexture& ImagePatch = SurfNode->Textures[ImageIndex];
 
 					// \todo: expose these two options?
-					ImagePatchNode->BlendType = mu::EBlendType::BT_BLEND;
-					ImagePatchNode->bApplyToAlpha=true;
+					ImagePatch.PatchBlendType = mu::EBlendType::BT_BLEND;
+					ImagePatch.bPatchApplyToAlpha=true;
 
 					// ReferenceTextureSize is used to limit the size of textures contributing to the final image.
 					const int32 ReferenceTextureSize = GetBaseTextureSize(GenerationContext, ParentMaterialNode, ImageIndex);
 
-					ImagePatchNode->Image = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
+					ImagePatch.PatchImage = GenerateMutableSourceImage(ConnectedImagePin, GenerationContext, ReferenceTextureSize);
 
 					const UEdGraphPin* ImageMaskPin = TypedNodeEdit->GetUsedImageMaskPin(ImageId);
 					check(ImageMaskPin); // Ensured when reconstructing EditMaterial nodes. If it fails, something is wrong.
 					
 					if (const UEdGraphPin* ConnectedMaskPin = FollowInputPin(*ImageMaskPin))
 					{
-						ImagePatchNode->Mask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
+						ImagePatch.PatchMask = GenerateMutableSourceImage(ConnectedMaskPin, GenerationContext, ReferenceTextureSize);
 					}
 
 					// Add the blocks to patch
 					FIntPoint GridSize = TypedNodeEdit->Layout->GetGridSize();
 					FVector2f GridSizeF = FVector2f(GridSize);
-					ImagePatchNode->Blocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
+					ImagePatch.PatchBlocks.Reserve(TypedNodeEdit->Layout->Blocks.Num());
 					for (const FCustomizableObjectLayoutBlock& LayoutBlock: TypedNodeEdit->Layout->Blocks)
 					{
 						FBox2f Rect;
 						Rect.Min = FVector2f(LayoutBlock.Min) / GridSizeF;
 						Rect.Max = FVector2f(LayoutBlock.Max) / GridSizeF;
-						ImagePatchNode->Blocks.Add(Rect);
+						ImagePatch.PatchBlocks.Add(Rect);
 					}
-
-					SurfNode->Textures[ImageIndex].Patch = ImagePatchNode;
 				}
 
 				AddModifierToSharedSurface(GenerationContext, ParentMaterialNode, *TypedNodeEdit);
@@ -1381,7 +1363,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 		else
 		{
 			// Parent, probably generated, will be retrieved from the cache
-			mu::NodeSurfacePtr ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
+			mu::Ptr<mu::NodeSurface> ParentNode = GenerateMutableSourceSurface(ParentMaterialNode->OutputPin(), GenerationContext);
 			SurfNode->Parent = ParentNode;
 
 			const UEdGraphPin* BaseSourcePin = FindMeshBaseSource(*ParentMaterialNode->OutputPin(), false);
@@ -1391,7 +1373,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 			}
 			else
 			{
-				//Morph Mesh
+				// Morph Mesh
 				// The Mesh Base Source from the Parent Material will always have all LODs since it is not an auxiliary Mesh (clipping, reshape...).
 				mu::MeshPtr MorphedSourceMesh = BuildMorphedMutableMesh(BaseSourcePin, TypedNodeMorph->MorphTargetName, GenerationContext, false); 
 
@@ -1399,7 +1381,7 @@ mu::Ptr<mu::NodeSurface> GenerateMutableSourceSurface(const UEdGraphPin * Pin, F
 				MorphedSourceMeshNode->SetMessageContext(Node);					
 				MorphedSourceMeshNode->SetValue(MorphedSourceMesh);
 				
-				SurfNode->Morph = MorphedSourceMeshNode;
+				SurfNode->MeshMorph = MorphedSourceMeshNode;
 				
 				if (const UEdGraphPin* ConnectedPin = FollowInputPin(*TypedNodeMorph->FactorPin()))
 				{

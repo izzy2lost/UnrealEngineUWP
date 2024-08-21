@@ -5,6 +5,7 @@
 #include "HAL/Platform.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Serialisation.h"
 #include "MuT/Node.h"
 #include "Containers/UnrealString.h"
 
@@ -30,31 +31,10 @@ namespace mu
 	typedef Ptr<NodeModifier> NodeModifierPtr;
 	typedef Ptr<const NodeModifier> NodeModifierConst;
 
-	//! This class is the parent of all nodes that output a component.
-	//! \ingroup model
+	/** Parent of all node classes that apply modifiers to surfaces. */
 	class MUTABLETOOLS_API NodeModifier : public Node
 	{
 	public:
-
-		//-----------------------------------------------------------------------------------------
-        // Node interface
-		//-----------------------------------------------------------------------------------------
-
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-        //-----------------------------------------------------------------------------------------
-        // Own interface
-        //-----------------------------------------------------------------------------------------
-
-        /** Add a tag to the surface, which will be affected by modifier nodes with the same tag. */
-        void AddTag(const FString& TagName);
-
-		/** Set the policy to interprete the tags when there is more than one. */
-		void SetMultipleTagPolicy(EMutableMultipleTagPolicy);
-
-		/** Set the stage to apply this modifier in.Default is before normal operations. */
-		void SetStage( bool bBeforeNormalOperation );
 
 		/** Tags that target surface need to have enabled to receive this modifier. */
 		TArray<FString> RequiredTags;
@@ -65,15 +45,21 @@ namespace mu
 		// Wether the modifier has to be applied after the normal node operations or before
 		bool bApplyBeforeNormalOperations = true;
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
+
+	public:
+
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
 		inline ~NodeModifier() {}
+
+	private:
+
+		static FNodeType StaticType;
 
 	};
 

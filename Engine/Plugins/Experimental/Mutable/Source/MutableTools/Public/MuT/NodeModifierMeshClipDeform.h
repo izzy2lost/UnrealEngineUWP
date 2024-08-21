@@ -5,59 +5,37 @@
 #include "HAL/Platform.h"
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Mesh.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
+#include "MuT/NodeMesh.h"
 
 namespace mu
 {
-
-	// Forward definitions
-	class NodeModifierMeshClipDeform;
-	typedef Ptr<NodeModifierMeshClipDeform> NodeModifierMeshClipDeformPtr;
-	typedef Ptr<const NodeModifierMeshClipDeform> NodeModifierMeshClipDeformPtrConst;
-
-	class NodeMesh;
-	typedef Ptr<NodeMesh> NodeMeshPtr;
-	typedef Ptr<const NodeMesh> NodeMeshPtrConst;
-
-	enum class EShapeBindingMethod : uint32;
 	
-	//! This node makes a new component from several meshes and images.
-	//! \ingroup model
+	/** */
 	class MUTABLETOOLS_API NodeModifierMeshClipDeform : public NodeModifier
 	{
 	public:
 
-		NodeModifierMeshClipDeform();
+		Ptr<NodeMesh> ClipMesh;
 
-		//-----------------------------------------------------------------------------------------
-        // Node interface
-		//-----------------------------------------------------------------------------------------
+		EShapeBindingMethod BindingMethod = EShapeBindingMethod::ClipDeformClosestProject;
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+	public:
 
-		//-----------------------------------------------------------------------------------------
-        // Own interface
-		//-----------------------------------------------------------------------------------------
-
-		void SetClipMesh( NodeMesh* InClipMesh);
-		void SetBindingMethod(EShapeBindingMethod BindingMethod);
-	
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeModifierMeshClipDeform();
+		inline ~NodeModifierMeshClipDeform() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

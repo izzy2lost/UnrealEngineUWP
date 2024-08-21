@@ -16,43 +16,24 @@ namespace mu
 	{
 	public:
 
-		NodeMeshClipDeform();
+		Ptr<NodeMesh> BaseMesh;
+		Ptr<NodeMesh> ClipShape;
+		Ptr<NodeImage> ShapeWeights;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-		const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		const NodeMeshPtr& GetBaseMesh() const;
-		void SetBaseMesh( const NodeMeshPtr& );
-
-		const NodeMeshPtr& GetClipShape() const;
-		void SetClipShape(const NodeMeshPtr&);
-
-		const NodeImagePtr& GetShapeWeights() const;
-		void SetShapeWeights(const NodeImagePtr&);
-
-
-        //-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeMeshClipDeform();
+		inline ~NodeMeshClipDeform() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

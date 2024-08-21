@@ -67,16 +67,13 @@
 #include "MuT/NodeMeshMorph.h"
 #include "MuT/NodeMeshReshape.h"
 #include "MuT/NodeModifier.h"
-#include "MuT/NodeModifierMeshClipDeformPrivate.h"
-#include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
-#include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
-#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
-#include "MuT/NodeModifierPrivate.h"
+#include "MuT/NodeModifierMeshClipDeform.h"
+#include "MuT/NodeModifierMeshClipMorphPlane.h"
+#include "MuT/NodeModifierMeshClipWithMesh.h"
+#include "MuT/NodeModifierMeshClipWithUVMask.h"
 #include "MuT/NodeObject.h"
 #include "MuT/NodeObjectGroupPrivate.h"
 #include "MuT/NodeObjectNew.h"
-#include "MuT/NodePatchImage.h"
-#include "MuT/NodePatchMesh.h"
 #include "MuT/NodePrivate.h"
 #include "MuT/NodeRange.h"
 #include "MuT/NodeRangeFromScalar.h"
@@ -352,8 +349,8 @@ namespace mu
 			}
 
 			// Add every row
-			int32 rows = CacheKey.Table->GetPrivate()->Rows.Num();
-			for (size_t i = 0; i < rows; ++i)
+			int32 RowCount = CacheKey.Table->GetPrivate()->Rows.Num();
+			for (int32 i = 0; i < RowCount; ++i)
 			{
 				FParameterDesc::FIntValueDesc value;
 				value.m_value = (int16)CacheKey.Table->GetPrivate()->Rows[i].Id;
@@ -429,7 +426,7 @@ namespace mu
 
 
 	Ptr<ASTOp> CodeGenerator::GenerateImageBlockPatch(Ptr<ASTOp> InBlockOp,
-		const NodePatchImage* pPatch,
+		const NodeSurfaceEdit::FTexture& Patch,
 		Ptr<Image> PatchMask,
 		Ptr<ASTOp> conditionAd,
 		const FImageGenerationOptions& ImageOptions )
@@ -440,14 +437,14 @@ namespace mu
 			MUTABLE_CPUPROFILER_SCOPE(PatchBlend);
 
 			Ptr<ASTOpImageLayer> LayerOp = new ASTOpImageLayer();
-			LayerOp->blendType = pPatch->BlendType;
+			LayerOp->blendType = Patch.PatchBlendType;
 			LayerOp->base = InBlockOp;
 
 			// When we patch from edit nodes, we want to apply it to all the channels.
 			// \todo: since we can choose the patch function, maybe we want to be able to select this as well.
-			LayerOp->Flags = pPatch->bApplyToAlpha ? OP::ImageLayerArgs::F_APPLY_TO_ALPHA : 0;
+			LayerOp->Flags = Patch.bPatchApplyToAlpha ? OP::ImageLayerArgs::F_APPLY_TO_ALPHA : 0;
 
-			NodeImage* ImageNode = pPatch->Image.get();
+			NodeImage* ImageNode = Patch.PatchImage.get();
 			Ptr<ASTOp> BlendOp;
 			if (ImageNode)
 			{
@@ -457,7 +454,7 @@ namespace mu
 			}
 			else
 			{
-				BlendOp = GenerateMissingImageCode(TEXT("Patch top image"), EImageFormat::IF_RGB_UBYTE, pPatch->GetMessageContext(), ImageOptions);
+				BlendOp = GenerateMissingImageCode(TEXT("Patch top image"), EImageFormat::IF_RGB_UBYTE, nullptr, ImageOptions);
 			}
 			BlendOp = GenerateImageFormat(BlendOp, InBlockOp->GetImageDesc().m_format);
 			BlendOp = GenerateImageSize(BlendOp, ImageOptions.RectSize);
@@ -475,7 +472,7 @@ namespace mu
 				RectConstantOp = ConstantResult.op;
 			}
 
-			NodeImage* MaskNode = pPatch->Mask.get();
+			NodeImage* MaskNode = Patch.PatchMask.get();
 			Ptr<ASTOp> MaskOp;
 			if (MaskNode)
 			{
@@ -794,7 +791,7 @@ namespace mu
 	}
 
 
-	Ptr<Image> CodeGenerator::GenerateImageBlockPatchMask(const NodePatchImage* Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells )
+	Ptr<Image> CodeGenerator::GenerateImageBlockPatchMask(const NodeSurfaceEdit::FTexture& Patch, FIntPoint GridSize, int32 BlockPixelsX, int32 BlockPixelsY, box<FIntVector2> RectInCells )
 	{
 		// Create a patching mask for the block
 		Ptr<Image> PatchMask;
@@ -805,7 +802,7 @@ namespace mu
 		BlockRectInPixels.Min = { RectInCells.min[0] * BlockPixelsX, RectInCells.min[1] * BlockPixelsY };
 		BlockRectInPixels.Max = { (RectInCells.min[0] + RectInCells.size[0]) * BlockPixelsX, (RectInCells.min[1] + RectInCells.size[1]) * BlockPixelsY };
 
-		for (const FBox2f& PatchRect : Patch->Blocks)
+		for (const FBox2f& PatchRect : Patch.PatchBlocks)
 		{
 			// Does the patch rect intersects the current block at all?
 			FInt32Rect PatchRectInPixels;
@@ -952,66 +949,63 @@ namespace mu
             {
                 const FirstPassGenerator::FSurface::FEdit& e = edits[editIndex];
 
-                if ( e.Node->Mesh)
+                if ( Ptr<NodeMesh> pAdd = e.Node->MeshAdd)
                 {
-                    if ( NodeMeshPtr pAdd = e.Node->Mesh->GetAdd() )
-                    {
-						// Store the data necessary to apply modifiers for the pre-normal operations stage.
-						ActiveTags.Add(e.Node->Tags);
+					// Store the data necessary to apply modifiers for the pre-normal operations stage.
+					ActiveTags.Add(e.Node->EnableTags);
 						
-						FMeshGenerationOptions MergedMeshOptions;
-						MergedMeshOptions.bLayouts = true;
-						MergedMeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
-						MergedMeshOptions.bNormalizeUVs = bNormalizeUVs;
-						MergedMeshOptions.State = Options.State;
-						MergedMeshOptions.ActiveTags = e.Node->Tags;
+					FMeshGenerationOptions MergedMeshOptions;
+					MergedMeshOptions.bLayouts = true;
+					MergedMeshOptions.bClampUVIslands = bShareSurface && bNormalizeUVs;
+					MergedMeshOptions.bNormalizeUVs = bNormalizeUVs;
+					MergedMeshOptions.State = Options.State;
+					MergedMeshOptions.ActiveTags = e.Node->EnableTags;
 
-						if (SharedMeshResults)
-						{
-							check(SharedMeshResults->ExtraMeshLayouts.Num()>editIndex);
-							MergedMeshOptions.OverrideLayouts = SharedMeshResults->ExtraMeshLayouts[editIndex].GeneratedLayouts;
-						}
+					if (SharedMeshResults)
+					{
+						check(SharedMeshResults->ExtraMeshLayouts.Num()>editIndex);
+						MergedMeshOptions.OverrideLayouts = SharedMeshResults->ExtraMeshLayouts[editIndex].GeneratedLayouts;
+					}
 
-						FMeshGenerationResult addResults;
-                        GenerateMesh(MergedMeshOptions, addResults, pAdd);
+					FMeshGenerationResult addResults;
+                    GenerateMesh(MergedMeshOptions, addResults, pAdd);
 
-						ActiveTags.Pop();
+					ActiveTags.Pop();
 
-                        baseMeshesForEachAddedMesh[e.Node] = addResults.BaseMeshOp;
+                    baseMeshesForEachAddedMesh[e.Node] = addResults.BaseMeshOp;
 
-						// Apply the modifier for the post-normal operations stage to the added mesh
-						bool bModifiersForBeforeOperations = false;
-						FGenericGenerationOptions ModifierOptions(Options);
-						ModifierOptions.ActiveTags = e.Node->Tags;
-						lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
+					// Apply the modifier for the post-normal operations stage to the added mesh
+					bool bModifiersForBeforeOperations = false;
+					FGenericGenerationOptions ModifierOptions(Options);
+					ModifierOptions.ActiveTags = e.Node->EnableTags;
+					lastMeshOp = ApplyMeshModifiers(Options, lastMeshOp, bModifiersForBeforeOperations, surfaceNode->GetMessageContext());
 
-                        FMeshGenerationResult::FExtraLayouts data;
-						data.GeneratedLayouts = addResults.GeneratedLayouts;
-						data.Condition = e.Condition;
-                        data.MeshFragment = addResults.MeshOp;
-                        meshResults.ExtraMeshLayouts[editIndex] = data;
+                    FMeshGenerationResult::FExtraLayouts data;
+					data.GeneratedLayouts = addResults.GeneratedLayouts;
+					data.Condition = e.Condition;
+                    data.MeshFragment = addResults.MeshOp;
+                    meshResults.ExtraMeshLayouts[editIndex] = data;
 
-                        Ptr<ASTOpFixed> mop = new ASTOpFixed();
-                        mop->op.type = OP_TYPE::ME_MERGE;
-                        mop->SetChild(mop->op.args.MeshMerge.base, lastMeshOp );
-                        mop->SetChild(mop->op.args.MeshMerge.added, addResults.MeshOp );
-                        // will merge the meshes under the same surface
-                        mop->op.args.MeshMerge.newSurfaceID = 0;
+                    Ptr<ASTOpFixed> mop = new ASTOpFixed();
+                    mop->op.type = OP_TYPE::ME_MERGE;
+                    mop->SetChild(mop->op.args.MeshMerge.base, lastMeshOp );
+                    mop->SetChild(mop->op.args.MeshMerge.added, addResults.MeshOp );
+                    // will merge the meshes under the same surface
+                    mop->op.args.MeshMerge.newSurfaceID = 0;
 
-                        // Condition to apply
-                        if (e.Condition)
-                        {
-                            Ptr<ASTOpConditional> conditionalAd = new ASTOpConditional();
-                            conditionalAd->type = OP_TYPE::ME_CONDITIONAL;
-                            conditionalAd->no = lastMeshOp;
-                            conditionalAd->yes = mop;
-                            conditionalAd->condition = e.Condition;
-                            lastMeshOp = conditionalAd;
-                        }
-                        else
-                        {
-                            lastMeshOp = mop;
-                        }
+                    // Condition to apply
+                    if (e.Condition)
+                    {
+                        Ptr<ASTOpConditional> conditionalAd = new ASTOpConditional();
+                        conditionalAd->type = OP_TYPE::ME_CONDITIONAL;
+                        conditionalAd->no = lastMeshOp;
+                        conditionalAd->yes = mop;
+                        conditionalAd->condition = e.Condition;
+                        lastMeshOp = conditionalAd;
+                    }
+                    else
+                    {
+                        lastMeshOp = mop;
                     }
                 }
             }
@@ -1024,44 +1018,41 @@ namespace mu
             Ptr<ASTOpMeshRemoveMask> rop;
             for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
-                if ( e.Node->Mesh )
+                if ( Ptr<NodeMesh> pRemove = e.Node->MeshRemove )
                 {
-                    if ( NodeMeshPtr pRemove = e.Node->Mesh->GetRemove() )
+                    FMeshGenerationResult removeResults;
+					FMeshGenerationOptions RemoveMeshOptions;
+					RemoveMeshOptions.bLayouts = false;
+					RemoveMeshOptions.State = Options.State;
+					RemoveMeshOptions.ActiveTags = e.Node->EnableTags;
+
+                    GenerateMesh(RemoveMeshOptions, removeResults, pRemove );
+
+                    Ptr<ASTOpFixed> maskOp = new ASTOpFixed();
+                    maskOp->op.type = OP_TYPE::ME_MASKDIFF;
+
+                    // By default, remove from the base
+                    Ptr<ASTOp> removeFrom = meshResults.BaseMeshOp;
+                    // See if we want to remove from an added mesh instead.
+                    if ( e.Node->Parent )
                     {
-                        FMeshGenerationResult removeResults;
-						FMeshGenerationOptions RemoveMeshOptions;
-						RemoveMeshOptions.bLayouts = false;
-						RemoveMeshOptions.State = Options.State;
-						RemoveMeshOptions.ActiveTags = e.Node->Tags;
-
-                        GenerateMesh(RemoveMeshOptions, removeResults, pRemove );
-
-                        Ptr<ASTOpFixed> maskOp = new ASTOpFixed();
-                        maskOp->op.type = OP_TYPE::ME_MASKDIFF;
-
-                        // By default, remove from the base
-                        Ptr<ASTOp> removeFrom = meshResults.BaseMeshOp;
-                        // See if we want to remove from an added mesh instead.
-                        if ( e.Node->Parent )
+                        auto addedBaseMeshIt = baseMeshesForEachAddedMesh.find(e.Node->Parent.get());
+                        if (addedBaseMeshIt!=baseMeshesForEachAddedMesh.end())
                         {
-                            auto addedBaseMeshIt = baseMeshesForEachAddedMesh.find(e.Node->Parent.get());
-                            if (addedBaseMeshIt!=baseMeshesForEachAddedMesh.end())
-                            {
-                                removeFrom = addedBaseMeshIt->second;
-                            }
+                            removeFrom = addedBaseMeshIt->second;
                         }
-
-                        maskOp->SetChild(maskOp->op.args.MeshMaskDiff.source, removeFrom );
-                        maskOp->SetChild(maskOp->op.args.MeshMaskDiff.fragment, removeResults.MeshOp );
-
-                        if (!rop)
-                        {
-                            rop = new ASTOpMeshRemoveMask();
-                            rop->source = lastMeshOp;
-                        }
-
-                        rop->AddRemove( e.Condition, maskOp );
                     }
+
+                    maskOp->SetChild(maskOp->op.args.MeshMaskDiff.source, removeFrom );
+                    maskOp->SetChild(maskOp->op.args.MeshMaskDiff.fragment, removeResults.MeshOp );
+
+                    if (!rop)
+                    {
+                        rop = new ASTOpMeshRemoveMask();
+                        rop->source = lastMeshOp;
+                    }
+
+                    rop->AddRemove( e.Condition, maskOp );
                 }
             }
 
@@ -1073,7 +1064,7 @@ namespace mu
             // Apply mesh morphs from child objects "edit surface" nodes
             for ( const FirstPassGenerator::FSurface::FEdit& e: edits )
             {
-                if ( NodeMeshPtr pMorph = e.Node->Morph )
+                if ( NodeMeshPtr pMorph = e.Node->MeshMorph )
                 {
 					// Not needed because it has been generated before already.
 					// Base mesh
@@ -1362,7 +1353,8 @@ namespace mu
 								continue;
 							}
 
-							if (const NodePatchImage* Patch = e.Node->Textures[t].Patch.get())
+							const NodeSurfaceEdit::FTexture& Patch = e.Node->Textures[t];
+							if (Patch.PatchImage.get())
 							{
 								// Does the current block need to be patched?
 
@@ -1565,7 +1557,8 @@ namespace mu
 										continue;
 									}
 
-									if (const NodePatchImage* Patch = Edit.Node->Textures[t].Patch.get())
+									const NodeSurfaceEdit::FTexture& Patch = Edit.Node->Textures[t];
+									if (Patch.PatchImage)
 									{
 										// Is the current block to be patched?
 										Ptr<Image> PatchMask = GenerateImageBlockPatchMask( Patch, GridSize, BlockPixelsX, BlockPixelsY, RectInCells );
@@ -2370,7 +2363,7 @@ namespace mu
 				ClipOptions.State = Options.State;
 
 				FMeshGenerationResult clipResult;
-				GenerateMesh(ClipOptions, clipResult, TypedClipNode->GetPrivate()->ClipMesh);
+				GenerateMesh(ClipOptions, clipResult, TypedClipNode->ClipMesh);
 				op->clip = clipResult.MeshOp;
 
 				if (!op->clip)
@@ -2406,7 +2399,7 @@ namespace mu
 				const NodeModifierMeshClipWithUVMask* TypedClipNode = static_cast<const NodeModifierMeshClipWithUVMask*>(m.Node);
 				Ptr<ASTOpMeshMaskClipUVMask> op = new ASTOpMeshMaskClipUVMask();
 				op->Source = preModifiersMesh;
-				op->LayoutIndex = TypedClipNode->GetPrivate()->LayoutIndex;
+				op->LayoutIndex = TypedClipNode->LayoutIndex;
 
 				// Parameters
 				FImageGenerationOptions ClipOptions;
@@ -2415,7 +2408,7 @@ namespace mu
 				ClipOptions.State = Options.State;
 
 				FImageGenerationResult ClipMaskResult;
-				GenerateImage(ClipOptions, ClipMaskResult, TypedClipNode->GetPrivate()->ClipMask);
+				GenerateImage(ClipOptions, ClipMaskResult, TypedClipNode->ClipMask);
 
 				// It could be IF_L_UBIT, but since this should be optimized out at compile time, leave the most cpu efficient.
 				op->Mask = GenerateImageFormat(ClipMaskResult.op, mu::EImageFormat::IF_L_UBYTE);
@@ -2452,7 +2445,7 @@ namespace mu
 
 			if (m.Node->GetType() == NodeModifierMeshClipMorphPlane::GetStaticType())
 			{
-				const NodeModifierMeshClipMorphPlane::Private* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane*>(m.Node)->GetPrivate();
+				const NodeModifierMeshClipMorphPlane* TypedNode = static_cast<const NodeModifierMeshClipMorphPlane*>(m.Node);
 				Ptr<ASTOpMeshClipMorphPlane> op = new ASTOpMeshClipMorphPlane();
 				op->source = lastMeshOp;
 
@@ -2460,10 +2453,10 @@ namespace mu
 				{
 					FShape morphShape;
 					morphShape.type = (uint8_t)FShape::Type::Ellipse;
-					morphShape.position = TypedNode->m_origin;
-					morphShape.up = TypedNode->m_normal;
+					morphShape.position = TypedNode->Parameters.Origin;
+					morphShape.up = TypedNode->Parameters.Normal;
 					// TODO: Move rotation to ellipse rotation reference base instead of passing it directly
-					morphShape.size = FVector3f(TypedNode->m_radius1, TypedNode->m_radius2, TypedNode->m_rotation);
+					morphShape.size = FVector3f(TypedNode->Parameters.Radius1, TypedNode->Parameters.Radius2, TypedNode->Parameters.Rotation);
 
 					// Generate a "side" vector.
 					// \todo: make generic and move to the vector class
@@ -2471,31 +2464,31 @@ namespace mu
 						// Generate vector perpendicular to normal for ellipse rotation reference base
 						FVector3f aux_base(0.f, 1.f, 0.f);
 
-						if (FMath::Abs(FVector3f::DotProduct(TypedNode->m_normal, aux_base)) > 0.95f)
+						if (FMath::Abs(FVector3f::DotProduct(TypedNode->Parameters.Normal, aux_base)) > 0.95f)
 						{
 							aux_base = FVector3f(0.f, 0.f, 1.f);
 						}
 
-						morphShape.side = FVector3f::CrossProduct(TypedNode->m_normal, aux_base);
+						morphShape.side = FVector3f::CrossProduct(TypedNode->Parameters.Normal, aux_base);
 					}
 					op->morphShape = morphShape;
 				}
 
 				// Selection box
-				if (TypedNode->m_vertexSelectionType == NodeModifierMeshClipMorphPlane::Private::VS_SHAPE)
+				if (TypedNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_SHAPE)
 				{
 					op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_SHAPE;
 					FShape selectionShape;
-					selectionShape.type = (uint8_t)FShape::Type::AABox;
-					selectionShape.position = TypedNode->m_selectionBoxOrigin;
-					selectionShape.size = TypedNode->m_selectionBoxRadius;
+					selectionShape.type = (uint8)FShape::Type::AABox;
+					selectionShape.position = TypedNode->Parameters.SelectionBoxOrigin;
+					selectionShape.size = TypedNode->Parameters.SelectionBoxRadius;
 					op->selectionShape = selectionShape;
 				}
-				else if (TypedNode->m_vertexSelectionType == NodeModifierMeshClipMorphPlane::Private::VS_BONE_HIERARCHY)
+				else if (TypedNode->Parameters.VertexSelectionType == FClipMorphPlaneParameters::VS_BONE_HIERARCHY)
 				{
 					op->vertexSelectionType = OP::MeshClipMorphPlaneArgs::VS_BONE_HIERARCHY;
-					op->vertexSelectionBone = TypedNode->m_vertexSelectionBone;
-					op->vertexSelectionBoneMaxRadius = TypedNode->m_maxEffectRadius;
+					op->vertexSelectionBone = TypedNode->Parameters.VertexSelectionBone;
+					op->vertexSelectionBoneMaxRadius = TypedNode->Parameters.MaxEffectRadius;
 				}
 				else
 				{
@@ -2503,8 +2496,8 @@ namespace mu
 				}
 
 				// Parameters
-				op->dist = TypedNode->m_dist;
-				op->factor = TypedNode->m_factor;
+				op->dist = TypedNode->Parameters.DistanceToPlane;
+				op->factor = TypedNode->Parameters.LinearityFactor;
 
 				modifiedMeshOp = op;
 			}
@@ -2533,7 +2526,7 @@ namespace mu
 
 			if (M.Node->GetType()==NodeModifierMeshClipDeform::GetStaticType())
 			{
-				const NodeModifierMeshClipDeform::Private* TypedClipNode = static_cast<const NodeModifierMeshClipDeform*>(M.Node)->GetPrivate();
+				const NodeModifierMeshClipDeform* TypedClipNode = static_cast<const NodeModifierMeshClipDeform*>(M.Node);
 				Ptr<ASTOpMeshBindShape>  BindOp = new ASTOpMeshBindShape();
 				Ptr<ASTOpMeshClipDeform> ClipOp = new ASTOpMeshClipDeform();
 

@@ -52,6 +52,7 @@
 #include "MuT/NodeModifierMeshClipDeform.h"
 #include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeModifierMeshClipWithUVMask.h"
+#include "MuT/NodeModifierMeshClipMorphPlane.h"
 #include "MuT/NodeScalarConstant.h"
 #include "MuT/NodeScalarCurve.h"
 #include "MuT/NodeScalarSwitch.h"
@@ -59,21 +60,14 @@
 #include "MuT/NodeObjectNew.h"
 
 #include "MuT/NodeObjectGroupPrivate.h"
-#include "MuT/NodeModifierPrivate.h"
 #include "MuT/NodeImageFormatPrivate.h"
 #include "MuT/NodeMeshFormatPrivate.h"
-#include "MuT/NodePatchImage.h"
 #include "MuT/NodeMeshConstantPrivate.h"
-#include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
-#include "MuT/NodePatchMeshPrivate.h"
 #include "MuT/NodeImageSwitchPrivate.h"
 #include "MuT/NodeImageLayerColourPrivate.h"
 #include "MuT/NodeImageLayerPrivate.h"
 #include "MuT/NodeImageMipmapPrivate.h"
 #include "MuT/NodeImageResizePrivate.h"
-#include "MuT/NodeModifierMeshClipDeformPrivate.h"
-#include "MuT/NodeModifierMeshClipWithMeshPrivate.h"
-#include "MuT/NodeModifierMeshClipWithUVMaskPrivate.h"
 #include "MuT/NodeImageInterpolatePrivate.h"
 #include "MuT/NodeImagePlainColourPrivate.h"
 #include "MuT/NodeImageProjectPrivate.h"
@@ -369,14 +363,17 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeSurfaceEdit::GetStaticType())
 	{
 		mu::NodeSurfaceEdit* SurfaceEdit = StaticCast<mu::NodeSurfaceEdit*>(ParentNode);
-		AddChildFunc(SurfaceEdit->Mesh.get(), TEXT("MESH"));
-		AddChildFunc(SurfaceEdit->Morph.get(), TEXT("MORPH"));
+		AddChildFunc(SurfaceEdit->MeshAdd.get(), TEXT("MESH_ADD"));
+		AddChildFunc(SurfaceEdit->MeshRemove.get(), TEXT("MESH_REMOVE"));
+		AddChildFunc(SurfaceEdit->MeshMorph.get(), TEXT("MORPH"));
 		AddChildFunc(SurfaceEdit->MorphFactor.get(), TEXT("MORPH_FACTOR"));
 
 		for (int32 l = 0; l < SurfaceEdit->Textures.Num(); ++l)
 		{
 			AddChildFunc(SurfaceEdit->Textures[l].Extend.get(), FString::Printf(TEXT("EXTEND [%d]"), l));
-			AddChildFunc(SurfaceEdit->Textures[l].Patch.get(), FString::Printf(TEXT("PATCH [%d]"), l));
+			AddChildFunc(SurfaceEdit->Textures[l].PatchImage.get(), FString::Printf(TEXT("PATCH IMAGE [%d]"), l));
+			AddChildFunc(SurfaceEdit->Textures[l].PatchMask.get(), FString::Printf(TEXT("PATCH MASK [%d]"), l));
+
 		}
 	}
 
@@ -472,13 +469,6 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 		AddChildFunc(Private->Source.get(), FString::Printf(TEXT("SOURCE MESH")));
 	}
 
-	else if (ParentNode->GetType() == mu::NodePatchImage::GetStaticType())
-	{
-		mu::NodePatchImage* PatchImageVar = StaticCast<mu::NodePatchImage*>(ParentNode);
-		AddChildFunc(PatchImageVar->Image.get(), FString::Printf(TEXT("IMAGE")));
-		AddChildFunc(PatchImageVar->Mask.get(), FString::Printf(TEXT("MASK")));
-	}
-
 	else if (ParentNode->GetType() == mu::NodeModifierMeshClipMorphPlane::GetStaticType())
 	{
 		// Nothing to show
@@ -487,30 +477,19 @@ void SMutableGraphViewer::GetChildrenForInfo(TSharedPtr<FMutableGraphTreeElement
 	else if (ParentNode->GetType() == mu::NodeModifierMeshClipWithMesh::GetStaticType())
 	{
 		mu::NodeModifierMeshClipWithMesh* ModifierMeshClipWithMeshVar = StaticCast<mu::NodeModifierMeshClipWithMesh*>(ParentNode);
-		mu::NodeModifierMeshClipWithMesh::Private* Private = ModifierMeshClipWithMeshVar->GetPrivate();
-		AddChildFunc(Private->ClipMesh.get(), FString::Printf(TEXT("CLIP MESH")));
+		AddChildFunc(ModifierMeshClipWithMeshVar->ClipMesh.get(), FString::Printf(TEXT("CLIP MESH")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeModifierMeshClipDeform::GetStaticType())
 	{
 		mu::NodeModifierMeshClipDeform* ModifierMeshClipDeformVar = StaticCast<mu::NodeModifierMeshClipDeform*>(ParentNode);
-		mu::NodeModifierMeshClipDeform::Private* Private = ModifierMeshClipDeformVar->GetPrivate();
-		AddChildFunc(Private->ClipMesh.get(), FString::Printf(TEXT("CLIP MESH")));
+		AddChildFunc(ModifierMeshClipDeformVar->ClipMesh.get(), FString::Printf(TEXT("CLIP MESH")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeModifierMeshClipWithUVMask::GetStaticType())
 	{
 		mu::NodeModifierMeshClipWithUVMask* ModifierMeshClipWithUVMaskVar = StaticCast<mu::NodeModifierMeshClipWithUVMask*>(ParentNode);
-		mu::NodeModifierMeshClipWithUVMask::Private* Private = ModifierMeshClipWithUVMaskVar->GetPrivate();
-		AddChildFunc(Private->ClipMask.get(), FString::Printf(TEXT("CLIP MASK")));
-	}
-	
-	else if (ParentNode->GetType() == mu::NodePatchMesh::GetStaticType())
-	{
-		mu::NodePatchMesh* PatchMeshVar = StaticCast<mu::NodePatchMesh*>(ParentNode);
-		mu::NodePatchMesh::Private* Private = PatchMeshVar->GetPrivate();
-		AddChildFunc(Private->m_pAdd.get(), FString::Printf(TEXT("ADD")));
-		AddChildFunc(Private->m_pRemove.get(), FString::Printf(TEXT("REMOVE")));
+		AddChildFunc(ModifierMeshClipWithUVMaskVar->ClipMask.get(), FString::Printf(TEXT("CLIP MASK")));
 	}
 
 	else if (ParentNode->GetType() == mu::NodeImageSwitch::GetStaticType())

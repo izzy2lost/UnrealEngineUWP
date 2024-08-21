@@ -5,7 +5,6 @@
 #include "Misc/AssertionMacros.h"
 #include "MuR/MutableMath.h"
 #include "MuT/NodeLayout.h"
-#include "MuT/NodeMeshClipMorphPlanePrivate.h"
 #include "MuT/NodeMeshPrivate.h"
 #include "MuT/NodePrivate.h"
 
@@ -13,77 +12,56 @@
 namespace mu
 {
 
-	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-    FNodeType NodeMeshClipMorphPlane::Private::s_type = FNodeType(Node::EType::MeshClipMorphPlane, NodeMesh::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-    MUTABLE_IMPLEMENT_NODE( NodeMeshClipMorphPlane )
-
-
-	//---------------------------------------------------------------------------------------------
-	// Own Interface
-	//---------------------------------------------------------------------------------------------
-    NodeMeshPtr NodeMeshClipMorphPlane::GetSource() const
+	NodeMeshPtr NodeMeshClipMorphPlane::GetSource() const
 	{
-		return m_pD->m_pSource;
+		return Source;
 	}
 
 
     //---------------------------------------------------------------------------------------------
     void NodeMeshClipMorphPlane::SetSource( NodeMesh* p )
     {
-        m_pD->m_pSource = p;
+        Source = p;
     }
 
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshClipMorphPlane::SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ)
+	void NodeMeshClipMorphPlane::SetPlane(FVector3f Center, FVector3f Normal)
 	{
-		m_pD->m_origin = FVector3f(centerX, centerY, centerZ);
-		m_pD->m_normal = FVector3f(normalX, normalY, normalZ);
+		Parameters.Origin = Center;
+		Parameters.Normal = Normal;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetParams(float dist, float factor)
 	{
-		m_pD->m_dist = dist;
-		m_pD->m_factor = factor;
+		Parameters.DistanceToPlane = dist;
+		Parameters.LinearityFactor = factor;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetMorphEllipse(float radius1, float radius2, float rotation)
 	{
-		m_pD->m_radius1 = radius1;
-		m_pD->m_radius2 = radius2;
-		m_pD->m_rotation = rotation;
+		Parameters.Radius1 = radius1;
+		Parameters.Radius2 = radius2;
+		Parameters.Rotation = rotation;
 	}
 
 	//---------------------------------------------------------------------------------------------
-	void NodeMeshClipMorphPlane::SetVertexSelectionBox(float centerX, float centerY, float centerZ, float radiusX, float radiusY, float radiusZ)
+	void NodeMeshClipMorphPlane::SetVertexSelectionBox(FVector3f Center, FVector3f Radius)
 	{
-		m_pD->m_vertexSelectionType = Private::VS_SHAPE;
-		m_pD->m_selectionBoxOrigin = FVector3f(centerX, centerY, centerZ);
-		m_pD->m_selectionBoxRadius = FVector3f(radiusX, radiusY, radiusZ);
+		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_SHAPE;
+		Parameters.SelectionBoxOrigin = Center;
+		Parameters.SelectionBoxRadius = Radius;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeMeshClipMorphPlane::SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius)
 	{
-		m_pD->m_vertexSelectionType = Private::VS_BONE_HIERARCHY;
-		m_pD->m_vertexSelectionBone = BoneId;
-		m_pD->m_maxEffectRadius = maxEffectRadius;
+		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_BONE_HIERARCHY;
+		Parameters.VertexSelectionBone = BoneId;
+		Parameters.MaxEffectRadius = maxEffectRadius;
 	}
 
-	//---------------------------------------------------------------------------------------------
-	void NodeMeshClipMorphPlane::AddTag(const char* tagName)
-	{
-		m_pD->Tags.Add(tagName);
-	}
 }

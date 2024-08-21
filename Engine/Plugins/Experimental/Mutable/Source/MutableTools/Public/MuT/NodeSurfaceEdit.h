@@ -4,13 +4,12 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/ImageTypes.h"
 #include "MuT/Node.h"
 #include "MuT/NodeSurface.h"
 #include "MuT/NodeMesh.h"
-#include "MuT/NodePatchMesh.h"
 #include "MuT/NodeImage.h"
 #include "MuT/NodeScalar.h"
-#include "MuT/NodePatchImage.h"
 
 
 namespace mu
@@ -25,20 +24,47 @@ namespace mu
 	public:
 
 		Ptr<NodeSurface> Parent;
-		Ptr<NodePatchMesh> Mesh;
-		Ptr<NodeMesh> Morph;
+
+		/** Mesh to remove from the modified surface. */
+		Ptr<NodeMesh> MeshRemove;
+
+		/** Mesh to add to the modified surface. */
+		Ptr<NodeMesh> MeshAdd;
+
+		/** Morph to apply to the modified surface. */
+		Ptr<NodeMesh> MeshMorph;
+
+		/** Factor of the morph to apply. */
 		Ptr<NodeScalar> MorphFactor;
 
+		/** Data for every modified texture. */
 		struct FTexture
 		{
+			/** Image to add if extgending. */
 			Ptr<NodeImage> Extend;
-			Ptr<NodePatchImage> Patch;
+
+			/** Image to blend if patching. */
+			Ptr<NodeImage> PatchImage;
+
+			/** Optional mask controlling the blending area. */
+			Ptr<NodeImage> PatchMask;
+
+			/** Rects in the parent layout homogeneous UV space to patch. */
+			TArray<FBox2f> PatchBlocks;
+
+			/** */
+			EBlendType PatchBlendType = EBlendType::BT_BLEND;
+
+			/** Patch alpha channel as well? */
+			bool bPatchApplyToAlpha = false;
+
 		};
 
+		/** Textures to modify. */
 		TArray<FTexture> Textures;
 
-		//! Tags in this surface edit
-		TArray<FString> Tags;
+		/** Tags enabled by this surface edit. */
+		TArray<FString> EnableTags;
 
 	public:
 

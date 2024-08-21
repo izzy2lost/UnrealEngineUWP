@@ -6,53 +6,37 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
+#include "MuT/NodeImage.h"
 
 
 namespace mu
 {
 
-	// Forward definitions
-	class NodeImage;
-
-	//! This node makes a new component from several meshes and images.
-	//! \ingroup model
+	/** */
 	class MUTABLETOOLS_API NodeModifierMeshClipWithUVMask : public NodeModifier
 	{
 	public:
 
-		NodeModifierMeshClipWithUVMask();
+		/** Image with the regions to remove. It will be interpreted as a bitmap. */
+		Ptr<NodeImage> ClipMask;
 
-		//-----------------------------------------------------------------------------------------
-        // Node interface
-		//-----------------------------------------------------------------------------------------
+		/** Layout index of the UVs to use inthe source mesh to ben clipped with the mask. */
+		uint8 LayoutIndex = 0;
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+	public:
 
-		//-----------------------------------------------------------------------------------------
-        // Own interface
-		//-----------------------------------------------------------------------------------------
-
-		/** Set the expression generating the image witht he UV mask use to clip the mesh. */
-		void SetClipMask(NodeImage*);
-
-		/** Set the UV channel index for the UVs to check against the mask. */
-		void SetLayoutIndex(uint8 LayoutIndex);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeModifierMeshClipWithUVMask();
+		inline ~NodeModifierMeshClipWithUVMask() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

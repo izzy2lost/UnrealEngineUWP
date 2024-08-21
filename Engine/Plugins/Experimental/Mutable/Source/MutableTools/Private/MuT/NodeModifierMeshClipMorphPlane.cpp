@@ -5,7 +5,6 @@
 
 #include "Misc/AssertionMacros.h"
 #include "MuR/MutableMath.h"
-#include "MuT/NodeModifierMeshClipMorphPlanePrivate.h"
 #include "MuT/NodePrivate.h"
 
 
@@ -13,58 +12,44 @@ namespace mu
 {
 
 	//---------------------------------------------------------------------------------------------
-	// Static initialisation
-	//---------------------------------------------------------------------------------------------
-    FNodeType NodeModifierMeshClipMorphPlane::Private::s_type = FNodeType(Node::EType::ModifierMeshClipMorphPlane, NodeModifier::GetStaticType() );
-
-
-	//---------------------------------------------------------------------------------------------
-	//!
-	//---------------------------------------------------------------------------------------------
-
-    MUTABLE_IMPLEMENT_NODE( NodeModifierMeshClipMorphPlane )
-
-
-	//---------------------------------------------------------------------------------------------
 	// Own Interface
 	//---------------------------------------------------------------------------------------------
-    void NodeModifierMeshClipMorphPlane::SetPlane( float centerX, float centerY, float centerZ,
-                                                   float normalX, float normalY, float normalZ)
+    void NodeModifierMeshClipMorphPlane::SetPlane(FVector3f Center, FVector3f Normal)
 	{
-		m_pD->m_origin = FVector3f(centerX, centerY, centerZ);
-		m_pD->m_normal = FVector3f(normalX, normalY, normalZ);
+		Parameters.Origin = Center;
+		Parameters.Normal = Normal;
 	}
 
 
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipMorphPlane::SetParams(float dist, float factor)
 	{
-		m_pD->m_dist = dist;
-		m_pD->m_factor = factor;
+		Parameters.DistanceToPlane = dist;
+		Parameters.LinearityFactor = factor;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipMorphPlane::SetMorphEllipse(float radius1, float radius2, float rotation)
 	{
-		m_pD->m_radius1 = radius1;
-		m_pD->m_radius2 = radius2;
-		m_pD->m_rotation = rotation;
+		Parameters.Radius1 = radius1;
+		Parameters.Radius2 = radius2;
+		Parameters.Rotation = rotation;
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipMorphPlane::SetVertexSelectionBox(float centerX, float centerY, float centerZ, float radiusX, float radiusY, float radiusZ)
 	{
-		m_pD->m_vertexSelectionType = Private::VS_SHAPE;
-		m_pD->m_selectionBoxOrigin = FVector3f(centerX, centerY, centerZ);
-		m_pD->m_selectionBoxRadius = FVector3f(radiusX, radiusY, radiusZ);
+		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_SHAPE;
+		Parameters.SelectionBoxOrigin = FVector3f(centerX, centerY, centerZ);
+		Parameters.SelectionBoxRadius = FVector3f(radiusX, radiusY, radiusZ);
 	}
 
 	//---------------------------------------------------------------------------------------------
 	void NodeModifierMeshClipMorphPlane::SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius)
 	{
-		m_pD->m_vertexSelectionType = Private::VS_BONE_HIERARCHY;
-		m_pD->m_vertexSelectionBone = BoneId;
-		m_pD->m_maxEffectRadius = maxEffectRadius;
+		Parameters.VertexSelectionType = FClipMorphPlaneParameters::VS_BONE_HIERARCHY;
+		Parameters.VertexSelectionBone = BoneId;
+		Parameters.MaxEffectRadius = maxEffectRadius;
 	}
 
 }

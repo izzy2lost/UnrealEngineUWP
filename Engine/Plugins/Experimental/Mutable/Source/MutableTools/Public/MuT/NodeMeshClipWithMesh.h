@@ -11,54 +11,29 @@
 namespace mu
 {
 
-	// Forward definitions
-    class NodeMeshClipWithMesh;
-    typedef Ptr<NodeMeshClipWithMesh> NodeMeshClipWithMeshPtr;
-    typedef Ptr<const NodeMeshClipWithMesh> NodeMeshClipWithMeshConst;
-
-
     //! This node applies a geometric transform represented by a 4x4 matrix to a mesh
 	//! \ingroup model
     class MUTABLETOOLS_API NodeMeshClipWithMesh : public NodeMesh
 	{
 	public:
 
-		NodeMeshClipWithMesh();
+		Ptr<NodeMesh> Source;
+		Ptr<NodeMesh> ClipMesh;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-		virtual const FNodeType* GetType() const;
-		static const FNodeType* GetStaticType();
-
-		//-----------------------------------------------------------------------------------------
-		// Own Interface
-		//-----------------------------------------------------------------------------------------
-
-		//! Source mesh to be clipped
-        NodeMeshPtr GetSource() const;
-		void SetSource(NodeMesh*);
-
-		void SetClipMesh(NodeMesh*);
-
-		//! Add a tag to the clip morph operation, which will only affect surfaces with the same tag
-		void AddTag(const char* tagName);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-        ~NodeMeshClipWithMesh();
+		inline ~NodeMeshClipWithMesh() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

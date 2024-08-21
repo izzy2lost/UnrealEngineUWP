@@ -4,6 +4,7 @@
 
 #include "MuR/Ptr.h"
 #include "MuR/RefCounted.h"
+#include "MuR/Skeleton.h"
 #include "MuT/Node.h"
 #include "MuT/NodeModifier.h"
 
@@ -11,33 +12,65 @@
 namespace mu
 {
 
-	// Forward definitions
-	class NodeModifierMeshClipMorphPlane;
-	typedef Ptr<NodeModifierMeshClipMorphPlane> NodeModifierMeshClipMorphPlanePtr;
-	typedef Ptr<const NodeModifierMeshClipMorphPlane> NodeModifierMeshClipMorphPlanePtrConst;
+	/** */
+	struct FClipMorphPlaneParameters
+	{
+		// Morph field parameters
 
-	struct FBoneName;
+		 //! Distance to the plane of last affected vertex
+		float DistanceToPlane = 0;
 
-	//! This node makes a new component from several meshes and images.
-	//! \ingroup model
+		//! "Linearity" factor of the influence.
+		float LinearityFactor = 0;
+
+		// Ellipse location
+		FVector3f Origin = FVector3f(0, 0, 0);
+		FVector3f Normal = FVector3f(0, 0, 0);
+		float Radius1 = 0, Radius2 = 0, Rotation = 0;
+
+		//! Typed of vertex selection
+		typedef enum
+		{
+			//! All vertices, so no extra info is needed
+			VS_ALL,
+
+			//! Select vertices inside a shape
+			VS_SHAPE,
+
+			//! Select all vertices affected by any bone in a sub hierarchy
+			VS_BONE_HIERARCHY,
+		} EVertexSelection;
+
+		// Vertex selection box
+		uint8 VertexSelectionType = VS_ALL;
+		FVector3f SelectionBoxOrigin = FVector3f(0, 0, 0);
+		FVector3f SelectionBoxRadius = FVector3f(0, 0, 0);
+		FBoneName VertexSelectionBone;
+
+		// Max distance a vertex can have to the bone in order to be affected. A negative value
+		// means no limit.
+		float MaxEffectRadius = -1.0f;
+	};
+
+
+	/** */
 	class MUTABLETOOLS_API NodeModifierMeshClipMorphPlane : public NodeModifier
 	{
 	public:
 
-		NodeModifierMeshClipMorphPlane();
+		FClipMorphPlaneParameters Parameters;
 
-		//-----------------------------------------------------------------------------------------
-        // Node interface
-		//-----------------------------------------------------------------------------------------
+	public:
 
-        const FNodeType* GetType() const override;
-		static const FNodeType* GetStaticType();
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
         // Own interface
 		//-----------------------------------------------------------------------------------------
 
-		void SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ);
+		void SetPlane(FVector3f Center, FVector3f Normal);
 		void SetParams(float dist, float factor);
 		void SetMorphEllipse(float radius1, float radius2, float rotation);
 
@@ -49,20 +82,14 @@ namespace mu
 		//! Only one of Box or Bone Hierarchy can be used (the last one set)
 		void SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius);
 
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
-
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-		~NodeModifierMeshClipMorphPlane();
+		~NodeModifierMeshClipMorphPlane() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 

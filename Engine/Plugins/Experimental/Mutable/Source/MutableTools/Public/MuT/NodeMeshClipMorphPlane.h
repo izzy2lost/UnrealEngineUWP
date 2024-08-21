@@ -6,31 +6,26 @@
 #include "MuR/RefCounted.h"
 #include "MuT/Node.h"
 #include "MuT/NodeMesh.h"
+#include "MuT/NodeModifierMeshClipMorphPlane.h"
 
 
 namespace mu
 {
-
-	// Forward definitions
-    class NodeMeshClipMorphPlane;
-    typedef Ptr<NodeMeshClipMorphPlane> NodeMeshClipMorphPlanePtr;
-    typedef Ptr<const NodeMeshClipMorphPlane> NodeMeshClipMorphPlaneConst;
-
-	struct FBoneName;
 
     //! This node applies a geometric transform represented by a 4x4 matrix to a mesh
     class MUTABLETOOLS_API NodeMeshClipMorphPlane : public NodeMesh
 	{
 	public:
 
-		NodeMeshClipMorphPlane();
+		Ptr<NodeMesh> Source;
 
-		//-----------------------------------------------------------------------------------------
-		// Node Interface
-		//-----------------------------------------------------------------------------------------
+		FClipMorphPlaneParameters Parameters;
 
-		virtual const FNodeType* GetType() const;
-		static const FNodeType* GetStaticType();
+	public:
+
+		// Node interface
+		virtual const FNodeType* GetType() const override { return &StaticType; }
+		static const FNodeType* GetStaticType() { return &StaticType; }
 
 		//-----------------------------------------------------------------------------------------
 		// Own Interface
@@ -40,36 +35,28 @@ namespace mu
         NodeMeshPtr GetSource() const;
 		void SetSource( NodeMesh* );
 
-		void SetPlane(float centerX, float centerY, float centerZ, float normalX, float normalY, float normalZ);
+		void SetPlane(FVector3f Center, FVector3f Normal);
 		void SetParams(float dist, float factor);
 		void SetMorphEllipse(float radius1, float radius2, float rotation);
 
 		//! Define an axis-aligned box that will select the vertices to be morphed.
 		//! If this is not set, or the size of the box is 0, all vertices will be affected.
 		//! Only one of Box or Bone Hierarchy can be used (the last one set)
-		void SetVertexSelectionBox(float centerX, float centerY, float centerZ, float radiusX, float radiusY, float radiusZ);
+		void SetVertexSelectionBox(FVector3f Center, FVector3f Radius);
 
 		//! Define the root bone of the subhierarchy of the mesh that will be affected.
 		//! Only one of Box or Bone Hierarchy can be used (the last one set)
 		void SetVertexSelectionBone(const FBoneName& BoneId, float maxEffectRadius);
 
-		//! Add a tag to the clip morph operation, which will only affect surfaces with the same tag
-		void AddTag(const char* tagName);
-
-		//-----------------------------------------------------------------------------------------
-		// Interface pattern
-		//-----------------------------------------------------------------------------------------
-		class Private;
-		Private* GetPrivate() const;
 
 	protected:
 
 		//! Forbidden. Manage with the Ptr<> template.
-        ~NodeMeshClipMorphPlane();
+		~NodeMeshClipMorphPlane() {}
 
 	private:
 
-		Private* m_pD;
+		static FNodeType StaticType;
 
 	};
 
