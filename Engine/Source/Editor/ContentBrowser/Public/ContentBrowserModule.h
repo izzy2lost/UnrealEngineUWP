@@ -8,6 +8,7 @@
 #include "ContentBrowserDelegates.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
+#include "Experimental/ContentBrowserViewExtender.h"
 #include "HAL/PlatformCrt.h"
 #include "MRUFavoritesList.h"
 #include "Modules/ModuleInterface.h"
@@ -173,6 +174,12 @@ public:
 	/** Delegates to be called to extend list of content browser Plugin Filters*/
 	virtual TArray<FAddPathViewPluginFilters>& GetAddPathViewPluginFilters() { return PathViewPluginFilters; }
 
+	/** Register a custom view that can show up inside SAssetView in the Content Browser */
+	virtual void SetContentBrowserViewExtender(const TSharedPtr<IContentBrowserViewExtender>& InExtender);
+
+	/** Get the currently registered custom view */
+	virtual TSharedPtr<IContentBrowserViewExtender> GetContentBrowserViewExtender();
+
 	/** Delegate accessors */
 	FOnFilterChanged& GetOnFilterChanged() { return OnFilterChanged; } 
 	FOnSearchBoxChanged& GetOnSearchBoxChanged() { return OnSearchBoxChanged; } 
@@ -248,4 +255,7 @@ private:
 
 	FDefaultSelectedPathsDelegate DefaultSelectedPathsDelegate;
 	FDefaultPathsToExpandDelegate DefaultPathsToExpandDelegate;
+
+	/** Extension used to provide a custom view to the Content Browser */
+	TSharedPtr<IContentBrowserViewExtender> ContentBrowserViewExtender;
 };

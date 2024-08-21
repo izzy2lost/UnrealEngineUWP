@@ -62,7 +62,7 @@ public:
 	bool GetTagValue(const FName Tag, FString& OutString, UObject::FAssetRegistryTag::ETagType* OutType = nullptr) const;
 
 	/** Get the underlying Content Browser item */
-	const FContentBrowserItem& GetItem() const;
+	CONTENTBROWSER_API const FContentBrowserItem& GetItem() const;
 
 	bool IsFolder() const;
 

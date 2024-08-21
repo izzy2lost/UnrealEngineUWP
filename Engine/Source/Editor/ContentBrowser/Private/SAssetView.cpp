@@ -1227,6 +1227,21 @@ void SAssetView::Construct( const FArguments& InArgs )
 	FolderPermissionList = AssetToolsModule.Get().GetFolderPermissionList();
 	WritableFolderPermissionList = AssetToolsModule.Get().GetWritableFolderPermissionList();
 
+	if(InArgs._AllowCustomView)
+	{
+		FContentBrowserModule& ContentBrowserModule = FModuleManager::GetModuleChecked<FContentBrowserModule>(TEXT("ContentBrowser"));
+		ViewExtender = ContentBrowserModule.GetContentBrowserViewExtender();
+
+		// Bind the delegates the custom view is responsible for firing
+		if(ViewExtender)
+		{
+			ViewExtender->OnSelectionChanged().BindSP(this, &SAssetView::AssetSelectionChanged);
+			ViewExtender->OnContextMenuOpened().BindSP(this, &SAssetView::OnGetContextMenuContent);
+			ViewExtender->OnItemScrolledIntoView().BindSP(this, &SAssetView::ItemScrolledIntoView);
+			ViewExtender->OnItemDoubleClicked().BindSP(this, &SAssetView::OnListMouseButtonDoubleClick);
+		}
+	}
+	
 	FEditorWidgetsModule& EditorWidgetsModule = FModuleManager::LoadModuleChecked<FEditorWidgetsModule>("EditorWidgets");
 	TSharedRef<SWidget> AssetDiscoveryIndicator = EditorWidgetsModule.CreateAssetDiscoveryIndicator(EAssetDiscoveryIndicatorScaleMode::Scale_Vertical);
 
@@ -1709,6 +1724,7 @@ TArray<TSharedPtr<FAssetViewItem>> SAssetView::GetSelectedViewItems() const
 		case EAssetViewType::List: return ListView->GetSelectedItems();
 		case EAssetViewType::Tile: return TileView->GetSelectedItems();
 		case EAssetViewType::Column: return ColumnView->GetSelectedItems();
+		case EAssetViewType::Custom: return ViewExtender->GetSelectedItems();
 		default:
 		ensure(0); // Unknown list type
 		return TArray<TSharedPtr<FAssetViewItem>>();
@@ -3388,6 +3404,16 @@ void SAssetView::ExecutePaste()
 	}
 }
 
+bool SAssetView::IsCustomViewSet() const
+{
+	return ViewExtender.IsValid();
+}
+
+TSharedRef<SWidget> SAssetView::CreateCustomView()
+{
+	return IsCustomViewSet() ? ViewExtender->CreateView(&FilteredAssetItems) : SNullWidget::NullWidget;
+}
+
 void SAssetView::ToggleShowAllFolder()
 {
 	const bool bNewValue = !IsShowingAllFolder();
@@ -3844,6 +3870,23 @@ void SAssetView::PopulateViewButtonMenu(UToolMenu* Menu)
 				FExecuteAction::CreateSP( this, &SAssetView::SetCurrentViewTypeFromMenu, EAssetViewType::Column ),
 				FCanExecuteAction(),
 				FIsActionChecked::CreateSP( this, &SAssetView::IsCurrentViewType, EAssetViewType::Column )
+				),
+			EUserInterfaceActionType::RadioButton
+			);
+
+		const FText CustomViewLabel = ViewExtender ? ViewExtender->GetViewDisplayName() : LOCTEXT("CustomViewOption", "Custom");
+		const FText CustomViewTooltip = ViewExtender ? ViewExtender->GetViewTooltipText() : LOCTEXT("CustomViewOptionToolTip", "A user specified custom view.");
+
+		Section.AddMenuEntry(
+			"CustomView",
+			CustomViewLabel,
+			CustomViewTooltip,
+			FSlateIcon(),
+			FUIAction(
+				FExecuteAction::CreateSP( this, &SAssetView::SetCurrentViewTypeFromMenu, EAssetViewType::Custom ),
+				FCanExecuteAction(),
+				FIsActionChecked::CreateSP( this, &SAssetView::IsCurrentViewType, EAssetViewType::Custom ),
+				FIsActionButtonVisible::CreateSP(this, &SAssetView::IsCustomViewSet)
 				),
 			EUserInterfaceActionType::RadioButton
 			);
@@ -4594,6 +4637,15 @@ void SAssetView::SetCurrentViewType(EAssetViewType::Type NewType)
 {
 	if ( ensure(NewType != EAssetViewType::MAX) && NewType != CurrentViewType )
 	{
+		// If we are setting to the custom type, but the view extender does not exist for some reason - default back to tile
+		if(NewType == EAssetViewType::Custom)
+		{
+			if(!IsCustomViewSet())
+			{
+				NewType = EAssetViewType::Tile;
+			}
+		}
+		
 		ResetQuickJump();
 
 		CurrentViewType = NewType;
@@ -4668,6 +4720,11 @@ void SAssetView::CreateCurrentView()
 			ColumnView = CreateColumnView();
 			NewView = CreateShadowOverlay(ColumnView.ToSharedRef());
 			break;
+		case EAssetViewType::Custom:
+			// The custom view does not necessarily have an accessible list, so we create a generic scroll border
+			CustomView = CreateCustomView();
+			NewView = CustomView.ToSharedRef();
+			break;
 	}
 	
 	ViewContainer->SetContent( NewView );
@@ -4713,6 +4770,7 @@ void SAssetView::RefreshList()
 		case EAssetViewType::List: ListView->RequestListRefresh(); break;
 		case EAssetViewType::Tile: TileView->RequestListRefresh(); break;
 		case EAssetViewType::Column: ColumnView->RequestListRefresh(); break;
+		case EAssetViewType::Custom: ViewExtender->OnItemListChanged(&FilteredAssetItems); break;
 	}
 }
 
@@ -4723,6 +4781,7 @@ void SAssetView::SetSelection(const TSharedPtr<FAssetViewItem>& Item)
 		case EAssetViewType::List: ListView->SetSelection(Item); break;
 		case EAssetViewType::Tile: TileView->SetSelection(Item); break;
 		case EAssetViewType::Column: ColumnView->SetSelection(Item); break;
+		case EAssetViewType::Custom: ViewExtender->SetSelection(Item, true, ESelectInfo::Direct); break;
 	}
 }
 
@@ -4733,6 +4792,7 @@ void SAssetView::SetItemSelection(const TSharedPtr<FAssetViewItem>& Item, bool b
 		case EAssetViewType::List: ListView->SetItemSelection(Item, bSelected, SelectInfo); break;
 		case EAssetViewType::Tile: TileView->SetItemSelection(Item, bSelected, SelectInfo); break;
 		case EAssetViewType::Column: ColumnView->SetItemSelection(Item, bSelected, SelectInfo); break;
+		case EAssetViewType::Custom: ViewExtender->SetSelection(Item, bSelected, SelectInfo); break;
 	}
 }
 
@@ -4743,6 +4803,7 @@ void SAssetView::RequestScrollIntoView(const TSharedPtr<FAssetViewItem>& Item)
 		case EAssetViewType::List: ListView->RequestScrollIntoView(Item); break;
 		case EAssetViewType::Tile: TileView->RequestScrollIntoView(Item); break;
 		case EAssetViewType::Column: ColumnView->RequestScrollIntoView(Item); break;
+		case EAssetViewType::Custom: ViewExtender->RequestScrollIntoView(Item); break;
 	}
 }
 
@@ -4775,6 +4836,7 @@ void SAssetView::ClearSelection(bool bForceSilent)
 		case EAssetViewType::List: ListView->ClearSelection(); break;
 		case EAssetViewType::Tile: TileView->ClearSelection(); break;
 		case EAssetViewType::Column: ColumnView->ClearSelection(); break;
+		case EAssetViewType::Custom: ViewExtender->ClearSelection(); break;
 	}
 }
 
@@ -5414,6 +5476,10 @@ bool SAssetView::ShouldAllowToolTips() const
 		case EAssetViewType::Column:
 			bIsRightClickScrolling = ColumnView->IsRightClickScrolling();
 			break;
+		
+		case EAssetViewType::Custom:
+			bIsRightClickScrolling = ViewExtender->IsRightClickScrolling();
+			break;
 
 		default:
 			bIsRightClickScrolling = false;
@@ -5589,7 +5655,7 @@ void SAssetView::UpdateThumbnailSizeValue()
 
 bool SAssetView::IsThumbnailScalingAllowed() const
 {
-	return GetCurrentViewType() != EAssetViewType::Column;
+	return GetCurrentViewType() != EAssetViewType::Column && GetCurrentViewType() != EAssetViewType::Custom;
 }
 
 float SAssetView::GetTileViewTypeNameHeight() const

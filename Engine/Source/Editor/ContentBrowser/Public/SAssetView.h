@@ -19,6 +19,7 @@
 #include "ContentBrowserTelemetry.h"
 #include "CoreMinimal.h"
 #include "Delegates/Delegate.h"
+#include "Experimental/ContentBrowserViewExtender.h"
 #include "Framework/Views/ITypedTableView.h"
 #include "HAL/Platform.h"
 #include "HistoryManager.h"
@@ -138,6 +139,7 @@ public:
 		, _ForceShowPluginContent(false)
 		, _ForceHideScrollbar(false)
 		, _ShowDisallowedAssetClassAsUnsupportedItems(false)
+		, _AllowCustomView(false)
 		{}
 
 		/** Called to check if an asset should be filtered out by external code */
@@ -286,6 +288,9 @@ public:
 
 		/** Allow the asset view to display the hidden asset class as unsupported items */
 		SLATE_ARGUMENT(bool, ShowDisallowedAssetClassAsUnsupportedItems)
+
+		/** Allow the asset view to display a custom view registered with the Content Browser module */
+		SLATE_ARGUMENT(bool, AllowCustomView)
 
 		/** Called to check if an asset tag should be display in details view. */
 		SLATE_EVENT( FOnShouldDisplayAssetTag, OnAssetTagWantsToBeDisplayed )
@@ -508,6 +513,9 @@ private:
 
 	/** Creates a new column view */
 	TSharedRef<SAssetColumnView> CreateColumnView();
+	
+	/** Creates a custom view (if specified to the content browser module) */
+	TSharedRef<SWidget> CreateCustomView();
 
 	const FSlateBrush* GetRevisionControlColumnIconBadge() const;
 
@@ -942,6 +950,9 @@ private:
 	/** Handler for Paste */
 	void ExecutePaste();
 
+	/** Check if the custom view view is available */
+	bool IsCustomViewSet() const;
+
 private:
 	friend class FAssetViewFrontendFilterHelper;
 
@@ -1289,6 +1300,12 @@ private:
 
 	/** An Id for the cache of the data sources for the filters compilation */
 	FContentBrowserDataFilterCacheIDOwner FilterCacheID;
+
+	/** An extender to create the custom view */
+	TSharedPtr<IContentBrowserViewExtender> ViewExtender;
+
+	/** The actual widget for the custom view */
+	TSharedPtr<SWidget> CustomView;
 	
 	/*
 	 * Telemetry-related fields

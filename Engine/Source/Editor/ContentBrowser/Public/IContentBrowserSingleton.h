@@ -38,6 +38,7 @@ namespace EAssetViewType
 		List,
 		Tile,
 		Column,
+		Custom,
 
 		MAX
 	};

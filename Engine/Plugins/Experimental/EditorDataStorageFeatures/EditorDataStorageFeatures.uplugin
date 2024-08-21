@@ -43,6 +43,11 @@
 			"Name": "TedsTableViewer",
 			"Type": "Editor"
 		}
+	,
+		{
+			"Name": "TedsContentBrowser",
+			"Type": "Editor"
+		}
 	],
 	"Plugins": [
 	]

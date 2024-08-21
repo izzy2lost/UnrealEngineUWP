@@ -485,7 +485,8 @@ void SContentBrowser::Construct( const FArguments& InArgs, const FName& InInstan
 			.OnSearchOptionsChanged(this, &SContentBrowser::HandleAssetViewSearchOptionsChanged)
 			.bShowPathViewFilters(true)
 			.FillEmptySpaceInTileView(true)
-			.ShowDisallowedAssetClassAsUnsupportedItems(true);
+			.ShowDisallowedAssetClassAsUnsupportedItems(true)
+			.AllowCustomView(true);
 
 	TSharedRef<SWidget> ViewOptions = SNullWidget::NullWidget;
 
