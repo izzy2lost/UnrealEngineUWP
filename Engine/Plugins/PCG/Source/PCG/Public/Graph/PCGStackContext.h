@@ -56,7 +56,10 @@ struct PCG_API FPCGStackFrame
 		Hash = GetTypeHash(LoopIndex);
 	}
 
+	// Stores object this frame refers to. Use SetObject to change this and properly update the hash.
 	TWeakObjectPtr<const UObject> Object;
+
+	// Stores the loop index (if any) that this frame refers to. Use SetLoopIndex to change this and properly update the hash.
 	int32 LoopIndex = INDEX_NONE;
 
 private:

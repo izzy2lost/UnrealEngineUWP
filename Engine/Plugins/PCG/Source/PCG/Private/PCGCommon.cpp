@@ -42,7 +42,7 @@ namespace PCGSystemSwitches
 	TAutoConsoleVariable<bool> CVarDirtyLoadAsPreviewOnLoad(
 		TEXT("pcg.DirtyLoadAsPreviewOnLoad"),
 		true,
-		TEXT("Enables or not dirtying on load for load as preview components.\nTurning off this option will require to force generate or apply a change before this component is regenerated."));
+		TEXT("Enables dirtying on load for load as preview components.\nTurning off this option will require to force generate or apply a change before this component is regenerated."));
 #endif
 }
 
