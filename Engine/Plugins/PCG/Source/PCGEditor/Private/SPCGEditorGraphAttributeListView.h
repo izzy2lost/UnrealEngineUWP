@@ -235,11 +235,11 @@ private:
 	void FocusOnSelection() const;
 	bool CanFocusOnSelection() const;
 
+	/** Returns the current PCG component */
+	TWeakObjectPtr<UPCGComponent> GetPCGComponent() const;
+
 	/** Pointer back to the PCG editor that owns us */
 	TWeakPtr<FPCGEditor> PCGEditorPtr;
-
-	/** Cached PCGComponent being viewed */
-	TWeakObjectPtr<UPCGComponent> PCGComponent;
 
 	/** Cached PCGGraphNode being viewed */
 	TWeakObjectPtr<UPCGEditorGraphNodeBase> PCGEditorGraphNode;

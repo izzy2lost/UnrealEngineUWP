@@ -108,6 +108,9 @@ private:
 	/** Bind commands to delegates */
 	void BindCommands();
 
+	/** Callback to process component changes */
+	void OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap);
+
 	/** Bring up the find tab */
 	void OnFind();
 
@@ -307,6 +310,9 @@ private:
 	/** Called when the selection changes in the GraphEditor */
 	void OnSelectedNodesChanged(const TSet<UObject*>& NewSelection);
 
+	/** Called when the component inspected is generated/cleaned */
+	void OnComponentGenerated(UPCGComponent* InComponent);
+
 	/** Called when the title of a node is changed */
 	void OnNodeTitleCommitted(const FText& NewText, ETextCommit::Type CommitInfo, UEdGraphNode* NodeBeingChanged);
 
@@ -328,10 +334,10 @@ private:
 	void ReplicateExtraNodes() const;
 
 	/** Called when a PCG component unregisters. */
-	void OnComponentUnregistered();
+	void OnComponentUnregistered(UPCGComponent* Component);
 
 	/** Called when a component finishes executing. Useful for updating debugging tools/UIs. */
-	void OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem);
+	void OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem, UPCGComponent* Component);
 
 	/** Trigger any generation required to ensure debug display is up to date. */
 	void UpdateDebugAfterComponentSelection(UPCGComponent* InOldComponent, UPCGComponent* InNewComponent, bool bNewComponentStartedInspecting);

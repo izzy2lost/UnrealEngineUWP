@@ -134,6 +134,21 @@ void FPCGEditorGraphDebugObjectItem::SortChildren(bool bIsAscending, bool bIsRec
 	}
 }
 
+void FPCGEditorGraphDebugObjectItem::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	if (FPCGStack* Stack = GetMutablePCGStack())
+	{
+		TArray<FPCGStackFrame>& StackFrames = Stack->GetStackFramesMutable();
+		if (!StackFrames.IsEmpty())
+		{
+			if (UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.GetEvenIfUnreachable()))
+			{
+				StackFrames[0].SetObject(NewStackRoot);
+			}
+		}
+	}
+}
+
 FString FPCGEditorGraphDebugObjectItem_Actor::GetLabel() const
 {
 	return Actor.IsValid() ? Actor->GetActorNameOrLabel() : FString();
@@ -147,6 +162,16 @@ FString FPCGEditorGraphDebugObjectItem_PCGComponent::GetLabel() const
 	}
 
 	return FString();
+}
+
+void FPCGEditorGraphDebugObjectItem_PCGComponent::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	FPCGEditorGraphDebugObjectItem::OnObjectsReplaced(ReplacementMap);
+
+	if (UObject* NewComponent = ReplacementMap.FindRef(PCGComponent.GetEvenIfUnreachable()))
+	{
+		PCGComponent = Cast<UPCGComponent>(NewComponent);
+	}
 }
 
 FString FPCGEditorGraphDebugObjectItem_PCGSubgraph::GetLabel() const
@@ -381,6 +406,24 @@ void SPCGEditorGraphDebugObjectTree::SetDebugObjectSelection(const FPCGStack& Fu
 	}
 
 	bDisableDebugObjectChangeNotification = false;
+}
+
+void SPCGEditorGraphDebugObjectTree::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	for (FPCGEditorGraphDebugObjectItemPtr& GraphItem : AllGraphItems)
+	{
+		if (GraphItem)
+		{
+			GraphItem->OnObjectsReplaced(ReplacementMap);
+		}
+	}
+
+	// While we'll update the selected original component here (might make stack matching more efficient),
+	// we will not update the previously selected stack, as the selection will be redone anyway.
+	if (UObject* NewComponent = ReplacementMap.FindRef(SelectedOriginalComponent.GetEvenIfUnreachable()))
+	{
+		SelectedOriginalComponent = Cast<UPCGComponent>(NewComponent);
+	}
 }
 
 void SPCGEditorGraphDebugObjectTree::SetNodeBeingInspected(const UPCGNode* InPCGNode)
@@ -841,7 +884,11 @@ void SPCGEditorGraphDebugObjectTree::RestoreTreeState()
 
 		if (ItemStack && SelectedStack == *ItemStack)
 		{
-			DebugObjectTreeView->SetItemSelection(Item, true);
+			if (!DebugObjectTreeView->IsItemSelected(Item))
+			{
+				DebugObjectTreeView->SetItemSelection(Item, true);
+			}
+			
 			bFoundMatchingStack = true;
 			break;
 		}
@@ -919,7 +966,11 @@ void SPCGEditorGraphDebugObjectTree::RestoreTreeState()
 					Parent = Parent->GetParent();
 				}
 
-				DebugObjectTreeView->SetItemSelection(Item, true);
+				if (!DebugObjectTreeView->IsItemSelected(Item))
+				{
+					DebugObjectTreeView->SetItemSelection(Item, true);
+				}
+				
 				break;
 			}
 		}

@@ -216,8 +216,6 @@ void SPCGEditorGraphProfilingView::Construct(const FArguments& InArgs, TSharedPt
 	if (PCGEditor)
 	{
 		PCGEditorGraph = PCGEditor->GetPCGEditorGraph();
-		PCGComponent = PCGEditor->GetPCGComponentBeingInspected();
-
 		PCGEditor->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphProfilingView::OnDebugStackChanged);
 	}
 
@@ -690,7 +688,7 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 		return FReply::Handled();
 	}
 
-	const UPCGComponent* Component = PCGComponent.Get();
+	const UPCGComponent* Component = GetPCGComponent().Get();
 	if (!Component)
 	{
 		return FReply::Handled();
@@ -785,25 +783,12 @@ FReply SPCGEditorGraphProfilingView::Refresh()
 void SPCGEditorGraphProfilingView::OnDebugStackChanged(const FPCGStack& InPCGStack)
 {
 	PCGStack = InPCGStack;
-
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-	}
-
-	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
-
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.AddSP(this, &SPCGEditorGraphProfilingView::OnGenerateUpdated);
-	}
-
-	Refresh();
+	RequestRefresh();
 }
 
-void SPCGEditorGraphProfilingView::OnGenerateUpdated(UPCGComponent* InPCGComponent)
+TWeakObjectPtr<UPCGComponent> SPCGEditorGraphProfilingView::GetPCGComponent() const
 {
-	Refresh();
+	return PCGEditorPtr.IsValid() ? PCGEditorPtr.Pin()->GetPCGComponentBeingInspected() : nullptr;
 }
 
 TSharedRef<ITableRow> SPCGEditorGraphProfilingView::OnGenerateRow(PCGProfilingListViewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable) const

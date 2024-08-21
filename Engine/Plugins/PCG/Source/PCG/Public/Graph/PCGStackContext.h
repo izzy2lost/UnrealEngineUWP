@@ -25,15 +25,13 @@ struct PCG_API FPCGStackFrame
 	FPCGStackFrame() {}
 
 	explicit FPCGStackFrame(TWeakObjectPtr<const UObject> InObject)
-		: Object(InObject)
 	{
-		Hash = PointerHash(Object.Get());
+		SetObject(InObject);
 	}
 
 	explicit FPCGStackFrame(int32 InLoopIndex)
-		: LoopIndex(InLoopIndex)
 	{
-		Hash = GetTypeHash(LoopIndex);
+		SetLoopIndex(InLoopIndex);
 	}
 
 	bool operator==(const FPCGStackFrame& Other) const { return Object == Other.Object && LoopIndex == Other.LoopIndex; }
@@ -43,6 +41,20 @@ struct PCG_API FPCGStackFrame
 
 	// A valid frame should either point to an object or have a loop index >= 0.
 	bool IsValid() const { return LoopIndex != INDEX_NONE || Object.IsValid(); }
+
+	void SetObject(TWeakObjectPtr<const UObject> InObject)
+	{
+		Object = InObject;
+		LoopIndex = INDEX_NONE;
+		Hash = PointerHash(Object.Get());
+	}
+
+	void SetLoopIndex(int32 InLoopIndex)
+	{
+		Object = nullptr;
+		LoopIndex = InLoopIndex;
+		Hash = GetTypeHash(LoopIndex);
+	}
 
 	TWeakObjectPtr<const UObject> Object;
 	int32 LoopIndex = INDEX_NONE;
@@ -124,14 +136,15 @@ public:
 		return Hash;
 	}
 
+private:
+	TArray<FPCGStackFrame> StackFrames;
+
+public:
 #if WITH_EDITOR
 	// Used to store node & hierarchy information
 	UE_DEPRECATED(5.5, "The timer has been moved to the FPCGContext struct.")
 	PCGUtils::FCallTime Timer;
 #endif
-
-private:
-	TArray<FPCGStackFrame> StackFrames;
 };
 
 /** A collection of call stacks. */

@@ -650,7 +650,7 @@ void UPCGComponent::PostProcessGraph(const FBox& InNewBounds, bool bInGenerated,
 	StopGenerationInProgress();
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
+	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem, IsValid(this) ? this : nullptr);
 #endif
 }
 
@@ -758,7 +758,7 @@ void UPCGComponent::OnProcessGraphAborted(bool bQuiet)
 	OnPCGGraphCancelledDelegate.Broadcast(this);
 
 	UPCGSubsystem* Subsystem = GetSubsystem();
-	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem);
+	Subsystem->OnComponentGenerationCompleteOrCancelled.Broadcast(Subsystem, this);
 #endif
 
 	PCGComponent::BroadcastDynamicDelegate(OnPCGGraphCancelledExternal, this);
@@ -1555,7 +1555,7 @@ void UPCGComponent::OnUnregister()
 			Subsystem->CancelGeneration(this);
 		}
 
-		Subsystem->OnComponentUnregistered.Broadcast();
+		Subsystem->OnComponentUnregistered.Broadcast(IsValid(this) ? this : nullptr);
 	}
 #endif // WITH_EDITOR
 
@@ -3657,6 +3657,9 @@ void FPCGComponentInstanceData::ApplyToComponent(UActorComponent* Component, con
 			PCGComponent->OnPCGGraphCancelledExternal = ConstructionSourceComponent->OnPCGGraphCancelledExternal;
 			PCGComponent->OnPCGGraphGeneratedExternal = ConstructionSourceComponent->OnPCGGraphGeneratedExternal;
 			PCGComponent->OnPCGGraphCleanedExternal = ConstructionSourceComponent->OnPCGGraphCleanedExternal;
+
+			PCGComponent->bWasGeneratedThisSession = ConstructionSourceComponent->bWasGeneratedThisSession;
+			PCGComponent->InspectionCounter = ConstructionSourceComponent->InspectionCounter;
 #endif
 		}
 

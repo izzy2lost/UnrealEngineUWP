@@ -556,22 +556,13 @@ TSharedRef<SHeaderRow> SPCGEditorGraphAttributeListView::CreateHeaderRowWidget()
 	return SNew(SHeaderRow);
 }
 
+TWeakObjectPtr<UPCGComponent> SPCGEditorGraphAttributeListView::GetPCGComponent() const
+{
+	return PCGEditorPtr.IsValid() ? PCGEditorPtr.Pin()->GetPCGComponentBeingInspected() : nullptr;
+}
+
 void SPCGEditorGraphAttributeListView::OnInspectedStackChanged(const FPCGStack& InPCGStack)
 {
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-		PCGComponent->OnPCGGraphCleanedDelegate.RemoveAll(this);
-	}
-
-	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
-
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnGenerateUpdated);
-		PCGComponent->OnPCGGraphCleanedDelegate.AddSP(this, &SPCGEditorGraphAttributeListView::OnGenerateUpdated);
-	}
-
 	RequestRefresh();
 }
 
@@ -613,6 +604,7 @@ void SPCGEditorGraphAttributeListView::OnGenerateUpdated(UPCGComponent* /*InPCGC
 
 const FPCGDataCollection* SPCGEditorGraphAttributeListView::GetInspectionData(const TSharedPtr<FPinComboBoxItem>& EditorPin) const
 {
+	TWeakObjectPtr<UPCGComponent> PCGComponent = GetPCGComponent();
 	if (!PCGComponent.IsValid())
 	{
 		return nullptr;

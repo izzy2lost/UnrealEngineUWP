@@ -112,6 +112,7 @@ UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph(UPCGGraph* InGraph)
 
 void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<class IToolkitHost>& InToolkitHost, UPCGGraph* InPCGGraph)
 {
+	FCoreUObjectDelegates::OnObjectsReplaced.AddSP(this, &FPCGEditor::OnObjectsReplaced);
 	PCGGraphBeingEdited = InPCGGraph;
 
 	// Initializes the UPCGEditorGraph if needed
@@ -234,6 +235,34 @@ void FPCGEditor::Initialize(const EToolkitMode::Type InMode, const TSharedPtr<cl
 	}
 }
 
+void FPCGEditor::OnObjectsReplaced(const TMap<UObject*, UObject*>& ReplacementMap)
+{
+	if (UObject* NewComponentBeingInspected = ReplacementMap.FindRef(PCGComponentBeingInspected.GetEvenIfUnreachable()))
+	{
+		PCGComponentBeingInspected = Cast<UPCGComponent>(NewComponentBeingInspected);
+	}
+
+	if (UObject* NewLastValidPCGComponentBeingInspected = ReplacementMap.FindRef(LastValidPCGComponentBeingInspected.GetEvenIfUnreachable()))
+	{
+		LastValidPCGComponentBeingInspected = Cast<UPCGComponent>(NewLastValidPCGComponentBeingInspected);
+	}
+
+	TArray<FPCGStackFrame>& StackFrames = StackBeingInspected.GetStackFramesMutable();
+	if (!StackFrames.IsEmpty())
+	{
+		if (UObject* NewStackRoot = ReplacementMap.FindRef(StackFrames[0].Object.GetEvenIfUnreachable()))
+		{
+			StackFrames[0].SetObject(NewStackRoot);
+		}
+	}
+
+	// Propagate object replacement to the debug object tree view too
+	if (DebugObjectTreeWidget)
+	{
+		DebugObjectTreeWidget->OnObjectsReplaced(ReplacementMap);
+	}
+}
+
 UPCGEditorGraph* FPCGEditor::GetPCGEditorGraph()
 {
 	return PCGEditorGraph;
@@ -276,6 +305,20 @@ void FPCGEditor::SetStackBeingInspected(const FPCGStack& FullStack)
 	OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
 
 	UpdateAfterInspectedStackChanged();
+}
+
+void FPCGEditor::OnComponentGenerated(UPCGComponent* InComponent)
+{
+	if (DebugObjectTreeWidget)
+	{
+		DebugObjectTreeWidget->RequestRefresh();
+	}
+
+	if(InComponent == GetPCGComponentBeingInspected())
+	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(FPCGEditor::SetStackBeingInspected::BroadcastStackBeingInspected);
+		OnInspectedStackChangedDelegate.Broadcast(StackBeingInspected);
+	}
 }
 
 void FPCGEditor::UpdateAfterInspectedStackChanged()
@@ -2870,6 +2913,8 @@ void FPCGEditor::OnClose()
 		UnregisterDelegatesForWorld(GEditor->GetEditorWorldContext().World());
 		UnregisterDelegatesForWorld(GEditor->PlayWorld.Get());
 	}
+
+	FCoreUObjectDelegates::OnObjectsReplaced.RemoveAll(this);
 }
 
 void FPCGEditor::InitToolMenuContext(FToolMenuContext& MenuContext)
@@ -3017,15 +3062,23 @@ void FPCGEditor::JumpToDefinition(const UClass* Class) const
 	}
 }
 
-void FPCGEditor::OnComponentUnregistered()
+void FPCGEditor::OnComponentUnregistered(UPCGComponent* Component)
 {
 	// Refresh the debug object tree to avoid stale entries from components that have been unregistered.
-	DebugObjectTreeWidget->RequestRefresh();
+	if (!Component || Component->GetGraph() == PCGGraphBeingEdited)
+	{
+		DebugObjectTreeWidget->RequestRefresh();
+	}
 }
 
-void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem)
+void FPCGEditor::OnComponentGenerationCompleteOrCancelled(UPCGSubsystem* Subsystem, UPCGComponent* Component)
 {
-	DebugObjectTreeWidget->RequestRefresh();
+	if(Component && Component->GetGraph() != PCGGraphBeingEdited)
+	{
+		return;
+	}
+
+	OnComponentGenerated(Component);
 
 	const bool CacheDebuggingEnabled = Subsystem && Subsystem->IsGraphCacheDebuggingEnabled();
 

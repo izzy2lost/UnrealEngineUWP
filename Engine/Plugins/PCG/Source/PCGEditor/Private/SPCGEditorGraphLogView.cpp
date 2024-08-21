@@ -120,8 +120,6 @@ void SPCGEditorGraphLogView::Construct(const FArguments& InArgs, TSharedPtr<FPCG
 	if (PCGEditor)
 	{
 		PCGEditorGraph = PCGEditor->GetPCGEditorGraph();
-		PCGComponent = PCGEditor->GetPCGComponentBeingInspected();
-
 		PCGEditor->OnInspectedStackChangedDelegate.AddSP(this, &SPCGEditorGraphLogView::OnDebugStackChanged);
 	}
 
@@ -192,6 +190,17 @@ void SPCGEditorGraphLogView::Construct(const FArguments& InArgs, TSharedPtr<FPCG
 	];
 
 	Refresh();
+}
+
+void SPCGEditorGraphLogView::Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime)
+{
+	SCompoundWidget::Tick(AllottedGeometry, InCurrentTime, InDeltaTime);
+
+	if (bNeedsRefresh)
+	{
+		bNeedsRefresh = false;
+		Refresh();
+	}
 }
 
 TSharedRef<SHeaderRow> SPCGEditorGraphLogView::CreateHeaderRowWidget()
@@ -268,7 +277,7 @@ FReply SPCGEditorGraphLogView::Clear()
 		return FReply::Handled();
 	}
 
-	if (const UPCGComponent* Component = PCGComponent.Get())
+	if (const UPCGComponent* Component = GetPCGComponent().Get())
 	{
 		Component->ExtraCapture.ResetCapturedMessages();
 		Refresh();
@@ -293,7 +302,7 @@ FReply SPCGEditorGraphLogView::Refresh()
 		return FReply::Handled();
 	}
 
-	const UPCGComponent* Component = PCGComponent.Get();
+	const UPCGComponent* Component = GetPCGComponent().Get();
 
 	if (!Component)
 	{
@@ -349,7 +358,7 @@ void SPCGEditorGraphLogView::CreateAndAddItem(const UPCGEditorGraphNode* InPCGEd
 
 	check(PCGEditor);
 
-	const UPCGComponent* Component = PCGComponent.Get();
+	const UPCGComponent* Component = GetPCGComponent().Get();
 
 	if (!Component || !InPCGEditorNode || !InPCGNode)
 	{
@@ -398,26 +407,14 @@ void SPCGEditorGraphLogView::CreateAndAddItem(const UPCGEditorGraphNode* InPCGEd
 	}
 }
 
-void SPCGEditorGraphLogView::OnDebugStackChanged(const FPCGStack& InPCGStack)
+TWeakObjectPtr<UPCGComponent> SPCGEditorGraphLogView::GetPCGComponent() const
 {
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.RemoveAll(this);
-	}
-
-	PCGComponent = const_cast<UPCGComponent*>(InPCGStack.GetRootComponent());
-
-	if (PCGComponent.IsValid())
-	{
-		PCGComponent->OnPCGGraphGeneratedDelegate.AddSP(this, &SPCGEditorGraphLogView::OnGenerateUpdated);
-	}
-
-	Refresh();
+	return PCGEditorPtr.IsValid() ? PCGEditorPtr.Pin()->GetPCGComponentBeingInspected() : nullptr;
 }
 
-void SPCGEditorGraphLogView::OnGenerateUpdated(UPCGComponent* InPCGComponent)
+void SPCGEditorGraphLogView::OnDebugStackChanged(const FPCGStack& InPCGStack)
 {
-	Refresh();
+	RequestRefresh();
 }
 
 TSharedRef<ITableRow> SPCGEditorGraphLogView::OnGenerateRow(PCGLogListViewItemPtr Item, const TSharedRef<STableViewBase>& OwnerTable) const
