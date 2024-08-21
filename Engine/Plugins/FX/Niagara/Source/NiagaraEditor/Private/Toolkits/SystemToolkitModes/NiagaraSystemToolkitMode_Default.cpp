@@ -74,7 +74,6 @@ FNiagaraSystemToolkitMode_Default::FNiagaraSystemToolkitMode_Default(TWeakPtr<FN
 					->AddTab(DetailsTabID, ETabState::OpenedTab)
 					->AddTab(SelectedEmitterGraphTabID, ETabState::ClosedTab)
 					->AddTab(SystemScriptTabID, ETabState::ClosedTab)
-					->AddTab(DebugSpreadsheetTabID, ETabState::ClosedTab)
 					->AddTab(PreviewSettingsTabId, ETabState::ClosedTab)
 					->AddTab(GeneratedCodeTabID, ETabState::ClosedTab)
 				)
