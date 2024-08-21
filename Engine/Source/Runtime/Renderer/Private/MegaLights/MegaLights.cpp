@@ -136,7 +136,7 @@ static TAutoConsoleVariable<int32> CVarMegaLightsTexturedRectLights(
 
 static TAutoConsoleVariable<int32> CVarMegaLightsLightFunctions(
 	TEXT("r.MegaLights.LightFunctions"),
-	0,
+	1,
 	TEXT("Whether to support light functions."),
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
