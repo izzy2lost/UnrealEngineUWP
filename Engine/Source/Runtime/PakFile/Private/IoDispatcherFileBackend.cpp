@@ -1954,7 +1954,7 @@ FIoRequestImpl* FFileIoStore::GetCompletedIoRequests()
 		}
 
 		const UE::Tasks::ETaskPriority IoDispatcherTaskPriority =
-			CPrio_IoDispatcherTaskPriority.Get() == ENamedThreads::BackgroundThreadPriority ?
+			EnumHasAnyFlags(CPrio_IoDispatcherTaskPriority.Get(), ENamedThreads::BackgroundThreadPriority) ?
 				UE::Tasks::ETaskPriority::BackgroundNormal :
 				UE::Tasks::ETaskPriority::Normal;
 
