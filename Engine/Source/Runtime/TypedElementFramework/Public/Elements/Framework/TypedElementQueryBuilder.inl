@@ -1201,13 +1201,13 @@ e.g. void(FCachedQueryContext<Subsystem1, const Subsystem2>& Context, RowHandle 
 	template<UE::Editor::DataStorage::TValueTagType>
 	FSimpleQuery& FSimpleQuery::All(const FName& Tag)
 	{
-		return All(UE::Editor::DataStorage::FDynamicTag(Tag));
+		return All(UE::Editor::DataStorage::FValueTag(Tag));
 	}
 
 	template<UE::Editor::DataStorage::TValueTagType>
 	FSimpleQuery& FSimpleQuery::All(const FName& Tag, const FName& Value)
 	{
-		return All(UE::Editor::DataStorage::FDynamicTag(Tag), Value);
+		return All(UE::Editor::DataStorage::FValueTag(Tag), Value);
 	}
 	
 	template <TColumnType DynamicColumnTemplate>

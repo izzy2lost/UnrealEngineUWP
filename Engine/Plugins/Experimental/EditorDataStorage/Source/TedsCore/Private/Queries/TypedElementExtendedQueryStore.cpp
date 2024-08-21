@@ -640,12 +640,12 @@ namespace UE::Editor::DataStorage
 			return true;
 		}
 
-		Algo::SortBy(Query.ValueTags, [](const TypedElementDataStorage::FQueryDescription::FDynamicTagData& DynamicTagData)
+		Algo::SortBy(Query.ValueTags, [](const TypedElementDataStorage::FQueryDescription::FValueTagData& ValueTagData)
 			{
-				return DynamicTagData.Tag.GetName();
+				return ValueTagData.Tag.GetName();
 			}, FNameFastLess());
 		// Check if there are any duplicate groups. Not yet supported until we can match multiple MatchTags
-		UE::Editor::DataStorage::FDynamicTag PreviousTag = Query.ValueTags[0].Tag;
+		UE::Editor::DataStorage::FValueTag PreviousTag = Query.ValueTags[0].Tag;
 		for (int32 Index = 1, End = Query.ValueTags.Num(); Index < End; ++Index)
 		{
 			if (Query.ValueTags[Index].Tag == PreviousTag)

@@ -6,16 +6,16 @@ namespace UE
 {
 	namespace Editor::DataStorage
 	{
-		const FName& FDynamicTag::GetName() const
+		const FName& FValueTag::GetName() const
 		{
 			return Name;
 		}
 		
-		FDynamicTag::FDynamicTag(const FName& InTypeName)
+		FValueTag::FValueTag(const FName& InTypeName)
 			: Name(InTypeName)
 		{}
 		
-		uint32 GetTypeHash(const FDynamicTag& InName)
+		uint32 GetTypeHash(const FValueTag& InName)
 		{
 			return GetTypeHash(InName.Name);
 		}

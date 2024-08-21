@@ -15,8 +15,7 @@
 class FName;
 class UScriptStruct;
 
-// The template struct that is used to generate the DynamicTag column
-// It is safe to reinterpret a DynamicTag column to this template to access the Value
+// The template struct that is used to generate the ValueTag column
 USTRUCT()
 struct FTedsValueTagColumn : public FTedsSharedColumn
 {
@@ -89,22 +88,17 @@ namespace UE::Editor::DataStorage
 		TMap<FGeneratedColumnKey, int32> GeneratedColumnLookup;
 	};
 
-	class FDynamicTagManager
+	class FValueTagManager
 	{
 	public:
-		struct FDynamicTagStructLayout
-		{
-			FName Tag;
-		};
-		
-		explicit FDynamicTagManager(FDynamicColumnGenerator& InColumnGenerator);
-		FConstSharedStruct GenerateDynamicTag(const FDynamicTag& InTag, const FName& InValue);
-		const UScriptStruct* GenerateColumnType(const FDynamicTag& InTag);
+		explicit FValueTagManager(FDynamicColumnGenerator& InColumnGenerator);
+		FConstSharedStruct GenerateValueTag(const FValueTag& InTag, const FName& InValue);
+		const UScriptStruct* GenerateColumnType(const FValueTag& InTag);
 	private:
 
 		UE_MT_DECLARE_RW_ACCESS_DETECTOR(AccessDetector);
 
-		TMap<TPair<FDynamicTag, FName>, FConstSharedStruct> DynamicTagLookup;
+		TMap<TPair<FValueTag, FName>, FConstSharedStruct> ValueTagLookup;
 
 		FDynamicColumnGenerator& ColumnGenerator;
 	};

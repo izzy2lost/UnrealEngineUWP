@@ -116,12 +116,12 @@ public:
 	virtual bool IsRowAssigned(RowHandle Row) const override;
 
 	virtual void AddColumn(RowHandle Row, const UScriptStruct* ColumnType) override;
-	virtual void AddColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue) override;
+	virtual void AddColumn(RowHandle Row, const UE::Editor::DataStorage::FValueTag& Tag, const FName& InValue) override;
 	virtual void AddColumnData(RowHandle Row, const UScriptStruct* ColumnType,
 		const ColumnCreationCallbackRef& Initializer,
 		ColumnCopyOrMoveCallback Relocator) override;
 	virtual void RemoveColumn(RowHandle Row, const UScriptStruct* ColumnType) override;
-	virtual void RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag) override;
+	virtual void RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FValueTag& Tag) override;
 	virtual void* GetColumnData(RowHandle Row, const UScriptStruct* ColumnType) override;
 	virtual const void* GetColumnData(RowHandle Row, const UScriptStruct* ColumnType) const override;
 	virtual void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> Columns) override;

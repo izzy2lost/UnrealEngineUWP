@@ -169,7 +169,7 @@ namespace TypedElementQueryBuilder
 		template<UE::Editor::DataStorage::TColumnType T>
 		FSimpleQuery& Any(const FName&);
 
-		// Dynamic Tags not yet supported for Any
+		// ValueTags not yet supported for Any
 		template<UE::Editor::DataStorage::TValueTagType>
 		FSimpleQuery& Any(const FName&) = delete;
 		template<UE::Editor::DataStorage::TValueTagType>
@@ -181,7 +181,7 @@ namespace TypedElementQueryBuilder
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(const UScriptStruct* Target);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& None(TConstArrayView<const UScriptStruct*> Targets);
 		
-		// Dynamic Tags not yet supported for None
+		// ValueTags not yet supported for None
 		template<UE::Editor::DataStorage::TValueTagType>
 		FSimpleQuery& None(const FName& Tag) = delete;
 		template<UE::Editor::DataStorage::TValueTagType>
@@ -192,13 +192,13 @@ namespace TypedElementQueryBuilder
 		template<UE::Editor::DataStorage::TColumnType T>
 		FSimpleQuery& None(const FName&);
 		
-		// Dynamic Tags
+		// Value Tags
 		// ============
-		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FDynamicTag& Tag);
-		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
+		// Adds a filter to the query which must match a given ValueTag.  The value of the ValueTag will not be checked.
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FValueTag& Tag);
+		// Adds a filter to the query which must match a given ValueTag.  The value of the ValueTag must also match.
 		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
-		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FDynamicTag& Tag, const FName& Value);
+		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const FValueTag& Tag, const FName& Value);
 		
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum);
 		TYPEDELEMENTFRAMEWORK_API FSimpleQuery& All(const UEnum& Enum, int64 Value);
@@ -208,10 +208,10 @@ namespace TypedElementQueryBuilder
 		template<UE::Editor::DataStorage::TColumnType T>
 		FSimpleQuery& All(const FName&);
 
-		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag will not be checked.
+		// Adds a filter to the query which must match a given ValueTag.  The value of the DynamicTag will not be checked.
 		template<UE::Editor::DataStorage::TValueTagType>
 		FSimpleQuery& All(const FName& Tag);
-		// Adds a filter to the query which must match a given DynamicTag.  The value of the DynamicTag must also match.
+		// Adds a filter to the query which must match a given ValueTag.  The value of the DynamicTag must also match.
 		// Note: The query can only match a single value.  Multiple value queries are not supported at this time.
 		template<UE::Editor::DataStorage::TValueTagType>
 		FSimpleQuery& All(const FName& Tag, const FName& Value);

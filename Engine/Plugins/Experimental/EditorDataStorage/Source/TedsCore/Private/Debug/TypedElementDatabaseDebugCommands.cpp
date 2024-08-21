@@ -578,8 +578,8 @@ static FAutoConsoleCommand CVarActivateListDynamicColumnQuery(
 	}),
 	ECVF_Default);
 
-static FAutoConsoleCommand CVarAddDynamicTag(
-	TEXT("TEDS.Debug.DynamicTag.AddColumn"),
+static FAutoConsoleCommand CVarAddValueTag(
+	TEXT("TEDS.Debug.ValueTag.AddColumn"),
 	TEXT("Argument: Row, Tag, Value\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -601,11 +601,11 @@ static FAutoConsoleCommand CVarAddDynamicTag(
 		if constexpr (bUseTemplateSugar)
 		{
 			const FName Tag = *Args[1];
-			DataStorage->AddColumn<FDynamicTag>(Row, Tag, Value); 
+			DataStorage->AddColumn<FValueTag>(Row, Tag, Value); 
 		}
 		else
 		{
-			const FDynamicTag Tag(*Args[1]);
+			const FValueTag Tag(*Args[1]);
 			DataStorage->AddColumn(Row, Tag, Value);
 		}
 		
@@ -613,8 +613,8 @@ static FAutoConsoleCommand CVarAddDynamicTag(
 	}),
 	ECVF_Default);
 
-static FAutoConsoleCommand CVarRemoveDynamicTag(
-	TEXT("TEDS.Debug.DynamicTag.RemoveColumn"),
+static FAutoConsoleCommand CVarRemoveValueTag(
+	TEXT("TEDS.Debug.ValueTag.RemoveColumn"),
 	TEXT("Argument: Row, Group\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -633,18 +633,18 @@ static FAutoConsoleCommand CVarRemoveDynamicTag(
 		{
 			using namespace UE::Editor::DataStorage;
 			const FName Tag = *Args[1];
-			DataStorage->RemoveColumn<FDynamicTag>(Row, Tag);
+			DataStorage->RemoveColumn<FValueTag>(Row, Tag);
 		}
 		else
 		{
-			const UE::Editor::DataStorage::FDynamicTag Tag(*Args[1]);
+			const UE::Editor::DataStorage::FValueTag Tag(*Args[1]);
 			DataStorage->RemoveColumn(Row, Tag);
 		}		
 	}),
 	ECVF_Default);
 	
-static FAutoConsoleCommand CVarMatchDynamicTag(
-	TEXT("TEDS.Debug.DynamicTag.RunQuery"),
+static FAutoConsoleCommand CVarMatchValueTag(
+	TEXT("TEDS.Debug.ValueTag.RunQuery"),
 	TEXT("Argument: Tag, [optional] Value\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -668,8 +668,8 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 				return DataStorage->RegisterQuery(
 					Select().
 						Where().
-							// Match all rows with a dynamic tag of type Tag (ie. all rows with a dynamic tag of "Color")
-							All<FDynamicTag>(Tag).
+							// Match all rows with a value tag of type Tag (ie. all rows with a value tag of "Color")
+							All<FValueTag>(Tag).
 							All<FTestColumnA>().
 						Compile());
 			}
@@ -679,8 +679,8 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 				return DataStorage->RegisterQuery(
 					Select().
 					Where().
-						// Match all rows with a dynamic tag of type Tag that has a MatchValue (ie. all rows with dynamic tag "Color" with value "Red")
-						All<FDynamicTag>(Tag, MatchValue).
+						// Match all rows with a value tag of type Tag that has a MatchValue (ie. all rows with value tag "Color" with value "Red")
+						All<FValueTag>(Tag, MatchValue).
 						All<FTestColumnA>().
 					Compile());
 			}
@@ -699,8 +699,8 @@ static FAutoConsoleCommand CVarMatchDynamicTag(
 	}),
 	ECVF_Default);
 
-static FAutoConsoleCommand CVarAddDynamicTagFromEnum(
-	TEXT("TEDS.Debug.DynamicTag.AddWithEnum"),
+static FAutoConsoleCommand CVarAddValueTagFromEnum(
+	TEXT("TEDS.Debug.ValueTag.AddWithEnum"),
 	TEXT("Argument: Row, EnumValue\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -738,8 +738,8 @@ static FAutoConsoleCommand CVarAddDynamicTagFromEnum(
 	}),
 	ECVF_Default);
 
-static FAutoConsoleCommand CVarRemoveDynamicTagFromEnum(
-	TEXT("TEDS.Debug.DynamicTag.RemoveWithEnum"),
+static FAutoConsoleCommand CVarRemoveValueTagFromEnum(
+	TEXT("TEDS.Debug.ValueTag.RemoveWithEnum"),
 	TEXT("Argument: Row\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -759,8 +759,8 @@ static FAutoConsoleCommand CVarRemoveDynamicTagFromEnum(
 	ECVF_Default);
 
 
-static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
-	TEXT("TEDS.Debug.DynamicTag.RunQueryEnum"),
+static FAutoConsoleCommand CVarMatchValueTagFromEnum(
+	TEXT("TEDS.Debug.ValueTag.RunQueryEnum"),
 	TEXT("Argument: [optional] EnumValue\n"),
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
@@ -795,7 +795,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 				return DataStorage->RegisterQuery(
 					Select().
 						Where().
-							// Match all rows with an enum dynamic tag of the hardcoded enum type
+							// Match all rows with an enum value tag of the hardcoded enum type
 							All<ETedsDebugEnum>().
 						Compile());
 			}
@@ -806,7 +806,7 @@ static FAutoConsoleCommand CVarMatchDynamicTagFromEnum(
 				return DataStorage->RegisterQuery(
 					Select().
 					Where().
-						// Match all rows with a dynamic tag of the hardcoded enum type that has the given value
+						// Match all rows with a value tag of the hardcoded enum type that has the given value
 						// Note, usually this would be written something like:
 						//   All(ETedsDebugEnum::Red).
 						// However it isn't possible to do that when getting the enum value from a string.  API is still exercised

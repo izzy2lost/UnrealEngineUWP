@@ -52,10 +52,10 @@ namespace UE::Editor::DataStorage
 		const UScriptStruct* GenerateDynamicColumn(const UScriptStruct& Template, const FName& Identifier);
 		
 		// Creates or Finds the column type associated with the value tag
-		const UScriptStruct* GenerateColumnType(const FDynamicTag& Tag);
+		const UScriptStruct* GenerateColumnType(const FValueTag& Tag);
 		
 		// Creates an instance of a value tag
-		FConstSharedStruct GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value);
+		FConstSharedStruct GenerateValueTag(const FValueTag& Tag, const FName& Value);
 
 		void NextUpdateCycle();
 		uint64 GetUpdateCycleId() const;
@@ -68,7 +68,7 @@ namespace UE::Editor::DataStorage
 		FExtendedQueryStore Queries;
 		FMementoSystem MementoSystem;
 		FDynamicColumnGenerator DynamicColumnGenerator;
-		FDynamicTagManager DynamicTagManager;
+		FValueTagManager ValueTagManager;
 
 		FMassEntityManager& MassEntityManager;
 		FMassProcessingPhaseManager& MassPhaseManager;

@@ -10,7 +10,7 @@ namespace UE::Editor::DataStorage
 		: DataStorage(InDataStorage)
 		, DirectDeferredCommands(*this)
 		, MementoSystem(InDataStorage)
-		, DynamicTagManager(DynamicColumnGenerator)
+		, ValueTagManager(DynamicColumnGenerator)
 		, MassEntityManager(InMassEntityManager)
 		, MassPhaseManager(InMassPhaseManager)
 	{
@@ -101,14 +101,14 @@ namespace UE::Editor::DataStorage
 		return DynamicColumnGenerator.GenerateColumn(Template, Identifier).Type;
 	}
 
-	FConstSharedStruct FEnvironment::GenerateDynamicTag(const FDynamicTag& Tag, const FName& Value)
+	FConstSharedStruct FEnvironment::GenerateValueTag(const FValueTag& Tag, const FName& Value)
 	{
-		return DynamicTagManager.GenerateDynamicTag(Tag, Value);
+		return ValueTagManager.GenerateValueTag(Tag, Value);
 	}
 
-	const UScriptStruct* FEnvironment::GenerateColumnType(const FDynamicTag& Tag)
+	const UScriptStruct* FEnvironment::GenerateColumnType(const FValueTag& Tag)
 	{
-		return DynamicTagManager.GenerateColumnType(Tag);
+		return ValueTagManager.GenerateColumnType(Tag);
 	}
 
 	void FEnvironment::NextUpdateCycle()

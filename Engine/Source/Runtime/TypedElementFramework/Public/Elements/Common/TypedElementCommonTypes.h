@@ -47,26 +47,26 @@ namespace UE
 		using FTag = FEditorDataStorageTag;
 
 		/**
-		 * Defines a dynamic type for a dynamic tag
+		 * Defines a dynamic type for a value tag
 		 * Example:
-		 *   FDynamicTag ColorTagType(TEXT("Color"));
-		 *   FDynamicTag DirectionTagType(TEXT("Direction"));
-		 * A dynamic tag can take on different values for each type.  This is set up when a tag is added to a row.
+		 *   FValueTag ColorTagType(TEXT("Color"));
+		 *   FValueTag DirectionTagType(TEXT("Direction"));
+		 * A value tag can take on different values for each type.  This is set up when a tag is added to a row.
 		 */
-		class FDynamicTag
+		class FValueTag
 		{
 		public:
-			TYPEDELEMENTFRAMEWORK_API explicit FDynamicTag(const FName& InName);
+			TYPEDELEMENTFRAMEWORK_API explicit FValueTag(const FName& InName);
 			
 			TYPEDELEMENTFRAMEWORK_API const FName& GetName() const;
-			TYPEDELEMENTFRAMEWORK_API bool operator==(const FDynamicTag& Other) const = default;
+			TYPEDELEMENTFRAMEWORK_API bool operator==(const FValueTag& Other) const = default;
 		private:
-			TYPEDELEMENTFRAMEWORK_API friend uint32 GetTypeHash(const FDynamicTag& InName);
+			TYPEDELEMENTFRAMEWORK_API friend uint32 GetTypeHash(const FValueTag& InName);
 			FName Name;
 		};
 
 		template<typename T>
-		concept TValueTagType = std::is_same_v<T, FDynamicTag>;
+		concept TValueTagType = std::is_same_v<T, FValueTag>;
 
 		struct FDynamicColumnDescription
 		{

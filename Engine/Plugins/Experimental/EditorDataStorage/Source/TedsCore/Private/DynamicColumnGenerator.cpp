@@ -114,20 +114,20 @@ namespace UE::Editor::DataStorage
 		return nullptr;
 	}
 	
-	FDynamicTagManager::FDynamicTagManager(FDynamicColumnGenerator& InColumnGenerator)
+	FValueTagManager::FValueTagManager(FDynamicColumnGenerator& InColumnGenerator)
 		: ColumnGenerator(InColumnGenerator)
 	{
 	}
 	
-	FConstSharedStruct FDynamicTagManager::GenerateDynamicTag(const FDynamicTag& InTag, const FName& InValue)
+	FConstSharedStruct FValueTagManager::GenerateValueTag(const FValueTag& InTag, const FName& InValue)
 	{
-		TPair<FDynamicTag, FName> Pair(InTag, InValue);
+		TPair<FValueTag, FName> Pair(InTag, InValue);
 	
 		UE_MT_SCOPED_WRITE_ACCESS(AccessDetector);
 	
 		// Common path
 		{
-			if (FConstSharedStruct* TagStruct = DynamicTagLookup.Find(Pair))
+			if (FConstSharedStruct* TagStruct = ValueTagLookup.Find(Pair))
 			{
 				return *TagStruct;
 			}
@@ -144,13 +144,13 @@ namespace UE::Editor::DataStorage
 	
 			FConstSharedStruct SharedStruct = FConstSharedStruct::Make(ColumnType, reinterpret_cast<const uint8*>(&Overlay));
 			
-			DynamicTagLookup.Emplace(Pair, SharedStruct);
+			ValueTagLookup.Emplace(Pair, SharedStruct);
 	
 			return SharedStruct;
 		}
 	}
 	
-	const UScriptStruct* FDynamicTagManager::GenerateColumnType(const FDynamicTag& Tag)
+	const UScriptStruct* FValueTagManager::GenerateColumnType(const FValueTag& Tag)
 	{
 		const FDynamicColumnGeneratorInfo GeneratedColumnType = ColumnGenerator.GenerateColumn(*FTedsValueTagColumn::StaticStruct(), Tag.GetName());
 		

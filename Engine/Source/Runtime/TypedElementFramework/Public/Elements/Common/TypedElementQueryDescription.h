@@ -56,10 +56,10 @@ namespace TypedElementDataStorage
 			TWeakObjectPtr<const UScriptStruct> Type;
 		};
 
-		struct FDynamicTagData
+		struct FValueTagData
 		{
 			// The Tag maps to a Mass ConstSharedFragment object
-			UE::Editor::DataStorage::FDynamicTag Tag;
+			UE::Editor::DataStorage::FValueTag Tag;
 
 			// The MatchValue specifies the value that the fragment must have to be matched
 			// If MatchValue is NAME_None, then TEDS will match all values
@@ -104,7 +104,7 @@ namespace TypedElementDataStorage
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> DynamicConditionOperations;
 		TArray<UE::Editor::DataStorage::FDynamicColumnDescription, TInlineAllocator<NumInlineConditions>> DynamicConditionDescriptions;
 
-		TArray<FDynamicTagData> ValueTags;
+		TArray<FValueTagData> ValueTags;
 
 		TArray<TWeakObjectPtr<const UClass>, TInlineAllocator<NumInlineDependencies>> DependencyTypes;
 		TArray<EQueryDependencyFlags, TInlineAllocator<NumInlineDependencies>> DependencyFlags;

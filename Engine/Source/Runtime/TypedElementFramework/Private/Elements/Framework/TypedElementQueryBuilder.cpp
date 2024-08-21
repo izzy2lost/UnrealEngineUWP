@@ -143,10 +143,10 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& Value)
+	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FValueTag& Tag, const FName& Value)
 	{
 		Query->ValueTags.Emplace(
-			TypedElementDataStorage::FQueryDescription::FDynamicTagData
+			TypedElementDataStorage::FQueryDescription::FValueTagData
 			{
 				.Tag = Tag,
 				.MatchValue = Value
@@ -157,7 +157,7 @@ namespace TypedElementQueryBuilder
 	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum)
 	{
 		using namespace UE::Editor::DataStorage;
-		return All(FDynamicTag(Enum.GetFName()));
+		return All(FValueTag(Enum.GetFName()));
 	}
 
 	FSimpleQuery& FSimpleQuery::All(const UEnum& Enum, int64 Value)
@@ -169,7 +169,7 @@ namespace TypedElementQueryBuilder
 			return *this;
 		}
 		using namespace UE::Editor::DataStorage;
-		return All(FDynamicTag(Enum.GetFName()), ValueName);
+		return All(FValueTag(Enum.GetFName()), ValueName);
 	}
 	
 	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
@@ -179,7 +179,7 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicTag& Tag)
+	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FValueTag& Tag)
 	{
 		return All(Tag, NAME_None);
 	}

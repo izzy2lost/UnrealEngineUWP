@@ -605,11 +605,11 @@ void UEditorDataStorage::AddColumns(RowHandle Row, TConstArrayView<const UScript
 	}
 }
 
-void UEditorDataStorage::AddColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag, const FName& InValue)
+void UEditorDataStorage::AddColumn(RowHandle Row, const UE::Editor::DataStorage::FValueTag& Tag, const FName& InValue)
 {
 	if (ActiveEditorEntityManager)
 	{
-		const FConstSharedStruct SharedStruct = Environment->GenerateDynamicTag(Tag, InValue);
+		const FConstSharedStruct SharedStruct = Environment->GenerateValueTag(Tag, InValue);
 
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		if (ActiveEditorEntityManager->IsEntityActive(Entity))
@@ -619,15 +619,15 @@ void UEditorDataStorage::AddColumn(RowHandle Row, const UE::Editor::DataStorage:
 	}
 }
 
-void UEditorDataStorage::RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FDynamicTag& Tag)
+void UEditorDataStorage::RemoveColumn(RowHandle Row, const UE::Editor::DataStorage::FValueTag& Tag)
 {
 	if (ActiveEditorEntityManager)
 	{
-		const UScriptStruct* DynamicTagType = Environment->GenerateColumnType(Tag);
+		const UScriptStruct* ValueTagType = Environment->GenerateColumnType(Tag);
 		FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 		if (ActiveEditorEntityManager->IsEntityActive(Entity))
 		{
-			UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_RemoveSharedColumnCommand(*ActiveEditorEntityManager, Row, *DynamicTagType);
+			UE::Editor::DataStorage::Legacy::FCommandBuffer::Execute_RemoveSharedColumnCommand(*ActiveEditorEntityManager, Row, *ValueTagType);
 		}
 	}
 }
