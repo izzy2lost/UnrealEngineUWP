@@ -167,6 +167,12 @@ void FCustomBindings::DropStruct(FStructSchemaId BindId)
 	checkf(false, TEXT("'%s' unbound"), *Debug.Print(BindId));
 }
 
+FOptionalStructSchemaId	FCustomBindings::FindStructDeclId(FStructSchemaId BindId) const
+{ 
+	 FCustomBindingEntry Entry = Find(BindId);
+	 return Entry ? ToOptional(Entry.DeclId) : NoId;
+}
+
 FCustomBindingEntry	FCustomBindings::Find(FStructSchemaId BindId) const
 {
 	for (FCustomBindingEntry Entry : Entries)
@@ -260,6 +266,14 @@ void FSchemaBindings::DropStruct(FStructSchemaId BindId)
 FStructSchemaId FSchemaBindings::GetDeclId(FStructSchemaId BindId) const
 {
 	return GetStruct(BindId).DeclId;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+FStructSchemaId FStructBindIds::GetDeclId(FStructSchemaId BindId) const
+{
+	FOptionalStructSchemaId CustomId = Customs.FindStructDeclId(BindId);
+	return CustomId ? CustomId.Get() : Schemas.GetDeclId(BindId);
 }
 
 //////////////////////////////////////////////////////////////////////////

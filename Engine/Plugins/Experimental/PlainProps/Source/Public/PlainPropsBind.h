@@ -126,7 +126,7 @@ static_assert(sizeof(FMemberBindType) == 1);
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Members are loaded in saved FStructSchema order, not current offset order unless upgrade layer reorders
-struct FSchemaBinding
+struct alignas(/*FRangeBinding*/ 8) FSchemaBinding
 {
 	FStructSchemaId			DeclId;
 	uint16					NumMembers;
@@ -284,7 +284,7 @@ public:
 	// @param Binding must outlive this or call DropStruct()
 	PLAINPROPS_API void						BindStruct(FStructSchemaId BindId, FStructSchemaId DeclId, ICustomBinding& Binding);
 	const ICustomBinding*					FindStruct(FStructSchemaId BindId) const		{ return Find(BindId).Binding; }
-	FStructSchemaId							FindStructDeclId(FStructSchemaId BindId) const	{ return Find(BindId).DeclId; }
+	FOptionalStructSchemaId					FindStructDeclId(FStructSchemaId BindId) const;
 	FCustomBindingEntry						FindStructToSave(FStructSchemaId BindId)		{ return Find(BindId); }
 	PLAINPROPS_API void						DropStruct(FStructSchemaId BindId);
 
@@ -560,11 +560,25 @@ public:
 	PLAINPROPS_API const FSchemaBinding&	GetStruct(FStructSchemaId BindId) const;
 	PLAINPROPS_API void						DropStruct(FStructSchemaId BindId);
 
+	virtual FStructSchemaId					GetDeclId(FStructSchemaId BindId) const override final;
 private:
 	TArray<TUniquePtr<FSchemaBinding>>		Bindings;
 	const FDebugIds&						Debug;
+};
 
-	virtual FStructSchemaId GetDeclId(FStructSchemaId BindId) const override;
+////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct FStructBindIds : IStructBindIds
+{
+	FStructBindIds(const FCustomBindings& InCustoms, const FSchemaBindings& InSchemas)
+	: Customs(InCustoms)
+	, Schemas(InSchemas)
+	{}
+
+	const FCustomBindings& Customs;
+	const FSchemaBindings& Schemas;
+
+	virtual FStructSchemaId GetDeclId(FStructSchemaId BindId) const override final;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1035,6 +1049,67 @@ struct FMemberBinder
 	uint32* OffsetIt;
 	FSchemaId* InnerSchemaIt;
 	FRangeBinding* RangeBindingIt;
+};
+
+//////////////////////////////////////////////////////////////////////////
+
+template<typename T>
+inline constexpr FMemberType ReflectInnermostType()
+{
+	// DefaultStructType
+	return FMemberType(FStructType{EMemberKind::Struct, /* IsDynamic */ 0, /* IsSuper */ 0});;
+}
+
+template<Arithmetic T>
+inline constexpr FMemberType ReflectInnermostType()
+{
+	return ReflectArithmetic<T>.Pack();
+}
+template<Enumeration T>
+inline constexpr FMemberType ReflectInnermostType()
+{
+	return ReflectEnum<T>.Pack();
+}
+
+// Hack / workaround related to C++'s lack of templated nullary constructors
+union FUninitializedMemberBindType
+{
+	FUninitializedMemberBindType() : Unused() {}
+	uint8_t			Unused;
+	FMemberBindType Value;
+};
+
+// Helps templated custom bindings save containers as ranges
+template<class RangeBinding>
+struct TRangeMemberHelper
+{
+	static constexpr uint16 NumRanges = CountRangeBindings<RangeBinding>();
+	static constexpr ERangeSizeType MaxSize = RangeSizeOf(typename RangeBinding::SizeType{});
+	using InnermostType = typename TInnerType<RangeBinding, NumRanges>::Type;
+
+	const FRangeBinding*			RangeBindings = nullptr;
+	FOptionalSchemaId				InnermostSchema;
+	FUninitializedMemberBindType	InnerBindTypes[NumRanges];
+	FMemberType						InnerSchemaTypes[NumRanges];
+
+	template<class Ids>
+	void Init()
+	{
+		RangeBindings = GetRangeBindings<RangeBinding, NumRanges>().GetData();
+		for (uint16 Idx = 0; Idx < NumRanges - 1; ++Idx)
+		{
+			ERangeSizeType Type = RangeBindings[Idx + 1].GetSizeType();
+			InnerBindTypes[Idx].Value = FMemberBindType(Type);
+			InnerSchemaTypes[Idx] = FMemberType(Type);
+		}
+		InnerBindTypes[NumRanges - 1].Value = BindInnermostType<InnermostType, Ids>(/* out */ InnermostSchema);
+		InnerSchemaTypes[NumRanges - 1] = ReflectInnermostType<InnermostType>();
+	}
+
+	FRangeMemberBinding MakeBinding(uint32 Offset) const
+	{
+		return { &InnerBindTypes[0].Value, RangeBindings, NumRanges, InnermostSchema, Offset };
+	}
 };
 
 //////////////////////////////////////////////////////////////////////////

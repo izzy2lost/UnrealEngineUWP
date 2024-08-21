@@ -194,7 +194,7 @@ struct FNameBinding : FTestCustomBinding
 class FBatchSaver
 {
 public:
-	FBatchSaver();
+	explicit FBatchSaver(const FCustomBindings& CustomBase);
 
 	template<class T>
 	void						Save(T&& Object);
@@ -204,15 +204,15 @@ public:
 	TArray64<uint8>				Write() const;
 
 private:
-	using IdBuiltStructPair = TPair<FStructSchemaId, FBuiltStructPtr>;
+	using IdBuiltStructPair = TPair<FStructSchemaId, FBuiltStruct*>;
 	TArray<IdBuiltStructPair>	SavedObjects;
 	FNameBinding				SavedNames;
 	FCustomBindings				Customs;
 	mutable FScratchAllocator	Scratch;
 };
 
-FBatchSaver::FBatchSaver()
-: Customs(/* debug */ GNames, &GCustoms)
+FBatchSaver::FBatchSaver(const FCustomBindings& CustomBase)
+: Customs(/* debug */ GNames, &CustomBase)
 {
 	Customs.BindStruct(SavedNames.Declaration.Id, SavedNames.Declaration.Id, SavedNames);
 }
@@ -228,7 +228,7 @@ template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
 	FDualStructSchemaId Id = IndexStructDualId<std::remove_reference_t<T>, FIds>();
-	if (FBuiltStructPtr Delta = SaveStructDelta(&Object, &Default, Id.Bind, {GTypes, GSchemas, Customs, Scratch}))
+	if (FBuiltStruct* Delta = SaveStructDelta(&Object, &Default, Id.Bind, {GTypes, GSchemas, Customs, Scratch}))
 	{
 		SavedObjects.Emplace(Id.Decl, MoveTemp(Delta));
 		return true;
@@ -255,7 +255,8 @@ inline constexpr uint32 Magics[] = { 0xFEEDF00D, 0xABCD1234, 0xDADADAAA, 0x99887
 TArray64<uint8> FBatchSaver::Write() const
 {
 	// Build partial schemas
-	FSchemasBuilder SchemaBuilders(GTypes, GSchemas, Scratch);
+	const FStructBindIds BindIds(Customs, GSchemas);
+	FSchemasBuilder SchemaBuilders(GTypes, BindIds, Scratch);
 	for (const IdBuiltStructPair& Object : SavedObjects)
 	{
 		SchemaBuilders.NoteStructAndMembers(Object.Key, *Object.Value);
@@ -263,7 +264,7 @@ TArray64<uint8> FBatchSaver::Write() const
 	FBuiltSchemas Schemas = SchemaBuilders.Build(); 
 
 	// Filter out declared but unused names and ids
-	FWriter Writer(GNames, GSchemas, Schemas, ESchemaFormat::StableNames);
+	FWriter Writer(GNames, BindIds, Schemas, ESchemaFormat::StableNames);
 	TArray<FName> UsedNames;
 	for (uint32 Idx = 0, Num = GNames.NumNames(); Idx < Num; ++Idx)
 	{
@@ -288,7 +289,7 @@ TArray64<uint8> FBatchSaver::Write() const
 
 	// Write objects
 	WriteU32(Out, Magics[2]);
-	for (const TPair<FStructSchemaId, FBuiltStructPtr>& Object : SavedObjects)
+	for (const TPair<FStructSchemaId, FBuiltStruct*>& Object : SavedObjects)
 	{
 		WriteU32(/* out */ Tmp, Magics[3]);
 		WriteU32(/* out */ Tmp, Writer.GetWriteId(Object.Key).Get().Idx);
@@ -313,8 +314,8 @@ TArray64<uint8> FBatchSaver::Write() const
 class FBatchLoader
 {
 public:
-	FBatchLoader(FMemoryView Data)
-	: Customs(/* debug */ GNames, &GCustoms)
+	FBatchLoader(FMemoryView Data, const FCustomBindings& CustomBase)
+	: Customs(/* debug */ GNames, &CustomBase)
 	{
 		// Read ids
 		FByteReader It(Data);
@@ -371,6 +372,14 @@ public:
 		LoadInto(Out);
 		return MoveTemp(Out);
 	}
+	
+	template<class T>
+	T Load(const T& Original)
+	{
+		T Out = Original;
+		LoadInto(Out);
+		return MoveTemp(Out);
+	}
 
 	template<class T>
 	void LoadInto(T& Out)
@@ -389,16 +398,16 @@ private:
 };
 
 
-static void Run(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&))
+static void Run(void (*Save)(FBatchSaver&), void (*Load)(FBatchLoader&), const FCustomBindings& Customs = GCustoms)
 {
 	TArray64<uint8> Data;
 	{
-		FBatchSaver Batch;
+		FBatchSaver Batch(Customs);
 		Save(Batch);
 		Data = Batch.Write();
 	}
 
-	FBatchLoader Batch(MakeMemoryView(Data));
+	FBatchLoader Batch(MakeMemoryView(Data), Customs);
 	Load(Batch);
 }
 
@@ -513,12 +522,31 @@ struct FSets
 	TSet<char> Leaves;
 	TSet<TArray<uint8>> Ranges;
 	TSet<FInt> Structs;
+	TSet<FString> Strings; // ILeafRangeBinding
 };
-PP_REFLECT_STRUCT(PlainProps::UE::Test, FSets, void, Leaves, Ranges, Structs);
+PP_REFLECT_STRUCT(PlainProps::UE::Test, FSets, void, Leaves, Ranges, Structs, Strings);
+
+template<typename T>
+inline bool OrderEq(const TSet<T>& A, const TSet<T>& B)
+{
+	if (A.Num() != B.Num())
+	{
+		return false;
+	}
+
+	for (typename TSet<T>::TConstIterator AIt(A), BIt(B); AIt; ++AIt, ++BIt)
+	{
+		if (*AIt != *BIt)
+		{
+			return false;
+		}
+	}
+	return true;
+}
 
 inline bool operator==(const FSets& A, const FSets& B)
 {
-	return LegacyCompareEqual(A.Leaves, B.Leaves) && LegacyCompareEqual(A.Ranges, B.Ranges) && LegacyCompareEqual(A.Structs, B.Structs);
+	return OrderEq(A.Leaves, B.Leaves) && OrderEq(A.Ranges, B.Ranges) && OrderEq(A.Structs, B.Structs) && OrderEq(A.Strings, B.Strings);
 }
 
 struct FMaps
@@ -853,9 +881,7 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			{
 				CHECK(Batch.Load<FOpts>() == FOpts{});
 				CHECK(Batch.Load<FOpts>() == FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
-				FOpts AlreadySet = {{false}, {FNDC{0}}, {FNDCIntrusive{1}}};
-				Batch.LoadInto(AlreadySet);
-				CHECK(AlreadySet == FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
+				CHECK(Batch.Load(FOpts{{false}, {FNDC{0}}, {FNDCIntrusive{1}}}) == FOpts{{true}, {FNDC{2}}, {FNDCIntrusive{3}}});
 			});
 	}
 
@@ -992,10 +1018,8 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 			}, 
 			[](FBatchLoader& Batch)
 			{
-				FDelta Zero = {false, 0, {}, {}, {}};
-				FDelta DefaultOnZero = Zero;
-				Batch.LoadInto(DefaultOnZero);
-				CHECK(DefaultOnZero == FDelta{});
+				const FDelta Zero = {false, 0, {}, {}, {}};
+				CHECK(Batch.Load(Zero) == FDelta{});
 				CHECK(Batch.Load<FDelta>() == Zero);
 				CHECK(Batch.Load<FDelta>() == FDelta{.B = 123});
 				CHECK(Batch.Load<FDelta>() == FDelta{.C = {321}});
@@ -1008,6 +1032,28 @@ TEST_CASE_NAMED(FPlainPropsUeCoreTest, "System::Core::Serialization::PlainProps:
 	{
 		TScopedStructBinding<FInt> Int;
 		TScopedStructBinding<FSets, EMemberPresence::AllowSparse, FDeltaRuntime> Sets;
+		Run([](FBatchSaver& Batch)
+			{
+				Batch.Save(FSets{});
+				Batch.Save(FSets{{'l'}, {{1}}, {{2}}, {"s"}});
+				const FSets Default = {{'a'}, {{1}}, {{1}}, {"a"}};
+				CHECK(!Batch.SaveDelta(FSets{}, FSets{}));
+				CHECK(Batch.SaveDelta(Default, FSets{}));
+				CHECK(Batch.SaveDelta(FSets{}, Default)); // Wipe
+				CHECK(!Batch.SaveDelta(Default, Default));
+				CHECK(Batch.SaveDelta(FSets{{'a'}, {{0,1,2}}, {{2}}, {}}, Default)); // Mixed changes
+			}, 
+			[](FBatchLoader& Batch)
+			{
+				CHECK(Batch.Load<FSets>() == FSets{});
+				CHECK(Batch.Load<FSets>() == FSets{{'l'}, {{1}}, {{2}}, {"s"}});
+				
+				const FSets Default = {{'a'}, {{1}}, {{1}}, {"a"}};
+				CHECK(Batch.Load<FSets>() == Default);
+				CHECK(Batch.Load(Default) == FSets{}); // Wipe
+				CHECK(Batch.Load(Default) == FSets{{'a'}, {{0,1,2}}, {{2}}, {}}); // Mixed changes
+			},
+			GDeltaCustoms);
 	}
 
 	SECTION("Transform")

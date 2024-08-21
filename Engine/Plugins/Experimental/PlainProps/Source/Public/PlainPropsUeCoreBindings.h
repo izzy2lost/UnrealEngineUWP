@@ -8,9 +8,10 @@
 #include "Math/Transform.h"
 #include "Misc/Optional.h"
 #include "PlainPropsBind.h"
+#include "PlainPropsBuild.h" // FMemberSchema for TSetDeltaBinding::SaveSet
+#include "PlainPropsIndex.h"
 #include "PlainPropsLoad.h"
 #include "PlainPropsRead.h"
-#include "PlainPropsIndex.h"
 #include "PlainPropsStringUtil.h"
 #include "UObject/NameTypes.h"
 
@@ -23,6 +24,12 @@ PP_REFLECT_STRUCT(, FVector, void, X, Y, Z);
 PP_REFLECT_STRUCT(, FVector4, void, X, Y, Z, W);
 PP_REFLECT_STRUCT(, FQuat, void, X, Y, Z, W);
 }
+
+template <typename T>
+struct TIsContiguousContainer<PlainProps::TRangeView<T>>
+{
+	static inline constexpr bool Value = true;
+};
 
 namespace PlainProps::UE
 {
@@ -419,7 +426,7 @@ struct TMapBinding : public TSetBinding<TPair<K, V>, KeyFuncs, SetAllocator>
 
 //////////////////////////////////////////////////////////////////////////
 
-//TODO: macroify, e.g PP_CUSTOM_BIND(PLAINPROPS_API, FTransform, Transform, Translate, Rotate, Scale)
+//TODO: Consider macroifying parts of this, e.g PP_CUSTOM_BIND(PLAINPROPS_API, FTransform, Transform, Translate, Rotate, Scale)
 struct FTransformBinding : ICustomBinding
 {
 	using Type = FTransform;
@@ -464,147 +471,214 @@ template <typename T, typename KeyFuncs, typename SetAllocator>
 struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 {
 	using Type = TSet<T, KeyFuncs, SetAllocator>;
+	using FSet = Type;
+	using FSetBinding = TSetBinding<T, KeyFuncs, SetAllocator>;
+	using FRangeMemberHelper = TRangeMemberHelper<FSetBinding>;
 	static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
+	static constexpr uint16 NumInnerRanges = FRangeMemberHelper::NumRanges - 1;
 
 	struct FCustomTypename
 	{
 		inline static constexpr std::string_view DeclName = "SetDelta";
 		inline static constexpr std::string_view BindName = Concat<DeclName, ShortTypename<KeyFuncs>, ShortTypename<SetAllocator>>;
-		inline static constexpr std::string_view Namespace = "PlainProps::UE::";
+		inline static constexpr std::string_view Namespace;
 		using Parameters = std::tuple<T>;
 	};
 
-	void Save(FMemberBuilder& Dst, const Type& Src, const Type* Default, const FSaveContext& Context) const
+	FRangeMemberHelper InnerRange;
+	
+	template<class Ids>	
+	void InitIds()
 	{
-		if (!Default || Default->IsEmpty())
+		FSetDeltaOps::InitIds<Ids>();
+		InnerRange.template Init<Ids>();
+	}
+	
+	void Save(FMemberBuilder& Dst, const FSet& Src, const FSet* Default, const FSaveContext& Context) const
+	{
+		if (Default && !Default->IsEmpty())
 		{
-			// Todo: Add everything
-
+			// Inefficient, mimic FSetProperty::SerializeItem for better perf
+			SaveSet(Dst, MemberIds[(uint8)EMember::Del], Default->Difference(Src), Context);
+			SaveSet(Dst, MemberIds[(uint8)EMember::Add], Src.Difference(*Default), Context);
 		}
-		else
+		else if (Src.Num())
 		{
-			// TODO: Range builder for missing items, iterate over defaults elements and check existence in Src
-			// Dst.AddRange(Ops.Del, MissingItems) if non-empty;
-
-			// TODO: Range builder for added items, iterate over defaults elements and check existence in Src
+			SaveSet(Dst, MemberIds[(uint8)EMember::Add], Src, Context);
 		}
 	}
 
-	inline void Load(Type& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const
+	void SaveSet(FMemberBuilder& Dst, FMemberId Name, const FSet& Set, const FSaveContext& Ctx) const
+	{
+		if (int32 Num = Set.Num())
+		{
+			// Start of a more optimized version that saves typed values directly w/o leaning on TSetBinding
+			//
+			//FBuiltRange* Range;
+			//if constexpr (LeafType<T>)
+			//{
+			//	Range = FBuiltRange::Create(Ctx.Scratch, Num, sizeof(T));
+			//	T* OutIt = static_cast<T*>(Range->Data);
+			//	//const TSparseArray<TSetElement<T>& Elements = reinterpret_cast<const TSparseArray<TSetElement<T>>&>(Values);
+			//	//if (Elements.IsCompact())
+			//	//{
+			//	//	FMemory::Memcpy(Range->Data, Elements.GetData(), sizeof(T) * Num);
+			//	//}
+			//	//else 
+			//	for (T Leaf : Set)
+			//	{
+			//		*OutIt++ = Leaf;
+			//	}
+			//}
+			//else 
+			//{
+			//	Range = SaveRange(&Set, InnerRange.MakeBinding(/* offset*/ 0), Ctx);
+			//}
+
+			// Lean on TSetBinding for now, less efficient but simpler
+			FBuiltRange* Range = SaveRange(&Set, InnerRange.MakeBinding(/* offset*/ 0), Ctx);
+			FMemberSchema Schema = MakeNestedRangeSchema(InnerRange.MaxSize, InnerRange.InnerSchemaTypes, InnerRange.InnermostSchema);
+			Dst.AddRange(Name, { Schema, Range });	
+		}
+
+	}
+
+	inline void Load(FSet& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const
 	{
 		FMemberReader Members(Src);
 
 		if (Method == ECustomLoadMethod::Construct)
 		{
-			::new (&Dst) Type;
+			::new (&Dst) FSet;
 		}
 				
-		if (!Members.HasMore())
+		if (Members.HasMore())
 		{
-			return;
+			if (Members.PeekName() == MemberIds[(uint8)EMember::Add])
+			{
+				ApplyItems<EMember::Add>(Dst, Members.GrabRange(), Batch);
+			}
+			else
+			{
+				check(Members.PeekName() == MemberIds[(uint8)EMember::Del]);
+				ApplyItems<EMember::Del>(Dst, Members.GrabRange(), Batch);
+		
+				if (Members.HasMore())
+				{
+					check(Members.PeekName() == MemberIds[(uint8)EMember::Add]);
+					ApplyItems<EMember::Add>(Dst, Members.GrabRange(), Batch);
+				}
+			}
+
+			check(!Members.HasMore());
+		}
+	}
+
+	template<EMember Op>
+	void ApplyItems(FSet& Out, FRangeView Items, const FLoadBatch& Batch) const
+	{
+		check(!Items.IsEmpty());
+
+		if constexpr (Op == EMember::Add && !LeafType<T>)
+		{
+			Out.Reserve(static_cast<int32>(Items.Num()));
 		}
 
-		FMemberId Name = Members.PeekName().Get();
-		FRangeView Items = Members.GrabRange();
-		int32 NumItems = static_cast<int32>(Items.Num());
-		if (Name == MemberIds[(uint8)EMember::Add])
+		if constexpr (LeafType<T>)
 		{
-			Dst.Reserve(Dst.Num() + NumItems);
-			AddItems(Dst, Items, Batch);
+			ApplyLeaves<Op>(Out, Items.AsLeaves().As<T>());
+		}
+		else if constexpr (NumInnerRanges)
+		{
+			ApplyRanges<Op>(Out, Items.AsRanges(), Batch);
+		}
+		else 
+		{
+			ApplyStructs<Op>(Out, Items.AsStructs(), Batch);
+		}
+	}
+	
+	template<EMember Op>
+	void ApplyLeaves(FSet& Out, TRangeView<T> Items) const
+	{
+		if constexpr (Op == EMember::Add)
+		{
+			Out.Append(MakeArrayView(Items));
 		}
 		else
 		{
-			check(Members.PeekName() == MemberIds[(uint8)EMember::Del]);
-			RemoveItems(Dst, Items);
-		
-			if (Members.HasMore())
+			for (T Item : Items)
 			{
-				check(Members.PeekName() == MemberIds[(uint8)EMember::Add]);
-				Items = Members.GrabRange();
-				Dst.Reserve(Dst.Num() + static_cast<int32>(Items.Num()));
-				AddItems(Dst, Items, Batch);
+				Out.Remove(Item);
 			}
 		}
-		
-		check(!Members.HasMore());
 	}
 
-	inline static bool Diff(const Type& A, const Type& B)
+	template<EMember Op>
+	void ApplyRanges(FSet& Out, FNestedRangeView Items, const FLoadBatch& Batch) const
+	{
+		static_assert(std::is_default_constructible_v<T>, TEXT("Ranges must be default-constructible"));
+
+		TConstArrayView<FRangeBinding> InnerRangeBindings(InnerRange.RangeBindings + 1, NumInnerRanges);
+		for (FRangeView Item : Items)
+		{
+			T Tmp;
+			LoadRange(&Tmp, Item, InnerRange.MaxSize, InnerRangeBindings, Batch);
+			ApplyItem<Op>(Out, MoveTemp(Tmp));
+		}
+	}
+	
+	template<EMember Op>
+	void ApplyStructs(FSet& Out, FStructRangeView Items, const FLoadBatch& Batch) const
+	{
+		for (FStructView Item : Items)
+		{
+			if constexpr (std::is_default_constructible_v<T>)
+			{
+				T Tmp;
+				LoadStruct(&Tmp, Item, Batch);
+				ApplyItem<Op>(Out, MoveTemp(Tmp));
+			}
+			else
+			{
+				alignas(T) uint8 Buffer[sizeof(T)];
+				ConstructAndLoadStruct(Buffer, Item, Batch);
+				T& Tmp = *reinterpret_cast<T*>(Buffer);
+				ApplyItem<Op>(Out, MoveTemp(Tmp));
+				Tmp.~T();
+			}
+		}
+	}
+	
+	template<EMember Op>
+	void ApplyItem(FSet& Out, T&& Item) const
+	{
+		if constexpr (Op == EMember::Add)
+		{
+			Out.Emplace(MoveTemp(Item));
+		}
+		else
+		{
+			Out.Remove(Item);
+		}
+	}
+
+	inline static bool Diff(const FSet& A, const FSet& B)
 	{
 		if (A.Num() != B.Num())
 		{
-			return false;
+			return true;
 		}
 
 		for (const T& AKey : A)
 		{
 			if (!B.Contains(AKey))
 			{
-				return false;
+				return true;
 			}
 		}
 
-		return true;
-	}
-
-	static void AddItems(Type& Out, FRangeView Items, const FLoadBatch& Batch)
-	{
-		check(!Items.IsEmpty());
-
-		if constexpr (LeafType<T>)
-		{
-			for (T Item : Items.AsLeaves().As<T>())
-			{
-				Out.Add(Item);
-			}
-		}
-		else if (Items.IsStructRange())
-		{
-			FStructRangeView Structs = Items.AsStructs();
-			for (FStructView Item : Structs)
-			{
-				if constexpr (std::is_default_constructible_v<T>)
-				{
-					T Tmp;
-					PlainProps::LoadStruct(&Tmp, Item, Batch);	
-					Out.Emplace(MoveTemp(Tmp));
-				}
-				else
-				{
-					alignas(T) uint8 Buffer[sizeof(T)];
-					PlainProps::ConstructAndLoadStruct(Buffer, Item, Batch);
-					T* Tmp = reinterpret_cast<T*>(Buffer);
-					Out.Emplace(MoveTemp(*Tmp));
-					Tmp->~T();
-				}
-			}
-		}
-		else // Nested range
-		{
-			using RangeBinding = RangeBind<T>;
-			if constexpr (std::is_default_constructible_v<T> && !std::is_void_v<RangeBinding>)
-			{
-				static constexpr ERangeSizeType MaxSize = RangeSizeOf(typename RangeBinding::SizeType{});
-				//const IItemRangeBinding* Bindings[] = {};// TODO ... generate somehow ... ;
-				T Tmp;
-				for (FRangeView Item : Items.AsRanges())
-				{
-				//	LoadRange(&Tmp, Item, MaxSize, Bindings, Batch);
-				//	Out.Emplace(MoveTemp(*Tmp));
-				}
-			}
-			else
-			{
-				check(Items.IsNestedRange());
-				checkf(std::is_default_constructible_v<T>, TEXT("Ranges must be default-constructible"));
-				checkf(!std::is_void_v<RangeBinding>, TEXT("Inner range type unbound (no TRangeBind specialization)"));
-			}
-		}
-	}
-
-	static void RemoveItems(Type& Out, FRangeView Items)
-	{
-		// TODO copy paste from AddItems or template AddItems -> ApplyItems<EOp::Add/Del>
+		return false;
 	}
 };
 
@@ -665,7 +739,7 @@ struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 //		}
 //	}
 //
-//	virtual FBuiltStructPtr	SaveStruct(const void* Src, const FDebugIds& Debug) const override
+//	virtual FBuiltStruct*	SaveStruct(const void* Src, const FDebugIds& Debug) const override
 //	{
 //		...
 //	}

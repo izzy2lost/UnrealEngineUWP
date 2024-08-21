@@ -194,7 +194,7 @@ template<class SaverType, typename InnerContextType>
 	return { Member.InnerTypes + 1, Member.RangeBindings + 1, static_cast<uint16>(Member.NumRanges - 1), Member.InnermostSchema };
 }
 
-[[nodiscard]] static FBuiltRange* SaveLeafRangeBinding(FScratchAllocator& Scratch, const uint8* Range, const ILeafRangeBinding& Binding, FUnpackedLeafType Leaf)
+[[nodiscard]] static FBuiltRange* SaveLeafRangeBinding(FScratchAllocator& Scratch, const void* Range, const ILeafRangeBinding& Binding, FUnpackedLeafType Leaf)
 {
 	FLeafRangeAllocator Allocator(Scratch, Leaf);
 	Binding.SaveLeaves(Range, Allocator);
@@ -219,7 +219,7 @@ ELeafWidth GetArithmeticWidth(FLeafBindType Leaf)
 	return Leaf.Arithmetic.Width;
 }
 
-[[nodiscard]] static FBuiltRange* SaveRange(const uint8* Range, FRangeMemberBinding Member, const FSaveContext& Ctx)
+[[nodiscard]] FBuiltRange* SaveRange(const void* Range, FRangeMemberBinding Member, const FSaveContext& Ctx)
 {
 	FRangeBinding Binding = Member.RangeBindings[0];
 	FMemberBindType InnerType = Member.InnerTypes[0];

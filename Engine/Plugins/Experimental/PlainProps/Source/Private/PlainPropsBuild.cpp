@@ -128,12 +128,12 @@ void FMemberBuilder::BuildSuperStruct(FScratchAllocator& Scratch, const FStructD
 		return;
 	}
 	
-	FBuiltStructPtr OnlyMember = BuildAndReset(Scratch, Super, Debug);
+	FBuiltStruct* OnlyMember = BuildAndReset(Scratch, Super, Debug);
 	Members.Emplace(FBuiltMember::MakeSuper(Super.Id, MoveTemp(OnlyMember)));
 	check(Members[0].Schema.Type.AsStruct().IsSuper);
 }
 
-FBuiltStructPtr FMemberBuilder::BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug)
+FBuiltStruct* FMemberBuilder::BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug)
 {
 	checkf(!(Declared.Super && Declared.Occupancy == EMemberPresence::RequireAll),
 		TEXT("Requiring sub structs to be dense isn't implemented"));
@@ -164,12 +164,12 @@ FBuiltStructPtr FMemberBuilder::BuildAndReset(FScratchAllocator& Scratch, const 
 
 	Members.Reset();
 
-	return FBuiltStructPtr(Out);
+	return Out;
 }
 
 //////////////////////////////////////////////////////////////////////////
 
-FBuiltStructPtr FDenseMemberBuilder::BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const
+FBuiltStruct* FDenseMemberBuilder::BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const
 {
 	check(Declaration.NumMembers == Values.Num());
 
@@ -224,11 +224,11 @@ FBuiltMember::FBuiltMember(FMemberId Name, FTypedRange Range)
 : FBuiltMember(Name, MoveTemp(Range.Schema), { .Range = Range.Values })
 {}
 
-FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Value)
+FBuiltMember::FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStruct* Value)
 : FBuiltMember(Name, MakeMemberSchema(DefaultStructType, Schema), { .Struct = Value })
 {}
 
-FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, FBuiltStructPtr Value)
+FBuiltMember FBuiltMember::MakeSuper(FStructSchemaId Schema, FBuiltStruct* Value)
 {
 	return FBuiltMember(NoId, MakeMemberSchema(SuperStructType, Schema), { .Struct = Value });
 }

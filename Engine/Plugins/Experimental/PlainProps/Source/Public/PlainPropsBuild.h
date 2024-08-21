@@ -19,8 +19,6 @@ struct FBuiltRange;
 class FDebugIds;
 struct FUnpackedLeafType;
 
-using FBuiltStructPtr = FBuiltStruct*;
-
 //////////////////////////////////////////////////////////////////////////
 
 /// Single-threaded scratch allocator for intermediate built representation
@@ -164,6 +162,13 @@ inline FMemberSchema MakeStructRangeSchema(ERangeSizeType SizeType, FStructSchem
 
 PLAINPROPS_API FMemberSchema MakeNestedRangeSchema(FScratchAllocator& Scratch, ERangeSizeType SizeType, FMemberSchema InnerRangeSchema);
 
+// @param InnerTypes must outlive FMemberSchema
+template<uint16 N>
+inline FMemberSchema MakeNestedRangeSchema(ERangeSizeType SizeType, const FMemberType (&InnerTypes)[N], FOptionalSchemaId InnermostSchema)
+{
+	return { FMemberType(SizeType), InnerTypes[0], N, InnermostSchema, N > 1 ? InnerTypes : nullptr };
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 [[nodiscard]] PLAINPROPS_API FBuiltRange* CloneLeaves(FScratchAllocator& Scratch, uint64 Num, const void* Data, SIZE_T LeafSize);
@@ -206,9 +211,9 @@ struct FBuiltMember
 {
 	FBuiltMember(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Schema, uint64 Value);
 	FBuiltMember(FMemberId Name, FTypedRange Range);
-	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Value);
+	FBuiltMember(FMemberId Name, FStructSchemaId Schema, FBuiltStruct* Value);
 	FBuiltMember(FOptionalMemberId N, FMemberSchema S, FBuiltValue V) : Name(N), Schema(MoveTemp(S)), Value(V) {}
-	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStructPtr Value);
+	static FBuiltMember MakeSuper(FStructSchemaId Schema, FBuiltStruct* Value);
 
 	FOptionalMemberId		Name;
 	FMemberSchema			Schema;
@@ -240,12 +245,12 @@ public:
 
 	void AddLeaf(FMemberId Name, FUnpackedLeafType Leaf, FOptionalEnumSchemaId Enum, uint64 Value)	{ Members.Emplace(Name, Leaf, Enum, Value); }
 	void AddRange(FMemberId Name, FTypedRange Range)												{ Members.Emplace(Name, Range); }
-	void AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStructPtr Struct)					{ Members.Emplace(Name, Schema, Struct); }
+	void AddStruct(FMemberId Name, FStructSchemaId Schema, FBuiltStruct* Struct)					{ Members.Emplace(Name, Schema, Struct); }
 	
 	// Build members into a single nested super struct member, no-op if no non-super members has been added
 	PLAINPROPS_API void BuildSuperStruct(FScratchAllocator&	Scratch, const FStructDeclaration& Super, const FDebugIds& Debug);
 
-	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug);
+	[[nodiscard]] PLAINPROPS_API FBuiltStruct* BuildAndReset(FScratchAllocator& Scratch, const FStructDeclaration& Declared, const FDebugIds& Debug);
 
 	bool IsEmpty() const { return Members.IsEmpty(); }
 
@@ -267,7 +272,7 @@ struct FDenseMemberBuilder
 	const FDebugIds& Debug;
 
 	template<typename T, typename... Ts>
-	[[nodiscard]] FBuiltStructPtr BuildHomogeneous(const FStructDeclaration& Declaration, T Head, Ts... Tail) const
+	[[nodiscard]] FBuiltStruct* BuildHomogeneous(const FStructDeclaration& Declaration, T Head, Ts... Tail) const
 	{
 		// Todo: Handle enums, ranges and structs
 		FBuiltValue Values[] = { {.Leaf = ValueCast(Head)}, {.Leaf = (ValueCast(Tail))}...  };
@@ -275,7 +280,7 @@ struct FDenseMemberBuilder
 	}
 
 private:
-	[[nodiscard]] PLAINPROPS_API FBuiltStructPtr BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const;
+	[[nodiscard]] PLAINPROPS_API FBuiltStruct* BuildHomo(const FStructDeclaration& Declaration, FMemberType Leaf, TConstArrayView<FBuiltValue> Values) const;
 };
 
 // Helper class for building struct ranges

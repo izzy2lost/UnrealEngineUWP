@@ -3,15 +3,18 @@
 #pragma once
 
 #include "PlainPropsTypes.h"
-#include "PlainPropsBuild.h"
 #include "Templates/UniquePtr.h"
 
 namespace PlainProps 
 {
 
+struct FBuiltRange;
+struct FBuiltStruct;
 class FCustomBindings;
 class FDeclarations;
+struct FRangeMemberBinding;
 class FSchemaBindings;
+class FScratchAllocator;
 
 // Temporary data structure, will be replaced by something more sophisticated
 // perhaps deduplicating all zero-memory defaults
@@ -33,7 +36,7 @@ FSaveContext MakeSaveContext(FDefaultStructs Defaults, FScratchAllocator& Scratc
 	return { Runtime::GetTypes(), Runtime::GetSchemas(), Runtime::GetCustoms(), Scratch, Defaults };
 }
 
-[[nodiscard]] PLAINPROPS_API FBuiltStructPtr SaveStruct(const void* Struct, FStructSchemaId BindId, const FSaveContext& Context);
-[[nodiscard]] PLAINPROPS_API FBuiltStructPtr SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId BindId, const FSaveContext& Context);
-
+[[nodiscard]] PLAINPROPS_API FBuiltStruct*	SaveStruct(const void* Struct, FStructSchemaId BindId, const FSaveContext& Context);
+[[nodiscard]] PLAINPROPS_API FBuiltStruct*	SaveStructDelta(const void* Struct, const void* Default, FStructSchemaId BindId, const FSaveContext& Context);
+[[nodiscard]] PLAINPROPS_API FBuiltRange*	SaveRange(const void* Range, FRangeMemberBinding Member, const FSaveContext& Ctx);
 } // namespace PlainProps
