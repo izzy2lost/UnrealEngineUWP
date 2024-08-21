@@ -16,9 +16,8 @@ public:
 
 	virtual void Evaluate(FTG_EvaluationContext* InContext) override;
 
-	// The 4 dimensional vector X, Y, Z and W.
 	UPROPERTY(EditAnywhere, Category = NoCategory, meta = (TGType = "TG_InputParam", PinDisplayName = ""))
-    bool bValue = false;
+    bool Bool = false;
     
 	// The output of the node, which is the color value
     UPROPERTY(meta = (TGType = "TG_Output", PinDisplayName = ""))
