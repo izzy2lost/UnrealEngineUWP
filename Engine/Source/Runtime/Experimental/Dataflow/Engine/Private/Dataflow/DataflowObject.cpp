@@ -111,7 +111,7 @@ void UDataflow::PostLoad()
 		{
 			const FDataflowOutput* const Output = OutputNode->FindOutput(Link.Output);
 			const FDataflowInput* const Input = InputNode->FindInput(Link.Input);
-			if (ensure(Output && Input))
+			if (Output && Input)
 			{
 				TObjectPtr<UDataflowEdNode> OutputEdNode = FindEdNodeByDataflowNodeGuid(Link.OutputNode);
 				TObjectPtr<UDataflowEdNode> InputEdNode = FindEdNodeByDataflowNodeGuid(Link.InputNode);
