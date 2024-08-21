@@ -460,6 +460,9 @@ namespace Metasound::Editor
 		/** Converts the MetaSound from a preset to a fully modifiable MetaSound. */
 		void ConvertFromPreset();
 
+		/* Whether or not page details should be visible. */
+		bool ShowPageDetails() const;
+
 		/** Creates audition menu options */
 		TSharedRef<SWidget> CreateAuditionMenuOptions();
 
