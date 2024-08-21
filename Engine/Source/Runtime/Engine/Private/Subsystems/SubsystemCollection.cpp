@@ -229,7 +229,6 @@ void FSubsystemCollectionBase::Deinitialize()
 	}
 
 	// Deinit and clean up existing systems
-	SubsystemArrayMap.Empty();
 	for (auto Iter = SubsystemMap.CreateIterator(); Iter; ++Iter)
 	{
 		UClass* KeyClass = Iter.Key();
@@ -240,6 +239,8 @@ void FSubsystemCollectionBase::Deinitialize()
 			Subsystem->InternalOwningSubsystem = nullptr;
 		}
 	}
+
+	SubsystemArrayMap.Empty();
 	SubsystemMap.Empty();
 	Outer = nullptr;
 }
