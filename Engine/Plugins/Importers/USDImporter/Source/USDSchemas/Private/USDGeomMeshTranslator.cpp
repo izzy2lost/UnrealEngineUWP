@@ -185,23 +185,6 @@ namespace UsdGeomMeshTranslatorImpl
 			}
 		}
 
-		// Don't enable Nanite if we have more than one LOD. This means the Mesh came from the LOD variant set setup, and
-		// we're considering the LOD setup "stronger" than the Nanite override: If you have all that LOD variant set situation you
-		// likely don't want Nanite for one of the LOD meshes anyway, as that doesn't really make any sense.
-		// If the user wants to have Nanite within the variant set all they would otherwise need is to name the variant set something
-		// else other than LOD.
-		if (LODIndexToMeshDescription.Num() > 1)
-		{
-			UE_LOG(
-				LogUsd,
-				Warning,
-				TEXT("Not enabling Nanite for mesh generated for prim '%s' as it has more than one generated LOD (and so came from a LOD variant set "
-					 "setup)"),
-				*PrimPath.GetString()
-			);
-			return false;
-		}
-
 		if (Context.UsdInfoCache)
 		{
 			TOptional<uint64> SubtreeSectionCount = Context.UsdInfoCache->GetSubtreeMaterialSlotCount(PrimPath);
