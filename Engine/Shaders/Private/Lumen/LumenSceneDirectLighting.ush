@@ -176,16 +176,8 @@ struct FLumenPackedLight
 
 	float RectLightBarnCosAngle;
 	float RectLightBarnLength;
-	uint LightType;
-	uint VirtualShadowMapId;
-
-	float4 InfluenceSphere;
-
-	float3 ProxyRelativePosition;
-	float ProxyRadius;
-
-	float3 ProxyDirection;
 	float RectLightAtlasMaxLevel;
+	uint LightType;
 	
 	float2 SinCosConeAngleOrRectLightAtlasUVScale;
 	float2 RectLightAtlasUVOffset;
@@ -216,6 +208,15 @@ struct FLumenLight
 };
 
 StructuredBuffer<FLumenPackedLight> LumenPackedLights;
+
+// Storing influence spheres in a separate buffer to accelerate light culling.
+// Most lights can be culled by testing only their influence spheres so no point loading other data for culled lights.
+StructuredBuffer<float4> LumenLightInfluenceSpheres;
+
+float4 LoadLumenLightInfluenceSphere(uint LightIndex)
+{
+	return LumenLightInfluenceSpheres[LightIndex];
+}
 
 FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exposure)
 {
@@ -255,16 +256,15 @@ FLumenLight LoadLumenLight(uint LightIndex, float3 PreViewTranslation, float Exp
 
 	FLumenLight LumenLight = (FLumenLight)0;
 	LumenLight.DeferredLightData = DeferredLightData;
-	LumenLight.InfluenceSphere.xyz = PackedLight.InfluenceSphere.xyz + DFHackToFloat(WorldPosition); // LUMEN_LWC_TODO: rebase to translated world
-	LumenLight.InfluenceSphere.w = PackedLight.InfluenceSphere.w;
-	LumenLight.ProxyPosition = PackedLight.ProxyRelativePosition + DFHackToFloat(WorldPosition); // LUMEN_LWC_TODO: rebase to translated world
-	LumenLight.ProxyRadius = PackedLight.ProxyRadius;
-	LumenLight.ProxyDirection = PackedLight.ProxyDirection;
+	LumenLight.InfluenceSphere = LoadLumenLightInfluenceSphere(LightIndex); // LUMEN_LWC_TODO: rebase to translated world
+	LumenLight.ProxyPosition = DFHackToFloat(WorldPosition); // LUMEN_LWC_TODO: rebase to translated world
+	LumenLight.ProxyRadius = rcp(PackedLight.InvRadius);
+	LumenLight.ProxyDirection = -PackedLight.Direction;
 	LumenLight.CosConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.y;
 	LumenLight.SinConeAngle = PackedLight.SinCosConeAngleOrRectLightAtlasUVScale.x;
-	LumenLight.VirtualShadowMapId = PackedLight.VirtualShadowMapId;
+	LumenLight.VirtualShadowMapId = 0;
 	LumenLight.bHasShadowMask = PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone >> 31;
-	LumenLight.bIsStandaloneLight  = (PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone >> 30) & 0x1;
+	LumenLight.bIsStandaloneLight  = BitFieldExtractU32(PackedLight.LightFunctionAtlasIndex_bHasShadowMask_bIsStandalone, 1, 30);
 	LumenLight.LightingChannelMask = PackedLight.LightingChannelMask;
 	LumenLight.Type = PackedLight.LightType;
 	LumenLight.PersistentId = PackedLight.PersistentId;

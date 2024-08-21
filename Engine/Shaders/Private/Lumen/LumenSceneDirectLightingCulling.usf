@@ -121,6 +121,18 @@ void InitializeCardTileIndirectArgsCS(uint3 DispatchThreadId : SV_DispatchThread
 
 #endif
 
+bool DoesLightInfluenceSphereAffectCardPageUVRange(float4 InfluenceSphere, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax)
+{
+	float3 CardPageLocalCenter;
+	float3 CardPageLocalExtent;
+	GetCardLocalBBox(CardPage, Card, UVMin, UVMax, CardPageLocalCenter, CardPageLocalExtent);
+
+	float3 LightInfluenceSphereLocalCenter = mul(InfluenceSphere.xyz - Card.Origin, Card.WorldToLocalRotation);
+	const float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CardPageLocalCenter, CardPageLocalExtent, LightInfluenceSphereLocalCenter);
+	return BoxDistanceSq < InfluenceSphere.w * InfluenceSphere.w;
+}
+
+// This function doesn't test light influence spheres
 bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData CardPage, FLumenCardData Card, float2 UVMin, float2 UVMax, inout float3 OutCardPageWorldCenter)
 {
 	// Lighting channels test
@@ -138,21 +150,10 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 	float CardPageWorldBoundingSphere = length(CardPageLocalExtent);
 	OutCardPageWorldCenter = CardPageWorldCenter;
 
-	float4 InfluenceSphere = LumenLight.InfluenceSphere;
-	float3 LightInfluenceSphereLocalCenter = mul(InfluenceSphere.xyz - Card.Origin, Card.WorldToLocalRotation);
-	const float BoxDistanceSq = ComputeSquaredDistanceFromBoxToPoint(CardPageLocalCenter, CardPageLocalExtent, LightInfluenceSphereLocalCenter);
-	const bool bCardAffectedByInfluenceSphere = BoxDistanceSq < InfluenceSphere.w * InfluenceSphere.w;
-
 	const uint LightType = LumenLight.Type;
 	const float3 LightPosition = LumenLight.ProxyPosition;
 	const float3 LightDirection = LumenLight.ProxyDirection;
 	const float LightRadius = LumenLight.ProxyRadius;
-
-	// Fast out
-	if (LightType != LIGHT_TYPE_DIRECTIONAL && !bCardAffectedByInfluenceSphere)
-	{
-		return false;
-	}
 
 	if (LightType == LIGHT_TYPE_DIRECTIONAL)
 	{
@@ -161,7 +162,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 	else if (LightType == LIGHT_TYPE_POINT)
 	{
 		// Point light
-		return bCardAffectedByInfluenceSphere;
+		return true;
 	}
 	else if (LightType == LIGHT_TYPE_SPOT)
 	{
@@ -172,8 +173,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 		float2 ConeAxisDistanceMinMax = float2(ConeAxisDistance + CardPageWorldBoundingSphere, ConeAxisDistance - CardPageWorldBoundingSphere);
 
 		// Spot light
-		return bCardAffectedByInfluenceSphere
-			&& SphereIntersectCone(float4(CardPageWorldCenter, CardPageWorldBoundingSphere), LightPosition, LightDirection, CosConeAngle, SinConeAngle)
+		return SphereIntersectCone(float4(CardPageWorldCenter, CardPageWorldBoundingSphere), LightPosition, LightDirection, CosConeAngle, SinConeAngle)
 			&& ConeAxisDistanceMinMax.x > 0 && ConeAxisDistanceMinMax.y < LightRadius;
 	}
 	else if (LightType == LIGHT_TYPE_RECT)
@@ -183,7 +183,7 @@ bool DoesLightAffectCardPageUVRange(FLumenLight LumenLight, FLumenCardPageData C
 		float DistanceFromBoxCenterToPlane = dot(BackPlane.xyz, CardPageWorldCenter) - BackPlane.w;
 		float MaxExtent = dot(CardPageWorldExtent, abs(BackPlane.xyz));
 		bool bInFrontOfPlane = DistanceFromBoxCenterToPlane + MaxExtent > 0.0f;
-		return bCardAffectedByInfluenceSphere && bInFrontOfPlane;
+		return bInFrontOfPlane;
 	}
 
 	// Error: Unknown light type
@@ -331,21 +331,24 @@ void BuildLightTilesCS(
 			// Loop over lights to select N most important lights
 			for (uint LightIndex = 0; LightIndex < NumLights; ++LightIndex)
 			{
-				const FDFVector3 PreViewTranslation =  GetPreViewTranslation(ViewIndex);
-				FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
-
-				float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
-				bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardPageWorldCenter);
-				if (bLightAffectsCard)
+				if (DoesLightInfluenceSphereAffectCardPageUVRange(LoadLumenLightInfluenceSphere(LightIndex), CardPage, Card, UVMin, UVMax))
 				{
-					// Center of a tile for estimating attenuation
-					float3 TranslatedWorldPosition = CardPageWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation);
+					const FDFVector3 PreViewTranslation =  GetPreViewTranslation(ViewIndex);
+					FLumenLight LumenLight = LoadLumenLight(LightIndex, DFHackToFloat(PreViewTranslation), ViewExposure[ViewIndex]);
 
-					FLightSample LightSample;
-					LightSample.Weight = GetLightWeight(LumenLight, TranslatedWorldPosition);
-					LightSample.LightIndex = LightIndex;
-					LightSample.bHasShadowMask = LumenLight.bHasShadowMask;
-					AddLightSample(LightSampleAccumulator, LightSample);
+					float3 CardPageWorldCenter = 0.0f; // LWC_TODO:
+					bool bLightAffectsCard = DoesLightAffectCardPageUVRange(LumenLight, CardPage, Card, UVMin, UVMax, CardPageWorldCenter);
+					if (bLightAffectsCard)
+					{
+						// Center of a tile for estimating attenuation
+						float3 TranslatedWorldPosition = CardPageWorldCenter + DFHackToFloat(PrimaryView.PreViewTranslation);
+
+						FLightSample LightSample;
+						LightSample.Weight = GetLightWeight(LumenLight, TranslatedWorldPosition);
+						LightSample.LightIndex = LightIndex;
+						LightSample.bHasShadowMask = LumenLight.bHasShadowMask;
+						AddLightSample(LightSampleAccumulator, LightSample);
+					}
 				}
 			}
 

@@ -167,7 +167,7 @@ class FLumenSceneEvaluateStandaloneLightMaterialCS : public FMaterialShader
 		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightCloudTransmittanceParameters, LightCloudTransmittanceParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenSceneDirectLighting::FLightDataParameters, LumenLightData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightCounters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightOffsets)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightDatas)
@@ -227,7 +227,7 @@ class FLumenSceneEvaluateStandaloneLightCS : public FGlobalShader
 		SHADER_PARAMETER_ARRAY(FVector4f, PreViewTranslationLow, [LUMEN_MAX_VIEWS])
 		SHADER_PARAMETER(FVector2f, ViewExposure)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLightCloudTransmittanceParameters, LightCloudTransmittanceParameters)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenSceneDirectLighting::FLightDataParameters, LumenLightData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightCounters)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightOffsets)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, CardTilePerLightDatas)
@@ -298,7 +298,7 @@ class FLumenSceneGenerateLightSamplesCS : public FGlobalShader
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		RDG_BUFFER_ACCESS(IndirectArgs, ERHIAccess::IndirectArgs)
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FLumenCardScene, LumenCardScene)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenSceneDirectLighting::FLightDataParameters, LumenLightData)
 		SHADER_PARAMETER_STRUCT_INCLUDE(FLumenSceneLightingStochasticParameters, CommonParameters)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2D<float2>, RWSampleLuminanceSum)
 		SHADER_PARAMETER_RDG_TEXTURE_UAV(RWTexture2DArray<float4>, RWSampleDiffuseLighting)
@@ -547,7 +547,7 @@ static void ComputeStochasticLighting(
 	const FLumenDirectLightingTaskData* LightingTaskData,
 	const FLumenCardUpdateContext& CardUpdateContext,
 	ERDGPassFlags ComputePassFlags,
-	FRDGBufferRef LumenPackedLights)
+	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData)
 {
 	FLumenSceneData& LumenSceneData = *Scene->GetLumenSceneData(View);// TODO Views[x]?
 
@@ -737,7 +737,7 @@ static void ComputeStochasticLighting(
 
 			PassParameters->RWSampleLuminanceSum = SampleLuminanceSumUAV;
 			PassParameters->RWLightSamples = GraphBuilder.CreateUAV(LightSamples);
-			PassParameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
+			PassParameters->LumenLightData = LumenLightData;
 			PassParameters->LumenCardScene = FrameTemporaries.LumenCardSceneUniformBuffer;
 			PassParameters->TileAllocator = GraphBuilder.CreateSRV(CardTileUpdateContext.CardTileAllocator);
 			PassParameters->TileData = GraphBuilder.CreateSRV(CardTileUpdateContext.CardTiles);
@@ -845,7 +845,7 @@ static void ComputeStochasticLighting(
 					PassParameters->LumenSceneData = SceneData;
 					PassParameters->RWLightSamples = LightSamplesUAVSkipBarrier;
 					PassParameters->RWSampleDiffuseLighting = SampleDiffuseLightingUAVSkipBarrier;
-					PassParameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
+					PassParameters->LumenLightData = LumenLightData;
 					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 					const bool bUseCloudTransmittance = SetupLightCloudTransmittanceParameters(
 						GraphBuilder,
@@ -903,7 +903,7 @@ static void ComputeStochasticLighting(
 					PassParameters->LumenSceneData = SceneData;
 					PassParameters->RWLightSamples = LightSamplesUAVSkipBarrier;
 					PassParameters->RWSampleDiffuseLighting = SampleDiffuseLightingUAVSkipBarrier;
-					PassParameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
+					PassParameters->LumenLightData = LumenLightData;
 					PassParameters->ViewUniformBuffer = View.ViewUniformBuffer;
 
 					const bool bUseCloudTransmittance = SetupLightCloudTransmittanceParameters(
@@ -970,12 +970,12 @@ static void ComputeStochasticLighting(
 					OriginIndex,
 					FrameTemporaries,
 					StochasticData,
+					LumenLightData,
 					nullptr,
 					nullptr,
 					nullptr,
 					nullptr,
 					nullptr,
-					LumenPackedLights,
 					nullptr,
 					ComputePassFlags);
 			}
@@ -1100,7 +1100,6 @@ static void ComputeStochasticLighting(
 				LightingTaskData,
 				CardUpdateContext,
 				CardTileUpdateContext,
-				LumenPackedLights,
 				CompactedLightSampleAllocator,
 				ComputePassFlags);
 		}

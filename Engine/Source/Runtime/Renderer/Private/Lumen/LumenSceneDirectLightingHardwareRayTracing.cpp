@@ -107,7 +107,7 @@ class FLumenDirectLightingHardwareRayTracing : public FLumenHardwareRayTracingSh
 		RDG_BUFFER_ACCESS(HardwareRayTracingIndirectArgs, ERHIAccess::IndirectArgs | ERHIAccess::SRVCompute)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, LightTileAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint2>, LightTiles)
-		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_STRUCT_INCLUDE(LumenSceneDirectLighting::FLightDataParameters, LumenLightData)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowTraceAllocator)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, ShadowTraces)
 
@@ -232,7 +232,7 @@ void SetLumenHardwareRayTracedDirectLightingShadowsParameters(
 	const FLumenCardTracingParameters& TracingParameters,
 	FRDGBufferRef LightTileAllocator,
 	FRDGBufferRef LightTiles,
-	FRDGBufferRef LumenPackedLights,
+	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData,
 	FRDGBufferUAVRef ShadowMaskTilesUAV,
 	FRDGBufferRef HardwareRayTracingIndirectArgsBuffer,
 	FLumenDirectLightingHardwareRayTracingRGS::FParameters* Parameters
@@ -249,7 +249,7 @@ void SetLumenHardwareRayTracedDirectLightingShadowsParameters(
 	Parameters->HardwareRayTracingIndirectArgs = HardwareRayTracingIndirectArgsBuffer;
 	Parameters->LightTileAllocator = LightTileAllocator ? GraphBuilder.CreateSRV(LightTileAllocator) : nullptr;
 	Parameters->LightTiles = LightTiles ? GraphBuilder.CreateSRV(LightTiles) : nullptr;
-	Parameters->LumenPackedLights = GraphBuilder.CreateSRV(LumenPackedLights);
+	Parameters->LumenLightData = LumenLightData;
 
 	Parameters->PullbackBias = 0.0f;
 	Parameters->ViewIndex = ViewIndex;
@@ -291,12 +291,12 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 	int32 ViewIndex,
 	const FLumenSceneFrameTemporaries& FrameTemporaries,
 	const FLumenDirectLightingStochasticData& StochasticData,
+	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData,
 	FRDGBufferRef ShadowTraceIndirectArgs,
 	FRDGBufferRef ShadowTraceAllocator,
 	FRDGBufferRef ShadowTraces,
 	FRDGBufferRef LightTileAllocator,
 	FRDGBufferRef LightTiles,
-	FRDGBufferRef LumenPackedLights,
 	FRDGBufferUAVRef ShadowMaskTilesUAV,
 	ERDGPassFlags ComputePassFlags)
 {
@@ -339,7 +339,7 @@ void TraceLumenHardwareRayTracedDirectLightingShadows(
 		TracingParameters,
 		LightTileAllocator,
 		LightTiles,
-		LumenPackedLights,
+		LumenLightData,
 		ShadowMaskTilesUAV,
 		HardwareRayTracingIndirectArgsBuffer,
 		PassParameters

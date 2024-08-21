@@ -164,31 +164,6 @@ struct FLumenDirectLightingStochasticData
 	FRDGTextureRef LightSamples = nullptr;
 };
 
-void TraceLumenHardwareRayTracedDirectLightingShadows(
-	FRDGBuilder& GraphBuilder,
-	const FScene* Scene,
-	const FViewInfo& View,
-	int32 ViewIndex,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
-	const FLumenDirectLightingStochasticData& StochasticData,
-	FRDGBufferRef ShadowTraceIndirectArgs,
-	FRDGBufferRef ShadowTraceAllocator,
-	FRDGBufferRef ShadowTraces,
-	FRDGBufferRef LightTileAllocator,
-	FRDGBufferRef LightTiles,
-	FRDGBufferRef LumenPackedLights,
-	FRDGBufferUAVRef ShadowMaskTilesUAV,
-	ERDGPassFlags ComputePassFlags);
-
-// Return debug information of the cards pointing by the mouse cursor
-FRDGBufferSRVRef TraceLumenHardwareRayTracedDebug(
-	FRDGBuilder& GraphBuilder,
-	const FScene* Scene,
-	const FViewInfo& View,
-	int32 ViewIndex,
-	const FLumenSceneFrameTemporaries& FrameTemporaries,
-	ERDGPassFlags ComputePassFlags);
-
 enum class ELumenDispatchCardTilesIndirectArgsOffset
 {
 	OneThreadPerCardTile = 0 * sizeof(FRHIDispatchIndirectParameters),
@@ -249,6 +224,11 @@ namespace LumenSceneLighting
 
 namespace LumenSceneDirectLighting
 {
+	BEGIN_SHADER_PARAMETER_STRUCT(FLightDataParameters, )
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FLumenPackedLight>, LumenPackedLights)
+		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<float4>, LumenLightInfluenceSpheres)
+	END_SHADER_PARAMETER_STRUCT()
+
 	float GetMeshSDFShadowRayBias();
 	float GetHeightfieldShadowRayBias();
 	float GetGlobalSDFShadowRayBias();
@@ -256,3 +236,28 @@ namespace LumenSceneDirectLighting
 
 	bool UseStochasticLighting(const FSceneViewFamily& ViewFamily);
 }
+
+void TraceLumenHardwareRayTracedDirectLightingShadows(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	int32 ViewIndex,
+	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	const FLumenDirectLightingStochasticData& StochasticData,
+	const LumenSceneDirectLighting::FLightDataParameters& LumenLightData,
+	FRDGBufferRef ShadowTraceIndirectArgs,
+	FRDGBufferRef ShadowTraceAllocator,
+	FRDGBufferRef ShadowTraces,
+	FRDGBufferRef LightTileAllocator,
+	FRDGBufferRef LightTiles,
+	FRDGBufferUAVRef ShadowMaskTilesUAV,
+	ERDGPassFlags ComputePassFlags);
+
+// Return debug information of the cards pointing by the mouse cursor
+FRDGBufferSRVRef TraceLumenHardwareRayTracedDebug(
+	FRDGBuilder& GraphBuilder,
+	const FScene* Scene,
+	const FViewInfo& View,
+	int32 ViewIndex,
+	const FLumenSceneFrameTemporaries& FrameTemporaries,
+	ERDGPassFlags ComputePassFlags);
