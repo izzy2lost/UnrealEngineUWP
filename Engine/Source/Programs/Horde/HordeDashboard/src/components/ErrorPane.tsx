@@ -118,7 +118,8 @@ export const ErrorPane: React.FC<{ jobDetails: JobDetails; stepId: string; showE
 
       return (<Stack className={styles.itemCell} styles={{ root: { padding: 8, marginRight: 8 } }}><Stack className={item.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
-            {lines}
+            {!!lines.length && lines}
+            {!lines.length && <Text>Missing Log Data</Text>}
          </Stack>
       </Stack>
       </Stack>
@@ -213,7 +214,8 @@ export const JobEventListPanel: React.FC<{ jobDetails: JobDetails, stepIds: stri
          <Link className="log-link" to={url}>
             <Stack className={styles.itemCell} styles={{ root: { padding: 8, paddingLeft: 24, marginRight: 8 } }}><Stack className={event.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
                <Stack styles={{ root: { paddingLeft: 8 } }}>
-                  {lines}
+               {!!lines.length && lines}
+               {!lines.length && <Text>Missing Log Data</Text>}
                </Stack>
             </Stack>
             </Stack>

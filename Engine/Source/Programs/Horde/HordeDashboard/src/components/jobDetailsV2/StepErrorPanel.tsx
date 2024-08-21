@@ -225,7 +225,8 @@ const ErrorPane: React.FC<{ jobDetails: JobDetailsV2; view: StepSummaryErrorsVie
 
       return (<Stack className={styles.itemCell} styles={{ root: { padding: 8, marginRight: 8 } }}><Stack className={item.severity === EventSeverity.Warning ? styles.gutterWarning : styles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
-            {lines}
+            {!!lines.length && lines}
+            {!lines.length && <Text>Missing Log Data</Text>}
          </Stack>
       </Stack>
       </Stack>

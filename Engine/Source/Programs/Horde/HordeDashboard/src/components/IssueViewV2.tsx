@@ -1436,7 +1436,8 @@ export const ErrorPane: React.FC<{ events?: GetLogEventResponse[]; onClose?: () 
 
       return (<Stack className={errorStyles.itemCell} style={{ padding: 8 }}><Stack className={item.severity === EventSeverity.Warning ? errorStyles.gutterWarning : errorStyles.gutter} styles={{ root: { padding: 0, margin: 0 } }}>
          <Stack styles={{ root: { paddingLeft: 14 } }}>
-            {lines}
+            {!!lines.length && lines}
+            {!lines.length && <Text>Missing Log Data</Text>}
          </Stack>
       </Stack>
       </Stack>);
