@@ -53,7 +53,9 @@ namespace BuildPatchServices
 		// The minimum number of chunks to request ahead of what is required, depending on store slack.
 		int32 PreFetchMinimum  = 16;
 		// The maximum number of chunks to request ahead of what is required, depending on store slack.
-		int32 PreFetchMaximum = 256;
+		// This shouldn't be too much because we'll queue too many on the same CDN which might not be good and we have to chew 
+		// though a ton of requests before we swap over, and we only really want there to be one queued + one ready to go per connection anyway.
+		int32 PreFetchMaximum = 32;
 		// Array of times in seconds, representing the time between each retry upon failure. The last entry will be used
 		// indefinitely once it is reached.
 		TArray<float> RetryDelayTimes;
