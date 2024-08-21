@@ -135,6 +135,28 @@ protected:
 	}
 };
 
+struct VClassPropertyType final : VPropertyType
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VPropertyType);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	static VClassPropertyType& New(FAllocationContext Context, bool bIsStruct, VValue ClassValue)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VClassPropertyType))) VClassPropertyType(Context, bIsStruct, ClassValue);
+	}
+
+	bool bIsStruct;
+	TWriteBarrier<VValue> ClassValue;
+
+protected:
+	VClassPropertyType(FAllocationContext Context, bool bInIsStruct, VValue InClassValue)
+		: VPropertyType(Context, EPropertyType::Class, &GlobalTrivialEmergentType.Get(Context))
+		, bIsStruct(bInIsStruct)
+		, ClassValue(Context, InClassValue)
+	{
+	}
+};
+
 struct VWrappedPropertyType : VPropertyType
 {
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VPropertyType);
@@ -191,6 +213,26 @@ protected:
 	VMapPropertyType(FAllocationContext Context, VPropertyType& InKey, VPropertyType& InInner)
 		: VWrappedPropertyType(Context, EPropertyType::Map, InInner, &GlobalTrivialEmergentType.Get(Context))
 		, Key(Context, InKey)
+	{
+	}
+};
+
+struct VInterfacePropertyType final : VPropertyType
+{
+	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VPropertyType);
+	COREUOBJECT_API static TGlobalTrivialEmergentTypePtr<&StaticCppClassInfo> GlobalTrivialEmergentType;
+
+	static VInterfacePropertyType& New(FAllocationContext Context, VValue InterfaceValue)
+	{
+		return *new (Context.AllocateFastCell(sizeof(VInterfacePropertyType))) VInterfacePropertyType(Context, InterfaceValue);
+	}
+
+	TWriteBarrier<VValue> InterfaceValue;
+
+protected:
+	VInterfacePropertyType(FAllocationContext Context, VValue InInterfaceValue)
+		: VPropertyType(Context, EPropertyType::Class, &GlobalTrivialEmergentType.Get(Context))
+		, InterfaceValue(Context, InInterfaceValue)
 	{
 	}
 };

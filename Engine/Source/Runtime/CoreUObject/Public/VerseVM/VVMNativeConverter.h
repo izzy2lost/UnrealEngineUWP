@@ -44,17 +44,54 @@ struct TIsNativeStruct
 	static constexpr bool Value = false;
 };
 
+// Assigned to a native implementation return value - a default-emplaceable version of TOptional<NativeType>.
 template <typename NativeType, typename = void>
 struct TToVValue
 {
-	using Type = NativeType;
+	TOptional<NativeType> Value;
+
+	void Emplace() { Value.Emplace(); }
+
+	TToVValue& operator=(NativeType Other)
+	{
+		Value = MoveTemp(Other);
+		return *this;
+	}
+	TToVValue& operator=(TOptional<NativeType> Other)
+	{
+		Value = MoveTemp(Other);
+		return *this;
+	}
+
+	operator TOptional<NativeType>&() { return Value; }
+	NativeType& operator*() { return *Value; }
 };
 
 // Marshal class objects through a raw pointer.
-template <typename NativeType>
-struct TToVValue<TNonNullPtr<NativeType>>
+template <typename ObjectType>
+struct TToVValue<TNonNullPtr<ObjectType>>
 {
-	using Type = NativeType*;
+	TOptional<ObjectType*> Value;
+
+	void Emplace() { Value.Emplace(); }
+
+	TToVValue& operator=(TNonNullPtr<ObjectType> Other)
+	{
+		Value = Other.Get();
+		return *this;
+	}
+	TToVValue& operator=(TOptional<TNonNullPtr<ObjectType>> Other)
+	{
+		if (Other.IsSet())
+		{
+			Value = Other.GetValue().Get();
+		}
+		else
+		{
+			Value.Reset();
+		}
+		return *this;
+	}
 };
 
 // Out parameter for FromVValue - a default-constructible version of NativeType.
@@ -137,7 +174,7 @@ struct FNativeConverter
 	template <class ObjectType>
 	static VValue ToVValue(FAllocationContext Context, TNonNullPtr<ObjectType> Object)
 	{
-		return ToVValue(Context, static_cast<typename TToVValue<TNonNullPtr<ObjectType>>::Type>(Object));
+		return ToVValue(Context, Object.Get());
 	}
 
 	template <class StructType, typename = typename TEnableIf<TIsNativeStruct<typename TDecay<StructType>::Type>::Value>::Type>

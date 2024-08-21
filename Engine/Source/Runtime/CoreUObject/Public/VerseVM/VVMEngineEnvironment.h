@@ -24,6 +24,7 @@ struct VClass;
 struct VPackage;
 struct VPropertyType;
 enum class EPackageStage : uint8;
+class CSymbolToResult;
 
 // This interface must be implemented if Verse needs to create UObject instances.
 class IEngineEnvironment
@@ -43,7 +44,7 @@ public:
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 	// Collect property information during code generation.
-	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, const uLang::CTypeBase* Type) = 0;
+	virtual VPropertyType* CollectPropertyInfo(FAllocationContext Context, CSymbolToResult* Environment, const uLang::CTypeBase* Type) = 0;
 
 	// Build the key used to look up native binding info for a module, class, or struct.
 	virtual FTopLevelAssetPath GetAssetPathForScope(const uLang::CScope& Scope) = 0;
@@ -58,7 +59,7 @@ public:
 	virtual UPackage* CreateUPackage(FAllocationContext Context, const TCHAR* PackageName) = 0;
 
 	// Create a new UClass/UScriptStruct from an existing VClass during native binding or for CVarUObjectProbability.
-	virtual UStruct* CreateUStruct(FAllocationContext Context, VClass* Class) = 0;
+	virtual void CreateUStruct(FAllocationContext Context, VClass* Class, TWriteBarrier<VValue>& Result) = 0;
 #endif // WITH_VERSE_VM
 };
 } // namespace Verse

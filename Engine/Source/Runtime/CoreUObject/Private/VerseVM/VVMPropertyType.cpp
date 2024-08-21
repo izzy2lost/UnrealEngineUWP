@@ -27,6 +27,14 @@ void VTypePropertyType::VisitReferencesImpl(TVisitor& Visitor)
 	Visitor.Visit(ClassName, TEXT("ClassName"));
 }
 
+DEFINE_DERIVED_VCPPCLASSINFO(VClassPropertyType)
+TGlobalTrivialEmergentTypePtr<&VClassPropertyType::StaticCppClassInfo> VClassPropertyType::GlobalTrivialEmergentType;
+template <typename TVisitor>
+void VClassPropertyType::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(ClassValue, TEXT("ClassValue"));
+}
+
 DEFINE_DERIVED_VCPPCLASSINFO(VWrappedPropertyType)
 TGlobalTrivialEmergentTypePtr<&VWrappedPropertyType::StaticCppClassInfo> VWrappedPropertyType::GlobalTrivialEmergentType;
 template <typename TVisitor>
@@ -45,6 +53,14 @@ template <typename TVisitor>
 void VMapPropertyType::VisitReferencesImpl(TVisitor& Visitor)
 {
 	Visitor.Visit(Key, TEXT("Key"));
+}
+
+DEFINE_DERIVED_VCPPCLASSINFO(VInterfacePropertyType)
+TGlobalTrivialEmergentTypePtr<&VInterfacePropertyType::StaticCppClassInfo> VInterfacePropertyType::GlobalTrivialEmergentType;
+template <typename TVisitor>
+void VInterfacePropertyType::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.Visit(InterfaceValue, TEXT("InterfaceValue"));
 }
 
 } // namespace Verse

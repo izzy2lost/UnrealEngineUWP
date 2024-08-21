@@ -435,10 +435,9 @@ UStruct* VClass::CreateUStruct(FAllocationContext Context)
 
 	IEngineEnvironment* Environment = VerseVM::GetEngineEnvironment();
 	check(Environment);
-	UStruct* NewStruct = Environment->CreateUStruct(Context, this);
-	AssociatedUStruct.Set(Context, NewStruct);
+	Environment->CreateUStruct(Context, this, AssociatedUStruct);
 
-	return NewStruct;
+	return GetUStruct<UStruct>();
 }
 
 void VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const
