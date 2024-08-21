@@ -183,6 +183,11 @@ public:
 	bool SetupRequestHttpThread();
 
 	/**
+	 * Perform the http-thread cleanup of the request
+	 */
+	void  CleanupRequestHttpThread();
+
+	/**
 	 * Returns libcurl's easy handle - needed for HTTP manager.
 	 *
 	 * @return libcurl's easy handle

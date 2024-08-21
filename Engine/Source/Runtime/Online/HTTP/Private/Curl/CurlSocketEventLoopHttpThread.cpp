@@ -96,6 +96,8 @@ void FCurlSocketEventLoopHttpThread::CompleteThreadedRequest(FHttpRequestCommon*
 		curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, EasyHandle);
 		HandlesToRequests.Remove(EasyHandle);
 	}
+
+	CurlRequest->CleanupRequestHttpThread();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

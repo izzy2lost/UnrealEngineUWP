@@ -123,6 +123,8 @@ void FCurlMultiWaitEventLoopHttpThread::CompleteThreadedRequest(FHttpRequestComm
 	{
 		curl_multi_remove_handle(FCurlHttpManager::GMultiHandle, EasyHandle);
 	}
+
+	CurlRequest->CleanupRequestHttpThread();
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 

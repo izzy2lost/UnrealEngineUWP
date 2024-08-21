@@ -1016,6 +1016,11 @@ bool FCurlHttpRequest::SetupRequestHttpThread()
 	return true;
 }
 
+void FCurlHttpRequest::CleanupRequestHttpThread()
+{
+	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
+}
+
 bool FCurlHttpRequest::ProcessRequest()
 {
 	QUICK_SCOPE_CYCLE_COUNTER(STAT_FCurlHttpRequest_ProcessRequest);
@@ -1342,8 +1347,6 @@ void FCurlHttpRequest::FinishRequest()
 
 void FCurlHttpRequest::CleanupRequest()
 {
-	curl_easy_setopt(EasyHandle, CURLOPT_SHARE, nullptr);
-
 	CloseRequestPayloadDefaultImpl();
 }
 
