@@ -19,24 +19,31 @@ public:
 private:
 	friend class Job_LoadStaticImageResource;
 	
+	/*Unique id for the asset within the entire system*/
 	UPROPERTY()
-	FString 						AssetUUID;						/// Unique id for the asset within the entire system
-	TiledBlobPtr					BlobObj;						/// The blob that represents the data for this source
-	bool							bIsFilesystem = false;			/// Is loading directly from the filesystem
+	FString AssetUUID;
 
-	virtual AsyncTiledBlobRef		Load(MixUpdateCyclePtr Cycle);
+	/*The blob that represents the data for this source*/
+	TiledBlobPtr BlobObj;
+
+	/*Is loading directly from the filesystem*/
+	bool bIsFilesystem = false;
+
+	virtual AsyncTiledBlobRef Load(MixUpdateCyclePtr Cycle);
+
+	FDateTime GetAssetTimeStamp();
 	
 public:
-	virtual							~UStaticImageResource() override;
+	virtual ~UStaticImageResource() override;
 	
-	virtual TiledBlobPtr			GetBlob(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredDesc, int32 TargetId);
+	virtual TiledBlobPtr GetBlob(MixUpdateCyclePtr Cycle, BufferDescriptor DesiredDesc, int32 TargetId);
 
 	//////////////////////////////////////////////////////////////////////////
 	/// Inline functions
 	//////////////////////////////////////////////////////////////////////////
-	FORCEINLINE const FString&		GetAssetUUID() const { return AssetUUID; }
-	FORCEINLINE void				SetAssetUUID(const FString& UUID) { AssetUUID = UUID; }
-	FORCEINLINE void				SetIsFileSystem(bool bInIsFileSystem) { bIsFilesystem = bInIsFileSystem; }
-	FORCEINLINE bool				IsFileSystem() const { return bIsFilesystem; }
+	FORCEINLINE const FString& GetAssetUUID() const { return AssetUUID; }
+	FORCEINLINE void SetAssetUUID(const FString& UUID) { AssetUUID = UUID; }
+	FORCEINLINE void SetIsFileSystem(bool bInIsFileSystem) { bIsFilesystem = bInIsFileSystem; }
+	FORCEINLINE bool IsFileSystem() const { return bIsFilesystem; }
 };
 
