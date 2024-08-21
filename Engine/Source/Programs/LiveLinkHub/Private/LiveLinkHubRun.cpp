@@ -2,6 +2,8 @@
 
 #include "LiveLinkHubRun.h"
 
+#include "Editor.h"
+#include "Editor/EditorEngine.h"
 #include "Misc/App.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -108,6 +110,8 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 		HubModule.PreinitializeLiveLinkHub();
 
 		Result = GEngineLoop.Init();
+
+		GEditor->ShouldDisableCPUThrottlingDelegates.Add(UEditorEngine::FShouldDisableCPUThrottling::CreateLambda([]() { return true; }));
 
 		HubModule.StartLiveLinkHub(bLauncherDistribution);
 
