@@ -188,6 +188,8 @@ namespace uba
 		WorkManager* m_workManager;
 		MutableLogger m_logger;
 
+		BufferSlots m_bufferSlots;
+
 		StringBuffer<> m_rootDir;
 		StringBuffer<> m_tempPath;
 
@@ -252,8 +254,6 @@ namespace uba
 		UnorderedMap<StringKey, CasKey> m_deferredCasCreationLookupByName;
 
 		DirectoryCache m_dirCache;
-
-		BufferSlots m_bufferSlots;
 
 		u8 m_casCompressor;
 		u8 m_casCompressionLevel;
