@@ -1927,7 +1927,10 @@ void UGeometryCollection::PreSave(FObjectPreSaveContext SaveContext)
 {
 #if WITH_EDITOR
 	constexpr bool bInitResources = false; 
-	EnsureRenderDataIsCooked(bInitResources);
+	constexpr bool bIsTransacting = false;
+	constexpr bool bIsPersistant = false; // note that this has no effect on the call below  
+	constexpr bool bAllowCopyFromDDC = false;
+	EnsureDataIsCooked(bInitResources, bIsTransacting, bIsPersistant, bAllowCopyFromDDC);
 #endif
 
 	Super::PreSave(SaveContext);
