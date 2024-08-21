@@ -123,6 +123,14 @@ FChannelViewKeyCachedState::FChannelViewKeyCachedState(TRange<FFrameTime> InVisi
 	TRange<FFrameNumber> ValidKeyRange = Sequencer->GetSubSequenceRange().Get(Sequencer->GetFocusedMovieSceneSequence()->GetMovieScene()->GetPlaybackRange());
 
 	TViewModelPtr<FChannelModel> Channel = Model.ImplicitCast();
+	if (!Channel)
+	{
+		TOptional<FViewModelChildren> TopLevelChannels = Model->FindChildList(FTrackModel::GetTopLevelChannelType());
+		if (TopLevelChannels.IsSet())
+		{
+			Channel = TopLevelChannels->FindFirstChildOfType<FChannelModel>();
+		}
+	}
 	TViewModelPtr<FLinkedOutlinerExtension> Outliner = Model.ImplicitCast();
 
 	ValidPlayRangeMin = UE::MovieScene::DiscreteInclusiveLower(ValidKeyRange);
