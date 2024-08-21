@@ -198,6 +198,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bUseMaterialDamageModifiers(false)
 		, bUsePerClusterOnlyDamageThreshold(false)
 		, StartAwake(true)
+		, bForceUpdateActiveTransforms(false)
 		, bGenerateBreakingData(false)
 		, bGenerateCollisionData(false)
 		, bGenerateTrailingData(false)
@@ -271,6 +272,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, bUseMaterialDamageModifiers(Other.bUseMaterialDamageModifiers)
 		, bUsePerClusterOnlyDamageThreshold(Other.bUsePerClusterOnlyDamageThreshold)
 		, StartAwake(Other.StartAwake)
+		, bForceUpdateActiveTransforms(Other.bForceUpdateActiveTransforms)
 		, bGenerateBreakingData(Other.bGenerateBreakingData)
 		, bGenerateCollisionData(Other.bGenerateCollisionData)
 		, bGenerateTrailingData(Other.bGenerateTrailingData)
@@ -375,6 +377,7 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	bool bUseMaterialDamageModifiers : 1;
 	bool bUsePerClusterOnlyDamageThreshold : 1;
 	bool StartAwake : 1;
+	bool bForceUpdateActiveTransforms : 1;
 
 	bool bGenerateBreakingData : 1;
 	bool bGenerateCollisionData : 1;

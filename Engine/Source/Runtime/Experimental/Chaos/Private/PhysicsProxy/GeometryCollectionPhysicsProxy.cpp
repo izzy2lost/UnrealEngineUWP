@@ -3971,19 +3971,19 @@ void FGeometryCollectionPhysicsProxy::FlipBuffer()
 }
 
 // Update game thread particle X and R properties and retun true if they changed from previous values
-static inline bool UpdateGTParticleXR(Chaos::FPBDRigidParticle& GTParticle, const Chaos::FVec3& NewX, const Chaos::FRotation3& NewR)
+static inline bool UpdateGTParticleXR(Chaos::FPBDRigidParticle& GTParticle, const Chaos::FVec3& NewX, const Chaos::FRotation3& NewR, bool bForceUpdateActiveTransforms)
 {
 	GC_PHYSICSPROXY_CHECK_FOR_NAN(NewX);
 
 	const Chaos::FVec3 OldX = GTParticle.GetX();
-	const bool bNeedUpdateX = (!NewX.Equals(OldX, GeometryCollectionPositionUpdateTolerance));
+	const bool bNeedUpdateX = bForceUpdateActiveTransforms || (!NewX.Equals(OldX, GeometryCollectionPositionUpdateTolerance));
 	if (bNeedUpdateX)
 	{
 		GTParticle.SetX(NewX, false);
 	}
 
 	const Chaos::FRotation3 OldR = GTParticle.R();
-	const bool bNeedUpdateR = (!NewR.Equals(OldR, GeometryCollectionRotationUpdateTolerance));
+	const bool bNeedUpdateR = bForceUpdateActiveTransforms || (!NewR.Equals(OldR, GeometryCollectionRotationUpdateTolerance));
 	if (bNeedUpdateR)
 	{
 		GTParticle.SetR(NewR, false);
@@ -4223,7 +4223,7 @@ bool FGeometryCollectionPhysicsProxy::PullNonInterpolatableDataFromSinglePhysics
 			{
 				const FGeometryCollectionResults::FPositionData& PositionData = CurrentResults.GetPositions(EntryIndex);
 
-				const bool XRModified = UpdateGTParticleXR(GTParticle, PositionData.ParticleX, PositionData.ParticleR);
+				const bool XRModified = UpdateGTParticleXR(GTParticle, PositionData.ParticleX, PositionData.ParticleR, Parameters.bForceUpdateActiveTransforms);
 				bIsCollectionDirty |= XRModified;
 
 				if (LinearVelocities && AngularVelocities)
@@ -4383,7 +4383,7 @@ bool FGeometryCollectionPhysicsProxy::PullFromPhysicsState(const Chaos::FDirtyGe
 						NewR = InterpData->GetErrorR(*Alpha) * NewR;
 					}
 
-					const bool XRModified = UpdateGTParticleXR(GTParticle, NewX, NewR);
+					const bool XRModified = UpdateGTParticleXR(GTParticle, NewX, NewR, Parameters.bForceUpdateActiveTransforms);
 					bIsCollectionDirty |= XRModified;
 
 					if (LinearVelocities && AngularVelocities)
