@@ -16,10 +16,12 @@ class STATETREEEDITORMODULE_API UStateTreeFactory : public UFactory
 {
 	GENERATED_UCLASS_BODY()
 
-	// UFactory interface
+	//~ UFactory interface
 	virtual bool ConfigureProperties() override;
 	virtual UObject* FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn) override;
-	// End of UFactory interface
+	//~ End of UFactory interface
+
+	void SetSchemaClass(const TObjectPtr<UClass>& InSchemaClass);  
 
 protected:
 	

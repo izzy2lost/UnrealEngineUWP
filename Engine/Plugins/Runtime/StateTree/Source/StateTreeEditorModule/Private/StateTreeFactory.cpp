@@ -104,6 +104,11 @@ bool UStateTreeFactory::ConfigureProperties()
 	return bResult;
 }
 
+void UStateTreeFactory::SetSchemaClass(const TObjectPtr<UClass>& InSchemaClass)
+{
+	StateTreeSchemaClass = InSchemaClass;
+}
+
 UObject* UStateTreeFactory::FactoryCreateNew(UClass* Class, UObject* InParent, FName Name, EObjectFlags Flags, UObject* Context, FFeedbackContext* Warn)
 {
 	if (StateTreeSchemaClass == nullptr)
