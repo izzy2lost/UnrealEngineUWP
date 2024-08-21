@@ -957,7 +957,7 @@ namespace HordeServer.Agents
 				List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
 				updates.Add(updateBuilder.Set(x => x.SessionId, newSession.Id));
 				updates.Add(updateBuilder.Set(x => x.SessionExpiresAt, newSession.StartTime + AgentService.SessionExpiryTime));
-				updates.Add(updateBuilder.Set(x => x.Status, options.Status));
+				updates.Add(updateBuilder.Set(x => x.Status, AgentStatus.Ok));
 				updates.Add(updateBuilder.Unset(x => x.LastOnlineTime));
 				updates.Add(updateBuilder.Unset(x => x.Leases));
 				updates.Add(updateBuilder.Unset(x => x.Deleted));

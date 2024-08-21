@@ -165,7 +165,7 @@ namespace HordeServer.Tests.Jobs
 				agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = isAgentEnabled, ExplicitPools = new List<PoolId> { pool.Id } });
 				Assert.IsNotNull(agent);
 
-				await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), null);
+				await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(), null);
 			}
 
 			JobTaskSource.OnJobScheduled += (pool, poolHasAgentsOnline, job, graph, batchId) =>

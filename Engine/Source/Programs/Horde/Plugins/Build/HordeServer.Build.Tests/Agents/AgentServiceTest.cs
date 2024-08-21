@@ -44,7 +44,7 @@ public class AgentServiceTest : BuildTestSetup
 	{
 		Fixture fixture = await CreateFixtureAsync();
 
-		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, new RpcAgentCapabilities(), 
+		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, new RpcAgentCapabilities(), 
 			"test");
 
 		Assert.IsTrue(AgentService.AuthorizeSession(agent, GetUser(agent), out string _));
@@ -67,7 +67,7 @@ public class AgentServiceTest : BuildTestSetup
 		Assert.IsTrue(agent.LastOnlineTime.HasValue);
 
 		// A session has been created, status change timestamp is current time
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
 		Assert.IsNull(agent.LastOnlineTime);
 
@@ -78,7 +78,7 @@ public class AgentServiceTest : BuildTestSetup
 	private async Task<IAgent> CreateAgentSessionAsync()
 	{
 		IAgent agent = await AgentService.CreateAgentAsync("agentServiceTest-" + s_agentId++, false, "");
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
+		agent = await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(), "v1");
 		return agent;
 	}
 
@@ -129,11 +129,11 @@ public class AgentServiceTest : BuildTestSetup
 		}
 
 		List<string> props = new() { $"{KnownPropertyNames.AwsInstanceType}=m5.large" };
-		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, AgentStatus.Ok, new RpcAgentCapabilities(props), "test");
+		IAgent agent = await AgentService.CreateSessionAsync(fixture.Agent1, new RpcAgentCapabilities(props), "test");
 		Assert.IsFalse(await AuditLogContains("AWS EC2 instance type changed"));
 
 		props = new() { $"{KnownPropertyNames.AwsInstanceType}=c6.xlarge" };
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(props), "test");
+		agent = await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(props), "test");
 		Assert.IsTrue(await AuditLogContains("AWS EC2 instance type changed"));
 	}
 
@@ -142,8 +142,8 @@ public class AgentServiceTest : BuildTestSetup
 	{
 		IAgent agent1 = await AgentService.CreateAgentAsync("agent1", false, "");
 		IAgent agent2 = await AgentService.CreateAgentAsync("agent2", false, "");
-		await AgentService.CreateSessionAsync(agent1, AgentStatus.Ok, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }), "test");
-		await AgentService.CreateSessionAsync(agent2, AgentStatus.Ok, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }), "test");
+		await AgentService.CreateSessionAsync(agent1, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c5.24xlarge", "osfamily=windows" }), "test");
+		await AgentService.CreateSessionAsync(agent2, new RpcAgentCapabilities(new List<string>() { "aws-instance-type=c4.4xLARge", "osfamily=WinDowS" }), "test");
 
 		List<AgentRateConfig> agentRateConfigs = new()
 		{

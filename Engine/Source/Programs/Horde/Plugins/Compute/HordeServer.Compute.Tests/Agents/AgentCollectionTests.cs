@@ -57,7 +57,7 @@ public class AgentCollectionTests : ComputeTestSetup
 		await _agent.TryCreateLeaseAsync(_lease2);
 		await UpdateAgentAsync();
 
-		await _agent.TryCreateSessionAsync(new CreateSessionOptions(AgentStatus.Ok,
+		await _agent.TryCreateSessionAsync(new CreateSessionOptions(
 			new RpcAgentCapabilities(), new List<PoolId>(), null));
 
 		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();

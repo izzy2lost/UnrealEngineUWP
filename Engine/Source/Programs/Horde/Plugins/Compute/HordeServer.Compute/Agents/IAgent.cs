@@ -303,11 +303,10 @@ namespace HordeServer.Agents
 	/// <summary>
 	/// Options for starting a new agent session
 	/// </summary>
-	/// <param name="Status">Status of the agent</param>
 	/// <param name="Capabilities">Capabilities for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, string? Version);
+	public record class CreateSessionOptions(RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session

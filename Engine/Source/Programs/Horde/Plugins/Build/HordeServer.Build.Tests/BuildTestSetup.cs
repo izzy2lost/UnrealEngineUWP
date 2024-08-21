@@ -259,9 +259,9 @@ namespace HordeServer.Tests
 		}
 
 		private static int s_agentIdCounter = 1;
-		public Task<IAgent> CreateAgentAsync(IPool pool, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, List<AgentWorkspaceInfo>? workspaces = null, TimeSpan? adjustClockBy = null)
+		public Task<IAgent> CreateAgentAsync(IPool pool, bool enabled = true, bool requestShutdown = false, List<string>? properties = null, List<AgentWorkspaceInfo>? workspaces = null, TimeSpan? adjustClockBy = null, AgentStatus status = AgentStatus.Ok)
 		{
-			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, workspaces, adjustClockBy);
+			return CreateAgentAsync(pool.Id, enabled, requestShutdown, properties, workspaces, adjustClockBy, status: status);
 		}
 
 		/// <summary>
@@ -286,7 +286,8 @@ namespace HordeServer.Tests
 			TimeSpan? adjustClockBy = null,
 			string? awsInstanceId = null,
 			CreateLeaseOptions? lease = null,
-			bool ephemeral = false)
+			bool ephemeral = false,
+			AgentStatus status = AgentStatus.Ok)
 		{
 			DateTime now = Clock.UtcNow;
 			if (adjustClockBy != null)
@@ -306,8 +307,14 @@ namespace HordeServer.Tests
 			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = enabled, ExplicitPools = poolId != null ? [poolId.Value] : [] });
 			Assert.IsNotNull(agent);
 
-			agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(tempProps), null);
+			agent = await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(tempProps), null);
 			Assert.IsNotNull(agent);
+
+			if (status != AgentStatus.Ok)
+			{
+				agent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions { Status = status });
+				Assert.IsNotNull(agent);
+			}
 
 			if (workspaces is { Count: > 0 })
 			{

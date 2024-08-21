@@ -179,7 +179,6 @@ namespace HordeAgent.Services
 				// Create the session information
 				RpcCreateSessionRequest sessionRequest = new RpcCreateSessionRequest();
 				sessionRequest.Id = registrationInfo.Id;
-				sessionRequest.Status = RpcAgentStatus.Ok;
 				sessionRequest.Capabilities = capabilities;
 				sessionRequest.Version = AgentApp.Version;
 

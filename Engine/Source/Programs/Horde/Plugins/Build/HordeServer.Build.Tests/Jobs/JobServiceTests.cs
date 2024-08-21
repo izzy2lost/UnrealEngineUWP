@@ -253,7 +253,7 @@ namespace HordeServer.Tests.Jobs
 			agent = await agent.TryUpdateAsync(new UpdateAgentOptions { Enabled = true, ExplicitPools = new List<PoolId> { new PoolId("win") } });
 			Assert.IsNotNull(agent);
 
-			await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), null);
+			await AgentService.CreateSessionAsync(agent, new RpcAgentCapabilities(), null);
 
 			ITemplate template = await TemplateCollection.GetOrAddAsync(new TemplateConfig { Name = "Test template" });
 			IGraph graph = await GraphCollection.AddAsync(template, null);

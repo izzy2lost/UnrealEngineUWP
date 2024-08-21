@@ -333,12 +333,11 @@ namespace HordeServer.Agents
 		/// Creates a new agent session
 		/// </summary>
 		/// <param name="agent">The agent to create a session for</param>
-		/// <param name="status">Current status of the agent</param>
 		/// <param name="capabilities">Capabilities for the agent</param>
 		/// <param name="version">Version of the software that's running</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>New agent state</returns>
-		public async Task<IAgent> CreateSessionAsync(IAgent agent, AgentStatus status, RpcAgentCapabilities capabilities, string? version, CancellationToken cancellationToken = default)
+		public async Task<IAgent> CreateSessionAsync(IAgent agent, RpcAgentCapabilities capabilities, string? version, CancellationToken cancellationToken = default)
 		{
 			for (; ; )
 			{
@@ -357,7 +356,7 @@ namespace HordeServer.Agents
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 					// Reset the agent to use the new session
-					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(status, capabilities, dynamicPools, version), cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(capabilities, dynamicPools, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);

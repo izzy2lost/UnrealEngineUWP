@@ -29,8 +29,8 @@ public class PoolUpdateServiceTest : BuildTestSetup
 	{
 		_pool = await CreatePoolAsync(new PoolConfig { Name = "testPool", EnableAutoscaling = true });
 		_enabledAgent = await CreateAgentAsync(_pool, true);
-		_disabledAgent = await CreateAgentAsync(_pool, false);
-		_disabledAgentBeyondGracePeriod = await CreateAgentAsync(_pool, enabled: false, adjustClockBy: -TimeSpan.FromHours(9));
+		_disabledAgent = await CreateAgentAsync(_pool, false, status: AgentStatus.Stopped);
+		_disabledAgentBeyondGracePeriod = await CreateAgentAsync(_pool, enabled: false, adjustClockBy: -TimeSpan.FromHours(9), status: AgentStatus.Stopped);
 	}
 
 	private async Task RefreshAgentsAsync()
