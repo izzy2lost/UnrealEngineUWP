@@ -16,7 +16,7 @@ struct FTableRowParentColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	TypedElementDataStorage::RowHandle Parent;
+	UE::Editor::DataStorage::RowHandle Parent;
 };
 
 /**

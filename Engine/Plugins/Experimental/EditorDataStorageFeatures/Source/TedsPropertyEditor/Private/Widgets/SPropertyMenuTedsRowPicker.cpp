@@ -77,7 +77,7 @@ void SPropertyMenuTedsRowPicker::Construct(const FArguments& InArgs)
 
 				Outliner->AddFilter(
 					MakeShared<TSceneOutlinerPredicateFilter<FTedsOutlinerTreeItem>>(
-						FTedsOutlinerTreeItem::FFilterPredicate::CreateLambda([this](const TypedElementDataStorage::RowHandle RowHandle) -> bool
+						FTedsOutlinerTreeItem::FFilterPredicate::CreateLambda([this](const UE::Editor::DataStorage::RowHandle RowHandle) -> bool
 					{
 						if (ElementFilter.IsBound())
 						{

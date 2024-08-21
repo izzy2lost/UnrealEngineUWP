@@ -334,9 +334,9 @@ namespace TypedElementQueryBuilder
 
 		inline TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query) override;
 		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override;
-		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override;
+		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, SubqueryCallbackRef Callback) override;
 		inline TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row,
-			TypedElementDataStorage::SubqueryCallbackRef Callback) override;
+			SubqueryCallbackRef Callback) override;
 
 		ITypedElementDataStorageInterface::IQueryContext& ParentContext;
 		const ITypedElementDataStorageInterface::FQueryDescription& Description;
@@ -429,9 +429,9 @@ namespace TypedElementQueryBuilder
 	};
 
 	template<typename Function>
-	TypedElementDataStorage::DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
+	DirectQueryCallback CreateDirectQueryCallbackBinding(Function&& Callback);
 	template<typename Function>
-	TypedElementDataStorage::SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
+	SubqueryCallback CreateSubqueryCallbackBinding(Function&& Callback);
 
 } // namespace TypedElementQueryBuilder
 

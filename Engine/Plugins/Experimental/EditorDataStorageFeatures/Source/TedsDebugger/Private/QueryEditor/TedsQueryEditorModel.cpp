@@ -101,9 +101,9 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		return TypedElementDataStorage;
 	}
 
-	TypedElementDataStorage::FQueryDescription FTedsQueryEditorModel::GenerateQueryDescription()
+	FQueryDescription FTedsQueryEditorModel::GenerateQueryDescription()
 	{
-		TypedElementDataStorage::FQueryDescription Description;
+		FQueryDescription Description;
 
 		for (const FConditionEntryInternal& Entry : Conditions)
 		{
@@ -135,7 +135,7 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 			{
 				if (Entry.OperatorType == EOperatorType::Select)
 				{
-					Description.SelectionMetaData.Emplace(TypedElementDataStorage::FColumnMetaData());
+					Description.SelectionMetaData.Emplace(FColumnMetaData());
 					Description.SelectionAccessTypes.Add(TypedElementDataStorage::EQueryAccessType::ReadOnly);
 					Description.SelectionTypes.Add(Target);
 				}
@@ -170,9 +170,9 @@ namespace UE::Editor::DataStorage::Debug::QueryEditor
 		return Description;
 	}
 
-	TypedElementDataStorage::FQueryDescription FTedsQueryEditorModel::GenerateNoSelectQueryDescription()
+	FQueryDescription FTedsQueryEditorModel::GenerateNoSelectQueryDescription()
 	{
-		TypedElementDataStorage::FQueryDescription Description = GenerateQueryDescription();
+		FQueryDescription Description = GenerateQueryDescription();
 
 		// Move all the selection types to Condition types
 		const int32 SelectionTypeCount = Description.SelectionTypes.Num();

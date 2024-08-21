@@ -35,12 +35,12 @@ public:
 	virtual ~FExportedTextWidgetConstructor() override = default;
 
 	virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-	virtual const TypedElementDataStorage::FQueryConditions* GetQueryConditions() const override;
+	virtual const UE::Editor::DataStorage::FQueryConditions* GetQueryConditions() const override;
 	virtual FString CreateWidgetDisplayName(
 		ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row) const override;
 
 protected:
-	virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override;
+	virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 	virtual bool FinalizeWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
@@ -49,7 +49,7 @@ protected:
 
 protected:
 	// The column this exported text widget is operating on
-	TypedElementDataStorage::FQueryConditions MatchedColumn;
+	UE::Editor::DataStorage::FQueryConditions MatchedColumn;
 };
 
 USTRUCT(meta = (DisplayName = "Exported text widget"))

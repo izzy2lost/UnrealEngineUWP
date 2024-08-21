@@ -34,7 +34,7 @@ namespace UE::Editor::DataStorage
 			{
 				static_assert(
 					sizeof(RowHandle) == sizeof(FMassEntityHandle) && alignof(RowHandle) == alignof(FMassEntityHandle),
-					"UE::Editor::DataStorage::RowHandle and FMassEntityHandle must be layout compatible.");
+					"RowHandle and FMassEntityHandle must be layout compatible.");
 				TConstArrayView<FMassEntityHandle> Entities = Context.GetEntities();
 				return TConstArrayView<RowHandle>(reinterpret_cast<const RowHandle*>(Entities.GetData()), Entities.Num());
 			}
@@ -211,11 +211,11 @@ namespace UE::Editor::DataStorage
 				}
 			}
 
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions)
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions)
 			{
 				struct FAddDynamicColumns
 				{
-					TConstArrayView<TypedElementDataStorage::RowHandle> Rows;
+					TConstArrayView<RowHandle> Rows;
 					TConstArrayView<FDynamicColumnDescription> Descriptions;
 					TArrayView<const UScriptStruct*> ResolvedTypes;
 				};
@@ -223,8 +223,8 @@ namespace UE::Editor::DataStorage
 				FScratchBuffer& ScratchBuffer = Environment.GetScratchBuffer();
 				
 				FAddDynamicColumns* CommandData = ScratchBuffer.Emplace<FAddDynamicColumns>();
-				TArrayView<TypedElementDataStorage::RowHandle> ScratchRows = MakeArrayView(
-					ScratchBuffer.EmplaceArray<TypedElementDataStorage::RowHandle>(Rows.Num()),
+				TArrayView<RowHandle> ScratchRows = MakeArrayView(
+					ScratchBuffer.EmplaceArray<RowHandle>(Rows.Num()),
 					DynamicColumnDescriptions.Num());
 				TArrayView<FDynamicColumnDescription> ScratchDescriptions = MakeArrayView(
 					ScratchBuffer.EmplaceArray<FDynamicColumnDescription>(DynamicColumnDescriptions.Num()),
@@ -257,7 +257,7 @@ namespace UE::Editor::DataStorage
 						FMassArchetypeCompositionDescriptor AddDescriptor;
 						TedsColumnsToMassDescriptor(AddDescriptor, CommandData->ResolvedTypes);
 						
-						for (TypedElementDataStorage::RowHandle Row : CommandData->Rows)
+						for (RowHandle Row : CommandData->Rows)
 						{
 							FMassEntityHandle Entity = FMassEntityHandle::FromNumber(Row);
 							if (System.IsEntityValid(Entity))
@@ -337,7 +337,7 @@ namespace UE::Editor::DataStorage
 				return ColumnData;
 			}
 
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& Description)
+			void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& Description)
 			{
 				return AddColumnUninitialized(Row, Description, [](const UScriptStruct& TypeInfo, void* Destination, void* Source)
 				{
@@ -345,7 +345,7 @@ namespace UE::Editor::DataStorage
 				});
 			}
 
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& Description, ObjectCopyOrMove Relocator)
+			void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& Description, ObjectCopyOrMove Relocator)
 			{
 				struct FAddDynamicColumn
 				{
@@ -590,7 +590,7 @@ namespace UE::Editor::DataStorage
 						System.BuildEntity(CommandData.Entity, CommandData.Archetype, SharedFragmentValues);
 					});
 		
-				const TypedElementDataStorage::RowHandle TedsRowHandle = EntityHandle.AsNumber();
+				const RowHandle TedsRowHandle = EntityHandle.AsNumber();
 				return TedsRowHandle;
 			}
 
@@ -657,11 +657,11 @@ namespace UE::Editor::DataStorage
 			void RemoveRows(TConstArrayView<RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
 			void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
 			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
 			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
 			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
+			void* AddColumnUninitialized(RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); }
+			void* AddColumnUninitialized(RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
 			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
 			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
@@ -729,21 +729,21 @@ namespace UE::Editor::DataStorage
 				return Environment.GetIndexTable().FindIndexedRow(Scope, Index);
 			}
 
-			TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query)
+			UE::Editor::DataStorage::FQueryResult RunQuery(QueryHandle Query)
 			{
 				const FExtendedQueryStore::Handle Handle(Query);
 				// This can be safely called because there's not callback, which means no columns are accessed, even for select queries.
 				return QueryStore.RunQuery(Context.GetEntityManagerChecked(), Handle);
 			}
 
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex)
+			UE::Editor::DataStorage::FQueryResult RunSubquery(int32 SubqueryIndex)
 			{
 				return SubqueryIndex < QueryDescription.Subqueries.Num() ?
 					RunQuery(QueryDescription.Subqueries[SubqueryIndex]) :
-					TypedElementDataStorage::FQueryResult{};
+					UE::Editor::DataStorage::FQueryResult{};
 			}
 
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback)
+			UE::Editor::DataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, UE::Editor::DataStorage::SubqueryCallbackRef Callback)
 			{
 				if (SubqueryIndex < QueryDescription.Subqueries.Num())
 				{
@@ -753,12 +753,12 @@ namespace UE::Editor::DataStorage
 				}
 				else
 				{
-					return TypedElementDataStorage::FQueryResult{};
+					return UE::Editor::DataStorage::FQueryResult{};
 				}
 			}
 
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::RowHandle Row,
-				TypedElementDataStorage::SubqueryCallbackRef Callback)
+			UE::Editor::DataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row,
+				UE::Editor::DataStorage::SubqueryCallbackRef Callback)
 			{
 				if (SubqueryIndex < QueryDescription.Subqueries.Num())
 				{
@@ -768,7 +768,7 @@ namespace UE::Editor::DataStorage
 				}
 				else
 				{
-					return TypedElementDataStorage::FQueryResult{};
+					return UE::Editor::DataStorage::FQueryResult{};
 				}
 			}
 	
@@ -803,11 +803,11 @@ namespace UE::Editor::DataStorage
 			void RemoveRows(TConstArrayView<RowHandle> Rows) override  { return Implementation.RemoveRows(Rows); }
 			void AddColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { return Implementation.AddColumns(Row, ColumnTypes); }
 			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override  { return Implementation.AddColumns(Rows, ColumnTypes); }
-			void AddColumns(TConstArrayView<TypedElementDataStorage::RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { return Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
+			void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) override { return Implementation.AddColumns(Rows, DynamicColumnDescriptions); }
 			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ColumnType) override  { return Implementation.AddColumnUninitialized(Row, ColumnType); }
 			void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, ObjectType, Relocator); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
-			void* AddColumnUninitialized(TypedElementDataStorage::RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); };
+			void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription, Relocator); }
+			void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription) override { return Implementation.AddColumnUninitialized(Row, DynamicColumnDescription); };
 			void RemoveColumns(RowHandle Row, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Row, ColumnTypes); }
 			void RemoveColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) override { Implementation.RemoveColumns(Rows, ColumnTypes); }
 			const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const override { return Implementation.FindDynamicColumnType(Description); }
@@ -818,8 +818,8 @@ namespace UE::Editor::DataStorage
 			RowHandle FindIndexedRow(TypedElementDataStorage::IndexHash Index) const override { return Implementation.FindIndexedRow(Index); }
 			TypedElementDataStorage::FQueryResult RunQuery(QueryHandle Query) override { return Implementation.RunQuery(Query); }
 			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex) override { return Implementation.RunSubquery(SubqueryIndex); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
-			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, TypedElementDataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
+			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Callback); }
+			TypedElementDataStorage::FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, UE::Editor::DataStorage::SubqueryCallbackRef Callback) override { return Implementation.RunSubquery(SubqueryIndex, Row, Callback); }
 	
 			FMassQueryContextImplementation Implementation;
 		};
@@ -1043,15 +1043,15 @@ bool FTypedElementQueryProcessorData::PrepareCachedDependenciesOnQuery(
 	return true;
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
-	TypedElementDataStorage::DirectQueryCallbackRef& Callback,
-	TypedElementDataStorage::FQueryDescription& Description,
+UE::Editor::DataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	UE::Editor::DataStorage::DirectQueryCallbackRef& Callback,
+	UE::Editor::DataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery, 
 	FMassEntityManager& EntityManager,
 	FEnvironment& Environment,
-	TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags)
+	UE::Editor::DataStorage::EDirectQueryExecutionFlags ExecutionFlags)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	FQueryResult Result;
 	Result.Completed = FQueryResult::ECompletion::Fully;
@@ -1085,15 +1085,15 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	return Result;
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
-	TypedElementDataStorage::SubqueryCallbackRef& Callback,
-	TypedElementDataStorage::FQueryDescription& Description,
+UE::Editor::DataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	UE::Editor::DataStorage::SubqueryCallbackRef& Callback,
+	UE::Editor::DataStorage::FQueryDescription& Description,
 	FMassEntityQuery& NativeQuery,
 	FMassEntityManager& EntityManager,
 	FEnvironment& Environment,
 	FMassExecutionContext& ParentContext)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
@@ -1120,16 +1120,16 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 	return Result;
 }
 
-TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
-	TypedElementDataStorage::SubqueryCallbackRef& Callback,
-	TypedElementDataStorage::FQueryDescription& Description,
-	TypedElementDataStorage::RowHandle RowHandle,
+UE::Editor::DataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
+	UE::Editor::DataStorage::SubqueryCallbackRef& Callback,
+	UE::Editor::DataStorage::FQueryDescription& Description,
+	UE::Editor::DataStorage::RowHandle RowHandle,
 	FMassEntityQuery& NativeQuery,
 	FMassEntityManager& EntityManager,
 	FEnvironment& Environment,
 	FMassExecutionContext& ParentContext)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	ITypedElementDataStorageInterface::FQueryResult Result;
 	Result.Completed = ITypedElementDataStorageInterface::FQueryResult::ECompletion::Fully;
@@ -1150,7 +1150,7 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 			[&Result, &Callback, &Description, &Environment, &EntityManager, RowHandle](FMassExecutionContext& Context)
 			{
 				// No need to cache any subsystem dependencies as these are not accessible from a subquery.
-				UE::Editor::DataStorage::Processors::Private::FMassSubqueryContextForwarder QueryContext(Context, Environment);
+				Processors::Private::FMassSubqueryContextForwarder QueryContext(Context, Environment);
 				Callback(Description, QueryContext);
 				Result.Count += Context.GetNumEntities();
 			}
@@ -1162,7 +1162,7 @@ TypedElementDataStorage::FQueryResult FTypedElementQueryProcessorData::Execute(
 
 void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager, FMassExecutionContext& Context)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	FExtendedQuery* StoredQuery = QueryStore->GetMutable(ParentQuery);
 
@@ -1175,7 +1175,7 @@ void FTypedElementQueryProcessorData::Execute(FMassEntityManager& EntityManager,
 			{
 				if (PrepareCachedDependenciesOnQuery(Description, Context))
 				{
-					UE::Editor::DataStorage::Processors::Private::FMassContextForwarder QueryContext(Description, Context, *QueryStore, *Environment);
+					Processors::Private::FMassContextForwarder QueryContext(Description, Context, *QueryStore, *Environment);
 					Description.Callback.Function(Description, QueryContext);
 				}
 			};

@@ -18,34 +18,34 @@ namespace UE::Editor::DataStorage
 	class FIndexTable final
 	{
 	public:
-		TypedElementDataStorage::RowHandle FindIndexedRow(
+		RowHandle FindIndexedRow(
 			EGlobalLockScope LockScope,
 			TypedElementDataStorage::IndexHash Index) const;
 		void IndexRow(
 			EGlobalLockScope LockScope,
 			TypedElementDataStorage::IndexHash Index, 
-			TypedElementDataStorage::RowHandle Row);
+			RowHandle Row);
 		void BatchIndexRows(
 			EGlobalLockScope LockScope,
 			TConstArrayView<TPair<TypedElementDataStorage::IndexHash, 
-			TypedElementDataStorage::RowHandle>> IndexRowPairs);
+			RowHandle>> IndexRowPairs);
 		void ReindexRow(
 			EGlobalLockScope LockScope,
 			TypedElementDataStorage::IndexHash OriginalIndex,
 			TypedElementDataStorage::IndexHash NewIndex,
-			TypedElementDataStorage::RowHandle Row);
+			RowHandle Row);
 		void RemoveIndex(
 			EGlobalLockScope LockScope,
 			TypedElementDataStorage::IndexHash Index);
 		void RemoveRow(
 			EGlobalLockScope LockScope,
-			TypedElementDataStorage::RowHandle Row);
+			RowHandle Row);
 
 	private:
-		TMap<TypedElementDataStorage::IndexHash, TypedElementDataStorage::RowHandle> IndexLookupMap;
-		TMultiMap<TypedElementDataStorage::RowHandle, TypedElementDataStorage::IndexHash> ReverseIndexLookupMap;
+		TMap<TypedElementDataStorage::IndexHash, RowHandle> IndexLookupMap;
+		TMultiMap<RowHandle, TypedElementDataStorage::IndexHash> ReverseIndexLookupMap;
 	
-		void IndexRowUnguarded(TypedElementDataStorage::IndexHash Index, TypedElementDataStorage::RowHandle Row);
+		void IndexRowUnguarded(TypedElementDataStorage::IndexHash Index, RowHandle Row);
 		void RemoveIndexUnguarded(TypedElementDataStorage::IndexHash Index);
 	};
 } // namespace UE::Editor::DataStorage

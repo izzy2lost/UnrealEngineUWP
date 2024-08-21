@@ -56,6 +56,7 @@ namespace UE::Editor
 		{
 			using namespace TypedElementQueryBuilder;
 			using namespace TypedElementDataStorage;
+			using namespace UE::Editor::DataStorage;
 			
 			QueryHandle TypeDataQuery = DataStorage.RegisterQuery(
 				Select()
@@ -158,7 +159,7 @@ FString FExportedTextWidgetConstructor::CreateWidgetDisplayName(ITypedElementDat
 	}
 }
 
-TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FExportedTextWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock);
 }

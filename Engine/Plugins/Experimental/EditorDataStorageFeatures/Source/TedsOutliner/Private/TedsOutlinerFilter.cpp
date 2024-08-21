@@ -6,7 +6,7 @@
 
 FTedsOutlinerFilter::FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName,
 	TSharedPtr<FFilterCategory> InCategory, TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl,
-	const TypedElementDataStorage::FQueryDescription& InFilterQuery)
+	const UE::Editor::DataStorage::FQueryDescription& InFilterQuery)
 	: FFilterBase(InCategory)
 	, FilterName(InFilterName)
 	, FilterDisplayName(InFilterDisplayName)

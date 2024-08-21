@@ -79,7 +79,8 @@ namespace UE::Editor::RevisionControl::Private
 		ECVF_Default);
 	#endif
 
-	static FColor DetermineOverlayColor(const TypedElementDataStorage::IQueryContext& ObjectContext, const TypedElementDataStorage::ICommonQueryContext& SCCContext, const FTypedElementUObjectColumn& Actor)
+	using namespace UE::Editor::DataStorage;
+	static FColor DetermineOverlayColor(const IQueryContext& ObjectContext, const ICommonQueryContext& SCCContext, const FTypedElementUObjectColumn& Actor)
 	{
 		check(IsInGameThread());
 

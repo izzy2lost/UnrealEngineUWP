@@ -47,7 +47,6 @@ void UTedsObjectReinstancingManager::Deinitialize()
 
 void UTedsObjectReinstancingManager::UpdateCompleted()
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	FMementoSystem& MementoSystem = DataStorage->GetEnvironment()->GetMementoSystem();
@@ -61,10 +60,10 @@ void UTedsObjectReinstancingManager::UpdateCompleted()
 void UTedsObjectReinstancingManager::HandleOnObjectPreRemoved(
 	const void* Object, 
 	const UE::Editor::DataStorage::FObjectTypeInfo& TypeInfo, 
-	TypedElementDataStorage::RowHandle ObjectRow)
+	UE::Editor::DataStorage::RowHandle ObjectRow)
 {
 	// This is the chance to record the old object to memento
-	TypedElementDataStorage::RowHandle Memento = DataStorage->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
+	UE::Editor::DataStorage::RowHandle Memento = DataStorage->GetEnvironment()->GetMementoSystem().CreateMemento(ObjectRow);
 	OldObjectToMementoMap.Add(Object, Memento);
 }
 

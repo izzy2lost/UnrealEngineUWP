@@ -9,7 +9,7 @@
 
 #include "TedsTableViewerUtils.generated.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	class FMetaDataView;
 }
@@ -29,7 +29,7 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 
 	// Create a header widget constructor for the given columns
 	TEDSTABLEVIEWER_API TSharedPtr<FTypedElementWidgetConstructor> CreateHeaderWidgetConstructor(ITypedElementDataStorageUiInterface& StorageUi, 
-	const TypedElementDataStorage::FMetaDataView& InMetaData, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
+	const UE::Editor::DataStorage::FMetaDataView& InMetaData, TConstArrayView<TWeakObjectPtr<const UScriptStruct>> ColumnTypes,
 	const TConstArrayView<FName> CellWidgetPurposes);
 
 	// Create a copy of the provided column types array after discarding invalid entries

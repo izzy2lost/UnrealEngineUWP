@@ -67,20 +67,20 @@ namespace UE::Editor::DataStorage
 	struct FRegisterTypeTableAssociation final
 	{
 		TWeakObjectPtr<UStruct> TypeInfo;
-		TypedElementDataStorage::TableHandle Table;
+		TableHandle Table;
 	};
 
 	struct FAddCompatibleUObject final
 	{
 		TWeakObjectPtr<UObject> Object;
-		TypedElementDataStorage::RowHandle Row;
-		TypedElementDataStorage::TableHandle Table;
+		RowHandle Row;
+		TableHandle Table;
 	};
 
 	using ObjectAddedCallback = TFunction<void(
 		const void* /*Object*/, 
 		const FObjectTypeInfo&, /*Type information*/
-		TypedElementDataStorage::RowHandle /*Row*/)>;
+		RowHandle /*Row*/)>;
 	struct FRegisterObjectAddedCallback final
 	{
 		ObjectAddedCallback Callback;
@@ -95,13 +95,13 @@ namespace UE::Editor::DataStorage
 	using ObjectRemovedCallback = TFunction<void(
 		const void* /*Object*/, 
 		const FObjectTypeInfo&, /*Type information*/
-		TypedElementDataStorage::RowHandle /*Row*/)>;
+		RowHandle /*Row*/)>;
 
 	struct FBatchAddCompatibleUObject final
 	{
 		TWeakObjectPtr<UObject>* ObjectArray;
-		TypedElementDataStorage::RowHandle* RowArray;
-		TypedElementDataStorage::TableHandle Table;
+		RowHandle* RowArray;
+		TableHandle Table;
 		uint32 Count;
 	};
 
@@ -109,52 +109,52 @@ namespace UE::Editor::DataStorage
 	{
 		void* Object;
 		TWeakObjectPtr<UScriptStruct> TypeInfo;
-		TypedElementDataStorage::RowHandle Row;
-		TypedElementDataStorage::TableHandle Table;
+		RowHandle Row;
+		TableHandle Table;
 	};
 
 	struct FCreateMemento final
 	{
-		TypedElementDataStorage::RowHandle ReservedMementoRow;
-		TypedElementDataStorage::RowHandle TargetRow;
+		RowHandle ReservedMementoRow;
+		RowHandle TargetRow;
 	};
 
 	struct FRestoreMemento final
 	{
-		TypedElementDataStorage::RowHandle MementoRow;
-		TypedElementDataStorage::RowHandle TargetRow;
+		RowHandle MementoRow;
+		RowHandle TargetRow;
 	};
 
 	struct FDestroyMemento final
 	{
-		TypedElementDataStorage::RowHandle MementoRow;
+		RowHandle MementoRow;
 	};
 
 	struct FRemoveCompatibleUObject final
 	{
 		const UObject* Object;
-		TypedElementDataStorage::RowHandle ObjectRow = TypedElementDataStorage::InvalidRowHandle;
+		RowHandle ObjectRow = InvalidRowHandle;
 	};
 
 	struct FRemoveCompatibleExternalObject final
 	{
 		void* Object;
-		TypedElementDataStorage::RowHandle ObjectRow;
+		RowHandle ObjectRow;
 	};
 
 	struct FBatchAddCompatibleExternalObject final
 	{
 		void** ObjectArray;
 		TWeakObjectPtr<UScriptStruct>* TypeInfoArray;
-		TypedElementDataStorage::RowHandle* RowArray;
-		TypedElementDataStorage::TableHandle Table;
+		RowHandle* RowArray;
+		TableHandle Table;
 		uint32 Count;
 	};
 
 	struct FAddSyncFromWorldTag final
 	{
 		TObjectKey<const UObject> Target;
-		TypedElementDataStorage::RowHandle Row;
+		RowHandle Row;
 
 		static UScriptStruct* GetType();
 		static UScriptStruct** GetTypeAddress();
@@ -163,7 +163,7 @@ namespace UE::Editor::DataStorage
 	struct FAddInteractiveSyncFromWorldTag final
 	{
 		TObjectKey<const UObject> Target;
-		TypedElementDataStorage::RowHandle Row;
+		RowHandle Row;
 
 		static UScriptStruct* GetType();
 		static UScriptStruct** GetTypeAddress();
@@ -172,7 +172,7 @@ namespace UE::Editor::DataStorage
 	struct FRemoveInteractiveSyncFromWorldTag final
 	{
 		TObjectKey<const UObject> Target;
-		TypedElementDataStorage::RowHandle Row;
+		RowHandle Row;
 	};
 
 	using CompatibilityCommandBuffer = FCommandBuffer
@@ -254,18 +254,18 @@ namespace UE::Editor::DataStorage
 	struct FGetSourceRowHandle
 	{
 		template<typename T>
-		TypedElementDataStorage::RowHandle operator()(const T&){ return TypedElementDataStorage::InvalidRowHandle; }
-		TypedElementDataStorage::RowHandle operator()(const FAddCompatibleUObject& Command);
-		TypedElementDataStorage::RowHandle operator()(const FAddCompatibleExternalObject& Command);
-		TypedElementDataStorage::RowHandle operator()(const FCreateMemento& Command);
-		TypedElementDataStorage::RowHandle operator()(const FRestoreMemento& Command);
-		TypedElementDataStorage::RowHandle operator()(const FDestroyMemento& Command);
-		TypedElementDataStorage::RowHandle operator()(const FRemoveCompatibleUObject& Command);
-		TypedElementDataStorage::RowHandle operator()(const FRemoveCompatibleExternalObject& Command);
-		TypedElementDataStorage::RowHandle operator()(const FAddInteractiveSyncFromWorldTag& Command);
-		TypedElementDataStorage::RowHandle operator()(const FRemoveInteractiveSyncFromWorldTag& Command);
-		TypedElementDataStorage::RowHandle operator()(const FAddSyncFromWorldTag& Command);
-		static TypedElementDataStorage::RowHandle Get(const CompatibilityCommandBuffer::TCommandVariant& Command);
+		RowHandle operator()(const T&){ return InvalidRowHandle; }
+		RowHandle operator()(const FAddCompatibleUObject& Command);
+		RowHandle operator()(const FAddCompatibleExternalObject& Command);
+		RowHandle operator()(const FCreateMemento& Command);
+		RowHandle operator()(const FRestoreMemento& Command);
+		RowHandle operator()(const FDestroyMemento& Command);
+		RowHandle operator()(const FRemoveCompatibleUObject& Command);
+		RowHandle operator()(const FRemoveCompatibleExternalObject& Command);
+		RowHandle operator()(const FAddInteractiveSyncFromWorldTag& Command);
+		RowHandle operator()(const FRemoveInteractiveSyncFromWorldTag& Command);
+		RowHandle operator()(const FAddSyncFromWorldTag& Command);
+		static RowHandle Get(const CompatibilityCommandBuffer::TCommandVariant& Command);
 	};
 
 	/** 
@@ -301,8 +301,8 @@ namespace UE::Editor::DataStorage
 	{
 		FCommandProcessor(ITypedElementDataStorageInterface& InStorage, UEditorDataStorageCompatibility& InStorageCompatibility);
 
-		void SetupRow(TypedElementDataStorage::RowHandle Row, UObject* Object);
-		void SetupRow(TypedElementDataStorage::RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo);
+		void SetupRow(RowHandle Row, UObject* Object);
+		void SetupRow(RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo);
 		
 		void operator()(FNopCommand&) {}
 		void operator()(FTypeInfoReinstanced&) {}
@@ -382,9 +382,9 @@ namespace UE::Editor::DataStorage
 		 * Creates a new optimizer starting at the left of the current optimizer that will run only as long as commands on the right use 
 		 * the same row as the provided argument.
 		 */
-		CompatibilityCommandBuffer::FOptimizer CreateRangeOptimizer(TypedElementDataStorage::RowHandle RowCluster);
+		CompatibilityCommandBuffer::FOptimizer CreateRangeOptimizer(RowHandle RowCluster);
 		/** Keeps processing a subset of commands until the right no longer has a command with the provided source row. */
-		void RunRightOnRowCluster(TypedElementDataStorage::RowHandle RowCluster);
+		void RunRightOnRowCluster(RowHandle RowCluster);
 		static void Run(CompatibilityCommandBuffer::FCollection& Commands, FScratchBuffer& ScratchBuffer);
 	};
 } // namespace UE::Editor::DataStorage

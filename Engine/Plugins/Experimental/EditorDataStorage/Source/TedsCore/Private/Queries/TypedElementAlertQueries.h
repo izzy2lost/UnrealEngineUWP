@@ -11,7 +11,7 @@
 
 #include "TypedElementAlertQueries.generated.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	struct IQueryContext;
 }
@@ -37,19 +37,19 @@ private:
 	void RegisterOnRemoveQueries(ITypedElementDataStorageInterface& DataStorage);
 
 	static void AddChildAlertsToHierarchy(
-		TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Parent, int32 ParentQueryIndex);
+		UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Parent, int32 ParentQueryIndex);
 
 	static void IncrementParents(
-		TypedElementDataStorage::IQueryContext& Context, TypedElementDataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
+		UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
 		int32 ChildAlertQueryIndex);
 	
 	static void ResetChildAlertCounters(FTypedElementChildAlertColumn& ChildAlert);
 
 	static bool MoveToNextParent(
-		TypedElementDataStorage::RowHandle& Parent, TypedElementDataStorage::IQueryContext& Context, int32 SubQueryIndex);
+		UE::Editor::DataStorage::RowHandle& Parent, UE::Editor::DataStorage::IQueryContext& Context, int32 SubQueryIndex);
 
 	static const FName AlertConditionName;
-	TypedElementDataStorage::QueryHandle ChildAlertColumnReadWriteQuery;
-	TypedElementDataStorage::QueryHandle ParentReadOnlyQuery;
+	UE::Editor::DataStorage::QueryHandle ChildAlertColumnReadWriteQuery;
+	UE::Editor::DataStorage::QueryHandle ParentReadOnlyQuery;
 };
 

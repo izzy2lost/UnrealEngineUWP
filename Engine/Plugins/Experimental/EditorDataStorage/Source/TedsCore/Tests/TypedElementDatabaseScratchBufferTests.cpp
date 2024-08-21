@@ -24,7 +24,7 @@ static void WaitForFinalization(std::condition_variable& WaitVariable, std::mute
 	REQUIRE(CompletedThreadCount == ThreadCount);
 }
 
-TEST_CASE("TEDS::Scratch Buffer - MT (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE("Editor::DataStorage::Scratch Buffer - MT (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
 {
 	using namespace UE::Editor::DataStorage;
 	SECTION("Stress test without recycling.")
@@ -138,7 +138,7 @@ TEST_CASE("TEDS::Scratch Buffer - MT (FScratchBuffer)", "[ApplicationContextMask
 	}
 }
 
-TEST_CASE("TEDS::Scratch Buffer (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE("Editor::DataStorage::Scratch Buffer (FScratchBuffer)", "[ApplicationContextMask][EngineFilter]")
 {
 	using namespace UE::Editor::DataStorage;
 	SECTION("Create and destroy buffer")

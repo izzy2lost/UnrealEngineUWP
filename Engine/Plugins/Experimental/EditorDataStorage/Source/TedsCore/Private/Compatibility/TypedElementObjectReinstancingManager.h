@@ -35,7 +35,7 @@ private:
 	void HandleOnObjectPreRemoved(
 		const void* Object, 
 		const UE::Editor::DataStorage::FObjectTypeInfo& TypeInfo, 
-		TypedElementDataStorage::RowHandle ObjectRow);
+		UE::Editor::DataStorage::RowHandle ObjectRow);
 	void HandleOnObjectsReinstanced(const FCoreUObjectDelegates::FReplacementObjectMap& ObjectReplacementMap);
 
 	UPROPERTY()
@@ -45,9 +45,9 @@ private:
 	
 	// Reverse lookup that holds all populated mementos for recently deleted objects
 	// Entry removed when the memento is removed
-	TMap<const void*, TypedElementDataStorage::RowHandle> OldObjectToMementoMap;
+	TMap<const void*, UE::Editor::DataStorage::RowHandle> OldObjectToMementoMap;
 	
-	TypedElementDataStorage::TableHandle MementoRowBaseTable;
+	UE::Editor::DataStorage::TableHandle MementoRowBaseTable;
 	FDelegateHandle UpdateCompletedCallbackHandle;
 	FDelegateHandle ReinstancingCallbackHandle;
 	FDelegateHandle ObjectRemovedCallbackHandle;

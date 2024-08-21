@@ -132,7 +132,7 @@ void UEditorDataStorageCompatibility::RegisterDealiaserCallback(ObjectToRowDeali
 }
 
 void UEditorDataStorageCompatibility::RegisterTypeTableAssociation(
-	TObjectPtr<UStruct> TypeInfo, TypedElementDataStorage::TableHandle Table)
+	TObjectPtr<UStruct> TypeInfo, UE::Editor::DataStorage::TableHandle Table)
 {
 	using namespace UE::Editor::DataStorage;
 	
@@ -296,7 +296,7 @@ UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::FindRowWithC
 {
 	// Thread safety is only needed by FindIndexedRow which internally takes care of it.
 
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	return (Object && Storage && Storage->IsAvailable()) ? Storage->FindIndexedRow(GenerateIndexHash(Object)) : InvalidRowHandle;
 }
@@ -400,7 +400,6 @@ void UEditorDataStorageCompatibility::RegisterTypeInformationQueries()
 
 bool UEditorDataStorageCompatibility::ShouldAddObject(const UObject* Object) const
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 	
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
@@ -418,9 +417,8 @@ bool UEditorDataStorageCompatibility::ShouldAddObject(const UObject* Object) con
 	return Include;
 }
 
-TypedElementDataStorage::TableHandle UEditorDataStorageCompatibility::FindBestMatchingTable(const UStruct* TypeInfo) const
+UE::Editor::DataStorage::TableHandle UEditorDataStorageCompatibility::FindBestMatchingTable(const UStruct* TypeInfo) const
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	FScopedSharedLock Lock(EGlobalLockScope::Public);
@@ -440,12 +438,11 @@ TypedElementDataStorage::TableHandle UEditorDataStorageCompatibility::FindBestMa
 template<bool bEnableTransactions>
 UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::AddCompatibleObjectExplicitTransactionable(UObject* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
-	UE::Editor::DataStorage::RowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
+	RowHandle Result = FindRowWithCompatibleObjectExplicit(Object);
 	if (!Storage->IsRowAvailable(Result))
 	{
 		Result = Storage->ReserveRow();
@@ -473,7 +470,6 @@ UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::AddCompatibl
 template<bool bEnableTransactions>
 void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicitTransactionable(const UObject* Object)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage,
@@ -504,9 +500,8 @@ void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicitTransactiona
 
 template<bool bEnableTransactions>
 void UEditorDataStorageCompatibility::RemoveCompatibleObjectExplicitTransactionable(
-	const UObject* Object, TypedElementDataStorage::RowHandle ObjectRow)
+	const UObject* Object, UE::Editor::DataStorage::RowHandle ObjectRow)
 {
-	using namespace TypedElementDataStorage;
 	using namespace UE::Editor::DataStorage;
 
 	checkf(Storage,
@@ -557,7 +552,7 @@ UE::Editor::DataStorage::RowHandle UEditorDataStorageCompatibility::DealiasObjec
 			return Row;
 		}
 	}
-	return TypedElementDataStorage::InvalidRowHandle;
+	return UE::Editor::DataStorage::InvalidRowHandle;
 }
 
 void UEditorDataStorageCompatibility::Tick()
@@ -612,7 +607,6 @@ void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::AddTypeInfo
 
 void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::Process(UEditorDataStorageCompatibility& Compatibility)
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
 
@@ -635,7 +629,7 @@ void UEditorDataStorageCompatibility::FPendingTypeInformationUpdate::Process(UEd
 				It.RemoveCurrent();
 			}
 		}
-		for (TPair<TWeakObjectPtr<UStruct>, TypedElementDataStorage::TableHandle>& UpdatedEntry : UpdatedTypeInfoScratchBuffer)
+		for (TPair<TWeakObjectPtr<UStruct>, TableHandle>& UpdatedEntry : UpdatedTypeInfoScratchBuffer)
 		{
 			checkf(UpdatedEntry.Key.IsValid(),
 				TEXT("Type info column in data storage has been re-instanced to an object without type information"));
@@ -743,7 +737,7 @@ void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessE
 	UEditorDataStorageCompatibility& Compatibility, const TFunctionRef<void(UE::Editor::DataStorage::RowHandle, const AddressType&)>& SetupRowCallback)
 {
 	// Thread-safe as it's only called from functions that already lock using.
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	// Start by removing any entries that are no longer valid.
 	for (auto It = Entries.CreateIterator(); It; ++It)
@@ -825,7 +819,7 @@ void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessE
 			if (Current->Table != CurrentTable)
 			{
 				StorageInterface.BatchAddRow(CurrentTable, Compatibility.RowScratchBuffer,
-					[&SetupRowCallback, &TableFront](UE::Editor::DataStorage::RowHandle Row)
+					[&SetupRowCallback, &TableFront](RowHandle Row)
 					{
 						SetupRowCallback(Row, TableFront->Address);
 						++TableFront;
@@ -837,7 +831,7 @@ void UEditorDataStorageCompatibility::PendingRegistration<AddressType>::ProcessE
 			Compatibility.RowScratchBuffer.Add(Current->Row);
 		}
 		StorageInterface.BatchAddRow(CurrentTable, Compatibility.RowScratchBuffer,
-			[&SetupRowCallback, &TableFront](UE::Editor::DataStorage::RowHandle Row)
+			[&SetupRowCallback, &TableFront](RowHandle Row)
 			{
 				SetupRowCallback(Row, TableFront->Address);
 				++TableFront;
@@ -953,7 +947,7 @@ void UEditorDataStorageCompatibility::TickPendingExternalObjectRegistration()
 
 void UEditorDataStorageCompatibility::TickObjectSync()
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 	
 	// Thread safe because it's only called from functions that already lock.
 
@@ -1061,7 +1055,7 @@ void UEditorDataStorageCompatibility::OnObjectModified(UObject* Object)
 }
 
 void UEditorDataStorageCompatibility::TriggerOnObjectAdded(
-	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
+	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, UE::Editor::DataStorage::RowHandle Row) const
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -1075,7 +1069,7 @@ void UEditorDataStorageCompatibility::TriggerOnObjectAdded(
 }
 
 void UEditorDataStorageCompatibility::TriggerOnPreObjectRemoved(
-	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, TypedElementDataStorage::RowHandle Row) const
+	const void* Object, UE::Editor::DataStorage::FObjectTypeInfo TypeInfo, UE::Editor::DataStorage::RowHandle Row) const
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -1115,16 +1109,16 @@ void UEditorDataStorageCompatibility::OnObjectReinstanced(const FCoreUObjectDele
 
 void UEditorDataStorageCompatibility::OnPostGcUnreachableAnalysis()
 {
-	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;
 	using namespace UE::Editor::DataStorage;
+	using namespace UE::Editor::DataStorage::Private;
 
-	if (Private::bIntegrateWithGC)
+	if (bIntegrateWithGC)
 	{
 		TEDS_EVENT_SCOPE(TEXT("Post GC clean up"));
 		FScopedExclusiveLock Lock(EGlobalLockScope::Public);
 
-		if (Private::bUseCommandBuffer)
+		if (bUseCommandBuffer)
 		{
 			Storage->RunQuery(UObjectQuery, CreateDirectQueryCallbackBinding(
 				[this](RowHandle Row, const FTypedElementUObjectIdColumn& ObjectId)

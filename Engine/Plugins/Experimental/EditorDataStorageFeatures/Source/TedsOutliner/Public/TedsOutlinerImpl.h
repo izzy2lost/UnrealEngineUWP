@@ -48,11 +48,11 @@ struct FTedsOutlinerHierarchyData
 					return ParentColumn->Parent;
 				}
 
-				return TypedElementDataStorage::InvalidRowHandle;
+				return UE::Editor::DataStorage::InvalidRowHandle;
 			});
 
 		const FSetParentRowHandle RowHandleSetter = FSetParentRowHandle::CreateLambda([](void* InColumnData,
-			TypedElementDataStorage::RowHandle InRowHandle)
+			UE::Editor::DataStorage::RowHandle InRowHandle)
 			{
 				if(FTableRowParentColumn* ParentColumn = static_cast<FTableRowParentColumn *>(InColumnData))
 				{
@@ -78,12 +78,12 @@ struct FTedsOutlinerParams
 	SSceneOutliner* SceneOutliner;
 
 	// The query description that will be used to populate rows in the TEDS-Outliner
-	TAttribute<TypedElementDataStorage::FQueryDescription> QueryDescription;
+	TAttribute<UE::Editor::DataStorage::FQueryDescription> QueryDescription;
 	
 	// TEDS queries that will be used to create filters in this Outliner
 	// TEDS-Outliner TODO: Can we consolidate this with the SceneOutliner API to create filters? Currently has to be separate because FTEDSOutlinerFilter
 	// needs a reference to the mode which is not possible since filters with the Outliner API are added before the mode is init
-	TMap<FName, const TypedElementDataStorage::FQueryDescription> FilterQueries;
+	TMap<FName, const UE::Editor::DataStorage::FQueryDescription> FilterQueries;
 
 	// If true, this Outliner will automatically add all TEDS tags and columns as filters
 	bool bUseDefaultTedsFilters;
@@ -132,7 +132,7 @@ public:
 	FIsItemCompatible& IsItemCompatible();
 
 	// Update the selection in TEDS to the input rows, only if SelectionSetName is set
-	void SetSelection(const TArray<TypedElementDataStorage::RowHandle>& InSelectedRows);
+	void SetSelection(const TArray<UE::Editor::DataStorage::RowHandle>& InSelectedRows);
 
 	// Helper function to create a label widget for a given row
 	TSharedRef<SWidget> CreateLabelWidgetForItem(UE::Editor::DataStorage::RowHandle InRowHandle, const STableRow<FSceneOutlinerTreeItemPtr>& InRow) const;
@@ -141,15 +141,15 @@ public:
 	const TOptional<FTedsOutlinerHierarchyData>& GetHierarchyData();
 	
 	// Add an external query to the Outliner
-	void AddExternalQuery(FName QueryName, const TypedElementDataStorage::FQueryDescription& InQueryDescription);
+	void AddExternalQuery(FName QueryName, const UE::Editor::DataStorage::FQueryDescription& InQueryDescription);
 	void RemoveExternalQuery(FName QueryName);
 
 	// Append all external queries into the given query
-	void AppendExternalQueries(TypedElementDataStorage::FQueryDescription& OutQuery);
+	void AppendExternalQueries(UE::Editor::DataStorage::FQueryDescription& OutQuery);
 
 	// TEDS-Outliner TODO: This should live in TEDS long term
 	// Funtion to combine 2 queries (adds to second query to the first)
-	static void AppendQuery(TypedElementDataStorage::FQueryDescription& Query1, const TypedElementDataStorage::FQueryDescription& Query2);
+	static void AppendQuery(UE::Editor::DataStorage::FQueryDescription& Query1, const UE::Editor::DataStorage::FQueryDescription& Query2);
 
 	// Check if the given item's parent has changed (i.e ParentRowHandle does not match what the Outliner reports as the parent)
 	bool HasItemParentChanged(UE::Editor::DataStorage::RowHandle ItemRowHandle, UE::Editor::DataStorage::RowHandle ParentRowHandle) const;
@@ -195,10 +195,10 @@ protected:
 	TArray<FName> CellWidgetPurposes;
 	
 	// Initial query provided by user
-	TAttribute<TypedElementDataStorage::FQueryDescription> InitialQueryDescription;
+	TAttribute<UE::Editor::DataStorage::FQueryDescription> InitialQueryDescription;
 
 	// External queries that are currently active (e.g Filters)
-	TMap<FName, TypedElementDataStorage::FQueryDescription> ExternalQueries;
+	TMap<FName, UE::Editor::DataStorage::FQueryDescription> ExternalQueries;
 
 	// Optional Hierarchy Data
 	TOptional<FTedsOutlinerHierarchyData> HierarchyData;

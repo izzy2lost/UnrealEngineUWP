@@ -148,7 +148,7 @@ public:
 	virtual FName GetQueryTickGroupName(EQueryTickGroups Group) const override;
 	virtual FQueryResult RunQuery(QueryHandle Query) override;
 	virtual FQueryResult RunQuery(QueryHandle Query, DirectQueryCallbackRef Callback) override;
-	virtual FQueryResult RunQuery(QueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags, 
+	virtual FQueryResult RunQuery(QueryHandle Query, UE::Editor::DataStorage::EDirectQueryExecutionFlags Flags,
 		DirectQueryCallbackRef Callback) override;
 	virtual void ActivateQueries(FName ActivationName) override;
 

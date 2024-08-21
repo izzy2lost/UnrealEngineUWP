@@ -16,7 +16,7 @@ TSharedRef<SWidget> FHierarchyTableWidgetConstructor::CreateInternalWidget(FHier
 	return SNullWidget::NullWidget;
 }
 
-TSharedPtr<SWidget> FHierarchyTableWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FHierarchyTableWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SBox)
 		.HAlign(HAlign_Left)
@@ -24,12 +24,12 @@ TSharedPtr<SWidget> FHierarchyTableWidgetConstructor::CreateWidget(const TypedEl
 }
 
 bool FHierarchyTableWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+	UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
 	TSharedPtr<SBox> WidgetInstance = StaticCastSharedPtr<SBox>(Widget);
 
 	// Row is not actually the row we want, its contained inside of a row reference, I don't know why things are done this way.
-	TypedElementDataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	FTypedElementOverrideColumn* OverrideColumn = DataStorage->GetColumn<FTypedElementOverrideColumn>(TargetRow);
 
 	TSharedRef<SWidget> ActualWidget = CreateInternalWidget(OverrideColumn->OwnerEntry);

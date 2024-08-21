@@ -212,15 +212,15 @@ namespace UE::Editor::DataStorage
 	}
 
 	template<typename CallbackReference>
-	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQueryCallbackCommon(
+	FQueryResult FExtendedQueryStore::RunQueryCallbackCommon(
 		FMassEntityManager& EntityManager,
 		FEnvironment& Environment,
 		FMassExecutionContext* ParentContext,
 		Handle Query,
-		TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
+		EDirectQueryExecutionFlags DirectExecutionFlags,
 		CallbackReference Callback)
 	{
-		using namespace TypedElementDataStorage;
+		using namespace UE::Editor::DataStorage;
 
 		FQueryResult Result;
 		if (FExtendedQuery* QueryData = Get(Query))
@@ -267,24 +267,24 @@ namespace UE::Editor::DataStorage
 		return Result;
 	}
 
-	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
-		FEnvironment& Environment, Handle Query, TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
-		TypedElementDataStorage::DirectQueryCallbackRef Callback)
+	FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
+		FEnvironment& Environment, Handle Query, EDirectQueryExecutionFlags DirectExecutionFlags,
+		DirectQueryCallbackRef Callback)
 	{
 		return RunQueryCallbackCommon(EntityManager, Environment, nullptr, Query, DirectExecutionFlags, Callback);
 	}
 	
-	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
+	FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
 		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query,
-		TypedElementDataStorage::SubqueryCallbackRef Callback)
+		SubqueryCallbackRef Callback)
 	{
 		return RunQueryCallbackCommon(EntityManager, Environment, &ParentContext, Query, 
-			TypedElementDataStorage::EDirectQueryExecutionFlags::Default, Callback);
+			EDirectQueryExecutionFlags::Default, Callback);
 	}
 
-	TypedElementDataStorage::FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
+	FQueryResult FExtendedQueryStore::RunQuery(FMassEntityManager& EntityManager,
 		FEnvironment& Environment, FMassExecutionContext& ParentContext, Handle Query, RowHandle Row,
-		TypedElementDataStorage::SubqueryCallbackRef Callback)
+		SubqueryCallbackRef Callback)
 	{
 		using ActionType = ITypedElementDataStorageInterface::FQueryDescription::EActionType;
 		using CompletionType = ITypedElementDataStorageInterface::FQueryResult::ECompletion;
@@ -393,21 +393,21 @@ namespace UE::Editor::DataStorage
 			{
 				Query.SelectionTypes.Emplace(DynamicColumnType);
 				Query.SelectionAccessTypes.Emplace(AccessType);
-				Query.SelectionMetaData.Emplace(TypedElementDataStorage::FColumnMetaData(DynamicColumnType, MetadataFlags));
+				Query.SelectionMetaData.Emplace(FColumnMetaData(DynamicColumnType, MetadataFlags));
 			}
 		}
 
 		for (int32 Index = 0, End = Query.DynamicConditionDescriptions.Num(); Index < End; ++Index)
 		{
-			const UE::Editor::DataStorage::FDynamicColumnDescription& Description = Query.DynamicConditionDescriptions[Index];
+			const FDynamicColumnDescription& Description = Query.DynamicConditionDescriptions[Index];
 			if (!ensureMsgf(Description.TemplateType, TEXT("Null template type for dynamic column")))
 			{
 				continue;
 			}
 			const UScriptStruct* DynamicColumnType = Environment.GenerateDynamicColumn(*Description.TemplateType, Description.Identifier);
-			TypedElementDataStorage::FQueryDescription::EOperatorType Operation = Query.DynamicConditionOperations[Index];
+			FQueryDescription::EOperatorType Operation = Query.DynamicConditionOperations[Index];
 			Query.ConditionTypes.Add(Operation);
-			Query.ConditionOperators.Add(TypedElementDataStorage::FQueryDescription::FOperator
+			Query.ConditionOperators.Add(FQueryDescription::FOperator
 			{
 				.Type = DynamicColumnType
 			});
@@ -551,9 +551,9 @@ namespace UE::Editor::DataStorage
 					DSI::EQueryAccessType AccessType = Query.SelectionAccessTypes[SelectionIndex];
 					if (ensureMsgf(Type.IsValid(), TEXT("Provided query selection type can not be null.")) &&
 						ensureMsgf(
-							Type->IsChildOf(UE::Editor::DataStorage::FColumn::StaticStruct()) ||
+							Type->IsChildOf(FColumn::StaticStruct()) ||
 							Type->IsChildOf(FMassFragment::StaticStruct()),
-							TEXT("Provided query selection type '%s' is not based on UE::Editor::DataStorage::FColumn or another supported base type."),
+							TEXT("Provided query selection type '%s' is not based on FColumn or another supported base type."),
 							*Type->GetStructPathName().ToString()))
 					{
 						NativeQuery.AddRequirement(Type.Get(), ConvertToNativeAccessType(AccessType), ConvertToNativePresenceType(AccessType));
@@ -640,12 +640,12 @@ namespace UE::Editor::DataStorage
 			return true;
 		}
 
-		Algo::SortBy(Query.ValueTags, [](const TypedElementDataStorage::FQueryDescription::FValueTagData& ValueTagData)
+		Algo::SortBy(Query.ValueTags, [](const FQueryDescription::FValueTagData& ValueTagData)
 			{
 				return ValueTagData.Tag.GetName();
 			}, FNameFastLess());
 		// Check if there are any duplicate groups. Not yet supported until we can match multiple MatchTags
-		UE::Editor::DataStorage::FValueTag PreviousTag = Query.ValueTags[0].Tag;
+	FValueTag PreviousTag = Query.ValueTags[0].Tag;
 		for (int32 Index = 1, End = Query.ValueTags.Num(); Index < End; ++Index)
 		{
 			if (Query.ValueTags[Index].Tag == PreviousTag)

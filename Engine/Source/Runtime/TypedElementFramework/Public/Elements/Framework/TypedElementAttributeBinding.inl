@@ -4,10 +4,8 @@
 
 #include "TypedElementRegistry.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
-	using namespace UE::Editor::DataStorage;
-
 	// A property that can be directly be accessed from an object
 	template <typename PropertyType>
 	struct DirectProperty final
@@ -220,6 +218,6 @@ namespace UE::EditorDataStorage
 		});
 	}
 	
-}
+} // namespace UE::Editor::DataStorage
 
 	

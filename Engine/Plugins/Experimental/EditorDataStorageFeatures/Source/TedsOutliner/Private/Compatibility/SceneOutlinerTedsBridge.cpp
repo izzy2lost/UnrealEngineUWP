@@ -143,7 +143,7 @@ class FOutlinerColumn : public ISceneOutlinerColumn
 {
 public:
 	FOutlinerColumn(
-		TypedElementDataStorage::QueryHandle InQuery,
+		UE::Editor::DataStorage::QueryHandle InQuery,
 		ITypedElementDataStorageInterface& InStorage, 
 		ITypedElementDataStorageUiInterface& InStorageUi, 
 		ITypedElementDataStorageCompatibilityInterface& InStorageCompatibility,
@@ -164,13 +164,13 @@ public:
 	{
 		MetaData.AddOrSetMutableData(TEXT("Name"), NameId.ToString());
 
-		using namespace TypedElementDataStorage;
+		using namespace UE::Editor::DataStorage;
 
-		TableViewerColumnImpl = MakeUnique<UE::Editor::DataStorage::FTedsTableViewerColumn>(NameId, InCellWidgetConstructor, InColumnTypes,
+		TableViewerColumnImpl = MakeUnique<FTedsTableViewerColumn>(NameId, InCellWidgetConstructor, InColumnTypes,
 			InHeaderWidgetConstructor, FComboMetaDataView(FGenericMetaDataView(MetaData)).Next(FQueryMetaDataView(Storage.GetQueryDescription(QueryHandle))));
 
 		TableViewerColumnImpl->SetIsRowVisibleDelegate(
-		UE::Editor::DataStorage::FTedsTableViewerColumn::FIsRowVisible::CreateRaw(this, &FOutlinerColumn::IsRowVisible)
+		FTedsTableViewerColumn::FIsRowVisible::CreateRaw(this, &FOutlinerColumn::IsRowVisible)
 		);
 		
 		// Try to find a fallback column from the regular item, for handling cases like folders which are not in TEDS but want to use TEDS columns
@@ -188,7 +188,7 @@ public:
 		TableViewerColumnImpl->Tick();
 	}
 
-	bool IsRowVisible(const TypedElementDataStorage::RowHandle InRowHandle) const
+	bool IsRowVisible(const UE::Editor::DataStorage::RowHandle InRowHandle) const
 	{
 		TSharedPtr<ISceneOutliner> OutlinerPinned = OwningOutliner.Pin();
 
@@ -262,7 +262,7 @@ public:
 	
 	const TSharedRef<SWidget> ConstructRowWidget(FSceneOutlinerTreeItemRef TreeItem, const STableRow<FSceneOutlinerTreeItemPtr>& Row) override
 	{
-		using namespace TypedElementDataStorage;
+		using namespace UE::Editor::DataStorage;
 		
 		RowHandle RowHandle = InvalidRowHandle;
 
@@ -314,8 +314,8 @@ public:
 	ITypedElementDataStorageInterface& Storage;
 	ITypedElementDataStorageUiInterface& StorageUi;
 	ITypedElementDataStorageCompatibilityInterface& StorageCompatibility;
-	TypedElementDataStorage::QueryHandle QueryHandle;
-	TypedElementDataStorage::FMetaData MetaData;
+	UE::Editor::DataStorage::QueryHandle QueryHandle;
+	UE::Editor::DataStorage::FMetaData MetaData;
 	FName NameId;
 	TSharedPtr<ISceneOutlinerColumn> FallbackColumn;
 	TWeakPtr<ISceneOutliner> OwningOutliner;
@@ -507,7 +507,7 @@ void FSceneOutlinerTedsBridge::AssignQuery(UE::Editor::DataStorage::QueryHandle 
 	if (TSharedPtr<ISceneOutliner> OutlinerPinned = Outliner.Pin())
 	{
 		const ITypedElementDataStorageInterface::FQueryDescription& Description = Storage->GetQueryDescription(Query);
-		TypedElementDataStorage::FQueryMetaDataView MetaDataView(Description);
+		UE::Editor::DataStorage::FQueryMetaDataView MetaDataView(Description);
 
 		ClearColumns(*OutlinerPinned);
 

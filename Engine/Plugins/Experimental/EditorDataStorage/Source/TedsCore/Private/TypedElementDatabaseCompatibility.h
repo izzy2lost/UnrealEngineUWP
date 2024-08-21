@@ -204,10 +204,10 @@ private:
 	TArray<TPair<UE::Editor::DataStorage::ObjectAddedCallback, FDelegateHandle>> ObjectAddedCallbackList;
 	TArray<TPair<UE::Editor::DataStorage::ObjectRemovedCallback, FDelegateHandle>> PreObjectRemovedCallbackList;
 
-	TypedElementDataStorage::TableHandle StandardActorTable{ TypedElementDataStorage::InvalidTableHandle };
-	TypedElementDataStorage::TableHandle StandardActorWithTransformTable{ TypedElementDataStorage::InvalidTableHandle };
-	TypedElementDataStorage::TableHandle StandardUObjectTable{ TypedElementDataStorage::InvalidTableHandle };
-	TypedElementDataStorage::TableHandle StandardExternalObjectTable{ TypedElementDataStorage::InvalidTableHandle };
+	UE::Editor::DataStorage::TableHandle StandardActorTable{ UE::Editor::DataStorage::InvalidTableHandle };
+	UE::Editor::DataStorage::TableHandle StandardActorWithTransformTable{ UE::Editor::DataStorage::InvalidTableHandle };
+	UE::Editor::DataStorage::TableHandle StandardUObjectTable{ UE::Editor::DataStorage::InvalidTableHandle };
+	UE::Editor::DataStorage::TableHandle StandardExternalObjectTable{ UE::Editor::DataStorage::InvalidTableHandle };
 	ITypedElementDataStorageInterface* Storage{ nullptr };
 
 	/**

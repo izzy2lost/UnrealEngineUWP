@@ -15,7 +15,7 @@ FTypedElementWidgetConstructor_Override::FTypedElementWidgetConstructor_Override
 }
 
 TSharedPtr<SWidget> FTypedElementWidgetConstructor_Override::CreateWidget(
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SBox)
 		.HAlign(HAlign_Left)
@@ -25,7 +25,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor_Override::CreateWidget(
 bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
-	TypedElementDataStorage::RowHandle Row,
+	UE::Editor::DataStorage::RowHandle Row,
 	const TSharedPtr<SWidget>& Widget)
 {
 	if (!Widget)
@@ -41,7 +41,7 @@ bool FTypedElementWidgetConstructor_Override::FinalizeWidget(
 	TSharedPtr<SBox> WidgetInstance = StaticCastSharedPtr<SBox>(Widget);
 
 	// Row is not actually the row we want, its contained inside of a row reference, I don't know why things are done this way.
-	const TypedElementDataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
+	const UE::Editor::DataStorage::RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	FTypedElementOverrideColumn* OverrideColumn = DataStorage->GetColumn<FTypedElementOverrideColumn>(TargetRow);
 
 	if (OverrideColumn == nullptr)

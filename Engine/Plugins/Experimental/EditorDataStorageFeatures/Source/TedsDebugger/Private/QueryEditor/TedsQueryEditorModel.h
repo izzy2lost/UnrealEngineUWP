@@ -56,11 +56,11 @@ namespace Debug::QueryEditor
 		ITypedElementDataStorageInterface& GetTedsInterface();
 		const ITypedElementDataStorageInterface& GetTedsInterface() const;
 		
-		TypedElementDataStorage::FQueryDescription GenerateQueryDescription();
+		FQueryDescription GenerateQueryDescription();
 		// Special function to generate a description that puts the Select elements as All Conditions
 		// This is helpful for using a Count query type or for the TableViewer which requires
 		// the row query to have no select items
-		TypedElementDataStorage::FQueryDescription GenerateNoSelectQueryDescription();
+		FQueryDescription GenerateNoSelectQueryDescription();
 
 		int32 CountConditionsOfOperator(EOperatorType OperatorType) const;
 		

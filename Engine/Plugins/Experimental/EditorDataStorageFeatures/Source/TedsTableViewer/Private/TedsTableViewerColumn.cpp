@@ -17,7 +17,7 @@ namespace UE::Editor::DataStorage
 {
 	FTedsTableViewerColumn::FTedsTableViewerColumn(const FName& InColumnName, const TSharedPtr<FTypedElementWidgetConstructor>& InCellWidgetConstructor,
 		const TArray<TWeakObjectPtr<const UScriptStruct>>& InMatchedColumns, const TSharedPtr<FTypedElementWidgetConstructor>& InHeaderWidgetConstructor,
-		const TypedElementDataStorage::FMetaDataView& InWidgetMetaData)
+		const FMetaDataView& InWidgetMetaData)
 		: ColumnName(InColumnName)
 		, CellWidgetConstructor(InCellWidgetConstructor)
 		, HeaderWidgetConstructor(InHeaderWidgetConstructor)

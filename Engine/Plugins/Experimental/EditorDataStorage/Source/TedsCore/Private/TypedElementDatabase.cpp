@@ -266,9 +266,9 @@ TSharedPtr<const FMassEntityManager> UEditorDataStorage::GetActiveEditorEntityMa
 	return ActiveEditorEntityManager;
 }
 
-TypedElementDataStorage::TableHandle UEditorDataStorage::RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name)
+UE::Editor::DataStorage::TableHandle UEditorDataStorage::RegisterTable(TConstArrayView<const UScriptStruct*> ColumnList, const FName Name)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	if (ActiveEditorEntityManager && !TableNameLookup.Contains(Name))
 	{
@@ -286,7 +286,7 @@ TypedElementDataStorage::TableHandle UEditorDataStorage::RegisterTable(TConstArr
 	return InvalidTableHandle;
 }
 
-UE::Editor::DataStorage::TableHandle UEditorDataStorage::RegisterTable(TypedElementDataStorage::TableHandle SourceTable,
+UE::Editor::DataStorage::TableHandle UEditorDataStorage::RegisterTable(UE::Editor::DataStorage::TableHandle SourceTable,
 	TConstArrayView<const UScriptStruct*> ColumnList, const FName Name)
 {
 	using namespace UE::Editor::DataStorage;
@@ -1048,7 +1048,7 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
 	{
 		const UE::Editor::DataStorage::FExtendedQueryStore::Handle StorageHandle(Query);
 		return Environment->GetQueryStore().RunQuery(*ActiveEditorEntityManager, *Environment, StorageHandle, 
-			TypedElementDataStorage::EDirectQueryExecutionFlags::Default, Callback);
+			UE::Editor::DataStorage::EDirectQueryExecutionFlags::Default, Callback);
 	}
 	else
 	{
@@ -1057,7 +1057,7 @@ ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
 }
 
 ITypedElementDataStorageInterface::FQueryResult UEditorDataStorage::RunQuery(
-	QueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags,
+	QueryHandle Query, UE::Editor::DataStorage::EDirectQueryExecutionFlags Flags,
 	ITypedElementDataStorageInterface::DirectQueryCallbackRef Callback)
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(TEDS.RunQuery);
@@ -1225,7 +1225,7 @@ TSharedPtr<const UE::Editor::DataStorage::FEnvironment> UEditorDataStorage::GetE
 	return Environment;
 }
 
-FMassArchetypeHandle UEditorDataStorage::LookupArchetype(TypedElementDataStorage::TableHandle InTableHandle) const
+FMassArchetypeHandle UEditorDataStorage::LookupArchetype(UE::Editor::DataStorage::TableHandle InTableHandle) const
 {
 	const uint32 TableIndex = InTableHandle;
 	if (Tables.IsValidIndex(TableIndex))

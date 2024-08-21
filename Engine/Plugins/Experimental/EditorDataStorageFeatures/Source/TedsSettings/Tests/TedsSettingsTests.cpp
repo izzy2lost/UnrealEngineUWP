@@ -21,7 +21,7 @@ namespace UE::Editor::Settings::Tests
 {
 	using namespace UE::Editor;
 
-	BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "TedsSettings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+	BEGIN_DEFINE_SPEC(FTedsSettingsTestFixture, "Editor.DataStorage.Settings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 	ISettingsModule* SettingsModule = nullptr;
 	UTypedElementRegistry* TypedElementRegistry = nullptr;
 	ITypedElementDataStorageInterface* DataStorage = nullptr;

@@ -344,57 +344,57 @@ namespace UE::Editor::DataStorage
 	// FGetSourceRowHandle
 	//
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FAddCompatibleUObject& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FAddCompatibleUObject& Command)
 	{
 		return Command.Row;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FAddCompatibleExternalObject& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FAddCompatibleExternalObject& Command)
 	{
 		return Command.Row;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FCreateMemento& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FCreateMemento& Command)
 	{
 		return Command.TargetRow;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FRestoreMemento& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FRestoreMemento& Command)
 	{
 		return Command.TargetRow;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FDestroyMemento& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FDestroyMemento& Command)
 	{
 		return Command.MementoRow;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FRemoveCompatibleUObject& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FRemoveCompatibleUObject& Command)
 	{
 		return Command.ObjectRow;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FRemoveCompatibleExternalObject& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FRemoveCompatibleExternalObject& Command)
 	{
 		return Command.ObjectRow;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::Get(const CompatibilityCommandBuffer::TCommandVariant& Command)
+	RowHandle FGetSourceRowHandle::Get(const CompatibilityCommandBuffer::TCommandVariant& Command)
 	{
 		return Visit(FGetSourceRowHandle{}, Command);
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FAddInteractiveSyncFromWorldTag& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FAddInteractiveSyncFromWorldTag& Command)
 	{
 		return Command.Row;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FRemoveInteractiveSyncFromWorldTag& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FRemoveInteractiveSyncFromWorldTag& Command)
 	{
 		return Command.Row;
 	}
 
-	TypedElementDataStorage::RowHandle FGetSourceRowHandle::operator()(const FAddSyncFromWorldTag& Command)
+	RowHandle FGetSourceRowHandle::operator()(const FAddSyncFromWorldTag& Command)
 	{
 		return Command.Row;
 	}
@@ -513,7 +513,7 @@ namespace UE::Editor::DataStorage
 		, MementoSystem(InStorageCompatibility.Environment->GetMementoSystem())
 	{}
 
-	void FCommandProcessor::SetupRow(TypedElementDataStorage::RowHandle Row, UObject* Object)
+	void FCommandProcessor::SetupRow(RowHandle Row, UObject* Object)
 	{
 		Storage.AddColumn(Row, FTypedElementUObjectColumn{ .Object = Object });
 		Storage.AddColumn(Row, FTypedElementUObjectIdColumn
@@ -531,7 +531,7 @@ namespace UE::Editor::DataStorage
 		StorageCompatibility.TriggerOnObjectAdded(Object, Object->GetClass(), Row);
 	}
 
-	void FCommandProcessor::SetupRow(TypedElementDataStorage::RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
+	void FCommandProcessor::SetupRow(RowHandle Row, void* Object, TWeakObjectPtr<UScriptStruct> TypeInfo)
 	{
 		Storage.AddColumn(Row, FTypedElementExternalObjectColumn{ .Object = Object });
 		Storage.AddColumn(Row, FTypedElementScriptStructTypeInfoColumn{ .TypeInfo = TypeInfo });
@@ -587,7 +587,7 @@ namespace UE::Editor::DataStorage
 		checkf(ObjectPtr, TEXT(
 			"Expected a valid object pointer. If there isn't one here then the filter pass did not correctly clean up this command."));
 		Storage.AddRow(Object.Row, Object.Table, 
-			[ObjectPtr, this](TypedElementDataStorage::RowHandle Row)
+			[ObjectPtr, this](RowHandle Row)
 			{
 				SetupRow(Row, ObjectPtr);
 			});
@@ -614,7 +614,7 @@ namespace UE::Editor::DataStorage
 
 	void FCommandProcessor::operator()(FAddCompatibleExternalObject& Object)
 	{
-		Storage.AddRow(Object.Row, Object.Table, [&Object, this](TypedElementDataStorage::RowHandle Row)
+		Storage.AddRow(Object.Row, Object.Table, [&Object, this](RowHandle Row)
 			{
 				SetupRow(Object.Row, Object.Object, Object.TypeInfo);
 			});
@@ -1120,7 +1120,7 @@ namespace UE::Editor::DataStorage
 		FoldSyncFromWorldTags(Range);
 	}
 
-	CompatibilityCommandBuffer::FOptimizer FCommandOptimizer::CreateRangeOptimizer(TypedElementDataStorage::RowHandle RowCluster)
+	CompatibilityCommandBuffer::FOptimizer FCommandOptimizer::CreateRangeOptimizer(RowHandle RowCluster)
 	{
 		return Optimizer.BranchOnLeft(
 			[RowCluster](const CompatibilityCommandBuffer::TCommandVariant& Command)
@@ -1129,7 +1129,7 @@ namespace UE::Editor::DataStorage
 			});
 	}
 
-	void FCommandOptimizer::RunRightOnRowCluster(TypedElementDataStorage::RowHandle RowCluster)
+	void FCommandOptimizer::RunRightOnRowCluster(RowHandle RowCluster)
 	{
 		CompatibilityCommandBuffer::FOptimizer SubOptimizer = Optimizer.BranchOnRight(
 			[RowCluster](const CompatibilityCommandBuffer::TCommandVariant& Command)

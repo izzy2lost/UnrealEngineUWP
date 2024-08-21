@@ -17,7 +17,7 @@ struct FTedsOutlinerTreeItem : ISceneOutlinerTreeItem
 {
 public:
 	
-	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const TypedElementDataStorage::RowHandle);
+	DECLARE_DELEGATE_RetVal_OneParam(bool, FFilterPredicate, const UE::Editor::DataStorage::RowHandle);
 
 	TEDSOUTLINER_API bool Filter(FFilterPredicate Pred) const
 	{

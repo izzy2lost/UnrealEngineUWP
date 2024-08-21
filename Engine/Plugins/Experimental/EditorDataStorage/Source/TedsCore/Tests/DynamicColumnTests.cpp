@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Elements/Framework/TypedElementTestColumns.h"
@@ -9,23 +9,25 @@
 
 #include "Misc/AutomationTest.h"
 
-namespace UE::Editor::DataStorage::Tests
+namespace UE::Editor::DataStorage
+{
+namespace Tests
 {
 	BEGIN_DEFINE_SPEC(DynamicColumnTestFixture, "Editor.DataStorage.DynamicColumns", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 		ITypedElementDataStorageInterface* TedsInterface = nullptr;
 		const FName TestTableName = TEXT("TestTable_DynamicColumnsTest");
 
-		TypedElementDataStorage::TableHandle TestTable;
-		TArray<TypedElementDataStorage::RowHandle> Rows;
-		TArray<TypedElementDataStorage::QueryHandle> QueryHandles;
+		TableHandle TestTable;
+		TArray<RowHandle> Rows;
+		TArray<QueryHandle> QueryHandles;
 
 		TArray<FName> Identifiers;
 
-		TypedElementDataStorage::TableHandle RegisterTestTable() const
+		TableHandle RegisterTestTable() const
 		{
-			const TypedElementDataStorage::TableHandle Table = TedsInterface->FindTable(TestTableName);
+			const TableHandle Table = TedsInterface->FindTable(TestTableName);
 				
-			if (Table != TypedElementDataStorage::InvalidTableHandle)
+			if (Table != InvalidTableHandle)
 			{
 				return Table;
 			}
@@ -37,16 +39,16 @@ namespace UE::Editor::DataStorage::Tests
 			TestTableName);
 		}
 
-		TypedElementDataStorage::RowHandle CreateTestRow(TypedElementDataStorage::TableHandle InTableHandle)
+		RowHandle CreateTestRow(TableHandle InTableHandle)
 		{
-			TypedElementDataStorage::RowHandle RowHandle = TedsInterface->AddRow(InTableHandle);
-			Rows.Add(RowHandle);
-			return RowHandle;
+			RowHandle Row = TedsInterface->AddRow(InTableHandle);
+			Rows.Add(Row);
+			return Row;
 		}
 
-		TypedElementDataStorage::QueryHandle RegisterQuery(TypedElementDataStorage::FQueryDescription&& Query)
+		QueryHandle RegisterQuery(FQueryDescription&& Query)
 		{
-			TypedElementDataStorage::QueryHandle QueryHandle = TedsInterface->RegisterQuery(MoveTemp(Query));
+			QueryHandle QueryHandle = TedsInterface->RegisterQuery(MoveTemp(Query));
 			QueryHandles.Add(QueryHandle);
 			return QueryHandle;
 		}
@@ -152,11 +154,10 @@ namespace UE::Editor::DataStorage::Tests
 					Async(EAsyncExecution::TaskGraphMainThread,[this]()
 					{
 						using namespace TypedElementQueryBuilder;
-						using namespace UE::Editor::DataStorage;
 
-						TArray<TypedElementDataStorage::RowHandle> RowsToMatch;
+						TArray<RowHandle> RowsToMatch;
 						TBitArray WasMatched;
-						auto SetExpectedMatches = [&RowsToMatch, &WasMatched](TConstArrayView<TypedElementDataStorage::RowHandle> Expectation)
+						auto SetExpectedMatches = [&RowsToMatch, &WasMatched](TConstArrayView<RowHandle> Expectation)
 						{
 							RowsToMatch.Empty(RowsToMatch.Num());
 							RowsToMatch.Append(Expectation);
@@ -167,10 +168,10 @@ namespace UE::Editor::DataStorage::Tests
 						{
 							return WasMatched.CountSetBits();
 						};
-						auto Callback = CreateDirectQueryCallbackBinding([this, &RowsToMatch, &WasMatched] (TypedElementDataStorage::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* CallbackRows)
+						auto Callback = CreateDirectQueryCallbackBinding([this, &RowsToMatch, &WasMatched] (IDirectQueryContext& Context, const RowHandle* CallbackRows)
 						{
-							TConstArrayView<TypedElementDataStorage::RowHandle> RowsView = MakeConstArrayView(CallbackRows, Context.GetRowCount());
-							for (TypedElementDataStorage::RowHandle Row : RowsView)
+							TConstArrayView<RowHandle> RowsView = MakeConstArrayView(CallbackRows, Context.GetRowCount());
+							for (RowHandle Row : RowsView)
 							{
 								int32 Index = RowsToMatch.Find(Row);
 								TestTrue(TEXT("Returned row in query is within expected match array"), Index != INDEX_NONE);
@@ -184,7 +185,7 @@ namespace UE::Editor::DataStorage::Tests
 
 						// Should match Rows[0]
 						{
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 								Where().
 									All<FTestDynamicTag>(Identifiers[0]).
@@ -197,7 +198,7 @@ namespace UE::Editor::DataStorage::Tests
 						}
 						{
 							// Should match Rows 0 and 1
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 									Where().
 										All<FTestDynamicTag>(Identifiers[0]).
@@ -208,7 +209,7 @@ namespace UE::Editor::DataStorage::Tests
 						}
 						{
 							// Should match Rows 1
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 									Where().
 										All<FTestDynamicTag>(Identifiers[0]).
@@ -220,7 +221,7 @@ namespace UE::Editor::DataStorage::Tests
 						}
 						{
 							// Should match Rows 0 and 2
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 									Where().
 										All<FTestDynamicTag>(Identifiers[1]).
@@ -231,7 +232,7 @@ namespace UE::Editor::DataStorage::Tests
 						}
 						{
 							// Should match Rows 0 and 2
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 									Where().
 										None<FTestDynamicTag>(Identifiers[0]).
@@ -243,7 +244,7 @@ namespace UE::Editor::DataStorage::Tests
 						}
 						{
 							// Should match Rows 0, 1 and 2
-							TypedElementDataStorage::QueryHandle Query = RegisterQuery(
+							QueryHandle Query = RegisterQuery(
 								Select().
 									Where().
 										Any<FTestDynamicTag>(Identifiers[0]).
@@ -258,10 +259,10 @@ namespace UE::Editor::DataStorage::Tests
 
 				// Processor Query
 				{
-					TArray<TypedElementDataStorage::RowHandle> RowsToMatch;
+					TArray<RowHandle> RowsToMatch;
 					TArray<int32> MatchCount;
 					int32 UnexpectedRowCount;
-					auto SetExpectedMatches = [&RowsToMatch, &MatchCount, &UnexpectedRowCount](TConstArrayView<TypedElementDataStorage::RowHandle> Expectation)
+					auto SetExpectedMatches = [&RowsToMatch, &MatchCount, &UnexpectedRowCount](TConstArrayView<RowHandle> Expectation)
 					{
 						RowsToMatch.Empty(RowsToMatch.Num());
 						RowsToMatch.Append(Expectation);
@@ -275,13 +276,13 @@ namespace UE::Editor::DataStorage::Tests
 					};
 
 					TArray<FName> ActivationKeys;
-					TArray<TArray<TypedElementDataStorage::RowHandle>> QueryExpectedMatchRows;
+					TArray<TArray<RowHandle>> QueryExpectedMatchRows;
 					
 					Async(EAsyncExecution::TaskGraphMainThread,[this, &RowsToMatch, &MatchCount, &UnexpectedRowCount, &ActivationKeys, &QueryExpectedMatchRows]()
 					{
-						auto Callback = [this, &RowsToMatch, &MatchCount, &UnexpectedRowCount] (TypedElementDataStorage::IQueryContext& Context, const TypedElementDataStorage::RowHandle* CallbackRows)
+						auto Callback = [this, &RowsToMatch, &MatchCount, &UnexpectedRowCount] (IQueryContext& Context, const RowHandle* CallbackRows)
 						{
-							TConstArrayView<TypedElementDataStorage::RowHandle> RowsView = MakeConstArrayView(CallbackRows, Context.GetRowCount());
+							TConstArrayView<RowHandle> RowsView = MakeConstArrayView(CallbackRows, Context.GetRowCount());
 							for (auto Row : RowsView)
 							{
 								int32 Index = RowsToMatch.Find(Row);
@@ -472,7 +473,7 @@ namespace UE::Editor::DataStorage::Tests
 					
 					struct FExpectation
 					{
-						TypedElementDataStorage::RowHandle Row;
+						RowHandle Row;
 						TArray<int32> ColumnValues;
 
 						int32 MatchCount = 0;
@@ -597,13 +598,13 @@ namespace UE::Editor::DataStorage::Tests
 		AfterEach([this]()
 		{
 			Identifiers.Empty(Identifiers.Num());
-			for (TypedElementDataStorage::RowHandle Row : Rows)
+			for (RowHandle Row : Rows)
 			{
 				TedsInterface->RemoveRow(Row);
 			}
 			Rows.Empty(Rows.Num());
 
-			for (TypedElementDataStorage::QueryHandle QueryHandle : QueryHandles)
+			for (QueryHandle QueryHandle : QueryHandles)
 			{
 				TedsInterface->UnregisterQuery(QueryHandle);
 			}
@@ -612,6 +613,7 @@ namespace UE::Editor::DataStorage::Tests
 			TedsInterface = nullptr;
 		});
 	}
-}
+} // namespace Tests
+} // namespace UE::Editor::DataStorage
 
 #endif // WITH_TESTS

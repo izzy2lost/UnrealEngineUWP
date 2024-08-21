@@ -37,9 +37,9 @@ public:
 	TEDSTABLEVIEWER_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		RowHandle TargetRow,
-		RowHandle WidgetRow, 
-		const TypedElementDataStorage::FMetaDataView& Arguments) override;
+		UE::Editor::DataStorage::RowHandle TargetRow,
+		UE::Editor::DataStorage::RowHandle WidgetRow, 
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 
 protected:
 };

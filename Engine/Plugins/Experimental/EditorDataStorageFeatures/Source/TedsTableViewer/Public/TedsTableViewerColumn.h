@@ -31,7 +31,7 @@ namespace UE::Editor::DataStorage
 			const TSharedPtr<FTypedElementWidgetConstructor>& InCellWidgetConstructor, // The widget constructor to use for this column
 			const TArray<TWeakObjectPtr<const UScriptStruct>>& InMatchedColumns = {}, // An optional list of matched Teds columns 
 			const TSharedPtr<FTypedElementWidgetConstructor>& InHeaderWidgetConstructor = nullptr, // Optional constructor to use for the header widget
-			const TypedElementDataStorage::FMetaDataView& InWidgetMetaData = TypedElementDataStorage::FMetaDataView()); // Optional metadata to use when constructing widgets
+			const FMetaDataView& InWidgetMetaData = FMetaDataView()); // Optional metadata to use when constructing widgets
 
 		TEDSTABLEVIEWER_API ~FTedsTableViewerColumn();
 		
@@ -67,7 +67,7 @@ namespace UE::Editor::DataStorage
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
 		
 		// The Metadata used to create widgets
-		TypedElementDataStorage::FMetaDataView WidgetMetaData;
+		FMetaDataView WidgetMetaData;
 
 		// TEDS Constructs
 		ITypedElementDataStorageInterface* Storage;

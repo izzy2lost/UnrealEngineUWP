@@ -17,7 +17,7 @@
 namespace UE::Editor::DataStorage::Widgets::Private
 {
 	void UpdateWidget(const TSharedPtr<SWidget>& Widget, const FText& Alert, bool bIsWarning, uint16 ErrorCount, uint16 WarningCount,
-		TypedElementDataStorage::RowHandle RowWithAlertAction)
+		UE::Editor::DataStorage::RowHandle RowWithAlertAction)
 	{
 		if (Widget)
 		{
@@ -319,7 +319,7 @@ FAlertWidgetConstructor::FAlertWidgetConstructor()
 }
 
 TSharedPtr<SWidget> FAlertWidgetConstructor::CreateWidget(
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SOverlay)
 		+SOverlay::Slot()
@@ -366,9 +366,9 @@ TConstArrayView<const UScriptStruct*> FAlertWidgetConstructor::GetAdditionalColu
 }
 
 bool FAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle Row, const TSharedPtr<SWidget>& Widget)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	RowHandle TargetRow = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row)->Row;
 	const FTypedElementAlertColumn* Alert = DataStorage->GetColumn<FTypedElementAlertColumn>(TargetRow);
@@ -377,7 +377,7 @@ bool FAlertWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* 
 	uint16 ErrorCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Error)] : 0;
 	uint16 WarningCount = ChildAlert ? ChildAlert->Counts[static_cast<size_t>(FTypedElementAlertColumnType::Warning)] : 0;
 
-	UE::Editor::DataStorage::Widgets::Private::UpdateWidget(
+	Widgets::Private::UpdateWidget(
 		Widget, 
 		Alert ? Alert->Message : FText::GetEmpty(), 
 		Alert ? (Alert->AlertType == FTypedElementAlertColumnType::Warning) : false, 
@@ -399,7 +399,7 @@ FAlertHeaderWidgetConstructor::FAlertHeaderWidgetConstructor()
 }
 
 TSharedPtr<SWidget> FAlertHeaderWidgetConstructor::CreateWidget(
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SImage)
 		.DesiredSizeOverride(FVector2D(16.f, 16.f))

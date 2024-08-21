@@ -16,7 +16,7 @@
 
 class UScriptStruct;
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	struct FQueryDescription;
 	
@@ -59,7 +59,7 @@ namespace TypedElementDataStorage
 		struct FValueTagData
 		{
 			// The Tag maps to a Mass ConstSharedFragment object
-			UE::Editor::DataStorage::FValueTag Tag;
+			FValueTag Tag;
 
 			// The MatchValue specifies the value that the fragment must have to be matched
 			// If MatchValue is NAME_None, then TEDS will match all values
@@ -97,12 +97,12 @@ namespace TypedElementDataStorage
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> ConditionTypes;
 		TArray<FOperator, TInlineAllocator<NumInlineConditions>> ConditionOperators;
 
-		TArray<UE::Editor::DataStorage::FDynamicColumnDescription, TInlineAllocator<NumInlineSelections>> DynamicSelectionTypes;
+		TArray<FDynamicColumnDescription, TInlineAllocator<NumInlineSelections>> DynamicSelectionTypes;
 		TArray<EQueryAccessType, TInlineAllocator<NumInlineSelections>> DynamicSelectionAccessTypes;
 		TArray<FColumnMetaData::EFlags, TInlineAllocator<NumInlineSelections>> DynamicSelectionMetaData;
 		
 		TArray<EOperatorType, TInlineAllocator<NumInlineConditions>> DynamicConditionOperations;
-		TArray<UE::Editor::DataStorage::FDynamicColumnDescription, TInlineAllocator<NumInlineConditions>> DynamicConditionDescriptions;
+		TArray<FDynamicColumnDescription, TInlineAllocator<NumInlineConditions>> DynamicConditionDescriptions;
 
 		TArray<FValueTagData> ValueTags;
 
@@ -115,4 +115,4 @@ namespace TypedElementDataStorage
 
 		EActionType Action;
 	};
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

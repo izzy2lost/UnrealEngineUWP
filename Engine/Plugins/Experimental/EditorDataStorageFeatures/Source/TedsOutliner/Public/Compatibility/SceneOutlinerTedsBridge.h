@@ -17,7 +17,7 @@ class ITypedElementDataStorageInterface;
 class ITypedElementDataStorageUiInterface;
 class ITypedElementDataStorageCompatibilityInterface;
 
-DECLARE_DELEGATE_RetVal_OneParam(FSceneOutlinerTreeItemID, FTreeItemIDDealiaser, TypedElementDataStorage::RowHandle);
+DECLARE_DELEGATE_RetVal_OneParam(FSceneOutlinerTreeItemID, FTreeItemIDDealiaser, UE::Editor::DataStorage::RowHandle);
 
 class FSceneOutlinerTedsBridge;
 

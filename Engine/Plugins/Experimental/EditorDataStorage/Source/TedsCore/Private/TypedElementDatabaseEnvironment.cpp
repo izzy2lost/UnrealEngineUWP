@@ -76,9 +76,9 @@ namespace UE::Editor::DataStorage
 		return MassEntityManager;
 	}
 
-	FMassArchetypeHandle FEnvironment::LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const
+	FMassArchetypeHandle FEnvironment::LookupMassArchetype(TableHandle Table) const
 	{
-		return DataStorage.LookupArchetype(TableHandle);
+		return DataStorage.LookupArchetype(Table);
 	}
 
 	FMassProcessingPhaseManager& FEnvironment::GetMassPhaseManager()

@@ -335,14 +335,14 @@ void UTypedElementAlertQueriesFactory::RegisterOnRemoveQueries(ITypedElementData
 }
 
 void UTypedElementAlertQueriesFactory::AddChildAlertsToHierarchy(
-	TypedElementDataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Parent, int32 ParentQueryIndex)
+	UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Parent, int32 ParentQueryIndex)
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	bool bHasParent = true;
 	do
 	{
-		TypedElementDataStorage::RowHandle NextParent = Parent;
+		RowHandle NextParent = Parent;
 		bHasParent = MoveToNextParent(NextParent, Context, ParentQueryIndex);
 
 		// Increment parent's child counter or create a child alert if one doesn't exist.
@@ -358,7 +358,7 @@ void UTypedElementAlertQueriesFactory::AddChildAlertsToHierarchy(
 }
 
 void UTypedElementAlertQueriesFactory::IncrementParents(
-	TypedElementDataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
+	UE::Editor::DataStorage::IQueryContext& Context, UE::Editor::DataStorage::RowHandle Row, FTypedElementAlertColumnType AlertType,
 	int32 ChildAlertQueryIndex)
 {
 	using namespace TypedElementDataStorage;
@@ -388,7 +388,7 @@ void UTypedElementAlertQueriesFactory::ResetChildAlertCounters(FTypedElementChil
 }
 
 bool UTypedElementAlertQueriesFactory::MoveToNextParent(
-	TypedElementDataStorage::RowHandle& Parent, TypedElementDataStorage::IQueryContext& Context, int32 SubQueryIndex)
+	UE::Editor::DataStorage::RowHandle& Parent, UE::Editor::DataStorage::IQueryContext& Context, int32 SubQueryIndex)
 {
 	using namespace TypedElementDataStorage;
 	using namespace TypedElementQueryBuilder;

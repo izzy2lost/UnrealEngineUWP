@@ -21,9 +21,9 @@
 
 FTedsSettingsManager::FTedsSettingsManager()
 	: bIsInitialized{ false }
-	, SelectAllSettingsQuery{ TypedElementDataStorage::InvalidQueryHandle }
-	, SettingsContainerTable{ TypedElementDataStorage::InvalidTableHandle }
-	, SettingsCategoryTable{ TypedElementDataStorage::InvalidTableHandle }
+	, SelectAllSettingsQuery{ UE::Editor::DataStorage::InvalidQueryHandle }
+	, SettingsContainerTable{ UE::Editor::DataStorage::InvalidTableHandle }
+	, SettingsCategoryTable{ UE::Editor::DataStorage::InvalidTableHandle }
 {
 }
 
@@ -83,14 +83,14 @@ void FTedsSettingsManager::Shutdown()
 
 void FTedsSettingsManager::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {
-	if (SettingsContainerTable == TypedElementDataStorage::InvalidTableHandle)
+	if (SettingsContainerTable == UE::Editor::DataStorage::InvalidTableHandle)
 	{
 		SettingsContainerTable = DataStorage.RegisterTable(
 			TTypedElementColumnTypeList<FNameColumn, FDisplayNameColumn, FDescriptionColumn, FSettingsContainerTag>(),
 			FName(TEXT("Editor_SettingsContainerTable")));
 	}
 
-	if (SettingsCategoryTable == TypedElementDataStorage::InvalidTableHandle)
+	if (SettingsCategoryTable == UE::Editor::DataStorage::InvalidTableHandle)
 	{
 		SettingsCategoryTable = DataStorage.RegisterTable(
 			TTypedElementColumnTypeList<FSettingsContainerReferenceColumn, FNameColumn, FDisplayNameColumn, FDescriptionColumn, FSettingsCategoryTag>(),
@@ -102,7 +102,7 @@ void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& Da
 {
 	using namespace TypedElementQueryBuilder;
 
-	if (SelectAllSettingsQuery == TypedElementDataStorage::InvalidQueryHandle)
+	if (SelectAllSettingsQuery == UE::Editor::DataStorage::InvalidQueryHandle)
 	{
 		SelectAllSettingsQuery = DataStorage.RegisterQuery(
 			Select()
@@ -116,7 +116,7 @@ void FTedsSettingsManager::RegisterQueries(ITypedElementDataStorageInterface& Da
 void FTedsSettingsManager::UnregisterQueries(ITypedElementDataStorageInterface& DataStorage)
 {
 	DataStorage.UnregisterQuery(SelectAllSettingsQuery);
-	SelectAllSettingsQuery = TypedElementDataStorage::InvalidQueryHandle;
+	SelectAllSettingsQuery = UE::Editor::DataStorage::InvalidQueryHandle;
 }
 
 void FTedsSettingsManager::RegisterSettings()

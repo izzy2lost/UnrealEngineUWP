@@ -10,6 +10,7 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Interfaces/TypedElementDataStorageInterface.h"
 #include "SceneOutlinerPublicTypes.h"
 #include "TedsOutlinerMode.h"
 #include "ReferenceSkeleton.h"
@@ -129,7 +130,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 	TArray<UScriptStruct*> HierarchyTableTypeColumns = Handler->GetColumns();
 	HierarchyTableTypeColumns.Add(FTypedElementOverrideColumn::StaticStruct());
 
-	TypedElementDataStorage::FQueryDescription ColumnQueryDescription =
+	FQueryDescription ColumnQueryDescription =
 		Select()
 		.ReadOnly(HierarchyTableTypeColumns)
 		.Compile();
@@ -143,7 +144,7 @@ TSharedRef<SWidget> FHierarchyTableEditorToolkit::CreateTedsOutliner()
 
 	FTedsOutlinerParams Params(nullptr);
 	{
-		TypedElementDataStorage::FQueryDescription RowQueryDescription =
+		FQueryDescription RowQueryDescription =
 			Select()
 			.Where()
 			.All<FTypedElementOverrideColumn>()
@@ -233,9 +234,9 @@ void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
 	using namespace UE::Editor::DataStorage;
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* DSI = Registry->GetMutableDataStorage();
-	static TypedElementDataStorage::TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
+	static TableHandle Table = DSI->FindTable(FName("Editor_HierarchyTableTable"));
 
-	TypedElementDataStorage::RowHandle* RootBoneHandle = EntryIndexToHandleMap.Find(0);
+	RowHandle* RootBoneHandle = EntryIndexToHandleMap.Find(0);
 	if (!ensure(RootBoneHandle))
 	{
 		return;
@@ -247,7 +248,7 @@ void FHierarchyTableEditorToolkit::AddCurveEntry(const FName CurveName)
 	DSI->AddColumn<FTypedElementMetadataColumn>(Row,
 		{
 			.OwnerTable = HierarchyTable,
-			.Children = TArray<TypedElementDataStorage::RowHandle>(),
+			.Children = TArray<RowHandle>(),
 			.Type = EHierarchyTableMetadataType::Curve,
 			.BoneIndex = INDEX_NONE,
 			.CurveName = CurveName

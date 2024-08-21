@@ -4,9 +4,9 @@
 
 #include "Elements/Framework/TypedElementRegistry.h"
 
-namespace UE::EditorDataStorage
+namespace UE::Editor::DataStorage
 {
-	FAttributeBinder::FAttributeBinder(TypedElementDataStorage::RowHandle InTargetRow)
+	FAttributeBinder::FAttributeBinder(RowHandle InTargetRow)
 		: TargetRow(InTargetRow)
 	{
 		if (ensureMsgf(UTypedElementRegistry::GetInstance()->AreDataStorageInterfacesSet(), 
@@ -17,10 +17,10 @@ namespace UE::EditorDataStorage
 	}
 
 	FAttributeBinder::FAttributeBinder(
-		TypedElementDataStorage::RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage)
+		RowHandle InTargetRow, ITypedElementDataStorageInterface* InDataStorage)
 		: TargetRow(InTargetRow)
 		, DataStorage(InDataStorage)
 	{
 		ensureMsgf(DataStorage, TEXT("The Editor Data Storage plugin needs to be enabled to use attribute bindings."));
 	}
-}
+} // namespace UE::Editor::DataStorage

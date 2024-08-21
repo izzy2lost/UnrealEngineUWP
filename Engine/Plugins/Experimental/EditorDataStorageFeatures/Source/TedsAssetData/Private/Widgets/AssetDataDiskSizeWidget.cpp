@@ -20,10 +20,10 @@ FDiskSizeWidgetConstructor::FDiskSizeWidgetConstructor()
 }
 
 TSharedPtr<SWidget> FDiskSizeWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
-	UE::EditorDataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
+	UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
 	
 	return SNew(STextBlock)
 			.Text(Binder.BindData(&FDiskSizeColumn::DiskSize, [](int64 DiskSize)

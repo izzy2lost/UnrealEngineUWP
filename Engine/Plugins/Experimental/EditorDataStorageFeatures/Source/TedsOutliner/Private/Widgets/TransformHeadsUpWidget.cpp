@@ -212,7 +212,7 @@ TConstArrayView<const UScriptStruct*> FTransformHeadsUpWidgetConstructor::GetAdd
 	return Columns;
 }
 
-TSharedPtr<SWidget> FTransformHeadsUpWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FTransformHeadsUpWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STransformQuickDisplay);
 }

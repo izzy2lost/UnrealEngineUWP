@@ -35,15 +35,15 @@ public:
 	virtual ~FTypedElementWidgetConstructor() = default;
 
 	/** Initializes a new constructor based on the provided arguments.. */
-	TYPEDELEMENTFRAMEWORK_API virtual bool Initialize(const TypedElementDataStorage::FMetaDataView& InArguments,
-		TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const TypedElementDataStorage::FQueryConditions& InQueryConditions);
+	TYPEDELEMENTFRAMEWORK_API virtual bool Initialize(const UE::Editor::DataStorage::FMetaDataView& InArguments,
+		TArray<TWeakObjectPtr<const UScriptStruct>> InMatchedColumnTypes, const UE::Editor::DataStorage::FQueryConditions& InQueryConditions);
 
 	/** Retrieves the type information for the constructor type. */
 	TYPEDELEMENTFRAMEWORK_API virtual const UScriptStruct* GetTypeInfo() const;
 	/** Retrieves the columns, if any, that were matched to this constructor when it was created. */
 	TYPEDELEMENTFRAMEWORK_API virtual const TArray<TWeakObjectPtr<const UScriptStruct>>& GetMatchedColumns() const;
 	/** Retrieves the query conditions that need to match for this widget constructor to produce a widget. */
-	TYPEDELEMENTFRAMEWORK_API virtual const TypedElementDataStorage::FQueryConditions* GetQueryConditions() const;
+	TYPEDELEMENTFRAMEWORK_API virtual const UE::Editor::DataStorage::FQueryConditions* GetQueryConditions() const;
 
 	/** Returns a list of additional columns the widget requires to be added to its rows. */
 	TYPEDELEMENTFRAMEWORK_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const;
@@ -55,7 +55,7 @@ public:
 	 * Individual widget constructors can override this function with a name specific to them.
 	 */
 	TYPEDELEMENTFRAMEWORK_API virtual FString CreateWidgetDisplayName(
-		ITypedElementDataStorageInterface* DataStorage, TypedElementDataStorage::RowHandle Row) const;
+		ITypedElementDataStorageInterface* DataStorage, RowHandle Row) const;
 	
 	/**
 	 *	Calls Construct() to create the internal widget, and then stores it in a container before returning.
@@ -69,7 +69,7 @@ public:
 		RowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		const TypedElementDataStorage::FMetaDataView& Arguments);
+		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 
 	/**
 	 * Constructs the widget according to the provided information. Information is collected by calling
@@ -82,18 +82,18 @@ public:
 		RowHandle Row, /** The row the widget will be stored in. */
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		const TypedElementDataStorage::FMetaDataView& Arguments);
+		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 
 protected:
 	/** Create a new instance of the target widget. This is a required function. */
-	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments);
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments);
 	/** Create a new instance of the target widget. This is a required function. */
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementDataStorage::RowHandle TargetRow,
-		TypedElementDataStorage::RowHandle WidgetRow, 
-		const TypedElementDataStorage::FMetaDataView& Arguments);
+		UE::Editor::DataStorage::RowHandle TargetRow,
+		UE::Editor::DataStorage::RowHandle WidgetRow, 
+		const UE::Editor::DataStorage::FMetaDataView& Arguments);
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row);
 	
@@ -122,7 +122,7 @@ protected:
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
-	const TypedElementDataStorage::FQueryConditions* QueryConditions = nullptr;
+	const UE::Editor::DataStorage::FQueryConditions* QueryConditions = nullptr;
 	const UScriptStruct* TypeInfo = nullptr;
 };
 
@@ -155,9 +155,9 @@ struct FSimpleWidgetConstructor : public FTypedElementWidgetConstructor
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		RowHandle TargetRow,
-		RowHandle WidgetRow, 
-		const TypedElementDataStorage::FMetaDataView& Arguments) override;
+		UE::Editor::DataStorage::RowHandle TargetRow,
+		UE::Editor::DataStorage::RowHandle WidgetRow,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 
 	/*
 	 * Override this function to add any columns to the WidgetRow before CreateWidget is called
@@ -171,7 +171,7 @@ struct FSimpleWidgetConstructor : public FTypedElementWidgetConstructor
 protected:
 
 	/** Old CreateWidget overload that exists for backwards compatibility, you should use the overload that provides the row instead */
-	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override final;
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments) override final;
 	
 	/** 
 	 * Old function in the widget creation pipeline that isn't used anymore. All your logic should go in CreateWidget() itself
@@ -189,7 +189,7 @@ protected:
 		RowHandle WidgetRow, 
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		const TypedElementDataStorage::FMetaDataView& Arguments) override final;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) override final;
 };
 
 template<>
@@ -284,7 +284,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, const UScriptStruct* Constructor,
-		TypedElementDataStorage::FQueryConditions Columns) = 0;
+		UE::Editor::DataStorage::FQueryConditions Columns) = 0;
 	/**
 	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
 	 * This version registers a generic type. Construction using these are typically cheaper as they can avoid
@@ -294,7 +294,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	template<typename ConstructorType>
-	bool RegisterWidgetFactory(FName Purpose, TypedElementDataStorage::FQueryConditions Columns);
+	bool RegisterWidgetFactory(FName Purpose, UE::Editor::DataStorage::FQueryConditions Columns);
 	/**
 	 * Registers a widget factory that will be called when the purpose it's registered under is requested.
 	 * This version uses a previously created instance of the Constructor. The benefit of this is that it store
@@ -312,7 +312,7 @@ public:
 	 * If registration is successful true will be returned otherwise false.
 	 */
 	virtual bool RegisterWidgetFactory(FName Purpose, TUniquePtr<FTypedElementWidgetConstructor>&& Constructor, 
-		TypedElementDataStorage::FQueryConditions Columns) = 0;
+		UE::Editor::DataStorage::FQueryConditions Columns) = 0;
 	
 	/** 
 	 * Creates widget constructors for the requested purpose.
@@ -320,7 +320,7 @@ public:
 	 * widgets created from the constructor, if applicable.
 	 */
 	virtual void CreateWidgetConstructors(FName Purpose, 
-		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
 	/** 
 	 * Finds matching widget constructors for provided columns, preferring longer matches over shorter matches.
 	 * The provided list of columns will be updated to contain all columns that couldn't be matched.
@@ -328,14 +328,14 @@ public:
 	 * widgets created from the constructor, if applicable.
 	 */
 	virtual void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) = 0;
 
 	/**
 	 * Creates all the widgets registered under the provided name. This may be a large number of widgets for a wide name
 	 * or exactly one when the exact name of the widget is registered. Arguments can be provided, but widgets are free
 	 * to ignore them.
 	 */
-	virtual void ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
+	virtual void ConstructWidgets(FName Purpose, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) = 0;
 
 	/** 
@@ -344,7 +344,7 @@ public:
 	 * constructor is free to use that to configure the widget. Arguments are used by the constructor to configure the widget.
 	 */
 	virtual TSharedPtr<SWidget> ConstructWidget(RowHandle Row, FTypedElementWidgetConstructor& Constructor,
-		const TypedElementDataStorage::FMetaDataView& Arguments) = 0;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) = 0;
 
 	/** Calls the provided callback for all known registered widget purposes. */
 	virtual void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const = 0;

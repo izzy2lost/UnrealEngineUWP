@@ -12,61 +12,57 @@ namespace UE::Editor::DataStorage
 	namespace Private
 	{
 		TableHandle PerformanceTestCommandTable = InvalidTableHandle;
-	}
-}
+	} // namespace Private
 
-FAutoConsoleCommand CVarAddDebugRows = FAutoConsoleCommand(
-	TEXT("Teds.Debug.PerformanceTest.AddRows"),
-	TEXT("Teds.Debug.PerformanceTest.AddRows <NumRows>;  NumRows = number of rows to add"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
-	{
-		if (Args.Num() > 0)
+	FAutoConsoleCommand CVarAddDebugRows = FAutoConsoleCommand(
+		TEXT("Teds.Debug.PerformanceTest.AddRows"),
+		TEXT("Teds.Debug.PerformanceTest.AddRows <NumRows>;  NumRows = number of rows to add"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 		{
-			int32 EntitiesToAdd;
-			LexFromString(EntitiesToAdd, *Args[0]);
+			if (Args.Num() > 0)
+			{
+				int32 EntitiesToAdd;
+				LexFromString(EntitiesToAdd, *Args[0]);
+
+				ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
+			
+				DataStorageInterface->BatchAddRow(Private::PerformanceTestCommandTable, EntitiesToAdd, [DataStorageInterface](RowHandle Row)
+					{
+						FTest_PingPongPrePhys* Column = DataStorageInterface->GetColumn<FTest_PingPongPrePhys>(Row);
+						Column->Value = 0;
+					});
+			}
+		}
+	));
+
+	FAutoConsoleCommand CVarResetDebugEntities = FAutoConsoleCommand(
+		TEXT("Teds.Debug.PerformanceTest.RemoveAllRows"),
+		TEXT("Removes all added rows for the performance test"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			using namespace TypedElementQueryBuilder;
 
 			ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
-			
-			DataStorageInterface->BatchAddRow(UE::Editor::DataStorage::Private::PerformanceTestCommandTable, EntitiesToAdd, [DataStorageInterface](TypedElementDataStorage::RowHandle Row)
-				{
-					FTest_PingPongPrePhys* Column = DataStorageInterface->GetColumn<FTest_PingPongPrePhys>(Row);
-					Column->Value = 0;
-				});
-		}
-	}
-));
-
-FAutoConsoleCommand CVarResetDebugEntities = FAutoConsoleCommand(
-	TEXT("Teds.Debug.PerformanceTest.RemoveAllRows"),
-	TEXT("Removes all added rows for the performance test"),
-	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
-	{
-		using namespace TypedElementQueryBuilder;
-		using namespace TypedElementDataStorage;
-
-		using DSI = ITypedElementDataStorageInterface;
-		namespace DS = TypedElementDataStorage;
-
-		ITypedElementDataStorageInterface* DataStorageInterface = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 		
-		TypedElementDataStorage::QueryHandle Query = DataStorageInterface->RegisterQuery(
-			Select().Where().All<FTest_PingPongPrePhys>().Compile());
+			QueryHandle Query = DataStorageInterface->RegisterQuery(
+				Select().Where().All<FTest_PingPongPrePhys>().Compile());
 
-		TArray<TypedElementDataStorage::RowHandle> RowsToDelete;
+			TArray<RowHandle> RowsToDelete;
 
-		DataStorageInterface->RunQuery(Query, CreateDirectQueryCallbackBinding([&RowsToDelete](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const TypedElementDataStorage::RowHandle* RowArray)
-		{
-			RowsToDelete.Insert(RowArray, Context.GetRowCount(), RowsToDelete.Num());
-		}));
+			DataStorageInterface->RunQuery(Query, CreateDirectQueryCallbackBinding([&RowsToDelete](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const RowHandle* RowArray)
+			{
+				RowsToDelete.Insert(RowArray, Context.GetRowCount(), RowsToDelete.Num());
+			}));
 
-		for (TypedElementDataStorage::RowHandle Row : RowsToDelete)
-		{
-			DataStorageInterface->RemoveRow(Row);
+			for (RowHandle Row : RowsToDelete)
+			{
+				DataStorageInterface->RemoveRow(Row);
+			}
+
+			DataStorageInterface->UnregisterQuery(Query);
 		}
-
-		DataStorageInterface->UnregisterQuery(Query);
-	}
-));
+	));
+} // namespace UE::Editor::DataStorage
 
 void UTest_PingPongBetweenPhaseFactory::RegisterTables(ITypedElementDataStorageInterface& DataStorage)
 {

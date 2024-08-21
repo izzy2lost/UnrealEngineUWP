@@ -35,12 +35,12 @@ FTypeInfoWidgetConstructor::FTypeInfoWidgetConstructor(const UScriptStruct* InTy
 }
 
 TSharedPtr<SWidget> FTypeInfoWidgetConstructor::CreateWidget(
-	const TypedElementDataStorage::FMetaDataView& Arguments	)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments	)
 {
 	bUseIcon = false;
 	
 	// Check if the caller provided metadata to use an icon widget
-	TypedElementDataStorage::FMetaDataEntryView MetaDataEntryView = Arguments.FindGeneric("TypeInfoWidget_bUseIcon");
+	UE::Editor::DataStorage::FMetaDataEntryView MetaDataEntryView = Arguments.FindGeneric("TypeInfoWidget_bUseIcon");
 	if(MetaDataEntryView.IsSet())
 	{
 		check(MetaDataEntryView.IsType<bool>());

@@ -23,7 +23,9 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogTEDSAssetRegistry, Log, All)
 
-namespace UE::EditorDataStorage::Debug::Private
+namespace UE::Editor::DataStorage
+{
+namespace Debug::Private
 {
 	static FAutoConsoleCommand CCMDTestFolderRowData(
 		TEXT("TEDS.Debug.ShowDataOfAssetFolder"),
@@ -36,9 +38,9 @@ namespace UE::EditorDataStorage::Debug::Private
 				for (const FString& Path : InArgs)
 				{
 					FName PathAsName(*Path);
-					TypedElementDataStorage::RowHandle RowHandle = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(PathAsName));
+					RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(PathAsName));
 
-					if (Database->IsRowAssigned(RowHandle))
+					if (Database->IsRowAssigned(Row))
 					{
 						UE_LOG(LogTEDSAssetRegistry, Display, TEXT("The path isn't indexed."));
 						return;
@@ -47,12 +49,12 @@ namespace UE::EditorDataStorage::Debug::Private
 
 					UE_LOG(LogTEDSAssetRegistry, Display, TEXT("Found some information for the path (%s) in the database."), *Path);
 
-					if (const FAssetPathColumn_Experimental* AssetPath = Database->GetColumn<FAssetPathColumn_Experimental>(RowHandle))
+					if (const FAssetPathColumn_Experimental* AssetPath = Database->GetColumn<FAssetPathColumn_Experimental>(Row))
 					{
 						UE_LOG(LogTEDSAssetRegistry, Display, TEXT("Path stored in the database as (%s)."), *AssetPath->Path.ToString());
 					}
 
-					if (const FParentAssetPathColumn_Experimental* ParentAssetPath = Database->GetColumn<FParentAssetPathColumn_Experimental>(RowHandle))
+					if (const FParentAssetPathColumn_Experimental* ParentAssetPath = Database->GetColumn<FParentAssetPathColumn_Experimental>(Row))
 					{
 						if (const FAssetPathColumn_Experimental* AssetPath = Database->GetColumn<FAssetPathColumn_Experimental>(ParentAssetPath->ParentRow))
 						{
@@ -61,11 +63,11 @@ namespace UE::EditorDataStorage::Debug::Private
 					}
 
 
-					if (const FChildrenAssetPathColumn_Experimental* ChildrenPath = Database->GetColumn<FChildrenAssetPathColumn_Experimental>(RowHandle))
+					if (const FChildrenAssetPathColumn_Experimental* ChildrenPath = Database->GetColumn<FChildrenAssetPathColumn_Experimental>(Row))
 					{
 						UE_LOG(LogTEDSAssetRegistry, Display, TEXT("	Path as %i children"), ChildrenPath->ChildrenRows.Num());
 
-						for (TypedElementDataStorage::RowHandle Row : ChildrenPath->ChildrenRows)
+						for (RowHandle ChildRow : ChildrenPath->ChildrenRows)
 						{
 							if (const FAssetPathColumn_Experimental* AssetPath = Database->GetColumn<FAssetPathColumn_Experimental>(Row))
 							{
@@ -75,11 +77,11 @@ namespace UE::EditorDataStorage::Debug::Private
 					}
 
 
-					if (const FAssetsInPathColumn_Experimental* AssetInPath = Database->GetColumn<FAssetsInPathColumn_Experimental>(RowHandle))
+					if (const FAssetsInPathColumn_Experimental* AssetInPath = Database->GetColumn<FAssetsInPathColumn_Experimental>(Row))
 					{
 						UE_LOG(LogTEDSAssetRegistry, Display, TEXT("	Asset in Paths"));
 
-						for (TypedElementDataStorage::RowHandle AssetRow : AssetInPath->AssetsRow)
+						for (RowHandle AssetRow : AssetInPath->AssetsRow)
 						{
 							if (const FAssetDataColumn_Experimental* AssetData = Database->GetColumn<FAssetDataColumn_Experimental>(AssetRow))
 							{
@@ -98,7 +100,7 @@ namespace UE::EditorDataStorage::Debug::Private
 					AssetRegistry.GetAssetsByPath(PathAsName, Assets);
 					for (const FAssetData& Asset : Assets)
 					{
-						TypedElementDataStorage::RowHandle AssetRow = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath()));
+						RowHandle AssetRow = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(Asset.GetSoftObjectPath()));
 
 						if (const FUnresolvedAssetsInPathColumn_Experimental* UnresolvedAssetsInPathColumn = Database->GetColumn<FUnresolvedAssetsInPathColumn_Experimental>(AssetRow))
 						{
@@ -160,7 +162,7 @@ namespace UE::EditorDataStorage::Debug::Private
 		ULevel::StaticClass(), UBlueprint::StaticClass(), UTexture::StaticClass() };
 
 	// Populate an asset row with random information
-	void PopulateRowWithRandomInfo(TypedElementDataStorage::RowHandle Row, ITypedElementDataStorageInterface* DataStorage)
+	void PopulateRowWithRandomInfo(RowHandle Row, ITypedElementDataStorageInterface* DataStorage)
 	{
 		// Don't modify any rows that aren't our placeholder assets
 		if (!DataStorage->HasColumns<FAssetTag>(Row))
@@ -279,4 +281,5 @@ namespace UE::EditorDataStorage::Debug::Private
 				}
 			}
 		));
-}
+} // namespace Debug::Private
+} // namespace UE::Editor::DataStorage

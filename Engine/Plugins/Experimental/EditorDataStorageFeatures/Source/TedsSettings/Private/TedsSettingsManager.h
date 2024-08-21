@@ -36,7 +36,7 @@ private:
 	void UpdateSettingsCategory(TSharedPtr<ISettingsCategory> SettingsCategory, UE::Editor::DataStorage::RowHandle ContainerRow, const bool bQueryExistingRows = true);
 
 	bool bIsInitialized;
-	TypedElementDataStorage::QueryHandle SelectAllSettingsQuery;
+	UE::Editor::DataStorage::QueryHandle SelectAllSettingsQuery;
 	UE::Editor::DataStorage::TableHandle SettingsContainerTable;
 	UE::Editor::DataStorage::TableHandle SettingsCategoryTable;
 

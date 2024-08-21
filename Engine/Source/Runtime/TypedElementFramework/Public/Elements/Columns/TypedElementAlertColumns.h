@@ -30,7 +30,7 @@ struct FTypedElementAlertColumn final : public FEditorDataStorageColumn
 	FText Message;
 
 	// Store a copy of the parent row so it's possible to detect if a row has been reparented.
-	TypedElementDataStorage::RowHandle CachedParent;
+	UE::Editor::DataStorage::RowHandle CachedParent;
 
 	UPROPERTY(meta = (IgnoreForMemberInitializationTest))
 	FTypedElementAlertColumnType AlertType;
@@ -45,7 +45,7 @@ struct FTypedElementChildAlertColumn final : public FEditorDataStorageColumn
 	GENERATED_BODY()
 
 	// Store a copy of the parent row so it's possible to detect if a row has been reparented.
-	TypedElementDataStorage::RowHandle CachedParent;
+	UE::Editor::DataStorage::RowHandle CachedParent;
 
 	uint16 Counts[static_cast<size_t>(FTypedElementAlertColumnType::MAX)];
 };
@@ -58,5 +58,5 @@ struct FTypedElementAlertActionColumn final : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 
-	TFunction<void(TypedElementDataStorage::RowHandle)> Action;
+	TFunction<void(UE::Editor::DataStorage::RowHandle)> Action;
 };

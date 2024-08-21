@@ -20,13 +20,13 @@ class STedsWidget : public SCompoundWidget
 public:
 
 	SLATE_BEGIN_ARGS(STedsWidget)
-		: _UiRowHandle(TypedElementDataStorage::InvalidRowHandle)
+		: _UiRowHandle(UE::Editor::DataStorage::InvalidRowHandle)
 		, _Content()
 	{
 	}
 
 	// The UI Row this widget will be assigned to
-	SLATE_ARGUMENT(TypedElementDataStorage::RowHandle, UiRowHandle)
+	SLATE_ARGUMENT(UE::Editor::DataStorage::RowHandle, UiRowHandle)
 	
 	/** The actual widget content */
 	SLATE_DEFAULT_SLOT(FArguments, Content)
@@ -39,7 +39,7 @@ public:
 	
 	TYPEDELEMENTFRAMEWORK_API void SetContent(const TSharedRef< SWidget >& InContent);
 
-	TYPEDELEMENTFRAMEWORK_API TypedElementDataStorage::RowHandle GetRowHandle() const;
+	TYPEDELEMENTFRAMEWORK_API UE::Editor::DataStorage::RowHandle GetRowHandle() const;
 
 private:
 
@@ -49,5 +49,5 @@ private:
 
 private:
 	
-    TypedElementDataStorage::RowHandle UiRowHandle;
+	UE::Editor::DataStorage::RowHandle UiRowHandle;
 };

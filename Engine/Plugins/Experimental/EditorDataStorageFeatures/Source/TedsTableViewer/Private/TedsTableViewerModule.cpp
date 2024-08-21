@@ -75,7 +75,7 @@ public:
 		using namespace TypedElementQueryBuilder;
 
 		// We'll just create a test table viewer that views all actor rows without actually updating it dynamically for now
-		static TypedElementDataStorage::QueryHandle QueryHandle =
+		static QueryHandle QueryHandle =
 			DataStorage->RegisterQuery(
 						Select()
 						.Where()
@@ -85,7 +85,7 @@ public:
 
 		Rows.Empty();
 		
-		TypedElementDataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
+		UE::Editor::DataStorage::FQueryResult QueryResult = DataStorage->RunQuery(QueryHandle,
 			CreateDirectQueryCallbackBinding([this](const ITypedElementDataStorageInterface::IDirectQueryContext& Context, const UE::Editor::DataStorage::RowHandle* RowHandles)
 		{
 			Rows.Append(RowHandles, Context.GetRowCount());

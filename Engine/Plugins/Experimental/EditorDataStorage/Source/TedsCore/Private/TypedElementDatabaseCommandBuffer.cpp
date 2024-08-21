@@ -9,6 +9,7 @@
 
 namespace UE::Editor::DataStorage::Legacy
 {
+	using namespace UE::Editor::DataStorage;
 	// 
 	// Commands section
 	//
@@ -19,7 +20,7 @@ namespace UE::Editor::DataStorage::Legacy
 	}
 
 	void* FCommandBuffer::GetQueuedDataColumn(
-		TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
+		RowHandle Row, const UScriptStruct* ColumnType)
 	{
 		checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
 			TEXT("Trying to get the column '%s' which isn't a data column."), *ColumnType->GetName());
@@ -50,12 +51,12 @@ namespace UE::Editor::DataStorage::Legacy
 		}
 	}
 
-	bool FCommandBuffer::HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const
+	bool FCommandBuffer::HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const
 	{
 		return PendingColumns.Contains(PendingColumnMappingKey(Row, ColumnType));
 	}
 
-	void FCommandBuffer::Clear(TypedElementDataStorage::RowHandle Row)
+	void FCommandBuffer::Clear(RowHandle Row)
 	{
 		for (TMap<PendingColumnMappingKey, void*>::TIterator It = PendingColumns.CreateIterator(); It; ++It)
 		{
@@ -86,7 +87,7 @@ namespace UE::Editor::DataStorage::Legacy
 	// Queue section
 	//
 
-	void FCommandBuffer::Queue_AddColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
+	void FCommandBuffer::Queue_AddColumnCommand(RowHandle Row, const UScriptStruct* ColumnType)
 	{
 		AddCommand(Row, FAddColumnCommand
 			{
@@ -96,7 +97,7 @@ namespace UE::Editor::DataStorage::Legacy
 	}
 
 	void* FCommandBuffer::Queue_AddDataColumnCommandUnitialized(
-		TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType, ColumnCopyOrMoveCallback Relocator)
+		RowHandle Row, const UScriptStruct* ColumnType, ColumnCopyOrMoveCallback Relocator)
 	{
 		checkf(ColumnType->IsChildOf(FMassFragment::StaticStruct()),
 			TEXT("Trying to queue a data column creation for '%s' which isn't a data column."), *ColumnType->GetName());
@@ -122,7 +123,7 @@ namespace UE::Editor::DataStorage::Legacy
 		}
 	}
 
-	void FCommandBuffer::Queue_AddColumnsCommand(TypedElementDataStorage::RowHandle Row,
+	void FCommandBuffer::Queue_AddColumnsCommand(RowHandle Row,
 		FMassFragmentBitSet FragmentsToAdd, FMassTagBitSet TagsToAdd)
 	{
 		auto AddColumn = [this, Row](const UScriptStruct* ColumnType)
@@ -140,7 +141,7 @@ namespace UE::Editor::DataStorage::Legacy
 			});
 	}
 
-	void FCommandBuffer::Queue_RemoveColumnCommand(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType)
+	void FCommandBuffer::Queue_RemoveColumnCommand(RowHandle Row, const UScriptStruct* ColumnType)
 	{
 		AddCommand(Row, FRemoveColumnCommand
 			{
@@ -149,7 +150,7 @@ namespace UE::Editor::DataStorage::Legacy
 		PendingColumns.Remove(PendingColumnMappingKey(Row, ColumnType));
 	}
 
-	void FCommandBuffer::Queue_RemoveColumnsCommand(TypedElementDataStorage::RowHandle Row,
+	void FCommandBuffer::Queue_RemoveColumnsCommand(RowHandle Row,
 		FMassFragmentBitSet FragmentsToRemove, FMassTagBitSet TagsToRemove)
 	{
 		auto RemoveColumn = [this, Row](const UScriptStruct* ColumnType)
@@ -191,7 +192,7 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::Execute_AddColumnCommand(
 		FMassEntityManager& MassEntityManager,
-		TypedElementDataStorage::RowHandle Row,
+		RowHandle Row,
 		const UScriptStruct* ColumnType)
 	{
 		if (ColumnType)
@@ -260,7 +261,7 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::Execute_AddColumnsCommand(
 		FMassEntityManager& MassEntityManager,
-		TypedElementDataStorage::RowHandle Row,
+		RowHandle Row,
 		FMassFragmentBitSet FragmentsToAdd,
 		FMassTagBitSet TagsToAdd)
 	{
@@ -271,7 +272,7 @@ namespace UE::Editor::DataStorage::Legacy
 
 	void FCommandBuffer::Execute_RemoveColumnCommand(
 		FMassEntityManager& MassEntityManager,
-		TypedElementDataStorage::RowHandle Row,
+		RowHandle Row,
 		const UScriptStruct* ColumnType)
 	{
 		if (ColumnType)
@@ -339,7 +340,7 @@ namespace UE::Editor::DataStorage::Legacy
 	//
 
 	template<typename T>
-	void FCommandBuffer::AddCommand(TypedElementDataStorage::RowHandle Row, T&& Args)
+	void FCommandBuffer::AddCommand(RowHandle Row, T&& Args)
 	{
 		FCommand Command;
 		Command.Row = Row;

@@ -264,7 +264,7 @@ bool UEditorDataStorageUi::RegisterWidgetFactory(FName Purpose, TUniquePtr<FType
 }
 
 void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose,
-	const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
 	{
@@ -279,7 +279,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose,
 }
 
 void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, 
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -325,7 +325,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors(FName Purpose, EMatchApproac
 	}
 }
 
-void UEditorDataStorageUi::ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
+void UEditorDataStorageUi::ConstructWidgets(FName Purpose, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	if (FPurposeInfo* PurposeInfo = WidgetPurposes.Find(Purpose))
@@ -360,7 +360,7 @@ void UEditorDataStorageUi::ConstructWidgets(FName Purpose, const TypedElementDat
 
 bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 	const FWidgetFactory::ConstructorType& Constructor,
-	const TypedElementDataStorage::FMetaDataView& Arguments,
+	const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
 	const TypedElementDataStorage::FQueryConditions& QueryConditions,
 	const WidgetConstructorCallback& Callback)
@@ -370,7 +370,7 @@ bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 		Visitor(
 			TArray<TWeakObjectPtr<const UScriptStruct>>&& InMatchedColumnTypes,
 			const TypedElementDataStorage::FQueryConditions& InQueryConditions,
-			const TypedElementDataStorage::FMetaDataView& InArguments,
+			const UE::Editor::DataStorage::FMetaDataView& InArguments,
 			const WidgetConstructorCallback& InCallback) 
 			: MatchedColumnTypes(MoveTemp(InMatchedColumnTypes))
 			, QueryConditions(InQueryConditions)
@@ -380,7 +380,7 @@ bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
 		const TypedElementDataStorage::FQueryConditions& QueryConditions;
-		const TypedElementDataStorage::FMetaDataView& Arguments;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments;
 		const WidgetConstructorCallback& Callback;
 
 		bool operator()(const UScriptStruct* Target)
@@ -418,7 +418,7 @@ bool UEditorDataStorageUi::CreateSingleWidgetConstructor(
 
 void UEditorDataStorageUi::CreateWidgetInstance(
 	FTypedElementWidgetConstructor& Constructor, 
-	const TypedElementDataStorage::FMetaDataView& Arguments,
+	const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetCreatedCallback& ConstructionCallback)
 {
 	UE::Editor::DataStorage::RowHandle Row = Storage->AddRow(WidgetTable);
@@ -435,7 +435,7 @@ void UEditorDataStorageUi::CreateWidgetInstance(
 }
 
 TSharedPtr<SWidget> UEditorDataStorageUi::ConstructWidget(UE::Editor::DataStorage::RowHandle Row, FTypedElementWidgetConstructor& Constructor,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return Constructor.ConstructFinalWidget(Row, Storage, this, Arguments);
 }
@@ -467,7 +467,7 @@ void UEditorDataStorageUi::CreateStandardArchetypes()
 }
 
 void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumns;
@@ -517,7 +517,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_LongestMatch(const TArray<FW
 }
 
 void UEditorDataStorageUi::CreateWidgetConstructors_ExactMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	int32 ColumnCount = Columns.Num();
@@ -548,7 +548,7 @@ void UEditorDataStorageUi::CreateWidgetConstructors_ExactMatch(const TArray<FWid
 }
 
 void UEditorDataStorageUi::CreateWidgetConstructors_SingleMatch(const TArray<FWidgetFactory>& WidgetFactories,
-	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const TypedElementDataStorage::FMetaDataView& Arguments,
+	TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 	const WidgetConstructorCallback& Callback)
 {
 	auto FactoryIt = WidgetFactories.rbegin();

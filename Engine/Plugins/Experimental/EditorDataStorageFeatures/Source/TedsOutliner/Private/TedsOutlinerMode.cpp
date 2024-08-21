@@ -60,7 +60,7 @@ void FTedsOutlinerMode::OnSelectionChanged()
 	{
 		if(const FTedsOutlinerTreeItem* TedsItem = InItem.CastTo<FTedsOutlinerTreeItem>())
 		{
-			const TypedElementDataStorage::RowHandle RowHandle = TedsItem->GetRowHandle();
+			const UE::Editor::DataStorage::RowHandle RowHandle = TedsItem->GetRowHandle();
 
 			if(const FTypedElementSelectionColumn* SelectionColumn = Storage->GetColumn<FTypedElementSelectionColumn>(RowHandle))
 			{
@@ -83,7 +83,7 @@ void FTedsOutlinerMode::OnItemSelectionChanged(FSceneOutlinerTreeItemPtr Item, E
 		return; // Direct selection means we selected from outside the Outliner i.e through TEDS, so we don't need to redo the column addition
 	}
 
-	TArray<TypedElementDataStorage::RowHandle> RowHandles;
+	TArray<UE::Editor::DataStorage::RowHandle> RowHandles;
 	
 	// The selection in the Outliner changed, update TEDS
 	Selection.ForEachItem([&RowHandles](FSceneOutlinerTreeItemPtr& Item)
@@ -107,7 +107,7 @@ TSharedPtr<FDragDropOperation> FTedsOutlinerMode::CreateDragDropOperation(const 
 		return nullptr;
 	}
 	
-	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
+	TArray<UE::Editor::DataStorage::RowHandle> DraggedRowHandles;
 
 	for(const FSceneOutlinerTreeItemPtr& Item :InTreeItems)
 	{
@@ -127,7 +127,7 @@ bool FTedsOutlinerMode::ParseDragDrop(FSceneOutlinerDragDropPayload& OutPayload,
 	{
 		const FTedsRowDragDropOp& TedsOp = static_cast<const FTedsRowDragDropOp&>(Operation);
 
-		for(TypedElementDataStorage::RowHandle RowHandle : TedsOp.DraggedRows)
+		for(UE::Editor::DataStorage::RowHandle RowHandle : TedsOp.DraggedRows)
 		{
 			OutPayload.DraggedItems.Add(SceneOutliner->GetTreeItem(RowHandle));
 		}
@@ -148,7 +148,7 @@ FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOut
 			LOCTEXT("DropDisabled", "Drag/Drop is disabled due to missing hierarchy data!"));
 	}
 	
-	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
+	TArray<UE::Editor::DataStorage::RowHandle> DraggedRowHandles;
 
 	Payload.ForEachItem<FTedsOutlinerTreeItem>([&DraggedRowHandles](FTedsOutlinerTreeItem& TedsItem)
 		{
@@ -159,7 +159,7 @@ FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOut
 	// TEDS-Outliner TODO: Need better drag/drop validation and better place for this, TEDS-Outliner does not know about what types these rows are and all types that exist and what attachment is valid
 	if(const FTedsOutlinerTreeItem* TedsItem = DropTarget.CastTo<FTedsOutlinerTreeItem>())
 	{
-		TypedElementDataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
+		UE::Editor::DataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
 
 		FTypedElementClassTypeInfoColumn* DropTargetTypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(DropTargetRowHandle);
 
@@ -171,7 +171,7 @@ FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOut
 
 		
 		// TEDS-Outliner TODO: Currently we detect parent changes by removing the column and then adding the column back with the new parent 
-		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
+		for(UE::Editor::DataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
 			FTypedElementClassTypeInfoColumn* TypeInfoColumn = Storage->GetColumn<FTypedElementClassTypeInfoColumn>(RowHandle);
 
@@ -198,7 +198,7 @@ FSceneOutlinerDragValidationInfo FTedsOutlinerMode::ValidateDrop(const ISceneOut
 		{
 			bool bValidDetach = false;
 			
-			for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
+			for(UE::Editor::DataStorage::RowHandle RowHandle : DraggedRowHandles)
 			{
 				if(Storage->HasColumns(RowHandle, MakeArrayView({HierarchyData.GetValue().HierarchyColumn})))
 				{
@@ -227,7 +227,7 @@ void FTedsOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneO
 		return;
 	}
 	
-	TArray<TypedElementDataStorage::RowHandle> DraggedRowHandles;
+	TArray<UE::Editor::DataStorage::RowHandle> DraggedRowHandles;
 
 	Payload.ForEachItem<FTedsOutlinerTreeItem>([&DraggedRowHandles](FTedsOutlinerTreeItem& TedsItem)
 	{
@@ -236,7 +236,7 @@ void FTedsOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneO
 
 	if(ValidationInfo.CompatibilityType == ESceneOutlinerDropCompatibility::CompatibleDetach)
 	{
-		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
+		for(UE::Editor::DataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
 			Storage->RemoveColumn(RowHandle, HierarchyData.GetValue().HierarchyColumn);
 			Storage->AddColumn<FTypedElementSyncBackToWorldTag>(RowHandle);
@@ -245,9 +245,9 @@ void FTedsOutlinerMode::OnDrop(ISceneOutlinerTreeItem& DropTarget, const FSceneO
 	
 	if(const FTedsOutlinerTreeItem* TedsItem = DropTarget.CastTo<FTedsOutlinerTreeItem>())
 	{
-		TypedElementDataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
+		UE::Editor::DataStorage::RowHandle DropTargetRowHandle = TedsItem->GetRowHandle();
 		
-		for(TypedElementDataStorage::RowHandle RowHandle : DraggedRowHandles)
+		for(UE::Editor::DataStorage::RowHandle RowHandle : DraggedRowHandles)
 		{
 			// Add the column
 			Storage->AddColumn(RowHandle, HierarchyData.GetValue().HierarchyColumn);

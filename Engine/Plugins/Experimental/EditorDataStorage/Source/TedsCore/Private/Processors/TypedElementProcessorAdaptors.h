@@ -57,24 +57,24 @@ struct FTypedElementQueryProcessorData
 	FString GetProcessorName() const;
 	void DebugOutputDescription(FOutputDevice& Ar, int32 Indent) const;
 
-	static TypedElementDataStorage::FQueryResult Execute(
-		TypedElementDataStorage::DirectQueryCallbackRef& Callback,
-		TypedElementDataStorage::FQueryDescription& Description,
+	static UE::Editor::DataStorage::FQueryResult Execute(
+		UE::Editor::DataStorage::DirectQueryCallbackRef& Callback,
+		UE::Editor::DataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery, 
 		FMassEntityManager& EntityManager,
 		FEnvironment& Environment,
-		TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags);
-	static TypedElementDataStorage::FQueryResult Execute(
-		TypedElementDataStorage::SubqueryCallbackRef& Callback,
-		TypedElementDataStorage::FQueryDescription& Description,
+		UE::Editor::DataStorage::EDirectQueryExecutionFlags ExecutionFlags);
+	static UE::Editor::DataStorage::FQueryResult Execute(
+		UE::Editor::DataStorage::SubqueryCallbackRef& Callback,
+		UE::Editor::DataStorage::FQueryDescription& Description,
 		FMassEntityQuery& NativeQuery,
 		FMassEntityManager& EntityManager,
 		FEnvironment& Environment,
 		FMassExecutionContext& ParentContext);
-	static TypedElementDataStorage::FQueryResult Execute(
-		TypedElementDataStorage::SubqueryCallbackRef& Callback,
-		TypedElementDataStorage::FQueryDescription& Description,
-		TypedElementDataStorage::RowHandle RowHandle,
+	static UE::Editor::DataStorage::FQueryResult Execute(
+		UE::Editor::DataStorage::SubqueryCallbackRef& Callback,
+		UE::Editor::DataStorage::FQueryDescription& Description,
+		UE::Editor::DataStorage::RowHandle RowHandle,
 		FMassEntityQuery& NativeQuery,
 		FMassEntityManager& EntityManager,
 		FEnvironment& Environment,

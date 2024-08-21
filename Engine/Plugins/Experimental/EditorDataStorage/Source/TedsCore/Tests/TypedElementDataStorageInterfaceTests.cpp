@@ -31,7 +31,7 @@ namespace UE::Editor::DataStorage
 			TEXT("TestTableA"));
 		}
 
-		bool IsEmptyQueryDescription(const TypedElementDataStorage::FQueryDescription& QueryDescription)
+		bool IsEmptyQueryDescription(const FQueryDescription& QueryDescription)
 		{
 			return
 				QueryDescription.Callback.MonitoredType == nullptr &&
@@ -59,8 +59,7 @@ namespace UE::Editor::DataStorage
 			ITypedElementDataStorageInterface* TedsInterface, TypedElementQueryBuilder::FObserver::EEvent EventType, int64* QueryCallCountPtr, QueryHandle* QueryHandleInOut)
 		{
 			using namespace TypedElementQueryBuilder;
-			using DSI = ITypedElementDataStorageInterface;
-			TypedElementDataStorage::FQueryDescription QueryDescription = TedsInterface->GetQueryDescription(*QueryHandleInOut);
+			FQueryDescription QueryDescription = TedsInterface->GetQueryDescription(*QueryHandleInOut);
 
 			// Check if it is empty... If not then we need to register
 			// This is for an idempotent API to the test harness				
@@ -70,14 +69,14 @@ namespace UE::Editor::DataStorage
 					Select(
 						ObserverName,
 						FObserver(EventType, ColumnType::StaticStruct()),
-						[QueryCallCountPtr](DSI::IQueryContext& Context, RowHandle Row)
+						[QueryCallCountPtr](IQueryContext& Context, RowHandle Row)
 						{
 							++(*QueryCallCountPtr);
 						}).Compile());
 			}
 		}
 	
-		BEGIN_DEFINE_SPEC(TypedElementDataStorageTestsFixture, "TypedElementsDataStorage", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+		BEGIN_DEFINE_SPEC(EditorDataStorageTestsFixture, "Editor.DataStorage.Core", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 			ITypedElementDataStorageInterface* TedsInterface = nullptr;
 			TableHandle TestTableHandleA = InvalidTableHandle;
 
@@ -122,9 +121,9 @@ namespace UE::Editor::DataStorage
 				}
 				CreatedRows.Empty();
 			}
-		END_DEFINE_SPEC(TypedElementDataStorageTestsFixture)
+		END_DEFINE_SPEC(EditorDataStorageTestsFixture)
 
-		void TypedElementDataStorageTestsFixture::Define()
+		void EditorDataStorageTestsFixture::Define()
 		{
 			BeforeEach([this]()
 			{

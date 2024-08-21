@@ -9,6 +9,8 @@
 
 namespace TypedElementQueryBuilder
 {
+	using namespace UE::Editor::DataStorage;
+
 	const UScriptStruct* Type(FTopLevelAssetPath Name)
 	{
 		const UScriptStruct* StructInfo = TypeOptional(Name);
@@ -143,10 +145,10 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FValueTag& Tag, const FName& Value)
+	FSimpleQuery& FSimpleQuery::All(const FValueTag& Tag, const FName& Value)
 	{
 		Query->ValueTags.Emplace(
-			TypedElementDataStorage::FQueryDescription::FValueTagData
+			FQueryDescription::FValueTagData
 			{
 				.Tag = Tag,
 				.MatchValue = Value
@@ -172,14 +174,14 @@ namespace TypedElementQueryBuilder
 		return All(FValueTag(Enum.GetFName()), ValueName);
 	}
 	
-	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
+	FSimpleQuery& FSimpleQuery::All(const FDynamicColumnDescription& Description)
 	{
 		Query->DynamicConditionDescriptions.Add(Description);
 		Query->DynamicConditionOperations.Add(ITypedElementDataStorageInterface::FQueryDescription::EOperatorType::SimpleAll);
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::All(const UE::Editor::DataStorage::FValueTag& Tag)
+	FSimpleQuery& FSimpleQuery::All(const FValueTag& Tag)
 	{
 		return All(Tag, NAME_None);
 	}
@@ -207,10 +209,10 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::Any(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
+	FSimpleQuery& FSimpleQuery::Any(const FDynamicColumnDescription& Description)
 	{
 		Query->DynamicConditionDescriptions.Add(Description);
-		Query->DynamicConditionOperations.Add(TypedElementDataStorage::FQueryDescription::EOperatorType::SimpleAny);
+		Query->DynamicConditionOperations.Add(FQueryDescription::EOperatorType::SimpleAny);
 		return *this;
 	}
 
@@ -237,10 +239,10 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	FSimpleQuery& FSimpleQuery::None(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
+	FSimpleQuery& FSimpleQuery::None(const FDynamicColumnDescription& Description)
 	{
 		Query->DynamicConditionDescriptions.Add(Description);
-		Query->DynamicConditionOperations.Add(TypedElementDataStorage::FQueryDescription::EOperatorType::SimpleNone);
+		Query->DynamicConditionOperations.Add(FQueryDescription::EOperatorType::SimpleNone);
 		return *this;
 	}
 
@@ -255,7 +257,7 @@ namespace TypedElementQueryBuilder
 		Query->Callback.AfterGroups.Shrink();
 		Query->SelectionTypes.Shrink();
 		Query->SelectionAccessTypes.Shrink();
-		for (TypedElementDataStorage::FColumnMetaData& Metadata : Query->SelectionMetaData)
+		for (FColumnMetaData& Metadata : Query->SelectionMetaData)
 		{
 			Metadata.Shrink();
 		}
@@ -403,7 +405,7 @@ namespace TypedElementQueryBuilder
 		checkf(Target, TEXT("The Select section in the Typed Elements query builder doesn't support nullptrs as Read-Only input."));
 		Query.SelectionTypes.Emplace(Target);
 		Query.SelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly);
-		Query.SelectionMetaData.Emplace(Target, TypedElementDataStorage::FColumnMetaData::EFlags::None);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::None);
 		
 		return *this;
 	}
@@ -422,11 +424,11 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	Select& Select::ReadOnly(const UE::Editor::DataStorage::FDynamicColumnDescription& Description)
+	Select& Select::ReadOnly(const FDynamicColumnDescription& Description)
 	{
 		Query.DynamicSelectionTypes.Emplace(Description);
 		Query.DynamicSelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly);
-		Query.DynamicSelectionMetaData.Emplace(TypedElementDataStorage::FColumnMetaData::EFlags::None);
+		Query.DynamicSelectionMetaData.Emplace(FColumnMetaData::EFlags::None);
 		return *this;
 	}
 
@@ -437,7 +439,7 @@ namespace TypedElementQueryBuilder
 		Query.SelectionAccessTypes.Emplace(Optional == EOptional::Yes
 			? ITypedElementDataStorageInterface::EQueryAccessType::OptionalReadOnly
 			: ITypedElementDataStorageInterface::EQueryAccessType::ReadOnly);
-		Query.SelectionMetaData.Emplace(Target, TypedElementDataStorage::FColumnMetaData::EFlags::None);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::None);
 
 		return *this;
 	}
@@ -461,7 +463,7 @@ namespace TypedElementQueryBuilder
 		checkf(Target, TEXT("The Select section in the Typed Elements query builder doesn't support nullptrs as Read/Write input."));
 		Query.SelectionTypes.Emplace(Target);
 		Query.SelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite);
-		Query.SelectionMetaData.Emplace(Target, TypedElementDataStorage::FColumnMetaData::EFlags::IsMutable);
+		Query.SelectionMetaData.Emplace(Target, FColumnMetaData::EFlags::IsMutable);
 		return *this;
 	}
 
@@ -479,11 +481,11 @@ namespace TypedElementQueryBuilder
 		return *this;
 	}
 
-	Select& Select::ReadWrite(const UE::Editor::DataStorage::FDynamicColumnDescription& Descirption)
+	Select& Select::ReadWrite(const FDynamicColumnDescription& Descirption)
 	{
 		Query.DynamicSelectionTypes.Emplace(Descirption);
 		Query.DynamicSelectionAccessTypes.Emplace(ITypedElementDataStorageInterface::EQueryAccessType::ReadWrite);
-		Query.DynamicSelectionMetaData.Emplace(TypedElementDataStorage::FColumnMetaData::EFlags::IsMutable);
+		Query.DynamicSelectionMetaData.Emplace(FColumnMetaData::EFlags::IsMutable);
 		return *this;
 	}
 

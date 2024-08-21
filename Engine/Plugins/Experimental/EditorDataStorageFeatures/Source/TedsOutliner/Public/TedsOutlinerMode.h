@@ -16,14 +16,14 @@ public:
 	DRAG_DROP_OPERATOR_TYPE(FTedsRowDragDropOp, FDecoratedDragDropOp)
 
 	/** Rows we are dragging */
-	TArray<TypedElementDataStorage::RowHandle> DraggedRows;
+	TArray<UE::Editor::DataStorage::RowHandle> DraggedRows;
 
-	void Init(const TArray<TypedElementDataStorage::RowHandle>& InRowHandles)
+	void Init(const TArray<UE::Editor::DataStorage::RowHandle>& InRowHandles)
 	{
 		DraggedRows = InRowHandles;
 	}
 
-	static TSharedRef<FTedsRowDragDropOp> New(const TArray<TypedElementDataStorage::RowHandle>& InRowHandles)
+	static TSharedRef<FTedsRowDragDropOp> New(const TArray<UE::Editor::DataStorage::RowHandle>& InRowHandles)
 	{
 		TSharedRef<FTedsRowDragDropOp> Operation = MakeShareable(new FTedsRowDragDropOp);
 		

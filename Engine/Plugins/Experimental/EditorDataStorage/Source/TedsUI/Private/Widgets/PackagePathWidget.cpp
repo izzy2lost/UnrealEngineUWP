@@ -36,7 +36,7 @@ FPackagePathWidgetConstructor::FPackagePathWidgetConstructor(const UScriptStruct
 {
 }
 
-TSharedPtr<SWidget> FPackagePathWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FPackagePathWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(STextBlock)
 		.OverflowPolicy(ETextOverflowPolicy::Ellipsis)

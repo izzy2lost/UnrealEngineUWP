@@ -41,14 +41,14 @@ public:
 		TypedElementDataStorage::FQueryConditions Columns) override;
 
 	void CreateWidgetConstructors(FName Purpose,
-		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
 	void CreateWidgetConstructors(FName Purpose, EMatchApproach MatchApproach, TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		const TypedElementDataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments, const WidgetConstructorCallback& Callback) override;
 
-	void ConstructWidgets(FName Purpose, const TypedElementDataStorage::FMetaDataView& Arguments,
+	void ConstructWidgets(FName Purpose, const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback) override;
 	TSharedPtr<SWidget> ConstructWidget(UE::Editor::DataStorage::RowHandle Row, FTypedElementWidgetConstructor& Constructor,
-		const TypedElementDataStorage::FMetaDataView& Arguments) override;
+		const UE::Editor::DataStorage::FMetaDataView& Arguments) override;
 
 	void ListWidgetPurposes(const WidgetPurposeCallback& Callback) const override;
 
@@ -82,30 +82,30 @@ private:
 
 	bool CreateSingleWidgetConstructor(
 		const FWidgetFactory::ConstructorType& Constructor,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes,
 		const TypedElementDataStorage::FQueryConditions& QueryConditions,
 		const WidgetConstructorCallback& Callback);
 
 	void CreateWidgetInstance(
 		FTypedElementWidgetConstructor& Constructor,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetCreatedCallback& ConstructionCallback);
 
 	void CreateWidgetConstructors_LongestMatch(
 		const TArray<FWidgetFactory>& WidgetFactories, 
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns, 
-		const TypedElementDataStorage::FMetaDataView& Arguments,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetConstructorCallback& Callback);
 	void CreateWidgetConstructors_ExactMatch(
 		const TArray<FWidgetFactory>& WidgetFactories,
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetConstructorCallback& Callback);
 	void CreateWidgetConstructors_SingleMatch(
 		const TArray<FWidgetFactory>& WidgetFactories,
 		TArray<TWeakObjectPtr<const UScriptStruct>>& Columns,
-		const TypedElementDataStorage::FMetaDataView& Arguments,
+		const UE::Editor::DataStorage::FMetaDataView& Arguments,
 		const WidgetConstructorCallback& Callback);
 
 	UE::Editor::DataStorage::TableHandle WidgetTable{ UE::Editor::DataStorage::InvalidTableHandle };

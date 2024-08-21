@@ -16,11 +16,16 @@
 #include "TedsAssetDataModule.h"
 #include "UObject/NameTypes.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTedsAssetDataTest, "TEDS.AssetRegistry.ValidateState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::HighPriority)
- 
+namespace UE::Editor
+{
+namespace AssetData::Tests
+{
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FTedsAssetDataTest, "Editor.DataStorage.AssetRegistry.ValidateState", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter | EAutomationTestFlags::HighPriority)
+
 bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 {
-	UE::Editor::AssetData::FTedsAssetDataModule& TedsAssetRegistry = UE::Editor::AssetData::FTedsAssetDataModule::GetChecked();
+	FTedsAssetDataModule& TedsAssetRegistry = FTedsAssetDataModule::GetChecked();
 
 	const bool bIsEnabled = TedsAssetRegistry.IsTedsAssetRegistryStorageEnabled();
 	ON_SCOPE_EXIT
@@ -66,9 +71,9 @@ bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 	
 	for (const TPair<FName, int32>& PathAndAssetCount : AssetRegistryPathsAndAssetCount)
 	{
-		TypedElementDataStorage::RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(PathAndAssetCount.Key));
+		DataStorage::RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(PathAndAssetCount.Key));
 		bool bHadError = false;
-		bHadError |= !TestTrue(TEXT("Asset registry folder/path is indexed in TEDS"), Row != TypedElementDataStorage::InvalidRowHandle);
+		bHadError |= !TestTrue(TEXT("Asset registry folder/path is indexed in TEDS"), Row != DataStorage::InvalidRowHandle);
 
 		FName NameStoredInTeds;
 		if (const FAssetPathColumn_Experimental* AssetPathColumn = Database->GetColumn<FAssetPathColumn_Experimental>(Row))
@@ -104,17 +109,17 @@ bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 		// Verse package don't emit asset added event so we will ignore those for the test to avoid false errors
 		if (!FPackageName::IsVersePackage(Builder))
 		{ 
-			TypedElementDataStorage::RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(AssetData.GetSoftObjectPath()));
+			DataStorage::RowHandle Row = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(AssetData.GetSoftObjectPath()));
 
 			bool bHadError = false;
 
-			bHadError |= !TestTrue(TEXT("Asset registry asset path is indexed in TEDS"), Row != TypedElementDataStorage::InvalidRowHandle);
+			bHadError |= !TestTrue(TEXT("Asset registry asset path is indexed in TEDS"), Row != DataStorage::InvalidRowHandle);
 
 			bHadError |= !TestNotNull(TEXT("Teds doesn't have a asset column for an asset of the asset registry"), Database->GetColumn<FAssetDataColumn_Experimental>(Row));
 
 			if (!Database->GetColumn<FUnresolvedAssetsInPathColumn_Experimental>(Row))
 			{
-				TypedElementDataStorage::RowHandle PathRow = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(AssetData.PackagePath));
+				DataStorage::RowHandle PathRow = Database->FindIndexedRow(TypedElementDataStorage::GenerateIndexHash(AssetData.PackagePath));
 			
 				const FAssetsInPathColumn_Experimental* AssetsInPathColumn = Database->GetColumn<FAssetsInPathColumn_Experimental>(PathRow);
 
@@ -147,5 +152,5 @@ bool FTedsAssetDataTest::RunTest(const FString& Parameters)
 	return true;
 }
 
-
-
+} // namespace AssetData::Tests
+} // namespace UE::Editor

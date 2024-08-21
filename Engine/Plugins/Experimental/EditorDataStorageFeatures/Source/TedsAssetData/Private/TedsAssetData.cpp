@@ -179,13 +179,13 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 
 	// Register data types to TEDS
 	PathsTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryPathsTable")));
-	if (PathsTable == TypedElementDataStorage::InvalidTableHandle)
+	if (PathsTable == DataStorage::InvalidTableHandle)
 	{
 		PathsTable = Database.RegisterTable<FAssetPathColumn_Experimental, FChildrenAssetPathColumn_Experimental, FParentAssetPathColumn_Experimental, FAssetsInPathColumn_Experimental>(FName(TEXT("Editor_AssetRegistryPathsTable")));
 	}
 
 	AssetsDataTable = Database.FindTable(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
-	if (AssetsDataTable == TypedElementDataStorage::InvalidTableHandle)
+	if (AssetsDataTable == DataStorage::InvalidTableHandle)
 	{
 		AssetsDataTable = Database.RegisterTable<FAssetDataColumn_Experimental, FUpdatedPathTag, FUpdatedAssetDataTag>(FName(TEXT("Editor_AssetRegistryAssetDataTable")));
 	}
@@ -195,7 +195,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 			TypedElementQueryBuilder::Select(
 				TEXT("FTedsAssetData: Remove Updated Path Tag"),
 				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
-				[](TypedElementDataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
+				[](DataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
 				{
 					Context.RemoveColumns<FUpdatedPathTag>(TConstArrayView<DataStorage::RowHandle>(Rows, Context.GetRowCount()));
 				}
@@ -209,7 +209,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 			TypedElementQueryBuilder::Select(
 				TEXT("FTedsAssetData: Remove Updated Asset Data Tag"),
 				TypedElementQueryBuilder::FPhaseAmble(TypedElementQueryBuilder::FPhaseAmble::ELocation::Postamble, TypedElementDataStorage::EQueryTickPhase::FrameEnd),
-				[](TypedElementDataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
+				[](DataStorage::IQueryContext& Context, const DataStorage::RowHandle* Rows)
 				{
 					Context.RemoveColumns<FUpdatedAssetDataTag>(TConstArrayView<DataStorage::RowHandle>(Rows, Context.GetRowCount()));
 				}
@@ -229,7 +229,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 		TypedElementQueryBuilder::Select(
 			TEXT("FTedsAssetData: Resolve Missing Asset In Path"),
 			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
-			[this](TypedElementDataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
+			[this](DataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedAssetsInPathColumn_Experimental& UnresolvedAssetPath)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
 				LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))
@@ -267,7 +267,7 @@ FTedsAssetData::FTedsAssetData(ITypedElementDataStorageInterface& InDatabase)
 		TypedElementQueryBuilder::Select(
 			TEXT("FTedsAssetData: Resolve Missing Parent Path Row"),
 			TypedElementQueryBuilder::FProcessor(TypedElementDataStorage::EQueryTickPhase::FrameEnd, Database.GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
-			[this](TypedElementDataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
+			[this](DataStorage::IQueryContext& Context, DataStorage::RowHandle Row, const FUnresolvedParentAssetPathColumn_Experimental& UnresolvedParentAssetPath, FParentAssetPathColumn_Experimental& ParentAssetPathColumn)
 			{
 #if TRACK_TEDSASSETDATA_MEMORY
 				LLM_SCOPE_BYNAME(TEXT("FTedsAssetData"))

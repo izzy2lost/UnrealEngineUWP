@@ -26,12 +26,12 @@ FAssetDataLabelWidgetConstructor::FAssetDataLabelWidgetConstructor()
 
 
 TSharedPtr<SWidget> FAssetDataLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
-	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	ITypedElementDataStorageUiInterface* DataStorageUi, UE::Editor::DataStorage::RowHandle TargetRow, UE::Editor::DataStorage::RowHandle WidgetRow,
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	if (DataStorage->IsRowAvailable(TargetRow))
 	{
-		UE::EditorDataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
+		UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
 		
 		return SNew(SHorizontalBox)
 			+SHorizontalBox::Slot()

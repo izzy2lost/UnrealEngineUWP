@@ -44,7 +44,7 @@ namespace UE::Editor::DataStorage
 	{
 		Items.Empty();
 		
-		for(const TypedElementDataStorage::RowHandle RowHandle : RowQueryStack->GetOrderedRowList())
+		for(const RowHandle RowHandle : RowQueryStack->GetOrderedRowList())
 		{
 			if(IsRowDisplayable(RowHandle))
 			{
@@ -58,7 +58,7 @@ namespace UE::Editor::DataStorage
 		OnModelChanged.Broadcast();
 	}
 
-	bool FTedsTableViewerModel::IsRowDisplayable(TypedElementDataStorage::RowHandle InRowHandle) const
+	bool FTedsTableViewerModel::IsRowDisplayable(RowHandle InRowHandle) const
 	{
 		return !Storage->HasColumns<FHideRowFromUITag>(InRowHandle);
 	}
@@ -162,7 +162,7 @@ namespace UE::Editor::DataStorage
 				TSharedPtr<FTypedElementWidgetConstructor> CellConstructor(Constructor.Release());
 
 				TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor =
-					TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, TypedElementDataStorage::FMetaDataView(), MatchedColumns, CellWidgetPurposes);
+					TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, FMetaDataView(), MatchedColumns, CellWidgetPurposes);
 			
 				FName NameId = TableViewerUtils::FindLongestMatchingName(MatchedColumns, IndexOffset);
 
@@ -184,7 +184,7 @@ namespace UE::Editor::DataStorage
 		for(const FName& WidgetPurpose : CellWidgetPurposes)
 		{
 			StorageUi->CreateWidgetConstructors(WidgetPurpose, MatchApproach::LongestMatch, ColumnsCopy, 
-			TypedElementDataStorage::FMetaDataView(), ColumnConstructor);
+			FMetaDataView(), ColumnConstructor);
 		}
 
 		// For any remaining columns, we'll try to find and use any default widgets
@@ -196,7 +196,7 @@ namespace UE::Editor::DataStorage
 				TSharedPtr<FTypedElementWidgetConstructor> CellConstructor(Constructor.Release());
 
 				TSharedPtr<FTypedElementWidgetConstructor> HeaderConstructor =
-					TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, TypedElementDataStorage::FMetaDataView(), {ColumnType}, CellWidgetPurposes);
+					TableViewerUtils::CreateHeaderWidgetConstructor(*StorageUi, FMetaDataView(), {ColumnType}, CellWidgetPurposes);
 
 				FName NameId = FName(ColumnType->GetDisplayNameText().ToString());
 
@@ -217,7 +217,7 @@ namespace UE::Editor::DataStorage
 			{
 				const FName DefaultWidgetPurpose(WidgetPurpose.ToString() + TEXT(".Default"));
 
-				StorageUi->CreateWidgetConstructors(DefaultWidgetPurpose, TypedElementDataStorage::FMetaDataView(), AssignWidgetToColumn);
+				StorageUi->CreateWidgetConstructors(DefaultWidgetPurpose, FMetaDataView(), AssignWidgetToColumn);
 				
 				if (BeforeIndexOffset != IndexOffset)
 				{
@@ -246,7 +246,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	bool FTedsTableViewerModel::IsRowVisible(TypedElementDataStorage::RowHandle InRowHandle) const
+	bool FTedsTableViewerModel::IsRowVisible(RowHandle InRowHandle) const
 	{
 		if(!IsItemVisible.IsBound())
 		{

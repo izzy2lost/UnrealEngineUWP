@@ -14,7 +14,7 @@ class FTedsOutlinerFilter : public FFilterBase<SceneOutliner::FilterBarType>
 {
 public:
 	FTedsOutlinerFilter(const FName& InFilterName, const FText& InFilterDisplayName, TSharedPtr<FFilterCategory> InCategory,
-		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const TypedElementDataStorage::FQueryDescription& InFilterQuery);
+		TSharedRef<FTedsOutlinerImpl> InTedsOutlinerImpl, const UE::Editor::DataStorage::FQueryDescription& InFilterQuery);
 
 	/** Returns the system name for this filter */
 	virtual FString GetName() const override;
@@ -57,5 +57,5 @@ protected:
 	FText FilterDisplayName;
 
 	TSharedRef<FTedsOutlinerImpl> TedsOutlinerImpl;
-	const TypedElementDataStorage::FQueryDescription FilterQuery;
+	const UE::Editor::DataStorage::FQueryDescription FilterQuery;
 };

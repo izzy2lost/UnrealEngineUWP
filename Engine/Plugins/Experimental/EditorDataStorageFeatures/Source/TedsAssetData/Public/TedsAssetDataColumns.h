@@ -23,7 +23,7 @@ struct FParentAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TypedElementDataStorage::RowHandle ParentRow;
+	UE::Editor::DataStorage::RowHandle ParentRow;
 };
 
 USTRUCT()
@@ -31,7 +31,7 @@ struct FChildrenAssetPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TSet<TypedElementDataStorage::RowHandle> ChildrenRows;
+	TSet<UE::Editor::DataStorage::RowHandle> ChildrenRows;
 };
 
 USTRUCT()
@@ -39,7 +39,7 @@ struct FAssetsInPathColumn_Experimental : public FEditorDataStorageColumn
 {
 	GENERATED_BODY()
 	
-	TSet<TypedElementDataStorage::RowHandle> AssetsRow;
+	TSet<UE::Editor::DataStorage::RowHandle> AssetsRow;
 };
 
 USTRUCT()

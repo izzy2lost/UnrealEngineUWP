@@ -30,8 +30,6 @@ namespace UE::Editor::DataStorage
 		{
 			ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
 			using namespace TypedElementQueryBuilder;
-			using DSI = ITypedElementDataStorageInterface;
-			namespace DS = TypedElementDataStorage;
 
 			if (PrimaryTable == InvalidTableHandle)
 			{
@@ -47,8 +45,8 @@ namespace UE::Editor::DataStorage
 			// Test creation of a row from within a query processor
 			QueryHandle PrimaryRowQuery = DataStorage->RegisterQuery(
 				Select(TEXT("TEST: Creating a row for primary reference column"),
-				FProcessor(DSI::EQueryTickPhase::PrePhysics, DataStorage->GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[](DS::IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
+				FProcessor(TypedElementDataStorage::EQueryTickPhase::PrePhysics, DataStorage->GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
+				[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
 				{
 					const int32 RowCount = Context.GetRowCount();
 					TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
@@ -87,8 +85,8 @@ namespace UE::Editor::DataStorage
 
 			QueryHandle SecondaryRowQuery = DataStorage->RegisterQuery(
 				Select(TEXT("TEST: Creating a row for secondary reference column"),
-				FProcessor(DSI::EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(DSI::EQueryTickGroups::Default)),
-				[](DS::IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
+				FProcessor(TypedElementDataStorage::EQueryTickPhase::DuringPhysics, DataStorage->GetQueryTickGroupName(TypedElementDataStorage::EQueryTickGroups::Default)),
+				[](IQueryContext& Context, const RowHandle* Rows, FTEDSProcessorTestsReferenceColumn* ReferenceColumns)
 				{
 					const int32 RowCount = Context.GetRowCount();
 					TConstArrayView<RowHandle> RowsView = MakeArrayView(Rows, RowCount);
@@ -101,7 +99,7 @@ namespace UE::Editor::DataStorage
 							0,
 							ReferenceColumnsView[Index].Reference,
 							CreateSubqueryCallbackBinding(
-							[SecondaryRow](TypedElementDataStorage::ISubqueryContext& SubqueryContext, RowHandle PrimaryRow, const FTEDSProcessorTestsReferenceColumn& ReferenceColumn)
+							[SecondaryRow](ISubqueryContext& SubqueryContext, RowHandle PrimaryRow, const FTEDSProcessorTestsReferenceColumn& ReferenceColumn)
 							{
 								if (ReferenceColumn.Reference == SecondaryRow)
 								{

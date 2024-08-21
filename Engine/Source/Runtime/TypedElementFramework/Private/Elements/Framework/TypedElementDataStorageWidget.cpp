@@ -5,7 +5,7 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 
 STedsWidget::STedsWidget()
-	: UiRowHandle(TypedElementDataStorage::InvalidRowHandle)
+	: UiRowHandle(UE::Editor::DataStorage::InvalidRowHandle)
 {
 
 }
@@ -15,7 +15,7 @@ void STedsWidget::Construct(const FArguments& InArgs)
 	UiRowHandle = InArgs._UiRowHandle;
 
 	// If the Ui row wasn't already registered externally, register it with Teds
-	if(UiRowHandle == TypedElementDataStorage::InvalidRowHandle)
+	if(UiRowHandle == UE::Editor::DataStorage::InvalidRowHandle)
 	{
 		RegisterTedsWidget(InArgs._Content.Widget);
 	}
@@ -28,6 +28,7 @@ void STedsWidget::Construct(const FArguments& InArgs)
 
 void STedsWidget::RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget)
 {
+	using namespace UE::Editor::DataStorage;
 	ITypedElementDataStorageInterface* Storage = GetStorageIfAvailable();
 
 	// If TEDS is not enabled, STedsWidget will just behave like a regular widget
@@ -36,8 +37,8 @@ void STedsWidget::RegisterTedsWidget(const TSharedPtr<SWidget>& InContentWidget)
 		return;
 	}
 	
-	const TypedElementDataStorage::TableHandle WidgetTable = Storage->FindTable(TEXT("Editor_WidgetTable"));
-	if(WidgetTable == TypedElementDataStorage::InvalidTableHandle)
+	const TableHandle WidgetTable = Storage->FindTable(TEXT("Editor_WidgetTable"));
+	if(WidgetTable == InvalidTableHandle)
 	{
 		return;
 	}
@@ -67,7 +68,7 @@ void STedsWidget::SetContent(const TSharedRef< SWidget >& InContent)
 	];
 }
 
-TypedElementDataStorage::RowHandle STedsWidget::GetRowHandle() const
+UE::Editor::DataStorage::RowHandle STedsWidget::GetRowHandle() const
 {
 	return UiRowHandle;
 }

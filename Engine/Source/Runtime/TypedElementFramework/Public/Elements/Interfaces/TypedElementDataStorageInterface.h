@@ -200,7 +200,7 @@ public:
 	virtual void AddColumn(RowHandle Row, const UE::Editor::DataStorage::FValueTag& Tag, const FName& Value) = 0;
 
 	template<typename T>
-	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Tag) = delete;
+	void AddColumn(RowHandle Row, const FName& Tag) = delete;
 	
 	template<typename T>
 	void AddColumn(RowHandle Row, const FName& Tag, const FName& Value) = delete;
@@ -215,10 +215,10 @@ public:
 	void AddColumn(RowHandle Row);
 
 	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier);
+	void AddColumn(RowHandle Row, const FName& Identifier);
 	
 	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-	void AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance);
+	void AddColumn(RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance);
 
 	/**
 	 * Adds multiple columns from a row. This is typically more efficient than adding columns one 
@@ -246,7 +246,7 @@ public:
 	void RemoveColumn(RowHandle Row, const FName& Tag) = delete;
 
 	template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplateType>
-	void RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier);
+	void RemoveColumn(RowHandle Row, const FName& Identifier);
 	
 	template<>
 	void RemoveColumn<UE::Editor::DataStorage::FValueTag>(RowHandle Row, const FName& Tag);
@@ -335,17 +335,17 @@ public:
 	using EQueryDependencyFlags = TypedElementDataStorage::EQueryDependencyFlags;
 	using FQueryResult = TypedElementDataStorage::FQueryResult;
 
-	using IQueryContext = TypedElementDataStorage::IQueryContext;
-	using IDirectQueryContext = TypedElementDataStorage::IDirectQueryContext;
-	using ISubqueryContext = TypedElementDataStorage::ISubqueryContext;
+	using IQueryContext = UE::Editor::DataStorage::IQueryContext;
+	using IDirectQueryContext = UE::Editor::DataStorage::IDirectQueryContext;
+	using ISubqueryContext = UE::Editor::DataStorage::ISubqueryContext;
 
-	using FQueryDescription = TypedElementDataStorage::FQueryDescription;
-	using QueryCallback = TypedElementDataStorage::QueryCallback;
-	using QueryCallbackRef = TypedElementDataStorage::QueryCallbackRef;
-	using DirectQueryCallback = TypedElementDataStorage::DirectQueryCallback;
-	using DirectQueryCallbackRef = TypedElementDataStorage::DirectQueryCallbackRef;
-	using SubqueryCallback = TypedElementDataStorage::SubqueryCallback;
-	using SubqueryCallbackRef = TypedElementDataStorage::SubqueryCallbackRef;
+	using FQueryDescription = UE::Editor::DataStorage::FQueryDescription;
+	using QueryCallback = UE::Editor::DataStorage::QueryCallback;
+	using QueryCallbackRef = UE::Editor::DataStorage::QueryCallbackRef;
+	using DirectQueryCallback = UE::Editor::DataStorage::DirectQueryCallback;
+	using DirectQueryCallbackRef = UE::Editor::DataStorage::DirectQueryCallbackRef;
+	using SubqueryCallback = UE::Editor::DataStorage::SubqueryCallback;
+	using SubqueryCallbackRef = UE::Editor::DataStorage::SubqueryCallbackRef;
 
 	/** 
 	 * Registers a query with the data storage. The description is processed into an internal format and may be changed. If no valid
@@ -374,7 +374,7 @@ public:
 	 * Directly runs a query. The callback will be called for batches of matching rows. During a single call to RunQuery the callback
 	 * may be called multiple times. If the query handle is invalid or has been deleted nothing happens and the callback won't be called.
 	 */
-	virtual FQueryResult RunQuery(QueryHandle Query, TypedElementDataStorage::EDirectQueryExecutionFlags Flags, 
+	virtual FQueryResult RunQuery(QueryHandle Query, UE::Editor::DataStorage::EDirectQueryExecutionFlags Flags,
 		DirectQueryCallbackRef Callback) = 0;
 	/**
 	 * Triggers all queries registered under the activation name to run for one update cycle. The activatable queries will be activated at
@@ -496,7 +496,7 @@ inline void ITypedElementDataStorageInterface::RemoveColumn<UE::Editor::DataStor
 }
 
 template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::RemoveColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier)
+void ITypedElementDataStorageInterface::RemoveColumn(RowHandle Row, const FName& Identifier)
 {
 	const UE::Editor::DataStorage::FDynamicColumnDescription Description
 	{
@@ -525,7 +525,7 @@ void ITypedElementDataStorageInterface::AddColumn(RowHandle Row)
 }
 
 template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier)
+void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Identifier)
 {
 	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
 		"DynamicColumnTemplate must be derived from either a Tag or Column");
@@ -539,7 +539,7 @@ void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHa
 }
 
 template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-void ITypedElementDataStorageInterface::AddColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance)
+void ITypedElementDataStorageInterface::AddColumn(RowHandle Row, const FName& Identifier, DynamicColumnTemplate&& TemplateInstance)
 {
 	static_assert(UE::Editor::DataStorage::TDataColumnType<DynamicColumnTemplate> || UE::Editor::DataStorage::TTagColumnType<DynamicColumnTemplate>,
 		"DynamicColumnTemplate must be derived from either a Tag or Column");

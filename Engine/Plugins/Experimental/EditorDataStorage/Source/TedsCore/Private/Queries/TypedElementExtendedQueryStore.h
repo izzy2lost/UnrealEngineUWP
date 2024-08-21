@@ -101,26 +101,26 @@ namespace UE::Editor::DataStorage
 		 * @description Various functions to run queries.
 		 */
 
-		TypedElementDataStorage::FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
-		TypedElementDataStorage::FQueryResult RunQuery(
+		FQueryResult RunQuery(FMassEntityManager& EntityManager, Handle Query);
+		FQueryResult RunQuery(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
 			Handle Query,
-			TypedElementDataStorage::EDirectQueryExecutionFlags DirectExecutionFlags,
-			TypedElementDataStorage::DirectQueryCallbackRef Callback);
-		TypedElementDataStorage::FQueryResult RunQuery(
+			EDirectQueryExecutionFlags DirectExecutionFlags,
+			DirectQueryCallbackRef Callback);
+		FQueryResult RunQuery(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
 			FMassExecutionContext& ParentContext,
 			Handle Query,
-			TypedElementDataStorage::SubqueryCallbackRef Callback);
-		TypedElementDataStorage::FQueryResult RunQuery(
+			SubqueryCallbackRef Callback);
+		FQueryResult RunQuery(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
 			FMassExecutionContext& ParentContext,
 			Handle Query,
 			DataStorage::RowHandle Row,
-			TypedElementDataStorage::SubqueryCallbackRef Callback);
+			SubqueryCallbackRef Callback);
 		void RunPhasePreambleQueries(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
@@ -156,12 +156,12 @@ namespace UE::Editor::DataStorage
 		};
 
 		template<typename CallbackReference>
-		TypedElementDataStorage::FQueryResult RunQueryCallbackCommon(
+		FQueryResult RunQueryCallbackCommon(
 			FMassEntityManager& EntityManager,
 			FEnvironment& Environment,
 			FMassExecutionContext* ParentContext,
 			Handle Query,
-		TypedElementDataStorage::EDirectQueryExecutionFlags ExecutionFlags,
+		EDirectQueryExecutionFlags ExecutionFlags,
 			CallbackReference Callback);
 
 		FMassEntityQuery& SetupNativeQuery(ITypedElementDataStorageInterface::FQueryDescription& Query, FExtendedQuery& StoredQuery);

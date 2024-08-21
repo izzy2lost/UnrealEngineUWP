@@ -30,7 +30,7 @@ namespace UE::Editor::DataStorage
 		CreateTedsWidget();
 
 		// Attribute binder to bind widget columns to attributes on the ListView
-		EditorDataStorage::FAttributeBinder Binder(TedsWidget->GetRowHandle());
+		FAttributeBinder Binder(TedsWidget->GetRowHandle());
 
 		ListView = SNew(SListView<TableViewerItemPtr>)
 			.HeaderRow(HeaderRowWidget)
@@ -64,7 +64,7 @@ namespace UE::Editor::DataStorage
 
 		if(ITypedElementDataStorageInterface* DataStorage = Model->GetDataStorageInterface())
 		{
-			const TypedElementDataStorage::RowHandle WidgetRowHandle = TedsWidget->GetRowHandle();
+			const RowHandle WidgetRowHandle = TedsWidget->GetRowHandle();
 		
 			if(DataStorage->IsRowAvailable(WidgetRowHandle))
 			{
@@ -150,7 +150,7 @@ namespace UE::Editor::DataStorage
 		RefreshColumnWidgets();
 	}
 
-	void STedsTableViewer::ForEachSelectedRow(TFunctionRef<void(TypedElementDataStorage::RowHandle)> InCallback) const
+	void STedsTableViewer::ForEachSelectedRow(TFunctionRef<void(RowHandle)> InCallback) const
 	{
 		TArray<TableViewerItemPtr> SelectedRows;
 		ListView->GetSelectedItems(SelectedRows);
@@ -161,7 +161,7 @@ namespace UE::Editor::DataStorage
 		}
 	}
 
-	TypedElementDataStorage::RowHandle STedsTableViewer::GetWidgetRowHandle() const
+	RowHandle STedsTableViewer::GetWidgetRowHandle() const
 	{
 		return TedsWidget->GetRowHandle();
 	}

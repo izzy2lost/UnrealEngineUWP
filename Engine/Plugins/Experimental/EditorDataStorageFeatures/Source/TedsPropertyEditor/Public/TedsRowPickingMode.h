@@ -6,8 +6,8 @@
 #include "SceneOutlinerFwd.h"
 #include "Elements/Common/TypedElementHandles.h"
 
-DECLARE_DELEGATE_OneParam(FOnTedsRowSelected, TypedElementDataStorage::RowHandle RowHandle);
-DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterTedsRow, const TypedElementDataStorage::RowHandle RowHandle);
+DECLARE_DELEGATE_OneParam(FOnTedsRowSelected, UE::Editor::DataStorage::RowHandle RowHandle);
+DECLARE_DELEGATE_RetVal_OneParam(bool, FOnShouldFilterTedsRow, const UE::Editor::DataStorage::RowHandle RowHandle);
 
 /*
 * Picking mode for TEDs Scene Outliner Widgets. Based off of FActorPickingMode

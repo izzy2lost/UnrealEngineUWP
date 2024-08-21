@@ -81,7 +81,7 @@ struct FSequenceTestingProcessor
 	}
 };
 
-TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer, "EditorDataStorage::Command Buffer", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer, "Editor::DataStorage::Command Buffer", "[ApplicationContextMask][EngineFilter]")
 {
 	using namespace UE::Editor::DataStorage;
 	
@@ -129,7 +129,7 @@ TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer, "EditorDataStorage::Command Bu
 	}
 }
 
-TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FCollection, "EditorDataStorage::Command Buffer::FCollection", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FCollection, "Editor::DataStorage::Command Buffer::FCollection", "[ApplicationContextMask][EngineFilter]")
 {
 	using namespace UE::Editor::DataStorage;
 
@@ -401,7 +401,7 @@ TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FCollection, "EditorDataStorage
 	}
 }
 
-TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FOptimizer, "EditorDataStorage::Command Buffer::FOptimizer", "[ApplicationContextMask][EngineFilter]")
+TEST_CASE_NAMED(EditorDataStorage_FCommandBuffer_FOptimizer, "Editor::DataStorage::Command Buffer::FOptimizer", "[ApplicationContextMask][EngineFilter]")
 {
 	using namespace UE::Editor::DataStorage;
 

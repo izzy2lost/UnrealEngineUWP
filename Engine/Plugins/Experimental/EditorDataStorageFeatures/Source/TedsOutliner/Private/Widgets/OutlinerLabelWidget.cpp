@@ -118,14 +118,15 @@ FOutlinerLabelWidgetConstructor::FOutlinerLabelWidgetConstructor()
 
 TSharedPtr<SWidget> FOutlinerLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
+	using namespace UE::Editor::DataStorage;
 	if(DataStorage->IsRowAvailable(TargetRow))
 	{
-		UE::EditorDataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
+		FAttributeBinder Binder(TargetRow, DataStorage);
 
 		TSharedRef<SLayeredImage> LayeredImageWidget = SNew(SLayeredImage)
-					.Image(UE::Editor::DataStorage::TableViewerUtils::GetIconForRow(DataStorage, TargetRow))
+					.Image(TableViewerUtils::GetIconForRow(DataStorage, TargetRow))
 					.ToolTipText(Binder.BindData(&FObjectOverrideColumn::OverriddenState, [](const EOverriddenState& OverriddenState)
 					{
 						return UE::OutlinerLabelWidget::Local::GetOverrideTooltip(OverriddenState);
@@ -171,16 +172,17 @@ TSharedPtr<SWidget> FOutlinerLabelWidgetConstructor::CreateWidget(ITypedElementD
 
 TSharedRef<SWidget> FOutlinerLabelWidgetConstructor::CreateLabel(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
+	using namespace UE::Editor::DataStorage;
 	TSharedRef<SWidget> Result = SNullWidget::NullWidget;
 	
-	const bool* IsEditable = Arguments.FindForColumn<FTypedElementLabelColumn>(TypedElementDataStorage::IsEditableName).TryGetExact<bool>();
+	const bool* IsEditable = Arguments.FindForColumn<FTypedElementLabelColumn>(IsEditableName).TryGetExact<bool>();
 
 	if (IsEditable && *IsEditable)
 	{
-		UE::EditorDataStorage::FAttributeBinder TargetRowBinder(TargetRow, DataStorage);
-		UE::EditorDataStorage::FAttributeBinder WidgetRowBinder(WidgetRow, DataStorage);
+		FAttributeBinder TargetRowBinder(TargetRow, DataStorage);
+		FAttributeBinder WidgetRowBinder(WidgetRow, DataStorage);
 			
 		TSharedPtr<SInlineEditableTextBlock> TextBlock = SNew(SInlineEditableTextBlock)
 			.OnTextCommitted_Lambda(
@@ -214,7 +216,7 @@ TSharedRef<SWidget> FOutlinerLabelWidgetConstructor::CreateLabel(ITypedElementDa
 	}
 	else
 	{
-		UE::EditorDataStorage::FAttributeBinder TargetRowBinder(TargetRow, DataStorage);
+		FAttributeBinder TargetRowBinder(TargetRow, DataStorage);
 		
 		TSharedPtr<STextBlock> TextBlock = SNew(STextBlock)
 			.IsEnabled(false)

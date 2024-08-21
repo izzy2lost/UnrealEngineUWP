@@ -224,9 +224,9 @@ static FAutoConsoleCommand CVarCreateRow(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
-		static TypedElementDataStorage::TableHandle Table = DataStorage->RegisterTable<FTestColumnA>(FName(TEXT("Debug.CreateRow Table")));
+		static UE::Editor::DataStorage::TableHandle Table = DataStorage->RegisterTable<FTestColumnA>(FName(TEXT("Debug.CreateRow Table")));
 
-		const TypedElementDataStorage::RowHandle RowHandle = DataStorage->AddRow(Table);
+		const UE::Editor::DataStorage::RowHandle RowHandle = DataStorage->AddRow(Table);
 
 		UE_LOG(LogEditorDataStorage, Warning, TEXT("Added Row %llu"), static_cast<uint64>(RowHandle));
 	}));
@@ -245,7 +245,7 @@ static FAutoConsoleCommand CVarAddDynamicColumnTag(
 		}
 
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		const FName Identifier = FName(*Args[1]);
 
 		DataStorage->AddColumn<FTestDynamicTag>(Row, Identifier);
@@ -267,7 +267,7 @@ static FAutoConsoleCommand CVarAddDynamicColumn(
 		}
 
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		const FName Identifier = FName(*Args[1]);
 		
 		bool bUseDefaultApi = false;
@@ -298,7 +298,7 @@ static FAutoConsoleCommand CVarRemoveDynamicColumn(
 		}
 
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		const FName Identifier = FName(*Args[1]);
 		
 		DataStorage->RemoveColumn<FTestDynamicColumn>(Row, Identifier);
@@ -320,7 +320,7 @@ static FAutoConsoleCommand CVarAddToDynamicColumn(
 		}
 
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		const FName TagId = FName(*Args[1]);
 		const uint64 Value = FCString::Strtoui64(*Args[2], nullptr, 10);
 		const uint64 MethodId = Args.Num() >= 4 ? FCString::Strtoui64(*Args[3], nullptr, 10) : 0;
@@ -371,7 +371,7 @@ static FAutoConsoleCommand CVarPrintDynamicColumn(
 			return;
 		}
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		const FName TagId = FName(*Args[1]);
 
 		FTestDynamicColumn* Column = DataStorage->GetColumn<FTestDynamicColumn>(Row, TagId);
@@ -432,8 +432,8 @@ static FAutoConsoleCommand CVarPrintDynamicColumnWithQuery(
 			Compile());
 
 		TStringBuilder<1024> StringBuilder;
-		TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query,CreateDirectQueryCallbackBinding(
-			[Identifier, &StringBuilder](TypedElementDataStorage::IDirectQueryContext& Context, const RowHandle* Rows)
+		UE::Editor::DataStorage::FQueryResult Result = DataStorage->RunQuery(Query,CreateDirectQueryCallbackBinding(
+			[Identifier, &StringBuilder](UE::Editor::DataStorage::IDirectQueryContext& Context, const RowHandle* Rows)
 			{
 				const TArrayView<const RowHandle> RowView = MakeConstArrayView(Rows, Context.GetRowCount());
 				// Get pointer to the start of the range of columns to process
@@ -473,7 +473,6 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor::DataStorage;
 				
 		// Print column using query
@@ -495,7 +494,7 @@ static FAutoConsoleCommand CVarCountDynamicTagWithQuery(
 			Compile());
 
 		int32 Count = 0;
-		DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding([Identifier, &Count](TypedElementDataStorage::IDirectQueryContext& Context, const RowHandle* Rows)
+		DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding([Identifier, &Count](IDirectQueryContext& Context, const RowHandle* Rows)
 		{
 			Count += Context.GetRowCount();
 		}));
@@ -516,7 +515,6 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor::DataStorage;
 				
 		// Print column using query
@@ -531,9 +529,6 @@ static FAutoConsoleCommand CVarRegisterListDynamicColumnQuery(
 		const FName Identifier(*Args[0]);
 		const FName ActivationGroup(*Args[1]);
 		
-		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
-		using namespace UE::Editor::DataStorage;
 		using namespace TypedElementDataStorage;
 
 		// Lists the rows processed that have 
@@ -592,7 +587,7 @@ static FAutoConsoleCommand CVarAddValueTag(
 		}
 		
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const RowHandle Row = RowAsU64;
 
 		
 		const FName Value(*Args[2]);
@@ -626,7 +621,7 @@ static FAutoConsoleCommand CVarRemoveValueTag(
 		}
 		
 		const uint64 RowAsU64 = FCString::Strtoui64(*Args[0], nullptr, 10);
-		const TypedElementDataStorage::RowHandle Row = RowAsU64;
+		const UE::Editor::DataStorage::RowHandle Row = RowAsU64;
 		
 		constexpr bool bUseTemplateSugar = true;
 		if constexpr (bUseTemplateSugar)
@@ -649,7 +644,6 @@ static FAutoConsoleCommand CVarMatchValueTag(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor::DataStorage;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
@@ -688,8 +682,8 @@ static FAutoConsoleCommand CVarMatchValueTag(
 
 		uint64 Count = 0;
 		
-		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
-			[&Count](const DSI::IDirectQueryContext& Context, const RowHandle*)
+		const FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
+			[&Count](const IDirectQueryContext& Context, const RowHandle*)
 			{
 				Count += Context.GetRowCount();
 			}));
@@ -765,7 +759,6 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 	FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
 	{
 		using namespace TypedElementQueryBuilder;
-		using DSI = ITypedElementDataStorageInterface;
 		using namespace UE::Editor::DataStorage;
 		
 		ITypedElementDataStorageInterface* DataStorage = UTypedElementRegistry::GetInstance()->GetMutableDataStorage();
@@ -828,7 +821,7 @@ static FAutoConsoleCommand CVarMatchValueTagFromEnum(
 		uint64 Count = 0;
 		
 		const TypedElementDataStorage::FQueryResult Result = DataStorage->RunQuery(Query, CreateDirectQueryCallbackBinding(
-			[&Count](const DSI::IDirectQueryContext& Context, const RowHandle*)
+			[&Count](const IDirectQueryContext& Context, const RowHandle*)
 			{
 				Count += Context.GetRowCount();
 			}));

@@ -6,7 +6,7 @@
 #include "UObject/Class.h"
 #include "UObject/UnrealType.h"
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	template<class... Ts>
 	struct TOverloaded : Ts... 
@@ -135,7 +135,7 @@ namespace TypedElementDataStorage
 	// FQueryMetaDataView
 	//
 
-	FQueryMetaDataView::FQueryMetaDataView(const TypedElementDataStorage::FQueryDescription& InQuery)
+	FQueryMetaDataView::FQueryMetaDataView(const FQueryDescription& InQuery)
 		:Query(InQuery)
 	{
 	}
@@ -226,4 +226,4 @@ namespace TypedElementDataStorage
 	{
 		return MetaData.Find(AttributeName);
 	}
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

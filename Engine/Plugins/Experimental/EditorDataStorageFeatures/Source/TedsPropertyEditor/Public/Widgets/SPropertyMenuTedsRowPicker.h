@@ -13,7 +13,7 @@ public:
 		, _ElementFilter()
 	{}
 		SLATE_ARGUMENT(bool, AllowClear)
-		SLATE_ARGUMENT(TypedElementDataStorage::FQueryDescription, QueryFilter)
+		SLATE_ARGUMENT(UE::Editor::DataStorage::FQueryDescription, QueryFilter)
 		SLATE_ARGUMENT(FOnShouldFilterTedsRow, ElementFilter)
 		SLATE_EVENT(FOnTedsRowSelected, OnSet)
 		SLATE_EVENT(FSimpleDelegate, OnClose)
@@ -25,14 +25,14 @@ private:
 
 	void OnClear();
 
-	void OnElementSelected(TypedElementDataStorage::RowHandle RowHandle);
+	void OnElementSelected(UE::Editor::DataStorage::RowHandle RowHandle);
 
-	void SetValue(TypedElementDataStorage::RowHandle RowHandle);
+	void SetValue(UE::Editor::DataStorage::RowHandle RowHandle);
 
 private:
 	bool bAllowClear;
 
-	TypedElementDataStorage::FQueryDescription QueryFilter;
+	UE::Editor::DataStorage::FQueryDescription QueryFilter;
 
 	FOnShouldFilterTedsRow ElementFilter;
 

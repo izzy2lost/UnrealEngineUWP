@@ -39,7 +39,7 @@ namespace UE::Editor::DataStorage
 		FMassEntityManager& GetMassEntityManager();
 		const FMassEntityManager& GetMassEntityManager() const;
 
-		FMassArchetypeHandle LookupMassArchetype(TypedElementDataStorage::TableHandle TableHandle) const;
+		FMassArchetypeHandle LookupMassArchetype(TableHandle Table) const;
 
 		FMassProcessingPhaseManager& GetMassPhaseManager();
 		const FMassProcessingPhaseManager& GetMassPhaseManager() const;

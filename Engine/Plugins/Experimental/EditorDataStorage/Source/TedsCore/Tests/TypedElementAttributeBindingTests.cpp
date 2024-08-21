@@ -7,20 +7,22 @@
 #include "Elements/Framework/TypedElementRegistry.h"
 #include "Misc/AutomationTest.h"
 
-namespace TypedElementDataStorageTests
+namespace UE::Editor::DataStorage
 {
-	BEGIN_DEFINE_SPEC(TypedElementAttributeBindingTestsFixture, "EditorDataStorage.AttributeBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+namespace Tests
+{
+	BEGIN_DEFINE_SPEC(TedsAttributeBindingTestsFixture, "Editor.DataStorage.AttributeBinding", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
 
 		ITypedElementDataStorageInterface* TedsInterface = nullptr;
 		const FName TestTableName = TEXT("TestTable_AttributeBinding");
-		TypedElementDataStorage::TableHandle TestTableHandle = TypedElementDataStorage::InvalidTableHandle;
-		TypedElementDataStorage::RowHandle TestRowHandle = TypedElementDataStorage::InvalidRowHandle;
+		TableHandle TestTableHandle = InvalidTableHandle;
+		RowHandle TestRowHandle = InvalidRowHandle;
 
-		TypedElementDataStorage::TableHandle RegisterTestTable() const
+		TableHandle RegisterTestTable() const
 		{
-			const TypedElementDataStorage::TableHandle Table = TedsInterface->FindTable(TestTableName);
+			const TableHandle Table = TedsInterface->FindTable(TestTableName);
 			
-			if (Table != TypedElementDataStorage::InvalidTableHandle)
+			if (Table != InvalidTableHandle)
 			{
 				return Table;
 			}
@@ -33,20 +35,20 @@ namespace TypedElementDataStorageTests
 			TestTableName);
 		}
 	
-		TypedElementDataStorage::RowHandle CreateTestRow(TypedElementDataStorage::TableHandle InTableHandle) const
+		RowHandle CreateTestRow(TableHandle InTableHandle) const
 		{
-			const TypedElementDataStorage::RowHandle RowHandle = TedsInterface->AddRow(InTableHandle);
+			const RowHandle RowHandle = TedsInterface->AddRow(InTableHandle);
 			return RowHandle;
 		}
 	
-		void CleanupTestRow(TypedElementDataStorage::RowHandle InRowHandle) const
+		void CleanupTestRow(RowHandle InRowHandle) const
 		{
 			TedsInterface->RemoveRow(InRowHandle);
 		}
 	
-	END_DEFINE_SPEC(TypedElementAttributeBindingTestsFixture)
+	END_DEFINE_SPEC(TedsAttributeBindingTestsFixture)
 
-	void TypedElementAttributeBindingTestsFixture::Define()
+	void TedsAttributeBindingTestsFixture::Define()
 	{
 		BeforeEach([this]()
 		{
@@ -55,10 +57,10 @@ namespace TypedElementDataStorageTests
 			TestTrue("", TedsInterface != nullptr);
 			
 			TestTableHandle = RegisterTestTable();
-			TestNotEqual("Expecting valid table handle", TestTableHandle, TypedElementDataStorage::InvalidTableHandle);
+			TestNotEqual("Expecting valid table handle", TestTableHandle, InvalidTableHandle);
 
 			TestRowHandle = CreateTestRow(TestTableHandle);
-			TestFalse("Expect valid row handle", TestRowHandle == TypedElementDataStorage::InvalidRowHandle);
+			TestFalse("Expect valid row handle", TestRowHandle == InvalidRowHandle);
 		});
 
 		Describe("", [this]()
@@ -79,7 +81,7 @@ namespace TypedElementDataStorageTests
 						TestNotNull("Expecting Valid Column", TestColumnInt);
 
 						// Create an int attribute and bind it
-						UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+						FAttributeBinder Binder(TestRowHandle);
 						const TAttribute TestAttribute(Binder.BindData(&FTestColumnInt::TestInt));
 
 						TestEqual("Expecting attribute value to match column value before modification", TestAttribute.Get(), TestColumnInt->TestInt);
@@ -106,7 +108,7 @@ namespace TypedElementDataStorageTests
 						TestNotNull("Expecting valid column", TestColumnInt);
 
 						// Create a float attribute and bind it by providing a conversion function
-						UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+						FAttributeBinder Binder(TestRowHandle);
 						const TAttribute<float> TestAttribute(Binder.BindData(&FTestColumnInt::TestInt,
 							[](const int& Data)
 							{
@@ -140,7 +142,7 @@ namespace TypedElementDataStorageTests
 						TestNotNull("Expecting valid column", TestColumnString);
 
 						// Create an int attribute and bind it
-						UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+						FAttributeBinder Binder(TestRowHandle);
 						const TAttribute TestAttribute(Binder.BindData(&FTestColumnString::TestString));
 
 						TestEqual("Expecting attribute value to match column value before modification", TestAttribute.Get(), TestColumnString->TestString);
@@ -167,7 +169,7 @@ namespace TypedElementDataStorageTests
 						TestNotNull("Expecting valid column", TestColumnString);
 
 						// Create an int attribute and bind it
-						UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+						FAttributeBinder Binder(TestRowHandle);
 						const TAttribute<FText> TestAttribute(Binder.BindData(&FTestColumnString::TestString,
 							[](const FString& Data)
 							{
@@ -191,7 +193,7 @@ namespace TypedElementDataStorageTests
 				{
 					constexpr int DefaultValue = 10;
 					
-					UE::EditorDataStorage::FAttributeBinder Binder(TestRowHandle);
+					FAttributeBinder Binder(TestRowHandle);
 
 					// Create an int attribute and directly bind it
 					const TAttribute TestIntAttribute(Binder.BindData(&FTestColumnInt::TestInt, DefaultValue));
@@ -217,11 +219,12 @@ namespace TypedElementDataStorageTests
 		AfterEach([this]()
 		{
 			CleanupTestRow(TestRowHandle);
-			TestRowHandle = TypedElementDataStorage::InvalidRowHandle;
-			TestTableHandle = TypedElementDataStorage::InvalidTableHandle;
+			TestRowHandle = InvalidRowHandle;
+			TestTableHandle = InvalidTableHandle;
 			TedsInterface = nullptr;
 		});
 	}
-}
+} // namespace Tests
+} // namespace UE::Editor::DataStorage
 
 #endif // WITH_TESTS

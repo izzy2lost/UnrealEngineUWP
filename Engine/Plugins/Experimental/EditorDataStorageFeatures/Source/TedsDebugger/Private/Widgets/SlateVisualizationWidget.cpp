@@ -21,7 +21,7 @@ FSlateVisualizationWidgetConstructor::FSlateVisualizationWidgetConstructor()
 
 }
 
-TSharedPtr<SWidget> FSlateVisualizationWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FSlateVisualizationWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SHorizontalBox);
 }

@@ -61,7 +61,7 @@ FTedsOutlinerModule::FTedsOutlinerModule()
 {
 }
 
-TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, TypedElementDataStorage::QueryHandle ColumnQuery) const
+TSharedRef<ISceneOutliner> FTedsOutlinerModule::CreateTedsOutliner(const FSceneOutlinerInitializationOptions& InInitOptions, const FTedsOutlinerParams& InInitTedsOptions, UE::Editor::DataStorage::QueryHandle ColumnQuery) const
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 
@@ -110,20 +110,20 @@ void FTedsOutlinerModule::ShutdownModule()
 	IModuleInterface::ShutdownModule();
 }
 
-TypedElementDataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
+UE::Editor::DataStorage::QueryHandle FTedsOutlinerModule::GetLevelEditorTedsOutlinerColumnQuery()
 {
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* Storage = Registry->GetMutableDataStorage();
 		
 	using namespace TypedElementQueryBuilder;
 
-	static TypedElementDataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
+	static UE::Editor::DataStorage::QueryHandle ColumnQuery = Storage->RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementAlertColumn, FTypedElementChildAlertColumn>()
 		.Compile());
 
 	// Query to also include revision control info
-	static TypedElementDataStorage::QueryHandle RevisionControlQuery = Storage->RegisterQuery(
+	static UE::Editor::DataStorage::QueryHandle RevisionControlQuery = Storage->RegisterQuery(
 		Select()
 			.ReadOnly<FTypedElementClassTypeInfoColumn, FTypedElementPackageReference, FTypedElementAlertColumn>()
 		.Compile());
@@ -146,7 +146,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 	using namespace TypedElementQueryBuilder;
 
 	// The Outliner is populated with Actors and Entities
-	TypedElementDataStorage::FQueryDescription OutlinerQueryDescription =
+	UE::Editor::DataStorage::FQueryDescription OutlinerQueryDescription =
 						Select()
 						.Where()
 							.All<FTypedElementClassTypeInfoColumn>() // TEDS-Outliner TODO: Currently looking at all entries with type info in TEDS
@@ -163,7 +163,7 @@ TSharedRef<SWidget> FTedsOutlinerModule::CreateLevelEditorTedsOutliner()
 	Params.bUseDefaultTedsFilters = true;
 
 	// Example Query to filter for actors
-	TypedElementDataStorage::FQueryDescription ActorFilterQuery =
+	UE::Editor::DataStorage::FQueryDescription ActorFilterQuery =
 					Select()
 					.Where()
 						.All<FTypedElementActorTag>()

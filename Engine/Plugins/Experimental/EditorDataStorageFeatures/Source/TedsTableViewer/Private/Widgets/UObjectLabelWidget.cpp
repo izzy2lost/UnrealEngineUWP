@@ -29,11 +29,12 @@ FUObjectLabelWidgetConstructor::FUObjectLabelWidgetConstructor()
 
 TSharedPtr<SWidget> FUObjectLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
+	using namespace UE::Editor::DataStorage;
 	if(DataStorage->IsRowAvailable(TargetRow))
 	{
-		UE::EditorDataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
+		FAttributeBinder Binder(TargetRow, DataStorage);
 
 		// Once TEDS UI has widget combining functionality, the binder can be used to create the type info widget and label widget and combine them
 		return SNew(SHorizontalBox)
@@ -41,7 +42,7 @@ TSharedPtr<SWidget> FUObjectLabelWidgetConstructor::CreateWidget(ITypedElementDa
 				.AutoWidth()
 			[
 				SNew(SImage)
-					.Image(UE::Editor::DataStorage::TableViewerUtils::GetIconForRow(DataStorage, TargetRow))
+					.Image(TableViewerUtils::GetIconForRow(DataStorage, TargetRow))
 					.ColorAndOpacity(FSlateColor::UseForeground())
 			]
 			+SHorizontalBox::Slot()

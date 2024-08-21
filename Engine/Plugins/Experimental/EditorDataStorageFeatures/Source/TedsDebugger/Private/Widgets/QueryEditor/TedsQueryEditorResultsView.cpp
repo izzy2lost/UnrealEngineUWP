@@ -109,7 +109,7 @@ namespace UE::Editor::DataStorage
 			if(bModelDirty)
 			{
 				{
-					TypedElementDataStorage::FQueryDescription CountQueryDescription = Model->GenerateNoSelectQueryDescription();
+					FQueryDescription CountQueryDescription = Model->GenerateNoSelectQueryDescription();
 		
 					if (CountQueryHandle != InvalidQueryHandle)
 					{
@@ -120,7 +120,7 @@ namespace UE::Editor::DataStorage
 				}
 
 				{
-					TypedElementDataStorage::FQueryDescription TableViewerQueryDescription = Model->GenerateQueryDescription();
+					FQueryDescription TableViewerQueryDescription = Model->GenerateQueryDescription();
 
 					// Update the columns in the table viewer using the selection types from the query description
 					TableViewer->SetColumns(TArray<TWeakObjectPtr<const UScriptStruct>>(TableViewerQueryDescription.SelectionTypes));
@@ -192,7 +192,7 @@ namespace UE::Editor::DataStorage
 			ITypedElementDataStorageUiInterface* StorageUi = Registry->GetMutableDataStorageUi();
 			checkf(StorageUi, TEXT("SResultsView created before data storage interfaces were initialized."))
 
-			StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), TypedElementDataStorage::FMetaDataView(), AssignWidgetToColumn);
+			StorageUi->CreateWidgetConstructors(TEXT("General.Cell.RowHandle"), FMetaDataView(), AssignWidgetToColumn);
 		}
 	} // namespace Debug::QueryEditor
 } // namespace UE::Editor::DataStorage

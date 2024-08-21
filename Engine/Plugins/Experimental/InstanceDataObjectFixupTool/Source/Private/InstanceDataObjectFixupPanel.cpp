@@ -248,7 +248,7 @@ static bool ObjectHasLoosePropertiesThatNeedFixup(UObject* Object)
 
 FInstanceDataObjectFixupPanel::~FInstanceDataObjectFixupPanel()
 {
-	using namespace TypedElementDataStorage;
+	using namespace UE::Editor::DataStorage;
 
 	UTypedElementRegistry* Registry = UTypedElementRegistry::GetInstance();
 	ITypedElementDataStorageInterface* DataStorage = Registry ? Registry->GetMutableDataStorage() : nullptr;

@@ -14,11 +14,11 @@ class UClass;
 class UObject;
 class UScriptStruct;
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
-	using namespace UE::Editor::DataStorage;
+	using namespace TypedElementDataStorage;
 
-	struct FQueryDescription; 
+	struct FQueryDescription;
 	struct ISubqueryContext;
 
 	using SubqueryCallback = TFunction<void(const FQueryDescription&, ISubqueryContext&)>;
@@ -44,14 +44,14 @@ namespace TypedElementDataStorage
 		/** Return the address of a immutable column matching the requested type or a nullptr if not found. */
 		template<typename Column>
 		const Column* GetColumn() const;
-		template<UE::Editor::DataStorage::TDataColumnType TemplateType>
+		template<TDataColumnType TemplateType>
 		const TemplateType* GetColumn(const FName& Identifier) const;
 		/** Return the address of a mutable column matching the requested type or a nullptr if not found. */
 		virtual void* GetMutableColumn(const UScriptStruct* ColumnType) = 0;
 		/** Return the address of a mutable column matching the requested type or a nullptr if not found. */
 		template<typename Column>
 		Column* GetMutableColumn();
-		template<UE::Editor::DataStorage::TDataColumnType TemplateType>
+		template<TDataColumnType TemplateType>
 		TemplateType* GetMutableColumn(const FName& Identifier);
 
 		/**
@@ -85,24 +85,24 @@ namespace TypedElementDataStorage
 		 * table that's set in the context, for instance because it's the current row, then the version that doesn't take a row
 		 * as an argument is recommended.
 		 */
-		virtual bool HasColumn(TypedElementDataStorage::RowHandle Row, const UScriptStruct* ColumnType) const = 0;
+		virtual bool HasColumn(RowHandle Row, const UScriptStruct* ColumnType) const = 0;
 		/*
 		 * Return whether a column matches the requested type or not. This can be used for arbitrary rows. If the row is in the
 		 * table that's set in the context, for instance because it's the current row, then the version that doesn't take a row
 		 * as an argument is recommended.
 		 */
 		template<typename Column>
-		bool HasColumn(TypedElementDataStorage::RowHandle Row) const;
+		bool HasColumn(RowHandle Row) const;
 
-		template<UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-		bool HasColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier) const;
+		template<TColumnType DynamicColumnTemplate>
+		bool HasColumn(RowHandle Row, const FName& Identifier) const;
 
 		/**
 		 * Finds the type of a dynamic column
 		 * @return The UScriptStruct for a previously created Dynamic Column.  If no column exists, then nullptr
 		 */
-		virtual const UScriptStruct* FindDynamicColumnType(const UE::Editor::DataStorage::FDynamicColumnDescription& Description) const = 0;
-		template<UE::Editor::DataStorage::TColumnType TemplateType>
+		virtual const UScriptStruct* FindDynamicColumnType(const FDynamicColumnDescription& Description) const = 0;
+		template<TColumnType TemplateType>
 		const UScriptStruct* FindDynamicColumnType(const FName& Identifier) const;
 	};
 
@@ -230,7 +230,7 @@ namespace TypedElementDataStorage
 		 */
 		virtual void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<const UScriptStruct*> ColumnTypes) = 0;
 		
-		virtual void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<UE::Editor::DataStorage::FDynamicColumnDescription> DynamicColumnDescriptions) = 0;
+		virtual void AddColumns(TConstArrayView<RowHandle> Rows, TConstArrayView<FDynamicColumnDescription> DynamicColumnDescriptions) = 0;
 		/**
 		 * Add a new uninitialized column of the provided type if one does not exist.
 		 * Returns a staged column which is used to copy into the database at a later time via the UStructScript Copy operator at the end
@@ -250,8 +250,8 @@ namespace TypedElementDataStorage
 		 */
 		virtual void* AddColumnUninitialized(RowHandle Row, const UScriptStruct* ObjectType, ObjectCopyOrMove Relocator) = 0;
 
-		virtual void* AddColumnUninitialized(RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) = 0;
-		virtual void* AddColumnUninitialized(RowHandle Row, const UE::Editor::DataStorage::FDynamicColumnDescription& DynamicColumnDescription) = 0;
+		virtual void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription, ObjectCopyOrMove Relocator) = 0;
+		virtual void* AddColumnUninitialized(RowHandle Row, const FDynamicColumnDescription& DynamicColumnDescription) = 0;
 		
 
 		/**
@@ -349,7 +349,7 @@ namespace TypedElementDataStorage
 		 */
 		virtual FQueryResult RunSubquery(int32 SubqueryIndex, RowHandle Row, SubqueryCallbackRef Callback) = 0;
 	};
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage
 
 
 
@@ -358,7 +358,7 @@ namespace TypedElementDataStorage
 // Implementations
 //
 
-namespace TypedElementDataStorage
+namespace UE::Editor::DataStorage
 {
 	//
 	// ICommonQueryContext
@@ -370,7 +370,7 @@ namespace TypedElementDataStorage
 		return reinterpret_cast<const Column*>(GetColumn(Column::StaticStruct()));
 	}
 
-	template <UE::Editor::DataStorage::TDataColumnType TemplateType>
+	template <TDataColumnType TemplateType>
 	const TemplateType* ICommonQueryContext::GetColumn(const FName& Identifier) const
 	{
 		const UScriptStruct* DynamicColumnType = FindDynamicColumnType<TemplateType>(Identifier);
@@ -383,7 +383,7 @@ namespace TypedElementDataStorage
 		return reinterpret_cast<Column*>(GetMutableColumn(Column::StaticStruct()));
 	}
 
-	template <UE::Editor::DataStorage::TDataColumnType TemplateType>
+	template <TDataColumnType TemplateType>
 	TemplateType* ICommonQueryContext::GetMutableColumn(const FName& Identifier)
 	{
 		const UScriptStruct* DynamicColumnType = FindDynamicColumnType<TemplateType>(Identifier);
@@ -397,13 +397,13 @@ namespace TypedElementDataStorage
 	}
 
 	template <typename Column>
-	bool ICommonQueryContext::HasColumn(TypedElementDataStorage::RowHandle Row) const
+	bool ICommonQueryContext::HasColumn(RowHandle Row) const
 	{
 		return HasColumn(Row, Column::StaticStruct());
 	}
 
-	template <UE::Editor::DataStorage::TColumnType DynamicColumnTemplate>
-	bool ICommonQueryContext::HasColumn(TypedElementDataStorage::RowHandle Row, const FName& Identifier) const
+	template <TColumnType DynamicColumnTemplate>
+	bool ICommonQueryContext::HasColumn(RowHandle Row, const FName& Identifier) const
 	{
 		if (const UScriptStruct* DynamicColumnType = FindDynamicColumnType<DynamicColumnTemplate>(Identifier))
 		{
@@ -412,10 +412,10 @@ namespace TypedElementDataStorage
 		return false;
 	}
 
-	template <UE::Editor::DataStorage::TColumnType TemplateType>
+	template <TColumnType TemplateType>
 	const UScriptStruct* ICommonQueryContext::FindDynamicColumnType(const FName& Identifier) const
 	{
-		return FindDynamicColumnType(UE::Editor::DataStorage::FDynamicColumnDescription
+		return FindDynamicColumnType(FDynamicColumnDescription
 			{
 				.TemplateType = TemplateType::StaticStruct(),
 				.Identifier = Identifier
@@ -522,19 +522,19 @@ namespace TypedElementDataStorage
 	ColumnTypeTemplate* ICommonQueryWithEnvironmentContext::AddColumn(RowHandle Row, const FName& Identifier)
 	{
 		UScriptStruct* TemplateType = ColumnTypeTemplate::StaticStruct();
-		const UE::Editor::DataStorage::FDynamicColumnDescription Description
+		const FDynamicColumnDescription Description
 		{
 			.TemplateType = TemplateType,
 			.Identifier = Identifier
 		};
 
-		if constexpr (UE::Editor::DataStorage::TDataColumnType<ColumnTypeTemplate>)
+		if constexpr (TDataColumnType<ColumnTypeTemplate>)
 		{
 			ColumnTypeTemplate* ColumnData = static_cast<ColumnTypeTemplate*>(AddColumnUninitialized(Row, Description));
 			new (ColumnData) ColumnTypeTemplate();
 			return ColumnData;
 		}
-		if constexpr (UE::Editor::DataStorage::TTagColumnType<ColumnTypeTemplate>)
+		if constexpr (TTagColumnType<ColumnTypeTemplate>)
 		{
 			AddColumns({Row}, {Description});
 			return nullptr;
@@ -547,7 +547,7 @@ namespace TypedElementDataStorage
 	ColumnTypeTemplate* ICommonQueryWithEnvironmentContext::AddColumn(RowHandle Row, const FName& Identifier, ColumnTypeTemplate&& Column)
 	{
 		UScriptStruct* TemplateType = ColumnTypeTemplate::StaticStruct();
-		const UE::Editor::DataStorage::FDynamicColumnDescription Description
+		const FDynamicColumnDescription Description
 		{
 			.TemplateType = TemplateType,
 			.Identifier = Identifier
@@ -593,4 +593,4 @@ namespace TypedElementDataStorage
 	{
 		RemoveColumns(Rows, { Columns::StaticStruct()... });
 	}
-} // namespace TypedElementDataStorage
+} // namespace UE::Editor::DataStorage

@@ -124,7 +124,7 @@ void URowReferenceWidgetFactory::RegisterQueries(ITypedElementDataStorageInterfa
 				.SetExecutionMode(EExecutionMode::GameThread),
 			[](
 				IQueryContext& Context,
-				TypedElementDataStorage::RowHandle UiRowHandle,
+				RowHandle UiRowHandle,
 				FTypedElementSlateWidgetReferenceColumn& Widget,
 				const FTypedElementRowReferenceColumn& Target)
 			{
@@ -145,7 +145,7 @@ FRowReferenceWidgetConstructor::FRowReferenceWidgetConstructor()
 {
 }
 
-TSharedPtr<SWidget> FRowReferenceWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FRowReferenceWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SBox)
 			.HAlign(HAlign_Left)

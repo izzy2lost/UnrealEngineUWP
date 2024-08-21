@@ -64,9 +64,9 @@ TConstArrayView<const UScriptStruct*> FLabelWidgetConstructor::GetAdditionalColu
 
 TSharedPtr<SWidget> FLabelWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi, RowHandle TargetRow, RowHandle WidgetRow,
-	const TypedElementDataStorage::FMetaDataView& Arguments)
+	const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
-	UE::EditorDataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
+	UE::Editor::DataStorage::FAttributeBinder Binder(TargetRow, DataStorage);
 
 	return SNew(STextBlock)
 		.Text(Binder.BindText(&FTypedElementLabelColumn::Label))

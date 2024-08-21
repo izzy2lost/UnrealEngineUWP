@@ -34,7 +34,7 @@ FRowHandleWidgetConstructor::FRowHandleWidgetConstructor()
 	
 }
 
-TSharedPtr<SWidget> FRowHandleWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+TSharedPtr<SWidget> FRowHandleWidgetConstructor::CreateWidget(const UE::Editor::DataStorage::FMetaDataView& Arguments)
 {
 	return SNew(SBox)
 		.HAlign(HAlign_Left)
@@ -51,7 +51,7 @@ bool FRowHandleWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterfa
 	
 	SBox* BoxWidget = static_cast<SBox*>(Widget.Get());
 
-	TypedElementDataStorage::RowHandle TargetRowHandle = TypedElementDataStorage::InvalidRowHandle;
+	UE::Editor::DataStorage::RowHandle TargetRowHandle = UE::Editor::DataStorage::InvalidRowHandle;
 
 	if(const FTypedElementRowReferenceColumn* RowReferenceColumn = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(Row))
 	{
