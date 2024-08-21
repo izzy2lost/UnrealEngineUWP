@@ -8,8 +8,10 @@
 #include "VerseVM/Inline/VVMNativeStructInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMEmergentTypeCreator.h"
+#include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMPackage.h"
 #include "VerseVM/VVMShape.h"
+#include "VerseVM/VVMVerseStruct.h"
 
 namespace Verse
 {
@@ -99,18 +101,13 @@ inline VConstructor::VEntry VConstructor::VEntry::Block(FAllocationContext Conte
     };
 }
 
-inline UScriptStruct::ICppStructOps& VClass::GetCppStructOps() const
-{
-	return *CastChecked<UScriptStruct>(AssociatedUStruct.Get().AsUObject())->GetCppStructOps();
-}
-
 template <class CppStructType>
 inline VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, CppStructType&& Struct)
 {
 	V_DIE_UNLESS(IsNativeStruct());
 
 	// Get or create the singleton emergent type for this native struct
-	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
+	VEmergentType& NewEmergentType = *GetUStruct<UVerseStruct>()->EmergentType;
 	return VNativeStruct::New(Context, NewEmergentType, Forward<CppStructType>(Struct));
 }
 

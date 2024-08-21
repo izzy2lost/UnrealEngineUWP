@@ -113,3 +113,12 @@ void UVerseStruct::InvokeDefaultFactoryFunction(uint8* InStructData) const
 		}
 	}
 }
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+void UVerseStruct::AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector)
+{
+	Super::AddReferencedObjects(InThis, Collector);
+	UVerseStruct* This = static_cast<UVerseStruct*>(InThis);
+	Collector.AddReferencedVerseValue(This->EmergentType);
+}
+#endif

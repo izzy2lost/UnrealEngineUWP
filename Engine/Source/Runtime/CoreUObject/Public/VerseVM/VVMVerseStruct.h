@@ -6,6 +6,9 @@
 #include "UObject/Class.h"
 #include "UObject/Package.h"
 #include "VerseVM/VVMVerseEffectSet.h"
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+#include "VerseVM/VVMEmergentType.h"
+#endif
 
 #include "VVMVerseStruct.generated.h"
 
@@ -53,6 +56,12 @@ public:
 
 	UPROPERTY()
 	EVerseEffectSet ConstructorEffects;
+
+#if WITH_VERSE_VM || defined(__INTELLISENSE__)
+	static void AddReferencedObjects(UObject* InThis, FReferenceCollector& Collector);
+
+	Verse::TWriteBarrier<Verse::VEmergentType> EmergentType;
+#endif
 
 	virtual FString GetAuthoredNameForField(const FField* Field) const override;
 

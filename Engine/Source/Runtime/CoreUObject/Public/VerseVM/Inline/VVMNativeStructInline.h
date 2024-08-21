@@ -3,25 +3,25 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
-#include "VerseVM/Inline/VVMEmergentTypeInline.h"
 #include "VerseVM/Inline/VVMObjectInline.h"
+#include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMNativeStruct.h"
+#include "VerseVM/VVMObject.h"
 
 namespace Verse
 {
 
 template <class CppStructType>
-FORCEINLINE CppStructType& VNativeStruct::GetStruct(const VCppClassInfo& CppClassInfo)
+inline CppStructType& VNativeStruct::GetStruct()
 {
-	checkSlow(sizeof(CppStructType) == GetEmergentType()->GetCppStructOps().GetSize());
+	checkSlow(sizeof(CppStructType) == GetUScriptStruct(*GetEmergentType())->GetCppStructOps()->GetSize());
 
-	return *BitCast<CppStructType*>(VObject::GetData(CppClassInfo));
+	return *BitCast<CppStructType*>(GetStruct());
 }
 
-template <class CppStructType>
-FORCEINLINE CppStructType& VNativeStruct::GetStruct()
+inline void* VNativeStruct::GetStruct()
 {
-	return GetStruct<CppStructType>(*GetEmergentType()->CppClassInfo);
+	return VObject::GetData(*GetEmergentType()->CppClassInfo);
 }
 
 template <class CppStructType>
@@ -37,10 +37,15 @@ inline VNativeStruct& VNativeStruct::NewUninitialized(FAllocationContext Context
 
 inline std::byte* VNativeStruct::AllocateCell(FAllocationContext Context, VEmergentType& InEmergentType)
 {
-	UScriptStruct::ICppStructOps& CppStructOps = InEmergentType.GetCppStructOps();
-	const size_t ByteSize = DataOffset(*InEmergentType.CppClassInfo) + CppStructOps.GetSize();
-	const bool bHasDestructor = CppStructOps.HasDestructor();
+	UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(InEmergentType)->GetCppStructOps();
+	const size_t ByteSize = DataOffset(*InEmergentType.CppClassInfo) + CppStructOps->GetSize();
+	const bool bHasDestructor = CppStructOps->HasDestructor();
 	return bHasDestructor ? Context.Allocate(FHeap::DestructorSpace, ByteSize) : Context.AllocateFastCell(ByteSize);
+}
+
+inline UScriptStruct* VNativeStruct::GetUScriptStruct(VEmergentType& EmergentType)
+{
+	return EmergentType.Type->StaticCast<VClass>().GetUStruct<UScriptStruct>();
 }
 
 template <class CppStructType>
@@ -48,7 +53,7 @@ inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& I
 	: VObject(Context, InEmergentType)
 {
 	using StructType = typename TDecay<CppStructType>::Type;
-	checkSlow(sizeof(StructType) == InEmergentType.GetCppStructOps().GetSize());
+	checkSlow(sizeof(StructType) == GetUScriptStruct(InEmergentType)->GetCppStructOps()->GetSize());
 
 	SetIsStruct();
 	void* Data = GetData(*InEmergentType.CppClassInfo);
@@ -61,26 +66,26 @@ inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& I
 	SetIsStruct();
 	if (bRunCppConstructor)
 	{
-		UScriptStruct::ICppStructOps& CppStructOps = InEmergentType.GetCppStructOps();
+		UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(InEmergentType)->GetCppStructOps();
 		void* Data = GetData(*InEmergentType.CppClassInfo);
-		if (CppStructOps.HasZeroConstructor())
+		if (CppStructOps->HasZeroConstructor())
 		{
-			memset(Data, 0, CppStructOps.GetSize());
+			memset(Data, 0, CppStructOps->GetSize());
 		}
 		else
 		{
-			CppStructOps.Construct(Data);
+			CppStructOps->Construct(Data);
 		}
 	}
 }
 
 inline VNativeStruct::~VNativeStruct()
 {
-	const VEmergentType* EmergentType = GetEmergentType();
-	UScriptStruct::ICppStructOps& CppStructOps = EmergentType->GetCppStructOps();
-	if (CppStructOps.HasDestructor())
+	VEmergentType* EmergentType = GetEmergentType();
+	UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(*EmergentType)->GetCppStructOps();
+	if (CppStructOps->HasDestructor())
 	{
-		CppStructOps.Destruct(VObject::GetData(*EmergentType->CppClassInfo));
+		CppStructOps->Destruct(VObject::GetData(*EmergentType->CppClassInfo));
 	}
 }
 

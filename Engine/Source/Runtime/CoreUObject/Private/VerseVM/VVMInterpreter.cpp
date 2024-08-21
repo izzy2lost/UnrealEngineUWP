@@ -1619,22 +1619,25 @@ class FInterpreter
 		}
 		VUniqueStringSet& ArchetypeFields = *Op.Fields.Get();
 
-		// UObject or VObject?
-		bool bUObject = false;
-		if (!Class.IsStruct())
+		// UObject/VNativeStruct or VObject?
+		bool bNative = Class.IsNative();
+		if (!bNative && !Class.IsStruct())
 		{
-			bUObject = Class.IsNative();
-			if (!bUObject)
-			{
-				const float UObjectProbability = CVarUObjectProbability.GetValueOnAnyThread();
-				bUObject = UObjectProbability > 0.0f && (UObjectProbability > RandomUObjectProbability.FRand());
-			}
+			const float UObjectProbability = CVarUObjectProbability.GetValueOnAnyThread();
+			bNative = UObjectProbability > 0.0f && (UObjectProbability > RandomUObjectProbability.FRand());
 		}
-		if (bUObject)
+		if (bNative)
 		{
-			V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *FString(Class.GetName())));
+			if (!Class.IsStruct())
+			{
+				V_RUNTIME_ERROR_IF(!verse::CanAllocateUObjects(), Context, FUtf8String::Printf("Ran out of memory for allocating `UObject`s while attempting to construct a Verse object of type %s!", *FString(Class.GetName())));
 
-			NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
+				NewObject = Class.NewUObject(Context, ArchetypeFields, ArchetypeValues, Initializers);
+			}
+			else
+			{
+				NewObject = Class.NewNativeStruct(Context, ArchetypeFields, ArchetypeValues, Initializers);
+			}
 		}
 		else
 		{

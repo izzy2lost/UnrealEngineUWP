@@ -18,9 +18,8 @@ struct VNativeStruct : VObject
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VObject);
 
 	template <class CppStructType>
-	CppStructType& GetStruct(const VCppClassInfo& CppClassInfo);
-	template <class CppStructType>
 	CppStructType& GetStruct();
+	void* GetStruct();
 
 	/// Allocate a new VNativeStruct and move an existing struct into it
 	template <class CppStructType>
@@ -33,6 +32,8 @@ protected:
 	friend class FInterpreter;
 
 	static std::byte* AllocateCell(FAllocationContext Context, VEmergentType& EmergentType);
+
+	static UScriptStruct* GetUScriptStruct(VEmergentType& EmergentType);
 
 	template <class CppStructType>
 	VNativeStruct(FAllocationContext Context, VEmergentType& InEmergentType, CppStructType&& InStruct);

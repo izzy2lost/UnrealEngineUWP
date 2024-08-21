@@ -20,6 +20,7 @@ namespace Verse
 {
 struct FAbstractVisitor;
 struct VObject;
+struct VValueObject;
 struct VNativeStruct;
 struct VProcedure;
 struct VPackage;
@@ -133,11 +134,12 @@ struct VClass : VType
 	bool IsStruct() const { return GetKind() == EKind::Struct; }
 	bool IsNative() const { return bNative; }
 	bool IsNativeStruct() const { return IsNative() && IsStruct(); }
-	UScriptStruct::ICppStructOps& GetCppStructOps() const;
 
-	/// Allocate a new VObject (either VValueObject or VNativeStruct). Also returns a sequence of VProcedures to invoke to finish the object's construction.
+	/// Allocate a new VValueObject. Also returns a sequence of VProcedures to invoke to finish the object's construction.
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
-	COREUOBJECT_API VObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
+	COREUOBJECT_API VValueObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
+
+	VNativeStruct& NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
 
 	/// Allocate a new VNativeStruct and move an existing struct into it
 	template <class CppStructType>
@@ -154,7 +156,6 @@ private:
 public:
 	/// Vends an emergent type based on requested fields to override in the class archetype instantiation.
 	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForArchetype(FAllocationContext Context, VUniqueStringSet& ArchetypeFieldNames, VCppClassInfo* CppClassInfo);
-	COREUOBJECT_API VEmergentType& GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context);
 
 	template <class SubTypeOfUStruct>
 	COREUOBJECT_API SubTypeOfUStruct* GetUStruct() const; // Fails if it's not there

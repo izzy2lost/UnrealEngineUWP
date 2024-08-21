@@ -26,6 +26,7 @@
 #include "VerseVM/VVMValuePrinting.h"
 #include "VerseVM/VVMVerse.h"
 #include "VerseVM/VVMVerseClass.h"
+#include "VerseVM/VVMVerseStruct.h"
 
 namespace Verse
 {
@@ -261,22 +262,13 @@ void VClass::Extend(TSet<VUniqueString*>& Fields, TArray<VConstructor::VEntry>& 
 	}
 }
 
-VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
+VValueObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
 {
-	VObject* NewObject;
-	if (IsNativeStruct())
-	{
-		// Get or create the singleton emergent type for this native struct
-		VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForNativeStruct(Context);
-		NewObject = &VNativeStruct::NewUninitialized(Context, NewEmergentType);
-		InitInstance(Context, *NewEmergentType.Shape, NewObject->GetData(*NewEmergentType.CppClassInfo));
-	}
-	else
-	{
-		// Combine the class and archetype to determine which fields will live in the object.
-		VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VValueObject::StaticCppClassInfo);
-		NewObject = &VValueObject::NewUninitialized(Context, NewEmergentType);
-	}
+	V_DIE_IF(IsNative());
+
+	// Combine the class and archetype to determine which fields will live in the object.
+	VEmergentType& NewEmergentType = GetOrCreateEmergentTypeForArchetype(Context, ArchetypeFields, &VValueObject::StaticCppClassInfo);
+	VValueObject* NewObject = &VValueObject::NewUninitialized(Context, NewEmergentType);
 
 	if (Kind == EKind::Struct)
 	{
@@ -296,8 +288,31 @@ VObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& Archet
 	return *NewObject;
 }
 
+VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
+{
+	V_DIE_UNLESS(IsNativeStruct());
+
+	VEmergentType& NewEmergentType = *GetUStruct<UVerseStruct>()->EmergentType;
+	VNativeStruct* NewObject = &VNativeStruct::NewUninitialized(Context, NewEmergentType);
+	InitInstance(Context, *NewEmergentType.Shape, NewObject->GetData(*NewEmergentType.CppClassInfo));
+
+	// Initialize fields from the archetype.
+	// NOTE: This assumes that the order of values matches the IDs of the field set.
+	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
+	{
+		NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+	}
+
+	// Build the sequence of VProcedures to finish object construction.
+	GatherInitializers(ArchetypeFields, OutInitializers);
+
+	return *NewObject;
+}
+
 UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
 {
+	V_DIE_IF(IsStruct());
+
 	UVerseClass* ObjectUClass = GetOrCreateUStruct<UVerseClass>(Context);
 
 	FStaticConstructObjectParameters Parameters(ObjectUClass);
@@ -398,31 +413,6 @@ VEmergentType& VClass::GetOrCreateEmergentTypeForArchetype(FAllocationContext Co
 	// This new type will then be kept alive in the cache to re-vend if ever the exact same set of fields are used for
 	// archetype instantiation of a different object.
 	EmergentTypesCache.AddByHash(ArcheTypeHash, {Context, ArchetypeFieldNames}, {Context, *NewEmergentType});
-
-	return *NewEmergentType;
-}
-
-VEmergentType& VClass::GetOrCreateEmergentTypeForNativeStruct(FAllocationContext Context)
-{
-	V_DIE_UNLESS(IsNativeStruct());
-
-	const uint32 SingleHash = 0; // For native structs, we only ever store one emergent type, regardless of archetype
-	if (TWriteBarrier<VEmergentType>* ExistingEmergentType = EmergentTypesCache.FindByHash(SingleHash, TWriteBarrier<VUniqueStringSet>{}))
-	{
-		return *ExistingEmergentType->Get();
-	}
-
-	UScriptStruct::ICppStructOps& CppStructOps = GetCppStructOps();
-	// Make sure alignment holds for this native struct
-	V_DIE_UNLESS(CppStructOps.GetAlignment() <= VObject::DataAlignment);
-
-	VEmergentType* ClassEmergentType = GetEmergentType();
-	// Check for shape stashed into our emergent type by CreateUStruct()
-	V_DIE_UNLESS(ClassEmergentType->Shape);
-	VEmergentType* NewEmergentType = VEmergentType::New(Context, ClassEmergentType->Shape.Get(), this, &VNativeStruct::StaticCppClassInfo);
-
-	// Keep alive in cache for future requests
-	EmergentTypesCache.AddByHash(SingleHash, {Context, nullptr}, {Context, NewEmergentType});
 
 	return *NewEmergentType;
 }

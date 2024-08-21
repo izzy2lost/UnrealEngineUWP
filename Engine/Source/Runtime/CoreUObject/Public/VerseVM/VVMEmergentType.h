@@ -33,8 +33,6 @@ struct VEmergentType final : VCell
 		return new (Context.AllocateEmergentType(sizeof(VEmergentType))) VEmergentType(Context, InShape, VEmergentTypeCreator::EmergentTypeForEmergentType.Get(), Type, CppClassInfo);
 	}
 
-	UScriptStruct::ICppStructOps& GetCppStructOps() const;
-
 	VEmergentType& GetOrCreateMeltTransition(FAllocationContext Context)
 	{
 		if (VEmergentType* Transition = MeltTransition.Get())

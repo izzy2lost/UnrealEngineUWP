@@ -6,6 +6,8 @@
 #include "VerseVM/VVMCell.h"
 #include "VerseVM/VVMShape.h"
 
+class FVerseVMEngineEnvironment;
+
 namespace Verse
 {
 struct VUniqueString;
@@ -24,6 +26,7 @@ struct VObject : VHeapValue
 	void SetIsStruct() { SetIsDeeplyMutable(); };
 
 protected:
+	friend class ::FVerseVMEngineEnvironment;
 	friend class FInterpreter;
 	friend struct VClass;
 
