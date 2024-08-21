@@ -1,9 +1,10 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
+#if WITH_EDITOR
+
 #include "Tests/PCGTestsCommon.h"
 
 #include "Helpers/PCGAsync.h"
-
 
 IMPLEMENT_CUSTOM_SIMPLE_AUTOMATION_TEST(FPCGAsyncTest_AsyncProcessing, FPCGTestBaseClass, "Plugins.PCG.Async.AsyncProcessing", PCGTestsCommon::TestFlags)
 
@@ -125,3 +126,5 @@ bool FPCGAsyncTest_AsyncProcessingOneToOneEx::RunTest(const FString& Parameters)
 
 	return true;
 }
+
+#endif // WITH_EDITOR
