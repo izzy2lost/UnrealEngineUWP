@@ -95,7 +95,7 @@ namespace HordeServer.Agents.Pools
 
 		private bool HasGracePeriodExpired(IAgent agent, IReadOnlyList<IPoolConfig> pools, TimeSpan? globalGracePeriod)
 		{
-			if (agent.LastStatusChange == null)
+			if (agent.LastOnlineTime == null)
 			{
 				return false;
 			}
@@ -106,7 +106,7 @@ namespace HordeServer.Agents.Pools
 				return false;
 			}
 
-			DateTime expirationTime = agent.LastStatusChange.Value + gracePeriod.Value;
+			DateTime expirationTime = agent.LastOnlineTime.Value + gracePeriod.Value;
 			return _clock.UtcNow > expirationTime;
 		}
 

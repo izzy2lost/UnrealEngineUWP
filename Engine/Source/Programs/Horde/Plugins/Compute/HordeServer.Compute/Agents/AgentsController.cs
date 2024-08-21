@@ -190,7 +190,7 @@ namespace HordeServer.Agents
 				new List<string>(agent.Properties),
 				new Dictionary<string, int>(agent.Resources),
 				agent.UpdateTime,
-				agent.LastStatusChange,
+				agent.LastOnlineTime,
 				agent.Pools.Select(x => x.ToString()).ToList(),
 				new { Devices = new[] { new { agent.Properties, agent.Resources } } },
 				leases,

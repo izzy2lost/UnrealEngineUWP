@@ -46,7 +46,7 @@ namespace HordeServer.Agents
 			SessionId? IAgent.SessionId => _document.SessionId;
 			DateTime? IAgent.SessionExpiresAt => _document.SessionExpiresAt;
 			AgentStatus IAgent.Status => _document.Status;
-			DateTime? IAgent.LastStatusChange => _document.LastStatusChange;
+			DateTime? IAgent.LastOnlineTime => _document.LastOnlineTime;
 			bool IAgent.Enabled => _document.Enabled;
 			bool IAgent.Ephemeral => _document.Ephemeral;
 			bool IAgent.Deleted => _document.Deleted;
@@ -164,7 +164,7 @@ namespace HordeServer.Agents
 			public DateTime? SessionExpiresAt { get; set; }
 
 			public AgentStatus Status { get; set; }
-			public DateTime? LastStatusChange { get; set; }
+			public DateTime? LastOnlineTime { get; set; }
 
 			[BsonRequired]
 			public bool Enabled { get; set; } = true;
@@ -236,6 +236,7 @@ namespace HordeServer.Agents
 				Id = id;
 				Ephemeral = ephemeral;
 				EnrollmentKey = enrollmentKey;
+				Status = AgentStatus.Stopped;
 			}
 		}
 
@@ -383,7 +384,7 @@ namespace HordeServer.Agents
 		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
-			int c = 0;
+			int numDeleted = 0;
 
 			List<AgentDocument> deletedDocuments = await _agentCollection.Find(x => x.Deleted).ToListAsync(cancellationToken);
 			deletedDocuments = await PostLoadAsync(deletedDocuments, cancellationToken);
@@ -391,16 +392,21 @@ namespace HordeServer.Agents
 			foreach (AgentDocument agent in deletedDocuments)
 			{
 				cancellationToken.ThrowIfCancellationRequested();
-				bool noStatusChangeDuringPeriod = _clock.UtcNow > agent.LastStatusChange + TimeSpan.FromHours(1);
-				if (agent is { Status: AgentStatus.Stopped, Ephemeral: true } && noStatusChangeDuringPeriod)
+				if (agent.LastOnlineTime.HasValue && _clock.UtcNow > agent.LastOnlineTime.Value + TimeSpan.FromHours(1))
 				{
 					_logger.LogDebug("Deleting ephemeral agent {Agent}", agent.Id);
-					await ForceDeleteAsync(agent.Id, cancellationToken);
-					c++;
+
+					DeleteResult result = await _agentCollection.DeleteOneAsync(x => x.Id == agent.Id && x.UpdateIndex == agent.UpdateIndex, cancellationToken);
+					if (result.DeletedCount > 0)
+					{
+						await _sessionCollection.DeleteManyAsync(x => x.AgentId == agent.Id, CancellationToken.None);
+					}
+
+					numDeleted++;
 				}
 			}
 
-			span.SetAttribute("NumAgentsDeleted", c);
+			span.SetAttribute("NumAgentsDeleted", numDeleted);
 		}
 
 		async ValueTask<AgentDocument?> PostLoadAsync(AgentDocument? document, CancellationToken cancellationToken)
@@ -458,6 +464,8 @@ namespace HordeServer.Agents
 		public async Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken)
 		{
 			AgentDocument agent = new AgentDocument(id, ephemeral, enrollmentKey);
+			agent.LastOnlineTime = _clock.UtcNow;
+
 			await _agentCollection.InsertOneAsync(agent, null, cancellationToken);
 			return CreateAgentObject(agent);
 		}
@@ -485,13 +493,6 @@ namespace HordeServer.Agents
 				.Unset(x => x.SessionId);
 
 			return await TryUpdateAsync(agent, update, cancellationToken);
-		}
-
-		/// <inheritdoc/>
-		async Task ForceDeleteAsync(AgentId agentId, CancellationToken cancellationToken)
-		{
-			await _sessionCollection.DeleteManyAsync(x => x.AgentId == agentId, cancellationToken);
-			await _agentCollection.DeleteOneAsync(x => x.Id == agentId, cancellationToken);
 		}
 
 		/// <inheritdoc/>
@@ -719,7 +720,15 @@ namespace HordeServer.Agents
 			if (options.Status != null && agent.Status != options.Status.Value)
 			{
 				updates.Add(updateBuilder.Set(x => x.Status, options.Status.Value));
-				updates.Add(updateBuilder.Set(x => x.LastStatusChange, _clock.UtcNow));
+
+				if (options.Status == AgentStatus.Stopped)
+				{
+					updates.Add(updateBuilder.Set(x => x.LastOnlineTime, _clock.UtcNow));
+				}
+				else
+				{
+					updates.Add(updateBuilder.Unset(x => x.LastOnlineTime));
+				}
 			}
 			if (options.SessionExpiresAt != null)
 			{
@@ -949,6 +958,7 @@ namespace HordeServer.Agents
 				updates.Add(updateBuilder.Set(x => x.SessionId, newSession.Id));
 				updates.Add(updateBuilder.Set(x => x.SessionExpiresAt, newSession.StartTime + AgentService.SessionExpiryTime));
 				updates.Add(updateBuilder.Set(x => x.Status, options.Status));
+				updates.Add(updateBuilder.Unset(x => x.LastOnlineTime));
 				updates.Add(updateBuilder.Unset(x => x.Leases));
 				updates.Add(updateBuilder.Unset(x => x.Deleted));
 				updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
@@ -964,11 +974,6 @@ namespace HordeServer.Agents
 				if (String.Equals(options.Version, agent.LastUpgradeVersion, StringComparison.Ordinal))
 				{
 					updates.Add(updateBuilder.Unset(x => x.UpgradeAttemptCount));
-				}
-
-				if (agent.Status != options.Status)
-				{
-					updates.Add(updateBuilder.Set(x => x.LastStatusChange, options.LastStatusChange));
 				}
 
 				foreach (AgentLease agentLease in agent.Leases ?? Enumerable.Empty<AgentLease>())
@@ -1009,7 +1014,7 @@ namespace HordeServer.Agents
 			update = update.Unset(x => x.SessionExpiresAt);
 			update = update.Unset(x => x.Leases);
 			update = update.Set(x => x.Status, AgentStatus.Stopped);
-			update = update.Set(x => x.LastStatusChange, finishTime);
+			update = update.Set(x => x.LastOnlineTime, finishTime);
 
 			if (agent.Ephemeral)
 			{

@@ -50,9 +50,9 @@ namespace HordeServer.Agents
 		public AgentStatus Status { get; }
 
 		/// <summary>
-		/// Time at which last status change took place.
+		/// Last time that the agent was online. Null if the agent is currently online.
 		/// </summary>
-		public DateTime? LastStatusChange { get; }
+		public DateTime? LastOnlineTime { get; }
 
 		/// <summary>
 		/// Whether the agent is enabled
@@ -306,9 +306,8 @@ namespace HordeServer.Agents
 	/// <param name="Status">Status of the agent</param>
 	/// <param name="Capabilities">Capabilities for the agent</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
-	/// <param name="LastStatusChange">Time to force status change timestamp to</param>
 	/// <param name="Version">Current version of the agent software</param>
-	public record class CreateSessionOptions(AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, DateTime LastStatusChange, string? Version);
+	public record class CreateSessionOptions(AgentStatus Status, RpcAgentCapabilities Capabilities, IReadOnlyList<PoolId> DynamicPools, string? Version);
 
 	/// <summary>
 	/// Options for updating a new agent session

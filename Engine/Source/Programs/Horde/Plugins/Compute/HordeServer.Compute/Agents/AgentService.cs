@@ -340,7 +340,6 @@ namespace HordeServer.Agents
 		/// <returns>New agent state</returns>
 		public async Task<IAgent> CreateSessionAsync(IAgent agent, AgentStatus status, RpcAgentCapabilities capabilities, string? version, CancellationToken cancellationToken = default)
 		{
-			DateTime? lastStatusChange = null;
 			for (; ; )
 			{
 				IAuditLogChannel<AgentId> agentLogger = Agents.GetLogger(agent.Id);
@@ -349,21 +348,16 @@ namespace HordeServer.Agents
 				IAgent? newAgent;
 				if (agent.SessionId != null)
 				{
-					// Save last status change timestamp to avoid registering the change to "stopped" when it's re-created immediately after to "ok".
-					lastStatusChange = agent.LastStatusChange;
-
 					// Try to terminate the current session
 					await TryTerminateSessionAsync(agent, cancellationToken);
 				}
 				else
 				{
-					DateTime utcNow = _clock.UtcNow;
-
 					// Get the new pools for the agent
 					List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 					// Reset the agent to use the new session
-					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(status, capabilities, dynamicPools, lastStatusChange ?? utcNow, version), cancellationToken);
+					newAgent = await agent.TryCreateSessionAsync(new CreateSessionOptions(status, capabilities, dynamicPools, version), cancellationToken);
 					if (newAgent != null)
 					{
 						LogPropertyChanges(agentLogger, agent.Properties, newAgent.Properties);

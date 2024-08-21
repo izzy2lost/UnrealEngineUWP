@@ -59,25 +59,19 @@ public class AgentServiceTest : BuildTestSetup
 	}
 
 	[TestMethod]
-	public async Task LastStatusChangeDuringSessionCreateAsync()
+	public async Task LastOnlineChangeDuringSessionCreateAsync()
 	{
 		// No session created yet, status change timestamp is empty
 		IAgent agent = await AgentService.CreateAgentAsync("agent1", false, "");
-		Assert.AreEqual(AgentStatus.Unspecified, agent.Status);
-		Assert.IsFalse(agent.LastStatusChange.HasValue);
+		Assert.AreEqual(AgentStatus.Stopped, agent.Status);
+		Assert.IsTrue(agent.LastOnlineTime.HasValue);
 
 		// A session has been created, status change timestamp is current time
 		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
 		Assert.AreEqual(AgentStatus.Ok, agent.Status);
-		Assert.AreEqual(ToUnixTime(Clock.UtcNow), ToUnixTime(agent.LastStatusChange!.Value));
-		DateTime lastStatusChange = agent.LastStatusChange!.Value;
+		Assert.IsNull(agent.LastOnlineTime);
 
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
-
-		// The session is re-created, status change timestamp is same as when it first got created
-		agent = await AgentService.CreateSessionAsync(agent, AgentStatus.Ok, new RpcAgentCapabilities(), "v1");
-		Assert.AreEqual(AgentStatus.Ok, agent.Status);
-		Assert.AreEqual(ToUnixTime(lastStatusChange), ToUnixTime(agent.LastStatusChange!.Value));
 	}
 
 	private static int s_agentId = 1;
@@ -101,25 +95,24 @@ public class AgentServiceTest : BuildTestSetup
 	}
 
 	[TestMethod]
-	[DataRow(AgentStatus.Ok, false)]
-	[DataRow(AgentStatus.Unhealthy, true)]
-	[DataRow(AgentStatus.Stopping, true)]
-	[DataRow(AgentStatus.Stopped, true)]
-	[DataRow(AgentStatus.Unspecified, true)]
-	public async Task LastStatusChangeAsync(AgentStatus status, bool expectTimestampUpdate)
+	[DataRow(AgentStatus.Ok)]
+	[DataRow(AgentStatus.Unhealthy)]
+	[DataRow(AgentStatus.Stopping)]
+	[DataRow(AgentStatus.Stopped)]
+	[DataRow(AgentStatus.Unspecified)]
+	public async Task LastOnlineChangeAsync(AgentStatus status)
 	{
 		IAgent agent = await CreateAgentSessionAsync();
-		DateTime lastStatusChange = agent.LastStatusChange!.Value;
 		await Clock.AdvanceAsync(TimeSpan.FromMinutes(1));
 
 		agent = (await AgentService.UpdateSessionAsync(agent, agent.SessionId!.Value, status, null, new List<RpcLease>()))!;
-		if (expectTimestampUpdate)
+		if (agent.Status == AgentStatus.Stopped)
 		{
-			AssertNotEqual(lastStatusChange, agent.LastStatusChange);
+			AssertEqual(Clock.UtcNow, agent.LastOnlineTime);
 		}
 		else
 		{
-			AssertEqual(lastStatusChange, agent.LastStatusChange);
+			Assert.IsNull(agent.LastOnlineTime);
 		}
 	}
 
