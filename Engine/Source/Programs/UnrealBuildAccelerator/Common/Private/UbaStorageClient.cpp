@@ -100,7 +100,7 @@ namespace uba
 			m_proxyClient->client.Disconnect();
 	}
 
-	bool StorageClient::PopulateCasFromDirs(const DirVector& directories, u32 workerCount)
+	bool StorageClient::PopulateCasFromDirs(const DirVector& directories, u32 workerCount, const Function<bool()>& shouldExit)
 	{
 		if (directories.empty())
 			return true;
@@ -114,7 +114,7 @@ namespace uba
 		ReaderWriterLock seenIdsLock;
 
 		for (auto& dir : directories)
-			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock) && success;
+			success = PopulateCasFromDirsRecursive(dir.c_str(), workManager, seenIds, seenIdsLock, shouldExit) && success;
 		workManager.FlushWork();
 
 		if (u32 fileCount = u32(m_localStorageFiles.size()))
@@ -833,7 +833,7 @@ namespace uba
 		return sender.SendFileCompressed(casKey, fileName, sourceMem, sourceSize, hint);
 	}
 
-	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock)
+	bool StorageClient::PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock, const Function<bool()>& shouldExit)
 	{
 		StringBuffer<> fullPath;
 		fullPath.Append(dir).EnsureEndsWithSlash();
@@ -847,12 +847,15 @@ namespace uba
 					if (!seenIds.insert(e.id).second)
 						return;
 					lock.Leave();
-					PopulateCasFromDirsRecursive(fullPath.data, workManager, seenIds, seenIdsLock);
+					PopulateCasFromDirsRecursive(fullPath.data, workManager, seenIds, seenIdsLock, shouldExit);
 					return;
 				}
 
 				workManager.AddWork([&, filePath = TString(fullPath.data), name = TString(e.name)]()
 					{
+						if (shouldExit && shouldExit())
+							return;
+
 						FileInformation info;
 						if (!GetFileInformation(info, m_logger, filePath.c_str()))
 						{

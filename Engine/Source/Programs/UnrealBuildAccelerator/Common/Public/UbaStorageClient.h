@@ -43,7 +43,7 @@ namespace uba
 		void StopProxy();
 
 		using DirVector = Vector<TString>;
-		bool PopulateCasFromDirs(const DirVector& directories, u32 workerCount);
+		bool PopulateCasFromDirs(const DirVector& directories, u32 workerCount, const Function<bool()>& shouldExit = {});
 
 		#if !UBA_USE_SPARSEFILE
 		virtual bool GetCasFileName(StringBufferBase& out, const CasKey& casKey) override;
@@ -61,7 +61,7 @@ namespace uba
 
 	private:
 		bool SendFile(const CasKey& casKey, const tchar* fileName, u8* sourceMem, u64 sourceSize, const tchar* hint);
-		bool PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock);
+		bool PopulateCasFromDirsRecursive(const tchar* dir, WorkManager& workManager, UnorderedSet<u64>& seenIds, ReaderWriterLock& seenIdsLock, const Function<bool()>& shouldExit);
 
 		NetworkClient& m_client;
 		bool m_sendCompressed;

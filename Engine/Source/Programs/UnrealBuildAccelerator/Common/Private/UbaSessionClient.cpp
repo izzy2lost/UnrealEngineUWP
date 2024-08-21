@@ -31,6 +31,7 @@ namespace uba
 	,	m_terminationTime(~0ull)
 	,	m_waitToSendEvent(false)
 	,	m_loop(true)
+	,	m_allowSpawn(true)
 	{
 		m_maxProcessCount = info.maxProcessCount;
 		m_dedicated = info.dedicated;
@@ -116,6 +117,11 @@ namespace uba
 	void SessionClient::SetMaxProcessCount(u32 count)
 	{
 		m_maxProcessCount = count;
+	}
+
+	void SessionClient::SetAllowSpawn(bool allow)
+	{
+		m_allowSpawn = allow;
 	}
 
 	u64 SessionClient::GetBestPing()
@@ -1555,7 +1561,7 @@ namespace uba
 				m_logger.Info(TC("%s. Will stop scheduling processes and send failing processes back for retry"), m_terminationReason.load());
 			}
 
-			if (!activeProcesses.empty())
+			if (!activeProcesses.empty() || !m_allowSpawn)
 			{
 				idleStartTime = GetTime();
 				processRequestCount = 0;
@@ -1601,7 +1607,7 @@ namespace uba
 				lastWaitTime = GetTime();
 			}
 
-			bool canSpawn = TimeToMs(GetTime() - lastWaitTime) > waitTimeToSpawnAfterKillMs;
+			bool canSpawn = TimeToMs(GetTime() - lastWaitTime) > waitTimeToSpawnAfterKillMs && m_allowSpawn;
 			if (!canSpawn)
 				waitTimeoutMs = 500;
 

@@ -1110,7 +1110,8 @@ namespace uba
 					return true;
 				};
 
-			client->RegisterOnDisconnected([&]() { networkBackend->StopListen(); if (auto proxyServer = proxy.server.load()) proxyServer->DisconnectClients(); });
+			Atomic<bool> isDisconnected;
+			client->RegisterOnDisconnected([&]() { isDisconnected = true; networkBackend->StopListen(); if (auto proxyServer = proxy.server.load()) proxyServer->DisconnectClients(); });
 
 			struct NetworkBackends
 			{
@@ -1142,9 +1143,6 @@ namespace uba
 			auto bscsg = MakeGuard([&]() { delete storageClient; });
 
 			if (!storageClient->LoadCasTable(true))
-				return false;
-
-			if (!storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount))
 				return false;
 
 			proxy.storageClient = storageClient;
@@ -1256,9 +1254,21 @@ namespace uba
 			//SetPriorityClass(GetCurrentProcess(), ABOVE_NORMAL_PRIORITY_CLASS);
 			//#endif
 
+			bool needPrepopulate = !populateCasDirs.empty();
+			if (needPrepopulate)
+				sessionClient->SetAllowSpawn(false);
+
 			storageClient->Start();
 			sessionClient->Start();
 
+			// We do population here to make sure session thread is running which will send pings to host (to prevent timeouts
+			if (needPrepopulate)
+			{
+				if (storageClient->PopulateCasFromDirs(populateCasDirs, maxProcessCount, [&]() { return isDisconnected.load(); }))
+					sessionClient->SetAllowSpawn(true);
+				else
+					terminationReason.Append(TC("Failed to prepopulate cas from local directory"));
+			}
 
 			if (terminationReason.count)
 			{

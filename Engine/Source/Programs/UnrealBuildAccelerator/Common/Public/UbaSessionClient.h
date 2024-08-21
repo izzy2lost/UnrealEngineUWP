@@ -41,6 +41,7 @@ namespace uba
 		void SendSummary(const Function<void(Logger&)>& extraInfo);
 		void SetIsTerminating(const tchar* reason = TC("Terminating"), u64 delayMs = 0); // Session stores pointer directly. Can't be temporary
 		void SetMaxProcessCount(u32 count);
+		void SetAllowSpawn(bool allow);
 
 		u64 GetBestPing();
 
@@ -150,6 +151,7 @@ namespace uba
 		Event m_waitToSendEvent;
 		Thread m_loopThread;
 		Atomic<bool> m_loop;
+		Atomic<bool> m_allowSpawn;
 
 		Function<void(const ProcessHandle&)> m_processFinished;
 
