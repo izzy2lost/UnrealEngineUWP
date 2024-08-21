@@ -368,6 +368,18 @@ bool URigVMEdGraphFunctionRefNodeSpawner::IsTemplateNodeFilteredOut(FBlueprintAc
 	{
 		return true;
 	}
+
+	// filter outdated functions
+	if(ReferencedPublicFunctionHeader.IsValid())
+	{
+		for(const FRigVMTag& Tag : ReferencedPublicFunctionHeader.Variant.Tags)
+		{
+			if(Tag.bMarksSubjectAsInvalid)
+			{
+				return true;
+			}
+		}
+	}
 	
 	if(bIsLocalFunction)
 	{

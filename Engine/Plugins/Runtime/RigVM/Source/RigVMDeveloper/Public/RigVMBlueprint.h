@@ -854,6 +854,7 @@ private:
 	friend class FRigVMTreePackageNode;
 	friend class SRigVMGraphNode;
 	friend struct FGuardSkipDirtyBlueprintStatus;
+	friend class SRigModuleAssetBrowser;
 };
 
 class RIGVMDEVELOPER_API FRigVMBlueprintCompileScope
