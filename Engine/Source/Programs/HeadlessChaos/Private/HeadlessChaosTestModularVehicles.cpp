@@ -385,6 +385,7 @@ namespace ChaosTest
 			Setup.ChangeUpRPM = 3000;
 			Setup.ChangeDownRPM = 1200;
 			Setup.GearChangeTime = 0.0f;
+			Setup.GearHysteresisTime = 0.0f;
 			Setup.TransmissionType = FTransmissionSettings::ETransType::AutomaticType;
 			Setup.AutoReverse = false;
 			Setup.TransmissionEfficiency = 1.0f;

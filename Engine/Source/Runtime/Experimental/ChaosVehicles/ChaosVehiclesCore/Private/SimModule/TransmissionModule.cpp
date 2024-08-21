@@ -17,6 +17,7 @@ namespace Chaos
 		, TargetGear(1)
 		, CurrentGearChangeTime(0.f)
 		, AllowedToChangeGear(true)
+		, GearHysteresisTimer(0.f)
 	{
 	}
 
@@ -25,7 +26,7 @@ namespace Chaos
 
 		if (Setup().AutoReverse)
 		{
-			if (Inputs.bIsReversing)
+			if (Inputs.GetControls().GetMagnitude(ReverseControlName))
 			{
 				// if reversing change to reverse gear if currently in a forwards gear
 				if (TargetGear > 0)
@@ -45,6 +46,14 @@ namespace Chaos
 
 		if (Setup().TransmissionType == FTransmissionSettings::ETransType::AutomaticType)
 		{
+			if (AllowedToChangeGear == false)
+			{
+				GearHysteresisTimer -= DeltaTime;
+				if (GearHysteresisTimer <= 0.0f)
+				{
+					AllowedToChangeGear = true;
+				}
+			}
 			// not currently changing gear, also don't want to change up because the wheels are spinning up due to having no load
 			if (!IsCurrentlyChangingGear() && AllowedToChangeGear)
 			{
@@ -61,6 +70,8 @@ namespace Chaos
 					if (CurrentGear > 0)
 					{
 						ChangeUp();
+						AllowedToChangeGear = false;
+						GearHysteresisTimer = Setup().GearHysteresisTime;
 					}
 					else
 					{
@@ -90,10 +101,6 @@ namespace Chaos
 			{
 				ChangeDown();
 			}
-			//else if (Inputs.ControlInputs.GearNumber) #TODO: this was never used
-			//{
-			//	TargetGear = Inputs.ControlInputs.GearNumber;
-			//}
 		}
 
 		if (CurrentGear != TargetGear)

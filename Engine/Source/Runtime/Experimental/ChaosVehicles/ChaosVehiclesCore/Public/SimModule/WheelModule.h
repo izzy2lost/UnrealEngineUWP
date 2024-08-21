@@ -85,8 +85,8 @@ namespace Chaos
 			, MaxRotationVel(100.0f)
 			, Axis(EWheelAxis::X)
 			, ReverseDirection(false)
+			, ForceOffset(FVector::ZeroVector)
 		{
-
 		}
 
 		float Radius;
@@ -114,6 +114,8 @@ namespace Chaos
 		float MaxRotationVel;
 		EWheelAxis Axis;
 		bool ReverseDirection;
+		FVector ForceOffset;
+
 	};
 
 	class CHAOSVEHICLESCORE_API FWheelSimModule : public FWheelBaseInterface, public TSimModuleSettings<FWheelSettings>, public TSimulationModuleTypeable<FWheelSimModule>

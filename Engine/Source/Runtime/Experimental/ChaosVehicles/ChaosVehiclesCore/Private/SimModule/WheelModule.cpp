@@ -180,8 +180,7 @@ namespace Chaos
 			{
 				ForceFromFriction = -ForceFromFriction;
 			}
-
-			AddLocalForce(SteeringRotator.RotateVector(ForceFromFriction));
+			AddLocalForceAtPosition(SteeringRotator.RotateVector(ForceFromFriction), Setup().ForceOffset);
 		}
 
 		TransmitTorque(VehicleModuleSystem, DriveTorque, BrakeTorque);

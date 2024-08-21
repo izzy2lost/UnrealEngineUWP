@@ -492,7 +492,7 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 		if (!bUsingNetworkPhysicsPrediction)
 		{
 			// and send to server - (ServerUpdateState_Implementation below)
-			ServerUpdateState(InputsContainer, ReverseInput, bKeepVehicleAwake);
+			ServerUpdateState(InputsContainer, bKeepVehicleAwake);
 		}
 
 		if (PawnOwner && PawnOwner->IsNetMode(NM_Client))
@@ -504,20 +504,18 @@ void UModularVehicleBaseComponent::UpdateState(float DeltaTime)
 	{
 		// use replicated values for remote pawns
 		InputsContainer = ReplicatedState.Container;
-		ReverseInput = ReplicatedState.Reverse;
 		bKeepVehicleAwake = ReplicatedState.KeepAwake;
 	}
 }
 
-bool UModularVehicleBaseComponent::ServerUpdateState_Validate(const FModuleInputContainer& InputsIn, bool Reverse, bool KeepAwake)
+bool UModularVehicleBaseComponent::ServerUpdateState_Validate(const FModuleInputContainer& InputsIn, bool KeepAwake)
 {
 	return true;
 }
 
-void UModularVehicleBaseComponent::ServerUpdateState_Implementation(const FModuleInputContainer& InputsIn, bool Reverse, bool KeepAwake)
+void UModularVehicleBaseComponent::ServerUpdateState_Implementation(const FModuleInputContainer& InputsIn, bool KeepAwake)
 {
 	// update state of inputs
-	ReplicatedState.Reverse = Reverse;
 	ReplicatedState.KeepAwake = KeepAwake;
 	ReplicatedState.Container = InputsIn;
 }
@@ -709,7 +707,6 @@ void UModularVehicleBaseComponent::Update(float DeltaTime)
 
 		FModularVehicleAsyncInput* AsyncInput = static_cast<FModularVehicleAsyncInput*>(CurAsyncInput);
 
-		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.Reverse = ReverseInput;
 		AsyncInput->PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake = bKeepVehicleAwake;
 
 		// All control inputs
@@ -1164,14 +1161,9 @@ void UModularVehicleBaseComponent::SetInput(const FName& Name, const FVector& Va
 	}
 }
 
-void UModularVehicleBaseComponent::SetReverseInput(bool Reverse)
-{
-	RawReverseInput = Reverse;
-}
-
 void UModularVehicleBaseComponent::SetGearInput(int32 Gear)
 {
-	RawGearInput = Gear;
+	GearInput = Gear;
 }
 
 int32 UModularVehicleBaseComponent::GetCurrentGear()

@@ -250,7 +250,7 @@ void FModuleInputContainer::RemoveAllInputs()
 
 void FModuleInputContainer::Lerp(const FModuleInputContainer& Min, const FModuleInputContainer& Max, float Alpha)
 {
-	for (int I = 0; I < InputValues.Num(); I++)
+	for (int I = 0; I < FMath::Min3(InputValues.Num(), Min.InputValues.Num(), Max.InputValues.Num()); I++)
 	{
 		InputValues[I].Lerp(Min.InputValues[I], Max.InputValues[I], Alpha);
 	}

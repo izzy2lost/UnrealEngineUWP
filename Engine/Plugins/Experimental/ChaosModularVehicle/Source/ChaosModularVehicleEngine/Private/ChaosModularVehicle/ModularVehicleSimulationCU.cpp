@@ -131,7 +131,6 @@ void FModularVehicleSimulationCU::Simulate_ClusterUnion(UWorld* InWorld, float D
 
 		SimInputData.ControlInputs = &InputInterface;
 		SimInputData.bKeepVehicleAwake = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.KeepAwake;
-		SimInputData.bIsReversing = InputData.PhysicsInputs.NetworkInputs.VehicleInputs.Reverse;
 
 		PerformAdditionalSimWork(InWorld, InputData, Proxy, SimInputData);
 

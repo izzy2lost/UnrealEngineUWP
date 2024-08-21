@@ -208,9 +208,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetInputAxis3D(const FName Name, const FVector Value);
 
-	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
-	void SetReverseInput(bool Reverse);
-
 	/** Set the gear directly */
 	UFUNCTION(BlueprintCallable, Category = "Game|Components|ModularVehicle")
 	void SetGearInput(int32 Gear);
@@ -292,15 +289,7 @@ protected:
 
 	// latest gear selected
 	UPROPERTY(Transient)
-	int32 RawGearInput;
-
-	// reverse direction enbaled
-	UPROPERTY(Transient)
-	bool RawReverseInput;
-
-	// Reverse state
-	UPROPERTY(Transient)
-	bool ReverseInput;
+	int32 GearInput;
 
 	// The currently selected gear
 	UPROPERTY(Transient)
@@ -328,12 +317,9 @@ public:
 	UPROPERTY(Transient, Replicated)
 	TArray<FConstructionData> ConstructionDatas;
 
-	UPROPERTY(transient, duplicatetransient, BlueprintReadOnly, Category = "Game|Components|ModularVehicle")
-	TArray<TObjectPtr<UDefaultModularVehicleInputModifier>> InputModifiers;
-
 	/** Pass current state to server */
 	UFUNCTION(reliable, server, WithValidation)
-	void ServerUpdateState(const FModuleInputContainer& InputsIn, bool Reverse, bool KeepAwake);
+	void ServerUpdateState(const FModuleInputContainer& InputsIn, bool KeepAwake);
 
 	void LogInputSetup();
 

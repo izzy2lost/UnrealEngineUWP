@@ -36,6 +36,7 @@ namespace Chaos
 	const FName BrakeControlName("Brake");
 	const FName ClutchControlName("Clutch");
 	const FName BoostControlName("Boost");
+	const FName ReverseControlName("Reverse");
 	const FName ChangeUpControlName("ChangeUp");
 	const FName ChangeDownControlName("ChangeDown");
 	const FName PitchControlName("Pitch");
@@ -57,7 +58,6 @@ namespace Chaos
 		FTransform VehicleWorldTransform;
 		TMap<int32, FModuleHitResults> HitResults;
 		FInputInterface* ControlInputs = nullptr;
-		bool bIsReversing = false;
 		bool bKeepVehicleAwake = false;
 	};
 

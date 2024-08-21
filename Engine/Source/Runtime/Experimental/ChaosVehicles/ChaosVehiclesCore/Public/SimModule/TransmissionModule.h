@@ -73,6 +73,7 @@ namespace Chaos
 			, ChangeUpRPM(5000)
 			, ChangeDownRPM(2500)
 			, GearChangeTime(0.5f)
+			, GearHysteresisTime(2.0f)
 			, TransmissionEfficiency(1.f)
 			, TransmissionType(ETransType::AutomaticType)
 			, AutoReverse(true)
@@ -92,6 +93,7 @@ namespace Chaos
 		uint32 ChangeUpRPM;				// [RPM]
 		uint32 ChangeDownRPM;			// [RPM]
 		float GearChangeTime; 			// [sec]
+		float GearHysteresisTime;		// [sec]
 
 		float TransmissionEfficiency;	// Loss from friction in the system mean we might run at around 0.94 Efficiency
 
@@ -174,7 +176,7 @@ namespace Chaos
 		float CurrentGearChangeTime; // Time to change gear, no power transmitted to the wheels during change
 
 		bool AllowedToChangeGear; // conditions are ok for an automatic gear change
-
+		float GearHysteresisTimer;
 	};
 	
 	class CHAOSVEHICLESCORE_API FTransmissionSimFactory

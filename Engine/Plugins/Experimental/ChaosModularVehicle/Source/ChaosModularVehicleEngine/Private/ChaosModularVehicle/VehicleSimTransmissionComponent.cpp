@@ -20,6 +20,7 @@ UVehicleSimTransmissionComponent::UVehicleSimTransmissionComponent()
 	ChangeUpRPM = 4500;
 	ChangeDownRPM = 1600;
 	GearChangeTime = 0.5f;
+	GearHysteresisTime = 2.0f;
 	TransmissionEfficiency = 0.9f;
 	TransmissionType = EModuleTransType::Automatic;
 	AutoReverse = true;
@@ -36,6 +37,7 @@ Chaos::ISimulationModuleBase* UVehicleSimTransmissionComponent::CreateNewCoreMod
 	Settings.ChangeUpRPM = ChangeUpRPM;
 	Settings.ChangeDownRPM = ChangeDownRPM;
 	Settings.GearChangeTime = GearChangeTime;
+	Settings.GearHysteresisTime = GearHysteresisTime;
 	Settings.TransmissionEfficiency = TransmissionEfficiency;
 	Settings.TransmissionType = static_cast<Chaos::FTransmissionSettings::ETransType>(TransmissionType);
 
