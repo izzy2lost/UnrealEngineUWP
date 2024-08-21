@@ -33,7 +33,7 @@ protected:
 	struct FMovieGraphUIPass final : public FMovieGraphWidgetPass
 	{
 		virtual void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, const FMovieGraphRenderPassLayerData& InLayer) override;
-		virtual TSharedPtr<SWidget> GetWidget() override;
+		virtual TSharedPtr<SWidget> GetWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame) override;
 		virtual int32 GetCompositingSortOrder() const override;
 	};
 	

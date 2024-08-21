@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #pragma once
 
@@ -38,10 +38,12 @@ protected:
 
 		virtual void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, const FMovieGraphRenderPassLayerData& InLayer);
 		virtual void Teardown();
-		virtual TSharedPtr<SWidget> GetWidget() = 0;
+		virtual TSharedPtr<SWidget> GetWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame) = 0;
 		virtual void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData);
 		virtual void GatherOutputPasses(TArray<FMovieGraphRenderDataIdentifier>& OutExpectedPasses) const;
 		virtual int32 GetCompositingSortOrder() const = 0;
+		virtual UMovieGraphWidgetRendererBaseNode* GetParentNode(UMovieGraphEvaluatedConfig* InConfig) const;
+
 
 	protected:
 		FMovieGraphRenderPassLayerData LayerData;
@@ -51,9 +53,6 @@ protected:
 
 		/** The renderer associated with this pass. */
 		TWeakObjectPtr<UMovieGraphDefaultRenderer> Renderer;
-
-		/** The node instance (not CDO) associated with this pass. */
-		TWeakObjectPtr<UMovieGraphWidgetRendererBaseNode> RenderPassNode;
 	};
 
 	/** Widget renderer shared with all FMovieGraphWidgetPass instances. */

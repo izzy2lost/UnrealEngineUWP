@@ -51,7 +51,7 @@ protected:
 	struct FMovieGraphBurnInPass final : public FMovieGraphWidgetPass
 	{
 		virtual void Setup(TWeakObjectPtr<UMovieGraphDefaultRenderer> InRenderer, const FMovieGraphRenderPassLayerData& InLayer) override;
-		virtual TSharedPtr<SWidget> GetWidget() override;
+		virtual TSharedPtr<SWidget> GetWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame) override;
 		virtual void Render(const FMovieGraphTraversalContext& InFrameTraversalContext, const FMovieGraphTimeStepData& InTimeData) override;
 		virtual int32 GetCompositingSortOrder() const override;
 
@@ -59,7 +59,8 @@ protected:
 		UClass* GetBurnInClass() const;
 
 	private:
-		TObjectPtr<UMovieGraphBurnInWidget> GetBurnInWidget() const;
+		TObjectPtr<UMovieGraphBurnInWidget> GetBurnInWidget(UMovieGraphWidgetRendererBaseNode* InNodeThisFrame) const;
+		TSubclassOf<UMovieGraphBurnInWidget> CachedBurnInWidgetClass;
 	};
 
 private:
