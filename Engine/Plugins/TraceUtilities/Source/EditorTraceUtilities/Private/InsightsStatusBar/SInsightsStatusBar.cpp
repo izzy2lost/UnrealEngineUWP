@@ -1006,7 +1006,9 @@ bool SInsightsStatusBarWidget::TraceScreenshot_CanExecute()
 
 void SInsightsStatusBarWidget::TraceScreenshot_Execute()
 {
+#if UE_SCREENSHOT_TRACE_ENABLED
 	FTraceScreenshot::RequestScreenshot(TEXT(""), false);
+#endif
 }
 
 bool SInsightsStatusBarWidget::TraceBookmark_CanExecute()
