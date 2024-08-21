@@ -483,12 +483,12 @@ namespace Gauntlet
 			using(ScopedSuspendECErrorParsing ErrorSuspension = new())
 			{
 				if(UseDeviceCtl)
-				{
-					Result = ExecuteDevicectlCommand(string.Format("device install app {0} -v", BuildPath), MaxInstallTime);
+				{ 
+					Result = ExecuteDevicectlCommand(string.Format("device install app {0} -v", BuildPath), MaxInstallTime, AdditionalOptions: ERunOptions.NoStdOutRedirect);
 				}
 				else
 				{
-					Result = ExecuteIOSDeployCommand(string.Format("-b \"{0}\"", BuildPath), MaxInstallTime);			
+					Result = ExecuteIOSDeployCommand(string.Format("-b \"{0}\"", BuildPath), MaxInstallTime, AdditionalOptions: ERunOptions.NoStdOutRedirect);			
 				}
 			}
 
@@ -544,13 +544,14 @@ namespace Gauntlet
 							// If a device has an issue and we need to select a new one, don't re-copy the whole build from the network again!
 							HasCopiedNetworkBuild = true;
 						}
+
+						BulkBuildPath = DestinationBuildPath;
 					}
-					
-					BulkBuildPath = DestinationBuildPath;
 				}
 
-				string IDeviceFS = Path.Combine(BulkBuildPath, "libimobiledevice", "mac", "idevicefs");
-				string BulkContentCopyCommand = string.Format("-b {0} -x RequiredCommands.txt", Build.PackageName);
+				string IDeviceFS = Path.Combine(Globals.UnrealRootDir, "Engine", "Extras", "ThirdPartyNotUE", "libimobiledevice", "mac", "idevicefs");
+				string BulkContentCopyCommand = string.Format("-u {0} -b {1} -x RequiredCommands.txt", UUID, Build.PackageName);
+
 				Result = ExecuteDeploymentCommand(IDeviceFS, BulkContentCopyCommand, MaxInstallTime, true, BulkBuildPath, ERunOptions.NoStdOutRedirect);
 
 				if(Result.ExitCode != 0)
