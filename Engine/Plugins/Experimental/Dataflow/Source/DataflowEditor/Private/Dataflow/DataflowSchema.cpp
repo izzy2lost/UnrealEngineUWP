@@ -94,13 +94,10 @@ void UDataflowSchema::GetGraphContextActions(FGraphContextMenuBuilder& ContextMe
 	{
 		for (Dataflow::FFactoryParameters NodeParameters : Factory->RegisteredParameters())
 		{
-			if (FDataflowEditorCommands::Get().CreateNodesMap.Contains(NodeParameters.TypeName))
+			if (TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> Action =
+				FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(ContextMenuBuilder.CurrentGraph, NodeParameters.TypeName, NodeParameters.DisplayName))
 			{
-				if (TSharedPtr<FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode> Action =
-					FAssetSchemaAction_Dataflow_CreateNode_DataflowEdNode::CreateAction(ContextMenuBuilder.CurrentGraph, NodeParameters.TypeName, NodeParameters.DisplayName))
-				{
-					ContextMenuBuilder.AddAction(Action);
-				}
+				ContextMenuBuilder.AddAction(Action);
 			}
 		}
 	}

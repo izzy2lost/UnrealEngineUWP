@@ -92,26 +92,6 @@ void FDataflowEditorCommandsImpl::RegisterCommands()
 		SetConstructionViewModeCommands.Add(ViewMode->GetName(), SetViewModeCommand);
 	}
 
-	if (Dataflow::FNodeFactory* Factory = Dataflow::FNodeFactory::GetInstance())
-	{
-		for (Dataflow::FFactoryParameters Parameters : Factory->RegisteredParameters())
-		{
-			TSharedPtr< FUICommandInfo > AddNode;
-			FUICommandInfo::MakeCommandInfo(
-				this->AsShared(),
-				AddNode,
-				Parameters.TypeName,
-				LOCTEXT("DataflowButton", "New Dataflow Node"),
-				LOCTEXT("NewDataflowNodeTooltip", "New Dataflow Node Tooltip"),
-				FSlateIcon(),
-				EUserInterfaceActionType::Button,
-				FInputChord()
-			);
-			CreateNodesMap.Add(Parameters.TypeName, AddNode);
-		}
-	}
-
-
 	Dataflow::FDataflowToolRegistry& ToolRegistry = Dataflow::FDataflowToolRegistry::Get();
 	const TArray<FName> NodeNames = ToolRegistry.GetNodeNames();
 	for (const FName& NodeName : NodeNames)
