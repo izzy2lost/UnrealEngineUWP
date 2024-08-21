@@ -14,6 +14,9 @@
 class FViewport;
 class SWidget;
 struct FAutoCompleteCommand;
+class FCanvasTextItem;
+class FCanvasTileItem;
+class UFont;
 
 /**
  * Node for storing an auto-complete tree based on each char in the command.
@@ -140,16 +143,16 @@ class UConsole
 	// Scrollback region selection mouse and state
 	struct ScrollbackSelection
 	{
-		FVector2D MousePosDown = FVector2D(0, 0);
-		FVector2D MousePosUp = FVector2D(0, 0);
-		int32 MousePosX = 0;
-		int32 MousePosY = 0;
+		FVector2f MousePosDown = FVector2f(0.0f, 0.0f);
+		FVector2f MousePosUp = FVector2f(0.0f, 0.0f);
+		FVector2f MousePos = FVector2f(0.0f, 0.0f);
 		bool bActive = false;
 		bool bCapture = false;
 		bool bMade = false;
 		float Offset = 0.0f;
 	} Selection;
 
+	float TextW = 15.0f;
 	float TextH = 15.0f;
 
 	ENGINE_API ~UConsole();
@@ -328,13 +331,13 @@ class UConsole
 	DECLARE_MULTICAST_DELEGATE_OneParam(FRegisterConsoleAutoCompleteEntries, TArray<FAutoCompleteCommand>&);
 	static ENGINE_API FRegisterConsoleAutoCompleteEntries RegisterConsoleAutoCompleteEntries;
 
-	/** Deletate for when the console is activated or deactivated */
+	/** Delegate for when the console is activated or deactivated */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnConsoleActivationStateChanged, bool);
 	static ENGINE_API FOnConsoleActivationStateChanged OnConsoleActivationStateChanged;
 
 private:
 
-	ENGINE_API bool InputKey_InputLine(FInputDeviceId DeviceId, FKey Key, EInputEvent Event, float AmountDepressed = 1.f, bool bGamepad = false);
+	bool InputKey_InputLine(FInputDeviceId DeviceId, FKey Key, EInputEvent Event, float AmountDepressed = 1.f, bool bGamepad = false);
 
 	// interface FOutputDevice
 	ENGINE_API virtual void Serialize( const TCHAR* V, ELogVerbosity::Type Verbosity, const class FName& Category ) override;
@@ -345,21 +348,31 @@ private:
 	 * Prints a single line of text to the console.
 	 * @param Text - A line of text to display on the console.
 	 */
-	ENGINE_API void OutputTextLine(const FString& Text);
+	void OutputTextLine(const FString& Text);
 
-	ENGINE_API void PostRender_InputLine(class UCanvas* Canvas, FIntPoint UserInputLinePos);
+	void PostRender_InputLine(class UCanvas* Canvas, FIntPoint UserInputLinePos);
 
-	ENGINE_API void SetAutoCompleteFromHistory();
+	void SetAutoCompleteFromHistory();
 
-	ENGINE_API void SetInputLineFromAutoComplete();
+	void SetInputLineFromAutoComplete();
 
-	ENGINE_API void UpdatePrecompletedInputLine();
+	void UpdatePrecompletedInputLine();
 
-	ENGINE_API void NormalizeHistoryBuffer();
+	void NormalizeHistoryBuffer();
+
+	// Scrollback region selection utilities
+	void DrawLine(
+		UCanvas* Canvas, UFont* Font, FCanvasTileItem& TileBlack, FCanvasTileItem& TileWhite,
+		FCanvasTextItem ConsoleText, const FString& Line, float PenX, float PenY, float PosLeft,
+		TArray<FString>& SelectedLines);
+	void GetPosInTextLine(UCanvas* Canvas, UFont* Font, const FString& Line, float MousePosX, float& PosInLine, int32& PosInString);
+	float GetPosTextLineEnd(UCanvas* Canvas, UFont* Font, const FString& Line);
 
 	// Console settings from BaseInput.ini
 	const UConsoleSettings* ConsoleSettings;
 
 	// Widget that was focused before the console was opened (focus will be restored to this if it's valid after the console closes)
 	TWeakPtr<SWidget> PreviousFocusedWidget;
+
+	const bool bDPIAwareStringMeasurement = true;
 };
