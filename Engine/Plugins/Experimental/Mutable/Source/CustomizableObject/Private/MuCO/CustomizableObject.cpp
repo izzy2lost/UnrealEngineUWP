@@ -600,6 +600,11 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 
 	SerializeStreamedResources(MemoryWriter, GetPublic(), GetPublic()->StreamedResourceData, bIsCooking);
 
+	for (FCustomizableObjectStreamedResourceData Extension : GetPublic()->StreamedExtensionData)
+	{
+		Extension.GetPath()->Data.Data.Serialize(MemoryWriter);
+	}
+
 	int32 NumReferencedMaterials = LocalModelResources.Materials.Num();
 	MemoryWriter << NumReferencedMaterials;
 
@@ -677,6 +682,10 @@ void UCustomizableObjectPrivate::SaveCompiledData(FArchive& MemoryWriter, bool b
 	MemoryWriter << LocalModelResources.ParameterUIDataMap;
 	MemoryWriter << LocalModelResources.StateUIDataMap;
 
+#if WITH_EDITORONLY_DATA
+	MemoryWriter << LocalModelResources.IntParameterOptionDataTable;
+#endif
+	
 	MemoryWriter << LocalModelResources.ClothingAssetsData;
 	MemoryWriter << LocalModelResources.ClothSharedConfigsData;
 
@@ -822,6 +831,10 @@ void UCustomizableObjectPrivate::LoadCompiledData(FArchive& MemoryReader, const 
 		MemoryReader << LocalModelResource.ImageProperties;
 		MemoryReader << LocalModelResource.ParameterUIDataMap;
 		MemoryReader << LocalModelResource.StateUIDataMap;
+
+#if WITH_EDITORONLY_DATA
+		MemoryReader << LocalModelResource.IntParameterOptionDataTable;
+#endif
 
 		MemoryReader << LocalModelResource.ClothingAssetsData; 
 		MemoryReader << LocalModelResource.ClothSharedConfigsData; 
@@ -1684,6 +1697,17 @@ FMutableStateUIMetadata UCustomizableObject::GetStateUIMetadata(const FString& S
 	const FMutableStateData* StateData = Private->GetModelResources().StateUIDataMap.Find(StateName);
 	return StateData ? StateData->StateUIMetadata : FMutableStateUIMetadata();
 }
+
+
+#if WITH_EDITOR
+TSet<TSoftObjectPtr<UDataTable>> UCustomizableObject::GetIntParameterOptionDataTable(FString& ParamName, const FString& OptionName)
+{
+	const FModelResources& ModelResources = GetPrivate()->GetModelResources();
+	const TSet<TSoftObjectPtr<UDataTable>>* Result = ModelResources.IntParameterOptionDataTable.Find(MakeTuple(ParamName, OptionName));
+	
+	return Result ? *Result : TSet<TSoftObjectPtr<UDataTable>>();
+}
+#endif
 
 
 float UCustomizableObject::GetFloatParameterDefaultValue(const FString& InParameterName) const

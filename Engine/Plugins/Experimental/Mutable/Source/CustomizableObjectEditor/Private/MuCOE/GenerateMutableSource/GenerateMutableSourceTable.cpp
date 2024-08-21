@@ -170,8 +170,8 @@ bool FillTableColumn(const UCustomizableObjectNodeTable* TableNode, mu::TablePtr
 								{
 									if (GameplayTagData)
 									{
-										const FGameplayTagContainer TagContainer = *(FGameplayTagContainer*)GameplayTagData;
-										TagContainer.GetGameplayTagArray(GameplayTags);
+										const FGameplayTagContainer* TagContainer = reinterpret_cast<FGameplayTagContainer*>(GameplayTagData);
+										TagContainer->GetGameplayTagArray(GameplayTags);
 									}
 								}
 							}
@@ -958,11 +958,18 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 	// Checking if the parameter name already exists
 	GenerationContext.AddParameterNameUnique(TableNode, TableNode->ParameterName);
 
+	TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
+
+	for (const FName& Name : RowNames)
+	{
+		TSet<TSoftObjectPtr<UDataTable>>& DataTables = GenerationContext.IntParameterOptionDataTable.FindOrAdd(MakeTuple(TableNode->ParameterName, Name.ToString()));
+		DataTables.Add(TSoftObjectPtr<UDataTable>(DataTable));
+	}
+	
 	// Generating Parameter UI MetaData if not exists
 	if (!GenerationContext.ParameterUIDataMap.Contains(TableNode->ParameterName))
 	{
 		// Getting Table and row names to access the information
-		TArray<FName> RowNames = GetRowsToCompile(*DataTable, *TableNode, GenerationContext);
 
 		FMutableParameterData ParameterUIData(TableNode->ParamUIMetadata, EMutableParameterType::Int);
 		ParameterUIData.IntegerParameterGroupType = TableNode->bAddNoneOption ? ECustomizableObjectGroupType::COGT_ONE_OR_NONE : ECustomizableObjectGroupType::COGT_ONE;
@@ -992,37 +999,65 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 			GenerationContext.Compiler->CompilerLog(LogMessage, TableNode);
 		}
 
-		if (!bIsValidMetadataColumn && !bIsValidThumbnailColumn)
+		if (!bIsValidMetadataColumn)
 		{
-			// Do no add a meta data if it is not needed.
 			return;
 		}
 
 		for (int32 NameIndex = 0; NameIndex < RowNames.Num(); ++NameIndex)
 		{
 			FName RowName = RowNames[NameIndex];
-			FMutableParamUIMetadata MetadataValue;
 
-			if (bIsValidMetadataColumn)
+			if (uint8* MetadataCellData = GetCellData(RowName, *DataTable, *MetadataColumnProperty))
 			{
-				if (uint8* CellData = GetCellData(RowName, *DataTable, *MetadataColumnProperty))
+				FMutableParamUIMetadata MetadataValue = *reinterpret_cast<FMutableParamUIMetadata*>(MetadataCellData);
+
+				FIntegerParameterUIData IntegerMetadata = FIntegerParameterUIData(MetadataValue);
+
+				// Add thumbnail
+				if (bIsValidThumbnailColumn && MetadataValue.EditorUIThumbnailObject.IsNull())
 				{
-					MetadataValue = *(FMutableParamUIMetadata*)CellData;
+					if (uint8* ThumbnailCellData = GetCellData(RowName, *DataTable, *ThumbnailColumnProperty))
+					{
+						FSoftObjectPtr* ObjectPtr = reinterpret_cast<FSoftObjectPtr*>(ThumbnailCellData);
+						IntegerMetadata.ParamUIMetadata.EditorUIThumbnailObject = ObjectPtr->ToSoftObjectPath();
+					}
 				}
-			}
 
-			FIntegerParameterUIData IntegerMetadata = FIntegerParameterUIData(MetadataValue);
-
-			if (bIsValidThumbnailColumn && MetadataValue.EditorUIThumbnailObject.IsNull())
-			{
-				if (uint8* CellData = GetCellData(RowName, *DataTable, *ThumbnailColumnProperty))
+				// Add tags
+				if (TableNode->bGatherTags)
 				{
-					FSoftObjectPtr ObjectPtr = *(FSoftObjectPtr*)CellData;
-					IntegerMetadata.ParamUIMetadata.EditorUIThumbnailObject = ObjectPtr.ToSoftObjectPath();
-				}
-			}
+					if (const UScriptStruct* Struct = DataTable->GetRowStruct())
+					{
+						for (TFieldIterator<FProperty> It(Struct); It; ++It)
+						{
+							FProperty* ColumnProperty = *It;
 
-			ParameterUIDataRef.ArrayIntegerParameterOption.Add(RowName.ToString(), IntegerMetadata);
+							if (!ColumnProperty)
+							{
+								continue;
+							}
+
+							if (const FStructProperty* StructProperty = CastField<FStructProperty>(ColumnProperty))
+							{
+								if (StructProperty->Struct == TBaseStructure<FGameplayTagContainer>::Get())
+								{
+									FName ColumnName = FName(DataTableUtils::GetPropertyExportName(ColumnProperty));
+								
+									FProperty* TagColumnProperty = DataTable->FindTableProperty(ColumnName);
+									if (uint8* TagCellData = GetCellData(RowName, *DataTable, *TagColumnProperty))
+									{
+										FGameplayTagContainer* TagContainer = reinterpret_cast<FGameplayTagContainer*>(TagCellData);
+										IntegerMetadata.ParamUIMetadata.EditorGameplayTags.AppendTags(*TagContainer);
+									}
+								}
+							}
+						}
+					}
+				}
+
+				ParameterUIDataRef.ArrayIntegerParameterOption.Add(RowName.ToString(), IntegerMetadata);
+			}
 		}
 	}
 }

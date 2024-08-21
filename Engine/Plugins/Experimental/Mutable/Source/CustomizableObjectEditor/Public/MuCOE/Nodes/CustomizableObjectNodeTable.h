@@ -225,6 +225,9 @@ public:
 	/** Name of the column that contains the asset to use its thumbnails as option thumbnails. */
 	UPROPERTY(EditAnywhere, Category = UI)
 	FName ThumbnailColumn;
+	
+	UPROPERTY(EditAnywhere, Category = UI, meta = (Tooltip = "Given a row, add all tags found in GameplayTag columns to its Parameter UI Metadata"))
+	bool bGatherTags = true;
 
 	/** Map to relate a Structure Column with its Data */
 	UPROPERTY()
