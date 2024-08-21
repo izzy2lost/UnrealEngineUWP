@@ -100,7 +100,7 @@ public:
 	UPropertyAnimatorCoreTimeSourceBase* GetTimeSource(FName InTimeSourceName) const;
 
 	/** Create a new time source for an animator */
-	UPropertyAnimatorCoreTimeSourceBase* CreateNewTimeSource(FName InTimeSourceName, UPropertyAnimatorCoreBase* InAnimator);
+	UPropertyAnimatorCoreTimeSourceBase* CreateNewTimeSource(FName InTimeSourceName, UObject* InOwner);
 
 	/** Register a preset class */
 	PROPERTYANIMATORCORE_API bool RegisterPresetClass(const UClass* InPresetClass);

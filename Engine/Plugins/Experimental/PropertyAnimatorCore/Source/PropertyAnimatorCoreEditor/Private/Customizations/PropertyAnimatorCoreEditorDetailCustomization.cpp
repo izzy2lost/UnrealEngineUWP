@@ -19,7 +19,7 @@
 void FPropertyAnimatorCoreEditorDetailCustomization::CustomizeDetails(IDetailLayoutBuilder& InDetailBuilder)
 {
 	const TSharedPtr<IPropertyHandle> LinkedPropertiesHandle = InDetailBuilder.GetProperty(
-		GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties),
+		UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName(),
 		UPropertyAnimatorCoreBase::StaticClass()
 	);
 
@@ -29,13 +29,15 @@ void FPropertyAnimatorCoreEditorDetailCustomization::CustomizeDetails(IDetailLay
 	}
 
 	TArray<TWeakObjectPtr<UPropertyAnimatorCoreBase>> AnimatorsWeak = InDetailBuilder.GetObjectsOfTypeBeingCustomized<UPropertyAnimatorCoreBase>();
+	UPropertyAnimatorCoreBase* Animator = AnimatorsWeak.IsValidIndex(0) ? AnimatorsWeak[0].Get() : nullptr;
 
-	if (AnimatorsWeak.Num() != 1 || !AnimatorsWeak[0].IsValid())
+	if (!Animator)
 	{
 		return;
 	}
 
-	AnimatorWeak = AnimatorsWeak[0].Get();
+	AnimatorWeak = Animator;
+
 	IDetailPropertyRow* PropertyRow = InDetailBuilder.EditDefaultProperty(LinkedPropertiesHandle);
 
 	if (!PropertyRow)

@@ -17,14 +17,7 @@ double UPropertyAnimatorCoreWorldTimeSource::GetTimeElapsed()
 
 bool UPropertyAnimatorCoreWorldTimeSource::IsTimeSourceReady() const
 {
-	const UPropertyAnimatorCoreBase* Animator = GetAnimator();
-
-	if (!Animator)
-	{
-		return false;
-	}
-
-	const UWorld* World = Animator->GetWorld();
+	const UWorld* World = GetWorld();
 
 	if (!World)
 	{

@@ -28,8 +28,6 @@ class UPropertyAnimatorCoreBase : public UObject
 
 	friend class UPropertyAnimatorCoreComponent;
 	friend class UPropertyAnimatorCoreContext;
-	friend class UPropertyAnimatorCoreEditorStackCustomization;
-	friend class FPropertyAnimatorCoreEditorDetailCustomization;
 
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAnimatorUpdated, UPropertyAnimatorCoreBase* /* InAnimator */)
@@ -57,6 +55,7 @@ public:
 	static constexpr const TCHAR* AlphaParameterName = TEXT("Alpha");
 
 #if WITH_EDITOR
+	PROPERTYANIMATORCORE_API static FName GetAnimatorEnabledPropertyName();
 	PROPERTYANIMATORCORE_API static FName GetLinkedPropertiesPropertyName();
 #endif
 
@@ -73,6 +72,12 @@ public:
 		return bAnimatorEnabled;
 	}
 
+	PROPERTYANIMATORCORE_API void SetOverrideTimeSource(bool bInOverride);
+	bool GetOverrideTimeSource() const
+	{
+		return bOverrideTimeSource;
+	}
+
 	/** Set the time source name to use */
 	PROPERTYANIMATORCORE_API void SetTimeSourceName(FName InTimeSourceName);
 	FName GetTimeSourceName() const
@@ -81,10 +86,7 @@ public:
 	}
 
 	/** Get the active time source */
-	UPropertyAnimatorCoreTimeSourceBase* GetActiveTimeSource() const
-	{
-		return ActiveTimeSource;
-	}
+	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreTimeSourceBase* GetActiveTimeSource() const;
 
 	/** Set the display name of this animator */
 	PROPERTYANIMATORCORE_API void SetAnimatorDisplayName(FName InName);
@@ -146,23 +148,6 @@ public:
 		return Cast<InContextClass>(GetLinkedPropertyContext(InProperty));
 	}
 
-protected:
-	//~ Begin UObject
-	PROPERTYANIMATORCORE_API virtual void BeginDestroy() override;
-	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
-	PROPERTYANIMATORCORE_API virtual void PostEditImport() override;
-	PROPERTYANIMATORCORE_API virtual void PreDuplicate(FObjectDuplicationParameters& InDupParams) override;
-	PROPERTYANIMATORCORE_API virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
-#if WITH_EDITOR
-	PROPERTYANIMATORCORE_API virtual void PreEditUndo() override;
-	PROPERTYANIMATORCORE_API virtual void PostEditUndo() override;
-	PROPERTYANIMATORCORE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
-#endif
-	//~ End UObject
-
-	/** Update display name based on linked properties */
-	void UpdateAnimatorDisplayName();
-
 	/** Use this to process each linked properties and resolve it, even virtual ones */
 	template<typename InContextClass
 		UE_REQUIRES(TIsDerivedFrom<InContextClass, UPropertyAnimatorCoreContext>::Value)>
@@ -199,6 +184,23 @@ protected:
 
 		return true;
 	}
+
+protected:
+	//~ Begin UObject
+	PROPERTYANIMATORCORE_API virtual void BeginDestroy() override;
+	PROPERTYANIMATORCORE_API virtual void PostLoad() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditImport() override;
+	PROPERTYANIMATORCORE_API virtual void PreDuplicate(FObjectDuplicationParameters& InDupParams) override;
+	PROPERTYANIMATORCORE_API virtual void PostDuplicate(EDuplicateMode::Type InDuplicateMode) override;
+#if WITH_EDITOR
+	PROPERTYANIMATORCORE_API virtual void PreEditUndo() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditUndo() override;
+	PROPERTYANIMATORCORE_API virtual void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent) override;
+#endif
+	//~ End UObject
+
+	/** Update display name based on linked properties */
+	void UpdateAnimatorDisplayName();
 
 	/** Used to evaluate linked properties, assign the result in the property bag and return true on success to update property value */
 	template<typename InContextClass
@@ -245,7 +247,7 @@ protected:
 
 	virtual void OnAnimatorDisplayNameChanged() {}
 
-	virtual void OnAnimatorAdded() {}
+	PROPERTYANIMATORCORE_API virtual void OnAnimatorAdded();
 	virtual void OnAnimatorRemoved() {}
 
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorEnabled();
@@ -306,12 +308,16 @@ private:
 	UPROPERTY(EditInstanceOnly, NoClear, Export, Instanced, Category="Animator")
 	TArray<TObjectPtr<UPropertyAnimatorCoreGroupBase>> PropertyGroups;
 
+	/** Use the global time source or override it on this animator */
+	UPROPERTY(EditInstanceOnly, Setter="SetOverrideTimeSource", Getter="GetOverrideTimeSource", Category="Animator", meta=(InlineEditConditionToggle))
+	bool bOverrideTimeSource = true;
+
 	/** The time source to use */
-	UPROPERTY(EditInstanceOnly, Setter="SetTimeSourceName", Getter="GetTimeSourceName", Category="Animator", meta=(GetOptions="GetTimeSourceNames"))
+	UPROPERTY(EditInstanceOnly, Setter, Getter, Category="Animator", meta=(GetOptions="GetTimeSourceNames", EditCondition="bOverrideTimeSource"))
 	FName TimeSourceName = NAME_None;
 
 	/** Active time source with its options, determined by its name */
-	UPROPERTY(VisibleInstanceOnly, Instanced, Transient, DuplicateTransient, Category="Animator")
+	UPROPERTY(VisibleInstanceOnly, Instanced, Transient, DuplicateTransient, Category="Animator", meta=(EditCondition="bOverrideTimeSource", EditConditionHides, HideEditConditionToggle))
 	TObjectPtr<UPropertyAnimatorCoreTimeSourceBase> ActiveTimeSource;
 
 	/** The cached time source used by this Animator */

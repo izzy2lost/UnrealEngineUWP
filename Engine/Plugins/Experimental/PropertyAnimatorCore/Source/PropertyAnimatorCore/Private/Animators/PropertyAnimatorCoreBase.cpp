@@ -7,6 +7,7 @@
 #include "Properties/PropertyAnimatorCoreGroupBase.h"
 #include "Properties/PropertyAnimatorCoreResolver.h"
 #include "Properties/Handlers/PropertyAnimatorCoreHandlerBase.h"
+#include "Settings/PropertyAnimatorCoreSettings.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
 #include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 
@@ -19,6 +20,11 @@ UPropertyAnimatorCoreBase::FOnAnimatorPropertyUpdated UPropertyAnimatorCoreBase:
 UPropertyAnimatorCoreBase::FOnAnimatorPropertyUpdated UPropertyAnimatorCoreBase::OnAnimatorPropertyUnlinkedDelegate;
 
 #if WITH_EDITOR
+FName UPropertyAnimatorCoreBase::GetAnimatorEnabledPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled);
+}
+
 FName UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName()
 {
 	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, LinkedProperties);
@@ -27,13 +33,6 @@ FName UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName()
 
 UPropertyAnimatorCoreBase::UPropertyAnimatorCoreBase()
 {
-	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
-	{
-		// Apply default time source
-		const TArray<FName> TimeSourceNames = AnimatorSubsystem->GetTimeSourceNames();
-		SetTimeSourceName(!TimeSourceNames.IsEmpty() ? TimeSourceNames[0] : NAME_None);
-	}
-
 #if WITH_EDITOR
 	if (!IsTemplate())
 	{
@@ -139,6 +138,7 @@ void UPropertyAnimatorCoreBase::PostEditImport()
 {
 	Super::PostEditImport();
 
+	OnTimeSourceNameChanged();
 	ResolvePropertiesOwner();
 }
 
@@ -154,6 +154,7 @@ void UPropertyAnimatorCoreBase::PostDuplicate(EDuplicateMode::Type InMode)
 {
 	Super::PostDuplicate(InMode);
 
+	OnTimeSourceNameChanged();
 	ResolvePropertiesOwner();
 }
 
@@ -184,7 +185,8 @@ void UPropertyAnimatorCoreBase::PostEditChangeProperty(FPropertyChangedEvent& Pr
 	{
 		OnAnimatorEnabledChanged();
 	}
-	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName))
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, TimeSourceName)
+		|| MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bOverrideTimeSource))
 	{
 		OnTimeSourceNameChanged();
 	}
@@ -209,6 +211,17 @@ void UPropertyAnimatorCoreBase::SetAnimatorEnabled(bool bInIsEnabled)
 
 	bAnimatorEnabled = bInIsEnabled;
 	OnAnimatorEnabledChanged();
+}
+
+void UPropertyAnimatorCoreBase::SetOverrideTimeSource(bool bInOverride)
+{
+	if (bOverrideTimeSource == bInOverride)
+	{
+		return;
+	}
+
+	bOverrideTimeSource = bInOverride;
+	OnTimeSourceChanged();
 }
 
 void UPropertyAnimatorCoreBase::SetTimeSourceName(FName InTimeSourceName)
@@ -312,6 +325,16 @@ bool UPropertyAnimatorCoreBase::HasPropertySupport(const FPropertyAnimatorCoreDa
 	return EnumHasAnyFlags(InSupportExpected, GetPropertySupport(InPropertyData));
 }
 
+void UPropertyAnimatorCoreBase::OnAnimatorAdded()
+{
+	bOverrideTimeSource = false;
+
+	if (const UPropertyAnimatorCoreSettings* AnimatorSettings = UPropertyAnimatorCoreSettings::Get())
+	{
+		SetTimeSourceName(AnimatorSettings->GetDefaultTimeSourceName());
+	}
+}
+
 void UPropertyAnimatorCoreBase::OnAnimatorEnabled()
 {
 	UE_LOG(LogPropertyAnimatorCoreBase
@@ -408,28 +431,11 @@ void UPropertyAnimatorCoreBase::ResolvePropertiesOwner(AActor* InNewOwner)
 
 void UPropertyAnimatorCoreBase::EvaluateAnimator(FInstancedPropertyBag& InParameters)
 {
-	UPropertyAnimatorCoreTimeSourceBase* TimeSource = GetActiveTimeSource();
-
-	if (!GetAnimatorEnabled()
-		|| !TimeSource)
-	{
-		return;
-	}
-
-	const TOptional<double> TimeElapsed = TimeSource->GetConditionalTimeElapsed();
-
-	if (!TimeElapsed.IsSet())
-	{
-		return;
-	}
-
 	RestoreProperties();
 
 	SaveProperties();
 
 	EvaluatedPropertyValues.Reset();
-	InParameters.AddProperty(TimeElapsedParameterName, EPropertyBagPropertyType::Double);
-    InParameters.SetValueDouble(TimeElapsedParameterName, TimeElapsed.GetValue());
 
 	bEvaluatingProperties = true;
 	EvaluateProperties(InParameters);
@@ -539,7 +545,7 @@ TArray<FName> UPropertyAnimatorCoreBase::GetTimeSourceNames() const
 
 UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::FindOrAddTimeSource(FName InTimeSourceName)
 {
-	if (IsTemplate())
+	if (IsTemplate() || !bOverrideTimeSource)
 	{
 		return nullptr;
 	}
@@ -574,6 +580,22 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::FindOrAddTimeSou
 	}
 
 	return NewTimeSource;
+}
+
+UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreBase::GetActiveTimeSource() const
+{
+	UPropertyAnimatorCoreTimeSourceBase* TimeSource = nullptr;
+
+	if (bOverrideTimeSource)
+	{
+		TimeSource = ActiveTimeSource;
+	}
+	else if (const UPropertyAnimatorCoreComponent* AnimatorComponent = GetAnimatorComponent())
+	{
+		TimeSource = AnimatorComponent->GetAnimatorsActiveTimeSource();
+	}
+
+	return TimeSource;
 }
 
 void UPropertyAnimatorCoreBase::SetAnimatorDisplayName(FName InName)

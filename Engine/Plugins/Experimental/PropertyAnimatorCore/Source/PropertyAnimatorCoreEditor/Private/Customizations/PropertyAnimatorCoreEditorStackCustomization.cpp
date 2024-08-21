@@ -12,7 +12,6 @@
 #include "Styling/SlateIconFinder.h"
 #include "Subsystems/PropertyAnimatorCoreEditorSubsystem.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
-#include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 #include "ToolMenus.h"
 #include "ToolMenu.h"
 
@@ -177,7 +176,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 	// Customize component header
 	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, bAnimatorsEnabled));
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetAnimatorsEnabledPropertyName());
 
 		const FSlateIcon ClassIcon = FSlateIconFinder::FindIconForClass(UPropertyAnimatorCoreComponent::StaticClass());
 
@@ -209,7 +208,7 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemHeader(const FO
 	{
 		UPropertyAnimatorCoreBase* Animator = InItem->Get<UPropertyAnimatorCoreBase>(0);
 
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetAnimatorEnabledPropertyName());
 
 		const FSlateIcon ClassIcon = FSlateIconFinder::FindIconForClass(Animator->GetClass());
 
@@ -284,16 +283,18 @@ void UPropertyAnimatorCoreEditorStackCustomization::CustomizeItemBody(const FOpe
 {
 	if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
-		FProperty* MagnitudeProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, AnimatorsMagnitude));
+		FProperty* AnimatorsEnabledProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetAnimatorsEnabledPropertyName());
+		FProperty* PropertyAnimatorsProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreComponent::StaticClass(), UPropertyAnimatorCoreComponent::GetPropertyAnimatorsPropertyName());
 
 		InBodyBuilder
-			.AllowProperty(MagnitudeProperty)
+			.DisallowProperty(AnimatorsEnabledProperty)
+			.DisallowProperty(PropertyAnimatorsProperty)
 			.SetShowDetailsView(true);
 	}
 	// Customize animator body
 	else if (InItem->IsA<UPropertyAnimatorCoreBase>())
 	{
-		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreBase, bAnimatorEnabled));
+		FBoolProperty* EnableProperty = FindFProperty<FBoolProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetAnimatorEnabledPropertyName());
 		FProperty* LinkedPropertiesProperty = FindFProperty<FProperty>(UPropertyAnimatorCoreBase::StaticClass(), UPropertyAnimatorCoreBase::GetLinkedPropertiesPropertyName());
 
 		InBodyBuilder

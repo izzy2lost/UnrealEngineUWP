@@ -36,9 +36,6 @@ public:
 
 	TOptional<double> GetConditionalTimeElapsed();
 
-	/** Get the animator, this time source is on */
-	PROPERTYANIMATORCORE_API UPropertyAnimatorCoreBase* GetAnimator() const;
-
 	FName GetTimeSourceName() const
 	{
 		return TimeSourceName;

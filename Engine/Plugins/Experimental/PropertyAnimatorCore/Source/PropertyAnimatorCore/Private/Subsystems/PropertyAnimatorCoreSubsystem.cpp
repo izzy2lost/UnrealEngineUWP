@@ -888,9 +888,9 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::GetTimeSour
 	return nullptr;
 }
 
-UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTimeSource(FName InTimeSourceName, UPropertyAnimatorCoreBase* InAnimator)
+UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTimeSource(FName InTimeSourceName, UObject* InOwner)
 {
-	if (!IsValid(InAnimator) || InTimeSourceName.IsNone())
+	if (!IsValid(InOwner) || InTimeSourceName.IsNone())
 	{
 		return nullptr;
 	}
@@ -904,8 +904,8 @@ UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreSubsystem::CreateNewTi
 
 	// Here unique name needs to be provided
 	const UClass* TimeSourceClass = TimeSource->GetClass();
-	const FName UniqueObjectName = MakeUniqueObjectName(InAnimator, TimeSourceClass, InTimeSourceName);
-	return NewObject<UPropertyAnimatorCoreTimeSourceBase>(InAnimator, TimeSourceClass, UniqueObjectName);
+	const FName UniqueObjectName = MakeUniqueObjectName(InOwner, TimeSourceClass, InTimeSourceName);
+	return NewObject<UPropertyAnimatorCoreTimeSourceBase>(InOwner, TimeSourceClass, UniqueObjectName);
 }
 
 bool UPropertyAnimatorCoreSubsystem::RegisterPresetClass(const UClass* InPresetClass)

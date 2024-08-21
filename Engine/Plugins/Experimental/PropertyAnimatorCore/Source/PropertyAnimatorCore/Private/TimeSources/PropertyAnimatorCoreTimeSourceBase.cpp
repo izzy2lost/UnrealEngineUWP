@@ -2,8 +2,6 @@
 
 #include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 
-#include "Animators/PropertyAnimatorCoreBase.h"
-
 void UPropertyAnimatorCoreTimeSourceBase::ActivateTimeSource()
 {
 	if (IsTimeSourceActive())
@@ -43,11 +41,6 @@ TOptional<double> UPropertyAnimatorCoreTimeSourceBase::GetConditionalTimeElapsed
 	LastTimeElapsed = NewTimeElapsed;
 
 	return LastTimeElapsed;
-}
-
-UPropertyAnimatorCoreBase* UPropertyAnimatorCoreTimeSourceBase::GetAnimator() const
-{
-	return GetTypedOuter<UPropertyAnimatorCoreBase>();
 }
 
 void UPropertyAnimatorCoreTimeSourceBase::SetFrameRate(float InFrameRate)

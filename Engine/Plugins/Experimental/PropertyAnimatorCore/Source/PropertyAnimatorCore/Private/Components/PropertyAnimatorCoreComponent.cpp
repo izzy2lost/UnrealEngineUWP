@@ -4,7 +4,9 @@
 
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
+#include "Settings/PropertyAnimatorCoreSettings.h"
 #include "Subsystems/PropertyAnimatorCoreSubsystem.h"
+#include "TimeSources/PropertyAnimatorCoreTimeSourceBase.h"
 
 UPropertyAnimatorCoreBase* UPropertyAnimatorCoreComponent::AddAnimator(const UClass* InAnimatorClass)
 {
@@ -140,6 +142,60 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsEnabledChanged()
 	SetComponentTickEnabled(bEnableAnimators);
 }
 
+void UPropertyAnimatorCoreComponent::OnTimeSourceNameChanged()
+{
+	if (ActiveAnimatorsTimeSource)
+	{
+		ActiveAnimatorsTimeSource->DeactivateTimeSource();
+	}
+
+	ActiveAnimatorsTimeSource = FindOrAddTimeSource(AnimatorsTimeSourceName);
+
+	if (ActiveAnimatorsTimeSource)
+	{
+		ActiveAnimatorsTimeSource->ActivateTimeSource();
+	}
+}
+
+UPropertyAnimatorCoreTimeSourceBase* UPropertyAnimatorCoreComponent::FindOrAddTimeSource(FName InTimeSourceName)
+{
+	if (IsTemplate())
+	{
+		return nullptr;
+	}
+
+	UPropertyAnimatorCoreSubsystem* Subsystem = UPropertyAnimatorCoreSubsystem::Get();
+
+	if (!Subsystem || InTimeSourceName.IsNone())
+	{
+		return nullptr;
+	}
+
+	// Check cached time source instances
+	UPropertyAnimatorCoreTimeSourceBase* NewTimeSource = nullptr;
+
+	for (const TObjectPtr<UPropertyAnimatorCoreTimeSourceBase>& TimeSource : TimeSources)
+	{
+		if (TimeSource && TimeSource->GetTimeSourceName() == InTimeSourceName)
+		{
+			NewTimeSource = TimeSource.Get();
+		}
+	}
+
+	// Create new time source instance and cache it
+	if (!NewTimeSource)
+	{
+		NewTimeSource = Subsystem->CreateNewTimeSource(InTimeSourceName, this);
+
+		if (NewTimeSource)
+		{
+			TimeSources.Add(NewTimeSource);
+		}
+	}
+
+	return NewTimeSource;
+}
+
 bool UPropertyAnimatorCoreComponent::ShouldAnimate() const
 {
 	return bAnimatorsEnabled
@@ -168,6 +224,11 @@ FName UPropertyAnimatorCoreComponent::GetAnimatorName(const UPropertyAnimatorCor
 void UPropertyAnimatorCoreComponent::OnComponentCreated()
 {
 	Super::OnComponentCreated();
+
+	if (const UPropertyAnimatorCoreSettings* AnimatorSettings = UPropertyAnimatorCoreSettings::Get())
+	{
+		SetAnimatorsTimeSourceName(AnimatorSettings->GetDefaultTimeSourceName());
+	}
 
 	if (AActor* OwningActor = GetOwner())
 	{
@@ -258,14 +319,14 @@ void UPropertyAnimatorCoreComponent::SetAnimatorsMagnitude(float InMagnitude)
 	OnAnimatorsEnabledChanged();
 }
 
-void UPropertyAnimatorCoreComponent::DestroyComponent(bool bPromoteChildren)
+void UPropertyAnimatorCoreComponent::OnComponentDestroyed(bool bInDestroyingHierarchy)
 {
+	Super::OnComponentDestroyed(bInDestroyingHierarchy);
+
 	PropertyAnimatorsInternal = PropertyAnimators;
 	PropertyAnimators.Empty();
 
 	OnAnimatorsChanged();
-
-	Super::DestroyComponent(bPromoteChildren);
 }
 
 void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InTickFunction)
@@ -292,9 +353,35 @@ void UPropertyAnimatorCoreComponent::PostLoad()
 	}
 
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
+	OnTimeSourceNameChanged();
+}
+
+void UPropertyAnimatorCoreComponent::PostEditImport()
+{
+	Super::PostEditImport();
+
+	OnTimeSourceNameChanged();
+}
+
+void UPropertyAnimatorCoreComponent::PostDuplicate(EDuplicateMode::Type InMode)
+{
+	Super::PostDuplicate(InMode);
+
+	OnTimeSourceNameChanged();
 }
 
 #if WITH_EDITOR
+FName UPropertyAnimatorCoreComponent::GetAnimatorsEnabledPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, bAnimatorsEnabled);
+}
+
+FName UPropertyAnimatorCoreComponent::GetPropertyAnimatorsPropertyName()
+{
+	return GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, PropertyAnimators);
+}
+
 void UPropertyAnimatorCoreComponent::PostEditUndo()
 {
 	Super::PostEditUndo();
@@ -329,6 +416,10 @@ void UPropertyAnimatorCoreComponent::PostEditChangeProperty(FPropertyChangedEven
 	{
 		OnAnimatorsChanged();
 	}
+	else if (MemberName == GET_MEMBER_NAME_CHECKED(UPropertyAnimatorCoreComponent, AnimatorsTimeSourceName))
+	{
+		OnTimeSourceNameChanged();
+	}
 }
 #endif
 
@@ -337,6 +428,23 @@ void UPropertyAnimatorCoreComponent::SetAnimators(const TArray<TObjectPtr<UPrope
 	PropertyAnimatorsInternal = PropertyAnimators;
 	PropertyAnimators = InAnimators;
 	OnAnimatorsChanged();
+}
+
+void UPropertyAnimatorCoreComponent::SetAnimatorsTimeSourceName(FName InTimeSourceName)
+{
+	if (AnimatorsTimeSourceName == InTimeSourceName)
+	{
+		return;
+	}
+
+	const TArray<FName> TimeSourceNames = GetTimeSourceNames();
+	if (!TimeSourceNames.Contains(InTimeSourceName))
+	{
+		return;
+	}
+
+	AnimatorsTimeSourceName = InTimeSourceName;
+	OnTimeSourceNameChanged();
 }
 
 void UPropertyAnimatorCoreComponent::ForEachAnimator(const TFunctionRef<bool(UPropertyAnimatorCoreBase*)> InFunction) const
@@ -377,13 +485,43 @@ bool UPropertyAnimatorCoreComponent::EvaluateAnimators()
 			continue;
 		}
 
+		UPropertyAnimatorCoreTimeSourceBase* AnimatorTimeSource = Animator->GetActiveTimeSource();
+
+		if (!AnimatorTimeSource)
+		{
+			continue;
+		}
+
+		const TOptional<double> TimeElapsed = AnimatorTimeSource->GetConditionalTimeElapsed();
+
+		if (!TimeElapsed.IsSet())
+		{
+			continue;
+		}
+
 		// Reset in case animator change values to avoid affecting following animators
 		Parameters.Reset();
+
 		Parameters.AddProperty(UPropertyAnimatorCoreBase::MagnitudeParameterName, EPropertyBagPropertyType::Float);
 		Parameters.SetValueFloat(UPropertyAnimatorCoreBase::MagnitudeParameterName, AnimatorsMagnitude);
+
+		Parameters.AddProperty(UPropertyAnimatorCoreBase::TimeElapsedParameterName, EPropertyBagPropertyType::Double);
+		Parameters.SetValueDouble(UPropertyAnimatorCoreBase::TimeElapsedParameterName, TimeElapsed.GetValue());
 
 		Animator->EvaluateAnimator(Parameters);
 	}
 
 	return true;
+}
+
+TArray<FName> UPropertyAnimatorCoreComponent::GetTimeSourceNames() const
+{
+	TArray<FName> TimeSourceNames;
+
+	if (const UPropertyAnimatorCoreSubsystem* AnimatorSubsystem = UPropertyAnimatorCoreSubsystem::Get())
+	{
+		TimeSourceNames = AnimatorSubsystem->GetTimeSourceNames();
+	}
+
+	return TimeSourceNames;
 }
