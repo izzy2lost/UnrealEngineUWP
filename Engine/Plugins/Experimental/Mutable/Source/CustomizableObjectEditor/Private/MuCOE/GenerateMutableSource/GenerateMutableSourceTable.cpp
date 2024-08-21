@@ -963,7 +963,7 @@ void GenerateTableParameterUIData(const UDataTable* DataTable, const UCustomizab
 	for (const FName& Name : RowNames)
 	{
 		TSet<TSoftObjectPtr<UDataTable>>& DataTables = GenerationContext.IntParameterOptionDataTable.FindOrAdd(MakeTuple(TableNode->ParameterName, Name.ToString()));
-		DataTables.Add(TSoftObjectPtr<UDataTable>(DataTable));
+		DataTables.Add(TSoftObjectPtr<UDataTable>(const_cast<UDataTable*>(DataTable)));
 	}
 	
 	// Generating Parameter UI MetaData if not exists
