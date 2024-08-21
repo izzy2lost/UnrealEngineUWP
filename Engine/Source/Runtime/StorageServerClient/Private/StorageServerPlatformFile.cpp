@@ -881,7 +881,7 @@ IFileHandle* FStorageServerPlatformFile::OpenWrite(const TCHAR* Filename, bool b
 	}
 	if (LowerLevel)
 	{
-		LowerLevel->OpenWrite(Filename, bAppend, bAllowRead);
+		return LowerLevel->OpenWrite(Filename, bAppend, bAllowRead);
 	}
 	return nullptr;
 }
