@@ -31,6 +31,18 @@ struct FSettingsCategoryReferenceColumn final : public FEditorDataStorageColumn
 	UE::Editor::DataStorage::RowHandle CategoryRow;
 };
 
+USTRUCT(meta = (DisplayName = "Settings Container"))
+struct FSettingsContainerTag final : public FEditorDataStorageTag
+{
+	GENERATED_BODY()
+};
+
+USTRUCT(meta = (DisplayName = "Settings Category"))
+struct FSettingsCategoryTag final : public FEditorDataStorageTag
+{
+	GENERATED_BODY()
+};
+
 USTRUCT(meta = (DisplayName = "Settings Section"))
 struct FSettingsSectionTag final : public FEditorDataStorageTag
 {
