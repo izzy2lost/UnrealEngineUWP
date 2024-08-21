@@ -138,6 +138,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	static int32 ResolveVersionNumber(FMoviePipelineFilenameResolveParams InParams, bool bGetNextVersion = true);
 
+	/**
+	* Retrieves the cached version number calculated for the current shot, which depends on where the version token was used in the File Name Output
+	* ie: If {version} comes before {shot_name} then all shots will use the same version number, but if it comes afterwards then each shot may
+	* have a different version (which is the highest number found of that particular shot). This function should retrieve what is used in the
+	* filename writing step either way.
+	*/
+	UFUNCTION(BlueprintPure, Category = "Movie Render Pipeline")
+	static int32 GetCurrentVersionNumber(const UMoviePipeline* InMoviePipeline);
+	
 	/** In case of Overscan percentage being higher than 0 we render additional pixels. This function returns the resolution with overscan taken into account. */
 	UFUNCTION(BlueprintCallable, Category = "Movie Render Pipeline")
 	static FIntPoint GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot);

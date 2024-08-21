@@ -342,6 +342,28 @@ int32 UMovieGraphBlueprintLibrary::ResolveVersionNumber(FMovieGraphFilenameResol
 	return HighestVersion + (bGetNextVersion ? 1 : 0);
 }
 
+int32 UMovieGraphBlueprintLibrary::GetCurrentVersionNumber(const UMovieGraphPipeline* InMovieGraphPipeline)
+{
+	// This is effectively identical to UMoviePipelineBlueprintLibrary::GetCurrentVersionNumber (since the
+	// version is stored on the shot structure which is shared between the two pipelines) but provided here
+	// via a UMovieGraphPipeline specific pointer for consistency in fetching values in the UI to go along
+	// with the other functions here get things like focal length, etc.
+	if (!InMovieGraphPipeline)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot get version number from null pipeline!"), ELogVerbosity::Error);
+		return 0;
+	}
+	
+	int32 CurrentShotIndex = InMovieGraphPipeline->GetCurrentShotIndex();
+	if(!InMovieGraphPipeline->GetActiveShotList().IsValidIndex(CurrentShotIndex))
+	{
+		FFrame::KismetExecutionMessage(TEXT("No shot is currently active to get the version number from."), ELogVerbosity::Error);
+		return 0;
+	}
+
+	return InMovieGraphPipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
+}
+
 FIntPoint UMovieGraphBlueprintLibrary::GetEffectiveOutputResolution(UMovieGraphEvaluatedConfig* InEvaluatedGraph)
 {
 	if (!InEvaluatedGraph)
@@ -629,4 +651,19 @@ bool UMovieGraphBlueprintLibrary::IsNamedResolutionValid(const FName& InResoluti
 FMovieGraphNamedResolution UMovieGraphBlueprintLibrary::NamedResolutionFromSize(const int32 InResX, const int32 InResY)
 {
 	return FMovieGraphNamedResolution(FMovieGraphNamedResolution::CustomEntryName, FIntPoint(InResX, InResY), FString());
+}
+
+UMoviePipelineExecutorShot* UMovieGraphBlueprintLibrary::GetCurrentExecutorShot(const UMovieGraphPipeline* InMoviePipeline)
+{
+	if (InMoviePipeline)
+	{
+		const TArray<UMoviePipelineExecutorShot*>& ActiveShotList = InMoviePipeline->GetActiveShotList();
+		int32 CurrentShotIndex = InMoviePipeline->GetCurrentShotIndex();
+		if (ActiveShotList.IsValidIndex(CurrentShotIndex))
+		{
+			return ActiveShotList[CurrentShotIndex];
+		}
+	}
+
+	return nullptr;
 }

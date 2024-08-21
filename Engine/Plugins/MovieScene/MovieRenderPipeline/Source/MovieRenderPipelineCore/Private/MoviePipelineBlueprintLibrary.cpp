@@ -882,6 +882,24 @@ int32 UMoviePipelineBlueprintLibrary::ResolveVersionNumber(FMoviePipelineFilenam
 	return 0;
 }
 
+int32 UMoviePipelineBlueprintLibrary::GetCurrentVersionNumber(const UMoviePipeline* InMoviePipeline)
+{
+	if (!InMoviePipeline)
+	{
+		FFrame::KismetExecutionMessage(TEXT("Cannot get version number from null pipeline!"), ELogVerbosity::Error);
+		return 0;
+	}
+	
+	int32 CurrentShotIndex = InMoviePipeline->GetCurrentShotIndex();
+	if(!InMoviePipeline->GetActiveShotList().IsValidIndex(CurrentShotIndex))
+	{
+		FFrame::KismetExecutionMessage(TEXT("No shot is currently active to get the version number from."), ELogVerbosity::Error);
+		return 0;
+	}
+
+	return InMoviePipeline->GetActiveShotList()[CurrentShotIndex]->ShotInfo.VersionNumber;
+}
+
 FIntPoint UMoviePipelineBlueprintLibrary::GetEffectiveOutputResolution(UMoviePipelinePrimaryConfig* InPrimaryConfig, UMoviePipelineExecutorShot* InPipelineExecutorShot)
 {
 	if (InPrimaryConfig && InPipelineExecutorShot)
