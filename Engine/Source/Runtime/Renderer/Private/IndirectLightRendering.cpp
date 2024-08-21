@@ -1154,7 +1154,7 @@ void FDeferredShadingSceneRenderer::RenderDiffuseIndirectAndAmbientOcclusion(
 		{
 			const bool bLumen = View.ViewState
 				&& (ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod != EReflectionsMethod::Lumen);
-			const bool bMegaLights = View.ViewState && MegaLights::IsEnabled();
+			const bool bMegaLights = View.ViewState && MegaLights::IsEnabled(ViewFamily);
 
 			if (!bLumen)
 			{

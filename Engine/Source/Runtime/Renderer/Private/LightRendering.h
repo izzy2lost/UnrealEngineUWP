@@ -338,6 +338,6 @@ enum class FLightOcclusionType : uint8
 	MegaLights,			// Light handled through MegaLights raytracing
 	MegaLightsVSM,		// Light projection handled through MegaLights using a VSM source data
 };
-FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy);
-FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo);
+FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const FSceneViewFamily& ViewFamily);
+FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo, const FSceneViewFamily& ViewFamily);
 

@@ -227,6 +227,7 @@ struct FEngineShowFlags
 		SetVolumetricLightmap(false);
 		SetLumenGlobalIllumination(false);
 		SetLumenReflections(false);
+		SetMegaLights(false);
 
 		// Have VSM drop all persistent data each frame
 		SetVirtualShadowMapPersistentData(false);
@@ -258,6 +259,7 @@ struct FEngineShowFlags
 		SetDistanceFieldAO(true);
 		SetLumenGlobalIllumination(false);
 		SetLumenReflections(false);
+		SetMegaLights(false);
 
 		// Have VSM drop all persistent data each frame
 		// TODO: Revisit some of the cases that trigger this; if they clean up the scene renderers this is not necessary

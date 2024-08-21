@@ -6132,7 +6132,7 @@ void FSceneRenderer::CreateDynamicShadows(FDynamicShadowsTaskData& TaskData)
 
 				FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo->Id];
 
-				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneInfoCompact);
+				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneInfoCompact, ViewFamily);
 				if (OcclusionType != FLightOcclusionType::Shadowmap &&
 					OcclusionType != FLightOcclusionType::MegaLightsVSM)
 				{

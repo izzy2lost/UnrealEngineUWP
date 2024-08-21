@@ -52,7 +52,7 @@ void FDeferredShadingSceneRenderer::StoreStochasticLightingSceneHistory(FRDGBuil
 		{
 			const FPerViewPipelineState& ViewPipelineState = GetViewPipelineState(View);
 			const FSceneTextureParameters& SceneTextureParameters = GetSceneTextureParameters(GraphBuilder, SceneTextures);
-			const bool bStoreDepth = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen || MegaLights::IsEnabled();
+			const bool bStoreDepth = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen || ViewPipelineState.ReflectionsMethod == EReflectionsMethod::Lumen || MegaLights::IsEnabled(ViewFamily);
 			const bool bStoreNormal = ViewPipelineState.DiffuseIndirectMethod == EDiffuseIndirectMethod::Lumen && LumenScreenProbeGather::UseRejectBasedOnNormal();
 
 			if (bStoreDepth)

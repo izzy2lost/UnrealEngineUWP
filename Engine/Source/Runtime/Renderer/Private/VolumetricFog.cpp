@@ -450,7 +450,7 @@ class FRayTraceDirectionalLightVolumeShadowMapRGS : public FGlobalShader
 
 IMPLEMENT_GLOBAL_SHADER(FRayTraceDirectionalLightVolumeShadowMapRGS, "/Engine/Private/VolumetricFog.usf", "InjectShadowedDirectionalLightRGS", SF_RayGen);
 
-bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo);
+bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo, const FSceneViewFamily& ViewFamily);
 
 static void RenderRaytracedDirectionalShadowVolume(
 	FRDGBuilder& GraphBuilder,
@@ -477,7 +477,7 @@ static void RenderRaytracedDirectionalShadowVolume(
 	{
 		if (LightSceneInfo->ShouldRenderLightViewIndependent()
 			&& LightSceneInfo->ShouldRenderLight(View, true)
-			&& LightHasRayTracedShadows(LightSceneInfo)
+			&& LightHasRayTracedShadows(LightSceneInfo, *View.Family)
 			&& LightSceneInfo->Proxy == SelectedForwardDirectionalLightProxy)
 		{
 			DirectionalLightSceneInfo = LightSceneInfo;
@@ -576,9 +576,9 @@ const FProjectedShadowInfo* GetShadowForInjectionIntoVolumetricFog(const FVisibl
 	return nullptr;
 }
 
-bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo)
+bool LightHasRayTracedShadows(const FLightSceneInfo* LightSceneInfo, const FSceneViewFamily& ViewFamily)
 {
-	return GetLightOcclusionType(*LightSceneInfo->Proxy) == FLightOcclusionType::Raytraced && GVolumetricFogInjectRaytracedLights;
+	return GetLightOcclusionType(*LightSceneInfo->Proxy, ViewFamily) == FLightOcclusionType::Raytraced && GVolumetricFogInjectRaytracedLights;
 }
 
 bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo& View, const FLightSceneInfo* LightSceneInfo, const FVisibleLightInfo& VisibleLightInfo, const FScene& InScene)
@@ -599,7 +599,7 @@ bool LightNeedsSeparateInjectionIntoVolumetricFogForOpaqueShadow(const FViewInfo
 		const FStaticShadowDepthMap* StaticShadowDepthMap = LightProxy->GetStaticShadowDepthMap();
 		const bool bStaticallyShadowed = LightSceneInfo->IsPrecomputedLightingValid() && StaticShadowDepthMap && StaticShadowDepthMap->Data && StaticShadowDepthMap->TextureRHI;
 		const bool bHasVirtualShadowMap = VisibleLightInfo.GetVirtualShadowMapId( &View ) != INDEX_NONE;
-		const bool bHasRayTracedShadows = (bTestRayTracedShadows) ? LightHasRayTracedShadows(LightSceneInfo) : false;
+		const bool bHasRayTracedShadows = (bTestRayTracedShadows) ? LightHasRayTracedShadows(LightSceneInfo, *View.Family) : false;
 
 		return GetShadowForInjectionIntoVolumetricFog(VisibleLightInfo) != NULL || bStaticallyShadowed || bHasVirtualShadowMap || bHasRayTracedShadows;
 	}
@@ -1409,7 +1409,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 					if ((View.ViewMatrices.GetViewOrigin() - LightBounds.Center).SizeSquared() < (FogInfo.VolumetricFogDistance + LightBounds.W) * (FogInfo.VolumetricFogDistance + LightBounds.W))
 					{
 #if RHI_RAYTRACING
-						const bool bRayTracedLight = (Scene->bHasLightsWithRayTracedShadows) ? LightHasRayTracedShadows(LightSceneInfo) : false;
+						const bool bRayTracedLight = (Scene->bHasLightsWithRayTracedShadows) ? LightHasRayTracedShadows(LightSceneInfo, ViewFamily) : false;
 						if (bRayTracedLight)
 						{
 							LightsToInject.RayTracedLights.Add(LightSceneInfo);
@@ -1757,7 +1757,7 @@ void FSceneRenderer::ComputeVolumetricFog(FRDGBuilder& GraphBuilder,
 			}
 
 			const bool bUseLumenGI = View.GetLumenTranslucencyGIVolume().Texture0 != nullptr && FDataDrivenShaderPlatformInfo::GetSupportsLumenGI(View.GetShaderPlatform());
-			const bool bUseMegaLights = View.GetMegaLightsVolume().Texture != nullptr && MegaLights::IsEnabled();
+			const bool bUseMegaLights = View.GetMegaLightsVolume().Texture != nullptr && MegaLights::IsEnabled(ViewFamily);
 			const bool bUseGlobalDistanceField = UseGlobalDistanceField() && Scene->DistanceFieldSceneData.NumObjectsInBuffer > 0;
 			const bool bUseRaytracedShadowsVolume = RaytracedShadowsVolume != nullptr;
 

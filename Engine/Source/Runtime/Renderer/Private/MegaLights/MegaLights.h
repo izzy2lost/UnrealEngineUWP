@@ -24,15 +24,15 @@ public:
 // Public MegaLights interface
 namespace MegaLights
 {
-	bool IsEnabled();
+	bool IsEnabled(const FSceneViewFamily& ViewFamily);
 	bool IsUsingForcedRaytracing();
-	bool IsUsingVirtualShadowMaps();
+	bool IsUsingVirtualShadowMaps(const FSceneViewFamily& ViewFamily);
 
-	bool IsUsingClosestHZB();
+	bool IsUsingClosestHZB(const FSceneViewFamily& ViewFamily);
 	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily);
-	bool IsUsingLightFunctions();
+	bool IsUsingLightFunctions(const FSceneViewFamily& ViewFamily);
 
-	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled);
+	bool IsLightSupported(const FSceneViewFamily& ViewFamily, uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled);
 	bool AllowShadowMaps(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow);
 	bool UseHardwareRayTracing(const FSceneViewFamily& ViewFamily);
 	bool UseInlineHardwareRayTracing(const FSceneViewFamily& ViewFamily);

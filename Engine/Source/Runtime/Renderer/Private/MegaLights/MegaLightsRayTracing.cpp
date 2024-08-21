@@ -138,7 +138,7 @@ namespace MegaLights
 	{
 		#if RHI_RAYTRACING
 		{
-			if (MegaLights::IsEnabled()
+			if (MegaLights::IsEnabled(ViewFamily)
 				&& IsRayTracingEnabled()
 				&& CVarMegaLightsHardwareRayTracing.GetValueOnRenderThread() != 0
 				// HWRT does not support multiple views yet due to TLAS, but stereo views can be allowed as they reuse TLAS for View[0]
@@ -168,15 +168,15 @@ namespace MegaLights
 		return false;
 	}
 
-	bool IsUsingClosestHZB()
+	bool IsUsingClosestHZB(const FSceneViewFamily& ViewFamily)
 	{
-		return IsEnabled() 
+		return IsEnabled(ViewFamily)
 			&& CVarMegaLightsScreenTraces.GetValueOnRenderThread() != 0;
 	}
 
 	bool IsUsingGlobalSDF(const FSceneViewFamily& ViewFamily)
 	{
-		return IsEnabled() 
+		return IsEnabled(ViewFamily)
 			&& CVarMegaLightsWorldSpaceTraces.GetValueOnRenderThread() != 0 
 			&& !UseHardwareRayTracing(ViewFamily);
 	}
@@ -915,7 +915,7 @@ void MegaLights::RayTraceLightSamples(
 	const bool bDebug = MegaLights::GetDebugMode() != 0;
 	const bool bVolumeDebug = MegaLights::GetVolumeDebugMode() != 0;
 
-	if (VirtualShadowMapArray.IsEnabled() && MegaLights::IsUsingVirtualShadowMaps())
+	if (VirtualShadowMapArray.IsEnabled() && MegaLights::IsUsingVirtualShadowMaps(ViewFamily))
 	{
 		FCompactedTraceParameters CompactedTraceParameters = MegaLights::CompactMegaLightsTraces(
 			View,

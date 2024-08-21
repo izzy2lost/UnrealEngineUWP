@@ -684,14 +684,14 @@ FDeferredLightUniformStruct GetSimpleDeferredLightParameters(
 	return GetSimpleDeferredLightParameters(View, SimpleLight, SimpleLightPerViewData.Position);
 }
 
-FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
+FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy, const FSceneViewFamily& ViewFamily)
 {
 	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(Proxy);
 #endif
 
-	if (MegaLights::IsLightSupported(Proxy.GetLightType(), Proxy.CastsRaytracedShadow(), Proxy.UseVirtualShadowMaps()))
+	if (MegaLights::IsLightSupported(ViewFamily, Proxy.GetLightType(), Proxy.CastsRaytracedShadow(), Proxy.UseVirtualShadowMaps()))
 	{
 		return (bUseRaytracing || MegaLights::IsUsingForcedRaytracing()) ?
 			FLightOcclusionType::MegaLights : FLightOcclusionType::MegaLightsVSM;
@@ -700,14 +700,14 @@ FLightOcclusionType GetLightOcclusionType(const FLightSceneProxy& Proxy)
 	return bUseRaytracing ? FLightOcclusionType::Raytraced : FLightOcclusionType::Shadowmap;
 }
 
-FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo)
+FLightOcclusionType GetLightOcclusionType(const FLightSceneInfoCompact& LightInfo, const FSceneViewFamily& ViewFamily)
 {
 	bool bUseRaytracing = false;
 #if RHI_RAYTRACING
 	bUseRaytracing = ShouldRenderRayTracingShadowsForLight(LightInfo);
 #endif
 
-	if (MegaLights::IsLightSupported(LightInfo.LightType, LightInfo.CastRaytracedShadow, LightInfo.bUseVirtualShadowMaps))
+	if (MegaLights::IsLightSupported(ViewFamily, LightInfo.LightType, LightInfo.CastRaytracedShadow, LightInfo.bUseVirtualShadowMaps))
 	{
 		return (bUseRaytracing || MegaLights::IsUsingForcedRaytracing()) ?
 			FLightOcclusionType::MegaLights : FLightOcclusionType::MegaLightsVSM;
@@ -1237,7 +1237,7 @@ void FSceneRenderer::GatherAndSortLights(FSortedLightSetSceneInfo& OutSortedLigh
 					SortedLightInfo->SortKey.Fields.bIsNotSimpleLight = 1;
 
 					// Lights handled by Mega Lights
-					const bool bHandledByMegaLights = MegaLights::IsLightSupported(LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow, LightSceneInfoCompact.bUseVirtualShadowMaps);
+					const bool bHandledByMegaLights = MegaLights::IsLightSupported(ViewFamily, LightSceneInfoCompact.LightType, LightSceneInfoCompact.CastRaytracedShadow, LightSceneInfoCompact.bUseVirtualShadowMaps);
 
 					// NOTE: bClusteredDeferredSupported==false means "lights cannot be batched" (tiled or clustered). When false, light will go the slower unbatched render path.
 					// Tiled and clustered deferred lighting only support certain lights that don't use any additional features (like shadow or light function not compatible with the atlas.)
@@ -1443,7 +1443,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 					const FLightSceneProxy& LightSceneProxy = *LightSceneInfo.Proxy;
 
 					const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
-					const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy);
+					const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy, ViewFamily);
 					const bool bSupportShadowMaps = bDrawShadows && OcclusionType == FLightOcclusionType::Shadowmap;
 
 					// Collect all the light injection data
@@ -1467,7 +1467,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 			// Currently we can skip this whole pass if ManyLights VSM is enabled, because this pass only
 			// handles local lights, but ManyLights will take over all of them. In the future we may want
 			// to allow some lights to go down each path.
-			if (!MegaLights::IsUsingVirtualShadowMaps())
+			if (!MegaLights::IsUsingVirtualShadowMaps(ViewFamily))
 			{
 				ShadowSceneRenderer->RenderVirtualShadowMapProjectionMaskBits(GraphBuilder, SceneTextures);
 			}
@@ -1600,7 +1600,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 				const FLightSceneInfo& LightSceneInfo = *SortedLightInfo.LightSceneInfo;
 				const FLightSceneProxy& LightSceneProxy = *LightSceneInfo.Proxy;
 				const FVisibleLightInfo& VisibleLightInfo = VisibleLightInfos[LightSceneInfo.Id];
-				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy);
+				const FLightOcclusionType OcclusionType = GetLightOcclusionType(LightSceneProxy, ViewFamily);
 
 				const bool bDrawShadows = SortedLightInfo.SortKey.Fields.bShadowed;
 				const bool bDrawLightFunction = SortedLightInfo.SortKey.Fields.bLightFunction && (!bUseLightFunctionAtlas || !SortedLightInfo.bIsCompatibleWithLightFunctionAtlas);
@@ -1749,7 +1749,7 @@ void FDeferredShadingSceneRenderer::RenderLights(
 									continue;
 								}
 
-								const FLightOcclusionType BatchOcclusionType = GetLightOcclusionType(*BatchLightSceneInfo.Proxy);
+								const FLightOcclusionType BatchOcclusionType = GetLightOcclusionType(*BatchLightSceneInfo.Proxy, ViewFamily);
 								if (BatchOcclusionType != FLightOcclusionType::Raytraced)
 								{
 									continue;

@@ -291,7 +291,7 @@ void FLightFunctionAtlas::BeginSceneFrame(const FViewFamilyInfo& ViewFamily, TAr
 	{
 		bVolumetricFogRequestsLF 	= bShouldRenderVolumetricFog && GVolumetricFogUsesLightFunctionAtlas > 0;
 		bDeferredlightingRequestsLF	= GDeferredUsesLightFunctionAtlas > 0;
-		bMegaLightsRequestsLF		= MegaLights::IsUsingLightFunctions();
+		bMegaLightsRequestsLF		= MegaLights::IsUsingLightFunctions(ViewFamily);
 		bLumenRequestsLF 			= GLumenUsesLightFunctionAtlas > 0;// && IsLumenTranslucencyGIEnabled();// GLumenScene enabled ...;
 
 		bLightFunctionAtlasEnabled = bLightFunctionAtlasEnabled && 

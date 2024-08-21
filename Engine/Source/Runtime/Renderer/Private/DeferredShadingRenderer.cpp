@@ -1083,7 +1083,7 @@ void FDeferredShadingSceneRenderer::CommitFinalPipelineState()
 				bHasSSGI || bUseLumen);
 
 			ViewPipelineState.Set(&FPerViewPipelineState::bClosestHZB, 
-				bHasSSGI || bUseLumen || MegaLights::IsUsingClosestHZB());
+				bHasSSGI || bUseLumen || MegaLights::IsUsingClosestHZB(ViewFamily));
 		}
 	}
 
@@ -3554,7 +3554,7 @@ bool HasRayTracedOverlay(const FSceneViewFamily& ViewFamily)
 void FDeferredShadingSceneRenderer::InitializeRayTracingFlags_RenderThread()
 {
 	// The result of this call is used by AnyRayTracingPassEnabled to decide if we have any RT shadows enabled
-	Scene->UpdateRayTracedLights();
+	Scene->UpdateRayTracedLights(ViewFamily);
 
 	// This function may be called twice -- once in CreateSceneRenderers and again in Render.  We deliberately skip the logic
 	// if the flag is already set, because CreateSceneRenderers fills in the correct value for "bShouldUpdateRayTracingScene"

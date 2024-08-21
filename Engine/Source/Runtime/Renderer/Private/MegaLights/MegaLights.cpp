@@ -196,9 +196,9 @@ namespace MegaLights
 	constexpr int32 TileSize = 8;
 	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
 
-	bool IsEnabled()
+	bool IsEnabled(const FSceneViewFamily& ViewFamily)
 	{
-		return CVarMegaLights.GetValueOnRenderThread() != 0;
+		return CVarMegaLights.GetValueOnRenderThread() != 0 && ViewFamily.EngineShowFlags.MegaLights;
 	}
 
 	bool IsUsingForcedRaytracing()
@@ -211,22 +211,22 @@ namespace MegaLights
 		return CVarMegaLightsVolume.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsUsingVirtualShadowMaps()
+	bool IsUsingVirtualShadowMaps(const FSceneViewFamily& ViewFamily)
 	{
-		return IsEnabled() && CVarMegaLightsVSM.GetValueOnRenderThread() != 0;
+		return IsEnabled(ViewFamily) && CVarMegaLightsVSM.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsUsingLightFunctions()
+	bool IsUsingLightFunctions(const FSceneViewFamily& ViewFamily)
 	{
-		return IsEnabled() && CVarMegaLightsLightFunctions.GetValueOnRenderThread() != 0;
+		return IsEnabled(ViewFamily) && CVarMegaLightsLightFunctions.GetValueOnRenderThread() != 0;
 	}
 
-	bool IsLightSupported(uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled)
+	bool IsLightSupported(const FSceneViewFamily& ViewFamily, uint8 LightType, ECastRayTracedShadow::Type CastRayTracedShadow, bool bVSMEnabled)
 	{
-		if (MegaLights::IsEnabled() && LightType != LightType_Directional)
+		if (MegaLights::IsEnabled(ViewFamily) && LightType != LightType_Directional)
 		{
 			const bool bRayTracedShadows = (CastRayTracedShadow == ECastRayTracedShadow::Enabled || (ShouldRenderRayTracingShadows() && CastRayTracedShadow == ECastRayTracedShadow::UseProjectSetting));
-			const bool bVSMShadows = IsUsingVirtualShadowMaps() && bVSMEnabled;
+			const bool bVSMShadows = IsUsingVirtualShadowMaps(ViewFamily) && bVSMEnabled;
 			return IsUsingForcedRaytracing() || bRayTracedShadows || bVSMShadows;
 		}
 
@@ -826,7 +826,7 @@ DECLARE_GPU_STAT(MegaLights);
  */
 void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, const FSceneTextures& SceneTextures)
 {
-	if (!MegaLights::IsEnabled())
+	if (!MegaLights::IsEnabled(ViewFamily) || !ViewFamily.EngineShowFlags.DirectLighting)
 	{
 		return;
 	}

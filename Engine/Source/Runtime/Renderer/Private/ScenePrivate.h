@@ -3299,7 +3299,7 @@ public:
 	FRayTracingScene HeterogeneousVolumesRayTracingScene;
 
 	bool bHasLightsWithRayTracedShadows = false;
-	void UpdateRayTracedLights();
+	void UpdateRayTracedLights(const FSceneViewFamily& ViewFamily);
 #endif // RHI_RAYTRACING
 
 	/** Distance field object scene data. */
