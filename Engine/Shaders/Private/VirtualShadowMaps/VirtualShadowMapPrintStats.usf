@@ -55,11 +55,21 @@ void PrintUnits(inout FShaderPrintContext Context, uint Value)
 		Print(Context, Value);
 	}
 }
+
+uint StatusMessageId;
+
 uint StatsMessageId;
 uint StatsMessageTimestampHigh;
 uint StatsMessageTimestampLow;
 
 StructuredBuffer<FNaniteStats> NaniteStats;
+
+void SendStatusMessage()
+{
+	FGPUMessageWriter Mw = GPUMessageBegin(StatusMessageId, 2U);
+	GPUMessageWriteItem(Mw, VSM_STATUS_MSG_OVERFLOW);
+	GPUMessageWriteItem(Mw, InStatsBuffer[VSM_STAT_OVERFLOW_FLAGS]);
+}
 
 void SendStatsMessage()
 {
@@ -81,19 +91,8 @@ void SendStatsMessage()
 	}
 }
 
-[numthreads(1, 1, 1)]
-void LogVirtualSmStatsCS()
+void PrintStats()
 {
-	if (StatsMessageId != INDEX_NONE)
-	{
-		SendStatsMessage();
-	}
-
-	if (ShowStatsValue == 0U)
-	{
-		return;
-	}
-
 	const bool bShowAll                = ShowStatsValue == 1;
 	// Work around potential compiler bug...
 	const bool bShowPhysicalPages      = (ShowStatsValue == 1) || ShowStatsValue == 2;
@@ -258,6 +257,26 @@ void LogVirtualSmStatsCS()
 	}
 }
 
+[numthreads(1, 1, 1)]
+void LogVirtualSmStatsCS()
+{
+	if (StatusMessageId != INDEX_NONE)
+	{
+		SendStatusMessage();
+	}
+	
+#if VSM_GENERATE_STATS
+	if (StatsMessageId != INDEX_NONE)
+	{
+		SendStatsMessage();
+	}
+
+	if (ShowStatsValue > 0U)
+	{
+		PrintStats();
+	}
+#endif
+}
 
 uint ShadowMapIdRangeStart;
 uint ShadowMapIdRangeEnd;

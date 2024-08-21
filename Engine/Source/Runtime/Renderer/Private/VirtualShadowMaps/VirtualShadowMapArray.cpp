@@ -515,18 +515,6 @@ static float GetNormalBiasForShader()
 	return CVarNormalBias.GetValueOnRenderThread() / 1000.0f;
 }
 
-template <typename ShaderType>
-static bool SetStatsArgsAndPermutation(FRDGBufferUAVRef StatsBufferUAV, typename ShaderType::FParameters *OutPassParameters, typename ShaderType::FPermutationDomain& OutPermutationVector)
-{
-	bool bGenerateStats = StatsBufferUAV != nullptr;
-	if (bGenerateStats)
-	{
-		OutPassParameters->OutStatsBuffer = StatsBufferUAV;
-	}
-	OutPermutationVector.template Set<typename ShaderType::FGenerateStatsDim>(bGenerateStats);
-	return bGenerateStats;
-}
-
 FVirtualShadowMapArray::FVirtualShadowMapArray(FScene& InScene) 
 	: Scene(InScene)
 {
@@ -1177,7 +1165,7 @@ void FVirtualShadowMapArray::MergeStaticPhysicalPages(FRDGBuilder& GraphBuilder)
 		PassParameters->OutPhysicalPagesToMerge = GraphBuilder.CreateUAV(PhysicalPagesToMergeRDG);
 
 		FSelectPagesToMergeCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FSelectPagesToMergeCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FSelectPagesToMergeCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 
 		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesToMergeCS>(PermutationVector);
 
@@ -1426,7 +1414,7 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 	}
 	PermutationVector.Set<FUpdatePhysicalPageAddresses::FHasCacheDataDim>(PrevPageRequestFlags != nullptr);
 
-	SetStatsArgsAndPermutation<FUpdatePhysicalPageAddresses>(StatsBufferUAV, PassParameters, PermutationVector);
+	SetStatsArgsAndPermutation<FUpdatePhysicalPageAddresses>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 
 	auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FUpdatePhysicalPageAddresses>(PermutationVector);
 
@@ -1437,6 +1425,25 @@ void FVirtualShadowMapArray::UpdatePhysicalPageAddresses(FRDGBuilder& GraphBuild
 		PassParameters,
 		FIntVector(FMath::DivideAndRoundUp(GetMaxPhysicalPages(), FUpdatePhysicalPageAddresses::DefaultCSGroupX), 1, 1)
 	);
+}
+
+bool FVirtualShadowMapArray::ShouldGenerateStats() const
+{
+#if !UE_BUILD_SHIPPING
+	const bool bRunPageAreaDiagnostics = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() != 0;
+#else
+	constexpr bool bRunPageAreaDiagnostics = false;
+#endif
+	return CVarShowStats.GetValueOnRenderThread() || CacheManager->IsAccumulatingStats() || bRunPageAreaDiagnostics || IsCsvLogEnabled();
+}
+
+bool FVirtualShadowMapArray::IsCsvLogEnabled() const
+{
+#if CSV_PROFILER_STATS
+	return FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
+#else
+	return false;
+#endif
 }
 
 void FVirtualShadowMapArray::BuildPageAllocations(
@@ -1507,17 +1514,9 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 	UniformParameters.CoarsePagePixelThresholdStatic = CVarCoarsePagePixelThresholdStatic.GetValueOnRenderThread();
 	UniformParameters.CoarsePagePixelThresholdDynamicNanite = CVarCoarsePagePixelThresholdDynamicNanite.GetValueOnRenderThread();
 
-	bool bCsvLogEnabled = false;
-#if !UE_BUILD_SHIPPING
-	const bool bRunPageAreaDiagnostics = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() != 0;
-#if CSV_PROFILER_STATS
-	bCsvLogEnabled = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
-#endif
-#else
-	constexpr bool bRunPageAreaDiagnostics = false;
-#endif
+	bool bCsvLogEnabled = IsCsvLogEnabled();
 
-	if (CVarShowStats.GetValueOnRenderThread() || CacheManager->IsAccumulatingStats() || bRunPageAreaDiagnostics || bCsvLogEnabled)
+	// Stats buffer
 	{
 		StatsBufferRDG = GraphBuilder.CreateBuffer(FRDGBufferDesc::CreateStructuredDesc(sizeof(uint32), VSM_STAT_NUM + MaxPageAreaDiagnosticSlots * 2), TEXT("Shadow.Virtual.StatsBuffer"));
 		AddClearUAVPass(GraphBuilder, GraphBuilder.CreateUAV(StatsBufferRDG), 0);
@@ -1803,7 +1802,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 
 		FUpdatePhysicalPages::FPermutationDomain PermutationVector;
 		PermutationVector.Set<FUpdatePhysicalPages::FHasCacheDataDim>(bCacheDataAvailable);
-		SetStatsArgsAndPermutation<FUpdatePhysicalPages>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FUpdatePhysicalPages>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FUpdatePhysicalPages>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
@@ -1845,7 +1844,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 		PassParameters->OutPhysicalPageMetaData = GraphBuilder.CreateUAV(PhysicalPageMetaDataRDG);
 
 		FAllocateNewPageMappingsCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FAllocateNewPageMappingsCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FAllocateNewPageMappingsCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = Views[0].ShaderMap->GetShader<FAllocateNewPageMappingsCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(
@@ -1912,7 +1911,7 @@ void FVirtualShadowMapArray::BuildPageAllocations(
 			PassParameters->OutInitializePagesIndirectArgsBuffer = GraphBuilder.CreateUAV(InitializePagesIndirectArgsRDG);
 			PassParameters->OutPhysicalPagesToInitialize = GraphBuilder.CreateUAV(PhysicalPagesToInitializeRDG);
 			FSelectPagesToInitializeCS::FPermutationDomain PermutationVector;
-			SetStatsArgsAndPermutation<FSelectPagesToInitializeCS>(StatsBufferUAV, PassParameters, PermutationVector);
+			SetStatsArgsAndPermutation<FSelectPagesToInitializeCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 
 			auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesToInitializeCS>(PermutationVector);
 
@@ -2075,6 +2074,9 @@ class FVirtualSmLogStatsCS : public FVirtualShadowMapPageManagementShader
 	DECLARE_GLOBAL_SHADER(FVirtualSmLogStatsCS);
 	SHADER_USE_PARAMETER_STRUCT(FVirtualSmLogStatsCS, FVirtualShadowMapPageManagementShader)
 
+	class FGenerateStatsDim : SHADER_PERMUTATION_BOOL("VSM_GENERATE_STATS"); 
+	using FPermutationDomain = TShaderPermutationDomain<FGenerateStatsDim>;
+
 	BEGIN_SHADER_PARAMETER_STRUCT(FParameters, )
 		SHADER_PARAMETER_RDG_UNIFORM_BUFFER(FVirtualShadowMapUniformParameters, VirtualShadowMap)
 		SHADER_PARAMETER_STRUCT_INCLUDE(GPUMessage::FParameters, GPUMessageParams)
@@ -2082,6 +2084,7 @@ class FVirtualSmLogStatsCS : public FVirtualShadowMapPageManagementShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, InStatsBuffer)
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<FNaniteStats>, NaniteStats)
 		SHADER_PARAMETER(int, ShowStatsValue)
+		SHADER_PARAMETER(uint32, StatusMessageId)
 		SHADER_PARAMETER(uint32, StatsMessageId)
 	END_SHADER_PARAMETER_STRUCT()
 
@@ -2100,20 +2103,33 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 	check(IsEnabled());
 	LLM_SCOPE_BYTAG(Nanite);
 
-	if (StatsBufferRDG)
+	if (!StatsBufferRDG)
+	{
+		return;
+	}
+
+	FVirtualSmLogStatsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualSmLogStatsCS::FParameters>();
+	PassParameters->InStatsBuffer = GraphBuilder.CreateSRV(StatsBufferRDG);
+	PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+	PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
+	PassParameters->StatusMessageId = CacheManager->GetStatusFeedbackMessageId();
+
+	// If ShouldGenerateStats() is false, the stats buffer will only have data needed for Status messages (e.g. for overflow tracking)
+	bool bGenerateStats = ShouldGenerateStats();
+
+	FVirtualSmLogStatsCS::FPermutationDomain PermutationVector;
+	PermutationVector.Set<FVirtualSmLogStatsCS::FGenerateStatsDim>(bGenerateStats);
+	
+	if (bGenerateStats)
 	{
 		// Convenience, enable shader print automatically
 		ShaderPrint::SetEnabled(true);
 
-		int ShowStatsValue = CVarShowStats.GetValueOnRenderThread();
-
-		FVirtualSmLogStatsCS::FParameters* PassParameters = GraphBuilder.AllocParameters<FVirtualSmLogStatsCS::FParameters>();
-
 		ShaderPrint::SetParameters(GraphBuilder, View.ShaderPrintData, PassParameters->ShaderPrintStruct);
-		PassParameters->InStatsBuffer = GraphBuilder.CreateSRV(StatsBufferRDG);
-		PassParameters->VirtualShadowMap = GetUncachedUniformBuffer(GraphBuilder);
+
+		int ShowStatsValue = CVarShowStats.GetValueOnRenderThread();
 		PassParameters->ShowStatsValue = ShowStatsValue;
-		
+
 #if !UE_BUILD_SHIPPING
 		PassParameters->StatsMessageId = CacheManager->GetStatsFeedbackMessageId();
 		bool bBindNaniteStatsBuffer = StatsNaniteBufferRDG != nullptr;
@@ -2121,6 +2137,7 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 		PassParameters->StatsMessageId = INDEX_NONE;
 		constexpr bool bBindNaniteStatsBuffer = false;
 #endif
+
 		if (bBindNaniteStatsBuffer)
 		{
 			PassParameters->NaniteStats = GraphBuilder.CreateSRV(StatsNaniteBufferRDG);
@@ -2129,18 +2146,17 @@ void FVirtualShadowMapArray::LogStats(FRDGBuilder& GraphBuilder, const FViewInfo
 		{
 			PassParameters->NaniteStats = GraphBuilder.CreateSRV(GSystemTextures.GetDefaultStructuredBuffer(GraphBuilder, sizeof(FNaniteStats)));
 		}
-		PassParameters->GPUMessageParams = GPUMessage::GetShaderParameters(GraphBuilder);
-	
-		auto ComputeShader = View.ShaderMap->GetShader<FVirtualSmLogStatsCS>();
-
-		FComputeShaderUtils::AddPass(
-			GraphBuilder,
-			RDG_EVENT_NAME("VSM Log Stats"),
-			ComputeShader,
-			PassParameters,
-			FIntVector(1, 1, 1)
-		);
 	}
+	
+	auto ComputeShader = View.ShaderMap->GetShader<FVirtualSmLogStatsCS>(PermutationVector);
+
+	FComputeShaderUtils::AddPass(
+		GraphBuilder,
+		RDG_EVENT_NAME("VSM Log Stats And Status"),
+		ComputeShader,
+		PassParameters,
+		FIntVector(1, 1, 1)
+	);
 }
 
 
@@ -2546,20 +2562,24 @@ static FCullingResult AddCullingPasses(FRDGBuilder& GraphBuilder,
 
 		PassParameters->HZBShaderParameters = HZBShaderParameters;
 
-		bool bGenerateStats = VirtualShadowMapArray.StatsBufferUAV != nullptr;
+		FCullPerPageDrawCommandsCs::FPermutationDomain PermutationVector;
+
+		bool bGenerateStats = SetStatsArgsAndPermutation<FCullPerPageDrawCommandsCs>(
+			VirtualShadowMapArray.ShouldGenerateStats(), 
+			VirtualShadowMapArray.StatsBufferUAV, 
+			PassParameters, 
+			PermutationVector);
+
 		if (bGenerateStats)
 		{
-			PassParameters->OutStatsBuffer = VirtualShadowMapArray.StatsBufferUAV;
 #if !UE_BUILD_SHIPPING
 			PassParameters->NumPageAreaDiagnosticSlots = CVarNumPageAreaDiagSlots.GetValueOnRenderThread() < 0 ? FVirtualShadowMapArray::MaxPageAreaDiagnosticSlots : FMath::Min(FVirtualShadowMapArray::MaxPageAreaDiagnosticSlots, uint32(CVarNumPageAreaDiagSlots.GetValueOnRenderThread()));
 			PassParameters->LargeInstancePageAreaThreshold = CVarLargeInstancePageAreaThreshold.GetValueOnRenderThread() >= 0 ? CVarLargeInstancePageAreaThreshold.GetValueOnRenderThread() : (VirtualShadowMapArray.GetMaxPhysicalPages() / 8);
 #endif
 		}
 
-		FCullPerPageDrawCommandsCs::FPermutationDomain PermutationVector;
 		PermutationVector.Set< FCullPerPageDrawCommandsCs::FBatchedDim >(bUseBatchMode);
 		PermutationVector.Set< FCullPerPageDrawCommandsCs::FUseHzbDim >(HZBShaderParameters.HZBTextureArray != nullptr);
-		PermutationVector.Set< FCullPerPageDrawCommandsCs::FGenerateStatsDim >(bGenerateStats);
 
 		auto ComputeShader = ShaderMap->GetShader<FCullPerPageDrawCommandsCs>(PermutationVector);
 
@@ -2774,10 +2794,7 @@ Nanite::FPackedViewArray* FVirtualShadowMapArray::CreateVirtualShadowMapNaniteVi
 
 void FVirtualShadowMapArray::RenderVirtualShadowMapsNanite(FRDGBuilder& GraphBuilder, FSceneRenderer& SceneRenderer, bool bUpdateNaniteStreaming, const FNaniteVisibilityQuery* VisibilityQuery, Nanite::FPackedViewArray* VirtualShadowMapViews, FSceneInstanceCullingQuery* SceneInstanceCullingQuery)
 {
-	bool bCsvLogEnabled = false;
-#if CSV_PROFILER_STATS
-	bCsvLogEnabled = FCsvProfiler::Get()->IsCapturing_Renderthread() && FCsvProfiler::Get()->IsCategoryEnabled(CSV_CATEGORY_INDEX(VSM));
-#endif
+	bool bCsvLogEnabled = IsCsvLogEnabled();
 
 	TRACE_CPUPROFILER_EVENT_SCOPE(FVirtualShadowMapArray::RenderVirtualShadowMapsNanite);
 	RDG_EVENT_SCOPE(GraphBuilder, "RenderVirtualShadowMaps(Nanite)");
@@ -3355,7 +3372,7 @@ void FVirtualShadowMapArray::UpdateHZB(FRDGBuilder& GraphBuilder)
 		PassParameters->bFirstBuildThisFrame = !bHZBBuiltThisFrame;
 		PassParameters->bForceFullHZBUpdate = CVarShadowsVirtualForceFullHZBUpdate.GetValueOnRenderThread();
 		FSelectPagesForHZBAndUpdateDirtyFlagsCS::FPermutationDomain PermutationVector;
-		SetStatsArgsAndPermutation<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(StatsBufferUAV, PassParameters, PermutationVector);
+		SetStatsArgsAndPermutation<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(ShouldGenerateStats(), StatsBufferUAV, PassParameters, PermutationVector);
 		auto ComputeShader = GetGlobalShaderMap(Scene.GetFeatureLevel())->GetShader<FSelectPagesForHZBAndUpdateDirtyFlagsCS>(PermutationVector);
 
 		FComputeShaderUtils::AddPass(

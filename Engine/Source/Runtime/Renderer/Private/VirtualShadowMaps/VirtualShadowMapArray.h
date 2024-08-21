@@ -359,6 +359,9 @@ public:
 
 	void RenderDebugInfo(FRDGBuilder& GraphBuilder, TArrayView<FViewInfo> Views);
 	
+	bool ShouldGenerateStats() const;
+	bool IsCsvLogEnabled() const;
+
 	void LogStats(FRDGBuilder& GraphBuilder, const FViewInfo& View);
 
 	// Get shader parameters necessary to sample virtual shadow maps

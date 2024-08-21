@@ -17,6 +17,7 @@
 #include "Shadows/ShadowScene.h"
 #include "ProfilingDebugging/CountersTrace.h"
 
+#define LOCTEXT_NAMESPACE "VirtualShadowMapCacheManager"
 CSV_DECLARE_CATEGORY_EXTERN(VSM);
 
 static int32 GVSMAccumulateStats = 0;
@@ -156,6 +157,7 @@ static const char *VirtualShadowMap_StatNames[] =
 	"NANITE_INSTANCES_MAIN",
 	"NANITE_INSTANCES_POST",
 	"WPO_CONSIDERED_PAGES",
+	"OVERFLOW_FLAGS",
 	"TMP_1",
 	"TMP_2",
 	"TMP_3",
@@ -590,6 +592,9 @@ ISceneExtensionUpdater* FVirtualShadowMapArrayCacheManager::CreateUpdater()
 FVirtualShadowMapArrayCacheManager::FVirtualShadowMapArrayCacheManager()
 	: ShadowInvalidatingInstancesImplementation(*this)
 {
+#if !UE_BUILD_SHIPPING
+	LastOverflowTimes.Init(-10.0f, VSM_STAT_OVERFLOW_FLAG_NUM);
+#endif
 }
 
 void FVirtualShadowMapArrayCacheManager::InitExtension(FScene& InScene)
@@ -599,76 +604,103 @@ void FVirtualShadowMapArrayCacheManager::InitExtension(FScene& InScene)
 	// Handle message with status sent back from GPU
 	StatusFeedbackSocket = GPUMessage::RegisterHandler(TEXT("Shadow.Virtual.StatusFeedback"), [this](GPUMessage::FReader Message)
 	{
-		// Goes negative on underflow
-		int32 LastFreePhysicalPages = Message.Read<int32>(0);
-		const float LastGlobalResolutionLodBias = FMath::AsFloat(Message.Read<uint32>(0U));
+		int32 MessageType = Message.Read<int32>();
+		if(MessageType == VSM_STATUS_MSG_PAGE_MANAGEMENT)
+		{
+			// Goes negative on underflow
+			int32 LastFreePhysicalPages = Message.Read<int32>(0);
+			const float LastGlobalResolutionLodBias = FMath::AsFloat(Message.Read<uint32>(0U));
 		
-		CSV_CUSTOM_STAT(VSM, FreePages, LastFreePhysicalPages, ECsvCustomStatOp::Set);
+			CSV_CUSTOM_STAT(VSM, FreePages, LastFreePhysicalPages, ECsvCustomStatOp::Set);
 
-		// Dynamic resolution
-		{
-			// Could be cvars if needed, but not clearly something that needs to be tweaked currently
-			// NOTE: Should react more quickly when reducing resolution than when increasing again
-			// TODO: Possibly something smarter/PID-like rather than simple exponential decay
-			const float ResolutionDownExpLerpFactor = 0.5f;
-			const float ResolutionUpExpLerpFactor = 0.1f;
-			const uint32 FramesBeforeResolutionUp = 10;
+			// Dynamic resolution
+			{
+				// Could be cvars if needed, but not clearly something that needs to be tweaked currently
+				// NOTE: Should react more quickly when reducing resolution than when increasing again
+				// TODO: Possibly something smarter/PID-like rather than simple exponential decay
+				const float ResolutionDownExpLerpFactor = 0.5f;
+				const float ResolutionUpExpLerpFactor = 0.1f;
+				const uint32 FramesBeforeResolutionUp = 10;
 
-			const float MaxPageAllocation = CVarVSMDynamicResolutionMaxPagePoolLoadFactor.GetValueOnRenderThread();
-			const float MaxLodBias = CVarVSMDynamicResolutionMaxLodBias.GetValueOnRenderThread();
+				const float MaxPageAllocation = CVarVSMDynamicResolutionMaxPagePoolLoadFactor.GetValueOnRenderThread();
+				const float MaxLodBias = CVarVSMDynamicResolutionMaxLodBias.GetValueOnRenderThread();
 			
-			if (MaxPageAllocation > 0.0f)
-			{
-				const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
-
-				// Dynamically bias shadow resolution when we get too near the maximum pool capacity
-				// NB: In a perfect world each +1 of resolution bias will drop the allocation in half
-				float CurrentAllocation = 1.0f - (LastFreePhysicalPages / static_cast<float>(MaxPhysicalPages));
-				float AllocationRatio = CurrentAllocation / MaxPageAllocation;
-				float TargetLodBias = FMath::Max(0.0f, LastGlobalResolutionLodBias + FMath::Log2(AllocationRatio));
-
-				if (CurrentAllocation <= MaxPageAllocation &&
-					(SceneFrameNumber - LastFrameOverPageAllocationBudget) > FramesBeforeResolutionUp)
+				if (MaxPageAllocation > 0.0f)
 				{
-					GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionUpExpLerpFactor);
+					const uint32 SceneFrameNumber = Scene->GetFrameNumberRenderThread();
+
+					// Dynamically bias shadow resolution when we get too near the maximum pool capacity
+					// NB: In a perfect world each +1 of resolution bias will drop the allocation in half
+					float CurrentAllocation = 1.0f - (LastFreePhysicalPages / static_cast<float>(MaxPhysicalPages));
+					float AllocationRatio = CurrentAllocation / MaxPageAllocation;
+					float TargetLodBias = FMath::Max(0.0f, LastGlobalResolutionLodBias + FMath::Log2(AllocationRatio));
+
+					if (CurrentAllocation <= MaxPageAllocation &&
+						(SceneFrameNumber - LastFrameOverPageAllocationBudget) > FramesBeforeResolutionUp)
+					{
+						GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionUpExpLerpFactor);
+					}
+					else if (CurrentAllocation > MaxPageAllocation)
+					{
+						LastFrameOverPageAllocationBudget = SceneFrameNumber;
+						GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionDownExpLerpFactor);
+					}
 				}
-				else if (CurrentAllocation > MaxPageAllocation)
-				{
-					LastFrameOverPageAllocationBudget = SceneFrameNumber;
-					GlobalResolutionLodBias = FMath::Lerp(GlobalResolutionLodBias, TargetLodBias, ResolutionDownExpLerpFactor);
-				}
+
+				GlobalResolutionLodBias = FMath::Clamp(GlobalResolutionLodBias, 0.0f, MaxLodBias);
 			}
 
-			GlobalResolutionLodBias = FMath::Clamp(GlobalResolutionLodBias, 0.0f, MaxLodBias);
-		}
-
-		if (LastFreePhysicalPages < 0)
-		{
 #if !UE_BUILD_SHIPPING
-			if (!bLoggedPageOverflow)
+			if (LastFreePhysicalPages < 0)
 			{
-				static const auto* CVarResolutionLodBiasLocalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal"));
-				static const auto* CVarResolutionLodBiasDirectionalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional"));
+				uint32 PagePoolOverflowTypeIndex = (uint32)FMath::Log2((double)VSM_STAT_OVERFLOW_FLAG_PAGE_POOL);
+				LastOverflowTimes[PagePoolOverflowTypeIndex] = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
+				if ((LoggedOverflowFlags & VSM_STAT_OVERFLOW_FLAG_PAGE_POOL) == 0)
+				{
+					static const auto* CVarResolutionLodBiasLocalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasLocal"));
+					static const auto* CVarResolutionLodBiasDirectionalPtr = IConsoleManager::Get().FindTConsoleVariableDataFloat(TEXT("r.Shadow.Virtual.ResolutionLodBiasDirectional"));
 
-				UE_LOG(LogRenderer, Warning, TEXT("Virtual Shadow Map Page Pool overflow (%d page allocations were not served), this will produce visual artifacts (missing shadow), increase the page pool limit or reduce resolution bias to avoid.\n")
-					TEXT(" See r.Shadow.Virtual.MaxPhysicalPages (%d), r.Shadow.Virtual.ResolutionLodBiasLocal (%.2f), r.Shadow.Virtual.ResolutionLodBiasDirectional (%.2f), Global Resolution Lod Bias (%.2f)"),
-					-LastFreePhysicalPages,
-					MaxPhysicalPages,
-					CVarResolutionLodBiasLocalPtr->GetValueOnRenderThread(),
-					CVarResolutionLodBiasDirectionalPtr->GetValueOnRenderThread(),
-					GlobalResolutionLodBias);
+					UE_LOG(LogRenderer, Warning, TEXT("Virtual Shadow Map Page Pool overflow (%d page allocations were not served), this will produce visual artifacts (missing shadow), increase the page pool limit or reduce resolution bias to avoid.\n")
+						TEXT(" See r.Shadow.Virtual.MaxPhysicalPages (%d), r.Shadow.Virtual.ResolutionLodBiasLocal (%.2f), r.Shadow.Virtual.ResolutionLodBiasDirectional (%.2f), Global Resolution Lod Bias (%.2f)"),
+						-LastFreePhysicalPages,
+						MaxPhysicalPages,
+						CVarResolutionLodBiasLocalPtr->GetValueOnRenderThread(),
+						CVarResolutionLodBiasDirectionalPtr->GetValueOnRenderThread(),
+						GlobalResolutionLodBias);
 
-				bLoggedPageOverflow = true;
+					LoggedOverflowFlags |= VSM_STAT_OVERFLOW_FLAG_PAGE_POOL;
+				}
 			}
-			LastOverflowTime = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
+			else
+			{
+				LoggedOverflowFlags &= ~VSM_STAT_OVERFLOW_FLAG_PAGE_POOL;
+			}
 #endif
 		}
-#if !UE_BUILD_SHIPPING
-		else
+		else if(MessageType == VSM_STATUS_MSG_OVERFLOW)
 		{
-			bLoggedPageOverflow = false;
-		}
+#if !UE_BUILD_SHIPPING
+			uint32 OverflowFlags = Message.Read<int32>();
+			if (OverflowFlags)
+			{
+				float CurrentTime = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
+				for (uint32 OverflowTypeIndex = 0; OverflowTypeIndex < VSM_STAT_OVERFLOW_FLAG_NUM; OverflowTypeIndex++)
+				{
+					uint32 OverflowTypeFlag = 1 << OverflowTypeIndex;
+					if (OverflowFlags & OverflowTypeFlag)
+					{
+						LastOverflowTimes[OverflowTypeIndex] = CurrentTime;
+
+						if ((LoggedOverflowFlags & OverflowTypeFlag) == 0)
+						{
+							UE_LOG(LogRenderer, Warning, TEXT("%s"), *(GetOverflowMessage(OverflowTypeIndex).ToString()));
+							LoggedOverflowFlags |= OverflowTypeFlag;
+						}
+					}
+				}
+			}
 #endif
+		}
 	});
 
 #if !UE_BUILD_SHIPPING
@@ -760,10 +792,15 @@ void FVirtualShadowMapArrayCacheManager::InitExtension(FScene& InScene)
 	{
 		float RealTimeSeconds = float(FGameTime::GetTimeSinceAppStart().GetRealTimeSeconds());
 
-		// Show for ~5s after last overflow
-		if (LastOverflowTime >= 0.0f && RealTimeSeconds - LastOverflowTime < 5.0f)
+		for (uint32 OverflowTypeIndex = 0; OverflowTypeIndex < VSM_STAT_OVERFLOW_FLAG_NUM; OverflowTypeIndex++)
 		{
-			OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Warning, FText::FromString(FString::Printf(TEXT("Virtual Shadow Map Page Pool overflow detected (%0.0f seconds ago)"), RealTimeSeconds - LastOverflowTime)));
+			// Show for ~10s after last overflow
+			float LastOverflowTime = LastOverflowTimes[OverflowTypeIndex];
+			if (LastOverflowTime >= 0.0f && RealTimeSeconds - LastOverflowTime < 10.0f)
+			{
+				FText OverflowMessage = GetOverflowMessage(OverflowTypeIndex);
+				OutMessages.Add(FCoreDelegates::EOnScreenMessageSeverity::Warning, FText::FromString(FString::Printf(TEXT("%s (%0.0f seconds ago)"), *(OverflowMessage.ToString()), RealTimeSeconds - LastOverflowTime)));
+			}
 		}
 
 		for (const auto& Item : LargePageAreaItems)
@@ -796,6 +833,20 @@ FVirtualShadowMapArrayCacheManager::~FVirtualShadowMapArrayCacheManager()
 #endif
 }
 
+#if !UE_BUILD_SHIPPING
+FText FVirtualShadowMapArrayCacheManager::GetOverflowMessage(uint32 OverflowTypeIndex) const
+{
+	uint32 OverflowTypeFlag = 1 << OverflowTypeIndex;
+	switch (OverflowTypeFlag)
+	{
+		case VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE: return LOCTEXT("VSM_MarkingJobQueueOverflow", "[VSM] Non-Nanite Marking Job Queue overflow. Performance may be affected. This occurs when many non-nanite meshes cover a large area of the shadow map.");
+		case VSM_STAT_OVERFLOW_FLAG_OPP_MAX_LIGHTS: return LOCTEXT("VSM_OPPMaxLightsOverflow", "[VSM] One Pass Projection max lights overflow. If you see shadow artifacts, decrease the amount of local lights per pixel, or increase r.Shadow.Virtual.OnePassProjection.MaxLightsPerPixel.");
+		case VSM_STAT_OVERFLOW_FLAG_PAGE_POOL: return LOCTEXT("VSM_PagePoolOverflow", "[VSM] Page Pool overflow detected, this will produce visual artifacts (missing shadow). Increase the page pool limit or reduce resolution bias to avoid.");
+		case VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES: return LOCTEXT("VSM_VisibleInstancesOverflow", "[VSM] Non-Nanite visible instances buffer overflow detected, this will produce visual artifacts (missing shadow).");
+		default: return LOCTEXT("VSM_UnknownOverflow", "[VSM] Unknown overflow");
+	}
+}
+#endif
 
 void FVirtualShadowMapArrayCacheManager::SetPhysicalPoolSize(FRDGBuilder& GraphBuilder, FIntPoint RequestedSize, int RequestedArraySize, uint32 RequestedMaxPhysicalPages)
 {
@@ -1704,3 +1755,5 @@ void FVirtualShadowMapInvalidationSceneUpdater::PostGPUSceneUpdate(FRDGBuilder& 
 	}
 	PostUpdateChangeSet = nullptr;
 }
+
+#undef LOCTEXT_NAMESPACE

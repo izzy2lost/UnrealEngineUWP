@@ -19,6 +19,7 @@
 #include "VirtualShadowMapTransmissionCommon.ush"
 #include "VirtualShadowMapScreenRayTrace.ush"
 #include "VirtualShadowMapLightGrid.ush"
+#include "VirtualShadowMapStats.ush"
 #include "/Engine/Shared/VirtualShadowMapDefinitions.h"
 
 #if HAS_HAIR_STRANDS
@@ -641,6 +642,8 @@ void VirtualShadowMapProjection(
 	const FCulledLightsGridHeader LightGridHeader = VirtualShadowMapGetLightsGrid(LocalPixelPos, SceneDepth);	
 	// We can only handle so many lights in our output encoding right now, so no purpose in computing more
 	uint LightCount = min(GetPackedShadowMaskMaxLightCount(), LightGridHeader.NumLights);
+	bool bLightCountOverflow = GetPackedShadowMaskMaxLightCount() < LightGridHeader.NumLights;
+	StatsBufferInterlockedEnableFlags<true>(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_OPP_MAX_LIGHTS, bLightCountOverflow);
 
 	uint4 ShadowMask = InitializePackedShadowMask();
 

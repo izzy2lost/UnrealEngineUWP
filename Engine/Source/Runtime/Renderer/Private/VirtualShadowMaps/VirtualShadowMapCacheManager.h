@@ -449,8 +449,10 @@ private:
 	// Debug stuff
 #if !UE_BUILD_SHIPPING
 	FDelegateHandle ScreenMessageDelegate;
-	float LastOverflowTime = -1.0f;
-	bool bLoggedPageOverflow = false;
+	uint32 LoggedOverflowFlags = 0;
+	TArray<float, TInlineAllocator<VSM_STAT_OVERFLOW_FLAG_NUM>> LastOverflowTimes;
+
+	FText GetOverflowMessage(uint32 OverflowTypeIndex) const;
 	
 	// Socket for optional stats that are only sent back if enabled
 	GPUMessage::FSocket StatsFeedbackSocket;

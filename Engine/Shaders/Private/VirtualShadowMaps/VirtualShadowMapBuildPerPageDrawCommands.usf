@@ -56,7 +56,7 @@ uint GetInclusiveRectArea(uint4 Rect)
 	return 0;
 }
 
-void WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint CullingFlags, bool bStaticPage)
+bool WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint CullingFlags, bool bStaticPage)
 {
 	FPageInfo PageInfo;
 	PageInfo.ViewId = MipViewId;
@@ -71,8 +71,12 @@ void WriteCmd(uint MipViewId, uint InstanceId, uint IndirectArgIndex, uint Culli
 	WaveInterlockedAddScalar_(VisibleInstanceCountBufferOut[0], 1U, VisibleInstanceOutputOffset);
 	if (VisibleInstanceOutputOffset < VisibleInstancesBufferNum)
 	{
-		// TODO: Flag & feedback on overflow.
 		VisibleInstancesOut[VisibleInstanceOutputOffset] = VisibleInstanceCmd;
+		return true;
+	}
+	else
+	{
+		return false;
 	}
 }
 
@@ -210,6 +214,9 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 		uint TotalPageArea = 0U;
 		float NumVisibleLevels = 0.0f;
 #endif
+		bool bMarkingJobQueueOverflow = false;
+		bool bVisibleInstancesOverflow = false;
+
 		// Loop over views and output visible instance (i.e., those that overlap a valid page)
 		for (uint PrimaryViewId = VSMCullingBatchInfo.FirstPrimaryView; PrimaryViewId < VSMCullingBatchInfo.FirstPrimaryView + VSMCullingBatchInfo.NumPrimaryViews; ++PrimaryViewId)
 		{
@@ -319,9 +326,19 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 
 						uint NumMappedPages = 0U;
 						{
-
 							uint2 RectPagesSize = (RectPages.zw + 1u) - RectPages.xy;
-							if (RectPagesSize.x * RectPagesSize.y <= MAX_SINGLE_THREAD_MARKING_AREA)
+							bool bIsSmallJob = RectPagesSize.x * RectPagesSize.y <= MAX_SINGLE_THREAD_MARKING_AREA;
+
+							uint LargeJobIndex = 0U;
+							if (!bIsSmallJob)
+							{
+								// allocate slot to defer the work and use all threads in group
+								InterlockedAdd(NumSharedMarkingJobs, 1U, LargeJobIndex);
+							}
+
+							bMarkingJobQueueOverflow = bMarkingJobQueueOverflow || LargeJobIndex >= MARKING_JOB_QUEUE_SIZE;
+
+							if (bIsSmallJob || bMarkingJobQueueOverflow)
 							{
 								FVirtualSMLevelOffset PageTableLevelOffset = CalcPageTableLevelOffset(VirtualShadowMapId, MipLevel);
 
@@ -340,8 +357,6 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 							else
 							{
 								// defer the work and use all threads in group
-								uint JobIndex = 0U;
-								InterlockedAdd(NumSharedMarkingJobs, 1U, JobIndex);
 								FSharedMarkingJob Job;
 								Job.RectPages = RectPages;
 								Job.VirtualShadowMapId = VirtualShadowMapId;
@@ -350,21 +365,16 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 								Job.bMaterialInvalidates = bMaterialInvalidates;
 								Job.bShouldCacheAsStatic = bCacheAsStatic;
 								Job.bIsViewUncached = Cull.bIsViewUncached;
-								if (JobIndex < MARKING_JOB_QUEUE_SIZE)
-								{
-									SharedMarkingJobs[JobIndex] = PackJob(Job);
-								}
+								SharedMarkingJobs[LargeJobIndex] = PackJob(Job);
 								// Must assume we have mapped pages (or defer the cmd write also...)
 								NumMappedPages = 1U;
 							}
-
-							// 
 						}
 
 						if (NumMappedPages > 0U)
 						{
 							++ThreadTotalForAllViews;
-							WriteCmd(MipViewId, InstanceId, Payload.IndirectArgIndex, CullingFlags, bCacheAsStatic);
+							bVisibleInstancesOverflow |= !WriteCmd(MipViewId, InstanceId, Payload.IndirectArgIndex, CullingFlags, bCacheAsStatic);
 						}
 					}
 					else
@@ -378,8 +388,10 @@ void CullPerPageDrawCommandsCs(uint3 GroupId : SV_GroupID, int GroupThreadIndex 
 				StatsBufferInterlockedAdd(VSM_STAT_NON_NANITE_INSTANCES_FRUSTUM_CULLED, NaniteView.TargetNumMipLevels);
 			}
 		}
-
+		
 		StatsBufferInterlockedAdd(VSM_STAT_NON_NANITE_INSTANCES_DRAWN, ThreadTotalForAllViews);
+		StatsBufferInterlockedEnableFlags<true>(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE, bMarkingJobQueueOverflow);
+		StatsBufferInterlockedEnableFlags<true>(VSM_STAT_OVERFLOW_FLAGS, VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES, bVisibleInstancesOverflow);
 
 		// Accumulate total number of instances for each indirect argument, is also used to allocate space and output compact range of instances later
 		InterlockedAdd(DrawIndirectArgsBufferOut[Payload.IndirectArgIndex * INDIRECT_ARGS_NUM_WORDS + 1], ThreadTotalForAllViews);

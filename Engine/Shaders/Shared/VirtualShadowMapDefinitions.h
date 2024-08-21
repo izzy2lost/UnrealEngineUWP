@@ -54,10 +54,20 @@ VirtualShadowMapDefinitions.h: used in virtual shadow map shaders and C++ code t
 #define VSM_STAT_NANITE_INSTANCES_MAIN					17
 #define VSM_STAT_NANITE_INSTANCES_POST					18
 #define VSM_STAT_WPO_CONSIDERED_PAGES					19
-#define VSM_STAT_TMP_1									20
-#define VSM_STAT_TMP_2									21
-#define VSM_STAT_TMP_3									22
-#define VSM_STAT_NUM									23
+#define VSM_STAT_OVERFLOW_FLAGS							20
+#define VSM_STAT_TMP_1									21
+#define VSM_STAT_TMP_2									22
+#define VSM_STAT_TMP_3									23
+#define VSM_STAT_NUM									24
+
+#define VSM_STAT_OVERFLOW_FLAG_MARKING_JOB_QUEUE 		(1<<0)
+#define VSM_STAT_OVERFLOW_FLAG_OPP_MAX_LIGHTS	 		(1<<1)
+#define VSM_STAT_OVERFLOW_FLAG_PAGE_POOL		 		(1<<2)
+#define VSM_STAT_OVERFLOW_FLAG_VISIBLE_INSTANCES 		(1<<3)
+#define VSM_STAT_OVERFLOW_FLAG_NUM						4
+
+#define VSM_STATUS_MSG_PAGE_MANAGEMENT					0
+#define VSM_STATUS_MSG_OVERFLOW							1
 
 #ifdef __cplusplus
 #include "HLSLTypeAliases.h"
