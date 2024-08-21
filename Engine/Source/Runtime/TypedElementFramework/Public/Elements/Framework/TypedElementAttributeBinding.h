@@ -89,6 +89,22 @@ namespace UE::EditorDataStorage
 		 */
 		template <typename InRetValType, typename... ParamTypes, typename ColumnType>
 		TDelegate<InRetValType(ParamTypes...)> BindEvent(TDelegate<InRetValType(ParamTypes...)> ColumnType::* InVariable);
+
+		/**
+		 * Directly bind an FString member in a Teds column to an FText attribute as a shortcut
+		 * @param InFStringVariable The FString variable 
+		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
+		 */
+		template <TDataColumnType ColumnType>
+		TAttribute<FText> BindText(FString ColumnType::* InFStringVariable);
+
+		/**
+		 * Directly bind an FName member in a Teds column to an FText attribute as a shortcut
+		 * @param InFNameVariable The FName variable 
+		 * @return A delegate that can be provided to a text widget in Slate (e.g STextBlock)
+		 */
+		template <TDataColumnType ColumnType>
+		TAttribute<FText> BindText(FName ColumnType::* InFNameVariable);
 		
 	private:
 

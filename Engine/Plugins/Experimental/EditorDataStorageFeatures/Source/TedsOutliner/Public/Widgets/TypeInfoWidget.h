@@ -40,14 +40,6 @@ protected:
 
 protected:
 
-	// Get the icon for a given row, checking the cache to see if we already have one
-	static const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn);
-	
-protected:
-
-	// Cache to avoid looking up the icon for a class every time
-	static TMap<FName, const FSlateBrush*> CachedIconMap;
-
 	// Whether the widget created by this constructor should be icon or text
 	bool bUseIcon;
 };

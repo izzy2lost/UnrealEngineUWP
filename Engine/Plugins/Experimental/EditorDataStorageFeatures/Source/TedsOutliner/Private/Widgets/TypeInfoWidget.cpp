@@ -9,6 +9,7 @@
 #include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Interfaces/Capabilities/TypedElementUiTextCapability.h"
 #include "Styling/SlateIconFinder.h"
+#include "TedsTableViewerUtils.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
 
@@ -19,8 +20,6 @@ void UTypeInfoWidgetFactory::RegisterWidgetConstructors(ITypedElementDataStorage
 		TypedElementDataStorage::FColumn<FTypedElementClassTypeInfoColumn>());
 
 }
-
-TMap<FName, const FSlateBrush*> FTypeInfoWidgetConstructor::CachedIconMap;
 
 FTypeInfoWidgetConstructor::FTypeInfoWidgetConstructor()
 	: Super(FTypeInfoWidgetConstructor::StaticStruct())
@@ -81,7 +80,7 @@ bool FTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterfac
 
 			SImage* WidgetInstance = static_cast<SImage*>(Widget.Get());
 			
-			WidgetInstance->SetImage(GetIconForRow(DataStorage, Row, TypeInfoColumn));
+			WidgetInstance->SetImage(UE::Editor::DataStorage::TableViewerUtils::GetIconForRow(DataStorage, Row));
 		}
 		else
 		{
@@ -122,49 +121,4 @@ bool FTypeInfoWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterfac
 	}
 
 	return true;
-}
-
-const FSlateBrush* FTypeInfoWidgetConstructor::GetIconForRow(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle Row, const FTypedElementClassTypeInfoColumn* TypeInfoColumn)
-{
-	/* The logic here is very similar to SActorTreeLabel::GetIcon in ActorTreeItem.cpp which allows the actor to specify
-	 * an override for the icon, and has a fallback to the class icon if not.
-	 */
-	
-	const UClass* Type = TypeInfoColumn->TypeInfo.Get();
-	FName IconName;
-
-	// Allow the actor the first chance to provide an icon override
-	if (DataStorage->HasColumns<FTypedElementActorTag>(Row))
-	{
-		if (FTypedElementUObjectColumn* ActorStore = DataStorage->GetColumn<FTypedElementUObjectColumn>(Row))
-		{
-			if (const AActor* Actor = Cast<AActor>(ActorStore->Object))
-			{
-				IconName = Actor->GetCustomIconName();
-			}
-		}
-	}
-
-	if(IconName == NAME_None)
-	{
-		IconName = Type->GetFName();
-	}
-
-	// Check the cache if we already found an icon for this class
-	if(const FSlateBrush** CachedBrush = CachedIconMap.Find(IconName))
-	{
-		if(*CachedBrush)
-		{
-			return *CachedBrush;
-		}
-	}
-
-	if(const FSlateBrush* FoundSlateBrush = FSlateIconFinder::FindIconForClass(Type).GetOptionalIcon())
-	{
-		CachedIconMap.Add(IconName, FoundSlateBrush);
-		return FoundSlateBrush;
-	}
-
-	// Fallback to the regular actor icon if we haven't found any specific icon
-	return FSlateIconFinder::FindIconForClass(AActor::StaticClass()).GetOptionalIcon();;
 }

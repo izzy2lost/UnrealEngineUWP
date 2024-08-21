@@ -26,6 +26,8 @@ public class TedsAssetData : ModuleRules
 					"Engine",
 					"TypedElementFramework",
 					"UnrealEd",
+					"SlateCore",
+					"Slate"
 				});
 
 			PublicDependencyModuleNames.AddRange(

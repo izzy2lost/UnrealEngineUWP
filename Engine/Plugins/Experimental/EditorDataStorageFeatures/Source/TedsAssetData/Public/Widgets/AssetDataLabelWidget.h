@@ -7,36 +7,34 @@
 #include "Internationalization/Text.h"
 #include "UObject/ObjectMacros.h"
 
-#include "LabelWidget.generated.h"
+#include "AssetDataLabelWidget.generated.h"
 
 class ITypedElementDataStorageInterface;
 class UScriptStruct;
 
 UCLASS()
-class ULabelWidgetFactory : public UTypedElementDataStorageFactory
+class UAssetDataLabelWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~ULabelWidgetFactory() override = default;
+	~UAssetDataLabelWidgetFactory() override = default;
 
-	TEDSUI_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+	TEDSASSETDATA_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
-	TEDSUI_API virtual void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
 
+// Label widget for assets in TEDS
 USTRUCT()
-struct FLabelWidgetConstructor : public FSimpleWidgetConstructor
+struct FAssetDataLabelWidgetConstructor : public FSimpleWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	TEDSUI_API FLabelWidgetConstructor();
-	~FLabelWidgetConstructor() override = default;
+	TEDSASSETDATA_API FAssetDataLabelWidgetConstructor();
+	~FAssetDataLabelWidgetConstructor() override = default;
 
-	TEDSUI_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-
-	TEDSUI_API virtual TSharedPtr<SWidget> CreateWidget(
+	TEDSASSETDATA_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		RowHandle TargetRow,
@@ -44,4 +42,6 @@ public:
 		const TypedElementDataStorage::FMetaDataView& Arguments) override;
 
 protected:
+	
+	static FText ConstructToolTip(ITypedElementDataStorageInterface* DataStorage, UE::Editor::DataStorage::RowHandle DataRow);
 };

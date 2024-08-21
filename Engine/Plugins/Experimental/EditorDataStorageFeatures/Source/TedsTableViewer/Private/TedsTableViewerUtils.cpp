@@ -2,9 +2,14 @@
 
 #include "TedsTableViewerUtils.h"
 
+#include "GameFramework/Actor.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
+#include "Elements/Columns/TypedElementIconOverrideColumns.h"
 #include "Elements/Columns/TypedElementMiscColumns.h"
+#include "Elements/Columns/TypedElementTypeInfoColumns.h"
 #include "Elements/Common/TypedElementDataStorageLog.h"
 #include "Elements/Interfaces/TypedElementDataStorageUiInterface.h"
+#include "Styling/SlateIconFinder.h"
 
 namespace UE::Editor::DataStorage::TableViewerUtils
 {
@@ -138,6 +143,61 @@ namespace UE::Editor::DataStorage::TableViewerUtils
 			}
 		}
 		return nullptr;
+	}
+
+	const FSlateBrush* GetIconForRow(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
+	{
+		static TMap<FName, const FSlateBrush*> CachedIconMap;
+
+		auto FindCachedIcon = [](const FName& IconName) -> const FSlateBrush*
+		{
+			if (const FSlateBrush** CachedBrush = CachedIconMap.Find(IconName))
+			{
+				if (*CachedBrush)
+				{
+					return *CachedBrush;
+				}
+			}
+			return nullptr;
+		};
+
+		// Look for any icon overrides
+		if(const FTypedElementIconOverrideColumn* IconOverrideColumn = DataStorage->GetColumn<FTypedElementIconOverrideColumn>(Row))
+		{
+			const FName IconName = IconOverrideColumn->IconName;
+
+			if(const FSlateBrush* CachedBrush = FindCachedIcon(IconName))
+			{
+				return CachedBrush;
+			}
+			else if(const FSlateBrush* CustomBrush = FSlateIconFinder::FindIcon(IconName).GetOptionalIcon())
+			{
+				CachedIconMap.Add(IconName, CustomBrush);
+				return CustomBrush;
+			}
+		}
+		// Otherwise find the icon from the type information if available
+		else if (const FTypedElementClassTypeInfoColumn* TypeInfoColumn = DataStorage->GetColumn<FTypedElementClassTypeInfoColumn>(Row))
+		{
+			if (const UClass* Type = TypeInfoColumn->TypeInfo.Get())
+			{
+				const FName IconName = Type->GetFName();
+
+				if(const FSlateBrush* CachedBrush = FindCachedIcon(IconName))
+				{
+					return CachedBrush;
+				}
+				else if(const FSlateBrush* TypeBrush = FSlateIconFinder::FindIconBrushForClass(Type))
+				{
+					CachedIconMap.Add(IconName, TypeBrush);
+					return TypeBrush;
+				}
+			}
+		}
+		
+		// Fallback to the regular actor icon if we haven't found any specific icon
+		return FSlateIconFinder::FindIconForClass(AActor::StaticClass()).GetOptionalIcon();;
+
 	}
 }
 

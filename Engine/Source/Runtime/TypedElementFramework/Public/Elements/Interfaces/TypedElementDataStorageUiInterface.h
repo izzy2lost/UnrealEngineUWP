@@ -19,6 +19,7 @@ class SWidget;
 /**
  * Base class used to construct Typed Element widgets with.
  * See below for the options to register a constructor with the Data Storage.
+ * In most cases you want to inherit from FSimpleWidgetConstructor instead which has a simpler pipeline to create widgets
  */
 USTRUCT()
 struct FTypedElementWidgetConstructor
@@ -90,7 +91,8 @@ protected:
 	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
-		TypedElementDataStorage::RowHandle UiRow, 
+		TypedElementDataStorage::RowHandle TargetRow,
+		TypedElementDataStorage::RowHandle WidgetRow, 
 		const TypedElementDataStorage::FMetaDataView& Arguments);
 	/** Set any values in columns if needed. The columns provided through GetAdditionalColumnsList() will have already been created. */
 	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row);
@@ -110,11 +112,84 @@ protected:
 
 	/** Add the default misc columns we want a widget row to have. */
 	TYPEDELEMENTFRAMEWORK_API void AddDefaultWidgetColumns(RowHandle Row, ITypedElementDataStorageInterface* DataStorage) const;
+
+	/**
+	 * Helper function to get the actual target row with the data the widget is operating on (if applicable). Returns InvalidRowHandle if there is no
+	 * target row
+	 */
+	TYPEDELEMENTFRAMEWORK_API RowHandle GetTargetRow(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) const;
+
 protected:
 
 	TArray<TWeakObjectPtr<const UScriptStruct>> MatchedColumnTypes;
 	const TypedElementDataStorage::FQueryConditions* QueryConditions = nullptr;
 	const UScriptStruct* TypeInfo = nullptr;
+};
+
+/**
+ * A simple widget constructor that cuts down on most of the boilerplate, in most cases you want to inherit from this to create your widget constructor
+ * Only requires you to override CreateWidget() to create the actual SWidget
+ */
+USTRUCT()
+struct FSimpleWidgetConstructor : public FTypedElementWidgetConstructor
+{
+	GENERATED_BODY()
+
+	/** Call this constructor with StaticStruct() on your derived class to pass in the type information */
+	TYPEDELEMENTFRAMEWORK_API explicit FSimpleWidgetConstructor(const UScriptStruct* InTypeInfo);
+
+	FSimpleWidgetConstructor() : Super(StaticStruct()) {} //< For compatibility and shouldn't be directly used.
+	
+	virtual ~FSimpleWidgetConstructor() override = default;
+
+	/*
+	 * Required function to create the actual widget instance.
+	 * 
+	 * @param DataStorage A pointer to the TEDS data storage interface
+	 * @param DataStorageUi A pointer to the TEDS data storage UI interface
+	 * @param TargetRow The row for the actual data this widget is being created for (can be InvalidRowHandle if there is no target row attached to this widget)
+	 * @param WidgetRow The row that contains information about the widget itself
+	 * @param Arguments Any metadata arguments that were specified
+	 * @return The actual widget instance
+	 */
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		RowHandle TargetRow,
+		RowHandle WidgetRow, 
+		const TypedElementDataStorage::FMetaDataView& Arguments) override;
+
+	/*
+	 * Override this function to add any columns to the WidgetRow before CreateWidget is called
+	 * 
+	 * @param DataStorage A pointer to the TEDS data storage interface
+	 * @param WidgetRow The row that contains information about the widget itself
+	 * @return Whether any columns were added
+	 */
+	TYPEDELEMENTFRAMEWORK_API virtual bool SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) override;
+
+protected:
+
+	/** Old CreateWidget overload that exists for backwards compatibility, you should use the overload that provides the row instead */
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments) override final;
+	
+	/** 
+	 * Old function in the widget creation pipeline that isn't used anymore. All your logic should go in CreateWidget() itself
+	 */
+	TYPEDELEMENTFRAMEWORK_API virtual bool FinalizeWidget(
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		RowHandle Row,
+		const TSharedPtr<SWidget>& Widget) override final;
+	
+	/**
+	 * Helper function to call SetColumns() and CreateWidget(), you should not need to override this for simple widget constructors
+	 */
+	TYPEDELEMENTFRAMEWORK_API virtual TSharedPtr<SWidget> Construct(
+		RowHandle WidgetRow, 
+		ITypedElementDataStorageInterface* DataStorage,
+		ITypedElementDataStorageUiInterface* DataStorageUi,
+		const TypedElementDataStorage::FMetaDataView& Arguments) override final;
 };
 
 template<>

@@ -202,6 +202,24 @@ namespace UE::EditorDataStorage
 		});
 	}
 	
+	template <TDataColumnType ColumnType>
+	TAttribute<FText> FAttributeBinder::BindText(FString ColumnType::* InFStringVariable)
+	{
+		return BindData(InFStringVariable, [](const FString& InString)
+		{
+			return FText::FromString(InString);
+		});
+	}
+
+	template <TDataColumnType ColumnType>
+	TAttribute<FText> FAttributeBinder::BindText(FName ColumnType::* InFNameVariable)
+	{
+		return BindData(InFNameVariable, [](const FName& InName)
+		{
+			return FText::FromName(InName);
+		});
+	}
+	
 }
 
 	

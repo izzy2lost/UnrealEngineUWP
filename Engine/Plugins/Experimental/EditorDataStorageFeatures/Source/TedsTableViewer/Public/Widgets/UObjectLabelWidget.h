@@ -7,36 +7,34 @@
 #include "Internationalization/Text.h"
 #include "UObject/ObjectMacros.h"
 
-#include "LabelWidget.generated.h"
+#include "UObjectLabelWidget.generated.h"
 
 class ITypedElementDataStorageInterface;
 class UScriptStruct;
 
 UCLASS()
-class ULabelWidgetFactory : public UTypedElementDataStorageFactory
+class UUObjectLabelWidgetFactory : public UTypedElementDataStorageFactory
 {
 	GENERATED_BODY()
 
 public:
-	~ULabelWidgetFactory() override = default;
+	~UUObjectLabelWidgetFactory() override = default;
 
-	TEDSUI_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
+	TEDSTABLEVIEWER_API void RegisterWidgetConstructors(ITypedElementDataStorageInterface& DataStorage,
 		ITypedElementDataStorageUiInterface& DataStorageUi) const override;
-	TEDSUI_API virtual void RegisterWidgetPurposes(ITypedElementDataStorageUiInterface& DataStorageUi) const override;
 };
 
+// Widget to show labels for UObjects in TEDS
 USTRUCT()
-struct FLabelWidgetConstructor : public FSimpleWidgetConstructor
+struct FUObjectLabelWidgetConstructor : public FSimpleWidgetConstructor
 {
 	GENERATED_BODY()
 
 public:
-	TEDSUI_API FLabelWidgetConstructor();
-	~FLabelWidgetConstructor() override = default;
+	TEDSTABLEVIEWER_API FUObjectLabelWidgetConstructor();
+	~FUObjectLabelWidgetConstructor() override = default;
 
-	TEDSUI_API virtual TConstArrayView<const UScriptStruct*> GetAdditionalColumnsList() const override;
-
-	TEDSUI_API virtual TSharedPtr<SWidget> CreateWidget(
+	TEDSTABLEVIEWER_API virtual TSharedPtr<SWidget> CreateWidget(
 		ITypedElementDataStorageInterface* DataStorage,
 		ITypedElementDataStorageUiInterface* DataStorageUi,
 		RowHandle TargetRow,

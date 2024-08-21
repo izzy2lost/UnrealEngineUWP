@@ -16,6 +16,8 @@
 #include "TedsOutlinerFilter.h"
 #include "TedsOutlinerItem.h"
 #include "Columns/TedsOutlinerColumns.h"
+#include "Elements/Columns/TypedElementCompatibilityColumns.h"
+#include "Elements/Columns/TypedElementOverrideColumns.h"
 #include "Elements/Columns/TypedElementSelectionColumns.h"
 #include "Elements/Columns/TypedElementSlateWidgetColumns.h"
 #include "Filters/FilterBase.h"
@@ -62,8 +64,8 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 
 		bool bFoundWidget = false;
 
-		// We also want to look at the ItemLabel purpose for the label
-		TArray<FName> ItemLabelCellWidgetPurposes{TEXT("SceneOutliner.ItemLabel.Cell")};
+		// We also want to look at the RowLabel purpose for the label
+		TArray<FName> ItemLabelCellWidgetPurposes{TEXT("SceneOutliner.RowLabel")};
 		ItemLabelCellWidgetPurposes.Append(CellWidgetPurposes);
 		
 		for(const FName& WidgetPurpose : ItemLabelCellWidgetPurposes)
@@ -92,22 +94,9 @@ void FTedsOutlinerImpl::CreateLabelWidgetConstructors()
 		return OutWidgetConstructorPtr;
 	};
 	
-
-	TypedElementDataStorage::QueryHandle TypeColumnQueryHandle = Storage->RegisterQuery(
-																	Select()
-																		.ReadOnly<FTypedElementClassTypeInfoColumn>()
-																	.Compile()
-																	);
-
-
-	if (TSharedPtr<FTypedElementWidgetConstructor> TypeColumnWidgetConstructor = CreateWidgetConstructorForQuery(Storage->GetQueryDescription(TypeColumnQueryHandle)))
-	{
-		QueryToWidgetConstructorMap.Emplace(TypeColumnQueryHandle, TypeColumnWidgetConstructor);
-	}
-
 	TypedElementDataStorage::QueryHandle LabelColumnQueryHandle = Storage->RegisterQuery(
 																	Select()
-																		.ReadWrite<FTypedElementLabelColumn>()
+																		.ReadWrite<FTypedElementLabelColumn, FTypedElementClassTypeInfoColumn>()
 																	.Compile()
 																	);
 

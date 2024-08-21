@@ -141,7 +141,9 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::Construct(
 	ITypedElementDataStorageUiInterface* DataStorageUi,
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
-	TSharedPtr<SWidget> Widget = CreateWidget(DataStorage, DataStorageUi, Row, Arguments);
+	TypedElementDataStorage::RowHandle TargetRow = GetTargetRow(DataStorage, Row);
+
+	TSharedPtr<SWidget> Widget = CreateWidget(DataStorage, DataStorageUi, TargetRow, Row, Arguments);
 	if (Widget)
 	{
 		DataStorage->GetColumn<FTypedElementSlateWidgetReferenceColumn>(Row)->Widget = Widget;
@@ -165,6 +167,7 @@ TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(const TypedElem
 TSharedPtr<SWidget> FTypedElementWidgetConstructor::CreateWidget(
 	ITypedElementDataStorageInterface* DataStorage,
 	ITypedElementDataStorageUiInterface* DataStorageUi,
+	TypedElementDataStorage::RowHandle TargetRow,
 	TypedElementDataStorage::RowHandle UiRow, 
 	const TypedElementDataStorage::FMetaDataView& Arguments)
 {
@@ -220,3 +223,69 @@ void FTypedElementWidgetConstructor::AddDefaultWidgetColumns(RowHandle Row, ITyp
 		}
 	}
 }
+
+FTypedElementWidgetConstructor::RowHandle FTypedElementWidgetConstructor::GetTargetRow(ITypedElementDataStorageInterface* DataStorage, RowHandle WidgetRow) const
+{
+	TypedElementDataStorage::RowHandle TargetRow = TypedElementDataStorage::InvalidRowHandle;
+
+	if(const FTypedElementRowReferenceColumn* RowReferenceColumn = DataStorage->GetColumn<FTypedElementRowReferenceColumn>(WidgetRow))
+	{
+		TargetRow = RowReferenceColumn->Row;
+	}
+
+	return TargetRow;
+}
+
+
+// FSimpleWidgetConstructor
+
+FSimpleWidgetConstructor::FSimpleWidgetConstructor(const UScriptStruct* InTypeInfo)
+	: FTypedElementWidgetConstructor(InTypeInfo)
+{
+}
+
+TSharedPtr<SWidget> FSimpleWidgetConstructor::CreateWidget(ITypedElementDataStorageInterface* DataStorage,
+	ITypedElementDataStorageUiInterface* DataStorageUi, TypedElementDataStorage::RowHandle TargetRow, TypedElementDataStorage::RowHandle WidgetRow,
+	const TypedElementDataStorage::FMetaDataView& Arguments)
+{
+	return nullptr;
+}
+
+bool FSimpleWidgetConstructor::SetColumns(ITypedElementDataStorageInterface* DataStorage, RowHandle Row)
+{
+	return FTypedElementWidgetConstructor::SetColumns(DataStorage, Row);
+}
+
+TSharedPtr<SWidget> FSimpleWidgetConstructor::CreateWidget(const TypedElementDataStorage::FMetaDataView& Arguments)
+{
+	// This function is not needed anymore and only exists so derived classes cannot derive from it anymore
+	return nullptr;
+}
+
+bool FSimpleWidgetConstructor::FinalizeWidget(ITypedElementDataStorageInterface* DataStorage, ITypedElementDataStorageUiInterface* DataStorageUi,
+	RowHandle Row, const TSharedPtr<SWidget>& Widget)
+{
+	// This function is not needed anymore and only exists so derived classes cannot derive from it anymore
+	return true;
+}
+
+TSharedPtr<SWidget> FSimpleWidgetConstructor::Construct(RowHandle WidgetRow, ITypedElementDataStorageInterface* DataStorage,
+	ITypedElementDataStorageUiInterface* DataStorageUi, const TypedElementDataStorage::FMetaDataView& Arguments)
+{
+	const TypedElementDataStorage::RowHandle TargetRow = GetTargetRow(DataStorage, WidgetRow);
+
+	// Set any required columns on the widget row first
+	SetColumns(DataStorage, WidgetRow);
+
+	// Create the actual widget
+	TSharedPtr<SWidget> Widget = CreateWidget(DataStorage, DataStorageUi, TargetRow, WidgetRow, Arguments);
+
+	// If the widget was created, add the default columns we want all widget rows to have (e.g Label)
+	if (Widget)
+	{
+		AddDefaultWidgetColumns(WidgetRow, DataStorage);
+	}
+	
+	return Widget;
+}
+
