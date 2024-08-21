@@ -386,8 +386,8 @@ public:
 	FRWBuffer RayTracingDynamicVertexBuffer;
 	FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue;
 
-	virtual FRayTracingGeometry* GetRayTracingGeometry() { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
-	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
+	virtual FRayTracingGeometry* GetRayTracingGeometry() { return &RayTracingGeometry; }
+	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { return &RayTracingGeometry; }
 
 	/** Return the internal vertex buffer only when initialized otherwise used the shared vertex buffer - needs to be updated every frame */
 	virtual FRWBuffer* GetRayTracingDynamicVertexBuffer() { return RayTracingDynamicVertexBuffer.NumBytes > 0 ? &RayTracingDynamicVertexBuffer : nullptr; }
@@ -410,9 +410,7 @@ public:
 	 * VSinCS path is still required for world position offset materials but this can still use 
 	 * the updated vertex buffers from here with a passthrough vertex factory.
 	 */
-	ENGINE_API virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers) override;
-
-	ENGINE_API virtual void QueuePendingRayTracingGeometryUpdate(FRHICommandListBase& RHICmdList) override;
+	ENGINE_API void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers);
 
 #endif // RHI_RAYTRACING
 
@@ -508,7 +506,7 @@ protected:
 		bool bUsedForPassthroughVertexFactory);
 
 	static void UpdateRayTracingGeometry_Internal(
-		FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers,
+		FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers,
 		FRayTracingGeometry& RayTracingGeometry, bool bAnySegmentUsesWorldPositionOffset, FSkeletalMeshObject* MeshObject, FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue);
 
 	/**

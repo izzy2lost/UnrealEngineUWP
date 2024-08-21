@@ -7228,8 +7228,6 @@ void FSkeletalMeshSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialG
 		return;
 	}
 
-	MeshObject->QueuePendingRayTracingGeometryUpdate(FRHICommandListImmediate::Get());
-
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
 	// GetRayTracingGeometry()->IsInitialized() is checked as a workaround for UE-92634. FSkeletalMeshSceneProxy's resources may have already been released, but proxy has not removed yet)

@@ -123,12 +123,10 @@ public:
 	FGPUSkinCacheEntry* SkinCacheEntryForRayTracing = nullptr;	
 	FRayTracingSkinnedGeometryUpdateQueue* RayTracingUpdateQueue = nullptr;
 
-	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers) override;
+	virtual void UpdateRayTracingGeometry(FRHICommandListBase& RHICmdList, FSkeletalMeshLODRenderData& LODModel, uint32 LODIndex, TArray<FBufferRHIRef>& VertexBuffers);
 
-	virtual void QueuePendingRayTracingGeometryUpdate(FRHICommandListBase& RHICmdList) override;
-
-	virtual FRayTracingGeometry* GetRayTracingGeometry() { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
-	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
+	virtual FRayTracingGeometry* GetRayTracingGeometry() { return &RayTracingGeometry; }
+	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { return &RayTracingGeometry; }	
 #endif
 
 private:
