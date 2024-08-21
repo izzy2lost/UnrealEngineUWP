@@ -293,19 +293,12 @@ namespace HordeServer.Agents
 		/// Marks the agent as deleted
 		/// </summary>
 		/// <param name="agent">The agent to delete</param>
-		/// <param name="forceDelete">Whether to fully delete the agent as opposed to just marking it as deleted</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>Async task</returns>
-		public async Task DeleteAgentAsync(IAgent? agent, bool forceDelete = false, CancellationToken cancellationToken = default)
+		public async Task DeleteAgentAsync(IAgent? agent, CancellationToken cancellationToken = default)
 		{
 			if (agent == null)
 			{
-				return;
-			}
-
-			if (forceDelete)
-			{
-				await Agents.ForceDeleteAsync(agent.Id, cancellationToken);
 				return;
 			}
 

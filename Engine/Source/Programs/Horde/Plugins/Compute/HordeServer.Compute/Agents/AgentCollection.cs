@@ -340,7 +340,7 @@ namespace HordeServer.Agents
 
 		internal async ValueTask TickSharedAsync(CancellationToken stoppingToken)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(TickSharedAsync)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TickSharedAsync)}");
 
 			await TerminateExpiredSessionsAsync(stoppingToken);
 			await DeleteExpiredEphemeralAgentsAsync(stoppingToken);
@@ -348,7 +348,7 @@ namespace HordeServer.Agents
 
 		private async Task TerminateExpiredSessionsAsync(CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(TerminateExpiredSessionsAsync)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TerminateExpiredSessionsAsync)}");
 
 			int c = 0;
 			while (!cancellationToken.IsCancellationRequested)
@@ -382,7 +382,7 @@ namespace HordeServer.Agents
 
 		private async Task DeleteExpiredEphemeralAgentsAsync(CancellationToken cancellationToken)
 		{
-			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentCollection)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
+			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(DeleteExpiredEphemeralAgentsAsync)}");
 			int c = 0;
 
 			List<AgentDocument> deletedDocuments = await _agentCollection.Find(x => x.Deleted).ToListAsync(cancellationToken);
@@ -488,7 +488,7 @@ namespace HordeServer.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task ForceDeleteAsync(AgentId agentId, CancellationToken cancellationToken)
+		async Task ForceDeleteAsync(AgentId agentId, CancellationToken cancellationToken)
 		{
 			await _sessionCollection.DeleteManyAsync(x => x.AgentId == agentId, cancellationToken);
 			await _agentCollection.DeleteOneAsync(x => x.Id == agentId, cancellationToken);

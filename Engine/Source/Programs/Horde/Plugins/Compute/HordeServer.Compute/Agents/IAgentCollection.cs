@@ -24,14 +24,6 @@ namespace HordeServer.Agents
 		Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default);
 
 		/// <summary>
-		/// Deletes an agent
-		/// </summary>
-		/// <param name="agentId">Unique id of the agent</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>Async task</returns>
-		Task ForceDeleteAsync(AgentId agentId, CancellationToken cancellationToken = default);
-
-		/// <summary>
 		/// Gets an agent by ID
 		/// </summary>
 		/// <param name="agentId">Unique id of the agent</param>
