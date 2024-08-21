@@ -62,7 +62,7 @@ void SToolBarSeparatorBlock::BuildMultiBlockWidget(const ISlateStyle* StyleSet, 
 		[
 			SNew(SSeparator)
 				.Orientation(Orient_Vertical)
-				.Thickness(2.0f)
+				.Thickness(ToolBarStyle.SeparatorThickness)
 				.SeparatorImage(&ToolBarStyle.SeparatorBrush)
 		]
 	];

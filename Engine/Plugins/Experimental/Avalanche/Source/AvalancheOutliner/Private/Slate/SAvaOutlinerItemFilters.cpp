@@ -139,7 +139,7 @@ void SAvaOutlinerItemFilters::Construct(const FArguments& InArgs, const TSharedR
 		[
 			SNew(SSeparator)
 			.Orientation(Orient_Horizontal)
-			.Thickness(2.0f)
+			.Thickness(FStyleUtils::GetSlimToolBarStyle().SeparatorThickness)
 			.SeparatorImage(&FStyleUtils::GetSlimToolBarStyle().SeparatorBrush)
 		];
 

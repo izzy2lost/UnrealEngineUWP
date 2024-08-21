@@ -98,6 +98,14 @@ struct FToolBarStyle : public FSlateWidgetStyle
 	FToolBarStyle& SetSeparatorPadding(const FMargin& InSeparatorPadding) { SeparatorPadding = InSeparatorPadding; return *this; }
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
+	float SeparatorThickness;
+	FToolBarStyle& SetSeparatorThickness(float InSeparatorThickness)
+	{
+		SeparatorThickness = InSeparatorThickness;
+		return *this;
+	}
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Appearance)
 	FMargin ComboButtonPadding;
 	FToolBarStyle& SetComboButtonPadding(const FMargin& InComboButtonPadding) { ComboButtonPadding = InComboButtonPadding; return *this; }
 

@@ -2432,8 +2432,8 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 				.SetHoveredForeground(FStyleColors::ForegroundHover)
 				.SetPressedForeground(FStyleColors::ForegroundHover)
 				.SetDisabledForeground(FStyleColors::Foreground)
-				.SetNormalPadding(FMargin(4.0f, 4.0f, 3.0f, 4.0f))
-				.SetPressedPadding(FMargin(4.0f, 4.0f, 3.0f, 4.0f));
+				.SetNormalPadding(FMargin(4.0f))
+				.SetPressedPadding(FMargin(4.0f));
 		}
 
 		FToolBarStyle ToolBarStyle = FStarshipCoreStyle::GetCoreStyle().GetWidgetStyle<FToolBarStyle>("SlimToolBar");
@@ -2450,7 +2450,7 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 					.SetCheckedHoveredForegroundColor(FStyleColors::AccentBlue)
 					.SetCheckedPressedForegroundColor(FStyleColors::AccentBlue)
 					.SetPressedForegroundColor(FStyleColors::AccentBlue)
-					.SetPadding(FMargin(4));
+					.SetPadding(FMargin(4.0f));
 			}
 
 			FSlateBrush SeparatorBrush;
@@ -2460,9 +2460,11 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 			ToolBarStyle.SetIconSize(Icon16x16)
 				.SetButtonStyle(ButtonStyle)
 				.SetToggleButtonStyle(ToggleButtonStyle)
-				.SetComboButtonPadding(FMargin(4.f, 0.0f))
+				.SetButtonPadding(FMargin(0))
+				.SetComboButtonPadding(FMargin(6.0f, 0, 2.0f, 0))
 				.SetSeparatorBrush(SeparatorBrush)
-				.SetSeparatorPadding(FMargin(0, 0.0f));
+				.SetSeparatorThickness(1.0f)
+				.SetSeparatorPadding(FMargin(4.0f, 0));
 
 			Set("ViewportToolbar", ToolBarStyle);
 		}
@@ -2480,7 +2482,7 @@ void FStarshipEditorStyle::FStyle::SetupViewportStyles()
 
 			FToolBarStyle NewViewportToolbarTopLevelRaisedStyle = ToolBarStyle;
 			{
-				NewViewportToolbarTopLevelRaisedStyle.SetButtonStyle(ButtonStyleRaised);
+				NewViewportToolbarTopLevelRaisedStyle.SetButtonStyle(ButtonStyleRaised).SetComboButtonPadding(FMargin(2.0f, 0));
 
 				Set("ViewportToolbar.Raised", NewViewportToolbarTopLevelRaisedStyle);
 			}
