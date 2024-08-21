@@ -3,6 +3,7 @@
 #include "Installer/MemoryChunkStore.h"
 #include "Misc/ScopeLock.h"
 #include "Installer/ChunkEvictionPolicy.h"
+#include "Installer/ChunkReferenceTracker.h"
 
 namespace BuildPatchServices
 {
@@ -10,7 +11,7 @@ namespace BuildPatchServices
 		: public IMemoryChunkStore
 	{
 	public:
-		FMemoryChunkStore(int32 InStoreSize, IChunkEvictionPolicy* InEvictionPolicy, IChunkStore* InOverflowStore, IMemoryChunkStoreStat* InMemoryChunkStoreStat);
+		FMemoryChunkStore(int32 InStoreSize, IChunkEvictionPolicy* InEvictionPolicy, IChunkStore* InOverflowStore, IMemoryChunkStoreStat* InMemoryChunkStoreStat, IChunkReferenceTracker* InChunkReferenceTracker);
 		~FMemoryChunkStore();
 
 		// IChunkStore interface begin.
@@ -36,6 +37,7 @@ namespace BuildPatchServices
 		IChunkEvictionPolicy* EvictionPolicy;
 		IChunkStore* OverflowStore;
 		IMemoryChunkStoreStat* MemoryChunkStoreStat;
+		IChunkReferenceTracker* OptionalChunkReferenceTracker;
 		mutable FCriticalSection LostChunkCallbackCs;
 		TFunction<void(const FGuid&)> LostChunkCallback;
 		FGuid LastGetId;
@@ -43,12 +45,13 @@ namespace BuildPatchServices
 		mutable FCriticalSection ThreadLockCs;
 	};
 
-	FMemoryChunkStore::FMemoryChunkStore(int32 InStoreSize, IChunkEvictionPolicy* InEvictionPolicy, IChunkStore* InOverflowStore, IMemoryChunkStoreStat* InMemoryChunkStoreStat)
+	FMemoryChunkStore::FMemoryChunkStore(int32 InStoreSize, IChunkEvictionPolicy* InEvictionPolicy, IChunkStore* InOverflowStore, IMemoryChunkStoreStat* InMemoryChunkStoreStat, IChunkReferenceTracker* InOptionalChunkReferenceTracker)
 		: StoreSize(InStoreSize)
 		, Store()
 		, EvictionPolicy(InEvictionPolicy)
 		, OverflowStore(InOverflowStore)
 		, MemoryChunkStoreStat(InMemoryChunkStoreStat)
+		, OptionalChunkReferenceTracker(InOptionalChunkReferenceTracker)
 		, LostChunkCallbackCs()
 		, LostChunkCallback(nullptr)
 		, LastGetId()
@@ -82,12 +85,25 @@ namespace BuildPatchServices
 		FScopeLock ThreadLock(&ThreadLockCs);
 		if (LastGetId != DataId)
 		{
+            TRACE_CPUPROFILER_EVENT_SCOPE(MemoryStore_Get);
 			// Put back last get.
 			if (LastGetData.IsValid() && LastGetId.IsValid())
 			{
 				if (Store.Contains(LastGetId) == false)
 				{
-					PutInternal(LastGetId, MoveTemp(LastGetData), false);
+					// If we aren't used anymore then don't put us back.
+					// Since we were the previously used chunk, we are the one that could have
+					// gotten released - no need to go through PutInternal and enumerate the world.
+					if (OptionalChunkReferenceTracker &&
+						OptionalChunkReferenceTracker->GetReferenceCount(LastGetId) == 0)
+					{
+						// Drop us on the ground and move on.
+						MemoryChunkStoreStat->OnChunkReleased(LastGetId);
+					}
+					else
+					{
+						PutInternal(LastGetId, MoveTemp(LastGetData), false);
+					}
 				}
 			}
 			// Invalidate last get.
@@ -180,6 +196,15 @@ namespace BuildPatchServices
 			MemoryChunkStoreStat->OnChunkStored(DataId);
 			UpdateStoreUsage();
 		}
+
+		if (!bIsNewChunk)
+		{
+			// We are putting back the last used chunk - since it's not new data we know we aren't increasing
+			// any limits so we don't have to scan for evictions, and we know we don't have to scan for cleans
+			// because the only thing that could get cleaned is us, which we checked before we got here.
+			return;
+		}
+
 		// Clean out our store.
 		TSet<FGuid> Cleanable;
 		TSet<FGuid> Bootable;
@@ -223,10 +248,10 @@ namespace BuildPatchServices
 		}
 	}
 
-	IMemoryChunkStore* FMemoryChunkStoreFactory::Create(int32 StoreSize, IChunkEvictionPolicy* EvictionPolicy, IChunkStore* OverflowStore, IMemoryChunkStoreStat* MemoryChunkStoreStat)
+	IMemoryChunkStore* FMemoryChunkStoreFactory::Create(int32 StoreSize, IChunkEvictionPolicy* EvictionPolicy, IChunkStore* OverflowStore, IMemoryChunkStoreStat* MemoryChunkStoreStat, IChunkReferenceTracker* InOptionalChunkReferenceTracker)
 	{
 		check(EvictionPolicy != nullptr);
 		check(MemoryChunkStoreStat != nullptr);
-		return new FMemoryChunkStore(StoreSize, EvictionPolicy, OverflowStore, MemoryChunkStoreStat);
+		return new FMemoryChunkStore(StoreSize, EvictionPolicy, OverflowStore, MemoryChunkStoreStat, InOptionalChunkReferenceTracker);
 	}
 }

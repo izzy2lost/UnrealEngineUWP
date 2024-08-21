@@ -6,6 +6,7 @@
 #include "HAL/Event.h"
 #include "HAL/PlatformProcess.h"
 #include "HAL/RunnableThread.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/Fork.h"
 
 namespace BuildPatchServices
@@ -131,11 +132,10 @@ namespace BuildPatchServices
 	{
 		const uint32 NumInstallerMainThreads = 1;
 		const uint32 NumCloudChunkSourceThreads = 1;
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-		const uint32 NumDiskChunkStoreThreads = 1;
-#else
-		const uint32 NumDiskChunkStoreThreads = 0;
-#endif
+
+		bool bUseDiskOverflowStore = true;
+		GConfig->GetBool(TEXT("BuildPatchServices"), TEXT("bEnableDiskOverflowStore"), bUseDiskOverflowStore, GEngineIni);
+		const uint32 NumDiskChunkStoreThreads = bUseDiskOverflowStore ? 1 : 0;
 		const uint32 NumChunkDBThreads = bUseChunkDBs ? 1 : 0;
 		const uint32 NumExpectedThreads =
 			NumInstallerMainThreads + 

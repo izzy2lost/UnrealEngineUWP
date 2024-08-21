@@ -7,6 +7,7 @@ namespace BuildPatchServices
 {
 	class IChunkEvictionPolicy;
 	class IMemoryChunkStoreStat;
+	class IChunkReferenceTracker;
 
 	/**
 	 * An interface providing access to chunk data instances which are stored in memory.
@@ -43,7 +44,7 @@ namespace BuildPatchServices
 		 * @param MemoryChunkStoreStat      Required ptr to the statistics class.
 		 * @return the new IMemoryChunkStore instance created.
 		 */
-		static IMemoryChunkStore* Create(int32 ChunkCount, IChunkEvictionPolicy* EvictionPolicy, IChunkStore* OverflowStore, IMemoryChunkStoreStat* MemoryChunkStoreStat);
+		static IMemoryChunkStore* Create(int32 ChunkCount, IChunkEvictionPolicy* EvictionPolicy, IChunkStore* OverflowStore, IMemoryChunkStoreStat* MemoryChunkStoreStat, IChunkReferenceTracker* InOptionalChunkReferenceTracker);
 	};
 
 	/**

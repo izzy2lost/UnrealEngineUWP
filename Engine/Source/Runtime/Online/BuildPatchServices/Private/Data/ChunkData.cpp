@@ -557,14 +557,26 @@ namespace BuildPatchServices
 		virtual EChunkSaveResult SaveToMemory(TArray<uint8>& Memory, const IChunkDataAccess* ChunkDataAccess) const override
 		{
 			FMemoryWriter MemoryWriter(Memory);
-			return Save(MemoryWriter, ChunkDataAccess);
+			return Save(MemoryWriter, ChunkDataAccess, true);
 		}
 
 		virtual EChunkSaveResult SaveToArchive(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const override
 		{
 			if (Archive.IsSaving())
 			{
-				return Save(Archive, ChunkDataAccess);
+				return Save(Archive, ChunkDataAccess, true);
+			}
+			else
+			{
+				return EChunkSaveResult::BadArchive;
+			}
+		}
+
+		virtual EChunkSaveResult SaveToArchiveUncompressed(FArchive& Archive, const IChunkDataAccess* ChunkDataAccess) const override
+		{
+			if (Archive.IsSaving())
+			{
+				return Save(Archive, ChunkDataAccess, false);
 			}
 			else
 			{
@@ -739,7 +751,7 @@ namespace BuildPatchServices
 			return ChunkData;
 		}
 
-		EChunkSaveResult Save(FArchive& Writer, const IChunkDataAccess* ChunkDataAccess) const
+		EChunkSaveResult Save(FArchive& Writer, const IChunkDataAccess* ChunkDataAccess, bool bTryCompress) const
 		{
 			EChunkSaveResult SaveResult;
 			const uint8* ChunkDataSource;
@@ -749,7 +761,7 @@ namespace BuildPatchServices
 			bool bDataIsCompressed = false;
 			TArray<uint8> TempCompressedData;
 			int32 CompressedSize = ChunkAccessHeader->DataSizeUncompressed;
-			if (FeatureLevel >= EFeatureLevel::ChunkCompressionSupport)
+			if (FeatureLevel >= EFeatureLevel::ChunkCompressionSupport && bTryCompress)
 			{
 				TempCompressedData.Empty(ChunkAccessHeader->DataSizeUncompressed);
 				TempCompressedData.AddUninitialized(ChunkAccessHeader->DataSizeUncompressed);

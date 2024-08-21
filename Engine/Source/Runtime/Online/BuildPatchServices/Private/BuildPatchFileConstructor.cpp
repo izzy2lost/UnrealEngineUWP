@@ -602,8 +602,12 @@ bool FBuildPatchFileConstructor::ConstructFileFromChunks(const FString& BuildFil
 			TArray<uint8> ReadBuffer;
 			ReadBuffer.Empty(ReadBufferSize);
 			ReadBuffer.SetNumUninitialized(ReadBufferSize);
-			// Reuse a certain amount of the file
-			StartPosition = FMath::Max<int64>(0, NewFileReader->TotalSize() - NUM_BYTES_RESUME_IGNORE);
+
+			// Reuse the entire file. Previously this truncated to size - 1kb but that's unlikely to catch our actual
+			// issue because its less than a sector size and makes it so that a graceful resume requires potentially retired
+			// chunks.
+			StartPosition = NewFileReader->TotalSize();
+
 			// We'll also find the correct chunkpart to start writing from
 			int64 ByteCounter = 0;
 			for (int32 ChunkPartIdx = StartChunkPart; ChunkPartIdx < FileManifest.ChunkParts.Num() && !bShouldAbort; ++ChunkPartIdx)
@@ -968,7 +972,7 @@ bool FBuildPatchFileConstructor::AppendChunkData(const FChunkPart& ChunkPart, TA
 		uint8* DataStart = &Data[ChunkPart.Offset];
 
 		{
-			TRACE_CPUPROFILER_EVENT_SCOPE(GetChunkData);
+			TRACE_CPUPROFILER_EVENT_SCOPE(GetChunkData_Copy);
 			DestinationBuffer.Append(DataStart, ChunkPart.Size);
 		}
 

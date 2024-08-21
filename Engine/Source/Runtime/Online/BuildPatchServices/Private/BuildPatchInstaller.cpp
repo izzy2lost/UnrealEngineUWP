@@ -54,10 +54,6 @@
 #include "Installer/Statistics/VerifierStatistics.h"
 #include "Installer/Statistics/FileOperationTracker.h"
 
-#if !defined(ENABLE_PATCH_DISK_OVERFLOW_STORE)
-#	define ENABLE_PATCH_DISK_OVERFLOW_STORE 1
-#endif
-
 DEFINE_LOG_CATEGORY_STATIC(LogBPSInstallerConfig, Log, All);
 
 namespace ConfigHelpers
@@ -1207,22 +1203,39 @@ namespace BuildPatchServices
 		FilesToConstruct.Sort(TLess<FString>());
 	}
 
+	//
+	// Returns how much disk space is needed in order to complete the install or patch.
+	// 
+	// This includes the ChunkDB size, the staging size (with destructive install), and any increases to the
+	// installation directory.
+	//
+	// It's possible this is 0 if, for example, the patch perfectly deletes segments from files such
+	// that no new chunks are required, the first file is completely deleted (no staging size), and the
+	// staging size of further files fits in that freed up space.
+	//
 	static uint64 DetermineInstallMaxDiskSizeIfDeletingChunkDbs(const TArray<FString>& ChunkDbFiles, IBuildManifestSet* ManifestSet, IFileSystem* FileSystem, const FString& InstallDirectory, const TArray<FString>& CorruptFiles, bool bIsPrereqOnly)
 	{
-		TSet<FString> FilesToConstruct;
+		TSet<FString> FilesToConstructSet;
 
 		TSet<FString> TaggedFiles;
 		ManifestSet->GetExpectedFiles(TaggedFiles);
 		TSet<FString> OutdatedFiles;
 		ManifestSet->GetOutdatedFiles(InstallDirectory, OutdatedFiles);
 
-		GenerateFilesToConstruct(FilesToConstruct, ManifestSet, CorruptFiles, TaggedFiles, OutdatedFiles, bIsPrereqOnly);
+		GenerateFilesToConstruct(FilesToConstructSet, ManifestSet, CorruptFiles, TaggedFiles, OutdatedFiles, bIsPrereqOnly);
 
+		// Generate the list of chunks we will consume, in order.
 		TUniquePtr<IChunkReferenceTracker> ChunkReferenceTracker(FChunkReferenceTrackerFactory::Create(
 			ManifestSet,
-			FilesToConstruct));
+			FilesToConstructSet));
+		TArray<FGuid> ReferenceChain;
+		ChunkReferenceTracker->CopyOutOrderedUseList(ReferenceChain);
 
+		TArray<FString> FilesToConstruct = FilesToConstructSet.Array();
 
+		// NOTE - removed files are done at the END of installation, not the beginning (because of chunk sources? could be better!)
+		// so it doesn't affect how much disk space we need (it's consumed the whole time).
+	
 		//
 		// Calculating the disk size requried to install:
 		//
@@ -1238,8 +1251,8 @@ namespace BuildPatchServices
 		// and asking the chunk db system how many chunkdbs are left at the current
 		// reference level.
 		//
-		TArray<FGuid> ReferenceChain;
-		ChunkReferenceTracker->CopyOutOrderedUseList(ReferenceChain);
+		// For patches, we adjust this by compensating the installed file size with
+		// the size of the replaced files.
 		int32 CurrentPosition = 0;
 
 		TArray<int32> FileCompletionPositions;
@@ -1265,37 +1278,51 @@ namespace BuildPatchServices
 		TArray<uint64> ChunkDbSizesAtPosition;
 		uint64 TotalChunkDbSize = IChunkDbChunkSource::GetChunkDbSizesAtIndexes(ChunkDbFiles, FileSystem, ReferenceChain, FileCompletionPositions, ChunkDbSizesAtPosition);
 
+		uint64 TotalDeletedSize = 0;
 		uint64 TotalWrittenSize = 0;
 
 		uint64 MaxDiskSize = 0;
-		int32 AtFile = 0;
 
-		int32 i = 0;
+		int32 MaxDiskSizeFileIndex = 0;
+		int32 FileIndex = 0;
 
-		uint64 LastFileSize = TotalChunkDbSize;
+		// We start off with full chunk db size.
+		uint64 TotalChunkDbSizeAtLastFile = TotalChunkDbSize;
 
 		for (uint64 FileSize : ChunkDbSizesAtPosition)
 		{
 			// We've completed this file:
-			const FFileManifest* FileManifest = ManifestSet->GetNewFileManifest(OrderedFiles[i]);
-			uint64 ThisFileSize = 0;
-			if (FileManifest)
+			const FFileManifest* IncomingFileManifest = ManifestSet->GetNewFileManifest(OrderedFiles[FileIndex]);
+			uint64 NewFileSize = 0;
+			if (IncomingFileManifest)
 			{
-				ThisFileSize = FileManifest->FileSize;
+				NewFileSize = IncomingFileManifest->FileSize;
 			}
 
-			TotalWrittenSize += ThisFileSize;
+			TotalWrittenSize += NewFileSize;
 
 			// We delete the chunkdbs _after_ we write the output so we can't use this size until 
-			// the next file gets done.
-			if (LastFileSize + TotalWrittenSize > MaxDiskSize)
+			// the next file gets done. Be sure to handle the case where we've deleted so much data
+			// we are below the waterline.
+			if (TotalDeletedSize < (TotalWrittenSize + TotalChunkDbSizeAtLastFile) &&
+				(TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize) > MaxDiskSize)
 			{
-				MaxDiskSize = LastFileSize + TotalWrittenSize;
-				AtFile = i;
+				MaxDiskSize = TotalChunkDbSizeAtLastFile + TotalWrittenSize - TotalDeletedSize;
+				MaxDiskSizeFileIndex = FileIndex;
 			}
 
-			i++;
-			LastFileSize = FileSize;
+			//UE_LOG(LogTemp, Display, TEXT("Max disk use %llu (total written: %llu -- total deleted: +%llu)"), MaxDiskSize, TotalWrittenSize, TotalDeletedSize);
+
+			// If we are patching, we can now delete the output file, which decreases our disk presence, however
+			// we update this after the check because we can't delete until after we have the file fully constructed.
+			const FFileManifest* OnDiskFileManifest = ManifestSet->GetCurrentFileManifest(FilesToConstruct[FileIndex]);
+			if (OnDiskFileManifest)
+			{
+				TotalDeletedSize += OnDiskFileManifest->FileSize;
+			}
+
+			FileIndex++;
+			TotalChunkDbSizeAtLastFile = FileSize;
 		}
 
 		//UE_LOG(LogTemp, Display, TEXT("Max disk use %llu (install size: %llu: +%llu) after file %s"), MaxDiskSize, TotalWrittenSize, MaxDiskSize - TotalWrittenSize, *OrderedFiles[AtFile]);
@@ -1397,6 +1424,10 @@ namespace BuildPatchServices
 		const int32 DefaultInstallMaxRead = FInstallSourceConfig().BatchFetchMaximum;
 		const int32 DefaultCloudMaxRead = FCloudSourceConfig({}).PreFetchMaximum;
 		int32 ChunkStoreMemorySize = DefaultCloudMaxRead + DefaultChunkDbMaxRead + DefaultInstallMaxRead;
+		
+		// Add 50% because we dont evict chunks if they can be used again, so we end up dropping to disk unecessarily.
+		ChunkStoreMemorySize += ChunkStoreMemorySize / 2;
+
 		// Load overridden size from config.
 		if (!GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemorySize"), ChunkStoreMemorySize, GEngineIni))
 		{
@@ -1410,8 +1441,42 @@ namespace BuildPatchServices
 				ChunkStoreMemorySize = CloudChunkStoreMemorySize + InstallChunkStoreMemorySize;
 			}
 		}
+
 		// Clamp to sensible limits.
 		ChunkStoreMemorySize = FMath::Clamp<int32>(ChunkStoreMemorySize, 64, 2048);
+
+		// Check for new config - optionally fill memory up to a limit.
+		int32 ChunkStoreMemoryHeadRoomMB = 2000;
+		if (GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemoryHeadRoomMB"), ChunkStoreMemoryHeadRoomMB, GEngineIni) &&
+			ChunkStoreMemoryHeadRoomMB > 500) // We have to leave at least SOME room.
+		{
+			// Memory store works in chunks and we don't know how big the chunks are.
+			int32 ChunkSizeEach = 1 << 20; // default to 1MB
+			GConfig->GetInt(TEXT("Portal.BuildPatch"), TEXT("ChunkStoreMemoryChunkSizeBytes"), ChunkSizeEach, GEngineIni);
+
+			uint64 AvailableMem = FPlatformMemory::GetStats().AvailablePhysical;
+
+			uint64 RequestedHeadRoom = ((uint64)ChunkStoreMemoryHeadRoomMB << 20);
+
+			if (RequestedHeadRoom < AvailableMem)
+			{
+				uint64 MemoryStoreMem = AvailableMem - RequestedHeadRoom;
+				ChunkStoreMemorySize = MemoryStoreMem / ChunkSizeEach;
+
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("ChunkStoreMemoryHeadroom: Using %d as a result of %llu requested out of %llu available"), ChunkStoreMemorySize, RequestedHeadRoom, AvailableMem);
+			}
+			else
+			{
+				// Cap at available.
+				if (ChunkStoreMemorySize > (AvailableMem / ChunkSizeEach))
+				{
+					ChunkStoreMemorySize = AvailableMem / ChunkSizeEach;
+				}
+
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("ChunkStoreMemoryHeadroom: Requested more than available - Using %d as a result of %llu requested out of %llu available"), ChunkStoreMemorySize, RequestedHeadRoom, AvailableMem);
+			}
+		}
+
 		// Cache the last download requirement in case we are running a retry.
 		PreviousTotalDownloadRequired.Add(CloudChunkSourceStatistics->GetRequiredDownloadSize());
 		// Reset so that we don't double count data.
@@ -1431,20 +1496,27 @@ namespace BuildPatchServices
 			TUniquePtr<IChunkEvictionPolicy> MemoryEvictionPolicy(FChunkEvictionPolicyFactory::Create(
 				ChunkReferenceTracker.Get()));
 			TUniquePtr<IDiskChunkStore> DiskOverflowStore;
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-			FDiskChunkStoreConfig DiskChunkStoreConfig(DataStagingDir);
-			DiskChunkStoreConfig.SharedContext = Configuration.SharedContext.Get();
-			DiskOverflowStore.Reset(FDiskChunkStoreFactory::Create(
-				FileSystem.Get(),
-				ChunkDataSerialization.Get(),
-				DiskChunkStoreStatistics.Get(),
-				MoveTemp(DiskChunkStoreConfig)));
-#endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
+			bool bUseDiskOverflowStore = true;
+			GConfig->GetBool(TEXT("BuildPatchServices"), TEXT("bEnableDiskOverflowStore"), bUseDiskOverflowStore, GEngineIni);
+			UE_LOG(LogBPSInstallerConfig, Display, TEXT("DiskOverflowStore is: %s"), bUseDiskOverflowStore ? TEXT("Enabled") : TEXT("Disabled"));
+
+			if (bUseDiskOverflowStore)
+			{
+				FDiskChunkStoreConfig DiskChunkStoreConfig(DataStagingDir);
+				DiskChunkStoreConfig.SharedContext = Configuration.SharedContext.Get();
+				DiskOverflowStore.Reset(FDiskChunkStoreFactory::Create(
+					FileSystem.Get(),
+					ChunkDataSerialization.Get(),
+					DiskChunkStoreStatistics.Get(),
+					MoveTemp(DiskChunkStoreConfig)));
+			}
+
 			TUniquePtr<IMemoryChunkStore> CloudChunkStore(FMemoryChunkStoreFactory::Create(
 				ChunkStoreMemorySize,
 				MemoryEvictionPolicy.Get(),
 				DiskOverflowStore.Get(),
-				MemoryChunkStoreStatistics.Get()));
+				MemoryChunkStoreStatistics.Get(),
+				ChunkReferenceTracker.Get()));
 
 			// Add a source for pulling from chunk "databases", basically tarballs of chunks.
 			TUniquePtr<IChunkDbChunkSource> ChunkDbChunkSource(FChunkDbChunkSourceFactory::Create(
@@ -1458,7 +1530,8 @@ namespace BuildPatchServices
 				InstallerError.Get(),
 				ChunkDbChunkSourceStatistics.Get()));
 
-			// Add a source for pulling from the existing directory (for patching).
+			// Add a source for pulling from the existing directory (for patching). This uses the manifest for the
+			// currently deployed files to create a list of available chunks to read from.
 			TUniquePtr<IInstallChunkSource> InstallChunkSource(FInstallChunkSourceFactory::Create(
 				BuildInstallSourceConfig(ChunkDbChunkSource->GetAvailableChunks()),
 				FileSystem.Get(),
@@ -1525,9 +1598,10 @@ namespace BuildPatchServices
 			{
 				ChainedChunkSource->AddRepeatRequirement(LostChunk);
 			};
-#if ENABLE_PATCH_DISK_OVERFLOW_STORE
-			DiskOverflowStore->SetLostChunkCallback(LostChunkCallback);
-#endif // ENABLE_PATCH_DISK_OVERFLOW_STORE
+			if (DiskOverflowStore)
+			{
+				DiskOverflowStore->SetLostChunkCallback(LostChunkCallback);
+			}
 			CloudChunkStore->SetLostChunkCallback(LostChunkCallback);
 
 
@@ -1545,6 +1619,7 @@ namespace BuildPatchServices
 				BuildStats.ChunksQueuedForDownload = InitialDownloadChunks.Num();
 				BuildStats.ChunksLocallyAvailable = ReferencedChunks.Intersect(InstallChunkSource->GetAvailableChunks()).Num();
 				BuildStats.ChunksInChunkDbs = ReferencedChunks.Intersect(ChunkDbChunkSource->GetAvailableChunks()).Num();
+				UE_LOG(LogBPSInstallerConfig, Display, TEXT("Chunk Locations: Cloud %d Install %d ChunkDb %d"), BuildStats.ChunksQueuedForDownload, BuildStats.ChunksLocallyAvailable, BuildStats.ChunksInChunkDbs);
 			}
 
 			// Setup some weightings for the progress tracking

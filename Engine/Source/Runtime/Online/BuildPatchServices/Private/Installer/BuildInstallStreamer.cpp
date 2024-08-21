@@ -330,7 +330,8 @@ namespace BuildPatchServices
 					FMath::Clamp<int32>(CloudSourceConfig.PreFetchMaximum, 64, 512),
 					MemoryEvictionPolicy.Get(),
 					nullptr,
-					MemoryChunkStoreStatistics.Get()));
+					MemoryChunkStoreStatistics.Get(),
+					nullptr));
 				TUniquePtr<ICloudChunkSource> CloudChunkSource(FCloudChunkSourceFactory::Create(
 					MoveTemp(CloudSourceConfig),
 					Platform.Get(),

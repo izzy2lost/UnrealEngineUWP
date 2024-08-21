@@ -60,7 +60,8 @@ void FMemoryChunkStoreSpec::Define()
 			StoreSize,
 			MockChunkEvictionPolicy.Get(),
 			FakeChunkStore.Get(),
-			MockMemoryChunkStoreStat.Get()));
+			MockMemoryChunkStoreStat.Get(),
+			nullptr));
 	});
 
 	Describe("MemoryChunkStore", [this]()

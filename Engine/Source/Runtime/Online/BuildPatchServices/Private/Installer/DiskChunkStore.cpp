@@ -12,6 +12,8 @@
 #include "Data/ChunkData.h"
 #include "Common/FileSystem.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogDiskChunkStore, Log, All);
+
 namespace BuildPatchServices
 {
 	typedef TTuple<EChunkLoadResult, IChunkDataAccess*> FLoadResult;
@@ -213,6 +215,7 @@ namespace BuildPatchServices
 				QueueTrigger->Trigger();
 				if (QueuedChunk.HasSubtype<FQueuedChunkLoad>())
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(DiskChunkStore_Load);
 					FQueuedChunkLoad& QueuedChunkLoad = QueuedChunk.GetSubtype<FQueuedChunkLoad>();
 					FGuid& DataId = QueuedChunkLoad.Get<0>();
 					TUniquePtr<FLoadPromise> LoadPromisePtr(QueuedChunkLoad.Get<1>());
@@ -262,6 +265,7 @@ namespace BuildPatchServices
 				}
 				else if (QueuedChunk.HasSubtype<FQueuedChunkSave>())
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(DiskChunkStore_Save);
 					FQueuedChunkSave& QueuedChunkSave = QueuedChunk.GetSubtype<FQueuedChunkSave>();
 					FGuid& DataId = QueuedChunkSave.Get<0>();
 					TUniquePtr<IChunkDataAccess> ChunkDataPtr(QueuedChunkSave.Get<1>());
@@ -273,7 +277,7 @@ namespace BuildPatchServices
 						{
 							DumpWriter->Seek(DumpWriter->TotalSize());
 							const int64 ChunkStartPos = DumpWriter->Tell();
-							SaveResult = Serializer->SaveToArchive(*DumpWriter, ChunkDataPtr.Get());
+							SaveResult = Serializer->SaveToArchiveUncompressed(*DumpWriter, ChunkDataPtr.Get());
 							const int64 ChunkEndPos = DumpWriter->Tell();
 							bValidFileHandle = !DumpWriter->IsError();
 							if (SaveResult == EChunkSaveResult::Success && bValidFileHandle)
@@ -322,6 +326,10 @@ namespace BuildPatchServices
 			}
 		}
 
+        if (DumpWriter.IsValid())
+        {
+            UE_LOG(LogDiskChunkStore, Display, TEXT("Disk usage: %llu"), DumpWriter->TotalSize());
+        }
 		DumpWriter.Reset();
 		DumpReader.Reset();
 		FileSystem->DeleteFile(*DumpFilename);

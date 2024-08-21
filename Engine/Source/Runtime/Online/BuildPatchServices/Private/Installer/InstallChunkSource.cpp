@@ -74,6 +74,8 @@ namespace BuildPatchServices
 		TSet<FGuid> RuntimeRequests;
 		// Communication and storage of incoming repeat requirements.
 		TQueue<FGuid, EQueueMode::Mpsc> RepeatRequirementMessages;
+
+		TMap<FString, TUniquePtr<FArchive>> OpenedFileHandles;
 	};
 
 	FInstallChunkSource::FInstallChunkSource(FInstallSourceConfig InConfiguration, IFileSystem* InFileSystem, IChunkStore* InChunkStore, IChunkReferenceTracker* InChunkReferenceTracker, IInstallerError* InInstallerError, IInstallChunkSourceStat* InInstallChunkSourceStat, const TMultiMap<FString, FBuildPatchAppManifestRef>& InInstallationSources, IBuildManifestSet* ManifestSet)
@@ -95,6 +97,9 @@ namespace BuildPatchServices
 			if (Pair.Value->EnumerateProducibleChunks(Pair.Key, ReferencedChunks, AvailableInBuilds) > 0)
 			{
 				InstallationSources.Add(Pair);
+
+				TSet<FString> FileSourceThisSource;
+				Pair.Value->GetFileList(FileSourceThisSource);
 			}
 		}
 		UE_LOG(LogInstallChunkSource, Log, TEXT("Useful Sources:%d. Available Chunks:%d."), InstallationSources.Num(), AvailableInBuilds.Num());
@@ -116,6 +121,7 @@ namespace BuildPatchServices
 
 	IChunkDataAccess* FInstallChunkSource::Get(const FGuid& DataId)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Install_Get);
 		// Get from our store
 		IChunkDataAccess* ChunkData = ChunkStore->Get(DataId);
 		if (ChunkData == nullptr)
@@ -129,17 +135,13 @@ namespace BuildPatchServices
 				{
 					PlacedInStore.Remove(RepeatRequirement);
 				}
-				// Select the next X chunks that are locally available.
-				TFunction<bool(const FGuid&)> SelectPredicate = [this](const FGuid& ChunkId) { return AvailableInBuilds.Contains(ChunkId) && (!Configuration.ChunkIgnoreSet.Contains(ChunkId) || RuntimeRequests.Contains(ChunkId)); };
-				// Grab all the chunks relevant to this source to fill the store.
-				int32 SearchLength = FMath::Max(ChunkStore->GetSize(), Configuration.BatchFetchMinimum);
-				TArray<FGuid> BatchLoadChunks = ChunkReferenceTracker->SelectFromNextReferences(SearchLength, SelectPredicate);
-				// Remove already loaded chunks.
-				TFunction<bool(const FGuid&)> RemovePredicate = [this](const FGuid& ChunkId) { return PlacedInStore.Contains(ChunkId) || FailedChunks.Contains(ChunkId); };
-				BatchLoadChunks.RemoveAll(RemovePredicate);
-				// Clamp to configured max.
-				BatchLoadChunks.SetNum(FMath::Min(BatchLoadChunks.Num(), Configuration.BatchFetchMaximum), EAllowShrinking::No);
-				// Ensure requested chunk is in the array.
+                
+
+                
+                // There's no reason to prefetch anything - we are called when we need this exact chunk, so just load it directly.
+                // Anything further just fills up memory for no reason and doesn't actually save time. If we need it during harvest we'll get it.
+                
+                TArray<FGuid> BatchLoadChunks;
 				BatchLoadChunks.AddUnique(DataId);
 				// Call to stat.
 				InstallChunkSourceStat->OnBatchStarted(BatchLoadChunks);
@@ -192,6 +194,7 @@ namespace BuildPatchServices
 
 	void FInstallChunkSource::HarvestRemainingChunksFromFile(const FString& FilePath)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Install_Harvest);
 		const FFileManifest* FileManifest = nullptr;
 		for (const TPair<FString, FBuildPatchAppManifestRef>& Pair : InstallationSources)
 		{
@@ -227,6 +230,9 @@ namespace BuildPatchServices
 				}
 			}
 		}
+
+		// Make sure we close our handle before the deletion occurs.
+		OpenedFileHandles.Remove(FilePath);
 	}
 
 	void FInstallChunkSource::FindChunkLocation(const FGuid& DataId, const FString** FoundInstallDirectory, const FBuildPatchAppManifest** FoundInstallManifest) const
@@ -248,6 +254,7 @@ namespace BuildPatchServices
 
 	bool FInstallChunkSource::LoadFromBuild(const FGuid& DataId)
 	{
+		TRACE_CPUPROFILER_EVENT_SCOPE(Install_LoadFromBuild);
 		// Find the location of this chunk.
 		const FString* FoundInstallDirectory;
 		const FBuildPatchAppManifest* FoundInstallManifest;
@@ -261,9 +268,7 @@ namespace BuildPatchServices
 		ISpeedRecorder::FRecord LoadRecord;
 		LoadRecord.Size = 0;
 		InstallChunkSourceStat->OnLoadStarted(DataId);
-		TUniquePtr<FArchive> FileArchive;
-		FString FileOpened;
-		int64 FileSize = 0;
+
 
 		// We must have a hash for this chunk or else we cant verify it
 		EChunkHashFlags HashType = EChunkHashFlags::None;
@@ -300,25 +305,30 @@ namespace BuildPatchServices
 					TempArray.SetNumZeroed(FMath::Max<uint32>(LoadedChunkSize, InitialDataSize));
 					TempChunkConstruction = TempArray.GetData();
 					FString FullFilename = *FoundInstallDirectory / FileChunkPart.Filename;
-					// Close current build file ?
-					if (FileArchive.IsValid() && FileOpened != FullFilename)
+
+					int64 FileSize = 0;
+
+					TUniquePtr<FArchive>* FileArchive = OpenedFileHandles.Find(FullFilename);
+					if (FileArchive == nullptr)
 					{
-						FileArchive->Close();
-						FileArchive.Reset();
-						FileOpened.Empty();
-						FileSize = 0;
-					}
-					// Open build file ?
-					if (!FileArchive.IsValid())
-					{
-						FileArchive = FileSystem->CreateFileReader(*FullFilename);
-						LoadResult = !FileArchive.IsValid() ? IInstallChunkSourceStat::ELoadResult::OpenFileFail : IInstallChunkSourceStat::ELoadResult::Success;
-						if (LoadResult == IInstallChunkSourceStat::ELoadResult::Success)
+						TRACE_CPUPROFILER_EVENT_SCOPE(Install_OpenSource);
+						TUniquePtr<FArchive> NewReader = FileSystem->CreateFileReader(*FullFilename);
+						if (NewReader.IsValid())
 						{
-							FileOpened = FullFilename;
-							FileSize = FileArchive->TotalSize();
+							OpenedFileHandles.Add(FullFilename, MoveTemp(NewReader));
+							FileArchive = OpenedFileHandles.Find(FullFilename);
 						}
 					}
+
+					if (FileArchive == nullptr)
+					{
+						LoadResult = IInstallChunkSourceStat::ELoadResult::OpenFileFail;
+					}
+					else
+					{
+						FileSize = (*FileArchive)->TotalSize();
+					}
+
 					// Grab the section of the file.
 					if (LoadResult == IInstallChunkSourceStat::ELoadResult::Success)
 					{
@@ -327,8 +337,9 @@ namespace BuildPatchServices
 						LoadResult = FileSize < LastRequiredByte ? IInstallChunkSourceStat::ELoadResult::IncorrectFileSize : IInstallChunkSourceStat::ELoadResult::Success;
 						if (LoadResult == IInstallChunkSourceStat::ELoadResult::Success)
 						{
-							FileArchive->Seek(FileChunkPart.FileOffset);
-							FileArchive->Serialize(TempChunkConstruction + FileChunkPart.ChunkPart.Offset, FileChunkPart.ChunkPart.Size);
+							TRACE_CPUPROFILER_EVENT_SCOPE(Install_Serialize);
+							(*FileArchive)->Seek(FileChunkPart.FileOffset);
+							(*FileArchive)->Serialize(TempChunkConstruction + FileChunkPart.ChunkPart.Offset, FileChunkPart.ChunkPart.Size);
 							ChunkBlocks.Add(FileChunkPart.ChunkPart.Offset, FileChunkPart.ChunkPart.Size);
 							LoadRecord.Size += FileChunkPart.ChunkPart.Size;
 						}
@@ -354,6 +365,7 @@ namespace BuildPatchServices
 				// Check chunk hash
 				if (LoadResult == IInstallChunkSourceStat::ELoadResult::Success)
 				{
+					TRACE_CPUPROFILER_EVENT_SCOPE(Install_Hash);
 					const bool bUseSha = (HashType & EChunkHashFlags::Sha1) != EChunkHashFlags::None;
 					const bool bHashCheckOk = bUseSha ? GetShaHashForDataSet(TempChunkConstruction, LoadedChunkSize) == ChunkShaHash : FRollingHash::GetHashForDataSet(TempChunkConstruction, LoadedChunkSize) == ChunkHash;
 					if (bHashCheckOk == false)
@@ -392,13 +404,6 @@ namespace BuildPatchServices
 					// Add it to our cache.
 					PlacedInStore.Add(DataId);
 					ChunkStore->Put(DataId, TUniquePtr<IChunkDataAccess>(NewChunkFile));
-				}
-
-				// Close any open file
-				if (FileArchive.IsValid())
-				{
-					FileArchive->Close();
-					FileArchive.Reset();
 				}
 			}
 		}
