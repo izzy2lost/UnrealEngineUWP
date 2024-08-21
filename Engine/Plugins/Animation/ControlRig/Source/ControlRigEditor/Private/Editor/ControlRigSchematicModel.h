@@ -95,6 +95,7 @@ public:
 	void OnSetObjectBeingDebugged(UObject* InObject);
 	void HandleModularRigModified(EModularRigNotification InNotification, const FRigModuleReference* InModule);
 
+	virtual bool IsAutoGroupingEnabled() const { return false; }
 	virtual FSchematicGraphGroupNode* AddAutoGroupNode() override;
 	virtual FVector2d GetPositionForNode(const FSchematicGraphNode* InNode) const override;
 	virtual bool GetPositionAnimationEnabledForNode(const FSchematicGraphNode* InNode) const override;
