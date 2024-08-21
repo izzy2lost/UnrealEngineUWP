@@ -20,6 +20,7 @@
 
 struct FGeometry;
 struct FKeyEvent;
+class FTranslationPickerEditInputProcessor;
 class ITableRow;
 class SBox;
 class SMultiLineEditableTextBox;
@@ -29,8 +30,6 @@ class SWindow;
 class UTranslationUnit;
 
 #define LOCTEXT_NAMESPACE "TranslationPicker"
-
-class FTranslationPickerEditInputProcessor;
 
 UCLASS(config = TranslationPickerSettings)
 class UTranslationPickerSettings : public UObject
@@ -188,6 +187,9 @@ private:
 
 	/** Update text list items */
 	void UpdateListItems();
+
+	/** On open, set the keyboard focus to the filter box */
+	EActiveTimerReturnType SetFocusPostConstruct(double InCurrentTime, float InDeltaTime);
 
 	/** Filters the widgets when the user changes the search text box */
 	void FilterBox_OnTextChanged(const FText& InText);

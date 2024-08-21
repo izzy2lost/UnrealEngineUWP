@@ -161,6 +161,31 @@ void STranslationPickerFloatingWindow::Construct(const FArguments& InArgs)
 	ParentWindow = InArgs._ParentWindow;
 	WindowContents = SNew(SToolTip);
 
+	WindowContents->SetContentWidget(
+		SNew(SVerticalBox)
+
+		+SVerticalBox::Slot()
+		.FillHeight(1.0f)		// Stretch the list vertically to fill up the user-resizable space
+		[
+			SAssignNew(TextListView, STextListView)
+			.ListItemsSource(&TextListItems)
+			.OnGenerateRow(this, &STranslationPickerFloatingWindow::TextListView_OnGenerateWidget)
+			.ScrollbarVisibility(EVisibility::Collapsed)
+		]
+
+		+SVerticalBox::Slot()
+		.Padding(0)
+		.AutoHeight()
+		.Padding(FMargin(5))
+		[
+			SNew(STextBlock)
+			.Text(PickedTexts.Num() > 0 ?
+				LOCTEXT("TranslationPickerEnterToEdit", "Press Enter to edit translations") :
+				LOCTEXT("TranslationPickerHoverToViewEditEscToQuit", "Hover over text to view/edit translations, or press Esc to quit"))
+			.Justification(ETextJustify::Center)
+		]
+	);
+
 	ChildSlot
 	[
 		WindowContents.ToSharedRef()
@@ -234,28 +259,6 @@ void STranslationPickerFloatingWindow::Tick( const FGeometry& AllottedGeometry, 
 					}
 				}
 			}
-
-			WindowContents->SetContentWidget(
-				SNew(SVerticalBox)
-
-				+SVerticalBox::Slot()
-				.FillHeight(1.0f)		// Stretch the list vertically to fill up the user-resizable space
-				[
-					SAssignNew(TextListView, STextListView)
-						.ListItemsSource(&TextListItems)
-						.OnGenerateRow(this, &STranslationPickerFloatingWindow::TextListView_OnGenerateWidget)
-				]
-
-				+SVerticalBox::Slot()
-				.Padding(0)
-				.AutoHeight()
-				.Padding(FMargin(5))
-				[
-					SNew(STextBlock)
-					.Text(PickedTexts.Num() > 0 ? LOCTEXT("TranslationPickerEnterToEdit", "Press Enter to edit translations") : LOCTEXT("TranslationPickerHoverToViewEditEscToQuit", "Hover over text to view/edit translations, or press Esc to quit"))
-					.Justification(ETextJustify::Center)
-				]
-			);
 
 			UpdateListItems();
 		}
@@ -444,8 +447,7 @@ UWorld* STranslationPickerFloatingWindow::GetWorld() const
 #if WITH_EDITOR
 	if (GIsEditor && IsValid(GEditor))
 	{
-		FWorldContext* PIEWorldContext = GEditor->GetPIEWorldContext();
-		if (PIEWorldContext)
+		if (FWorldContext* PIEWorldContext = GEditor->GetPIEWorldContext())
 		{
 			return PIEWorldContext->World();
 		}

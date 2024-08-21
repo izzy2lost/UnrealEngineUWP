@@ -137,19 +137,19 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 			.AutoHeight()
 			[
 				SAssignNew(FilterBox, SSearchBox)
-					.HintText(LOCTEXT("FilterBox_Hint", "Filter text entries"))
-					.ToolTipText(LOCTEXT("FilterBox_ToolTip", "Type here to filter the list of text entries."))
-					.SelectAllTextWhenFocused(false)
-					.OnTextChanged(this, &STranslationPickerEditWindow::FilterBox_OnTextChanged)
-					.OnTextCommitted(this, &STranslationPickerEditWindow::FilterBox_OnTextCommitted)
+				.HintText(LOCTEXT("FilterBox_Hint", "Filter text entries"))
+				.ToolTipText(LOCTEXT("FilterBox_ToolTip", "Type here to filter the list of text entries."))
+				.SelectAllTextWhenFocused(false)
+				.OnTextChanged(this, &STranslationPickerEditWindow::FilterBox_OnTextChanged)
+				.OnTextCommitted(this, &STranslationPickerEditWindow::FilterBox_OnTextCommitted)
 			]
 
 			+SVerticalBox::Slot()
 			.FillHeight(1.0f)		// Stretch the list vertically to fill up the user-resizable space
 			[
 				SAssignNew(TextListView, STextListView)
-					.ListItemsSource(&FilteredItems)
-					.OnGenerateRow(this, &STranslationPickerEditWindow::TextListView_OnGenerateRow)
+				.ListItemsSource(&FilteredItems)
+				.OnGenerateRow(this, &STranslationPickerEditWindow::TextListView_OnGenerateRow)
 			]
 			
 			+SVerticalBox::Slot()
@@ -244,6 +244,8 @@ void STranslationPickerEditWindow::Construct(const FArguments& InArgs)
 	FSlateApplication::Get().RegisterInputPreProcessor(InputProcessor, 0);
 
 	UpdateListItems();
+
+	RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &STranslationPickerEditWindow::SetFocusPostConstruct));
 }
 
 STranslationPickerEditWindow::~STranslationPickerEditWindow()
@@ -381,6 +383,16 @@ TSharedPtr<FTranslationPickerTextItem> FTranslationPickerTextItem::BuildTextItem
 	return Item;
 }
 
+EActiveTimerReturnType STranslationPickerEditWindow::SetFocusPostConstruct(double InCurrentTime, float InDeltaTime)
+{
+	if (FilterBox.IsValid())
+	{
+		FSlateApplication::Get().SetKeyboardFocus(FilterBox, EFocusCause::SetDirectly);
+	}
+
+	return EActiveTimerReturnType::Stop;
+}
+
 void STranslationPickerEditWindow::FilterBox_OnTextChanged(const FText& InText)
 {
 	FilterText = InText;
@@ -422,11 +434,11 @@ void STranslationPickerEditWidget::Construct(const FArguments& InArgs, const TSh
 		SNew(SBorder)
 		.BorderBackgroundColor(FLinearColor(1, 1, 1, 0.45f))
 		.BorderImage(BorderBrush)
-		.Padding(FMargin(3.0f, 3.0f))
+		.Padding(FMargin(2.0f, 2.0f))
 		[
 #endif // WITH_EDITOR
 			SNew(SBorder)
-			.Padding(FMargin(5))		// no effect, remove this line		
+			.Padding(FMargin(5))
 			[
 				SNew(SHorizontalBox)
 
