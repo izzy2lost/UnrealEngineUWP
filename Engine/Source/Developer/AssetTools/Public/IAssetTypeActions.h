@@ -116,6 +116,7 @@ public:
 	virtual EThumbnailPrimType GetDefaultThumbnailPrimitiveType(UObject* Asset) const = 0;
 
 	/** Optionally returns a custom widget to overlay on top of this assets' thumbnail */
+	UE_DEPRECATED(5.5, "Convert the Action class over to the Definition system and use the new GetThumbnailActionOverlay, see UAssetDefinition for more information")
 	virtual TSharedPtr<class SWidget> GetThumbnailOverlay(const FAssetData& AssetData) const = 0;
 
 	/** Returns additional tooltip information for the specified asset, if it has any (otherwise return the null widget) */

@@ -195,6 +195,57 @@ TSharedPtr<SWidget> UAssetDefinition_SoundBase::GetThumbnailOverlay(const FAsset
 	return GetSoundBaseThumbnailOverlay(InAssetData, MoveTemp(OnClickedLambda));
 }
 
+bool UAssetDefinition_SoundBase::GetThumbnailActionOverlay(const FAssetData& InAssetData, FAssetActionThumbnailOverlayInfo& OutActionOverlayInfo) const
+{
+	auto OnGetDisplayBrushLambda = [InAssetData]() -> const FSlateBrush*
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			return FAppStyle::GetBrush("ContentBrowser.AssetAction.StopIcon");
+		}
+
+		return FAppStyle::GetBrush("ContentBrowser.AssetAction.PlayIcon");
+	};
+
+	OutActionOverlayInfo.ActionImageWidget = SNew(SImage).Image_Lambda(OnGetDisplayBrushLambda);
+
+	auto OnToolTipTextLambda = [InAssetData]() -> FText
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			return LOCTEXT("Thumbnail_StopSoundToolTip", "Stop selected sound");
+		}
+
+		return LOCTEXT("Thumbnail_PlaySoundToolTip", "Play selected sound");
+	};
+
+	auto OnClickedLambda = [InAssetData]() -> FReply
+	{
+		if (UE::AudioEditor::IsSoundPlaying(InAssetData))
+		{
+			UE::AudioEditor::StopSound();
+		}
+		else
+		{
+			// Load and play sound
+			UE::AudioEditor::PlaySound(Cast<USoundBase>(InAssetData.GetAsset()));
+		}
+		return FReply::Handled();
+	};
+
+	OutActionOverlayInfo.ActionButtonWidget = SNew(SButton)
+		.ButtonStyle(FAppStyle::Get(), "HoverHintOnly")
+		.ContentPadding(0.0f)
+		.ToolTipText_Lambda(OnToolTipTextLambda)
+		.OnClicked_Lambda(OnClickedLambda)
+		[
+			SNew(SImage)
+			.Image_Lambda(OnGetDisplayBrushLambda)
+		];
+
+	return true;
+}
+
 // Menu Extensions
 //--------------------------------------------------------------------
 

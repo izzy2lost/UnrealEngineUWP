@@ -33,6 +33,7 @@
 #include "AssetRegistry/IAssetRegistry.h"
 #include "ShaderCompiler.h"
 #include "AssetCompilingManager.h"
+#include "AssetDefinitionRegistry.h"
 #include "IAssetTools.h"
 #include "AssetTypeActions_Base.h"
 #include "AssetToolsModule.h"
@@ -330,14 +331,75 @@ public:
 
 		if( InArgs._AllowAssetSpecificThumbnailOverlay && AssetTypeActions.IsValid() )
 		{
-			// Does the asset provide an additional thumbnail overlay?
-			TSharedPtr<SWidget> AssetSpecificThumbnailOverlay = AssetTypeActions->GetThumbnailOverlay(AssetData);
-			if( AssetSpecificThumbnailOverlay.IsValid() )
+#if UE_CONTENTBROWSER_NEW_STYLE
+			const UAssetDefinition* AssetDefinition = UAssetDefinitionRegistry::Get()->GetAssetDefinitionForClass(Class);
+
+			FAssetActionThumbnailOverlayInfo OutThumbnailInfo;
+			if (AssetDefinition && AssetDefinition->GetThumbnailActionOverlay(AssetData, OutThumbnailInfo))
 			{
-				OverlayWidget->AddSlot()
-				[
-					AssetSpecificThumbnailOverlay.ToSharedRef()
-				];
+				constexpr int32 OverlayZOrder = 1;
+				if (OutThumbnailInfo.ActionImageWidget.IsValid())
+				{
+					constexpr float PaddingFromTopLeftBorder = 2.f;
+					constexpr float TopLeftImageSize = 20.f;
+
+					OverlayWidget->AddSlot()
+					.ZOrder(OverlayZOrder)
+					.VAlign(VAlign_Top)
+					.HAlign(HAlign_Left)
+					.Padding(PaddingFromTopLeftBorder, PaddingFromTopLeftBorder, 0.f, 0.f)
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush(TEXT("ContentBrowser.AssetTileItem.AssetThumbnailBar")))
+						.Visibility_Lambda([this] () { return IsHovered() ? EVisibility::Collapsed : EVisibility::Visible; })
+						[
+							SNew(SBox)
+							.WidthOverride(TopLeftImageSize)
+							.HeightOverride(TopLeftImageSize)
+							[
+								OutThumbnailInfo.ActionImageWidget.ToSharedRef()
+							]
+						]
+					];
+				}
+
+				if (OutThumbnailInfo.ActionButtonWidget.IsValid())
+				{
+					constexpr float CenterImageSize = 32.f;
+
+					OverlayWidget->AddSlot()
+					.ZOrder(OverlayZOrder)
+					.VAlign(VAlign_Center)
+					.HAlign(HAlign_Center)
+					[
+						SNew(SBorder)
+						.BorderImage(FAppStyle::GetBrush(TEXT("ContentBrowser.AssetTileItem.AssetThumbnailBar")))
+						.Visibility_Lambda([this] () { return IsHovered() ? EVisibility::Visible : EVisibility::Collapsed; })
+						[
+							SNew(SBox)
+							.WidthOverride(CenterImageSize)
+							.HeightOverride(CenterImageSize)
+							[
+								OutThumbnailInfo.ActionButtonWidget.ToSharedRef()
+							]
+						]
+					];
+				}
+			}
+			else
+#endif
+			{
+				// Does the asset provide an additional thumbnail overlay?
+				PRAGMA_DISABLE_DEPRECATION_WARNINGS
+				TSharedPtr<SWidget> AssetSpecificThumbnailOverlay = AssetTypeActions->GetThumbnailOverlay(AssetData);
+				PRAGMA_ENABLE_DEPRECATION_WARNINGS
+				if( AssetSpecificThumbnailOverlay.IsValid() )
+				{
+					OverlayWidget->AddSlot()
+					[
+						AssetSpecificThumbnailOverlay.ToSharedRef()
+					];
+				}
 			}
 		}
 
