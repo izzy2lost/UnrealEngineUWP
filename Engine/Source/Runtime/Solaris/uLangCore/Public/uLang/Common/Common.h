@@ -149,8 +149,13 @@
     #define ULANG_DLLIMPORT_VTABLE
     #define ULANG_DLLEXPORT_VTABLE
 #elif defined(__clang__)
-    #define ULANG_DLLIMPORT __attribute__((visibility("default")))
-    #define ULANG_DLLEXPORT __attribute__((visibility("default")))
+    #if ULANG_PLATFORM_POSIX
+        #define ULANG_DLLIMPORT __attribute__((visibility("default")))
+        #define ULANG_DLLEXPORT __attribute__((visibility("default")))
+    #else
+        #define ULANG_DLLIMPORT __declspec(dllimport)
+        #define ULANG_DLLEXPORT __declspec(dllexport)
+    #endif
     #define ULANG_DLLIMPORT_VTABLE __attribute__((__type_visibility__("default")))
     #define ULANG_DLLEXPORT_VTABLE __attribute__((__type_visibility__("default")))
 #elif defined(__GNUC__)
@@ -426,7 +431,7 @@ struct SSystemParams
 ULANGCORE_API bool operator==(const SSystemParams& Lhs, const SSystemParams& Rhs);
 
 /// Global variable for efficient access
-extern ULANGCORE_API SSystemParams& GetSystemParams();
+ULANGCORE_API SSystemParams& GetSystemParams();
 
 //------------------------------------------------------------------
 // Memory management

@@ -16,11 +16,11 @@ void ULANGCORE_API SetProblematicFloatingPointStateForTesting();
 
 /// Scope guard that saves current FP state (rounding mode, flush-to-zero etc.)
 /// and puts us into fully IEEE compliant mode for the duration of the scope.
-class ULANGCORE_API CFloatStateSaveRestore
+class CFloatStateSaveRestore
 {
 public:
-    CFloatStateSaveRestore();
-    ~CFloatStateSaveRestore();
+    ULANGCORE_API CFloatStateSaveRestore();
+    ULANGCORE_API ~CFloatStateSaveRestore();
 
 private:
     // The relevant control register is 32-bit on all current targets.
@@ -30,7 +30,7 @@ private:
 /// Scope guard that asserts the current FP state has the IEEE-compliant settings
 /// we expect on entry, but never changes state. Drop-in compatible with
 /// CFloatStateSaveRestore.
-class ULANGCORE_API CFloatStateCheckOnly
+class CFloatStateCheckOnly
 {
 public:
     CFloatStateCheckOnly()
