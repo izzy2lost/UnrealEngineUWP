@@ -131,8 +131,6 @@ TSharedRef<IDetailCustomization> FVertexPaintingSettingsCustomization::MakeInsta
 
 void FVertexPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
-	FMeshPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
-
 	IDetailCategoryBuilder& VertexCategory = DetailLayout.EditCategory(TEXT("VertexPainting"));
 
 	VertexCategory.AddCustomRow(NSLOCTEXT("VertexPaintSettings", "InstanceColorSize", "Instance Color Size"))
@@ -151,6 +149,7 @@ TSharedRef<IDetailCustomization> FVertexColorPaintingSettingsCustomization::Make
 
 void FVertexColorPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
+	FMeshPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
 	FVertexPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
 
 	IDetailCategoryBuilder& ColorCategory = DetailLayout.EditCategory(TEXT("ColorPainting"));
@@ -298,6 +297,13 @@ TSharedRef<IDetailCustomization> FVertexWeightPaintingSettingsCustomization::Mak
 void FVertexWeightPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
 	FVertexPaintingSettingsCustomization::CustomizeDetails(DetailLayout);
+
+	// Brush colors not needed for weight painting.
+	IDetailCategoryBuilder& BrushCategory = DetailLayout.EditCategory(TEXT("Brush"), FText::GetEmpty(), ECategoryPriority::Important);
+	TSharedRef<IPropertyHandle> PaintColor = DetailLayout.GetProperty("PaintColor", UMeshPaintingToolProperties::StaticClass());
+	PaintColor->MarkHiddenByCustomization();
+	TSharedRef<IPropertyHandle> EraseColor = DetailLayout.GetProperty("EraseColor", UMeshPaintingToolProperties::StaticClass());
+	EraseColor->MarkHiddenByCustomization();
 
 	IDetailCategoryBuilder& WeightCategory = DetailLayout.EditCategory(TEXT("WeightPainting"));
 	WeightCategory.SetSortOrder(0);
