@@ -70,14 +70,14 @@ bool IsLoaded(EOnlineServices OnlineServices, FName InstanceName)
 	return FOnlineServicesRegistry::Get().IsLoaded(OnlineServices, InstanceName);
 }
 
-TSharedPtr<IOnlineServices> GetServices(EOnlineServices OnlineServices, FName InstanceName)
+TSharedPtr<IOnlineServices> GetServices(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
 {
-	return FOnlineServicesRegistry::Get().GetNamedServicesInstance(OnlineServices, InstanceName);
+	return FOnlineServicesRegistry::Get().GetNamedServicesInstance(OnlineServices, InstanceName, InstanceConfigName);
 }
 
-void DestroyService(EOnlineServices OnlineServices, FName InstanceName)
+void DestroyService(EOnlineServices OnlineServices, FName InstanceName, FName InstanceConfigName)
 {
-	FOnlineServicesRegistry::Get().DestroyNamedServicesInstance(OnlineServices, InstanceName);
+	FOnlineServicesRegistry::Get().DestroyNamedServicesInstance(OnlineServices, InstanceName, InstanceConfigName);
 }
 
 void DestroyAllNamedServices(EOnlineServices OnlineServices)

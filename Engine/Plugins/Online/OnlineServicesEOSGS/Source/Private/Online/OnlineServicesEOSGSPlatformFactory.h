@@ -25,21 +25,16 @@ public:
 	static void TearDown();
 
 	/**
-	 * Create a new platform. Loads configuration from ini.
+	 * Create a new platform instance for the given Instance/Config pair.
+	 * Note If InstanceConfigName = NAME_None, this will attempt to resolve a config to use from various sources, including OnlineServices config, and EOSSDKManager cached configs.
+	 * @param InstanceName the "instance", typically a WorldContextHandle
+	 * @param InstanceConfigName the named EOS platform config to use
 	 * @return a new platform, or null on failure
 	 */
-	IEOSPlatformHandlePtr CreatePlatform(FName InstanceName);
-	/**
-	 * Get the default platform.
-	 * The default platform is created on startup and can be used by the default instance of online services EOS.
-	 * @return the default platform
-	 */
-	IEOSPlatformHandlePtr GetDefaultPlatform();
+	IEOSPlatformHandlePtr CreatePlatform(FName InstanceName, FName InstanceConfigName);
 private:
 	FOnlineServicesEOSGSPlatformFactory();
 	friend FLazySingleton;
-	/** Platform handle for the default instance */
-	IEOSPlatformHandlePtr DefaultEOSPlatformHandle;
 };
 
 /* UE::Online */ }

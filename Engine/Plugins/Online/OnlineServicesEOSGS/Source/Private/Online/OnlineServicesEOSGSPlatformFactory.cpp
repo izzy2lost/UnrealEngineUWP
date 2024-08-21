@@ -18,7 +18,7 @@
 
 FString LoadEOSPlatformConfig(IEOSSDKManager* const SDKManager)
 {
-	FString ConfigSectionName = FString::Printf(TEXT("OnlineServices.%s"), UE::Online::FOnlineServicesEOSGS::GetConfigNameStatic());
+	FString ConfigSectionName = FString::Printf(TEXT("OnlineServices.%s"), UE::Online::FOnlineServicesEOSGS::GetServiceConfigNameStatic());
 	if (!GConfig->DoesSectionExist(*ConfigSectionName, GEngineIni))
 	{
 		return FString();
@@ -99,7 +99,7 @@ void FOnlineServicesEOSGSPlatformFactory::TearDown()
 	return TLazySingleton<FOnlineServicesEOSGSPlatformFactory>::TearDown();
 }
 
-IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::CreatePlatform(FName InstanceName)
+IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::CreatePlatform(FName InstanceName, FName InstanceConfigName)
 {
 	const FName EOSSharedModuleName = TEXT("EOSShared");
 	if (!FModuleManager::Get().IsModuleLoaded(EOSSharedModuleName))
@@ -120,7 +120,11 @@ IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::CreatePlatform(FName 
 		return {};
 	}
 
-	FString PlatformConfigName = LoadEOSPlatformConfig(SDKManager);
+	FString PlatformConfigName = InstanceConfigName.ToString();
+	if (PlatformConfigName.IsEmpty())
+	{
+		PlatformConfigName = LoadEOSPlatformConfig(SDKManager);
+	}
 	if (PlatformConfigName.IsEmpty())
 	{
 		// Check for default platform config that other modules may have setup.
@@ -139,16 +143,6 @@ IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::CreatePlatform(FName 
 	}
 
 	return EOSPlatformHandle;
-}
-
-IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::GetDefaultPlatform()
-{
-	if (!DefaultEOSPlatformHandle)
-	{
-		DefaultEOSPlatformHandle = CreatePlatform(NAME_None);
-	}
-
-	return DefaultEOSPlatformHandle;
 }
 
 /* UE::Online */ }
