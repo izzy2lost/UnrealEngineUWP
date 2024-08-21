@@ -27,6 +27,8 @@ namespace Audio
 		Reset();
 	}
 
+	FDelay::~FDelay() = default;
+
 	// update metadata, call Reset()
 	void FDelay::Init(const float InSampleRate, const float InBufferLengthSec)
 	{

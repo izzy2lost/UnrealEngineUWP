@@ -163,6 +163,12 @@ FBitReader::FBitReader(const uint8* Src, int64 CountBits)
 	}
 }
 
+FBitReader::~FBitReader() = default;
+FBitReader::FBitReader(const FBitReader&) = default;
+FBitReader& FBitReader::operator=(const FBitReader&) = default;
+FBitReader::FBitReader(FBitReader&&) = default;
+FBitReader& FBitReader::operator=(FBitReader&&) = default;
+
 void FBitReader::SetData( uint8* Src, int64 CountBits )
 {
 	Num			= CountBits;

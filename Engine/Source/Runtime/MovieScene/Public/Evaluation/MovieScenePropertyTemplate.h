@@ -231,8 +231,10 @@ struct FMovieScenePropertySectionTemplate : public FMovieSceneEvalTemplate
 {
 	GENERATED_BODY()
 	
-	FMovieScenePropertySectionTemplate(){}
+	MOVIESCENE_API FMovieScenePropertySectionTemplate();
 	MOVIESCENE_API FMovieScenePropertySectionTemplate(FName PropertyName, const FString& InPropertyPath);
+	MOVIESCENE_API FMovieScenePropertySectionTemplate(const FMovieScenePropertySectionTemplate&);
+	MOVIESCENE_API ~FMovieScenePropertySectionTemplate();
 public:
 	//use thse keys for setting and iterating the correct types.
 	MOVIESCENE_API const static FMovieSceneInterrogationKey GetFloatInterrogationKey();

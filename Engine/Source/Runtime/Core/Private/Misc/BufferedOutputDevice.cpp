@@ -5,6 +5,9 @@
 #include "Misc/ScopeLock.h"
 #include "Templates/UnrealTemplate.h"
 
+FBufferedOutputDevice::FBufferedOutputDevice() = default; // Here to satisfy modular builds on some old platforms
+FBufferedOutputDevice::~FBufferedOutputDevice() = default; // Here to satisfy modular builds on some old platforms
+
 void FBufferedOutputDevice::Serialize(const TCHAR* InData, ELogVerbosity::Type Verbosity, const FName& Category)
 {
 	if (Verbosity > FilterLevel)

@@ -325,10 +325,7 @@ class UAnimInstance : public UObject
 
 	typedef FAnimInstanceProxy ProxyType;
 
-	// Disable compiler-generated deprecation warnings by implementing our own destructor
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
-	~UAnimInstance() {}
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	ENGINE_API ~UAnimInstance();
 
 	/** This is used to extract animation. If Mesh exists, this will be overwritten by Mesh->Skeleton */
 	UPROPERTY(transient)

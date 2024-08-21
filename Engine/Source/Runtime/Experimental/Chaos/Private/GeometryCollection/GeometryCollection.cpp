@@ -58,6 +58,8 @@ FGeometryCollection::FGeometryCollection(FGeometryCollectionDefaults InDefaults)
 	Construct();
 }
 
+FGeometryCollection::~FGeometryCollection() = default;
+
 void FGeometryCollection::DefineGeometrySchema(FManagedArrayCollection& InCollection)
 {
 	FTransformCollection::DefineTransformSchema(InCollection);

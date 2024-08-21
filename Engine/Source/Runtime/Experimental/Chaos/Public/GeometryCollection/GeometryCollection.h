@@ -35,6 +35,7 @@ public:
 	typedef FTransformCollection Super;
 
 	CHAOS_API FGeometryCollection(FGeometryCollectionDefaults InDefaults = FGeometryCollectionDefaults() );
+	CHAOS_API ~FGeometryCollection();
 	FGeometryCollection(FGeometryCollection &) = delete;
 	FGeometryCollection& operator=(const FGeometryCollection &) = delete;
 	FGeometryCollection(FGeometryCollection &&) = default;

@@ -740,9 +740,7 @@ public:
 	/**
 	 * Base destructor
 	 */
-	virtual ~HandlerComponent()
-	{
-	}
+	PACKETHANDLER_API virtual ~HandlerComponent();
 
 	/**
 	 * Returns whether this handler is currently active

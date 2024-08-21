@@ -57,7 +57,6 @@ UMovieSceneSection::UMovieSceneSection(const FObjectInitializer& ObjectInitializ
 #endif
 }
 
-
 void UMovieSceneSection::PostInitProperties()
 {
 	SetFlags(RF_Transactional);

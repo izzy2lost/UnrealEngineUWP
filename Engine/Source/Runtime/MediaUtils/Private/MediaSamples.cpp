@@ -69,6 +69,7 @@ FMediaSamples::FMediaSamples(uint32 InMaxNumberOfQueuedAudioSamples, uint32 InMa
 {
 }
 
+FMediaSamples::~FMediaSamples() = default;
 
 bool FMediaSamples::FetchAudio(TRange<FTimespan> TimeRange, TSharedPtr<IMediaAudioSample, ESPMode::ThreadSafe>& OutSample)
 {

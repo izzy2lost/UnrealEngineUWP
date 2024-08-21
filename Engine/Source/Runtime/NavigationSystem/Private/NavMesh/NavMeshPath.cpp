@@ -31,6 +31,14 @@ FNavMeshPath::FNavMeshPath()
 	InternalResetNavMeshPath();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FNavMeshPath::~FNavMeshPath() = default;
+FNavMeshPath::FNavMeshPath(const FNavMeshPath&) = default;
+FNavMeshPath::FNavMeshPath(FNavMeshPath&& Other) = default;
+FNavMeshPath& FNavMeshPath::operator=(const FNavMeshPath& Other) = default;
+FNavMeshPath& FNavMeshPath::operator=(FNavMeshPath&& Other) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 void FNavMeshPath::ResetForRepath()
 {
 	Super::ResetForRepath();

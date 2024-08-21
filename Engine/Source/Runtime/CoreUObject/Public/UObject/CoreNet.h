@@ -232,6 +232,9 @@ class UPackageMap : public UObject
 
 	COREUOBJECT_API virtual void Serialize(FArchive& Ar) override;
 
+	COREUOBJECT_API UPackageMap();
+	COREUOBJECT_API virtual ~UPackageMap();
+
 protected:
 	bool					bShouldTrackUnmappedGuids;
 	TSet< FNetworkGUID >	TrackedUnmappedNetGuids;
@@ -410,6 +413,11 @@ public:
 
 public:
 	COREUOBJECT_API FNetBitReader(UPackageMap* InPackageMap=nullptr, const uint8* Src=nullptr, int64 CountBits=0);
+	COREUOBJECT_API FNetBitReader(const FNetBitReader&);
+    COREUOBJECT_API FNetBitReader& operator=(const FNetBitReader&);
+    COREUOBJECT_API FNetBitReader(FNetBitReader&&);
+    COREUOBJECT_API FNetBitReader& operator=(FNetBitReader&&);
+	COREUOBJECT_API virtual ~FNetBitReader();
 
 	COREUOBJECT_API virtual FArchive& operator<<(FName& Name) override;
 	COREUOBJECT_API virtual FArchive& operator<<(UObject*& Object) override;

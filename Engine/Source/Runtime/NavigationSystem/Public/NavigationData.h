@@ -89,8 +89,7 @@ struct FNavigationPath : public TSharedFromThis<FNavigationPath, ESPMode::Thread
 
 	NAVIGATIONSYSTEM_API FNavigationPath();
 	NAVIGATIONSYSTEM_API FNavigationPath(const TArray<FVector>& Points, AActor* Base = NULL);
-	virtual ~FNavigationPath()
-	{ }
+	NAVIGATIONSYSTEM_API virtual ~FNavigationPath();
 
 	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FNavigationPath(const FNavigationPath&) = default;

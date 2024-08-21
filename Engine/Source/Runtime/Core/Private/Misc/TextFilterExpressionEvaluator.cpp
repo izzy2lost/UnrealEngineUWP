@@ -257,6 +257,8 @@ FTextFilterExpressionEvaluator::FTextFilterExpressionEvaluator(const FTextFilter
 	SetFilterText(Other.FilterText);
 }
 
+FTextFilterExpressionEvaluator::~FTextFilterExpressionEvaluator() = default;
+
 FTextFilterExpressionEvaluator& FTextFilterExpressionEvaluator::operator=(const FTextFilterExpressionEvaluator& Other)
 {
 	FilterType = ETextFilterExpressionType::Empty;

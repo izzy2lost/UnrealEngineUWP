@@ -27,6 +27,10 @@ FDebugRenderSceneProxy::FDebugRenderSceneProxy(const UPrimitiveComponent* InComp
 {
 }
 
+FDebugRenderSceneProxy::FDebugRenderSceneProxy(const FDebugRenderSceneProxy&) = default;
+
+FDebugRenderSceneProxy::~FDebugRenderSceneProxy() = default;
+
 void FDebugDrawDelegateHelper::RegisterDebugDrawDelegateInternal()
 {
 	// note that it's possible at this point for State == RegisteredState since RegisterDebugDrawDelegateInternal can get 

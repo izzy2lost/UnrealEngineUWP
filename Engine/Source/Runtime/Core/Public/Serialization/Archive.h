@@ -1141,7 +1141,7 @@ public:
 	FArchive() = default;
 	FArchive(const FArchive&) = default;
 	FArchive& operator=(const FArchive& ArchiveToCopy) = default;
-	~FArchive() = default;
+	CORE_API virtual ~FArchive();
 
 protected:
 	using FArchiveState::LinkProxy;

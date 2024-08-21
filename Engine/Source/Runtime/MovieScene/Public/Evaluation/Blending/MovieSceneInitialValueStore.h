@@ -20,6 +20,7 @@ struct FMovieSceneRemoveInitialValueTokenProducer : IMovieScenePreAnimatedTokenP
 {
 	/** Construction from the object whose initial value to remove, and the actuator to remove it from */
 	MOVIESCENE_API FMovieSceneRemoveInitialValueTokenProducer(TWeakPtr<IMovieSceneBlendingActuator> InWeakActuator);
+	MOVIESCENE_API ~FMovieSceneRemoveInitialValueTokenProducer();
 
 	MOVIESCENE_API virtual IMovieScenePreAnimatedTokenPtr CacheExistingState(UObject& InObject) const override;
 
@@ -33,6 +34,7 @@ struct FMovieSceneRemoveInitialGlobalValueTokenProducer : IMovieScenePreAnimated
 {
 	/** Construction from the object whose initial value to remove, and the actuator to remove it from */
 	MOVIESCENE_API FMovieSceneRemoveInitialGlobalValueTokenProducer(TWeakPtr<IMovieSceneBlendingActuator> InWeakActuator);
+	MOVIESCENE_API ~FMovieSceneRemoveInitialGlobalValueTokenProducer();
 
 	MOVIESCENE_API virtual IMovieScenePreAnimatedGlobalTokenPtr CacheExistingState() const override;
 

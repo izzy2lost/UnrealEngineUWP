@@ -32,6 +32,8 @@ UEnum::UEnum(const FObjectInitializer& ObjectInitializer)
 {
 }
 
+UEnum::~UEnum() = default;
+
 void UEnum::Serialize( FArchive& Ar )
 {
 	Ar.UsingCustomVersion(FCoreObjectVersion::GUID);

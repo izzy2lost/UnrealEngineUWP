@@ -92,35 +92,22 @@ public:
 
 	using FResourceTask = UE::Tasks::TTask<FResourceTaskResult>;
 
-	FRHITransientResource(
+	RHI_API FRHITransientResource(
 		FRHIResource* InResource,
 		uint64 InGpuVirtualAddress,
 		uint64 InHash,
 		uint64 InSize,
 		ERHITransientAllocationType InAllocationType,
-		ERHITransientResourceType InResourceType)
-		: Resource(InResource)
-		, GpuVirtualAddress(InGpuVirtualAddress)
-		, Hash(InHash)
-		, Size(InSize)
-		, AllocationType(InAllocationType)
-		, ResourceType(InResourceType)
-	{}
+		ERHITransientResourceType InResourceType);
 
-	FRHITransientResource(
+	RHI_API FRHITransientResource(
 		const FResourceTask& InResourceTask,
 		uint64 InHash,
 		uint64 InSize,
 		ERHITransientAllocationType InAllocationType,
-		ERHITransientResourceType InResourceType)
-		: ResourceTask(InResourceTask)
-		, Hash(InHash)
-		, Size(InSize)
-		, AllocationType(InAllocationType)
-		, ResourceType(InResourceType)
-	{}
+		ERHITransientResourceType InResourceType);
 
-	virtual ~FRHITransientResource() = default;
+	RHI_API virtual ~FRHITransientResource();
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////
 	//! Internal Allocator API
@@ -288,26 +275,22 @@ private:
 class FRHITransientTexture final : public FRHITransientResource
 {
 public:
-	FRHITransientTexture(
+	RHI_API FRHITransientTexture(
 		const FResourceTask& InResourceTask,
 		uint64 InHash,
 		uint64 InSize,
 		ERHITransientAllocationType InAllocationType,
-		const FRHITextureCreateInfo& InCreateInfo)
-		: FRHITransientResource(InResourceTask, InHash, InSize, InAllocationType, ERHITransientResourceType::Texture)
-		, CreateInfo(InCreateInfo)
-	{}
+		const FRHITextureCreateInfo& InCreateInfo);
 
-	FRHITransientTexture(
+	RHI_API FRHITransientTexture(
 		FRHIResource* InTexture,
 		uint64 InGpuVirtualAddress,
 		uint64 InHash,
 		uint64 InSize,
 		ERHITransientAllocationType InAllocationType,
-		const FRHITextureCreateInfo& InCreateInfo)
-		: FRHITransientResource(InTexture, InGpuVirtualAddress, InHash, InSize, InAllocationType, ERHITransientResourceType::Texture)
-		, CreateInfo(InCreateInfo)
-	{}
+		const FRHITextureCreateInfo& InCreateInfo);
+
+	RHI_API virtual ~FRHITransientTexture();
 
 	// Returns the underlying RHI texture.
 	FRHITexture* GetRHI() const { return static_cast<FRHITexture*>(FRHITransientResource::GetRHI()); }
@@ -354,6 +337,8 @@ public:
 		: FRHITransientResource(InBuffer, InGpuVirtualAddress, InHash, InSize, InAllocationType, ERHITransientResourceType::Buffer)
 		, CreateInfo(InCreateInfo)
 	{}
+
+	RHI_API virtual ~FRHITransientBuffer();
 
 	// Returns the underlying RHI buffer.
 	FRHIBuffer* GetRHI() const { return static_cast<FRHIBuffer*>(FRHITransientResource::GetRHI()); }

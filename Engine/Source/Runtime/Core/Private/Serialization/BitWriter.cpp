@@ -59,6 +59,12 @@ FBitWriter::FBitWriter(void)
 	ArIsNetArchive = true;
 }
 
+FBitWriter::FBitWriter(const FBitWriter&) = default;
+FBitWriter& FBitWriter::operator=(const FBitWriter&) = default;
+FBitWriter::FBitWriter(FBitWriter&&) = default;
+FBitWriter& FBitWriter::operator=(FBitWriter&&) = default;
+FBitWriter::~FBitWriter() = default;
+
 /**
  * Resets the bit writer back to its initial state
  */

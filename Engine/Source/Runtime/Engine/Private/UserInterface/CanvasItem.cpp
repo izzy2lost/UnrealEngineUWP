@@ -831,6 +831,26 @@ void FCanvasBorderItem::Draw( class FCanvas* InCanvas )
 
 }
 
+FCanvasTextItemBase::FCanvasTextItemBase( const FVector2D& InPosition, const FLinearColor& InColor )
+	: FCanvasItem( InPosition )
+	, HorizSpacingAdjust( 0.0f )
+	, Depth( 1.0f )
+	, ShadowColor( FLinearColor::Black )
+	, ShadowOffset( FVector2D::ZeroVector )
+	, DrawnSize( FVector2D::ZeroVector )
+	, bCentreX( false )
+	, bCentreY( false )
+	, bOutlined( false )
+	, OutlineColor( FLinearColor::Black )
+	, bDontCorrectStereoscopic( true )
+	, TileItem( InPosition, FVector2D::ZeroVector, InColor )
+{
+	SetColor( InColor );
+	Scale.Set( 1.0f, 1.0f );
+	BlendMode = SE_BLEND_Translucent;
+}
+
+FCanvasTextItemBase::~FCanvasTextItemBase() = default;
 
 void FCanvasTextItemBase::Draw( class FCanvas* InCanvas )
 {	
@@ -1337,6 +1357,20 @@ void FCanvasSimpleTextItem::DrawStringInternal_RuntimeCache(FCanvas* InCanvas, F
 		}
 	}
 }
+
+FCanvasTextItem::FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const UFont* InFont, const FLinearColor& InColor)
+	: FCanvasSimpleTextItem(InPosition, InFont, InColor)
+	, Text(InText)
+{
+}
+
+FCanvasTextItem::FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const FSlateFontInfo& InFontInfo, const FLinearColor& InColor)
+	: FCanvasSimpleTextItem(InPosition, InFontInfo, InColor)
+	, Text(InText)
+{
+}
+
+FCanvasTextItem::~FCanvasTextItem() = default;
 
 bool FCanvasTextItem::HasValidText() const
 {

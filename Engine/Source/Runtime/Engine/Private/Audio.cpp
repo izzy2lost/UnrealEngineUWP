@@ -276,6 +276,8 @@ FString FSoundBuffer::Describe(bool bUseLongName)
 	FSoundSource implementation.
 -----------------------------------------------------------------------------*/
 
+FSoundSource::~FSoundSource() = default;
+
 FString FSoundSource::Describe(bool bUseLongName)
 {
 	return FString::Printf(TEXT("Wave: %s, Volume: %6.2f, Owner: %s"),

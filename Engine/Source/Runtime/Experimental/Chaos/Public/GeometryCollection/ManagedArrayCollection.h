@@ -61,12 +61,12 @@ public:
 
 
 	CHAOS_API FManagedArrayCollection();
-	virtual ~FManagedArrayCollection() {}
+	CHAOS_API virtual ~FManagedArrayCollection();
 
-	FManagedArrayCollection(const FManagedArrayCollection& In) { In.CopyTo(this); }
-	FManagedArrayCollection& operator=(const FManagedArrayCollection& In) { Reset(); In.CopyTo(this); return *this; }
-	FManagedArrayCollection(FManagedArrayCollection&&) = default;
-	FManagedArrayCollection& operator=(FManagedArrayCollection&&)= default;
+	CHAOS_API FManagedArrayCollection(const FManagedArrayCollection& In);
+	CHAOS_API FManagedArrayCollection& operator=(const FManagedArrayCollection& In);
+	CHAOS_API FManagedArrayCollection(FManagedArrayCollection&&);
+	CHAOS_API FManagedArrayCollection& operator=(FManagedArrayCollection&&);
 
 	static CHAOS_API int8 Invalid;
 	typedef EManagedArrayType EArrayType;

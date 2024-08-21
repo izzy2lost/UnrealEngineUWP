@@ -11,6 +11,7 @@ FPlanarPolygonMeshGenerator::FPlanarPolygonMeshGenerator()
 	IndicesMap = FIndex2i(0, 1);
 }
 
+FPlanarPolygonMeshGenerator::~FPlanarPolygonMeshGenerator() = default;
 
 
 void FPlanarPolygonMeshGenerator::SetPolygon(const TArray<FVector2D>& PolygonVerts)

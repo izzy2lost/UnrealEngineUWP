@@ -147,6 +147,22 @@ namespace AutomationTest
 	}
 };
 
+FAutomationTestBase::FAutomationTestBase( const FString& InName, const bool bInComplexTask )
+	: bComplexTask( bInComplexTask )
+{
+	LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
+	TestName = InName;
+	// Register the newly created automation test into the automation testing framework
+	FAutomationTestFramework::Get().RegisterAutomationTest( InName, this );
+}
+
+/** Destructor */
+FAutomationTestBase::~FAutomationTestBase() 
+{ 
+	// Unregister the automation test from the automation testing framework
+	FAutomationTestFramework::Get().UnregisterAutomationTest( TestName );
+}
+
 bool FAutomationTestBase::bSuppressLogWarnings = false;
 bool FAutomationTestBase::bSuppressLogErrors = false;
 bool FAutomationTestBase::bElevateLogWarningsToErrors = false;

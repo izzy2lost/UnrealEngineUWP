@@ -30,14 +30,12 @@ class FStreamedAudioChunkSeekTable;
 class ICompressedAudioInfo
 {
 public:
-	ICompressedAudioInfo()
-		: StreamingSoundWave(nullptr)
-	{}
+	ENGINE_API ICompressedAudioInfo();
 
 	/**
 	* Virtual destructor.
 	*/
-	virtual ~ICompressedAudioInfo() { }
+	ENGINE_API virtual ~ICompressedAudioInfo();
 
 	/**
 	* Reads the header information of a compressed format
@@ -200,7 +198,7 @@ class IStreamedCompressedInfo : public ICompressedAudioInfo
 {
 public:
 	ENGINE_API IStreamedCompressedInfo();
-	virtual ~IStreamedCompressedInfo() {}
+	ENGINE_API virtual ~IStreamedCompressedInfo();
 
 	//~ Begin ICompressedInfo Interface
 	ENGINE_API virtual bool ReadCompressedInfo(const uint8* InSrcBufferData, uint32 InSrcBufferDataSize, FSoundQualityInfo* QualityInfo) override;

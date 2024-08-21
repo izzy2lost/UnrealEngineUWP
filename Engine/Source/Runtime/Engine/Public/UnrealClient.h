@@ -32,12 +32,12 @@ public:
 	/**
 	 * Default constructor
 	 */
-	FRenderTarget() {};
+	ENGINE_API FRenderTarget();
 
 	/**
 	 * Destructor
 	 */
-	virtual ~FRenderTarget() {};
+	ENGINE_API virtual ~FRenderTarget();
 
 	/**
 	* Accessor for the surface RHI when setting this render target

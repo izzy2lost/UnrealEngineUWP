@@ -4772,6 +4772,8 @@ public:
 
 };
 
+FReferenceCollector::~FReferenceCollector() = default;
+
 void FReferenceCollector::AddStableReference(UObject** Object)
 {
 	AROPrivate::AddReferencedObject(*this, *Object);

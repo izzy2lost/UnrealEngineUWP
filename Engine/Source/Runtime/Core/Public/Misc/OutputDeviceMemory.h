@@ -23,6 +23,8 @@ public:
 	 * @param InBufferSize		Maximum size of the memory ring buffer
 	 */
 	CORE_API FOutputDeviceMemory(int32 InPreserveSize = 256 * 1024, int32 InBufferSize = 2048 * 1024, bool bInSuppressEventTag = false);
+	
+	CORE_API ~FOutputDeviceMemory();
 
 	/** Dumps the contents of the buffer to an archive */
 	CORE_API virtual void Dump(FArchive& Ar) override;

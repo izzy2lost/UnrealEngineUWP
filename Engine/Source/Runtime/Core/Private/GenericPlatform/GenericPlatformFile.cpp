@@ -489,6 +489,9 @@ bool FGenericReadRequest::CheckForPrecache()
 	return false;
 }
 
+IPlatformFile::IPlatformFile() = default;
+IPlatformFile::~IPlatformFile() = default;
+
 FFileOpenResult IPlatformFile::OpenRead(const TCHAR* Filename, IPlatformFile::EOpenReadFlags Flags)
 {
 	if (EnumHasAnyFlags(Flags, EOpenReadFlags::AllowDelete))

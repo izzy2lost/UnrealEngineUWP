@@ -1245,6 +1245,9 @@ HandlerComponent::HandlerComponent(FName InName)
 {
 }
 
+HandlerComponent::~HandlerComponent() = default;
+
+
 bool HandlerComponent::IsActive() const
 {
 	return bActive;

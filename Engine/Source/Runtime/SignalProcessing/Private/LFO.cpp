@@ -21,6 +21,8 @@ namespace Audio
 	{
 	}
 
+	FLFO::~FLFO() = default;
+
 	void FLFO::Init(const float InSampleRate, const int32 InVoiceId, FModulationMatrix* InMatrix, const int32 ModMatrixStage)
 	{
 		IOscBase::Init(InSampleRate, InVoiceId, InMatrix, ModMatrixStage);

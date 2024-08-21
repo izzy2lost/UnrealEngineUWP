@@ -57,7 +57,7 @@ struct FBaseAttenuationSettings
 {
 	GENERATED_USTRUCT_BODY()
 
-	virtual ~FBaseAttenuationSettings() { }
+	ENGINE_API virtual ~FBaseAttenuationSettings();
 
 	/* The type of attenuation as a function of distance to use. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category= AttenuationDistance, meta = (DisplayName = "Attenuation Function"))

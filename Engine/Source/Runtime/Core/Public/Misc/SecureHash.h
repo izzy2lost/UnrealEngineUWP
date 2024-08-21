@@ -537,10 +537,7 @@ public:
 	{
 	}
 
-	~FBufferReaderWithSHA() override
-	{
-		Close();
-	}
+	CORE_API virtual ~FBufferReaderWithSHA();
 
 	CORE_API bool Close() override;
 

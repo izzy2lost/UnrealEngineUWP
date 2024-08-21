@@ -3134,6 +3134,19 @@ FSceneViewFamily::~FSceneViewFamily()
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+FSceneViewFamily::FSceneViewFamily(FSceneViewFamily&& InViewFamily)
+	: FSceneViewFamily(static_cast<const FSceneViewFamily&>(InViewFamily))
+{
+	check(ScreenPercentageInterface == nullptr);
+	check(TemporalUpscalerInterface == nullptr);
+	check(PrimarySpatialUpscalerInterface == nullptr);
+	check(SecondarySpatialUpscalerInterface == nullptr);
+}
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+FSceneViewFamily::FSceneViewFamily(const FSceneViewFamily&) = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 ERHIFeatureLevel::Type FSceneViewFamily::GetFeatureLevel() const
 {
 	if (Scene)

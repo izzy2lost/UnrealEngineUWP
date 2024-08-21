@@ -471,6 +471,9 @@ namespace Audio
 	{
 	}
 
+	IQuartzQuantizedCommand::IQuartzQuantizedCommand() = default;
+	IQuartzQuantizedCommand::~IQuartzQuantizedCommand() = default;
+
 	TSharedPtr<IQuartzQuantizedCommand> IQuartzQuantizedCommand::GetDeepCopyOfDerivedObject() const
 	{
 		// implement this method to allow copies to be made from pointers to base class

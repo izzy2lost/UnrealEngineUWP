@@ -40,6 +40,8 @@ FOutputDeviceMemory::FOutputDeviceMemory(int32 InPreserveSize /*= 256 * 1024*/, 
 	}
 }
 
+FOutputDeviceMemory::~FOutputDeviceMemory() = default;
+
 void FOutputDeviceMemory::TearDown() 
 {
 	if (!bSuppressEventTag)

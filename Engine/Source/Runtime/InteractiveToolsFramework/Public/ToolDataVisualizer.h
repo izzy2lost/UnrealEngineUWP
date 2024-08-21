@@ -35,7 +35,8 @@ public:
 
 public:
 	INTERACTIVETOOLSFRAMEWORK_API FToolDataVisualizer();
-	virtual ~FToolDataVisualizer() {}
+	INTERACTIVETOOLSFRAMEWORK_API FToolDataVisualizer(const FToolDataVisualizer&);
+	INTERACTIVETOOLSFRAMEWORK_API virtual ~FToolDataVisualizer();
 
 
 	//

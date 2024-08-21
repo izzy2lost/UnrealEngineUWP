@@ -7,6 +7,8 @@ FHttpRequestAdapterBase::FHttpRequestAdapterBase(const TSharedRef<IHttpRequest>&
 {
 }
 
+FHttpRequestAdapterBase::~FHttpRequestAdapterBase() = default;
+
 FString FHttpRequestAdapterBase::GetURL() const 
 { 
 	return HttpRequest->GetURL(); 

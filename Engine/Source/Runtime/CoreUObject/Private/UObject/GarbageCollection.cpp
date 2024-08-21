@@ -3751,6 +3751,8 @@ FReferenceFinder::FReferenceFinder(TArray<UObject*>& InObjectArray, UObject* InO
 	}
 }
 
+FReferenceFinder::~FReferenceFinder() = default;
+
 void FReferenceFinder::FindReferences(UObject* Object, UObject* InReferencingObject, FProperty* InReferencingProperty)
 {
 	check(Object != NULL);

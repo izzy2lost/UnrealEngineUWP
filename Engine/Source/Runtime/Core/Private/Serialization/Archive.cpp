@@ -1247,6 +1247,8 @@ void FArchive::SerializeCompressedNew(void* V, int64 Length, FName CompressionFo
 	}
 }
 
+FArchive::~FArchive() = default;
+
 void FArchive::ByteSwap(void* V, int32 Length)
 {
 	uint8* Ptr = (uint8*)V;

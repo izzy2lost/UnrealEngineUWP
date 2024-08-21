@@ -134,6 +134,7 @@ public:
 	 * @param InNeedsCPUAccess	True if resource array data should be accessible by the CPU.
 	 */
 	ENGINE_API FRawStaticIndexBuffer(bool InNeedsCPUAccess=false);
+	ENGINE_API virtual ~FRawStaticIndexBuffer();
 
 	/**
 	 * Copy everything, keeping reference to the same RHI resources.

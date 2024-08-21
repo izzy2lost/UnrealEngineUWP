@@ -19,6 +19,7 @@ public:
 	typedef FManagedArrayCollection Super;
 
 	CHAOS_API FTransformCollection();
+	CHAOS_API ~FTransformCollection();
 	FTransformCollection(FTransformCollection &) = delete;
 	FTransformCollection& operator=(const FTransformCollection&) = delete;
 	FTransformCollection(FTransformCollection&&) = default;

@@ -132,17 +132,14 @@ class FName;
 class FOutputDevice
 {
 public:
-	FOutputDevice()
-		 : bSuppressEventTag      (false)
-		 , bAutoEmitLineTerminator(true)
-	{}
+	CORE_API FOutputDevice();
 
-	FOutputDevice(FOutputDevice&&) = default;
-	FOutputDevice(const FOutputDevice&) = default;
-	FOutputDevice& operator=(FOutputDevice&&) = default;
-	FOutputDevice& operator=(const FOutputDevice&) = default;
+	CORE_API FOutputDevice(FOutputDevice&&);
+	CORE_API FOutputDevice(const FOutputDevice&);
+	CORE_API FOutputDevice& operator=(FOutputDevice&&);
+	CORE_API FOutputDevice& operator=(const FOutputDevice&);
 
-	virtual ~FOutputDevice() = default;
+	CORE_API virtual ~FOutputDevice();
 
 	// FOutputDevice interface.
 	virtual void Serialize( const TCHAR* V, ELogVerbosity::Type Verbosity, const FName& Category ) = 0;

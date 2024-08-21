@@ -16,7 +16,7 @@ namespace Audio
 		SIGNALPROCESSING_API FDelay();
 
 		// Virtual Destructor
-		SIGNALPROCESSING_API virtual ~FDelay() = default;
+		SIGNALPROCESSING_API virtual ~FDelay();
 
 		// Initialization of the delay with given sample rate and max buffer size in samples.
 		// (calls Reset())

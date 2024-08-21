@@ -50,39 +50,39 @@ private:
 // because it doesn't do anything about aliasing, which is audible if the
 // frequency is in the audible range. infrasonic frequencies are the target
 // for this implementation.
-struct HARMONIXDSP_API FLfo
+struct FLfo
 {
 public:
 
-	FLfo();
+	HARMONIXDSP_API FLfo();
 
-	void Prepare(float InSampleRate);
+	HARMONIXDSP_API void Prepare(float InSampleRate);
 
 	//  input is [0,1], returns [0,1]
 	typedef float (*FWaveShapeFunction)(float);
 
-	void UseSettings(const FLfoSettings* InSettings);
+	HARMONIXDSP_API void UseSettings(const FLfoSettings* InSettings);
 
 	const FLfoSettings* GetSettings() const 
 	{ 
 		return Settings; 
 	}
 
-	void SetPhase(double InPhase);
+	HARMONIXDSP_API void SetPhase(double InPhase);
 
-	double GetPhase() const;
+	HARMONIXDSP_API double GetPhase() const;
 
 	// sets phase to the initial phase indicated
 	// by the user setting (and possibly by the shape)
-	void Retrigger();
+	HARMONIXDSP_API void Retrigger();
 
-	TInterval<float> GetRange() const;
-	void SetRangeAndMode(const TInterval<float>& InRange, ELfoMode InMode);
+	HARMONIXDSP_API TInterval<float> GetRange() const;
+	HARMONIXDSP_API void SetRangeAndMode(const TInterval<float>& InRange, ELfoMode InMode);
 
 	// advances the phase of the oscillator
-	void Advance(uint32 InNumSamples);
+	HARMONIXDSP_API void Advance(uint32 InNumSamples);
 
-	float GetValue() const;
+	HARMONIXDSP_API float GetValue() const;
 private:
 	void ComputeCyclesPerSample();
 

@@ -32,6 +32,7 @@ class FMeshChange : public FToolCommandChange
 public:
 	GEOMETRYFRAMEWORK_API FMeshChange();
 	GEOMETRYFRAMEWORK_API FMeshChange(TUniquePtr<UE::Geometry::FDynamicMeshChange> DynamicMeshChangeIn);
+	GEOMETRYFRAMEWORK_API ~FMeshChange();
 
 	TUniquePtr<UE::Geometry::FDynamicMeshChange> DynamicMeshChange;
 

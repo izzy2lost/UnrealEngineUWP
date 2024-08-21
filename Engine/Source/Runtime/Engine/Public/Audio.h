@@ -638,7 +638,7 @@ public:
 	}
 
 	/** Destructor */
-	virtual ~FSoundSource() {}
+	ENGINE_API virtual ~FSoundSource();
 
 	/* Prepares the source voice for initialization. This may parse a compressed asset header on some platforms */
 	virtual bool PrepareForInitialization(FWaveInstance* InWaveInstance) { return true; }

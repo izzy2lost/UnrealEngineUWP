@@ -589,10 +589,10 @@ namespace Audio
 	public:
 
 		// ctor
-		IQuartzQuantizedCommand() {};
+		ENGINE_API IQuartzQuantizedCommand();
 
 		// dtor
-		virtual ~IQuartzQuantizedCommand() {};
+		ENGINE_API virtual ~IQuartzQuantizedCommand();
 
 		// allocate a copy of the derived class
 		ENGINE_API virtual TSharedPtr<IQuartzQuantizedCommand> GetDeepCopyOfDerivedObject() const;

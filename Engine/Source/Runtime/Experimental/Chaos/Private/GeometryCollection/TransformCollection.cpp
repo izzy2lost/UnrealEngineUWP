@@ -22,6 +22,8 @@ FTransformCollection::FTransformCollection()
 	Construct();
 }
 
+FTransformCollection::~FTransformCollection() = default;
+
 void FTransformCollection::DefineTransformSchema(FManagedArrayCollection& InCollection)
 {
 	// Hierarchy Group

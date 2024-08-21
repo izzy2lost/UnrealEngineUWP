@@ -449,6 +449,8 @@ void RHIExit()
 	GRHICommandList.CleanupGraphEvents();
 }
 
+FDynamicRHI::~FDynamicRHI() = default;
+
 void FDynamicRHI::RHIEndFrame_RenderThread(FRHICommandListImmediate& RHICmdList)
 {
 	RHICmdList.ImmediateFlush(EImmediateFlushType::DispatchToRHIThread, ERHISubmitFlags::EndFrame);

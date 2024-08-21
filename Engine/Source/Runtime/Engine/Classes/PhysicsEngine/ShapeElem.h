@@ -67,7 +67,7 @@ struct FKShapeElem
 	{
 	}
 
-	virtual ~FKShapeElem(){}
+	ENGINE_API virtual ~FKShapeElem();
 
 	const FKShapeElem& operator=(const FKShapeElem& Other)
 	{

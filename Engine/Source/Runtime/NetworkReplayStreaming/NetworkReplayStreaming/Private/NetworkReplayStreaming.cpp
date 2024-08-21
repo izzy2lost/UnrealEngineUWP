@@ -182,6 +182,9 @@ ENetworkReplayError::Type INetworkReplayStreamer::GetLastError() const
 }
 PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+INetworkReplayStreamer::INetworkReplayStreamer() = default;
+INetworkReplayStreamer::~INetworkReplayStreamer() = default;
+
 bool INetworkReplayStreamer::HasError() const
 {
 	return ExtendedError.IsValid();

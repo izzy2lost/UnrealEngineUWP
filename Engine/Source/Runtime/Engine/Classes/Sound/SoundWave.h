@@ -1701,7 +1701,7 @@ public:
 
 	ENGINE_API explicit FSoundWaveProxy(USoundWave* InWave);
 
-	FSoundWaveProxy(const FSoundWaveProxy& Other) = default;
+	ENGINE_API FSoundWaveProxy(const FSoundWaveProxy& Other);
 
 	ENGINE_API ~FSoundWaveProxy();
 

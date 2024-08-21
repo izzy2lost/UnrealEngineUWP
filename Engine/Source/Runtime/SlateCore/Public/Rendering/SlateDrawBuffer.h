@@ -20,6 +20,7 @@ class FSlateDrawBuffer : public FGCObject
 public:
 	/** Default constructor. */
 	SLATECORE_API FSlateDrawBuffer();
+	SLATECORE_API ~FSlateDrawBuffer();
 
 	/** Removes all data from the buffer. */
 	SLATECORE_API void ClearBuffer();

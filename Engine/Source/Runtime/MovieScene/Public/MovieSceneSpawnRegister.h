@@ -53,12 +53,13 @@ public:
 
 	static MOVIESCENE_API UE::MovieScene::TPlaybackCapabilityID<FMovieSceneSpawnRegister> ID;
 
+	MOVIESCENE_API FMovieSceneSpawnRegister();
+	MOVIESCENE_API FMovieSceneSpawnRegister(const FMovieSceneSpawnRegister&);
+
 	/**
 	 * Virtual destructor
 	 */
-	virtual ~FMovieSceneSpawnRegister()
-	{
-	}
+	MOVIESCENE_API virtual ~FMovieSceneSpawnRegister();
 
 	/**
 	 * Attempt to find a previously spawned object represented by the specified object and template IDs

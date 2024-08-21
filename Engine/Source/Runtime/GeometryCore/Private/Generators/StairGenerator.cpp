@@ -9,6 +9,8 @@ using namespace UE::Geometry;
  * FStairGenerator
  */
 
+FStairGenerator::~FStairGenerator() = default;
+
 FMeshShapeGenerator& FStairGenerator::Generate()
 {
 	TRACE_CPUPROFILER_EVENT_SCOPE(StairGenerator_Generate);

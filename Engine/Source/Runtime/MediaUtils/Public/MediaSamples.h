@@ -36,6 +36,8 @@ public:
 				  uint32 InMaxNumberOfQueuedSubtitlesSamples = MaxNumberOfQueuedSubtitlesSamples,
 				  uint32 InMaxNumberOfQueuedMetaDataSamples = MaxNumberOfQueuedMetaDataSamples);
 
+	MEDIAUTILS_API ~FMediaSamples();
+
 	/**
 	 * Add the given audio sample to the cache.
 	 *

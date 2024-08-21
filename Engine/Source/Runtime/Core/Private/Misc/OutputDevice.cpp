@@ -19,6 +19,17 @@ class FOutputDeviceError;
 
 DEFINE_LOG_CATEGORY(LogOutputDevice);
 
+FOutputDevice::FOutputDevice()
+		: bSuppressEventTag      (false)
+		, bAutoEmitLineTerminator(true)
+{}
+
+FOutputDevice::FOutputDevice(FOutputDevice&&) = default;
+FOutputDevice::FOutputDevice(const FOutputDevice&) = default;
+FOutputDevice& FOutputDevice::operator=(FOutputDevice&&) = default;
+FOutputDevice& FOutputDevice::operator=(const FOutputDevice&) = default;
+FOutputDevice::~FOutputDevice() = default;
+
 void FOutputDevice::Log( ELogVerbosity::Type Verbosity, const TCHAR* Str )
 {
 	Serialize( Str, Verbosity, NAME_None );

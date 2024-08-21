@@ -21,6 +21,8 @@ class FLevelSequenceSpawnRegister : public FMovieSceneSpawnRegister
 {
 public:
 	LEVELSEQUENCE_API FLevelSequenceSpawnRegister();
+	LEVELSEQUENCE_API FLevelSequenceSpawnRegister(const FLevelSequenceSpawnRegister&);
+	LEVELSEQUENCE_API ~FLevelSequenceSpawnRegister();
 
 protected:
 	/** ~ FMovieSceneSpawnRegister interface */

@@ -23,6 +23,12 @@ FSlateResourceHandle::FSlateResourceHandle(const TSharedPtr<FSlateSharedHandleDa
 {
 }
 
+FSlateShaderResourceManager::FSlateShaderResourceManager() = default;
+
+FSlateShaderResourceManager::~FSlateShaderResourceManager()
+{
+	ClearTextureMap();
+}
 
 FSlateResourceHandle FSlateShaderResourceManager::GetResourceHandle(const FSlateBrush& Brush, FVector2f LocalSize, float DrawScale)
 {

@@ -130,6 +130,7 @@ namespace Audio
 	{
 	public:
 		SIGNALPROCESSING_API IFilter();
+		SIGNALPROCESSING_API IFilter(const IFilter&);
 		SIGNALPROCESSING_API virtual ~IFilter();
 
 		// Initialize the filter

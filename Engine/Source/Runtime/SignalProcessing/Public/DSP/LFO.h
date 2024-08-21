@@ -45,7 +45,7 @@ namespace Audio
 	{
 	public:
 		SIGNALPROCESSING_API FLFO();
-		virtual ~FLFO() = default;
+		SIGNALPROCESSING_API virtual ~FLFO();
 
 		//~ Begin FOscBase
 		SIGNALPROCESSING_API virtual void Init(const float InSampleRate, const int32 InVoiceId = 0, FModulationMatrix* InMatrix = nullptr, const int32 ModMatrixStage = 0) override;

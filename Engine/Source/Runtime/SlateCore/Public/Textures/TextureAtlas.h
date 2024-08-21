@@ -98,22 +98,7 @@ struct FAtlasedTextureSlot : public TIntrusiveLinkedList<FAtlasedTextureSlot>
 class FSlateTextureAtlas
 {
 public:
-	FSlateTextureAtlas( uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel, ESlateTextureAtlasPaddingStyle InPaddingStyle, bool bInUpdatesAfterInitialization )
-		: AtlasData()
-		, AtlasUsedSlots(NULL)
-		, AtlasEmptySlotsMap()
-		, AtlasWidth( InWidth )
-		, AtlasHeight( InHeight )
-		, BytesPerPixel( InBytesPerPixel )
-		, PaddingStyle( InPaddingStyle )
-		, bNeedsUpdate( false )
-		, bUpdatesAfterInitialization(bInUpdatesAfterInitialization)
-#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
-		, AtlasOwnerThread( ESlateTextureAtlasThreadId::Unknown )
-#endif
-	{
-		InitAtlasData();
-	}
+	SLATECORE_API FSlateTextureAtlas( uint32 InWidth, uint32 InHeight, uint32 InBytesPerPixel, ESlateTextureAtlasPaddingStyle InPaddingStyle, bool bInUpdatesAfterInitialization );
 
 	SLATECORE_API virtual ~FSlateTextureAtlas();
 

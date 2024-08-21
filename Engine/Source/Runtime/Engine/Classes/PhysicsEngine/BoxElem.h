@@ -83,6 +83,8 @@ struct FKBoxElem : public FKShapeElem
 
 	}
 
+	ENGINE_API virtual ~FKBoxElem();
+
 #if WITH_EDITORONLY_DATA
 	void FixupDeprecated( FArchive& Ar );
 #endif

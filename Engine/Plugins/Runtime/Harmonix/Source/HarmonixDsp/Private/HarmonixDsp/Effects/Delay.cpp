@@ -60,6 +60,11 @@ namespace Harmonix::Dsp::Effects
 		SetParamsToTargets();
 	}
 
+	FDelay::~FDelay()
+	{
+		FreeUpMemory();
+	}
+
 	void FDelay::Prepare(float InSampleRate, uint32 InMaxChannels, float InMaxDelayTimeMs)
 	{
 		FreeUpMemory();

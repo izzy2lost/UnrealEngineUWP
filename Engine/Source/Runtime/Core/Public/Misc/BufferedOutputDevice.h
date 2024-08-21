@@ -24,4 +24,7 @@ public:
 
 	/** Pushes buffered lines into the specified output device. */
 	CORE_API void	RedirectTo(FOutputDevice& Ar);
+
+	CORE_API FBufferedOutputDevice();
+	CORE_API virtual ~FBufferedOutputDevice();
 };

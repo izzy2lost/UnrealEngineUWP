@@ -153,6 +153,8 @@ FRawStaticIndexBuffer::FRawStaticIndexBuffer(bool InNeedsCPUAccess)
 {
 }
 
+FRawStaticIndexBuffer::~FRawStaticIndexBuffer() = default;
+
 void FRawStaticIndexBuffer::SetIndices(const TArray<uint32>& InIndices, EIndexBufferStride::Type DesiredStride)
 {
 	int32 NumIndices = InIndices.Num();

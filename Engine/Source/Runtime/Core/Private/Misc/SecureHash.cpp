@@ -1533,6 +1533,11 @@ void appOnFailSHAVerification(const TCHAR* FailedPathname, bool bFailedDueToMiss
 #endif
 }
 
+FBufferReaderWithSHA::~FBufferReaderWithSHA()
+{
+	Close();
+}
+
 bool FBufferReaderWithSHA::Close()
 {
 	// don't redo if we were already closed

@@ -15,6 +15,9 @@ FLevelSequenceSpawnRegister::FLevelSequenceSpawnRegister()
 	LevelSequenceModule.GenerateObjectSpawners(MovieSceneObjectSpawners);
 }
 
+FLevelSequenceSpawnRegister::FLevelSequenceSpawnRegister(const FLevelSequenceSpawnRegister&) = default;
+FLevelSequenceSpawnRegister::~FLevelSequenceSpawnRegister() = default;
+
 UObject* FLevelSequenceSpawnRegister::SpawnObject(FMovieSceneSpawnable& Spawnable, FMovieSceneSequenceIDRef TemplateID, TSharedRef<const FSharedPlaybackState> SharedPlaybackState)
 {
 	for (TSharedRef<IMovieSceneObjectSpawner> MovieSceneObjectSpawner : MovieSceneObjectSpawners)

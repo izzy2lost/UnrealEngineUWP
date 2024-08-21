@@ -671,9 +671,8 @@ private:
 class FRHITransientResourceHeapAllocator : public IRHITransientResourceAllocator
 {
 public:
-	FRHITransientResourceHeapAllocator(FRHITransientHeapCache& InHeapCache)
-		: HeapCache(InHeapCache)
-	{}
+	RHICORE_API FRHITransientResourceHeapAllocator(FRHITransientHeapCache& InHeapCache);
+	RHICORE_API ~FRHITransientResourceHeapAllocator();
 
 	// Sets the create mode for allocations.
 	RHICORE_API void SetCreateMode(ERHITransientResourceCreateMode InCreateMode) override;

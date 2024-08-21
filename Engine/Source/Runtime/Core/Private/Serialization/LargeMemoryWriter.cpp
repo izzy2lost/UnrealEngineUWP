@@ -20,6 +20,8 @@ FLargeMemoryWriter::FLargeMemoryWriter(const int64 PreAllocateBytes, bool bIsPer
 	this->SetIsPersistent(bIsPersistent);
 }
 
+FLargeMemoryWriter::~FLargeMemoryWriter() = default;
+
 void FLargeMemoryWriter::Serialize(void* InData, int64 Num)
 {
 	UE_CLOG(!Data.HasData(), LogSerialization, Fatal, TEXT("Tried to serialize data to an FLargeMemoryWriter that was already released. Archive name: %s."), *ArchiveName);

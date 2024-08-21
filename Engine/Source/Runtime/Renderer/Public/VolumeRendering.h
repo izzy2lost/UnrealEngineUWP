@@ -94,10 +94,10 @@ private:
 extern ENGINE_API void RasterizeToVolumeTexture(FRHICommandList& RHICmdList, FVolumeBounds VolumeBounds);
 
 /** Vertex buffer used for rendering into a volume texture. */
-class ENGINE_API FVolumeRasterizeVertexBuffer : public FVertexBuffer
+class FVolumeRasterizeVertexBuffer : public FVertexBuffer
 {
 public:
-	virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
+	ENGINE_API virtual void InitRHI(FRHICommandListBase& RHICmdList) override;
 };
 
 extern ENGINE_API TGlobalResource<FVolumeRasterizeVertexBuffer> GVolumeRasterizeVertexBuffer;

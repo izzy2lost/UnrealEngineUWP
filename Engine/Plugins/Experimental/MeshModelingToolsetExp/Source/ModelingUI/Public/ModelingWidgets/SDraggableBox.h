@@ -11,7 +11,7 @@
  * Class that can be used to place a draggable box into a viewport or some other large widget as an
  * overlay. Just place the widget that you want to be draggable as the contents of SDraggableBoxOverlay.
  */
-class MODELINGUI_API SDraggableBoxOverlay : public SCompoundWidget
+class SDraggableBoxOverlay : public SCompoundWidget
 {
 public:
 
@@ -27,13 +27,13 @@ public:
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	MODELINGUI_API void Construct(const FArguments& InArgs);
 
 	/**
 	 * Sets the box position in the overlay. Horizontal position is distance from left, and vertical position
 	 * is distance from bottom or from top depending on whether bPositionRelativeToBottom == true.
 	 */
-	void SetBoxPosition(float HorizontalPosition, float VerticalPosition);
+	MODELINGUI_API void SetBoxPosition(float HorizontalPosition, float VerticalPosition);
 
 protected:
 
@@ -52,7 +52,7 @@ protected:
  * which will put its contents into a draggable box and properly handle the dragging without the
  * user having to set it up.
  */
-class MODELINGUI_API SDraggableBox : public SCompoundWidget
+class SDraggableBox : public SCompoundWidget
 {
 public:
 
@@ -63,11 +63,11 @@ public:
 	SLATE_DEFAULT_SLOT(FArguments, Content)
 	SLATE_END_ARGS()
 
-	void Construct(const FArguments& InArgs);
+	MODELINGUI_API void Construct(const FArguments& InArgs);
 
 	// SWidget overrides necessary for box to be draggable
-	FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
-	FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	MODELINGUI_API FReply OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
+	MODELINGUI_API FReply OnDragDetected(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent) override;
 
 protected:
 	TSharedPtr<SWidget> InnerWidget;
@@ -85,15 +85,15 @@ protected:
  * OnDragComplete delegate, it just triggers on any drop. This makes it possible to use it in any
  * viewports, not just the level editor.
  */
-class MODELINGUI_API FDraggableBoxUIDragOperation : public FDragDropOperation
+class FDraggableBoxUIDragOperation : public FDragDropOperation
 {
 public:
 
 	DRAG_DROP_OPERATOR_TYPE(FDraggableBoxUIDragOperation, FDragDropOperation)
 
 	// FDragDropOperation
-	virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;
-	virtual void OnDragged(const FDragDropEvent& DragDropEvent) override;
+	MODELINGUI_API virtual void OnDrop(bool bDropWasHandled, const FPointerEvent& MouseEvent) override;
+	MODELINGUI_API virtual void OnDragged(const FDragDropEvent& DragDropEvent) override;
 
 	/**
 	 * Create this Drag and Drop Content
@@ -105,14 +105,14 @@ public:
 	 *
 	 * @return a new FDockingDragOperation
 	 */
-	static TSharedRef<FDraggableBoxUIDragOperation> New(const TSharedRef<class SWidget>& InUIToBeDragged, const FVector2D InDecoratorOffset, 
+	MODELINGUI_API static TSharedRef<FDraggableBoxUIDragOperation> New(const TSharedRef<class SWidget>& InUIToBeDragged, const FVector2D InDecoratorOffset, 
 		const FVector2D& OwnerAreaSize, SDraggableBox::FOnDragComplete& OnDragComplete);
 
-	virtual ~FDraggableBoxUIDragOperation() {}
+	MODELINGUI_API virtual ~FDraggableBoxUIDragOperation() {}
 
 protected:
 	/** The constructor is protected, so that this class can only be instantiated as a shared pointer. */
-	FDraggableBoxUIDragOperation(const TSharedRef<class SWidget>& InUIToBeDragged, const FVector2D InDecoratorOffsetFromCursor, 
+	MODELINGUI_API FDraggableBoxUIDragOperation(const TSharedRef<class SWidget>& InUIToBeDragged, const FVector2D InDecoratorOffsetFromCursor, 
 		const FVector2D& OwnerAreaSize, SDraggableBox::FOnDragComplete& OnDragCompletee);
 
 	/**

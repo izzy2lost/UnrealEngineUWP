@@ -29,12 +29,12 @@ class FSocketEOS;
 
 typedef TSet<uint8> FChannelSet;
 
-class SOCKETSUBSYSTEMEOS_API FSocketSubsystemEOS
+class FSocketSubsystemEOS
 	: public ISocketSubsystem
 {
 public:
-	FSocketSubsystemEOS(IEOSPlatformHandlePtr InPlatformHandle, ISocketSubsystemEOSUtilsPtr InUtils);
-	virtual ~FSocketSubsystemEOS();
+	SOCKETSUBSYSTEMEOS_API FSocketSubsystemEOS(IEOSPlatformHandlePtr InPlatformHandle, ISocketSubsystemEOSUtilsPtr InUtils);
+	SOCKETSUBSYSTEMEOS_API virtual ~FSocketSubsystemEOS();
 
 //~ Begin ISocketSubsystem Interface
 	virtual bool Init(FString& Error) override;

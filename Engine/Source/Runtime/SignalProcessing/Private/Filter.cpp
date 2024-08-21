@@ -482,9 +482,9 @@ namespace Audio
 	{
 	}
 
-	IFilter::~IFilter()
-	{
-	}
+	IFilter::IFilter(const IFilter&) = default;
+
+	IFilter::~IFilter() = default;
 
 	void IFilter::Init(const float InSampleRate, const int32 InNumChannels, const int32 InVoiceId, FModulationMatrix* InModMatrix)
 	{

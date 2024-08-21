@@ -629,6 +629,12 @@ void FRHITransientHeapCache::GarbageCollect()
 
 //////////////////////////////////////////////////////////////////////////
 
+FRHITransientResourceHeapAllocator::FRHITransientResourceHeapAllocator(FRHITransientHeapCache& InHeapCache)
+	: HeapCache(InHeapCache)
+{}
+
+FRHITransientResourceHeapAllocator::~FRHITransientResourceHeapAllocator() = default;
+
 FRHITransientTexture* FRHITransientResourceHeapAllocator::CreateTextureInternal(
 	const FRHITextureCreateInfo& CreateInfo,
 	const TCHAR* DebugName,

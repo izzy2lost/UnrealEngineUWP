@@ -2681,6 +2681,8 @@ public:
 	COREUOBJECT_API virtual void BeginDestroy() override;
 	// End of UObject interface.
 
+	COREUOBJECT_API ~UEnum();
+
 protected:
 	/** List of pairs of all enum names and values. */
 	TArray<TPair<FName, int64>> Names;
@@ -3101,6 +3103,9 @@ public:
 		const TCHAR* InClassConfigName, EObjectFlags InFlags, ClassConstructorType InClassConstructor,
 		ClassVTableHelperCtorCallerType InClassVTableHelperCtorCaller,
 		FUObjectCppClassStaticFunctions&& InCppClassStaticFunctions);
+
+	// Destructor
+	COREUOBJECT_API ~UClass();
 
 #if WITH_RELOAD
 	/**

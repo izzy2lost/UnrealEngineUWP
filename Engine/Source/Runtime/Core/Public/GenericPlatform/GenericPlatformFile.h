@@ -336,8 +336,9 @@ public:
 	static CORE_API IPlatformFile& GetPlatformPhysical();
 	/** Returns the name of the physical platform file type. */
 	static CORE_API const TCHAR* GetPhysicalTypeName();
-	/** Destructor. */
-	virtual ~IPlatformFile() {}
+	/** Constructor/Destructor. */
+	CORE_API IPlatformFile();
+	CORE_API virtual ~IPlatformFile();
 
 	/**
 	 *	Set whether the sandbox is enabled or not

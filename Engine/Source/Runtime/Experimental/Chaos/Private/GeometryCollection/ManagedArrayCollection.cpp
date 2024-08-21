@@ -18,6 +18,14 @@ FManagedArrayCollection::FManagedArrayCollection()
 	Version = 9;
 }
 
+
+FManagedArrayCollection::~FManagedArrayCollection() = default;
+
+FManagedArrayCollection::FManagedArrayCollection(const FManagedArrayCollection& In) { In.CopyTo(this); }
+FManagedArrayCollection& FManagedArrayCollection::operator=(const FManagedArrayCollection& In) { Reset(); In.CopyTo(this); return *this; }
+FManagedArrayCollection::FManagedArrayCollection(FManagedArrayCollection&&) = default;
+FManagedArrayCollection& FManagedArrayCollection::operator=(FManagedArrayCollection&&)= default;
+
 void FManagedArrayCollection::AddGroup(FName Group)
 {
 	ensure(!GroupInfo.Contains(Group));

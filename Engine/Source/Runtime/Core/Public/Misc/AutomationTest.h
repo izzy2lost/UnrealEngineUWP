@@ -1532,21 +1532,10 @@ public:
 	 *
 	 * @param	InName	Name of the test
 	 */
-	FAutomationTestBase( const FString& InName, const bool bInComplexTask )
-		: bComplexTask( bInComplexTask )
-	{
-		LLM_SCOPE_BYNAME(TEXT("AutomationTest/Framework"));
-		TestName = InName;
-		// Register the newly created automation test into the automation testing framework
-		FAutomationTestFramework::Get().RegisterAutomationTest( InName, this );
-	}
+	CORE_API FAutomationTestBase( const FString& InName, const bool bInComplexTask );
 
 	/** Destructor */
-	virtual ~FAutomationTestBase() 
-	{ 
-		// Unregister the automation test from the automation testing framework
-		FAutomationTestFramework::Get().UnregisterAutomationTest( TestName );
-	}
+	CORE_API virtual ~FAutomationTestBase() ;
 
 	/** Log flags */
 	static CORE_API bool bSuppressLogWarnings;

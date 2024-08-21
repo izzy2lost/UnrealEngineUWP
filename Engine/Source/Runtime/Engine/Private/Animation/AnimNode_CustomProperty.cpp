@@ -12,9 +12,8 @@ FAnimNode_CustomProperty::FAnimNode_CustomProperty()
 {
 }
 
-FAnimNode_CustomProperty::~FAnimNode_CustomProperty()
-{
-}
+FAnimNode_CustomProperty::FAnimNode_CustomProperty(const FAnimNode_CustomProperty&) = default;
+FAnimNode_CustomProperty::~FAnimNode_CustomProperty() = default;
 
 void FAnimNode_CustomProperty::SetTargetInstance(UObject* InInstance)
 {

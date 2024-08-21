@@ -9,6 +9,8 @@
 
 namespace Audio
 {
+	FBaseChannelFormatConverter::~FBaseChannelFormatConverter() = default;
+
 	const IChannelFormatConverter::FInputFormat& FBaseChannelFormatConverter::GetInputFormat() const
 	{
 		return InputFormat;

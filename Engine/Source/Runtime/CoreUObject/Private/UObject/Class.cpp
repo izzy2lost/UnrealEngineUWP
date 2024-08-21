@@ -6201,6 +6201,8 @@ UClass::UClass
 	*(const TCHAR**)&ClassConfigName = InConfigName; //-V580
 }
 
+UClass::~UClass() = default;
+
 void* UClass::CreateSparseClassData()
 {
 	check(SparseClassData == nullptr);

@@ -236,8 +236,6 @@ class UMovieSceneSection
 {
 	GENERATED_UCLASS_BODY()
 
-	~UMovieSceneSection() {};
-
 public:
 
 	UPROPERTY(EditAnywhere, Category="Section", meta=(ShowOnlyInnerProperties))

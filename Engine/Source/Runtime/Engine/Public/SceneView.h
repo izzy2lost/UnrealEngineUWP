@@ -2384,14 +2384,7 @@ public:
 	void operator = (const FSceneViewFamily&) = delete;
 
 	// Allow moving view family as long as no screen percentage interface are set.
-	FSceneViewFamily(const FSceneViewFamily&& InViewFamily)
-		: FSceneViewFamily(static_cast<const FSceneViewFamily&>(InViewFamily))
-	{
-		check(ScreenPercentageInterface == nullptr);
-		check(TemporalUpscalerInterface == nullptr);
-		check(PrimarySpatialUpscalerInterface == nullptr);
-		check(SecondarySpatialUpscalerInterface == nullptr);
-	}
+	ENGINE_API FSceneViewFamily(FSceneViewFamily&& InViewFamily);
 
 	template<typename TExtensionData> const TExtensionData* GetExtentionData() const
 	{
@@ -2490,10 +2483,8 @@ private:
 	/** True if this view is the current editing view or the active game view */
 	bool bIsInFocus = true;
 
-	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	// Only FSceneRenderer can copy a view family.
-	FSceneViewFamily(const FSceneViewFamily&) = default;
-	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	ENGINE_API FSceneViewFamily(const FSceneViewFamily&);
 
 	friend class FSceneRenderer;
 	friend class FViewFamilyInfo;

@@ -178,7 +178,7 @@ class FRDGUniformBuffer
 {
 public:
 
-	virtual ~FRDGUniformBuffer() {};
+	RENDERCORE_API virtual ~FRDGUniformBuffer();
 
 	FORCEINLINE const FRDGParameterStruct& GetParameters() const
 	{

@@ -244,7 +244,7 @@ public:
 	ENGINE_API FPrimitiveSceneProxy(const FPrimitiveSceneProxyDesc& InDesc, FName ResourceName = NAME_None);
 
 	/** Copy constructor. */
-	FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
+	ENGINE_API FPrimitiveSceneProxy(FPrimitiveSceneProxy const&);
 
 	/** Virtual destructor. */
 	ENGINE_API virtual ~FPrimitiveSceneProxy();

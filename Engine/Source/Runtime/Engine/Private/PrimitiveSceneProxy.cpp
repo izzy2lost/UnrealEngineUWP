@@ -264,6 +264,8 @@ FPrimitiveSceneProxyDesc::FPrimitiveSceneProxyDesc(const UPrimitiveComponent* In
 	InitializeFrom(InComponent);
 }
 
+FPrimitiveSceneProxy::FPrimitiveSceneProxy(FPrimitiveSceneProxy const&) = default;
+
 void FPrimitiveSceneProxyDesc::InitializeFrom(const UPrimitiveComponent* InComponent)
 {
 	CastShadow = InComponent->CastShadow;

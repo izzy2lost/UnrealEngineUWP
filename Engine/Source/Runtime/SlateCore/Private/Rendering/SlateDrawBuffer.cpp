@@ -16,6 +16,8 @@ FSlateDrawBuffer::FSlateDrawBuffer()
 	, ResourceVersion(0)
 { }
 
+FSlateDrawBuffer::~FSlateDrawBuffer() = default;
+
 FSlateWindowElementList& FSlateDrawBuffer::AddWindowElementList(TSharedRef<SWindow> ForWindow)
 {
 	ensureMsgf(IsLocked(), TEXT("The SlateDrawBuffer should be lock before modifying it."));

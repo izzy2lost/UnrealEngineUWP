@@ -24,6 +24,8 @@ FToolDataVisualizer::FToolDataVisualizer()
 	PopAllTransforms();
 }
 
+FToolDataVisualizer::FToolDataVisualizer(const FToolDataVisualizer&) = default;
+FToolDataVisualizer::~FToolDataVisualizer() = default;
 
 void FToolDataVisualizer::BeginFrame(IToolsContextRenderAPI* RenderAPI, const FViewCameraState& CameraStateIn)
 {

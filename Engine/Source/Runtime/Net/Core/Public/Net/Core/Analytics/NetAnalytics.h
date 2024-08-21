@@ -120,10 +120,8 @@ public:
 	/**
 	 * Default constructor
 	 */
-	FNetAnalyticsData()
-		: Aggregator(nullptr)
-	{
-	}
+	NETCORE_API FNetAnalyticsData();
+	NETCORE_API virtual ~FNetAnalyticsData();
 
 	/**
 	 * Dispatches the aggregated analytics data - no further data should be added

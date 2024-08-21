@@ -14,6 +14,7 @@ class FHttpRequestAdapterBase : public FHttpRequestImpl
 {
 public:
 	HTTP_API FHttpRequestAdapterBase(const TSharedRef<IHttpRequest>& InHttpRequest);
+	HTTP_API ~FHttpRequestAdapterBase();
 
 	// IHttpRequest interface
 	HTTP_API virtual FString GetURL() const override;

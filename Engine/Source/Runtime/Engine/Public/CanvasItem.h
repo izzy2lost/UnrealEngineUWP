@@ -305,24 +305,8 @@ public:
 class FCanvasTextItemBase : public FCanvasItem
 {
 public:
-	FCanvasTextItemBase( const FVector2D& InPosition, const FLinearColor& InColor )
-		: FCanvasItem( InPosition )
-		, HorizSpacingAdjust( 0.0f )
-		, Depth( 1.0f )
-		, ShadowColor( FLinearColor::Black )
-		, ShadowOffset( FVector2D::ZeroVector )
-		, DrawnSize( FVector2D::ZeroVector )
-		, bCentreX( false )
-		, bCentreY( false )
-		, bOutlined( false )
-		, OutlineColor( FLinearColor::Black )
-		, bDontCorrectStereoscopic( true )
-		, TileItem( InPosition, FVector2D::ZeroVector, InColor )
-	{
-		SetColor( InColor );
-		Scale.Set( 1.0f, 1.0f );
-		BlendMode = SE_BLEND_Translucent;
-	}
+	ENGINE_API FCanvasTextItemBase( const FVector2D& InPosition, const FLinearColor& InColor );
+	ENGINE_API virtual ~FCanvasTextItemBase();
 
 	/** 
 	 * Set the shadow offset and color. 
@@ -519,11 +503,7 @@ public:
 	 * @param	InFont			Font to draw with.
 	 * @param	InColor			Color to draw the text with.
 	 */
-	FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const UFont* InFont, const FLinearColor& InColor)
-		: FCanvasSimpleTextItem(InPosition, InFont, InColor)
-		, Text(InText)
-	{
-	}
+	ENGINE_API FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const UFont* InFont, const FLinearColor& InColor);
 
 	/** 	 
 	 * Constructor
@@ -533,13 +513,9 @@ public:
 	 * @param	InFontInfo		Font info to draw with.
 	 * @param	InColor			Color to draw the text with.
 	 */
-	FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const FSlateFontInfo& InFontInfo, const FLinearColor& InColor)
-		: FCanvasSimpleTextItem(InPosition, InFontInfo, InColor)
-		, Text(InText)
-	{
-	}
+	ENGINE_API FCanvasTextItem(const FVector2D& InPosition, const FText& InText, const FSlateFontInfo& InFontInfo, const FLinearColor& InColor);
 	
-	ENGINE_API virtual ~FCanvasTextItem() override = default;
+	ENGINE_API virtual ~FCanvasTextItem();
 
 	/* The text to draw. */
 	FText Text;

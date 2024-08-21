@@ -47,9 +47,7 @@ public:
 	};
 
 public:
-	virtual ~FStairGenerator() override
-	{
-	}
+	GEOMETRYCORE_API virtual ~FStairGenerator() override;
 
 	/** Generate the mesh */
 	GEOMETRYCORE_API virtual FMeshShapeGenerator& Generate() override;

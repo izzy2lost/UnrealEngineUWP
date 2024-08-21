@@ -471,6 +471,7 @@ FSliderStyle::FSliderStyle()
 {
 }
 
+FSliderStyle::FSliderStyle(const FSliderStyle&) = default;
 FSliderStyle::~FSliderStyle() = default;
 
 void FSliderStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const
@@ -547,6 +548,7 @@ FSpinBoxStyle::FSpinBoxStyle()
 {
 }
 
+FSpinBoxStyle::FSpinBoxStyle(const FSpinBoxStyle&) = default;
 FSpinBoxStyle::~FSpinBoxStyle() = default;
 
 void FSpinBoxStyle::GetResources( TArray< const FSlateBrush* >& OutBrushes ) const

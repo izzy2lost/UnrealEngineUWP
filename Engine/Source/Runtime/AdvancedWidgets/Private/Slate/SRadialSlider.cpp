@@ -20,6 +20,8 @@ SRadialSlider::SRadialSlider()
 #endif
 }
 
+SRadialSlider::~SRadialSlider() = default;
+
 void SRadialSlider::Construct( const SRadialSlider::FArguments& InDeclaration )
 {
 	check(InDeclaration._Style);

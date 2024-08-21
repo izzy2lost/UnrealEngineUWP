@@ -10,6 +10,10 @@
 
 UE::MovieScene::TPlaybackCapabilityID<FMovieSceneSpawnRegister> FMovieSceneSpawnRegister::ID = UE::MovieScene::TPlaybackCapabilityID<FMovieSceneSpawnRegister>::Register();
 
+FMovieSceneSpawnRegister::FMovieSceneSpawnRegister() = default;
+FMovieSceneSpawnRegister::FMovieSceneSpawnRegister(const FMovieSceneSpawnRegister&) = default;
+FMovieSceneSpawnRegister::~FMovieSceneSpawnRegister() = default;
+
 TWeakObjectPtr<> FMovieSceneSpawnRegister::FindSpawnedObject(const FGuid& BindingId, FMovieSceneSequenceIDRef TemplateID, int BindingIndex/* = 0*/) const
 {
 	FMovieSceneSpawnRegisterKey Key(TemplateID, BindingId, BindingIndex);

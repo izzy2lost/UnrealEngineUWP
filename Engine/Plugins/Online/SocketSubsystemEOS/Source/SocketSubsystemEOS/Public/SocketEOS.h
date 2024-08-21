@@ -14,12 +14,12 @@ class FSocketSubsystemEOS;
 	#include "eos_p2p_types.h"
 #endif
 
-class SOCKETSUBSYSTEMEOS_API FSocketEOS
+class FSocketEOS
 	: public FSocket
 {
 public:
-	FSocketEOS(FSocketSubsystemEOS& SocketSubsystem, const FString& InSocketDescription);
-	virtual ~FSocketEOS();
+	SOCKETSUBSYSTEMEOS_API FSocketEOS(FSocketSubsystemEOS& SocketSubsystem, const FString& InSocketDescription);
+	SOCKETSUBSYSTEMEOS_API virtual ~FSocketEOS();
 
 	//~ Begin FSocket Interface
 	virtual bool Shutdown(ESocketShutdownMode Mode) override;

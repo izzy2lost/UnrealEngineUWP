@@ -67,6 +67,8 @@ IStreamedCompressedInfo::IStreamedCompressedInfo()
 	StartTimeInCycles = FPlatformTime::Cycles64();
 }
 
+IStreamedCompressedInfo::~IStreamedCompressedInfo() = default;
+
 uint32 IStreamedCompressedInfo::Read(void *OutBuffer, uint32 DataSize)
 {
 	uint32 BytesToRead = FMath::Min(DataSize, SrcBufferDataSize - SrcBufferOffset);
@@ -276,6 +278,12 @@ bool IStreamedCompressedInfo::StreamCompressedInfoInternal(const FSoundWaveProxy
 
 	return false;
 }
+
+ICompressedAudioInfo::ICompressedAudioInfo()
+	: StreamingSoundWave(nullptr)
+{}
+
+ICompressedAudioInfo::~ICompressedAudioInfo() = default;
 
 bool ICompressedAudioInfo::HasError() const
 {

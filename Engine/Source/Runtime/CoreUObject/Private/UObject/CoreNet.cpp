@@ -286,6 +286,10 @@ void FClassNetCache::CountBytes(FArchive& Ar) const
 	UPackageMap implementation.
 -----------------------------------------------------------------------------*/
 
+UPackageMap::UPackageMap() = default;
+UPackageMap::~UPackageMap() = default;
+
+
 bool UPackageMap::SerializeName(FArchive& Ar, FName& InName)
 {
 	return StaticSerializeName(Ar, InName);
@@ -510,6 +514,12 @@ FNetBitReader::FNetBitReader(UPackageMap* InPackageMap, const uint8* Src, int64 
 	, PackageMap( InPackageMap )
 {
 }
+
+FNetBitReader::FNetBitReader(const FNetBitReader&) = default;
+FNetBitReader& FNetBitReader::operator=(const FNetBitReader&) = default;
+FNetBitReader::FNetBitReader(FNetBitReader&&) = default;
+FNetBitReader& FNetBitReader::operator=(FNetBitReader&&) = default;
+FNetBitReader::~FNetBitReader() = default;
 
 FArchive& FNetBitReader::operator<<(UObject*& Object)
 {

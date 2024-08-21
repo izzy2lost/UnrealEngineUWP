@@ -17,11 +17,11 @@ struct FBitWriter;
 
 
 class UE_DEPRECATED(5.3, "This handler is not supported. For fully-reliable data, use reliable RPCs or a separate connection with a reliable protocol.")
-RELIABILITYHANDLERCOMPONENT_API ReliabilityHandlerComponent : public HandlerComponent
+ReliabilityHandlerComponent : public HandlerComponent
 {
 public:
 	/* Initializes default data */
-	ReliabilityHandlerComponent();
+	RELIABILITYHANDLERCOMPONENT_API ReliabilityHandlerComponent();
 
 	virtual void CountBytes(FArchive& Ar) const;
 
@@ -35,7 +35,7 @@ public:
 	virtual void Outgoing(FBitWriter& Packet, FOutPacketTraits& Traits) override;
 
 	/* Queues a packet for resending */
-	void QueuePacketForResending(uint8* Packet, int32 CountBits, FOutPacketTraits& Traits);
+	RELIABILITYHANDLERCOMPONENT_API void QueuePacketForResending(uint8* Packet, int32 CountBits, FOutPacketTraits& Traits);
 
 	UE_DEPRECATED(4.21, "Use the PacketTraits version for sending packets with additional flags and options")
 	FORCEINLINE void QueueHandlerPacketForResending(HandlerComponent* InComponent, uint8* Packet, int32 CountBits)

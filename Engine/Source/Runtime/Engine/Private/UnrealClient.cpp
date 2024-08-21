@@ -172,6 +172,9 @@ float FRenderTarget::GetEngineDisplayGamma() // static
 	}
 }
 
+FRenderTarget::FRenderTarget() = default;
+FRenderTarget::~FRenderTarget() = default;
+
 const FTextureRHIRef& FRenderTarget::GetRenderTargetTexture() const
 {
 	return RenderTargetTextureRHI;

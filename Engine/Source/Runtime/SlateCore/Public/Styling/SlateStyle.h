@@ -32,6 +32,8 @@ public:
 	 * @param InStyleSetName The name used to identity this style set
 	 */
 	SLATECORE_API FSlateStyleSet(const FName& InStyleSetName);
+	SLATECORE_API FSlateStyleSet(FSlateStyleSet&&);
+	SLATECORE_API FSlateStyleSet(const FSlateStyleSet&);
 
 	/** Destructor. */
 	SLATECORE_API virtual ~FSlateStyleSet();

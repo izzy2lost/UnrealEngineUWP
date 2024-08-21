@@ -175,6 +175,8 @@ void FRDGPooledBuffer::SetDebugLabelName(FRHICommandListBase& RHICmdList, const 
 #endif
 }
 
+FRDGUniformBuffer::~FRDGUniformBuffer() = default;
+
 void FRDGUniformBuffer::InitRHI()
 {
 	check(!HasRHI());

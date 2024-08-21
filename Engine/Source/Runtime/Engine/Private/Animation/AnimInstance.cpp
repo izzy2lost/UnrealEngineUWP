@@ -142,6 +142,11 @@ UAnimInstance::UAnimInstance(const FObjectInitializer& ObjectInitializer)
 #endif // WITH_EDITOR	
 }
 
+// Disable compiler-generated deprecation warnings by implementing our own destructor
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+UAnimInstance::~UAnimInstance() = default;
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
+
 // this is only used by montage marker based sync
 void UAnimInstance::MakeMontageTickRecord(FAnimTickRecord& TickRecord, class UAnimMontage* Montage, float CurrentPosition, float Weight, TArray<FPassedMarker>& MarkersPassedThisTick, FMarkerTickRecord& MarkerTickRecord)
 {

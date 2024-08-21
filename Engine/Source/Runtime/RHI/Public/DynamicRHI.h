@@ -127,7 +127,7 @@ public:
 	using FRHICalcTextureSizeResult = ::FRHICalcTextureSizeResult;
 
 	/** Declare a virtual destructor, so the dynamic RHI can be deleted without knowing its type. */
-	virtual ~FDynamicRHI() {}
+	RHI_API virtual ~FDynamicRHI();
 
 	/** Initializes the RHI; separate from IDynamicRHIModule::CreateRHI so that GDynamicRHI is set when it is called. */
 	virtual void Init() = 0;

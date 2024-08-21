@@ -33,6 +33,7 @@ public:
 
 public:
 	GEOMETRYCORE_API FPlanarPolygonMeshGenerator();
+	GEOMETRYCORE_API ~FPlanarPolygonMeshGenerator();
 
 	/** Initialize the polygon from an array of 2D vertices */
 	GEOMETRYCORE_API void SetPolygon(const TArray<FVector2D>& PolygonVerts);

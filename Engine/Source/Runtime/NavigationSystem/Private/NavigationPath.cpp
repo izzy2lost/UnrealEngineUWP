@@ -67,6 +67,8 @@ FNavigationPath::FNavigationPath(const TArray<FVector>& Points, AActor* InBase)
 	}
 }
 
+FNavigationPath::~FNavigationPath() = default;
+
 void FNavigationPath::InternalResetNavigationPath()
 {
 	ShortcutNodeRefs.Reset();

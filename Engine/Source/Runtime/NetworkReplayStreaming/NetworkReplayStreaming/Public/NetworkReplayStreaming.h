@@ -515,7 +515,8 @@ DECLARE_MULTICAST_DELEGATE_TwoParams(FOnReplayGetAnalyticsAttributes, const clas
 class INetworkReplayStreamer 
 {
 public:
-	virtual ~INetworkReplayStreamer() {}
+	NETWORKREPLAYSTREAMING_API INetworkReplayStreamer();
+	NETWORKREPLAYSTREAMING_API virtual ~INetworkReplayStreamer();
 
 	virtual void StartStreaming(const FStartStreamingParameters& Params, const FStartStreamingCallback& Delegate) = 0;
 

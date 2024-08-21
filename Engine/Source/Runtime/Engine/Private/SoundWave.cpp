@@ -4626,6 +4626,8 @@ FSoundWaveProxy::FSoundWaveProxy(USoundWave* InWave)
 	TypeHash = ::GetTypeHash(InWave);
 }
 
+FSoundWaveProxy::FSoundWaveProxy(const FSoundWaveProxy& Other) = default;
+
 FSoundWaveProxy::~FSoundWaveProxy()
 {
 }

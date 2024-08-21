@@ -1319,7 +1319,7 @@ struct FSliderStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FSliderStyle();
-
+	SLATECORE_API FSliderStyle(const FSliderStyle&);
 	SLATECORE_API virtual ~FSliderStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;
@@ -1468,7 +1468,7 @@ struct FSpinBoxStyle : public FSlateWidgetStyle
 	GENERATED_USTRUCT_BODY()
 
 	SLATECORE_API FSpinBoxStyle();
-
+	SLATECORE_API FSpinBoxStyle(const FSpinBoxStyle&);
 	SLATECORE_API virtual ~FSpinBoxStyle();
 
 	SLATECORE_API virtual void GetResources( TArray< const FSlateBrush* >& OutBrushes ) const override;

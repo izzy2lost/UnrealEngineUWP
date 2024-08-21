@@ -2335,7 +2335,7 @@ public:
 class FReferenceCollector
 {
 public:
-	virtual ~FReferenceCollector() {}
+	COREUOBJECT_API virtual ~FReferenceCollector();
 	
 	/** Preferred way to add a reference that allows batching. Object must outlive GC tracing, can't be used for temporary/stack references. */
 	COREUOBJECT_API virtual void AddStableReference(TObjectPtr<UObject>* Object);
@@ -2991,6 +2991,7 @@ public:
 	 */
 	COREUOBJECT_API FReferenceFinder(TArray<UObject*>& InObjectArray, UObject* InOuter = nullptr, bool bInRequireDirectOuter = true, bool bInShouldIgnoreArchetype = false, bool bInSerializeRecursively = false, bool bInShouldIgnoreTransient = false);
 
+	COREUOBJECT_API ~FReferenceFinder();
 	/**
 	 * Finds all objects referenced by Object.
 	 *
