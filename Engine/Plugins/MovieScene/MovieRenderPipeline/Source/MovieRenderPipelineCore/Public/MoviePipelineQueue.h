@@ -257,6 +257,12 @@ public:
 	/** Called when the graph preset assigned to the shot changes. */
 	FOnMoviePipelineShotGraphPresetChanged OnShotGraphPresetChanged;
 
+	/**
+	 * (Optional) Console variable overrides which are applied after cvars set via nodes. Only applies to graph-based configs.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Console Variable Overrides", meta = (DisplayName = "Console Variables", EditCondition="IsUsingGraphConfiguration()", EditConditionHides))
+	TArray<FMoviePipelineConsoleVariableEntry> ConsoleVariableOverrides;
+
 public:
 	/** Transient information used by the active Movie Pipeline working on this shot. */
 	FMoviePipelineCameraCutInfo ShotInfo;
@@ -591,6 +597,12 @@ public:
 
 	/** Called when the graph preset assigned to the job changes. */
 	FOnMoviePipelineJobGraphPresetChanged OnJobGraphPresetChanged;
+
+	/**
+	 * (Optional) Console variable overrides which are applied after cvars set via nodes. Only applies to graph-based configs.
+	 */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Console Variable Overrides", meta = (DisplayName = "Console Variables", EditCondition="IsUsingGraphConfiguration()", EditConditionHides))
+	TArray<FMoviePipelineConsoleVariableEntry> ConsoleVariableOverrides;
 
 private:
 	UPROPERTY(Transient)

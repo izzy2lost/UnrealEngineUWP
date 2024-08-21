@@ -137,6 +137,30 @@ public:
 	FString CameraName;
 };
 
+/**
+ * Represents a console variable override that can be enabled/disabled.
+ */
+USTRUCT(BlueprintType)
+struct MOVIERENDERPIPELINECORE_API FMoviePipelineConsoleVariableEntry
+{
+	GENERATED_BODY()
+	
+	FMoviePipelineConsoleVariableEntry(const FString& InName, const float InValue, const bool bInIsEnabled = true);
+	FMoviePipelineConsoleVariableEntry();
+
+	/* The name of the console variable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	FString Name;
+
+	/* The value of the console variable. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	float Value;
+
+	/* Enable state. If disabled, this cvar entry will be ignored when resolving the final value of the cvar. */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
+	bool bIsEnabled;
+};
+
 namespace MoviePipeline
 {
 	/**

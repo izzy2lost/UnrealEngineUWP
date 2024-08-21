@@ -137,6 +137,12 @@ protected:
 		);
 	}
 
+	TWeakPtr<FConsoleVariablesEditorCommandInfo> GetCommandInfoForConsoleVariableEntry(const FMoviePipelineConsoleVariableEntry* InEntry) const
+	{
+		FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
+		return ConsoleVariablesEditorModule.FindCommandInfoByName(InEntry->Name);
+	}
+
 	ECheckBoxState GetIsEnabledCheckBoxState(TSharedRef<IPropertyHandle> PropertyHandle) const
 	{
 		bool bValue = false;
@@ -178,23 +184,6 @@ protected:
 
 		return FText();
 	}
-	
-	FText GetConsoleVariableHelpText(TSharedRef<IPropertyHandle> PropertyHandle) const
-	{
-		// Get the handle to the parent struct property
-		const TSharedPtr<IPropertyHandle> ParentPropertyHandle = PropertyHandle->GetParentHandle();
-		
-		if (const FMoviePipelineConsoleVariableEntry* CVarEntry = GetEntryForHandle(ParentPropertyHandle))
-		{
-			const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = CVarEntry->CommandInfo.Pin();
-			if (CommandInfo.IsValid())
-			{
-				return FText::FromString(CommandInfo->GetHelpText());
-			}
-		}
-
-		return FText();
-	}
 
 	void OnConsoleVariableNameTextChanged(const FText& NewText, TSharedRef<IPropertyHandle> PropertyHandle)
 	{
@@ -230,7 +219,7 @@ protected:
 			// Fall back to the startup value of the cvar if we're not in a settings object
 			else
 			{
-				const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = CVarEntry->CommandInfo.Pin();
+				const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = GetCommandInfoForConsoleVariableEntry(CVarEntry).Pin();
 				if (CommandInfo.IsValid())
 				{
 					FDefaultValueHelper::ParseFloat(CommandInfo->StartupValueAsString, CVarFloatValue);
@@ -273,7 +262,7 @@ protected:
 			return FText();
 		}
 		
-		const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = CVarEntry->CommandInfo.Pin();
+		const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = GetCommandInfoForConsoleVariableEntry(CVarEntry).Pin();
 		if (!CommandInfo.IsValid())
 		{
 			return FText();

@@ -10,6 +10,7 @@
 #include "HAL/IConsoleManager.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Misc/DefaultValueHelper.h"
+#include "MoviePipelineQueue.h"
 #include "MovieRenderPipelineCoreModule.h"
 #include "Sections/MovieSceneConsoleVariableTrackInterface.h"
 
@@ -107,6 +108,32 @@ void FMovieGraphCVarManager::AddEvaluatedGraph(const UMovieGraphEvaluatedConfig*
 			AddEndConsoleCommands(ConsoleCommandsNode->ConsoleCommands->AddEndCommands);
 		}
 	}
+}
+
+void FMovieGraphCVarManager::AddShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot)
+{
+// UMoviePipelineExecutorShot and UMoviePipelineExecutorJob don't share a common base class, hence the need for a define vs. a lambda.
+#define ADD_CVARS(Owner) \
+	for (const FMoviePipelineConsoleVariableEntry& CVarEntry : Owner->ConsoleVariableOverrides) \
+	{ \
+		if (CVarEntry.bIsEnabled) \
+		{ \
+			AddCVar(CVarEntry.Name, CVarEntry.Value); \
+		} \
+	}
+	
+	if (InShot)
+	{
+		// Add cvars specified on the parent job first. The shot's cvars will have a chance to override these if needed.
+		if (const UMoviePipelineExecutorJob* ParentJob = InShot->GetTypedOuter<UMoviePipelineExecutorJob>())
+		{
+			ADD_CVARS(ParentJob)
+		}
+
+		// Then add the shot's cvar overrides.
+		ADD_CVARS(InShot)
+	}
+#undef ADD_CVARS
 }
 
 void FMovieGraphCVarManager::ApplyAllCVars()

@@ -919,9 +919,10 @@ void UMovieGraphPipeline::SetupShot(const TObjectPtr<UMoviePipelineExecutorShot>
 		GlobalGameOverridesNode->ApplySettings(bOverrideValues, GetWorld());
 	}
 
-	// Apply cvars for the shot
+	// Apply cvars and console commands for the shot
 	CVarManager->SetWorld(GetWorld());
 	CVarManager->AddEvaluatedGraph(EvaluatedConfig);
+	CVarManager->AddShot(InShot);
 	CVarManager->ApplyAllCVars();
 	CVarManager->RunStartConsoleCommands();
 

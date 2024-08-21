@@ -185,8 +185,11 @@ FString UMoviePipelineConsoleVariableSetting::ResolveDisabledValue(const FMovieP
 		return PresetValue;
 	}
 
+	FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
+	const TWeakPtr<FConsoleVariablesEditorCommandInfo> WeakCommandInfo = ConsoleVariablesEditorModule.FindCommandInfoByName(InEntry.Name);
+
 	// Fall back to the startup value of the cvar
-	const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = InEntry.CommandInfo.Pin();
+	const TSharedPtr<FConsoleVariablesEditorCommandInfo> CommandInfo = WeakCommandInfo.Pin();
 	if (CommandInfo.IsValid())
 	{
 		return CommandInfo->StartupValueAsString;
@@ -343,51 +346,6 @@ bool UMoviePipelineConsoleVariableSetting::UpdateConsoleVariableEnableState(cons
 
 	return false;
 }
-
-void UMoviePipelineConsoleVariableSetting::PostLoad()
-{
-	Super::PostLoad();
-
-#if WITH_EDITOR
-	// Initialize the CommandInfo structs
-	for (FMoviePipelineConsoleVariableEntry& Entry : CVars)
-	{
-		Entry.UpdateCommandInfo();
-	}
-#endif	// WITH_EDITOR
-}
-
-#if WITH_EDITOR
-void UMoviePipelineConsoleVariableSetting::PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent)
-{
-	Super::PostEditChangeChainProperty(PropertyChangedEvent);
-
-	const FProperty* Property = PropertyChangedEvent.Property;
-	const FProperty* MemberProperty = nullptr;
-	if (PropertyChangedEvent.PropertyChain.GetActiveMemberNode())
-	{
-		MemberProperty = PropertyChangedEvent.PropertyChain.GetActiveMemberNode()->GetValue();
-	}
-
-	if (!MemberProperty || !Property)
-	{
-		return;
-	}
-
-	// If the name of one of the cvar overrides changes, generate a new CommandInfo for it
-	if (MemberProperty->GetFName() == GET_MEMBER_NAME_CHECKED(UMoviePipelineConsoleVariableSetting, CVars))
-	{
-		if (Property->GetFName() == GET_MEMBER_NAME_CHECKED(FMoviePipelineConsoleVariableEntry, Name))
-		{
-			const int32 ArrayIndex = PropertyChangedEvent.GetArrayIndex(MemberProperty->GetName());
-			if (CVars.IsValidIndex(ArrayIndex))
-			{
-				CVars[ArrayIndex].UpdateCommandInfo();
-			}
-		}
-	}
-}
-#endif	// WITH_EDITOR
 
 void UMoviePipelineConsoleVariableSetting::MergeInPresetConsoleVariables()
 {

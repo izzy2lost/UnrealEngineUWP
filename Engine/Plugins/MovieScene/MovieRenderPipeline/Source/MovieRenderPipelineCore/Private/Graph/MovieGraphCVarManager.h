@@ -8,6 +8,7 @@
 
 class IMovieSceneConsoleVariableTrackInterface;
 class UMovieGraphEvaluatedConfig;
+class UMoviePipelineExecutorShot;
 class UMovieScene;
 
 namespace UE::MovieGraph::Private
@@ -41,6 +42,13 @@ namespace UE::MovieGraph::Private
 
 		/** For all cvar, cvar preset, and console command nodes in InEvaluatedGraph, calls either AddCVar(), AddPreset(), or Add*ConsoleCommands(). */
 		void AddEvaluatedGraph(const UMovieGraphEvaluatedConfig* InEvaluatedGraph);
+
+		/**
+		 * Calls AddCvar() for all console variables that have been added via overrides on the shot, as well as the shot's parent job. Console
+		 * variables set on the shot and job have priority over all other cvars that have been set (with shot-based cvars having the highest
+		 * priority).
+		 */
+		void AddShot(const TObjectPtr<UMoviePipelineExecutorShot>& InShot);
 
 		/** Applies all cvars that have been gathered via the Add*() methods. */
 		void ApplyAllCVars();

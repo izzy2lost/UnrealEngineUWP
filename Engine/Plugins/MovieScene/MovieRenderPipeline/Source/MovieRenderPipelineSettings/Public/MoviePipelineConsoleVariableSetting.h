@@ -7,61 +7,12 @@
 #endif
 
 #include "MoviePipelineSetting.h"
+#include "MovieRenderPipelineDataTypes.h"
 #include "HAL/IConsoleManager.h"
 
 #include "MoviePipelineConsoleVariableSetting.generated.h"
 
 class IMovieSceneConsoleVariableTrackInterface;
-
-/**
- * Represents a console variable override within the Console Variable setting.
- */
-USTRUCT(BlueprintType)
-struct FMoviePipelineConsoleVariableEntry
-{
-	GENERATED_BODY()
-	
-	FMoviePipelineConsoleVariableEntry(const FString& InName, const float InValue, const bool bInIsEnabled = true)
-		: Name(InName)
-		, Value(InValue)
-		, bIsEnabled(bInIsEnabled)
-	{
-#if WITH_EDITOR
-		UpdateCommandInfo();
-#endif
-	}
-
-	FMoviePipelineConsoleVariableEntry()
-		: Value(0), bIsEnabled(true)
-	{
-	}
-
-#if WITH_EDITOR
-	/**
-	 * Updates the CommandInfo pointer. Should be called in PostLoad to ensure CommandInfo is properly set. In other
-	 * cases, CommandInfo will be kept up-to-date.
-	 */
-	void UpdateCommandInfo()
-	{
-		FConsoleVariablesEditorModule& ConsoleVariablesEditorModule = FConsoleVariablesEditorModule::Get();
-		CommandInfo = ConsoleVariablesEditorModule.FindCommandInfoByName(Name);
-	}
-
-	TWeakPtr<FConsoleVariablesEditorCommandInfo> CommandInfo;
-#endif
-
-	/* The name of the console variable. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	FString Name;
-
-	/* The value of the console variable. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	float Value;
-
-	/* Enable state. If disabled, this cvar entry will be ignored when resolving the final value of the cvar. */
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Settings")
-	bool bIsEnabled;
-};
 
 UCLASS(BlueprintType)
 class MOVIERENDERPIPELINESETTINGS_API UMoviePipelineConsoleVariableSetting : public UMoviePipelineSetting
@@ -165,14 +116,6 @@ public:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "Settings")
 	bool UpdateConsoleVariableEnableState(const FString& Name, const bool bIsEnabled);
-
-	// Begin UObject interface
-	virtual void PostLoad() override;
-
-#if WITH_EDITOR
-	virtual void PostEditChangeChainProperty(FPropertyChangedChainEvent& PropertyChangedEvent) override;
-#endif
-	// End UObject interface
 
 private:
 	/** Merge together preset and override cvars into MergedConsoleVariables. Discards result of a prior merge (if any). */
