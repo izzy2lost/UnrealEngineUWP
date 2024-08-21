@@ -40,5 +40,10 @@ protected:
 	// UAssetDefinition End
 
 public:
-	static FPreviewForceFeedbackEffect PreviewForceFeedbackEffect;
+
+	static FPreviewForceFeedbackEffect& GetPreviewForceFeedbackEffect()
+	{
+		static FPreviewForceFeedbackEffect Instance;
+		return Instance;
+	}
 };

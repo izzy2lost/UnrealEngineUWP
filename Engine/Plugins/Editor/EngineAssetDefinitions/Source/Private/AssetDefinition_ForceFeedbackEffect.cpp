@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AssetDefinition_ForceFeedbackEffect.h"
 
@@ -11,8 +11,6 @@
 #include "Widgets/Input/SButton.h"
 
 #define LOCTEXT_NAMESPACE "AssetDefinition_ForceFeedbackEffect"
-
-FPreviewForceFeedbackEffect UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect = FPreviewForceFeedbackEffect();
 
 FText UAssetDefinition_ForceFeedbackEffect::GetAssetDisplayName() const
 {
@@ -42,12 +40,12 @@ namespace MenuExtension_ForceFeedbackEffect
 {
 	bool IsEffectPlaying(const TArray<TWeakObjectPtr<UForceFeedbackEffect>>& Objects)
 	{
-		if (UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect)
+		if (UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect)
 		{
 			for (const TWeakObjectPtr<UForceFeedbackEffect>& EffectPtr : Objects)
 			{
 				UForceFeedbackEffect* Effect = EffectPtr.Get();
-				if (Effect && UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect == Effect)
+				if (Effect && UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect == Effect)
 				{
 					return true;
 				}
@@ -59,16 +57,16 @@ namespace MenuExtension_ForceFeedbackEffect
 
 	bool IsEffectPlaying(const UForceFeedbackEffect* ForceFeedbackEffect)
 	{
-		return UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect && UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect == ForceFeedbackEffect;
+		return UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect && UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect == ForceFeedbackEffect;
 	}
 
 	bool IsEffectPlaying(const FAssetData& AssetData)
 	{
-		if (UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect)
+		if (UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect)
 		{
-			if (UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect->GetFName() == AssetData.AssetName)
+			if (UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect->GetFName() == AssetData.AssetName)
 			{
-				if (UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect->GetOutermost()->GetFName() == AssetData.PackageName)
+				if (UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect->GetOutermost()->GetFName() == AssetData.PackageName)
 				{
 					return true;
 				}
@@ -80,8 +78,8 @@ namespace MenuExtension_ForceFeedbackEffect
 
 	void StopEffect() 
 	{
-		UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ResetDeviceProperties();
-		UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect = nullptr;
+		UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ResetDeviceProperties();
+		UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect = nullptr;
 
 		if (IInputInterface* InputInterface = FSlateApplication::Get().GetInputInterface())
 		{
@@ -93,10 +91,10 @@ namespace MenuExtension_ForceFeedbackEffect
 	{
 		if (Effect)
 		{
-			UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ForceFeedbackEffect = Effect;
-			UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.PlayTime = 0.f;
-			UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.PlatformUser = IPlatformInputDeviceMapper::Get().GetPrimaryPlatformUser();
-			UAssetDefinition_ForceFeedbackEffect::PreviewForceFeedbackEffect.ActivateDeviceProperties();
+			UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ForceFeedbackEffect = Effect;
+			UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().PlayTime = 0.f;
+			UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().PlatformUser = IPlatformInputDeviceMapper::Get().GetPrimaryPlatformUser();
+			UAssetDefinition_ForceFeedbackEffect::GetPreviewForceFeedbackEffect().ActivateDeviceProperties();
 		}
 		else
 		{
