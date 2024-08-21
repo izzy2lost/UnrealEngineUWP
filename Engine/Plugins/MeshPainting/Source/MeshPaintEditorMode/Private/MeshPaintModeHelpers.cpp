@@ -281,6 +281,12 @@ void UMeshPaintModeSubsystem::ImportVertexColorsFromMeshPaintTexture(UMeshCompon
 {
 	if (UTexture2D* Texture = Cast<UTexture2D>(MeshComponent->GetMeshPaintTexture()))
 	{
+#if WITH_EDITOR
+		// We may need to wait for the texture to compile before importing.
+		// This is most likely to happen when we are immediately propagating texture color painting to vertex colors.
+		Texture->BlockOnAnyAsyncBuild();
+#endif
+
 		UImportVertexColorOptions* Options = NewObject<UImportVertexColorOptions>();
  		Options->UVIndex = MeshComponent->GetMeshPaintTextureCoordinateIndex();
 

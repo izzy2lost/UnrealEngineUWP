@@ -313,13 +313,13 @@ public:
 	uint8 bReverseCulling : 1;
 
 	/** 
-	 * If false, vertex color mesh painting is disabled on this instance. 
+	 * If false, vertex color mesh painting is disabled on this component. 
 	 * This may be set to false by blueprint functions that override vertex colors in construction script.
 	 */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
 	uint8 bEnableVertexColorMeshPainting : 1;
 
-	/** If false, texture color mesh painting is disabled on this instance. */
+	/** If false, texture color mesh painting is disabled on this component. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh Painting")
 	uint8 bEnableTextureColorMeshPainting : 1;
 

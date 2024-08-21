@@ -1588,10 +1588,7 @@ void UMeshTexturePaintingTool::ApplyAllPaintedTextures()
 	{
 		check(PaintingTexture2D == nullptr);
 
-		FScopedTransaction Transaction(LOCTEXT("MeshPaintMode_TexturePaint_Apply", "Apply Texture Paint"));
-		
 		Modify();
-	//	GWarn->BeginSlowTask(LOCTEXT("BeginMeshPaintMode_TexturePaint_ApplyTask", "Applying Texture Paint Changes"), true);
 
 		int32 CurStep = 1;
 		int32 TotalSteps = GetNumberOfPendingPaintChanges();
@@ -1603,8 +1600,6 @@ void UMeshTexturePaintingTool::ApplyAllPaintedTextures()
 			// Apply the texture
 			if (TextureData->bIsPaintingTexture2DModified == true)
 			{
-			//	GWarn->StatusUpdate(CurStep++, TotalSteps, FText::Format(LOCTEXT("MeshPaintMode_TexturePaint_ApplyStatus", "Applying Texture Paint Changes: {0}"), FText::FromName(TextureData->PaintingTexture2D->GetFName())));
-
 				const int32 TexWidth = TextureData->PaintRenderTargetTexture->SizeX;
 				const int32 TexHeight = TextureData->PaintRenderTargetTexture->SizeY;
 				TArray< FColor > TexturePixels;
@@ -1645,8 +1640,6 @@ void UMeshTexturePaintingTool::ApplyAllPaintedTextures()
 		}
 
 		ClearAllTextureOverrides();
-
-//		GWarn->EndSlowTask();
 	}
 }
 
@@ -1683,7 +1676,6 @@ int32 UMeshTexturePaintingTool::GetNumberOfPendingPaintChanges() const
 	{
 		const FPaintTexture2DData* TextureData = &It.Value();
 
-		// Apply the texture
 		if (TextureData->bIsPaintingTexture2DModified == true)
 		{
 			Result++;
@@ -1755,6 +1747,30 @@ void UMeshTextureColorPaintingTool::CacheTexturePaintData()
 		}
 
 		PaintableTextures.RemoveAll([](FPaintableTexture const& PaintableTexture) { return !PaintableTexture.bIsMeshTexture; });
+	}
+}
+
+void UMeshTextureColorPaintingTool::GetPaintedComponentsForPropagateVertexColor(TArray<UMeshComponent*>& OutComponents) const
+{
+	if (!ColorProperties->bPropagateToVertexColor)
+	{
+		return;
+	}
+	
+	for (decltype(PaintTargetData)::TConstIterator It(PaintTargetData); It; ++It)
+	{
+		const FPaintTexture2DData* TextureData = &It.Value();
+
+		if (TextureData->bIsPaintingTexture2DModified == true)
+		{
+			for (UMeshComponent* Component : TextureData->PaintedComponents)
+			{
+				if (Component->GetMeshPaintTexture() == TextureData->PaintingTexture2D)
+				{
+					OutComponents.Add(Component);
+				}
+			}
+		}
 	}
 }
 

@@ -104,6 +104,11 @@ UCLASS()
 class MESHPAINTINGTOOLSET_API UMeshTextureColorPaintingToolProperties : public UMeshTexturePaintingToolProperties
 {
 	GENERATED_BODY()
+
+public:
+	/** Whether to copy texture color painting to vertex colors on Apply. */
+	UPROPERTY(EditAnywhere, Category = ColorPainting)
+	bool bPropagateToVertexColor = false;
 };
 
 /**
@@ -285,6 +290,9 @@ public:
 	virtual void GetModifiedTexturesToSave(TArray<UObject*>& OutTexturesToSave) const override;
 	virtual void CacheTexturePaintData() override;
 	// End UMeshTexturePaintingTool Interface.
+
+	/** Get mesh components that have mesh paint textures pending save and that should write vertex colors when they do save. */
+	void GetPaintedComponentsForPropagateVertexColor(TArray<UMeshComponent*>& OutComponents) const;
 
 protected:
 	UPROPERTY(Transient)

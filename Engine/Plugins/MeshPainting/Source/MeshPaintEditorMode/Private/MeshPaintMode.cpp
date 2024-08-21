@@ -890,9 +890,22 @@ bool UMeshPaintMode::CanCycleTextures() const
 
 void UMeshPaintMode::ApplyTextureColorsToAsset()
 {
+	FScopedTransaction Transaction(LOCTEXT("MeshPaintMode_TexturePaint_Apply", "Apply Texture Paint"));
+
+	TArray<UMeshComponent*> VertexColorPropagateComponents;
+	if (UMeshTextureColorPaintingTool* TextureColorPaintingTool = Cast<UMeshTextureColorPaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
+	{
+		TextureColorPaintingTool->GetPaintedComponentsForPropagateVertexColor(VertexColorPropagateComponents);
+	}
+
 	if (UMeshTexturePaintingTool* TexturePaintingTool = Cast<UMeshTexturePaintingTool>(GetToolManager()->GetActiveTool(EToolSide::Left)))
 	{
 		TexturePaintingTool->ApplyAllPaintedTextures();
+	}
+
+	for (UMeshComponent* Component : VertexColorPropagateComponents)
+	{
+		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->ImportVertexColorsFromMeshPaintTexture(Component);
 	}
 }
 
