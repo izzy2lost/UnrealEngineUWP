@@ -271,6 +271,9 @@
 #include "IDocumentation.h"
 #include "StereoRenderTargetManager.h"
 
+#include "Engine/EngineCustomTimeStep.h"
+#include "Engine/TimecodeProvider.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogEditor, Log, All);
 
 #define LOCTEXT_NAMESPACE "UnrealEd.Editor"
@@ -1160,8 +1163,14 @@ void UEditorEngine::InitEditor(IEngineLoop* InEngineLoop)
 	}
 
 	FAssetCompilingManager::Get().OnAssetPostCompileEvent().AddUObject(this, &UEditorEngine::OnAssetPostCompile);
-
+	
 	WorldAddExtraDeletionObjectsHandle = FEditorDelegates::OnAddExtraObjectsToDelete.AddStatic(&UWorld::OnAddExtraObjectsToDelete);
+
+	OnTimecodeProviderChanged().AddUObject(this, &UEditorEngine::RegisterTimecodeProviderCompiledDelegate);
+	OnCustomTimeStepChanged().AddUObject(this, &UEditorEngine::RegisterCustomTimeStepCompiledDelegate);
+
+	RegisterTimecodeProviderCompiledDelegate();
+	RegisterCustomTimeStepCompiledDelegate();
 }
 
 bool UEditorEngine::HandleOpenAsset(UObject* Asset)
@@ -1614,6 +1623,10 @@ void UEditorEngine::FinishDestroy()
 				AssetRegistry->OnInMemoryAssetCreated().RemoveAll(this);
 			}
 		}
+
+		OnTimecodeProviderChanged().RemoveAll(this);
+		OnCustomTimeStepChanged().RemoveAll(this);
+
 		FAssetCompilingManager::Get().OnAssetPostCompileEvent().RemoveAll(this);
 
 		FEditorDelegates::OnAddExtraObjectsToDelete.Remove(WorldAddExtraDeletionObjectsHandle);
@@ -7599,6 +7612,40 @@ void UEditorEngine::OnAssetPostCompile(const TArray<FAssetCompileData>& Compiled
 			{
 				AssetRegistry->AssetTagsFinalized(*CompileData.Asset);
 			}
+		}
+	}
+}
+
+void UEditorEngine::HandleTimecodeProviderCompiled(UBlueprint* InBlueprint)
+{
+	ReinitializeTimecodeProvider();
+}
+
+void UEditorEngine::HandleCustomTimeStepCompiled(UBlueprint* InBlueprint)
+{
+	ReinitializeCustomTimeStep();
+}
+
+void UEditorEngine::RegisterTimecodeProviderCompiledDelegate()
+{
+	if (UTimecodeProvider* NewProvider = GetTimecodeProvider())
+	{
+		if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(NewProvider->GetClass()))
+		{
+			Blueprint->OnCompiled().Remove(TimecodeProviderCompiledDelegateHandle);
+			TimecodeProviderCompiledDelegateHandle = Blueprint->OnCompiled().AddUObject(this, &UEditorEngine::HandleTimecodeProviderCompiled);
+		}
+	}
+}
+
+void UEditorEngine::RegisterCustomTimeStepCompiledDelegate()
+{
+	if (UEngineCustomTimeStep* NewCustomTimeStep = GetCustomTimeStep())
+	{
+		if (UBlueprint* Blueprint = UBlueprint::GetBlueprintFromClass(NewCustomTimeStep->GetClass()))
+		{
+			Blueprint->OnCompiled().Remove(CustomTimeStepCompiledDelegateHandle);
+			CustomTimeStepCompiledDelegateHandle = Blueprint->OnCompiled().AddUObject(this, &UEditorEngine::HandleCustomTimeStepCompiled);
 		}
 	}
 }

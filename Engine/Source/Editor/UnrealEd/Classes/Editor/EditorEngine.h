@@ -3073,6 +3073,18 @@ private:
 	/** Handler for when an asset finishes compiling (used to notify AssetRegistry to update tags after Load) */
 	UNREALED_API void OnAssetPostCompile(const TArray<FAssetCompileData>& CompiledAssets);
 
+	/** Handler for when the timecode provider changed, so that we can register the BlueprintCompiled delegate to it.*/
+	UNREALED_API void RegisterTimecodeProviderCompiledDelegate();
+
+	/** Handler for when the custom timestep changed, so that we can register the BlueprintCompiled delegate to it.*/
+	UNREALED_API void RegisterCustomTimeStepCompiledDelegate();
+
+	/** Handler used to reinitialize Timecode when their blueprint is compiled. */
+	UNREALED_API void HandleTimecodeProviderCompiled(UBlueprint* InBlueprint);
+
+	/** Handler used to reinitialize CustomTimeStep when their blueprint is compiled. */
+	UNREALED_API void HandleCustomTimeStepCompiled(UBlueprint* InBlueprint);
+
 	/** Handler for when a world is duplicated in the editor */
 	UNREALED_API void InitializeNewlyCreatedInactiveWorld(UWorld* World);
 
@@ -3148,6 +3160,12 @@ private:
 
 	/** Delegate handle for game viewport close requests in PIE sessions. */
 	FDelegateHandle ViewportCloseRequestedDelegateHandle;
+
+	/** Delegate handle for when a TimecodeProvider blueprint is compiled. */
+	FDelegateHandle TimecodeProviderCompiledDelegateHandle;
+
+	/** Delegate handle for when a CustomTimeStep blueprint is compiled. */
+	FDelegateHandle CustomTimeStepCompiledDelegateHandle;
 
 	/** Minimized Windows during PIE */
 	TArray<TWeakPtr<SWindow>> MinimizedWindowsDuringPIE;

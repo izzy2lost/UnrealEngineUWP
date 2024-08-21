@@ -111,6 +111,9 @@ bool ULiveLinkTimecodeProvider::Initialize(class UEngine* InEngine)
 
 	InitClient();
 
+	UnregisterSubject();
+	RegisterSubject();
+	
 	return true;
 }
 
