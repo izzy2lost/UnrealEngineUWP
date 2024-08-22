@@ -856,6 +856,9 @@ FRealtimeGPUProfiler::FRealtimeGPUProfiler()
 
 void FRealtimeGPUProfiler::Cleanup()
 {
+	ActiveFrame.Reset();
+	PendingFrames.Empty();
+
 	RenderQueryPool.SafeRelease();
 	
 	TRACE_GPUPROFILER_DEINITIALIZE();
