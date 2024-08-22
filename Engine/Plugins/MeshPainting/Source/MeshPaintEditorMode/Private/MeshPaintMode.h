@@ -59,13 +59,12 @@ public:
 	template<typename ComponentClass>
 	TArray<ComponentClass*> GetSelectedComponents() const;
 
-	uint32 GetCachedVertexDataSize() const
-	{
-		return CachedVertexDataSize;
-	}
+	/** Returns data size of per-instance vertex color data for the currently selected components. */
+	uint32 GetVertexDataSizeInBytes() const { return CachedVertexDataSize; }
+	/** Returns resource size of mesh paint textures for the currently selected components. */
+	uint32 GetMeshPaintTextureResourceSizeInBytes() const { return CachedMeshPaintTextureResourceSize; }
 
 protected:
-
 	/** Binds UI commands to actions for the mesh paint mode */
 	virtual void BindCommands() override;
 
@@ -85,7 +84,7 @@ protected:
 	void OnResetViewMode();
 	void OnVertexPaintFinished();
 
-	void UpdateCachedVertexDataSize();
+	void UpdateCachedDataSizes();
 	void EndPaintToolIfNoLongerValid();
 
 	bool IsInSelectTool() const;
@@ -146,8 +145,9 @@ protected:
 	UPROPERTY(Transient)
 	TObjectPtr<UMeshPaintModeSettings> ModeSettings;
 
+	bool bRecacheDataSizes = false;
 	uint32 CachedVertexDataSize = 0;
-	bool bRecacheVertexDataSize = false;
+	uint32 CachedMeshPaintTextureResourceSize = 0;
 	
 	bool bRecacheValidForPaint = false;
 

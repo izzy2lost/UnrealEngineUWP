@@ -8,6 +8,15 @@ class FPropertyRestriction;
 class FReply;
 class IPropertyHandle;
 
+class FMeshPaintModeSettingsCustomization : public IDetailCustomization
+{
+public:
+	static TSharedRef<IDetailCustomization> MakeInstance();
+
+	/** IPropertyTypeCustomization interface */
+	virtual void CustomizeDetails(IDetailLayoutBuilder& DetailLayout) override;
+};
+
 class FMeshPaintingSettingsCustomization : public IDetailCustomization
 {
 public:

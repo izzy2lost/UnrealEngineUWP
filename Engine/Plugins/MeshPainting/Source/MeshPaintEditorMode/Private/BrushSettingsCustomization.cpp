@@ -38,6 +38,53 @@ TSharedRef<SHorizontalBox> CreateColorChannelWidget(TSharedRef<IPropertyHandle> 
 }
 
 
+TSharedRef<IDetailCustomization> FMeshPaintModeSettingsCustomization::MakeInstance()
+{
+	return MakeShareable(new FMeshPaintModeSettingsCustomization);
+}
+
+void FMeshPaintModeSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
+{
+	IDetailCategoryBuilder& ResourceCategory = DetailLayout.EditCategory(TEXT("ResourceUsage"));
+
+	ResourceCategory.AddCustomRow(NSLOCTEXT("VertexPaintSettings", "VertexColorSizeRow", "Vertex Color Size"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(NSLOCTEXT("VertexPaintSettings", "VertexColorSize", "Instance vertex color size"))
+		]
+		.ValueContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text_Lambda([]() -> FText
+				{
+					const uint32 SizeInKB = FMath::DivideAndRoundNearest(UMeshPaintMode::GetMeshPaintMode()->GetVertexDataSizeInBytes(), 1024u);
+					return FText::Format(NSLOCTEXT("VertexPaintSettings", "VertexColorSizeValue", "{0} KB"), FText::AsNumber(SizeInKB));
+				})
+		];
+
+	ResourceCategory.AddCustomRow(NSLOCTEXT("VertexPaintSettings", "TextureColorSizeRow", "Texture Resource Size"))
+		.NameContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text(NSLOCTEXT("VertexPaintSettings", "TextureColorSize", "Mesh paint texture resource size"))
+		]
+		.ValueContent()
+		[
+			SNew(STextBlock)
+				.Font(IDetailLayoutBuilder::GetDetailFont())
+				.Text_Lambda([]() -> FText 
+				{
+					const uint32 SizeInKB = FMath::DivideAndRoundNearest(UMeshPaintMode::GetMeshPaintMode()->GetMeshPaintTextureResourceSizeInBytes(), 1024u);
+					return FText::Format(NSLOCTEXT("VertexPaintSettings", "TextureColorSizeValue", "{0} KB"), FText::AsNumber(SizeInKB)); 
+				})
+		];
+}
+
+
 TSharedRef<IDetailCustomization> FMeshPaintingSettingsCustomization::MakeInstance()
 {
 	return MakeShareable(new FMeshPaintingSettingsCustomization);
@@ -131,14 +178,6 @@ TSharedRef<IDetailCustomization> FVertexPaintingSettingsCustomization::MakeInsta
 
 void FVertexPaintingSettingsCustomization::CustomizeDetails(IDetailLayoutBuilder& DetailLayout)
 {
-	IDetailCategoryBuilder& VertexCategory = DetailLayout.EditCategory(TEXT("VertexPainting"));
-
-	VertexCategory.AddCustomRow(NSLOCTEXT("VertexPaintSettings", "InstanceColorSize", "Instance Color Size"))
-		.WholeRowContent()
-		[
-			SNew(STextBlock)
-			.Text_Lambda([]() -> FText { return FText::Format(FTextFormat::FromString(TEXT("Instance Color Size: {0} KB")), UMeshPaintMode::GetMeshPaintMode()->GetCachedVertexDataSize() / 1024.f); })
-		];
 }
 
 

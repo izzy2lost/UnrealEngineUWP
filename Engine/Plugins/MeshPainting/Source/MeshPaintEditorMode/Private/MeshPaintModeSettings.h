@@ -6,7 +6,6 @@
 #include "UObject/Package.h"
 #include "MeshPaintModeSettings.generated.h"
 
-
 /** Mesh paint color view modes (somewhat maps to EVertexColorViewMode engine enum.) */
 UENUM()
 enum class EMeshPaintColorView : uint8
@@ -40,17 +39,7 @@ class MESHPAINTEDITORMODE_API UMeshPaintModeSettings
 	GENERATED_BODY()
 
 public:
-
-	UMeshPaintModeSettings()
-	{
-		ColorViewMode = EMeshPaintDataColorViewMode::Normal;
-	}
-
-public:
-
 	/** Color view mode used to display Vertex Colors */
 	UPROPERTY(config, EditAnywhere, Category = Visualization)
-	EMeshPaintDataColorViewMode ColorViewMode;
-
-
+	EMeshPaintDataColorViewMode ColorViewMode = EMeshPaintDataColorViewMode::Normal;
 };

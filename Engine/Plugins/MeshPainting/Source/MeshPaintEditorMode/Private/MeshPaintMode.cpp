@@ -201,9 +201,9 @@ void UMeshPaintMode::CreateToolkit()
 
 void UMeshPaintMode::Tick(FEditorViewportClient* ViewportClient, float DeltaTime)
 {
-	if (bRecacheVertexDataSize)
+	if (bRecacheDataSizes)
 	{
-		UpdateCachedVertexDataSize();
+		UpdateCachedDataSizes();
 	}
 
 	if (bRecacheValidForPaint)
@@ -385,7 +385,8 @@ void UMeshPaintMode::OnVertexPaintFinished()
 		{
 			if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
 			{
-				UpdateCachedVertexDataSize();
+				bRecacheDataSizes = true;
+
 				MeshPaintingSubsystem->Refresh();
 			}
 		}
@@ -420,7 +421,7 @@ void UMeshPaintMode::UpdateSelectedMeshes()
 		MeshPaintingSubsystem->bNeedsRecache = true;
 	}
 	
-	bRecacheVertexDataSize = true;
+	bRecacheDataSizes = true;
 	bRecacheValidForPaint = true;
 }
 
@@ -580,6 +581,8 @@ void UMeshPaintMode::ImportVertexColorsFromFile()
 		FScopedTransaction Transaction(LOCTEXT("LevelMeshPainter_TransactionImportColors", "Importing Vertex Colors From Texture"));
 		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->ImportVertexColorsFromTexture(MeshComponents[0]);
 	}
+
+	bRecacheDataSizes = true;
 }
 
 void UMeshPaintMode::SaveVertexColorsToAssets()
@@ -712,7 +715,8 @@ void UMeshPaintMode::PasteInstanceVertexColors()
 	const TArray<UStaticMeshComponent*> StaticMeshComponents = GetSelectedComponents<UStaticMeshComponent>();
 	TArray<FPerComponentVertexColorData> CopiedColorsByComponent = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->GetCopiedColorsByComponent();
 	GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->PasteVertexColors(StaticMeshComponents, CopiedColorsByComponent);
-	UpdateCachedVertexDataSize();
+	
+	bRecacheDataSizes = true;
 }
 
 void UMeshPaintMode::FixVertexColors()
@@ -723,6 +727,8 @@ void UMeshPaintMode::FixVertexColors()
 	{
 		Component->FixupOverrideColorsIfNecessary();
 	}
+
+	bRecacheDataSizes = true;
 }
 
 bool UMeshPaintMode::CanFixVertexColors() const
@@ -747,7 +753,7 @@ void UMeshPaintMode::RemoveInstanceVertexColors()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->RemoveComponentInstanceVertexColors(Component);
 	}
 
-	UpdateCachedVertexDataSize();
+	bRecacheDataSizes = true;
 }
 
 
@@ -798,7 +804,9 @@ void UMeshPaintMode::PropagateVertexColorsToLODs()
 			FComponentReregisterContext ReregisterContext(SelectedComponent);
 		}
 	}
-	UpdateCachedVertexDataSize();
+
+	bRecacheDataSizes = true;
+	
 	MeshPaintingSubsystem->Refresh();
 }
 
@@ -847,23 +855,28 @@ template TArray<UMeshComponent*> UMeshPaintMode::GetSelectedComponents<UMeshComp
 template TArray<UGeometryCollectionComponent*> UMeshPaintMode::GetSelectedComponents<UGeometryCollectionComponent>() const;
 
 
-void UMeshPaintMode::UpdateCachedVertexDataSize()
+void UMeshPaintMode::UpdateCachedDataSizes()
 {
 	CachedVertexDataSize = 0;
+	CachedMeshPaintTextureResourceSize = 0;
 
 	const bool bInstance = true;
 	if (UMeshPaintingSubsystem* MeshPaintingSubsystem = GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>())
 	{
-		for (UMeshComponent* SelectedComponent : MeshPaintingSubsystem->GetPaintableMeshComponents())
+		const TArray<UMeshComponent*> MeshComponents = GetSelectedComponents<UMeshComponent>();
+		for (UMeshComponent* MeshComponent : MeshComponents)
 		{
-			int32 NumLODs = MeshPaintingSubsystem->GetNumberOfLODs(SelectedComponent);
+			int32 NumLODs = MeshPaintingSubsystem->GetNumberOfLODs(MeshComponent);
 			for (int32 LODIndex = 0; LODIndex < NumLODs; ++LODIndex)
 			{
-				CachedVertexDataSize += MeshPaintingSubsystem->GetVertexColorBufferSize(SelectedComponent, LODIndex, bInstance);
+				CachedVertexDataSize += MeshPaintingSubsystem->GetVertexColorBufferSize(MeshComponent, LODIndex, bInstance);
 			}
+
+			CachedMeshPaintTextureResourceSize  += MeshPaintingSubsystem->GetMeshPaintTextureResourceSize(MeshComponent);
 		}
 	}
-	bRecacheVertexDataSize = false;
+
+	bRecacheDataSizes = false;
 }
 
 
@@ -1069,7 +1082,7 @@ void UMeshPaintMode::AddMeshPaintTextures()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->CreateComponentMeshPaintTexture(Component);
 	}
 
-	// The paint status will change after add.
+	bRecacheDataSizes = true;
 	bRecacheValidForPaint = true;
 }
 
@@ -1098,7 +1111,7 @@ void UMeshPaintMode::RemoveMeshPaintTexture()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->RemoveComponentMeshPaintTexture(Component);
 	}
 
-	// The paint status will change after removal.
+	bRecacheDataSizes = true;
 	bRecacheValidForPaint = true;
 }
 
@@ -1177,7 +1190,7 @@ void UMeshPaintMode::PasteMeshPaintTexture()
 		GEngine->GetEngineSubsystem<UMeshPaintingSubsystem>()->CreateComponentMeshPaintTexture(Component, Image);
 	}
 
-	// If this adds a mesh paint texture the selection/paint status may have changed.
+	bRecacheDataSizes = true;
 	bRecacheValidForPaint = true;
 }
 
@@ -1241,6 +1254,8 @@ void UMeshPaintMode::ImportVertexColorsFromMeshPaintTexture()
 	{
 		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->ImportVertexColorsFromMeshPaintTexture(Component);
 	}
+
+	bRecacheDataSizes = true;
 }
 
 bool UMeshPaintMode::CanImportVertexColorsFromMeshPaintTexture() const
@@ -1265,7 +1280,7 @@ void UMeshPaintMode::ImportMeshPaintTextureFromVertexColors()
 		GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->ImportMeshPaintTextureFromVertexColors(Component);
 	}
 
-	// If this adds a mesh paint texture the selection/paint status may have changed.
+	bRecacheDataSizes = true;
 	bRecacheValidForPaint = true;
 }
 
@@ -1283,6 +1298,8 @@ void UMeshPaintMode::FixTextureColors()
 {
 	FScopedTransaction Transaction(LOCTEXT("LevelMeshPainter_TransactionFixTextureColors", "Fixing Per-Instance Texture Colors"));
 	GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->FixTextureColors(GetSelectedComponents<UMeshComponent>());
+
+	bRecacheDataSizes = true;
 }
 
 bool UMeshPaintMode::CanFixTextureColors() const

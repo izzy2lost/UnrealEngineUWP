@@ -82,7 +82,7 @@ public:
 	UMeshVertexPaintingToolProperties();
 
 	/** Size of vertex points drawn when mesh painting is active. */
-	UPROPERTY(EditAnywhere, Category = "VertexPainting|Visualization")
+	UPROPERTY(EditAnywhere, AdvancedDisplay, Category = "VertexPainting")
 	float VertexPreviewSize;
 };
 

@@ -149,6 +149,9 @@ public:
 
 	/** Retrieves the Vertex Color buffer size for the given LOD level in the Mesh */
 	uint32 GetVertexColorBufferSize(UMeshComponent* MeshComponent, int32 LODIndex, bool bInstance);
+	
+	/** Retrieves the resource size for the mesh paint texture on the component */
+	uint32 GetMeshPaintTextureResourceSize(UMeshComponent* MeshComponent);
 
 	/** Retrieves the vertex positions from the given LOD level in the Mesh */
 	TArray<FVector> GetVerticesForLOD(const UStaticMesh* StaticMesh, int32 LODIndex);

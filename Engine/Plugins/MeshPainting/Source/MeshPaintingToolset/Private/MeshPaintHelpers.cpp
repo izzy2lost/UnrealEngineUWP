@@ -643,6 +643,23 @@ uint32 UMeshPaintingSubsystem::GetVertexColorBufferSize(UMeshComponent* MeshComp
 	return SizeInBytes;
 }
 
+uint32 UMeshPaintingSubsystem::GetMeshPaintTextureResourceSize(UMeshComponent* MeshComponent)
+{
+	if (UTexture* Texture = MeshComponent->GetMeshPaintTexture())
+	{
+		FTexturePlatformData** PlatformDataPtr = Texture->GetRunningPlatformData();
+		if (PlatformDataPtr != nullptr && *PlatformDataPtr != nullptr)
+		{
+			return (*PlatformDataPtr)->GetPayloadSize(0);
+		}
+		else
+		{
+			return Texture->GetResourceSizeBytes(EResourceSizeMode::Exclusive);
+		}
+	}
+	return 0;
+}
+
 TArray<FVector> UMeshPaintingSubsystem::GetVerticesForLOD( const UStaticMesh* StaticMesh, int32 LODIndex)
 {
 	checkf(StaticMesh != nullptr, TEXT("Invalid static mesh ptr"));
