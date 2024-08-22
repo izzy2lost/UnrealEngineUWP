@@ -879,7 +879,6 @@ void UChaosClothAssetEditorMode::ReinitializeDynamicMeshComponents()
 	WireframeDraw = nullptr;
 	ClothSeamDraw = nullptr;
 	SurfaceNormalDraw = nullptr;
-	bDynamicMeshComponentInitDeferred = false;
 
 	TSharedPtr<FManagedArrayCollection> Collection = bDynamicMeshUseInputCollection ? GetInputClothCollection() : GetClothCollection();
 	if (!Collection)
@@ -1261,6 +1260,15 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		bShouldClearTeleportFlag = true;		// clear the flag next tick
 	}
 
+	if (bDynamicMeshComponentInitDeferred)
+	{
+		ReinitializeDynamicMeshComponents();
+
+		// The first time we get a valid mesh, refocus the camera on it
+		FirstTimeFocusRestSpaceViewport();
+
+		bDynamicMeshComponentInitDeferred = false;
+	}
 
 	if (!NodeTypeForPendingToolStart.IsNone() && !GetToolManager()->HasActiveTool(EToolSide::Left))
 	{
@@ -1273,14 +1281,6 @@ void UChaosClothAssetEditorMode::ModeTick(float DeltaTime)
 		}
 
 		NodeTypeForPendingToolStart = FName();
-	}
-
-	if (bDynamicMeshComponentInitDeferred)
-	{
-		ReinitializeDynamicMeshComponents();
-
-		// The first time we get a valid mesh, refocus the camera on it
-		FirstTimeFocusRestSpaceViewport();
 	}
 
 	const bool bIsInPIEOrSIE = GEditor->PlayWorld != NULL || GEditor->bIsSimulatingInEditor;
