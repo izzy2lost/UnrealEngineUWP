@@ -1161,10 +1161,10 @@ void UMetaSoundBuilderBase::GetNodeInputData(const FMetaSoundBuilderNodeInputHan
 
 FMetasoundFrontendLiteral UMetaSoundBuilderBase::GetNodeInputDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult)
 {
-	if (const FMetasoundFrontendLiteral* Default = Builder.GetNodeInputDefault(InputHandle.NodeID, InputHandle.VertexID))
+	if (const FMetasoundFrontendVertexLiteral* VertexLiteral = Builder.FindNodeInputDefault(InputHandle.NodeID, InputHandle.VertexID))
 	{
 		OutResult = EMetaSoundBuilderResult::Succeeded;
-		return *Default;
+		return VertexLiteral->Value;
 	}
 
 	OutResult = EMetaSoundBuilderResult::Failed;
@@ -1173,10 +1173,27 @@ FMetasoundFrontendLiteral UMetaSoundBuilderBase::GetNodeInputDefault(const FMeta
 
 FMetasoundFrontendLiteral UMetaSoundBuilderBase::GetNodeInputClassDefault(const FMetaSoundBuilderNodeInputHandle& InputHandle, EMetaSoundBuilderResult& OutResult)
 {
-	if (const FMetasoundFrontendLiteral* Default = Builder.GetNodeInputClassDefault(InputHandle.NodeID, InputHandle.VertexID))
+	using namespace Metasound::Engine;
+
+	if (const FMetasoundFrontendVertex* Vertex = Builder.FindNodeInput(InputHandle.NodeID, InputHandle.VertexID))
 	{
-		OutResult = EMetaSoundBuilderResult::Succeeded;
-		return *Default;
+		if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InputHandle.NodeID, Vertex->Name))
+		{
+			FGuid ResolvedPageID;
+			if (FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassDefaults, ResolvedPageID))
+			{
+				OutResult = EMetaSoundBuilderResult::Succeeded;
+				auto MatchesPageID = [&ResolvedPageID](const FMetasoundFrontendClassInputDefault& Default)
+				{
+					return Default.PageID == ResolvedPageID;
+				};
+				if (const FMetasoundFrontendClassInputDefault* Default = ClassDefaults->FindByPredicate(MatchesPageID))
+				{
+					OutResult = EMetaSoundBuilderResult::Succeeded;
+					return Default->Literal;
+				}
+			}
+		}
 	}
 
 	OutResult = EMetaSoundBuilderResult::Failed;
