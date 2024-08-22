@@ -61,6 +61,7 @@
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "K2Node_AddDelegate.h"
 #include "EdGraphSchema_K2_Actions.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "ActorDetails"
 
@@ -211,7 +212,7 @@ void FActorDetails::OnConvertActor(UClass* ChosenClass)
 			// it will be parented to an invalid actor details widget
 			FSlateApplication::Get().DismissAllMenus();
 
-			GEditor->ConvertActors(SelectedActorsRaw, ChosenClass, TSet<FString>(), true);
+			UEditorActorSubsystem::ConvertActors(SelectedActorsRaw, ChosenClass, TSet<FString>(), true);
 		}
 	}
 }
