@@ -899,7 +899,7 @@ namespace uba
 						feLockLeave.Execute();
 
 						SCOPED_WRITE_LOCK(m_localStorageFilesLock, lookupLock);
-						auto insres = m_localStorageFiles.try_emplace(casKey);
+						auto insres = m_localStorageFiles.try_emplace(fe->casKey);
 						LocalFile& localFile = insres.first->second;
 						if (insres.second)
 						{
