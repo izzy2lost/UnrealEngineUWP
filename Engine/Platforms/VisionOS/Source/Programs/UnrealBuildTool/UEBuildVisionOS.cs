@@ -20,6 +20,9 @@ namespace UnrealBuildTool
 
 	class VisionOSPlatform : IOSPlatform
 	{
+		// Cached VisionOS sdk version from the toolchain, which detects it.
+		private float SDKVersionFloat = 0.0f;
+
 		public VisionOSPlatform(UEBuildPlatformSDK InSDK, ILogger Logger)
 			: base(InSDK, UnrealTargetPlatform.VisionOS, Logger)
 		{
@@ -94,9 +97,17 @@ namespace UnrealBuildTool
 			base.SetUpEnvironment(Target, CompileEnvironment, LinkEnvironment);
 			CompileEnvironment.Definitions.Add("PLATFORM_VISIONOS=1");
 
+			if (SDKVersionFloat < 2.0)
+			{
+				CompileEnvironment.Definitions.Add("VISIONOS_MAJOR_VERSION=1");
+			}
+			else
+			{
+				CompileEnvironment.Definitions.Add("VISIONOS_MAJOR_VERSION=2");
+			}
+
 			// VisionOS uses only IOS header files, so use it's platform headers
 			CompileEnvironment.Definitions.Add("OVERRIDE_PLATFORM_HEADER_NAME=IOS");
-
 		}
 
 		/// <summary>
@@ -107,7 +118,9 @@ namespace UnrealBuildTool
 		public override UEToolChain CreateToolChain(ReadOnlyTargetRules Target)
 		{
 			VisionOSProjectSettings ProjectSettings = ((VisionOSPlatform)UEBuildPlatform.GetBuildPlatform(UnrealTargetPlatform.VisionOS)).ReadProjectSettings(Target.ProjectFile);
-			return new VisionOSToolChain(Target, ProjectSettings, Logger);
+			VisionOSToolChain NewToolChain = new VisionOSToolChain(Target, ProjectSettings, Logger);
+			SDKVersionFloat = NewToolChain.GetSDKVersionFloat();
+			return NewToolChain;
 		}
 
 		public override void Deploy(TargetReceipt Receipt)

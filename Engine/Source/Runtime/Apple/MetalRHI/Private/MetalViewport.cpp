@@ -629,13 +629,25 @@ void FMetalViewport::GetDrawableImmersiveTextures(EMetalViewportAccessFlag Acces
 }
 
 // This is the present for Immersive visionOS, through the OXRVisionOS plugin.
-void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams)
+void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams* InVisionOSParams)
 {
+	// The null param case means that we are not really submitting a frame to the compositor.
+	if (InVisionOSParams == nullptr)
+	{
+		FScopeLock Lock(&Mutex);
+		
+		dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
+		dispatch_semaphore_signal(FrameSemaphore);
+		return;
+	}
+	
+	const MetalRHIVisionOS::PresentImmersiveParams& VisionOSParams = *InVisionOSParams;
+	
 	check(SwiftLayer);  // If no SwiftLayer we should not be trying to be immersive.
 	check(VisionOSParams.SwiftFrame);
 
-	FRHICommandListImmediate& RHICmdList = FRHICommandListImmediate::Get();
-	FMetalRHICommandContext& Context = FMetalRHICommandContext::Get(RHICmdList);
+	check(VisionOSParams.RHICommandContext);
+	FMetalRHICommandContext& Context = *static_cast<FMetalRHICommandContext*>(VisionOSParams.RHICommandContext);
 	
 	FScopeLock Lock(&Mutex);
 	
@@ -648,8 +660,6 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 		MTLTexturePtr DrawableTexture = NS::RetainPtr(DrawableTextureParam);
 		MTLTexturePtr DrawableDepthTexture = NS::RetainPtr(DrawableDepthTextureParam);
 		{
-			FScopeLock BlockLock(&Mutex);
-			
 			if (DrawableTexture)
 			{
 				// TODO Currently we are using intermediate back buffer to connect the OXRVisionOS Swapchain to the drawable.
@@ -681,15 +691,28 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 						Context.CopyFromTextureToTexture(Src.get(), 0, 0, MTL::Origin(0, 0, 0), MTL::Size(Width, Height, 1), Dst.get(), 0, 0, MTL::Origin(0, 0, 0));
 					}
 				}
+				
 				FMetalCommandBuffer* Buffer = Context.Finalize();
 				Context.GetDevice().GetCommandQueue().CommitCommandBuffer(Buffer);
 				Context.ResetContext();
 				
-				cp_frame_t CompositorServicesFrame;
-				
 				FMetalCommandBuffer* CurrentCommandBuffer = Context.GetCurrentCommandBuffer();
+				
+				{
+					dispatch_semaphore_t& FrameSemaphore = Device.GetFrameSemaphore();
+					dispatch_retain(FrameSemaphore);
+					MTL::HandlerFunction CommandBufferHandler = [FrameSemaphore](MTL::CommandBuffer* cmd_buf)
+					{
+						dispatch_semaphore_signal(FrameSemaphore);
+						dispatch_release(FrameSemaphore);
+						
+						FMetalGPUProfiler::RecordPresent(cmd_buf);
+					};
+					CurrentCommandBuffer->GetMTLCmdBuffer()->addCompletedHandler(CommandBufferHandler);
+				}
+				
 				cp_drawable_encode_present(VisionOSParams.SwiftDrawable, (__bridge id<MTLCommandBuffer>)CurrentCommandBuffer->GetMTLCmdBuffer().get());
-				CompositorServicesFrame = VisionOSParams.SwiftFrame;
+				cp_frame_t CompositorServicesFrame = VisionOSParams.SwiftFrame;
 				
 				Buffer = Context.Finalize();
 				Context.GetDevice().GetCommandQueue().CommitCommandBuffer(Buffer);
@@ -699,6 +722,8 @@ void FMetalViewport::PresentImmersive(const MetalRHIVisionOS::PresentImmersivePa
 			}
 		}
 	}
+	
+	FMetalGPUProfiler::ResetFrameBufferTimings();
 }
 #endif //PLATFORM_VISIONOS
 

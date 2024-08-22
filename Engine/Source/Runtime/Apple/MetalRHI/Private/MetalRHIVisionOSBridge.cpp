@@ -9,7 +9,7 @@
 
 DEFINE_LOG_CATEGORY(LogMetalVisionOS);
 
-void MetalRHIVisionOS::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& Params)
+void MetalRHIVisionOS::PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams* Params)
 {
     FMetalRHICommandContext* RHICommandContext = static_cast<FMetalRHICommandContext*>(RHIGetDefaultContext());
     check(RHICommandContext);

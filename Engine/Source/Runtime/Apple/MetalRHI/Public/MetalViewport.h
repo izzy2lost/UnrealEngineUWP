@@ -9,6 +9,7 @@
 #include "MetalRHIPrivate.h"
 #include "PixelFormat.h"
 #include "RHIResources.h"
+#include "MetalResources.h"
 
 #if PLATFORM_MAC
 #include "Mac/CocoaTextView.h"
@@ -80,7 +81,7 @@ public:
 	
 #if PLATFORM_VISIONOS
 	void GetDrawableImmersiveTextures(EMetalViewportAccessFlag Accessor, cp_drawable_t SwiftDrawable, MTL::Texture*& OutColorTexture, MTL::Texture*& OutDepthTexture );
-    void PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams& Params);
+    void PresentImmersive(const MetalRHIVisionOS::PresentImmersiveParams* Params);
 #endif
 	
 private:

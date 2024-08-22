@@ -167,6 +167,8 @@ public:
 		CFTimeInterval SwiftFinalFrameTimeInterval = 0;
         ar_device_anchor_t DeviceAnchor = nullptr;
 		bool bSynchronizing = true; // when true we are in the process of starting up a new session and the new frame state has not yet propagated.
+		bool bShouldRender = false;
+		bool bSessionLost = false;
 		XrFovf HmdFovs[2];
         int32 LocateViewInfoBufferIndex = 0;
 		int32 RenderToGameFrameStateIndex = -1;
@@ -252,6 +254,11 @@ private:
 	ar_session_t ARKitSession = nullptr;
 	ar_world_tracking_provider_t ARKitWorldTrackingProvider = nullptr;
 	ar_device_anchor_t ARKitHMDAnchor = nullptr;
+	
+	// mutexes to protect apple api functions from concurrent calls
+	// We do not protect the early startup calls, before OXRVisionOSSession is involved.  They should be single threaded.
+	mutable FCriticalSection CpLayerMutex; // Protect all cp_label_ calls.
+	//mutable FCriticalSection CpFrameMutex; // Currently we are restricting cp_frame_ calls to the Render thread by not having an RHI thread, however we may want to change that in the future...
 	
 	// Hand Tracking
 public:
