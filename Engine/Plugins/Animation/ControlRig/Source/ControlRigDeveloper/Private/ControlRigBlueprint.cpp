@@ -944,6 +944,7 @@ void UControlRigBlueprint::PreSave(FObjectPreSaveContext ObjectSaveContext)
 	{
 		ControlRigType = EControlRigType::RigModule;
 		ItemTypeDisplayName = TEXT("Rig Module");
+		CustomThumbnail = RigModuleSettings.Icon.ToString();
 	}
 	else if (GetControlRigClass()->IsChildOf(UModularRig::StaticClass()))
 	{

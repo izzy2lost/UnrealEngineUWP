@@ -190,6 +190,12 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
 	FRigModuleSettings RigModuleSettings;
 
+	// This relates to FAssetThumbnailPool::CustomThumbnailTagName and allows
+	// the thumbnail pool to show the thumbnail of the icon rather than the
+	// rig itself to avoid deploying the 3D renderer.
+	UPROPERTY(EditAnywhere, Category = "Hierarchy", AssetRegistrySearchable)
+	FString CustomThumbnail;
+
 	/** Asset searchable information module references in this rig */
 	UPROPERTY(AssetRegistrySearchable)
 	TArray<FModuleReferenceData> ModuleReferenceData;
