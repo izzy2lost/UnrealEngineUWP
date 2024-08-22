@@ -5991,14 +5991,6 @@ void FEngineLoop::Tick()
 			ConcurrentTaskCompleteEvent = nullptr;
 			ConcurrentTask = nullptr;
 		}
-		{
-			ENQUEUE_RENDER_COMMAND(WaitForOutstandingTasksOnly_for_DelaySceneRenderCompletion)(
-				[](FRHICommandListImmediate& RHICmdList)
-				{
-					QUICK_SCOPE_CYCLE_COUNTER(STAT_DelaySceneRenderCompletion_TaskWait);
-					RHICmdList.ImmediateFlush(EImmediateFlushType::WaitForOutstandingTasksOnly);
-				});
-		}
 #endif
 
 #if STATS
