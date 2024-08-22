@@ -106,8 +106,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				foreach (UhtObject obj in singletons)
 				{
-					ref UhtCodeGenerator.ObjectInfo info = ref ObjectInfos[obj.ObjectTypeIndex];
-					builder.Append(info.RegsiteredExternalDecl);
+					builder.Append(GetExternalDecl(obj, true));
 				}
 
 				foreach (UhtPackage package in Module.Packages)

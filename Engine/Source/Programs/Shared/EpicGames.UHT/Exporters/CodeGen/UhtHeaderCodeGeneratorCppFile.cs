@@ -219,7 +219,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				int generatedBodyStart = builder.Length;
 
-				SortedDictionary<UhtPackage, UhtRegistrations> packageRegistrations = new();
+				Dictionary<UhtPackage, UhtRegistrations> packageRegistrations = new();
 				foreach (UhtField field in HeaderFile.References.ExportTypes)
 				{
 					if (field is UhtEnum enumObj)
@@ -2027,7 +2027,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			return outScriptStructs;
 		}
 
-		private UhtRegistrations GetRegistrations(SortedDictionary<UhtPackage, UhtRegistrations> packageRegistrations, UhtField fieldObj)
+		private static UhtRegistrations GetRegistrations(Dictionary<UhtPackage, UhtRegistrations> packageRegistrations, UhtField fieldObj)
 		{
 			UhtPackage package = fieldObj.Package;
 			if (packageRegistrations.TryGetValue(package, out UhtRegistrations? registrations))

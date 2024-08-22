@@ -47,7 +47,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		{
 			public string RegisteredSingletonName { get; set; }
 			public string UnregisteredSingletonName { get; set; }
-			public string RegsiteredExternalDecl { get; set; }
+			public string RegisteredExternalDecl { get; set; }
 			public string UnregisteredExternalDecl { get; set; }
 			public UhtClass? NativeInterface { get; set; }
 			public UhtProperty? FastArrayProperty { get; set; }
@@ -199,7 +199,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// <returns>External declaration</returns>
 		public string GetExternalDecl(int objectIndex, bool registered)
 		{
-			return registered ? ObjectInfos[objectIndex].RegsiteredExternalDecl : ObjectInfos[objectIndex].UnregisteredExternalDecl;
+			return registered ? ObjectInfos[objectIndex].RegisteredExternalDecl : ObjectInfos[objectIndex].UnregisteredExternalDecl;
 		}
 		#endregion
 
@@ -229,7 +229,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			builder.Append("Z_Construct_UPackage_");
 			builder.Append(packageInfo.StrippedName);
 			objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
-			objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
+			objectInfo.UnregisteredExternalDecl = objectInfo.RegisteredExternalDecl = $"\tUPackage* {objectInfo.RegisteredSingletonName}();\r\n";
 		}
 
 		private void InitHeaderInfo(StringBuilder builder, UhtHeaderFile headerFile)
@@ -365,12 +365,12 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				objectInfo.UnregisteredSingletonName = builder.ToString();
 
 				objectInfo.UnregisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.UnregisteredSingletonName}();\r\n";
-				objectInfo.RegsiteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
+				objectInfo.RegisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
 			}
 			else
 			{
 				objectInfo.UnregisteredSingletonName = objectInfo.RegisteredSingletonName = builder.ToString();
-				objectInfo.UnregisteredExternalDecl = objectInfo.RegsiteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
+				objectInfo.UnregisteredExternalDecl = objectInfo.RegisteredExternalDecl = $"\t{module.Api}U{engineClassName}* {objectInfo.RegisteredSingletonName}();\r\n";
 			}
 
 			// Init the children

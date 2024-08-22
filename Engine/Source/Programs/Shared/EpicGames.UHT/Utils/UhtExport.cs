@@ -73,10 +73,10 @@ namespace EpicGames.UHT.Utils
 		/// <summary>
 		/// Make a path for an output based on the module name.
 		/// </summary>
-		/// <param name="module">Module being exported</param>
+		/// <param name="moduleObj">Module being exported</param>
 		/// <param name="suffix">Suffix to be added to the file name.</param>
 		/// <returns>Output file path</returns>
-		public string MakePath(UhtModule module, string suffix);
+		public string MakePath(UhtModule moduleObj, string suffix);
 
 		/// <summary>
 		/// Make a path for the given file name and extension.  This is only valid for plugins.
