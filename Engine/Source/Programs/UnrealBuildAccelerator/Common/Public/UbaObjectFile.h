@@ -39,7 +39,7 @@ namespace uba
 		const UnorderedExports& GetExports() const;
 		const UnorderedSymbols& GetPotentialDuplicates() const;
 
-		static bool CreateExtraFile(Logger& logger, const tchar* extraObjFilename, ObjectFileType type, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
+		static bool CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& platform, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile);
 
 		virtual ~ObjectFile();
 
@@ -50,7 +50,6 @@ namespace uba
 	protected:
 		virtual bool Parse(Logger& logger, const tchar* hint) = 0;
 		virtual bool StripExports(Logger& logger, u8* newData, const UnorderedSymbols& allNeededImports) = 0;
-		virtual bool CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile) = 0;
 
 		FileAccessor* m_file = nullptr;
 		u8* m_data = nullptr;
@@ -63,7 +62,7 @@ namespace uba
 		UnorderedSymbols m_potentialDuplicates;
 
 	public:
-		struct StringView
+		struct AnsiStringView
 		{
 			const char* strBegin;
 			const char* strEnd;

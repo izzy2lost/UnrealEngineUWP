@@ -804,19 +804,47 @@ namespace uba
 		return ~0u;
 	}
 
+	u32 GetLinkageIndex(u32 code)
+	{
+		if (code == MODULE_CODE_FUNCTION)
+			return 5;
+		if (code == MODULE_CODE_GLOBALVAR)
+			return 5;
+		if (code == MODULE_CODE_ALIAS)
+			return 3;
+		if (code == MODULE_CODE_ALIAS_OLD)
+			return 2;
+		UBA_ASSERTF(false, TC("module code %s not supported"), ModuleCodeToString(code));
+		return ~0u;
+	}
+
+	u32 GetVisibilityIndex(u32 code)
+	{
+		if (code == MODULE_CODE_FUNCTION)
+			return 9;
+		if (code == MODULE_CODE_GLOBALVAR)
+			return 10;
+		if (code == MODULE_CODE_ALIAS)
+			return 8;
+		if (code == MODULE_CODE_ALIAS_OLD)
+			return 7;
+		UBA_ASSERTF(false, TC("module code %s not supported"), ModuleCodeToString(code));
+		return ~0u;
+	}
+
 	bool ObjectFileLLVMIR::Parse(Logger& logger, const tchar* hint)
 	{
-		//BinaryReader reader(m_data, 0, m_dataSize);
 		BitStreamReader reader(*this, logger, m_data, m_dataSize);
 
 		if (IsWrappedBitcode(m_data, m_dataSize))
 		{
-			UBA_ASSERT(false);
-			//reader.Skip(4);
-			//u32 version = reader.ReadU32();(void)version;
-			//u32 offset = reader.ReadU32();(void)offset;
-			//u32 size = reader.ReadU32();(void)size;
-			//u32 cpuType = reader.ReadU32();(void)cpuType;
+			reader.Read(32);
+			u32 version = reader.Read(32);(void)version;
+			u32 bitcodeOffset = reader.Read(32);(void)bitcodeOffset;
+			u32 bitcodeSize = reader.Read(32);(void)bitcodeSize;
+			u32 cpuType = reader.Read(32);(void)cpuType;
+			reader.JumpToBit(bitcodeOffset*8);
+			reader.m_end = reader.m_pos + bitcodeSize;
 		}
 
 		reader.Read(32); // Skip magic
@@ -878,6 +906,38 @@ namespace uba
 				UBA_ASSERT(!name.empty());
 				record.isExport = true;
 				m_exports.emplace(name, ExportInfo{"", index++});
+			}
+			else // Check visibility... might be a non-windows based llvm ir stream file
+			{
+				/*
+				u64 visibility = ~0ull;
+				u32 visibilityIndex = GetVisibilityIndex(record.code);
+				bool hidden = false;
+				if (recSize > visibilityIndex)
+				{
+					visibility = recIt[visibilityIndex];
+					if (visibility != 0)
+						hidden = true;
+				}
+				*/
+
+				u64 linkage = ~0ull;
+				u32 linkageIndex = GetLinkageIndex(record.code);
+				if (recSize > linkageIndex)
+				{
+					linkage = recIt[linkageIndex];
+
+					//if (strncmp(name.data(), "llvm.umax", 9) == 0)
+					//	printf("");
+
+					if (linkage == 0 || linkage == 5 || linkage == 6 || linkage == 15)
+					{
+						record.isExport = true;
+						m_exports.emplace(name, ExportInfo{"", index++});
+					}
+					else if (linkage == 1 || linkage == 16)
+						m_imports.emplace(name);
+				}
 			}
 		}
 		return true;
@@ -1055,10 +1115,5 @@ namespace uba
 		}
 
 		return true;
-	}
-	
-	bool ObjectFileLLVMIR::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
-	{
-		return ObjectFileCoff::CreateExtraFile2(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
 	}
 }

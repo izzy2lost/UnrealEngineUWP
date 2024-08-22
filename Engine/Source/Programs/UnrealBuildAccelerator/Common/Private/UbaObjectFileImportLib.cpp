@@ -67,9 +67,4 @@ namespace uba
 	{
 		return logger.Error(TC("Stripping exports from import lib file not supported"));
 	}
-
-	bool ObjectFileImportLib::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
-	{
-		return logger.Error(TC("Creating extra file from import lib file not supported"));
-	}
 }

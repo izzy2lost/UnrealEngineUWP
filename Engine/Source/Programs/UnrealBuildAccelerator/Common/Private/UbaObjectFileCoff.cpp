@@ -212,7 +212,7 @@ namespace uba
 	}
 
 	template<typename SymbolType>
-	ObjectFile::StringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
+	ObjectFile::AnsiStringView GetSymbolName(SymbolType& symbol, const u8* data, u32 stringTableMemPos)
 	{
 		if (symbol.N.Name.Short == 0)
 		{
@@ -335,7 +335,7 @@ namespace uba
 			if (symbol.StorageClass != ImageSymClassExternal)
 				continue;
 
-			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
+			AnsiStringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			symbolName.ToString(symbolString);
 
 			if (symbol.SectionNumber != ImageSymUndefined)
@@ -449,12 +449,7 @@ namespace uba
 		return true;
 	}
 
-	bool ObjectFileCoff::CreateExtraFile(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
-	{
-		return CreateExtraFile2(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
-	}
-
-	bool ObjectFileCoff::CreateExtraFile2(Logger& logger, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	bool ObjectFileCoff::CreateExtraFile(Logger& logger, const StringView& platform, MemoryBlock& memoryBlock, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
 		std::string tmp;
 
@@ -588,7 +583,7 @@ namespace uba
 				continue;
 			if (symbol.SectionNumber != ImageSymUndefined)
 				continue;
-			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
+			AnsiStringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			if (!symbolName.StartsWith("__imp_", 6))
 				continue;
 			symbolName.strBegin += 6;
@@ -736,7 +731,7 @@ namespace uba
 			if (!symbol.SectionNumber)
 				continue;
 
-			StringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
+			AnsiStringView symbolName = GetSymbolName(symbol, m_data, m_info.stringTableMemPos);
 			auto findIt = m_toRemove.find(symbolName.ToString(tmp));
 			if (findIt == m_toRemove.end())
 				continue;

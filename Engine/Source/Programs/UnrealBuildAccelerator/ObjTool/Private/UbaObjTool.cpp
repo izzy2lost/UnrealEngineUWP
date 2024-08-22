@@ -79,6 +79,7 @@ namespace uba
 		Vector<TString> objFilesForImpLib;
 		std::string impLibName;
 		TString impLibFile;
+		TString platform;
 
 		auto parseArg = [&](const tchar* arg, bool isRsp)
 			{
@@ -169,6 +170,10 @@ namespace uba
 				{
 					extraObjFile = value.data;
 				}
+				else if (name.StartsWith(TC("/T")))
+				{
+					platform = value.data;
+				}
 				else if (name.Equals(TC("-printsymbols")))
 				{
 					printSymbols = true;
@@ -241,8 +246,6 @@ namespace uba
 
 		if (!objFilesToStrip.empty())
 		{
-			ObjectFileType type = ObjectFileType_Unknown;
-
 			CriticalSection cs;
 			Atomic<bool> success = true;
 			UnorderedSymbols allNeededImports; // Imports needed from the outside of the stripped obj files
@@ -263,8 +266,6 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					if (type == ObjectFileType_Unknown)
-						type = symbolFile.type;
 					allNeededImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 				});
 			if (!success)
@@ -286,8 +287,6 @@ namespace uba
 						return;
 					}
 					ScopedCriticalSection _(cs);
-					if (type == ObjectFileType_Unknown)
-						type = symbolFile.type;
 					allSharedImports.insert(symbolFile.imports.begin(), symbolFile.imports.end());
 					allSharedExports.insert(symbolFile.exports.begin(), symbolFile.exports.end());
 				});
@@ -295,7 +294,7 @@ namespace uba
 				return -1;
 
 			if (!extraObjFile.empty())
-				if (!ObjectFile::CreateExtraFile(logger, extraObjFile.c_str(), type, allNeededImports, allSharedImports, allSharedExports, true))
+				if (!ObjectFile::CreateExtraFile(logger, extraObjFile, platform, allNeededImports, allSharedImports, allSharedExports, true))
 					return -1;
 
 			//logger.Info(TC("Reduced export count from %llu to %llu"), totalExportCount.load(), totalKeptExportCount.size());
@@ -323,7 +322,7 @@ namespace uba
 					return;
 				if (ObjectFile* objectFile = ObjectFile::OpenAndParse(logger, fixedPath.data))
 				{
-					objectFile->RemoveExportedSymbol("DllMain");
+					//objectFile->RemoveExportedSymbol("DllMain"); // This is used to patch xinput.lib
 					objFiles[it - objFilesForImpLib.begin()] = objectFile;
 				}
 				else

@@ -218,35 +218,23 @@ namespace uba
 		return m_potentialDuplicates;
 	}
 
-	bool ObjectFile::CreateExtraFile(Logger& logger, const tchar* extraObjFilename, ObjectFileType type, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
+	bool ObjectFile::CreateExtraFile(Logger& logger, const StringView& extraObjFilename, const StringView& platform, const UnorderedSymbols& allNeededImports, const UnorderedSymbols& allSharedImports, const UnorderedExports& allSharedExports, bool includeExportsInFile)
 	{
 		ObjectFileCoff objectFileCoff;
 		ObjectFileElf objectFileElf;
-		ObjectFileLLVMIR objectFileLLVMIR;
 		
-		ObjectFile& objectFile = [&]() -> ObjectFile&
-			{
-				switch (type)
-				{
-				case ObjectFileType_Coff:
-					return objectFileCoff;
-				case ObjectFileType_Elf:
-					return objectFileCoff;
-				case ObjectFileType_LLVMIR:
-					return objectFileLLVMIR;
-				default:
-					UBA_ASSERT(false);
-					return objectFileCoff;
-				}
-			}();
-
-
 		MemoryBlock memoryBlock(16*1024*1024);
 
-		if (!objectFile.CreateExtraFile(logger, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile))
+		bool res;
+		if (platform.Equals(TC("win64")) || platform.Equals(TC("wingdk")) || platform.Equals(TC("xb1")) || platform.Equals(TC("xsx"))) 
+			res = ObjectFileCoff::CreateExtraFile(logger, platform, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
+		else
+			res = ObjectFileElf::CreateExtraFile(logger, platform, memoryBlock, allNeededImports, allSharedImports, allSharedExports, includeExportsInFile);
+
+		if (!res)
 			return false;
 
-		FileAccessor extraFile(logger, extraObjFilename);
+		FileAccessor extraFile(logger, extraObjFilename.data);
 		if (!extraFile.CreateWrite())
 			return false;
 
