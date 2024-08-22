@@ -77,48 +77,6 @@ static FAutoConsoleVariableRef CVarNaniteIsolateInvalidCoarseMesh(
 
 #endif
 
-class FReadOnlyMeshDrawSingleShaderBindings : public FMeshDrawShaderBindingsLayout
-{
-public:
-	FReadOnlyMeshDrawSingleShaderBindings(const FMeshDrawShaderBindingsLayout& InLayout, const uint8* InData) :
-		FMeshDrawShaderBindingsLayout(InLayout)
-	{
-		Data = InData;
-	}
-
-	inline FRHIUniformBuffer*const* GetUniformBufferStart() const
-	{
-		return (FRHIUniformBuffer**)(Data + GetUniformBufferOffset());
-	}
-
-	inline FRHISamplerState** GetSamplerStart() const
-	{
-		const uint8* SamplerDataStart = Data + GetSamplerOffset();
-		return (FRHISamplerState**)SamplerDataStart;
-	}
-
-	inline FRHIResource** GetSRVStart() const
-	{
-		const uint8* SRVDataStart = Data + GetSRVOffset();
-		return (FRHIResource**)SRVDataStart;
-	}
-
-	inline const uint8* GetSRVTypeStart() const
-	{
-		const uint8* SRVTypeDataStart = Data + GetSRVTypeOffset();
-		return SRVTypeDataStart;
-	}
-
-	inline const uint8* GetLooseDataStart() const
-	{
-		const uint8* LooseDataStart = Data + GetLooseDataOffset();
-		return LooseDataStart;
-	}
-
-private:
-	const uint8* Data;
-};
-
 inline void SetTextureParameter(FRHIBatchedShaderParameters& BatchedParameters, const FShaderResourceParameterInfo& Parameter, FRHITexture* TextureRHI)
 {
 #if PLATFORM_SUPPORTS_BINDLESS_RENDERING
@@ -181,7 +139,7 @@ inline void SetLooseParameters(FRHIBatchedShaderParameters& BatchedParameters, c
 	}
 }
 
-void FMeshDrawShaderBindings::SetShaderBindings(
+void FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const FReadOnlyMeshDrawSingleShaderBindings& RESTRICT SingleShaderBindings,
 	FShaderBindingState& RESTRICT ShaderBindingState)
@@ -243,7 +201,7 @@ void FMeshDrawShaderBindings::SetShaderBindings(
 	SetLooseParameters(BatchedParameters, SingleShaderBindings.ParameterMapInfo, SingleShaderBindings.GetLooseDataStart());
 }
 
-void FMeshDrawShaderBindings::SetShaderBindings(
+void FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	const FReadOnlyMeshDrawSingleShaderBindings& RESTRICT SingleShaderBindings)
 {
@@ -1025,7 +983,7 @@ void FGraphicsMinimalPipelineStateInitializer::ComputeStatePrecachePSOHash()
 }
 
 void FMeshDrawCommand::SetDrawParametersAndFinalize(
-	const FMeshBatch& MeshBatch, 
+	const FMeshBatch& MeshBatch,
 	int32 BatchElementIndex,
 	FGraphicsMinimalPipelineStateId PipelineId,
 	const FMeshProcessorShaders* ShadersForDebugging)
@@ -1087,19 +1045,19 @@ void FMeshDrawShaderBindings::SetOnCommandList(FRHICommandList& RHICmdList, cons
 		if (Frequency == SF_Vertex)
 		{
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
+			FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
 			RHICmdList.SetBatchedShaderParameters(Shaders.VertexShaderRHI, BatchedParameters);
 		} 
 		else if (Frequency == SF_Pixel)
 		{
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
+			FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
 			RHICmdList.SetBatchedShaderParameters(Shaders.PixelShaderRHI, BatchedParameters);
 		}
 		else if (Frequency == SF_Geometry)
 		{
 			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-			SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
+			FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, SingleShaderBindings, ShaderBindingState);
 			RHICmdList.SetBatchedShaderParameters(Shaders.GetGeometryShader(), BatchedParameters);
 		}
 		else
@@ -1118,11 +1076,11 @@ void FMeshDrawShaderBindings::SetParameters(FRHIBatchedShaderParameters& Batched
 
 	if (StateCacheShaderBindings != nullptr)
 	{
-		SetShaderBindings(BatchedParameters, SingleShaderBindings, *StateCacheShaderBindings);
+		FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, SingleShaderBindings, *StateCacheShaderBindings);
 	}
 	else
 	{
-		SetShaderBindings(BatchedParameters, SingleShaderBindings);
+		FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, SingleShaderBindings);
 	}
 }
 

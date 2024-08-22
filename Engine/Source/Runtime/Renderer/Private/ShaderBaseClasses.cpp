@@ -329,7 +329,7 @@ void FMaterialShader::SetParameters(
 }
 
 void FMaterialShader::GetShaderBindings(
-	const FScene* Scene,
+	const FSceneInterface* Scene,
 	const ERHIFeatureLevel::Type FeatureLevel,
 	const FMaterialRenderProxy& MaterialRenderProxy,
 	const FMaterial& Material,

@@ -823,17 +823,17 @@ public:
 };
 
 
-/** 
+/**
  * Encapsulates shader bindings for a single FMeshDrawCommand.
  */
 class FMeshDrawShaderBindings
 {
 public:
-
-	FMeshDrawShaderBindings() 
+	FMeshDrawShaderBindings()
 	{
 		static_assert(sizeof(ShaderFrequencyBits) * 8 > SF_NumFrequencies, "Please increase ShaderFrequencyBits size");
 	}
+
 	FMeshDrawShaderBindings(FMeshDrawShaderBindings&& Other)
 	{
 		if (!UsesInlineStorage())
@@ -848,17 +848,18 @@ public:
 			Data = MoveTemp(Other.Data);
 		}
 		else
-		{		
+		{
 			Data.SetHeapData(Other.Data.GetHeapData());
 			Other.Data.SetHeapData(nullptr);
 		}
-		Other.Size = 0;	
+		Other.Size = 0;
 	}
 
 	FMeshDrawShaderBindings(const FMeshDrawShaderBindings& Other)
 	{
 		CopyFrom(Other);
 	}
+
 	RENDERER_API ~FMeshDrawShaderBindings();
 
 	FMeshDrawShaderBindings& operator=(const FMeshDrawShaderBindings& Other)
@@ -1044,15 +1045,63 @@ private:
 	RENDERER_API void CopyFrom(const FMeshDrawShaderBindings& Other);
 
 	RENDERER_API void Release();
+};
 
-	static void SetShaderBindings(
+class FReadOnlyMeshDrawSingleShaderBindings : public FMeshDrawShaderBindingsLayout
+{
+public:
+	static RENDERER_API void SetShaderBindings(
 		FRHIBatchedShaderParameters& BatchedParameters,
 		const class FReadOnlyMeshDrawSingleShaderBindings& RESTRICT SingleShaderBindings,
 		FShaderBindingState& RESTRICT ShaderBindingState);
 
-	static void SetShaderBindings(
+	static RENDERER_API void SetShaderBindings(
 		FRHIBatchedShaderParameters& BatchedParameters,
 		const class FReadOnlyMeshDrawSingleShaderBindings& RESTRICT SingleShaderBindings);
+	
+	explicit FReadOnlyMeshDrawSingleShaderBindings(const FMeshDrawSingleShaderBindings& Bindings) :
+		FMeshDrawShaderBindingsLayout(Bindings)
+	{
+		Data = Bindings.Data;
+	}
+
+	FReadOnlyMeshDrawSingleShaderBindings(const FMeshDrawShaderBindingsLayout& InLayout, const uint8* InData) :
+		FMeshDrawShaderBindingsLayout(InLayout)
+	{
+		Data = InData;
+	}
+
+	inline FRHIUniformBuffer*const* GetUniformBufferStart() const
+	{
+		return (FRHIUniformBuffer**)(Data + GetUniformBufferOffset());
+	}
+
+	inline FRHISamplerState** GetSamplerStart() const
+	{
+		const uint8* SamplerDataStart = Data + GetSamplerOffset();
+		return (FRHISamplerState**)SamplerDataStart;
+	}
+
+	inline FRHIResource** GetSRVStart() const
+	{
+		const uint8* SRVDataStart = Data + GetSRVOffset();
+		return (FRHIResource**)SRVDataStart;
+	}
+
+	inline const uint8* GetSRVTypeStart() const
+	{
+		const uint8* SRVTypeDataStart = Data + GetSRVTypeOffset();
+		return SRVTypeDataStart;
+	}
+
+	inline const uint8* GetLooseDataStart() const
+	{
+		const uint8* LooseDataStart = Data + GetLooseDataOffset();
+		return LooseDataStart;
+	}
+
+private:
+	const uint8* Data;
 };
 
 struct FMeshDrawCommandOverrideArgs

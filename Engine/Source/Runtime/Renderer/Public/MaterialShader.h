@@ -119,7 +119,7 @@ public:
 	}
 
 	RENDERER_API void GetShaderBindings(
-		const FScene* Scene,
+		const FSceneInterface* Scene,
 		ERHIFeatureLevel::Type FeatureLevel,
 		const FMaterialRenderProxy& MaterialRenderProxy,
 		const FMaterial& Material,

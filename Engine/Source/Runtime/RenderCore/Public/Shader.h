@@ -1128,6 +1128,23 @@ public:
 		return RHIShader;
 	}
 
+	inline FRHIGraphicsShader* GetGraphicsShader(bool bRequired = true) const
+	{
+		FRHIGraphicsShader* RHIShader = nullptr;
+		if(ShaderContent)
+		{
+			checkSlow(IsValidGraphicsFrequency(ShaderContent->GetFrequency()));
+			RHIShader = static_cast<FRHIGraphicsShader*>(GetResourceChecked().GetShader(ShaderContent->GetResourceIndex(), bRequired));
+			if (RHIShader == nullptr)
+			{
+				UE_LOG(LogShaders, Log, TEXT("Failed to create shader for type %s with resource index %d."), GetType()->GetName(), ShaderContent->GetResourceIndex());
+				return nullptr;
+			}
+			checkSlow(IsValidGraphicsFrequency(RHIShader->GetFrequency()));
+		}
+		return RHIShader;
+	}
+
 	/** @return the shader's vertex shader */
 	inline FRHIVertexShader* GetVertexShader() const
 	{
