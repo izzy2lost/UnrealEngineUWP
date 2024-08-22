@@ -356,7 +356,13 @@ void UMovementModeStateMachine::OnSimulationTick(USceneComponent* UpdatedCompone
 	EffectParams.UpdatedPrimitive = UpdatedPrimitive;
 	
 	// Apply any instant effects that were queued up during this tick and didn't get handled in a substep
-	ApplyInstantEffects(EffectParams, OutputState.SyncState);
+	if (ApplyInstantEffects(EffectParams, OutputState.SyncState))
+	{
+		if (CurrentModeName != OutputState.SyncState.MovementMode)
+		{
+			SetModeImmediately(OutputState.SyncState.MovementMode);
+		}
+	}
 }
 
 void UMovementModeStateMachine::OnSimulationPreRollback(const FMoverSyncState* InvalidSyncState, const FMoverSyncState* SyncState, const FMoverAuxStateContext* InvalidAuxState, const FMoverAuxStateContext* AuxState)
