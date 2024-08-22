@@ -196,9 +196,20 @@ namespace MegaLights
 	constexpr int32 TileSize = 8;
 	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
 
+	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform)
+	{
+		if (IsMobilePlatform(ShaderPlatform))
+		{
+			return false;
+		}
+
+		// SM6 because it uses typed loads to accumulate lights
+		return IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(ShaderPlatform);
+	}
+
 	bool IsEnabled(const FSceneViewFamily& ViewFamily)
 	{
-		return CVarMegaLights.GetValueOnRenderThread() != 0 && ViewFamily.EngineShowFlags.MegaLights;
+		return CVarMegaLights.GetValueOnRenderThread() != 0 && ViewFamily.EngineShowFlags.MegaLights && ShouldCompileShaders(ViewFamily.GetShaderPlatform());
 	}
 
 	bool IsUsingForcedRaytracing()
@@ -231,17 +242,6 @@ namespace MegaLights
 		}
 
 		return false;
-	}
-
-	bool ShouldCompileShaders(EShaderPlatform ShaderPlatform)
-	{
-		if (IsMobilePlatform(ShaderPlatform))
-		{
-			return false;
-		}
-
-		// SM6 because it uses typed loads to accumulate lights
-		return IsFeatureLevelSupported(ShaderPlatform, ERHIFeatureLevel::SM6) && RHISupportsWaveOperations(ShaderPlatform);
 	}
 
 	uint32 GetStateFrameIndex(FSceneViewState* ViewState)
