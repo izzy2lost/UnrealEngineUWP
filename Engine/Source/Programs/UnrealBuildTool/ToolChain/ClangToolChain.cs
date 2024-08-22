@@ -675,11 +675,6 @@ namespace UnrealBuildTool
 				Arguments.Add("-fprofile-generate");
 			}
 
-			if (bMergeModules && (Options.HasFlag(ClangToolChainOptions.EnableLinkTimeOptimization) || CompileEnvironment.bAllowLTCG || CompileEnvironment.bPGOOptimize || CompileEnvironment.bPGOProfile))
-			{
-				Arguments.Add("-ffat-lto-objects");
-			}
-
 			if (!CompileEnvironment.bUseInlining)
 			{
 				Arguments.Add("-fno-inline-functions");
