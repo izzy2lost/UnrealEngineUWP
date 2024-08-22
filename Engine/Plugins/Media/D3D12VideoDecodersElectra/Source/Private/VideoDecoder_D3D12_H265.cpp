@@ -270,8 +270,7 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeAccessUnit(const F
 			}
 			if (!CurrentConfig.VideoDecoderHeap.IsValid())
 			{
-				const int32 Alignment = spsPtr->GetMinCbSizeY();
-				if (!CreateDecoderHeap(DPBSize, dw, dh, Alignment))
+				if (!CreateDecoderHeap(DPBSize, dw, dh, spsPtr->GetMinCbSizeY()))
 				{
 					return IElectraDecoder::EDecoderError::Error;
 				}
@@ -279,15 +278,12 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeAccessUnit(const F
 
 			if (!DPB.IsValid())
 			{
-				// Use the maximum MinCbSizeY value for image alignment as stipulated in the DXVA HEVC documentation.
-				const int32 Alignment = 64;
-
 				// As far as the decoded frames go, their size can be the maximum that is required
 				// for this stream (the largest resolution).
 				const int32 Width = (int32) DecodeSupport.Width;
 				const int32 Height = (int32) DecodeSupport.Height;
 				const int32 NumFrames = spsPtr->GetDPBSize() + 2;	// 1 extra for the current frame that's not in the DPB yet, and 1 extra that acts as a 'missing' frame.
-				if (!CreateDPB(DPB, Width, Height, Alignment, NumFrames))
+				if (!CreateDPB(DPB, Width, Height, GetFrameAlignment(), NumFrames))
 				{
 					return IElectraDecoder::EDecoderError::Error;
 				}
@@ -771,8 +767,9 @@ IElectraDecoder::EDecoderError FD3D12VideoDecoder_H265::DecodeSlicesH265(const F
 	InDec->bDoNotOutput = (InInputAccessUnit.Flags & EElectraDecoderFlags::DoNotOutput) != EElectraDecoderFlags::None;
 	InDec->OutputType = IElectraDecoderVideoOutput::EOutputType::Output;
 	InSequenceParameterSet.GetCrop(InDec->Crop.Left, InDec->Crop.Right, InDec->Crop.Top, InDec->Crop.Bottom);
-	InDec->Width = InSequenceParameterSet.GetWidth();
-	InDec->Height = InSequenceParameterSet.GetHeight();
+
+	InDec->Width = Align(InSequenceParameterSet.GetWidth(), GetFrameAlignment());
+	InDec->Height = Align(InSequenceParameterSet.GetHeight(), GetFrameAlignment());
 	InDec->ImageWidth = InDec->Width - InDec->Crop.Left - InDec->Crop.Right;
 	InDec->ImageHeight = InDec->Height - InDec->Crop.Top - InDec->Crop.Bottom;
 	//InDec->Pitch = InDec->ImageWidth;

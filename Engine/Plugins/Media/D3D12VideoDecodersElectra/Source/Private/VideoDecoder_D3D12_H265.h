@@ -66,6 +66,9 @@ private:
 	FBitstreamParamsH265 BitstreamParamsH265;
 	static const uint8 ScanOrderDiag4[16];
 	static const uint8 ScanOrderDiag8[64];
+	// Use the maximum MinCbSizeY value for image alignment as stipulated in the DXVA HEVC documentation.
+	constexpr int32 GetFrameAlignment()
+	{ return 64; }
 };
 
 }
