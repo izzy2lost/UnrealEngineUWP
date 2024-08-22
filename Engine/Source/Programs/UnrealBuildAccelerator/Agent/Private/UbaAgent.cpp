@@ -437,7 +437,7 @@ namespace uba
 
 		#if PLATFORM_MAC
 		StringBuffer<32> populateCasFromXcodeVersion;
-		bool populateCasFromAllXcodes;
+		bool populateCasFromAllXcodes = false;
 		#endif
 
 		for (int i=1; i!=argc; ++i)

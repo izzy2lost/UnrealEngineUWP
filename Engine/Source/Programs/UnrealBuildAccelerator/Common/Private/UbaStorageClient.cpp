@@ -875,8 +875,6 @@ namespace uba
 						if (!insres.second)
 							return;
 						LocalFile& localFile = insres.first->second;
-						lookupLock.Leave();
-
 						localFile.casEntry.size = info.size;
 						localFile.fileName = filePath;
 
