@@ -84,11 +84,11 @@ void FMovementModifierBase::GenerateHandle()
 	LocalModifierHandle.GenerateHandle();
 }
 
-void FMovementModifierBase::SetHandleFromExistingModifier(const FMovementModifierHandle& OtherModifierHandle)
+void FMovementModifierBase::OverwriteHandleIfInvalid(const FMovementModifierHandle& ValidModifierHandle)
 {
-	if (OtherModifierHandle.IsValid() && !LocalModifierHandle.IsValid())
+	if (ValidModifierHandle.IsValid() && !LocalModifierHandle.IsValid())
 	{
-		LocalModifierHandle = OtherModifierHandle;
+		LocalModifierHandle = ValidModifierHandle;
 	}
 }
 
@@ -288,9 +288,9 @@ void FMovementModifierGroup::FlushModifierArrays(UMoverComponent* MoverComp, con
 			QueuedModifier->StartSimTimeMs = TimeStep.BaseSimTimeMs;
 
 			// We only want to queue this queued modifier if it wasn't already added from state received from authority. If we already have the modifier just assign it a handle since it's already been activated.
-			if (QueuedModifier->Matches(ActiveModifier.Get()) && !ActiveModifier->GetHandle().IsValid())
+			if (QueuedModifier->Matches(ActiveModifier.Get()))
 			{
-				ActiveModifier->SetHandleFromExistingModifier(QueuedModifier->GetHandle());
+				ActiveModifier->OverwriteHandleIfInvalid(QueuedModifier->GetHandle());
 				bModidiferAlreadyActive = true;
 				break;
 			}

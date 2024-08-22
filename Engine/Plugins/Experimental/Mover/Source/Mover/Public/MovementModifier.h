@@ -141,7 +141,7 @@ struct MOVER_API FMovementModifierBase
 	 * Currently used to write a local handle to modifiers that were added from a rollback so they don't have a handle yet
 	 * This is done to avoid queueing a modifier again as a local client applies potential input
 	 */
-	void SetHandleFromExistingModifier(const FMovementModifierHandle& OtherModifierHandle);
+	void OverwriteHandleIfInvalid(const FMovementModifierHandle& ValidModifierHandle);
 
 	/**
   	 * Check modifier for a gameplay tag.
