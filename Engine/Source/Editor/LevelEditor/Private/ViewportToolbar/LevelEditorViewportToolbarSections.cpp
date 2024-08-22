@@ -1510,7 +1510,7 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 						FNewToolMenuDelegate::CreateLambda(
 							[CommandList, CommandListJson](UToolMenu* InSubMenu)
 							{
-								FToolMenuSection& Section = InSubMenu->AddSection("", LOCTEXT("EditorPreviewModeDevices", "Preview Devices"));
+								FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
 								for (const TSharedPtr<FUICommandInfo>& Command : CommandList)
 								{
 									Section.AddMenuEntry(Command);
@@ -1525,7 +1525,7 @@ FToolMenuEntry CreateFeatureLevelPreviewSubmenu()
 										FNewToolMenuDelegate::CreateLambda(
 											[CommandListJson](UToolMenu* InSubMenu)
 											{
-												FToolMenuSection& Section = InSubMenu->AddSection("", LOCTEXT("EditorPreviewModeDevicesJson", "Preview Devices Json"));
+												FToolMenuSection& Section = InSubMenu->AddSection(NAME_None);
 												for (const TSharedPtr<FUICommandInfo>& Command : *CommandListJson)
 												{
 													Section.AddMenuEntry(Command);
@@ -2535,7 +2535,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 					// This additional options section is used to force certain elements to appear after extensions
 					{
 						FToolMenuSection& AdditionalOptions =
-							InDynamicMenu->FindOrAddSection("AdditionalOptions", LOCTEXT("AdditionalOptionsLabel", ""));
+							InDynamicMenu->FindOrAddSection("AdditionalOptions");
 						AdditionalOptions.AddSeparator("AdditionalOptionsSeparator");
 
 						FToolMenuEntry HighResolutionScreenshot =

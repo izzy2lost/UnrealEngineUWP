@@ -83,7 +83,7 @@ FToolMenuEntry UE::NiagaraSystemEditor::CreateShowSubmenu(const TWeakPtr<SNiagar
 					return;
 				}
 
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
 					"ShowMenuItems", UE::NiagaraSystemEditor::CreateShowMenuWidget(Viewport.ToSharedRef(), true), FText(), true

@@ -2138,7 +2138,7 @@ FToolMenuEntry CreateViewportToolbarAssetViewerProfileSubmenu(const TSharedPtr<I
 					return;
 				}
 
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
 				constexpr bool bInShouldCloseWindowAfterMenuSelection = true;
 				FMenuBuilder PreviewProfilesSelectionMenuBuilder(bInShouldCloseWindowAfterMenuSelection, nullptr);
@@ -2215,7 +2215,7 @@ void PopulateCameraMenu(UToolMenu* InMenu)
 	}
 
 	FToolMenuSection& PerspectiveCameraSection =
-		InMenu->FindOrAddSection("LevelViewportCameraType_Perspective", LOCTEXT("UnnamedLabel", ""));
+		InMenu->FindOrAddSection("LevelViewportCameraType_Perspective");
 	PerspectiveCameraSection.AddMenuEntry(FEditorViewportCommands::Get().Perspective);
 
 	FToolMenuSection& OrthographicCameraSection =
@@ -2253,7 +2253,7 @@ void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName)
 				FToolMenuInsert InsertPosition("LevelViewportCameraType_Ortho", EToolMenuInsertType::After);
 
 				FToolMenuSection& UnnamedSection =
-					InDynamicMenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""), InsertPosition);
+					InDynamicMenu->FindOrAddSection(NAME_None, FText(), InsertPosition);
 				UnnamedSection.AddSeparator("CameraSubmenuSeparator");
 
 				UnnamedSection.AddEntry(FToolMenuEntry::InitWidget(
@@ -2639,11 +2639,11 @@ FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
 	return FToolMenuEntry::InitSubMenu(
 		"PerformanceAndScalability",
 		LOCTEXT("PerformanceAndScalabilitySubmenuLabel", "Performance and Scalability"),
-		LOCTEXT("PerformanceAndScalabilitySubmenuTooltip", ""),
+		LOCTEXT("PerformanceAndScalabilitySubmenuTooltip", "Performance and scalability tools tied to this viewport."),
 		FNewToolMenuDelegate::CreateLambda(
 			[](UToolMenu* Submenu) -> void
 			{
-				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+				FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 
 				UnnamedSection.AddEntry(CreateToggleRealtimeEntry());
 

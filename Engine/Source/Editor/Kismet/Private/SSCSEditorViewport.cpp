@@ -554,7 +554,7 @@ TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
 					FNewToolMenuDelegate::CreateLambda(
 						[](UToolMenu* Submenu) -> void
 						{
-							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 							UnnamedSection.AddMenuEntry(FBlueprintEditorCommands::Get().ShowFloor);
 							UnnamedSection.AddMenuEntry(FBlueprintEditorCommands::Get().ShowGrid);
 						}
@@ -574,7 +574,7 @@ TSharedPtr<SWidget> SSCSEditorViewport::BuildViewportToolbar()
 					FNewToolMenuDelegate::CreateLambda(
 						[](UToolMenu* Submenu) -> void
 						{
-							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection("", LOCTEXT("UnnamedLabel", ""));
+							FToolMenuSection& UnnamedSection = Submenu->FindOrAddSection(NAME_None);
 							UnnamedSection.AddEntry(UE::UnrealEd::CreateToggleRealtimeEntry());
 						}
 					)
