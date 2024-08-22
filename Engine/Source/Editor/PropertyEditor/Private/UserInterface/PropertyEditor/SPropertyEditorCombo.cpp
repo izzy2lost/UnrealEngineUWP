@@ -77,20 +77,23 @@ void SPropertyEditorCombo::Construct( const FArguments& InArgs, const TSharedPtr
 		for (int ItemIndex = 0; ItemIndex < ComboItems.Num(); ItemIndex++)
 		{
 			const FString& ComboItem = *ComboItems[ItemIndex];
+			SSegmentedControl<FString>::FScopedWidgetSlotArguments Slot = SegmentControl->AddSlot(ComboItem);
 			
 			FText DisplayName = FText::FromString(ComboItem);
 			FText TooltipText = DisplayName;
 			if (RichToolTips.IsValidIndex(ItemIndex) && !RichToolTips[ItemIndex]->IsEmpty())
 			{
-				TooltipText = RichToolTips[ItemIndex]->GetTextTooltip();
+				Slot.ToolTipWidget(RichToolTips[ItemIndex]);
 			}
-
-			SSegmentedControl<FString>::FScopedWidgetSlotArguments Slot = SegmentControl->AddSlot(ComboItem);
+			else
+			{
+				Slot.ToolTip(DisplayName);
+			}
+			
 			Slot
 			  .HAlign(HAlign_Center)
 			  .VAlign(VAlign_Center)
-			  .Text(DisplayName)
-			  .ToolTip(TooltipText);
+			  .Text(DisplayName);
 		}
 		
 		ChildSlot
