@@ -3,6 +3,7 @@
 #include "SDMXPatchTool.h"
 
 #include "Algo/Transform.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "DMXPatchToolItem.h"
 #include "DMXSubsystem.h"
 #include "Editor.h"
@@ -25,17 +26,49 @@ namespace UE::DMX
 	{}
 
 	SDMXPatchTool::~SDMXPatchTool()
-	{
-		// Unbind from library changes
-		if (PreviouslySelectedLibrary.IsValid())
-		{
-			PreviouslySelectedLibrary->GetOnEntitiesAdded().RemoveAll(this);
-			PreviouslySelectedLibrary->GetOnEntitiesRemoved().RemoveAll(this);
-		}
-	}
+	{}
 
 	void SDMXPatchTool::Construct(const FArguments& InArgs)
 	{
+		Refresh();
+
+		// Listen to assets being added or removed
+		FAssetRegistryModule& AssetRegistryModule = FModuleManager::GetModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+		AssetRegistryModule.Get().OnAssetAdded().AddSP(this, &SDMXPatchTool::OnAssetAddedOrRemoved);
+		AssetRegistryModule.Get().OnAssetRemoved().AddSP(this, &SDMXPatchTool::OnAssetAddedOrRemoved);
+
+		// Listen to DMX Library changes
+		UDMXLibrary::GetOnEntitiesAdded().AddSP(this, &SDMXPatchTool::OnEntitiesAddedOrRemoved);
+		UDMXLibrary::GetOnEntitiesRemoved().AddSP(this, &SDMXPatchTool::OnEntitiesAddedOrRemoved);
+	}
+
+	void SDMXPatchTool::AddReferencedObjects(FReferenceCollector& Collector)
+	{
+		Collector.AddReferencedObject(DMXLibrary);
+		Collector.AddReferencedObject(FixturePatch);
+		Collector.AddReferencedObjects(FixturePatchSource);
+	}
+
+	FString SDMXPatchTool::GetReferencerName() const
+	{
+		return TEXT("SDMXPatchTool");
+	}
+
+	void SDMXPatchTool::RequestRefresh()
+	{
+		if (!RefreshTimerHandle.IsValid())
+		{
+			RefreshTimerHandle = GEditor->GetTimerManager()->SetTimerForNextTick(FTimerDelegate::CreateSP(this, &SDMXPatchTool::Refresh));
+		}
+	}
+
+	void SDMXPatchTool::Refresh()
+	{
+		RefreshTimerHandle.Invalidate();
+
+		// Update the library source and make a valid selection
+		LibrarySource.Reset();
+
 		UDMXSubsystem* Subsystem = UDMXSubsystem::GetDMXSubsystem_Pure();
 		check(Subsystem);
 
@@ -45,6 +78,31 @@ namespace UE::DMX
 				return MakeShared<FDMXPatchToolItem>(SoftDMXLibrary);
 			});
 
+		const bool bCanSelectDMXLibrary = DMXLibrary && Algo::FindBy(LibrarySource, DMXLibrary.Get(), &FDMXPatchToolItem::SoftDMXLibrary) != nullptr;
+		if (!bCanSelectDMXLibrary)
+		{
+			DMXLibrary = !LibrarySource.IsEmpty() ? LibrarySource[0]->SoftDMXLibrary.LoadSynchronous() : nullptr;
+		}
+
+		const TSharedPtr<FDMXPatchToolItem>* SelectDMXLibraryItemPtr = Algo::FindBy(LibrarySource, DMXLibrary.Get(), &FDMXPatchToolItem::SoftDMXLibrary);
+		const TSharedPtr<FDMXPatchToolItem> SelectDMXLibraryItem = SelectDMXLibraryItemPtr ? *SelectDMXLibraryItemPtr : nullptr;
+
+
+		// Update the fixture patch source and make a valid selection
+		FixturePatchSource.Reset();
+		if (DMXLibrary)
+		{
+			FixturePatchSource = ObjectPtrWrap(DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>());
+		}
+
+		const bool bCanSelectFixturePatch = FixturePatch && FixturePatchSource.Contains(FixturePatch);
+		if (!bCanSelectFixturePatch)
+		{
+			FixturePatch = !FixturePatchSource.IsEmpty() ? FixturePatchSource[0] : nullptr;
+		}
+
+
+		// Rebuild the widget
 		ChildSlot
 		[
 			SNew(SVerticalBox)
@@ -89,8 +147,15 @@ namespace UE::DMX
 						.OnGenerateWidget(this, &SDMXPatchTool::GenerateLibraryComboBoxEntry)
 						.OnSelectionChanged(this, &SDMXPatchTool::OnLibrarySelected)
 						.OptionsSource(&ObjectPtrDecay(LibrarySource))
+						.InitiallySelectedItem(SelectDMXLibraryItem)
 						[
-							SAssignNew(SelectedLibraryTextBlock, STextBlock)
+							SNew(STextBlock)
+							.Text_Lambda([this]()
+								{
+									return DMXLibrary ?
+										FText::FromString(DMXLibrary->GetName()) :
+										LOCTEXT("NoDMXLibraryAvailableInfo", "No DMX Library available");
+								})
 						]
 					]
 				]
@@ -128,8 +193,15 @@ namespace UE::DMX
 						.OnGenerateWidget(this, &SDMXPatchTool::GenerateFixturePatchComboBoxEntry)
 						.OnSelectionChanged(this, &SDMXPatchTool::OnFixturePatchSelected)
 						.OptionsSource(&ObjectPtrDecay(FixturePatchSource))
+						.InitiallySelectedItem(FixturePatch)
 						[
-							SAssignNew(SelectedFixturePatchTextBlock, STextBlock)
+							SNew(STextBlock)
+							.Text_Lambda([this]()
+								{
+									return FixturePatch ?
+										FText::FromString(FixturePatch->Name) :
+										LOCTEXT("NoPatchAvailableInfo", "No DMX Library selected");
+								})
 						]
 					]
 				]
@@ -185,52 +257,6 @@ namespace UE::DMX
 				]
 			]
 		];
-
-		// Make an initial selection
-		UpdateLibrarySelection();
-		UpdateFixturePatchSelection(DMXLibrary);
-	}
-
-	void SDMXPatchTool::AddReferencedObjects(FReferenceCollector& Collector)
-	{
-		Collector.AddReferencedObject(DMXLibrary);
-		Collector.AddReferencedObjects(FixturePatchSource);
-	}
-
-	void SDMXPatchTool::UpdateLibrarySelection()
-	{
-		check(LibraryComboBox.IsValid());
-		check(FixturePatchComboBox.IsValid());
-
-		if (LibrarySource.Num() > 0)
-		{
-			LibraryComboBox->SetSelectedItem(LibrarySource[0]);
-		}
-		else
-		{
-			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailableAfterUpdate", "No DMX library available"));
-		}
-	}
-
-	void SDMXPatchTool::UpdateFixturePatchSelection(UDMXLibrary* InDMXLibrary)
-	{
-		if (InDMXLibrary)
-		{
-			FixturePatchSource = ObjectPtrWrap(InDMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>());
-
-			if (FixturePatchSource.Num() > 0)
-			{
-				FixturePatchComboBox->SetSelectedItem(FixturePatchSource[0]);
-			}
-			else
-			{
-				SelectedFixturePatchTextBlock->SetText(LOCTEXT("NoFixturePatchAvailable", "No Fixture Patch available in Library"));
-			}
-		}
-		else
-		{
-			FixturePatchSource.Reset();
-		}
 	}
 
 	FReply SDMXPatchTool::OnAddressIncrementalClicked()
@@ -248,8 +274,8 @@ namespace UE::DMX
 					{
 						if (FixturePatchSource.IsValidIndex(IndexOfPatch))
 						{
-							UDMXEntityFixturePatch* FixturePatch = FixturePatchSource[IndexOfPatch];
-							Component->SetFixturePatch(FixturePatch);
+							UDMXEntityFixturePatch* NextFixturePatch = FixturePatchSource[IndexOfPatch];
+							Component->SetFixturePatch(NextFixturePatch);
 
 							IndexOfPatch++;
 						}
@@ -270,16 +296,13 @@ namespace UE::DMX
 		UDMXEntityFixturePatch* SelectedFixturePatch = FixturePatchComboBox->GetSelectedItem();
 		if (SelectedFixturePatch)
 		{
-			int32 IndexOfPatch = FixturePatchSource.IndexOfByKey(SelectedFixturePatch);
-
 			for (FSelectionIterator It(GEditor->GetSelectedActorIterator()); It; ++It)
 			{
 				if (AActor* Actor = Cast<AActor>(*It))
 				{
 					for (UDMXComponent* Component : TInlineComponentArray<UDMXComponent*>(Actor))
 					{
-						UDMXEntityFixturePatch* FixturePatch = FixturePatchSource[IndexOfPatch];
-						Component->SetFixturePatch(FixturePatch);
+						Component->SetFixturePatch(SelectedFixturePatch);
 					}
 				}
 			}
@@ -303,11 +326,11 @@ namespace UE::DMX
 					{
 						if (FixturePatchSource.IsValidIndex(IndexOfPatch))
 						{
-							UDMXEntityFixturePatch* FixturePatch = FixturePatchSource[IndexOfPatch];
-							Component->SetFixturePatch(FixturePatch);
+							UDMXEntityFixturePatch* NextFixturePatch = FixturePatchSource[IndexOfPatch];
+							Component->SetFixturePatch(NextFixturePatch);
 
 							// Rename
-							Actor->SetActorLabel(FixturePatch->Name);
+							Actor->SetActorLabel(NextFixturePatch->Name);
 
 							IndexOfPatch++;
 						}
@@ -325,7 +348,7 @@ namespace UE::DMX
 
 	TSharedRef<SWidget> SDMXPatchTool::GenerateLibraryComboBoxEntry(TSharedPtr<FDMXPatchToolItem> ItemToAdd)
 	{
-		FText LibraryName = FText::FromString(ItemToAdd->SoftDMXLibrary.GetAssetName());
+		const FText LibraryName = FText::FromString(ItemToAdd->SoftDMXLibrary.GetAssetName());
 
 		return
 			SNew(STextBlock)
@@ -334,40 +357,17 @@ namespace UE::DMX
 
 	void SDMXPatchTool::OnLibrarySelected(TSharedPtr<FDMXPatchToolItem> SelectedItem, ESelectInfo::Type SelectInfo)
 	{
-		// Ignore unchanged selections
-		if (PreviouslySelectedLibrary.IsValid() && PreviouslySelectedLibrary.Get() == SelectedItem->SoftDMXLibrary)
+		if (DMXLibrary.Get() != SelectedItem->SoftDMXLibrary)
 		{
-			return;
-		}
+			DMXLibrary = SelectedItem->SoftDMXLibrary.LoadSynchronous();
 
-		// Unbind from previously selected library changes
-		if (PreviouslySelectedLibrary.IsValid())
-		{
-			PreviouslySelectedLibrary->GetOnEntitiesAdded().RemoveAll(this);
-			PreviouslySelectedLibrary->GetOnEntitiesRemoved().RemoveAll(this);
+			RequestRefresh();
 		}
-		PreviouslySelectedLibrary = DMXLibrary;
-
-		DMXLibrary = Cast<UDMXLibrary>(SelectedItem->SoftDMXLibrary.LoadSynchronous());
-		if (DMXLibrary)
-		{
-			// Bind to library edits
-			DMXLibrary->GetOnEntitiesAdded().AddSP(this, &SDMXPatchTool::OnEntitiesAddedOrRemoved);
-			DMXLibrary->GetOnEntitiesRemoved().AddSP(this, &SDMXPatchTool::OnEntitiesAddedOrRemoved);
-
-			SelectedLibraryTextBlock->SetText(FText::FromString(DMXLibrary->GetName()));
-		}
-		else
-		{
-			SelectedLibraryTextBlock->SetText(LOCTEXT("NoLibraryAvailableAfterSelectionChange", "No DMX Library available"));
-		}
-
-		UpdateFixturePatchSelection(DMXLibrary);
 	}
 
 	TSharedRef<SWidget> SDMXPatchTool::GenerateFixturePatchComboBoxEntry(UDMXEntityFixturePatch* FixturePatchToAdd)
 	{
-		FText FixturePatchName = FText::FromString(FixturePatchToAdd->Name);
+		const FText FixturePatchName = FText::FromString(FixturePatchToAdd->Name);
 
 		return
 			SNew(STextBlock)
@@ -376,44 +376,17 @@ namespace UE::DMX
 
 	void SDMXPatchTool::OnFixturePatchSelected(UDMXEntityFixturePatch* SelectedFixturePatch, ESelectInfo::Type SelectInfo)
 	{
-		if (IsValid(SelectedFixturePatch))
-		{
-			SelectedFixturePatchTextBlock->SetText(FText::FromString(SelectedFixturePatch->Name));
-		}
-		else
-		{
-			SelectedFixturePatchTextBlock->SetText(LOCTEXT("NoFixturePatchAvailable", "No Fixture Patch available in Library"));
-		}
+		FixturePatch = SelectedFixturePatch;
+	}
+
+	void SDMXPatchTool::OnAssetAddedOrRemoved(const FAssetData& AssetData)
+	{
+		RequestRefresh();
 	}
 
 	void SDMXPatchTool::OnEntitiesAddedOrRemoved(UDMXLibrary* ChangedDMXLibrary, TArray<UDMXEntity*> Entities)
 	{
-		UpdateLibrarySelection();
-
-		UDMXEntityFixturePatch* PreviouslySelectedFixturePatch = FixturePatchComboBox->GetSelectedItem();
-
-		if (ChangedDMXLibrary == DMXLibrary)
-		{
-			FixturePatchSource.Reset();
-
-			if (IsValid(DMXLibrary))
-			{
-				FixturePatchSource = ObjectPtrWrap(DMXLibrary->GetEntitiesTypeCast<UDMXEntityFixturePatch>());
-
-				FixturePatchComboBox->RefreshOptions();
-
-				if (IsValid(PreviouslySelectedFixturePatch) && FixturePatchSource.Contains(PreviouslySelectedFixturePatch))
-				{
-					// Restore the previous selection
-					FixturePatchComboBox->SetSelectedItem(PreviouslySelectedFixturePatch);
-				}
-				else
-				{
-					// Update the selection
-					UpdateFixturePatchSelection(DMXLibrary);
-				}
-			}
-		}
+		RequestRefresh();
 	}
 }
 

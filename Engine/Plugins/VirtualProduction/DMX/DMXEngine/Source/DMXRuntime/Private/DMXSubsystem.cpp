@@ -3,6 +3,7 @@
 #include "DMXSubsystem.h"
 
 #include "AssetRegistry/AssetData.h"
+#include "AssetRegistry/AssetRegistryModule.h"
 #include "Async/Async.h"
 #include "DMXAttribute.h"
 #include "DMXConversions.h"
@@ -681,23 +682,15 @@ TArray<UDMXLibrary*> UDMXSubsystem::LoadDMXLibrariesSynchronous() const
 
 TArray<TSoftObjectPtr<UDMXLibrary>> UDMXSubsystem::GetDMXLibraries() const
 {
-	constexpr bool bHasBlueprintClasses = true;
-	UObjectLibrary* LibraryOfDMXLibraries = UObjectLibrary::CreateLibrary(UDMXLibrary::StaticClass(), bHasBlueprintClasses, GIsEditor);
-	LibraryOfDMXLibraries->LoadAssetDataFromPath(TEXT("/Game"));
-	LibraryOfDMXLibraries->LoadAssetsFromAssetData();
-
-	TArray<FAssetData> AssetDatas;
-	LibraryOfDMXLibraries->GetAssetDataList(AssetDatas);
+	TArray<FAssetData> AssetDataArray;
+	const FAssetRegistryModule& AssetRegistryModule = FModuleManager::LoadModuleChecked<FAssetRegistryModule>(TEXT("AssetRegistry"));
+	AssetRegistryModule.Get().GetAssetsByClass(UDMXLibrary::StaticClass()->GetClassPathName(), AssetDataArray);
 
 	TArray<TSoftObjectPtr<UDMXLibrary>> DMXLibraries;
-	Algo::TransformIf(AssetDatas, DMXLibraries,
+	Algo::Transform(AssetDataArray, DMXLibraries,
 		[](const FAssetData& AssetData)
 		{
-			return AssetData.IsValid();
-		},
-		[](const FAssetData& AssetData)
-		{
-			return TSoftObjectPtr<UDMXLibrary>(AssetData.ToSoftObjectPath());
+			return TSoftObjectPtr<UDMXLibrary>(AssetData.GetSoftObjectPath());
 		});
 
 	return DMXLibraries;

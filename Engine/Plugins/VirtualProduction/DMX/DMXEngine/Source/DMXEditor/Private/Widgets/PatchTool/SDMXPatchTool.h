@@ -3,15 +3,17 @@
 #pragma once
 
 #include "Analytics/DMXEditorToolAnalyticsProvider.h"
+#include "Engine/TimerHandle.h"
 #include "UObject/GCObject.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
 
-template<typename OptionType> class SComboBox;
 class STextBlock;
 class UDMXEntity;
 class UDMXEntityFixturePatch;
 class UDMXLibrary;
+struct FAssetData;
+template<typename OptionType> class SComboBox;
 
 namespace UE::DMX
 {
@@ -39,17 +41,14 @@ namespace UE::DMX
 	private:
 		// ~Begin FGCObject interface
 		virtual void AddReferencedObjects(FReferenceCollector& Collector) override;
-		virtual FString GetReferencerName() const override
-		{
-			return TEXT("SDMXPatchTool");
-		}
+		virtual FString GetReferencerName() const override;
 		// ~End FGCObject interface
 
-		/** Updates the selected library. Useful on initialization or when assets changed */
-		void UpdateLibrarySelection();
+		/** Refreshes the widget on the next tick */
+		void RequestRefresh();
 
-		/** Updates the available fixture patches from the provided DMX Library */
-		void UpdateFixturePatchSelection(UDMXLibrary* InDMXLibrary);
+		/** Refreshes the widget */
+		void Refresh();
 
 		/** Called when the Address Incremental Button was clicked */
 		FReply OnAddressIncrementalClicked();
@@ -69,37 +68,35 @@ namespace UE::DMX
 		/** Combobox to select a library */
 		TSharedPtr<SComboBox<TSharedPtr<FDMXPatchToolItem>>> LibraryComboBox;
 
-		/** Text block showing the selected library */
-		TSharedPtr<STextBlock> SelectedLibraryTextBlock;
-
-		/** Source for the library combo box */
-		TArray<TSharedPtr<FDMXPatchToolItem>> LibrarySource;
-
-	private:
 		/** Generates an entry in the library combo box */
 		TSharedRef<SWidget> GenerateFixturePatchComboBoxEntry(UDMXEntityFixturePatch* FixturePatchToAdd);
 
 		/** Called when a fixture patch was slected */
 		void OnFixturePatchSelected(UDMXEntityFixturePatch* SelectedFixturePatch, ESelectInfo::Type SelectInfo);
 
+		/** Called when an asset was added or removed */
+		void OnAssetAddedOrRemoved(const FAssetData& AssetData);
+
+		/** Called when the library was edited */
+		void OnEntitiesAddedOrRemoved(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
+
+		/** Source for the library combo box */
+		TArray<TSharedPtr<FDMXPatchToolItem>> LibrarySource;
+
 		/** Combobox to select a patch within the library */
 		TSharedPtr<SComboBox<UDMXEntityFixturePatch*>> FixturePatchComboBox;
-
-		/** Text block showing the selected fixture patch */
-		TSharedPtr<STextBlock> SelectedFixturePatchTextBlock;
 
 		/** Source for the fixture patch combo box */
 		TArray<TObjectPtr<UDMXEntityFixturePatch>> FixturePatchSource;
 
-	private:
-		/** Called when the library was edited */
-		void OnEntitiesAddedOrRemoved(UDMXLibrary* Library, TArray<UDMXEntity*> Entities);
-
 		/** The currently selected DMX Library. Useful to GC */
 		TObjectPtr<UDMXLibrary> DMXLibrary;
 
-		/** The previously selected library, to unbind from library changes */
-		TWeakObjectPtr<UDMXLibrary> PreviouslySelectedLibrary;
+		/** The currently selected fixture patch */
+		TObjectPtr<UDMXEntityFixturePatch> FixturePatch;
+
+		/** Timer handle for the request refresh method */
+		FTimerHandle RefreshTimerHandle;
 
 		/** The analytics provider for this tool */
 		FDMXEditorToolAnalyticsProvider AnalyticsProvider;
