@@ -3952,6 +3952,12 @@ void UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData(const TSharedRef<
 {
 	MUTABLE_CPUPROFILER_SCOPE(UCustomizableInstancePrivate::BuildOrCopyMorphTargetsData);
 
+	// This is a bit redundant as ComponentMorphTargets should not be generated.
+	if (!CVarEnableRealTimeMorphTargets.GetValueOnAnyThread())
+	{
+		return;
+	}
+
 	if (!SkeletalMesh)
 	{
 		return;
@@ -5297,6 +5303,8 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 		}
 	}
 
+	const bool bMorphTargetsEnabled = CVarEnableRealTimeMorphTargets.GetValueOnAnyThread();
+
 	// Load assets coming from SubMeshes of the newly generated Mesh
 	if (OperationData->InstanceUpdateData.LODs.Num())
 	{
@@ -5342,16 +5350,19 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 					}
 					else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::RealTimeMorphTarget)
 					{
-						check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
+						if (bMorphTargetsEnabled)
+						{
+							check(TypedResourceId.Id != 0 && TypedResourceId.Id <= TNumericLimits<uint32>::Max());
 
-						const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelStreamableBulkData->RealTimeMorphStreamables;
-						if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
-						{
-							RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
-						}
-						else
-						{
-							UE_LOG(LogMutable, Error, TEXT("Invalid streamed real time morph target data block [%d] found."), TypedResourceId.Id);
+							const TMap<uint32, FRealTimeMorphStreamable>& MorphsStreamables = ModelStreamableBulkData->RealTimeMorphStreamables;
+							if (MorphsStreamables.Contains((uint32)TypedResourceId.Id))
+							{
+								RealTimeMorphStreamableBlocksToStream.AddUnique(TypedResourceId.Id);
+							}
+							else
+							{
+								UE_LOG(LogMutable, Error, TEXT("Invalid streamed real time morph target data block [%d] found."), TypedResourceId.Id);
+							}
 						}
 					}
 					else if (TypedResourceId.Type == (uint8)FCustomizableObjectStreameableResourceId::EType::Clothing)
@@ -5544,6 +5555,7 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 	{
 #if WITH_EDITOR
 		// On editor the data is always loaded, load directly form the ModelResources.
+		if (bMorphTargetsEnabled)
 		{
 			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingEditor);
 			for (uint32 BlockId : RealTimeMorphStreamableBlocksToStream)
@@ -5637,46 +5649,48 @@ UE::Tasks::FTask UCustomizableInstancePrivate::LoadAdditionalAssetsAndData(
 			return nullptr;
 		};
 
-		const int32 NumMorphBlocks = RealTimeMorphStreamableBlocksToStream.Num();
-		for (int32 I = 0; I < NumMorphBlocks; ++I)
+		if (bMorphTargetsEnabled)
 		{
-			MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingRequest_Alloc);
-
-			const int32 BlockId = RealTimeMorphStreamableBlocksToStream[I];
-			const FRealTimeMorphStreamable& Streamable = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId];
-			const FMutableStreamableBlock& Block = Streamable.Block; 
-		
-			FInstanceUpdateData::FMorphTargetMeshData& ReadDestData = 
-					OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
-
-			// Only request blocks once.
-			if (ReadDestData.Data.Num())
+			const int32 NumMorphBlocks = RealTimeMorphStreamableBlocksToStream.Num();
+			for (int32 I = 0; I < NumMorphBlocks; ++I)
 			{
-				continue;
+				MUTABLE_CPUPROFILER_SCOPE(RealTimeMorphStreamingRequest_Alloc);
+
+				const int32 BlockId = RealTimeMorphStreamableBlocksToStream[I];
+				const FRealTimeMorphStreamable& Streamable = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId];
+				const FMutableStreamableBlock& Block = Streamable.Block; 
+			
+				FInstanceUpdateData::FMorphTargetMeshData& ReadDestData = 
+						OperationData->InstanceUpdateData.RealTimeMorphTargetMeshData.FindOrAdd(BlockId);
+
+				// Only request blocks once.
+				if (ReadDestData.Data.Num())
+				{
+					continue;
+				}
+
+				ReadDestData.NameResolutionMap = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId].NameResolutionMap;
+
+				check(Streamable.Size % sizeof(FMorphTargetVertexData) == 0);
+				uint32 NumElems = Streamable.Size / sizeof(FMorphTargetVertexData);
+
+				ReadDestData.Data.SetNumUninitialized(NumElems);
+
+				IAsyncReadFileHandle* FileHandle = nullptr;
+				if (!bUseFBulkData)
+				{	
+					FileHandle = OpenOrGetFileHandleForBlock(Block);
+				}
+
+				BlockReadInfos.Emplace(FBlockReadInfo
+				{ 
+					Block.Offset,
+					FileHandle,
+					MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FMorphTargetVertexData)),
+					Block.FileId
+				});
 			}
-
-			ReadDestData.NameResolutionMap = ModelStreamableBulkData->RealTimeMorphStreamables[BlockId].NameResolutionMap;
-
-			check(Streamable.Size % sizeof(FMorphTargetVertexData) == 0);
-			uint32 NumElems = Streamable.Size / sizeof(FMorphTargetVertexData);
-
-			ReadDestData.Data.SetNumUninitialized(NumElems);
-
-			IAsyncReadFileHandle* FileHandle = nullptr;
-			if (!bUseFBulkData)
-			{	
-				FileHandle = OpenOrGetFileHandleForBlock(Block);
-			}
-
-			BlockReadInfos.Emplace(FBlockReadInfo
-			{ 
-				Block.Offset,
-				FileHandle,
-				MakeArrayView(reinterpret_cast<uint8*>(ReadDestData.Data.GetData()), ReadDestData.Data.Num()*sizeof(FMorphTargetVertexData)),
-				Block.FileId
-			});
 		}
-
 		const int32 NumClothBlocks = ClothingStreamableBlocksToStream.Num();
 		for (int32 I = 0; I < NumClothBlocks; ++I)
 		{

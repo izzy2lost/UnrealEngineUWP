@@ -37,7 +37,10 @@ extern TAutoConsoleVariable<bool> CVarPreserveUserLODsOnFirstGeneration;
 
 extern TAutoConsoleVariable<bool> CVarEnableMeshCache;
 
+extern TAutoConsoleVariable<bool> CVarEnableRealTimeMorphTargets;
+
 extern TAutoConsoleVariable<bool> CVarRollbackFixModelDiskStreamerDataRace;
+
 
 #if WITH_EDITOR
 

@@ -115,6 +115,11 @@ TAutoConsoleVariable<bool> CVarEnableUpdateOptimization(
 	false,
 	TEXT("Enable or disable update optimization when no changes are made to the parent component."));
 
+TAutoConsoleVariable<bool> CVarEnableRealTimeMorphTargets(
+	TEXT("mutable.EnableRealTimeMorphTargets"),
+	true,
+	TEXT("Enable or disable generation of realtime morph targets."));
+
 #if WITH_EDITOR
 bool bEnableLODManagmentInEditor = false;
 
@@ -2918,9 +2923,13 @@ namespace impl
 			return;
 		}
 
-		// TODO: This subtask should execute before Convert resources in a worker thread but after 
-		// Loading resources. For now keep it here.
-		Subtask_Mutable_PrepareRealTimeMorphData(OperationData);
+		
+		if (CVarEnableRealTimeMorphTargets.GetValueOnAnyThread())
+		{
+			// TODO: This subtask should execute before Convert resources in a worker thread but after 
+			// Loading resources. For now keep it here.
+			Subtask_Mutable_PrepareRealTimeMorphData(OperationData);
+		}
 
 		UCustomizableObjectInstance* CustomizableObjectInstance = OperationData->Instance.Get();
 
