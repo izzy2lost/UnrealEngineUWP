@@ -204,7 +204,9 @@ public:
 #endif //WITH_EDITOR
 
 	virtual bool AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh = true) override;
-	const TSet<FString>& GetAdditionalPluginSearchPaths() const override;
+	virtual bool RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh = true) override;
+	virtual const TSet<FString>& GetAdditionalPluginSearchPaths() const override;
+	virtual void GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const override;
 	virtual TArray<TSharedRef<IPlugin>> GetPluginsWithPakFile() const override;
 	virtual FNewPluginMountedEvent& OnNewPluginCreated() override;
 	virtual FNewPluginMountedEvent& OnNewPluginMounted() override;
@@ -358,6 +360,9 @@ private:
 	bool bPreloadedBinaries = false;
 
 	/** List of additional directory paths to search for plugins within */
+	TSet<FExternalPluginPath> ExternalPluginSources;
+
+	/** Projection of ExternalPluginSources paths only; maintained for backward compatibility */
 	TSet<FString> PluginDiscoveryPaths;
 
 	/** Callback for notifications that a new plugin was mounted */

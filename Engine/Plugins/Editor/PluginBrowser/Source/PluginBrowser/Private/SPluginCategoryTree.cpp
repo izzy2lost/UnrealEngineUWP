@@ -3,6 +3,7 @@
 #include "SPluginCategoryTree.h"
 #include "Framework/Views/TableViewMetadata.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ConfigCacheIni.h"
 #include "SPluginCategory.h"
 #include "SPluginBrowser.h"
 #include "Widgets/Views/STreeView.h"
@@ -224,6 +225,20 @@ void SPluginCategoryTree::RebuildAndFilterCategoryTree()
 	if (RootCategories.Num() > 0)
 	{
 		RootCategories.Insert(AllCategory, 0);
+	}
+
+	// Optionally hide some categories
+	{
+		TArray<FString> HiddenCategoryNames;
+		GConfig->GetArray(TEXT("EditorSettings"), TEXT("HidePluginCategoriesFromBrowser"), HiddenCategoryNames, GEditorIni);
+
+		for (TArray<TSharedPtr<FPluginCategory>>::TIterator CategoryIter = RootCategories.CreateIterator(); CategoryIter; ++CategoryIter)
+		{
+			if (HiddenCategoryNames.Contains((*CategoryIter)->Name))
+			{
+				CategoryIter.RemoveCurrent();
+			}
+		}
 	}
 
 	// Sort every single category alphabetically

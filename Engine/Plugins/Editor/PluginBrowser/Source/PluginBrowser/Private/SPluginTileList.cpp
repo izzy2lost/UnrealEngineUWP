@@ -137,7 +137,7 @@ void SPluginTileList::SetNeedsRefresh()
 FVector2D SPluginTileList::GetListBorderFadeDistance() const
 {
 	// Negative fade distance when there is no restart editor warning to make the shadow disappear
-	FVector2D ReturnVal = FPluginBrowserModule::Get().HasPluginsPendingEnable() ? FVector2D(0.01f, 0.01f) : FVector2D(-1.0f, -1.0f);
+	FVector2D ReturnVal = FPluginBrowserModule::Get().ShowPendingRestart() ? FVector2D(0.01f, 0.01f) : FVector2D(-1.0f, -1.0f);
 
 	return ReturnVal;
 }

@@ -3,6 +3,7 @@
 #pragma once 
 
 #include "IPluginBrowser.h"
+#include "Interfaces/IPluginManager.h"
 
 class IModuleInterface;
 class IPluginWizardDefinition;
@@ -13,6 +14,8 @@ class SWindow;
 class FSpawnTabArgs;
 
 DECLARE_MULTICAST_DELEGATE(FOnNewPluginCreated);
+
+DECLARE_LOG_CATEGORY_EXTERN(LogPluginBrowser, Log, All);
 
 class FPluginBrowserModule : public IPluginBrowser
 {
@@ -41,6 +44,7 @@ public:
 	void BroadcastNewPluginCreated() const {NewPluginCreatedDelegate.Broadcast();}
 
 	virtual FOnLaunchReferenceViewer& OnLaunchReferenceViewerDelegate() override { return LaunchReferenceViewerDelegate; }
+	virtual FOnPluginDirectoriesChanged& OnPluginDirectoriesChanged() override { return OnPluginDirectoriesChangedDelegate; }
 
 	/**
 	 * Sets whether a plugin is pending enable/disable
@@ -69,11 +73,17 @@ public:
 	/** Checks whether the given plugin should be displayed with a 'NEW' label */
 	bool IsNewlyInstalledPlugin(const FString& PluginName) const;
 
+	/** Whether the restart editor notice should be displayed. */
+	bool ShowPendingRestart() const;
+
 	/** ID name for the plugins editor major tab */
 	static const FName PluginsEditorTabName;
 
 	/** ID name for the plugin creator tab */
 	static const FName PluginCreatorTabName;
+
+	/** ID name for the external plugin directories tab */
+	static const FName ExternalDirectoriesTabName;
 
 	/** Spawns the plugin creator tab with a specific wizard definition */
 	virtual TSharedRef<SDockTab> SpawnPluginCreatorTab(const FSpawnTabArgs& SpawnTabArgs, TSharedPtr<IPluginWizardDefinition> PluginWizardDefinition) override;
@@ -88,6 +98,9 @@ private:
 
 	/** Called to spawn the plugin creator tab */
 	TSharedRef<SDockTab> HandleSpawnPluginCreatorTab(const FSpawnTabArgs& SpawnTabArgs);
+
+	/** Called to spawn the external directories tab */
+	TSharedRef<SDockTab> HandleSpawnExternalDirectoriesTab(const FSpawnTabArgs& SpawnTabArgs);
 
 	/** Callback for the main frame finishing load */
 	void OnMainFrameLoaded(TSharedPtr<SWindow> InRootWindow, bool bIsRunningStartupDialog);
@@ -123,11 +136,20 @@ private:
 	/** List of plugins that have been recently installed */
 	TSet<FString> NewlyInstalledPlugins;
 
+	/** External plugin sources configuration as captured at startup. */
+	TSet<FExternalPluginPath> OriginalExternalSources;
+
+	/** Most recently queried plugin sources configuration. */
+	mutable TSet<FExternalPluginPath> LastQueriedExternalSources;
+
 	/** Delegate called when a new plugin is created */
 	FOnNewPluginCreated NewPluginCreatedDelegate;
 
 	/** Delegate that if bound the Plugin Browser will show the Reference Viewer button. Delegate called when the button is clicked */
 	FOnLaunchReferenceViewer LaunchReferenceViewerDelegate;
+
+	/** Called when the external plugin directories configuration is modified via the browser. */
+	FOnPluginDirectoriesChanged OnPluginDirectoriesChangedDelegate;
 
 	/** Notification popup that new plugins are available */
 	TWeakPtr<SNotificationItem> NewPluginsNotification;

@@ -23,6 +23,7 @@
 #include "Styling/StyleColors.h"
 #include "SWarningOrErrorBox.h"
 #include "Widgets/Views/SListView.h" // IWYU pragma: keep
+#include "Misc/ConfigCacheIni.h"
 
 #define LOCTEXT_NAMESPACE "PluginsEditor"
 
@@ -145,19 +146,25 @@ void SPluginBrowser::Construct( const FArguments& Args )
 		+ SVerticalBox::Slot()
 		.AutoHeight()
 		[
-			// Add Plugin button
 			SNew(SHorizontalBox)
 
+			// Add Plugin button
 			+SHorizontalBox::Slot()
 			.VAlign(VAlign_Center)
 			.HAlign(HAlign_Left)
-			.Padding(FMargin(12, 7, 18, 7))
+			.Padding(FMargin(12, 7, 0, 7))
 			.AutoWidth()
 			[
 				SNew(SButton)
 				.ToolTip(SNew(SToolTip).Text(LOCTEXT("NewPluginEnabled", "Click here to open the Plugin Creator dialog.")))
-				.OnClicked(this, &SPluginBrowser::HandleNewPluginButtonClicked)
 				.ContentPadding(FMargin(0, 5.f, 0, 4.f))
+				.OnClicked(this, &SPluginBrowser::HandleNewPluginButtonClicked)
+				.IsEnabled_Static([]()
+				{
+					bool bCreateEnabled = true;
+					GConfig->GetBool(TEXT("EditorSettings"), TEXT("bCanCreatePluginsFromBrowser"), bCreateEnabled, GEditorIni);
+					return bCreateEnabled;
+				})
 				.Content()
 				[
 					SNew(SHorizontalBox)
@@ -177,6 +184,43 @@ void SPluginBrowser::Construct( const FArguments& Args )
 						SNew(STextBlock)
 						.TextStyle(FAppStyle::Get(), "SmallButtonText")
 						.Text(LOCTEXT("NewPluginLabel", "Add"))
+					]
+				]
+			]
+
+			// Plugin Directories button
+			+SHorizontalBox::Slot()
+			.VAlign(VAlign_Center)
+			.HAlign(HAlign_Left)
+			.Padding(FMargin(7, 7, 18, 7))
+			.AutoWidth()
+			[
+				SNew(SButton)
+				.ToolTip(SNew(SToolTip).Text(LOCTEXT("PluginDirectoriesTooltip", "Click here to configure additional plugin search directories.")))
+				.OnClicked_Static([]() -> FReply
+				{
+					FGlobalTabmanager::Get()->TryInvokeTab(FPluginBrowserModule::ExternalDirectoriesTabName);
+					return FReply::Handled();
+				})
+				.ContentPadding(FMargin(0, 5.f, 0, 4.f))
+				.Content()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot()
+					.HAlign(HAlign_Center)
+					.VAlign(VAlign_Center)
+					[
+						SNew(SImage)
+						.Image(FPluginStyle::Get()->GetBrush("Plugins.TabIcon"))
+					]
+					+ SHorizontalBox::Slot()
+					.Padding(FMargin(3, 0, 0, 0))
+					.VAlign(VAlign_Center)
+					.AutoWidth()
+					[
+						SNew(STextBlock)
+						.TextStyle(FAppStyle::Get(), "SmallButtonText")
+						.Text(LOCTEXT("PluginDirectoriesLabel", "Plugin Directories"))
 					]
 				]
 			]
@@ -308,7 +352,7 @@ void SPluginBrowser::Tick(const FGeometry& AllottedGeometry, const double InCurr
 
 EVisibility SPluginBrowser::HandleRestartEditorNoticeVisibility() const
 {
-	return FPluginBrowserModule::Get().HasPluginsPendingEnable() ? EVisibility::Visible : EVisibility::Collapsed;
+	return FPluginBrowserModule::Get().ShowPendingRestart() ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
 FReply SPluginBrowser::HandleRestartEditorButtonClicked() const

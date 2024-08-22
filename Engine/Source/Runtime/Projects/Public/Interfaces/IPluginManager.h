@@ -45,6 +45,42 @@ enum class EPluginType
 	Mod,
 };
 
+/**
+ * Enum describing a source of EPluginType::External plugins
+ */
+enum class EPluginExternalSource
+{
+	/** .uproject `AdditionalPluginDirectories` field */
+	ProjectDescriptor,
+
+	/** Passed via `-plugin=` command line switch. */
+	CommandLine,
+
+	/** Inherited from `UE_ADDITIONAL_PLUGIN_PATHS` environment variable. */
+	Environment,
+
+	/** None of the above (e.g. added explicitly by external code). */
+	Other,
+};
+
+/**
+ * Combination of a directory searched for external plugins, and its configuration source.
+ */
+struct FExternalPluginPath
+{
+	FString Path;
+	EPluginExternalSource Source;
+
+	inline bool operator==(const FExternalPluginPath& Other) const
+	{
+		return (Other.Path == Path) && (Other.Source == Source);
+	}
+
+	friend uint32 GetTypeHash(const FExternalPluginPath& ExternalPluginPath)
+	{
+		return HashCombine(GetTypeHash(ExternalPluginPath.Path), GetTypeHash(ExternalPluginPath.Source));
+	}
+};
 
 /**
  * Simple data structure that is filled when querying information about plug-ins.
@@ -422,9 +458,26 @@ public:
 	virtual bool AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh = true) = 0;
 
 	/**
+	 * Removes the specified path from consideration for available plugins.
+	 * Optionally refreshes the manager after the path has been removed.
+	 *
+	 * @param  PathToRemove			The path no longer searched for additional plugins.
+	 * @param  bRefresh				Signals the function to refresh the plugin database after the path has been removed
+	 * @return Whether the plugin search path was modified
+	 */
+	virtual bool RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh = true) = 0;
+
+	/**
 	 * Returns the list of extra directories that are recursively searched for plugins (aside from the engine and project plugin directories).
+	 * NOTE: You may also want to check IProjectManager::GetAdditionalPluginDirectories, which are not included here!
 	 */
 	virtual const TSet<FString>& GetAdditionalPluginSearchPaths() const = 0;
+
+	/**
+	 * Similar to GetAdditionalPluginSearchPaths, but also returns configuration sources for each path.
+	 * Unlike GetAdditionalPluginSearchPaths, this DOES include AdditionalPluginDirectories from the uproject descriptor.
+	 */
+	virtual void GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const = 0;
 
 	/**
 	 * Gets an array of plugins that loaded their own content pak file

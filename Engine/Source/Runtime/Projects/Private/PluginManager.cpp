@@ -100,19 +100,14 @@ namespace PluginSystemDefs
 	static const TCHAR* PluginDescriptorFileExtension = TEXT( ".uplugin" );
 
 	/**
-	 * Parsing the command line and loads any foreign plugins that were
-	 * specified using the -PLUGIN= command.
+	 * Append all paths specified using the -PLUGIN= switch.
 	 *
-	 * @param  CommandLine    The commandline used to launch the editor.
-	 * @param  SearchPathsOut 
-	 * @return The number of plugins that were specified using the -PLUGIN param.
+	 * @param  PluginPathsOut Has a value added for each -PLUGIN=value pair.
 	 */
-	static int32 GetAdditionalPluginPaths(TSet<FString>& PluginPathsOut)
+	static void GetCmdLinePluginPaths(TSet<FExternalPluginPath>& PluginPathsOut)
 	{
 		const TCHAR* SwitchStr = TEXT("PLUGIN=");
 		const int32  SwitchLen = FCString::Strlen(SwitchStr);
-
-		int32 PluginCount = 0;
 
 		const TCHAR* SearchStr = FCommandLine::Get();
 		do
@@ -123,9 +118,7 @@ namespace PluginSystemDefs
 			if (FParse::Value(SearchStr, SwitchStr, PluginPath))
 			{
 				FString PluginDir = FPaths::GetPath(PluginPath);
-				PluginPathsOut.Add(PluginDir);
-
-				++PluginCount;
+				PluginPathsOut.Add(FExternalPluginPath{ PluginDir, EPluginExternalSource::CommandLine });
 				SearchStr += SwitchLen + PluginPath.Len();
 			}
 			else
@@ -133,13 +126,20 @@ namespace PluginSystemDefs
 				break;
 			}
 		} while (SearchStr != nullptr);
+	}
 
+	/**
+	 * Retrieve a list of all paths specified via the UE_ADDITIONAL_PLUGIN_PATHS environment variable.
+	 *
+	 * @param  PluginPathsOut A list of values split from the environment variable.
+	 */
+	static void GetEnvPluginPaths(TSet<FExternalPluginPath>& PluginPathsOut)
+	{
 		TArray<FString> AdditionalEnvPaths = UE::PluginManager::Private::GetAdditionalExternalPluginsByEnvVar();
 		for (const FString& Path : AdditionalEnvPaths)
 		{
-			PluginPathsOut.Add(Path);
+			PluginPathsOut.Add(FExternalPluginPath{ Path, EPluginExternalSource::Environment });
 		}
-		return PluginCount;
 	}
 
 
@@ -157,7 +157,7 @@ namespace PluginSystemDefs
  * Set of simple (ideally inlinable) helper methods intended to obscure how 
  * `FDiscoveredPluginMap` is implemented (so that we can more easily change out it's type as needed).
  * 
- * Also dictactes how we separate the one "offered"  plugin out from other versions of the same plugin 
+ * Also dictates how we separate the one "offered"  plugin out from other versions of the same plugin 
  * (see DiscoveredPluginMapUtils::EInsertionType).
  */
 namespace DiscoveredPluginMapUtils
@@ -752,7 +752,13 @@ void FPluginManager::DiscoverAllPlugins()
 {
 	ensure( AllPlugins.Num() == 0 );		// Should not have already been initialized!
 
-	PluginSystemDefs::GetAdditionalPluginPaths(PluginDiscoveryPaths);
+	PluginSystemDefs::GetCmdLinePluginPaths(ExternalPluginSources);
+	PluginSystemDefs::GetEnvPluginPaths(ExternalPluginSources);
+	for (const FExternalPluginPath& ExternalSource : ExternalPluginSources)
+	{
+		PluginDiscoveryPaths.Add(ExternalSource.Path);
+	}
+
 	ReadAllPlugins(AllPlugins, PluginDiscoveryPaths);
 
 	PluginsToConfigure.Reserve(AllPlugins.Num());
@@ -3173,18 +3179,50 @@ TSharedPtr<IPlugin> FPluginManager::GetModuleOwnerPlugin(FName ModuleName) const
 
 bool FPluginManager::AddPluginSearchPath(const FString& ExtraDiscoveryPath, bool bRefresh)
 {
+	const FString FullPath = FPaths::ConvertRelativePathToFull(ExtraDiscoveryPath);
+
 	bool bAlreadyExists = false;
-	PluginDiscoveryPaths.Add(FPaths::ConvertRelativePathToFull(ExtraDiscoveryPath), &bAlreadyExists);
+	ExternalPluginSources.Add(FExternalPluginPath{ FullPath, EPluginExternalSource::Other });
+	PluginDiscoveryPaths.Add(FullPath, &bAlreadyExists);
+
 	if (bRefresh)
 	{
 		RefreshPluginsList();
 	}
+
 	return !bAlreadyExists;
+}
+
+bool FPluginManager::RemovePluginSearchPath(const FString& PathToRemove, bool bRefresh)
+{
+	const FString FullPath = FPaths::ConvertRelativePathToFull(PathToRemove);
+
+	const bool bPathWasPresent = PluginDiscoveryPaths.Contains(FullPath);
+
+	ExternalPluginSources.Remove(FExternalPluginPath{ FullPath, EPluginExternalSource::Other });
+	PluginDiscoveryPaths.Remove(FullPath);
+
+	if (bRefresh)
+	{
+		RefreshPluginsList();
+	}
+
+	return bPathWasPresent;
 }
 
 const TSet<FString>& FPluginManager::GetAdditionalPluginSearchPaths() const
 {
 	return PluginDiscoveryPaths;
+}
+
+void FPluginManager::GetExternalPluginSources(TSet<FExternalPluginPath>& OutPluginSources) const
+{
+	OutPluginSources.Append(ExternalPluginSources);
+
+	for (const FString& ProjectPath : IProjectManager::Get().GetAdditionalPluginDirectories())
+	{
+		OutPluginSources.Add(FExternalPluginPath{ ProjectPath, EPluginExternalSource::ProjectDescriptor });
+	}
 }
 
 TArray<TSharedRef<IPlugin>> FPluginManager::GetPluginsWithPakFile() const
