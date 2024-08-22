@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Common.ush"
+#include "ComputeShaderUtils.ush"
 
 #define RESOURCE_TYPE_FLOAT4_BUFFER				(0)
 #define RESOURCE_TYPE_STRUCTURED_BUFFER			(1)
@@ -88,8 +89,10 @@ struct FUint8
 #endif
 
 [numthreads(64, 1, 1)]
-void MemsetBufferCS( uint ThreadId : SV_DispatchThreadID ) 
+void MemsetBufferCS( uint3 GroupID : SV_GroupID, uint GroupIndex : SV_GroupIndex )
 {
+	const uint ThreadId = GetUnWrappedDispatchThreadId(GroupID, GroupIndex, 64);
+
 #if RESOURCE_TYPE == RESOURCE_TYPE_FLOAT4_BUFFER
 	// Size is in float4s
 	if (ThreadId < Size)
