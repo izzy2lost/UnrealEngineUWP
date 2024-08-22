@@ -32,11 +32,20 @@ UEdGraphNode* FAISchemaAction_AddComment::PerformAction(class UEdGraph* ParentGr
 	FSlateRect Bounds;
 
 	TSharedPtr<SGraphEditor> GraphEditorPtr = SGraphEditor::FindGraphEditorForGraph(ParentGraph);
-	if (GraphEditorPtr.IsValid() && GraphEditorPtr->GetBoundsForSelectedNodes(/*out*/ Bounds, 50.0f))
+	if (GraphEditorPtr.IsValid())
 	{
-		CommentTemplate->SetBounds(Bounds);
-		SpawnLocation.X = CommentTemplate->NodePosX;
-		SpawnLocation.Y = CommentTemplate->NodePosY;
+		// If they have a selection, build a bounding box around the selection
+		if (GraphEditorPtr->GetBoundsForSelectedNodes(/*out*/ Bounds, 50.0f))
+		{
+			CommentTemplate->SetBounds(Bounds);
+			SpawnLocation.X = CommentTemplate->NodePosX;
+			SpawnLocation.Y = CommentTemplate->NodePosY;
+		}
+		else
+		{
+			// Otherwise initialize a default comment at the user's cursor location.
+			SpawnLocation = GraphEditorPtr->GetPasteLocation();
+		}
 	}
 
 	UEdGraphNode* const NewNode = FEdGraphSchemaAction_NewNode::SpawnNodeFromTemplate<UEdGraphNode_Comment>(ParentGraph, CommentTemplate, SpawnLocation, bSelectNewNode);

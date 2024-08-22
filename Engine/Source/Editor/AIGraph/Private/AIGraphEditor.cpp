@@ -512,7 +512,7 @@ bool FAIGraphEditor::CanDuplicateNodes() const
 bool FAIGraphEditor::CanCreateComment() const
 {
  	TSharedPtr<SGraphEditor> CurrentGraphEditor = UpdateGraphEdPtr.Pin();
- 	return CurrentGraphEditor.IsValid() ? (CurrentGraphEditor->GetNumberOfSelectedNodes() != 0) : false;
+	return CurrentGraphEditor.IsValid();
 }
 
 void FAIGraphEditor::OnCreateComment()

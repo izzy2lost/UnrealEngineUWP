@@ -13,7 +13,7 @@ class UEdGraph;
 
 /** Action to add a comment to the graph */
 USTRUCT()
-struct FAISchemaAction_AddComment : public FEdGraphSchemaAction
+struct AIGRAPH_API FAISchemaAction_AddComment : public FEdGraphSchemaAction
 {
 	GENERATED_BODY()
 	
