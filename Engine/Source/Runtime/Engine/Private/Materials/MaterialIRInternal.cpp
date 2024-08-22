@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Materials/MaterialIRUtility.h"
+#include "Materials/MaterialIRInternal.h"
 #include "Materials/MaterialAttributeDefinitionMap.h"
 #include "Materials/MaterialIREmitter.h"
 #include "Materials/Material.h"
@@ -8,9 +8,7 @@
 
 #if WITH_EDITOR
 
-namespace MIR = UE::MIR;
-
-namespace UE::Utility {
+namespace UE::MIR::Internal {
 
 bool IsMaterialPropertyShared(EMaterialProperty InProperty)
 {
@@ -45,7 +43,7 @@ bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, F
 	for (; PropertyIndex < MP_MAX; ++PropertyIndex)
 	{
 		EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
-		if (Utility::IsMaterialPropertyShared(Property)
+		if (MIR::Internal::IsMaterialPropertyShared(Property)
 			&& Property != MP_SubsurfaceColor
 			&& Property != MP_FrontMaterial
 			&& BaseMaterial->GetExpressionInputDescription(Property, Input))
@@ -57,7 +55,7 @@ bool NextMaterialAttributeInput(UMaterial* BaseMaterial, int32& PropertyIndex, F
 	return false;
 }
 
-MIR::FValue* CreateMaterialAttributeDefaultValue(MIR::FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property)
+MIR::FValue* CreateMaterialAttributeDefaultValue(FEmitter& Emitter, const UMaterial* Material, EMaterialProperty Property)
 {
 	EMaterialValueType Type = FMaterialAttributeDefinitionMap::GetValueType(Property);
 	FVector4f DefaultValue = FMaterialAttributeDefinitionMap::GetDefaultValue(Property);
@@ -93,5 +91,6 @@ EMaterialTextureParameterType TextureMaterialValueTypeToParameterType(EMaterialV
 	}
 }
 
-} // namespace Utility
+} // namespace UE::MIR::Internal
+
 #endif

@@ -14,7 +14,7 @@ enum EMaterialProperty : int;
 class FMaterial;
 class FMaterialIRModule;
 class FMaterialIRModule;
-class FMaterialIRModuleBuilder;
+struct FMaterialIRModuleBuilder;
 class ITargetPlatform;
 class UMaterial;
 class UMaterialExpression;
@@ -25,6 +25,8 @@ struct FStaticParameterSet;
 struct FMaterialInputDescription;
 struct FMaterialInsights;
 class UTexture;
+class UMaterialExpressionMaterialFunctionCall;
+struct FMaterialIRModuleBuilderImpl;
 
 namespace UE::Shader
 {
@@ -38,10 +40,10 @@ namespace UE::MIR
 
 /* Types*/
 struct FType;
-struct FArithmeticType;
+struct FPrimitiveType;
 
 using FTypePtr = const FType*;
-using FArithmeticTypePtr = const FArithmeticType*;
+using FPrimitiveTypePtr = const FPrimitiveType*;
 
 /* IR */
 struct FValue;

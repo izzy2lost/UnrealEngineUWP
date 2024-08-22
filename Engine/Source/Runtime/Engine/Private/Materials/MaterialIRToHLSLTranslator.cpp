@@ -4,7 +4,7 @@
 #include "Materials/MaterialIRModule.h"
 #include "Materials/MaterialIRTypes.h"
 #include "Materials/MaterialIR.h"
-#include "MaterialIRUtility.h"
+#include "MaterialIRInternal.h"
 
 #include "ShaderCore.h"
 #include "MaterialShared.h"
@@ -226,7 +226,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 		for (int32 PropertyIndex = 0; PropertyIndex < MP_MAX; ++PropertyIndex)
 		{
 			EMaterialProperty Property = (EMaterialProperty)PropertyIndex;
-			if (!UE::Utility::IsMaterialPropertyShared(Property))
+			if (!MIR::Internal::IsMaterialPropertyShared(Property))
 			{
 				continue;
 			}
@@ -268,14 +268,19 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 
 			LowerInstruction(Instr);
 
-            if (Printer.Buffer.EndsWith(TEXT("}")))
+			if (Printer.Buffer.EndsWith(TEXT("}")))
 			{
-                Printer << NewLine;
-            }
-            else
+				Printer << NewLine;
+			}
+			else
 			{
-                Printer << EndOfStatement;
-            }
+				Printer << EndOfStatement;
+			}
+
+			if (Instr->Kind == MIR::VK_SetMaterialOutput)
+			{
+				Printer << NewLine;
+			}
         }
 
         NumLocals = OldNumLocals;
@@ -324,16 +329,16 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 			default:
 				UE_MIR_UNREACHABLE();
 		}
-
+	
 		return NoOp;
 	}
 
 	void LowerConstant(const MIR::FConstant* Constant)
 	{
-		MIR::FArithmeticTypePtr ArithType = Constant->Type->AsArithmetic();
-		check(ArithType && ArithType->IsScalar());
+		MIR::FPrimitiveTypePtr checkNoEntry = Constant->Type->AsPrimitive();
+		check(checkNoEntry && checkNoEntry->IsScalar());
 
-		switch (ArithType->ScalarKind)
+		switch (checkNoEntry->ScalarKind)
 		{
 			case MIR::SK_Bool:  Printer.Buffer.Append(Constant->Boolean ? TEXT("true") : TEXT("false")); break;
 			case MIR::SK_Int:   Printer.Buffer.Appendf(TEXT("%") PRId64, Constant->Integer); break;
@@ -373,7 +378,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 	
 	void LowerDimensional(const MIR::FDimensional* Dimensional) 
 	{
-		MIR::FArithmeticTypePtr ArithmeticType = Dimensional->Type->AsArithmetic();
+		MIR::FPrimitiveTypePtr ArithmeticType = Dimensional->Type->AsPrimitive();
 		check(ArithmeticType && ArithmeticType->IsVector());
 
 		Printer << ScalarKindToString(ArithmeticType->ScalarKind) << ArithmeticType->NumRows << BeginArgs;
@@ -440,7 +445,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 	{
 		LowerValue(Subscript->Arg);
 
-		if (MIR::FArithmeticTypePtr ArgArithmeticType = Subscript->Arg->Type->AsVector())
+		if (MIR::FPrimitiveTypePtr ArgArithmeticType = Subscript->Arg->Type->AsVector())
 		{
 			const TCHAR* ComponentsStr[] = { TEXT(".x"), TEXT(".y"), TEXT(".z"), TEXT(".w") };
 			check(Subscript->Index <= ArgArithmeticType->GetNumComponents());
@@ -643,7 +648,7 @@ struct FTranslator : FMaterialIRToHLSLTranslation
 	
 	ENoOp LowerType(const MIR::FType* Type)
 	{
-		if (auto ArithmeticType = Type->AsArithmetic())
+		if (auto ArithmeticType = Type->AsPrimitive())
 		{
 			switch (ArithmeticType->ScalarKind)
 			{

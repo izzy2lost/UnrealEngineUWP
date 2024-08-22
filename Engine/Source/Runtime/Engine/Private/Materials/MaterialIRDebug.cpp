@@ -31,7 +31,7 @@ static void DumpValueInfo(const MIR::FValue* Value, FString& Out)
 {
 	if (auto Constant = Value->As<MIR::FConstant>())
 	{
-		switch (Constant->Type->AsArithmetic()->ScalarKind)
+		switch (Constant->Type->AsPrimitive()->ScalarKind)
 		{
 			case MIR::SK_Bool:	Out.Append(Constant->Boolean ? TEXT("true") : TEXT("false")); break;
 			case MIR::SK_Int:	Out.Appendf(TEXT("%lld"), Constant->Integer); break;
@@ -46,14 +46,23 @@ static void DumpValueInfo(const MIR::FValue* Value, FString& Out)
 	else if (auto SetMaterailOutput = Value->As<MIR::FSetMaterialOutput>())
 	{
 		const FString& PropertyName = (SetMaterailOutput->Property == MP_SubsurfaceColor)
-		? TEXT("Subsurface")
-		: FMaterialAttributeDefinitionMap::GetAttributeName(SetMaterailOutput->Property);
+			? TEXT("Subsurface")
+			: FMaterialAttributeDefinitionMap::GetAttributeName(SetMaterailOutput->Property);
 		
 		Out.Append(PropertyName);
 	}
 	else if (auto Subscript = Value->As<MIR::FSubscript>())
 	{
-		Out.Appendf(TEXT("Index: %d"), Subscript->Index);
+		if (Subscript->Arg->Type->AsVector())
+		{
+			static const TCHAR* Suffix[] = { TEXT(".x"), TEXT(".y"), TEXT(".z"), TEXT(".w") };
+			check(Subscript->Index < 4); 
+			Out.Append(Suffix[Subscript->Index]);
+		}
+		else
+		{
+			Out.Appendf(TEXT("Index: %d"), Subscript->Index);
+		}
 	}
 	else if (auto BinaryOperator = Value->As<MIR::FBinaryOperator>())
 	{
@@ -65,7 +74,7 @@ static void DumpUseInfo(const MIR::FValue* Value, const MIR::FValue* Use, int Us
 {
 	if (auto Dimensional = Value->As<MIR::FDimensional>())
 	{
-		if (Dimensional->Type->AsArithmetic()->IsVector())
+		if (Dimensional->Type->AsPrimitive()->IsVector())
 		{
 			check(UseIndex < 4);
 			Out.AppendChar(TEXT("xyzw")[UseIndex]);
@@ -117,7 +126,7 @@ void DebugDumpIRUseGraph(const FMaterialIRModule& Module)
 		const MIR::FValue* Value = ValueStack.Pop();
 
 		// Begin the node declaration
-		Content.Appendf(TEXT("\"%p\" [label=\"%s (%s)\n"),
+		Content.Appendf(TEXT("\"%p\" [label=< <b>%s</b>  (%s) <br/> "),
 						Value,
 						MIR::ValueKindToString(Value->Kind),
 						Value->Type ? Value->Type->GetSpelling().GetData() : TEXT("???"));
@@ -125,7 +134,7 @@ void DebugDumpIRUseGraph(const FMaterialIRModule& Module)
 		DumpValueInfo(Value, Content);
 
 		// End the node declaration
-		Content.Append(TEXT("\"]\n"));
+		Content.Append(TEXT(">]\n"));
 
 		const MIR::FInstruction* Instr = Value->AsInstruction();
 		if (DumpInstructionSequence && Instr && Instr->Next)

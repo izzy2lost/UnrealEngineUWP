@@ -3,6 +3,7 @@
 #include "Materials/MaterialIREmitter.h"
 #include "Materials/MaterialIRModule.h"
 #include "Materials/MaterialIRModuleBuilder.h"
+#include "Materials/MaterialIRInternal.h"
 #include "Shader/ShaderTypes.h"
 #include "MaterialShared.h"
 #include "MaterialExpressionIO.h"
@@ -93,7 +94,7 @@ struct FEmitter::FPrivate
 };
 
 // Creates a new `FDimensional` value of specified `Type` and returns it.
-static FDimensional* NewDimensionalValue(FEmitter* Emitter, FArithmeticTypePtr Type)
+static FDimensional* NewDimensionalValue(FEmitter* Emitter, FPrimitiveTypePtr Type)
 {
 	check(!Type->IsScalar());
 
@@ -175,7 +176,7 @@ static FName SlowFindInputName(UMaterialExpression* Expression, const FExpressio
 
 // FEmitter API
 
-FEmitter::FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule)
+FEmitter::FEmitter(FMaterialIRModuleBuilderImpl* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule)
 {
 	Builder = InBuilder;
 	Material = InMaterial;
@@ -184,8 +185,8 @@ FEmitter::FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, F
 
 FValue*  FEmitter::TryGet(const FExpressionInput* Input)
 {
-	FValue** Value = Builder->InputValues.Find(Input);
-	return Value ? *Value : nullptr;
+	FValue* Value = MIR::Internal::GetInputValue(Builder, Input);
+	return Value ? Value : nullptr;
 }
 
 FValue* FEmitter::Get(const FExpressionInput* Input)
@@ -208,7 +209,7 @@ FEmitter& FEmitter::Put(int OutputIndex, FValue* Value)
 FEmitter& FEmitter::Put(const FExpressionOutput* Output, FValue* Value)
 {
 	check(Output);
-	Builder->OutputValues.Add(Output, Value);
+	MIR::Internal::SetOutputValue(Builder, Output, Value);
 	return *this;
 }
 
@@ -221,7 +222,7 @@ FEmitter& FEmitter::DefaultTo(const FExpressionInput* Input, TFloat Float)
 {
 	if (!Input->IsConnected())
 	{
-		Builder->InputValues.Add(Input, EmitConstantFloat1(Float));
+		Internal::SetInputValue(Builder, Input, EmitConstantFloat1(Float));
 	}
 
 	return *this;
@@ -236,20 +237,20 @@ FValue* FEmitter::GetFloat(const FExpressionInput* Input)
 
 FValue* FEmitter::GetScalar(const FExpressionInput* Input)
 {
-	FValue* Value = GetArithmetic(Input);
+	FValue* Value = GetPrimitive(Input);
 	if (!Value)
 	{
 		return nullptr;
 	}
 
-	FArithmeticTypePtr ScalarType = Value->Type->AsArithmetic()->ToScalar();
+	FPrimitiveTypePtr ScalarType = Value->Type->AsPrimitive()->ToScalar();
 	return EmitConstruct(ScalarType, Value);
 }
 
-FValue* FEmitter::GetArithmetic(const FExpressionInput* Input)
+FValue* FEmitter::GetPrimitive(const FExpressionInput* Input)
 {
 	FValue* Value = Get(Input);
-	CheckInputTypeIs(Input, Value, TK_Arithmetic);
+	CheckInputTypeIs(Input, Value, TK_Primitive);
 	return Value;
 }
 
@@ -277,8 +278,8 @@ bool FEmitter::CheckValueValid(const FValue* Value)
 
 void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue)
 {
-	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
-	if (!ArithmeticType || !ArithmeticType->IsScalar())
+	FPrimitiveTypePtr PrimitiveType = InputValue->Type->AsPrimitive();
+	if (!PrimitiveType || !PrimitiveType->IsScalar())
 	{
 		Errorf(TEXT("Input '%s' expected to be a scalar. It is %s instead."), *SlowFindInputName(Expression, Input).ToString(), InputValue->Type->GetSpelling().GetData());
 	}
@@ -286,8 +287,8 @@ void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputVa
 
 void FEmitter::CheckInputIsScalar(const FExpressionInput* Input, FValue* InputValue, EScalarKind Kind)
 {
-	FArithmeticTypePtr ArithmeticType = InputValue->Type->AsArithmetic();
-	if (!ArithmeticType || !ArithmeticType->IsScalar() || ArithmeticType->ScalarKind != Kind)
+	FPrimitiveTypePtr PrimitiveType = InputValue->Type->AsPrimitive();
+	if (!PrimitiveType || !PrimitiveType->IsScalar() || PrimitiveType->ScalarKind != Kind)
 	{
 		Errorf(TEXT("Input '%s' expected to be a %s scalar. It is %s instead."), *SlowFindInputName(Expression, Input).ToString(), ScalarKindToString(Kind), InputValue->Type->GetSpelling().GetData());
 	}
@@ -349,7 +350,7 @@ FValue* FEmitter::EmitConstantBool1(bool InX)
 
 FValue* FEmitter::EmitConstantFloat1(TFloat InX)
 {
-	FConstant Scalar = MakePrototype<FConstant>(FArithmeticType::GetScalar(SK_Float));
+	FConstant Scalar = MakePrototype<FConstant>(FPrimitiveType::GetScalar(SK_Float));
 	Scalar.Float = InX;
 	return EmitPrototype(this, Scalar);
 }
@@ -380,7 +381,7 @@ FValue* FEmitter::EmitConstantFloat4(const FVector4f& InValue)
 
 FValue* FEmitter::EmitConstantInt1(TInteger InX)
 {
-	FConstant Scalar = MakePrototype<FConstant>(FArithmeticType::GetScalar(SK_Int));
+	FConstant Scalar = MakePrototype<FConstant>(FPrimitiveType::GetScalar(SK_Int));
 	Scalar.Integer = InX;
 	return EmitPrototype(this, Scalar);
 }
@@ -414,7 +415,7 @@ FValue* FEmitter::EmitVector2(FValue* InX, FValue* InY)
 	check(InX->Type->AsScalar());
 	check(InX->Type == InY->Type);
 
-	TDimensional<2> Vector = MakePrototype<TDimensional<2>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 2));
+	TDimensional<2> Vector = MakePrototype<TDimensional<2>>(FPrimitiveType::GetVector(InX->Type->AsPrimitive()->ScalarKind, 2));
 	TArrayView<FValue*> Components = Vector.GetComponents();
 	Components[0] = InX;
 	Components[1] = InY;
@@ -428,7 +429,7 @@ FValue* FEmitter::EmitVector3(FValue* InX, FValue* InY, FValue* InZ)
 	check(InX->Type == InY->Type);
 	check(InY->Type == InZ->Type);
 
-	TDimensional<3> Vector = MakePrototype<TDimensional<3>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 3));
+	TDimensional<3> Vector = MakePrototype<TDimensional<3>>(FPrimitiveType::GetVector(InX->Type->AsPrimitive()->ScalarKind, 3));
 	TArrayView<FValue*> Components = Vector.GetComponents();
 	Components[0] = InX;
 	Components[1] = InY;
@@ -444,7 +445,7 @@ FValue* FEmitter::EmitVector4(FValue* InX, FValue* InY, FValue* InZ, FValue* InW
 	check(InY->Type == InZ->Type);
 	check(InZ->Type == InW->Type);
 
-	TDimensional<4> Vector = MakePrototype<TDimensional<4>>(FArithmeticType::GetVector(InX->Type->AsArithmetic()->ScalarKind, 4));
+	TDimensional<4> Vector = MakePrototype<TDimensional<4>>(FPrimitiveType::GetVector(InX->Type->AsPrimitive()->ScalarKind, 4));
 	TArrayView<FValue*> Components = Vector.GetComponents();
 	Components[0] = InX;
 	Components[1] = InY;
@@ -463,8 +464,8 @@ FValue* FEmitter::GetExternalInput(EExternalInput Id)
 
 FValue* FEmitter::EmitSubscript(FValue* Value, int Index)
 {
-	FArithmeticTypePtr ArithmeticType = Value->Type->AsArithmetic();
-	if (!ArithmeticType)
+	FPrimitiveTypePtr PrimitiveType = Value->Type->AsPrimitive();
+	if (!PrimitiveType)
 	{
 		Errorf(TEXT("Value of type `%s` cannot be subscripted."), Value->Type->GetSpelling().GetData());
 		return nullptr;
@@ -490,7 +491,7 @@ FValue* FEmitter::EmitSubscript(FValue* Value, int Index)
 	}
 
 	// We can't resolve it at compile time: emit subscript value.
-	FSubscript Prototype = MakePrototype<FSubscript>(ArithmeticType->ToScalar());
+	FSubscript Prototype = MakePrototype<FSubscript>(PrimitiveType->ToScalar());
 	Prototype.Arg = Value;
 	Prototype.Index = Index;
 
@@ -502,9 +503,9 @@ FValue* FEmitter::EmitSwizzle(FValue* Value, FSwizzleMask Mask)
 	// At least one component must have been specified.
 	check(Mask.NumComponents > 0);
 
-	// We can only swizzle on non-matrix arithmetic types.
-	FArithmeticTypePtr ArithmeticType = Value->Type->AsVector();
-	if (!ArithmeticType || ArithmeticType->IsMatrix())
+	// We can only swizzle on non-matrix primitive types.
+	FPrimitiveTypePtr PrimitiveType = Value->Type->AsVector();
+	if (!PrimitiveType || PrimitiveType->IsMatrix())
 	{
 		Errorf(TEXT("Cannot swizzle a `%s` value."), Value->Type->GetSpelling().GetData());
 		return nullptr;
@@ -513,9 +514,9 @@ FValue* FEmitter::EmitSwizzle(FValue* Value, FSwizzleMask Mask)
 	// Make sure each component in the mask fits the number of components in Value.
 	for (EVectorComponent Component : Mask)
 	{
-		if ((int)Component >= ArithmeticType->NumRows)
+		if ((int)Component >= PrimitiveType->NumRows)
 		{
-			Errorf(TEXT("Value of type `%s` has no component `%s`."), ArithmeticType->Spelling.GetData(), VectorComponentToString(Component));
+			Errorf(TEXT("Value of type `%s` has no component `%s`."), PrimitiveType->Spelling.GetData(), VectorComponentToString(Component));
 			return nullptr;
 		}
 	}
@@ -528,7 +529,7 @@ FValue* FEmitter::EmitSwizzle(FValue* Value, FSwizzleMask Mask)
 
 	// If the requested number of components is the same as Value and the order in which the components
 	// are specified in the mask is sequential (e.g. x, y, z) then this is a no op, simply return Value as is.
-	if (Mask.NumComponents == ArithmeticType->GetNumComponents())
+	if (Mask.NumComponents == PrimitiveType->GetNumComponents())
 	{
 		bool InOrder = true;
 		for (int i = 0; i < Mask.NumComponents; ++i)
@@ -547,7 +548,7 @@ FValue* FEmitter::EmitSwizzle(FValue* Value, FSwizzleMask Mask)
 	}
 	
 	// Make the result vector type.
-	FArithmeticTypePtr ResultType = FArithmeticType::GetVector(ArithmeticType->ScalarKind, Mask.NumComponents);
+	FPrimitiveTypePtr ResultType = FPrimitiveType::GetVector(PrimitiveType->ScalarKind, Mask.NumComponents);
 	FDimensional* Result = NewDimensionalValue(this, ResultType);
 
 	for (int i = 0; i < Mask.NumComponents; ++i)
@@ -610,23 +611,95 @@ static bool FoldComparisonOperatorScalar(EBinaryOperator Operator, T Lhs, T Rhs)
 	}
 }
 
-static FValue* FoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Operator, const FConstant* Lhs, const FConstant* Rhs)
+static FValue* TryFoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Operator, FValue* Lhs, FValue* Rhs)
 {
-	FArithmeticTypePtr ArithType = Lhs->Type->AsArithmetic();
+	FPrimitiveTypePtr PrimitiveType = Lhs->Type->AsPrimitive();
+
+	// Check whether we can fold the operation based on identies (e.g. "x + 0 = x ∀ x ∈ R").
+	// These simplifications don't requre that both lhs and rhs are constant.
+	switch (Operator)
+	{
+		case BO_Add:
+			if (Lhs->IsConstantZero())
+			{
+				return Rhs;
+			}
+			else if (Rhs->IsConstantZero())
+			{
+				return Lhs;
+			}
+			break;
+
+		case BO_Subtract:
+			if (Rhs->IsConstantZero())
+			{
+				return Lhs;
+			}
+			else if (Lhs->IsConstantZero())
+			{
+				// return Emitter->EmitUnaryOperator(UO_Minus, Rhs);
+				UE_MIR_TODO();
+			}
+			break;
+
+		case BO_Multiply:
+			if (Lhs->IsConstantZero() || Rhs->IsConstantOne())
+			{
+				return Lhs;
+			}
+			else if (Lhs->IsConstantOne() || Rhs->IsConstantZero())
+			{
+				return Rhs;
+			}
+			break;
+
+		case BO_Divide:
+			if (Lhs->IsConstantZero() || Rhs->IsConstantOne())
+			{
+				return Lhs;
+			}
+			break;
+
+		case BO_GreaterThan:
+		case BO_LowerThan:
+		case BO_NotEquals:
+			if (Lhs->Equals(Rhs))
+			{
+				return Emitter->EmitConstantFalse();
+			}
+			break;
+
+		case BO_GreaterThanOrEquals:
+		case BO_LowerThanOrEquals:
+		case BO_Equals:
+			if (Lhs->Equals(Rhs))
+			{
+				return Emitter->EmitConstantTrue();
+			}
+			break;
+	}
+
+	// Verify that both lhs and rhs are constants, otherwise we cannot fold the operation.
+	const FConstant* LhsConstant = Lhs->As<FConstant>();
+	const FConstant* RhsConstant = Rhs->As<FConstant>();
+	if (!LhsConstant || !RhsConstant)
+	{
+		return nullptr;
+	}
 
 	if (IsArithmeticOperator(Operator))
 	{
-		switch (ArithType->ScalarKind)
+		switch (PrimitiveType->ScalarKind)
 		{
 			case SK_Int:
 			{
-				int Result = FoldScalarArithmeticOperator<TInteger>(Operator, Lhs->Integer, Rhs->Integer);
+				int Result = FoldScalarArithmeticOperator<TInteger>(Operator, LhsConstant->Integer, RhsConstant->Integer);
 				return Emitter->EmitConstantInt1(Result);
 			}
 
 			case SK_Float:
 			{
-				TFloat Result = FoldScalarArithmeticOperator<TFloat>(Operator, Lhs->Float, Rhs->Float);
+				TFloat Result = FoldScalarArithmeticOperator<TFloat>(Operator, LhsConstant->Float, RhsConstant->Float);
 				return Emitter->EmitConstantFloat1(Result);
 			}
 
@@ -637,14 +710,14 @@ static FValue* FoldBinaryOperatorScalar(FEmitter* Emitter, EBinaryOperator Opera
 	else if (IsComparisonOperator(Operator))
 	{
 		bool Result;
-		switch (ArithType->ScalarKind)
+		switch (PrimitiveType->ScalarKind)
 		{
 			case SK_Int:
-				Result = FoldComparisonOperatorScalar<TInteger>(Operator, Lhs->Integer, Rhs->Integer);
+				Result = FoldComparisonOperatorScalar<TInteger>(Operator, LhsConstant->Integer, RhsConstant->Integer);
 				break;
 
 			case SK_Float:
-				Result = FoldComparisonOperatorScalar<TFloat>(Operator, Lhs->Float, Rhs->Float);
+				Result = FoldComparisonOperatorScalar<TFloat>(Operator, LhsConstant->Float, RhsConstant->Float);
 				break;
 
 			default:
@@ -663,51 +736,96 @@ FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FVal
 	// Argument value types must always match.
 	check(Lhs->Type == Rhs->Type);
 
-	// Get the operands arithmetic type.
-	FArithmeticTypePtr ArithType = Lhs->Type->AsArithmetic();
-	check(ArithType);
+	// Get the operands primitive type.
+	FPrimitiveTypePtr PrimitiveType = Lhs->Type->AsPrimitive();
+	check(PrimitiveType);
 
-	// Try converting operands to scalar constants. If they're both so, fold the binary
-	// operator right away and return the result.
-	const FConstant* ScalarLhs = Lhs->As<FConstant>();
-	const FConstant* ScalarRhs = Rhs->As<FConstant>();
+	// Try converting operands to scalar constants
+	FConstant* ScalarLhs = Lhs->As<FConstant>();
+	FConstant* ScalarRhs = Rhs->As<FConstant>();
 
+	//  If they're both so, fold the binary operator right away and return the result.
 	if (ScalarLhs && ScalarRhs)
 	{
-		if (FValue* Value = FoldBinaryOperatorScalar(this, Operator, ScalarLhs, ScalarRhs))
+		if (FValue* Value = TryFoldBinaryOperatorScalar(this, Operator, ScalarLhs, ScalarRhs))
 		{
 			return Value;
 		}
 	}
 
-	// Determine the result type. If the operator is arithmetic, the result type will be the same
+	// Determine the result type. If the operator is primitive, the result type will be the same
 	// as the operands type. Otherwise it will have the same number of components but bool.
-	FArithmeticTypePtr ResultType = IsArithmeticOperator(Operator)
-		? ArithType
-		: FArithmeticType::Get(SK_Bool, ArithType->NumRows, ArithType->NumColumns);
+	FPrimitiveTypePtr ResultType = IsArithmeticOperator(Operator)
+		? PrimitiveType
+		: FPrimitiveType::Get(SK_Bool, PrimitiveType->NumRows, PrimitiveType->NumColumns);
 
-	// Now check that both operands are dimensional. If so, emit a new dimensional value with each component
-	// being the result of the binary operation applied to the corresponding components of the operands.
-	const FDimensional* DimensionalLhs = Lhs->As<FDimensional>();
-	const FDimensional* DimensionalRhs = Rhs->As<FDimensional>();
-
-	if (DimensionalLhs && DimensionalRhs)
+	// Check that at least one component of the resulting dimensional value would folded.
+	// If all components of resulting dimensional value are not folded, then instead of emitting
+	// an individual operator instruction for each component, simply emit a single binary operator
+	// instruction applied between lhs and rhs as a whole. (v1 + v2 rather than float2(v1.x + v2.x, v1.y + v2.y)
+	bool bSomeResultComponentWasFolded = false;
+	bool bResultIsIdenticalToLhs = true;
+	bool bResultIsIdenticalToRhs = true;
+	FValue* TempResultComponents[FDimensional::MaxNumComponents];
+	for (int i = 0; i < ResultType->GetNumComponents(); ++i)
 	{
+		// Extract the arguments individual components
+		FValue* LhsComponent = EmitSubscript(Lhs, i);
+		FValue* RhsComponent = EmitSubscript(Rhs, i);
+
+		// Try folding the operation, it may return null
+		FValue* ResultComponent = TryFoldBinaryOperatorScalar(this, Operator, LhsComponent, RhsComponent);
+
+		// Update the flags
+		bSomeResultComponentWasFolded |= (bool)ResultComponent;
+		bResultIsIdenticalToLhs &= ResultComponent && ResultComponent->Equals(LhsComponent);
+		bResultIsIdenticalToRhs &= ResultComponent && ResultComponent->Equals(RhsComponent);
+
+		// Cache the results
+		TempResultComponents[i] = ResultComponent;
+	}
+
+	// If result is identical to either lhs or rhs, simply return it
+	if (bResultIsIdenticalToLhs)
+	{
+		return Lhs;
+	}
+	else if (bResultIsIdenticalToRhs)
+	{
+		return Rhs;
+	}
+
+	// If some component was folded (it is either constant or the operation was a NOP), it is worth
+	// build the binary operation as a separate operation for each component, that is like
+	//    float2(lhs.x + rhs.x, lhs.y + rhs.y)
+	// rather than
+	//    lhs + rhs
+	// so that we retain as much compile-time information as possible.
+	if (bSomeResultComponentWasFolded)
+	{
+		// Make the new dimensional value
 		FDimensional* Result = NewDimensionalValue(this, ResultType);
+		TArrayView<FValue*> ResultComponents = Result->GetComponents();
 
-		auto ResultComponents = Result->GetComponents();
-		auto LhsComponents = DimensionalLhs->GetComponents();
-		auto RhsComponents = DimensionalRhs->GetComponents();
-
+		// Create the operator instruction for each component pair
 		for (int i = 0; i < ResultType->GetNumComponents(); ++i)
 		{
-			ResultComponents[i] = EmitBinaryOperator(Operator, LhsComponents[i], RhsComponents[i]);
+			// Reuse cached result if possible
+			ResultComponents[i] = TempResultComponents[i];
+
+			// Otherwise emit the binary operation between the two components (this will create a new instruction)
+			if (!ResultComponents[i])
+			{
+				FValue* LhsComponent = EmitSubscript(Lhs, i);
+				FValue* RhsComponent = EmitSubscript(Rhs, i);
+				ResultComponents[i] = EmitBinaryOperator(Operator, LhsComponent, RhsComponent);
+			}
 		}
 
 		return Result;
 	}
 
-	// One (or both) of the operands is runtime only. Emit the runtime binary operation instruction.
+	// Finally, simply emit the binary operator instruction between lhs and rhs (i.e. "lhs + rhs")
 	FBinaryOperator Proto = MakePrototype<FBinaryOperator>(ResultType);
 	Proto.Operator = Operator;
 	Proto.LhsArg= Lhs;
@@ -719,7 +837,7 @@ FValue* FEmitter::EmitBinaryOperator(EBinaryOperator Operator, FValue* Lhs, FVal
 FValue* FEmitter::EmitBranch(FValue* Condition, FValue* True, FValue* False)
 {
 	// Condition must be of type bool
-	check(Condition->Type->IsBool1());
+	check(Condition->Type->IsBoolScalar());
 
 	// If the condition is a scalar constant, then simply evaluate the result now.
 	if (const FConstant* ConstCondition = Condition->As<FConstant>())
@@ -777,24 +895,24 @@ static FValue* CastConstant(FEmitter* Emitter, FConstant* Constant, EScalarKind 
 	UE_MIR_UNREACHABLE();
 }
 
-static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr TargetArithmeticType, FValue* Initializer)
+static FValue* ConstructPrimitiveValue(FEmitter* Emitter, FPrimitiveTypePtr TargetPrimitiveType, FValue* Initializer)
 {
-	FArithmeticTypePtr InitializerArithmeticType = Initializer->Type->AsArithmetic();
-	if (!InitializerArithmeticType)
+	FPrimitiveTypePtr InitializerPrimitiveType = Initializer->Type->AsPrimitive();
+	if (!InitializerPrimitiveType)
 	{
-		Emitter->Errorf(TEXT("Cannot construct a '%s' from non arithmetic type '%s'."), TargetArithmeticType->Spelling.GetData(), Initializer->Type->GetSpelling().GetData());
+		Emitter->Errorf(TEXT("Cannot construct a '%s' from non primitive type '%s'."), TargetPrimitiveType->Spelling.GetData(), Initializer->Type->GetSpelling().GetData());
 		return nullptr;
 	}
 
 	// Construct a scalar from another scalar.
-	if (TargetArithmeticType->IsScalar())
+	if (TargetPrimitiveType->IsScalar())
 	{
 		//
 		Initializer = Emitter->EmitSubscript(Initializer, 0);
-		InitializerArithmeticType = Initializer->Type->AsArithmetic();
+		InitializerPrimitiveType = Initializer->Type->AsPrimitive();
 		
 		//
-		if (InitializerArithmeticType == TargetArithmeticType)
+		if (InitializerPrimitiveType == TargetPrimitiveType)
 		{
 			return Initializer;
 		}
@@ -802,7 +920,7 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 		// Construct the scalar from a constant.
 		if (FConstant* ConstantInitializer = Initializer->As<FConstant>())
 		{
-			return CastConstant(Emitter, ConstantInitializer, InitializerArithmeticType->ScalarKind, TargetArithmeticType->ScalarKind);
+			return CastConstant(Emitter, ConstantInitializer, InitializerPrimitiveType->ScalarKind, TargetPrimitiveType->ScalarKind);
 		}
 		else
 		{
@@ -812,17 +930,17 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 	}
 
 	// Construct a vector or matrix from a scalar. E.g. float4(3.14f)
-	if (!TargetArithmeticType->IsScalar() && InitializerArithmeticType->IsScalar())
+	if (!TargetPrimitiveType->IsScalar() && InitializerPrimitiveType->IsScalar())
 	{
 		// Create the result dimensional value.
-		FDimensional* Result = NewDimensionalValue(Emitter, TargetArithmeticType);
+		FDimensional* Result = NewDimensionalValue(Emitter, TargetPrimitiveType);
 
 		// Create a dimensional and initialize each of its components to the conversion
 		// of initializer value to the single component type.
-		FValue* Component = Emitter->EmitConstruct(TargetArithmeticType->ToScalar(), Initializer);
+		FValue* Component = Emitter->EmitConstruct(TargetPrimitiveType->ToScalar(), Initializer);
 
 		// Initialize all result components to the same scalar.
-		for (int i = 0; i < TargetArithmeticType->GetNumComponents(); ++i)
+		for (int i = 0; i < TargetPrimitiveType->GetNumComponents(); ++i)
 		{
 			Result->GetComponents()[i] = Component;
 		}
@@ -833,16 +951,16 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 	// Construct a vector from another vector. If constructed vector is larger, initialize
 	// remaining components to zero. If it's smaller, truncate initializer vector and only use
 	// the necessary components.
-	if (TargetArithmeticType->IsVector() && InitializerArithmeticType->IsVector())
+	if (TargetPrimitiveType->IsVector() && InitializerPrimitiveType->IsVector())
 	{
-		int TargetNumComponents = TargetArithmeticType->GetNumComponents();
-		int InitializerNumComponents = InitializerArithmeticType->GetNumComponents();
+		int TargetNumComponents = TargetPrimitiveType->GetNumComponents();
+		int InitializerNumComponents = InitializerPrimitiveType->GetNumComponents();
 
 		// Create the result dimensional value.
-		FDimensional* Result = NewDimensionalValue(Emitter, TargetArithmeticType);
+		FDimensional* Result = NewDimensionalValue(Emitter, TargetPrimitiveType);
 
 		// Determine the result component type (scalar).
-		FArithmeticTypePtr ResultComponentType = TargetArithmeticType->ToScalar();
+		FPrimitiveTypePtr ResultComponentType = TargetPrimitiveType->ToScalar();
 
 		// For iterating over the components of the result dimensional value.
 		int Index = 0;
@@ -863,23 +981,23 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 		return EmitNew(Emitter, Result);
 	}
 	
-	// The two arithmetic types are identical matrices that differ only by their scalar type.
-	if (TargetArithmeticType->NumRows 	 == InitializerArithmeticType->NumRows &&
-		TargetArithmeticType->NumColumns == InitializerArithmeticType->NumColumns)
+	// The two primitive types are identical matrices that differ only by their scalar type.
+	if (TargetPrimitiveType->NumRows 	 == InitializerPrimitiveType->NumRows &&
+		TargetPrimitiveType->NumColumns == InitializerPrimitiveType->NumColumns)
 	{
-		check(TargetArithmeticType->IsMatrix());
+		check(TargetPrimitiveType->IsMatrix());
 
 		// 
 		if (FDimensional* DimensionalInitializer = Initializer->As<FDimensional>())
 		{
 			// Create the result dimensional value.
-			FDimensional* Result = NewDimensionalValue(Emitter, TargetArithmeticType);
+			FDimensional* Result = NewDimensionalValue(Emitter, TargetPrimitiveType);
 			
 			// Determine the result component type (scalar).
-			FArithmeticTypePtr ResultComponentType = TargetArithmeticType->ToScalar();
+			FPrimitiveTypePtr ResultComponentType = TargetPrimitiveType->ToScalar();
 
 			// Convert components from the initializer vector.
-			for (int Index = 0, Num = TargetArithmeticType->GetNumComponents(); Index < Num; ++Index)
+			for (int Index = 0, Num = TargetPrimitiveType->GetNumComponents(); Index < Num; ++Index)
 			{
 				Result->GetComponents()[Index] = Emitter->EmitConstruct(ResultComponentType, DimensionalInitializer->GetComponents()[Index]);
 			}
@@ -889,13 +1007,13 @@ static FValue* ConstructArithmeticValue(FEmitter* Emitter, FArithmeticTypePtr Ta
 		else
 		{
 			// Initializer is an unknown value, construct target value casting initializer.
-			FCast Prototype = MakePrototype<FCast>(TargetArithmeticType);
+			FCast Prototype = MakePrototype<FCast>(TargetPrimitiveType);
 			Prototype.Arg = Initializer;
 			return EmitPrototype(Emitter, Prototype);
 		}
 	}
 
-	// Initializer value cannot be used to construct this arithmetic type.
+	// Initializer value cannot be used to construct this primitive type.
 	return nullptr;
 }
 
@@ -909,9 +1027,9 @@ FValue* FEmitter::EmitConstruct(FTypePtr Type, FValue* Initializer)
 	}
 	
 	FValue* Result{};
-	if (FArithmeticTypePtr ArithmeticType = Type->AsArithmetic())
+	if (FPrimitiveTypePtr PrimitiveType = Type->AsPrimitive())
 	{
-		Result = ConstructArithmeticValue(this, ArithmeticType, Initializer);
+		Result = ConstructPrimitiveValue(this, PrimitiveType, Initializer);
 	}
 
 	// No other legal conversions applicable. Report error if we haven't converted the value.
@@ -925,7 +1043,7 @@ FValue* FEmitter::EmitConstruct(FTypePtr Type, FValue* Initializer)
 
 FValue* FEmitter::EmitTextureSample(UTexture* Texture, FValue* TexCoord, ESamplerSourceMode SamplerSourceMode, ETextureMipValueMode MipValueMode, EMaterialSamplerType SamplerType)
 {
-	MIR::FTextureSample Prototype = MakePrototype<MIR::FTextureSample>(FArithmeticType::GetFloat4());
+	MIR::FTextureSample Prototype = MakePrototype<MIR::FTextureSample>(FPrimitiveType::GetFloat4());
 	Prototype.Texture = Texture;
 	Prototype.TexCoordArg = TexCoord;
 	Prototype.MipValueArg = nullptr;
@@ -937,7 +1055,7 @@ FValue* FEmitter::EmitTextureSample(UTexture* Texture, FValue* TexCoord, ESample
 	return EmitPrototype(this, Prototype);
 }
 
-FArithmeticTypePtr FEmitter::GetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B)
+FPrimitiveTypePtr FEmitter::GetCommonPrimitiveType(FPrimitiveTypePtr A, FPrimitiveTypePtr B)
 {
 	// Trivial case: types are equal
 	if (A == B)
@@ -945,18 +1063,18 @@ FArithmeticTypePtr FEmitter::GetCommonArithmeticType(FArithmeticTypePtr A, FArit
 		return A;
 	}
 	
-	//	
-	if (A->IsMatrix() != B->IsMatrix())
+	// If both A and B are matrices, their dimensions must match (equality check above didn't trigger).
+	if (A->IsMatrix() || B->IsMatrix())
 	{
-		Errorf(TEXT("No common arithmetic type between `%s` and `%s`."), A->Spelling.GetData(), B->Spelling.GetData());
+		Errorf(TEXT("No common primitive type between `%s` and `%s`."), A->Spelling.GetData(), B->Spelling.GetData());
 		return nullptr;
 	}
 
+	// Neither A nor B are matrices, but single scalar or vector. Return the largest.
+	check(A->NumColumns == 1 && B->NumColumns == 1);
 	EScalarKind ScalarKind = FMath::Max(A->ScalarKind, B->ScalarKind);
 	int NumRows = FMath::Max(A->NumRows, B->NumRows);
-	int NumColumns = FMath::Max(A->NumColumns, B->NumColumns);
-
-	return FArithmeticType::Get(ScalarKind, NumRows, NumColumns);
+	return FPrimitiveType::Get(ScalarKind, NumRows, 1);
 }
 
 void FEmitter::Error(FString Message)
@@ -971,7 +1089,7 @@ void FEmitter::Error(FString Message)
 void FEmitter::Initialize()
 {
 	// Create and reference the true/false constants.
-	FConstant Temp = MakePrototype<FConstant>(FArithmeticType::GetBool1());
+	FConstant Temp = MakePrototype<FConstant>(FPrimitiveType::GetBool1());
 
 	Temp.Boolean = true;
 	ConstantTrue = EmitPrototype(this, Temp);

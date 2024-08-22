@@ -57,7 +57,11 @@ struct FValue
 	TArrayView<const FValue*> GetUses() const;
 	TArrayView<FValue*> GetUses();
 	UTexture* GetTexture();
-	
+	bool IsConstantTrue() const;
+	bool IsConstantFalse() const;
+	bool IsConstantZero() const;
+	bool IsConstantOne() const;
+
 	template <typename T>
 	T* As() { return this && IsA(T::TypeKind) ? static_cast<T*>(this) : nullptr; }
 
@@ -82,6 +86,10 @@ struct FConstant : TValue<VK_Constant>
 		TInteger	Integer;
 		TFloat 		Float;
 	};
+
+	bool IsBool() const;
+	bool IsInteger() const;
+	bool IsFloat() const;
 
 	template <typename T>
 	T Get() const
@@ -188,6 +196,8 @@ struct TInstruction : FInstruction
 
 struct FDimensional : TInstruction<VK_Dimensional>
 {
+	static constexpr int MaxNumComponents = 16;
+
 	// Returns the constant array of component values. 
 	TArrayView<FValue* const> GetComponents() const;
 
@@ -196,7 +206,6 @@ struct FDimensional : TInstruction<VK_Dimensional>
 
 	// Returns whether all components are constant.
 	bool AreComponentsConstant() const;
-
 };
 
 template <int TDimension>

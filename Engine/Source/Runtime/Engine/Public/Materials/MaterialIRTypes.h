@@ -3,6 +3,7 @@
 
 #include "Materials/MaterialIRCommon.h"
 #include "Shader/ShaderTypes.h"
+#include "MaterialValueType.h"
 
 #if WITH_EDITOR
 
@@ -12,7 +13,7 @@ namespace UE::MIR
 enum ETypeKind
 {
 	TK_Void,
-	TK_Arithmetic,
+	TK_Primitive,
 	TK_Texture,
 };
 
@@ -26,23 +27,26 @@ struct FType
 	// Returns the type matching specified UE::Shader::FType.
 	static FTypePtr FromShaderType(const UE::Shader::FType& InShaderType);
 	
+	// Returns the type matching specified EMaterialValueType.
+	static FTypePtr FromMaterialValueType(EMaterialValueType Type);
+
 	// Returns the `void` type.
 	static FTypePtr GetVoid();
 
 	// Returns whether this type is a `bool` scalar.
-	bool IsBool1() const;
+	bool IsBoolScalar() const;
 
 	// Returns this type upcast this type to ArithmeticType if it is one. Otherwise it returns nullptr.
-	FArithmeticTypePtr AsArithmetic() const;
+	FPrimitiveTypePtr AsPrimitive() const;
 
 	// Returns this type upcast this type to ArithmeticType if it's a scalar. Otherwise it returns nullptr.
-	FArithmeticTypePtr AsScalar() const;
+	FPrimitiveTypePtr AsScalar() const;
 
 	// Returns this type upcast this type to ArithmeticType if it's a vector. Otherwise it returns nullptr.
-	FArithmeticTypePtr AsVector() const;
+	FPrimitiveTypePtr AsVector() const;
 
 	// Returns this type upcast this type to ArithmeticType if it's a matrix. Otherwise it returns nullptr.
-	FArithmeticTypePtr AsMatrix() const;
+	FPrimitiveTypePtr AsMatrix() const;
 
 	// Returns the this type name spelling (e.g. float4x4).
 	FStringView GetSpelling() const;
@@ -51,6 +55,8 @@ struct FType
 	UE::Shader::EValueType ToValueType() const;
 };
 
+// Primitive types of a single scalar.
+// Note: These are listed in precision order. Converting one to the other is then simply performed taking the max EScalarKind.
 enum EScalarKind
 {
 	SK_Bool, SK_Int, SK_Float,
@@ -58,30 +64,30 @@ enum EScalarKind
 
 const TCHAR* ScalarKindToString(EScalarKind Kind);
 
-struct FArithmeticType : FType
+struct FPrimitiveType : FType
 {
 	FStringView Spelling;
 	EScalarKind ScalarKind;
 	int NumRows;
 	int NumColumns;
 
-	static FArithmeticTypePtr GetBool1();
-	static FArithmeticTypePtr GetInt1();
-	static FArithmeticTypePtr GetFloat1();
-	static FArithmeticTypePtr GetFloat2();
-	static FArithmeticTypePtr GetFloat3();
-	static FArithmeticTypePtr GetFloat4();
+	static FPrimitiveTypePtr GetBool1();
+	static FPrimitiveTypePtr GetInt1();
+	static FPrimitiveTypePtr GetFloat1();
+	static FPrimitiveTypePtr GetFloat2();
+	static FPrimitiveTypePtr GetFloat3();
+	static FPrimitiveTypePtr GetFloat4();
 
-	static FArithmeticTypePtr GetScalar(EScalarKind InScalarKind);
-	static FArithmeticTypePtr GetVector(EScalarKind InScalarKind, int NumRows);
-	static FArithmeticTypePtr GetMatrix(EScalarKind InScalarKind, int NumColumns, int NumRows);
-	static FArithmeticTypePtr Get(EScalarKind InScalarKind, int NumRows, int NumColumns);
+	static FPrimitiveTypePtr GetScalar(EScalarKind InScalarKind);
+	static FPrimitiveTypePtr GetVector(EScalarKind InScalarKind, int NumRows);
+	static FPrimitiveTypePtr GetMatrix(EScalarKind InScalarKind, int NumColumns, int NumRows);
+	static FPrimitiveTypePtr Get(EScalarKind InScalarKind, int NumRows, int NumColumns);
 
 	int  GetNumComponents() const { return NumRows * NumColumns; }
 	bool IsScalar() const { return GetNumComponents() == 1; }
 	bool IsVector() const { return NumRows > 1 && NumColumns == 1; }
 	bool IsMatrix() const { return NumRows > 1 && NumColumns > 1; }
-	FArithmeticTypePtr ToScalar() const;
+	FPrimitiveTypePtr ToScalar() const;
 };
 
 struct FTextureType : FType

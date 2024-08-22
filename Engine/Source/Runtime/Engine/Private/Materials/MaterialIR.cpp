@@ -39,6 +39,14 @@ const FInstruction* FValue::AsInstruction() const
 
 bool FValue::Equals(const FValue* Other) const
 {
+	// Trivial case, pointers match.
+	if (this == Other)
+	{
+		return true;
+	}
+
+	// Todo: we are guaranteeing that the IR values are unique. Are we sure we need this?
+
 	// If kinds are different the two values are surely different.
 	if (Kind != Other->Kind)
 	{
@@ -144,6 +152,57 @@ UTexture* FValue::GetTexture()
 	return nullptr;
 }
 
+bool FValue::IsConstantTrue() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	return Constant && Constant->IsBool() && Constant->Boolean == true;
+}
+
+bool FValue::IsConstantFalse() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	return Constant && Constant->IsBool() && Constant->Boolean == false;
+}
+
+bool FValue::IsConstantZero() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	if (!Constant)
+	{
+		return false;
+	}
+
+	return (Constant->IsInteger() && Constant->Integer == 0)
+		|| (Constant->IsFloat() && Constant->Float == 0.0f);
+}
+
+bool FValue::IsConstantOne() const
+{
+	const MIR::FConstant* Constant = As<MIR::FConstant>();
+	if (!Constant)
+	{
+		return false;
+	}
+
+	return (Constant->IsInteger() && Constant->Integer == 1)
+		|| (Constant->IsFloat() && Constant->Float == 1.0f);
+}
+
+bool FConstant::IsBool() const
+{
+	return Type->IsBoolScalar();
+}
+
+bool FConstant::IsInteger() const
+{
+	return Type == FPrimitiveType::GetInt1();
+}
+
+bool FConstant::IsFloat() const
+{
+	return Type == FPrimitiveType::GetFloat1();
+}
+
 const TCHAR* ExternalInputToString(EExternalInput Input)
 {
 	switch (Input)
@@ -187,7 +246,7 @@ FTypePtr GetExternalInputType(EExternalInput Id)
 	int IdIndex = (int)Id;
 	if (IdIndex >= (int)EExternalInput::TexCoord0 && IdIndex <= (int)EExternalInput::TexCoord7_Ddy)
 	{
-		return FArithmeticType::GetFloat2();
+		return FPrimitiveType::GetFloat2();
 	}
 
 	UE_MIR_UNREACHABLE();
@@ -245,11 +304,11 @@ TArrayView<FValue* const> FDimensional::GetComponents() const
 
 TArrayView<FValue*> FDimensional::GetComponents()
 {
-	FArithmeticTypePtr ArithmeticType = Type->AsArithmetic();
-	check(ArithmeticType);
+	FPrimitiveTypePtr PrimitiveType = Type->AsPrimitive();
+	check(PrimitiveType);
 
 	FValue** Ptr = (FValue**)static_cast<TDimensional<1>*>(this)->Components;
-	return { Ptr, ArithmeticType->NumRows };
+	return { Ptr, PrimitiveType->NumRows };
 }
 
 bool FDimensional::AreComponentsConstant() const

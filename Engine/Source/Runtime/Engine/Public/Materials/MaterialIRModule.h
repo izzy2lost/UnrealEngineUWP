@@ -44,7 +44,7 @@ private:
 	FStatistics Statistics;
 
 	friend UE::MIR::FEmitter;
-	friend FMaterialIRModuleBuilder;
+	friend FMaterialIRModuleBuilderImpl;
 };
 
 #endif // #if WITH_EDITOR

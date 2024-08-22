@@ -40,7 +40,7 @@ struct FSwizzleMask
 class FEmitter
 {
 public:
-	FEmitter(FMaterialIRModuleBuilder* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule);
+	FEmitter(FMaterialIRModuleBuilderImpl* InBuilder, UMaterial* InMaterial, FMaterialIRModule* InModule);
 	
 	/* IO */
 
@@ -74,7 +74,7 @@ public:
 	FValue* GetScalar(const FExpressionInput* Input);
 	
 	//
-	FValue* GetArithmetic(const FExpressionInput* Input);
+	FValue* GetPrimitive(const FExpressionInput* Input);
 
 	// Gets the value flowing into `Input` and returns it after checking that its
 	// type matches `Kind`.
@@ -82,6 +82,7 @@ public:
 
 	/* Error Checking */
 
+	//
 	bool CheckValueValid(const FValue* Value);
 
 	//
@@ -131,7 +132,7 @@ public:
 
 	/* Types */
 
-	FArithmeticTypePtr GetCommonArithmeticType(FArithmeticTypePtr A, FArithmeticTypePtr B);
+	FPrimitiveTypePtr GetCommonPrimitiveType(FPrimitiveTypePtr A, FPrimitiveTypePtr B);
 
 	/* Error reporting */
 
@@ -146,7 +147,7 @@ public:
 	void Error(FString Message);
 
 	struct FPrivate;
-	friend FMaterialIRModuleBuilder;
+	friend FMaterialIRModuleBuilderImpl;
 
 private:
 	void Initialize();
@@ -154,7 +155,7 @@ private:
 	UMaterial* Material{};
 	FMaterialIRModule* Module{};
 	UMaterialExpression* Expression{};
-	FMaterialIRModuleBuilder* Builder{};
+	FMaterialIRModuleBuilderImpl* Builder{};
 	bool bHasExprBuildError = false;
 	FValue* ConstantTrue;
 	FValue* ConstantFalse;

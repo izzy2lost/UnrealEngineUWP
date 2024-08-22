@@ -3361,7 +3361,8 @@ bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,
 
 	GetMaterialInterface()->MaterialInsight.Reset(new FMaterialInsights);
 
-	FMaterialIRModuleBuildParams TargetParams{
+	// Build the material
+	FMaterialIRModuleBuilder Builder = {
 		.Material = GetMaterialInterface()->GetMaterial(),
 		.ShaderPlatform = InShaderPlatform,
 		.TargetPlatform = InTargetPlatform,
@@ -3369,9 +3370,7 @@ bool FMaterial::Translate_New(const FMaterialShaderMapId& InShaderMapId,
 		.TargetInsight = GetMaterialInterface()->MaterialInsight.Get(),
 	};
 
-	// Build the material
-	FMaterialIRModuleBuilder Builder;
-	if (!Builder.Build(TargetParams, &Module))
+	if (!Builder.Build(&Module))
 	{
 		for (const FMaterialIRModule::FError& Error : Module.GetErrors())
 		{
