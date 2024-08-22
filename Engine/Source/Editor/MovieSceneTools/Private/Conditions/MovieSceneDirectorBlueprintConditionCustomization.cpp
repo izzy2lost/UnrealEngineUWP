@@ -44,7 +44,7 @@ TSharedRef<FMovieSceneDirectorBlueprintConditionCustomization> FMovieSceneDirect
 {
 	TSharedRef<FMovieSceneDirectorBlueprintConditionCustomization> Instance = MakeShared<FMovieSceneDirectorBlueprintConditionCustomization>();
 	Instance->EditedMovieScene = InMovieScene;
-	Instance->PropertyHandle = InPropertyHandle;
+	Instance->SetPropertyHandle(InPropertyHandle);
 	Instance->PropertyUtilities = InPropertyUtilities;
 	return Instance;
 }

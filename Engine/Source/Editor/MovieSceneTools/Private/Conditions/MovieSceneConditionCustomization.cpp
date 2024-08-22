@@ -125,7 +125,7 @@ void FMovieSceneConditionCustomization::CustomizeChildren(TSharedRef<IPropertyHa
 	// Create new properties in the parent layout rather than adding a single item to a single category
 	IDetailLayoutBuilder& LayoutBuilder = ChildBuilder.GetParentCategory().GetParentLayout();
 
-	IDetailCategoryBuilder& NewCategory = LayoutBuilder.EditCategory(TEXT("Condition"), FText::GetEmpty(), ECategoryPriority::TypeSpecific);
+	//IDetailCategoryBuilder& NewCategory = LayoutBuilder.EditCategory(TEXT("Condition"), FText::GetEmpty(), ECategoryPriority::TypeSpecific);
 
 	// Hold onto a reference to the details view to prevent it from being destroyed immediately when the menu goes away. 
 	DetailsView = StaticCastSharedPtr<IDetailsView>(LayoutBuilder.GetDetailsView()->AsShared().ToSharedPtr());
@@ -151,7 +151,7 @@ void FMovieSceneConditionCustomization::CustomizeChildren(TSharedRef<IPropertyHa
 			{
 				continue;
 			}
-			NewCategory.AddProperty(ChildHandle);
+			ChildBuilder.AddProperty(ChildHandle);
 		}
 	}
 }
@@ -306,12 +306,15 @@ void FMovieSceneConditionCustomization::PopulateQuickBindSubMenu(FMenuBuilder& M
 			FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition
 		)
 		{
-			// Create a new director blueprint condition and set it in the details view. Use 'interactive change' so we don't early fire the property finished changing event and reset the details view mid-change
-			PropertyCustomizationHelpers::CreateNewInstanceOfEditInlineObjectClass(SharedThis->ConditionPropertyHandle.ToSharedRef(), UMovieSceneDirectorBlueprintCondition::StaticClass(), EPropertyValueSetFlags::InteractiveChange);
-			TSharedPtr<IPropertyHandle> DirectorBlueprintConditionHandle = SharedThis->ConditionPropertyHandle->GetChildHandle(TEXT("DirectorBlueprintConditionData"));
-			BlueprintConditionCustomization->SetPropertyHandle(DirectorBlueprintConditionHandle);
-			BlueprintConditionCustomization->HandleQuickBindActionSelected(SelectedAction, InSelectionType, Blueprint, EndpointDefinition);
-			SharedThis->PropertyUtilities->ForceRefresh();
+			if (!SelectedAction.IsEmpty())
+			{
+				// Create a new director blueprint condition and set it in the details view. Use 'interactive change' so we don't early fire the property finished changing event and reset the details view mid-change
+				PropertyCustomizationHelpers::CreateNewInstanceOfEditInlineObjectClass(SharedThis->ConditionPropertyHandle.ToSharedRef(), UMovieSceneDirectorBlueprintCondition::StaticClass(), EPropertyValueSetFlags::InteractiveChange);
+				TSharedPtr<IPropertyHandle> DirectorBlueprintConditionHandle = SharedThis->ConditionPropertyHandle->GetChildHandle(TEXT("DirectorBlueprintConditionData"));
+				BlueprintConditionCustomization->SetPropertyHandle(DirectorBlueprintConditionHandle);
+				BlueprintConditionCustomization->HandleQuickBindActionSelected(SelectedAction, InSelectionType, Blueprint, EndpointDefinition);
+				SharedThis->PropertyUtilities->ForceRefresh();
+			}
 		}));
 	}
 }

@@ -70,7 +70,7 @@ public:
 	void HandleQuickBindActionSelected(const TArray<TSharedPtr<FEdGraphSchemaAction>>& SelectedAction, ESelectInfo::Type InSelectionType, UBlueprint* Blueprint, FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition);
 
 	/* Set the property handle to use for customization. Used when using the customization class as a helper. */
-	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle) { PropertyHandle = InPropertyHandle;}
+	void SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle);
 
 	/* Set the raw data to use for customization. Used when the customization class is used as a helper without a details view. */
 	void SetRawData(const TArray<void*>& InRawData) { PropertyRawData = InRawData; }
@@ -197,6 +197,8 @@ protected:
 	 * Collect blueprint actions for rebinding an already connected endpoint.
 	 */
 	virtual void OnCollectAllRebindActions(UBlueprint* Blueprint, FBlueprintActionMenuBuilder& MenuBuilder) {}
+
+	virtual bool CreateNewCategoryForPayloadVariables() const { return true; }
 
 protected:
 

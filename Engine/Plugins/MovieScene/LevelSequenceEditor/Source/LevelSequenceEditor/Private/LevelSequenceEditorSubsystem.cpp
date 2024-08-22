@@ -613,13 +613,7 @@ void ULevelSequenceEditorSubsystem::Initialize(FSubsystemCollectionBase& Collect
 		}));
 
 	BindingPropertiesMenuExtender->AddMenuExtension("ConvertBinding", EExtensionHook::First, CommandList, FMenuExtensionDelegate::CreateLambda([this](FMenuBuilder& MenuBuilder) {
-		FFormatNamedArguments Args;
-
-		MenuBuilder.AddSubMenu(
-			FText::Format(LOCTEXT("BindingProperties", "Binding Properties"), Args),
-			FText::Format(LOCTEXT("BindingPropertiesTooltip", "Modify the actor and object bindings for this track"), Args),
-			FNewMenuDelegate::CreateLambda([this](FMenuBuilder& SubMenuBuilder) 
-			{ AddConvertBindingsMenu(SubMenuBuilder); }));
+		 AddConvertBindingsMenu(MenuBuilder);
 		}));
 
 	SequencerModule.GetObjectBindingContextMenuExtensibilityManager()->AddExtender(RebindComponentMenuExtender);
@@ -3441,45 +3435,48 @@ void ULevelSequenceEditorSubsystem::PopulateQuickBindSubMenu(FMenuBuilder& MenuB
 			FMovieSceneDirectorBlueprintEndpointDefinition EndpointDefinition
 			)
 			{
-				// Change or convert the binding
-				ChangeBindingTypes(Sequencer, BindingsToChange, [Sequencer, Sequence, bConvert, OnBindingChanged, CustomBindingType, &SelectedAction, InSelectionType, Blueprint, EndpointDefinition](FGuid BindingID, int32 BindingIndex)
-					{
-						FMovieScenePossessable* NewPossessable = nullptr;
-						if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
+				if (!SelectedAction.IsEmpty())
+				{
+					// Change or convert the binding
+					ChangeBindingTypes(Sequencer, BindingsToChange, [Sequencer, Sequence, bConvert, OnBindingChanged, CustomBindingType, &SelectedAction, InSelectionType, Blueprint, EndpointDefinition](FGuid BindingID, int32 BindingIndex)
 						{
-							if (bConvert)
+							FMovieScenePossessable* NewPossessable = nullptr;
+							if (FMovieSceneBindingReferences* BindingReferences = Sequence->GetBindingReferences())
 							{
-								NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, CustomBindingType, BindingIndex);
-							}
-							else
-							{
-								BindingReferences->AddOrReplaceBinding(BindingID,
-									NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), CustomBindingType),
-									BindingIndex);
-								NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
-							}
+								if (bConvert)
+								{
+									NewPossessable = FSequencerUtilities::ConvertToCustomBinding(Sequencer, BindingID, CustomBindingType, BindingIndex);
+								}
+								else
+								{
+									BindingReferences->AddOrReplaceBinding(BindingID,
+										NewObject<UMovieSceneCustomBinding>(Sequence->GetMovieScene(), CustomBindingType),
+										BindingIndex);
+									NewPossessable = Sequence->GetMovieScene()->FindPossessable(BindingID);
+								}
 
-							UMovieSceneCustomBinding* NewCustomBinding = BindingReferences->GetCustomBinding(BindingID, BindingIndex);
+								UMovieSceneCustomBinding* NewCustomBinding = BindingReferences->GetCustomBinding(BindingID, BindingIndex);
 
-							TArray<void*> RawData;
-							if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(NewCustomBinding))
-							{
-								RawData.Add(&ReplaceableBinding->DynamicBinding);
+								TArray<void*> RawData;
+								if (UMovieSceneReplaceableDirectorBlueprintBinding* ReplaceableBinding = Cast<UMovieSceneReplaceableDirectorBlueprintBinding>(NewCustomBinding))
+								{
+									RawData.Add(&ReplaceableBinding->DynamicBinding);
+								}
+								else if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(NewCustomBinding))
+								{
+									RawData.Add(&SpawnableBinding->DynamicBinding);
+								}
+
+								// Create temporary director blueprint binding customization for use in creating the endpoint
+								TSharedRef<FMovieSceneDynamicBindingCustomization> BlueprintBindingCustomization = StaticCastSharedRef<FMovieSceneDynamicBindingCustomization>(FMovieSceneDynamicBindingCustomization::MakeInstance(Sequence->GetMovieScene(), BindingID, BindingIndex));
+								BlueprintBindingCustomization->SetRawData(RawData);
+								BlueprintBindingCustomization->HandleQuickBindActionSelected(SelectedAction, InSelectionType, Blueprint, EndpointDefinition);
+
 							}
-							else if (UMovieSceneSpawnableDirectorBlueprintBinding* SpawnableBinding = Cast<UMovieSceneSpawnableDirectorBlueprintBinding>(NewCustomBinding))
-							{
-								RawData.Add(&SpawnableBinding->DynamicBinding);
-							}
-
-							// Create temporary director blueprint binding customization for use in creating the endpoint
-							TSharedRef<FMovieSceneDynamicBindingCustomization> BlueprintBindingCustomization = StaticCastSharedRef<FMovieSceneDynamicBindingCustomization>(FMovieSceneDynamicBindingCustomization::MakeInstance(Sequence->GetMovieScene(), BindingID, BindingIndex));
-							BlueprintBindingCustomization->SetRawData(RawData);
-							BlueprintBindingCustomization->HandleQuickBindActionSelected(SelectedAction, InSelectionType, Blueprint, EndpointDefinition);
-
-						}
-						return NewPossessable;
-					},
-					OnBindingChanged);
+							return NewPossessable;
+						},
+						OnBindingChanged);
+				}
 			}));
 }
 

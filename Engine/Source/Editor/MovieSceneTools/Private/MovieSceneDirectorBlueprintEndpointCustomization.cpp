@@ -261,10 +261,11 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 	if (CommonFunction)
 	{
-		IDetailCategoryBuilder& DetailCategoryBuilder = ChildBuilder
-			.GetParentCategory()
+		IDetailCategoryBuilder& DetailCategoryBuilder = CreateNewCategoryForPayloadVariables() ? 
+			ChildBuilder.GetParentCategory()
 			.GetParentLayout()
-			.EditCategory("Payload", LOCTEXT("PayloadLabel", "Payload"), ECategoryPriority::Uncommon);
+			.EditCategory("Payload", LOCTEXT("PayloadLabel", "Payload"), ECategoryPriority::Uncommon) :
+			ChildBuilder.GetParentCategory();
 
 		bool bPayloadUpToDate = true;
 
@@ -346,7 +347,9 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 					}
 				}
 
-				IDetailPropertyRow* ExternalRow = DetailCategoryBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty());
+				IDetailPropertyRow* ExternalRow = CreateNewCategoryForPayloadVariables() ? 
+				(DetailCategoryBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), EPropertyLocation::Default, FAddPropertyParams().ForceShowProperty()))
+				: (ChildBuilder.AddExternalStructureProperty(StructData.ToSharedRef(), Field->GetFName(), FAddPropertyParams().ForceShowProperty()));
 
 				TSharedPtr<IPropertyHandle> LocalVariableProperty = ExternalRow->GetPropertyHandle();
 				FSimpleDelegate Delegate = FSimpleDelegate::CreateSP(this, &FMovieSceneDirectorBlueprintEndpointCustomization::OnPayloadVariableChanged, StructData.ToSharedRef(), LocalVariableProperty);
@@ -360,7 +363,7 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::CustomizeChildren(TShare
 
 		if (!bPayloadUpToDate)
 		{
-			DetailCategoryBuilder.AddCustomRow(FText())
+			(CreateNewCategoryForPayloadVariables() ? DetailCategoryBuilder.AddCustomRow(FText()) : ChildBuilder.AddCustomRow(FText()))
 			.WholeRowContent()
 			[
 				SNew(SHorizontalBox)
@@ -1049,6 +1052,16 @@ void FMovieSceneDirectorBlueprintEndpointCustomization::HandleQuickBindActionSel
 
 			SetEndpoint(EndpointDefinition, NewEndpoint, Cast<UK2Node>(NewNode), EAutoCreatePayload::Pins | EAutoCreatePayload::Variables);
 		}
+	}
+}
+
+void FMovieSceneDirectorBlueprintEndpointCustomization::SetPropertyHandle(TSharedPtr<IPropertyHandle> InPropertyHandle)
+{
+	PropertyHandle = InPropertyHandle;
+	if (PropertyHandle.IsValid())
+	{
+		PropertyRawData.Empty();
+		PropertyHandle->AccessRawData(PropertyRawData);
 	}
 }
 
