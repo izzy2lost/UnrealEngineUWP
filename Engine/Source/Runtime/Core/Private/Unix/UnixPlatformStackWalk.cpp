@@ -22,6 +22,8 @@
 
 #include "HAL/IConsoleManager.h"
 
+#include <sys/mman.h>
+
 static TAutoConsoleVariable<float> CVarUnixPlatformThreadCallStackMaxWait(
 	TEXT("UnixPlatformThreadStackWalk.MaxWait"),
 	60.0f,
@@ -61,8 +63,10 @@ void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 			GModuleSymbolFileMemorySize = lseek(SymbolFileFD, 0, SEEK_CUR);
 			lseek(SymbolFileFD, 0, SEEK_SET);
 
-			GModuleSymbolFileMemory = (uint8_t*)FMemory::Malloc(GModuleSymbolFileMemorySize);
-
+			// Allocate and jump by an extra page size so we can make sure we read only *our* memory and dont read only someone elses.
+			GModuleSymbolFileMemory = (uint8_t*)FMemory::Malloc(GModuleSymbolFileMemorySize +  2 * (FPlatformMemory::GetConstants().PageSize));
+			GModuleSymbolFileMemory += FPlatformMemory::GetConstants().PageSize;
+			
 			ssize_t BytesRead = read(SymbolFileFD, GModuleSymbolFileMemory, GModuleSymbolFileMemorySize);
 
 			close(SymbolFileFD);
@@ -80,6 +84,9 @@ void CORE_API UnixPlatformStackWalk_PreloadModuleSymbolFile()
 						UTF8_TO_TCHAR(strerror(ErrNo)));
 				}
 			}
+
+			// Mark our selfs to the left most page boundary read only, we allocated and moved down our memory by a page to give us some slack                                             
+			mprotect(reinterpret_cast<void*>(reinterpret_cast<uint64>(GModuleSymbolFileMemory) & ~(FPlatformMemory::GetConstants().PageSize - 1)), GModuleSymbolFileMemorySize, PROT_READ);
 		}
 	}
 }
@@ -88,6 +95,7 @@ void CORE_API UnixPlatformStackWalk_UnloadPreloadedModuleSymbol()
 {
 	if (GModuleSymbolFileMemory)
 	{
+		GModuleSymbolFileMemory -= FPlatformMemory::GetConstants().PageSize;
 		FMemory::Free(GModuleSymbolFileMemory);
 		GModuleSymbolFileMemory = nullptr;
 	}
