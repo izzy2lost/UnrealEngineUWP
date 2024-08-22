@@ -309,6 +309,11 @@ public:
 	 * @return True if the property path is contained within our allowed paths
 	 */
 	virtual bool IsPropertyPathAllowed(const FString& InPath) const = 0;
+
+	/**
+	 * Force a property to behave as a normal, peer reference regardless of CPF_InstancedReference
+	 */
+	virtual void DisableInstancedReference(TSharedRef<IPropertyHandle> PropertyHandle) const = 0;
 };
 
 template <typename ObjectType>

@@ -1119,6 +1119,15 @@ bool FDetailLayoutBuilderImpl::IsPropertyPathAllowed(const FString& InPath) cons
 	return false;
 }
 
+void FDetailLayoutBuilderImpl::DisableInstancedReference(TSharedRef<IPropertyHandle> PropertyHandle) const
+{
+	TSharedPtr<FPropertyNode> PropertyNode = GetPropertyNode(PropertyHandle);
+	if (PropertyNode.IsValid())
+	{
+		PropertyNode->SetIgnoreInstancedReference();
+	}
+}
+
 bool FDetailLayoutBuilderImpl::AddEmptyCategoryIfNeeded(TSharedPtr<FComplexPropertyNode> Node)
 {
 	const bool bHasNoValidCategories = DefaultCategoryMap.IsEmpty();
