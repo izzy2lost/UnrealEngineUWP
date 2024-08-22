@@ -40,6 +40,8 @@ void UGeometryCache::PostInitProperties()
 void UGeometryCache::PreSave(FObjectPreSaveContext SaveContext)
 {
 	OnPreSave.ExecuteIfBound(this);
+
+	Super::PreSave(SaveContext);
 }
 
 void UGeometryCache::Serialize(FArchive& Ar)
