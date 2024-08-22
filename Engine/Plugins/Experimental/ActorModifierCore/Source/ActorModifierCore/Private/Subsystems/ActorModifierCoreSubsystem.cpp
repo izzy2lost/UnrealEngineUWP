@@ -1143,6 +1143,53 @@ bool UActorModifierCoreSubsystem::RemoveModifiers(const TSet<UActorModifierCoreB
 	return true;
 }
 
+bool UActorModifierCoreSubsystem::RemoveModifierStacks(const TSet<UActorModifierCoreStack*>& InStacks, bool bInShouldTransact) const
+{
+	if (InStacks.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = LOCTEXT("RemoveModifierComponent", "Removing {0} modifier component(s)");
+	const FText StackCount = FText::FromString(FString::FromInt(InStacks.Num()));
+
+	FScopedTransaction Transaction(FText::Format(TransactionText, StackCount), bInShouldTransact);
+#endif
+
+	for (UActorModifierCoreStack* ActorStack : InStacks)
+	{
+		if (!IsValid(ActorStack))
+		{
+			continue;
+		}
+
+		UActorModifierCoreComponent* Component = ActorStack->GetTypedOuter<UActorModifierCoreComponent>();
+
+		if (!IsValid(Component))
+		{
+			continue;
+		}
+
+		AActor* Actor = Component->GetOwner();
+
+		if (!IsValid(Actor))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		Actor->Modify();
+		Component->Modify();
+		ActorStack->Modify();
+#endif
+
+		Component->DestroyComponent(/** PromoteChildren */false);
+	}
+
+	return true;
+}
+
 bool UActorModifierCoreSubsystem::RemoveActorsModifiers(const TSet<AActor*>& InActors, bool bInShouldTransact) const
 {
 	if (InActors.IsEmpty())

@@ -155,6 +155,9 @@ public:
 	/** Removes animators from their owner */
 	PROPERTYANIMATORCORE_API bool RemoveAnimators(const TSet<UPropertyAnimatorCoreBase*>& InAnimators, bool bInTransact = false) const;
 
+	/** Removes animator components from their actor */
+	PROPERTYANIMATORCORE_API bool RemoveAnimatorComponents(const TSet<UPropertyAnimatorCoreComponent*>& InComponents, bool bInTransact = false) const;
+
 	/** Apply a preset on an existing animator */
 	PROPERTYANIMATORCORE_API bool ApplyAnimatorPreset(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, bool bInTransact = false);
 

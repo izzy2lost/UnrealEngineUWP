@@ -335,23 +335,23 @@ void UPropertyAnimatorCoreEditorStackCustomization::RemoveAnimatorAction(FOperat
 		return;
 	}
 
-	TSet<UPropertyAnimatorCoreBase*> Animators;
-
 	if (InItem->IsA<UPropertyAnimatorCoreBase>())
 	{
-		Animators.Append(InItem->GetAsArray<UPropertyAnimatorCoreBase>());
+		const TSet<UPropertyAnimatorCoreBase*> Animators(InItem->GetAsArray<UPropertyAnimatorCoreBase>());
+
+		if (!Subsystem->RemoveAnimators(Animators, /** Transact */true))
+		{
+			UE_LOG(LogPropertyAnimatorCoreEditorStackCustomization, Warning, TEXT("Could not remove %i animator(s)"), Animators.Num())
+		}
 	}
 	else if (InItem->IsA<UPropertyAnimatorCoreComponent>())
 	{
-		for (const UPropertyAnimatorCoreComponent* AnimatorComponent : InItem->GetAsArray<UPropertyAnimatorCoreComponent>())
-		{
-			Animators.Append(AnimatorComponent->GetAnimators());
-		}
-	}
+		const TSet<UPropertyAnimatorCoreComponent*> Components(InItem->GetAsArray<UPropertyAnimatorCoreComponent>());
 
-	if (!Subsystem->RemoveAnimators(Animators, /** Transact */true))
-	{
-		UE_LOG(LogPropertyAnimatorCoreEditorStackCustomization, Warning, TEXT("Could not remove %i animator(s)"), Animators.Num())
+		if (!Subsystem->RemoveAnimatorComponents(Components, /** Transact */true))
+		{
+			UE_LOG(LogPropertyAnimatorCoreEditorStackCustomization, Warning, TEXT("Could not remove %i animator component(s)"), Components.Num())
+		}
 	}
 }
 

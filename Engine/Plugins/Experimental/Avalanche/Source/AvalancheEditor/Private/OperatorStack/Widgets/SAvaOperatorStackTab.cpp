@@ -3,6 +3,7 @@
 #include "SAvaOperatorStackTab.h"
 
 #include "Animators/PropertyAnimatorCoreBase.h"
+#include "Components/PropertyAnimatorCoreComponent.h"
 #include "Contexts/OperatorStackEditorContext.h"
 #include "DetailView/IAvaDetailsProvider.h"
 #include "EditorModeManager.h"
@@ -34,9 +35,9 @@ void SAvaOperatorStackTab::Construct(const FArguments& InArgs
 	UActorModifierCoreStack::OnModifierReplaced().AddSP(this, &SAvaOperatorStackTab::OnModifierUpdated);
 
 	// Property controllers delegates
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().AddSP(this, &SAvaOperatorStackTab::OnAnimatorUpdated);
 
 	const TSharedPtr<IDetailKeyframeHandler> KeyframeHandler = InProvider->GetDetailsKeyframeHandler();
 
@@ -61,9 +62,9 @@ SAvaOperatorStackTab::~SAvaOperatorStackTab()
 	UActorModifierCoreStack::OnModifierRemoved().RemoveAll(this);
 	UActorModifierCoreStack::OnModifierReplaced().RemoveAll(this);
 
-	UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.RemoveAll(this);
-	UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate.RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorAdded().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRemoved().RemoveAll(this);
+	UPropertyAnimatorCoreBase::OnPropertyAnimatorRenamed().RemoveAll(this);
 }
 
 void SAvaOperatorStackTab::RefreshSelection(UObject* InSelectionObject) const
@@ -102,13 +103,16 @@ void SAvaOperatorStackTab::OnModifierUpdated(UActorModifierCoreBase* InUpdatedIt
 {
 	if (InUpdatedItem)
 	{
-		RefreshCurrentSelection(InUpdatedItem->GetModifierStack());
+		RefreshCurrentSelection(InUpdatedItem->GetRootModifierStack());
 	}
 }
 
-void SAvaOperatorStackTab::OnAnimatorUpdated(UPropertyAnimatorCoreBase* InUpdatedItem) const
+void SAvaOperatorStackTab::OnAnimatorUpdated(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InUpdatedItem) const
 {
-	RefreshCurrentSelection(InUpdatedItem);
+	if (InComponent)
+	{
+		RefreshCurrentSelection(InComponent);
+	}
 }
 
 void SAvaOperatorStackTab::RefreshCurrentSelection(const UObject* InObject) const

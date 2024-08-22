@@ -654,16 +654,11 @@ void UActorModifierCoreEditorStackCustomization::RemoveModifierAction(FOperatorS
 
 	if (InItem->IsA<UActorModifierCoreStack>())
 	{
-		TSet<AActor*> Actors;
+		const TSet<UActorModifierCoreStack*> ModifierStacks(InItem->GetAsArray<UActorModifierCoreStack>());
 
-		for (const UActorModifierCoreStack* ModifierStack : InItem->GetAsArray<UActorModifierCoreStack>())
+		if (!ModifierSubsystem->RemoveModifierStacks(ModifierStacks, /** Transact */true))
 		{
-			Actors.Add(ModifierStack->GetModifiedActor());
-		}
-
-		if (!ModifierSubsystem->RemoveActorsModifiers(Actors, true))
-		{
-			UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Could not remove modifiers from actors"))
+			UE_LOG(LogActorModifierCoreEditorStackCustomization, Warning, TEXT("Could not remove modifier stacks from actors"))
 		}
 	}
 	else

@@ -371,8 +371,6 @@ TSet<UPropertyAnimatorCoreBase*> UPropertyAnimatorCoreSubsystem::CreateAnimators
 		}
 
 		NewAnimators.Add(NewActorAnimator);
-
-		UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate.Broadcast(NewActorAnimator);
 	}
 
 	return NewAnimators;
@@ -465,17 +463,49 @@ bool UPropertyAnimatorCoreSubsystem::RemoveAnimators(const TSet<UPropertyAnimato
 		Animator->Modify();
 #endif
 
-		const bool bAnimatorRemoved = Component->RemoveAnimator(Animator);
-
-		if (bAnimatorRemoved)
-		{
-			UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.Broadcast(Animator);
-		}
-
-		bResult &= bAnimatorRemoved;
+		bResult &= Component->RemoveAnimator(Animator);
 	}
 
 	return bResult;
+}
+
+bool UPropertyAnimatorCoreSubsystem::RemoveAnimatorComponents(const TSet<UPropertyAnimatorCoreComponent*>& InComponents, bool bInTransact) const
+{
+	if (InComponents.IsEmpty())
+	{
+		return false;
+	}
+
+#if WITH_EDITOR
+	const FText TransactionText = LOCTEXT("RemoveAnimatorComponent", "Removing {0} animator component(s)");
+	const FText ComponentCount = FText::FromString(FString::FromInt(InComponents.Num()));
+
+	FScopedTransaction Transaction(FText::Format(TransactionText, ComponentCount), bInTransact);
+#endif
+
+	for (UPropertyAnimatorCoreComponent* Component : InComponents)
+	{
+		if (!IsValid(Component))
+		{
+			continue;
+		}
+
+		AActor* OwningActor = Component->GetOwner();
+
+		if (!IsValid(OwningActor))
+		{
+			continue;
+		}
+
+#if WITH_EDITOR
+		OwningActor->Modify();
+		Component->Modify();
+#endif
+
+		Component->DestroyComponent(/** PromoteChildren */false);
+	}
+
+	return true;
 }
 
 bool UPropertyAnimatorCoreSubsystem::ApplyAnimatorPreset(UPropertyAnimatorCoreBase* InAnimator, UPropertyAnimatorCorePresetBase* InPreset, bool bInTransact)

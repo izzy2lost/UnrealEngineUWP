@@ -13,7 +13,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogPropertyAnimatorCoreBase, Log, All);
 
-UPropertyAnimatorCoreBase::FOnAnimatorUpdated UPropertyAnimatorCoreBase::OnAnimatorCreatedDelegate;
+UPropertyAnimatorCoreBase::FOnAnimatorUpdated UPropertyAnimatorCoreBase::OnAnimatorAddedDelegate;
 UPropertyAnimatorCoreBase::FOnAnimatorUpdated UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate;
 UPropertyAnimatorCoreBase::FOnAnimatorUpdated UPropertyAnimatorCoreBase::OnAnimatorRenamedDelegate;
 UPropertyAnimatorCoreBase::FOnAnimatorPropertyUpdated UPropertyAnimatorCoreBase::OnAnimatorPropertyLinkedDelegate;
@@ -333,6 +333,13 @@ void UPropertyAnimatorCoreBase::OnAnimatorAdded()
 	{
 		SetTimeSourceName(AnimatorSettings->GetDefaultTimeSourceName());
 	}
+
+	UPropertyAnimatorCoreBase::OnAnimatorAddedDelegate.Broadcast(GetAnimatorComponent(), this);
+}
+
+void UPropertyAnimatorCoreBase::OnAnimatorRemoved()
+{
+	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.Broadcast(GetAnimatorComponent(), this);
 }
 
 void UPropertyAnimatorCoreBase::OnAnimatorEnabled()
@@ -608,7 +615,7 @@ void UPropertyAnimatorCoreBase::SetAnimatorDisplayName(FName InName)
 	AnimatorDisplayName = InName;
 	OnAnimatorDisplayNameChanged();
 
-	OnAnimatorRenamedDelegate.Broadcast(this);
+	OnAnimatorRenamedDelegate.Broadcast(GetAnimatorComponent(), this);
 }
 
 TSet<FPropertyAnimatorCoreData> UPropertyAnimatorCoreBase::GetLinkedProperties() const

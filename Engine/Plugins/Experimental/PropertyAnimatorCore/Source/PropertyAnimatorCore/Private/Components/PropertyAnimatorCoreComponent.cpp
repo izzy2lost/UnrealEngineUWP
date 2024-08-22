@@ -95,15 +95,22 @@ void UPropertyAnimatorCoreComponent::OnAnimatorsChanged()
 	{
 		if (RemovedAnimator)
 		{
+#if WITH_EDITOR
+			RemovedAnimator->Modify();
+#endif
+
 			RemovedAnimator->SetAnimatorEnabled(false);
 			RemovedAnimator->OnAnimatorRemoved();
 		}
 	}
-
 	for (const TObjectPtr<UPropertyAnimatorCoreBase>& AddedAnimator : AddedAnimators)
 	{
 		if (AddedAnimator)
 		{
+#if WITH_EDITOR
+			AddedAnimator->Modify();
+#endif
+
 			AddedAnimator->SetAnimatorDisplayName(GetAnimatorName(AddedAnimator));
 			AddedAnimator->OnAnimatorAdded();
 			AddedAnimator->SetAnimatorEnabled(true);
@@ -244,6 +251,8 @@ void UPropertyAnimatorCoreComponent::OnComponentCreated()
 			}
 		}
 	}
+
+	UPropertyAnimatorCoreBase::OnAnimatorAddedDelegate.Broadcast(this, nullptr);
 }
 
 UPropertyAnimatorCoreComponent* UPropertyAnimatorCoreComponent::FindOrAdd(AActor* InActor)
@@ -327,6 +336,8 @@ void UPropertyAnimatorCoreComponent::OnComponentDestroyed(bool bInDestroyingHier
 	PropertyAnimators.Empty();
 
 	OnAnimatorsChanged();
+
+	UPropertyAnimatorCoreBase::OnAnimatorRemovedDelegate.Broadcast(this, nullptr);
 }
 
 void UPropertyAnimatorCoreComponent::TickComponent(float InDeltaTime, ELevelTick InTickType, FActorComponentTickFunction* InTickFunction)

@@ -30,29 +30,38 @@ class UPropertyAnimatorCoreBase : public UObject
 	friend class UPropertyAnimatorCoreContext;
 
 public:
-	DECLARE_MULTICAST_DELEGATE_OneParam(FOnAnimatorUpdated, UPropertyAnimatorCoreBase* /* InAnimator */)
-
-	/** Called when a Animator is created */
-	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorCreatedDelegate;
-
-	/** Called when a Animator is removed */
-	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRemovedDelegate;
-
-	/** Called when a Animator is renamed */
-	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRenamedDelegate;
-
-	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAnimatorPropertyUpdated, UPropertyAnimatorCoreBase* /* InAnimator */, const FPropertyAnimatorCoreData& /** InProperty */)
-
-	/** Called when a property is linked to a Animator */
-	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyLinkedDelegate;
-
-	/** Called when a property is unlinked to a Animator */
-	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyUnlinkedDelegate;
-
 	static constexpr const TCHAR* TimeElapsedParameterName = TEXT("TimeElapsed");
 	static constexpr const TCHAR* MagnitudeParameterName = TEXT("Magnitude");
 	static constexpr const TCHAR* FrequencyParameterName = TEXT("Frequency");
 	static constexpr const TCHAR* AlphaParameterName = TEXT("Alpha");
+
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAnimatorUpdated, UPropertyAnimatorCoreComponent* /* InComponent */, UPropertyAnimatorCoreBase* /* InAnimator */)
+	DECLARE_MULTICAST_DELEGATE_TwoParams(FOnAnimatorPropertyUpdated, UPropertyAnimatorCoreBase* /* InAnimator */, const FPropertyAnimatorCoreData& /* InProperty */)
+
+	static FOnAnimatorUpdated::RegistrationType& OnPropertyAnimatorAdded()
+	{
+		return OnAnimatorAddedDelegate;
+	}
+
+	static FOnAnimatorUpdated::RegistrationType& OnPropertyAnimatorRemoved()
+	{
+		return OnAnimatorRemovedDelegate;
+	}
+
+	static FOnAnimatorUpdated::RegistrationType& OnPropertyAnimatorRenamed()
+	{
+		return OnAnimatorRenamedDelegate;
+	}
+
+	static FOnAnimatorPropertyUpdated::RegistrationType& OnPropertyAnimatorPropertyLinked()
+	{
+		return OnAnimatorPropertyLinkedDelegate;
+	}
+
+	static FOnAnimatorPropertyUpdated::RegistrationType& OnPropertyAnimatorPropertyUnlinked()
+	{
+		return OnAnimatorPropertyUnlinkedDelegate;
+	}
 
 #if WITH_EDITOR
 	PROPERTYANIMATORCORE_API static FName GetAnimatorEnabledPropertyName();
@@ -248,7 +257,7 @@ protected:
 	virtual void OnAnimatorDisplayNameChanged() {}
 
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorAdded();
-	virtual void OnAnimatorRemoved() {}
+	PROPERTYANIMATORCORE_API virtual void OnAnimatorRemoved();
 
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorEnabled();
 	PROPERTYANIMATORCORE_API virtual void OnAnimatorDisabled();
@@ -265,6 +274,21 @@ protected:
 	virtual void EvaluateProperties(FInstancedPropertyBag& InParameters) {}
 
 private:
+	/** Called when a Animator is created */
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorAddedDelegate;
+
+	/** Called when a Animator is removed */
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRemovedDelegate;
+
+	/** Called when a Animator is renamed */
+	PROPERTYANIMATORCORE_API static FOnAnimatorUpdated OnAnimatorRenamedDelegate;
+
+	/** Called when a property is linked to a Animator */
+	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyLinkedDelegate;
+
+	/** Called when a property is unlinked to a Animator */
+	PROPERTYANIMATORCORE_API static FOnAnimatorPropertyUpdated OnAnimatorPropertyUnlinkedDelegate;
+
 	/** Restore modified properties to original state */
 	void RestoreProperties(bool bInForce = false);
 

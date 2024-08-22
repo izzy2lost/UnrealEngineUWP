@@ -121,6 +121,9 @@ public:
 	/** Remove modifiers from different actors or stacks, will update the original array and perform a transaction if wanted */
 	ACTORMODIFIERCORE_API bool RemoveModifiers(const TSet<UActorModifierCoreBase*>& InModifiers, FActorModifierCoreStackRemoveOp& InRemoveOp) const;
 
+	/** Removes modifier components and modifier stacks */
+	ACTORMODIFIERCORE_API bool RemoveModifierStacks(const TSet<UActorModifierCoreStack*>& InStacks, bool bInShouldTransact = false) const;
+
 	/** Insert a modifier in a stack before or after another modifier, will perform a transaction if wanted */
 	ACTORMODIFIERCORE_API UActorModifierCoreBase* InsertModifier(UActorModifierCoreStack* InStack, FActorModifierCoreStackInsertOp& InInsertOp) const;
 

@@ -37,7 +37,7 @@ protected:
 	void BindDelegates();
 	void UnbindDelegates();
 
-	void OnPropertyAnimatorUpdated(UPropertyAnimatorCoreBase* InAnimator);
+	void OnPropertyAnimatorUpdated(UPropertyAnimatorCoreComponent* InComponent, UPropertyAnimatorCoreBase* InAnimator);
 
 	FSlateIcon ItemIcon;
 };
