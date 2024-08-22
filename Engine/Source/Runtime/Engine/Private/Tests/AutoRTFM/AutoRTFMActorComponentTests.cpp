@@ -425,6 +425,20 @@ AUTORTFM_ACTOR_COMPONENT_TEST(USkeletalMeshComponent)
 	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
 }
 
+
+// Test aborting a call to AAutoRTFMTestActor::CreateComponentFromTemplate().
+// See: SOL-7002
+AUTORTFM_ACTOR_COMPONENT_TEST(CreateComponentFromTemplate)
+{
+	AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+		{
+			Actor->CreateComponentFromTemplate(Component);
+			AutoRTFM::AbortTransaction();
+		});
+
+	TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::AbortedByRequest == Result);
+}
+
 }  // anonymous namespace
 
 #undef TEST_CHECK_FALSE

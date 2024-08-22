@@ -3061,11 +3061,16 @@ UObject* StaticDuplicateObjectEx( FObjectDuplicationParameters& Parameters )
 	// Make sure we're not duplicating the AsyncLoading, Async or LoaderImport internal flags, they will prevent the object from being gcd.
 	Parameters.InternalFlagMask &= ~(EInternalObjectFlags::Async | EInternalObjectFlags::LoaderImport | EInternalObjectFlags_AsyncLoading);
 
-	if (!IsAsyncLoading() && Parameters.SourceObject->HasAnyFlags(RF_ClassDefaultObject))
+	// We can't modify the loader from a transaction, so check for async loading and reset the 
+	// loaders in the open.
+	AutoRTFM::Open([&]
 	{
-		// Detach linker for the outer if it already exists, to avoid problems with PostLoad checking the Linker version
-		ResetLoaders(Parameters.DestOuter);
-	}
+		if (!IsAsyncLoading() && Parameters.SourceObject->HasAnyFlags(RF_ClassDefaultObject))
+		{
+			// Detach linker for the outer if it already exists, to avoid problems with PostLoad checking the Linker version
+			ResetLoaders(Parameters.DestOuter);
+		}
+	});
 
 	FObjectInstancingGraph InstanceGraph;
 

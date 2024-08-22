@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Serialization/UnversionedPropertySerialization.h"
+#include "AutoRTFM/AutoRTFM.h"
 #include "Serialization/UnversionedPropertySerializationTest.h"
 #include "Hash/Blake3.h"
 #include "Interfaces/ITargetPlatform.h"
@@ -452,11 +453,15 @@ const FUnversionedStructSchema& GetOrCreateUnversionedSchema(const UStruct* Stru
 
 	FUnversionedStructSchema* CreatedSchema = FUnversionedStructSchema::Create(Struct, bSkipEditorOnly);
 
-	void** CachedSchemaPtr = reinterpret_cast<void**>(const_cast<FUnversionedStructSchema**>(&GetUnversionedSchema(Struct, bSkipEditorOnly)));
-	if (const FUnversionedStructSchema* ExistingSchema = reinterpret_cast<const FUnversionedStructSchema*>(FPlatformAtomics::InterlockedCompareExchangePointer(CachedSchemaPtr, CreatedSchema, nullptr)))
+	// AutoRTFM cannot undo atomic swaps, so skip the caching if called from a transaction.
+	if (!AutoRTFM::IsClosed())
 	{
-		FUnversionedStructSchema::Delete(CreatedSchema);
-		return *ExistingSchema;
+		void** CachedSchemaPtr = reinterpret_cast<void**>(const_cast<FUnversionedStructSchema**>(&GetUnversionedSchema(Struct, bSkipEditorOnly)));
+		if (const FUnversionedStructSchema* ExistingSchema = reinterpret_cast<const FUnversionedStructSchema*>(FPlatformAtomics::InterlockedCompareExchangePointer(CachedSchemaPtr, CreatedSchema, nullptr)))
+		{
+			FUnversionedStructSchema::Delete(CreatedSchema);
+			return *ExistingSchema;
+		}
 	}
 
 	return *CreatedSchema;

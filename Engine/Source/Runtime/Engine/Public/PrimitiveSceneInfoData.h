@@ -2,6 +2,7 @@
 
 #pragma once 
 
+#include "AutoRTFM/AutoRTFM.h"
 #include "HAL/ThreadSafeCounter.h"
 #include "PrimitiveComponentId.h"
 
@@ -91,7 +92,7 @@ public:
 		: RegistrationSerialNumber(-1)
 		, bAlwaysVisible(false)
 	{
-		PrimitiveSceneId.PrimIDValue = NextPrimitiveId.Increment();
+		PrimitiveSceneId.PrimIDValue = AutoRTFM::Open([] { return NextPrimitiveId.Increment(); });
 	}
 };
 
