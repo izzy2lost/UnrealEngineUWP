@@ -86,8 +86,7 @@ namespace HordeServer.Agents
 			{
 				AgentReport report = new AgentReport();
 
-				IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
-				foreach (IAgent agent in agents)
+				await foreach (IAgent agent in  _agentCollection.FindAsync(cancellationToken: cancellationToken))
 				{
 					if (agent.IsSessionValid(utcNow))
 					{

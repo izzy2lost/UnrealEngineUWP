@@ -64,7 +64,7 @@ namespace HordeServer.Agents.Utilization
 			DateTime minTime = maxTime - count * interval;
 
 			// Query all the current data
-			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken);
+			IReadOnlyList<IAgent> agents = await _agentCollection.FindAsync(cancellationToken: cancellationToken).ToListAsync(cancellationToken);
 			IReadOnlyList<IPoolConfig> pools = await _poolCollection.GetConfigsAsync(cancellationToken);
 			IReadOnlyList<ILease> leases = await _leaseCollection.FindLeasesAsync(minTime: minTime, cancellationToken: cancellationToken);
 

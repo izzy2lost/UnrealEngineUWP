@@ -26,6 +26,7 @@ using MongoDB.Driver;
 using StackExchange.Redis;
 using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Trace;
+using System.Runtime.CompilerServices;
 
 namespace HordeServer.Agents
 {
@@ -518,7 +519,7 @@ namespace HordeServer.Agents
 		}
 
 		/// <inheritdoc/>
-		public async Task<IReadOnlyList<IAgent>> FindAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, AgentStatus? status, bool? enabled, bool includeDeleted, int? index, int? count, bool consistentRead, CancellationToken cancellationToken)
+		public async IAsyncEnumerable<IAgent> FindAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, AgentStatus? status, bool? enabled, bool includeDeleted, bool consistentRead, [EnumeratorCancellation] CancellationToken cancellationToken)
 		{
 			FilterDefinitionBuilder<AgentDocument> filterBuilder = new FilterDefinitionBuilder<AgentDocument>();
 
@@ -554,19 +555,18 @@ namespace HordeServer.Agents
 			}
 
 			IMongoCollection<AgentDocument> collection = consistentRead ? _agentCollection : _agentCollection.WithReadPreference(ReadPreference.SecondaryPreferred);
-			IFindFluent<AgentDocument, AgentDocument> search = collection.Find(filter);
-			if (index != null)
-			{
-				search = search.Skip(index.Value);
-			}
-			if (count != null)
-			{
-				search = search.Limit(count.Value);
-			}
 
-			List<AgentDocument> documents = await search.ToListAsync(cancellationToken);
-			documents = await PostLoadAsync(documents, cancellationToken);
-			return documents.ConvertAll(x => CreateAgentObject(x));
+			using (IAsyncCursor<AgentDocument> cursor = await collection.Find(filter).ToCursorAsync(cancellationToken))
+			{
+				while (await cursor.MoveNextAsync())
+				{
+					List<AgentDocument> documents = await PostLoadAsync(cursor.Current.ToList(), cancellationToken);
+					foreach (AgentDocument document in documents)
+					{
+						yield return CreateAgentObject(document);
+					}
+				}
+			}
 		}
 
 		/// <inheritdoc/>

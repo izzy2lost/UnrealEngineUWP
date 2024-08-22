@@ -246,14 +246,13 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		{
 			string instanceIdProp = KnownPropertyNames.AwsInstanceId + "=" + e.Ec2InstanceId;
 
-			IReadOnlyList<IAgent> agentList = await _agentService.FindAgentsAsync(null, null, instanceIdProp, true, null, null, cancellationToken);
-			if (agentList.Count == 0)
+			IAgent? agent = await _agentService.FindAgentsAsync(null, null, instanceIdProp, true, cancellationToken).FirstOrDefaultAsync(cancellationToken);
+			if (agent == null)
 			{
 				_logger.LogWarning("Lifecycle action received but no agent with instance ID {InstanceId} found", e.Ec2InstanceId);
 				return false;
 			}
 
-			IAgent? agent = agentList[0];
 			await agent.TryUpdateAsync(new UpdateAgentOptions { RequestShutdown = true }, cancellationToken: cancellationToken);
 			await TrackAgentLifecycleAsync(agent.Id, e, cancellationToken);
 			return true;
@@ -298,8 +297,7 @@ public sealed class AwsAutoScalingLifecycleService : IHostedService, IAsyncDispo
 		}
 
 		List<string> validInstanceIds = new();
-		IReadOnlyList<IAgent> agents = await _agentService.FindAgentsAsync(null, null, null, true, null, null, cancellationToken);
-		foreach (IAgent agent in agents)
+		await foreach (IAgent agent in _agentService.FindAgentsAsync(null, null, null, true, cancellationToken))
 		{
 			if (IsAgentSuggestedByAsg(agent, out string? instanceId))
 			{

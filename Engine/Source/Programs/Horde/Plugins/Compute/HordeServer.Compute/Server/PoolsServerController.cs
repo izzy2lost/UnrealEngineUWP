@@ -54,8 +54,7 @@ namespace HordeServer.Server
 
 				Dictionary<PoolId, int> poolIdToCount = new Dictionary<PoolId, int>();
 
-				IReadOnlyList<IAgent> agents = await agentCollection.FindAsync(cancellationToken: cancellationToken);
-				foreach (IAgent agent in agents)
+				await foreach (IAgent agent in agentCollection.FindAsync(cancellationToken: cancellationToken))
 				{
 					foreach (PoolId poolId in agent.Pools)
 					{

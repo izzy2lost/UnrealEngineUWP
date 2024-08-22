@@ -115,8 +115,11 @@
     <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\common\**\*.proto">
       <Link>Protos\horde\common\%(RecursiveDir)%(FileName)%(Extension)</Link>
     </Content>
-    <Compile Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\**\*.cs">
-      <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>
+    <Compile Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\agent_capabilities.proto.cs">
+      <Link>Protos\horde\messages\agent_capabilities.proto.cs</Link>
+    </Compile>
+    <Compile Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\lease.proto.cs">
+      <Link>Protos\horde\messages\lease.proto.cs</Link>
     </Compile>
     <Content Include="..\Plugins\Compute\HordeServer.Compute\Protos\horde\messages\**\*.proto">
       <Link>Protos\horde\messages\%(RecursiveDir)%(FileName)%(Extension)</Link>

@@ -48,12 +48,10 @@ namespace HordeServer.Agents
 		/// <param name="status">Status to look for</param>
 		/// <param name="enabled">Enabled/disabled status to look for</param>
 		/// <param name="includeDeleted">Whether agents marked as deleted should be included</param>
-		/// <param name="index">Index of the first result</param>
-		/// <param name="count">Number of results to return</param>
 		/// <param name="consistentRead">If the database read should be made to the replica server</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of agents matching the given criteria</returns>
-		Task<IReadOnlyList<IAgent>> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, bool includeDeleted = false, int? index = null, int? count = null, bool consistentRead = true, CancellationToken cancellationToken = default);
+		IAsyncEnumerable<IAgent> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, bool includeDeleted = false, bool consistentRead = true, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Finds all active agent lease IDs

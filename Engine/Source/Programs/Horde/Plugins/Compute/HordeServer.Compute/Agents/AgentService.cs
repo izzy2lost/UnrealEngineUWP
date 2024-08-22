@@ -242,13 +242,11 @@ namespace HordeServer.Agents
 		/// <param name="modifiedAfter">If set, only returns agents modified after this time</param>
 		/// <param name="property">If set, only return agents matching this property</param>
 		/// <param name="includeDeleted">If set, include agents marked as deleted</param>
-		/// <param name="index">Index within the list of results</param>
-		/// <param name="count">Number of results to return</param>
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of agents matching the given criteria</returns>
-		public Task<IReadOnlyList<IAgent>> FindAgentsAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, bool includeDeleted, int? index, int? count, CancellationToken cancellationToken)
+		public IAsyncEnumerable<IAgent> FindAgentsAsync(PoolId? poolId, DateTime? modifiedAfter, string? property, bool includeDeleted, CancellationToken cancellationToken)
 		{
-			return Agents.FindAsync(poolId, modifiedAfter, property, null, null, includeDeleted, index, count, true, cancellationToken);
+			return Agents.FindAsync(poolId, modifiedAfter, property, null, null, includeDeleted, true, cancellationToken);
 		}
 
 		/// <summary>
@@ -832,9 +830,9 @@ namespace HordeServer.Agents
 		private async Task RefreshCachedAgentsAsync(CancellationToken cancellationToken = default)
 		{
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(RefreshCachedAgentsAsync)}");
+
 			Dictionary<AgentId, IAgent> agents = new();
-			IReadOnlyList<IAgent> agentList = await Agents.FindAsync(consistentRead: false, cancellationToken: cancellationToken);
-			foreach (IAgent agent in agentList)
+			await foreach (IAgent agent in Agents.FindAsync(consistentRead: false, cancellationToken: cancellationToken))
 			{
 				agents[agent.Id] = agent;
 			}
