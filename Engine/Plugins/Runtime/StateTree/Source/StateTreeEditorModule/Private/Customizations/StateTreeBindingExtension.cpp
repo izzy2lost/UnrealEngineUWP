@@ -20,6 +20,7 @@
 #include "IStructureDataProvider.h"
 #include "Kismet2/BlueprintEditorUtils.h"
 #include "PropertyBagDetails.h"
+#include "ScopedTransaction.h"
 #include "StateTreeEditorNodeUtils.h"
 #include "StateTreeEditorModule.h"
 #include "StateTreeNodeClassCache.h"
@@ -621,6 +622,8 @@ struct FCachedBindingData : public TSharedFromThis<FCachedBindingData>
 		}
 
 		const FGuid StructID = InStructDesc.ID;
+
+		const FScopedTransaction Transaction(LOCTEXT("PromoteToParameter", "Promote To Parameter"));
 
 		TArray<FStateTreeEditorPropertyCreationDesc, TFixedAllocator<1>> PropertyCreationDescs;
 		{
