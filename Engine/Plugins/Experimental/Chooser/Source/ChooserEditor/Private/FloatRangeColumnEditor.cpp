@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "FloatRangeColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "FloatRangeColumn.h"
 #include "ObjectChooserWidgetFactories.h"
 #include "ChooserTableEditor.h"
@@ -39,45 +42,22 @@ TSharedRef<SWidget> CreateFloatRangeColumnWidget(UChooserTable* Chooser, FChoose
 	else if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		// create column header widget
-		TSharedPtr<SWidget> InputValueWidget = nullptr;
-		if (FChooserParameterBase* InputValue = Column->GetInputValue())
-		{
-			InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-		}
-		
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.Filter");
+		const FText ColumnTooltip = LOCTEXT("Float Range Tooltip", "Float Range: cells pass if the input value is within the range specified in the cell");
+		const FText ColumnName = LOCTEXT("Float Range","Float Range");
 		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot()
-			[
-				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-			];
-	
+		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			ColumnHeaderWidget = SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			[
-				ColumnHeaderWidget
-			]
-			+ SVerticalBox::Slot()
-			[
-				SNew(SNumericEntryBox<float>).IsEnabled_Lambda([Chooser](){ return !Chooser->HasDebugTarget(); })
-				.Value_Lambda([FloatRangeColumn]() { return FloatRangeColumn->TestValue; })
-				.OnValueCommitted_Lambda([Chooser, FloatRangeColumn](float NewValue, ETextCommit::Type CommitType) { FloatRangeColumn->TestValue = NewValue; })
-			];
+            DebugWidget = SNew(SNumericEntryBox<float>).IsEnabled_Lambda([Chooser](){ return !Chooser->HasDebugTarget(); })
+            				.Value_Lambda([FloatRangeColumn]() { return FloatRangeColumn->TestValue; })
+            				.OnValueCommitted_Lambda([Chooser, FloatRangeColumn](float NewValue, ETextCommit::Type CommitType)
+            				{
+            					FloatRangeColumn->TestValue = NewValue;
+            				});
 		}
 
-		return ColumnHeaderWidget;
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 
 	// create cell widget

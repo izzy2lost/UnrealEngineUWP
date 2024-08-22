@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "RandomizeColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "RandomizeColumn.h"
 #include "SPropertyAccessChainWidget.h"
 #include "ObjectChooserWidgetFactories.h"
@@ -26,28 +29,14 @@ TSharedRef<SWidget> CreateRandomizeColumnWidget(UChooserTable* Chooser, FChooser
 	}
 	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
+		// create column header widget
 		const FSlateBrush* ColumnIcon = FAppStyle::Get().GetBrush("Icons.Help");
-		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SSpacer).Size(FVector2D(10,10))
-			]
-			+ SHorizontalBox::Slot().VAlign(VAlign_Center)
-			[
-				SNew(STextBlock).Text(LOCTEXT("Randomize","Randomize"))
-			];
+		const FText ColumnTooltip = LOCTEXT("Randomize Tooltip", "Randomize: randomly selects a single result from the rows which passed all other columns, or the rows with equal, minimum cost, for cost based columns.  Optional Randomization Context variable binding can be used to reduce (or eliminate) the probability of selecting the same entry twice in a row.");
+		const FText ColumnName = LOCTEXT("Randomize","Randomize");
+        		
+		TSharedPtr<SWidget> DebugWidget = nullptr;
 
-		return ColumnHeaderWidget;
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 
 	// create cell widget

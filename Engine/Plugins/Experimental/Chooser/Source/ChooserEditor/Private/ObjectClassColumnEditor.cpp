@@ -2,6 +2,8 @@
 
 #include "ObjectClassColumnEditor.h"
 
+#include <ChooserColumnHeader.h>
+
 #include "ClassViewerFilter.h"
 #include "SPropertyAccessChainWidget.h"
 #include "GraphEditorSettings.h"
@@ -47,30 +49,11 @@ namespace UE::ChooserEditor
 		}
 		else if (Row == ColumnWidget_SpecialIndex_Header)
 		{
-			// create column header widget
-			TSharedPtr<SWidget> InputValueWidget = nullptr;
-			if (FChooserParameterBase* InputValue = Column->GetInputValue())
-			{
-				InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-			}
-			
 			const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.Filter");
+			const FText ColumnTooltip = LOCTEXT("Object Class Tooltip", "Object Class: cells pass if the Object input has a type that matches the cell's Class setting");
+			const FText ColumnName = LOCTEXT("Object Class","Object Class");
 			
-			TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBorder)
-					.BorderBackgroundColor(FLinearColor(0,0,0,0))
-					.Content()
-					[
-						SNew(SImage).Image(ColumnIcon)
-					]
-				]
-				+ SHorizontalBox::Slot()
-				[
-					InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-				];
-
+			TSharedPtr<SWidget> DebugWidget = nullptr;
 			if (Chooser->GetEnableDebugTesting())
 			{
 				UClass* AllowedClass = UObject::StaticClass();
@@ -82,31 +65,21 @@ namespace UE::ChooserEditor
 				
 				// create widget for test value object picker
 				TSharedRef<SWidget> ObjectPicker = SNew(SObjectPropertyEntryBox)
-                                                   			.ObjectPath_Lambda([ObjectClassColumn]() {
-                                                   				return ObjectClassColumn->TestValue.ToString();
-                                                   			})
-                                                   			.OnObjectChanged_Lambda([ObjectClassColumn](const FAssetData& AssetData) {
-                                                   				ObjectClassColumn->TestValue = AssetData.ToSoftObjectPath();
-                                                   			})
+															.ObjectPath_Lambda([ObjectClassColumn]() {
+																return ObjectClassColumn->TestValue.ToString();
+															})
+															.OnObjectChanged_Lambda([ObjectClassColumn](const FAssetData& AssetData) {
+																ObjectClassColumn->TestValue = AssetData.ToSoftObjectPath();
+															})
 															.AllowedClass(AllowedClass)
-                                                   			.DisplayUseSelected(false)
-                                                   			.DisplayBrowse(false)
-                                                   			.DisplayThumbnail(false);
+															.DisplayUseSelected(false)
+															.DisplayBrowse(false)
+															.DisplayThumbnail(false);
 				
 				ObjectPicker->SetEnabled(TAttribute<bool>::CreateLambda([Chooser]() { return !Chooser->HasDebugTarget(); }));
-				
-				ColumnHeaderWidget = SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				[
-					ColumnHeaderWidget
-				]
-				+ SVerticalBox::Slot()
-				[
-					ObjectPicker
-				];
+				DebugWidget = ObjectPicker;
 			}
-			
-			return ColumnHeaderWidget;
+			return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 		}
 
 		// create widget for cell

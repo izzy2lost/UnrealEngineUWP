@@ -920,8 +920,9 @@ void FChooserTableEditor::RemoveDisabledData()
 int FChooserTableEditor::MoveColumn(int SourceIndex, int TargetIndex)
 {
 	UChooserTable* Chooser = GetChooser();
-	TargetIndex = FMath::Clamp(TargetIndex, 0, Chooser->ResultsStructs.Num());
 	
+	TargetIndex = FMath::Clamp(TargetIndex, 0, Chooser->ColumnsStructs.Num());
+
 	if (SourceIndex < 0 || SourceIndex == TargetIndex)
 	{
 		return TargetIndex;
@@ -933,11 +934,12 @@ int FChooserTableEditor::MoveColumn(int SourceIndex, int TargetIndex)
 
 	FInstancedStruct ColumnData = Chooser->ColumnsStructs[SourceIndex];
 	Chooser->ColumnsStructs.RemoveAt(SourceIndex);
+		
 	if (SourceIndex < TargetIndex)
 	{
 		TargetIndex--;
 	}
-
+	
 	if (TargetIndex == Chooser->ColumnsStructs.Num())
 	{
 		if (Chooser->ColumnsStructs.Last().GetPtr<FRandomizeColumn>())
@@ -1020,7 +1022,7 @@ bool FChooserTableEditor::IsRowSelected(int32 RowIndex)
 	
 bool FChooserTableEditor::IsColumnSelected(int32 ColumnIndex)
 {
-	return  (CurrentSelectionType == ESelectionType::Column && SelectedColumn);
+	return  (CurrentSelectionType == ESelectionType::Column && SelectedColumn && SelectedColumn->Column == ColumnIndex);
 }
 
 void FChooserTableEditor::UpdateTableColumns()
@@ -1034,8 +1036,18 @@ void FChooserTableEditor::UpdateTableColumns()
 					.ManualWidth(30));
 
 	HeaderRow->AddColumn(SHeaderRow::Column("Result")
-					.DefaultLabel(LOCTEXT("ResultColumnName", "Result"))
-					.ManualWidth(300));
+					.ManualWidth(300)
+					.HeaderContent()
+					[
+						SNew(SVerticalBox)
+						+ SVerticalBox::Slot()
+						.VAlign(VAlign_Top)
+						[
+							SNew(STextBlock)
+								.Text(LOCTEXT("Result", "Result"))
+								.ToolTipText(LOCTEXT("ResultTooltip", "The Result is the asset which will be returned if a row is selected (or other Chooser to evaluate to get the asset to return"))
+						]
+					]);
 
 	FName ColumnId("ChooserColumn", 1);
 	int NumColumns = Chooser->ColumnsStructs.Num();	
@@ -1060,17 +1072,7 @@ void FChooserTableEditor::UpdateTableColumns()
 					.ColumnIndex(ColumnIndex)
 					.NoDropAfter(Chooser->ColumnsStructs[ColumnIndex].GetPtr<FRandomizeColumn>() != nullptr)
 				[
-					SNew(SBorder)
-					.VAlign(VAlign_Center)
-					.Padding(3)
-					.BorderBackgroundColor_Lambda([this, ColumnIndex] ()
-					{
-						// unclear why this color is coming out much darker
-						return (SelectedColumn && SelectedColumn->Column == ColumnIndex) ? FSlateColor(FColor(0x00, 0x70, 0xe0, 0xFF)) : FSlateColor(FLinearColor(0.05f,0.05f,0.05f));
-					})
-					[
-						HeaderWidget.ToSharedRef()
-					]
+					HeaderWidget.ToSharedRef()
 				]
 			
 			]);

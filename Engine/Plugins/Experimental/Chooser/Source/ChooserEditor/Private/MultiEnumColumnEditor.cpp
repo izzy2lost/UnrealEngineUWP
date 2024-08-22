@@ -1,9 +1,11 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MultiEnumColumnEditor.h"
+#include "EnumColumnEditor.h"
 #include "MultiEnumColumn.h"
 #include "SPropertyAccessChainWidget.h"
 #include "ObjectChooserWidgetFactories.h"
+#include "ChooserColumnHeader.h"
 #include "ChooserTableEditor.h"
 #include "GraphEditorSettings.h"
 #include "SEnumCombo.h"
@@ -139,47 +141,27 @@ TSharedRef<SWidget> CreateMultiEnumColumnWidget(UChooserTable* Chooser, FChooser
 	}
 	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
-		// create column header widget
-		TSharedPtr<SWidget> InputValueWidget = nullptr;
-		if (FChooserParameterBase* InputValue = Column->GetInputValue())
-		{
-			InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-		}
-		
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.Filter");
+		const FText ColumnTooltip = LOCTEXT("Multi Enum Tooltip", "Enum Any: cells will pass if the input value is any of the enum values checked in the cell");
+		const FText ColumnName = LOCTEXT("Enum Or","Enum (Or)");
 		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot()
-			[
-				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-			];
 	
+		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			ColumnHeaderWidget = SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			[
-				ColumnHeaderWidget
-			]
-			+ SVerticalBox::Slot()
-			[
-				SNew(SMultiEnumCell<FMultiEnumColumn>).TransactionObject(Chooser).MultiEnumColumn(MultiEnumColumn)
-					.OnValueSet_Lambda([MultiEnumColumn](int Value) { MultiEnumColumn->TestValue = Value; })
-					.EnumValue_Lambda([MultiEnumColumn]() { return MultiEnumColumn->TestValue; })
-					.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); })
-			];
+			DebugWidget = SNew(SEnumCell<FMultiEnumColumn>).TransactionObject(Chooser).EnumColumn(MultiEnumColumn)
+								.OnValueSet_Lambda([MultiEnumColumn](int Value) { MultiEnumColumn->TestValue = Value; })
+								.EnumValue_Lambda([MultiEnumColumn]() { return MultiEnumColumn->TestValue; })
+								.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); });
+			
+			// need to fix support for bitfield enums:
+			// DebugWidget = SNew(SMultiEnumCell<FMultiEnumColumn>).TransactionObject(Chooser).MultiEnumColumn(MultiEnumColumn)
+   //                  					.OnValueSet_Lambda([MultiEnumColumn](int Value) { MultiEnumColumn->TestValue = Value; })
+   //                  					.EnumValue_Lambda([MultiEnumColumn]() { return MultiEnumColumn->TestValue; })
+   //                  					.IsEnabled_Lambda([Chooser] { return !Chooser->HasDebugTarget(); });
 		}
 
-		return ColumnHeaderWidget;
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 
 	// create cell widget

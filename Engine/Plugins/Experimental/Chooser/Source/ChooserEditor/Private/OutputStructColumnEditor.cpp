@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OutputStructColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "OutputStructColumn.h"
 #include "SPropertyAccessChainWidget.h"
 #include "ObjectChooserWidgetFactories.h"
@@ -20,37 +23,14 @@ TSharedRef<SWidget> CreateOutputStructColumnWidget(UChooserTable* Chooser, FChoo
 {
 	if (Row == ColumnWidget_SpecialIndex_Header)
 	{
-		// create column header widget
-		TSharedPtr<SWidget> InputValueWidget = nullptr;
-		if (FChooserParameterBase* InputValue = Column->GetInputValue())
-		{
-			InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType,
-				FChooserWidgetValueChanged::CreateLambda([Column]()
-				{
-					FOutputStructColumn* StructColumn = static_cast<FOutputStructColumn*>(Column);
-					StructColumn->StructTypeChanged();
-				})
-				);
-		}
-		
+    	// create column header widget
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.ArrowRight");
-		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot()
-			[
-				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-			];
-	
-		return ColumnHeaderWidget;
+		const FText ColumnTooltip = LOCTEXT("Output Struct Tooltip", "Output Struct: writes the value from cell in the result row to the bound variable");
+		const FText ColumnName = LOCTEXT("Output Struct","Output Struct");
+        		
+		TSharedPtr<SWidget> DebugWidget = nullptr;
+        
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 	
 	FOutputStructColumn* StructColumn = static_cast<FOutputStructColumn*>(Column);

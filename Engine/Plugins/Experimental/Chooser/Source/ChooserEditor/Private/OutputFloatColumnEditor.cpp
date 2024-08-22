@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OutputFloatColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "OutputFloatColumn.h"
 #include "ObjectChooserWidgetFactories.h"
 #include "ChooserTableEditor.h"
@@ -21,45 +24,20 @@ TSharedRef<SWidget> CreateOutputFloatColumnWidget(UChooserTable* Chooser, FChoos
 
     if (Row == ColumnWidget_SpecialIndex_Header)
 	{
-		// create column header widget
-		TSharedPtr<SWidget> InputValueWidget = nullptr;
-		if (FChooserParameterBase* InputValue = Column->GetInputValue())
-		{
-			InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-		}
-		
+    	// create column header widget
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.ArrowRight");
-		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot()
-			[
-				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-			];
-	
+		const FText ColumnTooltip = LOCTEXT("Output Float Tooltip", "Output Float: writes the value from cell in the result row to the bound variable");
+		const FText ColumnName = LOCTEXT("Output Float","Output Float");
+        		
+		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			ColumnHeaderWidget = SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			[
-				ColumnHeaderWidget
-			]
-			+ SVerticalBox::Slot()
-			[
-				SNew(SNumericEntryBox<float>).IsEnabled(false)
-				.Value_Lambda([OutputFloatColumn]() { return OutputFloatColumn->TestValue; })
-			];
+			DebugWidget = SNew(SNumericEntryBox<float>)
+				.IsEnabled(false)
+				.Value_Lambda([OutputFloatColumn]() { return OutputFloatColumn->TestValue; });
 		}
-
-		return ColumnHeaderWidget;
+        
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 	if (Row == ColumnWidget_SpecialIndex_Fallback)
     {

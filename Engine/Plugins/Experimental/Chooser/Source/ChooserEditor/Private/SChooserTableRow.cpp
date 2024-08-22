@@ -127,24 +127,24 @@ namespace UE::ChooserEditor
 				);
 
 				return SNew(SOverlay)
-							+ SOverlay::Slot()
-    						[
-    							ResultWidget.ToSharedRef()
-    						]
-							+ SOverlay::Slot()
-							[
-								SNew(SColorBlock).Color(DisabledColor)
-										.Visibility_Lambda(
-										[this]()
+						+ SOverlay::Slot()
+						[
+							ResultWidget.ToSharedRef()
+						]
+						+ SOverlay::Slot()
+						[
+							SNew(SColorBlock).Color(DisabledColor)
+									.Visibility_Lambda(
+									[this]()
+									{
+										if (Chooser->IsRowDisabled(RowIndex->RowIndex))
 										{
-											if (Chooser->IsRowDisabled(RowIndex->RowIndex))
-											{
-												return EVisibility::HitTestInvisible;
-											}
-											return EVisibility::Hidden;
-										})
-										
-							];
+											return EVisibility::HitTestInvisible;
+										}
+										return EVisibility::Hidden;
+									})
+									
+						];
 			}
 			else
 			{
@@ -161,7 +161,30 @@ namespace UE::ChooserEditor
 						return SNew(SOverlay)
 						+ SOverlay::Slot()
 						[
-							ColumnWidget.ToSharedRef()
+							SNew(SBorder)
+							.BorderBackgroundColor(FLinearColor(0,0,0,0))
+							.Padding(FMargin(4,0))
+							.Content()
+							[
+								SNew(SOverlay)
+								+ SOverlay::Slot()
+								[
+									SNew(SColorBlock).Color_Lambda([this, ColumnIndex](){ return Editor->TableHasFocus() ? FStyleColors::Select.GetSpecifiedColor() : FStyleColors::SelectInactive.GetSpecifiedColor(); } )
+										.Visibility_Lambda(
+										[this, ColumnIndex]()
+										{
+											if (Editor->IsColumnSelected(ColumnIndex))
+											{
+												return EVisibility::Visible;
+											}
+											return EVisibility::Hidden;
+										})
+								]
+								+ SOverlay::Slot()
+								[
+									ColumnWidget.ToSharedRef()
+								]
+							]
 						]
 						+ SOverlay::Slot()
 						[
@@ -267,7 +290,34 @@ namespace UE::ChooserEditor
 				
 					if (ColumnWidget.IsValid())
 					{
-						return ColumnWidget.ToSharedRef();
+						return SNew(SOverlay)
+							+ SOverlay::Slot()
+							[
+								SNew(SBorder)
+								.BorderBackgroundColor(FLinearColor(0,0,0,0))
+								.Padding(FMargin(4,0))
+								.Content()
+								[
+									SNew(SOverlay)
+									+SOverlay::Slot()
+									[
+										SNew(SColorBlock).Color_Lambda([this, ColumnIndex](){ return Editor->TableHasFocus() ? FStyleColors::Select.GetSpecifiedColor() : FStyleColors::SelectInactive.GetSpecifiedColor(); } )
+											.Visibility_Lambda(
+											[this, ColumnIndex]()
+											{
+												if (Editor->IsColumnSelected(ColumnIndex))
+												{
+													return EVisibility::Visible;
+												}
+												return EVisibility::Hidden;
+											})
+									]
+									+ SOverlay::Slot()
+									[
+										ColumnWidget.ToSharedRef()
+									]
+								]
+							];
 					}
 				}
 			}

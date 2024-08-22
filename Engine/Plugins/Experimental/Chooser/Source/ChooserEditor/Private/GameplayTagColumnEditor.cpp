@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "GameplayTagColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "SPropertyAccessChainWidget.h"
 #include "GameplayTagColumn.h"
 #include "ObjectChooserWidgetFactories.h"
@@ -25,62 +28,36 @@ TSharedRef<SWidget> CreateGameplayTagColumnWidget(UChooserTable* Chooser, FChoos
 	else if (Row == ColumnWidget_SpecialIndex_Header)
 	{
 		// create column header widget
-		TSharedPtr<SWidget> InputValueWidget = nullptr;
-		if (FChooserParameterBase* InputValue = Column->GetInputValue())
-		{
-			InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-		}
-		
 		const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.Filter");
+		const FText ColumnTooltip = LOCTEXT("Gameplay Tag Tooltip", "Gameplay Tag: cells pass if the input gameplay tag collection matches the cell data (accoding to comparison settings in the column properties).");
+		const FText ColumnName = LOCTEXT("Gameplay Tag","Gameplay Tag");
 		
-		TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-			+ SHorizontalBox::Slot().AutoWidth()
-			[
-				SNew(SBorder)
-				.BorderBackgroundColor(FLinearColor(0,0,0,0))
-				.Content()
-				[
-					SNew(SImage).Image(ColumnIcon)
-				]
-			]
-			+ SHorizontalBox::Slot()
-			[
-				InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-			];
-	
+		TSharedPtr<SWidget> DebugWidget = nullptr;
 		if (Chooser->GetEnableDebugTesting())
 		{
-			ColumnHeaderWidget = SNew(SVerticalBox)
-			+ SVerticalBox::Slot()
-			[
-				ColumnHeaderWidget
-			]
-			+ SVerticalBox::Slot()
-			[
-				SNew(SSimpleComboButton)
-					.IsEnabled_Lambda([Chooser]()
+			DebugWidget = SNew(SSimpleComboButton)
+				.IsEnabled_Lambda([Chooser]()
+				{
+					 return !Chooser->HasDebugTarget();
+				})
+				.Text_Lambda([GameplayTagColumn]()
+				{
+					FText Text = FText::FromString(GameplayTagColumn->TestValue.ToStringSimple(false));
+					if (Text.IsEmpty())
 					{
-						 return !Chooser->HasDebugTarget();
-					})
-					.Text_Lambda([GameplayTagColumn]()
-					{
-						FText Text = FText::FromString(GameplayTagColumn->TestValue.ToStringSimple(false));
-						if (Text.IsEmpty())
-						{
-							Text = LOCTEXT("None", "None");
-						}
-						return Text;
-					})	
-					.OnGetMenuContent_Lambda([Chooser, GameplayTagColumn, Row]()
-					{
-						TArray<SGameplayTagWidget::FEditableGameplayTagContainerDatum> EditableContainers;
-						EditableContainers.Emplace(Chooser, &(GameplayTagColumn->TestValue));
-						return TSharedRef<SWidget>(SNew(SGameplayTagWidget, EditableContainers));
-					})
-			];
+						Text = LOCTEXT("None", "None");
+					}
+					return Text;
+				})	
+				.OnGetMenuContent_Lambda([Chooser, GameplayTagColumn, Row]()
+				{
+					TArray<SGameplayTagWidget::FEditableGameplayTagContainerDatum> EditableContainers;
+					EditableContainers.Emplace(Chooser, &(GameplayTagColumn->TestValue));
+					return TSharedRef<SWidget>(SNew(SGameplayTagWidget, EditableContainers));
+				});
 		}
 
-		return ColumnHeaderWidget;
+		return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 	}
 
 	// create cell widget

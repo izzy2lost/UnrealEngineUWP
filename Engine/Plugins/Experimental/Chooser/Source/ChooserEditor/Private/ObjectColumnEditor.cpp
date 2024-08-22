@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "ObjectColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "SPropertyAccessChainWidget.h"
 #include "GraphEditorSettings.h"
 #include "ObjectChooserWidgetFactories.h"
@@ -99,32 +102,11 @@ namespace UE::ChooserEditor
 		}
 		else if (Row == ColumnWidget_SpecialIndex_Header)
 		{
-			// create column header widget
-			TSharedPtr<SWidget> InputValueWidget = nullptr;
-			if (FChooserParameterBase* InputValue = Column->GetInputValue())
-			{
-				InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), Chooser->OutputObjectType);
-			}
-			
 			const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.Filter");
-			// ColumnIcon = FCoreStyle::Get().GetBrush("Icons.ArrowRight");
-			// ColumnIcon = FAppStyle::Get().GetBrush("Icons.Help");
+			const FText ColumnTooltip = LOCTEXT("Object Tooltip", "Object: cells pass if the Object input is equal to the Object set in the cell");
+			const FText ColumnName = LOCTEXT("Object","Object");
 			
-			TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-				+ SHorizontalBox::Slot().AutoWidth()
-				[
-					SNew(SBorder)
-					.BorderBackgroundColor(FLinearColor(0,0,0,0))
-					.Content()
-					[
-						SNew(SImage).Image(ColumnIcon)
-					]
-				]
-				+ SHorizontalBox::Slot()
-				[
-					InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-				];
-		
+			TSharedPtr<SWidget> DebugWidget = nullptr;
 			if (Chooser->GetEnableDebugTesting())
 			{
 				TSharedRef<SWidget> ObjectPicker = CreateObjectPicker(Chooser, ObjectColumn, Row);
@@ -144,18 +126,9 @@ namespace UE::ChooserEditor
 				CellWidget->ObjectPickerFactory = [Chooser, ObjectColumn, Row]() { return CreateObjectPicker(Chooser, ObjectColumn, Row); };
 				CellWidget->ObjectPickerSlot = 0;
 				
-				ColumnHeaderWidget = SNew(SVerticalBox)
-				+ SVerticalBox::Slot()
-				[
-					ColumnHeaderWidget
-				]
-				+ SVerticalBox::Slot()
-				[
-					CellWidget
-				];
+				DebugWidget = CellWidget;
 			}
-	
-			return ColumnHeaderWidget;
+			return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 		}
 
 

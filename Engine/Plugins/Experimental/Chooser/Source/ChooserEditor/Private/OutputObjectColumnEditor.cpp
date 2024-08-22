@@ -1,6 +1,9 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "OutputObjectColumnEditor.h"
+
+#include <ChooserColumnHeader.h>
+
 #include "SPropertyAccessChainWidget.h"
 #include "GraphEditorSettings.h"
 #include "ObjectChooserWidgetFactories.h"
@@ -72,30 +75,13 @@ namespace UE::ChooserEditor
 				else if (Row == ColumnWidget_SpecialIndex_Header)
 				{
 					// create column header widget
-					TSharedPtr<SWidget> InputValueWidget = nullptr;
-					if (FChooserParameterBase* InputValue = Column->GetInputValue())
-					{
-						InputValueWidget = FObjectChooserWidgetFactories::CreateWidget(false, Chooser, InputValue, Column->GetInputType(), ContextOwner->OutputObjectType);
-					}
-					
 					const FSlateBrush* ColumnIcon = FCoreStyle::Get().GetBrush("Icons.ArrowRight");
+					const FText ColumnTooltip = LOCTEXT("Output Object Tooltip", "Output Object: writes the value from cell in the result row to the bound variable");
+					const FText ColumnName = LOCTEXT("Output Object","Output Object");
+							
+					TSharedPtr<SWidget> DebugWidget = nullptr;
 					
-					TSharedRef<SWidget> ColumnHeaderWidget = SNew(SHorizontalBox)
-						+ SHorizontalBox::Slot().AutoWidth()
-						[
-							SNew(SBorder)
-							.BorderBackgroundColor(FLinearColor(0,0,0,0))
-							.Content()
-							[
-								SNew(SImage).Image(ColumnIcon)
-							]
-						]
-						+ SHorizontalBox::Slot()
-						[
-							InputValueWidget ? InputValueWidget.ToSharedRef() : SNullWidget::NullWidget
-						];
-				
-					return ColumnHeaderWidget;
+					return MakeColumnHeaderWidget(Chooser, Column, ColumnName, ColumnTooltip, ColumnIcon, DebugWidget);
 				}
  
 				if (Column->RowValues.IsValidIndex(Row))

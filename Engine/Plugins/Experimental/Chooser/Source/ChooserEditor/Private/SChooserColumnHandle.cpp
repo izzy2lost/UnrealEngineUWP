@@ -3,6 +3,7 @@
 #include "SChooserColumnHandle.h"
 #include "ChooserTableEditor.h"
 #include "RandomizeColumn.h"
+#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/Layout/SSeparator.h"
 
 #define LOCTEXT_NAMESPACE "ChooserColumnHandle"
@@ -32,6 +33,19 @@ namespace UE::ChooserEditor
 		ChildSlot
 		[
 			SNew(SOverlay)
+				+ SOverlay::Slot()
+				[
+					SNew(SColorBlock).Color_Lambda([this](){ return ChooserEditor->TableHasFocus() ? FStyleColors::Select.GetSpecifiedColor() : FStyleColors::SelectInactive.GetSpecifiedColor(); } )
+							.Visibility_Lambda(
+							[this]()
+							{
+								if (ChooserEditor->IsColumnSelected(ColumnIndex))
+								{
+									return EVisibility::Visible;
+								}
+								return EVisibility::Hidden;
+							})
+				]
 				+ SOverlay::Slot()
 				[
 					InArgs._Content.Widget

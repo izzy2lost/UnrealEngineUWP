@@ -154,6 +154,8 @@ namespace UE::ChooserEditor
 
 		UChooserTable* CopySelectionInternal();
 		void PasteInternal(UChooserTable* PasteObject, int PasteRowIndex=-1);
+
+		bool TableHasFocus() const { return TableView->HasKeyboardFocus(); }
 	private:
 		
 		void SelectRootProperties();
