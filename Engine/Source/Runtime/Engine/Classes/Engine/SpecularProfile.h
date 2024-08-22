@@ -81,6 +81,7 @@ class USpecularProfile : public UObject
 	//~ Begin UObject Interface
 	virtual void BeginDestroy();
 	virtual void PostEditChangeProperty(struct FPropertyChangedEvent& PropertyChangedEvent);
+	virtual void PostDuplicate(EDuplicateMode::Type DuplicateMode);
 	//~ End UObject Interface
 };
 

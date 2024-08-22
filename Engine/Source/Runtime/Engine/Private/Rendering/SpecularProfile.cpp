@@ -544,6 +544,14 @@ void USpecularProfile::PostEditChangeProperty(struct FPropertyChangedEvent& Prop
 	});
 }
 
+void USpecularProfile::PostDuplicate(EDuplicateMode::Type DuplicateMode)
+{
+	Super::PostDuplicate(DuplicateMode);
+
+	// When a Specular Profile asset is duplicated/copied pasted (e.g. from the asset browser), we want the guid to be regenerated.
+	Guid = FGuid::NewGuid();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 // Public API
 
