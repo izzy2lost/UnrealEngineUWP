@@ -1394,11 +1394,78 @@ public:
 		float Epsilon = TMathUtil<float>::Epsilon;
 	};
 
+	struct FMeshDifferenceInfo
+	{
+		// Reasons for difference between meshes
+		enum class EReason
+		{
+			Unknown,
+			VertexCount,
+			TriangleCount,
+			EdgeCount,
+			Vertex,
+			Triangle,
+			Edge,
+			Connectivity,
+			Normal,
+			Color,
+			UV,
+			Group,
+			Attribute
+		};
+		EReason Reason = EReason::Unknown;
+
+		// Types of element ID that could be set below
+		enum class EIDType
+		{
+			None,
+			Vertex,
+			Triangle,
+			Edge
+		};
+
+		// ID in this mesh of element where the difference was found, or InvalidID if not applicable
+		int32 ID = InvalidID;
+		// ID in the compared-against mesh where the difference was found, or InvalidID if not applicable
+		int32 OtherID = InvalidID;
+		// Type of element that the ID references
+		EIDType IDType = EIDType::None;
+
+		// Helpers to set different ID types
+		void SetVID(int32 VID, int32 OtherVID = InvalidID)
+		{
+			ID = VID;
+			OtherID = OtherVID;
+			IDType = EIDType::Vertex;
+		}
+		void SetTID(int32 TID, int32 OtherTID = InvalidID)
+		{
+			ID = TID;
+			OtherID = OtherTID;
+			IDType = EIDType::Triangle;
+		}
+		void SetEID(int32 EID, int32 OtherEID = InvalidID)
+		{
+			ID = EID;
+			OtherID = OtherEID;
+			IDType = EIDType::Edge;
+		}
+	};
+
 	/**
 	 * Check if another mesh is the same as this mesh. By default only checks
 	 * vertices and triangles, turn on other parameters w/ flags
 	 */
 	GEOMETRYCORE_API virtual bool IsSameAs(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options) const;
+	/**
+	 * Check if another mesh is the same as this mesh. By default only checks
+	 * vertices and triangles, turn on other parameters w/ flags
+	 * @param OutMeshDifferenceInfo If the meshes are not the same, this struct may provide additional info as to the source of difference. Note it will only indicate the first difference found, not a complete report of differences.
+	 */
+	GEOMETRYCORE_API virtual bool IsSameAs(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options, FMeshDifferenceInfo& OutMeshDifferenceInfo) const;
+private:
+	GEOMETRYCORE_API bool IsSameAs_Helper(const FDynamicMesh3& OtherMesh, const FSameAsOptions& Options, FMeshDifferenceInfo* OutMeshDifferenceInfo = nullptr) const;
+public:
 
 	/**
 	 * Options for what the validity check will permit

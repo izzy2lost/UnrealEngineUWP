@@ -695,6 +695,20 @@ FString FDynamicMesh3::MeshInfoString() const
 
 bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Options) const
 {
+	return IsSameAs_Helper(m2, Options, nullptr);
+}
+bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Options, FMeshDifferenceInfo& OutMeshDifferenceInfo) const
+{
+	return IsSameAs_Helper(m2, Options, &OutMeshDifferenceInfo);
+}
+bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOptions& Options, FMeshDifferenceInfo* OutMeshDifferenceInfo) const
+{
+	if (OutMeshDifferenceInfo)
+	{
+		// reset difference info to defaults
+		*OutMeshDifferenceInfo = FMeshDifferenceInfo{};
+	}
+
 	auto SameVertex = [this, &m2, &Options](const int Vid, const int VidM2)
 	{
 		return VectorUtil::EpsilonEqual(GetVertexRef(Vid), m2.GetVertexRef(VidM2), static_cast<double>(Options.Epsilon));
@@ -702,11 +716,19 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 
 	if (VertexCount() != m2.VertexCount())
 	{
+		if (OutMeshDifferenceInfo)
+		{
+			OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::VertexCount;
+		}
 		return false;
 	}
 
 	if (TriangleCount() != m2.TriangleCount())
 	{
+		if (OutMeshDifferenceInfo)
+		{
+			OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::TriangleCount;
+		}
 		return false;
 	}
 
@@ -719,6 +741,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 		{
 			if (m2.IsVertex(Vid) == false || !SameVertex(Vid, Vid))
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Vertex;
+					OutMeshDifferenceInfo->SetVID(Vid);
+				}
 				return false;
 			}
 		}
@@ -727,6 +754,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 		{
 			if (m2.IsTriangle(Tid) == false || (GetTriangle(Tid) != m2.GetTriangle(Tid)))
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Triangle;
+					OutMeshDifferenceInfo->SetTID(Tid);
+				}
 				return false;
 			}
 		}
@@ -752,6 +784,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 				if (!SameVertex(*ItVid, *ItVidM2))
 				{
 					// Vertices are not the same.
+					if (OutMeshDifferenceInfo)
+					{
+						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Vertex;
+						OutMeshDifferenceInfo->SetVID(*ItVid, *ItVidM2);
+					}
 					return false;
 				}
 			
@@ -762,6 +799,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			if (ItVid != ItEndVid || ItVidM2 != ItEndVidM2)
 			{
 				// Number of vertices is not the same.
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::VertexCount;
+				}
 				return false;
 			}
 		}
@@ -788,6 +829,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 					if (TriM2[i] != (VidMapping ? (*VidMapping)[Tri[i]] : Tri[i]))
 					{
 						// Triangle vertices are not the same.
+						if (OutMeshDifferenceInfo)
+						{
+							OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Triangle;
+							OutMeshDifferenceInfo->SetTID(*ItTid, *ItTidM2);
+						}
 						return false;
 					}
 				}
@@ -799,6 +845,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			if (ItTid != ItEndTid || ItTidM2 != ItEndTidM2)
 			{
 				// Number of triangles is not the same.
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::TriangleCount;
+				}
 				return false;
 			}
 		}
@@ -808,6 +858,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (EdgeCount() != m2.EdgeCount())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::EdgeCount;
+			}
 			return false;
 		}
 		for (int eid : EdgeIndicesItr())
@@ -818,6 +872,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			const int other_eid = m2.FindEdge(Vert0, Vert1);
 			if (other_eid == InvalidID)
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Connectivity;
+					OutMeshDifferenceInfo->SetEID(eid);
+				}
 				return false;
 			}
 			const FEdge oe = m2.GetEdge(other_eid);
@@ -830,6 +889,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			if (FMath::Min(eTri[0], eTri[1]) != FMath::Min(oe.Tri[0], oe.Tri[1]) ||
 			    FMath::Max(eTri[0], eTri[1]) != FMath::Max(oe.Tri[0], oe.Tri[1]))
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Connectivity;
+					OutMeshDifferenceInfo->SetEID(eid, other_eid);
+				}
 				return false;
 			}
 		}
@@ -838,12 +902,21 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (EdgeCount() != m2.EdgeCount())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::EdgeCount;
+			}
 			return false;
 		}
 		for (const int Eid : EdgeIndicesItr())
 		{
 			if (m2.IsEdge(Eid) == false)
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Edge;
+					OutMeshDifferenceInfo->SetEID(Eid);
+				}
 				return false;
 			}
 			FEdge Edge = GetEdge(Eid);
@@ -854,6 +927,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			}
 			if (Edge != m2.GetEdge(Eid))
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Edge;
+					OutMeshDifferenceInfo->SetEID(Eid);
+				}
 				return false;
 			}
 		}
@@ -862,6 +940,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (HasVertexNormals() != m2.HasVertexNormals())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Normal;
+			}
 			return false;
 		}
 		if (HasVertexNormals())
@@ -870,6 +952,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			{
 				if (VectorUtil::EpsilonEqual(GetVertexNormal(vid), m2.GetVertexNormal(VidMapping ? (*VidMapping)[vid] : vid), Options.Epsilon) == false)
 				{
+					if (OutMeshDifferenceInfo)
+					{
+						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Normal;
+						OutMeshDifferenceInfo->SetVID(vid);
+					}
 					return false;
 				}
 			}
@@ -879,6 +966,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (HasVertexColors() != m2.HasVertexColors())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Color;
+			}
 			return false;
 		}
 		if (HasVertexColors())
@@ -887,6 +978,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			{
 				if (VectorUtil::EpsilonEqual(GetVertexColor(vid), m2.GetVertexColor(VidMapping ? (*VidMapping)[vid] : vid), Options.Epsilon) == false)
 				{
+					if (OutMeshDifferenceInfo)
+					{
+						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Color;
+						OutMeshDifferenceInfo->SetVID(vid);
+					}
 					return false;
 				}
 			}
@@ -896,6 +992,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (HasVertexUVs() != m2.HasVertexUVs())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::UV;
+			}
 			return false;
 		}
 		if (HasVertexUVs())
@@ -904,6 +1004,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 			{
 				if (VectorUtil::EpsilonEqual(GetVertexUV(vid), m2.GetVertexUV(VidMapping ? (*VidMapping)[vid] : vid), Options.Epsilon) == false)
 				{
+					if (OutMeshDifferenceInfo)
+					{
+						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::UV;
+						OutMeshDifferenceInfo->SetVID(vid);
+					}
 					return false;
 				}
 			}
@@ -913,6 +1018,10 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (HasTriangleGroups() != m2.HasTriangleGroups())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Group;
+			}
 			return false;
 		}
 		if (HasTriangleGroups())
@@ -922,6 +1031,11 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 				const int TidM2 = TidMapping ? (*TidMapping)[Tid] : Tid;
 				if (GetTriangleGroup(Tid) != m2.GetTriangleGroup(TidM2))
 				{
+					if (OutMeshDifferenceInfo)
+					{
+						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Group;
+						OutMeshDifferenceInfo->SetTID(Tid, TidM2);
+					}
 					return false;
 				}
 			}
@@ -931,12 +1045,20 @@ bool FDynamicMesh3::IsSameAs(const FDynamicMesh3& m2, const FSameAsOptions& Opti
 	{
 		if (HasAttributes() != m2.HasAttributes())
 		{
+			if (OutMeshDifferenceInfo)
+			{
+				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Attribute;
+			}
 			return false;
 		}
 		if (HasAttributes())
 		{
 			if (!AttributeSet->IsSameAs(*m2.AttributeSet, Options.bIgnoreDataLayout))
 			{
+				if (OutMeshDifferenceInfo)
+				{
+					OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Attribute;
+				}
 				return false;
 			}
 		}
