@@ -7,6 +7,7 @@
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMNativeStruct.h"
 #include "VerseVM/VVMObject.h"
+#include "VerseVM/VVMVerseClass.h"
 
 namespace Verse
 {
