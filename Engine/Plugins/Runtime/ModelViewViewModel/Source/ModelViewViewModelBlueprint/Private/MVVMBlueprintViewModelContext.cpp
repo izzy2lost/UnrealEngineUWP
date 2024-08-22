@@ -41,7 +41,7 @@ TObjectPtr<UMVVMViewModelContextResolver> FMVVMBlueprintViewModelContext::Create
 
 	if (CreationType == EMVVMBlueprintViewModelContextCreationType::Resolver)
 	{
-		if (const UClass* DefaultClass = GetDefault<UMVVMDeveloperProjectSettings>()->DefaultResolverValue.ResolveClass())
+		if (const UClass* DefaultClass = GetDefault<UMVVMDeveloperProjectSettings>()->DefaultResolverValue.LoadSynchronous())
 		{
 			if (UMVVMViewModelContextResolver* DefaultResolverClass = Cast<UMVVMViewModelContextResolver>(DefaultClass->GetDefaultObject()))
 			{

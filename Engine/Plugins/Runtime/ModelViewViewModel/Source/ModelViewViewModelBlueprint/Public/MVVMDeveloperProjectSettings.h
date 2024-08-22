@@ -8,6 +8,7 @@
 
 class UK2Node;
 class UListViewBase;
+class UMVVMViewModelContextResolver;
 class UPanelWidget;
 enum class EMVVMBlueprintViewModelContextCreationType : uint8;
 enum class EMVVMExecutionMode : uint8;
@@ -199,7 +200,7 @@ public:
 
 	/** Resolver class to use as the default value when selecting resolver creation mode */
 	UPROPERTY(EditAnywhere, config, Category = "Defaults")
-	FSoftClassPath DefaultResolverValue;
+	TSoftClassPtr<UMVVMViewModelContextResolver> DefaultResolverValue;
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
