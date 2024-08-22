@@ -65,7 +65,7 @@ struct FRigidParticleCoreData
 {
 	int32 CollisionGroup;							// 4 bytes
 	uint32 CollisionConstraintFlags;				// 4 bytes
-	FRigidParticleControlFlags ControlFlags;		// 1 byte
+	FRigidParticleControlFlags ControlFlags;		// 2 bytes
 	FRigidParticleTransientFlags TransientFlags;	// 1 byte
 	EObjectStateType ObjectState;					// 1 byte
 	EObjectStateType PreObjectState;				// 1 byte

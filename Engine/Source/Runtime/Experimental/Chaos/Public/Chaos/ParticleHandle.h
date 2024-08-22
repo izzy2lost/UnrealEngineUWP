@@ -125,6 +125,7 @@ void PBDRigidParticleDefaultConstruct(FConcrete& Concrete, const FPBDRigidPartic
 	Concrete.SetLinearEtherDrag(0.f);
 	Concrete.SetAngularEtherDrag(0.f);
 	Concrete.SetGravityEnabled(Params.bGravityEnabled);
+	Concrete.SetGravityGroupIndex(0);
 	Concrete.SetCCDEnabled(Params.bCCDEnabled);
 	Concrete.SetMACDEnabled(false);
 	Concrete.SetDisabled(Params.bDisabled);
@@ -3349,6 +3350,12 @@ public:
 	void SetGravityEnabled(const bool bInEnabled)
 	{
 		MMiscData.Modify(true, MDirtyFlags, Proxy, [bInEnabled](auto& Data) { Data.SetGravityEnabled(bInEnabled); });
+	}
+
+	int32 GravityGroupIndex() const { return MMiscData.Read().GravityGroupIndex(); }
+	void SetGravityGroupIndex(int32 NewIndex)
+	{
+		MMiscData.Modify(true, MDirtyFlags, Proxy, [NewIndex](auto& Data) { Data.SetGravityGroupIndex(NewIndex); });
 	}
 	
 	bool UpdateKinematicFromSimulation() const { return MMiscData.Read().UpdateKinematicFromSimulation(); }

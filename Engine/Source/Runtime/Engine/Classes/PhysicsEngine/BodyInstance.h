@@ -573,6 +573,10 @@ public:
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics, meta = (ClampMin = "0.001", UIMin = "0.001"))
 	float MassScale;
 
+	/** What gravity group the BI should use, which determines rate of acceleration */
+	UPROPERTY(EditAnywhere,BlueprintReadOnly,Category = Physics, meta = (ClampMin = "0", UIMin = "0", UIMax = "7"))
+	uint8 GravityGroupIndex;
+
 	/** Per-instance scaling of inertia (bigger number means  it'll be harder to rotate) */
 	UPROPERTY(EditAnywhere, AdvancedDisplay, BlueprintReadWrite, Category = Physics)
 	FVector InertiaTensorScale;
@@ -931,6 +935,8 @@ public:
 	ENGINE_API void SetInstanceNotifyRBCollision(bool bNewNotifyCollision);
 	/** Enables/disables whether this body is affected by gravity. */
 	ENGINE_API void SetEnableGravity(bool bGravityEnabled);
+	/** Sets the gravity group index, which determines acceleration when gravity is enabled. */
+	ENGINE_API void SetGravityGroupIndex(int32 NewGravityGroupIndex);
 	/** Enables/disables whether this body, when kinematic, is updated from the simulation rather than when setting the kinematic target. */
 	ENGINE_API void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation);
 	/** Enables/disables contact modification */

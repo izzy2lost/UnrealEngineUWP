@@ -3673,6 +3673,24 @@ void FBodyInstance::SetEnableGravity(bool bInGravityEnabled)
 	}
 }
 
+void FBodyInstance::SetGravityGroupIndex(int32 NewGravityGroupIndex)
+{
+	if (GravityGroupIndex >= 0)
+	{
+		GravityGroupIndex = NewGravityGroupIndex;
+
+		{
+			FPhysicsCommand::ExecuteWrite(ActorHandle, [&](const FPhysicsActorHandle& Actor)
+				{
+					if (FPhysicsInterface::IsRigidBody(Actor))
+					{
+						FPhysicsInterface::SetGravityGroupIndex_AssumesLocked(Actor, GravityGroupIndex);
+					}
+				});
+		}
+	}
+}
+
 void FBodyInstance::SetUpdateKinematicFromSimulation(bool bInUpdateKinematicFromSimulation)
 {
 	if (bUpdateKinematicFromSimulation != bInUpdateKinematicFromSimulation)

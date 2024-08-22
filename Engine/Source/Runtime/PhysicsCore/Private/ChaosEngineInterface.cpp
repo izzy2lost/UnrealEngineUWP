@@ -1164,6 +1164,16 @@ void FChaosEngineInterface::SetGravityEnabled_AssumesLocked(const FPhysicsActorH
 	InActorReference->GetGameThreadAPI().SetGravityEnabled(bEnabled);
 }
 
+PHYSICSCORE_API int32 FChaosEngineInterface::GetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference)
+{
+	return InActorReference->GetGameThreadAPI().GravityGroupIndex();
+}
+
+void FChaosEngineInterface::SetGravityGroupIndex_AssumesLocked(const FPhysicsActorHandle& InActorReference, uint32 Index)
+{
+	InActorReference->GetGameThreadAPI().SetGravityGroupIndex(Index);
+}
+
 bool FChaosEngineInterface::GetUpdateKinematicFromSimulation_AssumesLocked(const FPhysicsActorHandle& InActorReference)
 {
 	return InActorReference->GetGameThreadAPI().UpdateKinematicFromSimulation();

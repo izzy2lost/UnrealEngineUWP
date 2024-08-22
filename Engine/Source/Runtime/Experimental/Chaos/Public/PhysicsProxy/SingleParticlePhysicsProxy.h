@@ -177,6 +177,8 @@ protected:
 	FParticleHandle* Handle;
 	FPhysicsObjectUniquePtr Reference;
 
+	int32 GravityGroupIndex;
+
 private:
 	TUniquePtr<FProxyInterpolationBase> InterpolationData;
 
@@ -407,6 +409,30 @@ public:
 				return Rigid->SetGravityEnabled(InGravityEnabled);
 			}
 		});
+	}
+
+	int32 GravityGroupIndex() const
+	{
+		return Read([](auto* Particle)
+		{
+			if (auto Rigid = Particle->CastToRigidParticle())
+			{
+				return Rigid->GravityGroupIndex();
+			}
+
+			return -1;
+		});
+	}
+
+	void SetGravityGroupIndex(const uint32 InGravityGroupIndex)
+	{
+		Write([InGravityGroupIndex](auto* Particle)
+			{
+				if (auto Rigid = Particle->CastToRigidParticle())
+				{
+					return Rigid->SetGravityGroupIndex(InGravityGroupIndex);
+				}
+			});
 	}
 
 	bool UpdateKinematicFromSimulation() const

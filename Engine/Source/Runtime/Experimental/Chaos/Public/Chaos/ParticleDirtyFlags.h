@@ -533,6 +533,8 @@ public:
 
 	bool GravityEnabled() const { return MControlFlags.GetGravityEnabled(); }
 	void SetGravityEnabled(bool bInGravity){ MControlFlags.SetGravityEnabled(bInGravity); }
+	int32 GravityGroupIndex() const { return MControlFlags.GetGravityGroupIndex(); }
+	void SetGravityGroupIndex(int32 InIndex) { MControlFlags.SetGravityGroupIndex(InIndex); }
 
 	bool UpdateKinematicFromSimulation() const { return MControlFlags.GetUpdateKinematicFromSimulation(); }
 	void SetUpdateKinematicFromSimulation(bool bUpdateKinematicFromSimulation) { MControlFlags.SetUpdateKinematicFromSimulation(bUpdateKinematicFromSimulation); }
