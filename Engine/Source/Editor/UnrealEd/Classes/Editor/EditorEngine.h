@@ -1299,7 +1299,6 @@ public:
 	 * 
 	 * @param Factory - the Factory to use to create Actors
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ReplaceSelectedActors instead.")
 	UNREALED_API void ReplaceSelectedActors(UActorFactory* Factory, const FAssetData& AssetData, bool bCopySourceProperties = true);
 
 	/**
@@ -1311,7 +1310,6 @@ public:
 	 * @param ActorsToReplace - Actors to replace
 	 * @param OutNewActors - Actors that were created
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ReplaceActors instead.")
 	UNREALED_API void ReplaceActors(UActorFactory* Factory, const FAssetData& AssetData, const TArray<AActor*>& ActorsToReplace, TArray<AActor*>* OutNewActors = nullptr, bool bCopySourceProperties = true);
 
 	/**
@@ -1323,7 +1321,6 @@ public:
 	 *
 	 * @return							Returns the newly created actor with the newly created static mesh.
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertBrushesToStaticMesh instead.")
 	UNREALED_API AActor* ConvertBrushesToStaticMesh(const FString& InStaticMeshPackageName, TArray<ABrush*>& InBrushesToConvert, const FVector& InPivotLocation);
 
 	/**
@@ -1335,7 +1332,6 @@ public:
 	 *
 	 * @param	ConvertToClass	The light class we are going to convert to.
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertLightActors instead.")
 	UNREALED_API void ConvertLightActors( UClass* ConvertToClass );
 
 	/**
@@ -1353,7 +1349,6 @@ public:
 	 * @param	bUseSpecialCases			If true, looks for classes that can be handled by hardcoded conversions
 	 * @param	InStaticMeshPackageName		The name to save the brushes to.
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::DoConvertActors instead.")
 	UNREALED_API void DoConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases, const FString& InStaticMeshPackageName );
 
 	/**
@@ -1365,7 +1360,6 @@ public:
 	 * @param	ComponentsToConsider	Names of components to consider for property copying as well
 	 * @param	bUseSpecialCases		If true, looks for classes that can be handled by hardcoded conversions
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertActors instead.")
 	UNREALED_API void ConvertActors( const TArray<AActor*>& ActorsToConvert, UClass* ConvertToClass, const TSet<FString>& ComponentsToConsider, bool bUseSpecialCases = false );
 
 	/**
@@ -2316,7 +2310,6 @@ public:
 	  *
 	  * @param	VolumeClass	Class of volume that selected brushes should be converted into
 	  */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertSelectedBrushesToVolumes instead.")
 	UNREALED_API void ConvertSelectedBrushesToVolumes( UClass* VolumeClass );
 
 	/**
@@ -2325,7 +2318,6 @@ public:
 	 * @param FromClass The class converting from
 	 * @param ToClass	The class converting to
 	 */
-	UE_DEPRECATED(5.5, "Please use UEditorActorSubsystem::ConvertActorsFromClass instead.")
 	UNREALED_API void ConvertActorsFromClass( UClass* FromClass, UClass* ToClass );
 
 	/**
