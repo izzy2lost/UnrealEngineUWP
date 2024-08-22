@@ -190,7 +190,7 @@ class Cmd(object):
             wrapper = textwrap.TextWrapper(width=width, subsequent_indent="  ")
             for line in wrapper.wrap(desc):
                 print(leader, line, sep="")
-                leader = leader or " " * (col_0 + 3)
+                leader = leader or (" " * (col_0 + 4))
 
         if args:
             print("\nARGS:")

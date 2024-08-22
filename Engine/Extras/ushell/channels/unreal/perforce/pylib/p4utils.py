@@ -149,8 +149,13 @@ def get_branch_root(depot_path):
     for x in fstat_paths():
         print(" ", x)
 
+    def on_error(message):
+        if data := getattr(message, "data", None):
+            if "has been unloaded" in data:
+                raise EnvironmentError("Attempting to use an unloaded client")
+
     fstat = P4.fstat(fstat_paths(), T="depotFile")
-    root_path = fstat.run(on_error=False)
+    root_path = fstat.run(on_error=on_error)
     if root_path:
         return "/".join(root_path.depotFile.split("/")[:-1]) + "/"
 

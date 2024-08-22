@@ -323,14 +323,16 @@ class Sync(_SyncBase):
         def impl(path):
             print("Source:", os.path.normpath(path), end="")
             try:
-                sync_config = open(path, "rt")
-                print()
+                with open(path, "rt") as sync_config:
+                    lines = [x.strip() for x in sync_config]
+                print(" ... ", len(lines), "lines")
             except:
                 print(" ... not found")
                 return
 
+            # Exclusions
             def read_exclusions():
-                for line in map(str.strip, sync_config):
+                for line in lines:
                     if line.startswith("-"):    yield line[1:]
                     elif line.startswith("$-"): yield line[2:]
 
@@ -350,7 +352,15 @@ class Sync(_SyncBase):
                     view = view or line
                     print(flow.cmd.text.light_yellow(view + " (ill-formed)"))
 
-            sync_config.close()
+            # Extra roots
+            def read_extra_roots():
+                for line in lines:
+                    if line.startswith("/"):    yield line
+                    elif line.startswith("$/"): yield line[1:]
+
+            for extra_root in read_extra_roots():
+                syncer.add_path(self._local_root + extra_root)
+                print("        +", "sync   ", extra_root)
 
         self.print_info("Applying .p4sync.txt")
         for dir in (self.get_home_dir(), self._local_root):
