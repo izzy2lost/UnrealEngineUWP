@@ -89,7 +89,14 @@ struct FDebugCacheEntry
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-static constexpr FStringView GetCacheFsDir()	 { return FStringView(TEXT("ias")); }
+static FStringView GetCacheFsDir()
+{ 
+	if (GIsEditor)
+	{
+		return FStringView(TEXT("iaseditor"));
+	}
+	return FStringView(TEXT("ias"));
+}
 static constexpr FStringView GetCacheFsSuffix()  { return FStringView(TEXT(".cache.0")); }
 static constexpr FStringView GetCacheJrnSuffix() { return FStringView(TEXT(".jrn")); }
 
