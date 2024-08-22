@@ -125,7 +125,7 @@ struct TScopedStructBinding : TScopedStructDeclaration<T, Occupancy, Runtime>
 	FStructSchemaId BindId;
 
 	TScopedStructBinding()
-	: BindId(IndexStructBindIdIfNeeded<Typename, Ids>(Super::DeclId))
+	: BindId(IndexStructBindIdIfNeeded<Ids, Typename>(Super::DeclId))
 	{
 		BindNativeStruct<CttiOf<T>, Runtime>(Runtime::GetSchemas(), BindId, Super::DeclId);
 	}
@@ -220,17 +220,17 @@ FBatchSaver::FBatchSaver(const FCustomBindings& CustomBase)
 template<class T>
 void FBatchSaver::Save(T&& Object) 
 {
-	FDualStructSchemaId Id = IndexStructDualId<std::remove_reference_t<T>, FIds>();
-	SavedObjects.Emplace(Id.Decl, SaveStruct(&Object, Id.Bind, {GTypes, GSchemas, Customs, Scratch}));
+	FDualStructSchemaId Id = IndexStructDualId<FIds, TTypename<std::remove_reference_t<T>>>();
+	SavedObjects.Emplace(Id.DeclId, SaveStruct(&Object, Id.BindId, {GTypes, GSchemas, Customs, Scratch}));
 }
 
 template<class T>
 bool FBatchSaver::SaveDelta(const T& Object, const T& Default) 
 {
-	FDualStructSchemaId Id = IndexStructDualId<std::remove_reference_t<T>, FIds>();
-	if (FBuiltStruct* Delta = SaveStructDelta(&Object, &Default, Id.Bind, {GTypes, GSchemas, Customs, Scratch}))
+	FDualStructSchemaId Id = IndexStructDualId<FIds, TTypename<std::remove_reference_t<T>>>();
+	if (FBuiltStruct* Delta = SaveStructDelta(&Object, &Default, Id.BindId, {GTypes, GSchemas, Customs, Scratch}))
 	{
-		SavedObjects.Emplace(Id.Decl, MoveTemp(Delta));
+		SavedObjects.Emplace(Id.DeclId, MoveTemp(Delta));
 		return true;
 	}
 	return false;

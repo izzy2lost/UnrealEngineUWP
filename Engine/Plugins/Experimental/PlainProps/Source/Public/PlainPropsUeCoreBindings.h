@@ -432,20 +432,16 @@ struct FTransformBinding : ICustomBinding
 	using Type = FTransform;
 	inline static constexpr EMemberPresence Occupancy = EMemberPresence::AllowSparse;
 	enum class EMember : uint8 { Translate, Rotate, Scale };
-	FMemberId MemberIds[3];
-	FStructSchemaId VectorId;
-	FStructSchemaId QuatId;
+	const FMemberId MemberIds[3];
+	const FStructSchemaId VectorId;
+	const FStructSchemaId QuatId;
 
 	template<class Ids>
-	void InitIds(/*const FDeclarations& Declared*/) 
-	{
-		MemberIds[(uint8)EMember::Translate] = Ids::IndexMember("Translate");
-		MemberIds[(uint8)EMember::Rotate] = Ids::IndexMember("Rotate");
-		MemberIds[(uint8)EMember::Scale] = Ids::IndexMember("Scale");
-
-		VectorId = GetStructDeclId<Ids, FVector>();
-		QuatId = GetStructDeclId<Ids, FQuat>();
-	}
+	FTransformBinding(TCustomInit<Ids>/*, const FDeclarations& Declared*/)
+	: MemberIds{Ids::IndexMember("Translate"), Ids::IndexMember("Rotate"), Ids::IndexMember("Scale")}
+	, VectorId(GetStructDeclId<Ids, FVector>())
+	, QuatId(GetStructDeclId<Ids, FQuat>())
+	{}
 
 	PLAINPROPS_API void	Save(FMemberBuilder& Dst, const FTransform& Src, const FTransform* Default, const FSaveContext& Context) const;
 	PLAINPROPS_API void	Load(FTransform& Dst, FStructView Src, ECustomLoadMethod Method, const FLoadBatch& Batch) const;
@@ -454,21 +450,26 @@ struct FTransformBinding : ICustomBinding
 
 //////////////////////////////////////////////////////////////////////////
 
-struct FSetDeltaOps
+struct FSetDeltaIds
 {
 	enum class EMember : uint8 { Del, Add };
-	FMemberId MemberIds[2];
+	const FMemberId MemberIds[2];
 	
 	template<class Ids>	
-	void InitIds()
+	FSetDeltaIds(TCustomInit<Ids>)
+	: MemberIds{Ids::IndexMember("Del"), Ids::IndexMember("Add")}
+	{}
+
+	template<class Ids>	
+	static FSetDeltaIds Cache()
 	{
-		static FSetDeltaOps Cache = {.MemberIds = {Ids::IndexMember("Del"), Ids::IndexMember("Add")}};
-		*this = Cache;
+		static FSetDeltaIds Out(TCustomInit<Ids>{});
+		return Out;
 	}
 };
 
 template <typename T, typename KeyFuncs, typename SetAllocator>
-struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
+struct TSetDeltaBinding : ICustomBinding, FSetDeltaIds
 {
 	using Type = TSet<T, KeyFuncs, SetAllocator>;
 	using FSet = Type;
@@ -488,9 +489,9 @@ struct TSetDeltaBinding : ICustomBinding, FSetDeltaOps
 	FRangeMemberHelper InnerRange;
 	
 	template<class Ids>	
-	void InitIds()
+	TSetDeltaBinding(TCustomInit<Ids>)
+	: FSetDeltaIds(FSetDeltaIds::Cache<Ids>())
 	{
-		FSetDeltaOps::InitIds<Ids>();
 		InnerRange.template Init<Ids>();
 	}
 	

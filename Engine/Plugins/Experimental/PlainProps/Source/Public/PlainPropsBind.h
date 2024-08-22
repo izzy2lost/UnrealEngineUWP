@@ -243,8 +243,8 @@ protected: // for unit tests
 
 struct FDualStructSchemaId
 {
-	FStructSchemaId Bind;
-	FStructSchemaId Decl;
+	FStructSchemaId BindId;
+	FStructSchemaId DeclId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
@@ -627,7 +627,7 @@ FTypeId IndexStructName()
 	}
 }
 
-template<typename Typename, class Ids>
+template<class Ids, typename Typename>
 FStructSchemaId IndexStructBindIdIfNeeded(FStructSchemaId DeclId)
 {
 	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
@@ -641,20 +641,17 @@ FStructSchemaId IndexStructBindIdIfNeeded(FStructSchemaId DeclId)
 	}
 }
 
-template<typename Struct, class Ids>
-FDualStructSchemaId IndexStructDualId()
-{
-	using Typename = TTypename<Struct>;
-	
+template<class Ids, typename Typename>
+FDualStructSchemaId IndexStructDualId(FTypeId DeclName = IndexStructName<Ids, ETypename::Decl, Typename>())
+{	
 	FDualStructSchemaId Out;
-	FTypeId DeclName = IndexStructName<Ids, ETypename::Decl, Typename>();
-	Out.Decl = Ids::IndexStruct(DeclName);
-	Out.Bind = Out.Decl;
+	Out.DeclId = Ids::IndexStruct(DeclName);
+	Out.BindId = Out.DeclId;
 
 	if constexpr (ExplicitBindName<Typename> || ParametricName<Typename>)
 	{
 		FTypeId BindName = IndexStructName<Ids, ETypename::Bind, Typename>();
-		Out.Bind = BindName != DeclName ? Ids::IndexStruct(BindName) : Out.Decl;
+		Out.BindId = BindName != DeclName ? Ids::IndexStruct(BindName) : Out.DeclId;
 	}
 
 	return Out;
@@ -751,22 +748,23 @@ FTypeId IndexParametricType(FTypeId TemplatedType, const std::tuple<Ts...>*)
 
 ////////////////////////////////////////////////////////////////////////////////////////////////
 
+template<class Ids>
+struct TCustomInit {};
+
+
 template<typename CustomBinding, class Runtime>
 FStructSchemaId BindCustomStructOnce()
 {
-	struct FBinding : CustomBinding
+	struct FBinding : FDualStructSchemaId, CustomBinding
 	{
 		using Type = typename CustomBinding::Type;
 		using Typename = TCustomTypename<CustomBinding>;
 		using Ids = typename Runtime::Ids;
 
-		FBinding()
+		explicit FBinding(FTypeId DeclType = IndexStructName<Ids, ETypename::Decl, Typename>())
+		: FDualStructSchemaId(IndexStructDualId<Ids, Typename>(DeclType))
+		, CustomBinding(TCustomInit<Ids>{})
 		{
-			FTypeId DeclType = IndexStructName<Ids, ETypename::Decl, Typename>();
-			DeclId = Ids::IndexStruct(DeclType);
-			BindId = IndexStructBindIdIfNeeded<Typename, Ids>(DeclId);
-			
-			CustomBinding::template InitIds<Ids>();
 			Runtime::GetTypes().DeclareStruct(DeclId, DeclType, CustomBinding::MemberIds, CustomBinding::Occupancy);
 			Runtime::GetCustoms().BindStruct(BindId, DeclId, *this);
 		}
@@ -791,9 +789,6 @@ FStructSchemaId BindCustomStructOnce()
 		{
 			return CustomBinding::Diff(*static_cast<const Type*>(A), *static_cast<const Type*>(B));
 		}
-		
-		FStructSchemaId DeclId;
-		FStructSchemaId BindId;
 	};
 
 	static FBinding Binding;
@@ -1071,7 +1066,7 @@ inline constexpr FMemberType ReflectInnermostType()
 	return ReflectEnum<T>.Pack();
 }
 
-// Hack / workaround related to C++'s lack of templated nullary constructors
+// TRangeMemberHelper init helper
 union FUninitializedMemberBindType
 {
 	FUninitializedMemberBindType() : Unused() {}
