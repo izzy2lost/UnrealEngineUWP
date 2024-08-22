@@ -112,9 +112,11 @@ mu::Ptr<mu::NodeLayout> CreateMutableLayoutNode(FMutableGraphGenerationContext& 
 
 
 	ECustomizableObjectLayoutAutomaticBlocksStrategy AutomaticBlockStrategy = UnrealLayout->AutomaticBlocksStrategy;
-
-	if (AutomaticBlockStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::Ignore)
-	{
+	ECustomizableObjectTextureLayoutPackingStrategy PackingStrategy = UnrealLayout->PackingStrategy;
+	
+	if (AutomaticBlockStrategy == ECustomizableObjectLayoutAutomaticBlocksStrategy::Ignore || 
+		PackingStrategy == ECustomizableObjectTextureLayoutPackingStrategy::Overlay)
+ 	{
 		// Legacy behavior
 		if (!UnrealLayout->Blocks.Num())
 		{
