@@ -212,7 +212,7 @@ public:
 	static UPARAM(DisplayName = "Target Mesh") UDynamicMesh* 
 	DeleteTrianglesFromMesh( 
 		UDynamicMesh* TargetMesh, 
-		FGeometryScriptIndexList TriangleList,
+		FGeometryScriptIndexList TriangleIDList,
 		int& NumDeleted,
 		bool bDeferChangeNotifications = false );
 
