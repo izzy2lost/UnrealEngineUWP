@@ -34,6 +34,12 @@
 			"TargetDenyList": [ "Server" ]
 		},
 		{
+			"Name": "AvalancheCamera",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"TargetDenyList": [ "Server" ]
+		},
+		{
 			"Name": "AvalancheEditor",
 			"Type": "Editor",
 			"LoadingPhase": "Default"

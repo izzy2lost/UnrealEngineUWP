@@ -19,9 +19,20 @@ public:
 	/** Gets all the Behavior Instances matching the Layer Comparator */
 	virtual TArray<const FAvaTransitionBehaviorInstance*> GetBehaviorInstances(const FAvaTransitionLayerComparator& InComparator) const = 0;
 
+	/** Runs the provided callback for each Behavior Instance */
+	virtual void ForEachBehaviorInstance(TFunctionRef<void(const FAvaTransitionBehaviorInstance&)> InCallable) const = 0;
+
 	/** Start Transition. Should only be called once */
 	virtual void Start() = 0;
 
 	/** Stop the current Execution */
 	virtual void Stop() = 0;
+
+	static TMulticastDelegate<void(const IAvaTransitionExecutor&)>& GetOnTransitionStart()
+	{
+		return OnTransitionStart;
+	}
+
+private:
+	AVALANCHETRANSITION_API static TMulticastDelegate<void(const IAvaTransitionExecutor&)> OnTransitionStart;
 };

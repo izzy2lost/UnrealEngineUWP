@@ -33,6 +33,8 @@ public class Avalanche : ModuleRules
 			new string[]
 			{
 				"ActorModifierCore",
+				"ApplicationCore",
+				"AvalancheCamera",
 				"AvalancheRemoteControl",
 				"CinematicCamera",
 				"CoreUObject",

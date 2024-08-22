@@ -231,11 +231,6 @@ EAvaPlayableCommandResult UAvaPlayableRemoteProxy::UpdateRemoteControlCommand(co
 	return EAvaPlayableCommandResult::Executed;
 }
 
-bool UAvaPlayableRemoteProxy::ApplyCamera()
-{
-	return false;
-}
-
 void UAvaPlayableRemoteProxy::SetUserData(const FString& InUserData)
 {
 	if (UserData != InUserData)

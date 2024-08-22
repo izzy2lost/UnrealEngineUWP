@@ -8,8 +8,8 @@
 #include "Subsystems/WorldSubsystem.h"
 #include "Templates/Function.h"
 #include "Templates/SharedPointer.h"
+#include "UObject/ObjectKey.h"
 #include "UObject/WeakInterfacePtr.h"
-#include "UObject/WeakObjectPtr.h"
 #include "AvaTransitionSubsystem.generated.h"
 
 class IAvaTransitionBehavior;
@@ -25,7 +25,7 @@ class UAvaTransitionSubsystem : public UWorldSubsystem
 	GENERATED_BODY()
 
 public:
-	void RegisterTransitionBehavior(ULevel* InLevel, IAvaTransitionBehavior* InBehavior);
+	void RegisterTransitionBehavior(const ULevel* InLevel, IAvaTransitionBehavior* InBehavior);
 
 	/**
 	 * Gets or Creates a Transition Behavior for the given Level in this Subsystem's World
@@ -39,9 +39,9 @@ public:
 	 * @param InLevel the level containing the transition behavior. if null, will default to the persistent level of the world
 	 * @return the behavior for the provided level
 	 */
-	AVALANCHETRANSITION_API IAvaTransitionBehavior* GetTransitionBehavior(ULevel* InLevel = nullptr) const;
+	AVALANCHETRANSITION_API IAvaTransitionBehavior* GetTransitionBehavior(const ULevel* InLevel = nullptr) const;
 
-	AVALANCHETRANSITION_API static IAvaTransitionBehavior* FindTransitionBehavior(ULevel* InLevel);
+	AVALANCHETRANSITION_API static IAvaTransitionBehavior* FindTransitionBehavior(const ULevel* InLevel);
 
 	void RegisterTransitionExecutor(const TSharedRef<IAvaTransitionExecutor>& InExecutor);
 
@@ -58,9 +58,7 @@ protected:
 	//~ End UWorldSubsystem
 
 private:
-	bool EnsureLevelIsAppropriate(ULevel*& InLevel) const;
-
-	TMap<TWeakObjectPtr<ULevel>, TWeakInterfacePtr<IAvaTransitionBehavior>> TransitionBehaviors;
+	TMap<TObjectKey<ULevel>, TWeakInterfacePtr<IAvaTransitionBehavior>> TransitionBehaviors;
 
 	TArray<TWeakPtr<IAvaTransitionExecutor>> TransitionExecutors;
 };

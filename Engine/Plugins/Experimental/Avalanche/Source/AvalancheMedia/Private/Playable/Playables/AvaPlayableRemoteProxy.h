@@ -29,7 +29,6 @@ public:
 	virtual IAvaSceneInterface* GetSceneInterface() const override;
 	virtual EAvaPlayableCommandResult ExecuteAnimationCommand(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings) override;
 	virtual EAvaPlayableCommandResult UpdateRemoteControlCommand(const TSharedRef<FAvaPlayableRemoteControlValues>& InRemoteControlValues) override;
-	virtual bool ApplyCamera() override;
 	virtual bool IsRemoteProxy() const override { return true; }
 	virtual void SetUserData(const FString& InUserData) override;
 

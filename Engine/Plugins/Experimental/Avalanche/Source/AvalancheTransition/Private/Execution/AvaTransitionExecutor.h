@@ -29,6 +29,7 @@ protected:
 
 	//~ Begin IAvaTransitionExecutor
 	virtual TArray<const FAvaTransitionBehaviorInstance*> GetBehaviorInstances(const FAvaTransitionLayerComparator& InComparator) const;
+	virtual void ForEachBehaviorInstance(TFunctionRef<void(const FAvaTransitionBehaviorInstance&)> InCallable) const override;
 	virtual void Start() override;
 	virtual void Stop() override;
 	//~ End IAvaTransitionExecutor

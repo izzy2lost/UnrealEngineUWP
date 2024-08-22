@@ -108,12 +108,19 @@ protected:
 	void OnEndFrameTick();
 	void OnEnginePreExit();
 
+	//~ Begin UGameInstance
+	virtual ULocalPlayer* CreateInitialPlayer(FString& OutError) override;
+	//~ End UGameInstance
+	
 	//~ Begin UObject
 	virtual void BeginDestroy() override;
 	//~ End UObject
 
 	UPROPERTY(Transient)
 	TObjectPtr<UWorld> PlayWorld;
+
+	UPROPERTY(Transient)
+	TObjectPtr<ULocalPlayer> LocalPlayer;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAvaGameViewportClient> ViewportClient;

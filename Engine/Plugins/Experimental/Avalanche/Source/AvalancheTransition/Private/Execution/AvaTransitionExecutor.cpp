@@ -12,6 +12,8 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogAvaTransitionExecutor, Log, All);
 
+TMulticastDelegate<void(const IAvaTransitionExecutor&)> IAvaTransitionExecutor::OnTransitionStart;
+
 FAvaTransitionExecutor::FAvaTransitionExecutor(FAvaTransitionExecutorBuilder& InBuilder)
 	: NullInstance(MoveTemp(InBuilder.NullInstance))
 	, ContextName(MoveTemp(InBuilder.ContextName))
@@ -126,6 +128,8 @@ void FAvaTransitionExecutor::Start()
 
 	Setup();
 
+	GetOnTransitionStart().Broadcast(*this);
+
 	ForEachInstance(
 		[](FAvaTransitionBehaviorInstance& InInstance)
 		{
@@ -160,6 +164,11 @@ TArray<const FAvaTransitionBehaviorInstance*> FAvaTransitionExecutor::GetBehavio
 		});
 
 	return OutInstances;
+}
+
+void FAvaTransitionExecutor::ForEachBehaviorInstance(TFunctionRef<void(const FAvaTransitionBehaviorInstance&)> InCallable) const
+{
+	ForEachInstance(InCallable);
 }
 
 void FAvaTransitionExecutor::Stop()

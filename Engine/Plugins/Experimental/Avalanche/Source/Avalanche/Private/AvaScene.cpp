@@ -2,6 +2,7 @@
 
 #include "AvaScene.h"
 #include "AvaAssetTags.h"
+#include "AvaCameraSubsystem.h"
 #include "AvaRemoteControlUtils.h"
 #include "AvaSceneSettings.h"
 #include "AvaSceneState.h"
@@ -265,6 +266,26 @@ void AAvaScene::PostActorCreated()
 {
 	Super::PostActorCreated();
 	RegisterObjects();
+}
+
+void AAvaScene::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
+	{
+		CameraSubsystem->RegisterScene(GetLevel());
+	}
+}
+
+void AAvaScene::EndPlay(const EEndPlayReason::Type InEndPlayReason)
+{
+	Super::EndPlay(InEndPlayReason);
+
+	if (UAvaCameraSubsystem* CameraSubsystem = UAvaCameraSubsystem::Get(this))
+	{
+		CameraSubsystem->UnregisterScene(GetLevel());
+	}
 }
 
 void AAvaScene::PostLoad()

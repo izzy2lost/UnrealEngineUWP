@@ -285,35 +285,6 @@ void UAvaPlayableGroup::SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable)
 	LastAppliedCameraPlayableWeak = InPlayable;
 }
 
-bool UAvaPlayableGroup::UpdateCameraSetup()
-{
-	// With rigs in sub-playables, it may still be valid and won't need updating.
-	if (const UAvaPlayable* LastAppliedCameraPlayable = LastAppliedCameraPlayableWeak.Get())
-	{
-		if (LastAppliedCameraPlayable->GetPlayableStatus() == EAvaPlayableStatus::Visible
-			&& LastAppliedCameraPlayable->GetShouldBeVisible())
-		{
-			return true;	// Camera setup is still valid.
-		}
-	}
-
-	// This is called when a playable from the group is stopped. We need to
-	// select a playable in the group that is still playing and will use it's camera.
-	for (const TObjectKey<UAvaPlayable>& PlayableKey : Playables )
-	{
-		UAvaPlayable* Playable = PlayableKey.ResolveObjectPtr();
-		
-		if (Playable && Playable->IsPlaying())
-		{
-			if (Playable->ApplyCamera())
-			{
-				return true;
-			}
-		}
-	}
-	return false;
-}
-
 UTextureRenderTarget2D* UAvaPlayableGroup::GetRenderTarget() const
 {
 	return ManagedRenderTarget.Get();

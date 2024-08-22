@@ -116,7 +116,6 @@ public:
 	virtual IAvaSceneInterface* GetSceneInterface() const {return nullptr;}
 	virtual EAvaPlayableCommandResult ExecuteAnimationCommand(EAvaPlaybackAnimAction InAnimAction, const FAvaPlaybackAnimPlaySettings& InAnimPlaySettings);
 	virtual EAvaPlayableCommandResult UpdateRemoteControlCommand(const TSharedRef<FAvaPlayableRemoteControlValues>& InRemoteControlValues);
-	virtual bool ApplyCamera() { return false; }
 	virtual bool IsRemoteProxy() const { return false; }
 	virtual bool GetShouldBeVisible() const { return true; }
 	virtual void SetShouldBeVisible(bool bInShouldBeVisible) {}

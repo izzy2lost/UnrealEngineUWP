@@ -109,9 +109,6 @@ public:
 
 	/** Keep track of the last playable that applied it's camera in the viewport/controller. */
 	void SetLastAppliedCameraPlayable(UAvaPlayable* InPlayable);
-	
-	/** Determines which camera, from currently playing playables, should be used and use it. */
-	bool UpdateCameraSetup();
 
 	virtual bool IsWorldPlaying() const { return true; }
 
@@ -157,11 +154,6 @@ public:
 	 * @return true if the world was unloaded. false if nothing was done.
 	 */ 
 	virtual bool ConditionalRequestUnloadWorld(bool bForceImmediate) { return true; }
-
-	/**
-	 * @brief Queue a camera cut for the next rendered frame.
-	 */
-	virtual void QueueCameraCut() {}
 
 	/**
 	 * @brief Notify the playable group that a playable is loading an asset.

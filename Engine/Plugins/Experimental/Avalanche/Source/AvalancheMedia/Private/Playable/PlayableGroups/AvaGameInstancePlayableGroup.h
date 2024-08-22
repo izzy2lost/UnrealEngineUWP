@@ -32,7 +32,6 @@ public:
 	virtual bool ConditionalBeginPlay(const FAvaInstancePlaySettings& InWorldPlaySettings) override;
 	virtual void RequestEndPlayWorld(bool bInForceImmediate) override;
 	virtual bool ConditionalRequestUnloadWorld(bool bForceImmediate) override;
-	virtual void QueueCameraCut() override;
 	virtual bool IsWorldPlaying() const override;
 	virtual bool IsRenderTargetReady() const override;
 	virtual UTextureRenderTarget2D* GetRenderTarget() const override;

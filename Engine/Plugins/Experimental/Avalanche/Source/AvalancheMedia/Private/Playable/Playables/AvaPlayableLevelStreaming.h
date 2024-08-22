@@ -24,7 +24,6 @@ public:
 	virtual const FSoftObjectPath& GetSourceAssetPath() const override { return SourceLevel.ToSoftObjectPath(); }
 	virtual EAvaPlayableStatus GetPlayableStatus() const override { return PlayableStatus; }
 	virtual IAvaSceneInterface* GetSceneInterface() const override;
-	virtual bool ApplyCamera() override;
 	virtual bool GetShouldBeVisible() const override;
 	virtual void SetShouldBeVisible(bool bInShouldBeVisible) override;
 	virtual void SetupView(FSceneViewFamily& InViewFamily, FSceneView& InView) override;

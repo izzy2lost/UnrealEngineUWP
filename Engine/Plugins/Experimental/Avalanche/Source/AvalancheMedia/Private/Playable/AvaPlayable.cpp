@@ -307,15 +307,10 @@ void UAvaPlayable::EndPlay(EAvaPlayableEndPlayOptions InOptions)
 	UAvaSequencePlayer::OnSequenceFinished().RemoveAll(this);
 	OnEndPlay();
 
-	if (PlayableGroup)
+	if (PlayableGroup && EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ConditionalEndPlayWorld) && !PlayableGroup->HasPlayingPlayables())
 	{
-		PlayableGroup->UpdateCameraSetup();
-
-		if (EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ConditionalEndPlayWorld) && !PlayableGroup->HasPlayingPlayables())
-		{
-			const bool bForceImmediate = EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ForceImmediate);
-			PlayableGroup->RequestEndPlayWorld(bForceImmediate);
-		}
+		const bool bForceImmediate = EnumHasAnyFlags(InOptions, EAvaPlayableEndPlayOptions::ForceImmediate);
+		PlayableGroup->RequestEndPlayWorld(bForceImmediate);
 	}
 }
 

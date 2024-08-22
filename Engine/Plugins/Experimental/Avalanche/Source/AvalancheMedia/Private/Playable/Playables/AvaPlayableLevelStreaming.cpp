@@ -23,7 +23,6 @@
 #include "SceneView.h"
 #include "Streaming/LevelStreamingDelegates.h"
 #include "UObject/Package.h"
-#include "Viewport/AvaCameraManager.h"
 
 #define LOCTEXT_NAMESPACE "AvaPlayableLevelStreaming"
 
@@ -330,57 +329,6 @@ IAvaSceneInterface* UAvaPlayableLevelStreaming::GetSceneInterface() const
 		return static_cast<IAvaSceneInterface*>(Scene);
 	}
 	return nullptr;
-}
-
-bool UAvaPlayableLevelStreaming::ApplyCamera()
-{
-	using namespace UE::AvaMedia::LevelStreamingPlayable;
-
-	if (!Scene)
-	{
-		return false;
-	}
-
-	bool bSetupDone = false;
-	UAvaPlayable* PlayableOwningCamera = nullptr;
-
-	// Camera setup.
-	if (AActor* CameraActor = FindStartupCameraActor(NAME_None, &PlayableOwningCamera))
-	{
-		// New code using player controller.
-		// Note: doesn't work yet because there is no player controller in Motion Design game instance, but it works in PIE.
-		if (APlayerController* PlayerController = GetPlayableGroup()->GetPlayWorld()->GetFirstPlayerController())
-		{
-			PlayerController->SetViewTargetWithBlend(CameraActor);
-			GetPlayableGroup()->SetLastAppliedCameraPlayable(PlayableOwningCamera);
-			bSetupDone = true;
-		}
-		else
-		{
-			// If there is no player controller, fallback to Motion Design camera manager, if the game instance has it.
-			const UAvaGameInstance* AvaGameInstance = Cast<UAvaGameInstance>(GetPlayableGroup()->GetGameInstance());			
-			if (const UAvaGameViewportClient* ViewportClient = AvaGameInstance ? AvaGameInstance->GetAvaGameViewportClient() : nullptr)
-			{
-				// Old code using ava camera manager. To retire.
-				constexpr bool bIsCanvasController = false;
-				ViewportClient->GetCameraManager()->Init(Scene->GetPlaybackObject(), bIsCanvasController);
-				ViewportClient->GetCameraManager()->SetViewTarget(CameraActor);
-				GetPlayableGroup()->SetLastAppliedCameraPlayable(PlayableOwningCamera);
-				bSetupDone = true;
-				UE_LOG(LogAvaPlayable, Log, TEXT("No player controller found in \"%s\" - Using Ava Camera Manager instead."), *LevelStreaming->PackageNameToLoad.ToString())
-			}
-			else
-			{
-				UE_LOG(LogAvaPlayable, Warning, TEXT("No player controller found in \"%s\" - Ava Camera Manager not available either."), *LevelStreaming->PackageNameToLoad.ToString());				
-			}
-		}
-	}
-	else
-	{
-		UE_LOG(LogAvaPlayable, Error, TEXT("Failed to find camera \"%s\", or any camera actor, in loaded level."),
-			*Private::GetStartupCameraName(Scene).ToString());
-	}
-	return bSetupDone;
 }
 
 bool UAvaPlayableLevelStreaming::GetShouldBeVisible() const
@@ -746,13 +694,6 @@ void UAvaPlayableLevelStreaming::OnPlay()
 
 	// Ensure scene is resolved.
 	ResolveScene(Level);
-
-	if (!Scene)
-	{
-		return;
-	}
-
-	ApplyCamera();
 }
 
 void UAvaPlayableLevelStreaming::OnEndPlay()

@@ -899,7 +899,7 @@ UActorModifierCoreStack* UActorModifierCoreSubsystem::GetActorModifierStack(cons
 {
 	if (const TWeakObjectPtr<UActorModifierCoreStack>* ActorStack = ModifierStacks.Find(InActor))
 	{
-		return (*ActorStack).Get();
+		return ActorStack->Get();
 	}
 	return nullptr;
 }

@@ -202,14 +202,3 @@ bool UAvaGameInstancePlayableGroup::ConditionalRequestUnloadWorld(bool bForceImm
 	}
 	return false;
 }
-
-void UAvaGameInstancePlayableGroup::QueueCameraCut()
-{
-	if (const UAvaGameInstance* AvaGameInstance = GetAvaGameInstance())
-	{
-		if (UAvaGameViewportClient* GameViewportClient = AvaGameInstance->GetAvaGameViewportClient())
-		{
-			GameViewportClient->SetCameraCutThisFrame();
-		}
-	}
-}

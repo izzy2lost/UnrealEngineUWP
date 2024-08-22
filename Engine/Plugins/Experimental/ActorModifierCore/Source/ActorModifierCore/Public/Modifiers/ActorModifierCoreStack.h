@@ -57,16 +57,31 @@ public:
 
 	/** Get modifiers of a specific class only in this stack, does not recurse */
 	template <class InModifierType
-		UE_REQUIRES(std::is_base_of<UActorModifierCoreBase, InModifierType>::value)>
+		UE_REQUIRES(std::is_base_of_v<UActorModifierCoreBase, InModifierType>)>
 	void GetClassModifiers(TArray<InModifierType*>& OutModifiers) const
 	{
 		for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
 		{
-			if (Modifier->IsA(InModifierType::StaticClass()))
+			if (InModifierType* CastedModifier = Cast<InModifierType>(Modifier))
 			{
-				OutModifiers.Add(static_cast<InModifierType*>(Modifier));
+				OutModifiers.Add(CastedModifier);
 			}
 		}
+	}
+
+	/** Gets the first modifier of a specific class only in this stack, does not recurse */
+	template <class InModifierType
+		UE_REQUIRES(std::is_base_of_v<UActorModifierCoreBase, InModifierType>)>
+	InModifierType* GetClassModifier() const
+	{
+		for (const TObjectPtr<UActorModifierCoreBase>& Modifier : Modifiers)
+		{
+			if (InModifierType* CastedModifier = Cast<InModifierType>(Modifier))
+			{
+				return CastedModifier;
+			}
+		}
+		return nullptr;
 	}
 
 	/** Gets the first modifier in this stack, does not recurse */

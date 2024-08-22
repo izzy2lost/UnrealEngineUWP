@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "AvaModifiersEditorModule.h"
-#include "AvaDefs.h"
 #include "AvaModifiersEditorStyle.h"
 #include "DragDropOps/AvaOutlinerItemDragDropOp.h"
 #include "IAvaOutliner.h"
