@@ -1553,8 +1553,6 @@ void UMeshPaintingSubsystem::CleanUp()
 	}
 	ComponentToAdapterMap.Empty();
 	FMeshPaintComponentAdapterFactory::CleanupGlobals();
-
-	CopiedTextureData.Init(FImageInfo());
 }
 
 bool UMeshPaintingSubsystem::FindHitResult(const FRay Ray, FHitResult& BestTraceResult)
