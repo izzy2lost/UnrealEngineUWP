@@ -7,6 +7,7 @@
 #endif	// WITH_TESTS
 
 #include "HAL/IConsoleManager.h"
+#include "WorldMetricCollection.h"
 #include "WorldMetricsLog.h"
 #include "WorldMetricsSubsystem.h"
 #include "WorldMetricsTestTypes.h"
@@ -650,6 +651,108 @@ void TestMultipleMetricIteration(UWorld* World, bool bRandomized)
 	TestZeroState(World);
 }
 
+void TestMetricCollection(UWorld* World, bool bRandomized)
+{
+	TestZeroState(World);
+
+	constexpr int32 NumMetrics = 8;
+
+	UWorldMetricsSubsystem* Subsystem = UWorldMetricsSubsystem::Get(World);
+
+	TArray<TSubclassOf<UMockWorldMetricBase>> MetricClasses = Private::GetMockMetricClasses(World, NumMetrics, bRandomized);
+
+	FWorldMetricCollection Collection;
+	Collection.Initialize(World);
+
+	// Add
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Add' failure."), Collection.Add(MetricClass));
+	}
+
+	REQUIRE_MESSAGE(TEXT("Unexpected empty metrics list."), !Collection.IsEmpty());
+	REQUIRE_MESSAGE(TEXT("Unexpected metrics count mismatch."), Collection.Num() == MetricClasses.Num());
+
+	// Contains/Get
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Contains' failure."), Collection.Contains(MetricClass));
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Get' failure."), Collection.Get(MetricClass) != nullptr);
+	}
+
+	// Iteration (const)
+	{
+		int32 CheckCount = 0;
+		int32 FooClassCount = 0;
+		int32 BarClassCount = 0;
+		Collection.ForEach(
+			[&](const UWorldMetricInterface* Metric)
+			{
+				++CheckCount;
+				if (Metric->IsA<UMockWorldMetricFooBase>())
+				{
+					++FooClassCount;
+				}
+				if (Metric->IsA<UMockWorldMetricBarBase>())
+				{
+					++BarClassCount;
+				}
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == NumMetrics);
+
+		CheckCount = 0;
+		Collection.ForEach<UMockWorldMetricFooBase>(
+			[&](const UMockWorldMetricFooBase* MockMetric)
+			{
+				++CheckCount;
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == FooClassCount);
+
+		CheckCount = 0;
+		Collection.ForEach<UMockWorldMetricBarBase>(
+			[&](const UMockWorldMetricBarBase* MockMetric)
+			{
+				++CheckCount;
+				return true;
+			});
+		REQUIRE_MESSAGE(TEXT("Check count failed"), CheckCount == BarClassCount);
+	}
+
+	// Enable state
+	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
+	Collection.Enable(true);
+	REQUIRE_MESSAGE(TEXT("Unexpected non-existing metrics in WorldMetricsSubsystem"), Subsystem->HasAnyMetric());
+	REQUIRE_MESSAGE(TEXT("Unexpected number of metrics in WorldMetricsSubsystem."), Subsystem->NumMetrics() == NumMetrics);
+	Collection.Enable(false);
+	REQUIRE_MESSAGE(TEXT("Unexpected existing metrics in WorldMetricsSubsystem"), !Subsystem->HasAnyMetric());
+
+	// Remove
+	for (const TSubclassOf<UMockWorldMetricBase>& MetricClass : MetricClasses)
+	{
+		REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Remove' failure."), Collection.Remove(MetricClass));
+	}
+
+	REQUIRE_MESSAGE(TEXT("Unexpected populated metrics collection."), Collection.IsEmpty());
+
+	// Add
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Add<UMockWorldMetricA>' failure."), Collection.Add<UMockWorldMetricA>());
+
+	// Contains
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Contains<UMockWorldMetricA>' failure."), Collection.Contains<UMockWorldMetricA>());
+
+	// Get
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Get<UMockWorldMetricA>' failure."), Collection.Get<UMockWorldMetricA>() != nullptr);
+
+	// Remove
+	REQUIRE_MESSAGE(TEXT("Unexpected metric collection 'Remove<UMockWorldMetricA>' failure."), Collection.Remove<UMockWorldMetricA>());
+
+	Collection.Reset();
+
+	TestZeroState(World);
+}
+
 void TestAll(UWorld* World)
 {
 	TestZeroState(World);
@@ -674,6 +777,10 @@ void TestAll(UWorld* World)
 	TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(World, false);
 	TestMultipleMetricsMultipleExtensionAutoReleaseOnRemoval(World, true);
 	TestSingleMetricOrphanExtensionAutoRemoval(World);
+
+	// Collection
+	TestMetricCollection(World, true);
+	TestMetricCollection(World, false);
 }
 
 }  // namespace UE::WorldMetrics::Private
@@ -831,6 +938,21 @@ TEST_CASE_NAMED(
 	Private::ScopedWorldTest(
 		EWorldType::Editor, [this](UWorld* World) { Private::TestSingleMetricOrphanExtensionAutoRemoval(World); });
 }
+
+TEST_CASE_NAMED(
+	TestMetricCollection,
+	"WorldMetrics::TestMetricCollection",
+	"[WorldMetrics][Core][EngineFilter]")
+{
+	Private::ScopedWorldTest(
+		EWorldType::Editor,
+		[this](UWorld* World)
+		{
+			Private::TestMetricCollection(World, true);
+			Private::TestMetricCollection(World, false);
+		});
+}
+
 
 }  // namespace UE::WorldMetrics
 
