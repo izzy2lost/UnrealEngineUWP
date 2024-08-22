@@ -13,7 +13,6 @@
 class FSpawnTabArgs;
 class IStylusInputDevice;
 class IStylusMessageHandler;
-class SDockTab;
 
 DEFINE_LOG_CATEGORY_STATIC(LogStylusInput, Log, All);
 
@@ -84,10 +83,4 @@ public:
 private:
 	TSharedPtr<IStylusInputInterfaceInternal> InputInterface;
 	TArray<IStylusMessageHandler*> MessageHandlers;
-
-	TSharedRef<SDockTab> OnSpawnPluginTab(const FSpawnTabArgs& Args);
 };
-
-#if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
-#include "Widgets/Docking/SDockTab.h"
-#endif
