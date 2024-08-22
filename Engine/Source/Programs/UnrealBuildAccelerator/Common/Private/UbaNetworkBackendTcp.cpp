@@ -29,6 +29,7 @@
 #define INVALID_SOCKET -1
 #define SD_BOTH SHUT_RDWR
 #define WSAHOST_NOT_FOUND 0
+#define WSAENOTCONN ENOTCONN
 #define WSAEADDRINUSE EADDRINUSE
 #define closesocket(a) close(a)
 #define addrinfoW addrinfo
@@ -122,6 +123,8 @@ namespace uba
 		if (s == INVALID_SOCKET)
 			return true;
 		if (shutdown(s, SD_BOTH) != SOCKET_ERROR)
+			return true;
+		if (WSAGetLastError() == WSAENOTCONN)
 			return true;
 		logger.Info(TC("Failed to shutdown socket %llu in %s (%s)"), u64(s), hint, LastErrorToText(WSAGetLastError()).data);
 		return false;
