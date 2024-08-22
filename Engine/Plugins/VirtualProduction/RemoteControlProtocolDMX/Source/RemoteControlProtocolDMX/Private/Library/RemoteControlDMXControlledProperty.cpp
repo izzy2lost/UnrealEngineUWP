@@ -109,7 +109,7 @@ namespace UE::RemoteControl::DMX
 		for (const TSharedRef<TStructOnScope<FRemoteControlProtocolEntity>>& Entity : Entities)
 		{
 			FRemoteControlDMXProtocolEntity* DMXEntity = Entity->IsValid() ? Entity->Cast<FRemoteControlDMXProtocolEntity>() : nullptr;
-			if (!DMXEntity || FirstDMXEntity == FirstDMXEntity)
+			if (!DMXEntity || DMXEntity == FirstDMXEntity)
 			{
 				continue;
 			}
