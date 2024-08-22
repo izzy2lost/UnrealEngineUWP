@@ -14,6 +14,8 @@
 
 class FRHITexture;
 class FRenderTarget;
+class FRDGBuilder;
+class FRDGTexture;
 class FSlateDrawBuffer;
 class FSlateUpdatableTexture;
 class ISlate3DRenderer;
@@ -296,9 +298,13 @@ public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnPostResizeWindowBackbuffer, void*);
 	FOnPostResizeWindowBackbuffer& OnPostResizeWindowBackBuffer() { return PostResizeBackBufferDelegate; }
 
-	/** Callback on the render thread after slate rendering finishes and right before present is called */
+	/** Callback on the render thread after slate rendering finishes and right before present is called. */
 	DECLARE_TS_MULTICAST_DELEGATE_TwoParams(FOnBackBufferReadyToPresent, SWindow&, const FTextureRHIRef&);
 	FOnBackBufferReadyToPresent& OnBackBufferReadyToPresent() { return OnBackBufferReadyToPresentDelegate; }
+
+	/** Callback on the render thread after slate rendering finishes and right before present is called. */
+	DECLARE_TS_MULTICAST_DELEGATE_ThreeParams(FOnAddBackBufferReadyToPresentPass, FRDGBuilder&, SWindow&, FRDGTexture*);
+	FOnAddBackBufferReadyToPresentPass& OnAddBackBufferReadyToPresentPass() { return OnAddBackBufferReadyToPresentPassDelegate; }
 
 	/** 
 	 * Sets which color vision filter to use
@@ -583,6 +589,7 @@ protected:
 	FOnPostResizeWindowBackbuffer PostResizeBackBufferDelegate;
 
 	FOnBackBufferReadyToPresent OnBackBufferReadyToPresentDelegate;
+	FOnAddBackBufferReadyToPresentPass OnAddBackBufferReadyToPresentPassDelegate;
 
 	/**
 	 * Necessary to grab before flushing the resource pool, as it may be being 

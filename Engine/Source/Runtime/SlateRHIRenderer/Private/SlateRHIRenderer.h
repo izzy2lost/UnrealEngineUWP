@@ -36,6 +36,7 @@ const uint32 NumDrawBuffers = 3;
 struct FFastPathRenderingDataCleanUpList;
 
 struct FSlateDrawWindowPassInputs;
+struct FSlateDrawWindowPassOutputs;
 struct FSlateViewportInfo;
 struct FSlatePostProcessUpdateRequest;
 
@@ -109,7 +110,9 @@ public:
 	virtual void SetWindowRenderTarget(const SWindow& Window, class IViewportRenderTargetProvider* Provider) override;
 
 private:
-	void DrawWindow_RenderThread(FRDGBuilder& GraphBuilder, const FSlateDrawWindowPassInputs& Inputs);
+	FSlateDrawWindowPassOutputs DrawWindow_RenderThread(FRDGBuilder& GraphBuilder, const FSlateDrawWindowPassInputs& Inputs);
+
+	void PresentWindow_RenderThread(FRHICommandListImmediate& RHICmdList, const FSlateDrawWindowPassInputs& DrawPassInputs, const FSlateDrawWindowPassOutputs& DrawPassOutputs);
 
 	/** Loads all known textures from Slate styles */
 	void LoadUsedTextures();
