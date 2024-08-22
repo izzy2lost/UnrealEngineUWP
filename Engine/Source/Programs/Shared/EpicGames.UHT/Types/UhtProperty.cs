@@ -1089,7 +1089,7 @@ namespace EpicGames.UHT.Types
 		/// </summary>
 		/// <param name="outer">Outer type of the property</param>
 		/// <param name="lineNumber">Line number where property was declared</param>
-		protected UhtProperty(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		protected UhtProperty(UhtType outer, int lineNumber) : base(outer.HeaderFile, outer, lineNumber)
 		{
 			PropertyFlags = EPropertyFlags.None;
 			PropertyCaps = UhtPropertyCaps.CanBeContainerValue | UhtPropertyCaps.CanBeContainerKey | UhtPropertyCaps.CanHaveConfig;
@@ -1099,7 +1099,7 @@ namespace EpicGames.UHT.Types
 		/// Construct a new property
 		/// </summary>
 		/// <param name="propertySettings">Property settings from parsing</param>
-		protected UhtProperty(UhtPropertySettings propertySettings) : base(propertySettings.Outer, propertySettings.LineNumber, propertySettings.MetaData)
+		protected UhtProperty(UhtPropertySettings propertySettings) : base(propertySettings.Outer.HeaderFile, propertySettings.Outer, propertySettings.LineNumber, propertySettings.MetaData)
 		{
 			SourceName = propertySettings.SourceName;
 			// Engine name defaults to source name.  If it doesn't match what is coming in, then set it.
@@ -1857,7 +1857,7 @@ namespace EpicGames.UHT.Types
 				{
 					if (PropertyFlags.HasAnyFlags(EPropertyFlags.Edit | EPropertyFlags.BlueprintVisible))
 					{
-						if (Package.IsPartOfEngine)
+						if (Module.IsPartOfEngine)
 						{
 							this.LogError("An explicit Category specifier is required for any property exposed to the editor or Blueprints in an Engine module.");
 						}

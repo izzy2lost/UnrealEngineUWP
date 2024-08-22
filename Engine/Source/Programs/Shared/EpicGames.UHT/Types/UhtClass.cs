@@ -513,9 +513,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new instance of the class
 		/// </summary>
+		/// <param name="headerFile">Header being parsed</param>
 		/// <param name="outer">The outer type</param>
 		/// <param name="lineNumber">Line number where class begins</param>
-		public UhtClass(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		public UhtClass(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 			ClassWithin = this;
 		}
@@ -771,8 +772,8 @@ namespace EpicGames.UHT.Types
 								}
 								else
 								{
-									// Copy the children
-									AddChildren(nativeInterface.DetachChildren());
+									// Move native interface children into the interface
+									MoveChildren(nativeInterface);
 								}
 							}
 							break;

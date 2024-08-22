@@ -194,7 +194,7 @@ namespace EpicGames.UHT.Utils
 		{
 			if (!type.MetaData.IsEmpty())
 			{
-				bool isPartOfEngine = type.Package.IsPartOfEngine;
+				bool isPartOfEngine = type.Module.IsPartOfEngine;
 				List<KeyValuePair<string, string>> sortedMetaData = type.MetaData.GetSorted();
 				builder.AppendTabs(tabs).Append("static constexpr UECodeGen_Private::FMetaDataPairParam ").AppendNameDecl(namePrefix, name, nameSuffix).Append(metaNameSuffix).Append("[] = {\r\n");
 				foreach (KeyValuePair<string, string> kvp in sortedMetaData)

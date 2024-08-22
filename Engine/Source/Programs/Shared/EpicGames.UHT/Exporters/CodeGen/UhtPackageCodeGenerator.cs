@@ -23,20 +23,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public static string DisableDeprecationWarnings = "PRAGMA_DISABLE_DEPRECATION_WARNINGS";
 
 		public readonly UhtCodeGenerator CodeGenerator;
-		public readonly UhtPackage Package;
-		public bool SaveExportedHeaders => Package.Module.SaveExportedHeaders;
+		public readonly UhtModule Module;
+		public bool SaveExportedHeaders => Module.Module.SaveExportedHeaders;
 
 		public Utils.UhtSession Session => CodeGenerator.Session;
 		public UhtCodeGenerator.PackageInfo[] PackageInfos => CodeGenerator.PackageInfos;
 		public UhtCodeGenerator.HeaderInfo[] HeaderInfos => CodeGenerator.HeaderInfos;
 		public UhtCodeGenerator.ObjectInfo[] ObjectInfos => CodeGenerator.ObjectInfos;
-		public string PackageApi => PackageInfos[Package.PackageTypeIndex].Api;
-		public string PackageSingletonName => ObjectInfos[Package.ObjectTypeIndex].RegisteredSingletonName;
 
-		public UhtPackageCodeGenerator(UhtCodeGenerator codeGenerator, UhtPackage package)
+		public UhtPackageCodeGenerator(UhtCodeGenerator codeGenerator, UhtModule module)
 		{
 			CodeGenerator = codeGenerator;
-			Package = package;
+			Module = module;
 		}
 
 		#region Utility functions

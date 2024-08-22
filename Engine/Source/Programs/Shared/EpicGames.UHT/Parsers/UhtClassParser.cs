@@ -57,7 +57,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static UhtParseResult ParseUClass(UhtParsingScope parentScope, ref UhtToken token)
 		{
-			UhtClass classObj = new(parentScope.ScopeType, token.InputLine);
+			UhtClass classObj = new(parentScope.HeaderFile, parentScope.ScopeType, token.InputLine);
 			{
 				using UhtParsingScope topScope = new(parentScope, classObj, parentScope.Session.GetKeywordTable(UhtTableNames.Class), UhtAccessSpecifier.Private);
 				const string ScopeName = "class";

@@ -247,7 +247,7 @@ namespace EpicGames.UHT.Utils
 			{
 				for (int index = lookup.SymbolIndex; index != 0; index = _symbols[index].NextIndex)
 				{
-					if (IsMatch(options, index, lookup.CasedIndex) && _symbols[index].Type.Outer is UhtHeaderFile)
+					if (IsMatch(options, index, lookup.CasedIndex) && _symbols[index].Type.Outer is UhtPackage)
 					{
 						return _symbols[index].Type;
 					}
@@ -369,6 +369,25 @@ namespace EpicGames.UHT.Utils
 			for (int index = lookup.SymbolIndex; index != 0; index = _symbols[index].NextIndex)
 			{
 				if (IsMatch(options, index, lookup.CasedIndex) && _symbols[index].Type.Outer == owner)
+				{
+					return _symbols[index].Type;
+				}
+			}
+			return null;
+		}
+
+		/// <summary>
+		/// Lookup the given name 
+		/// </summary>
+		/// <param name="header">Header file being searched.</param>
+		/// <param name="options">Options controlling what is search and what is returned.</param>
+		/// <param name="lookup">Starting lookup location.</param>
+		/// <returns>Found type or null if not found.</returns>
+		private UhtType? FindSymbolChain(UhtHeaderFile header, UhtFindOptions options, ref Lookup lookup)
+		{
+			for (int index = lookup.SymbolIndex; index != 0; index = _symbols[index].NextIndex)
+			{
+				if (IsMatch(options, index, lookup.CasedIndex) && _symbols[index].Type.HeaderFile == header && _symbols[index].Type.Outer is UhtPackage)
 				{
 					return _symbols[index].Type;
 				}

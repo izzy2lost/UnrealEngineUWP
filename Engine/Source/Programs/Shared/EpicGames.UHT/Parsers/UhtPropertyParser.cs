@@ -804,8 +804,7 @@ namespace EpicGames.UHT.Parsers
 					// Checking for this error is a bit tricky given legacy code.  
 					// 1) If already wrapped in WITH_EDITORONLY_DATA (see above), then we ignore the error via the else 
 					// 2) Ignore any module that is an editor module
-					UhtPackage package = topScope.ScopeType.HeaderFile.Package;
-					UHTManifest.Module module = package.Module;
+					UHTManifest.Module module = topScope.Module.Module;
 					bool isEditorModule =
 						module.ModuleType == UHTModuleType.EngineEditor ||
 						module.ModuleType == UHTModuleType.GameEditor ||
@@ -892,7 +891,7 @@ namespace EpicGames.UHT.Parsers
 
 			if (_options.HasAnyFlags(UhtPropertyParseOptions.AddModuleRelativePath))
 			{
-				UhtParsingScope.AddModuleRelativePathToMetaData(propertySettings.MetaData, topScope.ScopeType.HeaderFile);
+				UhtParsingScope.AddModuleRelativePathToMetaData(propertySettings.MetaData, topScope.HeaderFile);
 			}
 
 			// Fetch the name of the property, bitfield and array size
@@ -1120,7 +1119,7 @@ namespace EpicGames.UHT.Parsers
 			// Force the category in non-engine projects
 			if (newProperty.PropertyCategory == UhtPropertyCategory.Member)
 			{
-				if (!newProperty.Package.IsPartOfEngine &&
+				if (!newProperty.Module.IsPartOfEngine &&
 					newProperty.PropertyFlags.HasAnyFlags(EPropertyFlags.Edit | EPropertyFlags.BlueprintVisible) &&
 					!newProperty.MetaData.ContainsKey(UhtNames.Category))
 				{

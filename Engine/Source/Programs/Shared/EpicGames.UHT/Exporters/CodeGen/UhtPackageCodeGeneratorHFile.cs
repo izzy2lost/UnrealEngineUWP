@@ -15,9 +15,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// Construct an instance of this generator object
 		/// </summary>
 		/// <param name="codeGenerator">The base code generator</param>
-		/// <param name="package">Package being generated</param>
-		public UhtPackageCodeGeneratorHFile(UhtCodeGenerator codeGenerator, UhtPackage package)
-			: base(codeGenerator, package)
+		/// <param name="module">Module being generated</param>
+		public UhtPackageCodeGeneratorHFile(UhtCodeGenerator codeGenerator, UhtModule module)
+			: base(codeGenerator, module)
 		{
 		}
 
@@ -25,8 +25,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		/// For a given UE header file, generated the generated H file
 		/// </summary>
 		/// <param name="factory">Requesting factory</param>
-		/// <param name="packageSortedHeaders">Sorted list of headers by name of all headers in the package</param>
-		public void Generate(IUhtExportFactory factory, List<UhtHeaderFile> packageSortedHeaders)
+		/// <param name="moduleSortedHeaders">Sorted list of headers by name of all headers in the module</param>
+		public void Generate(IUhtExportFactory factory, List<UhtHeaderFile> moduleSortedHeaders)
 		{
 			{
 				using BorrowStringBuilder borrower = new(StringBuilderCache.Big);
@@ -37,17 +37,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				builder.Append("\r\n");
 				builder.Append("\r\n");
 
-				List<UhtHeaderFile> headerFiles = new(Package.Children.Count * 2);
-				headerFiles.AddRange(packageSortedHeaders);
+				List<UhtHeaderFile> headerFiles = new(moduleSortedHeaders.Count + Module.Headers.Count);
+				headerFiles.AddRange(moduleSortedHeaders);
 
-				foreach (UhtType type in Package.Children)
+				foreach (UhtHeaderFile headerFile in Module.Headers)
 				{
-					if (type is UhtHeaderFile headerFile)
+					if (headerFile.HeaderFileType == UhtHeaderFileType.Classes)
 					{
-						if (headerFile.HeaderFileType == UhtHeaderFileType.Classes)
-						{
-							headerFiles.Add(headerFile);
-						}
+						headerFiles.Add(headerFile);
 					}
 				}
 
@@ -66,7 +63,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 				if (SaveExportedHeaders)
 				{
-					string headerFilePath = factory.MakePath(Package, "Classes.h");
+					string headerFilePath = factory.MakePath(Module, "Classes.h");
 					factory.CommitOutput(headerFilePath, builder);
 				}
 			}

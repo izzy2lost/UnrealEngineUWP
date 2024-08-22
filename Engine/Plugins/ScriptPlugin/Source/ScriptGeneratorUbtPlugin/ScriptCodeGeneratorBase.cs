@@ -35,19 +35,19 @@ namespace ScriptGeneratorUbtPlugin
 			// Loop through the packages making sure they should be exported.  Queue the export of the classes
 			List<UhtClass> classes = new();
 			List<Task?> tasks = new();
-			foreach (UhtPackage package in Session.Packages)
+			foreach (UhtModule module in Session.Modules)
 			{
-				if (package.Module.ModuleType != UHTModuleType.EngineRuntime && package.Module.ModuleType != UHTModuleType.GameRuntime)
+				if (module.Module.ModuleType != UHTModuleType.EngineRuntime && module.Module.ModuleType != UHTModuleType.GameRuntime)
 				{
 					continue;
 				}
 
-				if (supportedScriptModules != null && !supportedScriptModules.Any(x => String.Compare(x, package.Module.Name, StringComparison.OrdinalIgnoreCase) == 0))
+				if (supportedScriptModules != null && !supportedScriptModules.Any(x => String.Compare(x, module.Module.Name, StringComparison.OrdinalIgnoreCase) == 0))
 				{
 					continue;
 				}
 
-				QueueClassExports(package, package, classes, tasks);
+				QueueClassExports(module.Package, module.Package, classes, tasks);
 			}
 
 			// Wait for all the classes to export

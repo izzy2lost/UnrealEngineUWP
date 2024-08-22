@@ -17,9 +17,12 @@ namespace EpicGames.UHT.Exporters.Stats
 		private static void StatsExporter(IUhtExportFactory factory)
 		{
 			SortedDictionary<string, int> countByType = new();
-			foreach (UhtType type in factory.Session.Packages)
+			foreach (UhtModule module in factory.Session.Modules)
 			{
-				Collect(countByType, type);
+				foreach (UhtPackage package in module.Packages)
+				{
+					Collect(countByType, package);
+				}
 			}
 
 			ILogger logger = factory.Session.Logger;

@@ -24,6 +24,16 @@ namespace EpicGames.UHT.Parsers
 		public UhtHeaderFileParser HeaderParser { get; }
 
 		/// <summary>
+		/// Header file being parsed
+		/// </summary>
+		public UhtHeaderFile HeaderFile => HeaderParser.HeaderFile;
+
+		/// <summary>
+		/// Module owning the header file
+		/// </summary>
+		public UhtModule Module => HeaderFile.Module;
+
+		/// <summary>
 		/// Token reader
 		/// </summary>
 		public IUhtTokenReader TokenReader { get; }
@@ -34,7 +44,7 @@ namespace EpicGames.UHT.Parsers
 		public UhtParsingScope? ParentScope { get; }
 
 		/// <summary>
-		/// Type being parsed
+		/// Type being parsed.
 		/// </summary>
 		public UhtType ScopeType { get; }
 
@@ -51,7 +61,7 @@ namespace EpicGames.UHT.Parsers
 		/// <summary>
 		/// Current session
 		/// </summary>
-		public UhtSession Session => ScopeType.Session;
+		public UhtSession Session => HeaderFile.Session;
 
 		/// <summary>
 		/// Return the current class scope being compiled
@@ -74,22 +84,16 @@ namespace EpicGames.UHT.Parsers
 		}
 
 		/// <summary>
-		/// Return the current class being compiled
-		/// </summary>
-		public UhtClass CurrentClass => (UhtClass)CurrentClassScope.ScopeType;
-
-		/// <summary>
 		/// Construct a root/global scope
 		/// </summary>
 		/// <param name="headerParser">Header parser</param>
-		/// <param name="scopeType">Type being parsed</param>
 		/// <param name="keywordTable">Keyword table</param>
-		public UhtParsingScope(UhtHeaderFileParser headerParser, UhtType scopeType, UhtKeywordTable keywordTable)
+		public UhtParsingScope(UhtHeaderFileParser headerParser, UhtKeywordTable keywordTable)
 		{
 			HeaderParser = headerParser;
 			TokenReader = headerParser.TokenReader;
 			ParentScope = null;
-			ScopeType = scopeType;
+			ScopeType = headerParser.Module.ScriptPackage; // The default package for parsing will be the standard UE package
 			ScopeKeywordTable = keywordTable;
 			HeaderParser.PushScope(this);
 		}

@@ -50,7 +50,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static UhtParseResult ParseUInterface(UhtParsingScope parentScope, ref UhtToken token)
 		{
-			UhtClass classObj = new(parentScope.ScopeType, token.InputLine);
+			UhtClass classObj = new(parentScope.HeaderFile, parentScope.ScopeType, token.InputLine);
 			classObj.ClassType = UhtClassType.Interface;
 
 			{

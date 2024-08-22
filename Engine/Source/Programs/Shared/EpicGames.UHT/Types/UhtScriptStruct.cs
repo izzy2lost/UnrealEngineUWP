@@ -701,9 +701,10 @@ namespace EpicGames.UHT.Types
 		/// <summary>
 		/// Construct a new script struct
 		/// </summary>
+		/// <param name="headerFile">Header being parsed</param>
 		/// <param name="outer">Outer type</param>
 		/// <param name="lineNumber">Line number of the definition</param>
-		public UhtScriptStruct(UhtType outer, int lineNumber) : base(outer, lineNumber)
+		public UhtScriptStruct(UhtHeaderFile headerFile, UhtType outer, int lineNumber) : base(headerFile, outer, lineNumber)
 		{
 		}
 

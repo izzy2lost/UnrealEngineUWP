@@ -39,8 +39,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 		public readonly UhtHeaderFile HeaderFile;
 		public string FileId => HeaderInfos[HeaderFile.HeaderFileTypeIndex].FileId;
 
-		public UhtHeaderCodeGenerator(UhtCodeGenerator codeGenerator, UhtPackage package, UhtHeaderFile headerFile)
-			: base(codeGenerator, package)
+		public UhtHeaderCodeGenerator(UhtCodeGenerator codeGenerator, UhtHeaderFile headerFile)
+			: base(codeGenerator, headerFile.Module)
 		{
 			HeaderFile = headerFile;
 		}
@@ -129,9 +129,9 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			{
 				outerName = classObj.EngineName;
 			}
-			else if (outer is UhtHeaderFile)
+			else if (outer is UhtPackage packageObj)
 			{
-				string packageName = outer.Package.EngineName;
+				string packageName = packageObj.EngineName;
 				outerName = packageName.Replace('/', '_');
 			}
 
@@ -164,7 +164,7 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					!(outerClass != null && outerClass.ClassFlags.HasAnyFlags(EClassFlags.RequiredAPI)) &&
 					exportFlags.HasAnyFlags(UhtFunctionExportFlags.RequiredAPI))
 				{
-					builder.Append(PackageApi);
+					builder.Append(Module.Api);
 				}
 
 				if (textType == UhtPropertyTextType.InterfaceFunctionArgOrRetVal)

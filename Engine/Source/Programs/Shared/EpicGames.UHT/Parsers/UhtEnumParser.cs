@@ -27,7 +27,7 @@ namespace EpicGames.UHT.Parsers
 
 		private static UhtParseResult ParseUEnum(UhtParsingScope parentScope, UhtToken keywordToken)
 		{
-			UhtEnum enumObject = new(parentScope.ScopeType, keywordToken.InputLine);
+			UhtEnum enumObject = new(parentScope.HeaderFile, parentScope.ScopeType, keywordToken.InputLine);
 			{
 				using UhtParsingScope topScope = new(parentScope, enumObject, parentScope.Session.GetKeywordTable(UhtTableNames.Enum), UhtAccessSpecifier.Public);
 				const string ScopeName = "UENUM";
@@ -120,7 +120,7 @@ namespace EpicGames.UHT.Parsers
 
 					if (enumObject.CppForm != UhtEnumCppForm.EnumClass && enumObject.UnderlyingType == UhtEnumUnderlyingType.Unspecified)
 					{
-						UhtIssueBehavior enumUnderlyingTypeBehavior = enumObject.Package.IsPartOfEngine ? topScope.Session.Config!.EngineEnumUnderlyingTypeNotSet
+						UhtIssueBehavior enumUnderlyingTypeBehavior = enumObject.Module.IsPartOfEngine ? topScope.Session.Config!.EngineEnumUnderlyingTypeNotSet
 							: topScope.Session.Config!.NonEngineEnumUnderlyingTypeNotSet;
 
 						string logMessage = $"Underlying type must be specified.";
