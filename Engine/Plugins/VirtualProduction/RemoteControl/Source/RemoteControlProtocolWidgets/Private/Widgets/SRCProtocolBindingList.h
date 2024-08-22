@@ -29,6 +29,7 @@ public:
 
 	//~ Begin IRCProtocolBindingList Interface
 	virtual void AddProtocolBinding(const FName InProtocolName) override;
+	virtual URemoteControlPreset* GetPreset() const;
 
 	/** Get the set of entities which is awaiting state and waiting for binding. */
 	virtual FRemoteControlProtocolEntitySet GetAwaitingProtocolEntities() const override
@@ -118,4 +119,7 @@ private:
 
 	/** Set of protocol entities with awaiting state and waiting for binding */
 	FRemoteControlProtocolEntitySet AwaitingProtocolEntities;
+
+	/** Map of protocol names and their support of awaiting protocol entities */
+	TMap<FName, bool> ProtocolNameToSupportsAwaitingProtocolEntitiesMap;
 };

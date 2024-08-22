@@ -68,6 +68,9 @@ public:
 	/** Checks validity of this ViewModel */
 	REMOTECONTROLPROTOCOLWIDGETS_API bool IsValid() const;
 
+	/** Returns the preset of this view model or nullptr if there is no outer preset */
+	URemoteControlPreset* GetPreset() const;
+
 public:
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingAdded, TSharedRef<FProtocolBindingViewModel> /* InBindingViewModel */);
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnBindingRemoved, FGuid /* InBindingId */);

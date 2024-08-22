@@ -747,7 +747,7 @@ void SRCPanelExposedEntitiesList::RebuildListWithColumns(EEntitiesListMode InLis
 		if (bShouldAddColumns)
 		{
 			ColumnsToBeAdded = DefaultProtocolColumns.Union(ActiveProtocolColumns);
-		
+
 			for (const FName& ColumnToBeAdded : ColumnsToBeAdded)
 			{
 				InsertColumn(ColumnToBeAdded);
@@ -869,6 +869,11 @@ void SRCPanelExposedEntitiesList::StoreListSettings()
 		FRemoteControlUIModule::Get().GetExposedEntitiesListSettingsForProtocol(ActiveProtocol) :
 		nullptr;
 
+
+	const TOptional<FScopedTransaction> ChangeListSettingsTransaction = !GIsTransacting ?
+		FScopedTransaction(LOCTEXT("ChangeListSettingsTransaction", "Change Remote Control List Order")) :
+		TOptional<FScopedTransaction>{};
+
 	if (SettingsPtr)
 	{
 		FRCPanelExposedEntitiesListSettingsData Settings;
@@ -902,10 +907,8 @@ void SRCPanelExposedEntitiesList::RecallListSettings()
 		CurrentGroupSortType = DefaultSettings.FieldGroupOrder;
 	}
 
-	if (FieldsListView.IsValid())
-	{
-		OnCreateFieldGroup(CurrentGroupType);
-	}
+	CreateFieldGroup();
+	OrderGroups();
 }
 
 void SRCPanelExposedEntitiesList::OnObjectPropertyChange(UObject* InObject, FPropertyChangedEvent& InChangeEvent)
@@ -1591,7 +1594,8 @@ void SRCPanelExposedEntitiesList::CreateFieldGroup()
 		}
 	}
 
-	if (CurrentGroupType == ERCFieldGroupType::None)
+	if (CurrentGroupType == ERCFieldGroupType::None &&
+		FieldsListView.IsValid())
 	{
 		FieldEntities = CachedFieldEntities;
 		FieldsListView->RequestTreeRefresh();

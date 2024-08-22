@@ -360,6 +360,7 @@ void FRCSignatureProtocolAction::CreateProtocolEntity(const FRCSignatureActionCo
 		check(ProtocolEntity.GetScriptStruct() == ScriptStruct);
 		ScriptStruct->CopyScriptStruct(NewEntity->Get(), ProtocolEntity.GetPtr());
 	}
+	NewEntity->CastChecked<FRemoteControlProtocolEntity>()->Init(InContext.Preset, EntityId);
 
 	FRemoteControlProtocolBinding ProtocolBinding(ProtocolName, EntityId, NewEntity, FGuid::NewGuid());
 	AddMappings(InContext, InProtocol, /*InOut*/ProtocolBinding);

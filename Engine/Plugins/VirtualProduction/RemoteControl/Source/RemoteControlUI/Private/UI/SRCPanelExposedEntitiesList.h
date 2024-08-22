@@ -10,7 +10,7 @@
 #include "UI/Filters/RCFilter.h"
 #include "UI/RCFieldGroupOrder.h"
 #include "UI/RCFieldGroupType.h"
-#include "UI/RCPanelExposedEntitiesListSettings.h"
+#include "UI/RCPanelExposedEntitiesListSettingsData.h"
 #include "UObject/StrongObjectPtr.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"

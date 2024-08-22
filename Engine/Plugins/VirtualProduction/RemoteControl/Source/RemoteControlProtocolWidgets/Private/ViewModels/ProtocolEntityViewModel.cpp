@@ -380,6 +380,11 @@ bool FProtocolEntityViewModel::IsValid() const
 			&& PropertyId.IsValid();
 }
 
+URemoteControlPreset* FProtocolEntityViewModel::GetPreset() const
+{
+	return Preset.Get();
+}
+
 void FProtocolEntityViewModel::PostUndo(bool bSuccess)
 {
 	check(IsValid());

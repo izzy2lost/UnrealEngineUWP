@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include "RCPanelExposedEntitiesListSettings.generated.h"
+#include "RCFieldGroupType.h"
+#include "RCFieldGroupOrder.h"
 
-enum class ERCFieldGroupType : uint8;
-enum class ERCFieldGroupOrder : uint8;
+#include "RCPanelExposedEntitiesListSettingsData.generated.h"
 
 /** Data for exposed entities list settings */
 USTRUCT()
@@ -15,9 +15,9 @@ struct FRCPanelExposedEntitiesListSettingsData
 
 	/** The field group type for the entity list. */
 	UPROPERTY()
-	ERCFieldGroupType FieldGroupType;
+	ERCFieldGroupType FieldGroupType = ERCFieldGroupType::None;
 
 	/** Whether the field groups are expanded */
 	UPROPERTY()
-	ERCFieldGroupOrder FieldGroupOrder;
+	ERCFieldGroupOrder FieldGroupOrder = ERCFieldGroupOrder::Ascending;
 };

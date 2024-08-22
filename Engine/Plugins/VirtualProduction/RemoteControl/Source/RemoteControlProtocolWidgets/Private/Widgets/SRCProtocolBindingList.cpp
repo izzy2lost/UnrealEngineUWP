@@ -183,6 +183,11 @@ SRCProtocolBindingList::~SRCProtocolBindingList()
 	AwaitingProtocolEntities.Empty();
 }
 
+URemoteControlPreset* SRCProtocolBindingList::GetPreset() const
+{
+	return ViewModel.IsValid() ? ViewModel->GetPreset() : nullptr;
+}
+
 void SRCProtocolBindingList::AddProtocolBinding(const FName InProtocolName)
 {
 	if (!ViewModel.IsValid())

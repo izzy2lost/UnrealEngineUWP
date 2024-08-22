@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include "UI/RCPanelExposedEntitiesListSettings.h"
+#include "UI/RCPanelExposedEntitiesListSettingsData.h"
 #include "UObject/NameTypes.h"
 
 class URemoteControlPreset;
