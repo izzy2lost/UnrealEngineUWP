@@ -13,6 +13,7 @@ class SWidget;
 class UNiagaraStackEntry;
 class UNiagaraStackItem;
 class UNiagaraStackModuleItem;
+class UNiagaraStackSimulationStageGroup;
 
 namespace FNiagaraStackEditorWidgetsUtilities
 {
@@ -35,6 +36,8 @@ namespace FNiagaraStackEditorWidgetsUtilities
 	bool AddStackItemContextMenuActions(FMenuBuilder& MenuBuilder, UNiagaraStackItem& StackItem);
 
 	bool AddStackModuleItemContextMenuActions(FMenuBuilder& MenuBuilder, UNiagaraStackModuleItem& StackItem, TSharedRef<SWidget> TargetWidget);
+
+	void AddStackSimulationStageGroupContextMenuActions(FMenuBuilder& MenuBuilder, UNiagaraStackSimulationStageGroup* SimulationStageGroup, TSharedRef<SWidget> TagetWidget);
 
 	TSharedRef<FDragDropOperation> ConstructDragDropOperationForStackEntries(const TArray<UNiagaraStackEntry*>& DraggedEntries);
 

@@ -26,6 +26,7 @@
 #include "ViewModels/Stack/NiagaraStackItem.h"
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 #include "ViewModels/Stack/NiagaraStackViewModel.h"
+#include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 #include "NiagaraEditorWidgetsStyle.h"
 #include "NiagaraEditorWidgetsUtilities.h"
 #include "SNiagaraStack.h"
@@ -272,6 +273,12 @@ class SNiagaraSystemOverviewEntryListRow : public STableRow<UNiagaraStackEntry*>
 			if (StackEntry->IsA<UNiagaraStackItem>())
 			{
 				bMenuItemsAdded |= FNiagaraStackEditorWidgetsUtilities::AddStackItemContextMenuActions(MenuBuilder, *CastChecked<UNiagaraStackItem>(StackEntry));
+			}
+
+			if (StackEntry->IsA<UNiagaraStackSimulationStageGroup>())
+			{
+				FNiagaraStackEditorWidgetsUtilities::AddStackSimulationStageGroupContextMenuActions(MenuBuilder, CastChecked<UNiagaraStackSimulationStageGroup>(StackEntry), this->AsShared());
+				bMenuItemsAdded = true;
 			}
 
 			bMenuItemsAdded |= FNiagaraStackEditorWidgetsUtilities::AddStackEntryAssetContextMenuActions(MenuBuilder, *StackEntry);

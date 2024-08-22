@@ -23,6 +23,7 @@
 #include "ViewModels/Stack/NiagaraStackValueCollection.h"
 #include "ViewModels/Stack/NiagaraStackModuleItem.h"
 #include "ViewModels/Stack/NiagaraStackSystemSettingsGroup.h"
+#include "ViewModels/Stack/NiagaraStackSimulationStageGroup.h"
 #include "Framework/Commands/GenericCommands.h"
 #include "IContentBrowserSingleton.h"
 #include "ContentBrowserModule.h"
@@ -881,7 +882,13 @@ SNiagaraStack::FRowWidgets SNiagaraStack::ConstructNameAndValueWidgetsForItem(UN
 {
 	if (Item->IsA<UNiagaraStackItemGroup>())
 	{
-		return FRowWidgets(SNew(SNiagaraStackItemGroup, *CastChecked<UNiagaraStackItemGroup>(Item), StackViewModel));
+		TSharedRef<SWidget> GroupWidget = SNew(SNiagaraStackItemGroup, *CastChecked<UNiagaraStackItemGroup>(Item), StackViewModel);
+		if (Item->IsA<UNiagaraStackSimulationStageGroup>())
+		{
+			Container->AddFillRowContextMenuHandler(SNiagaraStackTableRow::FOnFillRowContextMenu::CreateStatic(
+				&FNiagaraStackEditorWidgetsUtilities::AddStackSimulationStageGroupContextMenuActions, CastChecked<UNiagaraStackSimulationStageGroup>(Item), GroupWidget));
+		}
+		return FRowWidgets(GroupWidget);
 	}
 	else if (Item->IsA<UNiagaraStackModuleItem>())
 	{

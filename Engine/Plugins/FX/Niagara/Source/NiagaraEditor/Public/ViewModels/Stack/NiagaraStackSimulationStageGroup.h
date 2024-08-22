@@ -88,6 +88,10 @@ public:
 	NIAGARAEDITOR_API virtual void SetIsEnabled(bool bEnabled) override;
 	virtual bool SupportsChangeEnabled() const override { return true; }
 
+	NIAGARAEDITOR_API INiagaraStackItemGroupAddUtilities* GetEmitterStageAddUtilities() const;
+
+	NIAGARAEDITOR_API int32 GetStageIndex() const;
+
 protected:
 	NIAGARAEDITOR_API virtual void FinalizeInternal() override;
 
@@ -103,6 +107,8 @@ private:
 	NIAGARAEDITOR_API void SimulationStagePropertiesChanged();
 
 	NIAGARAEDITOR_API bool HasBaseSimulationStage() const;
+
+	void StageAdded(FGuid AddedEventHandlerId, UNiagaraSimulationStageBase* AddedSimulationStage) const;
 	
 private:
 	TWeakObjectPtr<UNiagaraSimulationStageBase> SimulationStage;
@@ -113,4 +119,6 @@ private:
 
 	UPROPERTY()
 	TObjectPtr<UNiagaraStackSimulationStagePropertiesItem> SimulationStageProperties;
+
+	mutable TSharedPtr<INiagaraStackItemGroupAddUtilities> EmitterStageAddUtilities;
 };

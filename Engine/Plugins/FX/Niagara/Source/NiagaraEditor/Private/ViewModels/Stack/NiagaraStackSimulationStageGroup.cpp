@@ -16,6 +16,7 @@
 #include "NiagaraScriptSource.h"
 #include "NiagaraScriptMergeManager.h"
 #include "ViewModels/NiagaraSystemViewModel.h"
+#include "ViewModels/Stack/NiagaraStackEmitterPropertiesGroup.h"
 
 #include "Internationalization/Internationalization.h"
 #include "ScopedTransaction.h"
@@ -164,6 +165,10 @@ FNiagaraHierarchyIdentity UNiagaraStackSimulationStagePropertiesItem::DetermineS
 
 void UNiagaraStackSimulationStagePropertiesItem::SimulationStagePropertiesChanged()
 {
+	if (SimulationStage.IsValid() == false || GetEmitterViewModel().IsValid() == false)
+	{
+		return;
+	}
 	FVersionedNiagaraEmitter VersionedEmitter = GetEmitterViewModel()->GetEmitter();
 	GetSystemViewModel()->GetEmitterHandleViewModelForEmitter(VersionedEmitter).Get()->GetEmitterStackViewModel()->RequestValidationUpdate();
 
@@ -238,6 +243,23 @@ bool UNiagaraStackSimulationStageGroup::GetIsEnabled() const
 void UNiagaraStackSimulationStageGroup::SetIsEnabled(bool bEnabled)
 {
 	SimulationStageProperties->SetSimulationStageEnabled(bEnabled);
+}
+
+INiagaraStackItemGroupAddUtilities* UNiagaraStackSimulationStageGroup::GetEmitterStageAddUtilities() const
+{
+	if (EmitterStageAddUtilities.IsValid() == false)
+	{
+		EmitterStageAddUtilities = MakeShared<FNiagaraStackEmitterStageAddUtilities>(GetEmitterViewModel(), FNiagaraStackEmitterStageAddUtilities::FOnItemAdded::CreateUObject(this, &UNiagaraStackSimulationStageGroup::StageAdded), false, true);
+	}
+	return EmitterStageAddUtilities.Get();
+}
+
+int32 UNiagaraStackSimulationStageGroup::GetStageIndex() const
+{
+	UNiagaraSimulationStageBase* SimulationStagePinned = SimulationStage.Get();
+	return SimulationStagePinned != nullptr 
+		? GetEmitterViewModel()->GetEmitter().GetEmitterData()->GetSimulationStages().IndexOfByKey(SimulationStagePinned)
+		: INDEX_NONE;
 }
 
 void UNiagaraStackSimulationStageGroup::FinalizeInternal()
@@ -458,6 +480,11 @@ bool UNiagaraStackSimulationStageGroup::HasBaseSimulationStage() const
 		}
 	}
 	return bHasBaseSimulationStageCache.GetValue();
+}
+
+void UNiagaraStackSimulationStageGroup::StageAdded(FGuid AddedEventHandlerId, UNiagaraSimulationStageBase* AddedSimulationStage) const
+{
+	OnRequestFullRefreshDeferred().Broadcast();
 }
 
 void UNiagaraStackSimulationStageGroup::SetOnModifiedSimulationStages(FOnModifiedSimulationStages OnModifiedSimulationStages)
