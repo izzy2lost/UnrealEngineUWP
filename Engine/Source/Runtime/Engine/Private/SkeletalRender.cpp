@@ -67,6 +67,7 @@ FSkeletalMeshObject::FSkeletalMeshObject(USkinnedMeshComponent* InMeshComponent,
 #if RHI_RAYTRACING
 , bSupportRayTracing(IsSkeletalMeshRayTracingSupported() && InMeshComponent->GetSkinnedAsset()->GetSupportRayTracing())
 , bHiddenMaterialVisibilityDirtyForRayTracing(false)
+, bRayTracingGeometryRequiresUpdate(false)
 , RayTracingMinLOD(InMeshComponent->GetSkinnedAsset()->GetRayTracingMinLOD())
 #endif
 #if !UE_BUILD_SHIPPING

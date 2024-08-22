@@ -597,7 +597,30 @@ void FSkeletalMeshObjectNanite::UpdateRayTracingGeometry(FRHICommandListBase& RH
 	// TODO: Support WPO
 	const bool bAnySegmentUsesWorldPositionOffset = false;
 
-	FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry_Internal(RHICmdList, LODModel, LODIndex, VertexBuffers, RayTracingGeometry, bAnySegmentUsesWorldPositionOffset, this, RayTracingUpdateQueue);
+	FSkeletalMeshObjectGPUSkin::UpdateRayTracingGeometry_Internal(LODModel, LODIndex, VertexBuffers, RayTracingGeometry, bAnySegmentUsesWorldPositionOffset, this, RayTracingUpdateQueue);
+}
+
+void FSkeletalMeshObjectNanite::QueuePendingRayTracingGeometryUpdate(FRHICommandListBase& RHICmdList)
+{
+	if (IsRayTracingEnabled() && bSupportRayTracing)
+	{
+		// TODO: Support WPO
+		const bool bAnySegmentUsesWorldPositionOffset = false;
+
+		if (!RayTracingGeometry.IsValid() || RayTracingGeometry.IsEvicted())
+		{
+			// Only create RHI object but enqueue actual BLAS creation so they can be accumulated
+			RayTracingGeometry.CreateRayTracingGeometry(RHICmdList, ERTAccelerationStructureBuildPriority::Skip);
+
+			bRayTracingGeometryRequiresUpdate = !bAnySegmentUsesWorldPositionOffset;
+		}
+
+		if (bRayTracingGeometryRequiresUpdate)
+		{
+			RayTracingUpdateQueue->Add(&RayTracingGeometry, RHICalcRayTracingGeometrySize(RayTracingGeometry.Initializer));
+			bRayTracingGeometryRequiresUpdate = false;
+		}
+	}
 }
 #endif
 

@@ -2509,6 +2509,8 @@ void FSkinnedSceneProxy::GetDynamicRayTracingInstances(FRayTracingMaterialGather
 		return;
 	}
 
+	MeshObject->QueuePendingRayTracingGeometryUpdate(FRHICommandListImmediate::Get());
+
 	FRayTracingGeometry* RayTracingGeometry = MeshObject->GetRayTracingGeometry();
 
 	if (RayTracingGeometry && RayTracingGeometry->IsValid() && RenderData)
