@@ -162,7 +162,11 @@ void FMessageLogListingViewModel::AddMessages( const TArray< TSharedRef< FTokeni
 
 void FMessageLogListingViewModel::ClearMessages()
 {
-	SetCurrentPage(CurrentPageIndex);
+	if (CurrentPageIndex != 0)
+	{
+		SetCurrentPage(CurrentPageIndex);
+	}
+
 	MessageLogListingModel->ClearMessages();
 }
 
