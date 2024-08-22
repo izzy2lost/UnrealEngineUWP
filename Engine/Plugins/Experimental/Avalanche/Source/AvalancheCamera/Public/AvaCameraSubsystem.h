@@ -17,15 +17,22 @@ struct FAvaViewTarget
 {
 	GENERATED_BODY()
 
+	/** returns true if the View Target Actor is valid */
 	bool IsValid() const;
+
+	/** Returns the priority of the camera priority modifier of the actor, or 0 if the priority modifier doesn't exist */
+	int32 GetPriority() const;
+
+	/** Returns the Transition Params of the camera priority modifier of the actor, or default transition params if the modifier doesn't exist */
+	const FViewTargetTransitionParams& GetTransitionParams() const;
 
 	/** The View Target Actor */
 	UPROPERTY()
 	TObjectPtr<AActor> Actor;
 
-	/** The Camera Modifier that the View Target Actor has */
+	/** The Camera Modifier that the View Target Actor has, if any */
 	UPROPERTY()
-	TObjectPtr<UAvaCameraPriorityModifier> CameraPriorityModifier;
+	TObjectPtr<const UAvaCameraPriorityModifier> CameraPriorityModifier;
 };
 
 UCLASS(MinimalAPI)
