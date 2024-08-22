@@ -2,9 +2,9 @@
 
 #pragma once
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputPluginSync.h"
+
+#if PLATFORM_WINDOWS
 
 #include "WindowsStylusInputPlatformAPI.h"
 

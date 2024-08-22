@@ -1,8 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputInstance.h"
+
+#if PLATFORM_WINDOWS
 
 #include <StylusInput.h>
 #include <StylusInputUtils.h>

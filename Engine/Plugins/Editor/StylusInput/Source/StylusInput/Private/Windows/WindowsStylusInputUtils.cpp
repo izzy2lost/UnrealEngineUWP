@@ -1,8 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputUtils.h"
+
+#if PLATFORM_WINDOWS
 
 #include <Windows/AllowWindowsPlatformAtomics.h>
 	#include <comdef.h>

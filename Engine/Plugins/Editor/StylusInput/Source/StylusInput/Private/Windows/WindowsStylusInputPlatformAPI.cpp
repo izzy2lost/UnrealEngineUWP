@@ -1,8 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputPlatformAPI.h"
+
+#if PLATFORM_WINDOWS
 
 #include <KnownFolders.h>
 #include <shtypes.h>

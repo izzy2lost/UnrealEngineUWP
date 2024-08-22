@@ -1,8 +1,8 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputPluginAsync.h"
+
+#if PLATFORM_WINDOWS
 
 namespace UE::StylusInput::Private::Windows
 {

@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include <HAL/Platform.h>
+
 #if PLATFORM_WINDOWS
 
-// #include <HAL/Platform.h>
 #include "Windows/WindowsPlatformTime.h"
 
 namespace UE::StylusInput::Private::Windows

@@ -2,9 +2,9 @@
 
 #pragma once
 
-#if PLATFORM_WINDOWS
-
 #include "WindowsStylusInputTabletContext.h"
+
+#if PLATFORM_WINDOWS
 
 #include <Microsoft/COMPointer.h>
 #include <msinkaut.h>
