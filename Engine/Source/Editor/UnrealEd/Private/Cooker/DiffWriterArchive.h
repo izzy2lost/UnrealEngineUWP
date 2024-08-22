@@ -33,6 +33,7 @@ namespace UE::DiffWriter
 
 class FAccumulator;
 class FDiffArchive;
+class FPackageHeaderData;
 
 typedef TUniqueFunction<void(ELogVerbosity::Type, FStringView)> FMessageCallback;
 using EPackageHeaderFormat = ICookedPackageWriter::EPackageHeaderFormat;
@@ -272,6 +273,7 @@ private:
 	void GenerateDiffMap();
 	/** Compares two packages and logs the differences and calltacks. */
 	void CompareWithPreviousForSection(const FPackageData& SourcePackage, const FPackageData& DestPackage,
+		FPackageHeaderData& SourceHeader, FPackageHeaderData& DestHeader,
 		const TCHAR* CallstackCutoffText, int32& InOutLoggedDiffs,TMap<FName, FArchiveDiffStats>& OutStats,
 		const FString& SectionFilename);
 
