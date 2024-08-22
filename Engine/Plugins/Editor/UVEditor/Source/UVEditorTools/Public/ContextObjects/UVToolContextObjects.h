@@ -14,6 +14,8 @@
 // TODO: This should be spread out across multiple files
 
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
+class FAssetEditorModeManager;
+class FEditorViewportClient;
 class FToolCommandChange;
 struct FViewCameraState;
 class UInputRouter;
@@ -109,10 +111,12 @@ public:
 	void Initialize(UWorld* WorldIn, UInputRouter* RouterIn,
 		TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFuncIn,
 		TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFuncIn,
-		TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFuncIn);
+		TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFuncIn, 
+		UInteractiveGizmoManager* GizmoManager = nullptr);
 
 	UWorld* GetLivePreviewWorld() { return World.Get(); }
 	UInputRouter* GetLivePreviewInputRouter() { return InputRouter.Get(); }
+	UInteractiveGizmoManager* GetGizmoManager() { return GizmoManager.Get(); }
 	void GetLivePreviewCameraState(FViewCameraState& CameraStateOut) 
 	{ 
 		if (GetLivePreviewCameraStateFunc)
@@ -171,6 +175,9 @@ protected:
 	TUniqueFunction<void(FViewCameraState& CameraStateOut)> GetLivePreviewCameraStateFunc;
 	TUniqueFunction<void(const UE::Geometry::FAxisAlignedBox3d& BoundingBox)> SetLivePreviewCameraToLookAtVolumeFunc;
 	TUniqueFunction<void(const EMouseCursor::Type Cursor, bool bEnableOverride)> SetCursorOverrideFunc;
+
+private:
+	TWeakObjectPtr<UInteractiveGizmoManager> GizmoManager;
 };
 
 USTRUCT()

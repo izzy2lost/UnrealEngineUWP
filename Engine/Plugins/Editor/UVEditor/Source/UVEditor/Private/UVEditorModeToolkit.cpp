@@ -31,6 +31,10 @@
 
 namespace UVEditorModeToolkitLocals
 {
+	TAutoConsoleVariable<bool> CVarAddDebugTools(
+		TEXT("modeling.UVEditor.AddDebugTools"),
+		false,
+		TEXT("Enable UV tools that can be useful for debugging (currently just the \"Unset UVs\" tool."));
 }
 
 FUVEditorModeToolkit::FUVEditorModeToolkit()
@@ -465,6 +469,8 @@ FText FUVEditorModeToolkit::GetToolPaletteDisplayName(FName Palette) const
 
 void FUVEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBuilder& ToolbarBuilder)
 {
+	using namespace UVEditorModeToolkitLocals;
+
 	const FUVEditorCommands& Commands = FUVEditorCommands::Get();
 
 	if (PaletteIndex == ToolsTabName)

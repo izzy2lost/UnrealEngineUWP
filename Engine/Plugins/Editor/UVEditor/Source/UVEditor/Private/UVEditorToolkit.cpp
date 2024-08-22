@@ -24,6 +24,7 @@
 #include "UVEditorSubsystem.h"
 #include "UVEditorModule.h"
 #include "UVEditorStyle.h"
+#include "UVEditor3DViewportMode.h"
 #include "ContextObjects/UVToolContextObjects.h"
 #include "UVEditorModeUILayer.h"
 #include "Widgets/Docking/SDockTab.h"
@@ -109,6 +110,7 @@ FUVEditorToolkit::FUVEditorToolkit(UAssetEditor* InOwningAssetEditor)
 
 	LivePreviewEditorModeManager = MakeShared<FAssetEditorModeManager>();
 	LivePreviewEditorModeManager->SetPreviewScene(LivePreviewScene.Get());
+	LivePreviewEditorModeManager->SetDefaultMode(UUVEditor3DViewportMode::EM_ModeID);
 	LivePreviewInputRouter = LivePreviewEditorModeManager->GetInteractiveToolsContext()->InputRouter;
 
 	LivePreviewTabContent = MakeShareable(new FEditorViewportTabContent());
@@ -297,7 +299,7 @@ void FUVEditorToolkit::OnClose()
 	// This is super important to do, otherwise currently opened tabs won't be marked as "closed".
 	// This results in tabs not being properly recycled upon reopening the editor and tab
 	// duplication for each opening event.
-	GetEditorModeManager().ActivateDefaultMode();
+	GetEditorModeManager().DeactivateAllModes();
 
 	FAssetEditorToolkit::OnClose();
 }
@@ -438,10 +440,12 @@ void FUVEditorToolkit::PostInitAssetEditor()
 	ModeUILayer = MakeShareable(new FUVEditorModeUILayer(PinnedToolkitHost.Get()));
 	ModeUILayer->SetModeMenuCategory( UVEditorMenuCategory );
 
+	// Needed so that the live preview dummy mode is initialized enough to be able to route hotkeys
+	LivePreviewEditorModeManager->SetToolkitHost(PinnedToolkitHost.ToSharedRef());
+
 	TArray<TObjectPtr<UObject>> ObjectsToEdit;
 	OwningAssetEditor->GetObjectsToEdit(MutableView(ObjectsToEdit));
 
-	// TODO: get these when possible (from level editor selection, for instance), and set them to something reasonable otherwise.
 	TArray<FTransform> ObjectTransforms;
 	Cast<UUVEditor>(OwningAssetEditor)->GetWorldspaceRelativeTransforms(ObjectTransforms);
 

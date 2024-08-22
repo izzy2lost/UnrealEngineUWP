@@ -9,6 +9,7 @@
 #include "PropertyEditorModule.h"
 #include "Selection.h"
 #include "UVEditor.h"
+#include "UVEditor3DViewportMode.h"
 #include "UVEditorCommands.h"
 #include "UVEditorMode.h"
 #include "UVEditorStyle.h"
@@ -30,6 +31,7 @@ void FUVEditorModule::StartupModule()
 
 	FUVEditorStyle::Get(); // Causes the constructor to be called
 	FUVEditorCommands::Register();
+	UE::Geometry::FUVEditorToolActionCommands::RegisterAllToolActions();
 
 	// Menus need to be registered in a callback to make sure the system is ready for them.
 	UToolMenus::RegisterStartupCallback(
@@ -56,9 +58,11 @@ void FUVEditorModule::ShutdownModule()
 	UToolMenus::UnRegisterStartupCallback(this);
 	UToolMenus::UnregisterOwner(this);
 
+	UE::Geometry::FUVEditorToolActionCommands::UnregisterAllToolActions();
 	FUVEditorCommands::Unregister();
 
 	FEditorModeRegistry::Get().UnregisterMode(UUVEditorMode::EM_UVEditorModeId);
+	FEditorModeRegistry::Get().UnregisterMode(UUVEditor3DViewportMode::EM_ModeID);
 
 	// Unregister customizations
 	FPropertyEditorModule* PropertyEditorModule = FModuleManager::GetModulePtr<FPropertyEditorModule>("PropertyEditor");

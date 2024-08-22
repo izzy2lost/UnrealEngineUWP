@@ -14,6 +14,7 @@
 PREDECLARE_GEOMETRY(class FDynamicMesh3);
 
 class FAssetEditorModeManager;
+class FUICommandList;
 class UEditorInteractiveToolsContext;
 class FEditorViewportClient;
 class FToolCommandChange;
@@ -369,6 +370,13 @@ protected:
 	// Used to forward Render/DrawHUD calls in the live preview to the api object.
 	TWeakObjectPtr<UEditorInteractiveToolsContext> LivePreviewITC;
 
+	//~ Other members should be private as well, but too late for that. Keeping this one here
+	//~  to be next to the other live preview members.
+private: 
+	// Used to make mode hotkeys be triggered properly from the live preview
+	TWeakPtr<FUICommandList> LivePreviewToolkitCommands;
+protected:
+
 	UPROPERTY()
 	TObjectPtr<UUVToolSelectionAPI> SelectionAPI = nullptr;
 
@@ -404,5 +412,6 @@ private:
 	UPROPERTY()
 	TObjectPtr<UUVEditorLivePreviewUXProperties> UVEditorLivePreviewUXProperties = nullptr;
 
+	TArray<FString> ToolsThatAllowActions;
 };
 

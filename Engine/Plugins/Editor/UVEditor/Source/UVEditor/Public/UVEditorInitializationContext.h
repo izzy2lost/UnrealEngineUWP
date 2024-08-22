@@ -8,6 +8,7 @@
 
 #include "UVEditorInitializationContext.generated.h"
 
+class FUICommandList;
 class UEditorInteractiveToolsContext;
 
 /**
@@ -24,4 +25,5 @@ class UVEDITOR_API UUVEditorInitializationContext : public UUVToolContextObject
 	GENERATED_BODY()
 public:
 	TWeakObjectPtr<UEditorInteractiveToolsContext> LivePreviewITC;
+	TWeakPtr<FUICommandList> LivePreviewToolkitCommands;
 };

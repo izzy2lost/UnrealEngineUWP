@@ -14,6 +14,7 @@
 #include "Selection/UVToolSelectionAPI.h"
 #include "Drawing/MeshElementsVisualizer.h"
 #include "Editor.h"
+#include "EditorModes.h"
 #include "EditorViewportClient.h"
 #include "EdModeInteractiveToolsContext.h" //ToolsContext, EditorInteractiveToolsContext
 #include "EngineAnalytics.h"
@@ -31,6 +32,7 @@
 #include "ToolTargets/UVEditorToolMeshInput.h"
 #include "ToolTargetManager.h"
 #include "ToolTargets/UVEditorToolMeshInput.h"
+#include "UVEditor3DViewportMode.h"
 #include "UVEditorCommands.h"
 #include "UVEditorLayoutTool.h"
 #include "UVEditorTransformTool.h"
@@ -382,6 +384,8 @@ void UUVEditorMode::Enter()
 				SelectionAPI->LivePreviewDrawHUD(Canvas, RenderAPI);
 			}
 		});
+
+		LivePreviewToolkitCommands = InitContext->LivePreviewToolkitCommands;
 	}
 
 	InitializeModeContexts();
@@ -577,6 +581,7 @@ void UUVEditorMode::RegisterTools()
 	UVSelectToolBuilder->Targets = &ToolInputObjects;
 	DefaultToolIdentifier = TEXT("BeginSelectTool");
 	GetToolManager()->RegisterToolType(DefaultToolIdentifier, UVSelectToolBuilder);
+	ToolsThatAllowActions.Add(DefaultToolIdentifier);
 
 	// Note that the identifiers below need to match the command names so that the tool icons can 
 	// be easily retrieved from the active tool name in UVEditorModeToolkit::OnToolStarted. Otherwise
@@ -621,6 +626,8 @@ void UUVEditorMode::RegisterTools()
 
 void UUVEditorMode::RegisterActions()
 {
+	using namespace UVEditorModeLocals;
+
 	const FUVEditorCommands& CommandInfos = FUVEditorCommands::Get();
 	const TSharedRef<FUICommandList>& CommandList = Toolkit->GetToolkitCommands();
 
@@ -629,7 +636,10 @@ void UUVEditorMode::RegisterActions()
 		Action->Setup(GetToolManager());
 		CommandList->MapAction(CommandInfo,
 			FExecuteAction::CreateWeakLambda(Action, [this, Action]() 
-			{ 
+			{
+				// If we're activating from some other selection tool, go ahead and switch to the regular one
+				ActivateDefaultTool();
+
 				Action->ExecuteAction();
 				for (const FUVToolSelection& Selection : SelectionAPI->GetSelections())
 				{
@@ -647,9 +657,19 @@ void UUVEditorMode::RegisterActions()
 				}
 			}),
 			FCanExecuteAction::CreateWeakLambda(Action, [Action, this]() 
-				{ 
-					return IsDefaultToolActive() && Action->CanExecuteAction(); 
-				}));
+			{
+				// We could make some generic system for determining which tools are safe to call one-off actions from,
+				//  but it's unclear that it's worth it while we have so few.
+				auto DoesCurrentToolAllowActions = [this]()
+				{
+					if (UInteractiveToolsContext* ToolsContext = GetInteractiveToolsContext())
+					{
+						return ToolsThatAllowActions.Contains(ToolsContext->GetActiveToolName(EToolSide::Mouse));
+					}
+					return false;
+				};
+				return DoesCurrentToolAllowActions() && Action->CanExecuteAction();
+			}));
 		RegisteredActions.Add(Action);
 	};
 	PrepAction(CommandInfos.SewAction, NewObject<UUVSeamSewAction>());
@@ -680,6 +700,12 @@ void UUVEditorMode::CreateToolkit()
 void UUVEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
 	using namespace UVEditorModeLocals;
+
+	FUVEditorToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), false);
+	if (LivePreviewToolkitCommands.IsValid())
+	{
+		FUVEditorToolActionCommands::UpdateToolCommandBinding(Tool, LivePreviewToolkitCommands.Pin(), false);
+	}
 
 	FText TransactionName = LOCTEXT("ActivateTool", "Activate Tool");
 	
@@ -727,6 +753,12 @@ void UUVEditorMode::OnToolStarted(UInteractiveToolManager* Manager, UInteractive
 
 void UUVEditorMode::OnToolEnded(UInteractiveToolManager* Manager, UInteractiveTool* Tool)
 {
+	FUVEditorToolActionCommands::UpdateToolCommandBinding(Tool, Toolkit->GetToolkitCommands(), true);
+	if (LivePreviewToolkitCommands.IsValid())
+	{
+		FUVEditorToolActionCommands::UpdateToolCommandBinding(Tool, LivePreviewToolkitCommands.Pin(), true);
+	}
+
 	for (TWeakObjectPtr<UUVToolContextObject> Context : ContextsToUpdateOnToolEnd)
 	{
 		if (ensure(Context.IsValid()))
@@ -1061,8 +1093,8 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 				{
 					LivePreviewToolsContextCursorAPI->ClearCursorOverride();
 				}
-			}
-			);
+			},
+			LivePreviewModeManager.GetInteractiveToolsContext()->GizmoManager);
 		ContextStore.AddContextObject(LivePreviewAPI);
 	}
 
@@ -1071,6 +1103,18 @@ void UUVEditorMode::InitializeAssetEditorContexts(UContextObjectStore& ContextSt
 	{
 		UUVEditorInitializationContext* InitContext = NewObject<UUVEditorInitializationContext>();
 		InitContext->LivePreviewITC = Cast<UEditorInteractiveToolsContext>(LivePreviewModeManager.GetInteractiveToolsContext());
+
+		LivePreviewModeManager.ActivateMode(UUVEditor3DViewportMode::EM_ModeID);
+		UEdMode* LivePreviewDefaultMode = LivePreviewModeManager.GetActiveScriptableMode(UUVEditor3DViewportMode::EM_ModeID);
+		if (ensure(LivePreviewDefaultMode))
+		{
+			TSharedPtr<FModeToolkit> Toolkit = LivePreviewDefaultMode->GetToolkit().Pin();
+			if (ensure(Toolkit.IsValid()))
+			{
+				InitContext->LivePreviewToolkitCommands = Toolkit->GetToolkitCommands();
+			}
+		}
+
 		ContextStore.AddContextObject(InitContext);
 	}
 
