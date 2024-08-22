@@ -24,6 +24,9 @@ RWTexture2D<float3> RWResolvedDiffuseLighting;
 RWTexture2D<float3> RWResolvedSpecularLighting;
 RWTexture2D<UNORM float> RWShadingConfidence;
 
+RWStructuredBuffer<uint> RWVisibleLightMask;
+uint2 LightMaskSizeInTiles;
+
 int2 SampleViewMin;
 int2 SampleViewSize;
 
@@ -278,6 +281,13 @@ void ShadeLightSamplesCS(
 			RWResolvedSpecularLighting[ScreenCoord] = SpecularLighting;
 			RWShadingConfidence[ScreenCoord] = WeightRatioSum;
 		}
+
+#if OUTPUT_VISIBLE_LIGHT_MASK
+		if (LinearThreadIndex < SHARED_LIGHT_MASK_SIZE)
+		{
+			RWVisibleLightMask[(TileCoord.y * LightMaskSizeInTiles.x + TileCoord.x) * SHARED_LIGHT_MASK_SIZE + LinearThreadIndex] = SharedLightMask[LinearThreadIndex];
+		}
+#endif
 	}
 }
 
