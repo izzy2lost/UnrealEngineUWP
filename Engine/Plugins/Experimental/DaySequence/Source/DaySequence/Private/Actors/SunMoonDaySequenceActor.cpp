@@ -1,6 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Actors/SunPositionDaySequenceActor.h"
+#include "Actors/SunMoonDaySequenceActor.h"
 
 #include "Components/DirectionalLightComponent.h"
 #include "Components/StaticMeshComponent.h"
@@ -9,7 +9,7 @@
 #include "Materials/MaterialInterface.h"
 #include "UObject/ConstructorHelpers.h"
 
-ASunPositionDaySequenceActor::ASunPositionDaySequenceActor(const FObjectInitializer& Init)
+ASunMoonDaySequenceActor::ASunMoonDaySequenceActor(const FObjectInitializer& Init)
 : Super(Init)
 {
 	MoonComponent = CreateDefaultSubobject<UDirectionalLightComponent>(TEXT("Moon"));
@@ -29,7 +29,10 @@ ASunPositionDaySequenceActor::ASunPositionDaySequenceActor(const FObjectInitiali
 	static ConstructorHelpers::FObjectFinder<UMaterialInterface> SkySphereDefaultMaterial(TEXT("/DaySequence/MI_24hrSky.MI_24hrSky"));
 	SkySphereComponent->SetMaterial(0, SkySphereDefaultMaterial.Object.Get());
 
-	// Override the default collection (which animates the moon and sky material)
-	static ConstructorHelpers::FObjectFinder<UDaySequenceCollectionAsset> DefaultCollection(TEXT("/DaySequence/DSCA_24hr.DSCA_24hr"));
-	DaySequenceCollection = DefaultCollection.Object.Get();
+	if (!IsTemplate())
+	{
+		// Override the default collection (which animates the moon and sky material)
+        static ConstructorHelpers::FObjectFinder<UDaySequenceCollectionAsset> DefaultCollection(TEXT("/DaySequence/DSCA_24hr.DSCA_24hr"));
+        DaySequenceCollection = DefaultCollection.Object.Get();
+	}
 }

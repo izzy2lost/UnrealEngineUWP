@@ -1,6 +1,6 @@
 ﻿// Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "Actors/SimpleDaySequenceActor.h"
+#include "Actors/BaseDaySequenceActor.h"
 
 #include "DaySequenceSubsystem.h"
 
@@ -16,7 +16,7 @@
 #include "Engine/StaticMesh.h"
 #include "UObject/ConstructorHelpers.h"
 
-ASimpleDaySequenceActor::ASimpleDaySequenceActor(const FObjectInitializer& Init)
+ABaseDaySequenceActor::ABaseDaySequenceActor(const FObjectInitializer& Init)
 : Super(Init)
 {
 	SunRootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("SunRoot"));
@@ -49,7 +49,7 @@ ASimpleDaySequenceActor::ASimpleDaySequenceActor(const FObjectInitializer& Init)
 	SkySphereComponent->SetRelativeScale3D(FVector(400.f));
 }
 
-void ASimpleDaySequenceActor::BeginPlay()
+void ABaseDaySequenceActor::BeginPlay()
 {
 	Super::BeginPlay();
 	
@@ -62,7 +62,7 @@ void ASimpleDaySequenceActor::BeginPlay()
 	}
 }
 
-void ASimpleDaySequenceActor::OnConstruction(const FTransform& Transform)
+void ABaseDaySequenceActor::OnConstruction(const FTransform& Transform)
 {
 	Super::OnConstruction(Transform);
 	

@@ -5,7 +5,7 @@
 #include "CoreMinimal.h"
 #include "DaySequenceActor.h"
 
-#include "SimpleDaySequenceActor.generated.h"
+#include "BaseDaySequenceActor.generated.h"
 
 class USkyAtmosphereComponent;
 class USkyLightComponent;
@@ -19,13 +19,13 @@ class UStaticMeshComponent;
  * Can be used as-is or extended by derived classes (see ASunPositionDaySequenceActor).
  */
 UCLASS(Blueprintable, HideCategories=(Tags, Networking, LevelInstance))
-class DAYSEQUENCE_API ASimpleDaySequenceActor
+class DAYSEQUENCE_API ABaseDaySequenceActor
 	: public ADaySequenceActor
 {
 	GENERATED_BODY()
 
 public:
-	ASimpleDaySequenceActor(const FObjectInitializer& Init);
+	ABaseDaySequenceActor(const FObjectInitializer& Init);
 
 protected:
 	
