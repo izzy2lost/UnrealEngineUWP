@@ -1991,6 +1991,11 @@ FPrimitiveSceneProxy* UGroomComponent::CreateSceneProxy()
 		return nullptr;
 	}
 
+	if (GroomAsset->GetHairGroupsPlatformData().Num() != HairGroupInstances.Num())
+	{
+		return nullptr;
+	}
+
 	bool bIsValid = false;
 	for (const TRefCountPtr<FHairGroupInstance>& Instance : HairGroupInstances)
 	{
