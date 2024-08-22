@@ -3,6 +3,7 @@
 #pragma once
 
 #include "ILiveLinkHubModule.h"
+#include "LiveLinkHubTicker.h"
 #include "Templates/SharedPointer.h"
 
 class FLiveLinkHub;
@@ -43,6 +44,9 @@ public:
 private:
 	/** LiveLinkHub object responsible for initializing the different controllers. */
 	TSharedPtr<FLiveLinkHub> LiveLinkHub;
+
+	/** Utility object used to tick LiveLink outside of the game thread. */
+	FLiveLinkHubTicker Ticker;
 
 	/** Config-driven. True in LiveLink Hub standalone application, false in UE. */
 	bool bUseSubjectSettingsDetailsCustomization;

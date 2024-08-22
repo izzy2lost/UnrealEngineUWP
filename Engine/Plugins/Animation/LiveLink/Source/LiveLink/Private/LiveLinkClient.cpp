@@ -54,30 +54,26 @@ static TAutoConsoleVariable<int32> CVarMaxNewFrameDataPerUpdate(
 
 
 FLiveLinkClient::FLiveLinkClient()
+	: FLiveLinkClient(FCoreDelegates::OnSamplingInput)
+{
+	// Use OnSamplingInput as the ticking delegate for now since it's as close as the previous PreEngineCompleted callback we were hooked before it was changed
+	// OnBeginFrame is too early since Timecode hasn't been updated for the frame
+	// OnSamplingInput is right before ticking the engine so we can build our snapshots and be consistent throughout the frame
+}
+
+
+FLiveLinkClient::FLiveLinkClient(FSimpleMulticastDelegate& InTickingDelegate)
 	: Collection(MakeUnique<FLiveLinkSourceCollection>())
 {
-	LLM_SCOPE_BYTAG(LiveLink_LiveLinkClient);
+	InTickingDelegate.AddRaw(this, &FLiveLinkClient::Tick);
+	Initialize();
+}
 
-#if WITH_EDITOR
-	CachedEngineTime = 0.0;
-#endif
-
-	OnLiveLinkSubjectRemoved().AddRaw(this, &FLiveLinkClient::OnSubjectRemovedCallback);
-	FCoreDelegates::OnPreExit.AddRaw(this, &FLiveLinkClient::Shutdown);
-
-	//IMediaModule& MediaModule = FModuleManager::LoadModuleChecked<IMediaModule>("Media");
-	//MediaModule.GetOnTickPreEngineCompleted().AddRaw(this, &FLiveLinkClient::Tick);
-
-	//Use OnSamplingInput for now since it's as close as the previous PreEngineCompleted callback we were hoooked before it was changed
-	//OnBeginFrame is too early since Timecode hasn't been updated for the frame
-	//OnSamplingInput is right before ticking the engine so we can build our snapshots and be consistent throughout the frame
-	FCoreDelegates::OnSamplingInput.AddRaw(this, &FLiveLinkClient::Tick);
-
-	// Setup rebroadcaster name in case we need it later
-	RebroadcastLiveLinkProviderName = TEXT("LiveLink Rebroadcast");
-
-	bPreProcessRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastFrames;
-	bTranslateRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastFrames;
+FLiveLinkClient::FLiveLinkClient(FTSSimpleMulticastDelegate& InTickingDelegate)
+	: Collection(MakeUnique<FLiveLinkSourceCollection>())
+{
+	InTickingDelegate.AddRaw(this, &FLiveLinkClient::Tick);
+	Initialize();
 }
 
 FLiveLinkClient::~FLiveLinkClient()
@@ -96,6 +92,24 @@ void FLiveLinkClient::Tick()
 	BuildThisTicksSubjectSnapshot();
 
 	OnLiveLinkTickedDelegate.Broadcast();
+}
+
+void FLiveLinkClient::Initialize()
+{
+	LLM_SCOPE_BYTAG(LiveLink_LiveLinkClient);
+
+#if WITH_EDITOR
+	CachedEngineTime = 0.0;
+#endif
+
+	OnLiveLinkSubjectRemoved().AddRaw(this, &FLiveLinkClient::OnSubjectRemovedCallback);
+	FCoreDelegates::OnPreExit.AddRaw(this, &FLiveLinkClient::Shutdown);
+
+	// Setup rebroadcaster name in case we need it later
+	RebroadcastLiveLinkProviderName = TEXT("LiveLink Rebroadcast");
+
+	bPreProcessRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bPreProcessRebroadcastFrames;
+	bTranslateRebroadcastFrames = GetDefault<ULiveLinkSettings>()->bTranslateRebroadcastFrames;
 }
 
 void FLiveLinkClient::DoPendingWork()
@@ -224,11 +238,6 @@ void FLiveLinkClient::CacheValues()
 void FLiveLinkClient::Shutdown()
 {
 	LLM_SCOPE_BYTAG(LiveLink_LiveLinkClient);
-
-	/*if(IMediaModule* MediaModule = FModuleManager::GetModulePtr<IMediaModule>("Media"))
-	{
-		MediaModule->GetOnTickPreEngineCompleted().RemoveAll(this);
-	}*/
 
 	FCoreDelegates::OnSamplingInput.RemoveAll(this);
 

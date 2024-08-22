@@ -12,11 +12,6 @@
 class FLiveLinkHubTicker : public FRunnable
 {
 public:
-	explicit FLiveLinkHubTicker(TSharedRef<FLiveLinkHub> InLiveLinkHub)
-		: LiveLinkHub(MoveTemp(InLiveLinkHub))
-	{
-	}
-
 	void StartTick()
 	{
 		if (!bIsRunning)
@@ -42,7 +37,7 @@ public:
 			if (bIsRunning) // make sure we were not told to exit during the wait
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(FLiveLinkHubTicker::Tick);
-				LiveLinkHub->Tick();
+				OnTickDelegate.Broadcast();
 			}
 		}
 
@@ -71,9 +66,18 @@ public:
 		}
 	}
 	//~ End FRunnable Interface
+
+public:
+
+	/** Get the delegate called whenever this object ticks. */
+	FTSSimpleMulticastDelegate& OnTick() { return OnTickDelegate;  }
+private:
+
 	std::atomic<bool> bIsRunning = false;
+
+	/** Delegate called when this ticks. */
+	FTSSimpleMulticastDelegate OnTickDelegate;
 
 	FEvent* TickEvent = nullptr;
 	TUniquePtr<FRunnableThread> Thread;
-	TSharedPtr<FLiveLinkHub> LiveLinkHub;
 };

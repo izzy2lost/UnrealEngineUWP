@@ -22,7 +22,20 @@ DECLARE_TS_MULTICAST_DELEGATE_OneParam(FOnSubjectMarkedPendingKill_AnyThread, co
 class FLiveLinkHubClient : public FLiveLinkClient
 {
 public:
-	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub);
+	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub, FTSSimpleMulticastDelegate& InTickingDelegate)
+		: FLiveLinkClient(InTickingDelegate)
+		, LiveLinkHub(MoveTemp(InLiveLinkHub))
+	{
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded), FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded), StaticDataAddedHandle, FrameDataAddedHandle);
+	}
+
+	FLiveLinkHubClient(TSharedPtr<ILiveLinkHub> InLiveLinkHub)
+		: FLiveLinkClient()
+		, LiveLinkHub(MoveTemp(InLiveLinkHub))
+	{
+		RegisterGlobalSubjectFramesDelegate(FOnLiveLinkSubjectStaticDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnStaticDataAdded), FOnLiveLinkSubjectFrameDataAdded::FDelegate::CreateRaw(this, &FLiveLinkHubClient::OnFrameDataAdded), StaticDataAddedHandle, FrameDataAddedHandle);
+	}
+
 	virtual ~FLiveLinkHubClient();
 	
 	/** Get the delegate called when frame data is received. */

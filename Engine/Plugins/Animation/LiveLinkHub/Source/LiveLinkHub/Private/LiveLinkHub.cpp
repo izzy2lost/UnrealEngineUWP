@@ -14,6 +14,7 @@
 #include "LiveLinkHubClient.h"
 #include "LiveLinkHubCommands.h"
 #include "LiveLinkHubSubjectSettings.h"
+#include "LiveLinkHubTicker.h"
 #include "LiveLinkProviderImpl.h"
 #include "LiveLinkSettings.h"
 #include "Misc/App.h"
@@ -29,10 +30,18 @@
 #define LOCTEXT_NAMESPACE "LiveLinkHub"
 
 
-void FLiveLinkHub::Preinitialize()
+void FLiveLinkHub::Preinitialize(FLiveLinkHubTicker& Ticker)
 {
 	// We must register the livelink client first since we might rely on the modular feature to initialize the controllers/managers.
-	LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
+	if (GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread)
+	{
+		LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared());
+	}
+	else
+	{
+		LiveLinkHubClient = MakeShared<FLiveLinkHubClient>(AsShared(), Ticker.OnTick());
+	}
+	
 	IModularFeatures::Get().RegisterModularFeature(ILiveLinkClient::ModularFeatureName, LiveLinkHubClient.Get());
 }
 

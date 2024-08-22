@@ -4,7 +4,6 @@
 
 #include "ILiveLinkClient.h"
 
-
 class ILiveLinkSubject;
 struct FPropertyChangedEvent;
 struct ILiveLinkProvider;
@@ -64,7 +63,14 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 class LIVELINK_API FLiveLinkClient : public FLiveLinkClient_Base_DEPRECATED
 {
 public:
+	/** Default constructor that setups LiveLink to use the SamplingInput delegate to tick. */
 	FLiveLinkClient();
+
+	//~ Constructor that allow providing a custom delegate for ticking LiveLink.  
+	FLiveLinkClient(FSimpleMulticastDelegate& InTickingDelegate);
+	FLiveLinkClient(FTSSimpleMulticastDelegate& InTickingDelegate);
+	
+
 	virtual ~FLiveLinkClient();
 
 	//~ Begin ILiveLinkClient implementation
@@ -225,6 +231,8 @@ private:
 	};
 
 private:
+	/** Common initialization code for the different constructors. */
+	void Initialize();
 
 	/** Remove old sources & subject,  */
 	void DoPendingWork();

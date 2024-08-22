@@ -23,19 +23,10 @@ DEFINE_LOG_CATEGORY_STATIC(LogLiveLinkHubApplication, Log, All);
 
 void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 {
-	const bool bTickOnGameThread = GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread;
-
 	check(FSlateApplication::IsInitialized());
 	FSlateApplication::Get().RegisterInputPreProcessor(MakeShared<FLiveLinkHubInputProcessor>());
 	{
 		UE_LOG(LogLiveLinkHubApplication, Display, TEXT("LiveLinkHub Initialized (Version: %d.%d)"), ENGINE_MAJOR_VERSION, ENGINE_MINOR_VERSION);
-
-		FLiveLinkHubTicker Ticker{LiveLinkHub.ToSharedRef()};
-
-		if (!bTickOnGameThread)
-		{
-			Ticker.StartTick();
-		}
 
 		double LastTime = FPlatformTime::Seconds();
 
@@ -53,12 +44,6 @@ void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 
 			FSlateApplication::Get().PollGameDeviceState();
 
-			// This is normally ticked by OnSamplingInput.
-			if (bTickOnGameThread)
-			{
-				LiveLinkHub->Tick();
-			}
-
 			// Run garbage collection for the UObjects for the rest of the frame or at least to 2 ms
 			IncrementalPurgeGarbage(true, FMath::Max<float>(0.002f, IdealFrameTime - (FPlatformTime::Seconds() - LastTime)));
 
@@ -74,8 +59,5 @@ void LiveLinkHubLoop(const TSharedPtr<FLiveLinkHub>& LiveLinkHub)
 
 			LastTime = CurrentTime;
 		}
-
-		Ticker.Exit();
-		Ticker.Stop();
 	}
 }

@@ -22,8 +22,14 @@
 void FLiveLinkHubModule::PreinitializeLiveLinkHub()
 {
 	check(!LiveLinkHub);
+
+	if (!GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread)
+	{
+		Ticker.StartTick();
+	}
+
 	LiveLinkHub = MakeShared<FLiveLinkHub>();
-	LiveLinkHub->Preinitialize();
+	LiveLinkHub->Preinitialize(Ticker);
 }
 
 void FLiveLinkHubModule::StartLiveLinkHub(bool bLauncherDistribution)
@@ -33,9 +39,6 @@ void FLiveLinkHubModule::StartLiveLinkHub(bool bLauncherDistribution)
 
 	LiveLinkHub->Initialize(bLauncherDistribution);
 
-	// Disable throttling for the hub
-	GetMutableDefault<UEditorPerformanceSettings>()->bThrottleCPUWhenNotForeground = false;
-
 #if IS_PROGRAM
 	LiveLinkHubLoop(LiveLinkHub);
 #endif
@@ -44,6 +47,12 @@ void FLiveLinkHubModule::StartLiveLinkHub(bool bLauncherDistribution)
 void FLiveLinkHubModule::ShutdownLiveLinkHub()
 {
 	LiveLinkHub.Reset();
+
+	if (!GetDefault<ULiveLinkHubSettings>()->bTickOnGameThread)
+	{
+		Ticker.Exit();
+		Ticker.Stop();
+	}
 }
 
 void FLiveLinkHubModule::StartupModule()
