@@ -160,6 +160,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
 	bool ChangeActorTemplateClass(const FMovieSceneBindingProxy& ObjectBinding, TSubclassOf<AActor> ActorClass);
 
+	/* Save the default state of the spawnable. */
+	UFUNCTION(BlueprintCallable, Category = "Level Sequence Editor")
+	void SaveDefaultSpawnableState(const FMovieSceneBindingProxy& ObjectBinding);
+
 	/** 
 	 * Copy folders 
 	 * The copied folders will be saved to the clipboard as well as assigned to the ExportedText string. 

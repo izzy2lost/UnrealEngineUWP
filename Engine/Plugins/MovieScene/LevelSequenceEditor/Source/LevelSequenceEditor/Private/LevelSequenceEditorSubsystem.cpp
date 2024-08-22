@@ -1077,9 +1077,26 @@ bool ULevelSequenceEditorSubsystem::ChangeActorTemplateClass(const FMovieSceneBi
 	TArray<FSequencerChangeBindingInfo> Bindings;
 	Bindings.Add(FSequencerChangeBindingInfo(ObjectBinding.BindingID, 0));
 
-	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), Bindings, [&bSuccess](){bSuccess=true;});
+	FSequencerUtilities::HandleTemplateActorClassPicked(ActorClass, Sequencer.ToSharedRef(), Bindings, [&bSuccess]() {bSuccess = true; });
 
 	return bSuccess;
+}
+
+void ULevelSequenceEditorSubsystem::SaveDefaultSpawnableState(const FMovieSceneBindingProxy& ObjectBinding)
+{
+	TSharedPtr<ISequencer> Sequencer = GetActiveSequencer();
+	if (Sequencer == nullptr)
+	{
+		return;
+	}
+
+	UMovieSceneSequence* Sequence = Sequencer->GetFocusedMovieSceneSequence();
+	if (!Sequence)
+	{
+		return;
+	}
+
+	Sequencer->GetSpawnRegister().SaveDefaultSpawnableState(ObjectBinding.BindingID, 0, Sequencer->GetFocusedTemplateID(), Sequencer->GetSharedPlaybackState());
 }
 
 void ULevelSequenceEditorSubsystem::CopyFolders(const TArray<UMovieSceneFolder*>& Folders, FString& ExportedText)
