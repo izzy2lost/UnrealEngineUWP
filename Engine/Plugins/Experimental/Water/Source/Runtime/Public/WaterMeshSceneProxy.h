@@ -9,6 +9,7 @@
 #include "WaterQuadTreeBuilder.h"
 #include "WaterVertexFactory.h"
 #include "RayTracingGeometry.h"
+#include "RenderGraphResources.h"
 #include "WaterQuadTreeGPU.h"
 
 class FMeshElementCollector;
