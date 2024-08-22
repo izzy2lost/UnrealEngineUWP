@@ -1861,17 +1861,6 @@ TArray<FRigElementKey> URigHierarchy::GetChildren(FRigElementKey InKey, bool bRe
 {
 	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
 
-	auto ConvertElementsToKeys = [this](TConstArrayView<FRigBaseElement*> InElements) -> TArray<FRigElementKey>
-	{
-		TArray<FRigElementKey> ElementKeys;
-		ElementKeys.Reserve(InElements.Num());
-		for (const FRigBaseElement* Element: InElements)
-		{
-			ElementKeys.Add(Element->Key);
-		}
-		return ElementKeys;
-	};
-
 	if (bRecursive)
 	{
 		return ConvertElementsToKeys(GetChildren(Find(InKey), true));
@@ -1939,30 +1928,19 @@ TArray<int32> URigHierarchy::GetChildren(int32 InIndex, bool bRecursive) const
 		return {};
 	}
 	
-	TArray<int32> ChildIndexes;
-
-	auto AddIndexesFromElements = [this, &ChildIndexes](TConstArrayView<FRigBaseElement*> InElements) -> void
-	{
-		ChildIndexes.Reserve(ChildIndexes.Num() + InElements.Num());
-		for (const FRigBaseElement* Element: InElements)
-		{
-			ChildIndexes.Add(Element->Index);
-		}
-	};
-	
-	AddIndexesFromElements(GetChildren(Elements[InIndex]));
+	TArray<int32> ChildIndices;
+	ConvertElementsToIndices(GetChildren(Elements[InIndex]), ChildIndices);
 
 	if (bRecursive)
 	{
 		// Go along the children array and add all children. Once we stop adding children, the traversal index
 		// will reach the end and we're done.
-		for(int32 TraversalIndex = 0; TraversalIndex != ChildIndexes.Num(); TraversalIndex++)
+		for(int32 TraversalIndex = 0; TraversalIndex != ChildIndices.Num(); TraversalIndex++)
 		{
-			AddIndexesFromElements(GetChildren(Elements[ChildIndexes[TraversalIndex]]));
+			ConvertElementsToIndices(GetChildren(Elements[ChildIndices[TraversalIndex]]), ChildIndices);
 		}
 	}
-
-	return ChildIndexes;
+	return ChildIndices;
 }
 
 TConstArrayView<FRigBaseElement*> URigHierarchy::GetChildren(const FRigBaseElement* InElement) const
@@ -2744,6 +2722,56 @@ FRigElementKey URigHierarchy::GetWorldSpaceReferenceKey()
 {
 	static const FName WorldSpaceReferenceName = TEXT("WorldSpace");
 	return FRigElementKey(WorldSpaceReferenceName, ERigElementType::Reference); 
+}
+
+TArray<FRigElementKey> URigHierarchy::GetAnimationChannels(FRigElementKey InKey, bool bOnlyDirectChildren) const
+{
+	LLM_SCOPE_BYNAME(TEXT("Animation/ControlRig"));
+	return ConvertElementsToKeys(GetAnimationChannels(Find<FRigControlElement>(InKey), bOnlyDirectChildren));
+}
+
+TArray<int32> URigHierarchy::GetAnimationChannels(int32 InIndex, bool bOnlyDirectChildren) const
+{
+	return ConvertElementsToIndices(GetAnimationChannels(Get<FRigControlElement>(InIndex), bOnlyDirectChildren));
+}
+
+TArray<FRigControlElement*> URigHierarchy::GetAnimationChannels(const FRigControlElement* InElement, bool bOnlyDirectChildren) const
+{
+	if(InElement == nullptr)
+	{
+		return {};
+	}
+
+	const TConstArrayView<FRigBaseElement*> AllChildren = GetChildren(InElement);
+	const TArray<FRigBaseElement*> FilteredChildren = AllChildren.FilterByPredicate([](const FRigBaseElement* Element) -> bool
+	{
+		if(const FRigControlElement* ControlElement = Cast<FRigControlElement>(Element))
+		{
+			return ControlElement->IsAnimationChannel();
+		}
+		return false;
+	});
+
+	TArray<FRigControlElement*> AnimationChannels = ConvertElements<FRigControlElement>(FilteredChildren);
+	if(!bOnlyDirectChildren)
+	{
+		AnimationChannels.Append(GetFilteredElements<FRigControlElement>(
+			[InElement](const FRigControlElement* PotentialAnimationChannel) -> bool
+			{
+				if(PotentialAnimationChannel->IsAnimationChannel())
+				{
+					if(PotentialAnimationChannel->Settings.Customization.AvailableSpaces.Contains(InElement->Key))
+					{
+						return true;
+					}
+				}
+				return false;
+			},
+		true /* traverse */
+		));
+	}
+	
+	return AnimationChannels;
 }
 
 TArray<FRigElementKey> URigHierarchy::GetAllKeys(bool bTraverse, ERigElementType InElementType) const

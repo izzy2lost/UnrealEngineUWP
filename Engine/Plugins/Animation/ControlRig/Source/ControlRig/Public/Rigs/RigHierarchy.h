@@ -3397,6 +3397,30 @@ public:
 	}
 
 	/**
+	 * Returns the animation channels of a given element key
+	 * @param InKey The key of the element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels' indices
+	 */
+	TArray<FRigElementKey> GetAnimationChannels(FRigElementKey InKey, bool bOnlyDirectChildren = true) const;
+
+	/**
+	 * Returns the animation channels of a given element index
+	 * @param InIndex The index of the element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels' indices
+	 */
+	TArray<int32> GetAnimationChannels(int32 InIndex, bool bOnlyDirectChildren = true) const;
+
+	/**
+	 * Returns the animation channels of a given element
+	 * @param InElement The element to retrieve the animation channels for
+	 * @param bOnlyDirectChildren If set to false also animation channels with secondary parenting relationships will be retrieved
+	 * @return Returns the animation channels
+	 */
+	TArray<FRigControlElement*> GetAnimationChannels(const FRigControlElement* InElement, bool bOnlyDirectChildren = true) const;
+
+	/**
 	 * Returns all element keys of this hierarchy
 	 * @param bTraverse If set to true the keys will be returned by depth first traversal
 	 * @param InElementType The type filter to apply
@@ -4834,6 +4858,68 @@ private:
 	void ForEachListeningHierarchy(TFunctionRef<void(const FRigHierarchyListener&)> PerListeningHierarchyFunction);
 #endif
 
+public:
+	
+	template<typename RangeType>
+	static void ConvertElementsToKeys(RangeType InElements, TArray<FRigElementKey>& OutKeys)
+	{
+		OutKeys.Reserve(OutKeys.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			OutKeys.Add(Element->Key);
+		}
+	}
+
+	template<typename RangeType>
+	static void ConvertElementsToIndices(RangeType InElements, TArray<int32>& OutIndices)
+	{
+		OutIndices.Reserve(OutIndices.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			OutIndices.Add(Element->Index);
+		}
+	}
+
+	template<typename ElementType = FRigBaseElement, typename RangeType = TArray<FRigBaseElement*>>
+	static void ConvertElements(RangeType InElements, TArray<ElementType*>& OutElements, bool bFilterNull = true)
+	{
+		OutElements.Reserve(OutElements.Num() + InElements.Num());
+		for (const typename RangeType::ElementType Element: InElements)
+		{
+			ElementType* CastElement = Cast<ElementType>(Element);
+			if(CastElement || bFilterNull)
+			{
+				OutElements.Add(CastElement);
+			}
+		}
+	}
+
+	template<typename RangeType>
+	static TArray<FRigElementKey> ConvertElementsToKeys(RangeType InElements)
+	{
+		TArray<FRigElementKey> ElementKeys;
+		ConvertElementsToKeys(InElements, ElementKeys);
+		return ElementKeys;
+	}
+
+	template<typename RangeType>
+	static TArray<int32> ConvertElementsToIndices(RangeType InElements)
+	{
+		TArray<int32> ElementIndices;
+		ConvertElementsToIndices(InElements, ElementIndices);
+		return ElementIndices;
+	}
+
+	template<typename ElementType = FRigBaseElement, typename RangeType = TArray<FRigBaseElement*>>
+	static TArray<ElementType*> ConvertElements(RangeType InElements, bool bFilterNull = true)
+	{
+		TArray<ElementType*> OutElements;
+		ConvertElements<ElementType, RangeType>(InElements, OutElements, bFilterNull);
+		return OutElements;
+	}
+
+private:
+	
 	// the currently destroyed element - used to avoid notification storms
 	const FRigBaseElement* ElementBeingDestroyed; 
 	
