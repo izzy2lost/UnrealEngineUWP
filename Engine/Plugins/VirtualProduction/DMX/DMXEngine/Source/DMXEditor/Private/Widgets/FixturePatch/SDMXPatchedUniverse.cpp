@@ -438,12 +438,15 @@ void SDMXPatchedUniverse::SetUniverseIDInternal(int32 NewUniverseID)
 		for (UDMXEntityFixturePatch* FixturePatch : PatchesInUniverse)
 		{
 			TSharedPtr<FDMXFixturePatchNode> Node = FindPatchNode(FixturePatch);
-			if (!Node.IsValid())
+			if (!Node.IsValid() && IsValid(FixturePatch))
 			{
 				Node = FDMXFixturePatchNode::Create(WeakDMXEditor, FixturePatch);
 			}
 
-			FindOrAdd(Node.ToSharedRef());
+			if (Node.IsValid())
+			{
+				FindOrAdd(Node.ToSharedRef());
+			}
 		}
 
 		// Update the channel connectors' Universe ID

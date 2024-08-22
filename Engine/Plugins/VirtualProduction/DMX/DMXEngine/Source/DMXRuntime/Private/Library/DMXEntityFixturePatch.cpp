@@ -139,7 +139,6 @@ void UDMXEntityFixturePatch::RemoveFixturePatchFromLibrary(FDMXEntityFixturePatc
 			DMXLibrary->Modify();
 			FixturePatch->Modify();
 
-			FixturePatch->SetFixtureType(nullptr);
 			FixturePatch->Destroy();
 		}
 	}

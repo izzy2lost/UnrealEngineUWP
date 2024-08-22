@@ -23,11 +23,11 @@ namespace UE::DMX
 	{
 	public:
 		/** Exports the DMX Library as MVR File */
-		static void Export(UDMXLibrary* DMXLibrary);
+		static void Export(UDMXLibrary* DMXLibrary, const FString& DesiredName = TEXT(""));
 
 	private:
 		/** Exports the DMX Library as MVR File. If OutErrorReason is not empty there were issues with the export. */
-		void ExportInternal(UDMXLibrary* DMXLibrary, FText& OutErrorReason, FString& OutFilePathAndName);
+		void ExportInternal(UDMXLibrary* InDMXLibrary, const FString& InDesiredName, FText& OutErrorReason, FString& OutFilePathAndName);
 
 		/** Updates the MVR export options. Returns false if the import was canceled */
 		void UpdateExportOptions(const UDMXLibrary& DMXLibrary) const;

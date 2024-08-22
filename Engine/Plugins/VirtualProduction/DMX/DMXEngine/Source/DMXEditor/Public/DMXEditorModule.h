@@ -55,6 +55,9 @@ public:
 	 */
 	TSharedRef<FDMXEditor> CreateEditor( const EToolkitMode::Type Mode, const TSharedPtr< class IToolkitHost >& InitToolkitHost, UDMXLibrary* DMXLibrary );
 
+	/** Exports a DMX Library as MVR file */
+	void ExportDMXLibraryAsMVRFile(UDMXLibrary* DMXLibrary, const FString& DesiredName = TEXT("")) const;
+
 	/** Get Level Editor Toolbar Menu extender */
 	TSharedPtr<FExtender> GetLevelEditorToolbarDMXMenuExtender() const { return LevelEditorToolbarDMXMenuExtender; }
 

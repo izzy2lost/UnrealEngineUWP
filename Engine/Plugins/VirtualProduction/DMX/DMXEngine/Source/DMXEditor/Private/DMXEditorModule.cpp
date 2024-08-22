@@ -23,6 +23,7 @@
 #include "DMXEditorTabNames.h"
 #include "DMXProtocolBlueprintLibrary.h"
 #include "DMXProtocolTypes.h"
+#include "Exporters/DMXMVRExporter.h"
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Docking/TabManager.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
@@ -112,6 +113,14 @@ TSharedRef<FDMXEditor> FDMXEditorModule::CreateEditor(const EToolkitMode::Type M
 	NewDMXEditor->InitEditor(Mode, InitToolkitHost, DMXLibrary);
 
 	return NewDMXEditor;
+}
+
+void FDMXEditorModule::ExportDMXLibraryAsMVRFile(UDMXLibrary* DMXLibrary, const FString& DesiredName) const
+{
+	if (DMXLibrary)
+	{
+		UE::DMX::FDMXMVRExporter::Export(DMXLibrary, DesiredName);
+	}
 }
 
 void FDMXEditorModule::FixGDTFAssetNames()

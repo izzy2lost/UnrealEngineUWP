@@ -303,7 +303,7 @@ FText SNameListPicker::GetCurrentNameLabel() const
 		return LOCTEXT("MultipleValuesText", "<multiple values>");
 	}
 
-	const FName CurrentName = ValueAttribute.Get();
+	const FName CurrentName = ValueAttribute.IsSet() ? ValueAttribute.Get() : NAME_None;
 	if (CurrentName.IsEqual(NAME_None))
 	{
 		return NoneLabel;

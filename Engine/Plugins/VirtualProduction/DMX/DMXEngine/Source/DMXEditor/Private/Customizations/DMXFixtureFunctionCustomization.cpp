@@ -29,6 +29,7 @@ namespace UE::DMX
 
 			// Hide physical properties, they're editor only and confusing in blueprints
 			if (!ChildHandle.IsValid() ||
+				!ChildHandle->IsValidHandle() ||
 				ChildHandle->GetProperty()->GetFName() == FDMXFixtureFunction::GetPhysicalDefaultValuePropertyName() ||
 				ChildHandle->GetProperty()->GetFName() == FDMXFixtureFunction::GetPhysicalUnitPropertyName() ||
 				ChildHandle->GetProperty()->GetFName() == FDMXFixtureFunction::GetPhysicalFromPropertyName() ||

@@ -37,12 +37,12 @@
 
 namespace UE::DMX
 {
-	void FDMXMVRExporter::Export(UDMXLibrary* DMXLibrary)
+	void FDMXMVRExporter::Export(UDMXLibrary* DMXLibrary, const FString& DesiredName)
 	{
 		FDMXMVRExporter Instance;
 		FText ErrorReason;
 		FString FilePathAndName;
-		Instance.ExportInternal(DMXLibrary, ErrorReason, FilePathAndName);
+		Instance.ExportInternal(DMXLibrary, DesiredName, ErrorReason, FilePathAndName);
 
 		if (ErrorReason.IsEmpty())
 		{
@@ -61,26 +61,29 @@ namespace UE::DMX
 		}
 	}
 
-	void FDMXMVRExporter::ExportInternal(UDMXLibrary* DMXLibrary, FText& OutErrorReason, FString& OutFilePathAndName)
+	void FDMXMVRExporter::ExportInternal(UDMXLibrary* InDMXLibrary, const FString& InDesiredName, FText& OutErrorReason, FString& OutFilePathAndName)
 	{
-		if (!ensureAlwaysMsgf(DMXLibrary, TEXT("Trying to export DMX Library '%s' as MVR file, but the DMX Library is invalid."), *DMXLibrary->GetName()))
+		if (!ensureAlwaysMsgf(InDMXLibrary, TEXT("Trying to export DMX Library '%s' as MVR file, but the DMX Library is invalid."), *InDMXLibrary->GetName()))
 		{
 			OutErrorReason = LOCTEXT("MVRExportDMXLibraryInvalidReason", "DMX Library {0} is invalid. Cannot export MVR file.");
 			return;
 		}
 
-		UpdateExportOptions(*DMXLibrary);
+		UpdateExportOptions(*InDMXLibrary);
 		if (GetDefault<UDMXMVRExportOptions>()->bCanceled)
 		{
 			OutErrorReason = LOCTEXT("MVRExportCanceledInvalidReason", "Canceled MVR export.");
 			return;
 		}
 
-		OutFilePathAndName = [DMXLibrary]()
+		OutFilePathAndName = [InDMXLibrary, &InDesiredName]()
 			{					
 				UDMXEditorSettings* DMXEditorSettings = GetMutableDefault<UDMXEditorSettings>();
 				const FString LastMVRExportPath = DMXEditorSettings->LastMVRExportPath;
 				const FString DefaultPath = FPaths::DirectoryExists(LastMVRExportPath) ? LastMVRExportPath : FPaths::ProjectSavedDir();
+				const FString DefaultFileName = InDesiredName.IsEmpty() ?
+					InDMXLibrary->GetName() + TEXT(".mvr") :
+					FPaths::GetBaseFilename(InDesiredName) + TEXT(".mvr");
 
 				IDesktopPlatform* DesktopPlatform = FDesktopPlatformModule::Get();
 				if (!DesktopPlatform)
@@ -93,7 +96,7 @@ namespace UE::DMX
 					FSlateApplication::Get().FindBestParentWindowHandleForDialogs(nullptr),
 					LOCTEXT("ExportMVR", "Export MVR").ToString(),
 					DefaultPath,
-					DMXLibrary->GetName() + TEXT(".mvr"),
+					DefaultFileName,
 					TEXT("My Virtual Rig (*.mvr)|*.mvr"),
 					EFileDialogFlags::None,
 					SaveFilenames);
@@ -110,8 +113,8 @@ namespace UE::DMX
 			}();
 
 		// Create a copy of the library's general scene description, so transforms exported aren't written to the dmx library
-		UDMXMVRGeneralSceneDescription* TempGeneralSceneDescription = DuplicateObject<UDMXMVRGeneralSceneDescription>(DMXLibrary->GetLazyGeneralSceneDescription(), GetTransientPackage());
-		if (!ensureAlwaysMsgf(TempGeneralSceneDescription, TEXT("Trying to export DMX Library '%s' as MVR file, but its General Scene Description is invalid."), *DMXLibrary->GetName()))
+		UDMXMVRGeneralSceneDescription* TempGeneralSceneDescription = DuplicateObject<UDMXMVRGeneralSceneDescription>(InDMXLibrary->GetLazyGeneralSceneDescription(), GetTransientPackage());
+		if (!ensureAlwaysMsgf(TempGeneralSceneDescription, TEXT("Trying to export DMX Library '%s' as MVR file, but its General Scene Description is invalid."), *InDMXLibrary->GetName()))
 		{
 			OutErrorReason = FText::Format(LOCTEXT("MVRExportGeneralSceneDescriptionInvalidReason", "DMX Library is invalid. Cannot export {0}."), FText::FromString(OutFilePathAndName));
 			return;
@@ -127,7 +130,7 @@ namespace UE::DMX
 		WorldParams.bExportPatchesNotPresentInWorld = ExportOptions->bExportPatchesNotPresentInWorld;
 		WorldParams.bUseTransformsFromLevel = ExportOptions->bUseTransformsFromLevel;
 
-		TempGeneralSceneDescription->WriteDMXLibrary(*DMXLibrary, WorldParams);
+		TempGeneralSceneDescription->WriteDMXLibrary(*InDMXLibrary, WorldParams);
 
 		const TSharedRef<FDMXZipper> Zip = MakeShared<FDMXZipper>();
 		if (!ZipGeneralSceneDescription(Zip, TempGeneralSceneDescription, OutErrorReason))
@@ -135,7 +138,7 @@ namespace UE::DMX
 			return;
 		}
 
-		if (!ZipGDTFs(Zip, DMXLibrary))
+		if (!ZipGDTFs(Zip, InDMXLibrary))
 		{
 			OutErrorReason = FText::Format(LOCTEXT("MVRExportZipGDTFsFailedReason", "Some Fixture Types could not be converted to GDTF. Exported MVR to {0}."), FText::FromString(OutFilePathAndName));
 			// Allow continuation of export
