@@ -2254,6 +2254,17 @@ void FPhysScene_Chaos::OnSyncBodies(Chaos::FPhysicsSolverBase* Solver)
 				Constraint->GetOutputData().bIsBreaking = false;
 			}
 
+			if (Constraint->GetOutputData().bIsViolating)
+			{
+				if (FConstraintInstanceBase* ConstraintInstance = (Constraint) ? FPhysicsUserData_Chaos::Get<FConstraintInstanceBase>(Constraint->GetUserData()) : nullptr)
+				{
+					FConstraintViolatedDelegateWrapper CVD(ConstraintInstance);
+					CVD.DispatchOnViolated(Constraint->GetOutputData().LinearViolation, Constraint->GetOutputData().AngularViolation);
+				}
+
+				Constraint->GetOutputData().bIsViolating = false;
+			}
+
 			if (Constraint->GetOutputData().bDriveTargetChanged)
 			{
 				if (FConstraintInstanceBase* ConstraintInstance = (Constraint) ? FPhysicsUserData_Chaos::Get<FConstraintInstanceBase>(Constraint->GetUserData()) : nullptr)
@@ -2410,6 +2421,16 @@ FConstraintBrokenDelegateWrapper::FConstraintBrokenDelegateWrapper(FConstraintIn
 void FConstraintBrokenDelegateWrapper::DispatchOnBroken()
 {
 	OnConstraintBrokenDelegate.ExecuteIfBound(ConstraintIndex);
+}
+
+FConstraintViolatedDelegateWrapper::FConstraintViolatedDelegateWrapper(FConstraintInstanceBase* ConstraintInstance)
+	: OnConstraintViolatedDelegate(ConstraintInstance->OnConstraintViolatedDelegate)
+	, ConstraintIndex(ConstraintInstance->ConstraintIndex)
+{ }
+
+void FConstraintViolatedDelegateWrapper::DispatchOnViolated(const float LinearViolation, const float AngularViolation)
+{
+	OnConstraintViolatedDelegate.ExecuteIfBound(ConstraintIndex, LinearViolation, AngularViolation);
 }
 
 FPlasticDeformationDelegateWrapper::FPlasticDeformationDelegateWrapper(FConstraintInstanceBase* ConstraintInstance)

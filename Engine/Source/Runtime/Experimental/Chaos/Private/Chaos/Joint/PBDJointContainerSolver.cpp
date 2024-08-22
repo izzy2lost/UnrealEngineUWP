@@ -2,6 +2,7 @@
 #include "Chaos/Joint/PBDJointContainerSolver.h"
 #include "Chaos/Joint/ChaosJointLog.h"
 #include "Chaos/Island/IslandManager.h"
+#include "Chaos/DebugDrawQueue.h"
 
 namespace Chaos
 {
@@ -80,6 +81,28 @@ namespace Chaos
 			}
 
 			return bBreak;
+		}
+
+		bool GetJointIsViolating(const FPBDJointSettings& JointSettings, const FReal LinearViolationSq, const FReal AngularViolation, const int32 It, const int32 NumIts)
+		{
+			bool bViolating = false;
+			if (It == NumIts - 1)
+			{
+				const FReal LinearViolationCallbackThresholdSq
+					= JointSettings.LinearViolationCallbackThreshold
+					* JointSettings.LinearViolationCallbackThreshold;
+				if (!bViolating && JointSettings.LinearViolationCallbackThreshold != FLT_MAX)
+				{
+					bViolating = LinearViolationSq > LinearViolationCallbackThresholdSq;
+				}
+
+				if (!bViolating && JointSettings.AngularViolationCallbackThreshold != FLT_MAX)
+				{
+					bViolating = FMath::RadiansToDegrees(AngularViolation) > JointSettings.AngularViolationCallbackThreshold;
+				}
+			}
+
+			return bViolating;
 		}
 
 		///////////////////////////////////////////////////////////////////////////////////////////
@@ -241,14 +264,17 @@ namespace Chaos
 					const FSolverBody* SolverBody0 = &Solver.Body0().SolverBody();
 					const FSolverBody* SolverBody1 = &Solver.Body1().SolverBody();
 					const bool bIsBroken = Solver.IsBroken();
+					const bool bIsViolating = Solver.IsViolating();
+					const float LinearViolation = bIsViolating ? FMath::Sqrt((float)Solver.GetLinearViolationSq()) : 0.f;
+					const float AngularViolation = bIsViolating ? (float)Solver.GetAngularViolation() : 0.f;
 
-					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, LinearImpulse, AngularImpulse, bIsBroken, SolverBody0, SolverBody1);
+					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, LinearImpulse, AngularImpulse, LinearViolation, AngularViolation, bIsBroken, bIsViolating, SolverBody0, SolverBody1);
 
 					Solver.Deinit();
 				}
 				else
 				{
-					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, FVec3(0), FVec3(0), false, nullptr, nullptr);
+					Container.GetContainer().SetSolverResults(ContainerConstraintIndex, FVec3(0), FVec3(0), 0.f, 0.f, false, false, nullptr, nullptr);
 				}
 			}
 		}
@@ -306,11 +332,12 @@ namespace Chaos
 				Solver.ApplyConstraints(Dt, IterationStiffness, Settings, JointSettings);
 
 				// @todo(ccaulfield): We should be clamping the impulse at this point. Maybe move breaking to the solver
-				if ((JointSettings.LinearBreakForce != FLT_MAX || JointSettings.AngularBreakTorque != FLT_MAX) &&
-					GetJointShouldBreak(JointSettings, Dt, Solver.GetNetLinearImpulse(), Solver.GetNetAngularImpulse()))
+				if (GetJointShouldBreak(JointSettings, Dt, Solver.GetNetLinearImpulse(), Solver.GetNetAngularImpulse()))
 				{
 					Solver.SetIsBroken(true);
 				}
+
+				Solver.SetIsViolating(GetJointIsViolating(JointSettings, Solver.GetLinearViolationSq(), Solver.GetAngularViolation(), It, NumIts));
 			}
 		}
 

@@ -333,6 +333,11 @@ void FConstraintInstanceBase::SetConstraintBrokenDelegate(FOnConstraintBroken In
 	OnConstraintBrokenDelegate = InConstraintBrokenDelegate;
 }
 
+void FConstraintInstanceBase::SetConstraintViolatedDelegate(FOnConstraintViolated InConstraintViolatedDelegate)
+{
+	OnConstraintViolatedDelegate = InConstraintViolatedDelegate;
+}
+
 
 /** Constructor **/
 FConstraintInstance::FConstraintInstance()

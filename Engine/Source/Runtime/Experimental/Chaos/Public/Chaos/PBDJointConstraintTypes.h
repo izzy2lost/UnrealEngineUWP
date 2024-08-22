@@ -189,10 +189,12 @@ namespace Chaos
 		FVec3 AngularDriveMaxTorque;
 
 		FReal LinearBreakForce;
+		FReal LinearViolationCallbackThreshold;
 		FReal LinearPlasticityLimit;
 		EPlasticityType LinearPlasticityType;
 		FReal LinearPlasticityInitialDistanceSquared;
 		FReal AngularBreakTorque;
+		FReal AngularViolationCallbackThreshold;
 		FReal AngularPlasticityLimit;
 
 		FReal ContactTransferScale;

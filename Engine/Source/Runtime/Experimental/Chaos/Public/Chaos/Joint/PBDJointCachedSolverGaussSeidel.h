@@ -417,6 +417,16 @@ struct FAxisConstraintDatas
 			return Impulse;
 		}
 
+		inline FReal GetLinearViolationSq() const
+		{
+			return -1.f;
+		}
+
+		inline FReal GetAngularViolation() const
+		{
+			return -1.f;
+		}
+
 		inline int32 GetNumActiveConstraints() const
 		{
 			// We use -1 as unitialized, but that should not be exposed outside the solver
@@ -542,6 +552,16 @@ struct FAxisConstraintDatas
 		bool IsBroken() const
 		{
 			return bIsBroken;
+		}
+
+		void SetIsViolating(const bool bInIsViolating)
+		{
+			bIsViolating = bInIsViolating;
+		}
+
+		bool IsViolating() const
+		{
+			return bIsViolating;
 		}
 
 		bool RequiresSolve() const
@@ -909,6 +929,7 @@ struct FAxisConstraintDatas
 		FAxisConstraintDatas RotationDrives;
 
 		bool bIsBroken;
+		bool bIsViolating;
 		bool bUseSimd;
 
 		// dummy indices

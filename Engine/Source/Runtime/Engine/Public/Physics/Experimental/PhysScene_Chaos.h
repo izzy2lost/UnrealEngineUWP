@@ -83,6 +83,16 @@ struct FConstraintBrokenDelegateWrapper
 	int32 ConstraintIndex;
 };
 
+struct FConstraintViolatedDelegateWrapper
+{
+	FConstraintViolatedDelegateWrapper(FConstraintInstanceBase* ConstraintInstance);
+
+	void DispatchOnViolated(float LinearViolation, float AngularViolation);
+
+	FOnConstraintViolated OnConstraintViolatedDelegate;
+	int32 ConstraintIndex;
+};
+
 struct FPlasticDeformationDelegateWrapper
 {
 	FPlasticDeformationDelegateWrapper(FConstraintInstanceBase* ConstraintInstance);

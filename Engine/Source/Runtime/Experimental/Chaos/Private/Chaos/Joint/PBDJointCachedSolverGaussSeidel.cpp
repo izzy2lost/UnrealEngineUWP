@@ -197,6 +197,7 @@ void FPBDJointCachedSolver::Init(
 	NumActiveConstraints = -1;
 	bIsActive = true;
 	bIsBroken = false;
+	bIsViolating = false;
 	bUseSimd = SolverSettings.bUseSimd;
 	bUsePositionBasedDrives = SolverSettings.bUsePositionBasedDrives;
 

@@ -113,6 +113,9 @@ namespace Chaos
 		NetLinearImpulse = FVec3(0);
 		NetAngularImpulse = FVec3(0);
 
+		LinearViolationSq = 0;
+		AngularViolation = 0;
+
 		LinearSoftLambda = 0;
 		TwistSoftLambda = 0;
 		SwingSoftLambda = 0;
@@ -222,6 +225,9 @@ namespace Chaos
 		const FPBDJointSettings& JointSettings)
 	{
 		SolverStiffness = InSolverStiffness;
+
+		LinearViolationSq = 0.f;
+		AngularViolation = 0.f;
 
 		if (SolverSettings.bSolvePositionLast)
 		{
@@ -1560,6 +1566,11 @@ namespace Chaos
 		{
 			FReal TwistStiffness = FPBDJointUtilities::GetTwistStiffness(SolverSettings, JointSettings);
 			ApplyRotationConstraint(TwistStiffness, Axis0, R01.X, (int32)EJointAngularConstraintIndex::Twist);
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, FMath::Abs(R01.X));
 		}
 
 		if (bApplySwing)
@@ -1567,6 +1578,12 @@ namespace Chaos
 			FReal SwingStiffness = FPBDJointUtilities::GetSwingStiffness(SolverSettings, JointSettings);
 			ApplyRotationConstraint(SwingStiffness, Axis1, R01.Y, (int32)EJointAngularConstraintIndex::Swing2);
 			ApplyRotationConstraint(SwingStiffness, Axis2, R01.Z, (int32)EJointAngularConstraintIndex::Swing1);
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, FMath::Abs(R01.Y));
+			AngularViolation = FMath::Max(AngularViolation, FMath::Abs(R01.Z));
 		}
 	}
 
@@ -1611,6 +1628,11 @@ namespace Chaos
 				FReal TwistStiffness = FPBDJointUtilities::GetTwistStiffness(SolverSettings, JointSettings);
 				ApplyRotationConstraint(TwistStiffness, TwistAxis, DTwistAngle, (int32)EJointAngularConstraintIndex::Twist);
 			}
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, DTwistAngle);
 		}
 	}
 
@@ -1647,9 +1669,13 @@ namespace Chaos
 				// For cone constraints, the lambda are all accumulated in Swing2
 				ApplyRotationConstraint(SwingStiffness, SwingAxis, DSwingAngle, (int32)EJointAngularConstraintIndex::Swing2);
 			}
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, DSwingAngle);
 		}
 	}
-
 
 	void FPBDJointSolver::ApplySingleLockedSwingConstraint(
 		const FReal Dt,
@@ -1682,6 +1708,11 @@ namespace Chaos
 				const FReal SwingStiffness = FPBDJointUtilities::GetSwingStiffness(SolverSettings, JointSettings);
 				ApplyRotationConstraint(SwingStiffness, SwingAxis, DSwingAngle, (int32)SwingConstraintIndex);
 			}
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, FMath::Abs(DSwingAngle));
 		}
 	}
 
@@ -1714,7 +1745,7 @@ namespace Chaos
 		UE_LOG(LogChaosJoint, VeryVerbose, TEXT("    DualConeSwing%d Angle %f [Limit %f]"), (SwingConstraintIndex == EJointAngularConstraintIndex::Swing1) ? 1 : 2, FMath::RadiansToDegrees(SwingAngle), FMath::RadiansToDegrees(SwingAngleMax));
 
 		// Apply swing correction
-		if (DSwingAngle > SolverSettings.AngleTolerance)
+		if (DSwingAngle > AngleTolerance)
 		{
 			if (bUseSoftLimit)
 			{
@@ -1728,6 +1759,11 @@ namespace Chaos
 				const FReal SwingStiffness = FPBDJointUtilities::GetSwingStiffness(SolverSettings, JointSettings);
 				ApplyRotationConstraint(SwingStiffness, SwingAxis, DSwingAngle, (int32)SwingConstraintIndex);
 			}
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, DSwingAngle);
 		}
 	}
 
@@ -1774,6 +1810,11 @@ namespace Chaos
 				const FReal SwingStiffness = FPBDJointUtilities::GetSwingStiffness(SolverSettings, JointSettings);
 				ApplyRotationConstraint(SwingStiffness, SwingAxis, DSwingAngle, (int32)SwingConstraintIndex);
 			}
+
+			// Update the angular violation
+			//
+			// TODO: Use post-correction error instead of pre-correction error?
+			AngularViolation = FMath::Max(AngularViolation, DSwingAngle);
 		}
 	}
 
@@ -1889,7 +1930,9 @@ namespace Chaos
 
 		UE_LOG(LogChaosJoint, VeryVerbose, TEXT("    PointKD Delta %f [Limit %f]"), CX.Size(), PositionTolerance);
 
-		if (CX.SizeSquared() > PositionTolerance * PositionTolerance)
+		const FReal CXSquared = CX.SizeSquared();
+		const FReal PositionToleranceSquared = PositionTolerance * PositionTolerance;
+		if (CXSquared > PositionToleranceSquared)
 		{
 			if (bRealTypeCompatibleWithISPC && bChaos_Joint_ISPC_Enabled)
 			{
@@ -1912,6 +1955,11 @@ namespace Chaos
 
 				NetLinearImpulse += (KIndex == 0) ? DX : -DX;
 			}
+
+			// Update the linear violation
+			//
+			// TODO: Use post-correction violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, CXSquared);
 		}
 	}
 
@@ -1930,7 +1978,9 @@ namespace Chaos
 
 		UE_LOG(LogChaosJoint, VeryVerbose, TEXT("    PointDD Delta %f [Limit %f]"), CX.Size(), PositionTolerance);
 
-		if (CX.SizeSquared() > PositionTolerance * PositionTolerance)
+		const FReal CXSquared = CX.SizeSquared();
+		const FReal PositionToleranceSquared = PositionTolerance * PositionTolerance;
+		if (CXSquared > PositionToleranceSquared)
 		{
 			if (bRealTypeCompatibleWithISPC && bChaos_Joint_ISPC_Enabled)
 			{
@@ -1957,6 +2007,11 @@ namespace Chaos
 
 				NetLinearImpulse += DX;
 			}
+
+			// Update the linear violation
+			//
+			// TODO: Use post-correction violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, CXSquared);
 		}
 	}
 
@@ -1988,6 +2043,11 @@ namespace Chaos
 				const bool bAccelerationMode = FPBDJointUtilities::GetLinearSoftAccelerationMode(SolverSettings, JointSettings);
 				ApplyPositionConstraintSoft(Dt, JointStiffness, JointDamping, bAccelerationMode, Axis, Error, 0.0f, LinearSoftLambda);
 			}
+
+			// Update the linear violation
+			//
+			// TODO: Use post-correction violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, Error * Error);
 		}
 	}
 
@@ -2033,6 +2093,11 @@ namespace Chaos
 				const FVec3 Connector0Correction = ConnectorXs[1] - ConnectorXs[0] - AxialError * Axis;
 				ApplyPositionConstraint(JointStiffness, Axis, AxialError, Connector0Correction, (int32)EJointCylindricalPositionConstraintType::Axial);
 			}
+
+			// Update the linear violation
+			//
+			// TODO: Use post-correction violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, AxialError * AxialError);
 		}
 
 		const FReal RadialLimit = (RadialMotion == EJointMotionType::Locked) ? 0.0f : JointSettings.LinearLimit;
@@ -2055,6 +2120,11 @@ namespace Chaos
 				const FVec3 Connector0Correction = ConnectorXs[1] - ConnectorXs[0] - RadialError * RadialAxis;
 				ApplyPositionConstraint(JointStiffness, RadialAxis, RadialError, Connector0Correction, (int32)EJointCylindricalPositionConstraintType::Radial);
 			}
+
+			// Update the linear violation
+			//
+			// TODO: Use post-correction violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, RadialError * RadialError);
 		}
 	}
 
@@ -2093,6 +2163,9 @@ namespace Chaos
 				const FVec3 Connector0Correction = ConnectorXs[1] - ConnectorXs[0] - Axis * Error;
 				ApplyPositionConstraint(JointStiffness, Axis, Error, Connector0Correction);
 			}
+
+			// Update the linear violation
+			LinearViolationSq = FMath::Max(LinearViolationSq, Error * Error);
 		}
 	}
 

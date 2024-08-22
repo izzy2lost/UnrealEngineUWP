@@ -221,16 +221,21 @@ struct FConstraintInstanceBase
 	/** Set the constraint broken delegate. */
 	ENGINE_API void SetConstraintBrokenDelegate(FOnConstraintBroken InConstraintBrokenDelegate);
 
+	/** Set the constraint violation delegate */
+	ENGINE_API void SetConstraintViolatedDelegate(FOnConstraintViolated InConstraintViolatedDelegate);
+
 	/** Set the plastic deformation delegate. */
 	ENGINE_API void SetPlasticDeformationDelegate(FOnPlasticDeformation InPlasticDeformationDelegate);
 
 	protected:
 
 		FOnConstraintBroken OnConstraintBrokenDelegate;
+		FOnConstraintViolated OnConstraintViolatedDelegate;
 		FOnPlasticDeformation OnPlasticDeformationDelegate;
 
 		friend struct FConstraintBrokenDelegateData;
 		friend struct FConstraintBrokenDelegateWrapper;
+		friend struct FConstraintViolatedDelegateWrapper;
 		friend struct FPlasticDeformationDelegateWrapper;
 
 };

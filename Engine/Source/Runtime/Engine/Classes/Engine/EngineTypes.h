@@ -1034,6 +1034,7 @@ enum ECollisionChannel : int
 };
 
 DECLARE_DELEGATE_OneParam(FOnConstraintBroken, int32 /*ConstraintIndex*/);
+DECLARE_DELEGATE_ThreeParams(FOnConstraintViolated, int32 /*ConstraintIndex*/, float /*LinearViolation*/, float /*AngularViolation*/);
 DECLARE_DELEGATE_OneParam(FOnPlasticDeformation, int32 /*ConstraintIndex*/);
 
 #define COLLISION_GIZMO ECC_EngineTraceChannel1
