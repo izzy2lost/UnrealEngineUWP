@@ -759,15 +759,10 @@ void PreInit(const DetoursPayload& payload)
 			FatalError(1349, L"Failed to reserve memory for cl.exe (%u)", GetLastError());
 	}
 
-	// Special link.exe handling.. it seems loading bcrypt.dll can deadlock when using mimalloc so we make sure to load it here directly instead
-	// There is a setting to disable bcrypt dll loading inside mimalloc but with that change mimalloc does not work with older versions of windows
-	if (payload.rulesIndex == 2)
-	{
-		if (!LoadLibraryExW(L"bcrypt.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
-			FatalError(1351, L"Failed to load bcrypt.dll (%u)", GetLastError());
-		if (!LoadLibraryExW(L"bcryptprimitives.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
-			FatalError(1352, L"Failed to load bcryptprimitives.dll (%u)", GetLastError());
-	}
+	if (const tchar* const* preloads = g_rules->LibrariesToPreload())
+		for (auto it = preloads; *it; ++it)
+			if (!LoadLibraryExW(*it, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32))
+				FatalError(1351, L"Failed to preload %s (%u)", *it, GetLastError());
 }
 
 void Init(const DetoursPayload& payload, u64 startTime)

@@ -96,7 +96,7 @@ namespace uba
 		}
 	};
 
-	class ApplicationRulesLinkExe : public ApplicationRulesVC
+	class ApplicationRulesVcLink : public ApplicationRulesVC
 	{
 		using Super = ApplicationRulesVC;
 	public:
@@ -160,9 +160,27 @@ namespace uba
 		}
 	};
 
-	class ApplicationRulesLldLinkExe : public ApplicationRulesLinkExe
+	class ApplicationRulesLinkExe : public ApplicationRulesVcLink
 	{
-		using Super = ApplicationRulesLinkExe;
+		using Super = ApplicationRulesVcLink;
+
+		virtual const tchar* const* LibrariesToPreload() const override
+		{
+			// Special handling.. it seems loading bcrypt.dll can deadlock when using mimalloc so we make sure to load it here directly instead
+			// There is a setting to disable bcrypt dll loading inside mimalloc but with that change mimalloc does not work with older versions of windows
+			static constexpr const tchar* preloads[] = 
+			{
+				TC("bcrypt.dll"),
+				TC("bcryptprimitives.dll"),
+				nullptr,
+			};
+			return preloads;
+		}
+	};
+
+	class ApplicationRulesLldLinkExe : public ApplicationRulesVcLink
+	{
+		using Super = ApplicationRulesVcLink;
 
 		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const override
 		{
@@ -489,10 +507,10 @@ namespace uba
 			{ TC(""),							new ApplicationRules() },		// Must be index 0
 			{ TC("cl.exe"),						new ApplicationRulesClExe() },	// Must be index 1
 			{ TC("link.exe"),					new ApplicationRulesLinkExe() }, // Must be index 2
-			{ TC("lib.exe"),					new ApplicationRulesLinkExe() },
+			{ TC("lib.exe"),					new ApplicationRulesVcLink() },
 			{ TC("cvtres.exe"),					new ApplicationRulesLinkExe() },
-			{ TC("mt.exe"),						new ApplicationRulesLinkExe() },
-			{ TC("rc.exe"),						new ApplicationRulesLinkExe() },
+			{ TC("mt.exe"),						new ApplicationRulesVcLink() },
+			{ TC("rc.exe"),						new ApplicationRulesVcLink() },
 			{ TC("lld-link.exe"),				new ApplicationRulesLldLinkExe() },
 			{ TC("clang++.exe"),				new ApplicationRulesClangPlusPlusExe() },
 			{ TC("clang-cl.exe"),				new ApplicationRulesClangPlusPlusExe() },

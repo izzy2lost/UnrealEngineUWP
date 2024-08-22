@@ -144,6 +144,11 @@ namespace uba
 			return false;
 		}
 
+		virtual const tchar* const* LibrariesToPreload() const // Array should be null terminated
+		{
+			return nullptr;
+		}
+
 		u32 index = ~0u;
 	};
 
