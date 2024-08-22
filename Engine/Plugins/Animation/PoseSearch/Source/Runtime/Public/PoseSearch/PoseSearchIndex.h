@@ -62,6 +62,7 @@ public:
 
 	void SetValueOffset(uint32 Value)
 	{
+		check(Value < (1 << ValueOffsetNumBits));
 		ValueOffset = Value;
 	}
 
