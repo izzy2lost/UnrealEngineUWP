@@ -139,6 +139,8 @@ UNREALED_API void PopulateCameraMenu(UToolMenu* InMenu);
  */
 UNREALED_API void ExtendCameraSubmenu(FName InCameraOptionsSubmenuName);
 
+UNREALED_API bool ShouldShowViewportRealtimeWarning(const FEditorViewportClient& ViewportClient);
+
 UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu();
 
 /**

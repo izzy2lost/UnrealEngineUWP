@@ -1089,8 +1089,8 @@ FReply SLevelViewportToolBar::OnRealtimeWarningClicked()
 
 EVisibility SLevelViewportToolBar::GetRealtimeWarningVisibility() const
 {
-	FLevelEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
-	const bool bWarn = UE::LevelEditor::ShowViewportRealtimeWarning(ViewportClient);
+	const FEditorViewportClient& ViewportClient = Viewport.Pin()->GetLevelViewportClient();
+	const bool bWarn = UE::UnrealEd::ShouldShowViewportRealtimeWarning(ViewportClient);
 	return bWarn ? EVisibility::Visible : EVisibility::Collapsed;
 }
 

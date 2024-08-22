@@ -25,8 +25,6 @@ FToolMenuEntry CreateCameraSpeedSlider(TWeakPtr<SLevelViewport> InLevelViewportW
 FToolMenuEntry CreateCameraSpeedScalarSlider(TWeakPtr<SLevelViewport> InLevelViewportWeak);
 FToolMenuEntry CreateLevelViewportToolbarCameraSubmenu();
 
-bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient);
-
 TSharedPtr<FExtender> GetViewModesLegacyExtenders();
 void PopulateViewModesMenu(UToolMenu* InMenu);
 void ExtendViewModesSubmenu(FName InViewModesSubmenuName);

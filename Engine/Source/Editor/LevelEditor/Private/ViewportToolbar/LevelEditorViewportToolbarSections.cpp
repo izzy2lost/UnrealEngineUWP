@@ -462,11 +462,6 @@ FSlateIcon GetCameraSubmenuIconFromLevelViewport(const TWeakPtr<::SLevelViewport
 namespace UE::LevelEditor
 {
 
-bool ShowViewportRealtimeWarning(FLevelEditorViewportClient& ViewportClient)
-{
-	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() && ViewportClient.IsPerspective();
-}
-
 TSharedPtr<FExtender> GetViewModesLegacyExtenders()
 {
 	FLevelEditorModule& LevelEditorModule = FModuleManager::GetModuleChecked<FLevelEditorModule>(TEXT("LevelEditor"));

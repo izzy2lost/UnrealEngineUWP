@@ -2629,7 +2629,12 @@ static void ConstructScreenPercentageMenu(UToolMenu* InMenu)
 	}
 }
 
-UNREALED_API FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
+bool ShouldShowViewportRealtimeWarning(const FEditorViewportClient& ViewportClient)
+{
+	return !ViewportClient.IsRealtime() && !ViewportClient.IsRealtimeOverrideSet() && ViewportClient.IsPerspective();
+}
+
+FToolMenuEntry CreatePerformanceAndScalabilitySubmenu()
 {
 	return FToolMenuEntry::InitSubMenu(
 		"PerformanceAndScalability",
@@ -2800,7 +2805,7 @@ FToolMenuEntry CreateToggleRealtimeEntry()
 						{
 							if (const TSharedPtr<SEditorViewport> EditorViewport = WeakViewport.Pin())
 							{
-								return !EditorViewport->IsRealtime();
+								return ShouldShowViewportRealtimeWarning(*EditorViewport->GetViewportClient());
 							}
 							return false;
 						}
