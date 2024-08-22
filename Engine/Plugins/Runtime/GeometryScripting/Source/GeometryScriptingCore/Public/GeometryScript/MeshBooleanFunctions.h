@@ -70,6 +70,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bFillHoles = true;
 
+	// If non-negative and bFillHoles is true, specify the material ID to set on hole fill triangles
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 HoleFillMaterialID = INDEX_NONE;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bFillSpans = true;
 
@@ -88,6 +92,10 @@ struct GEOMETRYSCRIPTINGCORE_API FGeometryScriptMeshPlaneSliceOptions
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bFillHoles = true;
+
+	// If non-negative and bFillHoles is true, specify the material ID to set on hole fill triangles
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
+	int32 HoleFillMaterialID = INDEX_NONE;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Options)
 	bool bFillSpans = true;

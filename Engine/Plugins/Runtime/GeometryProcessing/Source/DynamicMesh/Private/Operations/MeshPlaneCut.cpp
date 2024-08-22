@@ -777,7 +777,7 @@ bool FMeshPlaneCut::MinimalHoleFill(int ConstantGroupID)
 
 
 
-bool FMeshPlaneCut::HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&)> PlanarTriangulationFunc, bool bFillSpans, int ConstantGroupID)
+bool FMeshPlaneCut::HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&)> PlanarTriangulationFunc, bool bFillSpans, int ConstantGroupID, int MaterialID)
 {
 	bool bAllOk = true;
 
@@ -802,7 +802,6 @@ bool FMeshPlaneCut::HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&
 		int GID = ConstantGroupID >= 0 ? ConstantGroupID : Mesh->AllocateTriangleGroup();
 		bool bFullyFilledHole = Filler.Fill(GID);
 
-		HoleFillTriangles.Add(Filler.NewTriangles);
 		if (Mesh->HasAttributes())
 		{
 			FDynamicMeshEditor Editor(Mesh);
@@ -813,7 +812,18 @@ bool FMeshPlaneCut::HoleFill(TFunction<TArray<FIndex3i>(const FGeneralPolygon2d&
 			{
 				Editor.SetTriangleUVsFromProjection(Filler.NewTriangles, ProjectionFrame, UVScaleFactor, FVector2f::Zero(), true, UVLayerIdx);
 			}
+
+			if (MaterialID > -1 && Mesh->Attributes()->HasMaterialID())
+			{
+				FDynamicMeshMaterialAttribute* MaterialAttrib = Mesh->Attributes()->GetMaterialID();
+				for (int32 TID : Filler.NewTriangles)
+				{
+					MaterialAttrib->SetValue(TID, MaterialID);
+				}
+			}
 		}
+
+		HoleFillTriangles.Add(MoveTemp(Filler.NewTriangles));
 
 		bAllOk = bAllOk && bFullyFilledHole;
 	}
