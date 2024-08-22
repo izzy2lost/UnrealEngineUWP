@@ -2847,8 +2847,8 @@ void UControlRigBlueprint::HandleRigModulesModified(EModularRigNotification InNo
 		case EModularRigNotification::ModuleSelected:
 		case EModularRigNotification::ModuleDeselected:
 		{
-			ModulesRecompilationBracket--;
-			break;
+			// don't do anything during selection
+			return;
 		}
 		default:
 		{
