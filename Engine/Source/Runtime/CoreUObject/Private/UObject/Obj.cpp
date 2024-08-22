@@ -226,7 +226,7 @@ bool UObject::Rename(const TCHAR* InName, UObject* NewOuter, ERenameFlags Flags)
 	FMetaDataUtilities::FMoveMetadataHelperContext MoveMetaData(this, true);
 #endif //WITH_EDITOR
 
-	if (NewOuter)
+	if (NewOuter && NewOuter != GetOuter())
 	{
 		// Renaming the CDO of a Blueprint is a special case so we do not validate what would otherwise be incorrect use of Rename.
 		// Moving objects to the transient package is commonly used halfway through destroying them so that is also fine, otherwise
@@ -1455,6 +1455,18 @@ void UObject::PreSave(FObjectPreSaveContext SaveContext)
 	FCoreUObjectDelegates::OnObjectSaved.Broadcast(this);
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FCoreUObjectDelegates::OnObjectPreSave.Broadcast(this, SaveContext);
+
+	// Validate ClassWithin before save, matches code in StaticAllocateObjectErrorTests
+	UClass* ObjClass = GetClass();
+	if (ObjClass->ClassWithin != nullptr)
+	{
+		if (!HasAnyFlags(RF_ClassDefaultObject | RF_ArchetypeObject) && GetOuter() != nullptr && !GetOuter()->IsA(ObjClass->ClassWithin))
+		{
+			const FString ErrorMsg = FString::Printf(TEXT("Object %s with ClassWithin of %s is being saved in invalid Outer of class %s!"), *GetFullName(nullptr, EObjectFullNameFlags::IncludeClassPackage), *ObjClass->ClassWithin->GetPathName(), *GetOuter()->GetClass()->GetPathName());
+			UE_LOG(LogUObjectGlobals, Error, TEXT("%s"), *ErrorMsg);
+			ensureMsgf(false, TEXT("%s"), *ErrorMsg);
+		}
+	}
 #endif
 	CollectSaveOverrides(FObjectCollectSaveOverridesContext(SaveContext.Data));
 }
