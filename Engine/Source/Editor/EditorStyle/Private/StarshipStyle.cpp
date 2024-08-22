@@ -4974,8 +4974,10 @@ void FStarshipEditorStyle::FStyle::SetupLevelEditorStyle()
 		Set("MeshPaint.GetTextureColors.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
 		Set("MeshPaint.GetVertexColors", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
 		Set("MeshPaint.GetVertexColors.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Import_40x", Icon20x20));
-		Set("MeshPaint.Fix", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
-		Set("MeshPaint.Fix.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixVertex", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixVertex.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixTexture", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
+		Set("MeshPaint.FixTexture.Small", new IMAGE_BRUSH("/Icons/GeneralTools/Fix_40x", Icon20x20));
 		Set("MeshPaint.PreviousLOD", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
 		Set("MeshPaint.PreviousLOD.Small", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Previous_40x"), Icon20x20));
 		Set("MeshPaint.NextLOD", new IMAGE_BRUSH(TEXT("Icons/GeneralTools/Next_40x"), Icon20x20));

@@ -82,6 +82,9 @@ public:
 	void PasteVertexColors(const TArray<UStaticMeshComponent*>& StaticMeshComponents, TArray<FPerComponentVertexColorData>& CopiedColorsByComponent);
 	bool CanPasteInstanceVertexColors(const TArray<UStaticMeshComponent*>& StaticMeshComponents, const TArray<FPerComponentVertexColorData>& CopiedColorsByComponent);
 	void RemovePerLODColors(const TArray<UMeshComponent*>& PaintableComponents);
+	
+	bool CanFixTextureColors(const TArray<UMeshComponent*>& Components);
+	void FixTextureColors(const TArray<UMeshComponent*>& Components);
 
 	void SwapColors();
 };

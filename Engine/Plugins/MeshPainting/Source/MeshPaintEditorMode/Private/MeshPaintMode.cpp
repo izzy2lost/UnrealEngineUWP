@@ -338,9 +338,13 @@ void UMeshPaintMode::BindCommands()
 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::ImportMeshPaintTextureFromVertexColors),
 		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanImportMeshPaintTextureFromVertexColors)));
 
-	CommandList->MapAction(Commands.Fix, FUIAction(
+	CommandList->MapAction(Commands.FixVertex, FUIAction(
 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::FixVertexColors),
 		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanFixVertexColors)));
+
+	CommandList->MapAction(Commands.FixTexture, FUIAction(
+		FExecuteAction::CreateUObject(this, &UMeshPaintMode::FixTextureColors),
+		FCanExecuteAction::CreateUObject(this, &UMeshPaintMode::CanFixTextureColors)));
 
 	CommandList->MapAction(Commands.PreviousLOD, FUIAction(
 		FExecuteAction::CreateUObject(this, &UMeshPaintMode::CycleMeshLODs, -1),
@@ -1273,6 +1277,22 @@ bool UMeshPaintMode::CanImportMeshPaintTextureFromVertexColors() const
 		return MeshComponents.Num() > 0;
 	}
 	return false;
+}
+
+void UMeshPaintMode::FixTextureColors()
+{
+	FScopedTransaction Transaction(LOCTEXT("LevelMeshPainter_TransactionFixTextureColors", "Fixing Per-Instance Texture Colors"));
+	GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->FixTextureColors(GetSelectedComponents<UMeshComponent>());
+}
+
+bool UMeshPaintMode::CanFixTextureColors() const
+{
+	if (!IsInSelectTool())
+	{
+		return false;
+	}
+
+	return GEditor->GetEditorSubsystem<UMeshPaintModeSubsystem>()->CanFixTextureColors(GetSelectedComponents<UMeshComponent>());
 }
 
 bool UMeshPaintMode::CanCycleMeshLODs() const

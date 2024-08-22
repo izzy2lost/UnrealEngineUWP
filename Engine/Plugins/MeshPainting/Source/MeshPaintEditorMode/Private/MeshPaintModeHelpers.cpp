@@ -907,6 +907,55 @@ void UMeshPaintModeSubsystem::RemovePerLODColors(const TArray<UMeshComponent*>& 
 	}
 }
 
+bool UMeshPaintModeSubsystem::CanFixTextureColors(const TArray<UMeshComponent*>& Components)
+{
+	for (UMeshComponent* Component : Components)
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+		{
+			if (UTexture* Texture = StaticMeshComponent->GetMeshPaintTexture())
+			{
+				if (StaticMeshComponent->GetMeshPaintTextureResolution() != Texture->Source.GetSizeX())
+				{
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+void UMeshPaintModeSubsystem::FixTextureColors(const TArray<UMeshComponent*>& Components)
+{
+	for (UMeshComponent* Component : Components)
+	{
+		if (UStaticMeshComponent* StaticMeshComponent = Cast<UStaticMeshComponent>(Component))
+		{
+			if (UTexture* Texture = StaticMeshComponent->GetMeshPaintTexture())
+			{
+				int32 TextureResolution = StaticMeshComponent->GetMeshPaintTextureResolution();
+				if (TextureResolution != Texture->Source.GetSizeX())
+				{
+					FImage Image;
+					if (Texture->Source.GetMipImage(Image, 0))
+					{
+						FImage ResizedImage(TextureResolution, TextureResolution, Image.NumSlices, Image.Format, Image.GammaSpace);
+						FImageCore::ResizeImage(Image, ResizedImage);
+
+						UMeshPaintVirtualTexture* NewTexture = NewObject<UMeshPaintVirtualTexture>(StaticMeshComponent->GetOutermost());
+						NewTexture->Source.Init(ResizedImage);
+						NewTexture->OwningComponent = MakeWeakObjectPtr(StaticMeshComponent);
+						NewTexture->UpdateResource();
+
+						StaticMeshComponent->Modify();
+						StaticMeshComponent->SetMeshPaintTexture(NewTexture);
+					}
+				}
+			}
+		}
+	}
+}
+
 void UMeshPaintModeSubsystem::SwapColors()
 {
 	if (UMeshPaintingToolProperties* Settings = UMeshPaintMode::GetToolProperties())

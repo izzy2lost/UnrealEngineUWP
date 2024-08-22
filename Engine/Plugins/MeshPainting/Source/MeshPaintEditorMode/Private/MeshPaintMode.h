@@ -134,6 +134,8 @@ protected:
 	bool CanImportMeshPaintTextureFromVertexColors() const;
 	void FixVertexColors();
 	bool CanFixVertexColors() const;
+	void FixTextureColors();
+	bool CanFixTextureColors() const;
 	void CycleMeshLODs(int32 Direction);
 	bool CanCycleMeshLODs() const;
 	void CycleTextures(int32 Direction);

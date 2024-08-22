@@ -464,7 +464,7 @@ class URendererSettings : public UDeveloperSettings
 		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.MeshPaintVirtualTexture.DefaultTexelsPerVertex", DisplayName = "Mesh paint texels per vertex",
 		ToolTip = "Default ratio of texels to vertices when creating a mesh paint texture for a mesh."))
-	uint32 MeshPaintDefaultTexelsPerVertex;
+	int32 MeshPaintDefaultTexelsPerVertex;
 
 	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
 		EditCondition = "bVirtualTextures",

@@ -55,7 +55,8 @@ public:
 	TSharedPtr<FUICommandInfo> Import;
 	TSharedPtr<FUICommandInfo> GetTextureColors;
 	TSharedPtr<FUICommandInfo> GetVertexColors;
-	TSharedPtr<FUICommandInfo> Fix;
+	TSharedPtr<FUICommandInfo> FixVertex;
+	TSharedPtr<FUICommandInfo> FixTexture;
 
 	TSharedPtr<FUICommandInfo> PreviousLOD;
 	TSharedPtr<FUICommandInfo> NextLOD;

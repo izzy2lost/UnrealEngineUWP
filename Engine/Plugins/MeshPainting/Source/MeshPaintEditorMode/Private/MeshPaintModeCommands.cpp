@@ -54,24 +54,25 @@ void FMeshPaintEditorModeCommands::RegisterCommands()
 	UI_COMMAND(Import, "Import", "Imports vertex colors from a TGA texture file to the selected meshes", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(GetVertexColors, "Vertex", "Imports texture colors from vertex colors on the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(GetTextureColors, "Texture", "Imports vertex colors from texture colors on the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
-	UI_COMMAND(Fix, "Fix", "Applies any required color data fixes to the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(FixVertex, "Fix", "Applies any required color data fixes to the selected mesh components", EUserInterfaceActionType::Button, FInputChord());
+	UI_COMMAND(FixTexture, "Fix", "Applies any pending resolution change of texture color painting", EUserInterfaceActionType::Button, FInputChord());
 	UI_COMMAND(PreviousLOD, "Previous LOD", "Cycles to the previous possible mesh LOD to paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::B));
 	UI_COMMAND(NextLOD, "Next LOD", "Cycles to the next possible mesh LOD to paint on", EUserInterfaceActionType::Button, FInputChord(EKeys::N));
 	UI_COMMAND(PreviousTexture, "Previous Texture", "Cycle To previous texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Comma));
 	UI_COMMAND(NextTexture, "Next Texture", "Cycle To next texture", EUserInterfaceActionType::Button, FInputChord(EKeys::Period));
 
 	TArray<TSharedPtr<FUICommandInfo>> VertexColorCommands = {
-		SelectVertex, PaintVertexColor, SwapColor, FillVertex, Propagate, ApplyVertex, SaveVertex, RemoveVertex, Copy, Paste, Import, GetTextureColors, Fix
+		SelectVertex, PaintVertexColor, SwapColor, FillVertex, Propagate, ApplyVertex, SaveVertex, RemoveVertex, Copy, Paste, Import, GetTextureColors, FixVertex
 	};
 	Commands.Add(UMeshPaintMode::MeshPaintMode_VertexColor, VertexColorCommands);
 
 	TArray<TSharedPtr<FUICommandInfo>> VertexWeightCommands = {
-		SelectVertex, PaintVertexWeight, FillVertex, Propagate, ApplyVertex, SaveVertex, RemoveVertex, Copy, Paste, Import, Fix
+		SelectVertex, PaintVertexWeight, FillVertex, Propagate, ApplyVertex, SaveVertex, RemoveVertex, Copy, Paste, Import, FixVertex
 	};
 	Commands.Add(UMeshPaintMode::MeshPaintMode_VertexWeights, VertexWeightCommands);
 
 	TArray<TSharedPtr<FUICommandInfo>> TextureColorCommands = {
-		SelectTextureColor, PaintTextureColor, SwapColor, FillTexture, ApplyTexture, SaveTexture, Add, RemoveTexture, Copy, Paste, GetVertexColors
+		SelectTextureColor, PaintTextureColor, SwapColor, FillTexture, ApplyTexture, SaveTexture, Add, RemoveTexture, Copy, Paste, GetVertexColors, FixTexture
 	};
 	Commands.Add(UMeshPaintMode::MeshPaintMode_TextureColor, TextureColorCommands);
 
