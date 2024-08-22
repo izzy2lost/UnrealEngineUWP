@@ -22,7 +22,7 @@ FISMComponentDescriptorBase::FISMComponentDescriptorBase()
 }
 
 FISMComponentDescriptorBase::FISMComponentDescriptorBase(ENoInit) {}
-FISMComponentDescriptorBase::FISMComponentDescriptorBase(const FISMComponentDescriptorBase&) {}
+FISMComponentDescriptorBase::FISMComponentDescriptorBase(const FISMComponentDescriptorBase&) = default;
 FISMComponentDescriptorBase::~FISMComponentDescriptorBase() = default;
 
 FISMComponentDescriptor::FISMComponentDescriptor()
