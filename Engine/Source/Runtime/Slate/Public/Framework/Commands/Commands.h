@@ -68,6 +68,9 @@ public:
 	/** Get the singleton instance of this set of commands. */
 	FORCENOINLINE static const CommandContextType& Get()
 	{
+		// If you get a crash here, then either your commands object wasn't registered, or it was not kept
+		//  alive. The latter could happen if your RegisterCommands() function does not actually register 
+		//  any FUICommandInfo objects that use your TCommands object, so nothing keeps it alive.
 		return *( Instance.Pin() );
 	}
 
