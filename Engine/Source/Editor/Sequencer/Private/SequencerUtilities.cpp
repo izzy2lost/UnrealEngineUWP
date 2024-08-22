@@ -3144,13 +3144,19 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 
 				// Find the objects that this pasted binding should bind to
 				TArray<UObject*> ObjectsToBind;
-				UObject* ResolutionContext = Sequencer->GetPlaybackContext();
+
+				UObject* ResolutionContext = FindResolutionContext(Sequencer
+					, *MovieScene->GetTypedOuter<UMovieSceneSequence>()
+					, *MovieScene
+					, Possessable->GetParent()
+					, Sequencer->GetPlaybackContext());
+
 				if (World)
 				{
 					for (TActorIterator<AActor> ActorItr(World); ActorItr; ++ActorItr)
 					{
 						AActor* Actor = *ActorItr;
-						if (Actor && CopyableBinding->BoundObjectNames.Contains(Actor->GetPathName()))
+						if (Actor && CopyableBinding->BoundObjectNames.Contains(Actor->GetPathName(ResolutionContext)))
 						{
 							// If this actor is already bound and we're not duplicating actors, don't bind to anything
 							if (!PasteBindingsParams.bDuplicateExistingActors && Sequencer->FindObjectId(*Actor, Sequencer->GetFocusedTemplateID()).IsValid())
@@ -3159,7 +3165,7 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 							}
 
 							ObjectsToBind.Add(Actor);
-							CopyableBinding->BoundObjectNames.Remove(Actor->GetPathName());
+							CopyableBinding->BoundObjectNames.Remove(Actor->GetPathName(ResolutionContext));
 						}
 					}
 				}
@@ -3196,7 +3202,7 @@ bool FSequencerUtilities::PasteBindings(const FString& TextToImport, TSharedRef<
 							{
 								ObjectsToBind.Add(Actor);
 
-								CopyableBinding->BoundObjectNames.Add(Actor->GetPathName());
+								CopyableBinding->BoundObjectNames.Add(Actor->GetPathName(ResolutionContext));
 							}
 						}
 					}

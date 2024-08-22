@@ -8240,7 +8240,11 @@ bool FSequencer::DoPaste(bool bClearSelection)
 	}
 	if (EnumHasAnyFlags(PasteSupport, ESequencerPasteSupport::ObjectBindings)) 
 	{
-		bAnythingPasted |= PasteObjectBindings(TextToImport, ParentFolder, PastedFolders, PasteErrors, bClearSelection);
+		// Stop if failed to paste any object bindings (other paste types, tracks and sections can be pasted in bulk)
+		if (!PasteObjectBindings(TextToImport, ParentFolder, PastedFolders, PasteErrors, bClearSelection))
+		{
+			return false;
+		}
 	}
 	if (EnumHasAnyFlags(PasteSupport, ESequencerPasteSupport::Tracks)) 
 	{
@@ -8286,9 +8290,18 @@ bool FSequencer::PasteObjectBindings(const FString& TextToImport, UMovieSceneFol
 	// If the current movie scene has bindings that are bound to actors with the same name of the paste buffer, prompt the user what to do
 	UMovieScene* MovieScene = GetFocusedMovieSceneSequence()->GetMovieScene();
 	bool bWasPrompted = false;
+
 	for (int32 Index = 0; Index < MovieScene->GetPossessableCount() && !bWasPrompted; ++Index)
 	{
-		FGuid ThisGuid = MovieScene->GetPossessable(Index).GetGuid();
+		FMovieScenePossessable& Possessable = MovieScene->GetPossessable(Index);
+
+		UObject* ResolutionContext = FSequencerUtilities::FindResolutionContext(AsShared()
+			, *MovieScene->GetTypedOuter<UMovieSceneSequence>()
+			, *MovieScene
+			, Possessable.GetParent()
+			, GetPlaybackContext());
+
+		FGuid ThisGuid = Possessable.GetGuid();
 
 		for (TWeakObjectPtr<> WeakObject : FindBoundObjects(ThisGuid, GetFocusedTemplateID()))
 		{
@@ -8296,7 +8309,7 @@ bool FSequencer::PasteObjectBindings(const FString& TextToImport, UMovieSceneFol
 			{
 				AActor* Actor = Cast<AActor>(WeakObject.Get());
 
-				if (Actor && ObjectNames.Contains(Actor->GetPathName()))
+				if (Actor && ObjectNames.Contains(Actor->GetPathName(ResolutionContext)))
 				{
 					FText DuplicateActorsMsg = FText::Format(LOCTEXT("DuplicateActorsForPastedBinding", "Attempting to paste a binding that is already bound to {0}.\nShould the existing actor be duplicated for the pasted binding?"), FText::FromString(Actor->GetActorLabel()));
 
