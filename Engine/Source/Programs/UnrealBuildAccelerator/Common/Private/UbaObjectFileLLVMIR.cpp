@@ -927,10 +927,10 @@ namespace uba
 				{
 					linkage = recIt[linkageIndex];
 
-					//if (strncmp(name.data(), "llvm.umax", 9) == 0)
+					//if (strncmp(name.data(), "_Init_thread_footer", 18) == 0)
 					//	printf("");
 
-					if (linkage == 0 || linkage == 5 || linkage == 6 || linkage == 15)
+					if (linkage == 5 || linkage == 6 || linkage == 15)
 					{
 						record.isExport = true;
 						m_exports.emplace(name, ExportInfo{"", index++});
