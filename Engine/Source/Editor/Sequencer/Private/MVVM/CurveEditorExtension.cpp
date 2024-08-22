@@ -518,8 +518,20 @@ bool FCurveEditorExtension::IsCurveEditorOpen() const
 		return false;
 	}
 
+	TSharedPtr<IToolkitHost> ToolkitHost = Sequencer->GetToolkitHost();
+	if (!ToolkitHost)
+	{
+		return false;
+	}
+
+	TSharedPtr<FTabManager> TabManager = ToolkitHost->GetTabManager();
+	if (!TabManager)
+	{
+		return false;
+	}
+
 	FTabId TabId = FTabId(FCurveEditorExtension::CurveEditorTabName);
-	return Sequencer->GetToolkitHost()->GetTabManager()->FindExistingLiveTab(TabId).IsValid();
+	return TabManager->FindExistingLiveTab(TabId).IsValid();
 }
 
 void FCurveEditorExtension::CloseCurveEditor()
