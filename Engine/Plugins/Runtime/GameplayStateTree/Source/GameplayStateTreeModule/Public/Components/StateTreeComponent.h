@@ -82,6 +82,13 @@ public:
 
 #if WITH_GAMEPLAY_DEBUGGER
 	virtual FString GetDebugInfoString() const override;
+
+	/**
+	 * @return the list of active states. 
+	 * If the StateTree has linked asset StateTree, then more than one state can have the same name.
+	 * Only used for debugging purposes.
+	 */
+	TArray<FName> GetActiveStateNames() const;
 #endif // WITH_GAMEPLAY_DEBUGGER
 
 protected:

@@ -343,7 +343,17 @@ FString UStateTreeComponent::GetDebugInfoString() const
 		return FString("No StateTree to run.");
 	}
 
-	return FStateTreeExecutionContext(*GetOwner(), *StateTreeRef.GetStateTree(), const_cast<FStateTreeInstanceData&>(InstanceData)).GetDebugInfoString();
+	return FConstStateTreeExecutionContextView(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData).Get().GetDebugInfoString();
+}
+
+TArray<FName> UStateTreeComponent::GetActiveStateNames() const
+{
+	if (!StateTreeRef.IsValid())
+	{
+		return TArray<FName>();
+	}
+
+	return FConstStateTreeExecutionContextView(*GetOwner(), *StateTreeRef.GetStateTree(), InstanceData).Get().GetActiveStateNames();
 }
 #endif // WITH_GAMEPLAY_DEBUGGER
 

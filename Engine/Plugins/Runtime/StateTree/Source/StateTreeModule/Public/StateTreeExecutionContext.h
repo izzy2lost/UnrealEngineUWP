@@ -913,3 +913,31 @@ protected:
 	/** Captured snapshots for transition results that can be used to recreate transitions. This array is only populated if bRecordTransitions is true. */
 	TArray<FRecordedStateTreeTransitionResult> RecordedTransitions;
 };
+
+/**
+ * The const version of a StateTree Execution Context that prevents using the FStateTreeInstanceData with non-const member function.
+ */
+struct FConstStateTreeExecutionContextView
+{
+public:
+	FConstStateTreeExecutionContextView(UObject& InOwner, const UStateTree& InStateTree, const FStateTreeInstanceData& InInstanceData)
+		: ExecutionContext(InOwner, InStateTree, const_cast<FStateTreeInstanceData&>(InInstanceData))
+	{}
+
+	operator const FStateTreeExecutionContext& ()
+	{
+		return ExecutionContext;
+	}
+
+	const FStateTreeExecutionContext& Get() const
+	{
+		return ExecutionContext;
+	}
+
+private:
+	FConstStateTreeExecutionContextView(const FConstStateTreeExecutionContextView&) = delete;
+	FConstStateTreeExecutionContextView& operator=(const FConstStateTreeExecutionContextView&) = delete;
+
+private:
+	FStateTreeExecutionContext ExecutionContext;
+};
