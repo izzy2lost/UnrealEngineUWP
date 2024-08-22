@@ -28,26 +28,7 @@ public:
 	virtual ~FUVEditor3DViewportClient() {}
 
 	// FEditorViewportClient
-	virtual bool ShouldOrbitCamera() const override {
-
-		// Including some additional checks to prevent the orbit mode from being on all the time,
-		// which ultimately causes weirdness in how the camera transform matrices are handled by
-		// the viewport internally.
-		const bool bLeftMouseButtonDown = Viewport->KeyState(EKeys::LeftMouseButton) && !bLockFlightCamera;
-		const bool bMiddleMouseButtonDown = Viewport->KeyState(EKeys::MiddleMouseButton);
-		const bool bRightMouseButtonDown = Viewport->KeyState(EKeys::RightMouseButton);
-		const bool bIsOnlyAltPressed = IsAltPressed() && !IsCtrlPressed() && !IsShiftPressed();
-
-		switch (CameraMode) {
-		case EUVEditor3DViewportClientCameraMode::Orbit:
-			return bIsOnlyAltPressed || bLeftMouseButtonDown || bMiddleMouseButtonDown || bRightMouseButtonDown;
-		case EUVEditor3DViewportClientCameraMode::Fly:
-			return FEditorViewportClient::ShouldOrbitCamera();
-		default:
-			ensure(false);
-			return FEditorViewportClient::ShouldOrbitCamera();
-		}
-	}
+	virtual bool ShouldOrbitCamera() const override;
 	bool CanSetWidgetMode(UE::Widget::EWidgetMode NewMode) const override {	return false; }
 	void SetWidgetMode(UE::Widget::EWidgetMode NewMode) override {}
 	UE::Widget::EWidgetMode GetWidgetMode() const override { return UE::Widget::EWidgetMode::WM_None; }
