@@ -178,6 +178,23 @@ void FMovieSceneDirectorBlueprintConditionCustomization::OnCreateEndpoint(UMovie
 		}
 
 		FMovieSceneDirectorBlueprintConditionUtils::SetEndpoint(MovieScene, DirectorBlueprintConditionData, NewEndpoint);
+
+		// If we have a candidate for the condition context pin, set it automatically
+		UK2Node* CommonEndpoint = GetCommonEndpoint();
+		if (CommonEndpoint)
+		{
+			TArray<FWellKnownParameterCandidates> WellKnownParameterCandidates;
+			GetWellKnownParameterCandidates(CommonEndpoint, WellKnownParameterCandidates);
+			for(int32 ParameterIndex = 0; ParameterIndex < WellKnownParameterCandidates.Num(); ++ParameterIndex)
+			{
+				const FWellKnownParameterCandidates& Candidate = WellKnownParameterCandidates[ParameterIndex];
+				if (Candidate.CandidatePinNames.Num() > 0)
+				{
+					// Pick the first one
+					SetWellKnownParameterPinName(EditObjects[Index], RawData[Index], ParameterIndex, Candidate.CandidatePinNames[0]);
+				}
+			}
+		}
 	}
 
 	FMovieSceneDirectorBlueprintConditionUtils::EnsureBlueprintExtensionCreated(Sequence, Blueprint);
@@ -193,6 +210,23 @@ void FMovieSceneDirectorBlueprintConditionCustomization::OnSetEndpoint(UMovieSce
 		FMovieSceneDirectorBlueprintConditionData* DirectorBlueprintConditionData = static_cast<FMovieSceneDirectorBlueprintConditionData*>(RawData[Index]);
 
 		FMovieSceneDirectorBlueprintConditionUtils::SetEndpoint(MovieScene, DirectorBlueprintConditionData, NewEndpoint);
+
+		// If we have a candidate for the condition context pin, set it automatically
+		UK2Node* CommonEndpoint = GetCommonEndpoint();
+		if (CommonEndpoint)
+		{
+			TArray<FWellKnownParameterCandidates> WellKnownParameterCandidates;
+			GetWellKnownParameterCandidates(CommonEndpoint, WellKnownParameterCandidates);
+			for (int32 ParameterIndex = 0; ParameterIndex < WellKnownParameterCandidates.Num(); ++ParameterIndex)
+			{
+				const FWellKnownParameterCandidates& Candidate = WellKnownParameterCandidates[ParameterIndex];
+				if (Candidate.CandidatePinNames.Num() > 0)
+				{
+					// Pick the first one
+					SetWellKnownParameterPinName(EditObjects[Index], RawData[Index], ParameterIndex, Candidate.CandidatePinNames[0]);
+				}
+			}
+		}
 
 		FMovieSceneDirectorBlueprintConditionUtils::EnsureBlueprintExtensionCreated(Sequence, Blueprint);
 	}
