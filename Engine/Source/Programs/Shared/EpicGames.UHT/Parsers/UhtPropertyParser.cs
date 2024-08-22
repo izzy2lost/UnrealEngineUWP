@@ -1178,6 +1178,17 @@ namespace EpicGames.UHT.Parsers
 				topScope.AddFormattedCommentsAsTooltipMetaData(newProperty);
 			}
 
+			// Adjust the name for verse
+			(bool wasMangled, string result) = newProperty.GetMangledEngineName();
+			if (wasMangled)
+			{
+				if (!newProperty.MetaData.ContainsKey(UhtNames.DisplayName))
+				{
+					newProperty.MetaData.Add(UhtNames.DisplayName, newProperty.StrippedEngineName);
+				}
+				newProperty.EngineName = result;
+			}
+
 			propertyDelegate(topScope, newProperty, ref nameToken, layoutMacroType);
 
 			// Void properties don't get added when they are the return value

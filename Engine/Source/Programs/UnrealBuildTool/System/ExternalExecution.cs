@@ -173,6 +173,11 @@ namespace UnrealBuildTool
 		/// </summary>
 		public bool HasVerse;
 
+		/// <summary>
+		/// Verse plugin name
+		/// </summary>
+		public string VersePluginName;
+
 		public UHTModuleInfo(
 			string ModuleName, 
 			FileReference ModuleRulesFile, 
@@ -185,7 +190,8 @@ namespace UnrealBuildTool
 			ModuleRules.PackageOverrideType OverrideType,
 			string VersePath,
 			VerseScope VerseScope,
-			bool HasVerse)
+			bool HasVerse,
+			string VersePluginName)
 		{
 			this.ModuleName = ModuleName;
 			this.ModuleRulesFile = ModuleRulesFile;
@@ -204,6 +210,7 @@ namespace UnrealBuildTool
 			this.VersePath = VersePath;
 			this.VerseScope = VerseScope;
 			this.HasVerse = HasVerse;
+			this.VersePluginName = VersePluginName;
 		}
 
 		public UHTModuleInfo(BinaryArchiveReader Reader)
@@ -226,6 +233,7 @@ namespace UnrealBuildTool
 			VersePath = Reader.ReadString()!;
 			VerseScope = (VerseScope)Reader.ReadInt();
 			HasVerse = Reader.ReadBool();
+			VersePluginName = Reader.ReadString()!;
 		}
 
 		public void Write(BinaryArchiveWriter Writer)
@@ -248,6 +256,7 @@ namespace UnrealBuildTool
 			Writer.WriteString(VersePath);
 			Writer.WriteInt((int)VerseScope);
 			Writer.WriteBool(HasVerse);
+			Writer.WriteString(VersePluginName);
 		}
 
 		public override string ToString()
@@ -465,7 +474,8 @@ namespace UnrealBuildTool
 						Module.Rules.OverridePackageType,
 						Module.Rules.VersePath ?? "",
 						Module.Rules.VerseScope,
-						Module.bHasVerse);
+						Module.bHasVerse,
+						Module.bHasVerse ? (Module.Rules.Plugin != null ? Module.Rules.Plugin.Name : Module.Name) : string.Empty);
 					ModuleInfoArray[Idx] = Info;
 
 					Queue.Enqueue(() => SetupUObjectModule(Info, ExcludedFolders, MetadataCache, Queue));
@@ -1039,6 +1049,7 @@ namespace UnrealBuildTool
 						VersePath = UObjectModule.VersePath,
 						VerseScope = (UHTVerseScope)Enum.Parse(typeof(UHTVerseScope), UObjectModule.VerseScope.ToString()),
 						HasVerse = UObjectModule.HasVerse,
+						VersePluginName = UObjectModule.VersePluginName,
 					});
 			}
 

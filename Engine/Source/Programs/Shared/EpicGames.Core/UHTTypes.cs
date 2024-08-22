@@ -124,6 +124,7 @@ namespace EpicGames.Core
 			[JsonConverter(typeof(JsonStringEnumConverter))]
 			public UHTVerseScope VerseScope { get; set; } = UHTVerseScope.PublicAPI;
 			public bool HasVerse { get; set; } = false;
+			public string VersePluginName { get; set; } = "";
 
 			public override string ToString()
 			{

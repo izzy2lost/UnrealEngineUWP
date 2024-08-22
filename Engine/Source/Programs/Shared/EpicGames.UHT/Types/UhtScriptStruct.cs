@@ -686,7 +686,7 @@ namespace EpicGames.UHT.Types
 
 		/// <inheritdoc/>
 		[JsonIgnore]
-		public override string EngineNamePrefix => Session.Config!.IsStructWithTPrefix(EngineName) ? "T" : "F";
+		public override string EngineNamePrefix => IsVerseField ? "" : (Session.Config!.IsStructWithTPrefix(EngineName) ? "T" : "F");
 
 		///<inheritdoc/>
 		[JsonIgnore]
@@ -848,10 +848,13 @@ namespace EpicGames.UHT.Types
 			}
 
 			// Validate the engine name
-			string expectedName = $"{EngineNamePrefix}{EngineName}";
-			if (SourceName != expectedName)
+			if (!IsVerseField)
 			{
-				this.LogError($"Struct '{SourceName}' has an invalid Unreal prefix, expecting '{expectedName}");
+				string expectedName = $"{EngineNamePrefix}{EngineName}";
+				if (SourceName != expectedName)
+				{
+					this.LogError($"Struct '{SourceName}' has an invalid Unreal prefix, expecting '{expectedName}");
+				}
 			}
 
 			// Validate RigVM

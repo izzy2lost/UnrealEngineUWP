@@ -469,5 +469,12 @@ namespace EpicGames.UHT.Parsers
 			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
 			context.PropertySettings.PropertyExportFlags |= UhtPropertyExportFlags.FieldNotify;
 		}
+
+		[UhtSpecifier(Extends = UhtTableNames.PropertyMember, ValueType = UhtSpecifierValueType.String)]
+		private static void VerseNameSpecifier(UhtSpecifierContext specifierContext, StringView value)
+		{
+			UhtPropertySpecifierContext context = (UhtPropertySpecifierContext)specifierContext;
+			context.PropertySettings.VerseName = value.ToString();
+		}
 	}
 }

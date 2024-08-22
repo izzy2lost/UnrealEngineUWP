@@ -18,6 +18,7 @@ namespace EpicGames.UHT.Types
 	public class UhtModule
 	{
 		private readonly List<UhtHeaderFile> _headers = new();
+		private readonly SortedDictionary<string, UhtPackage> _packages = new();
 
 		/// <summary>
 		/// The running session
@@ -55,6 +56,10 @@ namespace EpicGames.UHT.Types
 			get
 			{
 				yield return ScriptPackage;
+				foreach (KeyValuePair<string, UhtPackage> kvp in _packages)
+				{
+					yield return kvp.Value;
+				}
 			}
 		}
 
@@ -180,6 +185,33 @@ namespace EpicGames.UHT.Types
 			PrepareHeaders(Module.PrivateHeaders, UhtHeaderFileType.Private, addHeaderFileAction);
 		}
 
+		/// <summary>
+		/// Create a new package with the given name.  Will return an existing instance if it already exists
+		/// </summary>
+		/// <param name="packageName">Name of the package</param>
+		/// <param name="packageFlags">Flags to set if the package is created</param>
+		/// <returns>Package</returns>
+		public UhtPackage CreatePackage(string packageName, EPackageFlags packageFlags = EPackageFlags.None)
+		{
+			if (packageName == ScriptPackage.SourceName)
+			{
+				return ScriptPackage;
+			}
+			if (_packages.TryGetValue(packageName, out UhtPackage? package))
+			{
+				return package;
+			}
+			package = new(this, packageName, packageFlags);
+			_packages.Add(packageName, package);
+			return package;
+		}
+
+		/// <summary>
+		/// Given a collection of headers, create the UhtHeaders
+		/// </summary>
+		/// <param name="headerFiles">Collection of header names</param>
+		/// <param name="headerFileType">Type of the headers</param>
+		/// <param name="addHeaderFileAction">Action to take to notify the caller of the header being created</param>
 		private void PrepareHeaders(IEnumerable<string> headerFiles, UhtHeaderFileType headerFileType, Action<UhtHeaderFile> addHeaderFileAction)
 		{
 			string typeDirectory = headerFileType.ToString() + '/';

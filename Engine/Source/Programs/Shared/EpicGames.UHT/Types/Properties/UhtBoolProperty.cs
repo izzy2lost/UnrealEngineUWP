@@ -111,6 +111,12 @@ namespace EpicGames.UHT.Types
 		public UhtBoolType BoolType { get; }
 
 		/// <summary>
+		/// Return the engine name without and 'b' prefixes
+		/// </summary>
+		[JsonIgnore]
+		public override string StrippedEngineName => EngineName.StartsWith('b') ? EngineName.Substring(1) : EngineName;
+
+		/// <summary>
 		/// Construct a new boolean property
 		/// </summary>
 		/// <param name="propertySettings">Property settings</param>

@@ -40,6 +40,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 			public bool NeedsPushModelHeaders { get; set; }
 			public bool NeedsFastArrayHeaders { get; set; }
 			public bool NeedsVerseHeaders { get; set; }
+			public bool NeedsVerseClass { get; set; }
+			public bool NeedsVerseStruct { get; set; }
+			public bool NeedsVerseEnum { get; set; }
+			public bool NeedsVerseInterop { get; set; }
 		}
 		public HeaderInfo[] HeaderInfos { get; set; }
 
@@ -291,6 +295,8 @@ namespace EpicGames.UHT.Exporters.CodeGen
 					InitObjectInfo(builder, package, ref headerInfo, obj);
 				}
 			}
+
+			headerInfo.NeedsVerseInterop = headerInfo.NeedsVerseStruct;
 		}
 
 		private void InitObjectInfo(StringBuilder builder, UhtPackage package, ref HeaderInfo headerInfo, UhtObject obj)
@@ -315,6 +321,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					headerInfo.NeedsPushModelHeaders = true;
 				}
+				if (classObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseClass = true;
+				}
+				if (classObj.Children.Any(x => x is UhtVerseValueProperty))
+				{
+					headerInfo.NeedsVerseHeaders = true;
+				}
 				if (classObj.ClassType == UhtClassType.NativeInterface)
 				{
 					if (classObj.AlternateObject != null)
@@ -322,15 +336,23 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						ObjectInfos[classObj.AlternateObject.ObjectTypeIndex].NativeInterface = classObj;
 					}
 				}
-				headerInfo.NeedsVerseHeaders = classObj.Children.Any(x => x is UhtVerseValueProperty);
 			}
-			else if (obj is UhtScriptStruct scriptStruct)
+			else if (obj is UhtScriptStruct scriptStructObj)
 			{
+				if (scriptStructObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseStruct = true;
+				}
+				if (scriptStructObj.Children.Any(x => x is UhtVerseValueProperty))
+				{
+					headerInfo.NeedsVerseHeaders = true;
+				}
+
 				// Check to see if we are a FastArraySerializer and should try to deduce the FastArraySerializerItemType
 				// To fulfill that requirement the struct should be derived from FFastArraySerializer and have a single replicated TArrayProperty
-				if (scriptStruct.IsChildOf(FastArraySerializer))
+				if (scriptStructObj.IsChildOf(FastArraySerializer))
 				{
-					foreach (UhtType child in scriptStruct.Children)
+					foreach (UhtType child in scriptStructObj.Children)
 					{
 						if (child is UhtProperty property)
 						{
@@ -350,12 +372,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 						headerInfo.NeedsFastArrayHeaders = true;
 					}
 				}
-				headerInfo.NeedsVerseHeaders = scriptStruct.Children.Any(x => x is UhtVerseValueProperty);
 			}
 			else if (obj is UhtFunction)
 			{
 				// The method for EngineClassName returns type specific where in this case we need just the simple return type
 				engineClassName = "Function";
+			}
+			else if (obj is UhtEnum enumObj)
+			{
+				if (enumObj.IsVerseField)
+				{
+					headerInfo.NeedsVerseEnum = true;
+				}
 			}
 
 			if (isNonIntrinsicClass)

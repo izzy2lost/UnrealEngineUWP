@@ -677,6 +677,11 @@ namespace EpicGames.UHT.Types
 		public string EngineName { get; set; } = String.Empty;
 
 		/// <summary>
+		/// Verse name of the property 
+		/// </summary>
+		public string VerseName { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Property's meta data
 		/// </summary>
 		public UhtMetaData MetaData { get; set; } = UhtMetaData.Empty;
@@ -782,6 +787,7 @@ namespace EpicGames.UHT.Types
 			ParentSettings = parentPropertySettings;
 			SourceName = sourceName;
 			EngineName = sourceName;
+			VerseName = String.Empty;
 			MetaData = new UhtMetaData(messageSite, parentPropertySettings.Outer.Session.Config);
 			Outer = parentPropertySettings.Outer;
 			LineNumber = parentPropertySettings.LineNumber;
@@ -813,6 +819,7 @@ namespace EpicGames.UHT.Types
 			ParentSettings = null;
 			SourceName = String.Empty;
 			EngineName = String.Empty;
+			VerseName = String.Empty;
 			MetaData = new UhtMetaData(outer, outer.Session.Config);
 			Outer = outer;
 			LineNumber = lineNumber;
@@ -846,6 +853,7 @@ namespace EpicGames.UHT.Types
 			ParentSettings = null;
 			SourceName = property.SourceName;
 			EngineName = property.EngineName;
+			VerseName = property.VerseName;
 			MetaData = property.MetaData;
 			Outer = property.Outer;
 			LineNumber = property.LineNumber;
@@ -942,6 +950,11 @@ namespace EpicGames.UHT.Types
 		#endregion
 
 		/// <summary>
+		/// Verse name of the property 
+		/// </summary>
+		public string VerseName { get; set; } = String.Empty;
+
+		/// <summary>
 		/// Property category
 		/// </summary>
 		[JsonConverter(typeof(JsonStringEnumConverter))]
@@ -1031,6 +1044,12 @@ namespace EpicGames.UHT.Types
 		[JsonIgnore]
 		public override bool Deprecated => PropertyFlags.HasAnyFlags(EPropertyFlags.Deprecated);
 
+		/// <summary>
+		/// Return the engine name without and 'b' prefixes
+		/// </summary>
+		[JsonIgnore]
+		public virtual string StrippedEngineName => EngineName;
+
 		///<inheritdoc/>
 		[JsonIgnore]
 		protected override UhtSpecifierValidatorTable? SpecifierValidatorTable
@@ -1107,6 +1126,7 @@ namespace EpicGames.UHT.Types
 			{
 				EngineName = propertySettings.EngineName;
 			}
+			VerseName = propertySettings.VerseName;
 			PropertyCategory = propertySettings.PropertyCategory;
 			PropertyFlags = propertySettings.PropertyFlags;
 			DisallowPropertyFlags = propertySettings.DisallowPropertyFlags;
@@ -1493,6 +1513,27 @@ namespace EpicGames.UHT.Types
 		/// <param name="context">Context used to lookup the hashes</param>
 		public virtual void AppendObjectHashes(StringBuilder builder, int startingLength, IUhtPropertyMemberContext context)
 		{
+		}
+
+		/// <summary>
+		/// Fetch the mangled name for a property
+		/// </summary>
+		/// <returns>True if the name needed to be mangled, false if not.</returns>
+		public (bool WasMangled, string Result) GetMangledEngineName()
+		{
+			if (PropertyFlags.HasAnyFlags(EPropertyFlags.ReturnParm))
+			{
+				return (false, EngineName);
+			}
+			if (!String.IsNullOrEmpty(VerseName))
+            {
+				return (false, VerseName);
+            }
+			if (Outer is UhtField fieldObj && fieldObj.IsVerseField)
+			{
+				return VerseNameMangling.MangleCasedName(String.IsNullOrEmpty(VerseName) ? StrippedEngineName : VerseName);
+			}
+			return (false, EngineName);
 		}
 		#endregion
 

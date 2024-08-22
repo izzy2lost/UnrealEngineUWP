@@ -109,6 +109,18 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					includesToAdd.Add("Net/Serialization/FastArraySerializerImplementation.h");
 				}
+				if (headerInfo.NeedsVerseClass)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseClass.h");
+				}
+				if (headerInfo.NeedsVerseStruct)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseStruct.h");
+				}
+				if (headerInfo.NeedsVerseEnum)
+				{
+					includesToAdd.Add("VerseVM/VVMVerseEnum.h");
+				}
 
 				foreach (UhtType type in HeaderFile.Children)
 				{
@@ -761,7 +773,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				}
 				builder.Append("\tif (!").Append(innerSingletonName).Append(")\r\n");
 				builder.Append("\t{\r\n");
-				builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams);\r\n");
+				if (scriptStruct.IsVerseField)
+				{
+					builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams, Verse::Private::ConstructUScriptStructFunc);\r\n");
+				}
+				else 
+				{
+					builder.Append("\t\tUECodeGen_Private::ConstructUScriptStruct(").Append(innerSingletonName).Append(", ").Append(staticsName).Append("::StructParams);\r\n");
+				}
 				builder.Append("\t}\r\n");
 				builder.Append("\treturn ").Append(innerSingletonName).Append(";\r\n");
 				builder.Append("}\r\n");
@@ -1641,7 +1660,14 @@ namespace EpicGames.UHT.Exporters.CodeGen
 
 			bool hasInterfaces = classObj.Bases.Any(x => x is UhtClass baseClass && baseClass.ClassFlags.HasAnyFlags(EClassFlags.Interface));
 
-			builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION(").Append(classObj.SourceName).Append(");\r\n");
+			if (classObj.IsVerseField)
+			{
+				builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION_WITH_METHOD(").Append(classObj.SourceName).Append(", Verse::Private::ConstructUClass);\r\n");
+			}
+			else
+			{
+				builder.Append("IMPLEMENT_CLASS_NO_AUTO_REGISTRATION(").Append(classObj.SourceName).Append(");\r\n");
+			}
 
 			// Everything from this point on will be part of the definition hash
 			int hashCodeBlockStart = builder.Length;

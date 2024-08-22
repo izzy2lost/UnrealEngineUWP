@@ -533,6 +533,10 @@ namespace EpicGames.UHT.Types
 		{
 			get
 			{
+				if (IsVerseField)
+				{
+					return "";
+				}
 				switch (ClassType)
 				{
 					case UhtClassType.Class:
@@ -1461,10 +1465,13 @@ namespace EpicGames.UHT.Types
 			options = base.Validate(options);
 
 			// Classes must start with a valid prefix
-			string expectedClassName = EngineNamePrefix + EngineName;
-			if (expectedClassName != SourceName)
+			if (!IsVerseField)
 			{
-				this.LogError($"Class '{SourceName}' has an invalid Unreal prefix, expecting '{expectedClassName}'");
+				string expectedClassName = EngineNamePrefix + EngineName;
+				if (expectedClassName != SourceName)
+				{
+					this.LogError($"Class '{SourceName}' has an invalid Unreal prefix, expecting '{expectedClassName}'");
+				}
 			}
 
 			// If we have a super class

@@ -65,6 +65,10 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				{
 					builder.Append("#include \"UObject/VerseTypes.h\"\r\n");
 				}
+				if (headerInfo.NeedsVerseInterop)
+				{
+					builder.Append("#include \"VerseInteropMacros.h\"\r\n");
+				}
 				builder.Append("\r\n");
 				builder.Append(DisableDeprecationWarnings).Append("\r\n");
 
@@ -419,6 +423,13 @@ namespace EpicGames.UHT.Exporters.CodeGen
 				// Forward declare the StaticStruct specialization in the header
 				builder.Append("template<> ").Append(Module.Api).Append("UScriptStruct* StaticStruct<struct ").Append(scriptStruct.SourceName).Append(">();\r\n");
 				builder.Append("\r\n");
+
+				// Verse declarations
+				if (scriptStruct.IsVerseField)
+				{
+					builder.Append("VUHT_DECLARE_STRUCT_RUNTIME_TRAITS(struct ").Append(scriptStruct.SourceName).Append(")\r\n");
+					builder.Append("\r\n");
+				}
 			}
 			return builder;
 		}
