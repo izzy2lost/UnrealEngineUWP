@@ -9,6 +9,7 @@ namespace uba
 	{
 		using Super = ApplicationRules;
 
+	public:
 		virtual bool AllowDetach() const override
 		{
 			return true;
@@ -185,6 +186,13 @@ namespace uba
 		virtual bool KeepInMemory(const StringView& fileName, const tchar* systemTemp, bool isRunningRemote) const override
 		{
 			return fileName.EndsWith(TC(".manifest")) && fileName.Contains(systemTemp);
+		}
+
+		virtual u64 FileTypeMaxSize(const StringBufferBase& file, bool isSystemOrTempFile) const override
+		{
+			if (file.Contains(TC(".pdb.tmp")))
+				return 14ull * 1024 * 1024 * 1024; // This is ridiculous
+			return ApplicationRulesVcLink::FileTypeMaxSize(file, isSystemOrTempFile);
 		}
 
 		virtual bool IsOutputFile(const StringView& fileName) const override
