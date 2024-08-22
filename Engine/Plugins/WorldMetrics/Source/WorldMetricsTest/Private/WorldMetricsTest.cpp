@@ -2,10 +2,10 @@
 
 #if WITH_TESTS
 #include "Engine/Engine.h"
-#include "Engine/World.h"
 #include "Tests/TestHarnessAdapter.h"
 #endif	// WITH_TESTS
 
+#include "Engine/World.h"
 #include "HAL/IConsoleManager.h"
 #include "WorldMetricCollection.h"
 #include "WorldMetricsLog.h"
