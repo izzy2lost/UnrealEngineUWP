@@ -1814,6 +1814,9 @@ namespace uba
 		}
 		AddEnvironmentVariableNoLock("TMPDIR", m_tempPath.data);
 #endif
+
+		AddEnvironmentVariableNoLock(TC("UBA_DETOURED"), TC("1"));
+
 		m_environmentVariables.push_back(0);
 		return m_environmentVariables.data();
 	}
