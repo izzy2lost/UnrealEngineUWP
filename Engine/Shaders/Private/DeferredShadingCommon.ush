@@ -915,9 +915,9 @@ bool AdjustBaseColorAndSpecularColorForSubsurfaceProfileLighting(inout float3 Ba
 	const bool bCheckerboardRequired = View.bSubsurfacePostprocessEnabled > 0;
 #else
 	const bool bCheckerboardRequired = View.bSubsurfacePostprocessEnabled > 0 && View.bCheckerboardSubsurfaceProfileRendering > 0;
-	BaseColor = View.bSubsurfacePostprocessEnabled ? float3(1, 1, 1) : BaseColor;
+	BaseColor = (ALLOW_SSS_MATERIAL_OVERRIDE && View.bSubsurfacePostprocessEnabled) ? float3(1, 1, 1) : BaseColor;
 #endif
-	if (bCheckerboardRequired)
+	if (bCheckerboardRequired && ALLOW_SSS_MATERIAL_OVERRIDE)
 	{
 		// because we adjust the BaseColor here, we need StoredBaseColor
 		// we apply the base color later in SubsurfaceRecombinePS()
