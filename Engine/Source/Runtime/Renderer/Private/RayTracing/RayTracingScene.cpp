@@ -273,7 +273,7 @@ void FRayTracingScene::Create(FRDGBuilder& GraphBuilder, const FViewInfo& View, 
 				TransformUploadBuffer = Layer.TransformUploadBuffer,
 				PreViewTranslation = this->PreViewTranslation](FRHICommandList& RHICmdList)
 				{
-					FTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
+					FOptionalTaskTagScope TaskTagScope(ETaskTag::EParallelRenderingThread);
 
 					const uint32 InstanceUploadBytes = NumNativeInstances * sizeof(FRayTracingInstanceDescriptorInput);
 					const uint32 TransformUploadBytes = NumNativeCPUInstances * 3 * sizeof(FVector4f);
