@@ -11,7 +11,7 @@
 
 //PRAGMA_DISABLE_OPTIMIZATION
 
-bool GIoDispatcherCullCancelledReadRequests = false;
+bool GIoDispatcherCullCancelledReadRequests = true;
 static FAutoConsoleVariableRef CVar_IoDispatcherCullCancelledReadRequests(
 	TEXT("s.IoDispatcherCullCancelledReadRequests"),
 	GIoDispatcherCullCancelledReadRequests,
