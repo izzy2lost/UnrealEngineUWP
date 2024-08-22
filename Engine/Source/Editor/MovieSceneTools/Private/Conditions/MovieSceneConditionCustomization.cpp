@@ -34,20 +34,27 @@ public:
 
 	virtual bool IsClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const UClass* InClass, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
 	{
-		if (MovieScene.IsValid())
+		if (InClass && InClass->IsChildOf(UMovieSceneCondition::StaticClass()))
 		{
-			return MovieScene->IsConditionClassAllowed(InClass);
+			if (MovieScene.IsValid())
+			{
+				return MovieScene->IsConditionClassAllowed(InClass);
+			}
 		}
-		return true;
+		return false;
 	}
 
 	virtual bool IsUnloadedClassAllowed(const FClassViewerInitializationOptions& InInitOptions, const TSharedRef< const IUnloadedBlueprintData > InBlueprint, TSharedRef< FClassViewerFilterFuncs > InFilterFuncs) override
 	{
-		if (MovieScene.IsValid())
+		const UClass* NativeParent = InBlueprint->GetNativeParent();
+		if (NativeParent && NativeParent->IsChildOf(UMovieSceneCondition::StaticClass()))
 		{
-			return MovieScene->IsConditionClassAllowed(InBlueprint->GetNativeParent());
+			if (MovieScene.IsValid())
+			{
+				return MovieScene->IsConditionClassAllowed(NativeParent);
+			}
 		}
-		return true;
+		return false;
 	}
 };
 

@@ -447,7 +447,7 @@ bool FSequenceUpdater_Flat::EvaluateCondition(const FGuid& BindingID, const FMov
 {
 	if (Condition)
 	{
-		if (Condition->CanCacheResult())
+		if (Condition->CanCacheResult(SharedPlaybackState))
 		{
 			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
 			{
@@ -844,7 +844,7 @@ void FSequenceUpdater_Hierarchical::Update(TSharedRef<const FSharedPlaybackState
 			{
 				// If we're able to cache the condition result, then it should be cached above when its entity got processed- retrieve that value.
 				// Otherwise, test it again.
-				if (SubData->Condition->CanCacheResult())
+				if (SubData->Condition->CanCacheResult(SharedPlaybackState))
 				{
 					if (bool* ConditionResult = CachedConditionResults.Find(SubData->Condition->ComputeCacheKey(FGuid(), RootOverrideSequenceID, SharedPlaybackState, FindObject<UMovieSceneSubSection>(CompiledDataManager->GetEntryRef(RootCompiledDataID).GetSequence(), *SubData->SectionPath.ToString()))))
 					{
@@ -1110,7 +1110,7 @@ bool FSequenceUpdater_Hierarchical::EvaluateCondition(const FGuid& BindingID, co
 {
 	if (Condition)
 	{
-		if (Condition->CanCacheResult())
+		if (Condition->CanCacheResult(SharedPlaybackState))
 		{
 			if (bool* ConditionResult = CachedConditionResults.Find(Condition->ComputeCacheKey(BindingID, SequenceID, SharedPlaybackState, ConditionOwnerObject)))
 			{

@@ -252,7 +252,7 @@ bool FEntityLedger::CanImportEntity(UMovieSceneEntitySystemLinker* Linker, const
 	else
 	{
 		bool bResult = EntityMetadata->Condition->EvaluateCondition(BindingID, ImportParams.SequenceID, SequenceInstance.GetSharedPlaybackState());
-		if (bCacheAllResults || EntityMetadata->Condition->CanCacheResult())
+		if (bCacheAllResults || EntityMetadata->Condition->CanCacheResult(SequenceInstance.GetSharedPlaybackState()))
 		{
 			ConditionResultCache.Add(CacheKey, bResult);
 		}

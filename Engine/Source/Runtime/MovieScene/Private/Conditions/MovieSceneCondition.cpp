@@ -70,3 +70,17 @@ EMovieSceneConditionCheckFrequency UMovieSceneCondition::GetCheckFrequencyIntern
 {
 	return BP_GetCheckFrequency();
 }
+
+bool UMovieSceneCondition::CanCacheResult(TSharedRef<const UE::MovieScene::FSharedPlaybackState> SharedPlaybackState) const
+{ 
+#if WITH_EDITOR
+	// Specifically in editor worlds we don't cache condition results- this is because it's too difficult to know
+	// what sort of things the user might change to invalidate the cached results.
+	if (SharedPlaybackState->GetPlaybackContext() && SharedPlaybackState->GetPlaybackContext()->GetWorld()->IsEditorWorld())
+	{
+		return false;
+	}
+#endif
+	
+	return GetCheckFrequencyInternal() != EMovieSceneConditionCheckFrequency::OnTick; 
+}
