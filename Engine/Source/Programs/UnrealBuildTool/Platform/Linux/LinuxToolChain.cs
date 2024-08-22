@@ -1174,9 +1174,6 @@ namespace UnrealBuildTool
 				LinkAction.CommandDescription = "Link";
 			}
 
-			// Saw a 6 hour link time potentially caused by box. Will disable for now and revisit later
-			LinkAction.bCanExecuteInUBA = !LinkEnvironment.bPGOProfile && !LinkEnvironment.bPGOOptimize && !LinkEnvironment.bAllowLTCG;
-
 			if (!OperatingSystem.IsWindows())
 			{
 				LinkAction.bCanExecuteInUBA = false; // Linker on native linux uses vfork/exec which is not handled in uba right now
