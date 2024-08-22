@@ -65,12 +65,12 @@ void VWeakCellMap::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginMap(TEXT("Values"), ScratchNumElements);
 		for (auto It = Map.CreateIterator(); It; ++It)
 		{
-			Visitor.BeginObject();
+			Visitor.BeginPair();
 			if (Visitor.IsMarked(It->Key, TEXT("Key")))
 			{
 				Visitor.VisitNonNull(It->Value, TEXT("Value"));
 			}
-			Visitor.EndObject();
+			Visitor.EndPair();
 		}
 		Visitor.EndMap();
 	}

@@ -9,8 +9,16 @@
 namespace Verse
 {
 DEFINE_DERIVED_VCPPCLASSINFO(VConstrainedFloat);
-DEFINE_TRIVIAL_VISIT_REFERENCES(VConstrainedFloat);
 TGlobalTrivialEmergentTypePtr<&VConstrainedFloat::StaticCppClassInfo> VConstrainedFloat::GlobalTrivialEmergentType;
+
+template <typename TVisitor>
+inline void VConstrainedFloat::VisitReferencesImpl(TVisitor& Visitor)
+{
+	Visitor.VisitConstrainedFloat([this, &Visitor] {
+		Visitor.Visit(Min, TEXT("Min"));
+		Visitor.Visit(Max, TEXT("Max"));
+	});
+}
 
 bool VConstrainedFloat::SubsumesImpl(FAllocationContext Context, VValue Value)
 {

@@ -90,6 +90,12 @@ struct VUniqueString final : VArray
 		return this == &Other;
 	}
 
+	// Shadow `VArrayBase::AsStringView`, avoiding type test.
+	FUtf8StringView AsStringView() const
+	{
+		return FUtf8StringView(GetData<UTF8CHAR>(), Num());
+	}
+
 	static void SerializeImpl(VUniqueString*& This, FAllocationContext Context, FAbstractVisitor& Visitor);
 
 private:

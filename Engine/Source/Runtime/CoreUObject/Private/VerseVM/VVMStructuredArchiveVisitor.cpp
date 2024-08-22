@@ -631,7 +631,7 @@ void FStructuredArchiveVisitor::EndMap()
 	LeaveArray(ENestingType::Map);
 }
 
-void FStructuredArchiveVisitor::BeginObject(const TCHAR* ElementName)
+void FStructuredArchiveVisitor::BeginObject(const TCHAR* ElementName, FUtf8StringView TypeName)
 {
 	EnterObject(ElementName);
 }
@@ -651,7 +651,7 @@ void FStructuredArchiveVisitor::VisitNonNull(VCell*& InCell, const TCHAR* Elemen
 	VisitCellBody(ScopedRecord(*this, ElementName).Record, InCell);
 }
 
-void FStructuredArchiveVisitor::VisitEmergentType(const VCell* InEmergentType)
+void FStructuredArchiveVisitor::VisitEmergentType(const VEmergentType*)
 {
 	// Any emergent type formatting has already been done
 }

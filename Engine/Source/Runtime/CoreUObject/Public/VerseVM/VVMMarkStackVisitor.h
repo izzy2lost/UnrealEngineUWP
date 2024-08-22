@@ -80,6 +80,10 @@ struct FMarkStackVisitor
 		}
 	}
 
+	FORCEINLINE void Visit(VFloat, ConsumeElementName)
+	{
+	}
+
 	FORCEINLINE void Visit(VValue Value, ConsumeElementName ElementName)
 	{
 		if (VCell* Cell = Value.ExtractCell())
@@ -119,6 +123,30 @@ struct FMarkStackVisitor
 	FORCEINLINE void Visit(const TWriteBarrier<T>& Value, ConsumeElementName ElementName)
 	{
 		Visit(Value.Get(), ElementName);
+	}
+
+	template <typename TVisitBody>
+	FORCEINLINE void VisitClass(FUtf8StringView, TVisitBody VisitBody)
+	{
+		VisitBody();
+	}
+
+	template <typename TVisitBody>
+	FORCEINLINE void VisitFunction(FUtf8StringView, TVisitBody VisitBody)
+	{
+		VisitBody();
+	}
+
+	template <typename TVisitBody>
+	FORCEINLINE void VisitConstrainedInt(TVisitBody VisitBody)
+	{
+		VisitBody();
+	}
+
+	template <typename TVisitBody>
+	FORCEINLINE void VisitConstrainedFloat(TVisitBody VisitBody)
+	{
+		VisitBody();
 	}
 
 	template <typename T>

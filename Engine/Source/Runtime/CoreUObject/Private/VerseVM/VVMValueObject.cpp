@@ -21,7 +21,7 @@ void VValueObject::VisitReferencesImpl(TVisitor& Visitor)
 	const VEmergentType* EmergentType = GetEmergentType();
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
-		Visitor.BeginObject();
+		Visitor.BeginObject(TEXT(""), EmergentType->Type->StaticCast<VClass>().GetName());
 		const VCppClassInfo* CppClassInfo = EmergentType->CppClassInfo;
 		for (VShape::FieldsMap::TConstIterator I = EmergentType->Shape->Fields; I; ++I)
 		{
@@ -59,7 +59,7 @@ void VValueObject::VisitReferencesImpl(TVisitor& Visitor)
 	}
 }
 
-bool VValueObject::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(::Verse::VValue, ::Verse::VValue)>& HandlePlaceholder)
+bool VValueObject::EqualImpl(FAllocationContext Context, VCell* Other, const TFunction<void(VValue, VValue)>& HandlePlaceholder)
 {
 	if (!IsStruct())
 	{

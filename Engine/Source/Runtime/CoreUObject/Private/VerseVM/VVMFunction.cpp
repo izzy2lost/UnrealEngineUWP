@@ -19,9 +19,11 @@ TGlobalTrivialEmergentTypePtr<&VFunction::StaticCppClassInfo> VFunction::GlobalT
 template <typename TVisitor>
 void VFunction::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Procedure, TEXT("Procedure"));
-	Visitor.Visit(Self, TEXT("Self"));
-	Visitor.Visit(ParentScope, TEXT("ParentScope"));
+	Visitor.VisitFunction(Procedure->Name->AsStringView(), [this, &Visitor] {
+		Visitor.Visit(Procedure, TEXT("Procedure"));
+		Visitor.Visit(Self, TEXT("Self"));
+		Visitor.Visit(ParentScope, TEXT("ParentScope"));
+	});
 }
 
 void VFunction::ToStringImpl(FStringBuilderBase& Builder, FAllocationContext Context, const FCellFormatter& Formatter)

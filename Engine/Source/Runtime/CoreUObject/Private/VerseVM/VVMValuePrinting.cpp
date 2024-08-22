@@ -95,7 +95,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Builder.Append(TEXT(")"));
 	}
 
-	virtual void BeginObject(const TCHAR* ElementName) override
+	virtual void BeginObject(const TCHAR* ElementName, FUtf8StringView) override
 	{
 		BeginElement(ElementName);
 		PushNesting(ENestingType::Object);
@@ -114,7 +114,7 @@ struct FDefaultCellFormmatterVisitor : FAbstractVisitor
 		Formatter.Append(Builder, Context, *InCell);
 	}
 
-	virtual void VisitEmergentType(const VCell* InEmergentType) override
+	virtual void VisitEmergentType(const VEmergentType* InEmergentType) override
 	{
 		// Any emergent type formatting has already been done
 	}

@@ -42,10 +42,10 @@ void VMapBase::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginMap(TEXT("Values"), ScratchNumElements);
 		for (auto MapIt : *this)
 		{
-			Visitor.BeginObject();
+			Visitor.BeginPair();
 			::Verse::Visit(Visitor, MapIt.Key, TEXT("Key"));
 			::Verse::Visit(Visitor, MapIt.Value, TEXT("Value"));
-			Visitor.EndObject();
+			Visitor.EndPair();
 		}
 		Visitor.EndMap();
 	}

@@ -11,8 +11,10 @@ TGlobalTrivialEmergentTypePtr<&VConstrainedInt::StaticCppClassInfo> VConstrained
 template <typename TVisitor>
 inline void VConstrainedInt::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(Min, TEXT("Min"));
-	Visitor.Visit(Max, TEXT("Max"));
+	Visitor.VisitConstrainedInt([this, &Visitor] {
+		Visitor.Visit(Min, TEXT("Min"));
+		Visitor.Visit(Max, TEXT("Max"));
+	});
 }
 
 bool VConstrainedInt::SubsumesImpl(FAllocationContext Context, VValue Value)

@@ -57,7 +57,7 @@ void VConstructor::SerializeImpl(VConstructor*& This, FAllocationContext Context
 		This = &VConstructor::NewUninitialized(Context, (uint32)ScratchNumEntries);
 		for (uint32 Index = 0; Index < This->NumEntries; ++Index)
 		{
-			Visitor.BeginObject();
+			Visitor.BeginObject(TEXT(""));
 			Visitor.Visit(This->Entries[Index].Name, TEXT("Name"));
 			Visitor.Visit(This->Entries[Index].bNative, TEXT("Native"));
 			Visitor.Visit(This->Entries[Index].Type, TEXT("Type"));
@@ -82,7 +82,7 @@ void VConstructor::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginArray(TEXT("Entries"), ScratchNumEntries);
 		for (uint32 Index = 0; Index < NumEntries; ++Index)
 		{
-			Visitor.BeginObject();
+			Visitor.BeginObject(TEXT(""));
 			Visitor.Visit(Entries[Index].Name, TEXT("Name"));
 			Visitor.Visit(Entries[Index].bNative, TEXT("Native"));
 			Visitor.Visit(Entries[Index].Type, TEXT("Type"));
@@ -146,30 +146,31 @@ TGlobalTrivialEmergentTypePtr<&VClass::StaticCppClassInfo> VClass::GlobalTrivial
 template <typename TVisitor>
 void VClass::VisitReferencesImpl(TVisitor& Visitor)
 {
-	Visitor.Visit(ClassName, TEXT("ClassName"));
-	Visitor.Visit(UEMangledName, TEXT("UEMangledName"));
-	Visitor.Visit(Scope, TEXT("Scope"));
-	Visitor.Visit(Constructor, TEXT("Constructor"));
-	Visitor.Visit(AssociatedUStruct, TEXT("AssociatedUStruct"));
+	Visitor.VisitClass(GetName(), [this, &Visitor] {
+		Visitor.Visit(ClassName, TEXT("ClassName"));
+		Visitor.Visit(UEMangledName, TEXT("UEMangledName"));
+		Visitor.Visit(Scope, TEXT("Scope"));
+		Visitor.Visit(Constructor, TEXT("Constructor"));
+		Visitor.Visit(AssociatedUStruct, TEXT("AssociatedUStruct"));
 
-	// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
-	// around when anything needs to query the class inheritance hierarchy.
-	if constexpr (TVisitor::bIsAbstractVisitor)
-	{
-		uint64 ScratchNumInherited = NumInherited;
-		Visitor.BeginArray(TEXT("Inherited"), ScratchNumInherited);
+		// Mark the inherited classes to ensure that they don't get swept during GC since we want to keep their information
+		// around when anything needs to query the class inheritance hierarchy.
+		if constexpr (TVisitor::bIsAbstractVisitor)
+		{
+			uint64 ScratchNumInherited = NumInherited;
+			Visitor.BeginArray(TEXT("Inherited"), ScratchNumInherited);
+		}
 		Visitor.Visit(Inherited, Inherited + NumInherited);
-		Visitor.EndArray();
-	}
-	else
-	{
-		Visitor.Visit(Inherited, Inherited + NumInherited);
-	}
+		if constexpr (TVisitor::bIsAbstractVisitor)
+		{
+			Visitor.EndArray();
+		}
 
-	// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
-	UE::FExternalMutex ExternalMutex(Mutex);
-	UE::TUniqueLock Lock(ExternalMutex);
-	Visitor.Visit(EmergentTypesCache, TEXT("EmergentTypesCache"));
+		// We need both the unique string sets and emergent types that are being cached for fast lookup of emergent types to remain allocated.
+		UE::FExternalMutex ExternalMutex(Mutex);
+		UE::TUniqueLock Lock(ExternalMutex);
+		Visitor.Visit(EmergentTypesCache, TEXT("EmergentTypesCache"));
+	});
 }
 
 VClass::VClass(FAllocationContext Context, VPackage* InScope, VArray* InName, VArray* InUEMangledName, UClass* InImportClass, bool bInNative, EKind InKind, const TArray<VClass*>& InInherited, VConstructor& InConstructor)

@@ -77,10 +77,14 @@ struct FAbstractVisitor
 	virtual void VisitAuxNonNull(void* InAux, const TCHAR* ElementName);
 
 	// This method is only invoked by VCell to visit the emergent type of the cell.  It should not be
-	// called in any other situtation.
-	virtual void VisitEmergentType(const VCell* InEmergentType);
+	// called in any other situation.
+	virtual void VisitEmergentType(const VEmergentType* InEmergentType);
 
-	// POD type visitors
+	virtual void VisitClass(FUtf8StringView ClassName, TFunctionRef<void()> VisitBody);
+	virtual void VisitFunction(FUtf8StringView FunctionName, TFunctionRef<void()> VisitBody);
+	virtual void VisitConstrainedInt(TFunctionRef<void()> VisitBody);
+	virtual void VisitConstrainedFloat(TFunctionRef<void()> VisitBody);
+
 	virtual void Visit(bool& bValue, const TCHAR* ElementName);
 	virtual void Visit(FString& Value, const TCHAR* ElementName);
 	virtual void Visit(uint64& Value, const TCHAR* ElementName);
@@ -91,17 +95,25 @@ struct FAbstractVisitor
 	virtual void Visit(int16& Value, const TCHAR* ElementName);
 	virtual void Visit(uint8& Value, const TCHAR* ElementName);
 	virtual void Visit(int8& Value, const TCHAR* ElementName);
+	virtual void Visit(VFloat&, const TCHAR* ElementName);
 
 	// Override the following methods to handle nesting of elements.  Begin/EndObject are intended for when
 	// objects are elements in arrays.
 	virtual void BeginArray(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndArray();
+	virtual void BeginString(const TCHAR* ElementName, uint64& NumElements);
+	virtual void EndString();
 	virtual void BeginSet(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndSet();
 	virtual void BeginMap(const TCHAR* ElementName, uint64& NumElements);
 	virtual void EndMap();
-	virtual void BeginObject(const TCHAR* ElementName = nullptr);
+	virtual void BeginObject(const TCHAR* ElementName, FUtf8StringView TypeName);
+	void BeginObject(const TCHAR* ElementName) { BeginObject(ElementName, ""); }
 	virtual void EndObject();
+	virtual void BeginOption();
+	virtual void EndOption();
+	virtual void BeginPair();
+	virtual void EndPair();
 
 	// Override for blocks of bulk binary data
 	virtual void VisitBulkData(void* Data, uint64 DataSize, const TCHAR* ElementName);
@@ -115,6 +127,8 @@ struct FAbstractVisitor
 
 	// The default implementation looks for either a VCell or UObject pointer and invokes the proper Visit method if found
 	virtual void Visit(VValue& Value, const TCHAR* ElementName);
+
+	virtual void Visit(VPlaceholder&, const TCHAR* ElementName);
 
 	// The default implementation forwards the call to the VRestValue::Visit method
 	virtual void Visit(VRestValue& Value, const TCHAR* ElementName);

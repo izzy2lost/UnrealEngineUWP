@@ -58,6 +58,7 @@ void Visit(FAbstractVisitor& Visitor, FUnwindEdge& Value, const TCHAR* ElementNa
 	Visitor.Visit(Value.Begin, TEXT("Begin"));
 	Visitor.Visit(Value.End, TEXT("End"));
 	Visit(Visitor, Value.OnUnwind, TEXT("OnUnwind"));
+	Visitor.EndObject();
 }
 
 template <>

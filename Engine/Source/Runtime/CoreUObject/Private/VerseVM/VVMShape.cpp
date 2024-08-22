@@ -47,7 +47,7 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 		Visitor.BeginArray(TEXT("Fields"), ScratchFieldCount);
 		for (auto It = Fields.CreateIterator(); It; ++It)
 		{
-			Visitor.BeginObject();
+			Visitor.BeginPair();
 			Visitor.Visit(It->Key, TEXT("Key"));
 			switch (It->Value.Type)
 			{
@@ -58,7 +58,7 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 					Visitor.Visit(It->Value.Value, TEXT("Value"));
 					break;
 			}
-			Visitor.EndObject();
+			Visitor.EndPair();
 		}
 		Visitor.EndArray();
 	}

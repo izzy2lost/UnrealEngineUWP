@@ -204,28 +204,46 @@ inline void VArrayBase::VisitReferencesImpl(TVisitor& Visitor)
 	if constexpr (TVisitor::bIsAbstractVisitor)
 	{
 		uint64 ScratchNumValues = ThisBuffer.Num();
-		Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
 		switch (ThisBuffer.GetArrayType())
 		{
 			case EArrayType::None:
+			{
 				// Empty-Untyped VMutableArray
+				Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
+				Visitor.EndArray();
 				break;
+			}
 			case EArrayType::VValue:
+			{
+				Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
 				Visitor.Visit(ThisBuffer.GetData<TWriteBarrier<VValue>>(), ThisBuffer.GetData<TWriteBarrier<VValue>>() + ThisBuffer.Num());
+				Visitor.EndArray();
 				break;
+			}
 			case EArrayType::Int32:
+			{
+				Visitor.BeginArray(TEXT("Values"), ScratchNumValues);
 				Visitor.Visit(ThisBuffer.GetData<int32>(), ThisBuffer.GetData<int32>() + ThisBuffer.Num());
+				Visitor.EndArray();
 				break;
+			}
 			case EArrayType::Char8:
+			{
+				Visitor.BeginString(TEXT("Values"), ScratchNumValues);
 				Visitor.Visit(ThisBuffer.GetData<uint8>(), ThisBuffer.GetData<uint8>() + ThisBuffer.Num());
+				Visitor.EndString();
 				break;
+			}
 			case EArrayType::Char32:
+			{
+				Visitor.BeginString(TEXT("Values"), ScratchNumValues);
 				Visitor.Visit(ThisBuffer.GetData<uint32>(), ThisBuffer.GetData<uint32>() + ThisBuffer.Num());
+				Visitor.EndString();
 				break;
+			}
 			default:
 				V_DIE("Unhandled EArrayType encountered!");
 		}
-		Visitor.EndArray();
 	}
 	else if (ThisBuffer.GetArrayType() == EArrayType::VValue) // Check if we contain elements requiring marking
 	{
