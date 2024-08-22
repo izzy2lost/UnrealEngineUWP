@@ -3675,7 +3675,7 @@ void FBodyInstance::SetEnableGravity(bool bInGravityEnabled)
 
 void FBodyInstance::SetGravityGroupIndex(int32 NewGravityGroupIndex)
 {
-	if (GravityGroupIndex >= 0)
+	if (NewGravityGroupIndex >= 0)
 	{
 		GravityGroupIndex = NewGravityGroupIndex;
 
