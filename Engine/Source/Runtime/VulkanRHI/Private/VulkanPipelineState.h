@@ -277,9 +277,9 @@ public:
 	}
 
 protected:
-	TStaticArray<FPackedUniformBuffers, ShaderStage::NumStages> PackedUniformBuffers;
-	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersMask;
-	TStaticArray<uint32, ShaderStage::NumStages> PackedUniformBuffersDirty;
+	TStaticArray<FPackedUniformBuffers, ShaderStage::NumGraphicsStages> PackedUniformBuffers;
+	TStaticArray<uint32, ShaderStage::NumGraphicsStages> PackedUniformBuffersMask;
+	TStaticArray<uint32, ShaderStage::NumGraphicsStages> PackedUniformBuffersDirty;
 
 	FVulkanRHIGraphicsPipelineState* GfxPipeline;
 

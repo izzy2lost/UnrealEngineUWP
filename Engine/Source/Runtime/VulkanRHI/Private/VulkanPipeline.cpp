@@ -239,7 +239,7 @@ FVulkanRHIGraphicsPipelineState::~FVulkanRHIGraphicsPipelineState()
 
 	Device->PipelineStateCache->NotifyDeletedGraphicsPSO(this);
 
-	for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
+	for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumGraphicsStages; ShaderStageIndex++)
 	{
 		if (VulkanShaders[ShaderStageIndex] != nullptr)
 		{
@@ -248,9 +248,9 @@ FVulkanRHIGraphicsPipelineState::~FVulkanRHIGraphicsPipelineState()
 	}
 }
 
-void FVulkanRHIGraphicsPipelineState::GetOrCreateShaderModules(TRefCountPtr<FVulkanShaderModule> (&ShaderModulesOUT)[ShaderStage::NumStages], FVulkanShader*const* Shaders)
+void FVulkanRHIGraphicsPipelineState::GetOrCreateShaderModules(TRefCountPtr<FVulkanShaderModule> (&ShaderModulesOUT)[ShaderStage::NumGraphicsStages], FVulkanShader*const* Shaders)
 {
-	for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
+	for (int32 Index = 0; Index < ShaderStage::NumGraphicsStages; ++Index)
 	{
 		check(!ShaderModulesOUT[Index].IsValid());
 		FVulkanShader* Shader = Shaders[Index];
@@ -269,7 +269,7 @@ FVulkanShader::FSpirvCode FVulkanRHIGraphicsPipelineState::GetPatchedSpirvCode(F
 
 void FVulkanRHIGraphicsPipelineState::PurgeShaderModules(FVulkanShader*const* Shaders)
 {
-	for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
+	for (int32 Index = 0; Index < ShaderStage::NumGraphicsStages; ++Index)
 	{
 		FVulkanShader* Shader = Shaders[Index];
 		if (Shader)
@@ -1171,7 +1171,7 @@ static const TMap<uint8, VkFragmentShadingRateCombinerOpKHR> FragmentCombinerOpM
 	// @todo: Add "VK_FRAGMENT_SHADING_RATE_COMBINER_OP_MUL_KHR"?
 };
 
-static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStages])
+static FString GfxShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumGraphicsStages])
 {
 	FString ShaderHashes = "";
 	if (Shaders[ShaderStage::Vertex])
@@ -1191,7 +1191,7 @@ static FString ShaderHashesToString(FVulkanShader* Shaders[ShaderStage::NumStage
 	return ShaderHashes;
 }
 
-bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
+bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumGraphicsStages], FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
 {
 	VkPipeline* Pipeline = &PSO->VulkanPipeline;
 	const FGfxPipelineDesc* GfxEntry = &PSO->Desc;
@@ -1200,7 +1200,7 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 		Shaders[ShaderStage::Pixel] = ResourceCast(TShaderMapRef<FNULLPS>(GetGlobalShaderMap(GMaxRHIFeatureLevel)).GetPixelShader());
 	}
 
-	TRefCountPtr<FVulkanShaderModule> ShaderModules[ShaderStage::NumStages];
+	TRefCountPtr<FVulkanShaderModule> ShaderModules[ShaderStage::NumGraphicsStages];
 
 	PSO->GetOrCreateShaderModules(ShaderModules, Shaders);
 
@@ -1248,14 +1248,14 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 	MSInfo.rasterizationSamples = (VkSampleCountFlagBits)FMath::Max<uint16>(1u, GfxEntry->RasterizationSamples);
 	MSInfo.alphaToCoverageEnable = GfxEntry->UseAlphaToCoverage;
 
-	VkPipelineShaderStageCreateInfo ShaderStages[ShaderStage::NumStages];
+	VkPipelineShaderStageCreateInfo ShaderStages[ShaderStage::NumGraphicsStages];
 	FMemory::Memzero(ShaderStages);
 	PipelineInfo.stageCount = 0;
 	PipelineInfo.pStages = ShaderStages;
 	// main_00000000_00000000
-	ANSICHAR EntryPoints[ShaderStage::NumStages][24];
-	VkPipelineShaderStageRequiredSubgroupSizeCreateInfo RequiredSubgroupSizeCreateInfo[ShaderStage::NumStages];
-	for (int32 ShaderStage = 0; ShaderStage < ShaderStage::NumStages; ++ShaderStage)
+	ANSICHAR EntryPoints[ShaderStage::NumGraphicsStages][24];
+	VkPipelineShaderStageRequiredSubgroupSizeCreateInfo RequiredSubgroupSizeCreateInfo[ShaderStage::NumGraphicsStages];
+	for (int32 ShaderStage = 0; ShaderStage < ShaderStage::NumGraphicsStages; ++ShaderStage)
 	{
 		if (!ShaderModules[ShaderStage].IsValid() || (Shaders[ShaderStage] == nullptr))
 		{
@@ -1379,7 +1379,7 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 	if (Result != VK_SUCCESS)
 	{
-		FString ShaderHashes = ShaderHashesToString(Shaders);
+		FString ShaderHashes = GfxShaderHashesToString(Shaders);
 
 		UE_LOG(LogVulkanRHI, Error, TEXT("Failed to create graphics pipeline.\nShaders in pipeline: %s"), *ShaderHashes);
 		return false;
@@ -1398,7 +1398,7 @@ bool FVulkanPipelineStateCacheManager::CreateGfxPipelineFromEntry(FVulkanRHIGrap
 
 #if PLATFORM_ANDROID
 
-static VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache, FRWLock& PipelineLock)
+static VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType, FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumGraphicsStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, VkPipelineCache DestPipelineCache, FRWLock& PipelineLock)
 {
 	VkResult Result = VK_ERROR_INITIALIZATION_FAILED;
 	FVulkanShader::FSpirvCode VS = PSO->GetPatchedSpirvCode(Shaders[ShaderStage::Vertex]);
@@ -1436,13 +1436,13 @@ static VkResult CreatePSOWithExternalService(FVulkanDevice* Device, FGraphicsPip
 	}
 	else
 	{
-  		UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline (%s).\nShaders in pipeline %s"),*FailLog, *ShaderHashesToString(Shaders));
+  		UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline (%s).\nShaders in pipeline %s"),*FailLog, *GfxShaderHashesToString(Shaders));
 	}
 	return Result;
 }
 #endif
 
-VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
+VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPipelineState* PSO, FVulkanShader* Shaders[ShaderStage::NumGraphicsStages], const VkGraphicsPipelineCreateInfo& PipelineInfo, FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType PSOCompileType)
 {
 	bool bIsPrecompileJob = PSOCompileType != FGraphicsPipelineStateInitializer::EPSOPrecacheCompileType::NotSet;
 	if(FVulkanChunkedPipelineCacheManager::IsEnabled())
@@ -1569,7 +1569,7 @@ VkResult FVulkanPipelineStateCacheManager::CreateVKPipeline(FVulkanRHIGraphicsPi
 		}
 		else
 		{
-			FString ShaderHashes = ShaderHashesToString(Shaders);
+			FString ShaderHashes = GfxShaderHashesToString(Shaders);
 			UE_LOG(LogVulkanRHI, Error, TEXT("Android RemoteCompileServices Failed to create graphics pipeline (%s).\nShaders in pipeline: %s"), *FailLog, *ShaderHashes);
 		}
 	}
@@ -1744,8 +1744,8 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 {
 	FGfxPipelineDesc* OutGfxEntry = Desc;
 
-	FVulkanShader* Shaders[ShaderStage::NumStages];
-	GetVulkanShaders(PSOInitializer.BoundShaderState, Shaders);
+	FVulkanShader* Shaders[ShaderStage::NumGraphicsStages];
+	GetVulkanGfxShaders(PSOInitializer.BoundShaderState, Shaders);
 
 	FVulkanVertexInputStateInfo VertexInputState;
 	
@@ -1870,8 +1870,8 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 		1263027877466626099llu,
 		2698115308251696101llu,
 	};
-	static_assert(sizeof(Primes) / sizeof(Primes[0]) >= ShaderStage::NumStages);
-	for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
+	static_assert(sizeof(Primes) / sizeof(Primes[0]) >= ShaderStage::NumGraphicsStages);
+	for (int32 Index = 0; Index < ShaderStage::NumGraphicsStages; ++Index)
 	{
 		FVulkanShader* Shader = Shaders[Index];
 		uint64 Key = 0;
@@ -1885,7 +1885,7 @@ void FVulkanPipelineStateCacheManager::CreateGfxEntry(const FGraphicsPipelineSta
 	}
 	OutGfxEntry->ShaderKeyShared = SharedKey;
 #else
-	for (int32 Index = 0; Index < ShaderStage::NumStages; ++Index)
+	for (int32 Index = 0; Index < ShaderStage::NumGraphicsStages; ++Index)
 	{
 		FVulkanShader* Shader = Shaders[Index];
 		if (Shader)
@@ -1937,7 +1937,7 @@ FVulkanRHIGraphicsPipelineState::FVulkanRHIGraphicsPipelineState(FVulkanDevice* 
 #endif
 	VulkanShaders[ShaderStage::Pixel] = static_cast<FVulkanPixelShader*>(PSOInitializer_.BoundShaderState.PixelShaderRHI);
 
-	for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
+	for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumGraphicsStages; ShaderStageIndex++)
 	{
 		if (VulkanShaders[ShaderStageIndex] != nullptr)
 		{
@@ -2087,7 +2087,7 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 		NewPSO->RenderPass = Device->GetImmediateContext().PrepareRenderPassForPSOCreation(Initializer);
 		{
 			const FBoundShaderStateInput& BSI = Initializer.BoundShaderState;
-			for (int32 StageIdx = 0; StageIdx < ShaderStage::NumStages; ++StageIdx)
+			for (int32 StageIdx = 0; StageIdx < ShaderStage::NumGraphicsStages; ++StageIdx)
 			{
 				NewPSO->ShaderKeys[StageIdx] = GetShaderKeyForGfxStage(BSI, (ShaderStage::EStage)StageIdx);
 			}
@@ -2106,10 +2106,10 @@ FGraphicsPipelineStateRHIRef FVulkanPipelineStateCacheManager::RHICreateGraphics
 
 				// Create the pipeline
 				double BeginTime = FPlatformTime::Seconds();
-				FVulkanShader* VulkanShaders[ShaderStage::NumStages];
-				GetVulkanShaders(Initializer.BoundShaderState, VulkanShaders);
+				FVulkanShader* VulkanShaders[ShaderStage::NumGraphicsStages];
+				GetVulkanGfxShaders(Initializer.BoundShaderState, VulkanShaders);
 
-				for (int32 StageIdx = 0; StageIdx < ShaderStage::NumStages; ++StageIdx)
+				for (int32 StageIdx = 0; StageIdx < ShaderStage::NumGraphicsStages; ++StageIdx)
 				{
 					uint64 key = GetShaderKeyForGfxStage(BSI, (ShaderStage::EStage)StageIdx);
 					check(key == NewPSO->ShaderKeys[StageIdx]);
@@ -2379,9 +2379,9 @@ bool FVulkanPipelineStateCacheManager::FVulkanLRUCacheFile::Load(FArchive& Ar)
 
 
 
-void GetVulkanShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutShaders[ShaderStage::NumStages])
+void GetVulkanGfxShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutShaders[ShaderStage::NumGraphicsStages])
 {
-	FMemory::Memzero(OutShaders, ShaderStage::NumStages * sizeof(*OutShaders));
+	FMemory::Memzero(OutShaders, ShaderStage::NumGraphicsStages * sizeof(*OutShaders));
 
 	OutShaders[ShaderStage::Vertex] = ResourceCast(BSI.VertexShaderRHI);
 
@@ -2400,10 +2400,10 @@ void GetVulkanShaders(const FBoundShaderStateInput& BSI, FVulkanShader* OutShade
 	}
 }
 
-void GetVulkanShaders(FVulkanDevice* Device, const FVulkanRHIGraphicsPipelineState& GfxPipelineState, FVulkanShader* OutShaders[ShaderStage::NumStages])
+void GetVulkanGfxShaders(FVulkanDevice* Device, const FVulkanRHIGraphicsPipelineState& GfxPipelineState, FVulkanShader* OutShaders[ShaderStage::NumGraphicsStages])
 {
-	FMemory::Memzero(OutShaders, ShaderStage::NumStages * sizeof(*OutShaders));
-	Device->GetShaderFactory().LookupShaders(GfxPipelineState.ShaderKeys, OutShaders);
+	FMemory::Memzero(OutShaders, ShaderStage::NumGraphicsStages * sizeof(*OutShaders));
+	Device->GetShaderFactory().LookupGfxShaders(GfxPipelineState.ShaderKeys, OutShaders);
 }
 
 void FVulkanPipelineStateCacheManager::TickLRU()
@@ -2548,9 +2548,9 @@ void FVulkanPipelineStateCacheManager::LRUTouch(FVulkanRHIGraphicsPipelineState*
 		{
 			// Create the pipeline
 			double BeginTime = FPlatformTime::Seconds();
-			FVulkanShader* VulkanShaders[ShaderStage::NumStages];
+			FVulkanShader* VulkanShaders[ShaderStage::NumGraphicsStages];
 
-			GetVulkanShaders(Device, *PSO, VulkanShaders);
+			GetVulkanGfxShaders(Device, *PSO, VulkanShaders);
 
 			QUICK_SCOPE_CYCLE_COUNTER(STAT_Vulkan_LRUMiss);
 
@@ -2633,7 +2633,7 @@ void FVulkanPipelineStateCacheManager::LRURemove(FVulkanRHIGraphicsPipelineState
 		PSO->DeleteVkPipeline(bImmediate);
 		if (GVulkanReleaseShaderModuleWhenEvictingPSO)
 		{
-	        for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumStages; ShaderStageIndex++)
+	        for (int ShaderStageIndex = 0; ShaderStageIndex < ShaderStage::NumGraphicsStages; ShaderStageIndex++)
 	        {
 				if (PSO->VulkanShaders[ShaderStageIndex] != nullptr)
 				{

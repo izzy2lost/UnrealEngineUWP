@@ -33,7 +33,7 @@ struct FUniformBufferGatherInfo
 		FMemory::Memzero(CodeHeaders);
 	}
 
-	const FVulkanShaderHeader*	CodeHeaders[ShaderStage::NumStages];
+	const FVulkanShaderHeader* CodeHeaders[ShaderStage::MaxNumStages];
 };
 
 
@@ -220,7 +220,7 @@ public:
 			return true;
 		}
 	};
-	TStaticArray<FStageInfo, ShaderStage::NumStages> StageInfos;
+	TStaticArray<FStageInfo, ShaderStage::MaxNumStages> StageInfos;
 
 protected:
 	TMap<VkDescriptorType, uint32> LayoutTypes;
@@ -852,7 +852,7 @@ public:
 	FVulkanBindlessDescriptorManager(FVulkanDevice* InDevice);
 	~FVulkanBindlessDescriptorManager();
 
-	typedef TStaticArray<TArray<VkDescriptorAddressInfoEXT>, ShaderStage::NumStages> FUniformBufferDescriptorArrays;
+	typedef TStaticArray<TArray<VkDescriptorAddressInfoEXT>, ShaderStage::MaxNumStages> FUniformBufferDescriptorArrays;
 
 	void Init();
 	void Deinit();
@@ -1029,7 +1029,7 @@ private:
 private:
 	struct FSetsEntry
 	{
-		TStaticArray<VkDescriptorSet, ShaderStage::MaxNumSets> Sets;
+		TStaticArray<VkDescriptorSet, ShaderStage::MaxNumStages> Sets;
 		int32 NumSets;
 	};
 

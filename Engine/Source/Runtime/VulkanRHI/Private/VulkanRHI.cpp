@@ -1742,7 +1742,8 @@ void FVulkanDescriptorSetsLayoutInfo::GenerateHash(const TArrayView<FRHISamplerS
 		Hash = FCrc::MemCrc32(&SetLayouts[layoutIndex].Hash, sizeof(uint32), Hash);
 	}
 
-	for (uint32 RemapingIndex = 0; RemapingIndex < ShaderStage::NumStages; ++RemapingIndex)
+	const uint32 NumStages = GetNumStagesForBindPoint(InBindPoint);
+	for (uint32 RemapingIndex = 0; RemapingIndex < NumStages; ++RemapingIndex)
 	{
 		const FStageInfo& StageInfo = StageInfos[RemapingIndex];
 

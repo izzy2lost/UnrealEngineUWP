@@ -102,6 +102,23 @@ inline EShaderFrequency VkStageBitToUEFrequency(VkShaderStageFlagBits FlagBits)
 	return SF_NumFrequencies;
 }
 
+static constexpr int32 GetNumStagesForBindPoint(VkPipelineBindPoint BindPoint)
+{
+	switch (BindPoint)
+	{
+	case VK_PIPELINE_BIND_POINT_GRAPHICS:
+		return ShaderStage::NumGraphicsStages;
+
+	case VK_PIPELINE_BIND_POINT_COMPUTE:
+		return ShaderStage::NumComputeStages;
+
+	case VK_PIPELINE_BIND_POINT_RAY_TRACING_KHR:
+		return ShaderStage::NumRayTracingStages;
+	};
+
+	return 0;
+}
+
 class FVulkanRenderTargetLayout
 {
 public:

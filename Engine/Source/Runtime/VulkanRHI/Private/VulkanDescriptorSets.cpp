@@ -417,7 +417,7 @@ void FVulkanBindlessDescriptorManager::Init()
 		// todo-jn: this could be compacted..
 		auto CreateShaderStageUniformBufferLayout = [DeviceHandle]() {
 
-			const uint32 NumTotalBindings = VulkanBindless::MaxUniformBuffersPerStage * ShaderStage::MaxNumSets;
+			const uint32 NumTotalBindings = VulkanBindless::MaxUniformBuffersPerStage * ShaderStage::MaxNumStages;
 
 			TArray<VkDescriptorSetLayoutBinding> DescriptorSetLayoutBindings;
 			DescriptorSetLayoutBindings.SetNumZeroed(NumTotalBindings);
@@ -465,9 +465,9 @@ void FVulkanBindlessDescriptorManager::Init()
 			if (IsSingleUseUniformBufferSet)
 			{
 				// todo-jn: We're picky about uniform buffers values for now to allow for shortcuts...
-				check(LayoutSizeInBytes == (ShaderStage::MaxNumSets * VulkanBindless::MaxUniformBuffersPerStage * InOutState.DescriptorSize));
+				check(LayoutSizeInBytes == (ShaderStage::MaxNumStages * VulkanBindless::MaxUniformBuffersPerStage * InOutState.DescriptorSize));
 				check((LayoutSizeInBytes % DescriptorBufferProperties.descriptorBufferOffsetAlignment) == 0);
-				check((InOutState.MaxDescriptorCount % VulkanBindless::MaxUniformBuffersPerStage) == 0);
+				check((InOutState.MaxDescriptorCount % (ShaderStage::MaxNumStages * VulkanBindless::MaxUniformBuffersPerStage)) == 0);
 			}
 			else
 			{
@@ -607,12 +607,10 @@ void FVulkanBindlessDescriptorManager::RegisterUniformBuffers(VkCommandBuffer Co
 {
 	checkf(bIsSupported, TEXT("Trying to RegisterUniformBuffers but bindless is not supported!"));
 
-	SCOPED_NAMED_EVENT(FVulkanBindlessDescriptorManager_RegisterUniformBuffers, FColor::Purple);
-
 	BindlessSetState& BindlessUniformBufferSetState = BindlessSetStates[VulkanBindless::BindlessSingleUseUniformBufferSet];
 
 	// :todo-jn: Current uniform buffer layout is a bit wasteful with all the skipped bindings...
-	const uint32 BlockDescriptorCount = VulkanBindless::MaxUniformBuffersPerStage * ShaderStage::MaxNumSets;
+	const uint32 BlockDescriptorCount = VulkanBindless::MaxUniformBuffersPerStage * ShaderStage::MaxNumStages;
 	const uint32 BlockSize = BlockDescriptorCount * BindlessUniformBufferSetState.DescriptorSize;
 	// Leave the first block always zeroed for easier debugging
 	const uint32 FirstDescriptorIndex = BlockDescriptorCount + (CurrentUniformBufferDescriptorIndex.fetch_add(BlockDescriptorCount) % (BindlessUniformBufferSetState.MaxDescriptorCount - (2*BlockDescriptorCount)));
@@ -626,12 +624,13 @@ void FVulkanBindlessDescriptorManager::RegisterUniformBuffers(VkCommandBuffer Co
 	// :todo-jn: Clear them for easier debugging for now
 	FMemory::Memzero(&BindlessUniformBufferSetState.DebugDescriptors[FirstDescriptorByteOffset], BlockSize);
 
-	for (int32 StageIndex = 0; StageIndex < ShaderStage::NumStages; ++StageIndex)
+	for (int32 StageIndex = 0; StageIndex < ShaderStage::MaxNumStages; ++StageIndex)
 	{
 		const TArray<VkDescriptorAddressInfoEXT>& DescriptorAddressInfos = StageUBs[StageIndex];
 
 		if (DescriptorAddressInfos.Num())
 		{
+			checkSlow(StageIndex < GetNumStagesForBindPoint(BindPoint));
 			check(DescriptorAddressInfos.Num() <= VulkanBindless::MaxUniformBuffersPerStage);
 			const int32 StageOffset = StageIndex * VulkanBindless::MaxUniformBuffersPerStage;
 

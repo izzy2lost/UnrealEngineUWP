@@ -20,44 +20,50 @@
 
 namespace ShaderStage
 {
+	// Adjusting these requires a full shader rebuild (ie modify the guid on VulkanCommon.usf)
+	// Keep the values in sync with EShaderFrequency
 	enum EStage
 	{
-		// Adjusting these requires a full shader rebuild (ie modify the guid on VulkanCommon.usf)
-		// Keep the values in sync with EShaderFrequency
 		Vertex = 0,
 		Pixel = 1,
 		Geometry = 2,
+		Mesh = 3,
+		Task = 4,
 
-		RayGen = 3,
-		RayMiss = 4,
-		RayHitGroup = 5,
-		RayCallable = 6,
+		NumGraphicsStages = 5,
 
-		NumGraphicsStages = 3,
+		RayGen = 0,
+		RayMiss = 1,
+		RayHitGroup = 2,
+		RayCallable = 3,
+
 		NumRayTracingStages = 4,
 
-		NumStages = (NumGraphicsStages + NumRayTracingStages),
-
-		// Compute is its own pipeline, so it can all live as set 0
 		Compute = 0,
 
-		MaxNumSets = 8,
+		NumComputeStages = 1,
+
+		MaxNumStages = 6, // work with even count to simplify bindless alignment requirements
 
 		Invalid = -1,
 	};
+
+	static_assert(MaxNumStages >= FMath::Max(NumComputeStages, FMath::Max(NumGraphicsStages, NumRayTracingStages)), "MaxNumStages too small!");
 
 	inline EStage GetStageForFrequency(EShaderFrequency Stage)
 	{
 		switch (Stage)
 		{
-		case SF_Vertex:		return Vertex;
-		case SF_Pixel:		return Pixel;
-		case SF_Geometry:	return Geometry;
+		case SF_Vertex:			return Vertex;
+		case SF_Mesh:			return Mesh;
+		case SF_Amplification:	return Task;
+		case SF_Pixel:			return Pixel;
+		case SF_Geometry:		return Geometry;
 		case SF_RayGen:			return RayGen;
 		case SF_RayMiss:		return RayMiss;
 		case SF_RayHitGroup:	return RayHitGroup;
 		case SF_RayCallable:	return RayCallable;
-		case SF_Compute:	return Compute;
+		case SF_Compute:		return Compute;
 		default:
 			checkf(0, TEXT("Invalid shader Stage %d"), (int32)Stage);
 			break;
@@ -73,12 +79,10 @@ namespace ShaderStage
 		case EStage::Vertex:	return SF_Vertex;
 		case EStage::Pixel:		return SF_Pixel;
 		case EStage::Geometry:	return SF_Geometry;
-		case EStage::RayGen:		return SF_RayGen;
-		case EStage::RayMiss:		return SF_RayMiss;
-		case EStage::RayHitGroup:	return SF_RayHitGroup;
-		case EStage::RayCallable:	return SF_RayCallable;
+		case EStage::Mesh:		return SF_Mesh;
+		case EStage::Task:		return SF_Amplification;
 		default:
-			checkf(0, TEXT("Invalid shader Stage %d"), (int32)Stage);
+			checkf(0, TEXT("Invalid graphic shader stage: %d"), (int32)Stage);
 			break;
 		}
 
