@@ -7,7 +7,7 @@
 #pragma once
 
 #include "UObject/UObjectArray.h"
-#include "Misc/TransactionallySafeScopeLock.h"
+#include "Misc/TransactionallySafeRWLock.h"
 #include "Misc/TransactionallySafeRWScopeLock.h"
 
 /**
@@ -588,7 +588,7 @@ class FUObjectAnnotationChunked : public FUObjectArray::FUObjectDeleteListener
 	uint32 MaxAllocatedMemory;
 
 	/** Mutex */
-	FRWLock AnnotationArrayCritical;
+	FTransactionallySafeRWLock AnnotationArrayCritical;
 
 	/**
 	* Makes sure we have enough chunks to fit the new index
@@ -760,13 +760,13 @@ public:
 	 */
 	void AddAnnotation(int32 Index, const TAnnotation& Annotation)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		AddAnnotationInternal(Index, Annotation);
 	}
 
 	void AddAnnotation(int32 Index, TAnnotation&& Annotation)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		AddAnnotationInternal(Index, MoveTemp(Annotation));
 	}
 
@@ -783,7 +783,7 @@ public:
 	 */
 	TAnnotation& AddOrGetAnnotation(int32 Index, TFunctionRef<TAnnotation()> NewAnnotationFn)
 	{		
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		
 		if (NumAnnotations == 0 && Chunks.Num() == 0)
 		{
@@ -836,7 +836,7 @@ public:
 	 */
 	void RemoveAnnotation(int32 Index)
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		FreeAnnotation(Index);
 	}
 
@@ -864,7 +864,7 @@ public:
 
 		UE_AUTORTFM_OPEN2
 		{
-			FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_ReadOnly);
+			FTransactionallySafeReadScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 
 			const int32 ChunkIndex = Index / NumAnnotationsPerChunk;
 			if (ChunkIndex < Chunks.Num())
@@ -930,7 +930,7 @@ public:
 	void RemoveAllAnnotations()
 	{
 		bool bHadAnnotations = (NumAnnotations > 0);	
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		FreeAllAnnotations();
 		if (bHadAnnotations)
 		{
@@ -949,7 +949,7 @@ public:
 	 */
 	void TrimAnnotations()
 	{
-		FRWScopeLock AnnotationArrayLock(AnnotationArrayCritical, SLT_Write);
+		FTransactionallySafeWriteScopeLock AnnotationArrayLock(AnnotationArrayCritical);
 		for (TAnnotationChunk& Chunk : Chunks)
 		{
 			if (Chunk.Num == 0 && Chunk.Items)
