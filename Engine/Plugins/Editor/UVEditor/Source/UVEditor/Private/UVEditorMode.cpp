@@ -3,6 +3,8 @@
 #include "UVEditorMode.h"
 
 #include "Algo/AnyOf.h"
+#include "Actions/UnsetUVsAction.h"
+#include "Actions/UVMakeIslandAction.h"
 #include "Actions/UVSplitAction.h"
 #include "Actions/UVSeamSewAction.h"
 #include "Actions/UVToolAction.h"
@@ -674,6 +676,8 @@ void UUVEditorMode::RegisterActions()
 	};
 	PrepAction(CommandInfos.SewAction, NewObject<UUVSeamSewAction>());
 	PrepAction(CommandInfos.SplitAction, NewObject<UUVSplitAction>());
+	PrepAction(CommandInfos.MakeIslandAction, NewObject<UUVMakeIslandAction>());
+	PrepAction(CommandInfos.UnsetUVsAction, NewObject<UUnsetUVsAction>());
 }
 
 bool UUVEditorMode::ShouldToolStartBeAllowed(const FString& ToolIdentifier) const

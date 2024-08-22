@@ -477,6 +477,11 @@ void FUVEditorModeToolkit::BuildToolPalette(FName PaletteIndex, class FToolBarBu
 	{
 		ToolbarBuilder.AddToolBarButton(Commands.SewAction);
 		ToolbarBuilder.AddToolBarButton(Commands.SplitAction);
+		ToolbarBuilder.AddToolBarButton(Commands.MakeIslandAction);
+		if (CVarAddDebugTools.GetValueOnGameThread())
+		{
+			ToolbarBuilder.AddToolBarButton(Commands.UnsetUVsAction);
+		}
 
 		ToolbarBuilder.AddToolBarButton(Commands.BeginLayoutTool);
 		ToolbarBuilder.AddToolBarButton(Commands.BeginTransformTool);

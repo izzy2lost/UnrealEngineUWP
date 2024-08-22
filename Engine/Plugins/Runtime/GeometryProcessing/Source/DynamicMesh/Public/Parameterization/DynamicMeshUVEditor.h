@@ -198,6 +198,12 @@ public:
 	 */
 	bool SetTriangleUVsFromFreeBoundarySpectralConformal(const TArray<int32>& Triangles, bool bUseExistingUVTopology, bool bPreserveIrregularity, FUVEditResult* Result = nullptr);
 
+	/**
+	 * Initializes any uninitialized triangles in the set to per-vertex (0,0) UVs. Doesn't clear or modify any existing 
+	 *  UVs, and only operates on the given set.
+	 */
+	void MakeSureUVsAreSet(const TSet<int32>& Triangles, FUVEditResult* Result = nullptr, TSet<int32>* ChangedTrianglesOut = nullptr);
+
 	/** 
 	 * Merge existing UV topology with a set of edges, removing seams at edges if they exist within the UV topology.
 	 * 
@@ -218,6 +224,21 @@ public:
 	 * @return true on success
 	 */
 	bool CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoSeams, FUVEditResult* Result = nullptr);
+
+	/**
+	 * Takes the currently selected triangles and makes a separate UV island out of them, i.e. any interior seams
+	 *  are removed, and seams are added around the boundary of the selection. If the selection is not connected
+	 *  in the mesh, islands will be created for each connected component of selected triangles. If some of the 
+	 *  selected triangles have unset UVs, they will be initialized to per-vertex zero UVs for the purposes of
+	 *  creating an island.
+	 * 
+	 * @param TidsToMakeIntoIsland Triangles in the mesh
+	 * @param Result if non-null, list of new UV elements created for new seams, or to initialize UVs.
+	 * @param ChangedTrianglesOut Optional output of triangles that had their UVs changed. Currently this is a conservative
+	 *   superset, so some might not have actually changed. Not cleared before use.
+	 * @return true on success
+	 */
+	bool MakeIsland(const TSet<int32>& TidsToMakeIntoIsland, FUVEditResult* Result = nullptr, TSet<int32>* ChangedTrianglesOut = nullptr);
 
 	/**
 	 * Set UVs by box projection. Triangles will be grouped to "best" box face

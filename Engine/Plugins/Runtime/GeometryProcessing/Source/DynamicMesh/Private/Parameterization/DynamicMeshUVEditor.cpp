@@ -933,6 +933,52 @@ static int32 FindUVElementForVertex(const FDynamicMesh3* Mesh, const FDynamicMes
 }
 
 
+void UE::Geometry::FDynamicMeshUVEditor::MakeSureUVsAreSet(const TSet<int32>& Triangles, 
+	FUVEditResult* Result, TSet<int32>* ChangedTrianglesOut)
+{
+	if (!ensure(Mesh && UVOverlay))
+	{
+		return;
+	}
+
+	TMap<int32, int32> VidToElement;
+	for (int32 Tid : Triangles)
+	{
+		if (UVOverlay->IsSetTriangle(Tid))
+		{
+			continue;
+		}
+
+		FIndex3i ElementsToSet;
+		FIndex3i TriVids = Mesh->GetTriangle(Tid);
+		for (int i = 0; i < 3; ++i)
+		{
+			if (int32* ExistingElement = VidToElement.Find(TriVids[i]))
+			{
+				ElementsToSet[i] = *ExistingElement;
+			}
+			else
+			{
+				int32 Element = UVOverlay->AppendElement(FVector2f::Zero());
+				ElementsToSet[i] = Element;
+				VidToElement.Add(TriVids[i], Element);
+
+				if (Result)
+				{
+					Result->NewUVElements.Add(Element);
+				}
+			}
+		}
+		UVOverlay->SetTriangle(Tid, ElementsToSet);
+
+		if (ChangedTrianglesOut)
+		{
+			ChangedTrianglesOut->Add(Tid);
+		}
+	}
+}
+
+
 bool FDynamicMeshUVEditor::RemoveSeamsAtEdges(const TSet<int32>& EidsToRemoveAsSeams)
 {
 	for (int32 Eid : EidsToRemoveAsSeams)
@@ -1122,6 +1168,109 @@ bool FDynamicMeshUVEditor::CreateSeamsAtEdges(const TSet<int32>& EidsToMakeIntoS
 	return true;
 }
 
+
+
+bool UE::Geometry::FDynamicMeshUVEditor::MakeIsland(const TSet<int32>& TidsToMakeIntoIsland, FUVEditResult* Result, TSet<int32>* ChangedTrianglesOut)
+{
+	using namespace FDynamicMeshUVEditorLocals;
+
+	if (!ensure(UVOverlay && Mesh))
+	{
+		return false;
+	}
+	
+	// We may add new elements during either initialization or seam insertion. However, upon welding,
+	//  we might end up destroying them. So we'll accumulate them and then filter them out at the end.
+	ON_SCOPE_EXIT
+	{
+		if (Result)
+		{
+			Result->NewUVElements.RemoveAllSwap([this](int32 Element) { return !UVOverlay->IsElement(Element); });
+		}
+	};
+
+	// First make sure that all the relevant triangles have UVs set.
+	MakeSureUVsAreSet(TidsToMakeIntoIsland, Result, ChangedTrianglesOut);
+
+	// Gather the edges we need to edit
+	TSet<int32> EidsToMakeSeams;
+	TSet<int32> EidsToJoin;
+	TSet<int32> TouchedVids;
+
+	TSet<int32> ProcessedEids;
+	for (int32 Tid : TidsToMakeIntoIsland)
+	{
+		FIndex3i TriEids = Mesh->GetTriEdges(Tid);
+		for (int i = 0; i < 3; ++i)
+		{
+			int32 Eid = TriEids[i];
+			bool bAlreadyProcessed = false;
+			ProcessedEids.Add(Eid, &bAlreadyProcessed);
+			if (bAlreadyProcessed)
+			{
+				continue;
+			}
+
+			FDynamicMesh3::FEdge Edge = Mesh->GetEdge(Eid);
+			if (Edge.Tri.B == IndexConstants::InvalidID)
+			{
+				// Don't need to do anything for edges that are on the mesh boundary
+				continue;
+			}
+
+			bool bIsCurrentlySeam = UVOverlay->IsSeamEdge(Eid);
+			bool bShouldBeSeam = !TidsToMakeIntoIsland.Contains(Edge.Tri.A == Tid ? Edge.Tri.B : Edge.Tri.A);
+			
+			if (bIsCurrentlySeam != bShouldBeSeam)
+			{
+				TouchedVids.Add(Edge.Vert.A);
+				TouchedVids.Add(Edge.Vert.B);
+
+				if (bShouldBeSeam)
+				{
+					EidsToMakeSeams.Add(Eid);
+				}
+				else
+				{
+					EidsToJoin.Add(Eid);
+				}
+			}
+		}
+	}//end gathering edges to edit
+
+	if (EidsToJoin.IsEmpty() && EidsToMakeSeams.IsEmpty())
+	{
+		// There must not have been anything to change
+		return true;
+	}
+
+	// We need to do seam insertion first so that we don't move neighboring triangles unnecessarily while welding
+	//  seams inside the island. This is minorly inconvenient since we'll end up having to filter newly created
+	//  elements after the subsequent join operation, but we have to do that for any newly initialized UVs anyway.
+	UE::Geometry::FUVEditResult AddSeamResult;
+	bool bSuccess = CreateSeamsAtEdges(EidsToMakeSeams, &AddSeamResult);
+	if (Result)
+	{
+		Result->NewUVElements.Append(AddSeamResult.NewUVElements);
+		// These get filtered on exit.
+	}
+
+	bSuccess = RemoveSeamsAtEdges(EidsToJoin) && bSuccess;
+
+	if (ChangedTrianglesOut)
+	{
+		// Some of these didn't actually get changed (if they kept their original element), but this is the easiest
+		//  way to make sure we mark anything whose connectivity might have changed. The ideal thing would have been
+		//  to make CreateSeamsAtEdges and RemoveSeamsAtEdges output changed tids instead.
+		for (int32 Vid : TouchedVids)
+		{
+			TArray<int32> Tids;
+			Mesh->GetVtxTriangles(Vid, Tids);
+			ChangedTrianglesOut->Append(Tids);
+		}
+	}
+	return bSuccess;
+}
 
 
 void FDynamicMeshUVEditor::SetTriangleUVsFromBoxProjection(
