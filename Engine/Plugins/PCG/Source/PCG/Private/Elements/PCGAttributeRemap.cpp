@@ -4,6 +4,7 @@
 
 #include "PCGContext.h"
 #include "Helpers/PCGAsync.h"
+#include "Helpers/PCGHelpers.h"
 #include "Metadata/Accessors/PCGAttributeAccessorHelpers.h"
 
 #define LOCTEXT_NAMESPACE "PCGAttributeRemapElement"
@@ -12,7 +13,9 @@ namespace PCGAttributeRemapElement
 {
 	struct FPCGAttributeRemapParams
 	{
-		double InRangeMin;
+		double InRangeStart; // Note: Start and End can be a positive or negative range (e.g. [0, 1] or [1, 0])
+		double InRangeEnd;
+		double InRangeMin; // Note: Min and Max are a true min/max used to reject samples that fall outside the range
 		double InRangeMax;
 		double Slope;
 		double Intercept;
@@ -30,7 +33,7 @@ namespace PCGAttributeRemapElement
 	{
 		if (!InParams.bIgnoreValuesOutsideInputRange || (InOutValue >= InParams.InRangeMin && InOutValue <= InParams.InRangeMax))
 		{
-			InOutValue = InParams.Slope * (InOutValue - InParams.InRangeMin) + InParams.Intercept;
+			InOutValue = InParams.Slope * (InOutValue - InParams.InRangeStart) + InParams.Intercept;
 			if (InParams.bClampToUnitRange)
 			{
 				InOutValue = FMath::Clamp<T>(InOutValue, T(0.0), T(1.0));
@@ -68,6 +71,14 @@ namespace PCGAttributeRemapElement
 		Remap(InOutValue.Roll, InParams);
 		Remap(InOutValue.Pitch, InParams);
 		Remap(InOutValue.Yaw, InParams);
+	}
+}
+
+UPCGAttributeRemapSettings::UPCGAttributeRemapSettings()
+{
+	if (PCGHelpers::IsNewObjectAndNotDefault(this))
+	{
+		bAllowInverseRange = true;
 	}
 }
 
@@ -135,22 +146,37 @@ bool FPCGAttributeRemapElement::DoOperation(PCGMetadataOps::FOperationData& Oper
 	Params.InRangeMin = FMath::Min(Settings->InRangeMin, Settings->InRangeMax);
 	Params.InRangeMax = FMath::Max(Settings->InRangeMin, Settings->InRangeMax);
 
-	const double OutRangeTrueMin = FMath::Min(Settings->OutRangeMin, Settings->OutRangeMax);
-	const double OutRangeTrueMax = FMath::Max(Settings->OutRangeMin, Settings->OutRangeMax);
+	double OutRangeMin = 0.0;
+	double OutRangeMax = 0.0;
 
-	const double InRangeDifference = Params.InRangeMax - Params.InRangeMin;
-	const double OutRangeDifference = OutRangeTrueMax - OutRangeTrueMin;
+	if (Settings->bAllowInverseRange)
+	{
+		Params.InRangeStart = Settings->InRangeMin;
+		Params.InRangeEnd = Settings->InRangeMax;
+		OutRangeMin = Settings->OutRangeMin;
+		OutRangeMax = Settings->OutRangeMax;
+	}
+	else
+	{
+		Params.InRangeStart = Params.InRangeMin;
+		Params.InRangeEnd = Params.InRangeMax;
+		OutRangeMin = FMath::Min(Settings->OutRangeMin, Settings->OutRangeMax);
+		OutRangeMax = FMath::Max(Settings->OutRangeMin, Settings->OutRangeMax);
+	}
+
+	const double InRangeDifference = Params.InRangeEnd - Params.InRangeStart;
+	const double OutRangeDifference = OutRangeMax - OutRangeMin;
 
 	// When InRange is a point leave the Slope at 0 so that Density = Intercept
 	if (InRangeDifference == 0)
 	{
 		Params.Slope = 0;
-		Params.Intercept = (OutRangeTrueMin + OutRangeTrueMax) / 2.f;
+		Params.Intercept = (OutRangeMin + OutRangeMax) / 2.f;
 	}
 	else
 	{
 		Params.Slope = OutRangeDifference / InRangeDifference;
-		Params.Intercept = OutRangeTrueMin;
+		Params.Intercept = OutRangeMin;
 	}
 
 	auto RemapFunc = [this, &Params, &OperationData]<typename AttributeType>(AttributeType) -> bool

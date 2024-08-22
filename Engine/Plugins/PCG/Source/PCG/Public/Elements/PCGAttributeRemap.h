@@ -21,6 +21,8 @@ class UPCGAttributeRemapSettings : public UPCGMetadataSettingsBase
 	GENERATED_BODY()
 
 public:
+	UPCGAttributeRemapSettings();
+
 	//~Begin UPCGSettings interface
 #if WITH_EDITOR
 	virtual FName GetDefaultNodeName() const override;
@@ -68,6 +70,10 @@ public:
 	/** Attribute values outside of the input range will be unaffected by the remapping */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
 	bool bIgnoreValuesOutsideInputRange = false;
+
+	/** Allow remapping when Min is larger than Max, e.g. from [0.0, 1.0] -> [1.0, 0.0]. */
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = Settings, meta = (PCG_Overridable))
+	bool bAllowInverseRange = false; // Note that this is no longer the default value for new nodes, it is now 'true'
 };
 
 class FPCGAttributeRemapElement : public FPCGMetadataElementBase
