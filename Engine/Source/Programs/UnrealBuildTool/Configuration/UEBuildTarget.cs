@@ -3050,6 +3050,7 @@ namespace UnrealBuildTool
 
 				FileReference extraObj = FileReference.Combine(IntermediateDirectory, $"{Name}.extra.{(CompileEnvironment.Platform.IsInGroup(UnrealPlatformGroup.Microsoft) ? "obj" : "o")}");
 				arguments.Add($"/O:{extraObj}");
+				arguments.Add($"/T:{Platform}");
 
 				MakefileBuilder.CreateIntermediateTextFile(stripRsp, arguments);
 
