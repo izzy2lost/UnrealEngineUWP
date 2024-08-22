@@ -469,7 +469,8 @@ namespace uba
 	{
 		virtual bool IsOutputFile(const StringView& fileName) const override
 		{
-			return fileName.EndsWith(TC(".obj"));
+			return fileName.EndsWith(TC(".obj"))
+				|| fileName.EndsWith(TC(".exp"));
 		}
 
 		virtual bool StoreFileCompressed(const StringView& fileName) const

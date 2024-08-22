@@ -661,7 +661,18 @@ namespace uba
 
 			memcpy(fa.GetData(), m_memory.memory, m_memory.writtenSize);
 
-			return fa.Close();
+			if (!fa.Close())
+				return false;
+
+			// Create exp file
+			StringBuffer<> expFile;
+			expFile.Append(libFile);
+			if (const tchar* dot = expFile.Last('.'))
+				expFile.Resize(dot - expFile.data).Append(TC(".exp"));
+			FileAccessor faExp(logger, expFile.data);
+			if (!faExp.CreateWrite())
+				return false;
+			return faExp.Close();
 		}
 	};
 #endif // PLATFORM_WINDOWS
