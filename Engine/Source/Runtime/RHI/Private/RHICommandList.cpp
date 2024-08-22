@@ -1063,6 +1063,7 @@ void FRHICommandListExecutor::FSubmitState::Submit(const FSubmitArgs& Args)
 	{
 		FDynamicRHI::FRHIEndFrameArgs EndFrameArgs
 		{
+			.FrameNumber = GRHICommandList.FrameNumber++,
 #if WITH_RHI_BREADCRUMBS
 			.GPUBreadcrumbs = Args.GPUBreadcrumbs
 #endif

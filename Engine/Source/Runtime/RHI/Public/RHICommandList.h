@@ -5375,6 +5375,9 @@ private:
 #endif
 	FRHIDrawStats FrameDrawStats;
 
+	// Counts the number of calls to RHIEndFrame, and is used in GPU profiler frame boundary events.
+	uint32 FrameNumber = 0;
+
 	bool AllowParallel() const;
 };
 

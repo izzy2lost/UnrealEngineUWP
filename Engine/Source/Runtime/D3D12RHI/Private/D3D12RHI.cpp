@@ -421,7 +421,7 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args
 		ProcessTimestamps(OldTiming);
 	};
 
-	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&, Number = FrameNumber++](FD3D12Payload& Payload)
+	EnqueueEndOfPipeTask(MoveTemp(Lambda), [&](FD3D12Payload& Payload)
 	{
 		if (bCreateNew)
 		{
@@ -438,7 +438,7 @@ void FD3D12DynamicRHI::FlushTiming(bool bCreateNew, const FRHIEndFrameArgs& Args
 		if (bHasTiming && Payload.Queue.QueueType != ED3D12QueueType::Copy)
 		{
 			UE::RHI::GPUProfiler::FEvent::FFrameBoundary Boundary;
-			Boundary.FrameNumber = Number;
+			Boundary.FrameNumber = Args.FrameNumber;
 
 		#if WITH_RHI_BREADCRUMBS
 			switch (Payload.Queue.QueueType)

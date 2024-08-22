@@ -553,9 +553,6 @@ protected:
 	TRefCountPtr<IDXGIFactory2> DXGIFactoryForDisplayList;
 #endif
 
-	// Counts the number of calls to RHIEndFrame, and is used in GPU profiler frame boundary events.
-	uint32 FrameNumber = 0;
-
 public:
 
 	virtual FD3D12ResourceDesc GetResourceDesc(const FRHITextureDesc& CreateInfo) const;

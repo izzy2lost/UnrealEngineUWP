@@ -155,6 +155,9 @@ public:
 
 	struct FRHIEndFrameArgs
 	{
+		// Increments once per call to RHIEndFrame
+		uint32 FrameNumber;
+
 #if WITH_RHI_BREADCRUMBS
 		const TRHIPipelineArray<FRHIBreadcrumbNode*>& GPUBreadcrumbs;
 #endif
