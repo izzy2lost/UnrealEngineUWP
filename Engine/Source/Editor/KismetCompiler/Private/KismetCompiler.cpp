@@ -3130,6 +3130,7 @@ void FKismetCompilerContext::FinishCompilingClass(UClass* Class)
 		Class->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);//@TODO: ChangeParentClass had this, but I don't think I want it: | UClass::StaticClassFlags;  // will end up with CLASS_Intrinsic
 		Class->ClassCastFlags |= ParentClass->ClassCastFlags;
 		Class->ClassConfigName = ParentClass->ClassConfigName;
+		Class->ClassWithin = ParentClass->ClassWithin;
 
 		// If the Blueprint was marked as deprecated, then flag the class as deprecated.
 		if(Blueprint->bDeprecate)

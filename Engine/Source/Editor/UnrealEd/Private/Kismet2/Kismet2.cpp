@@ -1003,6 +1003,8 @@ void FKismetEditorUtilities::ConformBlueprintFlagsAndComponents(UBlueprint* Blue
 	if( UClass* SkelClass = BlueprintObj->SkeletonGeneratedClass )
 	{
 		SkelClass->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);
+		SkelClass->ClassConfigName = ParentClass->ClassConfigName;
+		SkelClass->ClassWithin = ParentClass->ClassWithin;
 		UObject* SkelCDO = SkelClass->GetDefaultObject();
 		// NOTE: we don't need to call ConformRemovedNativeComponents() for skel
 		//       classes, as they're generated on load (and not saved with stale 
@@ -1013,6 +1015,8 @@ void FKismetEditorUtilities::ConformBlueprintFlagsAndComponents(UBlueprint* Blue
 	if( UClass* GenClass = BlueprintObj->GeneratedClass )
 	{
 		GenClass->ClassFlags |= (ParentClass->ClassFlags & CLASS_ScriptInherit);
+		GenClass->ClassConfigName = ParentClass->ClassConfigName;
+		GenClass->ClassWithin = ParentClass->ClassWithin;
 		if (UObject* GenCDO = GenClass->ClassDefaultObject)
 		{
 			ConformComponentsUtils::ConformRemovedNativeComponents(GenCDO);
