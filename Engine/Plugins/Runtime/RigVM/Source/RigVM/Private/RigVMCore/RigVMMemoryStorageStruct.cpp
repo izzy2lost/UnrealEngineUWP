@@ -619,6 +619,10 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Bool;
 	}
+	else if (VMType == RigVMTypeUtils::UInt8TypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::Byte;
+	}
 	else if (VMType == RigVMTypeUtils::Int32TypeName || VMType == RigVMTypeUtils::IntTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::Int32;
@@ -650,6 +654,10 @@ void FRigVMMemoryStorageStruct::SetDefaultValues(const TArray<FRigVMPropertyDesc
 	else if (VMType == RigVMTypeUtils::FStringTypeName)
 	{
 		OutBagPropertyType = EPropertyBagPropertyType::String;
+	}
+	else if (VMType == RigVMTypeUtils::FTextTypeName)
+	{
+		OutBagPropertyType = EPropertyBagPropertyType::Text;
 	}
 	else if (Cast<UScriptStruct>(RigVMDescriptor.CPPTypeObject))
 	{
