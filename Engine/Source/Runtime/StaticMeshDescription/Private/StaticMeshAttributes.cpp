@@ -42,7 +42,8 @@ void FStaticMeshAttributes::Register(bool bKeepExistingAttribute)
 	// Add basic vertex instance attributes
 	if (!MeshDescription.VertexInstanceAttributes().HasAttribute(MeshAttribute::VertexInstance::TextureCoordinate) || !bKeepExistingAttribute)
 	{
-		MeshDescription.VertexInstanceAttributes().RegisterAttribute<FVector2f>(MeshAttribute::VertexInstance::TextureCoordinate, 1, FVector2f::ZeroVector, EMeshAttributeFlags::Lerpable | EMeshAttributeFlags::Mandatory);
+		const int32 NumUVChannels = MeshDescription.GetNumUVElementChannels();
+		MeshDescription.VertexInstanceAttributes().RegisterAttribute<FVector2f>(MeshAttribute::VertexInstance::TextureCoordinate, NumUVChannels, FVector2f::ZeroVector, EMeshAttributeFlags::Lerpable | EMeshAttributeFlags::Mandatory);
 	}
 
 	if (!MeshDescription.VertexInstanceAttributes().HasAttribute(MeshAttribute::VertexInstance::Normal) || !bKeepExistingAttribute)
