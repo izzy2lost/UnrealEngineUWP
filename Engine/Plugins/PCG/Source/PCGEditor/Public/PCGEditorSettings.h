@@ -211,6 +211,10 @@ public:
 	/** Overrides the label of the pause button while PCG is currently paused. The default is empty or None, which will use the default label then. */
 	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (DisplayName = "Overrides default name for the 'not currently paused' button", EditCondition = "bShowPauseButton", EditConditionHides))
 	FName OverrideNotPausedButtonLabel = NAME_None;
+
+	/** Overrides the tooltip on the pause button. The default is empty, which will use the default tooltip then. */
+	UPROPERTY(EditAnywhere, config, Category = "Editor Performance", meta = (MultiLine = true, DisplayName = "Overrides default tooltip on the pause button", EditCondition = "bShowPauseButton", EditConditionHides))
+	FString OverridePausedButtonTooltip = FString();
 };
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2

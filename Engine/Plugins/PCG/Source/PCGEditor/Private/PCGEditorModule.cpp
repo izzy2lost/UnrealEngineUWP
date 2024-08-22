@@ -412,7 +412,18 @@ void FPCGEditorModule::RegisterMenuExtensions()
 							}
 						}
 					}),
-					LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause and cancel all tasks.\nUse Alt to unpause without cancelling tasks."),
+					TAttribute<FText>::CreateLambda([]()
+					{
+						const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>();
+						if (EditorSettings && !EditorSettings->OverridePausedButtonTooltip.IsEmpty())
+						{
+							return FText::FromString(EditorSettings->OverridePausedButtonTooltip);
+						}
+						else
+						{
+							return LOCTEXT("PCGPauseButton_Tooltip", "Toggles PCG processing on/off and will cancel tasks depending on settings.\nUse Ctrl to unpause and cancel all tasks.\nUse Alt to unpause without cancelling tasks.");
+						}
+					}),
 					TAttribute<FSlateIcon>::CreateLambda([]()
 					{
 						const UPCGEditorSettings* EditorSettings = GetDefault<UPCGEditorSettings>();
