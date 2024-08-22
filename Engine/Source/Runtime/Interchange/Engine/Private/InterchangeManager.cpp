@@ -688,6 +688,7 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 			}
 		);
 		Container->ClearInternalFlags(EInternalObjectFlags::Async);
+		Container->ClearFlags(RF_Standalone);
 	}
 	BaseNodeContainers.Empty();
 
@@ -696,7 +697,7 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 		if (SourceData)
 		{
 			SourceData->RemoveFromRoot();
-			SourceData->MarkAsGarbage();
+			SourceData->ClearFlags(RF_Standalone);
 		}
 	}
 	SourceDatas.Empty();
@@ -707,7 +708,8 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 		{
 			Translator->ImportFinish();
 			Translator->RemoveFromRoot();
-			Translator->MarkAsGarbage();
+			Translator->ClearFlags(RF_Standalone);
+			Translator->ClearInternalFlags(EInternalObjectFlags::Async);
 		}
 	}
 	Translators.Empty();
@@ -717,7 +719,8 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 		if(Pipeline)
 		{
 			Pipeline->RemoveFromRoot();
-			Pipeline->MarkAsGarbage();
+			Pipeline->ClearFlags(RF_Standalone);
+			Pipeline->ClearInternalFlags(EInternalObjectFlags::Async);
 		}
 	}
 	Pipelines.Empty();
@@ -727,7 +730,8 @@ void UE::Interchange::FImportAsyncHelper::CleanUp()
 		if (FactoryKeyAndValue.Value)
 		{
 			FactoryKeyAndValue.Value->RemoveFromRoot();
-			FactoryKeyAndValue.Value->MarkAsGarbage();
+			FactoryKeyAndValue.Value->ClearFlags(RF_Standalone);
+			FactoryKeyAndValue.Value->ClearInternalFlags(EInternalObjectFlags::Async);
 		}
 	}
 	CreatedFactories.Empty();

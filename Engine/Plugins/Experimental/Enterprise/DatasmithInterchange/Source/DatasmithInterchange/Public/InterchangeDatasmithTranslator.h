@@ -154,6 +154,8 @@ private:
 
 	mutable uint64 StartTime = 0;
 	mutable FString FileName;
+
+	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UInterchangeDatasmithTranslatorSettings> CachedSettings = nullptr;
 
 	mutable TMap<FString, UE::DatasmithInterchange::AnimUtils::FAnimationPayloadDesc> AnimationPayLoadMapping;

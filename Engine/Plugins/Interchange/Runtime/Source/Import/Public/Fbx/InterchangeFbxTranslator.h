@@ -120,6 +120,7 @@ private:
 	//never translate a source.
 	mutable TUniquePtr<UE::Interchange::FInterchangeDispatcher> Dispatcher;
 
+	UPROPERTY(Transient, DuplicateTransient)
 	mutable TObjectPtr<UInterchangeFbxTranslatorSettings> CacheFbxTranslatorSettings = nullptr;
 
 	//If true this translator will use the dispatcher (InterchangeWorker program) to translate and return payloads.

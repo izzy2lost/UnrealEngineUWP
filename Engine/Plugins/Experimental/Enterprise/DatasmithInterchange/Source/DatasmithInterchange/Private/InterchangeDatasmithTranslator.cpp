@@ -956,6 +956,7 @@ UInterchangeTranslatorSettings* UInterchangeDatasmithTranslator::GetSettings() c
 
 		CachedSettings = DuplicateObject<UInterchangeDatasmithTranslatorSettings>(UInterchangeDatasmithTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeDatasmithTranslatorSettings>(), GetTransientPackage());
 		CachedSettings->SetFlags(RF_Standalone);
+		CachedSettings->ClearFlags(RF_ArchetypeObject);
 		CachedSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 
 		// Only the first one is considered

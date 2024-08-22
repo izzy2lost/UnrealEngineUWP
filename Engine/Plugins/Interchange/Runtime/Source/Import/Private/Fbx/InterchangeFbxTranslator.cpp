@@ -289,6 +289,8 @@ UInterchangeTranslatorSettings* UInterchangeFbxTranslator::GetSettings() const
 	{
 		CacheFbxTranslatorSettings = DuplicateObject<UInterchangeFbxTranslatorSettings>(UInterchangeFbxTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeFbxTranslatorSettings>(), GetTransientPackage());
 		CacheFbxTranslatorSettings->LoadSettings();
+		//Since we duplicate the CDO we want to remove the archetype flag
+		CacheFbxTranslatorSettings->ClearFlags(RF_ArchetypeObject);
 		CacheFbxTranslatorSettings->SetFlags(RF_Standalone);
 		CacheFbxTranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 	}

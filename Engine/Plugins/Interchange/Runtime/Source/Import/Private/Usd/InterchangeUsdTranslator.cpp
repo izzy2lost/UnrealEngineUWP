@@ -129,8 +129,6 @@ namespace UE::InterchangeUsdTranslator::Private
 		// ReleaseSource() clears this member, once translation is complete.
 		UE::FUsdStage UsdStage;
 
-		TObjectPtr<UInterchangeUsdTranslatorSettings> TranslatorSettings = nullptr;
-
 #if USE_USD_SDK
 		// On UInterchangeUSDTranslator::Translate we set this up based on our TranslatorSettings, and then
 		// we can reuse it (otherwise we have to keep converting the FNames into Tokens all the time)
@@ -676,7 +674,7 @@ namespace UE::InterchangeUsdTranslator::Private
 
 	void AddMaterialInstanceNode(
 		const UE::FUsdPrim& Prim,
-		UInterchangeUSDTranslatorImpl& TranslatorImpl,
+		UInterchangeUsdTranslatorSettings* TranslatorSettings,
 		UInterchangeBaseNodeContainer& NodeContainer
 	)
 	{
@@ -696,8 +694,8 @@ namespace UE::InterchangeUsdTranslator::Private
 		NodeContainer.AddNode(MaterialNode);
 
 		UsdToUnreal::FUsdPreviewSurfaceMaterialData MaterialData;
-		FString RenderContext = TranslatorImpl.TranslatorSettings ? TranslatorImpl.TranslatorSettings->RenderContext.ToString() : FString();
-		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, TranslatorImpl.TranslatorSettings ? *RenderContext : nullptr);
+		FString RenderContext = TranslatorSettings ? TranslatorSettings->RenderContext.ToString() : FString();
+		const bool bSuccess = UsdToUnreal::ConvertMaterial(Prim, MaterialData, TranslatorSettings ? *RenderContext : nullptr);
 
 		// Set all the parameter values to the interchange node
 		bool bHasUDIMTexture = false;
@@ -1565,6 +1563,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		const UE::FUsdPrim& Prim,
 		UInterchangeUSDTranslatorImpl& TranslatorImpl,
 		UInterchangeBaseNodeContainer& NodeContainer,
+		UInterchangeUsdTranslatorSettings* TranslatorSettings,
 		FTraversalInfo Info
 	)
 	{
@@ -1587,7 +1586,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		if (Prim.IsA(TEXT("Material")))
 		{
 			Prefix = &MaterialPrefix;
-			AddMaterialInstanceNode(Prim, TranslatorImpl, NodeContainer);
+			AddMaterialInstanceNode(Prim, TranslatorSettings, NodeContainer);
 		}
 		else if (Prim.IsA(TEXT("Mesh")))
 		{
@@ -1663,7 +1662,7 @@ namespace UE::InterchangeUsdTranslator::Private
 		// Recurse into child prims
 		for (const FUsdPrim& ChildPrim : Prim.GetChildren())
 		{
-			Traverse(ChildPrim, TranslatorImpl, NodeContainer, Info);
+			Traverse(ChildPrim, TranslatorImpl, NodeContainer, TranslatorSettings, Info);
 		}
 	}
 
@@ -2281,7 +2280,7 @@ bool UInterchangeUSDTranslator::Translate(UInterchangeBaseNodeContainer& NodeCon
 	FTraversalInfo Info;
 	for (const FUsdPrim& Prim : ImplPtr->UsdStage.GetPseudoRoot().GetChildren())
 	{
-		Traverse(Prim, *ImplPtr, NodeContainer, Info);
+		Traverse(Prim, *ImplPtr, NodeContainer, TranslatorSettings, Info);
 	}
 
 	return true;
@@ -2301,10 +2300,10 @@ void UInterchangeUSDTranslator::ReleaseSource()
 	ImplPtr->UsdStage = UE::FUsdStage{};
 	ImplPtr->CurrentTrackSet = nullptr;
 
-	if (ImplPtr->TranslatorSettings)
+	if (TranslatorSettings)
 	{
-		ImplPtr->TranslatorSettings->ClearFlags(RF_Standalone);
-		ImplPtr->TranslatorSettings = nullptr;
+		TranslatorSettings->ClearFlags(RF_Standalone);
+		TranslatorSettings = nullptr;
 	}
 }
 
@@ -2318,18 +2317,18 @@ UInterchangeTranslatorSettings* UInterchangeUSDTranslator::GetSettings() const
 		return nullptr;
 	}
 
-	TObjectPtr<UInterchangeUsdTranslatorSettings>& Settings = ImplPtr->TranslatorSettings;
-	if (!Settings)
+	if (!TranslatorSettings)
 	{
-		Settings = DuplicateObject<UInterchangeUsdTranslatorSettings>(
+		TranslatorSettings = DuplicateObject<UInterchangeUsdTranslatorSettings>(
 			UInterchangeUsdTranslatorSettings::StaticClass()->GetDefaultObject<UInterchangeUsdTranslatorSettings>(),
 			GetTransientPackage()
 		);
-		Settings->LoadSettings();
-		Settings->SetFlags(RF_Standalone);
-		Settings->ClearInternalFlags(EInternalObjectFlags::Async);
+		TranslatorSettings->LoadSettings();
+		TranslatorSettings->ClearFlags(RF_ArchetypeObject);
+		TranslatorSettings->SetFlags(RF_Standalone);
+		TranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
 	}
-	return Settings;
+	return TranslatorSettings;
 }
 
 void UInterchangeUSDTranslator::SetSettings(const UInterchangeTranslatorSettings* InterchangeTranslatorSettings)
@@ -2342,19 +2341,17 @@ void UInterchangeUSDTranslator::SetSettings(const UInterchangeTranslatorSettings
 		return;
 	}
 
-	TObjectPtr<UInterchangeUsdTranslatorSettings>& Settings = ImplPtr->TranslatorSettings;
-
-	if (Settings)
+	if (TranslatorSettings)
 	{
-		Settings->ClearFlags(RF_Standalone);
-		Settings->ClearInternalFlags(EInternalObjectFlags::Async);
-		Settings = nullptr;
+		TranslatorSettings->ClearFlags(RF_Standalone);
+		TranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		TranslatorSettings = nullptr;
 	}
 	if (const UInterchangeUsdTranslatorSettings* USDTranslatorSettings = Cast<UInterchangeUsdTranslatorSettings>(InterchangeTranslatorSettings))
 	{
-		Settings = DuplicateObject<UInterchangeUsdTranslatorSettings>(USDTranslatorSettings, GetTransientPackage());
-		Settings->ClearInternalFlags(EInternalObjectFlags::Async);
-		Settings->SetFlags(RF_Standalone);
+		TranslatorSettings = DuplicateObject<UInterchangeUsdTranslatorSettings>(USDTranslatorSettings, GetTransientPackage());
+		TranslatorSettings->ClearInternalFlags(EInternalObjectFlags::Async);
+		TranslatorSettings->SetFlags(RF_Standalone);
 	}
 }
 

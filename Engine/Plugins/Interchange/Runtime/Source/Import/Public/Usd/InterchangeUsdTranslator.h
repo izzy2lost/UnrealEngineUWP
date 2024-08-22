@@ -117,4 +117,7 @@ public:
 
 private:
 	TUniquePtr<UE::InterchangeUsdTranslator::Private::UInterchangeUSDTranslatorImpl> Impl;
+
+	UPROPERTY(Transient, DuplicateTransient)
+	mutable TObjectPtr<UInterchangeUsdTranslatorSettings> TranslatorSettings = nullptr;
 };

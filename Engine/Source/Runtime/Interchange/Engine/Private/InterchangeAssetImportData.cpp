@@ -172,6 +172,7 @@ const UInterchangeTranslatorSettings* UInterchangeAssetImportData::GetTranslator
 void UInterchangeAssetImportData::SetTranslatorSettings(UInterchangeTranslatorSettings* TranslatorSettings) const
 {
 	TransientTranslatorSettings = TranslatorSettings;
+	TransientTranslatorSettings->SetFlags(RF_Standalone);
 
 	//Serialize cache
 	CachedTranslatorSettings = {};
@@ -315,6 +316,7 @@ void UInterchangeAssetImportData::ProcessTranslatorCache() const
 			UClass* ToCreateClass = ClassPerName.FindChecked(ClassFullName);
 
 			TransientTranslatorSettings = Cast<UInterchangeTranslatorSettings>(DeSerializeTranslatorSettings(CachedTranslatorSettings.Value, ToCreateClass));
+			TransientTranslatorSettings->SetFlags(RF_Standalone);
 		}
 	}
 }
