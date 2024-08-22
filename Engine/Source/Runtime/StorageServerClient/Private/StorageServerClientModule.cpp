@@ -53,6 +53,7 @@ IStorageServerPlatformFile* FStorageServerClientModule::TryCreateCustomPlatformF
 	TUniquePtr<FStorageServerPlatformFile> StorageServerPlatformFile = MakeUnique<FStorageServerPlatformFile>();
 	StorageServerPlatformFile->SetCustomProjectStorePath(StoreDirectory);
 	StorageServerPlatformFile->SetAllowPackageIo(false);
+	StorageServerPlatformFile->SetAbortOnConnectionFailure(false);
 	const TCHAR* CmdLine = FCommandLine::Get();
 	if (StorageServerPlatformFile->ShouldBeUsed(Inner, CmdLine) && StorageServerPlatformFile->Initialize(Inner, CmdLine))
 	{

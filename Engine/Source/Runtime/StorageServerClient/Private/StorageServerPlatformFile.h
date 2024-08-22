@@ -113,6 +113,10 @@ public:
 	{
 		bAllowPackageIo = bInAllowPackageIo;
 	}
+	void SetAbortOnConnectionFailure(bool bInAbortOnConnectionFailure)
+	{
+		bAbortOnConnectionFailure = bInAbortOnConnectionFailure;
+	}
 	void SetCustomProjectStorePath(FStringView InProjectStorePath)
 	{
 		CustomProjectStorePath = InProjectStorePath;
@@ -151,6 +155,7 @@ private:
 	mutable TArray<FString> HostAddrs;
 	mutable uint16 HostPort = 8558;
 	bool bAllowPackageIo = true;
+	bool bAbortOnConnectionFailure = true;
 };
 
 #endif
