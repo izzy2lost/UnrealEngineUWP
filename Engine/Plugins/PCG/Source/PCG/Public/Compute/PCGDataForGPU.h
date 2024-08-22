@@ -20,7 +20,7 @@ enum class EPCGUnpackDataCollectionResult
 UENUM()
 enum class EPCGKernelAttributeType : uint8
 {
-	Bool,
+	Bool = 0,
 	Int,
 	Float,
 	Float2,
@@ -28,7 +28,9 @@ enum class EPCGKernelAttributeType : uint8
 	Float4,
 	Rotator,
 	Quat,
-	Transform
+	Transform,
+
+	Invalid = std::numeric_limits<uint8>::max()
 };
 
 USTRUCT()

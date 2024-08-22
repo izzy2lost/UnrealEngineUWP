@@ -57,8 +57,7 @@ namespace PCGDataForGPUHelpers
 		case EPCGMetadataTypes::Transform:
 			return EPCGKernelAttributeType::Transform;
 		default:
-			checkNoEntry();
-			return EPCGKernelAttributeType::Float;
+			return EPCGKernelAttributeType::Invalid;
 		}
 	}
 
@@ -465,6 +464,19 @@ void FPCGDataDesc::InitializeAttributeDescs(const UPCGMetadata* Metadata, const 
 		{
 			const FName AttributeName = AttributeNames[CustomAttributeIndex];
 			const EPCGKernelAttributeType AttributeType = PCGDataForGPUHelpers::GetAttributeTypeFromMetadataType(AttributeTypes[CustomAttributeIndex]);
+
+			if (AttributeType == EPCGKernelAttributeType::Invalid)
+			{
+				const UEnum* EnumClass = StaticEnum<EPCGMetadataTypes>();
+				check(EnumClass);
+
+				UE_LOG(LogPCG, Warning, TEXT("Skipping attribute '%s'. '%s' type attributes are not supported on GPU."),
+					*AttributeName.ToString(),
+					*EnumClass->GetNameStringByValue(static_cast<int64>(AttributeTypes[CustomAttributeIndex])));
+
+				continue;
+			}
+
 			const FPCGKernelAttributeKey AttributeKey = { AttributeType, AttributeName };
 
 			// Ignore excess attributes.
