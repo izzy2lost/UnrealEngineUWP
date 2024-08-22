@@ -173,8 +173,8 @@ void SColorGradingPanel::Construct(const FArguments& InArgs)
 				+SVerticalBox::Slot()
 				[
 					SNew(SBorder)
+					.Padding(0.f)
 					.BorderImage(FAppStyle::Get().GetBrush("Brushes.Panel"))
-					.Padding(FMargin(2.0f, 2.0f, 2.0f, 0.0f))
 					[
 						SAssignNew(ColorWheelPanel, SColorGradingColorWheelPanel)
 						.ColorGradingDataModelSource(ColorGradingDataModel)

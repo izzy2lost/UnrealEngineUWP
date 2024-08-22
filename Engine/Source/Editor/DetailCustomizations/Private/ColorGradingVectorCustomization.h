@@ -5,6 +5,7 @@
 #include "Containers/Array.h"
 #include "Delegates/Delegate.h"
 #include "EditorUndoClient.h"
+#include "Framework/ColorGrading/ColorGradingCommon.h"
 #include "HAL/Platform.h"
 #include "IDetailCustomNodeBuilder.h"
 #include "Internationalization/Text.h"
@@ -23,11 +24,14 @@ class IDetailChildrenBuilder;
 class IDetailGroup;
 class IPropertyHandle;
 class IPropertyTypeCustomizationUtils;
-class SColorGradingPicker;
 class SWidget;
-template <typename NumericType> class SNumericEntryBox;
 
+namespace UE::ColorGrading
+{
+class SColorGradingPicker;
+class SColorGradingComponentViewer;
 enum class EColorGradingModes;
+}
 
 struct FColorGradingMinMaxSliderValue
 {
@@ -65,9 +69,6 @@ public:
 	/** Callback handling HSV color changed */
 	void OnCurrentHSVColorChangedDelegate(FLinearColor NewHSVColor, bool Originator);
 
-	/** Callback returning the desired gradiant color for a specified color index */
-	TArray<FLinearColor> GetGradientColor(int32 ColorIndex) const;
-
 	//~ Begin FEditorUndoClient Interface
 	virtual void PostUndo(bool bSuccess) override;
 	virtual void PostRedo(bool bSuccess) override;
@@ -75,15 +76,15 @@ public:
 
 protected:
 	bool IsInRGBMode() const;
-	EColorGradingModes GetColorGradingMode() const;
+	UE::ColorGrading::EColorGradingModes GetColorGradingMode() const;
 
-	TSharedRef<SNumericEntryBox<float>> MakeNumericEntryBox(int32 ColorIndex, TOptional<float>& MinValue, TOptional<float>& MaxValue, TOptional<float>& SliderMinValue, TOptional<float>& SliderMaxValue, float& SliderExponent, float& Delta, float& ShiftMultiplier, float &CtrlMultiplier, bool& SupportDynamicSliderMaxValue, bool& SupportDynamicSliderMinValue);
+	TSharedRef<UE::ColorGrading::SColorGradingComponentViewer> MakeComponentViewer(int32 ColorIndex, TOptional<float>& MinValue, TOptional<float>& MaxValue, TOptional<float>& SliderMinValue, TOptional<float>& SliderMaxValue, float& SliderExponent, float& Delta, float& ShiftMultiplier, float &CtrlMultiplier, bool& SupportDynamicSliderMaxValue, bool& SupportDynamicSliderMinValue, bool UseCompactDisplay);
 
-	/** Callback returning the color label text to display for a specified color index */
-	FText OnGetColorLabelText(FText DefaultText, int32 ColorIndex) const;
-	
-	/** Callback returning the color label text tooltip to display for a specified color index */
-	FText OnGetColorLabelToolTipsText(FText DefaultText, int32 ColorIndex) const;
+	/** Callback returning the component associated with a specified color index */
+	UE::ColorGrading::EColorGradingComponent OnGetColorComponent(int32 ColorIndex) const;
+
+	/** Get the current color value being edited/displayed by this widget */
+	bool GetCurrentColorGradingValue(FVector4& OutCurrentValue);
 	
 	/** Callback returning the min/max slider value for a specified color index */
 	TOptional<float> OnGetMaxSliderValue(TOptional<float> DefaultMaxSliderValue, int32 ColorIndex) const;
@@ -108,17 +109,12 @@ protected:
 	/** Callback returning if an entry box should be enabled */
 	bool IsEntryBoxEnabled(int32 ColorIndex) const;
 
-	/** Helper function used to compute desired gradient color for a requested color index */
-	FLinearColor GetGradientEndColor(int32 ColorIndex) const;
-	FLinearColor GetGradientStartColor(int32 ColorIndex) const;
-	FLinearColor GetGradientFillerColor(int32 ColorIndex) const;
-
 protected:
 	/** Min/Max slider value that can change dynamically */
 	FColorGradingMinMaxSliderValue SpinBoxMinMaxSliderValues;
 	
-	/** Registered numeric entry box list */
-	TArray<TWeakPtr<SWidget>> NumericEntryBoxWidgetList;
+	/** List of registered color component viewers */
+	TArray<TWeakPtr<UE::ColorGrading::SColorGradingComponentViewer>> ComponentViewers;
 	
 	/** The color grading property we're editing */
 	TWeakPtr<IPropertyHandle> ColorGradingPropertyHandle;
@@ -162,7 +158,8 @@ public:
 
 private:
 	/** Will return the color of the color block displayed in the header */
-	FLinearColor OnGetHeaderColorBlock() const;
+	FLinearColor OnGetColorForHeaderColorBlock() const;
+
 	EVisibility GetMultipleValuesTextVisibility() const;
 
 	/** Represent the custom builder associated with the color grading property */
@@ -174,13 +171,6 @@ class FColorGradingCustomBuilder : public IDetailCustomNodeBuilder, public FColo
 public:
 	/** Notification when we change color mode (RGB <-> HSV) */
 	DECLARE_MULTICAST_DELEGATE_OneParam(FOnColorModeChanged, bool);
-
-	/** Supported color mode */
-	enum class ColorModeType
-	{
-		RGB,
-		HSV
-	};
 
 	FColorGradingCustomBuilder(TWeakPtr<IPropertyHandle> InColorGradingPropertyHandle, const TArray<TWeakPtr<IPropertyHandle>>& InSortedChildArray, 
 							   TSharedRef<FColorGradingVectorCustomization> InColorGradingCustomization, IDetailGroup* InParentGroup);
@@ -206,7 +196,6 @@ private:
 
 	/* Local UI Handlers */
 	void OnColorGradingPickerChanged(FVector4 &NewValue, bool ShouldCommitValueChanges);
-	bool GetCurrentColorGradingValue(FVector4 &OutCurrentValue);
 
 	void OnBeginMainValueSliderMovement();
 	void OnEndMainValueSliderMovement();
@@ -218,28 +207,28 @@ private:
 	void OnDetailGroupReset();
 
 	/** Callback returning which color mode text we should display */
-	FText OnChangeColorModeText(ColorModeType ModeType) const;
+	FText OnChangeColorModeText(UE::ColorGrading::EColorGradingColorDisplayMode ModeType) const;
 	
 	/** Callback returning which color mode text tooltip we should display */
-	FText OnChangeColorModeToolTipText(ColorModeType ModeType) const;
+	FText OnChangeColorModeToolTipText(UE::ColorGrading::EColorGradingColorDisplayMode ModeType) const;
 
 	/** Callback returning which color mode is checked */	
-	ECheckBoxState OnGetChangeColorMode(ColorModeType ModeType) const;
+	UE::ColorGrading::EColorGradingColorDisplayMode OnGetChangeColorMode() const;
 
 	/** Callback returning if the RGB/HSV button should be visible */
-	EVisibility OnGetRGBHSVButtonVisibility(ColorModeType ModeType) const;
+	EVisibility OnGetRGBHSVButtonVisibility(UE::ColorGrading::EColorGradingColorDisplayMode ModeType) const;
 
 	/** Callback returning if the Gradient should be visible */
 	EVisibility OnGetGradientVisibility() const;
 	
 	/** Callback Called when user click a color mode change checkbox */
-	void OnChangeColorModeClicked(ECheckBoxState NewValue, ColorModeType ModeType);
+	void OnChangeColorModeClicked(UE::ColorGrading::EColorGradingColorDisplayMode ModeType);
 
 	/** Called to rebuild the children of the detail tree */
 	FSimpleDelegate OnRebuildChildren;
 
 	/** Color Picker widget */
-	TWeakPtr<SColorGradingPicker> ColorGradingPickerWidget;
+	TWeakPtr<UE::ColorGrading::SColorGradingPicker> ColorGradingPickerWidget;
 
 	/** Parent of this custom builder (required to communicate with FColorGradingVectorCustomization) */
 	TSharedPtr<FColorGradingVectorCustomization> ColorGradingCustomization;

@@ -4,13 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "Styling/SlateTypes.h"
-
-/** Modes that colors can be displayed in for the color grading panel */
-enum class COLORGRADINGEDITOR_API EColorGradingColorDisplayMode
-{
-	RGB,
-	HSV
-};
+#include "Framework/ColorGrading/ColorGradingCommon.h"
 
 /**
  * Stores the state of the color grading panel UI that can be reloaded in cases where the panel or any of its elements
@@ -27,14 +21,8 @@ struct COLORGRADINGEDITOR_API FColorGradingPanelState
 	/** The color grading element that is selected */
 	int32 SelectedColorGradingElement = INDEX_NONE;
 
-	/** Indicates which color wheels are hidden */
-	TArray<bool> HiddenColorWheels;
-
-	/** The selected orientation of the color wheels */
-	EOrientation ColorWheelOrientation = EOrientation::Orient_Vertical;
-
 	/** The color display mode of the color wheels */
-	EColorGradingColorDisplayMode ColorDisplayMode;
+	UE::ColorGrading::EColorGradingColorDisplayMode ColorDisplayMode;
 
 	/** Indicates which subsections were selected for each section in the details panel */
 	TArray<int32> SelectedDetailsSubsections;

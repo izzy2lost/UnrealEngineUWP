@@ -4,42 +4,80 @@
 
 #include "Customizations/MathStructCustomizations.h"
 #include "DetailLayoutBuilder.h"
-#include "Editor.h"
 #include "PropertyHandle.h"
 #include "ScopedTransaction.h"
+#include "Util/ColorGradingUtil.h"
 #include "Widgets/SBoxPanel.h"
+#include "Widgets/ColorGrading/SColorGradingComponentViewer.h"
 #include "Widgets/Colors/SComplexGradient.h"
 #include "Widgets/Layout/SBox.h"
 
+#if WITH_EDITOR
+#include "Editor.h"
+#endif
+
 #define LOCTEXT_NAMESPACE "ColorGradingEditor"
+
+SColorGradingColorWheel::SColorGradingColorWheel()
+{
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->RegisterForUndo(this);
+	}
+#endif
+}
+
+SColorGradingColorWheel::~SColorGradingColorWheel()
+{
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->UnregisterForUndo(this);
+	}
+#endif
+}
 
 void SColorGradingColorWheel::Construct(const FArguments& InArgs)
 {
-	Orientation = InArgs._Orientation;
 	ColorDisplayMode = InArgs._ColorDisplayMode;
+
+	ColorPickerBox = SNew(SBox);
+	
+	ColorSlidersBox = SNew(SBox)
+		.HAlign(HAlign_Fill)
+		.MaxDesiredWidth(400.f)
+		.MinDesiredWidth(400.f);
 
 	ChildSlot
 	[
-		SNew(SVerticalBox)
-
-		+ SVerticalBox::Slot()
-		.AutoHeight()
-		.HAlign(HAlign_Fill)
+		SNew(SBox)
+		.Padding(16.f, 8.f)
 		[
-			SAssignNew(HeaderBox, SBox)
-		]
+			SNew(SVerticalBox)
 
-		+ SVerticalBox::Slot()
-		.FillHeight(1.0f)
-		[
-			SAssignNew(ColorWheelBox, SBox)
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Fill)
+			[
+				SAssignNew(HeaderBox, SBox)
+			]
+
+			+ SVerticalBox::Slot()
+			.FillHeight(1.0f)
+			.HAlign(HAlign_Fill)
+			[
+				ColorPickerBox.ToSharedRef()
+			]
+
+			+ SVerticalBox::Slot()
+			.AutoHeight()
+			.HAlign(HAlign_Center)
+			[
+				ColorSlidersBox.ToSharedRef()
+			]
 		]
 	];
-
-	ColorPickerBox = SNew(SBox);
-	ColorSlidersBox = SNew(SBox);
-
-	SetOrientation(Orientation);
 
 	if (InArgs._HeaderContent.IsValid())
 	{
@@ -63,6 +101,8 @@ void SColorGradingColorWheel::SetColorPropertyHandle(TSharedPtr<IPropertyHandle>
 		ComponentSliderDynamicMaxValue = ColorPropertyMetadata->MaxValue;
 	}
 
+	RecalculateHSVColor();
+
 	// Since many of the color picker slate properties are not attributes, we need to recreate the widget every time the property handle changes
 	// to ensure the picker is configured correctly for the color property
 	if (ColorPickerBox.IsValid())
@@ -84,57 +124,23 @@ void SColorGradingColorWheel::SetHeaderContent(const TSharedRef<SWidget>& Header
 	}
 }
 
-void SColorGradingColorWheel::SetOrientation(EOrientation NewOrientation)
+#if WITH_EDITOR
+void SColorGradingColorWheel::PostUndo(bool bSuccess)
 {
-	Orientation = NewOrientation;
-
-	if (ColorWheelBox.IsValid())
-	{
-		TSharedPtr<SWidget> OrientedBox;
-
-		if (Orientation == EOrientation::Orient_Vertical)
-		{
-			OrientedBox = SNew(SVerticalBox)
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				ColorPickerBox.ToSharedRef()
-			]
-
-			+ SVerticalBox::Slot()
-			.AutoHeight()
-			[
-				ColorSlidersBox.ToSharedRef()
-			];
-		}
-		else
-		{
-			OrientedBox = SNew(SHorizontalBox)
-
-			+ SHorizontalBox::Slot()
-			.AutoWidth()
-			[
-				ColorPickerBox.ToSharedRef()
-			]
-
-			+ SHorizontalBox::Slot()
-			.FillWidth(1.0f)
-			[
-				ColorSlidersBox.ToSharedRef()
-			];
-		}
-
-		ColorWheelBox->SetContent(OrientedBox.ToSharedRef());
-		ColorWheelBox->SetHAlign(Orientation == EOrientation::Orient_Vertical ? HAlign_Center : HAlign_Fill);
-	}
+	RecalculateHSVColor();
 }
+
+void SColorGradingColorWheel::PostRedo(bool bSuccess)
+{
+	RecalculateHSVColor();
+}
+#endif
 
 TSharedRef<SWidget> SColorGradingColorWheel::SColorGradingColorWheel::CreateColorGradingPicker()
 {
 	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin()->IsValidHandle())
 	{
-		return SNew(SColorGradingPicker)
+		return SNew(UE::ColorGrading::SColorGradingPicker)
 			.ValueMin(GetMetadataMinValue())
 			.ValueMax(GetMetadataMaxValue())
 			.SliderValueMin(GetMetadataSliderMinValue())
@@ -167,19 +173,24 @@ TSharedRef<SWidget> SColorGradingColorWheel::CreateColorComponentSliders()
 		uint32 NumComponents = 4;
 		for (uint32 ComponentIndex = 0; ComponentIndex < NumComponents; ++ComponentIndex)
 		{
-			TAttribute<FText> TextGetter = TAttribute<FText>::Create(TAttribute<FText>::FGetter::CreateSP(this, &SColorGradingColorWheel::GetComponentLabelText, ComponentIndex));
-			TSharedRef<SWidget> LabelWidget = SNumericEntryBox<float>::BuildLabel(TextGetter, FLinearColor::White, FLinearColor(0.2f, 0.2f, 0.2f));
+			TAttribute<UE::ColorGrading::EColorGradingComponent> ComponentGetter = TAttribute<UE::ColorGrading::EColorGradingComponent>::Create(
+				TAttribute<UE::ColorGrading::EColorGradingComponent>::FGetter::CreateSP(this, &SColorGradingColorWheel::GetComponent, ComponentIndex)
+			);
 
-			TSharedRef<SNumericEntryBox<float>> NumericEntryBox = SNew(SNumericEntryBox<float>)
-				.SpinBoxStyle(&FCoreStyle::Get().GetWidgetStyle<FSpinBoxStyle>("NumericEntrySpinBox_Dark"))
-				.EditableTextBoxStyle(&FCoreStyle::Get().GetWidgetStyle<FEditableTextBoxStyle>("DarkEditableTextBox"))
-				.Font(IDetailLayoutBuilder::GetDetailFont())
-				.UndeterminedString(NSLOCTEXT("PropertyEditor", "MultipleValues", "Multiple Values"))
+			ColorSlidersVerticalBox->AddSlot()
+			.Padding(FMargin(0.0f, 8.0f, 0.0f, 0.0f))
+			.AutoHeight()
+			.HAlign(HAlign_Fill)
+			.VAlign(VAlign_Fill)
+			[
+				SNew(UE::ColorGrading::SColorGradingComponentViewer)
+				.Component(ComponentGetter)
+				.ColorGradingMode(ColorPropertyMetadata->ColorGradingMode)
 				.Value(this, &SColorGradingColorWheel::GetComponentValue, ComponentIndex)
 				.OnValueChanged(this, &SColorGradingColorWheel::SetComponentValue, ComponentIndex)
 				.OnBeginSliderMovement(this, &SColorGradingColorWheel::BeginUsingComponentSlider, ComponentIndex)
 				.OnEndSliderMovement(this, &SColorGradingColorWheel::EndUsingComponentSlider, ComponentIndex)
-				.AllowSpin(ColorPropertyHandle.Pin()->GetNumOuterObjects() == 1)
+				.OnQueryCurrentColor(this, &SColorGradingColorWheel::GetColor)
 				.ShiftMultiplier(ColorPropertyMetadata->ShiftMultiplier)
 				.CtrlMultiplier(ColorPropertyMetadata->CtrlMultiplier)
 				.SupportDynamicSliderMinValue(this, &SColorGradingColorWheel::ComponentSupportsDynamicSliderValue, ColorPropertyMetadata->bSupportDynamicSliderMinValue, ComponentIndex)
@@ -193,37 +204,8 @@ TSharedRef<SWidget> SColorGradingColorWheel::CreateColorComponentSliders()
 				.SliderExponent(ColorPropertyMetadata->SliderExponent)
 				.SliderExponentNeutralValue(ColorPropertyMetadata->SliderMinValue.GetValue() + (ColorPropertyMetadata->SliderMaxValue.GetValue() - ColorPropertyMetadata->SliderMinValue.GetValue()) / 2.0f)
 				.Delta(this, &SColorGradingColorWheel::GetComponentSliderDeltaValue, ColorPropertyMetadata->Delta, ComponentIndex)
-				.ToolTipText(this, &SColorGradingColorWheel::GetComponentToolTipText, ComponentIndex)
-				.LabelPadding(FMargin(0))
 				.IsEnabled(this, &SColorGradingColorWheel::IsPropertyEnabled)
-				.Label()
-				[
-					LabelWidget
-				];
-
-			ColorSlidersVerticalBox->AddSlot()
-				.Padding(FMargin(0.0f, 2.0f, 3.0f, 0.0f))
-				.AutoHeight()
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Fill)
-				[
-					NumericEntryBox
-				];
-
-			ColorSlidersVerticalBox->AddSlot()
-				.Padding(FMargin(15.0f, 0.0f, 3.0f, 2.0f))
-				.AutoHeight()
-				.HAlign(HAlign_Fill)
-				.VAlign(VAlign_Bottom)
-				[
-					SNew(SBox)
-					.HeightOverride(6.0f)
-					[
-						SNew(SComplexGradient)
-						.GradientColors(TAttribute<TArray<FLinearColor>>::Create(TAttribute<TArray<FLinearColor>>::FGetter::CreateSP(this, &SColorGradingColorWheel::GetGradientColor, ComponentIndex)))
-						.Visibility(this, &SColorGradingColorWheel::GetGradientVisibility)
-					]
-				];
+			];
 		}
 
 		return ColorSlidersVerticalBox;
@@ -245,23 +227,23 @@ SColorGradingColorWheel::FColorPropertyMetadata SColorGradingColorWheel::GetColo
 		{
 			if (ColorGradingModeString.Compare(TEXT("saturation")) == 0)
 			{
-				PropertyMetadata.ColorGradingMode = EColorGradingModes::Saturation;
+				PropertyMetadata.ColorGradingMode = UE::ColorGrading::EColorGradingModes::Saturation;
 			}
 			else if (ColorGradingModeString.Compare(TEXT("contrast")) == 0)
 			{
-				PropertyMetadata.ColorGradingMode = EColorGradingModes::Contrast;
+				PropertyMetadata.ColorGradingMode = UE::ColorGrading::EColorGradingModes::Contrast;
 			}
 			else if (ColorGradingModeString.Compare(TEXT("gamma")) == 0)
 			{
-				PropertyMetadata.ColorGradingMode = EColorGradingModes::Gamma;
+				PropertyMetadata.ColorGradingMode = UE::ColorGrading::EColorGradingModes::Gamma;
 			}
 			else if (ColorGradingModeString.Compare(TEXT("gain")) == 0)
 			{
-				PropertyMetadata.ColorGradingMode = EColorGradingModes::Gain;
+				PropertyMetadata.ColorGradingMode = UE::ColorGrading::EColorGradingModes::Gain;
 			}
 			else if (ColorGradingModeString.Compare(TEXT("offset")) == 0)
 			{
-				PropertyMetadata.ColorGradingMode = EColorGradingModes::Offset;
+				PropertyMetadata.ColorGradingMode = UE::ColorGrading::EColorGradingModes::Offset;
 			}
 		}
 
@@ -401,63 +383,72 @@ void SColorGradingColorWheel::TransactColorValue()
 	}
 }
 
+void SColorGradingColorWheel::RecalculateHSVColor()
+{
+	if (ColorPropertyHandle.IsValid() && ColorPropertyHandle.Pin().IsValid())
+	{
+		FVector4 VectorValue;
+		if (ColorPropertyHandle.Pin()->GetValue(VectorValue) == FPropertyAccess::Success)
+		{
+			CurrentHSVColor = FLinearColor(VectorValue).LinearRGBToHSV();
+		}
+	}
+}
+
 void SColorGradingColorWheel::BeginUsingColorPickerSlider()
 {
 	bIsUsingColorPickerSlider = true;
-	GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
+
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
+	}
+#endif
 }
 
 void SColorGradingColorWheel::EndUsingColorPickerSlider()
 {
 	bIsUsingColorPickerSlider = false;
-	GEditor->EndTransaction();
+
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->EndTransaction();
+	}
+#endif
 }
 
 void SColorGradingColorWheel::BeginUsingComponentSlider(uint32 ComponentIndex)
 {
 	bIsUsingComponentSlider = true;
-	GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
+
+#if WITH_EDITOR
+	if (GEditor)
+	{
+		GEditor->BeginTransaction(LOCTEXT("ColorWheel_TransactionName", "Color Grading Main Value"));
+	}
+#endif
 }
 
 void SColorGradingColorWheel::EndUsingComponentSlider(float NewValue, uint32 ComponentIndex)
 {
 	bIsUsingComponentSlider = false;
 	SetComponentValue(NewValue, ComponentIndex);
-	GEditor->EndTransaction();
-}
 
-FText SColorGradingColorWheel::GetComponentLabelText(uint32 ComponentIndex) const
-{
-	static const FText RGBLabelText[] = {
-		LOCTEXT("ColorWheel_RedComponentLabel", "R"),
-		LOCTEXT("ColorWheel_GreenComponentLabel", "G"),
-		LOCTEXT("ColorWheel_BlueComponentLabel", "B")
-	};
-
-	static const FText HSVLabelText[] = {
-		LOCTEXT("ColorWheel_HueComponentLabel", "H"),
-		LOCTEXT("ColorWheel_SatComponentLabel", "S"),
-		LOCTEXT("ColorWheel_ValComponentLabel", "V")
-	};
-
-	if (ComponentIndex >= 0 && ComponentIndex < 3)
-	{ 
-		if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) == EColorGradingColorDisplayMode::RGB)
-		{
-			return RGBLabelText[ComponentIndex];
-		}
-		else
-		{
-			return HSVLabelText[ComponentIndex];
-		}
-	}
-	else if (ComponentIndex == 3)
+#if WITH_EDITOR
+	if (GEditor)
 	{
-		return LOCTEXT("ColorWheel_LuminanceComponentLabel", "Y");
+		GEditor->EndTransaction();
 	}
-
-	return FText::GetEmpty();
+#endif
 }
+
+UE::ColorGrading::EColorGradingComponent SColorGradingColorWheel::GetComponent(uint32 ComponentIndex) const
+{
+	return UE::ColorGrading::GetColorGradingComponent(ColorDisplayMode.Get(), ComponentIndex);
+}
+
 
 TOptional<float> SColorGradingColorWheel::GetComponentValue(uint32 ComponentIndex) const
 {
@@ -468,14 +459,13 @@ TOptional<float> SColorGradingColorWheel::GetComponentValue(uint32 ComponentInde
 		{
 			float Value = 0.0f;
 
-			if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) == EColorGradingColorDisplayMode::RGB)
+			if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) == UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 			{
 				Value = ColorValue[ComponentIndex];
 			}
 			else
 			{
-				FLinearColor HSVColor = FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, ColorValue.W).LinearRGBToHSV();
-				Value = HSVColor.Component(ComponentIndex);
+				Value = CurrentHSVColor.Component(ComponentIndex);
 			}
 
 			return Value;
@@ -494,15 +484,19 @@ void SColorGradingColorWheel::SetComponentValue(float NewValue, uint32 Component
 		{
 			FVector4 NewColorValue = CurrentColorValue;
 
-			if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) == EColorGradingColorDisplayMode::RGB)
+			if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) == UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 			{
 				NewColorValue[ComponentIndex] = NewValue;
+
+				if (ComponentIndex < 3)
+				{
+					CurrentHSVColor = FLinearColor(NewColorValue.X, NewColorValue.Y, NewColorValue.Z).LinearRGBToHSV();
+				}
 			}
 			else
 			{
-				FLinearColor HSVColor = FLinearColor(CurrentColorValue.X, CurrentColorValue.Y, CurrentColorValue.Z, CurrentColorValue.W).LinearRGBToHSV();
-				HSVColor.Component(ComponentIndex) = NewValue;
-				NewColorValue = (FVector4)HSVColor.HSVToLinearRGB();
+				CurrentHSVColor.Component(ComponentIndex) = NewValue;
+				NewColorValue = (FVector4)CurrentHSVColor.HSVToLinearRGB();
 			}
 
 			ColorPropertyHandle.Pin()->SetValue(NewColorValue, bIsUsingComponentSlider ? EPropertyValueSetFlags::InteractiveChange : EPropertyValueSetFlags::DefaultFlags);
@@ -515,7 +509,7 @@ bool SColorGradingColorWheel::ComponentSupportsDynamicSliderValue(bool bDefaultV
 {
 	if (bDefaultValue)
 	{
-		if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
+		if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) != UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 		{
 			return ComponentIndex >= 2;
 		}
@@ -542,7 +536,7 @@ void SColorGradingColorWheel::UpdateComponentDynamicSliderMaxValue(float NewValu
 
 TOptional<float> SColorGradingColorWheel::GetComponentMaxValue(TOptional<float> DefaultValue, uint32 ComponentIndex) const
 {
-	if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
+	if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) != UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 	{
 		if (ComponentIndex == 0)
 		{
@@ -559,7 +553,7 @@ TOptional<float> SColorGradingColorWheel::GetComponentMaxValue(TOptional<float> 
 
 TOptional<float> SColorGradingColorWheel::GetComponentMinSliderValue(TOptional<float> DefaultValue, uint32 ComponentIndex) const
 {
-	if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
+	if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) != UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 	{
 		return 0.0f;
 	}
@@ -569,7 +563,7 @@ TOptional<float> SColorGradingColorWheel::GetComponentMinSliderValue(TOptional<f
 
 TOptional<float> SColorGradingColorWheel::GetComponentMaxSliderValue(TOptional<float> DefaultValue, uint32 ComponentIndex) const
 {
-	if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
+	if (ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) != UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 	{
 		if (ComponentIndex == 0)
 		{
@@ -586,170 +580,12 @@ TOptional<float> SColorGradingColorWheel::GetComponentMaxSliderValue(TOptional<f
 
 float SColorGradingColorWheel::GetComponentSliderDeltaValue(float DefaultValue, uint32 ComponentIndex) const
 {
-	if (ComponentIndex == 0 && ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
+	if (ComponentIndex == 0 && ColorDisplayMode.Get(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) != UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
 	{
 		return 1.0f;
 	}
 
 	return DefaultValue;
-}
-
-FText SColorGradingColorWheel::GetComponentToolTipText(uint32 ComponentIndex) const
-{
-	static const FText RGBToolTipText[] =
-	{
-		LOCTEXT("ColorWheel_RedComponentToolTip", "Red"),
-		LOCTEXT("ColorWheel_GreenComponentToolTip", "Green"),
-		LOCTEXT("ColorWheel_BlueComponentToolTip", "Blue")
-	};
-
-	static const FText HSVToolTipText[] =
-	{
-		LOCTEXT("ColorWheel_HueComponentToolTip", "Hue"),
-		LOCTEXT("ColorWheel_SaturationComponentToolTip", "Saturation"),
-		LOCTEXT("ColorWheel_ValueComponentToolTip", "Value")
-	};
-
-	if (ComponentIndex >= 0 && ComponentIndex < 3)
-	{
-		if (ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) != EColorGradingColorDisplayMode::RGB)
-		{
-			return HSVToolTipText[ComponentIndex];
-		}
-		else
-		{
-			return RGBToolTipText[ComponentIndex];
-		}
-	}
-	else if (ComponentIndex == 3)
-	{
-		return LOCTEXT("ColorWheel_LuminanceComponentToolTip", "Luminance");
-	}
-
-	return FText::GetEmpty();
-}
-
-TArray<FLinearColor> SColorGradingColorWheel::GetGradientColor(uint32 ComponentIndex)
-{
-	TArray<FLinearColor> GradientColors;
-
-	if (ColorPropertyHandle.IsValid())
-	{
-		const bool bIsRGB = ColorDisplayMode.Get(EColorGradingColorDisplayMode::RGB) == EColorGradingColorDisplayMode::RGB;
-		FVector4 ColorValue;
-			
-		if (ColorPropertyHandle.Pin()->GetValue(ColorValue) != FPropertyAccess::Success)
-		{
-			ColorValue = FVector4(0.0, 0.0, 0.0, 0.0);
-		}
-
-		if (bIsRGB || ComponentIndex > 0)
-		{
-			GradientColors.Add(GetGradientStartColor(ColorValue, bIsRGB, ComponentIndex));
-			GradientColors.Add(GetGradientEndColor(ColorValue, bIsRGB, ComponentIndex));
-			GradientColors.Add(GetGradientFillerColor(ColorValue, bIsRGB, ComponentIndex));
-		}
-		else // HSV Hue handling
-		{
-			for (int32 i = 0; i < 7; ++i)
-			{
-				GradientColors.Add(FLinearColor((i % 6) * 60.f, 1.f, 1.f).HSVToLinearRGB());
-			}
-		}
-	}
-
-	return GradientColors;
-}
-
-FLinearColor SColorGradingColorWheel::GetGradientStartColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const
-{
-	if (bIsRGB)
-	{
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(0.0f, ColorValue.Y, ColorValue.Z, 1.0f);
-		case 1:		return FLinearColor(ColorValue.X, 0.0f, ColorValue.Z, 1.0f);
-		case 2:		return FLinearColor(ColorValue.X, ColorValue.Y, 0.0f, 1.0f);
-		case 3:		return FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-	else
-	{
-		FLinearColor HSVColor = FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, ColorValue.W).LinearRGBToHSV();
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(HSVColor.R, HSVColor.G, HSVColor.B, 1.0f);
-		case 1:		return FLinearColor(HSVColor.R, 0.0f, HSVColor.B, 1.0f).HSVToLinearRGB();
-		case 2:		return FLinearColor(HSVColor.R, HSVColor.G, 0.0f, 1.0f).HSVToLinearRGB();
-		case 3:		return FLinearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-}
-
-FLinearColor SColorGradingColorWheel::GetGradientEndColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const
-{
-	if (bIsRGB)
-	{
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(1.0f, ColorValue.Y, ColorValue.Z, 1.0f);
-		case 1:		return FLinearColor(ColorValue.X, 1.0f, ColorValue.Z, 1.0f);
-		case 2:		return FLinearColor(ColorValue.X, ColorValue.Y, 1.0f, 1.0f);
-		case 3:		return FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, 1.0f);
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-	else
-	{
-		FLinearColor HSVColor = FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, ColorValue.W).LinearRGBToHSV();
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(HSVColor.R, HSVColor.G, HSVColor.B, 1.0f);
-		case 1:		return FLinearColor(HSVColor.R, 1.0f, HSVColor.B, 1.0f).HSVToLinearRGB();
-		case 2:		return FLinearColor(HSVColor.R, HSVColor.G, 1.0f, 1.0f).HSVToLinearRGB();
-		case 3:		return FLinearColor(HSVColor.R, HSVColor.G, HSVColor.B, 1.0f).HSVToLinearRGB();
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-}
-
-FLinearColor SColorGradingColorWheel::GetGradientFillerColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const
-{
-	const float MaxValue = 1.0f/*SpinBoxMinMaxSliderValues.CurrentMaxSliderValue.GetValue()*/;
-	if (bIsRGB)
-	{
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(MaxValue, ColorValue.Y, ColorValue.Z, 1.0f);
-		case 1:		return FLinearColor(ColorValue.X, MaxValue, ColorValue.Z, 1.0f);
-		case 2:		return FLinearColor(ColorValue.X, ColorValue.Y, MaxValue, 1.0f);
-		case 3:		return FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, 1.0f);
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-	else
-	{
-		FLinearColor HSVColor = FLinearColor(ColorValue.X, ColorValue.Y, ColorValue.Z, ColorValue.W).LinearRGBToHSV();
-		switch (ComponentIndex)
-		{
-		case 0:		return FLinearColor(HSVColor.R, HSVColor.G, HSVColor.B, 1.0f);
-		case 1:		return FLinearColor(HSVColor.R, 1.0f, HSVColor.B, 1.0f).HSVToLinearRGB();
-		case 2:		return FLinearColor(HSVColor.R, HSVColor.G, MaxValue, 1.0f).HSVToLinearRGB();
-		case 3:		return FLinearColor(HSVColor.R, HSVColor.G, HSVColor.B, 1.0f).HSVToLinearRGB();
-		default:	return FLinearColor(ForceInit);
-		}
-	}
-}
-
-EVisibility SColorGradingColorWheel::GetGradientVisibility() const
-{
-	bool bShowGradient =
-		ColorPropertyMetadata->ColorGradingMode != EColorGradingModes::Offset &&
-		ColorPropertyMetadata->ColorGradingMode != EColorGradingModes::Invalid;
-
-	return bShowGradient ? EVisibility::Visible : EVisibility::Hidden;
 }
 
 TOptional<float> SColorGradingColorWheel::GetMetadataMinValue() const

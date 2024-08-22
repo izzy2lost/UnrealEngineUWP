@@ -13,8 +13,9 @@
 #include "Modules/ModuleManager.h"
 #include "PropertyHandle.h"
 #include "Widgets/SBoxPanel.h"
-#include "Widgets/Input/SComboButton.h"
+#include "Widgets/Input/SSegmentedControl.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Layout/SSeparator.h"
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Layout/SSplitter.h"
  
@@ -39,13 +40,7 @@ void SColorGradingColorWheelPanel::Construct(const FArguments& InArgs)
 		ColorGradingDataModel->OnColorGradingElementSelectionChanged().AddSP(this, &SColorGradingColorWheelPanel::OnColorGradingElementSelectionChanged);
 	}
 
-	CommandList = MakeShared<FUICommandList>();
-	BindCommands();
-
-	ColorWheelOrientation = EOrientation::Orient_Vertical;
-
 	ColorWheels.AddDefaulted(NumColorWheels);
-	HiddenColorWheels.AddZeroed(NumColorWheels);
 
 	for (int32 Index = 0; Index < NumColorWheels; ++Index)
     ChildSlot
@@ -70,7 +65,7 @@ void SColorGradingColorWheelPanel::Construct(const FArguments& InArgs)
 		[
 			SNew(SSplitter)
 			.Orientation(Orient_Horizontal)
-			.PhysicalSplitterHandleSize(1.0f)
+			.PhysicalSplitterHandleSize(2.0f)
 			.HitDetectionSplitterHandleSize(5.0f)
 			.Style(FAppStyle::Get(), "DetailsView.Splitter")
 			.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelPanelVisibility)
@@ -116,86 +111,95 @@ void SColorGradingColorWheelPanel::Construct(const FArguments& InArgs)
 					[
 						MakeColorDisplayModeCheckbox()
 					]
+				]	
 
-					+ SHorizontalBox::Slot()
-					.AutoWidth()
-					.Padding(5.0f, 0.0f, 0.0f, 0.0f)
-					.HAlign(HAlign_Right)
-					.VAlign(VAlign_Center)
-					[
-						SNew(SComboButton)
-						.ComboButtonStyle(&FAppStyle::Get().GetWidgetStyle<FComboButtonStyle>("SimpleComboButton"))
-						.OnGetMenuContent(this, &SColorGradingColorWheelPanel::MakeSettingsMenu)
-						.HasDownArrow(false)
-						.ContentPadding(FMargin(1.0f, 0.0f))
-						.ButtonContent()
-						[
-							SNew(SImage)
-							.ColorAndOpacity(FSlateColor::UseForeground())
-							.Image(FAppStyle::Get().GetBrush("Icons.Settings"))
-						]
-					]
+				+ SVerticalBox::Slot()
+				.AutoHeight()
+				[
+					SNew(SSeparator)
+					.Thickness(2.0f)
 				]
+
 
 				+ SVerticalBox::Slot()
 				.FillHeight(1.0f)
-				.Padding(6, 4)
 				[
 					SNew(SHorizontalBox)
 
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					.HAlign(HAlign_Fill)
-					.Padding(2, 0)
 					[
 						SAssignNew(ColorWheels[0], SColorGradingColorWheel)
-						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-						.Orientation(ColorWheelOrientation)
-						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 0)
+						.ColorDisplayMode(UE::ColorGrading::EColorGradingColorDisplayMode::RGB) // Offset wheel is locked to RGB mode
+
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SSeparator)
+						.Orientation(EOrientation::Orient_Vertical)
+						.Thickness(2.0f)
 					]
 
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					.HAlign(HAlign_Fill)
-					.Padding(2, 0)
 					[
 						SAssignNew(ColorWheels[1], SColorGradingColorWheel)
 						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-						.Orientation(ColorWheelOrientation)
-						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 1)
+
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SSeparator)
+						.Orientation(EOrientation::Orient_Vertical)
+						.Thickness(2.0f)
 					]
 
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					.HAlign(HAlign_Fill)
-					.Padding(2, 0)
 					[
 						SAssignNew(ColorWheels[2], SColorGradingColorWheel)
 						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-						.Orientation(ColorWheelOrientation)
-						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 2)
+
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SSeparator)
+						.Orientation(EOrientation::Orient_Vertical)
+						.Thickness(2.0f)
 					]
 
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					.HAlign(HAlign_Fill)
-					.Padding(2, 0)
 					[
 						SAssignNew(ColorWheels[3], SColorGradingColorWheel)
 						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-						.Orientation(ColorWheelOrientation)
-						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 3)
+
+					]
+
+					+ SHorizontalBox::Slot()
+					.AutoWidth()
+					[
+						SNew(SSeparator)
+						.Orientation(EOrientation::Orient_Vertical)
+						.Thickness(2.0f)
 					]
 
 					+ SHorizontalBox::Slot()
 					.FillWidth(1.0f)
 					.HAlign(HAlign_Fill)
-					.Padding(2, 0)
 					[
 						SAssignNew(ColorWheels[4], SColorGradingColorWheel)
 						.ColorDisplayMode(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
-						.Orientation(ColorWheelOrientation)
-						.Visibility(this, &SColorGradingColorWheelPanel::GetColorWheelVisibility, 4)
 					]
 				]
 			]
@@ -242,120 +246,30 @@ void SColorGradingColorWheelPanel::Refresh()
 
 void SColorGradingColorWheelPanel::GetPanelState(FColorGradingPanelState& OutPanelState)
 {
-	OutPanelState.HiddenColorWheels = HiddenColorWheels;
 	OutPanelState.ColorDisplayMode = ColorDisplayMode;
-	OutPanelState.ColorWheelOrientation = ColorWheelOrientation;
 }
 
 void SColorGradingColorWheelPanel::SetPanelState(const FColorGradingPanelState& InPanelState)
 {
 	// TODO: These could also be output to a config file to be stored between runs
-	HiddenColorWheels = InPanelState.HiddenColorWheels;
 	ColorDisplayMode = InPanelState.ColorDisplayMode;
-	SetColorWheelOrientation(InPanelState.ColorWheelOrientation);
-}
-
-void SColorGradingColorWheelPanel::BindCommands()
-{
-	const FColorGradingCommands& Commands = FColorGradingCommands::Get();
-
-	CommandList->MapAction(
-		Commands.SaturationColorWheelVisibility,
-		FExecuteAction::CreateSP(this, &SColorGradingColorWheelPanel::ToggleColorWheelVisible, 3),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &SColorGradingColorWheelPanel::IsColorWheelVisible, 3)
-	);
-
-	CommandList->MapAction(
-		Commands.ContrastColorWheelVisibility,
-		FExecuteAction::CreateSP(this, &SColorGradingColorWheelPanel::ToggleColorWheelVisible, 4),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &SColorGradingColorWheelPanel::IsColorWheelVisible, 4)
-	);
-
-	CommandList->MapAction(
-		Commands.ColorWheelSliderOrientationHorizontal,
-		FExecuteAction::CreateSP(this, &SColorGradingColorWheelPanel::SetColorWheelOrientation, EOrientation::Orient_Horizontal),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &SColorGradingColorWheelPanel::IsColorWheelOrientationSelected, EOrientation::Orient_Horizontal)
-	);
-
-	CommandList->MapAction(
-		Commands.ColorWheelSliderOrientationVertical,
-		FExecuteAction::CreateSP(this, &SColorGradingColorWheelPanel::SetColorWheelOrientation, EOrientation::Orient_Vertical),
-		FCanExecuteAction(),
-		FIsActionChecked::CreateSP(this, &SColorGradingColorWheelPanel::IsColorWheelOrientationSelected, EOrientation::Orient_Vertical)
-	);
 }
 
 TSharedRef<SWidget> SColorGradingColorWheelPanel::MakeColorDisplayModeCheckbox()
 {
-	return SNew(SHorizontalBox)
-
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Left)
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(0.0f, 0.0f, 3.0f, 0.0f))
-		[
-			SNew(SCheckBox)
-			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
-			.Type(ESlateCheckBoxType::ToggleButton)
-			.IsChecked(this, &SColorGradingColorWheelPanel::IsColorDisplayModeChecked, EColorGradingColorDisplayMode::RGB)
-			.OnCheckStateChanged(this, &SColorGradingColorWheelPanel::OnColorDisplayModeCheckedChanged, EColorGradingColorDisplayMode::RGB)
-			.ToolTipText(this, &SColorGradingColorWheelPanel::GetColorDisplayModeToolTip, EColorGradingColorDisplayMode::RGB)
-			.Padding(4)
-			.Content()
-			[
-				SNew(STextBlock)
-				.Text(this, &SColorGradingColorWheelPanel::GetColorDisplayModeLabel, EColorGradingColorDisplayMode::RGB)
-				.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
-			]
-		]
-		+ SHorizontalBox::Slot()
-		.AutoWidth()
-		.HAlign(HAlign_Left)			
-		.VAlign(VAlign_Top)
-		.Padding(FMargin(0.0f, 0.0f, 3.0f, 0.0f))
-		[
-			SNew(SCheckBox)
-			.Style(FAppStyle::Get(), "ToggleButtonCheckbox")
-			.Type(ESlateCheckBoxType::ToggleButton)
-			.IsChecked(this, &SColorGradingColorWheelPanel::IsColorDisplayModeChecked, EColorGradingColorDisplayMode::HSV)
-			.OnCheckStateChanged(this, &SColorGradingColorWheelPanel::OnColorDisplayModeCheckedChanged, EColorGradingColorDisplayMode::HSV)
-			.ToolTipText(this, &SColorGradingColorWheelPanel::GetColorDisplayModeToolTip, EColorGradingColorDisplayMode::HSV)
-			.Padding(4)
-			.Content()
-			[
-				SNew(STextBlock)
-				.Text(this, &SColorGradingColorWheelPanel::GetColorDisplayModeLabel, EColorGradingColorDisplayMode::HSV)
-				.Font(FAppStyle::GetFontStyle("StandardDialog.SmallFont"))
-			]
-		];
-}
-
-TSharedRef<SWidget> SColorGradingColorWheelPanel::MakeSettingsMenu()
-{
-	const bool bShouldCloseWindowAfterMenuSelection = true;
-	FMenuBuilder MenuBuilder(bShouldCloseWindowAfterMenuSelection, CommandList);
-
-	const FColorGradingCommands& Commands = FColorGradingCommands::Get();
-
-	MenuBuilder.BeginSection(TEXT("ColorWheelVisibility"), LOCTEXT("ColorWheelPanel_ShowLabel", "Show"));
-	{
-		MenuBuilder.AddMenuEntry(Commands.SaturationColorWheelVisibility);
-		MenuBuilder.AddMenuEntry(Commands.ContrastColorWheelVisibility);
-	}
-	MenuBuilder.EndSection();
-
-	MenuBuilder.BeginSection(TEXT("ColorWheelSliders"), LOCTEXT("ColorWheelPanel_SlidersLabel", "Sliders"));
-	{
-		MenuBuilder.AddMenuEntry(Commands.ColorWheelSliderOrientationVertical);
-		MenuBuilder.AddMenuEntry(Commands.ColorWheelSliderOrientationHorizontal);
-	}
-	MenuBuilder.EndSection();
-
-	return MenuBuilder.MakeWidget();
+	using SDisplayModeControl = SSegmentedControl<UE::ColorGrading::EColorGradingColorDisplayMode>;
+	return SNew(SDisplayModeControl)
+		.OnValueChanged(this, &SColorGradingColorWheelPanel::OnColorDisplayModeChanged)
+		.Value(this, &SColorGradingColorWheelPanel::GetColorDisplayMode)
+		.UniformPadding(FMargin(16.0f, 2.0f))
+		
+		+ SDisplayModeControl::Slot(UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
+		.Text(this, &SColorGradingColorWheelPanel::GetColorDisplayModeLabel, UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
+		.ToolTip(this, &SColorGradingColorWheelPanel::GetColorDisplayModeToolTip, UE::ColorGrading::EColorGradingColorDisplayMode::RGB)
+		
+		+ SDisplayModeControl::Slot(UE::ColorGrading::EColorGradingColorDisplayMode::HSV)
+		.Text(this, &SColorGradingColorWheelPanel::GetColorDisplayModeLabel, UE::ColorGrading::EColorGradingColorDisplayMode::HSV)
+		.ToolTip(this, &SColorGradingColorWheelPanel::GetColorDisplayModeToolTip, UE::ColorGrading::EColorGradingColorDisplayMode::HSV);
 }
 
 void SColorGradingColorWheelPanel::FillColorGradingGroupProperty(const FColorGradingEditorDataModel::FColorGradingGroup& ColorGradingGroup)
@@ -470,12 +384,6 @@ TSharedRef<SWidget> SColorGradingColorWheelPanel::CreateColorWheelHeaderWidget(c
 		FNodeWidgets NodeWidgets = TreeNode->CreateNodeWidgets();
 
 		TSharedRef<SHorizontalBox> PropertyNameBox = SNew(SHorizontalBox);
-
-		PropertyNameBox->AddSlot()
-			.FillWidth(1.0f)
-			[
-				SNew(SSpacer)
-			];
 
 		if (NodeWidgets.EditConditionWidget.IsValid())
 		{
@@ -603,45 +511,6 @@ bool SColorGradingColorWheelPanel::FilterDetailTreeNode(const TSharedRef<IDetail
 	return false;
 }
 
-void SColorGradingColorWheelPanel::SetColorWheelOrientation(EOrientation NewOrientation)
-{
-	if (ColorWheelOrientation != NewOrientation)
-	{
-		ColorWheelOrientation = NewOrientation;
-
-		for (const TSharedPtr<SColorGradingColorWheel>& ColorWheel : ColorWheels)
-		{
-			if (ColorWheel.IsValid())
-			{
-				ColorWheel->SetOrientation(ColorWheelOrientation);
-			}
-		};
-	}
-}
-
-bool SColorGradingColorWheelPanel::IsColorWheelOrientationSelected(EOrientation Orientation) const
-{
-	return ColorWheelOrientation == Orientation;
-}
-
-void SColorGradingColorWheelPanel::ToggleColorWheelVisible(int32 ColorWheelIndex)
-{
-	if (ColorWheelIndex >= 0 && ColorWheelIndex < HiddenColorWheels.Num())
-	{
-		HiddenColorWheels[ColorWheelIndex] = !HiddenColorWheels[ColorWheelIndex];
-	}
-}
-
-bool SColorGradingColorWheelPanel::IsColorWheelVisible(int32 ColorWheelIndex)
-{
-	if (ColorWheelIndex >= 0 && ColorWheelIndex < HiddenColorWheels.Num())
-	{
-		return !HiddenColorWheels[ColorWheelIndex];
-	}
-
-	return false;
-}
-
 void SColorGradingColorWheelPanel::OnColorGradingGroupSelectionChanged()
 {
 	Refresh();
@@ -703,47 +572,32 @@ EVisibility SColorGradingColorWheelPanel::GetMultiSelectWarningVisibility() cons
 	return bHasMultipleObjects ? EVisibility::Visible : EVisibility::Collapsed;
 }
 
-EVisibility SColorGradingColorWheelPanel::GetColorWheelVisibility(int32 ColorWheelIndex) const
+void SColorGradingColorWheelPanel::OnColorDisplayModeChanged(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode)
 {
-	bool bIsHidden = HiddenColorWheels[ColorWheelIndex];
-	return bIsHidden ? EVisibility::Collapsed : EVisibility::Visible;
+	ColorDisplayMode = InColorDisplayMode;
 }
 
-ECheckBoxState SColorGradingColorWheelPanel::IsColorDisplayModeChecked(EColorGradingColorDisplayMode InColorDisplayMode) const
-{
-	bool bIsModeSelected = InColorDisplayMode == ColorDisplayMode;
-	return bIsModeSelected ? ECheckBoxState::Checked : ECheckBoxState::Unchecked;
-}
-
-void SColorGradingColorWheelPanel::OnColorDisplayModeCheckedChanged(ECheckBoxState State, EColorGradingColorDisplayMode InColorDisplayMode)
-{
-	if (State == ECheckBoxState::Checked)
-	{
-		ColorDisplayMode = InColorDisplayMode;
-	}
-}
-
-FText SColorGradingColorWheelPanel::GetColorDisplayModeLabel(EColorGradingColorDisplayMode InColorDisplayMode) const
+FText SColorGradingColorWheelPanel::GetColorDisplayModeLabel(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode) const
 {
 	FText Text;
 
 	switch (InColorDisplayMode)
 	{
-	case EColorGradingColorDisplayMode::RGB: Text = LOCTEXT("ColorWheel_RGBColorDisplayModeLabel", "RGB"); break;
-	case EColorGradingColorDisplayMode::HSV: Text = LOCTEXT("ColorWheel_HSVColorDisplayModeLabel", "HSV"); break;
+	case UE::ColorGrading::EColorGradingColorDisplayMode::RGB: Text = LOCTEXT("ColorWheel_RGBColorDisplayModeLabel", "RGB"); break;
+	case UE::ColorGrading::EColorGradingColorDisplayMode::HSV: Text = LOCTEXT("ColorWheel_HSVColorDisplayModeLabel", "HSV"); break;
 	}
 
 	return Text;
 }
 
-FText SColorGradingColorWheelPanel::GetColorDisplayModeToolTip(EColorGradingColorDisplayMode InColorDisplayMode) const
+FText SColorGradingColorWheelPanel::GetColorDisplayModeToolTip(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode) const
 {
 	FText Text;
 
 	switch (InColorDisplayMode)
 	{
-	case EColorGradingColorDisplayMode::RGB: Text = LOCTEXT("ColorWheel_RGBColorDisplayModeToolTip", "Change to RGB color mode"); break;
-	case EColorGradingColorDisplayMode::HSV: Text = LOCTEXT("ColorWheel_HSVColorDisplayModeToolTip", "Change to HSV color mode"); break;
+	case UE::ColorGrading::EColorGradingColorDisplayMode::RGB: Text = LOCTEXT("ColorWheel_RGBColorDisplayModeToolTip", "Change to RGB color mode"); break;
+	case UE::ColorGrading::EColorGradingColorDisplayMode::HSV: Text = LOCTEXT("ColorWheel_HSVColorDisplayModeToolTip", "Change to HSV color mode"); break;
 	}
 
 	return Text;

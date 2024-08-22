@@ -8,6 +8,7 @@ public class DetailCustomizations : ModuleRules
 	{
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
+				"AdvancedWidgets",
 				"AppFramework",
 				"Core",
 // 				"AudioEditor",

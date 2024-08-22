@@ -10,6 +10,7 @@ public class ColorGradingEditor : ModuleRules
 		PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
+				"AdvancedWidgets",
 				"SceneOutliner",
 				"ObjectMixerEditor"
 			}

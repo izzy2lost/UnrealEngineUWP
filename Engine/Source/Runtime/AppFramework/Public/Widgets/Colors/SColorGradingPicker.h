@@ -12,12 +12,13 @@
 #include "Widgets/Input/SNumericEntryBox.h"
 
 /** Callback to get the current FVector4 value */
+UE_DEPRECATED(5.5, "Color grading widgets and associated types have moved to the AdvancedWidgets module.")
 DECLARE_DELEGATE_RetVal_OneParam(bool, FOnGetCurrentVector4Value, FVector4&)
 
 /**
 * Enumerates color picker modes.
 */
-enum class EColorGradingModes
+enum class UE_DEPRECATED(5.5, "Color grading widgets and associated types have moved to the AdvancedWidgets module.") EColorGradingModes
 {
 	Saturation,
 	Contrast,
@@ -33,7 +34,7 @@ enum class EColorGradingModes
  * use the functions OpenColorGradingWheel and DestroyColorGradingWheel, since they hold a static
  * instance of the color picker.
  */
-class SColorGradingPicker
+class UE_DEPRECATED(5.5, "Color grading widgets and associated types have moved to the AdvancedWidgets module.") SColorGradingPicker
 	: public SCompoundWidget
 {
 public:
@@ -51,7 +52,9 @@ public:
 		, _MainDelta(0.01f)
 		, _MainShiftMultiplier(10.f)
 		, _MainCtrlMultiplier(0.1f)
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		, _ColorGradingModes(EColorGradingModes::Saturation)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		, _OnColorCommitted()
 		, _OnQueryCurrentColor()
 	{ }
@@ -76,13 +79,19 @@ public:
 
 		SLATE_ARGUMENT_DEPRECATED( int32, MainShiftMouseMovePixelPerDelta, 5.4, "Shift Mouse Move Pixel Per Delta is deprecated and incrementing by a fixed delta per pixel is no longer supported. Please use ShiftMultiplier and CtrlMultiplier which will multiply the step per mouse move")
 
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SLATE_ARGUMENT( EColorGradingModes, ColorGradingModes)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** The event called when the color is committed */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SLATE_EVENT(FOnColorGradingPickerValueChanged, OnColorCommitted )
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** Callback to get the current FVector4 value */
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		SLATE_EVENT(FOnGetCurrentVector4Value, OnQueryCurrentColor)
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		/** Called right before the slider begins to move */
 		SLATE_EVENT(FSimpleDelegate, OnBeginSliderMovement)
@@ -149,14 +158,19 @@ protected:
 	float MainDelta;
 	float MainShiftMultiplier;
 	float MainCtrlMultiplier;
+
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	EColorGradingModes ColorGradingModes;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	TSharedPtr<SNumericEntryBox<float>> NumericEntryBoxWidget;
 
 	/** Invoked when a new value is selected on the color wheel */
 	FOnColorGradingPickerValueChanged OnColorCommitted;
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	FOnGetCurrentVector4Value OnQueryCurrentColor;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	FOnNumericEntryBoxDynamicSliderMinMaxValueChanged OnNumericEntryBoxDynamicSliderMaxValueChanged;
 	FOnNumericEntryBoxDynamicSliderMinMaxValueChanged OnNumericEntryBoxDynamicSliderMinValueChanged;
 

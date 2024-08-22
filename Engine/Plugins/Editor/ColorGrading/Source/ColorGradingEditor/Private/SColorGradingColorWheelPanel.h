@@ -43,10 +43,7 @@ public:
 	void SetPanelState(const FColorGradingPanelState& InPanelState);
 
 private:
-	void BindCommands();
-
 	TSharedRef<SWidget> MakeColorDisplayModeCheckbox();
-	TSharedRef<SWidget> MakeSettingsMenu();
 
 	void FillColorGradingGroupProperty(const FColorGradingEditorDataModel::FColorGradingGroup& ColorGradingGroup);
 	void ClearColorGradingGroupProperty();
@@ -62,12 +59,6 @@ private:
 
 	bool FilterDetailTreeNode(const TSharedRef<IDetailTreeNode>& InDetailTreeNode);
 
-	void SetColorWheelOrientation(EOrientation NewOrientation);
-	bool IsColorWheelOrientationSelected(EOrientation Orientation) const;
-
-	void ToggleColorWheelVisible(int32 ColorWheelIndex);
-	bool IsColorWheelVisible(int32 ColorWheelIndex);
-
 	void OnColorGradingGroupSelectionChanged();
 	void OnColorGradingElementSelectionChanged();
 
@@ -76,13 +67,11 @@ private:
 	ECheckBoxState IsColorGradingElementSelected(FText ElementName) const;
 	EVisibility GetColorWheelPanelVisibility() const;
 	EVisibility GetMultiSelectWarningVisibility() const;
-	EVisibility GetColorWheelVisibility(int32 ColorWheelIndex) const;
 
-	EColorGradingColorDisplayMode GetColorDisplayMode() const { return ColorDisplayMode; }
-	ECheckBoxState IsColorDisplayModeChecked(EColorGradingColorDisplayMode InColorDisplayMode) const;
-	void OnColorDisplayModeCheckedChanged(ECheckBoxState State, EColorGradingColorDisplayMode InColorDisplayMode);
-	FText GetColorDisplayModeLabel(EColorGradingColorDisplayMode InColorDisplayMode) const;
-	FText GetColorDisplayModeToolTip(EColorGradingColorDisplayMode InColorDisplayMode) const;
+	UE::ColorGrading::EColorGradingColorDisplayMode GetColorDisplayMode() const { return ColorDisplayMode; }
+	void OnColorDisplayModeChanged(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode);
+	FText GetColorDisplayModeLabel(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode) const;
+	FText GetColorDisplayModeToolTip(UE::ColorGrading::EColorGradingColorDisplayMode InColorDisplayMode) const;
 
 private:
 	/** The color grading data model that the panel is displaying */
@@ -92,19 +81,12 @@ private:
 	TSharedPtr<SHorizontalBox> ColorGradingElementsToolBarBox;
 
 	TArray<TSharedPtr<SColorGradingColorWheel>> ColorWheels;
-	TArray<bool> HiddenColorWheels;
 
 	TSharedPtr<SColorGradingDetailView> DetailView;
-
-	/** Commands used by the color wheel panel */
-	TSharedPtr<FUICommandList> CommandList;
 
 	/** The currently selected color grading group */
 	int32 SelectedColorGradingGroup = INDEX_NONE;
 
 	/** The current color display mode for the color wheels */
-	EColorGradingColorDisplayMode ColorDisplayMode = EColorGradingColorDisplayMode::RGB;
-
-	/** The current orientation for the color wheels */
-	EOrientation ColorWheelOrientation = EOrientation::Orient_Vertical;
+	UE::ColorGrading::EColorGradingColorDisplayMode ColorDisplayMode = UE::ColorGrading::EColorGradingColorDisplayMode::RGB;
 };

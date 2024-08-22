@@ -6,20 +6,27 @@
 #include "Customizations/MathStructCustomizations.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/SCompoundWidget.h"
-#include "Widgets/Colors/SColorGradingPicker.h"
+#include "Widgets/ColorGrading/SColorGradingPicker.h"
 
 #include "ColorGradingPanelState.h"
+
+#if WITH_EDITOR
+#include "EditorUndoClient.h"
+#endif
 
 class IPropertyHandle;
 class SBox;
 
 /** A widget which encapsulates a color picker and numeric sliders for each color component, hooked up to a color property handle */
 class SColorGradingColorWheel : public SCompoundWidget
+#if WITH_EDITOR
+	, public FEditorUndoClient
+#endif
 {
 public:
 	struct FColorPropertyMetadata
 	{
-		EColorGradingModes ColorGradingMode = EColorGradingModes::Invalid;
+		UE::ColorGrading::EColorGradingModes ColorGradingMode = UE::ColorGrading::EColorGradingModes::Invalid;
 		TOptional<float> MinValue = TOptional<float>();
 		TOptional<float> MaxValue = TOptional<float>();
 		TOptional<float> SliderMinValue = TOptional<float>();
@@ -35,12 +42,13 @@ public:
 
 public:
 	SLATE_BEGIN_ARGS(SColorGradingColorWheel)
-		: _Orientation(Orient_Vertical)
 	{}
-		SLATE_ARGUMENT(EOrientation, Orientation)
-		SLATE_ATTRIBUTE(EColorGradingColorDisplayMode, ColorDisplayMode)
+		SLATE_ATTRIBUTE(UE::ColorGrading::EColorGradingColorDisplayMode, ColorDisplayMode)
 		SLATE_ARGUMENT(TSharedPtr<SWidget>, HeaderContent)
 	SLATE_END_ARGS()
+
+	SColorGradingColorWheel();
+	virtual ~SColorGradingColorWheel();
 
 	void Construct(const FArguments& InArgs);
 
@@ -50,8 +58,12 @@ public:
 	/** Sets the widget to display as the header of the color wheel */
 	void SetHeaderContent(const TSharedRef<SWidget>& HeaderContent);
 
-	/** Sets the orientation of the color wheel, which determines if the numeric sliders are below or to the right of the color picker wheel */
-	void SetOrientation(EOrientation NewOrientation);
+#if WITH_EDITOR
+	//~ Begin FEditorUndoClient Interface
+	virtual void PostUndo(bool bSuccess) override;
+	virtual void PostRedo(bool bSuccess) override;
+	// End of FEditorUndoClient
+#endif
 
 private:
 	TSharedRef<SWidget> CreateColorGradingPicker();
@@ -64,13 +76,14 @@ private:
 	bool GetColor(FVector4& OutCurrentColor);
 	void CommitColor(FVector4& NewValue, bool bShouldCommitValueChanges);
 	void TransactColorValue();
+	void RecalculateHSVColor();
 
 	void BeginUsingColorPickerSlider();
 	void EndUsingColorPickerSlider();
 	void BeginUsingComponentSlider(uint32 ComponentIndex);
 	void EndUsingComponentSlider(float NewValue, uint32 ComponentIndex);
 
-	FText GetComponentLabelText(uint32 ComponentIndex) const;
+	UE::ColorGrading::EColorGradingComponent GetComponent(uint32 ComponentIndex) const;
 	TOptional<float> GetComponentValue(uint32 ComponentIndex) const;
 	void SetComponentValue(float NewValue, uint32 ComponentIndex);
 
@@ -82,14 +95,6 @@ private:
 	TOptional<float> GetComponentMinSliderValue(TOptional<float> DefaultValue, uint32 ComponentIndex) const;
 	TOptional<float> GetComponentMaxSliderValue(TOptional<float> DefaultValue, uint32 ComponentIndex) const;
 	float GetComponentSliderDeltaValue(float DefaultValue, uint32 ComponentIndex) const;
-	FText GetComponentToolTipText(uint32 ComponentIndex) const;
-
-	TArray<FLinearColor> GetGradientColor(uint32 ComponentIndex);
-
-	FLinearColor GetGradientStartColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const;
-	FLinearColor GetGradientEndColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const;
-	FLinearColor GetGradientFillerColor(const FVector4& ColorValue, bool bIsRGB, uint32 ComponentIndex) const;
-	EVisibility GetGradientVisibility() const;
 
 	TOptional<float> GetMetadataMinValue() const;
 	TOptional<float> GetMetadataMaxValue() const;
@@ -102,9 +107,8 @@ private:
 	bool GetMetadataSupportDynamicSliderMaxValue() const;
 
 private:
-	TSharedPtr<SColorGradingPicker> ColorGradingPicker;
+	TSharedPtr<UE::ColorGrading::SColorGradingPicker> ColorGradingPicker;
 	TSharedPtr<SBox> HeaderBox;
-	TSharedPtr<SBox> ColorWheelBox;
 	TSharedPtr<SBox> ColorPickerBox;
 	TSharedPtr<SBox> ColorSlidersBox;
 
@@ -115,10 +119,7 @@ private:
 	TOptional<FColorPropertyMetadata> ColorPropertyMetadata;
 
 	/** Attribute for the color mode type the color wheel is presenting the color components in */
-	TAttribute<EColorGradingColorDisplayMode> ColorDisplayMode;
-
-	/** The orientation of the color wheel, which determines whether the color component sliders are next to or above the color picker */
-	EOrientation Orientation = Orient_Vertical;
+	TAttribute<UE::ColorGrading::EColorGradingColorDisplayMode> ColorDisplayMode;
 
 	/** Stored current min value of the color component numeric sliders */
 	TOptional<float> ComponentSliderDynamicMinValue;
@@ -131,4 +132,10 @@ private:
 
 	/** Indicates that a component's numeric slider is currently being used to change the color */
 	bool bIsUsingComponentSlider = false;
+
+	/**
+	 * The current color in HSV space.
+	 * Stored separately so that hue/saturation adjustments aren't lost when the color is 0.
+	 */
+	FLinearColor CurrentHSVColor;
 };

@@ -12,7 +12,7 @@
 /**
  * Implements the color wheel widget.
  */
-class SColorGradingWheel
+class UE_DEPRECATED(5.5, "Color grading widgets and associated types have moved to the AdvancedWidgets module.") SColorGradingWheel
 	: public SLeafWidget
 {
 	SLATE_DECLARE_WIDGET_API(SColorGradingWheel, SLeafWidget, SLATE_API)
