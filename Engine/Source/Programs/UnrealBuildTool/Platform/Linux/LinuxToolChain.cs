@@ -721,6 +721,7 @@ namespace UnrealBuildTool
 				if (Options.HasFlag(ClangToolChainOptions.EnableAddressSanitizer))
 				{
 					Arguments.Add("-fsanitize=address");
+					Arguments.Add("-fsanitize-recover=address"); 
 				}
 				else if (Options.HasFlag(ClangToolChainOptions.EnableThreadSanitizer))
 				{
