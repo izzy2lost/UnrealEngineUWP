@@ -47,6 +47,7 @@
 #include "UObject/UnrealNames.h"
 #include "UObject/WeakObjectPtr.h"
 #include "UnrealEdGlobals.h"
+#include "Subsystems/EditorActorSubsystem.h"
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Input/SComboButton.h"
@@ -365,7 +366,7 @@ FReply FBrushDetails::OnCreateStaticMesh()
 	TArray<AActor*> ValidSelectedBrushes;
 	CopyFromWeakArray(ValidSelectedBrushes, SelectedBrushes);
 
-	GEditor->ConvertActors(ValidSelectedBrushes, AStaticMeshActor::StaticClass(), TSet<FString>(), true);
+	UEditorActorSubsystem::ConvertActors(ValidSelectedBrushes, AStaticMeshActor::StaticClass(), TSet<FString>(), true);
 
 	return FReply::Handled();
 }

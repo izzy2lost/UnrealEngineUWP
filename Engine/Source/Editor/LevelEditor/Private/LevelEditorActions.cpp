@@ -132,6 +132,7 @@
 #include "ILiveCodingModule.h"
 #endif
 #include "Subsystems/AssetEditorSubsystem.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LevelEditorActions, Log, All);
 
@@ -1755,7 +1756,7 @@ AActor* FLevelEditorActionCallbacks::ReplaceActors( UActorFactory* ActorFactory,
 	if( ActorFactory->CanCreateActorFrom( AssetData, ErrorMessage ) )
 	{
 		// Replace all selected actors with actors created from the specified factory
-		GEditor->ReplaceSelectedActors( ActorFactory, AssetData, bCopySourceProperties );
+		UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, AssetData, bCopySourceProperties );
 
 		if ( IPlacementModeModule::IsAvailable() )
 		{
@@ -1795,12 +1796,12 @@ void FLevelEditorActionCallbacks::ReplaceActorsFromClass_Clicked( UClass* ActorC
 			if( ActorFactory->CanCreateActorFrom( TargetAssetData, ErrorMessage ) )
 			{
 				// Replace all selected actors with actors created from the specified factory
-				GEditor->ReplaceSelectedActors( ActorFactory, TargetAssetData );
-			}	
+				UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, TargetAssetData );
+			}
 			else if ( ActorFactory->CanCreateActorFrom( NoAssetData, UnusedErrorMessage ) )
 			{
 				// Replace all selected actors with actors created from the specified factory
-				GEditor->ReplaceSelectedActors( ActorFactory, NoAssetData );
+				UEditorActorSubsystem::ReplaceSelectedActors( ActorFactory, NoAssetData );
 			}
 			else
 			{

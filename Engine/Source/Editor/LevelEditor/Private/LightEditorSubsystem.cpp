@@ -11,6 +11,7 @@
 #include "LevelEditorMenuContext.h"
 #include "ActorFactories/ActorFactory.h"
 #include "Editor.h"
+#include "Subsystems/EditorActorSubsystem.h"
 
 #define LOCTEXT_NAMESPACE "EditorLightSubsystem"
 
@@ -79,7 +80,7 @@ void ULightEditorSubsystem::SwapLightType(const FToolMenuContext& InContext, UCl
 	UActorFactory* ActorFactory = GEditor->FindActorFactoryForActorClass(InClass);
 	if (ActorFactory)
 	{
-		GEditor->ReplaceSelectedActors(ActorFactory, NoAssetData);
+		UEditorActorSubsystem::ReplaceSelectedActors(ActorFactory, NoAssetData);
 	}
 }
 
