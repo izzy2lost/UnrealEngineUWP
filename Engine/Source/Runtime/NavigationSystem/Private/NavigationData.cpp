@@ -485,9 +485,10 @@ void ANavigationData::UnregisterAndCleanUp()
 		{
 			NavSys->UnregisterNavData(this);
 		}
-
-		CleanUp();
 	}
+
+	// Cleanup is not tied to the registration state.
+	CleanUp();
 }
 
 void ANavigationData::CleanUp()
