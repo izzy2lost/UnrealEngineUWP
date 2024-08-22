@@ -434,12 +434,25 @@ UInterchangeFactoryBase::FImportAssetResult UInterchangeStaticMeshFactory::Impor
 			{
 				if (bReimport)
 				{
+					EReimportStrategyFlags ReimportStrategy = StaticMeshFactoryNode->GetReimportStrategyFlags();
+					switch(ReimportStrategy)
+					{
+					using enum EReimportStrategyFlags;
+					case ApplyNoProperties:	// do nothing
+						break;
+
+					case ApplyPipelineProperties:
+						StaticMesh->GetBodySetup()->AggGeom.EmptyElements();
+						break;
+
+					case ApplyEditorChangedProperties:
 #if WITH_EDITORONLY_DATA
-					StaticMesh->GetBodySetup()->AggGeom.EmptyImportedElements();
-#else
-					StaticMesh->GetBodySetup()->AggGeom.EmptyElements();
+						StaticMesh->GetBodySetup()->AggGeom.EmptyImportedElements();
 #endif
+						break;
+					}
 				}
+
 				bImportedCustomCollision |= ImportBoxCollision(Arguments, StaticMesh, LodDataNode);
 				bImportedCustomCollision |= ImportCapsuleCollision(Arguments, StaticMesh, LodDataNode);
 				bImportedCustomCollision |= ImportSphereCollision(Arguments, StaticMesh, LodDataNode);

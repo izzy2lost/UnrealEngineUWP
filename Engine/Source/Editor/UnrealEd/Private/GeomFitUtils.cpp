@@ -108,7 +108,6 @@ int32 GenerateKDopAsSimpleCollision(UStaticMesh* StaticMesh, const TArray<FVecto
 	bs->InvalidatePhysicsData();
 
 	FKConvexElem ConvexElem;
-	ConvexElem.bIsGenerated = true;
 	ConvexElem.VertexData = HullVertices;
 	// Note: UpdateElemBox also computes the convex hull indices
 	ConvexElem.UpdateElemBox();
@@ -161,7 +160,6 @@ int32 GenerateBoxAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 	bs->InvalidatePhysicsData();
 
 	FKBoxElem BoxElem;
-	BoxElem.bIsGenerated = true;
 	BoxElem.Center = Center;
 	BoxElem.X = Extents.X * 2.0f;
 	BoxElem.Y = Extents.Y * 2.0f;
@@ -366,7 +364,6 @@ int32 GenerateSphereAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 	bs->InvalidatePhysicsData();
 
 	FKSphereElem SphereElem;
-	SphereElem.bIsGenerated = true;
 	SphereElem.Center = bestSphere.Center;
 	SphereElem.Radius = bestSphere.W;
 	bs->AggGeom.SphereElems.Add(SphereElem);
@@ -517,7 +514,6 @@ int32 GenerateSphylAsSimpleCollision(UStaticMesh* StaticMesh, bool bUpdate)
 	bs->InvalidatePhysicsData();
 
 	FKSphylElem SphylElem;
-	SphylElem.bIsGenerated = true;
 	SphylElem.Center = sphere.Center;
 	SphylElem.Rotation = rotation;
 	SphylElem.Radius = sphere.W;
