@@ -644,6 +644,34 @@ namespace PCGHelpers
 		default: checkNoEntry(); return [](float, float) { return 0.0f; };
 		}
 	}
+
+	TArray<int32> GetRandomIndices(FRandomStream& RandomStream, const int32 ArraySize, const int32 NumSelections)
+	{
+		if (ArraySize < 1 || NumSelections < 1)
+		{
+			return {};
+		}
+
+		const int32 N = FMath::Min(NumSelections, ArraySize);
+
+		TArray<int32> RandomIndices;
+		RandomIndices.Reserve(N);
+
+		const int32 Max = ArraySize - NumSelections;
+		for (int i = 0; i < N; ++i)
+		{
+			RandomIndices.Emplace(RandomStream.RandRange(0, Max));
+		}
+
+		RandomIndices.Sort();
+
+		for (int i = 0; i < RandomIndices.Num(); ++i)
+		{
+			RandomIndices[i] += i;
+		}
+
+		return RandomIndices;
+	}
 }
 
 #undef LOCTEXT_NAMESPACE

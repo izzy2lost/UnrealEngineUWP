@@ -305,52 +305,6 @@ namespace PCGDeterminismTests
 		return Cast<const DataType>(FirstData) != nullptr && Cast<const DataType>(SecondData) != nullptr;
 	}
 
-	template<typename DataType>
-	void ShuffleArray(TArray<DataType>& Array, FRandomStream& RandomStream)
-	{
-		const int32 LastIndex = Array.Num() - 1;
-		for (int32 I = 0; I <= LastIndex; ++I)
-		{
-			int32 Index = RandomStream.RandRange(I, LastIndex);
-
-			if (I != Index)
-			{
-				Array.Swap(I, Index);
-			}
-		}
-	}
-
-	template<typename DataType>
-	void ShiftArrayElements(TArray<DataType>& Array, int32 NumShifts = 1)
-	{
-		if (Array.Num() < 2)
-		{
-			return;
-		}
-
-		int32 Count = Array.Num();
-		NumShifts %= Count;
-		if (NumShifts < 0)
-		{
-			NumShifts += Count;
-		}
-
-		TArray<DataType> TempArray;
-		TempArray.SetNum(Count);
-
-		for (int32 I = 0; I < NumShifts; ++I)
-		{
-			TempArray[I] = Array[I + Count - NumShifts];
-		}
-
-		for (int32 I = NumShifts; I < Count; ++I)
-		{
-			TempArray[I] = Array[I - NumShifts];
-		}
-
-		Array = MoveTemp(TempArray);
-	}
-
 	template<typename MetadataAttributeType>
 	bool MetadataAttributesAreEqual(const FPCGMetadataAttributeBase* FirstAttributeBase, const FPCGMetadataAttributeBase* SecondAttributeBase, PCGMetadataValueKey ValueKey)
 	{

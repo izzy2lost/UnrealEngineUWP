@@ -1340,12 +1340,12 @@ namespace PCGDeterminismTests
 
 	void ShuffleInputOrder(PCGTestsCommon::FTestData& TestData)
 	{
-		ShuffleArray<FPCGTaggedData>(TestData.InputData.TaggedData, TestData.RandomStream);
+		PCGHelpers::ShuffleArray<FPCGTaggedData>(TestData.RandomStream, TestData.InputData.TaggedData);
 	}
 
 	void ShuffleOutputOrder(PCGTestsCommon::FTestData& TestData)
 	{
-		ShuffleArray<FPCGTaggedData>(TestData.OutputData.TaggedData, TestData.RandomStream);
+		PCGHelpers::ShuffleArray<FPCGTaggedData>(TestData.RandomStream, TestData.OutputData.TaggedData);
 	}
 
 	void ShuffleAllInternalData(PCGTestsCommon::FTestData& TestData)
@@ -1355,14 +1355,14 @@ namespace PCGDeterminismTests
 			if (DataCanBeShuffled(TaggedData.Data))
 			{
 				UPCGPointData* PointData = const_cast<UPCGPointData*>(CastChecked<UPCGPointData>(TaggedData.Data));
-				ShuffleArray<FPCGPoint>(PointData->GetMutablePoints(), TestData.RandomStream);
+				PCGHelpers::ShuffleArray<FPCGPoint>(TestData.RandomStream, PointData->GetMutablePoints());
 			}
 		}
 	}
 
 	void ShiftInputOrder(PCGTestsCommon::FTestData& TestData, int32 NumShifts)
 	{
-		ShiftArrayElements<FPCGTaggedData>(TestData.InputData.TaggedData, NumShifts);
+		PCGHelpers::ShiftArrayElements<FPCGTaggedData>(TestData.InputData.TaggedData, NumShifts);
 	}
 
 	TArray<EPCGDataType> FilterTestableDataTypes(EPCGDataType AllowedTypes, int32 NumMultipleInputs)
@@ -1589,4 +1589,3 @@ namespace PCGDeterminismTests
 }
 
 #undef LOCTEXT_NAMESPACE
-

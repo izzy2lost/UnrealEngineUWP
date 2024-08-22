@@ -91,7 +91,65 @@ namespace PCGHelpers
 	PCG_API TArray<UFunction*> FindUserFunctions(TSubclassOf<UObject> ActorClass, const TArray<FName>& FunctionNames, const TArray<const UFunction*>& FunctionPrototypes, const FPCGContext* InContext = nullptr);
 
 	PCG_API TFunction<float(float, float)> GetDensityMergeFunction(EPCGDensityMergeOperation InOperation);
-};
+
+	/** Get an array of a randomized, uniformly distributed indices to a provided array view. */
+	PCG_API TArray<int32> GetRandomIndices(FRandomStream& RandomStream, const int32 ArraySize, const int32 NumSelections);
+
+	/** Shuffles the elements of an array randomly and uniformly. */
+	template <typename T>
+	void ShuffleArray(FRandomStream& RandomStream, TArray<T>& Array)
+	{
+		const int32 LastIndex = Array.Num() - 1;
+		for (int32 i = 0; i < LastIndex; ++i)
+		{
+			const int32 Index = RandomStream.RandRange(i, LastIndex);
+
+			if (i != Index)
+			{
+				Array.Swap(i, Index);
+			}
+		}
+	}
+
+	/** Shifts the elements of an array a number of times. */
+	template <typename T>
+	void ShiftArrayElements(TArrayView<T> Array, int32 NumShifts = 1)
+	{
+		if (Array.Num() < 2 || NumShifts == 0)
+		{
+			return;
+		}
+
+		const int32 Count = Array.Num();
+		NumShifts %= Count;
+		if (NumShifts < 0)
+		{
+			NumShifts += Count;
+		}
+
+		TArray<T> TempArray;
+		if constexpr (std::is_trivially_copyable_v<T>)
+		{
+			TempArray.SetNumUninitialized(Count);
+		}
+		else
+		{
+			TempArray.SetNum(Count);
+		}
+
+		for (int32 i = 0; i < NumShifts; ++i)
+		{
+			TempArray[i] = std::move(Array[i + Count - NumShifts]);
+		}
+
+		for (int32 i = NumShifts; i < Count; ++i)
+		{
+			TempArray[i] = std::move(Array[i - NumShifts]);
+		}
+
+		Array = std::move(TempArray);
+	}
+}
 
 /** Holds function prototypes used to match against actor function signatures. */
 UCLASS(MinimalAPI)
