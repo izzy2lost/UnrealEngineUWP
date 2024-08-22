@@ -5,16 +5,15 @@
 #include "Materials/Material.h"
 #include "RHIStaticStates.h"
 #include "ShaderParameterUtils.h"
+#include "MeshDrawShaderBindings.h"
+#include "SceneInterface.h"
 
 IMPLEMENT_TYPE_LAYOUT(FSlateMaterialShaderVS);
 IMPLEMENT_TYPE_LAYOUT(FSlateMaterialShaderPS);
 
 FSlateMaterialShaderVS::FSlateMaterialShaderVS(const FMaterialShaderType::CompiledShaderInitializerType& Initializer)
 	: FMaterialShader(Initializer)
-{
-	ViewProjection.Bind(Initializer.ParameterMap, TEXT("ViewProjection"));
-}
-
+{}
 
 void FSlateMaterialShaderVS::ModifyCompilationEnvironment(const FMaterialShaderPermutationParameters& Parameters, FShaderCompilerEnvironment& OutEnvironment)
 {
@@ -31,22 +30,18 @@ bool FSlateMaterialShaderVS::ShouldCompilePermutation(const FMaterialShaderPermu
 	return Parameters.MaterialParameters.MaterialDomain == MD_UI;
 }
 
-void FSlateMaterialShaderVS::SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection )
-{
-	SetShaderValue(BatchedParameters, ViewProjection, InViewProjection );
-}
-
 void FSlateMaterialShaderVS::SetMaterialShaderParameters(
-	FRHIBatchedShaderParameters& BatchedParameters,
+	FMeshDrawSingleShaderBindings& ShaderBindings,
 	const FSceneInterface* Scene,
 	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 	const FMaterialRenderProxy* MaterialRenderProxy,
 	const FMaterial* Material)
 {
 	const auto& ViewUniformBufferParameter = GetUniformBufferParameter<FViewUniformShaderParameters>();
-	SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
+	ShaderBindings.Add(ViewUniformBufferParameter, ViewUniformBuffer);
 
-	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, Scene);
+	const ERHIFeatureLevel::Type FeatureLevel = Scene ? Scene->GetFeatureLevel() : GMaxRHIFeatureLevel;
+	FMaterialShader::GetShaderBindings(Scene, FeatureLevel, *MaterialRenderProxy, *Material, ShaderBindings);
 }
 
 bool FSlateMaterialShaderPS::ShouldCompilePermutation(const FMaterialShaderPermutationParameters& Parameters)
@@ -75,78 +70,42 @@ FSlateMaterialShaderPS::FSlateMaterialShaderPS(const FMaterialShaderType::Compil
 	TextureParameterSampler.Bind(Initializer.ParameterMap, TEXT("ElementTextureSampler"));
 }
 
-void FSlateMaterialShaderPS::SetBlendState(FGraphicsPipelineStateInitializer& GraphicsPSOInit, const FMaterial* Material)
-{
-	EBlendMode BlendMode = Material->GetBlendMode();
-
-	switch (BlendMode)
-	{
-	default:
-	case BLEND_Opaque:
-		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-		break;
-	case BLEND_Masked:
-		GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-		break;
-	case BLEND_Translucent:
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_InverseDestAlpha, BF_One>::GetRHI();
-		break;
-	case BLEND_Additive:
-		// Add to the existing scene color
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
-		break;
-	case BLEND_Modulate:
-		// Modulate with the existing scene color
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_Zero, BF_SourceColor>::GetRHI();
-		break;
-	case BLEND_AlphaComposite:
-		// Blend with existing scene color. New color is already pre-multiplied by alpha.
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
-		break;
-	case BLEND_AlphaHoldout:
-		// Blend by holding out the matte shape of the source alpha
-		GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
-		break;
-
-	};
-}
-
-void FSlateMaterialShaderPS::SetParameters(
-	FRHIBatchedShaderParameters& BatchedParameters,
+void FSlateMaterialShaderPS::SetMaterialShaderParameters(
+	FMeshDrawSingleShaderBindings& ShaderBindings,
 	const FSceneInterface* Scene,
 	const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer,
 	const FMaterialRenderProxy* MaterialRenderProxy,
 	const FMaterial* Material,
 	const FShaderParams& InShaderParams)
 {
-	SetShaderValue(BatchedParameters, ShaderParams, (FVector4f)InShaderParams.PixelParams);
-	SetShaderValue(BatchedParameters, ShaderParams2, (FVector4f)InShaderParams.PixelParams2);
+	ShaderBindings.Add(ShaderParams,  (FVector4f)InShaderParams.PixelParams);
+	ShaderBindings.Add(ShaderParams2, (FVector4f)InShaderParams.PixelParams2);
 
 	const auto& ViewUniformBufferParameter = GetUniformBufferParameter<FViewUniformShaderParameters>();
-	SetUniformBufferParameter(BatchedParameters, ViewUniformBufferParameter, ViewUniformBuffer);
+	ShaderBindings.Add(ViewUniformBufferParameter, ViewUniformBuffer);
 
-	FMaterialShader::SetParameters(BatchedParameters, MaterialRenderProxy, *Material, Scene);
+	const ERHIFeatureLevel::Type FeatureLevel = Scene ? Scene->GetFeatureLevel() : GMaxRHIFeatureLevel;
+	FMaterialShader::GetShaderBindings(Scene, FeatureLevel, *MaterialRenderProxy, *Material, ShaderBindings);
 }
 
-void FSlateMaterialShaderPS::SetAdditionalTexture(FRHIBatchedShaderParameters& BatchedParameters, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState )
+void FSlateMaterialShaderPS::SetAdditionalTexture(FMeshDrawSingleShaderBindings& ShaderBindings, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState)
 {
-	SetTextureParameter(BatchedParameters, AdditionalTextureParameter, TextureParameterSampler, SamplerState, InTexture );
+	ShaderBindings.AddTexture(AdditionalTextureParameter, TextureParameterSampler, SamplerState, InTexture);
 }
 
-void FSlateMaterialShaderPS::SetDisplayGammaAndContrast(FRHIBatchedShaderParameters& BatchedParameters, float InDisplayGamma, float InContrast)
+void FSlateMaterialShaderPS::SetDisplayGammaAndContrast(FMeshDrawSingleShaderBindings& ShaderBindings, float InDisplayGamma, float InContrast)
 {
 	FVector4f InGammaValues(2.2f / InDisplayGamma, 1.0f / InDisplayGamma, 0.0f, InContrast);
 
-	SetShaderValue(BatchedParameters, GammaAndAlphaValues, InGammaValues);
+	ShaderBindings.Add(GammaAndAlphaValues, InGammaValues);
 }
 
-void FSlateMaterialShaderPS::SetDrawFlags(FRHIBatchedShaderParameters& BatchedParameters, bool bDrawDisabledEffect)
+void FSlateMaterialShaderPS::SetDrawFlags(FMeshDrawSingleShaderBindings& ShaderBindings, bool bDrawDisabledEffect)
 {
 	FVector4f InDrawFlags((bDrawDisabledEffect ? 1.f : 0.f), 0.f, 0.f, 0.f);
 
-	SetShaderValue(BatchedParameters, DrawFlags, InDrawFlags);
+	ShaderBindings.Add(DrawFlags, InDrawFlags);
 }
-
 
 #define IMPLEMENT_SLATE_VERTEXMATERIALSHADER_TYPE(bUseInstancing) \
 	typedef TSlateMaterialShaderVS<bUseInstancing> TSlateMaterialShaderVS##bUseInstancing; \

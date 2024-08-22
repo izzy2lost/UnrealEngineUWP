@@ -35,7 +35,8 @@ SamplerState ElementTextureSampler;
 
 #if SAMPLE_VIRTUAL_TEXTURE
 Texture2D<uint4> InPageTableTexture;
-uint4 VTPackedPageTableUniform[2];
+uint4 VTPackedPageTableUniform0;
+uint4 VTPackedPageTableUniform1;
 uint4 VTPackedUniform;
 float4 VTShaderParams;
 #endif // SAMPLE_VIRTUAL_TEXTURE
@@ -221,7 +222,7 @@ half4 GetTextureColor( VertexToPixelInterpolants InVertex, float2 UV )
 	half4 BaseColor;
 
 	#if SAMPLE_VIRTUAL_TEXTURE
-			VTPageTableResult PageTableResult = TextureLoadVirtualPageTableLevel(InPageTableTexture, VTPageTableUniform_Unpack(VTPackedPageTableUniform[0], VTPackedPageTableUniform[1]), UV, VTADDRESSMODE_WRAP, VTADDRESSMODE_WRAP, VTShaderParams.x); 
+			VTPageTableResult PageTableResult = TextureLoadVirtualPageTableLevel(InPageTableTexture, VTPageTableUniform_Unpack(VTPackedPageTableUniform0, VTPackedPageTableUniform1), UV, VTADDRESSMODE_WRAP, VTADDRESSMODE_WRAP, VTShaderParams.x); 
 			BaseColor = TextureVirtualSampleLevel(ElementTexture, ElementTextureSampler, PageTableResult, (uint)VTShaderParams.y, VTUniform_Unpack(VTPackedUniform));
 	#else
 

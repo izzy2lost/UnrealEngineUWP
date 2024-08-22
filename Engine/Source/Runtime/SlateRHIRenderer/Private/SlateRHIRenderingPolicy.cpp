@@ -33,6 +33,7 @@
 #include "SceneRenderTargetParameters.h"
 #include "SceneInterface.h"
 #include "Containers/StaticBitArray.h"
+#include "MeshPassProcessor.h"
 
 extern void UpdateNoiseTextureParameters(FViewUniformShaderParameters& ViewUniformShaderParameters);
 
@@ -468,6 +469,47 @@ EPrimitiveType GetRHIPrimitiveType(ESlateDrawPrimitive SlateType)
 	}
 };
 
+FRHIBlendState* GetMaterialBlendState(FSlateShaderResource* TextureMaskResource, const FMaterial* Material)
+{
+	if (TextureMaskResource && IsOpaqueOrMaskedBlendMode(*Material))
+	{
+		// Font materials require some form of translucent blending
+		return TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_InverseDestAlpha, BF_One>::GetRHI();
+	}
+	else
+	{
+		switch (Material->GetBlendMode())
+		{
+		default:
+		case BLEND_Opaque:
+			return TStaticBlendState<>::GetRHI();
+			break;
+		case BLEND_Masked:
+			return TStaticBlendState<>::GetRHI();
+			break;
+		case BLEND_Translucent:
+			return TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_InverseDestAlpha, BF_One>::GetRHI();
+			break;
+		case BLEND_Additive:
+			// Add to the existing scene color
+			return TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_One, BO_Add, BF_One, BF_One>::GetRHI();
+			break;
+		case BLEND_Modulate:
+			// Modulate with the existing scene color
+			return TStaticBlendState<CW_RGB, BO_Add, BF_Zero, BF_SourceColor>::GetRHI();
+			break;
+		case BLEND_AlphaComposite:
+			// Blend with existing scene color. New color is already pre-multiplied by alpha.
+			return TStaticBlendState<CW_RGBA, BO_Add, BF_One, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+			break;
+		case BLEND_AlphaHoldout:
+			// Blend by holding out the matte shape of the source alpha
+			return TStaticBlendState<CW_RGBA, BO_Add, BF_Zero, BF_InverseSourceAlpha, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
+			break;
+		};
+	}
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 FSlateElementsBuffers BuildSlateElementsBuffers(FRDGBuilder& GraphBuilder, FSlateBatchData& BatchData)
@@ -518,6 +560,13 @@ FSlateElementsBuffers BuildSlateElementsBuffers(FRDGBuilder& GraphBuilder, FSlat
 
 //////////////////////////////////////////////////////////////////////////
 
+BEGIN_UNIFORM_BUFFER_STRUCT(FSlateViewUniformParameters, )
+	SHADER_PARAMETER(FMatrix44f, ViewProjection)
+END_UNIFORM_BUFFER_STRUCT()
+
+IMPLEMENT_STATIC_UNIFORM_BUFFER_SLOT(SlateView);
+IMPLEMENT_STATIC_UNIFORM_BUFFER_STRUCT(FSlateViewUniformParameters, "SlateView", SlateView);
+
 struct FSlateSceneViewAllocateInputs
 {
 	FIntPoint TextureExtent             = FIntPoint::ZeroValue;
@@ -538,9 +587,9 @@ class FSlateSceneViewAllocator
 {
 	RDG_FRIEND_ALLOCATOR_FRIEND(FSlateSceneViewAllocator);
 public:
-	static FSlateSceneViewAllocator* Create(FRDGBuilder& GraphBuilder, FSlateRHIResourceManager& ResourceManager)
+	static FSlateSceneViewAllocator* Create(FRDGBuilder& GraphBuilder, FSlateRHIResourceManager& ResourceManager, const FSlateSceneViewAllocateInputs& Inputs)
 	{
-		return GraphBuilder.AllocObject<FSlateSceneViewAllocator>(ResourceManager);
+		return GraphBuilder.AllocObject<FSlateSceneViewAllocator>(ResourceManager, Inputs);
 	}
 
 	const TUniformBufferRef<FViewUniformShaderParameters>& GetViewUniformBuffer(const FSlateSceneView* View) const
@@ -548,7 +597,7 @@ public:
 		return UniformBuffers[(int32)View->FeatureLevel];
 	}
 
-	const FSlateSceneView* BeginAllocateSceneView(FRDGBuilder& GraphBuilder, FSlateRHIResourceManager& ResourceManager, int32 SceneViewIndex, const FSlateSceneViewAllocateInputs& Inputs)
+	const FSlateSceneView* BeginAllocateSceneView(FRDGBuilder& GraphBuilder, int32 SceneViewIndex)
 	{
 		if (!SceneViews.IsValidIndex(SceneViewIndex))
 		{
@@ -560,16 +609,17 @@ public:
 
 		if (TUniformBufferRef<FViewUniformShaderParameters>& UniformBuffer = UniformBuffers[(int32)FeatureLevel]; !UniformBuffer)
 		{
-			UniformBuffer = CreateUniformBuffer(FeatureLevel, Inputs);
+			UniformBuffer = CreateUniformBuffer(FeatureLevel, AllocateInputs);
 		}
 
 		return &SceneView;
 	}
 
 private:
-	FSlateSceneViewAllocator(FSlateRHIResourceManager& ResourceManager)
+	FSlateSceneViewAllocator(FSlateRHIResourceManager& ResourceManager, const FSlateSceneViewAllocateInputs& Inputs)
 		: SceneViewWithNullSceneIndex(ResourceManager.GetSceneCount())
 		, NumScenes(SceneViewWithNullSceneIndex + 1)
+		, AllocateInputs(Inputs)
 	{
 		SceneViews.SetNum(NumScenes);
 		SceneViews.Last().FeatureLevel = GMaxRHIFeatureLevel;
@@ -632,6 +682,7 @@ private:
 
 	const int32 SceneViewWithNullSceneIndex;
 	const int32 NumScenes;
+	const FSlateSceneViewAllocateInputs AllocateInputs;
 	TArray<FSlateSceneView, FRDGArrayAllocator> SceneViews;
 	TStaticArray<TUniformBufferRef<FViewUniformShaderParameters>, (int32)ERHIFeatureLevel::Num> UniformBuffers;
 };
@@ -901,36 +952,54 @@ inline ESlateRenderBatchType GetSlateRenderBatchType(const FSlateRenderBatch& Dr
 	return ESlateRenderBatchType::Primitive;
 }
 
-struct FSlateRenderBatchOp
+class FSlateDrawShaderBindings : public FMeshDrawSingleShaderBindings
 {
-	FSlateRenderBatchOp() = default;
-
-	FSlateRenderBatchOp(const FSlateRenderBatch* InRenderBatch, const FSlateClippingOp* InClippingStateOp, const FSlateSceneView* InSceneView)
-		: RenderBatch(InRenderBatch)
-		, ClippingStateOp(InClippingStateOp)
-		, SceneView(InSceneView)
+	FSlateDrawShaderBindings(const TShaderRef<FShader>& InShader, const FMeshDrawShaderBindingsLayout& InLayout, uint8* InData)
+		: FMeshDrawSingleShaderBindings(InLayout, InData)
+		, Shader(InShader)
 	{}
 
+public:
+	static FSlateDrawShaderBindings* Create(FRDGBuilder& GraphBuilder, const TShaderRef<FShader>& Shader)
+	{
+		const FMeshDrawShaderBindingsLayout Layout(Shader);
+		const uint32 DataSize = Layout.GetDataSizeBytes();
+		uint8* Data = (uint8*)GraphBuilder.Alloc(DataSize);
+		FMemory::Memzero(Data, DataSize);
+		return new (GraphBuilder.Alloc(sizeof(FSlateDrawShaderBindings))) FSlateDrawShaderBindings(Shader, Layout, Data);
+	}
+
+	void SetOnCommandList(FRHICommandList& RHICmdList) const
+	{
+		FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
+		FReadOnlyMeshDrawSingleShaderBindings::SetShaderBindings(BatchedParameters, FReadOnlyMeshDrawSingleShaderBindings(*this));
+		RHICmdList.SetBatchedShaderParameters(Shader.GetGraphicsShader(), BatchedParameters);
+	}
+
+	TShaderRef<FShader> Shader;
+};
+
+struct FSlateRenderBatchOp
+{
+	FSlateRenderBatchOp* Next;
 	const FSlateRenderBatch* RenderBatch;
 	const FSlateClippingOp* ClippingStateOp;
-	const FSlateSceneView* SceneView = nullptr;
+	FSlateDrawShaderBindings* VertexBindings;
+	FSlateDrawShaderBindings* PixelBindings;
+	FRHIBlendState* BlendState;
+	ESlateShaderResource::Type ShaderResourceType;
 };
 
 //////////////////////////////////////////////////////////////////////////
 
-struct FSlateRenderBatchDrawInputs
+struct FSlateRenderBatchCreateInputs
 {
-	FMatrix44f ElementsMatrix;
-	FVector2f ElementsOffset;
-	FIntRect ElementsViewRect;
-	FIntRect SceneViewRect;
-	const FSlateSceneViewAllocator* SceneViewAllocator;
+	FGlobalShaderMap* ShaderMap;
+	FSlateSceneViewAllocator* SceneViewAllocator;
 	TConstArrayView<FTextureLODGroup> TextureLODGroups;
-	FSlateElementsBuffers ElementsBuffers;
 	float DisplayGamma;
 	float DisplayContrast;
 	float EngineGamma;
-	bool bWireframe;
 #if WITH_SLATE_VISUALIZERS
 	FLinearColor BatchColor;
 #endif
@@ -943,67 +1012,52 @@ struct FSlateRenderBatchDrawState
 	uint8 StencilRef = 0;
 };
 
-void DrawSlateRenderBatch(
-	FRHICommandList& RHICmdList,
-	FSlateRenderBatchDrawState& State,
-	const FSlateRenderBatchDrawInputs& Inputs,
-	const FSlateRenderBatchOp& RenderBatchOp)
+FSlateRenderBatchOp* CreateSlateRenderBatchOp(
+	FRDGBuilder& GraphBuilder,
+	const FSlateRenderBatchCreateInputs& Inputs,
+	const FSlateRenderBatch* RenderBatch,
+	const FSlateClippingOp* ClippingStateOp)
 {
-	const FSlateClippingOp* ClippingStateOp = RenderBatchOp.ClippingStateOp;
-	const FSlateRenderBatch& RenderBatch         = *RenderBatchOp.RenderBatch;
-	
-	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIShaderPlatform);
-
-	if (State.LastClippingOp != ClippingStateOp)
-	{
-		GetSlateClippingPipelineState(ClippingStateOp, State.GraphicsPSOInit.DepthStencilState, State.StencilRef);
-		SetSlateClipping(RHICmdList, ClippingStateOp, Inputs.ElementsViewRect);
-		State.LastClippingOp = ClippingStateOp;
-	}
-
-	FRHIBuffer* ElementsVertexBuffer = Inputs.ElementsBuffers.VertexBuffer->GetRHI();
-	FRHIBuffer* ElementsIndexBuffer  = Inputs.ElementsBuffers.IndexBuffer->GetRHI();
-
-	const FSlateShaderResource* ShaderResource   = RenderBatch.ShaderResource;
-	const ESlateBatchDrawFlag DrawFlags          = RenderBatch.DrawFlags;
-	const ESlateDrawEffect DrawEffects           = RenderBatch.DrawEffects;
-	const ESlateShader ShaderType                = RenderBatch.ShaderType;
-	const FShaderParams& ShaderParams            = RenderBatch.ShaderParams;
-
-	if (EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::Wireframe))
-	{
-		State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
-	}
-	else
-	{
-		State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
-	}
-
-	check(RenderBatch.NumIndices > 0);
-	const uint32 PrimitiveCount = RenderBatch.DrawPrimitiveType == ESlateDrawPrimitive::LineList ? RenderBatch.NumIndices / 2 : RenderBatch.NumIndices / 3;
+	const FSlateShaderResource* ShaderResource   = RenderBatch->ShaderResource;
+	const ESlateBatchDrawFlag DrawFlags          = RenderBatch->DrawFlags;
+	const ESlateDrawEffect DrawEffects           = RenderBatch->DrawEffects;
+	const ESlateShader ShaderType                = RenderBatch->ShaderType;
+	const FShaderParams& ShaderParams            = RenderBatch->ShaderParams;
 
 	check(ShaderResource == nullptr || !ShaderResource->Debug_IsDestroyed());
 	const ESlateShaderResource::Type ResourceType = ShaderResource ? ShaderResource->GetType() : ESlateShaderResource::Invalid;
 
-	const bool bUseInstancing = RenderBatch.InstanceCount > 0 && RenderBatch.InstanceData != nullptr;
+	const bool bUseInstancing = RenderBatch->InstanceCount > 0 && RenderBatch->InstanceData != nullptr;
+
+	const float FinalGamma = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::ReverseGamma) ? (1.0f / Inputs.EngineGamma) : EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1.0f : Inputs.DisplayGamma;
+	const float FinalContrast = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1 : Inputs.DisplayContrast;
+
+	FRHIBlendState* BlendState = nullptr;
+	FSlateDrawShaderBindings* PixelBindings = nullptr;
+	FSlateDrawShaderBindings* VertexBindings = nullptr;
 
 	if (ResourceType == ESlateShaderResource::Material)
 	{
+		// Skip material render batches when the engine is not available.
+		if (!GEngine)
+		{
+			return nullptr;
+		}
+
 		FSlateMaterialResource* MaterialShaderResource = (FSlateMaterialResource*)ShaderResource;
 		MaterialShaderResource->CheckForStaleResources();
 
 		const FMaterialRenderProxy* MaterialRenderProxy = MaterialShaderResource->GetRenderProxy();
+
 		if (!MaterialRenderProxy)
 		{
-			return;
+			return nullptr;
 		}
-		
-		const FSlateSceneView* SceneView = RenderBatchOp.SceneView;
+
+		const FSlateSceneView* SceneView = Inputs.SceneViewAllocator->BeginAllocateSceneView(GraphBuilder, RenderBatch->SceneIndex);
 		const ERHIFeatureLevel::Type SceneFeatureLevel = SceneView->FeatureLevel;
 		const FSceneInterface* Scene = SceneView->Scene;
 		const TUniformBufferRef<FViewUniformShaderParameters>& ViewUniformBuffer = Inputs.SceneViewAllocator->GetViewUniformBuffer(SceneView);
-
-		MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(RHICmdList, SceneFeatureLevel);
 
 		TShaderRef<FSlateMaterialShaderVS> VertexShader;
 		TShaderRef<FSlateMaterialShaderPS> PixelShader;
@@ -1014,7 +1068,7 @@ void DrawSlateRenderBatch(
 
 		while (MaterialRenderProxy)
 		{
-			const FMaterial* Material = MaterialRenderProxy->GetMaterialNoFallback(SceneFeatureLevel);
+			const FMaterial* Material = MaterialRenderProxy->UpdateUniformExpressionCacheIfNeeded(GraphBuilder.RHICmdList, SceneFeatureLevel);
 			FMaterialShaders Shaders;
 			if (Material && Material->TryGetShaders(ShaderTypesToGet, nullptr, Shaders))
 			{
@@ -1029,70 +1083,27 @@ void DrawSlateRenderBatch(
 
 		if (!VertexShader.IsValid() || !PixelShader.IsValid())
 		{
-			return;
+			return nullptr;
 		}
 
-		SLATE_DRAW_EVENTF(RHICmdList, MaterialBatch, TEXT("Slate Material: %s"), MaterialRenderProxy->GetMaterialName());
+		VertexBindings = FSlateDrawShaderBindings::Create(GraphBuilder, VertexShader);
+		VertexShader->SetMaterialShaderParameters(*VertexBindings, Scene, ViewUniformBuffer, MaterialRenderProxy, EffectiveMaterial);
 
-		PixelShader->SetBlendState(State.GraphicsPSOInit, EffectiveMaterial);
+		const bool bDrawDisabled = EnumHasAllFlags(RenderBatch->DrawEffects, ESlateDrawEffect::DisabledEffect);
 
-		FSlateShaderResource* MaskResource = MaterialShaderResource->GetTextureMaskResource();
+		PixelBindings = FSlateDrawShaderBindings::Create(GraphBuilder, PixelShader);
+		PixelShader->SetMaterialShaderParameters(*PixelBindings, Scene, ViewUniformBuffer, MaterialRenderProxy, EffectiveMaterial, ShaderParams);
+		PixelShader->SetDisplayGammaAndContrast(*PixelBindings, FinalGamma, FinalContrast);
+		PixelShader->SetDrawFlags(*PixelBindings, bDrawDisabled);
 
-		if (MaskResource && IsOpaqueOrMaskedBlendMode(*EffectiveMaterial))
+		auto* MaskResource = static_cast<TSlateTexture<FTextureRHIRef>*>(MaterialShaderResource->GetTextureMaskResource());
+
+		if (MaskResource)
 		{
-			// Font materials require some form of translucent blending
-			State.GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_InverseDestAlpha, BF_One>::GetRHI();
+			PixelShader->SetAdditionalTexture(*PixelBindings, MaskResource->GetTypedResource(), TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI());
 		}
 
-		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = bUseInstancing ? GSlateInstancedVertexDeclaration.VertexDeclarationRHI : GSlateVertexDeclaration.VertexDeclarationRHI;
-		State.GraphicsPSOInit.BoundShaderState.VertexShaderRHI = VertexShader.GetVertexShader();
-		State.GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-		State.GraphicsPSOInit.PrimitiveType = GetRHIPrimitiveType(RenderBatch.DrawPrimitiveType);
-
-		SetGraphicsPipelineState(RHICmdList, State.GraphicsPSOInit, State.StencilRef);
-
-		{
-			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-			VertexShader->SetViewProjection(BatchedParameters, Inputs.ElementsMatrix);
-			VertexShader->SetMaterialShaderParameters(BatchedParameters, Scene, ViewUniformBuffer, MaterialRenderProxy, EffectiveMaterial);
-
-			RHICmdList.SetBatchedShaderParameters(VertexShader.GetVertexShader(), BatchedParameters);
-		}
-
-		{
-			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-			PixelShader->SetParameters(BatchedParameters, Scene, ViewUniformBuffer, MaterialRenderProxy, EffectiveMaterial, ShaderParams);
-			const float FinalGamma = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::ReverseGamma) ? 1.0f / Inputs.EngineGamma : EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1.0f : Inputs.DisplayGamma;
-			const float FinalContrast = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1 : Inputs.DisplayContrast;
-			PixelShader->SetDisplayGammaAndContrast(BatchedParameters, FinalGamma, FinalContrast);
-			const bool bDrawDisabled = EnumHasAllFlags(DrawEffects, ESlateDrawEffect::DisabledEffect);
-			PixelShader->SetDrawFlags(BatchedParameters, bDrawDisabled);
-
-			if (MaskResource)
-			{
-				FTextureRHIRef TextureRHI = ((TSlateTexture<FTextureRHIRef>*)MaskResource)->GetTypedResource();
-
-				PixelShader->SetAdditionalTexture(BatchedParameters, TextureRHI, TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI());
-			}
-
-			RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), BatchedParameters);
-		}
-
-		if (bUseInstancing)
-		{
-			RenderBatch.InstanceData->BindStreamSource(RHICmdList, 1, RenderBatch.InstanceOffset);
-
-			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
-			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, RenderBatch.InstanceCount);
-		}
-		else
-		{
-			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
-			RHICmdList.SetStreamSource(1, nullptr, 0);
-			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, 1);
-		}
+		BlendState = GetMaterialBlendState(MaskResource, EffectiveMaterial);
 	}
 	else
 	{
@@ -1104,7 +1115,7 @@ void DrawSlateRenderBatch(
 		TShaderRef<FSlateDebugBatchingPS> BatchingPixelShader;
 		if (CVarShowSlateBatching.GetValueOnRenderThread() != 0)
 		{
-			BatchingPixelShader = TShaderMapRef<FSlateDebugBatchingPS>(ShaderMap);
+			BatchingPixelShader = TShaderMapRef<FSlateDebugBatchingPS>(Inputs.ShaderMap);
 			PixelShader = BatchingPixelShader;
 		}
 		else
@@ -1130,22 +1141,22 @@ void DrawSlateRenderBatch(
 				}
 			}
 
-			PixelShader = GetTexturePixelShader(ShaderMap, ShaderType, DrawEffects, bUseTextureGrayscale, bIsVirtualTexture);
+			PixelShader = GetTexturePixelShader(Inputs.ShaderMap, ShaderType, DrawEffects, bUseTextureGrayscale, bIsVirtualTexture);
 		}
 
 #if WITH_SLATE_VISUALIZERS
 		if (BatchingPixelShader.IsValid())
 		{
-			State.GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
+			BlendState = TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI();
 		}
 		else if (CVarShowSlateOverdraw.GetValueOnRenderThread() != 0)
 		{
-			State.GraphicsPSOInit.BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
+			BlendState = TStaticBlendState<CW_RGB, BO_Add, BF_One, BF_One, BO_Add, BF_Zero, BF_InverseSourceAlpha>::GetRHI();
 		}
 		else
 #endif
 		{
-			State.GraphicsPSOInit.BlendState =
+			BlendState =
 				EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::NoBlending)
 				? TStaticBlendState<>::GetRHI()
 				: (EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::PreMultipliedAlpha)
@@ -1153,29 +1164,6 @@ void DrawSlateRenderBatch(
 					: TStaticBlendState<CW_RGBA, BO_Add, BF_SourceAlpha, BF_InverseSourceAlpha, BO_Add, BF_One, BF_InverseSourceAlpha>::GetRHI())
 				;
 		}
-
-		if (EnumHasAllFlags(DrawFlags, ESlateBatchDrawFlag::Wireframe) || Inputs.bWireframe)
-		{
-			State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
-
-			if (Inputs.bWireframe)
-			{
-				State.GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
-			}
-		}
-		else
-		{
-			State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
-		}
-
-		TShaderMapRef<FSlateElementVS> GlobalVertexShader(ShaderMap);
-
-		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GSlateVertexDeclaration.VertexDeclarationRHI;
-		State.GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GlobalVertexShader.GetVertexShader();
-		State.GraphicsPSOInit.BoundShaderState.PixelShaderRHI = PixelShader.GetPixelShader();
-		State.GraphicsPSOInit.PrimitiveType = GetRHIPrimitiveType(RenderBatch.DrawPrimitiveType);
-
-		SetGraphicsPipelineState(RHICmdList, State.GraphicsPSOInit, State.StencilRef);
 
 		FRHISamplerState* SamplerState = TStaticSamplerState<SF_Bilinear, AM_Clamp, AM_Clamp, AM_Clamp>::GetRHI();
 		FRHITexture* TextureRHI = GWhiteTexture->TextureRHI;
@@ -1221,40 +1209,134 @@ void DrawSlateRenderBatch(
 			SamplerState = GetSamplerState(DrawFlags, Filter);
 		}
 
-		{
-			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
+		PixelBindings = FSlateDrawShaderBindings::Create(GraphBuilder, PixelShader);
 
 #if WITH_SLATE_VISUALIZERS
-			if (BatchingPixelShader.IsValid())
-			{
-				BatchingPixelShader->SetBatchColor(BatchedParameters, Inputs.BatchColor);
-			}
+		if (BatchingPixelShader.IsValid())
+		{
+			BatchingPixelShader->SetBatchColor(*PixelBindings, Inputs.BatchColor);
+		}
 #endif
 
-			if (bIsVirtualTexture && TextureResource != nullptr)
-			{
-				PixelShader->SetVirtualTextureParameters(BatchedParameters, static_cast<FVirtualTexture2DResource*>(TextureResource));
-			}
-			else
-			{
-				PixelShader->SetTexture(BatchedParameters, TextureRHI, SamplerState);
-			}
-
-			PixelShader->SetShaderParams(BatchedParameters, ShaderParams);
-			const float FinalGamma = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::ReverseGamma) ? (1.0f / Inputs.EngineGamma) : EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1.0f : Inputs.DisplayGamma;
-			const float FinalContrast = EnumHasAnyFlags(DrawFlags, ESlateBatchDrawFlag::NoGamma) ? 1 : Inputs.DisplayContrast;
-			PixelShader->SetDisplayGammaAndInvertAlphaAndContrast(BatchedParameters, FinalGamma, EnumHasAllFlags(DrawEffects, ESlateDrawEffect::InvertAlpha) ? 1.0f : 0.0f, FinalContrast);
-
-			RHICmdList.SetBatchedShaderParameters(PixelShader.GetPixelShader(), BatchedParameters);
-		}
-
+		if (bIsVirtualTexture && TextureResource != nullptr)
 		{
-			FRHIBatchedShaderParameters& BatchedParameters = RHICmdList.GetScratchShaderParameters();
-
-			GlobalVertexShader->SetViewProjection(BatchedParameters, Inputs.ElementsMatrix);
-
-			RHICmdList.SetBatchedShaderParameters(GlobalVertexShader.GetVertexShader(), BatchedParameters);
+			PixelShader->SetVirtualTextureParameters(*PixelBindings, static_cast<FVirtualTexture2DResource*>(TextureResource));
 		}
+		else
+		{
+			PixelShader->SetTexture(*PixelBindings, TextureRHI, SamplerState);
+		}
+
+		PixelShader->SetShaderParams(*PixelBindings, ShaderParams);
+		PixelShader->SetDisplayGammaAndInvertAlphaAndContrast(*PixelBindings, FinalGamma, EnumHasAllFlags(DrawEffects, ESlateDrawEffect::InvertAlpha) ? 1.0f : 0.0f, FinalContrast);
+	}
+
+	FSlateRenderBatchOp* RenderBatchOp = GraphBuilder.AllocPOD<FSlateRenderBatchOp>();
+	RenderBatchOp->RenderBatch        = RenderBatch;
+	RenderBatchOp->ClippingStateOp    = ClippingStateOp;
+	RenderBatchOp->ShaderResourceType = ResourceType;
+	RenderBatchOp->VertexBindings     = VertexBindings;
+	RenderBatchOp->PixelBindings      = PixelBindings;
+	RenderBatchOp->BlendState         = BlendState;
+	RenderBatchOp->Next               = nullptr;
+	return RenderBatchOp;
+}
+
+struct FSlateRenderBatchDrawInputs
+{
+	FGlobalShaderMap* ShaderMap;
+	FSlateElementsBuffers ElementsBuffers;
+	FIntRect ElementsViewRect;
+	bool bWireframe;
+};
+
+void DrawSlateRenderBatch(
+	FRHICommandList& RHICmdList,
+	FSlateRenderBatchDrawState& State,
+	const FSlateRenderBatchDrawInputs& Inputs,
+	const FSlateRenderBatchOp& RenderBatchOp)
+{
+	const FSlateClippingOp* ClippingStateOp = RenderBatchOp.ClippingStateOp;
+	const FSlateRenderBatch& RenderBatch    = *RenderBatchOp.RenderBatch;
+
+	if (State.LastClippingOp != ClippingStateOp)
+	{
+		GetSlateClippingPipelineState(ClippingStateOp, State.GraphicsPSOInit.DepthStencilState, State.StencilRef);
+		SetSlateClipping(RHICmdList, ClippingStateOp, Inputs.ElementsViewRect);
+		State.LastClippingOp = ClippingStateOp;
+	}
+
+	FRHIBuffer* ElementsVertexBuffer = Inputs.ElementsBuffers.VertexBuffer->GetRHI();
+	FRHIBuffer* ElementsIndexBuffer  = Inputs.ElementsBuffers.IndexBuffer->GetRHI();
+
+	State.GraphicsPSOInit.BlendState = RenderBatchOp.BlendState;
+
+	if (EnumHasAllFlags(RenderBatch.DrawFlags, ESlateBatchDrawFlag::Wireframe))
+	{
+		State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
+	}
+	else
+	{
+		State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
+	}
+
+	check(RenderBatch.NumIndices > 0);
+	const uint32 PrimitiveCount = RenderBatch.DrawPrimitiveType == ESlateDrawPrimitive::LineList ? RenderBatch.NumIndices / 2 : RenderBatch.NumIndices / 3;
+
+	if (RenderBatchOp.ShaderResourceType == ESlateShaderResource::Material)
+	{
+		const bool bUseInstancing = RenderBatch.InstanceCount > 0 && RenderBatch.InstanceData != nullptr;
+
+		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = bUseInstancing ? GSlateInstancedVertexDeclaration.VertexDeclarationRHI : GSlateVertexDeclaration.VertexDeclarationRHI;
+		State.GraphicsPSOInit.BoundShaderState.VertexShaderRHI = RenderBatchOp.VertexBindings->Shader.GetVertexShader();
+		State.GraphicsPSOInit.BoundShaderState.PixelShaderRHI  = RenderBatchOp.PixelBindings->Shader.GetPixelShader();
+		State.GraphicsPSOInit.PrimitiveType = GetRHIPrimitiveType(RenderBatch.DrawPrimitiveType);
+
+		SetGraphicsPipelineState(RHICmdList, State.GraphicsPSOInit, State.StencilRef);
+
+		RenderBatchOp.VertexBindings->SetOnCommandList(RHICmdList);
+		RenderBatchOp.PixelBindings->SetOnCommandList(RHICmdList);
+
+		if (bUseInstancing)
+		{
+			RenderBatch.InstanceData->BindStreamSource(RHICmdList, 1, RenderBatch.InstanceOffset);
+
+			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
+			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, RenderBatch.InstanceCount);
+		}
+		else
+		{
+			RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
+			RHICmdList.SetStreamSource(1, nullptr, 0);
+			RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, 1);
+		}
+	}
+	else
+	{
+		if (EnumHasAllFlags(RenderBatch.DrawFlags, ESlateBatchDrawFlag::Wireframe) || Inputs.bWireframe)
+		{
+			State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Wireframe>::GetRHI();
+
+			if (Inputs.bWireframe)
+			{
+				State.GraphicsPSOInit.BlendState = TStaticBlendState<>::GetRHI();
+			}
+		}
+		else
+		{
+			State.GraphicsPSOInit.RasterizerState = TStaticRasterizerState<FM_Solid>::GetRHI();
+		}
+
+		TShaderMapRef<FSlateElementVS> GlobalVertexShader(Inputs.ShaderMap);
+
+		State.GraphicsPSOInit.BoundShaderState.VertexDeclarationRHI = GSlateVertexDeclaration.VertexDeclarationRHI;
+		State.GraphicsPSOInit.BoundShaderState.VertexShaderRHI = GlobalVertexShader.GetVertexShader();
+		State.GraphicsPSOInit.BoundShaderState.PixelShaderRHI = RenderBatchOp.PixelBindings->Shader.GetPixelShader();
+		State.GraphicsPSOInit.PrimitiveType = GetRHIPrimitiveType(RenderBatch.DrawPrimitiveType);
+
+		SetGraphicsPipelineState(RHICmdList, State.GraphicsPSOInit, State.StencilRef);
+
+		RenderBatchOp.PixelBindings->SetOnCommandList(RHICmdList);
 
 		RHICmdList.SetStreamSource(0, ElementsVertexBuffer, RenderBatch.VertexOffset * sizeof(FSlateVertex));
 		RHICmdList.DrawIndexedPrimitive(ElementsIndexBuffer, 0, 0, RenderBatch.NumVertices, RenderBatch.IndexOffset, PrimitiveCount, RenderBatch.InstanceCount);
@@ -1265,6 +1347,7 @@ BEGIN_SHADER_PARAMETER_STRUCT(FSlateRenderBatchParameters, )
 	SHADER_PARAMETER_STRUCT_INCLUDE(FSceneTextureExtractsParameters, SceneTextures)
 	RDG_BUFFER_ACCESS(ElementsVertexBuffer, ERHIAccess::VertexOrIndexBuffer)
 	RDG_BUFFER_ACCESS(ElementsIndexBuffer, ERHIAccess::VertexOrIndexBuffer)
+	SHADER_PARAMETER_STRUCT_REF(FSlateViewUniformParameters, SlateView)
 	RENDER_TARGET_BINDING_SLOTS()
 END_SHADER_PARAMETER_STRUCT()
 
@@ -1283,32 +1366,48 @@ void AddSlateDrawElementsPass(
 	const float EngineGamma  = GEngine ? GEngine->GetDisplayGamma() : 2.2f;
 	const float DisplayGamma = Inputs.bAllowGammaCorrection && !Inputs.bElementsTextureIsHDRDisplay ? EngineGamma : 1.0f;
 
+	FGlobalShaderMap* ShaderMap = GetGlobalShaderMap(GMaxRHIFeatureLevel);
+
 	FSlateRHIResourceManager& ResourceManager = RenderingPolicy.GetResourceManagerRHI();
 
-	FSlateSceneViewAllocator* SceneViewAllocator = FSlateSceneViewAllocator::Create(GraphBuilder, ResourceManager);
+	const FSlateSceneViewAllocateInputs SceneViewAllocateInputs =
+	{
+		  .TextureExtent        = ElementsTextureExtent
+		, .ViewRect             = Inputs.SceneViewRect
+		, .ViewProjectionMatrix = Inputs.ElementsMatrix
+		, .CursorPosition       = Inputs.CursorPosition
+		, .Time                 = Inputs.Time
+		, .ViewportScaleUI      = Inputs.ViewportScaleUI
+	};
+
+	FSlateSceneViewAllocator* SceneViewAllocator = FSlateSceneViewAllocator::Create(GraphBuilder, ResourceManager, SceneViewAllocateInputs);
 
 #if WITH_SLATE_VISUALIZERS
 	FRandomStream BatchColors(1337);
 #endif
 
+	const FSlateRenderBatchCreateInputs RenderBatchCreateInputs
+	{
+		  .ShaderMap             = ShaderMap
+		, .SceneViewAllocator    = SceneViewAllocator
+		, .TextureLODGroups      = GetTextureLODGroups()
+		, .DisplayGamma          = DisplayGamma
+		, .DisplayContrast       = GSlateContrast
+		, .EngineGamma           = EngineGamma
+#if WITH_SLATE_VISUALIZERS
+		, .BatchColor            = FLinearColor(BatchColors.GetUnitVector())
+#endif
+	};
+
+	// Draw inputs are passed into RDG lambdas and need to be allocated by RDG.
 	FSlateRenderBatchDrawInputs* RenderBatchDrawInputs = GraphBuilder.AllocPOD<FSlateRenderBatchDrawInputs>();
 
 	*RenderBatchDrawInputs =
 	{
-		  .ElementsMatrix        = Inputs.ElementsMatrix
-		, .ElementsOffset        = Inputs.ElementsOffset
-		, .ElementsViewRect      = ElementsTexture.ViewRect
-		, .SceneViewRect         = Inputs.SceneViewRect
-		, .SceneViewAllocator    = SceneViewAllocator
-		, .TextureLODGroups      = GetTextureLODGroups()
+		  .ShaderMap             = ShaderMap
 		, .ElementsBuffers       = Inputs.ElementsBuffers
-		, .DisplayGamma          = DisplayGamma
-		, .DisplayContrast       = GSlateContrast
-		, .EngineGamma           = EngineGamma
+		, .ElementsViewRect      = ElementsTexture.ViewRect
 		, .bWireframe            = Inputs.bWireframe
-#if WITH_SLATE_VISUALIZERS
-		, .BatchColor            = FLinearColor(BatchColors.GetUnitVector())
-#endif
 	};
 
 	ERenderTargetLoadAction ElementsLoadAction = Inputs.ElementsLoadAction;
@@ -1320,11 +1419,19 @@ void AddSlateDrawElementsPass(
 		return LoadAction;
 	};
 
+	TUniformBufferRef<FSlateViewUniformParameters> SlateViewUniformBuffer;
+
 	FSlateRenderBatchParameters* NoneStencilActionPassParameters = GraphBuilder.AllocParameters<FSlateRenderBatchParameters>();
 	NoneStencilActionPassParameters->SceneTextures = GetSceneTextureExtracts().GetShaderParameters();
 	NoneStencilActionPassParameters->ElementsVertexBuffer = Inputs.ElementsBuffers.VertexBuffer;
 	NoneStencilActionPassParameters->ElementsIndexBuffer  = Inputs.ElementsBuffers.IndexBuffer;
 	NoneStencilActionPassParameters->RenderTargets[0] = FRenderTargetBinding(Inputs.ElementsTexture, ERenderTargetLoadAction::ELoad);
+
+	{
+		FSlateViewUniformParameters UniformParameters;
+		UniformParameters.ViewProjection = Inputs.ElementsMatrix;
+		NoneStencilActionPassParameters->SlateView = TUniformBufferRef<FSlateViewUniformParameters>::CreateUniformBufferImmediate(UniformParameters, UniformBuffer_SingleFrame);
+	}
 
 	FSlateRenderBatchParameters* ClearStencilActionPassParameters = nullptr;
 	FSlateRenderBatchParameters* WriteStencilActionPassParameters = nullptr;
@@ -1344,12 +1451,13 @@ void AddSlateDrawElementsPass(
 
 	FSlateClippingCreateContext ClippingCreateContext;
 
-	TArray<FSlateRenderBatchOp, FRDGArrayAllocator> RenderBatchOps;
-	RenderBatchOps.Reserve(RenderBatches.Num());
+	FSlateRenderBatchOp* RenderBatchHeadOp = nullptr;
+	FSlateRenderBatchOp* RenderBatchTailOp = nullptr;
+	int32 NumRenderBatchOps = 0;
 
 	const auto FlushDrawElementsPass = [&]
 	{
-		if (RenderBatchOps.IsEmpty())
+		if (!NumRenderBatchOps)
 		{
 			return;
 		}
@@ -1361,9 +1469,7 @@ void AddSlateDrawElementsPass(
 			LastPassParameters->RenderTargets[0].SetLoadAction(LoadAction);
 		}
 
-		const int32 NumRenderBatchOps = RenderBatchOps.Num();
-
-		FRDGPass* Pass = GraphBuilder.AddPass(RDG_EVENT_NAME("ElementBatch"), LastPassParameters, ERDGPassFlags::Raster, [Inputs = RenderBatchDrawInputs, RenderBatchOps = MoveTemp(RenderBatchOps)] (FRHICommandList& RHICmdList)
+		FRDGPass* Pass = GraphBuilder.AddPass(RDG_EVENT_NAME("ElementBatch"), LastPassParameters, ERDGPassFlags::Raster, [Inputs = RenderBatchDrawInputs, RenderBatchHeadOp] (FRHICommandList& RHICmdList)
 		{
 			RHICmdList.SetViewport(Inputs->ElementsViewRect.Min.X, Inputs->ElementsViewRect.Min.Y, 0.0f, Inputs->ElementsViewRect.Max.X, Inputs->ElementsViewRect.Max.Y, 1.0f);
 			RHICmdList.SetScissorRect(false, 0, 0, 0, 0);
@@ -1372,14 +1478,19 @@ void AddSlateDrawElementsPass(
 			RHICmdList.ApplyCachedRenderTargets(DrawState.GraphicsPSOInit);
 			DrawState.GraphicsPSOInit.DepthStencilState = TStaticDepthStencilState<false, CF_Always>::GetRHI();
 
-			for (const FSlateRenderBatchOp& RenderBatchOp : RenderBatchOps)
+			const FSlateRenderBatchOp* RenderBatchOp = RenderBatchHeadOp;
+			const FSlateRenderBatchOp* LastRenderBatchOp = nullptr;
+
+			for (; RenderBatchOp != nullptr; RenderBatchOp = RenderBatchOp->Next)
 			{
-				DrawSlateRenderBatch(RHICmdList, DrawState, *Inputs, RenderBatchOp);
+				DrawSlateRenderBatch(RHICmdList, DrawState, *Inputs, *RenderBatchOp);
+				LastRenderBatchOp = RenderBatchOp;
 			}
 		});
 
 		GraphBuilder.SetPassWorkload(Pass, NumRenderBatchOps);
-		check(RenderBatchOps.IsEmpty());
+		RenderBatchHeadOp = RenderBatchTailOp = nullptr;
+		NumRenderBatchOps = 0;
 	};
 
 	int32 NextRenderBatchIndex = FirstBatchIndex;
@@ -1491,37 +1602,27 @@ void AddSlateDrawElementsPass(
 		}
 		case ESlateRenderBatchType::Primitive:
 		{
-			const FSlateSceneView* SceneView = nullptr;
-
-			if (NextRenderBatch.ShaderResource && NextRenderBatch.ShaderResource->GetType() == ESlateShaderResource::Material)
+			if (FSlateRenderBatchOp* RenderBatchOp = CreateSlateRenderBatchOp(GraphBuilder, RenderBatchCreateInputs, &NextRenderBatch, NextClippingOp))
 			{
-				// Skip material render batches when the engine is not available.
-				if (!GEngine)
+				if (!RenderBatchTailOp)
 				{
-					break;
+					RenderBatchHeadOp = RenderBatchTailOp = RenderBatchOp;
 				}
-
-				const FSlateSceneViewAllocateInputs AllocateInputs =
+				else
 				{
-					  .TextureExtent        = ElementsTextureExtent
-					, .ViewRect             = Inputs.SceneViewRect
-					, .ViewProjectionMatrix = Inputs.ElementsMatrix
-					, .CursorPosition       = Inputs.CursorPosition
-					, .Time                 = Inputs.Time
-					, .ViewportScaleUI      = Inputs.ViewportScaleUI
-				};
-
-				SceneView = SceneViewAllocator->BeginAllocateSceneView(GraphBuilder, ResourceManager, NextRenderBatch.SceneIndex, AllocateInputs);
+					RenderBatchTailOp->Next = RenderBatchOp;
+					RenderBatchTailOp = RenderBatchOp;
+				}
+				NumRenderBatchOps++;
 			}
 
-			RenderBatchOps.Emplace(&NextRenderBatch, NextClippingOp, SceneView);
 			break;
 		}
 		default: checkNoEntry();
 		}
 	}
 
-	if (!RenderBatchOps.IsEmpty())
+	if (NumRenderBatchOps > 0)
 	{
 		FlushDrawElementsPass();
 	}

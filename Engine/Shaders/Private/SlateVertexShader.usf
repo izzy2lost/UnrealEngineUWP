@@ -4,8 +4,6 @@
 #include "GammaCorrectionCommon.ush"
 #include "SlateShaderCommon.ush"
 
-float4x4 ViewProjection;
-
 VertexToPixelInterpolants Main(
 	in float4 InTextureCoordinates : ATTRIBUTE0,
 	in float2 InMaterialTextureCoordinates : ATTRIBUTE1,
@@ -127,7 +125,7 @@ VertexToPixelInterpolants Main(
 
 #endif // USE_MATERIALS
 
-	VOut.Position = mul(WorldPosition, ViewProjection);
+	VOut.Position = mul(WorldPosition, SlateView.ViewProjection);
 
 	return VOut;
 }

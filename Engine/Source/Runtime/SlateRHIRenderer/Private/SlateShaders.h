@@ -14,6 +14,7 @@
 #include "TextureResource.h"
 #include "RenderUtils.h"
 #include "ShaderParameterStruct.h"
+#include "MeshDrawShaderBindings.h"
 
 extern EColorVisionDeficiency GSlateColorDeficiencyType;
 extern int32 GSlateColorDeficiencySeverity;
@@ -63,68 +64,33 @@ public:
 	virtual void ReleaseRHI() override;
 };
 
-/** The slate Vertex shader representation */
 class FSlateElementVS : public FGlobalShader
 {
-	DECLARE_SHADER_TYPE(FSlateElementVS, Global);
 public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) { return true; }
+	DECLARE_GLOBAL_SHADER(FSlateElementVS);
 
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlateElementVS( const ShaderMetaType::CompiledShaderInitializerType& Initializer );
+	FSlateElementVS() = default;
 
-	FSlateElementVS() {}
-
-	/** 
-	 * Sets the view projection parameter
-	 *
-	 * @param InViewProjection	The ViewProjection matrix to use when this shader is bound 
-	 */
-	void SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection );
-
-	/** 
-	 * Sets shader parameters for use in this shader
-	 *
-	 * @param ShaderParams	The shader params to be used
-	 */
-	void SetShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FVector4f& ShaderParams );
-
-	/** Serializes the shader data */
-	//virtual bool Serialize( FArchive& Ar ) override;
-
-private:
-	/** ViewProjection parameter used by the shader */
-	LAYOUT_FIELD(FShaderParameter, ViewProjection)
-	/** Shader parmeters used by the shader */
-	LAYOUT_FIELD(FShaderParameter, VertexShaderParams)
+	FSlateElementVS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
+	{}
 };
 
-/** 
- * Base class slate pixel shader for all elements
- */
 class FSlateElementPS : public FGlobalShader
 {
-	DECLARE_TYPE_LAYOUT(FSlateElementPS, NonVirtual);
 public:
-	/** Indicates that this shader should be cached */
-	static bool ShouldCompilePermutation(const FGlobalShaderPermutationParameters& Parameters) 
-	{ 
-		return true; 
-	}
+	DECLARE_GLOBAL_SHADER(FSlateElementPS);
 
-	FSlateElementPS()
-	{
-	}
+	FSlateElementPS() = default;
 
-	/** Constructor.  Binds all parameters used by the shader */
-	FSlateElementPS( const ShaderMetaType::CompiledShaderInitializerType& Initializer )
-		: FGlobalShader( Initializer )
+	FSlateElementPS(const ShaderMetaType::CompiledShaderInitializerType& Initializer)
+		: FGlobalShader(Initializer)
 	{
 		TextureParameter.Bind(Initializer.ParameterMap, TEXT("ElementTexture"));
 		TextureParameterSampler.Bind(Initializer.ParameterMap, TEXT("ElementTextureSampler"));
 		InPageTableTexture.Bind(Initializer.ParameterMap, TEXT("InPageTableTexture"));
-		VTPackedPageTableUniform.Bind(Initializer.ParameterMap, TEXT("VTPackedPageTableUniform"));
+		VTPackedPageTableUniform0.Bind(Initializer.ParameterMap, TEXT("VTPackedPageTableUniform0"));
+		VTPackedPageTableUniform1.Bind(Initializer.ParameterMap, TEXT("VTPackedPageTableUniform1"));
 		VTPackedUniform.Bind(Initializer.ParameterMap, TEXT("VTPackedUniform"));
 		ShaderParams.Bind(Initializer.ParameterMap, TEXT("ShaderParams"));
 		ShaderParams2.Bind(Initializer.ParameterMap, TEXT("ShaderParams2"));
@@ -140,9 +106,9 @@ public:
 	 * @param Texture	Texture resource to use when this pixel shader is bound
 	 * @param SamplerState	Sampler state to use when sampling this texture
 	 */
-	void SetTexture(FRHIBatchedShaderParameters& BatchedParameters, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState )
+	void SetTexture(FMeshDrawSingleShaderBindings& ShaderBindings, FRHITexture* InTexture, const FSamplerStateRHIRef SamplerState)
 	{
-		SetTextureParameter(BatchedParameters, TextureParameter, TextureParameterSampler, SamplerState, InTexture );
+		ShaderBindings.AddTexture(TextureParameter, TextureParameterSampler, SamplerState, InTexture);
 	}
 
 	/**
@@ -150,7 +116,7 @@ public:
 	 *
 	 * @param InVirtualTexture	Virtual Texture resource to use when this pixel shader is bound
 	 */
-	void SetVirtualTextureParameters(FRHIBatchedShaderParameters& BatchedParameters, FVirtualTexture2DResource* InVirtualTexture)
+	void SetVirtualTextureParameters(FMeshDrawSingleShaderBindings& ShaderBindings, FVirtualTexture2DResource* InVirtualTexture)
 	{
 		if (InVirtualTexture == nullptr)
 		{
@@ -161,11 +127,7 @@ public:
 		uint32 LayerIndex = 0;
 
 		FRHIShaderResourceView* PhysicalView = AllocatedVT->GetPhysicalTextureSRV(LayerIndex, InVirtualTexture->bSRGB);
-		
-		SetSRVParameter(BatchedParameters, TextureParameter, PhysicalView);
-		SetSamplerParameter(BatchedParameters, TextureParameterSampler, InVirtualTexture->SamplerStateRHI);
-		SetTextureParameter(BatchedParameters, InPageTableTexture, AllocatedVT->GetPageTableTexture(0u));
-		
+
 		FUintVector4 PageTableUniform[2];
 		FUintVector4 Uniform;
 		// VTParams.X = MipLevel, VTParams.Y = LayerIndex
@@ -174,9 +136,13 @@ public:
 		AllocatedVT->GetPackedPageTableUniform(PageTableUniform);
 		AllocatedVT->GetPackedUniform(&Uniform, LayerIndex);
 
-		SetShaderValueArray(BatchedParameters, VTPackedPageTableUniform, PageTableUniform, UE_ARRAY_COUNT(PageTableUniform));
-		SetShaderValue(BatchedParameters, VTPackedUniform, Uniform);
-		SetShaderValue(BatchedParameters, VTShaderParams, VTParams);
+		ShaderBindings.Add(TextureParameter, PhysicalView);
+		ShaderBindings.Add(TextureParameterSampler, InVirtualTexture->SamplerStateRHI);
+		ShaderBindings.Add(InPageTableTexture, AllocatedVT->GetPageTableTexture(0u));
+		ShaderBindings.Add(VTPackedPageTableUniform0, PageTableUniform[0]);
+		ShaderBindings.Add(VTPackedPageTableUniform1, PageTableUniform[1]);
+		ShaderBindings.Add(VTPackedUniform, Uniform);
+		ShaderBindings.Add(VTShaderParams, VTParams);
 	}
 
 	/**
@@ -184,10 +150,10 @@ public:
 	 * 
 	 * @param InShaderParams Shader params to use
 	 */
-	void SetShaderParams(FRHIBatchedShaderParameters& BatchedParameters, const FShaderParams& InShaderParams)
+	void SetShaderParams(FMeshDrawSingleShaderBindings& ShaderBindings, const FShaderParams& InShaderParams)
 	{
-		SetShaderValue(BatchedParameters, ShaderParams, InShaderParams.PixelParams);
-		SetShaderValue(BatchedParameters, ShaderParams2, InShaderParams.PixelParams2);
+		ShaderBindings.Add(ShaderParams, InShaderParams.PixelParams);
+		ShaderBindings.Add(ShaderParams2, InShaderParams.PixelParams2);
 	}
 
 	/**
@@ -195,20 +161,19 @@ public:
 	 *
 	 * @param DisplayGamma The display gamma to use
 	 */
-	void SetDisplayGammaAndInvertAlphaAndContrast(FRHIBatchedShaderParameters& BatchedParameters, float InDisplayGamma, float bInvertAlpha, float InContrast)
+	void SetDisplayGammaAndInvertAlphaAndContrast(FMeshDrawSingleShaderBindings& ShaderBindings, float InDisplayGamma, float bInvertAlpha, float InContrast)
 	{
 		FVector4f Values( 2.2f / InDisplayGamma, 1.0f/InDisplayGamma, bInvertAlpha, InContrast);
 
-		SetShaderValue(BatchedParameters, GammaAndAlphaValues, Values);
+		ShaderBindings.Add(GammaAndAlphaValues, Values);
 	}
 
 private:
-	
-	/** Texture parameter used by the shader */
 	LAYOUT_FIELD(FShaderResourceParameter, TextureParameter);
 	LAYOUT_FIELD(FShaderResourceParameter, TextureParameterSampler);
 	LAYOUT_FIELD(FShaderResourceParameter, InPageTableTexture);
-	LAYOUT_FIELD(FShaderParameter, VTPackedPageTableUniform);
+	LAYOUT_FIELD(FShaderParameter, VTPackedPageTableUniform0);
+	LAYOUT_FIELD(FShaderParameter, VTPackedPageTableUniform1);
 	LAYOUT_FIELD(FShaderParameter, VTPackedUniform);
 	LAYOUT_FIELD(FShaderParameter, ShaderParams);
 	LAYOUT_FIELD(FShaderParameter, ShaderParams2);
@@ -306,9 +271,9 @@ public:
 	*
 	* @param InShaderParams Shader params to use
 	*/
-	void SetBatchColor(FRHIBatchedShaderParameters& BatchedParameters, const FLinearColor& InBatchColor)
+	void SetBatchColor(FMeshDrawSingleShaderBindings& ShaderBindings, const FLinearColor& InBatchColor)
 	{
-		SetShaderValue(BatchedParameters, BatchColor, InBatchColor);
+		ShaderBindings.Add(BatchColor, InBatchColor);
 	}
 
 private:

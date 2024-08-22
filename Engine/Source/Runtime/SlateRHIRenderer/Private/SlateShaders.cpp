@@ -139,25 +139,3 @@ void FSlateMaskingVertexDeclaration::ReleaseRHI()
 {
 	VertexDeclarationRHI.SafeRelease();
 }
-
-
-/************************************************************************/
-/* FSlateDefaultVertexShader                                            */
-/************************************************************************/
-
-FSlateElementVS::FSlateElementVS( const ShaderMetaType::CompiledShaderInitializerType& Initializer )
-	: FGlobalShader(Initializer)
-{
-	ViewProjection.Bind(Initializer.ParameterMap, TEXT("ViewProjection"));
-	VertexShaderParams.Bind( Initializer.ParameterMap, TEXT("VertexShaderParams"));
-}
-
-void FSlateElementVS::SetViewProjection(FRHIBatchedShaderParameters& BatchedParameters, const FMatrix44f& InViewProjection )
-{
-	SetShaderValue(BatchedParameters, ViewProjection, InViewProjection );
-}
-
-void FSlateElementVS::SetShaderParameters(FRHIBatchedShaderParameters& BatchedParameters, const FVector4f& ShaderParams )
-{
-	SetShaderValue(BatchedParameters, VertexShaderParams, ShaderParams );
-}
