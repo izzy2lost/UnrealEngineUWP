@@ -240,6 +240,8 @@ void FRayTracingGeometry::ReleaseRHI()
 	RemoveBuildRequest();
 	RayTracingGeometryRHI.SafeRelease();
 	GeometryState = EGeometryStateFlags::Invalid;
+
+	GRayTracingGeometryManager->RefreshRegisteredGeometry(RayTracingGeometryHandle);
 }
 
 void FRayTracingGeometry::RemoveBuildRequest()
