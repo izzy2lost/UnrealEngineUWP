@@ -37,10 +37,10 @@ struct FPoseHistoryEntry
 
 	void Update(float Time, FCSPose<FCompactPose>& ComponentSpacePose, const FBoneToTransformMap& BoneToTransformMap, bool bStoreScales);
 
-	void SetNum(int32 Num, bool bStoreScales);
+	POSESEARCH_API void SetNum(int32 Num, bool bStoreScales);
 	int32 Num() const;
 
-	void SetComponentSpaceTransform(int32 Index, const FTransform& Transform);
+	POSESEARCH_API void SetComponentSpaceTransform(int32 Index, const FTransform& Transform);
 	FTransform GetComponentSpaceTransform(int32 Index) const;
 };
 FArchive& operator<<(FArchive& Ar, FPoseHistoryEntry& Entry);

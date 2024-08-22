@@ -481,7 +481,7 @@ void FSearchContext::UpdateCurrentResultPoseVector()
 		{
 			const int32 NumDimensions = CurrentResult.Database->Schema->SchemaCardinality;
 			CurrentResultPoseVectorData.AddUninitialized(NumDimensions);
-			CurrentResultPoseVector = SearchIndex.GetReconstructedPoseValues(CurrentResult.PoseIdx, MakeArrayView(CurrentResultPoseVectorData.GetData() + NumDimensions, NumDimensions));
+			CurrentResultPoseVector = SearchIndex.GetReconstructedPoseValues(CurrentResult.PoseIdx, MakeArrayView(CurrentResultPoseVectorData).Slice(NumDimensions, NumDimensions));
 		}
 		else
 		{

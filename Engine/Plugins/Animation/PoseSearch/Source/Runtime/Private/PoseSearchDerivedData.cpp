@@ -992,7 +992,7 @@ static bool IndexDatabase(FSearchIndexBase& SearchIndexBase, const UPoseSearchDa
 	}
 
 	FAnimationAssetSamplers TempAssetSamplers;
-	TArray<FBoneContainer> TempBoneContainers;
+	TArray<FBoneContainer, TInlineAllocator<PreallocatedRolesNum>> TempBoneContainers;
 	FRoleToIndex TempRoleToIndex;
 
 	int32 TotalPoses = 0;
@@ -1176,8 +1176,8 @@ static void CompareSearchIndexBase(const FSearchIndexBase& A, const FSearchIndex
 		const int32 NumValuePoses = A.Values.Num() / Schema->SchemaCardinality;
 		for (int32 ValuePoseIndex = 0; ValuePoseIndex < NumValuePoses; ++ValuePoseIndex)
 		{
-			const TConstArrayView<float> PoseA = MakeArrayView(A.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
-			const TConstArrayView<float> PoseB = MakeArrayView(B.Values.GetData() + ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			const TConstArrayView<float> PoseA = MakeArrayView(A.Values).Slice(ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
+			const TConstArrayView<float> PoseB = MakeArrayView(B.Values).Slice(ValuePoseIndex * Schema->SchemaCardinality, Schema->SchemaCardinality);
 			CompareChannelValues(0, ValuePoseIndex, PoseA, PoseB, Schema->GetChannels(), StringBuilder);
 		}
 	}

@@ -210,17 +210,20 @@ bool FDatabasePreviewActor::DrawPreviewActors(TConstArrayView<FDatabasePreviewAc
 	int32 CommonIndexAssetIndex = INDEX_NONE;
 #endif // DO_CHECK
 
-	TArray<const USkinnedMeshComponent*> Meshes;
+	TArray<const USkinnedMeshComponent*, TInlineAllocator<PreallocatedRolesNum>> Meshes;
 	FRoleToIndex RoleToIndex;
-	TArray<FArchivedPoseHistory> ArchivedPoseHistories;
-	TArray<const IPoseHistory*> PoseHistories;
+	TArray<FArchivedPoseHistory, TInlineAllocator<PreallocatedRolesNum>> ArchivedPoseHistories;
+	TArray<const IPoseHistory*, TInlineAllocator<PreallocatedRolesNum>> PoseHistories;
 
 	const int32 NumPreviewActors = PreviewActors.Num();
-
-	Meshes.Reserve(NumPreviewActors);
-	RoleToIndex.Reserve(NumPreviewActors);
-	ArchivedPoseHistories.Reserve(NumPreviewActors);
-	PoseHistories.Reserve(NumPreviewActors);
+	if (NumPreviewActors > PreallocatedRolesNum)
+	{
+		// reserve the needed amount of memory for containers
+		Meshes.Reserve(NumPreviewActors);
+		RoleToIndex.Reserve(NumPreviewActors);
+		ArchivedPoseHistories.Reserve(NumPreviewActors);
+		PoseHistories.Reserve(NumPreviewActors);
+	}
 
 	for (const FDatabasePreviewActor& PreviewActor : PreviewActors)
 	{
@@ -275,10 +278,24 @@ bool FDatabasePreviewActor::DrawPreviewActors(TConstArrayView<FDatabasePreviewAc
 		RoleToIndex.Add(PreviewActor.ActorRole) = Meshes.Num();
 		Meshes.Add(Mesh);
 
-		// @todo: reconstruct ArchivedPoseHistory::BoneToTransformMap and ArchivedPoseHistory::Entries if needed.
-		//        So far has been unnecessary, becasue all the animations have an identity root bone (root bone lock)
 		FArchivedPoseHistory& ArchivedPoseHistory = ArchivedPoseHistories.AddDefaulted_GetRef();
 		ArchivedPoseHistory.Trajectory = PreviewActor.Trajectory;
+
+		check(PoseSearchDatabase && PoseSearchDatabase->Schema);
+		if (const USkeleton* Skeleton = PoseSearchDatabase->Schema->GetSkeleton(PreviewActor.ActorRole))
+		{
+			// reconstructing ArchivedPoseHistory::BoneToTransformMap and ArchivedPoseHistory::Entries ONLY for the root bone.
+			// @todo: add more bones if needed
+			const TArray<FTransform>& RefBonePose = Skeleton->GetReferenceSkeleton().GetRefBonePose();
+			const FTransform& RefRootBone = RefBonePose[RootBoneIndexType];
+
+			ArchivedPoseHistory.BoneToTransformMap.Add(RootBoneIndexType) = RootBoneIndexType;
+			FPoseHistoryEntry& PoseHistoryEntry = ArchivedPoseHistory.Entries.AddDefaulted_GetRef();
+			// saving space for the root bone only
+			PoseHistoryEntry.SetNum(1, true);
+			PoseHistoryEntry.SetComponentSpaceTransform(RootBoneIndexType, RefRootBone);
+		}
+
 		for (FPoseSearchQueryTrajectorySample& TrajectorySample : ArchivedPoseHistory.Trajectory.Samples)
 		{
 			TrajectorySample.AccumulatedSeconds -= PreviewActor.QuantizedTime;

@@ -297,7 +297,7 @@ struct FSparsePoseMultiMap
 		const Type Value = DataValues[Key];
 		if (Value <= MaxValue)
 		{
-			return MakeArrayView(DataValues.GetData() + Key, 1);
+			return MakeArrayView(DataValues).Slice(Key, 1);
 		}
 
 		check(Value >= DeltaKeyValue);
@@ -308,7 +308,7 @@ struct FSparsePoseMultiMap
 		// ..and it's data starts at the next location DecodedArrayStartLocation + 1
 		const Type DataOffset = DecodedArrayStartLocation + 1;
 		check(int32(DataOffset + Size) <= DataValues.Num());
-		return MakeArrayView(DataValues.GetData() + DataOffset, Size);
+		return MakeArrayView(DataValues).Slice(DataOffset, Size);
 	}
 
 	Type Num() const

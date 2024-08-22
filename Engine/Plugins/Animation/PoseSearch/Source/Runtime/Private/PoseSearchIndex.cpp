@@ -603,7 +603,7 @@ void FSearchIndex::PruneDuplicatePCAValues(float SimilarityThreshold, int32 Numb
 	PCAValuesVectorToPoseIndexes = FSparsePoseMultiMap<int32>();
 
 	const uint32 NumPoses = GetNumPoses();
-	if (SimilarityThreshold > 0.f && NumPoses >= 2 && NumberOfPrincipalComponents > 0)
+	if (SimilarityThreshold > 0.f && NumPoses >= 2 && NumberOfPrincipalComponents > 0 && !PCAValues.IsEmpty())
 	{
 		check(PCAValues.Num() % NumberOfPrincipalComponents == 0);
 		const int32 NumPCAValuesVectors = PCAValues.Num() / NumberOfPrincipalComponents;

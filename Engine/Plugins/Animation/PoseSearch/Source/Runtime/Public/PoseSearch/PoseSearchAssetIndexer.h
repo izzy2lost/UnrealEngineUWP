@@ -46,8 +46,8 @@ struct FAnimationAssetSamplers
 	FTransform MirrorTransform(const FTransform& InTransform, int32 RoleIndex) const;
 	void MirrorPose(FCompactPose& Pose, int32 RoleIndex) const;
 
-	TArray<const FAnimationAssetSampler*> AnimationAssetSamplers;
-	TArray<const FMirrorDataCache*> MirrorDataCaches;
+	TArray<const FAnimationAssetSampler*, TInlineAllocator<PreallocatedRolesNum>> AnimationAssetSamplers;
+	TArray<const FMirrorDataCache*, TInlineAllocator<PreallocatedRolesNum>> MirrorDataCaches;
 };
 
 class POSESEARCH_API FAssetIndexer
