@@ -25,6 +25,7 @@
 #include "IO/IoContainerHeader.h"
 #include "IO/PackageStore.h"
 #include "Misc/CommandLine.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/CoreDelegates.h"
 #include "Misc/CoreDelegatesInternal.h"
 #include "Misc/CoreMisc.h"
@@ -776,6 +777,16 @@ FIoStatus FOnDemandIoStore::InitializeOnDemandInstallCache()
 	if (bUseInstallCache)
 	{
 		FOnDemandInstallCacheConfig CacheConfig;
+
+		if (FString ValueStr; GConfig->GetString(TEXT("OnDemandInstall"), TEXT("FileCache.DiskQuota"), ValueStr, GEngineIni))
+		{
+			int64 DiskQuota = ParseSizeParam(ValueStr);
+			if (DiskQuota > 0)
+			{
+				CacheConfig.DiskQuota = DiskQuota;
+			}
+		}
+
 		CacheConfig.RootDirectory = Private::GetInstallCacheDirectory();
 #if !UE_BUILD_SHIPPING
 		CacheConfig.bDropCache = FParse::Param(FCommandLine::Get(), TEXT("Iad.DropCache"));

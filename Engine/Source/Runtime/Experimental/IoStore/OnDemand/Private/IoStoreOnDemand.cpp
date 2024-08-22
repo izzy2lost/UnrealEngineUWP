@@ -58,7 +58,7 @@ static FAutoConsoleVariableRef CVar_DistributedEndpointFallbackUrl(
 );
 
 ////////////////////////////////////////////////////////////////////////////////
-static int64 ParseSizeParam(FStringView Value)
+int64 ParseSizeParam(FStringView Value)
 {
 	Value = Value.TrimStartAndEnd();
 
