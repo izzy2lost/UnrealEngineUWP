@@ -47,6 +47,12 @@ static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureTexelsPerVertex(
 	TEXT("Default ratio of texels to vertices when creating a texture for a mesh"),
 	ECVF_Default);
 
+static TAutoConsoleVariable<int32> CVarMeshPaintVirtualTextureMaxTextureSize(
+	TEXT("r.MeshPaintVirtualTexture.MaxTextureSize"),
+	4096,
+	TEXT("Maximum allowed size for mesh paint textures"),
+	ECVF_Default);
+
 namespace MeshPaintVirtualTexture
 {
 	bool IsSupported(EShaderPlatform InShaderPlatform)
@@ -88,12 +94,18 @@ namespace MeshPaintVirtualTexture
 		return FVirtualTextureBuildSettings::ClampAndAlignTileBorderSize(CVarMeshPaintVirtualTextureTileBorderSize.GetValueOnAnyThread());
 	}
 
+	static uint32 GetMaximumTextureSize()
+	{
+		// Maximum texture size needs to be at least one tile and power of two aligned.
+		return FMath::RoundUpToPowerOfTwo(FMath::Max((int32)GetTileSize(), CVarMeshPaintVirtualTextureMaxTextureSize.GetValueOnGameThread()));
+	}
+
 	uint32 GetAlignedTextureSize(int32 InSize)
 	{
 		// Must be power of 2 aligned.
 		const uint32 SizePow2Aligned = FMath::RoundUpToPowerOfTwo((uint32)FMath::Max(InSize, 0));
-		// Must be at least the size of a tile (which is also power of two aligned).
-		return FMath::Max(GetTileSize(), SizePow2Aligned);
+		// Must be at least the size of a tile and clamped to the maximum (both of which are also power of two aligned).
+		return FMath::Clamp(SizePow2Aligned, GetTileSize(), GetMaximumTextureSize());
 	}
 
 	uint32 GetDefaultTextureSize(int32 InNumVertices)

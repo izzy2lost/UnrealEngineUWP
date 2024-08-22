@@ -466,6 +466,12 @@ class URendererSettings : public UDeveloperSettings
 		ToolTip = "Default ratio of texels to vertices when creating a mesh paint texture for a mesh."))
 	int32 MeshPaintDefaultTexelsPerVertex;
 
+	UPROPERTY(config, EditAnywhere, Category = VirtualTextures, meta = (
+		EditCondition = "bVirtualTextures",
+		ConsoleVariable = "r.MeshPaintVirtualTexture.MaxTextureSize", DisplayName = "Mesh paint maximum texture size",
+		ToolTip = "Maximum size in pixels for mesh paint virtual textures. Will be rounded to next power-of-2."))
+	int32 MeshPaintVirtualTextureMaxTextureSize;
+
 	UPROPERTY(config, EditAnywhere, Category = "Runtime Virtual Textures|Enable Material Types", meta = (
 		EditCondition = "bVirtualTextures",
 		ConsoleVariable = "r.vt.rvt.EnableBaseColor", DisplayName = "Enable 'Base Color'",
