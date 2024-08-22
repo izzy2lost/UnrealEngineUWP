@@ -32,7 +32,7 @@ namespace Gauntlet
 
 				if (CommandUtils.IsBuildMachine)
 				{
-					DotnetPathLocation = "/usr/local/bin/dotnet/dotnet";
+					DotnetPathLocation = "/usr/local/bin/dotnet";
 					return;
 				}
 				else
