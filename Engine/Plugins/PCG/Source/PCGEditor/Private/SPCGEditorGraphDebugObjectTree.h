@@ -305,5 +305,5 @@ private:
 	/** The previous stack that the user selected. */
 	FPCGStack PreviouslySelectedStack;
 
-	const UPCGNode* PCGNodeBeingInspected = nullptr;
+	TWeakObjectPtr<const UPCGNode> PCGNodeBeingInspected = nullptr;
 };
