@@ -78,6 +78,8 @@ typedef VectorRegisterWrapper<float64x2_t, double> VectorRegister2Double;
 typedef VectorRegisterWrapper<int32x4_t, int> VectorRegister4Int;
 typedef VectorRegisterWrapper<int64x2_t, int64> VectorRegister2Int64;
 
+typedef float32x4x4_t VectorRegister4x4Float;
+
 FORCEINLINE constexpr VectorRegister4Int MakeVectorRegisterIntConstant(int32 X, int32 Y, int32 Z, int32 W)
 {
     int32x4_t Out = {};
@@ -399,7 +401,7 @@ FORCEINLINE VectorRegister4Double MakeVectorRegisterDouble(const VectorRegister4
 // Lossy conversion: double->float vector
 FORCEINLINE VectorRegister4Float MakeVectorRegisterFloatFromDouble(const VectorRegister4Double& Vec)
 {
-	return vcvt_high_f32_f64(vcvt_f32_f64(Vec.XY), Vec.ZW);
+	return vcombine_f32(vcvt_f32_f64(Vec.XY), vcvt_f32_f64(Vec.ZW));
 }
 
 /*
@@ -2871,12 +2873,12 @@ FORCEINLINE VectorRegister4Int VectorShuffleByte4(const VectorRegister4Int& Vec,
 #define VectorIntLoad1( Ptr )	                    vld1q_dup_s32((int32*)(Ptr))
 #define VectorIntLoad1_16(Ptr)                      vld1q_dup_s16((int16*)(Ptr))
 
-#define VectorIntSet1(F)                            vdupq_n_s32(F)
+#define VectorIntSet1(F)                            (VectorRegister4Int)vdupq_n_s32(F)
 #define VectorSetZero()                             vdupq_n_s32(0)
-#define VectorSet1(F)                               vdupq_n_f32(F)
+#define VectorSet1(F)                               (VectorRegister4Float)vdupq_n_f32(F)
 #define VectorCastIntToFloat(Vec)                   ((VectorRegister4f)vreinterpretq_f32_s32(Vec))
 #define VectorCastFloatToInt(Vec)					((VectorRegister4i)vreinterpretq_s32_f32(Vec))
-#define VectorCastDoubleToInt(Vec)                  ((VectorRegister2Int64)vreinterpretq_s64_f64(Vec))
+#define VectorCastDoubleToInt(Vec)                  ((VectorRegister4i)vreinterpretq_s64_f64(Vec))
 #define VectorCastIntToDouble(Vec)                  ((VectorRegister2Double)vreinterpretq_f64_s64(Vec))
 #define VectorShiftLeftImm(Vec, ImmAmt)             vshlq_n_s32(Vec, ImmAmt)
 #define VectorShiftRightImmArithmetic(Vec, ImmAmt)  vshrq_n_s32(Vec, ImmAmt)

@@ -12,7 +12,7 @@ namespace UnrealBuildTool.Rules
 			bUseUnity = false; // A windows include is preprocessing some method names causing compile failures.
 			bDisableStaticAnalysis = true;
 
-			if (Target.Platform == UnrealTargetPlatform.Win64)
+			if (Target.Platform == UnrealTargetPlatform.Win64 && Target.Architecture == UnrealArch.X64)
 			{
 				PrivateDefinitions.Add("RL_BUILD_WITH_SSE=1");
 				PublicDefinitions.Add("GTEST_OS_WINDOWS=1");

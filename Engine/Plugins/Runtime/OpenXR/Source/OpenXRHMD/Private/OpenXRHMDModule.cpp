@@ -416,7 +416,8 @@ PFN_xrGetInstanceProcAddr FOpenXRHMDModule::GetDefaultLoader()
 {
 #if PLATFORM_WINDOWS
 #if !PLATFORM_CPU_X86_FAMILY && !defined(_M_ARM64EC)
-#error Windows platform does not currently support this CPU family. A OpenXR loader binary for this CPU family is needed.
+	unimplemented();
+//#error Windows platform does not currently support this CPU family. A OpenXR loader binary for this CPU family is needed.
 #endif
 
 #if PLATFORM_64BITS

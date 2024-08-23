@@ -29,7 +29,11 @@ namespace atomic_queue {
 #if PLATFORM_USE_SSE2_FOR_THREAD_YIELD
 		_mm_pause();
 #elif PLATFORM_CPU_ARM_FAMILY
+#	if _MSC_VER
+		__yield();
+#	else
 		__asm__ __volatile__("yield");
+#	endif
 #else
 #error Implement this for your platform/architecture
 #endif

@@ -899,6 +899,7 @@ void FWindowsPlatformMisc::PlatformPreInit()
 	// initialize the file SHA hash mapping
 	InitSHAHashes();
 
+#if !PLATFORM_CPU_ARM_FAMILY
 	// Check for SSE42 or better. This is now minspec and there is a high likelihood
 	// of crashing on an invalid instruction on unsupported processors as we use these
 	// instructions now.
@@ -907,6 +908,7 @@ void FWindowsPlatformMisc::PlatformPreInit()
 		FMessageDialog::Open(EAppMsgType::Ok, NSLOCTEXT("Launch", "Error_CPUNotSupported", "This CPU does not support a required feature (SSE4.2)."));
 		FPlatformMisc::RequestExit(false, TEXT("FWindowsPlatformMisc::PlatformPreInit.CPUNotSupported"));
 	}
+#endif
 }
 
 

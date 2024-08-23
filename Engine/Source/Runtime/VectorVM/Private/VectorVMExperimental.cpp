@@ -386,7 +386,7 @@ VM_FORCEINLINE VectorRegister4i VVMIntLShift(VectorRegister4i v0, VectorRegister
 static FORCEINLINE void VVM_floatToHalf(void *output, float const *input)
 {
 	float16x4_t out0 = vcvt_f16_f32(vld1q_f32(input + 0));
-	vst1_f16((__fp16 *)((char *)output + 0), out0);
+	vst1_s16((int16_t *)((char *)output + 0), out0);
 }
 
 

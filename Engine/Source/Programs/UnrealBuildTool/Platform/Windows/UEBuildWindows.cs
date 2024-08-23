@@ -1123,6 +1123,27 @@ namespace UnrealBuildTool
 							"Reflex",
 							"VirtualCamera", // WebRTC currently does not link properly
 						});
+						Target.GlobalDefinitions.Add("UE_EXTERNAL_PROFILING_ENABLED=0");
+					}
+
+					// disbling some plugins until we get arm64 libs
+					if (Target.WindowsPlatform.Architecture == UnrealArch.Arm64)
+					{
+						Target.DisablePlugins.AddRange(new string[]
+						{
+							// stamspi
+							"OnlineSubsystemSteam",
+
+							// WebRTC / VPX
+							"VirtualCamera",
+
+							// Boost
+							"USDImporter",
+							"ChaosFlesh",
+
+							// DVP
+							"MediaIOFramework",
+						});
 					}
 
 					Target.DisablePlugins.AddRange(new string[]
