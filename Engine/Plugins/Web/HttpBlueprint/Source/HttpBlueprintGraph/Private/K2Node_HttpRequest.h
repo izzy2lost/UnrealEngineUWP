@@ -52,7 +52,6 @@ protected:
 	UEdGraphPin* GetUrlPin() const;
 	UEdGraphPin* GetSuccessPin() const;
 	UEdGraphPin* GetErrorPin() const;
-	UEdGraphPin* GetThenPin() const;
 	
 private:
 	UPROPERTY()

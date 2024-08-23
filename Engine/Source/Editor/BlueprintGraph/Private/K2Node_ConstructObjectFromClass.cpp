@@ -345,13 +345,6 @@ FText UK2Node_ConstructObjectFromClass::GetTooltipText() const
 	return NodeTooltip;
 }
 
-UEdGraphPin* UK2Node_ConstructObjectFromClass::GetThenPin()const
-{
-	UEdGraphPin* Pin = FindPinChecked(UEdGraphSchema_K2::PN_Then);
-	check(Pin->Direction == EGPD_Output);
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_ConstructObjectFromClass::GetClassPin(const TArray<UEdGraphPin*>* InPinsToSearch /*= NULL*/) const
 {
 	const TArray<UEdGraphPin*>* PinsToSearch = InPinsToSearch ? InPinsToSearch : &Pins;

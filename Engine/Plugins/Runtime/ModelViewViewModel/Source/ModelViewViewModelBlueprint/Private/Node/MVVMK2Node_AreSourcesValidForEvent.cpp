@@ -100,11 +100,6 @@ void UMVVMK2Node_AreSourcesValidForEvent::ExpandNode(FKismetCompilerContext& Com
 	BreakAllNodeLinks();
 }
 
-UEdGraphPin* UMVVMK2Node_AreSourcesValidForEvent::GetThenPin() const
-{
-	return FindPinChecked(UEdGraphSchema_K2::PN_Then);
-}
-
 UEdGraphPin* UMVVMK2Node_AreSourcesValidForEvent::GetElsePin() const
 {
 	return FindPinChecked(UEdGraphSchema_K2::PN_Else);

@@ -158,7 +158,7 @@ void UK2Node_WebAPIOperation::AllocateDefaultPins()
 		CreatePin(EGPD_Input, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Execute);
 	}
 
-	if(!GetThenPin())
+	if(!FindThenPin())
 	{
 		CreatePin(EGPD_Output, UEdGraphSchema_K2::PC_Exec, UEdGraphSchema_K2::PN_Then);
 	}
@@ -911,7 +911,7 @@ TArray<UEdGraphPin*> UK2Node_WebAPIOperation::GetResponsePins() const
 	return UE::WebAPI::Graph::GetResponsePins(this);
 }
 
-UEdGraphPin* UK2Node_WebAPIOperation::GetThenPin() const
+UEdGraphPin* UK2Node_WebAPIOperation::FindThenPin() const
 {
 	return FindPin(UEdGraphSchema_K2::PN_Then, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec);
 }
@@ -981,7 +981,7 @@ public:
 		ExecIn = InNode->GetExecPin();
 		RequestParameters = InNode->GetRequestPins();
 
-		ExecOut = InNode->GetThenPin();
+		ExecOut = InNode->FindThenPin();
 		ExecPositive = InNode->FindPin(UE::WebAPI::Operation::PositiveOutcomeName, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec, true);
 		ExecNegative = InNode->FindPin(UE::WebAPI::Operation::NegativeOutcomeName, EEdGraphPinDirection::EGPD_Output, UEdGraphSchema_K2::PC_Exec, true);
 		Responses = InNode->GetResponsePins();
@@ -1082,7 +1082,7 @@ public:
 		check(InNode->PositiveDelegateProperty.IsValid());
 		DelegateProperty = InNode->PositiveDelegateProperty.Get(); // Choose one, doesn't matter
 		
-		ExecOut = InNode->GetThenPin();
+		ExecOut = InNode->FindThenPin();
 		
 		PositiveEventNodeMap = FOutcomeEventPinMap(UE::WebAPI::Operation::PositiveOutcomeName, InPositiveEvent, DelegateProperty->SignatureFunction);
 		NegativeEventNodeMap = FOutcomeEventPinMap(UE::WebAPI::Operation::NegativeOutcomeName, InNegativeEvent, DelegateProperty->SignatureFunction);

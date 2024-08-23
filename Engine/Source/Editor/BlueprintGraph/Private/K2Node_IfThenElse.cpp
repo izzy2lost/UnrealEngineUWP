@@ -141,13 +141,6 @@ FText UK2Node_IfThenElse::GetTooltipText() const
 	return LOCTEXT("BranchStatement_Tooltip", "Branch Statement\nIf Condition is true, execution goes to True, otherwise it goes to False");
 }
 
-UEdGraphPin* UK2Node_IfThenElse::GetThenPin() const
-{
-	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Then);
-	check(Pin);
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_IfThenElse::GetElsePin() const
 {
 	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Else);

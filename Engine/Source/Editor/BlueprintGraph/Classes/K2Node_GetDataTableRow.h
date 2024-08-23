@@ -54,8 +54,6 @@ class BLUEPRINTGRAPH_API UK2Node_GetDataTableRow : public UK2Node
 	/** Get the return type of our struct */
 	UScriptStruct* GetReturnTypeForStruct();
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
 	/** Get the Data Table input pin */
 	UEdGraphPin* GetDataTablePin(const TArray<UEdGraphPin*>* InPinsToSearch=NULL) const;
 	/** Get the spawn transform input pin */	

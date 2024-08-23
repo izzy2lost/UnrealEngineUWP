@@ -38,10 +38,6 @@ public:
 	virtual void EarlyValidation(class FCompilerResultsLog& MessageLog) const override;
 	//~ End UK2Node Interface
 
-
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
-
 	/** Get the Live Link Struct input pin */
 	UEdGraphPin* GetLiveLinkStructPin() const;
 

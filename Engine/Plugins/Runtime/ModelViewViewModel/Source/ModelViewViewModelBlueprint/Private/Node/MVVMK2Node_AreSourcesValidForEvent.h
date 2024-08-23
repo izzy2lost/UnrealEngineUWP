@@ -22,8 +22,6 @@ public:
 	virtual void AllocateDefaultPins() override;
 	//~ End K2Node Interface.
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
 	/** Get the else output pin */
 	UEdGraphPin* GetElsePin() const;
 

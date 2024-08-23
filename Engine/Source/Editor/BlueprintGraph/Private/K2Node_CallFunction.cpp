@@ -1403,13 +1403,6 @@ UFunction* UK2Node_CallFunction::GetTargetFunctionFromSkeletonClass() const
 	return TargetFunction;
 }
 
-UEdGraphPin* UK2Node_CallFunction::GetThenPin() const
-{
-	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_Then);
-	check(Pin == nullptr || Pin->Direction == EGPD_Output); // If pin exists, it must be output
-	return Pin;
-}
-
 UEdGraphPin* UK2Node_CallFunction::GetReturnValuePin() const
 {
 	UEdGraphPin* Pin = FindPin(UEdGraphSchema_K2::PN_ReturnValue);

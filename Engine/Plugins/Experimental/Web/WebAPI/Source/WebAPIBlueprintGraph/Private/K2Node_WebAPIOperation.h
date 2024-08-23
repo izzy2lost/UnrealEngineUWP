@@ -124,6 +124,8 @@ private:
 		const EEdGraphPinDirection& InDirection = EEdGraphPinDirection::EGPD_MAX,
 		bool bOnlySplitPins = true) const;
 
+	UEdGraphPin* FindThenPin() const;
+
 	/** Get all input pins that correspond to operation parameters. */
 	TArray<UEdGraphPin*> GetRequestPins() const;
 
@@ -132,9 +134,6 @@ private:
 
 	/** Get all (non-exec, non-error) output pins, will return empty if this uses Callbacks. */
 	TArray<UEdGraphPin*> GetResponsePins() const;
-
-	/** Get the output execution pin. */
-	UEdGraphPin* GetThenPin() const;
 
 	/** Get both outcome exec pins, will return empty if this uses Callbacks. */
 	TArray<UEdGraphPin*> GetResponseExecPins() const;

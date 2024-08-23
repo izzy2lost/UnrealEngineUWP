@@ -154,8 +154,6 @@ public:
 	/** Returns the UFunction that this class is pointing to */
 	UFunction* GetTargetFunction() const;
 
-	/** Get the then output pin */
-	UEdGraphPin* GetThenPin() const;
 	/** Get the return value pin */
 	UEdGraphPin* GetReturnValuePin() const;
 
