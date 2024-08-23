@@ -447,6 +447,25 @@ FBox2D UGeometryScriptLibrary_MeshQueryFunctions::GetUVSetBoundingBox(UDynamicMe
 	});
 }
 
+double UGeometryScriptLibrary_MeshQueryFunctions::GetMeshUVArea(UDynamicMesh* TargetMesh, int UVChannelIndex, bool& bIsValidUVChannel)
+{
+	return SimpleMeshUVSetQuery<double>(TargetMesh, UVChannelIndex, bIsValidUVChannel, 0.0,
+		[](const FDynamicMesh3& Mesh, const FDynamicMeshUVOverlay& UVOverlay) -> double
+		{
+			double AreaSum = 0;
+			for (int32 TriangleID : Mesh.TriangleIndicesItr())
+			{
+				FTriangle2f Tri;
+				if (UVOverlay.IsSetTriangle(TriangleID))
+				{
+					UVOverlay.GetTriElements(TriangleID, Tri.V[0], Tri.V[1], Tri.V[2]);
+					AreaSum += (double)Tri.Area();
+				}
+			}
+			return AreaSum;
+		});
+}
+
 void UGeometryScriptLibrary_MeshQueryFunctions::GetTriangleUVs(UDynamicMesh* TargetMesh, int32 UVSetIndex, int32 TriangleID, 
 	FVector2D& UV1, FVector2D& UV2, FVector2D& UV3, bool& bHaveValidUVs)
 {
@@ -524,6 +543,28 @@ UDynamicMesh* UGeometryScriptLibrary_MeshQueryFunctions::GetAllUVSeamEdges(UDyna
 			return true;
 		});
 	return TargetMesh;
+}
+
+int32 UGeometryScriptLibrary_MeshQueryFunctions::GetNumUVIslands(UDynamicMesh* TargetMesh, int32 UVChannel, bool& bIsValidUVChannel)
+{
+	return SimpleMeshUVSetQuery<int32>(TargetMesh, UVChannel, bIsValidUVChannel, -1,
+		[](const FDynamicMesh3& Mesh, const FDynamicMeshUVOverlay& UVOverlay) -> int32
+		{
+			auto UVIslandPredicate = [&UVOverlay](int32 Triangle0, int32 Triangle1)
+				{
+					return UVOverlay.AreTrianglesConnected(Triangle0, Triangle1);
+				};
+
+			FMeshConnectedComponents UVComponents(&Mesh);
+			UVComponents.FindConnectedTriangles(UVIslandPredicate);
+			int32 NumIslands = 0;
+			// only count the islands with set triangles
+			for (const FMeshConnectedComponents::FComponent& Component : UVComponents.Components)
+			{
+				NumIslands += (int32)(!Component.Indices.IsEmpty() && UVOverlay.IsSetTriangle(Component.Indices[0]));
+			}
+			return NumIslands;
+		});
 }
 
 
