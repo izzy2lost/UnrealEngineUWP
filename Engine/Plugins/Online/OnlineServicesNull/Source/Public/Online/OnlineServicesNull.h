@@ -11,7 +11,7 @@ class ONLINESERVICESNULL_API FOnlineServicesNull : public FOnlineServicesCommon
 public:
 	using Super = FOnlineServicesCommon;
 
-	FOnlineServicesNull(FName InInstanceName);
+	FOnlineServicesNull(FName InInstanceName, FName InInstanceConfigName);
 	virtual void RegisterComponents() override;
 	virtual void Initialize() override;
 	virtual TOnlineResult<FGetResolvedConnectString> GetResolvedConnectString(FGetResolvedConnectString::Params&& Params) override;

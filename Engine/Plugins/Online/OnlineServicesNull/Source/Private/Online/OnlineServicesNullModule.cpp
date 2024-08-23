@@ -17,7 +17,7 @@ public:
 	virtual ~FOnlineServicesFactoryNull() {}
 	virtual TSharedPtr<IOnlineServices> Create(FName InInstanceName, FName InstanceConfigName) override
 	{
-		return MakeShared<FOnlineServicesNull>(InInstanceName);
+		return MakeShared<FOnlineServicesNull>(InInstanceName, InstanceConfigName);
 	}
 protected:
 };
