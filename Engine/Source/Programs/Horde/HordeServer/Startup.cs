@@ -453,7 +453,8 @@ namespace HordeServer
 
 			authBuilder.AddServiceAccounts(options => { });
 			schemes.Add(ServiceAccountAuthHandler.AuthenticationScheme);
-
+			
+			ValidateOidcSettings(settings);
 			switch (settings.AuthMethod)
 			{
 				case AuthMethod.Anonymous:
@@ -646,7 +647,28 @@ namespace HordeServer
 
 			OnAddHealthChecks(services);
 		}
-
+		
+		private static void ValidateOidcSettings(ServerSettings settings)
+		{
+			if (settings.AuthMethod is AuthMethod.OpenIdConnect or AuthMethod.Okta)
+			{
+				if (settings.OidcAuthority == null)
+				{
+					throw new ArgumentException($"Key '{nameof(ServerSettings.OidcAuthority)}' in server settings must be set when auth mode {settings.AuthMethod} is used");
+				}
+				
+				if (settings.OidcAudience == null)
+				{
+					throw new ArgumentException($"Key '{nameof(ServerSettings.OidcAudience)}' in server settings must be set when auth mode {settings.AuthMethod} is used");
+				}
+				
+				if (settings.OidcClientId == null)
+				{
+					throw new ArgumentException($"Key '{nameof(ServerSettings.OidcClientId)}' in server settings must be set when auth mode {settings.AuthMethod} is used");
+				}
+			}
+		}
+		
 		public static void ConfigureFormatters()
 		{
 			LogValueFormatter.RegisterTypeAnnotation<AgentId>("AgentId");

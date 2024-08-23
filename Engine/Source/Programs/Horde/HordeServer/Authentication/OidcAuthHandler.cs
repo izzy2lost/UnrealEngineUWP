@@ -134,6 +134,7 @@ namespace HordeServer.Authentication
 			options.SaveTokens = true;
 			options.TokenValidationParameters.NameClaimType = "name";
 			options.ClaimActions.Add(new MapRolesClaimAction(settings));
+			options.RequireHttpsMetadata = !settings.OidcDebugMode;
 
 			handler(options);
 		}

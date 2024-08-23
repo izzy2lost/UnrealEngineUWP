@@ -202,10 +202,10 @@ namespace HordeServer
 		public string? ServerPrivateCert { get; set; }
 
 		/// <summary>
-		/// Issuer for tokens from the auth provider
+		/// Type of authentication (e.g anonymous, OIDC, built-in Horde accounts)
 		/// </summary>
 		public AuthMethod AuthMethod { get; set; } = AuthMethod.Anonymous;
-
+		
 		/// <summary>
 		/// Optional profile name to report through the /api/v1/server/auth endpoint. Allows sharing auth tokens between providers configured through
 		/// the same profile name in OidcToken.exe config files.
@@ -213,17 +213,17 @@ namespace HordeServer
 		public string? OidcProfileName { get; set; }
 
 		/// <summary>
-		/// Issuer for tokens from the auth provider
+		/// OpenID Connect (OIDC) authority URL (required when OIDC is enabled)
 		/// </summary>
 		public string? OidcAuthority { get; set; }
 
 		/// <summary>
-		/// Audience for validating externally issued tokens
+		/// Audience for validating externally issued tokens (required when OIDC is enabled)
 		/// </summary>
 		public string? OidcAudience { get; set; }
 
 		/// <summary>
-		/// Client id for the OIDC authority
+		/// Client ID for the OIDC authority (required when OIDC is enabled)
 		/// </summary>
 		public string? OidcClientId { get; set; }
 
@@ -239,12 +239,17 @@ namespace HordeServer
 
 		/// <summary>
 		/// Optional redirect url provided to OIDC login for external tools (typically to a local server)
+		/// Default value is the local web server started during signin by EpicGames.OIDC library
 		/// </summary>
-		public string[]? OidcLocalRedirectUrls { get; set; } =
-		{
-			"http://localhost:8749/ugs.client"
-		};
-
+		public string[]? OidcLocalRedirectUrls { get; set; } = ["http://localhost:8749/ugs.client"];
+		
+		/// <summary>
+		/// Debug mode for OIDC which logs reasons for why JWT tokens fail to authenticate
+		/// Also turns off HTTPS requirement for OIDC metadata fetching.
+		/// NOT FOR PRODUCTION USE!
+		/// </summary>
+		public bool OidcDebugMode { get; set; } = false;
+		
 		/// <summary>
 		/// OpenID Connect scopes to request when signing in
 		/// </summary>

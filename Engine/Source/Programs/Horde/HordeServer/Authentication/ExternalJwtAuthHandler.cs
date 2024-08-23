@@ -60,7 +60,18 @@ namespace HordeServer.Authentication
 
 			return Task.CompletedTask;
 		}
-
+		
+		private Task OnAuthenticationFailedAsync(AuthenticationFailedContext context)
+		{
+			if (_settings.OidcDebugMode)
+			{
+				IServiceProvider serviceProvider = context.HttpContext.RequestServices;
+				ILogger<ExternalJwtAuthHandler> logger = serviceProvider.GetRequiredService<ILogger<ExternalJwtAuthHandler>>();
+				logger.LogError(context.Exception, "JWT bearer auth failed. Auth header: {AuthHeader}", context.Request.Headers.Authorization.ToString());	
+			}
+			return Task.CompletedTask;
+		}
+		
 		/// <summary>
 		/// Callback when JWT bearer token is being validated
 		/// If user is not cached, it will look up additional info via /userinfo and cache it
@@ -141,7 +152,8 @@ namespace HordeServer.Authentication
 			{
 				options.Authority = _settings.OidcAuthority;
 				options.Audience = _settings.OidcAudience;
-				options.Events = new JwtBearerEvents() { OnMessageReceived = OnMessageReceivedAsync, OnTokenValidated = OnTokenValidatedAsync };
+				options.Events = new JwtBearerEvents() { OnAuthenticationFailed = OnAuthenticationFailedAsync, OnMessageReceived = OnMessageReceivedAsync, OnTokenValidated = OnTokenValidatedAsync };
+				options.RequireHttpsMetadata = !_settings.OidcDebugMode;
 
 				options.TokenValidationParameters.ValidAudience = _settings.OidcAudience;
 				options.TokenValidationParameters.RequireExpirationTime = true;

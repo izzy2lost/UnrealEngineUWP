@@ -25,8 +25,8 @@ namespace HordeServer.Authentication
 
 		readonly AsyncCachedValue<IGlobals> _globals;
 
-		public JwtAuthHandler(ILoggerFactory logger, UrlEncoder encoder, GlobalsService globalsService, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
-			: base(GetOptionsMonitor(optionsCache), logger, encoder)
+		public JwtAuthHandler(ILoggerFactory logger, UrlEncoder encoder, ServerSettings settings, GlobalsService globalsService, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
+			: base(GetOptionsMonitor(settings, optionsCache), logger, encoder)
 		{
 			_globals = new AsyncCachedValue<IGlobals>(async ctx => await globalsService.GetAsync(ctx), TimeSpan.FromSeconds(30.0));
 		}
@@ -36,10 +36,13 @@ namespace HordeServer.Authentication
 			await _globals.DisposeAsync();
 		}
 
-		private static IOptionsMonitor<JwtBearerOptions> GetOptionsMonitor(IOptionsMonitorCache<JwtBearerOptions> optionsCache)
+		private static IOptionsMonitor<JwtBearerOptions> GetOptionsMonitor(ServerSettings settings, IOptionsMonitorCache<JwtBearerOptions> optionsCache)
 		{
-			ConfigureNamedOptions<JwtBearerOptions> namedOptions = new ConfigureNamedOptions<JwtBearerOptions>(AuthenticationScheme, options => { });
-			OptionsFactory<JwtBearerOptions> optionsFactory = new OptionsFactory<JwtBearerOptions>(new[] { namedOptions }, Array.Empty<IPostConfigureOptions<JwtBearerOptions>>());
+			ConfigureNamedOptions<JwtBearerOptions> namedOptions = new (AuthenticationScheme, options =>
+			{
+				options.RequireHttpsMetadata = !settings.OidcDebugMode;
+			});
+			OptionsFactory<JwtBearerOptions> optionsFactory = new (new[] { namedOptions }, Array.Empty<IPostConfigureOptions<JwtBearerOptions>>());
 			return new OptionsMonitor<JwtBearerOptions>(optionsFactory, Array.Empty<IOptionsChangeTokenSource<JwtBearerOptions>>(), optionsCache);
 		}
 
