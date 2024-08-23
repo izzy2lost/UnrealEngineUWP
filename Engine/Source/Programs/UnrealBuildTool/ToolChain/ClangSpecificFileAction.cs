@@ -60,7 +60,7 @@ namespace UnrealBuildTool
 			}
 			else
 			{
-				Filename = $"SingleFile/{Path.GetFileNameWithoutExtension(SourceFile.Name)}{SingleFiles[Filename].Count}{Path.GetExtension(SourceFile.Name)}";
+				Filename = $"SingleFile/{Path.GetFileNameWithoutExtension(SourceFile.Name)}{SingleFiles[SourceFile.Name].Count}{Path.GetExtension(SourceFile.Name)}";
 			}
 			SingleFiles[SourceFile.Name].Add(SourceFile);
 
