@@ -28,7 +28,6 @@ using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
 using EpicGames.Horde.Ugs;
 
-
 #pragma warning disable CA2234
 
 namespace EpicGames.Horde
