@@ -20,6 +20,8 @@ namespace UnrealBuildToolTests
 		[TestMethod]
 		public void Run()
 		{
+			UnrealHelper.InitializePath();
+
 			List<DirectoryReference> baseDirectories = new List<DirectoryReference>();
 			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Runtime"));
 			baseDirectories.Add(DirectoryReference.Combine(Unreal.EngineSourceDirectory, "Developer"));
