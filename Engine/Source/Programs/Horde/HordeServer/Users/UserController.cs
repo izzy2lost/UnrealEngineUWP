@@ -9,6 +9,7 @@ using EpicGames.Horde.Jobs;
 using EpicGames.Horde.Jobs.Bisect;
 using EpicGames.Horde.Users;
 using HordeServer.Accounts;
+using HordeServer.Acls;
 using HordeServer.Plugins;
 using HordeServer.Server;
 using HordeServer.Server.Notices;
@@ -118,6 +119,43 @@ namespace HordeServer.Users
 		public ActionResult<object[]> GetUserClaims()
 		{
 			return User.Claims.Select(x => new { x.Type, x.Value }).ToArray();
+		}
+		
+		/// <summary>
+		/// Gets ACL permissions for the current user
+		/// </summary>
+		[HttpGet]
+		[Route("/api/v1/user/acl-permissions")]
+		public ActionResult<GetUserAclPermissionsResponse> GetUserAclPermissions()
+		{
+			return new GetUserAclPermissionsResponse(GetUserAclPermissions(_globalConfig.Value, User));
+		}
+		
+		/// <summary>
+		/// Get a list of ACL permissions for a user
+		/// A scope is only included if the user is authorized for at least one action inside of it
+		/// </summary>
+		/// <param name="globalConfig">Global config</param>
+		/// <param name="user">User to inspect</param>
+		/// <returns></returns>
+		public static List<UserAclPermission> GetUserAclPermissions(GlobalConfig globalConfig, ClaimsPrincipal user)
+		{
+			List<UserAclPermission> result = [];
+			foreach (AclConfig aclConfig in globalConfig.AclScopes.Values)
+			{
+				string scope = aclConfig.ScopeName.ToString();
+				List<UserAclPermission> permissions = (aclConfig.Actions ?? [])
+					.Select(x => new UserAclPermission(scope, x.Name, aclConfig.Authorize(x, user)))
+					.ToList();
+				
+				bool hasPermission = permissions.Exists(x => x.IsAuthorized);
+				if (hasPermission)
+				{
+					result.AddRange(permissions);
+				}
+			}
+			
+			return result;
 		}
 	}
 }

@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using EpicGames.Horde.Accounts;
 using EpicGames.Horde.Acls;
 using EpicGames.Horde.Server;
+using EpicGames.Horde.Users;
 using HordeServer.Accounts;
 using HordeServer.Acls;
 using HordeServer.Authentication;
@@ -127,41 +128,42 @@ namespace HordeServer.Server
 				}
 				content.AppendLine("</table>");
 				
-				bool addedAcl = false;
-				content.AppendLine("<h2>ACL Scopes</h2>");
+				content.AppendLine("<h2>ACL Permissions</h2>");
 				content.AppendLine("<p>Only scopes with at least one authorized action are shown.</p>");
 				content.AppendLine("<table class=\"acl-scopes\">");
-				content.AppendLine("<tr><th>Scope</th><th>Permission</th><th>Authorized</th></tr>");
-				foreach (AclConfig aclConfig in _globalConfig.Value.AclScopes.Values)
+				content.AppendLine("<tr><th>Scope</th><th>Action</th><th>Authorized</th></tr>");
+				
+				List<UserAclPermission> aclPermissions = UserController.GetUserAclPermissions(_globalConfig.Value, User);
+				Dictionary<string, List<UserAclPermission>> scopeToPermissions = aclPermissions
+					.GroupBy(permission => permission.Scope)
+					.ToDictionary(group => group.Key, group => group.ToList());
+				
+				foreach ((string scope, List<UserAclPermission> permissions) in scopeToPermissions)
 				{
-					List<AclAction> actions = aclConfig.Actions?.ToList() ?? [];
-					bool shouldIncludeAcl = actions.Any(x => aclConfig.Authorize(x, User));
-					List<string> actionTds = actions.Select(x =>
+					if (permissions.Count > 0)
 					{
-						string color = aclConfig.Authorize(x, User) ? "#c8ffc8" : "#ffc8c8";
-						string authorized = aclConfig.Authorize(x, User) ? "Yes" : "No";
-						return $"<td>{x.Name}</td><td style=\"background-color: {color}; text-align: center;\">{authorized}</td>";
-					}).ToList();
-
-					if (actions.Count == 0)
-					{
-						actionTds.Add("<td>No actions</td><td></td>");
-					}
-					
-					if (shouldIncludeAcl)
-					{
-						addedAcl = true;
-						content.AppendLine($"<tr><td rowspan=\"{actionTds.Count + 1}\">{aclConfig.ScopeName}</td>{actionTds[0]}</tr>");
-						foreach (string td in actionTds)
+						for (int i = 0; i < permissions.Count; i++)
 						{
-							content.AppendLine($"<tr>{td}</td>");
+							UserAclPermission uap = permissions[i];
+							if (i == 0)
+							{
+								content.Append("<tr>");
+								content.AppendLine($"<tr><td rowspan=\"{permissions.Count + 1}\">{scope}</td>");
+							}
+							else
+							{
+								string color = uap.IsAuthorized ? "#c8ffc8" : "#ffc8c8";
+								string authorized = uap.IsAuthorized ? "Yes" : "No";
+								content.AppendLine($"<td>{uap.Action}</td><td style=\"background-color: {color}; text-align: center;\">{authorized}</td>");
+							}
+							content.Append("</tr>");
 						}
-						content.AppendLine("<tr style=\"border-bottom:1px solid black\"><td colspan=\"100%\"></td></tr>");
-						content.AppendLine("<tr><td colspan=\"100%\" style=\"display: block; height 20px;\"></td></tr>");
 					}
+					content.AppendLine("<tr style=\"border-bottom:1px solid black\"><td colspan=\"100%\"></td></tr>");
+					content.AppendLine("<tr><td colspan=\"100%\" style=\"display: block; height 20px;\"></td></tr>");
 				}
 				
-				if (!addedAcl)
+				if (scopeToPermissions.Count == 0)
 				{
 					content.AppendLine("<tr><td colspan=\"100%\">No scopes</td></tr>");
 				}

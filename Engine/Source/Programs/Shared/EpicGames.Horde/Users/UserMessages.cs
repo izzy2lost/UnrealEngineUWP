@@ -122,6 +122,56 @@ namespace EpicGames.Horde.Users
 			Value = value;
 		}
 	}
+	
+	/// <summary>
+	/// Resolved permissions for an action in a given ACL scope
+	/// </summary>
+	public class UserAclPermission
+	{
+		/// <summary>
+		/// Scope name
+		/// </summary>
+		public string Scope { get; set; }
+		
+		/// <summary>
+		/// Action name
+		/// </summary>
+		public string Action { get; set; }
+		
+		/// <summary>
+		/// Whether action is authorized in given scope
+		/// </summary>
+		public bool IsAuthorized { get; set; }
+		
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public UserAclPermission(string scope, string action, bool isAuthorized)
+		{
+			Scope = scope;
+			Action = action;
+			IsAuthorized = isAuthorized;
+		}
+	}
+	
+	/// <summary>
+	/// Resolved permissions for ACL scopes for a given user
+	/// </summary>
+	public class GetUserAclPermissionsResponse
+	{
+		/// <summary>
+		/// List of ACL permissions
+		/// </summary>
+		public List<UserAclPermission> AclPermissions { get; set; }
+
+		/// <summary>
+		/// Constructor
+		/// </summary>
+		public GetUserAclPermissionsResponse(List<UserAclPermission> aclPermissions)
+		{
+			AclPermissions = aclPermissions;
+		}
+	}
 
 	/// <summary>
 	/// Job template settings for the current user
