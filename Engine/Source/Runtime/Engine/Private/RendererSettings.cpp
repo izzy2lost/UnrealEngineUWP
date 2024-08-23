@@ -102,6 +102,13 @@ URendererSettings::URendererSettings(const FObjectInitializer& ObjectInitializer
 	WhiteChromaticityCoordinate = FVector2D::ZeroVector;
 	bUseLegacyLuminanceFactors = false;
 	bEnableVirtualTextureOpacityMask = false;
+
+#if WITH_EDITOR
+	if (IsTemplate())
+	{
+		PreInitPropertiesFixup();
+	}
+#endif // #if WITH_EDITOR
 }
 
 void URendererSettings::PostInitProperties()
@@ -161,6 +168,22 @@ void UpdateDependentPropertyInConfigFile(URendererSettings* RendererSettings, FN
 	if (!bIsWriteable)
 	{
 		FPlatformFileManager::Get().GetPlatformFile().SetReadOnly(*FullPath, true);
+	}
+}
+
+void URendererSettings::PreInitPropertiesFixup()
+{
+	int32 PropagateAlphaIntValue = 0;
+	if (GConfig->GetInt(TEXT("/Script/Engine.RendererSettings"), TEXT("r.PostProcessing.PropagateAlpha"), PropagateAlphaIntValue, GEngineIni))
+	{
+		constexpr int32 LegacyAllowThroughTonemapper = 2;
+		if (PropagateAlphaIntValue == LegacyAllowThroughTonemapper)
+		{
+			UE_LOG(LogEngine, Warning, TEXT("r.PostProcessing.PropagateAlpha config value under /Script/Engine.RendererSettings was automatically converted from 2 to True, please version the change."));
+
+			bEnableAlphaChannelInPostProcessing = true;
+			UpdateDependentPropertyInConfigFile(this, GET_MEMBER_NAME_CHECKED(URendererSettings, bEnableAlphaChannelInPostProcessing));
+		}
 	}
 }
 

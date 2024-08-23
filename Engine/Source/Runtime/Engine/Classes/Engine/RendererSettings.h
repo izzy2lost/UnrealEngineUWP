@@ -1452,6 +1452,7 @@ private:
 	// Notification about missing required shader models.
 	TWeakPtr<class SNotificationItem> ShaderModelNotificationPtr;
 
+	void PreInitPropertiesFixup();
 	void CheckForMissingShaderModels();
 	void FixAntiAliasingOnShadingPathChange(FPropertyChangedEvent& PropertyChangedEvent);
 #endif // WITH_EDITOR
