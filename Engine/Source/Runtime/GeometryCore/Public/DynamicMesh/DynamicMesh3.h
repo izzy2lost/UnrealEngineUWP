@@ -1415,6 +1415,9 @@ public:
 		};
 		EReason Reason = EReason::Unknown;
 
+		// May contain further detail on the difference
+		FString Detail;
+
 		// Types of element ID that could be set below
 		enum class EIDType
 		{

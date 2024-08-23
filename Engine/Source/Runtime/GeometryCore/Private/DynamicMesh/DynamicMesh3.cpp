@@ -719,6 +719,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 		if (OutMeshDifferenceInfo)
 		{
 			OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::VertexCount;
+			OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Vertex Count: %d != %d"), VertexCount(), m2.VertexCount());
 		}
 		return false;
 	}
@@ -728,6 +729,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 		if (OutMeshDifferenceInfo)
 		{
 			OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::TriangleCount;
+			OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Triangle Count: %d != %d"), TriangleCount(), m2.TriangleCount());
 		}
 		return false;
 	}
@@ -861,6 +863,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::EdgeCount;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Edge Count: %d != %d"), EdgeCount(), m2.EdgeCount());
 			}
 			return false;
 		}
@@ -905,6 +908,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::EdgeCount;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Edge Count: %d != %d"), EdgeCount(), m2.EdgeCount());
 			}
 			return false;
 		}
@@ -943,6 +947,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Normal;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Has Vertex Normals: %d != %d"), HasVertexNormals(), m2.HasVertexNormals());
 			}
 			return false;
 		}
@@ -969,6 +974,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Color;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Has Vertex Colors: %d != %d"), HasVertexColors(), m2.HasVertexColors());
 			}
 			return false;
 		}
@@ -995,6 +1001,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::UV;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Has Vertex UVs: %d != %d"), HasVertexUVs(), m2.HasVertexUVs());
 			}
 			return false;
 		}
@@ -1021,6 +1028,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Group;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Has Triangle Groups: %d != %d"), HasTriangleGroups(), m2.HasTriangleGroups());
 			}
 			return false;
 		}
@@ -1034,6 +1042,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 					if (OutMeshDifferenceInfo)
 					{
 						OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Group;
+						OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Triangle Group: %d != %d"), GetTriangleGroup(Tid), GetTriangleGroup(TidM2));
 						OutMeshDifferenceInfo->SetTID(Tid, TidM2);
 					}
 					return false;
@@ -1048,6 +1057,7 @@ bool FDynamicMesh3::IsSameAs_Helper(const FDynamicMesh3& m2, const FSameAsOption
 			if (OutMeshDifferenceInfo)
 			{
 				OutMeshDifferenceInfo->Reason = FMeshDifferenceInfo::EReason::Attribute;
+				OutMeshDifferenceInfo->Detail = FString::Printf(TEXT("Has Attribute Set: %d != %d"), HasAttributes(), m2.HasAttributes());
 			}
 			return false;
 		}

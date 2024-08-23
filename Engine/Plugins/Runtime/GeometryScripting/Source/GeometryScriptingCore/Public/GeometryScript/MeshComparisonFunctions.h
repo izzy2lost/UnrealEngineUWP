@@ -77,6 +77,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Difference)
 	EGeometryScriptMeshDifferenceReason Reason = EGeometryScriptMeshDifferenceReason::Unknown;
 
+	// String that may contain additional detail on the difference
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Difference)
+	FString Detail;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Difference)
 	int32 TargetMeshElementID = INDEX_NONE;
 

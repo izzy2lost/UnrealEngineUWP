@@ -101,6 +101,7 @@ UDynamicMesh* UGeometryScriptLibrary_MeshComparisonFunctions::IsSameMeshAs(
 			{
 				DifferenceInfo.ElementIDType = ConvertIDType(Difference.IDType);
 				DifferenceInfo.Reason = ConvertReason(Difference.Reason);
+				DifferenceInfo.Detail = MoveTemp(Difference.Detail);
 				DifferenceInfo.TargetMeshElementID = Difference.ID;
 				DifferenceInfo.OtherMeshElementID = Difference.OtherID;
 			}
