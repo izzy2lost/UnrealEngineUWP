@@ -15,7 +15,11 @@ class SWindow;
 /**
  * An implementation of the deprecated @see UStylusInputSubsystem interface by means of using the new interface and Windows implementation.
  */
-class FDeprecatedWindowsStylusInputInterface : public IStylusInputInterfaceInternal, public TSharedFromThis<FDeprecatedWindowsStylusInputInterface>
+class  FDeprecatedWindowsStylusInputInterface
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
+	: public IStylusInputInterfaceInternal
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
+	, public TSharedFromThis<FDeprecatedWindowsStylusInputInterface>
 {
 public:
 	FDeprecatedWindowsStylusInputInterface();
@@ -23,12 +27,15 @@ public:
 
 	virtual void Tick() override;
 	virtual int32 NumInputDevices() const override;
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	virtual IStylusInputDevice* GetInputDevice(int32 Index) const override;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 private:
 	void CreateStylusInputInstance(SWindow* Window);
 	void RemoveStylusInputInstance(const TSharedRef<SWindow>& Window);
 
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	struct FDeprecatedStylusInputDevice : IStylusInputDevice
 	{
 		explicit FDeprecatedStylusInputDevice(uint32 TabletContextId, const TSharedPtr<UE::StylusInput::IStylusInputTabletContext>& TabletContext);
@@ -40,6 +47,7 @@ private:
 
 		UE::StylusInput::FStylusInputPacket LastPacket;
 	};
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 	class FStylusInputEventHandler : public UE::StylusInput::IStylusInputEventHandler
 	{

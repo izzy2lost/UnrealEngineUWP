@@ -64,7 +64,7 @@ namespace UE::StylusInput
 		 *
 		 * @returns The unique identifier for the tablet context for the respective stylus input instance.
 		 */
-		STYLUSINPUT_API virtual uint32 GetID() const = 0;
+		virtual uint32 GetID() const = 0;
 
 		/**
 		 * Returns the name of the tablet context.
@@ -72,7 +72,7 @@ namespace UE::StylusInput
 		 *
 		 * @returns The name of the tablet context.
 		 */
-		STYLUSINPUT_API virtual FString GetName() const = 0;
+		virtual FString GetName() const = 0;
 
 		/**
 		 * Returns the dimensions of the digitizer surface in device coordinates.
@@ -81,14 +81,14 @@ namespace UE::StylusInput
 		 *
 		 * @returns The dimensions of the digitizer surface.
 		 */
-		STYLUSINPUT_API virtual FIntRect GetInputRectangle() const = 0;
+		virtual FIntRect GetInputRectangle() const = 0;
 
 		/**
 		 * Returns the hardware capabilities of the device associated with the tablet context.
 		 *
 		 * @return The hardware capability flags.
 		 */
-		STYLUSINPUT_API virtual ETabletHardwareCapabilities GetHardwareCapabilities() const = 0;
+		virtual ETabletHardwareCapabilities GetHardwareCapabilities() const = 0;
 
 		/**
 		 * Returns the supported properties for a tablet context.
@@ -96,7 +96,7 @@ namespace UE::StylusInput
 		 *
 		 * @returns The supported properties flags.
 		 */
-		STYLUSINPUT_API virtual ETabletSupportedProperties GetSupportedProperties() const = 0;
+		virtual ETabletSupportedProperties GetSupportedProperties() const = 0;
 	};
 
 	/**
@@ -110,12 +110,12 @@ namespace UE::StylusInput
 		/**
 		 * @returns The GUID string for the button. 
 		 */
-		STYLUSINPUT_API virtual FString GetID() const = 0;
+		virtual FString GetID() const = 0;
 
 		/**
 		 * @returns  The name of the button.
 		 */
-		STYLUSINPUT_API virtual FString GetName() const = 0;
+		virtual FString GetName() const = 0;
 	};
 
 	/**
@@ -132,12 +132,12 @@ namespace UE::StylusInput
 		 *
 		 * @returns Identifier of the stylus pen.
 		 */
-		STYLUSINPUT_API virtual uint32 GetID() const = 0;
+		virtual uint32 GetID() const = 0;
 
 		/**
 		 * @returns The name of the stylus pen.
 		 */
-		STYLUSINPUT_API virtual FString GetName() const = 0;
+		virtual FString GetName() const = 0;
 
 		/**
 		 * Returns the number of buttons on the stylus.
@@ -145,7 +145,7 @@ namespace UE::StylusInput
 		 *
 		 * @returns The number of buttons on the stylus.
 		 */
-		STYLUSINPUT_API virtual uint32 GetNumButtons() const = 0;
+		virtual uint32 GetNumButtons() const = 0;
 
 		/**
 		 * Returns a description of the button for a given index.
@@ -153,7 +153,7 @@ namespace UE::StylusInput
 		 * @param Index A number in [0, @see #GetNumButtons).
 		 * @returns Pointer to a stylus button.
 		 */
-		STYLUSINPUT_API virtual const IStylusInputStylusButton* GetButton(int32 Index) const = 0;
+		virtual const IStylusInputStylusButton* GetButton(int32 Index) const = 0;
 	};
 
 	/* Bitwise operators for enums to be used as flags without additional casts. */

@@ -5,6 +5,8 @@
 
 #include "IStylusInputModule.h"
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
+
 #define LOCTEXT_NAMESPACE "FStylusInputModule"
 
 static const FName StylusInputDebugTabName = FName("StylusInputDebug");
@@ -100,3 +102,5 @@ void UStylusInputSubsystem::Tick(float DeltaTime)
 }
 
 #undef LOCTEXT_NAMESPACE
+
+PRAGMA_ENABLE_DEPRECATION_WARNINGS

@@ -21,7 +21,9 @@ void FDeprecatedWindowsStylusInputInterface::Tick()
 	for (const FDeprecatedStylusInputDevice& TabletContext : *TabletContexts)
 	{
 		// don't change focus if any stylus is down
+		PRAGMA_DISABLE_DEPRECATION_WARNINGS
 		if (TabletContext.GetCurrentState().IsStylusDown())
+		PRAGMA_ENABLE_DEPRECATION_WARNINGS
 		{
 			return;
 		}
@@ -55,10 +57,12 @@ int32 FDeprecatedWindowsStylusInputInterface::NumInputDevices() const
 	return TabletContexts->Num();
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 IStylusInputDevice* FDeprecatedWindowsStylusInputInterface::GetInputDevice(int32 Index) const
 {
 	return 0 <= Index && Index < TabletContexts->Num() ? &(*TabletContexts)[Index] : nullptr;
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDeprecatedWindowsStylusInputInterface::CreateStylusInputInstance(SWindow* Window)
 {	
@@ -70,6 +74,7 @@ void FDeprecatedWindowsStylusInputInterface::RemoveStylusInputInstance(const TSh
 	StylusInputInstances.Remove(&Window.Get());
 }
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FStylusState ToDeprecatedStylusState(const UE::StylusInput::FStylusInputPacket& Packet)
 {
 	return {
@@ -79,7 +84,9 @@ FStylusState ToDeprecatedStylusState(const UE::StylusInput::FStylusInputPacket& 
 		(Packet.PenStatus & UE::StylusInput::EPenStatus::CursorIsInverted) != UE::StylusInput::EPenStatus::None
 	};
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice::FDeprecatedStylusInputDevice(uint32 TabletContextId, const TSharedPtr<UE::StylusInput::IStylusInputTabletContext>& TabletContext)
 	: TabletContextId(TabletContextId)
 {
@@ -133,12 +140,15 @@ FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice::FDeprecate
 		}
 	}
 }
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 void FDeprecatedWindowsStylusInputInterface::FDeprecatedStylusInputDevice::Tick()
 {
+	PRAGMA_DISABLE_DEPRECATION_WARNINGS
 	PreviousState = CurrentState;
 	CurrentState = ToDeprecatedStylusState(LastPacket);
 	Dirty = false;
+	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 }
 
 FDeprecatedWindowsStylusInputInterface::FStylusInputEventHandler::FStylusInputEventHandler(UE::StylusInput::IStylusInputInstance* Instance, TArray<FDeprecatedStylusInputDevice>& TabletContexts)
@@ -200,7 +210,10 @@ FDeprecatedWindowsStylusInputInterface::FStylusInputInstanceWrapper::~FStylusInp
 	}
 }
 
+
+PRAGMA_DISABLE_DEPRECATION_WARNINGS
 TSharedPtr<IStylusInputInterfaceInternal> CreateStylusInputInterface()
+PRAGMA_ENABLE_DEPRECATION_WARNINGS
 {
 	return MakeShared<FDeprecatedWindowsStylusInputInterface>();
 }

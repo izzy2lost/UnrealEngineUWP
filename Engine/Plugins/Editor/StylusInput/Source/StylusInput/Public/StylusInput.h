@@ -61,7 +61,7 @@ namespace UE::StylusInput
 		 * @param Thread The type of thread the event handler calls are performed on.
 		 * @returns True if the event handler was added successfully.
 		 */
-		STYLUSINPUT_API virtual bool AddEventHandler(IStylusInputEventHandler* EventHandler, EEventHandlerThread Thread) = 0;
+		virtual bool AddEventHandler(IStylusInputEventHandler* EventHandler, EEventHandlerThread Thread) = 0;
 
 		/**
 		 * Removes an event handler from this stylus input instances, and frees up all associated resources.
@@ -70,7 +70,7 @@ namespace UE::StylusInput
 		 * @param EventHandler The event handler to be released.
 		 * @returns True if the event handler was removed successfully.
 		 */
-		STYLUSINPUT_API virtual bool RemoveEventHandler(IStylusInputEventHandler* EventHandler) = 0;
+		virtual bool RemoveEventHandler(IStylusInputEventHandler* EventHandler) = 0;
 
 		/**
 		 * Provides the tablet context information for a given tablet context ID.
@@ -82,7 +82,7 @@ namespace UE::StylusInput
 		 * @param TabletContextID The unique identifier of the tablet context as provided by this stylus input instance via an event handler callback. 
 		 * @returns Pointer to tablet context information or nullptr if the tablet context ID was invalid or an error occured. 
 		 */
-		STYLUSINPUT_API virtual const TSharedPtr<IStylusInputTabletContext> GetTabletContext(uint32 TabletContextID) = 0;
+		virtual const TSharedPtr<IStylusInputTabletContext> GetTabletContext(uint32 TabletContextID) = 0;
 
 		/**
 		 * Provides the stylus a.k.a. cursor or pen information for a given stylus ID.
@@ -94,7 +94,7 @@ namespace UE::StylusInput
 		 * @param StylusID The unique identifier of the stylus/cursor/pen as provided by this stylus input instance via an event handler callback. 
 		 * @returns Pointer to stylus information or nullptr if the stylus ID was invalid or an error occured. 
 		 */
-		STYLUSINPUT_API virtual const TSharedPtr<IStylusInputStylusInfo> GetStylusInfo(uint32 StylusID) = 0;
+		virtual const TSharedPtr<IStylusInputStylusInfo> GetStylusInfo(uint32 StylusID) = 0;
 
 		/**
 		 * Provides the approximate number of stylus input packets processed per second for the given thread type for diagnostic purposes.
@@ -103,7 +103,7 @@ namespace UE::StylusInput
 		 * @param Thread Selects the set of event handlers, i.e. number of packets processed on the game thread versus processed asynchronously.
 		 * @returns Approximate number of stylus input packets processed per second, or -1 if there is no valid data available.
 		 */
-		STYLUSINPUT_API virtual float GetPacketsPerSecond(EEventHandlerThread Thread) const { return -1.0f; }
+		virtual float GetPacketsPerSecond(EEventHandlerThread Thread) const { return -1.0f; }
 	};
 
 	/**
@@ -119,7 +119,7 @@ namespace UE::StylusInput
 		 *
 		 * @returns Name of the event handler.
 		 */
-		STYLUSINPUT_API virtual FString GetName() = 0;
+		virtual FString GetName() = 0;
 
 		/**
 		 * Callback for each packet processed by the stylus input instance.
@@ -128,15 +128,16 @@ namespace UE::StylusInput
 		 *
 		 * @param Packet The packet being processed.
 		 */
-		STYLUSINPUT_API virtual void OnPacket(const FStylusInputPacket& Packet) = 0;
+		virtual void OnPacket(const FStylusInputPacket& Packet) = 0;
 
 		/**
 		 * Callback for each debug event sent by the stylus input instance for diagnostic purposes.
 		 * This function is called on the game thread or asynchronously to the game thread depending on how the event handler was added to the stylus input
-		 * instance. The implementation of this function is responsible for any thread synchronization that might be necessary. 
+		 * instance. The implementation of this function is responsible for any thread synchronization that might be necessary.
+		 * The base class implementation of this function does nothing.
 		 *
 		 * @param Message The debug message sent by the stylus input instance.
 		 */
-		virtual void OnDebugEvent(const FString& Message) = 0;
+		virtual void OnDebugEvent(const FString& Message) {}
 	};
 }
