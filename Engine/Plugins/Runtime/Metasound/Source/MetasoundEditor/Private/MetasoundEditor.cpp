@@ -1859,14 +1859,22 @@ namespace Metasound
 
 		void FEditor::CreateAuditionPageSubMenuOptions(FMenuBuilder& MenuBuilder)
 		{
-			const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-			if (!Settings)
+			TWeakObjectPtr<const UMetaSoundSettings> SettingsPtr = GetDefault<UMetaSoundSettings>();
+			if (!SettingsPtr.IsValid())
 			{
 				return;
 			}
 
+			const TArray<FMetaSoundPageSettings>& PageSettingsArray = SettingsPtr->GetPageSettings();
 			MenuBuilder.BeginSection("SetAuditionPlatformSectionHeader", LOCTEXT("SetAuditionPlatformDescription", "Platform"));
 			{
+				TSet<FName> ImplementedPlatforms;
+				for (const FMetaSoundPageSettings& PageSettings : PageSettingsArray)
+				{
+					auto PairToKey = [](const TPair<FName, int32>& PerPlatformPair) { return PerPlatformPair.Key; };
+					Algo::Transform(PageSettings.IsCooked.PerPlatform, ImplementedPlatforms, PairToKey);
+				}
+
 				auto CreatePlatformEntry = [this, &MenuBuilder](FName PlatformName, const FText& PlatformText)
 				{
 					FUIAction SetPlatformAction;
@@ -1895,8 +1903,8 @@ namespace Metasound
 						SetPlatformAction);
 				};
 
-				const TArray<FName> AuditionPlatforms = UMetasoundEditorSettings::GetAuditionPlatformNames();
-				for (const FName& PlatformName : AuditionPlatforms)
+				CreatePlatformEntry(FName(), LOCTEXT("DefaultPlatformDisplayName", "Default"));
+				for (const FName& PlatformName : ImplementedPlatforms)
 				{
 					const FText PlatformText = FText::FromName(PlatformName);
 					CreatePlatformEntry(PlatformName, PlatformText);
@@ -1945,18 +1953,19 @@ namespace Metasound
 						return ECheckBoxState::Unchecked;
 					})
 					.ToolTipText(FocusPageTooltip),
-					LOCTEXT("EnableFocusTargetPageGraphSwap", "Set Target To Focused Graph"),
+					LOCTEXT("EnableFocusTargetPageSwap", "Set To Focused"),
 					true,
 					true,
 					FocusPageTooltip
 				);
 
-				auto TryAddPageEntry = [this, &MenuBuilder](const FMetaSoundPageSettings& PageSettings)
+				TSet<FName> PageNames;
+				Algo::Transform(PageSettingsArray, PageNames, [](const FMetaSoundPageSettings& PageSettings) { return PageSettings.Name; });
+
+				auto CreateTargetPageEntry = [this, &MenuBuilder](FName AuditionTargetPage, const FText& PageText)
 				{
-					const FName AuditionTargetPage = PageSettings.Name;
-					const FText PageText = FText::FromName(PageSettings.Name);
-					FUIAction SetTargetPageAction;
-					SetTargetPageAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionTargetPage]()
+					FUIAction SetPlatformAction;
+					SetPlatformAction.ExecuteAction = FExecuteAction::CreateLambda([this, AuditionTargetPage]()
 					{
 						if (UMetasoundEditorSettings* EditorSettings = GetMutableDefault<UMetasoundEditorSettings>())
 						{
@@ -1965,7 +1974,7 @@ namespace Metasound
 						}
 					});
 
-					SetTargetPageAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionTargetPage]()
+					SetPlatformAction.CanExecuteAction = FCanExecuteAction::CreateLambda([this, AuditionTargetPage]()
 					{
 						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
 						{
@@ -1975,31 +1984,21 @@ namespace Metasound
 								return EditorSettings->AuditionTargetPage != AuditionTargetPage;
 							}
 						}
-						return false;
-					});
 
-					SetTargetPageAction.IsActionVisibleDelegate.BindLambda([PageName = PageSettings.Name]()
-					{
-						if (const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>())
-						{
-							if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
-							{
-								if (const FMetaSoundPageSettings* PageSetting = Settings->FindPageSettings(PageName))
-								{
-									return PageSetting->PlatformCanTargetPage(EditorSettings->AuditionPlatform);
-								}
-							}
-						}
 						return false;
 					});
 
 					MenuBuilder.AddMenuEntry(PageText,
 						FText::Format(LOCTEXT("SetAuditionPageToolTip", "Sets the audition target page to '{0}'."), PageText),
 						FSlateIcon(),
-						SetTargetPageAction);
+						SetPlatformAction);
 				};
 
-				Settings->IteratePageSettings(TryAddPageEntry);
+				for (const FName& PageName : PageNames)
+				{
+					const FText PageText = FText::FromName(PageName);
+					CreateTargetPageEntry(PageName, PageText);
+				}
 			}
 			MenuBuilder.EndSection();
 		}

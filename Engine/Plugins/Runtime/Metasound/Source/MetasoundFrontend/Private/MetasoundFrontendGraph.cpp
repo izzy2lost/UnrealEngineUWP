@@ -37,17 +37,19 @@ namespace Metasound
 			}
 
 			template <typename ResolveType>
-			FGuid ResolveTargetPageID(const ResolveType& InToResolve)
+			bool TryResolveTargetPageID(const ResolveType& InToResolve, FGuid& OutPageID)
 			{
+				OutPageID = Frontend::DefaultPageID;
+
 				// Registry is not available in tests, so for now resolution is considered successful at this level
 				// if registry is not initialized and providing a resolved page ID. TODO: Add a test implementation
 				// that returns the default page (or whatever page behavior is desired for testing).
 				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 				{
-					return IDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(InToResolve);
+					return IDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(InToResolve, OutPageID);
 				}
 
-				return Frontend::DefaultPageID;
+				return true;
 			}
 		} // namespace GraphPrivate
 	} // namespace Frontend
@@ -351,11 +353,15 @@ namespace Metasound
 		if (nullptr == Literal)
 		{
 			// Find Class Default that is not invalid
-			const FGuid PageID = GraphPrivate::ResolveTargetPageID(InOwningGraphClassInput);
-			const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(PageID);
-			if (DefaultLiteral.IsValid())
+			FGuid PageID = Frontend::DefaultPageID;
+			const bool bPageIDResolved = GraphPrivate::TryResolveTargetPageID(InOwningGraphClassInput, PageID);
+			if (bPageIDResolved)
 			{
-				Literal = &DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = InOwningGraphClassInput.FindConstDefaultChecked(PageID);
+				if (DefaultLiteral.IsValid())
+				{
+					Literal = &DefaultLiteral;
+				}
 			}
 		}
 
@@ -363,11 +369,16 @@ namespace Metasound
 		if (nullptr == Literal && ensure(InInputNodeClass.Interface.Inputs.Num() == 1))
 		{
 			const FMetasoundFrontendClassInput& InputNodeClassInput = InInputNodeClass.Interface.Inputs.Last();
-			const FGuid PageID = GraphPrivate::ResolveTargetPageID(InputNodeClassInput);
-			const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(PageID);
-			if (DefaultLiteral.IsValid())
+
+			FGuid PageID = Frontend::DefaultPageID;
+			const bool bPageIDResolved = GraphPrivate::TryResolveTargetPageID(InputNodeClassInput, PageID);
+			if (bPageIDResolved)
 			{
-				Literal = &DefaultLiteral;
+				const FMetasoundFrontendLiteral& DefaultLiteral = InputNodeClassInput.FindConstDefaultChecked(PageID);
+				if (DefaultLiteral.IsValid())
+				{
+					Literal = &DefaultLiteral;
+				}
 			}
 		}
 
@@ -770,7 +781,13 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
 		const FString GraphName = InContext.DebugAssetName;
 
-		const FGuid PageID = GraphPrivate::ResolveTargetPageID(InGraphClass);
+		FGuid PageID = Frontend::DefaultPageID;
+		const bool bPageIDResolved = GraphPrivate::TryResolveTargetPageID(InGraphClass, PageID);
+		if (!bPageIDResolved)
+		{
+			return { };
+		}
+
 		const FMetasoundFrontendGraph& PageGraph = InGraphClass.FindConstGraphChecked(PageID);
 		FBuildGraphContext BuildGraphContext
 		{

@@ -40,7 +40,7 @@ namespace Metasound
 		constexpr TCHAR DefaultPageName[] = TEXT("Default");
 
 #if WITH_EDITORONLY_DATA
-		extern const FText METASOUNDFRONTEND_API DefaultPageDisplayName;
+		extern const FText METASOUNDFRONTEND_API DefaultGraphPageDisplayName;
 #endif // WITH_EDITORONLY_DATA
 
 		namespace DisplayStyle

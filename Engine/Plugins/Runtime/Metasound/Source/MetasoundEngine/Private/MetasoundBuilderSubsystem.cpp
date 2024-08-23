@@ -37,21 +37,6 @@
 
 namespace Metasound::Engine
 {
-	FAutoConsoleCommand CVarMetaSoundSetTargetPage(
-		TEXT("au.MetaSound.Pages.SetTarget"),
-		TEXT("Sets the target page to that with the given name. If name not specified or not found, command is ignored.\n"),
-		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
-		{
-			if (!Args.IsEmpty())
-			{
-				if (UMetaSoundBuilderSubsystem* Subsystem = GEngine->GetEngineSubsystem<UMetaSoundBuilderSubsystem>())
-				{
-					Subsystem->SetTargetPage(FName { *Args.Last() });
-				}
-			}
-		})
-	);
-
 	namespace BuilderSubsystemPrivate
 	{
 		template <typename TLiteralType>
@@ -83,11 +68,14 @@ namespace Metasound::Engine
 			}
 			else if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InNodeID, VertexName))
 			{
-				const FGuid PageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassDefaults);
-				auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
-				if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
+				FGuid PageID;
+				if (FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassDefaults, PageID))
 				{
-					DefaultLiteral = ClassDefault->Literal;
+					auto MatchesPageID = [&PageID](const FMetasoundFrontendClassInputDefault& InputDefault) { return InputDefault.PageID == PageID; };
+					if (const FMetasoundFrontendClassInputDefault* ClassDefault = ClassDefaults->FindByPredicate(MatchesPageID))
+					{
+						DefaultLiteral = ClassDefault->Literal;
+					}
 				}
 			}
 
@@ -279,12 +267,6 @@ bool UMetaSoundSourceBuilder::GetLiveUpdatesEnabled() const
 	return GetMetaSoundSource().GetDynamicGeneratorTransactor().IsValid();
 }
 
-const FMetasoundFrontendGraph& UMetaSoundSourceBuilder::GetConstTargetPageGraphChecked() const
-{
-	const FMetasoundFrontendGraphClass& RootGraph = Builder.GetConstDocumentChecked().RootGraph;
-	return RootGraph.FindConstGraphChecked(TargetPageID);
-}
-
 const UMetaSoundSource& UMetaSoundSourceBuilder::GetMetaSoundSource() const
 {
 	return GetConstBuilder().CastDocumentObjectChecked<UMetaSoundSource>();
@@ -347,17 +329,19 @@ void UMetaSoundSourceBuilder::InitTargetPageDelegates(Metasound::Frontend::FDocu
 	});
 
 	const IMetaSoundDocumentInterface& DocInterface = GetConstBuilder().GetConstDocumentInterfaceChecked();
-	TargetPageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(DocInterface.GetConstDocument().RootGraph);
+	FGuid PageID;
+	if (FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(DocInterface.GetConstDocument().RootGraph, PageID))
+	{
+		FEdgeModifyDelegates& EdgeDelegates = OutDocumentDelegates.FindEdgeDelegatesChecked(PageID);
+		EdgeDelegates.OnEdgeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnEdgeAdded);
+		EdgeDelegates.OnRemoveSwappingEdge.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingEdge);
 
-	FEdgeModifyDelegates& EdgeDelegates = OutDocumentDelegates.FindEdgeDelegatesChecked(TargetPageID);
-	EdgeDelegates.OnEdgeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnEdgeAdded);
-	EdgeDelegates.OnRemoveSwappingEdge.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingEdge);
-
-	FNodeModifyDelegates& NodeDelegates = OutDocumentDelegates.FindNodeDelegatesChecked(TargetPageID);
-	NodeDelegates.OnNodeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeAdded);
-	NodeDelegates.OnNodeInputLiteralSet.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeInputLiteralSet);
-	NodeDelegates.OnRemoveSwappingNode.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingNode);
-	NodeDelegates.OnRemovingNodeInputLiteral.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral);
+		FNodeModifyDelegates& NodeDelegates = OutDocumentDelegates.FindNodeDelegatesChecked(PageID);
+		NodeDelegates.OnNodeAdded.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeAdded);
+		NodeDelegates.OnNodeInputLiteralSet.AddUObject(this, &UMetaSoundSourceBuilder::OnNodeInputLiteralSet);
+		NodeDelegates.OnRemoveSwappingNode.AddUObject(this, &UMetaSoundSourceBuilder::OnRemoveSwappingNode);
+		NodeDelegates.OnRemovingNodeInputLiteral.AddUObject(this, &UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral);
+	}
 }
 
 void UMetaSoundSourceBuilder::OnAssetReferenceAdded(TScriptInterface<IMetaSoundDocumentInterface> DocInterface)
@@ -376,7 +360,7 @@ void UMetaSoundSourceBuilder::OnEdgeAdded(int32 EdgeIndex) const
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendEdge& NewEdge = GetConstTargetPageGraphChecked().Edges[EdgeIndex];
+	const FMetasoundFrontendEdge& NewEdge = Builder.FindConstBuildGraphChecked().Edges[EdgeIndex];
 	ExecuteAuditionableTransaction([this, &NewEdge](Metasound::DynamicGraph::FDynamicOperatorTransactor& Transactor)
 	{
 		const FMetaSoundFrontendDocumentBuilder& DocBuilder = GetConstBuilder();
@@ -450,7 +434,7 @@ void UMetaSoundSourceBuilder::OnNodeAdded(int32 NodeIndex) const
 		using namespace Metasound;
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendNode& AddedNode = GetConstTargetPageGraphChecked().Nodes[NodeIndex];
+		const FMetasoundFrontendNode& AddedNode = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 		const FMetasoundFrontendClass* NodeClass = Builder.FindDependency(AddedNode.ClassID);
 		checkf(NodeClass, TEXT("Node successfully added to graph but document is missing associated dependency"));
 
@@ -557,7 +541,7 @@ void UMetaSoundSourceBuilder::OnNodeInputLiteralSet(int32 NodeIndex, int32 Verte
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendNode& Node = GetConstTargetPageGraphChecked().Nodes[NodeIndex];
+	const FMetasoundFrontendNode& Node = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 	const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
 	// Only send the literal down if not connected, as the graph core layer
@@ -608,13 +592,14 @@ void UMetaSoundSourceBuilder::OnRemovingPage(const Metasound::Frontend::FDocumen
 
 	FDocumentModifyDelegates& DocDelegates = Builder.GetDocumentDelegates();
 	InitTargetPageDelegates(DocDelegates);
+
 }
 
 void UMetaSoundSourceBuilder::OnRemoveSwappingEdge(int32 SwapIndex, int32 LastIndex) const
 {
 	using namespace Metasound::DynamicGraph;
 
-	const FMetasoundFrontendEdge& EdgeBeingRemoved = GetConstTargetPageGraphChecked().Edges[SwapIndex];
+	const FMetasoundFrontendEdge& EdgeBeingRemoved = Builder.FindConstBuildGraphChecked().Edges[SwapIndex];
 	ExecuteAuditionableTransaction([this, EdgeBeingRemoved](FDynamicOperatorTransactor& Transactor)
 	{
 		using namespace Metasound;
@@ -698,7 +683,7 @@ void UMetaSoundSourceBuilder::OnRemoveSwappingNode(int32 SwapIndex, int32 LastIn
 	{
 		using namespace Metasound::Frontend;
 
-		const FMetasoundFrontendNode& NodeBeingRemoved = GetConstTargetPageGraphChecked().Nodes[SwapIndex];
+		const FMetasoundFrontendNode& NodeBeingRemoved = Builder.FindConstBuildGraphChecked().Nodes[SwapIndex];
 		const FGuid& NodeID = NodeBeingRemoved.GetID();
 		Transactor.RemoveNode(NodeID);
 		return true;
@@ -709,18 +694,21 @@ void UMetaSoundSourceBuilder::OnRemovingNodeInputLiteral(int32 NodeIndex, int32 
 {
 	using namespace Metasound::DynamicGraph;
 
-	const TArray<FMetasoundFrontendNode>& Nodes = GetConstTargetPageGraphChecked().Nodes;
-	const FMetasoundFrontendNode& Node = Nodes[NodeIndex];
+	const FMetasoundFrontendNode& Node = Builder.FindConstBuildGraphChecked().Nodes[NodeIndex];
 	const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
 	// Only send the literal down if not connected, as the graph core layer will disconnect.
 	if (!Builder.IsNodeInputConnected(Node.GetID(), Input.VertexID))
 	{
-		ExecuteAuditionableTransaction([this, &Node, &Input, &NodeIndex, &VertexIndex, &LiteralIndex](FDynamicOperatorTransactor& Transactor)
+		ExecuteAuditionableTransaction([this, &NodeIndex, &VertexIndex, &LiteralIndex](FDynamicOperatorTransactor& Transactor)
 		{
 			using namespace Metasound;
 			using namespace Metasound::Engine;
 			using namespace Metasound::Frontend;
+
+			const TArray<FMetasoundFrontendNode>& Nodes = Builder.FindConstBuildGraphChecked().Nodes;
+			const FMetasoundFrontendNode& Node = Nodes[NodeIndex];
+			const FMetasoundFrontendVertex& Input = Node.Interface.Inputs[VertexIndex];
 
 			TOptional<FMetasoundFrontendLiteral> InputDefault = BuilderSubsystemPrivate::TryResolveNodeInputDefault(Builder, Node.GetID(), Input.Name);
 			if (ensureAlwaysMsgf(InputDefault.IsSet(), TEXT("Could not dynamically assign default literal from class definition upon removing input '%s' literal: document's dependency entry invalid and has no default assigned"), *Input.Name.ToString()))
@@ -1172,16 +1160,9 @@ void UMetaSoundBuilderSubsystem::RegisterSourceBuilder(FName BuilderName, UMetaS
 
 bool UMetaSoundBuilderSubsystem::SetTargetPage(FName PageName)
 {
-	using namespace Metasound::Frontend;
-
 	if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 	{
-		const bool bTargetChanged = Settings->SetTargetPage(PageName);
-		if (bTargetChanged)
-		{
-			IMetaSoundAssetManager::GetChecked().ReloadMetaSoundAssets();
-		}
-		return bTargetChanged;
+		return Settings->SetTargetPage(PageName);
 	}
 
 	return false;

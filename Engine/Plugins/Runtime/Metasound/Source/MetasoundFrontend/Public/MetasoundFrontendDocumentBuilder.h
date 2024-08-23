@@ -381,10 +381,6 @@ public:
 
 	void Reload(TSharedPtr<Metasound::Frontend::FDocumentModifyDelegates> Delegates = {}, bool bPrimeCache = false);
 
-#if WITH_EDITORONLY_DATA
-	bool RemoveGraphInputDefault(FName InputName, const FGuid& InPageID);
-#endif // WITH_EDITORONLY_DATA
-
 	bool RemoveNodeInputDefault(const FGuid& InNodeID, const FGuid& InVertexID, const FGuid* InPageID = nullptr);
 	bool RemoveUnusedDependencies();
 

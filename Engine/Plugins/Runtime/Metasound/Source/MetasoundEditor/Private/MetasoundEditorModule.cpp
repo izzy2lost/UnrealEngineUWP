@@ -422,9 +422,9 @@ namespace Metasound
 
 				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 				{
-					Settings->GetOnDefaultRenamedDelegate().AddLambda([]()
+					Settings->GetOnDefaultConformedDelegate().AddLambda([]()
 					{
-						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotNameDefaultPage", "Cannot name 'Default': reserved MetaSound page name"));
+						FNotificationInfo Info(LOCTEXT("MetaSoundSettings_CannotDeleteDefaultPage", "Cannot change name of nor delete 'Default' MetaSound Page"));
 						Info.bFireAndForget = true;
 						Info.ExpireDuration = 2.0f;
 						Info.bUseThrobber = true;

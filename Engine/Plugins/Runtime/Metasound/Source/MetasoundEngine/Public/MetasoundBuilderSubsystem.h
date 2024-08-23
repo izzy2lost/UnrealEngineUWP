@@ -118,8 +118,6 @@ protected:
 private:
 	static TOptional<Metasound::FAnyDataReference> CreateDataReference(const Metasound::FOperatorSettings& InOperatorSettings, FName DataType, const Metasound::FLiteral& InLiteral, Metasound::EDataReferenceAccessType AccessType);
 
-	const FMetasoundFrontendGraph& GetConstTargetPageGraphChecked() const;
-
 	const UMetaSoundSource& GetMetaSoundSource() const;
 	UMetaSoundSource& GetMetaSoundSource();
 
@@ -144,7 +142,6 @@ private:
 
 	TArray<uint64> LiveComponentIDs;
 	FDelegateHandle LiveComponentHandle;
-	FGuid TargetPageID = Metasound::Frontend::DefaultPageID;
 
 	friend class UMetaSoundBuilderSubsystem;
 };
@@ -270,10 +267,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Audio|MetaSound|Builder")
 	void RegisterSourceBuilder(FName BuilderName, UMetaSoundSourceBuilder* Builder);
 
-	// Sets the targeted page for all MetaSound graph & input default to resolve against.
-	// If target page is not implemented (or cooked in a runtime build) for the active platform,
-	// uses order of cooked pages(see 'Page Settings' for order) falling back to lower index - ordered page
-	// implemented in MetaSound asset. If no fallback is found, uses default graph/input default.
 	UFUNCTION(BlueprintCallable, Category = "MetaSounds|Pages")
 	UPARAM(DisplayName = "TargetPageChanged") bool SetTargetPage(FName PageName);
 

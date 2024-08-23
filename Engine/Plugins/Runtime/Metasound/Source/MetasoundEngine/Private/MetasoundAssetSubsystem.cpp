@@ -175,8 +175,6 @@ namespace Metasound::Engine
 #if WITH_EDITOR
 		virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const override;
 #endif // WITH_EDITOR
-		virtual void IterateAssets(TFunctionRef<void(const FAssetKey, const TArray<FTopLevelAssetPath>&)> Iter) const override;
-		virtual void ReloadMetaSoundAssets() const override;
 		virtual void RemoveAsset(const UObject& InObject) override;
 		virtual void RemoveAsset(const FAssetData& InAssetData) override;
 		virtual void RenameAsset(const FAssetData& InAssetData, const FString& InOldObjectPath) override;
@@ -590,14 +588,6 @@ namespace Metasound::Engine
 	}
 #endif // WITH_EDITOR
 
-	void FMetaSoundAssetManager::IterateAssets(TFunctionRef<void(const FAssetKey, const TArray<FTopLevelAssetPath>&)> Iter) const
-	{
-		for (const TPair<FAssetKey, TArray<FTopLevelAssetPath>>& Pair : PathMap)
-		{
-			Iter(Pair.Key, Pair.Value);
-		}
-	}
-
 	void FMetaSoundAssetManager::RebuildDenyListCache(const UAssetManager& InAssetManager)
 	{
 		using namespace Metasound::Frontend;
@@ -766,34 +756,6 @@ namespace Metasound::Engine
 			}
 		}
 
-	}
-
-	void FMetaSoundAssetManager::ReloadMetaSoundAssets() const
-	{
-		TSet<FMetasoundAssetBase*> ToReregister;
-		IterateAssets([&ToReregister](const FAssetKey& AssetKey, const TArray<FTopLevelAssetPath>& Paths)
-		{
-			if (FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(AssetKey))
-			{
-				if (Asset->IsRegistered())
-				{
-					ToReregister.Add(Asset);
-					Asset->UnregisterGraphWithFrontend();
-				}
-			}
-		});
-
-		// Handled in second loop to avoid re-registering referenced graphs more than once
-		IterateAssets([&ToReregister](const FAssetKey& AssetKey, const TArray<FTopLevelAssetPath>& Paths)
-		{
-			if (FMetasoundAssetBase* Asset = IMetaSoundAssetManager::GetChecked().FindAsset(AssetKey))
-			{
-				if (ToReregister.Contains(Asset))
-				{
-					Asset->UpdateAndRegisterForExecution();
-				}
-			}
-		});
 	}
 
 	void FMetaSoundAssetManager::SearchAndIterateDirectoryAssets(const TArray<FDirectoryPath>& InDirectories, TFunctionRef<void(const FAssetData&)> InFunction)

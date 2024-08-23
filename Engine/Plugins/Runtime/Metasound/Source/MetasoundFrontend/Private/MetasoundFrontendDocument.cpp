@@ -31,22 +31,24 @@ namespace Metasound
 		namespace DocumentPrivate
 		{
 			template <typename ResolveType>
-			FGuid ResolveTargetPageID(const ResolveType& InToResolve)
+			bool TryResolveTargetPageID(const ResolveType& InToResolve, FGuid& OutPageID)
 			{
+				OutPageID = Frontend::DefaultPageID;
+
 				// Registry is not available in tests, so for now resolution is considered successful at this level
 				// if registry is not initialized and providing a resolved page ID. TODO: Add a test implementation
 				// that returns the default page (or whatever page behavior is desired for testing).
 				if (IDocumentBuilderRegistry* BuilderRegistry = IDocumentBuilderRegistry::Get())
 				{
-					return IDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(InToResolve);
+					return IDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(InToResolve, OutPageID);
 				}
 
-				return Frontend::DefaultPageID;
+				return true;
 			}
 		} // namespace DocumentPrivate
 
 #if WITH_EDITORONLY_DATA
-		const FText DefaultPageDisplayName = NSLOCTEXT("MetasoundFrontend", "DefaultPageDisplayName", "Default");
+		const FText DefaultGraphPageDisplayName = NSLOCTEXT("MetasoundFrontend", "DefaultGraphPageDisplayName", "Default");
 #endif // WITH_EDITORONLY_DATA
 
 		namespace DisplayStyle
@@ -1281,16 +1283,20 @@ namespace Metasound::Frontend
 	{
 		ForEachLiteral(static_cast<const FMetasoundFrontendClass&>(InGraphClass), OnLiteral);
 
-		const FGuid PageID = DocumentPrivate::ResolveTargetPageID(InGraphClass);
-		const FMetasoundFrontendGraph& Graph = InGraphClass.FindConstGraphChecked(PageID);
-		for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+		FGuid PageID = Frontend::DefaultPageID;
+		const bool bPageIDResolved = DocumentPrivate::TryResolveTargetPageID(InGraphClass, PageID);
+		if (bPageIDResolved)
 		{
-			ForEachLiteral(Node, OnLiteral);
-		}
+			const FMetasoundFrontendGraph& Graph = InGraphClass.FindConstGraphChecked(PageID);
+			for (const FMetasoundFrontendNode& Node : Graph.Nodes)
+			{
+				ForEachLiteral(Node, OnLiteral);
+			}
 
-		for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
-		{
-			OnLiteral(Variable.TypeName, Variable.Literal);
+			for (const FMetasoundFrontendVariable& Variable : Graph.Variables)
+			{
+				OnLiteral(Variable.TypeName, Variable.Literal);
+			}
 		}
 	}
 
@@ -1298,9 +1304,13 @@ namespace Metasound::Frontend
 	{
 		for (const FMetasoundFrontendClassInput& ClassInput : InClass.Interface.Inputs)
 		{
-			const FGuid PageID = DocumentPrivate::ResolveTargetPageID(ClassInput);
-			const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.FindConstDefaultChecked(PageID);
-			OnLiteral(ClassInput.TypeName, DefaultLiteral);
+			FGuid PageID = Frontend::DefaultPageID;
+			const bool bPageIDResolved = DocumentPrivate::TryResolveTargetPageID(ClassInput, PageID);
+			if (bPageIDResolved)
+			{
+				const FMetasoundFrontendLiteral& DefaultLiteral = ClassInput.FindConstDefaultChecked(PageID);
+				OnLiteral(ClassInput.TypeName, DefaultLiteral);
+			}
 		}
 	}
 

@@ -81,15 +81,6 @@ namespace Metasound::Frontend
 	public:
 		virtual ~IDocumentBuilderRegistry() = default;
 
-#if WITH_EDITORONLY_DATA
-		// Given the provided builder, removes paged data within the associated document for a cooked build.
-		// This function removes graphs and input defaults which are not to ever be used by a given cook
-		// platform, allowing users to optimize away data and scale the amount of memory required for
-		// initial load of input UObjects and graph topology, which can also positively effect runtime
-		// performance as well, etc. Returns true if builder modified the document, false if not.
-		virtual bool CookPages(FName CookPlatformName, FMetaSoundFrontendDocumentBuilder& Builder) const = 0;
-#endif // WITH_EDITORONLY_DATA
-
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(TScriptInterface<IMetaSoundDocumentInterface> MetaSound) const = 0;
 		virtual FMetaSoundFrontendDocumentBuilder* FindBuilder(const FMetasoundFrontendClassName& ClassName, const FTopLevelAssetPath& AssetPath) const = 0;
 		virtual FMetaSoundFrontendDocumentBuilder* FindOutermostBuilder(const UObject& InSubObject) const = 0;
@@ -117,15 +108,15 @@ namespace Metasound::Frontend
 
 		// Given the provided document and its respective pages, provides the PageID to be used for runtime IGraph and proxy generation.
 		// Returns true if valid page was found, false if not.
-		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass) const = 0;
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass, FGuid& OutResolvedPageID) const = 0;
 
 		// Given the provided input and its respective paged default values, provides the default PageID to be used for runtime IGraph and proxy generation.
 		// Returns true if valid page was found, false if not.
-		virtual FGuid ResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput) const = 0;
+		virtual bool TryResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput, FGuid& OutResolvedPageID) const = 0;
 
 		// Given the provided array of default values, provides the default PageID to be used for runtime IGraph and proxy generation.
 		// Returns true if valid page was found, false if not.
-		virtual FGuid ResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults) const = 0;
+		virtual bool TryResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& Defaults, FGuid& OutResolvedPageID) const = 0;
 
 		static IDocumentBuilderRegistry* Get();
 		static IDocumentBuilderRegistry& GetChecked();

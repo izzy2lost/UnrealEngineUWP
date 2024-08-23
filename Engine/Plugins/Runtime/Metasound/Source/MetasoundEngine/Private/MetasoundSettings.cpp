@@ -11,6 +11,21 @@
 
 namespace Metasound::SettingsPrivate
 {
+	FAutoConsoleCommand CVarMetaSoundSetTargetPage(
+		TEXT("au.MetaSound.Pages.SetTarget"),
+		TEXT("Sets the target page to that with the given name. If name not specified or not found, command is ignored.\n"),
+		FConsoleCommandWithArgsDelegate::CreateLambda([](const TArray<FString>& Args)
+		{
+			if (!Args.IsEmpty())
+			{
+				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
+				{
+					Settings->SetTargetPage(FName { *Args.Last() });
+				}
+			}
+		})
+	);
+
 #if WITH_EDITOR
 	template<typename SettingsStructType>
 	TSet<FName> GetStructNames(const TArray<SettingsStructType>& InSettings, int32 IgnoreIndex = INDEX_NONE)
@@ -130,94 +145,67 @@ namespace Metasound::SettingsPrivate
 #endif // WITH_EDITOR
 } // namespace Metasound::SettingsPrivate
 
+
 #if WITH_EDITOR
-bool FMetaSoundPageSettings::ExcludePageFromCook(FName PlatformName) const
-{
-	if (PlatformCanTargetPage(PlatformName))
-	{
-		return false;
-	}
-
-	return Exclude.GetValueForPlatform(PlatformName);
-}
-
-TArray<FName> FMetaSoundPageSettings::GetImplementedPlatforms() const
-{
-	TArray<FName> PlatformNames;
-	Target.PerPlatform.GetKeys(PlatformNames);
-	return PlatformNames;
-}
-
-bool FMetaSoundPageSettings::PlatformCanTargetPage(FName PlatformName) const
-{
-	const bool bIsTargeted = Target.GetValueForPlatform(PlatformName);
-	return bIsTargeted;
-}
-
-void UMetaSoundSettings::ConformPageSettings(bool bNotifyDefaultRenamed)
+void UMetaSoundSettings::ConformPageSettingsDefault(bool bNotifyDefaultConformed)
 {
 	using namespace Metasound;
 
-	bool bTargetFound = false;
-	bool bDefaultRenamed = false;
+	bool bContainsPageDefault = false;
+	bool bDefaultConformed = false;
+	bool bTargetFound = TargetPageName == Frontend::DefaultPageName;
 	for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
 	{
 		FMetaSoundPageSettings& Page = PageSettings[Index];
 		const bool bIsDefaultName = Page.Name == Frontend::DefaultPageName;
 		if (bIsDefaultName)
 		{
-			const TSet<FName> PageNames(GetPageNames());
-			Page.Name = SettingsPrivate::GenerateUniqueName(PageNames, *Page.Name.ToString());
-			bDefaultRenamed = true;
+			if (Page.UniqueId != Frontend::DefaultPageID)
+			{
+				Page.UniqueId = { };
+				bDefaultConformed = true;
+			}
+
+			bContainsPageDefault = true;
+		}
+		else
+		{
+			if (Page.UniqueId == Frontend::DefaultPageID)
+			{
+				Page.UniqueId = FGuid::NewGuid();
+				bDefaultConformed = true;
+			}
 		}
 		bTargetFound |= TargetPageName == Page.Name;
 	}
 
-	DefaultPageSettings.Target = PageSettings.IsEmpty();
-	if (DefaultPageSettings.Target.GetValue())
+	if (!bContainsPageDefault)
 	{
-		TargetPageName = DefaultPageSettings.Name;
-	}
-	else
-	{
-		if (!bTargetFound)
-		{
-			TargetPageName = PageSettings.Last().Name;
-		}
+		FMetaSoundPageSettings DefaultSettings;
+		DefaultSettings.Name = Frontend::DefaultPageName;
+		PageSettings.Insert(MoveTemp(DefaultSettings), 0);
+		bDefaultConformed = true;
 	}
 
-#if WITH_EDITORONLY_DATA
+	if (!bTargetFound)
 	{
-		FScopeLock Lock(&CookPlatformTargetCritSec);
-		CookPlatformTargetPageIDs.Reset();
-		CookPlatformTargetPage = { };
+		TargetPageName = Frontend::DefaultPageName;
 	}
-#endif // WITH_EDITORONLY_DATA
 
-	TargetPageNameOverride.Reset();
-
-	if (bNotifyDefaultRenamed && bDefaultRenamed)
+	if (bNotifyDefaultConformed && bDefaultConformed)
 	{
-		OnDefaultRenamed.Broadcast();
+		OnDefaultConformed.Broadcast();
 	}
 }
 #endif // WITH_EDITOR
 
 const FMetaSoundPageSettings* UMetaSoundSettings::FindPageSettings(FName Name) const
 {
-	if (Name == Metasound::Frontend::DefaultPageName)
-	{
-		return &GetDefaultPageSettings();
-	}
 	return Metasound::SettingsPrivate::FindSettingsStruct(PageSettings, Name);
 }
 
 const FMetaSoundPageSettings* UMetaSoundSettings::FindPageSettings(const FGuid& InPageID) const
 {
-	if (InPageID == Metasound::Frontend::DefaultPageID)
-	{
-		return &GetDefaultPageSettings();
-	}
 	return Metasound::SettingsPrivate::FindSettingsStruct(PageSettings, InPageID);
 }
 
@@ -231,72 +219,19 @@ const FMetaSoundQualitySettings* UMetaSoundSettings::FindQualitySettings(const F
 	return Metasound::SettingsPrivate::FindSettingsStruct(QualitySettings, InQualityID);
 }
 
-const FMetaSoundPageSettings& UMetaSoundSettings::GetDefaultPageSettings() const
+const FGuid& UMetaSoundSettings::GetTargetPageID() const
 {
-	return DefaultPageSettings;
-}
-
-#if WITH_EDITOR
-TArray<FName> UMetaSoundSettings::GetImplementedPagePlatforms() const
-{
-	TSet<FName> PlatformNames { FPlatformProperties::IniPlatformName() };
-	IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
+	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPageName))
 	{
-		TArray<FName> PagePlatforms = PageSettings.GetImplementedPlatforms();
-		PlatformNames.Append(MoveTemp(PagePlatforms));
-	});
-	return PlatformNames.Array();
-}
-#endif // WITH_EDITOR
-
-#if WITH_EDITORONLY_DATA
-const TArray<FGuid>& UMetaSoundSettings::GetCookedTargetPageIDs(FName PlatformName) const
-{
-	FScopeLock Lock(&CookPlatformTargetCritSec);
-	if (PlatformName != CookPlatformTargetPage)
-	{
-		CookPlatformTargetPage = PlatformName;
-		CookPlatformTargetPageIDs.Reset();
-		Algo::TransformIf(PageSettings, CookPlatformTargetPageIDs,
-		[&PlatformName](const FMetaSoundPageSettings& PageSetting)
-		{
-#if WITH_EDITOR
-			return PageSetting.PlatformCanTargetPage(PlatformName);
-#else // !WITH_EDITOR
-			return true;
-#endif // !WITH_EDITOR
-		},
-		[](const FMetaSoundPageSettings& PageSetting)
-		{
-			return PageSetting.UniqueId;
-		});
+		return TargetSettings->UniqueId;
 	}
 
-	return CookPlatformTargetPageIDs;
-}
-#endif // WITH_EDITORONLY_DATA
-
-const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
-{
-	const FName TargetPage = TargetPageNameOverride.IsSet() ? *TargetPageNameOverride : TargetPageName;
-
-	if (const FMetaSoundPageSettings* TargetSettings = FindPageSettings(TargetPage))
+	if (PageSettings.IsEmpty())
 	{
-		if (TargetSettings->Target.GetValue())
-		{
-			return *TargetSettings;
-		}
+		return Metasound::Frontend::DefaultPageID;
 	}
 
-	for (const FMetaSoundPageSettings& Setting : PageSettings)
-	{
-		if (Setting.Target.GetValue())
-		{
-			return Setting;
-		}
-	}
-
-	return DefaultPageSettings;
+	return PageSettings.Last().UniqueId;
 }
 
 #if WITH_EDITOR
@@ -307,8 +242,8 @@ void UMetaSoundSettings::PostEditChangeChainProperty(FPropertyChangedChainEvent&
 	PostEditChainChangedStructMember(PostEditChangeChainProperty, PageSettings, GetPageSettingPropertyName(), TEXT("New Page"));
 	PostEditChainChangedStructMember(PostEditChangeChainProperty, QualitySettings, GetQualitySettingPropertyName(), TEXT("New Quality"));
 
-	constexpr bool bNotifyDefaultRenamed = true;
-	ConformPageSettings(bNotifyDefaultRenamed);
+	constexpr bool bNotifyDefaultConformed = true;
+	ConformPageSettingsDefault(bNotifyDefaultConformed);
 
 	Super::PostEditChangeChainProperty(PostEditChangeChainProperty);
 }
@@ -317,9 +252,6 @@ void UMetaSoundSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 {	
 	Super::PostEditChangeProperty(PropertyChangedEvent);
 	
-	constexpr bool bNotifyDefaultRenamed = true;
-	ConformPageSettings(bNotifyDefaultRenamed);
-
 	if (PropertyChangedEvent.MemberProperty->GetName() == GetPageSettingPropertyName())
 	{
 		OnPageSettingsUpdated.Broadcast();
@@ -330,6 +262,9 @@ void UMetaSoundSettings::PostEditChangeProperty(FPropertyChangedEvent& PropertyC
 
 void UMetaSoundSettings::PostInitProperties()
 {
+	constexpr bool bNotifyDefaultConformed = false;
+	ConformPageSettingsDefault(bNotifyDefaultConformed);
+
 	Super::PostInitProperties();
 }
 #endif // WITH_EDITOR
@@ -340,11 +275,8 @@ bool UMetaSoundSettings::SetTargetPage(FName PageName)
 	{
 		if (TargetPageName != PageSetting->Name)
 		{
-			if (PageSetting->Target.GetValue())
-			{
-				TargetPageNameOverride = PageSetting->Name;
-				return true;
-			}
+			TargetPageName = PageSetting->Name;
+			return true;
 		}
 	}
 
@@ -352,9 +284,9 @@ bool UMetaSoundSettings::SetTargetPage(FName PageName)
 }
 
 #if WITH_EDITORONLY_DATA
-Metasound::Engine::FOnSettingsDefaultConformed& UMetaSoundSettings::GetOnDefaultRenamedDelegate()
+Metasound::Engine::FOnSettingsDefaultConformed& UMetaSoundSettings::GetOnDefaultConformedDelegate()
 {
-	return OnDefaultRenamed;
+	return OnDefaultConformed;
 }
 
 Metasound::Engine::FOnPageSettingsUpdated& UMetaSoundSettings::GetOnPageSettingsUpdatedDelegate()
@@ -379,10 +311,8 @@ TArray<FName> UMetaSoundSettings::GetPageNames()
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
 		TArray<FName> Names;
-		Settings->IteratePageSettings([&Names](const FMetaSoundPageSettings& PageSetting)
-		{
-			Names.Add(PageSetting.Name);
-		});
+		auto GetName = [](const FMetaSoundPageSettings& Page) { return Page.Name; };
+		Algo::Transform(Settings->GetPageSettings(), Names, GetName);
 		return Names;
 	}
 
@@ -403,23 +333,4 @@ TArray<FName> UMetaSoundSettings::GetQualityNames()
 }
 #endif // WITH_EDITOR
 
-void UMetaSoundSettings::IteratePageSettings(TFunctionRef<void(const FMetaSoundPageSettings&)> Iter, bool bReverse) const
-{
-	if (bReverse)
-	{
-		for (int32 Index = PageSettings.Num() - 1; Index >= 0; --Index)
-		{
-			Iter(PageSettings[Index]);
-		}
-		Iter(GetDefaultPageSettings());
-	}
-	else
-	{
-		Iter(GetDefaultPageSettings());
-		for (const FMetaSoundPageSettings& Setting : PageSettings)
-		{
-			Iter(Setting);
-		}
-	}
-}
 #undef LOCTEXT_NAMESPACE // MetaSound
