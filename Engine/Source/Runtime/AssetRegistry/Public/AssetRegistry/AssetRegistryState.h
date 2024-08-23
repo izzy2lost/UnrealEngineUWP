@@ -144,6 +144,12 @@ struct FAssetRegistryPruneOptions
 	TSet<FPrimaryAssetType> RemoveDependenciesWithoutPackagesKeepPrimaryAssetTypes;
 };
 
+struct FAssetRegistryAppendResult
+{
+	TArray<const FAssetData*> AddedAssets;
+	TArray<const FAssetData*> UpdatedAssets;
+};
+
 /**
  * The state of an asset registry, this is used internally by IAssetRegistry to represent the disk cache,
  * and is also accessed directly to save/load cooked caches.
@@ -531,7 +537,7 @@ public:
 	ASSETREGISTRY_API void Reset();
 
 	void InitializeFromExisting(const FAssetRegistryState& Existing, const FAssetRegistrySerializationOptions& Options,
-		EInitializationMode InitializationMode = EInitializationMode::Rebuild);
+		EInitializationMode InitializationMode = EInitializationMode::Rebuild, FAssetRegistryAppendResult* OutAppendResult = nullptr);
 
 	/** 
 	 * Prunes an asset cache, this removes asset data, nodes, and package data that isn't needed. 
@@ -630,7 +636,8 @@ private:
 		const TMap<FAssetIdentifier, FDependsNode*>& DependsNodeMap,
 		const TMap<FName, FAssetPackageData*>& AssetPackageDataMap,
 		const FAssetRegistrySerializationOptions& Options,
-		EInitializationMode InitializationMode = EInitializationMode::Rebuild);
+		EInitializationMode InitializationMode = EInitializationMode::Rebuild,
+		FAssetRegistryAppendResult* OutAppendResult = nullptr);
 
 	template<class Archive>
 	void Load(Archive&& Ar, const FAssetRegistryHeader& Header, const FAssetRegistryLoadOptions& Options);
@@ -1055,8 +1062,9 @@ inline int32 FAssetRegistryState::GetNumPackages() const
 
 inline void FAssetRegistryState::InitializeFromExisting(const FAssetRegistryState& Existing,
 	const FAssetRegistrySerializationOptions& Options,
-	EInitializationMode InitializationMode)
+	EInitializationMode InitializationMode,
+	FAssetRegistryAppendResult* OutAppendResult)
 {
 	InitializeFromExisting(Existing.CachedAssets, Existing.CachedDependsNodes,
-		Existing.CachedPackageData, Options, InitializationMode);
+		Existing.CachedPackageData, Options, InitializationMode, OutAppendResult);
 }

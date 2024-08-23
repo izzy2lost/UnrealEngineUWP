@@ -887,6 +887,8 @@ void FAssetRegistryImpl::LoadPremadeAssetRegistry(Impl::FEventContext& EventCont
 	SCOPED_BOOT_TIMING("LoadPremadeAssetRegistry");
 	UE_SCOPED_ENGINE_ACTIVITY("Loading premade asset registry");
 
+	const bool bEmitAssetEvents = GIsEditor;
+
 	if (SerializationOptions.bSerializeAssetRegistry)
 	{
 		SCOPED_BOOT_TIMING("LoadPremadeAssetRegistry_Main");
@@ -896,17 +898,31 @@ void FAssetRegistryImpl::LoadPremadeAssetRegistry(Impl::FEventContext& EventCont
 			{
 				State = MoveTemp(ARState);
 				CachePathsFromState(EventContext, State);
+				if (bEmitAssetEvents)
+				{
+					State.EnumerateAllAssets([&EventContext](const FAssetData& AssetData)
+					{
+						EventContext.AssetEvents.Emplace(AssetData, UE::AssetRegistry::Impl::FEventContext::EEvent::Added);
+					});
+				}
 			}
 			else if (State.GetNumAssets() < ARState.GetNumAssets())
 			{
 				FAssetRegistryState ExistingState = MoveTemp(State);
 				State = MoveTemp(ARState);
 				CachePathsFromState(EventContext, State);
+				if (bEmitAssetEvents)
+				{
+					State.EnumerateAllAssets([&EventContext](const FAssetData& AssetData)
+					{
+						EventContext.AssetEvents.Emplace(AssetData, UE::AssetRegistry::Impl::FEventContext::EEvent::Added);
+					});
+				}
 				AppendState(EventContext, ExistingState);
 			}
 			else
 			{
-				AppendState(EventContext, ARState, FAssetRegistryState::EInitializationMode::OnlyUpdateNew);
+				AppendState(EventContext, ARState, FAssetRegistryState::EInitializationMode::OnlyUpdateNew, bEmitAssetEvents);
 			}
 			UpdatePersistentMountPoints();
 			State.bCookedGlobalAssetRegistryState = true;
@@ -939,9 +955,9 @@ void FAssetRegistryImpl::LoadPremadeAssetRegistry(Impl::FEventContext& EventCont
 					 * The main state will often already include the DLC/plugin assets and is often in a development mode where the plugin state will not be.
 					 * If we update the existing assets in those cases it will be causing a lost of tags and values that are needed for the editor systems.
 					 */
-					AppendState(EventContext, PluginState,  FAssetRegistryState::EInitializationMode::OnlyUpdateNew);
+					AppendState(EventContext, PluginState, FAssetRegistryState::EInitializationMode::OnlyUpdateNew, bEmitAssetEvents);
 #else
-					AppendState(EventContext, PluginState);
+					AppendState(EventContext, PluginState, FAssetRegistryState::EInitializationMode::Append, bEmitAssetEvents);
 #endif
 				}
 			}
@@ -5491,15 +5507,7 @@ void UAssetRegistryImpl::AppendState(const FAssetRegistryState& InState)
 	{
 		LLM_SCOPE(ELLMTag::AssetRegistry);
 		UE::AssetRegistry::FInterfaceWriteScopeLock InterfaceScopeLock(InterfaceLock);
-		GuardedData.AppendState(EventContext, InState);
-	}
-
-	// AppendState does not create the AssetAdded events; create them here and then broadcast
-	TArray<FAssetData> TempAssets;
-	InState.GetAllAssets(TSet<FName>(), TempAssets, true /* bARFiltering */);
-	for (FAssetData& AssetData : TempAssets)
-	{
-		EventContext.AssetEvents.Emplace(MoveTemp(AssetData), UE::AssetRegistry::Impl::FEventContext::EEvent::Added);
+		GuardedData.AppendState(EventContext, InState, FAssetRegistryState::EInitializationMode::Append, /*bEmitAssetEvents*/true);
 	}
 	Broadcast(EventContext);
 }
@@ -5507,8 +5515,12 @@ void UAssetRegistryImpl::AppendState(const FAssetRegistryState& InState)
 namespace UE::AssetRegistry
 {
 
-void FAssetRegistryImpl::AppendState(Impl::FEventContext& EventContext, const FAssetRegistryState& InState, FAssetRegistryState::EInitializationMode Mode)
+void FAssetRegistryImpl::AppendState(Impl::FEventContext& EventContext, const FAssetRegistryState& InState, 
+	FAssetRegistryState::EInitializationMode Mode, bool bEmitAssetEvents)
 {
+	FAssetRegistryAppendResult LocalAppendResult;
+	FAssetRegistryAppendResult* AppendResultPtr = bEmitAssetEvents ? &LocalAppendResult : nullptr;
+
 	// @note Using this define to identify cooked editor for now. We might want to change the name later if we find more differences.
 	State.InitializeFromExisting(
 		InState,
@@ -5517,9 +5529,22 @@ void FAssetRegistryImpl::AppendState(Impl::FEventContext& EventContext, const FA
 #else
 		SerializationOptions,
 #endif
-		Mode);
+		Mode,
+		AppendResultPtr);
 
 	CachePathsFromState(EventContext, InState);
+
+	if (AppendResultPtr)
+	{
+		for (const FAssetData* AssetData : AppendResultPtr->AddedAssets)
+		{
+			EventContext.AssetEvents.Emplace(*AssetData, UE::AssetRegistry::Impl::FEventContext::EEvent::Added);
+		}
+		for (const FAssetData* AssetData : AppendResultPtr->UpdatedAssets)
+		{
+			EventContext.AssetEvents.Emplace(*AssetData, UE::AssetRegistry::Impl::FEventContext::EEvent::Updated);
+		}
+	}
 }
 
 void FAssetRegistryImpl::CachePathsFromState(Impl::FEventContext& EventContext, const FAssetRegistryState& InState)

@@ -366,7 +366,8 @@ void FAssetRegistryState::InitializeFromExisting(const FAssetDataMap& AssetDataM
 	const TMap<FAssetIdentifier, FDependsNode*>& DependsNodeMap, 
 	const TMap<FName, FAssetPackageData*>& AssetPackageDataMap,
 	const FAssetRegistrySerializationOptions& Options,
-	EInitializationMode InInitializationMode)
+	EInitializationMode InInitializationMode,
+	FAssetRegistryAppendResult* OutAppendResult)
 {
 	if (InInitializationMode == EInitializationMode::Rebuild)
 	{
@@ -408,13 +409,22 @@ void FAssetRegistryState::InitializeFromExisting(const FAssetDataMap& AssetDataM
 		{
 			FAssetData NewData(AssetData);
 			NewData.TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(LocalTagsAndValues));
-			UpdateAssetData(ExistingData, MoveTemp(NewData));
+			bool bIsModified = false;
+			UpdateAssetData(ExistingData, MoveTemp(NewData), &bIsModified);
+			if (OutAppendResult && bIsModified)
+			{
+				OutAppendResult->UpdatedAssets.Add(ExistingData);
+			}
 		}
 		else
 		{
 			FAssetData* NewData = new FAssetData(AssetData);
 			NewData->TagsAndValues = FAssetDataTagMapSharedView(MoveTemp(LocalTagsAndValues));
 			AddAssetData(NewData);
+			if (OutAppendResult)
+			{
+				OutAppendResult->AddedAssets.Add(NewData);
+			}
 		}
 	}
 
