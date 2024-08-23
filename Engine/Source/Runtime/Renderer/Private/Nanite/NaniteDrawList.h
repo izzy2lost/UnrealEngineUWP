@@ -26,5 +26,4 @@ private:
 
 public:
 	TArray<FDeferredPipelines> DeferredPipelines[ENaniteMeshPass::Num];
-	FMaterialRelevance CombinedRelevance[ENaniteMeshPass::Num];
 };

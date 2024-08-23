@@ -753,36 +753,19 @@ void FPrimitiveSceneInfo::CacheNaniteMaterialBins(FScene* Scene, const TArrayVie
 			}
 		}
 
-		FPrimitiveViewRelevance& CombinedPrimitiveRelevance = Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].CombinedRelevance;
-		CombinedPrimitiveRelevance = FPrimitiveViewRelevance();
-
 		if (MaterialListContexts.Num() > 0)
 		{
 			SCOPED_NAMED_EVENT(NaniteMaterialListApply, FColor::Emerald);
-
-			FMaterialRelevance CombinedMaterialRelevance;
-
-			CombinedPrimitiveRelevance.bDrawRelevance = true;
-			CombinedPrimitiveRelevance.bStaticRelevance = true;
-			CombinedPrimitiveRelevance.bRenderInMainPass = true;
-			CombinedPrimitiveRelevance.bShadowRelevance = true;
-
-			// Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
-			CombinedPrimitiveRelevance.bRenderCustomDepth = false; // TODO: Unsupported in fast path
-
-			// GetLightingChannelMask() != GetDefaultLightingChannelMask();
-			CombinedPrimitiveRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
-
 			for (FNaniteMaterialListContext& Context : MaterialListContexts)
 			{
 				Context.Apply(*Scene);
-
-				// Update combined material relevance
-				CombinedMaterialRelevance |= Context.CombinedRelevance[ENaniteMeshPass::BasePass];
 			}
+		}
 
-			// Apply combined material relevance to combined primitive view relevance
-			CombinedMaterialRelevance.SetPrimitiveViewRelevance(CombinedPrimitiveRelevance);
+		// Primitive and material relevance
+		{
+			SCOPED_NAMED_EVENT(NaniteComputeRelevance, FColor::Orange);
+			Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].ComputeRelevance(Scene->GetFeatureLevel());
 		}
 
 		Scene->NaniteShadingPipelines[ENaniteMeshPass::BasePass].bBuildCommands = true;
@@ -813,12 +796,10 @@ void BuildNaniteMaterialBins(FScene* Scene, FPrimitiveSceneInfo* PrimitiveSceneI
 					}
 				}
 
-				PrimitiveSceneInfo->NaniteMaterialSlots[MeshPassIndex].Empty(NumMaterialSections);
+				PrimitiveSceneInfo->NaniteMaterialSlots[MeshPassIndex].Reset(NumMaterialSections);
 
 				FNaniteMaterialListContext::FDeferredPipelines& PipelinesCommand = MaterialListContext.DeferredPipelines[MeshPassIndex].Emplace_GetRef();
 				PipelinesCommand.PrimitiveSceneInfo = PrimitiveSceneInfo;
-
-				MaterialListContext.CombinedRelevance[MeshPassIndex] |= NaniteProxy->GetCombinedMaterialRelevance();
 
 				for (int32 MaterialSectionIndex = 0; MaterialSectionIndex < NaniteMaterialSections.Num(); ++MaterialSectionIndex)
 				{

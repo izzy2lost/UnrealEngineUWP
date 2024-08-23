@@ -892,9 +892,16 @@ public:
 
 	FPrimitiveViewRelevance CombinedRelevance;
 
+	void BuildIdList();
+	const TConstArrayView<const FShadingId> GetIdList() const;
+
+	void ComputeRelevance(ERHIFeatureLevel::Type InFeatureLevel);
+
 private:
 	TBitArray<> PipelineBins;
 	FNaniteShadingPipelineMap PipelineMap;
+	TArray<FShadingId> ShadingIdList;
+	bool bBuildIdList = true;
 };
 
 struct FNaniteShadingCommand

@@ -152,6 +152,14 @@ static FAutoConsoleVariableRef CVarNaniteValidateShadeBinning(
 	ECVF_RenderThreadSafe
 );
 
+static int32 GNaniteCacheRelevanceParallel = 1;
+static FAutoConsoleVariableRef CVarNaniteCacheRelevanceParallel(
+	TEXT("r.Nanite.CacheRelevanceParallel"),
+	GNaniteCacheRelevanceParallel,
+	TEXT("Enable parallel caching of Nanite material relevance. 0=disabled, 1=enabled (default)"),
+	ECVF_RenderThreadSafe
+);
+
 inline bool UsingHighPrecisionGBuffer()
 {
 	static const auto CVarFormat = IConsoleManager::Get().FindTConsoleVariableDataInt(TEXT("r.GBufferFormat"));
@@ -2147,6 +2155,7 @@ FNaniteShadingBin FNaniteShadingPipelines::Register(const FNaniteShadingPipeline
 		// First reference
 		ShadingEntry.ShadingPipeline = MakeShared<FNaniteShadingPipeline>(InShadingPipeline);
 		ShadingEntry.BinIndex = AllocateBin();
+		bBuildIdList = true;
 	}
 
 	++ShadingEntry.ReferenceCount;
@@ -2168,6 +2177,117 @@ void FNaniteShadingPipelines::Unregister(const FNaniteShadingBin& InShadingBin)
 	{
 		ReleaseBin(ShadingEntry.BinIndex);
 		PipelineMap.RemoveByElementId(ShadingBinId);
+		bBuildIdList = true;
+	}
+}
+
+void FNaniteShadingPipelines::BuildIdList()
+{
+	if (bBuildIdList)
+	{
+		ShadingIdList.Reset(PipelineMap.Num());
+
+		for (auto Iter = PipelineMap.begin(); Iter != PipelineMap.end(); ++Iter)
+		{
+			ShadingIdList.Add(Iter.GetElementId());
+		}
+
+		bBuildIdList = false;
+	}
+}
+
+const TConstArrayView<const FNaniteShadingPipelines::FShadingId> FNaniteShadingPipelines::GetIdList() const
+{
+	check(!bBuildIdList);
+	return ShadingIdList;
+}
+
+static void ComputeMaterialRelevance_Thread(
+	const ERHIFeatureLevel::Type InFeatureLevel,
+	const FNaniteShadingPipelineMap& InPipelineMap,
+	const FNaniteShadingPipelines::FShadingId& InShadingId,
+	FMaterialRelevance& OutMaterialRelevance
+)
+{
+	const FNaniteShadingEntry& ShadingEntry = InPipelineMap.GetByElementId(InShadingId).Value;
+
+	if (ShadingEntry.ShadingPipeline.IsValid())
+	{
+		const FMaterialRenderProxy* MaterialProxy = ShadingEntry.ShadingPipeline->MaterialProxy;
+		const FMaterial* Material = ShadingEntry.ShadingPipeline->Material;
+		if (MaterialProxy && Material)
+		{
+			const UMaterialInterface* MaterialInterface = MaterialProxy->GetMaterialInterface();
+			if (MaterialInterface)
+			{
+				OutMaterialRelevance |= MaterialInterface->GetRelevance_Concurrent(InFeatureLevel);
+			}
+		}
+	}
+}
+
+void FNaniteShadingPipelines::ComputeRelevance(ERHIFeatureLevel::Type InFeatureLevel)
+{
+	// Reset relevance
+	CombinedRelevance = FPrimitiveViewRelevance();
+
+	struct FRelevanceContext
+	{
+		FMaterialRelevance MaterialRelevance{};
+	};
+
+	TArray<FRelevanceContext, TInlineAllocator<8>> RelevanceContexts;
+
+	BuildIdList();
+
+	if (ShadingIdList.Num() > 0)
+	{
+		CombinedRelevance.bDrawRelevance	= true;
+		CombinedRelevance.bStaticRelevance	= true;
+		CombinedRelevance.bRenderInMainPass	= true;
+		CombinedRelevance.bShadowRelevance	= true;
+
+		// Nanite::GetSupportsCustomDepthRendering() && ShouldRenderCustomDepth();
+		CombinedRelevance.bRenderCustomDepth = false; // TODO: Unsupported in fast path
+
+		// GetLightingChannelMask() != GetDefaultLightingChannelMask();
+		CombinedRelevance.bUsesLightingChannels = false; // TODO: Unsupported in fast path
+
+		if (GNaniteCacheRelevanceParallel && FApp::ShouldUseThreadingForPerformance())
+		{
+			ParallelForWithTaskContext(
+				RelevanceContexts,
+				ShadingIdList.Num(),
+				[this, InFeatureLevel](FRelevanceContext& Context, int32 Index)
+				{
+					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
+					const FNaniteShadingPipelines::FShadingId& ShadingId = ShadingIdList[Index];
+					ComputeMaterialRelevance_Thread(InFeatureLevel, PipelineMap, ShadingId, Context.MaterialRelevance);
+				}
+			);
+
+			for (int32 MergeIndex = 1; MergeIndex < RelevanceContexts.Num(); ++MergeIndex)
+			{
+				// Update combined material relevance
+				RelevanceContexts[0].MaterialRelevance |= RelevanceContexts[MergeIndex].MaterialRelevance;
+			}
+
+			// Apply combined material relevance to combined primitive view relevance
+			RelevanceContexts[0].MaterialRelevance.SetPrimitiveViewRelevance(CombinedRelevance);
+		}
+		else
+		{
+			FMaterialRelevance MaterialRelevance{};
+
+			for (const FNaniteShadingPipelines::FShadingId& ShadingId : ShadingIdList)
+			{
+				// Update combined material relevance
+				ComputeMaterialRelevance_Thread(InFeatureLevel, PipelineMap, ShadingId, MaterialRelevance);
+			}
+
+			// Apply combined material relevance to combined primitive view relevance
+			MaterialRelevance.SetPrimitiveViewRelevance(CombinedRelevance);
+		}
 	}
 }
 
