@@ -371,6 +371,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 	};
 
 	bool bProgress;
+	bool bKickInterruptThread = false;
 
 	do
 	{
@@ -445,6 +446,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 					CurrentQueue.PayloadToSubmit = Payload;
 					QueuesWithPayloads.Add(&CurrentQueue);
 					Result.Status |= EQueueStatus::Processed;
+					bKickInterruptThread = true;
 
 					//
 					// Now we generate any required barrier command lists. These may require
@@ -555,7 +557,7 @@ FD3D12DynamicRHI::FProcessResult FD3D12DynamicRHI::ProcessSubmissionQueue()
 
 	FlushPayloads();
 
-	if (InterruptThread && EnumHasAnyFlags(Result.Status, EQueueStatus::Processed))
+	if (InterruptThread && bKickInterruptThread)
 	{
 		InterruptThread->Kick();
 	}
