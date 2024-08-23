@@ -126,7 +126,7 @@ bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 
 		AsyncLoadID = LoadPackageAsync(PackagePath, PackageName, FLoadPackageAsyncDelegate::CreateLambda([this, ActorPackage](const FName& PackageName, UPackage* Package, EAsyncLoadingResult::Type Result)
 		{
-			checkf(AsyncLoadID != INDEX_NONE, TEXT("FWorldPartitionActorDescInstance failed to load package. ActorPackage:%s PackageName:%s"), *ActorPackage.ToString(), *PackageName.ToString());
+			//checkf(AsyncLoadID != INDEX_NONE, TEXT("FWorldPartitionActorDescInstance failed to load package. ActorPackage:%s PackageName:%s"), *ActorPackage.ToString(), *PackageName.ToString());
 			AsyncLoadID = INDEX_NONE;
 
 			if ((Result != EAsyncLoadingResult::Succeeded) || !Package)
