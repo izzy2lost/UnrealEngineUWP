@@ -193,7 +193,7 @@ class UBodySetup : public UBodySetupCore
 	/** Flag used to know if we have failed to create physics meshes. Note that this is not the inverse of bCreatedPhysicsMeshes which is true even on failure */
 	uint8 bFailedToCreatePhysicsMeshes:1;
 
-	/** Indicates whether this setup has any cooked collision data. */
+	/** Indicates whether this setup has any cooked collision data. This is set when writing to or reading from cooked data, but not authoritative for assets in the editor. */
 	uint8 bHasCookedCollisionData:1;
 
 	/** Indicates that we will never use convex or trimesh shapes. This is an optimization to skip checking for binary data. */
