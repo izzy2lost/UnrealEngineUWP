@@ -127,6 +127,7 @@ protected:
 
 	ENGINE_API bool StartAsyncLoad();
 	ENGINE_API void FlushAsyncLoad() const;
+	void AsyncLoadFinished(const FName& ActorPackage, const FName& PackageName, UPackage* Package, bool bSuccessful) const;
 	ENGINE_API void MarkUnload();
 
 	UWorldPartition* GetLoadedChildWorldPartition() const { return ActorDesc->GetLoadedChildWorldPartition(this); }
