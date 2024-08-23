@@ -120,7 +120,11 @@ IEOSPlatformHandlePtr FOnlineServicesEOSGSPlatformFactory::CreatePlatform(FName 
 		return {};
 	}
 
-	FString PlatformConfigName = InstanceConfigName.ToString();
+	FString PlatformConfigName;
+	if (!InstanceConfigName.IsNone())
+	{
+		PlatformConfigName = InstanceConfigName.ToString();
+	}
 	if (PlatformConfigName.IsEmpty())
 	{
 		PlatformConfigName = LoadEOSPlatformConfig(SDKManager);
