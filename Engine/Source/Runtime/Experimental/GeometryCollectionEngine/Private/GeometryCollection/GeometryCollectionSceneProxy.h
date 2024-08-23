@@ -343,6 +343,7 @@ public:
 	virtual void CreateRenderThreadResources(FRHICommandListBase& RHICmdList) override;
 	virtual SIZE_T GetTypeHash() const override;
 	virtual FPrimitiveViewRelevance	GetViewRelevance(const FSceneView* View) const override;
+	virtual void GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const override;
 #if GEOMETRYCOLLECTION_EDITOR_SELECTION
 	virtual HHitProxy* CreateHitProxies(UPrimitiveComponent* Component, TArray<TRefCountPtr<HHitProxy> >& OutHitProxies) override;
 #endif
@@ -386,6 +387,7 @@ public:
 protected:
 	// TODO : Copy required data from UObject instead of using unsafe object pointer.
 	const UGeometryCollection* GeometryCollection = nullptr;
+	FCollisionResponseContainer CollisionResponse;
 
 	struct FGeometryNaniteData
 	{
@@ -422,6 +424,9 @@ protected:
 		// FLightCacheInterface.
 		GEOMETRYCOLLECTIONENGINE_API virtual FLightInteraction GetInteraction(const FLightSceneProxy* LightSceneProxy) const override;
 	};
+
+private:
+	bool ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const;
 
 private:
 	static FEmptyLightCacheInfo EmptyLightCacheInfo;

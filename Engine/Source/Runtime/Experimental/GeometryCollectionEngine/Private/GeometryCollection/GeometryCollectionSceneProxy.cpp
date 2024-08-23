@@ -1189,6 +1189,8 @@ FNaniteGeometryCollectionSceneProxy::FNaniteGeometryCollectionSceneProxy(UGeomet
 	TArray<FMatrix44f> RestTransforms;
 	Component->GetRestTransforms(RestTransforms);
 
+	CollisionResponse = Component->GetCollisionResponseToChannels();
+
 	FGeometryCollectionDynamicData* DynamicData = Component->InitDynamicData(true);
 	SetDynamicData_RenderThread(DynamicData, Component->GetRenderMatrix());
 }
@@ -1219,6 +1221,9 @@ FPrimitiveViewRelevance FNaniteGeometryCollectionSceneProxy::GetViewRelevance(co
 
 	// Always render the Nanite mesh data with static relevance.
 	Result.bStaticRelevance = true;
+
+	// dynamic still relevance still must be used when drawing collisions
+	Result.bDynamicRelevance = ShowCollisionMeshes(View->Family->EngineShowFlags);
 
 	// Should always be covered by constructor of Nanite scene proxy.
 	Result.bRenderInMainPass = true;
@@ -1409,6 +1414,63 @@ void FNaniteGeometryCollectionSceneProxy::OnMotionEnd()
 	bCurrentlyInMotion = false;
 	bCanSkipRedundantTransformUpdates = true;
 	ResetPreviousTransforms_RenderThread();
+}
+
+
+bool FNaniteGeometryCollectionSceneProxy::ShowCollisionMeshes(const FEngineShowFlags& EngineShowFlags) const
+{
+	if (IsCollisionEnabled())
+	{
+		if (EngineShowFlags.CollisionPawn && CollisionResponse.GetResponse(ECC_Pawn) != ECR_Ignore)
+		{
+			return true;
+		}
+		if (EngineShowFlags.CollisionVisibility && CollisionResponse.GetResponse(ECC_Visibility) != ECR_Ignore)
+		{
+			return true;
+		}
+		if (EngineShowFlags.Collision)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+void FNaniteGeometryCollectionSceneProxy::GetDynamicMeshElements(const TArray<const FSceneView*>& Views, const FSceneViewFamily& ViewFamily, uint32 VisibilityMap, FMeshElementCollector& Collector) const
+{
+	QUICK_SCOPE_CYCLE_COUNTER(STAT_NaniteGeometryCollectionSceneProxy_GetDynamicMeshElements);
+
+	const FEngineShowFlags& EngineShowFlags = ViewFamily.EngineShowFlags;
+	const bool bDrawWireframeCollision = EngineShowFlags.Collision && IsCollisionEnabled();
+
+	// draw extra stuff ( collision , bounds ... )
+	for (int32 ViewIndex = 0; ViewIndex < Views.Num(); ViewIndex++)
+	{
+		if (VisibilityMap & (1 << ViewIndex))
+		{
+			// collision modes
+			if (ShowCollisionMeshes(EngineShowFlags) && GeometryCollection && GeometryCollection->GetGeometryCollection() && AllowDebugViewmodes())
+			{
+				FTransform GeomTransform(GetLocalToWorld());
+				if (bDrawWireframeCollision)
+				{
+					GeometryCollectionDebugDraw::DrawWireframe(*GeometryCollection->GetGeometryCollection(), GeomTransform, Collector, ViewIndex, GetWireframeColor().ToFColor(true));
+				}
+				else
+				{
+					FMaterialRenderProxy* CollisionMaterialInstance = new FColoredMaterialRenderProxy(GEngine->ShadedLevelColorationUnlitMaterial->GetRenderProxy(), GetWireframeColor());
+					Collector.RegisterOneFrameMaterialProxy(CollisionMaterialInstance);
+					GeometryCollectionDebugDraw::DrawSolid(*GeometryCollection->GetGeometryCollection(), GeomTransform, Collector, ViewIndex, CollisionMaterialInstance);
+				}
+			}
+
+			// render bounds
+#if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
+			RenderBounds(Collector.GetPDI(ViewIndex), ViewFamily.EngineShowFlags, GetBounds(), IsSelected());
+#endif
+		}
+	}
 }
 
 
