@@ -176,7 +176,12 @@ void FColorGradingDataModelGenerator_PostProcessVolume::GenerateDataModel(IPrope
 			.HAlign(HAlign_Left)
 			[
 				SNew(STextBlock)
-				.Text(FText::FromString(SelectedPPVs[0]->GetActorLabel()))
+				.Text(MakeAttributeLambda([WeakActor = SelectedPPVs[0]]()
+				{
+					return WeakActor.IsValid()
+						? FText::FromString(WeakActor->GetActorLabel())
+						: FText::GetEmpty();
+				}))
 				.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
 			];
 

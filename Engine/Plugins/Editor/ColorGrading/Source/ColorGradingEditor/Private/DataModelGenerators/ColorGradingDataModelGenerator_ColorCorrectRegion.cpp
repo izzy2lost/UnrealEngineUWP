@@ -134,7 +134,12 @@ void FColorGradingDataModelGenerator_ColorCorrectRegion::GenerateDataModel(IProp
 			.HAlign(HAlign_Left)
 			[
 				SNew(STextBlock)
-				.Text(FText::FromString(SelectedCCRs[0]->GetActorLabel()))
+				.Text(MakeAttributeLambda([WeakActor = SelectedCCRs[0]]()
+				{
+					return WeakActor.IsValid()
+						? FText::FromString(WeakActor->GetActorLabel())
+						: FText::GetEmpty();
+				}))
 				.Font(FAppStyle::Get().GetFontStyle("NormalFontBold"))
 			];
 
