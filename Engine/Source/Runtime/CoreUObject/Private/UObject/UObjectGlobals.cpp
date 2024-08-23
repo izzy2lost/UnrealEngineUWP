@@ -5251,16 +5251,13 @@ void FReferenceCollector::CreateVerySlowReferenceCollectorArchive()
 
 FArchive& FReferenceCollectorArchive::operator<<(UObject*& Object)
 {
-	Collector.AddStableReference(&ObjectPtrWrap(Object));
+	Collector.AddReferencedObject(ObjectPtrWrap(Object));
 	return *this;
 }
 
 FArchive& FReferenceCollectorArchive::operator<<(FObjectPtr& Object)
 {
-	if (Object.IsResolved())
-	{
-		Collector.AddStableReference(reinterpret_cast<TObjectPtr<UObject>*>(&Object));
-	}
+	Collector.AddReferencedObject(reinterpret_cast<TObjectPtr<UObject>&>(Object));
 	return *this;
 }
 
