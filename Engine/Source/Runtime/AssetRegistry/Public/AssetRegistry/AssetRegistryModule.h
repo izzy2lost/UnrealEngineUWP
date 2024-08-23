@@ -126,4 +126,15 @@ public:
 		}
 		return AssetRegistry->TryGetAssetPackageData(PackageName, OutAssetPackageData, OutCorrectCasePackageName);
 	}
+
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override
+	{
+		IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
+		if (!AssetRegistry)
+		{
+			return false;
+		}
+		return AssetRegistry->EnumerateAssets(Filter, Callback, InEnumerateFlags);
+	}
 };

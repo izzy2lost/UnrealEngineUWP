@@ -16,6 +16,7 @@ class FCbWriter;
 class UObject;
 namespace UE::ConfigAccessTracking { enum class ELoadType : uint8; }
 namespace UE::ConfigAccessTracking { struct FConfigAccessData; }
+struct FARFilter;
 #endif
 
 #if WITH_EDITOR
@@ -93,6 +94,7 @@ enum class ECookDependency : uint8
 	Config					= 6,
 	SettingsObject			= 7,
 	NativeClass				= 8,
+	AssetRegistryQuery		= 9,
 
 	Count,
 };
@@ -168,6 +170,9 @@ public:
 	COREUOBJECT_API static FCookDependency NativeClass(const UClass* InClass);
 	COREUOBJECT_API static FCookDependency NativeClass(FStringView ClassPath);
 
+	/** Adds a dependency on the results reported by an AssetRegistry query. */
+	COREUOBJECT_API static FCookDependency AssetRegistryQuery(FARFilter Filter);
+
 	/** Construct an empty dependency; it will never be invalidated. */
 	COREUOBJECT_API FCookDependency();
 
@@ -211,6 +216,9 @@ public:
 	 */
 	FStringView GetClassPath() const;
 
+	/** Returns the FARFilter if GetType() == AssetRegistryQuery, else nullptr. */
+	const FARFilter* GetARFilter() const;
+
 	/**
 	 * Comparison operator for e.g. deterministic ordering of dependencies.
 	 * Uses persistent comparison data and is somewhat expensive.
@@ -233,6 +241,8 @@ private:
 		const UE::ConfigAccessTracking::FConfigAccessData& B);
 	static COREUOBJECT_API bool ConfigAccessDataEqual(const UE::ConfigAccessTracking::FConfigAccessData& A,
 		const UE::ConfigAccessTracking::FConfigAccessData& B);
+	static COREUOBJECT_API bool ARFilterLessThan(const FARFilter& A, const FARFilter& B);
+	static COREUOBJECT_API bool ARFilterEqual(const FARFilter& A, const FARFilter& B);
 
 	/** Public hidden friend for operator<< into an FCbWriter. */
 	friend FCbWriter& operator<<(FCbWriter& Writer, const FCookDependency& CookDependencies)
@@ -266,6 +276,7 @@ private:
 		FName NameData;
 		const UObject* ObjectPtr;
 		TUniquePtr<UE::ConfigAccessTracking::FConfigAccessData> ConfigAccessData;
+		TUniquePtr<FARFilter> ARFilter;
 	};
 };
 
@@ -391,6 +402,11 @@ inline FStringView FCookDependency::GetClassPath() const
 	return Type == ECookDependency::NativeClass ? StringData : FStringView();
 }
 
+inline const FARFilter* FCookDependency::GetARFilter() const
+{
+	return Type == ECookDependency::AssetRegistryQuery ? ARFilter.Get() : nullptr;
+}
+
 inline bool FCookDependency::operator<(const FCookDependency& Other) const
 {
 	if (static_cast<uint8>(Type) != static_cast<uint8>(Other.Type))
@@ -452,6 +468,16 @@ inline bool FCookDependency::operator<(const FCookDependency& Other) const
 	case ECookDependency::SettingsObject:
 		// SettingsObjects are not persistable, so we do not use a persistent sort key; just the object ptr.
 		return ObjectPtr < Other.ObjectPtr;
+	case ECookDependency::AssetRegistryQuery:
+		if (ARFilter.IsValid() != Other.ARFilter.IsValid())
+		{
+			return !ARFilter.IsValid();
+		}
+		if (!ARFilter.IsValid())
+		{
+			return false; // equal
+		}
+		return ARFilterLessThan(*ARFilter, *Other.ARFilter);
 	default:
 		checkNoEntry();
 		return false;
@@ -514,6 +540,19 @@ inline bool FCookDependency::operator==(const FCookDependency& Other) const
 	case ECookDependency::SettingsObject:
 		// SettingsObjects are not persistable, so we do not use a persistent sort key; just the object ptr.
 		return ObjectPtr == Other.ObjectPtr;
+	case ECookDependency::AssetRegistryQuery:
+	{
+		if (ARFilter.IsValid() != Other.ARFilter.IsValid())
+		{
+			return false;
+		}
+		if (!ARFilter.IsValid())
+		{
+			return true;
+		}
+
+		return ARFilterEqual(*ARFilter, *Other.ARFilter);
+	}
 	default:
 		checkNoEntry();
 		return false;

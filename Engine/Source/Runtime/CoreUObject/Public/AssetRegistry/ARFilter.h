@@ -11,6 +11,8 @@
 #include "CoreMinimal.h"
 #endif
 
+class FCbField;
+class FCbWriter;
 struct FAssetData;
 
 /**
@@ -136,6 +138,29 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	}
 
 	void PostSerialize(const FArchive& Ar);
+
+	/**
+	 * Sort the structures (e.g. PackageNames) on this filter to be deterministic for saving the structure during
+	 * cooking. This is also required for correctness of operator== when comparing the order-independent arrays.
+	 */
+	COREUOBJECT_API void SortForSaving();
+	COREUOBJECT_API bool operator==(const FARFilter& Other) const;
+	COREUOBJECT_API bool operator<(const FARFilter& Other) const;
+
+private:
+	COREUOBJECT_API void Save(FCbWriter& Writer) const;
+	COREUOBJECT_API bool TryLoad(const FCbFieldView& Field);
+
+	// Hidden friends for our argument-dependent lookup functions
+	friend FCbWriter& operator<<(FCbWriter& Writer, const FARFilter& Filter)
+	{
+		Filter.Save(Writer);
+		return Writer;
+	}
+	friend bool LoadFromCompactBinary(const FCbFieldView& Field, FARFilter& Filter)
+	{
+		return Filter.TryLoad(Field);
+	}
 };
 
 template<>

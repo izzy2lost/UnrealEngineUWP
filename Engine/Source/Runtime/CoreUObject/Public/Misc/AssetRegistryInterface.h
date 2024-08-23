@@ -9,6 +9,7 @@
 #include "Misc/EnumClassFlags.h"
 #include "Modules/ModuleInterface.h"
 #include "Modules/ModuleManager.h"
+#include "Templates/Function.h"
 #include "UObject/NameTypes.h"
 #include "UObject/TopLevelAssetPath.h"
 
@@ -22,6 +23,7 @@ class ITargetPlatform;
 class UObject;
 class UPackage;
 struct FArchiveCookContext;
+struct FARFilter;
 struct FAssetData;
 
 namespace EAssetRegistryDependencyType
@@ -165,6 +167,15 @@ namespace UE::AssetRegistry
 		Exists,			// Exists on disk
 		Unknown,		// Not known. AssetRegistry might still be indexing
 	};
+
+	enum class EEnumerateAssetsFlags : uint32
+	{
+		None = 0,							// No flags
+		OnlyOnDiskAssets = (1 << 0),		// should only assets on disk be included in the enumeration. When set only DiskGatheredData will be used, does not calculate from UObjects.
+		AllowUnmountedPaths = (1 << 1),		// should unmounted asset paths be allowed
+		AllowUnfilteredArAssets = (1 << 2),	// skip the filtering of UE::AssetRegistry::FFiltering
+	};
+	ENUM_CLASS_FLAGS(EEnumerateAssetsFlags);
 
 	/**
 	 * A struct that is equivalent to EDependencyQuery, but is more useful for performance in filtering operations.
@@ -406,6 +417,20 @@ public:
 	 * @return Return code enum
 	 */
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const = 0;
+
+	/**
+	 * Enumerate asset data for all assets that match the filter.
+	 * Assets returned must satisfy every filter component if there is at least one element in the component's array.
+	 * Assets will satisfy a component if they match any of the elements in it.
+	 *
+	 * @param Filter filter to apply to the assets in the AssetRegistry
+	 * @param Callback function to call for each asset data enumerated
+	 * @param InEnumerateFlags flags to control enumeration and filtering.
+	 *        @see EEnumerateAssetsFlags.
+	 * @return False if the AssetRegistry is not available or the filter is invalid, otherwise true.
+	 */
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const = 0;
 
 protected:
 

@@ -285,7 +285,7 @@ public:
 
 	virtual UE::AssetRegistry::EExists TryGetAssetByObjectPath(const FSoftObjectPath& ObjectPath, FAssetData& OutAssetData) const override
 	{
-		auto AssetRegistry = IAssetRegistry::Get();
+		IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
 		if (!AssetRegistry)
 		{
 			return UE::AssetRegistry::EExists::Unknown;
@@ -301,12 +301,23 @@ public:
 	
 	virtual UE::AssetRegistry::EExists TryGetAssetPackageData(FName PackageName, class FAssetPackageData& OutPackageData, FName& OutCorrectCasePackageName) const override
 	{
-		auto AssetRegistry = IAssetRegistry::Get();
+		IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
 		if (!AssetRegistry)
 		{
 			return UE::AssetRegistry::EExists::Unknown;
 		}
 		return AssetRegistry->TryGetAssetPackageData(PackageName, OutPackageData, OutCorrectCasePackageName);
+	}
+
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override
+	{
+		IAssetRegistry* AssetRegistry = IAssetRegistry::Get();
+		if (!AssetRegistry)
+		{
+			return false;;
+		}
+		return AssetRegistry->EnumerateAssets(Filter, Callback, InEnumerateFlags);
 	}
 };
 FAssetRegistryInterface GAssetRegistryInterface;

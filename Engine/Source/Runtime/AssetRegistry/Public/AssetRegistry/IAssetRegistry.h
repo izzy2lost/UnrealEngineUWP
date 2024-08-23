@@ -72,15 +72,6 @@ ENUM_CLASS_FLAGS(EScanFlags);
 
 ASSETREGISTRY_API FString LexToString(EScanFlags Flags);
 
-enum class EEnumerateAssetsFlags : uint32
-{
-	None = 0,							// No flags
-	OnlyOnDiskAssets = (1 << 0),		// should only assets on disk be included in the enumeration. When set only DiskGatheredData will be used, does not calculate from UObjects.
-	AllowUnmountedPaths = (1 << 1),		// should unmounted asset paths be allowed
-	AllowUnfilteredArAssets = (1 << 2),	// skip the filtering of UE::AssetRegistry::FFiltering
-};
-ENUM_CLASS_FLAGS(EEnumerateAssetsFlags);
-
 } // namespace UE::AssetRegistry
 
 USTRUCT(BlueprintType)
@@ -326,6 +317,7 @@ public:
 	 * @param Callback function to call for each asset data enumerated
 	 * @param InEnumerateFlags flags to control enumeration and filtering.
 	 *        @see EEnumerateAssetsFlags.
+	 * @return False if filter is invalid, otherwise true.
 	 */
 	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;
 	virtual bool EnumerateAssets(const FARCompiledFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback) const = 0;

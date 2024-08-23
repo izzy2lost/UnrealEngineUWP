@@ -3,6 +3,9 @@
 #include "Cooker/CookDependency.h"
 
 #if WITH_EDITOR
+#include "Algo/Unique.h"
+#include "AssetRegistry/ARFilter.h"
+#include "AssetRegistry/AssetData.h"
 #include "Containers/Array.h"
 #include "Containers/Map.h"
 #include "CoreGlobals.h"
@@ -11,6 +14,7 @@
 #include "HAL/PlatformMath.h"
 #include "Hash/Blake3.h"
 #include "Misc/AssertionMacros.h"
+#include "Misc/AssetRegistryInterface.h"
 #include "Misc/ConfigAccessData.h"
 #include "Misc/StringBuilder.h"
 #include "Serialization/Archive.h"
@@ -166,6 +170,14 @@ FCookDependency FCookDependency::NativeClass(FStringView ClassPath)
 	return Result;
 }
 
+FCookDependency FCookDependency::AssetRegistryQuery(FARFilter Filter)
+{
+	FCookDependency Result(ECookDependency::AssetRegistryQuery);
+	Filter.SortForSaving();
+	Result.ARFilter = MakeUnique<FARFilter>(MoveTemp(Filter));
+	return Result;
+}
+
 FCookDependency::FCookDependency()
 	: Type(ECookDependency::None)
 {
@@ -225,6 +237,9 @@ FCookDependency& FCookDependency::operator=(const FCookDependency& Other)
 	case ECookDependency::SettingsObject:
 		ObjectPtr = Other.ObjectPtr;
 		break;
+	case ECookDependency::AssetRegistryQuery:
+		ARFilter.Reset(Other.ARFilter.IsValid() ? new FARFilter(*Other.ARFilter) : nullptr);
+		break;
 	default:
 		checkNoEntry();
 		break;
@@ -260,6 +275,9 @@ FCookDependency& FCookDependency::operator=(FCookDependency&& Other)
 		break;
 	case ECookDependency::SettingsObject:
 		ObjectPtr = Other.ObjectPtr;
+		break;
+	case ECookDependency::AssetRegistryQuery:
+		ARFilter = MoveTemp(Other.ARFilter);
 		break;
 	default:
 		checkNoEntry();
@@ -366,6 +384,30 @@ void FCookDependency::UpdateHash(FCookDependencyContext& Context) const
 			TEXT("FCookDependency::NativeClass('%s') failed to UpdateHash: NativeClass dependencies do not implement UpdateHash and it should not be called on them."),
 			*StringData));
 		return;
+	case ECookDependency::AssetRegistryQuery:
+		if (ARFilter.IsValid())
+		{
+			IAssetRegistryInterface* AssetRegistry = IAssetRegistryInterface::GetPtr();
+			if (AssetRegistry)
+			{
+				TArray<FName> PackageNames;
+				AssetRegistry->EnumerateAssets(*ARFilter, [&Context, &PackageNames](const FAssetData& AssetData)
+					{
+						PackageNames.Add(AssetData.PackageName);
+						return true;
+					}, UE::AssetRegistry::EEnumerateAssetsFlags::None);
+				PackageNames.Sort(FNameLexicalLess());
+				PackageNames.SetNum(Algo::Unique(PackageNames));
+				TStringBuilder<256> PackageNameStr;
+				for (FName PackageName : PackageNames)
+				{
+					PackageNameStr.Reset();
+					PackageNameStr << PackageName;
+					Context.Update(*PackageNameStr, sizeof(**PackageNameStr) * PackageNameStr.Len());
+				}
+			}
+		}
+		return;
 	default:
 		checkNoEntry();
 		return;
@@ -399,6 +441,10 @@ void FCookDependency::Construct()
 	case ECookDependency::SettingsObject:
 		ObjectPtr = nullptr;
 		break;
+	case ECookDependency::AssetRegistryQuery:
+		// Set the union's bytes equal to a TUniquePtr with a null internal pointer
+		new(&ARFilter) TUniquePtr<FARFilter>(nullptr);
+		break;
 	default:
 		checkNoEntry();
 		break;
@@ -431,6 +477,10 @@ void FCookDependency::Destruct()
 		break;
 	case ECookDependency::SettingsObject:
 		ObjectPtr = nullptr;
+		break;
+	case ECookDependency::AssetRegistryQuery:
+		// TUniquePtr's destructor will also destruct its internal pointer
+		ARFilter.~TUniquePtr<FARFilter>();
 		break;
 	default:
 		checkNoEntry();
@@ -471,6 +521,16 @@ void FCookDependency::Save(FCbWriter& Writer) const
 	case ECookDependency::SettingsObject:
 		// Settings objects are not persistable; save out an empty SettingsObject dependency
 		break;
+	case ECookDependency::AssetRegistryQuery:
+	{
+		bool bValid = ARFilter.IsValid();
+		Writer << bValid;
+		if (bValid)
+		{
+			Writer << *ARFilter;
+		}
+		break;
+	}
 	default:
 		checkNoEntry();
 		break;
@@ -588,6 +648,28 @@ bool FCookDependency::Load(FCbFieldView Value)
 		*this = FCookDependency::NativeClass(LocalClassPath);
 		return true;
 	}
+	case ECookDependency::AssetRegistryQuery:
+	{
+		bool bValid;
+		if (!LoadFromCompactBinary(Field++, bValid))
+		{
+			return false;
+		}
+		if (!bValid)
+		{
+			*this = FCookDependency(ECookDependency::AssetRegistryQuery);
+		}
+		else
+		{
+			FARFilter LocalARFilter;
+			if (!LoadFromCompactBinary(Field++, LocalARFilter))
+			{
+				return false;
+			}
+			*this = FCookDependency::AssetRegistryQuery(MoveTemp(LocalARFilter));
+		}
+		return true;
+	}
 	default:
 		break;
 	}
@@ -603,6 +685,16 @@ bool FCookDependency::ConfigAccessDataLessThan(const UE::ConfigAccessTracking::F
 
 bool FCookDependency::ConfigAccessDataEqual(const UE::ConfigAccessTracking::FConfigAccessData& A,
 	const UE::ConfigAccessTracking::FConfigAccessData& B)
+{
+	return A == B;
+}
+
+bool FCookDependency::ARFilterLessThan(const FARFilter& A, const FARFilter& B)
+{
+	return A < B;
+}
+
+bool FCookDependency::ARFilterEqual(const FARFilter& A, const FARFilter& B)
 {
 	return A == B;
 }

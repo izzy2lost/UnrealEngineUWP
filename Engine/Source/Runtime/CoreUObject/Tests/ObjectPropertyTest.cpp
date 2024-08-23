@@ -281,6 +281,12 @@ public:
 		return UE::AssetRegistry::EExists::Exists;
 	}
 
+	virtual bool EnumerateAssets(const FARFilter& Filter, TFunctionRef<bool(const FAssetData&)> Callback,
+		UE::AssetRegistry::EEnumerateAssetsFlags InEnumerateFlags) const override
+	{
+		return true;
+	}
+
 	IAssetRegistryInterface* Old;
 	TMap<FSoftObjectPath, FAssetData> AssetData;
 };
