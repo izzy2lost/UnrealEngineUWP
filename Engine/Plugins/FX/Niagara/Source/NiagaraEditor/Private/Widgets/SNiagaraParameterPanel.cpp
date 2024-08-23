@@ -506,7 +506,7 @@ TSharedRef<SWidget> SNiagaraParameterPanel::OnGenerateWidgetForItem(const FNiaga
 				[
 					SNew(STextBlock)
 					.Margin(FMargin(2, 0))
-					.Text(FText::FromString(TEXT("/")))
+					.Text(FText::FromString(TEXT("|")))
 					.Font(FCoreStyle::GetDefaultFontStyle(FName("Regular"), 10))
 				]
 				+SHorizontalBox::Slot()
