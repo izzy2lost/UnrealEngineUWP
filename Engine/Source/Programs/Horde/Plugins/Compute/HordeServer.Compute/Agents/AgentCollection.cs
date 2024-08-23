@@ -333,9 +333,9 @@ namespace HordeServer.Agents
 				if (document != null)
 				{
 					Agent? agent = await CreateAgentObjectAsync(document, session, cancellationToken);
-					if (agent != null)
+					if (agent != null && agent.Session != null && agent.Session.ExpiryTicks == session.ExpiryTicks)
 					{
-						_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", session.SessionId, session.AgentId);
+						_logger.LogDebug("Terminating session {SessionId} for agent {Agent} (expiry time: {Time})", session.SessionId, session.AgentId, agent.Session?.ExpiryTime);
 						await TryUpdateSessionAsync(agent, new UpdateSessionOptions { Status = AgentStatus.Stopped }, cancellationToken);
 						c++;
 					}

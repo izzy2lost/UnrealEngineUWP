@@ -11,6 +11,7 @@ using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
 using HordeServer.Server;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using StackExchange.Redis;
 
 namespace HordeServer.Agents
@@ -66,6 +67,7 @@ namespace HordeServer.Agents
 
 		readonly IRedisService _redisService;
 		readonly IClock _clock;
+		readonly ILogger _logger;
 
 		static readonly RedisChannel<SessionId> s_sessionUpdateChannel = new RedisChannel<SessionId>(RedisChannel.Literal("compute:sessions:update"));
 
@@ -74,10 +76,11 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentScheduler(IRedisService redisService, IClock clock)
+		public AgentScheduler(IRedisService redisService, IClock clock, ILogger<AgentScheduler> logger)
 		{
 			_redisService = redisService;
 			_clock = clock;
+			_logger = logger;
 		}
 
 		/// <inheritdoc/>
@@ -239,6 +242,9 @@ namespace HordeServer.Agents
 			{
 				return null;
 			}
+
+			// Trace the new expiry time for debugging
+			_logger.LogDebug("Updated session {SessionId} expiry time to {ExpiryTime}", sessionId, newSession.ExpiryTime);
 
 			// Notify watchers that the session state has changed
 			if (newSession != null || newCapabilities != null)
