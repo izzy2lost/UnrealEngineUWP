@@ -1796,6 +1796,16 @@ public:
 		return Object;
 	}	
 
+	FORCEINLINE bool IsInitialized() const
+	{
+		return Object != nullptr;
+	}
+
+	/**
+	 * Use IsInitialized if needed
+	 */
+	explicit operator bool() const = delete;
+
 private:
 
 	/** The object we're holding a reference to. */
