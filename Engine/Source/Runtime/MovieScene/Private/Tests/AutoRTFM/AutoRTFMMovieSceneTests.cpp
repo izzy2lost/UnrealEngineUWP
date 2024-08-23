@@ -122,6 +122,18 @@ bool FAutoRTFMMovieSceneTests::RunTest(const FString & Parameters)
 		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
 	}
 
+	// Test we can construct and destruct an entity system scheduler.
+	{
+		FEntityManager EntityManager;
+
+		AutoRTFM::ETransactionResult Result = AutoRTFM::Transact([&]
+			{
+				FEntitySystemScheduler Scheduler(&EntityManager);
+			});
+
+		TEST_CHECK_TRUE(AutoRTFM::ETransactionResult::Committed == Result);
+	}
+
 	return true;
 }
 
