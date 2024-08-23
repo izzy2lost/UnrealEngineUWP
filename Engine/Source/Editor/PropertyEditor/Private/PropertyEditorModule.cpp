@@ -1104,7 +1104,7 @@ FPropertyTypeLayoutCallback FPropertyEditorModule::FindPropertyTypeLayoutCallbac
 	return FPropertyTypeLayoutCallback();
 }
 
-TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, TSharedPtr<FStructOnScope> StructData, const FText& CustomName)
+TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs, const FText& CustomName)
 {
 	TSharedRef<SStructureDetailsView> DetailView =
 		SNew(SStructureDetailsView)
@@ -1185,8 +1185,25 @@ TSharedRef<class IStructureDetailsView> FPropertyEditorModule::CreateStructureDe
 	{
 		DetailView->SetIsPropertyVisibleDelegate(FIsPropertyVisible::CreateStatic(&FStructureDetailsViewFilter::PassesFilter, StructureDetailsViewArgs));
 	}
-	DetailView->SetStructureData(StructData);
 
+	return DetailView;
+}
+
+TSharedRef<IStructureDetailsView> FPropertyEditorModule::CreateStructureDetailView(
+	const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs,
+	TSharedPtr<FStructOnScope> StructData, const FText& CustomName)
+{
+	TSharedRef<IStructureDetailsView> DetailView = CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, CustomName);
+	DetailView->SetStructureData(StructData);
+	return DetailView;
+}
+
+TSharedRef<IStructureDetailsView> FPropertyEditorModule::CreateStructureProviderDetailView(
+	const FDetailsViewArgs& DetailsViewArgs, const FStructureDetailsViewArgs& StructureDetailsViewArgs,
+	TSharedPtr<IStructureDataProvider> StructProvider, const FText& CustomName)
+{
+	TSharedRef<IStructureDetailsView> DetailView = CreateStructureDetailView(DetailsViewArgs, StructureDetailsViewArgs, CustomName);
+	DetailView->SetStructureProvider(StructProvider);
 	return DetailView;
 }
 
