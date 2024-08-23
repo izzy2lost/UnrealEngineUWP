@@ -434,7 +434,7 @@ namespace UnrealBuildTool
 			{
 				foreach (FileReference InputFile in InputFiles)
 				{
-					string[] Lines = File.ReadAllLines(InputFile.FullName);
+					string[] Lines = FileReference.ReadAllLines(InputFile);
 					for (int LineIdx = 0; LineIdx < Lines.Length; LineIdx++)
 					{
 						string Line = Lines[LineIdx];

@@ -234,7 +234,7 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="file">The file to create a directory reference for</param>
 		/// <returns>The directory containing the file  </returns>
-		[return: NotNullIfNotNull("file")]
+		[return: NotNullIfNotNull(nameof(file))]
 		public static DirectoryReference? FromFile(FileReference? file) => file?.Directory;
 
 		/// <summary>

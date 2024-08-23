@@ -653,7 +653,7 @@ namespace EpicGames.Core
 		/// Constructor
 		/// </summary>
 		/// <param name="exception"></param>
-		[return: NotNullIfNotNull("exception")]
+		[return: NotNullIfNotNull(nameof(exception))]
 		public static LogException? FromException(Exception? exception)
 		{
 			LogException? result = null;

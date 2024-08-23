@@ -290,6 +290,27 @@ namespace EpicGames.Core
 		}
 
 		/// <summary>
+		/// Determines if a TargetFramework is a .NET core framework
+		/// </summary>
+		/// <returns>True if the TargetFramework is a .NET core framework</returns>
+		static bool IsDotNETCoreFramework(string targetFramework)
+		{
+			if (targetFramework.ToLower().Contains("netstandard", StringComparison.Ordinal) || targetFramework.ToLower().Contains("netcoreapp", StringComparison.Ordinal))
+			{
+				return true;
+			}
+			else if (targetFramework.StartsWith("net", StringComparison.OrdinalIgnoreCase))
+			{
+				string[] versionSplit = targetFramework.Substring(3).Split('.');
+				if (versionSplit.Length >= 1 && Int32.TryParse(versionSplit[0], out int majorVersion))
+				{
+					return majorVersion >= 5;
+				}
+			}
+			return false;
+		}
+
+		/// <summary>
 		/// Determines if this project is a .NET core project
 		/// </summary>
 		/// <returns>True if the project is a .NET core project</returns>
@@ -297,18 +318,12 @@ namespace EpicGames.Core
 		{
 			if (Properties.TryGetValue("TargetFramework", out string? targetFramework))
 			{
-				if (targetFramework.ToLower().Contains("netstandard", StringComparison.Ordinal) || targetFramework.ToLower().Contains("netcoreapp", StringComparison.Ordinal))
-				{
-					return true;
-				}
-				else if (targetFramework.StartsWith("net", StringComparison.OrdinalIgnoreCase))
-				{
-					string[] versionSplit = targetFramework.Substring(3).Split('.');
-					if (versionSplit.Length >= 1 && Int32.TryParse(versionSplit[0], out int majorVersion))
-					{
-						return majorVersion >= 5;
-					}
-				}
+				return IsDotNETCoreFramework(targetFramework);
+			}
+
+			if (Properties.TryGetValue("TargetFrameworks", out string? targetFrameworks))
+			{
+				return targetFramework?.Split(';', StringSplitOptions.RemoveEmptyEntries).Any(x => IsDotNETCoreFramework(x.Trim())) ?? false;
 			}
 
 			return false;

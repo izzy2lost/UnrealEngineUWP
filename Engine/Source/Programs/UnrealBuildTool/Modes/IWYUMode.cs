@@ -412,7 +412,7 @@ namespace UnrealBuildTool
 			}
 			else if (!String.IsNullOrEmpty(PathToUpdateFile))
 			{
-				PathToUpdateList = File.ReadAllLines(PathToUpdateFile);
+				PathToUpdateList = await File.ReadAllLinesAsync(PathToUpdateFile);
 			}
 
 			if (PathToUpdateList.Length > 0)

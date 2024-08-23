@@ -69,7 +69,7 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="fileName">FileName for the string</param>
 		/// <returns>Returns a FileReference representing the given string, or null.</returns>
-		[return: NotNullIfNotNull("fileName")]
+		[return: NotNullIfNotNull(nameof(fileName))]
 		public static FileReference? FromString(string? fileName) => String.IsNullOrEmpty(fileName) ? null : new FileReference(fileName);
 
 		/// <summary>
@@ -329,7 +329,7 @@ namespace EpicGames.Core
 		/// </summary>
 		/// <param name="location">Location of the file</param>
 		/// <param name="mode">Mode to use when opening the file</param>
-		/// <returns>New filestream for the given file</returns>
+		/// <returns>New FileStream for the given file</returns>
 		public static FileStream Open(FileReference location, FileMode mode) => File.Open(location.FullName, mode);
 
 		/// <summary>
@@ -338,7 +338,7 @@ namespace EpicGames.Core
 		/// <param name="location">Location of the file</param>
 		/// <param name="mode">Mode to use when opening the file</param>
 		/// <param name="access">Sharing mode for the new file</param>
-		/// <returns>New filestream for the given file</returns>
+		/// <returns>New FileStream for the given file</returns>
 		public static FileStream Open(FileReference location, FileMode mode, FileAccess access) => File.Open(location.FullName, mode, access);
 
 		/// <summary>
@@ -348,7 +348,7 @@ namespace EpicGames.Core
 		/// <param name="mode">Mode to use when opening the file</param>
 		/// <param name="access">Access mode for the new file</param>
 		/// <param name="share">Sharing mode for the open file</param>
-		/// <returns>New filestream for the given file</returns>
+		/// <returns>New FileStream for the given file</returns>
 		public static FileStream Open(FileReference location, FileMode mode, FileAccess access, FileShare share) => File.Open(location.FullName, mode, access, share);
 
 		/// <summary>

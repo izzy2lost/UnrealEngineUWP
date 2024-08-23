@@ -42,7 +42,12 @@ namespace EpicGames.Core
 		/// <inheritdoc/>
 		public async ValueTask DisposeAsync()
 		{
+#if NET8_0_OR_GREATER
+			await _cancellationSource.CancelAsync();
+#else
 			_cancellationSource.Cancel();
+#endif
+
 			await StopAsync(CancellationToken.None).ConfigureAwait(false);
 
 			_cancellationSource.Dispose();

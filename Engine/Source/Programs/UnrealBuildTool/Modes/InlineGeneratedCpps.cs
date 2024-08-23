@@ -143,7 +143,7 @@ namespace UnrealBuildTool
 										}
 									}
 
-									List<string> TextLines = System.IO.File.ReadAllLines(InputFile.Location.FullName).ToList();
+									List<string> TextLines = FileReference.ReadAllLines(InputFile.Location).ToList();
 									if (TextLines.Any(Text => InlineReflectionMarkupRegex.IsMatch(Text)))
 									{
 										continue;

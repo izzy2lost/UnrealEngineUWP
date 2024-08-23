@@ -104,7 +104,11 @@ namespace UnrealBuildTool
 		{
 			if (_workers.Count > 0) // Should handle double-dispose, prevent cancelling twice
 			{
+#if NET8_0_OR_GREATER
+				await _cancellationTokenSource.CancelAsync();
+#else
 				_cancellationTokenSource.Cancel();
+#endif
 
 				for (int idx = _workers.Count - 1; idx >= 0; idx--)
 				{
