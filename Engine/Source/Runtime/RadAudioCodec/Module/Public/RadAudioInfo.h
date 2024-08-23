@@ -36,5 +36,4 @@ protected:
 	struct RadAudioDecoder* Decoder = 0;
 	TArray<uint8> RawMemory;
 	bool bErrorStateLatch = false;
-	uint32 ConsumeFrameCount = 0;
 };

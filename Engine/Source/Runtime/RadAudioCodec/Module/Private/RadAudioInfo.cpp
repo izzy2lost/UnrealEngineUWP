@@ -122,7 +122,7 @@ void FRadAudioInfo::SeekToFrame(uint32 InSeekTimeFrames)
 
 	// Block based codec - we start decoding on a block boundary and need
 	// to eat frames to get to our actual spot.
-	this->ConsumeFrameCount = InSeekTimeFrames - (int32)FrameAtLocation;
+	Decoder->ConsumeFrameCount = InSeekTimeFrames - (int32)FrameAtLocation;
 
 	//
 	// Here we need to set up the data we get to point at the right spot.
