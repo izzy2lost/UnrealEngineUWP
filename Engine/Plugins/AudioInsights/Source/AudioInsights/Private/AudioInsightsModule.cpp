@@ -14,7 +14,6 @@
 
 #if !WITH_EDITOR
 #include "AudioInsightsComponent.h"
-#include "Views/LogDashboardViewFactory.h"
 #include "Views/MixerSourceDashboardViewFactory.h"
 #include "Views/VirtualLoopDashboardViewFactory.h"
 #endif // !WITH_EDITOR
@@ -40,7 +39,6 @@ namespace UE::Audio::Insights
 #if !WITH_EDITOR
 			IModularFeatures::Get().RegisterModularFeature(UE::Insights::Timing::TimingViewExtenderFeatureName, &AudioInsightsTimingViewExtender);
 
-			DashboardFactory->RegisterViewFactory(MakeShared<FLogDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FMixerSourceDashboardViewFactory>());
 			DashboardFactory->RegisterViewFactory(MakeShared<FVirtualLoopDashboardViewFactory>());
 			
