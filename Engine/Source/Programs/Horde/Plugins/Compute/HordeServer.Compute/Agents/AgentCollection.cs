@@ -1244,6 +1244,7 @@ namespace HordeServer.Agents
 		{
 			if (_sessionIdToTcs.TryGetValue(sessionId, out TaskCompletionSource? tcs))
 			{
+				_logger.LogDebug("Session {SessionId} was updated.");
 				tcs.TrySetResult();
 			}
 		}

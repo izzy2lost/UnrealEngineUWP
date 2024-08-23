@@ -613,6 +613,7 @@ namespace HordeServer.Agents
 			agent = await UpdateSessionAsync(agent, sessionId, status, capabilities, newLeases, cancellationToken);
 			if (agent != null && agent.UpdateIndex == updateIndex && (agent.Leases.Count > 0 || agent.Status != AgentStatus.Stopping))
 			{
+				_logger.LogDebug("Waiting for lease update on agent {AgentId} session {SessionId}", agent.Id, sessionId);
 				agent = await WaitForLeaseAsync(agent, newLeases, cancellationToken);
 			}
 			return agent;

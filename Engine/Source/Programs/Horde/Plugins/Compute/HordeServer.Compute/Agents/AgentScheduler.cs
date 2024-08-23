@@ -247,7 +247,7 @@ namespace HordeServer.Agents
 			_logger.LogDebug("Updated session {SessionId} expiry time to {ExpiryTime}", sessionId, newSession.ExpiryTime);
 
 			// Notify watchers that the session state has changed
-			if (newSession != null || newCapabilities != null)
+			if (newSession.Status != session.Status || !newSession.CapabilitiesHash.Equals(session.CapabilitiesHash, StringComparison.Ordinal) || !newSession.Leases.Equals(session.Leases))
 			{
 				_ = _redisService.GetDatabase().PublishAsync(s_sessionUpdateChannel, sessionId, CommandFlags.FireAndForget);
 			}
