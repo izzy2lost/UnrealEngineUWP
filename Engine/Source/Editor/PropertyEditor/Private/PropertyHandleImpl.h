@@ -279,6 +279,16 @@ public:
 	 * @return true if the property  is edit const and cannot be changed
 	 */
 	bool IsEditConst() const;
+	
+	/**
+	 * @return Whether or not the property is expanded
+	 */
+	bool IsExpanded() const;
+
+	/**
+	* Set the expanded flag
+	*/
+	void SetExpanded(bool bExpanded);
 
 	/**
 	 * @return The label to use for displaying reset to default values
@@ -436,6 +446,8 @@ public:
 	virtual void CreateDefaultPropertyCopyPasteActions(FUIAction& OutCopyAction, FUIAction& OutPasteAction) const override;
 	virtual bool IsEditConst() const override;
 	virtual bool IsEditable() const override;
+	virtual bool IsExpanded() const override;
+	virtual void SetExpanded(bool bExpanded) override;
 	virtual void SetOnPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) override;
 	virtual void SetOnPropertyValueChangedWithData(const TDelegate<void(const FPropertyChangedEvent&)>& InOnPropertyValueChanged) override;
 	virtual void SetOnChildPropertyValueChanged( const FSimpleDelegate& InOnPropertyValueChanged ) override;

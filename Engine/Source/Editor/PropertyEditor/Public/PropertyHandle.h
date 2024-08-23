@@ -63,6 +63,16 @@ public:
 	virtual bool IsEditable() const = 0;
 
 	/**
+	 * @return Whether or not the property is expanded
+	 */
+	virtual bool IsExpanded() const = 0;
+
+	/**
+	 * Sets the expanded flag for this property.
+	 */
+	virtual void SetExpanded(bool bExpanded) = 0;
+
+	/**
 	 * Gets the class of the property being edited
 	 */
 	virtual const FFieldClass* GetPropertyClass() const = 0;

@@ -1036,6 +1036,28 @@ bool FPropertyValueImpl::IsEditConst() const
 	return false;
 }
 
+bool FPropertyValueImpl::IsExpanded() const
+{
+	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
+	if( PropertyNodePin.IsValid()  )
+	{
+		return PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::Expanded);
+	} 
+
+	return false;
+}
+
+void FPropertyValueImpl::SetExpanded(bool bExpanded)
+{
+	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
+	if (PropertyNodePin.IsValid() && PropertyNodePin->HasNodeFlags(EPropertyNodeFlags::CanBeExpanded))
+	{
+		PropertyNodePin->SetNodeFlags(EPropertyNodeFlags::Expanded, bExpanded);
+		// if the node is built, then we need to rebuild the child to expand it.
+		PropertyNodePin->RequestRebuildChildren();
+	}
+}
+
 FText FPropertyValueImpl::GetResetToDefaultLabel() const
 {
 	TSharedPtr<FPropertyNode> PropertyNodePin = PropertyNode.Pin();
@@ -2525,6 +2547,16 @@ bool FPropertyHandleBase::IsEditConst() const
 bool FPropertyHandleBase::IsEditable() const
 {
 	return !IsEditConst();
+}
+
+bool FPropertyHandleBase::IsExpanded() const
+{
+	return Implementation->IsExpanded();
+}
+
+void FPropertyHandleBase::SetExpanded(bool bExpanded)
+{
+	Implementation->SetExpanded(bExpanded);
 }
 
 FPropertyAccess::Result FPropertyHandleBase::GetValueAsFormattedString( FString& OutValue, EPropertyPortFlags PortFlags ) const
