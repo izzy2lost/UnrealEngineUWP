@@ -26,6 +26,8 @@ using EpicGames.Horde.Server;
 using EpicGames.Horde.Storage;
 using EpicGames.Horde.Streams;
 using EpicGames.Horde.Tools;
+using EpicGames.Horde.Ugs;
+
 
 #pragma warning disable CA2234
 
@@ -534,6 +536,22 @@ namespace EpicGames.Horde
 			return GetAsync<GetGraphResponse>(_httpClient, $"/api/v1/jobs/{jobId}/graph", cancellationToken);
 		}
 
+		#endregion
+
+		#region UGS
+		/// <summary>
+		/// 
+		/// </summary>
+		/// <param name="streamId"></param>
+		/// <param name="commitId"></param>
+		/// <param name="projectId"></param>
+		/// <param name="cancellationToken"></param>
+		/// <returns></returns>
+		public Task<GetUgsMetadataResponse> GetUgsMetadataAsync(StreamId streamId, CommitId commitId, ProjectId projectId, CancellationToken cancellationToken = default)
+		{
+			string perforceStream = $"//{streamId.ToString().Replace('-', '/')}";
+			return GetAsync<GetUgsMetadataResponse>(_httpClient, $"/ugs/api/metadata?stream={perforceStream}&change={commitId.GetPerforceChange()}&project={projectId}", cancellationToken);
+		}
 		#endregion
 
 		#region Utility Methods
