@@ -4956,8 +4956,15 @@ void FControlRigEditMode::MoveControlShape(AControlRigShapeActor* ShapeActor, co
 		FTransform CurrentTransform;
 		if (ShapeActor->StaticMeshComponent && ShapeActor->StaticMeshComponent->GetStaticMesh())
 		{
-			const FTransform& ParentTransform = ShapeActor->GetAttachParentActor()->GetTransform();
-			CurrentTransform = ShapeActor->GetGlobalTransform() * ParentTransform;
+			if (ShapeActor->GetAttachParentActor())
+			{
+				const FTransform& ParentTransform = ShapeActor->GetAttachParentActor()->GetTransform();
+				CurrentTransform = ShapeActor->GetGlobalTransform() * ParentTransform;
+			}
+			else
+			{
+				CurrentTransform = ShapeActor->GetGlobalTransform();
+			}
 		}
 		else
 		{
