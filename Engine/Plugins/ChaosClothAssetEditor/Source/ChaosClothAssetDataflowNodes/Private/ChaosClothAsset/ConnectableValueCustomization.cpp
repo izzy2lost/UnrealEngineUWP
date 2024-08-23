@@ -61,6 +61,27 @@ PRAGMA_ENABLE_DEPRECATION_WARNINGS
 	
 	FConnectableValueCustomization::~FConnectableValueCustomization() = default;
 
+	void FConnectableValueCustomization::CustomizeChildren(
+		TSharedRef<IPropertyHandle> PropertyHandle,
+		IDetailChildrenBuilder& ChildBuilder,
+		IPropertyTypeCustomizationUtils& CustomizationUtils)
+	{
+		for (int32 ChildIndex = 0; ChildIndex < SortedChildHandles.Num(); ++ChildIndex)
+		{
+			TSharedRef<IPropertyHandle> ChildHandle = SortedChildHandles[ChildIndex];
+
+			if (CouldUseFabricsProperty(ChildHandle))
+			{
+				bool bCouldUseFabrics = false;
+				ChildHandle->GetValue(bCouldUseFabrics);
+				if (bCouldUseFabrics)
+				{
+					FImportedValueCustomization::CustomizeChildren(PropertyHandle, ChildBuilder, CustomizationUtils);
+				}
+				return;
+			}
+		}
+	}
 
 	void FConnectableValueCustomization::MakeHeaderRow(TSharedRef<class IPropertyHandle>& StructPropertyHandle, FDetailWidgetRow& Row)
 	{

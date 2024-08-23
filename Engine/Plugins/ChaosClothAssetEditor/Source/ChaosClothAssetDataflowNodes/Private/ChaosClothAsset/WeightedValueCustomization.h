@@ -23,8 +23,21 @@ namespace UE::Chaos::ClothAsset
 		virtual ~FWeightedValueCustomization() override;
 
 	protected:
+		//~ Begin IPropertyTypeCustomization implementation
+		virtual void CustomizeChildren(
+			TSharedRef<IPropertyHandle> PropertyHandle,
+			IDetailChildrenBuilder& ChildBuilder,
+			IPropertyTypeCustomizationUtils& CustomizationUtils)
+		{
+			// Skip the FConnectableValueCustomization implementation that doesn't display children
+			FImportedValueCustomization::CustomizeChildren(PropertyHandle, ChildBuilder, CustomizationUtils);
+		}
+		//~ End IPropertyTypeCustomization implementation
+
+		//~ Begin FMathStructCustomization implementation
 		virtual void MakeHeaderRow(TSharedRef<class IPropertyHandle>& StructPropertyHandle, FDetailWidgetRow& Row) override;
 		virtual TSharedRef<SWidget> MakeChildWidget(TSharedRef<IPropertyHandle>& StructurePropertyHandle, TSharedRef<IPropertyHandle>& PropertyHandle) override;
+		//~ End FMathStructCustomization implementation
 
 	private:
 		static void ExtractFloatMetadata(
