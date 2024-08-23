@@ -139,10 +139,16 @@ template <typename ArgFunction, typename StoreFunction, typename NamedArgFunctio
 static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 NumNamedParams, uint32 NumArgs, FNamedParam* NamedParams, TArrayView<TWriteBarrier<VUniqueString>>* NamedArgs, ArgFunction GetArg, StoreFunction StoreArg, NamedArgFunction GetNamedArg, NamedStoreFunction StoreNamedArg)
 {
 	// --- Unnamed parameters -------------------------------
-	if (NumArgs < NumParams)
+	if (NumArgs == NumParams)
 	{
-		V_DIE_UNLESS(NumArgs == 1);
-
+		/* direct passing */
+		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
+		{
+			StoreArg(Arg, GetArg(Arg));
+		}
+	}
+	else if (NumArgs == 1)
+	{
 		// Function wants loose arguments but a tuple is provided - unbox them
 		VValue IncomingArg = GetArg(0);
 		VArrayBase& Args = IncomingArg.StaticCast<VArrayBase>();
@@ -153,10 +159,8 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 			StoreArg(Param, Args.GetValue(Param));
 		}
 	}
-	else if (NumArgs > NumParams)
+	else if (NumParams == 1)
 	{
-		V_DIE_UNLESS(NumParams == 1);
-
 		// Function wants loose arguments in a box, ie:
 		// F(X:tuple(int, int)):int = X(0) + X(1)
 		// F(3, 5) = 8 <-- we need to box these
@@ -165,11 +169,7 @@ static void UnboxArguments(FAllocationContext Context, uint32 NumParams, uint32 
 	}
 	else
 	{
-		/* direct passing */
-		for (uint32 Arg = 0; Arg < NumArgs; ++Arg)
-		{
-			StoreArg(Arg, GetArg(Arg));
-		}
+		V_DIE("Unexpected parameter/argument count mismatch");
 	}
 
 	// --- Named parameters ---------------------------------
