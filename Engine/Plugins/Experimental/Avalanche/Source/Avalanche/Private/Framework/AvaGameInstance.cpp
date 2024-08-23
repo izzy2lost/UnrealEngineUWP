@@ -347,6 +347,8 @@ void UAvaGameInstance::UnloadWorld()
 		PlayWorld->DestroyWorld(true);
 	}
 
+	Shutdown();
+
 	PlayWorld = nullptr;
 	WorldContext = nullptr;
 }
