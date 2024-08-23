@@ -7,6 +7,10 @@
 #include "Trace/Analyzer.h"
 #include "Views/TableDashboardViewFactory.h"
 
+#if !WITH_EDITOR
+#include "Common/PagedArray.h"
+#include "TraceServices/Model/AnalysisSession.h"
+#endif // !WITH_EDITOR
 
 namespace UE::Audio::Insights
 {
@@ -108,4 +112,32 @@ namespace UE::Audio::Insights
 		TAnalyzerMessageQueue<FMixerSourceStopMessage> StopMessages { 0.1 };
 		TAnalyzerMessageQueue<FMixerSourceVolumeMessage> VolumeMessages { 0.1 };
 	};
+
+#if !WITH_EDITOR
+	struct FMixerSourceSessionCachedMessages
+	{
+		FMixerSourceSessionCachedMessages(TraceServices::IAnalysisSession& InSession)
+			: DistanceAttenuationCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, EnvelopeCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, HPFFreqCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, LPFFreqCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, PitchCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, StartCachedMessages(InSession.GetLinearAllocator(), 16384)
+			, StopCachedMessages(InSession.GetLinearAllocator(), 4096)
+			, VolumeCachedMessages(InSession.GetLinearAllocator(), 16384)
+		{
+
+		}
+
+		TraceServices::TPagedArray<FMixerSourceDistanceAttenuationMessage> DistanceAttenuationCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceEnvelopeMessage> EnvelopeCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceHPFFreqMessage> HPFFreqCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceLPFFreqMessage> LPFFreqCachedMessages;
+		TraceServices::TPagedArray<FMixerSourcePitchMessage> PitchCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceStartMessage> StartCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceStopMessage> StopCachedMessages;
+		TraceServices::TPagedArray<FMixerSourceVolumeMessage> VolumeCachedMessages;
+	};
+#endif // !WITH_EDITOR
+
 } // namespace UE::Audio::Insights

@@ -17,6 +17,10 @@
 
 namespace UE::Audio::Insights
 {
+#if !WITH_EDITOR
+	class FAudioInsightsComponent;
+#endif // !WITH_EDITOR
+
 	class FAudioInsightsModule final : public IAudioInsightsModule
 	{
 	public:
@@ -34,6 +38,7 @@ namespace UE::Audio::Insights
 		virtual IAudioInsightsTraceModule& GetTraceModule() override;
 
 #if !WITH_EDITOR
+		TSharedPtr<FAudioInsightsComponent> GetAudioInsightsComponent() { return AudioInsightsComponent; };
 		FAudioInsightsTimingViewExtender& GetTimingViewExtender() { return AudioInsightsTimingViewExtender; };
 #endif // !WITH_EDITOR
 
@@ -47,7 +52,7 @@ namespace UE::Audio::Insights
 		TUniquePtr<FTraceModule> TraceModule;
 
 #if !WITH_EDITOR
-		TSharedPtr<IInsightsComponent> AudioInsightsComponent;
+		TSharedPtr<FAudioInsightsComponent> AudioInsightsComponent;
 		FAudioInsightsTimingViewExtender AudioInsightsTimingViewExtender;
 #endif // !WITH_EDITOR
 	};

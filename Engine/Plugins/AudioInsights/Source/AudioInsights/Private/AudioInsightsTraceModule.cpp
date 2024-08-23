@@ -71,6 +71,10 @@ namespace UE::Audio::Insights
 	{
 		for (const auto& [ProviderName, Provider] : TraceProviders)
 		{
+#if !WITH_EDITOR
+			Provider->InitSessionCachedMessages(InSession);
+#endif // !WITH_EDITOR
+
 			InSession.AddProvider(ProviderName, Provider, Provider);
 			InSession.AddAnalyzer(Provider->ConstructAnalyzer(InSession));
 		}

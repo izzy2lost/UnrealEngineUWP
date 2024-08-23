@@ -424,9 +424,11 @@ namespace UE::Audio::Insights
 #else
 	void FMixerSourceDashboardViewFactory::OnAudioInsightsComponentTabSpawn()
 	{
-		// It is guaranteed to have a game running when the audio insights tab is spawning from Unreal Insights 
-		// (In Unreal Insights the Audio Insights menu item is only active when a live trace is running)
-		GameState = EGameState::Running;
+		const TSharedPtr<const FAudioInsightsComponent> AudioInsightsComponent = FAudioInsightsModule::GetChecked().GetAudioInsightsComponent();
+		if (AudioInsightsComponent.IsValid())
+		{
+			GameState = AudioInsightsComponent->GetIsLiveSession() ? EGameState::Running : EGameState::Stopped;
+		}
 	}
 #endif // WITH_EDITOR
 

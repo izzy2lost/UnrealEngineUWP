@@ -27,9 +27,15 @@ namespace UE::Audio::Insights
 
 		static FName GetName_Static();
 
+#if !WITH_EDITOR
+		virtual void InitSessionCachedMessages(TraceServices::IAnalysisSession& InSession) override;
+#endif // !WITH_EDITOR
+
 	private:
 #if !WITH_EDITOR
 		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) override;
+
+		TUniquePtr<FMixerSourceSessionCachedMessages> SessionCachedMessages;
 #endif // !WITH_EDITOR
 
 		FMixerSourceMessages TraceMessages;

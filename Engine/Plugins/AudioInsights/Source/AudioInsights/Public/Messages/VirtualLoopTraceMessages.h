@@ -7,6 +7,10 @@
 #include "Trace/Analyzer.h"
 #include "Views/TableDashboardViewFactory.h"
 
+#if !WITH_EDITOR
+#include "Common/PagedArray.h"
+#include "TraceServices/Model/AnalysisSession.h"
+#endif // !WITH_EDITOR
 
 namespace UE::Audio::Insights
 {
@@ -108,4 +112,22 @@ namespace UE::Audio::Insights
 
 		friend class FVirtualLoopTraceProvider;
 	};
+
+#if !WITH_EDITOR
+	struct FVirtualLoopSessionCachedMessages
+	{
+		FVirtualLoopSessionCachedMessages(TraceServices::IAnalysisSession& InSession)
+			: VirtualizeCachedMessages(InSession.GetLinearAllocator(), 4096)
+			, StopOrRealizeCachedMessages(InSession.GetLinearAllocator(), 4096)
+			, UpdateCachedMessages(InSession.GetLinearAllocator(), 16384)
+		{
+
+		}
+
+		TraceServices::TPagedArray<FVirtualLoopVirtualizeMessage> VirtualizeCachedMessages;
+		TraceServices::TPagedArray<FVirtualLoopStopMessage> StopOrRealizeCachedMessages;
+		TraceServices::TPagedArray<FVirtualLoopUpdateMessage> UpdateCachedMessages;
+	};
+#endif // !WITH_EDITOR
+
 } // namespace UE::Audio::Insights

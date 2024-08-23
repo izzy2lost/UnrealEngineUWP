@@ -24,6 +24,9 @@ namespace UE::Audio::Insights
 		virtual void RegisterMajorTabs(IUnrealInsightsModule& InsightsModule) override;
 		virtual void UnregisterMajorTabs() override;
 
+		bool GetIsLiveSession() const { return bIsLiveSession; }
+		bool GetIsEditorTrace() const { return bIsEditorTrace; }
+
 		DECLARE_MULTICAST_DELEGATE(FOnTabSpawn);
 		inline static FOnTabSpawn OnTabSpawn;
 
@@ -35,7 +38,9 @@ namespace UE::Audio::Insights
 
 		bool bIsInitialized = false;
 
-		bool bCanCheckForActiveSession = true;
+		bool bIsLiveSession = false;
+		bool bIsEditorTrace = false;
+
 		bool bCanSpawnTab = false;
 
 		FTickerDelegate OnTick;

@@ -50,7 +50,8 @@ namespace UE::Audio::Insights
 		}
 
 #if !WITH_EDITOR
-		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) {};
+		virtual void InitSessionCachedMessages(TraceServices::IAnalysisSession& InSession) {}
+		virtual void OnTimingViewTimeMarkerChanged(double TimeMarker) { ++LastMessageId; };
 #endif // !WITH_EDITOR
 
 	protected:

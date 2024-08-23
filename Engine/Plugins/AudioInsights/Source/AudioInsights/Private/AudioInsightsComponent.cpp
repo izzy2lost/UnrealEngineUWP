@@ -78,7 +78,7 @@ namespace UE::Audio::Insights
 				FOnSpawnTab::CreateRaw(this,  &FAudioInsightsComponent::SpawnTab), 
 				FCanSpawnTab::CreateRaw(this, &FAudioInsightsComponent::CanSpawnTab))
 				.SetDisplayName(Config.TabLabel.IsSet()   ? Config.TabLabel.GetValue()   : LOCTEXT("AudioInsights_TabTitle", "Audio Insights"))
-				.SetTooltipText(Config.TabTooltip.IsSet() ? Config.TabTooltip.GetValue() : LOCTEXT("AudioInsights_TooltipText", "Open the Audio Insights tab (Only available for standalone live traces)."))
+				.SetTooltipText(Config.TabTooltip.IsSet() ? Config.TabTooltip.GetValue() : LOCTEXT("AudioInsights_TooltipText", "Open the Audio Insights tab (Only available for standalone game traces)."))
 				.SetIcon(Config.TabIcon.IsSet() ? Config.TabIcon.GetValue() : FSlateStyle::Get().CreateIcon("AudioInsights.Icon.Submix"));
 
 			const TSharedRef<FWorkspaceItem>* FoundWorkspace = FGlobalTabmanager::Get()->GetLocalWorkspaceMenuRoot()->GetChildItems().FindByPredicate(
@@ -115,8 +115,8 @@ namespace UE::Audio::Insights
 
 	bool FAudioInsightsComponent::Tick(float DeltaTime)
 	{
-		// Audio Insights will be available only if there is an active standalone (non-editor) live session
-		if (bCanCheckForActiveSession && !bCanSpawnTab)
+		// Audio Insights will be available in non-editor file traces or if there is an active standalone game live session
+		if (!bCanSpawnTab)
 		{
 			IUnrealInsightsModule& UnrealInsightsModule = FModuleManager::LoadModuleChecked<IUnrealInsightsModule>("TraceInsights");
 
@@ -125,29 +125,25 @@ namespace UE::Audio::Insights
 			{
 				TraceServices::FAnalysisSessionReadScope SessionReadScope(*Session.Get());
 
-				if (!Session->IsAnalysisComplete())
-				{
-					if (UE::Trace::FStoreClient* StoreClient = UnrealInsightsModule.GetStoreClient())
-					{
-						const UE::Trace::FStoreClient::FSessionInfo* StoreClientSessionInfo = StoreClient->GetSessionInfoByTraceId(Session->GetTraceId());
-						if (StoreClientSessionInfo)
-						{
-							const TraceServices::IDiagnosticsProvider* DiagnosticsProvider = TraceServices::ReadDiagnosticsProvider(*Session.Get());
-							if (DiagnosticsProvider && DiagnosticsProvider->IsSessionInfoAvailable())
-							{
-								const TraceServices::FSessionInfo& TraceServicesSessionInfo = DiagnosticsProvider->GetSessionInfo();
+				// Set bIsLiveSession
+				const UE::Trace::FStoreClient* StoreClient = UnrealInsightsModule.GetStoreClient();
+				const UE::Trace::FStoreClient::FSessionInfo* SessionInfo = StoreClient ? StoreClient->GetSessionInfoByTraceId(Session->GetTraceId()) : nullptr;
 
-								if (TraceServicesSessionInfo.TargetType != EBuildTargetType::Editor)
-								{
-									bCanSpawnTab = true;
-								}
-							}
-						}
-					}
-				}
-				else
+				bIsLiveSession = !Session->IsAnalysisComplete() && StoreClient != nullptr && SessionInfo != nullptr;
+
+				// Set bIsEditorTrace
+				const TraceServices::IDiagnosticsProvider* DiagnosticsProvider = TraceServices::ReadDiagnosticsProvider(*Session.Get());
+				if (DiagnosticsProvider && DiagnosticsProvider->IsSessionInfoAvailable())
 				{
-					bCanCheckForActiveSession = false;
+					const TraceServices::FSessionInfo& TraceServicesSessionInfo = DiagnosticsProvider->GetSessionInfo();
+
+					bIsEditorTrace = TraceServicesSessionInfo.TargetType == EBuildTargetType::Editor;
+				}
+
+				// Allow to spawn tab if non-editor trace
+				if (!bIsEditorTrace)
+				{
+					bCanSpawnTab = true;
 				}
 			}
 		}
