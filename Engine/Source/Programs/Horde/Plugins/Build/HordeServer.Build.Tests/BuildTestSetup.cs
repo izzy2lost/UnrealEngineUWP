@@ -276,6 +276,7 @@ namespace HordeServer.Tests
 		/// <param name="awsInstanceId">AWS instance ID for the agent (will be set in properties)</param>
 		/// <param name="lease">A lease to assign the agent</param>
 		/// <param name="ephemeral">Whether the agent is ephemeral</param>
+		/// <param name="status">Initial status for the agent</param>
 		/// <returns>A new agent</returns>
 		public async Task<IAgent> CreateAgentAsync(
 			PoolId? poolId,

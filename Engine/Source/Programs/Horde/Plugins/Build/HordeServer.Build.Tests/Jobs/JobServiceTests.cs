@@ -2,7 +2,6 @@
 
 using System.Text;
 using EpicGames.Core;
-using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Commits;
 using EpicGames.Horde.Jobs;

@@ -88,12 +88,6 @@ public class AgentServiceTest : BuildTestSetup
 		Assert.AreEqual(ToUnixTime(expected), ToUnixTime(actual!.Value));
 	}
 
-	private static void AssertNotEqual(DateTime expected, DateTime? actual)
-	{
-		// When saved as MongoDB documents, some precision is lost. This compares only Unix seconds.
-		Assert.AreNotEqual(ToUnixTime(expected), ToUnixTime(actual!.Value));
-	}
-
 	[TestMethod]
 	[DataRow(AgentStatus.Ok)]
 	[DataRow(AgentStatus.Unhealthy)]

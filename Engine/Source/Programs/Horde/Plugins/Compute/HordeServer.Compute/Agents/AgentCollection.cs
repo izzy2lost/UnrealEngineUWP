@@ -558,7 +558,7 @@ namespace HordeServer.Agents
 
 			using (IAsyncCursor<AgentDocument> cursor = await collection.Find(filter).ToCursorAsync(cancellationToken))
 			{
-				while (await cursor.MoveNextAsync())
+				while (await cursor.MoveNextAsync(cancellationToken))
 				{
 					List<AgentDocument> documents = await PostLoadAsync(cursor.Current.ToList(), cancellationToken);
 					foreach (AgentDocument document in documents)
