@@ -38,10 +38,12 @@ struct FNetSerializeScriptStructCache
 };
 
 
-/** Holds global data for the ability system. Can be configured per project via config file */
-UCLASS(config=Game)
+/** Holds global data for the ability system. Configuration is done via the Developer Settings, Project -> Gameplay Abilities Settings  */
+UCLASS(config = Game)
 class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 {
+	friend class UGameplayAbilitiesDeveloperSettings;
+
 	GENERATED_UCLASS_BODY()
 
 	/** Gets the single instance of the globals object, will create it as necessary */
@@ -49,13 +51,15 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 	{
 		return *IGameplayAbilitiesModule::Get().GetAbilitySystemGlobals();
 	}
-
 	/** Will be called once on first use to load global data tables and tags (see FGameplayAbilitiesModule::GetAbilitySystemGlobals) */
 	virtual void InitGlobalData();
 
 	/** Returns true if InitGlobalData has been called */
 	bool IsAbilitySystemGlobalsInitialized() const;
-
+	
+	// Returns true if we should use debug target from the HUD
+	bool ShouldUseDebugTargetFromHud();
+	
 	/** Returns the globally registered curve table */
 	UCurveTable* GetGlobalCurveTable();
 
@@ -132,6 +136,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 #endif
 
 	/** The class to instantiate as the globals object. Defaults to this class but can be overridden */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->AbilitySystemGlobalsClassName to access this variable in code")
 	UPROPERTY(config)
 	FSoftClassPath AbilitySystemGlobalsClassName;
 
@@ -177,7 +182,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 	TArray<FString>	AbilitySystemDebugStrings;
 
 	/** Set to true if you want the "ShowDebug AbilitySystem" cheat to use the hud's debug target instead of the ability system's debug target. */
-	UPROPERTY(config)
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->bUseDebugTargetFromHud to access this variable in code")
 	bool bUseDebugTargetFromHud;
 
 	/** Helper functions for applying global scaling to various ability system tasks. This isn't meant to be a shipping feature, but to help with debugging and interation via cvar AbilitySystem.GlobalAbilityScale */
@@ -187,78 +192,61 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 	// Global Tags
 
 	/** TryActivate failed due to being dead */
+	UE_DEPRECATED(5.5, "This variable is not used in the codebase")
 	UPROPERTY()
 	FGameplayTag ActivateFailIsDeadTag; 
+	
+	UE_DEPRECATED(5.5, "This variable is not used in the codebase")
 	UPROPERTY(config)
 	FName ActivateFailIsDeadName;
 
 	/** TryActivate failed due to being on cooldown */
 	UPROPERTY()
 	FGameplayTag ActivateFailCooldownTag; 
+	
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings (it will map to ActivateFailCooldownTag)")
 	UPROPERTY(config)
 	FName ActivateFailCooldownName;
 
 	/** TryActivate failed due to not being able to spend costs */
 	UPROPERTY()
 	FGameplayTag ActivateFailCostTag; 
+	
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings (it will map to ActivateFailCostTag)")
 	UPROPERTY(config)
 	FName ActivateFailCostName;
 
 	/** TryActivate failed due to being blocked by other abilities */
 	UPROPERTY()
 	FGameplayTag ActivateFailTagsBlockedTag; 
+	
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings (it will map to ActivateFailTagsBlockedTag)")
 	UPROPERTY(config)
 	FName ActivateFailTagsBlockedName;
 
 	/** TryActivate failed due to missing required tags */
 	UPROPERTY()
 	FGameplayTag ActivateFailTagsMissingTag; 
+	
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings (it will map to ActivateFailTagsMissingTag)")
 	UPROPERTY(config)
 	FName ActivateFailTagsMissingName;
 
 	/** Failed to activate due to invalid networking settings, this is designer error */
 	UPROPERTY()
 	FGameplayTag ActivateFailNetworkingTag; 
+	
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings (it will map to ActivateFailNetworkingTag)")
 	UPROPERTY(config)
 	FName ActivateFailNetworkingName;
 
 	/** How many bits to use for "number of tags" in FMinimalReplicationTagCountMap::NetSerialize.  */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->MinimalReplicationTagCountBits to access this variable in code")
 	UPROPERTY(config)
 	int32	MinimalReplicationTagCountBits;
 
 	/** Initialize global tags by reading from config using the names and creating tags for use at runtime */
-	virtual void InitGlobalTags()
-	{
-		if (ActivateFailIsDeadName != NAME_None)
-		{
-			ActivateFailIsDeadTag = FGameplayTag::RequestGameplayTag(ActivateFailIsDeadName);
-		}
-
-		if (ActivateFailCooldownName != NAME_None)
-		{
-			ActivateFailCooldownTag = FGameplayTag::RequestGameplayTag(ActivateFailCooldownName);
-		}
-
-		if (ActivateFailCostName != NAME_None)
-		{
-			ActivateFailCostTag = FGameplayTag::RequestGameplayTag(ActivateFailCostName);
-		}
-
-		if (ActivateFailTagsBlockedName != NAME_None)
-		{
-			ActivateFailTagsBlockedTag = FGameplayTag::RequestGameplayTag(ActivateFailTagsBlockedName);
-		}
-
-		if (ActivateFailTagsMissingName != NAME_None)
-		{
-			ActivateFailTagsMissingTag = FGameplayTag::RequestGameplayTag(ActivateFailTagsMissingName);
-		}
-
-		if (ActivateFailNetworkingName != NAME_None)
-		{
-			ActivateFailNetworkingTag = FGameplayTag::RequestGameplayTag(ActivateFailNetworkingName);
-		}
-	}
+	virtual void InitGlobalTags();
 
 	void InitTargetDataScriptStructCache();
 
@@ -290,7 +278,7 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 	const FName& GetGameplayModEvaluationChannelAlias(int32 Index) const;
 
 	/** Path where the engine will load gameplay cue notifies from */
-	virtual TArray<FString> GetGameplayCueNotifyPaths() { return GameplayCueNotifyPaths; }
+	virtual TArray<FString> GetGameplayCueNotifyPaths();
 
 	/** Add a path to the GameplayCueNotifyPaths array. */
 	virtual void AddGameplayCueNotifyPath(const FString& InPath);
@@ -310,8 +298,10 @@ class GAMEPLAYABILITIES_API UAbilitySystemGlobals : public UObject
 
 	void AddAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames);
 	void RemoveAttributeDefaultTables(const FName OwnerName, const TArray<FSoftObjectPath>& AttribDefaultTableNames);
-
 protected:
+
+	/** Get the SoftObjectPaths for all tables that should be loaded for default Attribute values */
+	virtual TArray<FSoftObjectPath> GetGlobalAttributeSetDefaultsTablePaths() const;
 
 	virtual void InitAttributeDefaults();
 	virtual void ReloadAttributeDefaults();
@@ -331,18 +321,22 @@ protected:
 #endif // WITH_ABILITY_CHEATS
 
 	/** Whether the game should allow the usage of gameplay mod evaluation channels or not */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->bAllowGameplayModEvaluationChannels to access this variable in code")
 	UPROPERTY(config)
 	bool bAllowGameplayModEvaluationChannels;
 
 	/** The default mod evaluation channel for the game */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->DefaultGameplayModEvaluationChannel to access this variable in code")
 	UPROPERTY(config)
 	EGameplayModEvaluationChannel DefaultGameplayModEvaluationChannel;
 
 	/** Game-specified named aliases for gameplay mod evaluation channels; Only those with valid aliases are eligible to be used in a game (except Channel0, which is always valid) */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GameplayModEvaluationChannelAliases to access this variable in code")
 	UPROPERTY(config)
 	FName GameplayModEvaluationChannelAliases[static_cast<int32>(EGameplayModEvaluationChannel::Channel_MAX)];
 
 	/** Name of global curve table to use as the default for scalable floats, etc. */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GlobalCurveTableName to access this variable in code")
 	UPROPERTY(config)
 	FSoftObjectPath GlobalCurveTableName;
 
@@ -350,6 +344,7 @@ protected:
 	TObjectPtr<UCurveTable> GlobalCurveTable;
 
 	/** Holds information about the valid attributes' min and max values and stacking rules */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GlobalAttributeMetaDataTableName to access this variable in code")
 	UPROPERTY(config)
 	FSoftObjectPath GlobalAttributeMetaDataTableName;
 
@@ -357,11 +352,13 @@ protected:
 	TObjectPtr<UDataTable> GlobalAttributeMetaDataTable;
 
 	/** Holds default values for attribute sets, keyed off of Name/Levels. NOTE: Preserved for backwards compatibility, should use the array version below now */
+	UE_DEPRECATED(5.5, "See GetGlobalAttributeSetDefaultsTablePaths() which is an array rather than this version (singular)")
 	UPROPERTY(config)
 	FSoftObjectPath GlobalAttributeSetDefaultsTableName;
 
 	/** Array of curve table names to use for default values for attribute sets, keyed off of Name/Levels */
-	UPROPERTY(config)
+	UE_DEPRECATED(5.5, "Set this variable through the Project Settings and use GetGlobalAttributeSetDefaultsTablePaths() to access this variable in code")
+	UPROPERTY()
 	TArray<FSoftObjectPath> GlobalAttributeSetDefaultsTableNames;
 
 	/** Curve tables containing default values for attribute sets, keyed off of Name/Levels */
@@ -369,18 +366,22 @@ protected:
 	TArray<TObjectPtr<UCurveTable>> GlobalAttributeDefaultsTables;
 
 	/** Class reference to gameplay cue manager. Use this if you want to just instantiate a class for your gameplay cue manager without having to create an asset. */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GlobalGameplayCueManagerClass to access this variable in code")
 	UPROPERTY(config)
 	FSoftObjectPath GlobalGameplayCueManagerClass;
 
 	/** Object reference to gameplay cue manager (E.g., reference to a specific blueprint of your GameplayCueManager class. This is not necessary unless you want to have data or blueprints in your gameplay cue manager. */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GlobalGameplayCueManagerName to access this variable in code")
 	UPROPERTY(config)
 	FSoftObjectPath GlobalGameplayCueManagerName;
 
 	/** Look in these paths for GameplayCueNotifies. These are your "always loaded" set. */
+	UE_DEPRECATED(5.5, "This will be moved to private. Use GetGameplayCueNotifyPaths, AddGameplayCueNotifyPath, or RemoveGameplayCueNotifyPath")
 	UPROPERTY(config)
 	TArray<FString>	GameplayCueNotifyPaths;
 
 	/** The class to instantiate as the GameplayTagResponseTable. */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->GameplayTagResponseTableName to access this variable in code")
 	UPROPERTY(config)
 	FSoftObjectPath GameplayTagResponseTableName;
 
@@ -390,6 +391,7 @@ protected:
 	bool bInitialized = false;
 
 	/** Set to true if you want clients to try to predict gameplay effects done to targets. If false it will only predict self effects */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->PredictTargetGameplayEffects to access this variable in code")
 	UPROPERTY(config)
 	bool PredictTargetGameplayEffects;
 
@@ -397,6 +399,7 @@ protected:
 	 * Set to true if you want tags granted to owners from ability activations to be replicated. If false, ActivationOwnedTags are only applied locally. 
 	 * This should only be disabled for legacy game code that depends on non-replication of ActivationOwnedTags.
 	 */
+	UE_DEPRECATED(5.5, "Configure this variable through the Project Settings and use GetDefault<UGameplayAbilitiesDeveloperSettings>()->ReplicateActivationOwnedTags to access this variable in code")
 	UPROPERTY(config)
 	bool ReplicateActivationOwnedTags;
 
@@ -427,6 +430,9 @@ protected:
 #if WITH_EDITORONLY_DATA
 	bool RegisteredReimportCallback;
 #endif
+
+private:
+	void PerformDeveloperSettingsUpgrade();
 
 public:
 	//To add functionality for opening assets directly from the game.

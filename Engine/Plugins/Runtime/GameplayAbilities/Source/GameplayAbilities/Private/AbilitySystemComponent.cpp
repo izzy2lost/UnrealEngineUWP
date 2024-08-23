@@ -2330,7 +2330,7 @@ void UAbilitySystemComponent::OnShowDebugInfo(AHUD* HUD, UCanvas* Canvas, const 
 	
 		UAbilitySystemComponent* ASC = nullptr;
 
-		if (UAbilitySystemGlobals::Get().bUseDebugTargetFromHud)
+		if (UAbilitySystemGlobals::Get().ShouldUseDebugTargetFromHud())
 		{
 			ASC = UAbilitySystemGlobals::GetAbilitySystemComponentFromActor(HUD->GetCurrentDebugTargetActor());
 		}
