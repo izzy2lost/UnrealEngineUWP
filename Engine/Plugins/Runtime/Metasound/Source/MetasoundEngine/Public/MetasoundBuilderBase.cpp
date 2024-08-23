@@ -1179,19 +1179,16 @@ FMetasoundFrontendLiteral UMetaSoundBuilderBase::GetNodeInputClassDefault(const 
 	{
 		if (const TArray<FMetasoundFrontendClassInputDefault>* ClassDefaults = Builder.FindNodeClassInputDefaults(InputHandle.NodeID, Vertex->Name))
 		{
-			FGuid ResolvedPageID;
-			if (FDocumentBuilderRegistry::GetChecked().TryResolveTargetPageID(*ClassDefaults, ResolvedPageID))
+			const FGuid ResolvedPageID = FDocumentBuilderRegistry::GetChecked().ResolveTargetPageID(*ClassDefaults);
+			OutResult = EMetaSoundBuilderResult::Succeeded;
+			auto MatchesPageID = [&ResolvedPageID](const FMetasoundFrontendClassInputDefault& Default)
+			{
+				return Default.PageID == ResolvedPageID;
+			};
+			if (const FMetasoundFrontendClassInputDefault* Default = ClassDefaults->FindByPredicate(MatchesPageID))
 			{
 				OutResult = EMetaSoundBuilderResult::Succeeded;
-				auto MatchesPageID = [&ResolvedPageID](const FMetasoundFrontendClassInputDefault& Default)
-				{
-					return Default.PageID == ResolvedPageID;
-				};
-				if (const FMetasoundFrontendClassInputDefault* Default = ClassDefaults->FindByPredicate(MatchesPageID))
-				{
-					OutResult = EMetaSoundBuilderResult::Succeeded;
-					return Default->Literal;
-				}
+				return Default->Literal;
 			}
 		}
 	}

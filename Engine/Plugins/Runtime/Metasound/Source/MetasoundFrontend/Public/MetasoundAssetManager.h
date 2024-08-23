@@ -186,6 +186,9 @@ namespace Metasound::Frontend
 		virtual TSet<FAssetInfo> GetReferencedAssetClasses(const FMetasoundAssetBase& InAssetBase) const = 0;
 #endif // WITH_EDITOR
 
+		// Iterate all known MetaSound asset paths
+		virtual void IterateAssets(TFunctionRef<void(const FAssetKey, const TArray<FTopLevelAssetPath>&)> Iter) const = 0;
+
 		UE_DEPRECATED(5.5, "Rescan no longer supported nor required by Frontend")
 		virtual void RescanAutoUpdateDenyList() { }
 
@@ -207,6 +210,9 @@ namespace Metasound::Frontend
 			
 		// Requests an async load of all async referenced assets of the input asset.
 		virtual void RequestAsyncLoadReferencedAssets(FMetasoundAssetBase& InAssetBase) = 0;
+
+		// Synchronously requests unregister and reregister of all loaded MetaSound assets node class entries.
+		virtual void ReloadMetaSoundAssets() const = 0;
 
 		// Removes object from MetaSound asset manager
 		virtual void RemoveAsset(const UObject& InObject) = 0;

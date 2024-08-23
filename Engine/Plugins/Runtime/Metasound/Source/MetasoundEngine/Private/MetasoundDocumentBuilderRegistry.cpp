@@ -97,6 +97,64 @@ namespace Metasound::Engine
 	}
 
 #if WITH_EDITORONLY_DATA
+	bool FDocumentBuilderRegistry::CookPages(FName PlatformName, FMetaSoundFrontendDocumentBuilder& Builder) const
+	{
+		bool bModified = false;
+
+		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
+		check(Settings);
+		const TArray<FGuid>& PlatformTargetPageIDs = Settings->GetCookedTargetPageIDs(PlatformName);
+		auto StripPageEntries = [&](TFunctionRef<bool(const FGuid&)> RemovePageItem, TSet<FGuid>& ImplementedPageIDs)
+		{
+			TSet<FGuid> ResolvedTargetIDs;
+			for (const FGuid& TargetPage : PlatformTargetPageIDs)
+			{
+				const FGuid PageID = ResolveTargetPageIDInternal(*Settings, ImplementedPageIDs, TargetPage, PlatformName);
+				ResolvedTargetIDs.Add(PageID);
+			}
+
+			TSet<FGuid> ToRemove = ImplementedPageIDs.Difference(ResolvedTargetIDs);
+			for (const FGuid& PageID : ToRemove)
+			{
+				bModified |= RemovePageItem(PageID);
+			}
+		};
+
+		const FMetasoundFrontendDocument& Document = Builder.GetConstDocumentChecked();
+
+		{ // Strip graphs
+			TSet<FGuid> ImplementedGraphPageIDs;
+			auto AddPageID = [&ImplementedGraphPageIDs](const FMetasoundFrontendGraph& Graph) { ImplementedGraphPageIDs.Add(Graph.PageID); };
+			Document.RootGraph.IterateGraphPages(AddPageID);
+
+			auto RemoveGraphPage = [&Builder](const FGuid& InPageID)
+			{
+				return Builder.RemoveGraphPage(InPageID);
+			};
+
+			StripPageEntries(RemoveGraphPage, ImplementedGraphPageIDs);
+		}
+
+		{ // Strip default input values
+			TSet<FGuid> ImplementedDefaultPageIDs;
+			for (const FMetasoundFrontendClassInput& GraphInput : Document.RootGraph.Interface.Inputs)
+			{
+				ImplementedDefaultPageIDs.Reset();
+				auto AddPageID = [&ImplementedDefaultPageIDs](const FGuid& PageID, const FMetasoundFrontendLiteral&) { ImplementedDefaultPageIDs.Add(PageID); };
+				GraphInput.IterateDefaults(AddPageID);
+
+				auto RemoveDefault = [&Builder, &GraphInput](const FGuid& InPageID)
+				{
+					return Builder.RemoveGraphInputDefault(GraphInput.Name, InPageID);
+				};
+
+				StripPageEntries(RemoveDefault, ImplementedDefaultPageIDs);
+			}
+		}
+
+		return bModified;
+	}
+
 	FMetaSoundFrontendDocumentBuilder& FDocumentBuilderRegistry::FindOrBeginBuilding(TScriptInterface<IMetaSoundDocumentInterface> MetaSound)
 	{
 		UObject* Object = MetaSound.GetObject();
@@ -324,7 +382,7 @@ namespace Metasound::Engine
 		return bReloaded;
 	}
 
-	bool FDocumentBuilderRegistry::TryResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass, FGuid& OutResolvedPageID) const
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageID(const FMetasoundFrontendGraphClass& InGraphClass) const
 	{
 		TSet<FGuid> DocPageIds;
 		InGraphClass.IterateGraphPages([&DocPageIds](const FMetasoundFrontendGraph& PageGraph)
@@ -332,32 +390,28 @@ namespace Metasound::Engine
 			DocPageIds.Add(PageGraph.PageID);
 		});
 
-		return TryResolveTargetPageID(DocPageIds, OutResolvedPageID);
+		return ResolveTargetPageIDInternal(DocPageIds);
 	}
 
-	bool FDocumentBuilderRegistry::TryResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput, FGuid& OutResolvedPageID) const
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageID(const FMetasoundFrontendClassInput& InClassInput) const
 	{
-		TSet<FGuid> DocPageIds;
-		InClassInput.IterateDefaults([&DocPageIds](const FGuid& PageID, const FMetasoundFrontendLiteral&)
+		TSet<FGuid> DefaultPageIds;
+		InClassInput.IterateDefaults([&DefaultPageIds](const FGuid& PageID, const FMetasoundFrontendLiteral&)
 		{
-			DocPageIds.Add(PageID);
+			DefaultPageIds.Add(PageID);
 		});
 
-		return TryResolveTargetPageID(DocPageIds, OutResolvedPageID);
+		return ResolveTargetPageIDInternal(DefaultPageIds);
 	}
 
-	bool FDocumentBuilderRegistry::TryResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& InClassDefaults, FGuid& OutResolvedPageID) const
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageID(const TArray<FMetasoundFrontendClassInputDefault>& InClassDefaults) const
 	{
-		TSet<FGuid> DocPageIds;
-		for (const FMetasoundFrontendClassInputDefault& ClassDefault : InClassDefaults)
-		{
-			DocPageIds.Add(ClassDefault.PageID);
-		}
-
-		return TryResolveTargetPageID(DocPageIds, OutResolvedPageID);
+		TSet<FGuid> DefaultPageIds;
+		Algo::Transform(InClassDefaults, DefaultPageIds, [](const FMetasoundFrontendClassInputDefault& ClassDefault) { return ClassDefault.PageID; });
+		return ResolveTargetPageIDInternal(DefaultPageIds);
 	}
 
-	bool FDocumentBuilderRegistry::TryResolveTargetPageID(const TSet<FGuid>& InPageIDs, FGuid& OutResolvedPageID) const
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageIDInternal(const TSet<FGuid>& InPageIDs) const
 	{
 		FName PlatformName = FPlatformProperties::IniPlatformName();
 
@@ -367,58 +421,52 @@ namespace Metasound::Engine
 			FAuditionPageInfo PreviewInfo = OnResolveAuditionPageInfo.Execute(InPageIDs);
 			if (PreviewInfo.PageID.IsSet())
 			{
-				OutResolvedPageID = PreviewInfo.PageID.GetValue();
-				return InPageIDs.Contains(OutResolvedPageID);
+				return PreviewInfo.PageID.GetValue();
 			}
 
 			PlatformName = PreviewInfo.PlatformName;
 		}
 #endif // WITH_EDITOR
 
-		const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>();
-		if (Settings)
+		if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 		{
-			const FGuid& TargetPageID = Settings->GetTargetPageID();
-			const TArray<FMetaSoundPageSettings>& PageSettingsArray = Settings->GetPageSettings();
+			const FGuid& TargetPageID = Settings->GetTargetPageSettings().UniqueId;
+			return ResolveTargetPageIDInternal(*Settings, InPageIDs, TargetPageID, PlatformName);
+		}
 
-			bool bFoundMatch = false;
-			for (int32 Index = PageSettingsArray.Num() - 1; Index >= 0; --Index)
+		return Frontend::DefaultPageID;
+	}
+
+	FGuid FDocumentBuilderRegistry::ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const TSet<FGuid>& InPageIDs, const FGuid& TargetPageID, FName PlatformName) const
+	{
+		bool bResolved = false;
+		FGuid ResolvedPageID = Frontend::DefaultPageID;
+		constexpr bool bReverse = true;
+		bool bFoundMatch = false;
+		Settings.IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
+		{
+			bFoundMatch |= PageSettings.UniqueId == TargetPageID;
+			if (bFoundMatch && !bResolved)
 			{
-				const FMetaSoundPageSettings& PageSettings = PageSettingsArray[Index];
-				bFoundMatch |= PageSettings.UniqueId == TargetPageID;
 				const bool bAssetImplementsPage = InPageIDs.Contains(PageSettings.UniqueId);
-				if (bFoundMatch && bAssetImplementsPage)
+				if (bAssetImplementsPage)
 				{
 #if WITH_EDITOR
-					const bool bIsCooked = PageSettings.IsCooked.GetValueForPlatform(PlatformName);
+					const bool bIsCooked = !PageSettings.ExcludePageFromCook(PlatformName);
 					if (bIsCooked)
 					{
-						OutResolvedPageID = PageSettings.UniqueId;
-						return true;
+						bResolved = true;
+						ResolvedPageID = PageSettings.UniqueId;
 					}
 #else // !WITH_EDITOR
-					OutResolvedPageID = PageSettings.UniqueId;
-					return true;
+					bResolved = true;
+					ResolvedPageID = PageSettings.UniqueId;
 #endif // !WITH_EDITOR
 				}
 			}
-		}
+		}, bReverse);
 
-		// In the case that no id was able to be resolved, returned value should use
-		// default graph. If no pages were implemented, error and attempt to return
-		// a valid pageID, but there is no guarantee the page ID represents an implemented
-		// page.
-		auto IsValidPageID = [](const FGuid& InPageID) { return InPageID != Frontend::DefaultPageID; };
-		if (const FGuid* ImplPageID = Algo::FindByPredicate(InPageIDs, IsValidPageID))
-		{
-			OutResolvedPageID = *ImplPageID;
-		}
-		else
-		{
-			OutResolvedPageID = Frontend::DefaultPageID;
-		}
-
-		return InPageIDs.Contains(OutResolvedPageID);
+		return ResolvedPageID;
 	}
 
 	void FDocumentBuilderRegistry::SetEventLogVerbosity(ELogEvent Event, ELogVerbosity::Type Verbosity)

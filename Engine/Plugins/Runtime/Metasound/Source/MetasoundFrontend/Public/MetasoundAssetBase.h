@@ -98,8 +98,8 @@ public:
 #if WITH_EDITORONLY_DATA
 	// Updates and registers this and referenced MetaSound document objects with the NodeClass Registry. AutoUpdates and
 	// optimizes aforementioned documents for serialization. Unlike 'UpdateAndRegisterForRuntime', does not generate required
-	// runtime data for graph execution.
-	void UpdateAndRegisterForSerialization();
+	// runtime data for graph execution. If CookPlatformName is set, used to strip data not required for the provided platform.
+	void UpdateAndRegisterForSerialization(FName CookPlatformName = { });
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
@@ -267,6 +267,7 @@ protected:
 	const FRuntimeData& GetRuntimeData() const;
 	PRAGMA_ENABLE_DEPRECATION_WARNINGS
 
+	UE_DEPRECATED(5.5, "AutoUpdate implementation now private and implemented within 'Version Dependencies'")
 	bool AutoUpdate(bool bInLogWarningsOnDroppedConnection);
 
 	UE_DEPRECATED(5.5, "Moved to private, non-cook specific implementation")
@@ -281,11 +282,15 @@ protected:
 private:
 #if WITH_EDITORONLY_DATA
 	void UpdateAssetRegistry();
-	void UpdateAndRegisterReferencesForSerialization();
+	void UpdateAndRegisterReferencesForSerialization(FName CookPlatformName);
 #endif // WITH_EDITORONLY_DATA
 
 	// Checks if version is up-to-date. If so, returns true. If false, updates the interfaces within the given asset's document to the most recent version.
 	bool TryUpdateInterfaceFromVersion(const FMetasoundFrontendVersion& Version);
+
+	// Versions dependencies to most recent version where applicable. If asset is a preset, MetaSound is rebuilt to accommodate any referenced node class interface changes.
+	// Otherwise, automatically updates any nodes and respective dependent classes to accommodate changes to interfaces therein preserving edges/connections where possible.
+	bool VersionDependencies(FMetaSoundFrontendDocumentBuilder& Builder, bool bInLogWarningsOnDroppedConnection);
 
 	// Returns new interface to be versioned to from the given version. If no interface versioning is
 	// required, returns invalid interface (interface with no name and invalid version number).

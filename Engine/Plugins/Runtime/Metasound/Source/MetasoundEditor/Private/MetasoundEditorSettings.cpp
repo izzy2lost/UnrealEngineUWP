@@ -112,39 +112,51 @@ const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
 
 Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const
 {
+	using namespace Metasound;
 	using namespace Metasound::Engine;
 
 	FAuditionPageInfo PreviewInfo { .PlatformName = AuditionPlatform };
-	auto PageIsCooked = [&InPageIDs, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
-	{
-		if (InPageIDs.Contains(PageSettings.UniqueId))
-		{
-			return PageSettings.IsCooked.GetValueForPlatform(PreviewInfo.PlatformName);
-		}
 
-		return false;
-	};
+	if (AuditionTargetPage == Frontend::DefaultPageName)
+	{
+		check(InPageIDs.Contains(Frontend::DefaultPageID));
+		PreviewInfo.PageID = Frontend::DefaultPageID;
+		return PreviewInfo;
+	}
 
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
 		if (const FMetaSoundPageSettings* TargetPageSettings = Settings->FindPageSettings(AuditionTargetPage))
 		{
-			const FGuid& TargetPageID = TargetPageSettings->UniqueId;
-			const TArray<FMetaSoundPageSettings>& PageSettingsArray = Settings->GetPageSettings();
-			bool bFoundMatch = false;
-			for (int32 Index = PageSettingsArray.Num() - 1; Index >= 0; --Index)
+			auto PageIsCooked = [&InPageIDs, &PreviewInfo](const FMetaSoundPageSettings& PageSettings)
 			{
-				const FMetaSoundPageSettings& PageSettings = PageSettingsArray[Index];
-				bFoundMatch |= PageSettings.UniqueId == TargetPageID;
-				if (bFoundMatch)
+				if (InPageIDs.Contains(PageSettings.UniqueId))
 				{
-					if (PageIsCooked(PageSettings))
+					return !PageSettings.ExcludePageFromCook(PreviewInfo.PlatformName);
+				}
+
+				return false;
+			};
+
+			const FGuid& TargetPageID = TargetPageSettings->UniqueId;
+			constexpr bool bReverse = true;
+			bool bFoundMatch = false;
+			bool bPageSelected = false;
+			Settings->IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
+			{
+				if (!bPageSelected)
+				{
+					bFoundMatch |= PageSettings.UniqueId == TargetPageID;
+					if (bFoundMatch)
 					{
-						PreviewInfo.PageID = PageSettings.UniqueId;
-						return PreviewInfo;
+						if (PageIsCooked(PageSettings))
+						{
+							bPageSelected = true;
+							PreviewInfo.PageID = PageSettings.UniqueId;
+						}
 					}
 				}
-			}
+			}, bReverse);
 		}
 	}
 
@@ -156,16 +168,8 @@ TArray<FName> UMetasoundEditorSettings::GetAuditionPlatformNames()
 {
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		TSet<FName> PlatformNames { "Default" };
-		for (const FMetaSoundPageSettings& PageSettings : Settings->GetPageSettings())
-		{
-			TSet<FName> PagePlatforms;
-			PageSettings.IsCooked.PerPlatform.GetKeys(PagePlatforms);
-			PlatformNames.Append(PagePlatforms);
-		}
-		return PlatformNames.Array();
+		return Settings->GetImplementedPagePlatforms();
 	}
-
-	return { };
+	return { FPlatformProperties::IniPlatformName() };
 }
 #undef LOCTEXT_NAMESPACE // "MetaSoundEditor"
