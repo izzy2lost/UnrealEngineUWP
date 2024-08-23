@@ -4,6 +4,7 @@
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
 #include "Templates/TypeHash.h"
+#include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMValueInline.h"
 #include "VerseVM/VVMShape.h"
 #include "VerseVM/VVMUniqueString.h"
@@ -21,6 +22,8 @@ inline VShape::VEntry::VEntry(const VShape::VEntry& Other)
 			Index = Other.Index;
 			break;
 		case EFieldType::FProperty:
+		case EFieldType::FPropertyVar:
+		case EFieldType::FVerseProperty:
 			UProperty = Other.UProperty;
 			break;
 		case EFieldType::Constant:
@@ -33,9 +36,9 @@ inline VShape::VEntry::VEntry()
 	: Index(0)
 	, Type(EFieldType::Offset) {}
 
-inline VShape::VEntry::VEntry(FProperty* InProperty)
+inline VShape::VEntry::VEntry(FProperty* InProperty, EFieldType InType)
 	: UProperty(InProperty)
-	, Type(EFieldType::FProperty) {}
+	, Type(InProperty->IsA<FVRestValueProperty>() ? EFieldType::FVerseProperty : InType) {}
 
 inline VShape::VEntry::VEntry(FAccessContext Context, VValue InConstant)
 	: Value(Context, InConstant)
@@ -52,6 +55,8 @@ inline bool VShape::VEntry::operator==(const VShape::VEntry& Other) const
 		case EFieldType::Offset:
 			return Index == Other.Index;
 		case EFieldType::FProperty:
+		case EFieldType::FPropertyVar:
+		case EFieldType::FVerseProperty:
 			return UProperty == Other.UProperty;
 		case EFieldType::Constant:
 			return VValue::Equal(FAllocationContext(FRunningContextPromise()), Value.Get(), Other.Value.Get(),

@@ -24,6 +24,7 @@
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMTypeCreator.h"
 #include "VerseVM/VVMValuePrinting.h"
+#include "VerseVM/VVMVar.h"
 #include "VerseVM/VVMVerse.h"
 #include "VerseVM/VVMVerseClass.h"
 #include "VerseVM/VVMVerseStruct.h"
@@ -280,7 +281,8 @@ VValueObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& A
 	// NOTE: This assumes that the order of values matches the IDs of the field set.
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
-		NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+		FOpResult FieldResult = NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+		V_DIE_UNLESS(FieldResult.Kind == FOpResult::Return);
 	}
 
 	// Build the sequence of VProcedures to finish object construction.
@@ -289,25 +291,33 @@ VValueObject& VClass::NewVObject(FAllocationContext Context, VUniqueStringSet& A
 	return *NewObject;
 }
 
-VNativeStruct& VClass::NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
+FOpResult VClass::NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
 {
 	V_DIE_UNLESS(IsNativeStruct());
 
 	VEmergentType& NewEmergentType = *GetUStruct<UVerseStruct>()->EmergentType;
 	VNativeStruct* NewObject = &VNativeStruct::NewUninitialized(Context, NewEmergentType);
-	InitInstance(Context, *NewEmergentType.Shape, NewObject->GetData(*NewEmergentType.CppClassInfo));
+	FOpResult Result = InitInstance(Context, *NewEmergentType.Shape, NewObject->GetData(*NewEmergentType.CppClassInfo));
+	if (Result.Kind != FOpResult::Return)
+	{
+		return Result;
+	}
 
 	// Initialize fields from the archetype.
 	// NOTE: This assumes that the order of values matches the IDs of the field set.
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
-		NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+		FOpResult FieldResult = NewObject->SetField(Context, *It->Get(), ArchetypeValues[It.GetId().AsInteger()]);
+		if (FieldResult.Kind != FOpResult::Return)
+		{
+			return FieldResult;
+		}
 	}
 
 	// Build the sequence of VProcedures to finish object construction.
 	GatherInitializers(ArchetypeFields, OutInitializers);
 
-	return *NewObject;
+	V_RETURN(*NewObject);
 }
 
 UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers)
@@ -327,9 +337,23 @@ UObject* VClass::NewUObject(FAllocationContext Context, VUniqueStringSet& Archet
 	for (auto It = ArchetypeFields.begin(); It != ArchetypeFields.end(); ++It)
 	{
 		const VShape::VEntry* Field = ObjectUClass->Shape->GetField(*It->Get());
-		checkSlow(Field && Field->Type == EFieldType::FProperty && Field->UProperty->IsA<FVRestValueProperty>());
+		V_DIE_UNLESS(Field);
 		VValue Value = ArchetypeValues[It.GetId().AsInteger()];
-		Field->UProperty->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
+		switch (Field->Type)
+		{
+			case EFieldType::FProperty:
+				VNativeRef::Set<false>(Context, nullptr, NewObject, Field->UProperty, Value);
+				break;
+			case EFieldType::FPropertyVar:
+				VNativeRef::Set<false>(Context, nullptr, NewObject, Field->UProperty, Value.StaticCast<VVar>().Get(Context));
+				break;
+			case EFieldType::FVerseProperty:
+				Field->UProperty->ContainerPtrToValuePtr<VRestValue>(NewObject)->Set(Context, Value);
+				break;
+			default:
+				V_DIE("Unexpected field type");
+				break;
+		}
 	}
 
 	// Build the sequence of VProcedures to finish object construction.
@@ -431,7 +455,7 @@ UStruct* VClass::CreateUStruct(FAllocationContext Context)
 	return GetUStruct<UStruct>();
 }
 
-void VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const
+FOpResult VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const
 {
 	for (uint32 Index = 0; Index < Constructor->NumEntries; ++Index)
 	{
@@ -442,10 +466,15 @@ void VClass::InitInstance(FAllocationContext Context, VShape& Shape, void* Data)
 			// while unbound methods/functions stay in the shape (since they don't change).
 			if (!Entry.bDynamic && !Entry.IsMethod())
 			{
-				VObject::SetField(Context, Shape, *FieldName, Data, Entry.Value.Get());
+				FOpResult Result = VObject::SetField(Context, Shape, *FieldName, Data, Entry.Value.Get());
+				if (Result.Kind != FOpResult::Return)
+				{
+					return Result;
+				}
 			}
 		}
 	}
+	return {FOpResult::Return};
 }
 
 bool VClass::SubsumesImpl(FAllocationContext Context, VValue Value)

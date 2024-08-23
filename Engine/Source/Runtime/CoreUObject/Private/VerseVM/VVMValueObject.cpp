@@ -167,7 +167,8 @@ VValue VValueObject::MeltImpl(FAllocationContext Context)
 			{
 				return MeltResult;
 			}
-			NewObject.SetField(Context, *It->Key.Get(), MeltResult);
+			FOpResult Result = NewObject.SetField(Context, *It->Key.Get(), MeltResult);
+			V_DIE_UNLESS(Result.Kind == FOpResult::Return);
 		}
 	}
 

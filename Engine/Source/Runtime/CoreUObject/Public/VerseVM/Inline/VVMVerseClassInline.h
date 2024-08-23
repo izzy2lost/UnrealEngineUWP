@@ -6,7 +6,9 @@
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/VVMFunction.h"
 #include "VerseVM/VVMLog.h"
+#include "VerseVM/VVMNativeConverter.h"
 #include "VerseVM/VVMNativeFunction.h"
+#include "VerseVM/VVMNativeRef.h"
 #include "VerseVM/VVMVerseClass.h"
 
 inline Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, UObject* Object, Verse::VUniqueString& FieldName)
@@ -19,10 +21,11 @@ inline Verse::VValue UVerseClass::LoadField(Verse::FAllocationContext Context, U
 	switch (Field->Type)
 	{
 		case EFieldType::FProperty:
-		{
-			FVRestValueProperty* FieldProperty = CastFieldChecked<FVRestValueProperty>(Field->UProperty);
-			return FieldProperty->ContainerPtrToValuePtr<Verse::VRestValue>(Object)->Get(Context);
-		}
+			return VNativeRef::Get(Context, Object, Field->UProperty);
+		case EFieldType::FPropertyVar:
+			return VNativeRef::New(Context, Object, Field->UProperty);
+		case EFieldType::FVerseProperty:
+			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object)->Get(Context);
 		case EFieldType::Constant:
 		{
 			VValue FieldValue = Field->Value.Get();

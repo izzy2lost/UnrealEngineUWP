@@ -8,13 +8,21 @@ namespace Verse
 
 void FTransactionLog::FEntry::MarkReferencedCells(FMarkStack& MarkStack)
 {
-	if (Owner.Is<TAux<void>>())
+	if (Owner.Is<VCell*>())
+	{
+		MarkStack.MarkNonNull(Owner.As<VCell*>());
+	}
+	else if (Owner.Is<UObject*>())
+	{
+		MarkStack.MarkNonNull(Owner.As<UObject*>());
+	}
+	else if (Owner.Is<TAux<void>>())
 	{
 		MarkStack.MarkAuxNonNull(Owner.As<TAux<void>>().GetPtr());
 	}
 	else
 	{
-		MarkStack.MarkNonNull(Owner.As<VCell*>());
+		VERSE_UNREACHABLE();
 	}
 
 	if (Slot.Is<TWriteBarrier<TAux<void>>*>())
@@ -39,13 +47,21 @@ void FTransactionLog::MarkReferencedCells(FMarkStack& MarkStack)
 
 	for (FAuxOrCell Root : Roots)
 	{
-		if (Root.Is<TAux<void>>())
+		if (Root.Is<VCell*>())
+		{
+			MarkStack.MarkNonNull(Root.As<VCell*>());
+		}
+		else if (Root.Is<UObject*>())
+		{
+			MarkStack.MarkNonNull(Root.As<UObject*>());
+		}
+		else if (Root.Is<TAux<void>>())
 		{
 			MarkStack.MarkAuxNonNull(Root.As<TAux<void>>().GetPtr());
 		}
 		else
 		{
-			MarkStack.MarkNonNull(Root.As<VCell*>());
+			VERSE_UNREACHABLE();
 		}
 	}
 }

@@ -33,7 +33,8 @@ struct VRestValue
 		Value.Set(Context, NewValue);
 	}
 
-	void SetTransactionally(FAccessContext Context, VCell& Owner, VValue NewValue);
+	void SetTransactionally(FAccessContext Context, VCell* Owner, VValue NewValue);
+	void SetTransactionally(FAccessContext Context, UObject* Owner, VValue NewValue);
 
 	void SetNonCellNorPlaceholder(VValue NewValue)
 	{

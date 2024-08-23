@@ -46,3 +46,17 @@ private:
 	TObjectPtr<UEnumCookedMetaData> CachedCookedMetaDataPtr;
 #endif // WITH_EDITORONLY_DATA
 };
+
+/** Corresponds to "false" in Verse, a type with no possible values. */
+UENUM()
+enum class EVerseFalse : uint8
+{
+	Value // UHT doesn't correctly support empty enums, so we need a dummy case to make it compile.
+};
+
+/** Corresponds to "true" in Verse, a type with one possible value: false. */
+UENUM()
+enum class EVerseTrue : uint8
+{
+	Value // UHT errors if this is called "False".
+};

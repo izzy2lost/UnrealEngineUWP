@@ -11,68 +11,60 @@
 #include "VVMWriteBarrier.h"
 #include <Containers/Array.h>
 #include <Containers/Set.h>
+#include <bit>
 
 namespace Verse
 {
 
 struct FMarkStack;
 
-// T and U are types which are ultimately pointers.
-// We tag if the variant holds T or U by tagging the lower bit, so the pointers
-// must be at least 2 byte aligned.
-template <typename T, typename U>
+template <typename T, typename... Ts>
+struct TagOf;
+
+template <typename T, typename... Ts>
+struct TagOf<T, T, Ts...>
+{
+	static constexpr uintptr_t Value = 0;
+};
+
+template <typename T, typename U, typename... Ts>
+struct TagOf<T, U, Ts...>
+{
+	static constexpr uintptr_t Value = 1 + TagOf<T, Ts...>::Value;
+};
+
+// Ts... are types which are ultimately pointers.
+// We tag which of Ts... the variant holds by tagging the lower bits, so the pointers
+// must be at least log(sizeof(Ts)...) + 1 byte aligned.
+template <typename... Ts>
 struct TPtrVariant
 {
-	static_assert(sizeof(T) == sizeof(U));
-	static_assert(sizeof(T) == sizeof(uintptr_t));
-	static_assert(!std::is_same_v<T, U>);
+	static_assert(((sizeof(Ts) == sizeof(uintptr_t)) && ...));
 
-	static constexpr uintptr_t UTag = 1;
+	static constexpr uintptr_t Mask = std::bit_ceil(sizeof...(Ts)) - 1;
 
-	TPtrVariant(U InU)
-	{
-		uintptr_t IncomingPtr = BitCast<uintptr_t>(InU);
-		checkSlow(!(IncomingPtr & UTag));
-		Ptr = IncomingPtr | UTag;
-	}
-
+	template <typename T>
 	TPtrVariant(T InT)
 	{
 		uintptr_t IncomingPtr = BitCast<uintptr_t>(InT);
-		checkSlow(!(IncomingPtr & UTag));
-		Ptr = IncomingPtr;
+		uintptr_t TTag = TagOf<T, Ts...>::Value;
+		checkSlow(!(IncomingPtr & Mask));
+		Ptr = IncomingPtr | TTag;
 	}
 
-	template <typename V>
+	template <typename T>
 	bool Is()
 	{
-		static_assert(std::is_same_v<T, V> || std::is_same_v<U, V>);
-		if constexpr (std::is_same_v<T, V>)
-		{
-			return !(Ptr & UTag);
-		}
-		if constexpr (std::is_same_v<U, V>)
-		{
-			return !!(Ptr & UTag);
-		}
-		VERSE_UNREACHABLE();
+		static_assert((std::is_same_v<T, Ts> || ...));
+		return (Ptr & Mask) == TagOf<T, Ts...>::Value;
 	}
 
-	template <typename V>
-	V As()
+	template <typename T>
+	T As()
 	{
-		static_assert(std::is_same_v<T, V> || std::is_same_v<U, V>);
-		if constexpr (std::is_same_v<T, V>)
-		{
-			checkSlow(Is<T>());
-			return BitCast<T>(Ptr);
-		}
-		if constexpr (std::is_same_v<U, V>)
-		{
-			checkSlow(Is<U>());
-			return BitCast<U>(Ptr & ~UTag);
-		}
-		VERSE_UNREACHABLE();
+		static_assert((std::is_same_v<T, Ts> || ...));
+		checkSlow(Is<T>());
+		return BitCast<T>(Ptr & ~Mask);
 	}
 
 	bool operator==(TPtrVariant Other) const
@@ -86,13 +78,13 @@ private:
 	uintptr_t Ptr;
 };
 
-using FAuxOrCell = TPtrVariant<TAux<void>, VCell*>;
-
-template <typename T, typename U>
-inline uint32 GetTypeHash(TPtrVariant<T, U> Ptr)
+template <typename... Ts>
+inline uint32 GetTypeHash(TPtrVariant<Ts...> Ptr)
 {
 	return PointerHash(BitCast<void*>(Ptr.RawPtr()));
 }
+
+using FAuxOrCell = TPtrVariant<VCell*, UObject*, TAux<void>>;
 
 struct FTransactionLog
 {
@@ -167,14 +159,15 @@ public:
 		}
 	}
 
-	void Add(VCell& Owner, TWriteBarrier<VValue>& Slot)
+	template <typename T>
+	void Add(VCell* Owner, TWriteBarrier<T>& Slot)
 	{
-		AddImpl(FAuxOrCell(&Owner), Slot);
+		AddImpl(FAuxOrCell(Owner), Slot);
 	}
 
-	void Add(VCell& Owner, TWriteBarrier<TAux<void>>& Slot)
+	void Add(UObject* Owner, TWriteBarrier<VValue>& Slot)
 	{
-		AddImpl(FAuxOrCell(&Owner), Slot);
+		AddImpl(FAuxOrCell(Owner), Slot);
 	}
 
 	template <typename T>
@@ -268,12 +261,13 @@ struct FTransaction
 		}
 	}
 
-	void LogBeforeWrite(FAccessContext Context, VCell& Owner, TWriteBarrier<VValue>& Slot)
+	template <typename T>
+	void LogBeforeWrite(FAccessContext Context, VCell* Owner, TWriteBarrier<T>& Slot)
 	{
 		Log.Add(Owner, Slot);
 	}
 
-	void LogBeforeWrite(FAccessContext Context, VCell& Owner, TWriteBarrier<TAux<void>>& Slot)
+	void LogBeforeWrite(FAccessContext Context, UObject* Owner, TWriteBarrier<VValue>& Slot)
 	{
 		Log.Add(Owner, Slot);
 	}
@@ -284,15 +278,20 @@ struct FTransaction
 		Log.Add(Owner, Slot);
 	}
 
+	void AddRoot(FAccessContext Context, VCell* Root)
+	{
+		Log.AddRoot(FAuxOrCell(Root));
+	}
+
+	void AddRoot(FAccessContext Context, UObject* Root)
+	{
+		Log.AddRoot(FAuxOrCell(Root));
+	}
+
 	template <typename T>
 	void AddAuxRoot(FAccessContext Context, TAux<T> Root)
 	{
 		Log.AddRoot(FAuxOrCell(BitCast<TAux<void>>(Root)));
-	}
-
-	void AddRoot(FAccessContext Context, VCell* Root)
-	{
-		Log.AddRoot(FAuxOrCell(Root));
 	}
 
 	static void MarkReferencedCells(FTransaction&, FMarkStack&);

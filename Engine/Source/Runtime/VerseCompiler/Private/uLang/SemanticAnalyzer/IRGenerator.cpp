@@ -765,7 +765,7 @@ private:
 
         const CNormalType& SourceNormalType = SemanticTypeUtils::Canonicalize(*SourceType).GetNormalType();
         const CNormalType& ResultNormalType = GetResultNormalType(Value, ResultType, SourceNormalType);
-        if (_TargetVM == SBuildParams::EWhichVM::BPVM && NeedsCoercion(*Value, ResultNormalType, SourceNormalType))
+        if (NeedsCoercion(*Value, ResultNormalType, SourceNormalType))
         {
             if (ResultNormalType.GetKind() == Cases<ETypeKind::Void, ETypeKind::True>
                 || SourceNormalType.GetKind() == ETypeKind::False)
@@ -774,11 +774,15 @@ private:
                 CodeBlock->AppendSubExpr(NewIrNode<CExprLogic>(_Program, false));
                 return CodeBlock;
             }
-            if (ResultNormalType.GetKind() == ETypeKind::False)
+            else if (ResultNormalType.GetKind() == ETypeKind::False)
             {
                 TSRef<CExprCodeBlock> CodeBlock = MoveValueToNewCodeBlock(Move(Value));
                 CodeBlock->AppendSubExpr(NewIrNode<CExprLogic>(_Program, false));
                 return CodeBlock;
+            }
+            else if (_TargetVM != SBuildParams::EWhichVM::BPVM)
+            {
+                return Move(Value);
             }
             else if (ResultNormalType.GetKind() == ETypeKind::Any)
             {

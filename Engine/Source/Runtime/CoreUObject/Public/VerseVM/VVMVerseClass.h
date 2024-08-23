@@ -285,19 +285,3 @@ private:
 	TObjectPtr<UClassCookedMetaData> CachedCookedMetaDataPtr;
 #endif // WITH_EDITORONLY_DATA
 };
-
-#if WITH_VERSE_VM || defined(__INTELLISENSE__)
-namespace Verse
-{
-template <class SubTypeOfUStruct>
-FORCEINLINE SubTypeOfUStruct* VClass::GetUStruct() const
-{
-	return CastChecked<SubTypeOfUStruct>(AssociatedUStruct.Get().AsUObject());
-}
-template <class SubTypeOfUStruct>
-FORCEINLINE SubTypeOfUStruct* VClass::GetOrCreateUStruct(FAllocationContext Context)
-{
-	return AssociatedUStruct ? GetUStruct<SubTypeOfUStruct>() : CastChecked<SubTypeOfUStruct>(CreateUStruct(Context));
-}
-} // namespace Verse
-#endif

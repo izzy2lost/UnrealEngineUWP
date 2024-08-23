@@ -7,10 +7,14 @@
 #include "UObject/VerseValueProperty.h"
 #include "VerseVM/Inline/VVMShapeInline.h"
 #include "VerseVM/VVMFunction.h"
+#include "VerseVM/VVMNativeConverter.h"
 #include "VerseVM/VVMNativeFunction.h"
+#include "VerseVM/VVMNativeRef.h"
+#include "VerseVM/VVMNativeStruct.h"
 #include "VerseVM/VVMObject.h"
 #include "VerseVM/VVMProcedure.h"
 #include "VerseVM/VVMUnreachable.h"
+#include "VerseVM/VVMVar.h"
 
 namespace Verse
 {
@@ -24,7 +28,10 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VCppClassInfo
 		case EFieldType::Offset:
 			return GetFieldData(CppClassInfo)[Field->Index].Get(Context);
 		case EFieldType::FProperty:
-			check(Field->UProperty->IsA<FVRestValueProperty>());
+			return VNativeRef::Get(Context, GetData(CppClassInfo), Field->UProperty);
+		case EFieldType::FPropertyVar:
+			return VNativeRef::New(Context, this->DynamicCast<VNativeStruct>(), Field->UProperty);
+		case EFieldType::FVerseProperty:
 			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(GetData(CppClassInfo))->Get(Context);
 		case EFieldType::Constant:
 		{
@@ -58,17 +65,22 @@ inline VValue VObject::LoadField(FAllocationContext Context, const VUniqueString
 	return LoadField(Context, *EmergentType->CppClassInfo, EmergentType->Shape->GetField(Name));
 }
 
-inline void VObject::SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value)
+inline FOpResult VObject::SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value)
 {
 	const VShape::VEntry* Field = Shape.GetField(Name);
 	V_DIE_IF(Field == nullptr);
 	switch (Field->Type)
 	{
 		case EFieldType::Offset:
-			return BitCast<VRestValue*>(Data)[Field->Index].Set(Context, Value);
+			BitCast<VRestValue*>(Data)[Field->Index].Set(Context, Value);
+			return {FOpResult::Return};
 		case EFieldType::FProperty:
-			check(Field->UProperty->IsA<FVRestValueProperty>());
-			return Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Data)->Set(Context, Value);
+			return VNativeRef::Set<false>(Context, nullptr, Data, Field->UProperty, Value);
+		case EFieldType::FPropertyVar:
+			return VNativeRef::Set<false>(Context, nullptr, Data, Field->UProperty, Value.StaticCast<VVar>().Get(Context));
+		case EFieldType::FVerseProperty:
+			Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Data)->Set(Context, Value);
+			return {FOpResult::Return};
 		case EFieldType::Constant:
 		default:
 			VERSE_UNREACHABLE(); // This shouldn't happen since such field's data should be on the shape, not the object.
@@ -76,31 +88,16 @@ inline void VObject::SetField(FAllocationContext Context, const VShape& Shape, c
 	}
 }
 
-inline void VObject::SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value)
+inline FOpResult VObject::SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value)
 {
 	const VEmergentType* EmergentType = GetEmergentType();
-	SetField(Context, *EmergentType->Shape, Name, GetData(*EmergentType->CppClassInfo), Value);
+	return SetField(Context, *EmergentType->Shape, Name, GetData(*EmergentType->CppClassInfo), Value);
 }
 
 inline VObject::VObject(FAllocationContext Context, VEmergentType& InEmergentType)
 	: VHeapValue(Context, &InEmergentType)
 {
 	// Leave initialization of the data to the subclasses
-}
-
-FORCEINLINE size_t VObject::DataOffset(const VCppClassInfo& CppClassInfo)
-{
-	return Align(CppClassInfo.SizeWithoutFields, DataAlignment);
-}
-
-FORCEINLINE void* VObject::GetData(const VCppClassInfo& CppClassInfo)
-{
-	return BitCast<uint8*>(this) + DataOffset(CppClassInfo);
-}
-
-FORCEINLINE VRestValue* VObject::GetFieldData(const VCppClassInfo& CppClassInfo)
-{
-	return BitCast<VRestValue*>(GetData(CppClassInfo));
 }
 
 } // namespace Verse

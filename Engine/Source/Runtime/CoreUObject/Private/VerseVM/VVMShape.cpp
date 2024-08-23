@@ -30,6 +30,8 @@ VShape::VShape(FAllocationContext Context, FieldsMap&& InFields)
 				Pair.Value.Index = CurrentIndex++;
 				break;
 			case EFieldType::FProperty:
+			case EFieldType::FPropertyVar:
+			case EFieldType::FVerseProperty:
 			case EFieldType::Constant:
 			default:
 				break;
@@ -53,6 +55,8 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 			{
 				case EFieldType::Offset:
 				case EFieldType::FProperty:
+				case EFieldType::FPropertyVar:
+				case EFieldType::FVerseProperty:
 					break;
 				case EFieldType::Constant:
 					Visitor.Visit(It->Value.Value, TEXT("Value"));
@@ -71,6 +75,8 @@ void VShape::VisitReferencesImpl(TVisitor& Visitor)
 			{
 				case EFieldType::Offset:
 				case EFieldType::FProperty:
+				case EFieldType::FPropertyVar:
+				case EFieldType::FVerseProperty:
 					break;
 				case EFieldType::Constant:
 					Visitor.Visit(It->Value.Value, TEXT("Value"));
@@ -93,7 +99,7 @@ VShape& VShape::CopyToMeltedShape(FAllocationContext Context)
 	NewFields.Reserve(Fields.Num());
 	for (auto It = Fields.CreateIterator(); It; ++It)
 	{
-		check(It->Value.Type != EFieldType::FProperty); // We don't support melting the shapes of native structs
+		V_DIE_IF(It->Value.IsProperty()); // We don't support melting the shapes of native structs
 		// Replace constants with offsets so they can be mutated
 		NewFields.Add(It->Key, VEntry::Offset());
 	}

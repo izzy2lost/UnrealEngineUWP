@@ -30,6 +30,7 @@ struct VNativeStruct : VObject
 
 protected:
 	friend class FInterpreter;
+	friend struct VNativeRef;
 
 	static std::byte* AllocateCell(FAllocationContext Context, VEmergentType& EmergentType);
 

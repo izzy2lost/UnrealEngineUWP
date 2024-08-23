@@ -26,8 +26,12 @@ enum class EFieldType : int8
 	// e.g. `c := class{ X:int }` or `c := class{ var X:int = 0 }`
 	Offset,
 
-	// The field's value is stored in a UObject.
+	// The field's value is a native type stored in a UObject or VNativeStruct.
 	FProperty,
+	// The field's value is a mutable native type stored in a UObject or VNativeStruct.
+	FPropertyVar,
+	// The field's value is a VRestValue stored in a UObject or VNativeStruct.
+	FVerseProperty,
 
 	// The field's value is stored in the shape.
 	// This is used for fields default-initialized to a constant, such as methods.
@@ -62,14 +66,17 @@ struct VShape : VCell
 			: VEntry(Other) {}
 
 		static VEntry Offset() { return {}; }
-		static VEntry Property(FProperty* InProperty = nullptr) { return {InProperty}; }
+		static VEntry Property(FProperty* InProperty = nullptr) { return {InProperty, EFieldType::FProperty}; }
+		static VEntry PropertyVar(FProperty* InProperty = nullptr) { return {InProperty, EFieldType::FPropertyVar}; }
 		static VEntry Constant(FAccessContext Context, VValue InConstant) { return {Context, InConstant}; }
 
 		bool operator==(const VEntry& Other) const;
 
+		bool IsProperty() const { return Type == EFieldType::FProperty || Type == EFieldType::FPropertyVar || Type == EFieldType::FVerseProperty; }
+
 	private:
 		VEntry();
-		VEntry(FProperty* InProperty);
+		VEntry(FProperty* InProperty, EFieldType InType);
 		VEntry(FAccessContext Context, VValue InConstant);
 	};
 

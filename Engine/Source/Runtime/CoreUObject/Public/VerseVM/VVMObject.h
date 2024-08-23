@@ -20,7 +20,7 @@ struct VObject : VHeapValue
 	DECLARE_DERIVED_VCPPCLASSINFO(COREUOBJECT_API, VHeapValue);
 
 	VValue LoadField(FAllocationContext Context, const VUniqueString& Name);
-	void SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value);
+	FOpResult SetField(FAllocationContext Context, const VUniqueString& Name, VValue Value);
 
 	bool IsStruct() { return IsDeeplyMutable(); };
 	void SetIsStruct() { SetIsDeeplyMutable(); };
@@ -35,7 +35,7 @@ protected:
 	static constexpr const size_t DataAlignment = alignof(VRestValue);
 
 	VValue LoadField(FAllocationContext Context, const VCppClassInfo& CppClassInfo, const VShape::VEntry* Field);
-	static void SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value);
+	static FOpResult SetField(FAllocationContext Context, const VShape& Shape, const VUniqueString& Name, void* Data, VValue Value);
 
 	static size_t DataOffset(const VCppClassInfo& CppClassInfo);
 
@@ -61,5 +61,20 @@ protected:
 	FORCEINLINE void* GetData(const VCppClassInfo& CppClassInfo);
 	FORCEINLINE VRestValue* GetFieldData(const VCppClassInfo& CppClassInfo);
 };
+
+FORCEINLINE size_t VObject::DataOffset(const VCppClassInfo& CppClassInfo)
+{
+	return Align(CppClassInfo.SizeWithoutFields, DataAlignment);
+}
+
+FORCEINLINE void* VObject::GetData(const VCppClassInfo& CppClassInfo)
+{
+	return BitCast<uint8*>(this) + DataOffset(CppClassInfo);
+}
+
+FORCEINLINE VRestValue* VObject::GetFieldData(const VCppClassInfo& CppClassInfo)
+{
+	return BitCast<VRestValue*>(GetData(CppClassInfo));
+}
 } // namespace Verse
 #endif // WITH_VERSE_VM

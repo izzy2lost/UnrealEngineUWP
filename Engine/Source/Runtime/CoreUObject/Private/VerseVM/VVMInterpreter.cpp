@@ -1340,7 +1340,19 @@ class FInterpreter
 	{
 		VValue Var = GetOperand(Op.Var);
 		REQUIRE_CONCRETE(Var);
-		VValue Result = Var.StaticCast<VVar>().Get(Context);
+		VValue Result;
+		if (VVar* Ref = Var.DynamicCast<VVar>())
+		{
+			Result = Ref->Get(Context);
+		}
+		else if (VNativeRef* NativeRef = Var.DynamicCast<VNativeRef>())
+		{
+			Result = *NativeRef;
+		}
+		else
+		{
+			V_DIE("Unexpected ref type %s", *Var.AsCell().DebugName());
+		}
 		DEF(Op.Dest, Result);
 		return {FOpResult::Return};
 	}
@@ -1351,7 +1363,19 @@ class FInterpreter
 		VValue Var = GetOperand(Op.Var);
 		VValue Value = GetOperand(Op.Value);
 		REQUIRE_CONCRETE(Var);
-		Var.StaticCast<VVar>().Set(Context, Value);
+		if (VVar* VarPtr = Var.DynamicCast<VVar>())
+		{
+			VarPtr->Set(Context, Value);
+		}
+		else if (VNativeRef* Ref = Var.DynamicCast<VNativeRef>())
+		{
+			FOpResult Result = Ref->Set(Context, Value);
+			OP_RESULT_HELPER(Result);
+		}
+		else
+		{
+			V_DIE("Unexpected ref type %s", *Value.AsCell().DebugName());
+		}
 		return {FOpResult::Return};
 	}
 
@@ -1636,7 +1660,10 @@ class FInterpreter
 			}
 			else
 			{
-				NewObject = Class.NewNativeStruct(Context, ArchetypeFields, ArchetypeValues, Initializers);
+				FOpResult Result = Class.NewNativeStruct(Context, ArchetypeFields, ArchetypeValues, Initializers);
+				OP_RESULT_HELPER(Result);
+
+				NewObject = Result.Value;
 			}
 		}
 		else
@@ -1728,12 +1755,28 @@ class FInterpreter
 				case EFieldType::Offset:
 					bSucceeded = Def(Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index], ValueOperand);
 					break;
+
+				// NOTE: VNativeRef::Set only makes sense here because UnifyField is only used for initialization.
+				case EFieldType::FProperty:
+				{
+					FOpResult Result = VNativeRef::Set<false>(Context, nullptr, Object->GetData(*EmergentType->CppClassInfo), Field->UProperty, ValueOperand);
+					OP_RESULT_HELPER(Result);
+					bSucceeded = true;
+					break;
+				}
+				case EFieldType::FPropertyVar:
+				{
+					FOpResult Result = VNativeRef::Set<false>(Context, nullptr, Object->GetData(*EmergentType->CppClassInfo), Field->UProperty, ValueOperand.StaticCast<VVar>().Get(Context));
+					OP_RESULT_HELPER(Result);
+					bSucceeded = true;
+					break;
+				}
+
+				case EFieldType::FVerseProperty:
+					bSucceeded = Def(*Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo)), ValueOperand);
+					break;
 				case EFieldType::Constant:
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
-					break;
-				case EFieldType::FProperty:
-					check(Field->UProperty->IsA<FVRestValueProperty>());
-					bSucceeded = Def(*Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo)), ValueOperand);
 					break;
 				default:
 					V_DIE("Field: %s has an unsupported type; cannot unify!", *Op.Name.Get()->AsString());
@@ -1749,13 +1792,25 @@ class FInterpreter
 			V_DIE_UNLESS(Field != nullptr);
 			switch (Field->Type)
 			{
+				// NOTE: VNativeRef::Set only makes sense here because UnifyField is only used for initialization.
 				case EFieldType::FProperty:
 				{
-					check(Field->UProperty->IsA<FVRestValueProperty>());
-					VRestValue& Slot = *Field->UProperty->ContainerPtrToValuePtr<VRestValue>(UeObject);
-					bSucceeded = Def(Slot, ValueOperand);
+					FOpResult Result = VNativeRef::Set<false>(Context, nullptr, UeObject, Field->UProperty, ValueOperand);
+					OP_RESULT_HELPER(Result);
+					bSucceeded = true;
 					break;
 				}
+				case EFieldType::FPropertyVar:
+				{
+					FOpResult Result = VNativeRef::Set<false>(Context, nullptr, UeObject, Field->UProperty, ValueOperand.StaticCast<VVar>().Get(Context));
+					OP_RESULT_HELPER(Result);
+					bSucceeded = true;
+					break;
+				}
+
+				case EFieldType::FVerseProperty:
+					bSucceeded = Def(*Field->UProperty->ContainerPtrToValuePtr<VRestValue>(UeObject), ValueOperand);
+					break;
 				case EFieldType::Constant:
 					bSucceeded = Def(Field->Value.Get(), ValueOperand);
 					break;
@@ -1790,13 +1845,29 @@ class FInterpreter
 			const VEmergentType* EmergentType = Object->GetEmergentType();
 			VShape* Shape = EmergentType->Shape.Get();
 			const VShape::VEntry* Field = Shape->GetField(FieldName);
-			// Right now, this is only used for setting fields on mutable structs. So it has to be an offset.
-			V_DIE_UNLESS(Field->Type == EFieldType::Offset);
-			Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index].SetTransactionally(Context, *Object, Value);
+			switch (Field->Type)
+			{
+				case EFieldType::Offset:
+					Object->GetFieldData(*EmergentType->CppClassInfo)[Field->Index].SetTransactionally(Context, Object, Value);
+					break;
+				case EFieldType::FProperty:
+				{
+					FOpResult Result = VNativeRef::Set<true>(Context, Object->DynamicCast<VNativeStruct>(), Object->GetData(*EmergentType->CppClassInfo), Field->UProperty, Value);
+					OP_RESULT_HELPER(Result);
+					break;
+				}
+				case EFieldType::FVerseProperty:
+					Field->UProperty->ContainerPtrToValuePtr<VRestValue>(Object->GetData(*EmergentType->CppClassInfo))->SetTransactionally(Context, Object, Value);
+					break;
+				case EFieldType::FPropertyVar:
+				default:
+					V_DIE("Field %s has an unsupported type; cannot set!", *FieldName.AsString());
+					break;
+			}
 		}
 		else if (ObjectOperand.IsUObject())
 		{
-			// TODO: Implement this when we know what a struct in UObject land will look like.
+			// TODO: Implement this when we stop boxing fields in VVars.
 			VERSE_UNREACHABLE();
 		}
 		else
@@ -2815,6 +2886,8 @@ class FInterpreter
 #undef ENQUEUE_SUSPENSION
 #undef FAIL
 	}
+
+#undef OP_RESULT_HELPER
 
 public:
 	FInterpreter(FRunningContext Context, FExecutionState State, VFailureContext* FailureContext, VTask* Task, VValue IncomingEffectToken, FOp* StartPC = nullptr, FOp* EndPC = nullptr)

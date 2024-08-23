@@ -139,7 +139,7 @@ struct VClass : VType
 	/// `ArchetypeValues` should match the order of IDs in `ArchetypeFields`.
 	COREUOBJECT_API VValueObject& NewVObject(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
 
-	VNativeStruct& NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
+	FOpResult NewNativeStruct(FAllocationContext Context, VUniqueStringSet& ArchetypeFields, const TArray<VValue>& ArchetypeValues, TArray<VFunction*>& OutInitializers);
 
 	/// Allocate a new VNativeStruct and move an existing struct into it
 	template <class CppStructType>
@@ -191,7 +191,7 @@ private:
 	COREUOBJECT_API UStruct* CreateUStruct(FAllocationContext Context);
 
 	/// Initialize an instance using the constructor
-	COREUOBJECT_API void InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const;
+	COREUOBJECT_API FOpResult InitInstance(FAllocationContext Context, VShape& Shape, void* Data) const;
 
 	COREUOBJECT_API bool SubsumesImpl(FAllocationContext, VValue);
 
@@ -220,5 +220,16 @@ private:
 
 	TWriteBarrier<VClass> Inherited[];
 };
+
+template <class SubTypeOfUStruct>
+inline SubTypeOfUStruct* VClass::GetUStruct() const
+{
+	return CastChecked<SubTypeOfUStruct>(AssociatedUStruct.Get().AsUObject());
+}
+template <class SubTypeOfUStruct>
+inline SubTypeOfUStruct* VClass::GetOrCreateUStruct(FAllocationContext Context)
+{
+	return AssociatedUStruct ? GetUStruct<SubTypeOfUStruct>() : CastChecked<SubTypeOfUStruct>(CreateUStruct(Context));
+}
 };     // namespace Verse
 #endif // WITH_VERSE_VM

@@ -187,7 +187,7 @@ protected:
 	{
 		if constexpr (bTransactional)
 		{
-			reinterpret_cast<TWriteBarrier<TAux<void>>&>(Buffer).SetTransactionally(Context, *this, NewBuffer);
+			reinterpret_cast<TWriteBarrier<TAux<void>>&>(Buffer).SetTransactionally(Context, this, NewBuffer);
 		}
 		else
 		{

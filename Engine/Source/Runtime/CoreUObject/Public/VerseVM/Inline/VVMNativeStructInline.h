@@ -3,11 +3,9 @@
 
 #if WITH_VERSE_VM || defined(__INTELLISENSE__)
 
-#include "VerseVM/Inline/VVMObjectInline.h"
 #include "VerseVM/VVMClass.h"
 #include "VerseVM/VVMNativeStruct.h"
 #include "VerseVM/VVMObject.h"
-#include "VerseVM/VVMVerseClass.h"
 
 namespace Verse
 {
@@ -15,7 +13,7 @@ namespace Verse
 template <class CppStructType>
 inline CppStructType& VNativeStruct::GetStruct()
 {
-	checkSlow(sizeof(CppStructType) == GetUScriptStruct(*GetEmergentType())->GetCppStructOps()->GetSize());
+	checkSlow(GetUScriptStruct(*GetEmergentType()) == StaticStruct<CppStructType>());
 
 	return *BitCast<CppStructType*>(GetStruct());
 }
@@ -58,6 +56,8 @@ inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& I
 
 	SetIsStruct();
 	void* Data = GetData(*InEmergentType.CppClassInfo);
+
+	// TODO: AutoRTFM::Close and propagate any errors.
 	new (Data) StructType(Forward<CppStructType>(InStruct));
 }
 
@@ -75,6 +75,7 @@ inline VNativeStruct::VNativeStruct(FAllocationContext Context, VEmergentType& I
 		}
 		else
 		{
+			// TODO: AutoRTFM::Close and propagate any errors.
 			CppStructOps->Construct(Data);
 		}
 	}
@@ -86,6 +87,7 @@ inline VNativeStruct::~VNativeStruct()
 	UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(*EmergentType)->GetCppStructOps();
 	if (CppStructOps->HasDestructor())
 	{
+		// TODO: AutoRTFM::Close and propagate any errors.
 		CppStructOps->Destruct(VObject::GetData(*EmergentType->CppClassInfo));
 	}
 }

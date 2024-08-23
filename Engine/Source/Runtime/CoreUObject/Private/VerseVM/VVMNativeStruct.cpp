@@ -29,10 +29,13 @@ void VNativeStruct::VisitReferencesImpl(TVisitor& Visitor)
 		switch (It->Value.Type)
 		{
 			case EFieldType::FProperty:
-				check(It->Value.UProperty->IsA<FVRestValueProperty>());
+				// C++ is responsible for tracing native fields.
+				break;
+			case EFieldType::FVerseProperty:
 				::Verse::Visit(Visitor, *It->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(Data), *WriteToString<64>(It->Key->AsStringView()));
 				break;
 			case EFieldType::Offset:
+			case EFieldType::FPropertyVar:
 			case EFieldType::Constant:
 				VERSE_UNREACHABLE();
 				break;
@@ -55,6 +58,7 @@ VNativeStruct& VNativeStruct::Duplicate(FAllocationContext Context)
 	}
 	else
 	{
+		// TODO: AutoRTFM::Close and propagate any errors.
 		CppStructOps->Copy(NewData, Data, 1);
 	}
 
@@ -74,6 +78,8 @@ bool VNativeStruct::EqualImpl(FAllocationContext Context, VCell* Other, const TF
 	UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(*EmergentType)->GetCppStructOps();
 	V_DIE_UNLESS(CppStructOps->HasIdentical());
 	VNativeStruct& OtherStruct = Other->StaticCast<VNativeStruct>();
+
+	// TODO: AutoRTFM::Close and propagate any errors.
 	bool bResult = false;
 	CppStructOps->Identical(GetData(*EmergentType->CppClassInfo), OtherStruct.GetData(*EmergentType->CppClassInfo), PPF_None, bResult);
 	return bResult;
@@ -85,6 +91,8 @@ uint32 VNativeStruct::GetTypeHashImpl()
 	VEmergentType* EmergentType = GetEmergentType();
 	UScriptStruct::ICppStructOps* CppStructOps = GetUScriptStruct(*EmergentType)->GetCppStructOps();
 	V_DIE_UNLESS(CppStructOps->HasGetTypeHash());
+
+	// TODO: AutoRTFM::Close and propagate any errors.
 	return CppStructOps->GetStructTypeHash(GetData(*EmergentType->CppClassInfo));
 }
 
@@ -103,7 +111,9 @@ VValue VNativeStruct::MeltImpl(FAllocationContext Context)
 		switch (It->Value.Type)
 		{
 			case EFieldType::FProperty:
-				check(It->Value.UProperty->IsA<FVRestValueProperty>());
+				// C++ copy constructor is responsible for melting native fields.
+				break;
+			case EFieldType::FVerseProperty:
 				MeltResult = VValue::Melt(Context, It->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(Data)->Get(Context));
 				if (MeltResult.IsPlaceholder())
 				{
@@ -112,7 +122,9 @@ VValue VNativeStruct::MeltImpl(FAllocationContext Context)
 				It->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(NewData)->Set(Context, MeltResult);
 				break;
 			case EFieldType::Offset:
+			case EFieldType::FPropertyVar:
 			case EFieldType::Constant:
+				VERSE_UNREACHABLE();
 				break;
 		}
 	}
@@ -135,12 +147,16 @@ VValue VNativeStruct::FreezeImpl(FAllocationContext Context)
 		switch (It->Value.Type)
 		{
 			case EFieldType::FProperty:
-				check(It->Value.UProperty->IsA<FVRestValueProperty>());
+				// C++ copy constructor is responsible for freezing native fields.
+				break;
+			case EFieldType::FVerseProperty:
 				FreezeResult = VValue::Freeze(Context, It->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(Data)->Get(Context));
 				It->Value.UProperty->ContainerPtrToValuePtr<VRestValue>(NewData)->Set(Context, FreezeResult);
 				break;
 			case EFieldType::Offset:
+			case EFieldType::FPropertyVar:
 			case EFieldType::Constant:
+				VERSE_UNREACHABLE();
 				break;
 		}
 	}
