@@ -1502,6 +1502,12 @@ void FBlueprintEditorUtils::PatchCDOSubobjectsIntoExport(UObject* PreviousCDO, U
 
 							PatchSubObjects(OldSubObj, NewSubObj, AlreadyPatched);
 						}
+						// Matches check in FPackageHarvester::ProcessImport. Invalidate these objects
+						// to avoid generation of implicit dependencies
+						else if (OldSubObj->HasAnyFlags(RF_DefaultSubObject | RF_ArchetypeObject))
+						{
+							FLinkerLoad::InvalidateExport(OldSubObj);
+						}
 					}
 				}
 			}

@@ -5327,11 +5327,15 @@ UObject* FLinkerLoad::CreateExport( int32 Index )
 			return nullptr;
 		}
 
-		// Find the Archetype object for the one we are loading.
+		// Find the Archetype object for the one we are loading and ensure it is preloaded since recursively creating exports 
+		// may find newly created archetype exports that have not been preloaded yet
 		UObject* Template = UObject::GetArchetypeFromRequiredInfo(LoadClass, ThisParent, Export.ObjectName, Export.ObjectFlags);
-
 		checkf(Template, TEXT("Failed to get template for class %s. ExportName=%s"), *LoadClass->GetPathName(), *Export.ObjectName.ToString());
 		checkfSlow(((Export.ObjectFlags&RF_ClassDefaultObject)!=0 || Template->IsA(LoadClass)), TEXT("Mismatch between template %s and load class %s.  If this is a legacy blueprint or map, it may need to be resaved with bRecompileOnLoad turned off."), *Template->GetPathName(), *LoadClass->GetPathName());
+		if (GetLoaderType() == ELoaderType::ZenLoader)
+		{
+			Preload(Template);
+		}
 		
 		// we also need to ensure that the template has set up any instances
 		Template->ConditionalPostLoadSubobjects();
