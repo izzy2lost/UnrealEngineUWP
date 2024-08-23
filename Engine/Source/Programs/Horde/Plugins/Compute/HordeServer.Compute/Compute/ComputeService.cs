@@ -167,6 +167,7 @@ namespace HordeServer.Compute
 		public event ResourceNeedEvent? OnResourceNeedsUpdated;
 
 		readonly IAgentCollection _agentCollection;
+		readonly IAgentScheduler _agentScheduler;
 		readonly ILogCollection _logCollection;
 		readonly AgentService _agentService;
 		readonly AgentRelayService _agentRelayService;
@@ -189,6 +190,7 @@ namespace HordeServer.Compute
 		/// </summary>
 		public ComputeService(
 			IAgentCollection agentCollection,
+			IAgentScheduler agentScheduler,
 			ILogCollection logCollection,
 			AgentService agentService,
 			AgentRelayService agentRelayService,
@@ -201,6 +203,7 @@ namespace HordeServer.Compute
 			ILogger<ComputeService> logger)
 		{
 			_agentCollection = agentCollection;
+			_agentScheduler = agentScheduler;
 			_logCollection = logCollection;
 			_agentService = agentService;
 			_agentRelayService = agentRelayService;
@@ -687,8 +690,7 @@ namespace HordeServer.Compute
 				return null;
 			}
 
-			List<LeaseId> childLeaseIds = await _agentCollection.GetChildLeaseIdsAsync(parentLeaseId.Value, cancellationToken);
-			return childLeaseIds.Count;
+			return await _agentScheduler.GetChildLeaseCountAsync(parentLeaseId.Value, cancellationToken);
 		}
 
 		private async Task<ComputeResource?> TryAssignAsync(AllocateResourceParams arp, IAgent agent, ComputeTask computeTask, LeaseId leaseId)

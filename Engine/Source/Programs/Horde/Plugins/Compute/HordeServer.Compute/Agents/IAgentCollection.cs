@@ -1,7 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using EpicGames.Horde.Agents;
-using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using HordeServer.Auditing;
 
@@ -52,21 +51,6 @@ namespace HordeServer.Agents
 		/// <param name="cancellationToken">Cancellation token for the operation</param>
 		/// <returns>List of agents matching the given criteria</returns>
 		IAsyncEnumerable<IAgent> FindAsync(PoolId? poolId = null, DateTime? modifiedAfter = null, string? property = null, AgentStatus? status = null, bool? enabled = null, bool includeDeleted = false, bool consistentRead = true, CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Finds all active agent lease IDs
-		/// </summary>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of agent lease IDs</returns>
-		Task<List<LeaseId>> FindActiveLeaseIdsAsync(CancellationToken cancellationToken = default);
-
-		/// <summary>
-		/// Get all child lease IDs
-		/// </summary>
-		/// <param name="id">Lease ID</param>
-		/// <param name="cancellationToken">Cancellation token for the operation</param>
-		/// <returns>List of agent lease IDs</returns>
-		Task<List<LeaseId>> GetChildLeaseIdsAsync(LeaseId id, CancellationToken cancellationToken = default);
 
 		/// <summary>
 		/// Gets the log channel for an agent

@@ -11,6 +11,7 @@ using HordeServer.Auditing;
 using HordeServer.Jobs;
 using HordeServer.Utilities;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace HordeServer.Tests.Agents;
 
@@ -165,13 +166,13 @@ public class AgentServiceTest : BuildTestSetup
 
 		// Let background task run for purging outdated sessions, which will terminate session for our agent
 		await Clock.AdvanceAsync(TimeSpan.FromHours(1));
-		await ((AgentCollection)AgentCollection).TickSharedAsync(CancellationToken.None);
+		await ServiceProvider.GetRequiredService<AgentCollection>().TickSharedAsync(CancellationToken.None);
 
 		// Ephemeral agent is marked as deleted once its session is terminated
 		Assert.IsTrue((await AgentService.GetAgentAsync(agent.Id))!.Deleted);
 
 		await Clock.AdvanceAsync(TimeSpan.FromHours(25));
-		await ((AgentCollection)AgentCollection).TickSharedAsync(CancellationToken.None);
+		await ServiceProvider.GetRequiredService<AgentCollection>().TickSharedAsync(CancellationToken.None);
 
 		// Once more time has passed, the ephemeral agent marked as deleted is removed from database
 		Assert.IsNull(await AgentService.GetAgentAsync(agent.Id));

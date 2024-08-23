@@ -12,6 +12,7 @@ namespace HordeServer.Tests
 	{
 		public ComputeService ComputeService => ServiceProvider.GetRequiredService<ComputeService>();
 		public IAgentCollection AgentCollection => ServiceProvider.GetRequiredService<IAgentCollection>();
+		public IAgentScheduler AgentScheduler => ServiceProvider.GetRequiredService<IAgentScheduler>();
 		public StorageService StorageService => ServiceProvider.GetRequiredService<StorageService>();
 		public ILogCollection LogCollection => ServiceProvider.GetRequiredService<ILogCollection>();
 

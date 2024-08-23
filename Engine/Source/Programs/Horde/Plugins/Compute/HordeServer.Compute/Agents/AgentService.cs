@@ -654,20 +654,11 @@ namespace HordeServer.Agents
 					throw new InvalidOperationException("Session has already expired");
 				}
 
-				// Extend the current session time if we're within a time period of the current time expiring. This reduces
-				// unnecessary DB writes a little, but it also allows us to skip the update and jump into a long poll state
-				// if there's still time on the session left.
-				DateTime? sessionExpiresAt = null;
-				if (!agent.SessionExpiresAt.HasValue || utcNow > (agent.SessionExpiresAt - SessionExpiryTime) + SessionRenewTime)
-				{
-					sessionExpiresAt = utcNow + SessionExpiryTime;
-				}
-
 				// Get the new dynamic pools for the agent
 				List<PoolId> dynamicPools = await GetDynamicPoolsAsync(agent, cancellationToken);
 
 				// Update the agent, and try to create new lease documents if we succeed
-				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, sessionExpiresAt, capabilities, dynamicPools, newLeases), cancellationToken);
+				IAgent? newAgent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions(status, capabilities, dynamicPools, newLeases), cancellationToken);
 				if (newAgent != null)
 				{
 					agent = newAgent;

@@ -312,11 +312,10 @@ namespace HordeServer.Agents
 	/// Options for updating a new agent session
 	/// </summary>
 	/// <param name="Status">New status of the agent</param>
-	/// <param name="SessionExpiresAt">New expiry time for the current session</param>
 	/// <param name="Capabilities">Capbilities for the session</param>
 	/// <param name="DynamicPools">New list of dynamic pools for the agent</param>
 	/// <param name="Leases">New set of leases</param>
-	public record class UpdateSessionOptions(AgentStatus? Status = null, DateTime? SessionExpiresAt = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, IEnumerable<RpcLease>? Leases = null);
+	public record class UpdateSessionOptions(AgentStatus? Status = null, RpcAgentCapabilities? Capabilities = null, IReadOnlyList<PoolId>? DynamicPools = null, IEnumerable<RpcLease>? Leases = null);
 
 	/// <summary>
 	/// Extension methods for IAgent

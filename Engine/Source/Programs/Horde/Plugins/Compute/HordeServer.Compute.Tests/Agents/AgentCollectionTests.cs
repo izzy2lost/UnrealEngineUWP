@@ -21,28 +21,44 @@ public class AgentCollectionTests : ComputeTestSetup
 
 	public AgentCollectionTests()
 	{
-		_agent = AgentCollection.AddAsync(new AgentId("test"), ephemeral: true, enrollmentKey: "").Result;
+		_agent = null!;
 		_lease1 = new CreateLeaseOptions(LeaseId.Parse("aaaaaaaaaaaaaaaaaaaaaaaa"), null, "lease", null, null, null, null, false, new Empty());
 		_lease2 = new CreateLeaseOptions(LeaseId.Parse("bbbbbbbbbbbbbbbbbbbbbbbb"), null, "lease", null, null, null, null, false, new Empty());
 		_leaseWithParent3 = new CreateLeaseOptions(LeaseId.Parse("cccccccccccccccccccccccc"), _lease1.Id, "leaseWithParent3", null, null, null, null, false, new Empty());
 		_leaseWithParent4 = new CreateLeaseOptions(LeaseId.Parse("dddddddddddddddddddddddd"), _lease1.Id, "leaseWithParent4", null, null, null, null, false, new Empty());
 	}
 
+	[TestInitialize]
+	public async Task SetupAsync()
+	{
+		_agent = await AgentCollection.AddAsync(new AgentId("test"), ephemeral: true, enrollmentKey: "");
+	}
+
 	[TestMethod]
 	public async Task AddLeaseAsync()
 	{
-		await _agent.TryCreateLeaseAsync(_lease1);
+		IAgent? agent = await _agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
+
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(1, agent.Leases.Count);
 		await UpdateAgentAsync();
 
-		await _agent.TryCreateLeaseAsync(_leaseWithParent3);
+		agent = await agent.TryCreateLeaseAsync(_leaseWithParent3);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(2, agent.Leases.Count);
 		await UpdateAgentAsync();
 
-		await _agent.TryCreateLeaseAsync(_leaseWithParent4);
+		agent = await agent.TryCreateLeaseAsync(_leaseWithParent4);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(3, agent.Leases.Count);
 		await UpdateAgentAsync();
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(3, leases.Count);
+		Assert.AreEqual(3, leases.Length);
 		Assert.IsTrue(leases.Contains(_lease1.Id));
 		Assert.IsTrue(leases.Contains(_leaseWithParent3.Id));
 		Assert.IsTrue(leases.Contains(_leaseWithParent4.Id));
@@ -60,9 +76,9 @@ public class AgentCollectionTests : ComputeTestSetup
 		await _agent.TryCreateSessionAsync(new CreateSessionOptions(
 			new RpcAgentCapabilities(), new List<PoolId>(), null));
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(0, leases.Count);
+		Assert.AreEqual(0, leases.Length);
 	}
 
 	[TestMethod]
@@ -89,26 +105,27 @@ public class AgentCollectionTests : ComputeTestSetup
 			Leases = new List<RpcLease>()
 		});
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(0, leases.Count);
+		Assert.AreEqual(0, leases.Length);
 	}
 
 	[TestMethod]
 	public async Task UpdateSession_WithNewLeasesAsync()
 	{
-		await _agent.TryCreateLeaseAsync(_lease1);
-		await UpdateAgentAsync();
+		IAgent? agent = await _agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
 
-		IAgent? newAgent = await _agent.TryCreateLeaseAsync(_lease1);
-		Assert.IsNotNull(newAgent);
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
 
-		newAgent = await _agent.TryCreateLeaseAsync(_lease2);
-		Assert.IsNotNull(newAgent);
+		agent = await agent.TryCreateLeaseAsync(_lease2);
+		Assert.IsNotNull(agent);
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(2, leases.Count);
+		Assert.AreEqual(2, leases.Length);
 		Assert.IsTrue(leases.Contains(_lease1.Id));
 		Assert.IsTrue(leases.Contains(_lease2.Id));
 	}
@@ -116,13 +133,17 @@ public class AgentCollectionTests : ComputeTestSetup
 	[TestMethod]
 	public async Task UpdateSession_WithOneLeaseRemovedAsync()
 	{
-		await _agent.TryCreateLeaseAsync(_lease1);
-		await UpdateAgentAsync();
+		IAgent? agent = await _agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
 
-		await _agent.TryCreateLeaseAsync(_lease2);
-		await UpdateAgentAsync();
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions
+		agent = await agent.TryCreateLeaseAsync(_lease2);
+		Assert.IsNotNull(agent);
+
+		agent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions
 		{
 			Leases = new List<RpcLease>
 			{
@@ -130,30 +151,106 @@ public class AgentCollectionTests : ComputeTestSetup
 				new RpcLease{ Id = _lease2.Id, State = RpcLeaseState.Active }
 			}
 		});
-		await UpdateAgentAsync();
+		Assert.IsNotNull(agent);
 
-		await _agent.TryUpdateSessionAsync(new UpdateSessionOptions { Leases = new List<RpcLease> { new RpcLease { Id = _lease1.Id } } });
+		agent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions
+		{
+			Leases = new List<RpcLease>
+			{
+				new RpcLease { Id = _lease1.Id }
+			}
+		});
+		Assert.IsNotNull(agent);
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(1, leases.Count);
+		Assert.AreEqual(1, leases.Length);
 		Assert.IsTrue(leases.Contains(_lease1.Id));
 	}
 
 	[TestMethod]
 	public async Task CancelLeaseAsync()
 	{
-		await _agent.TryCreateLeaseAsync(_lease1);
-		await UpdateAgentAsync();
+		IAgent? agent = _agent;
 
-		await _agent.TryCreateLeaseAsync(_lease2);
-		await UpdateAgentAsync();
+		agent = await agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
 
-		await _agent.TryCancelLeaseAsync(0);
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(1, agent.Leases.Count);
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		agent = await agent.TryCreateLeaseAsync(_lease2);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(2, agent.Leases.Count);
 
-		Assert.AreEqual(1, leases.Count);
+		agent = await agent.TryCancelLeaseAsync(0);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(1, agent.Leases.Count);
+
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
+		Assert.AreEqual(1, leases.Length);
+		Assert.IsTrue(leases.Contains(_lease2.Id));
+	}
+
+	[TestMethod]
+	public async Task CancelLease2Async()
+	{
+		IAgent? agent = _agent;
+
+		agent = await agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
+
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(1, agent.Leases.Count);
+
+		agent = await agent.TryCreateLeaseAsync(_lease2);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(2, agent.Leases.Count);
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease1.Id && x.State == LeaseState.Pending));
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease2.Id && x.State == LeaseState.Pending));
+
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
+		Assert.AreEqual(2, leases.Length);
+		Assert.IsTrue(leases.Contains(_lease1.Id));
+		Assert.IsTrue(leases.Contains(_lease2.Id));
+
+		agent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions
+		{
+			Leases = new List<RpcLease>
+			{
+				new RpcLease { Id = _lease1.Id, State = RpcLeaseState.Active },
+				new RpcLease { Id = _lease2.Id, State = RpcLeaseState.Active }
+			}
+		});
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(2, agent.Leases.Count);
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease1.Id && x.State == LeaseState.Active));
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease2.Id && x.State == LeaseState.Active));
+
+		agent = await agent.TryCancelLeaseAsync(0);
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(2, agent.Leases.Count);
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease1.Id && x.State == LeaseState.Cancelled));
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease2.Id && x.State == LeaseState.Active));
+
+		agent = await agent.TryUpdateSessionAsync(new UpdateSessionOptions
+		{
+			Leases = new List<RpcLease>
+			{
+				new RpcLease { Id = _lease1.Id, State = RpcLeaseState.Completed },
+				new RpcLease { Id = _lease2.Id, State = RpcLeaseState.Active }
+			}
+		});
+		Assert.IsNotNull(agent);
+		Assert.AreEqual(1, agent.Leases.Count);
+		Assert.IsTrue(agent.Leases.Any(x => x.Id == _lease2.Id && x.State == LeaseState.Active));
+
+		leases = await AgentScheduler.FindActiveLeaseIdsAsync();
+		Assert.AreEqual(1, leases.Length);
 		Assert.IsTrue(leases.Contains(_lease2.Id));
 	}
 
@@ -168,32 +265,40 @@ public class AgentCollectionTests : ComputeTestSetup
 
 		await _agent.TryTerminateSessionAsync();
 
-		List<LeaseId> leases = await AgentCollection.FindActiveLeaseIdsAsync();
+		LeaseId[] leases = await AgentScheduler.FindActiveLeaseIdsAsync();
 
-		Assert.AreEqual(0, leases.Count);
+		Assert.AreEqual(0, leases.Length);
 	}
 
 	[TestMethod]
 	public async Task GetChildLeaseIdsAsync()
 	{
-		await _agent.TryCreateLeaseAsync(_lease1);
-		await UpdateAgentAsync();
+		IAgent? agent = _agent;
 
-		await _agent.TryCreateLeaseAsync(_leaseWithParent3);
-		await UpdateAgentAsync();
+		agent = await agent.TryCreateSessionAsync(new CreateSessionOptions(new RpcAgentCapabilities(), Array.Empty<PoolId>(), "foo"));
+		Assert.IsNotNull(agent);
+		Assert.IsNotNull(agent.SessionId);
 
-		await _agent.TryCreateLeaseAsync(_leaseWithParent4);
-		await UpdateAgentAsync();
+		agent = await agent.TryCreateLeaseAsync(_lease1);
+		Assert.IsNotNull(agent);
 
-		List<LeaseId> leases = await AgentCollection.GetChildLeaseIdsAsync(_leaseWithParent3.ParentId!.Value);
+		agent = await agent.TryCreateLeaseAsync(_leaseWithParent3);
+		Assert.IsNotNull(agent);
 
-		Assert.AreEqual(2, leases.Count);
+		agent = await agent.TryCreateLeaseAsync(_leaseWithParent4);
+		Assert.IsNotNull(agent);
+
+		LeaseId[] leases = await AgentScheduler.GetChildLeaseIdsAsync(_leaseWithParent3.ParentId!.Value);
+
+		Assert.AreEqual(2, leases.Length);
 		Assert.IsTrue(leases.Contains(_leaseWithParent3.Id));
 		Assert.IsTrue(leases.Contains(_leaseWithParent4.Id));
 	}
 
 	private async Task UpdateAgentAsync()
 	{
-		_agent = (await AgentCollection.GetAsync(_agent.Id))!;
+		IAgent? agent = await AgentCollection.GetAsync(_agent.Id);
+		Assert.IsNotNull(agent);
+		_agent = agent;
 	}
 }

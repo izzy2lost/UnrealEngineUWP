@@ -1,16 +1,17 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-using System.Collections.ObjectModel;
 using System.Collections.Concurrent;
+using System.Collections.ObjectModel;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq.Expressions;
+using System.Runtime.CompilerServices;
 using EpicGames.Core;
 using EpicGames.Horde.Agents;
 using EpicGames.Horde.Agents.Leases;
 using EpicGames.Horde.Agents.Pools;
 using EpicGames.Horde.Agents.Sessions;
-using EpicGames.Redis;
 using Google.Protobuf;
+using Google.Protobuf.Collections;
 using Google.Protobuf.WellKnownTypes;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
@@ -19,34 +20,38 @@ using HordeServer.Agents.Leases;
 using HordeServer.Agents.Sessions;
 using HordeServer.Auditing;
 using HordeServer.Server;
+using HordeServer.Utilities;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 using MongoDB.Driver;
-using StackExchange.Redis;
-using Microsoft.Extensions.Hosting;
 using OpenTelemetry.Trace;
-using System.Runtime.CompilerServices;
+using StackExchange.Redis;
 
 namespace HordeServer.Agents
 {
 	/// <summary>
 	/// Collection of agent documents
 	/// </summary>
-	public sealed class AgentCollection : IAgentCollection, IHostedService, IAsyncDisposable
+	public sealed class AgentCollection : IAgentCollection, IHostedService
 	{
 		class Agent : IAgent
 		{
 			static IReadOnlyList<string> DefaultProperties { get; } = new List<string>();
 			static IReadOnlyDictionary<string, int> DefaultResources { get; } = new Dictionary<string, int>();
 
+			public AgentDocument Document => _document;
+			public RpcSession? Session => _session;
+
 			readonly AgentCollection _collection;
 			readonly AgentDocument _document;
+			readonly RpcSession? _session;
 
-			AgentId IAgent.Id => _document.Id;
-			SessionId? IAgent.SessionId => _document.SessionId;
-			DateTime? IAgent.SessionExpiresAt => _document.SessionExpiresAt;
-			AgentStatus IAgent.Status => _document.Status;
+			public AgentId Id => _document.Id;
+			SessionId? IAgent.SessionId => _session?.SessionId;
+			DateTime? IAgent.SessionExpiresAt => _session?.ExpiryTime;
+			AgentStatus IAgent.Status => (AgentStatus?)_session?.Status ?? AgentStatus.Stopped;
 			DateTime? IAgent.LastOnlineTime => _document.LastOnlineTime;
 			bool IAgent.Enabled => _document.Enabled;
 			bool IAgent.Ephemeral => _document.Ephemeral;
@@ -70,87 +75,65 @@ namespace HordeServer.Agents
 			IReadOnlyList<AgentWorkspaceInfo> IAgent.Workspaces => _document.Workspaces;
 			DateTime IAgent.LastConformTime => _document.LastConformTime;
 			int? IAgent.ConformAttemptCount => _document.ConformAttemptCount;
-			static readonly IReadOnlyList<AgentLease> s_emptyLeases = new List<AgentLease>();
-			IReadOnlyList<IAgentLease> IAgent.Leases => _document.Leases ?? s_emptyLeases;
+			IReadOnlyList<IAgentLease> IAgent.Leases => (IReadOnlyList<IAgentLease>?)_session?.Leases ?? Array.Empty<IAgentLease>();
 			string IAgent.EnrollmentKey => _document.EnrollmentKey;
 			DateTime IAgent.UpdateTime => _document.UpdateTime;
 			uint IAgent.UpdateIndex => _document.UpdateIndex;
 
-			public Agent(AgentCollection collection, AgentDocument document)
+			public Agent(AgentCollection collection, AgentDocument document, RpcSession? session)
 			{
 				_collection = collection;
 				_document = document;
+				_session = session;
 			}
 
+			/// <inheritdoc/>
 			public async Task<ISession?> GetSessionAsync(SessionId sessionId, CancellationToken cancellationToken = default)
-			{
-				return await _collection.GetSessionAsync(_document.Id, sessionId, cancellationToken);
-			}
+				=> await _collection.GetSessionAsync(_document.Id, sessionId, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IReadOnlyList<ISession>> FindSessionsAsync(DateTime? startTime, DateTime? finishTime, int index, int count, CancellationToken cancellationToken = default)
-			{
-				return await _collection.FindSessionsAsync(_document.Id, startTime, finishTime, index, count, cancellationToken);
-			}
+				=> await _collection.FindSessionsAsync(_document.Id, startTime, finishTime, index, count, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryCreateLeaseAsync(CreateLeaseOptions options, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryCreateLeaseAsync(_document, options, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryCreateLeaseAsync(this, options, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryCancelLeaseAsync(int leaseIdx, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryCancelLeaseAsync(_document, leaseIdx, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryCancelLeaseAsync(this, leaseIdx, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryDeleteAsync(CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryDeleteAsync(_document, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryDeleteAsync(this, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryResetAsync(bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryResetAsync(_document, ephemeral, enrollmentKey, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryResetAsync(this, ephemeral, enrollmentKey, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryCreateSessionAsync(CreateSessionOptions options, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryCreateSessionAsync(_document, options, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryCreateSessionAsync(this, options, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryTerminateSessionAsync(CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryTerminateSessionAsync(_document, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryTerminateSessionAsync(this, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryUpdateSessionAsync(UpdateSessionOptions options, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryUpdateSessionAsync(_document, options, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryUpdateSessionAsync(this, options, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryUpdateAsync(UpdateAgentOptions options, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryUpdateSettingsAsync(_document, options, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryUpdateSettingsAsync(this, options, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> TryUpdateWorkspacesAsync(List<AgentWorkspaceInfo> workspaces, bool requestConform, CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.TryUpdateWorkspacesAsync(_document, workspaces, requestConform, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.TryUpdateWorkspacesAsync(this, workspaces, requestConform, cancellationToken);
 
+			/// <inheritdoc/>
 			public async Task<IAgent?> WaitForUpdateAsync(CancellationToken cancellationToken = default)
-			{
-				AgentDocument? newDocument = await _collection.WaitForUpdateAsync(_document, cancellationToken);
-				return _collection.CreateAgentObject(newDocument);
-			}
+				=> await _collection.WaitForSessionUpdateAsync(this, cancellationToken);
 		}
 
 		/// <summary>
@@ -162,9 +145,11 @@ namespace HordeServer.Agents
 			public AgentId Id { get; set; }
 
 			public SessionId? SessionId { get; set; }
-			public DateTime? SessionExpiresAt { get; set; }
 
-			public AgentStatus Status { get; set; }
+			[BsonIgnoreIfNull]
+			[Obsolete("Session state now stored in Redis")]
+			public AgentStatus? Status { get; set; }
+
 			public DateTime? LastOnlineTime { get; set; }
 
 			[BsonRequired]
@@ -218,7 +203,10 @@ namespace HordeServer.Agents
 			[BsonIgnoreIfNull]
 			public int? ConformAttemptCount { get; set; }
 
+			[BsonIgnoreIfNull]
+			[Obsolete("Session state now stored in Redis")]
 			public List<AgentLease>? Leases { get; set; }
+
 			public DateTime UpdateTime { get; set; }
 			public uint UpdateIndex { get; set; }
 			public string EnrollmentKey { get; set; } = String.Empty;
@@ -237,7 +225,6 @@ namespace HordeServer.Agents
 				Id = id;
 				Ephemeral = ephemeral;
 				EnrollmentKey = enrollmentKey;
-				Status = AgentStatus.Stopped;
 			}
 		}
 
@@ -276,24 +263,21 @@ namespace HordeServer.Agents
 		readonly IMongoCollection<AgentDocument> _agentCollection;
 		readonly IMongoCollection<SessionDocument> _sessionCollection;
 		readonly ILeaseCollection _leaseCollection;
+		readonly IAgentScheduler _scheduler;
 		readonly IAuditLog<AgentId> _auditLog;
-		readonly IRedisService _redisService;
 		readonly IClock _clock;
-		readonly RedisChannel<AgentId> _updateEventChannel;
 		readonly ITicker _sharedTicker;
-		readonly ConcurrentDictionary<AgentId, TaskCompletionSource> _agentIdToTcs = new ConcurrentDictionary<AgentId, TaskCompletionSource>();
-		IAsyncDisposable? _updateEventSubscription;
+		readonly ConcurrentDictionary<SessionId, TaskCompletionSource> _sessionIdToTcs = new ConcurrentDictionary<SessionId, TaskCompletionSource>();
 		readonly Tracer _tracer;
 		readonly ILogger _logger;
 
 		/// <summary>
 		/// Constructor
 		/// </summary>
-		public AgentCollection(IMongoService mongoService, IRedisService redisService, ILeaseCollection leaseCollection, IClock clock, IAuditLog<AgentId> auditLog, Tracer tracer, ILogger<AgentCollection> logger)
+		public AgentCollection(IMongoService mongoService, ILeaseCollection leaseCollection, IAgentScheduler scheduler, IClock clock, IAuditLog<AgentId> auditLog, Tracer tracer, ILogger<AgentCollection> logger)
 		{
 			List<MongoIndex<AgentDocument>> agentIndexes = new List<MongoIndex<AgentDocument>>();
 			agentIndexes.Add(keys => keys.Ascending(x => x.Deleted).Ascending(x => x.Id).Ascending(x => x.Pools));
-			agentIndexes.Add(keys => keys.Ascending(x => x.SessionExpiresAt), sparse: true);
 			_agentCollection = mongoService.GetCollection<AgentDocument>("Agents", agentIndexes);
 
 			List<MongoIndex<SessionDocument>> sessionIndexes = new List<MongoIndex<SessionDocument>>();
@@ -301,10 +285,9 @@ namespace HordeServer.Agents
 			sessionIndexes.Add(keys => keys.Ascending(x => x.FinishTime));
 			_sessionCollection = mongoService.GetCollection<SessionDocument>("Sessions", sessionIndexes);
 
-			_redisService = redisService;
 			_leaseCollection = leaseCollection;
+			_scheduler = scheduler;
 			_clock = clock;
-			_updateEventChannel = new RedisChannel<AgentId>(RedisChannel.Literal("agents/notify"));
 			_sharedTicker = clock.AddSharedTicker($"{nameof(AgentCollection)}.{nameof(TickSharedAsync)}", TimeSpan.FromSeconds(30.0), TickSharedAsync, logger);
 			_auditLog = auditLog;
 			_tracer = tracer;
@@ -315,17 +298,12 @@ namespace HordeServer.Agents
 		public async ValueTask DisposeAsync()
 		{
 			await _sharedTicker.DisposeAsync();
-			if (_updateEventSubscription != null)
-			{
-				await _updateEventSubscription.DisposeAsync();
-				_updateEventSubscription = null;
-			}
 		}
 
 		/// <inheritdoc/>
 		public async Task StartAsync(CancellationToken cancellationToken)
 		{
-			_updateEventSubscription = await _redisService.GetDatabase().Multiplexer.SubscribeAsync(_updateEventChannel, OnAgentUpdate);
+			_scheduler.SessionUpdated += OnSessionUpdate;
 			await _sharedTicker.StartAsync();
 		}
 
@@ -333,11 +311,7 @@ namespace HordeServer.Agents
 		public async Task StopAsync(CancellationToken cancellationToken)
 		{
 			await _sharedTicker.StopAsync();
-			if (_updateEventSubscription != null)
-			{
-				await _updateEventSubscription.DisposeAsync();
-				_updateEventSubscription = null;
-			}
+			_scheduler.SessionUpdated -= OnSessionUpdate;
 		}
 
 		internal async ValueTask TickSharedAsync(CancellationToken stoppingToken)
@@ -353,30 +327,18 @@ namespace HordeServer.Agents
 			using TelemetrySpan span = _tracer.StartActiveSpan($"{nameof(AgentService)}.{nameof(TerminateExpiredSessionsAsync)}");
 
 			int c = 0;
-			while (!cancellationToken.IsCancellationRequested)
+			await foreach (RpcSession session in _scheduler.FindExpiredSessionsAsync(cancellationToken))
 			{
-				// Find all the agents which are ready to be expired
-				const int MaxAgents = 100;
-				DateTime utcNow = _clock.UtcNow;
-
-				FilterDefinition<AgentDocument> filter = Builders<AgentDocument>.Filter.Exists(x => x.SessionExpiresAt) & Builders<AgentDocument>.Filter.Lt(x => x.SessionExpiresAt, utcNow);
-
-				List<AgentDocument> expiredAgents = await _agentCollection.Find(filter).ToListAsync(cancellationToken);
-				expiredAgents = await PostLoadAsync(expiredAgents, cancellationToken);
-
-				// Transition each agent to being offline
-				foreach (AgentDocument expiredAgent in expiredAgents)
+				AgentDocument? document = await GetDocumentAsync(session.AgentId, cancellationToken);
+				if (document != null)
 				{
-					cancellationToken.ThrowIfCancellationRequested();
-					_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", expiredAgent.SessionId, expiredAgent.Id);
-					await TryTerminateSessionAsync(expiredAgent, cancellationToken);
-				}
-				c += expiredAgents.Count;
-
-				// Try again if we didn't fetch everything
-				if (expiredAgents.Count < MaxAgents)
-				{
-					break;
+					Agent? agent = await CreateAgentObjectAsync(document, session, cancellationToken);
+					if (agent != null)
+					{
+						_logger.LogDebug("Terminating session {SessionId} for agent {Agent}", session.SessionId, session.AgentId);
+						await TryUpdateSessionAsync(agent, new UpdateSessionOptions { Status = AgentStatus.Stopped }, cancellationToken);
+						c++;
+					}
 				}
 			}
 			span.SetAttribute("NumAgentsTerminated", c);
@@ -410,6 +372,7 @@ namespace HordeServer.Agents
 			span.SetAttribute("NumAgentsDeleted", numDeleted);
 		}
 
+#pragma warning disable CS0618
 		async ValueTask<AgentDocument?> PostLoadAsync(AgentDocument? document, CancellationToken cancellationToken)
 		{
 			while (document != null)
@@ -425,6 +388,17 @@ namespace HordeServer.Agents
 
 					newDocument = await TryUpdateAsync(document, updateDefinition, cancellationToken);
 				}
+				else if (document.DocumentVersion == 1)
+				{
+					if (await MoveLeasesToSchedulerAsync(document, cancellationToken))
+					{
+						UpdateDefinition<AgentDocument> updateDefinition = Builders<AgentDocument>.Update
+							.Unset(x => x.Leases)
+							.Set(x => x.DocumentVersion, 2);
+
+						newDocument = await TryUpdateAsync(document, updateDefinition, cancellationToken);
+					}
+				}
 				else
 				{
 					break;
@@ -433,6 +407,56 @@ namespace HordeServer.Agents
 			}
 			return document;
 		}
+
+		async Task<bool> MoveLeasesToSchedulerAsync(AgentDocument document, CancellationToken cancellationToken)
+		{
+			if (document.SessionId != null)
+			{
+				// Create the session with this id, or get the existing session document
+				RpcSession? session = await _scheduler.TryCreateSessionAsync(document.Id, document.SessionId.Value, new RpcAgentCapabilities(), cancellationToken);
+				if (session == null)
+				{
+					session = await _scheduler.TryGetSessionAsync(document.SessionId.Value, cancellationToken);
+					if (session == null)
+					{
+						return false;
+					}
+				}
+
+				// Update the session with the leases in the document
+				RpcSession newSession = new RpcSession(session);
+				if (document.Status != null)
+				{
+					newSession.Status = (RpcAgentStatus)document.Status.Value;
+				}
+				if (document.Leases != null)
+				{
+					foreach (AgentLease agentLease in document.Leases)
+					{
+						if (!newSession.Leases.Any(x => x.Id == agentLease.Id))
+						{
+							RpcSessionLease sessionLease = new RpcSessionLease();
+							sessionLease.Id = agentLease.Id;
+							sessionLease.ParentId = agentLease.ParentId;
+							sessionLease.Payload = (agentLease.Payload == null) ? null : Any.Parser.ParseFrom(agentLease.Payload);
+							sessionLease.State = (RpcLeaseState)agentLease.State;
+							sessionLease.Resources.Add(agentLease.Resources ?? Enumerable.Empty<KeyValuePair<string, int>>());
+							sessionLease.Exclusive = agentLease.Exclusive;
+							session.Leases.Add(sessionLease);
+						}
+					}
+				}
+
+				// Apply the updates
+				if (session != newSession && await _scheduler.TryUpdateSessionAsync(session, newSession, cancellationToken: cancellationToken) == null)
+				{
+					return false;
+				}
+			}
+			return true;
+		}
+
+#pragma warning restore CS0618
 
 		async ValueTask<List<AgentDocument>> PostLoadAsync(List<AgentDocument> documents, CancellationToken cancellationToken)
 		{
@@ -449,7 +473,7 @@ namespace HordeServer.Agents
 		}
 
 		[return: NotNullIfNotNull("document")]
-		Agent? CreateAgentObject(AgentDocument? document)
+		Agent? CreateAgentObject(AgentDocument? document, RpcSession? session)
 		{
 			if (document == null)
 			{
@@ -457,50 +481,135 @@ namespace HordeServer.Agents
 			}
 			else
 			{
-				return new Agent(this, document);
+				return new Agent(this, document, session);
+			}
+		}
+
+		ValueTask<Agent?> CreateAgentObjectAsync(AgentDocument? document, CancellationToken cancellationToken)
+			=> CreateAgentObjectAsync(document, null, cancellationToken);
+
+		async ValueTask<Agent?> CreateAgentObjectAsync(AgentDocument? document, RpcSession? session, CancellationToken cancellationToken)
+		{
+			if (document == null)
+			{
+				return null;
+			}
+
+			AgentId agentId = document.Id;
+			for (; ; )
+			{
+				// If the document doesn't have a session, we don't need to fetch it
+				if (document.SessionId == null && session == null)
+				{
+					return new Agent(this, document, null);
+				}
+				if (document.SessionId != null && session != null && session.SessionId == document.SessionId.Value)
+				{
+					return new Agent(this, document, session);
+				}
+
+				// Reconcile the differences
+				for (; ; )
+				{
+					// Fetch the document again
+					document = await GetDocumentAsync(agentId, cancellationToken);
+					if (document == null)
+					{
+						return null;
+					}
+					if (document.SessionId == null)
+					{
+						session = null;
+						break;
+					}
+
+					// Fetch the session
+					session = await _scheduler.TryGetSessionAsync(document.SessionId.Value, cancellationToken);
+					if (session != null)
+					{
+						break;
+					}
+
+					// If there's no matching session, try to to remove it from the document. We can expect the document to be authoritative here, since we always create the session before
+					// updating the document; if it no longer exists, the document is invalid.
+					document = await TryUpdateAsync(document, Builders<AgentDocument>.Update.Unset(x => x.SessionId).Set(x => x.LastOnlineTime, _clock.UtcNow), cancellationToken);
+					if (document != null)
+					{
+						break;
+					}
+				}
 			}
 		}
 
 		/// <inheritdoc/>
 		public async Task<IAgent> AddAsync(AgentId id, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken)
 		{
-			AgentDocument agent = new AgentDocument(id, ephemeral, enrollmentKey);
-			agent.LastOnlineTime = _clock.UtcNow;
+			AgentDocument document = new AgentDocument(id, ephemeral, enrollmentKey);
+			document.LastOnlineTime = _clock.UtcNow;
+			document.DocumentVersion = 2;
 
-			await _agentCollection.InsertOneAsync(agent, null, cancellationToken);
-			return CreateAgentObject(agent);
+			await _agentCollection.InsertOneAsync(document, null, cancellationToken);
+			return new Agent(this, document, null);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryResetAsync(AgentDocument agent, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
+		async Task<Agent?> TryResetAsync(Agent agent, bool ephemeral, string enrollmentKey, CancellationToken cancellationToken = default)
 		{
-			AgentDocument agentDocument = (AgentDocument)agent;
+			// Don't allow resetting while a session is active
+			if (agent.Document.SessionId != null)
+			{
+				return null;
+			}
 
+			// Try to update the document
 			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update
 				.Set(x => x.Ephemeral, ephemeral)
 				.Set(x => x.EnrollmentKey, enrollmentKey)
-				.Unset(x => x.Deleted)
-				.Unset(x => x.SessionId);
+				.Unset(x => x.Deleted);
 
-			return await TryUpdateAsync(agentDocument, update, cancellationToken);
+			AgentDocument? newDocument = await TryUpdateAsync(agent.Document, update, cancellationToken);
+			if (newDocument == null)
+			{
+				return null;
+			}
+
+			// Create the agent instance
+			return new Agent(this, newDocument, null);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryDeleteAsync(AgentDocument agent, CancellationToken cancellationToken)
+		async Task<Agent?> TryDeleteAsync(Agent agent, CancellationToken cancellationToken)
 		{
+			if (agent.Document.Deleted)
+			{
+				return null;
+			}
+
+			// Terminate the current session
+			if (agent.Session != null)
+			{
+				Agent? newAgent = await TryTerminateSessionAsync(agent, cancellationToken);
+				if (newAgent == null)
+				{
+					return null;
+				}
+				agent = newAgent;
+			}
+
+			// Update the document
 			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update
 				.Set(x => x.Deleted, true)
-				.Set(x => x.EnrollmentKey, "")
-				.Unset(x => x.SessionId);
+				.Set(x => x.EnrollmentKey, "");
 
-			return await TryUpdateAsync(agent, update, cancellationToken);
+			AgentDocument? newDocument = await TryUpdateAsync(agent.Document, update, cancellationToken);
+			return await CreateAgentObjectAsync(newDocument, cancellationToken);
 		}
 
 		/// <inheritdoc/>
 		public async Task<IAgent?> GetAsync(AgentId agentId, CancellationToken cancellationToken)
 		{
 			AgentDocument? document = await GetDocumentAsync(agentId, cancellationToken);
-			return CreateAgentObject(document);
+			return await CreateAgentObjectAsync(document, cancellationToken);
 		}
 
 		async Task<AgentDocument?> GetDocumentAsync(AgentId agentId, CancellationToken cancellationToken)
@@ -515,7 +624,18 @@ namespace HordeServer.Agents
 		{
 			List<AgentDocument> documents = await _agentCollection.Find(p => agentIds.Contains(p.Id)).ToListAsync(cancellationToken);
 			documents = await PostLoadAsync(documents, cancellationToken);
-			return documents.ConvertAll(x => CreateAgentObject(x));
+
+			List<IAgent> agents = new List<IAgent>();
+			foreach (AgentDocument document in documents)
+			{
+				IAgent? agent = await CreateAgentObjectAsync(document, cancellationToken);
+				if (agent != null)
+				{
+					agents.Add(agent);
+				}
+			}
+
+			return agents;
 		}
 
 		/// <inheritdoc/>
@@ -544,11 +664,6 @@ namespace HordeServer.Agents
 				filter &= filterBuilder.AnyEq(x => x.Properties, property);
 			}
 
-			if (status != null)
-			{
-				filter &= filterBuilder.Eq(x => x.Status, status.Value);
-			}
-
 			if (enabled != null)
 			{
 				filter &= filterBuilder.Eq(x => x.Enabled, enabled.Value);
@@ -563,24 +678,14 @@ namespace HordeServer.Agents
 					List<AgentDocument> documents = await PostLoadAsync(cursor.Current.ToList(), cancellationToken);
 					foreach (AgentDocument document in documents)
 					{
-						yield return CreateAgentObject(document);
+						IAgent? agent = await CreateAgentObjectAsync(document, cancellationToken);
+						if (agent != null && (status == null || agent.Status == status.Value))
+						{
+							yield return agent;
+						}
 					}
 				}
 			}
-		}
-
-		/// <inheritdoc/>
-		public async Task<List<LeaseId>> FindActiveLeaseIdsAsync(CancellationToken cancellationToken)
-		{
-			RedisValue[] activeLeaseIds = await _redisService.GetDatabase().SetMembersAsync(RedisKeyActiveLeaseIds());
-			return activeLeaseIds.Select(x => LeaseId.Parse(x.ToString())).ToList();
-		}
-
-		/// <inheritdoc/>
-		public async Task<List<LeaseId>> GetChildLeaseIdsAsync(LeaseId id, CancellationToken cancellationToken)
-		{
-			RedisValue[] childIds = await _redisService.GetDatabase().SetMembersAsync(RedisKeyLeaseChildren(id));
-			return childIds.Select(x => LeaseId.Parse(x.ToString())).ToList();
 		}
 
 		/// <inheritdoc/>
@@ -625,18 +730,11 @@ namespace HordeServer.Agents
 			Expression<Func<AgentDocument, bool>> filter = x => x.Id == current.Id && x.UpdateIndex == prevUpdateIndex;
 			UpdateDefinition<AgentDocument> updateWithIndex = update.Set(x => x.UpdateIndex, current.UpdateIndex).Set(x => x.UpdateTime, current.UpdateTime);
 
-			AgentDocument? newDocument = await _agentCollection.FindOneAndUpdateAsync<AgentDocument>(filter, updateWithIndex, new FindOneAndUpdateOptions<AgentDocument, AgentDocument> { ReturnDocument = ReturnDocument.After }, cancellationToken);
-			if (newDocument == null)
-			{
-				return null;
-			}
-
-			PublishUpdateEvent(newDocument.Id);
-			return newDocument;
+			return await _agentCollection.FindOneAndUpdateAsync<AgentDocument>(filter, updateWithIndex, new FindOneAndUpdateOptions<AgentDocument, AgentDocument> { ReturnDocument = ReturnDocument.After }, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryUpdateSettingsAsync(AgentDocument agent, UpdateAgentOptions options, CancellationToken cancellationToken)
+		async Task<Agent?> TryUpdateSettingsAsync(Agent agent, UpdateAgentOptions options, CancellationToken cancellationToken)
 		{
 			// Update the database
 			UpdateDefinitionBuilder<AgentDocument> updateBuilder = new UpdateDefinitionBuilder<AgentDocument>();
@@ -644,7 +742,7 @@ namespace HordeServer.Agents
 			List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
 			if (options.ExplicitPools != null)
 			{
-				List<PoolId> pools = CreatePoolsList(agent.DynamicPools, options.ExplicitPools, agent.Properties);
+				List<PoolId> pools = CreatePoolsList(agent.Document.DynamicPools, options.ExplicitPools, agent.Document.Properties);
 				updates.Add(updateBuilder.Set(x => x.Pools, pools));
 
 				List<PoolId> explicitPools = CreatePoolsList(options.ExplicitPools).ToList();
@@ -707,69 +805,92 @@ namespace HordeServer.Agents
 			}
 
 			// Apply the update
-			return await TryUpdateAsync(agent, updateBuilder.Combine(updates), cancellationToken);
+			AgentDocument? newDocument = await TryUpdateAsync(agent.Document, updateBuilder.Combine(updates), cancellationToken);
+			return await CreateAgentObjectAsync(newDocument, agent.Session, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryUpdateSessionAsync(AgentDocument agent, UpdateSessionOptions options, CancellationToken cancellationToken)
+		async Task<Agent?> TryUpdateSessionAsync(Agent agent, UpdateSessionOptions options, CancellationToken cancellationToken)
 		{
-			// Create an update definition for the agent
-			UpdateDefinitionBuilder<AgentDocument> updateBuilder = Builders<AgentDocument>.Update;
-			List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
-
-			if (options.Status != null && agent.Status != options.Status.Value)
+			AgentId agentId = agent.Document.Id;
+			if (agent.Session == null)
 			{
-				updates.Add(updateBuilder.Set(x => x.Status, options.Status.Value));
-
-				if (options.Status == AgentStatus.Stopped)
-				{
-					updates.Add(updateBuilder.Set(x => x.LastOnlineTime, _clock.UtcNow));
-				}
-				else
-				{
-					updates.Add(updateBuilder.Unset(x => x.LastOnlineTime));
-				}
-			}
-			if (options.SessionExpiresAt != null)
-			{
-				updates.Add(updateBuilder.Set(x => x.SessionExpiresAt, options.SessionExpiresAt.Value));
+				return null;
 			}
 
-			List<string> newProperties = agent.Properties ?? new List<string>();
+			// Try to update the pools and capabilities first
+			AgentDocument? newDocument = agent.Document;
+			{
+				UpdateDefinitionBuilder<AgentDocument> updateBuilder = Builders<AgentDocument>.Update;
+				List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
+
+				List<string> newProperties = newDocument.Properties ?? new List<string>();
+				if (options.Capabilities != null)
+				{
+					options.Capabilities.Flatten(out newProperties, out Dictionary<string, int> newResources);
+
+					if (!ResourcesEqual(newResources, newDocument.Resources))
+					{
+						updates.Add(updateBuilder.Set(x => x.Resources, newResources));
+					}
+				}
+				if (options.DynamicPools != null)
+				{
+					List<PoolId> dynamicPools = CreatePoolsList(options.DynamicPools).ToList();
+					if (!Enumerable.SequenceEqual(dynamicPools, newDocument.DynamicPools))
+					{
+						updates.Add(updateBuilder.Set(x => x.DynamicPools, dynamicPools));
+					}
+				}
+
+				List<PoolId> pools = CreatePoolsList(options.DynamicPools ?? newDocument.DynamicPools, newDocument.ExplicitPools, newProperties);
+				if (!Enumerable.SequenceEqual(pools, newDocument.Pools))
+				{
+					updates.Add(updateBuilder.Set(x => x.Pools, pools));
+				}
+
+				SetPoolProperties(newProperties, pools);
+
+				if (!Enumerable.SequenceEqual(newDocument.Properties ?? Enumerable.Empty<string>(), newProperties, StringComparer.Ordinal))
+				{
+					updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
+				}
+
+				// Apply the updates
+				if (updates.Count > 0)
+				{
+					newDocument = await TryUpdateAsync(newDocument, updateBuilder.Combine(updates), cancellationToken);
+					if (newDocument == null)
+					{
+						return null;
+					}
+				}
+			}
+
+			// Apply the updates to the session
+			RpcSession? newSession = new RpcSession(agent.Session);
+			if (options.Status != null)
+			{
+				newSession.Status = (RpcAgentStatus)options.Status;
+			}
 			if (options.Capabilities != null)
 			{
-				options.Capabilities.Flatten(out newProperties, out Dictionary<string, int> newResources);
-
-				if (!ResourcesEqual(newResources, agent.Resources))
-				{
-					updates.Add(updateBuilder.Set(x => x.Resources, newResources));
-				}
-			}
-			if (options.DynamicPools != null)
-			{
-				List<PoolId> dynamicPools = CreatePoolsList(options.DynamicPools).ToList();
-				if (!Enumerable.SequenceEqual(dynamicPools, agent.DynamicPools))
-				{
-					updates.Add(updateBuilder.Set(x => x.DynamicPools, dynamicPools));
-				}
+				newSession.CapabilitiesHash = IoHash.Compute(options.Capabilities.ToByteArray()).ToString();
 			}
 			if (options.Leases != null)
 			{
-				// Flag for whether the leases array should be updated
-				bool updateLeases = false;
 				Dictionary<LeaseId, RpcLease> idToRemoteLease = options.Leases.ToDictionary(x => x.Id, x => x);
 
 				// Remove any completed leases from the agent
-				List<AgentLease> leases = agent.Leases?.ConvertAll(x => new AgentLease(x)) ?? new List<AgentLease>();
+				RepeatedField<RpcSessionLease> leases = newSession.Leases;
 				for (int idx = 0; idx < leases.Count; idx++)
 				{
-					AgentLease lease = leases[idx];
+					RpcSessionLease lease = leases[idx];
 					if (!idToRemoteLease.TryGetValue(lease.Id, out RpcLease? remoteLease))
 					{
-						if (lease.State != LeaseState.Pending)
+						if (lease.State != RpcLeaseState.Pending)
 						{
 							leases.RemoveAt(idx--);
-							updateLeases = true;
 						}
 					}
 					else
@@ -777,71 +898,65 @@ namespace HordeServer.Agents
 						if (remoteLease.State == RpcLeaseState.Cancelled || remoteLease.State == RpcLeaseState.Completed)
 						{
 							leases.RemoveAt(idx--);
-							updateLeases = true;
 						}
-						else if (remoteLease.State == RpcLeaseState.Active && lease.State == LeaseState.Pending)
+						else if (newSession.Status == RpcAgentStatus.Stopping || newSession.Status == RpcAgentStatus.Busy)
 						{
-							lease.State = LeaseState.Active;
-							updateLeases = true;
+							lease.State = RpcLeaseState.Cancelled;
+						}
+						else if (remoteLease.State == RpcLeaseState.Active && lease.State == RpcLeaseState.Pending)
+						{
+							lease.State = RpcLeaseState.Active;
 						}
 					}
 				}
-
-				// If the agent is stopping, cancel all the leases. Clear out the current session once it's complete.
-				AgentStatus status = options.Status ?? agent.Status;
-				if (status == AgentStatus.Stopping || status == AgentStatus.Busy)
-				{
-					foreach (AgentLease lease in leases)
-					{
-						if (lease.State != LeaseState.Cancelled)
-						{
-							lease.State = LeaseState.Cancelled;
-							updateLeases = true;
-						}
-					}
-				}
-
-				if (updateLeases)
-				{
-					updates.Add(updateBuilder.Set(x => x.Leases, leases));
-				}
 			}
 
-			// Update the pools
-			List<PoolId> pools = CreatePoolsList(options.DynamicPools ?? agent.DynamicPools, agent.ExplicitPools, newProperties);
-			if (!Enumerable.SequenceEqual(pools, agent.Pools))
-			{
-				updates.Add(updateBuilder.Set(x => x.Pools, pools));
-			}
-
-			SetPoolProperties(newProperties, pools);
-
-			if (!Enumerable.SequenceEqual(agent.Properties ?? Enumerable.Empty<string>(), newProperties, StringComparer.Ordinal))
-			{
-				updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
-			}
-
-			// If there are no new updates, return immediately. This is important for preventing UpdateSession calls from returning immediately.
-			if (updates.Count == 0)
-			{
-				return agent;
-			}
-
-			// Update the agent, and try to create new lease documents if we succeed
-			AgentDocument? newAgent = await TryUpdateAsync(agent, updateBuilder.Combine(updates), cancellationToken);
-			if (newAgent == null)
+			// Apply the updates in redis
+			newSession = await _scheduler.TryUpdateSessionAsync(agent.Session, newSession, options.Capabilities, cancellationToken);
+			if (newSession == null)
 			{
 				return null;
 			}
 
-			// Remove any complete leases
-			if (agent.Leases != null)
+			// If the session is stopped, remove it from the agent document
+			if (agent.Session.Status != RpcAgentStatus.Stopped && newSession.Status == RpcAgentStatus.Stopped)
 			{
-				HashSet<LeaseId> newLeaseIds = new HashSet<LeaseId>(newAgent.Leases?.Select(x => x.Id) ?? Enumerable.Empty<LeaseId>());
-				foreach (AgentLease oldLease in agent.Leases.Where(x => !newLeaseIds.Contains(x.Id)))
-				{
-					await RemoveActiveLeaseAsync(oldLease);
+				// Get the session expiry time. We'll use this to update all the other documents.
+				DateTime expiryTime = newSession.ExpiryTime;
 
+				// Update the agent document
+				while (newDocument != null && newDocument.SessionId == newSession.SessionId)
+				{
+					UpdateDefinition<AgentDocument> update = new BsonDocument();
+					update = update.Unset(x => x.SessionId);
+					update = update.Set(x => x.LastOnlineTime, expiryTime);
+
+					if (agent.Document.Ephemeral)
+					{
+						update = update.Set(x => x.Deleted, true);
+					}
+
+					newDocument = await TryUpdateAsync(agent.Document, update, cancellationToken);
+					if (newDocument != null)
+					{
+						break;
+					}
+
+					newDocument = await GetDocumentAsync(agent.Id, cancellationToken);
+				}
+
+				// Update the session document
+				ILogger agentLogger = GetLogger(agent.Id);
+				agentLogger.LogInformation("Terminated session {SessionId}", newSession.SessionId);
+				await _sessionCollection.UpdateOneAsync(x => x.Id == newSession.SessionId, Builders<SessionDocument>.Update.Set(x => x.FinishTime, expiryTime), cancellationToken: CancellationToken.None);
+			}
+
+			// Remove any complete leases
+			if (newSession.Leases != null)
+			{
+				HashSet<LeaseId> newLeaseIds = new HashSet<LeaseId>(newSession.Leases?.Select(x => x.Id) ?? Enumerable.Empty<LeaseId>());
+				foreach (RpcSessionLease oldLease in agent.Session.Leases.Where(x => !newLeaseIds.Contains(x.Id)))
+				{
 					RpcLease? rpcLease = options.Leases?.FirstOrDefault(x => x.Id == oldLease.Id);
 					if (rpcLease != null && rpcLease.State == RpcLeaseState.Completed)
 					{
@@ -854,7 +969,7 @@ namespace HordeServer.Agents
 				}
 			}
 
-			return newAgent;
+			return await CreateAgentObjectAsync(newDocument, newSession, cancellationToken);
 		}
 
 		static void SetPoolProperties(List<string> properties, List<PoolId> pools)
@@ -918,7 +1033,7 @@ namespace HordeServer.Agents
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryUpdateWorkspacesAsync(AgentDocument agent, List<AgentWorkspaceInfo> workspaces, bool requestConform, CancellationToken cancellationToken)
+		async Task<Agent?> TryUpdateWorkspacesAsync(Agent agent, List<AgentWorkspaceInfo> workspaces, bool requestConform, CancellationToken cancellationToken)
 		{
 			DateTime lastConformTime = DateTime.UtcNow;
 
@@ -933,188 +1048,143 @@ namespace HordeServer.Agents
 			}
 
 			// Update the agent
-			return await TryUpdateAsync(agent, update, cancellationToken);
+			AgentDocument? newDocument = await TryUpdateAsync(agent.Document, update, cancellationToken);
+			return await CreateAgentObjectAsync(newDocument, agent.Session, cancellationToken);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryCreateSessionAsync(AgentDocument agent, CreateSessionOptions options, CancellationToken cancellationToken)
+		async Task<Agent?> TryCreateSessionAsync(Agent agent, CreateSessionOptions options, CancellationToken cancellationToken)
 		{
+			// Fail if there's already an active session
+			if (agent.Session != null)
+			{
+				return null;
+			}
+
+			// Create the new settings for the agent
+			AgentId agentId = agent.Id;
+			SessionId sessionId = SessionIdUtils.GenerateNewId();
+
 			options.Capabilities.Flatten(out List<string> newProperties, out Dictionary<string, int> newResources);
 
 			List<PoolId> newDynamicPools = new(options.DynamicPools);
-			List<PoolId> newPools = CreatePoolsList(agent.ExplicitPools, newDynamicPools, newProperties);
+			List<PoolId> newPools = CreatePoolsList(agent.Document.ExplicitPools, newDynamicPools, newProperties);
 			SetPoolProperties(newProperties, newPools);
 
+			// Attempt to create the session in Redis
+			RpcSession? newSession = await _scheduler.TryCreateSessionAsync(agentId, sessionId, options.Capabilities, cancellationToken);
+			if (newSession == null)
+			{
+				return null;
+			}
+
+			// Update the agent with the new session id
+			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update
+				.Set(x => x.SessionId, sessionId)
+				.Unset(x => x.LastOnlineTime)
+				.Unset(x => x.Deleted)
+				.Set(x => x.Properties, newProperties)
+				.Set(x => x.Resources, newResources)
+				.Set(x => x.Pools, newPools)
+				.Set(x => x.DynamicPools, newDynamicPools)
+				.Set(x => x.Version, options.Version)
+				.Unset(x => x.RequestRestart)
+				.Unset(x => x.RequestShutdown)
+				.Unset(x => x.RequestForceRestart)
+				.Set(x => x.LastShutdownReason, "Unexpected");
+
+			if (String.Equals(options.Version, agent.Document.LastUpgradeVersion, StringComparison.Ordinal))
+			{
+				update = update.Unset(x => x.UpgradeAttemptCount);
+			}
+
+			AgentDocument? newDocument = await TryUpdateAsync(agent.Document, update, cancellationToken);
+			if (newDocument == null)
+			{
+				// If this fails, stop the session we create. It will expire naturally anyway, but we can avoid the delay on anything being requeued by just ending it now.
+				await _scheduler.TryUpdateSessionAsync(newSession, new RpcSession(newSession) { Status = RpcAgentStatus.Stopped }, cancellationToken: cancellationToken);
+				return null;
+			}
+
 			// Create a new session document
-			SessionDocument newSession = new SessionDocument(SessionIdUtils.GenerateNewId(), agent.Id, _clock.UtcNow, options.Version);
-			await _sessionCollection.InsertOneAsync(newSession, null, cancellationToken);
+			SessionDocument newSessionDocument = new SessionDocument(sessionId, agentId, _clock.UtcNow, options.Version);
+			await _sessionCollection.InsertOneAsync(newSessionDocument, null, cancellationToken);
 
-			try
-			{
-				// Reset the agent to use the new session
-				UpdateDefinitionBuilder<AgentDocument> updateBuilder = Builders<AgentDocument>.Update;
-
-				List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
-				updates.Add(updateBuilder.Set(x => x.SessionId, newSession.Id));
-				updates.Add(updateBuilder.Set(x => x.SessionExpiresAt, newSession.StartTime + AgentService.SessionExpiryTime));
-				updates.Add(updateBuilder.Set(x => x.Status, AgentStatus.Ok));
-				updates.Add(updateBuilder.Unset(x => x.LastOnlineTime));
-				updates.Add(updateBuilder.Unset(x => x.Leases));
-				updates.Add(updateBuilder.Unset(x => x.Deleted));
-				updates.Add(updateBuilder.Set(x => x.Properties, newProperties));
-				updates.Add(updateBuilder.Set(x => x.Resources, newResources));
-				updates.Add(updateBuilder.Set(x => x.Pools, newPools));
-				updates.Add(updateBuilder.Set(x => x.DynamicPools, newDynamicPools));
-				updates.Add(updateBuilder.Set(x => x.Version, options.Version));
-				updates.Add(updateBuilder.Unset(x => x.RequestRestart));
-				updates.Add(updateBuilder.Unset(x => x.RequestShutdown));
-				updates.Add(updateBuilder.Unset(x => x.RequestForceRestart));
-				updates.Add(updateBuilder.Set(x => x.LastShutdownReason, "Unexpected"));
-
-				if (String.Equals(options.Version, agent.LastUpgradeVersion, StringComparison.Ordinal))
-				{
-					updates.Add(updateBuilder.Unset(x => x.UpgradeAttemptCount));
-				}
-
-				foreach (AgentLease agentLease in agent.Leases ?? Enumerable.Empty<AgentLease>())
-				{
-					await RemoveActiveLeaseAsync(agentLease);
-				}
-
-				// Apply the update
-				AgentDocument? newAgent = await TryUpdateAsync(agent, updateBuilder.Combine(updates), cancellationToken);
-				if (newAgent == null)
-				{
-					await _sessionCollection.DeleteOneAsync(x => x.Id == newSession.Id, CancellationToken.None);
-					return null;
-				}
-
-				return newAgent;
-			}
-			catch
-			{
-				await _sessionCollection.DeleteOneAsync(x => x.Id == newSession.Id, CancellationToken.None);
-				throw;
-			}
+			// Update the agent is updated with the session
+			return new Agent(this, newDocument, newSession);
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryTerminateSessionAsync(AgentDocument agent, CancellationToken cancellationToken)
+		async Task<Agent?> TryTerminateSessionAsync(Agent agent, CancellationToken cancellationToken)
 		{
-			// Get the time that the session finishes at
-			DateTime finishTime = _clock.UtcNow;
-			if (agent.SessionExpiresAt.HasValue && agent.SessionExpiresAt.Value < finishTime)
-			{
-				finishTime = agent.SessionExpiresAt.Value;
-			}
+			return await TryUpdateSessionAsync(agent, new UpdateSessionOptions(AgentStatus.Stopped), cancellationToken);
+		}
 
-			UpdateDefinition<AgentDocument> update = new BsonDocument();
-
-			update = update.Unset(x => x.SessionId);
-			update = update.Unset(x => x.SessionExpiresAt);
-			update = update.Unset(x => x.Leases);
-			update = update.Set(x => x.Status, AgentStatus.Stopped);
-			update = update.Set(x => x.LastOnlineTime, finishTime);
-
-			if (agent.Ephemeral)
-			{
-				update = update.Set(x => x.Deleted, true);
-			}
-
-			AgentDocument? newAgent = await TryUpdateAsync(agent, update, cancellationToken);
-			if (newAgent == null)
+		/// <inheritdoc/>
+		async Task<Agent?> TryCreateLeaseAsync(Agent agent, CreateLeaseOptions options, CancellationToken cancellationToken)
+		{
+			if (agent.Session == null)
 			{
 				return null;
 			}
 
-			// Update the session document
-			ILogger agentLogger = GetLogger(agent.Id);
-			agentLogger.LogInformation("Terminated session {SessionId}", agent.SessionId);
-			await _sessionCollection.UpdateOneAsync(x => x.Id == agent.SessionId, Builders<SessionDocument>.Update.Set(x => x.FinishTime, finishTime), cancellationToken: CancellationToken.None);
+			AgentId agentId = agent.Document.Id;
 
-			// Remove any outstanding leases
-			if (agent.Leases != null)
-			{
-				foreach (AgentLease agentLease in agent.Leases)
-				{
-					agentLogger.LogInformation("Removing lease {LeaseId} during session terminate...", agentLease.Id);
+			RpcSessionLease newLease = new RpcSessionLease();
+			newLease.Id = options.Id;
+			newLease.State = RpcLeaseState.Pending;
+			newLease.Payload = Any.Pack(options.Payload);
+			newLease.ParentId = options.ParentId;
+			newLease.Exclusive = options.Exclusive;
+			newLease.Resources.Add(options.Resources ?? Enumerable.Empty<KeyValuePair<string, int>>());
 
-					// Remove it from the active list used for autoscaling
-					await RemoveActiveLeaseAsync(agentLease);
+			RpcSession? newSession = new RpcSession(agent.Session);
+			newSession.Leases.Add(newLease);
 
-					// Update the lease
-					await _leaseCollection.TrySetOutcomeAsync(agentLease.Id, finishTime, LeaseOutcome.Failed, null, CancellationToken.None);
-				}
-			}
-
-			return newAgent;
-		}
-
-		private static string RedisKeyActiveLeaseIds() => $"agent/active-lease-id";
-		private static string RedisKeyLeaseChildren(LeaseId parentId) => $"agent/lease-children/{parentId.ToString()}";
-
-		/// <inheritdoc/>
-		async Task<AgentDocument?> TryCreateLeaseAsync(AgentDocument agent, CreateLeaseOptions options, CancellationToken cancellationToken)
-		{
-			AgentLease newLease = new AgentLease(options);
-
-			List<AgentLease> leases = new List<AgentLease>();
-			if (agent.Leases != null)
-			{
-				leases.AddRange(agent.Leases);
-			}
-			leases.Add(newLease);
-
-			List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
-			updates.Add(Builders<AgentDocument>.Update.Set(x => x.Leases, leases));
-			GetNewLeaseUpdates(agent, newLease.Payload, updates);
-
-			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update.Combine(updates);
-
-			AgentDocument? updatedDoc = await TryUpdateAsync(agent, update, cancellationToken);
-			if (updatedDoc == null)
+			newSession = await _scheduler.TryUpdateSessionAsync(agent.Session, newSession, cancellationToken: cancellationToken);
+			if (newSession == null)
 			{
 				return null;
 			}
-
-			await AddActiveLeaseAsync(newLease);
 
 			try
 			{
 				DateTime startTime = _clock.UtcNow;
-				await _leaseCollection.AddAsync(options.Id, options.ParentId, options.Name, agent.Id, agent.SessionId!.Value, options.StreamId, options.PoolId, options.LogId, startTime, Any.Pack(options.Payload).ToByteArray(), cancellationToken);
+				await _leaseCollection.AddAsync(options.Id, options.ParentId, options.Name, agentId, newSession.SessionId, options.StreamId, options.PoolId, options.LogId, startTime, Any.Pack(options.Payload).ToByteArray(), cancellationToken);
 			}
 			catch (Exception ex)
 			{
-				_logger.LogError(ex, "Unable to create lease {LeaseId} for agent {AgentId}; lease already exists?", options.Id, agent.Id);
+				_logger.LogError(ex, "Unable to create lease {LeaseId} for agent {AgentId}; lease already exists?", options.Id, agentId);
 			}
 
-			return updatedDoc;
-		}
-
-		private async Task AddActiveLeaseAsync(AgentLease lease)
-		{
-			IDatabase redis = _redisService.GetDatabase();
-
-			await redis.SetAddAsync(RedisKeyActiveLeaseIds(), lease.Id.ToString());
-			await redis.KeyExpireAsync(RedisKeyActiveLeaseIds(), TimeSpan.FromHours(36));
-
-			if (lease.ParentId != null)
+			// Update the agent state
+			AgentDocument? document = agent.Document;
+			while (document != null)
 			{
-				await redis.SetAddAsync(RedisKeyLeaseChildren(lease.ParentId.Value), lease.Id.ToString());
-				await redis.KeyExpireAsync(RedisKeyLeaseChildren(lease.ParentId.Value), TimeSpan.FromHours(36));
-			}
-		}
+				List<UpdateDefinition<AgentDocument>> updates = new List<UpdateDefinition<AgentDocument>>();
+				GetNewLeaseUpdates(document, options.Payload.ToByteArray(), updates);
 
-		private async Task RemoveActiveLeaseAsync(AgentLease lease)
-		{
-			IDatabase redis = _redisService.GetDatabase();
-			await redis.SetRemoveAsync(RedisKeyActiveLeaseIds(), lease.Id.ToString());
+				if (updates.Count == 0)
+				{
+					break;
+				}
 
-			if (lease.ParentId != null)
-			{
-				await redis.SetRemoveAsync(RedisKeyLeaseChildren(lease.ParentId.Value), lease.Id.ToString());
+				UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update.Combine(updates);
+
+				document = await TryUpdateAsync(document, update, cancellationToken);
+				if (document != null)
+				{
+					break;
+				}
+
+				document = await GetDocumentAsync(agentId, cancellationToken);
+				if (document == null)
+				{
+					return null;
+				}
 			}
+
+			return await CreateAgentObjectAsync(document, newSession, cancellationToken);
 		}
 
 		static void GetNewLeaseUpdates(AgentDocument agent, ReadOnlySpan<byte> payloadData, List<UpdateDefinition<AgentDocument>> updates)
@@ -1144,55 +1214,71 @@ namespace HordeServer.Agents
 		}
 
 		/// <inheritdoc/>
-		async Task<AgentDocument?> TryCancelLeaseAsync(AgentDocument agent, int leaseIdx, CancellationToken cancellationToken)
+		async Task<Agent?> TryCancelLeaseAsync(Agent agent, int leaseIdx, CancellationToken cancellationToken)
 		{
-			UpdateDefinition<AgentDocument> update = Builders<AgentDocument>.Update.Set(x => x.Leases![leaseIdx].State, LeaseState.Cancelled);
-			AgentDocument? newAgent = await TryUpdateAsync(agent, update, cancellationToken);
-			if (newAgent != null)
+			if (agent.Session == null)
 			{
-				PublishUpdateEvent(agent.Id);
-				if (agent.Leases != null && leaseIdx < agent.Leases.Count)
-				{
-					await RemoveActiveLeaseAsync(agent.Leases[leaseIdx]);
-				}
+				return null;
 			}
-			return newAgent;
+
+			RpcSession? newSession = new RpcSession(agent.Session);
+			if (newSession.Leases[leaseIdx].State == RpcLeaseState.Pending)
+			{
+				newSession.Leases.RemoveAt(leaseIdx);
+			}
+			else
+			{
+				newSession.Leases[leaseIdx].State = RpcLeaseState.Cancelled;
+			}
+
+			newSession = await _scheduler.TryUpdateSessionAsync(agent.Session, newSession, null, cancellationToken);
+			if (newSession == null)
+			{
+				return null;
+			}
+
+			return await CreateAgentObjectAsync(agent.Document, newSession, cancellationToken);
 		}
 
-		/// <inheritdoc/>
-		void PublishUpdateEvent(AgentId agentId)
+		void OnSessionUpdate(SessionId sessionId)
 		{
-			_ = _redisService.GetDatabase().PublishAsync(_updateEventChannel, agentId, CommandFlags.FireAndForget);
-		}
-
-		void OnAgentUpdate(AgentId agentId)
-		{
-			if (_agentIdToTcs.TryGetValue(agentId, out TaskCompletionSource? tcs))
+			if (_sessionIdToTcs.TryGetValue(sessionId, out TaskCompletionSource? tcs))
 			{
 				tcs.TrySetResult();
 			}
 		}
 
-		async Task<AgentDocument?> WaitForUpdateAsync(AgentDocument agent, CancellationToken cancellationToken)
+		async Task<Agent?> WaitForSessionUpdateAsync(Agent agent, CancellationToken cancellationToken)
+		{
+			if (agent.Session == null)
+			{
+				return null;
+			}
+
+			RpcSession? newSession = await WaitForSessionUpdateAsync(agent.Session, cancellationToken);
+			return await CreateAgentObjectAsync(agent.Document, newSession, cancellationToken);
+		}
+
+		async Task<RpcSession?> WaitForSessionUpdateAsync(RpcSession session, CancellationToken cancellationToken)
 		{
 			TaskCompletionSource newTcs = new TaskCompletionSource();
 			try
 			{
-				TaskCompletionSource tcs = _agentIdToTcs.GetOrAdd(agent.Id, newTcs);
+				TaskCompletionSource tcs = _sessionIdToTcs.GetOrAdd(session.SessionId, newTcs);
 
-				AgentDocument? newAgent = await GetDocumentAsync(agent.Id, cancellationToken);
-				if (newAgent != null && newAgent.UpdateIndex == agent.UpdateIndex)
+				RpcSession? newSession = await _scheduler.TryGetSessionAsync(session.SessionId, cancellationToken);
+				if (newSession != null && newSession.ExpiryTicks == session.ExpiryTicks)
 				{
 					await tcs.Task.WaitAsync(cancellationToken);
-					newAgent = await GetDocumentAsync(agent.Id, cancellationToken);
+					newSession = await _scheduler.TryGetSessionAsync(session.SessionId, cancellationToken);
 				}
 
-				return newAgent;
+				return newSession;
 			}
 			finally
 			{
 				newTcs.TrySetResult();
-				_agentIdToTcs.TryRemove(new KeyValuePair<AgentId, TaskCompletionSource>(agent.Id, newTcs));
+				_sessionIdToTcs.TryRemove(new KeyValuePair<SessionId, TaskCompletionSource>(session.SessionId, newTcs));
 			}
 		}
 

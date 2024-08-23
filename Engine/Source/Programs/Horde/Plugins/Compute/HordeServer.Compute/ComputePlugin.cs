@@ -70,6 +70,10 @@ namespace HordeServer
 			services.AddSingleton<IAgentCollection>(sp => sp.GetRequiredService<AgentCollection>());
 			services.AddHostedService(sp => sp.GetRequiredService<AgentCollection>());
 
+			services.AddSingleton<AgentScheduler>();
+			services.AddSingleton<IAgentScheduler>(sp => sp.GetRequiredService<AgentScheduler>());
+			services.AddHostedService(sp => sp.GetRequiredService<AgentScheduler>());
+
 			services.AddSingleton<LeaseCollection>();
 			services.AddSingleton<ILeaseCollection>(sp => sp.GetRequiredService<LeaseCollection>());
 

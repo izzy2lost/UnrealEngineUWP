@@ -302,7 +302,7 @@ namespace HordeServer.Tests.Server
 			res = await RpcService.CreateSession(req, _adminContext);
 
 			agent = (await AgentService.GetAgentAsync(new AgentId(res.AgentId)))!;
-			CollectionAssert.AreEquivalent(new List<PoolId> { new("fooPool"), new("barPool"), new("bazPool") }, agent.Pools.ToList());
+			CollectionAssert.AreEquivalent(new List<PoolId> { new("bazPool") }, agent.Pools.ToList());
 		}
 
 		[TestMethod]
