@@ -47,14 +47,8 @@ FSubstrateOperator::FSubstrateOperator()
 	BSDFIndex = INDEX_NONE;
 	BSDFType = 0;
 	BSDFRegisteredSharedLocalBasis = FSubstrateRegisteredSharedLocalBasis();
-	bBSDFHasSSS = false;
-	bBSDFHasMFPPluggedIn = false;
-	bBSDFHasEdgeColor = false;
-	bBSDFHasFuzz = false;
-	bBSDFHasSecondRoughnessOrSimpleClearCoat = false;
-	bBSDFHasAnisotropy = false;
-	bBSDFHasGlint = false;
-	bBSDFHasSpecularProfile = false;
+	BSDFFeatures = 0;
+	SubUsage = SUBSTRATE_OPERATOR_SUBUSAGE_NONE;
 
 	bBSDFWritesEmissive = false;
 	bBSDFWritesAmbientOcclusion = false;
@@ -72,28 +66,14 @@ FSubstrateOperator::FSubstrateOperator()
 void FSubstrateOperator::CombineFlagsForParameterBlending(FSubstrateOperator& A, FSubstrateOperator& B)
 {
 #if WITH_EDITOR
-	bBSDFHasSSS = A.bBSDFHasSSS || B.bBSDFHasSSS;
-	bBSDFHasMFPPluggedIn = A.bBSDFHasMFPPluggedIn || B.bBSDFHasMFPPluggedIn;
-	bBSDFHasEdgeColor = A.bBSDFHasEdgeColor || B.bBSDFHasEdgeColor;
-	bBSDFHasFuzz = A.bBSDFHasFuzz || B.bBSDFHasFuzz;
-	bBSDFHasSecondRoughnessOrSimpleClearCoat = A.bBSDFHasSecondRoughnessOrSimpleClearCoat || B.bBSDFHasSecondRoughnessOrSimpleClearCoat;
-	bBSDFHasAnisotropy = A.bBSDFHasAnisotropy || B.bBSDFHasAnisotropy;
-	bBSDFHasGlint = A.bBSDFHasGlint || B.bBSDFHasGlint;
-	bBSDFHasSpecularProfile = A.bBSDFHasSpecularProfile || B.bBSDFHasSpecularProfile;
+	BSDFFeatures = A.BSDFFeatures | B.BSDFFeatures;
 #endif
 }
 
 void FSubstrateOperator::CopyFlagsForParameterBlending(FSubstrateOperator& A)
 {
 #if WITH_EDITOR
-	bBSDFHasSSS = A.bBSDFHasSSS;
-	bBSDFHasMFPPluggedIn = A.bBSDFHasMFPPluggedIn;
-	bBSDFHasEdgeColor = A.bBSDFHasEdgeColor;
-	bBSDFHasFuzz = A.bBSDFHasFuzz;
-	bBSDFHasSecondRoughnessOrSimpleClearCoat = A.bBSDFHasSecondRoughnessOrSimpleClearCoat;
-	bBSDFHasAnisotropy = A.bBSDFHasAnisotropy;
-	bBSDFHasGlint = A.bBSDFHasGlint;
-	bBSDFHasSpecularProfile = A.bBSDFHasSpecularProfile;
+	BSDFFeatures = A.BSDFFeatures;
 #endif
 }
 
@@ -105,7 +85,6 @@ bool FSubstrateOperator::IsDiscarded() const
 	return true;
 #endif
 }
-
 
 IMPLEMENT_TYPE_LAYOUT(FSubstrateRegisteredSharedLocalBasis);
 

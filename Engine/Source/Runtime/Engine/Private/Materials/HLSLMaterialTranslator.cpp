@@ -12675,14 +12675,7 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 			{
 				// Disable all optional features for now to fit.
 				// SUBSTRATE_TODO we will need to refine that to account for platforms supporting SSS for instance.
-				It.bBSDFHasSSS = false;
-				It.bBSDFHasMFPPluggedIn = false;
-				It.bBSDFHasEdgeColor = false;
-				It.bBSDFHasFuzz = false;
-				It.bBSDFHasSecondRoughnessOrSimpleClearCoat = false;
-				It.bBSDFHasAnisotropy = false;
-				It.bBSDFHasGlint = false;
-				It.bBSDFHasSpecularProfile = false;
+				It.BSDFFeatures = 0;
 			}
 			SubstrateSimplificationStatus.bSlabSimplificationStepHasBeenRun = true;
 		}
@@ -13018,9 +13011,23 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 					{
 					case SUBSTRATE_BSDF_TYPE_SLAB:
 					{
-						SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialComplexity.bIsSimple && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasEdgeColor && !It.bBSDFHasFuzz && !It.bBSDFHasSecondRoughnessOrSimpleClearCoat && !It.bBSDFHasMFPPluggedIn && !It.bBSDFHasSSS && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
-						SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialComplexity.bIsSingle && !bMayHaveColoredWeight && !It.bBSDFHasAnisotropy && !It.bBSDFHasGlint && !It.bBSDFHasSpecularProfile;
-						SubstrateMaterialComplexity.bIsComplexSpecial |= It.bBSDFHasGlint || It.bBSDFHasSpecularProfile;
+						const uint32 SingleMask = 
+							  ESubstrateBsdfFeature_EdgeColor
+							| ESubstrateBsdfFeature_Fuzz
+							| ESubstrateBsdfFeature_SSS
+							| ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat
+							| ESubstrateBsdfFeature_MFPPluggedIn;
+						const uint32 CompexMask = 
+							  ESubstrateBsdfFeature_Anisotropy
+							| ESubstrateBsdfFeature_Eye
+							| ESubstrateBsdfFeature_Hair;
+						const uint32 CompexSpecialMask = 
+							  ESubstrateBsdfFeature_Glint
+							| ESubstrateBsdfFeature_SpecularProfile;
+
+						SubstrateMaterialComplexity.bIsSimple = SubstrateMaterialComplexity.bIsSimple && !bMayHaveColoredWeight && !It.Has(CompexMask) && !It.Has(CompexSpecialMask) && !It.Has(SingleMask);
+						SubstrateMaterialComplexity.bIsSingle = SubstrateMaterialComplexity.bIsSingle && !bMayHaveColoredWeight && !It.Has(CompexMask) && !It.Has(CompexSpecialMask);
+						SubstrateMaterialComplexity.bIsComplexSpecial |= It.Has(CompexSpecialMask);
 						break;
 					}
 					case SUBSTRATE_BSDF_TYPE_HAIR:
@@ -13146,13 +13153,13 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 					case SUBSTRATE_BSDF_TYPE_SLAB:
 					{
 						// Compute values closer to the reality for HasSSS and IsSimpleVolume, now that we know that we know the topology of the material.
-						const bool bIsSimpleVolume = !It.bIsBottom && It.bBSDFHasMFPPluggedIn;
-						const bool bHasSSS = It.bIsBottom && It.bBSDFHasSSS;
+						const bool bIsSimpleVolume = !It.bIsBottom && It.Has(ESubstrateBsdfFeature_MFPPluggedIn);
+						const bool bHasSSS = It.bIsBottom && It.Has(ESubstrateBsdfFeature_SSS);
 
 						SubstrateMaterialRequestedSizeByte += UintByteSize;
 						SubstrateMaterialRequestedSizeByte += UintByteSize;
 
-						if (It.bBSDFHasEdgeColor || It.bBSDFHasSecondRoughnessOrSimpleClearCoat)
+						if (It.Has(ESubstrateBsdfFeature_EdgeColor | ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat))
 						{
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 						}
@@ -13160,19 +13167,29 @@ bool FHLSLMaterialTranslator::FSubstrateCompilationContext::SubstrateGenerateDer
 						{
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 						}
-						if (It.bBSDFHasFuzz)
+						if (It.Has(ESubstrateBsdfFeature_Fuzz))
 						{
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 						}
-						if (It.bBSDFHasGlint)
+						if (It.Has(ESubstrateBsdfFeature_Glint))
 						{
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 						}
-						if (It.bBSDFHasSpecularProfile)
+						if (It.Has(ESubstrateBsdfFeature_SpecularProfile))
 						{
+							SubstrateMaterialRequestedSizeByte += UintByteSize;
+						}
+						if (It.Has(ESubstrateBsdfFeature_Eye))
+						{
+							SubstrateMaterialRequestedSizeByte += UintByteSize;
+							SubstrateMaterialRequestedSizeByte += UintByteSize;
+						}
+						if (It.Has(ESubstrateBsdfFeature_Hair))
+						{
+							SubstrateMaterialRequestedSizeByte += UintByteSize;
 							SubstrateMaterialRequestedSizeByte += UintByteSize;
 						}
 						break;
@@ -15663,9 +15680,19 @@ void FHLSLMaterialTranslator::PrepareEnvironmentDefines()
 						{
 							if (!It.IsDiscarded() && It.MaxDistanceFromLeaves == DistanceToLeaves)
 							{
-								SubstrateMaterialContextDescription += FString::Printf(TEXT("\tIdx=%d Op=%s ParentIdx=%d LeftIndex=%d RightIndex=%d BSDFIdx=%d LayerDepth=%d IsTop=%d IsBot=%d BSDFType=%s SSS=%d MFP=%d F90=%d Rough2=%d Fuzz=%d Aniso=%d Glint=%d SpecularProfile=%d\n"),
+								SubstrateMaterialContextDescription += FString::Printf(TEXT("\tIdx=%d Op=%s ParentIdx=%d LeftIndex=%d RightIndex=%d BSDFIdx=%d LayerDepth=%d IsTop=%d IsBot=%d BSDFType=%s SSS=%d MFP=%d F90=%d Rough2=%d Fuzz=%d Aniso=%d Glint=%d SpecularProfile=%d Eye=%d Hair=%d\n"),
 									It.Index, GetSubstrateOperatorStr(It.OperatorType), It.ParentIndex, It.LeftIndex, It.RightIndex, It.BSDFIndex, It.LayerDepth, It.bIsTop, It.bIsBottom,
-									*GetSubstrateBSDFName(It.BSDFType), It.bBSDFHasSSS, It.bBSDFHasMFPPluggedIn, It.bBSDFHasEdgeColor, It.bBSDFHasSecondRoughnessOrSimpleClearCoat, It.bBSDFHasFuzz, It.bBSDFHasAnisotropy, It.bBSDFHasGlint, It.bBSDFHasSpecularProfile);
+									*GetSubstrateBSDFName(It.BSDFType), 
+									It.Has(ESubstrateBsdfFeature_SSS), 
+									It.Has(ESubstrateBsdfFeature_MFPPluggedIn), 
+									It.Has(ESubstrateBsdfFeature_EdgeColor), 
+									It.Has(ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat), 
+									It.Has(ESubstrateBsdfFeature_Fuzz), 
+									It.Has(ESubstrateBsdfFeature_Anisotropy), 
+									It.Has(ESubstrateBsdfFeature_Glint), 
+									It.Has(ESubstrateBsdfFeature_SpecularProfile), 
+									It.Has(ESubstrateBsdfFeature_Eye), 
+									It.Has(ESubstrateBsdfFeature_Hair));
 							}
 						}
 					}

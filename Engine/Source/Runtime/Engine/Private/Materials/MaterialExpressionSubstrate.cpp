@@ -551,14 +551,11 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 	// Note Thickness has no meaning/usage in the context of SubstrateLegacyConversionNode
 	int32 ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 
-	auto AddDefaultWorstCase = [&](bool bSSS, bool bFuzz)
+	auto AddDefaultWorstCase = [&](uint32 In)
 		{
 			FSubstrateOperator& SlabOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			SlabOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
-			SlabOperator.bBSDFHasSSS = bSSS;
-			SlabOperator.bBSDFHasMFPPluggedIn = bSSS;
-			SlabOperator.bBSDFHasFuzz = bFuzz;
-			SlabOperator.bBSDFHasAnisotropy = Anisotropy.IsConnected();
+			SlabOperator.BSDFFeatures = In | (Anisotropy.IsConnected() ? ESubstrateBsdfFeature_Anisotropy : ESubstrateBsdfFeature_None);
 			SlabOperator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 			SlabOperator.ThicknessIndex = ThicknessIndex;
 
@@ -580,7 +577,13 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}
-		return AddDefaultWorstCase(true, true);
+
+		// Be sure to track eye/hair feature, even though they are not part of Slab BSDF. This is important later for issuing 
+		// the correct material complexity, as hair/eye requires 'complex' complexity (not 'simple') for correct packing
+		uint32 BsdfFeatures = ESubstrateBsdfFeature_SSS | ESubstrateBsdfFeature_Fuzz;
+		if (ShadingModels.HasShadingModel(MSM_Eye))  { BsdfFeatures |= ESubstrateBsdfFeature_Eye; }
+		if (ShadingModels.HasShadingModel(MSM_Hair)) { BsdfFeatures |= ESubstrateBsdfFeature_Hair; }
+		return AddDefaultWorstCase(BsdfFeatures);
 	}
 	// else
 	{
@@ -596,39 +599,38 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 		}
 		else if (ShadingModels.HasShadingModel(MSM_DefaultLit))
 		{
-			return AddDefaultWorstCase(false, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_None);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_ThinTranslucent))
 		{
-			return AddDefaultWorstCase(false, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_None);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_SubsurfaceProfile))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_Subsurface))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_TwoSidedFoliage))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_PreintegratedSkin))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_Cloth))
 		{
-			return AddDefaultWorstCase(false, true);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_Fuzz);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_ClearCoat))
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
 			Operator.ThicknessIndex = ThicknessIndex;
-			Operator.bBSDFHasSecondRoughnessOrSimpleClearCoat = true;
-			Operator.bBSDFHasAnisotropy = Anisotropy.IsConnected();
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat | (Anisotropy.IsConnected() ? ESubstrateBsdfFeature_Anisotropy : ESubstrateBsdfFeature_None);
 			Operator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 			return &Operator;
 		}
@@ -636,6 +638,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_HAIR;
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_Hair;
 			Operator.ThicknessIndex = ThicknessIndex;
 			Operator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 			return &Operator;
@@ -644,6 +647,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateShadingModels::SubstrateGenerate
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_EYE;
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_Eye;
 			Operator.ThicknessIndex = ThicknessIndex;
 			Operator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 			return &Operator;
@@ -716,16 +720,16 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 
 	// We also cannot ignore the tangent when using the default Tangent because GetTangentBasis
 	// used in SubstrateGetBSDFSharedBasis cannot be relied on for smooth tangent used for lighting on any mesh.
-	const bool bHasAnisotropy = SubstrateOperator.bBSDFHasAnisotropy > 0;
+	const bool bHasAnisotropy = SubstrateOperator.Has(ESubstrateBsdfFeature_Anisotropy);
 
 	int32 SSSProfileCodeChunk = INDEX_NONE;
-	if (SubstrateOperator.bBSDFHasSSS > 0)
+	if (SubstrateOperator.Has(ESubstrateBsdfFeature_SSS))
 	{
 		SSSProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(GetSubsurfaceProfileParameterName(), 1.0f), MCT_Float1);
 	}
 
 	int32 SpecularProfileCodeChunk = INDEX_NONE;
-	if (SubstrateOperator.bBSDFHasSpecularProfile > 0)
+	if (SubstrateOperator.Has(ESubstrateBsdfFeature_SpecularProfile))
 	{
 		const FName SpecularProfileParameterName = CreateSpecularProfileParameterName(SpecularProfile);
 		SpecularProfileCodeChunk = Compiler->ForceCast(Compiler->ScalarParameter(SpecularProfileParameterName, 1.0f), MCT_Float1);
@@ -769,31 +773,31 @@ int32 UMaterialExpressionSubstrateSlabBSDF::Compile(class FMaterialCompiler* Com
 	int32 GlintUVCodeChunk = CompileWithDefaultFloat2(Compiler, GlintUV, 0.0f, 0.0f);
 
 	// Disable some features if requested by the simplification process
-	if (SubstrateOperator.bBSDFHasMFPPluggedIn == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_MFPPluggedIn))
 	{
 		SSSMFPCodeChunk = Compiler->Constant3(0.0f, 0.0f, 0.0f);
 	}
-	if (SubstrateOperator.bBSDFHasEdgeColor == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_EdgeColor))
 	{
 		F90CodeChunk = Compiler->Constant3(1.0f, 1.0f, 1.0f);
 	}
-	if (SubstrateOperator.bBSDFHasFuzz == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_Fuzz))
 	{
 		FuzzAmountCodeChunk = Compiler->Constant(0.0f);
 	}
-	if (SubstrateOperator.bBSDFHasSecondRoughnessOrSimpleClearCoat == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat))
 	{
 		SecondRoughnessWeightCodeChunk = Compiler->Constant(0.0f);
 	}
-	if (SubstrateOperator.bBSDFHasAnisotropy == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_Anisotropy))
 	{
 		AnisotropyCodeChunk = Compiler->Constant(0.0f);
 	}
-	if (SubstrateOperator.bBSDFHasGlint == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_Glint))
 	{
 		GlintValueCodeChunk = Compiler->Constant(0.0f);
 	}
-	if (SubstrateOperator.bBSDFHasSpecularProfile == 0)
+	if (!SubstrateOperator.Has(ESubstrateBsdfFeature_SpecularProfile))
 	{
 		SpecularProfileCodeChunk = INDEX_NONE;
 	}
@@ -1150,14 +1154,16 @@ FSubstrateOperator* UMaterialExpressionSubstrateSlabBSDF::SubstrateGenerateMater
 {
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 	SubstrateOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
-	SubstrateOperator.bBSDFHasEdgeColor = HasEdgeColor();
-	SubstrateOperator.bBSDFHasFuzz = HasFuzz();
-	SubstrateOperator.bBSDFHasSecondRoughnessOrSimpleClearCoat = HasSecondRoughness();
-	SubstrateOperator.bBSDFHasSSS = HasSSS();
-	SubstrateOperator.bBSDFHasMFPPluggedIn = HasMFPPluggedIn();
-	SubstrateOperator.bBSDFHasAnisotropy = HasAnisotropy();
-	SubstrateOperator.bBSDFHasGlint = HasGlint();
-	SubstrateOperator.bBSDFHasSpecularProfile = HasSpecularProfile();
+
+	if (HasEdgeColor())			{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_EdgeColor; }
+	if (HasFuzz())				{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_Fuzz; }
+	if (HasSecondRoughness())	{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat; }
+	if (HasSSS())				{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_SSS; }
+	if (HasMFPPluggedIn())		{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_MFPPluggedIn; }
+	if (HasAnisotropy())		{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_Anisotropy; }
+	if (HasGlint())				{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_Glint; }
+	if (HasSpecularProfile())	{ SubstrateOperator.BSDFFeatures |= ESubstrateBsdfFeature_SpecularProfile; }
+
 	SubstrateOperator.ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 	SubstrateOperator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 	return &SubstrateOperator;
@@ -1384,14 +1390,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateSimpleClearCoatBSDF::SubstrateGe
 {
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 	SubstrateOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
-	SubstrateOperator.bBSDFHasEdgeColor = false;
-	SubstrateOperator.bBSDFHasFuzz = false;
-	SubstrateOperator.bBSDFHasSecondRoughnessOrSimpleClearCoat = true;	// This node explicitly requires simple clear coat
-	SubstrateOperator.bBSDFHasSSS = false;
-	SubstrateOperator.bBSDFHasMFPPluggedIn = false;
-	SubstrateOperator.bBSDFHasAnisotropy = false;
-	SubstrateOperator.bBSDFHasGlint = false;
-	SubstrateOperator.bBSDFHasSpecularProfile = false;
+	SubstrateOperator.BSDFFeatures = ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat; // This node explicitly requires simple clear coat
 	SubstrateOperator.ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 	SubstrateOperator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 	return &SubstrateOperator;
@@ -2029,6 +2028,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateHairBSDF::SubstrateGenerateMater
 {
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 	SubstrateOperator.BSDFType = SUBSTRATE_BSDF_TYPE_HAIR;
+	SubstrateOperator.BSDFFeatures = ESubstrateBsdfFeature_Hair;
 	SubstrateOperator.ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 	SubstrateOperator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 	return &SubstrateOperator;
@@ -2145,6 +2145,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateEyeBSDF::SubstrateGenerateMateri
 {
 	FSubstrateOperator& SubstrateOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 	SubstrateOperator.BSDFType = SUBSTRATE_BSDF_TYPE_EYE;
+	SubstrateOperator.BSDFFeatures = ESubstrateBsdfFeature_Eye;
 	SubstrateOperator.ThicknessIndex = Compiler->SubstrateThicknessStackGetThicknessIndex();
 	SubstrateOperator.bBSDFWritesEmissive = EmissiveColor.IsConnected();
 	return &SubstrateOperator;
@@ -3794,15 +3795,11 @@ FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::Subst
 
 	const bool bHasAnisotropy = IsMaterialAttributeInputConnected(Cached, MP_Anisotropy);
 
-	auto AddDefaultWorstCase = [&](bool bSSS, bool bFuzz)
+	auto AddDefaultWorstCase = [&](uint32 In)
 		{
-
 			FSubstrateOperator& SlabOperator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			SlabOperator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
-			SlabOperator.bBSDFHasSSS = bSSS;
-			SlabOperator.bBSDFHasMFPPluggedIn = bSSS;
-			SlabOperator.bBSDFHasFuzz = bFuzz;
-			SlabOperator.bBSDFHasAnisotropy = bHasAnisotropy;
+			SlabOperator.BSDFFeatures  = In | (bHasAnisotropy ? ESubstrateBsdfFeature_Anisotropy : ESubstrateBsdfFeature_None);
 			SlabOperator.ThicknessIndex = ThicknessIndex;
 
 			return &SlabOperator;
@@ -3815,7 +3812,10 @@ FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::Subst
 	const bool bHasShadingModelFromExpression = IsMaterialAttributeInputConnected(Cached, MP_ShadingModel) || ShadingModelOverride == MSM_FromMaterialExpression; // We keep HasShadingModelFromExpression in case all shading models cannot be safely recovered from material functions.
 	if ((ShadingModels.CountShadingModels() > 1) || bHasShadingModelFromExpression)
 	{
-		return AddDefaultWorstCase(true, true);
+		uint32 Features = ESubstrateBsdfFeature_SSS | ESubstrateBsdfFeature_Fuzz;
+		if (ShadingModels.HasShadingModel(MSM_Eye))  { Features |= ESubstrateBsdfFeature_Eye; }
+		if (ShadingModels.HasShadingModel(MSM_Hair)) { Features |= ESubstrateBsdfFeature_Hair; }
+		return AddDefaultWorstCase(Features);
 	}
 	else
 	{
@@ -3830,45 +3830,45 @@ FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::Subst
 		}
 		else if (ShadingModels.HasShadingModel(MSM_DefaultLit))
 		{
-			return AddDefaultWorstCase(false, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_None);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_ThinTranslucent))
 		{
-			return AddDefaultWorstCase(false, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_None);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_SubsurfaceProfile))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_Subsurface))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_TwoSidedFoliage))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_PreintegratedSkin))
 		{
-			return AddDefaultWorstCase(true, false);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_SSS);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_Cloth))
 		{
-			return AddDefaultWorstCase(false, true);
+			return AddDefaultWorstCase(ESubstrateBsdfFeature_Fuzz);
 		}
 		else if (ShadingModels.HasShadingModel(MSM_ClearCoat))
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_SLAB;
 			Operator.ThicknessIndex = ThicknessIndex;
-			Operator.bBSDFHasSecondRoughnessOrSimpleClearCoat = true;
-			Operator.bBSDFHasAnisotropy = bHasAnisotropy;
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat | (bHasAnisotropy ? ESubstrateBsdfFeature_Anisotropy : ESubstrateBsdfFeature_None);
 			return &Operator;
 		}
 		else if (ShadingModels.HasShadingModel(MSM_Hair))
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_HAIR;
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_Hair;
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}
@@ -3876,6 +3876,7 @@ FSubstrateOperator* UMaterialExpressionSubstrateConvertMaterialAttributes::Subst
 		{
 			FSubstrateOperator& Operator = Compiler->SubstrateCompilationRegisterOperator(SUBSTRATE_OPERATOR_BSDF_LEGACY, Compiler->SubstrateTreeStackGetPathUniqueId(), this, Parent, Compiler->SubstrateTreeStackGetParentPathUniqueId());
 			Operator.BSDFType = SUBSTRATE_BSDF_TYPE_EYE;
+			Operator.BSDFFeatures = ESubstrateBsdfFeature_Eye;
 			Operator.ThicknessIndex = ThicknessIndex;
 			return &Operator;
 		}

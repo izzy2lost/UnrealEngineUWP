@@ -167,14 +167,16 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 			FString BSDFDesc = OutputType == ESubstrateWidgetOutputType::Node ? 
 											 FString(TEXT("BSDF")) : 
 											 FString::Printf(TEXT("BSDF (%s%s%s%s%s%s%s%s)")
-											, Op.bBSDFHasEdgeColor ? TEXT("F90 ") : TEXT("")
-											, Op.bBSDFHasSSS ? TEXT("SSS ") : TEXT("")
-											, Op.bBSDFHasMFPPluggedIn ? TEXT("MFP ") : TEXT("")
-											, Op.bBSDFHasAnisotropy ? TEXT("Ani ") : TEXT("")
-											, Op.bBSDFHasSecondRoughnessOrSimpleClearCoat ? TEXT("2Ro ") : TEXT("")
-											, Op.bBSDFHasFuzz ? TEXT("Fuz ") : TEXT("")
-											, Op.bBSDFHasGlint ? TEXT("Gli ") : TEXT("")
-											, Op.bBSDFHasSpecularProfile ? TEXT("Spc ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_EdgeColor) ? TEXT("F90 ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_SSS) ? TEXT("SSS ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_MFPPluggedIn) ? TEXT("MFP ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_Anisotropy) ? TEXT("Ani ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_SecondRoughnessOrSimpleClearCoat) ? TEXT("2Ro ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_Fuzz) ? TEXT("Fuz ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_Glint) ? TEXT("Gli ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_SpecularProfile) ? TEXT("Spc ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_Eye) ? TEXT("Eye ") : TEXT("")
+											, Op.Has(ESubstrateBsdfFeature_Hair) ? TEXT("Hai ") : TEXT("")
 											);
 
 			static FString ToolTip;
@@ -188,6 +190,8 @@ static const TSharedRef<SWidget> InternalProcessOperator(
 				ToolTip += TEXT("Ani means the BSDF anisotropic specular lighting is used.\n");
 				ToolTip += TEXT("Gli means the BSDF features glints.\n");
 				ToolTip += TEXT("Spc means the BSDF features specular profile.\n");
+				ToolTip += TEXT("Eye means the BSDF features eye is used.\n");
+				ToolTip += TEXT("Hai means the BSDF features hair is used.\n");
 			}
 
 			const EStyleColor Color = OverrideColor != EStyleColor::MAX ? OverrideColor : (bIsCurrent ? EStyleColor::AccentGreen : EStyleColor::AccentGray);
