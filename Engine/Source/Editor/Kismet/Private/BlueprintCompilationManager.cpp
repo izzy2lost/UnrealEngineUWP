@@ -1728,7 +1728,7 @@ void FBlueprintCompilationManagerImpl::FlushCompilationQueueImpl(bool bSuppressB
 				if(!bSuppressBroadcastCompiled)
 				{
 					// Some logic (e.g. UObject::ProcessInternal) uses this flag to suppress warnings:
-					TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+					TGuardValue<std::atomic<bool>, bool> ReinstancingGuard(GIsReinstancing, true);
 					CompilerData.BP->BroadcastCompiled();
 				}
 
@@ -1915,7 +1915,7 @@ void FBlueprintCompilationManagerImpl::FlushReinstancingQueueImpl(bool bFindAndR
 	{
 		FScopedDurationTimer ReinstTimer(TimeReinstancing);
 		
-		TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+		TGuardValue<std::atomic<bool>, bool> ReinstancingGuard(GIsReinstancing, true);
 		
 		TMap<UClass*, UClass*> ClassesToReinstanceOwned = ObjectPtrDecay(MoveTemp(ClassesToReinstance));
 		ClassesToReinstance = {};
@@ -2168,7 +2168,7 @@ void FBlueprintCompilationManagerImpl::ReparentHierarchies(const TMap<UClass*, U
 	{
 		OldClassToNewClassDerivedTypes.Add(ReinstancingJob.OldToNew);
 	}
-	TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+	TGuardValue<std::atomic<bool>, bool> ReinstancingGuard(GIsReinstancing, true);
 	FReplaceInstancesOfClassParameters BatchOptions;
 	BatchOptions.bArchetypesAreUpToDate = true;
 	BatchOptions.bReplaceReferencesToOldClasses = bReplaceReferencesToOldClasses;
@@ -2223,7 +2223,7 @@ void FBlueprintCompilationManagerImpl::BuildDSOMap(UObject* OldObject, UObject* 
 
 void FBlueprintCompilationManagerImpl::ReinstanceBatch(TArray<FReinstancingJob>& Reinstancers, TMap< UClass*, UClass* >& InOutOldToNewClassMap, FUObjectSerializeContext* InLoadContext, TMap<UClass*, TMap<UObject*, UObject*>>* OldToNewTemplates /* = nullptr*/)
 {
-	TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+	TGuardValue<std::atomic<bool>, bool> ReinstancingGuard(GIsReinstancing, true);
 
 	// This is only needed when using the legacy editor loader (ie: FLinkerLoad)
 	// Zen loader already uses FPlayInEditorLoadingScope

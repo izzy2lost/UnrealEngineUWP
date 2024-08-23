@@ -161,7 +161,7 @@ bool GIsGCingAfterBlueprintCompile = false;
 bool GIsReconstructingBlueprintInstances = false;
 
 /** True if actors and objects are being re-instanced. */
-bool GIsReinstancing = false;
+std::atomic<bool> GIsReinstancing = false;
 
 /** Settings for when using UE as a library */
 FUELibraryOverrideSettings GUELibraryOverrideSettings;

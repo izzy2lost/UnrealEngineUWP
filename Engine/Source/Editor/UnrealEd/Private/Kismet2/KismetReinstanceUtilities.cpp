@@ -991,7 +991,7 @@ void FBlueprintCompileReinstancer::ReinstanceObjects(bool bForceAlwaysReinstance
 
 				if (!IsReinstancingSkeleton())
 				{
-					TGuardValue<bool> ReinstancingGuard(GIsReinstancing, true);
+					TGuardValue<std::atomic<bool>, bool> ReinstancingGuard(GIsReinstancing, true);
 
 					TArray<TSharedPtr<FReinstanceFinalizer>> Finalizers;
 

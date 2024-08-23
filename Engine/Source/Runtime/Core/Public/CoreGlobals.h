@@ -166,7 +166,7 @@ extern CORE_API bool GIsGCingAfterBlueprintCompile;
 extern CORE_API bool GIsReconstructingBlueprintInstances;
 
 /** True if actors and objects are being re-instanced. */
-extern CORE_API bool GIsReinstancing;
+extern CORE_API std::atomic<bool> GIsReinstancing;
 
 /** Helper function to flush resource streaming. */
 extern CORE_API void(*GFlushStreamingFunc)(void);
