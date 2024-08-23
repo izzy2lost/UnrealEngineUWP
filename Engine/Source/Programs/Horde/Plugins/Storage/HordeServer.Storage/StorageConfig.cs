@@ -348,7 +348,7 @@ namespace HordeServer.Storage
 		/// </summary>
 		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(parentAcl, $"namespace:{Id}");
+			Acl.PostLoad(parentAcl, $"namespace:{Id}", AclConfig.GetActions([typeof(StorageAclAction)]));
 		}
 
 		/// <summary>

@@ -13,6 +13,8 @@ using HordeServer.Acls;
 using HordeServer.Agents.Pools;
 using HordeServer.Artifacts;
 using HordeServer.Configuration;
+using HordeServer.Devices;
+using HordeServer.Logs;
 using HordeServer.Streams;
 using HordeServer.Utilities;
 
@@ -128,7 +130,8 @@ namespace HordeServer.Projects
 		public void PostLoad(ProjectId id, AclConfig parentAcl, IEnumerable<ArtifactTypeConfig> parentArtifactTypes)
 		{
 			Id = id;
-			Acl.PostLoad(parentAcl, $"project:{Id}");
+			AclAction[] aclActions = AclConfig.GetActions([typeof(ArtifactAclAction), typeof(DeviceAclAction), typeof(LogAclAction), typeof(ProjectAclAction)]);
+			Acl.PostLoad(parentAcl, $"project:{Id}", aclActions);
 			Acl.LegacyScopeNames = new AclScopeName[] { parentAcl.ScopeName.Append($"p:{Id}") };
 
 			_artifactTypeLookup.Clear();

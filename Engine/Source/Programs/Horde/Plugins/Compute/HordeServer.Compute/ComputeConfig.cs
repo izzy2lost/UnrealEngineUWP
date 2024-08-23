@@ -11,8 +11,14 @@ using EpicGames.Horde.Compute;
 using EpicGames.Horde.Tools;
 using EpicGames.Serialization;
 using HordeServer.Acls;
+using HordeServer.Agents;
+using HordeServer.Agents.Leases;
 using HordeServer.Agents.Pools;
+using HordeServer.Agents.Sessions;
+using HordeServer.Agents.Software;
+using HordeServer.Compute;
 using HordeServer.Configuration;
+using HordeServer.Logs;
 using HordeServer.Plugins;
 
 #pragma warning disable CA2227 // Change x to be read-only by removing the property setter
@@ -269,7 +275,17 @@ namespace HordeServer
 		/// <param name="parentAcl">The parent config instance</param>
 		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(parentAcl, $"compute:{Id}");
+			AclAction[] aclActions = AclConfig.GetActions(
+				[
+					typeof(AgentAclAction),
+					typeof(AgentSoftwareAclAction),
+					typeof(ComputeAclAction),
+					typeof(LeaseAclAction),
+					typeof(LogAclAction),
+					typeof(PoolAclAction),
+					typeof(SessionAclAction)
+				]);
+			Acl.PostLoad(parentAcl, $"compute:{Id}", aclActions);
 		}
 
 		/// <summary>

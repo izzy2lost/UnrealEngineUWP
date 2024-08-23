@@ -55,9 +55,11 @@ namespace HordeServer.Server
 		const string StyleSheet =
 			"body { font-family: 'Segoe UI', 'Roboto', arial, sans-serif; } " +
 			"p { margin:20px; font-size:13px; } " +
-			"h1 { margin:20px; font-size:32px; font-weight:200; } " +
+			"h1 { margin: 20px; font-size: 32px; font-weight: 200; } " +
+			"h2 { margin: 20px; font-size: 24px; font-weight: 200; } " +
 			"table { margin:10px 20px; } " +
-			"td { margin:5px; font-size:13px; }";
+			"th { margin: 5px; font-size: 13px; vertical-align: top; padding: 3px; text-align: left; }" +
+			"td { margin:5px; font-size:13px; vertical-align: top; padding: 3px; font-family: Consolas, Courier New, monospace; }";
 
 		readonly IUserCollection _users;
 		readonly IAccountCollection _hordeAccounts;
@@ -116,22 +118,62 @@ namespace HordeServer.Server
 					content.Append("<a href=\"/api/v1/admin/chainedjobtoken\">Get chained job token</a><br/>");
 					content.Append("</p>");
 				}
-				content.Append(CultureInfo.InvariantCulture, $"<p>Claims for {User.Identity?.Name}:");
-				content.Append("<table>");
+				content.AppendLine(CultureInfo.InvariantCulture, $"<h2>Claims for {User.Identity?.Name}:</h2>");
+				content.AppendLine("<table>");
+				content.AppendLine("<tr><th>Type</th><th>Value</th></tr>");
 				foreach (System.Security.Claims.Claim claim in User.Claims)
 				{
-					content.Append(CultureInfo.InvariantCulture, $"<tr><td>{claim.Type}</td><td>{claim.Value}</td></tr>");
+					content.AppendLine(CultureInfo.InvariantCulture, $"<tr><td>{claim.Type}</td><td>{claim.Value}</td></tr>");
 				}
-				content.Append("</table>");
-				content.Append("</p>");
+				content.AppendLine("</table>");
+				
+				bool addedAcl = false;
+				content.AppendLine("<h2>ACL Scopes</h2>");
+				content.AppendLine("<p>Only scopes with at least one authorized action are shown.</p>");
+				content.AppendLine("<table class=\"acl-scopes\">");
+				content.AppendLine("<tr><th>Scope</th><th>Permission</th><th>Authorized</th></tr>");
+				foreach (AclConfig aclConfig in _globalConfig.Value.AclScopes.Values)
+				{
+					List<AclAction> actions = aclConfig.Actions?.ToList() ?? [];
+					bool shouldIncludeAcl = actions.Any(x => aclConfig.Authorize(x, User));
+					List<string> actionTds = actions.Select(x =>
+					{
+						string color = aclConfig.Authorize(x, User) ? "#c8ffc8" : "#ffc8c8";
+						string authorized = aclConfig.Authorize(x, User) ? "Yes" : "No";
+						return $"<td>{x.Name}</td><td style=\"background-color: {color}; text-align: center;\">{authorized}</td>";
+					}).ToList();
 
-				content.Append(CultureInfo.InvariantCulture, $"<p>Built from Perforce</p>");
+					if (actions.Count == 0)
+					{
+						actionTds.Add("<td>No actions</td><td></td>");
+					}
+					
+					if (shouldIncludeAcl)
+					{
+						addedAcl = true;
+						content.AppendLine($"<tr><td rowspan=\"{actionTds.Count + 1}\">{aclConfig.ScopeName}</td>{actionTds[0]}</tr>");
+						foreach (string td in actionTds)
+						{
+							content.AppendLine($"<tr>{td}</td>");
+						}
+						content.AppendLine("<tr style=\"border-bottom:1px solid black\"><td colspan=\"100%\"></td></tr>");
+						content.AppendLine("<tr><td colspan=\"100%\" style=\"display: block; height 20px;\"></td></tr>");
+					}
+				}
+				
+				if (!addedAcl)
+				{
+					content.AppendLine("<tr><td colspan=\"100%\">No scopes</td></tr>");
+				}
+				content.AppendLine("</table>");
+
+				content.AppendLine("<p>Built from Perforce</p>");
 			}
 			else
 			{
-				content.Append("<p><a href=\"/account/login\"><b>Login</b></a></p>");
+				content.AppendLine("<p><a href=\"/account/login\"><b>Login</b></a></p>");
 			}
-			content.Append("</html>");
+			content.AppendLine("</html>");
 			return new ContentResult { ContentType = "text/html", StatusCode = (int)HttpStatusCode.OK, Content = content.ToString() };
 		}
 

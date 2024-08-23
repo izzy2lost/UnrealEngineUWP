@@ -167,7 +167,7 @@ namespace HordeServer.Telemetry.Metrics
 		/// </summary>
 		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(parentAcl, $"telemetry-store:{Id}");
+			Acl.PostLoad(parentAcl, $"telemetry-store:{Id}", AclConfig.GetActions([typeof(TelemetryAclAction)])); 
 
 			_metricLookup.Clear();
 			foreach (MetricConfig metric in Metrics)

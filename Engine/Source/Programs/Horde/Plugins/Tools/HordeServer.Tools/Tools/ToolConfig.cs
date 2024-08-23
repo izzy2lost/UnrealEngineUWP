@@ -105,7 +105,7 @@ namespace HordeServer.Tools
 		/// <param name="parentAcl">Parent ACL object</param>
 		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(parentAcl, $"tool:{Id}");
+			Acl.PostLoad(parentAcl, $"tool:{Id}", AclConfig.GetActions([typeof(ToolAclAction)]));
 		}
 
 		/// <inheritdoc cref="AclConfig.Authorize(AclAction, ClaimsPrincipal)"/>

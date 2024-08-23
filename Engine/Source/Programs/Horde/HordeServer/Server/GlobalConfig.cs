@@ -8,10 +8,13 @@ using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Core;
 using EpicGames.Horde.Acls;
+using HordeServer.Accounts;
 using HordeServer.Acls;
 using HordeServer.Configuration;
 using HordeServer.Dashboard;
 using HordeServer.Plugins;
+using HordeServer.Server.Notices;
+using HordeServer.ServiceAccounts;
 using HordeServer.Utilities;
 
 namespace HordeServer.Server
@@ -104,9 +107,17 @@ namespace HordeServer.Server
 		public void PostLoad(ServerSettings serverSettings, IReadOnlyList<ILoadedPlugin> loadedPlugins, IEnumerable<IDefaultAclModifier> defaultAclModifiers)
 		{
 			ServerSettings = serverSettings;
+			AclAction[] aclActions = AclConfig.GetActions(
+			[
+				typeof(AccountAclAction),
+				typeof(ServiceAccountAclAction),
+				typeof(NoticeAclAction),
+				typeof(ServerAclAction),
+				typeof(AdminAclAction),
+			]);
 
 			AclConfig defaultAcl = CreateRootAcl(defaultAclModifiers);
-			Acl.PostLoad(defaultAcl, defaultAcl.ScopeName);
+			Acl.PostLoad(defaultAcl, defaultAcl.ScopeName, aclActions);
 
 			// Ensure that all plugins have an entry in the global config so they can register their ACLs
 			foreach (ILoadedPlugin loadedPlugin in loadedPlugins)
@@ -142,7 +153,7 @@ namespace HordeServer.Server
 			}
 
 			AclConfig defaultAcl = defaultAclBuilder.Build();
-			defaultAcl.PostLoad(null, AclScopeName.Root);
+			defaultAcl.PostLoad(null, AclScopeName.Root, []);
 
 			return defaultAcl;
 		}

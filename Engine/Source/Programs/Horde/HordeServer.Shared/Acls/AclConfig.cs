@@ -1,6 +1,7 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 using System.ComponentModel.DataAnnotations;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
 using EpicGames.Horde.Acls;
@@ -32,6 +33,12 @@ namespace HordeServer.Acls
 		/// </summary>
 		[JsonIgnore]
 		public AclScopeName[]? LegacyScopeNames { get; set; }
+		
+		/// <summary>
+		/// ACL actions associated with this config (for debugging purposes)
+		/// </summary>
+		[JsonIgnore]
+		public AclAction[]? Actions { get; set; }
 
 		/// <summary>
 		/// ACLs which are parented to this
@@ -129,19 +136,20 @@ namespace HordeServer.Acls
 		/// <summary>
 		/// Called after the config file has been read
 		/// </summary>
-		public void PostLoad(AclConfig parentScope, string scopeNameSuffix)
+		public void PostLoad(AclConfig parentScope, string scopeNameSuffix, AclAction[] actions)
 		{
-			PostLoad(parentScope, parentScope.ScopeName.Append(scopeNameSuffix));
+			PostLoad(parentScope, parentScope.ScopeName.Append(scopeNameSuffix), actions);
 		}
 
 		/// <summary>
 		/// Called after the config file has been read
 		/// </summary>
-		public void PostLoad(AclConfig? parentScope, AclScopeName scopeName)
+		public void PostLoad(AclConfig? parentScope, AclScopeName scopeName, AclAction[] actions)
 		{
 			Parent = parentScope;
 			ScopeName = scopeName;
 			Children = null;
+			Actions = actions;
 
 			if (parentScope == null)
 			{
@@ -219,6 +227,20 @@ namespace HordeServer.Acls
 					childAclConfig.FindEntitlements(predicate, scopeToActions);
 				}
 			}
+		}
+		
+		/// <summary>
+		/// Get all AclActions declared for the types specified
+		/// </summary>
+		/// <param name="type">Array of struct/class types</param>
+		/// <returns>List of AclAction</returns>
+		public static AclAction[] GetActions(Type[] type)
+		{
+			return type
+				.SelectMany(x => x.GetProperties(BindingFlags.Static | BindingFlags.Public))
+				.Where(x => x.PropertyType == typeof(AclAction))
+				.Select(x => (AclAction)x.GetValue(null)!)
+				.ToArray();
 		}
 	}
 

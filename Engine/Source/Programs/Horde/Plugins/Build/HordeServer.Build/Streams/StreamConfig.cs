@@ -25,8 +25,11 @@ using HordeServer.Acls;
 using HordeServer.Artifacts;
 using HordeServer.Configuration;
 using HordeServer.Issues;
+using HordeServer.Jobs;
+using HordeServer.Jobs.Bisect;
 using HordeServer.Jobs.Graphs;
 using HordeServer.Jobs.Templates;
+using HordeServer.Notifications;
 using HordeServer.Projects;
 using HordeServer.Replicators;
 using HordeServer.Utilities;
@@ -264,8 +267,16 @@ namespace HordeServer.Streams
 		{
 			Id = id;
 			ProjectConfig = projectConfig;
-
-			Acl.PostLoad(projectConfig.Acl, $"stream:{Id}");
+			
+			AclAction[] aclActions = AclConfig.GetActions(
+				[
+					typeof(BisectTaskAclAction),
+					typeof(JobAclAction),
+					typeof(NotificationAclAction),
+					typeof(ReplicatorAclAction),
+					typeof(StreamAclAction)
+				]);
+			Acl.PostLoad(projectConfig.Acl, $"stream:{Id}", aclActions);
 			Acl.LegacyScopeNames = projectConfig.Acl.LegacyScopeNames?.Select(x => x.Append($"s:{Id}")).ToArray();
 
 			JobOptions.MergeDefaults(projectConfig.JobOptions);
@@ -904,7 +915,7 @@ namespace HordeServer.Streams
 				Id = new TemplateId(StringId.Sanitize(Name));
 			}
 
-			Acl.PostLoad(streamConfig.Acl, $"template:{Id}");
+			Acl.PostLoad(streamConfig.Acl, $"template:{Id}", []);
 			Acl.LegacyScopeNames = streamConfig.Acl.LegacyScopeNames?.Select(x => x.Append($"t:{Id}")).ToArray();
 		}
 	}

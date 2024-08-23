@@ -40,7 +40,7 @@ namespace HordeServer.Secrets
 		/// <param name="parentAcl">Parent acl object</param>
 		public void PostLoad(AclConfig parentAcl)
 		{
-			Acl.PostLoad(parentAcl, $"secret:{Id}");
+			Acl.PostLoad(parentAcl, $"secret:{Id}", AclConfig.GetActions([typeof(SecretAclAction)]));
 		}
 
 		/// <summary>
