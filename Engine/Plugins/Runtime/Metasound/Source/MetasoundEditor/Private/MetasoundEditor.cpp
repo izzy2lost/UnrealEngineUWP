@@ -1124,7 +1124,6 @@ namespace Metasound
 			Builder.Reset(&Engine::FDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(*ObjectToEdit));
 			DocListener = MakeShared<FDocumentListener>(StaticCastSharedRef<FEditor>(AsShared()));
 			Builder->AddTransactionListener(DocListener->AsShared());
-			SyncFocusedPage();
 
 			if (FMetasoundAssetBase* MetaSoundAsset = IMetasoundUObjectRegistry::Get().GetObjectAsAssetBase(ObjectToEdit))
 			{
@@ -2413,6 +2412,8 @@ namespace Metasound
 				{
 					return;
 				}
+
+				SyncFocusedPage();
 
 				// Even though the MetaSoundSource will attempt to register via InitResources
 				// later in this execution (and deeper in the stack), this call forces

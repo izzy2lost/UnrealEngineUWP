@@ -947,13 +947,8 @@ void FMetasoundFrontendClassInput::IterateDefaults(TFunctionRef<void(const FGuid
 
 bool FMetasoundFrontendClassInput::RemoveDefault(const FGuid& InPageID)
 {
-	if (InPageID != Metasound::Frontend::DefaultPageID)
-	{
-		auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
-		return Defaults.RemoveAllSwap(IsPage) > 0;
-	}
-
-	return false;
+	auto IsPage = [&InPageID](const FMetasoundFrontendClassInputDefault& Default) { return Default.PageID == InPageID; };
+	return Defaults.RemoveAllSwap(IsPage) > 0;
 }
 
 void FMetasoundFrontendClassInput::ResetDefaults()
