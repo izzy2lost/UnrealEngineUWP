@@ -88,14 +88,6 @@ static FAutoConsoleVariableRef CVarMinScreenRadiusForDepthPrepass(
 	ECVF_RenderThreadSafe
 	);
 
-float GMinScreenRadiusForCSMDepth = 0.01f;
-static FAutoConsoleVariableRef CVarMinScreenRadiusForCSMDepth(
-	TEXT("r.MinScreenRadiusForCSMDepth"),
-	GMinScreenRadiusForCSMDepth,
-	TEXT("Threshold below which meshes will be culled from CSM depth pass."),
-	ECVF_RenderThreadSafe
-	);
-
 static TAutoConsoleVariable<int32> CVarTemporalAASamples(
 	TEXT("r.TemporalAASamples"),
 	8,
@@ -1101,7 +1093,6 @@ FFilterStaticMeshesForViewData::FFilterStaticMeshesForViewData(FViewInfo& View)
 
 	LODScale = CVarStaticMeshLODDistanceScale.GetValueOnRenderThread() * View.LODDistanceFactor;
 
-	MinScreenRadiusForCSMDepthSquared = GMinScreenRadiusForCSMDepth * GMinScreenRadiusForCSMDepth;
 	MinScreenRadiusForDepthPrepassSquared = GMinScreenRadiusForDepthPrepass * GMinScreenRadiusForDepthPrepass;
 
 	bFullEarlyZPass = ShouldForceFullDepthPass(View.GetShaderPlatform());
@@ -1480,7 +1471,6 @@ void FRelevancePacket::ComputeRelevance(FDynamicPrimitiveIndexList& DynamicPrimi
 
 			float DistanceSquared = (Bounds.BoxSphereBounds.Origin - ViewData.ViewOrigin).SizeSquared();
 			const float LODFactorDistanceSquared = DistanceSquared * FMath::Square(ViewData.LODScale);
-			const bool bDrawShadowDepth = FMath::Square(Bounds.BoxSphereBounds.SphereRadius) > ViewData.MinScreenRadiusForCSMDepthSquared * LODFactorDistanceSquared;
 			const bool bDrawDepthOnly = ViewData.bFullEarlyZPass || ((ShadingPath != EShadingPath::Mobile) && (FMath::Square(Bounds.BoxSphereBounds.SphereRadius) > GMinScreenRadiusForDepthPrepass * GMinScreenRadiusForDepthPrepass * LODFactorDistanceSquared));
 
 			const int32 NumStaticMeshes = PrimitiveSceneInfo->StaticMeshRelevances.Num();

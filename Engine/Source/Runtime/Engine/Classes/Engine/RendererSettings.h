@@ -364,11 +364,6 @@ class URendererSettings : public UDeveloperSettings
 	float MinScreenRadiusForEarlyZPass;
 
 	UPROPERTY(config, EditAnywhere, Category=Culling, meta=(
-		ConsoleVariable="r.MinScreenRadiusForCSMDepth",DisplayName="Min Screen Radius for Cascaded Shadow Maps",
-		ToolTip="Screen radius at which objects are culled for cascaded shadow map depth passes. Larger values can improve performance but can cause artifacts as objects stop casting shadows."))
-	float MinScreenRadiusForCSMdepth;
-
-	UPROPERTY(config, EditAnywhere, Category=Culling, meta=(
 		ConsoleVariable="r.PrecomputedVisibilityWarning",DisplayName="Warn about no precomputed visibility",
 		ToolTip="Displays a warning when no precomputed visibility data is available for the current camera location. This can be helpful if you are making a game that relies on precomputed visibility, e.g. a first person mobile game."))
 	uint32 bPrecomputedVisibilityWarning:1;

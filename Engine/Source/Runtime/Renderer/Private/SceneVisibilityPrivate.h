@@ -659,7 +659,6 @@ struct FFilterStaticMeshesForViewData
 	FVector ViewOrigin;
 	int32 ForcedLODLevel;
 	float LODScale;
-	float MinScreenRadiusForCSMDepthSquared;
 	float MinScreenRadiusForDepthPrepassSquared;
 	bool bFullEarlyZPass;
 
