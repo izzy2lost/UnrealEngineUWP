@@ -582,19 +582,12 @@ FPrimitiveSceneProxy* USkinnedMeshComponent::CreateSceneProxy()
 		int32 MaxSupportedNumBones = MeshObject->IsCPUSkinned() ? MAX_int32 : FGPUBaseSkinVertexFactory::GetMaxGPUSkinBones();
 		if (MaxBonesPerChunk <= MaxSupportedNumBones)
 		{
-			if (ShouldNaniteSkin())
+			if (MeshObject->IsNaniteMesh())
 			{
-				Nanite::FMaterialAudit NaniteMaterials{};
-				AuditMaterials(this, NaniteMaterials, true /* Set material usage flags */);
-
-				const bool bIsMaskingAllowed = Nanite::IsMaskingAllowed(GetWorld(), false /* force Nanite for masked */);
-				if (NaniteMaterials.IsValid(bIsMaskingAllowed))
-				{
-					Result = ::new Nanite::FSkinnedSceneProxy(NaniteMaterials, this, SkelMeshRenderData);
-				}
+				const FSkeletalMeshObjectNanite* NaniteMeshObject = static_cast<const FSkeletalMeshObjectNanite*>(MeshObject);
+				Result = ::new Nanite::FSkinnedSceneProxy(NaniteMeshObject->GetMaterials(), this, SkelMeshRenderData);
 			}
-
-			if (Result == nullptr)
+			else
 			{
 				Result = ::new FSkeletalMeshSceneProxy(this, SkelMeshRenderData);
 			}
@@ -1001,9 +994,9 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 			ERHIFeatureLevel::Type SceneFeatureLevel = GetWorld()->GetFeatureLevel();
 			if( FSkeletalMeshRenderData* SkelMeshRenderData = GetSkinnedAsset()->GetResourceForRendering() )
 			{
-			int32 MinLODIndex = ComputeMinLOD();
+				int32 MinLODIndex = ComputeMinLOD();
 			
-#if DO_CHECK
+			#if DO_CHECK
 				for (int LODIndex = MinLODIndex; LODIndex < SkelMeshRenderData->LODRenderData.Num(); LODIndex++)
 				{
 					FSkeletalMeshLODRenderData& LODData = SkelMeshRenderData->LODRenderData[LODIndex];
@@ -1013,21 +1006,30 @@ void USkinnedMeshComponent::CreateRenderState_Concurrent(FRegisterComponentConte
 						UE_LOG(LogSkinnedMeshComp, Warning, TEXT("Invalid Lod %i for Rendering Asset: %s"), LODIndex, *GetSkinnedAsset()->GetFullName());
 					}
 				}
-#endif
+			#endif
 	
-				// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
 				if (MeshObjectFactory)
 				{
 					MeshObject = MeshObjectFactory(MeshObjectFactoryUserData, this, SkelMeshRenderData, SceneFeatureLevel);
 				}
+
+				if (!MeshObject && ShouldNaniteSkin())
+				{
+					FSkeletalMeshObjectNanite* NaniteMeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
+					if (NaniteMeshObject->HasValidMaterials())
+					{
+						MeshObject = NaniteMeshObject;
+					}
+					else
+					{
+						delete NaniteMeshObject;
+					}
+				}
+
 				if (!MeshObject)
 				{
 					// Also check if skeletal mesh has too many bones/chunk for GPU skinning.
-					if (ShouldNaniteSkin())
-					{
-						MeshObject = ::new FSkeletalMeshObjectNanite(this, SkelMeshRenderData, SceneFeatureLevel);
-					}
-					else if (bRenderStatic)
+					if (bRenderStatic)
 					{
 						// GPU skin vertex buffer + LocalVertexFactory
 						MeshObject = ::new FSkeletalMeshObjectStatic(this, SkelMeshRenderData, SceneFeatureLevel);

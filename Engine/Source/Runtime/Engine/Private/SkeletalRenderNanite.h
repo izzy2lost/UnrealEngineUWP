@@ -15,6 +15,7 @@
 #include "Rendering/SkeletalMeshRenderData.h"
 #include "Rendering/SkeletalMeshLODRenderData.h"
 #include "Animation/MeshDeformerGeometry.h"
+#include "NaniteSceneProxy.h"
 
 class FPrimitiveDrawInterface;
 class UMorphTarget;
@@ -131,6 +132,16 @@ public:
 	virtual const FRayTracingGeometry* GetRayTracingGeometry() const { check(!bRayTracingGeometryRequiresUpdate);  return &RayTracingGeometry; }
 #endif
 
+	inline bool HasValidMaterials() const
+	{
+		return bHasValidMaterials;
+	}
+
+	inline const Nanite::FMaterialAudit& GetMaterials() const
+	{
+		return NaniteMaterials;
+	}
+
 private:
 	FDynamicSkelMeshObjectDataNanite* DynamicData = nullptr;
 
@@ -160,6 +171,9 @@ private:
 	};
 
 	TArray<FSkeletalMeshObjectLOD> LODs;
+
+	Nanite::FMaterialAudit NaniteMaterials;
+	bool bHasValidMaterials = false;
 
 	mutable int32 CachedLOD;
 };

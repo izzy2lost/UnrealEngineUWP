@@ -221,6 +221,11 @@ FSkeletalMeshObjectNanite::FSkeletalMeshObjectNanite(USkinnedMeshComponent* InCo
 	}
 
 	InitResources(InComponent);
+
+	AuditMaterials(InComponent, NaniteMaterials, true /* Set material usage flags */);
+
+	const bool bIsMaskingAllowed = Nanite::IsMaskingAllowed(InComponent->GetWorld(), false /* force Nanite for masked */);
+	bHasValidMaterials = NaniteMaterials.IsValid(bIsMaskingAllowed);
 }
 
 FSkeletalMeshObjectNanite::~FSkeletalMeshObjectNanite()
