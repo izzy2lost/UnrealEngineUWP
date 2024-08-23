@@ -46,11 +46,6 @@ public:
 	// SWidget interface
 	void Tick(const FGeometry& AllottedGeometry, const double InCurrentTime, const float InDeltaTime) override;
 
-	// Own interface
-
-	/** Set the image to show in the widget. */
-	void SetParameters(const mu::ParametersPtr& InParameters);
-
 private:
 
 	/** Reference to the mutable parameters. */

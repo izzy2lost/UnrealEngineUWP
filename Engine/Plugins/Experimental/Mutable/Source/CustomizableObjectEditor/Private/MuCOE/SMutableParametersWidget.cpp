@@ -22,7 +22,12 @@ struct FGeometry;
 void SMutableParametersWidget::Construct(const FArguments& InArgs)
 {
 	OnParametersValueChanged = InArgs._OnParametersValueChanged;
-
+	MutableParameters = InArgs._Parameters;
+	if (MutableParameters)
+	{
+		bIsPendingUpdate = true;
+	}
+	
 	ChildSlot
 	[
 		SNew(SVerticalBox)
@@ -34,13 +39,6 @@ void SMutableParametersWidget::Construct(const FArguments& InArgs)
 			SAssignNew(ParamBox, SVerticalBox)
 		]
 	];
-}
-
-
-void SMutableParametersWidget::SetParameters(const mu::ParametersPtr& InParameters)
-{
-	MutableParameters = InParameters;
-	bIsPendingUpdate = true;
 }
 
 

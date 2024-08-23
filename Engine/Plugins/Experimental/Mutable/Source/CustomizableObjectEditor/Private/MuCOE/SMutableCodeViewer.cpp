@@ -632,6 +632,7 @@ void SMutableCodeViewer::Construct(const FArguments& InArgs, const TSharedPtr<mu
 							[
 								SAssignNew(ParametersWidget, SMutableParametersWidget)
 								.OnParametersValueChanged(this, &SMutableCodeViewer::OnPreviewParameterValueChanged)
+								.Parameters(PreviewParameters)
 							]
 						]
 					]
@@ -1742,7 +1743,6 @@ void SMutableCodeViewer::OnSelectionChanged(TSharedPtr<FMutableCodeTreeElement> 
 	TreeView->GetSelectedItems(SelectedNodes);
 
 	PreviewBorder->ClearContent();
-	ParametersWidget->SetParameters(nullptr);
 
 	SelectedOperationAddress = 0;
 	bSelectedOperationIsImage = false;
@@ -1755,7 +1755,7 @@ void SMutableCodeViewer::OnSelectionChanged(TSharedPtr<FMutableCodeTreeElement> 
 	// Clear all selected items in the constant resources widget
 	ConstantsWidget->ClearSelectedConstantItems();
 	
-	// Find the duplicates for the selected tree element element and highlight them
+	// Find the duplicates for the selected tree element and highlight them
 	if (InNode)
 	{
 		HighlightDuplicatesOfEntry(InNode);
@@ -1766,8 +1766,6 @@ void SMutableCodeViewer::OnSelectionChanged(TSharedPtr<FMutableCodeTreeElement> 
 	SelectedOperationAddress = SelectedNodes[0]->MutableOperation;
 	const mu::OP_TYPE OperationType = MutableModel->GetPrivate()->m_program.GetOpType(SelectedOperationAddress);
 	const mu::DATATYPE OperationDataType = mu::GetOpDataType(OperationType);
-
-	ParametersWidget->SetParameters(PreviewParameters);
 	
 	switch (OperationDataType)
 	{
