@@ -44,6 +44,12 @@ void ExportPixel(const uint2 PixelPos, FLumenOutput ShadedPixel)
 void ProcessPixel(const FPackedNaniteView PackedView, uint ShadingBin, const uint2 PixelPos, const float2 SVPositionXY, const uint ViewIndex)
 {
 	ResolvedView = ResolveView();
+
+	// TODO: Lumen does not appear to bind a valid view uniform buffer
+	// it's almost entirely zero-filled. Need to track this down to prevent
+	// future problems from Lumen accessing values from it.
+	ResolvedView.CullingSign = 1.0f;
+
 	FMaterialPixelParameters MaterialParameters;
 
 	FNaniteFullscreenVSToPS NaniteInterpolants = (FNaniteFullscreenVSToPS)0;

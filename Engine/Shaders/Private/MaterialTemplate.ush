@@ -4252,12 +4252,7 @@ half GetFloatFacingSign(FIsFrontFace bIsFrontFace)
 #endif
 }
 
-#if MATERIAL_TWOSIDED_SEPARATE_PASS
-	#define OPTIONAL_IsFrontFace
-	static const FIsFrontFace bIsFrontFace = 1;
-#else
-	#define OPTIONAL_IsFrontFace , in FIsFrontFace bIsFrontFace : FrontFaceSemantic
-#endif
+#define OPTIONAL_IsFrontFace , in FIsFrontFace bIsFrontFace : FrontFaceSemantic
 
 #ifndef VF_SUPPORTS_WORLD_POSITION_SHADER_OFFSETS
 #define VF_SUPPORTS_WORLD_POSITION_SHADER_OFFSETS 1
@@ -4314,7 +4309,7 @@ void CalcMaterialParametersEx(
 #if IS_NANITE_PASS
 	// Nanite does not support OPTIONAL_IsFrontFace, so Nanite sets the following to 1.0f or -1.0f in
 	// GetMaterialPixelParameters - here we pull it out into our own front facing bool.
-	const bool bNaniteIsFrontFace = Parameters.TwoSidedSign < 0.0f;
+	const bool bNaniteIsFrontFace = Parameters.TwoSidedSign > 0.0f;
 #endif
 
 	Parameters.TwoSidedSign = 1.0f;
@@ -4326,7 +4321,7 @@ void CalcMaterialParametersEx(
 	#endif
 #endif
 
-#if (MATERIAL_TWOSIDED && !MATERIAL_TWOSIDED_SEPARATE_PASS) || RAYHITGROUPSHADER
+#if MATERIAL_TWOSIDED || RAYHITGROUPSHADER
 	// Either we have a two-sided material that needs a sign flip, or we have a ray tracing material
 	// that needs to consider rays arriving from either side
 	#if IS_NANITE_PASS

@@ -569,7 +569,7 @@ FMaterialPixelParameters FetchNaniteMaterialPixelParameters(FPrimitiveSceneData 
 
 	// TODO Couldn't this be derived from the barycentric derivatives?
 	const float SignTest = dot(cross(Tri.Verts[1].PointClip.xyw - Tri.Verts[0].PointClip.xyw, Tri.Verts[2].PointClip.xyw - Tri.Verts[0].PointClip.xyw), Tri.Verts[0].PointClip.xyw);
-	Result.TwoSidedSign = CondMask(SignTest > 0.0f, -1.0f, 1.0f);
+	Result.TwoSidedSign = CondMask(SignTest < 0.0f, -1.0f, 1.0f);
 
 	// Only need the first UV from cluster data (used to solve the tangent frame in GetAttributeData).
 	// But we don't use any for the pixel parameters because we interpolate the UVs manually below, in case they were customized.
