@@ -40,6 +40,7 @@ StructuredBuffer<float4> LightViewSpacePositionAndRadius;
 StructuredBuffer<float4> LightViewSpaceDirAndPreprocAngle;
 
 #define REFINE_SPOTLIGHT_BOUNDS 1
+#define REFINE_RECTLIGHT_BOUNDS 1
 
 #ifndef USE_LOCALSTORE_FOR_ATOMICS
 #define USE_LOCALSTORE_FOR_ATOMICS 0
@@ -210,21 +211,37 @@ void LightGridInjectionCS(
 
 			if (BoxDistanceSq < LightRadius * LightRadius)
 			{
+				float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
+				bool bIsRectLight = asuint(ViewSpaceDirAndPreprocAngle.w) & 0x1;
+
+				bool bPassSpotLightTest = true;
 #if REFINE_SPOTLIGHT_BOUNDS
-				bool bPassSpotlightTest = true;
 				{
-					float4 ViewSpaceDirAndPreprocAngle = LightViewSpaceDirAndPreprocAngle[LocalLightIndex];
-					float TanConeAngle = ViewSpaceDirAndPreprocAngle.w;
+					float TanConeAngle = asfloat(asuint(ViewSpaceDirAndPreprocAngle.w) & 0xFFFFFFFE);
 
 					// Set to 0 for non-acute cones, or non-spot lights.
 					if (TanConeAngle > 0.0f)
 					{
 						float3 ViewSpaceLightDirection = -ViewSpaceDirAndPreprocAngle.xyz;
-						bPassSpotlightTest = !IsAabbOutsideInfiniteAcuteConeApprox(ViewSpaceLightPosition, ViewSpaceLightDirection, TanConeAngle, ViewTileCenter, ViewTileExtent);
+						bPassSpotLightTest = !IsAabbOutsideInfiniteAcuteConeApprox(ViewSpaceLightPosition, ViewSpaceLightDirection, TanConeAngle, ViewTileCenter, ViewTileExtent);
 					}
 				}
-				if (bPassSpotlightTest)
 #endif // REFINE_SPOTLIGHT_BOUNDS
+				bool bPassRectLightTest = true;
+#if REFINE_RECTLIGHT_BOUNDS
+				{
+					if (bIsRectLight)
+					{
+						float3 D = ViewTileCenter - ViewSpaceLightPosition;
+						float4 Plane = float4(ViewSpaceDirAndPreprocAngle.xyz, 0.0);
+
+						bPassRectLightTest = !AabbOutsidePlane(D, ViewTileExtent, Plane);
+
+						// TODO: Refine using spot light test when BarnDoorAngle < 90 degrees and BarnDoorLength > 0
+					}
+				}
+#endif // REFINE_RECTLIGHT_BOUNDS
+				if (bPassSpotLightTest && bPassRectLightTest)
 				{
 
 #if USE_LINKED_CULL_LIST
