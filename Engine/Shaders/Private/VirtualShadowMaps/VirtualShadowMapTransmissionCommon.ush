@@ -20,7 +20,8 @@ FSubsurfaceOpacityMFP GetSubsurfaceOpacityFromGbuffer(uint2 PixelPos)
 
 	FSubstrateSubsurfaceData LoadStrat = SubstrateLoadSubsurfaceData(Substrate.MaterialTextureArray, Substrate.FirstSliceStoringSubstrateSSSData, PixelPos);
 
-	SubsurfaceOpacityMFP = SubstrateGetSubsurfaceOpacityMFP(LoadStrat.Header);
+	// Diffusion and DiffuseProfile are not allowed to translate their MFP into opacity in order to match legacy behavior
+	SubsurfaceOpacityMFP = SubstrateGetSubsurfaceOpacityMFP(LoadStrat.Header, false /*bAllowDiffuse*/, false /*bAllowDiffuseProfile*/);
 
 #else // SUBSTRATE_ENABLED
 	FGBufferData GBufferData = GetGBufferDataUint(PixelPos);
