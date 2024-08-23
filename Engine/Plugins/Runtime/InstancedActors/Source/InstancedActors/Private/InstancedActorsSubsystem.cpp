@@ -395,8 +395,17 @@ FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclas
 
 FInstancedActorsInstanceHandle UInstancedActorsSubsystem::InstanceActor(TSubclassOf<AActor> ActorClass, FTransform InstanceTransform, ULevel* Level, const FGameplayTagContainer& InstanceTags, TSubclassOf<AInstancedActorsManager> ManagerClass)
 {
+	if (!ensureMsgf(Level, TEXT("Expecting a valid Level. Received nullptr.")))
+	{
+		return FInstancedActorsInstanceHandle();
+	}
+
 	UWorld* World = Level->GetWorld();
 	if (!ensureMsgf(!World->IsGameWorld(), TEXT("Instanced Actors doesn't yet support runtime addition of instances. Skipping instance creation")))
+	{
+		return FInstancedActorsInstanceHandle();
+	}
+	else if (!ensureMsgf(ActorClass, TEXT("Expecting a valid ActorClass. Received None.")))
 	{
 		return FInstancedActorsInstanceHandle();
 	}
