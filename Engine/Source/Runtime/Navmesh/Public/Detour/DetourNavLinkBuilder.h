@@ -60,18 +60,19 @@ public:
 	
 	struct TrajectorySample
 	{
-		float x, ymin, ymax;
+		// Min and max heights relative to the height on the segment between the start and the end point (at the sampling locations). 
+		float ymin;
+		float ymax;
 	};
 	
 	struct Trajectory2D
 	{
-		Trajectory2D() : nspine(0) {}
-
 		float spine[2*MAX_SPINE];		// [x,y] relative points representing the desired trajectory (one spine with MAX_SPINE points)
+		float radiusOverflow = 0.f;		// extra distance at the start and end of the spine to lookup for samples
 
 		TArray<TrajectorySample, TInlineAllocator<8>> samples;	// samples along trajectory slices to check for collision
 		
-		unsigned char nspine;			// @todo: remove (use direclty MAX_SPINE) or make relative to trajectory type and config
+		unsigned char nspine = 0;		// @todo: remove (use direclty MAX_SPINE) or make relative to trajectory type and config
 	};
 
 private:	
@@ -160,8 +161,8 @@ public:
 	NAVMESH_API void debugBuildEdge(const dtLinkBuilderConfig& acfg, dtNavLinkAction action, int edgeIndex, EdgeSampler& sampler);
 	
 private:
-	void initTrajectory(Trajectory2D* tra) const;
-	bool isTrajectoryClear(const dtReal* pa, const dtReal* pb, const Trajectory2D* tra) const;
+	void initTrajectory(Trajectory2D* trajectory) const;
+	bool isTrajectoryClear(dtReal* pa, dtReal* pb, const Trajectory2D* trajectory, const dtReal* trajectoryDir) const;
 	
 	int findPotentialJumpOverEdges(const dtReal* sp, const dtReal* sq,
 								   const float depthRange, const float heightRange,

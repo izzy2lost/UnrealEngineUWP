@@ -104,8 +104,12 @@ namespace UE::Detour::Private
 		}
 	}
 
-	void drawTrajectorySlice(duDebugDraw* dd, const dtReal* pa, const dtReal* pb, const dtNavLinkBuilder::Trajectory2D* trajectory, const unsigned int color)
+	void drawTrajectorySlice(duDebugDraw* dd, dtReal* pa, dtReal* pb, const dtNavLinkBuilder::Trajectory2D* trajectory, const dtReal* trajectoryDir, const unsigned int color)
 	{
+		// Offset start and end points to account for the agent radius.
+		dtVmad(pa, pa, trajectoryDir, -trajectory->radiusOverflow);
+		dtVmad(pb, pb, trajectoryDir,  trajectory->radiusOverflow);
+		
 		unsigned int colt = duTransCol(color, 50);
 		unsigned int colb = duTransCol(duLerpCol(color,duColor::black,96), 50);
 		
@@ -557,9 +561,9 @@ void duDebugDrawNavLinkBuilder(duDebugDraw* dd, const dtNavLinkBuilder& linkBuil
 						ept[1] = esmp->height;
 						
 						if (ssmp->flags & dtNavLinkBuilder::UNRESTRICTED)
-							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duColor::green);
+							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, es->az, duColor::green);
 						else
-							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, duColor::orangeRed);
+							UE::Detour::Private::drawTrajectorySlice(dd, spt, ept, &es->trajectory, es->az, duColor::orangeRed);
 					}
 					dd->depthMask(true);
 				}
