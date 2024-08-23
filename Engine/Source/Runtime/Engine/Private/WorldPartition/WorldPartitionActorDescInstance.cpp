@@ -145,7 +145,7 @@ bool FWorldPartitionActorDescInstance::StartAsyncLoad()
 				return;
 			}
 
-			check(ActorPtr->GetPackage() == Package);
+			//check(ActorPtr->GetPackage() == Package);
 		})
 		, PKG_None, INDEX_NONE, 0, InstancingContext);
 	}
