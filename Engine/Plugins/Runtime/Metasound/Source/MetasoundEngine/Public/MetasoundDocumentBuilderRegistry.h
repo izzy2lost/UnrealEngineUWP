@@ -18,16 +18,14 @@ class UMetaSoundSettings;
 namespace Metasound::Engine
 {
 #if WITH_EDITOR
-	struct FPageResolutionEditorResults
+	struct FAuditionPageInfo
 	{
 		FName PlatformName;
 		TOptional<FGuid> PageID;
 	};
 
-	DECLARE_DELEGATE_RetVal_OneParam(FPageResolutionEditorResults, FOnResolveEditorPage, const TArray<FGuid>& /* InPageIDs */);
+	DECLARE_DELEGATE_RetVal_OneParam(FAuditionPageInfo, FOnResolveAuditionPageInfo, const TSet<FGuid>& /* InPageIDs */);
 #endif // WITH_EDITOR
-
-	DECLARE_DELEGATE_RetVal_OneParam(FGuid, FOnResolvePage, const TArray<FGuid>& /* InPageIDs */);
 
 	class METASOUNDENGINE_API FDocumentBuilderRegistry : public Frontend::IDocumentBuilderRegistry
 	{
@@ -142,10 +140,8 @@ namespace Metasound::Engine
 		TArray<UMetaSoundBuilderBase*> FindBuilderObjects(const FMetasoundFrontendClassName& InClassName) const;
 
 #if WITH_EDITOR
-		FOnResolveEditorPage& GetOnResolveAuditionPageDelegate();
+		FOnResolveAuditionPageInfo& GetOnResolveAuditionPageInfoDelegate();
 #endif // WITH_EDITOR
-
-		FOnResolvePage& GetOnResolveProjectPageOverrideDelegate();
 
 		bool ReloadBuilder(const FMetasoundFrontendClassName& InClassName) const override;
 
@@ -160,16 +156,13 @@ namespace Metasound::Engine
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
 		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
-		FGuid ResolveTargetPageIDInternal() const;
-		FGuid ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const FGuid& TargetPageID, FName PlatformName) const;
+		FGuid ResolveTargetPageIDInternal(const TSet<FGuid>& InPageIDs) const;
+		FGuid ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const TSet<FGuid>& InPageIDs, const FGuid& TargetPageID, FName PlatformName) const;
 
 #if WITH_EDITOR
-		FOnResolveEditorPage OnResolveAuditionPage;
+		FOnResolveAuditionPageInfo OnResolveAuditionPageInfo;
 #endif // WITH_EDITOR
 
-		FOnResolvePage OnResolveProjectPage;
-
-		mutable TArray<FGuid> TargetPageResolveScratch;
 		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;
 	};
 } // namespace Metasound::Engine

@@ -110,12 +110,12 @@ const FAudioMaterialMeterStyle* UMetasoundEditorSettings::GetMeterStyle() const
 	return &FAudioWidgetsStyle::Get().GetWidgetStyle<FAudioMaterialMeterStyle>("AudioMaterialMeter.Style");
 }
 
-Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::ResolveAuditionPage(const TArray<FGuid>& InPageIDs) const
+Metasound::Engine::FAuditionPageInfo UMetasoundEditorSettings::ResolveAuditionPageInfo(const TSet<FGuid>& InPageIDs) const
 {
 	using namespace Metasound;
 	using namespace Metasound::Engine;
 
-	FPageResolutionEditorResults PreviewInfo { .PlatformName = AuditionPlatform };
+	FAuditionPageInfo PreviewInfo { .PlatformName = AuditionPlatform };
 
 	if (AuditionTargetPage == Frontend::DefaultPageName)
 	{

@@ -63,11 +63,6 @@ namespace Metasound
 {
 	namespace Editor
 	{
-		namespace ModulePrivate
-		{
-			static const FText PageValuePropertyText = LOCTEXT("Node_DefaultPageValuePropertyName", "Page Value");
-		} // namespace ModulePrivate
-
 		using FMetasoundGraphPanelPinFactory = FGraphPanelPinFactory;
 
 		static const FName AssetToolName { "AssetTools" };
@@ -234,7 +229,6 @@ namespace Metasound
 			const FSlateBrush* PinConnectedIcon = nullptr;
 			const FSlateBrush* PinDisconnectedIcon = nullptr;
 		};
-
 
 		class FModule : public IMetasoundEditorModule
 		{
@@ -439,34 +433,27 @@ namespace Metasound
 				}
 
 				const UMetasoundEditorSettings* EditorSettings = GetDefault<UMetasoundEditorSettings>();
-				FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageDelegate().BindUObject(EditorSettings, &UMetasoundEditorSettings::ResolveAuditionPage);
+				FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate().BindUObject(EditorSettings, &UMetasoundEditorSettings::ResolveAuditionPageInfo);
 
-				FEditorDelegates::PreBeginPIE.AddWeakLambda(EditorSettings, [this](const bool /* bSimulating */)
+				FEditorDelegates::PreBeginPIE.AddWeakLambda(EditorSettings, [](const bool /* bSimulating */)
 				{
-					using namespace Metasound::Frontend;
-
 					if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
 					{
-						FOnResolveEditorPage& OnResolveAuditionPage = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageDelegate();
-						if (OnResolveAuditionPage.IsBoundToObject(EdSettings))
+						FOnResolveAuditionPageInfo& OnResolveAuditionPageInfo = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate();
+						if (OnResolveAuditionPageInfo.IsBoundToObject(EdSettings))
 						{
-							if (!EdSettings->bApplyAuditionSettingsInPIE)
-							{
-								OnResolveAuditionPage.Unbind();
-							}
+							OnResolveAuditionPageInfo.Unbind();
 						}
-
-						IMetaSoundAssetManager::GetChecked().ReloadMetaSoundAssets();
 					}
 				});
 				FEditorDelegates::EndPIE.AddWeakLambda(EditorSettings, [](const bool /* bSimulating */)
 				{
 					if (const UMetasoundEditorSettings* EdSettings = GetDefault<UMetasoundEditorSettings>())
 					{
-						FOnResolveEditorPage& OnResolveAuditionPage = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageDelegate();
-						if (!OnResolveAuditionPage.IsBoundToObject(EdSettings))
+						FOnResolveAuditionPageInfo& OnResolveAuditionPageInfo = FDocumentBuilderRegistry::GetChecked().GetOnResolveAuditionPageInfoDelegate();
+						if (!OnResolveAuditionPageInfo.IsBoundToObject(EdSettings))
 						{
-							OnResolveAuditionPage.BindUObject(EdSettings, &UMetasoundEditorSettings::ResolveAuditionPage);
+							OnResolveAuditionPageInfo.BindUObject(EdSettings, &UMetasoundEditorSettings::ResolveAuditionPageInfo);
 						}
 					}
 				});
@@ -738,8 +725,6 @@ namespace Metasound
 
 				AssetActions.Reset();
 				PinTypes.Reset();
-
-				LiteralCustomizationFactories.Reset();
 
 				FGraphNodeVisualizationRegistry::TearDown();
 			}
