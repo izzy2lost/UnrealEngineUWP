@@ -10,20 +10,18 @@
 #include "HAL/FileManager.h"
 #include "HAL/PlatformApplicationMisc.h"
 #include "HAL/PlatformFileManager.h"
+#include "HAL/PlatformMisc.h"
 #include "HAL/PlatformSplash.h"
 #include "ILiveLinkHubModule.h"
-#include "Interfaces/IPluginManager.h"
 #include "LaunchEngineLoop.h"
+#include "LiveLinkHubPluginHelpers.h"
 #include "Misc/CommandLine.h"
+#include "Misc/CoreDelegates.h"
 #include "Misc/Paths.h"
 #include "Modules/ModuleManager.h"
 
 #ifndef WITH_ASSET_LOADING_AUDIT
 #define WITH_ASSET_LOADING_AUDIT 0
-#endif
-
-#if WITH_ASSET_LOADING_AUDIT
-#	include "Misc/CoreDelegates.h"
 #endif
 
 
@@ -73,7 +71,6 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 		bLauncherDistribution = true;
 		FPaths::SetProjectFilePath(StagedProjectPath);
 	}
-#endif
 
 	if (bLauncherDistribution)
 	{
@@ -82,6 +79,22 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 		FPackageName::RegisterMountPoint(TEXT("/Game/"), GameContentPath);
 	}
 
+	// Used by Live Coding, among other things.
+	FPlatformMisc::SetUBTTargetName(TEXT("LiveLinkHubEditor"));
+
+	// We need to specify this manually, because it isn't inferred from the command line.
+	// But we can't set it too early, because LaunchSetGameName clears it.
+	FCoreDelegates::OnInit.AddStatic([]()
+	{
+		// Required for OpenXR instance registration.
+		FApp::SetProjectName(TEXT("LiveLinkHub"));
+	});
+
+	// Plugin directory config save/load
+	FCoreDelegates::TSConfigReadyForUse().AddStatic(LiveLinkHub::PluginHelpers::RestoreSavedPluginDirectories);
+	FCoreDelegates::OnAllModuleLoadingPhasesComplete.AddStatic(LiveLinkHub::PluginHelpers::RegisterPluginDirectoriesChangedHandler);
+#endif
+
 #if IS_PROGRAM
 	// Disable this when going through PreInit to prevent the console window from appearing.
 	GIsSilent = true;
@@ -89,7 +102,7 @@ int32 RunLiveLinkHub(const TCHAR* CommandLine)
 
 	// Start up the main loop, adding some extra command line arguments:
 #if !IS_PROGRAM
-	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), TEXT(""), CommandLine));
+	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-xrtrackingonly")));
 #else
 	int32 Result = GEngineLoop.PreInit(*FString::Printf(TEXT("%s %s"), CommandLine, TEXT("-RUN=LiveLinkHubCommandlet -Messaging -DDC=NoShared -NoShaderCompile")));
 #endif

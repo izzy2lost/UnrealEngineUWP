@@ -7,13 +7,13 @@ public class LiveLinkHub : ModuleRules
 	public LiveLinkHub(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PublicDependencyModuleNames.AddRange(
-		new string[]
-		{
-			"Core",
-			"CoreUObject",
-		});
+			new string[]
+			{
+				"Core",
+				"CoreUObject",
+			});
 
-			PrivateDependencyModuleNames.AddRange(
+		PrivateDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"ApplicationCore",
@@ -46,5 +46,27 @@ public class LiveLinkHub : ModuleRules
 				"UnrealEd",
 				"OutputLog",
 			});
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateIncludePathModuleNames.AddRange(
+				new string[] {
+					"SlateReflector",
+				});
+
+			DynamicallyLoadedModuleNames.AddRange(
+				new string[] {
+					"SlateReflector",
+				});
+
+			if (Target.bBuildTargetDeveloperTools)
+			{
+				PrivateDependencyModuleNames.AddRange(
+					new string[] {
+						"SessionServices",
+						"SessionFrontend",
+					});
+			}
+		}
 	}
 }

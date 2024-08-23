@@ -137,13 +137,20 @@ public:
 
 		MenuBuilder.BeginSection("HubSettings", LOCTEXT("HubSettingsLabel", "Hub Settings"));
 		MenuBuilder.AddMenuEntry(
-			LOCTEXT("SettingsMenuEntry", "Settings"),
-			LOCTEXT("SettingsMenuEntry_ToolTip", "Open the settings menu."),
-			FSlateIcon(),
+			LOCTEXT("SettingsMenuEntry", "Settings..."),
+			LOCTEXT("SettingsMenuEntry_ToolTip", "Open the Settings tab."),
+			FSlateIcon(FAppStyle::GetAppStyleSetName(), "EditorPreferences.TabIcon"),
 			OpenHubSettingsAction,
 			NAME_None,
 			EUserInterfaceActionType::Button);
-
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("PluginsMenuEntry", "Plugins..."),
+			LOCTEXT("PluginsMenuEntry_ToolTip", "Open the Plugins Browser tab."),
+			FSlateIcon("PluginStyle", "Plugins.TabIcon"),
+			FExecuteAction::CreateStatic([]()
+			{
+				FGlobalTabmanager::Get()->TryInvokeTab(FName("PluginsEditor"));
+			}));
 		MenuBuilder.EndSection();
 
 		return MenuBuilder.MakeWidget();

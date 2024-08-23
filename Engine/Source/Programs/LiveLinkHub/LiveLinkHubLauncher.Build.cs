@@ -14,7 +14,11 @@ public class LiveLinkHubLauncher : ModuleRules
 {
 	public LiveLinkHubLauncher(ReadOnlyTargetRules Target) : base(Target)
 	{
-		PrivateDependencyModuleNames.Add("LiveLinkHub");
+		PrivateDependencyModuleNames.AddRange(
+			new string[] {
+				"LiveLinkHub",
+				"PluginBrowser",
+			});
 
 		// LaunchEngineLoop dependencies
 		PrivateDependencyModuleNames.AddRange(
@@ -63,12 +67,22 @@ public class LiveLinkHubLauncher : ModuleRules
 		// LaunchEngineLoop editor dependencies
 		PrivateDependencyModuleNames.AddRange(
 			new string[] {
-				
 				"PropertyEditor",
 				"DerivedDataCache",
 				"ToolWidgets",
 				"UnrealEd"
 		});
+
+
+		if (Target.Configuration != UnrealTargetConfiguration.Shipping)
+		{
+			PrivateDependencyModuleNames.AddRange(
+				new string[] {
+					"AutomationController",
+					"AutomationTest",
+					"AutomationWorker",
+				});
+		}
 
 		if (Target.IsInPlatformGroup(UnrealPlatformGroup.Linux))
 		{

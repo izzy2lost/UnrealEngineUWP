@@ -26,6 +26,8 @@ public class LiveLinkHubEditorTarget : TargetRules
 
 		SolutionDirectory = "Programs/LiveLink";
 		LaunchModuleName = "LiveLinkHubLauncher";
+
+		DefaultBuildSettings = BuildSettingsVersion.Latest;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Latest;
 
 		// These plugins are required for running LiveLinkHub. 
@@ -35,6 +37,8 @@ public class LiveLinkHubEditorTarget : TargetRules
 			"ACLPlugin",
 			"LiveLink",
 			"LiveLinkHub",
+			"PluginBrowser",
+
 			"LiveLinkCamera",
 			"LiveLinkLens",
 			"LensComponent",
@@ -47,7 +51,10 @@ public class LiveLinkHubEditorTarget : TargetRules
 			"UdpMessaging",
 			"CameraCalibrationCore",
 			"AppleARKitFaceSupport",
-			"XInputDevice"
+			"XInputDevice",
+
+			"LiveLinkXR",
+			"OpenXRViveTracker",
 		});
 
 		if (bEnableCaptureManagerPlugin)

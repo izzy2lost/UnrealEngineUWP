@@ -6,9 +6,13 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
+#include "ISessionFrontendModule.h"
+#include "ISlateReflectorModule.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubCommands.h"
 #include "LiveLinkHubModule.h"
+#include "Misc/CommandLine.h"
+#include "Misc/EngineBuildSettings.h"
 #include "Modules/ModuleManager.h"
 #include "UI/Widgets/SLiveLinkHubTabViewBase.h"
 
@@ -90,6 +94,39 @@ void SLiveLinkHubTabViewWithManagerBase::FillFileMenu(FMenuBuilder& MenuBuilder)
 	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().SaveConfig);
 	MenuBuilder.AddMenuEntry(FLiveLinkHubCommands::Get().SaveConfigAs);
 	MenuBuilder.EndSection();
+
+#if !UE_BUILD_SHIPPING
+	const bool bShowDevTools = FParse::Param(FCommandLine::Get(), TEXT("Development"))
+		|| FEngineBuildSettings::IsInternalBuild();
+
+	if (bShowDevTools)
+	{
+		MenuBuilder.BeginSection("Development", LOCTEXT("DevelopmentHeader", "Development"));
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("FileMenu_Development_AutomationTools", "Automation Tools"),
+			FText(),
+			FSlateIcon(),
+			FExecuteAction::CreateStatic([]()
+			{
+				ISessionFrontendModule& SessionFrontend =
+					FModuleManager::LoadModuleChecked<ISessionFrontendModule>("SessionFrontend");
+				SessionFrontend.InvokeSessionFrontend(FName("AutomationPanel"));
+			})
+		);
+		MenuBuilder.AddMenuEntry(
+			LOCTEXT("FileMenu_Development_WidgetReflector", "Widget Reflector"),
+			FText(),
+			FSlateIcon(),
+			FExecuteAction::CreateStatic([]()
+			{
+				ISlateReflectorModule& SlateReflector =
+					FModuleManager::LoadModuleChecked<ISlateReflectorModule>("SlateReflector");
+				SlateReflector.DisplayWidgetReflector();
+			})
+		);
+		MenuBuilder.EndSection();
+	}
+#endif // #if !UE_BUILD_SHIPPING
 }
 
 void SLiveLinkHubTabViewWithManagerBase::FillWindowMenu(FMenuBuilder& MenuBuilder)
