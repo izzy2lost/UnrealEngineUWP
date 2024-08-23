@@ -514,12 +514,19 @@ namespace UE::StylusInput::Private::Windows
 	}
 
 	FWindowsStylusInputPluginBase::FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback,
-	                                                   FUpdateTabletContextsCallback&& UpdateTabletContextsCallback)
+	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
+	                                                             IStylusInputEventHandler* EventHandler)
 		: GetWindowContextCallback(MoveTemp(GetWindowContextCallback))
 		, UpdateTabletContextsCallback(MoveTemp(UpdateTabletContextsCallback)) 
 	{
 		check(this->GetWindowContextCallback.IsBound());
 		check(this->UpdateTabletContextsCallback.IsBound());
+
+		if (EventHandler)
+		{
+			// Immediately install an event handler during construction to capture events coming through during plugin initialization.
+			AddEventHandler(EventHandler);
+		}
 	}
 
 	void FWindowsStylusInputPluginBase::DebugEvent(const FString& Message) const
@@ -530,16 +537,93 @@ namespace UE::StylusInput::Private::Windows
 		}
 	}
 
-	HRESULT FWindowsStylusInputPluginBase::ProcessRealTimeStylusEnabled(IRealTimeStylus* RealTimeStylus, const uint32 TabletContextIDsCount,
-	                                                               const TABLET_CONTEXT_ID* TabletContextIDs)
+	HRESULT FWindowsStylusInputPluginBase::ProcessDataInterest(RealTimeStylusDataInterest* DataInterest)
 	{
-		return UpdateTabletContexts(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
+		constexpr bool bGetAllData = false;
+
+		if (bGetAllData)
+		{
+			*DataInterest = RTSDI_AllData;
+
+			DebugEvent("Requested all data from stylus input.");
+		}
+		else
+		{
+			*DataInterest = static_cast<RealTimeStylusDataInterest>(
+				RTSDI_Error |
+				RTSDI_RealTimeStylusEnabled | RTSDI_RealTimeStylusDisabled |
+				RTSDI_InAirPackets | RTSDI_Packets |
+				RTSDI_StylusDown | RTSDI_StylusUp);
+
+			DebugEvent("Requested data for Error, RealTimeStylusEnabled, RealTimeStylusDisabled, InAirPackets, Packets, StylusDown, StylusUp "
+				"from stylus input (DataInterest event).");
+		}
+
+		return S_OK;
 	}
 
-	HRESULT FWindowsStylusInputPluginBase::ProcessRealTimeStylusDisabled(IRealTimeStylus* RealTimeStylus, const uint32 TabletContextIDsCount,
-	                                                                const TABLET_CONTEXT_ID* TabletContextIDs)
+	HRESULT FWindowsStylusInputPluginBase::ProcessError(RealTimeStylusDataInterest DataInterest, const HRESULT ErrorCode)
 	{
-		return UpdateTabletContexts(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
+		constexpr bool bShowAllErrors = false;
+
+		if (bShowAllErrors || ErrorCode != E_NOTIMPL)
+		{
+			const char* DataInterestStr = [DataInterest]
+			{
+				switch (DataInterest)
+				{
+				case RTSDI_AllData:
+					return "AllData";
+				case RTSDI_None:
+					return "None";
+				case RTSDI_Error:
+					return "Error";
+				case RTSDI_RealTimeStylusEnabled:
+					return "RealTimeStylusEnabled";
+				case RTSDI_RealTimeStylusDisabled:
+					return "RealTimeStylusDisabled";
+				case RTSDI_StylusNew:
+					return "StylusNew";
+				case RTSDI_StylusInRange:
+					return "StylusInRange";
+				case RTSDI_InAirPackets:
+					return "InAirPackets";
+				case RTSDI_StylusOutOfRange:
+					return "StylusOutOfRange";
+				case RTSDI_StylusDown:
+					return "StylusDown";
+				case RTSDI_Packets:
+					return "Packets";
+				case RTSDI_StylusUp:
+					return "StylusUp";
+				case RTSDI_StylusButtonUp:
+					return "StylusButtonUp";
+				case RTSDI_StylusButtonDown:
+					return "StylusButtonDown";
+				case RTSDI_SystemEvents:
+					return "SystemEvents";
+				case RTSDI_TabletAdded:
+					return "TabletAdded";
+				case RTSDI_TabletRemoved:
+					return "TabletRemoved";
+				case RTSDI_CustomStylusDataAdded:
+					return "CustomStylusDataAdded";
+				case RTSDI_UpdateMapping:
+					return "UpdateMapping";
+				case RTSDI_DefaultEvents:
+					return "DefaultEvents";
+				}
+				return "<unknown>";
+			}();
+
+			const FString ErrorMessage = FString::Format(TEXT("Error in {0} plugin: {1}, Error={2} ({3})."), {
+				                                             GetName(), DataInterestStr, _com_error(ErrorCode).ErrorMessage(), static_cast<int32>(ErrorCode)
+			                                             });
+
+			DebugEvent(ErrorMessage);
+		}
+
+		return S_OK;
 	}
 
 	HRESULT FWindowsStylusInputPluginBase::ProcessPackets(const StylusInfo* StylusInfo, uint32 PacketCount, uint32 PacketBufferLength, EPacketType Type,
@@ -582,68 +666,36 @@ namespace UE::StylusInput::Private::Windows
 		return S_OK;
 	}
 
-	FString FWindowsStylusInputPluginBase::ProcessError(RealTimeStylusDataInterest DataInterest, const HRESULT ErrorCode)
+	HRESULT FWindowsStylusInputPluginBase::ProcessRealTimeStylusEnabled(IRealTimeStylus* RealTimeStylus, const uint32 TabletContextIDsCount,
+																   const TABLET_CONTEXT_ID* TabletContextIDs)
 	{
-		const char* DataInterestStr = [DataInterest]
-		{
-			switch (DataInterest)
-			{
-			case RTSDI_AllData:
-				return "AllData";
-			case RTSDI_None:
-				return "None";
-			case RTSDI_Error:
-				return "Error";
-			case RTSDI_RealTimeStylusEnabled:
-				return "RealTimeStylusEnabled";
-			case RTSDI_RealTimeStylusDisabled:
-				return "RealTimeStylusDisabled";
-			case RTSDI_StylusNew:
-				return "StylusNew";
-			case RTSDI_StylusInRange:
-				return "StylusInRange";
-			case RTSDI_InAirPackets:
-				return "InAirPackets";
-			case RTSDI_StylusOutOfRange:
-				return "StylusOutOfRange";
-			case RTSDI_StylusDown:
-				return "StylusDown";
-			case RTSDI_Packets:
-				return "Packets";
-			case RTSDI_StylusUp:
-				return "StylusUp";
-			case RTSDI_StylusButtonUp:
-				return "StylusButtonUp";
-			case RTSDI_StylusButtonDown:
-				return "StylusButtonDown";
-			case RTSDI_SystemEvents:
-				return "SystemEvents";
-			case RTSDI_TabletAdded:
-				return "TabletAdded";
-			case RTSDI_TabletRemoved:
-				return "TabletRemoved";
-			case RTSDI_CustomStylusDataAdded:
-				return "CustomStylusDataAdded";
-			case RTSDI_UpdateMapping:
-				return "UpdateMapping";
-			case RTSDI_DefaultEvents:
-				return "DefaultEvents";
-			}
-			return "<unknown>";
-		}();
+		DebugEvent("Stylus input was enabled (RealTimeStylusEnabled event).");
 
-		return FString::Format(TEXT("Error in {0} plugin: {1}, Error={2} ({3})"), {
-			                       GetName(), DataInterestStr, _com_error(ErrorCode).ErrorMessage(), static_cast<int32>(ErrorCode)
-		                       });
+		return UpdateTabletContexts(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
+	}
+
+	HRESULT FWindowsStylusInputPluginBase::ProcessRealTimeStylusDisabled(IRealTimeStylus* RealTimeStylus, const uint32 TabletContextIDsCount,
+																	const TABLET_CONTEXT_ID* TabletContextIDs)
+	{
+		DebugEvent("Stylus input was disabled (RealTimeStylusDisabled event).");
+
+		return UpdateTabletContexts(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
 	}
 
 	HRESULT FWindowsStylusInputPluginBase::ProcessTabletAdded(IInkTablet* Tablet)
 	{
+		// After a TabletAdded event, Windows Ink will fire a RealTimeStylusDisabled event directly followed by a RealTimeStylusEnabled event.
+		// We are using these two events instead to update the tablet contexts.
+
 		return E_NOTIMPL;
 	}
 
 	HRESULT FWindowsStylusInputPluginBase::ProcessTabletRemoved(LONG TabletIndex)
 	{
+		// For simplicity, we don't remove a tablet context when this event is received.
+		// However, sincere there are no more packets coming through for the removed tablet there should be nothing that's continuing to access the outdated
+		// tablet context data.
+
 		return E_NOTIMPL;
 	}
 

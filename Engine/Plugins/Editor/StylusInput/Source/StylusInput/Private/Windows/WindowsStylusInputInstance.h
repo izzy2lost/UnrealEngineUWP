@@ -45,7 +45,7 @@ namespace UE::StylusInput::Private::Windows
 	private:
 		void Init(HWND HWindow);
 
-		void EnablePlugin(EEventHandlerThread EventHandlerThread);
+		void EnablePlugin(EEventHandlerThread EventHandlerThread, IStylusInputEventHandler* EventHandler);
 		void DisablePlugin(EEventHandlerThread EventHandlerThread);
 
 		void SetupWindowContext(HWND HWindow);

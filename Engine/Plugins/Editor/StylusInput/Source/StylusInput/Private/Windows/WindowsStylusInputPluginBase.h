@@ -39,17 +39,19 @@ namespace UE::StylusInput::Private::Windows
 		float GetPacketsPerSecond() const { return PacketStats.GetPacketsPerSecond(); }
 
 	protected:
-		FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback);
+		FWindowsStylusInputPluginBase(FGetWindowContextCallback&& GetWindowContextCallback, FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
+		                              IStylusInputEventHandler* EventHandler);
 		~FWindowsStylusInputPluginBase() = default;
 
 		virtual FString GetName() const = 0;
 
 		void DebugEvent(const FString& Message) const;
 
+		HRESULT ProcessDataInterest(RealTimeStylusDataInterest* DataInterest);
+		HRESULT ProcessError(RealTimeStylusDataInterest DataInterest, HRESULT ErrorCode);
+		HRESULT ProcessPackets(const StylusInfo* StylusInfo, uint32 PacketCount, uint32 PacketBufferLength, EPacketType Type, const int32* PacketBuffer);
 		HRESULT ProcessRealTimeStylusEnabled(IRealTimeStylus* RealTimeStylus, uint32 TabletContextIDsCount, const TABLET_CONTEXT_ID* TabletContextIDs);
 		HRESULT ProcessRealTimeStylusDisabled(IRealTimeStylus* RealTimeStylus, uint32 TabletContextIDsCount, const TABLET_CONTEXT_ID* TabletContextIDs);
-		HRESULT ProcessPackets(const StylusInfo* StylusInfo, uint32 PacketCount, uint32 PacketBufferLength, EPacketType Type, const int32* PacketBuffer);
-		FString ProcessError(RealTimeStylusDataInterest DataInterest, HRESULT ErrorCode);
 		HRESULT ProcessTabletAdded(IInkTablet* Tablet);
 		HRESULT ProcessTabletRemoved(LONG TabletIndex);
 
@@ -67,7 +69,5 @@ namespace UE::StylusInput::Private::Windows
 		TArray<IStylusInputEventHandler*> EventHandlers;
 	};
 }
-
-#define STYLUSINPUT_SHOW_NOTIMPL_ERRORS 0
 
 #endif

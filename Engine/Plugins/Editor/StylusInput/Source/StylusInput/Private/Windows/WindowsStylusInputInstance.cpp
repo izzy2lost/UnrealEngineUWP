@@ -46,15 +46,17 @@ namespace UE::StylusInput::Private::Windows
 		{
 			if (!AsyncPlugin)
 			{
-				EnablePlugin(EEventHandlerThread::OnGameThread);
-			}
+				EnablePlugin(EEventHandlerThread::OnGameThread, EventHandler);
 
-			if (!AsyncPlugin)
-			{
-				LogError(LOG_PREAMBLE, FString::Format(
-					         TEXT("Event handler '{0}' was not added since game thread stylus input plugin could not be installed."),
-					         {EventHandler->GetName()}));
-				return false;
+				if (!AsyncPlugin)
+				{
+					LogError(LOG_PREAMBLE, FString::Format(
+								 TEXT("Event handler '{0}' was not added since the game thread stylus input plugin could not be installed."),
+								 {EventHandler->GetName()}));
+					return false;
+				}
+
+				return true;
 			}
 
 			return AsyncPlugin->AddEventHandler(EventHandler);
@@ -64,15 +66,17 @@ namespace UE::StylusInput::Private::Windows
 		{
 			if (!SyncPlugin)
 			{
-				EnablePlugin(EEventHandlerThread::Asynchronous);
-			}
+				EnablePlugin(EEventHandlerThread::Asynchronous, EventHandler);
 
-			if (!SyncPlugin)
-			{
-				LogError(LOG_PREAMBLE, FString::Format(
-							 TEXT("Event handler '{0}' was not added since asynchronous stylus input plugin could not be installed."),
-							 {EventHandler->GetName()}));
-				return false;
+				if (!SyncPlugin)
+				{
+					LogError(LOG_PREAMBLE, FString::Format(
+								 TEXT("Event handler '{0}' was not added since the asynchronous stylus input plugin could not be installed."),
+								 {EventHandler->GetName()}));
+					return false;
+				}
+
+				return true;
 			}
 
 			return SyncPlugin->AddEventHandler(EventHandler);
@@ -250,7 +254,7 @@ namespace UE::StylusInput::Private::Windows
 
 		if (WindowRectangle.right <= WindowRectangle.left || WindowRectangle.bottom <= WindowRectangle.top)
 		{
-			LogError(LOG_PREAMBLE, "Window is minimized; failed to setup device context!");
+			LogError(LOG_PREAMBLE, "Window appears to be minimized; failed to setup device context!");
 			return;
 		}
 
@@ -361,7 +365,7 @@ namespace UE::StylusInput::Private::Windows
 		}
 	}
 
-	void FWindowsStylusInputInstance::EnablePlugin(const EEventHandlerThread EventHandlerThread)
+	void FWindowsStylusInputInstance::EnablePlugin(const EEventHandlerThread EventHandlerThread, IStylusInputEventHandler* EventHandler)
 	{
 		check(RealTimeStylus.IsValid());
 
@@ -369,7 +373,8 @@ namespace UE::StylusInput::Private::Windows
 		{
 			AsyncPlugin = MakeUnique<FWindowsStylusInputPluginAsync>(
 				FGetWindowContextCallback::CreateRaw(this, &FWindowsStylusInputInstance::GetWindowContext),
-				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts)
+				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts),
+				EventHandler
 			);
 
 			if (Succeeded(RealTimeStylus->AddStylusAsyncPlugin(ASYNC_PLUGIN_INDEX, AsyncPlugin.Get()), LOG_PREAMBLE))
@@ -387,7 +392,8 @@ namespace UE::StylusInput::Private::Windows
 		{
 			SyncPlugin = MakeUnique<FWindowsStylusInputPluginSync>(
 				FGetWindowContextCallback::CreateRaw(this, &FWindowsStylusInputInstance::GetWindowContext),
-				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts)
+				FUpdateTabletContextsCallback::CreateRaw(this, &FWindowsStylusInputInstance::UpdateTabletContexts),
+				EventHandler
 			);
 
 			if (Succeeded(SyncPlugin->CreateFreeThreadMarshaler(), LOG_PREAMBLE))

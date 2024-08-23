@@ -11,8 +11,9 @@
 namespace UE::StylusInput::Private::Windows
 {
 	FWindowsStylusInputPluginSync::FWindowsStylusInputPluginSync(FGetWindowContextCallback&& GetWindowContext,
-	                                                   FUpdateTabletContextsCallback&& UpdateTabletContextsCallback)
-		: FWindowsStylusInputPluginBase(MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback))
+	                                                             FUpdateTabletContextsCallback&& UpdateTabletContextsCallback,
+	                                                             IStylusInputEventHandler* EventHandler)
+		: FWindowsStylusInputPluginBase(MoveTemp(GetWindowContext), MoveTemp(UpdateTabletContextsCallback), EventHandler)
 	{
 	}
 
@@ -32,22 +33,26 @@ namespace UE::StylusInput::Private::Windows
 		return WindowsAPI.CoCreateFreeThreadedMarshaler(this, &FreeThreadedMarshaler);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::RealTimeStylusEnabled(IRealTimeStylus* RealTimeStylus, ULONG TabletContextIDsCount, const TABLET_CONTEXT_ID* TabletContextIDs)
+	HRESULT FWindowsStylusInputPluginSync::RealTimeStylusEnabled(IRealTimeStylus* RealTimeStylus, const ULONG TabletContextIDsCount,
+	                                                             const TABLET_CONTEXT_ID* TabletContextIDs)
 	{
 		return ProcessRealTimeStylusEnabled(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::RealTimeStylusDisabled(IRealTimeStylus* RealTimeStylus, ULONG TabletContextIDsCount, const TABLET_CONTEXT_ID* TabletContextIDs)
+	HRESULT FWindowsStylusInputPluginSync::RealTimeStylusDisabled(IRealTimeStylus* RealTimeStylus, const ULONG TabletContextIDsCount,
+	                                                              const TABLET_CONTEXT_ID* TabletContextIDs)
 	{
 		return ProcessRealTimeStylusDisabled(RealTimeStylus, TabletContextIDsCount, TabletContextIDs);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::StylusDown(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, ULONG PropertyCount, LONG* PacketBuffer, LONG**)
+	HRESULT FWindowsStylusInputPluginSync::StylusDown(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, const ULONG PropertyCount,
+	                                                  LONG* PacketBuffer, LONG**)
 	{
 		return ProcessPackets(StylusInfo, 1, PropertyCount, EPacketType::StylusDown, reinterpret_cast<int32*>(PacketBuffer));
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::StylusUp(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, ULONG PropertyCount, LONG* PacketBuffer, LONG**)
+	HRESULT FWindowsStylusInputPluginSync::StylusUp(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, const ULONG PropertyCount,
+	                                                LONG* PacketBuffer, LONG**)
 	{
 		return ProcessPackets(StylusInfo, 1, PropertyCount, EPacketType::StylusUp, reinterpret_cast<int32*>(PacketBuffer));
 	}
@@ -57,19 +62,19 @@ namespace UE::StylusInput::Private::Windows
 		return ProcessTabletAdded(Tablet);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::TabletRemoved(IRealTimeStylus* RealTimeStylus, LONG TabletIndex)
+	HRESULT FWindowsStylusInputPluginSync::TabletRemoved(IRealTimeStylus* RealTimeStylus, const LONG TabletIndex)
 	{
 		return ProcessTabletRemoved(TabletIndex);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::InAirPackets(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, ULONG PacketCount, ULONG PacketBufferLength,
-													LONG* PacketBuffer, ULONG*, LONG**)
+	HRESULT FWindowsStylusInputPluginSync::InAirPackets(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, const ULONG PacketCount,
+	                                                    const ULONG PacketBufferLength, LONG* PacketBuffer, ULONG*, LONG**)
 	{
 		return ProcessPackets(StylusInfo, PacketCount, PacketBufferLength, EPacketType::AboveDigitizer, reinterpret_cast<int32*>(PacketBuffer));
 	}
 
 	HRESULT FWindowsStylusInputPluginSync::Packets(IRealTimeStylus* RealTimeStylus, const StylusInfo* StylusInfo, const ULONG PacketCount,
-	                                          const ULONG PacketBufferLength, LONG* PacketBuffer, ULONG*, LONG**)
+	                                               const ULONG PacketBufferLength, LONG* PacketBuffer, ULONG*, LONG**)
 	{
 		return ProcessPackets(StylusInfo, PacketCount, PacketBufferLength, EPacketType::OnDigitizer, reinterpret_cast<int32*>(PacketBuffer));
 	}
@@ -84,45 +89,42 @@ namespace UE::StylusInput::Private::Windows
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::StylusButtonDown(IRealTimeStylus* piRtsSrc, STYLUS_ID sid, const GUID* pGuidStylusButton, POINT* pStylusPos)
+	HRESULT FWindowsStylusInputPluginSync::StylusButtonDown(IRealTimeStylus* RealTimeStylus, STYLUS_ID StylusID, const GUID* GuidStylusButton, POINT* StylusPos)
 	{
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::StylusButtonUp(IRealTimeStylus* piRtsSrc, STYLUS_ID sid, const GUID* pGuidStylusButton, POINT* pStylusPos)
+	HRESULT FWindowsStylusInputPluginSync::StylusButtonUp(IRealTimeStylus* RealTimeStylus, STYLUS_ID StylusID, const GUID* GuidStylusButton, POINT* StylusPos)
 	{
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::CustomStylusDataAdded(IRealTimeStylus* piRtsSrc, const GUID* pGuidId, ULONG cbData, const BYTE* pbData)
+	HRESULT FWindowsStylusInputPluginSync::CustomStylusDataAdded(IRealTimeStylus* RealTimeStylus, const GUID* GuidId, ULONG DataCount, const BYTE* Data)
 	{
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::SystemEvent(IRealTimeStylus* piRtsSrc, TABLET_CONTEXT_ID tcid, STYLUS_ID sid, SYSTEM_EVENT event, SYSTEM_EVENT_DATA eventdata)
+	HRESULT FWindowsStylusInputPluginSync::SystemEvent(IRealTimeStylus* RealTimeStylus, TABLET_CONTEXT_ID TabletContextID, STYLUS_ID StylusID,
+	                                                   SYSTEM_EVENT Event, SYSTEM_EVENT_DATA EventData)
 	{
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::Error(IRealTimeStylus*, IStylusPlugin* Plugin, const RealTimeStylusDataInterest DataInterest, const HRESULT ErrorCode, LONG_PTR*)
+	HRESULT FWindowsStylusInputPluginSync::Error(IRealTimeStylus*, IStylusPlugin* Plugin, const RealTimeStylusDataInterest DataInterest,
+	                                             const HRESULT ErrorCode, LONG_PTR*)
 	{
-#if STYLUSINPUT_SHOW_NOTIMPL_ERRORS
-		const FString ErrorMessage = ProcessError(DataInterest, ErrorCode);
-		DebugEvent(ErrorMessage);
-#endif
-
-		return S_OK;
+		return ProcessError(DataInterest, ErrorCode);
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::UpdateMapping(IRealTimeStylus* piRtsSrc)
+	HRESULT FWindowsStylusInputPluginSync::UpdateMapping(IRealTimeStylus* RealTimeStylus)
 	{
 		return E_NOTIMPL;
 	}
 
-	HRESULT FWindowsStylusInputPluginSync::DataInterest(RealTimeStylusDataInterest* pDataInterest)
+	HRESULT FWindowsStylusInputPluginSync::DataInterest(RealTimeStylusDataInterest* DataInterest)
 	{
-		*pDataInterest = RTSDI_AllData;
-		return S_OK;
+		return ProcessDataInterest(DataInterest);
 	}
 }
+
 #endif
