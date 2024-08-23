@@ -37,6 +37,8 @@ uint TileDataStride;
 Texture2D<uint> LightSamples;
 Texture2D<float4> CompositeUpsampleWeights;
 
+uint UseShadingConfidence;
+
 // 4x4 neighborhood with borders
 #define SHARED_TILE_SIZE_X ((4 + 2) * NUM_SAMPLES_PER_PIXEL_2D_X)
 #define SHARED_TILE_SIZE_Y ((4 + 2) * NUM_SAMPLES_PER_PIXEL_2D_Y)
@@ -279,7 +281,7 @@ void ShadeLightSamplesCS(
 
 			RWResolvedDiffuseLighting[ScreenCoord] = DiffuseLighting;
 			RWResolvedSpecularLighting[ScreenCoord] = SpecularLighting;
-			RWShadingConfidence[ScreenCoord] = WeightRatioSum;
+			RWShadingConfidence[ScreenCoord] = UseShadingConfidence != 0 ? WeightRatioSum : 0.0f;
 		}
 
 #if OUTPUT_VISIBLE_LIGHT_MASK

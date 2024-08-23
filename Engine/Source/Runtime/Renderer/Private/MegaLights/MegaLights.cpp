@@ -45,6 +45,13 @@ static TAutoConsoleVariable<float> CVarMegaLightsGuideByHistoryHiddenPDFWeight(
 	ECVF_Scalability | ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarMegaLightsShadingConfidence(
+	TEXT("r.MegaLights.ShadingConfidence"),
+	1,
+	TEXT("Whether to use shading confidence to reduce denoising and passthrough original signal to TSR for pixels which are well sampled."),
+	ECVF_Scalability | ECVF_RenderThreadSafe
+);
+
 static TAutoConsoleVariable<int32> CVarMegaLightsTemporal(
 	TEXT("r.MegaLights.Temporal"),
 	1,
@@ -208,7 +215,6 @@ namespace MegaLights
 {
 	// must match values in MegaLights.ush
 	constexpr int32 TileSize = 8;
-	constexpr int32 MaxLocalLightIndexXY = 16; // 16 * 16 = 256
 	constexpr int32 MaxLocalLightIndex = 1024;
 	constexpr int32 LightMaskSize = MaxLocalLightIndex / 32;
 
@@ -619,6 +625,7 @@ class FShadeLightSamplesCS : public FGlobalShader
 		SHADER_PARAMETER_RDG_BUFFER_SRV(StructuredBuffer<uint>, TileData)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<flaot4>, CompositeUpsampleWeights)
 		SHADER_PARAMETER_RDG_TEXTURE(Texture2D<uint>, LightSamples)
+		SHADER_PARAMETER(uint32, UseShadingConfidence)
 	END_SHADER_PARAMETER_STRUCT()
 
 	static int32 GetGroupSize()
@@ -1338,6 +1345,7 @@ void FDeferredShadingSceneRenderer::RenderMegaLights(FRDGBuilder& GraphBuilder, 
 				PassParameters->TileData = GraphBuilder.CreateSRV(TileData);
 				PassParameters->CompositeUpsampleWeights = CompositeUpsampleWeights;
 				PassParameters->LightSamples = LightSamples;
+				PassParameters->UseShadingConfidence = CVarMegaLightsShadingConfidence.GetValueOnRenderThread();
 
 				FShadeLightSamplesCS::FPermutationDomain PermutationVector;
 				PermutationVector.Set<FShadeLightSamplesCS::FTileType>(TileType);
