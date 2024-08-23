@@ -9,7 +9,6 @@ using EpicGames.Redis;
 using Google.Protobuf;
 using HordeCommon.Rpc;
 using HordeCommon.Rpc.Messages;
-using HordeServer.Agents.Sessions;
 using HordeServer.Server;
 using Microsoft.Extensions.Hosting;
 using StackExchange.Redis;
