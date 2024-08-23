@@ -2331,6 +2331,41 @@ TEST_CASE_METHOD(FLocalHttpServerFixture, "Local http server can serve large fil
 
 #endif // UE_HTTP_SUPPORT_LOCAL_SERVER
 
+TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Accessing request initial information without issue while request is running", HTTP_TAG)
+{
+	for (int32 i = 0; i < 30; ++i) // Use 2 "for" loops so it doesn't trigger the warning the request waited for too long in the queue
+	{
+		TArray<TSharedRef<IHttpRequest>> Requests;
+		for (int32 j = 0; j < 30; ++j)
+		{
+			TSharedRef<IHttpRequest> HttpRequest = CreateRequest();
+			HttpRequest->SetHeader(TEXT("Custom-HeaderA"), TEXT("a"));
+			HttpRequest->SetHeader(TEXT("Custom-HeaderB"), TEXT("b"));
+			HttpRequest->SetHeader(TEXT("Custom-HeaderC"), TEXT("c"));
+			HttpRequest->SetURL(UrlStreamDownload(3, HTTP_TEST_TIMEOUT_CHUNK_SIZE, 0));
+			HttpRequest->SetDelegateThreadPolicy(EHttpRequestDelegateThreadPolicy::CompleteOnHttpThread);
+			HttpRequest->ProcessRequest();
+			Requests.Add(HttpRequest);
+		}
+
+		bool bRequestsStillRunning = true;
+		while (bRequestsStillRunning)
+		{
+			bRequestsStillRunning = false;
+			for (TSharedRef<IHttpRequest> Request : Requests)
+			{
+				if (!EHttpRequestStatus::IsFinished(Request->GetStatus()))
+				{
+					bRequestsStillRunning = true;
+
+					CHECK(!Request->GetAllHeaders().IsEmpty());
+					CHECK(!Request->GetURL().IsEmpty());
+				}
+			}
+		}
+	}
+}
+
 TEST_CASE_METHOD(FWaitUntilCompleteHttpFixture, "Test platform request requests limits", HTTP_TAG "[LIMIT]")
 {
 	bool bCheckCancel = GENERATE(false, true);

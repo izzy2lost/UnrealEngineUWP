@@ -62,6 +62,7 @@ protected:
 	 */
 	HTTP_API bool PreProcess();
 	HTTP_API void PostProcess();
+	HTTP_API void PopulateUserAgentHeader();
 	HTTP_API virtual bool SetupRequest() = 0;
 	HTTP_API bool PreCheck() const;
 	HTTP_API virtual void ClearInCaseOfRetry();

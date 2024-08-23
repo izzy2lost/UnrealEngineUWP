@@ -825,11 +825,6 @@ bool FCurlHttpRequest::SetupRequest()
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Custom headers are %s"), this, Headers.Num() ? TEXT("present") : TEXT("NOT present"));
 	UE_LOG(LogHttp, Verbose, TEXT("%p: Payload size=%llu"), this, RequestPayload->GetContentLength());
 
-	if (GetHeader(TEXT("User-Agent")).IsEmpty())
-	{
-		SetHeader(TEXT("User-Agent"), FPlatformHttp::GetDefaultUserAgent());
-	}
-
 	// content-length should be present http://www.w3.org/Protocols/rfc2616/rfc2616-sec4.html#sec4.4
 	if (GetHeader(TEXT("Content-Length")).IsEmpty())
 	{

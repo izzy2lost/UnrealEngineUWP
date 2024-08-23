@@ -145,6 +145,14 @@ void FHttpRequestCommon::InitResponse()
 	}
 }
 
+void FHttpRequestCommon::PopulateUserAgentHeader()
+{
+	if (GetHeader(TEXT("User-Agent")).IsEmpty())
+	{
+		SetHeader(TEXT("User-Agent"), FPlatformHttp::GetDefaultUserAgent());
+	}
+}
+
 bool FHttpRequestCommon::PreProcess()
 {
 	ClearInCaseOfRetry();
@@ -162,6 +170,8 @@ bool FHttpRequestCommon::PreProcess()
 		StartTotalTimeoutTimer();
 		return false;
 	}
+
+	PopulateUserAgentHeader();
 
 	if (!SetupRequest())
 	{

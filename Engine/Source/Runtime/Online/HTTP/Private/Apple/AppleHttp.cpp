@@ -772,15 +772,6 @@ bool FAppleHttpRequest::SetupRequest()
 		[Request setValue:[NSString stringWithFormat:@"%llu", GetContentLength()] forHTTPHeaderField:@"Content-Length"];
 	}
 
-	const FString CurrentUserAgent = GetHeader("User-Agent");
-	if(CurrentUserAgent.IsEmpty())
-	{
-		FString DefaultUserAgent = FPlatformHttp::GetDefaultUserAgent();
-		UE_LOG(LogHttp, Verbose, TEXT("Setting default User-Agent %s"), *DefaultUserAgent);
-		NSString* UserAgent = DefaultUserAgent.GetNSString();
-		[Request setValue:UserAgent forHTTPHeaderField:@"User-Agent"];
-	}
-
 	PostProcess();
 
 	LastReportedBytesWritten = 0;
