@@ -8,6 +8,7 @@
 #include "UObject/TopLevelAssetPath.h"
 #include "UObject/UnrealType.h"
 
+#include "Algo/Compare.h"
 #include "GenericPlatform/GenericPlatformFile.h"
 #include "Hash/Blake3.h"
 #include "Logging/StructuredLog.h"
@@ -1189,63 +1190,6 @@ void FCoreRedirect::AppendHash(FBlake3& Hasher) const
 	}
 }
 
-template <typename KeyType, typename ValueType>
-int DeterministicCompare(const TMap<KeyType, ValueType>& A, const TMap<KeyType, ValueType>& B)
-{
-	if (A.Num() != B.Num())
-	{
-		return A.Num() < B.Num() ? -1 : 1;
-	}
-	if (A.Num() == 0)
-	{
-		return 0;
-	}
-
-	const KeyType* MinKeyWithDifference = nullptr;
-	bool bMinKeyIsLessInA = false;
-	for (const TPair<KeyType, ValueType>& Pair : A)
-	{
-		const ValueType* BValue = B.Find(Pair.Key);
-		int Compare = 0;
-		if (!BValue)
-		{
-			Compare = -1;
-		}
-		else if (Pair.Value < *BValue)
-		{
-			Compare = -1;
-		}
-		else if (*BValue < Pair.Value)
-		{
-			Compare = 1;
-		}
-		if (Compare != 0)
-		{
-			if (!MinKeyWithDifference || *Pair.Key < *MinKeyWithDifference)
-			{
-				MinKeyWithDifference = &Pair.Key;
-				bMinKeyIsLessInA = Compare < 0;
-			}
-		}
-	}
-	for (const TPair<KeyType, ValueType>& Pair : B)
-	{
-		if (!A.Contains(Pair.Key))
-		{
-			if (!MinKeyWithDifference || *Pair.Key < *MinKeyWithDifference)
-			{
-				MinKeyWithDifference = &Pair.Key;
-				bMinKeyIsLessInA = false;
-			}
-		}
-	}
-	if (MinKeyWithDifference)
-	{
-		return bMinKeyIsLessInA ? -1 : 1;
-	}
-	return 0;
-}
-
 int FCoreRedirect::Compare(const FCoreRedirect& Other) const
 {
 	if (RedirectFlags != Other.RedirectFlags)
@@ -1267,7 +1211,7 @@ int FCoreRedirect::Compare(const FCoreRedirect& Other) const
 	{
 		return Compare;
 	}
-	Compare = DeterministicCompare(ValueChanges, Other.ValueChanges);
+	Compare = Algo::CompareMap(ValueChanges, Other.ValueChanges);
 	if (Compare != 0)
 	{
 		return Compare;
