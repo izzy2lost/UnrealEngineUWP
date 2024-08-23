@@ -65,6 +65,7 @@ public:
 
 	virtual void ConfigureCutterSettings() override
 	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
 		CutterSettings->bDrawSitesToggleEnabled = false;
 		CutterSettings->bNoisePreviewHasScale = true;
 	}

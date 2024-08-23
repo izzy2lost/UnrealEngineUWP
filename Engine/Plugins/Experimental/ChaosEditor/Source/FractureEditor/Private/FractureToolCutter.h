@@ -75,7 +75,7 @@ public:
 	float ChanceToFracture;
 
 	/** Generate a fracture pattern across all selected meshes.  */
-	UPROPERTY(EditAnywhere, Category = CommonFracture, meta = (EditCondition = "bGroupFractureToggleEnabled", HideEditConditionToggle, EditConditionHides, DisplayName = "Group Fracture"))
+	UPROPERTY(EditAnywhere, Category = CommonFracture, meta = (EditCondition = "bGroupFractureToggleEnabled", HideEditConditionToggle, DisplayName = "Group Fracture"))
 	bool bGroupFracture;
 
 	// This flag allows tools to disable the above bGroupFracture option if/when it is not applicable
@@ -242,6 +242,7 @@ public:
 	// Set tool-specific defaults for the cutter settings (e.g., disable grout/noise if needed)
 	virtual void ConfigureCutterSettings()
 	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
 		CutterSettings->bDrawSitesToggleEnabled = true;
 		CutterSettings->bNoisePreviewToggleEnabled = true;
 		CutterSettings->bNoisePreviewHasScale = false;

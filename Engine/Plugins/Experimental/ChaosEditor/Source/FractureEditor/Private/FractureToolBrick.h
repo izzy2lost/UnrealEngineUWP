@@ -100,6 +100,7 @@ public:
 
 	virtual void ConfigureCutterSettings() override
 	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
 		CutterSettings->bNoisePreviewToggleEnabled = false; // TODO: support noise preview for bricks
 	}
 

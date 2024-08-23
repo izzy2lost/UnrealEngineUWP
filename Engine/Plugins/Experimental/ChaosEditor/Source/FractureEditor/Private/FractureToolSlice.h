@@ -71,6 +71,7 @@ public:
 
 	virtual void ConfigureCutterSettings() override
 	{
+		CutterSettings->bGroupFractureToggleEnabled = true;
 		CutterSettings->bDrawSitesToggleEnabled = false;
 		CutterSettings->bNoisePreviewToggleEnabled = false; // TODO: support noise preview for slices
 	}
