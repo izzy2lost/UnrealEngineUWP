@@ -53,6 +53,13 @@ static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowsUseCameraScene
 	ECVF_RenderThreadSafe
 );
 
+static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesShadowsNearClippingDistance(
+	TEXT("r.HeterogeneousVolumes.Shadows.NearClippingDistance"),
+	1.0,
+	TEXT("Near clipping plane distance for shadow projection (Default = 1.0)"),
+	ECVF_RenderThreadSafe
+);
+
 #if 0
 static TAutoConsoleVariable<int32> CVarHeterogeneousVolumesBilinearInterpolation(
 	TEXT("r.HeterogeneousVolumes.BilinearInterpolation"),
@@ -105,6 +112,11 @@ namespace HeterogeneousVolumes
 	bool ShadowsUseCameraSceneDepth()
 	{
 		return CVarHeterogeneousVolumesShadowsUseCameraSceneDepth.GetValueOnRenderThread() != 0;
+	}
+
+	float GetShadowNearClippingDistance()
+	{
+		return FMath::Max(CVarHeterogeneousVolumesShadowsNearClippingDistance.GetValueOnRenderThread(), 0.1);
 	}
 }
 
@@ -1875,6 +1887,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 	const FLightSceneInfo* LightSceneInfo,
 	const FVisibleLightInfo* VisibleLightInfo,
 	// Shadow data
+	HeterogeneousVolumes::FLODInfo LODInfo,
 	const FVector3f& TranslatedWorldOrigin,
 	int32 NumShadowMatrices,
 	FMatrix44f* TranslatedWorldToShadow,
@@ -1952,8 +1965,7 @@ bool RenderVolumetricShadowMapForLightForHeterogeneousVolumeWithLiveShading(
 		PassParameters->VoxelResolution = HeterogeneousVolumeInterface->GetVoxelResolution();
 
 		// Ray Data
-		//float LODFactor = HeterogeneousVolumes::CalcLODFactor(View, HeterogeneousVolumeInterface);
-		float LODFactor = 1.0f;
+		float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODInfo, HeterogeneousVolumeInterface);
 		PassParameters->ShadowStepSize = HeterogeneousVolumes::GetShadowStepSize();
 		PassParameters->ShadowStepFactor = HeterogeneousVolumeInterface->GetShadowStepFactor() * LODFactor;
 		PassParameters->MaxTraceDistance = HeterogeneousVolumes::GetMaxTraceDistance();
@@ -2068,21 +2080,6 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 		return false;
 	}
 
-	// Adjust shadow resolution based on minimum MipLevel
-	float LODValue = FMath::CeilLogTwo(ShadowMapResolution.X);
-	for (auto VolumetricMeshBatch : HeterogeneousVolumesMeshBatches)
-	{
-		int32 VolumeCount = VolumetricMeshBatch.Mesh->Elements.Num();
-		for (int32 VolumeIndex = 0; VolumeIndex < VolumeCount; ++VolumeIndex)
-		{
-			const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)VolumetricMeshBatch.Mesh->Elements[VolumeIndex].UserData;
-			//LODValue = FMath::Min(LODValue, HeterogeneousVolumes::CalcLOD(View, HeterogeneousVolumeInterface));
-			LODValue = FMath::Min(LODValue, 1.0f);
-		}
-	}
-	float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODValue);
-	ShadowMapResolution /= LODFactor;
-
 	// Build shadow transform
 	NumShadowMatrices = ProjectedShadowInfo->OnePassShadowViewProjectionMatrices.Num();
 	FMatrix44f ShadowToTranslatedWorld[6];
@@ -2115,7 +2112,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			PI / 4.0f,
 			ShadowMapResolution.X,
 			ShadowMapResolution.Y,
-			1.0,
+			HeterogeneousVolumes::GetShadowNearClippingDistance(),
 			LightSceneInfo->Proxy->GetRadius()
 		);
 
@@ -2176,6 +2173,34 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 	float W = -FVector3f::DotProduct(TranslatedWorldOrigin, FVector3f(LightDirection));
 	TranslatedWorldPlane = FVector4f(LightDirection.X, LightDirection.Y, LightDirection.Z, W);
 
+	FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation();
+	HeterogeneousVolumes::FLODInfo LODInfo;
+	LODInfo.WorldSceneBounds = WorldVolumeBounds;
+	LODInfo.WorldOrigin = FVector(TranslatedWorldOrigin) - PreViewTranslation;
+	LODInfo.ViewRect = FIntRect(0, 0, ShadowMapResolution.X, ShadowMapResolution.Y);
+
+	FMatrix WorldToTranslatedWorldMatrix = FTranslationMatrix(PreViewTranslation);
+	FMatrix WorldToShadowMatrix = WorldToTranslatedWorldMatrix * FMatrix(TranslatedWorldToShadow[0]);
+	GetViewFrustumBounds(LODInfo.WorldShadowFrustum, WorldToShadowMatrix, true);
+	LODInfo.FOV = PI / 4.0f;
+	LODInfo.NearClippingDistance = HeterogeneousVolumes::GetShadowNearClippingDistance();
+	LODInfo.DownsampleFactor = 1.0;
+	LODInfo.bIsPerspective = (LightType != LightType_Directional);
+
+	// Adjust shadow resolution based on minimum MipLevel
+	float LODValue = FMath::CeilLogTwo(ShadowMapResolution.X);
+	for (auto VolumetricMeshBatch : HeterogeneousVolumesMeshBatches)
+	{
+		int32 VolumeCount = VolumetricMeshBatch.Mesh->Elements.Num();
+		for (int32 VolumeIndex = 0; VolumeIndex < VolumeCount; ++VolumeIndex)
+		{
+			const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface = (IHeterogeneousVolumeInterface*)VolumetricMeshBatch.Mesh->Elements[VolumeIndex].UserData;
+			LODValue = FMath::Min(LODValue, HeterogeneousVolumes::CalcLOD(LODInfo, HeterogeneousVolumeInterface));
+		}
+	}
+	float LODFactor = HeterogeneousVolumes::CalcLODFactor(LODValue);
+	ShadowMapResolution /= LODFactor;
+
 	// Iterate over shadow-casting volumes
 	bool bHasShadowCastingVolume = false;
 	if (!HeterogeneousVolumesMeshBatches.IsEmpty())
@@ -2205,6 +2230,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 			LightSceneInfo,
 			VisibleLightInfo,
 			// Shadow Info
+			LODInfo,
 			TranslatedWorldOrigin,
 			NumShadowMatrices,
 			TranslatedWorldToShadow,
@@ -2240,6 +2266,7 @@ bool RenderVolumetricShadowMapForLightWithLiveShading(
 				LightSceneInfo,
 				VisibleLightInfo,
 				// Shadow Info
+				LODInfo,
 				TranslatedWorldOrigin,
 				NumShadowMatrices,
 				TranslatedWorldToShadow,
@@ -2509,6 +2536,18 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 			TEXT("HeterogeneousVolume.VolumetricShadowLinkedListBuffer")
 		);
 
+		HeterogeneousVolumes::FLODInfo LODInfo;
+		LODInfo.WorldSceneBounds = WorldVolumeBounds;
+		LODInfo.WorldOrigin = FVector(TranslatedWorldOrigin);
+		LODInfo.ViewRect = FIntRect(0, 0, ShadowMapResolution.X, ShadowMapResolution.Y);
+		FVector PreViewTranslation = View.ViewMatrices.GetPreViewTranslation();
+		FMatrix WorldToTranslatedWorldMatrix = FTranslationMatrix(PreViewTranslation);
+		GetViewFrustumBounds(LODInfo.WorldShadowFrustum, WorldToTranslatedWorldMatrix * FMatrix(TranslatedWorldToShadow[0]), true);
+		LODInfo.FOV = FOV;
+		LODInfo.NearClippingDistance = HeterogeneousVolumes::GetShadowNearClippingDistance();
+		LODInfo.DownsampleFactor = HeterogeneousVolumes::GetCameraDownsampleFactor();
+		LODInfo.bIsPerspective = true;
+
 		// Build a camera shadow for one volume
 		int32 LightType = 0;
 		FLightSceneInfo* LightSceneInfo = nullptr;
@@ -2525,6 +2564,7 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 			LightSceneInfo,
 			VisibleLightInfo,
 			// Shadow Info
+			LODInfo,
 			TranslatedWorldOrigin,
 			NumShadowMatrices,
 			TranslatedWorldToShadow,
@@ -2561,6 +2601,7 @@ void RenderAdaptiveVolumetricCameraMapWithLiveShading(
 				LightSceneInfo,
 				VisibleLightInfo,
 				// Shadow Info
+				LODInfo,
 				TranslatedWorldOrigin,
 				NumShadowMatrices,
 				TranslatedWorldToShadow,

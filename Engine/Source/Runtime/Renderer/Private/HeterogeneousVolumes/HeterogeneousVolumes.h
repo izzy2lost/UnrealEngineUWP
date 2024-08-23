@@ -3,6 +3,7 @@
 #pragma once
 
 #include "CoreTypes.h"
+#include "ConvexVolume.h"
 #include "RendererInterface.h"
 #include "ShaderParameterMacros.h"
 
@@ -129,9 +130,30 @@ namespace HeterogeneousVolumes
 	int GetVoxelCount(FIntVector VolumeResolution);
 	int GetVoxelCount(const FRDGTextureDesc& TextureDesc);
 	FIntVector GetMipVolumeResolution(FIntVector VolumeResolution, uint32 MipLevel);
-	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
-	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+
+	struct FLODInfo
+	{
+		// Orthographic projection
+		FBoxSphereBounds WorldSceneBounds = FBoxSphereBounds(EForceInit::ForceInit);
+
+		// Perspective projection
+		FVector WorldOrigin = FVector::ZeroVector;
+		FIntRect ViewRect;
+
+		FConvexVolume WorldShadowFrustum;
+		float FOV = PI / 4.0f;
+		float NearClippingDistance = 1.0f;
+		float DownsampleFactor = 1.0f;
+
+		// Projection type
+		bool bIsPerspective = false;
+	};
+
 	float CalcLODFactor(float LOD);
+	float CalcLODFactor(const HeterogeneousVolumes::FLODInfo& LODInfo, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLOD(const HeterogeneousVolumes::FLODInfo& LODInfo, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
+	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume);
 	bool IsHoldout(const IHeterogeneousVolumeInterface* HeterogeneousVolumeInterface);
 
 	const FProjectedShadowInfo* GetProjectedShadowInfo(const FVisibleLightInfo* VisibleLightInfo, int32 ShadowIndex);

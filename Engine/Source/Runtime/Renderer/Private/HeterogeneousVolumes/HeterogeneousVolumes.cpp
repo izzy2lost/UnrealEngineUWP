@@ -582,7 +582,10 @@ namespace HeterogeneousVolumes
 		);
 	}
 	
-	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume)
+	float CalcLOD(
+		const HeterogeneousVolumes::FLODInfo& LODInfo,
+		const IHeterogeneousVolumeInterface* HeterogeneousVolume
+	)
 	{
 		if (!HeterogeneousVolumes::UseContinuousLOD())
 		{
@@ -594,21 +597,27 @@ namespace HeterogeneousVolumes
 		float VoxelResolutionMin = VoxelResolution.GetMin();
 
 		float LODValue = FMath::Floor(FMath::Log2(VoxelResolutionMin));
-		if (View.ViewFrustum.IntersectBox(WorldBounds.Origin, WorldBounds.BoxExtent))
+		if (!LODInfo.bIsPerspective)
+		{
+			float VolumeRatio = FVector(LODInfo.WorldSceneBounds.BoxExtent / WorldBounds.BoxExtent).Length();
+			float ViewLODValue = FMath::Log2(VolumeRatio) + HeterogeneousVolume->GetMipBias() + HeterogeneousVolumes::GetCLODBias();
+			ViewLODValue = FMath::Max(ViewLODValue, 0);
+
+			LODValue = FMath::Min(ViewLODValue, LODValue);
+		}
+		else if (LODInfo.WorldShadowFrustum.IntersectBox(WorldBounds.Origin, WorldBounds.BoxExtent))
 		{
 			// Determine the pixel-width at the near-plane
-			float TanHalfFOV = FMath::Tan(FMath::DegreesToRadians(View.FOV * 0.5));
-			float HalfWidth = View.UnconstrainedViewRect.Width() / HeterogeneousVolumes::GetDownsampleFactor() * 0.5;
-			float PixelWidth = TanHalfFOV / HalfWidth;
+			float TanHalfFOV = FMath::Tan(LODInfo.FOV * 0.5);
+			float HalfViewWidth = LODInfo.ViewRect.Width() * 0.5 / LODInfo.DownsampleFactor;
+			float PixelWidth = TanHalfFOV / HalfViewWidth;
 
 			// Project to nearest distance of volume bounds
-			FVector WorldCameraOrigin = View.ViewMatrices.GetViewOrigin();
-			float Distance = FMath::Max((WorldBounds.Origin - WorldCameraOrigin).Length() - WorldBounds.SphereRadius, View.NearClippingDistance);
-			float VoxelWidth = Distance * PixelWidth;
+			float Distance = FMath::Max(FVector::Dist(WorldBounds.Origin, LODInfo.WorldOrigin) - WorldBounds.SphereRadius, LODInfo.NearClippingDistance);
+			float ProjectedPixelWidth = Distance * PixelWidth;
 
 			// MIP is defined as the log of the ratio of native voxel resolution to pixel-coverage of volume bounds
-			//float PixelWidthCoverage = (2.0 * WorldBounds.SphereRadius) / VoxelWidth;
-			float PixelWidthCoverage = (2.0 * WorldBounds.BoxExtent.GetMax()) / VoxelWidth;
+			float PixelWidthCoverage = (2.0 * WorldBounds.BoxExtent.GetMax()) / ProjectedPixelWidth;
 			float ViewLODValue = FMath::Log2(VoxelResolutionMin / PixelWidthCoverage) + HeterogeneousVolume->GetMipBias() + HeterogeneousVolumes::GetCLODBias();
 			ViewLODValue = FMath::Max(ViewLODValue, 0);
 
@@ -617,10 +626,35 @@ namespace HeterogeneousVolumes
 
 		return LODValue;
 	}
+	
+	float CalcLOD(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume)
+	{
+		FLODInfo LODInfo;
+		// TODO: Not supporting orthographic projection for now
+		LODInfo.bIsPerspective = true;
+		LODInfo.WorldSceneBounds = FBoxSphereBounds(EForceInit::ForceInitToZero);
+
+		LODInfo.WorldOrigin = View.ViewMatrices.GetViewOrigin();
+		LODInfo.ViewRect = View.UnconstrainedViewRect;
+		LODInfo.WorldShadowFrustum = View.ViewFrustum;
+		LODInfo.FOV = FMath::DegreesToRadians(View.FOV);
+		LODInfo.NearClippingDistance = View.NearClippingDistance;
+		LODInfo.DownsampleFactor = HeterogeneousVolumes::GetDownsampleFactor();
+
+		return CalcLOD(LODInfo, HeterogeneousVolume);
+	}
 
 	float CalcLODFactor(float LODValue)
 	{
 		return FMath::Pow(2, LODValue);
+	}
+
+	float CalcLODFactor(
+		const HeterogeneousVolumes::FLODInfo& LODInfo,
+		const IHeterogeneousVolumeInterface* HeterogeneousVolume
+	)
+	{
+		return CalcLODFactor(CalcLOD(LODInfo, HeterogeneousVolume));
 	}
 
 	float CalcLODFactor(const FSceneView& View, const IHeterogeneousVolumeInterface* HeterogeneousVolume)
