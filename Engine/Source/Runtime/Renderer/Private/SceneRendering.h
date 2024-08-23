@@ -704,8 +704,6 @@ public:
 	TArray<int32> LocalLightVisibleLightInfosIndex;
 };
 
-#define ENABLE_LIGHT_CULLING_VIEW_SPACE_BUILD_DATA 1
-
 BEGIN_GLOBAL_SHADER_PARAMETER_STRUCT_WITH_CONSTRUCTOR(FVolumetricFogGlobalData,) 
 	SHADER_PARAMETER(FIntVector,ViewGridSizeInt)
 	SHADER_PARAMETER(FVector3f, ViewGridSize)
