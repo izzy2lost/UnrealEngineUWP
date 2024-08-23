@@ -693,6 +693,7 @@ namespace UE
 		TGuardValue<bool> ImpersonatePropertiesScope(SerializeContext->bImpersonateProperties, true);
 		// don't mark properties as set by serialization when performing copy
 		TGuardValue<bool> ScopedTrackSerializedProperties(SerializeContext->bTrackSerializedProperties, false);
+		TGuardValue<bool> ScopedTrackUnknownProperties(SerializeContext->bTrackUnknownProperties, false);
 
 		TArray<uint8> Buffer;
 		Buffer.Reserve(Source->GetClass()->GetStructureSize());
