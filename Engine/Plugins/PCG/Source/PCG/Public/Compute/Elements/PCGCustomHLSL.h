@@ -102,6 +102,7 @@ public:
 	//~Begin UObject interface
 #if WITH_EDITOR
 	virtual void PostLoad() override;
+	virtual void PostInitProperties() override;
 #endif
 	//~End UObject interface
 

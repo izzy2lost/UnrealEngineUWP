@@ -92,8 +92,18 @@ void UPCGCustomHLSLSettings::PostLoad()
 {
 	Super::PostLoad();
 
+	// Note: We update here so that Custom HLSL nodes will have the correct pin settings & declarations on load.
 	UpdatePinSettings();
 	UpdateAttributeKeys();
+	UpdateDeclarations();
+}
+
+void UPCGCustomHLSLSettings::PostInitProperties()
+{
+	Super::PostInitProperties();
+
+	// Note: We update here so that Custom HLSL nodes will have the correct pin settings & declarations on creation.
+	UpdatePinSettings();
 	UpdateDeclarations();
 }
 #endif
