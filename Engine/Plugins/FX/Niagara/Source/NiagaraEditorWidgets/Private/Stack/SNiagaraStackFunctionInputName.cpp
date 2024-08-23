@@ -1,8 +1,6 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Stack/SNiagaraStackFunctionInputName.h"
-
-#include "EditorFontGlyphs.h"
 #include "NiagaraEditorWidgetsStyle.h"
 #include "NiagaraEditorStyle.h"
 #include "ViewModels/Stack/NiagaraStackViewModel.h"
@@ -73,14 +71,6 @@ void SNiagaraStackFunctionInputName::Construct(const FArguments& InArgs, UNiagar
 			.OnTextCommitted(this, &SNiagaraStackFunctionInputName::OnNameTextCommitted)
 			.HighlightText_UObject(InStackViewModel, &UNiagaraStackViewModel::GetCurrentSearchText)
 			.ToolTipText(this, &SNiagaraStackFunctionInputName::GetToolTipText)
-			.Decorator()
-			[
-				SNew(STextBlock)
-				.Visibility(FunctionInput->SupportsRename() == false ? EVisibility::Visible : EVisibility::Collapsed)
-				.Font(FAppStyle::Get().GetFontStyle("FontAwesome.8"))
-				.Text(FEditorFontGlyphs::Lock)
-				.ToolTipText(LOCTEXT("LockedToolTip", "This parameter is used in a referenced external graph. You can set its value, but not rename it."))
-			]
 		];
 	}
 	else

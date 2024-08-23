@@ -477,8 +477,6 @@ private:
 	/** Pointers and handles to the various values this input can have. */
 	FInputValues InputValues;
 
-	mutable TOptional<bool> bIsReferencingExternalParameter;
-	
 	TSharedPtr<FNiagaraPlaceholderDataInterfaceHandle> PlaceholderDataInterfaceHandle;
 
 	/** A cached pointer to the override node for this input if it exists.  This value is cached here since the
