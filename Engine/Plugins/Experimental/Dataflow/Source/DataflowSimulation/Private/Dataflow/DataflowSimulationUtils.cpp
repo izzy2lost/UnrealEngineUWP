@@ -1,4 +1,4 @@
-﻿// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "Dataflow/DataflowSimulationUtils.h"
 
@@ -26,11 +26,11 @@ namespace Dataflow
 			for(const TSharedPtr<FDataflowNode>& TerminalNode : DataflowGraph->GetFilteredNodes(FDataflowTerminalNode::StaticType()))
 			{
 				MaxTimeStamp.Value = FMath::Max(MaxTimeStamp.Value, TerminalNode->GetTimestamp().Value);
-			}
-			if(MaxTimeStamp.Value > LastTimeStamp.Value)
-			{
-				LastTimeStamp = MaxTimeStamp.Value;
-				return true;
+				if (MaxTimeStamp.Value > LastTimeStamp.Value)
+				{
+					LastTimeStamp = MaxTimeStamp.Value;
+					return true;
+				}
 			}
 		}
 		return false;

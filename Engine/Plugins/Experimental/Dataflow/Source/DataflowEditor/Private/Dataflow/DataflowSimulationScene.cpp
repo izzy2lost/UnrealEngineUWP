@@ -149,7 +149,7 @@ void FDataflowSimulationScene::BindSceneSelection()
 
 void FDataflowSimulationScene::CreateSimulationScene()
 {
-	if(SimulationGenerator && SceneDescription && GetWorld())
+	if(SimulationGenerator && SceneDescription && SceneDescription->BlueprintClass && GetWorld())
 	{
 		SimulationGenerator->SetCacheParams(SceneDescription->CacheParams);
 		SimulationGenerator->SetCacheAsset(SceneDescription->CacheAsset);
