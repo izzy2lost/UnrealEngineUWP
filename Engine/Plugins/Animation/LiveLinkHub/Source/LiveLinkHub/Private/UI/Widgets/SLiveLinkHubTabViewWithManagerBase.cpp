@@ -6,7 +6,6 @@
 #include "Framework/Commands/UICommandList.h"
 #include "Framework/Docking/LayoutService.h"
 #include "Framework/MultiBox/MultiBoxBuilder.h"
-#include "ISessionFrontendModule.h"
 #include "ISlateReflectorModule.h"
 #include "LiveLinkHub.h"
 #include "LiveLinkHubCommands.h"
@@ -15,6 +14,11 @@
 #include "Misc/EngineBuildSettings.h"
 #include "Modules/ModuleManager.h"
 #include "UI/Widgets/SLiveLinkHubTabViewBase.h"
+
+#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
+#	include "ISessionFrontendModule.h"
+#endif
+
 
 #define LOCTEXT_NAMESPACE "LiveLinkHub.SLiveLinkHubTabViewWithManagerBase"
 
@@ -102,6 +106,7 @@ void SLiveLinkHubTabViewWithManagerBase::FillFileMenu(FMenuBuilder& MenuBuilder)
 	if (bShowDevTools)
 	{
 		MenuBuilder.BeginSection("Development", LOCTEXT("DevelopmentHeader", "Development"));
+#if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("FileMenu_Development_AutomationTools", "Automation Tools"),
 			FText(),
@@ -113,6 +118,7 @@ void SLiveLinkHubTabViewWithManagerBase::FillFileMenu(FMenuBuilder& MenuBuilder)
 				SessionFrontend.InvokeSessionFrontend(FName("AutomationPanel"));
 			})
 		);
+#endif // #if WITH_UNREAL_TARGET_DEVELOPER_TOOLS
 		MenuBuilder.AddMenuEntry(
 			LOCTEXT("FileMenu_Development_WidgetReflector", "Widget Reflector"),
 			FText(),
