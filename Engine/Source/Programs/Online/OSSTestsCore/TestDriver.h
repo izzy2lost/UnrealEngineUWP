@@ -12,7 +12,7 @@ DEFINE_LOG_CATEGORY_STATIC(LogOSSTests, Log, Log);
 
 #define UE_LOG_OSSTESTS(Verbosity, Format, ...) \
 { \
-	UE_LOG(Log, Verbosity, "OSSTests: ", *FString::Printf(Format, ##__VA_ARGS__)); \
+	UE_LOG(LogOSSTests, Verbosity, TEXT("OSSTests: %s"), *FString::Printf(Format, ##__VA_ARGS__)); \
 }
 
 static const FTimespan TICK_DURATION = FTimespan::FromMilliseconds(1);

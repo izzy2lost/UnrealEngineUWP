@@ -4,9 +4,11 @@
 
 #include "TestHarness.h"
 #include "TestDriver.h"
+#include "CoreMinimal.h"
 #include "Interfaces/OnlineIdentityInterface.h"
 #include "Misc/ConfigCacheIni.h"
 #include "Modules/ModuleManager.h"
+#include "Containers/Ticker.h"
 
 #include <catch2/catch_test_case_info.hpp>
 #include <catch2/interfaces/catch_interfaces_registry_hub.hpp>
@@ -28,9 +30,21 @@ protected:
 	OnlineSubsystemTestBase();
 	
 	FString GetSubsystem() const;
-	FOnlineAccountCredentials GetCredentials(int LocalUserNum) const;
+
+#if OSSTESTS_USEEXTERNAUTH
+	TArray<FOnlineAccountCredentials> CustomCredentials(int32 LocalUserNum, int32 NumUsers) const;
+#endif // OSSTESTS_USEEXTERNAUTH
+
+	TArray<FOnlineAccountCredentials> GetIniCredentials(int32 NumUsers) const;
+
+	TArray<FOnlineAccountCredentials> GetCredentials(int32 LocalUserNum, int32 NumUsers) const;
+
 	FTestPipeline& GetLoginPipeline(uint32 NumUsersToLogin = 1) const;
 	FTestPipeline& GetPipeline() const;
+
+	/* Returns the ini login category name for the configured service */
+	FString GetLoginCredentialCategory() const;
+
 	void RunToCompletion() const;
 
 	/* ITestInvoker */
@@ -43,6 +57,7 @@ private:
 	mutable FTestDriver Driver;
 	mutable FTestPipeline Pipeline;
 	mutable uint32 NumLocalUsers = -1;
+	mutable uint32 NumUsersToLogout = -1;
 };
 
 typedef OnlineSubsystemTestBase* (*OnlineSubsystemTestConstructor)();

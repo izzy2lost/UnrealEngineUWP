@@ -24,16 +24,14 @@ ACCOUNTSERVICE_TEST_CASE("Verify if we can properly create a OnlineAccountCreden
 ACCOUNTSERVICE_TEST_CASE("Verify if we can properly instantiate the OSS")
 {
 	GetPipeline()
-		.EmplaceLambda([](IOnlineSubsystem* Services)
+		.EmplaceLambda([this](IOnlineSubsystem* Services)
 		{
 			int32 LocalUserNum = 0;
-			FString LocalType = "test_account";
-			FString LocalId = "12345";
-			FString LocalToken = "fake_token";
-			FOnlineAccountCredentials LocalAccount = FOnlineAccountCredentials(LocalType, LocalId, LocalToken);
+			int32 NumUsers = 1;
+			TArray<FOnlineAccountCredentials> AccountCreds = GetCredentials(LocalUserNum, NumUsers);
 
 			IOnlineIdentityPtr IdentityInterface = Services->GetIdentityInterface();		
-			bool LoggedIn = IdentityInterface.Get()->Login(LocalUserNum, LocalAccount);
+			bool LoggedIn = IdentityInterface.Get()->Login(LocalUserNum, AccountCreds[0]);
 			REQUIRE(LoggedIn);
 		});
 

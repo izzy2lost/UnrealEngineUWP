@@ -16,12 +16,13 @@ IDENTITY_TEST_CASE("Verify calling Identity AutoLogin with valid inputs returns 
 { 
 	FTestDriver LocalDriver;
 	int32 LocalUserNum = 0;
+	int32 NumUsers = 1;
 	
-	FOnlineAccountCredentials AccountCreds = GetCredentials(LocalUserNum);
+	TArray<FOnlineAccountCredentials> AccountCreds = GetCredentials(LocalUserNum, NumUsers);
 
-	FString LoginCredentialsType = TEXT("AUTH_TYPE=") + AccountCreds.Type + ",";
-	FString LoginCredentialsId = TEXT("AUTH_LOGIN=") + AccountCreds.Id + + ",";
-	FString LoginCredentialsPassword = TEXT("AUTH_PASSWORD=") + AccountCreds.Token;
+	FString LoginCredentialsType = TEXT("AUTH_TYPE=") + AccountCreds[0].Type + ",";
+	FString LoginCredentialsId = TEXT("AUTH_LOGIN=") + AccountCreds[0].Id + + ",";
+	FString LoginCredentialsPassword = TEXT("AUTH_PASSWORD=") + AccountCreds[0].Token;
 
 	FCommandLine::Set(*(LoginCredentialsType + LoginCredentialsId + LoginCredentialsPassword));
 

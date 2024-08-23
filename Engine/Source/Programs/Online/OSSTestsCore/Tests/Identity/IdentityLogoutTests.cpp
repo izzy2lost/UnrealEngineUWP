@@ -14,12 +14,12 @@
 IDENTITY_TEST_CASE("Verify calling Identity Logout with valid inputs returns the expected result(Success Case)", EG_IDENTITY_LOGOUT_TAG)
 {
 	int32 LocalUserNum = 0;
-	int32 TargetUserNum = 1;
-	int32 NumUsersToImplicitLogin = 1;
+	int32 NumUsers = 1;
+	TArray<FOnlineAccountCredentials> AccountCreds = GetCredentials(LocalUserNum, NumUsers);
 
-	GetLoginPipeline(NumUsersToImplicitLogin)
-		.EmplaceStep<FIdentityLoginStep>(TargetUserNum, GetCredentials(TargetUserNum))
-		.EmplaceStep<FIdentityLogoutStep>(TargetUserNum);
+	GetPipeline()
+		.EmplaceStep<FIdentityLoginStep>(LocalUserNum, AccountCreds[0])
+		.EmplaceStep<FIdentityLogoutStep>(LocalUserNum);
 
 	RunToCompletion();
 }

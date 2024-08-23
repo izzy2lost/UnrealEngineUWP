@@ -23,9 +23,11 @@ IDENTITY_TEST_CASE("Verify calling Identity GetLoginStatus by UserId with valid 
 	ELoginStatus::Type ExpectedLoginStatus = ELoginStatus::Type::LoggedIn;
 	ELoginStatus::Type ExpectedLogoutStatus = ELoginStatus::Type::NotLoggedIn;
 	int32 NumUsersToImplicitLogin = 0;
+	int32 NumUsers = 1;
+	TArray<FOnlineAccountCredentials> AccountCreds = GetCredentials(LocalUserNum, NumUsers);
 
 	FTestPipeline LocalPipeline = LocalDriver.MakePipeline()
-		.EmplaceStep<FIdentityLoginStep>(LocalUserNum, GetCredentials(LocalUserNum))
+		.EmplaceStep<FIdentityLoginStep>(LocalUserNum, AccountCreds[0])
 		.EmplaceStep<FIdentityGetUniquePlayerIdStep>(LocalUserNum, [&LocalUserId](FUniqueNetIdPtr InUserId) {LocalUserId = InUserId; })
 		.EmplaceStep<FIdentityGetLoginStatusByUserIdStep>(&LocalUserId, ExpectedLoginStatus)
 		.EmplaceStep<FIdentityLogoutStep>(LocalUserNum)
@@ -42,9 +44,11 @@ IDENTITY_TEST_CASE("Verify calling Identity GetLoginStatus by LocalUserNum with 
 	ELoginStatus::Type ExpectedLoginStatus = ELoginStatus::Type::LoggedIn;
 	ELoginStatus::Type ExpectedLogoutStatus = ELoginStatus::Type::NotLoggedIn;
 	int32 NumUsersToImplicitLogin = 0;
+	int32 NumUsers = 1;
+	TArray<FOnlineAccountCredentials> AccountCreds = GetCredentials(LocalUserNum, NumUsers);
 
 	FTestPipeline LocalPipeline = LocalDriver.MakePipeline()
-		.EmplaceStep<FIdentityLoginStep>(LocalUserNum, GetCredentials(LocalUserNum))
+		.EmplaceStep<FIdentityLoginStep>(LocalUserNum, AccountCreds[0])
 		.EmplaceStep<FIdentityGetLoginStatusByLocalUserNumStep>(LocalUserNum, ExpectedLoginStatus)
 		.EmplaceStep<FIdentityLogoutStep>(LocalUserNum)
 		.EmplaceStep<FIdentityGetLoginStatusByLocalUserNumStep>(LocalUserNum, ExpectedLogoutStatus);

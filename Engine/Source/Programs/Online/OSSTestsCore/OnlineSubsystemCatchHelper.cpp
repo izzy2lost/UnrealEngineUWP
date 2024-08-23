@@ -143,31 +143,51 @@ FString OnlineSubsystemTestBase::GetSubsystem() const
 	return Subsystem;
 }
 
-FOnlineAccountCredentials OnlineSubsystemTestBase::GetCredentials(int LocalUserNum) const
+TArray<FOnlineAccountCredentials> OnlineSubsystemTestBase::GetIniCredentials(int32 NumUsers) const
 {
 	FString LoginCredentialCategory = FString::Printf(TEXT("LoginCredentials %s"), *Subsystem);
 	TArray<FString> CredentialsArr;
 	GConfig->GetArray(*LoginCredentialCategory, TEXT("Credentials"), CredentialsArr, GEngineIni);
 
-	if (LocalUserNum > CredentialsArr.Num())
+	if (NumUsers > CredentialsArr.Num())
 	{
 		UE_LOG(LogOSSTests, Error, TEXT("Attempted to GetCredentials for more than we have stored! Add more credentials to the DefaultEngine.ini for OssTests"));
-		return FOnlineAccountCredentials(FString(TEXT("")), FString(TEXT("")), FString(TEXT("")));
+		return TArray<FOnlineAccountCredentials>();
 	}
-	
-	FString LoginUsername, LoginType, LoginPassword;
-	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Type="), LoginType);
-	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Id="), LoginUsername);
-	FParse::Value(*CredentialsArr[LocalUserNum], TEXT("Password="), LoginPassword);
 
-	// Return an account, using the default first user if we only have one account for the subsystem.
-	return FOnlineAccountCredentials(LoginType, LoginUsername, LoginPassword);
+	TArray<FOnlineAccountCredentials> OnlineAccountCredentials;
+	for (int32 Index = 0; Index < CredentialsArr.Num(); ++Index)
+	{
+		FString LoginUsername, LoginType, LoginToken;
+		FParse::Value(*CredentialsArr[Index], TEXT("Type="), LoginType);
+		FParse::Value(*CredentialsArr[Index], TEXT("Id="), LoginUsername);
+		FParse::Value(*CredentialsArr[Index], TEXT("Token="), LoginToken);
+		INFO(*FString::Printf(TEXT("Logging in with type %s, id %s, password %s"), *LoginType, *LoginUsername, *LoginToken));
+
+		OnlineAccountCredentials.Add(FOnlineAccountCredentials{ LoginType, LoginUsername, LoginToken });
+	}
+	return OnlineAccountCredentials;
+}
+
+TArray<FOnlineAccountCredentials> OnlineSubsystemTestBase::GetCredentials(int32 LocalUserNum, int32 NumUsers) const
+{
+#if OSSTESTS_USEEXTERNAUTH
+	return CustomCredentials(LocalUserNum, NumUsers);
+#else // OSSTESTS_USEEXTERNAUTH
+	return GetIniCredentials(LocalUserNum);
+#endif // OSSTESTS_USEEXTERNAUTH
+}
+
+FString OnlineSubsystemTestBase::GetLoginCredentialCategory() const
+{
+	return FString::Printf(TEXT("LoginCredentials %s"), *Subsystem);
 }
 
 FTestPipeline& OnlineSubsystemTestBase::GetLoginPipeline(uint32 NumUsersToLogin) const
 {
 	REQUIRE(NumLocalUsers == -1); // Don't call GetLoginPipeline more than once per test
 	NumLocalUsers = NumUsersToLogin;
+	NumUsersToLogout = NumUsersToLogin;
 
 	bool bUseAutoLogin = false;
 	bool bUseImplicitLogin = false;
@@ -189,9 +209,11 @@ FTestPipeline& OnlineSubsystemTestBase::GetLoginPipeline(uint32 NumUsersToLogin)
 	}
 	else
 	{
-		for (uint32 i = 0; i < NumUsersToLogin; i++)
+		TArray<FOnlineAccountCredentials> AuthLoginParams = GetCredentials(0, NumUsersToLogin);
+
+		for (uint32 Index = 0; Index < NumUsersToLogin; ++Index)
 		{
-			Pipeline.EmplaceStep<FIdentityLoginStep>(i, GetCredentials(i));
+			Pipeline.EmplaceStep<FIdentityLoginStep>(Index, AuthLoginParams[Index]);
 		}
 	}
 

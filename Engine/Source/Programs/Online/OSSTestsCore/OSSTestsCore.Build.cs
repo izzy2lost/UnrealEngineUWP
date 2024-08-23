@@ -2,6 +2,8 @@
 
 using UnrealBuildTool;
 using System.IO;
+using System.Linq;
+using System;
 
 public class OSSTestsCore : ModuleRules
 {
@@ -22,11 +24,10 @@ public class OSSTestsCore : ModuleRules
 			}
 		);
 
-		PrivateIncludePaths.AddRange(
-			new string[] {
-				Path.Combine(Target.RelativeEnginePath, "Plugins", "Online"),
-				Path.Combine(Target.RelativeEnginePath, "Restricted", "NotForLicensees", "Plugins", "Online")
-            }
-        );
+		// Disable external auth if target doesn't define it.
+		if (!Target.GlobalDefinitions.Contains("OSSTESTS_USEEXTERNAUTH=1"))
+		{
+			PublicDefinitions.Add(String.Format("OSSTESTS_USEEXTERNAUTH=0"));
+		}
 	}
 }
