@@ -257,7 +257,15 @@ class UBlueprintGameplayTagLibrary : public UBlueprintFunctionLibrary
 	/** Checks if a gameplay tag containers's name and a string are not equal to one another */
 	UFUNCTION(BlueprintPure, Category = PinOptions, meta = (BlueprintInternalUseOnly = "TRUE"))
 	static GAMEPLAYTAGS_API bool NotEqual_TagContainerTagContainer(FGameplayTagContainer A, FString B);
-	
+
+	/** @return the tags currently owned by the TagContainerInterface object */
+	UFUNCTION(BlueprintPure, Category = "GameplayTags", meta=(DefaultToSelf=TagContainerInterface))
+	static GAMEPLAYTAGS_API UPARAM(DisplayName = "Owned Tags") FGameplayTagContainer GetOwnedGameplayTags(TScriptInterface<IGameplayTagAssetInterface> TagContainerInterface);
+
+	/** Converts a UObject to a GameplayTagAssetInterface. This specialty Autocast function exists so we can auto-convert the GameplayTagAssetInterface member functions to static Blueprint functions using redirects. */ 
+	UFUNCTION(BlueprintPure, meta=(DisplayName = "To GameplayTagAssetInterface", CompactNodeTitle = "->", BlueprintAutocast), Category="Utilities|Casting")
+	static GAMEPLAYTAGS_API TScriptInterface<IGameplayTagAssetInterface> Conv_ObjectToGameplayTagAssetInterface(UObject* InObject);
+
 	/**
 	 * Returns an FString listing all of the gameplay tags in the tag container for debugging purposes.
 	 *
