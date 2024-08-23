@@ -240,9 +240,9 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetDefaultPageSettings() const
 TArray<FName> UMetaSoundSettings::GetImplementedPagePlatforms() const
 {
 	TSet<FName> PlatformNames { FPlatformProperties::IniPlatformName() };
-	IteratePageSettings([&](const FMetaSoundPageSettings& PageSetting)
+	IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
 	{
-		TArray<FName> PagePlatforms = PageSetting.GetImplementedPlatforms();
+		TArray<FName> PagePlatforms = PageSettings.GetImplementedPlatforms();
 		PlatformNames.Append(MoveTemp(PagePlatforms));
 	});
 	return PlatformNames.Array();
