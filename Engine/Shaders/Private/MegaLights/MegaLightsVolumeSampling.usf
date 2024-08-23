@@ -93,12 +93,11 @@ void VolumeGenerateLightSamplesCS(
 			// Initialize random variables using spatiotemporal Blue Noise
 			float LightIndexRandom[NUM_SAMPLES_PER_VOXEL_1D];
 			{
-				float GoldenRatioConjugate = 0.6180339887f;
 				float RandomScalar = BlueNoiseScalar(VolumeCoordToNoiseCoord(DownsampledVolumeCoord), MegaLightsStateFrameIndex);
 
 				for (uint LightSampleIndex = 0; LightSampleIndex < NUM_SAMPLES_PER_VOXEL_1D; ++LightSampleIndex)
 				{
-					LightIndexRandom[LightSampleIndex] = frac(RandomScalar + GoldenRatioConjugate * LightSampleIndex);
+					LightIndexRandom[LightSampleIndex] = (RandomScalar + LightSampleIndex) / NUM_SAMPLES_PER_VOXEL_1D;
 				}
 			}
 
