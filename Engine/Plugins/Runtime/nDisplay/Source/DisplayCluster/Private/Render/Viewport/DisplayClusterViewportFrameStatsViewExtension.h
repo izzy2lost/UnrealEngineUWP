@@ -38,6 +38,7 @@ private:
 	bool IsActive() const;
 
 private:
-	std::atomic<uint32> FrameCount;
-	std::atomic<uint32> EncodedTimecode;
+
+	// Encoded timecode
+	uint32 EncodedTimecode_RenderThread;
 };
