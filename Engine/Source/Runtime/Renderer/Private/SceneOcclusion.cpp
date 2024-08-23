@@ -1474,12 +1474,7 @@ void FDeferredShadingSceneRenderer::RenderOcclusion(
 
 	if (bUseHzbOcclusion || bIsOcclusionTesting)
 	{
-		// Hint to the RHI to submit commands up to this point to the GPU if possible.  Can help avoid CPU stalls next frame waiting
-		// for these query results on some platforms.
-		AddPass(GraphBuilder, RDG_EVENT_NAME("SubmitCommands"), [](FRHICommandList& RHICmdList)
-		{
-			RHICmdList.SubmitCommandsHint();
-		});
+		GraphBuilder.AddDispatchHint();
 	}
 
 	if (bIsOcclusionTesting)

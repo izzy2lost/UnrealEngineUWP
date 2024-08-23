@@ -142,7 +142,6 @@ void RenderHairPrePass(
 				// Render DeepShadow for the second view, as for now the computations are view dependent. 
 				// This needs to be view independent to share result between eyes.
 				RenderHairStrandsDeepShadows(GraphBuilder, Scene, View, InstanceCullingManager);
-				GraphBuilder.AddDispatchHint();
 				return;
 			}
 		}
@@ -157,7 +156,6 @@ void RenderHairPrePass(
 
 		//SCOPED_GPU_STAT(RHICmdList, HairRendering);
 		CreateHairStrandsMacroGroups(GraphBuilder, Scene, View, InstancesVisibilityType, View.HairStrandsViewData);
-		GraphBuilder.AddDispatchHint();
 
 		// Voxelization and Deep Opacity Maps
 		VoxelizeHairStrands(GraphBuilder, Scene, View, InstanceCullingManager, PreViewStereoCorrection);
@@ -166,7 +164,6 @@ void RenderHairPrePass(
 			AddMeshDrawTransitionPass(GraphBuilder, View, View.HairStrandsViewData.MacroGroupDatas);
 		}
 		RenderHairStrandsDeepShadows(GraphBuilder, Scene, View, InstanceCullingManager);
-		GraphBuilder.AddDispatchHint();
 	}
 }
 

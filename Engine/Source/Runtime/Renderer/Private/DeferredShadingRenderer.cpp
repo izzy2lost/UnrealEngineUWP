@@ -536,8 +536,6 @@ static void RenderOpaqueFX(
 		{
 			GPUSortManager->OnPostRenderOpaque(GraphBuilder);
 		}
-
-		GraphBuilder.AddDispatchHint();
 	}
 }
 
@@ -2472,7 +2470,6 @@ void FDeferredShadingSceneRenderer::Render(FRDGBuilder& GraphBuilder)
 			if (!bHasRayTracedOverlay)
 			{
 				RenderBasePass(*this, GraphBuilder, Views, SceneTextures, DBufferTextures, BasePassDepthStencilAccess, ForwardScreenSpaceShadowMaskTexture, InstanceCullingManager, bNaniteEnabled, Scene->NaniteShadingCommands[ENaniteMeshPass::BasePass], NaniteRasterResults);
-				GraphBuilder.AddDispatchHint();
 			}
 
 			if (!bAllowReadOnlyDepthBasePass)
