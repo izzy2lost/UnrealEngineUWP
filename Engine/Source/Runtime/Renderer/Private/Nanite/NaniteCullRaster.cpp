@@ -42,13 +42,6 @@ static_assert(1 + NANITE_MAX_NODES_PER_PRIMITIVE_BITS + NANITE_MAX_VIEWS_PER_CUL
 static_assert(1 + NANITE_MAX_BVH_NODES_PER_GROUP <= 32, "FCandidateNode.z fields don't fit in 32bits");
 static_assert(NANITE_MAX_INSTANCES <= MAX_INSTANCE_ID, "Nanite must be able to represent the full scene instance ID range");
 
-TAutoConsoleVariable<int32> CVarNaniteShowDrawEvents(
-	TEXT("r.Nanite.ShowMeshDrawEvents"),
-	0,
-	TEXT("Emit draw events for Nanite rasterization and materials."),
-	ECVF_RenderThreadSafe
-);
-
 static TAutoConsoleVariable<int32> CVarNaniteEnableAsyncRasterization(
 	TEXT("r.Nanite.AsyncRasterization"),
 	1,
@@ -521,19 +514,6 @@ static bool UseAsyncComputeForCustomPass(const FViewFamilyInfo& ViewFamily)
 	// Automatically disabled when Lumen async is enabled, as it then delays graphics pipe too much and regresses overall frame performance
 	return CVarNaniteAsyncRasterizeCustomPass.GetValueOnRenderThread() != 0 && !Lumen::UseAsyncCompute(ViewFamily);
 }
-
-#if WANTS_DRAW_MESH_EVENTS
-static FORCEINLINE const FString& GetRasterMaterialName(const FMaterialRenderProxy* InRasterMaterial, const FMaterialRenderProxy* InFixedFunction)
-{
-	if ((InRasterMaterial == nullptr) || (InRasterMaterial == InFixedFunction))
-	{
-		static const FString Default = TEXT("Fixed Function");
-		return Default;
-	}
-
-	return InRasterMaterial->GetMaterialName();
-}
-#endif
 
 struct FCompactedViewInfo
 {
@@ -2163,7 +2143,16 @@ struct FRasterizerPass
 		Hash = PointerHash(ClusterComputeShader.GetComputeShader(), Hash);
 		Hash = PointerHash(PatchComputeShader.GetComputeShader(), Hash);
 
-		uint32 SortKey = Hash >> 2;
+		// 0bABCx_xxxx_xxxx_xxxx_xxxx_xxxx_xxxx_xxxx
+		// A: Pixel Programmable
+		// B: Vertex Programmable
+		// C: Programmable Bit
+		uint32 SortKey = (Hash >> 3);
+
+		// Any bins within the fixed function bin mask are special cased
+		// We want to make sure all fixed function bins are dispatched before any others
+		SortKey |= !IsFixedFunction() ? (1u << 29) : 0;
+
 		SortKey |= bVertexProgrammable ? (1u << 30) : 0;
 
 		// Make sure z-testing shaders are last
@@ -2189,7 +2178,90 @@ struct FRasterizerPass
 
 		return bHasDerivativeOps;
 	}
+
+	inline bool IsFixedFunction() const
+	{
+		return (RasterBin <= NANITE_FIXED_FUNCTION_BIN_MASK);
+	}
 };
+
+#if WANTS_DRAW_MESH_EVENTS
+static FORCEINLINE const FString& GetRasterMaterialName(const FRasterizerPass& InRasterPass)
+{
+	const FMaterialRenderProxy* RasterMaterial = InRasterPass.RasterPipeline.RasterMaterial;
+	check(RasterMaterial);
+
+	// TODO: Possibly do a lazy-init with FStringBuilderBase to populate a look up table,
+	// but we need to ensure we avoid dynamic allocations here, and allow return-by-ref
+
+	// Any bins within the fixed function bin mask are special cased
+	const bool bFixedFunctionBin = InRasterPass.RasterBin <= NANITE_FIXED_FUNCTION_BIN_MASK;
+	if (bFixedFunctionBin)
+	{
+		static const FString Bin0	= TEXT("Fixed Function");
+
+		static const FString Bin1	= TEXT("Fixed Function (TwoSided)");
+		static const FString Bin2	= TEXT("Fixed Function (Spline)");
+		static const FString Bin4	= TEXT("Fixed Function (Skinned)");
+		static const FString Bin8	= TEXT("Fixed Function (CastShadow)");
+
+		// Note: Spline and Skinned are mutually exclusive
+
+		static const FString Bin9	= TEXT("Fixed Function (TwoSided | CastShadow)");
+
+		static const FString Bin3	= TEXT("Fixed Function (Spline | TwoSided)");
+		static const FString Bin10	= TEXT("Fixed Function (Spline | CastShadow)");
+		static const FString Bin11	= TEXT("Fixed Function (Spline | TwoSided | CastShadow)");
+
+		static const FString Bin5	= TEXT("Fixed Function (Skinned | TwoSided)");
+		static const FString Bin12	= TEXT("Fixed Function (Skinned | CastShadow)");
+		static const FString Bin13	= TEXT("Fixed Function (Skinned | TwoSided | CastShadow)");
+
+		switch (InRasterPass.RasterBin)
+		{
+		default:
+			check(false);
+		case NANITE_FIXED_FUNCTION_BIN:
+			return Bin0;
+
+		case NANITE_FIXED_FUNCTION_BIN_TWOSIDED:
+			return Bin1;
+
+		case NANITE_FIXED_FUNCTION_BIN_SPLINE:
+			return Bin2;
+
+		case NANITE_FIXED_FUNCTION_BIN_SKINNED:
+			return Bin4;
+
+		case NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW:
+			return Bin8;
+
+		case (NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW):
+			return Bin9;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_TWOSIDED):
+			return Bin3;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW):
+			return Bin10;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SPLINE | NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW):
+			return Bin11;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SKINNED | NANITE_FIXED_FUNCTION_BIN_TWOSIDED):
+			return Bin5;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SKINNED | NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW):
+			return Bin12;
+
+		case (NANITE_FIXED_FUNCTION_BIN_SKINNED | NANITE_FIXED_FUNCTION_BIN_TWOSIDED | NANITE_FIXED_FUNCTION_BIN_CAST_SHADOW):
+			return Bin13;
+		}
+	}
+
+	return RasterMaterial->GetMaterialName();
+}
+#endif
 
 void SetupPermutationVectors(
 	EOutputBufferMode RasterMode,
@@ -2884,7 +2956,9 @@ private:
 			FHWRasterizePS::FParameters Parameters /* Intentional Copy */
 		) const
 		{
-			const bool bShowDrawEvents		= CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
+			static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
+
+			const bool bShowDrawEvents		= ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
 			const bool bAllowPrecacheSkip	= GSkipDrawOnPSOPrecaching != 0;
 			const bool bTestPrecacheSkip	= CVarNaniteTestPrecacheDrawSkipping.GetValueOnRenderThread() != 0;
 			const bool bBundleEmulation		= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
@@ -3017,7 +3091,7 @@ private:
 						const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
 
 					#if WANTS_DRAW_MESH_EVENTS
-						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, HWRaster, bShowDrawEvents != 0, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
+						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, HWRaster, bShowDrawEvents != 0, TEXT("%s"), GetRasterMaterialName(RasterizerPass));
 					#endif
 
 						Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);
@@ -3121,7 +3195,9 @@ private:
 			bool bPatches
 		) const
 		{
-			const bool bShowDrawEvents	= CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0;
+			static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
+
+			const bool bShowDrawEvents	= ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
 			const bool bBundleEmulation	= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
 			if (DispatchList.Indirections.Num() > 0)
@@ -3219,7 +3295,7 @@ private:
 						const FRasterizerPass& RasterizerPass = RasterizerPasses[Indirection];
 
 					#if WANTS_DRAW_MESH_EVENTS
-						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWRaster, bShowDrawEvents, TEXT("%s"), GetRasterMaterialName(RasterizerPass.RasterPipeline.RasterMaterial, FixedMaterialProxy));
+						SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWRaster, bShowDrawEvents, TEXT("%s"), GetRasterMaterialName(RasterizerPass));
 					#endif
 
 						Parameters.PassData = FUintVector4(RasterizerPass.RasterBin, 0u, 0u, 0u);

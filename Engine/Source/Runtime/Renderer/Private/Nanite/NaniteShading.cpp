@@ -699,10 +699,18 @@ bool LoadBasePassPipeline(
 	return bLoaded;
 }
 
+struct FShadingConfig
+{
+	uint8 bBundleShading	: 1;
+	uint8 bBundleEmulation	: 1;
+	uint8 bHighPrecision	: 1;
+	uint8 bShowDrawEvents	: 1;
+};
+
 inline void RecordShadingParameters(
 	FRHIBatchedShaderParameters& BatchedParameters,
 	FNaniteShadingCommand& ShadingCommand,
-	const bool bHighPrecision,
+	const FShadingConfig& ShadingConfig,
 	const uint32 DataByteOffset,
 	const FUint32Vector4& ViewRect,
 	TUniformBufferRef<FComputeShadingOutputs> OutputTargetsBuffer
@@ -712,7 +720,7 @@ inline void RecordShadingParameters(
 
 	ShadingCommand.PassData.X = ShadingCommand.ShadingBin; // Active Shading Bin
 	ShadingCommand.PassData.Y = bNoDerivativeOps ? 0 /* Pixel Binning */ : 1 /* Quad Binning */;
-	ShadingCommand.PassData.Z = bHighPrecision ? 1 : 0;
+	ShadingCommand.PassData.Z = ShadingConfig.bHighPrecision ? 1 : 0;
 	ShadingCommand.PassData.W = DataByteOffset;
 
 	ShadingCommand.Pipeline->ShaderBindings->SetParameters(BatchedParameters);
@@ -732,12 +740,13 @@ inline void RecordShadingCommand(
 	FRHIComputeCommandList& RHICmdList,
 	FRHIBuffer* IndirectArgsBuffer,
 	const uint32 IndirectArgStride,
+	const FShadingConfig& ShadingConfig,
 	FRHIBatchedShaderParameters& ShadingParameters,
 	FNaniteShadingCommand& ShadingCommand
 )
 {
 #if WANTS_DRAW_MESH_EVENTS
-	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWShading, CVarNaniteShowDrawEvents.GetValueOnRenderThread() != 0, TEXT("%s"), GetShadingMaterialName(ShadingCommand.Pipeline->MaterialProxy));
+	SCOPED_CONDITIONAL_DRAW_EVENTF(RHICmdList, SWShading, !!ShadingConfig.bShowDrawEvents, TEXT("%s"), GetShadingMaterialName(ShadingCommand.Pipeline->MaterialProxy));
 #endif
 
 	const uint32 IndirectOffset = (ShadingCommand.ShadingBin * IndirectArgStride);
@@ -859,17 +868,16 @@ static TSharedPtr<FNaniteShadingPassIntermediates> CreateNaniteShadingPassInterm
 static void DispatchComputeShaderBundle(
 	FRHIComputeCommandList& RHICmdList,
 	FNaniteShadingCommands& ShadingCommands,
+	const FShadingConfig& ShadingConfig,
 	const FShaderBundleRHIRef& ShaderBundle,
 	const FNaniteShadingPassIntermediates& Intermediates,
 	uint32 DataByteOffset,
-	bool bBundleEmulation,
-	bool bHighPrecision,
 	EParallelForFlags ParallelForFlags = EParallelForFlags::None)
 {
 	RHICmdList.DispatchComputeShaderBundle([&](FRHICommandDispatchComputeShaderBundle& Command)
 	{
 		Command.ShaderBundle		= ShaderBundle;
-		Command.bEmulated			= bBundleEmulation;
+		Command.bEmulated			= ShadingConfig.bBundleEmulation;
 		Command.RecordArgBuffer		= Intermediates.IndirectArgsBuffer;
 		Command.Dispatches.SetNum(ShaderBundle->NumRecords);
 
@@ -894,7 +902,7 @@ static void DispatchComputeShaderBundle(
 
 					Dispatch.RecordIndex = ShadingCommand.ShadingBin;
 					Dispatch.Parameters.Emplace(*ParameterAllocator);
-					RecordShadingParameters(*Dispatch.Parameters, ShadingCommand, bHighPrecision, DataByteOffset, Intermediates.ViewRect, Intermediates.ShadingOutputs);
+					RecordShadingParameters(*Dispatch.Parameters, ShadingCommand, ShadingConfig, DataByteOffset, Intermediates.ViewRect, Intermediates.ShadingOutputs);
 					Dispatch.Parameters->Finish();
 					Dispatch.Shader = ShadingCommand.Pipeline->ComputeShader;
 					Dispatch.WorkGraphShader = ShadingCommand.Pipeline->WorkGraphShader;
@@ -1234,8 +1242,14 @@ void DispatchBasePass(
 		Binning
 	);
 
-	const bool bBundleShading = ShaderBundle != nullptr && UseShadingShaderBundle(Scene.GetShaderPlatform());
-	const bool bBundleEmulation = bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
+	FShadingConfig ShadingConfig{ 0 };
+
+	ShadingConfig.bHighPrecision	= UsingHighPrecisionGBuffer();
+	ShadingConfig.bBundleShading	= ShaderBundle != nullptr && UseShadingShaderBundle(Scene.GetShaderPlatform());
+	ShadingConfig.bBundleEmulation	= ShadingConfig.bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
+
+	static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
+	ShadingConfig.bShowDrawEvents = ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
 
 	const bool bParallelDispatch = GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();
@@ -1245,22 +1259,20 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
+			[ShadingPassParameters, &ShadingCommands, ShadingConfig, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect]
 			(FRDGDispatchPassBuilder& DispatchPassBuilder)
 		{
 			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
 
-			const bool bHighPrecision = UsingHighPrecisionGBuffer();
-
-			if (bBundleShading)
+			if (ShadingConfig.bBundleShading)
 			{
 				FRHICommandList* RHICmdListTask = DispatchPassBuilder.CreateCommandList();
 
-				UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, Intermediates = MoveTemp(Intermediates), &ShadingCommands, ShaderBundle, ViewRect, DataByteOffset, bBundleEmulation, bHighPrecision]
+				UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, Intermediates = MoveTemp(Intermediates), &ShadingCommands, ShaderBundle, ViewRect, DataByteOffset, ShadingConfig]
 				{
 					FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 					TRACE_CPUPROFILER_EVENT_SCOPE(RecordBundleShadingCommandsTask);
-					DispatchComputeShaderBundle(*RHICmdListTask, ShadingCommands, ShaderBundle, *Intermediates, DataByteOffset, bBundleEmulation, bHighPrecision);
+					DispatchComputeShaderBundle(*RHICmdListTask, ShadingCommands, ShadingConfig, ShaderBundle, *Intermediates, DataByteOffset);
 					RHICmdListTask->FinishRecording();
 				});
 			}
@@ -1280,7 +1292,7 @@ void DispatchBasePass(
 
 					FRHICommandList* RHICmdListTask = DispatchPassBuilder.CreateCommandList();
 
-					UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, &ShadingCommands, Intermediates = Intermediates, IndirectArgsStride, DataByteOffset, StartIndex, NumCommands, bHighPrecision]
+					UE::Tasks::Launch(UE_SOURCE_LOCATION, [RHICmdListTask, &ShadingCommands, Intermediates = Intermediates, IndirectArgsStride, DataByteOffset, StartIndex, NumCommands, ShadingConfig]
 					{
 						FOptionalTaskTagScope Scope(ETaskTag::EParallelRenderingThread);
 						TRACE_CPUPROFILER_EVENT_SCOPE(RecordShadingCommandsTask);
@@ -1296,7 +1308,7 @@ void DispatchBasePass(
 								RecordShadingParameters(
 									ShadingParameters,
 									ShadingCommand,
-									bHighPrecision,
+									ShadingConfig,
 									DataByteOffset,
 									Intermediates->ViewRect,
 									Intermediates->ShadingOutputs
@@ -1306,6 +1318,7 @@ void DispatchBasePass(
 									*RHICmdListTask,
 									Intermediates->IndirectArgsBuffer,
 									IndirectArgsStride,
+									ShadingConfig,
 									ShadingParameters,
 									ShadingCommand
 								);
@@ -1324,17 +1337,15 @@ void DispatchBasePass(
 			RDG_EVENT_NAME("ShadeGBufferCS"),
 			ShadingPassParameters,
 			ERDGPassFlags::Compute,
-			[ShadingPassParameters, &ShadingCommands, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect, bBundleShading, bBundleEmulation]
+			[ShadingPassParameters, &ShadingCommands, ShadingConfig, ShaderBundle, IndirectArgsStride, DataByteOffset = Binning.DataByteOffset, VisibilityQuery, &View, ViewRect]
 			(FRHIComputeCommandList& RHICmdList)
 		{
 			TSharedPtr<FNaniteShadingPassIntermediates> Intermediates = CreateNaniteShadingPassIntermediates(ShadingPassParameters, ShadingCommands, VisibilityQuery, ViewRect);
 
-			const bool bHighPrecision = UsingHighPrecisionGBuffer();
-
-			if (bBundleShading)
+			if (ShadingConfig.bBundleShading)
 			{
 				TRACE_CPUPROFILER_EVENT_SCOPE(RecordBundleShadingCommands);
-				DispatchComputeShaderBundle(RHICmdList, ShadingCommands, ShaderBundle, *Intermediates, DataByteOffset, bBundleEmulation, bHighPrecision, EParallelForFlags::ForceSingleThread);
+				DispatchComputeShaderBundle(RHICmdList, ShadingCommands, ShadingConfig, ShaderBundle, *Intermediates, DataByteOffset, EParallelForFlags::ForceSingleThread);
 			}
 			else
 			{
@@ -1345,8 +1356,8 @@ void DispatchBasePass(
 					if (ShadingCommand.bVisible && PrepareShadingCommand(ShadingCommand))
 					{
 						FRHIBatchedShaderParameters& ShadingParameters = RHICmdList.GetScratchShaderParameters();
-						RecordShadingParameters(ShadingParameters, ShadingCommand, bHighPrecision, DataByteOffset, Intermediates->ViewRect, Intermediates->ShadingOutputs);
-						RecordShadingCommand(RHICmdList, Intermediates->IndirectArgsBuffer, IndirectArgsStride, ShadingParameters, ShadingCommand);
+						RecordShadingParameters(ShadingParameters, ShadingCommand, ShadingConfig, DataByteOffset, Intermediates->ViewRect, Intermediates->ShadingOutputs);
+						RecordShadingCommand(RHICmdList, Intermediates->IndirectArgsBuffer, IndirectArgsStride, ShadingConfig, ShadingParameters, ShadingCommand);
 					}
 				}
 			}
