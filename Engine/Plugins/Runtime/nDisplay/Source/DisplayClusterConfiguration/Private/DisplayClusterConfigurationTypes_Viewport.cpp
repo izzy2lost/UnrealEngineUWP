@@ -93,30 +93,3 @@ EDisplayClusterViewportICVFXFlags FDisplayClusterConfigurationViewport_ICVFX::Ge
 
 	return OutFlags;
 }
-
-
-bool FDisplayClusterConfigurationViewport_RenderSettings::Serialize(FArchive& Ar)
-{
-	// When loading, overwrite Media settings with defaults unless this is the archetype
-
-	if (!Ar.IsLoading() && !Ar.IsSaving())
-	{
-		return true;
-	}
-
-	UScriptStruct& Struct = *StaticStruct();
-
-	if (Ar.IsLoading() && !FDisplayClusterConfigurationUtils::IsSerializingTemplate(Ar))
-	{
-		const FDisplayClusterConfigurationMediaViewport MediaOriginal = Media;
-		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
-		Media = MediaOriginal;
-	}
-	else
-	{
-		Struct.SerializeTaggedProperties(Ar, (uint8*)this, &Struct, nullptr);
-	}
-
-	return true;
-}
-
