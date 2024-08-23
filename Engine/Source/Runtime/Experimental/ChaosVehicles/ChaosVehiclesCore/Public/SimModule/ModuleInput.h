@@ -370,6 +370,7 @@ public:
 	{
 		if (&Other != this)
 		{
+			InputValues.Reset();
 			// perform a deep copy
 			if (Other.InputValues.Num())
 			{
