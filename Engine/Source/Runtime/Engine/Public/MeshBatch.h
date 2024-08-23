@@ -349,12 +349,14 @@ struct FMeshBatch
 	/** This is the threshold that will be used to know if we should use this mesh batch or use one with no tessellation enabled */
 	float TessellationDisablingShadowMapMeshSize;
 
+	/** Segment index of the original mesh */
+	int32 SegmentIndex;
+
 	/* Mesh Id in a primitive. Used for stable sorting of draws belonging to the same primitive. **/
 	uint16 MeshIdInPrimitive;
 
 	/** LOD index of the mesh, used for fading LOD transitions. */
 	int8 LODIndex;
-	uint8 SegmentIndex;
 
 	uint32 ReverseCulling : 1;
 	uint32 bDisableBackfaceCulling : 1;
@@ -474,9 +476,9 @@ struct FMeshBatch
 	,	MaterialRenderProxy(nullptr)
 	,	LCI(nullptr)
 	,	TessellationDisablingShadowMapMeshSize(0.0f)
+	,	SegmentIndex(INDEX_NONE)
 	,	MeshIdInPrimitive(0)
 	,	LODIndex(INDEX_NONE)
-	,	SegmentIndex(0xFF)
 	,	ReverseCulling(false)
 	,	bDisableBackfaceCulling(false)
 	,	CastShadow(true)

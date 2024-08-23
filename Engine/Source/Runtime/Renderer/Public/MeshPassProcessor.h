@@ -752,7 +752,7 @@ struct FMeshDrawCommandDebugData
 	uint32 PSOCollectorIndex;
 #endif
 	int8 LODIndex;
-	uint8 SegmentIndex;
+	int32 SegmentIndex;
 #endif
 };
 

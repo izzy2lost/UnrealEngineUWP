@@ -1761,7 +1761,7 @@ void FNiagaraRendererMeshes::GetDynamicRayTracingInstances(FRayTracingMaterialGa
 				bIsInstancedStereo,
 				false // bNeedsPrevTransform
 			);
-			MeshBatch.SegmentIndex = uint8(SectionIndex);
+			MeshBatch.SegmentIndex = SectionIndex;
 			MeshBatch.LODIndex = uint8(LODModel.LODIndex);
 
 #if !(UE_BUILD_SHIPPING || UE_BUILD_TEST)
