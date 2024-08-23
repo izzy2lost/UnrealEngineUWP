@@ -44,6 +44,8 @@ public:
         , _CurrentModule(Package._RootModule->GetModule())
         , _CurrentGlitchAst(nullptr)
         , _Underscore(Program.GetSymbols()->AddChecked("__")) // temporarily, single underscore is a reserved name
+        , _ParameterizedMaterialSymbol(Program.GetSymbols()->AddChecked("parameterized_material"))
+        , _AssetsSymbol(Program.GetSymbols()->AddChecked("Assets"))
         , _Notes(Notes)
     {
     }
@@ -109,7 +111,7 @@ private:
                 }
             }
             break;
-            case CDefinition::EKind::Data: bGeneratedAnything |= GenerateForDataDefinition(Definition->AsChecked<CDataDefinition>(), Parent); break;
+            case CDefinition::EKind::Data: bGeneratedAnything |= GenerateForDataDefinition(Definition->AsChecked<CDataDefinition>(), Parent, IsParameterizedMaterial(Scope)); break;
             case CDefinition::EKind::Enumeration: bGeneratedAnything |= GenerateForEnumeration(Definition->AsChecked<CEnumeration>(), Parent); break;
             case CDefinition::EKind::Enumerator: bGeneratedAnything |= GenerateForEnumerator(Definition->AsChecked<CEnumerator>(), Parent); break;
             case CDefinition::EKind::Function: bGeneratedAnything |= GenerateForFunction(Definition->AsChecked<CFunction>(), Parent); break;
@@ -132,6 +134,55 @@ private:
         }
 
         return bGeneratedAnything;
+    }
+
+    bool IsParameterizedMaterial(const CLogicalScope& Scope) const
+    {
+        if (const CTypeBase* Type = Scope.ScopeAsType())
+        {
+            return IsParameterizedMaterial(*Type);
+        }
+        return false;
+    }
+
+    bool IsParameterizedMaterial(const CTypeBase& Type) const
+    {
+        const CClass* Class = Type.GetNormalType().AsNullable<CClass>();
+        if (!Class)
+        {
+            return false;
+        }
+        for (const CClass* I = Class; I; I = I->_Superclass)
+        {
+            if (I->Definition()->GetName() != _ParameterizedMaterialSymbol)
+            {
+                continue;
+            }
+            const CModule* Module = I->GetModule();
+            if (!Module)
+            {
+                continue;
+            }
+            if (Module->GetName() != _AssetsSymbol)
+            {
+                continue;
+            }
+            const CAstPackage* Package = Module->GetPackage();
+            if (!Package)
+            {
+                continue;
+            }
+            if (Module->GetParentScope() != Package->_RootModule->GetModule())
+            {
+                continue;
+            }
+            if (Package->_VersePath != "/Verse.org")
+            {
+                continue;
+            }
+            return true;
+        }
+        return false;
     }
 
     bool GenerateForModule(const CModule& Module, const TSRef<Verse::Vst::Node>& Parent) const
@@ -748,7 +799,7 @@ private:
         return true;
     }
 
-    bool GenerateForDataDefinition(const CDataDefinition& DataDefinition, const TSRef<Verse::Vst::Node>& Parent) const
+    bool GenerateForDataDefinition(const CDataDefinition& DataDefinition, const TSRef<Verse::Vst::Node>& Parent, bool bQualify) const
     {
         using namespace Verse::Vst;
 
@@ -780,7 +831,8 @@ private:
         {
             DecoratedNode = NameNode;
         }
-        TSRef<TypeSpec> TypeSpecNode = TSRef<TypeSpec>::New(NullWhence(), Move(DecoratedNode.AsRef()), GenerateForType(Type));
+
+        TSRef<TypeSpec> TypeSpecNode = TSRef<TypeSpec>::New(NullWhence(), Move(DecoratedNode.AsRef()), GenerateForType(Type, bQualify));
         STypeSpecAndName TypedDefinition{Move(TypeSpecNode), Move(NameNode)};
         // Is there a default value?
         if (DataDefinition.GetIrNode()->Value().IsValid())
@@ -932,14 +984,14 @@ private:
         return Clause;
     }
 
-    TSRef<Verse::Vst::Clause> GenerateForParamTypes(CFunctionType::ParamTypes ParamTypes) const
+    TSRef<Verse::Vst::Clause> GenerateForParamTypes(CFunctionType::ParamTypes ParamTypes, bool bQualify) const
     {
         using namespace Verse::Vst;
 
         TSRef<Clause> ParamList = TSRef<Clause>::New(NullWhence(), Clause::EForm::NoSemicolonOrNewline);
         for (const CTypeBase* ParamType : ParamTypes)
         {
-            ParamList->AppendChild(GenerateForTypeSpec(CSymbol(), &SemanticTypeUtils::AsPositive(*ParamType, {}))._TypeSpec);
+            ParamList->AppendChild(GenerateForTypeSpec(CSymbol(), &SemanticTypeUtils::AsPositive(*ParamType, {}), bQualify)._TypeSpec);
         }
 
         // We assume this node will be used in a PrePostCall so set it up properly for that
@@ -954,16 +1006,16 @@ private:
         TSRef<Verse::Vst::Identifier> _Name;
     };
 
-    STypeSpecAndName GenerateForTypeSpec(const CSymbol& Name, const CTypeBase* Type) const
+    STypeSpecAndName GenerateForTypeSpec(const CSymbol& Name, const CTypeBase* Type, bool bQualify = false) const
     {
         using namespace Verse::Vst;
 
         TSRef<Identifier> NameNode = TSRef<Identifier>::New(Name.AsStringView(), NullWhence());
-        return {TSRef<TypeSpec>::New(NullWhence(), NameNode, GenerateForType(Type)), NameNode};
+        return {TSRef<TypeSpec>::New(NullWhence(), NameNode, GenerateForType(Type, bQualify)), NameNode};
     }
 
     // Create VST node representing supplied tuple type
-    TSRef<Verse::Vst::PrePostCall> GenerateForTupleType(const CTupleType& Tuple) const
+    TSRef<Verse::Vst::PrePostCall> GenerateForTupleType(const CTupleType& Tuple, bool bQualify) const
     {
         using namespace Verse::Vst;
 
@@ -979,7 +1031,7 @@ private:
         TSRef<Clause> Elements = TSRef<Clause>::New(NullWhence(), Clause::EForm::NoSemicolonOrNewline);
         for (const CTypeBase* ElementType : Tuple.GetElements())
         {
-            Elements->AppendChild(GenerateForType(ElementType));
+            Elements->AppendChild(GenerateForType(ElementType, bQualify));
         }
 
         Elements->SetTag(PrePostCall::Op::SureCall);
@@ -1036,18 +1088,18 @@ private:
                 Clause::EForm::NoSemicolonOrNewline));
     }
 
-    TSRef<Verse::Vst::Node> GenerateForGeneratorType(const CTypeBase* ElementType) const
+    TSRef<Verse::Vst::Node> GenerateForGeneratorType(const CTypeBase* ElementType, bool bQualify) const
     {
         using namespace Verse::Vst;
         return GenerateForInvocation(
             "generator",
             TSRef<Clause>::New(
-                TSRefArray<Node>{GenerateForType(ElementType)},
+                TSRefArray<Node>{GenerateForType(ElementType, bQualify)},
                 NullWhence(),
                 Clause::EForm::NoSemicolonOrNewline));
     }
 
-    TSRef<Verse::Vst::Node> GenerateForType(const CNormalType& Type) const
+    TSRef<Verse::Vst::Node> GenerateForType(const CNormalType& Type, bool bQualify) const
     {
         using namespace Verse::Vst;
         switch (Type.GetKind())
@@ -1072,7 +1124,15 @@ private:
             const CClass& Class = Type.AsChecked<CClass>();
             if (Class.GetParentScope()->GetKind() != CScope::EKind::Function)
             {
-                return TSRef<Identifier>::New(GetDependencyName(*Class.Definition()), NullWhence());
+                TSRef<Identifier> Name = TSRef<Identifier>::New(GetDependencyName(*Class.Definition()), NullWhence());
+                if (bQualify)
+                {
+                    if (const CModule* Module = Class.GetModule())
+                    {
+                        Name->AppendChild(GenerateQualifierAsPath(*Module));
+                    }
+                }
+                return Name;
             }
             TSRef<Identifier> Name = TSRef<Identifier>::New(
                 GetDependencyName(*static_cast<const CFunction*>(Class.GetParentScope())),
@@ -1097,7 +1157,15 @@ private:
             const CInterface& Interface = Type.AsChecked<CInterface>();
             if (Interface.GetParentScope()->GetKind() != CScope::EKind::Function)
             {
-                return TSRef<Identifier>::New(GetDependencyName(Interface), NullWhence());
+                TSRef<Identifier> Name = TSRef<Identifier>::New(GetDependencyName(Interface), NullWhence());
+                if (bQualify)
+                {
+                    if (const CModule* Module = Interface.GetModule())
+                    {
+                        Name->AppendChild(GenerateQualifierAsPath(*Module));
+                    }
+                }
+                return Name;
             }
             TSRef<Identifier> Name = TSRef<Identifier>::New(
                 GetDependencyName(*static_cast<const CFunction*>(Interface.GetParentScope())),
@@ -1118,17 +1186,25 @@ private:
             return Move(Invocation);
         }
         case ETypeKind::Tuple:
-            return GenerateForTupleType(Type.AsChecked<CTupleType>());
+            return GenerateForTupleType(Type.AsChecked<CTupleType>(), bQualify);
         case ETypeKind::Enumeration:
         {
             const CEnumeration& Enumeration = Type.AsChecked<CEnumeration>();
-            return TSRef<Identifier>::New(GetDependencyName(Enumeration), NullWhence());
+            TSRef<Identifier> Name = TSRef<Identifier>::New(GetDependencyName(Enumeration), NullWhence());
+            if (bQualify)
+            {
+                if (const CModule* Module = Enumeration.GetModule())
+                {
+                    Name->AppendChild(GenerateQualifierAsPath(*Module));
+                }
+            }
+            return Name;
         }
         case ETypeKind::Option:
         {
             TSRef<PrePostCall> Option = TSRef<PrePostCall>::New(NullWhence());
             Option->AppendChild(TSRef<Clause>::New((uint8_t)PrePostCall::Op::Option, NullWhence(), Clause::EForm::Synthetic));
-            Option->AppendChild(GenerateForType(Type.AsChecked<COptionType>().GetValueType()));
+            Option->AppendChild(GenerateForType(Type.AsChecked<COptionType>().GetValueType(), bQualify));
             return Option;
         }
         case ETypeKind::Type:
@@ -1164,24 +1240,24 @@ private:
             TSRef<PrePostCall> PrePost = TSRef<PrePostCall>::New(NullWhence());
             const CFunctionType* FunctionType = &Type.AsChecked<CFunctionType>();
             PrePost->AppendChild(Name);
-            PrePost->AppendChild(GenerateForParamTypes(FunctionType->GetParamTypes()));
+            PrePost->AppendChild(GenerateForParamTypes(FunctionType->GetParamTypes(), bQualify));
             GenerateForEffectAttributes(FunctionType->GetEffects(), EffectSets::FunctionDefault, *PrePost);
             return TSRef<Macro>::New(
                 NullWhence(),
                 TSRef<Identifier>::New("type", NullWhence()),
-                ClauseArray{ TSRef<Clause>::New(TSRef<TypeSpec>::New(NullWhence(), PrePost, GenerateForType(&FunctionType->GetReturnType())).As<Node>(), NullWhence(), Clause::EForm::NoSemicolonOrNewline) });
+                ClauseArray{ TSRef<Clause>::New(TSRef<TypeSpec>::New(NullWhence(), PrePost, GenerateForType(&FunctionType->GetReturnType(), bQualify)).As<Node>(), NullWhence(), Clause::EForm::NoSemicolonOrNewline) });
         }
         case ETypeKind::Array:
         {
             TSRef<PrePostCall> ArrayTypeFormer = TSRef<PrePostCall>::New(NullWhence());
             ArrayTypeFormer->AppendChild(TSRef<Clause>::New((uint8_t)PrePostCall::Op::FailCall, NullWhence(), Clause::EForm::NoSemicolonOrNewline));
-            ArrayTypeFormer->AppendChild(GenerateForType(Type.AsChecked<CArrayType>().GetElementType()));
+            ArrayTypeFormer->AppendChild(GenerateForType(Type.AsChecked<CArrayType>().GetElementType(), bQualify));
             return ArrayTypeFormer;
         }
         case ETypeKind::Generator:
         {
             const CGeneratorType& GeneratorType = Type.AsChecked<CGeneratorType>();
-            return GenerateForGeneratorType(GeneratorType.GetElementType());
+            return GenerateForGeneratorType(GeneratorType.GetElementType(), bQualify);
         }
         case ETypeKind::Map:
         {
@@ -1191,10 +1267,10 @@ private:
                 return GenerateForWeakMapType(MapType.GetKeyType(), MapType.GetValueType());
             }
             TSRef<PrePostCall> MapTypeFormer = TSRef<PrePostCall>::New(NullWhence());
-            TSRef<Clause> KeyTypeClause = TSRef<Clause>::New(GenerateForType(MapType.GetKeyType()), NullWhence(), Clause::EForm::NoSemicolonOrNewline);
+            TSRef<Clause> KeyTypeClause = TSRef<Clause>::New(GenerateForType(MapType.GetKeyType(), bQualify), NullWhence(), Clause::EForm::NoSemicolonOrNewline);
             KeyTypeClause->SetTag(PrePostCall::FailCall);
             MapTypeFormer->AppendChild(Move(KeyTypeClause));
-            MapTypeFormer->AppendChild(GenerateForType(MapType.GetValueType()));
+            MapTypeFormer->AppendChild(GenerateForType(MapType.GetValueType(), bQualify));
             return MapTypeFormer;
         }
         case ETypeKind::Pointer:
@@ -1217,7 +1293,7 @@ private:
         return TSRef<Identifier>::New("<unknown>", NullWhence());
     }
 
-    TSRef<Verse::Vst::Node> GenerateForType(const CTypeBase* Type) const
+    TSRef<Verse::Vst::Node> GenerateForType(const CTypeBase* Type, bool bQualify = false) const
     {
         // If the type is a usable type alias, generate a use of that type alias.
         if (const CAliasType* AliasType = Type->AsAliasType())
@@ -1228,7 +1304,7 @@ private:
             }
         }
 
-        return GenerateForType(Type->GetNormalType());
+        return GenerateForType(Type->GetNormalType(), bQualify);
     }
 
     TSRef<Verse::Vst::Node> GenerateForQualifier(const SQualifier& Qualifier) const
@@ -1261,6 +1337,11 @@ private:
             }
             ULANG_UNREACHABLE();
         }
+    }
+
+    TSRef<Verse::Vst::Node> GenerateQualifierAsPath(const CModule& Module) const
+    {
+        return TSRef<Verse::Vst::PathLiteral>::New(Module.GetScopePath('/', CScope::EPathMode::PrefixSeparator), NullWhence());
     }
 
     void GenerateForEffectAttributes(const SEffectSet Effects, const SEffectSet DefaultEffects, Verse::Vst::Node& CallAttributable) const
@@ -2212,6 +2293,8 @@ private:
     mutable const CModule* _CurrentModule;
     mutable const CAstNode* _CurrentGlitchAst;
     CSymbol _Underscore;
+    CSymbol _ParameterizedMaterialSymbol;
+    CSymbol _AssetsSymbol;
     const CUTF8String* _Notes;
 };
 
