@@ -11,7 +11,7 @@ namespace HordeCommon.Rpc.Messages
 {
 	partial class RpcSession
 	{
-		public static TimeSpan ExpireAfterTime { get; } = TimeSpan.FromMinutes(2.0);
+		public static TimeSpan ExpireAfterTime { get; } = TimeSpan.FromMinutes(5.0);
 
 		public AgentId AgentId
 		{

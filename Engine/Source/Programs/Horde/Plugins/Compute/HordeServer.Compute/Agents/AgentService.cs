@@ -48,7 +48,7 @@ namespace HordeServer.Agents
 		/// <summary>
 		/// Maximum time between updates for an agent to be considered online
 		/// </summary>
-		public static readonly TimeSpan SessionExpiryTime = TimeSpan.FromMinutes(5);
+		public static readonly TimeSpan SessionExpiryTime = RpcSession.ExpireAfterTime;
 
 		/// <summary>
 		/// Time before a session expires that we will poll until
