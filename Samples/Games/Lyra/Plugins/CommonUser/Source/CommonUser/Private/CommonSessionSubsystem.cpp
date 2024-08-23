@@ -1127,6 +1127,7 @@ void UCommonSessionSubsystem::JoinSessionInternalOSSv1(ULocalPlayer* LocalPlayer
 	
 	// We need to manually set that we want this to be our presence session
 	Request->Result.Session.SessionSettings.bUsesPresence = true;
+	Request->Result.Session.SessionSettings.bUseLobbiesIfAvailable = true;
 
 	Sessions->JoinSession(*LocalPlayer->GetPreferredUniqueNetId().GetUniqueNetId(), NAME_GameSession, Request->Result);
 }
