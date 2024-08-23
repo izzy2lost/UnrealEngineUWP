@@ -2,6 +2,7 @@
 
 using System;
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Drawing;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -69,7 +70,7 @@ namespace UnrealGameSync
 		{
 			if (!IsHandleCreated)
 			{
-				return Height / Font.Height;
+				return Height / Font!.Height;
 			}
 			return SendMessage(Handle, LvmGetcountperpage, IntPtr.Zero, IntPtr.Zero).ToInt32();
 		}
@@ -142,6 +143,7 @@ namespace UnrealGameSync
 
 		[Browsable(false)]
 		[DesignerSerializationVisibility(DesignerSerializationVisibility.Hidden)]
+		[AllowNull]
 		public override Font Font
 		{
 			get => base.Font;

@@ -129,7 +129,11 @@ namespace UnrealGameSync
 		private void ArgumentsList_MouseClick(object sender, MouseEventArgs e)
 		{
 			ListViewHitTestInfo info = ArgumentsList.HitTest(e.Location);
-			if (info.Item.Index == ArgumentsList.Items.Count - 1)
+			if (info.Item == null)
+			{
+				return;
+			}
+			else if (info.Item.Index == ArgumentsList.Items.Count - 1)
 			{
 				ListViewItem newItem = new ListViewItem();
 				newItem.Checked = true;

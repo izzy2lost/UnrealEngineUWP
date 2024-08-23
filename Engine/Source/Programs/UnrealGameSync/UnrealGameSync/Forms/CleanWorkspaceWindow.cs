@@ -478,31 +478,31 @@ namespace UnrealGameSync
 
 		private void FolderContextMenu_SelectAll_Click(object sender, EventArgs e)
 		{
-			TreeNode node = (TreeNode)FolderContextMenu.Tag;
+			TreeNode node = (TreeNode)FolderContextMenu.Tag!;
 			SetSelected(node, SelectionType.All);
 		}
 
 		private void FolderContextMenu_SelectSafeToDelete_Click(object sender, EventArgs e)
 		{
-			TreeNode node = (TreeNode)FolderContextMenu.Tag;
+			TreeNode node = (TreeNode)FolderContextMenu.Tag!;
 			SetSelected(node, SelectionType.SafeToDelete);
 		}
 
 		private void FolderContextMenu_SelectEmptyFolder_Click(object sender, EventArgs e)
 		{
-			TreeNode node = (TreeNode)FolderContextMenu.Tag;
+			TreeNode node = (TreeNode)FolderContextMenu.Tag!;
 			SetSelected(node, SelectionType.Empty);
 		}
 
 		private void FolderContextMenu_SelectNone_Click(object sender, EventArgs e)
 		{
-			TreeNode node = (TreeNode)FolderContextMenu.Tag;
+			TreeNode node = (TreeNode)FolderContextMenu.Tag!;
 			SetSelected(node, SelectionType.None);
 		}
 
 		private void FolderContextMenu_OpenWithExplorer_Click(object sender, EventArgs e)
 		{
-			TreeNode node = (TreeNode)FolderContextMenu.Tag;
+			TreeNode node = (TreeNode)FolderContextMenu.Tag!;
 			TreeNodeData nodeData = (TreeNodeData)node.Tag;
 
 			if (nodeData._folder != null)

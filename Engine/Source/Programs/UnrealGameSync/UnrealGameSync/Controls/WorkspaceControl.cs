@@ -1058,7 +1058,7 @@ namespace UnrealGameSync
 
 			if (result == WorkspaceUpdateResult.FilesToResolve)
 			{
-				FlashWindow(ParentForm.Handle, true);
+				FlashWindow(ParentForm!.Handle, true);
 				MessageBox.Show(ParentForm, "You have files to resolve after syncing your workspace. Please check P4.");
 			}
 			else if (result == WorkspaceUpdateResult.FilesToDelete)
@@ -1066,7 +1066,7 @@ namespace UnrealGameSync
 				DesiredTaskbarState = Tuple.Create(TaskbarState.Paused, 0.0f);
 				_owner.UpdateProgress();
 
-				FlashWindow(ParentForm.Handle, true);
+				FlashWindow(ParentForm!.Handle, true);
 
 				if (_settings.Global.AlwaysDeleteFiles)
 				{
@@ -1161,7 +1161,7 @@ namespace UnrealGameSync
 			UpdateStatusPanel();
 			UpdateSyncActionCheckboxes();
 
-			FlashWindow(ParentForm.Handle, true);
+			FlashWindow(ParentForm!.Handle, true);
 
 			// Do this last because it may result in the control being disposed
 			if (result == WorkspaceUpdateResult.FailedToSyncLoginExpired)
@@ -1601,7 +1601,7 @@ namespace UnrealGameSync
 			// Remove everything that's in a custom column
 			foreach (ColumnHeader customColumn in _customColumns)
 			{
-				ConfigObject columnConfig = (ConfigObject)customColumn.Tag;
+				ConfigObject columnConfig = (ConfigObject)customColumn.Tag!;
 				foreach (string badgeName in columnConfig.GetValue("Badges", "").Split(','))
 				{
 					badgeNameToGroup.Remove(badgeName);
@@ -2034,7 +2034,7 @@ namespace UnrealGameSync
 				{
 					BuildList.DrawTrackedBackground(e.Graphics, e.Bounds);
 				}
-				else if (((ChangesRecord)e.Item.Tag).Number == _workspace.PendingChangeNumber)
+				else if (((ChangesRecord)e.Item.Tag!).Number == _workspace.PendingChangeNumber)
 				{
 					BuildList.DrawTrackedBackground(e.Graphics, e.Bounds);
 				}
@@ -3050,7 +3050,7 @@ namespace UnrealGameSync
 			{
 				foreach (ColumnHeader customColumn in _customColumns)
 				{
-					ConfigObject config = (ConfigObject)customColumn.Tag;
+					ConfigObject config = (ConfigObject)customColumn.Tag!;
 					if (config != null)
 					{
 						List<BadgeInfo> badges = new List<BadgeInfo>();
@@ -3239,7 +3239,7 @@ namespace UnrealGameSync
 				ListViewHitTestInfo hitTest = BuildList.HitTest(args.Location);
 				if (hitTest.Item != null)
 				{
-					ChangesRecord change = (ChangesRecord)hitTest.Item.Tag;
+					ChangesRecord change = (ChangesRecord)hitTest.Item.Tag!;
 					if (change != null)
 					{
 						if (change.Number == _workspace.CurrentChangeNumber)
@@ -3713,7 +3713,7 @@ namespace UnrealGameSync
 							{
 								if (item != null)
 								{
-									ChangesRecord summary = (ChangesRecord)item.Tag;
+									ChangesRecord summary = (ChangesRecord)item.Tag!;
 									if (summary != null)
 									{
 										// No need to keep on iterating if we're past the required CL :
@@ -4055,14 +4055,14 @@ namespace UnrealGameSync
 
 		public void ShowIssueDetails(IssueData issue)
 		{
-			IssueDetailsWindow.Show(ParentForm, _issueMonitor, _perforceSettings, GetServerTimeOffset(), issue, _serviceProvider, StreamName);
+			IssueDetailsWindow.Show(ParentForm!, _issueMonitor, _perforceSettings, GetServerTimeOffset(), issue, _serviceProvider, StreamName);
 		}
 
 		private void BuildHealthContextMenu_Browse_Click(object sender, EventArgs e)
 		{
 			string? defaultFilter = GetDefaultIssueFilter();
 			Dictionary<string, Func<IssueData, bool>> customFilters = GetCustomIssueFilters();
-			IssueBrowserWindow.Show(ParentForm, _issueMonitor, _perforceSettings, GetServerTimeOffset(), _serviceProvider, StreamName, customFilters, defaultFilter);
+			IssueBrowserWindow.Show(ParentForm!, _issueMonitor, _perforceSettings, GetServerTimeOffset(), _serviceProvider, StreamName, customFilters, defaultFilter);
 		}
 
 		private void BuildHealthContextMenu_Settings_Click(object sender, EventArgs e)
@@ -4333,7 +4333,7 @@ namespace UnrealGameSync
 			{
 				if (item != null)
 				{
-					ChangesRecord summary = (ChangesRecord)item.Tag;
+					ChangesRecord summary = (ChangesRecord)item.Tag!;
 					if (summary != null && summary.Number <= changeNumber)
 					{
 						item.Selected = true;
@@ -4378,7 +4378,7 @@ namespace UnrealGameSync
 					}
 					else
 					{
-						ChangesRecord change = (ChangesRecord)hitTest.Item.Tag;
+						ChangesRecord change = (ChangesRecord)hitTest.Item.Tag!;
 						if (_workspace.PendingChangeNumber == change.Number)
 						{
 							Rectangle subItemRect = hitTest.Item.SubItems[StatusColumn.Index].Bounds;
@@ -4461,7 +4461,7 @@ namespace UnrealGameSync
 						{
 							if (customColumn.Index < hitTest.Item.SubItems.Count && hitTest.Item.SubItems[customColumn.Index] == hitTest.SubItem)
 							{
-								ChangeLayoutInfo layoutInfo = GetChangeLayoutInfo((ChangesRecord)hitTest.Item.Tag);
+								ChangeLayoutInfo layoutInfo = GetChangeLayoutInfo((ChangesRecord)hitTest.Item.Tag!);
 
 								List<BadgeInfo>? badges;
 								if (layoutInfo._customBadges.TryGetValue(customColumn.Text, out badges) && badges.Count > 0)
@@ -4652,7 +4652,7 @@ namespace UnrealGameSync
 					ChangeLayoutInfo layoutInfo = GetChangeLayoutInfo(changesRecord);
 					if (layoutInfo._descriptionBadges.Count > 0)
 					{
-						Point listLocation = GetBadgeListLocation(layoutInfo._descriptionBadges, hitTest.SubItem.Bounds, HorizontalAlign.Right, VerticalAlignment.Middle);
+						Point listLocation = GetBadgeListLocation(layoutInfo._descriptionBadges, hitTest.SubItem!.Bounds, HorizontalAlign.Right, VerticalAlignment.Middle);
 						newHoverBadgeUniqueId = HitTestBadge(e.Location, layoutInfo._descriptionBadges, listLocation)?._uniqueId;
 					}
 				}
@@ -4661,7 +4661,7 @@ namespace UnrealGameSync
 					ChangeLayoutInfo layoutInfo = GetChangeLayoutInfo(changesRecord);
 					if (layoutInfo._buildBadges.Count > 0)
 					{
-						Point buildListLocation = GetBadgeListLocation(layoutInfo._buildBadges, hitTest.SubItem.Bounds, HorizontalAlign.Center, VerticalAlignment.Middle);
+						Point buildListLocation = GetBadgeListLocation(layoutInfo._buildBadges, hitTest.SubItem!.Bounds, HorizontalAlign.Center, VerticalAlignment.Middle);
 						buildListLocation.X = Math.Max(buildListLocation.X, hitTest.SubItem.Bounds.Left);
 
 						BadgeInfo? badge = HitTestBadge(e.Location, layoutInfo._buildBadges, buildListLocation);
@@ -4689,7 +4689,7 @@ namespace UnrealGameSync
 					List<BadgeInfo>? badges;
 					if (layoutInfo._customBadges.TryGetValue(column.Text, out badges) && badges.Count > 0)
 					{
-						Point listLocation = GetBadgeListLocation(badges, hitTest.SubItem.Bounds, HorizontalAlign.Center, VerticalAlignment.Middle);
+						Point listLocation = GetBadgeListLocation(badges, hitTest.SubItem!.Bounds, HorizontalAlign.Center, VerticalAlignment.Middle);
 						newHoverBadgeUniqueId = HitTestBadge(e.Location, badges, listLocation)?._uniqueId;
 					}
 				}
@@ -4914,10 +4914,10 @@ namespace UnrealGameSync
 			_buildFont = BuildList.Font;
 
 			_selectedBuildFont?.Dispose();
-			_selectedBuildFont = new Font(_buildFont, FontStyle.Bold);
+			_selectedBuildFont = new Font(_buildFont!, FontStyle.Bold);
 
 			_badgeFont?.Dispose();
-			_badgeFont = new Font(_buildFont.FontFamily, _buildFont.SizeInPoints - 2, FontStyle.Bold);
+			_badgeFont = new Font(_buildFont!.FontFamily, _buildFont.SizeInPoints - 2, FontStyle.Bold);
 		}
 
 		public void ExecCommand(string description, string statusText, string fileName, string arguments, string workingDir, bool useLogWindow)
@@ -5184,11 +5184,11 @@ namespace UnrealGameSync
 		private void BuildList_ItemMouseHover(object sender, ListViewItemMouseHoverEventArgs args)
 		{
 			Point clientPoint = BuildList.PointToClient(Cursor.Position);
-			if (args.Item.SubItems.Count >= 6)
+			if (args.Item != null && args.Item.SubItems.Count >= 6)
 			{
 				if (args.Item.Bounds.Contains(clientPoint))
 				{
-					ChangesRecord change = (ChangesRecord)args.Item.Tag;
+					ChangesRecord change = (ChangesRecord)args.Item.Tag!;
 					if (change == null)
 					{
 						return;
@@ -5599,7 +5599,7 @@ namespace UnrealGameSync
 
 			for (int idx = 0; idx < BuildList.Items.Count; idx++)
 			{
-				ChangesRecord change = (ChangesRecord)BuildList.Items[idx].Tag;
+				ChangesRecord? change = (ChangesRecord?)BuildList.Items[idx].Tag;
 				if (change != null)
 				{
 					EventSummary? summary = _eventMonitor.GetSummaryForChange(change.Number);
@@ -5716,7 +5716,7 @@ namespace UnrealGameSync
 			string[] combinedSyncFilter = UserSettings.GetCombinedSyncFilter(GetSyncCategories(), _settings.Global.Filter, _workspaceSettings.Filter, _perforceMonitor.LatestPerforceConfigSection());
 			List<string> syncPaths = WorkspaceUpdate.GetSyncPaths(_workspace.Project, _workspaceSettings.Filter.AllProjects ?? _settings.Global.Filter.AllProjects ?? false, combinedSyncFilter);
 
-			bool performedClean = CleanWorkspaceWindow.DoClean(ParentForm, _perforceSettings, BranchDirectoryName, _workspace.Project.ClientRootPath, syncPaths, extraSafeToDeleteFolders.Split('\n'), extraSafeToDeleteExtensions.Split('\n'), _serviceProvider.GetRequiredService<ILogger<CleanWorkspaceWindow>>());
+			bool performedClean = CleanWorkspaceWindow.DoClean(ParentForm!, _perforceSettings, BranchDirectoryName, _workspace.Project.ClientRootPath, syncPaths, extraSafeToDeleteFolders.Split('\n'), extraSafeToDeleteExtensions.Split('\n'), _serviceProvider.GetRequiredService<ILogger<CleanWorkspaceWindow>>());
 
 			if (performedClean)
 			{
@@ -6125,7 +6125,7 @@ namespace UnrealGameSync
 
 			if (args.Control && args.KeyCode == Keys.C && BuildList.SelectedItems.Count > 0)
 			{
-				int selectedChange = ((ChangesRecord)BuildList.SelectedItems[0].Tag).Number;
+				int selectedChange = ((ChangesRecord)BuildList.SelectedItems[0].Tag!).Number;
 				Clipboard.SetText(String.Format("{0}", selectedChange));
 			}
 		}
@@ -6396,7 +6396,7 @@ namespace UnrealGameSync
 				{
 					if (selectedItem != null)
 					{
-						ChangesRecord change = (ChangesRecord)selectedItem.Tag;
+						ChangesRecord change = (ChangesRecord)selectedItem.Tag!;
 						changeNumberToBisectState[change.Number] = BisectState.Include;
 					}
 				}

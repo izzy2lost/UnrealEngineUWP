@@ -555,7 +555,7 @@ namespace UnrealGameSync
 
 			if (e.Button == MouseButtons.Right)
 			{
-				ContextMenuStrip.Show(this, e.Location);
+				ContextMenuStrip!.Show(this, e.Location);
 			}
 		}
 

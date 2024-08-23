@@ -1000,7 +1000,7 @@ namespace UnrealGameSync
 						PerforceChangeDetailsWithDescribeRecord? details;
 						_perforceWorker!.TryGetChangeDetails(change.Number, out details);
 
-						StatusLineListViewWidget typeWidget = (StatusLineListViewWidget)item.SubItems[TypeHeader.Index].Tag;
+						StatusLineListViewWidget typeWidget = (StatusLineListViewWidget)item.SubItems[TypeHeader.Index].Tag!;
 						UpdateChangeTypeWidget(typeWidget, details);
 
 						BuildListView.RedrawItems(item.Index, item.Index, true);

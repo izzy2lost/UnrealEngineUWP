@@ -739,17 +739,17 @@ namespace UnrealGameSync
 			StatusLine actionLine = new StatusLine();
 			actionLine.AddLink("Retry", FontStyle.Bold | FontStyle.Underline, () =>
 			{
-				BeginInvoke(new MethodInvoker(() => TryOpenProject(project, TabControl.FindTabIndex(errorPanel))));
+				BeginInvoke(new System.Windows.Forms.MethodInvoker(() => TryOpenProject(project, TabControl.FindTabIndex(errorPanel))));
 			});
 			actionLine.AddText(" | ");
 			actionLine.AddLink("Settings", FontStyle.Bold | FontStyle.Underline, () =>
 			{
-				BeginInvoke(new MethodInvoker(() => EditSelectedProject(errorPanel)));
+				BeginInvoke(new System.Windows.Forms.MethodInvoker(() => EditSelectedProject(errorPanel)));
 			});
 			actionLine.AddText(" | ");
 			actionLine.AddLink("Close", FontStyle.Bold | FontStyle.Underline, () =>
 			{
-				BeginInvoke(new MethodInvoker(() => TabControl.RemoveTab(TabControl.FindTabIndex(errorPanel))));
+				BeginInvoke(new System.Windows.Forms.MethodInvoker(() => TabControl.RemoveTab(TabControl.FindTabIndex(errorPanel))));
 			});
 			lines.Add(actionLine);
 

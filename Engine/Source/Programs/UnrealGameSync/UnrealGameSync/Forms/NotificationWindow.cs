@@ -57,7 +57,7 @@ namespace UnrealGameSync
 
 			CalculateBounds();
 
-			Rectangle workingArea = Screen.PrimaryScreen.WorkingArea;
+			Rectangle workingArea = Screen.PrimaryScreen!.WorkingArea;
 			Location = new Point(workingArea.Right - Size.Width - 16, workingArea.Bottom - Size.Height - 16);
 
 			BringToFront();
