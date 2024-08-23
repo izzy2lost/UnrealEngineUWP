@@ -196,6 +196,7 @@ ACHIEVEMENTS_TEST_CASE("Unlock Title-Managed Achievements By Stats", EG_ACHIEVEM
 			});
 
 	RunToCompletion();
+	DestroyCurrentServiceModule();
 }
 
 ACHIEVEMENTS_TEST_CASE("Unlock Title-Managed Achievements By Stats With Multiple Conditions", EG_ACHIEVEMENTS_UNLOCKACHIEVEMENTS_TITLEMANAGED_TAG)
@@ -249,4 +250,5 @@ ACHIEVEMENTS_TEST_CASE("Unlock Title-Managed Achievements By Stats With Multiple
 			});
 
 	RunToCompletion();
+	DestroyCurrentServiceModule();
 }
