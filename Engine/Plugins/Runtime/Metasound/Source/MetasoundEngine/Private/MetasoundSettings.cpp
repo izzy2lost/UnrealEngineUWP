@@ -275,7 +275,7 @@ const TArray<FGuid>& UMetaSoundSettings::GetCookedTargetPageIDs(FName PlatformNa
 		{
 #if WITH_EDITOR
 			const bool bCanTargetDefault = DefaultPageSettings.Target.GetValueForPlatform(PlatformName);
-#else !WITH_EDITOR
+#else // !WITH_EDITOR
 			const bool bCanTargetDefault = DefaultPageSettings.Target.GetValue();
 #endif // !WITH_EDITOR
 
