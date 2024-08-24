@@ -138,6 +138,10 @@ namespace UnrealGameSync
 			{
 				DownloadProgressWindow.Execute((p, ctx) => DoSyncAsync(descriptor.BaseUrl, descriptor.RefName, outputDir, p, ctx), CancellationToken.None);
 			}
+			catch (OperationCanceledException)
+			{
+				return;
+			}
 			catch (Exception ex)
 			{
 				MessageBox.Show($"An error occurred while downloading the specified item.\n\n{ex}");
