@@ -13,6 +13,8 @@ FDMMaterialPreviewViewportClient::FDMMaterialPreviewViewportClient(const TShared
 {
 	PreviewWidget = InPreviewWidget;
 
+	bDrawAxes = false;
+
 	// Setup defaults for the common draw helper.
 	DrawHelper.bDrawPivot = false;
 	DrawHelper.bDrawWorldBox = false;
@@ -29,6 +31,7 @@ FDMMaterialPreviewViewportClient::FDMMaterialPreviewViewportClient(const TShared
 	EngineShowFlags.DisableAdvancedFeatures();
 	EngineShowFlags.SetSnap(0);
 	EngineShowFlags.SetSeparateTranslucency(true);
+	EngineShowFlags.SetPivot(false);
 
 	OverrideNearClipPlane(1.0f);
 	bUsingOrbitCamera = true;

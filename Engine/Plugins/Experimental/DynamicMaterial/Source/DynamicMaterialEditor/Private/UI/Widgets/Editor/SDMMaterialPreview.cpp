@@ -83,7 +83,11 @@ void SDMMaterialPreview::Construct(const FArguments& InArgs, const TSharedRef<SD
 {
 	EditorWidgetWeak = InEditorWidget;
 	bShowMenu = InArgs._ShowMenu;
-	PreviewScene = MakeShareable(new FAdvancedPreviewScene(FPreviewScene::ConstructionValues()));
+	PreviewScene = MakeShareable(new FAdvancedPreviewScene(
+		FPreviewScene::ConstructionValues()
+		.SetCreatePhysicsScene(false)
+		.ShouldSimulatePhysics(false)
+	));
 
 	PreviewMaterial = nullptr;
 	PreviewMeshComponent = nullptr;
