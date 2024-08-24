@@ -102,6 +102,8 @@ class UMetasoundPagesView : public UMetasoundEditorViewBase
 
 namespace Metasound::Editor
 {
+	bool PageEditorEnabled();
+
 	// Forward Declarations
 	class FMetasoundGraphMemberSchemaAction;
 

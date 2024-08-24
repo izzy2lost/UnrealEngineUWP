@@ -132,7 +132,7 @@ Metasound::Engine::FPageResolutionEditorResults UMetasoundEditorSettings::Resolv
 			{
 				if (InPageIDs.Contains(PageSettings.UniqueId))
 				{
-					return !PageSettings.ExcludePageFromCook(PreviewInfo.PlatformName);
+					return !PageSettings.GetExcludeFromCook(PreviewInfo.PlatformName);
 				}
 
 				return false;
@@ -168,7 +168,7 @@ TArray<FName> UMetasoundEditorSettings::GetAuditionPlatformNames()
 {
 	if (const UMetaSoundSettings* Settings = GetDefault<UMetaSoundSettings>())
 	{
-		return Settings->GetImplementedPagePlatforms();
+		return Settings->GetAllPlatformNamesImplementingTargets();
 	}
 	return { FPlatformProperties::IniPlatformName() };
 }

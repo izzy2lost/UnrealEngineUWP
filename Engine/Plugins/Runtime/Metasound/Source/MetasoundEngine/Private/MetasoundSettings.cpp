@@ -131,20 +131,22 @@ namespace Metasound::SettingsPrivate
 } // namespace Metasound::SettingsPrivate
 
 #if WITH_EDITOR
-bool FMetaSoundPageSettings::ExcludePageFromCook(FName PlatformName) const
+bool FMetaSoundPageSettings::GetExcludeFromCook(FName PlatformName) const
 {
 	if (PlatformCanTargetPage(PlatformName))
 	{
 		return false;
 	}
 
-	return Exclude.GetValueForPlatform(PlatformName);
+	return ExcludeFromCook.GetValueForPlatform(PlatformName);
 }
 
-TArray<FName> FMetaSoundPageSettings::GetImplementedPlatforms() const
+TArray<FName> FMetaSoundPageSettings::GetTargetPlatforms() const
 {
 	TArray<FName> PlatformNames;
-	Target.PerPlatform.GetKeys(PlatformNames);
+	Algo::TransformIf(Target.PerPlatform, PlatformNames,
+		[](const TPair<FName, bool>& Pair) { return Pair.Value; },
+		[](const TPair<FName, bool>& Pair) { return Pair.Key; });
 	return PlatformNames;
 }
 
@@ -237,12 +239,12 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetDefaultPageSettings() const
 }
 
 #if WITH_EDITOR
-TArray<FName> UMetaSoundSettings::GetImplementedPagePlatforms() const
+TArray<FName> UMetaSoundSettings::GetAllPlatformNamesImplementingTargets() const
 {
 	TSet<FName> PlatformNames { FPlatformProperties::IniPlatformName() };
-	IteratePageSettings([&](const FMetaSoundPageSettings& PageSetting)
+	IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
 	{
-		TArray<FName> PagePlatforms = PageSetting.GetImplementedPlatforms();
+		TArray<FName> PagePlatforms = PageSettings.GetTargetPlatforms();
 		PlatformNames.Append(MoveTemp(PagePlatforms));
 	});
 	return PlatformNames.Array();
@@ -304,6 +306,8 @@ const FMetaSoundPageSettings& UMetaSoundSettings::GetTargetPageSettings() const
 		}
 	}
 
+	// Shouldn't hit this, but if for some reason the target page is in a bad state,
+	// try and return any page setting set as a valid target.
 	for (const FMetaSoundPageSettings& Setting : PageSettings)
 	{
 		if (Setting.Target.GetValue())

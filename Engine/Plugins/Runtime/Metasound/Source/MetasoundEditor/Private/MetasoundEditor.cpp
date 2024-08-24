@@ -117,6 +117,11 @@ namespace Metasound
 				ECVF_Default);
 		} // namespace AssetEditorPrivate
 
+		bool PageEditorEnabled()
+		{
+			return AssetEditorPrivate::EnablePageEditor != 0;
+		}
+
 		namespace TabNamesPrivate
 		{
 			const FName Analyzers = "MetasoundEditor_Analyzers";

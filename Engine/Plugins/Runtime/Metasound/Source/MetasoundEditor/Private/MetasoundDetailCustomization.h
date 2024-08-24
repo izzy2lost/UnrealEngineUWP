@@ -74,7 +74,6 @@ namespace Metasound
 			TSet<FName> ImplementedNames;
 			TSharedPtr<SSearchableComboBox> ComboBox;
 			TSharedPtr<SVerticalBox> EntryWidgets;
-			FString ItemName;
 			FName BuildPageName;
 
 			class FPageListener : public Frontend::IDocumentBuilderTransactionListener

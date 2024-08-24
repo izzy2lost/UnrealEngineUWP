@@ -75,15 +75,20 @@ private:
 	FPerPlatformBool Target = true;
 
 #if WITH_EDITORONLY_DATA
-	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s) (ignored if target is true).
+	// When true, exclude page data when cooking from the assigned platform(s)/platform group(s) (ignored if target is true for corresponding platform/group).
 	UPROPERTY(EditAnywhere, config, Category = "Pages")
-	FPerPlatformBool Exclude = false;
+	FPerPlatformBool ExcludeFromCook = false;
 #endif //WITH_EDITORONLY_DATA
 
 public:
 #if WITH_EDITOR
-	bool ExcludePageFromCook(FName PlatformName) const;
-	TArray<FName> GetImplementedPlatforms() const;
+	// Returns whether or not page should be excluded from being cooked on the given platform/platform group.
+	bool GetExcludeFromCook(FName PlatformName) const;
+
+	// Returns array of platforms/platform groups page is valid target on.
+	TArray<FName> GetTargetPlatforms() const;
+
+	// Returns whether platform/platform group provided can target the provided page.
 	bool PlatformCanTargetPage(FName PlatformName) const;
 #endif //WITH_EDITOR
 
@@ -207,10 +212,12 @@ public:
 #endif // WITH_EDITORONLY_DATA
 
 #if WITH_EDITOR
-	// Returns superset of explicitly implemented page platforms (and groups) as
-	// defined in PageSettings.
-	TArray<FName> GetImplementedPagePlatforms() const;
+	// Returns superset of page platforms (and groups) that define page target(s).
+	TArray<FName> GetAllPlatformNamesImplementingTargets() const;
 #endif // WITH_EDITOR
+
+	// Returns the project-specific page settings (does not include the required default settings).
+	const TArray<FMetaSoundPageSettings>& GetProjectPageSettings() const { return PageSettings; }
 
 	// Returns the currently targeted page settings.
 	const FMetaSoundPageSettings& GetTargetPageSettings() const;
@@ -225,9 +232,8 @@ public:
 	static FName GetQualitySettingPropertyName();
 #endif // WITH_EDITORONLY_DATA
 
-	// Iterates possible page settings in order. Does not include default page settings. If optionally set
-	// to reverse, iterates in reverse. Does *not* include default setting (as fallback therein is not related
-	// to user-defined, ordered page settings).
+	// Iterates possible page settings in order (including the default page settings, which is always last). If 
+	// optionally set to reverse, iterates in reverse.
 	void IteratePageSettings(TFunctionRef<void(const FMetaSoundPageSettings&)> Iter, bool bReverse = false) const;
 
 	// Sets the target page to the given name. Returns true if associated page settings were found

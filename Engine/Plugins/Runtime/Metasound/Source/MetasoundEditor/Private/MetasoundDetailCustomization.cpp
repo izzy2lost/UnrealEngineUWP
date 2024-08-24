@@ -346,7 +346,6 @@ namespace Metasound::Editor
 	}
 
 	FMetasoundPagesDetailCustomization::FMetasoundPagesDetailCustomization()
-		: ItemName(TEXT("Page"))
 	{
 	}
 
@@ -392,7 +391,7 @@ namespace Metasound::Editor
 				{
 					UObject& MetaSound = GetMetaSound();
 
-					const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddPageTransactionFormat", "Add MetaSound Page '{0}'"), FText::FromString(*NameToAdd)));
+					const FScopedTransaction Transaction(FText::Format(LOCTEXT("AddPageTransactionFormat", "Add MetaSound Page Graph '{0}'"), FText::FromString(*NameToAdd)));
 					MetaSound.Modify();
 
 					// Underlying DocBuilder's pageID is a property that is tracked by transaction stack, so signal as modifying behavior
@@ -408,7 +407,7 @@ namespace Metasound::Editor
 			.Content()
 			[
 				SNew(STextBlock)
-				.Text(LOCTEXT("UpdatePageAction", "Add Page..."))
+				.Text(LOCTEXT("AddPageGraphAction", "Add Page Graph..."))
 				.IsEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)))
 			];
 
@@ -432,7 +431,7 @@ namespace Metasound::Editor
 					using namespace Frontend;
 					UObject& MetaSound = GetMetaSound();
 
-					const FScopedTransaction Transaction(LOCTEXT("ResetPagesTransaction", "Reset MetaSound Pages"));
+					const FScopedTransaction Transaction(LOCTEXT("ResetGraphPagesTransaction", "Reset MetaSound Graph Pages"));
 					MetaSound.Modify();
 
 					constexpr bool bClearDefaultGraph = false;
@@ -444,14 +443,14 @@ namespace Metasound::Editor
 					UpdateItemNames();
 					ComboBox->RefreshOptions();
 					FGraphBuilder::RegisterGraphWithFrontend(MetaSound);
-				}), LOCTEXT("ResetPagesTooltip1", "Removes all pages from the given MetaSound less the default."))
+				}), LOCTEXT("ResetGraphPagesTooltip", "Removes all page graphs from the given MetaSound less the default."))
 			];
 
 		Utilities->SetEnabled(TAttribute<bool>::Create(TAttribute<bool>::FGetter::CreateSP(this, &FMetaSoundDetailCustomizationBase::IsGraphEditable)));
 
 		{
-			const FText HeaderName = LOCTEXT("PageGraphsDisplayName", "Pages");
-			IDetailCategoryBuilder& Category = DetailLayout.EditCategory("Pages", HeaderName);
+			const FText HeaderName = LOCTEXT("PageGraphsDisplayName", "Graphs");
+			IDetailCategoryBuilder& Category = DetailLayout.EditCategory("Graphs", HeaderName);
 			Category.AddCustomRow(HeaderName)[Utilities];
 			Category.AddCustomRow(LOCTEXT("ImplementedPagesLabel", "Graphs")) [ SAssignNew(EntryWidgets, SVerticalBox) ];
 		}

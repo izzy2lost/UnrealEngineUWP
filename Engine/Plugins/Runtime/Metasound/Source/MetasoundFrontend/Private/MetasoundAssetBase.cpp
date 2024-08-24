@@ -325,8 +325,14 @@ void FMetasoundAssetBase::UpdateAndRegisterForExecution(Metasound::Frontend::FMe
 	if (InRegistrationOptions.bAutoUpdate)
 	{
 #if WITH_EDITORONLY_DATA
-		FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
-		const bool bDidUpdate = VersionDependencies(DocBuilder, InRegistrationOptions.bAutoUpdateLogWarningOnDroppedConnection);
+		bool bDidUpdate = false;
+		
+		// Only attempt asset versioning if owner is asset (dependency versioning on runtime MetaSound instances isn't supported nor necessary).
+		if (Owner->IsAsset())
+		{
+			FMetaSoundFrontendDocumentBuilder& DocBuilder = IDocumentBuilderRegistry::GetChecked().FindOrBeginBuilding(Owner);
+			VersionDependencies(DocBuilder, InRegistrationOptions.bAutoUpdateLogWarningOnDroppedConnection);
+		}
 #else // !WITH_EDITORONLY_DATA
 		constexpr bool bDidUpdate = false;
 #endif // WITH_EDITORONLY_DATA

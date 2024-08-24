@@ -472,17 +472,17 @@ namespace Metasound::Engine
 		bool bResolved = false;
 		FGuid ResolvedPageID = Frontend::DefaultPageID;
 		constexpr bool bReverse = true;
-		bool bFoundMatch = false;
+		bool bFoundTarget = false;
 		Settings.IteratePageSettings([&](const FMetaSoundPageSettings& PageSettings)
 		{
-			bFoundMatch |= PageSettings.UniqueId == TargetPageID;
-			if (bFoundMatch && !bResolved)
+			bFoundTarget |= PageSettings.UniqueId == TargetPageID;
+			if (bFoundTarget && !bResolved)
 			{
 				const bool bAssetImplementsPage = TargetPageResolveScratch.Contains(PageSettings.UniqueId);
 				if (bAssetImplementsPage)
 				{
 #if WITH_EDITOR
-					const bool bIsCooked = !PageSettings.ExcludePageFromCook(PlatformName);
+					const bool bIsCooked = !PageSettings.GetExcludeFromCook(PlatformName);
 					if (bIsCooked)
 					{
 						bResolved = true;
