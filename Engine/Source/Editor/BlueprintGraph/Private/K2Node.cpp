@@ -912,16 +912,7 @@ UK2Node::ERedirectType UK2Node::DoPinsMatchForReconstruction(const UEdGraphPin* 
 		}
 		else
 		{
-			// There is a special case for the 'self' pin because if you redirect a function, you potentially could also want to redirect the 'self' pin
-			// e.g. redirecting a member function to a static non-member function that takes the previous 'this' implicit parameter as an explicit parameter.
-			if (NewPin->PinName == UEdGraphSchema_K2::PN_Self)
-			{
-				RedirectType = (NewPin->bHidden == OldPin->bHidden) ? ERedirectType_Name : ERedirectType_None;
-			}
-			else
-			{
-				RedirectType = ERedirectType_Name;
-			}
+			RedirectType = ERedirectType_Name;
 		}
 	}
 	else
