@@ -63,11 +63,6 @@ namespace Metasound
 {
 	namespace Editor
 	{
-		namespace ModulePrivate
-		{
-			static const FText PageValuePropertyText = LOCTEXT("Node_DefaultPageValuePropertyName", "Page Value");
-		} // namespace ModulePrivate
-
 		using FMetasoundGraphPanelPinFactory = FGraphPanelPinFactory;
 
 		static const FName AssetToolName { "AssetTools" };
@@ -425,6 +420,13 @@ namespace Metasound
 			void RegisterSettingsDelegates()
 			{
 				using namespace Engine;
+
+				// All the following delegates are used for UX notification, audition
+				// and PIE which are not desired/necessary when cooking.
+				if (IsRunningCookCommandlet())
+				{
+					return;
+				}
 
 				if (UMetaSoundSettings* Settings = GetMutableDefault<UMetaSoundSettings>())
 				{

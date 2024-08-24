@@ -160,8 +160,8 @@ namespace Metasound::Engine
 		void AddBuilderInternal(const FMetasoundFrontendClassName& InClassName, UMetaSoundBuilderBase* NewBuilder) const;
 		bool CanPostEventLog(ELogEvent Event, ELogVerbosity::Type Verbosity) const;
 		void FinishBuildingInternal(UMetaSoundBuilderBase& Builder, bool bForceUnregisterNodeClass) const;
-		FGuid ResolveTargetPageIDInternal() const;
-		FGuid ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const FGuid& TargetPageID, FName PlatformName) const;
+		FGuid ResolveTargetPageIDInternal(const TArray<FGuid>& PageIdsToResolve) const;
+		FGuid ResolveTargetPageIDInternal(const UMetaSoundSettings& Settings, const TArray<FGuid>& PageIdsToResolve, const FGuid& TargetPageID, FName PlatformName) const;
 
 #if WITH_EDITOR
 		FOnResolveEditorPage OnResolveAuditionPage;
@@ -170,8 +170,9 @@ namespace Metasound::Engine
 		FOnResolvePage OnResolveProjectPage;
 
 		// Reuseable scratch array of pages to resolve, which is used to
-		// optimize/reduce numboer of allocations required when resolving document.
+		// optimize/reduce number of allocations required when resolving document.
 		mutable TArray<FGuid> TargetPageResolveScratch;
+		mutable FCriticalSection TargetPageResolveScratchCritSec;
 
 		TSortedMap<ELogEvent, ELogVerbosity::Type> EventLogVerbosity;
 	};
