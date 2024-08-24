@@ -15,13 +15,13 @@
 #if WITH_EDITOR
 #include "Editor/EditorEngine.h"
 #include "Misc/App.h"
+#include "Misc/ConfigCacheIni.h"
 #include "Misc/MessageDialog.h"
 #include "HAL/PlatformFileManager.h"
 
 #if PLATFORM_WINDOWS || PLATFORM_LINUX
 #include "Framework/Docking/TabManager.h"
 #include "Framework/Notifications/NotificationManager.h"
-#include "Misc/ConfigCacheIni.h"
 #include "Widgets/Notifications/SNotificationList.h"
 #include "DataDrivenShaderPlatformInfo.h"
 #endif
