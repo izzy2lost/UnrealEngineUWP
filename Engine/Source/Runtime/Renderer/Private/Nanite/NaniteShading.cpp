@@ -1255,9 +1255,7 @@ void DispatchBasePass(
 	ShadingConfig.bHighPrecision	= UsingHighPrecisionGBuffer();
 	ShadingConfig.bBundleShading	= ShaderBundle != nullptr && UseShadingShaderBundle(Scene.GetShaderPlatform());
 	ShadingConfig.bBundleEmulation	= ShadingConfig.bBundleShading && CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
-
-	static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
-	ShadingConfig.bShowDrawEvents = ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
+	ShadingConfig.bShowDrawEvents	= GShowMaterialDrawEvents != 0;
 
 	const bool bParallelDispatch = GRHICommandList.UseParallelAlgorithms() && CVarParallelBasePassBuild.GetValueOnRenderThread() != 0 &&
 								   FParallelMeshDrawCommandPass::IsOnDemandShaderCreationEnabled();

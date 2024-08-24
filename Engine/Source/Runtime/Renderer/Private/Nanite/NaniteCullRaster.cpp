@@ -28,6 +28,7 @@
 #include "TessellationTable.h"
 #include "SceneCulling/SceneCullingRenderer.h"
 #include "PSOPrecacheValidation.h"
+#include "UnrealEngine.h"
 
 DECLARE_DWORD_COUNTER_STAT(TEXT("CullingContexts"), STAT_NaniteCullingContexts, STATGROUP_Nanite);
 
@@ -2956,9 +2957,7 @@ private:
 			FHWRasterizePS::FParameters Parameters /* Intentional Copy */
 		) const
 		{
-			static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
-
-			const bool bShowDrawEvents		= ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
+			const bool bShowDrawEvents		= GShowMaterialDrawEvents != 0;
 			const bool bAllowPrecacheSkip	= GSkipDrawOnPSOPrecaching != 0;
 			const bool bTestPrecacheSkip	= CVarNaniteTestPrecacheDrawSkipping.GetValueOnRenderThread() != 0;
 			const bool bBundleEmulation		= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
@@ -3195,9 +3194,7 @@ private:
 			bool bPatches
 		) const
 		{
-			static auto ShowMaterialDrawEventsVar = IConsoleManager::Get().FindConsoleVariable(TEXT("r.ShowMaterialDrawEvents"));
-
-			const bool bShowDrawEvents	= ShowMaterialDrawEventsVar && ShowMaterialDrawEventsVar->GetInt() != 0;
+			const bool bShowDrawEvents	= GShowMaterialDrawEvents != 0;
 			const bool bBundleEmulation	= CVarNaniteBundleEmulation.GetValueOnRenderThread() != 0;
 
 			if (DispatchList.Indirections.Num() > 0)
