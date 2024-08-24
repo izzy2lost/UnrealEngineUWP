@@ -7,7 +7,7 @@
 
 /** A perlin noise shaker for a single number. */
 USTRUCT(BlueprintType)
-struct GAMEPLAYCAMERAS_API FPerlinNoiseShaker
+struct ENGINECAMERAS_API FPerlinNoiseShaker
 {
 	GENERATED_BODY()
 
@@ -33,7 +33,7 @@ struct GAMEPLAYCAMERAS_API FPerlinNoiseShaker
  * A camera shake that uses Perlin noise to shake the camera.
  */
 UCLASS(meta=(AutoExpandCategories="Location,Rotation,FOV,Timing"))
-class GAMEPLAYCAMERAS_API UPerlinNoiseCameraShakePattern : public USimpleCameraShakePattern
+class ENGINECAMERAS_API UPerlinNoiseCameraShakePattern : public USimpleCameraShakePattern
 {
 public:
 

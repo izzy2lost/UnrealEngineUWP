@@ -129,7 +129,7 @@ private:
  * Information about an active camera animation inside UCameraAnimationCameraModifier.
  */
 USTRUCT()
-struct GAMEPLAYCAMERAS_API FActiveCameraAnimationInfo
+struct ENGINECAMERAS_API FActiveCameraAnimationInfo
 {
 	GENERATED_BODY()
 
@@ -182,7 +182,7 @@ struct GAMEPLAYCAMERAS_API FActiveCameraAnimationInfo
  * A camera modifier that plays camera animation sequences.
  */
 UCLASS(config=Camera)
-class GAMEPLAYCAMERAS_API UCameraAnimationCameraModifier : public UCameraModifier
+class ENGINECAMERAS_API UCameraAnimationCameraModifier : public UCameraModifier
 {
 	GENERATED_BODY()
 
@@ -271,11 +271,12 @@ protected:
  * This prevents breaking Blueprints now that APlayerCameraManager::StartCameraShake returns the base class.
  */
 UCLASS()
-class GAMEPLAYCAMERAS_API UGameplayCamerasFunctionLibrary : public UBlueprintFunctionLibrary
+class ENGINECAMERAS_API UEngineCameraAnimationFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
+
 	UFUNCTION(BlueprintPure, Category="Camera Animation", meta=(BlueprintAutocast))
 	static UCameraAnimationCameraModifier* Conv_CameraAnimationCameraModifier(APlayerCameraManager* PlayerCameraManager);
 
@@ -284,6 +285,11 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Camera Animation", meta = (BlueprintAutocast))
 	static ECameraAnimationPlaySpace Conv_CameraAnimationPlaySpace(ECameraShakePlaySpace CameraShakePlaySpace);
+};
+
+//UE_DEPRECATED(5.5, "Please use UEngineCameraAnimationFunctionLibrary")
+class ENGINECAMERAS_API UGameplayCamerasFunctionLibrary : public UEngineCameraAnimationFunctionLibrary
+{
 };
 
 

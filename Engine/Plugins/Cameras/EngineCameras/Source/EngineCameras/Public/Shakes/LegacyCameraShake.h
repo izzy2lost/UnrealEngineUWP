@@ -38,7 +38,7 @@ enum EInitialOscillatorOffset : int
 
 /** Defines oscillation of a single number. */
 USTRUCT(BlueprintType)
-struct GAMEPLAYCAMERAS_API FFOscillator
+struct ENGINECAMERAS_API FFOscillator
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -80,7 +80,7 @@ struct GAMEPLAYCAMERAS_API FFOscillator
 
 /** Defines FRotator oscillation. */
 USTRUCT(BlueprintType)
-struct GAMEPLAYCAMERAS_API FROscillator
+struct ENGINECAMERAS_API FROscillator
 {
 	GENERATED_USTRUCT_BODY()
 
@@ -122,7 +122,7 @@ struct FVOscillator
  * Legacy camera shake which can do either oscillation or run camera anims.
  */
 UCLASS(Blueprintable, HideCategories = (CameraShakePattern))
-class GAMEPLAYCAMERAS_API ULegacyCameraShake : public UCameraShakeBase
+class ENGINECAMERAS_API ULegacyCameraShake : public UCameraShakeBase
 {
 	GENERATED_UCLASS_BODY()
 
@@ -290,7 +290,7 @@ private:
  * to the owner shake.
  */
 UCLASS(HideDropdown)
-class GAMEPLAYCAMERAS_API ULegacyCameraShakePattern : public UCameraShakePattern
+class ENGINECAMERAS_API ULegacyCameraShakePattern : public UCameraShakePattern
 {
 	GENERATED_BODY()
 
@@ -311,7 +311,7 @@ private:
  * This prevents breaking Blueprints now that APlayerCameraManager::StartCameraShake returns the base class.
  */
 UCLASS()
-class GAMEPLAYCAMERAS_API ULegacyCameraShakeFunctionLibrary : public UBlueprintFunctionLibrary
+class ENGINECAMERAS_API ULegacyCameraShakeFunctionLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 

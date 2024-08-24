@@ -17,7 +17,7 @@ enum class EInitialWaveOscillatorOffsetType : uint8
 
 /** A wave oscillator for a single number. */
 USTRUCT(BlueprintType)
-struct GAMEPLAYCAMERAS_API FWaveOscillator
+struct ENGINECAMERAS_API FWaveOscillator
 {
 	GENERATED_BODY()
 
@@ -51,7 +51,7 @@ struct GAMEPLAYCAMERAS_API FWaveOscillator
  * A camera shake that uses oscillations to move the camera.
  */
 UCLASS(meta=(AutoExpandCategories="Location,Rotation,FOV,Timing"))
-class GAMEPLAYCAMERAS_API UWaveOscillatorCameraShakePattern : public USimpleCameraShakePattern
+class ENGINECAMERAS_API UWaveOscillatorCameraShakePattern : public USimpleCameraShakePattern
 {
 public:
 

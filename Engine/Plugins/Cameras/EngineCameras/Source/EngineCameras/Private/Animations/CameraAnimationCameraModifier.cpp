@@ -7,9 +7,8 @@
 #include "CameraAnimationSequencePlayer.h"
 #include "Engine/Canvas.h"
 #include "Engine/Engine.h"
+#include "EngineCamerasModule.h"
 #include "GameFramework/PlayerController.h"
-#include "GameplayCameras.h"
-#include "IGameplayCamerasModule.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/Object.h"
 
@@ -463,12 +462,12 @@ void UCameraAnimationCameraModifier::TickAnimation(FActiveCameraAnimationInfo& C
 	}
 }
 
-UCameraAnimationCameraModifier* UGameplayCamerasFunctionLibrary::Conv_CameraAnimationCameraModifier(APlayerCameraManager* PlayerCameraManager)
+UCameraAnimationCameraModifier* UEngineCameraAnimationFunctionLibrary::Conv_CameraAnimationCameraModifier(APlayerCameraManager* PlayerCameraManager)
 {
 	return PlayerCameraManager ? Cast<UCameraAnimationCameraModifier>(PlayerCameraManager->FindCameraModifierByClass(UCameraAnimationCameraModifier::StaticClass())) : nullptr;
 }
 
-ECameraShakePlaySpace UGameplayCamerasFunctionLibrary::Conv_CameraShakePlaySpace(ECameraAnimationPlaySpace CameraAnimationPlaySpace)
+ECameraShakePlaySpace UEngineCameraAnimationFunctionLibrary::Conv_CameraShakePlaySpace(ECameraAnimationPlaySpace CameraAnimationPlaySpace)
 {
 	switch (CameraAnimationPlaySpace)
 	{
@@ -479,7 +478,7 @@ ECameraShakePlaySpace UGameplayCamerasFunctionLibrary::Conv_CameraShakePlaySpace
 	}
 }
 
-ECameraAnimationPlaySpace UGameplayCamerasFunctionLibrary::Conv_CameraAnimationPlaySpace(ECameraShakePlaySpace CameraShakePlaySpace)
+ECameraAnimationPlaySpace UEngineCameraAnimationFunctionLibrary::Conv_CameraAnimationPlaySpace(ECameraShakePlaySpace CameraShakePlaySpace)
 {
 	switch (CameraShakePlaySpace)
 	{

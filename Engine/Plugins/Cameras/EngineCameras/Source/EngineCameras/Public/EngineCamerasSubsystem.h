@@ -3,7 +3,7 @@
 #pragma once
 
 #include "Subsystems/WorldSubsystem.h"
-#include "GameplayCamerasSubsystem.generated.h"
+#include "EngineCamerasSubsystem.generated.h"
 
 class UCameraAnimationSequence;
 struct FCameraAnimationHandle;
@@ -13,14 +13,14 @@ struct FCameraAnimationParams;
  * World subsystem that holds global objects for handling camera animation sequences.
  */
 UCLASS()
-class UGameplayCamerasSubsystem : public UWorldSubsystem
+class UEngineCamerasSubsystem : public UWorldSubsystem
 {
 	GENERATED_BODY()
 
 public:
 
 	/** Get the camera animation sequence subsystem for the given world */
-	static UGameplayCamerasSubsystem* GetGameplayCamerasSubsystem(const UWorld* InWorld);
+	static UEngineCamerasSubsystem* GetEngineCamerasSubsystem(const UWorld* InWorld);
 
 public:
 
@@ -68,7 +68,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Camera Animation")
 	void StopAllCameraAnimations(APlayerController* PlayerController, bool bImmediate = false);
 };
-
 
 #if UE_ENABLE_INCLUDE_ORDER_DEPRECATED_IN_5_2
 #include "CameraAnimationCameraModifier.h"

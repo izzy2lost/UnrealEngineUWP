@@ -9,7 +9,7 @@
  * A base class for a simple camera shake.
  */
 UCLASS(Abstract)
-class GAMEPLAYCAMERAS_API USimpleCameraShakePattern : public UCameraShakePattern
+class ENGINECAMERAS_API USimpleCameraShakePattern : public UCameraShakePattern
 {
 public:
 

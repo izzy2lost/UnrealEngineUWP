@@ -1,24 +1,25 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
-#include "GameplayCamerasSubsystem.h"
+#include "EngineCamerasSubsystem.h"
 #include "CameraAnimationCameraModifier.h"
 #include "Engine/World.h"
+#include "GameFramework/PlayerController.h"
 
-#include UE_INLINE_GENERATED_CPP_BY_NAME(GameplayCamerasSubsystem)
+#include UE_INLINE_GENERATED_CPP_BY_NAME(EngineCamerasSubsystem)
 
-#define LOCTEXT_NAMESPACE "GameplayCamerasSubsystem"
+#define LOCTEXT_NAMESPACE "EngineCamerasSubsystem"
 
-UGameplayCamerasSubsystem* UGameplayCamerasSubsystem::GetGameplayCamerasSubsystem(const UWorld* InWorld)
+UEngineCamerasSubsystem* UEngineCamerasSubsystem::GetEngineCamerasSubsystem(const UWorld* InWorld)
 {
 	if (InWorld)
 	{
-		return InWorld->GetSubsystem<UGameplayCamerasSubsystem>();
+		return InWorld->GetSubsystem<UEngineCamerasSubsystem>();
 	}
 
 	return nullptr;
 }
 
-FCameraAnimationHandle UGameplayCamerasSubsystem::PlayCameraAnimation(APlayerController* PlayerController, UCameraAnimationSequence* Sequence, FCameraAnimationParams Params)
+FCameraAnimationHandle UEngineCamerasSubsystem::PlayCameraAnimation(APlayerController* PlayerController, UCameraAnimationSequence* Sequence, FCameraAnimationParams Params)
 {
 	UCameraAnimationCameraModifier* CameraModifier = UCameraAnimationCameraModifier::GetCameraAnimationCameraModifierFromPlayerController(PlayerController);
 	if (ensureMsgf(CameraModifier, TEXT("No camera modifier found on the player controller")))
@@ -29,7 +30,7 @@ FCameraAnimationHandle UGameplayCamerasSubsystem::PlayCameraAnimation(APlayerCon
 	return FCameraAnimationHandle::Invalid;
 }
 
-bool UGameplayCamerasSubsystem::IsCameraAnimationActive(APlayerController* PlayerController, const FCameraAnimationHandle& Handle) const
+bool UEngineCamerasSubsystem::IsCameraAnimationActive(APlayerController* PlayerController, const FCameraAnimationHandle& Handle) const
 {
 	UCameraAnimationCameraModifier* CameraModifier = UCameraAnimationCameraModifier::GetCameraAnimationCameraModifierFromPlayerController(PlayerController);
 	if (CameraModifier)
@@ -39,7 +40,7 @@ bool UGameplayCamerasSubsystem::IsCameraAnimationActive(APlayerController* Playe
 	return false;
 }
 
-void UGameplayCamerasSubsystem::StopCameraAnimation(APlayerController* PlayerController, const FCameraAnimationHandle& Handle, bool bImmediate)
+void UEngineCamerasSubsystem::StopCameraAnimation(APlayerController* PlayerController, const FCameraAnimationHandle& Handle, bool bImmediate)
 {
 	UCameraAnimationCameraModifier* CameraModifier = UCameraAnimationCameraModifier::GetCameraAnimationCameraModifierFromPlayerController(PlayerController);
 	if (ensureMsgf(CameraModifier, TEXT("No camera modifier found on the player controller")))
@@ -50,7 +51,7 @@ void UGameplayCamerasSubsystem::StopCameraAnimation(APlayerController* PlayerCon
 	FFrame::KismetExecutionMessage(TEXT("Can't stop camera animation: no camera animation modifier found"), ELogVerbosity::Error);
 }
 
-void UGameplayCamerasSubsystem::StopAllCameraAnimationsOf(APlayerController* PlayerController, UCameraAnimationSequence* Sequence, bool bImmediate)
+void UEngineCamerasSubsystem::StopAllCameraAnimationsOf(APlayerController* PlayerController, UCameraAnimationSequence* Sequence, bool bImmediate)
 {
 	UCameraAnimationCameraModifier* CameraModifier = UCameraAnimationCameraModifier::GetCameraAnimationCameraModifierFromPlayerController(PlayerController);
 	if (ensureMsgf(CameraModifier, TEXT("No camera modifier found on the player controller")))
@@ -61,7 +62,7 @@ void UGameplayCamerasSubsystem::StopAllCameraAnimationsOf(APlayerController* Pla
 	FFrame::KismetExecutionMessage(TEXT("Can't stop camera animations: no camera animation modifier found"), ELogVerbosity::Error);
 }
 
-void UGameplayCamerasSubsystem::StopAllCameraAnimations(APlayerController* PlayerController, bool bImmediate)
+void UEngineCamerasSubsystem::StopAllCameraAnimations(APlayerController* PlayerController, bool bImmediate)
 {
 	UCameraAnimationCameraModifier* CameraModifier = UCameraAnimationCameraModifier::GetCameraAnimationCameraModifierFromPlayerController(PlayerController);
 	if (ensureMsgf(CameraModifier, TEXT("No camera modifier found on the player controller")))

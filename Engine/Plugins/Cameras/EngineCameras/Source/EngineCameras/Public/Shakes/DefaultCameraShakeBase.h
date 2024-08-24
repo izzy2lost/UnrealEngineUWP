@@ -9,7 +9,7 @@
  * Like UCameraShakeBase but with a perlin noise shake pattern by default, for convenience.
  */
 UCLASS()
-class GAMEPLAYCAMERAS_API UDefaultCameraShakeBase : public UCameraShakeBase
+class ENGINECAMERAS_API UDefaultCameraShakeBase : public UCameraShakeBase
 {
 	GENERATED_BODY()
 
